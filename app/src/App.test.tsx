@@ -9,8 +9,16 @@ const backend = vi.hoisted(() => ({
   setMarketPresence: vi.fn(), createOrder: vi.fn(), updateOrder: vi.fn(),
 }))
 const overlay = vi.hoisted(() => ({ showRewardOverlay: vi.fn(), hideRewardOverlay: vi.fn() }))
+const windowApi = vi.hoisted(() => ({
+  minimizeWindow: vi.fn(),
+  toggleMaximizeWindow: vi.fn(),
+  closeWindow: vi.fn(),
+  readWindowMaximized: vi.fn(),
+  watchWindowResized: vi.fn(),
+}))
 vi.mock('./backend', () => backend)
 vi.mock('./overlay', () => overlay)
+vi.mock('./window', () => windowApi)
 
 import App from './App'
 import type { AppView } from './backend'
@@ -91,6 +99,13 @@ describe('MVP desktop interface', () => {
     backend.createOrder.mockResolvedValue(view)
     overlay.showRewardOverlay.mockResolvedValue(undefined)
     overlay.hideRewardOverlay.mockResolvedValue(undefined)
+    // Every mount reads the window's state once and subscribes for more; tests that never touch
+    // the controls still need those promises to resolve.
+    windowApi.minimizeWindow.mockResolvedValue(undefined)
+    windowApi.toggleMaximizeWindow.mockResolvedValue(undefined)
+    windowApi.closeWindow.mockResolvedValue(undefined)
+    windowApi.readWindowMaximized.mockResolvedValue(false)
+    windowApi.watchWindowResized.mockResolvedValue(() => {})
   })
 
   it('requires an accessible one-time risk disclosure before enabling acquisition', async () => {
@@ -799,5 +814,56 @@ describe('MVP desktop interface', () => {
     await userEvent.click(within(card).getByRole('button', { name: /list for sale/i }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not publish that listing/i)
+  })
+
+  /**
+   * The window ships with the compositor's own decorations off, so on KDE there is no titlebar to
+   * take hold of and nothing to press for minimize, maximize or close. The masthead is the
+   * titlebar: it carries the drag region and the three controls, so day-to-day window management
+   * needs no keybinding knowledge at all.
+   */
+  describe('masthead window management', () => {
+    beforeEach(() => {
+      backend.getSetupStatus.mockResolvedValue({ risk_accepted: true })
+    })
+
+    /**
+     * `deep` makes every part of the bar a grab handle except the controls standing on it --
+     * including the brand text, whose own drag attribute would otherwise answer first and
+     * refuse clicks that are meant to fall through to the bar behind it.
+     */
+    it('offers a way to move the window without compositor keybindings', async () => {
+      render(<App/>)
+      const masthead = await screen.findByRole('banner')
+      expect(masthead.querySelector('.masthead-top')).toHaveAttribute('data-tauri-drag-region', 'deep')
+      expect(masthead.querySelector('.office')).not.toHaveAttribute('data-tauri-drag-region')
+      expect(document.querySelector('.titlebar-spring')).toBeNull()
+    })
+
+    it('minimizes the window from the masthead', async () => {
+      render(<App/>)
+      await userEvent.click(await screen.findByRole('button', { name: 'Minimize window' }))
+      expect(windowApi.minimizeWindow).toHaveBeenCalledOnce()
+    })
+
+    it('maximizes the window from the masthead, named by its next action', async () => {
+      render(<App/>)
+      const maximize = await screen.findByRole('button', { name: 'Maximize window' })
+      expect(windowApi.readWindowMaximized).toHaveBeenCalled()
+      await userEvent.click(maximize)
+      expect(windowApi.toggleMaximizeWindow).toHaveBeenCalledOnce()
+    })
+
+    it('names the same control restore while maximized', async () => {
+      windowApi.readWindowMaximized.mockResolvedValue(true)
+      render(<App/>)
+      expect(await screen.findByRole('button', { name: 'Restore window' })).toBeInTheDocument()
+    })
+
+    it('closes the window from the masthead', async () => {
+      render(<App/>)
+      await userEvent.click(await screen.findByRole('button', { name: 'Close window' }))
+      expect(windowApi.closeWindow).toHaveBeenCalledOnce()
+    })
   })
 })

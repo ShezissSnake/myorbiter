@@ -115,6 +115,27 @@
   color: var(--platinum-dim); white-space: nowrap; cursor: help;
 }
 
+/* The masthead-top row is the window's titlebar: its `deep` drag region answers every press on
+   the bar except those landing on controls, which Tauri's drag script leaves clickable. */
+
+.window-controls {
+  display: flex; align-items: center; gap: .3rem; flex: none;
+  padding-left: var(--step); border-left: 1px solid var(--rule);
+}
+
+/* The three controls are drawn quiet -- a hairline on hover, not a raised plate -- because
+   they sit beside the refresh stamp and must not read as part of the page's own business.
+   Close takes the caution colour, which is how this register already says "final". */
+.window-control {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2rem; height: 2rem; padding: 0; border: 1px solid transparent; border-radius: 0;
+  background: none; color: var(--platinum-dim);
+  transition: color .12s ease, border-color .12s ease, background .12s ease;
+}
+.window-control svg { width: .65rem; height: .65rem; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: square; }
+.window-control:hover { color: var(--platinum); border-color: var(--rule-control); }
+.window-control.close:hover { background: var(--oxblood); border-color: var(--oxblood); color: var(--touchstone); }
+
 /* The office stamp coming down. */
 .stamp {
   display: inline-flex; align-items: center; gap: .5rem; flex: none;

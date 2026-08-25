@@ -25,6 +25,7 @@ import {
 } from './backend'
 import { hideRewardOverlay, showRewardOverlay } from './overlay'
 import { copyReport, openIssue, saveReport } from './report'
+import { closeWindow, minimizeWindow, readWindowMaximized, toggleMaximizeWindow, watchWindowResized } from './window'
 import { RewardCards } from './RewardCards'
 import { MetalMark } from './MetalMark'
 import { OrdersView } from './OrdersView'
@@ -102,6 +103,43 @@ function Mark({ name, className = 'punch-glyph' }: { name: Page | 'refresh' | 's
     search: <><circle cx="10.5" cy="10.5" r="7"/><path d="M15.5 15.5 22 22"/></>,
   }
   return <svg className={className} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="square" strokeLinejoin="miter">{paths[name]}</svg>
+}
+
+/**
+ * Minimize, maximize and close, drawn in the same square-stroke grammar as the page marks. The
+ * maximize control is named by what it does next -- restore while maximized -- because a button
+ * whose name never changes cannot say which press undoes the other.
+ */
+function WindowControls() {
+  const [maximized, setMaximized] = useState(false)
+  useEffect(() => {
+    let active = true
+    let unlisten: (() => void) | undefined
+    void readWindowMaximized().then(value => { if (active) setMaximized(value) })
+    void watchWindowResized(() => {
+      void readWindowMaximized().then(value => { if (active) setMaximized(value) })
+    }).then(fn => {
+      if (active) unlisten = fn
+      else fn()
+    })
+    return () => {
+      active = false
+      unlisten?.()
+    }
+  }, [])
+  return <div className="window-controls" role="group" aria-label="Window">
+    <button type="button" className="window-control" aria-label="Minimize window" onClick={() => { void minimizeWindow() }}>
+      <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1 5h8"/></svg>
+    </button>
+    <button type="button" className="window-control" aria-label={maximized ? 'Restore window' : 'Maximize window'} onClick={() => { void toggleMaximizeWindow() }}>
+      {maximized
+        ? <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M3.5 3.5h5v5h-5zM6.5 3.5v-2h-5v5h2"/></svg>
+        : <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5h7v7h-7z"/></svg>}
+    </button>
+    <button type="button" className="window-control close" aria-label="Close window" onClick={() => { void closeWindow() }}>
+      <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1l8 8M9 1L1 9"/></svg>
+    </button>
+  </div>
 }
 
 function App() {
@@ -305,7 +343,10 @@ function App() {
   const freshness = snapshotFreshness(view?.collection.snapshot, clock)
   return <div className="assay">
     <header className="masthead">
-      <div className="masthead-top">
+      {/* Decorations are off, so this row is the window's titlebar. `deep` makes the whole bar a
+          grab handle while leaving every control on it clickable; Tauri's drag script stops at
+          buttons and other interactive elements on its own. */}
+      <div className="masthead-top" data-tauri-drag-region="deep">
         <div className="office">
           <span className="office-name">TennoScope</span>
           <span className="office-role">Local assay register</span>
@@ -323,6 +364,7 @@ function App() {
             <Mark name="refresh" className="punch-glyph"/><span>{busy ? 'Refreshing…' : 'Refresh inventory'}</span>
           </button>
         </div>
+        <WindowControls/>
       </div>
       <nav className="hallmark-row" aria-label="Primary">
         {(['collection', 'rewards', 'orders', 'diagnostics', 'settings', 'about'] as const).map(item => <button

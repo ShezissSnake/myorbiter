@@ -11,6 +11,18 @@ schema, and its configuration — may change in any minor release. `0.x.y` bumps
 
 ## [Unreleased]
 
+### Added
+
+- **The masthead is the window's titlebar.** The main window runs with the compositor's own
+  decorations off, so on a desktop where nobody knows the window-management keys — KDE most of
+  all — there was nothing to grab to move it and no buttons to minimize, maximize or close it.
+  The masthead now carries Tauri's deep drag region, making the whole bar a grab handle while
+  every control standing on it stays clickable, and a quiet group of three square marks —
+  minimize, maximize/restore, close — takes its right edge, drawn in the page-mark grammar and
+  taking the caution colour only under the pointer of close. The maximize control names itself
+  by its next action and follows the real window state, so snapping from the keyboard keeps it
+  honest.
+
 ## [0.7.0] - 2026-08-22
 
 ### Added
