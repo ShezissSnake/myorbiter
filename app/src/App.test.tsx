@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -849,7 +849,7 @@ describe('MVP desktop interface', () => {
     it('maximizes the window from the masthead, named by its next action', async () => {
       render(<App/>)
       const maximize = await screen.findByRole('button', { name: 'Maximize window' })
-      expect(windowApi.readWindowMaximized).toHaveBeenCalled()
+      await waitFor(() => expect(windowApi.readWindowMaximized).toHaveBeenCalled())
       await userEvent.click(maximize)
       expect(windowApi.toggleMaximizeWindow).toHaveBeenCalledOnce()
     })
