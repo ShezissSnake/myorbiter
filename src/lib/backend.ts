@@ -285,9 +285,10 @@ export const NO_INVENTORY_YET = "No inventory read yet";
 
 /**
  * A read that failed because there's nothing there yet, not because something broke: no folder,
- * no item data downloaded yet (a missing file is "os error 2" everywhere), no inventory read.
+ * no item data downloaded yet ("not found at", from the desktop app on every system; os errors 2
+ * and 3 are Linux's and Windows' missing file or folder, from an older build), no inventory read.
  */
-export const nothingYet = (e: string) => /not found at|No dev bundle|HOME is not set|os error 2|No inventory read yet/i.test(e);
+export const nothingYet = (e: string) => /not found at|No dev bundle|HOME is not set|os error [23]\b|No inventory read yet/i.test(e);
 
 export async function loadBundle(dataDir: string): Promise<Bundle> {
   if (inTauri) return tauriBundle(dataDir);

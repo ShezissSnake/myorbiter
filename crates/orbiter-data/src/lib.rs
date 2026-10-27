@@ -19,12 +19,25 @@ use std::time::{Duration, SystemTime};
 pub enum DataError {
     #[error("TennoScope data folder not found at {0}. Open TennoScope once with Warframe running.")]
     MissingDir(PathBuf),
+    /// A file TennoScope hasn't written yet (its item data arrives once it's set up). Told apart
+    /// from other read errors by the error kind, not its wording: Windows says "path not found"
+    /// (os error 3) where Linux says "no such file" (os error 2).
+    #[error("not found at {0}: TennoScope hasn't written it yet")]
+    MissingFile(PathBuf),
     #[error("could not read {path}: {source}")]
     Io { path: PathBuf, source: std::io::Error },
     #[error("could not parse {path}: {source}")]
     Json { path: PathBuf, source: serde_json::Error },
     #[error("could not read TennoScope's database: {0}")]
     Db(#[from] rusqlite::Error),
+}
+
+fn io_error(path: &Path, source: std::io::Error) -> DataError {
+    if source.kind() == std::io::ErrorKind::NotFound {
+        DataError::MissingFile(path.to_path_buf())
+    } else {
+        DataError::Io { path: path.to_path_buf(), source }
+    }
 }
 
 #[derive(Serialize)]
@@ -86,7 +99,7 @@ struct FileState {
 }
 
 fn file_state(path: &Path) -> Result<FileState, DataError> {
-    let meta = fs::metadata(path).map_err(|source| DataError::Io { path: path.to_path_buf(), source })?;
+    let meta = fs::metadata(path).map_err(|source| io_error(path, source))?;
     Ok(FileState { len: meta.len(), modified: meta.modified().ok() })
 }
 
@@ -195,6 +208,9 @@ pub fn load_bundle(dir: &Path) -> Result<Bundle, DataError> {
 }
 
 fn read_inventory(path: &Path) -> Result<(Vec<InventoryRow>, Option<i64>), DataError> {
+    if !path.is_file() {
+        return Err(DataError::MissingFile(path.to_path_buf()));
+    }
     let conn = Connection::open_with_flags(
         path,
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
@@ -226,7 +242,7 @@ fn read_inventory(path: &Path) -> Result<(Vec<InventoryRow>, Option<i64>), DataE
 }
 
 fn read_json(path: &Path) -> Result<Value, DataError> {
-    let text = fs::read(path).map_err(|source| DataError::Io { path: path.to_path_buf(), source })?;
+    let text = fs::read(path).map_err(|source| io_error(path, source))?;
     serde_json::from_slice(&text).map_err(|source| DataError::Json { path: path.to_path_buf(), source })
 }
 
@@ -421,6 +437,20 @@ fn read_relics(path: &Path) -> Result<Vec<Value>, DataError> {
 
 #[cfg(test)]
 mod tests {
+
+    /// A TennoScope that has started but not been set up: a folder, no database, no item data.
+    /// Reported as "not found at", the words the window reads as "not set up yet", on every
+    /// system (Windows' own error for a missing folder is worded differently from Linux's).
+    #[test]
+    fn missing_files_are_reported_as_not_written_yet() {
+        let dir = std::env::temp_dir().join(format!("orbiter-fresh-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let err = load_collection(&dir).err().expect("nothing to read").to_string();
+        assert!(err.starts_with("not found at"), "{err}");
+        let err = load_catalogs(&dir).err().expect("nothing to read").to_string();
+        assert!(err.starts_with("not found at"), "{err}");
+        fs::remove_dir_all(&dir).unwrap();
+    }
     use super::*;
 
     fn temp_dir(tag: &str) -> PathBuf {
