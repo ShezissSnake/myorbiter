@@ -2,9 +2,10 @@
 // weapon parts and blueprints, relics, gems, fish, Captura scenes, Ayatan sculptures and veiled
 // rivens. What you need is worked out from what you haven't built yet: every unmastered thing
 // you don't own keeps the parts, blueprints and resources its recipe takes.
-import { baseId, gearSetParts, heldCount, UNOBTAINABLE, type Model } from "./model";
+import { baseId, gearSetParts, heldCount, UNOBTAINABLE, type Model, type Refinement } from "./model";
 import { findItem, type MarketIndex } from "./market";
-import { arcaneRows, inventoryRows, MASTERY_CATEGORIES, modRows, modSpares, partRows, relicRows, setRows, type InventoryItem, type InventoryKind, type SetRow } from "./views";
+import { arcaneRows, inventoryRows, MASTERY_CATEGORIES, modRows, modSpares, partRows, relicRows, setRows, type InventoryItem, type InventoryKind, type RelicRow, type SetRow } from "./views";
+import { expectedBest } from "./advice";
 
 /** Something unbuilt that a held item goes into, and how many of it the recipe takes. */
 export interface Need {
@@ -200,7 +201,39 @@ function listNeeds(needs: Need[]): string {
  * (warframe.market's item list) names things the game calls something else; without it, only
  * what the price table knows by the game's name or the recipe's part name is found.
  */
-export function spareRows(m: Model, index: MarketIndex | null = null, sell: SellChoices = defaultSellChoices(), platPerDucat = 0): SpareRow[] {
+/**
+ * What one crack of a relic is worth at a refinement: each reward at its price (or its ducats at
+ * your rate, when that's more), at that refinement's own odds. Solo, or the best of four cards
+ * when you crack in radshares (`squad`, your Solo/Radshare choice on Relics). Null when a prime
+ * part among its rewards has no price yet.
+ */
+export function crackValue(row: RelicRow | undefined, refinement: Refinement, squad = 1): number | null {
+  const at = row?.byRefinement[refinement];
+  if (!at || at.ev == null) return null;
+  return Math.round((squad > 1 ? expectedBest(at.out, squad) : at.ev) * 10) / 10;
+}
+
+/** Relic rows by base, per model and ducat rate, so a price check can ask what a crack is worth. */
+const relicCache = new WeakMap<Model, Map<number, Map<string, RelicRow>>>();
+/**
+ * What a crack of a listed relic is worth, by warframe.market's name and refinement ("Axi A1
+ * Relic", "radiant"); null when it isn't a relic or isn't known. A relic listing is never priced
+ * at or under it: cracking would be worth more.
+ */
+export function relicCrackFor(m: Model, name: string, subtype: string | null, platPerDucat = 0, squad = 1): number | null {
+  if (!/ Relic$/.test(name)) return null;
+  let byRate = relicCache.get(m);
+  if (!byRate) relicCache.set(m, (byRate = new Map()));
+  let rows = byRate.get(platPerDucat);
+  if (!rows) byRate.set(platPerDucat, (rows = new Map(relicRows(m, { includeUnowned: true, platPerDucat }).map((r) => [r.base, r]))));
+  const refinement = (subtype ? subtype.charAt(0).toUpperCase() + subtype.slice(1) : "Intact") as Refinement;
+  return crackValue(rows.get(name.replace(/ Relic$/, "")), refinement, squad);
+}
+
+/** The lowest whole price that beats a crack worth `crack`. */
+export const aboveCrack = (crack: number | null) => (crack == null ? null : Math.floor(crack) + 1);
+
+export function spareRows(m: Model, index: MarketIndex | null = null, sell: SellChoices = defaultSellChoices(), platPerDucat = 0, squad = 1): SpareRow[] {
   const families = unmasteredByFamily(m);
   const needs = needsByUnique(m);
   const display = partNames(m);
@@ -265,8 +298,13 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
     } else if (r.kind === "relic") {
       const base = r.marketName?.replace(/ Relic$/, "") ?? "";
       const wanted = relicKeep.get(base);
-      const ev = relicEv.get(base);
-      crack = ev ? (r.subtype === "radiant" ? ev.evRadiant : ev.evIntact) : null;
+      // Each refinement is its own thing to sell: its own odds, so its own crack value, against
+      // what that refinement sells for. Never the intact price standing in for a radiant one.
+      const refinement = (r.subtype ? r.subtype.charAt(0).toUpperCase() + r.subtype.slice(1) : "Intact") as Refinement;
+      crack = crackValue(relicEv.get(base), refinement, squad);
+      price = m.relicPrice(base, refinement);
+      const words = refinement.toLowerCase();
+      const aWords = `${/^[aeiou]/.test(words) ? "an" : "a"} ${words}`;
       if (wanted) {
         keep = r.quantity;
         need = wanted.map((w) => ({ item: w, count: 1 }));
@@ -277,12 +315,12 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
       } else if (crack == null || price == null) {
         // Only sold when it's sure to beat cracking: without both numbers, it's kept.
         keep = r.quantity;
-        why = price == null ? "No market price: kept to crack" : "What a crack is worth isn't known: kept to crack";
+        why = price == null ? `Too few ${words} ones sold lately to price it: kept to crack` : "What a crack is worth isn't known: kept to crack";
       } else if (crack >= price) {
         keep = r.quantity;
-        why = `Worth more cracked: about ${round1(crack)}p a crack, ${price}p sold`;
+        why = `Worth more cracked: about ${round1(crack)}p ${aWords} crack${squad > 1 ? " in a radshare" : ""}, ${price}p sold`;
       } else {
-        why = `Sells for more than a crack is worth (about ${round1(crack)}p a crack, ${price}p sold)`;
+        why = `Sells for more than ${aWords} crack is worth (about ${round1(crack)}p${squad > 1 ? " in a radshare" : ""}, ${price}p sold)`;
       }
     } else if (FAMILIES.some((f) => f.part.test(r.unique)) && (r.kind === "resource" || r.kind === "blueprint")) {
       const f = FAMILIES.find((x) => x.part.test(r.unique))!;

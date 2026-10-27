@@ -2,8 +2,8 @@
 // that bring your warframe.market listings in line with it. Pure: the store fetches order books
 // and sends the changes (marketStore.planBulk / applyBulk).
 import { decide, type DucatOptions } from "./advice";
-import { competitor, findItem, heldFor, overAsked, type BookOrder, type FloorRule, type Me, type MarketIndex, type MarketItem, type MyOrder, listingKey, referencePrice } from "./market";
-import { allSetRows, spareRows, type SellChoices, type SpareRow } from "./spares";
+import { competitor, findItem, heldFor, marketValue, overAsked, type BookOrder, type FloorRule, type Me, type MarketIndex, type MarketItem, type MyOrder, listingKey, referencePrice } from "./market";
+import { aboveCrack, allSetRows, spareRows, type SellChoices, type SpareRow } from "./spares";
 import type { Model } from "./model";
 import { arcaneRows, modRows, modSpares, partRows } from "./views";
 import { gearSetParts } from "./model";
@@ -57,6 +57,8 @@ export interface SellTarget {
    * down when `takeDown` is set; otherwise it's left as you listed it.
    */
   hold?: { why: string; takeDown: boolean };
+  /** Relics: what one crack at this refinement is worth. A price at or under it isn't worth selling for. */
+  crack?: number | null;
 }
 
 /** Spare-rows that go under "Everything else": not prime parts, sets, arcanes or (non-riven) mods. */
@@ -133,7 +135,7 @@ export function sellTargets(m: Model, rules: BulkRules, advice: DucatOptions, in
     }
   }
   if (rules.other) {
-    for (const r of spareRows(m, index, sell, advice.platPerDucat)) {
+    for (const r of spareRows(m, index, sell, advice.platPerDucat, advice.squad ?? 1)) {
       if (r.spare <= 0 || !otherSpare(r)) continue;
       // Relics have no trade count of their own: what they sell for decides, and cracking may beat it.
       if (r.kind === "relic" ? r.crack != null && r.price != null && r.crack >= r.price : (r.tradesPerDay ?? 0) < 1) continue;
@@ -148,6 +150,7 @@ export function sellTargets(m: Model, rules: BulkRules, advice: DucatOptions, in
         rank: null,
         subtype: r.subtype,
         quantity: loose,
+        crack: r.kind === "relic" ? r.crack : undefined,
         why: r.keep ? `${r.quantity} held, ${r.keep} kept: ${r.why}` : `${r.quantity} held: ${r.why.charAt(0).toLowerCase()}${r.why.slice(1)}`,
         each: r.price,
       });
@@ -232,21 +235,25 @@ export function cheapByMedian(m: Model, it: MarketItem, rank: number | null, min
 }
 
 /** The price to ask: the cheapest seller in game, held at your floors; with nobody in game, the daily median. */
-export function priceFor(c: BulkContext, it: MarketItem, rank: number | null, subtype: string | null, book: BookOrder[], existing: MyOrder | null = null): { price: number | null; why: string } {
+export function priceFor(c: BulkContext, it: MarketItem, rank: number | null, subtype: string | null, book: BookOrder[], existing: MyOrder | null = null, keepAbove: number | null = null): { price: number | null; why: string; value: number | null } {
   const probe: MyOrder = { id: "", itemId: it.id, type: "sell", platinum: 0, quantity: 1, rank, subtype, visible: true, updatedAt: null };
   // Your own floor for this listing: Orders keeps it under the listing's own key, whose variant
   // may be unnamed (null) where the probe names the default one.
   const floor0 = (existing && c.floors[listingKey(existing)]) ?? c.floors[listingKey(probe)] ?? c.floors[listingKey({ ...probe, subtype: null })] ?? null;
+  const relic = !!it.tags?.includes("relic");
   const rule: FloorRule = { floor: floor0, minShare: c.minShare, reference: referencePrice(c.model, it, rank, subtype), defaultSubtype: it.subtypes?.[0] ?? null };
   const comp = competitor(probe, book, c.me, rule.defaultSubtype ?? null);
-  const floor = Math.max(1, rule.floor ?? 0, rule.reference != null ? Math.ceil(rule.reference * rule.minShare) : 0);
+  // Relics: what one sells for now, not what a few lucky ones sold for.
+  const value = relic ? marketValue(rule.reference, comp) : rule.reference;
+  const floor = Math.max(1, rule.floor ?? 0, keepAbove ?? 0, value != null ? Math.ceil(value * rule.minShare) : 0);
+  const held = keepAbove != null && floor === keepAbove ? "held just above what a crack is worth" : "held at your floor";
   if (comp.price != null) {
-    const sells = overAsked(comp.price, rule.reference);
-    if (sells != null) return sells >= floor ? { price: sells, why: `what it sells for: in game it's ${comp.price}p and up, far above that` } : { price: floor, why: "held at your floor" };
-    return comp.price >= floor ? { price: comp.price, why: `cheapest in game: ${comp.cheapest?.name ?? "?"}` } : { price: floor, why: "held at your floor" };
+    const sells = overAsked(comp.price, value);
+    if (sells != null) return sells >= floor ? { price: sells, why: `what it sells for: in game it's ${comp.price}p and up, far above that`, value } : { price: floor, why: held, value };
+    return comp.price >= floor ? { price: comp.price, why: `cheapest in game: ${comp.cheapest?.name ?? "?"}`, value } : { price: floor, why: held, value };
   }
-  if (rule.reference != null) return { price: Math.max(floor, Math.round(rule.reference)), why: "nobody in game: the daily median" };
-  return { price: null, why: "no price to go by" };
+  if (value != null) return { price: Math.max(floor, Math.round(value)), why: !relic ? "nobody in game: the daily median" : rule.reference != null && value < rule.reference ? "nobody in game: what sellers on the site ask" : "nobody in game: what it sold for lately", value };
+  return { price: null, why: "no price to go by", value };
 }
 
 /** One line per change, to tell whether two plans would do the same thing. */
@@ -310,7 +317,17 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
       actions.push({ type: "skip", kind: t.kind, name: it.name, rank: t.rank, subtype, why: "Couldn't load its prices" });
       continue;
     }
-    const { price, why: priceWhy } = priceFor(c, it, t.rank, subtype, book, existing);
+    const { price, why: priceWhy, value } = priceFor(c, it, t.rank, subtype, book, existing, t.crack != null ? aboveCrack(t.crack) : null);
+    // A relic that sells for no more than a crack of it is worth: crack it instead. What it
+    // sells for is what sellers you could trade with ask, not a few lucky sales.
+    const worth = value == null ? price : price == null ? value : Math.min(price, value);
+    if (worth != null && t.crack != null && worth <= t.crack) {
+      const ref = subtype ?? "intact";
+      const why = `Goes for about ${Math.round(worth * 10) / 10}p, no more than ${/^[aeiou]/.test(ref) ? "an" : "a"} ${ref} crack is worth (about ${t.crack}p): kept to crack`;
+      if (existing) leaveListed(t.kind, it, existing, why);
+      else actions.push({ type: "skip", kind: t.kind, name: it.name, rank: t.rank, subtype, why });
+      continue;
+    }
     if (price == null || price < min) {
       const why = price == null ? "No price to go by" : `Sells for ${price}p, under your ${minWords}`;
       if (existing) leaveListed(t.kind, it, existing, why);
@@ -331,7 +348,7 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
   let partIndex: Map<string, ReturnType<typeof partRows>[number]> | null = null;
   const parts = () => (partIndex ??= new Map(partRows(c.model).map((r) => [r.name, r])));
   let otherIndex: Map<string, SpareRow> | null = null;
-  const others = () => (otherIndex ??= new Map(spareRows(c.model, c.index, c.sell, c.advice?.platPerDucat ?? 0).filter(otherSpare).map((r) => [`${r.name}|${r.subtype ?? ""}`, r])));
+  const others = () => (otherIndex ??= new Map(spareRows(c.model, c.index, c.sell, c.advice?.platPerDucat ?? 0, c.advice?.squad ?? 1).filter(otherSpare).map((r) => [`${r.name}|${r.subtype ?? ""}`, r])));
   let arcaneIndex: Map<string, ReturnType<typeof arcaneRows>[number]> | null = null;
   const arcanes = () => (arcaneIndex ??= new Map(arcaneRows(c.model).map((r) => [r.name, r])));
   /**

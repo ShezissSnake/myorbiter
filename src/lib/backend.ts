@@ -81,6 +81,8 @@ export interface Settings {
   dataDir: string;
   /** Custom EE.log location; empty finds it in the Steam libraries. */
   eeLog: string;
+  /** Carry on without an inventory until TennoScope has read one (always so on macOS). */
+  withoutInventory: boolean;
   tiers: Record<string, Tier>;
   /** Desktop notifications, sent only while orbiter's window isn't the one you're looking at. */
   notify: NotifySettings;
@@ -216,6 +218,7 @@ export const defaultSettings = (): Settings => ({
   tennoscope: { launch: true, path: "" },
   dataDir: "",
   eeLog: "",
+  withoutInventory: false,
   tiers: {},
   notify: defaultNotify(),
   tab: "home",
@@ -273,6 +276,18 @@ const tauriBundle = bundleLoader({
   collection: (dir) => invoke<CollectionPart>("load_collection", { dir: dir || null }),
   catalogs: (dir) => invoke<CatalogPart>("load_catalogs", { dir: dir || null }),
 });
+
+/** No inventory and no item data: orbiter before TennoScope has read anything (or on a Mac). */
+export const emptyBundle = (): Bundle => ({ observed_at: null, inventory: [], catalog: [], relics: [], prices: null });
+
+/** TennoScope runs but hasn't read an inventory yet. */
+export const NO_INVENTORY_YET = "No inventory read yet";
+
+/**
+ * A read that failed because there's nothing there yet, not because something broke: no folder,
+ * no item data downloaded yet (a missing file is "os error 2" everywhere), no inventory read.
+ */
+export const nothingYet = (e: string) => /not found at|No dev bundle|HOME is not set|os error 2|No inventory read yet/i.test(e);
 
 export async function loadBundle(dataDir: string): Promise<Bundle> {
   if (inTauri) return tauriBundle(dataDir);
@@ -348,6 +363,7 @@ export async function loadSettings(): Promise<Settings> {
     ...base,
     ...(raw ?? {}),
     folded: typeof raw?.folded === "boolean" ? raw.folded : null,
+    withoutInventory: raw?.withoutInventory === true,
     plannerMode: raw?.plannerMode === "radiant" ? "radiant" : "sets",
     market: { ...base.market, ...(raw?.market ?? {}), bulk: { ...base.market.bulk, ...(raw?.market?.bulk ?? {}) }, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: raw?.market?.sellable?.relicsWorthSelling ?? base.market.sellable.relicsWorthSelling }, sales: Array.isArray(raw?.market?.sales) ? raw.market.sales : [], tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], trades: Array.isArray(raw?.market?.trades) ? raw.market.trades : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, minRelicPrice: typeof raw?.market?.minRelicPrice === "number" && raw.market.minRelicPrice >= 1 ? Math.round(raw.market.minRelicPrice) : base.market.minRelicPrice, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)" },
     advice: { ...base.advice, ...(raw?.advice ?? {}) },
@@ -442,6 +458,10 @@ export const wikiUrl = (name: string) => `https://wiki.warframe.com/w/${encodeUR
 export interface TennoscopeStatus {
   /** The program orbiter would start, if found. */
   binary: string | null;
+  /** That program is the TennoScope that comes inside orbiter. */
+  bundled?: boolean;
+  /** TennoScope runs on this system (it doesn't on macOS). */
+  supported?: boolean;
   running: boolean;
   started_by_orbiter: boolean;
   /** What a patched TennoScope last reported, while fresh. */
@@ -512,6 +532,8 @@ const devTennoscope = async (): Promise<TennoscopeStatus | null> => {
 
 /** TennoScope, started and stopped by orbiter. Only the desktop app does this. */
 export const tennoscope = {
+  /** Linux's Yama ptrace_scope: above 0, TennoScope can't read the game's memory. Null: no such limit. */
+  ptraceScope: (): Promise<number | null> => (inTauri ? invoke<number | null>("ptrace_scope") : Promise.resolve(null)),
   status: (path: string): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_status", { path: path || null }) : devTennoscope()),
   start: (path: string): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_start", { path: path || null }) : devTennoscope()),
   show: (path: string): Promise<void> => (inTauri ? invoke("tennoscope_show", { path: path || null }) : Promise.resolve()),

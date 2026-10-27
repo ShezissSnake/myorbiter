@@ -166,7 +166,8 @@
   .bar { padding-top: .2rem; }
   .charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr)); gap: .8rem; margin: .8rem 0 var(--course); }
   .split { display: grid; grid-template-columns: minmax(18rem, 2fr) minmax(0, 3fr); gap: 1.6rem; align-items: start; }
-  @media (max-width: 1100px) { .split { grid-template-columns: 1fr; } }
+  /* Page area under 950 px (App sets the flag, by the room pages actually have). */
+  :global(html[data-room~="lt950"]) .split { grid-template-columns: 1fr; }
   h2 { margin: 0 0 .8rem; }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
   th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: .45rem .5rem; border-bottom: 1px solid var(--rule); }

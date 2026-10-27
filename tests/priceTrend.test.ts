@@ -25,13 +25,17 @@ test("this week against the month before, weighted by sales", () => {
   assert.equal(trendWords(trend([], T)), null);
 });
 
-test("recent price: the last 30 days' sales, weighted by how many sold, for one refinement", async () => {
+test("recent price: the middle of the last 30 days' sales, for one refinement", async () => {
   const { recentPrice } = await import("../src/lib/core/priceTrend");
   const day = (d: string, median: number, volume: number, subtype: string | null) => ({ at: `2026-${d}T00:00:00.000+00:00`, median, volume, min: median, max: median, rank: null, subtype });
   const pts = [day("08-01", 100, 50, "radiant"), day("10-20", 8, 3, "radiant"), day("10-25", 10, 1, "radiant"), day("10-25", 3, 9, "intact")];
-  assert.equal(recentPrice(pts, null, "radiant"), 8.5);
+  assert.equal(recentPrice(pts, null, "radiant"), 8, "three at 8p, one at 10p");
   assert.equal(recentPrice(pts, null, "intact"), 3);
   assert.equal(recentPrice(pts, null, "flawless"), null);
   assert.equal(recentPrice(pts, null, "radiant", 1), 10);
   assert.equal(recentPrice(pts, null, "radiant", 1, 2), null, "one sale is too few");
+  // Axi S20 radiant: one sale at 288p doesn't make nine at 2–2.5p worth 31p.
+  const s20 = [day("10-10", 288, 1, "radiant"), day("10-12", 2.5, 6, "radiant"), day("10-14", 2, 1, "radiant"), day("10-20", 2, 2, "radiant")];
+  assert.equal(recentPrice(s20, null, "radiant"), 2.5);
+  assert.equal(recentPrice([day("10-10", 2, 1, null), day("10-12", 4, 1, null)], null, null), 3, "an even split: halfway");
 });

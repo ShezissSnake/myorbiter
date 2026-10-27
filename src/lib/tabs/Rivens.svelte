@@ -438,7 +438,8 @@
   .form .plat > :global(:last-child) { position: absolute; right: .7rem; pointer-events: none; }
   .form .go { grid-column: span 2; display: flex; gap: .5rem; justify-content: flex-end; }
   .form .go .stamp { display: inline-flex; align-items: center; gap: .5rem; height: 36px; }
-  @media (max-width: 900px) { .form { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  /* Page area under 760 px (App sets the flag, by the room pages actually have). */
+  :global(html[data-room~="lt760"]) .form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .plat { display: inline-flex; align-items: center; gap: .35rem; }
   .watching { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; margin-top: .9rem; }
   .rule { display: inline-flex; align-items: center; gap: .3rem; padding: .1rem .1rem .1rem .55rem; border: 1px solid var(--gold-dim); font-size: .8rem; }

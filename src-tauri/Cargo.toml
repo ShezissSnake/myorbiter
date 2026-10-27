@@ -24,20 +24,24 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Fissures and Varzia's stock from api.warframestat.us. Blocking client, run off the main thread.
 ureq = { version = "2", features = ["json", "native-certs"] }
-# Keeps the warframe.market token in the system keyring (KWallet / GNOME Keyring).
-keyring = { version = "3", features = ["sync-secret-service", "vendored", "crypto-rust"] }
+# Keeps the warframe.market token in the system keyring (KWallet / GNOME Keyring on Linux, the
+# Credential Manager on Windows, the Keychain on macOS). Each feature only builds on its system.
+keyring = { version = "3", features = ["sync-secret-service", "vendored", "crypto-rust", "windows-native", "apple-native"] }
 # Your warframe.market status is held on a WebSocket (see presence.rs). rustls with ring, the
 # same TLS stack ureq already links, and the system's certificates like ureq's.
 tungstenite = { version = "0.28", default-features = false, features = ["handshake", "rustls-tls-native-roots"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 # Shrinks item artwork to thumbnails before caching it.
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+# Desktop notifications: the desktop's own notification service (D-Bus) on Linux, the Action
+# Center on Windows, the Notification Center on macOS.
+notify-rust = "4"
 [target.'cfg(unix)'.dependencies]
 # Ctrl+C / logout: close the TennoScope orbiter started before exiting.
 signal-hook = "0.3"
 # Stopping that TennoScope, and the user id for the private bridge folder.
 libc = "0.2"
 
-[target.'cfg(target_os = "linux")'.dependencies]
-# Desktop notifications through the desktop's notification service (D-Bus).
-notify-rust = "4"
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+# Finding, and stopping, the TennoScope orbiter started (Linux reads /proc itself).
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }

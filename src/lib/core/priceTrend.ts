@@ -66,8 +66,25 @@ export function recentPrice(points: PricePoint[], rank: number | null, subtype: 
   const end = all[all.length - 1].at;
   const d = all.filter((x) => x.at > end - days * DAY);
   if (d.reduce((n, x) => n + x.volume, 0) < minSold) return null;
-  const w = weighted(d);
+  const w = weightedMedian(d);
   return w == null ? null : Math.round(w * 10) / 10;
+}
+
+/**
+ * The middle sale, counting each day's median once per sale. Not the average: one 288p sale
+ * among nine at 2–2.5p would make it 31p.
+ */
+function weightedMedian(days: Day[]): number | null {
+  const sorted = days.filter((d) => d.volume > 0).sort((a, b) => a.median - b.median);
+  const n = sorted.reduce((s, d) => s + d.volume, 0);
+  let seen = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    seen += sorted[i].volume;
+    if (seen * 2 > n) return sorted[i].median;
+    // Exactly half below: between this day and the next.
+    if (seen * 2 === n) return (sorted[i].median + sorted[i + 1].median) / 2;
+  }
+  return null;
 }
 
 /** "Up 12% this week", "Steady", or null when there's too little to say. */

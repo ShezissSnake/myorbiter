@@ -30,5 +30,6 @@
     box-shadow: 0 2px 0 var(--slab), 0 3px 0 var(--rule);
     margin-bottom: var(--step);
   }
-  @media (max-width: 900px) { .head { grid-template-columns: 1fr; } }
+  /* Page area under 760 px (App sets the flag, by the room pages actually have). */
+  :global(html[data-room~="lt760"]) .head { grid-template-columns: 1fr; }
 </style>

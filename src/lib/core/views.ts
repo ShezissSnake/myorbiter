@@ -1,6 +1,6 @@
 // Each function turns the model into the rows one tab shows. Pure, so they are tested directly.
 
-import { UNOBTAINABLE, baseId, relicRewardRarity, splitRelicName, type Model, type PrimePart, type RelicSource } from "./model";
+import { REFINEMENTS, UNOBTAINABLE, baseId, relicRewardRarity, splitRelicName, type Model, type PrimePart, type Refinement, type RelicSource } from "./model";
 export { relicRewardRarity };
 import type { CatalogItem, InventoryRow } from "./types";
 import { acquisition, masteryPoints, type Acquisition } from "./acquire";
@@ -507,6 +507,11 @@ export interface RelicRow {
   /** (chance 0..1, plat) per reward, to work out squad cracks (best of n). */
   outIntact: { chance: number; value: number }[];
   outRadiant: { chance: number; value: number }[];
+  /**
+   * Every refinement's rewards and solo crack value: exceptional and flawless have odds of their
+   * own. `ev` is null when a prime part among the rewards has no price (see evIntact).
+   */
+  byRefinement: Partial<Record<Refinement, { ev: number | null; out: { chance: number; value: number }[] }>>;
   evDucatsIntact: number;
 }
 
@@ -601,6 +606,7 @@ export function relicRows(m: Model, opts: { includeUnowned?: boolean; platPerDuc
       evGain: evIntact != null && evRadiant != null ? Math.round((evRadiant - evIntact) * 10) / 10 : null,
       outIntact: out(intact),
       outRadiant: out(radiant),
+      byRefinement: Object.fromEntries(REFINEMENTS.filter((f) => group.byRefinement[f]).map((f) => [f, { ev: ev(group.byRefinement[f]), out: out(group.byRefinement[f]) }])),
       evDucatsIntact: Math.round(sum(rewards.map((r) => ((r.chance ?? 0) / 100) * (r.ducats ?? 0)))),
     });
   }

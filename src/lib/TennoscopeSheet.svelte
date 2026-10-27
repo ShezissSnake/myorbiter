@@ -42,17 +42,19 @@
   <section class="state">
     {#if !ts.status}
       <p class="prose">TennoScope's state is only available in the desktop app.</p>
+    {:else if ts.status.supported === false}
+      <p class="prose">TennoScope doesn't run on macOS, so orbiter works without your inventory here.</p>
     {:else if !ts.running}
       <div class="line"><i class="dot failed"></i><strong>Not running</strong></div>
       <p class="prose">
-        {#if ts.status.binary}orbiter starts it in the background when it opens. Start it now, or check Settings if it keeps stopping.{:else}orbiter couldn't find TennoScope. Set its program in Settings (your patched build is <code>~/dev/projects/tennoscope/target/release/tennoscope</code>).{/if}
+        {#if ts.status.binary}orbiter starts it in the background when it opens. Start it now, or check Settings if it keeps stopping.{:else}orbiter couldn't find TennoScope. Set its program in Settings.{/if}
       </p>
       {#if ts.status.binary}<div><button class="stamp" onclick={() => ts.check(true)}>Start TennoScope</button></div>{/if}
     {:else}
       <div class="line">
         <i class="dot ready"></i>
         <strong>Running{ts.status.started_by_orbiter ? " in the background" : ""}</strong>
-        <span class="dim small">{ts.status.started_by_orbiter ? "orbiter started it and closes it when you close orbiter" : "you started it; orbiter leaves it running"}</span>
+        <span class="dim small">{ts.status.started_by_orbiter ? `orbiter started ${ts.status.bundled ? "the copy inside it" : "it"} and closes it when you close orbiter` : "you started it; orbiter leaves it running"}</span>
       </div>
       <div class="row">
         <button onclick={() => ts.show()}>Open its window</button>

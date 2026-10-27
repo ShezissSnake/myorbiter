@@ -31,6 +31,10 @@
     quitOnWindowClose,
     type ScreenCards,
     type Settings,
+    emptyBundle,
+    nothingYet,
+    NO_INVENTORY_YET,
+    tennoscope,
   } from "./lib/backend";
   import { persistSettings } from "./lib/persist.svelte";
   import { backoff, handLoggedSale, keepSeen, thinHistory } from "./lib/core/upkeep";
@@ -71,6 +75,24 @@
   const SECTIONS = ["Fissures", "Collection", "Trade"] as const;
   /** Your choice from the fold button (kept in settings); until you make one, it folds by itself in a narrow window. */
   let width = $state(typeof window === "undefined" ? 1600 : window.innerWidth);
+  /**
+   * How much room the pages have, as flags on <html> that page styles key off: "lt900" while the
+   * page area is under 900 px wide, and so on. The page area, not the window: with the sidebar
+   * open a 1280 px window leaves less room than a 960 px one with it folded. (Not CSS container
+   * queries: they'd trap the item sheets, which open from inside a page, in the page area.)
+   */
+  const ROOM_BELOW = [1100, 950, 930, 900, 760, 640];
+  const ROOM_ABOVE = [1850];
+  function room(node: HTMLElement) {
+    const set = (w: number) => {
+      const flags = [...ROOM_BELOW.filter((b) => w < b).map((b) => `lt${b}`), ...ROOM_ABOVE.filter((b) => w >= b).map((b) => `ge${b}`)].join(" ");
+      if (document.documentElement.dataset.room !== flags) document.documentElement.dataset.room = flags;
+    };
+    const ro = new ResizeObserver((e) => set(e[0].contentRect.width));
+    ro.observe(node);
+    set(node.getBoundingClientRect().width);
+    return { destroy: () => ro.disconnect() };
+  }
   const compact = $derived.by(() => settings.folded ?? width < 1180);
 
   // Pages stay mounted once opened, so filters, sorting and scroll survive switching tabs.
@@ -110,6 +132,21 @@
   let liveError = $state<string | null>(null);
   /** The last read of TennoScope's data failed: with nothing loaded yet, a notice instead of the pages; else a note above them. */
   let error = $state<string | null>(null);
+  /**
+   * Running without an inventory: TennoScope hasn't read one yet and you chose to carry on, or
+   * this is a Mac, where TennoScope doesn't run. The pages work from an empty collection, and the
+   * real one replaces it as soon as TennoScope writes it.
+   */
+  let noInventory = $state(false);
+  /** TennoScope doesn't run on this system (macOS). */
+  const tsUnsupported = $derived(ts.status?.supported === false);
+  /** Linux's limit on reading another program's memory, when it stops TennoScope reading the game. */
+  let ptraceScope = $state<number | null>(null);
+  $effect(() => {
+    if (!model && error && nothingYet(error) && ptraceScope == null) tennoscope.ptraceScope().then((v) => (ptraceScope = v && v > 0 ? v : 0)).catch(() => {});
+  });
+  /** Where a first start stands: 1 TennoScope isn't running, 2 it hasn't been told what it may read, 3 waiting for the game. */
+  const setupStep = $derived(!ts.running || ts.unpatched ? 1 : !ts.report?.setup.setup_complete || !ts.report.setup.access_mode ? 2 : 3);
   /** When the data on screen was read. */
   let loadedAt = $state<number | null>(null);
   let loading = $state(true);
@@ -822,6 +859,7 @@
   // The listing form prices new listings by the same rules as Auto-match.
   $effect(() => {
     mkt.rules = settings.market;
+    mkt.advice = settings.advice;
   });
 
   $effect(() => {
@@ -838,15 +876,31 @@
       // The stamp first: if TennoScope writes while the bundle loads, the next check sees a newer
       // stamp and reloads, rather than the change being taken as already read.
       const next = await dataStamp(settings.dataDir);
-      bundle = await loadBundle(settings.dataDir);
+      const read = await loadBundle(settings.dataDir);
       stamp = next;
+      // TennoScope has started but not read the game yet: its item data, no inventory.
+      const empty = read.observed_at == null && !read.inventory.length;
+      if (empty && !(settings.withoutInventory || tsUnsupported) && (!bundle || noInventory)) throw new Error(NO_INVENTORY_YET);
+      bundle = read;
+      noInventory = empty;
       loadedAt = Date.now();
       error = null;
     } catch (e) {
-      error = String(e);
+      // Nothing to read yet, and you'd rather carry on (or TennoScope can't run here): an empty
+      // collection until it can. The stamp poll reloads once TennoScope writes its data.
+      if (nothingYet(String(e)) && (settings.withoutInventory || tsUnsupported) && (!bundle || noInventory)) {
+        bundle = emptyBundle();
+        noInventory = true;
+        error = null;
+      } else error = String(e);
     } finally {
       loading = false;
     }
+  }
+  /** Carry on without an inventory until TennoScope reads one (remembered). */
+  function withoutInventory() {
+    settings.withoutInventory = true;
+    void reload();
   }
   /** What went wrong reading TennoScope's data, in words (the error itself is under Details). */
   function loadProblem(e: string) {
@@ -915,7 +969,8 @@
       // Before reading its data: a fresh TennoScope re-reads the inventory once the game is up.
       ts.path = settings.tennoscope.path;
       ts.launch = settings.tennoscope.launch;
-      ts.check(true);
+      // Awaited: whether TennoScope runs here at all decides what an empty folder means.
+      await ts.check(true);
       // Every 15 s: if it stopped (crashed, or you quit it), start it again in the background.
       tsPoll = setInterval(() => ts.check(true), 15_000);
       defaultDir = await defaultDataDir();
@@ -1081,7 +1136,7 @@
         <span class="lbl">{syncing ? "Syncing…" : loading ? "Reading…" : ts.report?.setup.access_mode === "full" && ts.report.game_running ? "Sync" : "Refresh"}</span>
       </button>
       <div class="tools">
-        {#if ts.status}
+        {#if ts.status && !tsUnsupported}
           <button class="tool tsbtn tone-{tsTone}" aria-label="TennoScope" title={tsTone === "ok" ? "TennoScope: status, inventory sync, screen capture" : tsTone === "bad" ? "TennoScope: not running, or something failed. Open for details" : "TennoScope: something needs a look. Open for details"} onclick={() => (showTennoscope = true)}>
             <i></i><span class="lbl">TennoScope</span>
           </button>
@@ -1092,10 +1147,53 @@
     </div>
   </aside>
 
-  <main aria-busy={loading || syncing || !!mkt.op}>
+  <main aria-busy={loading || syncing || !!mkt.op} use:room>
     <!-- Something you started is working: reading TennoScope, syncing, a warframe.market change. -->
     {#if loading || syncing || mkt.op}<div class="progress" role="progressbar" aria-label={mkt.op ? `warframe.market: ${mkt.op}` : syncing ? "Syncing" : "Loading"}></div>{/if}
-    {#if !model && error}
+    {#if !model && error && nothingYet(error)}
+      <!-- First start: nothing read yet. What TennoScope needs, step by step. -->
+      <div class="page-inner"><div class="notice">
+        <h2 class="mark">Getting set up</h2>
+        {#if tsUnsupported}
+          <p class="prose">orbiter learns what you own from TennoScope, which reads it from the game. TennoScope doesn't run on macOS, so orbiter can't see your inventory here. Your warframe.market listings and sales, fissures, Baro and Varzia, the world's clocks and the riven finder all work without it.</p>
+          <div class="row"><button class="stamp gold" onclick={withoutInventory}>Continue without inventory</button></div>
+        {:else}
+          <p class="prose">orbiter learns what you own from TennoScope, which {ts.status?.bundled ? "comes inside orbiter and " : ""}reads it from the game. Three steps, once:</p>
+          <ol class="steps">
+            <li class:done={setupStep > 1} class:now={setupStep === 1}>
+              <strong>TennoScope runs</strong>
+              <span class="prose">
+                {#if ts.running && ts.unpatched}It's running, but it's a TennoScope that doesn't talk to orbiter. Close it, and orbiter starts its own.
+                {:else if ts.running}Running in the background{ts.status?.bundled ? ": the copy inside orbiter" : ""}. orbiter closes it when you close orbiter.
+                {:else if ts.status?.binary}Starting it…
+                {:else}orbiter couldn't find TennoScope. Set its program in Settings.{/if}
+              </span>
+              {#if ts.error}<span class="err small">{ts.error}</span>{/if}
+            </li>
+            <li class:done={setupStep > 2} class:now={setupStep === 2}>
+              <strong>Let it read your account</strong>
+              <span class="prose">Its window asks once what it may read. Choose <b>Full</b>: it then reads your inventory from the running game. Its window explains how, and the small risk that carries for your account.</span>
+              {#if setupStep === 2}<div><button class="stamp gold" onclick={() => ts.show()}>Open TennoScope</button></div>{/if}
+              {#if ts.report?.setup.access_mode && ts.report.setup.access_mode !== "full"}<span class="dim small">You chose {ts.report.setup.access_mode === "overlay" ? "Overlay" : "Companion"}: it won't read your inventory. Open TennoScope again to change it.</span>{/if}
+            </li>
+            <li class:now={setupStep === 3}>
+              <strong>Start Warframe and log in</strong>
+              <span class="prose">{ts.report?.game_running ? "Warframe is running: TennoScope reads your inventory in a moment, and this page turns into your collection by itself." : "TennoScope reads your inventory once you're in the game, and this page turns into your collection by itself."}</span>
+              {#if ptraceScope}
+                <span class="prose small">This system only lets a program read another one's memory if it started it, and TennoScope doesn't start Warframe. To allow it until you restart, run this in a terminal (it asks for your password):</span>
+                <code class="cmd">sudo sysctl kernel.yama.ptrace_scope=0</code>
+              {:else if ts.report?.game_running && (ts.report.health.game_reader.state === "failed" || ts.report.health.game_reader.state === "degraded")}
+                <span class="err small">TennoScope: {ts.report.health.game_reader.message}</span>
+              {/if}
+            </li>
+          </ol>
+          <div class="row">
+            <button onclick={withoutInventory}>Use orbiter without inventory for now</button>
+            <button onclick={() => (showSettings = true)}>Settings</button>
+          </div>
+        {/if}
+      </div></div>
+    {:else if !model && error}
       <div class="page-inner"><div class="notice">
         <h2 class="mark">Can't read TennoScope's data</h2>
         <p class="prose">{loadProblem(error)}</p>
@@ -1110,6 +1208,12 @@
     {:else if !model}
       <div class="page-inner"><div class="notice"><span class="register">Reading your collection…</span></div></div>
     {:else}
+      {#if noInventory}
+        <div class="stale" role="status">
+          <span>{tsUnsupported ? "No inventory: TennoScope, which reads it from the game, doesn't run on macOS." : "No inventory yet: your collection fills in as soon as TennoScope reads it from the game."}</span>
+          {#if !tsUnsupported}<button class="link" onclick={() => (showTennoscope = true)}>Set up</button>{/if}
+        </div>
+      {/if}
       {#if error}
         <div class="stale" role="alert" title={`${loadProblem(error)}\n${error}`}>
           <span>Couldn't re-read TennoScope's data: showing what was loaded at {hhmm(loadedAt)}.</span>
@@ -1146,7 +1250,7 @@
       {#snippet pMarket()}<Orders {model} bind:settings={settings.market} advice={settings.advice} />{/snippet}
       {#snippet pGuide()}<Guide go={(t: string) => (settings.tab = t)} bind:plannerMode={settings.plannerMode} />{/snippet}
       {#snippet pFoundry()}<Foundry {model} bind:settings={settings} />{/snippet}
-      {#snippet pInventory()}<Inventory {model} sell={settings.market.sellable} platPerDucat={settings.advice.platPerDucat} />{/snippet}
+      {#snippet pInventory()}<Inventory {model} sell={settings.market.sellable} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad} />{/snippet}
       {#snippet pWishlist()}<Wishlist {model} bind:settings={settings} />{/snippet}
       {#snippet pRivens()}<Rivens {model} bind:settings={settings} />{/snippet}
       {#snippet pStats()}<Stats {model} {settings} />{/snippet}
@@ -1268,6 +1372,16 @@
   .notice h2 { font-size: 2rem; }
   .notice .row { display: flex; gap: .6rem; flex-wrap: wrap; }
   .notice .why { font-size: .78rem; color: var(--platinum-deep); }
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: .9rem; counter-reset: step; }
+  .steps li { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: .25rem .8rem; align-items: start; opacity: .55; }
+  .steps li::before { content: counter(step); grid-row: span 4; display: grid; place-items: center; width: 1.7rem; height: 1.7rem; border: 1px solid var(--rule-bright); font-family: var(--face-register); font-size: .8rem; color: var(--platinum-dim); }
+  .steps li > * { grid-column: 2; }
+  .steps li.now { opacity: 1; }
+  .steps li.now::before { border-color: var(--gold); color: var(--gold); }
+  .steps li.done { opacity: .8; }
+  .steps li.done::before { content: "✓"; border-color: var(--verdigris); color: var(--verdigris); }
+  .steps .cmd { display: block; padding: .45rem .7rem; background: var(--well); border: 1px solid var(--rule); font-family: var(--face-register); font-size: .8rem; user-select: all; }
+  .steps strong { font-family: var(--face-mark); text-transform: uppercase; font-size: 1.05rem; letter-spacing: .01em; }
   .notice .why code { display: block; margin-top: .4rem; font-family: var(--face-register); font-size: .9em; white-space: pre-wrap; word-break: break-word; }
   /* A reload failed with data on screen: one slim line above the page, which stays as it was. */
   .stale { flex: none; display: flex; align-items: center; gap: .9rem; padding: .45rem 1.4rem; font-size: .8rem; color: var(--platinum-dim); background: rgb(214 174 74 / 8%); border-bottom: 1px solid var(--gold-dim); box-shadow: inset 3px 0 0 var(--gold); }

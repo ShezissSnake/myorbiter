@@ -1,9 +1,10 @@
 <script lang="ts">
   import type { Model } from "../core/model";
   import type { AdviceSettings, MarketSettings } from "../backend";
-  import { heldFor, holdings, listingKey, type MyOrder } from "../core/market";
+  import { heldFor, holdings, listingKey, overAsked, type MyOrder, type Plan } from "../core/market";
   import { LISTING_LIMIT } from "../core/bulk";
   import { spareOf } from "../core/views";
+  import { aboveCrack, relicCrackFor } from "../core/spares";
   import { mkt } from "../marketStore.svelte";
   import PageHead from "../ui/PageHead.svelte";
   import Stat from "../ui/Stat.svelte";
@@ -145,6 +146,20 @@
     revert(o);
   }
   /** A quantity over what you hold can't be delivered: refused, as the List form refuses it. */
+  /** What it really goes for, when every in-game seller asks more than twice that (the listing follows it instead). */
+  function goesFor(p: Plan): number | null {
+    return p.competitor.price != null && p.value != null && overAsked(p.competitor.price, p.value) != null ? Math.round(p.value * 10) / 10 : null;
+  }
+
+  /** A relic held up by what a crack of it is worth: what that crack is worth. */
+  function crackHeld(o: MyOrder, p: Plan): number | null {
+    if (p.reason !== "floor") return null;
+    const it = mkt.item(o.itemId);
+    if (!it?.tags?.includes("relic")) return null;
+    const crack = relicCrackFor(model, it.name, o.subtype ?? it.subtypes?.[0] ?? null, mkt.advice?.platPerDucat ?? 0, mkt.advice?.squad ?? 1);
+    return crack != null && aboveCrack(crack) === p.floor ? crack : null;
+  }
+
   function overHeld(o: MyOrder): string | null {
     const q = changeOf(o)?.quantity;
     const held = stock(o);
@@ -318,7 +333,7 @@
       <thead>
         <tr>
           <th>Item</th><th class="right">Qty</th><th class="right">Your price</th><th>Cheapest in game</th>
-          <th class="right willset">Will set</th><th class="right" title="Never go below this">Floor</th><th class="center">Follow</th><th class="center">Shown</th><th></th>
+          <th class="right willset">Will set</th><th class="right floorcol" title="Never go below this">Floor</th><th class="center">Follow</th><th class="center">Shown</th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -363,18 +378,21 @@
             <td class="fade">
               {#if p && p.competitor.price != null}
                 <span class="comp"><P v={p.competitor.price} /> <span class="dim small">{p.competitor.cheapest?.name} · {p.competitor.sellers} in game</span></span>
-                {#if p.competitor.ladder.length > 1}<div class="register ladder" title="The next cheapest in-game prices">{p.competitor.ladder.join(" · ")}</div>{/if}
+                {@const goes = goesFor(p)}
+                {#if goes != null}<div class="register goes" title="Everyone in game asks more than twice what it really goes for: what it sold for lately, or what sellers on the site ask if that's lower ({p.competitor.askLevel ?? '–'}p, in game or not). Priced at that, so it sells.">goes for ~{goes}p</div>
+                {:else if p.competitor.ladder.length > 1}<div class="register ladder" title="The next cheapest in-game prices">{p.competitor.ladder.join(" · ")}</div>{/if}
               {:else if p}<span class="dim small">Nobody in game</span>
               {:else if !o.visible || paused}<span class="none" title="The order book isn't read for a listing that's {o.visible ? 'left alone' : 'hidden'}">–</span>
               {:else}<span class="dim small">Not checked yet</span>{/if}
             </td>
             <td class="right fade willset">
-              {#if p?.change && !paused && o.visible}<span class="target" class:down={p.target < o.platinum} class:up={p.target > o.platinum}><span class="dim">{o.platinum} →</span> <P v={p.target} /> <span class="delta">{p.target > o.platinum ? "+" : "−"}{Math.abs(p.target - o.platinum)}</span>{#if p.reason === "floor"}<span class="tag ok" title="Held up by the floor">floor</span>{:else if p.reason === "median"}<span class="tag" title="Everyone in game asks more than twice what it has sold for lately ({p.competitor.price}p): priced at what it sells for instead">sells for</span>{/if}</span>
+              {#if p?.change && !paused && o.visible}<span class="target" class:down={p.target < o.platinum} class:up={p.target > o.platinum}><span class="dim">{o.platinum} →</span> <P v={p.target} /> <span class="delta">{p.target > o.platinum ? "+" : "−"}{Math.abs(p.target - o.platinum)}</span>{#if p.reason === "floor" && crackHeld(o, p) != null}<span class="tag ok" title="Worth more cracked: a crack of it is worth about {crackHeld(o, p)}p, so it isn't listed under {p.floor}p. Take it down to crack it instead.">crack</span>{:else if p.reason === "floor"}<span class="tag ok" title="Held up by the floor">floor</span>{:else if p.reason === "median"}<span class="tag" title="Everyone in game asks more than twice what it really goes for ({p.competitor.price}p and up): priced at that instead">sells for</span>{/if}</span>
               {:else if !o.visible}<span class="register" title="Hidden listings aren't repriced">hidden</span>
               {:else if paused}<span class="register" title="Follow is off: the repricer leaves this listing alone">left alone</span>
+              {:else if p && goesFor(p) != null}<span class="register ok" title="At what it really goes for: in game they ask {p.competitor.price}p and up">at its value</span>
               {:else if p}<span class="register ok">matched</span>{/if}
             </td>
-            <td class="right"><input type="number" min="1" placeholder={p ? `auto ${p.floor}` : "auto"} title="Your own floor for this listing; empty uses the automatic one" value={settings.floors[listingKey(o)] ?? ""} onchange={(e) => setFloor(o, e.currentTarget.value)} /></td>
+            <td class="right floorcol"><input type="number" min="1" placeholder={p ? `auto ${p.floor}` : "auto"} title="Your own floor for this listing; empty uses the automatic one" value={settings.floors[listingKey(o)] ?? ""} onchange={(e) => setFloor(o, e.currentTarget.value)} /></td>
             <td class="center"><Toggle on={!paused && o.visible} disabled={!o.visible} label="Follow the cheapest in-game seller" title={!o.visible ? "Hidden listings aren't repriced" : paused ? "Left alone by the repricer" : "Follows the cheapest in-game seller"} onchange={() => togglePause(o)} /></td>
             <td class="center"><Toggle on={o.visible} label="Shown to buyers" title={o.visible ? "Visible to buyers" : "Hidden from buyers"} disabled={!!mkt.busy} onchange={(v) => mkt.update(o, { visible: v })} /></td>
             <td class="right">
@@ -473,15 +491,25 @@
   .orders th:first-child, .orders td:first-child { padding-left: 0; }
   .orders th:last-child, .orders td:last-child { padding-right: 0; }
   .orders input[type="number"] { width: 4.6rem; padding: .35rem .45rem; text-align: right; }
-  /* A narrow window: the "Will set" column goes first. */
-  @media (max-width: 1000px) { .willset { display: none; } }
-  @media (max-width: 1250px) { .orders input[type="number"] { width: 3.8rem; } .orders td, .orders th { padding-left: .4rem; padding-right: .4rem; } .ladder { display: none; } .acts { gap: .6rem; } }
+  /* Less room: the "Will set" column goes first. */
+  /* Page area under 900 px (App sets the flag, by the room pages actually have). */
+  :global(html[data-room~="lt900"]) .willset { display: none; }
+  /* Less still: the per-listing floor box goes too (your floors still apply). */
+  :global(html[data-room~="lt760"]) .floorcol { display: none; }
+  /* Page area under 1100 px (App sets the flag, by the room pages actually have). */
+  :global(html[data-room~="lt1100"]) .orders input[type="number"] { width: 3.8rem; }
+  :global(html[data-room~="lt1100"]) .orders :is(td, th) { padding-left: .4rem; padding-right: .4rem; }
+  :global(html[data-room~="lt1100"]) .orders :is(td, th):first-child { padding-left: 0; }
+  :global(html[data-room~="lt1100"]) .orders :is(td, th):last-child { padding-right: 0; }
+  :global(html[data-room~="lt1100"]) .ladder { display: none; }
+  :global(html[data-room~="lt1100"]) .acts { gap: .6rem; }
   /* A hidden listing reads faded; its switches and actions stay at full strength. */
   tr.hidden td.fade { opacity: .45; }
   .right { text-align: right; }
   .center { text-align: center; }
   .comp { display: inline-flex; align-items: center; gap: .45rem; }
   .ladder { margin-top: .15rem; font-size: .6rem; }
+  .goes { margin-top: .15rem; font-size: .6rem; color: var(--gold); }
   .none { color: var(--rule-control); }
   .target { display: inline-flex; align-items: center; justify-content: flex-end; white-space: nowrap; }
   .target.down .delta { color: var(--oxblood); }

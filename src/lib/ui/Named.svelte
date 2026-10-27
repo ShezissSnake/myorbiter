@@ -21,5 +21,6 @@
   .kind { font-size: .6rem; }
   .line { display: inline-flex; align-items: center; flex-wrap: wrap; row-gap: .15rem; }
   .name-mark { white-space: nowrap; }
-  @media (max-width: 1250px) { .name-mark:not(.keep) { white-space: normal; } }
+  /* Page area under 1100 px (App sets the flag, by the room pages actually have). */
+  :global(html[data-room~="lt1100"]) .name-mark:not(.keep) { white-space: normal; }
 </style>

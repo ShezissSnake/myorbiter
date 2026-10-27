@@ -13,4 +13,4 @@ public/dev-rivens.json
 public/dev-auctions.json
 public/dev-reward-screens.json
 public/dev-history-*.json
-.pc-md5.txt
+vendor/

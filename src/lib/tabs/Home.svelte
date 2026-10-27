@@ -304,14 +304,14 @@
         <p class="dim">{liveNote}</p>
       {:else}
         <table class="eras">
-          <thead><tr><th>Era</th><th class="right" title="Normal fissures, plus Steel Path">Open</th><th>Missions</th><th class="right" title="When the longest-running one closes">Ends in</th><th title={squad === 1 ? "The relic you hold whose crack is worth most, cracking alone" : "The relic you hold whose crack is worth most, best of four in a radshare"}>Your best relic</th><th class="right" title="Average platinum of the reward you'd take ({squad === 1 ? 'solo' : 'radshare'}; switch on Relics)">Plat / crack</th></tr></thead>
+          <thead><tr><th>Era</th><th class="right" title="Normal fissures, plus Steel Path">Open</th><th>Missions</th><th class="right ends" title="When the longest-running one closes">Ends in</th><th title={squad === 1 ? "The relic you hold whose crack is worth most, cracking alone" : "The relic you hold whose crack is worth most, best of four in a radshare"}>Your best relic</th><th class="right" title="Average platinum of the reward you'd take ({squad === 1 ? 'solo' : 'radshare'}; switch on Relics)">Plat / crack</th></tr></thead>
           <tbody>
             {#each eras as e (e.era)}
               <tr>
                 <td><span class="era"><GameIcon name={eraIcon(e.era)} size={24} /><b class="mark">{e.era}</b></span></td>
                 <td class="right nowrap">{e.normal.length}{#if e.hard.length}<span class="sp" title="Steel Path fissures">&nbsp;+&nbsp;{e.hard.length}&nbsp;SP</span>{/if}</td>
                 <td class="dim small"><span class="clip" title={missionList([...e.normal, ...e.hard])}>{e.normal.length + e.hard.length ? missionList([...e.normal, ...e.hard]) : "none open"}</span></td>
-                <td class="right dim small nowrap">{e.next ? until(e.next.expiry, now) : ""}</td>
+                <td class="right dim small nowrap ends">{e.next ? until(e.next.expiry, now) : ""}</td>
                 <td class="nowrap">{#if e.best}<span class="relic" use:info={e.best.r.base}><b class="mark">{e.best.r.base}</b><span class="dim small">{e.best.refinement} · {e.best.r.total} held</span></span>{:else}<span class="dim small">{e.era === "Omnia" ? "any relic" : "none held"}</span>{/if}</td>
                 <td class="right">{#if e.best}<P v={e.best.v} />{/if}</td>
               </tr>
@@ -595,17 +595,19 @@
   .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--verdigris); box-shadow: 0 0 0 3px color-mix(in srgb, var(--verdigris) 25%, transparent); }
   .varzia { grid-column: span 5; }
   /* Narrower: the clocks drop their icons to stay on one row. */
-  @media (max-width: 1250px) {
-    .clock { padding: .7rem .75rem; }
-    .clock > :global(:first-child:not(div)) { display: none; }
-  }
-  @media (max-width: 1000px) {
-    .world { grid-template-columns: repeat(auto-fit, minmax(6.3rem, 1fr)); }
-    .clock { padding: .6rem .55rem; }
-  }
-  @media (max-width: 980px) {
-    .market, .ready, .fissures, .mastery, .baro, .varzia, .today, .foundry, .deals, .wishes { grid-column: span 12; }
-  }
+  /* Page area under 1100 px (App sets the flag, by the room pages actually have). */
+  :global(html[data-room~="lt1100"]) .clock { padding: .7rem .75rem; }
+  :global(html[data-room~="lt1100"]) .clock > :global(:first-child:not(div)) { display: none; }
+  /* Page area under 930 px (App sets the flag, by the room pages actually have). */
+  :global(html[data-room~="lt930"]) .world { grid-template-columns: repeat(auto-fit, minmax(6.3rem, 1fr)); }
+  :global(html[data-room~="lt930"]) .clock { padding: .6rem .55rem; }
+  /* Page area under 900 px (App sets the flag, by the room pages actually have). */
+  :global(html[data-room~="lt900"]) .market, :global(html[data-room~="lt900"]) .ready, :global(html[data-room~="lt900"]) .fissures, :global(html[data-room~="lt900"]) .mastery, :global(html[data-room~="lt900"]) .baro, :global(html[data-room~="lt900"]) .varzia, :global(html[data-room~="lt900"]) .today, :global(html[data-room~="lt900"]) .foundry, :global(html[data-room~="lt900"]) .deals, :global(html[data-room~="lt900"]) .wishes { grid-column: span 12; }
+  /* Half a small screen: the fissure table loses "Ends in" (the missions' own times are on hover), and the clocks go four to a row. */
+  :global(html[data-room~="lt760"]) .ends { display: none; }
+  :global(html[data-room~="lt760"]) .world { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  :global(html[data-room~="lt760"]) .clock:nth-child(4n + 1) { border-left: 0; }
+  :global(html[data-room~="lt760"]) .clock:nth-child(n + 5) { border-top: 1px solid var(--rule); }
   .tgrid { display: grid; gap: .9rem; }
   .tblock { display: grid; gap: .35rem; }
   .th { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }

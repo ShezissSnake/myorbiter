@@ -151,6 +151,8 @@ export interface DucatOptions {
   slowBelow: number;
   /** Arcanes: what Vosfor from dissolving them is worth (see vosfor.ts). */
   vosforLens?: "need" | "market";
+  /** How you crack relics: 1 alone, 4 in radshares (best of four cards). What a relic is worth cracked depends on it. */
+  squad?: number;
 }
 
 export type Verdict = "plat" | "ducats";

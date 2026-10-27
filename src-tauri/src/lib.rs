@@ -25,6 +25,21 @@ fn data_dir(dir: Option<String>) -> Result<PathBuf, String> {
         .ok_or_else(|| "HOME is not set, so TennoScope's folder cannot be found".to_string())
 }
 
+/// Linux's Yama setting for one program reading another's memory (`/proc/sys/kernel/yama/ptrace_scope`):
+/// above 0, TennoScope can't read the game (it isn't the game's parent). None without Yama, or
+/// off Linux.
+#[tauri::command]
+fn ptrace_scope() -> Option<u8> {
+    #[cfg(target_os = "linux")]
+    {
+        std::fs::read_to_string("/proc/sys/kernel/yama/ptrace_scope").ok()?.trim().parse().ok()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        None
+    }
+}
+
 #[tauri::command]
 fn default_data_dir() -> Option<String> {
     orbiter_data::default_tennoscope_dir().map(|p| p.display().to_string())
@@ -550,15 +565,25 @@ async fn save_settings(app: tauri::AppHandle, settings: Value) -> Result<(), Str
     .map_err(|e| e.to_string())?
 }
 
+/// The variables orbiter set for its own window at start (see `tune_webkit_for_this_machine`),
+/// which a TennoScope it starts must not inherit.
+static ENV_SET_BY_ORBITER: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+
+pub(crate) fn env_set_by_orbiter() -> &'static [&'static str] {
+    ENV_SET_BY_ORBITER.get().map(Vec::as_slice).unwrap_or(&[])
+}
+
 /// A WebKitGTK workaround. Its DMA-BUF renderer crashes on the NVIDIA driver under
 /// Wayland ("Error 71 (Protocol error) dispatching to Wayland display") or paints a blank window,
 /// so it is switched off there. Anything already set in the environment wins.
 #[cfg(target_os = "linux")]
 fn tune_webkit_for_this_machine() {
     use std::path::Path;
-    let set_default = |key: &str, value: &str| {
+    let mut set = Vec::new();
+    let mut set_default = |key: &'static str, value: &str| {
         if std::env::var_os(key).is_none() {
             std::env::set_var(key, value);
+            set.push(key);
         }
     };
     let wayland = std::env::var_os("WAYLAND_DISPLAY").is_some();
@@ -572,6 +597,30 @@ fn tune_webkit_for_this_machine() {
     } else if !wayland {
         set_default("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
     }
+    let _ = ENV_SET_BY_ORBITER.set(set);
+}
+
+/// On a screen smaller than the window's first size (a Steam Deck's 1280×800, a small laptop),
+/// the window is fitted to the screen instead of opening past its edges. Once it's on screen: the
+/// size only exists then, and by then the window-state plugin has put back the size you left it
+/// at, which fits and is kept.
+fn fit_first_window(app: &tauri::App) {
+    let Some(window) = app.get_webview_window("main") else { return };
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(600));
+        let Some(monitor) = window.current_monitor().ok().flatten().or_else(|| window.primary_monitor().ok().flatten()) else { return };
+        let scale = monitor.scale_factor();
+        let screen = monitor.size().to_logical::<f64>(scale);
+        let Ok(size) = window.outer_size() else { return };
+        let size = size.to_logical::<f64>(scale);
+        if size.width > screen.width + 1.0 || size.height > screen.height + 1.0 {
+            // Sized to the screen first: maximising is up to the window manager, and not every
+            // session has one that does it.
+            let _ = window.set_size(tauri::LogicalSize::new(size.width.min(screen.width), size.height.min(screen.height)));
+            let _ = window.set_position(tauri::LogicalPosition::new(0.0, 0.0));
+            let _ = window.maximize();
+        }
+    });
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -609,6 +658,10 @@ pub fn run() {
             }
             let config = app.path().app_config_dir()?;
             app.manage(market::Client::new(market::TokenStore::new(&config)));
+            // The TennoScope this build carries, if it carries one (release builds do).
+            let bundled = app.path().resource_dir().ok().map(|d| d.join(companion::BUNDLED));
+            app.state::<companion::Companion>().set_bundled(bundled);
+            fit_first_window(app);
             Ok(())
         })
         // Item artwork, cached locally (see images.rs). Fetches run off the main thread.
@@ -641,6 +694,7 @@ pub fn run() {
             presence_set,
             write_reward_pick,
             default_data_dir,
+            ptrace_scope,
             load_collection,
             load_catalogs,
             data_stamp,

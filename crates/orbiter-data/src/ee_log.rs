@@ -476,7 +476,33 @@ impl LogFollower {
     }
 }
 
-/// Where Steam keeps Warframe's log under Proton, for every Steam library on this machine.
+/// Where Warframe writes its log. On Windows the game keeps it in `%LOCALAPPDATA%\Warframe`.
+#[cfg(windows)]
+pub fn find_ee_log() -> Option<PathBuf> {
+    let path = PathBuf::from(std::env::var_os("LOCALAPPDATA")?).join("Warframe").join("EE.log");
+    path.is_file().then_some(path)
+}
+
+/// Where Warframe writes its log on a Mac: the native game keeps its data under Application
+/// Support, the Steam copy under Steam's own folder. Whichever was written last. If it isn't in
+/// either, the path can be set in Settings.
+#[cfg(target_os = "macos")]
+pub fn find_ee_log() -> Option<PathBuf> {
+    let home = PathBuf::from(std::env::var_os("HOME")?);
+    [
+        "Library/Application Support/Warframe/EE.log",
+        "Library/Application Support/Steam/steamapps/common/Warframe/EE.log",
+        "Library/Logs/Warframe/EE.log",
+    ]
+    .iter()
+    .map(|p| home.join(p))
+    .filter(|p| p.is_file())
+    .max_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok())
+}
+
+/// Where Steam keeps Warframe's log under Proton, for every Steam library on this machine (a
+/// Steam Deck's SD card included: it's one of the libraries Steam lists).
+#[cfg(not(any(windows, target_os = "macos")))]
 pub fn find_ee_log() -> Option<PathBuf> {
     let home = PathBuf::from(std::env::var_os("HOME")?);
     let steam_roots = [

@@ -21,7 +21,7 @@
   import PriceHistory from "../ui/PriceHistory.svelte";
   import { matches, type Column } from "../ui/table";
 
-  let { model, sell, platPerDucat = 0 }: { model: Model; sell: SellChoices; platPerDucat?: number } = $props();
+  let { model, sell, platPerDucat = 0, squad = 1 }: { model: Model; sell: SellChoices; platPerDucat?: number; squad?: number } = $props();
 
   let kind = $state<"all" | InventoryKind>("all");
   let tradableOnly = $state(false);
@@ -34,7 +34,7 @@
   // anything unbuilt, your best copy of each mod and one to give away, one maxed arcane, the parts,
   // blueprints and resources your unbuilt things take, one of each Captura scene (core/spares.ts).
   // The market's item list names things the game knows by internal names ("Tn Concrete Archgun Barrel").
-  const ledger = $derived(new Map(spareRows(model, mkt.index, sell, platPerDucat).map((x) => [x.key, x])));
+  const ledger = $derived(new Map(spareRows(model, mkt.index, sell, platPerDucat, squad).map((x) => [x.key, x])));
   const spareOf = (r: InventoryItem): SpareRow | undefined => ledger.get(r.key);
   const spare = (r: InventoryItem) => spareOf(r)?.spare ?? 0;
   /** The market's name, where the game's own is an internal one. */

@@ -36,11 +36,13 @@
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
-      "icons/icon.png"
+      "icons/icon.png",
+      "icons/icon.ico",
+      "icons/icon.icns"
     ],
     "category": "Game",
     "shortDescription": "Warframe collection helper",
-    "longDescription": "Reads TennoScope's local data to show sets you can sell, what you have not mastered, arcane collections, duplicate mods and vaulted relics.",
+    "longDescription": "Reads what TennoScope stores about your Warframe account to show sets you can sell, what you have not mastered, arcane collections, duplicate mods and vaulted relics, and keeps your warframe.market listings priced.",
     "linux": {
       "appimage": {
         "bundleMediaFramework": false
@@ -52,6 +54,7 @@
         "release": "1",
         "depends": []
       }
-    }
+    },
+    "license": "MIT"
   }
 }

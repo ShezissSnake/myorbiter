@@ -6,6 +6,7 @@
   import { listingKey, referencePrice } from "../core/market";
   import type { MarketSettings } from "../backend";
   import type { DucatOptions } from "../core/advice";
+  import { relicCrackFor } from "../core/spares";
   import { minFor, mkt } from "../marketStore.svelte";
   import Named from "./Named.svelte";
   import P from "./P.svelte";
@@ -27,6 +28,17 @@
     return Math.max(1, item ? minFor(market, item) : market.minPrice, median != null ? Math.ceil(median * market.minShare) : 0, own ?? 0);
   });
   const underFloor = $derived(d?.platinum != null && floor != null && d.platinum < floor);
+  /** A relic: what one crack at this refinement is worth, when the price is no more than that. */
+  const crackBeats = $derived.by(() => {
+    if (!item || d?.platinum == null) return null;
+    const crack = relicCrackFor(model, item.name, d.subtype ?? d.subtypes?.[0] ?? null, advice?.platPerDucat ?? 0, advice?.squad ?? 1);
+    return crack != null && d.platinum <= crack ? crack : null;
+  });
+  /** "An intact", "A radiant": the refinement, for the sentence that starts with it. */
+  const anRefinement = $derived.by(() => {
+    const ref = d?.subtype ?? "intact";
+    return `${"aeiou".includes(ref.charAt(0)) ? "An" : "A"} ${ref}`;
+  });
   /** A prime part's or set's ducats, when they're worth more to you (your ducat rate) than this price. */
   const ducats = $derived.by(() => {
     if (!advice || !item || d?.platinum == null) return null;
@@ -191,6 +203,7 @@
           {#if repriceOnly && existing}<p class="small dim">All you can spare is listed already ({existing.quantity} at {existing.platinum}p). This only changes the price.</p>{/if}
           {#if underFloor && market}<p class="warn small">Under your {floor}p floor{market.auto ? `: Auto-match lifts it to at least ${floor}p while anyone in game sells it` : " (Floor and Never under, on Orders)"}.</p>
           {:else if low}<p class="warn small">Under half the daily median. Check the price before listing.</p>{/if}
+          {#if crackBeats != null}<p class="warn small">{anRefinement} crack of it is worth about {crackBeats}p{(advice?.squad ?? 1) > 1 ? " in a radshare" : ""}: cracking beats selling at {d.platinum}p.</p>{/if}
           {#if ducats}<p class="warn small">Worth more as ducats: {ducats.n} ducats are about {ducats.worth}p to you (your rate, on Prime parts). "Put my spares on sale" keeps it off the market.</p>{/if}
 
           {#if existing}

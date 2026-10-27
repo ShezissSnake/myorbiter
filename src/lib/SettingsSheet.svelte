@@ -116,7 +116,7 @@
       Off keeps every veiled riven to unveil yourself.
     </Switch>
     <Switch bind:on={settings.market.sellable.relicsWorthSelling} label="Sell relics worth more sold than cracked">
-      A relic counts as spare only when it sells for more than a crack is worth (each reward at its price, or its ducats at your rate when that's more). Relics that drop a part you still need are always kept. Off keeps every relic.
+      A relic counts as spare only when it sells for more than a crack is worth, each refinement on its own: a radiant one's odds against what radiant ones sell for (Solo or Radshare, as set on Relics). It's never listed at or under that. Relics that drop a part you still need are always kept. Off keeps every relic.
     </Switch>
   </section>
 

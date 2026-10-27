@@ -6,6 +6,7 @@
 - **orbiter's pick.** When TennoScope reads the reward cards, it writes their names to `tennoscope-reward-screen.json` in your runtime folder (`$XDG_RUNTIME_DIR`; without one, a `tennoscope-orbiter-<uid>` folder in the temp dir that only you can open, and the hand-off stays off if that folder is anyone else's). orbiter scores them with your weights (plat, unmastered, ducats, complete set) and writes `orbiter-reward-pick.json` back. The overlay shows each card's score in its corner, and the card to take gets a gold outline and **Pick**. It only shows a pick made for exactly the cards on screen, so a stale one never appears. Without orbiter running, the overlay is unchanged.
 - **Your warframe.market status stays with orbiter.** While orbiter holds your status (Orders → Invisible, Online or Online in game) it refreshes `orbiter-presence.json` in the same runtime folder every few seconds. While that file is fresh and orbiter is running, TennoScope closes its own status connection and its status switch refuses changes ("orbiter is managing your warframe.market status"), so the two apps never undo each other. When orbiter closes, TennoScope's switch works as before.
 - **More for orbiter's scores.** The live price the overlay shows on each card is written next to the card names (same file, same timestamp), so orbiter scores with the numbers you see. And the builds waiting in your foundry go into TennoScope's status report, so orbiter counts a part being crafted as held.
+- **Updates come with orbiter.** Started by an orbiter that carries it inside (`ORBITER_BUNDLED` set), TennoScope's own updater stands down: it would swap in a build without this patch, or fail on the read-only AppImage it runs from.
 - **Vaulted.** A small **Vaulted** mark on a card when every relic that drops it is vaulted. TennoScope already downloads the relic data with a `vaulted` flag per relic, but doesn't read it.
 
 It replaces `tennoscope-reward-vaulted.patch` (the Vaulted mark alone, which also only showed in the main window, not on the overlay). Use only this one.
@@ -13,6 +14,7 @@ It replaces `tennoscope-reward-vaulted.patch` (the Vaulted mark alone, which als
 The patch is written against TennoScope `main` at commit `7f66486` (v0.13.1). It changes:
 
 - `app/src-tauri/src/orbiter_bridge.rs` (new): the two files. Includes a test.
+- `app/src-tauri/src/update.rs`: no self-update for the copy inside orbiter.
 - `app/src-tauri/src/monitor.rs`, `overlay_window.rs`, `lib.rs`: write the cards when they're read, clear them when the overlay hides, and an `orbiter_pick` command for the overlay. Also marks vaulted rewards, and handles `--background` (hidden at start, close hides, a second start doesn't pop the window).
 - `crates/warframe-acquisition/src/relic_catalog.rs`, `crates/warframe-domain/src/rewards.rs`: which rewards only drop from vaulted relics. Includes a test.
 - `app/src/RewardOverlay.tsx`, `RewardCards.tsx`, `backend.ts`, `App.css`: ask orbiter for its pick every half second while cards are up, and draw the score, Pick and Vaulted in the card's corner. `app/src/OrbiterPick.test.tsx` covers it.

@@ -18,6 +18,7 @@ import type { Model } from "./core/model";
 import { dealFromOrder, findDeals, type Deal, type FeedOrder, type Watch } from "./core/deals";
 import { recentPrice, type PricePoint } from "./core/priceTrend";
 import type { RelicMarket } from "./core/model";
+import { aboveCrack, relicCrackFor } from "./core/spares";
 import { LISTING_LIMIT, bulkPlan, cheapByMedian, planSignature, resolve, sellTargets, type BulkAction } from "./core/bulk";
 import type { DucatOptions } from "./core/advice";
 import { backoff } from "./core/upkeep";
@@ -348,16 +349,26 @@ class MarketStore {
   /** The model the open listing form was started from, for its market reference price. */
   private draftModel: Model | null = null;
 
+  /** Your ducat rate and how you crack relics, set by the app: a relic listing never goes under what a crack is worth. */
+  advice: DucatOptions | null = null;
+  /** The floor a relic listing keeps: just above what a crack of it is worth. Null for anything else. */
+  crackFloor(m: Model, name: string, subtype: string | null): number | null {
+    return aboveCrack(relicCrackFor(m, name, subtype, this.advice?.platPerDucat ?? 0, this.advice?.squad ?? 1));
+  }
+
   planFor(m: Model, s: MarketSettings, o: MyOrder): Plan | null {
     const it = this.item(o.itemId);
     const book = it ? this.books[it.slug]?.orders : undefined;
     if (!it || !book || !this.me) return null;
+    const own = s.floors[listingKey(o)] ?? null;
+    const crack = this.crackFloor(m, it.name, o.subtype ?? it.subtypes?.[0] ?? null);
     return plan(o, book, this.me, {
-      floor: s.floors[listingKey(o)] ?? null,
+      floor: crack != null ? Math.max(own ?? 0, crack) : own,
       minShare: s.minShare,
       reference: referencePrice(m, it, o.rank, o.subtype ?? it.subtypes?.[0] ?? null),
       defaultSubtype: it.subtypes?.[0] ?? null,
       min: minFor(s, it),
+      capByAsks: !!it.tags?.includes("relic"),
     });
   }
 
@@ -547,12 +558,15 @@ class MarketStore {
           const s = this.rules;
           const it = this.item(d.itemId);
           const existing = this.existingFor(d);
+          const own = s && existing ? (s.floors[listingKey(existing)] ?? null) : null;
+          const crack = it && this.draftModel ? this.crackFloor(this.draftModel, it.name, d.subtype ?? d.subtypes?.[0] ?? null) : null;
           return {
-            floor: s && existing ? (s.floors[listingKey(existing)] ?? null) : null,
+            floor: crack != null ? Math.max(own ?? 0, crack) : own,
             minShare: s?.minShare ?? 0,
             reference: s && it && this.draftModel ? referencePrice(this.draftModel, it, d.rank, d.subtype ?? d.subtypes?.[0] ?? null) : null,
             defaultSubtype: d.subtypes?.[0] ?? null,
             min: s && it ? minFor(s, it) : s?.minPrice,
+            capByAsks: !!it?.tags?.includes("relic"),
           };
         })(),
       );
@@ -677,7 +691,8 @@ class MarketStore {
   relicRead = $state.raw<Promise<RelicMarket | null> | null>(null);
   readRelicPrices(bases: string[], had: RelicMarket, now = Date.now()): Promise<RelicMarket | null> {
     if (this.relicRead) return Promise.resolve(null);
-    const stale = bases.filter((b) => !had[b] || now - had[b].at > 86_400_000);
+    // Read again when older than a day, or read before prices were the middle sale (an average let one odd sale lift a relic tenfold).
+    const stale = bases.filter((b) => !had[b] || now - had[b].at > 86_400_000 || had[b].how !== "median");
     if (!stale.length) return Promise.resolve(null);
     const read = this.readRelics(stale, had, now);
     this.relicRead = read;
@@ -701,7 +716,7 @@ class MarketStore {
             const p = recentPrice(points, null, sub, 30, 2);
             if (p != null) prices[sub] = p;
           }
-          out[base] = { at: now, prices };
+          out[base] = { at: now, prices, how: "median" };
         } catch {
           // Not answering: tried again on the next read.
         }

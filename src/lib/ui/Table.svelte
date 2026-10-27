@@ -122,7 +122,8 @@
   tr.detail:hover td { background: var(--plate); }
   .more { margin: 1.2rem auto; display: block; text-align: center; min-height: 2rem; }
   .nil { color: var(--rule-control); opacity: .7; }
-  @media (max-width: 1250px) { .minor { display: none; } }
+  /* Page area under 1100 px (App sets the flag, by the room pages actually have). */
+  :global(html[data-room~="lt1100"]) .minor { display: none; }
   .chev { width: 1.6rem; padding-right: 0; text-align: center; color: var(--platinum-deep); }
   .chev span { display: inline-block; font-size: 1.1rem; transition: transform .12s; }
   tr.open .chev span { transform: rotate(90deg); color: var(--gold); }

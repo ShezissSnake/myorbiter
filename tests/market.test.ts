@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { competitor, knownName, plan, salesCoveredByTrades, type BookOrder, type MyOrder } from "../src/lib/core/market";
+import { competitor, knownName, marketValue, plan, salesCoveredByTrades, type BookOrder, type MyOrder } from "../src/lib/core/market";
 import type { Sale, TradeLogEntry } from "../src/lib/backend";
 
 const me = { id: "me", platform: "pc", crossplay: true };
@@ -110,4 +110,30 @@ test("everyone in game asking more than twice what it sells for: priced at what 
   assert.equal(plan(mine(4), [sell(8, "ingame")], me, { floor: null, minShare: 0.5, reference: 4 }).target, 8);
   // Your floor still wins.
   assert.equal(plan(mine(4), [sell(30, "ingame")], me, { floor: 10, minShare: 0.5, reference: 4 }).target, 10);
+});
+
+test("a relic's value: no more than what sellers on the site ask (the third cheapest, in game or not)", () => {
+  // Axi Y2 intact as it was: three sales at 25–100p lift the recent price to 75p, while four
+  // sellers in game ask 8p and dozens offline ask 2p.
+  const b = [sell(2, "offline"), sell(2, "offline"), sell(8, "ingame"), sell(8, "ingame"), sell(9, "online"), sell(10, "ingame"), sell(500, "ingame", { user: { id: "me" } })];
+  const comp = competitor(mine(38), b, me);
+  assert.equal(comp.askLevel, 8, "the third cheapest of everyone but you");
+  assert.equal(marketValue(75, comp), 8);
+  assert.equal(marketValue(5, comp), 5, "recent sales lower than the asks stand");
+  assert.equal(marketValue(null, comp), 8);
+  assert.equal(marketValue(7, { askLevel: null }), 7);
+  // One or two odd listings don't set it: with only two sellers, the dearer one does.
+  assert.equal(competitor(mine(1), [sell(1, "ingame"), sell(30, "online")], me).askLevel, 30);
+  assert.equal(competitor(mine(1), [sell(3, "offline", { user: { id: "me" } })], me).askLevel, null);
+  // Repricing a relic: held at half of 8p (4p), matching the 8p in game, not the 38p half of 75p.
+  const capped = plan(mine(38), b, me, { floor: null, minShare: 0.5, reference: 75, capByAsks: true });
+  assert.deepEqual([capped.target, capped.floor, capped.value], [8, 4, 8]);
+  assert.equal(plan(mine(38), b, me, { floor: null, minShare: 0.5, reference: 75 }).target, 38, "anything else keeps its reference");
+});
+
+test("a relic everyone in game asks far too much for goes at what sellers on the site ask", () => {
+  // Axi V14 intact: in game 30p and 120p, dozens offline at 3p; it sold for 3.1p.
+  const b = [sell(30, "ingame"), sell(120, "ingame"), sell(3, "offline"), sell(3, "offline"), sell(3, "offline"), sell(3, "offline")];
+  const p = plan(mine(30), b, me, { floor: null, minShare: 0.5, reference: 3.1, capByAsks: true });
+  assert.deepEqual([p.target, p.reason, p.value], [3, "median", 3]);
 });

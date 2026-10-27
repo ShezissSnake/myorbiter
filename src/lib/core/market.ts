@@ -65,6 +65,12 @@ export interface Competitor {
   cheapest: { name: string | null; platinum: number } | null;
   /** The next few in-game prices, cheapest first, to show what the order is matching. */
   ladder: number[];
+  /**
+   * What sellers on the site ask, in game or not: the third cheapest, so one or two odd listings
+   * don't set it. Buyers see the offline ones too, and most relic sellers are offline (dozens
+   * ask 2–3p while the few in game ask 30p). Null when nobody but you sells it.
+   */
+  askLevel: number | null;
 }
 
 const sameRank = (a: number | null | undefined, b: number | null | undefined) => (a ?? null) === (b ?? null);
@@ -92,12 +98,28 @@ export function competitor(order: Pick<MyOrder, "rank" | "subtype">, book: BookO
     )
     .sort((a, b) => a.platinum - b.platinum);
   const best = rivals[0];
+  const asks = book
+    .filter((o) => o.type === "sell" && o.visible && o.user.id !== me.id && sameRank(o.rank, order.rank) && (o.subtype ?? defaultSubtype) === mine && canTrade(me, o.user))
+    .map((o) => o.platinum)
+    .sort((a, b) => a - b);
   return {
     price: best?.platinum ?? null,
     sellers: rivals.length,
     cheapest: best ? { name: best.user.ingameName, platinum: best.platinum } : null,
     ladder: rivals.slice(0, 5).map((o) => o.platinum),
+    askLevel: asks.length ? asks[Math.min(2, asks.length - 1)] : null,
   };
+}
+
+/**
+ * What something is realistically worth now: what it sold for lately, but no more than what
+ * sellers on the site ask (a few big sales can lift the recent price far above where the
+ * market is: Axi Y2 sold at 100p twice while dozens ask 2p). Null when neither is known.
+ */
+export function marketValue(reference: number | null | undefined, comp: Pick<Competitor, "askLevel">): number | null {
+  if (reference == null) return comp.askLevel;
+  if (comp.askLevel == null) return reference;
+  return Math.min(reference, comp.askLevel);
 }
 
 export interface Plan {
@@ -107,6 +129,8 @@ export interface Plan {
   reason: "match" | "floor" | "no-sellers" | "already" | "median";
   competitor: Competitor;
   floor: number;
+  /** What it's realistically worth, as the floor and the far-above check went by. */
+  value: number | null;
 }
 
 export interface FloorRule {
@@ -120,19 +144,25 @@ export interface FloorRule {
   defaultSubtype?: string | null;
   /** Your minimum for anything you sell (Orders): never repriced below it. */
   min?: number;
+  /**
+   * Hold the reference to what sellers on the site ask (relics: a few lucky sales say little
+   * about what one sells for now).
+   */
+  capByAsks?: boolean;
 }
 
 export function plan(order: MyOrder, book: BookOrder[], me: Me, rule: FloorRule): Plan {
   const comp = competitor(order, book, me, rule.defaultSubtype ?? null);
-  const floor = Math.max(1, rule.floor ?? 0, rule.min ?? 0, rule.reference != null ? Math.ceil(rule.reference * rule.minShare) : 0);
+  const value = rule.capByAsks ? marketValue(rule.reference, comp) : (rule.reference ?? null);
+  const floor = Math.max(1, rule.floor ?? 0, rule.min ?? 0, value != null ? Math.ceil(value * rule.minShare) : 0);
   // Nobody in game: the price stays, unless it's under the floor (you raised it since).
   if (comp.price == null) {
-    if (order.platinum < floor) return { target: floor, change: true, reason: "floor", competitor: comp, floor };
-    return { target: order.platinum, change: false, reason: "no-sellers", competitor: comp, floor };
+    if (order.platinum < floor) return { target: floor, change: true, reason: "floor", competitor: comp, floor, value };
+    return { target: order.platinum, change: false, reason: "no-sellers", competitor: comp, floor, value };
   }
   let target = comp.price;
   let reason: Plan["reason"] = "match";
-  const sells = overAsked(comp.price, rule.reference);
+  const sells = overAsked(comp.price, value);
   if (sells != null) {
     target = sells;
     reason = "median";
@@ -142,7 +172,7 @@ export function plan(order: MyOrder, book: BookOrder[], me: Me, rule: FloorRule)
     reason = "floor";
   }
   if (target === order.platinum) reason = reason === "floor" ? "floor" : "already";
-  return { target, change: target !== order.platinum, reason, competitor: comp, floor };
+  return { target, change: target !== order.platinum, reason, competitor: comp, floor, value };
 }
 
 /**

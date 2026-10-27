@@ -133,13 +133,27 @@ fn cached(cache: &Mutex<Option<Slimmed>>, path: &Path, read: fn(&Path) -> Result
     Ok((items, state))
 }
 
-/// `$XDG_DATA_HOME/io.github.deftera186.tennoscope`, falling back to `~/.local/share`.
+/// TennoScope's folder: where Tauri keeps app data for its identifier. On Linux
+/// `$XDG_DATA_HOME/io.github.deftera186.tennoscope` (falling back to `~/.local/share`), on Windows
+/// `%APPDATA%\io.github.deftera186.tennoscope`, on macOS `~/Library/Application Support/…`.
 pub fn default_tennoscope_dir() -> Option<PathBuf> {
-    let base = std::env::var_os("XDG_DATA_HOME")
+    Some(data_home()?.join("io.github.deftera186.tennoscope"))
+}
+
+#[cfg(windows)]
+fn data_home() -> Option<PathBuf> {
+    std::env::var_os("APPDATA").filter(|v| !v.is_empty()).map(PathBuf::from)
+}
+#[cfg(target_os = "macos")]
+fn data_home() -> Option<PathBuf> {
+    std::env::var_os("HOME").map(|h| PathBuf::from(h).join("Library/Application Support"))
+}
+#[cfg(not(any(windows, target_os = "macos")))]
+fn data_home() -> Option<PathBuf> {
+    std::env::var_os("XDG_DATA_HOME")
         .filter(|v| !v.is_empty())
         .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))?;
-    Some(base.join("io.github.deftera186.tennoscope"))
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
 }
 
 fn ensure_dir(dir: &Path) -> Result<(), DataError> {

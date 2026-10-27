@@ -158,3 +158,50 @@ test("Baro's ducat rate: the best price per ducat among what he sells that trade
   assert.deepEqual(r && [r.item, r.rate], ["Primed Flow", 0.26], "Prisma Skana's 0.8p a ducat doesn't count: it hardly sells");
   assert.equal(baroRate(buildModel(b)), null, "away: nothing to go by");
 });
+
+test("relics by refinement: each sold only for more than a crack at its own odds, never on the intact price", async () => {
+  const { spareRows } = await import("../src/lib/core/spares");
+  const { sellTargets, bulkPlan } = await import("../src/lib/core/bulk");
+  const { indexItems } = await import("../src/lib/core/market");
+  const mastered = inv(RHINO, "Rhino Prime", "warframe", 1, { mastered: true });
+  const model = (radiant: number | null) => {
+    const b = bundle([inv("/Relic/K1Platinum", "Lith K1 Radiant", "relic", 5), mastered]);
+    b.prices!.prices!["Lith K1 Relic"] = 3;
+    return buildModel(b, undefined, null, radiant == null ? null : { "Lith K1": { at: 0, prices: { intact: 3, radiant } } });
+  };
+  const radiant = (m: ReturnType<typeof buildModel>, squad = 1) => spareRows(m, null, { veiledRivens: false, relicsWorthSelling: true }, 0, squad).find((r) => r.subtype === "radiant")!;
+  // A radiant crack: 10% of a 30p Systems = 3p, far more than the 0.6p an intact one is worth.
+  const unknown = radiant(model(null));
+  assert.deepEqual([unknown.spare, unknown.crack, unknown.price], [0, 3, null], "no radiant sales: the 3p intact price doesn't stand in");
+  assert.match(unknown.why, /Too few radiant ones sold/);
+  assert.equal(radiant(model(2.5)).spare, 0, "2.5p sold, 3p a crack: kept");
+  assert.equal(radiant(model(5)).spare, 5);
+  // In radshares a radiant crack is the best of four: 1 − 0.9⁴ of 30p ≈ 10.3p, so 5p isn't enough.
+  const rad4 = radiant(model(5), 4);
+  assert.deepEqual([rad4.spare, rad4.crack], [0, 10.3]);
+  // Listed only above its crack: with radiant ones going for 3p in game, it's kept.
+  const m = model(5);
+  const items = indexItems([{ id: "k1", slug: "lith_k1_relic", gameRef: "/Relic/K1", name: "Lith K1 Relic", maxRank: null, subtypes: ["intact", "exceptional", "flawless", "radiant"], tags: ["relic"] }]);
+  const rules = { sets: false, arcanes: false, mods: false, parts: false, partsOver: 10, other: true };
+  const advice = { platPerDucat: 0, minPlat: 0, slowBelow: 1, squad: 1 };
+  const targets = sellTargets(m, rules, advice, items, { veiledRivens: false, relicsWorthSelling: true });
+  assert.deepEqual(targets.map((t) => [t.subtype, t.quantity, t.crack]), [["radiant", 5, 3]]);
+  const book = (platinum: number) => [{ id: "b", type: "sell", platinum, quantity: 1, rank: null, subtype: "radiant", visible: true, user: { id: "u", ingameName: "Seller", status: "ingame", platform: "pc", crossplay: true } }];
+  const ctx = (p: number) => ({ model: m, index: items, orders: [], me: { id: "me", platform: "pc", crossplay: true }, books: { lith_k1_relic: book(p) as never }, minPrice: 1, minShare: 0, floors: {}, paused: {} });
+  const low = bulkPlan(ctx(3), rules, targets);
+  assert.match(low[0].type === "skip" ? low[0].why : "", /no more than a radiant crack is worth \(about 3p\): kept to crack/);
+  const ok = bulkPlan(ctx(6), rules, targets);
+  assert.equal(ok[0].type === "create" && `${ok[0].subtype} ${ok[0].quantity}@${ok[0].platinum}`, "radiant 5@6");
+
+  // A few lucky sales don't make it worth selling: 50p sold lately, but sellers on the site ask 2p
+  // and the one in game 40p. It goes for 2p, under the 3p crack: kept.
+  const lucky = model(50);
+  const lt = sellTargets(lucky, rules, advice, items, { veiledRivens: false, relicsWorthSelling: true });
+  const on = (platinum: number, id: string) => ({ ...book(platinum)[0], id, user: { ...book(platinum)[0].user, id, status: "online" } });
+  const asks = [book(40)[0], on(2, "a"), on(2, "b"), on(2, "c")];
+  const kept = bulkPlan({ ...ctx(40), model: lucky, books: { lith_k1_relic: asks as never } }, rules, lt);
+  assert.match(kept[0].type === "skip" ? kept[0].why : "", /Goes for about 2p, no more than a radiant crack is worth/);
+  // Asks at 6p: listed at 6p, since 40p in game is far above what it goes for.
+  const fair = bulkPlan({ ...ctx(40), model: lucky, books: { lith_k1_relic: [book(40)[0], on(6, "a"), on(6, "b"), on(6, "c")] as never } }, rules, lt);
+  assert.equal(fair[0].type === "create" && fair[0].platinum, 6, "in game 40p is far above the 6p it goes for");
+});

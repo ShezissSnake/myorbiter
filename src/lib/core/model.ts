@@ -170,8 +170,9 @@ export function normaliseStoreUnique(unique: string): string {
 /**
  * Relic prices by refinement, read from warframe.market's sales (TennoScope's daily prices mostly
  * have the intact one only): by relic ("Axi A1"), then by refinement in its words ("radiant").
+ * `how` marks prices taken as the middle sale (older reads averaged them, and are read again).
  */
-export type RelicMarket = Record<string, { at: number; prices: Record<string, number> }>;
+export type RelicMarket = Record<string, { at: number; prices: Record<string, number>; how?: "median" }>;
 
 export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurgence: null, resurgenceExpiry: null }, foundry: Record<string, number> | null = null, relicMarket: RelicMarket | null = null): Model {
   // Some relic entries list a reward twice ("2X Forma Blueprint" in Meso D1); merge them so every

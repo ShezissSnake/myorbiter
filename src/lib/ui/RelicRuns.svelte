@@ -131,7 +131,8 @@
   .hh { display: flex; justify-content: space-between; align-items: center; gap: 1rem; min-height: 2rem; margin-bottom: .4rem; }
   h2 { margin: 0; }
   .figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); margin-bottom: .6rem; }
-  @media (max-width: 900px) { .figs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  /* Page area under 760 px (App sets the flag, by the room pages actually have). */
+  :global(html[data-room~="lt760"]) .figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .basis { margin: 0 0 .8rem; max-width: 80ch; }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
   th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: .45rem .5rem; border-bottom: 1px solid var(--rule); }

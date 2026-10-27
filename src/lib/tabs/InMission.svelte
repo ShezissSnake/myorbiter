@@ -232,8 +232,10 @@
   /* A squad is at most four: 2×2 or one row of four, never three and a stray. */
   .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--rule); border-left: 1px solid var(--rule); margin-top: var(--step); }
   .relic { border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 1rem 1.1rem 1.1rem; background: rgb(17 19 23 / 70%); }
-  @media (max-width: 760px) { .cards { grid-template-columns: minmax(0, 1fr); } }
-  @media (min-width: 2100px) { .cards { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  /* Page area under 640 px (App sets the flag, by the room pages actually have). */
+  :global(html[data-room~="lt640"]) .cards { grid-template-columns: minmax(0, 1fr); }
+  /* Page area 1850 or wider px (App sets the flag, by the room pages actually have). */
+  :global(html[data-room~="ge1850"]) .cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .relic header { display: flex; justify-content: space-between; align-items: center; gap: .8rem; margin-bottom: .8rem; }
   .who { display: flex; align-items: center; gap: .8rem; min-width: 0; }
   .who .grow { display: grid; gap: .3rem; min-width: 0; }

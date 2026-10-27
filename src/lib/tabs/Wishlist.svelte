@@ -187,7 +187,8 @@
   .list { display: grid; gap: .9rem; }
   .wish { border: 1px solid var(--rule); background: linear-gradient(180deg, #14161a, var(--plate) 40%); clip-path: var(--cut); padding: .9rem 1rem; display: grid; grid-template-columns: minmax(18rem, 24rem) 1fr; gap: 1.2rem; align-items: start; }
   .wish.done { grid-template-columns: 1fr; }
-  @media (max-width: 1100px) { .wish { grid-template-columns: 1fr; } }
+  /* Page area under 950 px (App sets the flag, by the room pages actually have). */
+  :global(html[data-room~="lt950"]) .wish { grid-template-columns: 1fr; }
   .who { display: grid; grid-template-columns: auto 1fr auto; gap: .8rem; align-items: start; }
   .art, .nm { padding: 0; border: 0; background: none; text-align: left; }
   .nm b { font-size: 1.3rem; }
