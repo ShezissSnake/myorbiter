@@ -153,7 +153,7 @@
     {#if row && !row.unobtainable}
       <section class="how">
         <h3 class="register lead">How to get it</h3>
-        <div class="howrow"><Effort acq={row.acq} /><p class="prose">{row.acq.how}</p></div>
+        <div class="howrow"><Effort acq={row.acq} /><p class="prose">{row.acq.how}{#if row.acq.players}<span class="players">Players: {row.acq.players}</span>{/if}</p></div>
         {#if wish && wish.missing.length && ((wish.odds != null && wish.odds > 0) || wish.buyCost != null)}
           {@const odds = wish.odds != null && wish.odds > 0 ? wish.odds : null}
           <p class="finish">
@@ -296,4 +296,5 @@
   .abilities p { margin: .2rem 0 0; }
   .damage { display: flex; flex-wrap: wrap; gap: .4rem .9rem; margin-top: .7rem; font-variant-numeric: tabular-nums; }
   .dmg { display: inline-flex; gap: .4rem; align-items: baseline; }
+  .players { display: block; margin-top: .35rem; font-size: .82rem; color: var(--platinum-deep); }
 </style>

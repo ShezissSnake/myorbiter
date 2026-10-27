@@ -73,6 +73,8 @@ export interface Acquisition {
   /** Researched on the wiki rather than worked out from drop data. */
   researched: boolean;
   wiki: string | null;
+  /** What players report about farming it (warframes: from forum and Steam threads), when researched. */
+  players?: string | null;
 }
 
 interface Researched {
@@ -82,6 +84,9 @@ interface Researched {
   available: boolean;
   tradable: boolean;
   source: string;
+  /** Warframes: what players report, and the threads it comes from. */
+  players?: string;
+  evidence?: string[];
 }
 const RESEARCH = research as Record<string, Researched>;
 /** Items whose blueprints come from clan dojo research, by lab (from the wiki's Research pages). */
@@ -263,13 +268,20 @@ export function acquisition(m: Model, item: CatalogItem, ctx: AcquireContext): A
       method: r.method,
       difficulty: r.available || r.tradable ? r.difficulty : 5,
       how: r.how,
-      icon: METHOD_ICON[r.method] ?? null,
+      // A syndicate's or vendor's own icon when the drop data names one (Vox Solaris for Baruuk).
+      icon: METHOD_ICON[r.method] ?? fromDrops(m, item).icon ?? null,
       available: r.available,
       tradable: r.tradable,
       researched: true,
       wiki: r.source || item.wikiaUrl || null,
+      players: r.players ?? null,
     };
   }
+  return fromDrops(m, item);
+}
+
+/** What the drop data says, worked out once per item and model. */
+function fromDrops(m: Model, item: CatalogItem): Acquisition {
   let cache = memo.get(m);
   if (!cache) memo.set(m, (cache = new Map()));
   const hit = cache.get(item.uniqueName);

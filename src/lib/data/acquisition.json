@@ -55,6 +55,30 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Artax"
 },
+"Ash": {
+"method": "mission-drop",
+"how": "Main blueprint from the Market (35,000 credits); parts drop from Railjack Proxima missions: Systems on Venus Proxima, Neuroptics on Neptune Proxima, Chassis on Pluto Proxima (12.5-13.3% on Survival/Defense rotation A, ~4.7-4.9% on Exterminate/Volatile), so you need a working Railjack. Also earnable from the Duviri Circuit in his week. Market price 375 platinum.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Ash",
+"players": "No run counts found; one 2023 Steam reply says getting Ash from the Normal Circuit was easier than farming Railjack Defense.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/6861841362657898172"
+]
+},
+"Atlas": {
+"method": "boss",
+"how": "Main blueprint from The Jordas Precept quest (unlocked by the Pluto-Eris Junction); parts drop from the Jordas Golem Archwing assassination on Eris (Neuroptics and Chassis 38.72%, Systems 22.56%). Also in the Duviri Circuit. Market price 275 platinum.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Atlas",
+"players": "Steam players report anything from 6-7 Golem runs to 37 and 40+ runs, and call the Archwing fight tedious without a modded Archwing.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/1457328846183754479"
+]
+},
 "Ax-52": {
 "method": "syndicate",
 "how": "Blueprint from Amir (The Hex, Höllvania Central Mall) for 30,000 credits at Hex Rank 4 'Hot & Fresh' (needs The Hex quest); build with Techrot Motherboard, Techrot Chitin, Efervon Samples and Höllvanian Pitchweave Fragments.",
@@ -70,6 +94,32 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Azothane"
+},
+"Banshee": {
+"method": "dojo",
+"how": "All blueprints are researched in the Clan Dojo Tenno Lab and then bought for credits (35,000 for the main blueprint); joining an established clan skips the research. Market price 225 platinum.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Banshee",
+"players": "A community ranking puts the Dojo frames (Banshee among them) at the easy end; no run counts apply since nothing is random.",
+"evidence": [
+"https://warframe.fandom.com/wiki/User_blog:ZyLnTKyllR/Warframes_ranked_based_on_the_hardest_grind_to_acquire_them"
+]
+},
+"Baruuk": {
+"method": "syndicate",
+"how": "All four blueprints are bought from Little Duck (Vox Solaris) for 5,000 standing each: main at Rank 2 - Agent, parts at Rank 3 - Hand; Vox Solaris standing comes from Toroids under a daily cap, and the parts need Toroids, Hespazym Alloy and Fortuna/Plains gems. Also in the Duviri Circuit. Market price 325 platinum.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Baruuk",
+"players": "Players call it a weeks-long standing grind gated by rare Toroid drops and the daily standing cap; a 2024 thread still lists Baruuk with Hildryn and Khora as harder than the new frames.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/1742229167175034175",
+"https://warframe.fandom.com/wiki/User_blog:ZyLnTKyllR/Warframes_ranked_based_on_the_hardest_grind_to_acquire_them",
+"https://steamcommunity.com/app/230410/discussions/0/4142816460199957103"
+]
 },
 "Basmu": {
 "method": "event",
@@ -95,6 +145,19 @@
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Bhaira_Hound"
 },
+"Bonewidow": {
+"method": "syndicate",
+"how": "Necramech: component blueprints cost 3,500 standing each from the Necraloid at Rank 2 - Clearance: Modus, the main blueprint 10,000 standing at Rank 3 - Clearance: Odima; Necraloid standing comes only from Orokin Matrices in Isolation Vault bounties, and building needs Damaged Necramech parts plus Solaris United Rank 1, Ostron Rank 3 and Entrati Rank 2 materials (Heart of Deimos and The War Within required). Market price 375 platinum.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Bonewidow",
+"players": "Players say reaching the needed Necraloid rank 'can take a few days' and many buy pre-built parts from other players instead; one 2021 reply mis-states the rank as 4.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/4521136185569437301",
+"https://steamcommunity.com/app/230410/discussions/0/4345408777042862323"
+]
+},
 "Braton": {
 "method": "market-credits",
 "how": "Bought fully built from the in-game Market for 25,000 credits.",
@@ -110,6 +173,18 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Burst_Laser"
+},
+"Caliban": {
+"method": "open-world",
+"how": "Main blueprint from the Market (50,000 credits); parts drop from level 50-70 Narmer bounties in Cetus and Fortuna after The New War (5.45-8.11% per stage), and only one part is in the pool per 2.5-hour bounty rotation; crafting needs Narmer Isoplast, Anomaly Shards and Eidolon/Fortuna resources. Market price 325 platinum.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Caliban",
+"players": "Players report waiting for the right part to rotate into Narmer bounties, to the point of asking for alert tools; no run counts found.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/3826415019287114776"
+]
 },
 "Carrier": {
 "method": "market-credits",
@@ -143,6 +218,19 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Chesa_Kubrow"
 },
+"Chroma": {
+"method": "quest",
+"how": "Main blueprint from The New Strange quest (after Stolen Dreams and Simaris synthesis); parts are rewards from the Uranus, Neptune and Pluto Junctions. Crafting consumes built Volt Neuroptics, Ember Neuroptics, Frost Chassis and Saryn Systems, so you farm four other frames' parts too. Also in the Duviri Circuit. Market price 375 platinum.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Chroma",
+"players": "A community ranking places Chroma mid-pack, with the effort coming from the other frames' parts (Saryn's Systems in particular), not from Chroma's own drops.",
+"evidence": [
+"https://warframe.fandom.com/wiki/User_blog:ZyLnTKyllR/Warframes_ranked_based_on_the_hardest_grind_to_acquire_them",
+"https://steamcommunity.com/app/230410/discussions/0/1480982338940117492"
+]
+},
 "Cinta": {
 "method": "mission-drop",
 "how": "Main and 4 part blueprints drop from Duviri Enigma puzzles in The Duviri Experience (about 6% per part per puzzle), all blueprints tradable; build with Duviri resources (Lamentus, Kovnik, Maw Fang etc.); or 225p in the Market.",
@@ -150,6 +238,19 @@
 "available": true,
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Cinta"
+},
+"Citrine": {
+"method": "mission-drop",
+"how": "All four blueprints drop from rotation C of Mirror Defense on Tyana Pass, Mars (parts 6.10%, main 9.30%), after Heart of Deimos; or buy them from Otak for 1,550 Rania and 1,500 Belric Crystal Fragments earned in the same mode. Crafting needs Entrati Rank 2. Market price 325 platinum.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Citrine",
+"players": "Steam players most often name Citrine as the worst new-frame farm ('farming plat was easier than farming Citrine parts'), though a few report about 4 hours.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/4142816460199957103",
+"https://steamcommunity.com/app/230410/discussions/0/591766834833820649"
+]
 },
 "Coda Bassocyst": {
 "method": "coda",
@@ -264,12 +365,41 @@
 "source": "https://wiki.warframe.com/w/Crescent_Vulpaphyla"
 },
 "Cyte-09": {
-"method": "quest",
-"how": "Main blueprint is the reward for The Hex quest (or 50,000 credits from Amir at Hex Rank 4); Neuroptics/Chassis/Systems drop from Höllvania Central Mall bounties (~12% each) or cost 20,000 credits each from Amir at Rank 2; build with Techrot resources; or 370p in the Market.",
+"method": "syndicate",
+"how": "Main blueprint from The Hex quest; parts are uncommon drops from Höllvania Central Mall bounties (11.6-13.3%), or bought from Amir of The Hex for 20,000 standing each at Rank 2 - Fresh Slice. Market price 370 platinum.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
-"source": "https://wiki.warframe.com/w/Cyte-09"
+"source": "https://wiki.warframe.com/w/Cyte-09",
+"players": "Players report anywhere from under 15 bounties to a couple of days, and many fall back on buying parts with Hex standing.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/787664259085580285"
+]
+},
+"Dagath": {
+"method": "dojo",
+"how": "All blueprints are bought in Dagath's Hollow in the Clan Dojo (no research); the three parts need 102 Vainthorns from the Abyssal Zone on Ceres (6-8 per clear, 8-12 on Steel Path), and each run needs an Abyssal Beacon bought for 5,000 standing from a Rank 2 faction syndicate. Market price 275 platinum.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Dagath",
+"players": "Players call the Dojo part easy but the Vainthorn runs tedious, and note it is mostly solo because few people queue for the Abyssal Zone.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/4142816460199957103",
+"https://steamcommunity.com/app/230410/discussions/0/591766834833820649"
+]
+},
+"Dante": {
+"method": "mission-drop",
+"how": "All four blueprints drop from rotation C of Armatus Disruption on Deimos (parts 4.55%, main 6.82%) after The Deadlock Protocol and Whispers in the Walls; or buy them from Loid for 540 Vessel Capillaries (2-4 per Demolisher, 5-7 on Steel Path). Market price 350 platinum.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Dante",
+"players": "Players on Steam report having Dante crafting after roughly 1-4 hours, thanks to the Vessel Capillary shop.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/4358995119366581174"
+]
 },
 "Dark Dagger": {
 "method": "nightwave",
@@ -439,6 +569,45 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Elytron"
 },
+"Ember": {
+"method": "boss",
+"how": "Main blueprint from the Market (25,000 credits); parts drop from General Sargas Ruk on Tethys, Saturn (Neuroptics and Chassis 38.72%, Systems 22.56%). Also in the Duviri Circuit. Market price 225 platinum.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Ember",
+"players": "Players treat her as an ordinary early boss farm; a community ranking puts her near the bottom of the grind list.",
+"evidence": [
+"https://warframe.fandom.com/wiki/User_blog:ZyLnTKyllR/Warframes_ranked_based_on_the_hardest_grind_to_acquire_them",
+"https://steamcommunity.com/app/230410/discussions/0/1696045708648735168"
+]
+},
+"Equinox": {
+"method": "boss",
+"how": "Main blueprint from the Market (25,000 credits); Tyl Regor on Titania, Uranus drops eight blueprints: Day and Night Aspects (22.56% each) and their Neuroptics, Chassis and Systems (25.81% each), and both Aspects must be built before Equinox. Market price 325 platinum.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Equinox",
+"players": "Players report 50-100+ Tyl Regor runs for all eight parts ('40 runs a day for 3 weeks' in one case), and a 2026 column still calls her one of the most irritating farms.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/1621724915819819753",
+"https://massivelyop.com/2026/01/15/warframe-of-mind-the-most-irritating-warframes-to-farm-and-how-they-could-be-improved/"
+]
+},
+"Excalibur": {
+"method": "boss",
+"how": "Starter frame. Main blueprint from the Market (35,000 credits); parts drop from Lieutenant Lech Kril on War, Mars (Neuroptics and Chassis 38.72%, Systems 22.56%). Also in the Duviri Circuit or from Teshin for 60,000 Conclave standing. Market price 75 platinum.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Excalibur",
+"players": "Players treat him as a trivial early farm; a community ranking puts him last (easiest) among the boss frames.",
+"evidence": [
+"https://warframe.fandom.com/wiki/User_blog:ZyLnTKyllR/Warframes_ranked_based_on_the_hardest_grind_to_acquire_them",
+"https://steamcommunity.com/app/230410/discussions/0/1696045708648735168"
+]
+},
 "Excalibur Umbra": {
 "method": "quest",
 "how": "Blueprint and parts come from The Sacrifice quest (requires The Second Dream, The War Within, Chains of Harrow and Apostasy Prologue); build is near-instant with 10,000 credits, 1 Orokin Cell, 60 Kuva, Nano Spores, Alloy Plate. Not sold in the Market.",
@@ -454,6 +623,71 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Feverspine"
+},
+"Follie": {
+"method": "mission-drop",
+"how": "All four blueprints drop from rotation A of Follie's Hunt on the Vesper Relay, Venus (5%, 6% on Steel Path) after Chains of Harrow; or buy them from Aspirant Zorba for 2,400 Atramentum (15 per completion, 25 on Steel Path, plus 12 balloons with 2-4 each). Market price 370 platinum.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Follie",
+"players": "No player run counts found; by the wiki's numbers the shop route is roughly 30 Steel Path or 45+ normal runs, and DE raised Atramentum rewards in Hotfix 42.0.2 because the mode was 'too punishing'.",
+"evidence": [
+"https://www.warframe.com/en/patch-notes/pc/42-0-2",
+"https://www.shacknews.com/article/148461/how-to-get-follie-in-warframe",
+"https://progametalk.com/warframe/follies-hunt-guide/"
+]
+},
+"Frost": {
+"method": "boss",
+"how": "Main blueprint from the Market (25,000 credits); parts drop from Captain Vor and Lieutenant Lech Kril on Exta, Ceres (Neuroptics and Chassis 38.72%, Systems 22.56%). Also in the Duviri Circuit. Market price 375 platinum.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Frost",
+"players": "Players describe him as a simple early boss farm on Ceres; a community ranking puts him among the easiest.",
+"evidence": [
+"https://warframe.fandom.com/wiki/User_blog:ZyLnTKyllR/Warframes_ranked_based_on_the_hardest_grind_to_acquire_them",
+"https://steamcommunity.com/app/230410/discussions/0/1696045708648735168"
+]
+},
+"Gara": {
+"method": "open-world",
+"how": "Main blueprint from the Saya's Vigil quest; parts drop from Plains of Eidolon (Cetus) bounties: Chassis from level 5-15, Systems from 10-30, Neuroptics from 20-40 (about 23-31% on the final stage). Crafting needs Plains gems and fish parts. Also in the Duviri Circuit. Market price 225 platinum.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Gara",
+"players": "In 2017 (lower rates) players reported around 40 bounties and up to a week; drop rates are higher today, but no recent run counts found.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/1484358860952520074",
+"https://steamcommunity.com/app/230410/discussions/0/3183345176712411455"
+]
+},
+"Garuda": {
+"method": "open-world",
+"how": "Main blueprint from the Vox Solaris quest; parts drop from Orb Vallis (Fortuna) bounties: Chassis from level 5-15, Systems from 10-30, Neuroptics from 20-40 (22.5-27.6% on the final stage). Crafting needs Toroids, Fortuna gems and alloys and 3,500 Kuva. Also in the Duviri Circuit. Market price 325 platinum.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Garuda",
+"players": "No direct player run counts found; a community ranking puts her in the middle of the pack, alongside Gara.",
+"evidence": [
+"https://warframe.fandom.com/wiki/User_blog:ZyLnTKyllR/Warframes_ranked_based_on_the_hardest_grind_to_acquire_them"
+]
+},
+"Gauss": {
+"method": "mission-drop",
+"how": "Main blueprint from the Market (30,000 credits); parts drop only from rotation C of Disruption on Kappa, Sedna (7.12% each). Market price 325 platinum.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Gauss",
+"players": "Steam reports range from all parts in one run to 3 hours without the last part, and a 2026 column says the last part took '50 or so rotations'.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/1636417554417544103",
+"https://massivelyop.com/2026/01/15/warframe-of-mind-the-most-irritating-warframes-to-farm-and-how-they-could-be-improved/"
+]
 },
 "Glaive": {
 "method": "nightwave",
@@ -471,6 +705,19 @@
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Glaxion_Vandal"
 },
+"Grendel": {
+"method": "other",
+"how": "Main blueprint from the Market (35,000 credits); each part needs a Locator bought for 25 Vitus Essence from Arbitration Honors (Arbitrations need the full Star Chart), which unlocks a modless, gearless squad-only mission on Europa that always gives that part. Market price 325 platinum.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Grendel",
+"players": "Players say the three Locator missions take about 50-60 minutes once you have the Vitus Essence; the real gate is clearing the Star Chart and farming Arbitrations.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/1638676181989849747",
+"https://warframe.fandom.com/wiki/User_blog:ZyLnTKyllR/Warframes_ranked_based_on_the_hardest_grind_to_acquire_them"
+]
+},
 "Grimoire": {
 "method": "quest",
 "how": "Awarded fully built at max rank (with Catalyst and slot) during the Whispers in the Walls quest; extra blueprints from Bird 3 (Cavia) for 50,000 credits at Rank 4 'Scholar'.",
@@ -478,6 +725,19 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Grimoire"
+},
+"Gyre": {
+"method": "syndicate",
+"how": "All four blueprints drop from The Holdfasts' Zariman bounties on the Chrysalith (Neuroptics level 50-55 13.04%, Chassis 60-65 13.56%, Systems 70-75 11.90%, main 90-95/110-115 12.99%); there is no standing shop for them. Market price 325 platinum.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Gyre",
+"players": "Players report anything from 4 to 50+ bounties for a single part, and a 2026 column lists Gyre among the most irritating farms because the parts can't be bought with standing.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/5796774472375571004",
+"https://massivelyop.com/2026/01/15/warframe-of-mind-the-most-irritating-warframes-to-farm-and-how-they-could-be-improved/"
+]
 },
 "Haalvu": {
 "method": "event",
@@ -494,6 +754,20 @@
 "available": true,
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Halikar_Wraith"
+},
+"Harrow": {
+"method": "mission-drop",
+"how": "Main blueprint from the Chains of Harrow quest (main needs 2,000 Kuva); Chassis drops from Void Fissure corrupted enemies (3%), Neuroptics from rotation A Spy on Pago (16.67%) or rotation C Kuva Survival (12%), Systems from Defection rotation C (15%)/B (~6%) or Kuva Survival (12%). Also in the Duviri Circuit. Market price 225 platinum.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Harrow",
+"players": "Players report 20+ Defection runs for Systems and call Harrow and Ivara among the worst farms; a community ranking put Harrow as the hardest frame to get.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/2592234299566887231",
+"https://warframe.fandom.com/wiki/User_blog:ZyLnTKyllR/Warframes_ranked_based_on_the_hardest_grind_to_acquire_them",
+"https://steamcommunity.com/app/230410/discussions/0/3033725780692521210"
+]
 },
 "Heat Dagger": {
 "method": "nightwave",
@@ -535,6 +809,19 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Helminth_Charger"
 },
+"Hildryn": {
+"method": "boss",
+"how": "Main blueprint from Little Duck for 5,000 standing at Vox Solaris Rank 2 - Agent; parts drop from the Exploiter Orb heist in Orb Vallis (Neuroptics and Chassis 38.72%, Systems 22.56%). Each part needs 2 Lazulite Toroids. Also in the Duviri Circuit. Market price 325 platinum.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Hildryn",
+"players": "One player got all parts in about 9 Exploiter runs; the most common complaint is the Lazulite Toroid and Vox Solaris standing grind, not the boss.",
+"evidence": [
+"https://forums.warframe.com/topic/1323425-exploiter-orb-hasnt-aged-well-power-creep-and-soloing/",
+"https://steamcommunity.com/app/230410/discussions/0/6717729343887671724"
+]
+},
 "Huras Kubrow": {
 "method": "incubator",
 "how": "Incubate a Kubrow Egg (from Kubrow Dens on Earth) with an Incubator Power Core after Howl of the Kubrow; the breed is random, or use a Huras Genetic Imprint from another player (imprints are traded in-game, not on warframe.market).",
@@ -542,6 +829,30 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Huras_Kubrow"
+},
+"Hydroid": {
+"method": "boss",
+"how": "Main blueprint from the Market (50,000 credits); parts drop from Councilor Vay Hek on Oro, Earth, which needs Mastery Rank 5 (Neuroptics and Chassis 38.72%, Systems 22.56%). Also in the Duviri Circuit. Market price 300 platinum.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Hydroid",
+"players": "Players typically report 3-5 Vay Hek runs, with occasional long bad-luck streaks.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/618453594743847260"
+]
+},
+"Inaros": {
+"method": "quest",
+"how": "All blueprints come from the Sands of Inaros quest (Mastery Rank 5); the quest key is bought from Baro Ki'Teer, who visits every two weeks, for 100 Ducats + 25,000 credits, or traded from a player. Also in the Duviri Circuit. Market price 225 platinum.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Inaros",
+"players": "No run counts apply; players say the only friction is waiting for Baro and a slow final quest stage.",
+"evidence": [
+"https://warframe.fandom.com/wiki/User_blog:ZyLnTKyllR/Warframes_ranked_based_on_the_hardest_grind_to_acquire_them"
+]
 },
 "Itzal": {
 "method": "dojo",
@@ -551,13 +862,30 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Itzal"
 },
-"Jade": {
-"method": "quest",
-"how": "Main blueprint from the Jade Shadows quest (needs The New War); component blueprints drop from Ascension (Brutus, Uranus) or cost 150 Vestigial Motes each from Ordis; build needs 3 Orokin Cells plus standard parts. Or 325 platinum in the Market.",
-"difficulty": 4,
+"Ivara": {
+"method": "mission-drop",
+"how": "Main blueprint is now in the Market (35,000 credits); parts drop from rotation C of Spy missions (all three vaults): Systems from Tier 1, Chassis from Tier 2, Neuroptics from Tier 3 (22.56% each, 36% in Railjack Proxima Spy). Also in the Duviri Circuit. Market price 325 platinum.",
+"difficulty": 3,
 "available": true,
 "tradable": false,
-"source": "https://wiki.warframe.com/w/Jade"
+"source": "https://wiki.warframe.com/w/Ivara",
+"players": "Older reports describe 100-150 Spy runs and 9-hour sessions for one part, but those predate the drop-rate buff to 22.56%; no post-buff reports found.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/6861841362657898172",
+"https://forums.warframe.com/topic/1261775-farming-ivara-and-i-have-the-worst-luck-in-the-world/"
+]
+},
+"Jade": {
+"method": "mission-drop",
+"how": "Main blueprint from the Jade Shadows quest; parts drop from Ascension on Brutus, Uranus (4.63% each), or buy them from Ordis in the Drifter's Camp for 150 Vestigial Motes each (11-13 per run plus 5-7 from the optional Sister objective; more on Steel Path). Market price 325 platinum.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Jade",
+"players": "Steam players report getting all parts in about 2-4 hours, often before reaching 200 motes.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/4353373425702522149"
+]
 },
 "Jaw Sword": {
 "method": "nightwave",
@@ -575,13 +903,45 @@
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Karak_Wraith"
 },
-"Kullervo": {
-"method": "open-world",
-"how": "Buy main and part blueprints from Acrithis in Duviri for 42 Kullervo's Bane total (earned by beating Kullervo in Kullervo's Hold during Anger/Sorrow/Fear spirals), then build with Duviri resources and 10 Pathos Clamps. Or 325 platinum in the Market.",
+"Khora": {
+"method": "mission-drop",
+"how": "Main blueprint from the Market (35,000 credits); parts drop from normal Sanctuary Onslaught (7.14% on rotations A/B, 9.09% on C) after The New Strange, and crafting needs 9 Kavat Genetic Codes. Also in the Duviri Circuit. Market price 325 platinum.",
 "difficulty": 4,
 "available": true,
 "tradable": false,
-"source": "https://wiki.warframe.com/w/Kullervo"
+"source": "https://wiki.warframe.com/w/Khora",
+"players": "Players report a week to 3 months of daily Sanctuary Onslaught for the last part.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/3033725780692521210",
+"https://warframe.fandom.com/wiki/User_blog:ZyLnTKyllR/Warframes_ranked_based_on_the_hardest_grind_to_acquire_them"
+]
+},
+"Koumei": {
+"method": "mission-drop",
+"how": "All four blueprints drop from Shrine Defense on Saya's Visions, Earth (4.09% each) after Saya's Vigil and Once Awake; or buy them at Koumei's Shrine in Cetus for 330 Fate Pearls (14-18 per run, 20-24 on Steel Path). Crafting also uses 102 Fate Pearls; build time is 24 hours. Market price 370 platinum.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Koumei",
+"players": "Players describe short runs (about 3 minutes once in a rhythm) and a predictable pearl shop; no total run counts found.",
+"evidence": [
+"https://blaurascon.nfshost.com/blog/warframe-shrine-defense-is-pretty-neat",
+"https://forums.warframe.com/topic/1419385-shrine-defense-is-a-pretty-fun-new-game-mode"
+]
+},
+"Kullervo": {
+"method": "vendor",
+"how": "All four blueprints are bought from Acrithis in Duviri's Dormizone for 42 Kullervo's Bane (15 main, 9 per part); Banes come from beating Kullervo at Kullervo's Hold in Anger/Sorrow/Fear spirals plus finishing the spiral (4-6 per run, 6-8 on Steel Path). Needs The Duviri Paradox (Uranus junction) and Duviri resources to build; 325 platinum in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Kullervo",
+"players": "Players call it a fixed-length, guaranteed grind (at most about 7 Steel Path runs for the 42 Banes), though some find waiting for the right spiral moods 'hellish'.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/3814034217020802583/",
+"https://steamcommunity.com/app/230410/discussions/0/600768456049099772/",
+"https://steamcommunity.com/app/230410/discussions/0/3806157163937468819/"
+]
 },
 "Kuva Ayanga": {
 "method": "lich-sister",
@@ -783,6 +1143,18 @@
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Latron_Wraith"
 },
+"Lavos": {
+"method": "syndicate",
+"how": "Bought from Father (Necralisk, Deimos) with Entrati standing: main blueprint at Rank 2, parts at Rank 3, 5,000 standing each (20,000 total); needs Heart of Deimos. Building needs Trapezium Xenorhast, Nitain Extract and Argon Crystals; 325 platinum in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Lavos",
+"players": "Since the parts moved from the old Orphix Venom event to Father, players mostly just note the Entrati Rank 3 requirement; no run or time reports found.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/4143842265258165329/"
+]
+},
 "Lex": {
 "method": "market-credits",
 "how": "Bought already built from the in-game Market for 50,000 credits; needs MR 3. The optional Lex Incarnon Genesis comes from Steel Path Circuit rewards (or once from Cavalero for 120 platinum).",
@@ -791,6 +1163,33 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Lex"
 },
+"Limbo": {
+"method": "quest",
+"how": "Main blueprint from the Market for 35,000 credits; the three parts are awarded by The Limbo Theorem quest (Jupiter-Europa junction), each unlocked with a Proof Fragment and a short mission. Extra parts cost 25,000 Simaris standing, and The Circuit offers him on his rotation week; 200 platinum in the Market.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Limbo",
+"players": "Older threads complain of hours of RNG for his parts (e.g. 17 excavators with no drop), but the current quest hands them out directly; no recent complaints found.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/598198356176979149/",
+"https://steamcommunity.com/app/230410/discussions/1/412446292753436672/"
+]
+},
+"Loki": {
+"method": "boss",
+"how": "Main blueprint from the Market for 35,000 credits; parts drop from the Hyena Pack on Psamathe, Neptune (Systems 22.56%, Chassis 38.72%, Neuroptics 38.72%; about 4 kills expected for Systems). Also on The Circuit rotation; 175 platinum in the Market.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Loki",
+"players": "Typical reports are a handful of Hyena Pack runs, but RNG streaks are common: 13 runs without a Chassis, 9 Systems in 12 runs, and one veteran recalls 70-80 runs for a Neuroptics.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/1/1474221865191852735/",
+"https://steamcommunity.com/app/230410/discussions/0/154644705028188800/",
+"https://steamcommunity.com/app/230410/discussions/0/523897204945521704/"
+]
+},
 "Machete Wraith": {
 "method": "baro",
 "how": "Bought fully built from Baro Ki'Teer when he stocks it (rotating) for 250,000 credits and 410 Ducats; also buyable unranked from other players (MR11).",
@@ -798,6 +1197,16 @@
 "available": true,
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Machete_Wraith"
+},
+"Mag": {
+"method": "boss",
+"how": "Starter-frame option; main blueprint from the Market for 25,000 credits, parts from The Sergeant on Iliad, Phobos (Systems 22.56%, Chassis/Neuroptics 38.72%). Also on The Circuit rotation and sold complete by Teshin at Conclave Typhoon rank; 75 platinum in the Market.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Mag",
+"players": "No specific player reports found; rated from the mechanics (a starter frame from an early, easy boss).",
+"evidence": []
 },
 "Mara Detron": {
 "method": "baro",
@@ -822,6 +1231,33 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Medjay_Predasite"
+},
+"Mesa": {
+"method": "boss",
+"how": "Main blueprint from the Market for 30,000 credits; parts drop from Mutalist Alad V on Eris (Systems 22.56%, Chassis/Neuroptics 38.72%), and each run consumes a Mutalist Alad V Assassinate key crafted from Nav Coordinates found in Infested invasions (key blueprint from the Patient Zero quest). Also on The Circuit; 325 platinum in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Mesa",
+"players": "Most Steam threads are players hunting for key-sharers because every attempt costs a crafted key; one veteran says 'If you consider Temple bad you're not going to enjoy Mesa'.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/1727575977530491164/",
+"https://steamcommunity.com/app/230410/discussions/1/492379439672637332/",
+"https://steamcommunity.com/app/230410/discussions/0/803471225741567834/"
+]
+},
+"Mirage": {
+"method": "quest",
+"how": "Main blueprint from the Market for 35,000 credits; each part is awarded at the end of a mission of the Hidden Messages quest (unlocked by the Eris-Sedna junction; its riddles need specific mods). Extra parts cost 25,000 Simaris standing, and The Circuit offers her on rotation; 275 platinum in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Mirage",
+"players": "Players mainly report confusion and bugs with the quest's riddles and inbox message rather than a long grind; the parts themselves are guaranteed.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/2/1489992080520877694/",
+"https://steamcommunity.com/app/230410/discussions/1/1621724915813565241/"
+]
 },
 "Mk1-Bo": {
 "method": "market-credits",
@@ -887,6 +1323,20 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Multron"
 },
+"Narin": {
+"method": "mission-drop",
+"how": "Zariman Ten Zero drops: main blueprint 8.89% from Exterminate/Mobile Defense A rotations; Chassis from Void Flood, Neuroptics from Void Cascade, Systems from Void Armageddon (4.23% A, 4.60% B, 8.33% C). Or buy from Cephalon Melica for 790 Entropic Kuva (130 per part, 400 main; 3-5 per Entropic Eximus kill), which needs Angels of the Zariman and Whispers in the Walls. Released 23 Sept 2026; the wiki lists no Market platinum price.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Narin",
+"players": "At launch players couldn't find the parts in drop tables and most bought them with Entropic Kuva (one soloed Kuva Flood for a week to afford her); others complain squads leave before the rotations they need.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/592943469164713145/",
+"https://steamcommunity.com/app/230410/discussions/0/592942834747747446/",
+"https://steamcommunity.com/app/230410/discussions/0/573804084819348749/"
+]
+},
 "Nataruk": {
 "method": "quest",
 "how": "Given on completing The New War quest, with its own slot and an Orokin Catalyst already installed. Extra copies cost 100,000 Simaris standing; there's no platinum shortcut.",
@@ -895,6 +1345,73 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Nataruk"
 },
+"Nekros": {
+"method": "boss",
+"how": "Main blueprint from the Market (100,000 credits per the wiki); parts drop from Lephantis on Magnacidium, Deimos at 33.33% each (about 3 kills expected per part). Also on The Circuit rotation; 375 platinum in the Market per the wiki.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Nekros",
+"players": "Player threads mostly report bugs in the Lephantis fight (heads that stop opening) rather than drop-rate pain; no run counts found.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/1484358860954840096/",
+"https://steamcommunity.com/app/230410/discussions/0/1489987634000925683/"
+]
+},
+"Nezha": {
+"method": "dojo",
+"how": "Researched in the clan dojo's Tenno Lab; once researched, copies cost 5,000 credits (main) and 1,500 credits per part. Parts need Argon Crystal, Control Module and Morphics; 275 platinum in the Market.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Nezha",
+"players": "Players call dojo frames the easiest to get ('Doesn't get easier than that'); the only gate is being in a clan whose dojo has the Tenno Lab research done.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/1483235412203277206/",
+"https://steamcommunity.com/app/230410/discussions/0/1679189548055581493/"
+]
+},
+"Nidus": {
+"method": "mission-drop",
+"how": "Main blueprint from The Glast Gambit quest (needs The War Within; extra copies 50,000 Simaris standing); parts drop from Infested Salvage on Oestrus, Eris (7.69% each on A/B, 14.29% on C). The Circuit also offers him on his rotation week; 225 platinum in the Market.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Nidus",
+"players": "Players report long RNG on Oestrus, e.g. one at about 60 runs still missing a part and another with zero parts after 11 runs.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/5/1741106440034624594/",
+"https://steamcommunity.com/app/230410/discussions/0/1742229167223292523/",
+"https://steamcommunity.com/app/230410/discussions/0/154644787618681513/"
+]
+},
+"Nokko": {
+"method": "open-world",
+"how": "Fortuna Deepmines Bounties (need The New War): parts 10% on C stages (2.5% B, 5% B on Steel Path), main 5-8% on C. Or buy from Nightcap at Rank 4 for 720 Fergolyte (160 per part, 240 main; 11-15 Fergolyte per bounty, 15-19 on Steel Path); 370 platinum in the Market.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Nokko",
+"players": "Mixed: some players got him within a week and call it fast, while others say the same three repetitive bounties took longer than Oraxia or most Prime frames.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/573770913622890382/",
+"https://steamcommunity.com/app/230410/discussions/0/594068102506953460/",
+"https://steamcommunity.com/app/230410/discussions/0/573770913622789630/"
+]
+},
+"Nova": {
+"method": "boss",
+"how": "Main blueprint from the Market for 35,000 credits; parts drop from the Raptors on Naamah, Europa (Systems 22.56%, Chassis/Neuroptics 38.72%). Also on The Circuit rotation; 375 platinum in the Market.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Nova",
+"players": "Older threads complain the Raptor fight was buggy or slow (one reported 7-8 runs with no drop); no recent complaints found.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/864973123813021559/",
+"https://steamcommunity.com/app/230410/discussions/0/666827315378907078/"
+]
+},
 "Nunchasa": {
 "method": "vendor",
 "how": "Buy the main blueprint (200 Entropic Kuva) and four part blueprints (50 each) from Cephalon Melica (Yuvan Peak/Zariman) using Entropic Kuva dropped by Entropic Eximus in the Zariman, then build with Zariman/Deimos resources; or 230 platinum in the Market.",
@@ -902,6 +1419,46 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Nunchasa"
+},
+"Nyx": {
+"method": "boss",
+"how": "Main blueprint from the Market for 25,000 credits; parts drop from Phorid in assassinations that only appear during Infested invasions (Systems 22.56%, Chassis/Neuroptics 38.72%). Also on The Circuit rotation; 225 platinum in the Market.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Nyx",
+"players": "Players' main friction is waiting for a Phorid invasion to show up and duplicate parts (one got 4 Neuroptics in 4 runs); the fight itself is easy.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/864976837884226816/",
+"https://steamcommunity.com/app/230410/discussions/0/2828702373008765390/"
+]
+},
+"Oberon": {
+"method": "mission-drop",
+"how": "Main blueprint from the Market for 30,000 credits; Neuroptics and Systems come from Earth Proxima Points of Interest and Chassis from Saturn Proxima Points of Interest in Railjack (Empyrean) missions, 10% per cache. Also on The Circuit rotation; 325 platinum in the Market (given free to all players in Oct 2025).",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Oberon",
+"players": "Players say the hassle is getting into Railjack and finding Points of Interest (one spammed Saturn Proxima without seeing one); others point to The Circuit as the easier route.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/1/3046108212588717720/",
+"https://steamcommunity.com/app/230410/discussions/0/3806155895394109886/",
+"https://steamcommunity.com/app/230410/discussions/0/841754306658035029/"
+]
+},
+"Octavia": {
+"method": "quest",
+"how": "Main blueprint from Octavia's Anthem (needs The Second Dream); Chassis from the Lua music puzzle room (guaranteed once the room spawns), Neuroptics 22.56% from Terrorem (Deimos) Survival rotation C, Systems 22.56% from Plato (Lua) Exterminate A caches. Also on The Circuit; 225 platinum in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Octavia",
+"players": "Players report the music-puzzle room refusing to appear for dozens of runs (44 Plato runs in one case) and 20+ cache runs for Systems.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/1/2949168687329252944/",
+"https://steamcommunity.com/app/230410/discussions/0/1734341526178491605/"
+]
 },
 "Odonata": {
 "method": "quest",
@@ -918,6 +1475,19 @@
 "available": true,
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Opticor_Vandal"
+},
+"Oraxia": {
+"method": "mission-drop",
+"how": "Drops from the Isleweaver mode in Duviri (needs The Hex quest): each blueprint 7.69% on rotation A, or buy from Acrithis for 120 Scuttler Husks (20 per part, 60 main; 16-20 Husks per Isleweaver clear, 20-24 on Steel Path); 370 platinum in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Oraxia",
+"players": "Players treat her as a moderate farm with a pity currency: one got half the parts in two runs and says Husks buy the rest in under 10 runs; another says Oraxia was way faster than Nokko.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/591775366372152204/",
+"https://steamcommunity.com/app/230410/discussions/0/573770913622890382/"
+]
 },
 "Orion & Sirius": {
 "method": "quest",
@@ -1087,6 +1657,20 @@
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Prisma_Veritux"
 },
+"Protea": {
+"method": "mission-drop",
+"how": "Main blueprint from The Deadlock Protocol quest (Saturn junction, MR 4); parts 11.11% each from rotation C of the Granum Void (Neuroptics), Extended Granum Void (Chassis) and Nightmare Granum Void (Systems), each entry costing a Granum/Exemplar/Zenith Crown from Corpus Treasurers; 325 platinum in the Market.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Protea",
+"players": "Players report 20-50+ Granum Void runs, e.g. 30 runs without a single part and 50+ runs still farming Neuroptics.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/2942494909162882822/",
+"https://steamcommunity.com/app/230410/discussions/0/7599331177362561914/",
+"https://steamcommunity.com/app/230410/discussions/0/4372501943308939042/"
+]
+},
 "Prova Vandal": {
 "method": "baro",
 "how": "Bought fully built from Baro Ki'Teer for 250,000 credits + 410 Ducats when in stock (last offered 2026-08-21); otherwise buy an unranked copy from a player (MR 3).",
@@ -1104,12 +1688,17 @@
 "source": "https://wiki.warframe.com/w/Purgator_1"
 },
 "Qorvex": {
-"method": "quest",
-"how": "Main blueprint is rewarded by the Whispers in the Walls quest; Neuroptics/Chassis/Systems drop from Sanctum Anatomica bounties (~12-14% each) or are bought from Bird 3 (Cavia rank 2, 20,000 standing each), then build (3 days); or buy for 325 Platinum in the Market.",
+"method": "syndicate",
+"how": "Main blueprint from Whispers in the Walls (needs The New War and Heart of Deimos); parts 12-14% from Sanctum Anatomica bounties, or bought from Bird 3 (Cavia) for 20,000 standing each at Rank 2. 325 platinum in the Market.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
-"source": "https://wiki.warframe.com/w/Qorvex"
+"source": "https://wiki.warframe.com/w/Qorvex",
+"players": "In Jan 2026 a MassivelyOP columnist named him one of the most irritating farms because the parts weren't sold by the vendor; the wiki now lists them at Bird 3, and Steam players mention bad luck on Cavia bounties.",
+"evidence": [
+"https://massivelyop.com/2026/01/15/warframe-of-mind-the-most-irritating-warframes-to-farm-and-how-they-could-be-improved/",
+"https://steamcommunity.com/app/230410/discussions/0/4142816460199957103/"
+]
 },
 "Quanta Vandal": {
 "method": "baro",
@@ -1135,6 +1724,33 @@
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Rauta"
 },
+"Revenant": {
+"method": "open-world",
+"how": "Main blueprint from Mask of the Revenant (needs Rank 2 with The Quills; extra copies 50,000 Simaris standing); parts from Plains of Eidolon (Cetus) bounties: Systems lvl 20-40 final stage ~23-26%, Chassis lvl 30-50 final stage ~22%, Neuroptics lvl 40-60 final stage 10.2%. 325 platinum in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Revenant",
+"players": "Reports split: one player says Revenant took about an hour of bounties, another calls the bounty drop rates 'garbage'; players also note the Quills standing gate.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/592943200279483162/",
+"https://steamcommunity.com/app/230410/discussions/0/3020122487774174788/",
+"https://steamcommunity.com/app/230410/discussions/0/596268959542581731/"
+]
+},
+"Rhino": {
+"method": "boss",
+"how": "Main blueprint from the Market for 35,000 credits; parts drop from Jackal on Fossa, Venus, an early boss (Systems 22.56%, Chassis/Neuroptics 38.72%). Also on The Circuit; 375 platinum in the Market per the wiki.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Rhino",
+"players": "Players name Rhino as the easiest frame to re-obtain ('just fight the Jackal boss').",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/3806155895394109886/",
+"https://steamcommunity.com/app/230410/discussions/0/2566437997125878697/"
+]
+},
 "Rumblejack": {
 "method": "quest",
 "how": "The Drifter's dagger, given on completing The New War quest with its own slot and an Orokin Catalyst already installed. Extra copies cost 100,000 Simaris standing. Needs MR 8.",
@@ -1158,6 +1774,34 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Sampotes"
+},
+"Saryn": {
+"method": "boss",
+"how": "Main blueprint from the Market for 35,000 credits; parts drop from Kela De Thaym on Merrow, Sedna (Systems 22.56%, Chassis/Neuroptics 38.72%). Also on The Circuit; 225 platinum in the Market.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Saryn",
+"players": "Players report the usual Systems RNG on Kela De Thaym, e.g. 6 kills giving only Chassis and, in an older thread, 45 kills with no Systems.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/541906989400274480/",
+"https://steamcommunity.com/app/230410/discussions/0/1319962599254694907/",
+"https://steamcommunity.com/app/230410/discussions/1/135514507318309213/"
+]
+},
+"Sevagoth": {
+"method": "mission-drop",
+"how": "Main blueprint from Call of the Tempestarii (needs The Deadlock Protocol, an owned Railjack and MR 4; extra copies 50,000 Simaris standing); each part has a 10% chance (9.52% Neptune) as a bonus reward at the end of Void Storm missions in Neptune, Pluto or Veil Proxima. 325 platinum in the Market.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Sevagoth",
+"players": "Reports range from about 10 storms to 13 runs or two days in Veil/Pluto without a part; several players gave up and bought him, and MassivelyOP calls it 'wildly more annoying than it needs to be'.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/3154202142459562794/",
+"https://steamcommunity.com/app/230410/discussions/0/4762081699101210549/",
+"https://massivelyop.com/2026/01/15/warframe-of-mind-the-most-irritating-warframes-to-farm-and-how-they-could-be-improved/"
+]
 },
 "Shade": {
 "method": "market-credits",
@@ -1247,6 +1891,20 @@
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Strun_Wraith"
 },
+"Styanax": {
+"method": "syndicate",
+"how": "Bought from Chipper (Kahl's Garrison) with Stock earned from the weekly Break Narmer missions (needs Veilbreaker): Systems at Rank 2, Neuroptics Rank 3, Chassis Rank 4, main at Rank 5; 60 Stock per part, 90 main (270 total). 175 platinum in the Market.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Styanax",
+"players": "Players call it easy but time-gated: about four weeks of weekly Kahl missions to reach Rank 5, with weekly Stock (max ~105) also wanted for the Archon Shard.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/1/4327475551416321645/",
+"https://steamcommunity.com/app/230410/discussions/0/662718826094311350/",
+"https://steamcommunity.com/app/230410/discussions/0/5440953210420472201/"
+]
+},
 "Sun & Moon": {
 "method": "quest",
 "how": "Blueprint is rewarded on completing The Duviri Paradox quest (extra copies from Cephalon Simaris for 100,000 standing), then build with 30,000 credits, 100 Kovnik, 35 Rune Marrow, 40 Lamentus and 45 Silphsela (1 day); or buy for 250 Platinum in the Market.",
@@ -1294,6 +1952,19 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Taxon"
+},
+"Temple": {
+"method": "mission-drop",
+"how": "Drops from Stage Defense at Solstice Square, Hollvania (needs The Hex quest and Rank 4 with The Hex): each blueprint 0.97% A, 1.98% B, 4.23% C. Or buy from Flare at Rank 4 for 390 Beating Heartstrings (65 per part, 195 main) earned in the same mode. 370 platinum in the Market.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Temple",
+"players": "A Steam thread titled 'Is Temple the new worst farm?' estimates ~141 rotations with average luck, though players later saw about 10 Heartstrings per rotation on Steel Path, which made the pity route reasonable.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/612032512885032950/",
+"https://steamcommunity.com/app/230410/discussions/0/591766512413522438/"
+]
 },
 "Tenet Agendus": {
 "method": "vendor",
@@ -1439,6 +2110,33 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Thornbak"
 },
+"Titania": {
+"method": "quest",
+"how": "All blueprints come from The Silver Grove quest (needs The Second Dream and MR 7): craft Apothics from Earth forest plants (some only by day or night) and kill the Specters they summon. Extra copies from Simaris (25,000 per part, 50,000 main); also on The Circuit. 275 platinum in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Titania",
+"players": "Players describe the quest as long, time-of-day and luck dependent (gathering plants, Specters that must spawn) plus bugs, but the parts are guaranteed once done.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/1621724915792920581/",
+"https://steamcommunity.com/app/230410/discussions/0/1319962514591945483/",
+"https://steamcommunity.com/app/230410/discussions/0/2534848209925519679/"
+]
+},
+"Trinity": {
+"method": "boss",
+"how": "Main blueprint from the Market for 25,000 credits; parts drop from Ambulas on Hades, Pluto (Systems 22.56%, Chassis/Neuroptics 38.72%). Also on The Circuit; 225 platinum in the Market.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Trinity",
+"players": "Few run reports; threads mainly note that her parts moved to Ambulas on Pluto and ask about the fight.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/1697169163409160623/",
+"https://steamcommunity.com/app/230410/discussions/2/3948028800075564508/"
+]
+},
 "Twin Vipers Wraith": {
 "method": "mission-drop",
 "how": "Blueprint, Barrel, Receiver and Generic Component Plug are offered as Invasion mission rewards (or buy the parts from players, MR 7 for the blueprint), then build for 25,000 credits (12 h).",
@@ -1448,12 +2146,31 @@
 "source": "https://wiki.warframe.com/w/Twin_Vipers_Wraith"
 },
 "Uriel": {
-"method": "quest",
-"how": "Main blueprint is rewarded by The Old Peace quest; Neuroptics/Chassis/Systems drop from Roathe's Oblivion on Infernium 21 (The Descendia) or are bought from Roathe in Sanctum Anatomica for 25 Maphica each (75 for the main), then build with Perita Rebellion resources and 1 Orokin Cell (3 days); or buy for 370 Platinum in the Market.",
-"difficulty": 4,
+"method": "boss",
+"how": "Main blueprint from The Old Peace quest; parts drop from Roathe's Oblivion at Infernum 21 of the weekly Descendia (12.5% each, repeatable once cleared, always a Uriel or Vinquibus piece), or buy from Roathe in La Cathedrale for 150 Maphica (25 per part, 75 main). 370 platinum in the Market.",
+"difficulty": 3,
 "available": true,
 "tradable": false,
-"source": "https://wiki.warframe.com/w/Uriel"
+"source": "https://wiki.warframe.com/w/Uriel",
+"players": "Most players call Uriel a quick, easy farm, one even 'the easiest in the whole game'; a minority note the Vinquibus parts dilute Roathe's drops.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/592943924842162936/",
+"https://steamcommunity.com/app/230410/discussions/0/803468921025043793/"
+]
+},
+"Valkyr": {
+"method": "boss",
+"how": "Main blueprint from the Market for 35,000 credits; parts drop from Alad V on Themisto, Jupiter (Systems 22.56%, Chassis/Neuroptics 38.72%). Also on The Circuit; 300 platinum in the Market.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Valkyr",
+"players": "Players describe the parts as easy because Alad V drops one every run, though some report getting only Chassis over 5-6 runs or a full day without Systems.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/1/592942834747822990/",
+"https://steamcommunity.com/app/230410/discussions/0/1484359403774924110/",
+"https://steamcommunity.com/app/230410/discussions/0/523897204945521704/"
+]
 },
 "Vasca Kavat": {
 "method": "incubator",
@@ -1470,6 +2187,19 @@
 "available": true,
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Vastilok"
+},
+"Vauban": {
+"method": "vendor",
+"how": "Main blueprint from the Market for 35,000 credits; parts from Nightwave Offerings for 25 Cred each (75 total). Also on The Circuit; 300 platinum in the Market.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Vauban",
+"players": "Players say he's no longer luck-dependent: a handful of Nightwave challenges buys the parts, which are always in the Nightwave shop.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/1640919737476483122/",
+"https://steamcommunity.com/app/230410/discussions/0/3841053719657887374/"
+]
 },
 "Verglas": {
 "method": "mission-drop",
@@ -1513,11 +2243,44 @@
 },
 "Voidrig": {
 "method": "quest",
-"how": "Heart of Deimos rewards all Voidrig blueprints (also sold by Necraloid at ranks 1-2); each part needs a Damaged Necramech part dropped by enemy Necramechs in Isolation Vault bounties or bought from Father for 2,000 Entrati standing (tradable), plus Purified Heciphron (Entrati rank 1), then a 72 h build; needs a free Archgun slot for the Mausolon.",
-"difficulty": 4,
+"how": "Necramech, not a Warframe. Heart of Deimos now gives all blueprints free (or Necraloid Rank 1/2: 2,000 per part, 5,000 main). Building needs four Damaged Necramech parts (12.5% from Isolation Vault Necramechs, or 2,000 Entrati standing each), refined Cambion Drift ores (Entrati Rank 1) and Deimos fish parts. 375 platinum in the Market.",
+"difficulty": 3,
 "available": true,
 "tradable": false,
-"source": "https://wiki.warframe.com/w/Voidrig"
+"source": "https://wiki.warframe.com/w/Voidrig",
+"players": "Blueprints now come free with Heart of Deimos; the grind players report is the damaged parts and minerals (one ran 40+ Isolation Vaults over 4 days still missing a Pod), though others found it 'not too bad aside from standing and minerals'.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/592943924842185303/",
+"https://steamcommunity.com/app/230410/discussions/0/3763353492974886003/",
+"https://steamcommunity.com/app/230410/discussions/0/2913220877901806033/"
+]
+},
+"Volt": {
+"method": "dojo",
+"how": "Starter-frame option; otherwise researched in the clan dojo's Tenno Lab (copies 5,000 credits main, 1,500 per part) with common resources, or bought complete from Teshin at Conclave Typhoon rank. 75 platinum in the Market.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Volt",
+"players": "Players list Volt with the dojo frames as the easiest to get ('Doesn't get easier than that'), besides being a starter option.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/1483235412203277206/",
+"https://steamcommunity.com/app/230410/discussions/0/1639787494964530250/"
+]
+},
+"Voruna": {
+"method": "mission-drop",
+"how": "Rotation C of Conjunction Survival on Lua (Yuvarium/Circulus, needs The War Within): parts 4.55% (T1) / 8.16% (T2), main 6.82% / 12.24%. Or buy from Archimedean Yonta (Zariman, needs Angels of the Zariman) for 350 Lua Thrax Plasm (75 per part, 125 main; 3-6 per rotation plus Thrax drops). 325 platinum in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Voruna",
+"players": "Players report about 2-3 hours of Conjunction Survival to buy the set with plasm ('got enough after 3 hours'), calling plasm a slog but the pity route reliable.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/3710432845013413494/",
+"https://steamcommunity.com/app/230410/discussions/0/3832045251563954256/",
+"https://massivelyop.com/2026/01/15/warframe-of-mind-the-most-irritating-warframes-to-farm-and-how-they-could-be-improved/"
+]
 },
 "Vulkar Wraith": {
 "method": "baro",
@@ -1535,6 +2298,33 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Vulklok"
 },
+"Wisp": {
+"method": "boss",
+"how": "All four blueprints drop from the Ropalolyst on Jupiter (main 22.56%, each part 25.81%), which needs the Chimera Prologue quest. 325 platinum in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Wisp",
+"players": "Players report roughly 3-10 Ropalolyst runs, but the fight is buggy and public squads are scarce, so many solo it.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/1639787494970549018/",
+"https://steamcommunity.com/app/230410/discussions/0/803469628489875850/",
+"https://steamcommunity.com/app/230410/discussions/0/4755222397155033849/"
+]
+},
+"Wukong": {
+"method": "dojo",
+"how": "Researched in the clan dojo's Tenno Lab (copies 5,000 credits main, 1,500 per part); building needs 6 Nitain Extract plus common resources. 275 platinum in the Market.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Wukong",
+"players": "Players call him 'no farm needed': parts are bought from any clan dojo with credits; the only real cost is Nitain Extract from Nightwave.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/3887226156977722772/",
+"https://steamcommunity.com/app/230410/discussions/0/2273701484013555139/"
+]
+},
 "Wyrm": {
 "method": "market-credits",
 "how": "Buy the blueprint from the Market for 100,000 credits and build it (15,000 credits, 500 Alloy Plate, 400 Circuits, 200 Nano Spores, 1 Control Module; 24 h); needs two free companion slots (comes with Laser Rifle); or 75 Platinum built.",
@@ -1542,6 +2332,46 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Wyrm"
+},
+"Xaku": {
+"method": "open-world",
+"how": "Main blueprint from Heart of Deimos; parts from Cambion Drift bounties: Neuroptics lvl 15-25 (up to 12% final stage), Systems lvl 30-40 (up to 11.3%), Chassis lvl 40-60 or Steel Path (up to 13%). 325 platinum in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Xaku",
+"players": "Typical reports are 1-2 hours of Cambion Drift bounties, though one unlucky player spent half a year on and off for the last two parts.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/2913220877915504327/",
+"https://steamcommunity.com/app/230410/discussions/0/592943200279483162/"
+]
+},
+"Yareli": {
+"method": "dojo",
+"how": "Main blueprint from The Waverider quest (needs Vox Solaris and MR 3); parts are researched in the clan dojo's Ventkids' Bash Lab (72 h each, then 1,500 credits per copy). Building needs Orb Vallis resources (Heart Noctrul, Venerdo Alloy, Scrubber Exa Brain). 325 platinum in the Market.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Yareli",
+"players": "Players call her one of the easiest frames to farm; the tedious parts are the K-Drive quest and, in clans without one, building the Bash Lab.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/3046105389674016378/",
+"https://steamcommunity.com/app/230410/discussions/0/4298195085742420353/"
+]
+},
+"Zephyr": {
+"method": "dojo",
+"how": "Researched in the clan dojo's Tenno Lab (copies 5,000 credits main, 1,500 per part) with common resources such as Oxium. 275 platinum in the Market.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Zephyr",
+"players": "Players list Zephyr among the easy dojo frames; the only gate is belonging to a clan with a dojo.",
+"evidence": [
+"https://steamcommunity.com/app/230410/discussions/0/1639787494964530250/",
+"https://steamcommunity.com/app/230410/discussions/0/154644045356096158/",
+"https://steamcommunity.com/app/230410/discussions/0/618453594764320064/"
+]
 },
 "Zylok": {
 "method": "baro",

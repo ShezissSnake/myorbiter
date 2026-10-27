@@ -114,7 +114,7 @@
   <ItemCard hover={r.name} title={r.name} sub={r.category} image={item?.imageName ?? model.imageOf(r.name)} owned={r.status === "level"} onopen={open} fav={wished.has(r.unique)} onfav={item ? () => toggleWish(r.unique) : undefined}>
     {#if r.acq.difficulty > 0}<Effort acq={r.acq} />{:else}<p class="chow">{stageText(r)}</p>{/if}
     {#if parts.length}<div class="chips">{#each parts as p, i (i)}<PartChip part={p} size={32} />{/each}</div>{/if}
-    {#if r.acq.difficulty > 0}<p class="chow" title={r.acq.how}>{r.acq.how}</p>{/if}
+    {#if r.acq.difficulty > 0}<p class="chow" title={r.acq.players ? `${r.acq.how}\n\nPlayers: ${r.acq.players}` : r.acq.how}>{r.acq.how}</p>{/if}
     {#snippet foot()}
       {#if r.status === "level"}<span class="tag" class:ok={stageOf(r).stage !== "building"}>{stageTag(r)}</span>{:else if r.status === "build"}<span class="tag ok">Ready to build</span>{/if}
       {#if r.isPrime && r.missingParts.length}
@@ -131,7 +131,7 @@
 {/snippet}
 
 {#snippet detail(r: MasteryRow)}
-  <p class="fullhow"><Effort acq={r.acq} /> <span>{r.acq.how}</span></p>
+  <p class="fullhow"><Effort acq={r.acq} /> <span>{r.acq.how}{#if r.acq.players}<span class="players">Players: {r.acq.players}</span>{/if}</span></p>
   {#if !r.acq.available}<p class="small warn">Can't be obtained right now.</p>{/if}
   {#if r.missingParts.length}
     <p class="small dim legend">Relics that drop each missing part; yours first, vaulted ones dashed.</p>
@@ -208,4 +208,5 @@
   .star svg { fill: none; stroke: currentColor; stroke-width: 1.2; }
   .star:hover, .star.on { color: var(--gold); }
   .star.on svg { fill: var(--gold); }
+  .players { display: block; margin-top: .35rem; font-size: .82rem; color: var(--platinum-deep); }
 </style>

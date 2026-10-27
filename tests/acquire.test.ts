@@ -48,12 +48,14 @@ test("a credits blueprint from the Market is the easiest thing to get", () => {
   assert.match(g.acq.how, /Market \(25,000 credits\)/);
 });
 
-test("syndicate parts at a high rank make it a grind, with the syndicate's sigil", () => {
+test("syndicate parts at a high rank make it a grind, with the syndicate's sigil (researched, icon from the drop data)", () => {
   const b = rows().get("Baruuk")!;
   assert.equal(b.acq.method, "syndicate");
   assert.equal(b.acq.difficulty, 4, "Hand is Vox Solaris rank 3");
   assert.equal(b.acq.icon, "vox-solaris");
-  assert.match(b.acq.how, /Vox Solaris at Hand/);
+  assert.match(b.acq.how, /Vox Solaris/);
+  assert.equal(b.acq.researched, true);
+  assert.ok(b.acq.players, "what players report comes with it");
 });
 
 test("a credits blueprint that's dojo research says so instead of the Market", () => {
@@ -65,7 +67,7 @@ test("a credits blueprint that's dojo research says so instead of the Market", (
 test("market blueprint with parts from an easy boss is still easy", () => {
   const l = rows().get("Loki")!;
   assert.equal(l.acq.difficulty, 2);
-  assert.match(l.acq.how, /the Psamathe boss/);
+  assert.match(l.acq.how, /Psamathe/);
 });
 
 test("researched items come from the wiki research, Liches at the top of the scale", () => {
