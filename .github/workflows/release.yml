@@ -5,8 +5,12 @@ name: Release builds
 # a patched TennoScope inside them (patches/tennoscope-orbiter.patch on TennoScope's pinned commit),
 # with its Tesseract; TennoScope doesn't run on macOS, so the Mac build goes without it.
 #
-# Run it from the Actions tab (Run workflow), or push a tag like `v0.2.0`: a tag also drafts a
-# GitHub release with every download attached. The downloads are always on the run's page too.
+# Run it from the Actions tab (Run workflow), or push a tag like `v0.2.0`. Every run puts its
+# downloads on a pre-release of its own (Releases, on the repository's page): `build-<n>` for a
+# run started by hand, the tag's name for a tag. Release files don't count against the Actions
+# storage limit, which a free account's private repository fills with one of these builds, so
+# nothing is passed between jobs as an artifact: each system builds TennoScope and orbiter in one
+# job and attaches its own file.
 
 on:
   push:
@@ -14,23 +18,41 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   CARGO_TERM_COLOR: always
   # The TennoScope commit the patch is written against (see patches/README.md).
   TENNOSCOPE_REPO: https://github.com/Deftera186/tennoscope.git
   TENNOSCOPE_COMMIT: 7f66486
+  # Where this run's downloads go.
+  RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('build-{0}', github.run_number) }}
+  GH_TOKEN: ${{ github.token }}
 
 jobs:
-  # ------------------------------------------------------------------ TennoScope, patched
+  release:
+    name: Make the pre-release
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Create it
+        run: |
+          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --prerelease --title "orbiter $RELEASE_TAG" \
+            --notes "Built from ${GITHUB_SHA::7}. The AppImage is for Linux and the Steam Deck, the setup.exe for Windows, the .dmg for macOS (Apple silicon). tennoscope-orbiter-source.tar.gz is the source of the TennoScope inside them (GPL-3.0)."
 
-  tennoscope-linux:
-    name: TennoScope (Linux AppImage)
+  # ------------------------------------------------------------------ Linux and the Steam Deck
+
+  linux:
+    name: Linux / Steam Deck AppImage
+    needs: release
     # Ubuntu 22.04 like TennoScope's own AppImage: what's built here needs nothing newer than its
     # C library (2.35), so it runs on SteamOS and any Linux from the last few years.
     runs-on: ubuntu-22.04
     steps:
+      # Two Rust builds in one job: make room by dropping toolchains this job never uses.
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
       - uses: actions/checkout@v5
 
       - name: Get TennoScope and apply orbiter's patch
@@ -46,7 +68,7 @@ jobs:
           sudo apt-get install --no-install-recommends -y \
             libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev \
             libxdo-dev libssl-dev libclang-dev libgbm-dev libegl-dev libwayland-dev libxcb1-dev \
-            libarchive-tools meson ninja-build gettext tesseract-ocr tesseract-ocr-eng patchelf
+            libdbus-1-dev libarchive-tools meson ninja-build gettext tesseract-ocr tesseract-ocr-eng patchelf
 
       # Jammy's PipeWire is too old for TennoScope's screen-capture bindings: the same pinned
       # build its release uses.
@@ -75,8 +97,10 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: tennoscope
-          shared-key: tennoscope-linux
+          workspaces: |
+            tennoscope -> target
+            . -> target
+          shared-key: linux
 
       - uses: pnpm/action-setup@v4
         with:
@@ -113,24 +137,36 @@ jobs:
         working-directory: tennoscope/app
 
       # TennoScope's own AppImage build: it forces X11 for the reward overlay and repacks.
-      - run: ./scripts/build-linux-bundles.sh --skip-gates appimage
+      - name: Build TennoScope
+        run: ./scripts/build-linux-bundles.sh --skip-gates appimage
         working-directory: tennoscope
 
-      - name: Collect
+      - name: Put TennoScope beside orbiter's sources
         run: |
-          mkdir -p out
-          cp tennoscope/target/release/bundle/appimage/*.AppImage out/TennoScope.AppImage
-          cp tennoscope/LICENSE out/LICENSE
+          mkdir -p vendor/tennoscope
+          cp tennoscope/target/release/bundle/appimage/*.AppImage vendor/tennoscope/TennoScope.AppImage
+          chmod +x vendor/tennoscope/TennoScope.AppImage
+          cp tennoscope/LICENSE vendor/tennoscope/LICENSE
+          scripts/tennoscope-notice.sh vendor/tennoscope
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: tennoscope-linux
-          path: out/
-          if-no-files-found: error
+      - name: Build orbiter
+        run: |
+          npm ci
+          npx tauri build --bundles appimage --config src-tauri/tauri.bundle.json
+          scripts/repack-appimage.sh
 
-  tennoscope-windows:
-    name: TennoScope (Windows)
+      - name: Attach to the release
+        run: gh release upload "$RELEASE_TAG" target/release/bundle/appimage/*.AppImage --repo "$GITHUB_REPOSITORY" --clobber
+
+  # ------------------------------------------------------------------ Windows
+
+  windows:
+    name: Windows installer
+    needs: release
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
     steps:
       # The patch has Unix line endings: keep every checkout's the same, or it won't apply.
       - run: git config --global core.autocrlf false
@@ -138,7 +174,6 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Get TennoScope and apply orbiter's patch
-        shell: bash
         run: |
           git clone --quiet "$TENNOSCOPE_REPO" tennoscope
           git -C tennoscope checkout --quiet "$TENNOSCOPE_COMMIT"
@@ -152,8 +187,10 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: tennoscope
-          shared-key: tennoscope-windows
+          workspaces: |
+            tennoscope -> target
+            . -> target
+          shared-key: windows
 
       - uses: pnpm/action-setup@v4
         with:
@@ -169,133 +206,31 @@ jobs:
         working-directory: tennoscope/app
 
       # The program alone: orbiter's installer carries it, beside its Tesseract.
-      - run: pnpm tauri build --no-bundle
+      - name: Build TennoScope
+        run: pnpm tauri build --no-bundle
         working-directory: tennoscope/app
 
-      - name: Collect
-        shell: bash
+      - name: Put TennoScope beside orbiter's sources
         run: |
-          mkdir -p out/tesseract
-          cp tennoscope/target/release/tennoscope.exe out/
-          cp tennoscope/LICENSE out/LICENSE
-          cp -r tennoscope/app/src-tauri/vendor/tesseract/* out/tesseract/
+          mkdir -p vendor/tennoscope/tesseract
+          cp tennoscope/target/release/tennoscope.exe vendor/tennoscope/
+          cp -r tennoscope/app/src-tauri/vendor/tesseract/* vendor/tennoscope/tesseract/
+          cp tennoscope/LICENSE vendor/tennoscope/LICENSE
+          scripts/tennoscope-notice.sh vendor/tennoscope
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: tennoscope-windows
-          path: out/
-          if-no-files-found: error
-
-  # The source of what's shipped (TennoScope is GPL-3.0): its pinned commit with the patch applied.
-  tennoscope-source:
-    name: TennoScope source
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - run: |
-          git clone --quiet "$TENNOSCOPE_REPO" tennoscope
-          git -C tennoscope checkout --quiet "$TENNOSCOPE_COMMIT"
-          git -C tennoscope apply "$GITHUB_WORKSPACE/patches/tennoscope-orbiter.patch"
-          rm -rf tennoscope/.git
-          tar czf tennoscope-orbiter-source.tar.gz tennoscope
-      - uses: actions/upload-artifact@v4
-        with:
-          name: tennoscope-source
-          path: tennoscope-orbiter-source.tar.gz
-
-  # ------------------------------------------------------------------ orbiter
-
-  linux:
-    name: orbiter (Linux / Steam Deck AppImage)
-    needs: tennoscope-linux
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Install build dependencies
+      - name: Build orbiter
         run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev \
-            libssl-dev libdbus-1-dev patchelf
+          npm ci
+          npx tauri build --config src-tauri/tauri.bundle.json
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: orbiter-linux
+      - name: Attach to the release
+        run: gh release upload "$RELEASE_TAG" target/release/bundle/nsis/*-setup.exe --repo "$GITHUB_REPOSITORY" --clobber
 
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-
-      - run: npm ci
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: tennoscope-linux
-          path: vendor/tennoscope
-
-      - name: Licence notes beside TennoScope
-        run: scripts/tennoscope-notice.sh vendor/tennoscope
-
-      - name: Build the AppImage
-        run: |
-          chmod +x vendor/tennoscope/TennoScope.AppImage
-          npx tauri build --bundles appimage --config src-tauri/tauri.bundle.json
-          scripts/repack-appimage.sh
-
-      - name: Check it carries TennoScope
-        run: |
-          app=$(ls target/release/bundle/appimage/*.AppImage)
-          cd "$(mktemp -d)" && APPIMAGE_EXTRACT_AND_RUN=1 "$GITHUB_WORKSPACE/$app" --appimage-extract >/dev/null
-          test -x squashfs-root/usr/lib/orbiter/tennoscope/TennoScope.AppImage
-          cmp squashfs-root/usr/lib/orbiter/tennoscope/TennoScope.AppImage "$GITHUB_WORKSPACE/vendor/tennoscope/TennoScope.AppImage"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: orbiter-linux-appimage
-          path: target/release/bundle/appimage/*.AppImage
-          if-no-files-found: error
-
-  windows:
-    name: orbiter (Windows installer)
-    needs: tennoscope-windows
-    runs-on: windows-latest
-    steps:
-      - run: git config --global core.autocrlf false
-
-      - uses: actions/checkout@v5
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: orbiter-windows
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-
-      - run: npm ci
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: tennoscope-windows
-          path: vendor/tennoscope
-
-      - name: Licence notes beside TennoScope
-        shell: bash
-        run: scripts/tennoscope-notice.sh vendor/tennoscope
-
-      - run: npx tauri build --config src-tauri/tauri.bundle.json
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: orbiter-windows-installer
-          path: target/release/bundle/nsis/*-setup.exe
-          if-no-files-found: error
+  # ------------------------------------------------------------------ macOS
 
   macos:
-    name: orbiter (macOS dmg)
+    name: macOS dmg
+    needs: release
     # Apple silicon, which is what Warframe on the Mac runs on.
     runs-on: macos-latest
     steps:
@@ -303,43 +238,35 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: orbiter-macos
+          shared-key: macos
 
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
 
-      - run: npm ci
+      - name: Build orbiter
+        run: |
+          npm ci
+          npx tauri build
 
-      - run: npx tauri build
+      - name: Attach to the release
+        run: gh release upload "$RELEASE_TAG" target/release/bundle/dmg/*.dmg --repo "$GITHUB_REPOSITORY" --clobber
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: orbiter-macos-dmg
-          path: target/release/bundle/dmg/*.dmg
-          if-no-files-found: error
+  # ------------------------------------------------------------------ TennoScope's source
 
-  # ------------------------------------------------------------------ release (tags only)
-
-  release:
-    name: Draft release
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [linux, windows, macos, tennoscope-source]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+  # The source of what's shipped (TennoScope is GPL-3.0): its pinned commit with the patch applied.
+  source:
+    name: TennoScope source
+    needs: release
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-      - uses: softprops/action-gh-release@v2
-        with:
-          name: orbiter ${{ github.ref_name }}
-          draft: true
-          fail_on_unmatched_files: true
-          files: |
-            artifacts/orbiter-linux-appimage/*.AppImage
-            artifacts/orbiter-windows-installer/*-setup.exe
-            artifacts/orbiter-macos-dmg/*.dmg
-            artifacts/tennoscope-source/tennoscope-orbiter-source.tar.gz
+      - uses: actions/checkout@v5
+      - name: Pack and attach it
+        run: |
+          git clone --quiet "$TENNOSCOPE_REPO" tennoscope
+          git -C tennoscope checkout --quiet "$TENNOSCOPE_COMMIT"
+          git -C tennoscope apply "$GITHUB_WORKSPACE/patches/tennoscope-orbiter.patch"
+          rm -rf tennoscope/.git
+          tar czf tennoscope-orbiter-source.tar.gz tennoscope
+          gh release upload "$RELEASE_TAG" tennoscope-orbiter-source.tar.gz --repo "$GITHUB_REPOSITORY" --clobber

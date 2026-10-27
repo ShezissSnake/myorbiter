@@ -37,7 +37,7 @@ On the first start orbiter walks you through what TennoScope needs, once: TennoS
 
 ### Making the downloads
 
-`.github/workflows/release.yml` builds all three on GitHub: push the project to a GitHub repository and run *Release builds* from the *Actions* tab (or push a tag like `v0.2.0`, which also drafts a release with the files attached). Each run's page lists the downloads. It builds the patched TennoScope for Linux (on Ubuntu 22.04, so the AppImage runs on anything from the last few years, SteamOS included) and Windows, and puts TennoScope's licence, the patch and its full source beside it, as its GPL-3.0 licence asks.
+`.github/workflows/release.yml` builds all three on GitHub: push the project to a GitHub repository and run *Release builds* from the *Actions* tab (or push a tag like `v0.2.0`). Each run attaches its downloads to a pre-release of its own (*Releases* on the repository's page): `build-<n>` for a run started by hand, the tag's name for a tag. Not as run artifacts: on GitHub Free, private repositories share 0.5 GB of artifact storage a month, less than one of these builds. It builds the patched TennoScope for Linux (on Ubuntu 22.04, so the AppImage runs on anything from the last few years, SteamOS included) and Windows, and puts TennoScope's licence, the patch and its full source beside it, as its GPL-3.0 licence asks.
 
 ## Using it
 
