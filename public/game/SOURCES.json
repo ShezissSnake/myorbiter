@@ -1,0 +1,258 @@
+{
+ "platinum": {
+  "file": "platinum.png",
+  "source": "https://wiki.warframe.com/w/File:Platinum64.png"
+ },
+ "credits": {
+  "file": "credits.png",
+  "source": "https://wiki.warframe.com/w/File:Credits64.png"
+ },
+ "ducats": {
+  "file": "ducats.png",
+  "source": "https://wiki.warframe.com/w/File:OrokinDucats.png"
+ },
+ "endo": {
+  "file": "endo.png",
+  "source": "https://wiki.warframe.com/w/File:Endo.png"
+ },
+ "kuva": {
+  "file": "kuva.png",
+  "source": "https://wiki.warframe.com/w/File:Kuva.png"
+ },
+ "aya": {
+  "file": "aya.png",
+  "source": "https://wiki.warframe.com/w/File:Aya.png"
+ },
+ "void-traces": {
+  "file": "void-traces.png",
+  "source": "https://wiki.warframe.com/w/File:VoidTraces.png"
+ },
+ "mastery": {
+  "file": "mastery.png",
+  "source": "https://wiki.warframe.com/w/File:MasteryAffinity64%28xDark%29.png"
+ },
+ "void-tear": {
+  "file": "void-tear.png",
+  "source": "https://wiki.warframe.com/w/File:VoidTearIcon_b.png"
+ },
+ "market": {
+  "file": "market.png",
+  "source": "https://wiki.warframe.com/w/File:MarketIcon.png"
+ },
+ "dojo": {
+  "file": "dojo.png",
+  "source": "https://wiki.warframe.com/w/File:TennoIcon.png"
+ },
+ "baro": {
+  "file": "baro.png",
+  "source": "https://wiki.warframe.com/w/File:BaroKi%27TeerGlyph.png"
+ },
+ "varzia": {
+  "file": "varzia.png",
+  "source": "https://wiki.warframe.com/w/File:Varzia.png"
+ },
+ "ostron": {
+  "file": "ostron.png",
+  "source": "https://wiki.warframe.com/w/File:OstronSigil%28xLight%29.png"
+ },
+ "solaris-united": {
+  "file": "solaris-united.png",
+  "source": "https://wiki.warframe.com/w/File:SolarisUnited1%28xLight%29.png"
+ },
+ "entrati": {
+  "file": "entrati.png",
+  "source": "https://wiki.warframe.com/w/File:EntratiIcon%28xLight%29.png"
+ },
+ "cavia": {
+  "file": "cavia.png",
+  "source": "https://wiki.warframe.com/w/File:CaviaSyndicateLogo1%28xLight%29.png"
+ },
+ "holdfasts": {
+  "file": "holdfasts.png",
+  "source": "https://wiki.warframe.com/w/File:TheHoldfastsIcon%28xDark%29.png"
+ },
+ "necraloid": {
+  "file": "necraloid.png",
+  "source": "https://wiki.warframe.com/w/File:NecraloidIcon.png"
+ },
+ "simaris": {
+  "file": "simaris.png",
+  "source": "https://wiki.warframe.com/w/File:SimarisSigil%28xYellow%29%28xLight%29.png"
+ },
+ "ventkids": {
+  "file": "ventkids.png",
+  "source": "https://wiki.warframe.com/w/File:VentkidsIcon%28xLight%29.png"
+ },
+ "quills": {
+  "file": "quills.png",
+  "source": "https://wiki.warframe.com/w/File:TheQuillsSigil.png"
+ },
+ "kahl": {
+  "file": "kahl.png",
+  "source": "https://wiki.warframe.com/w/File:GarrisonIcon.png"
+ },
+ "nightwave": {
+  "file": "nightwave.png",
+  "source": "https://wiki.warframe.com/w/File:NightwaveSyndicate%28xLight%29.png"
+ },
+ "conclave": {
+  "file": "conclave.png",
+  "source": "https://wiki.warframe.com/w/File:ConclaveSigil%28SxWhite%29.png"
+ },
+ "hexis": {
+  "file": "hexis.png",
+  "source": "https://wiki.warframe.com/w/File:ArbitersofHexisSigil%28SxWhite%29.png"
+ },
+ "suda": {
+  "file": "suda.png",
+  "source": "https://wiki.warframe.com/w/File:CephalonSudaSigil%28SxWhite%29.png"
+ },
+ "steel-meridian": {
+  "file": "steel-meridian.png",
+  "source": "https://wiki.warframe.com/w/File:SteelMeridianSigil%28SxWhite%29.png"
+ },
+ "new-loka": {
+  "file": "new-loka.png",
+  "source": "https://wiki.warframe.com/w/File:NewLokaSigil%28SxWhite%29.png"
+ },
+ "perrin": {
+  "file": "perrin.png",
+  "source": "https://wiki.warframe.com/w/File:PerrinSequenceSigil%28SxWhite%29.png"
+ },
+ "red-veil": {
+  "file": "red-veil.png",
+  "source": "https://wiki.warframe.com/w/File:RedVeilSigil%28SxWhite%29.png"
+ },
+ "relic-lith-intact": {
+  "file": "relic-lith-intact.png",
+  "source": "https://wiki.warframe.com/w/File:LithRelicIntact.png"
+ },
+ "relic-lith-radiant": {
+  "file": "relic-lith-radiant.png",
+  "source": "https://wiki.warframe.com/w/File:LithRelicRadiant.png"
+ },
+ "relic-meso-intact": {
+  "file": "relic-meso-intact.png",
+  "source": "https://wiki.warframe.com/w/File:MesoRelicIntact.png"
+ },
+ "relic-meso-radiant": {
+  "file": "relic-meso-radiant.png",
+  "source": "https://wiki.warframe.com/w/File:MesoRelicRadiant.png"
+ },
+ "relic-neo-intact": {
+  "file": "relic-neo-intact.png",
+  "source": "https://wiki.warframe.com/w/File:NeoRelicIntact.png"
+ },
+ "relic-neo-radiant": {
+  "file": "relic-neo-radiant.png",
+  "source": "https://wiki.warframe.com/w/File:NeoRelicRadiant.png"
+ },
+ "relic-axi-intact": {
+  "file": "relic-axi-intact.png",
+  "source": "https://wiki.warframe.com/w/File:AxiRelicIntact.png"
+ },
+ "relic-axi-radiant": {
+  "file": "relic-axi-radiant.png",
+  "source": "https://wiki.warframe.com/w/File:AxiRelicRadiant.png"
+ },
+ "relic-requiem-intact": {
+  "file": "relic-requiem-intact.png",
+  "source": "https://wiki.warframe.com/w/File:RequiemRelicIntact.png"
+ },
+ "relic-requiem-radiant": {
+  "file": "relic-requiem-radiant.png",
+  "source": "https://wiki.warframe.com/w/File:RequiemRelicRadiant.png"
+ },
+ "vox-solaris": {
+  "file": "vox-solaris.png",
+  "source": "https://wiki.warframe.com/w/File:VoxSolarisIcon(xDark).png"
+ },
+ "vosfor": {
+  "file": "vosfor.png",
+  "source": "https://github.com/WFCD/warframe-items (data/img/DistillPoints.png)"
+ },
+ "invasion": {
+  "file": "invasion.png",
+  "source": "https://wiki.warframe.com/w/File:InvasionIcon(xWhite).png"
+ },
+ "steel-essence": {
+  "file": "steel-essence.png",
+  "source": "https://wiki.warframe.com/w/File:SteelEssence.png"
+ },
+ "sortie": {
+  "file": "sortie.png",
+  "source": "https://wiki.warframe.com/w/File:Sortie(xWhite).png"
+ },
+ "archon-shard": {
+  "file": "archon-shard.png",
+  "source": "https://wiki.warframe.com/w/File:CrimsonArchonShard.png"
+ },
+ "warframes": {
+  "file": "warframes.png",
+  "source": "https://wiki.warframe.com/w/File:Lotus(xWhite).png"
+ },
+ "primary": {
+  "file": "primary.png",
+  "source": "https://wiki.warframe.com/w/File:Weapons01PrimaryIcon(xWhite).png"
+ },
+ "secondary": {
+  "file": "secondary.png",
+  "source": "https://wiki.warframe.com/w/File:Weapons02SecondaryIcon(xWhite).png"
+ },
+ "melee": {
+  "file": "melee.png",
+  "source": "https://wiki.warframe.com/w/File:Weapons03MeleeIcon(xWhite).png"
+ },
+ "companions": {
+  "file": "companions.png",
+  "source": "https://wiki.warframe.com/w/File:Companions01KubrowaccessIcon(xWhite).png"
+ },
+ "archwing": {
+  "file": "archwing.png",
+  "source": "https://wiki.warframe.com/w/File:Warframes06ArchwingsIcon(xWhite).png"
+ },
+ "foundry": {
+  "file": "foundry.png",
+  "source": "https://wiki.warframe.com/w/File:BuildComplete(xWhite).png"
+ },
+ "riven": {
+  "file": "riven.png",
+  "source": "https://wiki.warframe.com/w/File:RivenIcon64.png"
+ },
+ "cycles": {
+  "file": "cycles.png",
+  "source": "https://wiki.warframe.com/w/File:NightandDay(xWhite).png"
+ },
+ "pol/madurai": {
+  "file": "pol/madurai.png",
+  "source": "https://wiki.warframe.com/w/File:Madurai_Pol(xWhite).png"
+ },
+ "pol/vazarin": {
+  "file": "pol/vazarin.png",
+  "source": "https://wiki.warframe.com/w/File:Vazarin_Pol(xWhite).png"
+ },
+ "pol/naramon": {
+  "file": "pol/naramon.png",
+  "source": "https://wiki.warframe.com/w/File:Naramon_Pol(xWhite).png"
+ },
+ "pol/zenurik": {
+  "file": "pol/zenurik.png",
+  "source": "https://wiki.warframe.com/w/File:Zenurik_Pol(xWhite).png"
+ },
+ "pol/unairu": {
+  "file": "pol/unairu.png",
+  "source": "https://wiki.warframe.com/w/File:Unairu_Pol(xWhite).png"
+ },
+ "pol/penjaga": {
+  "file": "pol/penjaga.png",
+  "source": "https://wiki.warframe.com/w/File:Penjaga_Pol(xWhite).png"
+ },
+ "pol/umbra": {
+  "file": "pol/umbra.png",
+  "source": "https://wiki.warframe.com/w/File:Umbra_Pol(xWhite).png"
+ },
+ "pol/any": {
+  "file": "pol/any.png",
+  "source": "https://wiki.warframe.com/w/File:Any_Pol(xWhite).png"
+ }
+}

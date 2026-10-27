@@ -1,0 +1,16 @@
+node_modules/
+dist/
+target/
+.dev-data/
+public/dev-bundle.json
+src-tauri/gen/
+public/dev-mission.json
+public/dev-market-items.json
+public/dev-market.json
+public/dev-tennoscope.json
+public/dev-reward-screen.json
+public/dev-rivens.json
+public/dev-auctions.json
+public/dev-reward-screens.json
+public/dev-history-*.json
+.pc-md5.txt

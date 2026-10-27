@@ -1,0 +1,1554 @@
+{
+"Adarza Kavat": {
+"method": "incubator",
+"how": "Random incubation in the Orbiter Incubator with the Kavat Incubator Upgrade Segment (dojo Tenno Lab / Hyekka Master drop / 175p) plus 10 Kavat Genetic Codes scanned from Feral Kavats on Deimos Derelict and an Incubator Power Core; breed is random unless you use an Adarza imprint.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Adarza_Kavat"
+},
+"Akaten": {
+"method": "lich-sister",
+"how": "Comes automatically with a Hound built on the Hec Model: either vanquish a Sister of Parvos whose Hound has that Model, or get the Hec Model blueprint (Sisters drop one random Hound component blueprint; component blueprints are tradable), build the parts in the Foundry and configure the Hound with Legs in Fortuna for 4,000 credits (needs two free companion slots; some parts need Spectral Debris from the Granum Void). MR 0; no platinum shortcut beyond buying the Model blueprint from players.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Akaten"
+},
+"Aklato": {
+"method": "market-credits",
+"how": "Bought already built from the in-game Market for 25,000 credits, so nothing to craft. Needs MR 3.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Aklato"
+},
+"Aksondol": {
+"method": "vendor",
+"how": "Blueprint and parts bought from Cephalon Melica (Yuvan Peak, Earth / Chrysalith, Zariman) for 380 Entropic Kuva total, dropped by Entropic Eximus in the Zariman; build needs Zariman resources (Entrati Lanthorn, Voidgel Orb, Thrax Plasm); or 230p in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Aksondol"
+},
+"Amesha": {
+"method": "dojo",
+"how": "Research in the clan dojo Tenno Lab (after The Archwing quest), buy the 4 blueprints, then build: needs 10 Nitain Extract, 3 Tellurium, Control Module, 5 Neurodes; or 275p in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Amesha"
+},
+"Argo & Vel": {
+"method": "vendor",
+"how": "Blueprint from Teshin's Cave in Duviri for 60 Pathos Clamp (or 225p in the Market); build with 20 Silphsela, 30 Rune Marrow, 40 Kovnik, 150 Aggristone and 30,000 credits.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Argo_%26_Vel"
+},
+"Artax": {
+"method": "other",
+"how": "Comes automatically with the Taxon sentinel (Taxon blueprint is the Venus Junction reward or 5,000 credits in the Market).",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Artax"
+},
+"Ax-52": {
+"method": "syndicate",
+"how": "Blueprint from Amir (The Hex, Höllvania Central Mall) for 30,000 credits at Hex Rank 4 'Hot & Fresh' (needs The Hex quest); build with Techrot Motherboard, Techrot Chitin, Efervon Samples and Höllvanian Pitchweave Fragments.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/AX-52"
+},
+"Azothane": {
+"method": "vendor",
+"how": "Blueprint from Teshin's Cave in Duviri for 50 Pathos Clamp (or 250p in the Market); build with 5 Maw Fang, 30 Rune Marrow, 40 Yao Shrub, 100 Saggen Pearl and 30,000 credits.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Azothane"
+},
+"Basmu": {
+"method": "event",
+"how": "Blueprint only from limited-time events (Scarlet Spear, Orphix Venom, Nights of Naberus via Daughter); the blueprint is tradable so buy it from another player, otherwise wait for the next event rerun (no 2026 Naberus run listed; unconfirmed, official wiki page could not be fetched).",
+"difficulty": 3,
+"available": false,
+"tradable": true,
+"source": "https://warframe.fandom.com/wiki/Basmu"
+},
+"Batoten": {
+"method": "lich-sister",
+"how": "Comes automatically with a Hound built on the Dorma Model: either vanquish a Sister of Parvos whose Hound has that Model, or get the Dorma Model blueprint (Sisters drop one random Hound component blueprint; component blueprints are tradable), build the parts in the Foundry and configure the Hound with Legs in Fortuna for 4,000 credits (needs two free companion slots; some parts need Spectral Debris from the Granum Void). MR 0; no platinum shortcut beyond buying the Model blueprint from players.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Batoten"
+},
+"Bhaira Hound": {
+"method": "lich-sister",
+"how": "Vanquish Sisters of Parvos for random Hound component blueprints (or buy the Bhaira Model blueprint from a player), build the parts (some need Spectral Debris from Granum Void), then assemble at Legs in Fortuna for 4,000 credits.",
+"difficulty": 4,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Bhaira_Hound"
+},
+"Braton": {
+"method": "market-credits",
+"how": "Bought fully built from the in-game Market for 25,000 credits.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Braton"
+},
+"Burst Laser": {
+"method": "other",
+"how": "Comes automatically with the Shade sentinel (Shade blueprint is 100,000 credits in the Market, build needs 1 Control Module).",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Burst_Laser"
+},
+"Carrier": {
+"method": "market-credits",
+"how": "Blueprint from the in-game Market for 100,000 credits (or 75p built); build needs 3 Control Modules, 1,000 Alloy Plate, 400 Circuits, 1,500 Nano Spores, 24 h.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Carrier"
+},
+"Ceramic Dagger": {
+"method": "nightwave",
+"how": "Blueprint from Nightwave Offerings (7-day rotation, Cred cost not listed on the wiki, unconfirmed); build needs Gallium, Ferrite, Alloy Plate, Polymer Bundle.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Ceramic_Dagger"
+},
+"Ceti Lacera": {
+"method": "event",
+"how": "Blueprint only from limited-time events (most recently Nights of Naberus via Daughter for 125 Mother Tokens, Oct 2025, plus Belly of the Beast / Eight Claw / Blood of Perita); the blueprint is tradable so buy it from a player, otherwise wait for a rerun (no 2026 run listed).",
+"difficulty": 3,
+"available": false,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Ceti_Lacera"
+},
+"Chesa Kubrow": {
+"method": "incubator",
+"how": "Random incubation of a Kubrow Egg (from Kubrow Dens on Earth) in the Orbiter Incubator after Howl of the Kubrow, with a built Incubator Power Core; breed is random unless you use a Chesa imprint.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Chesa_Kubrow"
+},
+"Cinta": {
+"method": "mission-drop",
+"how": "Main and 4 part blueprints drop from Duviri Enigma puzzles in The Duviri Experience (about 6% per part per puzzle), all blueprints tradable; build with Duviri resources (Lamentus, Kovnik, Maw Fang etc.); or 225p in the Market.",
+"difficulty": 4,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Cinta"
+},
+"Coda Bassocyst": {
+"method": "coda",
+"how": "Bought from Eleanor (The Hex, Höllvania Central Mall) for 10 Live Heartcell, earned by vanquishing a Technocyte Coda (10-15 per vanquish); sold in rotating Batch B (switches every 4 days), needs MR 17.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Coda_Bassocyst"
+},
+"Coda Bubonico": {
+"method": "coda",
+"how": "Bought from Eleanor (The Hex, Höllvania Central Mall) for 10 Live Heartcell, earned by vanquishing a Technocyte Coda (10-15 per vanquish); sold in rotating Batch B (switches every 4 days), needs MR 17.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Coda_Bubonico"
+},
+"Coda Catabolyst": {
+"method": "coda",
+"how": "Bought from Eleanor (The Hex, Höllvania Central Mall) for 10 Live Heartcell, earned by vanquishing a Technocyte Coda (10-15 per vanquish); sold in rotating Batch A (switches every 4 days), needs MR 17.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Coda_Catabolyst"
+},
+"Coda Caustacyst": {
+"method": "coda",
+"how": "Bought from Eleanor (The Hex, Höllvania Central Mall) for 10 Live Heartcell, earned by vanquishing a Technocyte Coda (10-15 per vanquish); sold in rotating Batch B (switches every 4 days), needs MR 17.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Coda_Caustacyst"
+},
+"Coda Hema": {
+"method": "coda",
+"how": "Bought from Eleanor (The Hex, Höllvania Central Mall) for 10 Live Heartcell, earned by vanquishing a Technocyte Coda (10-15 per vanquish); sold in rotating Batch A (switches every 4 days), needs MR 17.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Coda_Hema"
+},
+"Coda Hirudo": {
+"method": "coda",
+"how": "Bought from Eleanor (The Hex, Höllvania Central Mall) for 10 Live Heartcell, earned by vanquishing a Technocyte Coda (10-15 per vanquish); sold in rotating Batch B (switches every 4 days), needs MR 17.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Coda_Hirudo"
+},
+"Coda Mire": {
+"method": "coda",
+"how": "Bought from Eleanor (The Hex, Höllvania Central Mall) for 10 Live Heartcell, earned by vanquishing a Technocyte Coda (10-15 per vanquish); sold in rotating Batch A (switches every 4 days), needs MR 17.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Coda_Mire"
+},
+"Coda Motovore": {
+"method": "coda",
+"how": "Bought from Eleanor (The Hex, Höllvania Central Mall) for 10 Live Heartcell, earned by vanquishing a Technocyte Coda (10-15 per vanquish); sold in rotating Batch A (switches every 4 days), needs MR 17.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Coda_Motovore"
+},
+"Coda Pathocyst": {
+"method": "coda",
+"how": "Bought from Eleanor (The Hex, Höllvania Central Mall) for 10 Live Heartcell, earned by vanquishing a Technocyte Coda (10-15 per vanquish); sold in rotating Batch B (switches every 4 days), needs MR 17.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Coda_Pathocyst"
+},
+"Coda Pox": {
+"method": "coda",
+"how": "Bought from Eleanor (The Hex, Höllvania Central Mall) for 10 Live Heartcell, earned by vanquishing a Technocyte Coda (10-15 per vanquish); sold in rotating Batch A (switches every 4 days), needs MR 17.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Coda_Pox"
+},
+"Coda Sporothrix": {
+"method": "coda",
+"how": "Bought from Eleanor (The Hex, Höllvania Central Mall) for 10 Live Heartcell, earned by vanquishing a Technocyte Coda (10-15 per vanquish); sold in rotating Batch A (switches every 4 days), needs MR 17.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Coda_Sporothrix"
+},
+"Coda Synapse": {
+"method": "coda",
+"how": "Bought from Eleanor (The Hex, Höllvania Central Mall) for 10 Live Heartcell, earned by vanquishing a Technocyte Coda (10-15 per vanquish); sold in rotating Batch B (switches every 4 days), needs MR 17.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Coda_Synapse"
+},
+"Coda Tysis": {
+"method": "coda",
+"how": "Bought from Eleanor (The Hex, Höllvania Central Mall) for 10 Live Heartcell, earned by vanquishing a Technocyte Coda (10-15 per vanquish); sold in rotating Batch B (switches every 4 days), needs MR 17.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Coda_Tysis"
+},
+"Crescent Vulpaphyla": {
+"method": "open-world",
+"how": "Capture a weakened Crescent Vulpaphyla on the Cambion Drift (Deimos) during the Vome cycle after it has been attacked by Infested, then revive it with Son in the Necralisk using a Mutagen and an Antigen bought with Entrati standing plus 5,000 credits.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Crescent_Vulpaphyla"
+},
+"Cyte-09": {
+"method": "quest",
+"how": "Main blueprint is the reward for The Hex quest (or 50,000 credits from Amir at Hex Rank 4); Neuroptics/Chassis/Systems drop from Höllvania Central Mall bounties (~12% each) or cost 20,000 credits each from Amir at Rank 2; build with Techrot resources; or 370p in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Cyte-09"
+},
+"Dark Dagger": {
+"method": "nightwave",
+"how": "Blueprint from Nightwave Offerings for 50 Nightwave Cred (7-day rotation); build needs 2 Neurodes, 500 Ferrite, 500 Plastids, 300 Polymer Bundle.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Dark_Dagger"
+},
+"Dark Split-Sword": {
+"method": "dojo",
+"how": "Research in the clan dojo Tenno Lab (requires Nami Skyla research), buy the blueprint for 15,000 credits, then build with 1 Dual Skana, 1 Forma, 10 Mutagen Mass, 1,200 Rubedo; or 225p in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Dark_Split-Sword_(Heavy_Blade)"
+},
+"Dark Sword": {
+"method": "nightwave",
+"how": "Blueprint from Nightwave Offerings for 50 Nightwave Cred (7-day rotation); build needs 2 Neurodes, 800 Ferrite, 200 Plastids, 75 Polymer Bundle.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Dark_Sword"
+},
+"Deconstructor": {
+"method": "other",
+"how": "Comes automatically with the Helios sentinel (Helios is researched in the clan dojo Energy Lab, blueprint 15,000 credits, build needs 10 Fieldron, 300 Oxium and 1 Forma; or 75p in the Market).",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Deconstructor"
+},
+"Dera Vandal": {
+"method": "mission-drop",
+"how": "Blueprint and parts (barrel, receiver, stock) are periodic Invasion rewards (Corpus side); all parts are tradable so you can buy them from players; build takes 12 h, MR 7.",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Dera_Vandal"
+},
+"Deth Machine Rifle": {
+"method": "other",
+"how": "Comes automatically with the Dethcube sentinel (Dethcube blueprint is 100,000 credits in the Market).",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Deth_Machine_Rifle"
+},
+"Dethcube": {
+"method": "market-credits",
+"how": "Blueprint from the in-game Market for 100,000 credits (or 75p built); build needs 1 Control Module, 500 Alloy Plate, 400 Circuits, 200 Nano Spores, 24 h.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Dethcube"
+},
+"Dex Dakra": {
+"method": "event",
+"how": "Anniversary gift: handed out via alerts/login each March for Warframe's anniversary (2015-2019 runs listed); not obtainable now, wait for the next March anniversary.",
+"difficulty": 5,
+"available": false,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Dex_Dakra"
+},
+"Dex Furis": {
+"method": "event",
+"how": "Anniversary gift: handed out via alerts/login each March for Warframe's anniversary; not obtainable now, wait for the next March anniversary.",
+"difficulty": 5,
+"available": false,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Dex_Furis"
+},
+"Dex Nikana": {
+"method": "event",
+"how": "Anniversary gift: given to players who logged in between 27 March and 31 December 2024, and expected in later March anniversaries; not obtainable now, wait for the next anniversary.",
+"difficulty": 5,
+"available": false,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Dex_Nikana"
+},
+"Dex Sybaris": {
+"method": "event",
+"how": "Anniversary gift: handed out via alerts/login each March for Warframe's anniversary; not obtainable now, wait for the next March anniversary.",
+"difficulty": 5,
+"available": false,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Dex_Sybaris"
+},
+"Diriga": {
+"method": "market-credits",
+"how": "Blueprint from the in-game Market for 100,000 credits (or 75p built); build needs 2 Argon Crystals (Void), 600 Alloy Plate, 350 Plastids, 500 Polymer Bundle, 24 h.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Diriga"
+},
+"Djinn": {
+"method": "dojo",
+"how": "Research in the clan dojo Bio Lab (requires Dual Ichor research), buy the blueprint for 50,000 credits, then build with 6 Mutagen Mass, 2 Forma, 30,000 Salvage, 3,500 Circuits, 24 h.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Djinn"
+},
+"Dorma Hound": {
+"method": "lich-sister",
+"how": "Vanquish Sisters of Parvos for random Hound component blueprints (or buy the Dorma Model blueprint from a player), build the parts (some need Spectral Debris from Granum Void), then assemble at Legs in Fortuna for 4,000 credits.",
+"difficulty": 4,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Dorma_Hound"
+},
+"Dual Coda Torxica": {
+"method": "coda",
+"how": "Bought from Eleanor (The Hex, Höllvania Central Mall) for 10 Live Heartcell, earned by vanquishing a Technocyte Coda (10-15 per vanquish); sold in rotating Batch A (switches every 4 days), needs MR 17.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Dual_Coda_Torxica"
+},
+"Dual Viciss": {
+"method": "syndicate",
+"how": "Blueprints from Minerva (The Hex) for 35,000 Hex standing total at Rank 5 'Pizza Party'; build with Efervon Samples, Techrot Chitin/Motherboards, Experimental Arc-Relays; or 190p in the Market.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Dual_Viciss"
+},
+"Edun": {
+"method": "vendor",
+"how": "Blueprint from Teshin's Cave in Duviri for 50 Pathos Clamp (or 250p in the Market); build with Tasoma Extract, Rune Marrow, Nacreous Pebble, Connla Sprout and 30,000 credits.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Edun"
+},
+"Efv-5 Jupiter": {
+"method": "syndicate",
+"how": "Blueprints from Minerva (The Hex) for 30,000 Hex standing total at Rank 5 'Pizza Party'; build with Experimental Arc-Relays, Efervon Samples, Techrot Motherboards, Pitchweave Fragments; or 220p in the Market.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/EFV-5_Jupiter"
+},
+"Efv-8 Mars": {
+"method": "syndicate",
+"how": "Blueprints from Minerva (The Hex) for 30,000 Hex standing total at Rank 5 'Pizza Party'; build with Techrot Chitin/Motherboards, Efervon Samples, Pitchweave Fragments, Arc-Relays; or 200p in the Market.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/EFV-8_Mars"
+},
+"Ekhein": {
+"method": "syndicate",
+"how": "Blueprint from Bird 3 (Cavia, Sanctum Anatomica) for 15,000 Cavia standing at Rank 3 'Colleague'; build with Entrati Obols, Necracoil, Shrill Voca and Entrati Lanthorns; or 240p in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Ekhein"
+},
+"Elytron": {
+"method": "dojo",
+"how": "Research in the clan dojo Tenno Lab (after The Archwing quest), buy the 4 blueprints, then build: needs 5 Control Modules, 3 Orokin Cells, 6 Morphics, 3,800 Cryotic, 2 Neural Sensors; or 275p in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Elytron"
+},
+"Excalibur Umbra": {
+"method": "quest",
+"how": "Blueprint and parts come from The Sacrifice quest (requires The Second Dream, The War Within, Chains of Harrow and Apostasy Prologue); build is near-instant with 10,000 credits, 1 Orokin Cell, 60 Kuva, Nano Spores, Alloy Plate. Not sold in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Excalibur_Umbra"
+},
+"Feverspine": {
+"method": "open-world",
+"how": "Blueprint awarded for completing the 'Dead Drop' K-Drive race on the Cambion Drift (Deimos); races rotate daily; build with 25 Ganglion, 40 Adramal Alloy, 50 Benign Infested Tumor, 15 Parasitic Tethermaw, 1 h. Only the board counts for mastery.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Feverspine"
+},
+"Glaive": {
+"method": "nightwave",
+"how": "Blueprint from Nightwave Offerings for 50 Nightwave Cred (7-day rotation) or 150p built in the Market; build needs 10 Morphics, 5,000 Ferrite, 6,000 Nano Spores, 4,500 Salvage.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Glaive"
+},
+"Glaxion Vandal": {
+"method": "baro",
+"how": "Bought from Baro Ki'Teer (visits a Relay every 2 weeks, rotating stock) for 250,000 credits + 475 Ducats; tradable unranked, so it can also be bought from players (recipient MR 12+).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Glaxion_Vandal"
+},
+"Grimoire": {
+"method": "quest",
+"how": "Awarded fully built at max rank (with Catalyst and slot) during the Whispers in the Walls quest; extra blueprints from Bird 3 (Cavia) for 50,000 credits at Rank 4 'Scholar'.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Grimoire"
+},
+"Haalvu": {
+"method": "event",
+"how": "Bought from Praghasa (Eris relay) for 150 Moonflesh during Epoch Operation: Taubound, 15 Oct - 17 Nov 2026 (Moonflesh from Infested kills and Operation Alerts on Eris); MR 14; the event will not return.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Haalvu"
+},
+"Halikar Wraith": {
+"method": "baro",
+"how": "Bought from Baro Ki'Teer (visits a Relay every 2 weeks, rotating stock) for 350,000 credits + 450 Ducats; tradable unranked, so it can also be bought from players (recipient MR 13+).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Halikar_Wraith"
+},
+"Heat Dagger": {
+"method": "nightwave",
+"how": "Blueprint from Nightwave Offerings for 50 Nightwave Cred (7-day rotation) or 75p built in the Market; build needs 1 Neural Sensor, 500 Ferrite, 150 Circuits, 75 Polymer Bundle.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Heat_Dagger"
+},
+"Heat Sword": {
+"method": "quest",
+"how": "Blueprint rewarded by the Once Awake quest (after Mercury Junction; also 50 Nightwave Cred), then build: 20,000 credits, 1 Neurode, 500 Ferrite, 300 Circuits, 300 Polymer Bundle.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Heat_Sword"
+},
+"Hec Hound": {
+"method": "lich-sister",
+"how": "Vanquish a Sister of Parvos whose Hound has the Hec Model (random), or get a Hec Model blueprint (random drop from vanquished Sisters, tradable) plus Core/Bracket/Stabilizer, craft the parts (some need Spectral Debris from Granum Void) and assemble at Legs for 4,000 credits; must be gilded for mastery.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Hound_(Companion)"
+},
+"Helios": {
+"method": "dojo",
+"how": "Research in the clan dojo Energy Lab (requires Lanka research), buy blueprint for 15,000 credits, then build: 5,000 credits, 10 Fieldron, 300 Oxium, 5,000 Ferrite, 1 Forma; or buy built from the Market for 75 platinum. Needs 2 companion slots.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Helios"
+},
+"Helminth Charger": {
+"method": "incubator",
+"how": "Get the Helminth Cyst (use Nidus in the Helminth room or catch it from an infected squadmate), wait ~7 days for it to mature, then Drain it in the Incubator with a Kubrow Egg and Incubator Power Core (needs Howl of the Kubrow).",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Helminth_Charger"
+},
+"Huras Kubrow": {
+"method": "incubator",
+"how": "Incubate a Kubrow Egg (from Kubrow Dens on Earth) with an Incubator Power Core after Howl of the Kubrow; the breed is random, or use a Huras Genetic Imprint from another player (imprints are traded in-game, not on warframe.market).",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Huras_Kubrow"
+},
+"Itzal": {
+"method": "dojo",
+"how": "After The Archwing quest, research Itzal and its Harness/Systems/Wings in the clan dojo Tenno Lab, then build parts (15,000 credits each) and the Archwing (25,000 credits); or buy built from the Market for 325 platinum.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Itzal"
+},
+"Jade": {
+"method": "quest",
+"how": "Main blueprint from the Jade Shadows quest (needs The New War); component blueprints drop from Ascension (Brutus, Uranus) or cost 150 Vestigial Motes each from Ordis; build needs 3 Orokin Cells plus standard parts. Or 325 platinum in the Market.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Jade"
+},
+"Jaw Sword": {
+"method": "nightwave",
+"how": "Blueprint from Nightwave Cred Offerings (rotating stock) for 50 Cred, then build: 15,000 credits, 500 Ferrite, 1 Morphics, 75 Polymer Bundle, 300 Rubedo.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Jaw_Sword"
+},
+"Karak Wraith": {
+"method": "mission-drop",
+"how": "Blueprint, Barrel, Receiver and Stock appear as Invasion rewards (rotating; MR7 for the blueprint) and all parts can be bought from players; build for 25,000 credits.",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Karak_Wraith"
+},
+"Kullervo": {
+"method": "open-world",
+"how": "Buy main and part blueprints from Acrithis in Duviri for 42 Kullervo's Bane total (earned by beating Kullervo in Kullervo's Hold during Anger/Sorrow/Fear spirals), then build with Duviri resources and 10 Pathos Clamps. Or 325 platinum in the Market.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Kullervo"
+},
+"Kuva Ayanga": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Ayanga) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Ayanga"
+},
+"Kuva Brakk": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Brakk) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Brakk"
+},
+"Kuva Bramma": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Bramma) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Bramma"
+},
+"Kuva Chakkhurr": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Chakkhurr) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Chakkhurr"
+},
+"Kuva Drakgoon": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Drakgoon) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Drakgoon"
+},
+"Kuva Ghoulsaw": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Ghoulsaw) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Ghoulsaw"
+},
+"Kuva Grattler": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Grattler) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Grattler"
+},
+"Kuva Hek": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Hek) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Hek"
+},
+"Kuva Hind": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Hind) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Hind"
+},
+"Kuva Karak": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Karak) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Karak"
+},
+"Kuva Kohm": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Kohm) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Kohm"
+},
+"Kuva Kraken": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Kraken) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Kraken"
+},
+"Kuva Nukor": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Nukor) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Nukor"
+},
+"Kuva Ogris": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Ogris) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Ogris"
+},
+"Kuva Quartakk": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Quartakk) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Quartakk"
+},
+"Kuva Seer": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Seer) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Seer"
+},
+"Kuva Shildeg": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Shildeg) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Shildeg"
+},
+"Kuva Sobek": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Sobek) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://warframe.fandom.com/wiki/Kuva_Sobek"
+},
+"Kuva Tonkor": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Tonkor) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Tonkor"
+},
+"Kuva Twin Stubbas": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Twin Stubbas) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Twin_Stubbas"
+},
+"Kuva Zarr": {
+"method": "lich-sister",
+"how": "Spawn a Kuva Lich (needs The War Within, MR5, Railjack; retry Larvlings until one shows the Kuva Zarr) and vanquish it with the right Requiem mods; the weapon then appears in your Foundry. Not tradable directly, but a converted Lich carrying it can be bought from players and vanquished.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Kuva_Zarr"
+},
+"Lacerten": {
+"method": "lich-sister",
+"how": "Comes automatically with a Hound built on the Bhaira Model: either vanquish a Sister of Parvos whose Hound has that Model, or get the Bhaira Model blueprint (Sisters drop one random Hound component blueprint; component blueprints are tradable), build the parts in the Foundry and configure the Hound with Legs in Fortuna for 4,000 credits (needs two free companion slots; some parts need Spectral Debris from the Granum Void). MR 0; no platinum shortcut beyond buying the Model blueprint from players.",
+"difficulty": 5,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Lacerten"
+},
+"Laser Rifle": {
+"method": "market-credits",
+"how": "Comes automatically with the Wyrm sentinel: buy Wyrm's blueprint in the Market for 100,000 credits and build it (15,000 credits, 500 Alloy Plate, 400 Circuits, 200 Nano Spores, 1 Control Module), or buy Wyrm built for 75 platinum. Needs 2 companion slots.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Laser_Rifle"
+},
+"Lato": {
+"method": "market-credits",
+"how": "Starter secondary option; otherwise bought fully built from the in-game Market for 10,000 credits.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Lato"
+},
+"Latron Wraith": {
+"method": "mission-drop",
+"how": "Blueprint and parts appear as Invasion rewards (rotating; MR7 for the blueprint) and all parts can be bought from players; build for 25,000 credits.",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Latron_Wraith"
+},
+"Lex": {
+"method": "market-credits",
+"how": "Bought already built from the in-game Market for 50,000 credits; needs MR 3. The optional Lex Incarnon Genesis comes from Steel Path Circuit rewards (or once from Cavalero for 120 platinum).",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Lex"
+},
+"Machete Wraith": {
+"method": "baro",
+"how": "Bought fully built from Baro Ki'Teer when he stocks it (rotating) for 250,000 credits and 410 Ducats; also buyable unranked from other players (MR11).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Machete_Wraith"
+},
+"Mara Detron": {
+"method": "baro",
+"how": "Bought fully built from Baro Ki'Teer when he stocks it (rotating) for 200,000 credits and 500 Ducats; also buyable unranked from other players.",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Mara_Detron"
+},
+"Mausolon": {
+"method": "open-world",
+"how": "Given automatically (built, Gravimag installed) when you claim any Necramech: build a Voidrig from Necraloid blueprints and damaged parts from Isolation Vaults/Father on Deimos (needs The War Within), or buy a Necramech for 375 platinum. Needs an Archgun slot.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Mausolon"
+},
+"Medjay Predasite": {
+"method": "open-world",
+"how": "Capture a Weakened Medjay Predasite via Conservation on Deimos during the Vome cycle (after Infested attack it), then revive it with Son in the Necralisk using a Mutagen + Antigen (Entrati standing) and 5,000 credits; gild it for mastery.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Medjay_Predasite"
+},
+"Mk1-Bo": {
+"method": "market-credits",
+"how": "Bought fully built from the in-game Market for 15,000 credits (staff).",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Mk1-Bo"
+},
+"Mk1-Braton": {
+"method": "market-credits",
+"how": "Bought fully built from the in-game Market for 15,000 credits (rifle).",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Mk1-Braton"
+},
+"Mk1-Furax": {
+"method": "market-credits",
+"how": "Bought fully built from the in-game Market for 15,000 credits (fist).",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Mk1-Furax"
+},
+"Mk1-Furis": {
+"method": "market-credits",
+"how": "Bought fully built from the in-game Market for 15,000 credits (pistol).",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Mk1-Furis"
+},
+"Mk1-Kunai": {
+"method": "market-credits",
+"how": "Bought fully built from the in-game Market for 15,000 credits (thrown; MR2 to buy).",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Mk1-Kunai"
+},
+"Mk1-Paris": {
+"method": "market-credits",
+"how": "Bought fully built from the in-game Market for 15,000 credits (bow).",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Mk1-Paris"
+},
+"Mk1-Strun": {
+"method": "market-credits",
+"how": "Bought fully built from the in-game Market for 15,000 credits (shotgun).",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Mk1-Strun"
+},
+"Multron": {
+"method": "syndicate",
+"how": "Comes automatically with the Oxylus sentinel: buy its blueprint from The Business in Fortuna for 20,000 Solaris United standing at Rank 5 (Old Mate) and build it with Orb Vallis resources, or buy Oxylus built for 75 platinum. Needs 2 companion slots.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Multron"
+},
+"Nataruk": {
+"method": "quest",
+"how": "Given on completing The New War quest, with its own slot and an Orokin Catalyst already installed. Extra copies cost 100,000 Simaris standing; there's no platinum shortcut.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Nataruk"
+},
+"Nunchasa": {
+"method": "vendor",
+"how": "Buy the main blueprint (200 Entropic Kuva) and four part blueprints (50 each) from Cephalon Melica (Yuvan Peak/Zariman) using Entropic Kuva dropped by Entropic Eximus in the Zariman, then build with Zariman/Deimos resources; or 230 platinum in the Market.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Nunchasa"
+},
+"Odonata": {
+"method": "quest",
+"how": "Main and part blueprints are given during The Archwing quest (extra copies from Cephalon Simaris for standing), then build: 7,000 credits each part plus 300 Circuits, 1,000 Ferrite, 500 Salvage, 500 Rubedo.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Odonata"
+},
+"Opticor Vandal": {
+"method": "event",
+"how": "Earned by reaching 100 points in the recurring Thermia Fractures event on Orb Vallis, or bought from Baro Ki'Teer when stocked (550,000 credits, 650 Ducats); also buyable from other players.",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Opticor_Vandal"
+},
+"Orion & Sirius": {
+"method": "quest",
+"how": "This name redirects to the Warframe Sirius & Orion (Update 43.0, June 2026). The main blueprint comes from the Jade Shadows: Constellations quest. The Neuroptics, Chassis and Systems blueprints drop from Scoria's Angel or The Kuva Wytch on Uranus Proxima (Empyrean Railjack, 14.29% per rotation), or cost 90 Emerald/Crimson Talents each from Hunhow in Pontis Tower (275 for the main blueprint). Building needs 3 Orokin Cells plus Gallium, Nullstones, Asterite, Morphics, Control Modules and Isos. It can also be bought for 370 platinum. The wiki doesn't say whether the parts can be traded (normal Warframe blueprints usually can't be).",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Sirius_%26_Orion"
+},
+"Pangolin Sword": {
+"method": "nightwave",
+"how": "Blueprint from Nightwave Cred Offerings (rotating stock), then build: 20,000 credits, 1 Control Module, 750 Ferrite, 300 Circuits, 80 Alloy Plate.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Pangolin_Sword"
+},
+"Panzer Vulpaphyla": {
+"method": "open-world",
+"how": "Capture a Weakened Panzer Vulpaphyla via Conservation on Deimos during the Fass cycle (after Infested attack it), then revive it with Son in the Necralisk using a Mutagen + Antigen (Entrati standing) and 5,000 credits; gild it for mastery.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Panzer_Vulpaphyla"
+},
+"Paracesis": {
+"method": "quest",
+"how": "Blueprint from the Chimera Prologue quest (needs The Sacrifice), then build: 30,000 credits, 1,000 Ducats, 1 built Galatine, 5 Eidolon Shards, 15 Orokin Cells.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Paracesis"
+},
+"Pharaoh Predasite": {
+"method": "open-world",
+"how": "Capture a Weakened Pharaoh Predasite via Conservation on Deimos (after Infested attack it), then revive it with Son in the Necralisk using a Mutagen + Antigen (Entrati standing) and 5,000 credits; gild it for mastery.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Pharaoh_Predasite"
+},
+"Plasma Sword": {
+"method": "nightwave",
+"how": "Blueprint from Nightwave Cred Offerings (rotating stock) for 50 Cred, then build: 20,000 credits, 1 Orokin Cell, 500 Ferrite, 450 Salvage, 50 Polymer Bundle.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Plasma_Sword"
+},
+"Prisma Angstrum": {
+"method": "baro",
+"how": "Bought fully built from Baro Ki'Teer when he stocks it (rotates every 2 weeks) for 210,000 credits and 475 Ducats; also buyable unranked from other players (MR 8).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Prisma_Angstrum"
+},
+"Prisma Burst Laser": {
+"method": "baro",
+"how": "Comes automatically with the Prisma Shade sentinel, sold by Baro Ki'Teer when stocked (rotating) for 300,000 credits and 500 Ducats; the weapon can also be bought unranked from other players.",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Prisma_Burst_Laser"
+},
+"Prisma Dual Cleavers": {
+"method": "baro",
+"how": "Bought fully built from Baro Ki'Teer when he stocks it (rotates every 2 weeks) for 200,000 credits and 490 Ducats; also buyable unranked from other players (MR 9).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Prisma_Dual_Cleavers"
+},
+"Prisma Gorgon": {
+"method": "baro",
+"how": "Bought fully built from Baro Ki'Teer when he stocks it (rotates every 2 weeks) for 50,000 credits and 600 Ducats; also buyable unranked from other players (MR 11).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Prisma_Gorgon"
+},
+"Prisma Grakata": {
+"method": "baro",
+"how": "Bought fully built from Baro Ki'Teer when he stocks it (rotates every 2 weeks) for 100,000 credits and 610 Ducats; also buyable unranked from other players (MR 11).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Prisma_Grakata"
+},
+"Prisma Grinlok": {
+"method": "baro",
+"how": "Bought fully built from Baro Ki'Teer when he stocks it (rotates every 2 weeks) for 220,000 credits and 500 Ducats; also buyable unranked from other players (MR 11).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Prisma_Grinlok"
+},
+"Prisma Lenz": {
+"method": "baro",
+"how": "Bought fully built from Baro Ki'Teer when he stocks it (rotates every 2 weeks) for 200,000 credits and 575 Ducats; also buyable unranked from other players (MR 12).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Prisma_Lenz"
+},
+"Prisma Machete": {
+"method": "baro",
+"how": "Bought fully built from Baro Ki'Teer (Tenno Relay) for 200,000 credits + 400 Ducats when it is in his rotating stock; otherwise buy an unranked copy from another player.",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Prisma_Machete"
+},
+"Prisma Obex": {
+"method": "baro",
+"how": "Bought fully built from Baro Ki'Teer for 175,000 credits + 500 Ducats when in stock (MR 10 to receive it in trade); otherwise buy an unranked copy from a player.",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Prisma_Obex"
+},
+"Prisma Ohma": {
+"method": "baro",
+"how": "Bought fully built from Baro Ki'Teer for 175,000 credits + 450 Ducats when in stock (MR 12 to receive it in trade); otherwise buy an unranked copy from a player.",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Prisma_Ohma"
+},
+"Prisma Shade": {
+"method": "baro",
+"how": "Bought fully built from Baro Ki'Teer for 300,000 credits + 500 Ducats when in stock (needs two free companion slots, it comes with Prisma Burst Laser); otherwise buy an unranked copy from a player.",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Prisma_Shade"
+},
+"Prisma Skana": {
+"method": "baro",
+"how": "Bought fully built from Baro Ki'Teer for 175,000 credits + 510 Ducats when in stock; otherwise buy an unranked copy from a player.",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Prisma_Skana"
+},
+"Prisma Tetra": {
+"method": "baro",
+"how": "Bought fully built from Baro Ki'Teer for 50,000 credits + 400 Ducats when in stock (last offered 2026-10-16); otherwise buy an unranked copy from a player (MR 4).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Prisma_Tetra"
+},
+"Prisma Twin Gremlins": {
+"method": "baro",
+"how": "Bought fully built from Baro Ki'Teer for 220,000 credits + 500 Ducats when in stock (MR 11); otherwise buy an unranked copy from a player.",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Prisma_Twin_Gremlins"
+},
+"Prisma Veritux": {
+"method": "baro",
+"how": "Bought fully built from Baro Ki'Teer for 150,000 credits + 550 Ducats when in stock; otherwise buy an unranked copy from a player.",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Prisma_Veritux"
+},
+"Prova Vandal": {
+"method": "baro",
+"how": "Bought fully built from Baro Ki'Teer for 250,000 credits + 410 Ducats when in stock (last offered 2026-08-21); otherwise buy an unranked copy from a player (MR 3).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Prova_Vandal"
+},
+"Purgator 1": {
+"method": "syndicate",
+"how": "Buy the main blueprint (15,000) and three part blueprints (5,000 each) from Minerva of The Hex at rank 5 (Pizza Party), then build each part (20,000 credits + Hollvania resources) and the weapon (12 h); or buy it for 225 Platinum in the Market.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Purgator_1"
+},
+"Qorvex": {
+"method": "quest",
+"how": "Main blueprint is rewarded by the Whispers in the Walls quest; Neuroptics/Chassis/Systems drop from Sanctum Anatomica bounties (~12-14% each) or are bought from Bird 3 (Cavia rank 2, 20,000 standing each), then build (3 days); or buy for 325 Platinum in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Qorvex"
+},
+"Quanta Vandal": {
+"method": "baro",
+"how": "Originally an Operation False Profit reward; now bought fully built from Baro Ki'Teer for 300,000 credits + 450 Ducats when in stock, or buy an unranked copy from a player (MR 10).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Quanta_Vandal"
+},
+"Raksa Kubrow": {
+"method": "incubator",
+"how": "Complete Howl of the Kubrow, get a Kubrow Egg from Kubrow Dens on Earth (Grineer Forest) and build an Incubator Power Core, then hatch it in the Orbiter Incubator; the breed is random, so repeat (or use a Raksa Imprint) until you get a Raksa.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Raksa_Kubrow"
+},
+"Rauta": {
+"method": "open-world",
+"how": "Defeat Kullervo in Duviri's Kullervo's Hold (only during Anger, Sorrow or Fear Spirals) for Kullervo's Bane, trade 30 Banes to Acrithis for the main (12) and three part blueprints (6 each), then build with 10 Pathos Clamps (12 h); or buy for 240 Platinum in the Market.",
+"difficulty": 4,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Rauta"
+},
+"Rumblejack": {
+"method": "quest",
+"how": "The Drifter's dagger, given on completing The New War quest with its own slot and an Orokin Catalyst already installed. Extra copies cost 100,000 Simaris standing. Needs MR 8.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Rumblejack"
+},
+"Sahasa Kubrow": {
+"method": "incubator",
+"how": "Complete Howl of the Kubrow, get a Kubrow Egg from Kubrow Dens on Earth and build an Incubator Power Core, then hatch it in the Orbiter Incubator; the breed is random, so repeat (or use a Sahasa Imprint) until you get a Sahasa.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Sahasa_Kubrow"
+},
+"Sampotes": {
+"method": "vendor",
+"how": "Buy the blueprint in Teshin's Cave (Duviri) for 60 Pathos Clamps (or 275 Platinum), then build with Duviri resources (Silphsela, Rune Marrow, Kovnik, Aggristone; 1 day); extra blueprints from Cephalon Simaris for 100,000 standing.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Sampotes"
+},
+"Shade": {
+"method": "market-credits",
+"how": "Buy the blueprint from the Market for 100,000 credits and build it (15,000 credits, 500 Alloy Plate, 400 Circuits, 200 Nano Spores, 1 Control Module; 24 h); needs two free companion slots (comes with Burst Laser); or 75 Platinum built.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Shade"
+},
+"Sheev": {
+"method": "mission-drop",
+"how": "Blueprint, Blade, Heatsink and Hilt are offered as Invasion mission rewards (wait for an Invasion offering them, or buy the parts from players), then build for 20,000 credits (12 h).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Sheev"
+},
+"Sicarus": {
+"method": "market-credits",
+"how": "Bought fully built from the in-game Market for 20,000 credits.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Sicarus"
+},
+"Sirocco": {
+"method": "quest",
+"how": "The Drifter's pistol, given on completing The New War quest (already Gilded, with a free amp slot). Extra copies cost 100,000 Simaris standing. MR 0.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Sirocco"
+},
+"Skiajati": {
+"method": "quest",
+"how": "Given fully built (with Catalyst and slot) during the penultimate mission of The Sacrifice quest (requires The Second Dream, The War Within, Chains of Harrow and Apostasy Prologue first); only once, not re-awarded on replay.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Skiajati"
+},
+"Sly Vulpaphyla": {
+"method": "open-world",
+"how": "On Deimos, capture a Weakened Sly Vulpaphyla via Conservation after Infested attack it, then revive it with Son in the Necralisk using a Mutagen and an Antigen (Entrati standing) plus 5,000 credits; it only gives mastery once gilded (rank 30, 10 Son Tokens, 5,000 standing).",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Sly_Vulpaphyla"
+},
+"Smeeta Kavat": {
+"method": "incubator",
+"how": "Complete Howl of the Kubrow and install the Kavat Incubator Upgrade Segment, scan Feral Kavats on Deimos' Orokin Derelict for 10 Kavat Genetic Codes, build an Incubator Power Core and incubate; the breed is random (Smeeta or Adarza), or buy it built for 175 Platinum.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Smeeta_Kavat"
+},
+"Snipetron Vandal": {
+"method": "mission-drop",
+"how": "Blueprint, Barrel, Receiver and Stock are offered as Invasion mission rewards (or buy the parts from players, MR 5 for the blueprint), then build for 25,000 credits (12 h).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Snipetron_Vandal"
+},
+"Stinger": {
+"method": "dojo",
+"how": "Comes automatically with the Djinn sentinel: research Djinn in the clan dojo Bio Lab (needs Dual Ichor research first), buy its blueprint for 50,000 credits and build it (30,000 credits, 6 Mutagen Mass, 30,000 Salvage, 3,500 Circuits, 2 Forma; 24 h); needs two free companion slots.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Stinger"
+},
+"Strun": {
+"method": "market-credits",
+"how": "Bought already built from the in-game Market for 25,000 credits; needs MR 1. The optional Strun Incarnon Genesis comes from Steel Path Circuit rewards (or once from Cavalero for 120 platinum).",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Strun"
+},
+"Strun Wraith": {
+"method": "mission-drop",
+"how": "Blueprint and parts are offered as Invasion mission rewards (or buy the parts from players, MR 10 for the blueprint), then build for 25,000 credits (12 h).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Strun_Wraith"
+},
+"Sun & Moon": {
+"method": "quest",
+"how": "Blueprint is rewarded on completing The Duviri Paradox quest (extra copies from Cephalon Simaris for 100,000 standing), then build with 30,000 credits, 100 Kovnik, 35 Rune Marrow, 40 Lamentus and 45 Silphsela (1 day); or buy for 250 Platinum in the Market.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Sun_%26_Moon"
+},
+"Sunika Kubrow": {
+"method": "incubator",
+"how": "Complete Howl of the Kubrow, get a Kubrow Egg from Kubrow Dens on Earth and build an Incubator Power Core, then hatch it in the Orbiter Incubator; the breed is random, so repeat (or use a Sunika Imprint) until you get a Sunika.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Sunika_Kubrow"
+},
+"Supra Vandal": {
+"method": "baro",
+"how": "Originally an Operation: Ambulas Reborn reward; now bought fully built from Baro Ki'Teer for 275,000 credits + 500 Ducats when in stock (MR 14), or buy an unranked copy from a player.",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Supra_Vandal"
+},
+"Sweeper": {
+"method": "market-credits",
+"how": "Comes automatically with the Carrier sentinel: buy Carrier's blueprint from the Market for 100,000 credits and build it (15,000 credits, 1,000 Alloy Plate, 400 Circuits, 1,500 Nano Spores, 3 Control Modules; 24 h), or buy Carrier built for 75 Platinum; needs two free companion slots.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Sweeper"
+},
+"Syam": {
+"method": "vendor",
+"how": "Buy the blueprint in Teshin's Cave (Duviri) for 50 Pathos Clamps (or 250 Platinum), then build with 30,000 credits, 4 Maw Fang, 30 Rune Marrow, 30 Dracroot and 30 Eevani (1 day); extra blueprints from Cephalon Simaris for 100,000 standing.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Syam"
+},
+"Taxon": {
+"method": "market-credits",
+"how": "Blueprint is awarded by the Venus Junction on Earth and is also sold in the Market for 5,000 credits; build it with 15,000 credits and common resources (1 minute); needs two free companion slots (comes with Artax).",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Taxon"
+},
+"Tenet Agendus": {
+"method": "vendor",
+"how": "Buy it from Ergo Glast (Perrin Sequence, any Relay) for 40 Corrupted Holokeys earned in Railjack Void Storm missions; MR 14 required, his stock and the elemental bonus rotate every 4 days.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Tenet_Agendus"
+},
+"Tenet Arca Plasmor": {
+"method": "lich-sister",
+"how": "Spawn a Sister of Parvos (Granum Void on a Corpus Ship) until one generates with a Tenet Arca Plasmor, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Tenet_Arca_Plasmor"
+},
+"Tenet Cycron": {
+"method": "lich-sister",
+"how": "Spawn a Sister of Parvos until one generates with a Tenet Cycron, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Tenet_Cycron"
+},
+"Tenet Detron": {
+"method": "lich-sister",
+"how": "Spawn a Sister of Parvos until one generates with a Tenet Detron, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Tenet_Detron"
+},
+"Tenet Diplos": {
+"method": "lich-sister",
+"how": "Spawn a Sister of Parvos until one generates with a Tenet Diplos, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Tenet_Diplos"
+},
+"Tenet Envoy": {
+"method": "lich-sister",
+"how": "Spawn a Sister of Parvos until one generates with a Tenet Envoy, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Tenet_Envoy"
+},
+"Tenet Exec": {
+"method": "vendor",
+"how": "Buy it from Ergo Glast (Perrin Sequence, any Relay) for 40 Corrupted Holokeys earned in Railjack Void Storm missions; his stock and the elemental bonus rotate every 4 days.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Tenet_Exec"
+},
+"Tenet Ferrox": {
+"method": "vendor",
+"how": "Buy it from Ergo Glast (Perrin Sequence, any Relay) for 40 Corrupted Holokeys earned in Railjack Void Storm missions; MR 16 required, his stock and the elemental bonus rotate every 4 days.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Tenet_Ferrox"
+},
+"Tenet Flux Rifle": {
+"method": "lich-sister",
+"how": "Spawn a Sister of Parvos until one generates with a Tenet Flux Rifle, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Tenet_Flux_Rifle"
+},
+"Tenet Glaxion": {
+"method": "lich-sister",
+"how": "Spawn a Sister of Parvos until one generates with a Tenet Glaxion, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Tenet_Glaxion"
+},
+"Tenet Grigori": {
+"method": "vendor",
+"how": "Buy it from Ergo Glast (Perrin Sequence, any Relay) for 40 Corrupted Holokeys earned in Railjack Void Storm missions; MR 14 required, his stock and the elemental bonus rotate every 4 days.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Tenet_Grigori"
+},
+"Tenet Livia": {
+"method": "vendor",
+"how": "Buy it from Ergo Glast (Perrin Sequence, any Relay) for 40 Corrupted Holokeys earned in Railjack Void Storm missions; his stock and the elemental bonus rotate every 4 days.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Tenet_Livia"
+},
+"Tenet Plinx": {
+"method": "lich-sister",
+"how": "Spawn a Sister of Parvos until one generates with a Tenet Plinx, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Tenet_Plinx"
+},
+"Tenet Quanta": {
+"method": "lich-sister",
+"how": "Spawn a Sister of Parvos until one generates with a Tenet Quanta, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Tenet_Quanta"
+},
+"Tenet Spirex": {
+"method": "lich-sister",
+"how": "Spawn a Sister of Parvos until one generates with a Tenet Spirex, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Tenet_Spirex"
+},
+"Tenet Tetra": {
+"method": "lich-sister",
+"how": "Spawn a Sister of Parvos until one generates with a Tenet Tetra, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
+"difficulty": 5,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Tenet_Tetra"
+},
+"Thalys": {
+"method": "vendor",
+"how": "After The Hex quest, buy the blueprint from Acrithis or Dominus Thrax in the Dormizone for 96 Scuttler Husks (earned from Isleweaver in Duviri), then build with 20,000 credits, 100 Temporal Dust, 1,500 Entrati Obols, 180 Silphsela and 150 Rune Marrow (1 day).",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Thalys"
+},
+"Thornbak": {
+"method": "quest",
+"how": "Awarded fully built (with slot and Catalyst) during The Teacher quest (Update 40, Oct 2025); extra copies from Cephalon Simaris for 100,000 standing.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Thornbak"
+},
+"Twin Vipers Wraith": {
+"method": "mission-drop",
+"how": "Blueprint, Barrel, Receiver and Generic Component Plug are offered as Invasion mission rewards (or buy the parts from players, MR 7 for the blueprint), then build for 25,000 credits (12 h).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Twin_Vipers_Wraith"
+},
+"Uriel": {
+"method": "quest",
+"how": "Main blueprint is rewarded by The Old Peace quest; Neuroptics/Chassis/Systems drop from Roathe's Oblivion on Infernium 21 (The Descendia) or are bought from Roathe in Sanctum Anatomica for 25 Maphica each (75 for the main), then build with Perita Rebellion resources and 1 Orokin Cell (3 days); or buy for 370 Platinum in the Market.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Uriel"
+},
+"Vasca Kavat": {
+"method": "incubator",
+"how": "Needs Howl of the Kubrow done and the Kavat Incubator Upgrade Segment installed. Let a Kavat get bitten by wild Vasca on the Plains of Eidolon at night (Teasonai sells a 3,000-standing lure), then use a Genetic Code Template to make a Vasca Imprint; you need two imprints to breed one in the Incubator. Shortcut: the Vasca Kavat Starter Kit is 105 platinum in the Market. Imprints can be traded between players, but the wiki page doesn't say so (unconfirmed).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Vasca_Kavat"
+},
+"Vastilok": {
+"method": "baro",
+"how": "Originally a TennoCon 2021 Twitch drop; now bought fully built from Baro Ki'Teer for 325,000 credits + 550 Ducats when in stock, or buy an unranked copy from a player (MR 9).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Vastilok"
+},
+"Verglas": {
+"method": "mission-drop",
+"how": "Comes automatically with the Nautilus sentinel; Nautilus' blueprint and parts (Carapace, Cerebrum, Systems, Nullstones) drop from Railjack Corpus Proxima point-of-interest caches (e.g. Neptune Proxima ice mines), then build it (unconfirmed: the wiki Nautilus page lists no drop source, route taken from a 2021 guide).",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Verglas"
+},
+"Vericres": {
+"method": "baro",
+"how": "Originally a TennoCon 2022 Twitch drop; now bought fully built from Baro Ki'Teer for 200,000 credits + 410 Ducats when in stock (last offered 2026-10-16), or buy an unranked copy from a player.",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Vericres"
+},
+"Veritux": {
+"method": "quest",
+"how": "A built Veritux is given automatically when you claim the Odonata Archwing from the Foundry during The Archwing quest; extra blueprints from Cephalon Simaris for 100,000 standing (build: 25,000 credits, 500 Rubedo, 1,000 Salvage, 2 Neurodes, 500 Circuits).",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Veritux"
+},
+"Viper Wraith": {
+"method": "baro",
+"how": "Bought fully built from Baro Ki'Teer for 75,000 credits + 400 Ducats when in stock, or buy an unranked copy from a player (MR 4).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Viper_Wraith"
+},
+"Vizier Predasite": {
+"method": "open-world",
+"how": "On Deimos, capture a Weakened Vizier Predasite via Conservation after Infested attack it, then revive it with Son in the Necralisk using a Mutagen and an Antigen (Entrati standing) plus 5,000 credits; it only gives mastery once gilded (rank 30, Son Tokens and standing).",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Vizier_Predasite"
+},
+"Voidrig": {
+"method": "quest",
+"how": "Heart of Deimos rewards all Voidrig blueprints (also sold by Necraloid at ranks 1-2); each part needs a Damaged Necramech part dropped by enemy Necramechs in Isolation Vault bounties or bought from Father for 2,000 Entrati standing (tradable), plus Purified Heciphron (Entrati rank 1), then a 72 h build; needs a free Archgun slot for the Mausolon.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Voidrig"
+},
+"Vulkar Wraith": {
+"method": "baro",
+"how": "Originally an Operation: Shadow Debt reward; now bought fully built from Baro Ki'Teer for 300,000 credits + 450 Ducats when in stock (last offered 2026-10-02), or buy an unranked copy from a player (MR 7).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Vulkar_Wraith"
+},
+"Vulklok": {
+"method": "market-credits",
+"how": "Comes automatically with the Diriga sentinel: buy Diriga's blueprint from the Market for 100,000 credits and build it (15,000 credits, 600 Alloy Plate, 2 Argon Crystals, 350 Plastids, 500 Polymer Bundles; 24 h), or buy Diriga built for 75 Platinum; needs two free companion slots.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Vulklok"
+},
+"Wyrm": {
+"method": "market-credits",
+"how": "Buy the blueprint from the Market for 100,000 credits and build it (15,000 credits, 500 Alloy Plate, 400 Circuits, 200 Nano Spores, 1 Control Module; 24 h); needs two free companion slots (comes with Laser Rifle); or 75 Platinum built.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Wyrm"
+},
+"Zylok": {
+"method": "baro",
+"how": "Originally a Pyrus Project event reward; now bought fully built from Baro Ki'Teer for 200,000 credits + 500 Ducats when in stock, or buy an unranked copy from a player (MR 6).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Zylok"
+}
+}

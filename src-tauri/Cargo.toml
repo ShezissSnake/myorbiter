@@ -1,0 +1,43 @@
+[package]
+name = "orbiter"
+version = "0.1.0"
+description = "Local-first Warframe collection helper built on TennoScope's data."
+edition = "2021"
+license = "MIT"
+rust-version = "1.77.2"
+
+[lib]
+name = "orbiter_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+# Remembers window size (and position where the compositor allows it).
+tauri-plugin-window-state = "2"
+# Opens wiki and warframe.market links in the browser.
+tauri-plugin-opener = "2"
+orbiter-data = { path = "../crates/orbiter-data" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Fissures and Varzia's stock from api.warframestat.us. Blocking client, run off the main thread.
+ureq = { version = "2", features = ["json", "native-certs"] }
+# Keeps the warframe.market token in the system keyring (KWallet / GNOME Keyring).
+keyring = { version = "3", features = ["sync-secret-service", "vendored", "crypto-rust"] }
+# Your warframe.market status is held on a WebSocket (see presence.rs). rustls with ring, the
+# same TLS stack ureq already links, and the system's certificates like ureq's.
+tungstenite = { version = "0.28", default-features = false, features = ["handshake", "rustls-tls-native-roots"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+# Shrinks item artwork to thumbnails before caching it.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+[target.'cfg(unix)'.dependencies]
+# Ctrl+C / logout: close the TennoScope orbiter started before exiting.
+signal-hook = "0.3"
+# Stopping that TennoScope, and the user id for the private bridge folder.
+libc = "0.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Desktop notifications through the desktop's notification service (D-Bus).
+notify-rust = "4"

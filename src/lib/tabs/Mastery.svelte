@@ -1,0 +1,192 @@
+<script lang="ts">
+  import { info } from "../hover.svelte";
+  import type { Model } from "../core/model";
+  import { masteryRows, type MasteryRow } from "../core/views";
+  import { METHOD_LABEL, rankLabel, rankThreshold } from "../core/acquire";
+  import Effort from "../ui/Effort.svelte";
+  import GameIcon from "../ui/GameIcon.svelte";
+  import Browse from "../ui/Browse.svelte";
+  import ItemCard from "../ui/ItemCard.svelte";
+  import PartChip from "../ui/PartChip.svelte";
+  import { collectionItem } from "../core/collection";
+  import { details } from "../details.svelte";
+  import { finishOdds } from "../core/wishlist";
+  import P from "../ui/P.svelte";
+  import Named from "../ui/Named.svelte";
+  import Thumb from "../ui/Thumb.svelte";
+  import Avail from "../ui/Avail.svelte";
+  import Chip from "../ui/Chip.svelte";
+  import Seg from "../ui/Seg.svelte";
+  import Stat from "../ui/Stat.svelte";
+  import PageHead from "../ui/PageHead.svelte";
+  import { matches, type Column } from "../ui/table";
+  import { marketUrl, openUrl, wikiUrl } from "../backend";
+
+  let { model, masteryRank = null, wishlist = $bindable([]) }: { model: Model; masteryRank?: number | null; wishlist?: string[] } = $props();
+  const wished = $derived(new Set(wishlist));
+  const toggleWish = (u: string) => (wishlist = wished.has(u) ? wishlist.filter((x) => x !== u) : [u, ...wishlist]);
+  /** Chance of every missing part from the relics you hold (primes whose parts all come from relics). */
+  const odds = (r: MasteryRow) => (r.isPrime && r.missingParts.length && r.missingParts.every((p) => p.sources.length) ? finishOdds(model, r.missingParts) : null);
+  const pct = (x: number) => (x >= 0.995 ? "99%+" : x > 0 && x < 0.005 ? "<1%" : `${Math.round(x * 100)}%`);
+
+  let query = $state("");
+  let category = $state("all");
+  let kind = $state<"all" | "prime" | "normal">("all");
+  let effort = $state<"all" | "2" | "3" | "4">("all");
+  let showUnavailable = $state(false);
+  let sort = $state({ key: "effort", desc: false });
+
+  const all = $derived(masteryRows(model));
+  const categories = $derived([...new Set(all.map((r) => r.category))].sort());
+  const rows = $derived(
+    all.filter(
+      (r) =>
+        (showUnavailable || r.acq.available) &&
+        (category === "all" || r.category === category) &&
+        (kind === "all" || (kind === "prime") === r.isPrime) &&
+        (effort === "all" || r.acq.difficulty <= Number(effort)) &&
+        matches(query, r.name, r.type, METHOD_LABEL[r.acq.method]),
+    ),
+  );
+  const open = $derived(all.filter((r) => r.acq.available));
+  const pts = (rs: MasteryRow[]) => rs.reduce((n, r) => n + r.points, 0);
+  const levelRows = $derived(open.filter((r) => r.acq.difficulty === 0));
+  const easyRows = $derived(open.filter((r) => r.acq.difficulty >= 1 && r.acq.difficulty <= 2));
+
+
+  const columns: Column<MasteryRow>[] = [
+    { key: "name", label: "Item", value: (r) => r.name, defaultDesc: false, cell: nameCell, width: "min(19rem, 24%)" },
+    // Easiest first, and among equally easy things the one worth the most mastery.
+    { key: "effort", label: "Effort", value: (r) => r.acq.difficulty, sortValue: (r) => r.acq.difficulty * 100_000 - r.points, cell: effortCell, defaultDesc: false, title: "How hard it is to get: 0 you have it, 1 buy and build … 5 Liches and the like" },
+    { key: "points", label: "Mastery", value: (r) => r.points, align: "right", cell: pointsCell, title: "Mastery points at max rank" },
+    { key: "how", label: "How to get it", value: (r) => r.acq.how, cell: howCell, sortable: false },
+    { key: "buy", label: "Buy parts", value: (r) => r.buyFor, align: "right", cell: buyCell, title: "Primes: what the parts you're missing cost on warframe.market (daily median)" },
+    { key: "parts", minor: true, label: "Parts", value: (r) => (r.status === "level" || !r.partsTotal ? null : `${r.partsOwned}/${r.partsTotal}`), sortValue: (r) => (r.partsTotal ? r.partsOwned / r.partsTotal : null), align: "right" },
+    { key: "category", minor: true, label: "Type", value: (r) => r.category, muted: true, defaultDesc: false },
+    { key: "star", label: "", value: () => null, cell: starCell, sortable: false, align: "right" },
+  ];
+</script>
+
+{#snippet nameCell(r: MasteryRow)}<Named file={model.imageOf(r.name)} name={r.name} />{/snippet}
+{#snippet starCell(r: MasteryRow)}
+  {#if model.catalogByUnique.has(r.unique)}
+    {@const on = wished.has(r.unique)}
+    <button class="star" class:on aria-pressed={on} aria-label={on ? `Remove ${r.name} from your wishlist` : `Add ${r.name} to your wishlist`} title={on ? "On your wishlist (click to remove)" : "Add to your wishlist"} onclick={(e) => { e.stopPropagation(); toggleWish(r.unique); }}>
+      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 1.6l1.9 4.1 4.5.5-3.4 3 1 4.4L8 11.4l-4 2.2 1-4.4-3.4-3 4.5-.5z" /></svg>
+    </button>
+  {/if}
+{/snippet}
+{#snippet effortCell(r: MasteryRow)}<Effort acq={r.acq} />{/snippet}
+{#snippet pointsCell(r: MasteryRow)}<span class="pts"><GameIcon name="mastery" size={14} />{r.points.toLocaleString("en")}</span>{/snippet}
+{#snippet buyCell(r: MasteryRow)}{#if r.buyFor != null}<P v={r.buyFor} />{/if}{/snippet}
+{#snippet howCell(r: MasteryRow)}
+  <span class="how" title={r.acq.how}>
+    {#if r.isPrime && r.missingParts.length}
+      {@const worst = r.missingParts.some((p) => p.availability === "vaulted") ? "vaulted" : r.missingParts.some((p) => p.availability === "resurgence") ? "resurgence" : "farmable"}
+      <Avail v={worst} />
+    {/if}
+    {r.acq.difficulty === 0 ? "" : r.acq.how}
+  </span>
+{/snippet}
+
+{#snippet card(r: MasteryRow, open: () => void)}
+  {@const item = model.catalogByUnique.get(r.unique)}
+  {@const parts = item && r.status !== "level" ? collectionItem(model, item).parts.filter((p) => !p.resource) : []}
+  <ItemCard hover={r.name} title={r.name} sub={r.category} image={item?.imageName ?? model.imageOf(r.name)} owned={r.status === "level"} onopen={open} fav={wished.has(r.unique)} onfav={item ? () => toggleWish(r.unique) : undefined}>
+    {#if r.acq.difficulty > 0}<Effort acq={r.acq} />{:else}<p class="chow">In your arsenal: rank it to {r.points === 4000 || r.points === 8000 ? 40 : 30} for the mastery.</p>{/if}
+    {#if parts.length}<div class="chips">{#each parts as p, i (i)}<PartChip part={p} size={32} />{/each}</div>{/if}
+    {#if r.acq.difficulty > 0}<p class="chow" title={r.acq.how}>{r.acq.how}</p>{/if}
+    {#snippet foot()}
+      {#if r.status === "level"}<span class="tag ok">Owned · level it</span>{:else if r.status === "build"}<span class="tag ok">Ready to build</span>{/if}
+      {#if r.isPrime && r.missingParts.length}
+        {@const worst = r.missingParts.some((p) => p.availability === "vaulted") ? "vaulted" : r.missingParts.some((p) => p.availability === "resurgence") ? "resurgence" : "farmable"}
+        <Avail v={worst} />
+      {/if}
+      <span class="grow"></span>
+      {@const o = odds(r)}
+      {#if o != null && o > 0}<span class="odds" title="Chance the relics you hold give every missing part, cracking each once">{pct(o)}</span>{/if}
+      {#if r.buyFor != null}<span class="dim small">{o != null && o > 0 ? "or" : "parts"}</span><P v={r.buyFor} />{/if}
+      <span class="pts"><GameIcon name="mastery" size={13} />{r.points.toLocaleString("en")}</span>
+    {/snippet}
+  </ItemCard>
+{/snippet}
+
+{#snippet detail(r: MasteryRow)}
+  <p class="fullhow"><Effort acq={r.acq} /> <span>{r.acq.how}</span></p>
+  {#if !r.acq.available}<p class="small warn">Can't be obtained right now.</p>{/if}
+  {#if r.missingParts.length}
+    <p class="small dim legend">Relics that drop each missing part; yours first, vaulted ones dashed.</p>
+    <div class="missing">
+      {#each r.missingParts as p (p.name)}
+        <div class="mp">
+          <div class="mp-head"><Thumb file={model.imageOf(p.name)} name={p.name} size={24} /><strong>{p.name}</strong> <Avail v={p.availability} /> <P v={model.price(p.name)} /></div>
+          <div class="relics">
+            {#each p.sources.slice(0, 10) as s (s.base)}
+              <span class="relic" class:have={s.owned > 0} class:vaulted={s.vaulted && !s.resurgence} use:info={s.base}>
+                {s.base}<small>{s.rarity}</small>{#if s.owned}<em>you have {s.owned}</em>{/if}{#if s.vaulted && !s.resurgence}<i>vaulted</i>{/if}
+              </span>
+            {/each}
+            {#if p.sources.length > 10}<span class="dim small">+{p.sources.length - 10} more</span>{/if}
+          </div>
+        </div>
+      {/each}
+    </div>
+  {/if}
+  <div class="links">
+    <button class="link" onclick={() => openUrl(r.wiki ?? wikiUrl(r.name))}>Wiki ↗</button>
+    {#if r.isPrime}<button class="link" onclick={() => openUrl(marketUrl(`${r.name} Set`))}>warframe.market ↗</button>{/if}
+  </div>
+{/snippet}
+
+<div class="page"><div class="page-inner">
+  <PageHead title="Mastery" blurb="Everything you haven’t mastered, easiest first.">
+    {#snippet band()}
+      {#if masteryRank != null}
+        <Stat label="Your rank" tone="gold" note={`${rankLabel(masteryRank + 1)} at ${rankThreshold(masteryRank + 1).toLocaleString("en")} total mastery`}>{rankLabel(masteryRank)}</Stat>
+      {/if}
+      <Stat label="To level" note={`${levelRows.length} things you already have`}><GameIcon name="mastery" size={30} />{pts(levelRows).toLocaleString("en")}</Stat>
+      <Stat label="Easy to get" note={`${easyRows.length} things: buy and build, or an easy boss`}><GameIcon name="mastery" size={30} />{pts(easyRows).toLocaleString("en")}</Stat>
+      <Stat label="Left to master" tone="dim" note={`${open.length} things you can still get`}><GameIcon name="mastery" size={30} />{pts(open).toLocaleString("en")}</Stat>
+    {/snippet}
+  </PageHead>
+
+  <div class="bar">
+  <select bind:value={category} aria-label="Type">
+    <option value="all">All types</option>
+    {#each categories as c (c)}<option value={c}>{c}</option>{/each}
+  </select>
+  <Seg label="Effort" bind:value={effort} options={[{ v: "2", label: "Easy", title: "Level it, buy and build, easy bosses" }, { v: "3", label: "Moderate", title: "Up to relics, quests, bounties and low syndicate ranks" }, { v: "4", label: "Hard", title: "Everything but Liches, Sisters, Coda and the nearly unobtainable" }, { v: "all", label: "All" }]} />
+  <Seg bind:value={kind} options={[{ v: "all", label: "All" }, { v: "prime", label: "Prime" }, { v: "normal", label: "Non-prime" }]} />
+  <Chip bind:on={showUnavailable} label="Show unavailable" title="Founders items, past events and the like: things you can't get right now" />
+  <input type="search" placeholder="Filter…" bind:value={query} />
+  </div>
+
+  <Browse id="mastery" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} empty="Nothing left to master here." />
+</div></div>
+
+<style>
+  .missing { display: grid; gap: .9rem; }
+  .mp-head { display: flex; gap: .6rem; align-items: center; margin-bottom: .4rem; }
+  .relics { display: flex; flex-wrap: wrap; gap: .3rem; padding-left: calc(24px + .6rem); }
+  .relic { font-family: var(--face-register); font-size: .64rem; letter-spacing: .06em; padding: .18rem .45rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
+  .relic small { margin-left: .3rem; color: var(--platinum-deep); }
+  .legend { margin: 0 0 .5rem; }
+  .relic em { font-style: normal; margin-left: .35rem; color: var(--gold); font-weight: 600; }
+  .relic.have { border-color: var(--gold-dim); color: var(--platinum); }
+  .relic.vaulted { opacity: .7; border-style: dashed; }
+  .relic i { font-style: normal; font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--gold-dim); margin-left: .4rem; }
+  .chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .chow { margin: 0; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-size: .78rem; line-height: 1.35; color: var(--platinum-dim); }
+  .grow { flex: 1; }
+  .odds { font-family: var(--face-mark); font-weight: 700; color: var(--gold); }
+  .pts { display: inline-flex; align-items: center; gap: .3rem; font-variant-numeric: tabular-nums; }
+  .how { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: .8rem; line-height: 1.35; color: var(--platinum-dim); min-width: 18rem; max-width: 46rem; }
+  .fullhow { display: flex; gap: 1rem; align-items: baseline; margin: 0 0 .8rem; max-width: 80ch; line-height: 1.45; }
+  .warn { color: var(--gold); }
+  .links { display: flex; gap: 1.2rem; margin-top: .9rem; }
+  .star { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; background: none; line-height: 0; color: var(--platinum-deep); }
+  .star:active:not(:disabled) { background: none; }
+  .star svg { fill: none; stroke: currentColor; stroke-width: 1.2; }
+  .star:hover, .star.on { color: var(--gold); }
+  .star.on svg { fill: var(--gold); }
+</style>

@@ -1,0 +1,236 @@
+diff --git a/app/src-tauri/src/monitor.rs b/app/src-tauri/src/monitor.rs
+index d09ca9a..eeedaed 100644
+--- a/app/src-tauri/src/monitor.rs
++++ b/app/src-tauri/src/monitor.rs
+@@ -1303,6 +1303,9 @@ pub(crate) fn run(
+         .lock()
+         .ok()
+         .and_then(|runtime| load_relic_catalog(&runtime.app_data));
++    if let Some(index) = &relic_catalog {
++        remember_vaulted_rewards(index);
++    }
+     let mut reward_session =
+         RewardSession::new(catalog, relic_catalog, reward_catalog, price_cache.clone());
+     // EE.log reaches us seconds after the events it describes (measured at ~7.5s on 2026-07-27),
+@@ -2391,6 +2394,25 @@ fn spawn_market_price_warm(pool: &[RewardCatalogEntry], price_cache: &MarketPric
+     });
+ }
+ 
++/// Rewards that only vaulted relics drop, from the relic catalog the session loaded. Kept apart
++/// from the runtime so the card builder can read it without threading the index through every
++/// caller; empty (nothing marked) until a catalog loads.
++static VAULTED_REWARDS: std::sync::RwLock<std::collections::BTreeSet<String>> =
++    std::sync::RwLock::new(std::collections::BTreeSet::new());
++
++fn remember_vaulted_rewards(index: &RelicRewardIndex) {
++    if let Ok(mut vaulted) = VAULTED_REWARDS.write() {
++        vaulted.clone_from(index.vaulted_rewards());
++    }
++}
++
++fn reward_is_vaulted(name: &str) -> bool {
++    VAULTED_REWARDS
++        .read()
++        .map(|vaulted| vaulted.contains(name.trim()))
++        .unwrap_or(false)
++}
++
+ fn apply_reward_observations(
+     shared: &SharedRuntime,
+     catalog: &[RewardCatalogEntry],
+@@ -2438,6 +2460,7 @@ fn apply_reward_observations(
+                 observation.confidence,
+             )
+             .ok()
++            .map(|candidate| candidate.with_vaulted(reward_is_vaulted(&observation.name)))
+         })
+         .collect();
+     let _ = runtime.core.apply_reward_candidates(candidates);
+diff --git a/app/src/App.css b/app/src/App.css
+index 7bfeb6b..5c8e3ab 100644
+--- a/app/src/App.css
++++ b/app/src/App.css
+@@ -430,6 +430,7 @@
+ .hallmark.owned { color: var(--platinum); }
+ .hallmark.absent { color: var(--platinum-deep); background: var(--plate); }
+ .hallmark.mastered { color: var(--gold); }
++.slip-lot .hallmark.vaulted { margin-left: 0.5em; color: var(--gold); }
+ /* A rank is a qualifier on the mark beside it, so it sits back from the ownership figure. Fully
+    ranked is the state worth platinum, and it earns the struck lip rather than a new colour: the
+    text reads 10/10 either way, and gold already means mastered. */
+diff --git a/app/src/RewardCards.tsx b/app/src/RewardCards.tsx
+index 6858ed4..18ebbb0 100644
+--- a/app/src/RewardCards.tsx
++++ b/app/src/RewardCards.tsx
+@@ -81,7 +81,11 @@ export function RewardCards({
+       className={['slip', topPlat ? 'top-plat' : '', topDucat ? 'top-ducat' : '', marked?.state.rule].filter(Boolean).join(' ')}
+       aria-label={card.name}
+     >
+-      <span className="slip-lot">Choice {index + 1}</span>
++      <span className="slip-lot">
++        Choice {index + 1}
++        {/* Only vaulted relics drop it: no new copies enter the game until it is unvaulted. */}
++        {card.vaulted && <span className="hallmark vaulted" title="Every relic that drops this is vaulted">Vaulted</span>}
++      </span>
+       <h2 className="slip-name">{card.name}</h2>
+ 
+       <div className="metals">
+diff --git a/app/src/backend.ts b/app/src/backend.ts
+index 8c16629..fd39863 100644
+--- a/app/src/backend.ts
++++ b/app/src/backend.ts
+@@ -7,7 +7,7 @@ export type ItemCategory = 'frame' | 'weapon' | 'companion' | 'prime_part' | 're
+ export interface CollectionItem { id: string; name: string; category: ItemCategory; quantity: number; mastered: boolean; image_url?: string; platinum?: number; platinum_ceiling?: number; ducats?: number; rank?: number; max_rank?: number; live: boolean; priceable: boolean; monthly_trades?: number }
+ /** How far the live pricing pass the player asked for has got. */
+ export interface PricingProgress { done: number; total: number }
+-export interface RewardCard { name: string; platinum: number; ducats: number; owned: number; mastery?: MasteryMark; confidence: number }
++export interface RewardCard { name: string; platinum: number; ducats: number; owned: number; mastery?: MasteryMark; confidence: number; vaulted?: boolean }
+ /** One slot of the set a Prime item is built from: the copies the recipe takes, the copies held, and whether this reward is the one that fills it. */
+ export interface SetPart { name: string; image: string | null; uses: number; held: number; this: boolean }
+ /** Absent for items mastery never touches or while marks are off; `unknown` still replaces the
+diff --git a/crates/warframe-acquisition/src/relic_catalog.rs b/crates/warframe-acquisition/src/relic_catalog.rs
+index 0debbfe..de1659c 100644
+--- a/crates/warframe-acquisition/src/relic_catalog.rs
++++ b/crates/warframe-acquisition/src/relic_catalog.rs
+@@ -7,6 +7,9 @@ use crate::{CatalogError, CatalogIndex, RewardNeedle};
+ #[derive(Clone, Debug, Default)]
+ pub struct RelicRewardIndex {
+     rewards: BTreeMap<String, BTreeSet<String>>,
++    /// Rewards every relic of which is vaulted: out of the drop tables, so only relics already
++    /// held (or Varzia's) can still give them.
++    vaulted: BTreeSet<String>,
+ }
+ 
+ impl RelicRewardIndex {
+@@ -14,6 +17,8 @@ impl RelicRewardIndex {
+         let records: Vec<RelicRecord> =
+             serde_json::from_slice(bytes).map_err(|_| CatalogError::InvalidJson)?;
+         let mut rewards = BTreeMap::new();
++        // Per reward: (seen in any relic, seen in a relic still in the drop tables).
++        let mut availability: BTreeMap<String, bool> = BTreeMap::new();
+         for record in records {
+             if !record
+                 .unique_name
+@@ -27,11 +32,22 @@ impl RelicRewardIndex {
+                 .map(|reward| reward.item.name.trim().to_owned())
+                 .filter(|name| !name.is_empty())
+                 .collect::<BTreeSet<_>>();
++            // A record without the flag counts as farmable, so a gap in the data never claims
++            // something is vaulted.
++            let vaulted = record.vaulted == Some(true);
++            for name in &names {
++                let farmable = availability.entry(name.clone()).or_insert(false);
++                *farmable |= !vaulted;
++            }
+             if !names.is_empty() {
+                 rewards.insert(record.unique_name, names);
+             }
+         }
+-        Ok(Self { rewards })
++        let vaulted = availability
++            .into_iter()
++            .filter_map(|(name, farmable)| (!farmable).then_some(name))
++            .collect();
++        Ok(Self { rewards, vaulted })
+     }
+ 
+     /// Every reward a relic in the index can drop, spelled as the relic tables and the reward
+@@ -41,6 +57,16 @@ impl RelicRewardIndex {
+         self.rewards.values().flatten().map(String::as_str)
+     }
+ 
++    /// Whether every relic that drops this reward is vaulted.
++    pub fn is_vaulted(&self, reward: &str) -> bool {
++        self.vaulted.contains(reward.trim())
++    }
++
++    /// Every reward that only vaulted relics drop.
++    pub fn vaulted_rewards(&self) -> &BTreeSet<String> {
++        &self.vaulted
++    }
++
+     pub fn candidates_for_projection_paths(
+         &self,
+         projection_paths: &[String],
+@@ -99,6 +125,8 @@ fn reward_catalog_paths(name: &str, catalog: &CatalogIndex) -> Vec<String> {
+ struct RelicRecord {
+     unique_name: String,
+     #[serde(default)]
++    vaulted: Option<bool>,
++    #[serde(default)]
+     rewards: Vec<RelicReward>,
+ }
+ 
+@@ -111,3 +139,25 @@ struct RelicReward {
+ struct RelicRewardItem {
+     name: String,
+ }
++
++#[cfg(test)]
++mod vaulted_tests {
++    use super::RelicRewardIndex;
++
++    #[test]
++    fn a_reward_is_vaulted_only_when_every_relic_dropping_it_is() {
++        let json = br#"[
++            {"uniqueName": "/Lotus/Types/Game/Projections/A", "vaulted": true,
++             "rewards": [{"item": {"name": "Rhino Prime Systems Blueprint"}}, {"item": {"name": "Forma Blueprint"}}]},
++            {"uniqueName": "/Lotus/Types/Game/Projections/B", "vaulted": false,
++             "rewards": [{"item": {"name": "Forma Blueprint"}}]},
++            {"uniqueName": "/Lotus/Types/Game/Projections/C",
++             "rewards": [{"item": {"name": "Paris Prime String"}}]}
++        ]"#;
++        let index = RelicRewardIndex::from_wfcd_json(json).expect("parses");
++        assert!(index.is_vaulted("Rhino Prime Systems Blueprint"));
++        assert!(!index.is_vaulted("Forma Blueprint"));
++        // No flag in the data: never claimed vaulted.
++        assert!(!index.is_vaulted("Paris Prime String"));
++    }
++}
+diff --git a/crates/warframe-domain/src/rewards.rs b/crates/warframe-domain/src/rewards.rs
+index aa9d60c..f6172e6 100644
+--- a/crates/warframe-domain/src/rewards.rs
++++ b/crates/warframe-domain/src/rewards.rs
+@@ -13,9 +13,17 @@ pub struct RewardCandidate {
+     #[serde(default, skip_serializing_if = "Option::is_none")]
+     pub mastery: Option<MasteryMark>,
+     pub confidence: f32,
++    /// Only vaulted relics drop it. Omitted from the JSON when false.
++    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
++    pub vaulted: bool,
+ }
+ 
+ impl RewardCandidate {
++    pub fn with_vaulted(mut self, vaulted: bool) -> Self {
++        self.vaulted = vaulted;
++        self
++    }
++
+     pub fn new(
+         name: impl Into<String>,
+         platinum: u32,
+@@ -38,6 +46,7 @@ impl RewardCandidate {
+             owned,
+             mastery,
+             confidence,
++            vaulted: false,
+         })
+     }
+ }
+@@ -51,6 +60,8 @@ struct RewardCandidateDto {
+     #[serde(default)]
+     mastery: Option<MasteryMark>,
+     confidence: f32,
++    #[serde(default)]
++    vaulted: bool,
+ }
+ 
+ impl<'de> Deserialize<'de> for RewardCandidate {
+@@ -67,6 +78,7 @@ impl<'de> Deserialize<'de> for RewardCandidate {
+             dto.mastery,
+             dto.confidence,
+         )
++        .map(|candidate| candidate.with_vaulted(dto.vaulted))
+         .map_err(D::Error::custom)
+     }
+ }

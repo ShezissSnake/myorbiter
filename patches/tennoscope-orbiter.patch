@@ -1,0 +1,1167 @@
+diff --git a/app/src-tauri/src/lib.rs b/app/src-tauri/src/lib.rs
+index ddac88b..4b43ac8 100644
+--- a/app/src-tauri/src/lib.rs
++++ b/app/src-tauri/src/lib.rs
+@@ -40,6 +40,7 @@ mod kiosk_view;
+ pub mod linux_renderer;
+ pub mod market_account;
+ pub mod monitor;
++mod orbiter_bridge;
+ mod overlay_window;
+ mod preferences;
+ pub mod report;
+@@ -561,6 +562,74 @@ fn market_inventory_writes_authorized(runtime: &Runtime) -> Result<(), String> {
+ }
+ type SharedRuntime = Arc<Mutex<Runtime>>;
+ 
++/// Carry out what orbiter asked for (see `orbiter_bridge::Ask`), off the main thread. The outcome
++/// shows up in the status file, which is what orbiter reads.
++fn run_asks(app: &AppHandle, args: &[String]) {
++    for ask in orbiter_bridge::asks(args) {
++        let app = app.clone();
++        tauri::async_runtime::spawn(async move {
++            let state = app.state::<SharedRuntime>();
++            let outcome = match ask {
++                orbiter_bridge::Ask::Sync => refresh_inventory(state).await.map(|_| ()),
++                orbiter_bridge::Ask::Presence { status, auto } => set_market_presence(state, status, auto).await.map(|_| ()),
++                orbiter_bridge::Ask::AuthorizeCapture => authorize_screen_capture(app.clone(), state).await.map(|_| ()),
++            };
++            if let Err(error) = outcome {
++                log::warn!("orbiter asked for {ask:?}: {error}");
++                orbiter_bridge::note_error(error.to_string());
++            }
++        });
++    }
++}
++
++/// What orbiter shows about TennoScope: health, the account and its status, and access setup.
++fn bridge_status(shared: &SharedRuntime) -> Option<serde_json::Value> {
++    let (view, stored, game_running, foundry) = {
++        let mut runtime = shared.lock().ok()?;
++        // orbiter holds the status: let go of ours, so the two never undo each other.
++        if orbiter_bridge::orbiter_holds_presence() {
++            runtime.presence.sign_out();
++        }
++        let view = publish_presence(&mut runtime).ok()?;
++        let foundry = runtime.core.foundry_builds();
++        let ready = runtime.core.foundry_ready();
++        let level = runtime.core.player_level();
++        let platinum = runtime.core.platinum();
++        let (credits, endo) = runtime.core.wallet();
++        let rivens = runtime.core.rivens();
++        (view, runtime.setup.clone(), runtime.game_running, (foundry, ready, level, platinum, credits, endo, rivens))
++    };
++    let (foundry, ready, level, platinum, credits, endo, rivens) = foundry;
++    let setup = current_setup_status(stored, game_running);
++    let market = serde_json::to_value(view.market_account()).ok()?;
++    Some(serde_json::json!({
++        "health": view.health(),
++        "snapshot": view.collection().snapshot(),
++        "market": { "link": market["link"], "backing": market["backing"], "presence": market["presence"] },
++        "setup": setup,
++        "game_running": game_running,
++        // What's being built in the foundry, by recipe path (null until this run read the
++        // inventory): orbiter counts a part being crafted as held, an item being built as built.
++        "foundry": foundry,
++        // When each of those builds finishes, [recipe path, unix ms], for orbiter's alerts.
++        "foundry_ready": ready,
++        // Your mastery rank, from the same read.
++        "mastery_rank": level,
++        "platinum": platinum,
++        "credits": credits,
++        "endo": endo,
++        // Unveiled rivens, `{type, id, fp}` with the game's own fingerprint, for orbiter's riven page.
++        "rivens": rivens,
++        "last_error": orbiter_bridge::last_error(),
++    }))
++}
++
++/// orbiter's scored pick for the reward cards on screen, when orbiter is running.
++#[tauri::command]
++fn orbiter_pick() -> Option<orbiter_bridge::OrbiterPick> {
++    orbiter_bridge::read_pick()
++}
++
+ #[tauri::command]
+ async fn get_view(state: State<'_, SharedRuntime>) -> Result<AppView, String> {
+     let shared = Arc::clone(state.inner());
+@@ -684,6 +753,9 @@ async fn set_market_presence(
+     status: Option<warframe_status::Presence>,
+     auto: bool,
+ ) -> Result<AppView, String> {
++    if orbiter_bridge::orbiter_holds_presence() {
++        return Err("orbiter is managing your warframe.market status: change it there.".to_owned());
++    }
+     let shared = Arc::clone(state.inner());
+     tauri::async_runtime::spawn_blocking(move || {
+         let mut runtime = shared
+@@ -2092,7 +2164,12 @@ pub fn run() {
+         // tail the same EE.log, write the same database and draw two override-redirect overlays at
+         // the same coordinates over the game, where whichever raised last wins, so the strip on
+         // screen need not be the build you just started.
+-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
++        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
++            // A companion asking for TennoScope in the background must not pop the window up.
++            if orbiter_bridge::wants_background(&args) {
++                run_asks(app, &args);
++                return;
++            }
+             if let Some(window) = app.get_webview_window("main") {
+                 let _ = window.unminimize();
+                 let _ = window.show();
+@@ -2105,13 +2182,27 @@ pub fn run() {
+         // once the main window closes and the app stays up: tailing the log and drawing the overlay
+         // over the game with no UI left to close it by.
+         .on_window_event(|window, event| {
+-            if window.label() == "main"
+-                && matches!(event, tauri::WindowEvent::CloseRequested { .. })
++            if let tauri::WindowEvent::CloseRequested { api, .. } = event
++                && window.label() == "main"
+             {
+-                window.app_handle().exit(0);
++                // Started in the background by orbiter: closing the window only hides it again,
++                // so the overlay keeps working until orbiter closes TennoScope.
++                if orbiter_bridge::wants_background(&std::env::args().collect::<Vec<_>>()) {
++                    api.prevent_close();
++                    let _ = window.hide();
++                } else {
++                    window.app_handle().exit(0);
++                }
+             }
+         })
+         .setup(|app| {
++            // `--background` (how orbiter starts it): no main window, just the log watcher and the
++            // reward overlay. Starting TennoScope again normally shows the window.
++            if orbiter_bridge::wants_background(&std::env::args().collect::<Vec<_>>())
++                && let Some(window) = app.get_webview_window("main")
++            {
++                let _ = window.hide();
++            }
+             // The file target keeps debug traces in dev builds and trims to Info in stable
+             // releases: per-OCR-attempt debug lines land every 200 ms, and with only 5 MiB
+             // per rotated file a stable session of hours would otherwise keep just the last
+@@ -2163,6 +2254,18 @@ pub fn run() {
+                 .map(|state| current_setup_status(state.setup.clone(), state.game_running))
+                 .unwrap_or_default();
+             app.manage(runtime);
++            // For orbiter: TennoScope's state, every few seconds, in the runtime folder.
++            {
++                let app = app.handle().clone();
++                std::thread::spawn(move || loop {
++                    if let Some(status) = bridge_status(app.state::<SharedRuntime>().inner()) {
++                        orbiter_bridge::publish_status(status);
++                    }
++                    std::thread::sleep(std::time::Duration::from_secs(3));
++                });
++            }
++            // Started by orbiter with a request (`--sync`…) rather than to be looked at.
++            run_asks(app.handle(), &std::env::args().collect::<Vec<_>>());
+             // The kiosk window's whole IPC surface: `get_kiosk_view` pulls whatever the poller
+             // last published, so the cell exists from the start, empty until a kiosk opens.
+             app.manage(kiosk_view::KioskState::default());
+@@ -2192,6 +2295,7 @@ pub fn run() {
+         })
+         .invoke_handler(tauri::generate_handler![
+             get_view,
++            orbiter_pick,
+             get_setup_status,
+             get_preferences,
+             set_mastery_marks,
+diff --git a/app/src-tauri/src/monitor.rs b/app/src-tauri/src/monitor.rs
+index d09ca9a..2e8a14a 100644
+--- a/app/src-tauri/src/monitor.rs
++++ b/app/src-tauri/src/monitor.rs
+@@ -989,6 +989,9 @@ impl RewardSession {
+                     &transition.choices,
+                     &BTreeMap::new(),
+                 );
++                crate::orbiter_bridge::publish_cards(
++                    &transition.choices.iter().map(|c| c.name.clone()).collect::<Vec<_>>(),
++                );
+                 overlay_notice = overlay_window::show_reward_overlay(app, transition.choices.len());
+                 let _ = app.emit_to("reward-overlay", "reward-updated", ());
+                 spawn_market_price_fetch(
+@@ -1303,6 +1306,9 @@ pub(crate) fn run(
+         .lock()
+         .ok()
+         .and_then(|runtime| load_relic_catalog(&runtime.app_data));
++    if let Some(index) = &relic_catalog {
++        remember_vaulted_rewards(index);
++    }
+     let mut reward_session =
+         RewardSession::new(catalog, relic_catalog, reward_catalog, price_cache.clone());
+     // EE.log reaches us seconds after the events it describes (measured at ~7.5s on 2026-07-27),
+@@ -2320,6 +2326,11 @@ fn spawn_market_price_fetch(
+                     .is_empty()
+                     .then_some("warframe.market pricing is unavailable for these rewards")
+             });
++            // orbiter scores the cards with the same live prices the overlay shows.
++            crate::orbiter_bridge::publish_card_prices(
++                &choices.iter().map(|c| c.name.clone()).collect::<Vec<_>>(),
++                &prices,
++            );
+             (prices, failure)
+         },
+         move || {
+@@ -2391,6 +2402,25 @@ fn spawn_market_price_warm(pool: &[RewardCatalogEntry], price_cache: &MarketPric
+     });
+ }
+ 
++/// Rewards that only vaulted relics drop, from the relic catalog the session loaded. Kept apart
++/// from the runtime so the card builder can read it without threading the index through every
++/// caller; empty (nothing marked) until a catalog loads.
++static VAULTED_REWARDS: std::sync::RwLock<std::collections::BTreeSet<String>> =
++    std::sync::RwLock::new(std::collections::BTreeSet::new());
++
++fn remember_vaulted_rewards(index: &RelicRewardIndex) {
++    if let Ok(mut vaulted) = VAULTED_REWARDS.write() {
++        vaulted.clone_from(index.vaulted_rewards());
++    }
++}
++
++fn reward_is_vaulted(name: &str) -> bool {
++    VAULTED_REWARDS
++        .read()
++        .map(|vaulted| vaulted.contains(name.trim()))
++        .unwrap_or(false)
++}
++
+ fn apply_reward_observations(
+     shared: &SharedRuntime,
+     catalog: &[RewardCatalogEntry],
+@@ -2438,6 +2468,7 @@ fn apply_reward_observations(
+                 observation.confidence,
+             )
+             .ok()
++            .map(|candidate| candidate.with_vaulted(reward_is_vaulted(&observation.name)))
+         })
+         .collect();
+     let _ = runtime.core.apply_reward_candidates(candidates);
+diff --git a/app/src-tauri/src/orbiter_bridge.rs b/app/src-tauri/src/orbiter_bridge.rs
+new file mode 100644
+index 0000000..45d6a61
+--- /dev/null
++++ b/app/src-tauri/src/orbiter_bridge.rs
+@@ -0,0 +1,279 @@
++//! Hand-off to orbiter (a companion app) during the void fissure reward screen.
++//!
++//! When the cards are read, their names go to `tennoscope-reward-screen.json`; orbiter scores them
++//! by the player's own priorities and writes `orbiter-reward-pick.json`, which the overlay shows.
++//! Both files live in the user's runtime directory (`$XDG_RUNTIME_DIR`). Without one they go in a
++//! temp-dir folder only this user can open (`tennoscope-orbiter-<uid>`), and if that folder isn't
++//! safe the hand-off stays off. Without orbiter running nothing changes: the overlay just finds no
++//! pick.
++//!
++//! orbiter can also start TennoScope with `--background`, which keeps the main window hidden.
++
++use serde::{Deserialize, Serialize};
++use std::fs;
++use std::path::{Path, PathBuf};
++use std::time::{SystemTime, UNIX_EPOCH};
++
++pub const CARDS_FILE: &str = "tennoscope-reward-screen.json";
++pub const PICK_FILE: &str = "orbiter-reward-pick.json";
++/// TennoScope's health, account and market status, for orbiter to show.
++pub const STATUS_FILE: &str = "tennoscope-status.json";
++
++/// Something orbiter asks of a running TennoScope, by starting it again with a flag (the
++/// single-instance plugin hands the arguments to the running one).
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum Ask {
++    /// Read the inventory now (Full access only).
++    Sync,
++    /// Set the warframe.market status; `auto` follows the game.
++    Presence { status: Option<warframe_status::Presence>, auto: bool },
++    /// Open the system's screen-capture permission dialog.
++    AuthorizeCapture,
++}
++
++pub fn asks(args: &[String]) -> Vec<Ask> {
++    use warframe_status::Presence;
++    args.iter()
++        .skip(1)
++        .filter_map(|a| match a.as_str() {
++            "--sync" => Some(Ask::Sync),
++            "--authorize-capture" => Some(Ask::AuthorizeCapture),
++            _ => match a.strip_prefix("--presence=")? {
++                "online" => Some(Ask::Presence { status: Some(Presence::Online), auto: false }),
++                "ingame" => Some(Ask::Presence { status: Some(Presence::Ingame), auto: false }),
++                "invisible" => Some(Ask::Presence { status: Some(Presence::Invisible), auto: false }),
++                "offline" => Some(Ask::Presence { status: None, auto: false }),
++                "auto" => Some(Ask::Presence { status: None, auto: true }),
++                _ => None,
++            },
++        })
++        .collect()
++}
++
++static LAST_ERROR: std::sync::Mutex<Option<(u64, String)>> = std::sync::Mutex::new(None);
++
++/// The last request from orbiter that failed, and when (unix ms), for orbiter to show.
++pub fn note_error(message: String) {
++    if let Ok(mut slot) = LAST_ERROR.lock() {
++        *slot = Some((now_ms(), message));
++    }
++}
++
++pub fn last_error() -> Option<serde_json::Value> {
++    let slot = LAST_ERROR.lock().ok()?;
++    slot.as_ref().map(|(at, message)| serde_json::json!({ "at": at, "message": message }))
++}
++
++/// Written every few seconds while TennoScope runs.
++pub fn publish_status(status: serde_json::Value) {
++    let Some(dir) = runtime_dir() else { return };
++    let mut body = status;
++    if let Some(map) = body.as_object_mut() {
++        map.insert("at".into(), now_ms().into());
++        map.insert("pid".into(), std::process::id().into());
++    }
++    let tmp = dir.join(format!(".{STATUS_FILE}.{}", std::process::id()));
++    if fs::write(&tmp, body.to_string()).is_ok() {
++        let _ = fs::rename(&tmp, dir.join(STATUS_FILE));
++    }
++}
++
++/// orbiter's answer, kept only while it is about the cards on screen now.
++#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
++pub struct OrbiterPick {
++    pub at: u64,
++    pub cards: Vec<String>,
++    pub scores: Vec<u32>,
++    pub best: Option<usize>,
++    #[serde(default)]
++    pub reasons: Vec<Vec<String>>,
++}
++
++fn runtime_dir() -> Option<PathBuf> {
++    if let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR")
++        .map(PathBuf::from)
++        .filter(|p| p.is_dir())
++    {
++        return Some(dir);
++    }
++    private_dir_in(&std::env::temp_dir())
++}
++
++/// `<tmp>/tennoscope-orbiter-<uid>`, made private to this user and only used while it still is
++/// (orbiter makes the same folder the same way).
++#[cfg(unix)]
++fn private_dir_in(tmp: &Path) -> Option<PathBuf> {
++    use std::os::unix::fs::{DirBuilderExt, MetadataExt};
++    // /proc/self belongs to this process's user.
++    let uid = fs::metadata("/proc/self").ok()?.uid();
++    let dir = tmp.join(format!("tennoscope-orbiter-{uid}"));
++    let _ = fs::DirBuilder::new().mode(0o700).create(&dir);
++    let meta = fs::symlink_metadata(&dir).ok()?;
++    (meta.is_dir() && meta.uid() == uid && meta.mode() & 0o077 == 0).then_some(dir)
++}
++
++#[cfg(not(unix))]
++fn private_dir_in(tmp: &Path) -> Option<PathBuf> {
++    let dir = tmp.join("tennoscope-orbiter");
++    fs::create_dir_all(&dir).ok()?;
++    Some(dir)
++}
++
++fn now_ms() -> u64 {
++    SystemTime::now()
++        .duration_since(UNIX_EPOCH)
++        .map(|d| d.as_millis() as u64)
++        .unwrap_or(0)
++}
++
++/// The cards on screen in order, or none once the screen has closed. Best effort: a failed write
++/// only means orbiter has nothing to score.
++pub fn publish_cards(names: &[String]) {
++    let at = now_ms();
++    if let Ok(mut last) = LAST_CARDS.lock() {
++        *last = Some((at, names.to_vec()));
++    }
++    if let Some(dir) = runtime_dir() {
++        let _ = write_cards_in(&dir, names, at, None);
++    }
++}
++
++/// The cards just published, so their prices can follow under the same timestamp: orbiter sees
++/// one reward screen, priced a moment later, not a second screen.
++static LAST_CARDS: std::sync::Mutex<Option<(u64, Vec<String>)>> = std::sync::Mutex::new(None);
++
++/// The live prices the overlay shows on the cards, once fetched, for orbiter to score with the
++/// same numbers. Ignored if the screen has moved on to other cards.
++pub fn publish_card_prices(names: &[String], prices: &std::collections::BTreeMap<String, u32>) {
++    let Some(at) = LAST_CARDS
++        .lock()
++        .ok()
++        .and_then(|last| last.as_ref().filter(|(_, n)| n == names).map(|(at, _)| *at))
++    else {
++        return;
++    };
++    if let Some(dir) = runtime_dir() {
++        let _ = write_cards_in(&dir, names, at, Some(prices));
++    }
++}
++
++fn write_cards_in(
++    dir: &Path,
++    names: &[String],
++    at: u64,
++    prices: Option<&std::collections::BTreeMap<String, u32>>,
++) -> std::io::Result<()> {
++    let mut body = serde_json::json!({ "at": at, "cards": names });
++    if let Some(prices) = prices {
++        body["prices"] = serde_json::json!(prices);
++    }
++    let tmp = dir.join(format!(".{CARDS_FILE}.{}", std::process::id()));
++    fs::write(&tmp, body.to_string())?;
++    fs::rename(&tmp, dir.join(CARDS_FILE))
++}
++
++/// orbiter writes this every few seconds while it holds the player's warframe.market status.
++pub const PRESENCE_HELD_FILE: &str = "orbiter-presence.json";
++/// Older than this, orbiter has stopped holding it (quit, or crashed without tidying up).
++const PRESENCE_HELD_FRESH_MS: u64 = 15_000;
++
++/// Whether orbiter is holding the warframe.market status right now. While it is, TennoScope keeps
++/// no status connection of its own and refuses status changes: two clients setting status for one
++/// account would undo each other, and the player chose to manage it from orbiter.
++pub fn orbiter_holds_presence() -> bool {
++    let Some(dir) = runtime_dir() else {
++        return false;
++    };
++    let Ok(text) = fs::read_to_string(dir.join(PRESENCE_HELD_FILE)) else {
++        return false;
++    };
++    held_in(&text, now_ms(), |pid| {
++        !cfg!(target_os = "linux") || Path::new(&format!("/proc/{pid}")).exists()
++    })
++}
++
++fn held_in(text: &str, now: u64, alive: impl Fn(u64) -> bool) -> bool {
++    let Ok(v) = serde_json::from_str::<serde_json::Value>(text) else {
++        return false;
++    };
++    let fresh = v
++        .get("at")
++        .and_then(|a| a.as_u64())
++        .is_some_and(|at| now.saturating_sub(at) < PRESENCE_HELD_FRESH_MS);
++    let running = v.get("pid").and_then(|p| p.as_u64()).is_none_or(&alive);
++    fresh && running
++}
++
++/// Started with `--background` (or only to pass orbiter a request): keep the main window hidden.
++pub fn wants_background(args: &[String]) -> bool {
++    args.iter().skip(1).any(|a| a == "--background") || !asks(args).is_empty()
++}
++
++pub fn read_pick() -> Option<OrbiterPick> {
++    read_pick_in(&runtime_dir()?)
++}
++
++fn read_pick_in(dir: &Path) -> Option<OrbiterPick> {
++    let pick: OrbiterPick = serde_json::from_str(&fs::read_to_string(dir.join(PICK_FILE)).ok()?).ok()?;
++    // A pick for an earlier screen is no pick at all.
++    (pick.scores.len() == pick.cards.len() && now_ms().saturating_sub(pick.at) < 120_000).then_some(pick)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn asks_from_flags() {
++        use warframe_status::Presence;
++        let args = |xs: &[&str]| xs.iter().map(|x| x.to_string()).collect::<Vec<_>>();
++        assert_eq!(asks(&args(&["tennoscope", "--sync"])), vec![Ask::Sync]);
++        assert_eq!(
++            asks(&args(&["tennoscope", "--presence=ingame", "--presence=auto", "--presence=nope"])),
++            vec![Ask::Presence { status: Some(Presence::Ingame), auto: false }, Ask::Presence { status: None, auto: true }]
++        );
++        assert_eq!(asks(&args(&["tennoscope", "--background"])), vec![]);
++        assert!(wants_background(&args(&["tennoscope", "--sync"])));
++    }
++
++    #[test]
++    fn background_flag() {
++        let args = |xs: &[&str]| xs.iter().map(|x| x.to_string()).collect::<Vec<_>>();
++        assert!(wants_background(&args(&["tennoscope", "--background"])));
++        assert!(!wants_background(&args(&["tennoscope"])));
++        assert!(!wants_background(&args(&["--background"])), "the program path is not a flag");
++    }
++
++    #[test]
++    fn cards_out_pick_in() {
++        let dir = std::env::temp_dir().join(format!("tennoscope-orbiter-{}", std::process::id()));
++        fs::create_dir_all(&dir).unwrap();
++        write_cards_in(&dir, &["Corinth Prime Barrel".into(), "Forma Blueprint".into()], 7, None).unwrap();
++        let cards: serde_json::Value = serde_json::from_str(&fs::read_to_string(dir.join(CARDS_FILE)).unwrap()).unwrap();
++        assert_eq!(cards, serde_json::json!({ "at": 7, "cards": ["Corinth Prime Barrel", "Forma Blueprint"] }));
++        // The live prices follow under the same timestamp.
++        let prices = std::collections::BTreeMap::from([("Corinth Prime Barrel".to_string(), 38u32)]);
++        write_cards_in(&dir, &["Corinth Prime Barrel".into(), "Forma Blueprint".into()], 7, Some(&prices)).unwrap();
++        let cards: serde_json::Value = serde_json::from_str(&fs::read_to_string(dir.join(CARDS_FILE)).unwrap()).unwrap();
++        assert_eq!(cards["at"], 7);
++        assert_eq!(cards["prices"]["Corinth Prime Barrel"], 38);
++
++        assert_eq!(read_pick_in(&dir), None);
++        let fresh = serde_json::json!({ "at": now_ms(), "cards": ["A", "B"], "scores": [70, 12], "best": 0, "reasons": [["38p"], []] });
++        fs::write(dir.join(PICK_FILE), fresh.to_string()).unwrap();
++        assert_eq!(read_pick_in(&dir).unwrap().best, Some(0));
++        let stale = serde_json::json!({ "at": 1, "cards": ["A"], "scores": [70], "best": 0 });
++        fs::write(dir.join(PICK_FILE), stale.to_string()).unwrap();
++        assert_eq!(read_pick_in(&dir), None);
++        fs::remove_dir_all(&dir).unwrap();
++    }
++
++    #[test]
++    fn orbiter_holds_presence_only_while_fresh_and_running() {
++        let beat = r#"{"at": 100000, "pid": 42, "status": "online"}"#;
++        assert!(held_in(beat, 105_000, |_| true));
++        assert!(!held_in(beat, 120_000, |_| true), "stale: orbiter stopped writing it");
++        assert!(!held_in(beat, 105_000, |_| false), "orbiter's process is gone");
++        assert!(!held_in("{oops", 105_000, |_| true));
++    }
++}
+diff --git a/app/src-tauri/src/overlay_window.rs b/app/src-tauri/src/overlay_window.rs
+index b8f4a88..c8babf3 100644
+--- a/app/src-tauri/src/overlay_window.rs
++++ b/app/src-tauri/src/overlay_window.rs
+@@ -390,6 +390,8 @@ pub fn show_reward_overlay(app: &tauri::AppHandle, cards: usize) -> Option<&'sta
+ }
+ 
+ pub fn hide_reward_overlay(app: &tauri::AppHandle) {
++    // The cards are gone; orbiter stops showing a pick for them.
++    crate::orbiter_bridge::publish_cards(&[]);
+     if let Some(window) = app.get_webview_window("reward-overlay") {
+         let _ = app.run_on_main_thread(move || {
+             trace_overlay("hide");
+diff --git a/app/src/App.css b/app/src/App.css
+index 7bfeb6b..8b3b7f0 100644
+--- a/app/src/App.css
++++ b/app/src/App.css
+@@ -430,6 +430,7 @@
+ .hallmark.owned { color: var(--platinum); }
+ .hallmark.absent { color: var(--platinum-deep); background: var(--plate); }
+ .hallmark.mastered { color: var(--gold); }
++.slip-lot .hallmark.vaulted { margin-left: 0.5em; color: var(--gold); }
+ /* A rank is a qualifier on the mark beside it, so it sits back from the ownership figure. Fully
+    ranked is the state worth platinum, and it earns the struck lip rather than a new colour: the
+    text reads 10/10 either way, and gold already means mastered. */
+@@ -938,6 +939,20 @@ svg.set-glyph { background: none; fill: currentColor; padding: .125rem; }
+   .overlay-rewards .ledger:has(.set-slot:nth-child(5)) .set-glyph + .set-glyph { margin-left: -1rem; }
+ }
+ 
++/* orbiter's pick (a companion app): the score in the slip's corner and the card to take outlined in gold. */
++.slip-corner { float: right; display: none; gap: .25rem; align-items: center; margin: 0 0 .15rem .4rem; line-height: 1; }
++.overlay-rewards .slip-corner, .slip-corner:has(.orbiter-score) { display: inline-flex; }
++.slip-corner .hallmark.vaulted { display: none; }
++.overlay-rewards .slip-corner .hallmark.vaulted { display: inline-block; }
++.orbiter-score {
++  font-family: var(--face-register); font-size: .54rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
++  padding: .16rem .38rem .3rem; color: var(--platinum); box-shadow: inset 0 0 0 1px rgb(232 235 239 / 30%);
++}
++/* Badges take room on the name line: a long name may need a third line rather than be cut. */
++.overlay-rewards .slip-name:has(.slip-corner) { max-height: 3.12em; }
++.orbiter-score.picked { background: var(--gold); color: var(--touchstone); box-shadow: none; }
++.slip.orbiter-pick { outline: 2px solid var(--gold); outline-offset: -2px; }
++
+ .overlay-empty {
+   display: grid; place-content: center; justify-items: center; gap: .3rem; height: 100vh;
+   background: var(--touchstone); box-shadow: inset 0 0 0 1px rgb(232 235 239 / 16%);
+diff --git a/app/src/OrbiterPick.test.tsx b/app/src/OrbiterPick.test.tsx
+new file mode 100644
+index 0000000..249909a
+--- /dev/null
++++ b/app/src/OrbiterPick.test.tsx
+@@ -0,0 +1,49 @@
++import { cleanup, render, screen, within } from '@testing-library/react'
++import { afterEach, describe, expect, it, vi } from 'vitest'
++
++const backend = vi.hoisted(() => ({ getView: vi.fn(), getOrbiterPick: vi.fn(), getVersionInfo: vi.fn(), updateCheck: vi.fn(), updateDownloadAndInstall: vi.fn() }))
++vi.mock('./backend', () => backend)
++vi.mock('./overlay', () => ({ hideRewardOverlay: vi.fn() }))
++vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(() => Promise.resolve(() => {})) }))
++
++import { AppRoute } from './Root'
++import type { RewardCard } from './backend'
++
++const card = (name: string, rest: Partial<RewardCard> = {}): RewardCard => ({ name, platinum: 10, ducats: 15, owned: 0, confidence: 1, ...rest })
++const view = (cards: RewardCard[]) => ({ collection: { items: [], total_entries: 0 }, reward: { cards, best_value_index: null, best_ducat_index: null }, health: {} })
++
++afterEach(() => { cleanup(); vi.clearAllMocks() })
++
++describe('orbiter pick on the reward overlay', () => {
++  it('scores every card and marks the one to take', async () => {
++    backend.getView.mockResolvedValue(view([card('Corinth Prime Barrel', { vaulted: true }), card('Forma Blueprint')]))
++    backend.getOrbiterPick.mockResolvedValue({ at: Date.now(), cards: ['Corinth Prime Barrel', 'Forma Blueprint'], scores: [70, 0], best: 0, reasons: [['38p'], []] })
++    render(<AppRoute pathname="/overlay" />)
++    const best = await screen.findByRole('article', { name: 'Corinth Prime Barrel' })
++    expect(await within(best).findByText('Pick · 70')).toBeTruthy()
++    expect(best.className).toContain('orbiter-pick')
++    // Once on the "Choice" line the overlay hides, once in the corner it shows.
++    expect(within(best).getAllByText('Vaulted')).toHaveLength(2)
++    const other = screen.getByRole('article', { name: 'Forma Blueprint' })
++    expect(within(other).getByText('0')).toBeTruthy()
++    expect(other.className).not.toContain('orbiter-pick')
++  })
++
++  it('ignores a pick made for other cards', async () => {
++    backend.getView.mockResolvedValue(view([card('Lex Prime Barrel'), card('Forma Blueprint')]))
++    backend.getOrbiterPick.mockResolvedValue({ at: Date.now(), cards: ['Corinth Prime Barrel', 'Forma Blueprint'], scores: [70, 0], best: 0, reasons: [] })
++    render(<AppRoute pathname="/overlay" />)
++    const slip = await screen.findByRole('article', { name: 'Lex Prime Barrel' })
++    await new Promise((r) => setTimeout(r, 50))
++    expect(within(slip).queryByText(/Pick/)).toBeNull()
++    expect(slip.className).not.toContain('orbiter-pick')
++  })
++
++  it('works without orbiter running', async () => {
++    backend.getView.mockResolvedValue(view([card('Lex Prime Barrel'), card('Forma Blueprint')]))
++    backend.getOrbiterPick.mockResolvedValue(null)
++    render(<AppRoute pathname="/overlay" />)
++    const slip = await screen.findByRole('article', { name: 'Lex Prime Barrel' })
++    expect(within(slip).queryByText(/Pick/)).toBeNull()
++  })
++})
+diff --git a/app/src/RewardCards.tsx b/app/src/RewardCards.tsx
+index 6858ed4..d778e59 100644
+--- a/app/src/RewardCards.tsx
++++ b/app/src/RewardCards.tsx
+@@ -1,4 +1,4 @@
+-import type { MasteryMark, RewardCard, SetPart } from './backend'
++import type { MasteryMark, OrbiterPick, RewardCard, SetPart } from './backend'
+ import { MetalMark } from './MetalMark'
+ import { SetRow } from './SetRow'
+ 
+@@ -64,25 +64,43 @@ export function RewardCards({
+   bestDucatIndex,
+   ownershipVerified = true,
+   className = 'reward-grid',
++  pick = null,
+ }: {
+   cards: RewardCard[]
+   bestValueIndex: number | null
+   bestDucatIndex: number | null
+   ownershipVerified?: boolean
+   className?: string
++  /** orbiter's score for each card, and the one to take. */
++  pick?: OrbiterPick | null
+ }) {
+   return <div className={className}>{cards.slice(0, 4).map((card, index) => {
+     const uncertain = card.confidence < 0.8
+     const topPlat = !uncertain && bestValueIndex === index
+     const topDucat = !uncertain && bestDucatIndex === index
+     const marked = card.mastery ? { mark: card.mastery, state: ledgerState(card.mastery, uncertain) } : null
++    const score = pick?.scores[index]
++    const picked = pick?.best === index
+     return <article
+       key={`${card.name}-${index}`}
+-      className={['slip', topPlat ? 'top-plat' : '', topDucat ? 'top-ducat' : '', marked?.state.rule].filter(Boolean).join(' ')}
++      className={['slip', topPlat ? 'top-plat' : '', topDucat ? 'top-ducat' : '', marked?.state.rule, picked ? 'orbiter-pick' : ''].filter(Boolean).join(' ')}
+       aria-label={card.name}
+     >
+-      <span className="slip-lot">Choice {index + 1}</span>
+-      <h2 className="slip-name">{card.name}</h2>
++      <span className="slip-lot">
++        Choice {index + 1}
++        {/* Only vaulted relics drop it: no new copies enter the game until it is unvaulted. */}
++        {card.vaulted && <span className="hallmark vaulted" title="Every relic that drops this is vaulted">Vaulted</span>}
++      </span>
++      <h2 className="slip-name">
++        {/* Floated so the name wraps around it; shown on the overlay, where the "Choice N" line is hidden. */}
++        {(card.vaulted || score != null) && <span className="slip-corner">
++          {card.vaulted && <span className="hallmark vaulted" title="Every relic that drops this is vaulted">Vaulted</span>}
++          {score != null && <span className={`orbiter-score${picked ? ' picked' : ''}`} title={pick?.reasons[index]?.join(' · ') || 'Score from orbiter'}>
++            {picked ? 'Pick · ' : ''}{score}
++          </span>}
++        </span>}
++        {card.name}
++      </h2>
+ 
+       <div className="metals">
+         <span className="metal plat">
+diff --git a/app/src/RewardOverlay.tsx b/app/src/RewardOverlay.tsx
+index 4cb846a..33b72d0 100644
+--- a/app/src/RewardOverlay.tsx
++++ b/app/src/RewardOverlay.tsx
+@@ -1,13 +1,27 @@
+ import { useEffect, useRef, useState } from 'react'
+ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+-import { getView, type AppView } from './backend'
++import { getOrbiterPick, getView, type AppView, type OrbiterPick } from './backend'
+ import { RewardCards } from './RewardCards'
+ 
+ export default function RewardOverlay() {
+   const [view, setView] = useState<AppView | null>(null)
+   const [error, setError] = useState(false)
++  const [pick, setPick] = useState<OrbiterPick | null>(null)
+   const generation = useRef(0)
+ 
++  // orbiter answers within a second or so of the cards being read; ask often while they're up.
++  const cardCount = view?.reward.cards.length ?? 0
++  useEffect(() => {
++    if (!cardCount) { setPick(null); return }
++    let active = true
++    const ask = async () => {
++      try { const next = await getOrbiterPick(); if (active) setPick(next) } catch { if (active) setPick(null) }
++    }
++    void ask()
++    const timer = setInterval(ask, 500)
++    return () => { active = false; clearInterval(timer) }
++  }, [cardCount])
++
+   useEffect(() => {
+     document.documentElement.classList.add('overlay-mode')
+     let active = true
+@@ -38,7 +52,13 @@ export default function RewardOverlay() {
+     {error ? <div className="overlay-empty">Reward data is unavailable.</div>
+       : !view ? <div className="overlay-empty">Loading reward choices…</div>
+         : view.reward.cards.length
+-          ? <RewardCards cards={view.reward.cards} bestValueIndex={view.reward.best_value_index} bestDucatIndex={view.reward.best_ducat_index} className="overlay-rewards"/>
++          ? <RewardCards cards={view.reward.cards} bestValueIndex={view.reward.best_value_index} bestDucatIndex={view.reward.best_ducat_index} className="overlay-rewards"
++              pick={pick && samePick(pick, view.reward.cards.map(card => card.name)) ? pick : null}/>
+           : <div className="overlay-empty"><strong>No reward choices detected</strong><span>Watching the active Warframe display.</span></div>}
+   </main>
+ }
++
++/** A pick is only shown for the very cards it scored, in the same order. */
++function samePick(pick: OrbiterPick, names: string[]): boolean {
++  return pick.cards.length === names.length && pick.cards.every((name, i) => name.toLowerCase() === names[i].toLowerCase())
++}
+diff --git a/app/src/backend.ts b/app/src/backend.ts
+index 8c16629..46db19f 100644
+--- a/app/src/backend.ts
++++ b/app/src/backend.ts
+@@ -7,7 +7,7 @@ export type ItemCategory = 'frame' | 'weapon' | 'companion' | 'prime_part' | 're
+ export interface CollectionItem { id: string; name: string; category: ItemCategory; quantity: number; mastered: boolean; image_url?: string; platinum?: number; platinum_ceiling?: number; ducats?: number; rank?: number; max_rank?: number; live: boolean; priceable: boolean; monthly_trades?: number }
+ /** How far the live pricing pass the player asked for has got. */
+ export interface PricingProgress { done: number; total: number }
+-export interface RewardCard { name: string; platinum: number; ducats: number; owned: number; mastery?: MasteryMark; confidence: number }
++export interface RewardCard { name: string; platinum: number; ducats: number; owned: number; mastery?: MasteryMark; confidence: number; vaulted?: boolean }
+ /** One slot of the set a Prime item is built from: the copies the recipe takes, the copies held, and whether this reward is the one that fills it. */
+ export interface SetPart { name: string; image: string | null; uses: number; held: number; this: boolean }
+ /** Absent for items mastery never touches or while marks are off; `unknown` still replaces the
+@@ -82,6 +82,9 @@ export interface KioskView {
+ }
+ 
+ export const getView = () => invoke<AppView>('get_view')
++/** orbiter (a companion app) scores the cards on screen by the player's own priorities. */
++export interface OrbiterPick { at: number; cards: string[]; scores: number[]; best: number | null; reasons: string[][] }
++export const getOrbiterPick = () => invoke<OrbiterPick | null>('orbiter_pick')
+ export const getKioskView = () => invoke<KioskView | null>('get_kiosk_view')
+ export const refreshInventory = () => invoke<AppView>('refresh_inventory')
+ export const refreshPrices = (ids: string[]) => invoke<AppView>('refresh_prices', { itemIds: ids })
+diff --git a/crates/app-core/Cargo.toml b/crates/app-core/Cargo.toml
+index 939f465..895feb5 100644
+--- a/crates/app-core/Cargo.toml
++++ b/crates/app-core/Cargo.toml
+@@ -12,6 +12,7 @@ publish = false
+ [dependencies]
+ log.workspace = true
+ serde.workspace = true
++serde_json = "1"
+ thiserror.workspace = true
+ local-store = { path = "../local-store" }
+ warframe-domain = { path = "../warframe-domain" }
+diff --git a/crates/app-core/src/lib.rs b/crates/app-core/src/lib.rs
+index d4d770f..31043d6 100644
+--- a/crates/app-core/src/lib.rs
++++ b/crates/app-core/src/lib.rs
+@@ -155,6 +155,39 @@ impl AppCore {
+         self.mastery_facts = None;
+     }
+ 
++    /// Builds waiting in the foundry, by recipe path, once an inventory read this run has seen
++    /// them; `None` before that (for orbiter, which counts a part being crafted as held).
++    /// When each foundry build finishes (recipe path, unix ms), for orbiter.
++    pub fn foundry_ready(&self) -> Option<Vec<(String, i64)>> {
++        self.mastery_facts.as_ref().map(|facts| facts.foundry_ready().to_vec())
++    }
++
++    /// The account's mastery rank from the last inventory read, for orbiter.
++    pub fn player_level(&self) -> Option<u32> {
++        self.mastery_facts.as_ref().and_then(|facts| facts.player_level())
++    }
++
++    /// Platinum on the account from the last inventory read, for orbiter.
++    pub fn platinum(&self) -> Option<u64> {
++        self.mastery_facts.as_ref().and_then(|facts| facts.platinum())
++    }
++
++    /// Credits and Endo on the account from the last inventory read, for orbiter.
++    pub fn wallet(&self) -> (Option<u64>, Option<u64>) {
++        self.mastery_facts.as_ref().map_or((None, None), |facts| (facts.credits(), facts.endo()))
++    }
++
++    /// Unveiled rivens from the last inventory read, for orbiter.
++    pub fn rivens(&self) -> Option<Vec<serde_json::Value>> {
++        self.mastery_facts.as_ref().map(|facts| facts.rivens().to_vec())
++    }
++
++    pub fn foundry_builds(&self) -> Option<std::collections::BTreeMap<String, u32>> {
++        self.mastery_facts
++            .as_ref()
++            .map(|facts| facts.pending_builds().clone())
++    }
++
+     /// A snapshot of what mastery marks may say, taken once per overlay publish. The
+     /// collection loads once here so a reward and a kiosk tile never disagree mid-render.
+     pub fn mastery_view(&self) -> Result<MasteryView, AppError> {
+diff --git a/crates/warframe-acquisition/src/inventory.rs b/crates/warframe-acquisition/src/inventory.rs
+index 97ac561..cb204a4 100644
+--- a/crates/warframe-acquisition/src/inventory.rs
++++ b/crates/warframe-acquisition/src/inventory.rs
+@@ -106,11 +106,74 @@ impl<'a> InventoryJsonDecoder<'a> {
+ pub struct MasteryFacts {
+     xp: BTreeMap<String, u64>,
+     pending: BTreeMap<String, u32>,
++    /// When each foundry build finishes (recipe path, unix milliseconds), for orbiter.
++    ready: Vec<(String, i64)>,
++    /// The account's mastery rank, for orbiter.
++    player_level: Option<u32>,
++    /// Platinum on the account, for orbiter's value-over-time chart.
++    platinum: Option<u64>,
++    /// Credits and Endo on the account, for orbiter's stats over time.
++    credits: Option<u64>,
++    endo: Option<u64>,
++    /// Unveiled rivens as the inventory gives them: type, item id and the parsed fingerprint
++    /// (weapon, buffs, curses, rank, rerolls, polarity), passed through whole for orbiter.
++    rivens: Vec<serde_json::Value>,
+ }
+ 
+ impl MasteryFacts {
+     pub fn from_parts(xp: BTreeMap<String, u64>, pending: BTreeMap<String, u32>) -> Self {
+-        Self { xp, pending }
++        Self { xp, pending, ..Default::default() }
++    }
++
++    /// Adds when each foundry build finishes and the account's mastery rank.
++    pub fn with_extras(mut self, ready: Vec<(String, i64)>, player_level: Option<u32>, platinum: Option<u64>) -> Self {
++        self.ready = ready;
++        self.player_level = player_level;
++        self.platinum = platinum;
++        self
++    }
++
++    /// Adds the account's credits and Endo.
++    pub fn with_wallet(mut self, credits: Option<u64>, endo: Option<u64>) -> Self {
++        self.credits = credits;
++        self.endo = endo;
++        self
++    }
++
++    /// Adds the unveiled rivens.
++    pub fn with_rivens(mut self, rivens: Vec<serde_json::Value>) -> Self {
++        self.rivens = rivens;
++        self
++    }
++
++    /// Credits on the account, when the inventory said (shared with orbiter).
++    pub fn credits(&self) -> Option<u64> {
++        self.credits
++    }
++
++    /// Endo on the account, when the inventory said (shared with orbiter).
++    pub fn endo(&self) -> Option<u64> {
++        self.endo
++    }
++
++    /// Unveiled rivens, each `{type, id, fp}` (shared with orbiter).
++    pub fn rivens(&self) -> &[serde_json::Value] {
++        &self.rivens
++    }
++
++    /// Platinum on the account, when the inventory said (shared with orbiter).
++    pub fn platinum(&self) -> Option<u64> {
++        self.platinum
++    }
++
++    /// When each foundry build finishes: recipe path and unix milliseconds (shared with orbiter).
++    pub fn foundry_ready(&self) -> &[(String, i64)] {
++        &self.ready
++    }
++
++    /// The account's mastery rank, when the inventory said (shared with orbiter).
++    pub fn player_level(&self) -> Option<u32> {
++        self.player_level
+     }
+ 
+     /// The affinity the inventory reports for an item, or 0 when it reports none.
+@@ -122,6 +185,11 @@ impl MasteryFacts {
+     pub fn pending(&self, recipe: &str) -> u32 {
+         self.pending.get(recipe).copied().unwrap_or(0)
+     }
++
++    /// Every build waiting in the foundry, by recipe path (shared with orbiter).
++    pub fn pending_builds(&self) -> &BTreeMap<String, u32> {
++        &self.pending
++    }
+ }
+ 
+ /// The rank an item's affinity reaches, capped at its max rank; `None` for categories without
+@@ -166,6 +234,14 @@ struct RawXpEntry {
+ #[serde(rename_all = "PascalCase")]
+ struct RawInventory {
+     last_inventory_sync: serde_json::Value,
++    #[serde(rename = "PlayerLevel", default)]
++    player_level: Option<u32>,
++    #[serde(rename = "PremiumCredits", default)]
++    premium_credits: Option<serde_json::Value>,
++    #[serde(rename = "RegularCredits", default)]
++    regular_credits: Option<serde_json::Value>,
++    #[serde(rename = "FusionPoints", default)]
++    fusion_points: Option<serde_json::Value>,
+     #[serde(default, deserialize_with = "rows")]
+     suits: Vec<serde_json::Value>,
+     #[serde(default, deserialize_with = "rows")]
+@@ -391,6 +467,43 @@ impl InventoryJsonDecoder<'_> {
+             None,
+             &mut DecodeReport::default(),
+         );
++        // When each build finishes, for orbiter's foundry alerts: `CompletionDate` is a Mongo date,
++        // `{"$date": {"$numberLong": "…"}}` or `{"$date": …}`.
++        let ready = raw
++            .pending_recipes
++            .iter()
++            .filter_map(|v| {
++                let path = v.get("ItemType")?.as_str()?.to_owned();
++                let date = v.get("CompletionDate")?.get("$date")?;
++                let ms = match date.get("$numberLong") {
++                    Some(n) => n.as_str().and_then(|s| s.parse::<i64>().ok()).or_else(|| n.as_i64()),
++                    None => date.as_i64(),
++                }?;
++                Some((path, ms))
++            })
++            .collect::<Vec<_>>();
++        let player_level = raw.player_level;
++        // A plain number, or a Mongo `{"$numberLong": "…"}`.
++        let number = |v: &serde_json::Value| v.as_u64().or_else(|| v.get("$numberLong").and_then(|n| n.as_str()).and_then(|s| s.parse().ok()));
++        let platinum = raw.premium_credits.as_ref().and_then(number);
++        let credits = raw.regular_credits.as_ref().and_then(number);
++        let endo = raw.fusion_points.as_ref().and_then(number);
++        // Unveiled rivens: `Upgrades` rows of a `/Randomized/` type whose fingerprint has stats.
++        // Veiled ones (a challenge, no buffs) are left out. Never logged.
++        let rivens = raw
++            .upgrades
++            .iter()
++            .filter_map(|v| {
++                let kind = v.get("ItemType")?.as_str()?;
++                if !kind.contains("/Upgrades/Mods/Randomized/") {
++                    return None;
++                }
++                let fp: serde_json::Value = serde_json::from_str(v.get("UpgradeFingerprint")?.as_str()?).ok()?;
++                fp.get("buffs")?;
++                let id = v.get("ItemId").and_then(|i| i.get("$oid").or(Some(i))).and_then(|i| i.as_str()).unwrap_or_default();
++                Some(serde_json::json!({ "type": kind, "id": id, "fp": fp }))
++            })
++            .collect::<Vec<_>>();
+         let pending = pending_holdings
+             .into_iter()
+             .map(|(path, accumulated)| (path, accumulated.quantity.max(0) as u32))
+@@ -528,7 +641,7 @@ impl InventoryJsonDecoder<'_> {
+         }
+         let snapshot = InventorySnapshot::coherent(domain_entries)
+             .map_err(|_| AcquisitionError::SnapshotInvalid)?;
+-        Ok((snapshot, MasteryFacts::from_parts(affinity, pending)))
++        Ok((snapshot, MasteryFacts::from_parts(affinity, pending).with_extras(ready, player_level, platinum).with_wallet(credits, endo).with_rivens(rivens)))
+     }
+ }
+ 
+diff --git a/crates/warframe-acquisition/src/relic_catalog.rs b/crates/warframe-acquisition/src/relic_catalog.rs
+index 0debbfe..de1659c 100644
+--- a/crates/warframe-acquisition/src/relic_catalog.rs
++++ b/crates/warframe-acquisition/src/relic_catalog.rs
+@@ -7,6 +7,9 @@ use crate::{CatalogError, CatalogIndex, RewardNeedle};
+ #[derive(Clone, Debug, Default)]
+ pub struct RelicRewardIndex {
+     rewards: BTreeMap<String, BTreeSet<String>>,
++    /// Rewards every relic of which is vaulted: out of the drop tables, so only relics already
++    /// held (or Varzia's) can still give them.
++    vaulted: BTreeSet<String>,
+ }
+ 
+ impl RelicRewardIndex {
+@@ -14,6 +17,8 @@ impl RelicRewardIndex {
+         let records: Vec<RelicRecord> =
+             serde_json::from_slice(bytes).map_err(|_| CatalogError::InvalidJson)?;
+         let mut rewards = BTreeMap::new();
++        // Per reward: (seen in any relic, seen in a relic still in the drop tables).
++        let mut availability: BTreeMap<String, bool> = BTreeMap::new();
+         for record in records {
+             if !record
+                 .unique_name
+@@ -27,11 +32,22 @@ impl RelicRewardIndex {
+                 .map(|reward| reward.item.name.trim().to_owned())
+                 .filter(|name| !name.is_empty())
+                 .collect::<BTreeSet<_>>();
++            // A record without the flag counts as farmable, so a gap in the data never claims
++            // something is vaulted.
++            let vaulted = record.vaulted == Some(true);
++            for name in &names {
++                let farmable = availability.entry(name.clone()).or_insert(false);
++                *farmable |= !vaulted;
++            }
+             if !names.is_empty() {
+                 rewards.insert(record.unique_name, names);
+             }
+         }
+-        Ok(Self { rewards })
++        let vaulted = availability
++            .into_iter()
++            .filter_map(|(name, farmable)| (!farmable).then_some(name))
++            .collect();
++        Ok(Self { rewards, vaulted })
+     }
+ 
+     /// Every reward a relic in the index can drop, spelled as the relic tables and the reward
+@@ -41,6 +57,16 @@ impl RelicRewardIndex {
+         self.rewards.values().flatten().map(String::as_str)
+     }
+ 
++    /// Whether every relic that drops this reward is vaulted.
++    pub fn is_vaulted(&self, reward: &str) -> bool {
++        self.vaulted.contains(reward.trim())
++    }
++
++    /// Every reward that only vaulted relics drop.
++    pub fn vaulted_rewards(&self) -> &BTreeSet<String> {
++        &self.vaulted
++    }
++
+     pub fn candidates_for_projection_paths(
+         &self,
+         projection_paths: &[String],
+@@ -99,6 +125,8 @@ fn reward_catalog_paths(name: &str, catalog: &CatalogIndex) -> Vec<String> {
+ struct RelicRecord {
+     unique_name: String,
+     #[serde(default)]
++    vaulted: Option<bool>,
++    #[serde(default)]
+     rewards: Vec<RelicReward>,
+ }
+ 
+@@ -111,3 +139,25 @@ struct RelicReward {
+ struct RelicRewardItem {
+     name: String,
+ }
++
++#[cfg(test)]
++mod vaulted_tests {
++    use super::RelicRewardIndex;
++
++    #[test]
++    fn a_reward_is_vaulted_only_when_every_relic_dropping_it_is() {
++        let json = br#"[
++            {"uniqueName": "/Lotus/Types/Game/Projections/A", "vaulted": true,
++             "rewards": [{"item": {"name": "Rhino Prime Systems Blueprint"}}, {"item": {"name": "Forma Blueprint"}}]},
++            {"uniqueName": "/Lotus/Types/Game/Projections/B", "vaulted": false,
++             "rewards": [{"item": {"name": "Forma Blueprint"}}]},
++            {"uniqueName": "/Lotus/Types/Game/Projections/C",
++             "rewards": [{"item": {"name": "Paris Prime String"}}]}
++        ]"#;
++        let index = RelicRewardIndex::from_wfcd_json(json).expect("parses");
++        assert!(index.is_vaulted("Rhino Prime Systems Blueprint"));
++        assert!(!index.is_vaulted("Forma Blueprint"));
++        // No flag in the data: never claimed vaulted.
++        assert!(!index.is_vaulted("Paris Prime String"));
++    }
++}
+diff --git a/crates/warframe-acquisition/tests/inventory_decoder.rs b/crates/warframe-acquisition/tests/inventory_decoder.rs
+index d5e141a..36f2ff6 100644
+--- a/crates/warframe-acquisition/tests/inventory_decoder.rs
++++ b/crates/warframe-acquisition/tests/inventory_decoder.rs
+@@ -526,3 +526,47 @@ fn mastery_rank_follows_the_affinity_curve_and_caps_at_max_rank() {
+     assert_eq!(mastery_rank(Category::Frame, 196_000, 30), Some(14));
+     assert_eq!(mastery_rank(Category::PrimePart, 10, 30), None);
+ }
++
++#[test]
++fn foundry_finish_times_and_mastery_rank_are_kept_for_orbiter() {
++    let payload = String::from_utf8(complete_payload())
++        .unwrap()
++        .replace(
++            r#""PendingRecipes":[{"ItemType":"/Lotus/Types/Recipes/Weapons/LexPrimeBlueprint","ItemCount":1}]"#,
++            r#""PendingRecipes":[{"ItemType":"/Lotus/Types/Recipes/Weapons/LexPrimeBlueprint","CompletionDate":{"$date":{"$numberLong":"1753400000000"}}}],"PlayerLevel":24,"PremiumCredits":1234"#,
++        );
++    let (_, facts) = InventoryJsonDecoder::default().decode_with_facts(payload.as_bytes()).unwrap();
++    assert_eq!(
++        facts.foundry_ready(),
++        &[("/Lotus/Types/Recipes/Weapons/LexPrimeBlueprint".to_owned(), 1_753_400_000_000)]
++    );
++    assert_eq!(facts.player_level(), Some(24));
++    assert_eq!(facts.platinum(), Some(1234));
++    let (_, none) = InventoryJsonDecoder::default().decode_with_facts(&complete_payload()).unwrap();
++    assert!(none.foundry_ready().is_empty());
++    assert_eq!(none.player_level(), None);
++}
++
++#[test]
++fn wallet_and_unveiled_rivens_are_kept_for_orbiter() {
++    let mut payload: serde_json::Value = serde_json::from_slice(&complete_payload()).unwrap();
++    payload["RegularCredits"] = serde_json::json!(4_500_000);
++    payload["FusionPoints"] = serde_json::json!({"$numberLong": "123456"});
++    let fp = r#"{"compat":"/Lotus/Weapons/Tenno/Rifle/BratonPrime","lim":0,"lvlReq":11,"lvl":8,"rerolls":3,"pol":"AP_ATTACK","buffs":[{"Tag":"WeaponCritChanceMod","Value":536870912},{"Tag":"WeaponCritDamageMod","Value":805306368}],"curses":[{"Tag":"WeaponZoomFovMod","Value":268435456}]}"#;
++    payload["Upgrades"] = serde_json::json!([
++        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaaaa"},"ItemType":"/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare","UpgradeFingerprint":fp},
++        {"ItemId":{"$oid":"bbbbbbbbbbbbbbbbbbbbbbbb"},"ItemType":"/Lotus/Upgrades/Mods/Randomized/LotusPistolRandomModRare","UpgradeFingerprint":"{\"challenge\":{\"Type\":\"/Lotus/Types/Challenges/RandomizedRivenChallenge\",\"Progress\":0,\"Required\":3}}"},
++        {"ItemId":{"$oid":"cccccccccccccccccccccccc"},"ItemType":"/Lotus/Upgrades/Mods/Rifle/WeaponDamageAmountMod","UpgradeFingerprint":"{\"lvl\":5}"}
++    ]);
++    let (snapshot, facts) = InventoryJsonDecoder::default().decode_with_facts(&serde_json::to_vec(&payload).unwrap()).unwrap();
++    assert_eq!(facts.credits(), Some(4_500_000));
++    assert_eq!(facts.endo(), Some(123_456));
++    let rivens = facts.rivens();
++    assert_eq!(rivens.len(), 1, "the veiled riven and the plain mod are left out");
++    assert_eq!(rivens[0]["id"], "aaaaaaaaaaaaaaaaaaaaaaaa");
++    assert_eq!(rivens[0]["type"], "/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare");
++    assert_eq!(rivens[0]["fp"]["lvl"], 8);
++    assert_eq!(rivens[0]["fp"]["buffs"][1]["Tag"], "WeaponCritDamageMod");
++    // The snapshot itself is unchanged: rivens still count as riven mods.
++    assert!(snapshot.entries().iter().any(|e| e.item.id.as_str().starts_with("/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare")));
++}
+diff --git a/crates/warframe-domain/src/rewards.rs b/crates/warframe-domain/src/rewards.rs
+index aa9d60c..f6172e6 100644
+--- a/crates/warframe-domain/src/rewards.rs
++++ b/crates/warframe-domain/src/rewards.rs
+@@ -13,9 +13,17 @@ pub struct RewardCandidate {
+     #[serde(default, skip_serializing_if = "Option::is_none")]
+     pub mastery: Option<MasteryMark>,
+     pub confidence: f32,
++    /// Only vaulted relics drop it. Omitted from the JSON when false.
++    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
++    pub vaulted: bool,
+ }
+ 
+ impl RewardCandidate {
++    pub fn with_vaulted(mut self, vaulted: bool) -> Self {
++        self.vaulted = vaulted;
++        self
++    }
++
+     pub fn new(
+         name: impl Into<String>,
+         platinum: u32,
+@@ -38,6 +46,7 @@ impl RewardCandidate {
+             owned,
+             mastery,
+             confidence,
++            vaulted: false,
+         })
+     }
+ }
+@@ -51,6 +60,8 @@ struct RewardCandidateDto {
+     #[serde(default)]
+     mastery: Option<MasteryMark>,
+     confidence: f32,
++    #[serde(default)]
++    vaulted: bool,
+ }
+ 
+ impl<'de> Deserialize<'de> for RewardCandidate {
+@@ -67,6 +78,7 @@ impl<'de> Deserialize<'de> for RewardCandidate {
+             dto.mastery,
+             dto.confidence,
+         )
++        .map(|candidate| candidate.with_vaulted(dto.vaulted))
+         .map_err(D::Error::custom)
+     }
+ }

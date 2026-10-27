@@ -1,0 +1,246 @@
+/* ORBITER: THE LEDGER
+   A Tenno's ledger in the Orokin manner: a dark slab, engraved hairlines, square corners.
+   Names and titles are condensed capitals struck large; every label is small tracked monospace.
+   Two metals carry every value: platinum (cool white) and the ducat (gold). Badges are
+   house-shaped cartouches, never pills. No glow, no rounded cards. */
+
+@import "@fontsource/archivo-narrow/500.css";
+@import "@fontsource/archivo-narrow/600.css";
+@import "@fontsource/archivo-narrow/700.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-mono/600.css";
+
+:root {
+  color-scheme: dark;
+  --slab: #0a0b0d;
+  --plate: #111317;
+  --raised: #181a1f;
+  --well: #0d0e11;
+  --rule: #24272d;
+  --rule-bright: #363a42;
+  --rule-control: #5d626b;
+
+  --platinum: #e6e9ee;
+  --platinum-dim: #9ba2ac;
+  /* Secondary text: 4.5:1 or better on every surface. */
+  --platinum-deep: #7e858f;
+  --gold: #d6ae4a;
+  --gold-dim: #a3843a;
+  --oxblood: #d96b5c;
+  --verdigris: #6fb7a3;
+
+  --cartouche: polygon(0 0, 100% 0, 100% 70%, 50% 100%, 0 70%);
+  /* The Orokin plate: two opposite corners cut. */
+  --cut: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+
+  /* Relic eras, in the metals the game draws them in. */
+  --era-lith: #b07d4a;
+  --era-meso: #9ba2ac;
+  --era-neo: #d6ae4a;
+  --era-axi: #e6e9ee;
+  --era-requiem: #c45a4f;
+  --tab-point: polygon(0 0, 100% 0, 100% calc(100% - 9px), 50% 100%, 0 calc(100% - 9px));
+  --struck: inset 0 1px 0 rgb(0 0 0 / 80%), inset 0 -1px 0 rgb(230 233 238 / 8%);
+
+  --face-mark: "Archivo Narrow", "Roboto Condensed", "DejaVu Sans Condensed", sans-serif;
+  --face-text: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --face-register: "IBM Plex Mono", ui-monospace, "DejaVu Sans Mono", monospace;
+
+  --hair: 4px;
+  --tight: 8px;
+  --step: 16px;
+  --course: 32px;
+  --field: 56px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background-color: var(--slab);
+  /* Faint engraved orbits behind everything: overlapping rings, tiled. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' fill='none' stroke='%23e6e9ee' stroke-opacity='.028'%3E%3Ccircle cx='120' cy='120' r='96'/%3E%3Ccircle cx='120' cy='120' r='70'/%3E%3Ccircle cx='0' cy='0' r='96'/%3E%3Ccircle cx='240' cy='0' r='96'/%3E%3Ccircle cx='0' cy='240' r='96'/%3E%3Ccircle cx='240' cy='240' r='96'/%3E%3Cpath d='M120 14v18M120 208v18M14 120h18M208 120h18'/%3E%3C/svg%3E");
+  color: var(--platinum);
+  font-family: var(--face-text);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+#app { height: 100%; }
+::selection { background: var(--gold); color: var(--slab); }
+
+/* ---------------------------------------------------------------- primitives */
+
+.mark {
+  margin: 0;
+  font-family: var(--face-mark);
+  font-weight: 700;
+  line-height: .86;
+  letter-spacing: -.02em;
+  text-transform: uppercase;
+  color: var(--platinum);
+  text-shadow: 0 -1px 0 rgb(0 0 0 / 90%), 0 1px 0 rgb(230 233 238 / 7%);
+}
+.register {
+  font-family: var(--face-register);
+  font-size: .66rem;
+  font-weight: 500;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--platinum-deep);
+}
+.name-mark {
+  font-family: var(--face-mark);
+  font-weight: 700;
+  font-size: .98rem;
+  letter-spacing: .005em;
+  text-transform: uppercase;
+  color: var(--platinum);
+}
+.prose { margin: 0; max-width: 60ch; color: var(--platinum-dim); font-size: .86rem; line-height: 1.6; }
+.dim { color: var(--platinum-dim); }
+.small { font-size: .8rem; }
+.grow { flex: 1; }
+p { margin: 0 0 .5rem; }
+
+/* ---------------------------------------------------------------- controls */
+
+button, input, select {
+  font: inherit;
+  color: inherit;
+  border-radius: 0;
+}
+button {
+  cursor: pointer;
+  border: 1px solid var(--rule-bright);
+  background: var(--plate);
+  padding: .45rem .8rem;
+  font-family: var(--face-register);
+  font-size: .66rem;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--platinum-dim);
+  transition: color .12s, border-color .12s, background .12s;
+}
+button:hover:not(:disabled) { color: var(--platinum); border-color: var(--rule-control); }
+/* Pressed: the button sinks a pixel, so every click is felt at once. */
+button:active:not(:disabled) { background: var(--well); transform: translateY(1px); }
+/* Disabled: flat and quiet, but still legible (a title says why, where it isn't obvious). */
+button:disabled { cursor: default; color: var(--platinum-deep); border-color: var(--rule); background: transparent; box-shadow: none; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
+/* Cut-cornered shapes clip an outline away: ring them from the inside instead. */
+.stamp:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--gold), var(--struck); }
+
+/* The stamp: the one action that matters on a page. */
+.stamp {
+  clip-path: var(--cut);
+  border-color: var(--rule-control);
+  background: var(--raised);
+  box-shadow: var(--struck);
+  color: var(--platinum);
+  padding: .65rem 1rem;
+}
+.stamp:hover:not(:disabled) { background: var(--platinum); border-color: var(--platinum); color: var(--slab); }
+.stamp.gold { border-color: var(--gold-dim); color: var(--gold); }
+.stamp.gold:hover:not(:disabled) { background: var(--gold); border-color: var(--gold); color: var(--slab); }
+.stamp:active:not(:disabled) { background: var(--platinum-dim); border-color: var(--platinum-dim); color: var(--slab); }
+.stamp.gold:active:not(:disabled) { background: var(--gold-dim); border-color: var(--gold-dim); }
+.danger:hover:not(:disabled) { background: var(--oxblood); border-color: var(--oxblood); color: var(--slab); }
+
+input, select {
+  background: var(--well);
+  /* Fields need an edge you can see (3:1): brighter than the decorative hairlines. */
+  border: 1px solid var(--rule-control);
+  padding: .5rem .7rem;
+  color: var(--platinum);
+  font-size: .82rem;
+}
+input::placeholder { font-family: var(--face-register); font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
+input[type="search"] { min-width: 16rem; }
+input[type="number"] { width: 5.5rem; font-family: var(--face-register); }
+/* Our own chevron (a small gold diamond point) instead of the system's. */
+select {
+  font-family: var(--face-register); font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-dim);
+  appearance: none; -webkit-appearance: none; cursor: pointer;
+  padding-right: 1.9rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23d6ae4a' stroke-width='1.3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right .7rem center; background-size: .55rem auto;
+}
+select:hover { border-color: var(--platinum-deep); color: var(--platinum); }
+input:hover:not(:focus) { border-color: var(--platinum-deep); }
+select option { background: var(--plate); color: var(--platinum); text-transform: none; }
+/* No spinner arrows: numbers are typed, and a stray scroll can't change a price. */
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+.link {
+  /* Text links stay small, but the place to click is a full 24 px tall. */
+  background: none; border: 0; padding: 0; min-height: 24px;
+  font-family: var(--face-register); font-size: .66rem; letter-spacing: .12em;
+  color: var(--gold);
+}
+.link:hover:not(:disabled) { color: var(--platinum); border: 0; }
+.link:active:not(:disabled) { background: none; color: var(--platinum-dim); }
+.link:disabled { color: var(--platinum-deep); background: none; }
+.link.dim { color: var(--platinum-deep); }
+.link.dim:hover:not(:disabled) { color: var(--platinum); }
+
+/* An icon on its own as a button: square, the same size as a row's fields. */
+.ib { display: inline-grid; place-items: center; width: var(--ib, 30px); height: var(--ib, 30px); padding: 0; flex: none; }
+.bar .ib, .tools .ib { --ib: 36px; }
+.ib.quiet { background: transparent; border-color: transparent; color: var(--platinum-deep); }
+.ib.quiet:hover:not(:disabled) { border-color: var(--rule-bright); color: var(--platinum); }
+.ib.gold { color: var(--gold); border-color: var(--gold-dim); background: transparent; }
+.ib.gold:hover:not(:disabled) { background: var(--gold); border-color: var(--gold); color: var(--slab); }
+.ib.good { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 50%, transparent); background: transparent; }
+.ib.good:hover:not(:disabled) { background: var(--verdigris); border-color: var(--verdigris); color: var(--slab); }
+.ib.danger:hover:not(:disabled) { color: var(--oxblood); border-color: var(--oxblood); background: transparent; }
+.ib.danger:not(.quiet) { color: var(--oxblood); border-color: color-mix(in srgb, var(--oxblood) 55%, transparent); background: transparent; }
+.ib.danger:not(.quiet):hover:not(:disabled) { background: var(--oxblood); border-color: var(--oxblood); color: var(--slab); }
+.ib:disabled { opacity: .45; }
+
+/* Small tags beside a name: a struck rectangle, mono caps. */
+.tag {
+  display: inline-block; margin-left: .45rem; padding: .08rem .38rem;
+  border: 1px solid var(--rule-bright);
+  font-family: var(--face-register); font-size: .6rem; font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--platinum-dim); white-space: nowrap; vertical-align: 2px;
+}
+.tag:first-child { margin-left: 0; }
+.tag.ok { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 45%, transparent); }
+.tag.warn { color: var(--slab); background: var(--gold); border-color: var(--gold); }
+.tag.good { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 45%, transparent); }
+.warn-text { color: var(--gold); }
+.plat-text { color: var(--platinum); font-weight: 600; }
+.ducat-text { color: var(--gold); font-weight: 600; }
+
+/* Nothing matches the filters: one quiet line, the same on every page and in every table. */
+.nothing { margin: 0; padding: 3rem 1rem; text-align: center; color: var(--platinum-deep); font-family: var(--face-register); font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; }
+
+/* Section headings on a page carry a small gold diamond, like the game's menu headers. */
+.page h2.register::before, .page h3.register.lead::before {
+  content: ""; display: inline-block; width: .38rem; height: .38rem; margin-right: .6rem; vertical-align: 1px;
+  background: var(--gold-dim); transform: rotate(45deg);
+}
+
+/* ---------------------------------------------------------------- page layout */
+
+.page { flex: 1; min-height: 0; overflow: auto; }
+.page-inner { max-width: 1840px; margin: 0 auto; padding: 0 clamp(var(--step), 3vw, var(--field)) var(--field); }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .8rem; padding: var(--step) 0; }
+/* One height for every control in a toolbar row. */
+.bar :is(button:not(.link), input, select), .tools :is(button:not(.link), input, select) { height: 36px; }
+
+/* Less motion when the system asks for it. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
+.parts { display: grid; grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr)); gap: .3rem 1.5rem; margin-bottom: .6rem; }
+.set-part { display: flex; justify-content: space-between; align-items: center; }
+.set-part.short .set-pn { color: var(--gold); }
+.set-pn { display: inline-flex; align-items: center; gap: .5rem; }
+.actions { display: flex; align-items: center; gap: 1.2rem; margin-top: .6rem; }

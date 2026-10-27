@@ -1,0 +1,131 @@
+<script lang="ts" generics="T">
+  import type { Snippet } from "svelte";
+  import { sortRows, type Column } from "./table";
+  import { nearEnd } from "./nearEnd";
+
+  let {
+    rows,
+    columns,
+    key,
+    sort = $bindable(),
+    detail,
+    empty = "Nothing matches these filters.",
+    limit = 50,
+  }: {
+    rows: T[];
+    columns: Column<T>[];
+    key: (r: T) => string;
+    sort: { key: string; desc: boolean };
+    detail?: Snippet<[T]>;
+    empty?: string;
+    limit?: number;
+  } = $props();
+
+  let open = $state<string | null>(null);
+  // A first screenful of rows at once, then more as you scroll.
+  let shown = $state(50);
+  $effect(() => {
+    rows;
+    shown = limit;
+  });
+
+  const sorted = $derived(sortRows(rows, columns, sort));
+
+  function setSort(c: Column<T>) {
+    if (c.sortable === false) return;
+    if (sort.key === c.key) sort = { key: c.key, desc: !sort.desc };
+    else sort = { key: c.key, desc: c.defaultDesc ?? true };
+  }
+</script>
+
+<div class="wrap">
+  <table>
+    <thead>
+      <tr>
+        {#each columns as c (c.key)}
+          <th
+            class:right={c.align === "right"}
+            class:center={c.align === "center"}
+            class:sortable={c.sortable !== false}
+            class:minor={c.minor}
+            style:width={c.width}
+            title={c.title}
+            aria-sort={sort.key === c.key ? (sort.desc ? "descending" : "ascending") : undefined}
+            tabindex={c.sortable !== false ? 0 : undefined}
+            onclick={() => setSort(c)}
+            onkeydown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setSort(c))}
+          >
+            {c.label}{#if sort.key === c.key}<span class="arrow">{sort.desc ? "▾" : "▴"}</span>{/if}
+          </th>
+        {/each}
+        {#if detail}<th class="chev" aria-label="Details"></th>{/if}
+      </tr>
+    </thead>
+    <tbody>
+      {#each sorted.slice(0, shown) as r (key(r))}
+        {@const k = key(r)}
+        <tr
+          class:clickable={!!detail}
+          class:open={open === k}
+          tabindex={detail ? 0 : undefined}
+          aria-expanded={detail ? open === k : undefined}
+          onclick={() => detail && (open = open === k ? null : k)}
+          onkeydown={(e) => detail && (e.key === "Enter" || e.key === " ") && e.target === e.currentTarget && (e.preventDefault(), (open = open === k ? null : k))}
+        >
+          {#each columns as c (c.key)}
+            <td class:right={c.align === "right"} class:center={c.align === "center"} class:muted={c.muted} class:minor={c.minor}>
+              {#if c.cell}{@render c.cell(r)}{:else}{@const v = c.value(r)}{#if v == null}<span class="nil" aria-label="none">–</span>{:else}{v}{/if}{/if}
+            </td>
+          {/each}
+          {#if detail}<td class="chev" aria-hidden="true"><span>›</span></td>{/if}
+        </tr>
+        {#if detail && open === k}
+          <tr class="detail"><td colspan={columns.length + 1}>{@render detail(r)}</td></tr>
+        {/if}
+      {:else}
+        <tr><td class="nothing" colspan={columns.length + (detail ? 1 : 0)}>{empty}</td></tr>
+      {/each}
+    </tbody>
+  </table>
+  {#if sorted.length > shown}
+    <div class="more dim small" use:nearEnd={() => (shown += 120)}>{sorted.length - shown} more below</div>
+  {/if}
+</div>
+
+<style>
+  .wrap { border-top: 1px solid var(--rule); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th {
+    position: sticky; top: 0; z-index: 1; background: var(--slab); text-align: left;
+    font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .15em; text-transform: uppercase;
+    color: var(--platinum-deep); padding: .7rem .75rem; border-bottom: 1px solid var(--rule); white-space: nowrap;
+    user-select: none;
+  }
+  th.sortable { cursor: pointer; }
+  th.sortable:focus-visible { outline: none; box-shadow: inset 0 -2px 0 var(--gold); color: var(--platinum); }
+  th.sortable:hover { color: var(--platinum); }
+  th[aria-sort] { color: var(--platinum); }
+  .arrow { margin-left: .3rem; color: var(--gold); }
+  td { padding: .5rem .75rem; border-bottom: 1px solid var(--rule); vertical-align: middle; font-size: .84rem; }
+  td:first-child, th:first-child { padding-left: 0; }
+  .right { text-align: right; }
+  .center { text-align: center; }
+  .muted { color: var(--platinum-dim); font-size: .8rem; }
+  tr.clickable { cursor: pointer; }
+  /* A row that opens shows a gold edge on hover; the open one and its detail keep it. */
+  tr.clickable:hover td:first-child, tr.open td:first-child { box-shadow: inset 2px 0 0 var(--gold-dim); }
+  tr.clickable td:first-child { padding-left: .6rem; }
+  th:first-child { padding-left: .6rem; }
+  tbody tr:hover td { background: rgb(230 233 238 / 2.5%); }
+  tr.open td { background: var(--plate); border-bottom-color: transparent; }
+  tr.detail td { background: var(--plate); padding: .4rem 1rem 1.2rem .6rem; cursor: default; border-bottom: 1px solid var(--rule-bright); box-shadow: inset 2px 0 0 var(--gold-dim); }
+  tr.detail:hover td { background: var(--plate); }
+  .more { margin: 1.2rem auto; display: block; text-align: center; min-height: 2rem; }
+  .nil { color: var(--rule-control); opacity: .7; }
+  @media (max-width: 1250px) { .minor { display: none; } }
+  .chev { width: 1.6rem; padding-right: 0; text-align: center; color: var(--platinum-deep); }
+  .chev span { display: inline-block; font-size: 1.1rem; transition: transform .12s; }
+  tr.open .chev span { transform: rotate(90deg); color: var(--gold); }
+  tr.clickable:hover .chev span { color: var(--platinum); }
+  tr.clickable:focus-visible { outline: 1px solid var(--gold); outline-offset: -1px; }
+</style>

@@ -1,0 +1,194 @@
+<script lang="ts">
+  import { info } from "../hover.svelte";
+  // Your account over time and every trade you've made. The charts get a point each time
+  // TennoScope reads your inventory; the history comes from Warframe's own log of the trade window.
+  import type { Model } from "../core/model";
+  import type { Settings, TradeLogEntry } from "../backend";
+  import { salesCoveredByTrades } from "../core/market";
+  import PageHead from "../ui/PageHead.svelte";
+  import Stat from "../ui/Stat.svelte";
+  import P from "../ui/P.svelte";
+  import Seg from "../ui/Seg.svelte";
+  import Thumb from "../ui/Thumb.svelte";
+  import TimeChart from "../ui/TimeChart.svelte";
+  import RelicRuns from "../ui/RelicRuns.svelte";
+  import RepButton from "../ui/RepButton.svelte";
+  import GameIcon, { type GameIconName } from "../ui/GameIcon.svelte";
+
+  let { model, settings }: { model: Model; settings: Settings } = $props();
+
+  const DAY = 86_400_000;
+  let span = $state<"30" | "90" | "all">("90");
+  const since = $derived(span === "all" ? 0 : Date.now() - Number(span) * DAY);
+  const hist = $derived(settings.game.valueHistory.filter((p) => p.at >= since));
+  const at = $derived(hist.map((p) => p.at));
+  const GOLD = "#b5892e";
+
+  const CHARTS: { key: string; title: string; icon: GameIconName; get: (p: (typeof hist)[number]) => number | null | undefined }[] = [
+    { key: "platinum", title: "Platinum", icon: "platinum", get: (p) => p.platinum },
+    { key: "credits", title: "Credits", icon: "credits", get: (p) => p.credits },
+    { key: "endo", title: "Endo", icon: "endo", get: (p) => p.endo },
+    { key: "ducats", title: "Ducats", icon: "ducats", get: (p) => p.held?.ducats },
+    { key: "aya", title: "Aya", icon: "aya", get: (p) => p.held?.aya },
+    { key: "kuva", title: "Kuva", icon: "kuva", get: (p) => p.held?.kuva },
+    { key: "traces", title: "Void Traces", icon: "void-traces", get: (p) => p.held?.traces },
+    { key: "vosfor", title: "Vosfor", icon: "vosfor", get: (p) => p.held?.vosfor },
+    { key: "relics", title: "Relics held", icon: "relic-axi-intact", get: (p) => p.held?.relics },
+  ];
+
+  // ---------------------------------------------------------------- trades
+  const trades = $derived(settings.market.trades.filter((t) => t.at >= since));
+  type Kind = "sale" | "purchase" | "trade";
+  const kindOf = (t: TradeLogEntry): Kind => (t.platIn > 0 && !t.received.length ? "sale" : t.platOut > 0 && !t.offered.length ? "purchase" : "trade");
+  let show = $state<"all" | Kind>("all");
+  const shown = $derived(show === "all" ? trades : trades.filter((t) => kindOf(t) === show));
+
+  // What an item counts as, for profit by type.
+  type Group = "Prime parts" | "Sets" | "Arcanes" | "Mods" | "Relics" | "Rivens" | "Other";
+  const ICON: Record<Group, GameIconName> = { "Prime parts": "ducats", Sets: "foundry", Arcanes: "vosfor", Mods: "endo", Relics: "relic-axi-intact", Rivens: "riven", Other: "market" };
+  const categoryOf = $derived(new Map([...model.catalogByUnique.values()].map((c) => [c.name, c.category])));
+  function groupOf(name: string): Group {
+    if (/ Set$/.test(name)) return "Sets";
+    if (/ Relic$|^(Lith|Meso|Neo|Axi|Requiem) [A-Z]+\d+$/.test(name)) return "Relics";
+    if (/Riven/.test(name)) return "Rivens";
+    if (model.partByName.has(name)) return "Prime parts";
+    const c = categoryOf.get(name) ?? model.inventoryByName.get(name)?.[0]?.category;
+    if (c === "Arcanes" || c === "arcane") return "Arcanes";
+    if (c === "Mods" || c === "mod") return "Mods";
+    return "Other";
+  }
+  const byType = $derived.by(() => {
+    const out = new Map<Group, { revenue: number; spent: number }>();
+    const add = (g: Group, k: "revenue" | "spent", v: number) => {
+      const e = out.get(g) ?? { revenue: 0, spent: 0 };
+      e[k] += v;
+      out.set(g, e);
+    };
+    // Revenue and spent both come from the trade history, each trade's platinum shared out by
+    // copies: sales over what you gave, purchases over what you got.
+    for (const t of trades) {
+      const k = kindOf(t);
+      if (k === "trade") continue;
+      const xs = k === "sale" ? t.offered : t.received;
+      const n = xs.reduce((c, x) => c + x.count, 0) || 1;
+      for (const x of xs) add(groupOf(x.name), k === "sale" ? "revenue" : "spent", ((k === "sale" ? t.platIn : t.platOut) * x.count) / n);
+    }
+    // Plus sales that no logged trade covers: a sale names its trade when one logged or matched
+    // it; one logged by hand pairs with the nearest unclaimed trade of that item, within a day.
+    const covered = salesCoveredByTrades(settings.market.sales, settings.market.trades.filter((t) => kindOf(t) === "sale"));
+    for (const s of settings.market.sales) if (s.at >= since && !covered.has(s)) add(groupOf(s.item), "revenue", s.quantity * s.platinum);
+    return [...out.entries()].map(([g, v]) => ({ group: g, revenue: Math.round(v.revenue), spent: Math.round(v.spent), profit: Math.round(v.revenue - v.spent) })).sort((a, b) => b.profit - a.profit);
+  });
+  const revenue = $derived(byType.reduce((n, r) => n + r.revenue, 0));
+  const spent = $derived(byType.reduce((n, r) => n + r.spent, 0));
+  const partners = $derived(new Set(trades.map((t) => t.partner)).size);
+  /** Players with your +rep (warframe.market takes one per player, so any trade with them counts). */
+  const repGiven = $derived(new Set(settings.market.trades.filter((t) => settings.market.rep[t.key] === "given").map((t) => t.partner.toLowerCase())));
+
+  const when = (t: number) => new Date(t).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const img = (name: string) => model.imageOf(name.replace(/ Set$/, "").replace(/ Relic$/, ""));
+</script>
+
+{#snippet items(xs: TradeLogEntry["offered"], plat: number)}
+  <span class="its">
+    {#if plat}<span class="it plat"><GameIcon name="platinum" size={22} /><b>{plat}</b></span>{/if}
+    {#each xs.slice(0, 6) as x, i (i)}<span class="it" use:info={x.name}><Thumb file={img(x.name)} size={30} />{#if x.count > 1}<b>{x.count}</b>{/if}</span>{/each}
+    {#if xs.length > 6}<span class="dim small">+{xs.length - 6}</span>{/if}
+    {#if !plat && !xs.length}<span class="dim small">nothing</span>{/if}
+  </span>
+{/snippet}
+
+<div class="page"><div class="page-inner">
+  <PageHead title="Stats" blurb="Your account over time, what your relic runs come to, and every trade you've made in game.">
+    {#snippet band()}
+      <Stat label="Revenue" note="Sales in this span"><P v={revenue} big /></Stat>
+      <Stat label="Spent" tone="dim" note="Platinum paid for items"><P v={spent} big /></Stat>
+      <Stat label="Profit" tone={revenue - spent >= 0 ? "gold" : "dim"} note="Revenue minus spent"><P v={revenue - spent} big /></Stat>
+      <Stat label="Trades" note={`with ${partners} player${partners === 1 ? "" : "s"}`}>{trades.length}</Stat>
+    {/snippet}
+  </PageHead>
+
+  <div class="bar"><Seg bind:value={span} options={[{ v: "30", label: "30 days" }, { v: "90", label: "90 days" }, { v: "all", label: "All" }]} /></div>
+
+  <TimeChart title="Inventory value" {at} series={[{ label: "Market value", color: "#5b8fd0", values: hist.map((p) => p.worth) }, { label: "Easy to sell", color: GOLD, values: hist.map((p) => p.liquid) }]} height={190} />
+
+  <div class="charts">
+    {#each CHARTS as c (c.key)}
+      <TimeChart title={c.title} {at} series={[{ label: c.title, color: GOLD, values: hist.map(c.get) }]} empty={c.key === "credits" || c.key === "endo" || c.key === "platinum" ? "Needs the patched TennoScope; fills in from its next reads." : undefined}>
+        {#snippet icon()}<GameIcon name={c.icon} size={18} />{/snippet}
+      </TimeChart>
+    {/each}
+  </div>
+
+  <RelicRuns {model} runs={settings.game.relicRuns} {since} platPerDucat={settings.advice.platPerDucat} />
+
+  <div class="split">
+    <section class="types">
+      <div class="hh"><h2 class="register">Profit by type</h2></div>
+      {#if byType.length}
+        <table>
+          <thead><tr><th>Type</th><th class="right">Revenue</th><th class="right">Spent</th><th class="right">Profit</th></tr></thead>
+          <tbody>
+            {#each byType as r (r.group)}
+              <tr><td><span class="ty"><GameIcon name={ICON[r.group]} size={18} />{r.group}</span></td><td class="right"><P v={r.revenue || null} /></td><td class="right"><P v={r.spent || null} dim /></td><td class="right"><span class:pos={r.profit > 0} class:neg={r.profit < 0}>{r.profit > 0 ? "+" : ""}{r.profit}</span></td></tr>
+            {/each}
+          </tbody>
+        </table>
+      {:else}<p class="dim small">No sales or purchases in this span yet.</p>{/if}
+    </section>
+
+    <section class="history">
+      <div class="hh">
+        <h2 class="register">Trade history</h2>
+        <Seg bind:value={show} options={[{ v: "all", label: "All" }, { v: "sale", label: "Sales" }, { v: "purchase", label: "Purchases" }, { v: "trade", label: "Swaps" }]} />
+      </div>
+      {#if shown.length}
+        <ul>
+          {#each shown.slice(0, 150) as t (t.key)}
+            {@const k = kindOf(t)}
+            <li>
+              <div class="who"><b class="name-mark">{t.partner}</b><span class="dim small">{when(t.at)}</span></div>
+              <div class="swap" title="What you gave ⇄ what you got">{@render items(t.offered, t.platOut)}<span class="arrow" aria-label="for">⇄</span>{@render items(t.received, t.platIn)}</div>
+              <span class="kind k-{k}">{k === "sale" ? "Sale" : k === "purchase" ? "Purchase" : "Swap"}</span>
+              <RepButton partner={t.partner} text={settings.market.repText} given={repGiven.has(t.partner.toLowerCase())} ongiven={() => (settings.market.rep = { ...settings.market.rep, [t.key]: "given" })} />
+            </li>
+          {/each}
+        </ul>
+        {#if shown.length > 150}<p class="dim small">Showing the latest 150 of {shown.length}.</p>{/if}
+      {:else}
+        <p class="dim small">Trades show up here as you make them: orbiter reads each one from Warframe's log when the trade window closes.</p>
+      {/if}
+    </section>
+  </div>
+</div></div>
+
+<style>
+  .bar { padding-top: .2rem; }
+  .charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr)); gap: .8rem; margin: .8rem 0 var(--course); }
+  .split { display: grid; grid-template-columns: minmax(18rem, 2fr) minmax(0, 3fr); gap: 1.6rem; align-items: start; }
+  @media (max-width: 1100px) { .split { grid-template-columns: 1fr; } }
+  h2 { margin: 0 0 .8rem; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: .45rem .5rem; border-bottom: 1px solid var(--rule); }
+  td { padding: .5rem; border-bottom: 1px solid var(--rule); }
+  .right { text-align: right; }
+  .ty { display: inline-flex; align-items: center; gap: .5rem; }
+  .pos { color: var(--verdigris); font-weight: 600; }
+  .neg { color: var(--oxblood); font-weight: 600; }
+  /* Both headings sit on the same line, whether or not a filter stands beside them. */
+  .hh { display: flex; justify-content: space-between; align-items: center; gap: 1rem; min-height: 2rem; margin-bottom: .8rem; }
+  .hh h2 { margin: 0; }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
+  li { display: grid; grid-template-columns: minmax(9rem, 12rem) 1fr auto auto; gap: .8rem; align-items: center; padding: .6rem .8rem; border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); clip-path: var(--cut); }
+  .who { display: grid; gap: .15rem; min-width: 0; }
+  .who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: none; }
+  .swap { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; min-width: 0; }
+  .arrow { color: var(--platinum-deep); }
+  .its { display: inline-flex; align-items: center; gap: .3rem; flex-wrap: wrap; }
+  .it { position: relative; display: inline-flex; align-items: center; gap: .25rem; }
+  .it b { position: absolute; right: -4px; bottom: -4px; font-size: .6rem; font-family: var(--face-register); background: var(--slab); border: 1px solid var(--rule-bright); padding: 0 3px; line-height: 1.3; }
+  .it.plat b { position: static; font-family: var(--face-mark); font-size: 1rem; background: none; border: 0; padding: 0; }
+  .kind { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; padding: .2rem .45rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
+  .k-sale { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 45%, transparent); }
+  .k-purchase { color: var(--gold); border-color: var(--gold-dim); }
+</style>

@@ -1,0 +1,133 @@
+// backend.ts: saving before quitting, an unreachable worldstate, and loading the bundle in two parts.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { assembleBundle, bundleLoader, defaultSettings, flushSettings, loadLive, loadSettings, quit, saveSettings } from "../src/lib/backend";
+import type { CatalogPart, CollectionPart } from "../src/lib/core/types";
+
+test("quitting saves a change made in the last 300 ms", async () => {
+  const stored: Record<string, string> = {};
+  (globalThis as { localStorage?: unknown }).localStorage = { setItem: (k: string, v: string) => (stored[k] = v) };
+  const s = defaultSettings();
+  s.tab = "sales";
+  let built = 0;
+  saveSettings(() => (built++, s));
+  saveSettings(() => (built++, s));
+  assert.equal(stored["orbiter-settings"], undefined, "waits for the debounce");
+  await quit();
+  assert.equal(JSON.parse(stored["orbiter-settings"]).tab, "sales");
+  assert.equal(built, 1, "put together once for the burst");
+  await flushSettings();
+  assert.equal(built, 1, "nothing left to save");
+});
+
+test("an unreachable worldstate is an error, so the last one read stays on screen", async () => {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    throw new Error("offline");
+  }) as typeof fetch;
+  try {
+    await assert.rejects(loadLive());
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+/** Fake Rust commands: the collection says which catalog revision is on disk; each catalogs call is counted. */
+function fakeData() {
+  const disk = { rev: "r1" as string | null, observed: 1 };
+  const calls = { catalogs: 0 };
+  let failNext = false;
+  const get = {
+    collection: async (_dir: string): Promise<CollectionPart> => ({
+      observed_at: disk.observed,
+      inventory: [{ item_id: "/A", name: "A", category: "mod", quantity: disk.observed, mastered: false, image_name: null, rank: null, max_rank: null }],
+      prices: { prices: { A: 3 } },
+      catalog_rev: disk.rev,
+    }),
+    catalogs: async (_dir: string): Promise<CatalogPart> => {
+      calls.catalogs++;
+      if (failNext) {
+        failNext = false;
+        throw new Error("catalog half-written");
+      }
+      return { rev: disk.rev, catalog: [{ uniqueName: "/A", name: `A@${disk.rev}`, category: "Mods" }], relics: [] };
+    },
+  };
+  return { disk, calls, get, failOnce: () => (failNext = true) };
+}
+
+test("the bundle is put together in the shape buildModel reads", () => {
+  const fresh: CollectionPart = { observed_at: 5, inventory: [], prices: null, catalog_rev: "r" };
+  const cats: CatalogPart = { rev: "r", catalog: [{ uniqueName: "/A", name: "A", category: "Mods" }], relics: [] };
+  assert.deepEqual(assembleBundle(fresh, cats), { observed_at: 5, inventory: [], catalog: cats.catalog, relics: [], prices: null });
+});
+
+test("the catalogs are fetched again only when their revision or the folder changes", async () => {
+  const { disk, calls, get } = fakeData();
+  const load = bundleLoader(get);
+  const first = await load("");
+  assert.equal(calls.catalogs, 1);
+  assert.equal(first.catalog[0].name, "A@r1");
+
+  disk.observed = 2;
+  const second = await load("");
+  assert.equal(calls.catalogs, 1, "same revision: the catalogs held are reused");
+  assert.equal(second.inventory[0].quantity, 2, "the inventory is always fresh");
+  assert.equal(second.catalog, first.catalog);
+
+  disk.rev = "r2";
+  assert.equal((await load("")).catalog[0].name, "A@r2");
+  assert.equal(calls.catalogs, 2, "new revision: fetched again");
+
+  await load("/elsewhere");
+  assert.equal(calls.catalogs, 3, "another data folder: fetched again");
+  await load("/elsewhere");
+  assert.equal(calls.catalogs, 3);
+
+  disk.rev = null;
+  await load("/elsewhere");
+  await load("/elsewhere");
+  assert.equal(calls.catalogs, 5, "no revision: fetched every time");
+});
+
+test("reloads at once share one catalogs request, and a failed one is asked again", async () => {
+  const { calls, get } = fakeData();
+  const load = bundleLoader(get);
+  await Promise.all([load(""), load(""), load("")]);
+  assert.equal(calls.catalogs, 1);
+
+  const { calls: calls2, get: get2, failOnce: fail2 } = fakeData();
+  const load2 = bundleLoader(get2);
+  fail2();
+  await assert.rejects(load2(""));
+  await load2("");
+  assert.equal(calls2.catalogs, 2, "the failure isn't held");
+  await load2("");
+  assert.equal(calls2.catalogs, 2);
+});
+
+test("catalogs read at a newer revision than the collection said are held as that revision", async () => {
+  const { disk, calls, get } = fakeData();
+  // TennoScope writes a new catalog between the two requests.
+  const load = bundleLoader({ ...get, catalogs: async (dir) => ((disk.rev = "r2"), get.catalogs(dir)) });
+  await load("");
+  assert.equal(calls.catalogs, 1);
+  await load("");
+  assert.equal(calls.catalogs, 1, "the collection now says r2, which is what is held");
+});
+
+test("the sidebar fold, the Planner's mode and the short-listing notices are kept; the old `view` goes", async () => {
+  const saved = { folded: true, plannerMode: "radiant", view: { x: 1 }, game: { shortNotified: ["o1|5"] } };
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify(saved) };
+  const s = await loadSettings();
+  assert.equal(s.folded, true);
+  assert.equal(s.plannerMode, "radiant");
+  assert.deepEqual(s.game.shortNotified, ["o1|5"]);
+  assert.equal("view" in s, false);
+  // Settings from before these existed: folds by itself, Complete sets, nothing told yet.
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({ plannerMode: "bogus", game: {} }) };
+  const old = await loadSettings();
+  assert.equal(old.folded, null);
+  assert.equal(old.plannerMode, "sets");
+  assert.deepEqual(old.game.shortNotified, []);
+});

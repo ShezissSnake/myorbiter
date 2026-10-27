@@ -1,0 +1,16 @@
+[package]
+name = "orbiter-data"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Reads TennoScope's local collection data (read-only) and trims the item catalog for orbiter."
+
+[dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
+thiserror = "2"
+
+[[bin]]
+name = "orbiter-dump"
+path = "src/bin/dump.rs"

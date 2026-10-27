@@ -1,0 +1,1278 @@
+<script lang="ts">
+  import { onMount, untrack } from "svelte";
+  import { invasionNeeds } from "./lib/core/invasions";
+  import { foldSetSales, salesFromTrade, tradeKey } from "./lib/core/trades";
+  import { foundryBuilds } from "./lib/core/foundry";
+  import { matchedFissures } from "./lib/core/timers";
+  import { watchlist } from "./lib/core/deals";
+  import { inventoryRows, relicRows } from "./lib/core/views";
+  import { baroRate } from "./lib/core/traders";
+  import { buildModel, ERAS } from "./lib/core/model";
+  import { bestCard, resolveName, scoreCards } from "./lib/core/pick";
+  import { mergeLogged, recordScreen, resolvePicks } from "./lib/core/relicRuns";
+  import { heldFor } from "./lib/core/market";
+  import type { Bundle, Live, MissionState } from "./lib/core/types";
+  import {
+    dataStamp,
+    defaultDataDir,
+    defaultSettings,
+    loadBundle,
+    loadLive,
+    loadSettings,
+    missionState,
+    rewardCards,
+    rewardScreens,
+    writeRewardPick,
+    market,
+    onMarketOrder,
+    notify,
+    openUrl,
+    quit,
+    quitOnWindowClose,
+    type ScreenCards,
+    type Settings,
+  } from "./lib/backend";
+  import { persistSettings } from "./lib/persist.svelte";
+  import { backoff, handLoggedSale, keepSeen, thinHistory } from "./lib/core/upkeep";
+  import Sets from "./lib/tabs/Sets.svelte";
+  import Parts from "./lib/tabs/Parts.svelte";
+  import Mastery from "./lib/tabs/Mastery.svelte";
+  import Arcanes from "./lib/tabs/Arcanes.svelte";
+  import Mods from "./lib/tabs/Mods.svelte";
+  import Relics from "./lib/tabs/Relics.svelte";
+  import InMission from "./lib/tabs/InMission.svelte";
+  import Orders from "./lib/tabs/Orders.svelte";
+  import Planner from "./lib/tabs/Planner.svelte";
+  import Home from "./lib/tabs/Home.svelte";
+  import Sales from "./lib/tabs/Sales.svelte";
+  import Guide from "./lib/tabs/Guide.svelte";
+  import Inventory from "./lib/tabs/Inventory.svelte";
+  import Foundry from "./lib/tabs/Foundry.svelte";
+  import Stats from "./lib/tabs/Stats.svelte";
+  import Rivens from "./lib/tabs/Rivens.svelte";
+  import Wishlist from "./lib/tabs/Wishlist.svelte";
+  import { openEras, wishlistEras } from "./lib/core/wishlist";
+  import { rivens } from "./lib/rivenStore.svelte";
+  import { recordRivens } from "./lib/core/rivens";
+  import ItemDetails from "./lib/ItemDetails.svelte";
+  import HoverCard from "./lib/HoverCard.svelte";
+  import ListDialog from "./lib/ui/ListDialog.svelte";
+  import SettingsSheet from "./lib/SettingsSheet.svelte";
+  import TennoscopeSheet from "./lib/TennoscopeSheet.svelte";
+  import Icon from "./lib/ui/Icon.svelte";
+  import IconButton from "./lib/ui/IconButton.svelte";
+  import RepButton from "./lib/ui/RepButton.svelte";
+  import GameIcon from "./lib/ui/GameIcon.svelte";
+  import { PAGES, migrateTab, type Page } from "./lib/pages";
+  import { mkt } from "./lib/marketStore.svelte";
+  import { ts } from "./lib/tennoscopeStore.svelte";
+
+  /** Sidebar sections, in order (Home and Guide sit apart). */
+  const SECTIONS = ["Fissures", "Collection", "Trade"] as const;
+  /** Your choice from the fold button (kept in settings); until you make one, it folds by itself in a narrow window. */
+  let width = $state(typeof window === "undefined" ? 1600 : window.innerWidth);
+  const compact = $derived.by(() => settings.folded ?? width < 1180);
+
+  // Pages stay mounted once opened, so filters, sorting and scroll survive switching tabs.
+  let visited = $state<Record<string, boolean>>({});
+  $effect(() => {
+    if (!visited[settings.tab]) visited[settings.tab] = true;
+  });
+  // Once the app is idle after starting, open the other pages in the background one at a time, so
+  // the first visit to each is as quick as switching back to it. Rivens waits for a visit: opening
+  // it asks warframe.market for its riven list.
+  let warmed = false;
+  $effect(() => {
+    if (!model || warmed) return;
+    warmed = true;
+    const queue = PAGES.map((p) => p.id).filter((id) => id !== "rivens");
+    const idle = (f: () => void) =>
+      "requestIdleCallback" in window ? window.requestIdleCallback(f, { timeout: 3000 }) : setTimeout(f, 250);
+    const next = () => {
+      const id = queue.shift();
+      if (!id) return;
+      if (!visited[id]) visited[id] = true;
+      idle(next);
+    };
+    setTimeout(() => idle(next), 1500);
+  });
+
+  let settings = $state<Settings>(defaultSettings());
+  let settingsReady = false;
+  let bundle = $state.raw<Bundle | null>(null);
+  let live = $state.raw<Live>({ fissures: null, resurgence: null, resurgenceExpiry: null });
+  /**
+   * The worldstate's state, for Home. `liveAt`: when the worldstate shown was read (null: none read
+   * yet). `liveError`: the last read failed (null while a read is on its way, or after one worked).
+   * Both null: still loading.
+   */
+  let liveAt = $state<number | null>(null);
+  let liveError = $state<string | null>(null);
+  /** The last read of TennoScope's data failed: with nothing loaded yet, a notice instead of the pages; else a note above them. */
+  let error = $state<string | null>(null);
+  /** When the data on screen was read. */
+  let loadedAt = $state<number | null>(null);
+  let loading = $state(true);
+  let showSettings = $state(false);
+  let showTennoscope = $state(false);
+  let defaultDir = $state("");
+  let stamp = 0;
+  let mission = $state.raw<MissionState | null>(null);
+  let missionError = $state<string | null>(null);
+
+  let missionPolling = false;
+  let missionText = "";
+  /** TennoScope says the game isn't running: the game log and the reward screen are read less often. */
+  const gameIdle = () => ts.report?.game_running === false;
+  let lastMissionPoll = 0;
+  async function pollMission() {
+    if (missionPolling || (gameIdle() && Date.now() - lastMissionPoll < 10_000)) return;
+    lastMissionPoll = Date.now();
+    missionPolling = true;
+    try {
+      const next = await missionState(settings.eeLog);
+      // Read every 2 s, and the same most of the time: only a change goes on (the trade, whisper
+      // and screen effects below would otherwise all run again on every read).
+      const text = JSON.stringify(next);
+      if (text !== missionText) {
+        missionText = text;
+        mission = next;
+      }
+      missionError = null;
+    } catch (e) {
+      missionError = String(e);
+    } finally {
+      missionPolling = false;
+    }
+  }
+
+  // What's in the foundry, from TennoScope's reports: kept as one object until it changes, so the
+  // model isn't rebuilt on every report.
+  let foundry = $state.raw<Record<string, number> | null>(null);
+  $effect(() => {
+    const next = ts.report?.foundry ?? null;
+    if (next && JSON.stringify(next) !== JSON.stringify(foundry)) foundry = next;
+  });
+  const model = $derived(bundle ? buildModel(bundle, live, foundry, settings.market.relicPrices) : null);
+
+  // The reward screen: the cards a patched TennoScope read off it, scored here, and the pick
+  // written back for TennoScope's overlay to show over the game.
+  let screenCards = $state.raw<ScreenCards | null>(null);
+  const CARDS_FRESH_MS = 120_000;
+  let clock = $state(Date.now());
+  const freshCards = $derived(screenCards && screenCards.cards.length && clock - screenCards.at < CARDS_FRESH_MS ? screenCards : null);
+  let cardsPolling = false;
+  let lastCardsPoll = 0;
+  async function pollCards() {
+    clock = Date.now();
+    if (cardsPolling || (gameIdle() && clock - lastCardsPoll < 5_000)) return;
+    lastCardsPoll = clock;
+    cardsPolling = true;
+    try {
+      const next = await rewardCards();
+      // The same screen comes again once its live prices are in: that's a change too.
+      if (next?.at !== screenCards?.at || next?.cards.join("|") !== screenCards?.cards.join("|") || JSON.stringify(next?.prices ?? {}) !== JSON.stringify(screenCards?.prices ?? {})) screenCards = next;
+    } catch {
+      // No file, or TennoScope isn't patched: the pool ranking still works.
+    } finally {
+      cardsPolling = false;
+    }
+  }
+  let lastWritten = "";
+  $effect(() => {
+    if (!model || !freshCards) return;
+    const cards = scoreCards(model, freshCards.cards, settings.pick, freshCards.prices);
+    const file = { at: freshCards.at, cards: freshCards.cards, scores: cards.map((c) => c.score), best: bestCard(cards), reasons: cards.map((c) => c.reasons) };
+    const key = JSON.stringify(file);
+    if (key === lastWritten) return;
+    lastWritten = key;
+    writeRewardPick(file).catch((e) => console.error("writing the reward pick failed", e));
+    // Once per reward screen, for a second monitor: the card to take and why.
+    const best = file.best == null ? null : cards[file.best];
+    if (best && settings.notify.reward && notifiedScreen !== freshCards.at) {
+      notifiedScreen = freshCards.at;
+      const why = [best.price != null ? `${best.price}p` : null, best.needed ? `you need it${best.neededFor ? ` for ${best.neededFor}` : ""}` : null, best.ducats ? `${best.ducats} ducats` : null, best.set === 1 ? "completes a set" : null].filter(Boolean).join(", ");
+      const of = cards.length > 1 ? `(best of the ${["", "", "two", "three", "four"][cards.length] ?? cards.length})` : "(the only card read)";
+      notify(`Take ${best.name}`, why ? `${why} ${of}` : of);
+    }
+  });
+  let notifiedScreen = 0;
+
+  // Market and TennoScope trouble, as it happens.
+  let seenNote = 0;
+  $effect(() => {
+    const fresh = mkt.log.filter((l) => l.at > seenNote);
+    if (!fresh.length) return;
+    seenNote = Math.max(...fresh.map((l) => l.at));
+    if (!settings.notify.market) return;
+    // Auto-match's changes as one notification ("Serration R0: 9p → 8p, …"), problems one each.
+    const moved = fresh.filter((l) => l.tone === "ok" && l.text.includes("→"));
+    if (moved.length) notify(`${moved.length} listing${moved.length === 1 ? "" : "s"} repriced`, moved.map((l) => l.text.replace(/, .*$/, "")).join("\n"));
+    for (const l of fresh.filter((l) => l.tone === "warn" && !l.quiet)) notify("warframe.market", l.text);
+  });
+  /** Visible listings for more than you hold now (as of TennoScope's last read): sold, or used. */
+  const shortListings = $derived(
+    model
+      ? mkt.orders.filter((o) => {
+          const it = mkt.item(o.itemId);
+          if (!it || !o.visible) return false;
+          const held = heldFor(model, it, o);
+          return held != null && held < o.quantity;
+        })
+      : [],
+  );
+  // A listing for more than you now hold (you sold or used some in game): said once per listing and
+  // quantity listed, remembered across restarts. (A count orbiter can't make isn't short: see above.)
+  $effect(() => {
+    const short = shortListings;
+    const m = model;
+    if (!m || !short.length || !settingsReady) return;
+    untrack(() => {
+      const key = (o: (typeof short)[number]) => `${o.id}|${o.quantity}`;
+      const seen = new Set(settings.game.shortNotified);
+      const fresh = short.filter((o) => !seen.has(key(o)));
+      if (!fresh.length) return;
+      settings.game.shortNotified = [...fresh.map(key), ...settings.game.shortNotified].slice(0, 300);
+      if (!settings.notify.market) return;
+      const lines = fresh.map((o) => {
+        const it = mkt.item(o.itemId)!;
+        return `${it.name}: listed ${o.quantity}, you hold ${heldFor(m, it, o)}`;
+      });
+      notify("Listed more than you hold", lines.join("\n"));
+    });
+  });
+  // The status connection failing (refused sign-in, or warframe.market unreachable): once per problem.
+  // A connection that keeps dropping (each drop clears and sets the error again) is told at most
+  // every 15 minutes.
+  let lastStatusError: string | null = null;
+  let statusNotifiedAt = 0;
+  $effect(() => {
+    const e = mkt.status?.error ?? null;
+    if (e && !lastStatusError && settings.notify.market && Date.now() - statusNotifiedAt > 15 * 60_000) {
+      statusNotifiedAt = Date.now();
+      notify("warframe.market status", e);
+    }
+    lastStatusError = e;
+  });
+  // An invasion rewarding a part you need: one notification per invasion and part, remembered
+  // across restarts so the same invasion doesn't announce itself every time orbiter opens.
+  const invasionsNeeded = $derived(model ? invasionNeeds(model, live.invasions) : []);
+  $effect(() => {
+    const needs = invasionsNeeded;
+    if (!needs.length) return;
+    untrack(() => {
+      const seen = new Set(settings.notifiedInvasions);
+      const fresh = needs.filter((n) => !seen.has(n.key));
+      if (!fresh.length) return;
+      if (settings.notify.invasions) {
+        notify(
+          fresh.length === 1 ? `Invasion: ${fresh[0].reward}` : `${fresh.length} invasions with parts you need`,
+          fresh.map((n) => `${n.reward} for ${n.item}: side with ${n.side} at ${n.node}`).join("\n"),
+        );
+      }
+      settings.notifiedInvasions = [...fresh.map((n) => n.key), ...settings.notifiedInvasions].slice(0, 300);
+    });
+  });
+  // Every trade in the game log goes in the trade history (Stats), sales, purchases and swaps.
+  $effect(() => {
+    const trades = mission?.trades ?? [];
+    const session = mission?.session_start ?? null;
+    if (!trades.length) return;
+    untrack(() => {
+      repairRanks(trades, session);
+      const have = new Set(settings.market.trades.map((t) => t.key));
+      const fresh = trades.filter((t) => !have.has(tradeKey(session, t)));
+      if (!fresh.length) return;
+      const entries = fresh.map((t) => ({ key: tradeKey(session, t), at: t.at ? t.at * 1000 : Date.now(), partner: t.partner, offered: t.offered, received: t.received, platOut: t.platinum_offered, platIn: t.platinum_received }));
+      settings.market.trades = [...entries.reverse(), ...settings.market.trades].slice(0, 2000);
+      // Whether a fresh trade's partner is on warframe.market, for the +rep strip.
+      for (const e of entries) if (Date.now() - e.at < REP_WINDOW) mkt.user(e.partner).catch(() => {});
+    });
+  });
+
+  // warframe.market's own chat: messages buyers send on the website, not in game. Read each minute
+  // while signed in; each new message once (a notification, and the strip at the top).
+  const chatsDue = $derived(mkt.chats.filter((c) => c.unread > 0 && settings.game.chatsSeen[c.id] !== c.lastUpdate));
+  $effect(() => {
+    const due = chatsDue;
+    if (!due.length) return;
+    untrack(() => {
+      const fresh = due.filter((c) => !notifiedChats.has(`${c.id}@${c.lastUpdate}`));
+      for (const c of fresh) notifiedChats.add(`${c.id}@${c.lastUpdate}`);
+      if (fresh.length && settings.notify.siteChat) notify(fresh.length === 1 ? `${fresh[0].with} messaged you on warframe.market` : `${fresh.length} chats on warframe.market`, fresh.map((c) => (c.lastMessage ? `${c.with}: ${c.lastMessage.slice(0, 140)}` : `${c.with}: ${c.unread} unread`)).join("\n"));
+    });
+  });
+  const notifiedChats = new Set<string>();
+  function chatsRead() {
+    settings.game.chatsSeen = { ...settings.game.chatsSeen, ...Object.fromEntries(chatsDue.map((c) => [c.id, c.lastUpdate])) };
+  }
+
+  // +rep after a trade: for the latest trade of the last half hour, when its partner is on
+  // warframe.market and you haven't given it or said Not now.
+  const REP_WINDOW = 30 * 60_000;
+  const repDue = $derived.by(() => {
+    const t = settings.market.trades[0];
+    if (!t || clock - t.at > REP_WINDOW || settings.market.rep[t.key]) return null;
+    // One +rep per player: already given on an earlier trade.
+    if (settings.market.trades.some((x) => x.partner === t.partner && settings.market.rep[x.key] === "given")) return null;
+    const u = mkt.users[t.partner.toLowerCase()];
+    return u ? { t, u } : null;
+  });
+  function markRep(key: string, how: "given" | "skipped") {
+    let rep = { ...settings.market.rep, [key]: how };
+    // Only trades still in the history are worth remembering.
+    if (Object.keys(rep).length > 2500) {
+      const live = new Set(settings.market.trades.map((t) => t.key));
+      rep = Object.fromEntries(Object.entries(rep).filter(([k]) => live.has(k)));
+    }
+    settings.market.rep = rep;
+  }
+
+  // Whole sets sold in one trade before orbiter logged them as sets: one sale per part becomes one
+  // set sale. Runs when the data loads; does nothing once they're folded.
+  $effect(() => {
+    const m = model;
+    if (!m || !settingsReady) return;
+    untrack(() => {
+      const next = foldSetSales(settings.market.sales, settings.market.trades, m);
+      if (next) settings.market.sales = next;
+    });
+  });
+
+  // Trades logged before orbiter read an arcane's rank (shown as pips in the trade window): once the
+  // game log still has the trade, fill the rank in, on the trade and on the sale it made, so the sale
+  // is compared with the maxed price rather than the unranked one.
+  function repairRanks(trades: NonNullable<MissionState["trades"]>, session: number | null) {
+    const byKey = new Map(trades.map((t) => [tradeKey(session, t), t]));
+    const fixes: { name: string; rank: number; at: number }[] = [];
+    const next = settings.market.trades.map((e) => {
+      const t = byKey.get(e.key);
+      if (!t) return e;
+      let changed = false;
+      const offered = e.offered.map((x, i) => {
+        const now = t.offered[i];
+        if (x.rank != null || !now || now.name !== x.name || now.rank == null) return x;
+        changed = true;
+        fixes.push({ name: x.name, rank: now.rank, at: e.at });
+        return { ...x, rank: now.rank };
+      });
+      return changed ? { ...e, offered } : e;
+    });
+    if (!fixes.length) return;
+    settings.market.trades = next;
+    settings.market.sales = settings.market.sales.map((sale) => {
+      const f = sale.rank == null && fixes.find((x) => x.name === sale.item && Math.abs(x.at - sale.at) < 60_000);
+      return f ? { ...sale, rank: f.rank } : sale;
+    });
+  }
+
+  // Trades in the game log: a sale (items out, only platinum in) marks its listing sold on
+  // warframe.market and goes in the sales log, seconds after the trade window closes. Each trade
+  // once; one you already logged by hand around the same time isn't logged again.
+  $effect(() => {
+    const trades = mission?.trades ?? [];
+    const session = mission?.session_start ?? null;
+    // Not before your listings are read (orbiter starting, or back after an outage): matched
+    // against none, every sale would log as "not listed" and its listing would stay up.
+    if (!trades.length || !mkt.linked || mkt.ordersAt == null || !mkt.items.length) return;
+    untrack(() => {
+      // A sale logged from one of these trades before orbiter could read its rank (an arcane's
+      // pips): the rank is filled in now, so it's compared with the right price.
+      for (const t of trades) {
+        const key = tradeKey(session, t);
+        for (const x of t.offered) {
+          if (x.rank == null) continue;
+          const i = settings.market.sales.findIndex((s) => s.trade === key && s.rank == null && (s.item === x.name || s.item === mkt.index.byName.get(x.name.toLowerCase())?.name));
+          if (i >= 0) settings.market.sales[i] = { ...settings.market.sales[i], rank: x.rank };
+        }
+      }
+      const seen = new Set(settings.market.tradesSeen);
+      const fresh = trades.filter((t) => !seen.has(tradeKey(session, t)));
+      if (!fresh.length) return;
+      // This session's keys stay however many there are: the log shows its trades on every read.
+      settings.market.tradesSeen = keepSeen(fresh.map((t) => tradeKey(session, t)), settings.market.tradesSeen, 300, session == null ? "?" : String(session));
+      if (!settings.market.autoTrades) return;
+      void handleTrades(fresh, session);
+    });
+  });
+  async function handleTrades(trades: NonNullable<MissionState["trades"]>, session: number | null) {
+    const done: string[] = [];
+    let unmarked = 0;
+    for (const t of trades) {
+      const sales = salesFromTrade(t, mkt.orders, mkt.index, model);
+      if (!sales) continue;
+      const at = t.at ? t.at * 1000 : Date.now();
+      const key = tradeKey(session, t);
+      for (const s of sales) {
+        // Logged by hand within ten minutes of the trade: already counted. Only by hand: a sale
+        // this logged from an earlier trade (the same item to another buyer) is a sale of its own.
+        const hand = handLoggedSale(settings.market.sales, s.name, at);
+        if (hand >= 0) {
+          settings.market.sales[hand] = { ...settings.market.sales[hand], trade: key };
+          continue;
+        }
+        const marked = s.order ? await mkt.sold(s.order, Math.min(s.count, s.order.quantity), { quiet: true }) : null;
+        if (s.order && !marked) unmarked++;
+        settings.market.sales = [{ at, item: s.name, rank: s.rank, quantity: s.count, platinum: s.platinumEach, trade: key }, ...settings.market.sales].slice(0, 2000);
+        done.push(`${s.count > 1 ? `${s.count} × ` : ""}${s.name} for ${s.count * s.platinumEach}p${s.order ? (marked ? "" : " (still listed)") : " (not listed)"}`);
+      }
+    }
+    if (!done.length) return;
+    const outcome = unmarked ? `Logged; ${unmarked} couldn't be marked sold on warframe.market (see Orders).` : "Marked sold on warframe.market and logged.";
+    if (settings.notify.market) notify(done.length === 1 ? `Sold ${done[0]}` : `${done.length} sales`, `${done.join("\n")}\n${outcome}`);
+    // Your inventory changed: have TennoScope read it again so spares and listings line up.
+    if (ts.report?.setup.access_mode === "full" && ts.report.game_running) void ts.ask("--sync");
+  }
+  // ---------------------------------------------------------------- account facts and alerts
+
+  // TennoScope's read of your account: foundry finish times, mastery rank, platinum. Kept in
+  // settings so they outlive a TennoScope restart.
+  $effect(() => {
+    const r = ts.report;
+    if (!r) return;
+    untrack(() => {
+      const g = settings.game;
+      if (r.foundry_ready && JSON.stringify(r.foundry_ready) !== JSON.stringify(g.foundryReady)) g.foundryReady = r.foundry_ready;
+      if (r.mastery_rank != null && r.mastery_rank !== g.masteryRank) g.masteryRank = r.mastery_rank;
+      if (r.platinum != null && r.platinum !== g.platinum) g.platinum = r.platinum;
+      if (r.credits != null && r.credits !== g.credits) g.credits = r.credits;
+      if (r.endo != null && r.endo !== g.endo) g.endo = r.endo;
+      if (r.rivens && JSON.stringify(r.rivens) !== JSON.stringify(g.rivens)) g.rivens = r.rivens;
+      if (r.rivens) {
+        const hist = recordRivens(g.rivenHistory ?? {}, r.rivens);
+        if (hist) g.rivenHistory = hist;
+      }
+      // The wallet can arrive after the inventory it goes with: bring the latest chart point up to date.
+      const last = g.valueHistory.at(-1);
+      const at = model?.observedAt ? +model.observedAt : null;
+      if (last && at != null && last.at === at && (last.platinum !== g.platinum || last.credits !== g.credits || last.endo !== g.endo)) {
+        g.valueHistory = [...g.valueHistory.slice(0, -1), { ...last, platinum: g.platinum, credits: g.credits, endo: g.endo }];
+      }
+    });
+  });
+
+  // Foundry builds turning ready: checked every half minute against their finish times.
+  let tick = $state(Date.now());
+  $effect(() => {
+    const t = setInterval(() => (tick = Date.now()), 30_000);
+    return () => clearInterval(t);
+  });
+  $effect(() => {
+    const now = tick;
+    if (!model) return;
+    const ready = foundryBuilds(model, settings.game.foundryReady, now).filter((b) => b.ready);
+    untrack(() => {
+      const seen = new Set(settings.game.foundryNotified);
+      const fresh = ready.filter((b) => !seen.has(b.key));
+      if (!fresh.length) return;
+      // Builds that were already done before orbiter first saw them don't need announcing.
+      const old = fresh.filter((b) => now - b.readyAt > 6 * 3_600_000);
+      const news = fresh.filter((b) => !old.includes(b));
+      if (news.length && settings.notify.foundry) {
+        notify(
+          news.length === 1 ? `Ready in the Foundry: ${news[0].name}` : `${news.length} Foundry builds ready`,
+          news.length === 1
+            ? news[0].points ? `Claim it: +${news[0].points.toLocaleString("en")} mastery once levelled` : "Claim it from the Foundry"
+            : news.map((b) => `${b.name}${b.points ? `: +${b.points.toLocaleString("en")} mastery once levelled` : ""}`).join("\n"),
+        );
+      }
+      settings.game.foundryNotified = [...fresh.map((b) => b.key), ...settings.game.foundryNotified].slice(0, 200);
+    });
+  });
+
+  // Someone whispered you: one alert per chat per game session.
+  $effect(() => {
+    const ws = mission?.whispers ?? [];
+    const session = mission?.session_start ?? null;
+    if (!ws.length) return;
+    untrack(() => {
+      const seen = new Set(settings.game.whispersSeen);
+      const fresh = ws.filter((w) => !seen.has(`${session}|${w.name}`));
+      if (!fresh.length) return;
+      settings.game.whispersSeen = [...fresh.map((w) => `${session}|${w.name}`), ...settings.game.whispersSeen].slice(0, 300);
+      // Opening orbiter mid-session: chats from more than 15 minutes ago aren't news any more.
+      const recent = fresh.filter((w) => w.at == null || Date.now() / 1000 - w.at < 15 * 60);
+      if (!settings.notify.whispers || !recent.length) return;
+      const listed = mkt.orders.filter((o) => o.visible).length;
+      const tail = listed ? `You have ${listed} listing${listed === 1 ? "" : "s"} up on warframe.market` : "Check your chat in game";
+      if (recent.length > 1) {
+        notify(`${recent.length} people whispered you`, [recent.map((w) => w.name).join(", "), tail].join(" · "));
+        return;
+      }
+      // One person: who they are on warframe.market, if it answers within a couple of seconds.
+      const who = recent[0].name;
+      void Promise.race([mkt.user(who).catch(() => undefined), new Promise<undefined>((r) => setTimeout(() => r(undefined), 2500))]).then((u) => {
+        const rep = u === null ? "Not on warframe.market" : u ? `${u.reputation} reputation on warframe.market` : "";
+        notify(`${who} whispered you`, [rep, tail].filter(Boolean).join(" · "));
+      });
+    });
+  });
+
+  // Fissure alerts: a fissure that matches one of your rules, once per fissure.
+  $effect(() => {
+    const rules = settings.fissureRules;
+    const fs = live.fissures;
+    if (!rules.length || !fs) return;
+    untrack(() => {
+      const seen = new Set(settings.game.fissuresNotified);
+      const fresh = matchedFissures(rules, fs).filter((x) => !seen.has(x.fissure.id));
+      if (!fresh.length) return;
+      settings.game.fissuresNotified = [...fresh.map((x) => x.fissure.id), ...settings.game.fissuresNotified].slice(0, 300);
+      if (!settings.notify.fissures) return;
+      const f = fresh[0].fissure;
+      const what = (x: (typeof fresh)[number]) => `${x.fissure.isHard ? "Steel Path " : x.fissure.isStorm ? "Void Storm " : ""}${x.fissure.tier} ${x.fissure.missionType} · ${x.fissure.node}`;
+      notify(fresh.length === 1 ? `Fissure: ${f.tier} ${f.missionType}` : `${fresh.length} fissures you're watching for`, fresh.map(what).join("\n"));
+    });
+  });
+
+  // Wishlist: an era that had no fissure open gets one, and you hold relics of that era with a part
+  // you starred. Every era usually has fissures open (and Omnia takes any relic), so this only speaks
+  // up after a gap; the Wishlist page shows what to crack at any moment.
+  let erasOpenBefore: Set<string> | null = null;
+  $effect(() => {
+    const fs = live.fissures;
+    const m = model;
+    if (!m || !fs) return;
+    untrack(() => {
+      const open = openEras(fs);
+      const openNow = new Set(ERAS.filter((e) => (open[e]?.length ?? 0) > 0));
+      const before = erasOpenBefore;
+      erasOpenBefore = openNow;
+      if (!before || !settings.favourites.length || !settings.notify.wishlist) return;
+      const eras = wishlistEras(m, settings.favourites);
+      const fresh = [...openNow].filter((e) => !before.has(e) && eras.has(e));
+      if (!fresh.length) return;
+      const lines = fresh.map((e) => {
+        const r = eras.get(e)![0];
+        return `${e}: crack ${r.relic} for ${r.part}`;
+      });
+      notify(fresh.length === 1 ? `${fresh[0]} fissure open for your wishlist` : "Fissures open for your wishlist", lines.join("\n"));
+    });
+  });
+
+  // Riven alerts: every 15 minutes, each riven you're watching for, listed at or under your price.
+  let lastRivens = 0;
+  $effect(() => {
+    const now = tick;
+    if (!settings.rivenWatch.length || now - lastRivens < 15 * 60_000) return;
+    lastRivens = now;
+    untrack(() => void scanRivens());
+  });
+  async function scanRivens() {
+    const found: string[] = [];
+    const ids: string[] = [];
+    const seen = new Set(settings.game.rivensNotified);
+    let failing = 0;
+    for (const w of settings.rivenWatch) {
+      try {
+        const list = await rivens.search(w.weapon, w.positive, w.negative, 14 * 60_000);
+        failing = 0;
+        for (const a of list) {
+          if (a.price == null || a.price > w.maxPrice || seen.has(a.id)) continue;
+          // Two of your searches can find the same riven: one line for it.
+          seen.add(a.id);
+          ids.push(a.id);
+          found.push(`${w.weaponName} ${a.name}: ${a.price}p from ${a.seller}`);
+        }
+      } catch {
+        // warframe.market didn't answer; next round. Twice in a row: it's down, stop asking.
+        if (++failing >= 2) break;
+      }
+    }
+    if (!ids.length) return;
+    settings.game.rivensNotified = [...ids, ...settings.game.rivensNotified].slice(0, 500);
+    if (settings.notify.rivens) notify(found.length === 1 ? "A riven you want is listed" : `${found.length} rivens you want are listed`, found.slice(0, 6).join("\n"));
+  }
+
+  // What your relics sell for at each refinement (TennoScope's prices are mostly intact only),
+  // read once a day while relic selling is on: whether one is worth more sold than cracked
+  // depends on it. Checked hourly; only relics not read in the last day are fetched.
+  let relicPricesChecked = 0;
+  $effect(() => {
+    const m = model;
+    const on = settings.market.sellable.relicsWorthSelling;
+    const items = mkt.items.length;
+    if (!m || !on || !items || !settingsReady) return;
+    untrack(() => {
+      if (Date.now() - relicPricesChecked < 3_600_000) return;
+      relicPricesChecked = Date.now();
+      const bases = relicRows(m).map((r) => r.base);
+      void mkt.readRelicPrices(bases, $state.snapshot(settings.market.relicPrices)).then((next) => {
+        if (next) settings.market.relicPrices = next;
+      });
+    });
+  });
+
+  // While Baro is here: what a ducat is worth by his stock, kept for Prime parts' Your rates.
+  $effect(() => {
+    const m = model;
+    if (!m || !settingsReady || !m.live.baro?.inventory?.length) return;
+    const next = baroRate(m);
+    untrack(() => {
+      const had = settings.advice.baroRate;
+      if (next && (had?.visit !== next.visit || had.rate !== next.rate)) settings.advice.baroRate = next;
+    });
+  });
+
+  // The live feed watches a longer list than the scan: it costs no requests.
+  $effect(() => {
+    const m = model;
+    // Every tier you set counts, not just a new object.
+    const tiers = JSON.parse(JSON.stringify(settings.tiers)) as typeof settings.tiers;
+    const items = mkt.items.length;
+    if (!m) return;
+    untrack(() => {
+      if (!items) void mkt.ensureItems().catch(() => {});
+      else mkt.watchLive(m, watchlist(m, tiers, 300));
+    });
+  });
+  // Cheap buys: the watchlist's order books every ten minutes, while orbiter is open.
+  let lastDeals = 0;
+  $effect(() => {
+    const now = tick;
+    if (!model || now - lastDeals < 10 * 60_000) return;
+    lastDeals = now;
+    const m = model;
+    untrack(() => void mkt.scanDeals(m, watchlist(m, settings.tiers)));
+  });
+  $effect(() => {
+    const deals = mkt.deals;
+    if (!deals.length) return;
+    untrack(() => {
+      // Once per item and price: another seller at the same price isn't news, a lower price is.
+      const said = (d: (typeof deals)[number]) => `${d.slug}|${d.rank ?? ""}`;
+      const lowest = new Map<string, number>();
+      for (const k of settings.game.dealsNotified) {
+        const [item, price] = k.split("@");
+        if (price && !(lowest.get(item)! <= +price)) lowest.set(item, +price);
+      }
+      const fresh = deals.filter((d) => !(lowest.get(said(d))! <= d.price));
+      if (!fresh.length) return;
+      settings.game.dealsNotified = [...fresh.map((d) => `${said(d)}@${d.price}`), ...settings.game.dealsNotified].slice(0, 300);
+      if (settings.notify.deals) notify(fresh.length === 1 ? `Cheap: ${fresh[0].name} for ${fresh[0].price}p` : `${fresh.length} cheap buys`, fresh.map((d) => `${d.name}: ${d.price}p from ${d.seller} (usually ${d.usual}p)`).join("\n"));
+    });
+  });
+
+  // Relic runs (Stats): every reward screen, with your own relic's reward and what you held of
+  // each card's item as it opened; the next inventory reads tell which card you took.
+  const heldOf = (m: NonNullable<typeof model>, name: string) => m.ownedPartQty.get(name) ?? (m.inventoryByName.get(name) ?? []).reduce((n, r) => n + r.quantity, 0);
+  $effect(() => {
+    const c = freshCards;
+    const m = model;
+    const ms = mission;
+    if (!c || !m || !settingsReady) return;
+    untrack(() => {
+      const names = c.cards.map((n) => resolveName(m, n));
+      const own = (ms?.rewards_given ?? []).map((p) => resolveName(m, m.nameOf(p))).find((n) => names.includes(n)) ?? null;
+      const before = Object.fromEntries([...new Set(names)].map((n) => [n, heldOf(m, n)]));
+      const next = recordScreen(settings.game.relicRuns, {
+        at: c.at,
+        cards: names,
+        relics: ms ? (ms.relics.length ? ms.relics : ms.last_relics) : [],
+        mission: ms?.mission ?? null,
+        own,
+        before,
+        baseAt: m.observedAt ? +m.observedAt : undefined,
+      });
+      if (next) settings.game.relicRuns = next;
+    });
+  });
+  $effect(() => {
+    const m = model;
+    if (!m?.observedAt || !settingsReady) return;
+    const at = +m.observedAt;
+    untrack(() => {
+      const next = resolvePicks(settings.game.relicRuns, (n) => heldOf(m, n), at, (n) => resolveName(m, n));
+      if (next) settings.game.relicRuns = next;
+    });
+  });
+  /** Screens from TennoScope's own log that orbiter didn't see live: history, and while it was closed. */
+  async function importScreens() {
+    try {
+      const logged = await rewardScreens(settings.dataDir);
+      const next = mergeLogged(settings.game.relicRuns, logged);
+      if (next) settings.game.relicRuns = next;
+    } catch (e) {
+      console.error("reading TennoScope's reward log failed", e);
+    }
+  }
+
+  // What your inventory is worth, one point per inventory read, for the value chart on Stats.
+  $effect(() => {
+    const m = model;
+    if (!m?.observedAt) return;
+    const at = +m.observedAt;
+    untrack(() => {
+      const h = settings.game.valueHistory;
+      if (h.length && h[h.length - 1].at >= at) return;
+      const rows = inventoryRows(m);
+      const worth = Math.round(rows.reduce((n, r) => n + (r.worth ?? 0), 0));
+      const liquid = Math.round(rows.filter((r) => r.marketName && (r.tradesPerDay ?? 0) >= 1).reduce((n, r) => n + (r.worth ?? 0), 0));
+      const held = (u: string) => (m.inventoryByBase.get(u) ?? []).reduce((n, r) => n + r.quantity, 0);
+      const relics = [...m.inventoryByBase.values()].flat().filter((r) => r.category === "relic").reduce((n, r) => n + r.quantity, 0);
+      const M = "/Lotus/Types/Items/MiscItems/";
+      settings.game.valueHistory = [
+        ...h,
+        {
+          at,
+          worth,
+          liquid,
+          platinum: settings.game.platinum,
+          credits: settings.game.credits,
+          endo: settings.game.endo,
+          held: { ducats: held(`${M}PrimeBucks`), aya: held(`${M}SchismKey`), kuva: held(`${M}Kuva`), traces: held(`${M}VoidTearDrop`), vosfor: held(`${M}DistillPoints`), essence: held(`${M}SteelEssence`), relics },
+        },
+      ];
+      // Every read of the last month, one a day before that: a cap of 500 reads kept only a few
+      // weeks for someone whose inventory is read many times a day.
+      settings.game.valueHistory = thinHistory(settings.game.valueHistory, at);
+    });
+  });
+
+  let lastTsError: string | null = null;
+  $effect(() => {
+    const e = ts.error;
+    if (e && e !== lastTsError && settings.notify.tennoscope) notify("TennoScope", e);
+    lastTsError = e;
+  });
+  // TennoScope runs in the background (orbiter starts it); its settings live in orbiter's.
+  $effect(() => {
+    ts.path = settings.tennoscope.path;
+    ts.launch = settings.tennoscope.launch;
+  });
+
+  /** Refresh: ask TennoScope to read the inventory from the game when it can, then re-read its files. */
+  let syncing = $state(false);
+  async function refreshAll() {
+    const r = ts.report;
+    if (r && r.setup.access_mode === "full" && r.game_running) {
+      syncing = true;
+      await ts.ask("--sync");
+      // The new snapshot lands in TennoScope's folder within a few seconds; the stamp poll and
+      // this delayed reload pick it up.
+      setTimeout(async () => {
+        await reload();
+        syncing = false;
+      }, 6000);
+    }
+    reload();
+    refreshLive();
+  }
+
+  // ---------------------------------------------------------------- keyboard, like a desktop app
+  // Ctrl+1…9 pages · Ctrl+PgUp/PgDn (or Ctrl+Shift+Tab/Ctrl+Tab) the previous/next page · Ctrl+F or / filter ·
+  // Ctrl+R or F5 sync · Ctrl+, settings · F1 guide · Ctrl+Q quit. Esc closes panels (they handle it).
+  const ORDER: string[] = PAGES.filter((p) => p.id !== "guide").map((p) => p.id);
+  const shortcutOf = (id: string) => {
+    const i = ORDER.indexOf(id);
+    return i >= 0 && i < 9 ? `Ctrl+${i + 1}` : null;
+  };
+  function typing(el: EventTarget | null) {
+    return el instanceof HTMLElement && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
+  }
+  function onKey(e: KeyboardEvent) {
+    const ctrl = e.ctrlKey && !e.altKey && !e.metaKey;
+    if (ctrl && e.key.toLowerCase() === "q") {
+      e.preventDefault();
+      quit();
+      return;
+    }
+    // A dialog or panel is open: it owns the keyboard (Esc closes it).
+    if (document.querySelector('[aria-modal="true"]')) return;
+    const go = (id: string) => {
+      e.preventDefault();
+      settings.tab = id;
+    };
+    if (ctrl && /^[1-9]$/.test(e.key) && ORDER[Number(e.key) - 1]) return go(ORDER[Number(e.key) - 1]);
+    if (ctrl && (e.key === "PageDown" || e.key === "PageUp" || e.key === "Tab")) {
+      const step = e.key === "PageUp" || (e.key === "Tab" && e.shiftKey) ? -1 : 1;
+      // The Guide sits after the last page: next from it is Home, previous the last page.
+      const at = ORDER.indexOf(settings.tab);
+      const i = at >= 0 ? at : step > 0 ? -1 : ORDER.length;
+      return go(ORDER[(i + step + ORDER.length) % ORDER.length]);
+    }
+    if (e.key === "F1") return go("guide");
+    if ((ctrl && e.key.toLowerCase() === "f") || (e.key === "/" && !typing(e.target) && !e.ctrlKey)) {
+      const field = document.querySelector<HTMLInputElement>('.pane.shown input[type="search"]');
+      if (field) {
+        e.preventDefault();
+        field.focus();
+        field.select();
+      }
+      return;
+    }
+    if ((ctrl && e.key.toLowerCase() === "r") || e.key === "F5") {
+      e.preventDefault();
+      if (!loading && !syncing) refreshAll();
+      return;
+    }
+    if (ctrl && e.key === ",") {
+      e.preventDefault();
+      showSettings = true;
+    }
+  }
+  /** No web-page menu (Back, Reload…) on right-click; text fields and selected text keep theirs. */
+  function onContextMenu(e: MouseEvent) {
+    if (typing(e.target) || String(window.getSelection() ?? "").length) return;
+    e.preventDefault();
+  }
+
+  // Bring In mission forward when the reward screen opens (once per screen).
+  let screenWasOpen = false;
+  // The listing form prices new listings by the same rules as Auto-match.
+  $effect(() => {
+    mkt.rules = settings.market;
+  });
+
+  $effect(() => {
+    const open = !!mission?.reward_screen_open || !!freshCards;
+    if (open && !screenWasOpen && settings.jumpToPick) settings.tab = "mission";
+    screenWasOpen = open;
+  });
+
+  // A read that fails keeps what was loaded on screen (the pages stay as they are, with a note
+  // above them), and its error stays until a read works: the note doesn't blink on each retry.
+  async function reload() {
+    loading = true;
+    try {
+      // The stamp first: if TennoScope writes while the bundle loads, the next check sees a newer
+      // stamp and reloads, rather than the change being taken as already read.
+      const next = await dataStamp(settings.dataDir);
+      bundle = await loadBundle(settings.dataDir);
+      stamp = next;
+      loadedAt = Date.now();
+      error = null;
+    } catch (e) {
+      error = String(e);
+    } finally {
+      loading = false;
+    }
+  }
+  /** What went wrong reading TennoScope's data, in words (the error itself is under Details). */
+  function loadProblem(e: string) {
+    if (/HOME is not set/.test(e)) return "orbiter can't tell where TennoScope keeps its data: set the folder in Settings.";
+    if (/not found at|No dev bundle/i.test(e)) return `There's no TennoScope data in ${settings.dataDir || defaultDir || "its folder"} yet.`;
+    if (/parse|database|could not read/i.test(e)) return "TennoScope's data is there but couldn't be read. TennoScope may have been writing it just then.";
+    return "orbiter couldn't read TennoScope's data.";
+  }
+  const hhmm = (at: number | null) => (at == null ? "?" : new Date(at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }));
+
+  async function refreshLive() {
+    liveError = null;
+    try {
+      live = await loadLive();
+      liveAt = Date.now();
+    } catch {
+      // Unreachable: what was read last stays (timers count down from it); the next read in 5 minutes.
+      liveError = "api.warframestat.us didn't answer";
+    }
+  }
+  /** Try again after a failed read: TennoScope's data and the worldstate. */
+  function retry() {
+    reload();
+    refreshLive();
+  }
+
+  onMount(() => {
+    let poll: ReturnType<typeof setInterval>;
+    let livePoll: ReturnType<typeof setInterval>;
+    let screensPoll: ReturnType<typeof setInterval>;
+    let missionPoll: ReturnType<typeof setInterval>;
+    let marketPoll: ReturnType<typeof setInterval>;
+    let lastOrders = Date.now();
+    let accountPoll: ReturnType<typeof setInterval>;
+    let cardsPoll: ReturnType<typeof setInterval>;
+    let tsPoll: ReturnType<typeof setInterval>;
+    let statusPoll: ReturnType<typeof setInterval>;
+    /** warframe.market reads of your listings that failed in a row (the 30 s timer backs off). */
+    let orderFailures = 0;
+    // Gone before starting finished (a hot reload in development): don't start timers nobody clears.
+    let stopped = false;
+    // The window's X saves and quits like Ctrl+Q. First, so a close during startup is answered too.
+    const closeListener = quitOnWindowClose();
+    // warframe.market's live feed of new orders: cheap buys the moment they're listed.
+    const orderListener = onMarketOrder((o) => mkt.feedOrder(o));
+    let feedPoll: ReturnType<typeof setInterval> | undefined;
+    market
+      .feed(true)
+      .then((s) => {
+          mkt.feed = s;
+        })
+      .catch(() => {});
+    feedPoll = setInterval(() => {
+      market
+        .feedState()
+        .then((s) => {
+          mkt.feed = s;
+        })
+        .catch(() => {});
+    }, 30_000);
+    (async () => {
+      settings = await loadSettings();
+      if (stopped) return;
+      settings.tab = migrateTab(settings.tab);
+      settingsReady = true;
+      // Before reading its data: a fresh TennoScope re-reads the inventory once the game is up.
+      ts.path = settings.tennoscope.path;
+      ts.launch = settings.tennoscope.launch;
+      ts.check(true);
+      // Every 15 s: if it stopped (crashed, or you quit it), start it again in the background.
+      tsPoll = setInterval(() => ts.check(true), 15_000);
+      defaultDir = await defaultDataDir();
+      await reload();
+      if (stopped) return;
+      refreshLive();
+      importScreens();
+      // TennoScope re-reads the inventory when the game starts and on its own schedule; follow it.
+      poll = setInterval(async () => {
+        try {
+          const s = await dataStamp(settings.dataDir);
+          if (s && s !== stamp) reload();
+        } catch {
+          /* folder briefly missing during a write */
+        }
+      }, 20_000);
+      livePoll = setInterval(refreshLive, 5 * 60_000);
+      // TennoScope's log, for screens orbiter missed (a reading it didn't pass on, or a restart).
+      screensPoll = setInterval(importScreens, 10 * 60_000);
+      // EE.log is followed incrementally, so a short interval only reads what the game appended.
+      pollMission();
+      missionPoll = setInterval(pollMission, 2_000);
+      // A tiny file, read often: the reward screen gives you 15 s to choose.
+      cardsPoll = setInterval(pollCards, 800);
+      // warframe.market: sign-in state, your orders, and the auto-match timer.
+      // Your warframe.market status: held again from where you left it (see Orders).
+      mkt.init().then(() => {
+        if (mkt.linked && settings.market.presence) mkt.setStatus(settings.market.presence);
+      });
+      mkt.pollStatus();
+      statusPoll = setInterval(() => mkt.pollStatus(), 3_000);
+      marketPoll = setInterval(() => {
+        if (stopped) return;
+        const s = settings.market;
+        // Your listings as warframe.market has them, every 30 s (every 2 minutes while orbiter's
+        // window is hidden): changes made on the website (or a sale marked there) show up here
+        // without a reload. While warframe.market doesn't answer, each wait is twice the last.
+        const every = backoff(document.hidden ? 120_000 : 30_000, orderFailures, 10 * 60_000);
+        if (mkt.linked && !mkt.busy && Date.now() - lastOrders > every - 1000) {
+          lastOrders = Date.now();
+          mkt.refresh().then(
+            () => (orderFailures = 0),
+            () => orderFailures++,
+          );
+        }
+        if (!model || !s.auto || !mkt.linked || mkt.busy) return;
+        if (mkt.lastPass && Date.now() - mkt.lastPass < mkt.passDelay(s.every * 60_000)) return;
+        mkt.reprice(model, s, true);
+      }, 15_000);
+      // Signed in but warframe.market was unreachable (offline start, outage): try again each minute.
+      // And the website's chat, each minute while signed in.
+      accountPoll = setInterval(() => {
+        mkt.retryIfDisconnected();
+        void mkt.readChats();
+      }, 60_000);
+      void mkt.readChats();
+    })();
+    return () => {
+      stopped = true;
+      closeListener.then((stop) => stop());
+      orderListener.then((stop) => stop());
+      clearInterval(feedPoll);
+      clearInterval(poll);
+      clearInterval(livePoll);
+      clearInterval(screensPoll);
+      clearInterval(missionPoll);
+      clearInterval(marketPoll);
+      clearInterval(accountPoll);
+      clearInterval(cardsPoll);
+      clearInterval(tsPoll);
+      clearInterval(statusPoll);
+    };
+  });
+
+  // Saved on every change (300 ms after the last), each long log re-read only when it changed.
+  persistSettings(
+    () => settings,
+    () => settingsReady,
+  );
+
+  const fmtTime = (d: Date | null) =>
+    d ? d.toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" }) : "unknown";
+
+  /** How long ago, as of `now` (pass `tick`, so it ages while on screen). */
+  const ago = (d: Date | null, now: number) => {
+    if (!d) return "never";
+    const m = Math.floor((now - d.getTime()) / 60000);
+    return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : fmtTime(d);
+  };
+  /** One word for the TennoScope button: fine, something to look at, or not running. */
+  const tsTone = $derived.by(() => {
+    if (!ts.status) return "off";
+    if (!ts.running) return "bad";
+    const r = ts.report;
+    if (!r) return "warn";
+    if (Object.values(r.health).some((h) => h.state === "failed")) return "bad";
+    // A request from orbiter (a sync, a status change) failed in the last minute: the panel says why.
+    if (r.last_error && Date.now() - r.last_error.at < 60_000) return "warn";
+    if (r.setup.desktop_capture_action_available || !r.setup.access_mode) return "warn";
+    return "ok";
+  });
+  // The page list scrolls on a short window: a fade at its foot says there's more below.
+  let navEl = $state<HTMLElement | null>(null);
+  let navMore = $state(false);
+  const checkNav = () => {
+    const n = navEl;
+    navMore = !!n && n.scrollTop + n.clientHeight < n.scrollHeight - 4;
+  };
+  $effect(() => {
+    const n = navEl;
+    if (!n) return;
+    const ro = new ResizeObserver(checkNav);
+    ro.observe(n);
+    checkNav();
+    return () => ro.disconnect();
+  });
+  const resurgenceCount = $derived(model ? [...model.relicGroups.values()].filter((g) => g.resurgence).length : 0);
+</script>
+
+<svelte:window onkeydown={onKey} oncontextmenu={onContextMenu} bind:innerWidth={width} />
+
+<div class="shell" class:compact>
+  <aside class="rail" aria-label="orbiter">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
+        <g transform="rotate(-20 16 16)" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M3.5 16a12.5 5 0 0 1 25 0" /></g>
+        <circle cx="16" cy="16" r="5.2" fill="var(--platinum)" />
+        <g transform="rotate(-20 16 16)" fill="none"><path d="M28.5 16a12.5 5 0 0 1-25 0" stroke="var(--slab)" stroke-width="3.6" /><path d="M28.5 16a12.5 5 0 0 1-25 0" stroke="var(--gold)" stroke-width="2" /></g>
+        <rect x="23.6" y="6.4" width="4" height="4" transform="rotate(45 25.6 8.4)" fill="var(--gold)" stroke="var(--slab)" stroke-width="1" />
+      </svg>
+      <span class="brand-name">Orbiter</span>
+      <button class="fold" aria-label={compact ? "Show labels" : "Icons only"} title={compact ? "Show the page names" : "Icons only"} onclick={() => (settings.folded = !compact)}>
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d={compact ? "M6 3l5 5-5 5" : "M10 3 5 8l5 5"} fill="none" stroke="currentColor" stroke-width="1.5" /></svg>
+      </button>
+    </div>
+
+    {#snippet navItem(p: Page)}
+      <button class="nav" class:on={settings.tab === p.id} title={shortcutOf(p.id) ? `${p.label}: ${p.hint} (${shortcutOf(p.id)})` : `${p.label}: ${p.hint}`} aria-current={settings.tab === p.id ? "page" : undefined} onclick={() => (settings.tab = p.id)}>
+        <span class="ic">{#if "game" in p.icon}<GameIcon name={p.icon.game} size={20} />{:else}<Icon name={p.icon.line} size={18} stroke={1.5} />{/if}</span>
+        <span class="lbl">{p.label}</span>
+        {#if p.id === "mission" && mission?.relics.length}<span class="live" title="Fissure in progress"></span>{/if}
+        {#if p.id === "market" && shortListings.length}<span class="badge" title="Listings for more than you hold: sold, or used in game">{shortListings.length}</span>{/if}
+        {#if p.id === "market" && settings.market.auto && mkt.linked && !shortListings.length}<span class="live dim" title="Auto-match is on"></span>{/if}
+      </button>
+    {/snippet}
+
+    <nav aria-label="Pages" bind:this={navEl} onscroll={checkNav} class:more={navMore}>
+      {@render navItem(PAGES[0])}
+      {#each SECTIONS as sec (sec)}
+        <div class="sec register">{sec}</div>
+        {#each PAGES.filter((p) => p.group === sec) as p (p.id)}{@render navItem(p)}{/each}
+      {/each}
+    </nav>
+
+    <div class="foot">
+      <div class="game" title={[mission?.mission ?? (mission ? "Watching Warframe's log" : "No game log found"), model ? `Synced ${ago(model.observedAt, tick)}` : null].filter(Boolean).join(" · ")}>
+        <span class="pill" class:live={!!mission?.relics.length} class:idle={!mission}><i></i></span>
+        <span class="lbl"><strong>{mission?.relics.length ? "In a fissure" : mission ? "Watching" : "Idle"}</strong><small>{mission?.relics.length ? (mission.mission ?? "") : model ? `Synced ${ago(model.observedAt, tick)}` : "No data yet"}</small></span>
+      </div>
+      <button class="stamp sync" onclick={refreshAll} disabled={loading || syncing}
+        title={ts.report?.setup.access_mode === "full" && ts.report.game_running ? "Ask TennoScope to read your inventory from the game, then reload (Ctrl+R)" : "Reload TennoScope's saved data and the live fissures (Ctrl+R)"}>
+        <Icon name="refresh" size={12} />
+        <span class="lbl">{syncing ? "Syncing…" : loading ? "Reading…" : ts.report?.setup.access_mode === "full" && ts.report.game_running ? "Sync" : "Refresh"}</span>
+      </button>
+      <div class="tools">
+        {#if ts.status}
+          <button class="tool tsbtn tone-{tsTone}" aria-label="TennoScope" title={tsTone === "ok" ? "TennoScope: status, inventory sync, screen capture" : tsTone === "bad" ? "TennoScope: not running, or something failed. Open for details" : "TennoScope: something needs a look. Open for details"} onclick={() => (showTennoscope = true)}>
+            <i></i><span class="lbl">TennoScope</span>
+          </button>
+        {/if}
+        <button class="tool" class:on={settings.tab === "guide"} aria-label="Guide" title="How to use orbiter (F1)" onclick={() => (settings.tab = "guide")}><Icon name="guide" size={14} /></button>
+        <button class="tool" aria-label="Settings" aria-expanded={showSettings} title="Settings (Ctrl+,)" onclick={() => (showSettings = true)}><Icon name="settings" size={14} /></button>
+      </div>
+    </div>
+  </aside>
+
+  <main aria-busy={loading || syncing || !!mkt.op}>
+    <!-- Something you started is working: reading TennoScope, syncing, a warframe.market change. -->
+    {#if loading || syncing || mkt.op}<div class="progress" role="progressbar" aria-label={mkt.op ? `warframe.market: ${mkt.op}` : syncing ? "Syncing" : "Loading"}></div>{/if}
+    {#if !model && error}
+      <div class="page-inner"><div class="notice">
+        <h2 class="mark">Can't read TennoScope's data</h2>
+        <p class="prose">{loadProblem(error)}</p>
+        <p class="prose">TennoScope needs to have read your inventory at least once. orbiter starts it in the background; start Warframe and it reads your account when the game is up, and orbiter picks the data up by itself as soon as TennoScope writes it. If it doesn't, the TennoScope panel says why. If its data lives somewhere else, set the folder in Settings.</p>
+        <details class="why"><summary>Details</summary><code>{error}</code></details>
+        <div class="row">
+          <button class="stamp" onclick={() => (showTennoscope = true)}>TennoScope panel</button>
+          <button onclick={() => (showSettings = true)}>Settings</button>
+          <button onclick={retry} disabled={loading}>{loading ? "Trying…" : "Try again"}</button>
+        </div>
+      </div></div>
+    {:else if !model}
+      <div class="page-inner"><div class="notice"><span class="register">Reading your collection…</span></div></div>
+    {:else}
+      {#if error}
+        <div class="stale" role="alert" title={`${loadProblem(error)}\n${error}`}>
+          <span>Couldn't re-read TennoScope's data: showing what was loaded at {hhmm(loadedAt)}.</span>
+          <button class="link" onclick={retry} disabled={loading}>{loading ? "Trying…" : "Try again"}</button>
+        </div>
+      {/if}
+      {#if chatsDue.length}
+        <div class="stale repdue" role="status">
+          <span>{chatsDue.length === 1 ? `${chatsDue[0].with} messaged you on warframe.market` : `${chatsDue.length} unread chats on warframe.market`}{#if chatsDue.length === 1 && chatsDue[0].lastMessage}: <i class="msg">“{chatsDue[0].lastMessage.slice(0, 120)}”</i>{/if}</span>
+          <IconButton icon="external" tone="quiet" label="Open warframe.market" onclick={() => openUrl("https://warframe.market/")} />
+          <IconButton icon="close" tone="quiet" label="Dismiss" onclick={chatsRead} />
+        </div>
+      {/if}
+      {#if repDue}
+        <div class="stale repdue" role="status">
+          <span>Traded with <b>{repDue.t.partner}</b>, who's on warframe.market ({repDue.u.reputation} reputation).</span>
+          <RepButton partner={repDue.t.partner} text={settings.market.repText} ongiven={() => markRep(repDue.t.key, "given")} />
+          <IconButton icon="close" tone="quiet" label="Not now" title="Not now: no +rep for this trade" onclick={() => markRep(repDue.t.key, "skipped")} />
+        </div>
+      {/if}
+      {#snippet pane(id: string, body: import("svelte").Snippet)}
+        {#if visited[id]}<div class="pane" class:shown={settings.tab === id}>{@render body()}</div>{/if}
+      {/snippet}
+      {#snippet pMission()}<InMission {model} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} />{/snippet}
+      {#snippet pSets()}<Sets {model} advice={settings.advice} />{/snippet}
+      {#snippet pParts()}<Parts {model} bind:advice={settings.advice} />{/snippet}
+      {#snippet pMastery()}<Mastery {model} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} />{/snippet}
+      {#snippet pArcanes()}<Arcanes {model} bind:tiers={settings.tiers} bind:advice={settings.advice} />{/snippet}
+      {#snippet pMods()}<Mods {model} />{/snippet}
+      {#snippet pRelics()}<Relics {model} bind:advice={settings.advice} />{/snippet}
+      {#snippet pPlanner()}<Planner {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} />{/snippet}
+      {#snippet pHome()}<Home {model} {live} {mission} bind:settings={settings} go={(t: string) => (settings.tab = t)} {shortListings} {liveAt} {liveError} />{/snippet}
+      {#snippet pSales()}<Sales {model} bind:settings={settings} go={(t: string) => (settings.tab = t)} />{/snippet}
+      {#snippet pMarket()}<Orders {model} bind:settings={settings.market} advice={settings.advice} />{/snippet}
+      {#snippet pGuide()}<Guide go={(t: string) => (settings.tab = t)} bind:plannerMode={settings.plannerMode} />{/snippet}
+      {#snippet pFoundry()}<Foundry {model} bind:settings={settings} />{/snippet}
+      {#snippet pInventory()}<Inventory {model} sell={settings.market.sellable} platPerDucat={settings.advice.platPerDucat} />{/snippet}
+      {#snippet pWishlist()}<Wishlist {model} bind:settings={settings} />{/snippet}
+      {#snippet pRivens()}<Rivens {model} bind:settings={settings} />{/snippet}
+      {#snippet pStats()}<Stats {model} {settings} />{/snippet}
+      {@render pane("mission", pMission)}
+      {@render pane("sets", pSets)}
+      {@render pane("parts", pParts)}
+      {@render pane("mastery", pMastery)}
+      {@render pane("arcanes", pArcanes)}
+      {@render pane("mods", pMods)}
+      {@render pane("relics", pRelics)}
+      {@render pane("planner", pPlanner)}
+      {@render pane("home", pHome)}
+      {@render pane("sales", pSales)}
+      {@render pane("market", pMarket)}
+      {@render pane("guide", pGuide)}
+      {@render pane("inventory", pInventory)}
+      {@render pane("foundry", pFoundry)}
+      {@render pane("stats", pStats)}
+      {@render pane("rivens", pRivens)}
+      {@render pane("wishlist", pWishlist)}
+      <ListDialog {model} market={settings.market} advice={settings.advice} go={(t: string) => (settings.tab = t)} />
+      <ItemDetails {model} bind:settings={settings} />
+      <HoverCard {model} platPerDucat={settings.advice.platPerDucat} />
+    {/if}
+  </main>
+</div>
+
+<SettingsSheet bind:open={showSettings} bind:settings {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
+<TennoscopeSheet bind:open={showTennoscope} synced={model ? ago(model.observedAt, tick) : "not yet"} {syncing} onsync={refreshAll} />
+
+<style>
+  /* The frame: a sidebar of pages, and the page. minmax(0, 1fr): a wide table never stretches the window. */
+  .shell { display: grid; grid-template-columns: 14.5rem minmax(0, 1fr); height: 100vh; }
+  .shell.compact { grid-template-columns: 4.4rem minmax(0, 1fr); }
+  .pane { display: none; flex: 1; min-height: 0; min-width: 0; flex-direction: column; }
+  .pane.shown { display: flex; }
+  main { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+  .progress { position: absolute; top: 0; left: 0; right: 0; height: 2px; z-index: 5; overflow: hidden; pointer-events: none; background: rgb(214 174 74 / 12%); }
+  .progress::after { content: ""; position: absolute; top: 0; bottom: 0; width: 30%; background: linear-gradient(90deg, transparent, var(--gold), transparent); animation: sweep 1.1s ease-in-out infinite; }
+  @keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+
+  /* ---- sidebar: a dark struck plate, gold hairline on its edge */
+  .rail {
+    display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+    background: linear-gradient(180deg, #0d0f12, #090a0c); border-right: 1px solid var(--rule);
+    box-shadow: inset -1px 0 0 rgb(214 174 74 / 12%);
+  }
+  .brand { display: flex; align-items: center; gap: .6rem; padding: .95rem 1rem .8rem 1.1rem; border-bottom: 1px solid var(--rule); }
+  .brand-name { font-family: var(--face-mark); font-weight: 700; font-size: 1.3rem; letter-spacing: .03em; text-transform: uppercase; }
+  .fold { margin-left: auto; padding: .35rem; line-height: 0; border-color: transparent; background: transparent; color: var(--platinum-deep); }
+  .fold:hover { color: var(--platinum); }
+  /* The page list scrolls on a short window; Sync, TennoScope and Settings stay pinned below it. */
+  nav { display: grid; align-content: start; gap: 1px; padding: .6rem .55rem; flex: 1 1 auto; min-height: 0; overflow: hidden auto; scrollbar-width: thin; }
+  nav.more { mask-image: linear-gradient(180deg, #000 calc(100% - 3rem), transparent); }
+  .sec { padding: .85rem .65rem .35rem; font-size: .6rem; color: var(--gold-dim); letter-spacing: .2em; display: flex; align-items: center; gap: .5rem; }
+  .sec::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--rule-bright), transparent); }
+  .nav {
+    position: relative; display: flex; align-items: center; gap: .75rem; width: 100%; text-align: left;
+    border: 0; background: transparent; padding: .44rem .65rem; color: var(--platinum-dim);
+    font-family: var(--face-text); font-size: .9rem; font-weight: 500; letter-spacing: 0; text-transform: none;
+  }
+  .nav .ic { width: 1.5rem; height: 1.5rem; display: grid; place-items: center; flex: none; opacity: .78; transition: opacity .12s; }
+  .nav:hover:not(:disabled) { color: var(--platinum); background: rgb(230 233 238 / 4%); }
+  .nav:hover .ic, .nav.on .ic { opacity: 1; }
+  .nav.on { color: var(--platinum); background: linear-gradient(90deg, rgb(214 174 74 / 14%), rgb(214 174 74 / 2%) 70%); box-shadow: inset 2px 0 0 var(--gold); }
+  .nav.on .ic :global(svg) { color: var(--gold); }
+  .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .badge { margin-left: auto; min-width: 1.35rem; padding: .05rem .35rem; text-align: center; font-family: var(--face-register); font-size: .62rem; font-weight: 700; color: var(--slab); background: var(--gold); clip-path: var(--cut); }
+  .nav .live { margin-left: auto; width: .5rem; height: .5rem; background: var(--gold); transform: rotate(45deg); flex: none; box-shadow: 0 0 6px rgb(214 174 74 / 60%); }
+  .nav .live.dim { background: var(--gold-dim); box-shadow: none; }
+
+  .foot { flex: none; display: grid; gap: .5rem; padding: .75rem .8rem .8rem; border-top: 1px solid var(--rule); }
+  .game { display: flex; align-items: center; gap: .65rem; min-width: 0; padding: 0 .2rem; }
+  .game .lbl { display: grid; min-width: 0; }
+  .game strong { font-family: var(--face-register); font-size: .6rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+  .game small { font-size: .7rem; color: var(--platinum-deep); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pill i { width: .62rem; height: .74rem; background: var(--platinum); clip-path: var(--cartouche); display: block; }
+  .pill.live i { background: var(--gold); }
+  .pill.live + .lbl strong { color: var(--gold); }
+  .pill.idle i { clip-path: none; background: var(--platinum-deep); }
+  .sync { display: flex; justify-content: center; align-items: center; gap: .5rem; width: 100%; }
+  .tools { display: flex; gap: .4rem; }
+  .tool { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; padding: .5rem .6rem; }
+  .tool.on { color: var(--slab); background: var(--platinum); border-color: var(--platinum); }
+  .tsbtn { flex: 1; justify-content: flex-start; }
+  .tsbtn i { width: .5rem; height: .5rem; background: var(--platinum-deep); transform: rotate(45deg); flex: none; }
+  .tsbtn.tone-ok i { background: var(--verdigris); }
+  .tsbtn.tone-warn i { background: var(--gold); }
+  .tsbtn.tone-bad i { background: var(--oxblood); }
+
+  /* ---- icons only: folded by hand, or a narrow window */
+  .compact .brand { justify-content: center; padding-left: .5rem; padding-right: .5rem; flex-direction: column; gap: .4rem; }
+  .compact .fold { margin-left: 0; }
+  .compact .brand-name, .compact .lbl, .compact .sec { display: none; }
+  .compact .sec + .nav { margin-top: .55rem; }
+  .compact .nav { justify-content: center; padding: .48rem 0; }
+  .compact .foot { padding: .7rem .6rem .8rem; gap: .45rem; }
+  .compact .nav .badge, .compact .nav .live { position: absolute; top: .2rem; right: .35rem; margin: 0; }
+  .compact .badge { min-width: 1.05rem; font-size: .52rem; padding: 0 .2rem; }
+  .compact .game { justify-content: center; }
+  /* Folded: Sync, TennoScope, Guide and Settings as a 2×2 block, under the game light. */
+  .compact .foot { grid-template-columns: 1fr 1fr; gap: .35rem; padding: .6rem .5rem .7rem; }
+  .compact .game { grid-column: 1 / -1; }
+  .compact .tools { display: contents; }
+  .compact .sync, .compact .tool { padding: .45rem 0; min-width: 0; }
+  .compact .tsbtn { justify-content: center; }
+  /* A short window: tighter rows, so every page and the tools fit (all 16 folded at 700 px high). */
+  @media (max-height: 900px) {
+    .compact .brand { padding-top: .6rem; padding-bottom: .5rem; gap: .2rem; }
+    .compact nav { padding-top: .35rem; padding-bottom: .35rem; }
+    .compact .sec + .nav { margin-top: .4rem; }
+    .compact .nav { padding: .2rem 0; }
+    .compact .nav .ic { width: 1.35rem; height: 1.35rem; }
+    .shell:not(.compact) .nav { padding-top: .32rem; padding-bottom: .32rem; }
+    .shell:not(.compact) .sec { padding-top: .6rem; padding-bottom: .25rem; }
+  }
+
+  .notice { clip-path: var(--cut); margin-top: var(--field); padding: 1.6rem 1.8rem; border: 1px solid var(--rule); background: var(--plate); max-width: 52rem; display: grid; gap: .8rem; }
+  .notice h2 { font-size: 2rem; }
+  .notice .row { display: flex; gap: .6rem; flex-wrap: wrap; }
+  .notice .why { font-size: .78rem; color: var(--platinum-deep); }
+  .notice .why code { display: block; margin-top: .4rem; font-family: var(--face-register); font-size: .9em; white-space: pre-wrap; word-break: break-word; }
+  /* A reload failed with data on screen: one slim line above the page, which stays as it was. */
+  .stale { flex: none; display: flex; align-items: center; gap: .9rem; padding: .45rem 1.4rem; font-size: .8rem; color: var(--platinum-dim); background: rgb(214 174 74 / 8%); border-bottom: 1px solid var(--gold-dim); box-shadow: inset 3px 0 0 var(--gold); }
+  .stale .link { font-size: .64rem; }
+  .repdue { background: rgb(111 183 163 / 7%); border-bottom-color: color-mix(in srgb, var(--verdigris) 45%, transparent); box-shadow: inset 3px 0 0 var(--verdigris); }
+  .repdue b { color: var(--platinum); font-weight: 600; }
+  .repdue .msg { color: var(--platinum); font-style: normal; }
+</style>

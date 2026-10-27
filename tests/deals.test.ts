@@ -1,0 +1,48 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { buildModel } from "../src/lib/core/model";
+import { dealFromOrder, findDeals, type Watch } from "../src/lib/core/deals";
+import { indexItems, type BookOrder } from "../src/lib/core/market";
+import type { Bundle } from "../src/lib/core/types";
+
+const me = { id: "me", platform: "pc", crossplay: true };
+let n = 0;
+const sell = (platinum: number, status = "ingame"): BookOrder => ({
+  id: `o${n++}`, type: "sell", platinum, quantity: 1, rank: null, subtype: null, visible: true,
+  user: { id: `u${n}`, ingameName: `Seller${n}`, status, platform: "pc", crossplay: true } as BookOrder["user"],
+});
+const bundle: Bundle = { observed_at: 1, inventory: [], catalog: [], relics: [], prices: { prices: { "Mesa Prime Neuroptics": 40, "Lex Prime Barrel": 5 }, max_rank_prices: {} } };
+const index = indexItems([
+  { id: "a", slug: "mesa_prime_neuroptics", gameRef: null, name: "Mesa Prime Neuroptics", maxRank: null, subtypes: null, tags: null },
+  { id: "b", slug: "lex_prime_barrel", gameRef: null, name: "Lex Prime Barrel", maxRank: null, subtypes: null, tags: null },
+]);
+const watch: Watch[] = [
+  { name: "Mesa Prime Neuroptics", kind: "part", rank: null, why: "the last part of Mesa Prime" },
+  { name: "Lex Prime Barrel", kind: "part", rank: null, why: "a missing part of Lex Prime" },
+];
+
+test("a deal is an in-game seller at 60% of the usual price or less, with the whisper ready", () => {
+  const m = buildModel(bundle);
+  const deals = findDeals(m, index, { mesa_prime_neuroptics: [sell(20, "offline"), sell(22), sell(35)], lex_prime_barrel: [sell(1)] }, watch, me);
+  assert.equal(deals.length, 1, "the Lex barrel's usual price is too low to bother");
+  const [d] = deals;
+  assert.deepEqual([d.price, d.usual, d.why], [22, 40, "the last part of Mesa Prime"], "offline sellers don't count");
+  assert.equal(d.whisper, `/w ${d.seller} Hi! I want to buy: "Mesa Prime Neuroptics" for 22 platinum. (warframe.market)`);
+});
+
+test("no deal when the cheapest in-game seller is near the usual price", () => {
+  const m = buildModel(bundle);
+  assert.equal(findDeals(m, index, { mesa_prime_neuroptics: [sell(30)] }, watch, me).length, 0);
+});
+
+test("a new listing from the live feed is a deal by the same rule, the moment it goes up", () => {
+  const m = buildModel(bundle);
+  const byslug = new Map(watch.map((w) => [w.name.toLowerCase().replace(/ /g, "_"), w]));
+  const order = (platinum: number, itemId = "a", seller = "Cheapo") => ({ id: "n1", type: "sell", platinum, itemId, user: { id: "u9", ingameName: seller, status: "ingame" } });
+  const d = dealFromOrder(m, index, order(20), byslug, me)!;
+  assert.deepEqual([d.name, d.price, d.usual, d.seller], ["Mesa Prime Neuroptics", 20, 40, "Cheapo"]);
+  assert.equal(dealFromOrder(m, index, order(30), byslug, me), null, "75% of usual isn't a deal");
+  assert.equal(dealFromOrder(m, index, order(1, "b"), byslug, me), null, "too cheap an item to bother");
+  assert.equal(dealFromOrder(m, index, order(20, "zz"), byslug, me), null, "an item nobody watches");
+  assert.equal(dealFromOrder(m, index, { ...order(20), user: { id: "me", ingameName: "Me", status: "ingame" } }, byslug, me), null, "your own listing");
+});

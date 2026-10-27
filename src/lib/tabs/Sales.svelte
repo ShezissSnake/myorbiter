@@ -1,0 +1,294 @@
+<script lang="ts">
+  // What you've sold and what it made, and how each sale compares with the market. Sales log
+  // themselves from trades in the game log, or when you press Sold on a listing in Orders, or are
+  // added here by hand for trades made outside warframe.market.
+  import type { Model } from "../core/model";
+  import type { Sale, Settings } from "../backend";
+  import PageHead from "../ui/PageHead.svelte";
+  import Stat from "../ui/Stat.svelte";
+  import P from "../ui/P.svelte";
+  import Named from "../ui/Named.svelte";
+  import Seg from "../ui/Seg.svelte";
+  import Metal from "../ui/Metal.svelte";
+  import Icon from "../ui/Icon.svelte";
+  import IconButton from "../ui/IconButton.svelte";
+  import Chip from "../ui/Chip.svelte";
+  import { knownName } from "../core/market";
+  import { market as wfm } from "../backend";
+  import { importClosed } from "../core/closedOrders";
+  import { mkt } from "../marketStore.svelte";
+
+  let { model, settings = $bindable(), go }: { model: Model; settings: Settings; go: (t: string) => void } = $props();
+
+  const sales = $derived(settings.market.sales);
+
+  // Sales from warframe.market's side: the orders you've closed there (see closedOrders.ts).
+  let importing = $state(false);
+  let imported = $state<string | null>(null);
+  async function importFromMarket() {
+    const me = mkt.me?.ingameName;
+    if (!me) return;
+    importing = true;
+    imported = null;
+    try {
+      const closed = await wfm.closedOrders(me);
+      const r = importClosed(settings.market.sales, closed);
+      if (r.added || r.matched) settings.market.sales = r.sales.slice(0, 2000);
+      const sells = closed.filter((c) => c.kind === "sell").length;
+      imported = !sells ? "warframe.market has no closed sales on your profile." : r.added ? `Added ${r.added} sale${r.added === 1 ? "" : "s"} from warframe.market; the other ${sells - r.added} ${sells - r.added === 1 ? "was" : "were"} already logged.` : `All ${sells} closed sale${sells === 1 ? " on warframe.market was" : "s on warframe.market were"} already logged.`;
+    } catch (e) {
+      imported = `Couldn't read your closed orders: ${String(e).replace(/^Error:\s*/, "")}`;
+    } finally {
+      importing = false;
+    }
+  }
+  const DAY = 86_400_000;
+  // The page stays open for hours: "today" and the chart move on at midnight without a new sale.
+  let now = $state(Date.now());
+  $effect(() => {
+    const t = setInterval(() => (now = Date.now()), 60_000);
+    return () => clearInterval(t);
+  });
+  /** Local midnight: changes once a day, so what depends on it isn't redone every minute. */
+  const dayStart = $derived.by(() => {
+    const d = new Date(now);
+    d.setHours(0, 0, 0, 0);
+    return +d;
+  });
+  const since = (t: number) => sales.filter((s) => s.at >= t);
+  const plat = (xs: Sale[]) => xs.reduce((n, s) => n + s.quantity * s.platinum, 0);
+  const trades = (xs: Sale[]) => xs.reduce((n, s) => n + s.quantity, 0);
+
+  const today = $derived(since(dayStart));
+  const week = $derived(since(now - 7 * DAY));
+  const month = $derived(since(now - 30 * DAY));
+
+  let span = $state<"7" | "30" | "all">("30");
+  const inSpan = $derived(span === "all" ? sales : since(now - Number(span) * DAY));
+  const top = $derived(
+    [...inSpan.reduce((m, s) => m.set(s.item, { item: s.item, qty: (m.get(s.item)?.qty ?? 0) + s.quantity, plat: (m.get(s.item)?.plat ?? 0) + s.quantity * s.platinum }), new Map<string, { item: string; qty: number; plat: number }>()).values()]
+      .sort((a, b) => b.plat - a.plat)
+      .slice(0, 8),
+  );
+  // Platinum per day, for the bar chart. Days are calendar days (a clock change makes one 23 or 25 hours).
+  const days = $derived.by(() => {
+    const n = span === "7" ? 7 : 30;
+    const out = Array.from({ length: n }, (_, i) => {
+      const d = new Date(dayStart);
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - (n - 1 - i));
+      return { at: +d, plat: 0 };
+    });
+    for (const s of sales) {
+      if (s.at < out[0].at) continue;
+      let i = n - 1;
+      while (i > 0 && s.at < out[i].at) i--;
+      out[i].plat += s.quantity * s.platinum;
+    }
+    return out;
+  });
+  const peak = $derived(Math.max(1, ...days.map((d) => d.plat)));
+
+  // Adding one by hand.
+  let item = $state("");
+  let qty = $state<number | null>(null);
+  let price = $state<number | null>(null);
+  // Mods and arcanes sell at very different prices maxed and unranked: say which it was.
+  let maxed = $state(false);
+  const names = $derived([...new Set([...model.partByName.keys(), ...model.primeParents.map((p) => `${p.name} Set`), ...[...model.catalogByUnique.values()].filter((c) => c.tradable).map((c) => c.name)])].sort());
+  // What you typed, in any case, as orbiter spells it; something it doesn't know can still be logged.
+  const known = $derived(knownName(names, item));
+  const unknown = $derived(!!item.trim() && !known);
+  // Some names have several catalog entries (Serration): the highest max rank is the one that trades.
+  const ranked = $derived(known ? ([...model.catalogByUnique.values()].filter((c) => c.name === known && (c.maxRank ?? 0) > 0).sort((a, b) => (b.maxRank ?? 0) - (a.maxRank ?? 0))[0] ?? null) : null);
+  /** Why Add is off, when it is. */
+  const blocked = $derived(!item.trim() ? "Name the item sold" : qty != null && Math.round(qty) < 1 ? "Sold at least 1" : !price || price < 1 ? "Set the price each" : null);
+  function add() {
+    const n = Math.round(qty ?? 1);
+    if (blocked || !price) return;
+    const rank = ranked ? (maxed ? (ranked.maxRank ?? null) : 0) : null;
+    settings.market.sales = [{ at: Date.now(), item: known ?? item.trim(), rank, quantity: n, platinum: Math.round(price) }, ...sales].slice(0, 2000);
+    item = "";
+    maxed = false;
+    qty = null;
+    price = null;
+  }
+  // The delete confirm sticks to its sale, not its row: a sale logged meanwhile shifts the rows.
+  const keyOf = (s: Sale) => `${s.at}|${s.item}|${s.rank ?? ""}|${s.quantity}|${s.platinum}|${s.trade ?? ""}`;
+  let removing = $state<string | null>(null);
+  function drop(key: string) {
+    const i = sales.findIndex((x) => keyOf(x) === key);
+    if (i >= 0) settings.market.sales = sales.filter((_, j) => j !== i);
+    removing = null;
+  }
+
+  const when = (t: number) => {
+    const d = new Date(t);
+    return t >= dayStart ? d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  };
+  const image = (name: string) => model.imageOf(name.replace(/ Set$/, ""));
+
+  // Against the market: what each sale made next to the daily median for that item (the max-rank
+  // price for a ranked arcane or mod).
+  const market = (s: Sale) => (s.rank != null && s.rank > 0 ? (model.priceMax(s.item) ?? model.price(s.item)) : model.price(s.item));
+  const UNDER = 0.8;
+  const ratio = (s: Sale) => {
+    const m = market(s);
+    return m && m > 0 ? s.platinum / m : null;
+  };
+  const vsMonth = $derived.by(() => {
+    let got = 0;
+    let ref = 0;
+    for (const s of month) {
+      const m = market(s);
+      if (!m) continue;
+      got += s.platinum * s.quantity;
+      ref += m * s.quantity;
+    }
+    return ref ? got / ref : null;
+  });
+  const underCount = $derived(month.filter((s) => (ratio(s) ?? 1) < UNDER).length);
+  // What sold three or more times in 30 days: worth keeping listed, and listing more copies of.
+  const OFTEN = 3;
+  const fast = $derived(new Set([...month.reduce((m, s) => m.set(s.item, (m.get(s.item) ?? 0) + s.quantity), new Map<string, number>())].filter(([, n]) => n >= OFTEN).map(([k]) => k)));
+</script>
+
+<div class="page"><div class="page-inner">
+  <!-- Nothing logged: no row of zeros, just how sales get here. -->
+  <PageHead title="Sales" blurb="What you've sold, and the platinum it made." band={sales.length ? band : undefined} />
+    {#snippet band()}
+      <Stat label="Today" note={`${trades(today)} sold`}><P v={plat(today)} big /></Stat>
+      <Stat label="Last 7 days" note={`${trades(week)} sold`}><P v={plat(week)} big /></Stat>
+      <Stat label="Last 30 days" note={`${trades(month)} sold`}><P v={plat(month)} big /></Stat>
+      {#if vsMonth != null}<Stat label="Vs market, 30 days" tone={vsMonth < UNDER ? "gold" : "platinum"} note={underCount ? `${underCount} sale${underCount === 1 ? "" : "s"} under ${Math.round(UNDER * 100)}% of the median` : "Every sale near the daily median or better"}>{Math.round(vsMonth * 100)}%</Stat>{/if}
+      <Stat label="All logged" note={sales.length ? `since ${new Date(Math.min(...sales.map((s) => s.at))).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}` : "Nothing yet"}><P v={plat(sales)} big /></Stat>
+    {/snippet}
+
+  {#if !sales.length}
+    <section class="panel empty">
+      <h2 class="mark">No sales logged yet</h2>
+      <p class="prose">Sales log themselves: when a trade goes through where you gave items for platinum, orbiter reads it from Warframe's log, marks the listing sold on warframe.market and adds it here, usually within half a minute. For anything else, press <span class="ic"><Icon name="sold" size={13} /></span> on a listing in <button class="link" onclick={() => go("market")}>Orders</button>, or add it below.</p>
+    </section>
+  {:else}
+    <div class="grid">
+      <section class="chart">
+        <div class="head"><span class="register">Platinum per day</span>{#if days.some((d) => d.plat > 0)}<span class="dim small">best day <P v={peak} /></span>{/if}<span class="grow"></span><Seg bind:value={span} options={[{ v: "7", label: "7 days" }, { v: "30", label: "30 days" }, { v: "all", label: "All", title: "Best sellers over everything logged; the chart shows 30 days" }]} /></div>
+        <div class="bars" role="img" aria-label="Platinum made per day">
+          {#each days as d (d.at)}
+            <div class="col" title="{new Date(d.at).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}: {d.plat}p">
+              <div class="fill" style:height="{(d.plat / peak) * 100}%"></div>
+            </div>
+          {/each}
+        </div>
+        <div class="axis register"><span>{new Date(days[0].at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span><span>today</span></div>
+      </section>
+      <section class="top">
+        <div class="register">Best sellers</div>
+        {#each top as t (t.item)}
+          <div class="trow"><Named file={image(t.item)} name={t.item} size={30}>{#if fast.has(t.item)}<span class="tag fast" title="Sold {OFTEN} or more times in the last 30 days: keep it listed, and list more copies if you have them">sells often</span>{/if}</Named><span class="dim small n">{t.qty}×</span><P v={t.plat} /></div>
+        {:else}
+          <p class="dim small">Nothing sold in this span.</p>
+        {/each}
+      </section>
+    </div>
+  {/if}
+
+
+  <div class="loghead">
+    <div class="import">
+      <h2 class="register">Sale log</h2>
+      <IconButton icon="import" tone="quiet" label={importing ? "Reading warframe.market…" : "Import sales from warframe.market"} title={mkt.me?.ingameName ? "Import sales from warframe.market: every sale you closed there (marked sold, or by Auto-match) that isn't logged here yet" : "Import sales from warframe.market: sign in on Orders first"} disabled={importing || !mkt.me?.ingameName} onclick={importFromMarket} />
+      {#if importing}<span class="small dim" role="status">Reading warframe.market…</span>{:else if imported}<span class="small dim" role="status">{imported}</span>{/if}
+    </div>
+    <form class="addsale" onsubmit={(e) => { e.preventDefault(); add(); }}>
+      <input class="it" list="sale-names" placeholder="Add a sale by hand: item" bind:value={item} aria-label="Item sold" />
+      <datalist id="sale-names">{#each names as n (n)}<option value={n}></option>{/each}</datalist>
+      {#if ranked}<Chip bind:on={maxed} label="Maxed" title="Sold at max rank (R{ranked.maxRank}), compared with the maxed price" />{/if}
+      <input type="number" min="1" placeholder="Qty 1" bind:value={qty} aria-label="How many" />
+      <span class="dim">×</span>
+      <span class="plat"><input type="number" min="1" placeholder="Price" bind:value={price} aria-label="Platinum each" /><Metal kind="plat" size={14} /></span>
+      <IconButton icon="plus" tone="gold" type="submit" label="Add sale" title={blocked ?? "Add it to the log"} disabled={!!blocked} />
+    </form>
+    {#if unknown}<p class="small warn note">Not an item orbiter knows: it won't be compared with the market.</p>
+    {:else if qty != null && Math.round(qty) < 1}<p class="small warn note">Quantity is at least 1.</p>{/if}
+  </div>
+
+  {#if sales.length}
+    <table class="log">
+      <thead><tr><th>When</th><th>Item</th><th class="right">Qty</th><th class="right">Each</th><th class="right" title="The sale price next to the daily median on warframe.market">Vs market</th><th class="right">Total</th><th></th></tr></thead>
+      <tbody>
+        {#each sales.slice(0, 200) as s, i (s.at + s.item + i)}
+          <tr>
+            <td class="dim when">{when(s.at)}</td>
+            <td><Named file={image(s.item)} name={s.item}>{#if s.rank != null}<span class="tag">R{s.rank}</span>{/if}</Named></td>
+            <td class="right">{s.quantity}</td>
+            <td class="right"><P v={s.platinum} dim /></td>
+            <td class="right">{#if ratio(s) != null}{@const r = ratio(s) ?? 0}<span class="vs" class:under={r < UNDER} class:over={r >= 1.1} title="Median {Math.round(market(s) ?? 0)}p">{Math.round(r * 100)}%</span>{:else}<span class="dim">–</span>{/if}</td>
+            <td class="right"><P v={s.quantity * s.platinum} /></td>
+            <td class="right">
+              {#if removing === keyOf(s)}<span class="acts"><span class="ask register">Delete?</span><IconButton icon="trash" tone="danger" label="Delete it" onclick={() => drop(keyOf(s))} /><IconButton icon="close" tone="quiet" label="Keep" onclick={() => (removing = null)} /></span>
+              {:else}<span class="del"><IconButton icon="trash" tone="danger quiet" label="Delete" title="Delete: take this sale out of the log (warframe.market isn't touched)" onclick={() => (removing = keyOf(s))} /></span>{/if}
+            </td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+    {#if sales.length > 200}<p class="dim small more">Showing the latest 200 of {sales.length}.</p>{/if}
+  {/if}
+</div></div>
+
+<style>
+  .import { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+  .ic { display: inline-grid; place-items: center; width: 1.3rem; height: 1.3rem; vertical-align: -.3rem; border: 1px solid var(--gold-dim); color: var(--gold); }
+  .empty { margin: var(--course) 0 var(--step); display: grid; gap: .6rem; border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); padding: 1.2rem 1.4rem; }
+  .empty h2 { margin: 0; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(18rem, 1fr); gap: 1.6rem; margin: var(--step) 0 var(--course); }
+  @media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
+  .chart, .top { border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); padding: 1rem 1.2rem; }
+  .head { display: flex; align-items: center; margin-bottom: .8rem; gap: 1rem; }
+  .head .small { display: inline-flex; align-items: center; gap: .4rem; }
+  .bars { display: flex; align-items: flex-end; gap: 3px; height: 9rem; }
+  .col { flex: 1; height: 100%; display: flex; align-items: flex-end; background: rgb(255 255 255 / 2%); }
+  .fill { width: 100%; background: linear-gradient(var(--platinum), var(--platinum-deep)); }
+  .col:hover .fill { background: var(--gold); }
+  .col:hover { background: rgb(255 255 255 / 5%); }
+  .axis { display: flex; justify-content: space-between; margin-top: .4rem; color: var(--platinum-deep); }
+  .top { display: grid; gap: .55rem; align-content: start; }
+  .top > .register { margin-bottom: .2rem; }
+  .trow { display: grid; grid-template-columns: minmax(0, 1fr) 2.4rem 4rem; gap: .8rem; align-items: center; }
+  .trow .n, .trow :global(.amt) { justify-self: end; }
+
+  /* The log, headed by the hand-entry form. */
+  .loghead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .8rem 1.5rem; padding-bottom: .8rem; }
+  .loghead h2 { margin: 0; }
+  .addsale { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+  .addsale .it { min-width: 18rem; }
+  .note { flex-basis: 100%; margin: 0; text-align: right; }
+  .warn { color: var(--gold); }
+  .addsale input[type="number"] { width: 5rem; }
+  .addsale input, .addsale :global(.ib) { height: 36px; }
+  .addsale :global(.ib) { --ib: 36px; }
+  .plat { display: inline-flex; align-items: center; gap: .4rem; }
+  .log { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; border-top: 1px solid var(--rule); }
+  .log th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: .6rem .6rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  .log th.right { text-align: right; }
+  .log td { padding: .45rem .6rem; border-bottom: 1px solid var(--rule); }
+  .log th:first-child, .log td:first-child { padding-left: 0; }
+  .log th:last-child, .log td:last-child { padding-right: 0; }
+  .log tbody tr:hover td { background: rgb(255 255 255 / 1.5%); }
+  .when { white-space: nowrap; font-size: .84rem; }
+  .right { text-align: right; }
+  .vs { color: var(--platinum-dim); white-space: nowrap; }
+  .vs.under { color: var(--oxblood); }
+  /* "under" sits in its own fixed slot after the number, so the percentages stay in one column. */
+  .vs::after { content: ""; display: inline-block; width: 3.6em; text-align: left; font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; }
+  .vs.under::after { content: " under"; }
+  .vs.over { color: var(--verdigris); }
+  .fast { color: var(--verdigris); border-color: var(--verdigris); }
+  .acts { display: inline-flex; align-items: center; gap: .35rem; }
+  .ask { color: var(--oxblood); font-size: .6rem; margin-right: .2rem; }
+  /* Delete waits on its row: shown when you point at the row or tab to it. */
+  tr .del { display: inline-flex; opacity: 0; transition: opacity .12s; }
+  tr:hover .del, .del:focus-within { opacity: 1; }
+  .more { margin-top: .6rem; }
+</style>
