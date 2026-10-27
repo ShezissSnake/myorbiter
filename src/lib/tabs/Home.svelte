@@ -16,6 +16,7 @@
   import GameIcon, { type GameIconName } from "../ui/GameIcon.svelte";
   import Icon from "../ui/Icon.svelte";
   import IconButton from "../ui/IconButton.svelte";
+  import Chip from "../ui/Chip.svelte";
   import Effort from "../ui/Effort.svelte";
   import Thumb from "../ui/Thumb.svelte";
   import P from "../ui/P.svelte";
@@ -202,6 +203,35 @@
     if (urgent.length && live.resurgenceExpiry && Date.parse(live.resurgenceExpiry) - now < 3 * DAY) out.push({ tone: "gold", icon: "varzia", text: `Varzia's rotation ends in ${until(live.resurgenceExpiry, now)}, with ${urgent.length} prime${urgent.length === 1 ? "" : "s"} you need`, act: "", to: "" });
     return out;
   });
+
+  // ---------------------------------------------------------------- what Home shows (Customise)
+  const CARDS: { key: string; label: string }[] = [
+    { key: "alerts", label: "Needs you" },
+    { key: "world", label: "World clocks" },
+    { key: "market", label: "Market" },
+    { key: "ready", label: "Ready to sell" },
+    { key: "fissures", label: "Fissures now" },
+    { key: "today", label: "Worth doing today" },
+    { key: "foundry", label: "Foundry" },
+    { key: "wishes", label: "Your wishlist" },
+    { key: "deals", label: "Cheap buys" },
+    { key: "mastery", label: "Easiest mastery next" },
+    { key: "baro", label: "Baro Ki’Teer" },
+    { key: "varzia", label: "Varzia" },
+  ];
+  let customising = $state(false);
+  const hidden = $derived(new Set(settings.homeHidden));
+  const off = (key: string) => hidden.has(key);
+  function toggleCard(key: string, on: boolean) {
+    settings.homeHidden = on ? settings.homeHidden.filter((k) => k !== key) : [...settings.homeHidden, key];
+  }
+  // The wide card on the left of each row and the narrow ones beside it. With all of one side
+  // off, the other takes the whole width, so no row is left half empty.
+  const BESIDE: Record<string, string[]> = { market: ["ready"], today: ["foundry", "wishes", "deals"], mastery: ["baro", "varzia"] };
+  const shownBeside = (key: string) => BESIDE[key].filter((k) => !off(k)).length;
+  const alone = (key: string) => shownBeside(key) === 0;
+  const rowSpan = (key: string) => (alone(key) ? "auto" : `span ${shownBeside(key)}`);
+  const orphan = (key: string) => off(Object.keys(BESIDE).find((l) => BESIDE[l].includes(key))!);
 </script>
 
 {#snippet head(icon: GameIconName | null, line: string | null, title: string, to: string | null, action: string)}
@@ -217,11 +247,24 @@
       <span class="orn" aria-hidden="true"><i></i></span>
       <h1 class="mark">Home</h1>
     </div>
-    <p class="dim">{new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</p>
+    <div class="hr">
+      <p class="dim">{new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</p>
+      <IconButton icon="settings" tone="quiet" label="Customise Home" title="Choose what Home shows" aria-expanded={customising} onclick={() => (customising = !customising)} />
+    </div>
   </header>
 
+  {#if customising}
+    <section class="custom" aria-label="What Home shows">
+      <span class="register">Show on Home</span>
+      <div class="cards">
+        {#each CARDS as c (c.key)}<Chip on={!off(c.key)} label={c.label} onchange={(on: boolean) => toggleCard(c.key, on)} />{/each}
+      </div>
+      {#if settings.homeHidden.length}<button class="link" onclick={() => (settings.homeHidden = [])}>Show everything</button>{/if}
+    </section>
+  {/if}
+
   {#if alerts.length}
-    <section class="alerts" aria-label="Needs you">
+    <section class="alerts" aria-label="Needs you" class:off={off("alerts")}>
       {#each alerts as a (a.text)}
         <div class="alert t-{a.tone}"><GameIcon name={a.icon} size={20} /><span>{a.text}</span>{#if a.to}<button class="link" onclick={() => go(a.to)}>{a.act} →</button>{/if}</div>
       {/each}
@@ -231,7 +274,7 @@
   <div class="grid">
     <!-- World clocks -->
     {#if cycles.length || resets.length}
-      <section class="panel world" aria-label="World clocks">
+      <section class="panel world" class:off={off("world")} aria-label="World clocks">
         {#each cycles as c (c.key)}
           <div class="clock" title="{c.label}: {c.state}{c.next ? `, ${c.next} in ${until(c.ends, now)}` : ''}">
             <GameIcon name={CYCLE_ICON[c.key]} size={26} />
@@ -249,7 +292,7 @@
     {/if}
 
     <!-- Market -->
-    <section class="panel market">
+    <section class="panel market" class:off={off("market")} class:full={alone("market")} style:grid-row={rowSpan("market")}>
       {@render head("market", null, "Market", "market", "Orders")}
       {#if mkt.linked}
         <div class="presence"><Presence settings={settings.market} quiet /></div>
@@ -278,7 +321,7 @@
     </section>
 
     <!-- Ready to sell -->
-    <section class="panel ready">
+    <section class="panel ready" class:off={off("ready")} class:half={orphan("ready")}>
       {@render head("platinum", null, "Ready to sell", "market", "Put them on sale")}
       {#if !ticked}
         <p class="dim">Nothing ticked in <b>Put my spares on sale</b> on Orders.</p>
@@ -298,7 +341,7 @@
     </section>
 
     <!-- Fissures -->
-    <section class="panel fissures">
+    <section class="panel fissures" class:off={off("fissures")}>
       {@render head("void-tear", null, "Fissures now", "relics", "Relics")}
       {#if live.fissures == null}
         <p class="dim">{liveNote}</p>
@@ -351,7 +394,7 @@
 
     <!-- Easiest mastery -->
     <!-- Worth doing today -->
-    <section class="panel today">
+    <section class="panel today" class:off={off("today")} class:full={alone("today")} style:grid-row={rowSpan("today")}>
       {@render head("nightwave", null, "Worth doing today", null, "")}
       <div class="tgrid">
         {#if day.circuit}
@@ -397,7 +440,7 @@
     </section>
 
     <!-- Foundry -->
-    <section class="panel foundry">
+    <section class="panel foundry" class:off={off("foundry")} class:half={orphan("foundry")}>
       {@render head("dojo", null, "Foundry", null, "")}
       {#if builds.length}
         <ul class="fb">
@@ -425,7 +468,7 @@
     </section>
 
     <!-- Wishlist -->
-    <section class="panel wishes">
+    <section class="panel wishes" class:off={off("wishes")} class:half={orphan("wishes")}>
       {@render head(null, "star", "Your wishlist", "wishlist", "Wishlist")}
       {#if wishes.length}
         <ul class="fb">
@@ -445,7 +488,7 @@
     </section>
 
     <!-- Cheap buys -->
-    <section class="panel deals">
+    <section class="panel deals" class:off={off("deals")} class:half={orphan("deals")}>
       {@render head("platinum", null, "Cheap buys", null, "")}
       {#if mkt.deals.length}
         <ul class="dl">
@@ -467,7 +510,7 @@
       </p>
     </section>
 
-    <section class="panel mastery">
+    <section class="panel mastery" class:off={off("mastery")} class:full={alone("mastery")} style:grid-row={rowSpan("mastery")}>
       {@render head("mastery", null, "Easiest mastery next", "mastery", "Mastery")}
       {#if toLevel.length}
         <button class="levelrow" onclick={() => go("mastery")} title="Things you own that aren't at max rank yet">
@@ -489,7 +532,7 @@
     </section>
 
     <!-- Baro -->
-    <section class="panel baro">
+    <section class="panel baro" class:off={off("baro")} class:half={orphan("baro")}>
       {@render head("baro", null, "Baro Ki’Teer", "parts", "Spares for ducats")}
       {#if !baro}
         <p class="dim">Schedule unavailable.</p>
@@ -517,7 +560,7 @@
     </section>
 
     <!-- Varzia -->
-    <section class="panel varzia" class:slim={!!live.resurgence && !varzia.length}>
+    <section class="panel varzia" class:off={off("varzia")} class:half={orphan("varzia")} class:slim={!!live.resurgence && !varzia.length}>
       {@render head("varzia", null, "Varzia: Prime Resurgence", "relics", "Relics")}
       {#if !live.resurgence}
         <p class="dim">Rotation unavailable.</p>
@@ -553,6 +596,12 @@
   .t-red { box-shadow: inset 3px 0 0 var(--oxblood); }
 
   .grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--step); padding-bottom: var(--course); }
+  .off { display: none !important; }
+  .panel.full { grid-column: span 12; }
+  .panel.half { grid-column: span 6; }
+  .hr { display: flex; align-items: center; gap: .8rem; }
+  .custom { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem 1rem; padding: .8rem 1rem; margin-bottom: var(--step); border: 1px solid var(--rule); background: var(--plate); }
+  .custom .cards { display: flex; flex-wrap: wrap; gap: .4rem; flex: 1; }
   .panel { border: 1px solid var(--rule); background: rgb(17 19 23 / 72%); padding: 1rem 1.2rem 1.1rem; min-width: 0; display: flex; flex-direction: column; gap: .8rem; }
   .market { grid-column: span 7; }
   .ready { grid-column: span 5; }

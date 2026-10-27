@@ -36,7 +36,7 @@ const bundle = (inventory: InventoryRow[]): Bundle => ({
       "Arcane Energize": 8, Serration: 12, Thumper: 3,
     },
     max_rank_prices: { "Arcane Energize": 160, Serration: 40 },
-    trade_rate: { Serration: [5, 0, ""], Thumper: [0.2, 0, ""] },
+    trade_rate: { Serration: [5, 0, ""], Thumper: [0.2, 0, ""], "Arcane Energize": [8, 0, ""] },
   },
 });
 const rhino = (n: number) => [

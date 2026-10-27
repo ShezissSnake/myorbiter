@@ -1,6 +1,6 @@
 // What's in your Foundry and when each build is ready, from TennoScope's read of the inventory.
 import { masteryPoints } from "./acquire";
-import type { Model } from "./model";
+import { baseId, type Model } from "./model";
 
 export interface FoundryBuild {
   /** Recipe path, and with readyAt what an alert is sent once for. */
@@ -33,4 +33,31 @@ export function foundryBuilds(m: Model, ready: [string, number][], now = Date.no
       return { path, key: `${path}|${at}`, name, readyAt: at, ready: at <= now, points, image: m.imageOf(name) ?? (p ? m.imageOf(p.parent) : null) };
     })
     .sort((a, b) => a.readyAt - b.readyAt);
+}
+
+/** When each item being built in the Foundry is ready (its main blueprint), by the item's path. */
+export function itemReadyTimes(m: Model, ready: [string, number][]): Map<string, number> {
+  const byRecipe = new Map<string, string>();
+  for (const item of m.catalogByUnique.values()) {
+    for (const c of item.components ?? []) if (c.name === "Blueprint") byRecipe.set(c.uniqueName, item.uniqueName);
+  }
+  const out = new Map<string, number>();
+  for (const [path, at] of ready) {
+    const unique = byRecipe.get(baseId(path));
+    if (unique && !(at >= (out.get(unique) ?? Infinity))) out.set(unique, at);
+  }
+  return out;
+}
+
+/**
+ * Something you'll level for mastery: in your arsenal ("level"), built and waiting in the Foundry
+ * ("claim"), or still building ("building", with when it's ready if TennoScope said).
+ */
+export type LevelStage = { stage: "level" } | { stage: "claim" } | { stage: "building"; readyAt: number | null };
+
+export function levelStage(m: Model, unique: string, readyAt: Map<string, number>, now = Date.now()): LevelStage {
+  const building = m.building(unique);
+  if (building <= 0 || m.owned(unique) - building > 0) return { stage: "level" };
+  const at = readyAt.get(unique) ?? null;
+  return at != null && at <= now ? { stage: "claim" } : { stage: "building", readyAt: at };
 }

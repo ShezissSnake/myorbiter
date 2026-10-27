@@ -654,13 +654,11 @@
   // The live feed watches a longer list than the scan: it costs no requests.
   $effect(() => {
     const m = model;
-    // Every tier you set counts, not just a new object.
-    const tiers = JSON.parse(JSON.stringify(settings.tiers)) as typeof settings.tiers;
     const items = mkt.items.length;
     if (!m) return;
     untrack(() => {
       if (!items) void mkt.ensureItems().catch(() => {});
-      else mkt.watchLive(m, watchlist(m, tiers, 300));
+      else mkt.watchLive(m, watchlist(m, 300));
     });
   });
   // Cheap buys: the watchlist's order books every ten minutes, while orbiter is open.
@@ -670,7 +668,7 @@
     if (!model || now - lastDeals < 10 * 60_000) return;
     lastDeals = now;
     const m = model;
-    untrack(() => void mkt.scanDeals(m, watchlist(m, settings.tiers)));
+    untrack(() => void mkt.scanDeals(m, watchlist(m)));
   });
   $effect(() => {
     const deals = mkt.deals;
@@ -1240,8 +1238,8 @@
       {#snippet pMission()}<InMission {model} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} />{/snippet}
       {#snippet pSets()}<Sets {model} advice={settings.advice} />{/snippet}
       {#snippet pParts()}<Parts {model} bind:advice={settings.advice} />{/snippet}
-      {#snippet pMastery()}<Mastery {model} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} />{/snippet}
-      {#snippet pArcanes()}<Arcanes {model} bind:tiers={settings.tiers} bind:advice={settings.advice} />{/snippet}
+      {#snippet pMastery()}<Mastery {model} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} />{/snippet}
+      {#snippet pArcanes()}<Arcanes {model} bind:advice={settings.advice} />{/snippet}
       {#snippet pMods()}<Mods {model} />{/snippet}
       {#snippet pRelics()}<Relics {model} bind:advice={settings.advice} />{/snippet}
       {#snippet pPlanner()}<Planner {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} />{/snippet}

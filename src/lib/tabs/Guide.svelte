@@ -34,7 +34,7 @@
       steps: [
         ["parts", "Prime parts", "every part with its best use: keep it to build, sell it alone or as a set, or trade it to Baro for ducats. Set what a ducat is worth to you here."],
         ["sets", "Sets", "complete sets you can sell, and sets one or two parts short."],
-        ["arcanes", "Arcanes", "rank arcanes by price or your own S–D tier (the Tier picker on each card or row); “Sell or dissolve” sorts your spare copies into ones to sell and ones worth more dissolved for Vosfor at Loid, and ranks his arcane packs by what you're still collecting (or by market price)."],
+        ["arcanes", "Arcanes", "rank arcanes by price and see how close you are to maxing each; “Sell or dissolve” sorts your spare copies into ones to sell and ones worth more dissolved for Vosfor at Loid, and ranks his arcane packs by what you're still collecting (or by market price)."],
         ["mods", "Mods", "spare mod copies to sell (your best copy and one to give away are always kept), by default only ones that sell daily."],
         ["market", "Orders", "your listings, following the cheapest in-game seller. “Put my spares on sale” lists everything you tick in one go after showing the plan. Your warframe.market status lives here and on Home."],
         ["rivens", "Rivens", "your rivens graded roll by roll, a price check against similar ones for sale, a finder, and alerts when one you want is listed at your price."],
@@ -85,7 +85,7 @@
         <li><b>Sync</b> (bottom of the sidebar) asks TennoScope to read your inventory from the game and reloads. It says <b>Refresh</b> when Warframe isn't running or TennoScope can't read the game, and then re-reads what TennoScope last saved.</li>
         <li><b>TennoScope</b> under it opens its panel: whether it's healthy, screen-capture permission for the reward overlay, and inventory sync. Its light is green when all is well, gold when something wants a look, red when it isn't running or something failed.</li>
         <li>The sidebar folds to icons on narrow windows; the arrow next to the name folds or unfolds it, and orbiter remembers your choice.</li>
-        <li>The gear opens Settings: starting TennoScope with orbiter, where it, its data and Warframe's log are, switching to In mission when the reward screen opens, marking sales sold from the game, notifications, and clearing your arcane tiers.</li>
+        <li>The gear opens Settings: starting TennoScope with orbiter, where it, its data and Warframe's log are, switching to In mission when the reward screen opens, marking sales sold from the game, and notifications.</li>
       </ul>
     </article>
     <article>

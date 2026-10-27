@@ -41,7 +41,7 @@ export const PAGES: Page[] = [
   { id: "wishlist", label: "Wishlist", group: "Collection", icon: { line: "star" }, hint: "The things you starred, and the quickest way to each missing part: a relic you hold, where to farm one, or what it costs" },
   { id: "inventory", label: "Inventory", group: "Collection", icon: { line: "inventory" }, hint: "Everything you own, with what it's worth" },
   { id: "mastery", label: "Mastery", group: "Collection", icon: { game: "mastery" }, hint: "Everything you haven't mastered, easiest first, and how to get it" },
-  { id: "arcanes", label: "Arcanes", group: "Collection", icon: { game: "vosfor" }, hint: "Arcanes by price or your own tiers, how close you are to maxing each, and spares to sell or dissolve for Vosfor" },
+  { id: "arcanes", label: "Arcanes", group: "Collection", icon: { game: "vosfor" }, hint: "Arcanes by price, how close you are to maxing each, and spares to sell or dissolve for Vosfor" },
   { id: "mods", label: "Mods", group: "Collection", icon: { game: "endo" }, hint: "Spare mod copies to sell, beyond your best one and one to give away" },
   { id: "rivens", label: "Rivens", group: "Collection", icon: { game: "riven" }, hint: "Your rivens graded, what similar ones sell for, and alerts for the ones you want" },
   { id: "sets", label: "Sets", group: "Trade", icon: { line: "sets" }, hint: "Complete prime sets you could sell, and sets almost done" },

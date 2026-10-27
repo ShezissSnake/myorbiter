@@ -25,7 +25,9 @@
 
   let kind = $state<"all" | InventoryKind>("all");
   let tradableOnly = $state(false);
-  let sellingOnly = $state(false);
+  /** Only what trades at least this often on warframe.market, and is worth at least this much a copy. Empty: any. */
+  let minTrades = $state<number | null>(null);
+  let minEach = $state<number | null>(null);
   let spareOnly = $state(false);
   let query = $state("");
   let sort = $state({ key: "worth", desc: true });
@@ -53,7 +55,7 @@
   };
 
   const all = $derived(inventoryRows(model));
-  const rows = $derived(all.filter((r) => (kind === "all" || r.kind === kind) && (!tradableOnly || spareOf(r)) && (!sellingOnly || (spareOf(r)?.tradesPerDay ?? r.tradesPerDay ?? 0) >= 1) && (!spareOnly || spare(r) > 0) && matches(query, r.name, r.type, shown(r), spareOf(r)?.type ?? "")));
+  const rows = $derived(all.filter((r) => (kind === "all" || r.kind === kind) && (!tradableOnly || spareOf(r)) && (minTrades == null || (perDay(r) ?? 0) >= minTrades) && (minEach == null || (priceOf(r) ?? 0) >= minEach) && (!spareOnly || spare(r) > 0) && matches(query, r.name, r.type, shown(r), spareOf(r)?.type ?? "")));
   const pctOf = (x: number | null | undefined) => (x == null ? "–" : `${Math.round(x * 10) / 10}%`);
   const why = (r: InventoryItem) => spareOf(r)?.why ?? "Nothing to spare";
   /** Of the spare copies of what's shown, what sells at least once a day (relics have no count: they do). */
@@ -186,7 +188,15 @@
       {#each KINDS as k (k.v)}<option value={k.v}>{k.label} ({count(k.v)})</option>{/each}
     </select>
     <Chip bind:on={tradableOnly} label="On warframe.market" title="Only things warframe.market trades" />
-    <Chip bind:on={sellingOnly} label="Actually sells" title="At least one trade a day on warframe.market" />
+    <label class="min" title="Only what trades at least this many times a day on warframe.market (1: it actually sells). Empty: any.">
+      <span class="register">Trades/day ≥</span>
+      <input type="number" min="0" step="any" placeholder="any" bind:value={minTrades} aria-label="Minimum trades a day" />
+    </label>
+    <label class="min" title="Only what's worth at least this much a copy, at the daily median. Empty: any.">
+      <span class="register">Each ≥</span>
+      <input type="number" min="0" step="1" placeholder="any" bind:value={minEach} aria-label="Minimum platinum each" />
+      <span class="dim small">p</span>
+    </label>
     <Chip bind:on={spareOnly} label="Spare only" title="Only what you hold more of than you need: beyond what your unbuilt items take, two of each mod, one maxed arcane, one of each Captura scene" />
     <input type="search" placeholder="Filter items…" bind:value={query} />
   </div>
@@ -214,4 +224,7 @@
   .odds .register { flex-basis: 100%; font-size: .6rem; }
   .src { padding: .12rem .45rem; border: 1px solid var(--rule-bright); }
   .src.vaulted { opacity: .7; border-style: dashed; }
+  .min { display: inline-flex; align-items: center; gap: .45rem; }
+  .min .register { font-size: .6rem; white-space: nowrap; }
+  .min input { width: 4.6rem; }
 </style>

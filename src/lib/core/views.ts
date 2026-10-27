@@ -328,6 +328,13 @@ export interface ArcaneRow {
   maxedCopies: number;
   /** Maxed copies beyond the one you keep: sell these at the max-rank price. */
   extraMaxed: number;
+  /**
+   * Whole maxed arcanes your copies make beyond the one you keep, fused or not: 43 copies of a
+   * 21-copy arcane make two, so one extra. Sold at the max-rank price.
+   */
+  extraSets: number;
+  /** Of those, how many you still have to fuse in game before you can trade them. */
+  toFuse: number;
   /** Unranked copies you hold. */
   unranked: number;
   complete: boolean;
@@ -373,6 +380,8 @@ export function arcaneRows(m: Model): ArcaneRow[] {
       hasMaxed,
       maxedCopies,
       extraMaxed: Math.max(0, maxedCopies - 1),
+      extraSets: copies >= needed ? Math.floor(copies / needed) - 1 : 0,
+      toFuse: Math.max(0, (copies >= needed ? Math.floor(copies / needed) - 1 : 0) - Math.max(0, maxedCopies - 1)),
       unranked: sum(inv.filter((r) => !r.rank).map((r) => r.quantity)),
       complete,
       spare,

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { tick } from "svelte";
   import type { Settings } from "./backend";
   import { ts } from "./tennoscopeStore.svelte";
   import Sheet from "./ui/Sheet.svelte";
@@ -35,30 +34,6 @@
     dataDir = settings.dataDir;
     eeLog = settings.eeLog;
     tsPath = settings.tennoscope.path;
-  }
-  // Clearing every tier asks once, inline; the keyboard stays on the row throughout.
-  let confirmClear = $state(false);
-  let cleared = $state(false);
-  let askBtn = $state<HTMLButtonElement | null>(null);
-  let keepBtn = $state<HTMLButtonElement | null>(null);
-  let tierNote = $state<HTMLElement | null>(null);
-  const tierCount = $derived(Object.keys(settings.tiers).length);
-  async function askClear() {
-    confirmClear = true;
-    await tick();
-    keepBtn?.focus();
-  }
-  async function keepTiers() {
-    confirmClear = false;
-    await tick();
-    askBtn?.focus();
-  }
-  async function clearTiers() {
-    settings.tiers = {};
-    confirmClear = false;
-    cleared = true;
-    await tick();
-    tierNote?.focus();
   }
 </script>
 
@@ -158,21 +133,6 @@
     </Switch>
   </section>
 
-  {#if tierCount || cleared}<section>
-    <h3 class="register">Arcane tiers</h3>
-    <div class="row">
-      {#if confirmClear && tierCount}
-        <span class="small warn-text">Clear all {tierCount}?</span>
-        <div class="grow"></div>
-        <button class="danger" onclick={clearTiers}>Clear</button>
-        <button bind:this={keepBtn} onclick={keepTiers}>Keep</button>
-      {:else}
-        <span class="dim small" role="status" tabindex="-1" bind:this={tierNote}>{tierCount ? `${tierCount} arcane${tierCount === 1 ? " has" : "s have"} a tier you set.` : "Tiers cleared. Set them again on Arcanes."}</span>
-        <div class="grow"></div>
-        {#if tierCount}<button bind:this={askBtn} onclick={askClear}>Clear tiers</button>{/if}
-      {/if}
-    </div>
-  </section>{/if}
 
   {#if dirty}
     <div class="unsaved">
@@ -195,7 +155,6 @@
   .path::placeholder { text-transform: none; letter-spacing: 0; font-size: .74rem; font-style: italic; color: var(--platinum-deep); opacity: .7; }
   .hint { font-size: .76rem; color: var(--platinum-deep); }
   .row { display: flex; align-items: center; gap: .6rem; }
-  .row [tabindex="-1"]:focus { outline: none; }
   /* Unsaved paths: pinned to the bottom of the panel, so it can't be missed whichever field changed. */
   .unsaved { position: sticky; bottom: -2rem; display: grid; gap: .7rem; padding: 1rem 1.1rem; background: var(--raised); border: 1px solid var(--gold-dim); box-shadow: inset 3px 0 0 var(--gold); }
 </style>

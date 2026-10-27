@@ -20,21 +20,20 @@ export const DEAL_SHARE = 0.6;
 export const DEAL_MIN_REF = 6;
 
 /**
- * Missing parts of sets one or two parts from complete, and unranked copies of arcanes you're
- * collecting that you gave a tier (S or A first): the most valuable first, at most `limit`.
+ * Missing parts of sets one or two parts from complete, and unranked copies of arcanes you've
+ * started collecting but not finished: the most valuable first, at most `limit`.
  */
-export function watchlist(m: Model, tiers: Record<string, string>, limit = 20): Watch[] {
+export function watchlist(m: Model, limit = 20): Watch[] {
   const out: Watch[] = [];
   for (const g of setGaps(m, 2)) {
     for (const x of g.missing) out.push({ name: x.name, kind: "part", rank: null, why: `${g.missingCount === 1 ? "the last part" : "a missing part"} of ${g.set}` });
   }
-  const order = ["S", "A", "B"];
   for (const a of arcaneRows(m)) {
-    const t = tiers[a.name];
-    if (a.complete || !t || !order.includes(t)) continue;
-    out.push({ name: a.name, kind: "arcane", rank: 0, why: `tier ${t}, ${a.copies}/${a.needed} copies` });
+    if (a.complete || a.copies === 0 || !a.tradable) continue;
+    out.push({ name: a.name, kind: "arcane", rank: 0, why: `${a.copies}/${a.needed} copies` });
   }
-  const value = (w: Watch) => (w.kind === "arcane" ? (m.price(w.name) ?? 0) * 3 + (order.length - order.indexOf(tiers[w.name] ?? "B")) * 10 : (m.price(w.name) ?? 0));
+  // An arcane's copy is worth its price times the copies still needed, up to buying it maxed.
+  const value = (w: Watch) => (m.price(w.name) ?? 0);
   return out.sort((a, b) => value(b) - value(a)).slice(0, limit);
 }
 

@@ -19,6 +19,19 @@ interface Pack {
 }
 const DATA = data as { yield: Record<string, number>; packs: Pack[] };
 
+/**
+ * An arcane that trades fewer times a day than this doesn't count as sellable when weighing
+ * selling against dissolving: not as a sale (it's dissolved), and not toward what a pack is worth
+ * at market prices (you couldn't sell what it gives you).
+ */
+export const SELLS_DAILY = 5;
+
+/** Loid's collections ("Eidolon", "Duviri"…), each with the arcanes its packs can hold. */
+export const COLLECTIONS: { name: string; arcanes: Set<string> }[] = DATA.packs.map((p) => ({
+  name: p.name.replace(/ Arcane Collection$/, ""),
+  arcanes: new Set(p.pools.flatMap((pool) => pool.arcanes)),
+}));
+
 /** Vosfor for dissolving one unranked copy, or null if it can't be dissolved. */
 export const vosforYield = (name: string): number | null => DATA.yield[name] ?? null;
 
@@ -27,7 +40,8 @@ export const vosforHeld = (m: Model) => (m.inventoryByBase.get(VOSFOR_UNIQUE) ??
 
 /**
  * What Vosfor is worth, two ways:
- * - market: the average platinum of a pack's three arcanes at unranked prices, if you sold them.
+ * - market: the average platinum of a pack's three arcanes at unranked prices, if you sold them
+ *   (arcanes trading under SELLS_DAILY a day count for nothing: they wouldn't sell).
  * - need: only the arcanes you're still collecting count, at what buying those copies would cost.
  */
 export type VosforLens = "market" | "need";
@@ -70,7 +84,7 @@ export function packValues(m: Model, rows: ArcaneRow[]): PackValue[] {
       for (const a of pool.arcanes) {
         const r = byName.get(a);
         const price = copyValue(m, a, r);
-        plat += p.arcanesPerPack * each * price;
+        if ((r?.tradesPerDay ?? m.tradesPerDay(a) ?? 0) >= SELLS_DAILY) plat += p.arcanesPerPack * each * price;
         if (r && !r.complete) {
           needCopies += p.arcanesPerPack * each;
           needPlat += p.arcanesPerPack * each * price;
@@ -123,8 +137,9 @@ export interface SpareOptions {
 export function spareArcanes(m: Model, rows: ArcaneRow[], perVosfor: number, opts: SpareOptions): SpareArcane[] {
   const out: SpareArcane[] = [];
   for (const r of rows) {
-    const maxed = r.extraMaxed;
-    const unranked = r.complete ? Math.min(r.unranked, r.spare) : 0;
+    // Whole maxed arcanes beyond the one you keep, fused or still to fuse, then what's left loose.
+    const maxed = r.extraSets;
+    const unranked = r.complete ? Math.max(0, Math.min(r.unranked, r.spare) - r.toFuse * r.needed) : 0;
     if (maxed <= 0 && unranked <= 0) continue;
     const y = vosforYield(r.name);
     const copies = maxed * copiesForRank(r.maxRank) + unranked;
@@ -145,12 +160,12 @@ export function spareArcanes(m: Model, rows: ArcaneRow[], perVosfor: number, opt
     } else if (eachTrade != null && eachTrade < opts.minPrice) {
       verdict = "dissolve";
       why = `Sells for under ${opts.minPrice}p a trade`;
+    } else if ((r.tradesPerDay ?? 0) < SELLS_DAILY) {
+      verdict = "dissolve";
+      why = `Trades under ${SELLS_DAILY} times a day: Vosfor is the sure thing`;
     } else if (dissolvePlat != null && dissolvePlat > sellPlat) {
       verdict = "dissolve";
       why = opts.lens === "need" ? "Worth more as packs toward arcanes you're collecting" : "Worth more as Vosfor packs";
-    } else if ((r.tradesPerDay ?? 0) < 1 && dissolvePlat != null && dissolvePlat >= sellPlat * 0.6) {
-      verdict = "dissolve";
-      why = "Barely sells, and Vosfor gets close";
     } else why = "Sells for more than its Vosfor is worth";
     out.push({ row: r, maxed, unranked, sellPlat, vosfor, dissolvePlat, verdict, why });
   }

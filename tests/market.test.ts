@@ -137,3 +137,16 @@ test("a relic everyone in game asks far too much for goes at what sellers on the
   const p = plan(mine(30), b, me, { floor: null, minShare: 0.5, reference: 3.1, capByAsks: true });
   assert.deepEqual([p.target, p.reason, p.value], [3, "median", 3]);
 });
+
+test("arcanes: copies you could fuse count as held at max rank, so a listing for them isn't 'more than you hold'", async () => {
+  const { holdings } = await import("../src/lib/core/market");
+  const model = {
+    inventoryByBase: new Map([["/A/Energize", [{ item_id: "/A/Energize", name: "Arcane Energize", category: "arcane", quantity: 1, rank: 5 }, { item_id: "/A/Energize", name: "Arcane Energize", category: "arcane", quantity: 22, rank: 0 }]]]),
+    inventoryByName: new Map(),
+    partByName: new Map(),
+  } as never;
+  const item = { id: "e", slug: "arcane_energize", gameRef: "/A/Energize", name: "Arcane Energize", maxRank: 5, subtypes: null, tags: ["legendary", "arcane_enhancement"] };
+  const h = holdings(model, item as never)!;
+  assert.equal(h.find((x) => x.rank === 5)?.count, 2, "one maxed and one more from 22 unranked");
+  assert.equal(h.find((x) => x.rank === 0)?.count, 22);
+});

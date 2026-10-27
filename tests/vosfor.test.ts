@@ -49,3 +49,35 @@ test("Vosfor you hold is read from the inventory", () => {
   const m = buildModel(bundle([inv("/Lotus/Types/Items/MiscItems/DistillPoints", "Vosfor", "resource", 1020)], {}, {}));
   assert.equal(vosforHeld(m), 1020);
 });
+
+test("an arcane trading under 5 a day isn't counted as sellable: dissolved, and worth nothing in a pack at market prices", async () => {
+  const { SELLS_DAILY } = await import("../src/lib/core/vosfor");
+  assert.equal(SELLS_DAILY, 5);
+  const b = bundle(
+    [inv("/A/Energize", "Arcane Energize", "arcane", 2, { rank: 5 }), inv("/A/Grace", "Arcane Grace", "arcane", 2, { rank: 5 })],
+    { "Arcane Energize": 8, "Arcane Grace": 30, "Magus Drive": 9, "Magus Anomaly": 9 },
+    { "Arcane Energize": 160, "Arcane Grace": 600, "Magus Drive": 150, "Magus Anomaly": 150 },
+  );
+  // Grace now sells for 600p maxed, but only 3 a day.
+  (b.prices as unknown as { trade_rate: Record<string, unknown> }).trade_rate = { "Arcane Energize": [50, 0, ""], "Arcane Grace": [3, 0, ""] };
+  const m = buildModel(b);
+  const rows = arcaneRows(m);
+  const spares = new Map(spareArcanes(m, rows, 0.01, { lens: "market", minPrice: 5 }).map((s) => [s.row.name, s]));
+  assert.equal(spares.get("Arcane Grace")!.verdict, "dissolve");
+  assert.match(spares.get("Arcane Grace")!.why, /under 5 times a day/);
+  assert.equal(spares.get("Arcane Energize")!.verdict, "sell");
+  // In a pack at market prices, Grace (Eidolon) adds nothing; Energize still does.
+  const eidolon = packValues(m, rows).find((p) => p.name.startsWith("Eidolon"))!;
+  (b.prices as unknown as { trade_rate: Record<string, unknown> }).trade_rate = { "Arcane Energize": [50, 0, ""], "Arcane Grace": [50, 0, ""] };
+  const eidolonFast = packValues(buildModel(b), arcaneRows(buildModel(b))).find((p) => p.name.startsWith("Eidolon"))!;
+  assert.ok(eidolon.plat < eidolonFast.plat, "Grace counts once it sells 5 a day or more");
+});
+
+test("whole extra maxed arcanes count unfused copies too: 43 copies of a 21-copy arcane make one extra to sell", () => {
+  const b = bundle([inv("/A/Energize", "Arcane Energize", "arcane", 1, { rank: 5 }), inv("/A/Energize", "Arcane Energize", "arcane", 22)], { "Arcane Energize": 8 }, { "Arcane Energize": 160 });
+  const m = buildModel(b);
+  const [a] = arcaneRows(m).filter((r) => r.name === "Arcane Energize");
+  assert.deepEqual([a.copies, a.needed, a.extraMaxed, a.extraSets, a.toFuse], [43, 21, 0, 1, 1]);
+  const [s] = spareArcanes(m, [a], 0.001, { lens: "market", minPrice: 5 });
+  assert.deepEqual([s.maxed, s.unranked, s.sellPlat], [1, 1, 168], "one maxed (to fuse) at 160p and the one copy left at 8p");
+});

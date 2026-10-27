@@ -21,8 +21,27 @@
   import PageHead from "../ui/PageHead.svelte";
   import { matches, type Column } from "../ui/table";
   import { marketUrl, openUrl, wikiUrl } from "../backend";
+  import { itemReadyTimes, levelStage } from "../core/foundry";
+  import { until } from "../core/traders";
 
-  let { model, masteryRank = null, wishlist = $bindable([]) }: { model: Model; masteryRank?: number | null; wishlist?: string[] } = $props();
+  let { model, masteryRank = null, wishlist = $bindable([]), foundryReady = [] }: { model: Model; masteryRank?: number | null; wishlist?: string[]; foundryReady?: [string, number][] } = $props();
+  // Things you only have to level: in your arsenal, built and waiting in the Foundry, or building.
+  let now = $state(Date.now());
+  $effect(() => {
+    const t = setInterval(() => (now = Date.now()), 60_000);
+    return () => clearInterval(t);
+  });
+  const readyAt = $derived(itemReadyTimes(model, foundryReady));
+  const stageOf = (r: MasteryRow) => levelStage(model, r.unique, readyAt, now);
+  const stageTag = (r: MasteryRow) => {
+    const s = stageOf(r);
+    return s.stage === "claim" ? "Built · claim it in the Foundry" : s.stage === "building" ? `Building${s.readyAt ? ` · ready in ${until(new Date(s.readyAt).toISOString(), now)}` : ""}` : "Owned · level it";
+  };
+  const rankTo = (r: MasteryRow) => (r.points === 4000 || r.points === 8000 ? 40 : 30);
+  const stageText = (r: MasteryRow) => {
+    const s = stageOf(r);
+    return s.stage === "claim" ? `Built and waiting in your Foundry: claim it, then rank it to ${rankTo(r)} for the mastery.` : s.stage === "building" ? `Building in your Foundry${s.readyAt ? `, ready in ${until(new Date(s.readyAt).toISOString(), now)}` : ""}: then rank it to ${rankTo(r)}.` : `In your arsenal: rank it to ${rankTo(r)} for the mastery.`;
+  };
   const wished = $derived(new Set(wishlist));
   const toggleWish = (u: string) => (wishlist = wished.has(u) ? wishlist.filter((x) => x !== u) : [u, ...wishlist]);
   /** Chance of every missing part from the relics you hold (primes whose parts all come from relics). */
@@ -85,7 +104,7 @@
       {@const worst = r.missingParts.some((p) => p.availability === "vaulted") ? "vaulted" : r.missingParts.some((p) => p.availability === "resurgence") ? "resurgence" : "farmable"}
       <Avail v={worst} />
     {/if}
-    {r.acq.difficulty === 0 ? "" : r.acq.how}
+    {r.acq.difficulty === 0 ? (stageOf(r).stage === "level" ? "" : stageTag(r)) : r.acq.how}
   </span>
 {/snippet}
 
@@ -93,11 +112,11 @@
   {@const item = model.catalogByUnique.get(r.unique)}
   {@const parts = item && r.status !== "level" ? collectionItem(model, item).parts.filter((p) => !p.resource) : []}
   <ItemCard hover={r.name} title={r.name} sub={r.category} image={item?.imageName ?? model.imageOf(r.name)} owned={r.status === "level"} onopen={open} fav={wished.has(r.unique)} onfav={item ? () => toggleWish(r.unique) : undefined}>
-    {#if r.acq.difficulty > 0}<Effort acq={r.acq} />{:else}<p class="chow">In your arsenal: rank it to {r.points === 4000 || r.points === 8000 ? 40 : 30} for the mastery.</p>{/if}
+    {#if r.acq.difficulty > 0}<Effort acq={r.acq} />{:else}<p class="chow">{stageText(r)}</p>{/if}
     {#if parts.length}<div class="chips">{#each parts as p, i (i)}<PartChip part={p} size={32} />{/each}</div>{/if}
     {#if r.acq.difficulty > 0}<p class="chow" title={r.acq.how}>{r.acq.how}</p>{/if}
     {#snippet foot()}
-      {#if r.status === "level"}<span class="tag ok">Owned · level it</span>{:else if r.status === "build"}<span class="tag ok">Ready to build</span>{/if}
+      {#if r.status === "level"}<span class="tag" class:ok={stageOf(r).stage !== "building"}>{stageTag(r)}</span>{:else if r.status === "build"}<span class="tag ok">Ready to build</span>{/if}
       {#if r.isPrime && r.missingParts.length}
         {@const worst = r.missingParts.some((p) => p.availability === "vaulted") ? "vaulted" : r.missingParts.some((p) => p.availability === "resurgence") ? "resurgence" : "farmable"}
         <Avail v={worst} />

@@ -378,7 +378,8 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
     const a = arcanes().get(it.name);
     if (!a) return null;
     const rank = o.rank ?? 0;
-    if (rank >= a.maxRank) return { spare: a.extraMaxed, kept: "your maxed copy" };
+    // Whole maxed ones still to fuse count too: a listing made for them (Arcanes' List button) stays.
+    if (rank >= a.maxRank) return { spare: a.extraSets, kept: "your maxed copy" };
     if (rank === 0) return { spare: Math.min(a.unranked, a.spare), kept: a.complete ? "the copies your maxed one needs" : `the copies toward a maxed one (${a.copies}/${a.needed})` };
     return null;
   };

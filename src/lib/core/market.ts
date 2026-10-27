@@ -285,6 +285,14 @@ export function holdings(m: Model, item: MarketItem): Holding[] | null {
       const rank = item.maxRank != null ? (r.rank ?? 0) : null;
       byRank.set(rank, (byRank.get(rank) ?? 0) + r.quantity);
     }
+    // Arcanes: every whole maxed one your copies make counts as held at max rank, fused or not
+    // (you fuse them in game before the trade). 43 copies of a 21-copy arcane hold two.
+    if (item.maxRank && item.tags?.includes("arcane_enhancement")) {
+      const copies = (rank: number) => ((rank + 1) * (rank + 2)) / 2;
+      const total = rows.reduce((n, r) => n + r.quantity * copies(r.rank ?? 0), 0);
+      const sets = Math.floor(total / copies(item.maxRank));
+      if (sets > (byRank.get(item.maxRank) ?? 0)) byRank.set(item.maxRank, sets);
+    }
     return [...byRank.entries()].filter(([, c]) => c > 0).map(([rank, count]) => ({ rank, subtype: null, count }));
   }
   // Prime parts are matched by name (their inventory path can differ from the market's).

@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { Model } from "../core/model";
   import { arcaneRows, type ArcaneRow } from "../core/views";
-  import type { Tier } from "../backend";
   import { marketUrl, openUrl, wikiUrl } from "../backend";
   import Browse from "../ui/Browse.svelte";
   import ItemCard from "../ui/ItemCard.svelte";
@@ -16,22 +15,21 @@
   import GameIcon from "../ui/GameIcon.svelte";
   import Thumb from "../ui/Thumb.svelte";
   import type { AdviceSettings } from "../backend";
-  import { packValues, spareArcanes, vosforHeld, vosforWorth, type SpareArcane } from "../core/vosfor";
+  import { COLLECTIONS, packValues, spareArcanes, vosforHeld, vosforWorth, type SpareArcane } from "../core/vosfor";
   import { info } from "../hover.svelte";
 
-  let { model, tiers = $bindable(), advice = $bindable() }: { model: Model; tiers: Record<string, Tier>; advice: AdviceSettings } = $props();
+  let { model, advice = $bindable() }: { model: Model; advice: AdviceSettings } = $props();
 
-  const TIERS: Tier[] = ["S", "A", "B", "C", "D"];
-  const tierOrder = (r: ArcaneRow) => {
-    const t = tiers[r.name];
-    return t ? TIERS.indexOf(t) : 9;
-  };
 
   let query = $state("");
   /** Unfinished: still collecting. Spares: copies beyond the one you keep, to sell or dissolve. */
   let show = $state<"unfinished" | "spares" | "all">("unfinished");
   let owned = $state<"all" | "owned" | "unowned">("all");
   let type = $state("all");
+  /** Loid's collection an arcane comes from ("Eidolon", "Duviri"…); "none" for arcanes in no pack. */
+  let collection = $state("all");
+  const inCollection = (name: string) =>
+    collection === "all" || (collection === "none" ? !COLLECTIONS.some((c) => c.arcanes.has(name)) : !!COLLECTIONS.find((c) => c.name === collection)?.arcanes.has(name));
   let sort = $state({ key: "priceMax", desc: true });
 
   const all = $derived(arcaneRows(model));
@@ -42,19 +40,23 @@
         (show === "all" || !r.complete) &&
         (owned === "all" || (owned === "owned") === r.copies > 0) &&
         (type === "all" || r.type === type) &&
+        inCollection(r.name) &&
         matches(query, r.name, r.type),
     ),
   );
   const completeCount = $derived(all.filter((r) => r.complete).length);
   /** Loose unranked copies you can sell without touching the one you max. */
   const looseSpare = (r: ArcaneRow) => Math.min(r.unranked, r.spare);
+  /** Loose copies left once the extra maxed ones are fused. */
+  const leftover = (r: ArcaneRow) => Math.max(0, looseSpare(r) - r.toFuse * r.needed);
+  const fuseHint = (r: ArcaneRow) => (r.toFuse ? `Fuse ${r.toFuse} more to R${r.maxRank} in game before you trade (${r.needed} copies each)` : null);
 
   // ---------------------------------------------------------------- sell or dissolve
   const lens = $derived(advice.vosforLens ?? "need");
   const packs = $derived(packValues(model, all));
   const worth = $derived(vosforWorth(packs, lens));
   const spares = $derived(spareArcanes(model, all, worth.perVosfor, { lens, minPrice: advice.minPlat }));
-  const spareRows = $derived(spares.filter((x) => matches(query, x.row.name, x.row.type) && (type === "all" || x.row.type === type)));
+  const spareRows = $derived(spares.filter((x) => matches(query, x.row.name, x.row.type) && (type === "all" || x.row.type === type) && inCollection(x.row.name)));
   const toSell = $derived(spares.filter((x) => x.verdict === "sell"));
   const toDissolve = $derived(spares.filter((x) => x.verdict === "dissolve"));
   const held = $derived(vosforHeld(model));
@@ -75,18 +77,12 @@
   ];
 
   /** Beside the copies bar on a card: how far along your best copy is, or what's beyond the one you keep. */
-  const note = (r: ArcaneRow) => (r.complete ? (r.extraMaxed ? `+${r.extraMaxed} extra maxed` : "") : r.highestRank ? `best copy R${r.highestRank}` : "");
+  const note = (r: ArcaneRow) => (r.complete ? (r.extraSets ? `+${r.extraSets} extra R${r.maxRank}${r.toFuse ? ` (${r.toFuse} to fuse)` : ""}` : "") : r.highestRank ? `best copy R${r.highestRank}` : "");
 
-  function setTier(name: string, t: Tier | "") {
-    const next = { ...tiers };
-    if (t) next[name] = t;
-    else delete next[name];
-    tiers = next;
-  }
+
 
   // Spare only has numbers for arcanes you've finished, so they show with those.
   const columns: Column<ArcaneRow>[] = $derived(([
-    { key: "tier", label: "Tier", value: (r) => tiers[r.name] ?? null, sortValue: tierOrder, cell: tierCell, defaultDesc: false, width: "4.5rem" },
     { key: "name", label: "Arcane", value: (r) => r.name, defaultDesc: false, cell: nameCell },
     // All arcanes needs the room for Spare and List; the slot filter and the hover card still say it.
     ...(show === "all" ? [] : [{ key: "type", minor: true, label: "Slot", value: (r: ArcaneRow) => r.type, muted: true, defaultDesc: false }] as Column<ArcaneRow>[]),
@@ -94,32 +90,22 @@
     { key: "price", minor: true, label: "R0 price", title: "Price of an unranked copy", value: (r) => r.price, align: "right", cell: priceCell },
     { key: "priceMax", label: "Max price", value: (r) => r.priceMax, align: "right", cell: maxCell },
     { key: "cost", label: "To finish", value: (r) => (r.complete ? null : r.costToFinish), align: "right", cell: costCell, defaultDesc: false, title: "Cheapest of buying the missing copies or one maxed copy" },
-    ...(show !== "all" ? [] : [{ key: "spare", label: "Spare", value: (r: ArcaneRow) => r.extraMaxed * 1000 + looseSpare(r) || null, cell: rowSpare, align: "right", title: "Maxed copies beyond the one you keep, and loose unranked copies beyond what it needs" }] as Column<ArcaneRow>[]),
+    ...(show !== "all" ? [] : [{ key: "spare", label: "Spare", value: (r: ArcaneRow) => r.extraSets * 1000 + leftover(r) || null, cell: rowSpare, align: "right", title: "Maxed copies beyond the one you keep, and loose unranked copies beyond what it needs" }] as Column<ArcaneRow>[]),
     { key: "trades", minor: true, label: "Trades/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "Demand on warframe.market" },
     // Still collecting has nothing spare, so nothing to list.
     ...(show !== "all" ? [] : [{ key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" }] as Column<ArcaneRow>[]),
   ] as Column<ArcaneRow>[]));
 </script>
 
-{#snippet tierSelect(r: ArcaneRow)}
-  <select class="tier t-{tiers[r.name] ?? 'none'}" value={tiers[r.name] ?? ""} onchange={(e) => setTier(r.name, e.currentTarget.value as Tier | "")} aria-label="Your tier for {r.name}">
-    <option value="">–</option>
-    {#each TIERS as t (t)}<option value={t}>{t}</option>{/each}
-  </select>
-{/snippet}
-{#snippet tierCell(r: ArcaneRow)}
-  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <span onclick={(e) => e.stopPropagation()}>{@render tierSelect(r)}</span>
-{/snippet}
 {#snippet progressCell(r: ArcaneRow)}
   <div class="prog" title="{r.copies} / {r.needed}{r.highestRank != null ? ` · best copy R${r.highestRank}` : ''}">
     <div class="track"><div class="fill" class:done={r.complete} style:width="{Math.min(100, (r.copies / r.needed) * 100)}%"></div></div>
-    <span class="dim small">{r.complete ? "maxed" : `${r.copies}/${r.needed}`}</span>
+    <span class="dim small">{r.complete && r.copies <= r.needed ? "maxed" : `${r.copies}/${r.needed}`}</span>
   </div>
 {/snippet}
 {#snippet listCell(r: ArcaneRow)}
-  {#if r.tradable && r.extraMaxed > 0}
-    <ListButton {model} name={r.name} label="List R{r.maxRank}" req={{ unique: r.unique, rank: r.maxRank, quantity: r.extraMaxed }} />
+  {#if r.tradable && r.extraSets > 0}
+    <ListButton {model} name={r.name} label="List {r.extraSets}× R{r.maxRank}" req={{ unique: r.unique, rank: r.maxRank, quantity: r.extraSets }} hint={fuseHint(r)} />
   {:else if r.tradable && looseSpare(r) > 0}
     <ListButton {model} name={r.name} req={{ unique: r.unique, rank: 0, quantity: looseSpare(r) }} />
   {/if}
@@ -130,10 +116,10 @@
 {#snippet costCell(r: ArcaneRow)}{#if !r.complete}<P v={r.costToFinish} />{/if}{/snippet}
 {#snippet spareName(x: SpareArcane)}<Named file={model.imageOf(x.row.name)} name={x.row.name} />{/snippet}
 {#snippet rowSpare(r: ArcaneRow)}
-  {#if r.extraMaxed || looseSpare(r)}<span class="have" title="{r.extraMaxed ? `${r.extraMaxed} maxed` : ''}{r.extraMaxed && looseSpare(r) ? ' and ' : ''}{looseSpare(r) ? `${looseSpare(r)} unranked` : ''} beyond the one you keep">{#if r.extraMaxed}<b>{r.extraMaxed}</b> <span class="dim small">R{r.maxRank}</span>{/if}{#if r.extraMaxed && looseSpare(r)}<span class="dim">&nbsp;·&nbsp;</span>{/if}{#if looseSpare(r)}<b>{looseSpare(r)}</b> <span class="dim small">R0</span>{/if}</span>{:else}<span class="nil" aria-label="none">–</span>{/if}
+  {#if r.extraSets || leftover(r)}<span class="have" title="{r.extraSets ? `${r.extraSets} maxed${r.toFuse ? ` (${r.toFuse} still to fuse)` : ''}` : ''}{r.extraSets && leftover(r) ? ' and ' : ''}{leftover(r) ? `${leftover(r)} unranked` : ''} beyond the one you keep">{#if r.extraSets}<b>{r.extraSets}</b> <span class="dim small">R{r.maxRank}</span>{/if}{#if r.extraSets && leftover(r)}<span class="dim">&nbsp;·&nbsp;</span>{/if}{#if leftover(r)}<b>{leftover(r)}</b> <span class="dim small">R0</span>{/if}</span>{:else}<span class="nil" aria-label="none">–</span>{/if}
 {/snippet}
 {#snippet spareHave(x: SpareArcane)}
-  <span class="have">{#if x.maxed}<b>{x.maxed}</b> <span class="dim small">maxed</span>{/if}{#if x.maxed && x.unranked}<span class="dim">&nbsp;·&nbsp;</span>{/if}{#if x.unranked}<b>{x.unranked}</b> <span class="dim small">unranked</span>{/if}</span>
+  <span class="have" title={fuseHint(x.row) ?? undefined}>{#if x.maxed}<b>{x.maxed}</b> <span class="dim small">maxed{x.row.toFuse ? `, ${x.row.toFuse} to fuse` : ""}</span>{/if}{#if x.maxed && x.unranked}<span class="dim">&nbsp;·&nbsp;</span>{/if}{#if x.unranked}<b>{x.unranked}</b> <span class="dim small">unranked</span>{/if}</span>
 {/snippet}
 {#snippet sellCell(x: SpareArcane)}<P v={x.sellPlat} dim={x.verdict !== "sell"} />{/snippet}
 {#snippet vosforCell(x: SpareArcane)}
@@ -143,7 +129,7 @@
 {#snippet verdictCell(x: SpareArcane)}<span class="vc" title={x.why}><span class="verdict v-{x.verdict}">{x.verdict === "sell" ? "Sell" : "Dissolve"}</span>{#if !PLAIN.has(x.why)}<span class="why">{x.why}</span>{/if}</span>{/snippet}
 {#snippet spareList(x: SpareArcane)}
   {#if x.verdict === "sell" && x.row.tradable && x.maxed > 0}
-    <ListButton {model} name={x.row.name} label="List R{x.row.maxRank}" req={{ unique: x.row.unique, rank: x.row.maxRank, quantity: x.maxed }} />
+    <ListButton {model} name={x.row.name} label="List {x.maxed}× R{x.row.maxRank}" req={{ unique: x.row.unique, rank: x.row.maxRank, quantity: x.maxed }} hint={fuseHint(x.row)} />
   {:else if x.verdict === "sell" && x.row.tradable && x.unranked > 0}
     <ListButton {model} name={x.row.name} req={{ unique: x.row.unique, rank: 0, quantity: x.unranked }} />
   {/if}
@@ -161,7 +147,6 @@
       {#if !r.complete && r.costToFinish != null}<span title="Cheapest of buying the missing copies or one maxed copy"><span class="register">To finish</span><P v={r.costToFinish} /></span>{/if}
     </div>
     {#snippet foot()}
-      <label class="tierpick" title="Your own ranking. Sort by it in List."><span class="register">Tier</span>{@render tierSelect(r)}</label>
       {#if r.tradesPerDay != null}<span class="dim small">{Math.round(r.tradesPerDay * 10) / 10}/day</span>{/if}
       <span class="grow"></span>
       {@render listCell(r)}
@@ -188,7 +173,7 @@
   <p class="small">Max rank {r.maxRank}{r.highestRank != null ? ` · your best copy is R${r.highestRank}` : " · you have none"}{r.maxedCopies ? ` · ${r.maxedCopies} maxed` : ""}{r.unranked ? ` · ${r.unranked} unranked` : ""}{r.rarity ? ` · ${r.rarity}` : ""}</p>
   <div class="links">
     <button class="link" onclick={() => openUrl(wikiUrl(r.name))}>Wiki ↗</button>
-    {#if r.tradable && r.extraMaxed > 0 && looseSpare(r) > 0}<button class="stamp" onclick={(e) => { e.stopPropagation(); mkt.startListing(model, r.name, { unique: r.unique, rank: 0, quantity: looseSpare(r) }); }}>List {looseSpare(r)} unranked</button>{/if}
+    {#if r.tradable && r.extraSets > 0 && leftover(r) > 0}<button class="stamp" onclick={(e) => { e.stopPropagation(); mkt.startListing(model, r.name, { unique: r.unique, rank: 0, quantity: leftover(r) }); }}>List {leftover(r)} unranked</button>{/if}
     {#if r.tradable}<button class="link" onclick={() => openUrl(marketUrl(r.name))}>warframe.market ↗</button>{/if}
   </div>
 {/snippet}
@@ -212,6 +197,11 @@
   <select bind:value={type} aria-label="Slot">
     <option value="all">All slots</option>
     {#each types as t (t)}<option value={t}>{t}</option>{/each}
+  </select>
+  <select bind:value={collection} aria-label="Collection" title="The collection at Loid whose packs hold it">
+    <option value="all">All collections</option>
+    {#each COLLECTIONS as c (c.name)}<option value={c.name}>{c.name}</option>{/each}
+    <option value="none">In no collection</option>
   </select>
   <input type="search" placeholder="Filter arcanes…" bind:value={query} />
   </div>
@@ -251,8 +241,6 @@
   .ch { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
   .ch .register { font-size: .6rem; }
   .ch .note { color: var(--platinum-dim); }
-  .tierpick { display: inline-flex; align-items: center; gap: .45rem; cursor: pointer; }
-  .tierpick .register { font-size: .6rem; }
   .prices, .choice { display: flex; gap: 1rem; flex-wrap: wrap; }
   .prices > span, .choice > span { display: grid; gap: .15rem; }
   .prices .register, .choice .register { font-size: .6rem; }
@@ -285,12 +273,6 @@
   .track { flex: 1; height: 6px; background: var(--rule); border-radius: 0; overflow: hidden; }
   .fill { height: 100%; background: var(--platinum); }
   .fill.done { background: var(--platinum); }
-  /* A small picker: a dash and the chevron until you set one, then the letter in its colour. */
-  .tier { width: 3.3rem; padding: .12rem 1.2rem .12rem .5rem; background-position: right .45rem center; font-family: var(--face-mark); font-size: .92rem; font-weight: 700; letter-spacing: 0; line-height: 1.2; color: var(--platinum-deep); }
-  .tier:not(.t-none) { border-color: color-mix(in srgb, currentColor 55%, transparent); }
-  .tier:hover, .tier:focus-visible { border-color: var(--rule-control); }
-  .tier:not(.t-none):hover { border-color: currentColor; }
-  .t-S, .t-S:hover { color: #ff7a7a; } .t-A, .t-A:hover { color: #ffb36b; } .t-B, .t-B:hover { color: #f3dc6b; } .t-C, .t-C:hover { color: #8fd18f; } .t-D, .t-D:hover { color: #8fb8e6; }
   .links { display: flex; gap: 1rem; }
   .nil { color: var(--rule-control); opacity: .7; }
 </style>

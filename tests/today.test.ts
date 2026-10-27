@@ -69,3 +69,19 @@ test("mastery rank thresholds, Legendary past 30", () => {
   assert.equal(rankThreshold(32), 2_545_000);
   assert.deepEqual([rankLabel(24), rankLabel(31)], ["MR 24", "Legendary 1"]);
 });
+
+test("on Mastery, something to level is in your arsenal, built and waiting in the Foundry, or still building", async () => {
+  const { itemReadyTimes, levelStage } = await import("../src/lib/core/foundry");
+  const catalog = [
+    item("/W/Nidus", "Nidus", "Warframes", { components: [{ uniqueName: "/Lotus/Types/Recipes/Nidus/Blueprint", name: "Blueprint", itemCount: 1 }] } as Partial<CatalogItem>),
+    item("/W/Mesa", "Mesa", "Warframes", { components: [{ uniqueName: "/Lotus/Types/Recipes/Mesa/Blueprint", name: "Blueprint", itemCount: 1 }] } as Partial<CatalogItem>),
+    item("/W/Rhino", "Rhino", "Warframes"),
+  ];
+  const ready: [string, number][] = [["/Lotus/Types/Recipes/Nidus/Blueprint", NOW + 3 * 3_600_000], ["/Lotus/Types/Recipes/Mesa/Blueprint", NOW - 60_000]];
+  const m = buildModel(bundle([inv("/W/Rhino", "Rhino", "frame", 1)], catalog), undefined, { "/Lotus/Types/Recipes/Nidus/Blueprint": 1, "/Lotus/Types/Recipes/Mesa/Blueprint": 1 });
+  const at = itemReadyTimes(m, ready);
+  assert.deepEqual(levelStage(m, "/W/Rhino", at, NOW), { stage: "level" });
+  assert.deepEqual(levelStage(m, "/W/Mesa", at, NOW), { stage: "claim" }, "its build finished: claim it");
+  assert.deepEqual(levelStage(m, "/W/Nidus", at, NOW), { stage: "building", readyAt: NOW + 3 * 3_600_000 });
+  assert.deepEqual(levelStage(m, "/W/Nidus", new Map(), NOW), { stage: "building", readyAt: null }, "no time from TennoScope: still building");
+});

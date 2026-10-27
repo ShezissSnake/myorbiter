@@ -12,7 +12,6 @@ import type { Invasion } from "./core/invasions";
 import type { Bundle, CatalogPart, CollectionPart, DuviriCycle, Fissure, Live, MissionState, Nightwave, SortieLike, SteelPath, VaultTraderItem } from "./core/types";
 import { defaultPickWeights, type PickWeights } from "./core/pick";
 
-export type Tier = "S" | "A" | "B" | "C" | "D";
 
 export interface MarketSettings {
   /** Reprice automatically on a timer. */
@@ -83,7 +82,8 @@ export interface Settings {
   eeLog: string;
   /** Carry on without an inventory until TennoScope has read one (always so on macOS). */
   withoutInventory: boolean;
-  tiers: Record<string, Tier>;
+  /** Home's cards you turned off (Home → Customise): "market", "baro"… */
+  homeHidden: string[];
   /** Desktop notifications, sent only while orbiter's window isn't the one you're looking at. */
   notify: NotifySettings;
   tab: string;
@@ -219,7 +219,7 @@ export const defaultSettings = (): Settings => ({
   dataDir: "",
   eeLog: "",
   withoutInventory: false,
-  tiers: {},
+  homeHidden: [],
   notify: defaultNotify(),
   tab: "home",
   folded: null,
@@ -360,11 +360,14 @@ export async function loadSettings(): Promise<Settings> {
   if (raw && (raw.schema ?? 1) < 2 && raw.advice) raw.advice.squad = 1;
   // `view` was never used; settings saved before it went still carry it.
   if (raw) delete (raw as { view?: unknown }).view;
+  // Arcane tiers were taken out: settings saved with them drop them.
+  if (raw) delete (raw as { tiers?: unknown }).tiers;
   return {
     ...base,
     ...(raw ?? {}),
     folded: typeof raw?.folded === "boolean" ? raw.folded : null,
     withoutInventory: raw?.withoutInventory === true,
+    homeHidden: Array.isArray(raw?.homeHidden) ? raw.homeHidden.filter((k: unknown): k is string => typeof k === "string") : [],
     plannerMode: raw?.plannerMode === "radiant" ? "radiant" : "sets",
     market: { ...base.market, ...(raw?.market ?? {}), bulk: { ...base.market.bulk, ...(raw?.market?.bulk ?? {}) }, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: raw?.market?.sellable?.relicsWorthSelling ?? base.market.sellable.relicsWorthSelling }, sales: Array.isArray(raw?.market?.sales) ? raw.market.sales : [], tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], trades: Array.isArray(raw?.market?.trades) ? raw.market.trades : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, minRelicPrice: typeof raw?.market?.minRelicPrice === "number" && raw.market.minRelicPrice >= 1 ? Math.round(raw.market.minRelicPrice) : base.market.minRelicPrice, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)" },
     advice: { ...base.advice, ...(raw?.advice ?? {}) },
