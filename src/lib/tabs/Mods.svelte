@@ -85,7 +85,7 @@
 
 {#snippet detail(r: ModRow)}
   <UpgradeDetail {model} name={r.name} unique={r.unique} ranks={r.ranks} tradable={r.tradable}>
-    {#if r.extras > 0}<p class="small dim">{r.extras} spare, beyond your best copy and one to give away{#if r.tradable} · <ListButton {model} name={r.name} req={listReq(r)} label="List spares" />{/if}</p>{/if}
+    {#if r.extras > 0}<p class="small dim">{r.extras} spare, beyond your best copy and one to give away{#if r.tradable}&nbsp;· <ListButton {model} name={r.name} req={listReq(r)} label="List spares" />{/if}</p>{/if}
   </UpgradeDetail>
 {/snippet}
 

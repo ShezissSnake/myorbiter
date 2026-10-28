@@ -145,6 +145,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px s
 }
 .stamp:hover:not(:disabled) { background: var(--platinum); border-color: var(--platinum); color: var(--slab); }
 .stamp.gold { border-color: var(--gold-dim); color: var(--gold); }
+/* Disabled: no gold, so it doesn't look like it can be pressed. */
+.stamp.gold:disabled { border-color: var(--rule); color: var(--platinum-deep); }
 .stamp.gold:hover:not(:disabled) { background: var(--gold); border-color: var(--gold); color: var(--slab); }
 .stamp:active:not(:disabled) { background: var(--platinum-dim); border-color: var(--platinum-dim); color: var(--slab); }
 .stamp.gold:active:not(:disabled) { background: var(--gold-dim); border-color: var(--gold-dim); }
@@ -245,7 +247,3 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 .set-pn { display: inline-flex; align-items: center; gap: .5rem; }
 .actions { display: flex; align-items: center; gap: 1.2rem; margin-top: .6rem; }
 
-/* A card a notification opened (App's goTo): a gold edge that fades, so the eye lands on it. */
-.flash { animation: flash 1.6s ease-out; }
-@keyframes flash { 0%, 35% { box-shadow: 0 0 0 1px var(--gold), 0 0 22px rgb(214 174 74 / 35%); } 100% { box-shadow: 0 0 0 1px transparent, 0 0 0 transparent; } }
-@media (prefers-reduced-motion: reduce) { .flash { animation: none; outline: 1px solid var(--gold); } }

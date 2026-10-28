@@ -99,12 +99,38 @@ export function sectionsOf(pages: Page[]): Exclude<Page["group"], "">[] {
   return out;
 }
 
-/** Moves a page one place up or down among `ids` (the order shown), returning the new order. */
-export function movePage(ids: string[], id: string, step: -1 | 1): string[] {
-  const i = ids.indexOf(id);
+/** The pages as the sidebar draws them: Home, then each section's pages in turn (the Guide last). */
+export function drawnOrder(pages: Page[]): Page[] {
+  const head = pages.filter((p) => p.id === "home");
+  const tail = pages.filter((p) => p.id === "guide");
+  return [...head, ...sectionsOf(pages).flatMap((g) => pages.filter((p) => p.group === g)), ...tail];
+}
+
+/** Sections with their pages, in order: what Settings → Pages lists and moves. */
+export function grouped(pages: Page[]): { group: Exclude<Page["group"], "">; pages: Page[] }[] {
+  return sectionsOf(pages).map((group) => ({ group, pages: pages.filter((p) => p.group === group) }));
+}
+
+const flat = (gs: { pages: Page[] }[]) => gs.flatMap((g) => g.pages.map((p) => p.id as string));
+
+/** Moves a page one place up or down within its section; returns the new order (page ids). */
+export function movePage(gs: { group: string; pages: Page[] }[], id: string, step: -1 | 1): string[] {
+  const next = gs.map((g) => ({ ...g, pages: [...g.pages] }));
+  for (const g of next) {
+    const i = g.pages.findIndex((p) => p.id === id);
+    const j = i + step;
+    if (i < 0) continue;
+    if (j >= 0 && j < g.pages.length) [g.pages[i], g.pages[j]] = [g.pages[j], g.pages[i]];
+    break;
+  }
+  return flat(next);
+}
+
+/** Moves a whole section one place up or down; returns the new order (page ids). */
+export function moveSection(gs: { group: string; pages: Page[] }[], group: string, step: -1 | 1): string[] {
+  const next = [...gs];
+  const i = next.findIndex((g) => g.group === group);
   const j = i + step;
-  if (i < 0 || j < 0 || j >= ids.length) return ids;
-  const next = [...ids];
-  [next[i], next[j]] = [next[j], next[i]];
-  return next;
+  if (i >= 0 && j >= 0 && j < next.length) [next[i], next[j]] = [next[j], next[i]];
+  return flat(next);
 }

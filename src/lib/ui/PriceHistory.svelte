@@ -60,7 +60,7 @@
   <p class="dim small">Reading its price history…</p>
 {:else if days.length}
   <div class="ph">
-    <TimeChart title="Sold for, last 90 days" at={days.map((d) => d.at)} series={[{ label: "Median", color: GOLD, values: days.map((d) => d.median) }, ...lines.map((l) => ({ label: l.label, color: l.color, values: (days ?? []).map(() => l.value) }))]} {height} empty="No trades in 90 days." />
+    <TimeChart title={rank === 0 ? "Unranked copies sold for, last 90 days" : rank != null ? `Rank ${rank} sold for, last 90 days` : "Sold for, last 90 days"} since="in 90 days" at={days.map((d) => d.at)} series={[{ label: "Median", color: GOLD, values: days.map((d) => d.median) }, ...lines.map((l) => ({ label: l.label, color: l.color, values: (days ?? []).map(() => l.value) }))]} {height} empty="No trades in 90 days." />
     <p class="small">
       {#if words}<b class:up={(t?.change ?? 0) >= 0.05} class:down={(t?.change ?? 0) <= -0.05}>{words}</b>{" · "}{/if}<span class="dim">about {t && t.perDay >= 10 ? Math.round(t.perDay) : Math.round((t?.perDay ?? 0) * 10) / 10} sold a day{t?.week != null ? ` · ${p(t.week)}p this week` : ""}{t?.month != null ? `, ${p(t.month)}p the month before` : ""}</span>
     </p>

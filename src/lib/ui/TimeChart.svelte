@@ -11,6 +11,7 @@
     fmt = (v: number) => (v >= 1_000_000 ? `${Math.round(v / 100_000) / 10}M` : v >= 10_000 ? `${Math.round(v / 1000)}k` : Math.round(v).toLocaleString("en")),
     icon,
     empty = "Fills in as orbiter sees your account change.",
+    since = "since the first day shown",
   }: {
     title: string;
     at: number[];
@@ -19,6 +20,8 @@
     fmt?: (v: number) => string;
     icon?: Snippet;
     empty?: string;
+    /** What the change beside the latest value is measured from ("in 90 days"). */
+    since?: string;
   } = $props();
 
   let W = $state(480);
@@ -93,7 +96,7 @@
     {#if many}
       <span class="legend">{#each series as s (s.label)}<span class="lg"><i style:background={s.color}></i>{s.label}</span>{/each}</span>
     {:else if latest}
-      <span class="now"><b class="mark">{latest.v.toLocaleString("en")}</b>{#if latest.change}<span class="small" class:up={latest.change > 0} class:down={latest.change < 0}>{latest.change > 0 ? "+" : ""}{fmt(latest.change)}</span>{/if}</span>
+      <span class="now"><b class="mark">{latest.v.toLocaleString("en")}</b>{#if latest.change}<span class="small" class:up={latest.change > 0} class:down={latest.change < 0} title="The change {since}">{latest.change > 0 ? "+" : ""}{fmt(latest.change)} <span class="dim">{since}</span></span>{/if}</span>
     {/if}
   </figcaption>
   <div class="wrap" bind:clientWidth={W}>

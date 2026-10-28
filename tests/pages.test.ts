@@ -15,16 +15,19 @@ test("a console player gets only the pages that work without reading the game", 
   assert.equal(PAGES.find((p) => p.id === "rivens")?.group, "Collection");
 });
 
-test("your page order: moved pages first in their new places, sections where their first page is, Home first", async () => {
-  const { movePage, orderPages, sectionsOf } = await import("../src/lib/pages");
+test("your page order: pages move within their section, sections move whole, Ctrl+1…9 follow the sidebar", async () => {
+  const { drawnOrder, grouped, movePage, moveSection, orderPages, sectionsOf } = await import("../src/lib/pages");
   const ids = orderPages(PAGES, []).map((p) => p.id);
   assert.deepEqual(ids, PAGES.map((p) => p.id), "no order: as they come");
-  // Orders to the top of the list (below Home): Trade becomes the first section.
-  let order: string[] = ids.filter((id) => id !== "home");
-  for (let i = 0; i < 20; i++) order = movePage(order, "market", -1);
+  // Trade to the top: its pages come first in the sidebar and the shortcuts.
+  let order = moveSection(grouped(orderPages(PAGES, [])), "Trade", -1);
+  order = moveSection(grouped(orderPages(PAGES, order)), "Trade", -1);
   const pages = orderPages(PAGES, order);
-  assert.equal(pages[0].id, "home");
-  assert.equal(pages[1].id, "market");
-  assert.equal(sectionsOf(pages)[0], "Trade");
-  assert.deepEqual(movePage(["a", "b"], "a", -1), ["a", "b"], "nothing above the first");
+  assert.deepEqual(sectionsOf(pages), ["Trade", "Fissures", "Collection"]);
+  const drawn = drawnOrder(pages).map((p) => p.id);
+  assert.deepEqual(drawn.slice(0, 3), ["home", "sets", "parts"]);
+  // Orders up two within Trade: first there.
+  order = movePage(grouped(pages), "market", -1);
+  order = movePage(grouped(orderPages(PAGES, order)), "market", -1);
+  assert.deepEqual(drawnOrder(orderPages(PAGES, order)).map((p) => p.id).slice(0, 2), ["home", "market"]);
 });

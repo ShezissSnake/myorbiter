@@ -12,13 +12,13 @@
 
   let {
     open = $bindable(),
+    view = $bindable("recent"),
     settings = $bindable(),
     console = false,
     open_,
     test,
-  }: { open: boolean; settings: Settings; console?: boolean; open_: (id: string) => void; test: () => void } = $props();
+  }: { open: boolean; view?: "recent" | "choose"; settings: Settings; console?: boolean; open_: (id: string) => void; test: () => void } = $props();
 
-  let view = $state<"recent" | "choose">("recent");
   let now = $state(Date.now());
   // Seen once you've had Recent open and close the panel: the count on the bell starts again from zero.
   let sawRecent = false;
@@ -49,7 +49,7 @@
   // ---------------------------------------------------------------- pausing
   const pausedFor = $derived(settings.notifyOptions.pausedUntil != null && settings.notifyOptions.pausedUntil > now);
   const paused = $derived(settings.notifyOptions.paused || pausedFor);
-  const pauseChoice = $derived(settings.notifyOptions.paused ? "on" : pausedFor ? "timed" : "off");
+  const pauseChoice = $derived(settings.notifyOptions.paused ? "on" : pausedFor ? (settings.notifyOptions.pausedHow ?? "hour") : "off");
   function pause(how: "off" | "hour" | "tomorrow" | "on") {
     const o = settings.notifyOptions;
     if (how === "off") {
@@ -60,6 +60,7 @@
       o.pausedUntil = null;
     } else {
       o.paused = false;
+      o.pausedHow = how;
       const d = new Date();
       if (how === "hour") o.pausedUntil = Date.now() + 3_600_000;
       else {
@@ -151,11 +152,11 @@
         <span class="register">Pause</span>
         <div class="pausebtns" role="radiogroup" aria-label="Pause notifications">
           <button role="radio" aria-checked={pauseChoice === "off"} class:on={pauseChoice === "off"} title="Notifications pop up as they come" onclick={() => pause("off")}>Off</button>
-          <button role="radio" aria-checked={false} title="Nothing pops up for an hour; they still go in Recent" onclick={() => pause("hour")}>1 hour</button>
-          <button role="radio" aria-checked={false} title="Nothing pops up until 8 tomorrow morning; they still go in Recent" onclick={() => pause("tomorrow")}>Until tomorrow</button>
+          <button role="radio" aria-checked={pauseChoice === "hour"} class:on={pauseChoice === "hour"} title="Nothing pops up for an hour; they still go in Recent" onclick={() => pause("hour")}>1 hour</button>
+          <button role="radio" aria-checked={pauseChoice === "tomorrow"} class:on={pauseChoice === "tomorrow"} title="Nothing pops up until 8 tomorrow morning; they still go in Recent" onclick={() => pause("tomorrow")}>Until tomorrow</button>
           <button role="radio" aria-checked={pauseChoice === "on"} class:on={pauseChoice === "on"} title="Nothing pops up until you set this back to Off; they still go in Recent" onclick={() => pause("on")}>Until I turn it off</button>
         </div>
-        <span class="dim small">{pauseChoice === "timed" ? `Paused until ${hhmm(settings.notifyOptions.pausedUntil!)}. ` : pauseChoice === "on" ? "Paused. " : ""}While paused, notifications still go in Recent, so you can catch up.</span>
+        <span class="dim small">{pauseChoice === "hour" || pauseChoice === "tomorrow" ? `Paused until ${hhmm(settings.notifyOptions.pausedUntil!)}. ` : pauseChoice === "on" ? "Paused. " : ""}While paused, notifications still go in Recent, so you can catch up.</span>
       </div>
       <Switch bind:on={settings.notifyOptions.toasts} label="Pop-ups inside orbiter">
         While you're looking at orbiter: a notification shows by the sidebar for a few seconds. Click it to open what it's about.
@@ -193,7 +194,7 @@
   .top { display: flex; align-items: center; gap: .8rem; margin-bottom: 1rem; }
   .pausedtag { font-family: var(--face-register); font-size: .62rem; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-dim); padding: .15rem .45rem; }
   .empty { line-height: 1.6; }
-  .acts { display: flex; justify-content: flex-end; align-items: center; gap: .6rem; margin-bottom: .3rem; }
+  .acts { display: flex; justify-content: flex-end; align-items: center; gap: .6rem; margin: -2.6rem 0 .3rem; min-height: 1.6rem; }
   .day { margin: 1rem 0 .4rem; font-size: .62rem; color: var(--gold-dim); letter-spacing: .18em; }
   .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
   .notice { display: grid; grid-template-columns: 1.8rem 1fr; gap: .7rem; width: 100%; text-align: left; padding: .6rem .7rem; border: 1px solid transparent; background: transparent; color: var(--platinum-dim); font-family: var(--face-text); font-size: .85rem; letter-spacing: 0; text-transform: none; transition: background .12s, border-color .12s; }

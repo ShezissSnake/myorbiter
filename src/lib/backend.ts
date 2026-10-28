@@ -254,6 +254,8 @@ export interface NotifyOptions {
   paused: boolean;
   /** Paused until then (ms), for "an hour" or "until tomorrow"; null: not paused for a while. */
   pausedUntil: number | null;
+  /** Which of the two that was, so the panel lights its button. */
+  pausedHow?: "hour" | "tomorrow" | null;
   /** While you're looking at orbiter: a pop-up in its window. */
   toasts: boolean;
   /** While you're not: your desktop's notifications. */
@@ -452,6 +454,7 @@ export async function loadSettings(): Promise<Settings> {
     notifyOptions: {
       paused: raw?.notifyOptions?.paused === true,
       pausedUntil: typeof raw?.notifyOptions?.pausedUntil === "number" ? raw.notifyOptions.pausedUntil : null,
+      pausedHow: raw?.notifyOptions?.pausedHow === "tomorrow" ? "tomorrow" : raw?.notifyOptions?.pausedHow === "hour" ? "hour" : null,
       toasts: raw?.notifyOptions?.toasts !== false,
       desktop: raw?.notifyOptions?.desktop !== false,
       quietInFissure: raw?.notifyOptions?.quietInFissure === true,

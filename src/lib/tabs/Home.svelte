@@ -245,6 +245,10 @@
   const rowSpan = (key: string) => (alone(key) ? "auto" : `span ${shownBeside(key)}`);
   const orphan = (key: string) => off(Object.keys(BESIDE).find((l) => BESIDE[l].includes(key))!);
   /** Cards left beside a wide one you hid share its row: 12 columns between however many there are. */
+  const lone = (key: string) => {
+    const lead = Object.keys(BESIDE).find((l) => BESIDE[l].includes(key))!;
+    return !off(lead) && shownBeside(lead) === 1;
+  };
   const share = (key: string) => {
     const lead = Object.keys(BESIDE).find((l) => BESIDE[l].includes(key))!;
     return Math.round(12 / Math.max(1, shownBeside(lead)));
@@ -338,7 +342,7 @@
     </section>
 
     <!-- Ready to sell -->
-    <section class="panel ready" class:off={off("ready")} class:half={orphan("ready")} style:--n={share("ready")} data-card="ready">
+    <section class="panel ready" class:off={off("ready")} class:half={orphan("ready")} class:lone={lone("ready")} style:--n={share("ready")} data-card="ready">
       {@render head("platinum", null, "Ready to sell", "market", "Put them on sale")}
       {#if !ticked}
         <p class="dim">Nothing ticked in <b>Put my spares on sale</b> on Orders.</p>
@@ -457,7 +461,7 @@
     </section>
 
     <!-- Foundry -->
-    <section class="panel foundry" class:off={off("foundry")} class:half={orphan("foundry")} style:--n={share("foundry")} data-card="foundry">
+    <section class="panel foundry" class:off={off("foundry")} class:half={orphan("foundry")} class:lone={lone("foundry")} style:--n={share("foundry")} data-card="foundry">
       {@render head("foundry", null, "Foundry", null, "")}
       {#if builds.length}
         <ul class="fb">
@@ -485,7 +489,7 @@
     </section>
 
     <!-- Wishlist -->
-    <section class="panel wishes" class:off={off("wishes")} class:half={orphan("wishes")} style:--n={share("wishes")} data-card="wishes">
+    <section class="panel wishes" class:off={off("wishes")} class:half={orphan("wishes")} class:lone={lone("wishes")} style:--n={share("wishes")} data-card="wishes">
       {@render head(null, "star", "Your wishlist", "wishlist", "Wishlist")}
       {#if wishes.length}
         <ul class="fb">
@@ -505,7 +509,7 @@
     </section>
 
     <!-- Cheap buys -->
-    <section class="panel deals" class:off={off("deals")} class:half={orphan("deals")} style:--n={share("deals")} data-card="deals">
+    <section class="panel deals" class:off={off("deals")} class:half={orphan("deals")} class:lone={lone("deals")} style:--n={share("deals")} data-card="deals">
       {@render head("platinum", null, "Cheap buys", null, "")}
       {#if mkt.deals.length}
         <ul class="dl">
@@ -549,7 +553,7 @@
     </section>
 
     <!-- Baro -->
-    <section class="panel baro" class:off={off("baro")} class:half={orphan("baro")} style:--n={share("baro")} data-card="baro">
+    <section class="panel baro" class:off={off("baro")} class:half={orphan("baro")} class:lone={lone("baro")} style:--n={share("baro")} data-card="baro">
       {@render head("baro", null, "Baro Ki’Teer", console ? null : "parts", "Spares for ducats")}
       {#if !baro}
         <p class="dim">Schedule unavailable.</p>
@@ -577,7 +581,7 @@
     </section>
 
     <!-- Varzia -->
-    <section class="panel varzia" class:off={off("varzia")} class:half={orphan("varzia")} style:--n={share("varzia")} data-card="varzia" class:slim={!!live.resurgence && !varzia.length}>
+    <section class="panel varzia" class:off={off("varzia")} class:half={orphan("varzia")} class:lone={lone("varzia")} style:--n={share("varzia")} data-card="varzia" class:slim={!!live.resurgence && !varzia.length}>
       {@render head("varzia", null, "Varzia: Prime Resurgence", "relics", "Relics")}
       {#if !live.resurgence}
         <p class="dim">Rotation unavailable.</p>
@@ -616,6 +620,8 @@
   .off { display: none !important; }
   .panel.full { grid-column: span 12; }
   .panel.half { grid-column: span var(--n, 6); }
+  /* The only small card left beside a tall one: as tall as what's in it, not stretched to the row. */
+  .panel.lone { align-self: start; }
   .hr { display: flex; align-items: center; gap: .8rem; }
   .custom { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem 1rem; padding: .8rem 1rem; margin-bottom: var(--step); border: 1px solid var(--rule); background: var(--plate); }
   .custom .cards { display: flex; flex-wrap: wrap; gap: .4rem; flex: 1; }

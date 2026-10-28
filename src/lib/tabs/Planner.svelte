@@ -28,6 +28,11 @@
   // always open, which would mark every relic).
   const openNow = $derived(openEras(fissures));
   const isOpen = (base: string) => (openNow[base.split(" ")[0]]?.length ?? 0) > 0;
+  const ERAS_SHOWN = ["Lith", "Meso", "Neo", "Axi"];
+  // Every era open (the usual case): the filter would leave everything, so it isn't offered.
+  $effect(() => {
+    if (openOnly && !ERAS_SHOWN.some((e) => !openNow[e]?.length)) openOnly = false;
+  });
   let metric = $state<RadiantMetric>("plat");
   let vaultedOnly = $state(false);
   let query = $state("");
@@ -96,7 +101,7 @@
   ]);
 </script>
 
-{#snippet relicCell(r: { base: string })}<span class="rel"><Named file={model.imageOf(r.base)} name={r.base} tint={eraTint(r.base)} />{#if isOpen(r.base)}<span class="open" title="{openNow[r.base.split(' ')[0]]?.length} {r.base.split(' ')[0]} fissure{openNow[r.base.split(' ')[0]]?.length === 1 ? '' : 's'} open right now">open now</span>{/if}</span>{/snippet}
+{#snippet relicCell(r: { base: string })}<span class="rel"><Named file={model.imageOf(r.base)} name={r.base} tint={eraTint(r.base)} />{#if fissures && !isOpen(r.base)}<span class="closed" title="No {r.base.split(' ')[0]} fissure is open right now: an Omnia one takes it, or wait for the next">no fissure now</span>{/if}</span>{/snippet}
 {#snippet ownedCell(r: CrackRow)}<Owned owned={r.owned} />{/snippet}
 {#snippet vaultCell(r: { vaulted: boolean })}<Avail v={r.vaulted ? "vaulted" : "farmable"} />{/snippet}
 {#snippet chanceCell(r: CrackRow)}<span class="pct">{(r.chance * 100).toFixed(1)}%</span>{/snippet}
@@ -175,7 +180,7 @@
       <Seg bind:value={metric} options={[{ v: "plat", label: "Platinum", title: "Rank by what a crack is worth in platinum" }, { v: "ducats", label: "Ducats", title: "Rank by the ducats a crack gives, for Baro" }, { v: "need", label: "Parts I need", title: "Chance of a part for something you haven't built or mastered" }]} />
     {/if}
     <Chip bind:on={vaultedOnly} label="Vaulted only" title="Only relics that drop nowhere now" />
-    <Chip bind:on={openOnly} label="Open now" title="Only relics with a fissure of their era open right now" />
+    {#if fissures && ERAS_SHOWN.some((e) => !openNow[e]?.length)}<Chip bind:on={openOnly} label="Fissure open now" title="Only relics with a fissure of their era open right now (some eras have none at the moment)" />{/if}
     <input type="search" placeholder={mode === "sets" ? "Relic or part…" : "Relic or reward…"} bind:value={query} />
   </div>
 
@@ -196,7 +201,7 @@
 
 <style>
   h2 { margin: var(--course, 2rem) 0 .6rem; }
-  .open { margin-left: .5rem; font-family: var(--face-register); font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); white-space: nowrap; }
+  .closed { margin-left: .5rem; font-family: var(--face-register); font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); white-space: nowrap; }
   .buyp { white-space: nowrap; margin-left: auto; }
   .buyp + .setp { margin-left: 0; }
   .setp { white-space: nowrap; margin-left: auto; }

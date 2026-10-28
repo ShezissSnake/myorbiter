@@ -32,4 +32,10 @@
   }
   /* Page area under 760 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt760"]) .head { grid-template-columns: 1fr; }
+  /* A short window (a Steam Deck's 800 px): a smaller title, so the page itself starts higher. */
+  @media (max-height: 860px) {
+    .head { padding: 18px 0 .6rem; }
+    h1 { font-size: clamp(2.2rem, 4vw, 3.2rem); }
+    .orn { margin-bottom: .5rem; }
+  }
 </style>

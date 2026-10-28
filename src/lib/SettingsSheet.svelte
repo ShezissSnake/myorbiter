@@ -4,7 +4,7 @@
   import Sheet from "./ui/Sheet.svelte";
   import Switch from "./ui/Switch.svelte";
   import Chip from "./ui/Chip.svelte";
-  import { movePage, orderPages, pagesFor } from "./pages";
+  import { grouped, movePage, moveSection, orderPages, pagesFor } from "./pages";
   import Icon from "./ui/Icon.svelte";
 
   let {
@@ -40,8 +40,12 @@
   const all = $derived(orderPages(pagesFor(onConsole), settings.pageOrder));
   const optional = $derived(all.filter((p) => p.id !== "home" && p.id !== "guide"));
   const shown = $derived(all.filter((p) => !settings.pagesHidden.includes(p.id)));
+  const groups = $derived(grouped(optional));
   function move(id: string, step: -1 | 1) {
-    settings.pageOrder = movePage(optional.map((p) => p.id), id, step);
+    settings.pageOrder = movePage(groups, id, step);
+  }
+  function moveSec(group: string, step: -1 | 1) {
+    settings.pageOrder = moveSection(groups, group, step);
   }
   function togglePage(id: string, on: boolean) {
     settings.pagesHidden = on ? settings.pagesHidden.filter((x) => x !== id) : [...settings.pagesHidden, id];
@@ -75,17 +79,25 @@
         {#each shown as p (p.id)}<option value={p.id}>{p.label}</option>{/each}
       </select>
     </label>
-    <p class="hint">The sidebar, in order: untick a page to take it out (it still opens from links on other pages, and nothing on it is lost), and move pages with the arrows. Ctrl+1…9 follow this order; a section sits where its first page is. Home stays first and the Guide stays by the gear. What Home itself shows is under the gear on Home.</p>
-    <ol class="pagelist">
-      {#each optional as p, i (p.id)}
-        <li class:out={settings.pagesHidden.includes(p.id)}>
-          <Chip on={!settings.pagesHidden.includes(p.id)} label={p.label} title={`${p.hint}. Click to ${settings.pagesHidden.includes(p.id) ? "put it back in" : "take it out of"} the sidebar.`} onchange={(on: boolean) => togglePage(p.id, on)} />
-          <span class="dim small">{p.group}</span>
-          <button class="mv" aria-label="Move {p.label} up" title="Move up" disabled={i === 0} onclick={() => move(p.id, -1)}><Icon name="arrow-right" size={11} /></button>
-          <button class="mv down" aria-label="Move {p.label} down" title="Move down" disabled={i === optional.length - 1} onclick={() => move(p.id, 1)}><Icon name="arrow-right" size={11} /></button>
-        </li>
-      {/each}
-    </ol>
+    <p class="hint">The sidebar as it shows: untick a page to take it out (it still opens from links on other pages, and nothing on it is lost); the arrows move a page within its section, or a whole section. Ctrl+1…9 follow this order. Home stays first and the Guide stays by the gear. What Home itself shows is under the gear on Home.</p>
+    {#each groups as g, gi (g.group)}
+      <div class="secrow">
+        <span class="register">{g.group}</span>
+        {#if groups.length > 1}
+          <button class="mv" aria-label="Move the {g.group} section up" title="Move the whole section up" disabled={gi === 0} onclick={() => moveSec(g.group, -1)}><Icon name="arrow-right" size={11} /></button>
+          <button class="mv down" aria-label="Move the {g.group} section down" title="Move the whole section down" disabled={gi === groups.length - 1} onclick={() => moveSec(g.group, 1)}><Icon name="arrow-right" size={11} /></button>
+        {/if}
+      </div>
+      <ol class="pagelist">
+        {#each g.pages as p, i (p.id)}
+          <li class:out={settings.pagesHidden.includes(p.id)}>
+            <Chip on={!settings.pagesHidden.includes(p.id)} label={p.label} title={`${p.hint}. Click to ${settings.pagesHidden.includes(p.id) ? "put it back in" : "take it out of"} the sidebar.`} onchange={(on: boolean) => togglePage(p.id, on)} />
+            <button class="mv" aria-label="Move {p.label} up" title="Move up within {g.group}" disabled={i === 0} onclick={() => move(p.id, -1)}><Icon name="arrow-right" size={11} /></button>
+            <button class="mv down" aria-label="Move {p.label} down" title="Move down within {g.group}" disabled={i === g.pages.length - 1} onclick={() => move(p.id, 1)}><Icon name="arrow-right" size={11} /></button>
+          </li>
+        {/each}
+      </ol>
+    {/each}
     {#if settings.pagesHidden.length || settings.pageOrder.length}<div class="row">{#if settings.pagesHidden.length}<button class="link" onclick={() => (settings.pagesHidden = [])}>Show every page</button>{/if}{#if settings.pageOrder.length}<button class="link" onclick={() => (settings.pageOrder = [])}>Back to the usual order</button>{/if}</div>{/if}
   </section>
 
@@ -151,7 +163,7 @@
 
   <section>
     <h3 class="register">Notifications</h3>
-    <p class="hint">They have their own panel: the bell at the bottom of the sidebar. What orbiter told you lately, and a switch for each kind (listings, alerts and invasions with mastery you're missing, Baro, fissures…), with a pause for all of them.</p>
+    <p class="hint">They have their own panel: the bell at the bottom of the sidebar. What orbiter told you lately, and a switch for each kind ({onConsole ? "your listings, rivens, rare alerts, Baro, fissures" : "sales, listings, alerts and invasions with mastery you're missing, Baro, fissures"}…), with a pause for all of them.</p>
     <div class="row"><button class="stamp" onclick={() => { open = false; onnotices(); }}>Open notifications</button></div>
   </section>
 
@@ -178,8 +190,9 @@
   .hint { font-size: .76rem; color: var(--platinum-deep); }
   .row { display: flex; align-items: center; gap: .6rem; }
   .pagelist { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-  .pagelist li { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: .5rem; }
-  .pagelist li.out .dim { opacity: .5; }
+  .pagelist li { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: .5rem; }
+  .secrow { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: .5rem; margin-top: .3rem; }
+  .secrow .register { color: var(--gold-dim); }
   .pagelist :global(.chip) { justify-self: start; }
   .mv { padding: .3rem .4rem; line-height: 0; }
   .mv :global(svg) { transform: rotate(-90deg); }

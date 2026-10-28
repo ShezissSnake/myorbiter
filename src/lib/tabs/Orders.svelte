@@ -313,24 +313,27 @@
       {/if}
     </section>
   {:else}
-    <section class="newlisting">
-      <span class="register">New listing</span>
-      <span class="searchbox" bind:this={searchBox}><input type="search" placeholder={console ? "Find anything to sell…" : "Find something you own…"} bind:value={search} aria-label={console ? "Find anything to sell" : "Find something you own"}
-        oninput={() => { searchOpen = true; active = 0; }} onfocus={() => (searchOpen = true)} onkeydown={searchKey} />
-      {#if matches.length && searchOpen}<div class="results">
-          {#each matches as x, i (x.it.id)}
-            <button class="pick" class:active={i === active} tabindex="-1" onpointerenter={() => (active = i)} onclick={() => pick(x)}>
-              <Named file={model.imageOf(x.it.name.replace(/ Set$/, ""))} name={x.it.name} size={26} />
-              {#if !console}<span class="dim small">{x.spare ? `${x.spare.quantity} spare of ${x.held}` : `you hold ${x.held}`}</span>{/if}
-            </button>
-          {/each}
-        </div>{/if}</span>
-      {#if console && (!matches.length || !searchOpen)}<span class="dim small hint">Type a name, pick it, then set how many you have to sell and the price.</span>
-      {:else if !matches.length || !searchOpen}<span class="dim small hint">or the <Icon name="list" size={13} /> on any card or row in Inventory, Sets, Prime parts, Arcanes, Mods or Relics.</span>{/if}
 
-    </section>
+    <!-- Your listings first, with where to add one right beside the heading. -->
+    <div class="listhead">
+      <h2 class="register yours">Your listings</h2>
+      <section class="newlisting" aria-label="New listing">
+        <span class="register">New listing</span>
+        <span class="searchbox" bind:this={searchBox}><input type="search" placeholder={console ? "Find anything to sell…" : "Find something you own…"} bind:value={search} aria-label={console ? "Find anything to sell" : "Find something you own"}
+          oninput={() => { searchOpen = true; active = 0; }} onfocus={() => (searchOpen = true)} onkeydown={searchKey} />
+        {#if matches.length && searchOpen}<div class="results">
+            {#each matches as x, i (x.it.id)}
+              <button class="pick" class:active={i === active} tabindex="-1" onpointerenter={() => (active = i)} onclick={() => pick(x)}>
+                <Named file={model.imageOf(x.it.name.replace(/ Set$/, ""))} name={x.it.name} size={26} />
+                {#if !console}<span class="dim small">{x.spare ? `${x.spare.quantity} spare of ${x.held}` : `you hold ${x.held}`}</span>{/if}
+              </button>
+            {/each}
+          </div>{/if}</span>
+        {#if console && (!matches.length || !searchOpen)}<span class="dim small hint">Type a name, pick it, then set how many you have to sell and the price.</span>
+        {:else if !matches.length || !searchOpen}<span class="dim small hint">or the <Icon name="list" size={13} /> on any card or row in Inventory, Sets, Prime parts, Arcanes, Mods or Relics.</span>{/if}
 
-    <h2 class="register yours">Your listings</h2>
+      </section>
+    </div>
     <div class="bar tools">
       <div class="grp">
         <button class="stamp" disabled={!!mkt.busy} onclick={() => mkt.reprice(model, settings, false)} title="Read the order books and show, per listing below, what it would be repriced to">{mkt.pass === "Checking prices" ? "Checking…" : "Check prices"}</button>
@@ -487,12 +490,13 @@
   .account .who { margin-right: .4rem; }
   .account :global(.ib) { --ib: 32px; }
   .who strong { color: var(--platinum); font-weight: 600; }
-  h2.yours { margin: var(--course) 0 0; }
+  h2.yours { margin: 0; }
+  .listhead { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.6rem; margin-top: var(--step); padding-top: .9rem; border-top: 1px solid var(--rule); }
   .minp { width: 4.2rem; padding: .4rem .5rem; }
 
   /* New listing: a search with a dropdown of what you hold. */
-  .newlisting { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; padding: .8rem 0 var(--step); border-top: 1px solid var(--rule); }
-  .newlisting input { min-width: 20rem; }
+  .newlisting { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; flex: 1; min-width: 0; }
+  .newlisting input { min-width: 16rem; }
   .hint :global(svg) { display: inline-block; vertical-align: -2px; color: var(--gold); }
   .searchbox { position: relative; display: inline-block; }
   .results { position: absolute; z-index: 5; top: calc(100% + 2px); left: 0; width: max(100%, 32rem); display: grid; background: var(--plate); border: 1px solid var(--rule-bright); box-shadow: 0 1rem 2rem rgb(0 0 0 / 50%); }

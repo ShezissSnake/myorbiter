@@ -22,4 +22,10 @@
   .t-dim { color: var(--platinum-dim); }
   .l { margin-top: .55rem; color: var(--platinum-dim); }
   .note { margin-top: .2rem; font-size: .74rem; color: var(--platinum-deep); }
+  /* A short window: the same figures, tighter. */
+  @media (max-height: 860px) {
+    .cell { padding-top: .65rem; padding-bottom: .7rem; }
+    .v { font-size: clamp(1.6rem, 2.4vw, 2.1rem); }
+    .l { margin-top: .35rem; }
+  }
 </style>

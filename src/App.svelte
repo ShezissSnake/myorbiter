@@ -73,7 +73,7 @@
   import IconButton from "./lib/ui/IconButton.svelte";
   import RepButton from "./lib/ui/RepButton.svelte";
   import GameIcon from "./lib/ui/GameIcon.svelte";
-  import { orderPages, pagesFor, migrateTab, sectionsOf, type Page } from "./lib/pages";
+  import { drawnOrder, orderPages, pagesFor, migrateTab, sectionsOf, type Page } from "./lib/pages";
   import { logNotice, noticeKind, splitTarget, type NoticeKind } from "./lib/notices";
   import { toasts } from "./lib/toasts.svelte";
   import { alertNeeds, describeHelp } from "./lib/core/worldNeeds";
@@ -130,6 +130,8 @@
 
   let settings = $state<Settings>(defaultSettings());
   let settingsReady = false;
+  /** Now, to the half minute: clocks, "synced 3 min ago", pauses running out. */
+  let tick = $state(Date.now());
   let bundle = $state.raw<Bundle | null>(null);
   let live = $state.raw<Live>({ fissures: null, resurgence: null, resurgenceExpiry: null });
   /**
@@ -325,7 +327,9 @@
   }
   /** Settings' test: shows how a notification looks, whatever is switched off, and keeps nothing. */
   function testNotice() {
-    toasts.push({ id: `test-${Date.now()}`, at: Date.now(), kind: "repriced", title: "This is how notifications look", body: quietNow("repriced") ? "Paused right now: the real ones go to Recent only until you turn the pause off." : "Click one to open what it's about. Your desktop gets them while orbiter is behind other windows.", read: true });
+    const o = settings.notifyOptions;
+    const until = o.paused ? "until you set Pause back to Off" : o.pausedUntil ? `until ${new Date(o.pausedUntil).toLocaleString(undefined, { weekday: new Date(o.pausedUntil).toDateString() === new Date().toDateString() ? undefined : "short", hour: "2-digit", minute: "2-digit" })}` : "";
+    toasts.push({ id: `test-${Date.now()}`, at: Date.now(), kind: "repriced", title: "This is how notifications look", body: until ? `Paused ${until}: the real ones go to Recent without popping up. Click this to see Recent.` : "Click one to open what it's about; this one opens Recent. Your desktop gets them while orbiter is behind other windows.", read: true });
   }
   // A pause for a while ends by itself.
   $effect(() => {
@@ -340,10 +344,20 @@
     return () => clearTimeout(t);
   });
   let showNotices = $state(false);
+  /** What the bell's panel opens on: what's new, or (from Settings) the switches. */
+  let noticesView = $state<"recent" | "choose">("recent");
+  function openNotices(view: "recent" | "choose" = "recent") {
+    noticesView = view;
+    showNotices = true;
+  }
+  /** Notifications don't pop up now: paused, for good or for a while. */
+  const pausedNow = $derived(settings.notifyOptions.paused || (settings.notifyOptions.pausedUntil != null && settings.notifyOptions.pausedUntil > tick));
   const unread = $derived(settings.game.notices.filter((n) => !n.read).length);
   /** Opens what a notification is about, and marks it read. */
   function openNotice(id: string) {
     toasts.dismiss(id);
+    // The test one: where the real ones are kept.
+    if (id.startsWith("test-")) return openNotices("recent");
     const n = settings.game.notices.find((x) => x.id === id);
     if (!n) return;
     settings.game.notices = settings.game.notices.map((x) => (x.id === id ? { ...x, read: true } : x));
@@ -361,15 +375,21 @@
     settings.tab = page;
     if (page !== "home" || !card) return;
     homeReveal = card;
-    // After Home has drawn the card.
+    // After Home has drawn the card. The glow is an animation of its own (the page redraws the
+    // card's classes, which would wipe a class put on by hand), starting once the scroll lands.
     setTimeout(() => {
       const el = document.querySelector<HTMLElement>(`.pane.shown [data-card="${card}"]`);
       if (!el) return;
-      el.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-      el.classList.remove("flash");
-      void el.offsetWidth;
-      el.classList.add("flash");
-      setTimeout(() => el.classList.remove("flash"), 1800);
+      const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      el.scrollIntoView({ block: "center", behavior: still ? "auto" : "smooth" });
+      el.animate(
+        [
+          { boxShadow: "0 0 0 1px rgb(214 174 74), 0 0 22px rgb(214 174 74 / 35%)", offset: 0 },
+          { boxShadow: "0 0 0 1px rgb(214 174 74), 0 0 22px rgb(214 174 74 / 35%)", offset: 0.4 },
+          { boxShadow: "0 0 0 1px transparent, 0 0 0 transparent", offset: 1 },
+        ],
+        { duration: still ? 1200 : 1800, delay: still ? 0 : 350, easing: "ease-out" },
+      );
     }, 60);
   }
   /** Marks a world event announced; false when it was already. Remembers the last 300. */
@@ -698,7 +718,6 @@
   });
 
   // Foundry builds turning ready: checked every half minute against their finish times.
-  let tick = $state(Date.now());
   $effect(() => {
     const t = setInterval(() => (tick = Date.now()), 30_000);
     return () => clearInterval(t);
@@ -1008,7 +1027,8 @@
   // ---------------------------------------------------------------- keyboard, like a desktop app
   // Ctrl+1…9 pages · Ctrl+PgUp/PgDn (or Ctrl+Shift+Tab/Ctrl+Tab) the previous/next page · Ctrl+F or / filter ·
   // Ctrl+R or F5 sync · Ctrl+, settings · F1 guide · Ctrl+Q quit. Esc closes panels (they handle it).
-  const ORDER: string[] = $derived(pages.filter((p) => p.id !== "guide").map((p) => p.id));
+  // As the sidebar draws them, section by section.
+  const ORDER: string[] = $derived(drawnOrder(pages).filter((p) => p.id !== "guide").map((p) => p.id));
   const shortcutOf = (id: string) => {
     const i = ORDER.indexOf(id);
     return i >= 0 && i < 9 ? `Ctrl+${i + 1}` : null;
@@ -1306,12 +1326,15 @@
     if (r.setup.desktop_capture_action_available || !r.setup.access_mode) return "warn";
     return "ok";
   });
-  // The page list scrolls on a short window: a fade at its foot says there's more below.
+  // The page list scrolls on a short window: a fade at its foot says there's more below, and at
+  // its head that there's more above.
   let navEl = $state<HTMLElement | null>(null);
   let navMore = $state(false);
+  let navAbove = $state(false);
   const checkNav = () => {
     const n = navEl;
     navMore = !!n && n.scrollTop + n.clientHeight < n.scrollHeight - 4;
+    navAbove = !!n && n.scrollTop > 4;
   };
   $effect(() => {
     const n = navEl;
@@ -1351,7 +1374,7 @@
       </button>
     {/snippet}
 
-    <nav aria-label="Pages" bind:this={navEl} onscroll={checkNav} class:more={navMore}>
+    <nav aria-label="Pages" bind:this={navEl} onscroll={checkNav} class:more={navMore} class:above={navAbove}>
       {@render navItem(pages[0])}
       {#each sections as sec (sec)}
         <div class="sec register">{sec}</div>
@@ -1370,7 +1393,7 @@
         <Icon name="refresh" size={12} />
         <span class="lbl">{syncing ? "Syncing…" : loading ? "Reading…" : !onConsole && ts.report?.setup.access_mode === "full" && ts.report.game_running ? "Sync" : "Refresh"}</span>
       </button>
-        <button class="tool bell" class:paused={settings.notifyOptions.paused} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={settings.notifyOptions.paused ? "Notifications (paused): what orbiter told you, and what it tells you about" : unread ? `Notifications: ${unread} new` : "Notifications: what orbiter told you, and what it tells you about"} onclick={() => (showNotices = true)}><Icon name="bell" size={14} />{#if unread}<span class="count">{unread > 99 ? "99+" : unread}</span>{/if}</button>
+        <button class="tool bell" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what orbiter told you, and what it tells you about` : unread ? `Notifications: ${unread} new` : "Notifications: what orbiter told you, and what it tells you about"} onclick={() => openNotices("recent")}><Icon name="bell" size={14} />{#if unread}<span class="count">{unread > 99 ? "99+" : unread}</span>{/if}</button>
       </div>
       <div class="tools">
         {#if ts.status && !noTennoScope}
@@ -1515,9 +1538,9 @@
   </main>
 </div>
 
-<NoticesSheet bind:open={showNotices} bind:settings console={onConsole} open_={openNotice} test={testNotice} />
+<NoticesSheet bind:open={showNotices} bind:view={noticesView} bind:settings console={onConsole} open_={openNotice} test={testNotice} />
 <Toasts open={openNotice} left={compact ? "5.2rem" : "15.3rem"} />
-<SettingsSheet bind:open={showSettings} bind:settings onnotices={() => (showNotices = true)} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
+<SettingsSheet bind:open={showSettings} bind:settings onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
 <TennoscopeSheet bind:open={showTennoscope} synced={model ? ago(model.observedAt, tick) : "not yet"} {syncing} onsync={refreshAll} />
 
 <style>
@@ -1544,6 +1567,8 @@
   /* The page list scrolls on a short window; Sync, TennoScope and Settings stay pinned below it. */
   nav { display: grid; align-content: start; gap: 1px; padding: .6rem .55rem; flex: 1 1 auto; min-height: 0; overflow: hidden auto; scrollbar-width: thin; }
   nav.more { mask-image: linear-gradient(180deg, #000 calc(100% - 3rem), transparent); }
+  nav.above { mask-image: linear-gradient(0deg, #000 calc(100% - 2.5rem), transparent); }
+  nav.more.above { mask-image: linear-gradient(180deg, transparent, #000 2.5rem, #000 calc(100% - 3rem), transparent); }
   .sec { padding: .85rem .65rem .35rem; font-size: .6rem; color: var(--gold-dim); letter-spacing: .2em; display: flex; align-items: center; gap: .5rem; }
   .sec::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--rule-bright), transparent); }
   .nav {
@@ -1582,7 +1607,8 @@
   /* Paused: a slash through the bell, not just a dimmer one. */
   .bell.paused::after { content: ""; position: absolute; left: 50%; top: 50%; width: 1.1rem; height: 1px; background: var(--platinum-dim); transform: translate(-50%, -50%) rotate(-45deg); }
   /* Folded, Sync sits right above: the count stays inside the button. */
-  .compact .bell .count { top: 2px; right: 2px; min-width: .8rem; padding: 0 .15rem; font-size: .48rem; line-height: 1.35; }
+  /* Folded: no room for a number, a gold dot says there's something new (the tooltip has how many). */
+  .compact .bell .count { top: 3px; right: 3px; min-width: 0; width: .45rem; height: .45rem; padding: 0; font-size: 0; clip-path: none; border-radius: 50%; }
   @keyframes pop { from { transform: scale(.4); } to { transform: scale(1); } }
   @media (prefers-reduced-motion: reduce) { .bell .count { animation: none; } }
   .tsbtn i { width: .5rem; height: .5rem; background: var(--platinum-deep); transform: rotate(45deg); flex: none; }
