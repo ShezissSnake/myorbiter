@@ -167,7 +167,11 @@
   {#if !sales.length}
     <section class="panel empty">
       <h2 class="mark">No sales logged yet</h2>
+      {#if settings.market.platform !== "pc"}
+      <p class="prose">When you sell something in game, press <span class="ic"><Icon name="sold" size={13} /></span> on its listing in <button class="link" onclick={() => go("market")}>Orders</button>: that marks it sold on warframe.market and logs it here. Sales you marked sold on the website or app come in with the import button below; anything else you can add by hand.</p>
+      {:else}
       <p class="prose">Sales log themselves: when a trade goes through where you gave items for platinum, orbiter reads it from Warframe's log, marks the listing sold on warframe.market and adds it here, usually within half a minute. For anything else, press <span class="ic"><Icon name="sold" size={13} /></span> on a listing in <button class="link" onclick={() => go("market")}>Orders</button>, or add it below.</p>
+      {/if}
     </section>
   {:else}
     <div class="grid">

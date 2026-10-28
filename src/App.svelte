@@ -69,7 +69,7 @@
   import IconButton from "./lib/ui/IconButton.svelte";
   import RepButton from "./lib/ui/RepButton.svelte";
   import GameIcon from "./lib/ui/GameIcon.svelte";
-  import { PAGES, migrateTab, type Page } from "./lib/pages";
+  import { pagesFor, migrateTab, type Page } from "./lib/pages";
   import { mkt } from "./lib/marketStore.svelte";
   import { ts } from "./lib/tennoscopeStore.svelte";
 
@@ -109,7 +109,7 @@
   $effect(() => {
     if (!model || warmed) return;
     warmed = true;
-    const queue = PAGES.map((p) => p.id).filter((id) => id !== "rivens");
+    const queue = pages.map((p) => p.id).filter((id) => id !== "rivens");
     const idle = (f: () => void) =>
       "requestIdleCallback" in window ? window.requestIdleCallback(f, { timeout: 3000 }) : setTimeout(f, 250);
     const next = () => {
@@ -146,6 +146,15 @@
   const onConsole = $derived(settings.market.platform !== "pc");
   /** No TennoScope here: a Mac, or a console player. orbiter works without an inventory. */
   const noTennoScope = $derived(tsUnsupported || onConsole);
+  /**
+   * The sidebar's pages. On a console only what works without reading the game: Home, Orders,
+   * Sales, the riven finder and the Guide. A page that isn't there opens Home instead.
+   */
+  const pages = $derived(pagesFor(onConsole));
+  const sections = $derived(SECTIONS.filter((sec) => pages.some((p) => p.group === sec)));
+  $effect(() => {
+    if (!pages.some((p) => p.id === settings.tab)) settings.tab = "home";
+  });
   // The market follows your platform; a new one means new order books and prices.
   $effect(() => {
     void mkt.usePlatform(settings.market.platform).catch(() => {});
@@ -180,6 +189,12 @@
   const gameIdle = () => ts.report?.game_running === false;
   let lastMissionPoll = 0;
   async function pollMission() {
+    // A console player's game isn't on this computer: no log to follow.
+    if (onConsole) {
+      mission = null;
+      missionError = null;
+      return;
+    }
     if (missionPolling || (gameIdle() && Date.now() - lastMissionPoll < 10_000)) return;
     lastMissionPoll = Date.now();
     missionPolling = true;
@@ -310,7 +325,7 @@
   });
   // An invasion rewarding a part you need: one notification per invasion and part, remembered
   // across restarts so the same invasion doesn't announce itself every time orbiter opens.
-  const invasionsNeeded = $derived(model ? invasionNeeds(model, live.invasions) : []);
+  const invasionsNeeded = $derived(model && !onConsole ? invasionNeeds(model, live.invasions) : []);
   $effect(() => {
     const needs = invasionsNeeded;
     if (!needs.length) return;
@@ -513,7 +528,7 @@
   });
   $effect(() => {
     const now = tick;
-    if (!model) return;
+    if (!model || onConsole) return;
     const ready = foundryBuilds(model, settings.game.foundryReady, now).filter((b) => b.ready);
     untrack(() => {
       const seen = new Set(settings.game.foundryNotified);
@@ -592,7 +607,7 @@
       const openNow = new Set(ERAS.filter((e) => (open[e]?.length ?? 0) > 0));
       const before = erasOpenBefore;
       erasOpenBefore = openNow;
-      if (!before || !settings.favourites.length || !settings.notify.wishlist) return;
+      if (!before || onConsole || !settings.favourites.length || !settings.notify.wishlist) return;
       const eras = wishlistEras(m, settings.favourites);
       const fresh = [...openNow].filter((e) => !before.has(e) && eras.has(e));
       if (!fresh.length) return;
@@ -682,7 +697,7 @@
   let lastDeals = 0;
   $effect(() => {
     const now = tick;
-    if (!model || now - lastDeals < 10 * 60_000) return;
+    if (!model || onConsole || now - lastDeals < 10 * 60_000) return;
     lastDeals = now;
     const m = model;
     untrack(() => void mkt.scanDeals(m, watchlist(m)));
@@ -798,7 +813,7 @@
   let syncing = $state(false);
   async function refreshAll() {
     const r = ts.report;
-    if (r && r.setup.access_mode === "full" && r.game_running) {
+    if (!onConsole && r && r.setup.access_mode === "full" && r.game_running) {
       syncing = true;
       await ts.ask("--sync");
       // The new snapshot lands in TennoScope's folder within a few seconds; the stamp poll and
@@ -810,12 +825,13 @@
     }
     reload();
     refreshLive();
+    if (onConsole && mkt.linked) void mkt.reload();
   }
 
   // ---------------------------------------------------------------- keyboard, like a desktop app
   // Ctrl+1…9 pages · Ctrl+PgUp/PgDn (or Ctrl+Shift+Tab/Ctrl+Tab) the previous/next page · Ctrl+F or / filter ·
   // Ctrl+R or F5 sync · Ctrl+, settings · F1 guide · Ctrl+Q quit. Esc closes panels (they handle it).
-  const ORDER: string[] = PAGES.filter((p) => p.id !== "guide").map((p) => p.id);
+  const ORDER: string[] = $derived(pages.filter((p) => p.id !== "guide").map((p) => p.id));
   const shortcutOf = (id: string) => {
     const i = ORDER.indexOf(id);
     return i >= 0 && i < 9 ? `Ctrl+${i + 1}` : null;
@@ -1141,22 +1157,22 @@
     {/snippet}
 
     <nav aria-label="Pages" bind:this={navEl} onscroll={checkNav} class:more={navMore}>
-      {@render navItem(PAGES[0])}
-      {#each SECTIONS as sec (sec)}
+      {@render navItem(pages[0])}
+      {#each sections as sec (sec)}
         <div class="sec register">{sec}</div>
-        {#each PAGES.filter((p) => p.group === sec) as p (p.id)}{@render navItem(p)}{/each}
+        {#each pages.filter((p) => p.group === sec) as p (p.id)}{@render navItem(p)}{/each}
       {/each}
     </nav>
 
     <div class="foot">
-      <div class="game" title={[mission?.mission ?? (mission ? "Watching Warframe's log" : "No game log found"), model ? `Synced ${ago(model.observedAt, tick)}` : null].filter(Boolean).join(" · ")}>
+      {#if !onConsole}<div class="game" title={[mission?.mission ?? (mission ? "Watching Warframe's log" : "No game log found"), model ? `Synced ${ago(model.observedAt, tick)}` : null].filter(Boolean).join(" · ")}>
         <span class="pill" class:live={!!mission?.relics.length} class:idle={!mission}><i></i></span>
         <span class="lbl"><strong>{mission?.relics.length ? "In a fissure" : mission ? "Watching" : "Idle"}</strong><small>{mission?.relics.length ? (mission.mission ?? "") : model ? `Synced ${ago(model.observedAt, tick)}` : "No data yet"}</small></span>
-      </div>
+      </div>{/if}
       <button class="stamp sync" onclick={refreshAll} disabled={loading || syncing}
-        title={ts.report?.setup.access_mode === "full" && ts.report.game_running ? "Ask TennoScope to read your inventory from the game, then reload (Ctrl+R)" : "Reload TennoScope's saved data and the live fissures (Ctrl+R)"}>
+        title={onConsole ? "Reload your warframe.market listings, the fissures and Baro (Ctrl+R)" : ts.report?.setup.access_mode === "full" && ts.report.game_running ? "Ask TennoScope to read your inventory from the game, then reload (Ctrl+R)" : "Reload TennoScope's saved data and the live fissures (Ctrl+R)"}>
         <Icon name="refresh" size={12} />
-        <span class="lbl">{syncing ? "Syncing…" : loading ? "Reading…" : ts.report?.setup.access_mode === "full" && ts.report.game_running ? "Sync" : "Refresh"}</span>
+        <span class="lbl">{syncing ? "Syncing…" : loading ? "Reading…" : !onConsole && ts.report?.setup.access_mode === "full" && ts.report.game_running ? "Sync" : "Refresh"}</span>
       </button>
       <div class="tools">
         {#if ts.status && !noTennoScope}
@@ -1231,7 +1247,7 @@
     {:else if !model}
       <div class="page-inner"><div class="notice"><span class="register">Reading your collection…</span></div></div>
     {:else}
-      {#if noInventory}
+      {#if noInventory && !onConsole}
         <div class="stale" role="status">
           <span>{onConsole ? `No inventory: TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}. Listings, prices and sales use the ${PLATFORM_LABEL[settings.market.platform]} market.` : tsUnsupported ? "No inventory: TennoScope, which reads it from the game, doesn't run on macOS." : "No inventory yet: your collection fills in as soon as TennoScope reads it from the game."}</span>
           {#if !noTennoScope}<button class="link" onclick={() => (showTennoscope = true)}>Set up</button>{/if}
@@ -1258,7 +1274,7 @@
         </div>
       {/if}
       {#snippet pane(id: string, body: import("svelte").Snippet)}
-        {#if visited[id]}<div class="pane" class:shown={settings.tab === id}>{@render body()}</div>{/if}
+        {#if visited[id] && pages.some((p) => p.id === id)}<div class="pane" class:shown={settings.tab === id}>{@render body()}</div>{/if}
       {/snippet}
       {#snippet pMission()}<InMission {model} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} />{/snippet}
       {#snippet pSets()}<Sets {model} advice={settings.advice} />{/snippet}
@@ -1268,14 +1284,14 @@
       {#snippet pMods()}<Mods {model} />{/snippet}
       {#snippet pRelics()}<Relics {model} bind:advice={settings.advice} />{/snippet}
       {#snippet pPlanner()}<Planner {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} />{/snippet}
-      {#snippet pHome()}<Home {model} {live} {mission} bind:settings={settings} go={(t: string) => (settings.tab = t)} {shortListings} {liveAt} {liveError} />{/snippet}
+      {#snippet pHome()}<Home {model} {live} {mission} console={onConsole} bind:settings={settings} go={(t: string) => (settings.tab = t)} {shortListings} {liveAt} {liveError} />{/snippet}
       {#snippet pSales()}<Sales {model} bind:settings={settings} go={(t: string) => (settings.tab = t)} />{/snippet}
-      {#snippet pMarket()}<Orders {model} bind:settings={settings.market} advice={settings.advice} />{/snippet}
-      {#snippet pGuide()}<Guide go={(t: string) => (settings.tab = t)} bind:plannerMode={settings.plannerMode} />{/snippet}
+      {#snippet pMarket()}<Orders {model} console={onConsole} bind:settings={settings.market} advice={settings.advice} />{/snippet}
+      {#snippet pGuide()}<Guide console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} go={(t: string) => (settings.tab = t)} bind:plannerMode={settings.plannerMode} />{/snippet}
       {#snippet pFoundry()}<Foundry {model} bind:settings={settings} />{/snippet}
       {#snippet pInventory()}<Inventory {model} sell={settings.market.sellable} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad} />{/snippet}
       {#snippet pWishlist()}<Wishlist {model} bind:settings={settings} />{/snippet}
-      {#snippet pRivens()}<Rivens {model} bind:settings={settings} />{/snippet}
+      {#snippet pRivens()}<Rivens {model} console={onConsole} bind:settings={settings} />{/snippet}
       {#snippet pStats()}<Stats {model} {settings} />{/snippet}
       {@render pane("mission", pMission)}
       {@render pane("sets", pSets)}
@@ -1294,7 +1310,7 @@
       {@render pane("stats", pStats)}
       {@render pane("rivens", pRivens)}
       {@render pane("wishlist", pWishlist)}
-      <ListDialog {model} market={settings.market} advice={settings.advice} go={(t: string) => (settings.tab = t)} />
+      <ListDialog {model} market={settings.market} advice={onConsole ? null : settings.advice} go={(t: string) => (settings.tab = t)} />
       <ItemDetails {model} bind:settings={settings} />
       <HoverCard {model} platPerDucat={settings.advice.platPerDucat} />
     {/if}

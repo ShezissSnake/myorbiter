@@ -6,7 +6,15 @@
   import Effort from "../ui/Effort.svelte";
   import Icon from "../ui/Icon.svelte";
 
-  let { go, plannerMode = $bindable() }: { go: (tab: string) => void; plannerMode: "sets" | "radiant" } = $props();
+  // console: the short guide, for the pages a console or phone player has. platform: where they play.
+  let { go, plannerMode = $bindable(), console = false, platform = "PC" }: { go: (tab: string) => void; plannerMode: "sets" | "radiant"; console?: boolean; platform?: string } = $props();
+
+  const CONSOLE_STEPS: Step[] = [
+    ["home", "Home", "your market at a glance, the open worlds' cycles and resets, the fissures open now (with alerts for the ones you want), what's worth doing today, and when Baro comes and what he brings."],
+    ["market", "Orders", "your listings. New listing finds anything warframe.market trades: pick it, set how many you have and the price (it starts at the cheapest seller in game). Check prices compares each listing with the cheapest seller in game; Apply moves it there. Both can run on their own, on a timer you choose. When you sell one in game, press Sold on it: that marks it sold on warframe.market and logs the sale."],
+    ["sales", "Sales", "what you've sold and what it made: today, 7 and 30 days, platinum per day, and each sale against the market. Import pulls in sales you marked sold on the website or app."],
+    ["rivens", "Rivens", "find rivens for sale with each roll graded, and alerts when one you want is listed at your price."],
+  ];
 
   type Step = [tab: string, label: string, text: string, planner?: "sets" | "radiant"];
   const ROUTINES: { title: string; steps: Step[] }[] = [
@@ -46,6 +54,51 @@
 </script>
 
 <div class="page"><div class="page-inner">
+{#if console}
+  <PageHead title="Guide" blurb={`What each page is for, playing on ${platform}.`} />
+
+  <section class="routines">
+    <article>
+      <h2 class="mark">The pages</h2>
+      <ol>
+        {#each CONSOLE_STEPS as [tab, label, text] (label)}
+          <li><button class="link" onclick={() => go(tab)}>{label}</button><span>{text}</span></li>
+        {/each}
+      </ol>
+    </article>
+  </section>
+
+  <section class="trust">
+    <h3 class="register lead">What orbiter can and can't do on {platform}</h3>
+    <ul>
+      <li>orbiter can't read a game running on a console, so it doesn't know what you own or when a trade goes through. It doesn't list things for you or mark them sold by itself: you pick what to list, and press <b>Sold</b> when you've sold one.</li>
+      <li>What it does by itself: keeps your listings at the cheapest price in game (Orders, Apply automatically), shows you online on warframe.market while it's open, and tells you when a fissure or riven you're watching for turns up.</li>
+      <li>Everything else in orbiter (your collection, relics, mastery, spares to sell) needs your inventory, which it can only read from Warframe on a PC. Switch Settings → Platform to PC if you play there too: with cross-save, it's the same account.</li>
+      <li>Everything orbiter records (sales, settings) stays on this computer. Your warframe.market sign-in is kept in the system keyring (a private file if there isn't one).</li>
+    </ul>
+  </section>
+
+  <section class="cols">
+    <article>
+      <h3 class="register lead">Getting around</h3>
+      <ul>
+        <li><b>Hover</b> over any button or number for what it does.</li>
+        <li><b>Refresh</b>, at the bottom of the sidebar, reloads your listings, the fissures and Baro.</li>
+        <li><b>Keyboard:</b> <kbd>Ctrl</kbd>+<kbd>1</kbd>…<kbd>4</kbd> pages in sidebar order, <kbd>Ctrl</kbd>+<kbd>R</kbd> or <kbd>F5</kbd> refresh, <kbd>Ctrl</kbd>+<kbd>,</kbd> settings, <kbd>F1</kbd> this guide, <kbd>Esc</kbd> closes a panel, <kbd>Ctrl</kbd>+<kbd>Q</kbd> quits.</li>
+        <li>The gear opens Settings: your platform, the +rep message, and notifications.</li>
+      </ul>
+    </article>
+    <article>
+      <h3 class="register lead">Where the numbers come from</h3>
+      <ul>
+        <li>Prices: warframe.market's {platform} order books, live, and its daily trade statistics for price history.</li>
+        <li>Fissures, Baro and his stock, cycles and today's missions: api.warframestat.us, refreshed every few minutes.</li>
+        <li>Sales: what you record with Sold, and the closed orders on your warframe.market profile when you import them.</li>
+        <li>Rivens: warframe.market's riven auctions.</li>
+      </ul>
+    </article>
+  </section>
+{:else}
   <PageHead title="Guide" blurb="What each page is for. orbiter runs TennoScope for you in the background." />
 
   <section class="routines">
@@ -127,6 +180,7 @@
       </ul>
     </article>
   </section>
+{/if}
 </div></div>
 
 <style>

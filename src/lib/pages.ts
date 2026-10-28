@@ -54,6 +54,22 @@ export const PAGES: Page[] = [
 
 export const pageById = Object.fromEntries(PAGES.map((p) => [p.id, p])) as Record<PageId, Page>;
 
+/**
+ * The pages for a console or phone player (Settings → Platform): only what works without reading
+ * the game, which orbiter can only do on a PC. Your listings, sales and the riven finder, under
+ * Trade; the world's clocks, fissures and Baro on Home.
+ */
+const CONSOLE: PageId[] = ["home", "market", "sales", "rivens", "guide"];
+
+/** The pages the sidebar shows, in its order: every page on a PC, the short list on a console. */
+export function pagesFor(console: boolean): Page[] {
+  if (!console) return PAGES;
+  return CONSOLE.map((id) => {
+    const p = pageById[id];
+    return p.group === "" ? p : { ...p, group: "Trade" as const };
+  });
+}
+
 /** Pages from before the redesign, as they were saved in settings. */
 export function migrateTab(tab: string): PageId {
   if (tab === "ducats") return "parts";

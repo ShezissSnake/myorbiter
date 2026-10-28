@@ -30,7 +30,9 @@
   import { details } from "../details.svelte";
   import { describe } from "../core/describe";
 
-  let { model, live, mission, settings = $bindable(), go, shortListings, liveAt = null, liveError = null }: { model: Model; live: Live; mission: MissionState | null; settings: Settings; go: (t: string) => void; shortListings: MyOrder[]; liveAt?: number | null; liveError?: string | null } = $props();
+  // console: you play on a console or phone, so there's no inventory: Home is the market, the
+  // world's clocks, fissures, what's worth doing and Baro, without anything measured against a collection.
+  let { model, live, mission, settings = $bindable(), go, shortListings, liveAt = null, liveError = null, console = false }: { model: Model; live: Live; mission: MissionState | null; settings: Settings; go: (t: string) => void; shortListings: MyOrder[]; liveAt?: number | null; liveError?: string | null; console?: boolean } = $props();
   // The worldstate: still being asked for the first time, or unreachable (api.warframestat.us).
   const liveWaiting = $derived(liveAt == null && !liveError);
   const liveNote = $derived(liveWaiting ? "Asking api.warframestat.us…" : "api.warframestat.us didn't answer; orbiter asks again every few minutes.");
@@ -194,13 +196,13 @@
   const alerts = $derived.by(() => {
     const out: Alert[] = [];
     // Invasions rewarding a part for something you haven't mastered: they don't come back on demand.
-    for (const n of invasions) out.push({ tone: "gold", icon: "invasion", text: `Invasion at ${n.node}: ${n.reward} for ${n.item} (side with ${n.side})${n.needed > 1 ? `, you have ${n.have} of ${n.needed}` : ""}`, act: "Mastery", to: "mastery" });
+    if (!console) for (const n of invasions) out.push({ tone: "gold", icon: "invasion", text: `Invasion at ${n.node}: ${n.reward} for ${n.item} (side with ${n.side})${n.needed > 1 ? `, you have ${n.have} of ${n.needed}` : ""}`, act: "Mastery", to: "mastery" });
     if (shortListings.length) out.push({ tone: "gold", icon: "market", text: `${shortListings.length} listing${shortListings.length === 1 ? "" : "s"} for more than you hold: sold, or fix them`, act: "Open Orders", to: "market" });
     const statusError = mkt.statusError ?? mkt.status?.error;
     if (statusError) out.push({ tone: "red", icon: "market", text: `warframe.market status: ${statusError}`, act: "Open Orders", to: "market" });
     const urgent = varzia.filter((v) => v.onlyHere > 0 || v.regalAya != null);
     // Varzia's card says what she has; the alert is only for a rotation about to end.
-    if (urgent.length && live.resurgenceExpiry && Date.parse(live.resurgenceExpiry) - now < 3 * DAY) out.push({ tone: "gold", icon: "varzia", text: `Varzia's rotation ends in ${until(live.resurgenceExpiry, now)}, with ${urgent.length} prime${urgent.length === 1 ? "" : "s"} you need`, act: "", to: "" });
+    if (!console && urgent.length && live.resurgenceExpiry && Date.parse(live.resurgenceExpiry) - now < 3 * DAY) out.push({ tone: "gold", icon: "varzia", text: `Varzia's rotation ends in ${until(live.resurgenceExpiry, now)}, with ${urgent.length} prime${urgent.length === 1 ? "" : "s"} you need`, act: "", to: "" });
     return out;
   });
 
@@ -219,9 +221,12 @@
     { key: "baro", label: "Baro Ki’Teer" },
     { key: "varzia", label: "Varzia" },
   ];
+  /** Cards that need your inventory: never on a console. */
+  const NEEDS_INVENTORY = new Set(["ready", "foundry", "wishes", "deals", "mastery", "varzia"]);
+  const cards = $derived(console ? CARDS.filter((c) => !NEEDS_INVENTORY.has(c.key)) : CARDS);
   let customising = $state(false);
   const hidden = $derived(new Set(settings.homeHidden));
-  const off = (key: string) => hidden.has(key);
+  const off = (key: string) => hidden.has(key) || (console && NEEDS_INVENTORY.has(key));
   function toggleCard(key: string, on: boolean) {
     settings.homeHidden = on ? settings.homeHidden.filter((k) => k !== key) : [...settings.homeHidden, key];
   }
@@ -257,9 +262,9 @@
     <section class="custom" aria-label="What Home shows">
       <span class="register">Show on Home</span>
       <div class="cards">
-        {#each CARDS as c (c.key)}<Chip on={!off(c.key)} label={c.label} onchange={(on: boolean) => toggleCard(c.key, on)} />{/each}
+        {#each cards as c (c.key)}<Chip on={!off(c.key)} label={c.label} onchange={(on: boolean) => toggleCard(c.key, on)} />{/each}
       </div>
-      {#if settings.homeHidden.length}<button class="link" onclick={() => (settings.homeHidden = [])}>Show everything</button>{/if}
+      {#if cards.some((c) => hidden.has(c.key))}<button class="link" onclick={() => (settings.homeHidden = [])}>Show everything</button>{/if}
     </section>
   {/if}
 
@@ -298,7 +303,7 @@
         <div class="presence"><Presence settings={settings.market} quiet /></div>
         <div class="figs">
           <div><P v={listed} /><span class="register">Listed · {orders.length}</span></div>
-          <div><b class="mark" class:warn={shortListings.length}>{shortListings.length}</b><span class="register">Can't deliver</span></div>
+          {#if !console}<div><b class="mark" class:warn={shortListings.length}>{shortListings.length}</b><span class="register">Can't deliver</span></div>{/if}
           <div><P v={sold(dayStart)} /><span class="register">Sold today</span></div>
           <div><P v={sold(now - 7 * DAY)} /><span class="register">Last 7 days</span></div>
         </div>
@@ -342,12 +347,12 @@
 
     <!-- Fissures -->
     <section class="panel fissures" class:off={off("fissures")}>
-      {@render head("void-tear", null, "Fissures now", "relics", "Relics")}
+      {@render head("void-tear", null, "Fissures now", console ? null : "relics", "Relics")}
       {#if live.fissures == null}
         <p class="dim">{liveNote}</p>
       {:else}
         <table class="eras">
-          <thead><tr><th>Era</th><th class="right" title="Normal fissures, plus Steel Path">Open</th><th>Missions</th><th class="right ends" title="When the longest-running one closes">Ends in</th><th title={squad === 1 ? "The relic you hold whose crack is worth most, cracking alone" : "The relic you hold whose crack is worth most, best of four in a radshare"}>Your best relic</th><th class="right" title="Average platinum of the reward you'd take ({squad === 1 ? 'solo' : 'radshare'}; switch on Relics)">Plat / crack</th></tr></thead>
+          <thead><tr><th>Era</th><th class="right" title="Normal fissures, plus Steel Path">Open</th><th>Missions</th><th class="right ends" title="When the longest-running one closes">Ends in</th>{#if !console}<th title={squad === 1 ? "The relic you hold whose crack is worth most, cracking alone" : "The relic you hold whose crack is worth most, best of four in a radshare"}>Your best relic</th><th class="right" title="Average platinum of the reward you'd take ({squad === 1 ? 'solo' : 'radshare'}; switch on Relics)">Plat / crack</th>{/if}</tr></thead>
           <tbody>
             {#each eras as e (e.era)}
               <tr>
@@ -355,8 +360,8 @@
                 <td class="right nowrap">{e.normal.length}{#if e.hard.length}<span class="sp" title="Steel Path fissures">&nbsp;+&nbsp;{e.hard.length}&nbsp;SP</span>{/if}</td>
                 <td class="dim small"><span class="clip" title={missionList([...e.normal, ...e.hard])}>{e.normal.length + e.hard.length ? missionList([...e.normal, ...e.hard]) : "none open"}</span></td>
                 <td class="right dim small nowrap ends">{e.next ? until(e.next.expiry, now) : ""}</td>
-                <td class="nowrap">{#if e.best}<span class="relic" use:info={e.best.r.base}><b class="mark">{e.best.r.base}</b><span class="dim small">{e.best.refinement} · {e.best.r.total} held</span></span>{:else}<span class="dim small">{e.era === "Omnia" ? "any relic" : "none held"}</span>{/if}</td>
-                <td class="right">{#if e.best}<P v={e.best.v} />{/if}</td>
+                {#if !console}<td class="nowrap">{#if e.best}<span class="relic" use:info={e.best.r.base}><b class="mark">{e.best.r.base}</b><span class="dim small">{e.best.refinement} · {e.best.r.total} held</span></span>{:else}<span class="dim small">{e.era === "Omnia" ? "any relic" : "none held"}</span>{/if}</td>
+                <td class="right">{#if e.best}<P v={e.best.v} />{/if}</td>{/if}
               </tr>
             {/each}
           </tbody>
@@ -399,13 +404,13 @@
       <div class="tgrid">
         {#if day.circuit}
           <div class="tblock">
-            <div class="th"><GameIcon name="mastery" size={18} /><b class="mark">Duviri Circuit</b><span class="dim small">◆ not mastered · new picks in {until(day.circuit.resets, now)}</span></div>
+            <div class="th"><GameIcon name="mastery" size={18} /><b class="mark">Duviri Circuit</b><span class="dim small">{console ? "" : "◆ not mastered · "}new picks in {until(day.circuit.resets, now)}</span></div>
             <div class="chips">
-              {#each day.circuit.frames as c (c.name)}<span class="pick" class:want={c.wanted} use:info={c.name}><Thumb file={c.image} size={22} />{c.name}{#if c.wanted}<em aria-label="worth taking">◆</em>{/if}</span>{/each}
+              {#each day.circuit.frames as c (c.name)}<span class="pick" class:want={c.wanted && !console} use:info={c.name}><Thumb file={c.image} size={22} />{c.name}{#if c.wanted && !console}<em aria-label="worth taking">◆</em>{/if}</span>{/each}
             </div>
-            <div class="th sub"><span class="register">Steel Path: Incarnon</span><span class="dim small">◆ a weapon you have, with no adapter yet</span></div>
+            <div class="th sub"><span class="register">Steel Path: Incarnon</span>{#if !console}<span class="dim small">◆ a weapon you have, with no adapter yet</span>{/if}</div>
             <div class="chips">
-              {#each day.circuit.incarnons as c (c.name)}<span class="pick" class:want={c.wanted} use:info={c.name}><Thumb file={c.image} size={22} />{c.name}{#if c.wanted}<em aria-label="worth taking">◆</em>{/if}</span>{/each}
+              {#each day.circuit.incarnons as c (c.name)}<span class="pick" class:want={c.wanted && !console} use:info={c.name}><Thumb file={c.image} size={22} />{c.name}{#if c.wanted && !console}<em aria-label="worth taking">◆</em>{/if}</span>{/each}
             </div>
           </div>
         {/if}
@@ -533,7 +538,7 @@
 
     <!-- Baro -->
     <section class="panel baro" class:off={off("baro")} class:half={orphan("baro")}>
-      {@render head("baro", null, "Baro Ki’Teer", "parts", "Spares for ducats")}
+      {@render head("baro", null, "Baro Ki’Teer", console ? null : "parts", "Spares for ducats")}
       {#if !baro}
         <p class="dim">Schedule unavailable.</p>
       {:else}
@@ -541,20 +546,20 @@
           {#if baroHere}<b class="mark gold">Here now</b><span class="dim">{baro.location} · leaves in {until(baro.expiry, now)}</span>
           {:else}<b class="mark">In {until(baro.activation, now)}</b><span class="dim">{baro.location} · {new Date(baro.activation).toLocaleString(undefined, { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>{/if}
         </div>
-        <div class="ducats"><P v={heldDucats} d /><span class="dim small">ducats held</span>{#if spareDucats}<span class="dim">·</span><P v={spareDucats} d dim /><span class="dim small">more from spare parts</span>{/if}</div>
+        {#if !console}<div class="ducats"><P v={heldDucats} d /><span class="dim small">ducats held</span>{#if spareDucats}<span class="dim">·</span><P v={spareDucats} d dim /><span class="dim small">more from spare parts</span>{/if}</div>{/if}
         {#if baroHere}
           <ul class="stock">
-            {#each baroNeed as s (s.unique)}
+            {#each console ? stock : baroNeed as s (s.unique)}
               <li>
                 <Thumb file={s.image} size={24} name={s.name} />
                 <span class="sn" use:info={s.name}>{s.name}</span>
-                <span class="mk">{#if s.mark === "mastery"}<span class="tag gold" title="You haven't mastered it">+{s.points?.toLocaleString("en")} mastery</span>{:else if s.mark === "new"}<span class="tag gold">new to you</span>{:else if s.mark === "have"}<span class="tag">you have it</span>{/if}</span>
+                <span class="mk">{#if console}{:else if s.mark === "mastery"}<span class="tag gold" title="You haven't mastered it">+{s.points?.toLocaleString("en")} mastery</span>{:else if s.mark === "new"}<span class="tag gold">new to you</span>{:else if s.mark === "have"}<span class="tag">you have it</span>{/if}</span>
                 <P v={s.ducats} d dim={s.mark === "have"} />
               </li>
             {/each}
           </ul>
-          {#if !baroNeed.length}<p class="dim small">Nothing in his stock you don't already have.</p>{/if}
-          {#if stock.length > baroNeed.length}<p class="dim small">+{stock.length - baroNeed.length} more you have or that give no mastery (cosmetics and the like).</p>{/if}
+          {#if !console && !baroNeed.length}<p class="dim small">Nothing in his stock you don't already have.</p>{/if}
+          {#if !console && stock.length > baroNeed.length}<p class="dim small">+{stock.length - baroNeed.length} more you have or that give no mastery (cosmetics and the like).</p>{/if}
         {/if}
       {/if}
     </section>

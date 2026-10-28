@@ -19,7 +19,9 @@
   import IconButton from "../ui/IconButton.svelte";
   import Icon from "../ui/Icon.svelte";
 
-  let { model, settings = $bindable() }: { model: Model; settings: Settings } = $props();
+  // console: you play on a console or phone, where orbiter can't read your rivens: the finder and
+  // alerts only.
+  let { model, settings = $bindable(), console = false }: { model: Model; settings: Settings; console?: boolean } = $props();
 
   const tables = $derived(rivenTables(model.catalogByUnique.values()));
   const mine = $derived((settings.game.rivens ?? []).map((r) => parseRiven(model, tables, r)).filter((r): r is Riven => !!r));
@@ -200,17 +202,21 @@
 {#snippet grade(g: string, big = false)}<span class="grade g-{g.replace('+', 'p').replace('−', 'm')}" class:big>{g}</span>{/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Rivens" blurb="Your rivens as the game rolled them, each stat graded against what it could have rolled, and what similar ones sell for.">
+  <PageHead title="Rivens" blurb={console ? "Find rivens for sale, each roll graded, and alerts when one you want is listed at your price." : "Your rivens as the game rolled them, each stat graded against what it could have rolled, and what similar ones sell for."}>
     {#snippet band()}
+      {#if !console}
       <Stat label="Unveiled" note="Read from your inventory">{mine.length}</Stat>
       <Stat label="Veiled" tone="dim" note="Challenges still to do">{veiled}</Stat>
       <Stat label="Best roll" tone="gold" note={best ? `${best.weapon} ${best.name}` : "–"}>{best?.grade ?? "–"}</Stat>
       {#if priced.length}<Stat label="Worth about" tone="gold" note={`What similar ones sell for, ${priced.length} of ${mine.length} checked`}><P v={worth} big /></Stat>{/if}
+      {/if}
       <Stat label="Alerts" note="Rivens you're watching for">{settings.rivenWatch.length}</Stat>
     {/snippet}
   </PageHead>
 
-  {#if settings.game.rivens == null}
+  {#if console}
+    <!-- No rivens of your own to show on a console: straight to the finder. -->
+  {:else if settings.game.rivens == null}
     <section class="panel note">
       <h2 class="mark">Your rivens show up after TennoScope's next read</h2>
       <p class="prose">orbiter gets your rivens' stats through TennoScope, which needs three things:</p>

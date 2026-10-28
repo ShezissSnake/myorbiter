@@ -20,7 +20,9 @@
   import IconButton from "../ui/IconButton.svelte";
   import PriceHistory from "../ui/PriceHistory.svelte";
 
-  let { model, settings = $bindable(), advice }: { model: Model; settings: MarketSettings; advice: AdviceSettings } = $props();
+  // console: you play on a console or phone, so orbiter can't see what you hold. New listing then
+  // finds anything warframe.market trades, and what needs your inventory (spares, "Can't deliver") is left out.
+  let { model, settings = $bindable(), advice, console = false }: { model: Model; settings: MarketSettings; advice: AdviceSettings; console?: boolean } = $props();
 
   let email = $state("");
   let password = $state("");
@@ -39,9 +41,10 @@
     return times.length ? Math.min(...times) : null;
   });
 
-  // New listing: anything tradable you hold, searchable.
+  // New listing: anything tradable you hold, searchable. On a console: anything tradable.
   const sellable = $derived.by(() => {
     if (!mkt.items.length) return [];
+    if (console) return mkt.items.map((it) => ({ it, held: 0 }));
     return mkt.items
       .map((it) => ({ it, held: (holdings(model, it) ?? []).reduce((n, h) => n + h.count, 0) }))
       .filter((x) => x.held > 0)
@@ -51,6 +54,13 @@
   const matches = $derived.by(() => {
     const q = search.trim().toLowerCase();
     if (q.length < 2) return [];
+    if (console) {
+      return sellable
+        .filter((x) => x.it.name.toLowerCase().includes(q))
+        .sort((a, b) => Number(b.it.name.toLowerCase().startsWith(q)) - Number(a.it.name.toLowerCase().startsWith(q)) || a.it.name.length - b.it.name.length || a.it.name.localeCompare(b.it.name))
+        .slice(0, 10)
+        .map((x) => ({ ...x, spare: null }));
+    }
     return sellable
       .filter((x) => x.it.name.toLowerCase().includes(q))
       .sort((a, b) => Number(b.it.name.toLowerCase().startsWith(q)) - Number(a.it.name.toLowerCase().startsWith(q)) || b.held - a.held)
@@ -214,7 +224,7 @@
   {#snippet band()}
       <Stat label="Listed value" note="Visible listings, price × quantity"><P v={listed} big /></Stat>
       <Stat label="Listings" tone={mkt.room <= 0 ? "gold" : "platinum"} note={`${mkt.room <= 0 ? "At warframe.market's limit" : `${mkt.room} more allowed`} · ${orders.filter((o) => !o.visible).length} hidden`}>{orders.length}<span class="of">/{LISTING_LIMIT - mkt.otherOrders}</span></Stat>
-      <Stat label="Can't deliver" tone={short.length ? "gold" : "dim"} note={short.length ? "Listing more than you hold" : "You hold everything you list"}>{short.length}</Stat>
+      {#if !console}<Stat label="Can't deliver" tone={short.length ? "gold" : "dim"} note={short.length ? "Listing more than you hold" : "You hold everything you list"}>{short.length}</Stat>{/if}
       <Stat label="To reprice" tone={pending ? "gold" : "dim"} note={checkedAt ? `${pending ? "Off the cheapest in-game price" : "All match"} · checked ${fmt(checkedAt)}` : "Press Check prices to compare"}>{pending}</Stat>
   {/snippet}
 
@@ -279,21 +289,22 @@
       {/if}
     </section>
   {:else}
-    <SpareSale {model} {settings} {advice} />
+    {#if !console}<SpareSale {model} {settings} {advice} />{/if}
 
     <section class="newlisting">
       <span class="register">New listing</span>
-      <span class="searchbox" bind:this={searchBox}><input type="search" placeholder="Find something you own…" bind:value={search} aria-label="Find something you own"
+      <span class="searchbox" bind:this={searchBox}><input type="search" placeholder={console ? "Find anything to sell…" : "Find something you own…"} bind:value={search} aria-label={console ? "Find anything to sell" : "Find something you own"}
         oninput={() => { searchOpen = true; active = 0; }} onfocus={() => (searchOpen = true)} onkeydown={searchKey} />
       {#if matches.length && searchOpen}<div class="results">
           {#each matches as x, i (x.it.id)}
             <button class="pick" class:active={i === active} tabindex="-1" onpointerenter={() => (active = i)} onclick={() => pick(x)}>
               <Named file={model.imageOf(x.it.name.replace(/ Set$/, ""))} name={x.it.name} size={26} />
-              <span class="dim small">{x.spare ? `${x.spare.quantity} spare of ${x.held}` : `you hold ${x.held}`}</span>
+              {#if !console}<span class="dim small">{x.spare ? `${x.spare.quantity} spare of ${x.held}` : `you hold ${x.held}`}</span>{/if}
             </button>
           {/each}
         </div>{/if}</span>
-      {#if !matches.length || !searchOpen}<span class="dim small hint">or the <Icon name="list" size={13} /> on any card or row in Inventory, Sets, Prime parts, Arcanes, Mods or Relics.</span>{/if}
+      {#if console && (!matches.length || !searchOpen)}<span class="dim small hint">Type a name, pick it, then set how many you have to sell and the price.</span>
+      {:else if !matches.length || !searchOpen}<span class="dim small hint">or the <Icon name="list" size={13} /> on any card or row in Inventory, Sets, Prime parts, Arcanes, Mods or Relics.</span>{/if}
 
     </section>
 
