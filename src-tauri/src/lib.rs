@@ -158,7 +158,7 @@ fn get_json(path: &str) -> Result<Value, Unavailable> {
 const WORLDSTATE_PARTS: &[&str] = &[
     "fissures", "vaultTrader", "voidTrader", "invasions", "nightwave", "sortie", "archonHunt",
     "steelPath", "duviriCycle", "earthCycle", "cetusCycle", "vallisCycle", "cambionCycle",
-    "zarimanCycle",
+    "zarimanCycle", "alerts",
 ];
 
 /// Active void fissures and Varzia's Prime Resurgence stock. Failures come back as `null` per

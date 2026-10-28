@@ -13,6 +13,7 @@
   import { expectedBest } from "../core/advice";
   import { baroStock, varziaNeeds, until } from "../core/traders";
   import { invasionNeeds } from "../core/invasions";
+  import { alertNeeds, describeHelp } from "../core/worldNeeds";
   import GameIcon, { type GameIconName } from "../ui/GameIcon.svelte";
   import Icon from "../ui/Icon.svelte";
   import IconButton from "../ui/IconButton.svelte";
@@ -114,6 +115,8 @@
   const heldDucats = $derived((model.inventoryByBase.get("/Lotus/Types/Items/MiscItems/PrimeBucks") ?? []).reduce((n, r) => n + r.quantity, 0));
   const rows = $derived(masteryRows(model));
   const invasions = $derived(invasionNeeds(model, live.invasions));
+  // Running alerts worth a look: mastery you're missing (PC only: it needs your inventory), rare rewards.
+  const worldAlerts = $derived(alertNeeds(console ? null : model, live.alerts, now));
   const day = $derived(today(model, live, now));
 
   // ------------------------------------------------------------ world clocks and fissure alerts
@@ -196,6 +199,8 @@
   const alerts = $derived.by(() => {
     const out: Alert[] = [];
     // Invasions rewarding a part for something you haven't mastered: they don't come back on demand.
+    for (const a of worldAlerts.mastery) out.push({ tone: "gold", icon: "mastery", text: `Alert at ${a.node} (${a.mission}): ${describeHelp(a.reward, a.help!)}, ${until(a.expiry, now)} left`, act: "", to: "" });
+    for (const a of worldAlerts.rare) out.push({ tone: "info", icon: "sortie", text: `Alert at ${a.node} (${a.mission}): ${a.reward}, ${until(a.expiry, now)} left`, act: "", to: "" });
     if (!console) for (const n of invasions) out.push({ tone: "gold", icon: "invasion", text: `Invasion at ${n.node}: ${n.reward} for ${n.item} (side with ${n.side})${n.needed > 1 ? `, you have ${n.have} of ${n.needed}` : ""}`, act: "Mastery", to: "mastery" });
     if (shortListings.length) out.push({ tone: "gold", icon: "market", text: `${shortListings.length} listing${shortListings.length === 1 ? "" : "s"} for more than you hold: sold, or fix them`, act: "Open Orders", to: "market" });
     const statusError = mkt.statusError ?? mkt.status?.error;

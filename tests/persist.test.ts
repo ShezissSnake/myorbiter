@@ -3,7 +3,7 @@
 import { flush, effectRoot } from "./support/runes";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { defaultSettings, joinSettings, lightSettings, type Settings } from "../src/lib/backend";
+import { defaultSettings, HEAVY_SETTINGS, joinSettings, lightSettings, type Settings } from "../src/lib/backend";
 
 const { persistSettings } = await import("../src/lib/persist.svelte");
 // @ts-expect-error: Svelte's client internals have no type declarations
@@ -22,7 +22,7 @@ function bigSettings(): Settings {
 
 test("the light part and the long logs put back together are the settings", () => {
   const s = bigSettings();
-  const heavy = { "market.sales": JSON.stringify(s.market.sales), "market.trades": JSON.stringify(s.market.trades), "market.relicPrices": JSON.stringify(s.market.relicPrices), "game.valueHistory": JSON.stringify(s.game.valueHistory), "game.rivenHistory": JSON.stringify(s.game.rivenHistory), "game.relicRuns": JSON.stringify(s.game.relicRuns) };
+  const heavy = Object.fromEntries(HEAVY_SETTINGS.map(([a, b]) => [`${a}.${b}`, JSON.stringify((s[a] as unknown as Record<string, unknown>)[b])]));
   assert.deepEqual(joinSettings(JSON.stringify(lightSettings(s)), heavy), JSON.parse(JSON.stringify(s)));
 });
 

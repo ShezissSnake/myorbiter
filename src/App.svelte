@@ -5,9 +5,10 @@
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures } from "./lib/core/timers";
   import { watchlist } from "./lib/core/deals";
-  import { inventoryRows, relicRows } from "./lib/core/views";
-  import { baroRate } from "./lib/core/traders";
+  import { inventoryRows, masteryRows, relicRows } from "./lib/core/views";
+  import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
   import { buildModel, ERAS } from "./lib/core/model";
+  import { today } from "./lib/core/today";
   import { bestCard, resolveName, scoreCards } from "./lib/core/pick";
   import { mergeLogged, recordScreen, resolvePicks } from "./lib/core/relicRuns";
   import { heldFor } from "./lib/core/market";
@@ -70,6 +71,11 @@
   import RepButton from "./lib/ui/RepButton.svelte";
   import GameIcon from "./lib/ui/GameIcon.svelte";
   import { pagesFor, migrateTab, type Page } from "./lib/pages";
+  import { logNotice, noticeKind, type NoticeKind } from "./lib/notices";
+  import { toasts } from "./lib/toasts.svelte";
+  import { alertNeeds, describeHelp } from "./lib/core/worldNeeds";
+  import NoticesSheet from "./lib/NoticesSheet.svelte";
+  import Toasts from "./lib/ui/Toasts.svelte";
   import { mkt } from "./lib/marketStore.svelte";
   import { ts } from "./lib/tennoscopeStore.svelte";
 
@@ -109,7 +115,7 @@
   $effect(() => {
     if (!model || warmed) return;
     warmed = true;
-    const queue = pages.map((p) => p.id).filter((id) => id !== "rivens");
+    const queue = available.map((p) => p.id).filter((id) => id !== "rivens");
     const idle = (f: () => void) =>
       "requestIdleCallback" in window ? window.requestIdleCallback(f, { timeout: 3000 }) : setTimeout(f, 250);
     const next = () => {
@@ -148,12 +154,15 @@
   const noTennoScope = $derived(tsUnsupported || onConsole);
   /**
    * The sidebar's pages. On a console only what works without reading the game: Home, Orders,
-   * Sales, the riven finder and the Guide. A page that isn't there opens Home instead.
+   * Sales, the riven finder and the Guide. Less any you hid in Settings → Pages (Home and the
+   * Guide always stay). A page that isn't there opens Home instead.
    */
-  const pages = $derived(pagesFor(onConsole));
+  const available = $derived(pagesFor(onConsole));
+  const pages = $derived(available.filter((p) => p.id === "home" || p.id === "guide" || !settings.pagesHidden.includes(p.id)));
   const sections = $derived(SECTIONS.filter((sec) => pages.some((p) => p.group === sec)));
+  // A hidden page still opens from a link on another page; one this platform doesn't have doesn't.
   $effect(() => {
-    if (!pages.some((p) => p.id === settings.tab)) settings.tab = "home";
+    if (!available.some((p) => p.id === settings.tab)) settings.tab = "home";
   });
   // The market follows your platform; a new one means new order books and prices.
   $effect(() => {
@@ -262,10 +271,99 @@
       notifiedScreen = freshCards.at;
       const why = [best.price != null ? `${best.price}p` : null, best.needed ? `you need it${best.neededFor ? ` for ${best.neededFor}` : ""}` : null, best.ducats ? `${best.ducats} ducats` : null, best.set === 1 ? "completes a set" : null].filter(Boolean).join(", ");
       const of = cards.length > 1 ? `(best of the ${["", "", "two", "three", "four"][cards.length] ?? cards.length})` : "(the only card read)";
-      notify(`Take ${best.name}`, why ? `${why} ${of}` : of);
+      tell("reward", `Take ${best.name}`, why ? `${why} ${of}` : of);
     }
   });
   let notifiedScreen = 0;
+
+  // ---------------------------------------------------------------- notifications
+  /**
+   * Every notification goes through here: dropped when its kind is off (or needs a PC and you play
+   * on a console), kept in the history (the bell), and shown unless notifications are paused, as
+   * a pop-up inside orbiter while you're looking at it, else on the desktop.
+   */
+  function tell(kind: NoticeKind, title: string, body: string, to?: string) {
+    if (!settings.notify[kind] || (onConsole && noticeKind[kind].pcOnly)) return;
+    settings.game.notices = logNotice(settings.game.notices, { at: Date.now(), kind, title, body, ...(to ? { to } : {}) });
+    if (settings.notifyOptions.paused) return;
+    if (typeof document !== "undefined" && document.hasFocus()) {
+      if (settings.notifyOptions.toasts) toasts.push(settings.game.notices[0]);
+    } else notify(title, body);
+  }
+  let showNotices = $state(false);
+  const unread = $derived(settings.game.notices.filter((n) => !n.read).length);
+  /** Opens what a notification is about, and marks it read. */
+  function openNotice(id: string) {
+    const n = settings.game.notices.find((x) => x.id === id);
+    if (!n) return;
+    settings.game.notices = settings.game.notices.map((x) => (x.id === id ? { ...x, read: true } : x));
+    const to = n.to ?? noticeKind[n.kind]?.to ?? "home";
+    settings.tab = available.some((p) => p.id === to) ? to : "home";
+    toasts.dismiss(id);
+    showNotices = false;
+  }
+  /** Marks a world event announced; false when it was already. Remembers the last 300. */
+  function firstTime(key: string): boolean {
+    if (settings.game.worldNotified.includes(key)) return false;
+    settings.game.worldNotified = [key, ...settings.game.worldNotified].slice(0, 300);
+    return true;
+  }
+  const names = (xs: string[], max = 4) => (xs.length > max ? `${xs.slice(0, max).join(", ")} and ${xs.length - max} more` : xs.join(", "));
+
+  // Alerts: a reward toward something you haven't mastered, or a rare one. Once per alert and reward.
+  $effect(() => {
+    const alerts = live.alerts;
+    const m = onConsole ? null : model;
+    if (!alerts?.length || !settingsReady || (!m && !onConsole)) return;
+    untrack(() => {
+      const { mastery, rare } = alertNeeds(m, alerts);
+      const freshM = mastery.filter((a) => firstTime(`alert|${a.key}`));
+      const freshR = rare.filter((a) => firstTime(`alert|${a.key}`));
+      const line = (a: (typeof mastery)[number]) => `${a.help ? describeHelp(a.reward, a.help) : a.reward}: ${a.mission} at ${a.node}, ${until(a.expiry)} left`;
+      if (freshM.length) tell("alerts", freshM.length === 1 ? `Alert: ${freshM[0].reward}` : `${freshM.length} alerts with something to master`, freshM.map(line).join("\n"));
+      if (freshR.length) tell("alertLoot", freshR.length === 1 ? `Alert: ${freshR[0].reward}` : `${freshR.length} alerts with rare rewards`, freshR.map(line).join("\n"));
+    });
+  });
+  // Baro's arrival: what he brings that you haven't mastered or don't have. Once per visit.
+  $effect(() => {
+    const b = live.baro;
+    const m = model;
+    if (!m || !b?.inventory?.length || !settingsReady || onConsole) return;
+    if (Date.now() < Date.parse(b.activation) || Date.now() > Date.parse(b.expiry)) return;
+    untrack(() => {
+      const stock = baroStock(m);
+      const need = stock.filter((x) => x.mark === "mastery" || x.mark === "new");
+      if (!need.length || !firstTime(`baro|${b.activation}`)) return;
+      const ducats = (m.inventoryByBase.get("/Lotus/Types/Items/MiscItems/PrimeBucks") ?? []).reduce((n, r) => n + r.quantity, 0);
+      tell("baro", `Baro is at ${b.location}: ${need.length} new to you`, `${names(need.map((x) => x.name), 6)}. You hold ${ducats.toLocaleString("en")} ducats; he leaves in ${until(b.expiry)}.`);
+    });
+  });
+  // Varzia's new rotation, with primes you need from it. Once per rotation.
+  $effect(() => {
+    const exp = live.resurgenceExpiry;
+    const m = model;
+    if (!m || !exp || !live.resurgence?.length || !settingsReady || onConsole) return;
+    untrack(() => {
+      const needs = varziaNeeds(m, masteryRows(m));
+      if (!needs.length || !firstTime(`varzia|${exp}`)) return;
+      const only = needs.filter((v) => v.onlyHere > 0).length;
+      tell("varzia", `Varzia: ${needs.length} prime${needs.length === 1 ? "" : "s"} you need`, `${names(needs.map((v) => v.name), 6)}${only ? `. ${only} only from her relics right now` : ""}. Rotation ends in ${until(exp)}.`);
+    });
+  });
+  // The Duviri Circuit's week: warframes you haven't mastered, adapters for weapons you have. Once a week.
+  $effect(() => {
+    const m = model;
+    if (!m || !live.duviriCycle || !settingsReady || onConsole) return;
+    untrack(() => {
+      const c = today(m, live).circuit;
+      if (!c) return;
+      const frames = c.frames.filter((x) => x.wanted).map((x) => x.name);
+      const incarnons = c.incarnons.filter((x) => x.wanted).map((x) => x.name);
+      if (!frames.length && !incarnons.length) return;
+      if (!firstTime(`circuit|${c.resets}|${[...frames, ...incarnons].join(",")}`)) return;
+      tell("circuit", "Duviri Circuit this week", [frames.length ? `Warframes to master: ${names(frames)}` : "", incarnons.length ? `Steel Path Incarnon for weapons you have: ${names(incarnons)}` : ""].filter(Boolean).join("\n"));
+    });
+  });
 
   // Market and TennoScope trouble, as it happens.
   let seenNote = 0;
@@ -276,8 +374,8 @@
     if (!settings.notify.market) return;
     // Auto-match's changes as one notification ("Serration R0: 9p → 8p, …"), problems one each.
     const moved = fresh.filter((l) => l.tone === "ok" && l.text.includes("→"));
-    if (moved.length) notify(`${moved.length} listing${moved.length === 1 ? "" : "s"} repriced`, moved.map((l) => l.text.replace(/, .*$/, "")).join("\n"));
-    for (const l of fresh.filter((l) => l.tone === "warn" && !l.quiet)) notify("warframe.market", l.text);
+    if (moved.length) tell("market", `${moved.length} listing${moved.length === 1 ? "" : "s"} repriced`, moved.map((l) => l.text.replace(/, .*$/, "")).join("\n"));
+    for (const l of fresh.filter((l) => l.tone === "warn" && !l.quiet)) tell("market", "warframe.market", l.text);
   });
   /** Visible listings for more than you hold now (as of TennoScope's last read): sold, or used. */
   const shortListings = $derived(
@@ -307,7 +405,7 @@
         const it = mkt.item(o.itemId)!;
         return `${it.name}: listed ${o.quantity}, you hold ${heldFor(m, it, o)}`;
       });
-      notify("Listed more than you hold", lines.join("\n"));
+      tell("market", "Listed more than you hold", lines.join("\n"));
     });
   });
   // The status connection failing (refused sign-in, or warframe.market unreachable): once per problem.
@@ -319,7 +417,7 @@
     const e = mkt.status?.error ?? null;
     if (e && !lastStatusError && settings.notify.market && Date.now() - statusNotifiedAt > 15 * 60_000) {
       statusNotifiedAt = Date.now();
-      notify("warframe.market status", e);
+      tell("market", "warframe.market status", e);
     }
     lastStatusError = e;
   });
@@ -334,7 +432,7 @@
       const fresh = needs.filter((n) => !seen.has(n.key));
       if (!fresh.length) return;
       if (settings.notify.invasions) {
-        notify(
+        tell("invasions", 
           fresh.length === 1 ? `Invasion: ${fresh[0].reward}` : `${fresh.length} invasions with parts you need`,
           fresh.map((n) => `${n.reward} for ${n.item}: side with ${n.side} at ${n.node}`).join("\n"),
         );
@@ -368,7 +466,7 @@
     untrack(() => {
       const fresh = due.filter((c) => !notifiedChats.has(`${c.id}@${c.lastUpdate}`));
       for (const c of fresh) notifiedChats.add(`${c.id}@${c.lastUpdate}`);
-      if (fresh.length && settings.notify.siteChat) notify(fresh.length === 1 ? `${fresh[0].with} messaged you on warframe.market` : `${fresh.length} chats on warframe.market`, fresh.map((c) => (c.lastMessage ? `${c.with}: ${c.lastMessage.slice(0, 140)}` : `${c.with}: ${c.unread} unread`)).join("\n"));
+      if (fresh.length && settings.notify.siteChat) tell("siteChat", fresh.length === 1 ? `${fresh[0].with} messaged you on warframe.market` : `${fresh.length} chats on warframe.market`, fresh.map((c) => (c.lastMessage ? `${c.with}: ${c.lastMessage.slice(0, 140)}` : `${c.with}: ${c.unread} unread`)).join("\n"));
     });
   });
   const notifiedChats = new Set<string>();
@@ -488,7 +586,7 @@
     }
     if (!done.length) return;
     const outcome = unmarked ? `Logged; ${unmarked} couldn't be marked sold on warframe.market (see Orders).` : "Marked sold on warframe.market and logged.";
-    if (settings.notify.market) notify(done.length === 1 ? `Sold ${done[0]}` : `${done.length} sales`, `${done.join("\n")}\n${outcome}`);
+    if (settings.notify.market) tell("market", done.length === 1 ? `Sold ${done[0]}` : `${done.length} sales`, `${done.join("\n")}\n${outcome}`);
     // Your inventory changed: have TennoScope read it again so spares and listings line up.
     if (ts.report?.setup.access_mode === "full" && ts.report.game_running) void ts.ask("--sync");
   }
@@ -538,7 +636,7 @@
       const old = fresh.filter((b) => now - b.readyAt > 6 * 3_600_000);
       const news = fresh.filter((b) => !old.includes(b));
       if (news.length && settings.notify.foundry) {
-        notify(
+        tell("foundry", 
           news.length === 1 ? `Ready in the Foundry: ${news[0].name}` : `${news.length} Foundry builds ready`,
           news.length === 1
             ? news[0].points ? `Claim it: +${news[0].points.toLocaleString("en")} mastery once levelled` : "Claim it from the Foundry"
@@ -565,14 +663,14 @@
       const listed = mkt.orders.filter((o) => o.visible).length;
       const tail = listed ? `You have ${listed} listing${listed === 1 ? "" : "s"} up on warframe.market` : "Check your chat in game";
       if (recent.length > 1) {
-        notify(`${recent.length} people whispered you`, [recent.map((w) => w.name).join(", "), tail].join(" · "));
+        tell("whispers", `${recent.length} people whispered you`, [recent.map((w) => w.name).join(", "), tail].join(" · "));
         return;
       }
       // One person: who they are on warframe.market, if it answers within a couple of seconds.
       const who = recent[0].name;
       void Promise.race([mkt.user(who).catch(() => undefined), new Promise<undefined>((r) => setTimeout(() => r(undefined), 2500))]).then((u) => {
         const rep = u === null ? "Not on warframe.market" : u ? `${u.reputation} reputation on warframe.market` : "";
-        notify(`${who} whispered you`, [rep, tail].filter(Boolean).join(" · "));
+        tell("whispers", `${who} whispered you`, [rep, tail].filter(Boolean).join(" · "));
       });
     });
   });
@@ -590,7 +688,7 @@
       if (!settings.notify.fissures) return;
       const f = fresh[0].fissure;
       const what = (x: (typeof fresh)[number]) => `${x.fissure.isHard ? "Steel Path " : x.fissure.isStorm ? "Void Storm " : ""}${x.fissure.tier} ${x.fissure.missionType} · ${x.fissure.node}`;
-      notify(fresh.length === 1 ? `Fissure: ${f.tier} ${f.missionType}` : `${fresh.length} fissures you're watching for`, fresh.map(what).join("\n"));
+      tell("fissures", fresh.length === 1 ? `Fissure: ${f.tier} ${f.missionType}` : `${fresh.length} fissures you're watching for`, fresh.map(what).join("\n"));
     });
   });
 
@@ -615,7 +713,7 @@
         const r = eras.get(e)![0];
         return `${e}: crack ${r.relic} for ${r.part}`;
       });
-      notify(fresh.length === 1 ? `${fresh[0]} fissure open for your wishlist` : "Fissures open for your wishlist", lines.join("\n"));
+      tell("wishlist", fresh.length === 1 ? `${fresh[0]} fissure open for your wishlist` : "Fissures open for your wishlist", lines.join("\n"));
     });
   });
 
@@ -650,7 +748,7 @@
     }
     if (!ids.length) return;
     settings.game.rivensNotified = [...ids, ...settings.game.rivensNotified].slice(0, 500);
-    if (settings.notify.rivens) notify(found.length === 1 ? "A riven you want is listed" : `${found.length} rivens you want are listed`, found.slice(0, 6).join("\n"));
+    if (settings.notify.rivens) tell("rivens", found.length === 1 ? "A riven you want is listed" : `${found.length} rivens you want are listed`, found.slice(0, 6).join("\n"));
   }
 
   // What your relics sell for at each refinement (TennoScope's prices are mostly intact only),
@@ -716,7 +814,7 @@
       const fresh = deals.filter((d) => !(lowest.get(said(d))! <= d.price));
       if (!fresh.length) return;
       settings.game.dealsNotified = [...fresh.map((d) => `${said(d)}@${d.price}`), ...settings.game.dealsNotified].slice(0, 300);
-      if (settings.notify.deals) notify(fresh.length === 1 ? `Cheap: ${fresh[0].name} for ${fresh[0].price}p` : `${fresh.length} cheap buys`, fresh.map((d) => `${d.name}: ${d.price}p from ${d.seller} (usually ${d.usual}p)`).join("\n"));
+      if (settings.notify.deals) tell("deals", fresh.length === 1 ? `Cheap: ${fresh[0].name} for ${fresh[0].price}p` : `${fresh.length} cheap buys`, fresh.map((d) => `${d.name}: ${d.price}p from ${d.seller} (usually ${d.usual}p)`).join("\n"));
     });
   });
 
@@ -799,7 +897,7 @@
   let lastTsError: string | null = null;
   $effect(() => {
     const e = ts.error;
-    if (e && e !== lastTsError && settings.notify.tennoscope) notify("TennoScope", e);
+    if (e && e !== lastTsError && settings.notify.tennoscope) tell("tennoscope", "TennoScope", e);
     lastTsError = e;
   });
   // TennoScope runs in the background (orbiter starts it); its settings live in orbiter's. Not
@@ -996,7 +1094,7 @@
     (async () => {
       settings = await loadSettings();
       if (stopped) return;
-      settings.tab = migrateTab(settings.tab);
+      settings.tab = migrateTab(settings.startPage !== "last" ? settings.startPage : settings.tab);
       settingsReady = true;
       // Before reading its data: a fresh TennoScope re-reads the inventory once the game is up.
       ts.path = settings.tennoscope.path;
@@ -1169,11 +1267,14 @@
         <span class="pill" class:live={!!mission?.relics.length} class:idle={!mission}><i></i></span>
         <span class="lbl"><strong>{mission?.relics.length ? "In a fissure" : mission ? "Watching" : "Idle"}</strong><small>{mission?.relics.length ? (mission.mission ?? "") : model ? `Synced ${ago(model.observedAt, tick)}` : "No data yet"}</small></span>
       </div>{/if}
+      <div class="syncrow">
       <button class="stamp sync" onclick={refreshAll} disabled={loading || syncing}
         title={onConsole ? "Reload your warframe.market listings, the fissures and Baro (Ctrl+R)" : ts.report?.setup.access_mode === "full" && ts.report.game_running ? "Ask TennoScope to read your inventory from the game, then reload (Ctrl+R)" : "Reload TennoScope's saved data and the live fissures (Ctrl+R)"}>
         <Icon name="refresh" size={12} />
         <span class="lbl">{syncing ? "Syncing…" : loading ? "Reading…" : !onConsole && ts.report?.setup.access_mode === "full" && ts.report.game_running ? "Sync" : "Refresh"}</span>
       </button>
+        <button class="tool bell" class:paused={settings.notifyOptions.paused} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={settings.notifyOptions.paused ? "Notifications (paused): what orbiter told you, and what it tells you about" : unread ? `Notifications: ${unread} new` : "Notifications: what orbiter told you, and what it tells you about"} onclick={() => (showNotices = true)}><Icon name="bell" size={14} />{#if unread}<span class="count">{unread > 99 ? "99+" : unread}</span>{/if}</button>
+      </div>
       <div class="tools">
         {#if ts.status && !noTennoScope}
           <button class="tool tsbtn tone-{tsTone}" aria-label="TennoScope" title={tsTone === "ok" ? "TennoScope: status, inventory sync, screen capture" : tsTone === "bad" ? "TennoScope: not running, or something failed. Open for details" : "TennoScope: something needs a look. Open for details"} onclick={() => (showTennoscope = true)}>
@@ -1274,7 +1375,7 @@
         </div>
       {/if}
       {#snippet pane(id: string, body: import("svelte").Snippet)}
-        {#if visited[id] && pages.some((p) => p.id === id)}<div class="pane" class:shown={settings.tab === id}>{@render body()}</div>{/if}
+        {#if visited[id] && available.some((p) => p.id === id)}<div class="pane" class:shown={settings.tab === id}>{@render body()}</div>{/if}
       {/snippet}
       {#snippet pMission()}<InMission {model} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} />{/snippet}
       {#snippet pSets()}<Sets {model} advice={settings.advice} />{/snippet}
@@ -1317,7 +1418,9 @@
   </main>
 </div>
 
-<SettingsSheet bind:open={showSettings} bind:settings {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
+<NoticesSheet bind:open={showNotices} bind:settings console={onConsole} open_={openNotice} test={() => tell("market", "This is how notifications look", "Click one to open the page it's about. Turn kinds on or off under Choose.")} />
+<Toasts open={openNotice} />
+<SettingsSheet bind:open={showSettings} bind:settings onnotices={() => (showNotices = true)} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
 <TennoscopeSheet bind:open={showTennoscope} synced={model ? ago(model.observedAt, tick) : "not yet"} {syncing} onsync={refreshAll} />
 
 <style>
@@ -1370,11 +1473,17 @@
   .pill.live i { background: var(--gold); }
   .pill.live + .lbl strong { color: var(--gold); }
   .pill.idle i { clip-path: none; background: var(--platinum-deep); }
-  .sync { display: flex; justify-content: center; align-items: center; gap: .5rem; width: 100%; }
+  .syncrow { display: flex; gap: .4rem; }
+  .sync { display: flex; justify-content: center; align-items: center; gap: .5rem; flex: 1; min-width: 0; }
   .tools { display: flex; gap: .4rem; }
   .tool { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; padding: .5rem .6rem; }
   .tool.on { color: var(--slab); background: var(--platinum); border-color: var(--platinum); }
   .tsbtn { flex: 1; justify-content: flex-start; }
+  .bell { position: relative; }
+  .bell .count { position: absolute; top: -.45rem; right: -.45rem; min-width: 1.1rem; padding: .05rem .25rem; font-family: var(--face-register); font-size: .55rem; font-weight: 700; line-height: 1.3; text-align: center; color: var(--slab); background: var(--gold); clip-path: var(--cut); animation: pop .25s ease-out; }
+  .bell.paused :global(svg) { opacity: .45; }
+  @keyframes pop { from { transform: scale(.4); } to { transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) { .bell .count { animation: none; } }
   .tsbtn i { width: .5rem; height: .5rem; background: var(--platinum-deep); transform: rotate(45deg); flex: none; }
   .tsbtn.tone-ok i { background: var(--verdigris); }
   .tsbtn.tone-warn i { background: var(--gold); }
@@ -1390,10 +1499,10 @@
   .compact .nav .badge, .compact .nav .live { position: absolute; top: .2rem; right: .35rem; margin: 0; }
   .compact .badge { min-width: 1.05rem; font-size: .52rem; padding: 0 .2rem; }
   .compact .game { justify-content: center; }
-  /* Folded: Sync, TennoScope, Guide and Settings as a 2×2 block, under the game light. */
+  /* Folded: under the game light, Sync across, then the bell, TennoScope, Guide and Settings two by two. */
   .compact .foot { grid-template-columns: 1fr 1fr; gap: .35rem; padding: .6rem .5rem .7rem; }
-  .compact .game { grid-column: 1 / -1; }
-  .compact .tools { display: contents; }
+  .compact .game, .compact .sync { grid-column: 1 / -1; }
+  .compact .tools, .compact .syncrow { display: contents; }
   .compact .sync, .compact .tool { padding: .45rem 0; min-width: 0; }
   .compact .tsbtn { justify-content: center; }
   /* A short window: tighter rows, so every page and the tools fit (all 16 folded at 700 px high). */

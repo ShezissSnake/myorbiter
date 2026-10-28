@@ -3,6 +3,8 @@
   import { ts } from "./tennoscopeStore.svelte";
   import Sheet from "./ui/Sheet.svelte";
   import Switch from "./ui/Switch.svelte";
+  import Chip from "./ui/Chip.svelte";
+  import { pagesFor } from "./pages";
 
   let {
     open = $bindable(),
@@ -10,7 +12,8 @@
     defaultDir,
     eeFound,
     onpaths,
-  }: { open: boolean; settings: Settings; defaultDir: string; eeFound: string | null; onpaths: () => void } = $props();
+    onnotices,
+  }: { open: boolean; settings: Settings; defaultDir: string; eeFound: string | null; onpaths: () => void; onnotices: () => void } = $props();
 
   // Paths are edited as drafts and applied together, because changing them reloads everything.
   let dataDir = $state("");
@@ -32,6 +35,14 @@
   }
   /** A console or phone: only the settings for what works there (no TennoScope, no game log). */
   const onConsole = $derived(settings.market.platform !== "pc");
+  // Pages: all of them for where you play, but Home and the Guide, which always stay.
+  const all = $derived(pagesFor(onConsole));
+  const optional = $derived(all.filter((p) => p.id !== "home" && p.id !== "guide"));
+  const shown = $derived(all.filter((p) => !settings.pagesHidden.includes(p.id)));
+  function togglePage(id: string, on: boolean) {
+    settings.pagesHidden = on ? settings.pagesHidden.filter((x) => x !== id) : [...settings.pagesHidden, id];
+    if (!on && settings.startPage === id) settings.startPage = "last";
+  }
   function revert() {
     dataDir = settings.dataDir;
     eeLog = settings.eeLog;
@@ -49,6 +60,22 @@
       </select>
     </label>
     <p class="dim small">The warframe.market orbiter reads and lists on. Signing in sets it from your account. Prices count sellers on other platforms too when you and they have cross-play on, since Warframe trades across platforms. On a console orbiter can't read your game, so it keeps to what works without it: your listings and their prices, sales, the riven finder, fissures and Baro. Everything built on your inventory is PC only.</p>
+  </section>
+
+  <section>
+    <h3 class="register">Pages</h3>
+    <label class="field">
+      <span class="register">Open on</span>
+      <select bind:value={settings.startPage}>
+        <option value="last">The page you left it on</option>
+        {#each shown as p (p.id)}<option value={p.id}>{p.label}</option>{/each}
+      </select>
+    </label>
+    <p class="hint">Untick a page to take it out of the sidebar (and Ctrl+1…9). It still opens from links on other pages, and nothing on it is lost: tick it again to bring it back. Home and the Guide always stay.</p>
+    <div class="pages">
+      {#each optional as p (p.id)}<Chip on={!settings.pagesHidden.includes(p.id)} label={p.label} title={p.hint} onchange={(on: boolean) => togglePage(p.id, on)} />{/each}
+    </div>
+    {#if settings.pagesHidden.length}<button class="link" onclick={() => (settings.pagesHidden = [])}>Show every page</button>{/if}
   </section>
 
   {#if !onConsole}
@@ -113,40 +140,8 @@
 
   <section>
     <h3 class="register">Notifications</h3>
-    <p class="hint">Through your desktop's notifications, and only while you're not looking at orbiter.</p>
-    {#if !onConsole}<Switch bind:on={settings.notify.reward} label="Which reward to take">
-      When the reward screen opens: the card with the best score, and why.
-    </Switch>{/if}
-    <Switch bind:on={settings.notify.market} label="warframe.market">
-      Listings Auto-match repriced{onConsole ? "" : ", a listing for more than you now hold,"} and anything that went wrong.
-    </Switch>
-    {#if !onConsole}<Switch bind:on={settings.notify.invasions} label="Invasions with a part you need">
-      A running invasion rewards a part for something you haven't mastered or built, and you don't have it yet. Once per invasion.
-    </Switch>{/if}
-    {#if !onConsole}<Switch bind:on={settings.notify.whispers} label="Someone whispers you">
-      A private chat opens in game: usually a buyer from warframe.market. Their name, and how many listings you have up.
-    </Switch>{/if}
-    {#if !onConsole}<Switch bind:on={settings.notify.foundry} label="Foundry builds ready">
-      Something you're building is ready to claim, with how much mastery it gives if you haven't mastered it.
-    </Switch>{/if}
-    {#if !onConsole}<Switch bind:on={settings.notify.deals} label="Cheap parts and arcanes">
-      Someone in game lists a part you're missing, or an arcane you're collecting, well under its usual price.
-    </Switch>{/if}
-    <Switch bind:on={settings.notify.fissures} label="Fissures you watch for">
-      A fissure opens that matches one of your fissure alerts (set them on Home, at the foot of Fissures now).
-    </Switch>
-    <Switch bind:on={settings.notify.siteChat} label="Messages on warframe.market">
-      A buyer writes to you on the website's chat rather than whispering in game (read each minute while you're signed in).
-    </Switch>
-    {#if !onConsole}<Switch bind:on={settings.notify.wishlist} label="Fissures for your wishlist">
-      An era that had no fissure open gets one, and you hold relics of it for something on your wishlist. Most of the time every era has fissures open; the Wishlist page shows what to crack.
-    </Switch>{/if}
-    <Switch bind:on={settings.notify.rivens} label="Rivens you watch for">
-      A riven matching one of your riven alerts is listed at or under your price (checked every 15 minutes).
-    </Switch>
-    {#if !onConsole}<Switch bind:on={settings.notify.tennoscope} label="TennoScope trouble">
-      It couldn't be started, or something orbiter asked of it failed.
-    </Switch>{/if}
+    <p class="hint">They have their own panel: the bell at the bottom of the sidebar. What orbiter told you lately, and a switch for each kind (listings, alerts and invasions with mastery you're missing, Baro, fissures…), with a pause for all of them.</p>
+    <div class="row"><button class="stamp" onclick={() => { open = false; onnotices(); }}>Open notifications</button></div>
   </section>
 
 
@@ -171,6 +166,7 @@
   .path::placeholder { text-transform: none; letter-spacing: 0; font-size: .74rem; font-style: italic; color: var(--platinum-deep); opacity: .7; }
   .hint { font-size: .76rem; color: var(--platinum-deep); }
   .row { display: flex; align-items: center; gap: .6rem; }
+  .pages { display: flex; flex-wrap: wrap; gap: .4rem; }
   /* Unsaved paths: pinned to the bottom of the panel, so it can't be missed whichever field changed. */
   .unsaved { position: sticky; bottom: -2rem; display: grid; gap: .7rem; padding: 1rem 1.1rem; background: var(--raised); border: 1px solid var(--gold-dim); box-shadow: inset 3px 0 0 var(--gold); }
 </style>

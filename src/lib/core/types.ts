@@ -1,4 +1,5 @@
 import type { Invasion } from "./invasions";
+import type { WorldAlert } from "./worldNeeds";
 // Shapes of the bundle the Rust side hands over (see crates/orbiter-data).
 
 export interface InventoryRow {
@@ -187,6 +188,8 @@ export interface Live {
   baro?: Baro | null;
   /** Running invasions, from the worldstate. */
   invasions?: Invasion[] | null;
+  /** Running alerts, from the worldstate. */
+  alerts?: WorldAlert[] | null;
   /** The rest of today's worldstate, for the "worth doing today" card (see today.ts). */
   nightwave?: Nightwave | null;
   sortie?: SortieLike | null;

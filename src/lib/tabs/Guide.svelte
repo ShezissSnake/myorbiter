@@ -10,7 +10,7 @@
   let { go, plannerMode = $bindable(), console = false, platform = "PC" }: { go: (tab: string) => void; plannerMode: "sets" | "radiant"; console?: boolean; platform?: string } = $props();
 
   const CONSOLE_STEPS: Step[] = [
-    ["home", "Home", "your market at a glance, the open worlds' cycles and resets, the fissures open now (with alerts for the ones you want), what's worth doing today, and when Baro comes and what he brings."],
+    ["home", "Home", "alerts with rare rewards (catalysts, reactors, Forma…), your market at a glance, the open worlds' cycles and resets, the fissures open now (with alerts for the ones you want), what's worth doing today, and when Baro comes and what he brings."],
     ["market", "Orders", "your listings. New listing finds anything warframe.market trades: pick it, set how many you have and the price (it starts at the cheapest seller in game). Check prices compares each listing with the cheapest seller in game; Apply moves it there. Both can run on their own, on a timer you choose. When you sell one in game, press Sold on it: that marks it sold on warframe.market and logs the sale."],
     ["sales", "Sales", "what you've sold and what it made: today, 7 and 30 days, platinum per day, and each sale against the market. Import pulls in sales you marked sold on the website or app."],
     ["rivens", "Rivens", "find rivens for sale with each roll graded, and alerts when one you want is listed at your price."],
@@ -21,7 +21,7 @@
     {
       title: "Each session",
       steps: [
-        ["home", "Home", "what needs you (an invasion with a part you need and the side to take, listings to fix, Varzia's rotation ending), the open-world cycles and resets, your market, live fissures with your best relic for each era, what's ready to sell, what's worth doing today (Circuit, Steel Path, Teshin, Sortie, Archon, Nightwave), your Foundry and Wishlist, cheap buys, the easiest mastery next, and Baro and Varzia against your collection."],
+        ["home", "Home", "what needs you (an alert or invasion with something you haven't mastered and the side to take, alerts with rare rewards, listings to fix, Varzia's rotation ending), the open-world cycles and resets, your market, live fissures with your best relic for each era, what's ready to sell, what's worth doing today (Circuit, Steel Path, Teshin, Sortie, Archon, Nightwave), your Foundry and Wishlist, cheap buys, the easiest mastery next, and Baro and Varzia against your collection."],
         ["foundry", "Foundry", "everything you can master as cards, each part gold when you have it; click any card for stats, abilities, where each part drops (your relics first) and live prices. The star puts it on your Wishlist."],
         ["wishlist", "Wishlist", "what you've starred, with each missing part's way in: relics you hold (lit when a fissure of their era is open now), where to farm the ones you don't, or what buying it costs. The gold percentage is the chance your relics finish it if you crack each once; orbiter can tell you when a fissure opens for them."],
         ["mastery", "Mastery", "everything you haven't mastered, easiest first: five pips from Market-and-build to Liches, where it comes from and how, and the mastery it's worth. Open a prime for the relics that drop each missing part."],
@@ -85,14 +85,15 @@
         <li><b>Hover</b> over any button or number for what it does.</li>
         <li><b>Refresh</b>, at the bottom of the sidebar, reloads your listings, the fissures and Baro.</li>
         <li><b>Keyboard:</b> <kbd>Ctrl</kbd>+<kbd>1</kbd>…<kbd>4</kbd> pages in sidebar order, <kbd>Ctrl</kbd>+<kbd>R</kbd> or <kbd>F5</kbd> refresh, <kbd>Ctrl</kbd>+<kbd>,</kbd> settings, <kbd>F1</kbd> this guide, <kbd>Esc</kbd> closes a panel, <kbd>Ctrl</kbd>+<kbd>Q</kbd> quits.</li>
-        <li>The gear opens Settings: your platform, the +rep message, and notifications.</li>
+        <li><span class="ic"><Icon name="bell" /></span> <b>Notifications</b>: what orbiter told you lately (click one to open it), and under <b>Choose</b> which kinds you get, with a pause for all of them.</li>
+        <li>The gear opens Settings: your platform, which pages the sidebar shows and which one orbiter opens on, and the +rep message.</li>
       </ul>
     </article>
     <article>
       <h3 class="register lead">Where the numbers come from</h3>
       <ul>
         <li>Prices: warframe.market's order books, live, and its daily trade statistics for price history. Warframe trades across platforms, so they count sellers on every platform you can trade with: yours, and the others when both of you have cross-play on (in game and on your warframe.market profile). Platinum can't move between Switch and the other platforms.</li>
-        <li>Fissures, Baro and his stock, cycles and today's missions: api.warframestat.us, refreshed every few minutes.</li>
+        <li>Fissures, alerts, Baro and his stock, cycles and today's missions: api.warframestat.us, refreshed every few minutes.</li>
         <li>Sales: what you record with Sold, and the closed orders on your warframe.market profile when you import them.</li>
         <li>Rivens: warframe.market's riven auctions.</li>
       </ul>
@@ -138,7 +139,8 @@
         <li><b>Sync</b> (bottom of the sidebar) asks TennoScope to read your inventory from the game and reloads. It says <b>Refresh</b> when Warframe isn't running or TennoScope can't read the game, and then re-reads what TennoScope last saved.</li>
         <li><b>TennoScope</b> under it opens its panel: whether it's healthy, screen-capture permission for the reward overlay, and inventory sync. Its light is green when all is well, gold when something wants a look, red when it isn't running or something failed.</li>
         <li>The sidebar folds to icons on narrow windows; the arrow next to the name folds or unfolds it, and orbiter remembers your choice.</li>
-        <li>The gear opens Settings: starting TennoScope with orbiter, where it, its data and Warframe's log are, switching to In mission when the reward screen opens, marking sales sold from the game, and notifications.</li>
+        <li><span class="ic"><Icon name="bell" /></span> <b>Notifications</b>: what orbiter told you lately, newest first (click one to open what it's about; the number on the bell is how many are new), and under <b>Choose</b> a switch for each kind, with a pause for all of them. Besides your listings and fissures, it can tell you when an alert or invasion rewards something you haven't mastered, when Baro brings something new to you, when Varzia's rotation has primes you need, and the Duviri Circuit's picks. While you're looking at orbiter they pop up in its corner; otherwise on your desktop.</li>
+        <li>The gear opens Settings: which pages the sidebar shows and which one orbiter opens on, starting TennoScope with orbiter, where it, its data and Warframe's log are, switching to In mission when the reward screen opens, and marking sales sold from the game.</li>
       </ul>
     </article>
     <article>
@@ -172,7 +174,7 @@
         <li>Cheap buys: warframe.market's live feed of new orders, checked as each one goes up against everything you're missing or collecting; and its order books every 10 minutes for the top 20.</li>
         <li>Price history (Inventory, item details): warframe.market's daily trade statistics for the last 90 days. Imported sales (Sales): the closed orders on your warframe.market profile. Messages: warframe.market's own chat, read each minute while you're signed in.</li>
         <li>Riven auctions (Rivens, Sell) and +rep: warframe.market's v1 API, with your sign-in.</li>
-        <li>Today: Nightwave, Sortie, Archon Hunt, Teshin and the Duviri Circuit from api.warframestat.us, as are the open worlds' cycles.</li>
+        <li>Today: Nightwave, Sortie, Archon Hunt, Teshin and the Duviri Circuit from api.warframestat.us, as are the open worlds' cycles and alerts.</li>
         <li>Stats, abilities and build costs: the item catalog TennoScope keeps (WFCD). Rivens: each one's stats from your inventory, with the game's own base values; prices from warframe.market's riven auctions.</li>
         <li>Relics in a mission: Warframe's own <code>EE.log</code>, read only.</li>
         <li>Finish odds on Wishlist and Mastery: each relic's drop chance at the refinement you hold, assuming you crack every copy once. Squadmates' relics aren't counted.</li>

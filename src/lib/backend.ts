@@ -9,8 +9,10 @@ import { defaultBulkRules, type BulkRules } from "./core/bulk";
 import type { FissureRule } from "./core/timers";
 import type { RivenAuction, RivenMeta, RivenRaw, RivenSnap } from "./core/rivens";
 import type { Invasion } from "./core/invasions";
+import type { WorldAlert } from "./core/worldNeeds";
 import type { Bundle, CatalogPart, CollectionPart, DuviriCycle, Fissure, Live, MissionState, Nightwave, SortieLike, SteelPath, VaultTraderItem } from "./core/types";
 import { defaultPickWeights, type PickWeights } from "./core/pick";
+import type { Notice } from "./notices";
 
 
 /** warframe.market's platforms: whose market orbiter reads and lists on. */
@@ -92,8 +94,13 @@ export interface Settings {
   withoutInventory: boolean;
   /** Home's cards you turned off (Home → Customise): "market", "baro"… */
   homeHidden: string[];
-  /** Desktop notifications, sent only while orbiter's window isn't the one you're looking at. */
+  /** What you get notifications for (the bell in the sidebar). */
   notify: NotifySettings;
+  notifyOptions: NotifyOptions;
+  /** Pages you took out of the sidebar (Settings → Pages). */
+  pagesHidden: string[];
+  /** The page orbiter opens on: "last" is where you left it. */
+  startPage: string;
   tab: string;
   /** The sidebar: true icons only, false with page names, null folds by itself in a narrow window. */
   folded: boolean | null;
@@ -164,6 +171,10 @@ export interface GameState {
   valueHistory: ValuePoint[];
   /** Every relic reward screen, oldest first: Stats' relic runs. */
   relicRuns: RelicRun[];
+  /** Notifications sent, newest first (the bell in the sidebar). */
+  notices: Notice[];
+  /** Alerts, Baro visits, Varzia rotations and Circuit weeks already announced. */
+  worldNotified: string[];
 }
 export interface ValuePoint {
   at: number;
@@ -190,7 +201,7 @@ export interface TradeLogEntry {
   platOut: number;
   platIn: number;
 }
-export const defaultGame = (): GameState => ({ foundryReady: [], masteryRank: null, platinum: null, credits: null, endo: null, rivens: null, rivenHistory: {}, foundryNotified: [], whispersSeen: [], chatsSeen: {}, dealsNotified: [], fissuresNotified: [], rivensNotified: [], shortNotified: [], valueHistory: [], relicRuns: [] });
+export const defaultGame = (): GameState => ({ foundryReady: [], masteryRank: null, platinum: null, credits: null, endo: null, rivens: null, rivenHistory: {}, foundryNotified: [], whispersSeen: [], chatsSeen: {}, dealsNotified: [], fissuresNotified: [], rivensNotified: [], shortNotified: [], valueHistory: [], relicRuns: [], notices: [], worldNotified: [] });
 
 export interface NotifySettings {
   /** The reward screen opened: which card to take. */
@@ -215,8 +226,26 @@ export interface NotifySettings {
   wishlist: boolean;
   /** Someone messaged you on warframe.market's own chat (the website, not the game). */
   siteChat: boolean;
+  /** An alert rewards something you haven't mastered, or a part toward it. */
+  alerts: boolean;
+  /** An alert rewards a catalyst, reactor, Forma, Exilus Adapter or Nitain. */
+  alertLoot: boolean;
+  /** Baro arrives with gear you haven't mastered or mods you don't have. */
+  baro: boolean;
+  /** Varzia's rotation changes, with primes you haven't mastered or can't build. */
+  varzia: boolean;
+  /** The Duviri Circuit's weekly picks include something for you. */
+  circuit: boolean;
 }
-export const defaultNotify = (): NotifySettings => ({ reward: true, market: true, tennoscope: true, invasions: true, foundry: true, whispers: true, deals: true, fissures: true, rivens: true, wishlist: true, siteChat: true });
+export const defaultNotify = (): NotifySettings => ({ reward: true, market: true, tennoscope: true, invasions: true, foundry: true, whispers: true, deals: true, fissures: true, rivens: true, wishlist: true, siteChat: true, alerts: true, alertLoot: true, baro: true, varzia: true, circuit: true });
+
+/** How notifications reach you, whatever they're about. */
+export interface NotifyOptions {
+  /** Paused: notifications still go in the history, but nothing pops up. */
+  paused: boolean;
+  /** While you're looking at orbiter: a pop-up in its window (a desktop one goes out otherwise). */
+  toasts: boolean;
+}
 
 export const defaultSettings = (): Settings => ({
   advice: defaultAdvice(),
@@ -229,6 +258,9 @@ export const defaultSettings = (): Settings => ({
   withoutInventory: false,
   homeHidden: [],
   notify: defaultNotify(),
+  notifyOptions: { paused: false, toasts: true },
+  pagesHidden: [],
+  startPage: "last",
   tab: "home",
   folded: null,
   plannerMode: "sets",
@@ -325,7 +357,7 @@ export async function loadLive(): Promise<Live> {
     if (inTauri) raw = await invoke("worldstate");
     else {
       const get = (p: string) => fetch(`https://api.warframestat.us/pc/${p}?language=en`).then((r) => r.json()).catch(() => null);
-      const names = ["fissures", "vaultTrader", "voidTrader", "invasions", "nightwave", "sortie", "archonHunt", "steelPath", "duviriCycle", "earthCycle", "cetusCycle", "vallisCycle", "cambionCycle", "zarimanCycle"];
+      const names = ["fissures", "vaultTrader", "voidTrader", "invasions", "nightwave", "sortie", "archonHunt", "steelPath", "duviriCycle", "earthCycle", "cetusCycle", "vallisCycle", "cambionCycle", "zarimanCycle", "alerts"];
       raw = Object.fromEntries(await Promise.all(names.map(async (n) => [n, await get(n)] as const)));
     }
   } catch {
@@ -340,6 +372,7 @@ export async function loadLive(): Promise<Live> {
     resurgence: vt?.inventory ?? null,
     resurgenceExpiry: vt?.expiry ?? null,
     invasions: Array.isArray(raw?.invasions) ? (raw!.invasions as Invasion[]) : null,
+    alerts: Array.isArray(raw?.alerts) ? (raw!.alerts as WorldAlert[]) : null,
     nightwave: obj<Nightwave>(raw?.nightwave, "activeChallenges"),
     sortie: obj<SortieLike>(raw?.sortie, "boss"),
     archonHunt: obj<SortieLike>(raw?.archonHunt, "boss"),
@@ -382,9 +415,12 @@ export async function loadSettings(): Promise<Settings> {
     pick: { ...base.pick, ...(raw?.pick ?? {}) },
     tennoscope: { ...base.tennoscope, ...(raw?.tennoscope ?? {}) },
     notify: { ...base.notify, ...(raw?.notify ?? {}) },
+    notifyOptions: { paused: raw?.notifyOptions?.paused === true, toasts: raw?.notifyOptions?.toasts !== false },
+    pagesHidden: Array.isArray(raw?.pagesHidden) ? raw.pagesHidden.filter((k: unknown): k is string => typeof k === "string") : [],
+    startPage: typeof raw?.startPage === "string" && raw.startPage ? raw.startPage : "last",
     schema: base.schema,
     notifiedInvasions: Array.isArray(raw?.notifiedInvasions) ? raw.notifiedInvasions : [],
-    game: { ...defaultGame(), ...(raw?.game ?? {}), relicRuns: Array.isArray(raw?.game?.relicRuns) ? raw.game.relicRuns : [] },
+    game: { ...defaultGame(), ...(raw?.game ?? {}), relicRuns: Array.isArray(raw?.game?.relicRuns) ? raw.game.relicRuns : [], notices: Array.isArray(raw?.game?.notices) ? raw.game.notices : [], worldNotified: Array.isArray(raw?.game?.worldNotified) ? raw.game.worldNotified : [] },
     favourites: Array.isArray(raw?.favourites) ? raw.favourites : [],
     fissureRules: Array.isArray(raw?.fissureRules) ? raw.fissureRules : [],
     rivenWatch: Array.isArray(raw?.rivenWatch) ? raw.rivenWatch : [],
@@ -402,6 +438,7 @@ export const HEAVY_SETTINGS = [
   ["game", "valueHistory"],
   ["game", "rivenHistory"],
   ["game", "relicRuns"],
+  ["game", "notices"],
 ] as const;
 export type HeavyKey = `${(typeof HEAVY_SETTINGS)[number][0]}.${(typeof HEAVY_SETTINGS)[number][1]}`;
 
@@ -410,7 +447,7 @@ export function lightSettings(s: Settings) {
   return {
     ...s,
     market: { ...s.market, sales: undefined, trades: undefined, relicPrices: undefined },
-    game: { ...s.game, valueHistory: undefined, rivenHistory: undefined, relicRuns: undefined },
+    game: { ...s.game, valueHistory: undefined, rivenHistory: undefined, relicRuns: undefined, notices: undefined },
   };
 }
 
@@ -555,9 +592,8 @@ export const tennoscope = {
 /** The reward cards a patched TennoScope read off the screen (empty once it closes), or null. */
 // ---------------------------------------------------------------- desktop
 
-/** A desktop notification, unless you're looking at orbiter already. In the browser dev mode it's logged. */
+/** A desktop notification (App's `tell` decides when). In the browser dev mode it's logged. */
 export function notify(summary: string, body: string) {
-  if (typeof document !== "undefined" && document.hasFocus()) return;
   if (inTauri) invoke("notify", { summary, body }).catch(() => {});
   else console.info(`[notification] ${summary}: ${body}`);
 }
