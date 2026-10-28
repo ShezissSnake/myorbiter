@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Settings } from "./backend";
+  import { PLATFORM_LABEL, type Platform, type Settings } from "./backend";
   import { ts } from "./tennoscopeStore.svelte";
   import Sheet from "./ui/Sheet.svelte";
   import Switch from "./ui/Switch.svelte";
@@ -38,6 +38,17 @@
 </script>
 
 <Sheet bind:open title="Settings" kicker="orbiter">
+  <section>
+    <h3 class="register">Platform</h3>
+    <label class="field">
+      <span class="register">Where you play</span>
+      <select value={settings.market.platform} onchange={(e) => { settings.market.platform = e.currentTarget.value as Platform; settings.market.relicPrices = {}; }}>
+        {#each Object.entries(PLATFORM_LABEL) as [v, label] (v)}<option value={v}>{label}</option>{/each}
+      </select>
+    </label>
+    <p class="dim small">The warframe.market orbiter reads and lists on. Signing in sets it from your account. Off PC there's no inventory: TennoScope only reads Warframe on a PC, so orbiter doesn't start it, and your listings, prices, sales, fissures, Baro and the riven finder are what's left.</p>
+  </section>
+
   <section>
     <h3 class="register">TennoScope</h3>
     <Switch bind:on={settings.tennoscope.launch} label="Start TennoScope with orbiter">

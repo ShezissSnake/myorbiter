@@ -33,6 +33,8 @@
     type Settings,
     emptyBundle,
     nothingYet,
+    PLATFORM_LABEL,
+    type Platform,
     NO_INVENTORY_YET,
     tennoscope,
   } from "./lib/backend";
@@ -140,6 +142,21 @@
   let noInventory = $state(false);
   /** TennoScope doesn't run on this system (macOS). */
   const tsUnsupported = $derived(ts.status?.supported === false);
+  /** You play on a console or phone (Settings → Platform): TennoScope only reads Warframe on a PC. */
+  const onConsole = $derived(settings.market.platform !== "pc");
+  /** No TennoScope here: a Mac, or a console player. orbiter works without an inventory. */
+  const noTennoScope = $derived(tsUnsupported || onConsole);
+  // The market follows your platform; a new one means new order books and prices.
+  $effect(() => {
+    void mkt.usePlatform(settings.market.platform).catch(() => {});
+  });
+  // Switching to or from a console changes what an empty TennoScope folder means.
+  let wasConsole: boolean | null = null;
+  $effect(() => {
+    const c = onConsole;
+    if (wasConsole != null && wasConsole !== c) void reload();
+    wasConsole = c;
+  });
   /** Linux's limit on reading another program's memory, when it stops TennoScope reading the game. */
   let ptraceScope = $state<number | null>(null);
   $effect(() => {
@@ -770,10 +787,11 @@
     if (e && e !== lastTsError && settings.notify.tennoscope) notify("TennoScope", e);
     lastTsError = e;
   });
-  // TennoScope runs in the background (orbiter starts it); its settings live in orbiter's.
+  // TennoScope runs in the background (orbiter starts it); its settings live in orbiter's. Not
+  // for a console player: it only reads Warframe on a PC.
   $effect(() => {
     ts.path = settings.tennoscope.path;
-    ts.launch = settings.tennoscope.launch;
+    ts.launch = settings.tennoscope.launch && !onConsole;
   });
 
   /** Refresh: ask TennoScope to read the inventory from the game when it can, then re-read its files. */
@@ -878,7 +896,7 @@
       stamp = next;
       // TennoScope has started but not read the game yet: its item data, no inventory.
       const empty = read.observed_at == null && !read.inventory.length;
-      if (empty && !(settings.withoutInventory || tsUnsupported) && (!bundle || noInventory)) throw new Error(NO_INVENTORY_YET);
+      if (empty && !(settings.withoutInventory || noTennoScope) && (!bundle || noInventory)) throw new Error(NO_INVENTORY_YET);
       bundle = read;
       noInventory = empty;
       loadedAt = Date.now();
@@ -886,7 +904,7 @@
     } catch (e) {
       // Nothing to read yet, and you'd rather carry on (or TennoScope can't run here): an empty
       // collection until it can. The stamp poll reloads once TennoScope writes its data.
-      if (nothingYet(String(e)) && (settings.withoutInventory || tsUnsupported) && (!bundle || noInventory)) {
+      if (nothingYet(String(e)) && (settings.withoutInventory || noTennoScope) && (!bundle || noInventory)) {
         bundle = emptyBundle();
         noInventory = true;
         error = null;
@@ -966,7 +984,7 @@
       settingsReady = true;
       // Before reading its data: a fresh TennoScope re-reads the inventory once the game is up.
       ts.path = settings.tennoscope.path;
-      ts.launch = settings.tennoscope.launch;
+      ts.launch = settings.tennoscope.launch && settings.market.platform === "pc";
       // Awaited: whether TennoScope runs here at all decides what an empty folder means.
       await ts.check(true);
       // Every 15 s: if it stopped (crashed, or you quit it), start it again in the background.
@@ -996,6 +1014,12 @@
       // warframe.market: sign-in state, your orders, and the auto-match timer.
       // Your warframe.market status: held again from where you left it (see Orders).
       mkt.init().then(() => {
+        // Signed in: your account says which platform you play on.
+        const theirs = mkt.me?.platform;
+        if (theirs && theirs in PLATFORM_LABEL && theirs !== settings.market.platform) {
+          settings.market.platform = theirs as Platform;
+          settings.market.relicPrices = {};
+        }
         if (mkt.linked && settings.market.presence) mkt.setStatus(settings.market.presence);
       });
       mkt.pollStatus();
@@ -1014,9 +1038,10 @@
             () => orderFailures++,
           );
         }
-        if (!model || !s.auto || !mkt.linked || mkt.busy) return;
+        // Check (and, with Apply automatically, send) on your timer.
+        if (!model || !(s.auto || s.autoCheck) || !mkt.linked || mkt.busy) return;
         if (mkt.lastPass && Date.now() - mkt.lastPass < mkt.passDelay(s.every * 60_000)) return;
-        mkt.reprice(model, s, true);
+        mkt.reprice(model, s, s.auto);
       }, 15_000);
       // Signed in but warframe.market was unreachable (offline start, outage): try again each minute.
       // And the website's chat, each minute while signed in.
@@ -1134,7 +1159,7 @@
         <span class="lbl">{syncing ? "Syncing…" : loading ? "Reading…" : ts.report?.setup.access_mode === "full" && ts.report.game_running ? "Sync" : "Refresh"}</span>
       </button>
       <div class="tools">
-        {#if ts.status && !tsUnsupported}
+        {#if ts.status && !noTennoScope}
           <button class="tool tsbtn tone-{tsTone}" aria-label="TennoScope" title={tsTone === "ok" ? "TennoScope: status, inventory sync, screen capture" : tsTone === "bad" ? "TennoScope: not running, or something failed. Open for details" : "TennoScope: something needs a look. Open for details"} onclick={() => (showTennoscope = true)}>
             <i></i><span class="lbl">TennoScope</span>
           </button>
@@ -1152,8 +1177,8 @@
       <!-- First start: nothing read yet. What TennoScope needs, step by step. -->
       <div class="page-inner"><div class="notice">
         <h2 class="mark">Getting set up</h2>
-        {#if tsUnsupported}
-          <p class="prose">orbiter learns what you own from TennoScope, which reads it from the game. TennoScope doesn't run on macOS, so orbiter can't see your inventory here. Your warframe.market listings and sales, fissures, Baro and Varzia, the world's clocks and the riven finder all work without it.</p>
+        {#if noTennoScope}
+          <p class="prose">orbiter learns what you own from TennoScope, which reads it from the game. {onConsole ? `TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}` : "TennoScope doesn't run on macOS"}, so orbiter can't see your inventory here. Your warframe.market listings and sales, fissures, Baro and Varzia, the world's clocks and the riven finder all work without it.</p>
           <div class="row"><button class="stamp gold" onclick={withoutInventory}>Continue without inventory</button></div>
         {:else}
           <p class="prose">orbiter learns what you own from TennoScope, which {ts.status?.bundled ? "comes inside orbiter and " : ""}reads it from the game. Three steps, once:</p>
@@ -1208,8 +1233,8 @@
     {:else}
       {#if noInventory}
         <div class="stale" role="status">
-          <span>{tsUnsupported ? "No inventory: TennoScope, which reads it from the game, doesn't run on macOS." : "No inventory yet: your collection fills in as soon as TennoScope reads it from the game."}</span>
-          {#if !tsUnsupported}<button class="link" onclick={() => (showTennoscope = true)}>Set up</button>{/if}
+          <span>{onConsole ? `No inventory: TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}. Listings, prices and sales use the ${PLATFORM_LABEL[settings.market.platform]} market.` : tsUnsupported ? "No inventory: TennoScope, which reads it from the game, doesn't run on macOS." : "No inventory yet: your collection fills in as soon as TennoScope reads it from the game."}</span>
+          {#if !noTennoScope}<button class="link" onclick={() => (showTennoscope = true)}>Set up</button>{/if}
         </div>
       {/if}
       {#if error}

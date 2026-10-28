@@ -131,3 +131,18 @@ test("the sidebar fold, the Planner's mode and the short-listing notices are kep
   assert.equal(old.plannerMode, "sets");
   assert.deepEqual(old.game.shortNotified, []);
 });
+
+test("platform, automatic checks and Home's cards are kept; old tiers and unknown values go", async () => {
+  const saved = { tiers: { "Arcane Energize": "S" }, homeHidden: ["baro", 3], market: { platform: "xbox", auto: true } };
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify(saved) };
+  const s = await loadSettings();
+  assert.equal(s.market.platform, "xbox");
+  assert.equal(s.market.autoCheck, true, "settings from when Auto-match did both: checking stays on with applying");
+  assert.deepEqual(s.homeHidden, ["baro"]);
+  assert.equal("tiers" in s, false);
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({ market: { platform: "dreamcast", every: 0 } }) };
+  const odd = await loadSettings();
+  assert.equal(odd.market.platform, "pc");
+  assert.equal(odd.market.every, 5);
+  assert.equal(odd.market.autoCheck, false);
+});

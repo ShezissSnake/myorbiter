@@ -150,3 +150,11 @@ test("arcanes: copies you could fuse count as held at max rank, so a listing for
   assert.equal(h.find((x) => x.rank === 5)?.count, 2, "one maxed and one more from 22 unranked");
   assert.equal(h.find((x) => x.rank === 0)?.count, 22);
 });
+
+test("with no inventory read at all (a console player), what you hold is unknown, not none", async () => {
+  const { holdings, heldFor } = await import("../src/lib/core/market");
+  const empty = { observedAt: null, inventoryByBase: new Map(), inventoryByName: new Map(), partByName: new Map() } as never;
+  const item = { id: "e", slug: "arcane_energize", gameRef: "/A/Energize", name: "Arcane Energize", maxRank: 5, subtypes: null, tags: ["arcane_enhancement"] };
+  assert.equal(holdings(empty, item as never), null);
+  assert.equal(heldFor(empty, item as never, { rank: 0, subtype: null }), null);
+});

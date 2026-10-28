@@ -23,6 +23,22 @@ pub const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"), " (p
 
 static LAST_CALL: Mutex<Option<Instant>> = Mutex::new(None);
 
+/// Which platform's market orbiter reads and lists on: "pc", "xbox", "ps4", "switch" or "mobile"
+/// (warframe.market's names). Set from Settings, or from your signed-in profile.
+static PLATFORM: std::sync::RwLock<&'static str> = std::sync::RwLock::new("pc");
+pub const PLATFORMS: [&str; 5] = ["pc", "xbox", "ps4", "switch", "mobile"];
+
+pub fn platform() -> &'static str {
+    *PLATFORM.read().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Switches platform; anything warframe.market doesn't know is refused.
+pub fn set_platform(name: &str) -> Result<(), String> {
+    let p = PLATFORMS.iter().find(|p| **p == name).ok_or_else(|| format!("Unknown platform {name}"))?;
+    *PLATFORM.write().unwrap_or_else(|e| e.into_inner()) = p;
+    Ok(())
+}
+
 fn wait_turn() {
     let mut last = LAST_CALL.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(at) = *last {
@@ -192,7 +208,7 @@ impl Client {
             .set("User-Agent", USER_AGENT)
             .set("Accept", "application/json")
             .set("Language", "en")
-            .set("Platform", "pc")
+            .set("Platform", platform())
             .timeout(Duration::from_secs(20));
         if let Some(t) = &token {
             let scheme = if url.contains("/v1/") { "JWT" } else { "Bearer" };
@@ -863,6 +879,16 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn platform_is_one_warframe_market_knows() {
+        assert_eq!(platform(), "pc");
+        set_platform("xbox").unwrap();
+        assert_eq!(platform(), "xbox");
+        assert!(set_platform("xbox360").is_err(), "unknown names are refused");
+        assert_eq!(platform(), "xbox");
+        set_platform("pc").unwrap();
+    }
     #[test]
     fn reads_a_public_profile() {
         let v: serde_json::Value = serde_json::from_str(r#"{"apiVersion":"0.25.0","data":{"id":"aaaaaaaaaaaaaaaaaaaaaaaa","role":"user","tier":"none","ingameName":"Seller1","slug":"seller1","about":"<p>x</p>","reputation":15,"masteryRank":0,"status":"offline","platform":"pc","crossplay":true,"locale":"en"}}"#).unwrap();

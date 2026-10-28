@@ -64,7 +64,7 @@
   <section class="trust">
     <h3 class="register lead">What orbiter does to your game</h3>
     <ul>
-      <li><b>Nothing.</b> orbiter never sends keys, clicks or anything else to Warframe. It reads Warframe's log file and what TennoScope saves, and it changes your warframe.market listings only when you ask: a button (List, Sold, a price), Auto-match if you turn it on in Orders, or marking a listing sold when the game log shows you traded it (Settings, under Trades).</li>
+      <li><b>Nothing.</b> orbiter never sends keys, clicks or anything else to Warframe. It reads Warframe's log file and what TennoScope saves, and it changes your warframe.market listings only when you ask: a button (List, Sold, a price), Apply automatically if you turn it on in Orders, or marking a listing sold when the game log shows you traded it (Settings, under Trades).</li>
       <li>TennoScope reads the game's memory to find your session, read only, then downloads your inventory from the same address the official companion app uses. It doesn't write to the game either.</li>
       <li>Mods: orbiter can't see which copy is fitted to a build, so it always keeps your best copy and one more. What it calls spare is past those two.</li>
       <li>Everything orbiter records (sales, trades, value over time, settings) stays on this computer. Your warframe.market sign-in is kept in the system keyring (a private file if there isn't one).</li>

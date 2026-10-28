@@ -248,6 +248,9 @@ type Holding = { rank: number | null; subtype: string | null; count: number };
 
 /** What you hold of a market item, by rank and variant; [] when you hold none; null when unknown. */
 export function holdings(m: Model, item: MarketItem): Holding[] | null {
+  // No inventory read at all (a console player, a Mac, TennoScope not set up yet): what you hold
+  // is unknown, not none, so no listing is flagged or taken down for it.
+  if (!m.observedAt && m.inventoryByBase.size === 0) return null;
   // Relics: the market lists one item per relic with refinements as subtypes; your inventory
   // has one entry per refinement (…Bronze … …Platinum).
   if (item.gameRef && item.tags?.includes("relic")) {

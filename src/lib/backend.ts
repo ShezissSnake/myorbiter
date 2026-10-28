@@ -13,9 +13,17 @@ import type { Bundle, CatalogPart, CollectionPart, DuviriCycle, Fissure, Live, M
 import { defaultPickWeights, type PickWeights } from "./core/pick";
 
 
+/** warframe.market's platforms: whose market orbiter reads and lists on. */
+export type Platform = "pc" | "xbox" | "ps4" | "switch" | "mobile";
+export const PLATFORM_LABEL: Record<Platform, string> = { pc: "PC", xbox: "Xbox", ps4: "PlayStation", switch: "Nintendo Switch", mobile: "iOS / Android" };
+
 export interface MarketSettings {
-  /** Reprice automatically on a timer. */
+  /** Your platform. Anything but PC has no inventory: TennoScope only reads Warframe on a PC. */
+  platform: Platform;
+  /** Reprice automatically on a timer: check, and send the new prices (Auto-match). */
   auto: boolean;
+  /** Check prices on the timer without sending them: Orders shows what each listing would change to. */
+  autoCheck: boolean;
   /** Minutes between automatic passes. */
   every: number;
   /** Never below this share of the item's daily market price. */
@@ -52,7 +60,7 @@ export interface MarketSettings {
   repText: string;
 }
 
-export const defaultMarketSettings = (): MarketSettings => ({ auto: false, every: 5, minShare: 0.5, floors: {}, paused: {}, presence: null, minPrice: 10, minRelicPrice: 3, relicPrices: {}, bulk: defaultBulkRules(), sellable: defaultSellChoices(), sales: [], autoTrades: true, tradesSeen: [], trades: [], rep: {}, repText: ":)" });
+export const defaultMarketSettings = (): MarketSettings => ({ platform: "pc", auto: false, autoCheck: false, every: 5, minShare: 0.5, floors: {}, paused: {}, presence: null, minPrice: 10, minRelicPrice: 3, relicPrices: {}, bulk: defaultBulkRules(), sellable: defaultSellChoices(), sales: [], autoTrades: true, tradesSeen: [], trades: [], rep: {}, repText: ":)" });
 
 export interface AdviceSettings {
   platPerDucat: number;
@@ -369,7 +377,7 @@ export async function loadSettings(): Promise<Settings> {
     withoutInventory: raw?.withoutInventory === true,
     homeHidden: Array.isArray(raw?.homeHidden) ? raw.homeHidden.filter((k: unknown): k is string => typeof k === "string") : [],
     plannerMode: raw?.plannerMode === "radiant" ? "radiant" : "sets",
-    market: { ...base.market, ...(raw?.market ?? {}), bulk: { ...base.market.bulk, ...(raw?.market?.bulk ?? {}) }, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: raw?.market?.sellable?.relicsWorthSelling ?? base.market.sellable.relicsWorthSelling }, sales: Array.isArray(raw?.market?.sales) ? raw.market.sales : [], tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], trades: Array.isArray(raw?.market?.trades) ? raw.market.trades : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, minRelicPrice: typeof raw?.market?.minRelicPrice === "number" && raw.market.minRelicPrice >= 1 ? Math.round(raw.market.minRelicPrice) : base.market.minRelicPrice, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)" },
+    market: { ...base.market, ...(raw?.market ?? {}), bulk: { ...base.market.bulk, ...(raw?.market?.bulk ?? {}) }, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: raw?.market?.sellable?.relicsWorthSelling ?? base.market.sellable.relicsWorthSelling }, sales: Array.isArray(raw?.market?.sales) ? raw.market.sales : [], tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], trades: Array.isArray(raw?.market?.trades) ? raw.market.trades : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: raw?.market?.platform && raw.market.platform in PLATFORM_LABEL ? raw.market.platform : "pc", autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, every: typeof raw?.market?.every === "number" && raw.market.every >= 1 ? raw.market.every : base.market.every, minRelicPrice: typeof raw?.market?.minRelicPrice === "number" && raw.market.minRelicPrice >= 1 ? Math.round(raw.market.minRelicPrice) : base.market.minRelicPrice, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)" },
     advice: { ...base.advice, ...(raw?.advice ?? {}) },
     pick: { ...base.pick, ...(raw?.pick ?? {}) },
     tennoscope: { ...base.tennoscope, ...(raw?.tennoscope ?? {}) },
@@ -685,6 +693,7 @@ export async function onMarketOrder(fn: (order: import("./core/deals").FeedOrder
   return listen<import("./core/deals").FeedOrder>("market-order", (e) => fn(e.payload));
 }
 
+let devPlatform: Platform = "pc";
 export const market = {
   /** Starts (or stops) the live feed of new orders; returns how it's doing. */
   feed: (on: boolean): Promise<FeedState> => (inTauri ? invoke("market_feed", { on }) : Promise.resolve({ running: false, connected: false, received: 0, error: null })),
@@ -730,9 +739,14 @@ export const market = {
   updateAuction: (id: string, change: { starting_price: number; buyout_price: number | null; minimal_reputation: number; private: boolean; note: string }): Promise<unknown> =>
     inTauri ? invoke("market_update_auction", { id, change }) : needApp(),
   closeAuction: (id: string): Promise<void> => (inTauri ? invoke("market_close_auction", { id }) : needApp()),
+  /** Which platform's market to use from now on. */
+  setPlatform: (platform: Platform): Promise<void> => {
+    devPlatform = platform;
+    return inTauri ? invoke("market_platform", { platform }) : Promise.resolve();
+  },
   book: async (slug: string): Promise<BookOrder[]> => {
     if (inTauri) return invoke("market_order_book", { slug });
-    const res = await fetch(`https://api.warframe.market/v2/orders/item/${slug}`);
+    const res = await fetch(`https://api.warframe.market/v2/orders/item/${slug}`, { headers: { Platform: devPlatform } });
     return (await res.json()).data;
   },
   create: (order: { itemId: string; platinum: number; quantity: number; rank?: number | null; subtype?: string | null; visible?: boolean }): Promise<MyOrder> =>

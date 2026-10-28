@@ -70,6 +70,8 @@
     "arrow-right": "M2.5 8h10.5M9.2 4.3 13 8l-3.8 3.7",
     // A stop in a hexagon: take it off the market.
     stop: "M5.3 1.8h5.4l3.5 3.5v5.4l-3.5 3.5H5.3l-3.5-3.5V5.3zM5.6 8h4.8",
+    // A price over time: a line rising over a baseline.
+    chart: "M2 13.5h12M2.5 11 6 7l2.6 2.2L13.5 3.5",
   };
   export type IconName = keyof typeof PATHS;
 </script>

@@ -1,6 +1,6 @@
 // Shared warframe.market state: account, your orders, cached order books, and the repricer.
 
-import { market, presence, type ChatSummary, type FeedState, type MarketAccount, type MarketSettings, type MarketUser, type Sale, type Presence, type PresenceState } from "./backend";
+import { market, presence, type ChatSummary, type FeedState, type MarketAccount, type MarketSettings, type MarketUser, type Platform, type Sale, type Presence, type PresenceState } from "./backend";
 import {
   findItem,
   holdings,
@@ -129,6 +129,28 @@ class MarketStore {
 
   get me(): Me | null {
     return this.account?.profile ?? null;
+  }
+
+  /** The platform whose market is read (Settings → Platform). */
+  platform = $state<Platform>("pc");
+  /**
+   * Switches market: every order book, price history and cheap-buy result read so far was the
+   * other platform's, so they go.
+   */
+  async usePlatform(p: Platform) {
+    if (p === this.platform) return;
+    await market.setPlatform(p);
+    this.platform = p;
+    this.books = {};
+    this.histories.clear();
+    this.deals = [];
+    this.dealsAt = null;
+    this.lastPass = null;
+    // The live feed subscribed to the old platform's new listings.
+    if (this.feed?.running) {
+      await market.feed(false);
+      this.feed = await market.feed(true);
+    }
   }
   get linked() {
     return !!this.account?.linked && !!this.account.profile;
@@ -786,7 +808,7 @@ class MarketStore {
       }
       const books = Object.fromEntries(slugs.map((sl) => [sl, this.books[sl]?.orders]));
       this.dealsChecked = Object.values(books).filter(Boolean).length;
-      const me = this.me ?? { id: "", ingameName: "", platform: "pc", crossplay: true };
+      const me = this.me ?? { id: "", ingameName: "", platform: this.platform, crossplay: true };
       this.deals = findDeals(m, this.index, books, watch, me as Me);
       this.dealsAt = Date.now();
     } finally {

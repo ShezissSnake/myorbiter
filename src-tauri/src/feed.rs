@@ -102,7 +102,7 @@ fn run(app: &tauri::AppHandle, state: &Mutex<FeedState>, generation: &AtomicU64,
     if let tungstenite::stream::MaybeTlsStream::Rustls(s) = ws.get_mut() {
         let _ = s.sock.set_read_timeout(Some(Duration::from_secs(1)));
     }
-    let subscribe = serde_json::json!({ "route": "@wfm|cmd/subscribe/newOrders", "payload": { "platform": "pc", "crossplay": true } });
+    let subscribe = serde_json::json!({ "route": "@wfm|cmd/subscribe/newOrders", "payload": { "platform": crate::market::platform(), "crossplay": true } });
     if let Err(e) = ws.send(Message::Text(subscribe.to_string().into())) {
         return e.to_string();
     }

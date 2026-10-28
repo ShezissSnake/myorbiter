@@ -40,6 +40,12 @@ fn ptrace_scope() -> Option<u8> {
     }
 }
 
+/// Which platform's warframe.market to use (Settings → Platform).
+#[tauri::command]
+fn market_platform(platform: String) -> Result<(), String> {
+    market::set_platform(&platform)
+}
+
 #[tauri::command]
 fn default_data_dir() -> Option<String> {
     orbiter_data::default_tennoscope_dir().map(|p| p.display().to_string())
@@ -694,6 +700,7 @@ pub fn run() {
             presence_set,
             write_reward_pick,
             default_data_dir,
+            market_platform,
             ptrace_scope,
             load_collection,
             load_catalogs,

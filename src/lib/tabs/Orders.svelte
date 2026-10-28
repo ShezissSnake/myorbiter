@@ -18,6 +18,7 @@
   import Metal from "../ui/Metal.svelte";
   import Icon from "../ui/Icon.svelte";
   import IconButton from "../ui/IconButton.svelte";
+  import PriceHistory from "../ui/PriceHistory.svelte";
 
   let { model, settings = $bindable(), advice }: { model: Model; settings: MarketSettings; advice: AdviceSettings } = $props();
 
@@ -31,7 +32,7 @@
   const listed = $derived(orders.filter((o) => o.visible).reduce((n, o) => n + o.platinum * o.quantity, 0));
   const plans = $derived(new Map(orders.map((o) => [o.id, mkt.planFor(model, settings, o)])));
   const pending = $derived(orders.filter((o) => o.visible && !settings.paused[listingKey(o)] && plans.get(o.id)?.change).length);
-  const nextPass = $derived(settings.auto && mkt.lastPass ? new Date(mkt.lastPass + settings.every * 60_000) : null);
+  const nextPass = $derived((settings.auto || settings.autoCheck) && mkt.lastPass ? new Date(mkt.lastPass + settings.every * 60_000) : null);
   /** Oldest order book behind what's on screen, so you know how fresh "Cheapest in game" is. */
   const checkedAt = $derived.by(() => {
     const times = orders.map((o) => mkt.books[mkt.item(o.itemId)?.slug ?? ""]?.at).filter((t): t is number => t != null);
@@ -202,6 +203,8 @@
     if (sale) settings.sales = [sale, ...settings.sales].slice(0, 2000);
   }
   const fmt = (t: number) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  /** The listing whose price history is open under its row. */
+  let charted = $state<string | null>(null);
 </script>
 
 <svelte:window onpointerdown={outside} />
@@ -301,9 +304,10 @@
         <button class="stamp gold" disabled={!!mkt.busy || !pending} onclick={() => mkt.reprice(model, settings, true)}>{mkt.pass === "Repricing" ? "Applying…" : pending ? `Reprice ${pending}` : "Reprice"}</button>
       </div>
       <div class="grp">
-        <Chip bind:on={settings.auto} label="Auto-match" title="Check and apply on a timer while orbiter is open" />
-        <select bind:value={settings.every} aria-label="How often" disabled={!settings.auto}>
-          {#each [2, 5, 10, 15, 30] as m (m)}<option value={m}>every {m} min</option>{/each}
+        <Chip bind:on={settings.autoCheck} label="Check automatically" title="Read the order books on a timer while orbiter is open, and show what each listing would change to" onchange={(on) => { if (!on) settings.auto = false; }} />
+        <Chip bind:on={settings.auto} label="Apply automatically" title="Also send the new prices to warframe.market on that timer (Auto-match)" onchange={(on) => { if (on) settings.autoCheck = true; }} />
+        <select bind:value={settings.every} aria-label="How often" title="How often the automatic check runs" disabled={!settings.autoCheck && !settings.auto}>
+          {#each [1, 2, 5, 10, 15, 30, 60] as m (m)}<option value={m}>every {m} min</option>{/each}
         </select>
       </div>
       <div class="grp">
@@ -346,6 +350,7 @@
           <tr class:hidden={!o.visible}>
             <td class="fade">
               <Named file={model.imageOf(it?.name ?? "")} name={it?.name ?? o.itemId}>
+                {#if it}<button type="button" class="charted" class:on={charted === o.id} aria-label="Price history" aria-expanded={charted === o.id} title="What it sold for over the last 90 days, against your price" onclick={() => (charted = charted === o.id ? null : o.id)}><Icon name="chart" size={13} /></button>{/if}
                 {#if rankLabel(o)}<span class="tag">{rankLabel(o)}</span>{/if}
                 {#if held === 0}<span class="tag warn" title="As of TennoScope's last read of your inventory">you have none</span>
                 {:else if held != null && held < o.quantity}<span class="tag warn" title="As of TennoScope's last read of your inventory">you hold {held}</span>{/if}
@@ -417,6 +422,14 @@
               </span>
             </td>
           </tr>
+          {#if charted === o.id && it}
+            <tr class="chartrow">
+              <td colspan="9">
+                <PriceHistory name={it.name} rank={it.maxRank != null ? (o.rank ?? 0) : null} subtype={o.subtype ?? it.subtypes?.[0] ?? null} height={160}
+                  lines={[{ label: "Your price", value: o.platinum, color: "#c9ccd1" }, ...(p?.competitor.price != null ? [{ label: "Cheapest in game", value: p.competitor.price, color: "#6fa38a" }] : [])]} />
+              </td>
+            </tr>
+          {/if}
         {:else}
           <tr><td colspan="9" class="nothing">No sell listings yet</td></tr>
         {/each}
@@ -516,4 +529,9 @@
   .target.up .delta { color: var(--verdigris); }
   .delta { font-family: var(--face-register); font-size: .62rem; margin-left: .3rem; }
   .register.ok { color: var(--verdigris); }
+  .charted { all: unset; cursor: pointer; display: inline-grid; place-items: center; width: 22px; height: 22px; color: var(--platinum-deep); border: 1px solid transparent; }
+  .charted:hover, .charted:focus-visible { color: var(--platinum); border-color: var(--rule-control); }
+  .charted.on { color: var(--gold); border-color: var(--gold-dim); }
+  /* The chart sits in from the table's edges, which its first and last cells otherwise touch. */
+  .orders tr.chartrow > td, :global(html[data-room~="lt1100"]) .orders tr.chartrow > td { padding: .6rem 1rem 1.1rem; background: rgb(17 19 23 / 55%); }
 </style>
