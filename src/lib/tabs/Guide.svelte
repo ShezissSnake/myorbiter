@@ -91,7 +91,7 @@
     <article>
       <h3 class="register lead">Where the numbers come from</h3>
       <ul>
-        <li>Prices: warframe.market's {platform} order books, live, and its daily trade statistics for price history.</li>
+        <li>Prices: warframe.market's order books, live, and its daily trade statistics for price history. Warframe trades across platforms, so they count sellers on every platform you can trade with: yours, and the others when both of you have cross-play on (in game and on your warframe.market profile). Platinum can't move between Switch and the other platforms.</li>
         <li>Fissures, Baro and his stock, cycles and today's missions: api.warframestat.us, refreshed every few minutes.</li>
         <li>Sales: what you record with Sold, and the closed orders on your warframe.market profile when you import them.</li>
         <li>Rivens: warframe.market's riven auctions.</li>

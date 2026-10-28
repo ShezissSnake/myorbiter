@@ -746,7 +746,7 @@ export const market = {
   },
   book: async (slug: string): Promise<BookOrder[]> => {
     if (inTauri) return invoke("market_order_book", { slug });
-    const res = await fetch(`https://api.warframe.market/v2/orders/item/${slug}`, { headers: { Platform: devPlatform } });
+    const res = await fetch(`https://api.warframe.market/v2/orders/item/${slug}`, { headers: { Platform: devPlatform, Crossplay: "true" } });
     return (await res.json()).data;
   },
   create: (order: { itemId: string; platinum: number; quantity: number; rank?: number | null; subtype?: string | null; visible?: boolean }): Promise<MyOrder> =>

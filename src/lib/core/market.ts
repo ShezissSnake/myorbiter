@@ -75,10 +75,15 @@ export interface Competitor {
 
 const sameRank = (a: number | null | undefined, b: number | null | undefined) => (a ?? null) === (b ?? null);
 
-/** Can this seller trade with me? Same platform, or both have cross-play on. */
+/**
+ * Can this seller trade with me? Same platform, or both have cross-play on. Not platinum between
+ * Switch and the other platforms: the game doesn't allow it, and a sale is items for platinum.
+ */
 export function canTrade(me: Me, user: BookUser): boolean {
   if (!me.platform || !user.platform) return true;
-  return user.platform === me.platform || (user.crossplay === true && me.crossplay === true);
+  if (user.platform === me.platform) return true;
+  if (user.platform === "switch" || me.platform === "switch") return false;
+  return user.crossplay === true && me.crossplay === true;
 }
 
 /** `defaultSubtype`: on items with variants (Serration: regular/atragraph, relics: intact…radiant)

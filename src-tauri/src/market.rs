@@ -209,6 +209,10 @@ impl Client {
             .set("Accept", "application/json")
             .set("Language", "en")
             .set("Platform", platform())
+            // Warframe trades across platforms (both players with cross-play on), and the site
+            // only shows other platforms' orders and sales when asked. Who can trade with whom is
+            // sorted out per seller (market.ts, canTrade).
+            .set("Crossplay", "true")
             .timeout(Duration::from_secs(20));
         if let Some(t) = &token {
             let scheme = if url.contains("/v1/") { "JWT" } else { "Bearer" };
