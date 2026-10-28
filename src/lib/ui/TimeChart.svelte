@@ -12,6 +12,7 @@
     icon,
     empty = "Fills in as orbiter sees your account change.",
     since = "since the first day shown",
+    single = "One reading so far: the line starts with the next one.",
   }: {
     title: string;
     at: number[];
@@ -22,6 +23,8 @@
     empty?: string;
     /** What the change beside the latest value is measured from ("in 90 days"). */
     since?: string;
+    /** What a chart with a single point says (empty: nothing, when the page says it once). */
+    single?: string;
   } = $props();
 
   let W = $state(480);
@@ -123,7 +126,7 @@
       {/if}
     {:else}
       <!-- One reading already (its number is in the header): the line needs a second. -->
-      <p class="dim small none" style:height="{H - 20}px">{latest ? "One reading so far: the line starts with the next one." : empty}</p>
+      <p class="dim small none" style:height="{H - 20}px">{latest ? single : empty}</p>
     {/if}
   </div>
 </figure>

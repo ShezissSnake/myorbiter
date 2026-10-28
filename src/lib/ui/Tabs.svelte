@@ -31,4 +31,7 @@
   button.on :global(.gi) { opacity: 1; }
   em { font-style: normal; color: var(--platinum-deep); font-weight: 500; letter-spacing: .04em; }
   .on em { color: var(--gold); }
+  /* Less room (half a wide screen, a Steam Deck): tighter, so a row of tabs stays one row. */
+  :global(html[data-room~="lt1100"]) button { padding-left: .5rem; padding-right: .5rem; gap: .35rem; }
+  :global(html[data-room~="lt950"]) button :global(.gi) { display: none; }
 </style>

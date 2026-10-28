@@ -92,7 +92,8 @@
 {#snippet items(xs: TradeLogEntry["offered"], plat: number)}
   <span class="its">
     {#if plat}<span class="it plat"><GameIcon name="platinum" size={22} /><b>{plat}</b></span>{/if}
-    {#each xs.slice(0, 6) as x, i (i)}<span class="it" use:info={x.name}><Thumb file={img(x.name)} size={30} />{#if x.count > 1}<b>{x.count}</b>{/if}</span>{/each}
+    <!-- One or two things: their names too (blueprints all look alike); more: pictures, names on hover. -->
+    {#each xs.slice(0, 6) as x, i (i)}<span class="it" use:info={x.name}><Thumb file={img(x.name)} size={30} />{#if x.count > 1}<b>{x.count}</b>{/if}{#if xs.length <= 2}<span class="nm small">{x.name}</span>{/if}</span>{/each}
     {#if xs.length > 6}<span class="dim small">+{xs.length - 6}</span>{/if}
     {#if !plat && !xs.length}<span class="dim small">nothing</span>{/if}
   </span>
@@ -110,11 +111,12 @@
 
   <div class="bar"><Seg bind:value={span} options={[{ v: "30", label: "30 days" }, { v: "90", label: "90 days" }, { v: "all", label: "All" }]} /></div>
 
-  <TimeChart title="Inventory value" {at} series={[{ label: "Market value", color: "#5b8fd0", values: hist.map((p) => p.worth) }, { label: "Easy to sell", color: GOLD, values: hist.map((p) => p.liquid) }]} height={190} />
+  <TimeChart single={hist.length === 1 ? "" : undefined} title="Inventory value" {at} series={[{ label: "Market value", color: "#5b8fd0", values: hist.map((p) => p.worth) }, { label: "Easy to sell", color: GOLD, values: hist.map((p) => p.liquid) }]} height={190} />
 
+  {#if hist.length === 1}<p class="dim small one">One inventory read so far: each line below starts with the next one. The figures beside each title are from that read.</p>{/if}
   <div class="charts">
     {#each CHARTS as c (c.key)}
-      <TimeChart title={c.title} {at} series={[{ label: c.title, color: GOLD, values: hist.map(c.get) }]} empty={c.key === "credits" || c.key === "endo" || c.key === "platinum" ? "Needs the patched TennoScope; fills in from its next reads." : undefined}>
+      <TimeChart single="" title={c.title} {at} series={[{ label: c.title, color: GOLD, values: hist.map(c.get) }]} empty={c.key === "credits" || c.key === "endo" || c.key === "platinum" ? "Needs the patched TennoScope; fills in from its next reads." : undefined}>
         {#snippet icon()}<GameIcon name={c.icon} size={18} />{/snippet}
       </TimeChart>
     {/each}
@@ -163,6 +165,8 @@
 </div></div>
 
 <style>
+  .one { margin: .4rem 0 0; }
+  .nm { color: var(--platinum-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 14rem; }
   .bar { padding-top: .2rem; }
   .charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr)); gap: .8rem; margin: .8rem 0 var(--course); }
   .split { display: grid; grid-template-columns: minmax(18rem, 2fr) minmax(0, 3fr); gap: 1.6rem; align-items: start; }

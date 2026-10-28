@@ -76,7 +76,14 @@
     return out;
   });
   /** Relics TennoScope's relic data doesn't know yet: counted, but with no rewards to show. */
-  const unknown = $derived(unknownRelics(model));
+  const unknown = $derived(unknownRelics(model).filter((u) => matches(query, u.base)));
+  const filtering = $derived(era !== "all" || vault !== "all" || neededOnly || !!query.trim());
+  function clearFilters() {
+    era = "all";
+    vault = "all";
+    neededOnly = false;
+    query = "";
+  }
   const ownedEra = (e: string) => all.filter((r) => r.era === e).reduce((n, r) => n + r.total, 0) + unknown.filter((u) => u.era === e).reduce((n, u) => n + u.total, 0);
   const minutesLeft = (f: Fissure) => Math.max(0, Math.round((new Date(f.expiry).getTime() - now) / 60000));
   const left = (f: Fissure) => {
@@ -233,13 +240,14 @@
   <input type="search" placeholder="Relic or reward…" bind:value={query} />
   </div>
 
-  <Browse id="relics" {rows} {columns} key={(r) => r.base} bind:sort {detail} {card} title={(r) => `${r.base} Relic`} min="21rem" empty="No relics match." />
+  <Browse id="relics" {rows} {columns} key={(r) => r.base} bind:sort {detail} {card} title={(r) => `${r.base} Relic`} min="21rem" empty={filtering ? "No relics match these filters." : "No relics yet."} />
+  {#if filtering && !rows.length}<p class="clear"><button class="link" onclick={clearFilters}>Clear the filters</button></p>{/if}
   {#if unknown.length}
     <div class="unknown">
       <div class="register">Not in the relic data yet</div>
       <p class="small">
-        {unknown.reduce((n, u) => n + u.total, 0)} of your relics aren't in TennoScope's relic list (usually the newest ones), so their rewards
-        and value can't be worked out. They show up here once TennoScope's list has them.
+        {unknown.reduce((n, u) => n + u.total, 0)} of your relics aren't in the drop tables or TennoScope's relic list yet, so their rewards
+        and value can't be worked out. They move up into the table once either has them.
       </p>
       <p class="small names">{#each unknown as u, i (u.base)}{i ? " · " : ""}<span class="unk" use:info={u.base}>{u.base}</span>&nbsp;<span class="dim">×{u.total}</span>{/each}</p>
     </div>
@@ -247,6 +255,7 @@
 </div></div>
 
 <style>
+  .clear { margin: .4rem 0 0; }
   .era-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem 1rem; margin-top: var(--step); }
   .era-head h2 { margin: 0; }
   .eras { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: .5rem; padding: .7rem 0 0; }

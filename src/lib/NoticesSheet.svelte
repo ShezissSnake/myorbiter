@@ -86,11 +86,15 @@
     return () => clearInterval(t);
   });
   const dayOf = (t: number) => new Date(t).toDateString();
+  /** Recent narrowed to one kind ("" for all). */
+  let only = $state<NoticeKind | "">("");
+  const kindsLogged = $derived([...new Set(settings.game.notices.map((n) => n.kind))].filter((k) => noticeKind[k]));
   const days = $derived.by(() => {
     const out: { label: string; items: Notice[] }[] = [];
     const today = dayOf(now);
     const yesterday = dayOf(now - 86_400_000);
     for (const n of settings.game.notices) {
+      if (only && n.kind !== only) continue;
       const d = dayOf(n.at);
       const label = d === today ? "Today" : d === yesterday ? "Yesterday" : new Date(n.at).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
       const last = out.at(-1);
@@ -119,6 +123,12 @@
       <p class="dim empty">Nothing yet. What orbiter tells you shows up here, newest first, so you can catch up on what you missed. <button class="link" onclick={() => (view = "choose")}>Choose what it tells you about →</button></p>
     {:else}
       <div class="acts">
+        {#if kindsLogged.length > 1}
+          <select bind:value={only} aria-label="Show" title="Show one kind only">
+            <option value="">All kinds</option>
+            {#each kindsLogged as k (k)}<option value={k}>{noticeKind[k].label}</option>{/each}
+          </select>
+        {/if}
         {#if clearing}
           <span class="small">Clear all {settings.game.notices.length}?</span>
           <button class="danger" onclick={() => { settings.game.notices = []; clearing = false; }}>Clear</button>

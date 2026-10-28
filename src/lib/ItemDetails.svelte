@@ -49,6 +49,8 @@
   // The game's markup in descriptions: colour tags and value placeholders.
   // The values themselves aren't in the data ("last |VAL|% longer"): the sentence reads without
   // them ("last longer") rather than with a stand-in.
+  /** Ability icons that didn't load (no copy here, or offline): the ability's number instead. */
+  let noIcon = $state<Record<string, boolean>>({});
   const clean = (s: string | undefined) =>
     (s ?? "")
       .replace(/<[A-Z_]+>/g, "")
@@ -229,7 +231,7 @@
           <ol class="abilities">
             {#each item.abilities as a, i (i)}
               <li>
-                <span class="ab">{#if a.imageName}<img src={imageUrl(a.imageName)} alt="" loading="lazy" />{:else}{i + 1}{/if}</span>
+                <span class="ab">{#if a.imageName && !noIcon[a.imageName]}<img src={imageUrl(a.imageName)} alt="" loading="lazy" onerror={() => (noIcon[a.imageName!] = true)} />{:else}{i + 1}{/if}</span>
                 <div><b class="name-mark">{a.name}</b><p class="dim small">{clean(a.description)}</p></div>
               </li>
             {/each}

@@ -196,21 +196,28 @@
   );
 
   // ------------------------------------------------------------ alerts
-  interface Alert { tone: "gold" | "red" | "info"; icon: GameIconName; text: string; act: string; to: string }
-  const alerts = $derived.by(() => {
+  // key: what dismissing it remembers (the text changes as time passes). Problems that need fixing
+  // (listings, the status connection) can't be dismissed: they go when they're fixed.
+  interface Alert { key: string | null; tone: "gold" | "red" | "info"; icon: GameIconName; text: string; act: string; to: string }
+  const dismissed = $derived(new Set(settings.homeDismissed));
+  function dismiss(key: string) {
+    settings.homeDismissed = [key, ...settings.homeDismissed.filter((k) => k !== key)].slice(0, 200);
+  }
+  const alerts = $derived.by(() => all().filter((a) => !a.key || !dismissed.has(a.key)));
+  const all = () => {
     const out: Alert[] = [];
     // Invasions rewarding a part for something you haven't mastered: they don't come back on demand.
-    for (const a of worldAlerts.mastery) out.push({ tone: "gold", icon: "mastery", text: `Alert at ${a.node} (${a.mission}): ${describeHelp(a.reward, a.help!)}, ${until(a.expiry, now)} left`, act: "", to: "" });
-    for (const a of worldAlerts.rare) out.push({ tone: "info", icon: "sortie", text: `Alert at ${a.node} (${a.mission}): ${a.reward}, ${until(a.expiry, now)} left`, act: "", to: "" });
-    if (!console) for (const n of invasions) out.push({ tone: "gold", icon: "invasion", text: `Invasion at ${n.node}: ${n.reward} for ${n.item} (side with ${n.side})${n.needed > 1 ? `, you have ${n.have} of ${n.needed}` : ""}`, act: "Mastery", to: "mastery" });
-    if (shortListings.length) out.push({ tone: "gold", icon: "market", text: `${shortListings.length} listing${shortListings.length === 1 ? "" : "s"} for more than you hold: sold, or fix them`, act: "Open Orders", to: "market" });
+    for (const a of worldAlerts.mastery) out.push({ key: `alert|${a.key}`, tone: "gold", icon: "mastery", text: `Alert at ${a.node} (${a.mission}): ${describeHelp(a.reward, a.help!)}, ${until(a.expiry, now)} left`, act: "", to: "" });
+    for (const a of worldAlerts.rare) out.push({ key: `alert|${a.key}`, tone: "info", icon: "sortie", text: `Alert at ${a.node} (${a.mission}): ${a.reward}, ${until(a.expiry, now)} left`, act: "", to: "" });
+    if (!console) for (const n of invasions) out.push({ key: `invasion|${n.key}`, tone: "gold", icon: "invasion", text: `Invasion at ${n.node}: ${n.reward} for ${n.item} (side with ${n.side})${n.needed > 1 ? `, you have ${n.have} of ${n.needed}` : ""}`, act: "Mastery", to: "mastery" });
+    if (shortListings.length) out.push({ key: null, tone: "gold", icon: "market", text: `${shortListings.length} listing${shortListings.length === 1 ? "" : "s"} for more than you hold: sold, or fix them`, act: "Open Orders", to: "market" });
     const statusError = mkt.statusError ?? mkt.status?.error;
-    if (statusError) out.push({ tone: "red", icon: "market", text: `warframe.market status: ${statusError}`, act: "Open Orders", to: "market" });
+    if (statusError) out.push({ key: null, tone: "red", icon: "market", text: `warframe.market status: ${statusError}`, act: "Open Orders", to: "market" });
     const urgent = varzia.filter((v) => v.onlyHere > 0 || v.regalAya != null);
     // Varzia's card says what she has; the alert is only for a rotation about to end.
-    if (!console && urgent.length && live.resurgenceExpiry && Date.parse(live.resurgenceExpiry) - now < 3 * DAY) out.push({ tone: "gold", icon: "varzia", text: `Varzia's rotation ends in ${until(live.resurgenceExpiry, now)}, with ${urgent.length} prime${urgent.length === 1 ? "" : "s"} you need`, act: "", to: "" });
+    if (!console && urgent.length && live.resurgenceExpiry && Date.parse(live.resurgenceExpiry) - now < 3 * DAY) out.push({ key: `varzia|${live.resurgenceExpiry}`, tone: "gold", icon: "varzia", text: `Varzia's rotation ends in ${until(live.resurgenceExpiry, now)}, with ${urgent.length} prime${urgent.length === 1 ? "" : "s"} you need`, act: "", to: "" });
     return out;
-  });
+  };
 
   // ---------------------------------------------------------------- what Home shows (Customise)
   const CARDS: { key: string; label: string; hint: string }[] = [
@@ -287,7 +294,7 @@
   {#if alerts.length}
     <section class="alerts" data-card="alerts" aria-label="Needs you" class:off={off("alerts")}>
       {#each alerts as a (a.text)}
-        <div class="alert t-{a.tone}"><GameIcon name={a.icon} size={20} /><span>{a.text}</span>{#if a.to}<button class="link" onclick={() => go(a.to)}>{a.act} →</button>{/if}</div>
+        <div class="alert t-{a.tone}"><GameIcon name={a.icon} size={20} /><span>{a.text}</span>{#if a.to}<button class="link" onclick={() => go(a.to)}>{a.act} →</button>{/if}{#if a.key}<IconButton icon="close" tone="quiet" size={12} label="Dismiss" title="Dismiss: it doesn't come back for this alert" onclick={() => dismiss(a.key!)} />{/if}</div>
       {/each}
     </section>
   {/if}

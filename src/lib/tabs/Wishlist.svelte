@@ -70,6 +70,13 @@
     return out;
   }
   const liveFor = (era: string) => (open[era]?.length ?? 0) + (open.Omnia?.length ?? 0);
+  /** As Relics and Home say it: this era's normal fissures + Steel Path, then Omnia ones apart. */
+  const fissureCount = (era: string) => {
+    const own = open[era] ?? [];
+    const sp = own.filter((f) => f.isHard).length;
+    const om = open.Omnia?.length ?? 0;
+    return `${own.length - sp}${sp ? ` + ${sp} SP` : ""} open${om ? ` · ${om} Omnia` : ""}`;
+  };
 </script>
 
 <!-- The band only once something is starred: four zeros say nothing. -->
@@ -95,7 +102,7 @@
     <section class="now" aria-label="Crack now">
       {#each crackNow as c (c.era)}
         <div class="era">
-          <div class="eh"><GameIcon name={eraIcon(c.era)} size={26} /><b class="mark">{c.era}</b><span class="dim small">{(open[c.era]?.length ?? 0)} open{open.Omnia?.length ? ` + ${open.Omnia.length} Omnia` : ""} · next closes in {until([...c.fissures].sort((a, b) => Date.parse(a.expiry) - Date.parse(b.expiry))[0].expiry, now)}</span></div>
+          <div class="eh"><GameIcon name={eraIcon(c.era)} size={26} /><b class="mark">{c.era}</b><span class="dim small">{fissureCount(c.era)} · next closes in {until([...c.fissures].sort((a, b) => Date.parse(a.expiry) - Date.parse(b.expiry))[0].expiry, now)}</span></div>
           <ul>
             {#each c.relics.slice(0, 4) as r, i (i)}<li><b class="name-mark" use:info={r.relic}>{r.relic}</b><span class="dim small">for</span><span use:info={r.part}>{r.part.replace(`${r.item} `, "")}</span><span class="dim small">· {r.item}</span></li>{/each}
             {#if c.relics.length > 4}<li class="dim small">+{c.relics.length - 4} more</li>{/if}

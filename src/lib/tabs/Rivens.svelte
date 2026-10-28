@@ -312,7 +312,7 @@
           {/if}
           <footer>
             {#if pc}
-              <span class="pc">{#if pc.count}<span class="dim small">{pc.count} similar for sale · from</span><P v={pc.lowest} /><span class="dim small">· around</span><P v={pc.typical} />{:else}<span class="dim small">None like it for sale right now</span>{/if}</span>
+              <span class="pc" title={pc.count ? `${pc.count} similar rivens for sale: the cheapest ${pc.lowest}p, most around ${pc.typical}p` : undefined}>{#if pc.count}<span class="dim small">{pc.count} similar</span><span class="dim small">from</span><P v={pc.lowest} /><span class="dim small">· ~</span><P v={pc.typical} />{:else}<span class="dim small">None like it for sale right now</span>{/if}</span>
             {:else if c?.error}<span class="dim small">{c.error}</span>
             {:else if c?.loading}<span class="dim small">Checking prices…</span>
             {:else}<span class="dim small">Not price checked yet</span>{/if}

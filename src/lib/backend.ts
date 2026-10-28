@@ -95,6 +95,8 @@ export interface Settings {
   withoutInventory: boolean;
   /** Home's cards you turned off (Home → Customise): "market", "baro"… */
   homeHidden: string[];
+  /** Lines under Needs you on Home you dismissed (an alert, an invasion, a Varzia rotation). */
+  homeDismissed: string[];
   /** What you get notifications for (the bell in the sidebar). */
   notify: NotifySettings;
   notifyOptions: NotifyOptions;
@@ -277,6 +279,7 @@ export const defaultSettings = (): Settings => ({
   eeLog: "",
   withoutInventory: false,
   homeHidden: [],
+  homeDismissed: [],
   notify: defaultNotify(),
   notifyOptions: defaultNotifyOptions(),
   pagesHidden: [],
@@ -443,6 +446,7 @@ export async function loadSettings(): Promise<Settings> {
     ...(raw ?? {}),
     folded: typeof raw?.folded === "boolean" ? raw.folded : null,
     withoutInventory: raw?.withoutInventory === true,
+    homeDismissed: Array.isArray(raw?.homeDismissed) ? raw.homeDismissed.filter((k: unknown): k is string => typeof k === "string") : [],
     homeHidden: Array.isArray(raw?.homeHidden) ? raw.homeHidden.filter((k: unknown): k is string => typeof k === "string") : [],
     plannerMode: raw?.plannerMode === "radiant" ? "radiant" : "sets",
     market: { ...base.market, ...(raw?.market ?? {}), bulk: { ...base.market.bulk, ...(raw?.market?.bulk ?? {}) }, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: raw?.market?.sellable?.relicsWorthSelling ?? base.market.sellable.relicsWorthSelling }, sales: Array.isArray(raw?.market?.sales) ? raw.market.sales : [], tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], trades: Array.isArray(raw?.market?.trades) ? raw.market.trades : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: raw?.market?.platform && raw.market.platform in PLATFORM_LABEL ? raw.market.platform : "pc", autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, every: typeof raw?.market?.every === "number" && raw.market.every >= 1 ? raw.market.every : base.market.every, minRelicPrice: typeof raw?.market?.minRelicPrice === "number" && raw.market.minRelicPrice >= 1 ? Math.round(raw.market.minRelicPrice) : base.market.minRelicPrice, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)" },
