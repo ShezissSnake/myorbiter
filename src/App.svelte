@@ -8,6 +8,7 @@
   import { inventoryRows, masteryRows, relicRows } from "./lib/core/views";
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
   import { buildModel, ERAS } from "./lib/core/model";
+  import { mergeRelics, type RelicData } from "./lib/core/relicData";
   import { today } from "./lib/core/today";
   import { bestCard, resolveName, scoreCards } from "./lib/core/pick";
   import { mergeLogged, recordScreen, resolvePicks } from "./lib/core/relicRuns";
@@ -27,6 +28,7 @@
     market,
     onMarketOrder,
     onNoticeOpen,
+    relicData,
     notify,
     openUrl,
     quit,
@@ -230,7 +232,10 @@
     const next = ts.report?.foundry ?? null;
     if (next && JSON.stringify(next) !== JSON.stringify(foundry)) foundry = next;
   });
-  const model = $derived(bundle ? buildModel(bundle, live, foundry, settings.market.relicPrices) : null);
+  /** The official drop tables' relics, over TennoScope's (see relicData.ts): current relics and vaulting. */
+  let relicTables = $state.raw<RelicData | null>(null);
+  const withTables = $derived(bundle && relicTables ? { ...bundle, relics: mergeRelics(bundle.relics, relicTables) } : bundle);
+  const model = $derived(withTables ? buildModel(withTables, live, foundry, settings.market.relicPrices) : null);
 
   // The reward screen: the cards a patched TennoScope read off it, scored here, and the pick
   // written back for TennoScope's overlay to show over the game.
@@ -1143,6 +1148,7 @@
   onMount(() => {
     let poll: ReturnType<typeof setInterval>;
     let livePoll: ReturnType<typeof setInterval>;
+    let tablesPoll: ReturnType<typeof setInterval>;
     let screensPoll: ReturnType<typeof setInterval>;
     let missionPoll: ReturnType<typeof setInterval>;
     let marketPoll: ReturnType<typeof setInterval>;
@@ -1203,6 +1209,10 @@
         }
       }, 20_000);
       livePoll = setInterval(refreshLive, 5 * 60_000);
+      // The drop tables' relics: now, then every few hours (the cache says when to read them again).
+      const tables = () => relicData().then((d) => { if (d) relicTables = d; });
+      void tables();
+      tablesPoll = setInterval(tables, 3 * 3_600_000);
       // TennoScope's log, for screens orbiter missed (a reading it didn't pass on, or a restart).
       screensPoll = setInterval(importScreens, 10 * 60_000);
       // EE.log is followed incrementally, so a short interval only reads what the game appended.
@@ -1258,6 +1268,7 @@
       clearInterval(feedPoll);
       clearInterval(poll);
       clearInterval(livePoll);
+      clearInterval(tablesPoll);
       clearInterval(screensPoll);
       clearInterval(missionPoll);
       clearInterval(marketPoll);

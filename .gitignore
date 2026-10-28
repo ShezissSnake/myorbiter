@@ -14,3 +14,4 @@ public/dev-auctions.json
 public/dev-reward-screens.json
 public/dev-history-*.json
 vendor/
+public/dev-relic-data.json

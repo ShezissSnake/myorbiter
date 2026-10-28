@@ -10,6 +10,7 @@ import type { FissureRule } from "./core/timers";
 import type { RivenAuction, RivenMeta, RivenRaw, RivenSnap } from "./core/rivens";
 import type { Invasion } from "./core/invasions";
 import type { WorldAlert } from "./core/worldNeeds";
+import type { RelicData } from "./core/relicData";
 import type { Bundle, CatalogPart, CollectionPart, DuviriCycle, Fissure, Live, MissionState, Nightwave, SortieLike, SteelPath, VaultTraderItem } from "./core/types";
 import { defaultPickWeights, type PickWeights } from "./core/pick";
 import type { Notice } from "./notices";
@@ -404,6 +405,20 @@ export async function loadLive(): Promise<Live> {
       ? (raw!.voidTrader as { activation: string; expiry: string; location: string })
       : null,
   };
+}
+
+/**
+ * The official drop tables' relics (relicdata.rs): cached for half a day, `force` checks now.
+ * Null when they can't be read and nothing was kept; the relic list is then TennoScope's alone.
+ */
+export async function relicData(force = false): Promise<RelicData | null> {
+  try {
+    if (inTauri) return await invoke<RelicData>("relic_data", { force });
+    const res = await fetch("/dev-relic-data.json");
+    return res.ok ? ((await res.json()) as RelicData) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function loadSettings(): Promise<Settings> {

@@ -266,9 +266,12 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
     sources.push(...[...locs.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([l]) => l));
   }
 
+  // Built from other weapons too (Akbronco Prime takes two Bronco Primes): every part in hand
+  // isn't enough to build it without those.
+  const lackingWeapons = owned ? [] : (item.components ?? []).filter((c) => m.catalogByUnique.get(c.uniqueName)?.masterable && m.owned(c.uniqueName) < (c.itemCount ?? 1));
   let status: MasteryStatus = "missing";
   if (owned) status = "level";
-  else if (parts.length && partsOwned === parts.length) status = "build";
+  else if (parts.length && partsOwned === parts.length && !lackingWeapons.length) status = "build";
   else if (partsOwned > 0) status = "parts";
 
   const vaulted = isPrime && missingParts.some((p) => p.availability === "vaulted");

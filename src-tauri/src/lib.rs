@@ -7,6 +7,7 @@ mod feed;
 mod presence;
 mod images;
 mod market;
+mod relicdata;
 
 use orbiter_data::ee_log::{find_ee_log, LogFollower, MissionState};
 use std::path::{Path, PathBuf};
@@ -189,6 +190,16 @@ async fn worldstate() -> Value {
     })
     .await
     .unwrap_or(Value::Null)
+}
+
+/// The relic data from the official drop tables (see relicdata.rs): cached for half a day, or
+/// checked now with `force`.
+#[tauri::command]
+async fn relic_data(app: tauri::AppHandle, force: Option<bool>) -> Result<Value, String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || relicdata::relic_data(&dir, force.unwrap_or(false)))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// Where `find_ee_log` last found the log, and when: it reads Steam's library list and checks
@@ -707,6 +718,7 @@ pub fn run() {
             load_catalogs,
             data_stamp,
             worldstate,
+            relic_data,
             load_settings,
             save_settings,
             mission_state,

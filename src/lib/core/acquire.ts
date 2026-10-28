@@ -354,9 +354,12 @@ function fromDropData(m: Model, item: CatalogItem, seen: Set<string>): Acquisiti
       if (c.name === "Blueprint" && (item.bpCost || lab)) take(market, name);
       continue;
     }
-    // The easiest place it drops.
+    // The easiest place it drops; but a blueprint the Market sells (or the dojo researches, parts
+    // and all) comes from there, however many missions also drop it (Boltor: 15,000 credits, not
+    // the 1% from Duviri's Endless).
     const best = drops.map((d) => sourceOf(d.location, d.chance)).sort((a, b) => a.difficulty - b.difficulty)[0];
-    take(best, name);
+    const bought = (lab || (c.name === "Blueprint" && item.bpCost)) && market.difficulty <= best.difficulty;
+    take(bought ? market : best, name);
   }
   if (!groups.size && (item.bpCost || lab)) take(market, "Blueprint");
 

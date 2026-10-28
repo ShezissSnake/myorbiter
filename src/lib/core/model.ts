@@ -138,9 +138,12 @@ export function heldCount(m: Model, unique: string): number {
 
 export function splitRelicName(name: string): { base: string; refinement: Refinement } | null {
   const parts = name.trim().split(/\s+/);
-  const last = parts[parts.length - 1] as Refinement;
-  if (parts.length < 3 || !REFINEMENTS.includes(last)) return null;
-  return { base: parts.slice(0, -1).join(" "), refinement: last };
+  const last = parts[parts.length - 1];
+  if (parts.length < 3) return null;
+  // Requiem Eterna can't be refined: the game calls it "Requiem Eterna Relic". It's an intact one.
+  if (last === "Relic") return { base: parts.slice(0, -1).join(" "), refinement: "Intact" };
+  if (!REFINEMENTS.includes(last as Refinement)) return null;
+  return { base: parts.slice(0, -1).join(" "), refinement: last as Refinement };
 }
 
 const BLUEPRINT_SUFFIXED = new Set(["Neuroptics", "Chassis", "Systems", "Harness", "Wings"]);
@@ -174,6 +177,16 @@ export function normaliseStoreUnique(unique: string): string {
  */
 export type RelicMarket = Record<string, { at: number; prices: Record<string, number>; how?: "median" }>;
 
+/** Ducat values the game changed since the catalog TennoScope carries was made (wiki, WFCD). */
+const DUCATS_NOW: Record<string, number> = { "Bronco Prime Barrel": 25 };
+
+/**
+ * Catalog entries marked masterable that give no mastery of their own: Sirius & Orion's second son
+ * (the pair counts once, under Sirius & Orion), and the second Grimoire the game keeps for the
+ * Doppelganger (only the Tenno one counts). Left in, they'd sit on Mastery as never finished.
+ */
+export const NO_MASTERY = new Set(["/Lotus/Powersuits/SiriusOrion/OrionSuit", "/Lotus/Weapons/Tenno/Grimoire/TnDoppelgangerGrimoire"]);
+
 export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurgence: null, resurgenceExpiry: null }, foundry: Record<string, number> | null = null, relicMarket: RelicMarket | null = null): Model {
   // Some relic entries list a reward twice ("2X Forma Blueprint" in Meso D1); merge them so every
   // reward name appears once per relic, with the chances added up.
@@ -182,6 +195,7 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
   bundle = {
     ...bundle,
     catalog: bundle.catalog.map((item) => {
+      if (item.masterable && NO_MASTERY.has(item.uniqueName)) item = { ...item, masterable: false };
       const comps = item.components;
       if (!comps || new Set(comps.map((c) => c.uniqueName)).size === comps.length) return item;
       const merged = new Map<string, Component>();
@@ -243,6 +257,7 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
         required: comp.itemCount ?? 1,
         ducats: comp.ducats,
       };
+      part.ducats = DUCATS_NOW[part.fullName] ?? part.ducats;
       parts.push(part);
       const same = partByName.get(part.fullName);
       if (same) same.push(part);

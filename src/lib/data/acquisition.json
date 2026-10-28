@@ -15,6 +15,14 @@
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Akaten"
 },
+"Akbronco": {
+"method": "market-credits",
+"how": "Blueprint from the Market for 20,000 credits; building it takes two Broncos (also Market) and an Orokin Cell.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Akbronco"
+},
 "Aklato": {
 "method": "market-credits",
 "how": "Bought already built from the in-game Market for 25,000 credits, so nothing to craft. Needs MR 3.",
@@ -38,6 +46,14 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Amesha"
+},
+"Arbucep": {
+"method": "open-world",
+"how": "Blueprints are uncommon and rare drops from Deepmines bounties in Fortuna (after The New War), or buy them from Nightcap at Rank 3 - Seeker for Fergolyte from the same bounties: 150 per part, 220 for the main, 670 in all.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Arbucep"
 },
 "Argo & Vel": {
 "method": "vendor",
@@ -145,6 +161,14 @@
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Bhaira_Hound"
 },
+"Boltor": {
+"method": "market-credits",
+"how": "Blueprint from the Market for 15,000 credits, then build it; a built Boltor also comes from the Venus to Mercury Junction.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Boltor"
+},
 "Bonewidow": {
 "method": "syndicate",
 "how": "Necramech: component blueprints cost 3,500 standing each from the Necraloid at Rank 2 - Clearance: Modus, the main blueprint 10,000 standing at Rank 3 - Clearance: Odima; Necraloid standing comes only from Orokin Matrices in Isolation Vault bounties, and building needs Damaged Necramech parts plus Solaris United Rank 1, Ostron Rank 3 and Entrati Rank 2 materials (Heart of Deimos and The War Within required). Market price 375 platinum.",
@@ -173,6 +197,14 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Burst_Laser"
+},
+"Burst Laser Prime": {
+"method": "relics",
+"how": "Comes automatically with Shade Prime; build Shade Prime from its relic parts (all vaulted as of Oct 2026: buy the parts from players or wait for Prime Resurgence). Takes a companion slot.",
+"difficulty": 4,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Burst_Laser_Prime"
 },
 "Caliban": {
 "method": "open-world",
@@ -356,6 +388,14 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Coda_Tysis"
 },
+"Corufell": {
+"method": "mission-drop",
+"how": "Mirror Defense on Tyana Pass, Mars (needs Heart of Deimos): blueprint from rotation A (10%), Barrel, Receiver and Handle from rotation B (8% each). Or buy from Otak in the Necralisk with crystal fragments from the same mode: 300 Belric + 500 Rania for the blueprint, 150 Belric + 250 Rania per part (750 Belric, 1,250 Rania in all). Parts are tradable, the blueprint isn't.",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Corufell"
+},
 "Crescent Vulpaphyla": {
 "method": "open-world",
 "how": "Capture a weakened Crescent Vulpaphyla on the Cambion Drift (Deimos) during the Vome cycle after it has been attacked by Infested, then revive it with Son in the Necralisk using a Mutagen and an Antigen bought with Entrati standing plus 5,000 credits.",
@@ -433,6 +473,14 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Deconstructor"
 },
+"Deconstructor Prime": {
+"method": "relics",
+"how": "Comes automatically with Helios Prime; build Helios Prime from its relic parts (all vaulted as of Oct 2026: buy the parts from players or wait for Prime Resurgence). Takes a companion slot.",
+"difficulty": 4,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Deconstructor_Prime"
+},
 "Dera Vandal": {
 "method": "mission-drop",
 "how": "Blueprint and parts (barrel, receiver, stock) are periodic Invasion rewards (Corpus side); all parts are tradable so you can buy them from players; build takes 12 h, MR 7.",
@@ -448,6 +496,14 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Deth_Machine_Rifle"
+},
+"Deth Machine Rifle Prime": {
+"method": "relics",
+"how": "Comes automatically with Dethcube Prime; build Dethcube Prime from its relic parts (all vaulted as of Oct 2026: buy the parts from players or wait for Prime Resurgence). Takes a companion slot.",
+"difficulty": 4,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Deth_Machine_Rifle_Prime"
 },
 "Dethcube": {
 "method": "market-credits",
@@ -582,6 +638,14 @@
 "https://steamcommunity.com/app/230410/discussions/0/1696045708648735168"
 ]
 },
+"Enkaus": {
+"method": "mission-drop",
+"how": "Blueprints drop from Follie's Hunt on the Vesper Relay, Venus (after Chains of Harrow), or buy them from Aspirant Zorba in any Relay for Atramentum from the same mode: 400 per part, 1,200 for the main, 2,400 in all.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Enkaus"
+},
 "Equinox": {
 "method": "boss",
 "how": "Main blueprint from the Market (25,000 credits); Tyl Regor on Titania, Uranus drops eight blueprints: Day and Night Aspects (22.56% each) and their Neuroptics, Chassis and Systems (25.81% each), and both Aspects must be built before Equinox. Market price 325 platinum.",
@@ -651,6 +715,14 @@
 "https://steamcommunity.com/app/230410/discussions/0/1696045708648735168"
 ]
 },
+"Galariak Prime": {
+"method": "mission-drop",
+"how": "Not from relics. Blueprints drop from rotation A of The Perita Rebellion missions in the Dark Refractory, Deimos (5.71% each, after The Old Peace), or buy them from Roathe in La Cathedrale for Maphica: 25 per part, 35 for the main, 85 in all.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Galariak_Prime"
+},
 "Gara": {
 "method": "open-world",
 "how": "Main blueprint from the Saya's Vigil quest; parts drop from Plains of Eidolon (Cetus) bounties: Chassis from level 5-15, Systems from 10-30, Neuroptics from 20-40 (about 23-31% on the final stage). Crafting needs Plains gems and fish parts. Also in the Duviri Circuit. Market price 225 platinum.",
@@ -689,6 +761,14 @@
 "https://massivelyop.com/2026/01/15/warframe-of-mind-the-most-irritating-warframes-to-farm-and-how-they-could-be-improved/"
 ]
 },
+"Ghoulsaw": {
+"method": "dojo",
+"how": "Research the main and component blueprints in the clan dojo's Ventkids' Bash Lab, then buy and build them. It used to come only from Nakak at Operational Supply Rank 3 during Operation: Plague Star. All parts are tradable.",
+"difficulty": 2,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Ghoulsaw"
+},
 "Glaive": {
 "method": "nightwave",
 "how": "Blueprint from Nightwave Offerings for 50 Nightwave Cred (7-day rotation) or 150p built in the Market; build needs 10 Morphics, 5,000 Ferrite, 6,000 Nano Spores, 4,500 Salvage.",
@@ -704,6 +784,14 @@
 "available": true,
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Glaxion_Vandal"
+},
+"Gotva Prime": {
+"method": "baro",
+"how": "Sold by Baro Ki'Teer when he stocks it (rotating) for 625,000 credits and 675 Ducats; first given as a TennoCon 2023 Twitch drop. Tradable unranked, so you can also buy it from a player (MR 14 to receive it).",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Gotva_Prime"
 },
 "Grendel": {
 "method": "other",
@@ -741,7 +829,7 @@
 },
 "Haalvu": {
 "method": "event",
-"how": "Bought from Praghasa (Eris relay) for 150 Moonflesh during Epoch Operation: Taubound, 15 Oct - 17 Nov 2026 (Moonflesh from Infested kills and Operation Alerts on Eris); MR 14; the event will not return.",
+"how": "Bought from Praghasa for 150 Moonflesh during Epoch Operation: Taubound (Moonflesh from the operation on Eris); first given as a TennoCon 2026 Twitch drop. Once the operation ends it can only come back with a future event or Twitch drop. MR 14.",
 "difficulty": 2,
 "available": true,
 "tradable": false,
@@ -915,6 +1003,14 @@
 "https://steamcommunity.com/app/230410/discussions/0/3033725780692521210",
 "https://warframe.fandom.com/wiki/User_blog:ZyLnTKyllR/Warframes_ranked_based_on_the_hardest_grind_to_acquire_them"
 ]
+},
+"Kohmak": {
+"method": "dojo",
+"how": "Research the blueprint in the clan dojo's Chem Lab, then buy and build it.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Kohmak"
 },
 "Koumei": {
 "method": "mission-drop",
@@ -1134,6 +1230,14 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Lato"
+},
+"Latron": {
+"method": "market-credits",
+"how": "Blueprint from the Market for 20,000 credits, then build it.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Latron"
 },
 "Latron Wraith": {
 "method": "mission-drop",
@@ -1489,14 +1593,6 @@
 "https://steamcommunity.com/app/230410/discussions/0/573770913622890382/"
 ]
 },
-"Orion & Sirius": {
-"method": "quest",
-"how": "This name redirects to the Warframe Sirius & Orion (Update 43.0, June 2026). The main blueprint comes from the Jade Shadows: Constellations quest. The Neuroptics, Chassis and Systems blueprints drop from Scoria's Angel or The Kuva Wytch on Uranus Proxima (Empyrean Railjack, 14.29% per rotation), or cost 90 Emerald/Crimson Talents each from Hunhow in Pontis Tower (275 for the main blueprint). Building needs 3 Orokin Cells plus Gallium, Nullstones, Asterite, Morphics, Control Modules and Isos. It can also be bought for 370 platinum. The wiki doesn't say whether the parts can be traded (normal Warframe blueprints usually can't be).",
-"difficulty": 4,
-"available": true,
-"tradable": false,
-"source": "https://wiki.warframe.com/w/Sirius_%26_Orion"
-},
 "Pangolin Sword": {
 "method": "nightwave",
 "how": "Blueprint from Nightwave Cred Offerings (rotating stock), then build: 20,000 credits, 1 Control Module, 750 Ferrite, 300 Circuits, 80 Alloy Plate.",
@@ -1521,6 +1617,14 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Paracesis"
 },
+"Penta": {
+"method": "market-credits",
+"how": "Blueprint from the Market for 30,000 credits, or from the Jupiter to Saturn Junction, then build it.",
+"difficulty": 1,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Penta"
+},
 "Pharaoh Predasite": {
 "method": "open-world",
 "how": "Capture a Weakened Pharaoh Predasite via Conservation on Deimos (after Infested attack it), then revive it with Son in the Necralisk using a Mutagen + Antigen (Entrati standing) and 5,000 credits; gild it for mastery.",
@@ -1536,6 +1640,22 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Plasma_Sword"
+},
+"Pride": {
+"method": "railjack",
+"how": "Main, Blade and Handle blueprints drop from The Kuva Wytch on Uranus Proxima (14.29% each, needs Jade Shadows: Constellations); it also needs a Wrath Blade from Scoria's Angel. Or buy the blueprints from Hunhow in Pontis Tower with Emerald/Crimson Talent: 90 for the main, 45 per component (180 Emerald and 45 Crimson in all).",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Pride"
+},
+"Prime Laser Rifle": {
+"method": "relics",
+"how": "Comes automatically with Wyrm Prime; build Wyrm Prime from its relic parts (all vaulted as of Oct 2026: buy the parts from players or wait for Prime Resurgence). Takes a companion slot.",
+"difficulty": 4,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Prime_Laser_Rifle"
 },
 "Prisma Angstrum": {
 "method": "baro",
@@ -1724,6 +1844,14 @@
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Rauta"
 },
+"Reconifex": {
+"method": "syndicate",
+"how": "Main blueprint is a rare drop from tier 5 Höllvania Central Mall bounties (after The Hex); Barrel, Receiver and Stock from Höllvania Legacyte Harvest and Hell-Scrub. Or buy them from Amir of The Hex at Rank 4 - Hot & Fresh: 15,000 standing for the main, 5,000 per part.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Reconifex"
+},
 "Revenant": {
 "method": "open-world",
 "how": "Main blueprint from Mask of the Revenant (needs Rank 2 with The Quills; extra copies 50,000 Simaris standing); parts from Plains of Eidolon (Cetus) bounties: Systems lvl 20-40 final stage ~23-26%, Chassis lvl 30-50 final stage ~22%, Neuroptics lvl 40-60 final stage 10.2%. 325 platinum in the Market.",
@@ -1758,6 +1886,14 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Rumblejack"
+},
+"Sagek Prime": {
+"method": "mission-drop",
+"how": "Not from relics. Blueprints drop from rotation A of The Perita Rebellion missions in the Dark Refractory, Deimos (5.71% each, after The Old Peace), or buy them from Roathe in La Cathedrale for Maphica: 25 per part, 35 for the main, 85 in all.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Sagek_Prime"
 },
 "Sahasa Kubrow": {
 "method": "incubator",
@@ -1827,6 +1963,14 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Sicarus"
 },
+"Sirius & Orion": {
+"method": "quest",
+"how": "Main blueprint from the Jade Shadows: Constellations quest. The Neuroptics, Chassis and Systems blueprints (and spare main blueprints) drop from Scoria's Angel or The Kuva Wytch on Uranus Proxima (Empyrean Railjack, 14.29% each), or buy them from Hunhow in Pontis Tower with Emerald or Crimson Talent (12-16 per run, 18-22 on Steel Path): 90 per part, 275 for the main blueprint, 545 in all. Building needs 3 Orokin Cells plus Gallium, Nullstones, Asterite, Morphics, Control Modules and Isos. The wiki doesn't say whether the parts can be traded.",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Sirius_%26_Orion"
+},
 "Sirocco": {
 "method": "quest",
 "how": "The Drifter's pistol, given on completing The New War quest (already Gilded, with a free amp slot). Extra copies cost 100,000 Simaris standing. MR 0.",
@@ -1866,6 +2010,22 @@
 "available": true,
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Snipetron_Vandal"
+},
+"Spectra Vandal": {
+"method": "railjack",
+"how": "Blueprint and parts come from Abandoned Derelict caches in Grineer-held Veil Proxima Railjack missions (rotation B; blueprint 8.70%, parts 6.52%); all parts are tradable. During Epoch Operation: Taubound a built one also costs 150 Moonflesh.",
+"difficulty": 4,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Spectra_Vandal"
+},
+"Steflos": {
+"method": "mission-drop",
+"how": "Mirror Defense on Tyana Pass, Mars (needs Heart of Deimos): blueprint from rotation A (10%), Barrel, Receiver and Stock from rotation B (8% each). Or buy from Otak in the Necralisk with crystal fragments from the same mode: 500 Belric + 300 Rania for the blueprint, 250 Belric + 150 Rania per part (1,250 Belric, 750 Rania in all). Parts are tradable, the blueprint isn't.",
+"difficulty": 3,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Steflos"
 },
 "Stinger": {
 "method": "dojo",
@@ -1936,6 +2096,14 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Sweeper"
+},
+"Sweeper Prime": {
+"method": "relics",
+"how": "Comes automatically with Carrier Prime; build Carrier Prime from its relic parts (all vaulted as of Oct 2026: buy the parts from players or wait for Prime Resurgence). Takes a companion slot.",
+"difficulty": 4,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Sweeper_Prime"
 },
 "Syam": {
 "method": "vendor",
@@ -2202,12 +2370,20 @@
 ]
 },
 "Verglas": {
-"method": "mission-drop",
-"how": "Comes automatically with the Nautilus sentinel; Nautilus' blueprint and parts (Carapace, Cerebrum, Systems, Nullstones) drop from Railjack Corpus Proxima point-of-interest caches (e.g. Neptune Proxima ice mines), then build it (unconfirmed: the wiki Nautilus page lists no drop source, route taken from a 2021 guide).",
+"method": "railjack",
+"how": "Comes automatically with the Nautilus sentinel. Nautilus' blueprint, Carapace, Cerebrum and Systems come from Points of Interest and Arva Vector Defense (rotations B and C) in Neptune Proxima Railjack missions; all its parts can be traded, so you can also buy them from players.",
 "difficulty": 3,
 "available": true,
-"tradable": false,
-"source": "https://wiki.warframe.com/w/Verglas"
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Nautilus"
+},
+"Verglas Prime": {
+"method": "relics",
+"how": "Comes automatically with Nautilus Prime; build Nautilus Prime from its relic parts (all vaulted as of Oct 2026: buy the parts from players or wait for Prime Resurgence). Takes a companion slot.",
+"difficulty": 4,
+"available": true,
+"tradable": true,
+"source": "https://wiki.warframe.com/w/Verglas_Prime"
 },
 "Vericres": {
 "method": "baro",
@@ -2224,6 +2400,22 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Veritux"
+},
+"Vesper 77": {
+"method": "syndicate",
+"how": "Main blueprint is a rare drop from tier 4 Höllvania Central Mall bounties (after The Hex); Barrel, Receiver and Handle from Höllvania Legacyte Harvest and Hell-Scrub. Or buy them from Amir of The Hex at Rank 3 - 2-For-1: 15,000 standing for the main, 5,000 per part.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Vesper_77"
+},
+"Vinquibus": {
+"method": "boss",
+"how": "Blueprints drop from Roathe's Oblivion on Infernium 21 of The Descendia (12.5% each, after The Old Peace). Or buy them from Roathe in La Cathedrale (Sanctum Anatomica) for Maphica from The Descendia: 25 per part, 35 for the main, 135 in all.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Vinquibus"
 },
 "Viper Wraith": {
 "method": "baro",
@@ -2270,7 +2462,7 @@
 },
 "Voruna": {
 "method": "mission-drop",
-"how": "Rotation C of Conjunction Survival on Lua (Yuvarium/Circulus, needs The War Within): parts 4.55% (T1) / 8.16% (T2), main 6.82% / 12.24%. Or buy from Archimedean Yonta (Zariman, needs Angels of the Zariman) for 350 Lua Thrax Plasm (75 per part, 125 main; 3-6 per rotation plus Thrax drops). 325 platinum in the Market.",
+"how": "Rotation C of Conjunction Survival on Lua (needs The War Within): Yuvarium parts 4.08%, main 6.12%; Circulus parts 7.69%, main 11.54%. Or buy from Archimedean Yonta (Chrysalith, Zariman, needs Angels of the Zariman) for 350 Lua Thrax Plasm (75 per part, 125 main; 3-6 per rotation plus Thrax drops). 325 platinum in the Market.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
@@ -2298,6 +2490,14 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Vulklok"
 },
+"War Prime": {
+"method": "vendor",
+"how": "Comes prebuilt (with Orokin Catalyst) from crafting Hunhow's Trinket, a blueprint Hunhow sells in Pontis Tower (Uranus Proxima, after Jade Shadows: Constellations) for 12 Emerald Talent and 12 Crimson Talent, earned from The Kuva Wytch and Scoria's Angel. Only one copy can be bought.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Hunhow%27s_Trinket"
+},
 "Wisp": {
 "method": "boss",
 "how": "All four blueprints drop from the Ropalolyst on Jupiter (main 22.56%, each part 25.81%), which needs the Chimera Prologue quest. 325 platinum in the Market.",
@@ -2311,6 +2511,14 @@
 "https://steamcommunity.com/app/230410/discussions/0/803469628489875850/",
 "https://steamcommunity.com/app/230410/discussions/0/4755222397155033849/"
 ]
+},
+"Wrath": {
+"method": "railjack",
+"how": "Main, Blade and Handle blueprints drop from Scoria's Angel on Uranus Proxima (14.29% each, needs Jade Shadows: Constellations); it also needs a Pride Blade from The Kuva Wytch. Or buy the blueprints from Hunhow in Pontis Tower with Crimson/Emerald Talent: 90 for the main, 45 per component (180 Crimson and 45 Emerald in all).",
+"difficulty": 4,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Wrath"
 },
 "Wukong": {
 "method": "dojo",
