@@ -26,6 +26,7 @@
     writeRewardPick,
     market,
     onMarketOrder,
+    onNoticeOpen,
     notify,
     openUrl,
     quit,
@@ -288,7 +289,7 @@
     if (settings.notifyOptions.paused) return;
     if (typeof document !== "undefined" && document.hasFocus()) {
       if (settings.notifyOptions.toasts) toasts.push(settings.game.notices[0]);
-    } else notify(title, body);
+    } else notify(title, body, settings.game.notices[0].id);
   }
   let showNotices = $state(false);
   const unread = $derived(settings.game.notices.filter((n) => !n.read).length);
@@ -586,7 +587,7 @@
     }
     if (!done.length) return;
     const outcome = unmarked ? `Logged; ${unmarked} couldn't be marked sold on warframe.market (see Orders).` : "Marked sold on warframe.market and logged.";
-    if (settings.notify.market) tell("market", done.length === 1 ? `Sold ${done[0]}` : `${done.length} sales`, `${done.join("\n")}\n${outcome}`);
+    if (settings.notify.market) tell("market", done.length === 1 ? `Sold ${done[0]}` : `${done.length} sales`, `${done.join("\n")}\n${outcome}`, "sales");
     // Your inventory changed: have TennoScope read it again so spares and listings line up.
     if (ts.report?.setup.access_mode === "full" && ts.report.game_running) void ts.ask("--sync");
   }
@@ -1076,6 +1077,8 @@
     const closeListener = quitOnWindowClose();
     // warframe.market's live feed of new orders: cheap buys the moment they're listed.
     const orderListener = onMarketOrder((o) => mkt.feedOrder(o));
+    // A desktop notification clicked: open what it's about (the window is brought up already).
+    const noticeListener = onNoticeOpen((id) => openNotice(id));
     let feedPoll: ReturnType<typeof setInterval> | undefined;
     market
       .feed(true)
@@ -1169,6 +1172,7 @@
       stopped = true;
       closeListener.then((stop) => stop());
       orderListener.then((stop) => stop());
+      noticeListener.then((stop) => stop());
       clearInterval(feedPoll);
       clearInterval(poll);
       clearInterval(livePoll);

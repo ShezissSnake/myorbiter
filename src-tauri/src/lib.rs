@@ -492,10 +492,11 @@ async fn presence_set(app: tauri::AppHandle, status: String) -> Result<presence:
     .map_err(|e| e.to_string())?
 }
 
-/// A desktop notification (the page only sends one while orbiter's window isn't focused).
+/// A desktop notification (the page only sends one while orbiter's window isn't focused). `id`:
+/// its entry in the page's history, so a click on it opens what it's about.
 #[tauri::command]
-fn notify(summary: String, body: String) {
-    desktop::notify(summary, body);
+fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<String>) {
+    desktop::notify(app, summary, body, id);
 }
 
 /// Ctrl+Q, and the window's X once the page has saved: quit, stopping the TennoScope orbiter

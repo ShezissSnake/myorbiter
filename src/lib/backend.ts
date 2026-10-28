@@ -592,9 +592,12 @@ export const tennoscope = {
 /** The reward cards a patched TennoScope read off the screen (empty once it closes), or null. */
 // ---------------------------------------------------------------- desktop
 
-/** A desktop notification (App's `tell` decides when). In the browser dev mode it's logged. */
-export function notify(summary: string, body: string) {
-  if (inTauri) invoke("notify", { summary, body }).catch(() => {});
+/**
+ * A desktop notification (App's `tell` decides when). `id`: its entry in the history, so clicking
+ * it opens what it's about (see onNoticeOpen). In the browser dev mode it's logged.
+ */
+export function notify(summary: string, body: string, id?: string) {
+  if (inTauri) invoke("notify", { summary, body, id: id ?? null }).catch(() => {});
   else console.info(`[notification] ${summary}: ${body}`);
 }
 
@@ -720,6 +723,13 @@ export interface FeedState {
   connected: boolean;
   received: number;
   error: string | null;
+}
+
+/** A desktop notification was clicked: its id in the history. Resolves to a function that stops listening. */
+export async function onNoticeOpen(fn: (id: string) => void): Promise<() => void> {
+  if (!inTauri) return () => {};
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<string>("notice-open", (e) => fn(e.payload));
 }
 
 /** Each sell order from the live feed, as it goes up. Resolves to a function that stops listening. */
