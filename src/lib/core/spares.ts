@@ -4,6 +4,7 @@
 // you don't own keeps the parts, blueprints and resources its recipe takes.
 import { baseId, gearSetParts, heldCount, UNOBTAINABLE, type Model, type Refinement } from "./model";
 import { findItem, type MarketIndex } from "./market";
+import { copyValue } from "./vosfor";
 import { arcaneRows, inventoryRows, MASTERY_CATEGORIES, modRows, modSpares, partRows, relicRows, setRows, type InventoryItem, type InventoryKind, type RelicRow, type SetRow } from "./views";
 import { expectedBest } from "./advice";
 
@@ -295,6 +296,15 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
       const spare = !a ? 0 : r.rank != null && r.rank >= a.maxRank ? a.extraMaxed : r.rank === 0 ? Math.min(r.quantity, a.unranked, a.spare) : 0;
       keep = r.quantity - spare;
       why = keep ? (a?.complete ? "Your maxed copy" : `Toward a maxed one (${a?.copies ?? 0}/${a?.needed ?? 21})`) : "";
+      // Unranked copies count as their share of a maxed one: their own median, from a few copies
+      // at a time, overstates what a pile of them fetches (vosfor.ts, copyValue).
+      if (a && r.rank === 0 && a.priceMax != null) {
+        const each = copyValue(m, a.name, a);
+        if (price == null || each < price) {
+          price = Math.round(each * 10) / 10;
+          if (spare) why = `${why ? `${why}; ` : ""}priced as 1/${a.needed} of a maxed one (${a.priceMax}p)`;
+        }
+      }
     } else if (r.kind === "relic") {
       const base = r.marketName?.replace(/ Relic$/, "") ?? "";
       const wanted = relicKeep.get(base);

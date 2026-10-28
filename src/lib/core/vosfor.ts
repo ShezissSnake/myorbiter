@@ -61,10 +61,11 @@ export interface PackValue {
 }
 
 /**
- * What one unranked copy is worth: its own price, but never more than its share of a maxed one
- * (a maxed arcane is 21 copies). Single unranked copies are many small trades; fused, they're one.
+ * What one unranked copy is worth: its share of a maxed one (a maxed arcane is 21 copies), or its
+ * own price when that's lower. Unranked copies sell a few at a time for a platinum or two, a
+ * median that overstates them: 21 of them usually fetch more than a maxed one does.
  */
-function copyValue(m: Model, name: string, r: ArcaneRow | undefined): number {
+export function copyValue(m: Model, name: string, r: ArcaneRow | undefined): number {
   const each = r?.price ?? m.price(name);
   const maxed = r?.priceMax ?? m.priceMax(name);
   const share = maxed != null ? maxed / (r?.needed ?? 21) : null;
@@ -117,8 +118,13 @@ export interface SpareArcane {
   maxed: number;
   /** Loose unranked copies beyond what your kept copy needs. */
   unranked: number;
-  /** Selling them all: maxed at the max-rank price, unranked at the unranked price. */
+  /**
+   * Selling them all, priced as maxed arcanes: maxed copies at the max-rank price, loose ones at
+   * their share of it (copyValue).
+   */
   sellPlat: number | null;
+  /** What one loose copy counts for (copyValue). */
+  each: number | null;
   /** Dissolving them all. */
   vosfor: number | null;
   /** That Vosfor in platinum, through the best pack for the lens. */
@@ -146,8 +152,9 @@ export function spareArcanes(m: Model, rows: ArcaneRow[], perVosfor: number, opt
     const vosfor = y == null ? null : y * copies;
     const dissolvePlat = vosfor == null ? null : vosfor * perVosfor;
     const sellMaxed = maxed ? (r.priceMax == null ? null : maxed * r.priceMax) : 0;
-    const sellLoose = unranked ? (r.price == null ? null : unranked * r.price) : 0;
-    const sellPlat = !r.tradable || sellMaxed == null || sellLoose == null ? null : sellMaxed + sellLoose;
+    const each = r.price == null && r.priceMax == null ? null : copyValue(m, r.name, r);
+    const sellLoose = unranked ? (each == null ? null : unranked * each) : 0;
+    const sellPlat = !r.tradable || sellMaxed == null || sellLoose == null ? null : Math.round((sellMaxed + sellLoose) * 10) / 10;
     // Each sale is one trade: a maxed copy, or the loose copies together.
     const eachTrade = sellPlat == null ? null : maxed ? (r.priceMax ?? 0) : sellPlat;
 
@@ -167,7 +174,7 @@ export function spareArcanes(m: Model, rows: ArcaneRow[], perVosfor: number, opt
       verdict = "dissolve";
       why = opts.lens === "need" ? "Worth more as packs toward arcanes you're collecting" : "Worth more as Vosfor packs";
     } else why = "Sells for more than its Vosfor is worth";
-    out.push({ row: r, maxed, unranked, sellPlat, vosfor, dissolvePlat, verdict, why });
+    out.push({ row: r, maxed, unranked, sellPlat, each, vosfor, dissolvePlat, verdict, why });
   }
   return out;
 }

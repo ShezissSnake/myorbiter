@@ -718,12 +718,15 @@ export async function missionState(eeLog: string): Promise<MissionState | null> 
   return res?.ok ? res.json() : null;
 }
 
-/** URL for an item image file. In the app it goes through the local cache (img:// protocol);
- * in the browser dev mode straight to WFCD. */
+// Item artwork goes through orbiter's local cache, its own "img" protocol. Windows' webview
+// (WebView2) only reaches an app's protocol as http://img.localhost; Linux and macOS take
+// img://localhost. In the browser dev mode it comes straight from WFCD.
+const onWindows = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
+const IMG_BASE = onWindows ? "http://img.localhost/" : "img://localhost/";
 /** An item's WFCD artwork: a thumbnail, or the larger copy cards and the details sheet show. */
 export const imageUrl = (file: string, large = false) =>
   inTauri
-    ? `img://localhost/${large ? "l/" : ""}${encodeURIComponent(file)}`
+    ? `${IMG_BASE}${large ? "l/" : ""}${encodeURIComponent(file)}`
     : `https://raw.githubusercontent.com/WFCD/warframe-items/master/data/img/${encodeURIComponent(file)}`;
 
 // ---------------------------------------------------------------- warframe.market (own sign-in)

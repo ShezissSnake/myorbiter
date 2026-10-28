@@ -75,7 +75,7 @@
   const spareColumns: Column<SpareArcane>[] = [
     { key: "name", label: "Arcane", value: (x) => x.row.name, defaultDesc: false, cell: spareName },
     { key: "have", label: "Spare", value: (x) => x.maxed * 1000 + x.unranked, cell: spareHave, align: "right", title: "Maxed copies beyond the one you keep, and loose unranked copies" },
-    { key: "sell", label: "Sell for", value: (x) => x.sellPlat, cell: sellCell, align: "right", title: "Maxed copies at the max-rank price, loose ones at the unranked price (daily median)" },
+    { key: "sell", label: "Sell for", value: (x) => x.sellPlat, cell: sellCell, align: "right", title: "Priced as maxed arcanes: maxed copies at the max-rank price, loose ones at their share of one (a maxed arcane is 21 copies). Unranked copies sell a few at a time, so their own price overstates them" },
     { key: "vosfor", label: "Dissolve for", value: (x) => x.vosfor, cell: vosforCell, align: "right", title: "Vosfor from Loid's Arcane Dissolution, and what it's worth through the best pack" },
     { key: "best", label: "Best as", value: (x) => x.verdict, sortValue: (x) => (x.verdict === "sell" ? (x.sellPlat ?? 0) : (x.dissolvePlat ?? 0)), cell: verdictCell },
     { key: "trades", minor: true, label: "Trades/day", value: (x) => (x.row.tradesPerDay == null ? null : Math.round(x.row.tradesPerDay * 10) / 10), align: "right", muted: true },
@@ -101,6 +101,9 @@
     // Still collecting has nothing spare, so nothing to list.
     ...(show !== "all" ? [] : [{ key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" }] as Column<ArcaneRow>[]),
   ] as Column<ArcaneRow>[]));
+  /** How the sale price adds up, for its tooltip. */
+  const sellWhy = (x: SpareArcane) =>
+    [x.maxed ? `${x.maxed} maxed at ${x.row.priceMax ?? "?"}p` : "", x.unranked ? `${x.unranked} loose at ${x.each == null ? "?" : Math.round(x.each * 10) / 10}p each (1/${x.row.needed} of a maxed one${x.row.price != null ? `; ${x.row.price}p unranked` : ""})` : ""].filter(Boolean).join(" + ");
   const things = (n: number, one = "thing", many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 </script>
 
@@ -128,7 +131,7 @@
 {#snippet spareHave(x: SpareArcane)}
   <span class="have" title={fuseHint(x.row) ?? undefined}>{#if x.maxed}<b>{x.maxed}</b> <span class="dim small">maxed{x.row.toFuse ? `, ${x.row.toFuse} to fuse` : ""}</span>{/if}{#if x.maxed && x.unranked}<span class="dim">&nbsp;·&nbsp;</span>{/if}{#if x.unranked}<b>{x.unranked}</b> <span class="dim small">unranked</span>{/if}</span>
 {/snippet}
-{#snippet sellCell(x: SpareArcane)}<P v={x.sellPlat} dim={x.verdict !== "sell"} />{/snippet}
+{#snippet sellCell(x: SpareArcane)}<span title={sellWhy(x)}><P v={x.sellPlat == null ? null : Math.round(x.sellPlat)} dim={x.verdict !== "sell"} /></span>{/snippet}
 {#snippet vosforCell(x: SpareArcane)}
   {#if x.vosfor == null}<span class="dim small">can't</span>
   {:else}<span class="vf" class:dim={x.verdict !== "dissolve"}><b>{x.vosfor.toLocaleString("en")}</b><GameIcon name="vosfor" size={14} /><span class="dim small">≈ {Math.round(x.dissolvePlat ?? 0)}p</span></span>{/if}
@@ -179,6 +182,7 @@
 {#snippet spareDetail(x: SpareArcane)}
   <UpgradeDetail {model} name={x.row.name} unique={x.row.unique} ranks={ranksOf(x.row)} tradable={x.row.tradable}>
     <p class="small"><b class="verdict v-{x.verdict}">{x.verdict === "sell" ? "Sell" : "Dissolve at Loid"}</b> <span class="dim">· {x.why}</span></p>
+    <p class="small dim">Sold as maxed arcanes: {x.sellPlat == null ? "no price" : `about ${Math.round(x.sellPlat)}p`} ({sellWhy(x)}).{#if x.vosfor != null} Dissolved: {x.vosfor.toLocaleString("en")} Vosfor, about {Math.round(x.dissolvePlat ?? 0)}p through the best pack.{/if}</p>
     <div class="actions">{@render spareList(x)}</div>
   </UpgradeDetail>
 {/snippet}
@@ -194,7 +198,7 @@
   <PageHead title="Arcanes" blurb="What each arcane is worth, and how close you are to maxing it.">
     {#snippet band()}
       <Stat label="Maxed" note="Arcanes you have at max rank">{completeCount}<span class="of">/{all.length}</span></Stat>
-      <Stat label="Spares to sell" note={`${things(toSell.length, "arcane")} worth more sold than kept`}><P v={toSell.reduce((n, x) => n + (x.sellPlat ?? 0), 0)} big /></Stat>
+      <Stat label="Spares to sell" note={`${things(toSell.length, "arcane")} worth more sold than kept`}><P v={Math.round(toSell.reduce((n, x) => n + (x.sellPlat ?? 0), 0))} big /></Stat>
       <Stat label="Vosfor held" note={gain ? `+${gain.toLocaleString("en")} from the ${toDissolve.length} marked Dissolve` : "Nothing marked Dissolve"}><GameIcon name="vosfor" size={30} />{held.toLocaleString("en")}</Stat>
     {/snippet}
   </PageHead>

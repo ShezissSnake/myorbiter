@@ -79,5 +79,17 @@ test("whole extra maxed arcanes count unfused copies too: 43 copies of a 21-copy
   const [a] = arcaneRows(m).filter((r) => r.name === "Arcane Energize");
   assert.deepEqual([a.copies, a.needed, a.extraMaxed, a.extraSets, a.toFuse], [43, 21, 0, 1, 1]);
   const [s] = spareArcanes(m, [a], 0.001, { lens: "market", minPrice: 5 });
-  assert.deepEqual([s.maxed, s.unranked, s.sellPlat], [1, 1, 168], "one maxed (to fuse) at 160p and the one copy left at 8p");
+  assert.deepEqual([s.maxed, s.unranked, s.sellPlat], [1, 1, 167.6], "one maxed (to fuse) at 160p and the copy left at its share of one, 160/21p");
+});
+
+test("loose copies count as their share of a maxed arcane, not the unranked median: 26 Molt Vigor at 2p aren't 52p", () => {
+  // A maxed one sells for 21p, so a copy is worth 1p as part of one; the 2p unranked median comes
+  // from a few copies at a time, and 21 of them don't fetch 42p.
+  const b = bundle([inv("/A/Energize", "Arcane Energize", "arcane", 1, { rank: 5 }), inv("/A/Energize", "Arcane Energize", "arcane", 26)], { "Arcane Energize": 2 }, { "Arcane Energize": 21 });
+  const m = buildModel(b);
+  const [a] = arcaneRows(m).filter((r) => r.name === "Arcane Energize");
+  const [s] = spareArcanes(m, [a], 45 / (98 * 26), { lens: "market", minPrice: 5 });
+  assert.deepEqual([s.maxed, s.unranked, s.each], [1, 5, 1]);
+  assert.equal(s.sellPlat, 26, "one maxed at 21p and five copies at 1p");
+  assert.equal(s.verdict, "dissolve", "their Vosfor (~45p) beats 26p");
 });

@@ -18,6 +18,7 @@
   import Chip from "../ui/Chip.svelte";
   import IconButton from "../ui/IconButton.svelte";
   import Icon from "../ui/Icon.svelte";
+  import { matches } from "../ui/table";
 
   // console: you play on a console or phone, where orbiter can't read your rivens: the finder and
   // alerts only.
@@ -35,17 +36,36 @@
     }
     return out;
   });
-  let sort = $state<"grade" | "weapon" | "rank">("grade");
+  let sort = $state<"grade" | "weapon" | "rank" | "cheapest">("grade");
+  // Filters: the riven's kind (Rifle, Melee…), spliced ones only, and a weapon or name.
+  let kind = $state("all");
+  let splicedOnly = $state(false);
+  let query = $state("");
+  const kinds = $derived([...new Set(mine.map((r) => r.kind))].sort().map((k) => ({ k, n: mine.filter((r) => r.kind === k).length })));
+  const splicedCount = $derived(mine.filter((r) => r.spliced).length);
   const best = $derived(mine.reduce<Riven | null>((b, r) => (r.quality != null && (b?.quality == null || r.quality > b.quality) ? r : b), null));
-  const sorted = $derived([...mine].sort((a, b) => (sort === "grade" ? (b.quality ?? -1) - (a.quality ?? -1) : sort === "rank" ? b.rank - a.rank : a.weapon.localeCompare(b.weapon))));
+  const shown = $derived(mine.filter((r) => (kind === "all" || r.kind === kind) && (!splicedOnly || r.spliced) && matches(query, r.weapon, r.name, ...r.stats.map((x) => x.label))));
+  /** The cheapest riven listed for its weapon, whatever its stats (from the price check). */
+  const floorOf = (r: Riven) => (checks[r.id]?.any ? priceCheck(checks[r.id].any!).lowest : null);
+  const sorted = $derived(
+    [...shown].sort((a, b) =>
+      sort === "grade" ? (b.quality ?? -1) - (a.quality ?? -1)
+      : sort === "rank" ? b.rank - a.rank
+      : sort === "cheapest" ? (floorOf(b) ?? -1) - (floorOf(a) ?? -1) || a.weapon.localeCompare(b.weapon)
+      : a.weapon.localeCompare(b.weapon),
+    ),
+  );
 
   $effect(() => {
     void rivens.loadMeta();
   });
   const meta = $derived(rivens.meta);
 
-  // Price checks, per riven.
-  let checks = $state<Record<string, { loading: boolean; error?: string; auctions?: RivenAuction[] }>>({});
+  // Price checks, per riven: rivens listed with its two best stats ("similar"), and any riven for
+  // its weapon at all, whose cheapest is the floor anyone can buy one at. Both are asking prices:
+  // warframe.market keeps no record of what rivens sold for.
+  let checks = $state<Record<string, { loading: boolean; error?: string; auctions?: RivenAuction[]; any?: RivenAuction[] }>>({});
+  const SLOW = /slow down/;
   async function check(r: Riven, fresh = false) {
     if (!meta) return;
     const q = searchFor(meta, r);
@@ -55,14 +75,17 @@
     }
     checks[r.id] = { loading: true };
     try {
-      checks[r.id] = { loading: false, auctions: await rivens.search(q.weapon, q.positive.slice(0, 2), null, fresh ? 0 : undefined) };
+      const auctions = await rivens.search(q.weapon, q.positive.slice(0, 2), null, fresh ? 0 : undefined);
+      // The weapon's own search is shared by every riven for it, and kept a while.
+      const any = await rivens.search(q.weapon, [], null).catch(() => undefined);
+      checks[r.id] = { loading: false, auctions, any };
     } catch (e) {
       checks[r.id] = { loading: false, error: String(e).replace(/^Error: /, "") };
     }
   }
   // Price check every riven, one after another (warframe.market is asked at its own pace), skipping
   // ones already checked. Stop halts after the one in progress.
-  let checkingAll = $state<{ done: number; total: number } | null>(null);
+  let checkingAll = $state<{ done: number; total: number; paused?: boolean } | null>(null);
   let stopAll = false;
   async function checkAll() {
     const listed = meta ? sorted.filter((r) => searchFor(meta, r).weapon) : [];
@@ -76,6 +99,12 @@
     for (const r of todo) {
       if (stopAll) break;
       await check(r, again);
+      // Still turned away after orbiter's own retries: a longer pause, then once more.
+      if (SLOW.test(checks[r.id]?.error ?? "") && !stopAll) {
+        checkingAll = { ...checkingAll, paused: true };
+        await new Promise((res) => setTimeout(res, 30_000));
+        if (!stopAll) await check(r, again);
+      }
       checkingAll = { done: checkingAll.done + 1, total: todo.length };
     }
     checkingAll = null;
@@ -141,7 +170,8 @@
   const priced = $derived(mine.map((r) => checks[r.id]?.auctions).filter((a): a is RivenAuction[] => !!a).map((a) => priceCheck(a)));
   const worth = $derived(priced.reduce((n, p) => n + (p.typical ?? 0), 0));
   // Rivens for weapons warframe.market doesn't list can't be checked: they don't count as left to do.
-  const unchecked = $derived(meta ? mine.filter((r) => !checks[r.id]?.auctions && searchFor(meta, r).weapon).length : mine.length);
+  // Price check all goes through the rivens the filters show.
+  const unchecked = $derived(meta ? shown.filter((r) => !checks[r.id]?.auctions && searchFor(meta, r).weapon).length : shown.length);
 
   const searchUrl = (r: Riven) => {
     const q = meta ? searchFor(meta, r) : null;
@@ -208,7 +238,7 @@
       <Stat label="Unveiled" note="Read from your inventory">{mine.length}</Stat>
       <Stat label="Veiled" tone="dim" note="Challenges still to do">{veiled}</Stat>
       <Stat label="Best roll" tone="gold" note={best ? `${best.weapon} ${best.name}` : "–"}>{best?.grade ?? "–"}</Stat>
-      {#if priced.length}<Stat label="Worth about" tone="gold" note={`What similar ones sell for, ${priced.length} of ${mine.length} checked`}><P v={worth} big /></Stat>{/if}
+      {#if priced.length}<Stat label="Listed around" tone="gold" note={`What similar ones are listed for (asking, not sold), ${priced.length} of ${mine.length} checked`}><P v={worth} big /></Stat>{/if}
       {/if}
       <Stat label="Alerts" note="Rivens you're watching for">{settings.rivenWatch.length}</Stat>
     {/snippet}
@@ -231,11 +261,17 @@
     <p class="dim">No unveiled rivens in your inventory.</p>
   {:else}
     <div class="bar">
-      <Seg label="Sort" bind:value={sort} options={[{ v: "grade", label: "Best rolls", title: "The best overall grade first" }, { v: "weapon", label: "Weapon", title: "By weapon, A to Z" }, { v: "rank", label: "Rank", title: "The highest rank first" }]} />
+      <input type="search" placeholder="Filter rivens…" bind:value={query} aria-label="Filter rivens by weapon, name or stat" title="A weapon, a riven's name or a stat" />
+      <select bind:value={kind} aria-label="Riven kind" title="Only rivens for one kind of weapon">
+        <option value="all">All kinds ({mine.length})</option>
+        {#each kinds as x (x.k)}<option value={x.k}>{x.k} ({x.n})</option>{/each}
+      </select>
+      {#if splicedCount}<Chip bind:on={splicedOnly} label="Spliced ({splicedCount})" title="Only rivens with a stat from Riven Splicing (Gas, Corrosive, Weak Point Damage…), which can't roll by cycling" />{/if}
+      <Seg label="Sort" bind:value={sort} options={[{ v: "grade", label: "Best rolls", title: "The best overall grade first" }, { v: "weapon", label: "Weapon", title: "By weapon, A to Z" }, { v: "rank", label: "Rank", title: "The highest rank first" }, { v: "cheapest", label: "Weapon floor", title: "The weapons whose cheapest listed riven costs most first (price-checked rivens)" }]} />
       {#if checkingAll}
-        <span class="checking"><span class="dim small">Checking {checkingAll.done + 1} of {checkingAll.total}…</span><button class="link" onclick={() => (stopAll = true)}>Stop</button></span>
+        <span class="checking"><span class="dim small">{checkingAll.paused ? `warframe.market asked to slow down: waiting, then ${checkingAll.done + 1} of ${checkingAll.total}…` : `Checking ${checkingAll.done + 1} of ${checkingAll.total}…`}</span><button class="link" onclick={() => (stopAll = true)}>Stop</button></span>
       {:else}
-        <button class="stamp" disabled={!meta} title={!meta ? "Waiting for warframe.market's riven list" : !unchecked ? "Check every riven's price again" : "Find similar rivens for sale for each of yours, one after another"} onclick={checkAll}>{!unchecked ? "Check prices again" : unchecked === mine.length ? "Price check all" : `Price check the other ${unchecked}`}</button>
+        <button class="stamp" disabled={!meta} title={!meta ? "Waiting for warframe.market's riven list" : !unchecked ? "Check every riven's price again" : "Find similar rivens for sale for each of yours, one after another"} onclick={checkAll}>{!unchecked ? "Check prices again" : unchecked === shown.length ? (shown.length === mine.length ? "Price check all" : `Price check these ${unchecked}`) : `Price check the other ${unchecked}`}</button>
       {/if}
       <span class="dim small explain">Grades compare each roll with its range: S is the top of it, B the middle, F the bottom. A smaller curse grades higher. Dispositions are 1.2 for every weapon since the 22 October 2026 hotfix.</span>
     </div>
@@ -260,7 +296,7 @@
           <ul class="stats">
             {#each r.stats as s, i (i)}
               <li class:curse={!s.buff}>
-                <b class="val">{s.display}</b><span class="lbl">{s.label}</span>
+                <b class="val">{s.display}</b><span class="lbl">{s.label}{#if s.spliced}<span class="tag ok" title="From Riven Splicing: it stays locked through cycles">spliced</span>{/if}</span>
                 <span class="rbar" title="Roll {s.quality == null ? '?' : Math.round(s.quality * 100)}% of its range"><i style:width="{(s.quality ?? 0) * 100}%"></i></span>
                 {@render grade(s.grade)}
               </li>
@@ -312,7 +348,11 @@
           {/if}
           <footer>
             {#if pc}
-              <span class="pc" title={pc.count ? `${pc.count} similar rivens for sale: the cheapest ${pc.lowest}p, most around ${pc.typical}p` : undefined}>{#if pc.count}<span class="dim small">{pc.count} similar</span><span class="dim small">from</span><P v={pc.lowest} /><span class="dim small">· ~</span><P v={pc.typical} />{:else}<span class="dim small">None like it for sale right now</span>{/if}</span>
+              {@const fl = c?.any ? priceCheck(c.any) : null}
+              <span class="pcs">
+                {#if fl}<span class="pc" title={fl.count ? `The cheapest ${r.weapon} riven listed right now, whatever its stats: what anyone can buy one for` : undefined}>{#if fl.count}<span class="dim small">Any {r.weapon} riven from</span><P v={fl.lowest} />{:else}<span class="dim small">No {r.weapon} rivens listed</span>{/if}</span>{/if}
+                <span class="pc" title={pc.count ? `${pc.count} rivens with the same two best stats listed: the cheapest at ${pc.lowest}p, most around ${pc.typical}p. Asking prices: what they sell for isn't published` : undefined}>{#if pc.count}<span class="dim small">{pc.count} similar listed from</span><P v={pc.lowest} /><span class="dim small">· ~</span><P v={pc.typical} />{:else}<span class="dim small">None like it listed right now</span>{/if}</span>
+              </span>
             {:else if c?.error}<span class="dim small">{c.error}</span>
             {:else if c?.loading}<span class="dim small">Checking prices…</span>
             {:else}<span class="dim small">Not price checked yet</span>{/if}
@@ -326,6 +366,7 @@
         </article>
       {/each}
     </CardGrid>
+    {#if !sorted.length}<p class="dim">No rivens match these filters. <button class="link" onclick={() => { kind = "all"; splicedOnly = false; query = ""; }}>Clear them</button></p>{/if}
   {/if}
 
   <section class="finder">
@@ -427,6 +468,7 @@
   /* Cards in a row share a height; the footer sits at the bottom of each. */
   .riven footer { margin-top: auto; display: flex; align-items: center; gap: .35rem; padding-top: .5rem; border-top: 1px solid var(--rule); min-height: 1.6rem; }
   .riven footer .slot { width: 30px; }
+  .pcs { display: grid; gap: .15rem; min-width: 0; }
   .pc { display: inline-flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
   .grow { flex: 1; }
   .grade { font-family: var(--face-mark); font-weight: 700; font-size: .9rem; text-align: center; min-width: 1.8rem; color: var(--platinum-dim); }

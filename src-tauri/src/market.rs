@@ -39,15 +39,28 @@ pub fn set_platform(name: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// After warframe.market says "too many requests": until then, calls go out further apart.
+static SLOW_UNTIL: Mutex<Option<Instant>> = Mutex::new(None);
+/// The gap while slowed down, and for how long after the last "too many requests".
+const SLOW_GAP: Duration = Duration::from_millis(1500);
+const SLOW_FOR: Duration = Duration::from_secs(90);
+
 fn wait_turn() {
+    let slow = SLOW_UNTIL.lock().unwrap_or_else(|e| e.into_inner()).is_some_and(|t| Instant::now() < t);
+    let gap = if slow { SLOW_GAP } else { MIN_GAP };
     let mut last = LAST_CALL.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(at) = *last {
         let since = at.elapsed();
-        if since < MIN_GAP {
-            std::thread::sleep(MIN_GAP - since);
+        if since < gap {
+            std::thread::sleep(gap - since);
         }
     }
     *last = Some(Instant::now());
+}
+
+/// warframe.market asked to slow down: every call goes out further apart for a while.
+fn slow_down() {
+    *SLOW_UNTIL.lock().unwrap_or_else(|e| e.into_inner()) = Some(Instant::now() + SLOW_FOR);
 }
 
 // ------------------------------------------------------------------ token storage
@@ -200,8 +213,27 @@ impl Client {
         }
     }
 
-    /// One request; `token` signs it. Returns the reply and any renewed token it carried.
+    /// One request; `token` signs it. Returns the reply and any renewed token it carried. A read
+    /// warframe.market turns away for going too fast is tried again, slower, up to three times
+    /// (a change isn't: it may have gone through).
     fn send(&self, method: &str, url: &str, body: Option<&Value>, token: Option<&str>) -> Result<(Value, Option<String>), MarketError> {
+        let mut tries = 0;
+        loop {
+            match self.send_once(method, url, body, token) {
+                Err(MarketError::RateLimited) => {
+                    slow_down();
+                    tries += 1;
+                    if method != "GET" || tries > 3 {
+                        return Err(MarketError::RateLimited);
+                    }
+                    std::thread::sleep(Duration::from_secs(2 * tries));
+                }
+                other => return other,
+            }
+        }
+    }
+
+    fn send_once(&self, method: &str, url: &str, body: Option<&Value>, token: Option<&str>) -> Result<(Value, Option<String>), MarketError> {
         wait_turn();
         let mut req = crate::http_agent()
             .request(method, url)

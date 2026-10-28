@@ -47,6 +47,17 @@ const CURSE_BY_BUFFS = [0, 1, 0.33000001, 0.5, 1.25, 1.5];
 const FACTION = /FactionDamage/;
 const PLAIN = new Set(["WeaponMeleeComboInitialBonusMod", "ComboDurationMod", "WeaponMeleeRangeIncMod", "WeaponPunctureDepthMod", "WeaponMeleeParryAngleMod"]);
 
+/**
+ * The stats only Riven Splicing makes (Update 44.1, October 2026): two of a riven's stats fused
+ * into one of these. They can't roll by cycling, so a riven with one has been spliced.
+ */
+export const SPLICED_TAGS = new Set([
+  "WeaponGasDamageMod", "WeaponCorrosiveDamageMod", "WeaponViralDamageMod", "WeaponRadiationDamageMod", "WeaponBlastDamageMod", "WeaponMagneticDamageMod",
+  "WeaponFactionDamageOrokin", "WeaponFactionDamageTechrot", "WeaponFactionDamageScaldra",
+  "WeaponWeakpointDamage", "WeaponWeakpointCriticalChance", "WeaponAmmoEfficiency", "WeaponMagazineReloadHolstered", "WeaponStatusDamage",
+  "WeaponMeleeHeavyAttackDamageMod", "WeaponMeleeHeavyAttackChargeMod", "WeaponMeleeParryAngleMod", "WeaponMeleeSlamDamageMod",
+]);
+
 export const RIVEN_KIND: Record<string, string> = {
   LotusRifleRandomModRare: "Rifle",
   LotusShotgunRandomModRare: "Shotgun",
@@ -67,6 +78,8 @@ export interface RivenStat {
   /** How the roll sits in its range, 0 (worst) to 1 (best); a smaller curse is better. */
   quality: number | null;
   grade: string;
+  /** A stat only Riven Splicing makes. */
+  spliced: boolean;
 }
 
 export interface Riven {
@@ -85,6 +98,8 @@ export interface Riven {
   /** Average roll quality of the buffs, 0..1. */
   quality: number | null;
   grade: string;
+  /** Has a stat from Riven Splicing. */
+  spliced: boolean;
 }
 
 /** Riven stat tables by riven type ("LotusRifleRandomModRare"), from the catalog. */
@@ -167,7 +182,7 @@ export function parseRiven(m: Model, tables: Map<string, RivenStatDef[]>, raw: R
       const ok = roll >= 0 && roll <= 1;
       const value = def ? statValue(def, ok ? roll : 0.5, buff, buffs.length, curses.length, rank) : 0;
       const quality = ok ? (buff ? roll : 1 - roll) : null;
-      stats.push({ tag: s.Tag, label: statLabel(def, s.Tag), display: def ? displayValue(s.Tag, value) : "?", value, buff, quality, grade: quality == null ? "?" : gradeOf(quality) });
+      stats.push({ tag: s.Tag, label: statLabel(def, s.Tag), display: def ? displayValue(s.Tag, value) : "?", value, buff, quality, grade: quality == null ? "?" : gradeOf(quality), spliced: SPLICED_TAGS.has(s.Tag) });
     }
   }
   const qs = stats.filter((s) => s.buff && s.quality != null).map((s) => s.quality as number);
@@ -189,6 +204,7 @@ export function parseRiven(m: Model, tables: Map<string, RivenStatDef[]>, raw: R
     stats,
     quality,
     grade: quality == null ? "?" : gradeOf(quality),
+    spliced: stats.some((x) => x.spliced),
   };
 }
 
