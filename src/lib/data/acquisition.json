@@ -414,7 +414,7 @@
 },
 "Cyte-09": {
 "method": "syndicate",
-"how": "Main blueprint from The Hex quest; parts are uncommon drops from Höllvania Central Mall bounties (11.6-13.3%), or bought from Amir of The Hex for 20,000 standing each at Rank 2 - Fresh Slice. Market price 370 platinum.",
+"how": "Main blueprint from The Hex quest, or from Amir of The Hex for 50,000 standing at Rank 4 - Hot & Fresh; parts are uncommon drops from Höllvania Central Mall bounties (11.6-13.3%), or bought from Amir of The Hex for 20,000 standing each at Rank 2 - Fresh Slice. Market price 370 platinum.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
@@ -2216,10 +2216,10 @@
 },
 "Tenet Agendus": {
 "method": "vendor",
-"how": "Buy it from Ergo Glast (Perrin Sequence, any Relay) for 40 Corrupted Holokeys earned in Railjack Void Storm missions; MR 14 required, his stock and the elemental bonus rotate every 4 days.",
+"how": "Buy it from Ergo Glast (Perrin Sequence, any Relay) for 40 Corrupted Holokeys earned in Railjack Void Storm missions; MR 14 required, his stock and the elemental bonus rotate every 4 days. Not tradable directly, but a converted Sister of Parvos carrying it can be bought from players (traded in a dojo's Crimson Branch) and vanquished.",
 "difficulty": 4,
 "available": true,
-"tradable": false,
+"tradable": true,
 "source": "https://wiki.warframe.com/w/Tenet_Agendus"
 },
 "Tenet Arca Plasmor": {
@@ -2227,7 +2227,7 @@
 "how": "Spawn a Sister of Parvos (Granum Void on a Corpus Ship) until one generates with a Tenet Arca Plasmor, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
 "difficulty": 5,
 "available": true,
-"tradable": false,
+"tradable": true,
 "source": "https://wiki.warframe.com/w/Tenet_Arca_Plasmor"
 },
 "Tenet Cycron": {
@@ -2235,7 +2235,7 @@
 "how": "Spawn a Sister of Parvos until one generates with a Tenet Cycron, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
 "difficulty": 5,
 "available": true,
-"tradable": false,
+"tradable": true,
 "source": "https://wiki.warframe.com/w/Tenet_Cycron"
 },
 "Tenet Detron": {
@@ -2243,7 +2243,7 @@
 "how": "Spawn a Sister of Parvos until one generates with a Tenet Detron, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
 "difficulty": 5,
 "available": true,
-"tradable": false,
+"tradable": true,
 "source": "https://wiki.warframe.com/w/Tenet_Detron"
 },
 "Tenet Diplos": {
@@ -2251,7 +2251,7 @@
 "how": "Spawn a Sister of Parvos until one generates with a Tenet Diplos, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
 "difficulty": 5,
 "available": true,
-"tradable": false,
+"tradable": true,
 "source": "https://wiki.warframe.com/w/Tenet_Diplos"
 },
 "Tenet Envoy": {
@@ -2259,23 +2259,23 @@
 "how": "Spawn a Sister of Parvos until one generates with a Tenet Envoy, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
 "difficulty": 5,
 "available": true,
-"tradable": false,
+"tradable": true,
 "source": "https://wiki.warframe.com/w/Tenet_Envoy"
 },
 "Tenet Exec": {
 "method": "vendor",
-"how": "Buy it from Ergo Glast (Perrin Sequence, any Relay) for 40 Corrupted Holokeys earned in Railjack Void Storm missions; his stock and the elemental bonus rotate every 4 days.",
+"how": "Buy it from Ergo Glast (Perrin Sequence, any Relay) for 40 Corrupted Holokeys earned in Railjack Void Storm missions; his stock and the elemental bonus rotate every 4 days. Not tradable directly, but a converted Sister of Parvos carrying it can be bought from players (traded in a dojo's Crimson Branch) and vanquished.",
 "difficulty": 4,
 "available": true,
-"tradable": false,
+"tradable": true,
 "source": "https://wiki.warframe.com/w/Tenet_Exec"
 },
 "Tenet Ferrox": {
 "method": "vendor",
-"how": "Buy it from Ergo Glast (Perrin Sequence, any Relay) for 40 Corrupted Holokeys earned in Railjack Void Storm missions; MR 16 required, his stock and the elemental bonus rotate every 4 days.",
+"how": "Buy it from Ergo Glast (Perrin Sequence, any Relay) for 40 Corrupted Holokeys earned in Railjack Void Storm missions; MR 16 required, his stock and the elemental bonus rotate every 4 days. Not tradable directly, but a converted Sister of Parvos carrying it can be bought from players (traded in a dojo's Crimson Branch) and vanquished.",
 "difficulty": 4,
 "available": true,
-"tradable": false,
+"tradable": true,
 "source": "https://wiki.warframe.com/w/Tenet_Ferrox"
 },
 "Tenet Flux Rifle": {
@@ -2283,7 +2283,7 @@
 "how": "Spawn a Sister of Parvos until one generates with a Tenet Flux Rifle, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
 "difficulty": 5,
 "available": true,
-"tradable": false,
+"tradable": true,
 "source": "https://wiki.warframe.com/w/Tenet_Flux_Rifle"
 },
 "Tenet Glaxion": {
@@ -2291,23 +2291,23 @@
 "how": "Spawn a Sister of Parvos until one generates with a Tenet Glaxion, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
 "difficulty": 5,
 "available": true,
-"tradable": false,
+"tradable": true,
 "source": "https://wiki.warframe.com/w/Tenet_Glaxion"
 },
 "Tenet Grigori": {
 "method": "vendor",
-"how": "Buy it from Ergo Glast (Perrin Sequence, any Relay) for 40 Corrupted Holokeys earned in Railjack Void Storm missions; MR 14 required, his stock and the elemental bonus rotate every 4 days.",
+"how": "Buy it from Ergo Glast (Perrin Sequence, any Relay) for 40 Corrupted Holokeys earned in Railjack Void Storm missions; MR 14 required, his stock and the elemental bonus rotate every 4 days. Not tradable directly, but a converted Sister of Parvos carrying it can be bought from players (traded in a dojo's Crimson Branch) and vanquished.",
 "difficulty": 4,
 "available": true,
-"tradable": false,
+"tradable": true,
 "source": "https://wiki.warframe.com/w/Tenet_Grigori"
 },
 "Tenet Livia": {
 "method": "vendor",
-"how": "Buy it from Ergo Glast (Perrin Sequence, any Relay) for 40 Corrupted Holokeys earned in Railjack Void Storm missions; his stock and the elemental bonus rotate every 4 days.",
+"how": "Buy it from Ergo Glast (Perrin Sequence, any Relay) for 40 Corrupted Holokeys earned in Railjack Void Storm missions; his stock and the elemental bonus rotate every 4 days. Not tradable directly, but a converted Sister of Parvos carrying it can be bought from players (traded in a dojo's Crimson Branch) and vanquished.",
 "difficulty": 4,
 "available": true,
-"tradable": false,
+"tradable": true,
 "source": "https://wiki.warframe.com/w/Tenet_Livia"
 },
 "Tenet Plinx": {
@@ -2315,7 +2315,7 @@
 "how": "Spawn a Sister of Parvos until one generates with a Tenet Plinx, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
 "difficulty": 5,
 "available": true,
-"tradable": false,
+"tradable": true,
 "source": "https://wiki.warframe.com/w/Tenet_Plinx"
 },
 "Tenet Quanta": {
@@ -2323,7 +2323,7 @@
 "how": "Spawn a Sister of Parvos until one generates with a Tenet Quanta, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
 "difficulty": 5,
 "available": true,
-"tradable": false,
+"tradable": true,
 "source": "https://wiki.warframe.com/w/Tenet_Quanta"
 },
 "Tenet Spirex": {
@@ -2331,7 +2331,7 @@
 "how": "Spawn a Sister of Parvos until one generates with a Tenet Spirex, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
 "difficulty": 5,
 "available": true,
-"tradable": false,
+"tradable": true,
 "source": "https://wiki.warframe.com/w/Tenet_Spirex"
 },
 "Tenet Tetra": {
@@ -2339,7 +2339,7 @@
 "how": "Spawn a Sister of Parvos until one generates with a Tenet Tetra, then hunt and vanquish her; the weapon itself is untradeable but a converted Sister carrying it can be traded in a dojo Crimson Branch.",
 "difficulty": 5,
 "available": true,
-"tradable": false,
+"tradable": true,
 "source": "https://wiki.warframe.com/w/Tenet_Tetra"
 },
 "Thalys": {
