@@ -262,7 +262,7 @@
     <div class="grow"></div>
     {#if mkt.linked}
       <span class="account">
-        <span class="who register" title={`orbiter's own sign-in (not TennoScope's); token in ${mkt.account?.backing === "keyring" ? "the system keyring" : "a private file"}`}>Signed in as <strong>{mkt.me?.ingameName ?? "?"}</strong></span>
+        <span class="who register" title={`orbiter's own sign-in to warframe.market; the token is kept in ${mkt.account?.backing === "keyring" ? "the system keyring" : "a private file"}`}>Signed in as <strong>{mkt.me?.ingameName ?? "?"}</strong></span>
         <IconButton icon="refresh" tone="quiet" label={mkt.op === "Reloading" ? "Reloading…" : "Reload"} title="Fetch your listings from warframe.market again" disabled={!!mkt.busy} onclick={() => mkt.reload()} />
         {@render signOut()}
       </span>
@@ -298,7 +298,7 @@
   {:else if !mkt.linked}
     <section class="panel signin">
       <h2 class="mark">Sign in to warframe.market</h2>
-      <p class="prose">orbiter keeps its own sign-in, separate from TennoScope's. The token goes into your system keyring; the password is sent to warframe.market once and never stored.</p>
+      <p class="prose">{console ? "orbiter signs in to warframe.market itself." : "orbiter keeps its own sign-in, separate from TennoScope's."} The token goes into your system keyring; the password is sent to warframe.market once and never stored.</p>
       <Seg bind:value={how} options={[{ v: "password", label: "Email & password" }, { v: "token", label: "Paste a token" }]} />
       {#if how === "password"}
         <form class="row" onsubmit={(e) => { e.preventDefault(); mkt.signIn(email, password).then(() => (password = "")); }}>
@@ -343,7 +343,7 @@
       </div>
       <div class="grp">
         <Chip bind:on={settings.autoCheck} label="Check automatically" title="Read the order books on a timer while orbiter is open, and show what each listing would change to" onchange={(on) => { if (!on) settings.auto = false; }} />
-        <Chip bind:on={settings.auto} label="Apply automatically" title="Also send the new prices to warframe.market on that timer (Auto-match)" onchange={(on) => { if (on) settings.autoCheck = true; }} />
+        <Chip bind:on={settings.auto} label="Apply automatically" title="Also send the new prices to warframe.market on that timer, as Reprice would" onchange={(on) => { if (on) settings.autoCheck = true; }} />
         <select bind:value={settings.every} aria-label="How often" title="How often the automatic check runs" disabled={!settings.autoCheck && !settings.auto}>
           {#each [1, 2, 5, 10, 15, 30, 60] as m (m)}<option value={m}>every {m} min</option>{/each}
         </select>
@@ -431,7 +431,7 @@
               {:else if p && goesFor(p) != null}<span class="register ok" title="At what it really goes for: in game they ask {p.competitor.price}p and up">at its value</span>
               {:else if p}<span class="register ok">matched</span>{/if}
             </td>
-            <td class="right floorcol"><input type="number" min="1" placeholder={p ? `auto ${p.floor}` : "auto"} title="Your own floor for this listing; empty uses the automatic one" value={settings.floors[listingKey(o)] ?? ""} onchange={(e) => setFloor(o, e.currentTarget.value)} /></td>
+            <td class="right floorcol"><input type="number" min="1" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor for this listing" title="Your own floor for this listing; empty uses the automatic one" value={settings.floors[listingKey(o)] ?? ""} onchange={(e) => setFloor(o, e.currentTarget.value)} /></td>
             <td class="center"><Toggle on={!paused && o.visible} disabled={!o.visible} label="Follow the cheapest in-game seller" title={!o.visible ? "Hidden listings aren't repriced" : paused ? "Left alone by the repricer" : "Follows the cheapest in-game seller"} onchange={() => togglePause(o)} /></td>
             <td class="center"><Toggle on={o.visible} label="Shown to buyers" title={o.visible ? "Visible to buyers" : "Hidden from buyers"} disabled={!!mkt.busy} onchange={(v) => mkt.update(o, { visible: v })} /></td>
             <td class="right">
@@ -593,6 +593,7 @@
   .register.ok { color: var(--verdigris); }
   .charted { all: unset; cursor: pointer; display: inline-grid; place-items: center; width: 22px; height: 22px; color: var(--platinum-deep); border: 1px solid transparent; }
   .charted:hover, .charted:focus-visible { color: var(--platinum); border-color: var(--rule-control); }
+  .charted:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
   .charted.on { color: var(--gold); border-color: var(--gold-dim); }
   /* The chart sits in from the table's edges, which its first and last cells otherwise touch. */
   .orders tr.chartrow > td, :global(html[data-room~="lt1100"]) .orders tr.chartrow > td { padding: .6rem 1rem 1.1rem; background: rgb(17 19 23 / 55%); }

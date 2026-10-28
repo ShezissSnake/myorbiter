@@ -30,10 +30,12 @@ export interface Page {
   /** The game's own icon where there is a fitting one, else one of orbiter's line icons. */
   icon: { game: GameIconName } | { line: string };
   hint: string;
+  /** The hint on a console, where the page does less. */
+  consoleHint?: string;
 }
 
 export const PAGES: Page[] = [
-  { id: "home", label: "Home", group: "", icon: { line: "home" }, hint: "Today at a glance: your market, live fissures, what's ready to sell, Baro and Varzia, the easiest mastery next" },
+  { id: "home", label: "Home", group: "", icon: { line: "home" }, hint: "Today at a glance: your market, live fissures, what's ready to sell, Baro and Varzia, the easiest mastery next", consoleHint: "Today at a glance: your market, the world's clocks, live fissures, Baro and Varzia" },
   { id: "mission", label: "In mission", group: "Fissures", icon: { game: "void-tear" }, hint: "The fissure you're in: the squad's relics, and which reward to take" },
   { id: "relics", label: "Relics", group: "Fissures", icon: { game: "relic-axi-intact" }, hint: "Your relics: what's vaulted, what a crack is worth, live fissures" },
   { id: "planner", label: "Planner", group: "Fissures", icon: { game: "void-traces" }, hint: "Which relics to crack to complete sets, and which to make radiant" },
@@ -43,7 +45,7 @@ export const PAGES: Page[] = [
   { id: "mastery", label: "Mastery", group: "Collection", icon: { game: "mastery" }, hint: "Everything you haven't mastered, easiest first, and how to get it" },
   { id: "arcanes", label: "Arcanes", group: "Collection", icon: { game: "vosfor" }, hint: "Arcanes by price, how close you are to maxing each, and spares to sell or dissolve for Vosfor" },
   { id: "mods", label: "Mods", group: "Collection", icon: { game: "endo" }, hint: "Spare mod copies to sell, beyond your best one and one to give away" },
-  { id: "rivens", label: "Rivens", group: "Collection", icon: { game: "riven" }, hint: "Your rivens graded, what similar ones sell for, and alerts for the ones you want" },
+  { id: "rivens", label: "Rivens", group: "Collection", icon: { game: "riven" }, hint: "Your rivens graded, what similar ones sell for, and alerts for the ones you want", consoleHint: "Find rivens for sale, each roll graded, and alerts for the ones you want" },
   { id: "sets", label: "Sets", group: "Trade", icon: { line: "sets" }, hint: "Complete prime sets you could sell, and sets almost done" },
   { id: "parts", label: "Prime parts", group: "Trade", icon: { game: "ducats" }, hint: "Every prime part: keep it, sell it, or trade it to Baro for ducats" },
   { id: "market", label: "Orders", group: "Trade", icon: { game: "market" }, hint: "Your warframe.market listings, kept at the cheapest in-game price" },
@@ -66,7 +68,8 @@ export function pagesFor(console: boolean): Page[] {
   if (!console) return PAGES;
   return CONSOLE.map((id) => {
     const p = pageById[id];
-    return p.group === "" ? p : { ...p, group: "Trade" as const };
+    const q = p.consoleHint ? { ...p, hint: p.consoleHint } : p;
+    return p.group === "" ? q : { ...q, group: "Trade" as const };
   });
 }
 

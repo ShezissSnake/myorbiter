@@ -338,7 +338,7 @@
         <datalist id="riven-weapons">{#each meta.weapons as w (w.slug)}<option value={w.name}></option>{/each}</datalist>
         {#each [0, 1, 2] as i (i)}
           {@const taken = takenBut(pos[i])}
-          <select bind:value={pos[i]} aria-label="Wanted stat {i + 1}"><option value="">{i ? "Any stat" : "Stat you want"}</option>{#each attrsFor.filter((a) => !a.negativeOnly && !taken.has(a.slug)) as a (a.slug)}<option value={a.slug}>{a.name}</option>{/each}</select>
+          <select bind:value={pos[i]} aria-label="Wanted stat {i + 1}"><option value="">{i === 0 ? "Stat you want" : i === 1 ? "2nd stat (any)" : "3rd stat (any)"}</option>{#each attrsFor.filter((a) => !a.negativeOnly && !taken.has(a.slug)) as a (a.slug)}<option value={a.slug}>{a.name}</option>{/each}</select>
         {/each}
         <select bind:value={neg} aria-label="Curse"><option value="">Any curse or none</option>{#each attrsFor.filter((a) => !a.positiveOnly && !takenBut(neg).has(a.slug)) as a (a.slug)}<option value={a.slug}>−{a.name}</option>{/each}</select>
         <span class="plat"><input type="number" min="1" placeholder="Max price" bind:value={maxPrice} aria-label="Most you'd pay" /><GameIcon name="platinum" size={14} /></span>

@@ -223,23 +223,23 @@
   };
 
   // ---------------------------------------------------------------- what Home shows (Customise)
-  const CARDS: { key: string; label: string; hint: string }[] = [
-    { key: "alerts", label: "Needs you", hint: "Alerts and invasions worth a look, listings to fix, Varzia's rotation ending" },
+  const CARDS: { key: string; label: string; hint: string; consoleHint?: string }[] = [
+    { key: "alerts", label: "Needs you", hint: "Alerts and invasions worth a look, listings to fix, Varzia's rotation ending", consoleHint: "Alerts with rare rewards" },
     { key: "world", label: "World clocks", hint: "Day and night on the open worlds, and the daily and weekly resets" },
     { key: "market", label: "Market", hint: "Your warframe.market status, what you have listed, and what sold" },
     { key: "ready", label: "Ready to sell", hint: "Your spares worth listing, in the kinds ticked on Orders" },
-    { key: "fissures", label: "Fissures now", hint: "Open fissures by era, your best relic for each, and your fissure alerts" },
+    { key: "fissures", label: "Fissures now", hint: "Open fissures by era, your best relic for each, and your fissure alerts", consoleHint: "Open fissures by era, and your fissure alerts" },
     { key: "today", label: "Worth doing today", hint: "The Duviri Circuit, Teshin, the Sortie, the Archon Hunt and Nightwave" },
     { key: "foundry", label: "Foundry", hint: "What's building, and what you have every part for" },
     { key: "wishes", label: "Your wishlist", hint: "What you starred and still need, with relics to crack for it" },
     { key: "deals", label: "Cheap buys", hint: "Parts and arcanes you're after, listed well under their usual price" },
     { key: "mastery", label: "Easiest mastery next", hint: "What to level, and the easiest things you haven't mastered" },
-    { key: "baro", label: "Baro Ki’Teer", hint: "When he comes, and what he brings that's new to you" },
-    { key: "varzia", label: "Varzia", hint: "Prime Resurgence: the primes you still need from her rotation" },
+    { key: "baro", label: "Baro Ki’Teer", hint: "When he comes, and what he brings that's new to you", consoleHint: "When he comes, and what he brings" },
+    { key: "varzia", label: "Varzia", hint: "Prime Resurgence: the primes you still need from her rotation", consoleHint: "Prime Resurgence: what's in her rotation, and when it ends" },
   ];
   /** Cards that need your inventory: never on a console. */
   const NEEDS_INVENTORY = new Set(["ready", "foundry", "wishes", "deals", "mastery"]);
-  const cards = $derived(console ? CARDS.filter((c) => !NEEDS_INVENTORY.has(c.key)) : CARDS);
+  const cards = $derived(console ? CARDS.filter((c) => !NEEDS_INVENTORY.has(c.key)).map((c) => ({ ...c, hint: c.consoleHint ?? c.hint })) : CARDS);
   let customising = $state(false);
   const hidden = $derived(new Set(settings.homeHidden));
   // A card a notification opened shows even if you hid it, until you leave Home.

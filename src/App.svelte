@@ -431,7 +431,7 @@
     untrack(() => {
       // A console: nothing to hold his stock against, so just that he's here.
       if (onConsole) {
-        if (firstTime(`baro|${b.activation}`)) tell("baro", `Baro is at ${b.location}`, `${b.inventory?.length ? `${b.inventory.length} things in stock. ` : ""}He leaves in ${until(b.expiry)}.`);
+        if (firstTime(`baro|${b.activation}`)) tell("baro", `Baro is at ${b.location}`, `${b.inventory?.length ? `${b.inventory.length} thing${b.inventory.length === 1 ? "" : "s"} in stock. ` : ""}He leaves in ${until(b.expiry)}.`);
         return;
       }
       if (!b.inventory?.length) return;
@@ -1386,7 +1386,7 @@
         <span class="lbl">{p.label}</span>
         {#if p.id === "mission" && mission?.relics.length}<span class="live" title="Fissure in progress"></span>{/if}
         {#if p.id === "market" && shortListings.length}<span class="badge" title="Listings for more than you hold: sold, or used in game">{shortListings.length}</span>{/if}
-        {#if p.id === "market" && settings.market.auto && mkt.linked && !shortListings.length}<span class="live dim" title="Auto-match is on"></span>{/if}
+        {#if p.id === "market" && settings.market.auto && mkt.linked && !shortListings.length}<span class="live dim" title="Apply automatically is on: your listings follow the cheapest in-game price"></span>{/if}
       </button>
     {/snippet}
 

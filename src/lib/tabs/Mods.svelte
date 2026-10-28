@@ -65,7 +65,7 @@
 {#snippet valueCell(r: ModRow)}<P v={r.extrasValue} />{/snippet}
 {#snippet maxCell(r: ModRow)}<P v={r.priceMax} dim />{/snippet}
 {#snippet card(r: ModRow, open: () => void)}
-  <!-- Gold edge: copies to spare. With "Extras only" on that's every card, so it only marks them when it's off. -->
+  <!-- Gold edge: copies to spare. With "Spares only" on that's every card, so it only marks them when it's off. -->
   <ItemCard hover={r.name} title={r.name} sub={r.type} image={model.imageOf(r.name)} artSize={84} owned={!dupesOnly && r.extras > 0} onopen={open}>
     <div class="have"><b class="mark qty">×{r.total}</b>{#if r.extras}<span class="dim small" title="Beyond your best copy and one to give away">{r.extras} spare</span>{/if}</div>
     <!-- Always there, empty when every copy is unranked, so cards side by side line up. -->
@@ -93,12 +93,12 @@
   <PageHead title="Mods" blurb="Mods you have spare copies of. Your best copy and one to give away are always kept.">
     {#snippet band()}
       <Stat label="Spare copies" note="Beyond your best copy and one to give away">{extras.toLocaleString("en")}</Stat>
-      <Stat label="Extras worth" tone="dim" note={sellingOnly ? "Price × extras, mods that sell daily" : "Price × extras, slow sellers included"}><P v={value} big /></Stat>
+      <Stat label="Spares worth" tone="dim" note={sellingOnly ? "Price × spares, mods that sell daily" : "Price × spares, slow sellers included"}><P v={value} big /></Stat>
     {/snippet}
   </PageHead>
 
   <div class="bar">
-  <Chip bind:on={dupesOnly} label="Extras only" title="Three or more copies: more than your own and one to give away" />
+  <Chip bind:on={dupesOnly} label="Spares only" title="Three or more copies: more than your own and one to give away" />
   <Chip bind:on={tradableOnly} label="Tradable" title="Only mods you can sell or trade (not Flawed ones, and the like)" />
   <Chip bind:on={sellingOnly} label="Actually sells" title="At least one trade a day on warframe.market" />
   <select bind:value={rarity} aria-label="Rarity">

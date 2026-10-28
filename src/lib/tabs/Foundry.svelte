@@ -93,8 +93,8 @@
       <option value="points">Most mastery</option>
       <option value="price">Set price</option>
     </select>
-    <input type="search" placeholder="Find an item…" bind:value={q} />
-    <span class="dim small grow right">{shown.length} {shown.length === 1 ? "item" : "items"}</span>
+    <input type="search" placeholder="Filter items…" bind:value={q} />
+    <span class="dim small grow right nowrap">{shown.length} {shown.length === 1 ? "item" : "items"}</span>
   </div>
 
   {#if shown.length}

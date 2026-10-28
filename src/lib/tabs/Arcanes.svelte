@@ -101,6 +101,7 @@
     // Still collecting has nothing spare, so nothing to list.
     ...(show !== "all" ? [] : [{ key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" }] as Column<ArcaneRow>[]),
   ] as Column<ArcaneRow>[]));
+  const things = (n: number, one = "thing", many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 </script>
 
 {#snippet progressCell(r: ArcaneRow)}
@@ -193,7 +194,7 @@
   <PageHead title="Arcanes" blurb="What each arcane is worth, and how close you are to maxing it.">
     {#snippet band()}
       <Stat label="Maxed" note="Arcanes you have at max rank">{completeCount}<span class="of">/{all.length}</span></Stat>
-      <Stat label="Spares to sell" note={`${toSell.length} arcanes worth more sold`}><P v={toSell.reduce((n, x) => n + (x.sellPlat ?? 0), 0)} big /></Stat>
+      <Stat label="Spares to sell" note={`${things(toSell.length, "arcane")} worth more sold than kept`}><P v={toSell.reduce((n, x) => n + (x.sellPlat ?? 0), 0)} big /></Stat>
       <Stat label="Vosfor held" note={gain ? `+${gain.toLocaleString("en")} from the ${toDissolve.length} marked Dissolve` : "Nothing marked Dissolve"}><GameIcon name="vosfor" size={30} />{held.toLocaleString("en")}</Stat>
     {/snippet}
   </PageHead>

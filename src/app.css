@@ -257,3 +257,4 @@ a.link { text-decoration: none; text-transform: uppercase; display: inline-flex;
 .panel.empty { margin: var(--step) 0; display: grid; gap: .6rem; max-width: 60rem; border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); padding: 1.2rem 1.4rem; clip-path: var(--cut); }
 .panel.empty h2 { margin: 0; }
 .panel.empty p { margin: 0; }
+.nowrap { white-space: nowrap; }

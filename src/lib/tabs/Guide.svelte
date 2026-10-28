@@ -11,7 +11,7 @@
 
   const CONSOLE_STEPS: Step[] = [
     ["home", "Home", "alerts with rare rewards (catalysts, reactors, Forma…), your market at a glance, the open worlds' cycles and resets, the fissures open now (with alerts for the ones you want), what's worth doing today, and when Baro comes and what he brings."],
-    ["market", "Orders", "your listings. New listing finds anything warframe.market trades: pick it, set how many you have and the price (it starts at the cheapest seller in game). Check prices compares each listing with the cheapest seller in game; Apply moves it there. Both can run on their own, on a timer you choose. When you sell one in game, press Sold on it: that marks it sold on warframe.market and logs the sale."],
+    ["market", "Orders", "your listings. New listing finds anything warframe.market trades: pick it, set how many you have and the price (it starts at the cheapest seller in game). Check prices compares each listing with the cheapest seller in game; Reprice moves it there. Both can run on their own, on a timer you choose. When you sell one in game, press Sold on it: that marks it sold on warframe.market and logs the sale."],
     ["sales", "Sales", "what you've sold and what it made: today, 7 and 30 days, platinum per day, and each sale against the market. Import pulls in sales you marked sold on the website or app."],
     ["rivens", "Rivens", "find rivens for sale with each roll graded, and alerts when one you want is listed at your price."],
   ];

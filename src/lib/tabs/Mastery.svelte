@@ -85,6 +85,7 @@
     { key: "category", minor: true, label: "Type", value: (r) => r.category, muted: true, defaultDesc: false },
     { key: "star", label: "", value: () => null, cell: starCell, sortable: false, align: "right" },
   ];
+  const things = (n: number, one = "thing", many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 </script>
 
 {#snippet nameCell(r: MasteryRow)}<Named file={model.imageOf(r.name)} name={r.name} />{/snippet}
@@ -164,9 +165,9 @@
       {#if masteryRank != null}
         <Stat label="Your rank" tone="gold" note={`${rankLabel(masteryRank + 1)} at ${rankThreshold(masteryRank + 1).toLocaleString("en")} total mastery`}>{rankLabel(masteryRank)}</Stat>
       {/if}
-      <Stat label="To level" note={`${levelRows.length} things you already have`}><GameIcon name="mastery" size={30} />{pts(levelRows).toLocaleString("en")}</Stat>
-      <Stat label="Easy to get" note={`${easyRows.length} things: buy and build, or an easy boss`}><GameIcon name="mastery" size={30} />{pts(easyRows).toLocaleString("en")}</Stat>
-      <Stat label="Left to master" tone="dim" note={`${open.length} things you can still get`}><GameIcon name="mastery" size={30} />{pts(open).toLocaleString("en")}</Stat>
+      <Stat label="To level" note={`${things(levelRows.length)} you already have`}><GameIcon name="mastery" size={30} />{pts(levelRows).toLocaleString("en")}</Stat>
+      <Stat label="Easy to get" note={`${things(easyRows.length)}: buy and build, or an easy boss`}><GameIcon name="mastery" size={30} />{pts(easyRows).toLocaleString("en")}</Stat>
+      <Stat label="Left to master" tone="dim" note={`${things(open.length)} you can still get`}><GameIcon name="mastery" size={30} />{pts(open).toLocaleString("en")}</Stat>
     {/snippet}
   </PageHead>
 
@@ -178,7 +179,7 @@
   <Seg label="Effort" bind:value={effort} options={[{ v: "2", label: "Easy", title: "Level it, buy and build, easy bosses" }, { v: "3", label: "Moderate", title: "Up to relics, quests, bounties and low syndicate ranks" }, { v: "4", label: "Hard", title: "Everything but Liches, Sisters, Coda and the nearly unobtainable" }, { v: "all", label: "All" }]} />
   <Seg bind:value={kind} options={[{ v: "all", label: "All", title: "Everything you haven't mastered" }, { v: "prime", label: "Prime", title: "Primes only: parts from relics or other players" }, { v: "normal", label: "Non-prime", title: "Everything else: the Market, drops, syndicates, the dojo…" }]} />
   <Chip bind:on={showUnavailable} label="Show unavailable" title="Founders items, past events and the like: things you can't get right now" />
-  <input type="search" placeholder="Filter…" bind:value={query} />
+  <input type="search" placeholder="Filter items…" bind:value={query} />
   </div>
 
   <Browse id="mastery" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} empty="Nothing left to master here." />

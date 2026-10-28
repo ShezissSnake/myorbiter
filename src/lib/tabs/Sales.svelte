@@ -202,7 +202,7 @@
   <div class="loghead">
     <div class="import">
       <h2 class="register">Sale log</h2>
-      <IconButton icon="import" tone="quiet" label={importing ? "Reading warframe.market…" : "Import sales from warframe.market"} title={mkt.me?.ingameName ? "Import sales from warframe.market: every sale you closed there (marked sold, or by Auto-match) that isn't logged here yet" : "Import sales from warframe.market: sign in on Orders first"} disabled={importing || !mkt.me?.ingameName} onclick={importFromMarket} />
+      <IconButton icon="import" tone="quiet" label={importing ? "Reading warframe.market…" : "Import sales from warframe.market"} title={mkt.me?.ingameName ? "Import sales from warframe.market: every sale you marked sold there that isn't logged here yet" : "Import sales from warframe.market: sign in on Orders first"} disabled={importing || !mkt.me?.ingameName} onclick={importFromMarket} />
       {#if importing}<span class="small dim" role="status">Reading warframe.market…</span>{:else if imported}<span class="small dim" role="status">{imported}</span>{/if}
     </div>
     <form class="addsale" onsubmit={(e) => { e.preventDefault(); add(); }}>
