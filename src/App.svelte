@@ -71,8 +71,8 @@
   import IconButton from "./lib/ui/IconButton.svelte";
   import RepButton from "./lib/ui/RepButton.svelte";
   import GameIcon from "./lib/ui/GameIcon.svelte";
-  import { pagesFor, migrateTab, type Page } from "./lib/pages";
-  import { logNotice, noticeKind, type NoticeKind } from "./lib/notices";
+  import { orderPages, pagesFor, migrateTab, sectionsOf, type Page } from "./lib/pages";
+  import { logNotice, noticeKind, splitTarget, type NoticeKind } from "./lib/notices";
   import { toasts } from "./lib/toasts.svelte";
   import { alertNeeds, describeHelp } from "./lib/core/worldNeeds";
   import NoticesSheet from "./lib/NoticesSheet.svelte";
@@ -80,8 +80,6 @@
   import { mkt } from "./lib/marketStore.svelte";
   import { ts } from "./lib/tennoscopeStore.svelte";
 
-  /** Sidebar sections, in order (Home and Guide sit apart). */
-  const SECTIONS = ["Fissures", "Collection", "Trade"] as const;
   /** Your choice from the fold button (kept in settings); until you make one, it folds by itself in a narrow window. */
   let width = $state(typeof window === "undefined" ? 1600 : window.innerWidth);
   /**
@@ -159,8 +157,8 @@
    * Guide always stay). A page that isn't there opens Home instead.
    */
   const available = $derived(pagesFor(onConsole));
-  const pages = $derived(available.filter((p) => p.id === "home" || p.id === "guide" || !settings.pagesHidden.includes(p.id)));
-  const sections = $derived(SECTIONS.filter((sec) => pages.some((p) => p.group === sec)));
+  const pages = $derived(orderPages(available, settings.pageOrder).filter((p) => p.id === "home" || p.id === "guide" || !settings.pagesHidden.includes(p.id)));
+  const sections = $derived(sectionsOf(pages));
   // A hidden page still opens from a link on another page; one this platform doesn't have doesn't.
   $effect(() => {
     if (!available.some((p) => p.id === settings.tab)) settings.tab = "home";
@@ -277,6 +275,26 @@
   });
   let notifiedScreen = 0;
 
+  // Each new sale gets the item's daily median of the day it sold, so Sales compares it with the
+  // market as it was then rather than as it is when you look.
+  $effect(() => {
+    const m = model;
+    const count = settings.market.sales.length;
+    if (!m || !settingsReady || !count) return;
+    untrack(() => {
+      const recent = Date.now() - 2 * 86_400_000;
+      let changed = false;
+      const next = settings.market.sales.map((s) => {
+        if (s.median != null || s.at < recent) return s;
+        const v = s.rank != null && s.rank > 0 ? (m.priceMax(s.item) ?? m.price(s.item)) : m.price(s.item);
+        if (v == null) return s;
+        changed = true;
+        return { ...s, median: Math.round(v * 10) / 10 };
+      });
+      if (changed) settings.market.sales = next;
+    });
+  });
+
   // ---------------------------------------------------------------- notifications
   /**
    * Every notification goes through here: dropped when its kind is off (or needs a PC and you play
@@ -286,22 +304,68 @@
   function tell(kind: NoticeKind, title: string, body: string, to?: string) {
     if (!settings.notify[kind] || (onConsole && noticeKind[kind].pcOnly)) return;
     settings.game.notices = logNotice(settings.game.notices, { at: Date.now(), kind, title, body, ...(to ? { to } : {}) });
-    if (settings.notifyOptions.paused) return;
+    if (quietNow(kind)) return;
+    const n = settings.game.notices[0];
     if (typeof document !== "undefined" && document.hasFocus()) {
-      if (settings.notifyOptions.toasts) toasts.push(settings.game.notices[0]);
-    } else notify(title, body, settings.game.notices[0].id);
+      if (settings.notifyOptions.toasts) toasts.push(n);
+    } else if (settings.notifyOptions.desktop) notify(title, body, n.id);
   }
+  /** Why nothing pops up right now for this kind, if anything: kept in the history only. */
+  function quietNow(kind: NoticeKind): boolean {
+    const o = settings.notifyOptions;
+    if (o.paused || (o.pausedUntil != null && Date.now() < o.pausedUntil)) return true;
+    if (o.quiet.includes(kind)) return true;
+    // In a fissure: only the reward to take, which is what you'd want then.
+    return o.quietInFissure && !!mission?.relics.length && kind !== "reward";
+  }
+  /** Settings' test: shows how a notification looks, whatever is switched off, and keeps nothing. */
+  function testNotice() {
+    toasts.push({ id: `test-${Date.now()}`, at: Date.now(), kind: "repriced", title: "This is how notifications look", body: quietNow("repriced") ? "Paused right now: the real ones go to Recent only until you turn the pause off." : "Click one to open what it's about. Your desktop gets them while orbiter is behind other windows.", read: true });
+  }
+  // A pause for a while ends by itself.
+  $effect(() => {
+    const until = settings.notifyOptions.pausedUntil;
+    if (until == null) return;
+    const ms = until - Date.now();
+    if (ms <= 0) {
+      settings.notifyOptions.pausedUntil = null;
+      return;
+    }
+    const t = setTimeout(() => (settings.notifyOptions.pausedUntil = null), Math.min(ms, 2 ** 31 - 1));
+    return () => clearTimeout(t);
+  });
   let showNotices = $state(false);
   const unread = $derived(settings.game.notices.filter((n) => !n.read).length);
   /** Opens what a notification is about, and marks it read. */
   function openNotice(id: string) {
+    toasts.dismiss(id);
     const n = settings.game.notices.find((x) => x.id === id);
     if (!n) return;
     settings.game.notices = settings.game.notices.map((x) => (x.id === id ? { ...x, read: true } : x));
-    const to = n.to ?? noticeKind[n.kind]?.to ?? "home";
-    settings.tab = available.some((p) => p.id === to) ? to : "home";
-    toasts.dismiss(id);
+    const { page, card } = splitTarget(n.to ?? noticeKind[n.kind]?.to ?? "home");
     showNotices = false;
+    goTo(available.some((p) => p.id === page) ? page : "home", card);
+  }
+  /** A card on Home a notification opened: shown even if Customise hides it, until you leave Home. */
+  let homeReveal = $state<string | null>(null);
+  $effect(() => {
+    if (settings.tab !== "home") homeReveal = null;
+  });
+  /** Opens a page; on Home, scrolls to a card and lights it up briefly. */
+  function goTo(page: string, card: string | null = null) {
+    settings.tab = page;
+    if (page !== "home" || !card) return;
+    homeReveal = card;
+    // After Home has drawn the card.
+    setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(`.pane.shown [data-card="${card}"]`);
+      if (!el) return;
+      el.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      el.classList.remove("flash");
+      void el.offsetWidth;
+      el.classList.add("flash");
+      setTimeout(() => el.classList.remove("flash"), 1800);
+    }, 60);
   }
   /** Marks a world event announced; false when it was already. Remembers the last 300. */
   function firstTime(key: string): boolean {
@@ -329,9 +393,15 @@
   $effect(() => {
     const b = live.baro;
     const m = model;
-    if (!m || !b?.inventory?.length || !settingsReady || onConsole) return;
+    if (!m || !b || !settingsReady) return;
     if (Date.now() < Date.parse(b.activation) || Date.now() > Date.parse(b.expiry)) return;
     untrack(() => {
+      // A console: nothing to hold his stock against, so just that he's here.
+      if (onConsole) {
+        if (firstTime(`baro|${b.activation}`)) tell("baro", `Baro is at ${b.location}`, `${b.inventory?.length ? `${b.inventory.length} things in stock. ` : ""}He leaves in ${until(b.expiry)}.`);
+        return;
+      }
+      if (!b.inventory?.length) return;
       const stock = baroStock(m);
       const need = stock.filter((x) => x.mark === "mastery" || x.mark === "new");
       if (!need.length || !firstTime(`baro|${b.activation}`)) return;
@@ -372,11 +442,14 @@
     const fresh = mkt.log.filter((l) => l.at > seenNote);
     if (!fresh.length) return;
     seenNote = Math.max(...fresh.map((l) => l.at));
-    if (!settings.notify.market) return;
-    // Auto-match's changes as one notification ("Serration R0: 9p → 8p, …"), problems one each.
+    // Auto-match's changes as one notification ("Serration R0: 9p → 8p, …"), problems one each,
+    // headed by what went wrong ("Couldn't reprice Serration").
     const moved = fresh.filter((l) => l.tone === "ok" && l.text.includes("→"));
-    if (moved.length) tell("market", `${moved.length} listing${moved.length === 1 ? "" : "s"} repriced`, moved.map((l) => l.text.replace(/, .*$/, "")).join("\n"));
-    for (const l of fresh.filter((l) => l.tone === "warn" && !l.quiet)) tell("market", "warframe.market", l.text);
+    if (moved.length) tell("repriced", `${moved.length} listing${moved.length === 1 ? "" : "s"} repriced`, moved.map((l) => l.text.replace(/, .*$/, "")).join("\n"));
+    for (const l of fresh.filter((l) => l.tone === "warn" && !l.quiet)) {
+      const head = l.text.split(/[:.](\s|$)/)[0];
+      tell("market", head.length <= 70 ? head : "Something went wrong on warframe.market", l.text);
+    }
   });
   /** Visible listings for more than you hold now (as of TennoScope's last read): sold, or used. */
   const shortListings = $derived(
@@ -587,7 +660,7 @@
     }
     if (!done.length) return;
     const outcome = unmarked ? `Logged; ${unmarked} couldn't be marked sold on warframe.market (see Orders).` : "Marked sold on warframe.market and logged.";
-    if (settings.notify.market) tell("market", done.length === 1 ? `Sold ${done[0]}` : `${done.length} sales`, `${done.join("\n")}\n${outcome}`, "sales");
+    tell("sold", done.length === 1 ? `Sold ${done[0]}` : `${done.length} sales`, `${done.join("\n")}\n${outcome}`, "sales");
     // Your inventory changed: have TennoScope read it again so spares and listings line up.
     if (ts.report?.setup.access_mode === "full" && ts.report.game_running) void ts.ask("--sync");
   }
@@ -943,6 +1016,15 @@
     if (ctrl && e.key.toLowerCase() === "q") {
       e.preventDefault();
       quit();
+      return;
+    }
+    // From Settings, Notifications or TennoScope's panel, F1 and Ctrl+, still go where they say.
+    const sheetOpen = showSettings || showNotices || showTennoscope;
+    if (sheetOpen && (e.key === "F1" || (ctrl && e.key === ","))) {
+      e.preventDefault();
+      showNotices = showTennoscope = false;
+      showSettings = e.key !== "F1";
+      if (e.key === "F1") settings.tab = "guide";
       return;
     }
     // A dialog or panel is open: it owns the keyboard (Esc closes it).
@@ -1389,7 +1471,7 @@
       {#snippet pMods()}<Mods {model} />{/snippet}
       {#snippet pRelics()}<Relics {model} bind:advice={settings.advice} />{/snippet}
       {#snippet pPlanner()}<Planner {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} />{/snippet}
-      {#snippet pHome()}<Home {model} {live} {mission} console={onConsole} bind:settings={settings} go={(t: string) => (settings.tab = t)} {shortListings} {liveAt} {liveError} />{/snippet}
+      {#snippet pHome()}<Home {model} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => (settings.tab = t)} {shortListings} {liveAt} {liveError} />{/snippet}
       {#snippet pSales()}<Sales {model} bind:settings={settings} go={(t: string) => (settings.tab = t)} />{/snippet}
       {#snippet pMarket()}<Orders {model} console={onConsole} bind:settings={settings.market} advice={settings.advice} />{/snippet}
       {#snippet pGuide()}<Guide console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} go={(t: string) => (settings.tab = t)} bind:plannerMode={settings.plannerMode} />{/snippet}
@@ -1422,8 +1504,8 @@
   </main>
 </div>
 
-<NoticesSheet bind:open={showNotices} bind:settings console={onConsole} open_={openNotice} test={() => tell("market", "This is how notifications look", "Click one to open the page it's about. Turn kinds on or off under Choose.")} />
-<Toasts open={openNotice} />
+<NoticesSheet bind:open={showNotices} bind:settings console={onConsole} open_={openNotice} test={testNotice} />
+<Toasts open={openNotice} left={compact ? "5.2rem" : "15.3rem"} />
 <SettingsSheet bind:open={showSettings} bind:settings onnotices={() => (showNotices = true)} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
 <TennoscopeSheet bind:open={showTennoscope} synced={model ? ago(model.observedAt, tick) : "not yet"} {syncing} onsync={refreshAll} />
 
@@ -1486,6 +1568,10 @@
   .bell { position: relative; }
   .bell .count { position: absolute; top: -.45rem; right: -.45rem; min-width: 1.1rem; padding: .05rem .25rem; font-family: var(--face-register); font-size: .55rem; font-weight: 700; line-height: 1.3; text-align: center; color: var(--slab); background: var(--gold); clip-path: var(--cut); animation: pop .25s ease-out; }
   .bell.paused :global(svg) { opacity: .45; }
+  /* Paused: a slash through the bell, not just a dimmer one. */
+  .bell.paused::after { content: ""; position: absolute; left: 50%; top: 50%; width: 1.1rem; height: 1px; background: var(--platinum-dim); transform: translate(-50%, -50%) rotate(-45deg); }
+  /* Folded, Sync sits right above: the count stays inside the button. */
+  .compact .bell .count { top: .1rem; right: .1rem; }
   @keyframes pop { from { transform: scale(.4); } to { transform: scale(1); } }
   @media (prefers-reduced-motion: reduce) { .bell .count { animation: none; } }
   .tsbtn i { width: .5rem; height: .5rem; background: var(--platinum-deep); transform: rotate(45deg); flex: none; }

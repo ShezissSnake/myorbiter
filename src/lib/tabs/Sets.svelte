@@ -129,7 +129,7 @@
       </dl>
     {/if}
     {#snippet foot()}
-      {#if r.mastered}<span class="tag good">✓ Mastered</span>{:else if r.ownedBuilt}<span class="tag ok">Owned</span>{/if}
+      {#if r.mastered}<span class="tag good" title="You've mastered it: nothing to keep a set back for">✓ Mastered</span>{:else if r.ownedBuilt}<span class="tag ok" title="You have it built: not mastered yet">Owned</span>{/if}
       {#if r.vaulted}<Avail v="vaulted" />{/if}
       {#if forDucats(r)}<span class="tag ok" title="{forDucats(r)}: orbiter won't put it on sale">for ducats</span>{/if}
       <span class="grow"></span>
@@ -167,7 +167,7 @@
   </PageHead>
 
   <div class="bar">
-  <Seg bind:value={mode} options={[{ v: "sell", label: "Sets you can sell" }, { v: "close", label: "Almost complete" }]} />
+  <Seg bind:value={mode} options={[{ v: "sell", label: "Sets you can sell", title: "Complete sets in your inventory, and what each sells for" }, { v: "close", label: "Almost complete", title: "Sets one or two parts short: what the missing parts cost, and what finishing and selling gains" }]} />
   {#if mode === "sell"}
     <Chip bind:on={keepOne} label="Keep one to build" title="Hold back one set of anything you have neither built nor mastered" />
   {/if}

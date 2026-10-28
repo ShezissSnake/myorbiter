@@ -206,12 +206,36 @@
     e.stopPropagation();
     undo();
   };
-  async function recordSale(o: MyOrder, n: number) {
+  // Sold waits a few seconds, with Undo, before it's sent: marking sold on warframe.market goes on
+  // your profile and lowers or closes the listing, which a slip of the mouse shouldn't do.
+  const SOLD_WAIT = 4000;
+  let pendingSold = $state<Record<string, number>>({});
+  const soldTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  function recordSale(o: MyOrder, n: number) {
     if (n < 1 || n > o.quantity) return;
     selling = null;
-    const sale = await mkt.sold(o, n);
+    clearTimeout(soldTimers.get(o.id));
+    pendingSold = { ...pendingSold, [o.id]: n };
+    soldTimers.set(o.id, setTimeout(() => void commitSale(o.id), SOLD_WAIT));
+  }
+  function undoSale(id: string) {
+    clearTimeout(soldTimers.get(id));
+    soldTimers.delete(id);
+    const { [id]: _, ...rest } = pendingSold;
+    pendingSold = rest;
+  }
+  async function commitSale(id: string) {
+    const n = pendingSold[id];
+    undoSale(id);
+    const o = mkt.orders.find((x) => x.id === id);
+    if (!o || !n) return;
+    const sale = await mkt.sold(o, Math.min(n, o.quantity));
     if (sale) settings.sales = [sale, ...settings.sales].slice(0, 2000);
   }
+  // Leaving the page (or quitting) doesn't lose a sale that was waiting.
+  $effect(() => () => {
+    for (const id of soldTimers.keys()) void commitSale(id);
+  });
   const fmt = (t: number) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   /** The listing whose price history is open under its row. */
   let charted = $state<string | null>(null);
@@ -289,8 +313,6 @@
       {/if}
     </section>
   {:else}
-    {#if !console}<SpareSale {model} {settings} {advice} />{/if}
-
     <section class="newlisting">
       <span class="register">New listing</span>
       <span class="searchbox" bind:this={searchBox}><input type="search" placeholder={console ? "Find anything to sell…" : "Find something you own…"} bind:value={search} aria-label={console ? "Find anything to sell" : "Find something you own"}
@@ -312,7 +334,7 @@
     <div class="bar tools">
       <div class="grp">
         <button class="stamp" disabled={!!mkt.busy} onclick={() => mkt.reprice(model, settings, false)} title="Read the order books and show, per listing below, what it would be repriced to">{mkt.pass === "Checking prices" ? "Checking…" : "Check prices"}</button>
-        <button class="stamp gold" disabled={!!mkt.busy || !pending} onclick={() => mkt.reprice(model, settings, true)}>{mkt.pass === "Repricing" ? "Applying…" : pending ? `Reprice ${pending}` : "Reprice"}</button>
+        <button class="stamp gold" disabled={!!mkt.busy || !pending} title={pending ? `Send the new prices to warframe.market: the ${pending} listing${pending === 1 ? "" : "s"} with a Will set` : "Nothing to change: Check prices first, or every listing matches already"} onclick={() => mkt.reprice(model, settings, true)}>{mkt.pass === "Repricing" ? "Applying…" : pending ? `Reprice ${pending}` : "Reprice"}</button>
       </div>
       <div class="grp">
         <Chip bind:on={settings.autoCheck} label="Check automatically" title="Read the order books on a timer while orbiter is open, and show what each listing would change to" onchange={(on) => { if (!on) settings.auto = false; }} />
@@ -334,21 +356,14 @@
         <Metal kind="plat" size={14} />
       </div>
       {#if nextPass}<span class="register next">Next check {fmt(+nextPass)}</span>{/if}
+      {#if !console}<a class="link quiet tospares" href="#spares" title="Down to Put my spares on sale: list everything you can spare in one go" onclick={(e) => { e.preventDefault(); document.getElementById("spares")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>Put my spares on sale ↓</a>{/if}
     </div>
 
-    {#if mkt.log.length}
-      <section class="log" aria-label="Activity">
-        <div class="register">Activity</div>
-        {#each mkt.log.slice(0, 30) as l (l.at + l.text)}
-          <div class="line {l.tone}"><span class="register">{fmt(l.at)}</span> {l.text}</div>
-        {/each}
-      </section>
-    {/if}
     <table class="orders">
       <thead>
         <tr>
-          <th>Item</th><th class="right">Qty</th><th class="right">Your price</th><th>Cheapest in game</th>
-          <th class="right willset">Will set</th><th class="right floorcol" title="Never go below this">Floor</th><th class="center">Follow</th><th class="center">Shown</th><th></th>
+          <th>Item</th><th class="right">Qty</th><th class="right">Your price</th><th title="The cheapest seller who is in game right now (and how many are), from the last check">Cheapest in game</th>
+          <th class="right willset" title="What the repricer would change the price to, and why">Will set</th><th class="right floorcol" title="Never go below this">Floor</th><th class="center" title="On: the repricer keeps this listing at the cheapest in-game price. Off: it's left as you set it">Follow</th><th class="center" title="Whether buyers see the listing on warframe.market (hidden ones keep their place)">Shown</th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -415,7 +430,12 @@
               <!-- Three fixed places, the same on every row: sold one, sold several, remove. A
                    confirm takes over the same places, its safe choice where the click just was. -->
               <span class="acts">
-                {#if selling?.id === o.id}
+                {#if pendingSold[o.id]}
+                  <span class="pendrow">
+                    <span class="register pending" title="Sent to warframe.market in a moment: marked sold, the listing lowered, the sale logged">Sold {pendingSold[o.id]}<i aria-hidden="true"></i></span>
+                    <button type="button" class="link undo" title="Undo: nothing is sent" onclick={() => undoSale(o.id)}>Undo</button>
+                  </span>
+                {:else if selling?.id === o.id}
                   {@const n = selling.n}
                   {@const bad = n < 1 ? "At least 1" : n > o.quantity ? `Only ${o.quantity} listed` : null}
                   <input type="number" min="1" max={o.quantity} inputmode="numeric" class:bad value={selling.n} aria-label="How many you sold" title={bad ?? "How many you sold"} use:focusIt oninput={(e) => selling && (selling.n = Math.round(Number(e.currentTarget.value)) || 0)} onkeydown={(e) => { if (e.key === "Enter") recordSale(o, selling?.n ?? 1); else if (e.key === "Escape") { e.stopPropagation(); selling = null; } }} onwheel={(e) => e.currentTarget.blur()} />
@@ -426,7 +446,7 @@
                   <IconButton icon="trash" tone="danger" label="Remove it" title="Remove it: take {it?.name ?? 'this listing'} off warframe.market" disabled={!!mkt.busy} onclick={() => { removing = null; mkt.remove(o); }} onkeydown={onEsc(() => (removing = null))} />
                   <button type="button" class="ib quiet" aria-label="Keep" title="Keep it" onclick={() => (removing = null)} onkeydown={onEsc(() => (removing = null))} use:focusIt><Icon name="close" /></button>
                 {:else}
-                  <IconButton icon="sold" tone="gold" label={o.quantity > 1 ? "Sold one" : "Sold"} title="Sold {o.quantity > 1 ? 'one' : 'it'} in game: marked sold on warframe.market (recorded on your profile), the listing goes down by one and the sale is logged" onclick={() => recordSale(o, 1)} />
+                  <IconButton icon="sold" tone="gold" label={o.quantity > 1 ? "Sold one" : "Sold"} title="Sold {o.quantity > 1 ? 'one' : 'it'} in game: marked sold on warframe.market (recorded on your profile), the listing goes down by one and the sale is logged. You get a few seconds to undo." onclick={() => recordSale(o, 1)} />
                   {#if o.quantity > 1}<IconButton icon="sold-many" tone="quiet" label="Sold several" title="Sold several at once: say how many" onclick={() => (selling = { id: o.id, n: 2 })} />{:else}<span class="slot"></span>{/if}
                   <IconButton icon="trash" tone="danger quiet" label="Remove" title="Remove: take this listing off warframe.market" onclick={() => (removing = o.id)} />
                 {/if}
@@ -446,6 +466,16 @@
         {/each}
       </tbody>
     </table>
+    {#if mkt.log.length}
+      <section class="log" aria-label="Activity">
+        <div class="register">Activity</div>
+        {#each mkt.log.slice(0, 30) as l (l.at + l.text)}
+          <div class="line {l.tone}"><span class="register">{fmt(l.at)}</span> {l.text}</div>
+        {/each}
+      </section>
+    {/if}
+
+    {#if !console}<div id="spares"><SpareSale {model} {settings} {advice} /></div>{/if}
 
   {/if}
 </div></div>
@@ -484,6 +514,13 @@
   .orders .acts input[type="number"] { width: 3.4rem; height: 30px; padding: .3rem .4rem; }
   .orders .acts input.bad { border-color: var(--oxblood); color: var(--oxblood); }
   .ask { color: var(--oxblood); font-size: .6rem; }
+  .pendrow { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: .7rem; }
+  .pending { position: relative; color: var(--gold); font-size: .62rem; padding-bottom: 3px; }
+  /* Time left before it's sent: a line that runs out. */
+  .pending i { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--gold); transform-origin: left; animation: wait 4s linear forwards; }
+  @keyframes wait { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+  @media (prefers-reduced-motion: reduce) { .pending i { animation: none; } }
+  .undo { font-size: .64rem; }
   .fix { display: flex; align-items: center; gap: .9rem; margin-top: .35rem; padding-left: calc(34px + .75rem); }
   .fix .stamp { padding: .35rem .7rem; }
 

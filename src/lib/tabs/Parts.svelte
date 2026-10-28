@@ -114,8 +114,8 @@
   <ItemCard hover={r.name} title={r.name.replace(`${r.parentName} `, "")} sub={r.parentName} image={parentItem?.imageName ?? model.imageOf(r.parentName)} artSize={84} owned={r.spare > 0 && v !== "Keep"} onopen={open}>
     <div class="have">
       <Thumb file={model.imageOf(r.name)} name={r.name} size={30} />
-      <b class="mark qty">×{qty(r)}</b>
-      {#if r.keep}<span class="dim small">{r.keep} kept</span>{/if}
+      <b class="mark qty" title={spareOnly && spareMatters ? `${r.spare} spare (of ${r.quantity} held)` : `${r.quantity} held${r.keep ? `, ${r.spare} of them spare` : ""}`}>×{qty(r)}</b>
+      {#if r.keep}<span class="dim small" title="Held back to build {r.parentName}, which you haven't mastered or built">{r.keep} kept</span>{/if}
     </div>
     <div class="vline"><span class="v-{v}" title={VERDICT_TITLE[v]}>{v === "Set" ? "Sell as set" : v}</span><span class="grow"></span><P v={r.price} /><P v={r.ducats} d dim /></div>
     {#snippet foot()}
@@ -153,12 +153,12 @@
       bind:value={parent}
       options={[
         { v: "mastered", label: "Item mastered", title: "Parts of things you've already mastered: safe to sell or trade for ducats" },
-        { v: "unmastered", label: "Not mastered" },
-        { v: "all", label: "All" },
+        { v: "unmastered", label: "Not mastered", title: "Parts of things you haven't mastered: orbiter keeps what building them takes" },
+        { v: "all", label: "All", title: "Every prime part you hold" },
       ]}
     />
-    <Seg label="Relics" bind:value={avail} options={[{ v: "all", label: "Any" }, { v: "farmable", label: "Farmable" }, { v: "vaulted", label: "Vaulted" }]} />
-    <Seg label="Best as" bind:value={best} options={[{ v: "all", label: "Any" }, { v: "Sell", label: "Sell" }, { v: "Set", label: "Set" }, { v: "Ducats", label: "Ducats" }, { v: "Keep", label: "Keep" }]} />
+    <Seg label="Relics" bind:value={avail} options={[{ v: "all", label: "Any", title: "Farmable and vaulted alike" }, { v: "farmable", label: "Farmable", title: "A relic that drops it can still be farmed: its price may drop" }, { v: "vaulted", label: "Vaulted", title: "Only vaulted relics drop it: no new copies, so prices tend to rise" }]} />
+    <Seg label="Best as" bind:value={best} options={[{ v: "all", label: "Any", title: "Whatever is best for each part" }, { v: "Sell", label: "Sell", title: "Worth more sold on its own" }, { v: "Set", label: "Set", title: "Worth more sold in a complete set" }, { v: "Ducats", label: "Ducats", title: "Worth more traded to Baro, at your ducat rate" }, { v: "Keep", label: "Keep", title: "You need it to build something you haven't mastered" }]} />
   </div>
   <div class="bar second">
     <input type="search" placeholder="Filter parts…" bind:value={query} />

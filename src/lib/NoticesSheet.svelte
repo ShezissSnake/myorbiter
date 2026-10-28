@@ -2,7 +2,9 @@
   // The bell in the sidebar: what orbiter told you lately (click one to open what it's about), and
   // what it tells you about, kind by kind, with a pause for all of them.
   import type { Settings } from "./backend";
-  import { kindsFor, noticeKind, type Notice, type NoticeKindInfo } from "./notices";
+  import { GROUP_NOTE, kindsFor, noticeKind, splitTarget, type Notice, type NoticeKind, type NoticeKindInfo } from "./notices";
+  import { pageById, type PageId } from "./pages";
+  import Chip from "./ui/Chip.svelte";
   import Sheet from "./ui/Sheet.svelte";
   import Switch from "./ui/Switch.svelte";
   import Seg from "./ui/Seg.svelte";
@@ -17,24 +19,57 @@
   }: { open: boolean; settings: Settings; console?: boolean; open_: (id: string) => void; test: () => void } = $props();
 
   let view = $state<"recent" | "choose">("recent");
-  // Seen once the panel closes: the count on the bell starts again from zero.
-  let wasOpen = false;
+  let now = $state(Date.now());
+  // Seen once you've had Recent open and close the panel: the count on the bell starts again from zero.
+  let sawRecent = false;
   $effect(() => {
-    if (open) wasOpen = true;
-    else if (wasOpen) {
-      wasOpen = false;
+    if (open && view === "recent") sawRecent = true;
+    else if (!open && sawRecent) {
+      sawRecent = false;
       if (settings.game.notices.some((n) => !n.read)) settings.game.notices = settings.game.notices.map((n) => (n.read ? n : { ...n, read: true }));
     }
   });
 
   const kinds = $derived(kindsFor(console));
   const groups = $derived([...new Set(kinds.map((k) => k.group))].map((g) => ({ g, kinds: kinds.filter((k) => k.group === g) })));
-  const GROUP_NOTE: Record<string, string> = {
-    Trading: "warframe.market, buyers and bargains.",
-    Mastery: "Chances at mastery you're missing, from the world as it is right now.",
-    Fissures: "Relics and the reward screen.",
-    orbiter: "orbiter itself.",
-  };
+  const note = (g: keyof typeof GROUP_NOTE) => GROUP_NOTE[g][console ? "console" : "pc"];
+  const quiet = (k: NoticeKind) => settings.notifyOptions.quiet.includes(k);
+  function setQuiet(k: NoticeKind, on: boolean) {
+    const q = settings.notifyOptions.quiet.filter((x) => x !== k);
+    settings.notifyOptions.quiet = on ? [...q, k] : q;
+  }
+  /** Where a click on it goes, for its tooltip: "Opens Home (Baro)". */
+  function opens(n: Notice) {
+    const { page, card } = splitTarget(n.to ?? noticeKind[n.kind]?.to ?? "home");
+    const label = pageById[page as PageId]?.label ?? "Home";
+    return `Opens ${label}${card ? `, at ${CARD_NAME[card] ?? card}` : ""}`;
+  }
+  const CARD_NAME: Record<string, string> = { alerts: "Needs you", baro: "Baro", varzia: "Varzia", deals: "Cheap buys", fissures: "Fissures now", today: "Worth doing today", foundry: "Foundry" };
+
+  // ---------------------------------------------------------------- pausing
+  const pausedFor = $derived(settings.notifyOptions.pausedUntil != null && settings.notifyOptions.pausedUntil > now);
+  const paused = $derived(settings.notifyOptions.paused || pausedFor);
+  const pauseChoice = $derived(settings.notifyOptions.paused ? "on" : pausedFor ? "timed" : "off");
+  function pause(how: "off" | "hour" | "tomorrow" | "on") {
+    const o = settings.notifyOptions;
+    if (how === "off") {
+      o.paused = false;
+      o.pausedUntil = null;
+    } else if (how === "on") {
+      o.paused = true;
+      o.pausedUntil = null;
+    } else {
+      o.paused = false;
+      const d = new Date();
+      if (how === "hour") o.pausedUntil = Date.now() + 3_600_000;
+      else {
+        d.setDate(d.getDate() + 1);
+        d.setHours(8, 0, 0, 0);
+        o.pausedUntil = +d;
+      }
+    }
+  }
+  const hhmm = (t: number) => new Date(t).toLocaleString(undefined, { weekday: new Date(t).toDateString() === new Date().toDateString() ? undefined : "short", hour: "2-digit", minute: "2-digit" });
   const allOn = (ks: NoticeKindInfo[]) => ks.every((k) => settings.notify[k.kind]);
   function setAll(ks: NoticeKindInfo[], on: boolean) {
     const next = { ...settings.notify };
@@ -43,7 +78,6 @@
   }
 
   // ---------------------------------------------------------------- the history, by day
-  let now = $state(Date.now());
   $effect(() => {
     if (!open) return;
     now = Date.now();
@@ -76,7 +110,7 @@
 <Sheet bind:open title="Notifications" kicker="orbiter">
   <div class="top">
     <Seg bind:value={view} options={[{ v: "recent", label: "Recent", title: "What orbiter told you, newest first" }, { v: "choose", label: "Choose", title: "What orbiter tells you about" }]} />
-    {#if settings.notifyOptions.paused}<span class="pausedtag" title="Notifications still go in Recent, but nothing pops up. Turn it off under Choose.">Paused</span>{/if}
+    {#if paused}<span class="pausedtag" title="Notifications still go in Recent, but nothing pops up. Change it under Choose.">{pausedFor && !settings.notifyOptions.paused ? `Paused until ${hhmm(settings.notifyOptions.pausedUntil!)}` : "Paused"}</span>{/if}
   </div>
 
   {#if view === "recent"}
@@ -98,7 +132,7 @@
           {#each d.items as n (n.id)}
             {@const k = noticeKind[n.kind]}
             <li>
-              <button class="notice" class:unread={!n.read} title="Open {k?.to === 'home' && !n.to ? 'Home' : 'the page it is about'}" onclick={() => open_(n.id)}>
+              <button class="notice" class:unread={!n.read} title={opens(n)} onclick={() => open_(n.id)}>
                 <span class="ic"><GameIcon name={k?.icon ?? "market"} size={20} /></span>
                 <span class="txt">
                   <span class="t"><b>{n.title}</b><span class="dim small nowrap">{when(n.at)}</span></span>
@@ -113,23 +147,41 @@
     {/if}
   {:else}
     <section class="how">
-      <Switch bind:on={settings.notifyOptions.paused} label="Pause notifications">
-        Nothing pops up until you turn this off. They still go in Recent, so you can catch up later.
-      </Switch>
+      <div class="pause">
+        <span class="register">Pause</span>
+        <div class="pausebtns" role="radiogroup" aria-label="Pause notifications">
+          <button role="radio" aria-checked={pauseChoice === "off"} class:on={pauseChoice === "off"} title="Notifications pop up as they come" onclick={() => pause("off")}>Off</button>
+          <button role="radio" aria-checked={false} title="Nothing pops up for an hour; they still go in Recent" onclick={() => pause("hour")}>1 hour</button>
+          <button role="radio" aria-checked={false} title="Nothing pops up until 8 tomorrow morning; they still go in Recent" onclick={() => pause("tomorrow")}>Until tomorrow</button>
+          <button role="radio" aria-checked={pauseChoice === "on"} class:on={pauseChoice === "on"} title="Nothing pops up until you set this back to Off; they still go in Recent" onclick={() => pause("on")}>Until I turn it off</button>
+        </div>
+        <span class="dim small">{pauseChoice === "timed" ? `Paused until ${hhmm(settings.notifyOptions.pausedUntil!)}. ` : pauseChoice === "on" ? "Paused. " : ""}While paused, notifications still go in Recent, so you can catch up.</span>
+      </div>
       <Switch bind:on={settings.notifyOptions.toasts} label="Pop-ups inside orbiter">
-        While you're looking at orbiter, a notification shows in a corner of its window (for a few seconds; click it to open what it's about). Off: only Recent. When orbiter is behind other windows, they go to your desktop's notifications.
+        While you're looking at orbiter: a notification shows by the sidebar for a few seconds. Click it to open what it's about.
       </Switch>
-      <div class="row"><button class="stamp" onclick={test} title="Sends one notification now, the way the others will look">Send a test notification</button></div>
+      <Switch bind:on={settings.notifyOptions.desktop} label="Desktop notifications">
+        While orbiter is behind other windows (or you're in the game): your desktop's notifications{console ? "" : ", where a click brings orbiter up on what it's about (Linux and Windows)"}. Off: only Recent.
+      </Switch>
+      {#if !console}
+        <Switch bind:on={settings.notifyOptions.quietInFissure} label="Quiet while I'm in a fissure">
+          Nothing pops up while you're in a fissure mission, except which reward to take. The rest waits in Recent.
+        </Switch>
+      {/if}
+      <div class="row"><button class="stamp" onclick={test} title="Shows a notification now, the way they look. Nothing is saved.">Show a test notification</button></div>
     </section>
     {#each groups as grp (grp.g)}
       <section class="grp">
         <header>
-          <h3 class="register">{grp.g === "orbiter" ? "orbiter" : grp.g}</h3>
-          <span class="dim small">{GROUP_NOTE[grp.g]}</span>
-          <button class="link quiet" onclick={() => setAll(grp.kinds, !allOn(grp.kinds))}>{allOn(grp.kinds) ? "All off" : "All on"}</button>
+          <h3 class="register">{grp.g}</h3>
+          <span class="dim small">{note(grp.g)}</span>
+          <button class="link quiet" title={allOn(grp.kinds) ? `Turn off every kind under ${grp.g}` : `Turn on every kind under ${grp.g}`} onclick={() => setAll(grp.kinds, !allOn(grp.kinds))}>{allOn(grp.kinds) ? "All off" : "All on"}</button>
         </header>
         {#each grp.kinds as k (k.kind)}
-          <Switch bind:on={settings.notify[k.kind]} label={k.label}>{k.hint}</Switch>
+          <div class="kind">
+            <Switch bind:on={settings.notify[k.kind]} label={k.label}>{console && k.consoleHint ? k.consoleHint : k.hint}</Switch>
+            {#if settings.notify[k.kind]}<Chip on={quiet(k.kind)} label="Recent only" title="Keep these in Recent without popping up" onchange={(on: boolean) => setQuiet(k.kind, on)} />{/if}
+          </div>
         {/each}
       </section>
     {/each}
@@ -154,6 +206,12 @@
   .b { white-space: pre-line; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
   .k { font-size: .7rem; }
   .how { display: grid; gap: 1rem; padding-bottom: 1.2rem; border-bottom: 1px solid var(--rule); }
+  .pause { display: grid; gap: .45rem; }
+  .pausebtns { display: flex; flex-wrap: wrap; gap: 0; }
+  .pausebtns button { margin-left: -1px; padding: .35rem .7rem; font-size: .66rem; }
+  .pausebtns button.on { color: var(--slab); background: var(--platinum); border-color: var(--platinum); }
+  .kind { display: grid; gap: .4rem; }
+  .kind :global(.chip) { justify-self: start; font-size: .62rem; padding: .2rem .5rem; }
   .row { display: flex; }
   .grp { display: grid; gap: .9rem; padding: 1.1rem 0; border-bottom: 1px solid var(--rule); }
   .grp header { display: flex; align-items: baseline; gap: .7rem; flex-wrap: wrap; }

@@ -33,7 +33,7 @@
 
   // console: you play on a console or phone, so there's no inventory: Home is the market, the
   // world's clocks, fissures, what's worth doing and Baro, without anything measured against a collection.
-  let { model, live, mission, settings = $bindable(), go, shortListings, liveAt = null, liveError = null, console = false }: { model: Model; live: Live; mission: MissionState | null; settings: Settings; go: (t: string) => void; shortListings: MyOrder[]; liveAt?: number | null; liveError?: string | null; console?: boolean } = $props();
+  let { model, live, mission, settings = $bindable(), go, shortListings, liveAt = null, liveError = null, console = false, reveal = null }: { model: Model; live: Live; mission: MissionState | null; settings: Settings; go: (t: string) => void; shortListings: MyOrder[]; liveAt?: number | null; liveError?: string | null; console?: boolean; reveal?: string | null } = $props();
   // The worldstate: still being asked for the first time, or unreachable (api.warframestat.us).
   const liveWaiting = $derived(liveAt == null && !liveError);
   const liveNote = $derived(liveWaiting ? "Asking api.warframestat.us…" : "api.warframestat.us didn't answer; orbiter asks again every few minutes.");
@@ -48,6 +48,7 @@
   // ------------------------------------------------------------ market
   const orders = $derived(mkt.orders.filter((o) => o.type === "sell"));
   const listed = $derived(orders.filter((o) => o.visible).reduce((n, o) => n + o.platinum * o.quantity, 0));
+  const hiddenCount = $derived(orders.filter((o) => !o.visible).length);
   const DAY = 86_400_000;
   const dayStart = $derived.by(() => {
     const d = new Date(now);
@@ -212,26 +213,27 @@
   });
 
   // ---------------------------------------------------------------- what Home shows (Customise)
-  const CARDS: { key: string; label: string }[] = [
-    { key: "alerts", label: "Needs you" },
-    { key: "world", label: "World clocks" },
-    { key: "market", label: "Market" },
-    { key: "ready", label: "Ready to sell" },
-    { key: "fissures", label: "Fissures now" },
-    { key: "today", label: "Worth doing today" },
-    { key: "foundry", label: "Foundry" },
-    { key: "wishes", label: "Your wishlist" },
-    { key: "deals", label: "Cheap buys" },
-    { key: "mastery", label: "Easiest mastery next" },
-    { key: "baro", label: "Baro Ki’Teer" },
-    { key: "varzia", label: "Varzia" },
+  const CARDS: { key: string; label: string; hint: string }[] = [
+    { key: "alerts", label: "Needs you", hint: "Alerts and invasions worth a look, listings to fix, Varzia's rotation ending" },
+    { key: "world", label: "World clocks", hint: "Day and night on the open worlds, and the daily and weekly resets" },
+    { key: "market", label: "Market", hint: "Your warframe.market status, what you have listed, and what sold" },
+    { key: "ready", label: "Ready to sell", hint: "Your spares worth listing, in the kinds ticked on Orders" },
+    { key: "fissures", label: "Fissures now", hint: "Open fissures by era, your best relic for each, and your fissure alerts" },
+    { key: "today", label: "Worth doing today", hint: "The Duviri Circuit, Teshin, the Sortie, the Archon Hunt and Nightwave" },
+    { key: "foundry", label: "Foundry", hint: "What's building, and what you have every part for" },
+    { key: "wishes", label: "Your wishlist", hint: "What you starred and still need, with relics to crack for it" },
+    { key: "deals", label: "Cheap buys", hint: "Parts and arcanes you're after, listed well under their usual price" },
+    { key: "mastery", label: "Easiest mastery next", hint: "What to level, and the easiest things you haven't mastered" },
+    { key: "baro", label: "Baro Ki’Teer", hint: "When he comes, and what he brings that's new to you" },
+    { key: "varzia", label: "Varzia", hint: "Prime Resurgence: the primes you still need from her rotation" },
   ];
   /** Cards that need your inventory: never on a console. */
   const NEEDS_INVENTORY = new Set(["ready", "foundry", "wishes", "deals", "mastery", "varzia"]);
   const cards = $derived(console ? CARDS.filter((c) => !NEEDS_INVENTORY.has(c.key)) : CARDS);
   let customising = $state(false);
   const hidden = $derived(new Set(settings.homeHidden));
-  const off = (key: string) => hidden.has(key) || (console && NEEDS_INVENTORY.has(key));
+  // A card a notification opened shows even if you hid it, until you leave Home.
+  const off = (key: string) => key !== reveal && (hidden.has(key) || (console && NEEDS_INVENTORY.has(key)));
   function toggleCard(key: string, on: boolean) {
     settings.homeHidden = on ? settings.homeHidden.filter((k) => k !== key) : [...settings.homeHidden, key];
   }
@@ -242,6 +244,11 @@
   const alone = (key: string) => shownBeside(key) === 0;
   const rowSpan = (key: string) => (alone(key) ? "auto" : `span ${shownBeside(key)}`);
   const orphan = (key: string) => off(Object.keys(BESIDE).find((l) => BESIDE[l].includes(key))!);
+  /** Cards left beside a wide one you hid share its row: 12 columns between however many there are. */
+  const share = (key: string) => {
+    const lead = Object.keys(BESIDE).find((l) => BESIDE[l].includes(key))!;
+    return Math.round(12 / Math.max(1, shownBeside(lead)));
+  };
 </script>
 
 {#snippet head(icon: GameIconName | null, line: string | null, title: string, to: string | null, action: string)}
@@ -267,14 +274,14 @@
     <section class="custom" aria-label="What Home shows">
       <span class="register">Show on Home</span>
       <div class="cards">
-        {#each cards as c (c.key)}<Chip on={!off(c.key)} label={c.label} onchange={(on: boolean) => toggleCard(c.key, on)} />{/each}
+        {#each cards as c (c.key)}<Chip on={!hidden.has(c.key)} label={c.label} title={`${c.hint}. Click to ${hidden.has(c.key) ? "show" : "hide"} it.`} onchange={(on: boolean) => toggleCard(c.key, on)} />{/each}
       </div>
       {#if cards.some((c) => hidden.has(c.key))}<button class="link" onclick={() => (settings.homeHidden = [])}>Show everything</button>{/if}
     </section>
   {/if}
 
   {#if alerts.length}
-    <section class="alerts" aria-label="Needs you" class:off={off("alerts")}>
+    <section class="alerts" data-card="alerts" aria-label="Needs you" class:off={off("alerts")}>
       {#each alerts as a (a.text)}
         <div class="alert t-{a.tone}"><GameIcon name={a.icon} size={20} /><span>{a.text}</span>{#if a.to}<button class="link" onclick={() => go(a.to)}>{a.act} →</button>{/if}</div>
       {/each}
@@ -302,15 +309,15 @@
     {/if}
 
     <!-- Market -->
-    <section class="panel market" class:off={off("market")} class:full={alone("market")} style:grid-row={rowSpan("market")}>
+    <section class="panel market" data-card="market" class:off={off("market")} class:full={alone("market")} style:grid-row={rowSpan("market")}>
       {@render head("market", null, "Market", "market", "Orders")}
       {#if mkt.linked}
         <div class="presence"><Presence settings={settings.market} quiet /></div>
         <div class="figs">
-          <div><P v={listed} /><span class="register">Listed · {orders.length}</span></div>
-          {#if !console}<div><b class="mark" class:warn={shortListings.length}>{shortListings.length}</b><span class="register">Can't deliver</span></div>{/if}
-          <div><P v={sold(dayStart)} /><span class="register">Sold today</span></div>
-          <div><P v={sold(now - 7 * DAY)} /><span class="register">Last 7 days</span></div>
+          <div title="Your visible listings on warframe.market: price × quantity, and how many{hiddenCount ? ` (${hiddenCount} hidden ones not counted)` : ''}"><P v={listed} /><span class="register">Listed · {orders.length - hiddenCount}</span></div>
+          {#if !console}<div title="Listings for more than you hold now: sold, or used in game. Fix them on Orders, or a buyer finds you can't deliver"><b class="mark" class:warn={shortListings.length}>{shortListings.length}</b><span class="register">Can't deliver</span></div>{/if}
+          <div title="Platinum from what you sold today, from Sales"><P v={sold(dayStart)} /><span class="register">Sold today</span></div>
+          <div title="Platinum from what you sold in the last 7 days"><P v={sold(now - 7 * DAY)} /><span class="register">Last 7 days</span></div>
         </div>
         {#if shortListings.length}
           <ul class="mini">
@@ -331,14 +338,14 @@
     </section>
 
     <!-- Ready to sell -->
-    <section class="panel ready" class:off={off("ready")} class:half={orphan("ready")}>
+    <section class="panel ready" class:off={off("ready")} class:half={orphan("ready")} style:--n={share("ready")} data-card="ready">
       {@render head("platinum", null, "Ready to sell", "market", "Put them on sale")}
       {#if !ticked}
         <p class="dim">Nothing ticked in <b>Put my spares on sale</b> on Orders.</p>
       {:else if !byKind.length}
         <p class="dim">Nothing spare worth {settings.market.minPrice}p or more in what you ticked.</p>
       {:else}
-        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small">about, at daily median prices{unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
+        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Only the kinds ticked under Put my spares on sale, on Orders, and only what's worth at least your minimum price there">about, at daily median prices, in what you ticked on Orders (worth {settings.market.minPrice}p or more){unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
         <ul class="kinds">
           {#each byKind as k (k.kind)}
             <li>
@@ -351,7 +358,7 @@
     </section>
 
     <!-- Fissures -->
-    <section class="panel fissures" class:off={off("fissures")}>
+    <section class="panel fissures" data-card="fissures" class:off={off("fissures")}>
       {@render head("void-tear", null, "Fissures now", console ? null : "relics", "Relics")}
       {#if live.fissures == null}
         <p class="dim">{liveNote}</p>
@@ -404,7 +411,7 @@
 
     <!-- Easiest mastery -->
     <!-- Worth doing today -->
-    <section class="panel today" class:off={off("today")} class:full={alone("today")} style:grid-row={rowSpan("today")}>
+    <section class="panel today" data-card="today" class:off={off("today")} class:full={alone("today")} style:grid-row={rowSpan("today")}>
       {@render head("nightwave", null, "Worth doing today", null, "")}
       <div class="tgrid">
         {#if day.circuit}
@@ -450,8 +457,8 @@
     </section>
 
     <!-- Foundry -->
-    <section class="panel foundry" class:off={off("foundry")} class:half={orphan("foundry")}>
-      {@render head("dojo", null, "Foundry", null, "")}
+    <section class="panel foundry" class:off={off("foundry")} class:half={orphan("foundry")} style:--n={share("foundry")} data-card="foundry">
+      {@render head("foundry", null, "Foundry", null, "")}
       {#if builds.length}
         <ul class="fb">
           {#each builds as b (b.key)}
@@ -478,7 +485,7 @@
     </section>
 
     <!-- Wishlist -->
-    <section class="panel wishes" class:off={off("wishes")} class:half={orphan("wishes")}>
+    <section class="panel wishes" class:off={off("wishes")} class:half={orphan("wishes")} style:--n={share("wishes")} data-card="wishes">
       {@render head(null, "star", "Your wishlist", "wishlist", "Wishlist")}
       {#if wishes.length}
         <ul class="fb">
@@ -498,7 +505,7 @@
     </section>
 
     <!-- Cheap buys -->
-    <section class="panel deals" class:off={off("deals")} class:half={orphan("deals")}>
+    <section class="panel deals" class:off={off("deals")} class:half={orphan("deals")} style:--n={share("deals")} data-card="deals">
       {@render head("platinum", null, "Cheap buys", null, "")}
       {#if mkt.deals.length}
         <ul class="dl">
@@ -520,7 +527,7 @@
       </p>
     </section>
 
-    <section class="panel mastery" class:off={off("mastery")} class:full={alone("mastery")} style:grid-row={rowSpan("mastery")}>
+    <section class="panel mastery" data-card="mastery" class:off={off("mastery")} class:full={alone("mastery")} style:grid-row={rowSpan("mastery")}>
       {@render head("mastery", null, "Easiest mastery next", "mastery", "Mastery")}
       {#if toLevel.length}
         <button class="levelrow" onclick={() => go("mastery")} title="Things you own that aren't at max rank yet">
@@ -542,14 +549,14 @@
     </section>
 
     <!-- Baro -->
-    <section class="panel baro" class:off={off("baro")} class:half={orphan("baro")}>
+    <section class="panel baro" class:off={off("baro")} class:half={orphan("baro")} style:--n={share("baro")} data-card="baro">
       {@render head("baro", null, "Baro Ki’Teer", console ? null : "parts", "Spares for ducats")}
       {#if !baro}
         <p class="dim">Schedule unavailable.</p>
       {:else}
         <div class="when">
           {#if baroHere}<b class="mark gold">Here now</b><span class="dim">{baro.location} · leaves in {until(baro.expiry, now)}</span>
-          {:else}<b class="mark">In {until(baro.activation, now)}</b><span class="dim">{baro.location} · {new Date(baro.activation).toLocaleString(undefined, { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>{/if}
+          {:else}<b class="mark">In {until(baro.activation, now)}</b><span class="dim">{baro.location} · {new Date(baro.activation).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>{/if}
         </div>
         {#if !console}<div class="ducats"><P v={heldDucats} d /><span class="dim small">ducats held</span>{#if spareDucats}<span class="dim">·</span><P v={spareDucats} d dim /><span class="dim small">more from spare parts</span>{/if}</div>{/if}
         {#if baroHere}
@@ -570,7 +577,7 @@
     </section>
 
     <!-- Varzia -->
-    <section class="panel varzia" class:off={off("varzia")} class:half={orphan("varzia")} class:slim={!!live.resurgence && !varzia.length}>
+    <section class="panel varzia" class:off={off("varzia")} class:half={orphan("varzia")} style:--n={share("varzia")} data-card="varzia" class:slim={!!live.resurgence && !varzia.length}>
       {@render head("varzia", null, "Varzia: Prime Resurgence", "relics", "Relics")}
       {#if !live.resurgence}
         <p class="dim">Rotation unavailable.</p>
@@ -608,7 +615,7 @@
   .grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--step); padding-bottom: var(--course); }
   .off { display: none !important; }
   .panel.full { grid-column: span 12; }
-  .panel.half { grid-column: span 6; }
+  .panel.half { grid-column: span var(--n, 6); }
   .hr { display: flex; align-items: center; gap: .8rem; }
   .custom { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem 1rem; padding: .8rem 1rem; margin-bottom: var(--step); border: 1px solid var(--rule); background: var(--plate); }
   .custom .cards { display: flex; flex-wrap: wrap; gap: .4rem; flex: 1; }
@@ -661,7 +668,7 @@
   :global(html[data-room~="lt930"]) .world { grid-template-columns: repeat(auto-fit, minmax(6.3rem, 1fr)); }
   :global(html[data-room~="lt930"]) .clock { padding: .6rem .55rem; }
   /* Page area under 900 px (App sets the flag, by the room pages actually have). */
-  :global(html[data-room~="lt900"]) .market, :global(html[data-room~="lt900"]) .ready, :global(html[data-room~="lt900"]) .fissures, :global(html[data-room~="lt900"]) .mastery, :global(html[data-room~="lt900"]) .baro, :global(html[data-room~="lt900"]) .varzia, :global(html[data-room~="lt900"]) .today, :global(html[data-room~="lt900"]) .foundry, :global(html[data-room~="lt900"]) .deals, :global(html[data-room~="lt900"]) .wishes { grid-column: span 12; }
+  :global(html[data-room~="lt900"]) .market, :global(html[data-room~="lt900"]) .ready, :global(html[data-room~="lt900"]) .fissures, :global(html[data-room~="lt900"]) .mastery, :global(html[data-room~="lt900"]) .baro, :global(html[data-room~="lt900"]) .varzia, :global(html[data-room~="lt900"]) .today, :global(html[data-room~="lt900"]) .foundry, :global(html[data-room~="lt900"]) .deals, :global(html[data-room~="lt900"]) .wishes , :global(html[data-room~="lt900"]) .panel.half { grid-column: span 12; }
   /* Half a small screen: the fissure table loses "Ends in" (the missions' own times are on hover), and the clocks go four to a row. */
   :global(html[data-room~="lt760"]) .ends { display: none; }
   :global(html[data-room~="lt760"]) .world { grid-template-columns: repeat(4, minmax(0, 1fr)); }

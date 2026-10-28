@@ -75,3 +75,36 @@ export function migrateTab(tab: string): PageId {
   if (tab === "ducats") return "parts";
   return (tab in pageById ? tab : "home") as PageId;
 }
+
+/**
+ * Pages in your order (Settings → Pages): the ones you moved, then the rest as they come. The
+ * sidebar's sections follow, each where its first page is. Home stays first.
+ */
+export function orderPages(pages: Page[], order: string[]): Page[] {
+  const at = (id: string) => {
+    const i = order.indexOf(id);
+    return i < 0 ? Infinity : i;
+  };
+  const home = pages.filter((p) => p.id === "home");
+  const rest = pages.filter((p) => p.id !== "home");
+  // Stable: pages you haven't placed keep their places relative to each other.
+  const placed = rest.map((p, i) => ({ p, i })).sort((a, b) => at(a.p.id) - at(b.p.id) || a.i - b.i);
+  return [...home, ...placed.map((x) => x.p)];
+}
+
+/** The sidebar's sections in the order their pages come. */
+export function sectionsOf(pages: Page[]): Exclude<Page["group"], "">[] {
+  const out: Exclude<Page["group"], "">[] = [];
+  for (const p of pages) if (p.group && !out.includes(p.group)) out.push(p.group);
+  return out;
+}
+
+/** Moves a page one place up or down among `ids` (the order shown), returning the new order. */
+export function movePage(ids: string[], id: string, step: -1 | 1): string[] {
+  const i = ids.indexOf(id);
+  const j = i + step;
+  if (i < 0 || j < 0 || j >= ids.length) return ids;
+  const next = [...ids];
+  [next[i], next[j]] = [next[j], next[i]];
+  return next;
+}

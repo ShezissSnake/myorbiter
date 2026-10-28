@@ -99,6 +99,8 @@ export interface Settings {
   notifyOptions: NotifyOptions;
   /** Pages you took out of the sidebar (Settings → Pages). */
   pagesHidden: string[];
+  /** The sidebar's order, when you changed it (Settings → Pages): page ids. */
+  pageOrder: string[];
   /** The page orbiter opens on: "last" is where you left it. */
   startPage: string;
   tab: string;
@@ -137,6 +139,8 @@ export interface Sale {
   quantity: number;
   /** Each. */
   platinum: number;
+  /** The item's daily median when it sold (recorded within a day or two of the sale), for "vs market". */
+  median?: number;
   /**
    * The game-log trade this sale is (see tradeKey): set when a trade logged it, or when a trade
    * matched it to a sale you had logged by hand. Absent: logged by hand, not matched yet.
@@ -206,8 +210,12 @@ export const defaultGame = (): GameState => ({ foundryReady: [], masteryRank: nu
 export interface NotifySettings {
   /** The reward screen opened: which card to take. */
   reward: boolean;
-  /** Auto-match repriced listings, a listing outgrew what you hold, the sign-in expired. */
+  /** Listing problems: a listing outgrew what you hold, a change refused, the sign-in expired. */
   market: boolean;
+  /** A trade in game sold one of your listings (marked sold and logged). */
+  sold: boolean;
+  /** Apply automatically moved listings to the cheapest price in game. */
+  repriced: boolean;
   /** TennoScope couldn't be started or a request to it failed. */
   tennoscope: boolean;
   /** An invasion rewards a part for something you haven't mastered. */
@@ -237,15 +245,24 @@ export interface NotifySettings {
   /** The Duviri Circuit's weekly picks include something for you. */
   circuit: boolean;
 }
-export const defaultNotify = (): NotifySettings => ({ reward: true, market: true, tennoscope: true, invasions: true, foundry: true, whispers: true, deals: true, fissures: true, rivens: true, wishlist: true, siteChat: true, alerts: true, alertLoot: true, baro: true, varzia: true, circuit: true });
+export const defaultNotify = (): NotifySettings => ({ reward: true, market: true, sold: true, repriced: true, tennoscope: true, invasions: true, foundry: true, whispers: true, deals: true, fissures: true, rivens: true, wishlist: true, siteChat: true, alerts: true, alertLoot: true, baro: true, varzia: true, circuit: true });
 
 /** How notifications reach you, whatever they're about. */
 export interface NotifyOptions {
   /** Paused: notifications still go in the history, but nothing pops up. */
   paused: boolean;
-  /** While you're looking at orbiter: a pop-up in its window (a desktop one goes out otherwise). */
+  /** Paused until then (ms), for "an hour" or "until tomorrow"; null: not paused for a while. */
+  pausedUntil: number | null;
+  /** While you're looking at orbiter: a pop-up in its window. */
   toasts: boolean;
+  /** While you're not: your desktop's notifications. */
+  desktop: boolean;
+  /** Nothing pops up while you're in a fissure, but the reward to take. */
+  quietInFissure: boolean;
+  /** Kinds that only go in the history, never pop up. */
+  quiet: string[];
 }
+export const defaultNotifyOptions = (): NotifyOptions => ({ paused: false, pausedUntil: null, toasts: true, desktop: true, quietInFissure: false, quiet: [] });
 
 export const defaultSettings = (): Settings => ({
   advice: defaultAdvice(),
@@ -258,8 +275,9 @@ export const defaultSettings = (): Settings => ({
   withoutInventory: false,
   homeHidden: [],
   notify: defaultNotify(),
-  notifyOptions: { paused: false, toasts: true },
+  notifyOptions: defaultNotifyOptions(),
   pagesHidden: [],
+  pageOrder: [],
   startPage: "last",
   tab: "home",
   folded: null,
@@ -414,9 +432,18 @@ export async function loadSettings(): Promise<Settings> {
     advice: { ...base.advice, ...(raw?.advice ?? {}) },
     pick: { ...base.pick, ...(raw?.pick ?? {}) },
     tennoscope: { ...base.tennoscope, ...(raw?.tennoscope ?? {}) },
-    notify: { ...base.notify, ...(raw?.notify ?? {}) },
-    notifyOptions: { paused: raw?.notifyOptions?.paused === true, toasts: raw?.notifyOptions?.toasts !== false },
+    // "Your listings" was one switch before it was split: off stays off for all three.
+    notify: { ...base.notify, ...(raw?.notify?.market === false ? { sold: false, repriced: false } : {}), ...(raw?.notify ?? {}) },
+    notifyOptions: {
+      paused: raw?.notifyOptions?.paused === true,
+      pausedUntil: typeof raw?.notifyOptions?.pausedUntil === "number" ? raw.notifyOptions.pausedUntil : null,
+      toasts: raw?.notifyOptions?.toasts !== false,
+      desktop: raw?.notifyOptions?.desktop !== false,
+      quietInFissure: raw?.notifyOptions?.quietInFissure === true,
+      quiet: Array.isArray(raw?.notifyOptions?.quiet) ? raw.notifyOptions.quiet.filter((k: unknown): k is string => typeof k === "string") : [],
+    },
     pagesHidden: Array.isArray(raw?.pagesHidden) ? raw.pagesHidden.filter((k: unknown): k is string => typeof k === "string") : [],
+    pageOrder: Array.isArray(raw?.pageOrder) ? raw.pageOrder.filter((k: unknown): k is string => typeof k === "string") : [],
     startPage: typeof raw?.startPage === "string" && raw.startPage ? raw.startPage : "last",
     schema: base.schema,
     notifiedInvasions: Array.isArray(raw?.notifiedInvasions) ? raw.notifiedInvasions : [],

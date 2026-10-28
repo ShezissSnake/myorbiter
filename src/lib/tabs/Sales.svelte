@@ -130,7 +130,8 @@
 
   // Against the market: what each sale made next to the daily median for that item (the max-rank
   // price for a ranked arcane or mod).
-  const market = (s: Sale) => (s.rank != null && s.rank > 0 ? (model.priceMax(s.item) ?? model.price(s.item)) : model.price(s.item));
+  // The median when it sold, where orbiter recorded one; older sales go by today's.
+  const market = (s: Sale) => s.median ?? (s.rank != null && s.rank > 0 ? (model.priceMax(s.item) ?? model.price(s.item)) : model.price(s.item));
   const UNDER = 0.8;
   const ratio = (s: Sale) => {
     const m = market(s);
@@ -219,7 +220,7 @@
 
   {#if sales.length}
     <table class="log">
-      <thead><tr><th>When</th><th>Item</th><th class="right">Qty</th><th class="right">Each</th><th class="right" title="The sale price next to the daily median on warframe.market">Vs market</th><th class="right">Total</th><th></th></tr></thead>
+      <thead><tr><th>When</th><th>Item</th><th class="right">Qty</th><th class="right">Each</th><th class="right" title="The sale price next to the item's daily median on warframe.market when it sold (today's, for sales from before orbiter recorded it)">Vs market</th><th class="right">Total</th><th></th></tr></thead>
       <tbody>
         {#each sales.slice(0, 200) as s, i (s.at + s.item + i)}
           <tr>

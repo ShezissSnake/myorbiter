@@ -4,7 +4,8 @@
   import Sheet from "./ui/Sheet.svelte";
   import Switch from "./ui/Switch.svelte";
   import Chip from "./ui/Chip.svelte";
-  import { pagesFor } from "./pages";
+  import { movePage, orderPages, pagesFor } from "./pages";
+  import Icon from "./ui/Icon.svelte";
 
   let {
     open = $bindable(),
@@ -36,9 +37,12 @@
   /** A console or phone: only the settings for what works there (no TennoScope, no game log). */
   const onConsole = $derived(settings.market.platform !== "pc");
   // Pages: all of them for where you play, but Home and the Guide, which always stay.
-  const all = $derived(pagesFor(onConsole));
+  const all = $derived(orderPages(pagesFor(onConsole), settings.pageOrder));
   const optional = $derived(all.filter((p) => p.id !== "home" && p.id !== "guide"));
   const shown = $derived(all.filter((p) => !settings.pagesHidden.includes(p.id)));
+  function move(id: string, step: -1 | 1) {
+    settings.pageOrder = movePage(optional.map((p) => p.id), id, step);
+  }
   function togglePage(id: string, on: boolean) {
     settings.pagesHidden = on ? settings.pagesHidden.filter((x) => x !== id) : [...settings.pagesHidden, id];
     if (!on && settings.startPage === id) settings.startPage = "last";
@@ -71,11 +75,18 @@
         {#each shown as p (p.id)}<option value={p.id}>{p.label}</option>{/each}
       </select>
     </label>
-    <p class="hint">Untick a page to take it out of the sidebar (and Ctrl+1…9). It still opens from links on other pages, and nothing on it is lost: tick it again to bring it back. Home and the Guide always stay.</p>
-    <div class="pages">
-      {#each optional as p (p.id)}<Chip on={!settings.pagesHidden.includes(p.id)} label={p.label} title={p.hint} onchange={(on: boolean) => togglePage(p.id, on)} />{/each}
-    </div>
-    {#if settings.pagesHidden.length}<button class="link" onclick={() => (settings.pagesHidden = [])}>Show every page</button>{/if}
+    <p class="hint">The sidebar, in order: untick a page to take it out (it still opens from links on other pages, and nothing on it is lost), and move pages with the arrows. Ctrl+1…9 follow this order; a section sits where its first page is. Home stays first and the Guide stays by the gear. What Home itself shows is under the gear on Home.</p>
+    <ol class="pagelist">
+      {#each optional as p, i (p.id)}
+        <li class:out={settings.pagesHidden.includes(p.id)}>
+          <Chip on={!settings.pagesHidden.includes(p.id)} label={p.label} title={`${p.hint}. Click to ${settings.pagesHidden.includes(p.id) ? "put it back in" : "take it out of"} the sidebar.`} onchange={(on: boolean) => togglePage(p.id, on)} />
+          <span class="dim small">{p.group}</span>
+          <button class="mv" aria-label="Move {p.label} up" title="Move up" disabled={i === 0} onclick={() => move(p.id, -1)}><Icon name="arrow-right" size={11} /></button>
+          <button class="mv down" aria-label="Move {p.label} down" title="Move down" disabled={i === optional.length - 1} onclick={() => move(p.id, 1)}><Icon name="arrow-right" size={11} /></button>
+        </li>
+      {/each}
+    </ol>
+    {#if settings.pagesHidden.length || settings.pageOrder.length}<div class="row">{#if settings.pagesHidden.length}<button class="link" onclick={() => (settings.pagesHidden = [])}>Show every page</button>{/if}{#if settings.pageOrder.length}<button class="link" onclick={() => (settings.pageOrder = [])}>Back to the usual order</button>{/if}</div>{/if}
   </section>
 
   {#if !onConsole}
@@ -166,7 +177,13 @@
   .path::placeholder { text-transform: none; letter-spacing: 0; font-size: .74rem; font-style: italic; color: var(--platinum-deep); opacity: .7; }
   .hint { font-size: .76rem; color: var(--platinum-deep); }
   .row { display: flex; align-items: center; gap: .6rem; }
-  .pages { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .pagelist { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .pagelist li { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: .5rem; }
+  .pagelist li.out .dim { opacity: .5; }
+  .pagelist :global(.chip) { justify-self: start; }
+  .mv { padding: .3rem .4rem; line-height: 0; }
+  .mv :global(svg) { transform: rotate(-90deg); }
+  .mv.down :global(svg) { transform: rotate(90deg); }
   /* Unsaved paths: pinned to the bottom of the panel, so it can't be missed whichever field changed. */
   .unsaved { position: sticky; bottom: -2rem; display: grid; gap: .7rem; padding: 1rem 1.1rem; background: var(--raised); border: 1px solid var(--gold-dim); box-shadow: inset 3px 0 0 var(--gold); }
 </style>
