@@ -218,6 +218,14 @@
 "https://steamcommunity.com/app/230410/discussions/0/3826415019287114776"
 ]
 },
+"Cantic Prism": {
+"method": "syndicate",
+"how": "Blueprint from Little Duck (Vox Solaris, Fortuna) for Vox Solaris standing; build it into an amp with any scaffold and brace. Amps only give mastery once gilded (with Little Duck, at Hand), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Amp"
+},
 "Carrier": {
 "method": "market-credits",
 "how": "Blueprint from the in-game Market for 100,000 credits (or 75p built); build needs 3 Control Modules, 1,000 Alloy Plate, 400 Circuits, 1,500 Nano Spores, 24 h.",
@@ -793,6 +801,14 @@
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Gotva_Prime"
 },
+"Granmu Prism": {
+"method": "syndicate",
+"how": "Blueprint from Onkko (The Quills, Cetus) for 2,000 Quills standing; build it into an amp with any scaffold and brace. Amps only give mastery once gilded (with Onkko, at Adherent), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Amp"
+},
 "Grendel": {
 "method": "other",
 "how": "Main blueprint from the Market (35,000 credits); each part needs a Locator bought for 25 Vitus Essence from Arbitration Honors (Arbitrations need the full Star Chart), which unlocks a modless, gearless squad-only mission on Europa that always gives that part. Market price 325 platinum.",
@@ -1003,6 +1019,14 @@
 "https://steamcommunity.com/app/230410/discussions/0/3033725780692521210",
 "https://warframe.fandom.com/wiki/User_blog:ZyLnTKyllR/Warframes_ranked_based_on_the_hardest_grind_to_acquire_them"
 ]
+},
+"Klamora Prism": {
+"method": "syndicate",
+"how": "Blueprint from Little Duck (Vox Solaris, Fortuna) for Vox Solaris standing; build it into an amp with any scaffold and brace. Amps only give mastery once gilded (with Little Duck, at Hand), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Amp"
 },
 "Kohmak": {
 "method": "dojo",
@@ -1259,6 +1283,14 @@
 "https://steamcommunity.com/app/230410/discussions/0/4143842265258165329/"
 ]
 },
+"Lega Prism": {
+"method": "syndicate",
+"how": "Blueprint from Little Duck (Vox Solaris, Fortuna) for Vox Solaris standing; build it into an amp with any scaffold and brace. Amps only give mastery once gilded (with Little Duck, at Hand), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Amp"
+},
 "Lex": {
 "method": "market-credits",
 "how": "Bought already built from the in-game Market for 50,000 credits; needs MR 3. The optional Lex Incarnon Genesis comes from Steel Path Circuit rewards (or once from Cavalero for 120 platinum).",
@@ -1418,6 +1450,14 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Mk1-Strun"
+},
+"Mote Amp": {
+"method": "quest",
+"how": "The training amp you get during The War Within. To count for mastery it has to be gilded (with Onkko, at Adherent) and levelled to 30.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Amp"
 },
 "Multron": {
 "method": "syndicate",
@@ -1641,6 +1681,14 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Plasma_Sword"
 },
+"Plexus": {
+"method": "quest",
+"how": "Comes with The Archwing quest; it ranks up in Railjack missions, 200 mastery a rank up to 30 (6,000 in all).",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Plexus"
+},
 "Pride": {
 "method": "railjack",
 "how": "Main, Blade and Handle blueprints drop from The Kuva Wytch on Uranus Proxima (14.29% each, needs Jade Shadows: Constellations); it also needs a Wrath Blade from Scoria's Angel. Or buy the blueprints from Hunhow in Pontis Tower with Emerald/Crimson Talent: 90 for the main, 45 per component (180 Emerald and 45 Crimson in all).",
@@ -1828,6 +1876,14 @@
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Quanta_Vandal"
 },
+"Rahn Prism": {
+"method": "syndicate",
+"how": "Blueprint from Onkko (The Quills, Cetus) for 2,500 Quills standing; build it into an amp with any scaffold and brace. Amps only give mastery once gilded (with Onkko, at Adherent), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Amp"
+},
 "Raksa Kubrow": {
 "method": "incubator",
 "how": "Complete Howl of the Kubrow, get a Kubrow Egg from Kubrow Dens on Earth (Grineer Forest) and build an Incubator Power Core, then hatch it in the Orbiter Incubator; the breed is random, so repeat (or use a Raksa Imprint) until you get a Raksa.",
@@ -1835,6 +1891,14 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Raksa_Kubrow"
+},
+"Raplak Prism": {
+"method": "syndicate",
+"how": "Blueprint from Onkko (The Quills, Cetus) for 1,000 Quills standing; build it into an amp with any scaffold and brace. Amps only give mastery once gilded (with Onkko, at Adherent), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Amp"
 },
 "Rauta": {
 "method": "open-world",
@@ -1955,6 +2019,14 @@
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Sheev"
 },
+"Shwaak Prism": {
+"method": "syndicate",
+"how": "Blueprint from Onkko (The Quills, Cetus) for 1,500 Quills standing; build it into an amp with any scaffold and brace. Amps only give mastery once gilded (with Onkko, at Adherent), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Amp"
+},
 "Sicarus": {
 "method": "market-credits",
 "how": "Bought fully built from the in-game Market for 20,000 credits.",
@@ -2018,6 +2090,14 @@
 "available": true,
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Spectra_Vandal"
+},
+"Sporelacer": {
+"method": "syndicate",
+"how": "Chamber blueprint from Father in the Necralisk (Entrati, from rank 0); build an Infested kitgun with it. Kitguns only give mastery once gilded, and mastery goes by the chamber.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Sporelacer"
 },
 "Steflos": {
 "method": "mission-drop",
@@ -2400,6 +2480,14 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Veritux"
+},
+"Vermisplicer": {
+"method": "syndicate",
+"how": "Chamber blueprint from Father in the Necralisk (Entrati, from rank 0); build an Infested kitgun with it. Kitguns only give mastery once gilded, and mastery goes by the chamber.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Vermisplicer"
 },
 "Vesper 77": {
 "method": "syndicate",

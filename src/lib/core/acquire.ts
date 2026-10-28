@@ -97,7 +97,7 @@ const DOJO = dojoLabs as Record<string, string>;
 /** Mastery points for taking it to max rank: 200 a rank for frames, companions, archwings and
  *  K-Drives, 100 for weapons; Kuva, Tenet and Coda weapons, Paracesis and Necramechs go to 40. */
 export function masteryPoints(item: Pick<CatalogItem, "name" | "category" | "type">): number {
-  const big = item.category === "Warframes" || item.category === "Archwing" || item.category === "Sentinels" || item.category === "Pets" || item.type === "K-Drive Component" || item.type === "Archwing";
+  const big = item.category === "Warframes" || item.category === "Archwing" || item.category === "Sentinels" || item.category === "Pets" || item.type === "K-Drive Component" || item.type === "Archwing" || item.type === "Plexus";
   const forty = /^(Kuva|Tenet|Coda|Dual Coda) /.test(item.name) || item.name === "Paracesis" || item.type === "Necramech";
   return (forty ? 40 : 30) * (big ? 200 : 100);
 }

@@ -177,6 +177,30 @@ export function normaliseStoreUnique(unique: string): string {
  */
 export type RelicMarket = Record<string, { at: number; prices: Record<string, number>; how?: "median" }>;
 
+/**
+ * Things that give mastery but aren't in the catalog TennoScope carries (WFCD files them as parts,
+ * not masterable): amp prisms (mastery goes by the prism, once the amp is gilded), the Infested
+ * kitgun chambers, and the Plexus (Railjack: 200 a rank to 30). Added unless the catalog has them.
+ */
+export const EXTRA_MASTERABLE: CatalogItem[] = [
+  {"uniqueName": "/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/SentAmpTrainingBarrel", "name": "Mote Amp", "category": "Misc", "type": "Amp", "masterable": true, "tradable": false},
+  {"uniqueName": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartA", "name": "Raplak Prism", "category": "Misc", "type": "Amp", "masterable": true, "tradable": false},
+  {"uniqueName": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartB", "name": "Shwaak Prism", "category": "Misc", "type": "Amp", "masterable": true, "tradable": false},
+  {"uniqueName": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartC", "name": "Granmu Prism", "category": "Misc", "type": "Amp", "masterable": true, "tradable": false},
+  {"uniqueName": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set2/Barrel/SentAmpSet2BarrelPartA", "name": "Rahn Prism", "category": "Misc", "type": "Amp", "masterable": true, "tradable": false},
+  {"uniqueName": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartA", "name": "Cantic Prism", "category": "Misc", "type": "Amp", "masterable": true, "tradable": false},
+  {"uniqueName": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartB", "name": "Lega Prism", "category": "Misc", "type": "Amp", "masterable": true, "tradable": false},
+  {"uniqueName": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartC", "name": "Klamora Prism", "category": "Misc", "type": "Amp", "masterable": true, "tradable": false},
+  {"uniqueName": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelEgg/InfModularBarrelEggPart", "name": "Sporelacer", "category": "Misc", "type": "Kitgun Component", "masterable": true, "tradable": false},
+  {"uniqueName": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelBeam/InfModularBarrelBeamPart", "name": "Vermisplicer", "category": "Misc", "type": "Kitgun Component", "masterable": true, "tradable": false},
+  {"uniqueName": "/Lotus/Types/Game/CrewShip/RailJack/DefaultHarness", "name": "Plexus", "category": "Misc", "type": "Plexus", "masterable": true, "tradable": false}
+];
+/** Held as something else: the game gives the Mote Amp as a built training amp. */
+const HELD_AS: Record<string, string> = { "/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/SentAmpTrainingBarrel": "/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/OperatorTrainingAmpWeapon" };
+
+/** Categories the catalog TennoScope carries has wrong (WFCD and the wiki agree on these). */
+const CATEGORY_NOW: Record<string, string> = { "/Lotus/Weapons/Tenno/Archwing/Melee/PrimeCorufell/PrimeCorufellScytheWeapon": "Melee" };
+
 /** Ducat values the game changed since the catalog TennoScope carries was made (wiki, WFCD). */
 const DUCATS_NOW: Record<string, number> = { "Bronco Prime Barrel": 25 };
 
@@ -192,10 +216,13 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
   // reward name appears once per relic, with the chances added up.
   // Some items list the same component twice (Akbronco Prime: two Bronco Prime, one each); merge
   // them so it reads as one component needed twice.
+  const known = new Set(bundle.catalog.map((c) => c.uniqueName));
   bundle = {
     ...bundle,
-    catalog: bundle.catalog.map((item) => {
+    catalog: [...bundle.catalog, ...EXTRA_MASTERABLE.filter((x) => !known.has(x.uniqueName))].map((item) => {
       if (item.masterable && NO_MASTERY.has(item.uniqueName)) item = { ...item, masterable: false };
+      const fixed = CATEGORY_NOW[item.uniqueName];
+      if (fixed && item.category !== fixed) item = { ...item, category: fixed, type: fixed };
       const comps = item.components;
       if (!comps || new Set(comps.map((c) => c.uniqueName)).size === comps.length) return item;
       const merged = new Map<string, Component>();
@@ -232,8 +259,8 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
   }
   /** Items being built in the foundry (filled in below, once the parts are known). */
   const building = new Map<string, number>();
-  const owned = (unique: string) =>
-    (inventoryByBase.get(unique) ?? []).reduce((n, r) => n + r.quantity, 0) + (building.get(unique) ?? 0);
+  const held = (unique: string) => (inventoryByBase.get(unique) ?? []).reduce((n, r) => n + r.quantity, 0);
+  const owned = (unique: string) => held(unique) + (HELD_AS[unique] ? held(HELD_AS[unique]) : 0) + (building.get(unique) ?? 0);
 
   const resurgence = new Set<string>(
     (live.resurgence ?? []).map((v) => normaliseStoreUnique(v.uniqueName)),

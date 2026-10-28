@@ -35,11 +35,12 @@ test("the second son and the Doppelganger's Grimoire aren't mastery to do", () =
     { uniqueName: "/Lotus/Weapons/Tenno/Grimoire/TnGrimoire", name: "Grimoire", category: "Secondary", masterable: true },
     { uniqueName: "/Lotus/Weapons/Tenno/Grimoire/TnDoppelgangerGrimoire", name: "Grimoire", category: "Secondary", masterable: true },
   ] as CatalogItem[];
-  const none = masteryRows(buildModel(bundle([], catalog)));
+  const ours = <T extends { name: string }>(rows: T[]) => rows.filter((r) => /Grimoire|Sirius|Orion/.test(r.name));
+  const none = ours(masteryRows(buildModel(bundle([], catalog))));
   assert.deepEqual(none.map((r) => r.name).sort(), ["Grimoire", "Sirius & Orion"]);
   assert.equal(none.find((r) => r.name === "Sirius & Orion")?.points, 6000);
   const done = masteryRows(buildModel(bundle([inv("/Lotus/Weapons/Tenno/Grimoire/TnGrimoire", "Grimoire", "Secondary", 0, { mastered: true }), inv("/Lotus/Powersuits/SiriusOrion/SiriusSuit", "Sirius & Orion", "Warframes", 0, { mastered: true })], catalog)));
-  assert.deepEqual(done.map((r) => r.name), []);
+  assert.deepEqual(ours(done).map((r) => r.name), []);
 });
 
 test("a prime built from other weapons isn't ready to build without them (Akbronco Prime)", () => {
@@ -108,4 +109,28 @@ test("acquisition.json: every entry has a known method and a difficulty of 1 to 
   }
   assert.ok(!("Orion & Sirius" in acquisition), "filed under Sirius & Orion, the one that gives mastery");
   assert.ok("Sirius & Orion" in acquisition);
+});
+
+test("amp prisms, the Infested kitgun chambers and the Plexus are mastery too, though the catalog leaves them out", () => {
+  const rows = masteryRows(buildModel(bundle([], [])));
+  const by = new Map(rows.map((r) => [r.name, r]));
+  for (const n of ["Raplak Prism", "Klamora Prism", "Mote Amp", "Sporelacer", "Vermisplicer"]) assert.equal(by.get(n)?.points, 3000, n);
+  assert.equal(by.get("Plexus")?.points, 6000);
+  // The Mote Amp is held as the training amp the game gives: level it, not get it.
+  const held = masteryRows(buildModel(bundle([inv("/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/OperatorTrainingAmpWeapon", "Operator Training Amp Weapon", "weapon", 1)], [])));
+  assert.equal(held.find((r) => r.name === "Mote Amp")?.status, "level");
+  // Mastered (the game reports it by the prism's path): gone from the list.
+  const done = masteryRows(buildModel(bundle([inv("/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartA", "Raplak Prism", "weapon", 0, { mastered: true })], [])));
+  assert.ok(!done.some((r) => r.name === "Raplak Prism"));
+});
+
+test("a prime's vaulted tag follows its parts, not the catalog's flag (Nyx Prime from Railjack cache relics)", async () => {
+  const { primeVaulted } = await import("../src/lib/core/views");
+  const nyx = { uniqueName: "/P/NyxPrime", name: "Nyx Prime", category: "Warframes", masterable: true, isPrime: true, vaulted: true, components: [{ uniqueName: "/P/NyxPrimeBp", name: "Blueprint", ducats: 45, itemCount: 1 }] } as CatalogItem;
+  const farmable = buildModel(bundle([], [nyx], [relic("Axi S8 Intact", ["Nyx Prime Blueprint"], { vaulted: false })]));
+  assert.equal(primeVaulted(farmable, nyx), false);
+  const gone = buildModel(bundle([], [nyx], [relic("Axi S8 Intact", ["Nyx Prime Blueprint"], { vaulted: true })]));
+  assert.equal(primeVaulted(gone, nyx), true);
+  // No relic data for it at all: the catalog's flag.
+  assert.equal(primeVaulted(buildModel(bundle([], [nyx])), nyx), true);
 });

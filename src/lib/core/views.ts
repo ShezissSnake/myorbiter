@@ -18,6 +18,18 @@ export function partAvailability(m: Model, partName: string): "farmable" | "resu
   return "vaulted";
 }
 
+/**
+ * Whether a prime is vaulted: by its parts, as the drop tables have them (a part from no relic that
+ * still drops), else by the catalog's flag. The flag lags: Nyx Prime's parts drop from Railjack
+ * cache relics while it says vaulted. Varzia's stock counts as vaulted.
+ */
+export function primeVaulted(m: Model, item: { uniqueName: string; vaulted?: boolean }): boolean {
+  const parts = m.partsByParent.get(item.uniqueName) ?? [];
+  const avail = parts.map((p) => partAvailability(m, p.fullName)).filter((a) => a !== "unknown");
+  if (!avail.length) return item.vaulted === true;
+  return avail.some((a) => a !== "farmable");
+}
+
 // ---------------------------------------------------------------- 1. complete sets
 
 export interface SetRow {
@@ -66,7 +78,7 @@ export function setRows(m: Model): SetRow[] {
         ? sum(parts.map((p, i) => (partPrices[i] as number) * p.required))
         : null,
       ducats: sum(parts.map((p) => p.ducats * p.required)),
-      vaulted: parent.vaulted === true,
+      vaulted: primeVaulted(m, parent),
       tradesPerDay: m.tradesPerDay(`${parent.name} Set`),
       missing: parts
         .map((p, i) => ({
@@ -297,7 +309,7 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
     isPrime,
     status,
     unobtainable: UNOBTAINABLE.has(item.name),
-    vaulted: item.vaulted === true || vaulted,
+    vaulted: primeVaulted(m, item) || vaulted,
     setPrice: isPrime ? m.price(`${item.name} Set`) : null,
     partsOwned,
     partsTotal: parts.length,

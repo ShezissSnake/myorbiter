@@ -2,6 +2,7 @@
 // blueprint, its parts and resources), whether you own and have mastered it, and what it's worth.
 import { masteryPoints } from "./acquire";
 import { partFullName, UNOBTAINABLE, type Model } from "./model";
+import { primeVaulted } from "./views";
 import type { CatalogItem, Component } from "./types";
 
 export type Group = "warframes" | "primary" | "secondary" | "melee" | "companions" | "archwing" | "other";
@@ -137,7 +138,7 @@ export function collectionItem(m: Model, item: CatalogItem): CollectionItem {
     mastered: m.isMastered(item.uniqueName),
     building,
     isPrime,
-    vaulted: item.vaulted === true,
+    vaulted: isPrime ? primeVaulted(m, item) : item.vaulted === true,
     resurgence: isPrime && m.inResurgence(item.uniqueName),
     unobtainable: UNOBTAINABLE.has(item.name),
     masteryReq: item.masteryReq ?? 0,
