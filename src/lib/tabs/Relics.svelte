@@ -1,5 +1,8 @@
 <script lang="ts">
   import { info } from "../hover.svelte";
+  import { takeIntent } from "../intent.svelte";
+  import { dropSpots, wishlistRelics } from "../core/wishlist";
+  import { placeName } from "../core/describe";
   import { ERAS, type Model } from "../core/model";
   import { relicRows, unknownRelics, type RelicRow } from "../core/views";
   import type { Fissure } from "../core/types";
@@ -23,10 +26,22 @@
 
   import type { AdviceSettings } from "../backend";
   // Solo or radshare is one setting, shared with the Planner.
-  let { model, advice = $bindable() }: { model: Model; advice: AdviceSettings } = $props();
+  // wishlist: what you starred; relics that drop a part for it are marked.
+  let { model, advice = $bindable(), wishlist = [] }: { model: Model; advice: AdviceSettings; wishlist?: string[] } = $props();
+  const forWish = $derived(wishlistRelics(model, wishlist));
+  const wishTitle = (base: string) => `For your wishlist: ${(forWish.get(base) ?? []).map((x) => x.part).join(", ")}`;
 
   let era = $state<string>("all");
-  let vault = $state<"all" | "vaulted" | "farmable">("all");
+  let vault = $state<"all" | "vaulted" | "farmable" | "resurgence">("all");
+  // A link that asked for an era or Varzia's relics (Home's fissures, Varzia's card).
+  $effect(() => {
+    const want = takeIntent("relics");
+    if (!want) return;
+    query = "";
+    neededOnly = false;
+    era = want.era ?? "all";
+    vault = want.vault === "resurgence" || want.vault === "vaulted" || want.vault === "farmable" ? want.vault : "all";
+  });
   let neededOnly = $state(false);
   let query = $state("");
   let sort = $state({ key: "evI", desc: true });
@@ -48,7 +63,7 @@
     all.filter(
       (r) =>
         (era === "all" || r.era === era) &&
-        (vault === "all" || (vault === "vaulted" ? r.vaulted : !r.vaulted)) &&
+        (vault === "all" || (vault === "resurgence" ? r.resurgence : vault === "vaulted" ? r.vaulted : !r.vaulted)) &&
         (!neededOnly || r.neededCount > 0) &&
         matches(query, r.base, ...r.rewards.map((x) => x.name)),
     ),
@@ -113,7 +128,7 @@
   ]);
 </script>
 
-{#snippet baseCell(r: RelicRow)}<Named file={model.imageOf(r.base)} name={r.base} tint={eraTint(r.base)} />{/snippet}
+{#snippet baseCell(r: RelicRow)}<Named file={model.imageOf(r.base)} name={r.base} tint={eraTint(r.base)}>{#if forWish.has(r.base)}<span class="tag ok" title={wishTitle(r.base)}>wishlist</span>{/if}</Named>{/snippet}
 {#snippet ownedCell(r: RelicRow)}<Owned owned={r.owned} />{/snippet}
 {#snippet vaultCell(r: RelicRow)}<Avail v={r.resurgence ? "resurgence" : r.vaulted ? "vaulted" : "farmable"} />{/snippet}
 {#snippet evICell(r: RelicRow)}<P v={evI(r)} />{/snippet}
@@ -140,13 +155,28 @@
       <Avail v={r.resurgence ? "resurgence" : r.vaulted ? "vaulted" : "farmable"} />
       <Owned owned={r.owned} />
       <span class="grow"></span>
-      {#if r.neededCount}<span class="tag warn" title="Rewards you still need">{r.neededCount} you need</span>{/if}
+      {#if forWish.has(r.base)}<span class="tag ok" title={wishTitle(r.base)}>wishlist</span>{:else if r.neededCount}<span class="tag warn" title="Rewards you still need">{r.neededCount} you need</span>{/if}
       <ListButton {model} name="{r.base} Relic" />
     {/snippet}
   </ItemCard>
 {/snippet}
 
 {#snippet detail(r: RelicRow)}
+  {@const spots = dropSpots(model.relicGroups.get(r.base)?.byRefinement.Intact?.drops ?? [])}
+  <div class="dhead">
+    <Avail v={r.resurgence ? "resurgence" : r.vaulted ? "vaulted" : "farmable"} />
+    {#if r.total}<span class="refs">{#each Object.entries(r.owned).filter(([, n]) => n > 0) as [ref, n] (ref)}<span><b>{n}</b> {ref}</span>{/each}</span>{:else}<span class="dim small">None held</span>{/if}
+    {#if r.relicPrice != null}<span class="dim small">sells for</span><P v={r.relicPrice} />{/if}
+    <span class="grow"></span>
+    {#if r.total}<ListButton {model} name="{r.base} Relic" />{/if}
+  </div>
+  {#if spots.length}
+    <p class="small farm"><span class="register">Farm it</span>{#each spots as sp, i (sp.location)}{i ? " · " : ""}{placeName(sp.location)} <span class="dim">{pctFmt(sp.chance)}</span>{/each}</p>
+  {:else if r.resurgence}
+    <p class="small farm"><span class="register">Get it</span>From Varzia this rotation, for Aya or Regal Aya</p>
+  {:else if r.vaulted}
+    <p class="small farm dim">Vaulted: it drops nowhere now. Buy it, or wait for Varzia to bring it back.</p>
+  {/if}
   <table class="rewards">
     <thead>
       <tr>
@@ -234,7 +264,7 @@
     {/each}
   </section>
   <div class="bar">
-  <Seg bind:value={vault} options={[{ v: "all", label: "All", title: "Every relic you hold" }, { v: "vaulted", label: "Vaulted", title: "Relics that drop nowhere now: no new copies, so they tend to sell for more" }, { v: "farmable", label: "Farmable", title: "Relics that still drop in missions" }]} />
+  <Seg bind:value={vault} options={[{ v: "all", label: "All", title: "Every relic you hold" }, { v: "vaulted", label: "Vaulted", title: "Relics that drop nowhere now: no new copies, so they tend to sell for more" }, { v: "farmable", label: "Farmable", title: "Relics that still drop in missions" }, { v: "resurgence", label: "Varzia", title: "Relics Varzia sells this rotation (Prime Resurgence), for Aya or Regal Aya" }]} />
   <Chip bind:on={neededOnly} label="Has parts I need" title="Only relics that drop a part for something you haven't built or mastered" />
   <Seg bind:value={advice.squad} options={[{ v: 1, label: "Solo", title: "One crack, your own reward" }, { v: 4, label: "Radshare", title: "Four players crack the same relic and you pick the best of the four rewards" }]} />
   <input type="search" placeholder="Relic or reward…" bind:value={query} />
@@ -256,6 +286,11 @@
 
 <style>
   .clear { margin: .4rem 0 0; }
+  .dhead { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin-bottom: .6rem; }
+  .refs { display: inline-flex; gap: .8rem; font-size: .82rem; color: var(--platinum-dim); }
+  .refs b { color: var(--platinum); font-family: var(--face-mark); font-size: 1rem; }
+  .farm { margin: 0 0 .7rem; display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .4rem; }
+  .farm .register { font-size: .6rem; color: var(--gold-dim); margin-right: .3rem; }
   .era-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem 1rem; margin-top: var(--step); }
   .era-head h2 { margin: 0; }
   .eras { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: .5rem; padding: .7rem 0 0; }

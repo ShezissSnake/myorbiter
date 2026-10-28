@@ -21,12 +21,19 @@
   let plannedWith = $state("");
   const rulesKey = $derived(JSON.stringify([r, settings.minPrice, settings.minRelicPrice, settings.minShare, settings.sellable]));
   const stale = $derived(!!mkt.bulk && rulesKey !== plannedWith);
+  // Waiting for the relic prices orbiter reads on start: the button says so, rather than nothing.
+  let waiting = $state(false);
   async function makePlan() {
     plannedWith = rulesKey;
     // Relic prices still being read (orbiter just started): plan with them, not before them.
     if (mkt.relicRead) {
-      await mkt.relicRead;
-      await tick();
+      waiting = true;
+      try {
+        await mkt.relicRead;
+        await tick();
+      } finally {
+        waiting = false;
+      }
     }
     await mkt.planBulk(model, settings, advice);
   }
@@ -91,12 +98,12 @@
     <Chip bind:on={settings.bulk.arcanes} label="Extra maxed arcanes" title="Maxed arcanes beyond the one you keep, at max rank (never ones worth more dissolved for Vosfor)" />
     <Chip bind:on={settings.bulk.mods} label="Extra mods" title="Copies beyond the two you keep (your best one, and one to give a new player), for mods that sell at least once a day" />
     <span class="partrule">
-      <Chip bind:on={settings.bulk.parts} label="Prime parts over" title="Loose prime parts beyond this many copies (never ones going out in a set, never one that's a better deal as ducats)" />
-      <input type="number" min="1" inputmode="numeric" value={settings.bulk.partsOver} disabled={!settings.bulk.parts} aria-label="Prime parts kept" onchange={(e) => (settings.bulk.partsOver = whole(e.currentTarget.value, 1))} onwheel={(e) => e.currentTarget.blur()} />
+      <Chip bind:on={settings.bulk.parts} label="Spare prime parts" title="The spares Prime parts counts (everything beyond what you need to build and master), as loose parts: never ones going out in a set, never one that's a better deal as ducats" />
+      <label class="keepn" title="Copies of each part to hold on to whatever the advice; 0 sells every spare"><span class="register">keep</span><input type="number" min="0" inputmode="numeric" value={settings.bulk.partsKeep} disabled={!settings.bulk.parts} aria-label="Copies of each prime part to keep" onchange={(e) => (settings.bulk.partsKeep = whole(e.currentTarget.value, 0))} onwheel={(e) => e.currentTarget.blur()} /></label>
     </span>
     <Chip bind:on={settings.bulk.other} label="Everything else I don't need" title="Weapon parts and blueprints, gems, fish, Captura scenes and Ayatan sculptures beyond what your unbuilt items need (Inventory, Spare only, shows each one and why), plus veiled rivens and relics if you sell them (Settings, Selling). Only what sells at least once a day, and never a relic worth more cracked" />
     <span class="dim small minnote" title="Your minimum price, set next to Floor above your listings: nothing cheaper is listed">Skips anything under {settings.minPrice}p{settings.bulk.other ? `, relics under ${settings.minRelicPrice}p` : ""}</span>
-    <button class="stamp" disabled={!anyTicked || !!mkt.busy} onclick={makePlan}>{mkt.op === "Working out what to list" ? "Checking prices…" : mkt.bulk ? "Plan again" : "Plan the changes"}</button>
+    <button class="stamp" disabled={!anyTicked || !!mkt.busy || waiting} onclick={makePlan}>{waiting ? "Waiting for relic prices…" : mkt.op === "Working out what to list" ? "Checking prices…" : mkt.bulk ? "Plan again" : "Plan the changes"}</button>
   </div>
 
   {#if mkt.progress && mkt.op}
@@ -166,6 +173,8 @@
   .warn { color: var(--gold); }
   .ticks { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; }
   .partrule { display: inline-flex; align-items: center; gap: .45rem; }
+  .keepn { display: inline-flex; align-items: center; gap: .35rem; }
+  .keepn .register { font-size: .6rem; }
   .ticks input[type="number"] { width: 4.2rem; padding: .4rem .5rem; height: 32px; }
   .ticks .stamp { margin-left: auto; }
   .progress { display: flex; align-items: center; gap: .8rem; }

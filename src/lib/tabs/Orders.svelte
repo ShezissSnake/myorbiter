@@ -3,7 +3,7 @@
   import type { AdviceSettings, MarketSettings } from "../backend";
   import { heldFor, holdings, listingKey, overAsked, type MyOrder, type Plan } from "../core/market";
   import { LISTING_LIMIT } from "../core/bulk";
-  import { spareOf } from "../core/views";
+  import { arcaneRows, spareOf } from "../core/views";
   import { aboveCrack, relicCrackFor } from "../core/spares";
   import { mkt } from "../marketStore.svelte";
   import PageHead from "../ui/PageHead.svelte";
@@ -23,6 +23,8 @@
   // console: you play on a console or phone, so orbiter can't see what you hold. New listing then
   // finds anything warframe.market trades, and what needs your inventory (spares, "Can't deliver") is left out.
   let { model, settings = $bindable(), advice, console = false }: { model: Model; settings: MarketSettings; advice: AdviceSettings; console?: boolean } = $props();
+  // Arcanes you're still collecting copies of to max: an unranked listing of one works against that.
+  const collecting = $derived(console ? new Map<string, { copies: number; needed: number }>() : new Map(arcaneRows(model).filter((a) => !a.complete && a.copies > 0).map((a) => [a.name, { copies: a.copies, needed: a.needed }])));
 
   let email = $state("");
   let password = $state("");
@@ -381,6 +383,7 @@
               <Named file={model.imageOf(it?.name ?? "")} name={it?.name ?? o.itemId}>
                 {#if it}<button type="button" class="charted" class:on={charted === o.id} aria-label="Price history" aria-expanded={charted === o.id} title="What it sold for over the last 90 days, against your price" onclick={() => (charted = charted === o.id ? null : o.id)}><Icon name="chart" size={13} /></button>{/if}
                 {#if rankLabel(o)}<span class="tag">{rankLabel(o)}</span>{/if}
+                {#if it && collecting.has(it.name) && !o.rank}{@const c = collecting.get(it.name)!}<span class="tag ok" title="You're collecting copies to max it ({c.copies} of {c.needed}, on Arcanes): selling these sets you back">still collecting</span>{/if}
                 {#if held === 0}<span class="tag warn" title="As of TennoScope's last read of your inventory">you have none</span>
                 {:else if held != null && held < o.quantity}<span class="tag warn" title="As of TennoScope's last read of your inventory">you hold {held}</span>{/if}
               </Named>
@@ -400,6 +403,8 @@
             <td class="right">
               <input type="number" min="1" inputmode="numeric" class:edited={change?.platinum != null} value={edits[o.id]?.platinum ?? o.platinum}
                 oninput={(e) => edit(o, "platinum", e.currentTarget.value)} onkeydown={(e) => editKey(o, e)} onwheel={(e) => e.currentTarget.blur()} aria-label="Your price" />
+              <!-- Narrow windows hide Will set: what Reprice would do shows under the price instead. -->
+              {#if p?.change && !paused && o.visible && !change}<div class="willnote" class:up={p.target > o.platinum} title={p.reason === "floor" ? "Reprice sets this, held up by the floor" : "Reprice sets this"}>→ {p.target}p{p.reason === "floor" ? " · floor" : ""}</div>{/if}
               {#if change}
                 {@const over = overHeld(o)}
                 {#if over}<p class="err small">{over}</p>{/if}
@@ -557,10 +562,17 @@
   /* Less room: the "Will set" column goes first. */
   /* Page area under 900 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt900"]) .willset { display: none; }
+  .willnote { display: none; margin-top: .2rem; font-family: var(--face-register); font-size: .62rem; letter-spacing: .06em; color: var(--oxblood); white-space: nowrap; }
+  .willnote.up { color: var(--verdigris); }
+  :global(html[data-room~="lt900"]) .willnote { display: block; }
+  /* "auto 10" whole: the floor's placeholder without the wide capitals. */
+  .floorcol input::placeholder { text-transform: none; letter-spacing: 0; font-size: .74rem; }
   /* Less still: the per-listing floor box goes too (your floors still apply). */
   :global(html[data-room~="lt760"]) .floorcol { display: none; }
   /* Page area under 1100 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt1100"]) .orders input[type="number"] { width: 3.8rem; }
+  /* The floor's "auto 10" has to fit whole, or it reads as a 1p floor. */
+  .orders .floorcol input[type="number"] { width: 4.6rem; }
   :global(html[data-room~="lt1100"]) .orders :is(td, th) { padding-left: .4rem; padding-right: .4rem; }
   :global(html[data-room~="lt1100"]) .orders :is(td, th):first-child { padding-left: 0; }
   :global(html[data-room~="lt1100"]) .orders :is(td, th):last-child { padding-right: 0; }

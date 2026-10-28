@@ -184,7 +184,10 @@
   }
   // Ducats your spare parts would fetch, counting only the ones better traded in than sold.
   const spareDucats = $derived(partRows(model).filter((p) => p.spare > 0 && decide(p.price, p.ducats, p.tradesPerDay, settings.advice).verdict === "ducats").reduce((n, p) => n + p.ducats * p.spare, 0));
-  const varzia = $derived(varziaNeeds(model, rows));
+  const varzia = $derived(console ? [] : varziaNeeds(model, rows));
+  // On a console, her stock as it is: the primes she sells whole, and how many relics.
+  const varziaWhole = $derived((live.resurgence ?? []).filter((v) => v.ducats != null && !/ Relic$/.test(v.item)).sort((a, b) => (b.ducats ?? 0) - (a.ducats ?? 0)));
+  const varziaRelics = $derived((live.resurgence ?? []).filter((v) => / Relic$/.test(v.item)).length);
 
   // ------------------------------------------------------------ mastery
   const toLevel = $derived(rows.filter((r) => r.acq.difficulty === 0).sort((a, b) => b.points - a.points));
@@ -235,7 +238,7 @@
     { key: "varzia", label: "Varzia", hint: "Prime Resurgence: the primes you still need from her rotation" },
   ];
   /** Cards that need your inventory: never on a console. */
-  const NEEDS_INVENTORY = new Set(["ready", "foundry", "wishes", "deals", "mastery", "varzia"]);
+  const NEEDS_INVENTORY = new Set(["ready", "foundry", "wishes", "deals", "mastery"]);
   const cards = $derived(console ? CARDS.filter((c) => !NEEDS_INVENTORY.has(c.key)) : CARDS);
   let customising = $state(false);
   const hidden = $derived(new Set(settings.homeHidden));
@@ -356,13 +359,13 @@
 
     <!-- Ready to sell -->
     <section class="panel ready" class:off={off("ready")} class:half={orphan("ready")} class:lone={lone("ready")} style:--n={share("ready")} data-card="ready">
-      {@render head("platinum", null, "Ready to sell", "market", "Put them on sale")}
+      {@render head("platinum", null, "Ready to sell", "market#spares", "Put them on sale")}
       {#if !ticked}
         <p class="dim">Nothing ticked in <b>Put my spares on sale</b> on Orders.</p>
       {:else if !byKind.length}
         <p class="dim">Nothing spare worth {settings.market.minPrice}p or more in what you ticked.</p>
       {:else}
-        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Only the kinds ticked under Put my spares on sale, on Orders, and only what's worth at least your minimum price there">about, at daily median prices, in what you ticked on Orders (worth {settings.market.minPrice}p or more){unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
+        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Only the kinds ticked under Put my spares on sale, on Orders, and only what's worth at least your minimum price there">at daily median prices: what Put my spares on sale covers, {settings.market.minPrice}p and up{unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
         <ul class="kinds">
           {#each byKind as k (k.kind)}
             <li>
@@ -371,6 +374,7 @@
             </li>
           {/each}
         </ul>
+        {#if !console && !settings.market.bulk.parts}<p class="dim small note">Spare prime parts aren't ticked: <button class="link" onclick={() => go("parts?best=Sell")}>Prime parts</button> has them.</p>{/if}
       {/if}
     </section>
 
@@ -385,11 +389,11 @@
           <tbody>
             {#each eras as e (e.era)}
               <tr>
-                <td><span class="era"><GameIcon name={eraIcon(e.era)} size={24} /><b class="mark">{e.era}</b></span></td>
+                <td>{#if !console && e.era !== "Omnia"}<button class="era go" title="Your {e.era} relics, on Relics" onclick={() => go(`relics?era=${e.era}`)}><GameIcon name={eraIcon(e.era)} size={24} /><b class="mark">{e.era}</b></button>{:else}<span class="era"><GameIcon name={eraIcon(e.era)} size={24} /><b class="mark">{e.era}</b></span>{/if}</td>
                 <td class="right nowrap">{e.normal.length}{#if e.hard.length}<span class="sp" title="Steel Path fissures">&nbsp;+&nbsp;{e.hard.length}&nbsp;SP</span>{/if}</td>
                 <td class="dim small"><span class="clip" title={missionList([...e.normal, ...e.hard])}>{e.normal.length + e.hard.length ? missionList([...e.normal, ...e.hard]) : "none open"}</span></td>
                 <td class="right dim small nowrap ends">{e.next ? until(e.next.expiry, now) : ""}</td>
-                {#if !console}<td class="nowrap">{#if e.best}<span class="relic" use:info={e.best.r.base}><b class="mark">{e.best.r.base}</b><span class="dim small">{e.best.refinement} · {e.best.r.total} held</span></span>{:else}<span class="dim small">{e.era === "Omnia" ? "any relic" : "none held"}</span>{/if}</td>
+                {#if !console}<td class="nowrap">{#if e.best}<span class="relic" use:info={e.best.r.base}><b class="mark">{e.best.r.base}</b><span class="dim small">{e.best.refinement} · {e.best.r.owned[e.best.refinement] ?? 0} of {e.best.r.total} held</span></span>{:else}<span class="dim small">{e.era === "Omnia" ? "any relic" : "none held"}</span>{/if}</td>
                 <td class="right">{#if e.best}<P v={e.best.v} />{/if}</td>{/if}
               </tr>
             {/each}
@@ -567,9 +571,9 @@
 
     <!-- Baro -->
     <section class="panel baro" class:off={off("baro")} class:half={orphan("baro")} class:lone={lone("baro")} style:--n={share("baro")} data-card="baro">
-      {@render head("baro", null, "Baro Ki’Teer", console ? null : "parts", "Spares for ducats")}
+      {@render head("baro", null, "Baro Ki’Teer", console ? null : "parts?best=Ducats", "Spares for ducats")}
       {#if !baro}
-        <p class="dim">Schedule unavailable.</p>
+        <p class="dim">{liveWaiting || liveError ? liveNote : "Baro's schedule isn't in the worldstate right now."}</p>
       {:else}
         <div class="when">
           {#if baroHere}<b class="mark gold">Here now</b><span class="dim">{baro.location} · leaves in {until(baro.expiry, now)}</span>
@@ -594,10 +598,22 @@
     </section>
 
     <!-- Varzia -->
-    <section class="panel varzia" class:off={off("varzia")} class:half={orphan("varzia")} class:lone={lone("varzia")} style:--n={share("varzia")} data-card="varzia" class:slim={!!live.resurgence && !varzia.length}>
-      {@render head("varzia", null, "Varzia: Prime Resurgence", "relics", "Relics")}
+    <section class="panel varzia" class:off={off("varzia")} class:half={orphan("varzia")} class:lone={lone("varzia")} style:--n={share("varzia")} data-card="varzia" class:slim={!!live.resurgence && !varzia.length && !console}>
+      {@render head("varzia", null, "Varzia: Prime Resurgence", console ? null : "relics?vault=resurgence", "Her relics")}
       {#if !live.resurgence}
-        <p class="dim">Rotation unavailable.</p>
+        <p class="dim">{liveWaiting || liveError ? liveNote : "Varzia's rotation isn't in the worldstate right now."}</p>
+      {:else if console}
+        <div class="when"><b class="mark">{varziaWhole.length} for Regal Aya</b><span class="dim">{varziaRelics ? `and ${varziaRelics} relics for Aya · ` : ""}rotation ends in {until(live.resurgenceExpiry, now)}</span></div>
+        <ul class="vz">
+          {#each varziaWhole.slice(0, 8) as v (v.uniqueName)}
+            <li>
+              <Thumb file={model.imageOf(v.item)} size={26} name={v.item} />
+              <span class="sn"><b class="mark" use:info={v.item}>{v.item.replace(/^M P V /, "")}</b><span class="dim small">{v.ducats} Regal Aya</span></span>
+              <GameIcon name="aya" size={16} />
+            </li>
+          {/each}
+        </ul>
+        {#if varziaWhole.length > 8}<p class="dim small">and {varziaWhole.length - 8} more</p>{/if}
       {:else}
         <div class="when"><b class="mark">{varzia.length ? `${varzia.length} you need` : "Nothing you need"}</b><span class="dim">{varzia.length ? "" : "every prime she has, you've mastered or can build · "}rotation ends in {until(live.resurgenceExpiry, now)}</span></div>
         <ul class="vz">
@@ -749,6 +765,9 @@
   .note { margin: 0; }
   .nowrap { white-space: nowrap; }
   .clip { display: block; max-width: 30rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  button.era { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: .5rem; }
+  button.era:hover b { color: var(--gold); }
+  button.era:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
   .relic { display: grid; }
   .relic b { font-size: 1rem; }
   .relic .small { font-family: var(--face-text); }

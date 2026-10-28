@@ -245,3 +245,12 @@ export function wishlistEras(m: Model, uniques: string[]): Map<string, { relic: 
   }
   return out;
 }
+
+/** The relics you hold for your wishlist, by relic: the parts each could give, and for what. */
+export function wishlistRelics(m: Model, uniques: string[]): Map<string, { part: string; item: string }[]> {
+  const out = new Map<string, { part: string; item: string }[]>();
+  for (const list of wishlistEras(m, uniques).values()) {
+    for (const x of list) out.set(x.relic, [...(out.get(x.relic) ?? []), { part: x.part, item: x.item }]);
+  }
+  return out;
+}

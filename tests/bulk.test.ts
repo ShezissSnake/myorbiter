@@ -45,7 +45,7 @@ const rhino = (n: number) => [
   inv("/R/Helmet", "Rhino Prime Neuroptics Blueprint", "prime_part", n),
   inv("/R/Systems", "Rhino Prime Systems Blueprint", "prime_part", n),
 ];
-const only = (k: Partial<BulkRules>): BulkRules => ({ sets: false, arcanes: false, mods: false, parts: false, partsOver: 10, other: false, ...k });
+const only = (k: Partial<BulkRules>): BulkRules => ({ sets: false, arcanes: false, mods: false, parts: false, partsKeep: 10, other: false, ...k });
 
 test("sets: every complete set once mastered, all but one otherwise", () => {
   const unmastered = sellTargets(buildModel(bundle(rhino(3))), only({ sets: true }), defaultAdvice());
@@ -146,7 +146,7 @@ test("plan: categories you didn't tick are never touched", () => {
   const m = buildModel(bundle([]));
   const plan = bulkPlan(ctx(m, [order("s", "set", 1, 60), order("x", "ser", 1, 20, 0)], {}), only({ arcanes: true }), []);
   assert.deepEqual(plan, []);
-  assert.deepEqual(defaultBulkRules().partsOver, 10);
+  assert.deepEqual(defaultBulkRules().partsKeep, 0, "prime parts follow the Prime parts page's spare count");
 });
 
 test("plan: your own listings in a ticked category are kept while you hold them, lowered when you hold fewer", () => {
@@ -251,7 +251,7 @@ test("ducats: a set or part worth more to you as ducats isn't sold, and your lis
   const m = buildModel(bundle([...rhino(2), inv(RHINO, "Rhino Prime", "warframe", 1, { mastered: true })]));
   // At 0.5p a ducat the set's 145 ducats are ~72p to you, more than its 60p.
   const advice = { ...defaultAdvice(), platPerDucat: 0.5 };
-  const rules = only({ sets: true, parts: true, partsOver: 0 });
+  const rules = only({ sets: true, parts: true, partsKeep: 0 });
   const targets = sellTargets(m, rules, advice);
   const set = targets.find((t) => t.name === "Rhino Prime Set");
   assert.ok(set?.hold?.takeDown);

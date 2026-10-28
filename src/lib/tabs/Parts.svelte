@@ -21,6 +21,8 @@
   import { matches, type Column } from "../ui/table";
   import { marketUrl, openUrl } from "../backend";
   import { info } from "../hover.svelte";
+  import PriceHistory from "../ui/PriceHistory.svelte";
+  import { takeIntent } from "../intent.svelte";
 
   // The ducat rate and smallest sale worth a trade are yours to set here; the bulk sale uses them too.
   let { model, advice = $bindable() }: { model: Model; advice: AdviceSettings } = $props();
@@ -31,6 +33,14 @@
   let avail = $state<"all" | "farmable" | "vaulted">("all");
   let best = $state<"all" | "Keep" | "Set" | "Sell" | "Ducats">("all");
   let sort = $state({ key: "value", desc: true });
+  // A link that asked for one kind of advice (Baro's card: Spares for ducats).
+  $effect(() => {
+    const want = takeIntent("parts");
+    if (!want) return;
+    query = "";
+    if (want.best === "Keep" || want.best === "Set" || want.best === "Sell" || want.best === "Ducats") best = want.best;
+    if (want.best) parent = "all";
+  });
 
   const all = $derived(partRows(model));
   const rows = $derived(
@@ -88,6 +98,7 @@
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
   ];
   const columns = $derived(spareMatters ? allColumns : allColumns.filter((c) => c.key !== "spare"));
+  const pctOf = (x: number | null | undefined) => (x == null ? "–" : `${Math.round(x * 10) / 10}%`);
   const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 </script>
 
@@ -130,11 +141,30 @@
 {/snippet}
 
 {#snippet detail(r: PartRow)}
+  {@const v = verdict(r)}
+  {@const src = model.sourcesByReward.get(r.name) ?? []}
+  <div class="figs">
+    <span title="Copies you hold"><span class="register">Held</span><b class="mark">{r.quantity}</b></span>
+    <span title="Daily median on warframe.market"><span class="register">Price</span><P v={r.price} /></span>
+    <span title="What Baro Ki'Teer gives for one"><span class="register">Ducats</span><P v={r.ducats} d /></span>
+    {#if r.tradesPerDay != null}<span title="How many sell on warframe.market in a day, on average"><span class="register">Sells</span><b>{Math.round(r.tradesPerDay * 10) / 10}<small class="dim">/day</small></b></span>{/if}
+    <span title={VERDICT_TITLE[v]}><span class="register">Best as</span><b class="v-{v}">{v === "Set" ? "Sell as set" : v}</b></span>
+  </div>
   <p class="small dim">
-    {r.quantity} held{r.keep ? ` · ${r.keep} kept to build ${r.parentName}` : ""}{r.inSets ? ` · ${r.inSets} go into ${setsFor.get(r.parentName) ?? 0} complete set${setsFor.get(r.parentName) === 1 ? "" : "s"}` : ""}{r.spare - r.inSets > 0 ? ` · ${r.spare - r.inSets} loose ${verdict(r) === "Ducats" ? "for ducats" : "to sell"}` : ""}
+    {r.keep ? `${r.keep} kept to build ${r.parentName}` : r.parentMastered ? `${r.parentName} is mastered: every copy is spare` : `${r.parentName} is built: every copy is spare`}{r.inSets ? ` · ${r.inSets} go into ${setsFor.get(r.parentName) ?? 0} complete set${setsFor.get(r.parentName) === 1 ? "" : "s"}` : ""}{r.spare - r.inSets > 0 ? ` · ${r.spare - r.inSets} loose ${v === "Ducats" ? "for ducats" : "to sell"}` : ""}
   </p>
+  {#if (r.tradesPerDay ?? 1) > 0}<div class="hist"><PriceHistory name={r.name} height={130} /></div>{/if}
+  {#if src.length}
+    <div class="odds">
+      <span class="register">Drops from (intact → radiant)</span>
+      {#each src.slice(0, 8) as s (s.base)}<span class="src" class:vaulted={s.vaulted && !s.resurgence} use:info={s.base}>{s.base} <span class="dim">{s.rarity} · {pctOf(s.chanceIntact)} → {pctOf(s.chanceRadiant)}</span></span>{/each}
+      {#if src.length > 8}<span class="dim small">+{src.length - 8} more</span>{/if}
+    </div>
+  {/if}
   <div class="actions">
+    {@render listCell(r)}
     {#if r.inSets > 0 && r.spare > r.inSets}<button class="stamp" onclick={(e) => { e.stopPropagation(); mkt.startListing(model, r.name, { quantity: r.spare - r.inSets }); }}>Or list {r.spare - r.inSets} loose</button>{/if}
+    <button class="link" onclick={() => details.open(r.parentUnique)}>{r.parentName} ›</button>
     <button class="link" onclick={() => openUrl(marketUrl(r.name))}>warframe.market ↗</button>
   </div>
 {/snippet}
@@ -195,4 +225,14 @@
   .v-Set { color: var(--platinum); font-weight: 600; }
   .v-Sell { color: var(--platinum); }
   .v-Ducats { color: var(--gold); }
+  .figs { display: flex; flex-wrap: wrap; gap: 1.4rem; align-items: end; margin-bottom: .6rem; }
+  .figs > span { display: grid; gap: .2rem; }
+  .figs .register { font-size: .6rem; }
+  .figs b.mark { font-size: 1.2rem; line-height: 1; }
+  .hist { max-width: 46rem; margin: .4rem 0 .8rem; }
+  .odds { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .45rem; margin: 0 0 .7rem; font-size: .8rem; }
+  .odds .register { flex-basis: 100%; font-size: .6rem; }
+  .src { padding: .12rem .45rem; border: 1px solid var(--rule-bright); }
+  .src.vaulted { opacity: .7; border-style: dashed; }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1.2rem; }
 </style>

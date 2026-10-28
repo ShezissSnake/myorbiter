@@ -22,9 +22,12 @@ export interface BulkRules {
   arcanes: boolean;
   /** Mods beyond the two you keep (your best and one to give away), if they sell at least once a day. */
   mods: boolean;
-  /** Loose prime parts beyond `partsOver` copies, unless they're worth more as ducats. */
+  /**
+   * Spare prime parts, as Prime parts counts them (all but what you need to build and master),
+   * never leaving you fewer than `partsKeep` of one; not the ones worth more as ducats.
+   */
   parts: boolean;
-  partsOver: number;
+  partsKeep: number;
   /**
    * Everything else you hold more of than you need (see spares.ts): weapon parts and blueprints,
    * relics, gems, fish, Captura scenes, Ayatan sculptures, veiled rivens. Only what sells at least
@@ -32,7 +35,7 @@ export interface BulkRules {
    */
   other: boolean;
 }
-export const defaultBulkRules = (): BulkRules => ({ sets: true, arcanes: true, mods: true, parts: false, partsOver: 10, other: false });
+export const defaultBulkRules = (): BulkRules => ({ sets: true, arcanes: true, mods: true, parts: false, partsKeep: 0, other: false });
 
 export const KIND_LABEL: Record<BulkKind, string> = { set: "Set", arcane: "Arcane", mod: "Mod", part: "Prime part", other: "Other item" };
 /** Each kind's switch in BulkRules. */
@@ -121,10 +124,11 @@ export function sellTargets(m: Model, rules: BulkRules, advice: DucatOptions, in
     for (const p of partRows(m)) {
       // Parts going out inside a set aren't listed again on their own.
       const loose = p.spare - (rules.sets ? p.inSets : 0);
-      const over = p.quantity - (rules.sets ? p.inSets : 0) - rules.partsOver;
+      const over = p.quantity - (rules.sets ? p.inSets : 0) - rules.partsKeep;
       const n = Math.min(loose, over);
       if (n <= 0) continue;
-      const part: SellTarget = { kind: "part", name: p.name, unique: null, rank: null, quantity: n, why: `${p.quantity} held: the ones over ${rules.partsOver} go` };
+      const why = p.keep ? `${p.quantity} held, ${p.keep} kept to build ${p.parentName}` : `${p.quantity} held, ${p.parentName} ${p.parentMastered ? "mastered" : "built"}`;
+      const part: SellTarget = { kind: "part", name: p.name, unique: null, rank: null, quantity: n, why: rules.partsKeep > p.keep ? `${why}, ${rules.partsKeep} kept in all` : why };
       // Better traded to Baro: kept for ducats, and a listing of yours for it comes down. Not worth a
       // trade, or slow and close to its ducats: not listed, but a listing you made stays.
       const asDucats = ducatsWin(p.price, p.ducats, advice);

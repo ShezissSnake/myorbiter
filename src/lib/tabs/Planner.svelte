@@ -15,12 +15,16 @@
   import Owned from "../ui/Owned.svelte";
   import { info } from "../hover.svelte";
   import { details } from "../details.svelte";
-  import { openEras } from "../core/wishlist";
+  import { openEras, wishlistRelics } from "../core/wishlist";
   import type { Fissure } from "../core/types";
 
   // The mode is kept in settings, so it survives a restart and the Guide can open either one.
   // fissures: the live ones, so a relic you can crack right now says so.
-  let { model, settings = $bindable(), mode = $bindable("sets"), fissures = null }: { model: Model; settings: AdviceSettings; mode?: "sets" | "radiant"; fissures?: Fissure[] | null } = $props();
+  // wishlist: what you starred; relics you hold for it are marked, and can be the only ones shown.
+  let { model, settings = $bindable(), mode = $bindable("sets"), fissures = null, wishlist = [] }: { model: Model; settings: AdviceSettings; mode?: "sets" | "radiant"; fissures?: Fissure[] | null; wishlist?: string[] } = $props();
+  const forWish = $derived(wishlistRelics(model, wishlist));
+  let wishOnly = $state(false);
+  const wishTitle = (base: string) => `For your wishlist: ${(forWish.get(base) ?? []).map((x) => x.part).join(", ")}`;
   let openOnly = $state(false);
   /** Buying a near-complete set's missing parts at the daily median; null when one has no price. */
   const buyCost = (g: SetGap) => g.missing.reduce<number | null>((n, x) => { const p = model.price(x.name); return n == null || p == null ? null : n + p * x.count; }, 0);
@@ -43,7 +47,7 @@
 
   // ------------------------------------------------ crack for sets
   const plan = $derived(crackRows(model, settings.maxMissing));
-  const crack = $derived(plan.relics.filter((r) => (!vaultedOnly || r.vaulted) && (!openOnly || isOpen(r.base)) && matches(query, r.base, ...r.hits.map((h) => h.reward))));
+  const crack = $derived(plan.relics.filter((r) => (!vaultedOnly || r.vaulted) && (!openOnly || isOpen(r.base)) && (!wishOnly || forWish.has(r.base)) && matches(query, r.base, ...r.hits.map((h) => h.reward))));
   /** The gap lists show a few at first: the table above them is the plan. */
   const GAPS_SHOWN = 10;
   let open = $state<Record<string, boolean>>({});
@@ -69,7 +73,7 @@
   // ------------------------------------------------ radiant
   const radiant = $derived(
     radiantRows(model, { squad: settings.squad, metric, platPerDucat: settings.platPerDucat }).filter(
-      (r) => r.refinable > 0 && (!vaultedOnly || r.vaulted) && (!openOnly || isOpen(r.base)) && matches(query, r.base, r.rare?.name),
+      (r) => r.refinable > 0 && (!vaultedOnly || r.vaulted) && (!openOnly || isOpen(r.base)) && (!wishOnly || forWish.has(r.base)) && matches(query, r.base, r.rare?.name),
     ),
   );
   const canRefine = $derived(Math.floor(traces / 100));
@@ -101,7 +105,7 @@
   ]);
 </script>
 
-{#snippet relicCell(r: { base: string })}<span class="rel"><Named file={model.imageOf(r.base)} name={r.base} tint={eraTint(r.base)} />{#if fissures && !isOpen(r.base)}<span class="closed" title="No {r.base.split(' ')[0]} fissure is open right now: an Omnia one takes it, or wait for the next">no fissure now</span>{/if}</span>{/snippet}
+{#snippet relicCell(r: { base: string })}<span class="rel"><Named file={model.imageOf(r.base)} name={r.base} tint={eraTint(r.base)} />{#if forWish.has(r.base)}<span class="tag ok" title={wishTitle(r.base)}>wishlist</span>{/if}{#if fissures && !isOpen(r.base)}<span class="closed" title="No {r.base.split(' ')[0]} fissure is open right now: an Omnia one takes it, or wait for the next">no fissure now</span>{/if}</span>{/snippet}
 {#snippet ownedCell(r: CrackRow)}<Owned owned={r.owned} />{/snippet}
 {#snippet vaultCell(r: { vaulted: boolean })}<Avail v={r.vaulted ? "vaulted" : "farmable"} />{/snippet}
 {#snippet chanceCell(r: CrackRow)}<span class="pct">{(r.chance * 100).toFixed(1)}%</span>{/snippet}
@@ -180,6 +184,7 @@
       <Seg bind:value={metric} options={[{ v: "plat", label: "Platinum", title: "Rank by what a crack is worth in platinum" }, { v: "ducats", label: "Ducats", title: "Rank by the ducats a crack gives, for Baro" }, { v: "need", label: "Parts I need", title: "Chance of a part for something you haven't built or mastered" }]} />
     {/if}
     <Chip bind:on={vaultedOnly} label="Vaulted only" title="Only relics that drop nowhere now" />
+    {#if forWish.size}<Chip bind:on={wishOnly} label="For my wishlist" title="Only relics you hold that drop a part for something on your wishlist" />{/if}
     {#if fissures && ERAS_SHOWN.some((e) => !openNow[e]?.length)}<Chip bind:on={openOnly} label="Fissure open now" title="Only relics with a fissure of their era open right now (some eras have none at the moment)" />{/if}
     <input type="search" placeholder={mode === "sets" ? "Relic or part…" : "Relic or reward…"} bind:value={query} />
   </div>

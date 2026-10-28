@@ -80,6 +80,7 @@
   import NoticesSheet from "./lib/NoticesSheet.svelte";
   import Toasts from "./lib/ui/Toasts.svelte";
   import { mkt } from "./lib/marketStore.svelte";
+  import { parseTarget, setIntent } from "./lib/intent.svelte";
   import { ts } from "./lib/tennoscopeStore.svelte";
 
   /** Your choice from the fold button (kept in settings); until you make one, it folds by itself in a narrow window. */
@@ -370,15 +371,22 @@
   $effect(() => {
     if (settings.tab !== "home") homeReveal = null;
   });
-  /** Opens a page; on Home, scrolls to a card and lights it up briefly. */
-  function goTo(page: string, card: string | null = null) {
+  /**
+   * Opens a page, from a link like "parts?best=Ducats#top": the filters go to the page (intent),
+   * and a spot ("home#baro", "market#spares") is scrolled to and lit up briefly.
+   */
+  function goTo(target: string, spot: string | null = null) {
+    const t = parseTarget(target);
+    const page = t.page;
+    const card = spot ?? t.spot;
+    setIntent(page, t.want);
     settings.tab = page;
-    if (page !== "home" || !card) return;
-    homeReveal = card;
+    if (!card) return;
+    if (page === "home") homeReveal = card;
     // After Home has drawn the card. The glow is an animation of its own (the page redraws the
     // card's classes, which would wipe a class put on by hand), starting once the scroll lands.
     setTimeout(() => {
-      const el = document.querySelector<HTMLElement>(`.pane.shown [data-card="${card}"]`);
+      const el = document.querySelector<HTMLElement>(`.pane.shown [data-card="${card}"], .pane.shown #${CSS.escape(card)}`);
       if (!el) return;
       const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
       el.scrollIntoView({ block: "center", behavior: still ? "auto" : "smooth" });
@@ -1511,9 +1519,9 @@
       {#snippet pMastery()}<Mastery {model} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} />{/snippet}
       {#snippet pArcanes()}<Arcanes {model} bind:advice={settings.advice} />{/snippet}
       {#snippet pMods()}<Mods {model} />{/snippet}
-      {#snippet pRelics()}<Relics {model} bind:advice={settings.advice} />{/snippet}
-      {#snippet pPlanner()}<Planner {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} />{/snippet}
-      {#snippet pHome()}<Home {model} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => (settings.tab = t)} {shortListings} {liveAt} {liveError} />{/snippet}
+      {#snippet pRelics()}<Relics {model} bind:advice={settings.advice} wishlist={settings.favourites} />{/snippet}
+      {#snippet pPlanner()}<Planner {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} wishlist={settings.favourites} />{/snippet}
+      {#snippet pHome()}<Home {model} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => goTo(t)} {shortListings} {liveAt} {liveError} />{/snippet}
       {#snippet pSales()}<Sales {model} bind:settings={settings} go={(t: string) => (settings.tab = t)} />{/snippet}
       {#snippet pMarket()}<Orders {model} console={onConsole} bind:settings={settings.market} advice={settings.advice} />{/snippet}
       {#snippet pGuide()}<Guide console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} go={(t: string) => (settings.tab = t)} bind:plannerMode={settings.plannerMode} />{/snippet}
@@ -1653,6 +1661,14 @@
     .compact .nav .ic { width: 1.35rem; height: 1.35rem; }
     .shell:not(.compact) .nav { padding-top: .32rem; padding-bottom: .32rem; }
     .shell:not(.compact) .sec { padding-top: .6rem; padding-bottom: .25rem; }
+  }
+  /* Steam Deck height (800 px): every page still fits unfolded. */
+  @media (max-height: 820px) {
+    .shell:not(.compact) .brand { padding-top: .6rem; padding-bottom: .5rem; }
+    .shell:not(.compact) nav { padding-top: .3rem; padding-bottom: .3rem; }
+    .shell:not(.compact) .nav { padding-top: .2rem; padding-bottom: .2rem; }
+    .shell:not(.compact) .sec { padding-top: .45rem; padding-bottom: .15rem; }
+    .shell:not(.compact) .foot { gap: .4rem; padding-top: .55rem; padding-bottom: .6rem; }
   }
 
   .notice { clip-path: var(--cut); margin-top: var(--field); padding: 1.6rem 1.8rem; border: 1px solid var(--rule); background: var(--plate); max-width: 52rem; display: grid; gap: .8rem; }

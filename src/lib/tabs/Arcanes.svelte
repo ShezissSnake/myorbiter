@@ -160,7 +160,7 @@
   </ItemCard>
 {/snippet}
 {#snippet spareCard(x: SpareArcane, open: () => void)}
-  <ItemCard hover={x.row.name} title={x.row.name} sub={x.row.type} image={model.imageOf(x.row.name)} artSize={84} owned={x.verdict === "sell"}>
+  <ItemCard hover={x.row.name} title={x.row.name} sub={x.row.type} image={model.imageOf(x.row.name)} artSize={84} owned={x.verdict === "sell"} onopen={open}>
     {@render spareHave(x)}
     <div class="choice">
       <span class:win={x.verdict === "sell"}><span class="register">Sell</span>{@render sellCell(x)}</span>
@@ -173,6 +173,13 @@
       {@render spareList(x)}
     {/snippet}
   </ItemCard>
+{/snippet}
+
+{#snippet spareDetail(x: SpareArcane)}
+  <UpgradeDetail {model} name={x.row.name} unique={x.row.unique} ranks={ranksOf(x.row)} tradable={x.row.tradable}>
+    <p class="small"><b class="verdict v-{x.verdict}">{x.verdict === "sell" ? "Sell" : "Dissolve at Loid"}</b> <span class="dim">· {x.why}</span></p>
+    <div class="actions">{@render spareList(x)}</div>
+  </UpgradeDetail>
 {/snippet}
 
 {#snippet detail(r: ArcaneRow)}
@@ -232,7 +239,7 @@
         {/each}
       </div>
     </section>
-    <Browse id="arcane-spares" rows={spareRows} columns={spareColumns} key={(x) => x.row.unique} bind:sort={spareSort} card={spareCard} min="18rem" empty="No spare arcanes: you keep one of each and have nothing extra." />
+    <Browse id="arcane-spares" rows={spareRows} columns={spareColumns} key={(x) => x.row.unique} bind:sort={spareSort} detail={spareDetail} card={spareCard} title={(x) => x.row.name} min="18rem" empty="No spare arcanes: you keep one of each and have nothing extra." />
   {:else}
     <Browse id="arcanes" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" />
   {/if}
