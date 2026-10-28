@@ -16,7 +16,7 @@ const riven: Riven = {
   id: "r1", type: "PlayerMeleeWeaponRandomModRare", kind: "Melee", weapon: "Okina", weaponUnique: "/Lotus/Weapons/Tenno/Melee/Okina", image: null,
   name: "Cali-Acritio", rank: 8, rerolls: 221, mastery: 13, polarity: "vazarin",
   stats: [stat("WeaponCritDamageMod", 0.961), stat("WeaponMeleeRangeIncMod", 1.23), stat("WeaponMeleeComboEfficiencyMod", -0.634, false)],
-  quality: 0.5, grade: "B", spliced: false,
+  quality: 0.5, grade: "B", spliced: false, companion: false,
 };
 
 test("a riven in warframe.market's auction form, in the numbers the site shows", () => {

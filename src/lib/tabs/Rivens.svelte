@@ -41,10 +41,14 @@
   let kind = $state("all");
   let splicedOnly = $state(false);
   let query = $state("");
-  const kinds = $derived([...new Set(mine.map((r) => r.kind))].sort().map((k) => ({ k, n: mine.filter((r) => r.kind === k).length })));
+  // Companions' weapons take the usual riven kinds (a sentinel's rifle takes a rifle riven): they're
+  // a kind of their own here, and Rifle, Melee… are your own weapons'.
+  const kindOf = (r: Riven) => (r.companion ? "companion" : r.kind);
+  const kinds = $derived([...new Set(mine.filter((r) => !r.companion).map((r) => r.kind))].sort().map((k) => ({ k, n: mine.filter((r) => !r.companion && r.kind === k).length })));
+  const companions = $derived(mine.filter((r) => r.companion).length);
   const splicedCount = $derived(mine.filter((r) => r.spliced).length);
   const best = $derived(mine.reduce<Riven | null>((b, r) => (r.quality != null && (b?.quality == null || r.quality > b.quality) ? r : b), null));
-  const shown = $derived(mine.filter((r) => (kind === "all" || r.kind === kind) && (!splicedOnly || r.spliced) && matches(query, r.weapon, r.name, ...r.stats.map((x) => x.label))));
+  const shown = $derived(mine.filter((r) => (kind === "all" || (kind === "regular" ? !r.companion : kindOf(r) === kind)) && (!splicedOnly || r.spliced) && matches(query, r.weapon, r.name, ...r.stats.map((x) => x.label))));
   /** The cheapest riven listed for its weapon, whatever its stats (from the price check). */
   const floorOf = (r: Riven) => (checks[r.id]?.any ? priceCheck(checks[r.id].any!).lowest : null);
   const sorted = $derived(
@@ -262,9 +266,11 @@
   {:else}
     <div class="bar">
       <input type="search" placeholder="Filter rivens…" bind:value={query} aria-label="Filter rivens by weapon, name or stat" title="A weapon, a riven's name or a stat" />
-      <select bind:value={kind} aria-label="Riven kind" title="Only rivens for one kind of weapon">
+      <select bind:value={kind} aria-label="Riven kind" title="Only rivens for one kind of weapon: your own weapons by type, or your companions' (a sentinel's or MOA's gun, a hound's claws)">
         <option value="all">All kinds ({mine.length})</option>
+        {#if companions}<option value="regular">Your weapons ({mine.length - companions})</option>{/if}
         {#each kinds as x (x.k)}<option value={x.k}>{x.k} ({x.n})</option>{/each}
+        {#if companions}<option value="companion">Companion weapons ({companions})</option>{/if}
       </select>
       {#if splicedCount}<Chip bind:on={splicedOnly} label="Spliced ({splicedCount})" title="Only rivens with a stat from Riven Splicing (Gas, Corrosive, Weak Point Damage…), which can't roll by cycling" />{/if}
       <Seg label="Sort" bind:value={sort} options={[{ v: "grade", label: "Best rolls", title: "The best overall grade first" }, { v: "weapon", label: "Weapon", title: "By weapon, A to Z" }, { v: "rank", label: "Rank", title: "The highest rank first" }, { v: "cheapest", label: "Weapon floor", title: "The weapons whose cheapest listed riven costs most first (price-checked rivens)" }]} />
@@ -283,7 +289,7 @@
           <header>
             <Art file={r.image} size={74} />
             <div class="t">
-              <span class="register">{r.kind} riven · {r.weapon}</span>
+              <span class="register">{r.kind} riven · {r.weapon}{r.companion ? " · companion" : ""}</span>
               <h3 class="mark">{r.weapon} {r.name}</h3>
               <span class="meta dim small">
                 {#if r.polarity}<img src="/game/pol/{r.polarity}.png" alt={r.polarity} title={r.polarity} class="pol" />{/if}

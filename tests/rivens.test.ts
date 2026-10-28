@@ -55,6 +55,9 @@ test("a fingerprint becomes a named, graded riven for its weapon", () => {
   assert.deepEqual(r.stats.map((s) => [s.label, s.grade]), [["Critical Chance", "S"], ["Critical Damage", "B"], ["Ammo Maximum", "S"]]);
   assert.equal(r.grade, "A−", "the buffs average 0.75");
   assert.equal(r.spliced, false);
+  assert.equal(r.companion, false);
+  const pet = parseRiven(m, tables, { type: "/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare", id: "c", fp: { compat: "/Lotus/Types/Sentinels/SentinelWeapons/DethMachineRifle", lvl: 8, buffs: [{ Tag: "WeaponCritChanceMod", Value: MAX }] } })!;
+  assert.ok(pet.companion, "a sentinel's weapon takes a rifle riven, and it's a companion one");
   const spliced = parseRiven(m, tables, { type: "/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare", id: "b", fp: { compat: "/Lotus/Weapons/Tenno/Rifle/BratonPrime", lvl: 8, buffs: [{ Tag: "WeaponCritChanceMod", Value: MAX }, { Tag: "WeaponCorrosiveDamageMod", Value: MAX }] } })!;
   assert.ok(spliced.spliced, "Corrosive only comes from Riven Splicing");
   assert.deepEqual(spliced.stats.map((s) => s.spliced), [false, true]);

@@ -100,6 +100,8 @@ export interface Riven {
   grade: string;
   /** Has a stat from Riven Splicing. */
   spliced: boolean;
+  /** For a companion's weapon (a sentinel's or MOA's gun, a hound's claws…). */
+  companion: boolean;
 }
 
 /** Riven stat tables by riven type ("LotusRifleRandomModRare"), from the catalog. */
@@ -205,6 +207,7 @@ export function parseRiven(m: Model, tables: Map<string, RivenStatDef[]>, raw: R
     quality,
     grade: quality == null ? "?" : gradeOf(quality),
     spliced: stats.some((x) => x.spliced),
+    companion: !!fp.compat && (weaponItem?.type === "Companion Weapon" || /\/SentinelWeapons\//.test(fp.compat)),
   };
 }
 
