@@ -115,6 +115,23 @@
 <Sheet bind:open title="Notifications" kicker="orbiter">
   <div class="top">
     <Seg bind:value={view} options={[{ v: "recent", label: "Recent", title: "What orbiter told you, newest first" }, { v: "choose", label: "Choose", title: "What orbiter tells you about" }]} />
+    {#if view === "recent" && settings.game.notices.length}
+    <div class="acts">
+      {#if kindsLogged.length > 1}
+        <select bind:value={only} aria-label="Show" title="Show one kind only">
+          <option value="">All kinds</option>
+          {#each kindsLogged as k (k)}<option value={k}>{noticeKind[k].label}</option>{/each}
+        </select>
+      {/if}
+      {#if clearing}
+        <span class="small">Clear all {settings.game.notices.length}?</span>
+        <button class="danger" onclick={() => { settings.game.notices = []; clearing = false; }}>Clear</button>
+        <button class="link quiet" onclick={() => (clearing = false)}>Keep them</button>
+      {:else}
+        <button class="link quiet" title="Empty the list. Nothing else changes." onclick={() => (clearing = true)}>Clear all</button>
+      {/if}
+    </div>
+    {/if}
     {#if paused}<span class="pausedtag" title="Notifications still go in Recent, but nothing pops up. Change it under Choose.">{pausedFor && !settings.notifyOptions.paused ? `Paused until ${hhmm(settings.notifyOptions.pausedUntil!)}` : "Paused"}</span>{/if}
   </div>
 
@@ -122,21 +139,6 @@
     {#if !settings.game.notices.length}
       <p class="dim empty">Nothing yet. What orbiter tells you shows up here, newest first, so you can catch up on what you missed. <button class="link" onclick={() => (view = "choose")}>Choose what it tells you about →</button></p>
     {:else}
-      <div class="acts">
-        {#if kindsLogged.length > 1}
-          <select bind:value={only} aria-label="Show" title="Show one kind only">
-            <option value="">All kinds</option>
-            {#each kindsLogged as k (k)}<option value={k}>{noticeKind[k].label}</option>{/each}
-          </select>
-        {/if}
-        {#if clearing}
-          <span class="small">Clear all {settings.game.notices.length}?</span>
-          <button class="danger" onclick={() => { settings.game.notices = []; clearing = false; }}>Clear</button>
-          <button class="link quiet" onclick={() => (clearing = false)}>Keep them</button>
-        {:else}
-          <button class="link quiet" title="Empty the list. Nothing else changes." onclick={() => (clearing = true)}>Clear all</button>
-        {/if}
-      </div>
       {#each days as d (d.label)}
         <h3 class="register day">{d.label}</h3>
         <ul class="list">
@@ -201,13 +203,13 @@
 </Sheet>
 
 <style>
-  .top { display: flex; align-items: center; gap: .8rem; margin-bottom: 1rem; }
+  .top { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .8rem; margin-bottom: .4rem; }
   .pausedtag { font-family: var(--face-register); font-size: .62rem; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-dim); padding: .15rem .45rem; }
   .empty { line-height: 1.6; }
-  .acts { display: flex; justify-content: flex-end; align-items: center; gap: .6rem; margin: -2.6rem 0 .3rem; min-height: 1.6rem; }
+  .acts { display: flex; justify-content: flex-end; align-items: center; gap: .6rem; margin-left: auto; order: 2; }
   .day { margin: 1rem 0 .4rem; font-size: .62rem; color: var(--gold-dim); letter-spacing: .18em; }
   .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-  .notice { display: grid; grid-template-columns: 1.8rem 1fr; gap: .7rem; width: 100%; text-align: left; padding: .6rem .7rem; border: 1px solid transparent; background: transparent; color: var(--platinum-dim); font-family: var(--face-text); font-size: .85rem; letter-spacing: 0; text-transform: none; transition: background .12s, border-color .12s; }
+  .notice { display: grid; grid-template-columns: 1.8rem 1fr; gap: .7rem; width: 100%; text-align: left; padding: .6rem .7rem; border: 1px solid transparent; background: transparent; color: var(--platinum-dim); font-family: var(--face-text); font-size: .85rem; font-weight: 400; letter-spacing: 0; text-transform: none; transition: background .12s, border-color .12s; }
   .notice:hover { background: rgb(230 233 238 / 4%); border-color: var(--rule); }
   .notice.unread { background: rgb(214 174 74 / 7%); box-shadow: inset 2px 0 0 var(--gold); color: var(--platinum); }
   .ic { padding-top: .1rem; }

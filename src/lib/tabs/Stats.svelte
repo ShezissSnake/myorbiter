@@ -105,13 +105,13 @@
       <Stat label="Revenue" note="Sales in this span"><P v={revenue} big /></Stat>
       <Stat label="Spent" tone="dim" note="Platinum paid for items"><P v={spent} big /></Stat>
       <Stat label="Profit" tone={revenue - spent >= 0 ? "gold" : "dim"} note="Revenue minus spent"><P v={revenue - spent} big /></Stat>
-      <Stat label="Trades" note={`with ${partners} player${partners === 1 ? "" : "s"}`}>{trades.length}</Stat>
+      <Stat label="Trades" note={trades.length ? `with ${partners} player${partners === 1 ? "" : "s"}` : "No trades in this span"}>{trades.length}</Stat>
     {/snippet}
   </PageHead>
 
   <div class="bar"><Seg bind:value={span} options={[{ v: "30", label: "30 days" }, { v: "90", label: "90 days" }, { v: "all", label: "All" }]} /></div>
 
-  <TimeChart single={hist.length === 1 ? "" : undefined} title="Inventory value" {at} series={[{ label: "Market value", color: "#5b8fd0", values: hist.map((p) => p.worth) }, { label: "Easy to sell", color: GOLD, values: hist.map((p) => p.liquid) }]} height={190} />
+  <TimeChart single={hist.length === 1 ? "" : undefined} title="Inventory value" {at} series={[{ label: "Market value", color: "#9ba2ac", values: hist.map((p) => p.worth) }, { label: "Easy to sell", color: GOLD, values: hist.map((p) => p.liquid) }]} height={190} />
 
   {#if hist.length === 1}<p class="dim small one">One inventory read so far: each line below starts with the next one. The figures beside each title are from that read.</p>{/if}
   <div class="charts">

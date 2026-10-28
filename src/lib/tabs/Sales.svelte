@@ -245,8 +245,6 @@
 <style>
   .import { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
   .ic { display: inline-grid; place-items: center; width: 1.3rem; height: 1.3rem; vertical-align: -.3rem; border: 1px solid var(--gold-dim); color: var(--gold); }
-  .empty { margin: var(--course) 0 var(--step); display: grid; gap: .6rem; border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); padding: 1.2rem 1.4rem; }
-  .empty h2 { margin: 0; }
   .grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(18rem, 1fr); gap: 1.6rem; margin: var(--step) 0 var(--course); }
   /* Page area under 950 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt950"]) .grid { grid-template-columns: 1fr; }

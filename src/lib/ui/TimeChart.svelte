@@ -97,7 +97,7 @@
   <figcaption>
     <span class="tt">{#if icon}{@render icon()}{/if}<span class="register">{title}</span></span>
     {#if many}
-      <span class="legend">{#each series as s (s.label)}<span class="lg"><i style:background={s.color}></i>{s.label}</span>{/each}</span>
+      <span class="legend">{#each series as s (s.label)}<span class="lg"><i style:background={s.color}></i>{s.label}{#if idx.length === 1 && s.values[idx[0]] != null}<b>{(s.values[idx[0]] as number).toLocaleString("en")}</b>{/if}</span>{/each}</span>
     {:else if latest}
       <span class="now"><b class="mark">{latest.v.toLocaleString("en")}</b>{#if latest.change}<span class="small" class:up={latest.change > 0} class:down={latest.change < 0} title="The change {since}">{latest.change > 0 ? "+" : ""}{fmt(latest.change)} <span class="dim">{since}</span></span>{/if}</span>
     {/if}
@@ -126,7 +126,8 @@
       {/if}
     {:else}
       <!-- One reading already (its number is in the header): the line needs a second. -->
-      <p class="dim small none" style:height="{H - 20}px">{latest ? single : empty}</p>
+      <!-- With nothing to say (the page says it once), the card stays short: its header has the number. -->
+      {#if !(latest && !single)}<p class="dim small none" style:height="{Math.min(H - 20, 96)}px">{latest ? single : empty}</p>{/if}
     {/if}
   </div>
 </figure>
@@ -138,6 +139,7 @@
   .legend { display: flex; gap: 1rem; font-size: .78rem; color: var(--platinum-dim); flex-wrap: wrap; }
   .lg, .tr { display: inline-flex; align-items: center; gap: .4rem; }
   .lg i, .tr i { width: 10px; height: 3px; border-radius: 2px; display: inline-block; }
+  .lg b { color: var(--platinum); font-family: var(--face-mark); font-size: 1rem; font-weight: 600; margin-left: .15rem; }
   .now { display: inline-flex; align-items: baseline; gap: .45rem; }
   .now b { font-size: 1.15rem; }
   .up { color: var(--verdigris); }

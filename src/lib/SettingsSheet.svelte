@@ -189,12 +189,12 @@
   .path::placeholder { text-transform: none; letter-spacing: 0; font-size: .74rem; font-style: italic; color: var(--platinum-deep); opacity: .7; }
   .hint { font-size: .76rem; color: var(--platinum-deep); }
   .row { display: flex; align-items: center; gap: .6rem; }
-  .pagelist { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .pagelist { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
   .pagelist li { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: .5rem; }
   .secrow { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: .5rem; margin-top: .3rem; }
   .secrow .register { color: var(--gold-dim); }
-  .pagelist :global(.chip) { justify-self: start; }
-  .mv { padding: .3rem .4rem; line-height: 0; }
+  .pagelist :global(.chip) { justify-self: stretch; justify-content: flex-start; }
+  .mv { width: 32px; height: 32px; padding: 0; line-height: 0; display: inline-flex; align-items: center; justify-content: center; }
   .mv :global(svg) { transform: rotate(-90deg); }
   .mv.down :global(svg) { transform: rotate(90deg); }
   /* Unsaved paths: pinned to the bottom of the panel, so it can't be missed whichever field changed. */

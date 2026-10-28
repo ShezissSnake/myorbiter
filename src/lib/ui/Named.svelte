@@ -19,7 +19,8 @@
   .named { display: inline-flex; align-items: center; gap: .75rem; min-width: 0; vertical-align: middle; }
   .txt { display: grid; min-width: 0; }
   .kind { font-size: .6rem; }
-  .line { display: inline-flex; align-items: center; flex-wrap: wrap; row-gap: .15rem; }
+  /* Plain text flow, so when the name wraps its tags follow the last word rather than taking a line of their own. */
+  .line { display: block; line-height: 1.35; }
   .name-mark { white-space: nowrap; }
   /* Page area under 1100 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt1100"]) .name-mark:not(.keep) { white-space: normal; }

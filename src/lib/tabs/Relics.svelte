@@ -127,7 +127,7 @@
     <div class="rw">
       {#each r.rewards as x, i (i)}
         <span class="rwc rar-{x.rarity}" class:need={x.needed} class:done={x.parentMastered && !x.needed} use:info={x.name}>
-          {#if model.imageOf(x.name)}<img src={imageUrl(model.imageOf(x.name) ?? "")} alt="" loading="lazy" />{/if}
+          {#if model.imageOf(x.name)}<img src={imageUrl(model.imageOf(x.name) ?? "")} alt="" loading="lazy" onerror={(e) => ((e.currentTarget as HTMLImageElement).style.visibility = "hidden")} />{/if}
           {#if x.needed}<i></i>{/if}
         </span>
       {/each}

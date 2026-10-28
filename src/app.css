@@ -187,7 +187,10 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 .link:hover:not(:disabled) { color: var(--platinum); border: 0; }
 .link:active:not(:disabled) { background: none; color: var(--platinum-dim); }
 .link:disabled { color: var(--platinum-deep); background: none; }
-.link.dim { color: var(--platinum-deep); }
+.link.dim, .link.quiet { color: var(--platinum-deep); }
+.link.quiet:hover:not(:disabled) { color: var(--platinum); }
+/* A link that is an <a>: drawn like the button ones. */
+a.link { text-decoration: none; text-transform: uppercase; display: inline-flex; align-items: center; }
 .link.dim:hover:not(:disabled) { color: var(--platinum); }
 
 /* An icon on its own as a button: square, the same size as a row's fields. */
@@ -233,6 +236,8 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 .page { flex: 1; min-height: 0; overflow: auto; }
 .page-inner { max-width: 1840px; margin: 0 auto; padding: 0 clamp(var(--step), 3vw, var(--field)) var(--field); }
 .bar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .8rem; padding: var(--step) 0; }
+/* The filter box leads the row and takes the room that's left, so it never wraps onto a line alone. */
+.bar > input[type="search"] { order: -1; flex: 1 1 14rem; min-width: 14rem; max-width: 26rem; }
 /* One height for every control in a toolbar row. */
 .bar :is(button:not(.link), input, select), .tools :is(button:not(.link), input, select) { height: 36px; }
 
@@ -247,3 +252,8 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 .set-pn { display: inline-flex; align-items: center; gap: .5rem; }
 .actions { display: flex; align-items: center; gap: 1.2rem; margin-top: .6rem; }
 
+
+/* A page with nothing in it yet: one look everywhere (Wishlist, Sales). */
+.panel.empty { margin: var(--step) 0; display: grid; gap: .6rem; max-width: 60rem; border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); padding: 1.2rem 1.4rem; clip-path: var(--cut); }
+.panel.empty h2 { margin: 0; }
+.panel.empty p { margin: 0; }

@@ -88,6 +88,7 @@
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
   ];
   const columns = $derived(spareMatters ? allColumns : allColumns.filter((c) => c.key !== "spare"));
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 </script>
 
 {#snippet nameCell(r: PartRow)}
@@ -141,8 +142,8 @@
 <div class="page"><div class="page-inner">
   <PageHead title="Prime parts" blurb="Every prime part you hold and its best use: keep, sell, sell as a set, or trade to Baro.">
     {#snippet band()}
-      <Stat label="Spares to sell" note={`${spares.filter((r) => verdict(r) !== "Ducats").reduce((n, r) => n + r.spare, 0)} parts · daily median`}><P v={asPlat} big /></Stat>
-      <Stat label="Spares for ducats" tone="gold" note={`${spares.filter((r) => verdict(r) === "Ducats").reduce((n, r) => n + r.spare, 0)} parts, better traded in`}><P v={asDucats} d big /></Stat>
+      <Stat label="Spares to sell" note={`${plural(spares.filter((r) => verdict(r) !== "Ducats").reduce((n, r) => n + r.spare, 0), "part")} · daily median`}><P v={asPlat} big /></Stat>
+      <Stat label="Spares for ducats" tone="gold" note={`${plural(spares.filter((r) => verdict(r) === "Ducats").reduce((n, r) => n + r.spare, 0), "part")}, better traded in`}><P v={asDucats} d big /></Stat>
       <Stat label="Ducats held" tone="gold" note={baro ? (baroHere ? `Baro is here · leaves in ${until(baro.expiry)}` : `Baro arrives in ${until(baro.activation)}`) : "Baro's schedule unavailable"}><P v={heldDucats} d big /></Stat>
     {/snippet}
   </PageHead>

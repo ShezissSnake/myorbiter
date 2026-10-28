@@ -1331,6 +1331,14 @@
   let navEl = $state<HTMLElement | null>(null);
   let navMore = $state(false);
   let navAbove = $state(false);
+  // The page you're on stays in view, clear of the fades at either end.
+  $effect(() => {
+    const tab = settings.tab;
+    const n = navEl;
+    if (!n) return;
+    queueMicrotask(() => n.querySelector<HTMLElement>(".nav.on")?.scrollIntoView({ block: "nearest" }));
+    void tab;
+  });
   const checkNav = () => {
     const n = navEl;
     navMore = !!n && n.scrollTop + n.clientHeight < n.scrollHeight - 4;
@@ -1566,6 +1574,7 @@
   .fold:hover { color: var(--platinum); }
   /* The page list scrolls on a short window; Sync, TennoScope and Settings stay pinned below it. */
   nav { display: grid; align-content: start; gap: 1px; padding: .6rem .55rem; flex: 1 1 auto; min-height: 0; overflow: hidden auto; scrollbar-width: thin; }
+  nav { scroll-padding-block: 2.5rem 3rem; }
   nav.more { mask-image: linear-gradient(180deg, #000 calc(100% - 3rem), transparent); }
   nav.above { mask-image: linear-gradient(0deg, #000 calc(100% - 2.5rem), transparent); }
   nav.more.above { mask-image: linear-gradient(180deg, transparent, #000 2.5rem, #000 calc(100% - 3rem), transparent); }
@@ -1597,9 +1606,12 @@
   .pill.idle i { clip-path: none; background: var(--platinum-deep); }
   .syncrow { display: flex; gap: .4rem; }
   .sync { display: flex; justify-content: center; align-items: center; gap: .5rem; flex: 1; min-width: 0; }
+  /* Every button down here is one height, folded or not. */
+  .sync, .tool { height: 36px; padding-top: 0; padding-bottom: 0; }
   .tools { display: flex; gap: .4rem; }
-  .tool { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; padding: .5rem .6rem; }
-  .tool.on { color: var(--slab); background: var(--platinum); border-color: var(--platinum); }
+  .tool { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; padding-left: .6rem; padding-right: .6rem; }
+  /* The page that's open (Guide): marked the way the sidebar marks its page, a gold edge, not a white block. */
+  .tool.on { color: var(--platinum); background: rgb(214 174 74 / 12%); box-shadow: inset 2px 0 0 var(--gold); }
   .tsbtn { flex: 1; justify-content: flex-start; }
   .bell { position: relative; }
   .bell .count { position: absolute; top: -.45rem; right: -.45rem; min-width: 1.1rem; padding: .05rem .25rem; font-family: var(--face-register); font-size: .55rem; font-weight: 700; line-height: 1.3; text-align: center; color: var(--slab); background: var(--gold); clip-path: var(--cut); animation: pop .25s ease-out; }
@@ -1630,7 +1642,7 @@
   .compact .foot { grid-template-columns: 1fr 1fr; gap: .35rem; padding: .6rem .5rem .7rem; }
   .compact .game, .compact .sync { grid-column: 1 / -1; }
   .compact .tools, .compact .syncrow { display: contents; }
-  .compact .sync, .compact .tool { padding: .45rem 0; min-width: 0; }
+  .compact .sync, .compact .tool { padding-left: 0; padding-right: 0; min-width: 0; }
   .compact .tsbtn { justify-content: center; }
   /* A short window: tighter rows, so every page and the tools fit (all 16 folded at 700 px high). */
   @media (max-height: 900px) {

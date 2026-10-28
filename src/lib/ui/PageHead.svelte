@@ -9,7 +9,7 @@
     <span class="orn" aria-hidden="true"><i></i></span>
     <h1 class="mark">{title}</h1>
   </div>
-  {#if blurb}<p class="prose">{blurb}</p>{/if}
+  {#if blurb}<p class="prose" title={blurb}>{blurb}</p>{/if}
 </header>
 {#if band}<section class="band">{@render band()}</section>{/if}
 
@@ -19,6 +19,8 @@
     padding: clamp(28px, 5vh, 56px) 0 var(--step);
   }
   h1 { font-size: clamp(2.6rem, 5.4vw, 4.6rem); }
+  /* At most two lines, so a long one doesn't push the title down (the whole of it on hover). */
+  .head .prose { margin: 0; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   /* The Orokin rule: a gold hairline struck from a small diamond, above every title. */
   .orn { display: flex; align-items: center; width: 4.5rem; margin-bottom: .9rem; }
   .orn i { width: .5rem; height: .5rem; flex: none; background: var(--gold); transform: rotate(45deg); }

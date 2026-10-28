@@ -303,6 +303,12 @@
     <!-- World clocks -->
     {#if cycles.length || resets.length}
       <section class="panel world" class:off={off("world")} aria-label="World clocks">
+        <!-- Still asking for the world: the five clocks' places, so nothing jumps when they arrive. -->
+        {#if liveWaiting && !cycles.length}
+          {#each ["earth", "cetus", "vallis", "cambion", "zariman"] as k (k)}
+            <div class="clock wait" aria-hidden="true"><GameIcon name={CYCLE_ICON[k]} size={26} /><div><span class="register clip1">{CYCLE_SHORT[k] ?? { earth: "Earth", vallis: "Orb Vallis", zariman: "Zariman" }[k]}</span><b class="mark st">—</b><span class="dim small nowrap">&nbsp;</span></div></div>
+          {/each}
+        {/if}
         {#each cycles as c (c.key)}
           <div class="clock" title="{c.label}: {c.state}{c.next ? `, ${c.next} in ${until(c.ends, now)}` : ''}">
             <GameIcon name={CYCLE_ICON[c.key]} size={26} />
@@ -372,7 +378,7 @@
     <section class="panel fissures" data-card="fissures" class:off={off("fissures")}>
       {@render head("void-tear", null, "Fissures now", console ? null : "relics", "Relics")}
       {#if live.fissures == null}
-        <p class="dim">{liveNote}</p>
+        <p class="dim waiting">{liveNote}</p>
       {:else}
         <table class="eras">
           <thead><tr><th>Era</th><th class="right" title="Normal fissures, plus Steel Path">Open</th><th>Missions</th><th class="right ends" title="When the longest-running one closes">Ends in</th>{#if !console}<th title={squad === 1 ? "The relic you hold whose crack is worth most, cracking alone" : "The relic you hold whose crack is worth most, best of four in a radshare"}>Your best relic</th><th class="right" title="Average platinum of the reward you'd take ({squad === 1 ? 'solo' : 'radshare'}; switch on Relics)">Plat / crack</th>{/if}</tr></thead>
@@ -610,8 +616,14 @@
 </div></div>
 
 <style>
-  .hello { display: flex; justify-content: space-between; align-items: flex-end; padding: clamp(24px, 4vh, 44px) 0 var(--step); gap: 1rem; }
-  .hello h1 { font-size: clamp(2.4rem, 4.6vw, 3.8rem); }
+  /* The same header as every other page (PageHead), so the title doesn't move switching pages. */
+  .hello { display: flex; justify-content: space-between; align-items: flex-end; padding: clamp(28px, 5vh, 56px) 0 var(--step); gap: 1rem; }
+  .hello h1 { font-size: clamp(2.6rem, 5.4vw, 4.6rem); }
+  @media (max-height: 860px) {
+    .hello { padding: 18px 0 .6rem; }
+    .hello h1 { font-size: clamp(2.2rem, 4vw, 3.2rem); }
+    .hello .orn { margin-bottom: .5rem; }
+  }
   .hello p { margin: 0 0 .6rem; }
   .orn { display: flex; align-items: center; width: 4.5rem; margin-bottom: .9rem; }
   .orn i { width: .5rem; height: .5rem; flex: none; background: var(--gold); transform: rotate(45deg); }
@@ -627,6 +639,9 @@
   .off { display: none !important; }
   .panel.full { grid-column: span 12; }
   .panel.half { grid-column: span var(--n, 6); }
+  .clock.wait { opacity: .45; }
+  /* About the height of the table it's waiting for, so the cards below don't jump. */
+  .fissures .waiting { min-height: 15rem; margin: 0; }
   /* The only small card left beside a tall one: as tall as what's in it, not stretched to the row. */
   .panel.lone { align-self: start; }
   .hr { display: flex; align-items: center; gap: .8rem; }
@@ -746,7 +761,7 @@
   .levelrow .small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pts.big { font-family: var(--face-mark); font-size: 1.3rem; color: var(--platinum); }
   .figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
-  .figs > div { display: grid; gap: .3rem; align-content: start; }
+  .figs > div { display: grid; grid-template-rows: 1.75rem auto; gap: .3rem; align-content: start; align-items: center; }
   .figs > div :global(.amt b) { font-size: 1.5rem; }
   .figs b.mark { font-size: 1.5rem; line-height: 1; }
   .figs b.warn { color: var(--gold); }

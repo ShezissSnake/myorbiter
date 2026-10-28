@@ -105,7 +105,7 @@
         <div class="register lbl">Drops from</div>
         <ul class="srcs">
           {#each d.relics.slice(0, 6) as s, i (i)}
-            <li class:held={s.owned > 0} class:vaulted={s.vaulted}><GameIcon name={`relic-${s.base.split(" ")[0].toLowerCase() as "lith"}-intact`} size={16} /><b>{s.base}</b><span class="dim">{s.rarity}</span><span class="grow"></span><span class="dim">{pct(s.chanceIntact)} → {pct(s.chanceRadiant)}</span>{#if s.owned}<em>×{s.owned}</em>{:else if s.vaulted}<span class="vt">vaulted</span>{/if}</li>
+            <li class:held={s.owned > 0} class:vaulted={s.vaulted}><GameIcon name={`relic-${s.base.split(" ")[0].toLowerCase() as "lith"}-intact`} size={16} /><b>{s.base}</b><span class="dim">{s.rarity}</span><span class="grow"></span><span class="dim">{pct(s.chanceIntact)} → {pct(s.chanceRadiant)}</span><span class="tail">{#if s.owned}<em>×{s.owned}</em>{:else if s.vaulted}<span class="vt">vaulted</span>{/if}</span></li>
           {/each}
         </ul>
         {#if d.relics.length > 6}<p class="more dim">+{d.relics.length - 6} more relics</p>{/if}
@@ -218,6 +218,8 @@
   .parts li { gap: .7rem; }
   .srcs li.held b { color: var(--gold); }
   .srcs li.vaulted { opacity: .65; }
+  /* Held count or "vaulted": one width, so the chances above it line up. */
+  .tail { flex: none; width: 3.4rem; text-align: right; }
   .vt { font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
   .grow { flex: 1; }
   .chips { display: flex; flex-wrap: wrap; gap: .4rem; }

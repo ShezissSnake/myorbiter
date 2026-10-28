@@ -506,8 +506,6 @@
   .results .pick .small { white-space: nowrap; text-transform: none; letter-spacing: 0; font-family: var(--face-text); }
 
   /* Quiet text actions in the table; Remove turns red only when you reach for it. */
-  .link.quiet { color: var(--platinum-deep); }
-  .link.quiet:hover:not(:disabled) { color: var(--platinum); }
   input.edited { border-color: var(--gold); color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold-dim); }
   .save { display: flex; justify-content: flex-end; gap: .35rem; margin-top: .35rem; }
   .err { color: var(--oxblood); margin: .3rem 0 0; text-align: right; white-space: normal; }

@@ -18,6 +18,7 @@
   import Chip from "../ui/Chip.svelte";
   import ListButton from "../ui/ListButton.svelte";
   import Icon from "../ui/Icon.svelte";
+  import GameIcon from "../ui/GameIcon.svelte";
   import PriceHistory from "../ui/PriceHistory.svelte";
   import { matches, type Column } from "../ui/table";
 
@@ -196,7 +197,7 @@
     <label class="min" title="Only what's worth at least this much a copy, at the daily median. Empty: any.">
       <span class="register">Each ≥</span>
       <input type="number" min="0" step="1" placeholder="any" bind:value={minEach} aria-label="Minimum platinum each" />
-      <span class="dim small">p</span>
+      <GameIcon name="platinum" size={14} />
     </label>
     <Chip bind:on={spareOnly} label="Spare only" title="Only what you hold more of than you need: beyond what your unbuilt items take, two of each mod, one maxed arcane, one of each Captura scene" />
     <input type="search" placeholder="Filter items…" bind:value={query} />

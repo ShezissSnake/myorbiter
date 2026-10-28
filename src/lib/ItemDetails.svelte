@@ -186,7 +186,7 @@
               <PartChip part={p} size={40} />
               <div class="pname">
                 <b class="name-mark">{p.resource ? p.label : p.label === "Blueprint" ? "Blueprint" : p.label}</b>
-                <span class="small" class:warn-text={p.have < p.required && !p.building && !c.owned && !c.mastered} class:dim={p.have >= p.required || c.owned || c.mastered}>
+                <span class="small" class:missing={p.have < p.required && !p.building && !c.owned && !c.mastered} class:inhand={!p.resource && p.have >= p.required && !c.owned && !c.mastered} class:dim={c.owned || c.mastered || (p.resource && p.have >= p.required)}>
                   {#if p.building}Building now{:else if p.resource}{p.have.toLocaleString("en")} held · {p.required} needed{:else if p.have >= p.required}In hand{p.have > p.required ? ` (${p.have})` : ""}{:else if c.owned || c.mastered}{p.have ? `${p.have} held` : "None held"}{:else}Missing{p.required > 1 ? ` ${p.required - p.have} of ${p.required}` : ""}{/if}
                 </span>
               </div>
@@ -309,4 +309,6 @@
   .damage { display: flex; flex-wrap: wrap; gap: .4rem .9rem; margin-top: .7rem; font-variant-numeric: tabular-nums; }
   .dmg { display: inline-flex; gap: .4rem; align-items: baseline; }
   .players { display: block; margin-top: .35rem; font-size: .82rem; color: var(--platinum-deep); }
+  .missing { color: var(--platinum-deep); }
+  .inhand { color: var(--gold); }
 </style>

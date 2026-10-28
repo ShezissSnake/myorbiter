@@ -3,6 +3,10 @@
   // Esc or a click outside closes it. While it's open, Tab stays inside it; closed, the keyboard
   // goes back to what opened it.
   import { tick, untrack, type Snippet } from "svelte";
+  import { fade, fly } from "svelte/transition";
+  import { cubicIn, cubicOut } from "svelte/easing";
+  // Opening and closing slide; with reduced motion they just appear and go.
+  const still = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
   let { open = $bindable(), title, kicker, wide = false, children }: { open: boolean; title: string; kicker?: string; wide?: boolean; children: Snippet } = $props();
 
@@ -65,8 +69,8 @@
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="scrim" onclick={() => (open = false)}></div>
-  <div class="sheet" class:wide role="dialog" aria-modal="true" aria-label={title} tabindex="-1" bind:this={panel}>
+  <div class="scrim" onclick={() => (open = false)} transition:fade={{ duration: still ? 0 : 150 }}></div>
+  <div class="sheet" class:wide role="dialog" in:fly={{ x: still ? 0 : 32, duration: still ? 0 : 200, easing: cubicOut }} out:fly={{ x: still ? 0 : 24, duration: still ? 0 : 140, easing: cubicIn }} aria-modal="true" aria-label={title} tabindex="-1" bind:this={panel}>
     <header>
       <div>
         {#if kicker}<div class="register">{kicker}</div>{/if}
@@ -81,12 +85,12 @@
 {/if}
 
 <style>
-  .scrim { position: fixed; inset: 0; z-index: 40; background: rgb(6 7 9 / 55%); animation: fade .15s ease-out; }
+  .scrim { position: fixed; inset: 0; z-index: 40; background: rgb(6 7 9 / 55%); }
   .sheet {
     position: fixed; z-index: 41; top: 0; right: 0; bottom: 0; width: min(36rem, 100vw);
     display: grid; grid-template-rows: auto 1fr; background: var(--plate);
     border-left: 1px solid var(--rule-bright); box-shadow: -1.5rem 0 4rem rgb(0 0 0 / 45%), inset 2px 0 0 var(--gold-dim);
-    animation: slide .18s cubic-bezier(.16, 1, .3, 1); outline: none;
+    outline: none;
   }
   .sheet.wide { width: min(58rem, 100vw); }
   header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; padding: 1.4rem 1.6rem 1.1rem; border-bottom: 1px solid var(--rule); }
@@ -94,6 +98,4 @@
   h2 { font-size: 2.1rem; }
   .close { padding: .5rem; line-height: 0; }
   .body { overflow: auto; padding: 1.2rem 1.6rem 2rem; display: grid; gap: 1.6rem; align-content: start; }
-  @keyframes slide { from { transform: translateX(2rem); opacity: 0; } }
-  @keyframes fade { from { opacity: 0; } }
 </style>

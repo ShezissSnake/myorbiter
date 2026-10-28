@@ -400,7 +400,7 @@
   .selling .hint { flex-basis: 100%; }
   .err { color: var(--oxblood); flex-basis: 100%; }
   .note { margin: var(--step) 0; }
-  .riven { align-self: start; border: 1px solid var(--rule); background: linear-gradient(180deg, #17141d, var(--plate) 45%); clip-path: var(--cut); padding: .8rem .9rem .6rem; display: grid; gap: .6rem; }
+  .riven { display: flex; flex-direction: column; border: 1px solid var(--rule); background: linear-gradient(180deg, #17141d, var(--plate) 45%); clip-path: var(--cut); padding: .8rem .9rem .6rem; gap: .6rem; }
   .explain { max-width: 75ch; }
   .riven header { display: grid; grid-template-columns: auto 1fr auto; gap: .7rem; align-items: start; }
   .t { display: grid; gap: .25rem; min-width: 0; }
@@ -424,7 +424,8 @@
   .prev { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .15rem .8rem; font-size: .76rem; color: var(--platinum-dim); }
   .prev b { color: var(--platinum); font-weight: 600; }
   .prev .curse b { color: var(--oxblood); }
-  .riven footer { display: flex; align-items: center; gap: .35rem; padding-top: .5rem; border-top: 1px solid var(--rule); min-height: 1.6rem; }
+  /* Cards in a row share a height; the footer sits at the bottom of each. */
+  .riven footer { margin-top: auto; display: flex; align-items: center; gap: .35rem; padding-top: .5rem; border-top: 1px solid var(--rule); min-height: 1.6rem; }
   .riven footer .slot { width: 30px; }
   .pc { display: inline-flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
   .grow { flex: 1; }

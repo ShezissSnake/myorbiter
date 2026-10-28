@@ -74,10 +74,10 @@
 </script>
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Foundry" blurb="Every warframe, weapon and companion you can master, with the parts you hold. Gold is what you have; a click shows stats, where each part drops and what it's worth. Modular gear (kitguns, zaws, amps) is on Mastery.">
+  <PageHead title="Foundry" blurb="Everything you can master, with the parts you hold (gold: in hand). Click one for its stats, drops and prices.">
     {#snippet band()}
       <Stat label="Mastered" note={`of ${inGroup.length} ${groupLabel}`}><GameIcon name="mastery" size={30} />{mastered}<span class="of">/{inGroup.length}</span></Stat>
-      <Stat label="Owned, not mastered" tone="gold" note="Level these (Mastery also counts modular gear)">{ownedOnly}</Stat>
+      <Stat label="Owned, not mastered" tone="gold" note="Level these">{ownedOnly}</Stat>
       <Stat label="Ready to build" note="Every part in hand">{buildable}</Stat>
       <Stat label="Building" tone="dim" note="In your foundry now">{building}</Stat>
     {/snippet}
