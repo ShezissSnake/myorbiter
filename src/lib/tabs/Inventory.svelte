@@ -42,7 +42,8 @@
   /** The market's name, where the game's own is an internal one. */
   const shown = (r: InventoryItem) => (spareOf(r)?.heldAs ? spareOf(r)!.name : r.name);
   /** Priced under the market's name where the game's own isn't one the market knows. */
-  const priceOf = (r: InventoryItem) => spareOf(r)?.price ?? r.price;
+  // Built gear can't be traded (only some unranked copies can, and those show as spare): no price.
+  const priceOf = (r: InventoryItem) => (r.kind === "gear" && !spareOf(r) ? null : (spareOf(r)?.price ?? r.price));
   const worthOf = (r: InventoryItem) => {
     const p = priceOf(r);
     return p == null ? null : p * r.quantity;
@@ -128,7 +129,7 @@
       <div class="vals">
         {#if priceOf(r) != null}<span><span class="register">Each</span><P v={priceOf(r)} dim /></span>{/if}
         {#if r.quantity > 1 && worthOf(r) != null}<span><span class="register">All</span><P v={worthOf(r)} /></span>{/if}
-        {#if spareOf(r) && spare(r) > 0 && spare(r) < r.quantity}<span title={why(r)}><span class="register">Spare</span><b class="sp">{spare(r)}</b></span>{/if}
+        {#if spareOf(r) && spare(r) > 0}<span title={why(r)}><span class="register">Spare</span><b class="sp">{spare(r) === r.quantity ? "all" : `×${spare(r).toLocaleString("en")}`}</b></span>{/if}
         {#if r.ducats}<span><span class="register">Ducats</span><P v={r.ducats * r.quantity} d dim /></span>{/if}
       </div>
     {/if}

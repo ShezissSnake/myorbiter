@@ -47,7 +47,17 @@
   }
 
   // The game's markup in descriptions: colour tags and value placeholders.
-  const clean = (s: string | undefined) => (s ?? "").replace(/<[A-Z_]+>/g, "").replace(/\|[A-Z_]+\|/g, "X").replace(/\s+/g, " ").trim();
+  // The values themselves aren't in the data ("last |VAL|% longer"): the sentence reads without
+  // them ("last longer") rather than with a stand-in.
+  const clean = (s: string | undefined) =>
+    (s ?? "")
+      .replace(/<[A-Z_]+>/g, "")
+      .replace(/\s*\b(by|of|up to)?\s*[+-]?\|[A-Z_0-9]+\|\s*(%|m|s|seconds?|meters?)?/gi, " ")
+      .replace(/\b(within|up to|for|by|to|of)\s*(?=[.,;:]|$)/gi, "")
+      .replace(/\s+([.,;:])/g, "$1")
+      .replace(/,+\./g, ".")
+      .replace(/\s+/g, " ")
+      .trim();
   const pct = (v: number | undefined) => (v == null ? "–" : `${Math.round(v * 1000) / 10}%`);
   const num = (v: number | undefined, d = 2) => (v == null ? "–" : (Math.round(v * 10 ** d) / 10 ** d).toLocaleString("en"));
   const days = (s: number | undefined) => {
@@ -153,7 +163,7 @@
     {#if row && !row.unobtainable}
       <section class="how">
         <h3 class="register lead">How to get it</h3>
-        <div class="howrow"><Effort acq={row.acq} /><p class="prose">{row.acq.how}{#if row.acq.players}<span class="players">Players: {row.acq.players}</span>{/if}</p></div>
+        <div class="howrow"><Effort acq={row.acq} /><p class="prose">{row.acq.how}{#if row.acq.players}<span class="players">{row.acq.players}</span>{/if}</p></div>
         {#if wish && wish.missing.length && ((wish.odds != null && wish.odds > 0) || wish.buyCost != null)}
           {@const odds = wish.odds != null && wish.odds > 0 ? wish.odds : null}
           <p class="finish">

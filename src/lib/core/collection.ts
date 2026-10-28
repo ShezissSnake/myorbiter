@@ -130,7 +130,8 @@ export function collectionItem(m: Model, item: CatalogItem): CollectionItem {
     name: item.name,
     group: GROUP_OF[item.category] ?? "other",
     category: item.category,
-    type: item.type ?? item.category,
+    // The catalog files Kubrows, Kavats and the like as "Pets": Mastery calls them companions.
+    type: (item.type === "Pets" ? "Companion" : item.type) ?? item.category,
     image: item.imageName ?? m.imageOf(item.name),
     owned,
     mastered: m.isMastered(item.uniqueName),

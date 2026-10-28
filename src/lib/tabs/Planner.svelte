@@ -154,16 +154,16 @@
   </PageHead>
 
   <div class="bar">
-    <Seg bind:value={mode} options={[{ v: "sets", label: "Complete sets" }, { v: "radiant", label: "Make radiant" }]} />
+    <Seg bind:value={mode} options={[{ v: "sets", label: "Complete sets", title: "Which relics to crack to finish sets you're close to" }, { v: "radiant", label: "Make radiant", title: "Where your Void Traces gain the most, refining relics to radiant" }]} />
     {#if mode === "sets"}
       <select bind:value={settings.maxMissing} aria-label="How close">
         {#each [1, 2, 3, 4] as n (n)}<option value={n}>{n === 1 ? "One part away" : `Up to ${n} parts away`}</option>{/each}
       </select>
     {:else}
       <Seg bind:value={settings.squad} options={[{ v: 1, label: "Solo", title: "One crack, your own reward" }, { v: 4, label: "Radshare", title: "Four players crack the same relic and you pick the best of the four rewards" }]} />
-      <Seg bind:value={metric} options={[{ v: "plat", label: "Platinum" }, { v: "ducats", label: "Ducats" }, { v: "need", label: "Parts I need", title: "Chance of a part for something you haven't built or mastered" }]} />
+      <Seg bind:value={metric} options={[{ v: "plat", label: "Platinum", title: "Rank by what a crack is worth in platinum" }, { v: "ducats", label: "Ducats", title: "Rank by the ducats a crack gives, for Baro" }, { v: "need", label: "Parts I need", title: "Chance of a part for something you haven't built or mastered" }]} />
     {/if}
-    <Chip bind:on={vaultedOnly} label="Vaulted only" />
+    <Chip bind:on={vaultedOnly} label="Vaulted only" title="Only relics that drop nowhere now" />
     <input type="search" placeholder={mode === "sets" ? "Relic or part…" : "Relic or reward…"} bind:value={query} />
   </div>
 

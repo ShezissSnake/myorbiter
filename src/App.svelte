@@ -1510,7 +1510,7 @@
       {@render pane("wishlist", pWishlist)}
       <ListDialog {model} market={settings.market} advice={onConsole ? null : settings.advice} go={(t: string) => (settings.tab = t)} />
       <ItemDetails {model} bind:settings={settings} />
-      <HoverCard {model} platPerDucat={settings.advice.platPerDucat} />
+      <HoverCard {model} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad > 1 ? 4 : 1} />
     {/if}
   </main>
 </div>

@@ -231,7 +231,7 @@
     <p class="dim">No unveiled rivens in your inventory.</p>
   {:else}
     <div class="bar">
-      <Seg label="Sort" bind:value={sort} options={[{ v: "grade", label: "Best rolls" }, { v: "weapon", label: "Weapon" }, { v: "rank", label: "Rank" }]} />
+      <Seg label="Sort" bind:value={sort} options={[{ v: "grade", label: "Best rolls", title: "The best overall grade first" }, { v: "weapon", label: "Weapon", title: "By weapon, A to Z" }, { v: "rank", label: "Rank", title: "The highest rank first" }]} />
       {#if checkingAll}
         <span class="checking"><span class="dim small">Checking {checkingAll.done + 1} of {checkingAll.total}…</span><button class="link" onclick={() => (stopAll = true)}>Stop</button></span>
       {:else}

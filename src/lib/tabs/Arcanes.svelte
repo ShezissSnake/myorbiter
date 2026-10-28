@@ -191,9 +191,9 @@
   <Seg bind:value={show} options={[
     { v: "unfinished", label: "Still collecting", title: "Arcanes you haven't maxed (or got enough copies to max)" },
     { v: "spares", label: "Sell or dissolve", title: "Copies beyond the one you keep: sell them, or dissolve them for Vosfor" },
-    { v: "all", label: "All arcanes" },
+    { v: "all", label: "All arcanes", title: "Every arcane, held or not" },
   ]} />
-  {#if show !== "spares"}<Seg bind:value={owned} options={[{ v: "all", label: "All" }, { v: "owned", label: "Started" }, { v: "unowned", label: "None yet" }]} />{/if}
+  {#if show !== "spares"}<Seg bind:value={owned} options={[{ v: "all", label: "All", title: "Held or not" }, { v: "owned", label: "Started", title: "Arcanes you hold at least one copy of" }, { v: "unowned", label: "None yet", title: "Arcanes you don't have a copy of" }]} />{/if}
   <select bind:value={type} aria-label="Slot">
     <option value="all">All slots</option>
     {#each types as t (t)}<option value={t}>{t}</option>{/each}
@@ -251,9 +251,10 @@
   .vf b { font-family: var(--face-mark); font-size: .98rem; color: var(--platinum); }
   .vf.dim b { color: var(--platinum-dim); }
   .vc { display: grid; justify-items: start; gap: .15rem; }
-  .verdict { display: inline-block; padding: .18rem .5rem; font-family: var(--face-register); font-size: .6rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; border: 1px solid currentColor; }
-  .v-sell { color: var(--platinum); }
-  .v-dissolve { color: var(--verdigris); }
+  /* A verdict, not a button: a tinted label (hover for why). */
+  .verdict { display: inline-block; padding: .18rem .5rem; font-family: var(--face-register); font-size: .6rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; cursor: help; }
+  .v-sell { color: var(--platinum); background: rgb(230 233 238 / 8%); }
+  .v-dissolve { color: var(--verdigris); background: rgb(111 183 163 / 12%); }
   .why { font-size: .74rem; color: var(--platinum-deep); }
   .vosfor { border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); padding: 1rem 1.2rem; margin-bottom: var(--step); display: grid; gap: .7rem; }
   .vosfor header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }

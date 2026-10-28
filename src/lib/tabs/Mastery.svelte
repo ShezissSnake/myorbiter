@@ -75,8 +75,9 @@
 
   const columns: Column<MasteryRow>[] = [
     { key: "name", label: "Item", value: (r) => r.name, defaultDesc: false, cell: nameCell, width: "min(19rem, 24%)" },
-    // Easiest first, and among equally easy things the one worth the most mastery.
-    { key: "effort", label: "Effort", value: (r) => r.acq.difficulty, sortValue: (r) => r.acq.difficulty * 100_000 - r.points, cell: effortCell, defaultDesc: false, title: "How hard it is to get: 0 you have it, 1 buy and build … 5 Liches and the like" },
+    // Easiest first; among equally easy things, the one you're closest to having (Saryn with 3 of
+    // 4 parts before Loki with 1), then the one worth the most mastery.
+    { key: "effort", label: "Effort", value: (r) => r.acq.difficulty, sortValue: (r) => r.acq.difficulty * 100_000 + (r.partsTotal ? (1 - r.partsOwned / r.partsTotal) * 50_000 : 50_000) - r.points, cell: effortCell, defaultDesc: false, title: "How hard it is to get: 0 you have it, 1 buy and build … 5 Liches and the like" },
     { key: "points", label: "Mastery", value: (r) => r.points, align: "right", cell: pointsCell, title: "Mastery points at max rank" },
     { key: "how", label: "How to get it", value: (r) => r.acq.how, cell: howCell, sortable: false },
     { key: "buy", label: "Buy parts", value: (r) => r.buyFor, align: "right", cell: buyCell, title: "Primes: what the parts you're missing cost on warframe.market (daily median)" },
@@ -114,7 +115,7 @@
   <ItemCard hover={r.name} title={r.name} sub={r.category} image={item?.imageName ?? model.imageOf(r.name)} owned={r.status === "level"} onopen={open} fav={wished.has(r.unique)} onfav={item ? () => toggleWish(r.unique) : undefined}>
     {#if r.acq.difficulty > 0}<Effort acq={r.acq} />{:else}<p class="chow">{stageText(r)}</p>{/if}
     {#if parts.length}<div class="chips">{#each parts as p, i (i)}<PartChip part={p} size={32} />{/each}</div>{/if}
-    {#if r.acq.difficulty > 0}<p class="chow" title={r.acq.players ? `${r.acq.how}\n\nPlayers: ${r.acq.players}` : r.acq.how}>{r.acq.how}</p>{/if}
+    {#if r.acq.difficulty > 0}<p class="chow" title={r.acq.players ? `${r.acq.how}\n\n${r.acq.players}` : r.acq.how}>{r.acq.how}</p>{/if}
     {#snippet foot()}
       {#if r.status === "level"}<span class="tag" class:ok={stageOf(r).stage !== "building"}>{stageTag(r)}</span>{:else if r.status === "build"}<span class="tag ok">Ready to build</span>{/if}
       {#if r.isPrime && r.missingParts.length}
@@ -131,7 +132,7 @@
 {/snippet}
 
 {#snippet detail(r: MasteryRow)}
-  <p class="fullhow"><Effort acq={r.acq} /> <span>{r.acq.how}{#if r.acq.players}<span class="players">Players: {r.acq.players}</span>{/if}</span></p>
+  <p class="fullhow"><Effort acq={r.acq} /> <span>{r.acq.how}{#if r.acq.players}<span class="players">{r.acq.players}</span>{/if}</span></p>
   {#if !r.acq.available}<p class="small warn">Can't be obtained right now.</p>{/if}
   {#if r.missingParts.length}
     <p class="small dim legend">Relics that drop each missing part; yours first, vaulted ones dashed.</p>
@@ -175,7 +176,7 @@
     {#each categories as c (c)}<option value={c}>{c}</option>{/each}
   </select>
   <Seg label="Effort" bind:value={effort} options={[{ v: "2", label: "Easy", title: "Level it, buy and build, easy bosses" }, { v: "3", label: "Moderate", title: "Up to relics, quests, bounties and low syndicate ranks" }, { v: "4", label: "Hard", title: "Everything but Liches, Sisters, Coda and the nearly unobtainable" }, { v: "all", label: "All" }]} />
-  <Seg bind:value={kind} options={[{ v: "all", label: "All" }, { v: "prime", label: "Prime" }, { v: "normal", label: "Non-prime" }]} />
+  <Seg bind:value={kind} options={[{ v: "all", label: "All", title: "Everything you haven't mastered" }, { v: "prime", label: "Prime", title: "Primes only: parts from relics or other players" }, { v: "normal", label: "Non-prime", title: "Everything else: the Market, drops, syndicates, the dojo…" }]} />
   <Chip bind:on={showUnavailable} label="Show unavailable" title="Founders items, past events and the like: things you can't get right now" />
   <input type="search" placeholder="Filter…" bind:value={query} />
   </div>
@@ -200,6 +201,9 @@
   .odds { font-family: var(--face-mark); font-weight: 700; color: var(--gold); }
   .pts { display: inline-flex; align-items: center; gap: .3rem; font-variant-numeric: tabular-nums; }
   .how { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: .8rem; line-height: 1.35; color: var(--platinum-dim); min-width: 18rem; max-width: 46rem; }
+  /* Half a screen: the table fits without scrolling sideways (the star column stays in view). */
+  :global(html[data-room~="lt1100"]) .how { min-width: 12rem; }
+  :global(html[data-room~="lt950"]) .how { min-width: 8rem; }
   .fullhow { display: flex; gap: 1rem; align-items: baseline; margin: 0 0 .8rem; max-width: 80ch; line-height: 1.45; }
   .warn { color: var(--gold); }
   .links { display: flex; gap: 1.2rem; margin-top: .9rem; }

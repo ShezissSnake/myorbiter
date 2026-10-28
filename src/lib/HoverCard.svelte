@@ -20,6 +20,7 @@
     return () => window.removeEventListener("keydown", esc, { capture: true });
   });
   import { imageUrl } from "./backend";
+  import { expectedBest } from "./core/advice";
   import Thumb from "./ui/Thumb.svelte";
   import Art from "./ui/Art.svelte";
   import P from "./ui/P.svelte";
@@ -27,7 +28,9 @@
   import GameIcon from "./ui/GameIcon.svelte";
   import Avail from "./ui/Avail.svelte";
 
-  let { model, platPerDucat = 0 }: { model: Model; platPerDucat?: number } = $props();
+  // squad: solo (1) or a radshare (4), as set on Relics: a crack's worth follows it, as the pages do.
+  let { model, platPerDucat = 0, squad = 1 }: { model: Model; platPerDucat?: number; squad?: number } = $props();
+  const perCrack = (outs: { chance: number; value: number }[], solo: number | null) => (squad > 1 ? (outs.length ? Math.round(expectedBest(outs, 4) * 10) / 10 : null) : solo);
 
   const t = $derived(hover.target);
   const d = $derived(t ? describe(model, t.name, t.unique, platPerDucat) : null);
@@ -84,7 +87,7 @@
             {/each}
           </tbody>
         </table>
-        <footer><span class="register">Per crack</span><span>intact <P v={r.evIntact} /></span><span>radiant <P v={r.evRadiant} /></span>{#if r.relicPrice != null}<span class="dim">· sells for</span><P v={r.relicPrice} />{/if}</footer>
+        <footer><span class="register" title={squad > 1 ? "The best of four rewards in a radshare, on average (set on Relics)" : "What one crack gives you on average, cracking alone (set on Relics)"}>{squad > 1 ? "Per crack, radshare" : "Per crack"}</span><span>intact <P v={perCrack(r.outIntact, r.evIntact)} /></span><span>radiant <P v={perCrack(r.outRadiant, r.evRadiant)} /></span>{#if r.relicPrice != null}<span class="dim">· sells for</span><P v={r.relicPrice} />{/if}</footer>
       {/if}
     {:else if d.kind === "part"}
       <header>

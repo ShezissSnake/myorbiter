@@ -2,11 +2,12 @@
   import type { Snippet } from "svelte";
   import { info } from "../hover.svelte";
   // One figure in a page's band: the number struck large, its label in register type. `hover` names
-  // the item the note is about, for its hover card.
-  let { label, note, tone = "platinum", hover = null, children }: { label: string; note?: string; tone?: "platinum" | "gold" | "dim"; hover?: string | null; children: Snippet } = $props();
+  // the item the note is about, for its hover card. `title`: what the figure means, on hover (the
+  // label and note by default, which the band may cut short).
+  let { label, note, tone = "platinum", hover = null, title = null, children }: { label: string; note?: string; tone?: "platinum" | "gold" | "dim"; hover?: string | null; title?: string | null; children: Snippet } = $props();
 </script>
 
-<div class="cell">
+<div class="cell" title={title ?? (note ? `${label}: ${note}` : label)}>
   <div class="v mark t-{tone}">{@render children()}</div>
   <div class="register l">{label}</div>
   {#if note}<div class="note"><span use:info={hover}>{note}</span></div>{/if}

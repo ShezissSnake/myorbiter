@@ -65,7 +65,7 @@
   const ownedOnly = $derived(inGroup.filter((c) => c.owned && !c.mastered).length);
   const buildable = $derived(inGroup.filter((c) => c.buildable).length);
   const building = $derived(inGroup.filter((c) => c.building).length);
-  const groupLabel = $derived(group === "all" ? "everything" : (GROUPS.find((g) => g.v === group)?.label.toLowerCase() ?? ""));
+  const groupLabel = $derived(group === "all" ? "items" : (GROUPS.find((g) => g.v === group)?.label.toLowerCase() ?? ""));
 
   function toggleFav(u: string) {
     settings.favourites = favs.has(u) ? settings.favourites.filter((x) => x !== u) : [u, ...settings.favourites];
@@ -74,10 +74,10 @@
 </script>
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Foundry" blurb="Everything you can master, with the parts you hold. Gold is what you have; a click shows stats, where each part drops and what it's worth.">
+  <PageHead title="Foundry" blurb="Every warframe, weapon and companion you can master, with the parts you hold. Gold is what you have; a click shows stats, where each part drops and what it's worth. Modular gear (kitguns, zaws, amps) is on Mastery.">
     {#snippet band()}
       <Stat label="Mastered" note={`of ${inGroup.length} ${groupLabel}`}><GameIcon name="mastery" size={30} />{mastered}<span class="of">/{inGroup.length}</span></Stat>
-      <Stat label="Owned, not mastered" tone="gold" note="Level these">{ownedOnly}</Stat>
+      <Stat label="Owned, not mastered" tone="gold" note="Level these (Mastery also counts modular gear)">{ownedOnly}</Stat>
       <Stat label="Ready to build" note="Every part in hand">{buildable}</Stat>
       <Stat label="Building" tone="dim" note="In your foundry now">{building}</Stat>
     {/snippet}
@@ -86,8 +86,8 @@
   <Tabs bind:value={group} label="Category" options={[{ v: "all", label: "All", count: all.length }, ...GROUPS.map((g) => ({ v: g.v, label: g.label, icon: ICON[g.v], count: count(g.v).length }))]} />
 
   <div class="bar">
-    <Seg bind:value={show} options={[{ v: "all", label: "All" }, { v: "todo", label: "Not mastered" }, { v: "owned", label: "Owned" }, { v: "build", label: "Can build", title: "Every part in hand, or building now" }, { v: "fav", label: `★ ${favs.size}`, title: "Your wishlist" }]} />
-    <select bind:value={sort} aria-label="Sort">
+    <Seg bind:value={show} options={[{ v: "all", label: "All", title: "Everything in this group" }, { v: "todo", label: "Not mastered", title: "What you still have to master" }, { v: "owned", label: "Owned", title: "What you have built (mastered or not)" }, { v: "build", label: "Can build", title: "Every part in hand, or building now" }, { v: "fav", label: `★ ${favs.size}`, title: "Your wishlist" }]} />
+    <select bind:value={sort} aria-label="Sort" title="Sort the cards">
       <option value="name">By name</option>
       <option value="close">Closest to done</option>
       <option value="points">Most mastery</option>

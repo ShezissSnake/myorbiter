@@ -227,8 +227,8 @@
     {/each}
   </section>
   <div class="bar">
-  <Seg bind:value={vault} options={[{ v: "all", label: "All" }, { v: "vaulted", label: "Vaulted" }, { v: "farmable", label: "Farmable" }]} />
-  <Chip bind:on={neededOnly} label="Has parts I need" />
+  <Seg bind:value={vault} options={[{ v: "all", label: "All", title: "Every relic you hold" }, { v: "vaulted", label: "Vaulted", title: "Relics that drop nowhere now: no new copies, so they tend to sell for more" }, { v: "farmable", label: "Farmable", title: "Relics that still drop in missions" }]} />
+  <Chip bind:on={neededOnly} label="Has parts I need" title="Only relics that drop a part for something you haven't built or mastered" />
   <Seg bind:value={advice.squad} options={[{ v: 1, label: "Solo", title: "One crack, your own reward" }, { v: 4, label: "Radshare", title: "Four players crack the same relic and you pick the best of the four rewards" }]} />
   <input type="search" placeholder="Relic or reward…" bind:value={query} />
   </div>

@@ -50,7 +50,7 @@
     { key: "total", label: "Have", value: (r) => r.total, align: "right" },
     { key: "ranks", minor: true, label: "Ranked copies", value: (r) => r.ranks.filter((x) => x.rank > 0).map((x) => `R${x.rank}${x.count > 1 ? `×${x.count}` : ""}`).join(" ") || null, muted: true, sortable: false },
     { key: "price", label: "Price", value: (r) => r.price, align: "right", cell: priceCell },
-    { key: "value", label: "Extras worth", value: (r) => r.extrasValue, align: "right", cell: valueCell },
+    { key: "value", label: "Spares worth", value: (r) => r.extrasValue, align: "right", cell: valueCell },
     { key: "priceMax", minor: true, label: "Maxed", value: (r) => r.priceMax, align: "right", cell: maxCell, title: "Price of a max-rank copy" },
     { key: "trades", label: "Trades/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "How quickly it sells. Common mods at 2–5p rarely move." },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
@@ -67,12 +67,12 @@
 {#snippet card(r: ModRow, open: () => void)}
   <!-- Gold edge: copies to spare. With "Extras only" on that's every card, so it only marks them when it's off. -->
   <ItemCard hover={r.name} title={r.name} sub={r.type} image={model.imageOf(r.name)} artSize={84} owned={!dupesOnly && r.extras > 0} onopen={open}>
-    <div class="have"><b class="mark qty">×{r.total}</b>{#if r.extras}<span class="dim small">{r.extras} extra</span>{/if}</div>
+    <div class="have"><b class="mark qty">×{r.total}</b>{#if r.extras}<span class="dim small" title="Beyond your best copy and one to give away">{r.extras} spare</span>{/if}</div>
     <!-- Always there, empty when every copy is unranked, so cards side by side line up. -->
     <div class="ranks">{#each r.ranks.filter((x) => x.rank > 0) as x (x.rank)}<span class="rk">R{x.rank}{x.count > 1 ? ` ×${x.count}` : ""}</span>{/each}</div>
     <div class="prices">
       <span><span class="register">Each</span><P v={r.price} dim /></span>
-      {#if r.extras}<span><span class="register">Extras</span><P v={r.extrasValue} /></span>{/if}
+      {#if r.extras}<span><span class="register">Spares</span><P v={r.extrasValue} /></span>{/if}
     </div>
     {#snippet foot()}
       <span class="rar rar-{r.rarity}">{r.rarity}</span>
@@ -95,14 +95,14 @@
 <div class="page"><div class="page-inner">
   <PageHead title="Mods" blurb="Mods you have spare copies of. Your best copy and one to give away are always kept.">
     {#snippet band()}
-      <Stat label="Extra copies" note="Beyond your own and one to give away">{extras.toLocaleString("en")}</Stat>
+      <Stat label="Spare copies" note="Beyond your best copy and one to give away">{extras.toLocaleString("en")}</Stat>
       <Stat label="Extras worth" tone="dim" note={sellingOnly ? "Price × extras, mods that sell daily" : "Price × extras, slow sellers included"}><P v={value} big /></Stat>
     {/snippet}
   </PageHead>
 
   <div class="bar">
   <Chip bind:on={dupesOnly} label="Extras only" title="Three or more copies: more than your own and one to give away" />
-  <Chip bind:on={tradableOnly} label="Tradable" />
+  <Chip bind:on={tradableOnly} label="Tradable" title="Only mods you can sell or trade (not Flawed ones, and the like)" />
   <Chip bind:on={sellingOnly} label="Actually sells" title="At least one trade a day on warframe.market" />
   <select bind:value={rarity} aria-label="Rarity">
     <option value="all">Any rarity</option>
