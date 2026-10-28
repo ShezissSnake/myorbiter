@@ -1481,7 +1481,7 @@
       {#snippet pArcanes()}<Arcanes {model} bind:advice={settings.advice} />{/snippet}
       {#snippet pMods()}<Mods {model} />{/snippet}
       {#snippet pRelics()}<Relics {model} bind:advice={settings.advice} />{/snippet}
-      {#snippet pPlanner()}<Planner {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} />{/snippet}
+      {#snippet pPlanner()}<Planner {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} />{/snippet}
       {#snippet pHome()}<Home {model} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => (settings.tab = t)} {shortListings} {liveAt} {liveError} />{/snippet}
       {#snippet pSales()}<Sales {model} bind:settings={settings} go={(t: string) => (settings.tab = t)} />{/snippet}
       {#snippet pMarket()}<Orders {model} console={onConsole} bind:settings={settings.market} advice={settings.advice} />{/snippet}
@@ -1582,7 +1582,7 @@
   /* Paused: a slash through the bell, not just a dimmer one. */
   .bell.paused::after { content: ""; position: absolute; left: 50%; top: 50%; width: 1.1rem; height: 1px; background: var(--platinum-dim); transform: translate(-50%, -50%) rotate(-45deg); }
   /* Folded, Sync sits right above: the count stays inside the button. */
-  .compact .bell .count { top: .1rem; right: .1rem; }
+  .compact .bell .count { top: 2px; right: 2px; min-width: .8rem; padding: 0 .15rem; font-size: .48rem; line-height: 1.35; }
   @keyframes pop { from { transform: scale(.4); } to { transform: scale(1); } }
   @media (prefers-reduced-motion: reduce) { .bell .count { animation: none; } }
   .tsbtn i { width: .5rem; height: .5rem; background: var(--platinum-deep); transform: rotate(45deg); flex: none; }

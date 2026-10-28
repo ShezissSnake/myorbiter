@@ -105,7 +105,7 @@
       {@const worst = r.missingParts.some((p) => p.availability === "vaulted") ? "vaulted" : r.missingParts.some((p) => p.availability === "resurgence") ? "resurgence" : "farmable"}
       <Avail v={worst} />
     {/if}
-    {r.acq.difficulty === 0 ? (stageOf(r).stage === "level" ? "" : stageTag(r)) : r.acq.how}
+    {r.acq.difficulty === 0 ? (stageOf(r).stage === "level" ? "You have it: level it to max rank." : stageTag(r)) : r.acq.how}
   </span>
 {/snippet}
 

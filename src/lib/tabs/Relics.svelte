@@ -250,6 +250,8 @@
   .era-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem 1rem; margin-top: var(--step); }
   .era-head h2 { margin: 0; }
   .eras { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: .5rem; padding: .7rem 0 0; }
+  /* Six eras: one row, or three by two, never five and a stray. */
+  :global(html[data-room~="lt1100"]) .eras { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .era-cell { position: relative; display: grid; }
   .era { display: grid; align-content: start; text-align: left; gap: .15rem; padding: .6rem .9rem .7rem; font-family: var(--face-text); font-weight: 400; letter-spacing: 0; text-transform: none; clip-path: var(--cut); background: var(--plate); box-shadow: inset 3px 0 0 var(--tint, var(--rule-control)); }
   .era strong { display: inline-flex; align-items: center; gap: .45rem; font-family: var(--face-mark); font-size: 1.15rem; letter-spacing: .01em; color: var(--platinum); }

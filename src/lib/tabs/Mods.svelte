@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Model } from "../core/model";
   import { modRows, modSpares, type ModRow } from "../core/views";
-  import { marketUrl, openUrl } from "../backend";
+  import UpgradeDetail from "../ui/UpgradeDetail.svelte";
   import Browse from "../ui/Browse.svelte";
   import ItemCard from "../ui/ItemCard.svelte";
   import { mkt } from "../marketStore.svelte";
@@ -84,12 +84,9 @@
 {/snippet}
 
 {#snippet detail(r: ModRow)}
-  <p class="small">
-    {r.ranks.map((x) => `${x.count}× ${x.rank ? `rank ${x.rank}` : "unranked"}`).join(", ")}{r.maxRank != null ? ` · max rank ${r.maxRank}` : ""}{r.type ? ` · ${r.type}` : ""}
-  </p>
-  {#if r.tradable}<div class="actions">
-    <button class="link" onclick={() => openUrl(marketUrl(r.name))}>warframe.market ↗</button>
-  </div>{/if}
+  <UpgradeDetail {model} name={r.name} unique={r.unique} ranks={r.ranks} tradable={r.tradable}>
+    {#if r.extras > 0}<p class="small dim">{r.extras} spare, beyond your best copy and one to give away{#if r.tradable} · <ListButton {model} name={r.name} req={listReq(r)} label="List spares" />{/if}</p>{/if}
+  </UpgradeDetail>
 {/snippet}
 
 <div class="page"><div class="page-inner">

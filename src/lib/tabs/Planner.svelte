@@ -15,9 +15,19 @@
   import Owned from "../ui/Owned.svelte";
   import { info } from "../hover.svelte";
   import { details } from "../details.svelte";
+  import { openEras } from "../core/wishlist";
+  import type { Fissure } from "../core/types";
 
   // The mode is kept in settings, so it survives a restart and the Guide can open either one.
-  let { model, settings = $bindable(), mode = $bindable("sets") }: { model: Model; settings: AdviceSettings; mode?: "sets" | "radiant" } = $props();
+  // fissures: the live ones, so a relic you can crack right now says so.
+  let { model, settings = $bindable(), mode = $bindable("sets"), fissures = null }: { model: Model; settings: AdviceSettings; mode?: "sets" | "radiant"; fissures?: Fissure[] | null } = $props();
+  let openOnly = $state(false);
+  /** Buying a near-complete set's missing parts at the daily median; null when one has no price. */
+  const buyCost = (g: SetGap) => g.missing.reduce<number | null>((n, x) => { const p = model.price(x.name); return n == null || p == null ? null : n + p * x.count; }, 0);
+  // A fissure of the relic's own era open right now (Omnia ones take any relic, but one is nearly
+  // always open, which would mark every relic).
+  const openNow = $derived(openEras(fissures));
+  const isOpen = (base: string) => (openNow[base.split(" ")[0]]?.length ?? 0) > 0;
   let metric = $state<RadiantMetric>("plat");
   let vaultedOnly = $state(false);
   let query = $state("");
@@ -28,7 +38,7 @@
 
   // ------------------------------------------------ crack for sets
   const plan = $derived(crackRows(model, settings.maxMissing));
-  const crack = $derived(plan.relics.filter((r) => (!vaultedOnly || r.vaulted) && matches(query, r.base, ...r.hits.map((h) => h.reward))));
+  const crack = $derived(plan.relics.filter((r) => (!vaultedOnly || r.vaulted) && (!openOnly || isOpen(r.base)) && matches(query, r.base, ...r.hits.map((h) => h.reward))));
   /** The gap lists show a few at first: the table above them is the plan. */
   const GAPS_SHOWN = 10;
   let open = $state<Record<string, boolean>>({});
@@ -47,14 +57,14 @@
     { key: "owned", label: "You have", value: (r) => Object.values(r.owned).reduce((a, b) => a + b, 0), cell: ownedCell, align: "right" },
     { key: "vault", label: "Vault", value: (r) => (r.vaulted ? 1 : 0), cell: vaultCell, align: "center", title: "Vaulted: no new copies drop" },
     { key: "chance", label: "Part chance", value: (r) => r.chance, cell: chanceCell, align: "right", title: "Chance one crack, at your best refinement, gives a part a near-complete set is missing" },
-    { key: "value", label: "Set value", value: (r) => r.value, cell: valueCell, align: "right", title: "Platinum per crack, counting each part as its share of the set's price" },
+    { key: "value", label: "Per crack", value: (r) => r.value, cell: valueCell, align: "right", title: "Platinum per crack toward sets, counting each part as its share of the set's price" },
     { key: "hits", label: "Parts it can give", value: (r) => r.hits.length, cell: hitsCell, sortable: false },
   ];
 
   // ------------------------------------------------ radiant
   const radiant = $derived(
     radiantRows(model, { squad: settings.squad, metric, platPerDucat: settings.platPerDucat }).filter(
-      (r) => r.refinable > 0 && (!vaultedOnly || r.vaulted) && matches(query, r.base, r.rare?.name),
+      (r) => r.refinable > 0 && (!vaultedOnly || r.vaulted) && (!openOnly || isOpen(r.base)) && matches(query, r.base, r.rare?.name),
     ),
   );
   const canRefine = $derived(Math.floor(traces / 100));
@@ -86,7 +96,7 @@
   ]);
 </script>
 
-{#snippet relicCell(r: CrackRow)}<span class="rel"><Named file={model.imageOf(r.base)} name={r.base} tint={eraTint(r.base)} /></span>{/snippet}
+{#snippet relicCell(r: { base: string })}<span class="rel"><Named file={model.imageOf(r.base)} name={r.base} tint={eraTint(r.base)} />{#if isOpen(r.base)}<span class="open" title="{openNow[r.base.split(' ')[0]]?.length} {r.base.split(' ')[0]} fissure{openNow[r.base.split(' ')[0]]?.length === 1 ? '' : 's'} open right now">open now</span>{/if}</span>{/snippet}
 {#snippet ownedCell(r: CrackRow)}<Owned owned={r.owned} />{/snippet}
 {#snippet vaultCell(r: { vaulted: boolean })}<Avail v={r.vaulted ? "vaulted" : "farmable"} />{/snippet}
 {#snippet chanceCell(r: CrackRow)}<span class="pct">{(r.chance * 100).toFixed(1)}%</span>{/snippet}
@@ -101,7 +111,7 @@
   </span>
 {/snippet}
 
-{#snippet radRelicCell(r: RadiantRow)}<span class="rel"><Named file={model.imageOf(r.base)} name={r.base} tint={eraTint(r.base)} /></span>{/snippet}
+{#snippet radRelicCell(r: RadiantRow)}{@render relicCell(r)}{/snippet}
 {#snippet radOwnedCell(r: RadiantRow)}<Owned owned={r.owned} />{/snippet}
 {#snippet rareCell(r: RadiantRow)}
   {#if r.rare}<span class="rr"><span class="rr-name" use:info={r.rare.name}><Thumb file={model.imageOf(r.rare.name)} size={22} />{r.rare.name}</span><P v={r.rare.price} dim /></span>{/if}
@@ -119,6 +129,7 @@
         </button>
         <span class="dim small needs">needs {#each g.missing as x, i (x.name)}{i ? ", " : ""}<span class="miss" use:info={x.name}>{x.name.replace(g.set + " ", "")}{x.count > 1 ? ` ×${x.count}` : ""}</span>{/each}</span>
         {#if key === "last"}<span class="dim small src" title="Relics you hold that drop the missing part (see the table above)">{g.relicsOwned} relic{g.relicsOwned === 1 ? "" : "s"}</span>{/if}
+        {#if buyCost(g) != null}<span class="buyp" title="Buying what's missing, at the daily median"><span class="register">buy</span> <P v={Math.round(buyCost(g)!)} /></span>{/if}
         {#if g.setPrice != null}<span class="setp" title="What the complete set sells for"><span class="register">set</span> <P v={g.setPrice} dim /></span>{/if}
       </div>
     {/each}
@@ -140,7 +151,7 @@
         <Stat label="Sets close to done" note={`${settings.maxMissing === 1 ? "One part" : `Up to ${settings.maxMissing} parts`} away${filtered ? ", matching the filters" : ""}`}>{gaps.length}</Stat>
         <Stat label="One part away" tone="gold" note="A single drop completes them">{lastParts.length}</Stat>
         <Stat label="Relics that help" note={filtered ? "Matching the filters" : "From your inventory"}>{crack.length}</Stat>
-        <Stat label="No relic for it" tone="dim" note="Buy the part or farm relics">{uncovered.length}</Stat>
+        <Stat label="Sets with no relic" tone="dim" note="None of your relics drop what's missing: buy the part or farm relics">{uncovered.length}</Stat>
       {:else}
         <Stat label="Void Traces" note={`Enough to refine ${canRefine} relic${canRefine === 1 ? "" : "s"} to radiant`}>{traces.toLocaleString("en")}</Stat>
         <Stat label="Best gain" tone="gold" note={radiant[0] ? `${radiant[0].base}${filtered ? ", of the relics matching the filters" : ""}` : "—"}>
@@ -164,6 +175,7 @@
       <Seg bind:value={metric} options={[{ v: "plat", label: "Platinum", title: "Rank by what a crack is worth in platinum" }, { v: "ducats", label: "Ducats", title: "Rank by the ducats a crack gives, for Baro" }, { v: "need", label: "Parts I need", title: "Chance of a part for something you haven't built or mastered" }]} />
     {/if}
     <Chip bind:on={vaultedOnly} label="Vaulted only" title="Only relics that drop nowhere now" />
+    <Chip bind:on={openOnly} label="Open now" title="Only relics with a fissure of their era open right now" />
     <input type="search" placeholder={mode === "sets" ? "Relic or part…" : "Relic or reward…"} bind:value={query} />
   </div>
 
@@ -184,6 +196,9 @@
 
 <style>
   h2 { margin: var(--course, 2rem) 0 .6rem; }
+  .open { margin-left: .5rem; font-family: var(--face-register); font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); white-space: nowrap; }
+  .buyp { white-space: nowrap; margin-left: auto; }
+  .buyp + .setp { margin-left: 0; }
   .setp { white-space: nowrap; margin-left: auto; }
   .src { white-space: nowrap; }
   .setp .register { font-size: .6rem; color: var(--platinum-deep); }

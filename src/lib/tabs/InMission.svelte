@@ -7,6 +7,7 @@
   import PageHead from "../ui/PageHead.svelte";
   import Stat from "../ui/Stat.svelte";
   import Avail from "../ui/Avail.svelte";
+  import ListButton from "../ui/ListButton.svelte";
   import { bestCard, defaultPickWeights, resolveName, scoreCards, type PickCard, type PickWeights } from "../core/pick";
   import type { ScreenCards } from "../backend";
   import { info } from "../hover.svelte";
@@ -136,19 +137,19 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead
-    title={ms?.reward_screen_open || onScreen ? "Choose a reward" : "In mission"}
-    blurb={ms?.mission ? ms.mission : "The squad's relics and rewards, once a void fissure loads."}
-  >
-    {#snippet band()}
+  {#snippet stats()}
       <Stat label="Status" tone={live ? "gold" : "dim"} note={error ?? (ms ? (ms.reward_screen_open ? "Reward screen open" : live ? `${relics.length} relic${relics.length === 1 ? "" : "s"} in the squad` : paths.length ? "Last fissure round" : "Waiting for a fissure") : "EE.log not found; set it in Settings")}>
         {ms ? (live ? "Live" : "Ready") : "Idle"}
       </Stat>
       <Stat label="Most valuable" hover={best?.name ?? null} note={best?.name ?? "No fissure yet"}><P v={best?.price} big /></Stat>
       <Stat label="You need" tone={needed.length ? "gold" : "dim"} note={needed.map((n) => n.name).join(", ") || "Nothing on the table"}>{needed.length}</Stat>
       <Stat label="Earned this session" note={`Relic rewards you got · ${history.length} mission${history.length === 1 ? "" : "s"}${fissureCount ? ` · ${fissureCount} fissure${fissureCount === 1 ? "" : "s"}` : ""}`}><P v={sessionValue || null} big /></Stat>
-    {/snippet}
-  </PageHead>
+  {/snippet}
+  <PageHead
+    title={ms?.reward_screen_open || onScreen ? "Choose a reward" : "In mission"}
+    blurb={ms?.mission ? ms.mission : "The squad's relics and rewards, once a void fissure loads."}
+    band={onScreen ? undefined : stats}
+  />
 
   {#if onScreen}
     <section class="pick" aria-label="Which reward to take">
@@ -218,7 +219,7 @@
             <td class="dim small">
               {#if h.relics.length}{h.relics.length} relic{h.relics.length === 1 ? "" : "s"}{h.rounds ? ` · ${h.rounds} round${h.rounds === 1 ? "" : "s"}` : ""}{/if}
             </td>
-            <td class="small">{#each h.rewardsNamed as x, j (j)}<span class="got" use:info={x.name}><Thumb file={model.imageOf(x.name)} size={20} />{x.name}</span>{/each}</td>
+            <td class="small">{#each h.rewardsNamed as x, j (j)}<span class="got" use:info={x.name}><Thumb file={model.imageOf(x.name)} size={20} />{x.name}{#if model.price(x.name) != null}<ListButton {model} name={x.name} hint="Put it on warframe.market" />{/if}</span>{/each}</td>
             <td class="right">{#if h.value}<P v={h.value} />{/if}</td>
           </tr>
         {/each}
@@ -264,7 +265,9 @@
   .pick { margin-top: var(--step); border: 1px solid var(--rule-bright); background: var(--plate); padding: 1.1rem 1.3rem 1rem; display: grid; gap: .9rem; }
   .pick-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem 1.2rem; }
   .pick h2 { font-size: 2rem; margin: 0; color: var(--gold); }
-  .slips { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: .7rem; }
+  /* Up to four cards: one row of four, or two by two, never three and a stray. */
+  .slips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .7rem; }
+  :global(html[data-room~="lt950"]) .slips { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .slip { border: 1px solid var(--rule); padding: .8rem .9rem; display: grid; gap: .5rem; align-content: start; background: rgb(11 12 15 / 60%); }
   .slip.best { border-color: var(--gold); box-shadow: inset 0 3px 0 var(--gold); }
   .slip.yours { outline: 1px dashed var(--rule-bright); outline-offset: -4px; }

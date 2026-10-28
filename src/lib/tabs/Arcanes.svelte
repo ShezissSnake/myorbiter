@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Model } from "../core/model";
   import { arcaneRows, type ArcaneRow } from "../core/views";
-  import { marketUrl, openUrl, wikiUrl } from "../backend";
+  import UpgradeDetail from "../ui/UpgradeDetail.svelte";
   import Browse from "../ui/Browse.svelte";
   import ItemCard from "../ui/ItemCard.svelte";
   import { mkt } from "../marketStore.svelte";
@@ -19,6 +19,12 @@
   import { info } from "../hover.svelte";
 
   let { model, advice = $bindable() }: { model: Model; advice: AdviceSettings } = $props();
+  /** Your copies of an arcane by rank. */
+  const ranksOf = (r: ArcaneRow) => {
+    const by = new Map<number, number>();
+    for (const x of model.inventoryByBase.get(r.unique) ?? []) by.set(x.rank ?? 0, (by.get(x.rank ?? 0) ?? 0) + x.quantity);
+    return [...by].map(([rank, count]) => ({ rank, count }));
+  };
 
 
   let query = $state("");
@@ -170,12 +176,10 @@
 {/snippet}
 
 {#snippet detail(r: ArcaneRow)}
-  <p class="small">Max rank {r.maxRank}{r.highestRank != null ? ` · your best copy is R${r.highestRank}` : " · you have none"}{r.maxedCopies ? ` · ${r.maxedCopies} maxed` : ""}{r.unranked ? ` · ${r.unranked} unranked` : ""}{r.rarity ? ` · ${r.rarity}` : ""}</p>
-  <div class="links">
-    <button class="link" onclick={() => openUrl(wikiUrl(r.name))}>Wiki ↗</button>
-    {#if r.tradable && r.extraSets > 0 && leftover(r) > 0}<button class="stamp" onclick={(e) => { e.stopPropagation(); mkt.startListing(model, r.name, { unique: r.unique, rank: 0, quantity: leftover(r) }); }}>List {leftover(r)} unranked</button>{/if}
-    {#if r.tradable}<button class="link" onclick={() => openUrl(marketUrl(r.name))}>warframe.market ↗</button>{/if}
-  </div>
+  <UpgradeDetail {model} name={r.name} unique={r.unique} ranks={ranksOf(r)} tradable={r.tradable}>
+    <p class="small dim">{r.complete ? "Maxed, or enough copies to max it" : `${r.copies} of ${r.needed} copies to max it`}{r.maxedCopies ? ` · ${r.maxedCopies} maxed` : ""}</p>
+    {#if r.tradable && r.extraSets > 0 && leftover(r) > 0}<div><button class="stamp" onclick={(e) => { e.stopPropagation(); mkt.startListing(model, r.name, { unique: r.unique, rank: 0, quantity: leftover(r) }); }}>List {leftover(r)} unranked</button></div>{/if}
+  </UpgradeDetail>
 {/snippet}
 
 <div class="page"><div class="page-inner">

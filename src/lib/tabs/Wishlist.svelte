@@ -121,7 +121,7 @@
               <span class="register">{w.c.type}</span>
               <div class="chips">{#each w.c.parts.filter((p) => !p.resource) as p (p.name)}<PartChip part={p} size={30} />{/each}</div>
               <div class="sum">
-                {#if w.c.mastered}<span class="tag good">✓ Mastered</span>
+                {#if w.c.mastered}<span class="tag good">✓ Mastered</span><button class="link quiet" title="You've mastered it: take it off your wishlist" onclick={() => remove(w.c.unique)}>Done: remove it</button>
                 {:else if w.c.owned}<span class="tag ok">Owned · level it</span>
                 {:else if w.c.building}<span class="tag">Building</span>
                 {:else if !w.missing.length}<span class="tag ok">Ready to build</span>
