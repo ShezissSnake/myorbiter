@@ -833,7 +833,6 @@ fn keep(path: &Path, value: &Value) {
     }
 }
 
-/// `/v2/items`, trimmed to what orbiter needs and cached for a day.
 /// warframe.market's thumbnail for an item, as orbiter's image cache names it ("wfm." and the file
 /// name): only plain names under its thumbnail folder, else null.
 fn thumb_name(v: &Value) -> Value {
@@ -843,6 +842,7 @@ fn thumb_name(v: &Value) -> Value {
         .map_or(Value::Null, |f| Value::String(format!("wfm.{f}")))
 }
 
+/// `/v2/items`, trimmed to what orbiter needs and cached for a day.
 pub fn items(cache_dir: &Path) -> Result<Value, MarketError> {
     let path = cache_dir.join("market-items.json");
     let fresh = std::fs::metadata(&path)

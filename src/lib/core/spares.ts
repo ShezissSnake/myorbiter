@@ -359,7 +359,9 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
       // A part's blueprint (…DuviriRifleBarrelBlueprint) builds the part the recipe lists
       // (…DuviriRifleBarrel): kept for it, less the built copies you already hold.
       const base = baseId(r.unique);
-      const part = !needs.has(base) && /.Blueprint$/.test(base) ? base.replace(/Blueprint$/, "") : null;
+      // Warframe parts are listed as …ChassisComponent, weapon parts as …Barrel.
+      const stem = base.replace(/Blueprint$/, "");
+      const part = !needs.has(base) && /.Blueprint$/.test(base) ? ([stem, `${stem}Component`].find((u) => needs.has(u)) ?? stem) : null;
       need = [...(needs.get(part ?? base) ?? [])].sort((a, b) => b.count - a.count);
       const total = need.reduce((n, x) => n + x.count, 0);
       const built = part ? m.owned(part) : 0;
@@ -462,7 +464,10 @@ export function partsStillNeededFrom(m: Model, mission: string): string[] {
     if (!item.masterable || m.isMastered(item.uniqueName) || m.owned(item.uniqueName) > 0) continue;
     for (const c of item.components ?? []) {
       if (!(c.drops ?? []).some((d) => d.location?.includes(mission))) continue;
-      const have = m.owned(c.uniqueName) + m.owned(c.uniqueName.replace(/Blueprint$/, "Component"));
+      // Held as the part (…SystemsComponent), as its blueprint (…SystemsBlueprint: what the boss
+      // drops), or crafting in the foundry.
+      const bp = c.uniqueName.replace(/(Component)?$/, "").replace(/Blueprint$/, "") + "Blueprint";
+      const have = m.owned(c.uniqueName) + (bp !== c.uniqueName ? m.owned(bp) : 0) + m.inFoundry(bp);
       if (have < (c.itemCount ?? 1)) out.push(`${item.name} ${c.name}`);
     }
   }

@@ -69,6 +69,9 @@ export interface MarketRow {
   thumb: string | null;
 }
 
+/** Arcane copies you hold, at any rank (a rank-5 one counts once). */
+const arcaneCopies = (m: Model, unique: string) => (m.inventoryByBase.get(unique) ?? []).reduce((n, r) => n + r.quantity, 0);
+
 /** Every item on warframe.market with its price, trade rate, ducats and how many you hold. */
 export function marketRows(m: Model, items: MarketItem[]): MarketRow[] {
   return items.map((it) => {
@@ -85,7 +88,8 @@ export function marketRows(m: Model, items: MarketItem[]): MarketRow[] {
       maxRank: it.maxRank,
       tradesPerDay: m.tradesPerDay(it.name),
       ducats: m.partByName.get(it.name)?.[0]?.ducats ?? null,
-      have: held == null ? null : held.reduce((n, h) => n + h.count, 0),
+      // Arcanes: holdings also counts the maxed ones your copies would make, so use the copies.
+      have: held == null ? null : categoryOf(it.tags) === "arcane" ? (it.gameRef ? arcaneCopies(m, it.gameRef) : 0) : held.reduce((n, h) => n + h.count, 0),
       thumb: it.thumb ?? null,
     };
   });

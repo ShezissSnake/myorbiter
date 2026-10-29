@@ -182,7 +182,7 @@ test("a boss key is kept while the fight still drops a part you need, and spare 
   const mesa = {
     uniqueName: "/Lotus/Powersuits/Cowgirl/Cowgirl", name: "Mesa", category: "Warframes", masterable: true,
     components: ["Neuroptics", "Chassis", "Systems"].map((p) => ({
-      uniqueName: `${MESA}Cowgirl${p === "Neuroptics" ? "Helmet" : p}Blueprint`, name: p, itemCount: 1,
+      uniqueName: `${MESA}Cowgirl${p === "Neuroptics" ? "Helmet" : p}Component`, name: p, itemCount: 1,
       drops: [{ location: "Eris/Mutalist Alad V (Assassination)", type: "Mesa " + p, chance: 0.2 }],
     })),
   };
@@ -195,6 +195,9 @@ test("a boss key is kept while the fight still drops a part you need, and spare 
   const missing = row(withMesa([inv(`${MESA}CowgirlHelmetBlueprint`, "Cowgirl Helmet Blueprint", "blueprint", 1), inv(`${MESA}CowgirlChassisBlueprint`, "Cowgirl Chassis Blueprint", "blueprint", 1)]), "Mutalist Alad V Nav Coordinate")!;
   assert.deepEqual([missing.keep, missing.spare], [1, 0]);
   assert.match(missing.why, /Mesa Systems/);
+  // The boss drops the Systems blueprint: holding it (not yet built) is enough.
+  const dropped = row(withMesa([inv(`${MESA}CowgirlHelmetComponent`, "Cowgirl Helmet Component", "blueprint", 1), inv(`${MESA}CowgirlChassisBlueprint`, "Cowgirl Chassis Blueprint", "blueprint", 1), inv(`${MESA}CowgirlSystemsBlueprint`, "Cowgirl Systems Blueprint", "blueprint", 1)]), "Mutalist Alad V Nav Coordinate")!;
+  assert.deepEqual([dropped.keep, dropped.spare], [0, 1]);
   const done = row(withMesa([inv("/Lotus/Powersuits/Cowgirl/Cowgirl", "Mesa", "frame", 1)]), "Mutalist Alad V Nav Coordinate")!;
   assert.deepEqual([done.keep, done.spare], [0, 1]);
 });

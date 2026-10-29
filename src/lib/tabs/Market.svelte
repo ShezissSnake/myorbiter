@@ -29,12 +29,14 @@
 
   // warframe.market's item list: loaded once, shared with Orders and the buy order form.
   let loadError = $state<string | null>(null);
-  $effect(() => {
-    if (mkt.items.length) return;
+  // An empty answer is a failure too: without it the page would say "Loading…" for ever.
+  const load = () =>
     mkt.ensureItems().then(
-      () => (loadError = null),
+      () => (loadError = mkt.items.length ? null : "warframe.market sent an empty list"),
       (e) => (loadError = String(e).replace(/^Error: /, "")),
     );
+  $effect(() => {
+    if (!mkt.items.length) void load();
   });
 
   const all = $derived(marketRows(model, mkt.items));
@@ -139,7 +141,7 @@
 
   {#if !mkt.items.length}
     {#if loadError}
-      <p class="dim">Couldn't load warframe.market's item list: {loadError}. <button class="link" onclick={() => { loadError = null; mkt.ensureItems().catch((e) => (loadError = String(e).replace(/^Error: /, ""))); }}>Try again</button></p>
+      <p class="dim">Couldn't load warframe.market's item list: {loadError}. <button class="link" onclick={() => { loadError = null; void load(); }}>Try again</button></p>
     {:else}
       <p class="dim">Loading warframe.market's item list…</p>
     {/if}

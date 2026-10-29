@@ -101,7 +101,9 @@ fn fetch(name: &str) -> Fetched {
                 let mut reader = std::io::Read::take(resp.into_reader(), 8 * 1024 * 1024);
                 reached = true;
                 if std::io::Read::read_to_end(&mut reader, &mut bytes).is_ok() && !bytes.is_empty() {
-                    set_offline(false);
+                    if wfm.is_none() {
+                        set_offline(false);
+                    }
                     return Fetched::Image(bytes);
                 }
                 all_404 = false;
@@ -114,7 +116,10 @@ fn fetch(name: &str) -> Fetched {
             Err(ureq::Error::Transport(_)) => all_404 = false,
         }
     }
-    set_offline(!reached);
+    // Only WFCD's sources decide "offline": warframe.market being unreachable mustn't stop WFCD art.
+    if wfm.is_none() {
+        set_offline(!reached);
+    }
     if all_404 { Fetched::Missing } else { Fetched::Failed }
 }
 

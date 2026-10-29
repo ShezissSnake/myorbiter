@@ -108,15 +108,17 @@
   let checkedAll = $state<{ ok: number; failed: Riven[]; reason: string } | null>(null);
   let stopAll = false;
   const failedCheck = (r: Riven) => !!checks[r.id]?.error && !checks[r.id]?.auctions;
+  /** Of the last run's failures, the ones still failing (one checked by hand since drops out). */
+  const stillFailed = $derived(checkedAll?.failed.filter(failedCheck) ?? []);
   async function checkAll(only?: Riven[]) {
     const listed = meta ? (only ?? sorted).filter((r) => searchFor(meta, r).weapon) : [];
     // Everything checked already: check them all again (prices move).
     const fresh = listed.filter((r) => !checks[r.id]?.auctions);
     const again = !only && !fresh.length;
     const todo = again ? listed : fresh;
+    checkedAll = null;
     if (!meta || !todo.length) return;
     stopAll = false;
-    checkedAll = null;
     checkingAll = { done: 0, total: todo.length };
     const wait = async () => {
       checkingAll = { ...checkingAll!, paused: true };
@@ -324,8 +326,8 @@
       {#if checkingAll}
         <span class="checking"><span class="dim small">{checkingAll.paused ? `${checkingAll.retry ? "Some checks failed" : "warframe.market asked to slow down"}: waiting half a minute, then ${checkingAll.retry ? "trying those again" : `${checkingAll.done + 1} of ${checkingAll.total}`}…` : `${checkingAll.retry ? "Trying again" : "Checking"} ${checkingAll.done + 1} of ${checkingAll.total}…`}</span><button class="link" onclick={() => (stopAll = true)}>Stop</button></span>
       {:else}
-        {#if checkedAll?.failed.length}
-          <span class="checking"><span class="dim small" title={checkedAll.reason}>Checked {checkedAll.ok}; {checkedAll.failed.length} couldn't be ({checkedAll.reason.replace(/(; |\. ).*$/, "")})</span><button class="link" title="Check the ones that failed again" onclick={() => checkAll(checkedAll!.failed)}>Try those again</button></span>
+        {#if stillFailed.length}
+          <span class="checking"><span class="dim small" title={checkedAll!.reason}>Checked {checkedAll!.ok}; {stillFailed.length} couldn't be ({checkedAll!.reason.replace(/(; |\. ).*$/, "")})</span><button class="link" title="Check the ones that failed again" onclick={() => checkAll(stillFailed)}>Try those again</button></span>
         {/if}
         <button class="stamp" disabled={!meta} title={!meta ? "Waiting for warframe.market's riven list" : !unchecked ? "Check every riven's price again" : "Find similar rivens for sale for each of yours, one after another"} onclick={() => checkAll()}>{!unchecked ? "Check prices again" : unchecked === shown.length ? (shown.length === mine.length ? "Price check all" : `Price check these ${unchecked}`) : `Price check the other ${unchecked}`}</button>
       {/if}
