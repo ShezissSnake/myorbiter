@@ -117,8 +117,34 @@ export function partState(m: Model, item: CatalogItem, c: Component): PartState 
   };
 }
 
+/**
+ * Components with the same name told apart: Wrath has two Blades (an Orion one and a Sirius one),
+ * which become "Orion Blade" and "Sirius Blade" from their paths, or "Blade 1" and "Blade 2".
+ */
+export function distinctComponents(components: Component[]): Component[] {
+  const count = new Map<string, number>();
+  for (const c of components) count.set(c.name, (count.get(c.name) ?? 0) + 1);
+  if (![...count.values()].some((n) => n > 1)) return components;
+  const seen = new Map<string, number>();
+  const word = (c: Component) => {
+    const last = c.uniqueName.split("/").pop() ?? "";
+    const stem = last.replace(/(Blueprint|Component)$/, "").replace(new RegExp(`${c.name.replace(/\s+/g, "")}$`), "");
+    return stem.match(/^[A-Z][a-z]+/)?.[0] ?? null;
+  };
+  const words = new Map<Component, string | null>(components.map((c) => [c, count.get(c.name)! > 1 ? word(c) : null]));
+  return components.map((c) => {
+    if (count.get(c.name)! < 2) return c;
+    const n = (seen.get(c.name) ?? 0) + 1;
+    seen.set(c.name, n);
+    const w = words.get(c);
+    // A word that tells this one apart from its namesakes, else a number.
+    const unique = w && components.filter((x) => x.name === c.name && words.get(x) === w).length === 1;
+    return { ...c, name: unique ? `${w} ${c.name}` : `${c.name} ${n}` };
+  });
+}
+
 export function collectionItem(m: Model, item: CatalogItem): CollectionItem {
-  const parts = (item.components ?? []).map((c) => partState(m, item, c));
+  const parts = distinctComponents(item.components ?? []).map((c) => partState(m, item, c));
   // Blueprint first, then parts, then resources, as the game lists them.
   parts.sort((a, b) => Number(a.resource) - Number(b.resource) || Number(b.label === "Blueprint") - Number(a.label === "Blueprint"));
   const isPrime = item.isPrime === true || / Prime$/.test(item.name);
