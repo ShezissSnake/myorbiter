@@ -468,3 +468,95 @@ export function auctionOf(meta: RivenMeta, r: Riven, mine: MyAuction[]): MyAucti
   const name = r.name.toLowerCase();
   return mine.find((a) => !a.closed && a.weapon === weapon && a.name === name);
 }
+
+// ---------------------------------------------------------------- what rivens traded for in game
+
+/**
+ * Digital Extremes' weekly figures for riven trades completed in game (www-static.warframe.com,
+ * weeklyRivensPC.json and the like, refreshed each Monday): per riven kind and weapon, cycled or
+ * not, what they went for. Trades for 1p are left out. Unlike warframe.market's listings, these
+ * are sales; they don't say which stats sold.
+ */
+export interface RivenTrade {
+  /** "Rifle", "Melee"… as the riven kinds go. */
+  kind: string;
+  /** The weapon ("Rubico" for a Rubico Prime too); null for veiled rivens of the kind. */
+  weapon: string | null;
+  rerolled: boolean;
+  median: number | null;
+  avg: number;
+  min: number;
+  max: number;
+  /** DE's measure of how often they traded, relative to the rest. */
+  pop: number;
+}
+
+/** The weekly file's platform names. */
+export const TRADE_FILE: Record<string, string> = { pc: "PC", ps4: "PS4", xbox: "XB1", switch: "SWI", mobile: "PC" };
+export const tradeUrl = (platform: string) => `https://www-static.warframe.com/repos/weeklyRivens${TRADE_FILE[platform] ?? "PC"}.json`;
+
+/** Reads the weekly file: a JavaScript literal (bare keys, single quotes) as much as JSON. */
+export function parseWeeklyRivens(text: string): RivenTrade[] {
+  let out = "";
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === "'" || ch === '"') {
+      let s = "";
+      i++;
+      while (i < text.length && text[i] !== ch) {
+        if (text[i] === "\\" && i + 1 < text.length) {
+          s += text[i + 1];
+          i += 2;
+        } else s += text[i++];
+      }
+      i++;
+      out += JSON.stringify(s);
+    } else if (/[A-Za-z_]/.test(ch)) {
+      let w = "";
+      while (i < text.length && /[A-Za-z0-9_]/.test(text[i])) w += text[i++];
+      let j = i;
+      while (j < text.length && /\s/.test(text[j])) j++;
+      out += text[j] === ":" ? JSON.stringify(w) : w;
+    } else {
+      out += ch;
+      i++;
+    }
+  }
+  const raw = JSON.parse(out.replace(/,(\s*[}\]])/g, "$1")) as Record<string, unknown>[];
+  if (!Array.isArray(raw)) return [];
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  return raw
+    .filter((r) => typeof r.itemType === "string")
+    .map((r) => ({
+      kind: String(r.itemType).replace(/ Riven Mod$/, ""),
+      weapon: typeof r.compatibility === "string" ? r.compatibility.replace(/ \((Melee|Primary|Secondary)\)$/, "") : null,
+      rerolled: r.rerolled === true,
+      median: num(r.median),
+      avg: num(r.avg) ?? 0,
+      min: num(r.min) ?? 0,
+      max: num(r.max) ?? 0,
+      pop: num(r.pop) ?? 0,
+    }));
+}
+
+/**
+ * Last week's trades for rivens like this one: same kind and weapon (a Rubico Prime riven is a
+ * Rubico one), cycled or never cycled as it is; `other` is the other way round.
+ */
+export function tradesFor(trades: RivenTrade[], kind: string, weapon: string, rerolled: boolean): { same: RivenTrade | null; other: RivenTrade | null } {
+  const ofKind = trades.filter((t) => t.kind === kind && t.weapon);
+  const w = weapon.toLowerCase();
+  const exact = ofKind.filter((t) => t.weapon!.toLowerCase() === w);
+  const family = exact.length
+    ? exact
+    : (() => {
+        const fits = ofKind.filter((t) => {
+          const n = t.weapon!.toLowerCase();
+          return w.startsWith(`${n} `) || w.endsWith(` ${n}`);
+        });
+        const longest = Math.max(0, ...fits.map((t) => t.weapon!.length));
+        return fits.filter((t) => t.weapon!.length === longest);
+      })();
+  return { same: family.find((t) => t.rerolled === rerolled) ?? null, other: family.find((t) => t.rerolled !== rerolled) ?? null };
+}

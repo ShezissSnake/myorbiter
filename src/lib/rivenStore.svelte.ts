@@ -1,7 +1,7 @@
 // warframe.market's riven data: weapon and stat names (cached for a day on the Rust side) and
 // riven auctions, cached a few minutes per search so opening a card twice doesn't refetch.
 import { market } from "./backend";
-import { parseMyAuctions, type AuctionItem, type MyAuction, type RivenAuction, type RivenMeta } from "./core/rivens";
+import { parseMyAuctions, parseWeeklyRivens, tradeUrl, type AuctionItem, type MyAuction, type RivenAuction, type RivenMeta, type RivenTrade } from "./core/rivens";
 
 const TTL = 10 * 60_000;
 
@@ -44,6 +44,28 @@ class Rivens {
     } catch (e) {
       this.keep(key, { at: Date.now(), error: String(e) });
       throw e;
+    }
+  }
+
+  // ------------------------------------------------------------ last week's trades in game
+
+  /** DE's weekly riven trade figures for your platform (see core/rivens.ts, RivenTrade). */
+  trades = $state.raw<RivenTrade[] | null>(null);
+  tradesError = $state<string | null>(null);
+  private tradesFor: { platform: string; at: number } | null = null;
+  /** Read once per platform, and again after six hours: the file changes on Mondays. */
+  async loadTrades(platform: string) {
+    if (this.tradesFor?.platform === platform && Date.now() - this.tradesFor.at < 6 * 3600_000) return;
+    this.tradesFor = { platform, at: Date.now() };
+    try {
+      const res = await fetch(tradeUrl(platform), { cache: "no-cache" });
+      if (!res.ok) throw new Error(`warframe.com answered ${res.status}`);
+      this.trades = parseWeeklyRivens(await res.text());
+      this.tradesError = null;
+    } catch (e) {
+      // Tried again on the next visit to the page rather than in six hours.
+      this.tradesFor = null;
+      this.tradesError = String(e).replace(/^Error:\s*/, "");
     }
   }
 

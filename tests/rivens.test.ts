@@ -104,3 +104,27 @@ test("cycling: Kuva costs, and the roll before the last cycle", () => {
   assert.equal(lastCycle(m, tables, raw(4, 0x3fffffff), hist)!.kept, true, "cycled but kept the old roll");
   assert.deepEqual(recordRivens(hist, [], 5), {}, "a riven you no longer have drops out");
 });
+
+test("DE's weekly riven trades: the file reads, and a riven finds its weapon's line", async () => {
+  const { parseWeeklyRivens, tradesFor, tradeUrl } = await import("../src/lib/core/rivens");
+  const text = `[
+  { itemType: 'Rifle Riven Mod', compatibility: null, rerolled: false, avg: 68, stddev: 116, min: 10, max: 300, pop: 1, median: 10 },
+  { itemType: 'Rifle Riven Mod', compatibility: 'Rubico', rerolled: false, avg: 133.36, stddev: 567.82, min: 5, max: 4300, pop: 4, median: 25 },
+  { itemType: 'Rifle Riven Mod', compatibility: 'Rubico', rerolled: true, avg: 352.51, stddev: 816.94, min: 10, max: 4600, pop: 2, median: 100 },
+  { itemType: 'Melee Riven Mod', compatibility: 'Vinquibus (Melee)', rerolled: true, avg: 50, stddev: 1, min: 20, max: 90, pop: 1 },
+  { itemType: 'Melee Riven Mod', compatibility: 'Ack & Brunt', rerolled: false, avg: 40, stddev: 1, min: 20, max: 90, pop: 1, median: 30 },
+]`;
+  const t = parseWeeklyRivens(text);
+  assert.equal(t.length, 5);
+  assert.deepEqual([t[1].kind, t[1].weapon, t[1].median], ["Rifle", "Rubico", 25]);
+  assert.equal(t[3].weapon, "Vinquibus", "the melee Vinquibus is listed as 'Vinquibus (Melee)'");
+  assert.equal(t[3].median, null, "no median given");
+  const r = tradesFor(t, "Rifle", "Rubico Prime", true);
+  assert.equal(r.same?.median, 100, "a cycled Rubico Prime riven compares with cycled Rubico ones");
+  assert.equal(r.other?.median, 25);
+  assert.equal(tradesFor(t, "Melee", "Ack & Brunt", false).same?.median, 30);
+  assert.equal(tradesFor(t, "Pistol", "Rubico", false).same, null, "another kind's line doesn't count");
+  assert.equal(tradeUrl("xbox"), "https://www-static.warframe.com/repos/weeklyRivensXB1.json");
+  // The real file's shape, if it ever becomes plain JSON.
+  assert.equal(parseWeeklyRivens(JSON.stringify([{ itemType: "Zaw Riven Mod", compatibility: "Balla", rerolled: false, avg: 1, stddev: 0, min: 1, max: 1, pop: 1, median: 1 }]))[0].weapon, "Balla");
+});

@@ -5,6 +5,7 @@
   import type { Model } from "../core/model";
   import type { RivenWatch, Settings } from "../backend";
   import { marketUrl, openUrl } from "../backend";
+  import { tradesFor, type RivenTrade } from "../core/rivens";
   import { auctionItemFor, auctionOf, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, searchFor, type MyAuction, type Riven, type RivenAuction, type RivenChange } from "../core/rivens";
   import { mkt } from "../marketStore.svelte";
   import { rivens } from "../rivenStore.svelte";
@@ -36,7 +37,7 @@
     }
     return out;
   });
-  let sort = $state<"grade" | "weapon" | "rank" | "cheapest">("grade");
+  let sort = $state<"grade" | "weapon" | "rank" | "traded">("grade");
   // Filters: the riven's kind (Rifle, Melee…), spliced ones only, and a weapon or name.
   let kind = $state("all");
   let splicedOnly = $state(false);
@@ -49,13 +50,11 @@
   const splicedCount = $derived(mine.filter((r) => r.spliced).length);
   const best = $derived(mine.reduce<Riven | null>((b, r) => (r.quality != null && (b?.quality == null || r.quality > b.quality) ? r : b), null));
   const shown = $derived(mine.filter((r) => (kind === "all" || (kind === "regular" ? !r.companion : kindOf(r) === kind)) && (!splicedOnly || r.spliced) && matches(query, r.weapon, r.name, ...r.stats.map((x) => x.label))));
-  /** The cheapest riven listed for its weapon, whatever its stats (from the price check). */
-  const floorOf = (r: Riven) => (checks[r.id]?.any ? priceCheck(checks[r.id].any!).lowest : null);
   const sorted = $derived(
     [...shown].sort((a, b) =>
       sort === "grade" ? (b.quality ?? -1) - (a.quality ?? -1)
       : sort === "rank" ? b.rank - a.rank
-      : sort === "cheapest" ? (floorOf(b) ?? -1) - (floorOf(a) ?? -1) || a.weapon.localeCompare(b.weapon)
+      : sort === "traded" ? (tradeValue(b) ?? -1) - (tradeValue(a) ?? -1) || a.weapon.localeCompare(b.weapon)
       : a.weapon.localeCompare(b.weapon),
     ),
   );
@@ -63,6 +62,15 @@
   $effect(() => {
     void rivens.loadMeta();
   });
+  // What rivens traded for in game last week, per weapon (DE's weekly figures).
+  $effect(() => {
+    void rivens.loadTrades(settings.market.platform);
+  });
+  const traded = (r: Riven) => (rivens.trades ? tradesFor(rivens.trades, r.kind, r.weapon, r.rerolls > 0) : null);
+  const tradeValue = (r: Riven) => traded(r)?.same?.median ?? null;
+  const fmtP = (v: number) => `${Math.round(v).toLocaleString("en")}p`;
+  const tradeTitle = (r: Riven, t: RivenTrade) =>
+    `Riven trades completed in game last week for ${t.weapon} rivens that were ${t.rerolled ? "cycled" : "never cycled"}: median ${t.median == null ? "?" : fmtP(t.median)}, average ${fmtP(t.avg)}, from ${fmtP(t.min)} to ${fmtP(t.max)} (Digital Extremes' weekly figures, 1p trades left out). They don't say which stats sold, so a great roll goes well over the median and a poor one under it.`;
   const meta = $derived(rivens.meta);
 
   // Price checks, per riven: rivens listed with its two best stats ("similar"), and any riven for
@@ -171,6 +179,18 @@
     }
   }
 
+  const tradedSum = $derived.by(() => {
+    let total = 0;
+    let n = 0;
+    for (const r of mine) {
+      const v = tradeValue(r);
+      if (v != null) {
+        total += v;
+        n++;
+      }
+    }
+    return { total, n };
+  });
   const priced = $derived(mine.map((r) => checks[r.id]?.auctions).filter((a): a is RivenAuction[] => !!a).map((a) => priceCheck(a)));
   const worth = $derived(priced.reduce((n, p) => n + (p.typical ?? 0), 0));
   // Rivens for weapons warframe.market doesn't list can't be checked: they don't count as left to do.
@@ -236,13 +256,13 @@
 {#snippet grade(g: string, big = false)}<span class="grade g-{g.replace('+', 'p').replace('−', 'm')}" class:big>{g}</span>{/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Rivens" blurb={console ? "Find rivens for sale, each roll graded, and alerts when one you want is listed at your price." : "Your rivens as the game rolled them, each stat graded against what it could have rolled, and what similar ones sell for."}>
+  <PageHead title="Rivens" blurb={console ? "Find rivens for sale, each roll graded, what each weapon's rivens traded for last week, and alerts when one you want is listed at your price." : "Your rivens as the game rolled them, each stat graded against what it could have rolled, and what rivens for the weapon traded for in game last week."}>
     {#snippet band()}
       {#if !console}
       <Stat label="Unveiled" note="Read from your inventory">{mine.length}</Stat>
       <Stat label="Veiled" tone="dim" note="Challenges still to do">{veiled}</Stat>
       <Stat label="Best roll" tone="gold" note={best ? `${best.weapon} ${best.name}` : "–"}>{best?.grade ?? "–"}</Stat>
-      {#if priced.length}<Stat label="Listed around" tone="gold" note={`What similar ones are listed for (asking, not sold), ${priced.length} of ${mine.length} checked`}><P v={worth} big /></Stat>{/if}
+      {#if tradedSum.n}<Stat label="Traded around" tone="gold" note={`Last week's in-game median for each weapon, ${tradedSum.n} of ${mine.length} rivens`}><P v={Math.round(tradedSum.total)} big /></Stat>{:else if priced.length}<Stat label="Listed around" tone="gold" note={`What similar ones are listed for (asking, not sold), ${priced.length} of ${mine.length} checked`}><P v={worth} big /></Stat>{/if}
       {/if}
       <Stat label="Alerts" note="Rivens you're watching for">{settings.rivenWatch.length}</Stat>
     {/snippet}
@@ -273,7 +293,7 @@
         {#if companions}<option value="companion">Companion weapons ({companions})</option>{/if}
       </select>
       {#if splicedCount}<Chip bind:on={splicedOnly} label="Spliced ({splicedCount})" title="Only rivens with a stat from Riven Splicing (Gas, Corrosive, Weak Point Damage…), which can't roll by cycling" />{/if}
-      <Seg label="Sort" bind:value={sort} options={[{ v: "grade", label: "Best rolls", title: "The best overall grade first" }, { v: "weapon", label: "Weapon", title: "By weapon, A to Z" }, { v: "rank", label: "Rank", title: "The highest rank first" }, { v: "cheapest", label: "Weapon floor", title: "The weapons whose cheapest listed riven costs most first (price-checked rivens)" }]} />
+      <Seg label="Sort" bind:value={sort} options={[{ v: "grade", label: "Best rolls", title: "The best overall grade first" }, { v: "weapon", label: "Weapon", title: "By weapon, A to Z" }, { v: "rank", label: "Rank", title: "The highest rank first" }, { v: "traded", label: "Trade value", title: "What rivens for the weapon (cycled or not, like yours) traded for in game last week, highest first: the ones worth selling, whatever their stats" }]} />
       {#if checkingAll}
         <span class="checking"><span class="dim small">{checkingAll.paused ? `warframe.market asked to slow down: waiting, then ${checkingAll.done + 1} of ${checkingAll.total}…` : `Checking ${checkingAll.done + 1} of ${checkingAll.total}…`}</span><button class="link" onclick={() => (stopAll = true)}>Stop</button></span>
       {:else}
@@ -352,6 +372,14 @@
               </form>
             {/if}
           {/if}
+          {#if rivens.trades}
+            {@const tr = traded(r)}
+            <p class="traded small">
+              {#if tr?.same}<span title={tradeTitle(r, tr.same)}><span class="dim">Traded in game last week</span> <b>~{tr.same.median == null ? "?" : fmtP(tr.same.median)}</b> <span class="dim">· {fmtP(tr.same.min)}–{fmtP(tr.same.max)}</span></span>{#if tr.other?.median != null}<span class="dim" title={tradeTitle(r, tr.other)}>{" · "}{tr.other.rerolled ? "cycled" : "never cycled"} ~{fmtP(tr.other.median)}</span>{/if}
+              {:else if tr?.other}<span class="dim" title={tradeTitle(r, tr.other)}>No {r.rerolls ? "cycled" : "uncycled"} {r.weapon} rivens traded in game last week; {tr.other.rerolled ? "cycled" : "never cycled"} ones went for ~{tr.other.median == null ? "?" : fmtP(tr.other.median)}</span>
+              {:else}<span class="dim" title="Digital Extremes' weekly figures list no in-game trade of a riven for this weapon last week: little demand">No {r.weapon} rivens traded in game last week</span>{/if}
+            </p>
+          {/if}
           <footer>
             {#if pc}
               {@const fl = c?.any ? priceCheck(c.any) : null}
@@ -395,6 +423,15 @@
         </span>
       </div>
       {#if weaponName && !weapon}<p class="dim small">Pick a weapon from the list.</p>{/if}
+      {#if weapon && rivens.trades}
+        {@const k = weapon.group === "archgun" ? "Archgun" : weapon.group === "kitgun" ? "Kitgun" : weapon.group === "zaw" ? "Zaw" : weapon.rivenType.charAt(0).toUpperCase() + weapon.rivenType.slice(1)}
+        {@const t = tradesFor(rivens.trades, k, weapon.name, false)}
+        <p class="small traded">
+          {#if t.same || t.other}<span class="dim">{weapon.name} rivens traded in game last week:</span>
+            {#each [t.same, t.other].filter((x): x is RivenTrade => !!x) as x, i (i)}{i ? " · " : " "}<span title="Digital Extremes' weekly figures for trades completed in game (1p trades left out); they don't say which stats sold"><span class="dim">{x.rerolled ? "cycled" : "never cycled"}</span> <b>~{x.median == null ? "?" : fmtP(x.median)}</b> <span class="dim">({fmtP(x.min)}–{fmtP(x.max)})</span></span>{/each}
+          {:else}<span class="dim">No {weapon.name} rivens traded in game last week.</span>{/if}
+        </p>
+      {/if}
       {#if watchNote}<p class="dim small">{watchNote}</p>{/if}
 
       {#if settings.rivenWatch.length}
@@ -474,6 +511,8 @@
   /* Cards in a row share a height; the footer sits at the bottom of each. */
   .riven footer { margin-top: auto; display: flex; align-items: center; gap: .35rem; padding-top: .5rem; border-top: 1px solid var(--rule); min-height: 1.6rem; }
   .riven footer .slot { width: 30px; }
+  .traded { margin: 0; line-height: 1.4; }
+  .traded b { color: var(--platinum); font-family: var(--face-mark); font-size: .95rem; }
   .pcs { display: grid; gap: .15rem; min-width: 0; }
   .pc { display: inline-flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
   .grow { flex: 1; }
