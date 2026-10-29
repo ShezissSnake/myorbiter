@@ -175,3 +175,26 @@ test("a pile of spares counts for no more than the market sells in a month", asy
   assert.equal(sellableCopies(5, 10), 5);
   assert.equal(sellableCopies(40, null), 40, "no pace known (relics): all of them");
 });
+
+test("a boss key is kept while the fight still drops a part you need, and spare once it doesn't", () => {
+  const MESA = "/Lotus/Types/Recipes/WarframeRecipes/";
+  const coord = inv("/Lotus/Types/Items/MiscItems/InfestedAladCoordinate", "Mutalist Alad V Nav Coordinate", "resource", 1);
+  const mesa = {
+    uniqueName: "/Lotus/Powersuits/Cowgirl/Cowgirl", name: "Mesa", category: "Warframes", masterable: true,
+    components: ["Neuroptics", "Chassis", "Systems"].map((p) => ({
+      uniqueName: `${MESA}Cowgirl${p === "Neuroptics" ? "Helmet" : p}Blueprint`, name: p, itemCount: 1,
+      drops: [{ location: "Eris/Mutalist Alad V (Assassination)", type: "Mesa " + p, chance: 0.2 }],
+    })),
+  };
+  const withMesa = (have: InventoryRow[]) => {
+    const b = bundle([coord, ...have]);
+    b.catalog.push(mesa as never);
+    (b.prices!.prices as Record<string, number>)["Mutalist Alad V Nav Coordinate"] = 10;
+    return spareRows(buildModel(b));
+  };
+  const missing = row(withMesa([inv(`${MESA}CowgirlHelmetBlueprint`, "Cowgirl Helmet Blueprint", "blueprint", 1), inv(`${MESA}CowgirlChassisBlueprint`, "Cowgirl Chassis Blueprint", "blueprint", 1)]), "Mutalist Alad V Nav Coordinate")!;
+  assert.deepEqual([missing.keep, missing.spare], [1, 0]);
+  assert.match(missing.why, /Mesa Systems/);
+  const done = row(withMesa([inv("/Lotus/Powersuits/Cowgirl/Cowgirl", "Mesa", "frame", 1)]), "Mutalist Alad V Nav Coordinate")!;
+  assert.deepEqual([done.keep, done.spare], [0, 1]);
+});

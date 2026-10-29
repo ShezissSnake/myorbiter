@@ -250,6 +250,7 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
     if (s.sellable <= 0) continue;
     for (const p of gearSetParts(m, s.unique) ?? []) inSets.set(p.unique, (inSets.get(p.unique) ?? 0) + s.sellable * p.required);
   }
+  const keyWants = new Map(KEYS.map((k) => [k.mission, partsStillNeededFrom(m, k.mission)]));
   const out: SpareRow[] = [];
 
   for (const r of inventoryRows(m)) {
@@ -337,6 +338,12 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
       const left = families.get(f.name) ?? 0;
       keep = left ? r.quantity : 0;
       why = left ? `${f.name} part: you have ${plural(left, f.plural.replace(/s$/, ""), f.plural)} still to master` : `Every ${f.name.toLowerCase()} piece is mastered`;
+    } else if (KEYS.some((k) => k.test.test(r.unique) || k.test.test(r.name)) && (r.kind === "resource" || r.kind === "blueprint")) {
+      // A key, or what you make one from: kept while the fight it opens drops a part you still need.
+      const k = KEYS.find((x) => x.test.test(r.unique) || x.test.test(r.name))!;
+      const wanted = keyWants.get(k.mission) ?? [];
+      keep = wanted.length ? r.quantity : 0;
+      why = wanted.length ? `Opens ${k.label}, which drops ${listNeeds(wanted.slice(0, 3).map((item) => ({ item, count: 1 })))}, still to get` : `Nothing ${k.label} drops is still needed`;
     } else if (SCENE.test(r.name) || SCENE.test(r.unique)) {
       keep = Math.min(1, r.quantity);
       why = "One to use in Captura";
@@ -423,4 +430,28 @@ export const SELL_WITHIN_DAYS = 30;
 export function sellableCopies(count: number, tradesPerDay: number | null | undefined, days = SELL_WITHIN_DAYS): number {
   if (tradesPerDay == null) return count;
   return Math.min(count, Math.max(0, Math.ceil(tradesPerDay * days)));
+}
+
+/**
+ * Keys to boss fights, and what they're made from, by path or name: the fight's name as the drop
+ * tables call it. Mutalist Alad V (Mesa's parts) takes a crafted Mutalist Alad V Nav Coordinate,
+ * made from Mutalist Nav Coordinates; Jordas Golem (Atlas) a Jordas Precept.
+ */
+const KEYS: { test: RegExp; mission: string; label: string }[] = [
+  { test: /InfestedAlad|Mutalist (Alad V )?Nav Coordinate/i, mission: "Mutalist Alad V", label: "the Mutalist Alad V fight" },
+  { test: /Jordas Precept|GolemKey/i, mission: "Jordas Golem", label: "the Jordas Golem fight" },
+];
+
+/** Parts you still need (for something you haven't mastered or built) that drop in a mission. */
+export function partsStillNeededFrom(m: Model, mission: string): string[] {
+  const out: string[] = [];
+  for (const item of m.catalogByUnique.values()) {
+    if (!item.masterable || m.isMastered(item.uniqueName) || m.owned(item.uniqueName) > 0) continue;
+    for (const c of item.components ?? []) {
+      if (!(c.drops ?? []).some((d) => d.location?.includes(mission))) continue;
+      const have = m.owned(c.uniqueName) + m.owned(c.uniqueName.replace(/Blueprint$/, "Component"));
+      if (have < (c.itemCount ?? 1)) out.push(`${item.name} ${c.name}`);
+    }
+  }
+  return out;
 }
