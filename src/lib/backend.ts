@@ -532,9 +532,28 @@ export async function flushSettings() {
     const s = get();
     if (inTauri) await invoke("save_settings", { settings: s });
     else localStorage.setItem("orbiter-settings", JSON.stringify(s));
+    if (saveFailed) {
+      saveFailed = false;
+      saveListener?.(null);
+    }
   } catch (e) {
     console.error("saving settings failed", e);
+    saveFailed = true;
+    saveListener?.(String(e).replace(/^Error:\s*/, ""));
+    // Tried again shortly (a file briefly locked, a full disk freed up), unless a newer save came in.
+    if (!pendingSave) {
+      pendingSave = get;
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(flushSettings, 15_000);
+    }
   }
+}
+
+let saveFailed = false;
+let saveListener: ((error: string | null) => void) | null = null;
+/** Told when saving settings fails (the error), and when a save goes through again (null). */
+export function onSaveTrouble(f: (error: string | null) => void) {
+  saveListener = f;
 }
 
 export async function openUrl(url: string) {

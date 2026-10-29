@@ -21,7 +21,7 @@ class Rivens {
         return m;
       })
       .catch((e) => {
-        this.metaError = String(e);
+        this.metaError = String(e).replace(/^Error:\s*/, "");
         this.loading = null;
         return null;
       });

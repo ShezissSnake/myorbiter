@@ -199,8 +199,19 @@ class MarketStore {
     return backoff(everyMs, this.passFailures, Math.max(everyMs, 60 * 60_000));
   }
 
+  /** The item list (several MB): one request at a time, however many callers want it. */
+  private itemsLoading: Promise<void> | null = null;
   async ensureItems() {
-    if (!this.items.length) this.items = await market.items();
+    if (this.items.length) return;
+    this.itemsLoading ??= market
+      .items()
+      .then((items) => {
+        this.items = items;
+      })
+      .finally(() => {
+        this.itemsLoading = null;
+      });
+    await this.itemsLoading;
   }
 
   async signIn(email: string, password: string) {
@@ -408,6 +419,10 @@ class MarketStore {
     let deferred = 0;
     let failed = 0;
     let read = 0;
+    // Three reads failing in a row is warframe.market not answering (or turning orbiter away):
+    // the pass stops there rather than holding your listings' buttons for every one left.
+    let failing = 0;
+    let stopped = false;
     // While warframe.market isn't answering, say so once, not on every pass.
     const tone = (): LogLine["tone"] => (this.passFailures > 0 ? "info" : "warn");
     try {
@@ -426,9 +441,14 @@ class MarketStore {
         try {
           await this.book(it.slug, apply ? 0 : BOOK_TTL);
           read++;
+          failing = 0;
         } catch (e) {
           if (isAuthError(e)) throw e;
           failed++;
+          if (++failing >= 3) {
+            stopped = true;
+            break;
+          }
           continue;
         }
         const p = this.planFor(m, s, o);
@@ -454,7 +474,8 @@ class MarketStore {
       }
       if (skipped) this.note(`${skipped} listing${skipped === 1 ? "" : "s"} skipped: item not in warframe.market's list`, "warn");
       if (deferred) this.note(`${deferred} listing${deferred === 1 ? "" : "s"} left for the next pass: you were editing`, "info");
-      if (failed) this.note(`${failed} listing${failed === 1 ? "" : "s"} couldn't be checked; trying again next pass`, read ? "warn" : tone());
+      if (stopped) this.note("warframe.market stopped answering, so this pass stopped early; the rest are checked next pass", read ? "warn" : tone());
+      else if (failed) this.note(`${failed} listing${failed === 1 ? "" : "s"} couldn't be checked; trying again next pass`, read ? "warn" : tone());
       if (apply && !changed && !failed && !skipped && !deferred) this.note("Prices checked: everything already matches", "info");
       if (!apply) {
         const off = this.orders.filter((o) => o.visible && this.planFor(m, s, o)?.change).length;
@@ -633,8 +654,9 @@ class MarketStore {
     this.draftDone = null;
   }
 
-  async update(o: MyOrder, change: { platinum?: number; quantity?: number; visible?: boolean }) {
-    await this.guard("Saving", async () => {
+  /** True when warframe.market took the change. */
+  async update(o: MyOrder, change: { platinum?: number; quantity?: number; visible?: boolean }): Promise<boolean> {
+    return this.guard("Saving", async () => {
       await market.update(o.id, change);
       await this.refresh();
     });
@@ -727,7 +749,10 @@ class MarketStore {
     const out: RelicMarket = { ...had };
     try {
       await this.ensureItems();
+      let failing = 0;
       for (const base of stale) {
+        // Something you asked for comes first; what's left is read next time.
+        if (this.busy || failing >= 3) break;
         const it = this.index.byName.get(`${base} relic`.toLowerCase());
         if (!it) continue;
         try {
@@ -739,8 +764,10 @@ class MarketStore {
             if (p != null) prices[sub] = p;
           }
           out[base] = { at: now, prices, how: "median" };
+          failing = 0;
         } catch {
           // Not answering: tried again on the next read.
+          failing++;
         }
       }
     } catch {
@@ -811,6 +838,8 @@ class MarketStore {
       const me = this.me ?? { id: "", ingameName: "", platform: this.platform, crossplay: true };
       this.deals = findDeals(m, this.index, books, watch, me as Me);
       this.dealsAt = Date.now();
+    } catch {
+      // Offline, or no item list yet: the next scan tries again.
     } finally {
       this.scanning = false;
     }
@@ -849,11 +878,15 @@ class MarketStore {
         ),
       ];
       this.progress = { done: 0, total: slugs.length };
+      let failing = 0;
       for (const slug of slugs) {
         try {
           await this.book(slug);
+          failing = 0;
         } catch (e) {
           if (isAuthError(e)) throw e;
+          // Not answering, or turning orbiter away: no plan from half the prices.
+          if (++failing >= 3) throw new Error(`warframe.market stopped answering after ${this.progress.done} of ${slugs.length} prices: try again in a minute`);
         }
         this.progress = { done: this.progress.done + 1, total: slugs.length };
       }
@@ -952,13 +985,16 @@ class MarketStore {
     this.note(`Removed ${done} listing${done === 1 ? "" : "s"} from warframe.market${failed ? `; ${failed} couldn't be removed` : ""}`, failed ? "warn" : "info");
   }
 
-  private async guard(label: string, f: () => Promise<void>) {
+  /** Runs a change you asked for, showing it as in progress; false (and the error shown) when it failed. */
+  private async guard(label: string, f: () => Promise<void>): Promise<boolean> {
     this.op = label;
     this.error = null;
     try {
       await f();
+      return true;
     } catch (e) {
       this.error = clean(e);
+      return false;
     } finally {
       this.op = null;
     }

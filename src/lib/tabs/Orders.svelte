@@ -155,7 +155,8 @@
   async function save(o: MyOrder) {
     if (overHeld(o)) return;
     const change = changeOf(o);
-    if (change) await mkt.update(o, change);
+    // Refused (or warframe.market turned orbiter away): what you typed stays, to save again.
+    if (change && !(await mkt.update(o, change))) return;
     revert(o);
   }
   /** A quantity over what you hold can't be delivered: refused, as the List form refuses it. */

@@ -39,12 +39,14 @@ class TennoscopeStore {
     try {
       const now = Date.now();
       const wasRunning = !!this.status?.running;
-      const relaunch = start && this.launch && !wasRunning && now >= this.nextLaunch;
-      this.status = relaunch || (start && this.launch && wasRunning) ? await tennoscope.start(this.path) : await tennoscope.status(this.path);
+      // Not where TennoScope can't run (macOS); and a start that fails waits longer each time,
+      // like one that crashes, rather than trying (and notifying) every 15 seconds.
+      const relaunch = start && this.launch && this.status?.supported !== false && !wasRunning && now >= this.nextLaunch;
       if (relaunch) {
         this.relaunches++;
         this.nextLaunch = now + Math.min(15_000 * 2 ** (this.relaunches - 1), 600_000);
       }
+      this.status = relaunch || (start && this.launch && wasRunning) ? await tennoscope.start(this.path) : await tennoscope.status(this.path);
       if (this.status?.running) {
         this.upSince ||= now;
         if (now - this.upSince > 120_000) this.relaunches = 0;

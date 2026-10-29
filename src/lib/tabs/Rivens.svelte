@@ -62,6 +62,12 @@
   $effect(() => {
     void rivens.loadMeta();
   });
+  // The page stays open once opened: a list that failed to load is asked for again each minute.
+  $effect(() => {
+    if (!rivens.metaError) return;
+    const t = setInterval(() => void rivens.loadMeta(), 60_000);
+    return () => clearInterval(t);
+  });
   // What rivens traded for in game last week, per weapon (DE's weekly figures).
   $effect(() => {
     void rivens.loadTrades(settings.market.platform);
@@ -406,7 +412,7 @@
   <section class="finder">
     <h2 class="register lead">Find a riven</h2>
     {#if !meta}
-      <p class="dim small">{rivens.metaError ? "Couldn't load warframe.market's riven list; it tries again when you reopen this page." : "Loading warframe.market's riven list…"}</p>
+      <p class="dim small">{#if rivens.metaError}Couldn't load warframe.market's riven list ({rivens.metaError}); orbiter tries again each minute. <button class="link" onclick={() => void rivens.loadMeta()}>Try now</button>{:else}Loading warframe.market's riven list…{/if}</p>
     {:else}
       <div class="form">
         <input list="riven-weapons" placeholder="Weapon" bind:value={weaponName} aria-label="Weapon" />

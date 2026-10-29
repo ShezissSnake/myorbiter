@@ -10,7 +10,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard, Once};
+use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 const V1: &str = "https://api.warframe.market/v1";
@@ -63,6 +63,45 @@ fn slow_down() {
     *SLOW_UNTIL.lock().unwrap_or_else(|e| e.into_inner()) = Some(Instant::now() + SLOW_FOR);
 }
 
+/// How long the last "too many requests" said to wait (Retry-After), if it said.
+static RETRY_AFTER: Mutex<Option<Duration>> = Mutex::new(None);
+
+/// Notes a "too many requests" reply: everything slows down, and its Retry-After is kept.
+fn rate_limited(resp: &ureq::Response) -> MarketError {
+    let hint = resp.header("Retry-After").and_then(|v| v.trim().parse::<u64>().ok()).map(Duration::from_secs);
+    *RETRY_AFTER.lock().unwrap_or_else(|e| e.into_inner()) = hint;
+    slow_down();
+    MarketError::RateLimited
+}
+
+/// A read turned away for going too fast, tried again at most twice: after the wait the reply
+/// asked for (up to 10 s), or 3 s and then 6 s. More would only hold up what's waiting behind it.
+fn with_retries<T>(mut once: impl FnMut() -> Result<T, MarketError>) -> Result<T, MarketError> {
+    let mut tries = 0u64;
+    loop {
+        match once() {
+            Err(MarketError::RateLimited) if tries < 2 => {
+                tries += 1;
+                let hint = RETRY_AFTER.lock().unwrap_or_else(|e| e.into_inner()).take();
+                std::thread::sleep(hint.map_or(Duration::from_secs(3 * tries), |h| h.min(Duration::from_secs(10))));
+            }
+            other => return other,
+        }
+    }
+}
+
+/// A plain read with no sign-in (the item list, riven names), with the same care for rate limits.
+fn get_json(url: &str, timeout: u64) -> Result<Value, MarketError> {
+    with_retries(|| {
+        wait_turn();
+        match crate::http_agent().get(url).set("User-Agent", USER_AGENT).set("Language", "en").timeout(Duration::from_secs(timeout)).call() {
+            Ok(r) => r.into_json::<Value>().map_err(|e| MarketError::Unreachable(e.to_string())),
+            Err(ureq::Error::Status(429, resp)) => Err(rate_limited(&resp)),
+            Err(e) => Err(MarketError::Unreachable(e.to_string())),
+        }
+    })
+}
+
 // ------------------------------------------------------------------ token storage
 
 /// Keyring first; if no Secret Service is running, a file only this user can read.
@@ -90,14 +129,25 @@ impl TokenStore {
         *self.backing.lock().unwrap_or_else(|e| e.into_inner()) = b;
     }
 
-    pub fn load(&self) -> Option<String> {
-        if let Some(t) = self.entry().and_then(|e| e.get_password().ok()) {
-            self.set_backing("keyring");
-            return Some(t);
+    /// The token, and whether the answer is settled: false when the keyring couldn't be asked
+    /// (its service not up yet at login, or the unlock prompt dismissed) and there's no file
+    /// either, so it's worth asking again later rather than taking you for signed out.
+    pub fn load_checked(&self) -> (Option<String>, bool) {
+        let mut settled = true;
+        if let Some(e) = self.entry() {
+            match e.get_password() {
+                Ok(t) => {
+                    self.set_backing("keyring");
+                    return (Some(t), true);
+                }
+                Err(keyring::Error::NoEntry) => {}
+                Err(_) => settled = false,
+            }
         }
         let t = std::fs::read_to_string(&self.fallback).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
         self.set_backing("file");
-        t
+        let settled = settled || t.is_some();
+        (t, settled)
     }
 
     /// Returns where it was kept: "keyring" or "file".
@@ -159,21 +209,34 @@ pub struct Client {
     pub store: TokenStore,
     token: Mutex<Option<String>>,
     /// The keyring is read on first use, not at startup: it is a D-Bus call that can wait for
-    /// you to unlock the wallet, and startup runs on the main thread.
-    loaded: Once,
+    /// you to unlock the wallet, and startup runs on the main thread. Until it gives a settled
+    /// answer, it's asked again at most once a minute.
+    loaded: Mutex<Option<(bool, Instant)>>,
 }
 
 impl Client {
     pub fn new(store: TokenStore) -> Self {
-        Self { store, token: Mutex::new(None), loaded: Once::new() }
+        Self { store, token: Mutex::new(None), loaded: Mutex::new(None) }
     }
 
     /// The token slot, loaded from the store the first time.
     fn slot(&self) -> MutexGuard<'_, Option<String>> {
-        self.loaded.call_once(|| {
-            let t = self.store.load();
-            *self.token.lock().unwrap_or_else(|e| e.into_inner()) = t;
-        });
+        {
+            let mut loaded = self.loaded.lock().unwrap_or_else(|e| e.into_inner());
+            let due = match *loaded {
+                None => true,
+                Some((settled, at)) => !settled && at.elapsed() >= Duration::from_secs(60),
+            };
+            if due {
+                let (t, settled) = self.store.load_checked();
+                let mut slot = self.token.lock().unwrap_or_else(|e| e.into_inner());
+                // A token you signed in with meanwhile stays.
+                if slot.is_none() {
+                    *slot = t;
+                }
+                *loaded = Some((settled, Instant::now()));
+            }
+        }
         self.token.lock().unwrap_or_else(|e| e.into_inner())
     }
 
@@ -214,22 +277,13 @@ impl Client {
     }
 
     /// One request; `token` signs it. Returns the reply and any renewed token it carried. A read
-    /// warframe.market turns away for going too fast is tried again, slower, up to three times
-    /// (a change isn't: it may have gone through).
+    /// warframe.market turns away for going too fast is tried again (with_retries); a change
+    /// isn't: it may have gone through.
     fn send(&self, method: &str, url: &str, body: Option<&Value>, token: Option<&str>) -> Result<(Value, Option<String>), MarketError> {
-        let mut tries = 0;
-        loop {
-            match self.send_once(method, url, body, token) {
-                Err(MarketError::RateLimited) => {
-                    slow_down();
-                    tries += 1;
-                    if method != "GET" || tries > 3 {
-                        return Err(MarketError::RateLimited);
-                    }
-                    std::thread::sleep(Duration::from_secs(2 * tries));
-                }
-                other => return other,
-            }
+        if method == "GET" {
+            with_retries(|| self.send_once(method, url, body, token))
+        } else {
+            self.send_once(method, url, body, token)
         }
     }
 
@@ -265,7 +319,7 @@ impl Client {
                 Ok((value, renewed))
             }
             Err(ureq::Error::Status(401 | 403, _)) => Err(MarketError::Unauthorized),
-            Err(ureq::Error::Status(429, _)) => Err(MarketError::RateLimited),
+            Err(ureq::Error::Status(429, resp)) => Err(rate_limited(&resp)),
             Err(ureq::Error::Status(code, resp)) => {
                 let detail = resp.into_string().unwrap_or_default();
                 Err(MarketError::Rejected(format!("{code} {}", detail.chars().take(300).collect::<String>())))
@@ -784,15 +838,7 @@ pub fn items(cache_dir: &Path) -> Result<Value, MarketError> {
             return Ok(v);
         }
     }
-    wait_turn();
-    let fetched = crate::http_agent()
-        .get(&format!("{V2}/items"))
-        .set("User-Agent", USER_AGENT)
-        .set("Language", "en")
-        .timeout(Duration::from_secs(30))
-        .call()
-        .map_err(|e| MarketError::Unreachable(e.to_string()))
-        .and_then(|r| r.into_json::<Value>().map_err(|e| MarketError::Unreachable(e.to_string())));
+    let fetched = get_json(&format!("{V2}/items"), 30);
     match fetched {
         Ok(v) => {
             let slim: Vec<Value> = v["data"]
@@ -841,17 +887,7 @@ pub fn riven_meta(cache_dir: &Path) -> Result<Value, MarketError> {
             return Ok(v);
         }
     }
-    let get = |what: &str| -> Result<Value, MarketError> {
-        wait_turn();
-        crate::http_agent()
-            .get(&format!("{V2}/riven/{what}"))
-            .set("User-Agent", USER_AGENT)
-            .set("Language", "en")
-            .timeout(Duration::from_secs(30))
-            .call()
-            .map_err(|e| MarketError::Unreachable(e.to_string()))
-            .and_then(|r| r.into_json::<Value>().map_err(|e| MarketError::Unreachable(e.to_string())))
-    };
+    let get = |what: &str| get_json(&format!("{V2}/riven/{what}"), 30);
     let fetched = get("weapons").and_then(|w| get("attributes").map(|a| (w, a)));
     match fetched {
         Ok((w, a)) => {
@@ -991,7 +1027,7 @@ mod tests {
             let mut store = TokenStore::new(dir);
             store.keyring = false;
             let c = Client::new(store);
-            c.loaded.call_once(|| {});
+            *c.loaded.lock().unwrap() = Some((true, std::time::Instant::now()));
             c
         }
         fn offline() -> Self {
@@ -1008,12 +1044,12 @@ mod tests {
         *c.slot() = Some("old".into());
         c.renew("old", "new".into());
         assert_eq!(c.token().as_deref(), Some("new"));
-        assert_eq!(c.store.load().as_deref(), Some("new"));
+        assert_eq!(c.store.load_checked().0.as_deref(), Some("new"));
         // Signed out while a request was still out: its renewal must not sign you back in.
         c.sign_out();
         c.renew("new", "newer".into());
         assert!(!c.linked());
-        assert_eq!(c.store.load(), None);
+        assert_eq!(c.store.load_checked().0, None);
         std::fs::remove_dir_all(&dir).ok();
     }
 

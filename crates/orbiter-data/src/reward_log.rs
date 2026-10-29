@@ -59,12 +59,20 @@ pub fn read_reward_logs(dirs: &[PathBuf]) -> Vec<LoggedScreen> {
     merge_repeats(screens)
 }
 
-/// The log folders to look in: `<data dir>/logs`, then the default TennoScope folder's.
+/// The log folders to look in: `<data dir>/logs`, the default TennoScope folder's, and where
+/// Tauri keeps an app's logs on Windows (`%LOCALAPPDATA%\<id>\logs`, not beside its data in
+/// `%APPDATA%`).
 pub fn reward_log_dirs(data_dir: &Path) -> Vec<PathBuf> {
     let mut dirs = vec![data_dir.join("logs")];
-    if let Some(default) = crate::default_tennoscope_dir().map(|d| d.join("logs")) {
-        if !dirs.contains(&default) {
-            dirs.push(default);
+    let mut more: Vec<PathBuf> = crate::default_tennoscope_dir().map(|d| d.join("logs")).into_iter().collect();
+    if cfg!(windows) {
+        if let Some(local) = std::env::var_os("LOCALAPPDATA").filter(|v| !v.is_empty()) {
+            more.push(PathBuf::from(local).join("io.github.deftera186.tennoscope").join("logs"));
+        }
+    }
+    for d in more {
+        if !dirs.contains(&d) {
+            dirs.push(d);
         }
     }
     dirs

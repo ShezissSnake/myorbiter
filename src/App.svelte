@@ -41,6 +41,7 @@
     type Platform,
     NO_INVENTORY_YET,
     tennoscope,
+    onSaveTrouble,
   } from "./lib/backend";
   import { persistSettings } from "./lib/persist.svelte";
   import { backoff, handLoggedSale, keepSeen, thinHistory } from "./lib/core/upkeep";
@@ -264,6 +265,9 @@
     }
   }
   let lastWritten = "";
+  // Saving settings failed (a full disk, a locked file): said above the page until it works again.
+  let saveError = $state<string | null>(null);
+  onSaveTrouble((e) => (saveError = e));
   $effect(() => {
     if (!model || !freshCards) return;
     const cards = scoreCards(model, freshCards.cards, settings.pick, freshCards.prices);
@@ -271,7 +275,11 @@
     const key = JSON.stringify(file);
     if (key === lastWritten) return;
     lastWritten = key;
-    writeRewardPick(file).catch((e) => console.error("writing the reward pick failed", e));
+    writeRewardPick(file).catch((e) => {
+      console.error("writing the reward pick failed", e);
+      // Written again on the next card read (a file briefly locked, say by an antivirus scan).
+      if (lastWritten === key) lastWritten = "";
+    });
     // Once per reward screen, for a second monitor: the card to take and why.
     const best = file.best == null ? null : cards[file.best];
     if (best && settings.notify.reward && notifiedScreen !== freshCards.at) {
@@ -666,7 +674,11 @@
       // This session's keys stay however many there are: the log shows its trades on every read.
       settings.market.tradesSeen = keepSeen(fresh.map((t) => tradeKey(session, t)), settings.market.tradesSeen, 300, session == null ? "?" : String(session));
       if (!settings.market.autoTrades) return;
-      void handleTrades(fresh, session);
+      // Only trades from the last half hour are acted on. Older ones turn up when orbiter first
+      // reads a log (just installed, or settings reset) or was closed at the time: by now that
+      // listing may have been put back up, and closing it again would be wrong.
+      const recent = fresh.filter((t) => !t.at || Date.now() - t.at * 1000 < 30 * 60_000);
+      if (recent.length) void handleTrades(recent, session);
     });
   });
   async function handleTrades(trades: NonNullable<MissionState["trades"]>, session: number | null) {
@@ -1003,7 +1015,8 @@
   let lastTsError: string | null = null;
   $effect(() => {
     const e = ts.error;
-    if (e && e !== lastTsError && settings.notify.tennoscope) tell("tennoscope", "TennoScope", e);
+    // Not where TennoScope can't run at all (macOS): there's nothing to fix.
+    if (e && e !== lastTsError && settings.notify.tennoscope && ts.status?.supported !== false) tell("tennoscope", "TennoScope", e);
     lastTsError = e;
   });
   // TennoScope runs in the background (orbiter starts it); its settings live in orbiter's. Not
@@ -1488,6 +1501,11 @@
         <div class="stale" role="status">
           <span>{onConsole ? `No inventory: TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}. Listings, prices and sales use the ${PLATFORM_LABEL[settings.market.platform]} market.` : tsUnsupported ? "No inventory: TennoScope, which reads it from the game, doesn't run on macOS." : "No inventory yet: your collection fills in as soon as TennoScope reads it from the game."}</span>
           {#if !noTennoScope}<button class="link" onclick={() => (showTennoscope = true)}>Set up</button>{/if}
+        </div>
+      {/if}
+      {#if saveError}
+        <div class="stale" role="alert" title={saveError}>
+          <span>Couldn't save your settings ({saveError}): what you change now may not be kept. orbiter keeps trying.</span>
         </div>
       {/if}
       {#if error}
