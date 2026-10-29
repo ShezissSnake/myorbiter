@@ -76,7 +76,9 @@ export interface CollectionItem {
   wiki: string | null;
 }
 
-const isResource = (c: Component) => !/\/Recipes\//.test(c.uniqueName) && !/\/Weapons\//.test(c.uniqueName);
+// Necramech parts (Capsule, Casing, Engine, Weapon Pod) live under Resources but are parts you
+// build or find, counted and shown like any other part.
+const isResource = (c: Component) => !/\/Recipes\//.test(c.uniqueName) && !/\/Weapons\//.test(c.uniqueName) && !/\/Resources\/Mechs\//.test(c.uniqueName);
 
 /** The blueprint and built-part paths a component goes by: …ChassisBlueprint and …ChassisComponent. */
 function paths(unique: string): string[] {
@@ -180,7 +182,9 @@ export function collectionItem(m: Model, item: CatalogItem): CollectionItem {
 export function collection(m: Model): CollectionItem[] {
   const out: CollectionItem[] = [];
   for (const item of m.catalogByUnique.values()) {
-    if (!item.masterable || !(item.category in GROUP_OF) || item.excludeFromCodex) continue;
+    // Not `excludeFromCodex`: the hound weapons (Akaten, Batoten, Lacerten) carry it but give
+    // mastery all the same, as Mastery counts them. Orion's second suit is dropped as NO_MASTERY.
+    if (!item.masterable || !(item.category in GROUP_OF)) continue;
     out.push(collectionItem(m, item));
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));

@@ -26,8 +26,10 @@ test("the yield list is per unranked copy, and the two Exodia arcanes can't be d
 test("a cheap spare maxed copy goes to Loid, a valuable one is sold", () => {
   const m = buildModel(bundle(
     [inv("/A/Energize", "Arcane Energize", "arcane", 2, { rank: 5 }), inv("/A/Grace", "Arcane Grace", "arcane", 2, { rank: 5 })],
-    { "Arcane Energize": 8, "Arcane Grace": 3, "Magus Drive": 9, "Magus Anomaly": 9 },
-    { "Arcane Energize": 160, "Arcane Grace": 20, "Magus Drive": 150, "Magus Anomaly": 150 },
+    // Magus Drive and Anomaly are Solaris commons (15% a slot between seven): dear enough here
+    // that a pack's worth beats a 20p maxed Grace.
+    { "Arcane Energize": 8, "Arcane Grace": 3, "Magus Drive": 40, "Magus Anomaly": 40 },
+    { "Arcane Energize": 160, "Arcane Grace": 20, "Magus Drive": 900, "Magus Anomaly": 900 },
   ));
   const rows = arcaneRows(m);
   const packs = packValues(m, rows);

@@ -195,9 +195,23 @@ export interface Live {
   sortie?: SortieLike | null;
   archonHunt?: SortieLike | null;
   steelPath?: SteelPath | null;
+  /** Darvo's daily deal in the in-game Market. */
+  darvo?: DarvoDeal | null;
   duviriCycle?: DuviriCycle | null;
   /** Day/night and the like on the open worlds: Earth, Cetus, Orb Vallis, Cambion Drift, Zariman. */
   cycles?: WorldCycle[];
+}
+
+export interface DarvoDeal {
+  item: string;
+  /** The store path ("/Lotus/StoreItems/Weapons/…"): the item's own path without "StoreItems/". */
+  uniqueName?: string;
+  originalPrice: number;
+  salePrice: number;
+  discount?: number;
+  total?: number;
+  sold?: number;
+  expiry: string;
 }
 
 export interface WorldCycle {

@@ -361,3 +361,22 @@ export function salesCoveredByTrades(sales: readonly Sale[], saleTrades: readonl
   }
   return out;
 }
+
+/**
+ * Your listings as trade chat lines: "WTS [Arcane Reaper] R0 30p [Serration] 9p", dearest first,
+ * each line within the chat's length, for posting in game alongside warframe.market.
+ */
+export function wtsLines(listings: { name: string; rank: number | null; platinum: number }[], max = 180): string[] {
+  const items = [...listings].sort((a, b) => b.platinum - a.platinum).map((l) => `[${l.name}]${l.rank != null ? ` R${l.rank}` : ""} ${l.platinum}p`);
+  const lines: string[] = [];
+  let line = "WTS";
+  for (const it of items) {
+    if (line.length + 1 + it.length > max && line !== "WTS") {
+      lines.push(line);
+      line = "WTS";
+    }
+    line += ` ${it}`;
+  }
+  if (line !== "WTS") lines.push(line);
+  return lines;
+}

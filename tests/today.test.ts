@@ -49,6 +49,10 @@ test("today marks Circuit frames you haven't mastered and Incarnons for weapons 
   assert.equal(t.nightwave!.challenges[0].kind, "elite", "biggest first");
   assert.equal(t.archon!.shard, "Amber");
   assert.equal(t.sortie, null);
+  assert.equal(t.darvo, null);
+  // Darvo selling Paris, which isn't mastered: found by its store path, and marked.
+  const deal = today(m, { ...live, darvo: { item: "Paris", uniqueName: "/Lotus/StoreItems/P/Paris", originalPrice: 225, salePrice: 157, discount: 30, total: 185, sold: 4, expiry: "2026-10-29T21:00:00Z" } }, NOW).darvo!;
+  assert.deepEqual([deal.price, deal.discount, deal.left, deal.wanted, deal.note], [157, 30, 181, true, "not mastered"]);
 });
 
 test("foundry builds name what comes out, soonest first, with mastery for what you haven't mastered", () => {

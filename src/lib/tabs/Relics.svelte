@@ -78,7 +78,7 @@
   });
   const feed = $derived(model.live.fissures);
   const fissures = $derived((feed ?? []).filter((f) => new Date(f.expiry).getTime() > now));
-  /** Omnia fissures take a relic of any era, so they're listed under every era. */
+  /** Omnia fissures take a Lith, Meso, Neo or Axi relic, so they're listed under each of those. */
   const omnia = $derived(fissures.filter((f) => f.tier === "Omnia"));
   const byEra = $derived.by(() => {
     const out = new Map<string, Fissure[]>();
@@ -231,7 +231,7 @@
       <span class="small">you have {(all.reduce((n, r) => n + r.total, 0) + unknown.reduce((n, u) => n + u.total, 0)).toLocaleString("en")}</span>
     </button>
     {#each ERAS.filter((e) => ownedEra(e) > 0 || byEra.has(e)) as e (e)}
-      {@const list = [...(byEra.get(e) ?? []), ...omnia]}
+      {@const list = [...(byEra.get(e) ?? []), ...(e === "Requiem" ? [] : omnia)]}
       <div class="era-cell">
         <button class="era" class:on={era === e} aria-pressed={era === e} style:--tint={eraTint(e)} onclick={() => (era = era === e ? "all" : e)}>
           <strong><GameIcon name={`relic-${e.toLowerCase()}-intact` as GameIconName} size={22} />{e}</strong>
@@ -240,10 +240,10 @@
               <!-- As Home counts them: this era's own fissures, normal + Steel Path; Omnia ones apart. -->
               {@const own = (byEra.get(e) ?? []).filter((f) => !f.isStorm)}
               {@const sp = own.filter((f) => f.isHard).length}
-              {@const om = omnia.filter((f) => !f.isStorm).length}
+              {@const om = e === "Requiem" ? 0 : omnia.filter((f) => !f.isStorm).length}
               <span>{own.length - sp}{#if sp}<span class="sp" title="Steel Path">&nbsp;+&nbsp;{sp}&nbsp;SP</span>{/if} open</span>
-              {#if om}<span title="Omnia fissures take a relic of any era">{om} Omnia</span>{/if}
-            {:else}<span>no fissure now</span>{/if}
+              {#if om}<span title="Omnia fissures take a Lith, Meso, Neo or Axi relic (not Requiem)">{om} Omnia</span>{/if}
+            {:else}<span title={feed == null ? "The fissure list (api.warframestat.us) hasn't answered" : undefined}>{feed == null ? "fissures unknown" : "no fissure now"}</span>{/if}
           </span>
           <span class="small">you have {ownedEra(e).toLocaleString("en")}</span>
         </button>
@@ -254,7 +254,7 @@
               <div class="fz-row">
                 <span class="fz-type">{f.missionType}</span>
                 <span class="fz-node">{f.node}</span>
-                <span class="fz-kind">{#if f.isStorm}<span class="tag">Void Storm</span>{:else if f.isHard}<span class="tag ok">Steel Path</span>{/if}{#if f.tier === "Omnia"}<span class="tag" title="Takes a relic of any era">Omnia</span>{/if}</span>
+                <span class="fz-kind">{#if f.isStorm}<span class="tag">Void Storm</span>{:else if f.isHard}<span class="tag ok">Steel Path</span>{/if}{#if f.tier === "Omnia"}<span class="tag" title="Takes a Lith, Meso, Neo or Axi relic">Omnia</span>{/if}</span>
                 <span class="fz-t">{left(f)}</span>
               </div>
             {/each}

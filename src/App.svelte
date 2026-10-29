@@ -835,7 +835,7 @@
   });
 
   // Wishlist: an era that had no fissure open gets one, and you hold relics of that era with a part
-  // you starred. Every era usually has fissures open (and Omnia takes any relic), so this only speaks
+  // you starred. Every era usually has fissures open (and Omnia takes any but Requiem), so this only speaks
   // up after a gap; the Wishlist page shows what to crack at any moment.
   let erasOpenBefore: Set<string> | null = null;
   $effect(() => {

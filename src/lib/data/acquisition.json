@@ -73,19 +73,19 @@
 },
 "Ash": {
 "method": "mission-drop",
-"how": "Main blueprint from the Market (35,000 credits); parts drop from Railjack Proxima missions: Systems on Venus Proxima, Neuroptics on Neptune Proxima, Chassis on Pluto Proxima (12.5-13.3% on Survival/Defense rotation A, ~4.7-4.9% on Exterminate/Volatile), so you need a working Railjack. Also earnable from the Duviri Circuit in his week. Market price 375 platinum.",
+"how": "Main blueprint from the Market (35,000 credits); parts drop from Railjack Proxima missions: Systems on Venus Proxima, Neuroptics on Neptune Proxima, Chassis on Pluto Proxima (12.5-13.3% on Survival/Defense rotation A, ~4.7-4.9% on Exterminate/Volatile), so you need a working Railjack. Also earnable from the Duviri Circuit in his week. In-game Market: 375 platinum.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Ash",
-"players": "No run counts found; one 2023 Steam reply says getting Ash from the Normal Circuit was easier than farming Railjack Defense.",
+"players": "A 2023 Steam reply says getting Ash from the Normal Circuit was easier than farming Railjack Defense.",
 "evidence": [
 "https://steamcommunity.com/app/230410/discussions/0/6861841362657898172"
 ]
 },
 "Atlas": {
 "method": "boss",
-"how": "Main blueprint from The Jordas Precept quest (unlocked by the Pluto-Eris Junction); parts drop from the Jordas Golem Archwing assassination on Eris (Neuroptics and Chassis 38.72%, Systems 22.56%). Also in the Duviri Circuit. Market price 275 platinum.",
+"how": "Main blueprint from The Jordas Precept quest (unlocked by the Pluto-Eris Junction); parts drop from the Jordas Golem Archwing assassination on Eris (Neuroptics and Chassis 38.72%, Systems 22.56%). Also in the Duviri Circuit. In-game Market: 275 platinum.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
@@ -113,19 +113,19 @@
 },
 "Banshee": {
 "method": "dojo",
-"how": "All blueprints are researched in the Clan Dojo Tenno Lab and then bought for credits (35,000 for the main blueprint); joining an established clan skips the research. Market price 225 platinum.",
+"how": "All blueprints are researched in the Clan Dojo Tenno Lab and then bought for credits (35,000 for the main blueprint); joining an established clan skips the research. In-game Market: 225 platinum.",
 "difficulty": 2,
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Banshee",
-"players": "A community ranking puts the Dojo frames (Banshee among them) at the easy end; no run counts apply since nothing is random.",
+"players": "A community ranking puts the Dojo frames (Banshee among them) at the easy end: nothing is random.",
 "evidence": [
 "https://warframe.fandom.com/wiki/User_blog:ZyLnTKyllR/Warframes_ranked_based_on_the_hardest_grind_to_acquire_them"
 ]
 },
 "Baruuk": {
 "method": "syndicate",
-"how": "All four blueprints are bought from Little Duck (Vox Solaris) for 5,000 standing each: main at Rank 2 - Agent, parts at Rank 3 - Hand; Vox Solaris standing comes from Toroids under a daily cap, and the parts need Toroids, Hespazym Alloy and Fortuna/Plains gems. Also in the Duviri Circuit. Market price 325 platinum.",
+"how": "All four blueprints are bought from Little Duck (Vox Solaris) for 5,000 standing each: main at Rank 2 - Agent, parts at Rank 3 - Hand; Vox Solaris standing comes from Toroids under a daily cap, and the parts need Toroids, Hespazym Alloy and Fortuna/Plains gems. Also in the Duviri Circuit. In-game Market: 325 platinum.",
 "difficulty": 4,
 "available": true,
 "tradable": false,
@@ -171,12 +171,12 @@
 },
 "Bonewidow": {
 "method": "syndicate",
-"how": "Necramech: component blueprints cost 3,500 standing each from the Necraloid at Rank 2 - Clearance: Modus, the main blueprint 10,000 standing at Rank 3 - Clearance: Odima; Necraloid standing comes only from Orokin Matrices in Isolation Vault bounties, and building needs Damaged Necramech parts plus Solaris United Rank 1, Ostron Rank 3 and Entrati Rank 2 materials (Heart of Deimos and The War Within required). Market price 375 platinum.",
+"how": "Necramech: component blueprints cost 3,500 standing each from the Necraloid at Rank 2 - Clearance: Modus, the main blueprint 10,000 standing at Rank 3 - Clearance: Odima; Necraloid standing comes only from Orokin Matrices in Isolation Vault bounties, and building needs Damaged Necramech parts plus Solaris United Rank 1, Ostron Rank 3 and Entrati Rank 2 materials (Heart of Deimos and The War Within required). In-game Market: 375 platinum.",
 "difficulty": 4,
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Bonewidow",
-"players": "Players say reaching the needed Necraloid rank 'can take a few days' and many buy pre-built parts from other players instead; one 2021 reply mis-states the rank as 4.",
+"players": "Players say reaching the needed Necraloid rank 'can take a few days', and many buy pre-built parts from other players instead.",
 "evidence": [
 "https://steamcommunity.com/app/230410/discussions/0/4521136185569437301",
 "https://steamcommunity.com/app/230410/discussions/0/4345408777042862323"
@@ -208,12 +208,12 @@
 },
 "Caliban": {
 "method": "open-world",
-"how": "Main blueprint from the Market (50,000 credits); parts drop from level 50-70 Narmer bounties in Cetus and Fortuna after The New War (5.45-8.11% per stage), and only one part is in the pool per 2.5-hour bounty rotation; crafting needs Narmer Isoplast, Anomaly Shards and Eidolon/Fortuna resources. Market price 325 platinum.",
+"how": "Main blueprint from the Market (50,000 credits); parts drop from level 50-70 Narmer bounties in Cetus and Fortuna after The New War (5.45-8.11% per stage), and only one part is in the pool per 2.5-hour bounty rotation; crafting needs Narmer Isoplast, Anomaly Shards and Eidolon/Fortuna resources. In-game Market: 325 platinum.",
 "difficulty": 4,
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Caliban",
-"players": "Players report waiting for the right part to rotate into Narmer bounties, to the point of asking for alert tools; no run counts found.",
+"players": "Players report waiting for the right part to rotate into Narmer bounties, to the point of asking for alert tools.",
 "evidence": [
 "https://steamcommunity.com/app/230410/discussions/0/3826415019287114776"
 ]
@@ -260,7 +260,7 @@
 },
 "Chroma": {
 "method": "quest",
-"how": "Main blueprint from The New Strange quest (after Stolen Dreams and Simaris synthesis); parts are rewards from the Uranus, Neptune and Pluto Junctions. Crafting consumes built Volt Neuroptics, Ember Neuroptics, Frost Chassis and Saryn Systems, so you farm four other frames' parts too. Also in the Duviri Circuit. Market price 375 platinum.",
+"how": "Main blueprint from The New Strange quest (after Stolen Dreams and Simaris synthesis); parts are rewards from the Uranus, Neptune and Pluto Junctions. Crafting consumes built Volt Neuroptics, Ember Neuroptics, Frost Chassis and Saryn Systems, so you farm four other frames' parts too. Also in the Duviri Circuit. In-game Market: 375 platinum.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
@@ -281,7 +281,7 @@
 },
 "Citrine": {
 "method": "mission-drop",
-"how": "All four blueprints drop from rotation C of Mirror Defense on Tyana Pass, Mars (parts 6.10%, main 9.30%), after Heart of Deimos; or buy them from Otak for 1,550 Rania and 1,500 Belric Crystal Fragments earned in the same mode. Crafting needs Entrati Rank 2. Market price 325 platinum.",
+"how": "All four blueprints drop from rotation C of Mirror Defense on Tyana Pass, Mars (parts 6.10%, main 9.30%), after Heart of Deimos; or buy them from Otak for 1,550 Rania and 1,500 Belric Crystal Fragments earned in the same mode. Crafting needs Entrati Rank 2. In-game Market: 325 platinum.",
 "difficulty": 4,
 "available": true,
 "tradable": false,
@@ -414,7 +414,7 @@
 },
 "Cyte-09": {
 "method": "syndicate",
-"how": "Main blueprint from The Hex quest, or from Amir of The Hex for 50,000 standing at Rank 4 - Hot & Fresh; parts are uncommon drops from Höllvania Central Mall bounties (11.6-13.3%), or bought from Amir of The Hex for 20,000 standing each at Rank 2 - Fresh Slice. Market price 370 platinum.",
+"how": "Main blueprint from The Hex quest, or from Amir of The Hex for 50,000 standing at Rank 4 - Hot & Fresh; parts are uncommon drops from Höllvania Central Mall bounties (11.6-13.3%), or bought from Amir of The Hex for 20,000 standing each at Rank 2 - Fresh Slice. In-game Market: 370 platinum.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
@@ -426,7 +426,7 @@
 },
 "Dagath": {
 "method": "dojo",
-"how": "All blueprints are bought in Dagath's Hollow in the Clan Dojo (no research); the three parts need 102 Vainthorns from the Abyssal Zone on Ceres (6-8 per clear, 8-12 on Steel Path), and each run needs an Abyssal Beacon bought for 5,000 standing from a Rank 2 faction syndicate. Market price 275 platinum.",
+"how": "All blueprints are bought in Dagath's Hollow in the Clan Dojo (no research); the three parts need 102 Vainthorns from the Abyssal Zone on Ceres (6-8 per clear, 8-12 on Steel Path), and each run needs an Abyssal Beacon bought for 5,000 standing from a Rank 2 faction syndicate. In-game Market: 275 platinum.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
@@ -439,7 +439,7 @@
 },
 "Dante": {
 "method": "mission-drop",
-"how": "All four blueprints drop from rotation C of Armatus Disruption on Deimos (parts 4.55%, main 6.82%) after The Deadlock Protocol and Whispers in the Walls; or buy them from Loid for 540 Vessel Capillaries (2-4 per Demolisher, 5-7 on Steel Path). Market price 350 platinum.",
+"how": "All four blueprints drop from rotation C of Armatus Disruption on Deimos (parts 4.55%, main 6.82%) after The Deadlock Protocol and Whispers in the Walls; or buy them from Loid for 540 Vessel Capillaries (2-4 per Demolisher, 5-7 on Steel Path). In-game Market: 350 platinum.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
@@ -635,7 +635,7 @@
 },
 "Ember": {
 "method": "boss",
-"how": "Main blueprint from the Market (25,000 credits); parts drop from General Sargas Ruk on Tethys, Saturn (Neuroptics and Chassis 38.72%, Systems 22.56%). Also in the Duviri Circuit. Market price 225 platinum.",
+"how": "Main blueprint from the Market (25,000 credits); parts drop from General Sargas Ruk on Tethys, Saturn (Neuroptics and Chassis 38.72%, Systems 22.56%). Also in the Duviri Circuit. In-game Market: 225 platinum.",
 "difficulty": 2,
 "available": true,
 "tradable": false,
@@ -656,7 +656,7 @@
 },
 "Equinox": {
 "method": "boss",
-"how": "Main blueprint from the Market (25,000 credits); Tyl Regor on Titania, Uranus drops eight blueprints: Day and Night Aspects (22.56% each) and their Neuroptics, Chassis and Systems (25.81% each), and both Aspects must be built before Equinox. Market price 325 platinum.",
+"how": "Main blueprint from the Market (25,000 credits); Tyl Regor on Titania, Uranus drops eight blueprints: Day and Night Aspects (22.56% each) and their Neuroptics, Chassis and Systems (25.81% each), and both Aspects must be built before Equinox. In-game Market: 325 platinum.",
 "difficulty": 4,
 "available": true,
 "tradable": false,
@@ -669,7 +669,7 @@
 },
 "Excalibur": {
 "method": "boss",
-"how": "Starter frame. Main blueprint from the Market (35,000 credits); parts drop from Lieutenant Lech Kril on War, Mars (Neuroptics and Chassis 38.72%, Systems 22.56%). Also in the Duviri Circuit or from Teshin for 60,000 Conclave standing. Market price 75 platinum.",
+"how": "Starter frame. Main blueprint from the Market (35,000 credits); parts drop from Lieutenant Lech Kril on War, Mars (Neuroptics and Chassis 38.72%, Systems 22.56%). Also in the Duviri Circuit or from Teshin for 60,000 Conclave standing. In-game Market: 75 platinum.",
 "difficulty": 1,
 "available": true,
 "tradable": false,
@@ -698,12 +698,12 @@
 },
 "Follie": {
 "method": "mission-drop",
-"how": "All four blueprints drop from rotation A of Follie's Hunt on the Vesper Relay, Venus (5%, 6% on Steel Path) after Chains of Harrow; or buy them from Aspirant Zorba for 2,400 Atramentum (15 per completion, 25 on Steel Path, plus 12 balloons with 2-4 each). Market price 370 platinum.",
+"how": "All four blueprints drop from rotation A of Follie's Hunt on the Vesper Relay, Venus (5%, 6% on Steel Path) after Chains of Harrow; or buy them from Aspirant Zorba for 2,400 Atramentum (15 per completion, 25 on Steel Path, plus 12 balloons with 2-4 each). In-game Market: 370 platinum.",
 "difficulty": 4,
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Follie",
-"players": "No player run counts found; by the wiki's numbers the shop route is roughly 30 Steel Path or 45+ normal runs, and DE raised Atramentum rewards in Hotfix 42.0.2 because the mode was 'too punishing'.",
+"players": "By the wiki's numbers the shop route is roughly 30 Steel Path or 45+ normal runs; DE raised Atramentum rewards in Hotfix 42.0.2 because the mode was 'too punishing'.",
 "evidence": [
 "https://www.warframe.com/en/patch-notes/pc/42-0-2",
 "https://www.shacknews.com/article/148461/how-to-get-follie-in-warframe",
@@ -712,7 +712,7 @@
 },
 "Frost": {
 "method": "boss",
-"how": "Main blueprint from the Market (25,000 credits); parts drop from Captain Vor and Lieutenant Lech Kril on Exta, Ceres (Neuroptics and Chassis 38.72%, Systems 22.56%). Also in the Duviri Circuit. Market price 375 platinum.",
+"how": "Main blueprint from the Market (25,000 credits); parts drop from Captain Vor and Lieutenant Lech Kril on Exta, Ceres (Neuroptics and Chassis 38.72%, Systems 22.56%). Also in the Duviri Circuit. In-game Market: 375 platinum.",
 "difficulty": 1,
 "available": true,
 "tradable": false,
@@ -733,12 +733,12 @@
 },
 "Gara": {
 "method": "open-world",
-"how": "Main blueprint from the Saya's Vigil quest; parts drop from Plains of Eidolon (Cetus) bounties: Chassis from level 5-15, Systems from 10-30, Neuroptics from 20-40 (about 23-31% on the final stage). Crafting needs Plains gems and fish parts. Also in the Duviri Circuit. Market price 225 platinum.",
+"how": "Main blueprint from the Saya's Vigil quest; parts drop from Plains of Eidolon (Cetus) bounties: Chassis from level 5-15, Systems from 10-30, Neuroptics from 20-40 (about 23-31% on the final stage). Crafting needs Plains gems and fish parts. Also in the Duviri Circuit. In-game Market: 225 platinum.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Gara",
-"players": "In 2017 (lower rates) players reported around 40 bounties and up to a week; drop rates are higher today, but no recent run counts found.",
+"players": "In 2017 players reported around 40 bounties and up to a week; drop rates are higher today.",
 "evidence": [
 "https://steamcommunity.com/app/230410/discussions/0/1484358860952520074",
 "https://steamcommunity.com/app/230410/discussions/0/3183345176712411455"
@@ -746,19 +746,19 @@
 },
 "Garuda": {
 "method": "open-world",
-"how": "Main blueprint from the Vox Solaris quest; parts drop from Orb Vallis (Fortuna) bounties: Chassis from level 5-15, Systems from 10-30, Neuroptics from 20-40 (22.5-27.6% on the final stage). Crafting needs Toroids, Fortuna gems and alloys and 3,500 Kuva. Also in the Duviri Circuit. Market price 325 platinum.",
+"how": "Main blueprint from the Vox Solaris quest; parts drop from Orb Vallis (Fortuna) bounties: Chassis from level 5-15, Systems from 10-30, Neuroptics from 20-40 (22.5-27.6% on the final stage). Crafting needs Toroids, Fortuna gems and alloys and 3,500 Kuva. Also in the Duviri Circuit. In-game Market: 325 platinum.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Garuda",
-"players": "No direct player run counts found; a community ranking puts her in the middle of the pack, alongside Gara.",
+"players": "A community ranking puts her in the middle of the pack, alongside Gara.",
 "evidence": [
 "https://warframe.fandom.com/wiki/User_blog:ZyLnTKyllR/Warframes_ranked_based_on_the_hardest_grind_to_acquire_them"
 ]
 },
 "Gauss": {
 "method": "mission-drop",
-"how": "Main blueprint from the Market (30,000 credits); parts drop only from rotation C of Disruption on Kappa, Sedna (7.12% each). Market price 325 platinum.",
+"how": "Main blueprint from the Market (30,000 credits); parts drop only from rotation C of Disruption on Kappa, Sedna (7.12% each). In-game Market: 325 platinum.",
 "difficulty": 4,
 "available": true,
 "tradable": false,
@@ -811,7 +811,7 @@
 },
 "Grendel": {
 "method": "other",
-"how": "Main blueprint from the Market (35,000 credits); each part needs a Locator bought for 25 Vitus Essence from Arbitration Honors (Arbitrations need the full Star Chart), which unlocks a modless, gearless squad-only mission on Europa that always gives that part. Market price 325 platinum.",
+"how": "Main blueprint from the Market (35,000 credits); each part needs a Locator bought for 25 Vitus Essence from Arbitration Honors (Arbitrations need the full Star Chart), which unlocks a modless, gearless squad-only mission on Europa that always gives that part. In-game Market: 325 platinum.",
 "difficulty": 4,
 "available": true,
 "tradable": false,
@@ -832,7 +832,7 @@
 },
 "Gyre": {
 "method": "syndicate",
-"how": "All four blueprints drop from The Holdfasts' Zariman bounties on the Chrysalith (Neuroptics level 50-55 13.04%, Chassis 60-65 13.56%, Systems 70-75 11.90%, main 90-95/110-115 12.99%); there is no standing shop for them. Market price 325 platinum.",
+"how": "All four blueprints drop from The Holdfasts' Zariman bounties on the Chrysalith (Neuroptics level 50-55 13.04%, Chassis 60-65 13.56%, Systems 70-75 11.90%, main 90-95/110-115 12.99%); there is no standing shop for them. In-game Market: 325 platinum.",
 "difficulty": 4,
 "available": true,
 "tradable": false,
@@ -861,7 +861,7 @@
 },
 "Harrow": {
 "method": "mission-drop",
-"how": "Main blueprint from the Chains of Harrow quest (main needs 2,000 Kuva); Chassis drops from Void Fissure corrupted enemies (3%), Neuroptics from rotation A Spy on Pago (16.67%) or rotation C Kuva Survival (12%), Systems from Defection rotation C (15%)/B (~6%) or Kuva Survival (12%). Also in the Duviri Circuit. Market price 225 platinum.",
+"how": "Main blueprint from the Chains of Harrow quest (main needs 2,000 Kuva); Chassis drops from Void Fissure corrupted enemies (3%), Neuroptics from rotation A Spy on Pago (16.67%) or rotation C Kuva Survival (12%), Systems from Defection rotation C (15%)/B (~6%) or Kuva Survival (12%). Also in the Duviri Circuit. In-game Market: 225 platinum.",
 "difficulty": 4,
 "available": true,
 "tradable": false,
@@ -915,7 +915,7 @@
 },
 "Hildryn": {
 "method": "boss",
-"how": "Main blueprint from Little Duck for 5,000 standing at Vox Solaris Rank 2 - Agent; parts drop from the Exploiter Orb heist in Orb Vallis (Neuroptics and Chassis 38.72%, Systems 22.56%). Each part needs 2 Lazulite Toroids. Also in the Duviri Circuit. Market price 325 platinum.",
+"how": "Main blueprint from Little Duck for 5,000 standing at Vox Solaris Rank 2 - Agent; parts drop from the Exploiter Orb heist in Orb Vallis (Neuroptics and Chassis 38.72%, Systems 22.56%). Each part needs 2 Lazulite Toroids. Also in the Duviri Circuit. In-game Market: 325 platinum.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
@@ -936,7 +936,7 @@
 },
 "Hydroid": {
 "method": "boss",
-"how": "Main blueprint from the Market (50,000 credits); parts drop from Councilor Vay Hek on Oro, Earth, which needs Mastery Rank 5 (Neuroptics and Chassis 38.72%, Systems 22.56%). Also in the Duviri Circuit. Market price 300 platinum.",
+"how": "Main blueprint from the Market (50,000 credits); parts drop from Councilor Vay Hek on Oro, Earth, which needs Mastery Rank 5 (Neuroptics and Chassis 38.72%, Systems 22.56%). Also in the Duviri Circuit. In-game Market: 300 platinum.",
 "difficulty": 2,
 "available": true,
 "tradable": false,
@@ -948,7 +948,7 @@
 },
 "Inaros": {
 "method": "quest",
-"how": "All blueprints come from the Sands of Inaros quest (Mastery Rank 5); the quest key is bought from Baro Ki'Teer, who visits every two weeks, for 100 Ducats + 25,000 credits, or traded from a player. Also in the Duviri Circuit. Market price 225 platinum.",
+"how": "All blueprints come from the Sands of Inaros quest (Mastery Rank 5); the quest key is bought from Baro Ki'Teer, who visits every two weeks, for 100 Ducats + 25,000 credits, or traded from a player. Also in the Duviri Circuit. In-game Market: 225 platinum.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
@@ -968,12 +968,12 @@
 },
 "Ivara": {
 "method": "mission-drop",
-"how": "Main blueprint is now in the Market (35,000 credits); parts drop from rotation C of Spy missions (all three vaults): Systems from Tier 1, Chassis from Tier 2, Neuroptics from Tier 3 (22.56% each, 36% in Railjack Proxima Spy). Also in the Duviri Circuit. Market price 325 platinum.",
+"how": "Main blueprint is now in the Market (35,000 credits); parts drop from rotation C of Spy missions (all three vaults): Systems from Tier 1, Chassis from Tier 2, Neuroptics from Tier 3 (22.56% each, 36% in Railjack Proxima Spy). Also in the Duviri Circuit. In-game Market: 325 platinum.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Ivara",
-"players": "Older reports describe 100-150 Spy runs and 9-hour sessions for one part, but those predate the drop-rate buff to 22.56%; no post-buff reports found.",
+"players": "Older reports describe 100-150 Spy runs and 9-hour sessions for one part, from before the drop rate was raised to 22.56%.",
 "evidence": [
 "https://steamcommunity.com/app/230410/discussions/0/6861841362657898172",
 "https://forums.warframe.com/topic/1261775-farming-ivara-and-i-have-the-worst-luck-in-the-world/"
@@ -981,7 +981,7 @@
 },
 "Jade": {
 "method": "mission-drop",
-"how": "Main blueprint from the Jade Shadows quest; parts drop from Ascension on Brutus, Uranus (4.63% each), or buy them from Ordis in the Drifter's Camp for 150 Vestigial Motes each (11-13 per run plus 5-7 from the optional Sister objective; more on Steel Path). Market price 325 platinum.",
+"how": "Main blueprint from the Jade Shadows quest; parts drop from Ascension on Brutus, Uranus (4.63% each), or buy them from Ordis in the Drifter's Camp for 150 Vestigial Motes each (11-13 per run plus 5-7 from the optional Sister objective; more on Steel Path). In-game Market: 325 platinum.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
@@ -1009,7 +1009,7 @@
 },
 "Khora": {
 "method": "mission-drop",
-"how": "Main blueprint from the Market (35,000 credits); parts drop from normal Sanctuary Onslaught (7.14% on rotations A/B, 9.09% on C) after The New Strange, and crafting needs 9 Kavat Genetic Codes. Also in the Duviri Circuit. Market price 325 platinum.",
+"how": "Main blueprint from the Market (35,000 credits); parts drop from normal Sanctuary Onslaught (7.14% on rotations A/B, 9.09% on C) after The New Strange, and crafting needs 9 Kavat Genetic Codes. Also in the Duviri Circuit. In-game Market: 325 platinum.",
 "difficulty": 4,
 "available": true,
 "tradable": false,
@@ -1038,12 +1038,12 @@
 },
 "Koumei": {
 "method": "mission-drop",
-"how": "All four blueprints drop from Shrine Defense on Saya's Visions, Earth (4.09% each) after Saya's Vigil and Once Awake; or buy them at Koumei's Shrine in Cetus for 330 Fate Pearls (14-18 per run, 20-24 on Steel Path). Crafting also uses 102 Fate Pearls; build time is 24 hours. Market price 370 platinum.",
+"how": "All four blueprints drop from Shrine Defense on Saya's Visions, Earth (4.09% each) after Saya's Vigil and Once Awake; or buy them at Koumei's Shrine in Cetus for 330 Fate Pearls (14-18 per run, 20-24 on Steel Path). Crafting also uses 102 Fate Pearls; build time is 24 hours. In-game Market: 370 platinum.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Koumei",
-"players": "Players describe short runs (about 3 minutes once in a rhythm) and a predictable pearl shop; no total run counts found.",
+"players": "Players describe short runs (about 3 minutes once in a rhythm) and a predictable pearl shop.",
 "evidence": [
 "https://blaurascon.nfshost.com/blog/warframe-shrine-defense-is-pretty-neat",
 "https://forums.warframe.com/topic/1419385-shrine-defense-is-a-pretty-fun-new-game-mode"
@@ -1278,7 +1278,7 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Lavos",
-"players": "Since the parts moved from the old Orphix Venom event to Father, players mostly just note the Entrati Rank 3 requirement; no run or time reports found.",
+"players": "Since the parts moved from the old Orphix Venom event to Father, players mostly just note the Entrati Rank 3 requirement.",
 "evidence": [
 "https://steamcommunity.com/app/230410/discussions/0/4143842265258165329/"
 ]
@@ -1306,7 +1306,7 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Limbo",
-"players": "Older threads complain of hours of RNG for his parts (e.g. 17 excavators with no drop), but the current quest hands them out directly; no recent complaints found.",
+"players": "Older threads complain of hours of RNG for his parts (e.g. 17 excavators with no drop), but the current quest hands them out directly.",
 "evidence": [
 "https://steamcommunity.com/app/230410/discussions/0/598198356176979149/",
 "https://steamcommunity.com/app/230410/discussions/1/412446292753436672/"
@@ -1341,7 +1341,6 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Mag",
-"players": "No specific player reports found; rated from the mechanics (a starter frame from an early, easy boss).",
 "evidence": []
 },
 "Mara Detron": {
@@ -1496,7 +1495,7 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Nekros",
-"players": "Player threads mostly report bugs in the Lephantis fight (heads that stop opening) rather than drop-rate pain; no run counts found.",
+"players": "Player threads mostly report bugs in the Lephantis fight (heads that stop opening) rather than drop-rate pain.",
 "evidence": [
 "https://steamcommunity.com/app/230410/discussions/0/1484358860954840096/",
 "https://steamcommunity.com/app/230410/discussions/0/1489987634000925683/"
@@ -1550,7 +1549,7 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Nova",
-"players": "Older threads complain the Raptor fight was buggy or slow (one reported 7-8 runs with no drop); no recent complaints found.",
+"players": "Older threads complain the Raptor fight was buggy or slow (one reported 7-8 runs with no drop).",
 "evidence": [
 "https://steamcommunity.com/app/230410/discussions/0/864973123813021559/",
 "https://steamcommunity.com/app/230410/discussions/0/666827315378907078/"
@@ -2379,7 +2378,7 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Trinity",
-"players": "Few run reports; threads mainly note that her parts moved to Ambulas on Pluto and ask about the fight.",
+"players": "Threads mainly note that her parts moved to Ambulas on Pluto and ask about the fight.",
 "evidence": [
 "https://steamcommunity.com/app/230410/discussions/0/1697169163409160623/",
 "https://steamcommunity.com/app/230410/discussions/2/3948028800075564508/"

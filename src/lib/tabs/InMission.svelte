@@ -112,7 +112,7 @@
         <div class="grow">
           <h3>{r.name} <span class="ref ref-{r.refinement}">{r.refinement}</span></h3>
           <div class="dim small sub">
-            <span>{r.youOwn ? `You hold ${r.youOwn}` : "Not in your inventory"}</span>
+            <span>{r.youOwn ? `You hold ${r.youOwn}` : r.ownOther ? `None ${r.refinement.toLowerCase()}; you hold ${r.ownOther} at other refinements` : "Not in your inventory"}</span>
             {#if r.ev != null}<span>avg <P v={r.ev} /> a crack</span>{/if}
           </div>
         </div>

@@ -404,7 +404,7 @@
    "pools": [
     {
      "rarity": "Common",
-     "chance": 0.6,
+     "chance": 0.1,
      "arcanes": [
       "Magus Husk",
       "Magus Vigor",
@@ -427,7 +427,7 @@
     },
     {
      "rarity": "Rare",
-     "chance": 0.1,
+     "chance": 0.6,
      "arcanes": [
       "Exodia Brave",
       "Exodia Force",
@@ -449,7 +449,7 @@
    "pools": [
     {
      "rarity": "Common",
-     "chance": 0.6,
+     "chance": 0.15,
      "arcanes": [
       "Magus Accelerant",
       "Magus Anomaly",
@@ -462,7 +462,7 @@
     },
     {
      "rarity": "Uncommon",
-     "chance": 0.3,
+     "chance": 0.15,
      "arcanes": [
       "Magus Glitch",
       "Magus Repair",
@@ -472,7 +472,7 @@
     },
     {
      "rarity": "Rare",
-     "chance": 0.1,
+     "chance": 0.7,
      "arcanes": [
       "Pax Bolt",
       "Pax Charge",

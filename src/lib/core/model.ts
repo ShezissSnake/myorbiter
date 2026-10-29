@@ -136,6 +136,38 @@ export function heldCount(m: Model, unique: string): number {
   return (m.inventoryByBase.get(unique) ?? []).reduce((n, r) => n + r.quantity, 0);
 }
 
+/**
+ * Relics TennoScope only knows by their path show up under a name made from it ("T 4 Void
+ * Projection Citrine Prime C Bronze"). Their real name comes from the relic list, which the drop
+ * tables bring up to date (relicData.ts): "Axi C13 Intact".
+ */
+export function withKnownNames(bundle: Bundle): Bundle {
+  const relic = (r: InventoryRow) => r.category === "relic" && !splitRelicName(r.name);
+  if (!bundle.inventory.some((r) => relic(r) || NAME_BY_PATH[r.item_id])) return bundle;
+  const byPath = new Map(bundle.relics.map((r) => [r.uniqueName, r.name]));
+  return {
+    ...bundle,
+    inventory: bundle.inventory.map((r) => {
+      if (NAME_BY_PATH[r.item_id]) return { ...r, name: NAME_BY_PATH[r.item_id] };
+      if (!relic(r)) return r;
+      const name = byPath.get(r.item_id);
+      return name && splitRelicName(name) ? { ...r, name } : r;
+    }),
+  };
+}
+
+/**
+ * Items the catalog doesn't carry, so TennoScope names them from their path: the Zid-An arcanes
+ * ("Ultimate Invisibilty" is Zid-An Sek-Eel). Names as warframe.market lists them by path.
+ */
+export const NAME_BY_PATH: Record<string, string> = {
+  "/Lotus/Upgrades/CosmeticEnhancers/Antiques/UltimateInvisibilty": "Zid-An Sek-Eel",
+  "/Lotus/Upgrades/CosmeticEnhancers/Antiques/StatusChanceOnUltimateHit": "Zid-An Asheir",
+  "/Lotus/Upgrades/CosmeticEnhancers/Antiques/HeatStatusProcOnUltimateKill": "Zid-An Uskos",
+  "/Lotus/Upgrades/CosmeticEnhancers/Antiques/AmmoEfficencyDuringUltimate": "Zid-An Haras",
+  "/Lotus/Upgrades/CosmeticEnhancers/Antiques/VoidSlingsOverguardStrip": "Zid-An Osbok",
+};
+
 export function splitRelicName(name: string): { base: string; refinement: Refinement } | null {
   const parts = name.trim().split(/\s+/);
   const last = parts[parts.length - 1];
@@ -151,6 +183,8 @@ const BLUEPRINT_SUFFIXED = new Set(["Neuroptics", "Chassis", "Systems", "Harness
 /** Builds the name a part is traded and listed under from its parent and component name. */
 export function partFullName(parent: CatalogItem, comp: Component): string {
   if (comp.name === "Blueprint") return `${parent.name} Blueprint`;
+  // Necramech parts come named already ("Bonewidow Capsule").
+  if (comp.name.startsWith(`${parent.name} `)) return comp.name;
   if (
     (parent.category === "Warframes" || parent.category === "Archwing") &&
     BLUEPRINT_SUFFIXED.has(comp.name)
@@ -202,7 +236,7 @@ const HELD_AS: Record<string, string> = { "/Lotus/Weapons/Sentients/OperatorAmpl
 const CATEGORY_NOW: Record<string, string> = { "/Lotus/Weapons/Tenno/Archwing/Melee/PrimeCorufell/PrimeCorufellScytheWeapon": "Melee" };
 
 /** Ducat values the game changed since the catalog TennoScope carries was made (wiki, WFCD). */
-const DUCATS_NOW: Record<string, number> = { "Bronco Prime Barrel": 25 };
+const DUCATS_NOW: Record<string, number> = { "Bronco Prime Barrel": 25, "Nami Skyla Prime Blade": 65 };
 
 /**
  * Catalog entries marked masterable that give no mastery of their own: Sirius & Orion's second son
@@ -212,6 +246,7 @@ const DUCATS_NOW: Record<string, number> = { "Bronco Prime Barrel": 25 };
 export const NO_MASTERY = new Set(["/Lotus/Powersuits/SiriusOrion/OrionSuit", "/Lotus/Weapons/Tenno/Grimoire/TnDoppelgangerGrimoire"]);
 
 export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurgence: null, resurgenceExpiry: null }, foundry: Record<string, number> | null = null, relicMarket: RelicMarket | null = null): Model {
+  bundle = withKnownNames(bundle);
   // Some relic entries list a reward twice ("2X Forma Blueprint" in Meso D1); merge them so every
   // reward name appears once per relic, with the chances added up.
   // Some items list the same component twice (Akbronco Prime: two Bronco Prime, one each); merge
@@ -223,6 +258,12 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
       if (item.masterable && NO_MASTERY.has(item.uniqueName)) item = { ...item, masterable: false };
       const fixed = CATEGORY_NOW[item.uniqueName];
       if (fixed && item.category !== fixed) item = { ...item, category: fixed, type: fixed };
+      // A few melee weapons come typed as rifles in the catalog (Venato, Prova, Ruvox…).
+      if (item.category === "Melee" && /^(Rifle|Pistol|Shotgun)$/.test(item.type ?? "")) item = { ...item, type: "Melee" };
+      // Ducat values that changed since the catalog was made.
+      if (item.components?.some((c) => DUCATS_NOW[partFullName(item, c)] != null)) {
+        item = { ...item, components: item.components.map((c) => (DUCATS_NOW[partFullName(item, c)] != null ? { ...c, ducats: DUCATS_NOW[partFullName(item, c)] } : c)) };
+      }
       const comps = item.components;
       if (!comps || new Set(comps.map((c) => c.uniqueName)).size === comps.length) return item;
       const merged = new Map<string, Component>();

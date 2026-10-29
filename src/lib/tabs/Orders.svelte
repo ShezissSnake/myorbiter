@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Model } from "../core/model";
   import type { AdviceSettings, MarketSettings } from "../backend";
-  import { heldFor, holdings, listingKey, overAsked, type MyOrder, type Plan } from "../core/market";
+  import { heldFor, holdings, listingKey, overAsked, wtsLines, type MyOrder, type Plan } from "../core/market";
   import { LISTING_LIMIT } from "../core/bulk";
   import { arcaneRows, spareOf } from "../core/views";
   import { aboveCrack, relicCrackFor } from "../core/spares";
@@ -147,6 +147,22 @@
     // Held back from the repricer only while there's an actual change waiting.
     if (changeOf(o)) mkt.editing.add(o.id);
     else mkt.editing.delete(o.id);
+  }
+  // Your shown listings as trade chat lines (core/market.ts, wtsLines); each press copies the next.
+  const wts = $derived(wtsLines(mkt.orders.filter((o) => o.visible).map((o) => ({ name: mkt.item(o.itemId)?.name ?? o.itemId, rank: o.rank, platinum: o.platinum }))));
+  let wtsNext = 0;
+  let wtsCopied = $state<string | null>(null);
+  async function copyWts() {
+    const i = wtsNext % wts.length;
+    try {
+      await navigator.clipboard.writeText(wts[i]);
+      wtsCopied = wts.length > 1 ? `Copied line ${i + 1} of ${wts.length}: paste it in trade chat` : "Copied: paste it in trade chat";
+      wtsNext = i + 1;
+    } catch {
+      wtsCopied = "Couldn't copy";
+    }
+    const was = wtsCopied;
+    setTimeout(() => wtsCopied === was && (wtsCopied = null), 3000);
   }
   function revert(o: MyOrder) {
     delete edits[o.id];
@@ -320,6 +336,7 @@
     <!-- Your listings first, with where to add one right beside the heading. -->
     <div class="listhead">
       <h2 class="register yours">Your listings</h2>
+      {#if wts.length}<button class="link wts" title={`Copy your shown listings as a trade chat line, to post in game too:\n${wts[0]}${wts.length > 1 ? `\n(${wts.length} lines: each press copies the next)` : ""}`} onclick={copyWts}>{wtsCopied ?? (wts.length > 1 ? `Copy WTS line 1 of ${wts.length}` : "Copy WTS line")}</button>{/if}
       <section class="newlisting" aria-label="New listing">
         <span class="register">New listing</span>
         <span class="searchbox" bind:this={searchBox}><input type="search" placeholder={console ? "Find anything to sell…" : "Find something you own…"} bind:value={search} aria-label={console ? "Find anything to sell" : "Find something you own"}
@@ -405,7 +422,7 @@
               <input type="number" min="1" inputmode="numeric" class:edited={change?.platinum != null} value={edits[o.id]?.platinum ?? o.platinum}
                 oninput={(e) => edit(o, "platinum", e.currentTarget.value)} onkeydown={(e) => editKey(o, e)} onwheel={(e) => e.currentTarget.blur()} aria-label="Your price" />
               <!-- Narrow windows hide Will set: what Reprice would do shows under the price instead. -->
-              {#if p?.change && !paused && o.visible && !change}<div class="willnote" class:up={p.target > o.platinum} title={p.reason === "floor" ? "Reprice sets this, held up by the floor" : "Reprice sets this"}>→ {p.target}p{p.reason === "floor" ? " · floor" : ""}</div>{/if}
+              {#if p?.change && !paused && o.visible && !change}<div class="willnote" class:up={p.target > o.platinum} title={p.reason === "floor" ? "Reprice sets this, held up by the floor" : "Reprice sets this"}>→ {p.target}p{p.reason === "floor" ? (p.competitor.price != null && p.target > p.competitor.price ? " · over market" : " · floor") : ""}</div>{/if}
               {#if change}
                 {@const over = overHeld(o)}
                 {#if over}<p class="err small">{over}</p>{/if}
@@ -426,13 +443,13 @@
               {:else}<span class="dim small">Not checked yet</span>{/if}
             </td>
             <td class="right fade willset">
-              {#if p?.change && !paused && o.visible}<span class="target" class:down={p.target < o.platinum} class:up={p.target > o.platinum}><span class="dim">{o.platinum} →</span> <P v={p.target} /> <span class="delta">{p.target > o.platinum ? "+" : "−"}{Math.abs(p.target - o.platinum)}</span>{#if p.reason === "floor" && crackHeld(o, p) != null}<span class="tag ok" title="Worth more cracked: a crack of it is worth about {crackHeld(o, p)}p, so it isn't listed under {p.floor}p. Take it down to crack it instead.">crack</span>{:else if p.reason === "floor"}<span class="tag ok" title="Held up by the floor">floor</span>{:else if p.reason === "median"}<span class="tag" title="Everyone in game asks more than twice what it really goes for ({p.competitor.price}p and up): priced at that instead">sells for</span>{/if}</span>
+              {#if p?.change && !paused && o.visible}<span class="target" class:down={p.target < o.platinum} class:up={p.target > o.platinum}><span class="dim">{o.platinum} →</span> <P v={p.target} /> <span class="delta">{p.target > o.platinum ? "+" : "−"}{Math.abs(p.target - o.platinum)}</span>{#if p.reason === "floor" && crackHeld(o, p) != null}<span class="tag ok" title="Worth more cracked: a crack of it is worth about {crackHeld(o, p)}p, so it isn't listed under {p.floor}p. Take it down to crack it instead.">crack</span>{:else if p.reason === "floor" && p.competitor.price != null && p.target > p.competitor.price}<span class="tag warn" title="Your floor ({p.floor}p) is over what the cheapest seller in game asks ({p.competitor.price}p): at this price it's unlikely to sell. Lower this listing's floor, or take it down.">over market</span>{:else if p.reason === "floor"}<span class="tag ok" title="Held up by the floor">floor</span>{:else if p.reason === "median"}<span class="tag" title="Everyone in game asks more than twice what it really goes for ({p.competitor.price}p and up): priced at that instead">sells for</span>{/if}</span>
               {:else if !o.visible}<span class="register" title="Hidden listings aren't repriced">hidden</span>
               {:else if paused}<span class="register" title="Follow is off: the repricer leaves this listing alone">left alone</span>
               {:else if p && goesFor(p) != null}<span class="register ok" title="At what it really goes for: in game they ask {p.competitor.price}p and up">at its value</span>
               {:else if p}<span class="register ok">matched</span>{/if}
             </td>
-            <td class="right floorcol"><input type="number" min="1" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor for this listing" title="Your own floor for this listing; empty uses the automatic one" value={settings.floors[listingKey(o)] ?? ""} onchange={(e) => setFloor(o, e.currentTarget.value)} /></td>
+            <td class="right floorcol"><input type="number" min="1" style:width="4.8rem" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor for this listing" title="Your own floor for this listing; empty uses the automatic one" value={settings.floors[listingKey(o)] ?? ""} onchange={(e) => setFloor(o, e.currentTarget.value)} /></td>
             <td class="center"><Toggle on={!paused && o.visible} disabled={!o.visible} label="Follow the cheapest in-game seller" title={!o.visible ? "Hidden listings aren't repriced" : paused ? "Left alone by the repricer" : "Follows the cheapest in-game seller"} onchange={() => togglePause(o)} /></td>
             <td class="center"><Toggle on={o.visible} label="Shown to buyers" title={o.visible ? "Visible to buyers" : "Hidden from buyers"} disabled={!!mkt.busy} onchange={(v) => mkt.update(o, { visible: v })} /></td>
             <td class="right">
@@ -566,14 +583,13 @@
   .willnote { display: none; margin-top: .2rem; font-family: var(--face-register); font-size: .62rem; letter-spacing: .06em; color: var(--oxblood); white-space: nowrap; }
   .willnote.up { color: var(--verdigris); }
   :global(html[data-room~="lt900"]) .willnote { display: block; }
-  /* "auto 10" whole: the floor's placeholder without the wide capitals. */
+  /* "auto 10" whole: the floor's placeholder without the wide capitals (and the box set wide enough, inline). */
   .floorcol input::placeholder { text-transform: none; letter-spacing: 0; font-size: .74rem; }
   /* Less still: the per-listing floor box goes too (your floors still apply). */
   :global(html[data-room~="lt760"]) .floorcol { display: none; }
   /* Page area under 1100 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt1100"]) .orders input[type="number"] { width: 3.8rem; }
   /* The floor's "auto 10" has to fit whole, or it reads as a 1p floor. */
-  .orders .floorcol input[type="number"] { width: 4.6rem; }
   :global(html[data-room~="lt1100"]) .orders :is(td, th) { padding-left: .4rem; padding-right: .4rem; }
   :global(html[data-room~="lt1100"]) .orders :is(td, th):first-child { padding-left: 0; }
   :global(html[data-room~="lt1100"]) .orders :is(td, th):last-child { padding-right: 0; }

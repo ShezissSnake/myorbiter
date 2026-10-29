@@ -777,6 +777,8 @@ export interface SquadRelic {
   status: "farmable" | "vaulted" | "resurgence";
   /** How many of this relic at this refinement you hold (one of them may be the one in play). */
   youOwn: number;
+  /** Copies of this relic at other refinements. */
+  ownOther: number;
   rewards: (RelicRewardRow & { chance: number })[];
   neededCount: number;
   ev: number | null;
@@ -798,6 +800,7 @@ export function squadRelics(m: Model, paths: string[]): SquadRelic[] {
         known: false,
         status: "vaulted",
         youOwn: 0,
+        ownOther: 0,
         rewards: [],
         neededCount: 0,
         ev: null,
@@ -835,6 +838,7 @@ export function squadRelics(m: Model, paths: string[]): SquadRelic[] {
       // Resurgence only while Varzia actually stocks it; otherwise its vault flag decides.
       status: group?.resurgence ? "resurgence" : entry.vaulted ? "vaulted" : "farmable",
       youOwn,
+      ownOther: Math.max(0, (m.ownedRelicCount.get(base) ?? 0) - youOwn),
       rewards,
       neededCount: rewards.filter((r) => r.needed).length,
       ev: ev == null ? null : Math.round(ev * 10) / 10,

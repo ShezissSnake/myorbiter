@@ -11,7 +11,7 @@ import type { RivenAuction, RivenMeta, RivenRaw, RivenSnap } from "./core/rivens
 import type { Invasion } from "./core/invasions";
 import type { WorldAlert } from "./core/worldNeeds";
 import type { RelicData } from "./core/relicData";
-import type { Bundle, CatalogPart, CollectionPart, DuviriCycle, Fissure, Live, MissionState, Nightwave, SortieLike, SteelPath, VaultTraderItem } from "./core/types";
+import type { Bundle, CatalogPart, CollectionPart, DarvoDeal, DuviriCycle, Fissure, Live, MissionState, Nightwave, SortieLike, SteelPath, VaultTraderItem } from "./core/types";
 import { defaultPickWeights, type PickWeights } from "./core/pick";
 import type { Notice } from "./notices";
 
@@ -381,7 +381,7 @@ export async function loadLive(): Promise<Live> {
     if (inTauri) raw = await invoke("worldstate");
     else {
       const get = (p: string) => fetch(`https://api.warframestat.us/pc/${p}?language=en`).then((r) => r.json()).catch(() => null);
-      const names = ["fissures", "vaultTrader", "voidTrader", "invasions", "nightwave", "sortie", "archonHunt", "steelPath", "duviriCycle", "earthCycle", "cetusCycle", "vallisCycle", "cambionCycle", "zarimanCycle", "alerts"];
+      const names = ["fissures", "vaultTrader", "voidTrader", "invasions", "nightwave", "sortie", "archonHunt", "steelPath", "duviriCycle", "earthCycle", "cetusCycle", "vallisCycle", "cambionCycle", "zarimanCycle", "alerts", "dailyDeals"];
       raw = Object.fromEntries(await Promise.all(names.map(async (n) => [n, await get(n)] as const)));
     }
   } catch {
@@ -401,6 +401,7 @@ export async function loadLive(): Promise<Live> {
     sortie: obj<SortieLike>(raw?.sortie, "boss"),
     archonHunt: obj<SortieLike>(raw?.archonHunt, "boss"),
     steelPath: obj<SteelPath>(raw?.steelPath, "currentReward"),
+    darvo: Array.isArray(raw?.dailyDeals) ? ((raw!.dailyDeals as DarvoDeal[]).find((d) => d && typeof d.item === "string" && typeof d.salePrice === "number") ?? null) : null,
     duviriCycle: obj<DuviriCycle>(raw?.duviriCycle, "choices"),
     cycles: (["earth", "cetus", "vallis", "cambion", "zariman"] as const)
       .map((k) => ({ key: k, c: obj<{ state: string; expiry: string }>(raw?.[`${k}Cycle`], "state") }))

@@ -88,7 +88,8 @@
   const bestFor = (era: string) => {
     let best: { r: RelicRow; v: number; refinement: string } | null = null;
     for (const r of relics) {
-      if (era !== "Omnia" && r.era !== era) continue;
+      // Omnia fissures take Lith to Axi relics, not Requiem ones.
+      if (era === "Omnia" ? r.era === "Requiem" : r.era !== era) continue;
       const c = crackValue(r);
       if (c.v != null && (!best || c.v > best.v)) best = { r, v: c.v, refinement: c.refinement };
     }
@@ -101,7 +102,7 @@
       const normal = fs.filter((f) => !f.isHard);
       const hard = fs.filter((f) => f.isHard);
       const next = [...fs].sort((a, b) => Date.parse(b.expiry) - Date.parse(a.expiry))[0] ?? null;
-      const owned = relics.filter((r) => era === "Omnia" || r.era === era).reduce((n, r) => n + r.total, 0);
+      const owned = relics.filter((r) => (era === "Omnia" ? r.era !== "Requiem" : r.era === era)).reduce((n, r) => n + r.total, 0);
       return { era, normal, hard, next, owned, best: bestFor(era) };
     }).filter((e) => e.normal.length + e.hard.length > 0 || (e.era !== "Omnia" && e.owned > 0)),
   );
@@ -183,7 +184,8 @@
     setTimeout(() => copied === mark && (copied = null), ok ? 2500 : 15_000);
   }
   // Ducats your spare parts would fetch, counting only the ones better traded in than sold.
-  const spareDucats = $derived(partRows(model).filter((p) => p.spare > 0 && decide(p.price, p.ducats, p.tradesPerDay, settings.advice).verdict === "ducats").reduce((n, p) => n + p.ducats * p.spare, 0));
+  // As Prime parts counts them: parts that go into a complete set you can sell are sold as the set.
+  const spareDucats = $derived(partRows(model).filter((p) => p.spare > 0 && p.inSets <= 0 && decide(p.price, p.ducats, p.tradesPerDay, settings.advice).verdict === "ducats").reduce((n, p) => n + p.ducats * p.spare, 0));
   const varzia = $derived(console ? [] : varziaNeeds(model, rows));
   // On a console, her stock as it is: the primes she sells whole, and how many relics.
   const varziaWhole = $derived((live.resurgence ?? []).filter((v) => v.ducats != null && !/ Relic$/.test(v.item)).sort((a, b) => (b.ducats ?? 0) - (a.ducats ?? 0)));
@@ -229,7 +231,7 @@
     { key: "market", label: "Market", hint: "Your warframe.market status, what you have listed, and what sold" },
     { key: "ready", label: "Ready to sell", hint: "Your spares worth listing, in the kinds ticked on Orders" },
     { key: "fissures", label: "Fissures now", hint: "Open fissures by era, your best relic for each, and your fissure alerts", consoleHint: "Open fissures by era, and your fissure alerts" },
-    { key: "today", label: "Worth doing today", hint: "The Duviri Circuit, Teshin, the Sortie, the Archon Hunt and Nightwave" },
+    { key: "today", label: "Worth doing today", hint: "The Duviri Circuit, Darvo's deal, Teshin, the Sortie, the Archon Hunt and Nightwave" },
     { key: "foundry", label: "Foundry", hint: "What's building, and what you have every part for" },
     { key: "wishes", label: "Your wishlist", hint: "What you starred and still need, with relics to crack for it" },
     { key: "deals", label: "Cheap buys", hint: "Parts and arcanes you're after, listed well under their usual price" },
@@ -447,6 +449,16 @@
             </div>
           </div>
         {/if}
+        {#if day.darvo}
+          {@const dv = day.darvo}
+          <div class="tblock">
+            <div class="th"><GameIcon name="platinum" size={18} /><b class="mark">Darvo's deal</b><span class="dim small">{dv.left != null ? `${dv.left} left · ` : ""}ends in {until(dv.ends, now)}</span></div>
+            <p class="tline" title="Darvo's daily deal in the in-game Market (Market → Darvo's Deal), limited stock">
+              <b use:info={dv.item}>{dv.item}</b> <span class="dim">for {dv.price}p ({dv.discount}% off {dv.was}p)</span>
+              {#if dv.note && !console}<span class="dim small"> · {dv.note}</span>{#if dv.wanted}<em class="want" aria-label="worth taking">◆</em>{/if}{/if}
+            </p>
+          </div>
+        {/if}
         {#if day.steelPath}
           <div class="tblock">
             <div class="th"><GameIcon name="steel-essence" size={18} /><b class="mark">Teshin's offer</b><span class="dim small">changes in {until(day.steelPath.ends, now)}</span></div>
@@ -473,7 +485,7 @@
             </ul>
           </div>
         {/if}
-        {#if !day.circuit && !day.steelPath && !day.nightwave && !day.sortie}<p class="dim">{liveNote}</p>{/if}
+        {#if !day.circuit && !day.steelPath && !day.nightwave && !day.sortie && !day.darvo}<p class="dim">{liveNote}</p>{/if}
       </div>
     </section>
 
@@ -728,7 +740,7 @@
   .chips { display: flex; flex-wrap: wrap; gap: .35rem; }
   .pick { display: inline-flex; align-items: center; gap: .4rem; padding: .2rem .55rem .2rem .25rem; border: 1px solid var(--rule); font-size: .82rem; color: var(--platinum-dim); }
   .pick.want { border-color: var(--gold-dim); color: var(--platinum); }
-  .pick em { font-style: normal; font-size: .6rem; color: var(--gold); }
+  .pick em, em.want { font-style: normal; font-size: .6rem; color: var(--gold); margin-left: .25rem; }
   .nw { list-style: none; margin: 0; padding: 0; display: grid; gap: .25rem; }
   .nw li { display: grid; grid-template-columns: 4.2rem 1fr auto; gap: .5rem; align-items: center; font-size: .84rem; }
   .k { font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }

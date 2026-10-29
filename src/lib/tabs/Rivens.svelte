@@ -76,7 +76,7 @@
   const tradeValue = (r: Riven) => traded(r)?.same?.median ?? null;
   const fmtP = (v: number) => `${Math.round(v).toLocaleString("en")}p`;
   const tradeTitle = (r: Riven, t: RivenTrade) =>
-    `Riven trades completed in game last week for ${t.weapon} rivens that were ${t.rerolled ? "cycled" : "never cycled"}: median ${t.median == null ? "?" : fmtP(t.median)}, average ${fmtP(t.avg)}, from ${fmtP(t.min)} to ${fmtP(t.max)} (Digital Extremes' weekly figures, 1p trades left out). They don't say which stats sold, so a great roll goes well over the median and a poor one under it.`;
+    `Riven trades completed in game ${rivens.tradesWeek ?? "last week"} for ${t.weapon} rivens that were ${t.rerolled ? "cycled" : "never cycled"}: median ${t.median == null ? "?" : fmtP(t.median)}, average ${fmtP(t.avg)}, from ${fmtP(t.min)} to ${fmtP(t.max)} (Digital Extremes' weekly figures, 1p trades left out). They don't say which stats sold, so a great roll goes well over the median and a poor one under it.`;
   const meta = $derived(rivens.meta);
 
   // Price checks, per riven: rivens listed with its two best stats ("similar"), and any riven for
@@ -381,7 +381,7 @@
           {#if rivens.trades}
             {@const tr = traded(r)}
             <p class="traded small">
-              {#if tr?.same}<span title={tradeTitle(r, tr.same)}><span class="dim">Traded in game last week</span> <b>~{tr.same.median == null ? "?" : fmtP(tr.same.median)}</b> <span class="dim">· {fmtP(tr.same.min)}–{fmtP(tr.same.max)}</span></span>{#if tr.other?.median != null}<span class="dim" title={tradeTitle(r, tr.other)}>{" · "}{tr.other.rerolled ? "cycled" : "never cycled"} ~{fmtP(tr.other.median)}</span>{/if}
+              {#if tr?.same}<span title={tradeTitle(r, tr.same)}><span class="dim">Traded in game {rivens.tradesWeek ?? "last week"}</span> <b>~{tr.same.median == null ? "?" : fmtP(tr.same.median)}</b> <span class="dim">· {fmtP(tr.same.min)}–{fmtP(tr.same.max)}</span></span>{#if tr.other?.median != null}<span class="dim" title={tradeTitle(r, tr.other)}>{" · "}{tr.other.rerolled ? "cycled" : "never cycled"} ~{fmtP(tr.other.median)}</span>{/if}
               {:else if tr?.other}<span class="dim" title={tradeTitle(r, tr.other)}>No {r.rerolls ? "cycled" : "uncycled"} {r.weapon} rivens traded in game last week; {tr.other.rerolled ? "cycled" : "never cycled"} ones went for ~{tr.other.median == null ? "?" : fmtP(tr.other.median)}</span>
               {:else}<span class="dim" title="Digital Extremes' weekly figures list no in-game trade of a riven for this weapon last week: little demand">No {r.weapon} rivens traded in game last week</span>{/if}
             </p>

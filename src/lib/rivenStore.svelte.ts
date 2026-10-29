@@ -51,6 +51,8 @@ class Rivens {
 
   /** DE's weekly riven trade figures for your platform (see core/rivens.ts, RivenTrade). */
   trades = $state.raw<RivenTrade[] | null>(null);
+  /** The week the figures cover ("19–25 Oct"): the seven days before the Monday they were published. */
+  tradesWeek = $state<string | null>(null);
   tradesError = $state<string | null>(null);
   private tradesFor: { platform: string; at: number } | null = null;
   /** Read once per platform, and again after six hours: the file changes on Mondays. */
@@ -61,6 +63,8 @@ class Rivens {
       const res = await fetch(tradeUrl(platform), { cache: "no-cache" });
       if (!res.ok) throw new Error(`warframe.com answered ${res.status}`);
       this.trades = parseWeeklyRivens(await res.text());
+      const published = Date.parse(res.headers.get("last-modified") ?? "");
+      this.tradesWeek = Number.isFinite(published) ? weekBefore(published) : null;
       this.tradesError = null;
     } catch (e) {
       // Tried again on the next visit to the page rather than in six hours.
@@ -109,6 +113,18 @@ class Rivens {
     next[key] = entry;
     this.results = next;
   }
+}
+
+/** "19–25 Oct": the seven days before a Monday the weekly figures came out (UTC). */
+export function weekBefore(publishedMs: number): string {
+  const day = 86_400_000;
+  const monday = Math.floor(publishedMs / day) * day;
+  const fmt = (ms: number) => new Date(ms).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+  const from = monday - 7 * day;
+  const to = monday - day;
+  const a = fmt(from);
+  const b = fmt(to);
+  return a.split(" ")[1] === b.split(" ")[1] ? `${a.split(" ")[0]}–${b}` : `${a} – ${b}`;
 }
 
 export const rivens = new Rivens();

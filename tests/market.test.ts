@@ -158,3 +158,11 @@ test("with no inventory read at all (a console player), what you hold is unknown
   assert.equal(holdings(empty, item as never), null);
   assert.equal(heldFor(empty, item as never, { rank: 0, subtype: null }), null);
 });
+
+test("trade chat lines from your listings: dearest first, ranks shown, split to the chat's length", async () => {
+  const { wtsLines } = await import("../src/lib/core/market");
+  assert.deepEqual(wtsLines([{ name: "Serration", rank: 0, platinum: 9 }, { name: "Arcane Reaper", rank: 0, platinum: 30 }, { name: "Gauss Prime Neuroptics Blueprint", rank: null, platinum: 14 }]), ["WTS [Arcane Reaper] R0 30p [Gauss Prime Neuroptics Blueprint] 14p [Serration] R0 9p"]);
+  const many = wtsLines(Array.from({ length: 20 }, (_, i) => ({ name: `Item ${i}`, rank: null, platinum: 100 - i })), 60);
+  assert.ok(many.length > 1 && many.every((l) => l.length <= 60 && l.startsWith("WTS [")));
+  assert.deepEqual(wtsLines([]), []);
+});

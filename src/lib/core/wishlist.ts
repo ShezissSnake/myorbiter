@@ -207,7 +207,7 @@ export function wishItem(m: Model, unique: string): WishItem | null {
   return { c, missing, odds, buyCost: missing.length && prices.every((x) => x != null) ? Math.round(prices.reduce((a: number, b) => a + (b ?? 0), 0)) : null };
 }
 
-/** Open fissures by era (normal and Steel Path; Omnia takes any relic). */
+/** Open fissures by era (normal and Steel Path; Omnia takes any relic but a Requiem one). */
 export function openEras(fissures: Fissure[] | null, now = Date.now()): Record<string, Fissure[]> {
   const out: Record<string, Fissure[]> = {};
   for (const f of fissures ?? []) {
@@ -217,9 +217,9 @@ export function openEras(fissures: Fissure[] | null, now = Date.now()): Record<s
   return out;
 }
 
-/** The relics you hold for a wished-for item whose era has a fissure open now (an Omnia one takes any). */
+/** The relics you hold for a wished-for item whose era has a fissure open now (an Omnia one takes any but Requiem). */
 export function crackableNow(w: WishItem, open: Record<string, Fissure[]>): string[] {
-  const isOpen = (era: string) => (open[era]?.length ?? 0) + (open.Omnia?.length ?? 0) > 0;
+  const isOpen = (era: string) => (open[era]?.length ?? 0) + (era === "Requiem" ? 0 : (open.Omnia?.length ?? 0)) > 0;
   return [...new Set(w.missing.flatMap((p) => p.yours.filter((r) => isOpen(r.era)).map((r) => r.base)))];
 }
 

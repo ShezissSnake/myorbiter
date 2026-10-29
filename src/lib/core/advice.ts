@@ -253,7 +253,7 @@ export interface CrackRow {
   hits: SetHit[];
   /** Chance one crack gives you a part a near-complete set is missing. */
   chance: number;
-  /** Expected set platinum one crack moves you toward (each part counts as its share of the set). */
+  /** Expected platinum one crack adds toward sets: each missing part at what it adds to its set (SetGap.partValue). */
   value: number;
   sets: string[];
 }
@@ -264,6 +264,12 @@ export interface SetGap {
   missing: { name: string; count: number }[];
   missingCount: number;
   setPrice: number | null;
+  /**
+   * What one missing part adds: the set's price over what the parts you hold already sell for
+   * loose, shared between the parts still missing. A 70p set whose other parts sell for 50p
+   * loose gains 20p from its last part, not 70p. Never under the part's own price.
+   */
+  partValue: Map<string, number>;
   mastered: boolean;
   /** Relics you own that drop a missing part. */
   relicsOwned: number;
@@ -271,15 +277,22 @@ export interface SetGap {
 
 export function setGaps(m: Model, maxMissing: number): SetGap[] {
   return setRows(m)
-    .map((s) => ({
-      set: s.name,
-      unique: s.unique,
-      missing: s.missing.map((x) => ({ name: x.name, count: x.count })),
-      missingCount: s.missing.reduce((n, x) => n + x.count, 0),
-      setPrice: s.setPrice,
-      mastered: s.mastered,
-      relicsOwned: 0,
-    }))
+    .map((s) => {
+      const missingCount = s.missing.reduce((n, x) => n + x.count, 0);
+      const missingLoose = s.missing.every((x) => x.price != null) ? s.missing.reduce((n, x) => n + (x.price as number) * x.count, 0) : null;
+      const heldLoose = s.partsPrice != null && missingLoose != null ? s.partsPrice - missingLoose : null;
+      const share = s.setPrice == null || !missingCount ? 0 : Math.max(0, s.setPrice - (heldLoose ?? 0)) / missingCount;
+      return {
+        set: s.name,
+        unique: s.unique,
+        missing: s.missing.map((x) => ({ name: x.name, count: x.count })),
+        missingCount,
+        setPrice: s.setPrice,
+        partValue: new Map(s.missing.map((x) => [x.name, Math.max(x.price ?? 0, share)])),
+        mastered: s.mastered,
+        relicsOwned: 0,
+      };
+    })
     .filter((g) => g.missingCount > 0 && g.missingCount <= maxMissing);
 }
 
@@ -314,7 +327,7 @@ export function crackRows(m: Model, maxMissing: number): { relics: CrackRow[]; g
       for (const { gap } of wanted.get(rw.name) ?? []) {
         const chance = (rw.chance ?? 0) / 100;
         hits.push({ reward: rw.name, set: gap.set, last: gap.missingCount === 1, chance });
-        value += chance * ((gap.setPrice ?? 0) / gap.missingCount);
+        value += chance * (gap.partValue.get(rw.name) ?? 0);
         const c = counted.get(gap.set) ?? new Set<string>();
         c.add(base);
         counted.set(gap.set, c);

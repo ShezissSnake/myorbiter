@@ -71,8 +71,22 @@ test("crack planner finds relics that finish a set", async () => {
   assert.equal(relics[0].base, "Axi R1");
   assert.equal(relics[0].refinement, "Radiant"); // odds from your best copy
   assert.ok(Math.abs(relics[0].chance - 0.1) < 1e-9);
-  assert.ok(Math.abs(relics[0].value - 6) < 1e-9); // 10% × 60p for the last part
+  assert.ok(Math.abs(relics[0].value - 6) < 1e-9); // 10% × 60p for the last part (no part prices to subtract)
   assert.equal(relics[0].hits[0].last, true);
+
+  // With part prices: the parts you hold already sell for 45p loose, so the last one adds 15p
+  // to the 60p set (more than its own 12p), not the whole 60p.
+  const priced = buildModel({ observed_at: null, inventory: [
+      inv("/R/Bp", "Rhino Prime Blueprint", "prime_part", 1), inv("/R/Chassis", "Rhino Prime Chassis Blueprint", "prime_part", 1),
+      inv("/R/Helmet", "Rhino Prime Neuroptics Blueprint", "prime_part", 1), inv("/Relic/R1Platinum", "Axi R1 Radiant", "relic", 2)],
+    catalog: [{ uniqueName: "/Rhino", name: "Rhino Prime", category: "Warframes", components: [
+      { uniqueName: "/R/Bp", name: "Blueprint", ducats: 100 }, { uniqueName: "/R/Chassis", name: "Chassis", ducats: 15 },
+      { uniqueName: "/R/Helmet", name: "Neuroptics", ducats: 45 }, { uniqueName: "/R/Systems", name: "Systems", ducats: 45 }] }],
+    relics: [{ uniqueName: "/Relic/R1Platinum", name: "Axi R1 Radiant", rewards: [{ name: "Rhino Prime Systems Blueprint", rarity: "Rare", chance: 10 }, { name: "Forma Blueprint", rarity: "Common", chance: 90 }] }],
+    prices: { prices: { "Rhino Prime Set": 60, "Rhino Prime Blueprint": 20, "Rhino Prime Chassis Blueprint": 10, "Rhino Prime Neuroptics Blueprint": 15, "Rhino Prime Systems Blueprint": 12 } },
+  } as never);
+  const r2 = crackRows(priced, 2).relics[0];
+  assert.ok(Math.abs(r2.value - 1.5) < 1e-9, `${r2.value}`);
 });
 
 // ---------------------------------------------------------------- regressions

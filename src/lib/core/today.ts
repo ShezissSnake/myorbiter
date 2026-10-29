@@ -18,6 +18,8 @@ export interface Today {
   nightwave: { standing: number; challenges: { title: string; desc: string; reputation: number; kind: "daily" | "weekly" | "elite" }[]; ends: string } | null;
   sortie: { boss: string; missions: string[]; ends: string } | null;
   archon: { boss: string; shard: string; missions: string[]; ends: string } | null;
+  /** Darvo's daily deal; `wanted` when it's something masterable you haven't mastered or built. */
+  darvo: { item: string; price: number; was: number; discount: number; left: number | null; ends: string; wanted: boolean; note: string | null } | null;
 }
 
 /** The Circuit's choices change weekly, Monday 00:00 UTC. */
@@ -87,5 +89,20 @@ export function today(m: Model, live: Live, now = Date.now()): Today {
   const a = live.archonHunt;
   const archon = a ? { boss: a.boss, shard: SHARD[a.boss] ?? "", missions: (a.missions ?? []).map((x) => `${x.type} · ${x.node}`), ends: a.expiry } : null;
 
-  return { circuit, steelPath, nightwave, sortie, archon };
+  const d = live.darvo;
+  const darvoItem = d ? (d.uniqueName ? m.catalogByUnique.get(d.uniqueName.replace("/StoreItems/", "/")) : undefined) ?? (byName.has(d.item) ? m.catalogByUnique.get(byName.get(d.item)!.unique) : undefined) : undefined;
+  const darvoNote = darvoItem?.masterable ? (m.isMastered(darvoItem.uniqueName) ? "mastered" : m.owned(darvoItem.uniqueName) > 0 ? "you have it" : "not mastered") : null;
+  const darvo = d
+    ? {
+        item: d.item,
+        price: d.salePrice,
+        was: d.originalPrice,
+        discount: d.discount ?? Math.round((1 - d.salePrice / d.originalPrice) * 100),
+        left: d.total != null && d.sold != null ? Math.max(0, d.total - d.sold) : null,
+        ends: d.expiry,
+        wanted: darvoNote === "not mastered",
+        note: darvoNote,
+      }
+    : null;
+  return { circuit, steelPath, nightwave, sortie, archon, darvo };
 }

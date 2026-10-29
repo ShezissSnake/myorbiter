@@ -19,3 +19,16 @@ test("two parts with one name are told apart, so a list keyed by name doesn't br
   const plain = [comp("Blade", "/x/Blade"), comp("Hilt", "/x/Hilt")];
   assert.equal(distinctComponents(plain), plain, "nothing to do: the same list back");
 });
+
+test("items TennoScope names from their path get their real names: a new relic, a Zid-An arcane", async () => {
+  const { withKnownNames } = await import("../src/lib/core/model");
+  const row = (item_id: string, name: string, category: string) => ({ item_id, name, category, quantity: 5, mastered: false, image_name: null, rank: null, max_rank: null });
+  const b = withKnownNames({
+    observed_at: 1,
+    inventory: [row("/Lotus/Types/Game/Projections/T4VoidProjectionCitrinePrimeCBronze", "T 4 Void Projection Citrine Prime C Bronze", "relic"), row("/Lotus/Upgrades/CosmeticEnhancers/Antiques/UltimateInvisibilty", "Ultimate Invisibilty", "arcane"), row("/x/Lith", "Lith A1 Intact", "relic")],
+    catalog: [],
+    relics: [{ uniqueName: "/Lotus/Types/Game/Projections/T4VoidProjectionCitrinePrimeCBronze", name: "Axi C13 Intact", rewards: [] }],
+    prices: {},
+  } as unknown as import("../src/lib/core/types").Bundle);
+  assert.deepEqual(b.inventory.map((r) => r.name), ["Axi C13 Intact", "Zid-An Sek-Eel", "Lith A1 Intact"]);
+});
