@@ -26,7 +26,7 @@ const bundle = {
   prices: {
     prices: { "Kuva Wytch Scene": 284, "Corpus Depository Scene": 5, Serration: 2, "Arcane Energize": 6, "Mandonel Barrel": 4 },
     max_rank_prices: { Serration: 12, "Arcane Energize": 120 },
-    trade_rate: { "Corpus Depository Scene": [2, 0, ""], Serration: [40, 0, ""], "Arcane Energize": [25, 0, ""] },
+    trade_rate: { "Corpus Depository Scene": [2, 17, ""], Serration: [40, 17, ""], "Arcane Energize": [25, 17, ""], "Haav": [1, 2, ""] },
   },
 } as unknown as Bundle;
 const all: MarketFilter = { category: "all", min: null, max: null, minTrades: null, owned: false };
@@ -53,4 +53,13 @@ test("filters: category, price either way, how often it sells, owned", () => {
   assert.deepEqual(names(filterRows(rows, { ...all, max: 10 })), ["Corpus Depository Scene", "Serration", "Arcane Energize", "Mandonel Barrel"]);
   assert.deepEqual(names(filterRows(rows, { ...all, category: "scene", minTrades: 1 })), ["Corpus Depository Scene"]);
   assert.deepEqual(names(filterRows(rows, { ...all, owned: true })), ["Mandonel Barrel"]);
+});
+
+test("sells weekly: prices from fewer than one sale a week can be left out", () => {
+  const rows = marketRows(buildModel(bundle), ITEMS);
+  // Kuva Wytch Scene has a price but no sales lately; the Depository sells twice a day.
+  assert.deepEqual(names(filterRows(rows, { ...all, category: "scene", weekly: true })), ["Corpus Depository Scene"]);
+  assert.equal(filterRows(rows, { ...all, category: "scene", weekly: false }).length, 2);
+  // Once a day, but on only two days: not a steady price.
+  assert.deepEqual(names(filterRows(rows, { ...all, category: "fish", weekly: true })), []);
 });

@@ -342,7 +342,7 @@
             <Art file={r.image} size={74} />
             <div class="t">
               <span class="register">{r.kind} riven · {r.weapon}{r.companion ? " · companion" : ""}</span>
-              <h3 class="mark">{r.weapon} {r.name}</h3>
+              <h3 class="mark" title="{r.weapon} {r.name}">{r.weapon} {r.name}</h3>
               <span class="meta dim small">
                 {#if r.polarity}<img src="/game/pol/{r.polarity}.png" alt={r.polarity} title={r.polarity} class="pol" />{/if}
                 Rank {r.rank}/8 · MR {r.mastery} · {r.rerolls ? `${r.rerolls} cycle${r.rerolls === 1 ? "" : "s"}` : "never cycled"}

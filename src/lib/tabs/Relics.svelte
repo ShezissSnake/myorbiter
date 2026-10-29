@@ -80,6 +80,8 @@
   const fissures = $derived((feed ?? []).filter((f) => new Date(f.expiry).getTime() > now));
   /** Omnia fissures take a Lith, Meso, Neo or Axi relic, so they're listed under each of those. */
   const omnia = $derived(fissures.filter((f) => f.tier === "Omnia"));
+  /** Void Storms (Railjack): in the total of open fissures, on no era's card. */
+  const stormCount = $derived(fissures.filter((f) => f.isStorm).length);
   const byEra = $derived.by(() => {
     const out = new Map<string, Fissure[]>();
     for (const f of fissures) {
@@ -227,7 +229,7 @@
   <section class="eras" aria-label="Eras">
     <button class="era all" class:on={era === "all"} aria-pressed={era === "all"} onclick={() => (era = "all")}>
       <strong><GameIcon name="void-tear" size={22} />All</strong>
-      <span class="dim small">{fissures.length ? `${fissures.length} fissure${fissures.length === 1 ? "" : "s"} open` : "every era"}</span>
+      <span class="dim small" title={stormCount ? "The era cards count normal and Steel Path fissures; Void Storms are Railjack missions" : undefined}>{fissures.length ? `${fissures.length} fissure${fissures.length === 1 ? "" : "s"} open${stormCount ? `, ${stormCount} of them Void Storms` : ""}` : "every era"}</span>
       <span class="small">you have {(all.reduce((n, r) => n + r.total, 0) + unknown.reduce((n, u) => n + u.total, 0)).toLocaleString("en")}</span>
     </button>
     {#each ERAS.filter((e) => ownedEra(e) > 0 || byEra.has(e)) as e (e)}

@@ -118,3 +118,28 @@ test("countdowns read as days and hours, then hours and minutes", () => {
   assert.equal(until("2026-01-01T02:30:00Z", now), "2 h 30 min");
   assert.equal(until("2025-12-31T00:00:00Z", now), "now");
 });
+
+test("not a relic prime: parts you hold count, and every part held means build it", () => {
+  const b = (inventory: InventoryRow[]) => ({ observed_at: 1, inventory, catalog, relics: [], prices: {} }) as unknown as Bundle;
+  const W = "/Lotus/Types/Recipes/WarframeRecipes/";
+  const some = masteryRows(buildModel(b([inv(`${W}LokiBlueprint`, "Loki Blueprint", "blueprint", 1)]))).find((r) => r.name === "Loki")!;
+  assert.deepEqual([some.status, some.partsOwned, some.partsTotal], ["parts", 1, 2]);
+  assert.match(some.acq.how, /^You have the Blueprint; still to get: Chassis\. /);
+  // The Chassis held as its blueprint (what drops) counts as much as the built part.
+  const all = masteryRows(buildModel(b([inv(`${W}LokiBlueprint`, "Loki Blueprint", "blueprint", 1), inv(`${W}LokiChassisBlueprint`, "Loki Chassis Blueprint", "blueprint", 1)]))).find((r) => r.name === "Loki")!;
+  assert.deepEqual([all.status, all.acq.method], ["build", "build"]);
+});
+
+test("a captured Infested companion is one revive away; a listed Plexus is yours to level", () => {
+  const SLY = "/Lotus/Types/Friendly/Pets/CreaturePets/VulpineInfestedCatbrowPetPowerSuit";
+  const PLEXUS = "/Lotus/Types/Game/CrewShip/RailJack/DefaultHarness";
+  const cat = [...catalog, { uniqueName: SLY, name: "Sly Vulpaphyla", category: "Pets", masterable: true } as CatalogItem];
+  const held = [inv("/Lotus/Types/Items/Deimos/WoundedInfestedCritterCommonRewardItem", "Sly Vulpaphyla", "resource", 2), inv(PLEXUS, "Default Harness", "resource", 0)];
+  const r = new Map(masteryRows(buildModel({ observed_at: 1, inventory: held, catalog: cat, relics: [], prices: {} } as unknown as Bundle)).map((x) => [x.name, x]));
+  assert.equal(r.get("Sly Vulpaphyla")!.status, "build");
+  assert.match(r.get("Sly Vulpaphyla")!.acq.how, /revive it with Son/);
+  assert.equal(r.get("Plexus")!.status, "level");
+  // Not listed at all: still to get.
+  const none = masteryRows(buildModel({ observed_at: 1, inventory: [], catalog: cat, relics: [], prices: {} } as unknown as Bundle)).find((x) => x.name === "Plexus")!;
+  assert.equal(none.status, "missing");
+});

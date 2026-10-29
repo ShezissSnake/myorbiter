@@ -91,6 +91,8 @@ export interface Model {
   price(name: string): number | null;
   priceMax(name: string): number | null;
   tradesPerDay(name: string): number | null;
+  /** On how many days it sold lately (TennoScope's trade count window). */
+  saleDays(name: string): number | null;
   /** A relic's price on warframe.market: intact, or radiant when asked (null if unknown). */
   relicPrice(base: string, refinement?: string): number | null;
   /** Copies you hold, counting one being built in the foundry (you'll have it once it's claimed). */
@@ -143,12 +145,14 @@ export function heldCount(m: Model, unique: string): number {
  */
 export function withKnownNames(bundle: Bundle): Bundle {
   const relic = (r: InventoryRow) => r.category === "relic" && !splitRelicName(r.name);
-  if (!bundle.inventory.some((r) => relic(r) || NAME_BY_PATH[r.item_id])) return bundle;
+  // By the path without its rank ("…AvatarSlideBoostMod#5").
+  const known = (r: InventoryRow) => NAME_BY_PATH[r.item_id.split("#")[0]];
+  if (!bundle.inventory.some((r) => relic(r) || known(r))) return bundle;
   const byPath = new Map(bundle.relics.map((r) => [r.uniqueName, r.name]));
   return {
     ...bundle,
     inventory: bundle.inventory.map((r) => {
-      if (NAME_BY_PATH[r.item_id]) return { ...r, name: NAME_BY_PATH[r.item_id] };
+      if (known(r)) return { ...r, name: known(r) };
       if (!relic(r)) return r;
       const name = byPath.get(r.item_id);
       return name && splitRelicName(name) ? { ...r, name } : r;
@@ -158,7 +162,8 @@ export function withKnownNames(bundle: Bundle): Bundle {
 
 /**
  * Items the catalog doesn't carry, so TennoScope names them from their path: the Zid-An arcanes
- * ("Ultimate Invisibilty" is Zid-An Sek-Eel). Names as warframe.market lists them by path.
+ * ("Ultimate Invisibilty" is Zid-An Sek-Eel), a few mods ("Avatar Slide Boost Mod" is Maglev).
+ * Names as warframe.market lists them by path.
  */
 export const NAME_BY_PATH: Record<string, string> = {
   "/Lotus/Upgrades/CosmeticEnhancers/Antiques/UltimateInvisibilty": "Zid-An Sek-Eel",
@@ -166,6 +171,11 @@ export const NAME_BY_PATH: Record<string, string> = {
   "/Lotus/Upgrades/CosmeticEnhancers/Antiques/HeatStatusProcOnUltimateKill": "Zid-An Uskos",
   "/Lotus/Upgrades/CosmeticEnhancers/Antiques/AmmoEfficencyDuringUltimate": "Zid-An Haras",
   "/Lotus/Upgrades/CosmeticEnhancers/Antiques/VoidSlingsOverguardStrip": "Zid-An Osbok",
+  // Mods the catalog has only as their Beginner versions.
+  "/Lotus/Upgrades/Mods/Warframe/AvatarSlideBoostMod": "Maglev",
+  "/Lotus/Upgrades/Mods/Warframe/AvatarPowerToHealthOnDeathMod": "Quick Thinking",
+  "/Lotus/Weapons/Tenno/Melee/MeleeTrees/StaffCmbOneMeleeTree": "Clashing Forest",
+  "/Lotus/Types/Sentinels/SentinelPrecepts/LocateCreatures": "Scan Aquatic Lifeforms",
 };
 
 export function splitRelicName(name: string): { base: string; refinement: Refinement } | null {
@@ -496,6 +506,11 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
     const t = lookup(p.trade_rate, name);
     return t ? t[0] : null;
   };
+  /** On how many days it sold lately: a price from one or two days of sales can be a joke. */
+  const saleDays = (name: string) => {
+    const t = lookup(p.trade_rate, name);
+    return t ? t[1] : null;
+  };
   /** A relic's price at a refinement (intact when none is named): what it sold for lately on warframe.market, else TennoScope's daily price. */
   const relicPrice = (base: string, refinement?: string) => {
     const sold = relicMarket?.[base]?.prices[(refinement ?? "Intact").toLowerCase()];
@@ -525,6 +540,7 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
     ownedRelicCount,
     price,
     priceMax,
+    saleDays,
     tradesPerDay,
     relicPrice,
     owned,

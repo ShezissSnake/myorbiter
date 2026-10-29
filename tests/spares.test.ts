@@ -252,3 +252,22 @@ test("a weapon part's blueprint is kept for the part the recipe lists, unless th
   assert.deepEqual([barrel.keep, barrel.spare], [0, 1]);
   assert.match(barrel.why, /already hold the built part/);
 });
+
+test("a prime's parts are kept while an unbuilt weapon made from it needs more of it (Akvasto Prime)", async () => {
+  const { partRows, setRows } = await import("../src/lib/core/views");
+  const R = "/Lotus/Types/Recipes/Weapons/";
+  const VASTO = "/Lotus/Weapons/VastoPrime";
+  const vasto = { uniqueName: VASTO, name: "Vasto Prime", category: "Secondary", masterable: true, components: [{ uniqueName: `${R}VastoPrimeBlueprint`, name: "Blueprint", itemCount: 1, ducats: 15 }, { uniqueName: `${R}WeaponParts/VastoPrimeReceiver`, name: "Receiver", itemCount: 1, ducats: 15 }] };
+  const akvasto = { uniqueName: "/Lotus/Weapons/AkvastoPrime", name: "Akvasto Prime", category: "Secondary", masterable: true, components: [{ uniqueName: `${R}AkvastoPrimeBlueprint`, name: "Blueprint", itemCount: 1, ducats: 15 }, { uniqueName: VASTO, name: "Vasto Prime", itemCount: 2 }] };
+  const held = (mastered: boolean, more: InventoryRow[] = []) => {
+    const b = bundle([inv(VASTO, "Vasto Prime", "weapon", 1, { mastered }), inv(`${R}VastoPrimeBlueprint`, "Vasto Prime Blueprint", "prime_part", 3), inv(`${R}WeaponParts/VastoPrimeReceiver`, "Vasto Prime Receiver", "prime_part", 2), ...more]);
+    b.catalog.push(vasto as never, akvasto as never);
+    return buildModel(b);
+  };
+  // One Vasto Prime built, Akvasto takes two: one more set's worth is kept.
+  const m = held(true);
+  assert.deepEqual(partRows(m).map((r) => [r.name, r.keep, r.keptFor]), [["Vasto Prime Blueprint", 1, "Akvasto Prime"], ["Vasto Prime Receiver", 1, "Akvasto Prime"]]);
+  assert.deepEqual(setRows(m).filter((s) => s.name === "Vasto Prime").map((s) => [s.completeSets, s.sellable]), [[2, 1]]);
+  // Akvasto built: nothing kept.
+  assert.ok(partRows(held(true, [inv("/Lotus/Weapons/AkvastoPrime", "Akvasto Prime", "weapon", 1)])).every((r) => r.keep === 0));
+});

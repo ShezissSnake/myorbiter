@@ -63,7 +63,8 @@
   const count = (g: Group | "all") => (g === "all" ? all : all.filter((c) => c.group === g));
   const mastered = $derived(inGroup.filter((c) => c.mastered).length);
   const ownedOnly = $derived(inGroup.filter((c) => c.owned && !c.mastered).length);
-  const buildable = $derived(inGroup.filter((c) => c.buildable).length);
+  // Only what would still give mastery: a part set for something mastered is just spares.
+  const buildable = $derived(inGroup.filter((c) => c.buildable && !c.mastered).length);
   const building = $derived(inGroup.filter((c) => c.building).length);
   const groupLabel = $derived(group === "all" ? "items" : (GROUPS.find((g) => g.v === group)?.label.toLowerCase() ?? ""));
 
@@ -78,7 +79,7 @@
     {#snippet band()}
       <Stat label="Mastered" note={`of ${inGroup.length} ${groupLabel}`}><GameIcon name="mastery" size={30} />{mastered}<span class="of">/{inGroup.length}</span></Stat>
       <Stat label="Owned, not mastered" tone="gold" note="Level these">{ownedOnly}</Stat>
-      <Stat label="Ready to build" note="Every part in hand">{buildable}</Stat>
+      <Stat label="Ready to build" note="Every part in hand, not mastered yet">{buildable}</Stat>
       <Stat label="Building" tone="dim" note="In your foundry now">{building}</Stat>
     {/snippet}
   </PageHead>
@@ -123,6 +124,7 @@
             {#if c.mastered}<span class="tag good">✓ Mastered</span>
             {:else if c.owned}<span class="tag ok">Owned · level it</span>
             {:else if c.building}<span class="tag">Building</span>
+            {:else if c.buildable && c.short.length}<span class="tag warn" title="Every part in hand, but you need more {c.short.join(', ')}">Parts ready · short on {c.short[0]}{c.short.length > 1 ? ` +${c.short.length - 1}` : ""}</span>
             {:else if c.buildable}<span class="tag ok">Ready to build</span>
             {:else if c.parts.some((p) => !p.resource)}<span class="dim small">{missing(c)} part{missing(c) === 1 ? "" : "s"} missing</span>{/if}
             {#if c.resurgence}<Avail v="resurgence" />{:else if c.vaulted}<Avail v="vaulted" />{/if}
@@ -142,7 +144,7 @@
   .bar { padding-top: .9rem; }
   .right { text-align: right; }
   .chips { display: flex; flex-wrap: wrap; gap: .45rem; }
-  .chips.res { gap: .35rem; }
+  .chips.res { gap: .75rem .55rem; padding-bottom: 4px; }
   .pts { display: inline-flex; align-items: center; gap: .25rem; color: var(--platinum-dim); font-variant-numeric: tabular-nums; }
   .more { display: flex; justify-content: center; padding: 1.2rem 0; }
 </style>

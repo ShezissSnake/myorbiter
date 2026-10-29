@@ -42,7 +42,11 @@ export function today(m: Model, live: Live, now = Date.now()): Today {
   const held = (name: string) => (m.inventoryByName.get(name) ?? []).reduce((n, r) => n + r.quantity, 0);
   const owns = (name: string) => {
     const it = byName.get(name);
-    return !!it && (m.owned(it.unique) > 0 || m.isMastered(it.unique));
+    return !!it && m.owned(it.unique) > 0;
+  };
+  const mastered = (name: string) => {
+    const it = byName.get(name);
+    return !!it && m.isMastered(it.unique);
   };
 
   const cycle = live.duviriCycle;
@@ -58,11 +62,13 @@ export function today(m: Model, live: Live, now = Date.now()): Today {
         }),
         incarnons: hard.map((name) => {
           const adapter = held(`${name} Incarnon Genesis`) > 0;
+          // Held now: a weapon you mastered and sold would have to be built again first.
           const weapon = genesisVariants(name).some(owns);
+          const sold = !weapon && genesisVariants(name).some(mastered);
           return {
             name,
             wanted: weapon && !adapter,
-            note: adapter ? "adapter in hand" : weapon ? "you have the weapon" : "no weapon for it",
+            note: adapter ? "adapter in hand" : weapon ? "you have the weapon" : sold ? "mastered, but you don't have it now" : "no weapon for it",
             image: m.imageOf(`${name} Incarnon Genesis`) ?? m.imageOf(name),
           };
         }),

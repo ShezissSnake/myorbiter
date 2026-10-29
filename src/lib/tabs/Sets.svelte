@@ -98,7 +98,7 @@
   </Named>
 {/snippet}
 {#snippet sellCell(r: SetRow)}
-  <strong>{sellableOf(r)}</strong>{#if r.keptForBuild && keepOne}<span class="keep" title="One complete set kept back because you have not built or mastered it">+1 kept</span>{/if}
+  <strong>{sellableOf(r)}</strong>{#if r.keptForBuild && keepOne}<span class="keep" title="Complete sets kept back to build: you haven't built or mastered it, or a weapon made from it (Akvasto Prime takes two Vasto Primes) needs it">+{r.completeSets - r.sellable} kept</span>{/if}
 {/snippet}
 {#snippet setPriceCell(r: SetRow)}<P v={r.setPrice} />{/snippet}
 {#snippet totalCell(r: SetRow)}<P v={r.setPrice == null ? null : r.setPrice * sellableOf(r)} />{/snippet}
@@ -119,7 +119,7 @@
   <ItemCard hover="{r.name} Set" title="{r.name} Set" sub={r.category} image={item?.imageName ?? model.imageOf(r.name)} owned={mode === "sell" ? sellableOf(r) > 0 : false} onopen={open}>
     <div class="chips">{#each parts as p, i (i)}<PartChip part={p} size={32} />{/each}</div>
     {#if mode === "sell"}
-      <div class="line"><b class="mark big">×{sellableOf(r)}</b><span class="dim small">to sell{#if r.keptForBuild && keepOne} · 1 kept to build{/if}</span></div>
+      <div class="line"><b class="mark big">×{sellableOf(r)}</b><span class="dim small">to sell{#if r.keptForBuild && keepOne} · {r.completeSets - r.sellable} kept to build{/if}</span></div>
     {:else}
       {@const g = completeGain(r)}
       <dl class="kv">

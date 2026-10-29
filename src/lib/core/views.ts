@@ -1,5 +1,6 @@
 // Each function turns the model into the rows one tab shows. Pure, so they are tested directly.
 
+import { collectionItem } from "./collection";
 import { REFINEMENTS, UNOBTAINABLE, baseId, relicRewardRarity, splitRelicName, type Model, type PrimePart, type Refinement, type RelicSource } from "./model";
 export { relicRewardRarity };
 import type { CatalogItem, InventoryRow } from "./types";
@@ -53,6 +54,32 @@ export interface SetRow {
   prime: boolean;
 }
 
+/**
+ * Copies of a prime still to build, and what for: one to master it, and as many as an unbuilt
+ * weapon made from it takes (Akvasto Prime takes two Vasto Primes), less the ones you have.
+ */
+const toBuildMemo = new WeakMap<Model, Map<string, { copies: number; for: string }>>();
+export function primeToBuild(m: Model, unique: string): { copies: number; for: string } {
+  let memo = toBuildMemo.get(m);
+  if (!memo) {
+    memo = new Map();
+    toBuildMemo.set(m, memo);
+    // Weapons built from other primes, not yet built or mastered.
+    for (const item of m.catalogByUnique.values()) {
+      if (!item.masterable || m.isMastered(item.uniqueName) || m.owned(item.uniqueName) > 0) continue;
+      for (const c of item.components ?? []) {
+        if (!m.partsByParent.has(c.uniqueName)) continue;
+        const short = Math.max(0, (c.itemCount ?? 1) - m.owned(c.uniqueName));
+        if (short > (memo.get(c.uniqueName)?.copies ?? 0)) memo.set(c.uniqueName, { copies: short, for: item.name });
+      }
+    }
+  }
+  const self = m.isMastered(unique) || m.owned(unique) > 0 ? 0 : 1;
+  const composite = memo.get(unique);
+  if (composite && composite.copies >= self && composite.copies > 0) return composite;
+  return { copies: self, for: m.catalogByUnique.get(unique)?.name ?? "" };
+}
+
 export function setRows(m: Model): SetRow[] {
   const rows: SetRow[] = [];
   for (const parent of m.primeParents) {
@@ -62,14 +89,15 @@ export function setRows(m: Model): SetRow[] {
     const complete = Math.min(...parts.map((p, i) => Math.floor(owned[i] / p.required)));
     const mastered = m.isMastered(parent.uniqueName);
     const ownedBuilt = m.owned(parent.uniqueName) > 0;
-    const keptForBuild = complete > 0 && !mastered && !ownedBuilt;
+    const build = primeToBuild(m, parent.uniqueName);
+    const keptForBuild = complete > 0 && build.copies > 0;
     const partPrices = parts.map((p) => m.price(p.fullName));
     rows.push({
       name: parent.name,
       unique: parent.uniqueName,
       category: parent.category,
       completeSets: complete,
-      sellable: Math.max(0, complete - (keptForBuild ? 1 : 0)),
+      sellable: Math.max(0, complete - build.copies),
       keptForBuild,
       mastered,
       ownedBuilt,
@@ -103,6 +131,8 @@ export interface PartRow {
   parentUnique: string;
   parentMastered: boolean;
   parentOwned: boolean;
+  /** What the kept copies are for: the item itself, or a weapon built from it (Akvasto Prime). */
+  keptFor: string;
   /** Copies held back so you can still build and master the item (none once it is mastered or built). */
   keep: number;
   /** Copies not needed for a set you would still build (parent not mastered, not owned). */
@@ -130,13 +160,16 @@ export function partRows(m: Model): PartRow[] {
     const parentMastered = m.isMastered(part.parentUnique);
     const parentOwned = m.owned(part.parentUnique) > 0;
     // Copies already being crafted in the foundry count toward the build: fewer held ones are kept.
-    const keep = parentMastered || parentOwned ? 0 : Math.max(0, part.required - (m.craftingPartQty.get(name) ?? 0));
+    // Kept for each copy still to build: to master it, or for a weapon made from it (Akvasto Prime).
+    const build = primeToBuild(m, part.parentUnique);
+    const keep = Math.max(0, build.copies * part.required - (m.craftingPartQty.get(name) ?? 0));
     const price = m.price(name);
     rows.push({
       name,
       quantity: qty,
       parentName: part.parentName,
       parentUnique: part.parentUnique,
+      keptFor: build.for,
       parentMastered,
       parentOwned,
       keep: Math.min(qty, keep),
@@ -241,8 +274,12 @@ export function masteryRows(m: Model): MasteryRow[] {
   return rows;
 }
 
+/** The Railjack's Plexus. The game lists it (with its XP) once you have one, but with no count. */
+const PLEXUS = "/Lotus/Types/Game/CrewShip/RailJack/DefaultHarness";
+
 export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
-  const owned = m.owned(item.uniqueName) > 0;
+  // It can't be sold, so being listed at all means you have it.
+  const owned = m.owned(item.uniqueName) > 0 || (item.uniqueName === PLEXUS && m.inventoryByBase.has(PLEXUS));
   const parts = m.partsByParent.get(item.uniqueName) ?? [];
   const isPrime = parts.length > 0 || item.isPrime === true;
   let partsOwned = 0;
@@ -281,20 +318,38 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
   // Built from other weapons too (Akbronco Prime takes two Bronco Primes): every part in hand
   // isn't enough to build it without those.
   const lackingWeapons = owned ? [] : (item.components ?? []).filter((c) => m.catalogByUnique.get(c.uniqueName)?.masterable && m.owned(c.uniqueName) < (c.itemCount ?? 1));
+  // Not a relic prime (Hildryn, Aeolak, Sagek Prime): its blueprint and parts as the Foundry
+  // counts them, so what you already hold isn't sent to be farmed again.
+  let pieces: { label: string; held: boolean }[] = [];
+  if (!owned && !parts.length) {
+    pieces = collectionItem(m, item)
+      .parts.filter((p) => !p.resource)
+      .map((p) => ({ label: p.label, held: p.have >= p.required || p.building }));
+    partsOwned = pieces.filter((p) => p.held).length;
+  }
+  const total = parts.length || pieces.length;
+  // Infested companions you've captured (held as a "Weakened" creature under its own name):
+  // only reviving it with Son is left.
+  const captured = !owned && (m.inventoryByName.get(item.name) ?? []).some((r) => r.quantity > 0 && r.item_id.includes("/Deimos/WoundedInfested"));
   let status: MasteryStatus = "missing";
   if (owned) status = "level";
-  else if (parts.length && partsOwned === parts.length && !lackingWeapons.length) status = "build";
+  else if (captured) status = "build";
+  else if (total && partsOwned === total && !lackingWeapons.length) status = "build";
   else if (partsOwned > 0) status = "parts";
 
   const vaulted = isPrime && missingParts.some((p) => p.availability === "vaulted");
   const partPrices = missingParts.map((p) => m.price(p.name));
   // Each missing copy is bought: two Blades still to get cost two Blades.
   const buyFor = missingParts.length && partPrices.every((x) => x != null) ? Math.round(missingParts.reduce((a, p, i) => a + (partPrices[i] as number) * p.need, 0)) : null;
-  const acq = acquisition(m, item, {
+  const acq: Acquisition = captured
+    ? { method: "build", difficulty: 1, how: "You've captured one: revive it with Son in the Necralisk (Revivification, with a Mutagen and an Antigen).", icon: "mastery", available: true, tradable: false, researched: true, wiki: item.wikiaUrl ?? null }
+    : acquisition(m, item, {
     isPrime,
     owned,
     buildable: status === "build",
     partsTotal: parts.length,
+    held: pieces.filter((p) => p.held).map((p) => p.label),
+    toGet: pieces.filter((p) => !p.held).map((p) => p.label),
     unobtainable: UNOBTAINABLE.has(item.name),
     missingParts,
     ownedRelicsForIt: relicsForIt.size,
@@ -312,7 +367,7 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
     vaulted: primeVaulted(m, item) || vaulted,
     setPrice: isPrime ? m.price(`${item.name} Set`) : null,
     partsOwned,
-    partsTotal: parts.length,
+    partsTotal: total,
     missingParts,
     ownedRelicsForIt: relicsForIt.size,
     sources,
@@ -485,7 +540,7 @@ export function modRows(m: Model): ModRow[] {
       maxRank: inv.find((r) => r.max_rank != null)?.max_rank ?? item?.maxRank ?? null,
       rarity: item?.rarity ?? "",
       type: item?.type ?? "",
-      tradable: item?.tradable !== false,
+      tradable: item?.tradable !== false && !STICKER.test(unique),
       price,
       priceMax: m.priceMax(name),
       // Extras are the lowest-ranked copies; price them unranked.

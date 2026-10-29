@@ -52,7 +52,7 @@ test("Vosfor you hold is read from the inventory", () => {
   assert.equal(vosforHeld(m), 1020);
 });
 
-test("an arcane trading under 5 a day isn't counted as sellable: dissolved, and worth nothing in a pack at market prices", async () => {
+test("an arcane trading under 5 a day is dissolved unless it sells within the week for far more, and is worth nothing in a pack at market prices", async () => {
   const { SELLS_DAILY } = await import("../src/lib/core/vosfor");
   assert.equal(SELLS_DAILY, 5);
   const b = bundle(
@@ -60,14 +60,21 @@ test("an arcane trading under 5 a day isn't counted as sellable: dissolved, and 
     { "Arcane Energize": 8, "Arcane Grace": 30, "Magus Drive": 9, "Magus Anomaly": 9 },
     { "Arcane Energize": 160, "Arcane Grace": 600, "Magus Drive": 150, "Magus Anomaly": 150 },
   );
-  // Grace now sells for 600p maxed, but only 3 a day.
+  // Grace sells for 600p maxed, but only 3 a day: the spare one still sells this week, for far more.
   (b.prices as unknown as { trade_rate: Record<string, unknown> }).trade_rate = { "Arcane Energize": [50, 0, ""], "Arcane Grace": [3, 0, ""] };
   const m = buildModel(b);
   const rows = arcaneRows(m);
   const spares = new Map(spareArcanes(m, rows, 0.01, { lens: "market", minPrice: 5 }).map((s) => [s.row.name, s]));
-  assert.equal(spares.get("Arcane Grace")!.verdict, "dissolve");
-  assert.match(spares.get("Arcane Grace")!.why, /under 5 times a day/);
+  assert.equal(spares.get("Arcane Grace")!.verdict, "sell");
+  assert.match(spares.get("Arcane Grace")!.why, /Sells slowly/);
   assert.equal(spares.get("Arcane Energize")!.verdict, "sell");
+  // Once in ten days: it may not sell this week, so Vosfor is the sure thing.
+  (b.prices as unknown as { trade_rate: Record<string, unknown> }).trade_rate = { "Arcane Energize": [50, 0, ""], "Arcane Grace": [0.1, 0, ""] };
+  const slow = buildModel(b);
+  const grace = spareArcanes(slow, arcaneRows(slow), 0.01, { lens: "market", minPrice: 5 }).find((s) => s.row.name === "Arcane Grace")!;
+  assert.equal(grace.verdict, "dissolve");
+  assert.match(grace.why, /under 5 times a day/);
+  (b.prices as unknown as { trade_rate: Record<string, unknown> }).trade_rate = { "Arcane Energize": [50, 0, ""], "Arcane Grace": [3, 0, ""] };
   // In a pack at market prices, Grace (Eidolon) adds nothing; Energize still does.
   const eidolon = packValues(m, rows).find((p) => p.name.startsWith("Eidolon"))!;
   (b.prices as unknown as { trade_rate: Record<string, unknown> }).trade_rate = { "Arcane Energize": [50, 0, ""], "Arcane Grace": [50, 0, ""] };

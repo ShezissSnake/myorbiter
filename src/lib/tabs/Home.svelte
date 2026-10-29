@@ -317,7 +317,7 @@
         {#each cycles as c (c.key)}
           <div class="clock" title="{c.label}: {c.state}{c.next ? `, ${c.next} in ${until(c.ends, now)}` : ''}">
             <GameIcon name={CYCLE_ICON[c.key]} size={26} />
-            <div><span class="register clip1">{CYCLE_SHORT[c.key] ?? c.label}</span><b class="mark st st-{c.state}">{c.state}</b><span class="dim small nowrap">{until(c.ends, now)} left</span></div>
+            <div><span class="register clip1">{CYCLE_SHORT[c.key] ?? c.label}</span><b class="mark st st-{c.state}">{c.state}</b><span class="dim small nowrap">{until(c.ends, now).replace("under a minute", "<1 min")} left</span></div>
           </div>
         {/each}
         {#each resets.filter((r) => r.key !== "sortie") as r (r.key)}

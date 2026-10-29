@@ -62,6 +62,8 @@ export interface MarketRow {
   priceMax: number | null;
   maxRank: number | null;
   tradesPerDay: number | null;
+  /** On how many days it sold lately. */
+  saleDays: number | null;
   ducats: number | null;
   /** How many you hold (sets: complete sets; relics: every refinement); null when unknown. */
   have: number | null;
@@ -87,6 +89,7 @@ export function marketRows(m: Model, items: MarketItem[]): MarketRow[] {
       priceMax: it.maxRank ? m.priceMax(it.name) : null,
       maxRank: it.maxRank,
       tradesPerDay: m.tradesPerDay(it.name),
+      saleDays: m.saleDays(it.name),
       ducats: m.partByName.get(it.name)?.[0]?.ducats ?? null,
       // Arcanes: holdings also counts the maxed ones your copies would make, so use the copies.
       have: held == null ? null : categoryOf(it.tags) === "arcane" ? (it.gameRef ? arcaneCopies(m, it.gameRef) : 0) : held.reduce((n, h) => n + h.count, 0),
@@ -94,6 +97,12 @@ export function marketRows(m: Model, items: MarketItem[]): MarketRow[] {
     };
   });
 }
+
+/** Sales a day that make a price believable: about one a week… */
+export const WEEKLY = 1 / 7;
+/** …on at least this many different days: Xiphos Set "sold" for 80,000p on three. */
+export const SALE_DAYS = 5;
+export const steady = (r: MarketRow) => (r.tradesPerDay ?? 0) >= WEEKLY && (r.saleDays ?? 0) >= SALE_DAYS;
 
 export interface MarketFilter {
   category: MarketCategory | "all";
@@ -107,6 +116,11 @@ export interface MarketFilter {
   minTrades: number | null;
   /** Only what you hold. */
   owned: boolean;
+  /**
+   * Only what sells at least once a week, on several days (steady): a price from one or two days
+   * of sales can be a joke (Xiphos Set "sold" for 80,000p).
+   */
+  weekly?: boolean;
 }
 
 /** The price a row is filtered by: the higher of its unranked and maxed prices. */
@@ -121,6 +135,7 @@ export function filterRows(rows: MarketRow[], f: MarketFilter): MarketRow[] {
     if (f.max != null && (low == null || low > f.max)) return false;
     if (f.minTrades != null && (r.tradesPerDay ?? 0) < f.minTrades) return false;
     if (f.owned && !r.have) return false;
+    if (f.weekly && !steady(r)) return false;
     return true;
   });
 }

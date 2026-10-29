@@ -71,7 +71,7 @@
             {:else}
               <span title="The highest buy order from someone you can trade with">Best buyer <P v={d.topBuy} /></span>
               <span title="The cheapest seller you can trade with, online now">Cheapest seller <P v={d.cheapestSell} /></span>
-              <span title="What it sold for over the last 30 days (median)">Sold for <P v={d.median} /></span>
+              <span title="What it sold for over the last 30 days (median), so it can differ from the daily price elsewhere">Sold for <P v={d.median == null ? null : Math.round(d.median)} /></span>
             {/if}
           </div>
           {#if overSeller}<p class="warn small">That's the cheapest seller's price or more: whisper them and buy it now instead.</p>{/if}

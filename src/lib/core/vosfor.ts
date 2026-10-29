@@ -139,6 +139,9 @@ export interface SpareOptions {
   minPrice: number;
 }
 
+/** These trades (one per maxed copy, one for the loose copies) would go within a week at this rate. */
+const sellsSoon = (perDay: number | null | undefined, trades: number) => trades <= (perDay ?? 0) * 7;
+
 /** Every arcane you hold more of than you need, with the better of selling and dissolving. */
 export function spareArcanes(m: Model, rows: ArcaneRow[], perVosfor: number, opts: SpareOptions): SpareArcane[] {
   const out: SpareArcane[] = [];
@@ -167,13 +170,15 @@ export function spareArcanes(m: Model, rows: ArcaneRow[], perVosfor: number, opt
     } else if (eachTrade != null && eachTrade < opts.minPrice) {
       verdict = "dissolve";
       why = `Sells for under ${opts.minPrice}p a trade`;
-    } else if ((r.tradesPerDay ?? 0) < SELLS_DAILY) {
+    } else if ((r.tradesPerDay ?? 0) < SELLS_DAILY && !(sellsSoon(r.tradesPerDay, maxed + (unranked ? 1 : 0)) && (dissolvePlat == null || sellPlat >= 2 * dissolvePlat))) {
+      // A slow seller goes for Vosfor, unless it would still sell within the week for at least
+      // twice what its Vosfor is worth (two maxed Virtuos Trojans: 120p against 17p).
       verdict = "dissolve";
       why = `Trades under ${SELLS_DAILY} times a day: Vosfor is the sure thing`;
     } else if (dissolvePlat != null && dissolvePlat > sellPlat) {
       verdict = "dissolve";
       why = opts.lens === "need" ? "Worth more as packs toward arcanes you're collecting" : "Worth more as Vosfor packs";
-    } else why = "Sells for more than its Vosfor is worth";
+    } else why = (r.tradesPerDay ?? 0) < SELLS_DAILY ? "Sells slowly, but for well over what its Vosfor is worth" : "Sells for more than its Vosfor is worth";
     out.push({ row: r, maxed, unranked, sellPlat, each, vosfor, dissolvePlat, verdict, why });
   }
   return out;

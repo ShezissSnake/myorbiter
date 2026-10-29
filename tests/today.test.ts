@@ -26,13 +26,14 @@ test("today marks Circuit frames you haven't mastered and Incarnons for weapons 
     item("/P/Braton", "Braton", "Primary"),
     item("/P/Lato", "Lato", "Secondary"),
     item("/P/Paris", "Paris", "Primary"),
+    item("/P/Strun", "Strun", "Shotgun"),
   ];
   const m = buildModel(
-    bundle([inv("/W/Excal", "Excalibur", "warframe", 1, { mastered: true }), inv("/P/Braton", "Braton", "weapon", 1), inv("/P/Lato", "Lato", "weapon", 1), inv("/X/LatoG", "Lato Incarnon Genesis", "misc", 1)], catalog),
+    bundle([inv("/W/Excal", "Excalibur", "warframe", 1, { mastered: true }), inv("/P/Braton", "Braton", "weapon", 1), inv("/P/Lato", "Lato", "weapon", 1), inv("/X/LatoG", "Lato Incarnon Genesis", "misc", 1), inv("/P/Strun", "Strun", "weapon", 0, { mastered: true })], catalog),
   );
   const live: Live = {
     fissures: [], resurgence: [], resurgenceExpiry: null,
-    duviriCycle: { expiry: "", state: "joy", choices: [{ category: "normal", choices: ["Excalibur", "Mag"] }, { category: "hard", choices: ["Braton", "Lato", "Paris"] }] },
+    duviriCycle: { expiry: "", state: "joy", choices: [{ category: "normal", choices: ["Excalibur", "Mag"] }, { category: "hard", choices: ["Braton", "Lato", "Paris", "Strun"] }] },
     steelPath: { currentReward: { name: "Umbra Forma Blueprint", cost: 150 }, expiry: "2026-10-26T00:00:00Z" },
     nightwave: { expiry: "", activeChallenges: [{ id: "a", title: "Eximus Stopper", desc: "", reputation: 4500, isDaily: false, isElite: false, expiry: "" }, { id: "b", title: "Elite", desc: "", reputation: 7000, isDaily: false, isElite: true, expiry: "" }] },
     archonHunt: { expiry: "", boss: "Archon Nira", missions: [{ type: "Survival", node: "Ophelia" }] },
@@ -43,6 +44,8 @@ test("today marks Circuit frames you haven't mastered and Incarnons for weapons 
     ["Braton", true, "you have the weapon"],
     ["Lato", false, "adapter in hand"],
     ["Paris", false, "no weapon for it"],
+    // Mastered and sold: it would have to be built again.
+    ["Strun", false, "mastered, but you don't have it now"],
   ]);
   assert.deepEqual(t.steelPath, { reward: "Umbra Forma Blueprint", cost: 150, ends: "2026-10-26T00:00:00Z" });
   assert.equal(t.nightwave!.standing, 11_500);

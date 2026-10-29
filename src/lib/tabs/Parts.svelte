@@ -105,7 +105,7 @@
 
 {#snippet nameCell(r: PartRow)}
   <Named file={model.imageOf(r.name)} name={r.name}>
-    {#if r.keep > 0}<span class="tag" title="Held back so you can build and master {r.parentName}">keep {r.keep}</span>{/if}
+    {#if r.keep > 0}<span class="tag" title="Held back so you can build {r.keptFor === r.parentName ? `and master ${r.parentName}` : `${r.parentName} for ${r.keptFor}`}">keep {r.keep}</span>{/if}
     {#if parent === "all" && !r.parentMastered}<span class="tag warn" title="{r.parentName} isn't mastered">{r.parentOwned ? "built" : "need"}</span>{/if}
   </Named>
 {/snippet}
@@ -128,7 +128,7 @@
     <div class="have">
       <Thumb file={model.imageOf(r.name)} name={r.name} size={30} />
       <b class="mark qty" title={spareOnly && spareMatters ? `${r.spare} spare (of ${r.quantity} held)` : `${r.quantity} held${r.keep ? `, ${r.spare} of them spare` : ""}`}>×{qty(r)}</b>
-      {#if r.keep}<span class="dim small" title="Held back to build {r.parentName}, which you haven't mastered or built">{r.keep} kept</span>{/if}
+      {#if r.keep}<span class="dim small" title={r.keptFor === r.parentName ? `Held back to build ${r.parentName}, which you haven't mastered or built` : `Held back to build ${r.parentName} for ${r.keptFor}, which you haven't built`}>{r.keep} kept</span>{/if}
     </div>
     <div class="vline"><span class="v-{v}" title={VERDICT_TITLE[v]}>{v === "Set" ? "Sell as set" : v}</span><span class="grow"></span><P v={r.price} /><P v={r.ducats} d dim /></div>
     {#snippet foot()}
@@ -152,7 +152,7 @@
     <span title={VERDICT_TITLE[v]}><span class="register">Best as</span><b class="v-{v}">{v === "Set" ? "Sell as set" : v}</b></span>
   </div>
   <p class="small dim">
-    {r.keep ? `${r.keep} kept to build ${r.parentName}` : r.parentMastered ? `${r.parentName} is mastered: every copy is spare` : `${r.parentName} is built: every copy is spare`}{r.inSets ? ` · ${r.inSets} go into ${setsFor.get(r.parentName) ?? 0} complete set${setsFor.get(r.parentName) === 1 ? "" : "s"}` : ""}{r.spare - r.inSets > 0 ? ` · ${r.spare - r.inSets} loose ${v === "Ducats" ? "for ducats" : "to sell"}` : ""}
+    {r.keep ? `${r.keep} kept to build ${r.parentName}${r.keptFor === r.parentName ? "" : ` for ${r.keptFor}`}` : r.parentMastered ? `${r.parentName} is mastered: every copy is spare` : `${r.parentName} is built: every copy is spare`}{r.inSets ? ` · ${r.inSets} go into ${setsFor.get(r.parentName) ?? 0} complete set${setsFor.get(r.parentName) === 1 ? "" : "s"}` : ""}{r.spare - r.inSets > 0 ? ` · ${r.spare - r.inSets} loose ${v === "Ducats" ? "for ducats" : "to sell"}` : ""}
   </p>
   {#if (r.tradesPerDay ?? 1) > 0}<div class="hist"><PriceHistory name={r.name} height={130} /></div>{/if}
   {#if src.length}

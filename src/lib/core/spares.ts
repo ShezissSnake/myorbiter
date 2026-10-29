@@ -287,7 +287,7 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
       // what still needs it, at the end.
       const p = parts.get(r.name)!;
       keep = p.keep;
-      why = keep ? `${plural(keep, "copy", "copies")} to build ${p.parentName}` : p.parentMastered ? `${p.parentName} is mastered` : p.parentOwned ? `${p.parentName} is built` : "";
+      why = keep ? `${plural(keep, "copy", "copies")} to build ${p.keptFor === p.parentName ? p.parentName : `${p.parentName} for ${p.keptFor}`}` : p.parentMastered ? `${p.parentName} is mastered` : p.parentOwned ? `${p.parentName} is built` : "";
     } else if (r.kind === "mod" && VEILED.test(r.unique)) {
       keep = sell.veiledRivens ? 0 : r.quantity;
       why = sell.veiledRivens ? "Veiled rivens all count as spare: unveil any you'd rather roll yourself first" : "You keep veiled rivens (Settings, Selling)";

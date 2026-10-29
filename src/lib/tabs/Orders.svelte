@@ -109,6 +109,8 @@
     return it ? heldFor(model, it, o) : null;
   }
   const short = $derived(orders.filter((o) => { const n = stock(o); return n != null && n < o.quantity; }));
+  // Counted like Home and the notices: a hidden listing can't be bought, so it can't let anyone down.
+  const shortShown = $derived(short.filter((o) => o.visible).length);
 
   const rankLabel = (o: { rank: number | null; subtype: string | null }) =>
     [o.rank != null ? `R${o.rank}` : null, o.subtype].filter(Boolean).join(" · ");
@@ -267,7 +269,7 @@
   {#snippet band()}
       <Stat label="Listed value" note="Visible listings, price × quantity"><P v={listed} big /></Stat>
       <Stat label="Listings" tone={mkt.room <= 0 ? "gold" : "platinum"} note={`${mkt.room <= 0 ? "At warframe.market's limit" : `${mkt.room} more allowed`} · ${orders.filter((o) => !o.visible).length} hidden`}>{orders.length}<span class="of">/{LISTING_LIMIT - mkt.otherOrders}</span></Stat>
-      {#if !console}<Stat label="Can't deliver" tone={short.length ? "gold" : "dim"} note={short.length ? "Listing more than you hold" : "You hold everything you list"}>{short.length}</Stat>{/if}
+      {#if !console}<Stat label="Can't deliver" tone={shortShown ? "gold" : "dim"} note={shortShown ? `Listing more than you hold${short.length > shortShown ? ` (+${short.length - shortShown} hidden)` : ""}` : short.length ? `Only in hidden listings (${short.length}), which nobody can buy` : "You hold everything you list"}>{shortShown}</Stat>{/if}
       <Stat label="To reprice" tone={pending ? "gold" : "dim"} note={checkedAt ? `${pending ? "Off the cheapest in-game price" : "All match"} · checked ${fmt(checkedAt)}` : "Press Check prices to compare"}>{pending}</Stat>
   {/snippet}
 

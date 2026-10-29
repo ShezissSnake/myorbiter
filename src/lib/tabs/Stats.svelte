@@ -111,7 +111,7 @@
 
   <div class="bar"><Seg bind:value={span} options={[{ v: "30", label: "30 days" }, { v: "90", label: "90 days" }, { v: "all", label: "All" }]} /></div>
 
-  <TimeChart single={hist.length === 1 ? "" : undefined} title="Inventory value" {at} series={[{ label: "Market value", color: "#9ba2ac", values: hist.map((p) => p.worth) }, { label: "Easy to sell", color: GOLD, values: hist.map((p) => p.liquid) }]} height={190} />
+  <TimeChart single={hist.length === 1 ? "" : undefined} title="Inventory value at each read" {at} series={[{ label: "Market value", color: "#9ba2ac", values: hist.map((p) => p.worth) }, { label: "Easy to sell", color: GOLD, values: hist.map((p) => p.liquid) }]} height={190} />
 
   {#if hist.length === 1}<p class="dim small one">One inventory read so far: each line below starts with the next one. The figures beside each title are from that read.</p>{/if}
   <div class="charts">

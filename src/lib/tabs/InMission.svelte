@@ -179,7 +179,7 @@
       </div>
       {#if !onScreen}{@render weightControls()}{/if}
       <table class="pool">
-        <thead><tr><th title="Its place in the pick order, best first">#</th>{#if !onScreen}<th class="right" title="0–100: the weighted average of the four bars">Score</th><th title="The four marks behind the score: plat · unmastered · ducats · completes a set">Score split</th>{/if}<th>Reward</th><th>From</th>{#if anyHeld}<th class="right" title="Copies you already hold">Held</th>{/if}<th class="right">Plat</th><th class="right">Ducats</th></tr></thead>
+        <thead><tr><th title="Its place in the pick order, best first">#</th>{#if !onScreen}<th class="right" title="0–100: the weighted average of the four bars">Score</th><th title="The four marks behind the score: plat · unmastered · ducats · completes a set">Score split</th>{/if}<th>Reward</th><th title="The squad relics that can give it. The letter after each is its refinement: I intact, E exceptional, F flawless, R radiant">From</th>{#if anyHeld}<th class="right" title="Copies you already hold">Held</th>{/if}<th class="right">Plat</th><th class="right">Ducats</th></tr></thead>
         <tbody>
           {#each ranked as x, i (x.name)}
             <tr class:need={x.needed} class:yours={yours.has(x.name)}>

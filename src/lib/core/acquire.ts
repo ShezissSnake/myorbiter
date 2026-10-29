@@ -250,6 +250,9 @@ export interface AcquireContext {
   ownedRelicsForIt: number;
   /** Plat for the parts you're missing, at the daily median, if all are priced. */
   buyFor: number | null;
+  /** Not relic primes: the blueprint and parts you hold, and the ones still to get ("Chassis"). */
+  held?: string[];
+  toGet?: string[];
 }
 
 const memo = new WeakMap<Model, Map<string, Acquisition>>();
@@ -262,6 +265,16 @@ export function acquisition(m: Model, item: CatalogItem, ctx: AcquireContext): A
     return { method: "other", difficulty: 5, how: "Not obtainable any more.", icon: null, available: false, tradable: false, researched: false, wiki: item.wikiaUrl ?? null };
   }
   if (ctx.isPrime && ctx.partsTotal > 0) return primeAcquisition(m, item, ctx);
+  const a = otherAcquisition(m, item);
+  if (ctx.buildable) return { ...a, method: "build", difficulty: 1, how: "You have every part: build it in the Foundry.", icon: "mastery", available: true };
+  // Some of it in hand: say so before where the rest comes from.
+  if (ctx.held?.length && ctx.toGet?.length) return { ...a, how: `You have the ${list(ctx.held)}; still to get: ${list(ctx.toGet)}. ${a.how}` };
+  return a;
+}
+
+const list = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+
+function otherAcquisition(m: Model, item: CatalogItem): Acquisition {
   const r = RESEARCH[item.name];
   if (r) {
     return {

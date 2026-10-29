@@ -71,6 +71,8 @@ export interface CollectionItem {
   parts: PartState[];
   /** Every part (not resources) in hand: ready to build. */
   buildable: boolean;
+  /** Resources it takes that you don't have enough of ("Mortus Horn"). */
+  short: string[];
   /** Set price at the daily median, for primes. */
   setPrice: number | null;
   wiki: string | null;
@@ -173,6 +175,7 @@ export function collectionItem(m: Model, item: CatalogItem): CollectionItem {
     points: masteryPoints(item),
     parts,
     buildable: !owned && !building && pieces.length > 0 && pieces.every((p) => p.have >= p.required || p.building),
+    short: parts.filter((p) => p.resource && p.have < p.required).map((p) => p.label),
     setPrice: isPrime ? m.price(`${item.name} Set`) : null,
     wiki: item.wikiaUrl ?? null,
   };

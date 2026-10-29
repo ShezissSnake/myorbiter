@@ -24,6 +24,8 @@
   let max = $state<number | null>(null);
   let minTrades = $state<number | null>(null);
   let owned = $state(false);
+  // On by default: the dearest things that "sold" once or twice lead with joke prices otherwise.
+  let weekly = $state(true);
   let query = $state("");
   let sort = $state({ key: "price", desc: true });
 
@@ -40,18 +42,21 @@
   });
 
   const all = $derived(marketRows(model, mkt.items));
-  const rows = $derived(filterRows(all, { category, min, max, minTrades, owned }).filter((r) => matches(query, r.name)));
+  const rows = $derived(filterRows(all, { category, min, max, minTrades, owned, weekly }).filter((r) => matches(query, r.name)));
+  /** What "Sells weekly" is hiding from the rest of the filters. */
+  const slowHidden = $derived(weekly ? filterRows(all, { category, min, max, minTrades, owned, weekly: false }).filter((r) => matches(query, r.name)).length - rows.length : 0);
   const count = (c: MarketCategory | "all") => (c === "all" ? all.length : all.filter((r) => r.category === c).length);
   const label = (c: MarketCategory) => CATEGORIES.find((x) => x.v === c)?.label ?? "";
   const daily = (t: number | null) => (t == null ? null : Math.round(t * 10) / 10);
   /** How often it sells, in words, for the cards and the tooltips. */
-  const pace = (t: number | null) => (t == null ? "No recent sales" : t >= 1 ? `Sells ${daily(t)} times a day` : t >= 1 / 7 ? `Sells about ${Math.round(t * 7)} times a week` : "Sells rarely");
+  const pace = (t: number | null) => (t == null ? "No recent sales" : t >= 1 ? (daily(t) === 1 ? "Sells once a day" : `Sells ${daily(t)} times a day`) : t >= 1 / 7 ? `Sells about ${Math.round(t * 7)} times a week` : "Sells rarely");
   const sellsDaily = $derived(rows.filter((r) => (r.tradesPerDay ?? 0) >= 1).length);
-  const filtered = $derived(category !== "all" || min != null || max != null || minTrades != null || owned || !!query.trim());
+  const filtered = $derived(category !== "all" || min != null || max != null || minTrades != null || owned || !weekly || !!query.trim());
   function clear() {
     category = "all";
     min = max = minTrades = null;
     owned = false;
+    weekly = true;
     query = "";
   }
   /** orbiter's own art where it has some, else warframe.market's thumbnail. */
@@ -94,7 +99,7 @@
 {/snippet}
 {#snippet detail(r: MarketRow)}
   <p class="small dim">
-    {label(r.category)} · {r.price != null ? `sold for ${r.price}p lately` : "no recent price"}{#if r.priceMax != null}{" · "}{r.priceMax}p maxed{/if} · {pace(r.tradesPerDay).toLowerCase()}{#if r.have}{" · "}you have {r.have}{/if}
+    {label(r.category)} · {r.price != null ? `sold for ${r.price.toLocaleString("en")}p lately` : "no recent price"}{#if r.priceMax != null}{" · "}{r.priceMax.toLocaleString("en")}p maxed{/if} · {pace(r.tradesPerDay).toLowerCase()}{#if r.have}{" · "}you have {r.have}{/if}
   </p>
   {#if r.tradesPerDay}
     <!-- Mods and arcanes: unranked and maxed copies sell apart, at different prices. -->
@@ -121,20 +126,23 @@
       <option value="all">Everything ({count("all")})</option>
       {#each CATEGORIES as c (c.v)}<option value={c.v}>{c.label} ({count(c.v)})</option>{/each}
     </select>
-    <label class="min" title="Only what sold for at least this much lately (a mod or arcane counts at its maxed price). Empty: any.">
-      <span class="register">Price ≥</span>
-      <input type="number" min="0" step="1" placeholder="any" bind:value={min} aria-label="Minimum price" />
-      <GameIcon name="platinum" size={14} />
-    </label>
-    <label class="min" title="Only what sold for at most this much lately (a mod or arcane counts unranked). Empty: any.">
-      <span class="register">Price ≤</span>
-      <input type="number" min="0" step="1" placeholder="any" bind:value={max} aria-label="Maximum price" />
-      <GameIcon name="platinum" size={14} />
-    </label>
+    <span class="pair">
+      <label class="min" title="Only what sold for at least this much lately (a mod or arcane counts at its maxed price). Empty: any.">
+        <span class="register">Price ≥</span>
+        <input type="number" min="0" step="1" placeholder="any" bind:value={min} aria-label="Minimum price" />
+        <GameIcon name="platinum" size={14} />
+      </label>
+      <label class="min" title="Only what sold for at most this much lately (a mod or arcane counts unranked). Empty: any.">
+        <span class="register">Price ≤</span>
+        <input type="number" min="0" step="1" placeholder="any" bind:value={max} aria-label="Maximum price" />
+        <GameIcon name="platinum" size={14} />
+      </label>
+    </span>
     <label class="min" title="Only what sells at least this many times a day on warframe.market (1: it actually sells). Empty: any.">
       <span class="register">Trades/day ≥</span>
       <input type="number" min="0" step="any" placeholder="any" bind:value={minTrades} aria-label="Minimum trades a day" />
     </label>
+    <Chip bind:on={weekly} label="Sells weekly" title="Only what sells at least once a week, on several different days. Off: everything, including prices from a sale or two, which can be jokes (a set &quot;sold&quot; for 80,000p)" />
     <Chip bind:on={owned} label="You have" title="Only what you hold" />
     <input type="search" placeholder="Filter items…" bind:value={query} aria-label="Filter items by name" />
   </div>
@@ -147,7 +155,8 @@
     {/if}
   {:else}
     <Browse id="market-browse" {rows} {columns} key={(r) => r.slug} bind:sort {detail} {card} title={(r) => r.name} min="16rem" empty="Nothing matches these filters." />
-    {#if !rows.length && filtered}<p class="dim"><button class="link" onclick={clear}>Clear the filters</button></p>{/if}
+    {#if slowHidden}<p class="dim small more">{slowHidden.toLocaleString("en")} more sold too rarely for a steady price: theirs may not be real. <button class="link" onclick={() => (weekly = false)}>Show them</button></p>
+    {:else if !rows.length && filtered}<p class="dim more"><button class="link" onclick={clear}>Clear the filters</button></p>{/if}
   {/if}
 </div></div>
 
@@ -164,4 +173,7 @@
   .grow { flex: 1; }
   .hist { max-width: 46rem; margin: 0 0 .8rem; }
   .big { font-size: 1.9rem; }
+  .more { text-align: center; }
+  /* Price at least / at most stay together when the bar wraps. */
+  .pair { display: inline-flex; gap: inherit; flex-wrap: nowrap; }
 </style>

@@ -15,7 +15,9 @@
     part.image;
     failed = false;
   });
-  const count = (n: number) => (n >= 10_000 ? `${Math.round(n / 1000)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
+  // 8,484,000 credits is "8.5M", not "8484k".
+  const count = (n: number) =>
+    n >= 10_000_000 ? `${Math.round(n / 1e6)}M` : n >= 1_000_000 ? `${(n / 1e6).toFixed(1)}M` : n >= 10_000 ? `${Math.round(n / 1000)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 </script>
 
 <span class="chip" class:enough class:some class:building={part.building && !enough} class:res={part.resource} class:bp={part.blueprint} style:width="{size}px" style:height="{size}px" aria-label={title} use:info={part.name}>
@@ -45,6 +47,8 @@
     background: var(--slab); border: 1px solid var(--rule-bright);
     font-family: var(--face-register); font-size: .55rem; font-weight: 600; line-height: 1; color: var(--platinum);
   }
+  /* Resource counts run long ("205k"): centred under the chip, so they don't run into the next one. */
+  .res .n { right: auto; left: 50%; transform: translateX(-50%); bottom: -7px; }
   .n.short { color: var(--platinum-deep); }
   .enough .n:not(.short) { border-color: var(--gold-dim); color: var(--gold); }
 </style>

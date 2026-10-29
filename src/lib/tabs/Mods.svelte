@@ -43,7 +43,9 @@
     return { unique: r.unique, rank: r.maxRank != null ? (lowest?.rank ?? 0) : null, quantity: lowest?.count ?? 0 };
   };
   // At most what the market takes in a month (sellableCopies): 393 spare Pressure Points don't all sell.
-  const value = $derived(rows.reduce((n, r) => n + (r.extrasValue == null ? 0 : (r.extrasValue / Math.max(1, r.extras)) * sellableCopies(r.extras, r.tradesPerDay)), 0));
+  /** A mod's spares at its price, but no more copies than the market takes in a month (531 Thumpers don't sell). */
+  const worth = (r: ModRow) => (r.extrasValue == null ? null : (r.extrasValue / Math.max(1, r.extras)) * sellableCopies(r.extras, r.tradesPerDay));
+  const value = $derived(rows.reduce((n, r) => n + (worth(r) ?? 0), 0));
 
 
   const columns: Column<ModRow>[] = [
@@ -52,7 +54,7 @@
     { key: "total", label: "Have", value: (r) => r.total, align: "right" },
     { key: "ranks", minor: true, label: "Ranked copies", value: (r) => r.ranks.filter((x) => x.rank > 0).map((x) => `R${x.rank}${x.count > 1 ? `×${x.count}` : ""}`).join(" ") || null, muted: true, sortable: false },
     { key: "price", label: "Price", value: (r) => r.price, align: "right", cell: priceCell },
-    { key: "value", label: "Spares worth", value: (r) => r.extrasValue, align: "right", cell: valueCell },
+    { key: "value", label: "Spares worth", value: (r) => worth(r), align: "right", cell: valueCell, title: "Your spare copies at the daily median, counting no more copies than warframe.market sells in a month" },
     { key: "priceMax", minor: true, label: "Maxed", value: (r) => r.priceMax, align: "right", cell: maxCell, title: "Price of a max-rank copy" },
     { key: "trades", label: "Trades/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "How quickly it sells. Common mods at 2–5p rarely move." },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
@@ -64,7 +66,7 @@
   {#if r.tradable && r.extras > 0}<ListButton {model} name={r.name} req={listReq(r)} />{/if}
 {/snippet}
 {#snippet priceCell(r: ModRow)}<P v={r.price} dim />{/snippet}
-{#snippet valueCell(r: ModRow)}<P v={r.extrasValue} />{/snippet}
+{#snippet valueCell(r: ModRow)}<span title={worth(r) != null && worth(r)! < r.extrasValue! ? `All ${r.extras} would be ${Math.round(r.extrasValue!)}p, but the market takes about ${sellableCopies(r.extras, r.tradesPerDay)} a month` : undefined}><P v={worth(r)} /></span>{/snippet}
 {#snippet maxCell(r: ModRow)}<P v={r.priceMax} dim />{/snippet}
 {#snippet card(r: ModRow, open: () => void)}
   <!-- Gold edge: copies to spare. With "Spares only" on that's every card, so it only marks them when it's off. -->
@@ -74,7 +76,7 @@
     <div class="ranks">{#each r.ranks.filter((x) => x.rank > 0) as x (x.rank)}<span class="rk">R{x.rank}{x.count > 1 ? ` ×${x.count}` : ""}</span>{/each}</div>
     <div class="prices">
       <span><span class="register">Each</span><P v={r.price} dim /></span>
-      {#if r.extras}<span><span class="register">Spares</span><P v={r.extrasValue} /></span>{/if}
+      {#if r.extras}<span title="No more copies than the market takes in a month"><span class="register">Spares</span><P v={worth(r)} /></span>{/if}
     </div>
     {#snippet foot()}
       <span class="rar rar-{r.rarity}">{r.rarity}</span>
