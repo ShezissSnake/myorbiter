@@ -23,9 +23,9 @@
       steps: [
         ["home", "Home", "what needs you (an alert or invasion with something you haven't mastered and the side to take, alerts with rare rewards, listings to fix, Varzia's rotation ending), the open-world cycles and resets, your market, live fissures with your best relic for each era, what's ready to sell, what's worth doing today (Circuit, Darvo's deal, Steel Path, Teshin, Sortie, Archon, Nightwave), your Foundry and Wishlist, cheap buys, the easiest mastery next, and Baro and Varzia against your collection. The gear by the date chooses which cards it shows; the × on a line under Needs you dismisses it. Under Fissures now, Add alert sets a fissure alert (era, mission, planet, Steel Path or not): a notification when one opens."],
         ["foundry", "Foundry", "everything you can master as cards, each part gold when you have it; click any card for stats, abilities, where each part drops (your relics first) and live prices. The star puts it on your Wishlist."],
-        ["wishlist", "Wishlist", "what you've starred, with each missing part's way in: relics you hold (lit when a fissure of their era is open now), where to farm the ones you don't, or what buying it costs. The gold percentage is the chance your relics finish it if you crack each once; orbiter can tell you when a fissure opens for them."],
+        ["wishlist", "Wishlist", "what you've starred, with each missing part's way in: relics you hold (lit when a fissure of their era is open now), where to farm the ones you don't, or what buying it costs, with a Buy order button that posts one on warframe.market (your buy orders are listed on Orders). The gold percentage is the chance your relics finish it if you crack each once; orbiter can tell you when a fissure opens for them."],
         ["mastery", "Mastery", "everything you haven't mastered, easiest first: five pips from Market-and-build to Liches, where it comes from and how, and the mastery it's worth. Open a prime for the relics that drop each missing part."],
-        ["inventory", "Inventory", "everything you own in one list (gear, prime parts, relics, mods, arcanes, resources and blueprints), with what it's worth at the daily median and what's easy to sell. Narrow it by kind, to what warframe.market trades, or to what actually sells."],
+        ["inventory", "Inventory", "everything you own in one list (gear, prime parts, relics, mods, arcanes, resources and blueprints), with what it's worth at the daily median and what's easy to sell (never more copies than the whole market sells in a month). Narrow it by kind, to what warframe.market trades, or to what actually sells."],
       ],
     },
     {
@@ -40,7 +40,7 @@
     {
       title: "Selling",
       steps: [
-        ["parts", "Prime parts", "every part with its best use: keep it to build, sell it alone or as a set, or trade it to Baro for ducats. Set what a ducat is worth to you here."],
+        ["parts", "Prime parts", "every part with its best use: keep it to build, sell it alone or as a set, or trade it to Baro for ducats. Set what a ducat is worth to you here. Below, Ducats for less lists the parts that buy ducats cheapest before Baro comes, each with a Buy order button."],
         ["sets", "Sets", "complete sets you can sell, and sets one or two parts short."],
         ["arcanes", "Arcanes", "rank arcanes by price and see how close you are to maxing each; “Sell or dissolve” sorts your spare copies into ones to sell and ones worth more dissolved for Vosfor at Loid (copies are priced as maxed arcanes: one is 1/21 of a maxed one, since a pile of unranked copies rarely fetches their unranked price), and ranks his arcane packs by what you're still collecting (or by market price)."],
         ["mods", "Mods", "spare mod copies to sell (your best copy and one to give away are always kept), by default only ones that sell daily."],

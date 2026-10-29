@@ -412,3 +412,15 @@ export function relicsYouNeed(m: Model): Map<string, string[]> {
   }
   return out;
 }
+
+/** How long a pile of copies may take to sell and still count: a month of the whole market's sales. */
+export const SELL_WITHIN_DAYS = 30;
+/**
+ * Of `count` copies, how many the market could take in SELL_WITHIN_DAYS at its pace (trades a
+ * day): 232 copies of a mod that trades twice a day are 60 that count, not 232. All of them when
+ * the pace isn't known (relics).
+ */
+export function sellableCopies(count: number, tradesPerDay: number | null | undefined, days = SELL_WITHIN_DAYS): number {
+  if (tradesPerDay == null) return count;
+  return Math.min(count, Math.max(0, Math.ceil(tradesPerDay * days)));
+}

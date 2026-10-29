@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { mkt } from "../marketStore.svelte";
   // The things you starred, and the quickest way to each missing part: crack a relic you hold
   // (lit when a fissure of its era is open right now), farm a relic that still drops, or buy it.
   import { ERAS, type Model } from "../core/model";
@@ -170,7 +171,7 @@
                       {:else if p.vaulted}<span class="dim small">Vaulted</span>
                       {:else}<span class="dim small">–</span>{/if}
                     </td>
-                    <td class="r"><P v={p.price == null ? null : Math.round(p.price)} /></td>
+                    <td class="r"><span class="buy"><P v={p.price == null ? null : Math.round(p.price)} /><button class="link buyo" title="Post a buy order on warframe.market for {p.name}: sellers whisper you" onclick={() => mkt.startBuy(p.name, { quantity: Math.max(1, p.required - p.have) })}>Buy order</button></span></td>
                   </tr>
                 {/each}
               </tbody>
@@ -183,6 +184,8 @@
 </div></div>
 
 <style>
+  .buy { display: inline-grid; justify-items: end; gap: .15rem; }
+  .buyo { font-size: .58rem; }
   .bar input[list] { min-width: 22rem; }
   .now { align-items: start; display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: .8rem; margin: 0 0 var(--step); }
   .era { border: 1px solid var(--gold-dim); background: linear-gradient(180deg, #1a1810, var(--plate) 55%); padding: .7rem .9rem; display: grid; gap: .5rem; clip-path: var(--cut); }

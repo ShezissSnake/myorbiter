@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { sellableCopies } from "../core/spares";
   import type { Model } from "../core/model";
   import { modRows, modSpares, type ModRow } from "../core/views";
   import UpgradeDetail from "../ui/UpgradeDetail.svelte";
@@ -41,7 +42,8 @@
     const lowest = modSpares(r.ranks).at(-1);
     return { unique: r.unique, rank: r.maxRank != null ? (lowest?.rank ?? 0) : null, quantity: lowest?.count ?? 0 };
   };
-  const value = $derived(rows.reduce((n, r) => n + (r.extrasValue ?? 0), 0));
+  // At most what the market takes in a month (sellableCopies): 393 spare Pressure Points don't all sell.
+  const value = $derived(rows.reduce((n, r) => n + (r.extrasValue == null ? 0 : (r.extrasValue / Math.max(1, r.extras)) * sellableCopies(r.extras, r.tradesPerDay)), 0));
 
 
   const columns: Column<ModRow>[] = [
@@ -93,7 +95,7 @@
   <PageHead title="Mods" blurb="Mods you have spare copies of. Your best copy and one to give away are always kept.">
     {#snippet band()}
       <Stat label="Spare copies" note="Beyond your best copy and one to give away">{extras.toLocaleString("en")}</Stat>
-      <Stat label="Spares worth" tone="dim" note={sellingOnly ? "Price × spares, mods that sell daily" : "Price × spares, slow sellers included"}><P v={value} big /></Stat>
+      <Stat label="Spares worth" tone="dim" note={sellingOnly ? "Mods that sell daily, no more than the market takes in a month" : "Slow sellers included, no more than the market takes in a month"}><P v={value} big /></Stat>
     {/snippet}
   </PageHead>
 

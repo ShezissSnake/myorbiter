@@ -4,7 +4,7 @@
   import { splitRelicName, type Model } from "../core/model";
   import { info } from "../hover.svelte";
   import { inventoryRows, type InventoryItem, type InventoryKind } from "../core/views";
-  import { spareRows, type SellChoices, type SpareRow } from "../core/spares";
+  import { sellableCopies, spareRows, type SellChoices, type SpareRow } from "../core/spares";
   import { mkt } from "../marketStore.svelte";
   import { marketUrl, openUrl, wikiUrl } from "../backend";
   import Browse from "../ui/Browse.svelte";
@@ -61,7 +61,8 @@
   const pctOf = (x: number | null | undefined) => (x == null ? "–" : `${Math.round(x * 10) / 10}%`);
   const why = (r: InventoryItem) => spareOf(r)?.why ?? "Nothing to spare";
   /** Of the spare copies of what's shown, what sells at least once a day (relics have no count: they do). */
-  const spareLiquid = $derived(rows.filter((r) => (spareOf(r)?.tradesPerDay ?? (r.kind === "relic" ? 1 : 0)) >= 1).reduce((n, r) => n + (spareOf(r)?.worth ?? 0), 0));
+  // At most what the whole market sells in a month: 232 spare Lasting Stings don't all sell.
+  const spareLiquid = $derived(rows.filter((r) => (spareOf(r)?.tradesPerDay ?? (r.kind === "relic" ? 1 : 0)) >= 1).reduce((n, r) => { const s = spareOf(r); return n + (s?.price ?? 0) * sellableCopies(s?.spare ?? 0, s?.tradesPerDay); }, 0));
 
   const KINDS: { v: "all" | InventoryKind; label: string }[] = [
     { v: "all", label: "All" },
@@ -77,7 +78,7 @@
 
   const worth = $derived(rows.reduce((n, r) => n + (worthOf(r) ?? 0), 0));
   /** What would realistically sell: things that trade at least once a day. 240 Thumpers don't. */
-  const liquid = $derived(rows.filter((r) => spareOf(r) && (perDay(r) ?? 0) >= 1).reduce((n, r) => n + (worthOf(r) ?? 0), 0));
+  const liquid = $derived(rows.filter((r) => spareOf(r) && (perDay(r) ?? 0) >= 1).reduce((n, r) => n + (priceOf(r) ?? 0) * sellableCopies(r.quantity, perDay(r)), 0));
 
 
   const columns: Column<InventoryItem>[] = [
@@ -179,8 +180,8 @@
 <div class="page"><div class="page-inner">
   <PageHead title="Inventory" blurb="Everything you own, with what it's worth on warframe.market.">
     {#snippet band()}
-      <Stat label="You can spare" tone="gold" note="Beyond what you keep, and it sells at least once a day"><P v={spareLiquid} big /></Stat>
-      <Stat label="Easy to sell" note="Everything you hold that trades at least once a day"><P v={liquid} big /></Stat>
+      <Stat label="You can spare" tone="gold" note="Beyond what you keep, sells daily, no more than the market takes in a month"><P v={spareLiquid} big /></Stat>
+      <Stat label="Easy to sell" note="What trades daily, no more than the market takes in a month"><P v={liquid} big /></Stat>
       <Stat label="Market value" tone="dim" note="Every copy at the daily median, slow sellers included"><P v={worth} big /></Stat>
     {/snippet}
   </PageHead>

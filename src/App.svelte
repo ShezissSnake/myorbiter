@@ -80,6 +80,7 @@
   import { alertNeeds, describeHelp } from "./lib/core/worldNeeds";
   import NoticesSheet from "./lib/NoticesSheet.svelte";
   import Toasts from "./lib/ui/Toasts.svelte";
+  import BuyDialog from "./lib/ui/BuyDialog.svelte";
   import { mkt } from "./lib/marketStore.svelte";
   import { parseTarget, setIntent } from "./lib/intent.svelte";
   import { ts } from "./lib/tennoscopeStore.svelte";
@@ -1590,6 +1591,7 @@
       {@render pane("rivens", pRivens)}
       {@render pane("wishlist", pWishlist)}
       <ListDialog {model} market={settings.market} advice={onConsole ? null : settings.advice} go={(t: string) => (settings.tab = t)} />
+      <BuyDialog {model} go={(t: string) => (settings.tab = t)} />
       <ItemDetails {model} bind:settings={settings} />
       <HoverCard {model} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad > 1 ? 4 : 1} />
     {/if}

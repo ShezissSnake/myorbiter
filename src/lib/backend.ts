@@ -867,8 +867,8 @@ export const market = {
     const res = await fetch(`https://api.warframe.market/v2/orders/item/${slug}`, { headers: { Platform: devPlatform, Crossplay: "true" } });
     return (await res.json()).data;
   },
-  create: (order: { itemId: string; platinum: number; quantity: number; rank?: number | null; subtype?: string | null; visible?: boolean }): Promise<MyOrder> =>
-    inTauri ? invoke("market_create", { order }) : devNoop().then(() => ({ id: `dev-${Date.now()}`, itemId: order.itemId, type: "sell", platinum: order.platinum, quantity: order.quantity, rank: order.rank ?? null, subtype: order.subtype ?? null, visible: true, updatedAt: null })),
+  create: (order: { itemId: string; platinum: number; quantity: number; rank?: number | null; subtype?: string | null; visible?: boolean; type?: "sell" | "buy" }): Promise<MyOrder> =>
+    inTauri ? invoke("market_create", { order }) : devNoop().then(() => ({ id: `dev-${Date.now()}`, itemId: order.itemId, type: order.type ?? "sell", platinum: order.platinum, quantity: order.quantity, rank: order.rank ?? null, subtype: order.subtype ?? null, visible: true, updatedAt: null })),
   update: (id: string, change: { platinum?: number; quantity?: number; visible?: boolean }): Promise<void> =>
     inTauri ? invoke("market_update", { id, change }) : devNoop(),
   remove: (id: string): Promise<void> => (inTauri ? invoke("market_delete", { id }) : devNoop()),

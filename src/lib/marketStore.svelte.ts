@@ -2,6 +2,7 @@
 
 import { market, presence, type ChatSummary, type FeedState, type MarketAccount, type MarketSettings, type MarketUser, type Platform, type Sale, type Presence, type PresenceState } from "./backend";
 import {
+  canTrade,
   findItem,
   holdings,
   indexItems,
@@ -291,6 +292,7 @@ class MarketStore {
     this.status = null;
     this.account = await market.account();
     this.orders = [];
+    this.buys = [];
     this.otherOrders = 0;
     this.ordersAt = null;
   }
@@ -302,6 +304,7 @@ class MarketStore {
     // would bring the sold listing back. The next read has it.
     if (edits !== this.localEdits) return;
     this.orders = all.filter((o) => o.type === "sell");
+    this.buys = all.filter((o) => o.type === "buy");
     this.otherOrders = all.length - this.orders.length;
     this.ordersAt = Date.now();
   }
@@ -692,6 +695,68 @@ class MarketStore {
     }
   }
 
+  // ------------------------------------------------------------ buy orders
+
+  /** Your buy orders on warframe.market (read with your listings). */
+  buys = $state.raw<MyOrder[]>([]);
+  /** The buy order form, open on one item. */
+  buyDraft = $state<BuyDraft | null>(null);
+  buyError = $state<string | null>(null);
+
+  /**
+   * Opens the buy order form for something you're after, priced from the order book: one more
+   * than the best buyer in game, never up to the cheapest seller (you'd just buy that), or under
+   * the 30-day median when nobody's buying.
+   */
+  async startBuy(name: string, req: { unique?: string | null; rank?: number | null; quantity?: number } = {}) {
+    this.buyError = null;
+    this.buyDraft = null;
+    try {
+      await this.ensureItems();
+    } catch (e) {
+      this.buyError = `Couldn't load warframe.market's item list: ${clean(e)}`;
+      return;
+    }
+    const it = findItem(this.index, name, req.unique ?? null);
+    if (!it) {
+      this.buyError = `${name} isn't tradable on warframe.market.`;
+      return;
+    }
+    const rank = req.rank ?? (it.maxRank != null ? 0 : null);
+    const draft: BuyDraft = { itemId: it.id, name: it.name, slug: it.slug, rank, maxRank: it.maxRank, quantity: Math.max(1, req.quantity ?? 1), platinum: null, topBuy: null, cheapestSell: null, median: null, loading: true };
+    this.buyDraft = draft;
+    try {
+      const [book, points] = await Promise.all([this.book(it.slug), this.history(it.slug).catch(() => [] as PricePoint[])]);
+      if (this.buyDraft?.itemId !== it.id) return;
+      const me = (this.me ?? { id: "", platform: this.platform, crossplay: true }) as Me;
+      const same = (o: BookOrder) => o.visible && (rank == null || o.rank === rank) && o.user.id !== me.id && canTrade(me, o.user) && o.user.status !== "offline";
+      const buys = book.filter((o) => o.type === "buy" && same(o)).map((o) => o.platinum);
+      const sells = book.filter((o) => o.type === "sell" && same(o)).map((o) => o.platinum);
+      const topBuy = buys.length ? Math.max(...buys) : null;
+      const cheapestSell = sells.length ? Math.min(...sells) : null;
+      const median = recentPrice(points, rank, null, 30, 2);
+      let price = topBuy != null ? topBuy + 1 : median != null ? Math.max(1, Math.round(median * 0.8)) : cheapestSell != null ? Math.max(1, cheapestSell - 1) : null;
+      if (price != null && cheapestSell != null && price >= cheapestSell) price = Math.max(1, cheapestSell - 1);
+      this.buyDraft = { ...draft, platinum: price, topBuy, cheapestSell, median, loading: false };
+    } catch (e) {
+      if (this.buyDraft?.itemId === it.id) this.buyDraft = { ...draft, loading: false };
+      this.buyError = `Couldn't read the order book: ${clean(e)}`;
+    }
+  }
+
+  /** Posts the buy order in the form; true when warframe.market took it. */
+  async placeBuy(): Promise<boolean> {
+    const d = this.buyDraft;
+    if (!d || !d.platinum || !this.linked) return false;
+    const ok = await this.guard("Posting a buy order", async () => {
+      await market.create({ itemId: d.itemId, platinum: Math.round(d.platinum!), quantity: Math.round(d.quantity), rank: d.rank, type: "buy" });
+      this.note(`Buy order posted: ${d.name}${d.rank != null ? ` R${d.rank}` : ""}, ${d.quantity} at ${Math.round(d.platinum!)}p`, "ok");
+      await this.refresh();
+    });
+    if (ok) this.buyDraft = null;
+    return ok;
+  }
+
   async remove(o: MyOrder) {
     const name = this.item(o.itemId)?.name ?? "order";
     await this.guard("Removing", async () => {
@@ -1003,5 +1068,20 @@ class MarketStore {
 
 const clean = (e: unknown) => String(e).replace(/^Error: /, "");
 const isAuthError = (e: unknown) => /refused the sign-in|Not signed in/i.test(String(e));
+
+export interface BuyDraft {
+  itemId: string;
+  name: string;
+  slug: string;
+  rank: number | null;
+  maxRank: number | null;
+  quantity: number;
+  platinum: number | null;
+  /** The best buy order in game for it now, and the cheapest seller: what the price sits between. */
+  topBuy: number | null;
+  cheapestSell: number | null;
+  median: number | null;
+  loading: boolean;
+}
 
 export const mkt = new MarketStore();

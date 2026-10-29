@@ -168,3 +168,10 @@ test("a whole Mandonel handed over in one trade is a Mandonel Set sale, not thre
   const sales = salesFromTrade(trade, [set], items, m)!;
   assert.deepEqual(sales.map((s) => [s.name, s.count, s.order?.id ?? null]), [["Mandonel Set", 1, "o1"], ["Heart Noctrul", 1, null]]);
 });
+
+test("a pile of spares counts for no more than the market sells in a month", async () => {
+  const { sellableCopies } = await import("../src/lib/core/spares");
+  assert.equal(sellableCopies(232, 1.9), 57, "232 Lasting Stings at 1.9 a day: 57 sell in a month");
+  assert.equal(sellableCopies(5, 10), 5);
+  assert.equal(sellableCopies(40, null), 40, "no pace known (relics): all of them");
+});

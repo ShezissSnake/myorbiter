@@ -7,7 +7,7 @@
   import ItemCard from "../ui/ItemCard.svelte";
   import Thumb from "../ui/Thumb.svelte";
   import { details } from "../details.svelte";
-  import { decide } from "../core/advice";
+  import { decide, ducatBuys } from "../core/advice";
   import type { AdviceSettings } from "../backend";
   import { mkt } from "../marketStore.svelte";
   import P from "../ui/P.svelte";
@@ -65,6 +65,7 @@
   const baro = $derived(model.live.baro ?? null);
   const baroHere = $derived(!!baro && Date.now() >= Date.parse(baro.activation) && Date.now() < Date.parse(baro.expiry));
   const RATES = [0.05, 0.08, 0.1, 0.12, 0.15, 0.2];
+  const buys = $derived(ducatBuys(model, { limit: 12 }));
 
   // Complete sets you can sell, by item: their parts are better sold as a set.
   const setsFor = $derived(new Map(setRows(model).filter((s) => s.sellable > 0).map((s) => [s.name, s.sellable])));
@@ -209,6 +210,29 @@
   </div>
 
   <Browse id="parts" {rows} {columns} key={(r) => r.name} bind:sort {detail} {card} title={(r) => r.name} min="18rem" />
+
+  <!-- Baro week: parts that turn platinum into ducats cheapest, beyond the ones you hold. -->
+  <section class="dbuy" id="ducat-buys">
+    <header>
+      <h2 class="register lead">Ducats for less</h2>
+      <span class="dim small">{baro ? (baroHere ? `Baro is here: leaves in ${until(baro.expiry)}` : `Baro arrives in ${until(baro.activation)}`) : ""}{baro ? " · " : ""}parts that sell daily, most ducats per platinum at the daily median. Gold: at least {Math.round(1 / advice.platPerDucat)} ducats a platinum, your rate (above).</span>
+    </header>
+    <table class="dt">
+      <thead><tr><th>Part</th><th class="r">Ducats</th><th class="r">Price</th><th class="r" title="Ducats per platinum at the daily median">Per plat</th><th class="r">Sells/day</th><th></th></tr></thead>
+      <tbody>
+        {#each buys as b (b.name)}
+          <tr>
+            <td><Named file={model.imageOf(b.name)} name={b.name} size={24} /></td>
+            <td class="r"><P v={b.ducats} d /></td>
+            <td class="r"><P v={b.price} /></td>
+            <td class="r"><b class:good={b.rate >= 1 / advice.platPerDucat}>{Math.round(b.rate * 10) / 10}</b></td>
+            <td class="r dim">{b.tradesPerDay == null ? "–" : Math.round(b.tradesPerDay * 10) / 10}</td>
+            <td class="r"><button class="link" title="Post a buy order on warframe.market for {b.name}: sellers whisper you" onclick={() => mkt.startBuy(b.name, { quantity: 5 })}>Buy order</button></td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  </section>
 </div></div>
 
 <style>
@@ -235,4 +259,11 @@
   .src { padding: .12rem .45rem; border: 1px solid var(--rule-bright); }
   .src.vaulted { opacity: .7; border-style: dashed; }
   .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1.2rem; }
+  .dbuy { margin-top: var(--course); display: grid; gap: .6rem; }
+  .dbuy header { display: grid; gap: .25rem; }
+  .dt { width: 100%; max-width: 56rem; border-collapse: collapse; font-size: .84rem; }
+  .dt th { text-align: left; font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); font-weight: 500; padding: .3rem .5rem; border-bottom: 1px solid var(--rule); }
+  .dt td { padding: .3rem .5rem; border-bottom: 1px solid var(--rule); }
+  .dt .r { text-align: right; }
+  .dt b.good { color: var(--gold); }
 </style>

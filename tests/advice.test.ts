@@ -158,3 +158,20 @@ test("the planner's set lists follow its filters: search and vaulted only", asyn
   assert.deepEqual(filterGaps(m, plan, false, q("axi r1")).map((g) => g.set), ["Rhino Prime"], "found by a relic of yours that drops the part");
   assert.deepEqual(filterGaps(m, plan, true, q("")).map((g) => g.set), ["Nova Prime"], "no relic of yours for it, and its part only from vaulted relics");
 });
+
+test("ducat buys: most ducats per platinum first, only parts that sell daily", async () => {
+  const { buildModel } = await import("../src/lib/core/model");
+  const { ducatBuys } = await import("../src/lib/core/advice");
+  const m = buildModel({
+    observed_at: null,
+    inventory: [],
+    catalog: [{ uniqueName: "/Rhino", name: "Rhino Prime", category: "Warframes", components: [
+      { uniqueName: "/R/Bp", name: "Blueprint", ducats: 100 }, { uniqueName: "/R/Chassis", name: "Chassis", ducats: 15 },
+      { uniqueName: "/R/Helmet", name: "Neuroptics", ducats: 45 }, { uniqueName: "/R/Systems", name: "Systems", ducats: 45 }] }],
+    relics: [],
+    prices: { prices: { "Rhino Prime Blueprint": 20, "Rhino Prime Chassis Blueprint": 3, "Rhino Prime Neuroptics Blueprint": 5, "Rhino Prime Systems Blueprint": 4 }, trade_rate: { "Rhino Prime Blueprint": [10, 0, ""], "Rhino Prime Chassis Blueprint": [10, 0, ""], "Rhino Prime Neuroptics Blueprint": [10, 0, ""], "Rhino Prime Systems Blueprint": [0.2, 0, ""] } },
+  } as never);
+  const b = ducatBuys(m);
+  assert.deepEqual(b.map((x) => x.name), ["Rhino Prime Neuroptics Blueprint", "Rhino Prime Blueprint", "Rhino Prime Chassis Blueprint"], "9 a plat, then 5 a plat (more ducats first); Systems sells under once a day");
+  assert.equal(b[0].rate, 9);
+});

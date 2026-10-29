@@ -488,8 +488,13 @@ impl Client {
         if !(1..=900_000).contains(&new.platinum) || !(1..=9_999).contains(&new.quantity) {
             return Err(MarketError::Rejected("price or quantity out of range".into()));
         }
+        let kind = match new.kind.as_deref() {
+            None | Some("sell") => "sell",
+            Some("buy") => "buy",
+            Some(_) => return Err(MarketError::Rejected("an order is to buy or to sell".into())),
+        };
         let mut body = serde_json::json!({
-            "itemId": new.item_id, "type": "sell", "platinum": new.platinum,
+            "itemId": new.item_id, "type": kind, "platinum": new.platinum,
             "quantity": new.quantity, "visible": new.visible,
         });
         if let Some(r) = new.rank {
@@ -789,6 +794,9 @@ pub struct NewOrder {
     pub subtype: Option<String>,
     #[serde(default = "yes")]
     pub visible: bool,
+    /// "sell" (the default) or "buy".
+    #[serde(default, rename = "type")]
+    pub kind: Option<String>,
 }
 
 /** warframe.market's answer when a listing for a bulk-tradable item leaves out `perTrade`. */

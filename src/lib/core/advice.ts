@@ -371,3 +371,31 @@ export function filterGaps(m: Model, plan: { relics: CrackRow[]; gaps: SetGap[] 
     });
   });
 }
+
+/** A prime part worth buying to trade to Baro: ducats for little platinum. */
+export interface DucatBuy {
+  name: string;
+  ducats: number;
+  /** Daily median. */
+  price: number;
+  /** Ducats per platinum at that price. */
+  rate: number;
+  tradesPerDay: number | null;
+}
+
+/**
+ * Prime parts that turn platinum into ducats cheapest, for a Baro week: ducats per platinum at
+ * the daily median, best first. Only parts that sell at least once a day: a median of one sale
+ * isn't a price you'll find again.
+ */
+export function ducatBuys(m: Model, opts: { limit?: number } = {}): DucatBuy[] {
+  const out: DucatBuy[] = [];
+  for (const [name, parts] of m.partByName) {
+    const ducats = parts[0]?.ducats ?? 0;
+    const price = m.price(name);
+    const tradesPerDay = m.tradesPerDay(name);
+    if (!ducats || price == null || price <= 0 || (tradesPerDay ?? 0) < 1) continue;
+    out.push({ name, ducats, price, rate: ducats / price, tradesPerDay });
+  }
+  return out.sort((a, b) => b.rate - a.rate || b.ducats - a.ducats).slice(0, opts.limit ?? 15);
+}

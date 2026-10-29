@@ -492,6 +492,28 @@
         {/each}
       </tbody>
     </table>
+    {#if mkt.buys.length}
+      <!-- Buy orders you posted (from Wishlist, or on the website): what you're paying, and a way to take one down. -->
+      <section class="buys" aria-label="Your buy orders">
+        <h2 class="register yours">Your buy orders</h2>
+        <ul>
+          {#each mkt.buys as o (o.id)}
+            {@const it = mkt.item(o.itemId)}
+            <li>
+              <Named file={model.imageOf(it?.name ?? "")} name={it?.name ?? o.itemId} size={26}>{#if o.rank != null}<span class="tag">R{o.rank}</span>{/if}{#if !o.visible}<span class="tag">hidden</span>{/if}</Named>
+              <span class="dim small">wants {o.quantity}</span>
+              <P v={o.platinum} />
+              {#if removing === o.id}
+                <IconButton icon="trash" tone="danger" label="Take it down" title="Take this buy order off warframe.market" disabled={!!mkt.busy} onclick={() => { removing = null; mkt.remove(o); }} onkeydown={onEsc(() => (removing = null))} />
+                <button type="button" class="ib quiet" aria-label="Keep" title="Keep it" onclick={() => (removing = null)} onkeydown={onEsc(() => (removing = null))} use:focusIt><Icon name="close" /></button>
+              {:else}
+                <IconButton icon="trash" tone="danger quiet" label="Remove" title="Remove: take this buy order off warframe.market" onclick={() => (removing = o.id)} />
+              {/if}
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
     {#if mkt.log.length}
       <section class="log" aria-label="Activity">
         <div class="register">Activity</div>
@@ -514,6 +536,10 @@
   .account :global(.ib) { --ib: 32px; }
   .who strong { color: var(--platinum); font-weight: 600; }
   h2.yours { margin: 0; }
+  .buys { margin-top: var(--step); display: grid; gap: .5rem; }
+  .buys ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
+  .buys li { display: flex; align-items: center; gap: .9rem; padding: .35rem .5rem; border: 1px solid var(--rule); }
+  .buys li > :global(.named) { flex: 1; }
   .listhead { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.6rem; margin-top: var(--step); padding-top: .9rem; border-top: 1px solid var(--rule); }
   .minp { width: 4.2rem; padding: .4rem .5rem; }
 
