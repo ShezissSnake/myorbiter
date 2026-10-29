@@ -709,6 +709,30 @@
     // Your inventory changed: have TennoScope read it again so spares and listings line up.
     if (ts.report?.setup.access_mode === "full" && ts.report.game_running) void ts.ask("--sync");
   }
+  // The game restarted, or started after TennoScope: its read of your inventory is from before
+  // this game session. TennoScope reads it when it sees the game start, which is often before you
+  // log in (nothing to read yet), and doesn't try again by itself. So once you've had time to log
+  // in, orbiter asks it to read again; and once more a few minutes later if that read didn't land.
+  const syncAsked = new Map<number, number>();
+  $effect(() => {
+    const session = mission?.session_start ?? null;
+    const at = model?.observedAt ? +model.observedAt / 1000 : null;
+    const r = ts.report;
+    if (!session || onConsole || !r || r.setup.access_mode !== "full" || !r.game_running) return;
+    if (at != null && at >= session) return;
+    const asked = syncAsked.get(session) ?? 0;
+    if (asked >= 2) return;
+    // 90 s after the game started for the first ask (the login screen takes about that), five
+    // minutes after the first for the second.
+    const due = asked === 0 ? session * 1000 + 90_000 : (syncAsked.get(-session) ?? 0) + 300_000;
+    const t = setTimeout(() => {
+      syncAsked.set(session, asked + 1);
+      syncAsked.set(-session, Date.now());
+      void ts.ask("--sync");
+    }, Math.max(0, due - Date.now()));
+    return () => clearTimeout(t);
+  });
+
   // ---------------------------------------------------------------- account facts and alerts
 
   // TennoScope's read of your account: foundry finish times, mastery rank, platinum. Kept in
