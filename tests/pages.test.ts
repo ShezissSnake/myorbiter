@@ -26,8 +26,9 @@ test("your page order: pages move within their section, sections move whole, Ctr
   assert.deepEqual(sectionsOf(pages), ["Trade", "Fissures", "Collection"]);
   const drawn = drawnOrder(pages).map((p) => p.id);
   assert.deepEqual(drawn.slice(0, 3), ["home", "sets", "parts"]);
-  // Orders up two within Trade: first there.
+  // Orders up three within Trade (past Market, Prime parts and Sets): first there.
   order = movePage(grouped(pages), "market", -1);
+  order = movePage(grouped(orderPages(PAGES, order)), "market", -1);
   order = movePage(grouped(orderPages(PAGES, order)), "market", -1);
   assert.deepEqual(drawnOrder(orderPages(PAGES, order)).map((p) => p.id).slice(0, 2), ["home", "market"]);
 });

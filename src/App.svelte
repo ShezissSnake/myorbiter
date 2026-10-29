@@ -58,6 +58,7 @@
   import Sales from "./lib/tabs/Sales.svelte";
   import Guide from "./lib/tabs/Guide.svelte";
   import Inventory from "./lib/tabs/Inventory.svelte";
+  import Market from "./lib/tabs/Market.svelte";
   import Foundry from "./lib/tabs/Foundry.svelte";
   import Stats from "./lib/tabs/Stats.svelte";
   import Rivens from "./lib/tabs/Rivens.svelte";
@@ -1570,6 +1571,7 @@
       {#snippet pGuide()}<Guide console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} go={(t: string) => (settings.tab = t)} bind:plannerMode={settings.plannerMode} />{/snippet}
       {#snippet pFoundry()}<Foundry {model} bind:settings={settings} />{/snippet}
       {#snippet pInventory()}<Inventory {model} sell={settings.market.sellable} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad} />{/snippet}
+      {#snippet pBrowse()}<Market {model} />{/snippet}
       {#snippet pWishlist()}<Wishlist {model} bind:settings={settings} />{/snippet}
       {#snippet pRivens()}<Rivens {model} console={onConsole} bind:settings={settings} />{/snippet}
       {#snippet pStats()}<Stats {model} {settings} />{/snippet}
@@ -1590,6 +1592,7 @@
       {@render pane("stats", pStats)}
       {@render pane("rivens", pRivens)}
       {@render pane("wishlist", pWishlist)}
+      {@render pane("browse", pBrowse)}
       <ListDialog {model} market={settings.market} advice={onConsole ? null : settings.advice} go={(t: string) => (settings.tab = t)} />
       <BuyDialog {model} go={(t: string) => (settings.tab = t)} />
       <ItemDetails {model} bind:settings={settings} />

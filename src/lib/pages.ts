@@ -17,6 +17,7 @@ export type PageId =
   | "rivens"
   | "sets"
   | "parts"
+  | "browse"
   | "market"
   | "sales"
   | "stats"
@@ -48,6 +49,7 @@ export const PAGES: Page[] = [
   { id: "rivens", label: "Rivens", group: "Collection", icon: { game: "riven" }, hint: "Your rivens graded, what similar ones sell for, and alerts for the ones you want", consoleHint: "Find rivens for sale, each roll graded, and alerts for the ones you want" },
   { id: "sets", label: "Sets", group: "Trade", icon: { line: "sets" }, hint: "Complete prime sets you could sell, and sets almost done" },
   { id: "parts", label: "Prime parts", group: "Trade", icon: { game: "ducats" }, hint: "Every prime part: keep it, sell it, or trade it to Baro for ducats" },
+  { id: "browse", label: "Market", group: "Trade", icon: { line: "search" }, hint: "Everything warframe.market trades, yours or not: browse by category, price and how often it sells" },
   { id: "market", label: "Orders", group: "Trade", icon: { game: "market" }, hint: "Your warframe.market listings, kept at the cheapest in-game price" },
   { id: "sales", label: "Sales", group: "Trade", icon: { game: "platinum" }, hint: "What you've sold and the platinum it made" },
   { id: "stats", label: "Stats", group: "Trade", icon: { game: "credits" }, hint: "Your platinum, credits, Endo and more over time, and every trade you've made" },

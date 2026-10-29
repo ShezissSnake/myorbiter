@@ -102,29 +102,50 @@
     }
   }
   // Price check every riven, one after another (warframe.market is asked at its own pace), skipping
-  // ones already checked. Stop halts after the one in progress.
-  let checkingAll = $state<{ done: number; total: number; paused?: boolean } | null>(null);
+  // ones already checked. Stop halts after the one in progress. Ones that fail on the way (turned
+  // away, timed out) are tried once more at the end, after a pause; what still fails is said.
+  let checkingAll = $state<{ done: number; total: number; paused?: boolean; retry?: boolean } | null>(null);
+  let checkedAll = $state<{ ok: number; failed: Riven[]; reason: string } | null>(null);
   let stopAll = false;
-  async function checkAll() {
-    const listed = meta ? sorted.filter((r) => searchFor(meta, r).weapon) : [];
+  const failedCheck = (r: Riven) => !!checks[r.id]?.error && !checks[r.id]?.auctions;
+  async function checkAll(only?: Riven[]) {
+    const listed = meta ? (only ?? sorted).filter((r) => searchFor(meta, r).weapon) : [];
     // Everything checked already: check them all again (prices move).
     const fresh = listed.filter((r) => !checks[r.id]?.auctions);
-    const again = !fresh.length;
+    const again = !only && !fresh.length;
     const todo = again ? listed : fresh;
     if (!meta || !todo.length) return;
     stopAll = false;
+    checkedAll = null;
     checkingAll = { done: 0, total: todo.length };
+    const wait = async () => {
+      checkingAll = { ...checkingAll!, paused: true };
+      await new Promise((res) => setTimeout(res, 30_000));
+      checkingAll = { ...checkingAll!, paused: false };
+    };
     for (const r of todo) {
       if (stopAll) break;
       await check(r, again);
       // Still turned away after orbiter's own retries: a longer pause, then once more.
       if (SLOW.test(checks[r.id]?.error ?? "") && !stopAll) {
-        checkingAll = { ...checkingAll, paused: true };
-        await new Promise((res) => setTimeout(res, 30_000));
+        await wait();
         if (!stopAll) await check(r, again);
       }
-      checkingAll = { done: checkingAll.done + 1, total: todo.length };
+      checkingAll = { ...checkingAll, done: checkingAll.done + 1, total: todo.length };
     }
+    // A second go at the ones that failed, after a pause.
+    const failed = todo.filter(failedCheck);
+    if (failed.length && !stopAll) {
+      checkingAll = { done: 0, total: failed.length, retry: true };
+      await wait();
+      for (const r of failed) {
+        if (stopAll) break;
+        await check(r, true);
+        checkingAll = { ...checkingAll, done: checkingAll.done + 1 };
+      }
+    }
+    const still = todo.filter(failedCheck);
+    checkedAll = { ok: todo.filter((r) => checks[r.id]?.auctions).length, failed: still, reason: still.length ? checks[still[0].id]!.error! : "" };
     checkingAll = null;
   }
   // Selling: your riven auctions on warframe.market, and the form to put one up.
@@ -301,9 +322,12 @@
       {#if splicedCount}<Chip bind:on={splicedOnly} label="Spliced ({splicedCount})" title="Only rivens with a stat from Riven Splicing (Gas, Corrosive, Weak Point Damage…), which can't roll by cycling" />{/if}
       <Seg label="Sort" bind:value={sort} options={[{ v: "grade", label: "Best rolls", title: "The best overall grade first" }, { v: "weapon", label: "Weapon", title: "By weapon, A to Z" }, { v: "rank", label: "Rank", title: "The highest rank first" }, { v: "traded", label: "Trade value", title: "What rivens for the weapon (cycled or not, like yours) traded for in game last week, highest first: the ones worth selling, whatever their stats" }]} />
       {#if checkingAll}
-        <span class="checking"><span class="dim small">{checkingAll.paused ? `warframe.market asked to slow down: waiting, then ${checkingAll.done + 1} of ${checkingAll.total}…` : `Checking ${checkingAll.done + 1} of ${checkingAll.total}…`}</span><button class="link" onclick={() => (stopAll = true)}>Stop</button></span>
+        <span class="checking"><span class="dim small">{checkingAll.paused ? `${checkingAll.retry ? "Some checks failed" : "warframe.market asked to slow down"}: waiting half a minute, then ${checkingAll.retry ? "trying those again" : `${checkingAll.done + 1} of ${checkingAll.total}`}…` : `${checkingAll.retry ? "Trying again" : "Checking"} ${checkingAll.done + 1} of ${checkingAll.total}…`}</span><button class="link" onclick={() => (stopAll = true)}>Stop</button></span>
       {:else}
-        <button class="stamp" disabled={!meta} title={!meta ? "Waiting for warframe.market's riven list" : !unchecked ? "Check every riven's price again" : "Find similar rivens for sale for each of yours, one after another"} onclick={checkAll}>{!unchecked ? "Check prices again" : unchecked === shown.length ? (shown.length === mine.length ? "Price check all" : `Price check these ${unchecked}`) : `Price check the other ${unchecked}`}</button>
+        {#if checkedAll?.failed.length}
+          <span class="checking"><span class="dim small" title={checkedAll.reason}>Checked {checkedAll.ok}; {checkedAll.failed.length} couldn't be ({checkedAll.reason.replace(/(; |\. ).*$/, "")})</span><button class="link" title="Check the ones that failed again" onclick={() => checkAll(checkedAll!.failed)}>Try those again</button></span>
+        {/if}
+        <button class="stamp" disabled={!meta} title={!meta ? "Waiting for warframe.market's riven list" : !unchecked ? "Check every riven's price again" : "Find similar rivens for sale for each of yours, one after another"} onclick={() => checkAll()}>{!unchecked ? "Check prices again" : unchecked === shown.length ? (shown.length === mine.length ? "Price check all" : `Price check these ${unchecked}`) : `Price check the other ${unchecked}`}</button>
       {/if}
       <span class="dim small explain">Grades compare each roll with its range: S is the top of it, B the middle, F the bottom. A smaller curse grades higher. Dispositions are 1.2 for every weapon since the 22 October 2026 hotfix.</span>
     </div>
