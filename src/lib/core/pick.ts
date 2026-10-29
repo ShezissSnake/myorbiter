@@ -45,7 +45,7 @@ const norm = (s: string) => s.toLowerCase().replace(/\s+blueprint$/, "").replace
 
 /** The model's name for a reward as TennoScope or a relic table spells it. */
 export function resolveName(m: Model, raw: string): string {
-  if (m.partByName.has(raw) || m.price(raw) != null) return raw;
+  if (m.partByName.has(raw)) return raw;
   const want = norm(raw);
   for (const name of m.partByName.keys()) if (norm(name) === want) return name;
   return raw;

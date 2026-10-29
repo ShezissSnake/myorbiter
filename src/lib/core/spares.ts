@@ -251,6 +251,7 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
     for (const p of gearSetParts(m, s.unique) ?? []) inSets.set(p.unique, (inSets.get(p.unique) ?? 0) + s.sellable * p.required);
   }
   const keyWants = new Map(KEYS.map((k) => [k.mission, partsStillNeededFrom(m, k.mission)]));
+  const damaged = damagedPartNeeds(m);
   const out: SpareRow[] = [];
 
   for (const r of inventoryRows(m)) {
@@ -281,10 +282,12 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
     let why = "";
     let need: Need[] = [];
     let crack: number | null = null;
-    if (r.kind === "part") {
-      const p = parts.get(r.name);
-      keep = p ? p.keep : 0;
-      why = keep ? `${plural(keep, "copy", "copies")} to build ${p!.parentName}` : p?.parentMastered ? `${p.parentName} is mastered` : p?.parentOwned ? `${p.parentName} is built` : "";
+    if (r.kind === "part" && parts.has(r.name)) {
+      // A part the market prices but the catalog has no ducats for isn't here: it falls through to
+      // what still needs it, at the end.
+      const p = parts.get(r.name)!;
+      keep = p.keep;
+      why = keep ? `${plural(keep, "copy", "copies")} to build ${p.parentName}` : p.parentMastered ? `${p.parentName} is mastered` : p.parentOwned ? `${p.parentName} is built` : "";
     } else if (r.kind === "mod" && VEILED.test(r.unique)) {
       keep = sell.veiledRivens ? 0 : r.quantity;
       why = sell.veiledRivens ? "Veiled rivens all count as spare: unveil any you'd rather roll yourself first" : "You keep veiled rivens (Settings, Selling)";
@@ -338,6 +341,11 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
       const left = families.get(f.name) ?? 0;
       keep = left ? r.quantity : 0;
       why = left ? `${f.name} part: you have ${plural(left, f.plural.replace(/s$/, ""), f.plural)} still to master` : `Every ${f.name.toLowerCase()} piece is mastered`;
+    } else if (DAMAGED.test(r.unique)) {
+      // Necramech and Entrati arch-gun components are each built from one damaged part.
+      const wanted = damaged.get(damagedSlot(r.unique)) ?? [];
+      keep = Math.min(r.quantity, wanted.length);
+      why = wanted.length ? `To build ${listNeeds(wanted.map((item) => ({ item, count: 1 })))}` : "Nothing you still need to build takes it";
     } else if (KEYS.some((k) => k.test.test(r.unique) || k.test.test(r.name)) && (r.kind === "resource" || r.kind === "blueprint")) {
       // A key, or what you make one from: kept while the fight it opens drops a part you still need.
       const k = KEYS.find((x) => x.test.test(r.unique) || x.test.test(r.name))!;
@@ -451,6 +459,29 @@ export function partsStillNeededFrom(m: Model, mission: string): string[] {
       if (!(c.drops ?? []).some((d) => d.location?.includes(mission))) continue;
       const have = m.owned(c.uniqueName) + m.owned(c.uniqueName.replace(/Blueprint$/, "Component"));
       if (have < (c.itemCount ?? 1)) out.push(`${item.name} ${c.name}`);
+    }
+  }
+  return out;
+}
+
+/** Damaged Necramech parts, by path: each one goes into one Necramech or Entrati arch-gun component. */
+const DAMAGED = /\/Resources\/Mechs\/DamagedMech/;
+/** Which component a damaged part builds: "PartChassisItem" (a casing), "BarrelItem" and so on. */
+const damagedSlot = (unique: string) => unique.replace(/^.*\/DamagedMech(Weapon)?/, "");
+
+/**
+ * The components still to build from damaged parts, by slot: for Necramechs and Entrati arch-guns
+ * you haven't mastered or built, each component you don't hold. The catalog lists these
+ * components but not what they're made from, so the slot names tie the two together.
+ */
+export function damagedPartNeeds(m: Model): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const item of m.catalogByUnique.values()) {
+    if (!item.masterable || m.isMastered(item.uniqueName) || m.owned(item.uniqueName) > 0) continue;
+    for (const c of item.components ?? []) {
+      if (!c.uniqueName.includes("/Resources/Mechs/") || m.owned(c.uniqueName) > 0) continue;
+      const slot = c.uniqueName.match(/(Part\w+Item|(Barrel|Receiver|Stock)Item)$/)?.[0];
+      if (slot) out.set(slot, [...(out.get(slot) ?? []), c.name]);
     }
   }
   return out;

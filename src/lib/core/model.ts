@@ -479,10 +479,21 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
   }
 
   const p = bundle.prices ?? {};
-  const price = (name: string) => p.prices?.[name] ?? null;
-  const priceMax = (name: string) => p.max_rank_prices?.[name] ?? null;
+  // The market's spelling can differ in case from the game's ("Zid-an Sek-eel"), so a name that
+  // doesn't match exactly is looked up without case.
+  const lowered = new Map<object, Map<string, string>>();
+  const lookup = <T>(table: Record<string, T> | undefined, name: string): T | undefined => {
+    if (!table) return undefined;
+    if (name in table) return table[name];
+    let low = lowered.get(table);
+    if (!low) lowered.set(table, (low = new Map(Object.keys(table).map((k) => [k.toLowerCase(), k]))));
+    const key = low.get(name.toLowerCase());
+    return key == null ? undefined : table[key];
+  };
+  const price = (name: string) => lookup(p.prices, name) ?? null;
+  const priceMax = (name: string) => lookup(p.max_rank_prices, name) ?? null;
   const tradesPerDay = (name: string) => {
-    const t = p.trade_rate?.[name];
+    const t = lookup(p.trade_rate, name);
     return t ? t[0] : null;
   };
   /** A relic's price at a refinement (intact when none is named): what it sold for lately on warframe.market, else TennoScope's daily price. */

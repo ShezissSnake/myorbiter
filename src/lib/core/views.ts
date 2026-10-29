@@ -678,6 +678,8 @@ export interface InventoryItem {
 
 const TYPE_NAME: Record<string, string> = { frame: "Warframe", weapon: "Weapon", companion: "Companion", prime_part: "Prime part", relic: "Relic", mod: "Mod", arcane: "Arcane", resource: "Resource", blueprint: "Blueprint" };
 
+const STICKER = /\/Upgrades\/Stickers\//;
+
 export function inventoryRows(m: Model): InventoryItem[] {
   const rows = new Map<string, InventoryItem>();
   for (const [unique, inv] of m.inventoryByBase) {
@@ -712,7 +714,10 @@ export function inventoryRows(m: Model): InventoryItem[] {
       // A relic at its own refinement; the intact price stands in when that one isn't known.
       const price = built ? null : relic ? (m.relicPrice(relic.base, relic.refinement) ?? m.relicPrice(relic.base)) : atMax ? (m.priceMax(name) ?? m.price(name)) : m.price(name);
       const part = kind === "part" ? m.partByName.get(name)?.[0] : undefined;
-      const tradable = (kind === "part" && !built) || kind === "relic" || ((kind === "mod" || kind === "arcane") && item?.tradable !== false) || price != null;
+      // A part with no ducats and no market price (Sagek Prime's, from the Perita Rebellion) isn't a
+      // relic part and can't be traded; nor are the Sticker items, which TennoScope lists under mods
+      // by their internal names.
+      const tradable = (kind === "part" && !built && (m.partByName.has(name) || price != null)) || kind === "relic" || ((kind === "mod" || kind === "arcane") && item?.tradable !== false && !STICKER.test(unique)) || price != null;
       rows.set(key, {
         key,
         name,

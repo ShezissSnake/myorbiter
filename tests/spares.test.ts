@@ -198,3 +198,36 @@ test("a boss key is kept while the fight still drops a part you need, and spare 
   const done = row(withMesa([inv("/Lotus/Powersuits/Cowgirl/Cowgirl", "Mesa", "frame", 1)]), "Mutalist Alad V Nav Coordinate")!;
   assert.deepEqual([done.keep, done.spare], [0, 1]);
 });
+
+test("damaged necramech parts are kept, one per component still to build", () => {
+  const MECH = "/Lotus/Types/Gameplay/InfestedMicroplanet/Resources/Mechs/";
+  const b = bundle([inv(`${MECH}DamagedMechPartEngineItem`, "Damaged Necramech Engine", "resource", 4), inv(`${MECH}DamagedMechWeaponBarrelItem`, "Damaged Necramech Weapon Barrel", "resource", 1)]);
+  b.catalog.push(
+    { uniqueName: "/Lotus/Powersuits/EntratiMech/ThanoTech", name: "Bonewidow", category: "Warframes", masterable: true, components: [{ uniqueName: `${MECH}ThanomechPartEngineItem`, name: "Bonewidow Engine", itemCount: 1 }] } as never,
+    { uniqueName: "/Lotus/Powersuits/EntratiMech/NechroTech", name: "Voidrig", category: "Warframes", masterable: true, components: [{ uniqueName: `${MECH}NecromechPartEngineItem`, name: "Voidrig Engine", itemCount: 1 }] } as never,
+    { uniqueName: "/Lotus/Weapons/Morgha", name: "Morgha", category: "Arch-Gun", masterable: true, components: [{ uniqueName: `${MECH}ThanotechGrenadeLauncherBarrelItem`, name: "Morgha Barrel", itemCount: 1 }] } as never,
+  );
+  Object.assign(b.prices!.prices!, { "Damaged Necramech Engine": 5, "Damaged Necramech Weapon Barrel": 10 });
+  const rows = spareRows(buildModel({ ...b, inventory: [...b.inventory, inv("/Lotus/Powersuits/EntratiMech/NechroTech", "Voidrig", "frame", 1)] }));
+  const engine = row(rows, "Damaged Necramech Engine")!;
+  assert.deepEqual([engine.keep, engine.spare, engine.why], [1, 3, "To build Bonewidow Engine"]);
+  assert.deepEqual([row(rows, "Damaged Necramech Weapon Barrel")!.keep, row(rows, "Damaged Necramech Weapon Barrel")!.why], [1, "To build Morgha Barrel"]);
+});
+
+test("parts with no ducats and no market price (Sagek Prime's) aren't offered for sale", () => {
+  const b = bundle([inv("/Lotus/Types/Recipes/Weapons/SagekPrimeBlueprint", "Sagek Prime Blueprint", "prime_part", 1)]);
+  b.catalog.push({ uniqueName: "/Lotus/Weapons/SagekPrime", name: "Sagek Prime", category: "Secondary", masterable: true, components: [{ uniqueName: "/Lotus/Types/Recipes/Weapons/SagekPrimeBlueprint", name: "Blueprint", itemCount: 1, tradable: false }] } as never);
+  assert.equal(row(spareRows(buildModel(b)), "Sagek Prime Blueprint"), undefined);
+});
+
+test("mods the catalog doesn't know and the market doesn't price aren't counted as spare", () => {
+  const rows = spareRows(buildModel(bundle([inv("/Lotus/Upgrades/Stickers/EjectButtonSticker", "Eject Button Sticker", "mod", 4)])));
+  assert.equal(row(rows, "Eject Button Sticker"), undefined);
+});
+
+test("prices are found whatever the case of the market's spelling", () => {
+  const b = bundle([]);
+  Object.assign(b.prices!.prices!, { "Zid-an Sek-eel": 3, "EMP Aura": 10 });
+  const m = buildModel(b);
+  assert.deepEqual([m.price("Zid-An Sek-Eel"), m.price("Emp Aura"), m.price("Mandonel Barrel"), m.price("Nothing Like It")], [3, 10, 4, null]);
+});
