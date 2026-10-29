@@ -17,6 +17,8 @@ export interface MarketItem {
   maxRank: number | null;
   subtypes: string[] | null;
   tags: string[] | null;
+  /** warframe.market's thumbnail, as orbiter's image cache names it ("wfm." and its file name). */
+  thumb?: string | null;
 }
 
 export interface MyOrder {

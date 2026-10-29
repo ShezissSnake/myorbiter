@@ -65,23 +65,28 @@ export interface MarketRow {
   ducats: number | null;
   /** How many you hold (sets: complete sets; relics: every refinement); null when unknown. */
   have: number | null;
+  /** warframe.market's thumbnail, for items orbiter has no art for. */
+  thumb: string | null;
 }
 
 /** Every item on warframe.market with its price, trade rate, ducats and how many you hold. */
 export function marketRows(m: Model, items: MarketItem[]): MarketRow[] {
   return items.map((it) => {
     const held = holdings(m, it);
+    const relic = categoryOf(it.tags) === "relic" ? it.name.replace(/ Relic$/, "") : null;
     return {
       name: it.name,
       slug: it.slug,
       gameRef: it.gameRef,
       category: categoryOf(it.tags),
-      price: m.price(it.name),
+      // Relics: what they sold for lately on warframe.market, else the daily price (intact).
+      price: relic ? m.relicPrice(relic) : m.price(it.name),
       priceMax: it.maxRank ? m.priceMax(it.name) : null,
       maxRank: it.maxRank,
       tradesPerDay: m.tradesPerDay(it.name),
       ducats: m.partByName.get(it.name)?.[0]?.ducats ?? null,
       have: held == null ? null : held.reduce((n, h) => n + h.count, 0),
+      thumb: it.thumb ?? null,
     };
   });
 }

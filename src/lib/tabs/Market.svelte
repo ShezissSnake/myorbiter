@@ -52,6 +52,8 @@
     owned = false;
     query = "";
   }
+  /** orbiter's own art where it has some, else warframe.market's thumbnail. */
+  const art = (r: MarketRow) => model.imageOf(r.name) ?? r.thumb;
   const buy = (r: MarketRow) => mkt.startBuy(r.name, { unique: r.gameRef });
 
   const columns: Column<MarketRow>[] = [
@@ -65,7 +67,7 @@
   ];
 </script>
 
-{#snippet nameCell(r: MarketRow)}<Named file={model.imageOf(r.name)} name={r.name} />{/snippet}
+{#snippet nameCell(r: MarketRow)}<Named file={art(r)} name={r.name} />{/snippet}
 {#snippet priceCell(r: MarketRow)}
   <span class="prices"><P v={r.price} />{#if r.priceMax != null}<span class="max" title="Maxed (rank {r.maxRank})"><P v={r.priceMax} dim /><span class="dim small">max</span></span>{/if}</span>
 {/snippet}
@@ -79,7 +81,7 @@
     <span class="grow"></span>
     {@render buyCell(r)}
   {/snippet}
-  <ItemCard hover={r.name} title={r.name} sub={label(r.category)} image={model.imageOf(r.name)} artSize={64} owned={!!r.have} onopen={open} {foot}>
+  <ItemCard hover={r.name} title={r.name} sub={label(r.category)} image={art(r)} artSize={64} owned={!!r.have} onopen={open} {foot}>
     <div class="vals">
       <span><span class="register">Price</span><P v={r.price} /></span>
       {#if r.priceMax != null}<span><span class="register">Maxed</span><P v={r.priceMax} dim /></span>{/if}

@@ -49,7 +49,7 @@
         <p class="err">{mkt.buyError}</p>
         <div class="row end"><button onclick={close}>Close</button></div>
       {:else}
-        <Named file={model.imageOf(d.name.replace(/ Set$/, ""))} name={d.name} size={44} />
+        <Named file={model.imageOf(d.name.replace(/ Set$/, "")) ?? mkt.index.byName.get(d.name.toLowerCase())?.thumb} name={d.name} size={44} />
         {#if !mkt.linked}
           <p class="prose">Sign in to warframe.market first. orbiter keeps its own sign-in; you only do it once.</p>
           <div class="row end">

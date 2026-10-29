@@ -834,6 +834,15 @@ fn keep(path: &Path, value: &Value) {
 }
 
 /// `/v2/items`, trimmed to what orbiter needs and cached for a day.
+/// warframe.market's thumbnail for an item, as orbiter's image cache names it ("wfm." and the file
+/// name): only plain names under its thumbnail folder, else null.
+fn thumb_name(v: &Value) -> Value {
+    v.as_str()
+        .and_then(|t| t.strip_prefix("items/images/en/thumbs/"))
+        .filter(|f| !f.is_empty() && f.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.')))
+        .map_or(Value::Null, |f| Value::String(format!("wfm.{f}")))
+}
+
 pub fn items(cache_dir: &Path) -> Result<Value, MarketError> {
     let path = cache_dir.join("market-items.json");
     let fresh = std::fs::metadata(&path)
@@ -842,7 +851,8 @@ pub fn items(cache_dir: &Path) -> Result<Value, MarketError> {
         .and_then(|t| t.elapsed().ok())
         .is_some_and(|age| age < Duration::from_secs(86_400));
     if fresh {
-        if let Some(v) = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()) {
+        // A list saved before it carried thumbnails is fetched again.
+        if let Some(v) = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).filter(|v| v[0].get("thumb").is_some()) {
             return Ok(v);
         }
     }
@@ -859,6 +869,7 @@ pub fn items(cache_dir: &Path) -> Result<Value, MarketError> {
                                 "id": i["id"], "slug": i["slug"], "gameRef": i["gameRef"],
                                 "name": i["i18n"]["en"]["name"], "maxRank": i["maxRank"],
                                 "subtypes": i["subtypes"], "tags": i["tags"],
+                                "thumb": thumb_name(&i["i18n"]["en"]["thumb"]),
                             })
                         })
                         .collect()
@@ -1027,6 +1038,14 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn thumbnails_are_plain_names_under_the_thumbs_folder() {
+        assert_eq!(thumb_name(&serde_json::json!("items/images/en/thumbs/serration.711b.128x128.png")), serde_json::json!("wfm.serration.711b.128x128.png"));
+        assert_eq!(thumb_name(&serde_json::json!("items/images/en/thumbs/../../x.png")), Value::Null);
+        assert_eq!(thumb_name(&serde_json::json!("items/images/en/serration.png")), Value::Null);
+        assert_eq!(thumb_name(&Value::Null), Value::Null);
+    }
 
     impl Client {
         /// Signed out, never touching the keyring (a test must not read or overwrite your real

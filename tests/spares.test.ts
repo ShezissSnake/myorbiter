@@ -231,3 +231,21 @@ test("prices are found whatever the case of the market's spelling", () => {
   const m = buildModel(b);
   assert.deepEqual([m.price("Zid-An Sek-Eel"), m.price("Emp Aura"), m.price("Mandonel Barrel"), m.price("Nothing Like It")], [3, 10, 4, null]);
 });
+
+test("a weapon part's blueprint is kept for the part the recipe lists, unless that part is built", () => {
+  const W = "/Lotus/Types/Recipes/Weapons/WeaponParts/";
+  const aeolak = { uniqueName: "/Lotus/Weapons/Aeolak", name: "Aeolak", category: "Primary", masterable: true, components: [{ uniqueName: `${W}DuviriRifleBarrel`, name: "Barrel", itemCount: 1 }, { uniqueName: `${W}DuviriRifleStock`, name: "Stock", itemCount: 1 }] };
+  const b = bundle([inv(`${W}DuviriRifleBarrelBlueprint`, "Duviri Rifle Barrel Blueprint", "blueprint", 1), inv(`${W}DuviriRifleStockBlueprint`, "Duviri Rifle Stock Blueprint", "blueprint", 2), inv(`${W}DuviriRifleBarrel`, "Duviri Rifle Barrel", "resource", 1)]);
+  b.catalog.push(aeolak as never);
+  Object.assign(b.prices!.prices!, { "Aeolak Barrel Blueprint": 5, "Aeolak Stock Blueprint": 5 });
+  const items = [
+    { id: "a", slug: "aeolak_barrel_blueprint", gameRef: `${W}DuviriRifleBarrelBlueprint`, name: "Aeolak Barrel Blueprint", maxRank: null, subtypes: null, tags: ["weapon", "blueprint"] },
+    { id: "b", slug: "aeolak_stock_blueprint", gameRef: `${W}DuviriRifleStockBlueprint`, name: "Aeolak Stock Blueprint", maxRank: null, subtypes: null, tags: ["weapon", "blueprint"] },
+  ] as MarketItem[];
+  const rows = spareRows(buildModel(b), indexItems(items));
+  const stock = row(rows, "Aeolak Stock Blueprint")!;
+  assert.deepEqual([stock.keep, stock.spare, stock.why], [1, 1, "For Aeolak"]);
+  const barrel = row(rows, "Aeolak Barrel Blueprint")!;
+  assert.deepEqual([barrel.keep, barrel.spare], [0, 1]);
+  assert.match(barrel.why, /already hold the built part/);
+});

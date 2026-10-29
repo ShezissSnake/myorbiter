@@ -356,10 +356,15 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
       keep = Math.min(1, r.quantity);
       why = "One to use in Captura";
     } else {
-      need = [...(needs.get(baseId(r.unique)) ?? [])].sort((a, b) => b.count - a.count);
+      // A part's blueprint (…DuviriRifleBarrelBlueprint) builds the part the recipe lists
+      // (…DuviriRifleBarrel): kept for it, less the built copies you already hold.
+      const base = baseId(r.unique);
+      const part = !needs.has(base) && /.Blueprint$/.test(base) ? base.replace(/Blueprint$/, "") : null;
+      need = [...(needs.get(part ?? base) ?? [])].sort((a, b) => b.count - a.count);
       const total = need.reduce((n, x) => n + x.count, 0);
-      keep = Math.min(r.quantity, total);
-      why = total ? `For ${listNeeds(need)}` : "Nothing you still need to build takes it";
+      const built = part ? m.owned(part) : 0;
+      keep = Math.min(r.quantity, Math.max(0, total - built));
+      why = !total ? "Nothing you still need to build takes it" : keep || !built ? `For ${listNeeds(need)}` : `You already hold the built part for ${listNeeds(need)}`;
     }
     keep = Math.max(0, Math.min(r.quantity, keep));
     const spare = r.quantity - keep;

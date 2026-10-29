@@ -744,10 +744,13 @@ export async function missionState(eeLog: string): Promise<MissionState | null> 
 const onWindows = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
 const IMG_BASE = onWindows ? "http://img.localhost/" : "img://localhost/";
 /** An item's WFCD artwork: a thumbnail, or the larger copy cards and the details sheet show. */
+// "wfm." names are warframe.market's own thumbnails (the Market page, for items WFCD has no art for).
 export const imageUrl = (file: string, large = false) =>
   inTauri
     ? `${IMG_BASE}${large ? "l/" : ""}${encodeURIComponent(file)}`
-    : `https://raw.githubusercontent.com/WFCD/warframe-items/master/data/img/${encodeURIComponent(file)}`;
+    : file.startsWith("wfm.")
+      ? `https://warframe.market/static/assets/items/images/en/thumbs/${encodeURIComponent(file.slice(4))}`
+      : `https://raw.githubusercontent.com/WFCD/warframe-items/master/data/img/${encodeURIComponent(file)}`;
 
 // ---------------------------------------------------------------- warframe.market (own sign-in)
 

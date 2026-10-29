@@ -77,10 +77,19 @@ fn set_offline(yes: bool) {
     *OFFLINE_SINCE.lock().unwrap_or_else(|e| e.into_inner()) = yes.then(Instant::now);
 }
 
+/// warframe.market's own thumbnails, for items WFCD's art doesn't cover (mods, scenes, arcanes on
+/// the Market page): named "wfm." and the file name.
+const WFM_THUMBS: &str = "https://warframe.market/static/assets/items/images/en/thumbs/";
+
 fn fetch(name: &str) -> Fetched {
     let mut all_404 = true;
     let mut reached = false;
-    for base in SOURCES {
+    let wfm = name.strip_prefix("wfm.").map(|f| (WFM_THUMBS, f));
+    let sources: Vec<(&str, &str)> = match wfm {
+        Some(s) => vec![s],
+        None => SOURCES.iter().map(|b| (*b, name)).collect(),
+    };
+    for (base, name) in sources {
         match crate::http_agent()
             .get(&format!("{base}{name}"))
             .set("User-Agent", concat!("orbiter/", env!("CARGO_PKG_VERSION")))
@@ -239,6 +248,11 @@ mod tests {
         assert!(fs::metadata(&path).unwrap().len() < 60_000);
         assert!(cached(&dir, "DoesNotExist123.png", false).is_none());
         assert!(dir.join("DoesNotExist123.png.missing").exists());
+        // warframe.market's own thumbnails, a PNG and a WebP one.
+        for name in ["wfm.serration.711b19665b2acbac445c68c9e8f8b550.128x128.png", "wfm.kuva_wytch_scene.24274e7f65c89a2b783895dd0dcb6bda.128x128.webp"] {
+            let path = cached(&dir, name, false).expect("fetched from warframe.market");
+            image::open(&path).expect("decodes");
+        }
     }
 
     #[test]
