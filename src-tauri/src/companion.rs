@@ -282,7 +282,16 @@ fn launch(bin: &Path, bundled: bool) -> Command {
     if bundled {
         cmd.env("ORBITER_BUNDLED", "1");
     }
+    // TennoScope's own switch: its overlay on a solid background instead of a transparent one.
+    if OPAQUE_OVERLAY.load(std::sync::atomic::Ordering::Relaxed) {
+        cmd.env("TENNOSCOPE_OPAQUE_OVERLAY", "1");
+    }
     cmd
+}
+
+static OPAQUE_OVERLAY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub fn set_opaque_overlay(on: bool) {
+    OPAQUE_OVERLAY.store(on, std::sync::atomic::Ordering::Relaxed);
 }
 
 /// How long a second TennoScope has to pass its request over and exit.

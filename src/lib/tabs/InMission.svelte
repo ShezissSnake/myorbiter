@@ -9,7 +9,7 @@
   import Avail from "../ui/Avail.svelte";
   import ListButton from "../ui/ListButton.svelte";
   import { bestCard, defaultPickWeights, resolveName, scoreCards, type PickCard, type PickWeights } from "../core/pick";
-  import type { ScreenCards } from "../backend";
+  import { onWindows, type ScreenCards } from "../backend";
   import { info } from "../hover.svelte";
 
   let {
@@ -19,7 +19,9 @@
     error,
     cards = null,
     weights = $bindable(),
-  }: { model: Model; state: MissionState | null; error: string | null; cards?: ScreenCards | null; weights: PickWeights } = $props();
+    windowMode = null,
+    tennoscopeRunning = true,
+  }: { model: Model; state: MissionState | null; error: string | null; cards?: ScreenCards | null; weights: PickWeights; windowMode?: string | null; tennoscopeRunning?: boolean } = $props();
 
   const live = $derived(!!ms && ms.relics.length > 0);
   const paths = $derived(ms ? (ms.relics.length ? ms.relics : ms.last_relics) : []);
@@ -27,6 +29,20 @@
   const pool = $derived(squadPool(relics));
   const best = $derived(pool.reduce<(typeof pool)[number] | null>((b, r) => (r.price != null && (b == null || r.price > (b.price ?? 0)) ? r : b), null));
   const needed = $derived(pool.filter((r) => r.needed));
+  /** On Windows nothing draws over exclusive fullscreen: TennoScope's overlay can't show. */
+  const fullscreenBlocks = $derived(onWindows && windowMode === "MODE_FULLSCREEN");
+  /** The reward screen is up but no cards came: why, as far as orbiter can tell. */
+  const noCardsWhy = $derived(
+    !ms?.reward_screen_open || cards
+      ? null
+      : relics.length === 1
+        ? "Solo: one card, so nothing to choose and no overlay."
+        : !tennoscopeRunning
+          ? "TennoScope isn't running, so nothing reads the cards."
+          : fullscreenBlocks
+            ? "Warframe is in exclusive fullscreen: set Display Mode to Borderless for the overlay."
+            : "TennoScope hasn't read this screen (it started mid-mission, or couldn't read the cards). Your best card is the highest below.",
+  );
 
   // Which reward to take. With TennoScope's reading of the screen: exactly those cards, in screen
   // order. Without it: everything the squad's relics can drop, best first, to find yours in.
@@ -151,6 +167,8 @@
     band={onScreen ? undefined : stats}
   />
 
+  {#if noCardsWhy}<p class="why dim small">{noCardsWhy}</p>
+  {:else if fullscreenBlocks}<p class="why dim small" title="Warframe's display mode, from its settings file">Warframe is in exclusive fullscreen, where TennoScope's overlay can't show: set Display Mode to Borderless in its options.</p>{/if}
   {#if onScreen}
     <section class="pick" aria-label="Which reward to take">
       <div class="pick-head">
@@ -231,6 +249,7 @@
 <style>
   h2 { margin: var(--course) 0 .6rem; }
   /* A squad is at most four: 2×2 or one row of four, never three and a stray. */
+  .why { margin: 0 0 var(--step); }
   .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--rule); border-left: 1px solid var(--rule); margin-top: var(--step); }
   .relic { border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 1rem 1.1rem 1.1rem; background: rgb(17 19 23 / 70%); }
   /* Page area under 640 px (App sets the flag, by the room pages actually have). */

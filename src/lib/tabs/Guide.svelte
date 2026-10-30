@@ -34,7 +34,7 @@
         ["planner", "Planner → Complete sets", "pick the relics most likely to finish a set you're close to.", "sets"],
         ["planner", "Planner → Make radiant", "spend Void Traces where they gain the most.", "radiant"],
         ["relics", "Relics", "average plat per crack, intact against radiant. Click an era to see what you can crack in its fissures now. Solo or radshare is one setting, shared with the Planner and Home."],
-        ["mission", "In mission", "once the mission loads, the squad's relics. On the reward screen it scores every card (by default plat, then unmastered, then ducats, then completing a set; the weights are yours to change) and says which to take."],
+        ["mission", "In mission", "once the mission loads, the squad's relics. On the reward screen it scores every card (by default plat, then unmastered, then ducats, then completing a set; the weights are yours to change) and says which to take. No overlay or cards? It says why: solo runs show one card (nothing to choose), TennoScope wasn't running or started mid-mission, or, on Windows, Warframe is in exclusive fullscreen (set Display Mode to Borderless). The TennoScope panel has a solid-background option for Windows if the overlay stays invisible."],
       ],
     },
     {

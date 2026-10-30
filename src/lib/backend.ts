@@ -86,7 +86,8 @@ export interface Settings {
   /** Switch to In mission when the reward screen opens. */
   jumpToPick: boolean;
   /** Start TennoScope (in the background) with orbiter and close it with orbiter. */
-  tennoscope: { launch: boolean; path: string };
+  /** opaqueOverlay: TennoScope's overlay on a solid background (Windows, when a transparent one is invisible). */
+  tennoscope: { launch: boolean; path: string; opaqueOverlay: boolean };
   market: MarketSettings;
   dataDir: string;
   /** Custom EE.log location; empty finds it in the Steam libraries. */
@@ -274,7 +275,7 @@ export const defaultSettings = (): Settings => ({
   market: defaultMarketSettings(),
   pick: defaultPickWeights(),
   jumpToPick: true,
-  tennoscope: { launch: true, path: "" },
+  tennoscope: { launch: true, path: "", opaqueOverlay: false },
   dataDir: "",
   eeLog: "",
   withoutInventory: false,
@@ -758,6 +759,16 @@ export async function rewardScreens(dataDir: string): Promise<LoggedScreen[]> {
   return res?.ok && res.headers.get("content-type")?.includes("json") ? res.json() : [];
 }
 
+/** Warframe's display mode from its EE.cfg ("MODE_BORDERLESS", "MODE_FULLSCREEN"…), when known. */
+export async function warframeWindowMode(eeLog: string): Promise<string | null> {
+  return inTauri ? invoke<string | null>("warframe_window_mode", { path: eeLog || null }).catch(() => null) : null;
+}
+
+/** TennoScope's overlay on a solid background from its next start (see settings.tennoscope). */
+export async function tennoscopeOpaqueOverlay(on: boolean): Promise<void> {
+  if (inTauri) await invoke("tennoscope_opaque_overlay", { on }).catch(() => {});
+}
+
 export async function missionState(eeLog: string): Promise<MissionState | null> {
   if (inTauri) return invoke<MissionState | null>("mission_state", { path: eeLog || null });
   const res = await fetch("/dev-mission.json").catch(() => null);
@@ -767,7 +778,7 @@ export async function missionState(eeLog: string): Promise<MissionState | null> 
 // Item artwork goes through orbiter's local cache, its own "img" protocol. Windows' webview
 // (WebView2) only reaches an app's protocol as http://img.localhost; Linux and macOS take
 // img://localhost. In the browser dev mode it comes straight from WFCD.
-const onWindows = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
+export const onWindows = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
 const IMG_BASE = onWindows ? "http://img.localhost/" : "img://localhost/";
 /** An item's WFCD artwork: a thumbnail, or the larger copy cards and the details sheet show. */
 // "wfm." names are warframe.market's own thumbnails (the Market page, for items WFCD has no art for).

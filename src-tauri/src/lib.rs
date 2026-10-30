@@ -219,6 +219,22 @@ fn ee_log_path() -> Option<PathBuf> {
     path
 }
 
+/// Warframe's display mode from its EE.cfg, beside the log ("MODE_BORDERLESS", "MODE_FULLSCREEN",
+/// "MODE_WINDOWED"). On Windows an overlay can't draw over exclusive fullscreen, so orbiter says so.
+#[tauri::command(async)]
+fn warframe_window_mode(path: Option<String>) -> Option<String> {
+    let log = path.filter(|p| !p.trim().is_empty()).map(PathBuf::from).or_else(ee_log_path)?;
+    let text = fs::read_to_string(log.parent()?.join("EE.cfg")).ok()?;
+    window_mode(&text)
+}
+
+fn window_mode(cfg: &str) -> Option<String> {
+    cfg.lines()
+        .find_map(|l| l.trim().strip_prefix("Graphics.WindowMode="))
+        .map(|v| v.trim().to_string())
+        .filter(|v| v.starts_with("MODE_") && v.len() < 40 && v.bytes().all(|b| b.is_ascii_uppercase() || b == b'_'))
+}
+
 /// What Warframe's EE.log says about the current fissure: the squad's relics, the reward screen.
 /// `None` when the log can't be found (game never run under this Steam, or a custom path is wrong).
 #[tauri::command]
@@ -474,6 +490,13 @@ fn tennoscope_start(companion: tauri::State<'_, companion::Companion>, path: Opt
 #[tauri::command(async)]
 fn tennoscope_ask(companion: tauri::State<'_, companion::Companion>, path: Option<String>, ask: String) -> Result<(), String> {
     companion.ask(path.as_deref(), &ask)
+}
+
+/// Whether the TennoScope orbiter starts draws its overlay on a solid background (Windows: a
+/// transparent one can come out invisible with some drivers). From its next start.
+#[tauri::command]
+fn tennoscope_opaque_overlay(on: bool) {
+    companion::set_opaque_overlay(on);
 }
 
 /// Brings up TennoScope's own window.
@@ -738,6 +761,8 @@ pub fn run() {
             load_settings,
             save_settings,
             mission_state,
+            warframe_window_mode,
+            tennoscope_opaque_overlay,
             reward_screens,
             market_account,
             market_sign_in,
@@ -775,4 +800,17 @@ pub fn run() {
                 app.state::<companion::Companion>().stop();
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_the_window_mode_from_ee_cfg() {
+        assert_eq!(window_mode("Graphics.DisplayAspectRatio=DAR_WIDESCREEN_16x9\r\nGraphics.WindowMode=MODE_BORDERLESS\r\n").as_deref(), Some("MODE_BORDERLESS"));
+        assert_eq!(window_mode("Graphics.WindowMode=MODE_FULLSCREEN").as_deref(), Some("MODE_FULLSCREEN"));
+        assert_eq!(window_mode("Graphics.WindowMode=<script>"), None);
+        assert_eq!(window_mode("nothing here"), None);
+    }
 }

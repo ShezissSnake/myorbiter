@@ -1,11 +1,23 @@
 <script lang="ts">
   // Everything orbiter can see and do about TennoScope, so its own window is rarely needed.
   import { ts } from "./tennoscopeStore.svelte";
-  import type { Health, HealthState } from "./backend";
+  import { onWindows, type Health, type HealthState } from "./backend";
   import Sheet from "./ui/Sheet.svelte";
+  import Switch from "./ui/Switch.svelte";
 
   // `onsync` is the sidebar's Sync: TennoScope reads the inventory, then orbiter reloads it.
-  let { open = $bindable(), synced, syncing, onsync }: { open: boolean; synced: string; syncing: boolean; onsync: () => void } = $props();
+  // `windowMode`: Warframe's display mode from its EE.cfg; `opaqueOverlay`: the Windows setting.
+  let {
+    open = $bindable(),
+    synced,
+    syncing,
+    onsync,
+    windowMode = null,
+    opaqueOverlay = $bindable(false),
+  }: { open: boolean; synced: string; syncing: boolean; onsync: () => void; windowMode?: string | null; opaqueOverlay?: boolean } = $props();
+  const MODE_WORD: Record<string, string> = { MODE_BORDERLESS: "Borderless", MODE_FULLSCREEN: "Fullscreen (exclusive)", MODE_WINDOWED: "Windowed" };
+  /** On Windows nothing can draw over exclusive fullscreen: the overlay can't show at all. */
+  const blocksOverlay = $derived(onWindows && windowMode === "MODE_FULLSCREEN");
 
   // A fresh look whenever the sheet opens, and every few seconds while it is open.
   $effect(() => {
@@ -79,6 +91,22 @@
         <div><button class="stamp gold" disabled={ts.pending === "--authorize-capture"} onclick={() => ts.ask("--authorize-capture")}>Allow screen capture</button></div>
       </section>
     {/if}
+
+    <section class:callout={blocksOverlay} class:gold={blocksOverlay}>
+      <h3 class="register">Reward overlay</h3>
+      {#if windowMode}
+        <div class="kv"><span>Warframe's display mode</span><strong>{MODE_WORD[windowMode] ?? windowMode}</strong></div>
+      {/if}
+      {#if blocksOverlay}
+        <p class="prose">In exclusive fullscreen nothing can draw over Warframe, so the overlay never shows. In Warframe's options, set <b>Display Mode</b> to <b>Borderless</b>.</p>
+      {/if}
+      <p class="dim small">It shows on a fissure's reward screen when there's a choice: two or more cards. Solo there's one card, so nothing shows. A screen TennoScope couldn't read, or the first one after it starts mid-mission, is missed too.</p>
+      {#if onWindows}
+        <Switch bind:on={opaqueOverlay} label="Solid overlay background">
+          <span class="dim small">If the overlay never appears even in Borderless: some drivers draw a see-through window invisibly. This draws it on a dark background instead. From TennoScope's next start (restart orbiter).</span>
+        </Switch>
+      {/if}
+    </section>
 
     <section>
       <h3 class="register">Inventory</h3>

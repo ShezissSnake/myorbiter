@@ -21,6 +21,8 @@
     loadBundle,
     loadLive,
     loadSettings,
+    tennoscopeOpaqueOverlay,
+    warframeWindowMode,
     missionState,
     rewardCards,
     rewardScreens,
@@ -1057,6 +1059,20 @@
     ts.path = settings.tennoscope.path;
     ts.launch = settings.tennoscope.launch && !onConsole;
   });
+  $effect(() => {
+    void tennoscopeOpaqueOverlay(settings.tennoscope.opaqueOverlay);
+  });
+  // Warframe's display mode: on Windows exclusive fullscreen leaves no room for TennoScope's
+  // overlay. Read at start and every few minutes (you can change it in game).
+  let windowMode = $state<string | null>(null);
+  $effect(() => {
+    const log = settings.eeLog;
+    if (onConsole) return;
+    const read = () => warframeWindowMode(log).then((m) => (windowMode = m));
+    void read();
+    const t = setInterval(read, 5 * 60_000);
+    return () => clearInterval(t);
+  });
 
   /** Refresh: ask TennoScope to read the inventory from the game when it can, then re-read its files. */
   let syncing = $state(false);
@@ -1263,6 +1279,8 @@
       // Before reading its data: a fresh TennoScope re-reads the inventory once the game is up.
       ts.path = settings.tennoscope.path;
       ts.launch = settings.tennoscope.launch && settings.market.platform === "pc";
+      // Before it starts: how TennoScope draws its overlay is set when it launches.
+      await tennoscopeOpaqueOverlay(settings.tennoscope.opaqueOverlay);
       // Awaited: whether TennoScope runs here at all decides what an empty folder means.
       await ts.check(true);
       // Every 15 s: if it stopped (crashed, or you quit it), start it again in the background.
@@ -1563,7 +1581,7 @@
       {#snippet pane(id: string, body: import("svelte").Snippet)}
         {#if visited[id] && available.some((p) => p.id === id)}<div class="pane" class:shown={settings.tab === id}>{@render body()}</div>{/if}
       {/snippet}
-      {#snippet pMission()}<InMission {model} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} />{/snippet}
+      {#snippet pMission()}<InMission {model} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} {windowMode} tennoscopeRunning={!!ts.status?.running} />{/snippet}
       {#snippet pSets()}<Sets {model} advice={settings.advice} />{/snippet}
       {#snippet pParts()}<Parts {model} bind:advice={settings.advice} />{/snippet}
       {#snippet pMastery()}<Mastery {model} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} />{/snippet}
@@ -1610,7 +1628,7 @@
 <NoticesSheet bind:open={showNotices} bind:view={noticesView} bind:settings console={onConsole} open_={openNotice} test={testNotice} />
 <Toasts open={openNotice} left={compact ? "5.2rem" : "15.3rem"} />
 <SettingsSheet bind:open={showSettings} bind:settings onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
-<TennoscopeSheet bind:open={showTennoscope} synced={model ? ago(model.observedAt, tick) : "not yet"} {syncing} onsync={refreshAll} />
+<TennoscopeSheet bind:open={showTennoscope} synced={model ? ago(model.observedAt, tick) : "not yet"} {syncing} onsync={refreshAll} {windowMode} bind:opaqueOverlay={settings.tennoscope.opaqueOverlay} />
 
 <style>
   /* The frame: a sidebar of pages, and the page. minmax(0, 1fr): a wide table never stretches the window. */
