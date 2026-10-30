@@ -838,7 +838,7 @@ fn keep(path: &Path, value: &Value) {
 fn thumb_name(v: &Value) -> Value {
     v.as_str()
         .and_then(|t| t.strip_prefix("items/images/en/thumbs/"))
-        .filter(|f| !f.is_empty() && f.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.')))
+        .filter(|f| !f.is_empty() && f.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'(' | b')')))
         .map_or(Value::Null, |f| Value::String(format!("wfm.{f}")))
 }
 
@@ -1042,6 +1042,7 @@ mod tests {
     #[test]
     fn thumbnails_are_plain_names_under_the_thumbs_folder() {
         assert_eq!(thumb_name(&serde_json::json!("items/images/en/thumbs/serration.711b.128x128.png")), serde_json::json!("wfm.serration.711b.128x128.png"));
+        assert_eq!(thumb_name(&serde_json::json!("items/images/en/thumbs/equilibrium_(steam_pinnacle_pack).0326.128x128.webp")), serde_json::json!("wfm.equilibrium_(steam_pinnacle_pack).0326.128x128.webp"));
         assert_eq!(thumb_name(&serde_json::json!("items/images/en/thumbs/../../x.png")), Value::Null);
         assert_eq!(thumb_name(&serde_json::json!("items/images/en/serration.png")), Value::Null);
         assert_eq!(thumb_name(&Value::Null), Value::Null);

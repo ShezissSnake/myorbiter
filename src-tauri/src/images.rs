@@ -25,7 +25,7 @@ const LARGE: u32 = 400;
 fn valid_name(name: &str) -> bool {
     !name.is_empty()
         && name.len() < 120
-        && name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+        && name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'(' | b')'))
         && !name.starts_with('.')
         && [".png", ".jpg", ".jpeg", ".webp"].iter().any(|ext| name.to_ascii_lowercase().ends_with(ext))
 }
@@ -237,6 +237,7 @@ mod tests {
         assert!(valid_name("rifle-damage_amount.mod.jpg"));
         assert!(!valid_name("../secret.png"));
         assert!(!valid_name("a/b.png"));
+        assert!(valid_name("wfm.equilibrium_(steam_pinnacle_pack).0326.128x128.webp"));
         assert!(!valid_name(".hidden.png"));
         assert!(!valid_name("script.js"));
     }

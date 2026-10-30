@@ -574,8 +574,11 @@
   @keyframes wait { from { transform: scaleX(1); } to { transform: scaleX(0); } }
   @media (prefers-reduced-motion: reduce) { .pending i { animation: none; } }
   .undo { font-size: .64rem; }
-  .fix { display: flex; align-items: center; gap: .9rem; margin-top: .35rem; padding-left: calc(34px + .75rem); }
+  .fix { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .9rem; margin-top: .35rem; padding-left: calc(34px + .75rem); }
   .fix .stamp { padding: .35rem .7rem; }
+  /* Each button on one line; in a narrow window they sit under the name rather than squeezed beside it. */
+  .fix button { white-space: nowrap; }
+  :global(html[data-room~="lt1100"]) .fix { padding-left: 0; }
 
   .alert { border: 1px solid var(--oxblood); color: var(--oxblood); padding: .7rem 1rem; margin: var(--step) 0; font-size: .84rem; }
   .panel { border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); padding: 1.2rem 1.4rem; margin: var(--step) 0; display: grid; gap: .8rem; }

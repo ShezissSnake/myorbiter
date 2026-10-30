@@ -67,7 +67,7 @@
     { key: "vault", label: "Vault", value: (r) => (r.vaulted ? 1 : 0), cell: vaultCell, align: "center", title: "Vaulted: no new copies drop" },
     { key: "chance", label: "Part chance", value: (r) => r.chance, cell: chanceCell, align: "right", title: "Chance one crack, at your best refinement, gives a part a near-complete set is missing" },
     { key: "value", label: "Per crack", value: (r) => r.value, cell: valueCell, align: "right", title: "Platinum per crack toward sets: each missing part at what it adds to its set (the set's price over what your other parts already sell for loose), never less than the part's own price" },
-    { key: "hits", label: "Parts it can give", value: (r) => r.hits.length, cell: hitsCell, sortable: false },
+    { key: "hits", label: "Parts it can give", value: (r) => r.hits.length, cell: hitsCell, sortable: false, width: "40%" },
   ];
 
   // ------------------------------------------------ radiant

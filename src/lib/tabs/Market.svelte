@@ -60,7 +60,8 @@
     query = "";
   }
   /** orbiter's own art where it has some, else warframe.market's thumbnail. */
-  const art = (r: MarketRow) => model.imageOf(r.name) ?? r.thumb;
+  // Relics: orbiter files their art under the relic ("Axi S17"); the market has none.
+  const art = (r: MarketRow) => model.imageOf(r.name) ?? (r.category === "relic" ? model.imageOf(r.name.replace(/ Relic$/, "")) : null) ?? r.thumb;
   const buy = (r: MarketRow) => mkt.startBuy(r.name, { unique: r.gameRef });
 
   const columns: Column<MarketRow>[] = [

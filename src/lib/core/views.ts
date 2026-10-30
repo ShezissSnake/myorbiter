@@ -24,7 +24,16 @@ export function partAvailability(m: Model, partName: string): "farmable" | "resu
  * still drops), else by the catalog's flag. The flag lags: Nyx Prime's parts drop from Railjack
  * cache relics while it says vaulted. Varzia's stock counts as vaulted.
  */
+/** Prime sentinel weapons have no parts: they come with their sentinel, and are vaulted with it. */
+const COMES_WITH: Record<string, string> = {
+  "/Lotus/Types/Sentinels/SentinelWeapons/PrimeDethMachineRifle": "/Lotus/Types/Sentinels/SentinelPowersuits/PrimeDethCubePowerSuit",
+  "/Lotus/Types/Sentinels/SentinelWeapons/PrimeLaserRifle": "/Lotus/Types/Sentinels/SentinelPowersuits/PrimeWyrmPowerSuit",
+  "/Lotus/Types/Sentinels/SentinelWeapons/PrimeSentShotgun": "/Lotus/Types/Sentinels/SentinelPowersuits/PrimeCarrierPowerSuit",
+};
+
 export function primeVaulted(m: Model, item: { uniqueName: string; vaulted?: boolean }): boolean {
+  const sentinel = COMES_WITH[item.uniqueName] ? m.catalogByUnique.get(COMES_WITH[item.uniqueName]) : undefined;
+  if (sentinel) return primeVaulted(m, sentinel);
   const parts = m.partsByParent.get(item.uniqueName) ?? [];
   const avail = parts.map((p) => partAvailability(m, p.fullName)).filter((a) => a !== "unknown");
   if (!avail.length) return item.vaulted === true;
