@@ -19,6 +19,7 @@ The patch is written against TennoScope `main` at commit `7f66486` (v0.13.1). It
 - `app/src-tauri/src/update.rs`: no self-update for the copy inside orbiter.
 - `app/src-tauri/src/monitor.rs`, `overlay_window.rs`, `lib.rs`: write the cards when they're read, clear them when the overlay hides, and an `orbiter_pick` command for the overlay. Also marks vaulted rewards, handles `--background` (hidden at start, close hides, a second start doesn't pop the window), makes the layered overlay visible on Windows, and catches up on a fissure in progress at attach.
 - `app/src-tauri/src/reward_log.rs`: `adopt_tail`, the catch-up. `app/src-tauri/tests/reward_log.rs` covers it.
+- `crates/win-capture/src/layered.rs` (new): the one Windows call that makes the layered overlay visible, in the crate that already holds TennoScope's Windows API code (the app crate forbids `unsafe`).
 - `crates/warframe-acquisition/src/relic_catalog.rs`, `crates/warframe-domain/src/rewards.rs`: which rewards only drop from vaulted relics. Includes a test.
 - `app/src/RewardOverlay.tsx`, `RewardCards.tsx`, `backend.ts`, `App.css`: ask orbiter for its pick every half second while cards are up, and draw the score, Pick and Vaulted in the card's corner. `app/src/OrbiterPick.test.tsx` covers it.
 

@@ -558,7 +558,7 @@ index 0000000..dbefbcd
 +    }
 +}
 diff --git a/app/src-tauri/src/overlay_window.rs b/app/src-tauri/src/overlay_window.rs
-index b8f4a88..0458309 100644
+index b8f4a88..63c6154 100644
 --- a/app/src-tauri/src/overlay_window.rs
 +++ b/app/src-tauri/src/overlay_window.rs
 @@ -209,6 +209,8 @@ fn configure_reward_overlay(
@@ -579,7 +579,7 @@ index b8f4a88..0458309 100644
      if std::env::var_os("TENNOSCOPE_OPAQUE_OVERLAY").is_some() {
          window.set_background_color(Some(tauri::window::Color(14, 16, 22, 255)))?;
      }
-@@ -351,6 +355,24 @@ fn show_over_game(window: &WebviewWindow, geometry: OverlayGeometry) -> bool {
+@@ -351,6 +355,18 @@ fn show_over_game(window: &WebviewWindow, geometry: OverlayGeometry) -> bool {
  /// Both ends of the overlay's life are traced, because "the overlay lingered" has several possible
  /// owners (the poller not noticing the screen went, the monitor not acting on it, or the hide
  /// call itself not taking effect), and they are indistinguishable from outside.
@@ -589,22 +589,16 @@ index b8f4a88..0458309 100644
 +/// stayed invisible. Full opacity at the layer level, so what the page draws is what shows.
 +#[cfg(windows)]
 +fn make_layered_visible(window: &WebviewWindow) {
-+    #[link(name = "user32")]
-+    unsafe extern "system" {
-+        fn SetLayeredWindowAttributes(hwnd: *mut std::ffi::c_void, key: u32, alpha: u8, flags: u32) -> i32;
-+    }
-+    const LWA_ALPHA: u32 = 0x2;
 +    if let Ok(hwnd) = window.hwnd() {
-+        // SAFETY: a live top-level window handle from Tauri; the call only sets its layer opacity.
-+        let ok = unsafe { SetLayeredWindowAttributes(hwnd.0, 0, 255, LWA_ALPHA) };
-+        trace_overlay(&format!("layered attributes set: {}", ok != 0));
++        let ok = win_capture::make_layered_visible(hwnd.0);
++        trace_overlay(&format!("layered attributes set: {ok}"));
 +    }
 +}
 +
  fn trace_overlay(action: &str) {
      log::debug!("[DEBUG-overlay] {action}");
  }
-@@ -383,6 +405,8 @@ pub fn show_reward_overlay(app: &tauri::AppHandle, cards: usize) -> Option<&'sta
+@@ -383,6 +399,8 @@ pub fn show_reward_overlay(app: &tauri::AppHandle, cards: usize) -> Option<&'sta
              // drop it out of the topmost band it was placed in. Re-asserting after the show is what
              // keeps the strip above a borderless game rather than behind it.
              let _ = window.set_always_on_top(true);
@@ -613,7 +607,7 @@ index b8f4a88..0458309 100644
              trace_overlay("shown via plain window");
          });
      }
-@@ -390,6 +414,8 @@ pub fn show_reward_overlay(app: &tauri::AppHandle, cards: usize) -> Option<&'sta
+@@ -390,6 +408,8 @@ pub fn show_reward_overlay(app: &tauri::AppHandle, cards: usize) -> Option<&'sta
  }
  
  pub fn hide_reward_overlay(app: &tauri::AppHandle) {
@@ -1322,3 +1316,48 @@ index aa9d60c..f6172e6 100644
          .map_err(D::Error::custom)
      }
  }
+diff --git a/crates/win-capture/Cargo.toml b/crates/win-capture/Cargo.toml
+index 00d6d59..dd9fb8e 100644
+--- a/crates/win-capture/Cargo.toml
++++ b/crates/win-capture/Cargo.toml
+@@ -19,4 +19,5 @@ windows = { version = "=0.62.2", features = [
+     "Win32_Graphics_Dxgi_Common",
+     "Win32_Graphics_Gdi",
+     "Win32_UI_HiDpi",
++    "Win32_UI_WindowsAndMessaging",
+ ] }
+diff --git a/crates/win-capture/src/layered.rs b/crates/win-capture/src/layered.rs
+new file mode 100644
+index 0000000..0759b57
+--- /dev/null
++++ b/crates/win-capture/src/layered.rs
+@@ -0,0 +1,13 @@
++//! A layered window (click-through on Windows makes the overlay one: `WS_EX_LAYERED`) isn't drawn
++//! at all until its layer attributes are set, which tao never does.
++
++use windows::Win32::Foundation::{COLORREF, HWND};
++use windows::Win32::UI::WindowsAndMessaging::{LWA_ALPHA, SetLayeredWindowAttributes};
++
++/// Sets a layered window's layer to full opacity, so what it draws shows. `hwnd` is a live
++/// top-level window handle (Tauri's `WebviewWindow::hwnd`). True when Windows took it.
++pub fn make_layered_visible(hwnd: *mut core::ffi::c_void) -> bool {
++    // SAFETY: the handle comes from a live window, and the call only sets its layer opacity;
++    // Windows rejects a stale or non-layered handle with an error rather than misbehaving.
++    unsafe { SetLayeredWindowAttributes(HWND(hwnd), COLORREF(0), 255, LWA_ALPHA).is_ok() }
++}
+diff --git a/crates/win-capture/src/lib.rs b/crates/win-capture/src/lib.rs
+index 2ddcd55..1a9b51d 100644
+--- a/crates/win-capture/src/lib.rs
++++ b/crates/win-capture/src/lib.rs
+@@ -13,6 +13,11 @@ mod windows;
+ 
+ #[cfg(windows)]
+ pub use windows::{Capture, CaptureError};
++#[cfg(windows)]
++#[allow(unsafe_code)]
++mod layered;
++#[cfg(windows)]
++pub use layered::make_layered_visible;
+ 
+ /// A window in physical desktop coordinates, including negative monitor origins.
+ #[derive(Clone, Copy, Debug, Eq, PartialEq)]
