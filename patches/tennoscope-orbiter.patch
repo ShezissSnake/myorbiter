@@ -168,7 +168,7 @@ index ddac88b..4b43ac8 100644
              get_preferences,
              set_mastery_marks,
 diff --git a/app/src-tauri/src/monitor.rs b/app/src-tauri/src/monitor.rs
-index d09ca9a..2e8a14a 100644
+index d09ca9a..a9e70d3 100644
 --- a/app/src-tauri/src/monitor.rs
 +++ b/app/src-tauri/src/monitor.rs
 @@ -989,6 +989,9 @@ impl RewardSession {
@@ -181,7 +181,16 @@ index d09ca9a..2e8a14a 100644
                  overlay_notice = overlay_window::show_reward_overlay(app, transition.choices.len());
                  let _ = app.emit_to("reward-overlay", "reward-updated", ());
                  spawn_market_price_fetch(
-@@ -1303,6 +1306,9 @@ pub(crate) fn run(
+@@ -1185,6 +1188,8 @@ pub(crate) fn run(
+     let procfs = ProcessObserver::new();
+     let mut machine = MonitorMachine::new(15);
+     let mut reward_log = RewardLogMachine::default();
++    // Events from catching up on a mission in progress at attach, handled with the next poll's.
++    let mut adopted_reward_events: Vec<RewardLogEvent> = Vec::new();
+     let mut kiosk_session = KioskSession::new();
+     // The kiosk session's window/thread side effects, as hooks so the session logic itself stays
+     // testable without an AppHandle.
+@@ -1303,6 +1308,9 @@ pub(crate) fn run(
          .lock()
          .ok()
          .and_then(|runtime| load_relic_catalog(&runtime.app_data));
@@ -191,7 +200,27 @@ index d09ca9a..2e8a14a 100644
      let mut reward_session =
          RewardSession::new(catalog, relic_catalog, reward_catalog, price_cache.clone());
      // EE.log reaches us seconds after the events it describes (measured at ~7.5s on 2026-07-27),
-@@ -2320,6 +2326,11 @@ fn spawn_market_price_fetch(
+@@ -1377,6 +1385,9 @@ pub(crate) fn run(
+                         // tail starts at EOF, so a kiosk already on screen when the app started
+                         // has no open marker left for us to see. Fold the recent tail once, at
+                         // attach, to adopt the session in progress.
++                        // The same for a fissure in progress: the relics it loaded are in the
++                        // tail, and without them its reward screen can't be read.
++                        adopted_reward_events = reward_log.adopt_tail(&log_tail(ee_path, KIOSK_TAIL_SCAN));
+                         if let Some(kiosk_view_cell) = app.try_state::<KioskState>() {
+                             kiosk_session.adopt_log_tail(
+                                 &log_tail(ee_path, KIOSK_TAIL_SCAN),
+@@ -1424,7 +1435,8 @@ pub(crate) fn run(
+                 };
+             }
+         }
+-        for event in reward_log.observe_bytes(&log_bytes) {
++        let caught_up = std::mem::take(&mut adopted_reward_events);
++        for event in caught_up.into_iter().chain(reward_log.observe_bytes(&log_bytes)) {
+             if generation.is_current() {
+                 reward_session.handle_event(
+                     event,
+@@ -2320,6 +2332,11 @@ fn spawn_market_price_fetch(
                      .is_empty()
                      .then_some("warframe.market pricing is unavailable for these rewards")
              });
@@ -203,7 +232,7 @@ index d09ca9a..2e8a14a 100644
              (prices, failure)
          },
          move || {
-@@ -2391,6 +2402,25 @@ fn spawn_market_price_warm(pool: &[RewardCatalogEntry], price_cache: &MarketPric
+@@ -2391,6 +2408,25 @@ fn spawn_market_price_warm(pool: &[RewardCatalogEntry], price_cache: &MarketPric
      });
  }
  
@@ -229,7 +258,7 @@ index d09ca9a..2e8a14a 100644
  fn apply_reward_observations(
      shared: &SharedRuntime,
      catalog: &[RewardCatalogEntry],
-@@ -2438,6 +2468,7 @@ fn apply_reward_observations(
+@@ -2438,6 +2474,7 @@ fn apply_reward_observations(
                  observation.confidence,
              )
              .ok()
@@ -529,10 +558,62 @@ index 0000000..dbefbcd
 +    }
 +}
 diff --git a/app/src-tauri/src/overlay_window.rs b/app/src-tauri/src/overlay_window.rs
-index b8f4a88..c8babf3 100644
+index b8f4a88..0458309 100644
 --- a/app/src-tauri/src/overlay_window.rs
 +++ b/app/src-tauri/src/overlay_window.rs
-@@ -390,6 +390,8 @@ pub fn show_reward_overlay(app: &tauri::AppHandle, cards: usize) -> Option<&'sta
+@@ -209,6 +209,8 @@ fn configure_reward_overlay(
+     window.set_focusable(false)?;
+     window.set_ignore_cursor_events(true)?;
+     window.set_always_on_top(true)?;
++    #[cfg(windows)]
++    make_layered_visible(window);
+     // Escape hatch for the one failure this cannot be tested for from here: a WebView2 child HWND
+     // under `WS_EX_LAYERED` with no layer attributes is the likeliest way `transparent: true` comes
+     // out invisible or black on a real Windows machine. Setting a colour makes the strip opaque,
+@@ -253,6 +255,8 @@ pub fn configure_kiosk_overlay(window: &WebviewWindow) -> tauri::Result<()> {
+     window.set_focusable(false)?;
+     window.set_ignore_cursor_events(true)?;
+     window.set_always_on_top(true)?;
++    #[cfg(windows)]
++    make_layered_visible(window);
+     if std::env::var_os("TENNOSCOPE_OPAQUE_OVERLAY").is_some() {
+         window.set_background_color(Some(tauri::window::Color(14, 16, 22, 255)))?;
+     }
+@@ -351,6 +355,24 @@ fn show_over_game(window: &WebviewWindow, geometry: OverlayGeometry) -> bool {
+ /// Both ends of the overlay's life are traced, because "the overlay lingered" has several possible
+ /// owners (the poller not noticing the screen went, the monitor not acting on it, or the hide
+ /// call itself not taking effect), and they are indistinguishable from outside.
++/// Click-through on Windows (`set_ignore_cursor_events`) makes the window `WS_EX_LAYERED`, and
++/// a layered window is not drawn at all until `SetLayeredWindowAttributes` (or
++/// `UpdateLayeredWindow`) has been called for it, which tao never does: the overlay was shown and
++/// stayed invisible. Full opacity at the layer level, so what the page draws is what shows.
++#[cfg(windows)]
++fn make_layered_visible(window: &WebviewWindow) {
++    #[link(name = "user32")]
++    unsafe extern "system" {
++        fn SetLayeredWindowAttributes(hwnd: *mut std::ffi::c_void, key: u32, alpha: u8, flags: u32) -> i32;
++    }
++    const LWA_ALPHA: u32 = 0x2;
++    if let Ok(hwnd) = window.hwnd() {
++        // SAFETY: a live top-level window handle from Tauri; the call only sets its layer opacity.
++        let ok = unsafe { SetLayeredWindowAttributes(hwnd.0, 0, 255, LWA_ALPHA) };
++        trace_overlay(&format!("layered attributes set: {}", ok != 0));
++    }
++}
++
+ fn trace_overlay(action: &str) {
+     log::debug!("[DEBUG-overlay] {action}");
+ }
+@@ -383,6 +405,8 @@ pub fn show_reward_overlay(app: &tauri::AppHandle, cards: usize) -> Option<&'sta
+             // drop it out of the topmost band it was placed in. Re-asserting after the show is what
+             // keeps the strip above a borderless game rather than behind it.
+             let _ = window.set_always_on_top(true);
++            #[cfg(windows)]
++            make_layered_visible(&window);
+             trace_overlay("shown via plain window");
+         });
+     }
+@@ -390,6 +414,8 @@ pub fn show_reward_overlay(app: &tauri::AppHandle, cards: usize) -> Option<&'sta
  }
  
  pub fn hide_reward_overlay(app: &tauri::AppHandle) {
@@ -541,6 +622,36 @@ index b8f4a88..c8babf3 100644
      if let Some(window) = app.get_webview_window("reward-overlay") {
          let _ = app.run_on_main_thread(move || {
              trace_overlay("hide");
+diff --git a/app/src-tauri/src/reward_log.rs b/app/src-tauri/src/reward_log.rs
+index 9c554b3..e6353a5 100644
+--- a/app/src-tauri/src/reward_log.rs
++++ b/app/src-tauri/src/reward_log.rs
+@@ -58,6 +58,25 @@ impl RewardLogMachine {
+         self.reward_window_open
+     }
+ 
++    /// Catches up on a mission already in progress from the log's recent tail, read once when
++    /// TennoScope attaches to the game (the live tail starts at the end of the file). History
++    /// emits nothing; only if the tail ends with this mission's relics loaded and no reward
++    /// screen open does it arm for that screen, as the relics loading would have. Without it, a
++    /// TennoScope started mid-mission (orbiter restarting it) misses that mission's screen.
++    pub fn adopt_tail(&mut self, tail: &[u8]) -> Vec<RewardLogEvent> {
++        // Whole lines only: the tail can start mid-line.
++        let start = tail.iter().position(|b| *b == b'\n').map_or(tail.len(), |i| i + 1);
++        let _ = self.observe_bytes(&tail[start..]);
++        self.carry.clear();
++        if self.reward_window_open || self.loaded_relics.is_empty() {
++            return Vec::new();
++        }
++        self.baseline_requested = true;
++        vec![RewardLogEvent::BaselineRequested {
++            relic_paths: self.loaded_relics.clone(),
++        }]
++    }
++
+     pub fn observe_bytes(&mut self, bytes: &[u8]) -> Vec<RewardLogEvent> {
+         self.carry.extend_from_slice(bytes);
+         let complete = self
 diff --git a/app/src-tauri/src/update.rs b/app/src-tauri/src/update.rs
 index 5b69397..d2d9ef1 100644
 --- a/app/src-tauri/src/update.rs
@@ -557,6 +668,30 @@ index 5b69397..d2d9ef1 100644
      let exe = std::env::current_exe().unwrap_or_default();
      let appimage = std::env::var_os("APPIMAGE").map(std::path::PathBuf::from);
      let writable = appimage.as_ref().is_some_and(|p| file_writable(p));
+diff --git a/app/src-tauri/tests/reward_log.rs b/app/src-tauri/tests/reward_log.rs
+index 7872c18..7cd66a3 100644
+--- a/app/src-tauri/tests/reward_log.rs
++++ b/app/src-tauri/tests/reward_log.rs
+@@ -354,3 +354,19 @@ fn is_render_lifecycle_event(event: &RewardLogEvent) -> bool {
+         RewardLogEvent::BaselineRequested { .. } | RewardLogEvent::ChoicesReady { .. }
+     )
+ }
++
++// Started mid-mission (orbiter restarting TennoScope): the relics this fissure loaded are in the
++// log's tail, read once at attach, and arm for its reward screen as their loading would have.
++#[test]
++fn a_mission_in_progress_is_caught_up_from_the_tail() {
++    const RELIC: &str = "12.0 Script [Info]: x /Lotus/Types/Game/Projections/T4VoidProjectionVorunaPrimeCBronze ok\n";
++    const OPEN: &str = "13.0 Script [Info]: VoidProjections: OpenVoidProjectionRewardScreenRMI\n";
++    const CLOSE: &str = "14.0 Script [Info]: ProjectionRewardChoice.lua: Relic reward screen shut down\n";
++    let mut machine = RewardLogMachine::default();
++    let events = machine.adopt_tail(format!("cut line\n{RELIC}{OPEN}{CLOSE}{RELIC}").as_bytes());
++    assert!(matches!(events.as_slice(), [RewardLogEvent::BaselineRequested { relic_paths }] if relic_paths.len() == 1));
++    assert_eq!(machine.observe_line(OPEN.trim()), vec![RewardLogEvent::RewardWindowOpened]);
++    // History alone (the last screen closed, or one still open) arms nothing.
++    assert!(RewardLogMachine::default().adopt_tail(format!("x\n{RELIC}{OPEN}{CLOSE}").as_bytes()).is_empty());
++    assert!(RewardLogMachine::default().adopt_tail(format!("x\n{RELIC}{OPEN}").as_bytes()).is_empty());
++}
 diff --git a/app/src/App.css b/app/src/App.css
 index 7bfeb6b..8b3b7f0 100644
 --- a/app/src/App.css
