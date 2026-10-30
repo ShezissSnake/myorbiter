@@ -166,3 +166,17 @@ test("trade chat lines from your listings: dearest first, ranks shown, split to 
   assert.ok(many.length > 1 && many.every((l) => l.length <= 60 && l.startsWith("WTS [")));
   assert.deepEqual(wtsLines([]), []);
 });
+
+test("a ranked item's reference price is its unranked or maxed price only, never the unranked one for another rank", async () => {
+  const { referencePrice } = await import("../src/lib/core/market");
+  const { buildModel } = await import("../src/lib/core/model");
+  const m = buildModel({ observed_at: 1, inventory: [], catalog: [], relics: [], prices: { prices: { "Cutting Edge": 4, "Lone Mod": 3 }, max_rank_prices: { "Cutting Edge": 60 } } } as never);
+  const ce = { id: "ce", slug: "cutting_edge", gameRef: null, name: "Cutting Edge", maxRank: 10, subtypes: null, tags: ["mod"] };
+  assert.equal(referencePrice(m, ce, 0), 4);
+  assert.equal(referencePrice(m, ce, null), 4);
+  assert.equal(referencePrice(m, ce, 10), 60);
+  // Rank 9: no daily price for it, so no reference (the 4p one would drag a 60p listing down).
+  assert.equal(referencePrice(m, ce, 9), null);
+  // Maxed with no maxed price: none either.
+  assert.equal(referencePrice(m, { ...ce, name: "Lone Mod" }, 10), null);
+});

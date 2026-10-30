@@ -13,7 +13,8 @@
   const d = $derived(mkt.buyDraft);
   // Paying the cheapest seller's price or more: just buy from them.
   const overSeller = $derived(!!d && d.platinum != null && d.cheapestSell != null && d.platinum >= d.cheapestSell);
-  const ready = $derived(!!d && !d.loading && d.platinum != null && d.platinum >= 1 && d.quantity >= 1 && !mkt.busy && mkt.linked);
+  // At or over the cheapest seller, a buy order only overpays: buy from them instead.
+  const ready = $derived(!!d && !d.loading && d.platinum != null && d.platinum >= 1 && d.quantity >= 1 && !overSeller && !mkt.busy && mkt.linked);
   let dialog = $state<HTMLDivElement | null>(null);
   $effect(() => {
     if (open) void tick().then(() => dialog?.querySelector<HTMLInputElement>("input.price")?.focus());
@@ -60,7 +61,12 @@
           <div class="fields">
             {#if d.maxRank != null}
               <label><span class="register">Rank</span>
-                <select value={d.rank} onchange={(e) => mkt.startBuy(d.name, { rank: Number(e.currentTarget.value), quantity: d.quantity })}>{#each Array.from({ length: d.maxRank + 1 }, (_, i) => i) as r (r)}<option value={r}>{r === d.maxRank ? `${r} (max)` : r}</option>{/each}</select>
+                <select value={d.rank} onchange={(e) => mkt.startBuy(d.name, { rank: Number(e.currentTarget.value), subtype: d.subtype, quantity: d.quantity })}>{#each Array.from({ length: d.maxRank + 1 }, (_, i) => i) as r (r)}<option value={r}>{r === d.maxRank ? `${r} (max)` : r}</option>{/each}</select>
+              </label>
+            {/if}
+            {#if d.subtypes && d.subtypes.length > 1}
+              <label><span class="register">{d.subtypes.includes("radiant") ? "Refinement" : "Variant"}</span>
+                <select value={d.subtype} onchange={(e) => mkt.startBuy(d.name, { rank: d.rank, subtype: e.currentTarget.value, quantity: d.quantity })}>{#each d.subtypes as v (v)}<option value={v}>{v.charAt(0).toUpperCase() + v.slice(1)}</option>{/each}</select>
               </label>
             {/if}
             <label><span class="register">How many</span><input type="number" min="1" max="999" bind:value={d.quantity} onwheel={(e) => e.currentTarget.blur()} /></label>
@@ -74,7 +80,7 @@
               <span title="What it sold for over the last 30 days (median), so it can differ from the daily price elsewhere">Sold for <P v={d.median == null ? null : Math.round(d.median)} /></span>
             {/if}
           </div>
-          {#if overSeller}<p class="warn small">That's the cheapest seller's price or more: whisper them and buy it now instead.</p>{/if}
+          {#if overSeller}<p class="warn small">That's the cheapest seller's price or more: whisper them and buy it now instead, or lower your price.</p>{/if}
           {#if mkt.error && mkt.op == null}<p class="err small">{mkt.error}</p>{/if}
           <div class="row end">
             <button onclick={close}>Cancel</button>

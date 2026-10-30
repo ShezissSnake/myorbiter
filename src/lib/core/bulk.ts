@@ -287,12 +287,15 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
     else actions.push({ type: "skip", kind, name: it.name, rank: it.maxRank != null ? (o.rank ?? 0) : null, why: `${why}: ${AS_LISTED}` });
   };
 
-  for (const t of targets) {
-    const it = resolve(c.index, t);
+  for (const target of targets) {
+    const it = resolve(c.index, target);
     if (!it) {
-      actions.push({ type: "skip", kind: t.kind, name: t.name, rank: t.rank, why: "Not on warframe.market" });
+      actions.push({ type: "skip", kind: target.kind, name: target.name, rank: target.rank, why: "Not on warframe.market" });
       continue;
     }
+    // Ranked on warframe.market: a rank always (unranked is 0), even when orbiter's catalog
+    // doesn't know the item has ranks (Quick Thinking), so in-game rank-0 sellers count.
+    const t = { ...target, rank: it.maxRank != null ? (target.rank ?? 0) : null };
     const subtype = t.subtype ?? it.subtypes?.[0] ?? null;
     const key = keyOf(it, t.rank, subtype);
     const existing = c.orders.find((o) => o.itemId === it.id && orderKey(o, it) === key) ?? null;

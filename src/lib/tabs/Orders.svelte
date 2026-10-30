@@ -232,11 +232,14 @@
   const SOLD_WAIT = 4000;
   let pendingSold = $state<Record<string, number>>({});
   const soldTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** Each listing's quantity when you clicked Sold. */
+  const soldFrom = new Map<string, number>();
   function recordSale(o: MyOrder, n: number) {
     if (n < 1 || n > o.quantity) return;
     selling = null;
     clearTimeout(soldTimers.get(o.id));
     pendingSold = { ...pendingSold, [o.id]: n };
+    soldFrom.set(o.id, o.quantity);
     soldTimers.set(o.id, setTimeout(() => void commitSale(o.id), SOLD_WAIT));
   }
   function undoSale(id: string) {
@@ -250,7 +253,12 @@
     undoSale(id);
     const o = mkt.orders.find((x) => x.id === id);
     if (!o || !n) return;
-    const sale = await mkt.sold(o, Math.min(n, o.quantity));
+    // The game's trade log got there first while Undo was showing: it already marked copies sold
+    // (the listing shrank since you clicked) and recorded the sale. Only what's left is yours.
+    const already = Math.max(0, (soldFrom.get(id) ?? o.quantity) - o.quantity);
+    soldFrom.delete(id);
+    if (n - already < 1) return;
+    const sale = await mkt.sold(o, Math.min(n - already, o.quantity));
     if (sale) settings.sales = [sale, ...settings.sales].slice(0, 2000);
   }
   // Leaving the page (or quitting) doesn't lose a sale that was waiting.

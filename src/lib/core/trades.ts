@@ -1,6 +1,6 @@
 // Trades read from EE.log, turned into sales: you gave items and got only platinum back. Each item
 // is matched to your warframe.market listing for it, so orbiter can mark that listing sold.
-import { findItem, type MarketIndex, type MyOrder } from "./market";
+import { findItem, type MarketIndex, type MarketItem, type MyOrder } from "./market";
 import { gearSetParts, type Model } from "./model";
 import type { Trade, TradeItem } from "./types";
 import type { Sale, TradeLogEntry } from "../backend";
@@ -30,17 +30,43 @@ export function salesFromTrade(t: Trade, orders: MyOrder[], index: MarketIndex, 
     return !!it && orders.some((o) => o.itemId === it.id && o.type === "sell");
   };
   const sales: TradeSale[] = foldSets(t.offered, m, listed, index).map((x) => {
-    const it = findItem(index, x.name, null);
-    const order =
-      (it &&
-        orders.find((o) => o.itemId === it.id && o.type === "sell" && (it.maxRank == null || x.rank == null || (o.rank ?? 0) === x.rank)) ) ??
-      null;
+    const { name, subtype } = splitRefinement(x.name);
+    const it = findItem(index, name, null);
+    const order = it ? listingFor(it, x.rank, subtype, orders) : null;
     return { name: it?.name ?? x.name, rank: x.rank, count: x.count, platinumEach: 0, order };
   });
   const weights = sales.every((s) => s.order) ? sales.map((s) => s.order!.platinum * s.count) : sales.map((s) => s.count);
   const total = weights.reduce((a, b) => a + b, 0) || 1;
   sales.forEach((s, i) => (s.platinumEach = Math.round((t.platinum_received * weights[i]) / total / s.count)));
   return sales;
+}
+
+const REFINEMENT = /\s*[[(]?\b(Intact|Exceptional|Flawless|Radiant)\b[\])]?/i;
+
+/** A relic's refinement, when the trade names it ("Axi A1 Relic [Radiant]"), and the name without it. */
+export function splitRefinement(name: string): { name: string; subtype: string | null } {
+  const hit = REFINEMENT.exec(name);
+  return hit ? { name: name.replace(REFINEMENT, "").trim(), subtype: hit[1].toLowerCase() } : { name, subtype: null };
+}
+
+/**
+ * Your listing a traded item sold from. Only a sure match: closing the wrong listing (a maxed
+ * arcane for an unranked one, a radiant relic for an intact one) costs more than missing one.
+ */
+export function listingFor(it: MarketItem, rank: number | null, subtype: string | null, orders: MyOrder[]): MyOrder | null {
+  let mine = orders.filter((o) => o.itemId === it.id && o.type === "sell");
+  if (it.maxRank != null) {
+    // The log shows an arcane's rank as pips: an unranked one has none, so no rank means rank 0.
+    const r = rank ?? (it.tags?.includes("arcane_enhancement") ? 0 : null);
+    // Another ranked item with no rank logged: only when there's one listing it could be.
+    mine = r == null ? (mine.length === 1 ? mine : []) : mine.filter((o) => (o.rank ?? 0) === r);
+  }
+  if (it.tags?.includes("relic")) {
+    const of = (o: MyOrder) => o.subtype ?? "intact";
+    // Refinement not logged: only when you list just one refinement of it.
+    mine = subtype ? mine.filter((o) => of(o) === subtype) : new Set(mine.map(of)).size === 1 ? mine : [];
+  }
+  return mine[0] ?? null;
 }
 
 /**

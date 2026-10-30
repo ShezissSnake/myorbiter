@@ -679,10 +679,16 @@
       // Only trades from the last half hour are acted on. Older ones turn up when orbiter first
       // reads a log (just installed, or settings reset) or was closed at the time: by now that
       // listing may have been put back up, and closing it again would be wrong.
-      const recent = fresh.filter((t) => !t.at || Date.now() - t.at * 1000 < 30 * 60_000);
+      // A trade with no time (the log's session start wasn't seen) is acted on only once it turns
+      // up new after this run's first read of that session: the first read can be hours late.
+      const firstRead = !tradeSessionsRead.has(session ?? "?");
+      tradeSessionsRead.add(session ?? "?");
+      const recent = fresh.filter((t) => (t.at ? Date.now() - t.at * 1000 < 30 * 60_000 : !firstRead));
       if (recent.length) void handleTrades(recent, session);
     });
   });
+  /** Game sessions whose trade log this run has read once (see the trade effect). */
+  const tradeSessionsRead = new Set<number | string>();
   async function handleTrades(trades: NonNullable<MissionState["trades"]>, session: number | null) {
     const done: string[] = [];
     let unmarked = 0;

@@ -73,6 +73,10 @@ const STATUS_SETTLE_MS = 400;
 
 /** Order books are cached briefly so opening the tab twice doesn't refetch everything. */
 const BOOK_TTL = 60_000;
+/** Changes refused in a row before a loop stops sending more (warframe.market is having trouble). */
+const WRITE_FAILS = 3;
+/** A bulk plan older than this has its prices read again before it's applied. */
+const PLAN_FRESH_MS = 10 * 60_000;
 
 /** The lowest price orbiter lists or reprices an item at: your relic minimum for relics, your minimum for the rest. */
 export function minFor(s: Pick<MarketSettings, "minPrice" | "minRelicPrice">, it: { tags?: string[] | null }): number {
@@ -425,6 +429,7 @@ class MarketStore {
     // Three reads failing in a row is warframe.market not answering (or turning orbiter away):
     // the pass stops there rather than holding your listings' buttons for every one left.
     let failing = 0;
+    let writeFailing = 0;
     let stopped = false;
     // While warframe.market isn't answering, say so once, not on every pass.
     const tone = (): LogLine["tone"] => (this.passFailures > 0 ? "info" : "warn");
@@ -466,6 +471,7 @@ class MarketStore {
         }
         try {
           await market.update(o.id, { platinum: p.target });
+          writeFailing = 0;
           changed++;
           const why = p.reason === "floor" ? `held at your floor (${p.floor}p)` : `cheapest in game: ${p.competitor.cheapest?.name ?? "?"}`;
           this.note(`${it.name}${o.rank != null ? ` R${o.rank}` : ""}: ${o.platinum}p → ${p.target}p, ${why}`, "ok");
@@ -473,6 +479,11 @@ class MarketStore {
           if (isAuthError(e)) throw e;
           failed++;
           this.note(`${it.name}: couldn't update (${clean(e)})`, "warn");
+          // Refused again and again (an outage): stop sending changes this pass.
+          if (++writeFailing >= WRITE_FAILS) {
+            stopped = true;
+            break;
+          }
         }
       }
       if (skipped) this.note(`${skipped} listing${skipped === 1 ? "" : "s"} skipped: item not in warframe.market's list`, "warn");
@@ -708,7 +719,7 @@ class MarketStore {
    * than the best buyer in game, never up to the cheapest seller (you'd just buy that), or under
    * the 30-day median when nobody's buying.
    */
-  async startBuy(name: string, req: { unique?: string | null; rank?: number | null; quantity?: number } = {}) {
+  async startBuy(name: string, req: { unique?: string | null; rank?: number | null; subtype?: string | null; quantity?: number } = {}) {
     this.buyError = null;
     this.buyDraft = null;
     try {
@@ -723,18 +734,20 @@ class MarketStore {
       return;
     }
     const rank = req.rank ?? (it.maxRank != null ? 0 : null);
-    const draft: BuyDraft = { itemId: it.id, name: it.name, slug: it.slug, rank, maxRank: it.maxRank, quantity: Math.max(1, req.quantity ?? 1), platinum: null, topBuy: null, cheapestSell: null, median: null, loading: true };
+    // A relic's refinement (intact unless you pick another): buyers and sellers of others don't count.
+    const subtype = req.subtype ?? it.subtypes?.[0] ?? null;
+    const draft: BuyDraft = { itemId: it.id, name: it.name, slug: it.slug, rank, maxRank: it.maxRank, subtype, subtypes: it.subtypes, quantity: Math.max(1, req.quantity ?? 1), platinum: null, topBuy: null, cheapestSell: null, median: null, loading: true };
     this.buyDraft = draft;
     try {
       const [book, points] = await Promise.all([this.book(it.slug), this.history(it.slug).catch(() => [] as PricePoint[])]);
       if (this.buyDraft?.itemId !== it.id) return;
       const me = (this.me ?? { id: "", platform: this.platform, crossplay: true }) as Me;
-      const same = (o: BookOrder) => o.visible && (rank == null || o.rank === rank) && o.user.id !== me.id && canTrade(me, o.user) && o.user.status !== "offline";
+      const same = (o: BookOrder) => o.visible && (rank == null || (o.rank ?? 0) === rank) && (subtype == null || (o.subtype ?? it.subtypes?.[0] ?? null) === subtype) && o.user.id !== me.id && canTrade(me, o.user) && o.user.status !== "offline";
       const buys = book.filter((o) => o.type === "buy" && same(o)).map((o) => o.platinum);
       const sells = book.filter((o) => o.type === "sell" && same(o)).map((o) => o.platinum);
       const topBuy = buys.length ? Math.max(...buys) : null;
       const cheapestSell = sells.length ? Math.min(...sells) : null;
-      const median = recentPrice(points, rank, null, 30, 2);
+      const median = recentPrice(points, rank, subtype, 30, 2);
       let price = topBuy != null ? topBuy + 1 : median != null ? Math.max(1, Math.round(median * 0.8)) : cheapestSell != null ? Math.max(1, cheapestSell - 1) : null;
       if (price != null && cheapestSell != null && price >= cheapestSell) price = Math.max(1, cheapestSell - 1);
       this.buyDraft = { ...draft, platinum: price, topBuy, cheapestSell, median, loading: false };
@@ -749,8 +762,8 @@ class MarketStore {
     const d = this.buyDraft;
     if (!d || !d.platinum || !this.linked) return false;
     const ok = await this.guard("Posting a buy order", async () => {
-      await market.create({ itemId: d.itemId, platinum: Math.round(d.platinum!), quantity: Math.round(d.quantity), rank: d.rank, type: "buy" });
-      this.note(`Buy order posted: ${d.name}${d.rank != null ? ` R${d.rank}` : ""}, ${d.quantity} at ${Math.round(d.platinum!)}p`, "ok");
+      await market.create({ itemId: d.itemId, platinum: Math.round(d.platinum!), quantity: Math.round(d.quantity), rank: d.rank, subtype: d.subtype, type: "buy" });
+      this.note(`Buy order posted: ${d.name}${d.rank != null ? ` R${d.rank}` : ""}${d.subtype && d.subtypes && d.subtypes.length > 1 ? ` (${d.subtype})` : ""}, ${d.quantity} at ${Math.round(d.platinum!)}p`, "ok");
       await this.refresh();
     });
     if (ok) this.buyDraft = null;
@@ -944,9 +957,12 @@ class MarketStore {
       ];
       this.progress = { done: 0, total: slugs.length };
       let failing = 0;
+      // Only books read in this run: one that failed now mustn't be priced from an old copy.
+      const got = new Set<string>();
       for (const slug of slugs) {
         try {
           await this.book(slug);
+          got.add(slug);
           failing = 0;
         } catch (e) {
           if (isAuthError(e)) throw e;
@@ -955,7 +971,7 @@ class MarketStore {
         }
         this.progress = { done: this.progress.done + 1, total: slugs.length };
       }
-      const books = Object.fromEntries(slugs.map((sl) => [sl, this.books[sl]?.orders]));
+      const books = Object.fromEntries(slugs.map((sl) => [sl, got.has(sl) ? this.books[sl]?.orders : undefined]));
       this.bulk = {
         actions: bulkPlan({ model: m, index: this.index, orders: this.orders, me, books, minPrice: s.minPrice, minRelicPrice: s.minRelicPrice, minShare: s.minShare, floors: s.floors, paused: s.paused, otherOrders: this.otherOrders, sell: s.sellable, advice }, s.bulk, targets),
         at: Date.now(),
@@ -972,6 +988,12 @@ class MarketStore {
   async applyBulk(m: Model, s: MarketSettings, advice: DucatOptions) {
     const shown = this.bulk;
     if (!shown || this.busy || !this.me) return;
+    // Prices move: a plan looked at a while ago is worked out again from fresh order books first.
+    if (Date.now() - shown.at > PLAN_FRESH_MS) {
+      await this.planBulk(m, s, advice);
+      if (this.bulk) this.note("That plan was over 10 minutes old, so its prices were read again: look it over and apply again.", "warn");
+      return;
+    }
     await this.refresh().catch(() => {});
     const books = Object.fromEntries(Object.entries(this.books).map(([slug, b]) => [slug, b.orders]));
     const fresh = bulkPlan({ model: m, index: this.index, orders: this.orders, me: this.me, books, minPrice: s.minPrice, minRelicPrice: s.minRelicPrice, minShare: s.minShare, floors: s.floors, paused: s.paused, otherOrders: this.otherOrders, sell: s.sellable, advice }, s.bulk, sellTargets(m, s.bulk, advice, this.index, s.sellable));
@@ -985,6 +1007,7 @@ class MarketStore {
     const todo = shown.actions.filter((a) => a.type !== "skip").sort((a, b) => ORDER[a.type] - ORDER[b.type]);
     const sent = new Set<BulkAction>();
     let failed = 0;
+    let writeFailing = 0;
     await this.guard("Updating your listings", async () => {
       this.progress = { done: 0, total: todo.length };
       for (const a of todo) {
@@ -1001,10 +1024,15 @@ class MarketStore {
             this.note(`Removed ${tag(a.item.name, a.order.rank)} (${a.why.toLowerCase()})`, "info");
           }
           sent.add(a);
+          writeFailing = 0;
         } catch (e) {
           if (isAuthError(e)) throw e;
           failed++;
           this.note(`${a.item.name}: couldn't ${a.type} (${clean(e)})`, "warn");
+          if (++writeFailing >= WRITE_FAILS) {
+            this.note(`warframe.market refused ${WRITE_FAILS} changes in a row, so orbiter stopped: apply again in a minute`, "warn");
+            break;
+          }
         }
         this.progress = { done: sent.size + failed, total: todo.length };
       }
@@ -1028,6 +1056,7 @@ class MarketStore {
     if (this.busy) return;
     let done = 0;
     let failed = 0;
+    let writeFailing = 0;
     await this.guard("Removing every listing", async () => {
       await this.refresh();
       const all = [...this.orders];
@@ -1036,10 +1065,12 @@ class MarketStore {
         try {
           await market.remove(o.id);
           done++;
+          writeFailing = 0;
         } catch (e) {
           if (isAuthError(e)) throw e;
           failed++;
           this.note(`${this.item(o.itemId)?.name ?? "A listing"}: couldn't remove (${clean(e)})`, "warn");
+          if (++writeFailing >= WRITE_FAILS) break;
         }
         this.progress = { done: done + failed, total: all.length };
       }
@@ -1075,6 +1106,9 @@ export interface BuyDraft {
   slug: string;
   rank: number | null;
   maxRank: number | null;
+  /** Relics' refinements and the like: the one you're after, and the ones there are. */
+  subtype: string | null;
+  subtypes: string[] | null;
   quantity: number;
   platinum: number | null;
   /** The best buy order in game for it now, and the cheapest seller: what the price sits between. */

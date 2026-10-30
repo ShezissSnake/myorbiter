@@ -231,7 +231,10 @@ export function referencePrice(m: Model, item: MarketItem, rank: number | null, 
     // By refinement: "radiant" → "Radiant"; none named is intact.
     return subtype ? m.relicPrice(base, subtype.charAt(0).toUpperCase() + subtype.slice(1)) : m.relicPrice(base);
   }
-  if (rank != null && item.maxRank != null && rank >= item.maxRank) return m.priceMax(item.name) ?? m.price(item.name);
+  // Ranked items: the daily prices are for unranked and maxed copies only. A copy in between (a
+  // rank-9 Cutting Edge) has no reference, and a maxed one without a maxed price none either:
+  // the unranked price would drag the listing down to a few platinum.
+  if (item.maxRank != null && (rank ?? 0) > 0) return rank! >= item.maxRank ? m.priceMax(item.name) : null;
   return m.price(item.name);
 }
 
