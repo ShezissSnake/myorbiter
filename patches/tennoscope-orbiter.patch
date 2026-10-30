@@ -1,5 +1,5 @@
 diff --git a/app/src-tauri/src/lib.rs b/app/src-tauri/src/lib.rs
-index ddac88b..4b43ac8 100644
+index ce70bed..3f133ef 100644
 --- a/app/src-tauri/src/lib.rs
 +++ b/app/src-tauri/src/lib.rs
 @@ -40,6 +40,7 @@ mod kiosk_view;
@@ -10,7 +10,7 @@ index ddac88b..4b43ac8 100644
  mod overlay_window;
  mod preferences;
  pub mod report;
-@@ -561,6 +562,74 @@ fn market_inventory_writes_authorized(runtime: &Runtime) -> Result<(), String> {
+@@ -561,6 +562,85 @@ fn market_inventory_writes_authorized(runtime: &Runtime) -> Result<(), String> {
  }
  type SharedRuntime = Arc<Mutex<Runtime>>;
  
@@ -23,8 +23,14 @@ index ddac88b..4b43ac8 100644
 +            let state = app.state::<SharedRuntime>();
 +            let outcome = match ask {
 +                orbiter_bridge::Ask::Sync => refresh_inventory(state).await.map(|_| ()),
-+                orbiter_bridge::Ask::Presence { status, auto } => set_market_presence(state, status, auto).await.map(|_| ()),
-+                orbiter_bridge::Ask::AuthorizeCapture => authorize_screen_capture(app.clone(), state).await.map(|_| ()),
++                orbiter_bridge::Ask::Presence { status, auto } => {
++                    set_market_presence(state, status, auto).await.map(|_| ())
++                }
++                orbiter_bridge::Ask::AuthorizeCapture => {
++                    authorize_screen_capture(app.clone(), state)
++                        .await
++                        .map(|_| ())
++                }
 +            };
 +            if let Err(error) = outcome {
 +                log::warn!("orbiter asked for {ask:?}: {error}");
@@ -49,7 +55,12 @@ index ddac88b..4b43ac8 100644
 +        let platinum = runtime.core.platinum();
 +        let (credits, endo) = runtime.core.wallet();
 +        let rivens = runtime.core.rivens();
-+        (view, runtime.setup.clone(), runtime.game_running, (foundry, ready, level, platinum, credits, endo, rivens))
++        (
++            view,
++            runtime.setup.clone(),
++            runtime.game_running,
++            (foundry, ready, level, platinum, credits, endo, rivens),
++        )
 +    };
 +    let (foundry, ready, level, platinum, credits, endo, rivens) = foundry;
 +    let setup = current_setup_status(stored, game_running);
@@ -85,7 +96,7 @@ index ddac88b..4b43ac8 100644
  #[tauri::command]
  async fn get_view(state: State<'_, SharedRuntime>) -> Result<AppView, String> {
      let shared = Arc::clone(state.inner());
-@@ -684,6 +753,9 @@ async fn set_market_presence(
+@@ -684,6 +764,9 @@ async fn set_market_presence(
      status: Option<warframe_status::Presence>,
      auto: bool,
  ) -> Result<AppView, String> {
@@ -95,7 +106,7 @@ index ddac88b..4b43ac8 100644
      let shared = Arc::clone(state.inner());
      tauri::async_runtime::spawn_blocking(move || {
          let mut runtime = shared
-@@ -2092,7 +2164,12 @@ pub fn run() {
+@@ -2095,7 +2178,12 @@ pub fn run() {
          // tail the same EE.log, write the same database and draw two override-redirect overlays at
          // the same coordinates over the game, where whichever raised last wins, so the strip on
          // screen need not be the build you just started.
@@ -109,7 +120,7 @@ index ddac88b..4b43ac8 100644
              if let Some(window) = app.get_webview_window("main") {
                  let _ = window.unminimize();
                  let _ = window.show();
-@@ -2105,13 +2182,27 @@ pub fn run() {
+@@ -2108,13 +2196,27 @@ pub fn run() {
          // once the main window closes and the app stays up: tailing the log and drawing the overlay
          // over the game with no UI left to close it by.
          .on_window_event(|window, event| {
@@ -140,18 +151,20 @@ index ddac88b..4b43ac8 100644
              // The file target keeps debug traces in dev builds and trims to Info in stable
              // releases: per-OCR-attempt debug lines land every 200 ms, and with only 5 MiB
              // per rotated file a stable session of hours would otherwise keep just the last
-@@ -2163,6 +2254,18 @@ pub fn run() {
+@@ -2166,6 +2268,20 @@ pub fn run() {
                  .map(|state| current_setup_status(state.setup.clone(), state.game_running))
                  .unwrap_or_default();
              app.manage(runtime);
 +            // For orbiter: TennoScope's state, every few seconds, in the runtime folder.
 +            {
 +                let app = app.handle().clone();
-+                std::thread::spawn(move || loop {
-+                    if let Some(status) = bridge_status(app.state::<SharedRuntime>().inner()) {
-+                        orbiter_bridge::publish_status(status);
++                std::thread::spawn(move || {
++                    loop {
++                        if let Some(status) = bridge_status(app.state::<SharedRuntime>().inner()) {
++                            orbiter_bridge::publish_status(status);
++                        }
++                        std::thread::sleep(std::time::Duration::from_secs(3));
 +                    }
-+                    std::thread::sleep(std::time::Duration::from_secs(3));
 +                });
 +            }
 +            // Started by orbiter with a request (`--sync`…) rather than to be looked at.
@@ -159,7 +172,7 @@ index ddac88b..4b43ac8 100644
              // The kiosk window's whole IPC surface: `get_kiosk_view` pulls whatever the poller
              // last published, so the cell exists from the start, empty until a kiosk opens.
              app.manage(kiosk_view::KioskState::default());
-@@ -2192,6 +2295,7 @@ pub fn run() {
+@@ -2205,6 +2321,7 @@ pub fn run() {
          })
          .invoke_handler(tauri::generate_handler![
              get_view,
@@ -168,20 +181,24 @@ index ddac88b..4b43ac8 100644
              get_preferences,
              set_mastery_marks,
 diff --git a/app/src-tauri/src/monitor.rs b/app/src-tauri/src/monitor.rs
-index d09ca9a..a9e70d3 100644
+index d09ca9a..cb0c9bf 100644
 --- a/app/src-tauri/src/monitor.rs
 +++ b/app/src-tauri/src/monitor.rs
-@@ -989,6 +989,9 @@ impl RewardSession {
+@@ -989,6 +989,13 @@ impl RewardSession {
                      &transition.choices,
                      &BTreeMap::new(),
                  );
 +                crate::orbiter_bridge::publish_cards(
-+                    &transition.choices.iter().map(|c| c.name.clone()).collect::<Vec<_>>(),
++                    &transition
++                        .choices
++                        .iter()
++                        .map(|c| c.name.clone())
++                        .collect::<Vec<_>>(),
 +                );
                  overlay_notice = overlay_window::show_reward_overlay(app, transition.choices.len());
                  let _ = app.emit_to("reward-overlay", "reward-updated", ());
                  spawn_market_price_fetch(
-@@ -1185,6 +1188,8 @@ pub(crate) fn run(
+@@ -1185,6 +1192,8 @@ pub(crate) fn run(
      let procfs = ProcessObserver::new();
      let mut machine = MonitorMachine::new(15);
      let mut reward_log = RewardLogMachine::default();
@@ -190,7 +207,7 @@ index d09ca9a..a9e70d3 100644
      let mut kiosk_session = KioskSession::new();
      // The kiosk session's window/thread side effects, as hooks so the session logic itself stays
      // testable without an AppHandle.
-@@ -1303,6 +1308,9 @@ pub(crate) fn run(
+@@ -1303,6 +1312,9 @@ pub(crate) fn run(
          .lock()
          .ok()
          .and_then(|runtime| load_relic_catalog(&runtime.app_data));
@@ -200,27 +217,31 @@ index d09ca9a..a9e70d3 100644
      let mut reward_session =
          RewardSession::new(catalog, relic_catalog, reward_catalog, price_cache.clone());
      // EE.log reaches us seconds after the events it describes (measured at ~7.5s on 2026-07-27),
-@@ -1377,6 +1385,9 @@ pub(crate) fn run(
+@@ -1377,6 +1389,10 @@ pub(crate) fn run(
                          // tail starts at EOF, so a kiosk already on screen when the app started
                          // has no open marker left for us to see. Fold the recent tail once, at
                          // attach, to adopt the session in progress.
 +                        // The same for a fissure in progress: the relics it loaded are in the
 +                        // tail, and without them its reward screen can't be read.
-+                        adopted_reward_events = reward_log.adopt_tail(&log_tail(ee_path, KIOSK_TAIL_SCAN));
++                        adopted_reward_events =
++                            reward_log.adopt_tail(&log_tail(ee_path, KIOSK_TAIL_SCAN));
                          if let Some(kiosk_view_cell) = app.try_state::<KioskState>() {
                              kiosk_session.adopt_log_tail(
                                  &log_tail(ee_path, KIOSK_TAIL_SCAN),
-@@ -1424,7 +1435,8 @@ pub(crate) fn run(
+@@ -1424,7 +1440,11 @@ pub(crate) fn run(
                  };
              }
          }
 -        for event in reward_log.observe_bytes(&log_bytes) {
 +        let caught_up = std::mem::take(&mut adopted_reward_events);
-+        for event in caught_up.into_iter().chain(reward_log.observe_bytes(&log_bytes)) {
++        for event in caught_up
++            .into_iter()
++            .chain(reward_log.observe_bytes(&log_bytes))
++        {
              if generation.is_current() {
                  reward_session.handle_event(
                      event,
-@@ -2320,6 +2332,11 @@ fn spawn_market_price_fetch(
+@@ -2320,6 +2340,11 @@ fn spawn_market_price_fetch(
                      .is_empty()
                      .then_some("warframe.market pricing is unavailable for these rewards")
              });
@@ -232,7 +253,7 @@ index d09ca9a..a9e70d3 100644
              (prices, failure)
          },
          move || {
-@@ -2391,6 +2408,25 @@ fn spawn_market_price_warm(pool: &[RewardCatalogEntry], price_cache: &MarketPric
+@@ -2391,6 +2416,25 @@ fn spawn_market_price_warm(pool: &[RewardCatalogEntry], price_cache: &MarketPric
      });
  }
  
@@ -258,7 +279,7 @@ index d09ca9a..a9e70d3 100644
  fn apply_reward_observations(
      shared: &SharedRuntime,
      catalog: &[RewardCatalogEntry],
-@@ -2438,6 +2474,7 @@ fn apply_reward_observations(
+@@ -2438,6 +2482,7 @@ fn apply_reward_observations(
                  observation.confidence,
              )
              .ok()
@@ -268,10 +289,10 @@ index d09ca9a..a9e70d3 100644
      let _ = runtime.core.apply_reward_candidates(candidates);
 diff --git a/app/src-tauri/src/orbiter_bridge.rs b/app/src-tauri/src/orbiter_bridge.rs
 new file mode 100644
-index 0000000..dbefbcd
+index 0000000..74ecc5e
 --- /dev/null
 +++ b/app/src-tauri/src/orbiter_bridge.rs
-@@ -0,0 +1,285 @@
+@@ -0,0 +1,347 @@
 +//! Hand-off to orbiter (a companion app) during the void fissure reward screen.
 +//!
 +//! When the cards are read, their names go to `tennoscope-reward-screen.json`; orbiter scores them
@@ -300,7 +321,10 @@ index 0000000..dbefbcd
 +    /// Read the inventory now (Full access only).
 +    Sync,
 +    /// Set the warframe.market status; `auto` follows the game.
-+    Presence { status: Option<warframe_status::Presence>, auto: bool },
++    Presence {
++        status: Option<warframe_status::Presence>,
++        auto: bool,
++    },
 +    /// Open the system's screen-capture permission dialog.
 +    AuthorizeCapture,
 +}
@@ -313,11 +337,26 @@ index 0000000..dbefbcd
 +            "--sync" => Some(Ask::Sync),
 +            "--authorize-capture" => Some(Ask::AuthorizeCapture),
 +            _ => match a.strip_prefix("--presence=")? {
-+                "online" => Some(Ask::Presence { status: Some(Presence::Online), auto: false }),
-+                "ingame" => Some(Ask::Presence { status: Some(Presence::Ingame), auto: false }),
-+                "invisible" => Some(Ask::Presence { status: Some(Presence::Invisible), auto: false }),
-+                "offline" => Some(Ask::Presence { status: None, auto: false }),
-+                "auto" => Some(Ask::Presence { status: None, auto: true }),
++                "online" => Some(Ask::Presence {
++                    status: Some(Presence::Online),
++                    auto: false,
++                }),
++                "ingame" => Some(Ask::Presence {
++                    status: Some(Presence::Ingame),
++                    auto: false,
++                }),
++                "invisible" => Some(Ask::Presence {
++                    status: Some(Presence::Invisible),
++                    auto: false,
++                }),
++                "offline" => Some(Ask::Presence {
++                    status: None,
++                    auto: false,
++                }),
++                "auto" => Some(Ask::Presence {
++                    status: None,
++                    auto: true,
++                }),
 +                _ => None,
 +            },
 +        })
@@ -335,7 +374,8 @@ index 0000000..dbefbcd
 +
 +pub fn last_error() -> Option<serde_json::Value> {
 +    let slot = LAST_ERROR.lock().ok()?;
-+    slot.as_ref().map(|(at, message)| serde_json::json!({ "at": at, "message": message }))
++    slot.as_ref()
++        .map(|(at, message)| serde_json::json!({ "at": at, "message": message }))
 +}
 +
 +/// Written every few seconds while TennoScope runs.
@@ -494,9 +534,11 @@ index 0000000..dbefbcd
 +}
 +
 +fn read_pick_in(dir: &Path) -> Option<OrbiterPick> {
-+    let pick: OrbiterPick = serde_json::from_str(&fs::read_to_string(dir.join(PICK_FILE)).ok()?).ok()?;
++    let pick: OrbiterPick =
++        serde_json::from_str(&fs::read_to_string(dir.join(PICK_FILE)).ok()?).ok()?;
 +    // A pick for an earlier screen is no pick at all.
-+    (pick.scores.len() == pick.cards.len() && now_ms().saturating_sub(pick.at) < 120_000).then_some(pick)
++    (pick.scores.len() == pick.cards.len() && now_ms().saturating_sub(pick.at) < 120_000)
++        .then_some(pick)
 +}
 +
 +#[cfg(test)]
@@ -509,8 +551,22 @@ index 0000000..dbefbcd
 +        let args = |xs: &[&str]| xs.iter().map(|x| x.to_string()).collect::<Vec<_>>();
 +        assert_eq!(asks(&args(&["tennoscope", "--sync"])), vec![Ask::Sync]);
 +        assert_eq!(
-+            asks(&args(&["tennoscope", "--presence=ingame", "--presence=auto", "--presence=nope"])),
-+            vec![Ask::Presence { status: Some(Presence::Ingame), auto: false }, Ask::Presence { status: None, auto: true }]
++            asks(&args(&[
++                "tennoscope",
++                "--presence=ingame",
++                "--presence=auto",
++                "--presence=nope"
++            ])),
++            vec![
++                Ask::Presence {
++                    status: Some(Presence::Ingame),
++                    auto: false
++                },
++                Ask::Presence {
++                    status: None,
++                    auto: true
++                }
++            ]
 +        );
 +        assert_eq!(asks(&args(&["tennoscope", "--background"])), vec![]);
 +        assert!(wants_background(&args(&["tennoscope", "--sync"])));
@@ -521,20 +577,41 @@ index 0000000..dbefbcd
 +        let args = |xs: &[&str]| xs.iter().map(|x| x.to_string()).collect::<Vec<_>>();
 +        assert!(wants_background(&args(&["tennoscope", "--background"])));
 +        assert!(!wants_background(&args(&["tennoscope"])));
-+        assert!(!wants_background(&args(&["--background"])), "the program path is not a flag");
++        assert!(
++            !wants_background(&args(&["--background"])),
++            "the program path is not a flag"
++        );
 +    }
 +
 +    #[test]
 +    fn cards_out_pick_in() {
 +        let dir = std::env::temp_dir().join(format!("tennoscope-orbiter-{}", std::process::id()));
 +        fs::create_dir_all(&dir).unwrap();
-+        write_cards_in(&dir, &["Corinth Prime Barrel".into(), "Forma Blueprint".into()], 7, None).unwrap();
-+        let cards: serde_json::Value = serde_json::from_str(&fs::read_to_string(dir.join(CARDS_FILE)).unwrap()).unwrap();
-+        assert_eq!(cards, serde_json::json!({ "at": 7, "cards": ["Corinth Prime Barrel", "Forma Blueprint"] }));
++        write_cards_in(
++            &dir,
++            &["Corinth Prime Barrel".into(), "Forma Blueprint".into()],
++            7,
++            None,
++        )
++        .unwrap();
++        let cards: serde_json::Value =
++            serde_json::from_str(&fs::read_to_string(dir.join(CARDS_FILE)).unwrap()).unwrap();
++        assert_eq!(
++            cards,
++            serde_json::json!({ "at": 7, "cards": ["Corinth Prime Barrel", "Forma Blueprint"] })
++        );
 +        // The live prices follow under the same timestamp.
-+        let prices = std::collections::BTreeMap::from([("Corinth Prime Barrel".to_string(), 38u32)]);
-+        write_cards_in(&dir, &["Corinth Prime Barrel".into(), "Forma Blueprint".into()], 7, Some(&prices)).unwrap();
-+        let cards: serde_json::Value = serde_json::from_str(&fs::read_to_string(dir.join(CARDS_FILE)).unwrap()).unwrap();
++        let prices =
++            std::collections::BTreeMap::from([("Corinth Prime Barrel".to_string(), 38u32)]);
++        write_cards_in(
++            &dir,
++            &["Corinth Prime Barrel".into(), "Forma Blueprint".into()],
++            7,
++            Some(&prices),
++        )
++        .unwrap();
++        let cards: serde_json::Value =
++            serde_json::from_str(&fs::read_to_string(dir.join(CARDS_FILE)).unwrap()).unwrap();
 +        assert_eq!(cards["at"], 7);
 +        assert_eq!(cards["prices"]["Corinth Prime Barrel"], 38);
 +
@@ -552,8 +629,14 @@ index 0000000..dbefbcd
 +    fn orbiter_holds_presence_only_while_fresh_and_running() {
 +        let beat = r#"{"at": 100000, "pid": 42, "status": "online"}"#;
 +        assert!(held_in(beat, 105_000, |_| true));
-+        assert!(!held_in(beat, 120_000, |_| true), "stale: orbiter stopped writing it");
-+        assert!(!held_in(beat, 105_000, |_| false), "orbiter's process is gone");
++        assert!(
++            !held_in(beat, 120_000, |_| true),
++            "stale: orbiter stopped writing it"
++        );
++        assert!(
++            !held_in(beat, 105_000, |_| false),
++            "orbiter's process is gone"
++        );
 +        assert!(!held_in("{oops", 105_000, |_| true));
 +    }
 +}
@@ -617,10 +700,10 @@ index b8f4a88..63c6154 100644
          let _ = app.run_on_main_thread(move || {
              trace_overlay("hide");
 diff --git a/app/src-tauri/src/reward_log.rs b/app/src-tauri/src/reward_log.rs
-index 9c554b3..e6353a5 100644
+index 9c554b3..d797b32 100644
 --- a/app/src-tauri/src/reward_log.rs
 +++ b/app/src-tauri/src/reward_log.rs
-@@ -58,6 +58,25 @@ impl RewardLogMachine {
+@@ -58,6 +58,28 @@ impl RewardLogMachine {
          self.reward_window_open
      }
  
@@ -631,7 +714,10 @@ index 9c554b3..e6353a5 100644
 +    /// TennoScope started mid-mission (orbiter restarting it) misses that mission's screen.
 +    pub fn adopt_tail(&mut self, tail: &[u8]) -> Vec<RewardLogEvent> {
 +        // Whole lines only: the tail can start mid-line.
-+        let start = tail.iter().position(|b| *b == b'\n').map_or(tail.len(), |i| i + 1);
++        let start = tail
++            .iter()
++            .position(|b| *b == b'\n')
++            .map_or(tail.len(), |i| i + 1);
 +        let _ = self.observe_bytes(&tail[start..]);
 +        self.carry.clear();
 +        if self.reward_window_open || self.loaded_relics.is_empty() {
@@ -663,10 +749,10 @@ index 5b69397..d2d9ef1 100644
      let appimage = std::env::var_os("APPIMAGE").map(std::path::PathBuf::from);
      let writable = appimage.as_ref().is_some_and(|p| file_writable(p));
 diff --git a/app/src-tauri/tests/reward_log.rs b/app/src-tauri/tests/reward_log.rs
-index 7872c18..7cd66a3 100644
+index 7872c18..816f113 100644
 --- a/app/src-tauri/tests/reward_log.rs
 +++ b/app/src-tauri/tests/reward_log.rs
-@@ -354,3 +354,19 @@ fn is_render_lifecycle_event(event: &RewardLogEvent) -> bool {
+@@ -354,3 +354,33 @@ fn is_render_lifecycle_event(event: &RewardLogEvent) -> bool {
          RewardLogEvent::BaselineRequested { .. } | RewardLogEvent::ChoicesReady { .. }
      )
  }
@@ -677,20 +763,34 @@ index 7872c18..7cd66a3 100644
 +fn a_mission_in_progress_is_caught_up_from_the_tail() {
 +    const RELIC: &str = "12.0 Script [Info]: x /Lotus/Types/Game/Projections/T4VoidProjectionVorunaPrimeCBronze ok\n";
 +    const OPEN: &str = "13.0 Script [Info]: VoidProjections: OpenVoidProjectionRewardScreenRMI\n";
-+    const CLOSE: &str = "14.0 Script [Info]: ProjectionRewardChoice.lua: Relic reward screen shut down\n";
++    const CLOSE: &str =
++        "14.0 Script [Info]: ProjectionRewardChoice.lua: Relic reward screen shut down\n";
 +    let mut machine = RewardLogMachine::default();
 +    let events = machine.adopt_tail(format!("cut line\n{RELIC}{OPEN}{CLOSE}{RELIC}").as_bytes());
-+    assert!(matches!(events.as_slice(), [RewardLogEvent::BaselineRequested { relic_paths }] if relic_paths.len() == 1));
-+    assert_eq!(machine.observe_line(OPEN.trim()), vec![RewardLogEvent::RewardWindowOpened]);
++    assert!(
++        matches!(events.as_slice(), [RewardLogEvent::BaselineRequested { relic_paths }] if relic_paths.len() == 1)
++    );
++    assert_eq!(
++        machine.observe_line(OPEN.trim()),
++        vec![RewardLogEvent::RewardWindowOpened]
++    );
 +    // History alone (the last screen closed, or one still open) arms nothing.
-+    assert!(RewardLogMachine::default().adopt_tail(format!("x\n{RELIC}{OPEN}{CLOSE}").as_bytes()).is_empty());
-+    assert!(RewardLogMachine::default().adopt_tail(format!("x\n{RELIC}{OPEN}").as_bytes()).is_empty());
++    assert!(
++        RewardLogMachine::default()
++            .adopt_tail(format!("x\n{RELIC}{OPEN}{CLOSE}").as_bytes())
++            .is_empty()
++    );
++    assert!(
++        RewardLogMachine::default()
++            .adopt_tail(format!("x\n{RELIC}{OPEN}").as_bytes())
++            .is_empty()
++    );
 +}
 diff --git a/app/src/App.css b/app/src/App.css
-index 7bfeb6b..8b3b7f0 100644
+index bf03363..3b7e7e8 100644
 --- a/app/src/App.css
 +++ b/app/src/App.css
-@@ -430,6 +430,7 @@
+@@ -437,6 +437,7 @@
  .hallmark.owned { color: var(--platinum); }
  .hallmark.absent { color: var(--platinum-deep); background: var(--plate); }
  .hallmark.mastered { color: var(--gold); }
@@ -698,7 +798,7 @@ index 7bfeb6b..8b3b7f0 100644
  /* A rank is a qualifier on the mark beside it, so it sits back from the ownership figure. Fully
     ranked is the state worth platinum, and it earns the struck lip rather than a new colour: the
     text reads 10/10 either way, and gold already means mastered. */
-@@ -938,6 +939,20 @@ svg.set-glyph { background: none; fill: currentColor; padding: .125rem; }
+@@ -945,6 +946,20 @@ svg.set-glyph { background: none; fill: currentColor; padding: .125rem; }
    .overlay-rewards .ledger:has(.set-slot:nth-child(5)) .set-glyph + .set-glyph { margin-left: -1rem; }
  }
  
@@ -880,11 +980,11 @@ index 4cb846a..33b72d0 100644
 +  return pick.cards.length === names.length && pick.cards.every((name, i) => name.toLowerCase() === names[i].toLowerCase())
 +}
 diff --git a/app/src/backend.ts b/app/src/backend.ts
-index 8c16629..46db19f 100644
+index 85cb60c..283f2ab 100644
 --- a/app/src/backend.ts
 +++ b/app/src/backend.ts
-@@ -7,7 +7,7 @@ export type ItemCategory = 'frame' | 'weapon' | 'companion' | 'prime_part' | 're
- export interface CollectionItem { id: string; name: string; category: ItemCategory; quantity: number; mastered: boolean; image_url?: string; platinum?: number; platinum_ceiling?: number; ducats?: number; rank?: number; max_rank?: number; live: boolean; priceable: boolean; monthly_trades?: number }
+@@ -11,7 +11,7 @@ export interface MasteryCategoryTotal { category: ItemCategory; mastered: number
+ export interface MasteryChecklist { available: boolean; items: CollectionItem[]; totals: MasteryCategoryTotal[] }
  /** How far the live pricing pass the player asked for has got. */
  export interface PricingProgress { done: number; total: number }
 -export interface RewardCard { name: string; platinum: number; ducats: number; owned: number; mastery?: MasteryMark; confidence: number }
@@ -892,7 +992,7 @@ index 8c16629..46db19f 100644
  /** One slot of the set a Prime item is built from: the copies the recipe takes, the copies held, and whether this reward is the one that fills it. */
  export interface SetPart { name: string; image: string | null; uses: number; held: number; this: boolean }
  /** Absent for items mastery never touches or while marks are off; `unknown` still replaces the
-@@ -82,6 +82,9 @@ export interface KioskView {
+@@ -87,6 +87,9 @@ export interface KioskView {
  }
  
  export const getView = () => invoke<AppView>('get_view')
@@ -915,40 +1015,50 @@ index 939f465..895feb5 100644
  local-store = { path = "../local-store" }
  warframe-domain = { path = "../warframe-domain" }
 diff --git a/crates/app-core/src/lib.rs b/crates/app-core/src/lib.rs
-index d4d770f..31043d6 100644
+index 93ac141..0f0f33a 100644
 --- a/crates/app-core/src/lib.rs
 +++ b/crates/app-core/src/lib.rs
-@@ -155,6 +155,39 @@ impl AppCore {
-         self.mastery_facts = None;
+@@ -167,6 +167,49 @@ impl AppCore {
+         self.reads_inventory = reads_inventory;
      }
  
-+    /// Builds waiting in the foundry, by recipe path, once an inventory read this run has seen
-+    /// them; `None` before that (for orbiter, which counts a part being crafted as held).
 +    /// When each foundry build finishes (recipe path, unix ms), for orbiter.
 +    pub fn foundry_ready(&self) -> Option<Vec<(String, i64)>> {
-+        self.mastery_facts.as_ref().map(|facts| facts.foundry_ready().to_vec())
++        self.mastery_facts
++            .as_ref()
++            .map(|facts| facts.foundry_ready().to_vec())
 +    }
 +
 +    /// The account's mastery rank from the last inventory read, for orbiter.
 +    pub fn player_level(&self) -> Option<u32> {
-+        self.mastery_facts.as_ref().and_then(|facts| facts.player_level())
++        self.mastery_facts
++            .as_ref()
++            .and_then(|facts| facts.player_level())
 +    }
 +
 +    /// Platinum on the account from the last inventory read, for orbiter.
 +    pub fn platinum(&self) -> Option<u64> {
-+        self.mastery_facts.as_ref().and_then(|facts| facts.platinum())
++        self.mastery_facts
++            .as_ref()
++            .and_then(|facts| facts.platinum())
 +    }
 +
 +    /// Credits and Endo on the account from the last inventory read, for orbiter.
 +    pub fn wallet(&self) -> (Option<u64>, Option<u64>) {
-+        self.mastery_facts.as_ref().map_or((None, None), |facts| (facts.credits(), facts.endo()))
++        self.mastery_facts
++            .as_ref()
++            .map_or((None, None), |facts| (facts.credits(), facts.endo()))
 +    }
 +
 +    /// Unveiled rivens from the last inventory read, for orbiter.
 +    pub fn rivens(&self) -> Option<Vec<serde_json::Value>> {
-+        self.mastery_facts.as_ref().map(|facts| facts.rivens().to_vec())
++        self.mastery_facts
++            .as_ref()
++            .map(|facts| facts.rivens().to_vec())
 +    }
 +
++    /// Builds waiting in the foundry, by recipe path, once an inventory read this run has seen
++    /// them; `None` before that (for orbiter, which counts a part being crafted as held).
 +    pub fn foundry_builds(&self) -> Option<std::collections::BTreeMap<String, u32>> {
 +        self.mastery_facts
 +            .as_ref()
@@ -959,13 +1069,20 @@ index d4d770f..31043d6 100644
      /// collection loads once here so a reward and a kiosk tile never disagree mid-render.
      pub fn mastery_view(&self) -> Result<MasteryView, AppError> {
 diff --git a/crates/warframe-acquisition/src/inventory.rs b/crates/warframe-acquisition/src/inventory.rs
-index 97ac561..cb204a4 100644
+index 97ac561..5347bb4 100644
 --- a/crates/warframe-acquisition/src/inventory.rs
 +++ b/crates/warframe-acquisition/src/inventory.rs
-@@ -106,11 +106,74 @@ impl<'a> InventoryJsonDecoder<'a> {
+@@ -106,11 +106,90 @@ impl<'a> InventoryJsonDecoder<'a> {
  pub struct MasteryFacts {
      xp: BTreeMap<String, u64>,
      pending: BTreeMap<String, u32>,
++    /// What only orbiter reads, boxed so the facts (and every result carrying them) stay small.
++    orbiter: Box<OrbiterFacts>,
++}
++
++/// The inventory facts orbiter reads beyond TennoScope's own.
++#[derive(Clone, Debug, Default, Eq, PartialEq)]
++struct OrbiterFacts {
 +    /// When each foundry build finishes (recipe path, unix milliseconds), for orbiter.
 +    ready: Vec<(String, i64)>,
 +    /// The account's mastery rank, for orbiter.
@@ -983,62 +1100,71 @@ index 97ac561..cb204a4 100644
  impl MasteryFacts {
      pub fn from_parts(xp: BTreeMap<String, u64>, pending: BTreeMap<String, u32>) -> Self {
 -        Self { xp, pending }
-+        Self { xp, pending, ..Default::default() }
++        Self {
++            xp,
++            pending,
++            ..Default::default()
++        }
 +    }
 +
 +    /// Adds when each foundry build finishes and the account's mastery rank.
-+    pub fn with_extras(mut self, ready: Vec<(String, i64)>, player_level: Option<u32>, platinum: Option<u64>) -> Self {
-+        self.ready = ready;
-+        self.player_level = player_level;
-+        self.platinum = platinum;
++    pub fn with_extras(
++        mut self,
++        ready: Vec<(String, i64)>,
++        player_level: Option<u32>,
++        platinum: Option<u64>,
++    ) -> Self {
++        self.orbiter.ready = ready;
++        self.orbiter.player_level = player_level;
++        self.orbiter.platinum = platinum;
 +        self
 +    }
 +
 +    /// Adds the account's credits and Endo.
 +    pub fn with_wallet(mut self, credits: Option<u64>, endo: Option<u64>) -> Self {
-+        self.credits = credits;
-+        self.endo = endo;
++        self.orbiter.credits = credits;
++        self.orbiter.endo = endo;
 +        self
 +    }
 +
 +    /// Adds the unveiled rivens.
 +    pub fn with_rivens(mut self, rivens: Vec<serde_json::Value>) -> Self {
-+        self.rivens = rivens;
++        self.orbiter.rivens = rivens;
 +        self
 +    }
 +
 +    /// Credits on the account, when the inventory said (shared with orbiter).
 +    pub fn credits(&self) -> Option<u64> {
-+        self.credits
++        self.orbiter.credits
 +    }
 +
 +    /// Endo on the account, when the inventory said (shared with orbiter).
 +    pub fn endo(&self) -> Option<u64> {
-+        self.endo
++        self.orbiter.endo
 +    }
 +
 +    /// Unveiled rivens, each `{type, id, fp}` (shared with orbiter).
 +    pub fn rivens(&self) -> &[serde_json::Value] {
-+        &self.rivens
++        &self.orbiter.rivens
 +    }
 +
 +    /// Platinum on the account, when the inventory said (shared with orbiter).
 +    pub fn platinum(&self) -> Option<u64> {
-+        self.platinum
++        self.orbiter.platinum
 +    }
 +
 +    /// When each foundry build finishes: recipe path and unix milliseconds (shared with orbiter).
 +    pub fn foundry_ready(&self) -> &[(String, i64)] {
-+        &self.ready
++        &self.orbiter.ready
 +    }
 +
 +    /// The account's mastery rank, when the inventory said (shared with orbiter).
 +    pub fn player_level(&self) -> Option<u32> {
-+        self.player_level
++        self.orbiter.player_level
      }
  
      /// The affinity the inventory reports for an item, or 0 when it reports none.
-@@ -122,6 +185,11 @@ impl MasteryFacts {
+@@ -122,6 +201,11 @@ impl MasteryFacts {
      pub fn pending(&self, recipe: &str) -> u32 {
          self.pending.get(recipe).copied().unwrap_or(0)
      }
@@ -1050,7 +1176,7 @@ index 97ac561..cb204a4 100644
  }
  
  /// The rank an item's affinity reaches, capped at its max rank; `None` for categories without
-@@ -166,6 +234,14 @@ struct RawXpEntry {
+@@ -166,6 +250,14 @@ struct RawXpEntry {
  #[serde(rename_all = "PascalCase")]
  struct RawInventory {
      last_inventory_sync: serde_json::Value,
@@ -1065,7 +1191,7 @@ index 97ac561..cb204a4 100644
      #[serde(default, deserialize_with = "rows")]
      suits: Vec<serde_json::Value>,
      #[serde(default, deserialize_with = "rows")]
-@@ -391,6 +467,43 @@ impl InventoryJsonDecoder<'_> {
+@@ -391,6 +483,57 @@ impl InventoryJsonDecoder<'_> {
              None,
              &mut DecodeReport::default(),
          );
@@ -1078,7 +1204,10 @@ index 97ac561..cb204a4 100644
 +                let path = v.get("ItemType")?.as_str()?.to_owned();
 +                let date = v.get("CompletionDate")?.get("$date")?;
 +                let ms = match date.get("$numberLong") {
-+                    Some(n) => n.as_str().and_then(|s| s.parse::<i64>().ok()).or_else(|| n.as_i64()),
++                    Some(n) => n
++                        .as_str()
++                        .and_then(|s| s.parse::<i64>().ok())
++                        .or_else(|| n.as_i64()),
 +                    None => date.as_i64(),
 +                }?;
 +                Some((path, ms))
@@ -1086,7 +1215,13 @@ index 97ac561..cb204a4 100644
 +            .collect::<Vec<_>>();
 +        let player_level = raw.player_level;
 +        // A plain number, or a Mongo `{"$numberLong": "…"}`.
-+        let number = |v: &serde_json::Value| v.as_u64().or_else(|| v.get("$numberLong").and_then(|n| n.as_str()).and_then(|s| s.parse().ok()));
++        let number = |v: &serde_json::Value| {
++            v.as_u64().or_else(|| {
++                v.get("$numberLong")
++                    .and_then(|n| n.as_str())
++                    .and_then(|s| s.parse().ok())
++            })
++        };
 +        let platinum = raw.premium_credits.as_ref().and_then(number);
 +        let credits = raw.regular_credits.as_ref().and_then(number);
 +        let endo = raw.fusion_points.as_ref().and_then(number);
@@ -1100,21 +1235,32 @@ index 97ac561..cb204a4 100644
 +                if !kind.contains("/Upgrades/Mods/Randomized/") {
 +                    return None;
 +                }
-+                let fp: serde_json::Value = serde_json::from_str(v.get("UpgradeFingerprint")?.as_str()?).ok()?;
++                let fp: serde_json::Value =
++                    serde_json::from_str(v.get("UpgradeFingerprint")?.as_str()?).ok()?;
 +                fp.get("buffs")?;
-+                let id = v.get("ItemId").and_then(|i| i.get("$oid").or(Some(i))).and_then(|i| i.as_str()).unwrap_or_default();
++                let id = v
++                    .get("ItemId")
++                    .and_then(|i| i.get("$oid").or(Some(i)))
++                    .and_then(|i| i.as_str())
++                    .unwrap_or_default();
 +                Some(serde_json::json!({ "type": kind, "id": id, "fp": fp }))
 +            })
 +            .collect::<Vec<_>>();
          let pending = pending_holdings
              .into_iter()
              .map(|(path, accumulated)| (path, accumulated.quantity.max(0) as u32))
-@@ -528,7 +641,7 @@ impl InventoryJsonDecoder<'_> {
+@@ -528,7 +671,13 @@ impl InventoryJsonDecoder<'_> {
          }
          let snapshot = InventorySnapshot::coherent(domain_entries)
              .map_err(|_| AcquisitionError::SnapshotInvalid)?;
 -        Ok((snapshot, MasteryFacts::from_parts(affinity, pending)))
-+        Ok((snapshot, MasteryFacts::from_parts(affinity, pending).with_extras(ready, player_level, platinum).with_wallet(credits, endo).with_rivens(rivens)))
++        Ok((
++            snapshot,
++            MasteryFacts::from_parts(affinity, pending)
++                .with_extras(ready, player_level, platinum)
++                .with_wallet(credits, endo)
++                .with_rivens(rivens),
++        ))
      }
  }
  
@@ -1218,10 +1364,10 @@ index 0debbfe..de1659c 100644
 +    }
 +}
 diff --git a/crates/warframe-acquisition/tests/inventory_decoder.rs b/crates/warframe-acquisition/tests/inventory_decoder.rs
-index d5e141a..36f2ff6 100644
+index d5e141a..3f9b766 100644
 --- a/crates/warframe-acquisition/tests/inventory_decoder.rs
 +++ b/crates/warframe-acquisition/tests/inventory_decoder.rs
-@@ -526,3 +526,47 @@ fn mastery_rank_follows_the_affinity_curve_and_caps_at_max_rank() {
+@@ -526,3 +526,68 @@ fn mastery_rank_follows_the_affinity_curve_and_caps_at_max_rank() {
      assert_eq!(mastery_rank(Category::Frame, 196_000, 30), Some(14));
      assert_eq!(mastery_rank(Category::PrimePart, 10, 30), None);
  }
@@ -1234,14 +1380,21 @@ index d5e141a..36f2ff6 100644
 +            r#""PendingRecipes":[{"ItemType":"/Lotus/Types/Recipes/Weapons/LexPrimeBlueprint","ItemCount":1}]"#,
 +            r#""PendingRecipes":[{"ItemType":"/Lotus/Types/Recipes/Weapons/LexPrimeBlueprint","CompletionDate":{"$date":{"$numberLong":"1753400000000"}}}],"PlayerLevel":24,"PremiumCredits":1234"#,
 +        );
-+    let (_, facts) = InventoryJsonDecoder::default().decode_with_facts(payload.as_bytes()).unwrap();
++    let (_, facts) = InventoryJsonDecoder::default()
++        .decode_with_facts(payload.as_bytes())
++        .unwrap();
 +    assert_eq!(
 +        facts.foundry_ready(),
-+        &[("/Lotus/Types/Recipes/Weapons/LexPrimeBlueprint".to_owned(), 1_753_400_000_000)]
++        &[(
++            "/Lotus/Types/Recipes/Weapons/LexPrimeBlueprint".to_owned(),
++            1_753_400_000_000
++        )]
 +    );
 +    assert_eq!(facts.player_level(), Some(24));
 +    assert_eq!(facts.platinum(), Some(1234));
-+    let (_, none) = InventoryJsonDecoder::default().decode_with_facts(&complete_payload()).unwrap();
++    let (_, none) = InventoryJsonDecoder::default()
++        .decode_with_facts(&complete_payload())
++        .unwrap();
 +    assert!(none.foundry_ready().is_empty());
 +    assert_eq!(none.player_level(), None);
 +}
@@ -1257,17 +1410,31 @@ index d5e141a..36f2ff6 100644
 +        {"ItemId":{"$oid":"bbbbbbbbbbbbbbbbbbbbbbbb"},"ItemType":"/Lotus/Upgrades/Mods/Randomized/LotusPistolRandomModRare","UpgradeFingerprint":"{\"challenge\":{\"Type\":\"/Lotus/Types/Challenges/RandomizedRivenChallenge\",\"Progress\":0,\"Required\":3}}"},
 +        {"ItemId":{"$oid":"cccccccccccccccccccccccc"},"ItemType":"/Lotus/Upgrades/Mods/Rifle/WeaponDamageAmountMod","UpgradeFingerprint":"{\"lvl\":5}"}
 +    ]);
-+    let (snapshot, facts) = InventoryJsonDecoder::default().decode_with_facts(&serde_json::to_vec(&payload).unwrap()).unwrap();
++    let (snapshot, facts) = InventoryJsonDecoder::default()
++        .decode_with_facts(&serde_json::to_vec(&payload).unwrap())
++        .unwrap();
 +    assert_eq!(facts.credits(), Some(4_500_000));
 +    assert_eq!(facts.endo(), Some(123_456));
 +    let rivens = facts.rivens();
-+    assert_eq!(rivens.len(), 1, "the veiled riven and the plain mod are left out");
++    assert_eq!(
++        rivens.len(),
++        1,
++        "the veiled riven and the plain mod are left out"
++    );
 +    assert_eq!(rivens[0]["id"], "aaaaaaaaaaaaaaaaaaaaaaaa");
-+    assert_eq!(rivens[0]["type"], "/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare");
++    assert_eq!(
++        rivens[0]["type"],
++        "/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare"
++    );
 +    assert_eq!(rivens[0]["fp"]["lvl"], 8);
 +    assert_eq!(rivens[0]["fp"]["buffs"][1]["Tag"], "WeaponCritDamageMod");
 +    // The snapshot itself is unchanged: rivens still count as riven mods.
-+    assert!(snapshot.entries().iter().any(|e| e.item.id.as_str().starts_with("/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare")));
++    assert!(snapshot.entries().iter().any(|e| {
++        e.item
++            .id
++            .as_str()
++            .starts_with("/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare")
++    }));
 +}
 diff --git a/crates/warframe-domain/src/rewards.rs b/crates/warframe-domain/src/rewards.rs
 index aa9d60c..f6172e6 100644

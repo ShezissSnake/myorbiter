@@ -24,7 +24,7 @@ env:
   CARGO_TERM_COLOR: always
   # The TennoScope commit the patch is written against (see patches/README.md).
   TENNOSCOPE_REPO: https://github.com/Deftera186/tennoscope.git
-  TENNOSCOPE_COMMIT: 7f66486
+  TENNOSCOPE_COMMIT: b75627f
   # Where this run's downloads go.
   RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('build-{0}', github.run_number) }}
   GH_TOKEN: ${{ github.token }}
