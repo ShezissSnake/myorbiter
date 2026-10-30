@@ -439,10 +439,16 @@ fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
-fn load_settings(app: tauri::AppHandle) -> Value {
-    let Ok(path) = settings_path(&app) else { return Value::Null };
-    let Ok(bytes) = fs::read(&path) else { return Value::Null };
-    match serde_json::from_slice(&bytes) {
+fn load_settings(app: tauri::AppHandle) -> Result<Value, String> {
+    let path = settings_path(&app)?;
+    // No file yet: a first run. Any other failure (a file held by an antivirus or a backup, no
+    // permission) is an error, so the page doesn't start from defaults and save them over it.
+    let bytes = match fs::read(&path) {
+        Ok(b) => b,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Value::Null),
+        Err(e) => return Err(format!("couldn't read {}: {e}", path.display())),
+    };
+    Ok(match serde_json::from_slice(&bytes) {
         Ok(v) => v,
         Err(_) => {
             // Keep a damaged file (floors, tiers...) instead of letting the defaults overwrite it.
@@ -450,7 +456,7 @@ fn load_settings(app: tauri::AppHandle) -> Value {
             let _ = fs::rename(&path, path.with_extension(format!("json.broken-{stamp}")));
             Value::Null
         }
-    }
+    })
 }
 
 #[tauri::command(async)]
@@ -565,8 +571,10 @@ static SETTINGS_WRITTEN: Mutex<u64> = Mutex::new(0);
 /// Written whole to a temp file, flushed to disk and renamed (see `write_atomic`), so a crash
 /// never leaves half a settings file. The flush waits on the disk, so not on the main thread.
 #[tauri::command]
-async fn save_settings(app: tauri::AppHandle, settings: Value) -> Result<(), String> {
-    let seq = SETTINGS_SENT.fetch_add(1, Ordering::SeqCst) + 1;
+async fn save_settings(app: tauri::AppHandle, settings: Value, rev: Option<u64>) -> Result<(), String> {
+    // The page numbers its saves (`rev`): async commands can start out of order, so numbering
+    // them here could put an older save after a newer one. Without one, as they arrive.
+    let seq = rev.unwrap_or_else(|| SETTINGS_SENT.fetch_add(1, Ordering::SeqCst) + 1);
     tauri::async_runtime::spawn_blocking(move || {
         let path = settings_path(&app)?;
         let text = serde_json::to_vec_pretty(&settings).map_err(|e| e.to_string())?;
@@ -647,6 +655,14 @@ pub fn run() {
     tune_webkit_for_this_machine();
 
     tauri::Builder::default()
+        // First, so a second launch only brings the open window forward and exits.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
         .manage(Mutex::new(LogFollower::default()))

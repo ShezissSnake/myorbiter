@@ -238,6 +238,38 @@ fn hold(id: u64, first: String, token: TokenSource, initial: Status, rx: Receive
     clear_heartbeat(id);
 }
 
+/// Opens a WebSocket with time limits: `tungstenite::connect` has none, so a connection or TLS
+/// handshake that never answers (a captive portal, a stuck proxy) would hang its thread for good.
+pub(crate) fn connect(
+    request: tungstenite::handshake::client::Request,
+) -> Result<tungstenite::WebSocket<tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>, tungstenite::Error> {
+    use std::net::{TcpStream, ToSocketAddrs};
+    const LIMIT: Duration = Duration::from_secs(10);
+    let uri = request.uri();
+    let host = uri.host().unwrap_or_default().to_string();
+    let port = uri.port_u16().unwrap_or(if uri.scheme_str() == Some("ws") { 80 } else { 443 });
+    let mut last = std::io::Error::new(std::io::ErrorKind::NotFound, format!("no address for {host}"));
+    let mut stream = None;
+    for addr in (host.as_str(), port).to_socket_addrs()? {
+        match TcpStream::connect_timeout(&addr, LIMIT) {
+            Ok(s) => {
+                stream = Some(s);
+                break;
+            }
+            Err(e) => last = e,
+        }
+    }
+    let stream = stream.ok_or(last)?;
+    stream.set_read_timeout(Some(LIMIT))?;
+    stream.set_write_timeout(Some(LIMIT))?;
+    match tungstenite::client_tls_with_config(request, stream, None, None) {
+        Ok((ws, _)) => Ok(ws),
+        Err(tungstenite::HandshakeError::Failure(e)) => Err(e),
+        // A read timed out mid-handshake.
+        Err(tungstenite::HandshakeError::Interrupted(_)) => Err(tungstenite::Error::Io(std::io::Error::new(std::io::ErrorKind::TimedOut, "the handshake timed out"))),
+    }
+}
+
 fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state: &Mutex<State>) -> Ended {
     use tungstenite::{client::IntoClientRequest, Message};
     let _ = rustls::crypto::ring::default_provider().install_default();
@@ -249,7 +281,7 @@ fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state:
     // The same name orbiter gives on the API: a connection that says nothing about itself is
     // turned away (403) before it can sign in.
     request.headers_mut().insert("User-Agent", tungstenite::http::HeaderValue::from_static(crate::market::USER_AGENT));
-    let (mut ws, _) = match tungstenite::connect(request) {
+    let mut ws = match connect(request) {
         Ok(c) => c,
         Err(tungstenite::Error::Http(resp)) if resp.status().as_u16() == 403 => {
             return Ended::Dropped("warframe.market turned the status connection away (403 Forbidden); trying again".into())
@@ -375,6 +407,19 @@ fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state:
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Hits the network: `cargo test -p orbiter -- --ignored`. Only the handshake, no sign-in.
+    #[test]
+    #[ignore]
+    fn connects_with_time_limits() {
+        use tungstenite::client::IntoClientRequest;
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let mut request = SOCKET.into_client_request().unwrap();
+        request.headers_mut().insert("Sec-WebSocket-Protocol", tungstenite::http::HeaderValue::from_static(SUBPROTOCOL));
+        request.headers_mut().insert("User-Agent", tungstenite::http::HeaderValue::from_static(crate::market::USER_AGENT));
+        let mut ws = connect(request).expect("connected");
+        let _ = ws.close(None);
+    }
 
     #[test]
     fn reads_status_frames_in_both_shapes() {

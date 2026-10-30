@@ -130,7 +130,9 @@ impl MissionState {
         }
         let uptime = uptime_of(line);
         let mut changed = true;
-        if let Some(rest) = line.split_once(SESSION_CLOCK).map(|(_, r)| r) {
+        // The clock line opens a session: only near its start (a stray one later on mustn't wipe
+        // the session's missions and trades).
+        if let Some(rest) = line.split_once(SESSION_CLOCK).map(|(_, r)| r).filter(|_| uptime.is_none_or(|u| u < 60.0)) {
             *self = MissionState {
                 path: self.path.clone(),
                 session: Some(rest.trim().to_string()),
@@ -294,15 +296,15 @@ fn parse_trade(uptime: f64, text: &str, session_start: Option<i64>) -> Trade {
         let Some(item) = parse_item(line) else { continue };
         if item.name.eq_ignore_ascii_case("Platinum") {
             if theirs {
-                t.platinum_received += item.count;
+                t.platinum_received = t.platinum_received.saturating_add(item.count);
             } else {
-                t.platinum_offered += item.count;
+                t.platinum_offered = t.platinum_offered.saturating_add(item.count);
             }
             continue;
         }
         let side = if theirs { &mut t.received } else { &mut t.offered };
         match side.iter_mut().find(|x| x.name == item.name && x.rank == item.rank) {
-            Some(x) => x.count += item.count,
+            Some(x) => x.count = x.count.saturating_add(item.count),
             None => side.push(item),
         }
     }
@@ -330,8 +332,8 @@ fn parse_item(line: &str) -> Option<TradeItem> {
     if line.is_empty() || line.contains("[Info]") || line.contains(".lua") {
         return None;
     }
-    let (body, count) = match line.rsplit_once(" x ") {
-        Some((name, n)) if n.trim().parse::<u32>().is_ok() => (name.trim(), n.trim().parse::<u32>().unwrap_or(1)),
+    let (body, count) = match line.rsplit_once(" x ").and_then(|(name, n)| Some((name, count_of(n)?))) {
+        Some((name, n)) => (name.trim(), n),
         _ => (line, 1),
     };
     let (name, rank) = match body.rsplit_once(" (") {
@@ -342,6 +344,20 @@ fn parse_item(line: &str) -> Option<TradeItem> {
         _ => (body, (pips > 0).then_some(pips)),
     };
     (!name.is_empty()).then(|| TradeItem { name: name.to_string(), rank, count: count.max(1) })
+}
+
+/// A count as the game writes it, thousands separated or not: "12", "1,500", "1.500", "1 500"
+/// (a plain or a narrow no-break space too). None for anything else.
+fn count_of(s: &str) -> Option<u32> {
+    let s = s.trim();
+    if s.is_empty() || !s.chars().next()?.is_ascii_digit() {
+        return None;
+    }
+    let digits: String = s.chars().filter(|c| !matches!(c, ',' | '.' | ' ' | '\u{00A0}' | '\u{202F}')).collect();
+    if !digits.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    digits.parse().ok()
 }
 
 /// Platform and other glyphs from the private-use area, which the game puts after names.
@@ -405,6 +421,8 @@ pub struct LogFollower {
     /// even if it starts the same.
     id: Option<(u64, u64)>,
     carry: Vec<u8>,
+    /// Inside a line too long to keep: drop bytes up to its newline.
+    skipping: bool,
     pub state: MissionState,
 }
 
@@ -462,9 +480,23 @@ impl LogFollower {
 
     /// Hands every complete line in `carry` to the state, keeping the unfinished tail.
     fn take_lines(&mut self) {
+        // The rest of a line too long to keep: dropped up to its end, never read as a line.
+        if self.skipping {
+            match self.carry.iter().position(|b| *b == b'\n') {
+                Some(i) => {
+                    self.carry.drain(..=i);
+                    self.skipping = false;
+                }
+                None => {
+                    self.carry.clear();
+                    return;
+                }
+            }
+        }
         let Some(end) = self.carry.iter().rposition(|b| *b == b'\n') else {
             if self.carry.len() > MAX_LINE_BYTES {
                 self.carry.clear();
+                self.skipping = true;
             }
             return;
         };
@@ -536,6 +568,15 @@ pub fn find_ee_log() -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn counts_with_thousands_separators() {
+        for (line, n) in [("Platinum x 1,500", 1500), ("Platinum x 1.500", 1500), ("Platinum x 1 500", 1500), ("Platinum x 17", 17), ("Vitus Essence x 2", 2)] {
+            assert_eq!(parse_item(line).map(|i| i.count), Some(n), "{line}");
+        }
+        // Not a count: the whole line is the name.
+        assert_eq!(parse_item("Something x 1.5.a").map(|i| i.count), Some(1));
+    }
 
     const LOG: &str = "\
 0.107 Sys [Diag]: Current time: Tue Oct 13 21:08:47 2026 [UTC: Tue Oct 13 19:08:47 2026]

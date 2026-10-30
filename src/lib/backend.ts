@@ -429,11 +429,27 @@ export async function relicData(force = false): Promise<RelicData | null> {
 
 export async function loadSettings(): Promise<Settings> {
   let raw: Partial<Settings> | null = null;
-  try {
-    if (inTauri) raw = await invoke<Partial<Settings> | null>("load_settings");
-    else raw = JSON.parse(localStorage.getItem("orbiter-settings") ?? "null");
-  } catch {
-    raw = null;
+  if (inTauri) {
+    // A file briefly held by something else (an antivirus, a backup): tried a few times. Still
+    // unreadable, orbiter runs on defaults but never saves over the file (see flushSettings).
+    for (let i = 0; ; i++) {
+      try {
+        raw = await invoke<Partial<Settings> | null>("load_settings");
+        break;
+      } catch (e) {
+        if (i >= 4) {
+          loadFailed = String(e).replace(/^Error:\s*/, "");
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+  } else {
+    try {
+      raw = JSON.parse(localStorage.getItem("orbiter-settings") ?? "null");
+    } catch {
+      raw = null;
+    }
   }
   const base = defaultSettings();
   // Schema 2: cracking alone became the default for Relics and Planner alike.
@@ -512,6 +528,8 @@ export function joinSettings(light: string, heavy: Partial<Record<HeavyKey, stri
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
+/** Each save's number, so the app writes them in the order they were made. */
+let saveRev = 0;
 let pendingSave: (() => Settings) | null = null;
 /**
  * Saves the settings 300 ms after the last change. `s` can be a function, so the settings are
@@ -529,9 +547,15 @@ export async function flushSettings() {
   const get = pendingSave;
   pendingSave = null;
   if (!get) return;
+  // Your saved settings couldn't be read: saving now would replace them (sales, floors) with these.
+  if (loadFailed) {
+    saveFailed = true;
+    saveListener?.(`orbiter couldn't read your saved settings (${loadFailed}), so it won't save over them. Restart orbiter`);
+    return;
+  }
   try {
     const s = get();
-    if (inTauri) await invoke("save_settings", { settings: s });
+    if (inTauri) await invoke("save_settings", { settings: s, rev: ++saveRev });
     else localStorage.setItem("orbiter-settings", JSON.stringify(s));
     if (saveFailed) {
       saveFailed = false;
@@ -551,6 +575,8 @@ export async function flushSettings() {
 }
 
 let saveFailed = false;
+/** Why the saved settings couldn't be read at start, if they couldn't: nothing is saved then. */
+let loadFailed: string | null = null;
 let saveListener: ((error: string | null) => void) | null = null;
 /** Told when saving settings fails (the error), and when a save goes through again (null). */
 export function onSaveTrouble(f: (error: string | null) => void) {

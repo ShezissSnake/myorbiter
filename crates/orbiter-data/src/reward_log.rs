@@ -168,7 +168,12 @@ fn merge_repeats(screens: Vec<LoggedScreen>) -> Vec<LoggedScreen> {
     let mut out: Vec<LoggedScreen> = Vec::with_capacity(screens.len());
     for s in screens {
         if let Some(last) = out.last_mut() {
-            if s.at - last.at < SAME_SCREEN_SECS * 1_000 {
+            // Close in time and nothing that says otherwise: the same cards, or one reading
+            // failed, from the same squad's relics when both list them. Two different good
+            // readings are two screens (a quick fissure run).
+            let same_relics = last.relics.is_empty() || s.relics.is_empty() || last.relics == s.relics;
+            let same_cards = last.cards == s.cards || last.cards.is_empty() || s.cards.is_empty();
+            if s.at - last.at < SAME_SCREEN_SECS * 1_000 && same_cards && same_relics {
                 if last.cards.is_empty() && !s.cards.is_empty() {
                     *last = s;
                 }
@@ -183,6 +188,22 @@ fn merge_repeats(screens: Vec<LoggedScreen>) -> Vec<LoggedScreen> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn quick_runs_stay_separate_screens() {
+        let screen = |at: i64, cards: &[&str], relics: &[&str]| LoggedScreen { at, cards: cards.iter().map(|c| c.to_string()).collect(), relics: relics.iter().map(|r| r.to_string()).collect() };
+        let merged = merge_repeats(vec![
+            screen(0, &[], &["A"]),
+            screen(5_000, &["Forma Blueprint"], &["A"]),
+            // 40 s later, other cards: the next run.
+            screen(45_000, &["Bronco Prime Barrel"], &["A"]),
+            // The same cards again: a second look at that screen.
+            screen(50_000, &["Bronco Prime Barrel"], &["A"]),
+            // A failed read with other relics: another squad's screen.
+            screen(60_000, &[], &["B"]),
+        ]);
+        assert_eq!(merged.iter().map(|s| s.cards.join(",")).collect::<Vec<_>>(), vec!["Forma Blueprint", "Bronco Prime Barrel", ""]);
+    }
 
     const GOOD: &str = r#"[2026-10-13][12:12:29][app_lib::reward_recognition][INFO] reward: published cards=["Bronco Prime Blueprint" 0.95, "Vadarya Prime Barrel" 1.00, "Forma Blueprint" 1.00] pool=22 relics=["T3VoidProjectionYareliPrimeABronze", "T2VoidProjectionStyanaxPrimeDPlatinum"]"#;
 

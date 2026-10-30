@@ -95,7 +95,7 @@ fn run(app: &tauri::AppHandle, state: &Mutex<FeedState>, generation: &AtomicU64,
     };
     request.headers_mut().insert("Sec-WebSocket-Protocol", tungstenite::http::HeaderValue::from_static(SUBPROTOCOL));
     request.headers_mut().insert("User-Agent", tungstenite::http::HeaderValue::from_static(crate::market::USER_AGENT));
-    let (mut ws, _) = match tungstenite::connect(request) {
+    let mut ws = match crate::presence::connect(request) {
         Ok(c) => c,
         Err(e) => return format!("Couldn't reach warframe.market's live feed ({e})"),
     };
