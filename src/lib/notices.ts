@@ -30,6 +30,7 @@ export const NOTICE_KINDS: NoticeKindInfo[] = [
   { kind: "siteChat", group: "Trading", label: "Messages on warframe.market", hint: "A buyer writes to you on the website's chat rather than whispering in game (read each minute while you're signed in).", icon: "market", to: "market", pcOnly: false },
   { kind: "whispers", group: "Trading", label: "Someone whispers you", hint: "A private chat opens in game: usually a buyer from warframe.market. Their name and reputation.", icon: "market", to: "market", pcOnly: true },
   { kind: "deals", group: "Trading", label: "Cheap parts and arcanes", hint: "Someone lists a part you're missing, or an arcane you're collecting, well under its usual price.", icon: "platinum", to: "home#deals", pcOnly: true },
+  { kind: "cycle", group: "Trading", label: "Riven cycles", hint: "You cycled a riven and TennoScope read the new roll before you chose: which to keep, the one it has or the new one.", icon: "riven", to: "rivens", pcOnly: true },
   { kind: "rivens", group: "Trading", label: "Rivens you watch for", hint: "A riven matching one of your riven alerts is listed at or under your price (checked every 15 minutes).", icon: "riven", to: "rivens", pcOnly: false },
 
   { kind: "invasions", group: "World", label: "Invasions with a part you need", hint: "An invasion rewards a blueprint or part for something you haven't mastered or built, and you don't have enough of it. Says which side to take.", icon: "invasion", to: "home#alerts", pcOnly: true },

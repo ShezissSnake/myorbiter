@@ -71,7 +71,7 @@
   import Wishlist from "./lib/tabs/Wishlist.svelte";
   import { openEras, wishlistEras } from "./lib/core/wishlist";
   import { rivens } from "./lib/rivenStore.svelte";
-  import { recordRivens } from "./lib/core/rivens";
+  import { recordRivens, rivenTables, rollChoice } from "./lib/core/rivens";
   import ItemDetails from "./lib/ItemDetails.svelte";
   import HoverCard from "./lib/HoverCard.svelte";
   import ListDialog from "./lib/ui/ListDialog.svelte";
@@ -1014,6 +1014,24 @@
     if (!settings.rivenWatch.length || now - lastRivens < 15 * 60_000) return;
     lastRivens = now;
     untrack(() => void scanRivens());
+  });
+  // A riven mid-cycle (TennoScope read it while you choose): which roll to keep, as a notification
+  // over the game, once per cycle.
+  const cycleSeen = new Set<string>();
+  $effect(() => {
+    const raws = settings.game.rivens;
+    const m = model;
+    if (!raws?.some((r) => r.pending) || !m) return;
+    untrack(() => {
+      const tables = rivenTables(m.catalogByUnique.values());
+      for (const raw of raws) {
+        const key = `${raw.id}|${raw.pending?.rerolls ?? ""}|${JSON.stringify(raw.pending?.buffs ?? [])}`;
+        if (!raw.pending || cycleSeen.has(key)) continue;
+        cycleSeen.add(key);
+        const c = rollChoice(m, tables, raw);
+        if (c) tell("cycle", `${c.current.weapon}: ${c.verdict === "take" ? "take the new roll" : c.verdict === "keep" ? "keep the one it has" : "close call"}`, `${c.next.name} (${c.next.grade}) vs ${c.current.name} (${c.current.grade}). ${c.why}`, "rivens");
+      }
+    });
   });
   async function scanRivens() {
     const found: string[] = [];

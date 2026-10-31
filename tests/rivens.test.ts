@@ -128,3 +128,18 @@ test("DE's weekly riven trades: the file reads, and a riven finds its weapon's l
   // The real file's shape, if it ever becomes plain JSON.
   assert.equal(parseWeeklyRivens(JSON.stringify([{ itemType: "Zaw Riven Mod", compatibility: "Balla", rerolled: false, avg: 1, stddev: 0, min: 1, max: 1, pop: 1, median: 1 }]))[0].weapon, "Balla");
 });
+
+test("keep or take a cycled riven: crit and multishot beat reload and zoom, a zoom curse costs nothing", async () => {
+  const { rollScore, statWant } = await import("../src/lib/core/rivens");
+  assert.equal(statWant("WeaponCritChanceMod"), 3);
+  assert.equal(statWant("WeaponWeakpointCriticalChance"), 1);
+  assert.equal(statWant("WeaponElectricityDamageMod"), 2.5);
+  assert.equal(statWant("WeaponZoomFovMod"), 0.4);
+  const stat = (tag: string, buff: boolean, quality = 0.5) => ({ tag, label: tag, display: "", value: 0, buff, quality, grade: "B", spliced: false });
+  const riven = (stats: ReturnType<typeof stat>[]) => ({ stats }) as unknown as import("../src/lib/core/rivens").Riven;
+  const good = riven([stat("WeaponCritChanceMod", true), stat("WeaponFireIterationsMod", true), stat("WeaponZoomFovMod", false)]);
+  const poor = riven([stat("WeaponReloadSpeedMod", true, 1), stat("WeaponClipMaxMod", true, 1), stat("WeaponProjectileSpeedMod", true, 1)]);
+  const cursed = riven([stat("WeaponCritChanceMod", true), stat("WeaponFireIterationsMod", true), stat("WeaponDamageAmountMod", false)]);
+  assert.ok(rollScore(good) > rollScore(poor));
+  assert.ok(rollScore(good) > rollScore(cursed), "a damage curse hurts; a zoom one doesn't");
+});

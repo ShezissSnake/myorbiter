@@ -4033,7 +4033,7 @@ index 93ac141..513fab6 100644
      /// collection loads once here so a reward and a kiosk tile never disagree mid-render.
      pub fn mastery_view(&self) -> Result<MasteryView, AppError> {
 diff --git a/crates/warframe-acquisition/src/inventory.rs b/crates/warframe-acquisition/src/inventory.rs
-index 97ac561..57aa4c6 100644
+index 97ac561..f509196 100644
 --- a/crates/warframe-acquisition/src/inventory.rs
 +++ b/crates/warframe-acquisition/src/inventory.rs
 @@ -106,11 +106,103 @@ impl<'a> InventoryJsonDecoder<'a> {
@@ -4179,7 +4179,7 @@ index 97ac561..57aa4c6 100644
  }
  
  /// A section, tolerating the two shapes that are not a list of rows.
-@@ -391,6 +500,59 @@ impl InventoryJsonDecoder<'_> {
+@@ -391,6 +500,69 @@ impl InventoryJsonDecoder<'_> {
              None,
              &mut DecodeReport::default(),
          );
@@ -4231,7 +4231,17 @@ index 97ac561..57aa4c6 100644
 +                    .and_then(|i| i.get("$oid").or(Some(i)))
 +                    .and_then(|i| i.as_str())
 +                    .unwrap_or_default();
-+                Some(serde_json::json!({ "type": kind, "id": id, "fp": fp }))
++                // Mid-cycle: the new roll waiting for keep-or-take, for orbiter to compare.
++                let pending = v
++                    .get("PendingRerollFingerprint")
++                    .and_then(|p| p.as_str())
++                    .and_then(|p| serde_json::from_str::<serde_json::Value>(p).ok())
++                    .filter(|p| p.get("buffs").is_some());
++                let mut row = serde_json::json!({ "type": kind, "id": id, "fp": fp });
++                if let Some(p) = pending {
++                    row["pending"] = p;
++                }
++                Some(row)
 +            })
 +            .collect::<Vec<_>>();
 +        // Imprints carry no secrets, but their rows are the player's own pets: never logged.
@@ -4239,7 +4249,7 @@ index 97ac561..57aa4c6 100644
          let pending = pending_holdings
              .into_iter()
              .map(|(path, accumulated)| (path, accumulated.quantity.max(0) as u32))
-@@ -528,7 +690,14 @@ impl InventoryJsonDecoder<'_> {
+@@ -528,7 +700,14 @@ impl InventoryJsonDecoder<'_> {
          }
          let snapshot = InventorySnapshot::coherent(domain_entries)
              .map_err(|_| AcquisitionError::SnapshotInvalid)?;
@@ -4453,10 +4463,10 @@ index 0debbfe..de1659c 100644
 +    }
 +}
 diff --git a/crates/warframe-acquisition/tests/inventory_decoder.rs b/crates/warframe-acquisition/tests/inventory_decoder.rs
-index d5e141a..b737bd4 100644
+index d5e141a..860a59b 100644
 --- a/crates/warframe-acquisition/tests/inventory_decoder.rs
 +++ b/crates/warframe-acquisition/tests/inventory_decoder.rs
-@@ -526,3 +526,99 @@ fn mastery_rank_follows_the_affinity_curve_and_caps_at_max_rank() {
+@@ -526,3 +526,123 @@ fn mastery_rank_follows_the_affinity_curve_and_caps_at_max_rank() {
      assert_eq!(mastery_rank(Category::Frame, 196_000, 30), Some(14));
      assert_eq!(mastery_rank(Category::PrimePart, 10, 30), None);
  }
@@ -4517,6 +4527,7 @@ index d5e141a..b737bd4 100644
 +    );
 +    assert_eq!(rivens[0]["fp"]["lvl"], 8);
 +    assert_eq!(rivens[0]["fp"]["buffs"][1]["Tag"], "WeaponCritDamageMod");
++    assert!(rivens[0].get("pending").is_none(), "not mid-cycle");
 +    // The snapshot itself is unchanged: rivens still count as riven mods.
 +    assert!(snapshot.entries().iter().any(|e| {
 +        e.item
@@ -4524,6 +4535,29 @@ index d5e141a..b737bd4 100644
 +            .as_str()
 +            .starts_with("/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare")
 +    }));
++}
++
++#[test]
++fn a_riven_mid_cycle_carries_the_roll_waiting_to_be_taken() {
++    let mut payload: serde_json::Value = serde_json::from_slice(&complete_payload()).unwrap();
++    let fp = r#"{"compat":"/Lotus/Weapons/Tenno/Rifle/BratonPrime","lvl":8,"rerolls":3,"buffs":[{"Tag":"WeaponCritChanceMod","Value":536870912}],"curses":[]}"#;
++    let pending = r#"{"compat":"/Lotus/Weapons/Tenno/Rifle/BratonPrime","lvl":8,"rerolls":4,"buffs":[{"Tag":"WeaponFireRateMod","Value":100}],"curses":[]}"#;
++    payload["Upgrades"] = serde_json::json!([
++        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaaaa"},"ItemType":"/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare","UpgradeFingerprint":fp,"PendingRerollFingerprint":pending}
++    ]);
++    let (_, facts) = InventoryJsonDecoder::default()
++        .decode_with_facts(&serde_json::to_vec(&payload).unwrap())
++        .unwrap();
++    let rivens = facts.rivens();
++    assert_eq!(
++        rivens[0]["fp"]["buffs"][0]["Tag"], "WeaponCritChanceMod",
++        "the roll it has"
++    );
++    assert_eq!(
++        rivens[0]["pending"]["buffs"][0]["Tag"], "WeaponFireRateMod",
++        "the roll on offer"
++    );
++    assert_eq!(rivens[0]["pending"]["rerolls"], 4);
 +}
 +
 +#[test]

@@ -29,6 +29,8 @@ export interface RivenRaw {
   type: string;
   id: string;
   fp: RivenFingerprint;
+  /** Mid-cycle: the new roll on offer, waiting for you to keep the old one or take it. */
+  pending?: RivenFingerprint;
 }
 
 export interface RivenStatDef {
@@ -223,6 +225,64 @@ export function rivenName(table: RivenStatDef[], buffs: RivenStatRaw[]): string 
 }
 
 // ---------------------------------------------------------------- cycling
+
+/**
+ * How much players want each stat on a riven, 0 to 3: what makes a riven sell is crit, multishot,
+ * damage and the elements; reload, zoom or punch through add little. A curse on a stat nobody
+ * uses (zoom, a physical damage the weapon barely has) costs nothing.
+ */
+const WANT: [RegExp, number][] = [
+  [/SlideAttackCrit|MeleeHeavyAttack|MeleeComboInitialBonus|ComboDuration|MeleeRangeInc|MeleeSlam/, 1.5],
+  [/Weakpoint|Faction|ProcTime|AmmoEfficiency|ImpactDamage|ArmorPiercing|SlashDamage/, 1],
+  [/CritChance|CritDamage|FireIterations|WeaponDamageAmount|WeaponMeleeDamage/, 3],
+  [/(Toxin|Fire|Freeze|Electricity|Viral|Corrosive|Radiation|Gas|Blast|Magnetic)Damage/, 2.5],
+  [/StunChance|StatusDamage|FireRate/, 2],
+  [/Clip|AmmoMax|Reload|PunctureDepth|ProjectileSpeed|Recoil|ZoomFov|ParryAngle|Finisher|ComboEfficiency|ComboPointsOnHit|ComboBonusOnHit/, 0.4],
+];
+export const statWant = (tag: string) => WANT.find(([re]) => re.test(tag))?.[1] ?? 1;
+
+/**
+ * A roll's worth for keep-or-take, on its own: each buff by how much it's wanted and how well it
+ * rolled, more stats being better, and a curse counted against by how much it hurts (a curse on
+ * zoom or recoil is free).
+ */
+export function rollScore(r: Riven): number {
+  let s = 0;
+  for (const x of r.stats) {
+    const want = statWant(x.tag);
+    const q = x.quality ?? 0.5;
+    if (x.buff) s += want * (0.75 + 0.5 * q);
+    else s -= want >= 1.5 ? want * (0.6 + 0.4 * (1 - q)) : 0;
+  }
+  return Math.round(s * 10) / 10;
+}
+
+export interface RollChoice {
+  /** The roll it has now. */
+  current: Riven;
+  /** The roll on offer. */
+  next: Riven;
+  /** keep: the one it has; take: the new one; close: too close to call on the stats alone. */
+  verdict: "keep" | "take" | "close";
+  why: string;
+}
+
+/** A riven mid-cycle: the roll it has and the one on offer, side by side, and which to keep. */
+export function rollChoice(m: Model, tables: Map<string, RivenStatDef[]>, raw: RivenRaw): RollChoice | null {
+  if (!raw.pending?.buffs?.length) return null;
+  const current = parseRiven(m, tables, raw);
+  const next = parseRiven(m, tables, { ...raw, fp: { ...raw.fp, ...raw.pending } });
+  if (!current || !next) return null;
+  const a = rollScore(current);
+  const b = rollScore(next);
+  const best = (r: Riven) => r.stats.filter((x) => x.buff).sort((x, y) => statWant(y.tag) - statWant(x.tag))[0]?.label ?? "";
+  const curse = (r: Riven) => r.stats.find((x) => !x.buff);
+  const curseWord = (r: Riven) => (curse(r) ? (statWant(curse(r)!.tag) >= 1.5 ? `, though its ${curse(r)!.label} curse hurts` : `, and its ${curse(r)!.label} curse costs nothing`) : ", with no curse");
+  if (Math.abs(a - b) < 0.6) return { current, next, verdict: "close", why: "About as good either way on the stats: what similar rivens sell for decides." };
+  return b > a
+    ? { current, next, verdict: "take", why: `The new roll is better: ${best(next)} leads it${curseWord(next)}.` }
+    : { current, next, verdict: "keep", why: `The one it has is better: ${best(current)} leads it${curseWord(current)}.` };
+}
 
 /** A riven's roll as orbiter saw it on one read. */
 export interface RivenSnap {

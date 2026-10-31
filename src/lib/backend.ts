@@ -264,6 +264,8 @@ export interface NotifySettings {
   fissures: boolean;
   /** A riven you're watching for is listed at or under your price. */
   rivens: boolean;
+  /** A riven you're cycling: which roll to keep. */
+  cycle: boolean;
   /** A fissure opens where a relic you hold drops something on your wishlist. */
   wishlist: boolean;
   /** Someone messaged you on warframe.market's own chat (the website, not the game). */
@@ -279,7 +281,7 @@ export interface NotifySettings {
   /** The Duviri Circuit's weekly picks include something for you. */
   circuit: boolean;
 }
-export const defaultNotify = (): NotifySettings => ({ reward: true, market: true, sold: true, repriced: true, tennoscope: true, invasions: true, foundry: true, whispers: true, deals: true, fissures: true, rivens: true, wishlist: true, siteChat: true, alerts: true, alertLoot: true, baro: true, varzia: true, circuit: true });
+export const defaultNotify = (): NotifySettings => ({ reward: true, market: true, sold: true, repriced: true, tennoscope: true, invasions: true, foundry: true, whispers: true, deals: true, fissures: true, rivens: true, cycle: true, wishlist: true, siteChat: true, alerts: true, alertLoot: true, baro: true, varzia: true, circuit: true });
 
 /** How notifications reach you, whatever they're about. */
 export interface NotifyOptions {

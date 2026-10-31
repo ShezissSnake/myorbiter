@@ -6,7 +6,7 @@
   import type { RivenWatch, Settings } from "../backend";
   import { marketUrl, openUrl } from "../backend";
   import { tradesFor, type RivenTrade } from "../core/rivens";
-  import { auctionItemFor, auctionOf, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, searchFor, type MyAuction, type Riven, type RivenAuction, type RivenChange } from "../core/rivens";
+  import { auctionItemFor, auctionOf, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, rollChoice, searchFor, type MyAuction, type Riven, type RivenAuction, type RivenChange, type RollChoice } from "../core/rivens";
   import { mkt } from "../marketStore.svelte";
   import { rivens } from "../rivenStore.svelte";
   import PageHead from "../ui/PageHead.svelte";
@@ -19,6 +19,7 @@
   import Chip from "../ui/Chip.svelte";
   import IconButton from "../ui/IconButton.svelte";
   import Icon from "../ui/Icon.svelte";
+  import Thumb from "../ui/Thumb.svelte";
   import { matches } from "../ui/table";
 
   // console: you play on a console or phone, where orbiter can't read your rivens: the finder and
@@ -29,6 +30,26 @@
   const mine = $derived((settings.game.rivens ?? []).map((r) => parseRiven(model, tables, r)).filter((r): r is Riven => !!r));
   const veiled = $derived([...model.inventoryByBase.entries()].filter(([u]) => /\/Randomized\/Raw/.test(u)).reduce((n, [, rows]) => n + rows.reduce((k, r) => k + r.quantity, 0), 0));
   // What the last cycle orbiter saw did to each riven.
+  // Rivens mid-cycle: the roll each has and the one on offer, and which to keep.
+  const choices = $derived((settings.game.rivens ?? []).map((raw) => rollChoice(model, tables, raw)).filter((c): c is RollChoice => !!c));
+  // What similar rivens are listed for, each roll, to settle a close call.
+  let rollPrices = $state<Record<string, { current: number | null; next: number | null }>>({});
+  $effect(() => {
+    const m = meta;
+    if (!m) return;
+    for (const c of choices) {
+      if (rollPrices[c.current.id]) continue;
+      rollPrices[c.current.id] = { current: null, next: null };
+      void (async () => {
+        const price = async (r: Riven) => {
+          const q = searchFor(m, r);
+          if (!q.weapon) return null;
+          return priceCheck(await rivens.search(q.weapon, q.positive.slice(0, 2), null).catch(() => [])).typical;
+        };
+        rollPrices[c.current.id] = { current: await price(c.current), next: await price(c.next) };
+      })();
+    }
+  });
   const cycles = $derived.by(() => {
     const out: Record<string, RivenChange> = {};
     for (const raw of settings.game.rivens ?? []) {
@@ -296,6 +317,28 @@
       <Stat label="Alerts" note="Rivens you're watching for">{settings.rivenWatch.length}</Stat>
     {/snippet}
   </PageHead>
+
+  {#if choices.length}
+    <section class="cycling" aria-label="Cycling now">
+      {#each choices as c (c.current.id)}
+        {@const pc = rollPrices[c.current.id]}
+        <article class="choice">
+          <header><Thumb file={c.current.image} name={c.current.weapon} size={30} /><b class="mark">Cycling {c.current.weapon}</b><span class="verdict v-{c.verdict}">{c.verdict === "take" ? "Take the new roll" : c.verdict === "keep" ? "Keep the one it has" : "Too close to call"}</span></header>
+          <p class="small">{c.why}{#if pc?.current != null && pc?.next != null}{" "}Similar rivens are listed around <b>{pc.current}p</b> for the one it has and <b>{pc.next}p</b> for the new roll.{/if}</p>
+          <div class="rolls">
+            {#each [{ r: c.current, label: "It has", win: c.verdict === "keep" }, { r: c.next, label: "New roll", win: c.verdict === "take" }] as x (x.label)}
+              <div class="roll" class:win={x.win}>
+                <span class="register">{x.label}</span>
+                <span class="rn"><b>{x.r.name}</b>{@render grade(x.r.grade)}</span>
+                <ul>{#each x.r.stats as s, i (i)}<li class:curse={!s.buff}><b>{s.display}</b> {s.label} {@render grade(s.grade)}</li>{/each}</ul>
+              </div>
+            {/each}
+          </div>
+        </article>
+      {/each}
+      <p class="dim small">Read while you're choosing in game (press Sync at the cycle screen if it doesn't show). The stats are weighed by what players look for on a riven: crit, multishot, damage and elements first; a curse on zoom or recoil costs nothing.</p>
+    </section>
+  {/if}
 
   {#if console}
     <!-- No rivens of your own to show on a console: straight to the finder. -->
@@ -583,4 +626,20 @@
   .st-online { color: var(--gold); }
   .checking { display: inline-flex; align-items: center; gap: .6rem; }
   .steps { margin: .2rem 0 .6rem; padding-left: 1.2rem; display: grid; gap: .2rem; }
+  /* A riven mid-cycle: the two rolls side by side, the one to keep lit. */
+  .cycling { display: grid; gap: .8rem; margin-bottom: var(--step); }
+  .choice { border: 1px solid var(--gold-dim); background: var(--plate); padding: .9rem 1rem; display: grid; gap: .6rem; }
+  .choice header { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+  .choice header b { font-size: 1.1rem; }
+  .choice p { margin: 0; color: var(--platinum-dim); }
+  .verdict { margin-left: auto; padding: .2rem .55rem; font-family: var(--face-register); font-size: .62rem; letter-spacing: .12em; text-transform: uppercase; border: 1px solid var(--rule-bright); }
+  .verdict.v-take { color: var(--slab); background: var(--gold); border-color: var(--gold); }
+  .verdict.v-keep { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 55%, transparent); }
+  .rolls { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: .8rem; }
+  .roll { display: grid; gap: .35rem; padding: .6rem .7rem; border: 1px solid var(--rule); background: var(--well); }
+  .roll.win { border-color: var(--gold); box-shadow: inset 3px 0 0 var(--gold); }
+  .roll .rn { display: flex; align-items: center; gap: .5rem; }
+  .roll ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .2rem; font-size: .84rem; color: var(--platinum-dim); }
+  .roll li b { color: var(--platinum); font-weight: 600; }
+  .roll li.curse b { color: var(--oxblood); }
 </style>
