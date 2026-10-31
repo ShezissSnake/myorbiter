@@ -133,6 +133,8 @@ export interface Settings {
   notifyOptions: NotifyOptions;
   /** Pages you took out of the sidebar (Settings → Pages). */
   pagesHidden: string[];
+  /** Which tidy-ups of the sidebar have been applied (1: Planner, Market and Stats out by default, Oct 2026). */
+  simplified: number;
   /** The sidebar's order, when you changed it (Settings → Pages): page ids. */
   pageOrder: string[];
   /** The page orbiter opens on: "last" is where you left it. */
@@ -320,7 +322,8 @@ export const defaultSettings = (): Settings => ({
   homeDismissed: [],
   notify: defaultNotify(),
   notifyOptions: defaultNotifyOptions(),
-  pagesHidden: [],
+  pagesHidden: ["planner", "browse", "stats"],
+  simplified: 1,
   pageOrder: [],
   startPage: "last",
   tab: "home",
@@ -534,7 +537,12 @@ export async function loadSettings(): Promise<Settings> {
       quietInFissure: raw?.notifyOptions?.quietInFissure === true,
       quiet: Array.isArray(raw?.notifyOptions?.quiet) ? raw.notifyOptions.quiet.filter((k: unknown): k is string => typeof k === "string") : [],
     },
-    pagesHidden: Array.isArray(raw?.pagesHidden) ? raw.pagesHidden.filter((k: unknown): k is string => typeof k === "string") : [],
+    // Once: the pages most people rarely open leave the sidebar (Settings → Pages puts them back).
+    pagesHidden: (() => {
+      const had: string[] = Array.isArray(raw?.pagesHidden) ? raw.pagesHidden.filter((k: unknown): k is string => typeof k === "string") : [];
+      return raw && (raw.simplified ?? 0) < 1 ? [...new Set([...had, "planner", "browse", "stats"])] : raw ? had : base.pagesHidden;
+    })(),
+    simplified: 1,
     pageOrder: Array.isArray(raw?.pageOrder) ? raw.pageOrder.filter((k: unknown): k is string => typeof k === "string") : [],
     startPage: typeof raw?.startPage === "string" && raw.startPage ? raw.startPage : "last",
     schema: base.schema,
