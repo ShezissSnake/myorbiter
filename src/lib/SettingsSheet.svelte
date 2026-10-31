@@ -172,6 +172,13 @@
     {#if !onConsole}<Switch bind:on={settings.market.autoTrades} label="Mark sales sold from the game">
       When a trade goes through where you gave items and got platinum, orbiter reads it from Warframe's log, marks your listing sold on warframe.market (recorded on your profile) and logs the sale with the platinum you actually got. Usually within half a minute: the game writes its log in bursts.
     </Switch>{/if}
+    {#if !onConsole}<Switch bind:on={settings.market.lastCopy.on} label="Hide last copies while a buyer whispers you">
+      When someone whispers you in game, orbiter hides every listing down to its last copy, so a second buyer doesn't message you for one that's already promised. Each comes back after the time below unless it sold. The game's log says who whispered, not what about, so all of them are hidden for that while.
+    </Switch>
+    {#if settings.market.lastCopy.on}<label class="field minutes">
+      <span class="register">Hidden for</span>
+      <span class="row"><input type="number" min="1" max="120" step="1" bind:value={settings.market.lastCopy.minutes} aria-label="Minutes hidden" /> <span class="hint">minutes</span></span>
+    </label>{/if}{/if}
   </section>
 
   {#if !onConsole}<section>
@@ -208,6 +215,7 @@
   section:last-child { border-bottom: 0; }
   h3 { margin: 0; color: var(--gold); }
   .sub { margin: .4rem 0 0; font-size: .88rem; font-weight: 600; color: var(--platinum); }
+  .minutes input { width: 5rem; }
   .shows { display: flex; flex-wrap: wrap; gap: .4rem; margin: -.3rem 0 .2rem; }
   .field { display: grid; gap: .4rem; }
   .path { font-family: var(--face-register); font-size: .74rem; }

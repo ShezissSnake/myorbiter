@@ -668,6 +668,24 @@ class MarketStore {
     this.draftDone = null;
   }
 
+  /**
+   * Hides or shows several listings, then reloads them once. Returns the ones warframe.market
+   * took; one it refuses is logged and left as it was.
+   */
+  async setShown(orders: MyOrder[], visible: boolean): Promise<MyOrder[]> {
+    const done: MyOrder[] = [];
+    for (const o of orders) {
+      try {
+        await market.update(o.id, { visible });
+        done.push(o);
+      } catch (e) {
+        this.note(`${this.item(o.itemId)?.name ?? "A listing"}: couldn't ${visible ? "show" : "hide"} it (${clean(e)})`, "warn");
+      }
+    }
+    if (done.length) await this.refresh();
+    return done;
+  }
+
   /** True when warframe.market took the change. */
   async update(o: MyOrder, change: { platinum?: number; quantity?: number; visible?: boolean }): Promise<boolean> {
     return this.guard("Saving", async () => {

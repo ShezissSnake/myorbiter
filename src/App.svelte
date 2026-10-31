@@ -11,6 +11,7 @@
   import { mergeRelics, type RelicData } from "./lib/core/relicData";
   import { today } from "./lib/core/today";
   import { bestCard, resolveName, scoreCards, vaultWord } from "./lib/core/pick";
+  import { DEFAULT_HIDE_MINUTES, dueToShow, hideNow, lastCopies } from "./lib/core/lastCopy";
   import { mergeLogged, recordScreen, resolvePicks } from "./lib/core/relicRuns";
   import { heldFor } from "./lib/core/market";
   import type { Bundle, Live, MissionState } from "./lib/core/types";
@@ -826,6 +827,8 @@
       settings.game.whispersSeen = [...fresh.map((w) => `${session}|${w.name}`), ...settings.game.whispersSeen].slice(0, 300);
       // Opening orbiter mid-session: chats from more than 15 minutes ago aren't news any more.
       const recent = fresh.filter((w) => w.at == null || Date.now() / 1000 - w.at < 15 * 60);
+      // A buyer is on the way: hide your last copies so a second one doesn't come for the same.
+      if (recent.length) void hideLastCopies(recent.map((w) => w.name));
       if (!settings.notify.whispers || !recent.length) return;
       const listed = mkt.orders.filter((o) => o.visible).length;
       const tail = listed ? `You have ${listed} listing${listed === 1 ? "" : "s"} up on warframe.market` : "Check your chat in game";
@@ -840,6 +843,43 @@
         tell("whispers", `${who} whispered you`, [rep, tail].filter(Boolean).join(" · "));
       });
     });
+  });
+
+  // Last copies hidden while someone whispers you (lastCopy.ts): hidden on the whisper, shown
+  // again once the wait is over unless they sold.
+  async function hideLastCopies(who: string[]) {
+    const lc = settings.market.lastCopy;
+    if (!lc.on || !mkt.linked) return;
+    const now = Date.now();
+    const already = new Set(lc.hidden.map((h) => h.id));
+    const toHide = lastCopies(mkt.orders);
+    const hiddenNow = toHide.length ? await mkt.setShown(toHide, false) : [];
+    // Ones hidden on an earlier whisper wait again from this one.
+    const stillHidden = mkt.orders.filter((o) => !o.visible && already.has(o.id));
+    settings.market.lastCopy.hidden = hideNow(lc.hidden, [...hiddenNow, ...stillHidden], now);
+    if (hiddenNow.length) {
+      const names = hiddenNow.map((o) => mkt.item(o.itemId)?.name ?? "a listing");
+      mkt.note(`${who.join(", ")} whispered you: hid ${names.length === 1 ? names[0] : `${names.length} last-copy listings (${names.slice(0, 4).join(", ")}${names.length > 4 ? "…" : ""})`} for ${lc.minutes >= 1 ? lc.minutes : DEFAULT_HIDE_MINUTES} min, back then unless sold`, "info");
+    }
+  }
+  async function showLastCopiesDue() {
+    const lc = settings.market.lastCopy;
+    if (!lc.hidden.length || !mkt.linked || !mkt.orders.length) return;
+    // An emptied minutes box mustn't leave them hidden for ever.
+    const minutes = lc.minutes >= 1 ? lc.minutes : DEFAULT_HIDE_MINUTES;
+    const { show, keep } = dueToShow(lc.hidden, mkt.orders, Date.now(), minutes);
+    if (!show.length) {
+      if (keep.length !== lc.hidden.length) settings.market.lastCopy.hidden = keep;
+      return;
+    }
+    const shown = await mkt.setShown(show, true);
+    const failed = show.filter((o) => !shown.includes(o)).map((o) => ({ id: o.id, at: Date.now() }));
+    settings.market.lastCopy.hidden = [...keep, ...failed];
+    if (shown.length) mkt.note(`Shown again, not sold in ${minutes} min: ${shown.map((o) => mkt.item(o.itemId)?.name ?? "a listing").join(", ")}`, "info");
+  }
+  $effect(() => {
+    const t = setInterval(() => void showLastCopiesDue(), 30_000);
+    return () => clearInterval(t);
   });
 
   // Fissure alerts: a fissure that matches one of your rules, once per fissure.
