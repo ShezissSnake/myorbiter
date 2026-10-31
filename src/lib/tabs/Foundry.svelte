@@ -64,7 +64,9 @@
   const mastered = $derived(inGroup.filter((c) => c.mastered).length);
   const ownedOnly = $derived(inGroup.filter((c) => c.owned && !c.mastered).length);
   // Only what would still give mastery: a part set for something mastered is just spares.
-  const buildable = $derived(inGroup.filter((c) => c.buildable && !c.mastered).length);
+  // Ready means everything in hand: parts with resources still to farm count apart.
+  const buildable = $derived(inGroup.filter((c) => c.buildable && !c.mastered && (c.tier == null || c.tier === "now")).length);
+  const partsReady = $derived(inGroup.filter((c) => c.buildable && !c.mastered && c.tier != null && c.tier !== "now").length);
   const building = $derived(inGroup.filter((c) => c.building).length);
   const groupLabel = $derived(group === "all" ? "items" : (GROUPS.find((g) => g.v === group)?.label.toLowerCase() ?? ""));
 
@@ -79,7 +81,7 @@
     {#snippet band()}
       <Stat label="Mastered" note={`of ${inGroup.length} ${groupLabel}`}><GameIcon name="mastery" size={30} />{mastered}<span class="of">/{inGroup.length}</span></Stat>
       <Stat label="Owned, not mastered" tone="gold" note="Level these">{ownedOnly}</Stat>
-      <Stat label="Ready to build" note="Every part in hand, not mastered yet">{buildable}</Stat>
+      <Stat label="Ready to build" note={partsReady ? `Everything in hand · ${partsReady} more with resources to farm` : "Every part and resource in hand, not mastered yet"}>{buildable}</Stat>
       <Stat label="Building" tone="dim" note="In your foundry now">{building}</Stat>
     {/snippet}
   </PageHead>

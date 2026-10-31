@@ -50,7 +50,7 @@
           {:else}
             {#each x.buys as b (b.name)}
               <span class="buy">
-                <Thumb file={model.imageOf(b.name.replace(/ Set$/, ""))} name={b.name} size={22} />
+                <Thumb file={model.imageOf(b.name.replace(/ Set$/, "")) ?? model.imageOf(x.row.name)} name={b.name} size={22} />
                 <span class="bn" title={b.name}>{b.name.replace(`${x.row.name} `, "")}{b.need > 1 ? ` ×${b.need}` : ""}</span>
                 <P v={b.price} dim />
                 <button class="link" title="Post a buy order for {b.name} on warframe.market: sellers whisper you, often for less" onclick={() => buy(x, b)}>WTB</button>

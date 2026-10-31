@@ -19,8 +19,7 @@
 {:else if board}
   <Seg value={board.key} onchange={(v) => (picked = v)} label="Where" options={boards.map((b) => ({ v: b.key, label: b.label, title: `${b.label}: ${b.where}` }))} />
   <p class="sub dim small">
-    {board.where}{#if board.expiry} · new bounties in {until(board.expiry, now)}{/if}
-    {#if board.rotating} · the missions rotate in game; each level pays from the table shown{/if}
+    {[board.where, board.expiry ? `new bounties in ${until(board.expiry, now)}` : "", board.rotating ? "the missions rotate in game; each level pays from the table shown" : ""].filter(Boolean).join(" · ")}
   </p>
   <ul class="jobs">
     {#each board.jobs as j, i (i)}
