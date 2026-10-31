@@ -27,6 +27,20 @@ const RARITY_CHANCE: Record<string, [string, number][]> = {
  * as "Uncommon" (25.33% at Intact), so the label it gives can't be trusted; a chance that matches
  * no tier (two rewards merged into one, an odd relic) keeps the label it came with.
  */
+/**
+ * Relics have one picture per era and refinement, not one each: any name that is a relic ("Lith
+ * A13", "Neo V8 Radiant", "Axi C12 Relic", "Requiem Eterna Intact") gets its era's, intact unless
+ * it names another refinement. The game files call Requiem relics "Immortal".
+ */
+const REFINEMENT_LETTER: Record<string, string> = { Exceptional: "A", Flawless: "B", Radiant: "C", Intact: "D" };
+export function relicImage(name: string): string | null {
+  const m = name.match(/^(Lith|Meso|Neo|Axi|Requiem) \S+(?: (Intact|Exceptional|Flawless|Radiant))?(?: Relic)?$/i);
+  if (!m) return null;
+  const era = m[1][0].toUpperCase() + m[1].slice(1).toLowerCase();
+  const ref = m[2] ? m[2][0].toUpperCase() + m[2].slice(1).toLowerCase() : "Intact";
+  return `Relic${era === "Requiem" ? "Immortal" : era}${REFINEMENT_LETTER[ref]}.png`;
+}
+
 export function relicRewardRarity(refinement: string, chance: number | null | undefined, given: string | null | undefined): string {
   const tiers = RARITY_CHANCE[refinement];
   if (tiers && chance != null) for (const [rarity, c] of tiers) if (Math.abs(chance - c) < 0.05) return rarity;
@@ -457,7 +471,7 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
     const f = imageByName.get(name);
     return f && f !== "blueprint.png" ? f : undefined;
   };
-  const imageOf = (name: string) => own(name) ?? own(name.replace(/ Blueprint$/, "")) ?? null;
+  const imageOf = (name: string) => own(name) ?? own(name.replace(/ Blueprint$/, "")) ?? relicImage(name);
 
   const relicByUnique = new Map<string, RelicEntry>();
   for (const relic of bundle.relics) relicByUnique.set(relic.uniqueName, relic);

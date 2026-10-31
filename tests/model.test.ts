@@ -45,3 +45,13 @@ test("refining to radiant: a Flawless copy costs 50 traces and gains only what's
   // From Flawless the rare part's odds only go 6% → 10%, so it gains less than refining from Intact.
   assert.ok(u.gain > 0 && u.gain < row.gain, `gain ${u.gain} vs ${row.gain}`);
 });
+
+test("relics without their own picture get their era's", async () => {
+  const { relicImage } = await import("../src/lib/core/model");
+  assert.equal(relicImage("Lith A13"), "RelicLithD.png");
+  assert.equal(relicImage("Neo V8 Radiant"), "RelicNeoC.png");
+  assert.equal(relicImage("Axi C12 Relic"), "RelicAxiD.png");
+  assert.equal(relicImage("Requiem Eterna Flawless"), "RelicImmortalB.png");
+  assert.equal(relicImage("Lith A13 Radiant Relic"), "RelicLithC.png");
+  assert.equal(relicImage("Lithos Prime"), null);
+});
