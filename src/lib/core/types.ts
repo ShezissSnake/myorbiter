@@ -1,4 +1,5 @@
 import type { Invasion } from "./invasions";
+import type { SyndicateMission } from "./board";
 import type { WorldAlert } from "./worldNeeds";
 // Shapes of the bundle the Rust side hands over (see crates/orbiter-data).
 
@@ -190,6 +191,8 @@ export interface Live {
   invasions?: Invasion[] | null;
   /** Running alerts, from the worldstate. */
   alerts?: WorldAlert[] | null;
+  /** Each syndicate's bounties (Cetus, Fortuna, the Necralisk), see board.ts. */
+  syndicates?: SyndicateMission[] | null;
   /** The rest of today's worldstate, for the "worth doing today" card (see today.ts). */
   nightwave?: Nightwave | null;
   sortie?: SortieLike | null;

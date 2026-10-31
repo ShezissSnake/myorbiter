@@ -11,6 +11,7 @@ import type { RivenAuction, RivenMeta, RivenRaw, RivenSnap } from "./core/rivens
 import type { ImprintRaw } from "./core/imprints";
 import { DEFAULT_HIDE_MINUTES, type HiddenForWhisper } from "./core/lastCopy";
 import type { Invasion } from "./core/invasions";
+import type { SyndicateMission } from "./core/board";
 import type { WorldAlert } from "./core/worldNeeds";
 import type { RelicData } from "./core/relicData";
 import type { Bundle, CatalogPart, CollectionPart, DarvoDeal, DuviriCycle, Fissure, Live, MissionState, Nightwave, SortieLike, SteelPath, VaultTraderItem } from "./core/types";
@@ -120,6 +121,8 @@ export interface Settings {
   withoutInventory: boolean;
   /** Home's cards you turned off (Home → Customise): "market", "baro"… */
   homeHidden: string[];
+  /** Which fissures Home lists: normal, Steel Path or Void Storms. */
+  homeFissures: "normal" | "steel" | "storm";
   /** Lines under Needs you on Home you dismissed (an alert, an invasion, a Varzia rotation). */
   homeDismissed: string[];
   /** What you get notifications for (the bell in the sidebar). */
@@ -307,6 +310,7 @@ export const defaultSettings = (): Settings => ({
   eeLog: "",
   withoutInventory: false,
   homeHidden: [],
+  homeFissures: "normal",
   homeDismissed: [],
   notify: defaultNotify(),
   notifyOptions: defaultNotifyOptions(),
@@ -409,7 +413,7 @@ export async function loadLive(): Promise<Live> {
     if (inTauri) raw = await invoke("worldstate");
     else {
       const get = (p: string) => fetch(`https://api.warframestat.us/pc/${p}?language=en`).then((r) => r.json()).catch(() => null);
-      const names = ["fissures", "vaultTrader", "voidTrader", "invasions", "nightwave", "sortie", "archonHunt", "steelPath", "duviriCycle", "earthCycle", "cetusCycle", "vallisCycle", "cambionCycle", "zarimanCycle", "alerts", "dailyDeals"];
+      const names = ["fissures", "vaultTrader", "voidTrader", "invasions", "nightwave", "sortie", "archonHunt", "steelPath", "duviriCycle", "earthCycle", "cetusCycle", "vallisCycle", "cambionCycle", "zarimanCycle", "alerts", "dailyDeals", "syndicateMissions"];
       raw = Object.fromEntries(await Promise.all(names.map(async (n) => [n, await get(n)] as const)));
     }
   } catch {
@@ -425,6 +429,7 @@ export async function loadLive(): Promise<Live> {
     resurgenceExpiry: vt?.expiry ?? null,
     invasions: Array.isArray(raw?.invasions) ? (raw!.invasions as Invasion[]) : null,
     alerts: Array.isArray(raw?.alerts) ? (raw!.alerts as WorldAlert[]) : null,
+    syndicates: Array.isArray(raw?.syndicateMissions) ? (raw!.syndicateMissions as SyndicateMission[]) : null,
     nightwave: obj<Nightwave>(raw?.nightwave, "activeChallenges"),
     sortie: obj<SortieLike>(raw?.sortie, "boss"),
     archonHunt: obj<SortieLike>(raw?.archonHunt, "boss"),
@@ -492,6 +497,7 @@ export async function loadSettings(): Promise<Settings> {
     folded: typeof raw?.folded === "boolean" ? raw.folded : null,
     withoutInventory: raw?.withoutInventory === true,
     homeDismissed: Array.isArray(raw?.homeDismissed) ? raw.homeDismissed.filter((k: unknown): k is string => typeof k === "string") : [],
+    homeFissures: raw?.homeFissures === "steel" || raw?.homeFissures === "storm" ? raw.homeFissures : "normal",
     homeHidden: Array.isArray(raw?.homeHidden) ? raw.homeHidden.filter((k: unknown): k is string => typeof k === "string") : [],
     plannerMode: raw?.plannerMode === "radiant" ? "radiant" : "sets",
     market: { ...base.market, ...(raw?.market ?? {}), bulk: { ...base.market.bulk, ...(raw?.market?.bulk ?? {}) }, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: raw?.market?.sellable?.relicsWorthSelling ?? base.market.sellable.relicsWorthSelling }, sales: Array.isArray(raw?.market?.sales) ? raw.market.sales : [], tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], trades: Array.isArray(raw?.market?.trades) ? raw.market.trades : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: raw?.market?.platform && raw.market.platform in PLATFORM_LABEL ? raw.market.platform : "pc", autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, every: typeof raw?.market?.every === "number" && raw.market.every >= 1 ? raw.market.every : base.market.every, minRelicPrice: typeof raw?.market?.minRelicPrice === "number" && raw.market.minRelicPrice >= 1 ? Math.round(raw.market.minRelicPrice) : base.market.minRelicPrice, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)", lastCopy: { optIn: raw?.market?.lastCopy?.optIn === true, minutes: typeof raw?.market?.lastCopy?.minutes === "number" && raw.market.lastCopy.minutes >= 1 ? Math.round(raw.market.lastCopy.minutes) : DEFAULT_HIDE_MINUTES, hidden: Array.isArray(raw?.market?.lastCopy?.hidden) ? raw.market.lastCopy.hidden.filter((h: unknown): h is HiddenForWhisper => !!h && typeof (h as HiddenForWhisper).id === "string" && typeof (h as HiddenForWhisper).at === "number") : [] } },

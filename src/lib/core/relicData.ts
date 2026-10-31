@@ -4,6 +4,7 @@
 // Prime Access by weeks. What TennoScope knows and the tables don't (anything odd) stays.
 import { splitRelicName } from "./model";
 import type { Drop, RelicEntry, RelicReward } from "./types";
+import type { BountyTable } from "./board";
 
 export interface RelicData {
   hash: string;
@@ -16,6 +17,8 @@ export interface RelicData {
   drops: Record<string, Drop[]>;
   /** In-game path → name ("Lith A13 Intact"), for relics TennoScope doesn't know yet. */
   paths: Record<string, string>;
+  /** The Zariman's, Cavia's and Höllvania's bounty tiers and what each pays (see board.ts). */
+  bounties?: BountyTable[];
 }
 
 const keyOf = (name: string) => {

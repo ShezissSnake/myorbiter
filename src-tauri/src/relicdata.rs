@@ -83,7 +83,40 @@ fn compact(relics: &Value, all: &Value, wfcd: Option<&Value>, hash: &str, modifi
             paths.insert(u.to_string(), Value::String(n.to_string()));
         }
     }
-    json!({ "hash": hash, "modified": modified, "checkedAt": now(), "relics": list, "drops": drops, "paths": paths })
+    json!({ "hash": hash, "modified": modified, "checkedAt": now(), "relics": list, "drops": drops, "paths": paths, "bounties": bounties(all) })
+}
+
+/// The bounty reward tables the worldstate doesn't carry: the Zariman's, Albrecht's
+/// Laboratories' (Cavia) and Höllvania's (1999). Their missions rotate in game, but each level
+/// tier always pays from the same table, so these are what the Bounties card shows on hover.
+/// `{ place, level, rewards }`, best chance first; place is zariman, cavia or hex.
+fn bounties(all: &Value) -> Value {
+    const KINDS: [(&str, &str); 3] = [("Zariman Bounty", "zariman"), ("Entrati Lab Bounty", "cavia"), ("WF1999 Bounty", "hex")];
+    let mut tiers: Vec<(String, String, Vec<Value>)> = Vec::new();
+    for d in all.as_array().into_iter().flatten() {
+        let (Some(place), Some(item)) = (d["place"].as_str(), d["item"].as_str()) else { continue };
+        let place = plain(place);
+        let Some((kind, key)) = KINDS.iter().find(|(k, _)| place.contains(k)) else { continue };
+        // "Zariman Ten Zero (Level  50 - 55 Zariman Bounty), Rotation C" → "50 - 55"
+        let Some(level) = place.split("Level").nth(1).and_then(|r| r.split(kind).next()) else { continue };
+        let level = level.split_whitespace().collect::<Vec<_>>().join(" ");
+        let reward = json!({ "name": item, "chance": d["chance"].as_f64().unwrap_or(0.0), "rarity": d["rarity"].as_str().unwrap_or("") });
+        match tiers.iter_mut().find(|(p, l, _)| p == key && *l == level) {
+            Some((_, _, rewards)) => rewards.push(reward),
+            None => tiers.push((key.to_string(), level, vec![reward])),
+        }
+    }
+    let low = |level: &str| level.split(' ').next().and_then(|n| n.parse::<u32>().ok()).unwrap_or(0);
+    tiers.sort_by(|a, b| a.0.cmp(&b.0).then(low(&a.1).cmp(&low(&b.1))));
+    Value::Array(
+        tiers
+            .into_iter()
+            .map(|(place, level, mut rewards)| {
+                rewards.sort_by(|x, y| y["chance"].as_f64().unwrap_or(0.0).total_cmp(&x["chance"].as_f64().unwrap_or(0.0)));
+                json!({ "place": place, "level": level, "rewards": rewards })
+            })
+            .collect(),
+    )
 }
 
 /// The relic data: from the cache while it's fresh (or when the site can't be reached), else read
@@ -91,6 +124,8 @@ fn compact(relics: &Value, all: &Value, wfcd: Option<&Value>, hash: &str, modifi
 pub fn relic_data(dir: &Path, force: bool) -> Result<Value, String> {
     let path = dir.join(FILE);
     let cached: Option<Value> = fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok());
+    // A cache from before the bounty tables were kept is read again, once.
+    let cached = cached.filter(|c| c.get("bounties").is_some());
     if let Some(c) = &cached {
         if !force && now().saturating_sub(c["checkedAt"].as_u64().unwrap_or(0)) < FRESH {
             return Ok(c.clone());
@@ -151,6 +186,21 @@ mod tests {
         assert_eq!(drops[0]["location"], "Void/Mot (Survival), Rotation C", "best chance first, markup gone");
         assert!(v["drops"].get("Forma Blueprint").is_none());
         assert_eq!(v["paths"]["/Lotus/Types/Game/Projections/T1VoidProjectionSteflosPrimeABronze"], "Lith A13 Intact");
+    }
+
+    #[test]
+    fn bounties_group_by_place_and_tier() {
+        let all = json!([
+            { "place": "Zariman Ten Zero (<b>Level  60 - 65 Zariman Bounty</b>), Rotation C", "item": "1000 Endo", "rarity": "Uncommon", "chance": 20.34 },
+            { "place": "Zariman Ten Zero (<b>Level  50 - 55 Zariman Bounty</b>), Rotation C", "item": "Aya", "rarity": "Rare", "chance": 8.7 },
+            { "place": "Zariman Ten Zero (<b>Level  50 - 55 Zariman Bounty</b>), Rotation C", "item": "500 Endo", "rarity": "Uncommon", "chance": 17.39 },
+            { "place": "Höllvania (<b>Level  55 - 60 WF1999 Bounty</b>), Rotation C", "item": "Ayatan Anasa", "rarity": "Rare", "chance": 5.0 },
+            { "place": "Earth/Cetus (<b>Level 5 - 15 Cetus Bounty</b>), Rotation A", "item": "50 Endo", "rarity": "Uncommon", "chance": 20.0 }
+        ]);
+        let b = bounties(&all);
+        let tiers: Vec<(String, String)> = b.as_array().unwrap().iter().map(|t| (t["place"].as_str().unwrap().into(), t["level"].as_str().unwrap().into())).collect();
+        assert_eq!(tiers, [("hex".into(), "55 - 60".into()), ("zariman".into(), "50 - 55".into()), ("zariman".into(), "60 - 65".into())]);
+        assert_eq!(b[1]["rewards"][0]["name"], "500 Endo", "best chance first");
     }
 
     /// Reads the real tables (network): `cargo test -p orbiter relicdata -- --ignored`.

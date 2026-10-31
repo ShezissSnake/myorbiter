@@ -4,7 +4,7 @@
   // each, what's ready to sell, what's worth doing today, your Foundry, cheap buys, the easiest
   // mastery, and Baro and Varzia against your collection.
   import type { Model } from "../core/model";
-  import type { Fissure, Live, MissionState } from "../core/types";
+  import type { Live, MissionState } from "../core/types";
   import type { Settings } from "../backend";
   import type { MyOrder } from "../core/market";
   import { mkt } from "../marketStore.svelte";
@@ -29,11 +29,15 @@
   import { crackableFirst, crackableNow, openEras, wishItem, type WishItem } from "../core/wishlist";
   import { cycleTimers, resetTimers, matchedFissures, planetOf, ruleLabel, sameRule, TIERS, type FissureRule } from "../core/timers";
   import { details } from "../details.svelte";
+  import { bountyBoards, type BountyTable } from "../core/board";
+  import { scoreCards } from "../core/pick";
+  import FissureBoard from "../ui/FissureBoard.svelte";
+  import BountyBoard from "../ui/BountyBoard.svelte";
   import { describe } from "../core/describe";
 
   // console: you play on a console or phone, so there's no inventory: Home is the market, the
   // world's clocks, fissures, what's worth doing and Baro, without anything measured against a collection.
-  let { model, live, mission, settings = $bindable(), go, shortListings, liveAt = null, liveError = null, console = false, reveal = null }: { model: Model; live: Live; mission: MissionState | null; settings: Settings; go: (t: string) => void; shortListings: MyOrder[]; liveAt?: number | null; liveError?: string | null; console?: boolean; reveal?: string | null } = $props();
+  let { model, live, mission, settings = $bindable(), go, shortListings, liveAt = null, liveError = null, console = false, reveal = null, bountyTables = null }: { model: Model; live: Live; mission: MissionState | null; settings: Settings; go: (t: string) => void; shortListings: MyOrder[]; liveAt?: number | null; liveError?: string | null; console?: boolean; reveal?: string | null; bountyTables?: BountyTable[] | null } = $props();
   // The worldstate: still being asked for the first time, or unreachable (api.warframestat.us).
   const liveWaiting = $derived(liveAt == null && !liveError);
   const liveNote = $derived(liveWaiting ? "Asking api.warframestat.us…" : "api.warframestat.us didn't answer; orbiter asks again every few minutes.");
@@ -95,19 +99,18 @@
     }
     return best;
   };
-  const fissures = $derived((live.fissures ?? []).filter((f) => !f.isStorm && Date.parse(f.expiry) > now));
-  const eras = $derived(
-    ERAS.map((era) => {
-      const fs = fissures.filter((f) => f.tier === era);
-      const normal = fs.filter((f) => !f.isHard);
-      const hard = fs.filter((f) => f.isHard);
-      const next = [...fs].sort((a, b) => Date.parse(b.expiry) - Date.parse(a.expiry))[0] ?? null;
-      const owned = relics.filter((r) => (era === "Omnia" ? r.era !== "Requiem" : r.era === era)).reduce((n, r) => n + r.total, 0);
-      return { era, normal, hard, next, owned, best: bestFor(era) };
-    }).filter((e) => e.normal.length + e.hard.length > 0 || (e.era !== "Omnia" && e.owned > 0)),
-  );
+  // Your best relic for each era, worked out once per era rather than per fissure.
+  const bests = $derived(new Map<string, ReturnType<typeof bestFor>>(ERAS.map((era) => [era, bestFor(era)])));
+  const eraBest = (era: string) => {
+    const b = console ? null : bests.get(era);
+    return b ? { name: b.r.base, refinement: b.refinement, held: `${b.r.owned[b.refinement] ?? 0} of ${b.r.total} held`, plat: b.v } : null;
+  };
   const eraIcon = (era: string): GameIconName => (era === "Omnia" ? "void-tear" : (`relic-${era.toLowerCase()}-intact` as GameIconName));
-  const missionList = (fs: Fissure[]) => [...new Set(fs.map((f) => f.missionType))].join(" · ");
+
+  // ------------------------------------------------------------ bounties
+  /** A reward you'd want: a part for something you haven't mastered or built. */
+  const need = (name: string) => !console && (scoreCards(model, [name])[0]?.needed ?? false);
+  const boards = $derived(bountyBoards(live.syndicates ?? null, bountyTables, need));
 
   // ------------------------------------------------------------ Baro & Varzia
   const baro = $derived(live.baro ?? null);
@@ -230,7 +233,8 @@
     { key: "world", label: "World clocks", hint: "Day and night on the open worlds, and the daily and weekly resets" },
     { key: "market", label: "Market", hint: "Your warframe.market status, what you have listed, and what sold" },
     { key: "ready", label: "Ready to sell", hint: "Your spares worth listing, in the kinds ticked on Orders" },
-    { key: "fissures", label: "Fissures now", hint: "Open fissures by era, your best relic for each, and your fissure alerts", consoleHint: "Open fissures by era, and your fissure alerts" },
+    { key: "fissures", label: "Fissures now", hint: "Every open fissure (normal, Steel Path or Void Storms), your best relic for each era, and your fissure alerts", consoleHint: "Every open fissure (normal, Steel Path or Void Storms), and your fissure alerts" },
+    { key: "bounties", label: "Bounties", hint: "The bounties in Cetus, Fortuna, the Necralisk, the Zariman, Cavia and Höllvania, and what each pays" },
     { key: "today", label: "Worth doing today", hint: "The Duviri Circuit, Darvo's deal, Teshin, the Sortie, the Archon Hunt and Nightwave" },
     { key: "foundry", label: "Foundry", hint: "What's building, and what you have every part for" },
     { key: "wishes", label: "Your wishlist", hint: "What you starred and still need, with relics to crack for it" },
@@ -386,21 +390,7 @@
       {#if live.fissures == null}
         <p class="dim waiting">{liveNote}</p>
       {:else}
-        <table class="eras">
-          <thead><tr><th>Era</th><th class="right" title="Normal fissures, plus Steel Path">Open</th><th>Missions</th><th class="right ends" title="When the longest-running one closes">Ends in</th>{#if !console}<th title={squad === 1 ? "The relic you hold whose crack is worth most, cracking alone" : "The relic you hold whose crack is worth most, best of four in a radshare"}>Your best relic</th><th class="right" title="Average platinum of the reward you'd take ({squad === 1 ? 'solo' : 'radshare'}; switch on Relics)">Plat / crack</th>{/if}</tr></thead>
-          <tbody>
-            {#each eras as e (e.era)}
-              <tr>
-                <td>{#if !console && e.era !== "Omnia"}<button class="era go" title="Your {e.era} relics, on Relics" onclick={() => go(`relics?era=${e.era}`)}><GameIcon name={eraIcon(e.era)} size={24} /><b class="mark">{e.era}</b></button>{:else}<span class="era"><GameIcon name={eraIcon(e.era)} size={24} /><b class="mark">{e.era}</b></span>{/if}</td>
-                <td class="right nowrap">{e.normal.length}{#if e.hard.length}<span class="sp" title="Steel Path fissures">&nbsp;+&nbsp;{e.hard.length}&nbsp;SP</span>{/if}</td>
-                <td class="dim small"><span class="clip" title={missionList([...e.normal, ...e.hard])}>{e.normal.length + e.hard.length ? missionList([...e.normal, ...e.hard]) : "none open"}</span></td>
-                <td class="right dim small nowrap ends">{e.next ? until(e.next.expiry, now) : ""}</td>
-                {#if !console}<td class="nowrap">{#if e.best}<span class="relic" use:info={e.best.r.base}><b class="mark">{e.best.r.base}</b><span class="dim small">{e.best.refinement} · {e.best.r.owned[e.best.refinement] ?? 0} of {e.best.r.total} held</span></span>{:else}<span class="dim small">{e.era === "Omnia" ? "any relic" : "none held"}</span>{/if}</td>
-                <td class="right">{#if e.best}<P v={e.best.v} />{/if}</td>{/if}
-              </tr>
-            {/each}
-          </tbody>
-        </table>
+        <FissureBoard fissures={live.fissures} bind:mode={settings.homeFissures} {now} best={eraBest} watched={new Set(watched.map((w) => w.fissure.id))} onera={console ? null : (era) => go(`relics?era=${era}`)} />
       {/if}
       <div class="watch">
         <span class="register"><Icon name="bell" size={12} /> Fissure alerts</span>
@@ -432,7 +422,16 @@
       {/if}
     </section>
 
-    <!-- Easiest mastery -->
+    <!-- Bounties -->
+    <section class="panel bounties" data-card="bounties" class:off={off("bounties")}>
+      {@render head("ostron", null, "Bounties", null, "")}
+      {#if live.syndicates == null && !bountyTables}
+        <p class="dim">{liveNote}</p>
+      {:else}
+        <BountyBoard {boards} {now} imageOf={(n) => model.imageOf(n)} {need} />
+      {/if}
+    </section>
+
     <!-- Worth doing today -->
     <section class="panel today" data-card="today" class:off={off("today")} class:full={alone("today")} style:grid-row={rowSpan("today")}>
       {@render head("nightwave", null, "Worth doing today", null, "")}
@@ -679,6 +678,7 @@
   .market { grid-column: span 7; }
   .ready { grid-column: span 5; }
   .fissures { grid-column: span 12; }
+  .bounties { grid-column: span 12; }
   /* The same 7 + 5 split as the rows above, so the panel edges line up down the page. */
   .mastery { grid-column: span 7; grid-row: span 2; }
   .baro { grid-column: span 5; }
@@ -725,11 +725,7 @@
   :global(html[data-room~="lt930"]) .clock { padding: .6rem .55rem; }
   /* Page area under 900 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt900"]) .market, :global(html[data-room~="lt900"]) .ready, :global(html[data-room~="lt900"]) .fissures, :global(html[data-room~="lt900"]) .mastery, :global(html[data-room~="lt900"]) .baro, :global(html[data-room~="lt900"]) .varzia, :global(html[data-room~="lt900"]) .today, :global(html[data-room~="lt900"]) .foundry, :global(html[data-room~="lt900"]) .deals, :global(html[data-room~="lt900"]) .wishes , :global(html[data-room~="lt900"]) .panel.half { grid-column: span 12; }
-  /* Half a small screen: the fissure table loses "Ends in" (the missions' own times are on hover), and the clocks go four to a row. */
-  :global(html[data-room~="lt760"]) .ends { display: none; }
-  /* The open missions are a clipped list: narrower still, so the table fits beside them. */
-  :global(html[data-room~="lt760"]) .eras .clip { max-width: 11rem; }
-  :global(html[data-room~="lt640"]) .eras .clip { max-width: 7rem; }
+  /* Half a small screen: the clocks go four to a row. */
   :global(html[data-room~="lt760"]) .world { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   :global(html[data-room~="lt760"]) .clock:nth-child(4n + 1) { border-left: 0; }
   :global(html[data-room~="lt760"]) .clock:nth-child(n + 5) { border-top: 1px solid var(--rule); }
@@ -780,9 +776,6 @@
   .note { margin: 0; }
   .nowrap { white-space: nowrap; }
   .clip { display: block; max-width: 30rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  button.era { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: .5rem; }
-  button.era:hover b { color: var(--gold); }
-  button.era:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
   .relic { display: grid; }
   .relic b { font-size: 1rem; }
   .relic .small { font-family: var(--face-text); }
@@ -809,13 +802,9 @@
   .kinds li { display: grid; grid-template-columns: 22px 1fr auto 5rem; align-items: center; gap: .7rem; }
   .kinds li :global(.amt) { justify-self: end; }
 
-  .eras { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  .eras th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: 0 .5rem .4rem; }
-  .eras td { padding: .4rem .5rem; border-top: 1px solid var(--rule); }
-  .right, .eras th.right { text-align: right; }
+  .right { text-align: right; }
   .era { display: inline-flex; align-items: center; gap: .5rem; }
   .era b { font-size: 1.05rem; }
-  .sp { color: var(--platinum-deep); font-size: .8rem; }
   .slim { gap: .5rem; }
   .slim .when b { font-size: 1.15rem; }
   .left { color: var(--platinum-deep); }
