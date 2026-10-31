@@ -34,7 +34,7 @@
         ["planner", "Planner → Complete sets", "pick the relics most likely to finish a set you're close to.", "sets"],
         ["planner", "Planner → Make radiant", "spend Void Traces where they gain the most.", "radiant"],
         ["relics", "Relics", "average plat per crack, intact against radiant. Click an era to see what you can crack in its fissures now. Solo or radshare is one setting, shared with the Planner and Home."],
-        ["mission", "In mission", "once the mission loads, the squad's relics. On the reward screen it scores every card (by default plat, then unmastered, then ducats, then completing a set; the weights are yours to change) and says which to take. No overlay or cards? It says why: solo runs show one card (nothing to choose), TennoScope wasn't running or started mid-mission, or, on Windows, Warframe is in exclusive fullscreen (set Display Mode to Borderless). The TennoScope panel has a solid-background option for Windows if the overlay stays invisible."],
+        ["mission", "Current fissure", "once a void fissure loads, the squad's relics. On the reward screen it scores every card (by default plat, then unmastered, then ducats, then completing a set; the weights are yours to change) and says which to take. No overlay or cards? It says why: solo runs show one card (nothing to choose), TennoScope wasn't running or started mid-mission, or, on Windows, Warframe is in exclusive fullscreen (set Display Mode to Borderless). The TennoScope panel has a solid-background option for Windows if the overlay stays invisible."],
       ],
     },
     {
@@ -141,7 +141,7 @@
         <li><b>TennoScope</b> under it opens its panel: whether it's healthy, screen-capture permission for the reward overlay, and inventory sync. Its light is green when all is well, gold when something wants a look, red when it isn't running or something failed.</li>
         <li>The sidebar folds to icons on narrow windows; the arrow next to the name folds or unfolds it, and orbiter remembers your choice.</li>
         <li><span class="ic"><Icon name="bell" /></span> <b>Notifications</b>: what orbiter told you lately, newest first (click one to open what it's about; the number on the bell is how many are new), and under <b>Choose</b> a switch for each kind, with a pause for all of them. Besides your listings and fissures, it can tell you when an alert or invasion rewards something you haven't mastered, when Baro brings something new to you, when Varzia's rotation has primes you need, and the Duviri Circuit's picks. While you're looking at orbiter they pop up in its corner; otherwise on your desktop, where clicking one (on Linux and Windows) brings orbiter up on what it's about.</li>
-        <li>The gear opens Settings: which pages the sidebar shows and which one orbiter opens on, starting TennoScope with orbiter, where it, its data and Warframe's log are, switching to In mission when the reward screen opens, and marking sales sold from the game.</li>
+        <li>The gear opens Settings: which pages the sidebar shows and which one orbiter opens on, starting TennoScope with orbiter, where it, its data and Warframe's log are, switching to Current fissure when the reward screen opens, and marking sales sold from the game.</li>
       </ul>
     </article>
     <article>
@@ -180,7 +180,7 @@
         <li>Stats, abilities and build costs: the item catalog TennoScope keeps (WFCD). Rivens: each one's stats from your inventory, with the game's own base values; prices from warframe.market's riven auctions.</li>
         <li>Relics in a mission: Warframe's own <code>EE.log</code>, read only.</li>
         <li>Finish odds on Wishlist and Mastery: each relic's drop chance at the refinement you hold, assuming you crack every copy once. Squadmates' relics aren't counted.</li>
-        <li>The four reward cards: Warframe only logs your own, so orbiter gets them from a TennoScope patched to share them (<code>patches/README.md</code>). That patch also puts orbiter's score and <b>Pick</b> on TennoScope's overlay. Without it, In mission ranks everything the squad's relics can drop.</li>
+        <li>The four reward cards: Warframe only logs your own, so orbiter gets them from a TennoScope patched to share them (<code>patches/README.md</code>). That patch also puts orbiter's score and <b>Pick</b> on TennoScope's overlay. Without it, Current fissure ranks everything the squad's relics can drop.</li>
       </ul>
     </article>
   </section>

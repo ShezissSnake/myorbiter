@@ -162,8 +162,8 @@
       <Stat label="Earned this session" note={`Relic rewards you got · ${history.length} mission${history.length === 1 ? "" : "s"}${fissureCount ? ` · ${fissureCount} fissure${fissureCount === 1 ? "" : "s"}` : ""}`}><P v={sessionValue || null} big /></Stat>
   {/snippet}
   <PageHead
-    title={ms?.reward_screen_open || onScreen ? "Choose a reward" : "In mission"}
-    blurb={ms?.mission ? ms.mission : "The squad's relics and rewards, once a void fissure loads."}
+    title={ms?.reward_screen_open || onScreen ? "Choose a reward" : "Current fissure"}
+    blurb={ms?.mission && (live || ms.reward_screen_open) ? ms.mission : live || paths.length ? "The squad's relics and rewards." : "Not in a fissure. The squad's relics and rewards show here once a void fissure loads; other missions have nothing to pick."}
     band={onScreen ? undefined : stats}
   />
 

@@ -104,7 +104,7 @@ export interface Settings {
   advice: AdviceSettings;
   /** How much each thing counts when scoring reward cards. */
   pick: PickWeights;
-  /** Switch to In mission when the reward screen opens. */
+  /** Switch to Current fissure when the reward screen opens. */
   jumpToPick: boolean;
   /** TennoScope's overlays: which show over the game, and what the reward cards show. */
   overlay: OverlaySettings;

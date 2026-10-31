@@ -1257,7 +1257,7 @@
     e.preventDefault();
   }
 
-  // Bring In mission forward when the reward screen opens (once per screen).
+  // Bring Current fissure forward when the reward screen opens (once per screen).
   let screenWasOpen = false;
   // The listing form prices new listings by the same rules as Auto-match.
   $effect(() => {

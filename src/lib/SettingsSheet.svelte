@@ -131,7 +131,7 @@
 
   <section>
     <h3 class="register">Fissures</h3>
-    <Switch bind:on={settings.jumpToPick} label="Show In mission when the reward screen opens">
+    <Switch bind:on={settings.jumpToPick} label="Show Current fissure when the reward screen opens">
       orbiter switches to the reward pick by itself, so it's on screen when you need it.
     </Switch>
     <h4 class="sub">How orbiter picks a reward</h4>
@@ -141,7 +141,7 @@
 
   <section>
     <h3 class="register">Overlays</h3>
-    <p class="hint">What TennoScope draws over the game. orbiter keeps reading the reward screen with an overlay off, so its pick still shows on In mission.</p>
+    <p class="hint">What TennoScope draws over the game. orbiter keeps reading the reward screen with an overlay off, so its pick still shows on Current fissure.</p>
     <Switch bind:on={settings.overlay.reward} label="Fissure reward screen">
       Under each reward card: what it's worth and whether to take it.
     </Switch>
