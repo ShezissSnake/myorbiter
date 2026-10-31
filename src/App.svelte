@@ -88,6 +88,7 @@
   import NoticesSheet from "./lib/NoticesSheet.svelte";
   import Toasts from "./lib/ui/Toasts.svelte";
   import BuyDialog from "./lib/ui/BuyDialog.svelte";
+  import SideWatch from "./lib/ui/SideWatch.svelte";
   import { mkt } from "./lib/marketStore.svelte";
   import { parseTarget, setIntent } from "./lib/intent.svelte";
   import { ts } from "./lib/tennoscopeStore.svelte";
@@ -113,6 +114,9 @@
     return { destroy: () => ro.disconnect() };
   }
   const compact = $derived.by(() => settings.folded ?? width < 1180);
+  /** Room for the Watching column on the right (SideWatch) without squeezing the page. */
+  const wideEnough = $derived(width >= 1640);
+  const sideShown = $derived.by(() => wideEnough && settings.side.on);
 
   // Pages stay mounted once opened, so filters, sorting and scroll survive switching tabs.
   let visited = $state<Record<string, boolean>>({});
@@ -1588,7 +1592,7 @@
 
 <svelte:window onkeydown={onKey} oncontextmenu={onContextMenu} bind:innerWidth={width} />
 
-<div class="shell" class:compact>
+<div class="shell" class:compact class:withside={sideShown}>
   <aside class="rail" aria-label="orbiter">
     <div class="brand">
       <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
@@ -1783,6 +1787,11 @@
       <HoverCard {model} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad > 1 ? 4 : 1} />
     {/if}
   </main>
+  {#if sideShown && model}
+    <SideWatch {model} {live} bind:settings console={onConsole} bountyTables={relicTables?.bounties ?? null} go={(t: string) => goTo(t)} />
+  {:else if wideEnough && model}
+    <button class="sidetab" title="Show the Watching column: fissures, alerts, clocks and more beside every page" onclick={() => (settings.side.on = true)}>«</button>
+  {/if}
 </div>
 
 <NoticesSheet bind:open={showNotices} bind:view={noticesView} bind:settings console={onConsole} open_={openNotice} test={testNotice} />
@@ -1794,6 +1803,10 @@
   /* The frame: a sidebar of pages, and the page. minmax(0, 1fr): a wide table never stretches the window. */
   .shell { display: grid; grid-template-columns: 14.5rem minmax(0, 1fr); height: 100vh; }
   .shell.compact { grid-template-columns: 4.4rem minmax(0, 1fr); }
+  .shell.withside { grid-template-columns: 14.5rem minmax(0, 1fr) 17.5rem; }
+  .shell.compact.withside { grid-template-columns: 4.4rem minmax(0, 1fr) 17.5rem; }
+  .sidetab { position: fixed; right: 0; top: 50%; z-index: 6; width: 18px; height: 64px; padding: 0; border: 1px solid var(--rule); border-right: 0; background: var(--plate); color: var(--platinum-deep); }
+  .sidetab:hover { color: var(--gold); }
   .pane { display: none; flex: 1; min-height: 0; min-width: 0; flex-direction: column; }
   .pane.shown { display: flex; }
   main { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }

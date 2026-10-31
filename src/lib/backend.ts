@@ -124,6 +124,8 @@ export interface Settings {
   homeHidden: string[];
   /** Which fissures Home lists: normal, Steel Path or Void Storms. */
   homeFissures: "normal" | "steel" | "storm";
+  /** The column on the right of a wide window: shown or folded, and what it shows, in order. */
+  side: { on: boolean; cards: string[] };
   /** Lines under Needs you on Home you dismissed (an alert, an invasion, a Varzia rotation). */
   homeDismissed: string[];
   /** What you get notifications for (the bell in the sidebar). */
@@ -314,6 +316,7 @@ export const defaultSettings = (): Settings => ({
   withoutInventory: false,
   homeHidden: [],
   homeFissures: "normal",
+  side: { on: true, cards: ["alerts", "fissures", "clocks", "foundry", "bounties"] },
   homeDismissed: [],
   notify: defaultNotify(),
   notifyOptions: defaultNotifyOptions(),
@@ -511,6 +514,7 @@ export async function loadSettings(): Promise<Settings> {
     folded: typeof raw?.folded === "boolean" ? raw.folded : null,
     withoutInventory: raw?.withoutInventory === true,
     homeDismissed: Array.isArray(raw?.homeDismissed) ? raw.homeDismissed.filter((k: unknown): k is string => typeof k === "string") : [],
+ side: { on: raw?.side?.on !== false, cards: Array.isArray(raw?.side?.cards) ? raw.side.cards.filter((k: unknown): k is string => typeof k === "string") : base.side.cards },
     homeFissures: raw?.homeFissures === "steel" || raw?.homeFissures === "storm" ? raw.homeFissures : "normal",
     homeHidden: Array.isArray(raw?.homeHidden) ? raw.homeHidden.filter((k: unknown): k is string => typeof k === "string") : [],
     plannerMode: raw?.plannerMode === "radiant" ? "radiant" : "sets",
