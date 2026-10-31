@@ -586,6 +586,12 @@ fn write_reward_pick(pick: Value) -> Result<(), String> {
     bridge::write_pick_in(&bridge::runtime_dir().ok_or("No private folder for the reward pick")?, &pick)
 }
 
+/// Your overlay settings, for TennoScope: which overlays show and what the reward cards show.
+#[tauri::command]
+fn write_overlay_prefs(prefs: Value) -> Result<(), String> {
+    bridge::write_overlay_in(&bridge::runtime_dir().ok_or("No private folder for the overlay settings")?, &prefs)
+}
+
 /// Saves in the order the page sent them: each save takes a number on arrival, and one that
 /// lost the race to a newer save is dropped instead of overwriting it.
 static SETTINGS_SENT: AtomicU64 = AtomicU64::new(0);
@@ -750,6 +756,7 @@ pub fn run() {
             presence_state,
             presence_set,
             write_reward_pick,
+            write_overlay_prefs,
             default_data_dir,
             market_platform,
             ptrace_scope,

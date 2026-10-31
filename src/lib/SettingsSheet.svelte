@@ -6,6 +6,7 @@
   import Chip from "./ui/Chip.svelte";
   import { grouped, movePage, moveSection, orderPages, pagesFor } from "./pages";
   import Icon from "./ui/Icon.svelte";
+  import WeightSliders from "./ui/WeightSliders.svelte";
 
   let {
     open = $bindable(),
@@ -133,7 +134,30 @@
     <Switch bind:on={settings.jumpToPick} label="Show In mission when the reward screen opens">
       orbiter switches to the reward pick by itself, so it's on screen when you need it.
     </Switch>
-    <p class="hint">The reward score weights are on In mission, above the list of rewards.</p>
+    <h4 class="sub">How orbiter picks a reward</h4>
+    <p class="hint">How much each counts in the score that picks the card to take (the share is its part of the score). Slide one to 0 to leave it out, say ducats while you farm platinum.</p>
+    <WeightSliders bind:weights={settings.pick} />
+  </section>
+
+  <section>
+    <h3 class="register">Overlays</h3>
+    <p class="hint">What TennoScope draws over the game. orbiter keeps reading the reward screen with an overlay off, so its pick still shows on In mission.</p>
+    <Switch bind:on={settings.overlay.reward} label="Fissure reward screen">
+      Under each reward card: what it's worth and whether to take it.
+    </Switch>
+    {#if settings.overlay.reward}
+      <div class="shows" role="group" aria-label="What the reward cards show">
+        <Chip bind:on={settings.overlay.show.mastered} label="Mastered" title="A green seal by the name when the item it builds is mastered, an empty ring when not" />
+        <Chip bind:on={settings.overlay.show.vault} label="Vaulted / Resurgence / Farmable" title="Where it can still be had: only vaulted relics, Prime Resurgence (Varzia) right now, or relics still in the drop tables" />
+        <Chip bind:on={settings.overlay.show.set} label="Set parts" title="The parts of its set: the ones you hold solid, the rest faint, this card's underlined. A card that finishes a set (a first one, or an extra to sell) is double-framed" />
+        <Chip bind:on={settings.overlay.show.plat} label="Plat" title="What it sells for on warframe.market" />
+        <Chip bind:on={settings.overlay.show.ducats} label="Ducats" title="What Baro gives for it" />
+        <Chip bind:on={settings.overlay.show.pick} label="orbiter's pick" title="Each card's score, and the card to take outlined in gold" />
+      </div>
+    {/if}
+    <Switch bind:on={settings.overlay.kiosk} label="Baro's Ducat Kiosk">
+      On each Prime part in the kiosk: its plat, or how many more you need while its item isn't mastered.
+    </Switch>
   </section>
 
   {/if}
@@ -183,6 +207,8 @@
   section { display: grid; gap: 1rem; padding-bottom: 1.4rem; border-bottom: 1px solid var(--rule); }
   section:last-child { border-bottom: 0; }
   h3 { margin: 0; color: var(--gold); }
+  .sub { margin: .4rem 0 0; font-size: .88rem; font-weight: 600; color: var(--platinum); }
+  .shows { display: flex; flex-wrap: wrap; gap: .4rem; margin: -.3rem 0 .2rem; }
   .field { display: grid; gap: .4rem; }
   .path { font-family: var(--face-register); font-size: .74rem; }
   /* What's used when the field is empty: dimmer and slanted, so it doesn't read as typed in. */

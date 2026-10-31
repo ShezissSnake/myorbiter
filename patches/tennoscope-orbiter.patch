@@ -1,5 +1,5 @@
 diff --git a/app/src-tauri/src/lib.rs b/app/src-tauri/src/lib.rs
-index ce70bed..d948156 100644
+index ce70bed..9d739ad 100644
 --- a/app/src-tauri/src/lib.rs
 +++ b/app/src-tauri/src/lib.rs
 @@ -40,6 +40,7 @@ mod kiosk_view;
@@ -20,7 +20,7 @@ index ce70bed..d948156 100644
  };
  pub use reward_recognition::{
      FailureTrace, RecognitionTiming, RecognitionUpdate, RecognizedRewards, RewardPublication,
-@@ -561,6 +563,90 @@ fn market_inventory_writes_authorized(runtime: &Runtime) -> Result<(), String> {
+@@ -561,6 +563,96 @@ fn market_inventory_writes_authorized(runtime: &Runtime) -> Result<(), String> {
  }
  type SharedRuntime = Arc<Mutex<Runtime>>;
  
@@ -108,10 +108,16 @@ index ce70bed..d948156 100644
 +    orbiter_bridge::read_pick()
 +}
 +
++/// orbiter's overlay settings: what the reward cards show.
++#[tauri::command]
++fn orbiter_overlay() -> Option<serde_json::Value> {
++    orbiter_bridge::overlay_prefs()
++}
++
  #[tauri::command]
  async fn get_view(state: State<'_, SharedRuntime>) -> Result<AppView, String> {
      let shared = Arc::clone(state.inner());
-@@ -684,6 +770,9 @@ async fn set_market_presence(
+@@ -684,6 +776,9 @@ async fn set_market_presence(
      status: Option<warframe_status::Presence>,
      auto: bool,
  ) -> Result<AppView, String> {
@@ -121,7 +127,7 @@ index ce70bed..d948156 100644
      let shared = Arc::clone(state.inner());
      tauri::async_runtime::spawn_blocking(move || {
          let mut runtime = shared
-@@ -2095,7 +2184,12 @@ pub fn run() {
+@@ -2095,7 +2190,12 @@ pub fn run() {
          // tail the same EE.log, write the same database and draw two override-redirect overlays at
          // the same coordinates over the game, where whichever raised last wins, so the strip on
          // screen need not be the build you just started.
@@ -135,7 +141,7 @@ index ce70bed..d948156 100644
              if let Some(window) = app.get_webview_window("main") {
                  let _ = window.unminimize();
                  let _ = window.show();
-@@ -2108,13 +2202,27 @@ pub fn run() {
+@@ -2108,13 +2208,27 @@ pub fn run() {
          // once the main window closes and the app stays up: tailing the log and drawing the overlay
          // over the game with no UI left to close it by.
          .on_window_event(|window, event| {
@@ -166,7 +172,7 @@ index ce70bed..d948156 100644
              // The file target keeps debug traces in dev builds and trims to Info in stable
              // releases: per-OCR-attempt debug lines land every 200 ms, and with only 5 MiB
              // per rotated file a stable session of hours would otherwise keep just the last
-@@ -2166,6 +2274,20 @@ pub fn run() {
+@@ -2166,6 +2280,20 @@ pub fn run() {
                  .map(|state| current_setup_status(state.setup.clone(), state.game_running))
                  .unwrap_or_default();
              app.manage(runtime);
@@ -187,16 +193,17 @@ index ce70bed..d948156 100644
              // The kiosk window's whole IPC surface: `get_kiosk_view` pulls whatever the poller
              // last published, so the cell exists from the start, empty until a kiosk opens.
              app.manage(kiosk_view::KioskState::default());
-@@ -2205,6 +2327,7 @@ pub fn run() {
+@@ -2205,6 +2333,8 @@ pub fn run() {
          })
          .invoke_handler(tauri::generate_handler![
              get_view,
 +            orbiter_pick,
++            orbiter_overlay,
              get_setup_status,
              get_preferences,
              set_mastery_marks,
 diff --git a/app/src-tauri/src/monitor.rs b/app/src-tauri/src/monitor.rs
-index d09ca9a..cb0c9bf 100644
+index d09ca9a..9abcc59 100644
 --- a/app/src-tauri/src/monitor.rs
 +++ b/app/src-tauri/src/monitor.rs
 @@ -989,6 +989,13 @@ impl RewardSession {
@@ -294,20 +301,28 @@ index d09ca9a..cb0c9bf 100644
  fn apply_reward_observations(
      shared: &SharedRuntime,
      catalog: &[RewardCatalogEntry],
-@@ -2438,6 +2482,7 @@ fn apply_reward_observations(
+@@ -2438,6 +2482,15 @@ fn apply_reward_observations(
                  observation.confidence,
              )
              .ok()
-+            .map(|candidate| candidate.with_vaulted(reward_is_vaulted(&observation.name)))
++            .map(|candidate| {
++                candidate
++                    .with_vaulted(reward_is_vaulted(&observation.name))
++                    .with_set(
++                        marks
++                            .as_ref()
++                            .and_then(|marks| marks.set_view(&observation.name)),
++                    )
++            })
          })
          .collect();
      let _ = runtime.core.apply_reward_candidates(candidates);
 diff --git a/app/src-tauri/src/orbiter_bridge.rs b/app/src-tauri/src/orbiter_bridge.rs
 new file mode 100644
-index 0000000..74ecc5e
+index 0000000..8c85786
 --- /dev/null
 +++ b/app/src-tauri/src/orbiter_bridge.rs
-@@ -0,0 +1,347 @@
+@@ -0,0 +1,381 @@
 +//! Hand-off to orbiter (a companion app) during the void fissure reward screen.
 +//!
 +//! When the cards are read, their names go to `tennoscope-reward-screen.json`; orbiter scores them
@@ -416,6 +431,31 @@ index 0000000..74ecc5e
 +    pub best: Option<usize>,
 +    #[serde(default)]
 +    pub reasons: Vec<Vec<String>>,
++    /// Where each card can still be had: "vaulted", "resurgence" or "farmable" (null when not a part).
++    #[serde(default)]
++    pub vault: Vec<Option<String>>,
++}
++
++/// orbiter's overlay settings: which overlays to show at all, and what the reward cards show.
++pub const OVERLAY_FILE: &str = "orbiter-overlay.json";
++
++/// orbiter's overlay settings as it wrote them, whether or not orbiter is running now: they are
++/// the player's choice either way. Nothing when orbiter never wrote any.
++pub fn overlay_prefs() -> Option<serde_json::Value> {
++    serde_json::from_str(&fs::read_to_string(runtime_dir()?.join(OVERLAY_FILE)).ok()?).ok()
++}
++
++/// Whether the player lets this overlay ("reward" or "kiosk") show: yes unless orbiter's settings
++/// turned it off.
++pub fn overlay_enabled(kind: &str) -> bool {
++    enabled_in(overlay_prefs().as_ref(), kind)
++}
++
++fn enabled_in(prefs: Option<&serde_json::Value>, kind: &str) -> bool {
++    prefs
++        .and_then(|p| p.get(kind))
++        .and_then(|v| v.as_bool())
++        .unwrap_or(true)
 +}
 +
 +fn runtime_dir() -> Option<PathBuf> {
@@ -561,6 +601,15 @@ index 0000000..74ecc5e
 +    use super::*;
 +
 +    #[test]
++    fn an_overlay_shows_unless_orbiter_turned_it_off() {
++        let prefs = serde_json::json!({ "reward": false, "kiosk": true });
++        assert!(!enabled_in(Some(&prefs), "reward"));
++        assert!(enabled_in(Some(&prefs), "kiosk"));
++        assert!(enabled_in(None, "reward"), "no settings: everything shows");
++        assert!(enabled_in(Some(&serde_json::json!({})), "kiosk"));
++    }
++
++    #[test]
 +    fn asks_from_flags() {
 +        use warframe_status::Presence;
 +        let args = |xs: &[&str]| xs.iter().map(|x| x.to_string()).collect::<Vec<_>>();
@@ -656,7 +705,7 @@ index 0000000..74ecc5e
 +    }
 +}
 diff --git a/app/src-tauri/src/overlay_window.rs b/app/src-tauri/src/overlay_window.rs
-index b8f4a88..e1d7ff1 100644
+index b8f4a88..d57fcdb 100644
 --- a/app/src-tauri/src/overlay_window.rs
 +++ b/app/src-tauri/src/overlay_window.rs
 @@ -209,6 +209,8 @@ fn configure_reward_overlay(
@@ -698,7 +747,19 @@ index b8f4a88..e1d7ff1 100644
  fn trace_overlay(action: &str) {
      log::debug!("[DEBUG-overlay] {action}");
  }
-@@ -383,6 +401,8 @@ pub fn show_reward_overlay(app: &tauri::AppHandle, cards: usize) -> Option<&'sta
+@@ -358,6 +376,11 @@ fn trace_overlay(action: &str) {
+ /// `cards` is how many rewards are on screen, so the strip lands on the block the game actually
+ /// drew rather than on a four-card block it may not have.
+ pub fn show_reward_overlay(app: &tauri::AppHandle, cards: usize) -> Option<&'static str> {
++    // Turned off in orbiter's settings: the cards are still read (orbiter still picks), just not drawn.
++    if !crate::orbiter_bridge::overlay_enabled("reward") {
++        trace_overlay("reward overlay off in orbiter");
++        return None;
++    }
+     let located = warframe_window_rect_with_origin();
+     let notice = placement_notice(
+         matches!(located, Some((_, GameRectOrigin::X11))),
+@@ -383,6 +406,8 @@ pub fn show_reward_overlay(app: &tauri::AppHandle, cards: usize) -> Option<&'sta
              // drop it out of the topmost band it was placed in. Re-asserting after the show is what
              // keeps the strip above a borderless game rather than behind it.
              let _ = window.set_always_on_top(true);
@@ -707,7 +768,7 @@ index b8f4a88..e1d7ff1 100644
              trace_overlay("shown via plain window");
          });
      }
-@@ -390,6 +410,8 @@ pub fn show_reward_overlay(app: &tauri::AppHandle, cards: usize) -> Option<&'sta
+@@ -390,6 +415,8 @@ pub fn show_reward_overlay(app: &tauri::AppHandle, cards: usize) -> Option<&'sta
  }
  
  pub fn hide_reward_overlay(app: &tauri::AppHandle) {
@@ -716,6 +777,17 @@ index b8f4a88..e1d7ff1 100644
      if let Some(window) = app.get_webview_window("reward-overlay") {
          let _ = app.run_on_main_thread(move || {
              trace_overlay("hide");
+@@ -400,6 +427,10 @@ pub fn hide_reward_overlay(app: &tauri::AppHandle) {
+ }
+ 
+ pub fn show_kiosk_overlay(app: &tauri::AppHandle) {
++    if !crate::orbiter_bridge::overlay_enabled("kiosk") {
++        trace_overlay("kiosk overlay off in orbiter");
++        return;
++    }
+     if let Some(window) = app.get_webview_window("kiosk-overlay") {
+         let _ = app.run_on_main_thread(move || {
+             trace_overlay("show kiosk");
 diff --git a/app/src-tauri/src/reward_log.rs b/app/src-tauri/src/reward_log.rs
 index 9c554b3..d797b32 100644
 --- a/app/src-tauri/src/reward_log.rs
@@ -3062,7 +3134,7 @@ index 756d18e..019c706 100644
  ///
  /// Warframe scales its HUD with window *height* and centres it horizontally, but the card geometry
 diff --git a/app/src/App.css b/app/src/App.css
-index bf03363..3b7e7e8 100644
+index bf03363..5db8f2e 100644
 --- a/app/src/App.css
 +++ b/app/src/App.css
 @@ -437,6 +437,7 @@
@@ -3094,9 +3166,69 @@ index bf03363..3b7e7e8 100644
  .overlay-empty {
    display: grid; place-content: center; justify-items: center; gap: .3rem; height: 100vh;
    background: var(--touchstone); box-shadow: inset 0 0 0 1px rgb(232 235 239 / 16%);
+@@ -1496,3 +1511,28 @@ svg.set-glyph { background: none; fill: currentColor; padding: .125rem; }
+ .update-channel summary { cursor: pointer; padding: .3em 0; min-height: 24px; }
+ .update-channel .check-row { margin-top: .4em; }
+ .capture-status:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
++
++/* The mastery seal before the name: green and ticked when the item is mastered, an empty grey ring
++   when not. The one hue on the slip that is not a metal, because it mirrors the game's own cue. */
++.mastery-glyph { width: 1.25em; height: 1.25em; vertical-align: -.24em; margin-right: .3em; flex: none; }
++.mastery-glyph .seal { fill: none; stroke: var(--platinum-deep); stroke-width: 1.4; }
++.mastery-glyph.on .seal { fill: #3fcf7c; stroke: #3fcf7c; }
++.mastery-glyph .tick { fill: none; stroke: #082414; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
++/* Where it can still be had: three words, told apart by ink as well as by the word. */
++.hallmark.vault-vaulted { color: var(--gold); }
++.hallmark.vault-resurgence { color: #c9b2ff; }
++.hallmark.vault-farmable { color: var(--platinum-deep); }
++.overlay-rewards .ledger { flex-wrap: nowrap; align-items: center; gap: .3rem; overflow: hidden; }
++.overlay-rewards .ledger .set-row { margin-left: auto; }
++.metals.single { grid-template-columns: 1fr; }
++.overlay-rewards .slip.no-metals { grid-template-rows: auto 1fr; }
++
++.ledger-words { display: inline-flex; flex-wrap: wrap; align-items: flex-end; gap: var(--hair); }
++.overlay-rewards .ledger-words { flex-direction: column; flex-wrap: nowrap; align-items: flex-start; gap: .2rem; flex: none; }
++.overlay-rewards .ledger .set-row { flex-wrap: nowrap; }
++.overlay-rewards .ledger-words .hallmark { padding: .14rem .34rem .3rem; }
++.overlay-rewards .ledger-words .ledger-word.inverted { padding: .14rem .3rem; white-space: nowrap; }
++/* Five parts beside the stacked words: smaller shapes so the last one isn't cut at the slip's edge. */
++.overlay-rewards .ledger:has(.set-slot:nth-child(5)) .set-glyph { width: 1.4rem; height: 1.4rem; }
++.overlay-rewards .ledger:has(.set-slot:nth-child(5)) .set-glyph + .set-glyph { margin-left: -.85rem; }
++.overlay-rewards .ledger:has(.set-slot:nth-child(5)) .set-row { gap: .1rem; }
+diff --git a/app/src/App.test.tsx b/app/src/App.test.tsx
+index 68f9d30..8e4d544 100644
+--- a/app/src/App.test.tsx
++++ b/app/src/App.test.tsx
+@@ -565,7 +565,7 @@ describe('MVP desktop interface', () => {
+     // A slip that carries a mark states it in the ledger and drops the ownership line, because the
+     // set row already says how much of the part is held. The line stays for a card with no mark.
+     const paris = within(advisor).getByRole('article', { name: 'Paris Prime String' })
+-    expect(paris).toHaveTextContent('Unmastered')
++    expect(within(paris).getByRole('img', { name: 'Not mastered' })).toBeInTheDocument()
+     expect(paris).toHaveClass('ruled')
+     expect(within(paris).getByRole('list', { name: 'Set' })).toBeInTheDocument()
+     expect(paris).not.toHaveTextContent('Owned ×1')
+diff --git a/app/src/MasteryGlyph.tsx b/app/src/MasteryGlyph.tsx
+new file mode 100644
+index 0000000..a378a5d
+--- /dev/null
++++ b/app/src/MasteryGlyph.tsx
+@@ -0,0 +1,12 @@
++/**
++ * Whether the item a reward builds is mastered: a filled green seal with a tick when it is, the
++ * same seal as an empty grey ring when it is not. Drawn here, not taken from the game, and next
++ * to the name so it reads before anything else on the slip.
++ */
++export function MasteryGlyph({ mastered }: { mastered: boolean }) {
++  return <svg className={`mastery-glyph${mastered ? ' on' : ''}`} viewBox="0 0 20 20" role="img" aria-label={mastered ? 'Mastered' : 'Not mastered'}>
++    <title>{mastered ? 'Mastered' : 'Not mastered yet'}</title>
++    <path className="seal" d="M10 1.5l2.3 1.6 2.8-.2 1 2.6 2.4 1.5-.6 2.8.9 2.7-2.2 1.8-.6 2.8-2.8.4L11.6 18 10 18.6 8.4 18l-1.6-1.5-2.8-.4-.6-2.8-2.2-1.8.9-2.7-.6-2.8L3.9 5.5l1-2.6 2.8.2z"/>
++    {mastered && <path className="tick" d="M6.2 10.3l2.6 2.6 5-5.4" />}
++  </svg>
++}
 diff --git a/app/src/OrbiterPick.test.tsx b/app/src/OrbiterPick.test.tsx
 new file mode 100644
-index 0000000..249909a
+index 0000000..dfcff4d
 --- /dev/null
 +++ b/app/src/OrbiterPick.test.tsx
 @@ -0,0 +1,49 @@
@@ -3124,8 +3256,8 @@ index 0000000..249909a
 +    const best = await screen.findByRole('article', { name: 'Corinth Prime Barrel' })
 +    expect(await within(best).findByText('Pick · 70')).toBeTruthy()
 +    expect(best.className).toContain('orbiter-pick')
-+    // Once on the "Choice" line the overlay hides, once in the corner it shows.
-+    expect(within(best).getAllByText('Vaulted')).toHaveLength(2)
++    // Where it can still be had, once, under the metals.
++    expect(within(best).getAllByText('Vaulted')).toHaveLength(1)
 +    const other = screen.getByRole('article', { name: 'Forma Blueprint' })
 +    expect(within(other).getByText('0')).toBeTruthy()
 +    expect(other.className).not.toContain('orbiter-pick')
@@ -3150,77 +3282,311 @@ index 0000000..249909a
 +  })
 +})
 diff --git a/app/src/RewardCards.tsx b/app/src/RewardCards.tsx
-index 6858ed4..d778e59 100644
+index 6858ed4..77472e8 100644
 --- a/app/src/RewardCards.tsx
 +++ b/app/src/RewardCards.tsx
-@@ -1,4 +1,4 @@
+@@ -1,59 +1,56 @@
 -import type { MasteryMark, RewardCard, SetPart } from './backend'
-+import type { MasteryMark, OrbiterPick, RewardCard, SetPart } from './backend'
++import type { MasteryMark, OrbiterPick, OverlayShow, RewardCard, SetPart, VaultState } from './backend'
++import { SHOW_ALL } from './orbiterOverlay'
++import { MasteryGlyph } from './MasteryGlyph'
  import { MetalMark } from './MetalMark'
  import { SetRow } from './SetRow'
  
-@@ -64,25 +64,43 @@ export function RewardCards({
+-/**
+- * The words the ledger states, written as the player reads them and uppercased by the stylesheet.
+- * The space before a `·` never breaks, so a narrow slip wraps after the separator, not before it.
+- */
+-function ledgerWord(mark: Exclude<MasteryMark, { state: 'unknown' }>): string {
++/** Mastered, not mastered, or nothing to say: Forma and the like build nothing to master, and a
++ * mark the evidence cannot support draws no seal rather than a guess. */
++function masteredOf(mark: MasteryMark | undefined): boolean | null {
++  if (!mark || mark.state === 'unknown') return null
++  return mark.state === 'mastered'
++}
++
++/** The few words the seal can't say: a part still wanted by something else (Lex parts for an
++ * Aklex, whose set the row then shows), and a built item still to level. */
++function ledgerWord(mark: MasteryMark | undefined, completes: boolean): string | null {
++  if (completes || !mark) return null
+   switch (mark.state) {
+-    case 'mastered': return 'Mastered'
++    case 'unmastered': return mark.subject ? `For ${mark.subject}` : null
+     case 'built': return `Built\u00a0· R${mark.rank}/${mark.max_rank}`
+     case 'in_foundry': return 'In foundry'
+-    // A chain mark names the Ak that still wants this part's item, read as one phrase: "Unmastered
+-    // Aklex" on a Lex part, which is why the part still matters when the Lex is mastered or built.
+-    case 'unmastered': return mark.completes
+-      ? 'Completes set'
+-      : mark.subject ? `Unmastered ${mark.subject}` : 'Unmastered'
++    default: return null
+   }
+ }
+ 
+-/** What a mark asks of the slip around it: the rule the article carries, the tone its word is drawn in, and the set the line may show. */
+-type LedgerState = { rule: '' | 'ruled' | 'ruled-double'; tone: 'loud' | 'quiet'; inverted: boolean; parts: SetPart[] | null }
++/** orbiter's word when it has one (it knows Prime Resurgence); otherwise the relic tables'. Only
++ * for rewards that are Prime parts, which are the ones a vault can close. */
++function vaultOf(card: RewardCard, fromOrbiter: VaultState | null | undefined): VaultState | null {
++  if (fromOrbiter) return fromOrbiter
++  if (card.vaulted) return 'vaulted'
++  return card.set || card.mastery ? 'farmable' : null
++}
+ 
+-/** Resolved once per card so the slip's rule and its ledger never disagree. A read we are unsure
+- * of may name the wrong item, so it earns neither rule nor set row and keeps its doubt mark. */
+-function ledgerState(mark: MasteryMark, uncertain: boolean): LedgerState {
+-  const unmastered = mark.state === 'unmastered' ? mark : null
+-  const trusted = !uncertain
+-  const missing = trusted && !!unmastered?.missing
+-  const completes = missing && !!unmastered?.completes
+-  return {
+-    rule: completes ? 'ruled-double' : missing ? 'ruled' : '',
+-    tone: missing ? 'loud' : 'quiet',
+-    inverted: completes,
+-    parts: trusted && unmastered ? unmastered.parts : null,
+-  }
++const VAULT_WORD: Record<VaultState, string> = { vaulted: 'Vaulted', resurgence: 'Resurgence', farmable: 'Farmable' }
++const VAULT_TITLE: Record<VaultState, string> = {
++  vaulted: 'Every relic that drops it is vaulted: no new copies until it returns',
++  resurgence: 'Vaulted, but back in Prime Resurgence (Varzia) right now',
++  farmable: 'Relics that drop it are still in the drop tables',
+ }
+ 
+-/** The doubt mark, the word that states the mark, and the set row at the far end of the line. An
+- * unanswerable mark is the app's struck dash, and a screen reader hears what it means. */
+-function Ledger({ mark, state, uncertain, confidence }: { mark: MasteryMark; state: LedgerState; uncertain: boolean; confidence: number }) {
+-  return <div className="ledger" data-tone={state.tone}>
+-    {uncertain && <span className="hallmark doubt">Uncertain · {Math.round(confidence * 100)}%</span>}
+-    {mark.state === 'unknown'
+-      ? <span className="ledger-word"><span aria-hidden="true">—</span><span className="sr-only">Mastery unknown</span></span>
+-      : <span className={`ledger-word${state.inverted ? ' inverted' : ''}`}>{ledgerWord(mark)}</span>}
+-    {state.parts && <SetRow parts={state.parts}/>}
+-  </div>
++/** The set row's slots: the reward's own set when TennoScope sent it, else the unmastered mark's. */
++function setOf(card: RewardCard): { parts: SetPart[]; completes: boolean } | null {
++  if (card.set) return card.set
++  const mark = card.mastery
++  return mark?.state === 'unmastered' ? { parts: mark.parts, completes: mark.completes } : null
+ }
+ 
+ /**
+  * Platinum and ducats are two different answers to "which one do I take", and the player picks
+- * between them for reasons this program cannot see: saving for Baro, or just not wanting to sit
+- * in trade chat. So both are shown at the same weight, in their own metal, with the leader marked
+- * inside the column it won, rather than one headline number and a footnote.
++ * between them for reasons this program cannot see, so both are shown at the same weight. Under
++ * them, always in the same order: whether the item is mastered (the seal by the name), where the
++ * reward can still be had, and the set it belongs to, with the slot this reward fills underlined
++ * and the whole slip double-ruled when it finishes a set, a first one or an extra to sell.
+  *
+  * A reading we do not trust is never crowned on either metal. A price we do not have is struck as
+  * a dash: untradeable items (Forma among them) have no listing and never will.
+@@ -64,45 +61,81 @@ export function RewardCards({
    bestDucatIndex,
    ownershipVerified = true,
    className = 'reward-grid',
 +  pick = null,
++  show = SHOW_ALL,
  }: {
    cards: RewardCard[]
    bestValueIndex: number | null
    bestDucatIndex: number | null
    ownershipVerified?: boolean
    className?: string
-+  /** orbiter's score for each card, and the one to take. */
++  /** orbiter's score for each card, the one to take, and where each can still be had. */
 +  pick?: OrbiterPick | null
++  /** What orbiter's settings show; everything without orbiter. */
++  show?: OverlayShow
  }) {
    return <div className={className}>{cards.slice(0, 4).map((card, index) => {
      const uncertain = card.confidence < 0.8
      const topPlat = !uncertain && bestValueIndex === index
      const topDucat = !uncertain && bestDucatIndex === index
-     const marked = card.mastery ? { mark: card.mastery, state: ledgerState(card.mastery, uncertain) } : null
-+    const score = pick?.scores[index]
-+    const picked = pick?.best === index
+-    const marked = card.mastery ? { mark: card.mastery, state: ledgerState(card.mastery, uncertain) } : null
++    const score = show.pick ? pick?.scores[index] : undefined
++    const picked = show.pick && pick?.best === index
++    const mastered = show.mastered ? masteredOf(card.mastery) : null
++    const vault = show.vault ? vaultOf(card, pick?.vault?.[index]) : null
++    // A read we are unsure of may name the wrong item, so it claims no set.
++    const set = show.set && !uncertain ? setOf(card) : null
++    const completes = !!set?.completes
++    const mark = card.mastery
++    // A part an unmastered, unbuilt item still lacks rules the slip; one that finishes a set
++    // double-rules it. Never on a read we are unsure of.
++    const missing = !uncertain && mark?.state === 'unmastered' && mark.missing
++    const word = ledgerWord(mark, completes)
++    const unknown = show.mastered && mark?.state === 'unknown'
++    const metals = show.plat || show.ducats
      return <article
        key={`${card.name}-${index}`}
 -      className={['slip', topPlat ? 'top-plat' : '', topDucat ? 'top-ducat' : '', marked?.state.rule].filter(Boolean).join(' ')}
-+      className={['slip', topPlat ? 'top-plat' : '', topDucat ? 'top-ducat' : '', marked?.state.rule, picked ? 'orbiter-pick' : ''].filter(Boolean).join(' ')}
++      className={['slip', topPlat ? 'top-plat' : '', topDucat ? 'top-ducat' : '', completes ? 'ruled-double' : missing ? 'ruled' : '', picked ? 'orbiter-pick' : '', metals ? '' : 'no-metals'].filter(Boolean).join(' ')}
        aria-label={card.name}
      >
--      <span className="slip-lot">Choice {index + 1}</span>
+       <span className="slip-lot">Choice {index + 1}</span>
 -      <h2 className="slip-name">{card.name}</h2>
-+      <span className="slip-lot">
-+        Choice {index + 1}
-+        {/* Only vaulted relics drop it: no new copies enter the game until it is unvaulted. */}
-+        {card.vaulted && <span className="hallmark vaulted" title="Every relic that drops this is vaulted">Vaulted</span>}
-+      </span>
 +      <h2 className="slip-name">
-+        {/* Floated so the name wraps around it; shown on the overlay, where the "Choice N" line is hidden. */}
-+        {(card.vaulted || score != null) && <span className="slip-corner">
-+          {card.vaulted && <span className="hallmark vaulted" title="Every relic that drops this is vaulted">Vaulted</span>}
-+          {score != null && <span className={`orbiter-score${picked ? ' picked' : ''}`} title={pick?.reasons[index]?.join(' · ') || 'Score from orbiter'}>
++        {score != null && <span className="slip-corner">
++          <span className={`orbiter-score${picked ? ' picked' : ''}`} title={pick?.reasons[index]?.join(' · ') || 'Score from orbiter'}>
 +            {picked ? 'Pick · ' : ''}{score}
-+          </span>}
++          </span>
 +        </span>}
++        {mastered != null && <MasteryGlyph mastered={mastered}/>}
 +        {card.name}
 +      </h2>
  
-       <div className="metals">
-         <span className="metal plat">
+-      <div className="metals">
+-        <span className="metal plat">
++      {metals && <div className={`metals${show.plat && show.ducats ? '' : ' single'}`}>
++        {show.plat && <span className="metal plat">
+           {card.platinum > 0
+             ? <span className="metal-figure">{card.platinum}</span>
+             : <span className="metal-figure market-pending"><span aria-hidden="true">—</span><span className="sr-only">No platinum price</span></span>}
+           <span className="metal-label"><MetalMark metal="plat"/>plat</span>
+           {topPlat && <span className="metal-hallmark">Top plat</span>}
+-        </span>
+-        <span className="metal ducat">
++        </span>}
++        {show.ducats && <span className="metal ducat">
+           <span className="metal-figure">{card.ducats}</span>
+           <span className="metal-label"><MetalMark metal="ducat"/>ducats</span>
+           {topDucat && <span className="metal-hallmark">Top ducats</span>}
+-        </span>
+-      </div>
++        </span>}
++      </div>}
+ 
+-      {marked
+-        // A mark replaces the ownership line: the set row already says how much is held, and two
+-        // lines do not fit the overlay's width. A card with no mark keeps the line.
+-        ? <Ledger mark={marked.mark} state={marked.state} uncertain={uncertain} confidence={card.confidence}/>
++      {set || vault || word || unknown
++        ? <div className="ledger" data-tone={completes || missing ? 'loud' : 'quiet'}>
++            {uncertain && <span className="hallmark doubt">Uncertain · {Math.round(card.confidence * 100)}%</span>}
++            {/* The words stack in one column so the set row keeps the rest of the width. */}
++            <span className="ledger-words">
++              {vault && <span className={`hallmark vault-${vault}`} title={VAULT_TITLE[vault]}>{VAULT_WORD[vault]}</span>}
++              {completes
++                ? <span className="ledger-word inverted" title="Taking it finishes a whole set: one to build, or an extra one to sell">Completes set</span>
++                : word && <span className="ledger-word">{word}</span>}
++              {unknown && <span className="ledger-word"><span aria-hidden="true">—</span><span className="sr-only">Mastery unknown</span></span>}
++            </span>
++            {set && <SetRow parts={set.parts}/>}
++          </div>
+         : <div className="marks">
+             {ownershipVerified
+               ? card.owned > 0
+diff --git a/app/src/RewardOverlay.test.tsx b/app/src/RewardOverlay.test.tsx
+index e06371e..f8beb65 100644
+--- a/app/src/RewardOverlay.test.tsx
++++ b/app/src/RewardOverlay.test.tsx
+@@ -123,9 +123,10 @@ describe('reward overlay route', () => {
+     expect(lex).not.toHaveClass('ruled')
+     expect(within(lex).getByRole('list', { name: 'Set' })).toBeInTheDocument()
+     expect(within(lex).queryByText('Not owned')).not.toBeInTheDocument()
+-    // A mark that answers nothing loud carries its word and no rule.
++    // Mastered or not is the seal by the name: green and ticked, or an empty ring.
++    expect(within(lex).getByRole('img', { name: 'Not mastered' })).toBeInTheDocument()
+     const paris = within(advisor).getByRole('article', { name: 'Paris Prime String' })
+-    expect(within(paris).getByText('Mastered')).toBeInTheDocument()
++    expect(within(paris).getByRole('img', { name: 'Mastered' })).toBeInTheDocument()
+     expect(paris).not.toHaveClass('ruled')
+     expect(paris).not.toHaveClass('ruled-double')
+     expect(within(paris).queryByRole('list', { name: 'Set' })).not.toBeInTheDocument()
+@@ -133,7 +134,7 @@ describe('reward overlay route', () => {
+     // An item mastery never touches keeps today's ownership line and says nothing about mastery.
+     const forma = within(advisor).getByRole('article', { name: 'Forma Blueprint' })
+     expect(within(forma).getByText('Not owned')).toBeInTheDocument()
+-    expect(within(forma).queryByText(/Mastered|Unmastered/)).not.toBeInTheDocument()
++    expect(within(forma).queryByRole('img', { name: /mastered/i })).not.toBeInTheDocument()
+     expect(forma).not.toHaveClass('ruled')
+     expect(forma).not.toHaveClass('ruled-double')
+   })
+@@ -143,7 +144,7 @@ describe('reward overlay route', () => {
+       slip('Bronco Prime', { mastery: { state: 'unmastered', subject: 'Akbronco', parts: set, missing: true, completes: false } }),
+     ])
+     const bronco = within(advisor).getByRole('article', { name: 'Bronco Prime' })
+-    expect(within(bronco).getByText('Unmastered Akbronco')).toBeInTheDocument()
++    expect(within(bronco).getByText('For Akbronco')).toBeInTheDocument()
+     expect(bronco).toHaveClass('ruled')
+     expect(within(bronco).getByRole('list', { name: 'Set' })).toBeInTheDocument()
+   })
+@@ -153,7 +154,7 @@ describe('reward overlay route', () => {
+       slip('Lex Prime Barrel', { mastery: { state: 'unmastered', subject: null, parts: set, missing: false, completes: false } }),
+     ])
+     const lex = within(advisor).getByRole('article', { name: 'Lex Prime Barrel' })
+-    expect(within(lex).getByText('Unmastered')).toBeInTheDocument()
++    expect(within(lex).getByRole('img', { name: 'Not mastered' })).toBeInTheDocument()
+     expect(lex.querySelector('.ledger')).toHaveAttribute('data-tone', 'quiet')
+     expect(lex).not.toHaveClass('ruled')
+     expect(lex).not.toHaveClass('ruled-double')
+@@ -177,12 +178,12 @@ describe('reward overlay route', () => {
+     // states the word without the contour, the inverted chip, or the shapes the game owns.
+     const lex = within(advisor).getByRole('article', { name: 'Lex Prime Barrel' })
+     expect(within(lex).getByText(/Uncertain/)).toBeInTheDocument()
+-    expect(within(lex).getByText('Completes set')).not.toHaveClass('inverted')
++    expect(within(lex).queryByText('Completes set')).not.toBeInTheDocument()
+     expect(lex).not.toHaveClass('ruled')
+     expect(lex).not.toHaveClass('ruled-double')
+     expect(within(lex).queryByRole('list', { name: 'Set' })).not.toBeInTheDocument()
+     const paris = within(advisor).getByRole('article', { name: 'Paris Prime String' })
+-    expect(within(paris).getByText('Unmastered')).toBeInTheDocument()
++    expect(within(paris).getByRole('img', { name: 'Not mastered' })).toBeInTheDocument()
+     expect(paris).not.toHaveClass('ruled')
+     expect(paris).not.toHaveClass('ruled-double')
+     expect(within(paris).queryByRole('list', { name: 'Set' })).not.toBeInTheDocument()
+@@ -195,4 +196,33 @@ describe('reward overlay route', () => {
+     const ledger = advisor.querySelector('.ledger') as HTMLElement
+     expect(within(ledger).getByText('—')).toHaveAttribute('aria-hidden', 'true')
+   })
++  it('draws the set for every Prime part and rules one that finishes an extra set', async () => {
++    const extra = { parts: [
++      { name: 'Blueprint', image: 'blueprint.png', uses: 1, held: 1, this: false },
++      { name: 'Barrel', image: null, uses: 1, held: 0, this: true },
++    ], completes: true }
++    const advisor = await renderOverlay([
++      slip('Lex Prime Barrel', { mastery: { state: 'mastered' }, set: extra }),
++      slip('Paris Prime String', { mastery: { state: 'mastered' }, set: { ...extra, completes: false } }),
++    ])
++    const lex = within(advisor).getByRole('article', { name: 'Lex Prime Barrel' })
++    expect(within(lex).getByRole('img', { name: 'Mastered' })).toBeInTheDocument()
++    expect(within(lex).getByRole('list', { name: 'Set' })).toBeInTheDocument()
++    expect(within(lex).getByText('Completes set')).toHaveClass('inverted')
++    expect(lex).toHaveClass('ruled-double')
++    const paris = within(advisor).getByRole('article', { name: 'Paris Prime String' })
++    expect(within(paris).getByRole('list', { name: 'Set' })).toBeInTheDocument()
++    expect(paris).not.toHaveClass('ruled-double')
++  })
++
++  it('says where a Prime part can still be had', async () => {
++    const advisor = await renderOverlay([
++      slip('Lex Prime Barrel', { mastery: { state: 'mastered' }, vaulted: true }),
++      slip('Paris Prime String', { mastery: { state: 'mastered' } }),
++      slip('Forma Blueprint'),
++    ])
++    expect(within(within(advisor).getByRole('article', { name: 'Lex Prime Barrel' })).getByText('Vaulted')).toBeInTheDocument()
++    expect(within(within(advisor).getByRole('article', { name: 'Paris Prime String' })).getByText('Farmable')).toBeInTheDocument()
++    expect(within(within(advisor).getByRole('article', { name: 'Forma Blueprint' })).queryByText(/Vaulted|Farmable|Resurgence/)).not.toBeInTheDocument()
++  })
+ })
 diff --git a/app/src/RewardOverlay.tsx b/app/src/RewardOverlay.tsx
-index 4cb846a..33b72d0 100644
+index 4cb846a..eaf4560 100644
 --- a/app/src/RewardOverlay.tsx
 +++ b/app/src/RewardOverlay.tsx
-@@ -1,13 +1,27 @@
+@@ -1,13 +1,32 @@
  import { useEffect, useRef, useState } from 'react'
  import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 -import { getView, type AppView } from './backend'
-+import { getOrbiterPick, getView, type AppView, type OrbiterPick } from './backend'
++import { getOrbiterPick, getView, type AppView, type OrbiterPick, type OverlayShow } from './backend'
++import { orbiterShow, SHOW_ALL } from './orbiterOverlay'
  import { RewardCards } from './RewardCards'
  
  export default function RewardOverlay() {
    const [view, setView] = useState<AppView | null>(null)
    const [error, setError] = useState(false)
 +  const [pick, setPick] = useState<OrbiterPick | null>(null)
++  const [show, setShow] = useState<OverlayShow>(SHOW_ALL)
    const generation = useRef(0)
  
 +  // orbiter answers within a second or so of the cards being read; ask often while they're up.
@@ -3230,6 +3596,9 @@ index 4cb846a..33b72d0 100644
 +    let active = true
 +    const ask = async () => {
 +      try { const next = await getOrbiterPick(); if (active) setPick(next) } catch { if (active) setPick(null) }
++      // What orbiter's settings show on the cards; everything when orbiter isn't there to say.
++      const shown = await orbiterShow()
++      if (active) setShow(shown)
 +    }
 +    void ask()
 +    const timer = setInterval(ask, 500)
@@ -3239,13 +3608,13 @@ index 4cb846a..33b72d0 100644
    useEffect(() => {
      document.documentElement.classList.add('overlay-mode')
      let active = true
-@@ -38,7 +52,13 @@ export default function RewardOverlay() {
+@@ -38,7 +57,13 @@ export default function RewardOverlay() {
      {error ? <div className="overlay-empty">Reward data is unavailable.</div>
        : !view ? <div className="overlay-empty">Loading reward choices…</div>
          : view.reward.cards.length
 -          ? <RewardCards cards={view.reward.cards} bestValueIndex={view.reward.best_value_index} bestDucatIndex={view.reward.best_ducat_index} className="overlay-rewards"/>
 +          ? <RewardCards cards={view.reward.cards} bestValueIndex={view.reward.best_value_index} bestDucatIndex={view.reward.best_ducat_index} className="overlay-rewards"
-+              pick={pick && samePick(pick, view.reward.cards.map(card => card.name)) ? pick : null}/>
++              pick={pick && samePick(pick, view.reward.cards.map(card => card.name)) ? pick : null} show={show}/>
            : <div className="overlay-empty"><strong>No reward choices detected</strong><span>Watching the active Warframe display.</span></div>}
    </main>
  }
@@ -3255,28 +3624,55 @@ index 4cb846a..33b72d0 100644
 +  return pick.cards.length === names.length && pick.cards.every((name, i) => name.toLowerCase() === names[i].toLowerCase())
 +}
 diff --git a/app/src/backend.ts b/app/src/backend.ts
-index 85cb60c..283f2ab 100644
+index 85cb60c..bf2456d 100644
 --- a/app/src/backend.ts
 +++ b/app/src/backend.ts
-@@ -11,7 +11,7 @@ export interface MasteryCategoryTotal { category: ItemCategory; mastered: number
+@@ -11,7 +11,9 @@ export interface MasteryCategoryTotal { category: ItemCategory; mastered: number
  export interface MasteryChecklist { available: boolean; items: CollectionItem[]; totals: MasteryCategoryTotal[] }
  /** How far the live pricing pass the player asked for has got. */
  export interface PricingProgress { done: number; total: number }
 -export interface RewardCard { name: string; platinum: number; ducats: number; owned: number; mastery?: MasteryMark; confidence: number }
-+export interface RewardCard { name: string; platinum: number; ducats: number; owned: number; mastery?: MasteryMark; confidence: number; vaulted?: boolean }
++export interface RewardCard { name: string; platinum: number; ducats: number; owned: number; mastery?: MasteryMark; confidence: number; vaulted?: boolean; set?: SetView }
++/** Every slot of the set a Prime part belongs to, toward the next whole set, and whether this reward finishes one (a first or an extra). */
++export interface SetView { parts: SetPart[]; completes: boolean }
  /** One slot of the set a Prime item is built from: the copies the recipe takes, the copies held, and whether this reward is the one that fills it. */
  export interface SetPart { name: string; image: string | null; uses: number; held: number; this: boolean }
  /** Absent for items mastery never touches or while marks are off; `unknown` still replaces the
-@@ -87,6 +87,9 @@ export interface KioskView {
+@@ -87,6 +89,13 @@ export interface KioskView {
  }
  
  export const getView = () => invoke<AppView>('get_view')
 +/** orbiter (a companion app) scores the cards on screen by the player's own priorities. */
-+export interface OrbiterPick { at: number; cards: string[]; scores: number[]; best: number | null; reasons: string[][] }
++/** Where a reward can still be had, as orbiter knows it (Prime Resurgence included). */
++export type VaultState = 'vaulted' | 'resurgence' | 'farmable'
++export interface OrbiterPick { at: number; cards: string[]; scores: number[]; best: number | null; reasons: string[][]; vault?: (VaultState | null)[] }
++/** What orbiter's settings show on the reward overlay (see orbiterOverlay.ts). */
++export interface OverlayShow { mastered: boolean; vault: boolean; set: boolean; plat: boolean; ducats: boolean; pick: boolean }
 +export const getOrbiterPick = () => invoke<OrbiterPick | null>('orbiter_pick')
  export const getKioskView = () => invoke<KioskView | null>('get_kiosk_view')
  export const refreshInventory = () => invoke<AppView>('refresh_inventory')
  export const refreshPrices = (ids: string[]) => invoke<AppView>('refresh_prices', { itemIds: ids })
+diff --git a/app/src/orbiterOverlay.ts b/app/src/orbiterOverlay.ts
+new file mode 100644
+index 0000000..c67af38
+--- /dev/null
++++ b/app/src/orbiterOverlay.ts
+@@ -0,0 +1,15 @@
++import { invoke } from '@tauri-apps/api/core'
++import type { OverlayShow } from './backend'
++
++/** Everything shows until orbiter's settings say otherwise, and whenever orbiter can't be asked. */
++export const SHOW_ALL: OverlayShow = { mastered: true, vault: true, set: true, plat: true, ducats: true, pick: true }
++
++/** What orbiter's settings show on the reward cards; everything without orbiter. */
++export async function orbiterShow(): Promise<OverlayShow> {
++  try {
++    const prefs = await invoke<{ show?: Partial<OverlayShow> } | null>('orbiter_overlay')
++    return { ...SHOW_ALL, ...(prefs?.show ?? {}) }
++  } catch {
++    return SHOW_ALL
++  }
++}
 diff --git a/crates/app-core/Cargo.toml b/crates/app-core/Cargo.toml
 index 939f465..895feb5 100644
 --- a/crates/app-core/Cargo.toml
@@ -3290,10 +3686,23 @@ index 939f465..895feb5 100644
  local-store = { path = "../local-store" }
  warframe-domain = { path = "../warframe-domain" }
 diff --git a/crates/app-core/src/lib.rs b/crates/app-core/src/lib.rs
-index 93ac141..c36d86d 100644
+index 93ac141..513fab6 100644
 --- a/crates/app-core/src/lib.rs
 +++ b/crates/app-core/src/lib.rs
-@@ -167,6 +167,56 @@ impl AppCore {
+@@ -74,6 +74,12 @@ impl MasteryView {
+         MasteryLedger::new(catalog, &self.holdings, self.facts.as_ref()).reward_mark(reward_name)
+     }
+ 
++    /// The set row a reward carries: every slot of its item's set, toward the next whole set.
++    pub fn set_view(&self, reward_name: &str) -> Option<warframe_domain::SetView> {
++        let catalog = self.catalog.as_deref()?;
++        MasteryLedger::new(catalog, &self.holdings, self.facts.as_ref()).set_view(reward_name)
++    }
++
+     /// The strip a kiosk tile carries, or nothing without live facts or for mastered parts.
+     pub fn kiosk_mastery(&self, part_name: &str) -> Option<KioskMastery> {
+         let catalog = self.catalog.as_deref()?;
+@@ -167,6 +173,56 @@ impl AppCore {
          self.reads_inventory = reads_inventory;
      }
  
@@ -3573,6 +3982,67 @@ index 97ac561..57aa4c6 100644
      }
  }
  
+diff --git a/crates/warframe-acquisition/src/mastery.rs b/crates/warframe-acquisition/src/mastery.rs
+index fbfc700..3046d01 100644
+--- a/crates/warframe-acquisition/src/mastery.rs
++++ b/crates/warframe-acquisition/src/mastery.rs
+@@ -1,6 +1,6 @@
+ use std::collections::{BTreeMap, BTreeSet};
+ 
+-use warframe_domain::{InventoryEntry, KioskMastery, MasteryMark, SetPart};
++use warframe_domain::{InventoryEntry, KioskMastery, MasteryMark, SetPart, SetView};
+ 
+ use crate::{CatalogIndex, ComponentKind, MasteryFacts, Recipe, RecipeComponent, mastery_rank};
+ 
+@@ -132,6 +132,48 @@ impl<'a> MasteryLedger<'a> {
+         }
+     }
+ 
++    /// The set row for a reward that is a part of a masterable item, mastered or not: each slot
++    /// with its progress toward the next whole set, and whether this reward finishes one. Holding
++    /// three of every part but two of one, that one finishes a third set. Nothing without
++    /// holdings to count, or for a reward that is no part.
++    pub fn set_view(&self, reward_name: &str) -> Option<SetView> {
++        if self.evidence() == MasteryEvidence::None {
++            return None;
++        }
++        let (recipe, this_index) = self.resolve(reward_name)?;
++        let slots = recipe
++            .components
++            .iter()
++            .map(|slot| (slot, slot.per_build.max(1), self.held_of(slot)))
++            .collect::<Vec<_>>();
++        let sets = |extra: u32| {
++            slots
++                .iter()
++                .enumerate()
++                .map(|(index, (_, uses, held))| {
++                    (held + if index == this_index { extra } else { 0 }) / uses
++                })
++                .min()
++                .unwrap_or(0)
++        };
++        let whole = sets(0);
++        let parts = slots
++            .iter()
++            .enumerate()
++            .map(|(index, (slot, uses, held))| SetPart {
++                name: slot.name.clone(),
++                image: slot.image_name.clone(),
++                uses: *uses,
++                held: held.saturating_sub(whole.saturating_mul(*uses)).min(*uses),
++                this: index == this_index,
++            })
++            .collect();
++        Some(SetView {
++            parts,
++            completes: sets(1) > whole,
++        })
++    }
++
+     /// A reward name to its parent recipe and the slot it fills there. Nothing when the name
+     /// is not a part, or when the parent is an item mastery never touches.
+     fn resolve(&self, reward_name: &str) -> Option<(&'a Recipe, usize)> {
 diff --git a/crates/warframe-acquisition/src/relic_catalog.rs b/crates/warframe-acquisition/src/relic_catalog.rs
 index 0debbfe..de1659c 100644
 --- a/crates/warframe-acquisition/src/relic_catalog.rs
@@ -3776,17 +4246,119 @@ index d5e141a..b737bd4 100644
 +        .unwrap();
 +    assert!(none.imprints().is_empty());
 +}
+diff --git a/crates/warframe-acquisition/tests/mastery_ledger.rs b/crates/warframe-acquisition/tests/mastery_ledger.rs
+index 2c96e34..c972050 100644
+--- a/crates/warframe-acquisition/tests/mastery_ledger.rs
++++ b/crates/warframe-acquisition/tests/mastery_ledger.rs
+@@ -333,3 +333,54 @@ fn kiosk_mastery_reports_held_and_uses_for_live_unmastered_parts_only() {
+         "kiosk strips need live evidence"
+     );
+ }
++
++#[test]
++fn the_set_row_counts_toward_the_next_set_and_an_extra_set_completes() {
++    let catalog = catalog();
++    let facts = live(&[], &[]);
++    // Mastered, three of each part but two Blade pairs and a half: a Blade finishes a third set.
++    let held = holdings(
++        &[
++            (GUANDAO, 1),
++            (GUANDAO_BP, 3),
++            (GUANDAO_HANDLE, 3),
++            (GUANDAO_BLADE, 5),
++        ],
++        &[GUANDAO],
++    );
++    let set = MasteryLedger::new(&catalog, &held, Some(&facts))
++        .set_view("Guandao Prime Blade")
++        .unwrap();
++    assert!(set.completes, "the sixth Blade finishes a third set");
++    assert_eq!(
++        set.parts,
++        vec![
++            part("Blueprint", "blueprint.png", 1, 1, false),
++            part("Blade", "GenericWeaponPrimeBlade.png", 2, 1, true),
++            part("Handle", "GenericWeaponPrimeHandle.png", 1, 1, false),
++        ],
++        "progress toward the third set: the two whole sets are not drawn"
++    );
++    // A Handle there is a spare: it finishes nothing.
++    let spare = MasteryLedger::new(&catalog, &held, Some(&facts))
++        .set_view("Guandao Prime Handle")
++        .unwrap();
++    assert!(!spare.completes);
++    // Unmastered and short: the first set, the one to build.
++    let first = holdings(
++        &[(GUANDAO_BP, 1), (GUANDAO_HANDLE, 1), (GUANDAO_BLADE, 1)],
++        &[],
++    );
++    assert!(
++        MasteryLedger::new(&catalog, &first, Some(&facts))
++            .set_view("Guandao Prime Blade")
++            .unwrap()
++            .completes
++    );
++    // Forma builds nothing.
++    assert!(
++        MasteryLedger::new(&catalog, &first, Some(&facts))
++            .set_view("Forma Blueprint")
++            .is_none()
++    );
++}
+diff --git a/crates/warframe-domain/src/lib.rs b/crates/warframe-domain/src/lib.rs
+index a30c993..ba9fc2a 100644
+--- a/crates/warframe-domain/src/lib.rs
++++ b/crates/warframe-domain/src/lib.rs
+@@ -9,5 +9,5 @@ mod rewards;
+ pub use catalog::{CatalogItem, Category, ItemId};
+ pub use error::DomainError;
+ pub use inventory::{Collection, InventoryEntry, InventorySnapshot};
+-pub use mastery::{KioskMastery, MasteryMark, SetPart};
++pub use mastery::{KioskMastery, MasteryMark, SetPart, SetView};
+ pub use rewards::{RewardAdvisor, RewardCandidate, RewardView};
+diff --git a/crates/warframe-domain/src/mastery.rs b/crates/warframe-domain/src/mastery.rs
+index 0fac7fe..81f6da2 100644
+--- a/crates/warframe-domain/src/mastery.rs
++++ b/crates/warframe-domain/src/mastery.rs
+@@ -32,6 +32,15 @@ pub struct SetPart {
+     pub this: bool,
+ }
+ 
++/// Every slot of the set a Prime part belongs to, for the overlay's set row whether the item is
++/// mastered or not: `held` is progress toward the next whole set (copies beyond the complete sets
++/// already held), and `completes` says this reward finishes one, a first or an extra.
++#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
++pub struct SetView {
++    pub parts: Vec<SetPart>,
++    pub completes: bool,
++}
++
+ /// A part of an item the player has not mastered: how many copies they hold, and how many
+ /// one build uses. Kiosk tiles name parts, so this is all a strip has room to say.
+ #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 diff --git a/crates/warframe-domain/src/rewards.rs b/crates/warframe-domain/src/rewards.rs
-index aa9d60c..f6172e6 100644
+index aa9d60c..8c26b39 100644
 --- a/crates/warframe-domain/src/rewards.rs
 +++ b/crates/warframe-domain/src/rewards.rs
-@@ -13,9 +13,17 @@ pub struct RewardCandidate {
+@@ -2,7 +2,7 @@ use std::cmp::Reverse;
+ 
+ use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
+ 
+-use crate::{DomainError, MasteryMark};
++use crate::{DomainError, MasteryMark, SetView};
+ 
+ #[derive(Clone, Debug, PartialEq, Serialize)]
+ pub struct RewardCandidate {
+@@ -13,9 +13,25 @@ pub struct RewardCandidate {
      #[serde(default, skip_serializing_if = "Option::is_none")]
      pub mastery: Option<MasteryMark>,
      pub confidence: f32,
 +    /// Only vaulted relics drop it. Omitted from the JSON when false.
 +    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
 +    pub vaulted: bool,
++    /// The set this reward's item is built from, for the set row. Omitted when it builds nothing.
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub set: Option<SetView>,
  }
  
  impl RewardCandidate {
@@ -3795,31 +4367,39 @@ index aa9d60c..f6172e6 100644
 +        self
 +    }
 +
++    pub fn with_set(mut self, set: Option<SetView>) -> Self {
++        self.set = set;
++        self
++    }
++
      pub fn new(
          name: impl Into<String>,
          platinum: u32,
-@@ -38,6 +46,7 @@ impl RewardCandidate {
+@@ -38,6 +54,8 @@ impl RewardCandidate {
              owned,
              mastery,
              confidence,
 +            vaulted: false,
++            set: None,
          })
      }
  }
-@@ -51,6 +60,8 @@ struct RewardCandidateDto {
+@@ -51,6 +69,10 @@ struct RewardCandidateDto {
      #[serde(default)]
      mastery: Option<MasteryMark>,
      confidence: f32,
 +    #[serde(default)]
 +    vaulted: bool,
++    #[serde(default)]
++    set: Option<SetView>,
  }
  
  impl<'de> Deserialize<'de> for RewardCandidate {
-@@ -67,6 +78,7 @@ impl<'de> Deserialize<'de> for RewardCandidate {
+@@ -67,6 +89,7 @@ impl<'de> Deserialize<'de> for RewardCandidate {
              dto.mastery,
              dto.confidence,
          )
-+        .map(|candidate| candidate.with_vaulted(dto.vaulted))
++        .map(|candidate| candidate.with_vaulted(dto.vaulted).with_set(dto.set))
          .map_err(D::Error::custom)
      }
  }

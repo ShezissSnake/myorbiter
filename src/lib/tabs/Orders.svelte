@@ -396,7 +396,7 @@
       <thead>
         <tr>
           <th>Item</th><th class="right">Qty</th><th class="right">Your price</th><th title="The cheapest seller who is in game right now (and how many are), from the last check">Cheapest in game</th>
-          <th class="right willset" title="What the repricer would change the price to, and why">Will set</th><th class="right floorcol" title="Never go below this">Floor</th><th class="center" title="On: the repricer keeps this listing at the cheapest in-game price. Off: it's left as you set it">Follow</th><th class="center" title="Whether buyers see the listing on warframe.market (hidden ones keep their place)">Shown</th><th></th>
+          <th class="right willset" title="What the repricer would change the price to, and why">Will set</th><th class="right floorcol" title="Never go below this">Floor</th><th class="center" title="Auto-price on: when you check prices, this listing is moved to the cheapest in-game seller's price (never under its floor). Off: orbiter leaves its price as you set it">Auto-price</th><th class="center" title="Whether buyers see the listing on warframe.market (hidden ones keep their place)">Shown</th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -455,12 +455,12 @@
             <td class="right fade willset">
               {#if p?.change && !paused && o.visible}<span class="target" class:down={p.target < o.platinum} class:up={p.target > o.platinum}><span class="dim">{o.platinum} →</span> <P v={p.target} /> <span class="delta">{p.target > o.platinum ? "+" : "−"}{Math.abs(p.target - o.platinum)}</span>{#if p.reason === "floor" && crackHeld(o, p) != null}<span class="tag ok" title="Worth more cracked: a crack of it is worth about {crackHeld(o, p)}p, so it isn't listed under {p.floor}p. Take it down to crack it instead.">crack</span>{:else if p.reason === "floor" && p.competitor.price != null && p.target > p.competitor.price}<span class="tag warn" title="Your floor ({p.floor}p) is over what the cheapest seller in game asks ({p.competitor.price}p): at this price it's unlikely to sell. Lower this listing's floor, or take it down.">over market</span>{:else if p.reason === "floor"}<span class="tag ok" title="Held up by the floor">floor</span>{:else if p.reason === "median"}<span class="tag" title="Everyone in game asks more than twice what it really goes for ({p.competitor.price}p and up): priced at that instead">sells for</span>{/if}</span>
               {:else if !o.visible}<span class="register" title="Hidden listings aren't repriced">hidden</span>
-              {:else if paused}<span class="register" title="Follow is off: the repricer leaves this listing alone">left alone</span>
+              {:else if paused}<span class="register" title="Auto-price is off: orbiter leaves this price as you set it">left alone</span>
               {:else if p && goesFor(p) != null}<span class="register ok" title="At what it really goes for: in game they ask {p.competitor.price}p and up">at its value</span>
               {:else if p}<span class="register ok">matched</span>{/if}
             </td>
             <td class="right floorcol"><input type="number" min="1" style:width="4.8rem" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor for this listing" title="Your own floor for this listing; empty uses the automatic one" value={settings.floors[listingKey(o)] ?? ""} onchange={(e) => setFloor(o, e.currentTarget.value)} /></td>
-            <td class="center"><Toggle on={!paused && o.visible} disabled={!o.visible} label="Follow the cheapest in-game seller" title={!o.visible ? "Hidden listings aren't repriced" : paused ? "Left alone by the repricer" : "Follows the cheapest in-game seller"} onchange={() => togglePause(o)} /></td>
+            <td class="center"><Toggle on={!paused && o.visible} disabled={!o.visible} label="Auto-price: match the cheapest in-game seller" title={!o.visible ? "Hidden listings aren't repriced" : paused ? "Auto-price off: the price stays as you set it" : "Auto-price on: kept at the cheapest in-game seller's price"} onchange={() => togglePause(o)} /></td>
             <td class="center"><Toggle on={o.visible} label="Shown to buyers" title={o.visible ? "Visible to buyers" : "Hidden from buyers"} disabled={!!mkt.busy} onchange={(v) => mkt.update(o, { visible: v })} /></td>
             <td class="right">
               <!-- Three fixed places, the same on every row: sold one, sold several, remove. A

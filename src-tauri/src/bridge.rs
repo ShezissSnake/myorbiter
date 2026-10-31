@@ -14,6 +14,8 @@ use std::path::{Path, PathBuf};
 
 pub const CARDS_FILE: &str = "tennoscope-reward-screen.json";
 pub const PICK_FILE: &str = "orbiter-reward-pick.json";
+/// Your overlay settings (which overlays show, what the reward cards show), read by TennoScope.
+pub const OVERLAY_FILE: &str = "orbiter-overlay.json";
 
 /// Where the shared files go, or `None` if there is nowhere private to put them.
 pub fn runtime_dir() -> Option<PathBuf> {
@@ -71,6 +73,12 @@ pub fn read_cards_in(dir: &Path) -> Option<ScreenCards> {
 pub fn write_pick_in(dir: &Path, pick: &Value) -> Result<(), String> {
     let bytes = serde_json::to_vec(pick).map_err(|e| e.to_string())?;
     crate::write_atomic(&dir.join(PICK_FILE), &bytes, false).map_err(|e| e.to_string())
+}
+
+/// Written whenever the overlay settings change; TennoScope reads it when it's about to draw.
+pub fn write_overlay_in(dir: &Path, prefs: &Value) -> Result<(), String> {
+    let bytes = serde_json::to_vec(prefs).map_err(|e| e.to_string())?;
+    crate::write_atomic(&dir.join(OVERLAY_FILE), &bytes, false).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

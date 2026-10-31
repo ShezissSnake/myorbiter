@@ -10,7 +10,7 @@
   import { buildModel, ERAS } from "./lib/core/model";
   import { mergeRelics, type RelicData } from "./lib/core/relicData";
   import { today } from "./lib/core/today";
-  import { bestCard, resolveName, scoreCards } from "./lib/core/pick";
+  import { bestCard, resolveName, scoreCards, vaultWord } from "./lib/core/pick";
   import { mergeLogged, recordScreen, resolvePicks } from "./lib/core/relicRuns";
   import { heldFor } from "./lib/core/market";
   import type { Bundle, Live, MissionState } from "./lib/core/types";
@@ -27,6 +27,7 @@
     rewardCards,
     rewardScreens,
     writeRewardPick,
+    writeOverlayPrefs,
     market,
     onMarketOrder,
     onNoticeOpen,
@@ -275,7 +276,7 @@
   $effect(() => {
     if (!model || !freshCards) return;
     const cards = scoreCards(model, freshCards.cards, settings.pick, freshCards.prices);
-    const file = { at: freshCards.at, cards: freshCards.cards, scores: cards.map((c) => c.score), best: bestCard(cards), reasons: cards.map((c) => c.reasons) };
+    const file = { at: freshCards.at, cards: freshCards.cards, scores: cards.map((c) => c.score), best: bestCard(cards), reasons: cards.map((c) => c.reasons), vault: cards.map((c) => vaultWord(model!, c.name)) };
     const key = JSON.stringify(file);
     if (key === lastWritten) return;
     lastWritten = key;
@@ -294,6 +295,19 @@
     }
   });
   let notifiedScreen = 0;
+
+  // Your overlay settings, for TennoScope: written when they change, and once at start.
+  let lastOverlay = "";
+  $effect(() => {
+    const prefs = $state.snapshot(settings.overlay);
+    const key = JSON.stringify(prefs);
+    if (key === lastOverlay) return;
+    lastOverlay = key;
+    writeOverlayPrefs(prefs).catch((e) => {
+      console.error("writing the overlay settings failed", e);
+      if (lastOverlay === key) lastOverlay = "";
+    });
+  });
 
   // Each new sale gets the item's daily median of the day it sold, so Sales compares it with the
   // market as it was then rather than as it is when you look.

@@ -9,7 +9,7 @@
 // The weights follow your priorities: plat, then unmastered, then ducats, then completing a set.
 
 import type { Model } from "./model";
-import { setRows } from "./views";
+import { partAvailability, setRows } from "./views";
 
 export interface PickWeights {
   plat: number;
@@ -112,4 +112,11 @@ export function bestCard(cards: PickCard[]): number | null {
     if (c.score > b.score || (c.score === b.score && (c.price ?? 0) > (b.price ?? 0))) best = i;
   });
   return best;
+}
+
+/** Where a reward can still be had, for the overlay: null for what isn't a Prime part, or unknown. */
+export function vaultWord(m: Model, name: string): "vaulted" | "resurgence" | "farmable" | null {
+  if (!m.partByName.has(name)) return null;
+  const a = partAvailability(m, name);
+  return a === "unknown" ? null : a;
 }

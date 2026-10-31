@@ -80,12 +80,25 @@ export interface AdviceSettings {
 
 export const defaultAdvice = (): AdviceSettings => ({ platPerDucat: 0.1, minPlat: 5, slowBelow: 1, squad: 1, maxMissing: 2, vosforLens: "need" });
 
+/** What TennoScope's reward cards show, each on or off. */
+export interface OverlayShow { mastered: boolean; vault: boolean; set: boolean; plat: boolean; ducats: boolean; pick: boolean }
+export interface OverlaySettings {
+  /** The fissure reward screen's overlay. */
+  reward: boolean;
+  /** Baro's Ducat Kiosk overlay. */
+  kiosk: boolean;
+  show: OverlayShow;
+}
+export const defaultOverlay = (): OverlaySettings => ({ reward: true, kiosk: true, show: { mastered: true, vault: true, set: true, plat: true, ducats: true, pick: true } });
+
 export interface Settings {
   advice: AdviceSettings;
   /** How much each thing counts when scoring reward cards. */
   pick: PickWeights;
   /** Switch to In mission when the reward screen opens. */
   jumpToPick: boolean;
+  /** TennoScope's overlays: which show over the game, and what the reward cards show. */
+  overlay: OverlaySettings;
   /** Start TennoScope (in the background) with orbiter and close it with orbiter. */
   /** opaqueOverlay: TennoScope's overlay on a solid background (Windows, when a transparent one is invisible). */
   tennoscope: { launch: boolean; path: string; opaqueOverlay: boolean };
@@ -278,6 +291,7 @@ export const defaultSettings = (): Settings => ({
   market: defaultMarketSettings(),
   pick: defaultPickWeights(),
   jumpToPick: true,
+  overlay: defaultOverlay(),
   tennoscope: { launch: true, path: "", opaqueOverlay: false },
   dataDir: "",
   eeLog: "",
@@ -473,6 +487,7 @@ export async function loadSettings(): Promise<Settings> {
     market: { ...base.market, ...(raw?.market ?? {}), bulk: { ...base.market.bulk, ...(raw?.market?.bulk ?? {}) }, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: raw?.market?.sellable?.relicsWorthSelling ?? base.market.sellable.relicsWorthSelling }, sales: Array.isArray(raw?.market?.sales) ? raw.market.sales : [], tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], trades: Array.isArray(raw?.market?.trades) ? raw.market.trades : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: raw?.market?.platform && raw.market.platform in PLATFORM_LABEL ? raw.market.platform : "pc", autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, every: typeof raw?.market?.every === "number" && raw.market.every >= 1 ? raw.market.every : base.market.every, minRelicPrice: typeof raw?.market?.minRelicPrice === "number" && raw.market.minRelicPrice >= 1 ? Math.round(raw.market.minRelicPrice) : base.market.minRelicPrice, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)" },
     advice: { ...base.advice, ...(raw?.advice ?? {}) },
     pick: { ...base.pick, ...(raw?.pick ?? {}) },
+    overlay: { reward: raw?.overlay?.reward !== false, kiosk: raw?.overlay?.kiosk !== false, show: { ...base.overlay.show, ...(raw?.overlay?.show ?? {}) } },
     tennoscope: { ...base.tennoscope, ...(raw?.tennoscope ?? {}) },
     // "Your listings" was one switch before it was split: off stays off for all three.
     notify: { ...base.notify, ...(raw?.notify?.market === false ? { sold: false, repriced: false } : {}), ...(raw?.notify ?? {}) },
@@ -755,6 +770,13 @@ export interface RewardPickFile {
   scores: number[];
   best: number | null;
   reasons: string[][];
+  /** Where each can still be had (Prime Resurgence included); null for what isn't a Prime part. */
+  vault: ("vaulted" | "resurgence" | "farmable" | null)[];
+}
+
+/** Your overlay settings, for TennoScope. Only the desktop app writes them. */
+export async function writeOverlayPrefs(prefs: OverlaySettings): Promise<void> {
+  if (inTauri) await invoke("write_overlay_prefs", { prefs });
 }
 
 /** Every relic reward screen in TennoScope's own logs, oldest first (see crates/orbiter-data/src/reward_log.rs). */
