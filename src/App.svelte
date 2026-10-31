@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { invasionNeeds } from "./lib/core/invasions";
-  import { foldSetSales, salesFromTrade, tradeKey } from "./lib/core/trades";
+  import { foldSetSales, repCandidates, salesFromTrade, tradeKey } from "./lib/core/trades";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures } from "./lib/core/timers";
   import { watchlist } from "./lib/core/deals";
@@ -588,6 +588,7 @@
       settings.market.trades = [...entries.reverse(), ...settings.market.trades].slice(0, 2000);
       // Whether a fresh trade's partner is on warframe.market, for the +rep strip.
       for (const e of entries) if (Date.now() - e.at < REP_WINDOW) mkt.user(e.partner).catch(() => {});
+      void runAutoRep();
     });
   });
 
@@ -618,6 +619,46 @@
     if (settings.market.trades.some((x) => x.partner === t.partner && settings.market.rep[x.key] === "given")) return null;
     const u = mkt.users[t.partner.toLowerCase()];
     return u ? { t, u } : null;
+  });
+  // +rep by itself (Settings, Trades): each partner of the last day's trades, once per player,
+  // with your message. Also when orbiter opens after the trade (the game log still has it) and
+  // once you sign in to warframe.market. A partner not on warframe.market is let go; one that
+  // fails waits for the next run, and says why once.
+  let repRunning = false;
+  const repFailed = new Set<string>();
+  async function runAutoRep() {
+    if (repRunning || !settings.market.autoRep || !mkt.linked) return;
+    repRunning = true;
+    try {
+      for (const t of repCandidates(settings.market.trades, settings.market.rep, Date.now())) {
+        if (repFailed.has(t.key)) continue;
+        let u: Awaited<ReturnType<typeof mkt.user>>;
+        try {
+          u = await mkt.user(t.partner);
+        } catch {
+          continue; // warframe.market didn't answer: next run
+        }
+        if (u === null) {
+          markRep(t.key, "skipped"); // not on warframe.market: nothing to rate
+          continue;
+        }
+        try {
+          const r = await mkt.giveRep(t.partner, settings.market.repText);
+          markRep(t.key, r === "reported" ? "skipped" : "given");
+        } catch (e) {
+          repFailed.add(t.key);
+          tell("sold", `Couldn't give ${t.partner} +rep`, `${String(e).replace(/^Error:\s*/, "")}. Stats has a +rep button for that trade.`);
+        }
+        // warframe.market asks for some room between requests.
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    } finally {
+      repRunning = false;
+    }
+  }
+  // On start and on signing in: trades read while signed out, or while orbiter was closed.
+  $effect(() => {
+    if (mkt.linked && settings.market.autoRep) untrack(() => void runAutoRep());
   });
   function markRep(key: string, how: "given" | "skipped") {
     let rep = { ...settings.market.rep, [key]: how };

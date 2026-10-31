@@ -63,6 +63,8 @@ export interface MarketSettings {
   rep: Record<string, "given" | "skipped">;
   /** The message that goes with +rep (warframe.market's reputation is a positive review). */
   repText: string;
+  /** Give each trade partner +rep on warframe.market by yourself, with repText, once per player. */
+  autoRep: boolean;
   /**
    * While someone whispers you, hide listings down to their last copy so a second buyer doesn't
    * find one already promised; each comes back after `minutes` unless it sold. `hidden`: the ones
@@ -71,7 +73,7 @@ export interface MarketSettings {
   lastCopy: { on: boolean; minutes: number; hidden: HiddenForWhisper[] };
 }
 
-export const defaultMarketSettings = (): MarketSettings => ({ platform: "pc", auto: false, autoCheck: false, every: 5, minShare: 0.5, floors: {}, paused: {}, presence: null, minPrice: 10, minRelicPrice: 3, relicPrices: {}, bulk: defaultBulkRules(), sellable: defaultSellChoices(), sales: [], autoTrades: true, tradesSeen: [], trades: [], rep: {}, repText: ":)", lastCopy: { on: true, minutes: DEFAULT_HIDE_MINUTES, hidden: [] } });
+export const defaultMarketSettings = (): MarketSettings => ({ platform: "pc", auto: false, autoCheck: false, every: 5, minShare: 0.5, floors: {}, paused: {}, presence: null, minPrice: 10, minRelicPrice: 3, relicPrices: {}, bulk: defaultBulkRules(), sellable: defaultSellChoices(), sales: [], autoTrades: true, tradesSeen: [], trades: [], rep: {}, repText: ":)", autoRep: true, lastCopy: { on: true, minutes: DEFAULT_HIDE_MINUTES, hidden: [] } });
 
 export interface AdviceSettings {
   platPerDucat: number;

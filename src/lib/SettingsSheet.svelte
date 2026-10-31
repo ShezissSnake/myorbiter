@@ -169,6 +169,9 @@
       <input bind:value={settings.market.repText} maxlength="300" placeholder=":)" />
       <span class="hint">What goes with +rep on a trade partner's warframe.market profile (reputation there is a positive review, one per player).</span>
     </label>
+    <Switch bind:on={settings.market.autoRep} label="Give +rep by itself after a trade">
+      Each player you trade with in game gets +rep on warframe.market with the message above, once per player, without you leaving the game. If orbiter was closed during the trade, it catches up when it opens, while the game is still running. Needs you signed in to warframe.market on Orders. Off: a +rep button shows after each trade instead.
+    </Switch>
     {#if !onConsole}<Switch bind:on={settings.market.autoTrades} label="Mark sales sold from the game">
       When a trade goes through where you gave items and got platinum, orbiter reads it from Warframe's log, marks your listing sold on warframe.market (recorded on your profile) and logs the sale with the platinum you actually got. Usually within half a minute: the game writes its log in bursts.
     </Switch>{/if}

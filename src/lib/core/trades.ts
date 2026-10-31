@@ -157,3 +157,24 @@ export function foldSetSales(sales: Sale[], trades: TradeLogEntry[], m: Model): 
   }
   return out;
 }
+
+/** How far back automatic +rep reaches: the game log only holds this game session's trades anyway. */
+export const AUTO_REP_WINDOW = 24 * 60 * 60_000;
+
+/**
+ * The trades whose partner should get +rep automatically, oldest first, one per partner: trades
+ * of the last day not yet given or skipped, with a partner not already given +rep for an earlier
+ * trade (warframe.market takes one review per player).
+ */
+export function repCandidates(trades: TradeLogEntry[], rep: Record<string, "given" | "skipped">, now: number): TradeLogEntry[] {
+  const given = new Set(trades.filter((t) => rep[t.key] === "given").map((t) => t.partner.toLowerCase()));
+  const out: TradeLogEntry[] = [];
+  const picked = new Set<string>();
+  for (const t of [...trades].sort((a, b) => a.at - b.at)) {
+    const who = t.partner.toLowerCase();
+    if (rep[t.key] || given.has(who) || picked.has(who) || now - t.at > AUTO_REP_WINDOW) continue;
+    picked.add(who);
+    out.push(t);
+  }
+  return out;
+}
