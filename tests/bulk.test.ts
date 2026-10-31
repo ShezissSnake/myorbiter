@@ -45,7 +45,7 @@ const rhino = (n: number) => [
   inv("/R/Helmet", "Rhino Prime Neuroptics Blueprint", "prime_part", n),
   inv("/R/Systems", "Rhino Prime Systems Blueprint", "prime_part", n),
 ];
-const only = (k: Partial<BulkRules>): BulkRules => ({ sets: false, arcanes: false, mods: false, parts: false, partsKeep: 10, other: false, priority: "plat", ...k });
+const only = (k: Partial<BulkRules>): BulkRules => ({ sets: false, arcanes: false, mods: false, parts: false, partsKeep: 10, other: false, imprints: false, priority: "plat", ...k });
 
 test("sets: every complete set once mastered, all but one otherwise", () => {
   const unmastered = sellTargets(buildModel(bundle(rhino(3))), only({ sets: true }), defaultAdvice());
@@ -285,4 +285,23 @@ test("relics have their own minimum: a 5p relic goes up under a 10p minimum for 
   assert.match(without[0].type === "skip" ? without[0].why : "", /under your 10p minimum/);
   const withRelicMin = bulkPlan(c({ minRelicPrice: 3 }), rules, [target]);
   assert.equal(withRelicMin[0].type === "create" && `${withRelicMin[0].quantity}@${withRelicMin[0].platinum}`, "20@5");
+});
+
+test("imprints: every one you hold is listed by breed, apart from your companions", () => {
+  const RAKSA = "/Lotus/Types/Game/KubrowPet/GuardKubrowPetPowerSuit";
+  const b = bundle([inv(RAKSA, "Raksa Kubrow", "companion", 1, { mastered: true })]);
+  b.catalog.push({ uniqueName: RAKSA, name: "Raksa Kubrow", category: "Pets", masterable: true });
+  b.prices.prices["Raksa Kubrow Imprint"] = 15;
+  const m = buildModel(b, undefined, null, null, [{ DominantTraits: { Personality: RAKSA } }, { DominantTraits: { Personality: RAKSA } }]);
+  const rules = only({ imprints: true });
+  const targets = sellTargets(m, rules, defaultAdvice());
+  assert.deepEqual(targets.map((t) => [t.kind, t.name, t.quantity]), [["imprint", "Raksa Kubrow Imprint", 2]]);
+  const raksa: MarketItem = { id: "rak", slug: "raksa_kubrow_imprint", gameRef: RAKSA, name: "Raksa Kubrow Imprint", maxRank: null, subtypes: null, tags: ["kubrow", "pet", "imprint"] };
+  const c = { ...ctx(m, [], { raksa_kubrow_imprint: [seller(18)] }), index: indexItems([...items, raksa]) };
+  const create = bulkPlan(c, rules, targets).find((a) => a.type === "create")!;
+  assert.equal(create.type === "create" && [create.item.name, create.quantity, create.platinum].join(), "Raksa Kubrow Imprint,2,18");
+  // Without imprints read yet, nothing is listed, and a listing of yours is left alone.
+  const unread = buildModel(b);
+  assert.deepEqual(sellTargets(unread, rules, defaultAdvice()), []);
+  assert.deepEqual(bulkPlan({ ...ctx(unread, [order("o", "rak", 1, 20)], {}), index: indexItems([...items, raksa]) }, rules, []), []);
 });

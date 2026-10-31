@@ -70,7 +70,7 @@
       })
       .filter((k) => k.count > 0),
   );
-  const KIND_ICON: Record<BulkKind, { game?: GameIconName; line?: string }> = { set: { line: "sets" }, arcane: { game: "vosfor" }, mod: { game: "endo" }, part: { game: "ducats" }, other: { game: "market" } };
+  const KIND_ICON: Record<BulkKind, { game?: GameIconName; line?: string }> = { set: { line: "sets" }, arcane: { game: "vosfor" }, mod: { game: "endo" }, part: { game: "ducats" }, imprint: { game: "companions" }, other: { game: "market" } };
   const ticked = $derived(BULK_KINDS.filter((k) => settings.market.bulk[RULE_OF[k]]).length);
   // Listed already: what's left to put up.
   const listedNames = $derived(new Set(orders.map((o) => mkt.item(o.itemId)?.name)));

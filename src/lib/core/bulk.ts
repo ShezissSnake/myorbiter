@@ -5,11 +5,11 @@ import { decide, type DucatOptions } from "./advice";
 import { competitor, findItem, heldFor, marketValue, overAsked, type BookOrder, type FloorRule, type Me, type MarketIndex, type MarketItem, type MyOrder, listingKey, referencePrice } from "./market";
 import { aboveCrack, allSetRows, spareRows, type SellChoices, type SpareRow } from "./spares";
 import type { Model } from "./model";
-import { arcaneRows, modRows, modSpares, partRows } from "./views";
+import { arcaneRows, inventoryRows, modRows, modSpares, partRows } from "./views";
 import { gearSetParts } from "./model";
 import { packValues, spareArcanes, vosforWorth } from "./vosfor";
 
-export type BulkKind = "set" | "arcane" | "mod" | "part" | "other";
+export type BulkKind = "set" | "arcane" | "mod" | "part" | "imprint" | "other";
 
 export interface BulkRules {
   /**
@@ -35,18 +35,24 @@ export interface BulkRules {
    */
   other: boolean;
   /**
+   * Kubrow and Kavat imprints (and Vulpaphyla, Predasite, Helminth Charger ones): every one you
+   * hold, by breed, since an imprint only hatches a companion. Imprints sell a few times a week, so
+   * they aren't held to the once-a-day rule of everything else.
+   */
+  imprints: boolean;
+  /**
    * When there's more to list than warframe.market's 100 listings allow, which win: the ones worth
    * the most platinum, or the ones that sell most often (most trades a day), so the slots turn over.
    * Either way only what the rules above let through.
    */
   priority: "plat" | "trades";
 }
-export const defaultBulkRules = (): BulkRules => ({ sets: true, arcanes: true, mods: true, parts: false, partsKeep: 0, other: false, priority: "plat" });
+export const defaultBulkRules = (): BulkRules => ({ sets: true, arcanes: true, mods: true, parts: false, partsKeep: 0, other: false, imprints: true, priority: "plat" });
 
-export const KIND_LABEL: Record<BulkKind, string> = { set: "Set", arcane: "Arcane", mod: "Mod", part: "Prime part", other: "Other item" };
+export const KIND_LABEL: Record<BulkKind, string> = { set: "Set", arcane: "Arcane", mod: "Mod", part: "Prime part", imprint: "Imprint", other: "Other item" };
 /** Each kind's switch in BulkRules. */
-export const RULE_OF: Record<BulkKind, "sets" | "arcanes" | "mods" | "parts" | "other"> = { set: "sets", arcane: "arcanes", mod: "mods", part: "parts", other: "other" };
-export const BULK_KINDS: BulkKind[] = ["set", "arcane", "mod", "part", "other"];
+export const RULE_OF: Record<BulkKind, "sets" | "arcanes" | "mods" | "parts" | "imprints" | "other"> = { set: "sets", arcane: "arcanes", mod: "mods", part: "parts", imprint: "imprints", other: "other" };
+export const BULK_KINDS: BulkKind[] = ["set", "arcane", "mod", "part", "imprint", "other"];
 
 /** One thing you'd want listed: an item, at a rank, and how many. */
 export interface SellTarget {
@@ -144,6 +150,13 @@ export function sellTargets(m: Model, rules: BulkRules, advice: DucatOptions, in
       out.push(part);
     }
   }
+  if (rules.imprints) {
+    // Every imprint you hold, by breed: warframe.market lists them under the companion's path.
+    for (const r of inventoryRows(m)) {
+      if (r.kind !== "imprint" || !r.marketName || r.quantity <= 0) continue;
+      out.push({ kind: "imprint", name: r.marketName, unique: r.unique, rank: null, quantity: r.quantity, why: `${r.quantity} held: an imprint only hatches a companion` });
+    }
+  }
   if (rules.other) {
     for (const r of spareRows(m, index, sell, advice.platPerDucat, advice.squad ?? 1)) {
       if (r.spare <= 0 || !otherSpare(r)) continue;
@@ -184,6 +197,8 @@ const OTHER_TAGS = ["relic", "gem", "fish", "scene", "simulacrum", "ayatan_sculp
 /** Which category a listing of yours belongs to, if any of the four. */
 export function kindOfItem(m: Model, it: MarketItem): BulkKind | null {
   const tags = it.tags ?? [];
+  // Imprints share the companion's path; orbiter counts them apart from your companions.
+  if (tags.includes("imprint")) return m.imprints ? "imprint" : null;
   // Only sets orbiter knows the parts of: the rest it can't count, so it doesn't manage them.
   if (tags.includes("set")) return it.gameRef && (m.partsByParent.has(it.gameRef) || gearSetParts(m, it.gameRef)) ? "set" : null;
   if (tags.includes("arcane_enhancement")) return "arcane";
@@ -384,6 +399,10 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
     if (kind === "part") {
       const part = parts().get(it.name);
       return part ? { spare: part.spare, kept: `the ${part.keep > 1 ? "copies" : "copy"} to build ${part.parentName}` } : null;
+    }
+    if (kind === "imprint") {
+      const held = it.gameRef ? (c.model.imprints?.get(it.gameRef) ?? 0) : 0;
+      return { spare: held, kept: "nothing" };
     }
     if (kind === "other") {
       const r = others().get(`${it.name}|${o.subtype ?? it.subtypes?.[0] ?? ""}`) ?? others().get(`${it.name}|`);

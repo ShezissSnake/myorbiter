@@ -15,7 +15,7 @@
   let { model, settings, advice }: { model: Model; settings: MarketSettings; advice: AdviceSettings } = $props();
 
   const r = $derived(settings.bulk);
-  const anyTicked = $derived(r.sets || r.arcanes || r.mods || r.parts || r.other);
+  const anyTicked = $derived(r.sets || r.arcanes || r.mods || r.parts || r.imprints || r.other);
 
   // A plan made with other ticks or another minimum no longer says what Apply would do: it stays
   // on screen, marked, until you plan again.
@@ -102,6 +102,7 @@
       <Chip bind:on={settings.bulk.parts} label="Spare prime parts" title="The spares Prime parts counts (everything beyond what you need to build and master), as loose parts: never ones going out in a set, never one that's a better deal as ducats" />
       <label class="keepn" title="Copies of each part to hold on to whatever the advice; 0 sells every spare"><span class="register">keep</span><input type="number" min="0" inputmode="numeric" value={settings.bulk.partsKeep} disabled={!settings.bulk.parts} aria-label="Copies of each prime part to keep" onchange={(e) => (settings.bulk.partsKeep = whole(e.currentTarget.value, 0))} onwheel={(e) => e.currentTarget.blur()} /></label>
     </span>
+    <Chip bind:on={settings.bulk.imprints} label="Imprints" title="Every Kubrow, Kavat and other companion imprint you hold, listed by breed (an imprint only hatches a companion: untick, or take the listing down, for ones you'll breed)" />
     <Chip bind:on={settings.bulk.other} label="Everything else I don't need" title="Weapon parts and blueprints, gems, fish, Captura scenes and Ayatan sculptures beyond what your unbuilt items need (Inventory, Spare only, shows each one and why), plus veiled rivens and relics if you sell them (Settings, Selling). Only what sells at least once a day, and never a relic worth more cracked" />
     <span class="prio" title="Only matters when there's more to list than warframe.market's {LISTING_LIMIT} listings allow: which ones get the slots. Either way only what the ticks and your minimum price let through">
       <Seg label="Over {LISTING_LIMIT}, keep" bind:value={settings.bulk.priority} options={[

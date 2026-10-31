@@ -182,7 +182,7 @@ test("relics by refinement: each sold only for more than a crack at its own odds
   // Listed only above its crack: with radiant ones going for 3p in game, it's kept.
   const m = model(5);
   const items = indexItems([{ id: "k1", slug: "lith_k1_relic", gameRef: "/Relic/K1", name: "Lith K1 Relic", maxRank: null, subtypes: ["intact", "exceptional", "flawless", "radiant"], tags: ["relic"] }]);
-  const rules = { sets: false, arcanes: false, mods: false, parts: false, partsKeep: 10, other: true, priority: "plat" as const };
+  const rules = { sets: false, arcanes: false, mods: false, parts: false, partsKeep: 10, other: true, imprints: false, priority: "plat" as const };
   const advice = { platPerDucat: 0, minPlat: 0, slowBelow: 1, squad: 1 };
   const targets = sellTargets(m, rules, advice, items, { veiledRivens: false, relicsWorthSelling: true });
   assert.deepEqual(targets.map((t) => [t.subtype, t.quantity, t.crack]), [["radiant", 5, 3]]);
