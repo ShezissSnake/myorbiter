@@ -928,7 +928,7 @@
 },
 "Huras Kubrow": {
 "method": "incubator",
-"how": "Incubate a Kubrow Egg (from Kubrow Dens on Earth) with an Incubator Power Core after Howl of the Kubrow; the breed is random, or use a Huras Genetic Imprint from another player (imprints are traded in-game, not on warframe.market).",
+"how": "Incubate a Kubrow Egg (from Kubrow Dens on Earth) with an Incubator Power Core after Howl of the Kubrow; the breed is random, or buy a Huras Kubrow Imprint from another player (warframe.market lists them).",
 "difficulty": 3,
 "available": true,
 "tradable": false,
@@ -2421,7 +2421,7 @@
 },
 "Vasca Kavat": {
 "method": "incubator",
-"how": "Needs Howl of the Kubrow done and the Kavat Incubator Upgrade Segment installed. Let a Kavat get bitten by wild Vasca on the Plains of Eidolon at night (Teasonai sells a 3,000-standing lure), then use a Genetic Code Template to make a Vasca Imprint; you need two imprints to breed one in the Incubator. Shortcut: the Vasca Kavat Starter Kit is 105 platinum in the Market. Imprints can be traded between players, but the wiki page doesn't say so (unconfirmed).",
+"how": "Needs Howl of the Kubrow done and the Kavat Incubator Upgrade Segment installed. Let a Kavat get bitten by wild Vasca on the Plains of Eidolon at night (Teasonai sells a 3,000-standing lure), then use a Genetic Code Template to make a Vasca Imprint; you need two imprints to breed one in the Incubator. Shortcut: the Vasca Kavat Starter Kit is 105 platinum in the Market. Imprints trade between players: warframe.market lists Vasca Kavat Imprints.",
 "difficulty": 3,
 "available": true,
 "tradable": true,

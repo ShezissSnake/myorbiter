@@ -73,6 +73,7 @@
     { v: "arcane", label: "Arcanes" },
     { v: "resource", label: "Resources" },
     { v: "blueprint", label: "Blueprints" },
+    { v: "imprint", label: "Imprints" },
   ];
   const count = (k: "all" | InventoryKind) => (k === "all" ? all.length : all.filter((r) => r.kind === k).length);
 

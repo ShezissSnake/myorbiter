@@ -138,6 +138,7 @@ function typeOf(r: InventoryItem, tradeName: string): string {
   if (r.kind === "part") return "Prime part";
   if (r.kind === "relic") return "Relic";
   if (r.kind === "arcane") return "Arcane";
+  if (r.kind === "imprint") return "Imprint";
   if (r.kind === "mod") return VEILED.test(r.unique) ? "Veiled riven" : "Mod";
   const u = r.unique;
   if (SCENE.test(r.name) || SCENE.test(u)) return /Simulacrum$|DangerRoom/.test(`${r.name}${u}`) ? "Simulacrum" : "Captura scene";
@@ -352,6 +353,9 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
       const wanted = keyWants.get(k.mission) ?? [];
       keep = wanted.length ? r.quantity : 0;
       why = wanted.length ? `Opens ${k.label}, which drops ${listNeeds(wanted.slice(0, 3).map((item) => ({ item, count: 1 })))}, still to get` : `Nothing ${k.label} drops is still needed`;
+    } else if (r.kind === "imprint") {
+      // An imprint only hatches a companion: one you'd breed you keep by not listing it.
+      why = "Only good for breeding: sell the ones you won't hatch";
     } else if (SCENE.test(r.name) || SCENE.test(r.unique)) {
       keep = Math.min(1, r.quantity);
       why = "One to use in Captura";

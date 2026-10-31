@@ -271,6 +271,13 @@ export function holdings(m: Model, item: MarketItem): Holding[] | null {
     }
     return out;
   }
+  // Imprints share the companion's path, but what you sell is the imprint, not your pet: count the
+  // imprints TennoScope passed, and say unknown before it has passed any.
+  if (item.tags?.includes("imprint")) {
+    if (!m.imprints || !item.gameRef) return null;
+    const count = m.imprints.get(item.gameRef) ?? 0;
+    return count ? [{ rank: null, subtype: null, count }] : [];
+  }
   // Sets share the built item's path; what you can sell is complete sets of parts, not the item.
   // A set whose parts orbiter doesn't know (newest Prime Access, cosmetics) can't be counted.
   if (item.tags?.includes("set")) {

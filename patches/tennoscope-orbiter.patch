@@ -1,5 +1,5 @@
 diff --git a/app/src-tauri/src/lib.rs b/app/src-tauri/src/lib.rs
-index ce70bed..a975f57 100644
+index ce70bed..d948156 100644
 --- a/app/src-tauri/src/lib.rs
 +++ b/app/src-tauri/src/lib.rs
 @@ -40,6 +40,7 @@ mod kiosk_view;
@@ -10,16 +10,17 @@ index ce70bed..a975f57 100644
  mod overlay_window;
  mod preferences;
  pub mod report;
-@@ -68,7 +69,7 @@ pub use reward_observer::{
+@@ -68,7 +69,8 @@ pub use reward_observer::{
  pub use reward_ocr::{
      MAX_CARDS, ScreenRewardSource, TESSERACT_EXECUTABLE, best_card_match, best_match,
      card_block_left, card_block_width, luma, normalize_contrast, ocr_crop, prepare_crop,
 -    read_cards, read_cards_in, tesseract_program, threshold_inverted,
 +    read_cards, read_cards_in, tesseract_program, threshold_inverted, title_brightness,
++    title_closeness, title_colours,
  };
  pub use reward_recognition::{
      FailureTrace, RecognitionTiming, RecognitionUpdate, RecognizedRewards, RewardPublication,
-@@ -561,6 +562,85 @@ fn market_inventory_writes_authorized(runtime: &Runtime) -> Result<(), String> {
+@@ -561,6 +563,90 @@ fn market_inventory_writes_authorized(runtime: &Runtime) -> Result<(), String> {
  }
  type SharedRuntime = Arc<Mutex<Runtime>>;
  
@@ -64,14 +65,17 @@ index ce70bed..a975f57 100644
 +        let platinum = runtime.core.platinum();
 +        let (credits, endo) = runtime.core.wallet();
 +        let rivens = runtime.core.rivens();
++        let imprints = runtime.core.imprints();
 +        (
 +            view,
 +            runtime.setup.clone(),
 +            runtime.game_running,
-+            (foundry, ready, level, platinum, credits, endo, rivens),
++            (
++                foundry, ready, level, platinum, credits, endo, rivens, imprints,
++            ),
 +        )
 +    };
-+    let (foundry, ready, level, platinum, credits, endo, rivens) = foundry;
++    let (foundry, ready, level, platinum, credits, endo, rivens, imprints) = foundry;
 +    let setup = current_setup_status(stored, game_running);
 +    let market = serde_json::to_value(view.market_account()).ok()?;
 +    Some(serde_json::json!({
@@ -92,6 +96,8 @@ index ce70bed..a975f57 100644
 +        "endo": endo,
 +        // Unveiled rivens, `{type, id, fp}` with the game's own fingerprint, for orbiter's riven page.
 +        "rivens": rivens,
++        // Kubrow and Kavat imprints, each the inventory's own row, for orbiter to list for sale.
++        "imprints": imprints,
 +        "last_error": orbiter_bridge::last_error(),
 +    }))
 +}
@@ -105,7 +111,7 @@ index ce70bed..a975f57 100644
  #[tauri::command]
  async fn get_view(state: State<'_, SharedRuntime>) -> Result<AppView, String> {
      let shared = Arc::clone(state.inner());
-@@ -684,6 +764,9 @@ async fn set_market_presence(
+@@ -684,6 +770,9 @@ async fn set_market_presence(
      status: Option<warframe_status::Presence>,
      auto: bool,
  ) -> Result<AppView, String> {
@@ -115,7 +121,7 @@ index ce70bed..a975f57 100644
      let shared = Arc::clone(state.inner());
      tauri::async_runtime::spawn_blocking(move || {
          let mut runtime = shared
-@@ -2095,7 +2178,12 @@ pub fn run() {
+@@ -2095,7 +2184,12 @@ pub fn run() {
          // tail the same EE.log, write the same database and draw two override-redirect overlays at
          // the same coordinates over the game, where whichever raised last wins, so the strip on
          // screen need not be the build you just started.
@@ -129,7 +135,7 @@ index ce70bed..a975f57 100644
              if let Some(window) = app.get_webview_window("main") {
                  let _ = window.unminimize();
                  let _ = window.show();
-@@ -2108,13 +2196,27 @@ pub fn run() {
+@@ -2108,13 +2202,27 @@ pub fn run() {
          // once the main window closes and the app stays up: tailing the log and drawing the overlay
          // over the game with no UI left to close it by.
          .on_window_event(|window, event| {
@@ -160,7 +166,7 @@ index ce70bed..a975f57 100644
              // The file target keeps debug traces in dev builds and trims to Info in stable
              // releases: per-OCR-attempt debug lines land every 200 ms, and with only 5 MiB
              // per rotated file a stable session of hours would otherwise keep just the last
-@@ -2166,6 +2268,20 @@ pub fn run() {
+@@ -2166,6 +2274,20 @@ pub fn run() {
                  .map(|state| current_setup_status(state.setup.clone(), state.game_running))
                  .unwrap_or_default();
              app.manage(runtime);
@@ -181,7 +187,7 @@ index ce70bed..a975f57 100644
              // The kiosk window's whole IPC surface: `get_kiosk_view` pulls whatever the poller
              // last published, so the cell exists from the start, empty until a kiosk opens.
              app.manage(kiosk_view::KioskState::default());
-@@ -2205,6 +2321,7 @@ pub fn run() {
+@@ -2205,6 +2327,7 @@ pub fn run() {
          })
          .invoke_handler(tauri::generate_handler![
              get_view,
@@ -744,10 +750,176 @@ index 9c554b3..d797b32 100644
          self.carry.extend_from_slice(bytes);
          let complete = self
 diff --git a/app/src-tauri/src/reward_ocr.rs b/app/src-tauri/src/reward_ocr.rs
-index 1e6a6f4..e989f57 100644
+index 1e6a6f4..de501a6 100644
 --- a/app/src-tauri/src/reward_ocr.rs
 +++ b/app/src-tauri/src/reward_ocr.rs
-@@ -321,7 +321,7 @@ fn read_cards_at(
+@@ -228,11 +228,139 @@ pub fn read_cards_in(
+     if candidates.pool.is_empty() && candidates.catalog.is_empty() {
+         return Err("no reward candidates");
+     }
++    let first = read_cards_graded(image, candidates, Grade::Brightest);
++    if first.is_ok() {
++        return first;
++    }
++    // Bright titles cover every built-in theme. A custom theme can colour them dim, which the
++    // brightest-channel grade cannot separate from the art, so the title colour is learned from the
++    // screen instead: every card's title is the same colour while the art behind each differs, so
++    // the colour all the title strips share is the text (or the card panel, which then simply fails
++    // to read). Each guess is still checked against the pool like any read, so a wrong one fails
++    // rather than naming cards. Only after a failed read, so a default theme pays nothing, and the
++    // colour that worked is tried first next time, so a dim theme pays the search once.
++    let remembered = *LEARNED_TITLE_COLOUR
++        .lock()
++        .unwrap_or_else(|poison| poison.into_inner());
++    let learned = title_colours(image);
++    for key in remembered
++        .into_iter()
++        .chain(learned.into_iter().filter(|key| Some(*key) != remembered))
++    {
++        if let Ok(read) = read_cards_graded(image, candidates, Grade::Near(key)) {
++            if Some(key) != remembered {
++                log::info!("reward: card titles read by their colour {key:?}");
++                *LEARNED_TITLE_COLOUR
++                    .lock()
++                    .unwrap_or_else(|poison| poison.into_inner()) = Some(key);
++            }
++            return Ok(read);
++        }
++    }
++    first
++}
++
++/// The title colour a dim UI theme was last read by, tried first on the next screen.
++static LEARNED_TITLE_COLOUR: std::sync::Mutex<Option<[u8; 3]>> = std::sync::Mutex::new(None);
++
++/// How many shared colours [`title_colours`] offers: the text and the card panel are the usual two.
++const TITLE_COLOUR_GUESSES: usize = 3;
++
++/// The colours the four title strips have in common, most widely shared first.
++///
++/// Each strip's pixels are binned coarsely (8 levels a channel) so anti-aliasing and capture noise
++/// land in the text's bin. A bin counts for a strip when it covers at least 2% of it; the bins
++/// present in the most strips win, the larger ones first, and each is offered as the mean colour
++/// of its pixels. On a two- or three-card screen the outer strips are background, so a colour in
++/// only two strips still counts.
++pub fn title_colours(image: &DynamicImage) -> Vec<[u8; 3]> {
++    let (width, height) = image.dimensions();
++    let left = card_block_left(MAX_CARDS, width, height);
++    let (crop_w, crop_h) = (
++        (CARD_WIDTH * height as f32) as u32,
++        (TITLE_HEIGHT * height as f32) as u32,
++    );
++    let top = (TITLE_TOP * height as f32) as u32;
++    // Per bin: strips it covers, total pixels and the colour sums for its mean.
++    let mut bins = vec![(0_u32, 0_u64, [0_u64; 3]); 512];
++    for slot in 0..MAX_CARDS {
++        let x = (left + CARD_PITCH * slot as f32 * height as f32) as u32;
++        if x + crop_w > width || top + crop_h > height {
++            continue;
++        }
++        let mut counts = vec![(0_u64, [0_u64; 3]); 512];
++        for pixel in image.view(x, top, crop_w, crop_h).to_image().pixels() {
++            let [r, g, b] = [pixel[0], pixel[1], pixel[2]];
++            let bin = ((r >> 5) as usize) << 6 | ((g >> 5) as usize) << 3 | (b >> 5) as usize;
++            counts[bin].0 += 1;
++            for (sum, value) in counts[bin].1.iter_mut().zip([r, g, b]) {
++                *sum += value as u64;
++            }
++        }
++        let floor = (crop_w * crop_h) as u64 / 50;
++        for (bin, (count, sums)) in counts.into_iter().enumerate() {
++            if count >= floor {
++                bins[bin].0 += 1;
++                bins[bin].1 += count;
++                for (total, sum) in bins[bin].2.iter_mut().zip(sums) {
++                    *total += sum;
++                }
++            }
++        }
++    }
++    let mut shared = bins
++        .into_iter()
++        .filter(|(strips, _, _)| *strips >= 2)
++        .collect::<Vec<_>>();
++    shared.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.cmp(&a.1)));
++    shared
++        .into_iter()
++        .take(TITLE_COLOUR_GUESSES)
++        .map(|(_, count, sums)| sums.map(|sum| (sum / count) as u8))
++        .collect()
++}
++
++/// How a title pixel is graded before the threshold.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++enum Grade {
++    /// By its brightest channel: any bright title, whatever its hue.
++    Brightest,
++    /// By how close it is to a known title colour: a dim or dark one too.
++    Near([u8; 3]),
++}
++
++impl Grade {
++    fn of(self, red: u8, green: u8, blue: u8) -> u8 {
++        match self {
++            Self::Brightest => title_brightness(red, green, blue),
++            Self::Near(key) => title_closeness([red, green, blue], key),
++        }
++    }
++}
++
++/// How close a pixel is to the title colour, as a brightness: the colour itself is white, and
++/// anything a quarter of the way across the colour cube or further is black.
++pub fn title_closeness(pixel: [u8; 3], key: [u8; 3]) -> u8 {
++    let distance = pixel
++        .iter()
++        .zip(key)
++        .map(|(a, b)| (*a as f32 - b as f32).powi(2))
++        .sum::<f32>()
++        .sqrt();
++    (255.0 - distance * 2.0).clamp(0.0, 255.0) as u8
++}
++
++/// [`read_cards_in`] with one grade: the layouts, widest first.
++fn read_cards_graded(
++    image: &DynamicImage,
++    candidates: CardCandidates<'_>,
++    grade: Grade,
++) -> Result<Vec<(String, f32)>, &'static str> {
+     let (width, height) = image.dimensions();
+     // Up to three layouts per poll rather than one, so a poll off the reward screen costs
+     // three crops instead of one, about 200ms every two seconds. Narrow it by asking the log for
+     // the squad size if that ever shows up in a profile.
+-    let widest = read_cards_at(image, width, height, MAX_CARDS, candidates);
++    let widest = read_cards_at(image, width, height, MAX_CARDS, candidates, grade);
+     if widest.is_ok() {
+         return widest.map_err(|(_, reason)| reason);
+     }
+@@ -251,7 +379,7 @@ pub fn read_cards_in(
+         if shares_slots_with_the_widest && !outside_the_block_is_empty {
+             break;
+         }
+-        if let Ok(read) = read_cards_at(image, width, height, cards, candidates) {
++        if let Ok(read) = read_cards_at(image, width, height, cards, candidates, grade) {
+             return Ok(read);
+         }
+     }
+@@ -269,6 +397,7 @@ fn read_cards_at(
+     height: u32,
+     cards: usize,
+     candidates: CardCandidates<'_>,
++    grade: Grade,
+ ) -> Result<Vec<(String, f32)>, (usize, &'static str)> {
+     let left = card_block_left(cards, width, height);
+     let mut read = Vec::with_capacity(cards);
+@@ -279,6 +408,7 @@ fn read_cards_at(
+             (TITLE_TOP * height as f32) as u32,
+             (CARD_WIDTH * height as f32) as u32,
+             (TITLE_HEIGHT * height as f32) as u32,
++            grade,
+         )
+         .map_err(|reason| (slot, reason))?;
+         let matched = best_card_match(&text, candidates);
+@@ -321,7 +451,7 @@ fn read_cards_at(
  /// Crop one region and OCR it. Returns the text and the crop, which the caller deletes. It is
  /// kept only when the read was poor enough to be worth looking at.
  ///
@@ -756,7 +928,18 @@ index 1e6a6f4..e989f57 100644
  /// greyscale crop directly makes it read the art: a dark helmet behind a word garbles it, and card
  /// borders at the edge of the crop come back as leading `|`, `Fr` or `pA UY`. Isolating the text
  /// from the art is what fixes both, and it is a two-step job. `-normalize` first, so the cutoff is
-@@ -350,7 +350,8 @@ fn read_region(
+@@ -341,24 +471,37 @@ fn read_region(
+     y: u32,
+     width: u32,
+     height: u32,
++    grade: Grade,
+ ) -> Result<(String, PathBuf), &'static str> {
+     let crop = scratch_file("reward-crop", "png");
+-    prepare_crop(image, x, y, width, height)
++    prepare_graded(image, x, y, width, height, grade)
+         .save(&crop)
+         .map_err(|_| "could not write the reward card crop")?;
+     let text = ocr_crop(&crop)?;
      Ok((text, crop))
  }
  
@@ -766,16 +949,27 @@ index 1e6a6f4..e989f57 100644
  ///
  /// Split from the file handling so the pipeline can be driven from pixels in a test rather than
  /// only through a temp file.
-@@ -358,7 +359,7 @@ pub fn prepare_crop(source: &DynamicImage, x: u32, y: u32, width: u32, height: u
+ pub fn prepare_crop(source: &DynamicImage, x: u32, y: u32, width: u32, height: u32) -> GrayImage {
++    prepare_graded(source, x, y, width, height, Grade::Brightest)
++}
++
++fn prepare_graded(
++    source: &DynamicImage,
++    x: u32,
++    y: u32,
++    width: u32,
++    height: u32,
++    grade: Grade,
++) -> GrayImage {
      let cropped = source.view(x, y, width, height).to_image();
      let grey = cropped
          .pixels()
 -        .map(|pixel| luma(pixel[0], pixel[1], pixel[2]))
-+        .map(|pixel| title_brightness(pixel[0], pixel[1], pixel[2]))
++        .map(|pixel| grade.of(pixel[0], pixel[1], pixel[2]))
          .collect::<Vec<_>>();
      let prepared = threshold_inverted(&normalize_contrast(&grey));
      let prepared = GrayImage::from_raw(width, height, prepared)
-@@ -377,6 +378,18 @@ pub fn prepare_crop(source: &DynamicImage, x: u32, y: u32, width: u32, height: u
+@@ -377,6 +520,18 @@ pub fn prepare_crop(source: &DynamicImage, x: u32, y: u32, width: u32, height: u
      )
  }
  
@@ -2774,10 +2968,10 @@ index 7872c18..816f113 100644
 +    );
 +}
 diff --git a/app/src-tauri/tests/reward_ocr.rs b/app/src-tauri/tests/reward_ocr.rs
-index 756d18e..7e003a0 100644
+index 756d18e..019c706 100644
 --- a/app/src-tauri/tests/reward_ocr.rs
 +++ b/app/src-tauri/tests/reward_ocr.rs
-@@ -249,6 +249,32 @@ fn the_calibrated_geometry_reads_a_real_reward_screen() {
+@@ -249,6 +249,89 @@ fn the_calibrated_geometry_reads_a_real_reward_screen() {
      );
  }
  
@@ -2805,6 +2999,63 @@ index 756d18e..7e003a0 100644
 +            "Burston Prime Blueprint",
 +        ]
 +    );
++}
++
++/// The calibrated screen with its titles repainted in `colour`, the way a UI theme paints them:
++/// each title pixel moves toward the colour by how white it was (its anti-aliasing kept).
++fn retitled(colour: [u8; 3]) -> image::DynamicImage {
++    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
++        .join("tests/fixtures/reward-screen-1920x1080.png");
++    let mut screen = image::open(fixture).unwrap().to_rgb8();
++    for y in 425..462 {
++        for x in 478..1445 {
++            let pixel = screen.get_pixel_mut(x, y);
++            let white = *pixel.0.iter().min().unwrap() as f32;
++            let alpha = ((white - 110.0) / 120.0).clamp(0.0, 1.0);
++            for (channel, target) in pixel.0.iter_mut().zip(colour) {
++                *channel = (*channel as f32 * (1.0 - alpha) + target as f32 * alpha) as u8;
++            }
++        }
++    }
++    image::DynamicImage::ImageRgb8(screen)
++}
++
++/// UI themes colour the titles, and a custom theme can make them dim: twelve hues at full, 60% and
++/// 45% brightness all read. Bright ones by their brightest channel; dim ones, which that cannot
++/// tell from the art, by the title colour learned from the screen.
++#[test]
++fn any_title_colour_reads() {
++    common::isolate_debug_log();
++    let expected = [
++        "Braton Prime Blueprint",
++        "2X Forma Blueprint",
++        "Burston Prime Stock",
++        "Trumna Prime Blueprint",
++    ];
++    let mut failed = Vec::new();
++    for hue in (0..360).step_by(30) {
++        for value in [1.0_f32, 0.6, 0.45] {
++            // HSV at 75% saturation, as a theme's title colour.
++            let h = hue as f32 / 60.0;
++            let c = value * 0.75;
++            let x = c * (1.0 - (h % 2.0 - 1.0).abs());
++            let (r, g, b) = match h as u32 {
++                0 => (c, x, 0.0),
++                1 => (x, c, 0.0),
++                2 => (0.0, c, x),
++                3 => (0.0, x, c),
++                4 => (x, 0.0, c),
++                _ => (c, 0.0, x),
++            };
++            let m = value - c;
++            let colour = [r, g, b].map(|v| ((v + m) * 255.0).round() as u8);
++            let read = app_lib::read_cards_in(&retitled(colour), pool_only(&pool()));
++            if read.map(names).ok() != Some(expected.iter().map(|n| n.to_string()).collect()) {
++                failed.push((hue, value, colour));
++            }
++        }
++    }
++    assert!(failed.is_empty(), "unread title colours: {failed:?}");
 +}
 +
  /// The same screen at 16:10, which is a Steam Deck's native 1280x800.
@@ -3039,10 +3290,10 @@ index 939f465..895feb5 100644
  local-store = { path = "../local-store" }
  warframe-domain = { path = "../warframe-domain" }
 diff --git a/crates/app-core/src/lib.rs b/crates/app-core/src/lib.rs
-index 93ac141..0f0f33a 100644
+index 93ac141..c36d86d 100644
 --- a/crates/app-core/src/lib.rs
 +++ b/crates/app-core/src/lib.rs
-@@ -167,6 +167,49 @@ impl AppCore {
+@@ -167,6 +167,56 @@ impl AppCore {
          self.reads_inventory = reads_inventory;
      }
  
@@ -3081,6 +3332,13 @@ index 93ac141..0f0f33a 100644
 +            .map(|facts| facts.rivens().to_vec())
 +    }
 +
++    /// Kubrow and Kavat imprints from the last inventory read, for orbiter.
++    pub fn imprints(&self) -> Option<Vec<serde_json::Value>> {
++        self.mastery_facts
++            .as_ref()
++            .map(|facts| facts.imprints().to_vec())
++    }
++
 +    /// Builds waiting in the foundry, by recipe path, once an inventory read this run has seen
 +    /// them; `None` before that (for orbiter, which counts a part being crafted as held).
 +    pub fn foundry_builds(&self) -> Option<std::collections::BTreeMap<String, u32>> {
@@ -3093,10 +3351,10 @@ index 93ac141..0f0f33a 100644
      /// collection loads once here so a reward and a kiosk tile never disagree mid-render.
      pub fn mastery_view(&self) -> Result<MasteryView, AppError> {
 diff --git a/crates/warframe-acquisition/src/inventory.rs b/crates/warframe-acquisition/src/inventory.rs
-index 97ac561..5347bb4 100644
+index 97ac561..57aa4c6 100644
 --- a/crates/warframe-acquisition/src/inventory.rs
 +++ b/crates/warframe-acquisition/src/inventory.rs
-@@ -106,11 +106,90 @@ impl<'a> InventoryJsonDecoder<'a> {
+@@ -106,11 +106,103 @@ impl<'a> InventoryJsonDecoder<'a> {
  pub struct MasteryFacts {
      xp: BTreeMap<String, u64>,
      pending: BTreeMap<String, u32>,
@@ -3119,6 +3377,8 @@ index 97ac561..5347bb4 100644
 +    /// Unveiled rivens as the inventory gives them: type, item id and the parsed fingerprint
 +    /// (weapon, buffs, curses, rank, rerolls, polarity), passed through whole for orbiter.
 +    rivens: Vec<serde_json::Value>,
++    /// Kubrow and Kavat imprints as the inventory gives them, passed through whole for orbiter.
++    imprints: Vec<serde_json::Value>,
  }
  
  impl MasteryFacts {
@@ -3172,6 +3432,17 @@ index 97ac561..5347bb4 100644
 +        &self.orbiter.rivens
 +    }
 +
++    /// Adds the Kubrow and Kavat imprints.
++    pub fn with_imprints(mut self, imprints: Vec<serde_json::Value>) -> Self {
++        self.orbiter.imprints = imprints;
++        self
++    }
++
++    /// Kubrow and Kavat imprints, each the inventory's own row (shared with orbiter).
++    pub fn imprints(&self) -> &[serde_json::Value] {
++        &self.orbiter.imprints
++    }
++
 +    /// Platinum on the account, when the inventory said (shared with orbiter).
 +    pub fn platinum(&self) -> Option<u64> {
 +        self.orbiter.platinum
@@ -3188,7 +3459,7 @@ index 97ac561..5347bb4 100644
      }
  
      /// The affinity the inventory reports for an item, or 0 when it reports none.
-@@ -122,6 +201,11 @@ impl MasteryFacts {
+@@ -122,6 +214,11 @@ impl MasteryFacts {
      pub fn pending(&self, recipe: &str) -> u32 {
          self.pending.get(recipe).copied().unwrap_or(0)
      }
@@ -3200,7 +3471,7 @@ index 97ac561..5347bb4 100644
  }
  
  /// The rank an item's affinity reaches, capped at its max rank; `None` for categories without
-@@ -166,6 +250,14 @@ struct RawXpEntry {
+@@ -166,6 +263,14 @@ struct RawXpEntry {
  #[serde(rename_all = "PascalCase")]
  struct RawInventory {
      last_inventory_sync: serde_json::Value,
@@ -3215,7 +3486,18 @@ index 97ac561..5347bb4 100644
      #[serde(default, deserialize_with = "rows")]
      suits: Vec<serde_json::Value>,
      #[serde(default, deserialize_with = "rows")]
-@@ -391,6 +483,57 @@ impl InventoryJsonDecoder<'_> {
+@@ -210,6 +315,10 @@ struct RawInventory {
+     /// Built Railjack armaments.
+     #[serde(default, deserialize_with = "rows")]
+     crew_ship_weapons: Vec<serde_json::Value>,
++    /// Kubrow and Kavat imprints, one row per imprint. Not part of the collection; passed to
++    /// orbiter, which lists them for sale.
++    #[serde(default, deserialize_with = "rows")]
++    kubrow_pet_prints: Vec<serde_json::Value>,
+ }
+ 
+ /// A section, tolerating the two shapes that are not a list of rows.
+@@ -391,6 +500,59 @@ impl InventoryJsonDecoder<'_> {
              None,
              &mut DecodeReport::default(),
          );
@@ -3270,10 +3552,12 @@ index 97ac561..5347bb4 100644
 +                Some(serde_json::json!({ "type": kind, "id": id, "fp": fp }))
 +            })
 +            .collect::<Vec<_>>();
++        // Imprints carry no secrets, but their rows are the player's own pets: never logged.
++        let imprints = raw.kubrow_pet_prints;
          let pending = pending_holdings
              .into_iter()
              .map(|(path, accumulated)| (path, accumulated.quantity.max(0) as u32))
-@@ -528,7 +671,13 @@ impl InventoryJsonDecoder<'_> {
+@@ -528,7 +690,14 @@ impl InventoryJsonDecoder<'_> {
          }
          let snapshot = InventorySnapshot::coherent(domain_entries)
              .map_err(|_| AcquisitionError::SnapshotInvalid)?;
@@ -3283,7 +3567,8 @@ index 97ac561..5347bb4 100644
 +            MasteryFacts::from_parts(affinity, pending)
 +                .with_extras(ready, player_level, platinum)
 +                .with_wallet(credits, endo)
-+                .with_rivens(rivens),
++                .with_rivens(rivens)
++                .with_imprints(imprints),
 +        ))
      }
  }
@@ -3388,10 +3673,10 @@ index 0debbfe..de1659c 100644
 +    }
 +}
 diff --git a/crates/warframe-acquisition/tests/inventory_decoder.rs b/crates/warframe-acquisition/tests/inventory_decoder.rs
-index d5e141a..3f9b766 100644
+index d5e141a..b737bd4 100644
 --- a/crates/warframe-acquisition/tests/inventory_decoder.rs
 +++ b/crates/warframe-acquisition/tests/inventory_decoder.rs
-@@ -526,3 +526,68 @@ fn mastery_rank_follows_the_affinity_curve_and_caps_at_max_rank() {
+@@ -526,3 +526,99 @@ fn mastery_rank_follows_the_affinity_curve_and_caps_at_max_rank() {
      assert_eq!(mastery_rank(Category::Frame, 196_000, 30), Some(14));
      assert_eq!(mastery_rank(Category::PrimePart, 10, 30), None);
  }
@@ -3459,6 +3744,37 @@ index d5e141a..3f9b766 100644
 +            .as_str()
 +            .starts_with("/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare")
 +    }));
++}
++
++#[test]
++fn imprints_are_kept_for_orbiter() {
++    let mut payload: serde_json::Value = serde_json::from_slice(&complete_payload()).unwrap();
++    payload["KubrowPetPrints"] = serde_json::json!([
++        {"ItemId":{"$oid":"dddddddddddddddddddddddd"},"ItemType":"/Lotus/Types/Game/KubrowPet/ImprintedTraitPrint","Name":"Biscuit","IsMale":true,"Size":0.8,
++         "DominantTraits":{"Personality":"/Lotus/Types/Game/KubrowPet/HunterKubrowPetPowerSuit"},
++         "RecessiveTraits":{"Personality":"/Lotus/Types/Game/KubrowPet/GuardKubrowPetPowerSuit"}}
++    ]);
++    let (snapshot, facts) = InventoryJsonDecoder::default()
++        .decode_with_facts(&serde_json::to_vec(&payload).unwrap())
++        .unwrap();
++    let imprints = facts.imprints();
++    assert_eq!(imprints.len(), 1);
++    assert_eq!(imprints[0]["ItemId"]["$oid"], "dddddddddddddddddddddddd");
++    assert_eq!(
++        imprints[0]["DominantTraits"]["Personality"],
++        "/Lotus/Types/Game/KubrowPet/HunterKubrowPetPowerSuit"
++    );
++    // Imprints are not collection items.
++    assert!(
++        !snapshot
++            .entries()
++            .iter()
++            .any(|e| e.item.id.as_str().contains("ImprintedTraitPrint"))
++    );
++    let (_, none) = InventoryJsonDecoder::default()
++        .decode_with_facts(&complete_payload())
++        .unwrap();
++    assert!(none.imprints().is_empty());
 +}
 diff --git a/crates/warframe-domain/src/rewards.rs b/crates/warframe-domain/src/rewards.rs
 index aa9d60c..f6172e6 100644

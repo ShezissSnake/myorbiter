@@ -703,7 +703,7 @@ export function relicRows(m: Model, opts: { includeUnowned?: boolean; platPerDuc
 
 // ---------------------------------------------------------------- inventory (everything you own)
 
-export type InventoryKind = "gear" | "part" | "relic" | "mod" | "arcane" | "resource" | "blueprint";
+export type InventoryKind = "gear" | "part" | "relic" | "mod" | "arcane" | "resource" | "blueprint" | "imprint";
 
 const KIND: Record<string, InventoryKind> = {
   frame: "gear",
@@ -801,6 +801,30 @@ export function inventoryRows(m: Model): InventoryItem[] {
         subtype: relic ? relic.refinement.toLowerCase() : null,
       });
     }
+  }
+  // Imprints: not collection items, so not in the rows above. warframe.market lists them by breed,
+  // under the companion's path ("Sunika Kubrow Imprint").
+  for (const [breed, quantity] of m.imprints ?? []) {
+    const companion = breed ? m.catalogByUnique.get(breed)?.name : null;
+    const name = companion ? `${companion} Imprint` : "Imprint (breed not read)";
+    const price = companion ? m.price(name) : null;
+    rows.set(`imprint:${name}`, {
+      key: `imprint:${name}`,
+      name,
+      unique: breed,
+      kind: "imprint",
+      type: "Imprint",
+      quantity,
+      rank: null,
+      maxRank: null,
+      mastered: false,
+      price,
+      ducats: null,
+      worth: price == null ? null : price * quantity,
+      tradesPerDay: companion ? m.tradesPerDay(name) : null,
+      marketName: companion ? name : null,
+      subtype: null,
+    });
   }
   return [...rows.values()];
 }

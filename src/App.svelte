@@ -243,7 +243,7 @@
   /** The official drop tables' relics, over TennoScope's (see relicData.ts): current relics and vaulting. */
   let relicTables = $state.raw<RelicData | null>(null);
   const withTables = $derived(bundle && relicTables ? { ...bundle, relics: mergeRelics(bundle.relics, relicTables) } : bundle);
-  const model = $derived(withTables ? buildModel(withTables, live, foundry, settings.market.relicPrices) : null);
+  const model = $derived(withTables ? buildModel(withTables, live, foundry, settings.market.relicPrices, settings.game.imprints) : null);
 
   // The reward screen: the cards a patched TennoScope read off it, scored here, and the pick
   // written back for TennoScope's overlay to show over the game.
@@ -758,6 +758,7 @@
       if (r.credits != null && r.credits !== g.credits) g.credits = r.credits;
       if (r.endo != null && r.endo !== g.endo) g.endo = r.endo;
       if (r.rivens && JSON.stringify(r.rivens) !== JSON.stringify(g.rivens)) g.rivens = r.rivens;
+      if (r.imprints && JSON.stringify(r.imprints) !== JSON.stringify(g.imprints)) g.imprints = r.imprints;
       if (r.rivens) {
         const hist = recordRivens(g.rivenHistory ?? {}, r.rivens);
         if (hist) g.rivenHistory = hist;

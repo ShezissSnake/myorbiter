@@ -8,6 +8,7 @@ import { defaultSellChoices, type SellChoices } from "./core/spares";
 import { defaultBulkRules, type BulkRules } from "./core/bulk";
 import type { FissureRule } from "./core/timers";
 import type { RivenAuction, RivenMeta, RivenRaw, RivenSnap } from "./core/rivens";
+import type { ImprintRaw } from "./core/imprints";
 import type { Invasion } from "./core/invasions";
 import type { WorldAlert } from "./core/worldNeeds";
 import type { RelicData } from "./core/relicData";
@@ -163,6 +164,8 @@ export interface GameState {
   endo: number | null;
   /** Unveiled rivens from the patched TennoScope's last read. */
   rivens: RivenRaw[] | null;
+  /** Imprints from the patched TennoScope's last read (null before one has passed them). */
+  imprints: ImprintRaw[] | null;
   /** Each riven's rolls as orbiter has seen them (by riven id, oldest first): for before-and-after on a cycle. */
   rivenHistory: Record<string, RivenSnap[]>;
   /** Announced already (newest first, capped). */
@@ -209,7 +212,7 @@ export interface TradeLogEntry {
   platOut: number;
   platIn: number;
 }
-export const defaultGame = (): GameState => ({ foundryReady: [], masteryRank: null, platinum: null, credits: null, endo: null, rivens: null, rivenHistory: {}, foundryNotified: [], whispersSeen: [], chatsSeen: {}, dealsNotified: [], fissuresNotified: [], rivensNotified: [], shortNotified: [], valueHistory: [], relicRuns: [], notices: [], worldNotified: [] });
+export const defaultGame = (): GameState => ({ foundryReady: [], masteryRank: null, platinum: null, credits: null, endo: null, rivens: null, imprints: null, rivenHistory: {}, foundryNotified: [], whispersSeen: [], chatsSeen: {}, dealsNotified: [], fissuresNotified: [], rivensNotified: [], shortNotified: [], valueHistory: [], relicRuns: [], notices: [], worldNotified: [] });
 
 export interface NotifySettings {
   /** The reward screen opened: which card to take. */
@@ -643,6 +646,8 @@ export interface TennoscopeReport {
   endo?: number | null;
   /** Unveiled rivens: the game's own fingerprint, passed through. */
   rivens?: RivenRaw[] | null;
+  /** Kubrow and Kavat imprints, the inventory's own rows, passed through. */
+  imprints?: ImprintRaw[] | null;
 }
 
 export type TennoscopeAsk = "--sync" | "--authorize-capture";
