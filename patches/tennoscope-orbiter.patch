@@ -1,3 +1,16 @@
+diff --git a/THIRD_PARTY_NOTICES.md b/THIRD_PARTY_NOTICES.md
+index 718488f..7ef3aa3 100644
+--- a/THIRD_PARTY_NOTICES.md
++++ b/THIRD_PARTY_NOTICES.md
+@@ -27,7 +27,7 @@ They are used unaltered in form, for identification of the currency they depict,
+ 
+ ## Prime part silhouettes
+ 
+-`app/src/assets/parts/*.png` are Digital Extremes' generic Prime part icons, taken from the [WFCD warframe-items](https://github.com/WFCD/warframe-items) image set (`data/img`) and reduced to 64px single-colour silhouettes, so the reward overlay can show which parts make up a set. They are bundled rather than fetched because a slip drawn over the running game must render whether or not the network does. The art belongs to Digital Extremes and is not covered by this project's license. Distributors who remove these files lose nothing else: the set row falls back to an authored glyph.
++`app/src/assets/parts/*.png` are Digital Extremes' generic Prime part icons, taken from the [WFCD warframe-items](https://github.com/WFCD/warframe-items) image set (`data/img`) and reduced to 64px single-colour silhouettes, so the reward overlay can show which parts make up a set. `BroncoPrime.png`, `LexPrime.png`, `MagnusPrime.png` and `VastoPrime.png` are the same treatment of those four pistols' item icons from the same set, for the dual pistols built from two of them. They are bundled rather than fetched because a slip drawn over the running game must render whether or not the network does. The art belongs to Digital Extremes and is not covered by this project's license. Distributors who remove these files lose nothing else: the set row falls back to an authored glyph.
+ 
+ ## Acquisition research and prior art
+ 
 diff --git a/app/src-tauri/src/lib.rs b/app/src-tauri/src/lib.rs
 index ce70bed..9d739ad 100644
 --- a/app/src-tauri/src/lib.rs
@@ -3623,6 +3636,179 @@ index 4cb846a..eaf4560 100644
 +function samePick(pick: OrbiterPick, names: string[]): boolean {
 +  return pick.cards.length === names.length && pick.cards.every((name, i) => name.toLowerCase() === names[i].toLowerCase())
 +}
+diff --git a/app/src/assets/parts/BroncoPrime.png b/app/src/assets/parts/BroncoPrime.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..d9d9413384e1f7278f7e70aabf7da256a695b136
+GIT binary patch
+literal 2261
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/app/src/assets/parts/LexPrime.png b/app/src/assets/parts/LexPrime.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..3ae8b11983614d1a8ba3d792784a15ae7faa6bc9
+GIT binary patch
+literal 1266
+zcmV<O1P%L%P)<h;3K|Lk000e1NJLTq002M$002M;1^@s6s%dfF000EJNkl<Zc-rlo
+zU2Icj7{`C7EgjoB*<ct3A}T5>h&TrdQ8dwnB^Yn;Ge$3r#tRZnBrzJj(CCGC8jbPe
+z!eG2HdSy&BT%bWEA%fw<#0<ob@FAk0jtQfy+vCOiZ_?DB(^Ki%b58pt&9?UKy7&Kl
+z{h$B)&NDMw*;2H)wE<`Y&<3ClKucRDL3>F9z54!Ss{qgsECa3vuF>NMV3R<|1A#=x
+zi!l+J1-uU20d$w7^I2d7_yyPlyb2so3IG{k5pW%FJ8&n^>9f{=gTP(D-ngbfF|RKI
+zRsd^&wZMfyw#s`)fzN<H;*<huh4v!l^BUk<0nl5c!=`|LfH#1rf$=B;-~l<{Vqm#8
+zJP2F@^wlXsj|1z0Z=#R_Gl1Fh@cF<Ha3io3n4{OHqf=bfEC4)(?h<)+wLHC0#j8VW
+zrrWa3D1s^Adf+)=C2*c{ypd+|{O64ZpcA+cct-i$3_A^c2)qXT)F=QvU;*$L@Tk1r
+zEZYXW2b@u@83le+XPA~Q&<(5uo)l4OHpe)rG(4k-{8Ntkq@Dm2i`-4XgTQU-<59Iw
+zf%^r<Ii)~GZET%3KBRsgb-Pk+v1S0W%I8bv?G?Zk>faqPnk5bazlJS>o_hAJzzx9S
+z5=t6ZA!TNHD-Hsn4|qkxM^codj`BVGZL9})99Wg0&08gLB;(`x=YfX<X6-m_8sKLY
+z=@H;mwFtOJBqpw#pA^}d0FG)b?i4S0N6!aFKz|6aAxa+3tFRR($qAqU925I{7x-3>
+z17T8NpV(7ZL^pj_t!xDN8rTKgEP``DD$o%PK%>B4ii)bUKuWD{K<Y`o05}co*4F{e
+z<{2MvRvL{b6ut*F*?o!A_>SrCG+-;R8TbwOohnMO9~JHa-UK$(k=z^xo&`RZ=lX#s
+zfQ<@S1IB>wwFap|%jMzSz)nTw5v`r7ZxWdmAD)@5HnTluHezODW;SL2-wI~-l$oVV
+zJ_9qGXJ*^<yLXt`u$c|$^D(p8X13JKdd)0V_TIWb%7>w}##s|@9s(W#<|#bW%BO4y
+zC1(^E26j|<?L~E(4Zs)8EGU@@E#y#1_-+NZXz)oXO>)2s0;SrdIKxLN>QW)w-|UK7
+zZ5W#5zhYt!@IVLva=_iH)cKO<7Xr5c+e@dir~=>zN+IOBd*$g5)LIwg&h2u*+vTJr
+zE&yDhsW8Y2xHGwN)sTm@*;#658wohBiZTG5l9j3f@E!27`tnCOS-e{mb&Dt}aRgwk
+z7*{oUd#6HwQcP`ERJnAmqwZix&F^p!{fsLB9x#`1Cpob>bFVc5!g{rf#vFMy9DuMj
+zBbQVF@*&qPQ`Ju#05e0byG%1h;s6M1b8$Df5(hxoyw2i|$+AfUU@ty*Z7SHXxPM{*
+zFpaN;kn0!V?(lg@ih!vaNKP7etk#tz0P;0N0JuYzY?1&tfs?xYY#gW7mI5}JBmjyx
+zyMmZvX_|~hLG-9607r4RED8Zr;7hnm%%^Ztb|K0D)T#&kjl21^AE(`4jyvp_qhj|y
+z@RoialnxN-6gZbVLK&Pu+9&S6N#J~?*0)48<3v&cC})WCwb?u|GOzugqb+W20NMbw
+c0cdUe7qH3KYSepLUH||907*qoM6N<$g2+EV%>V!Z
+
+literal 0
+HcmV?d00001
+
+diff --git a/app/src/assets/parts/MagnusPrime.png b/app/src/assets/parts/MagnusPrime.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..4661c2117c0168392b8d2f5ff919a7ef3aec3909
+GIT binary patch
+literal 1755
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/app/src/assets/parts/VastoPrime.png b/app/src/assets/parts/VastoPrime.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..b61c230b8f1b1e31550592a1231dc0cbb29a8133
+GIT binary patch
+literal 1750
+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
+
+literal 0
+HcmV?d00001
+
 diff --git a/app/src/backend.ts b/app/src/backend.ts
 index 85cb60c..bf2456d 100644
 --- a/app/src/backend.ts
@@ -3983,7 +4169,7 @@ index 97ac561..57aa4c6 100644
  }
  
 diff --git a/crates/warframe-acquisition/src/mastery.rs b/crates/warframe-acquisition/src/mastery.rs
-index fbfc700..3046d01 100644
+index fbfc700..b634e4c 100644
 --- a/crates/warframe-acquisition/src/mastery.rs
 +++ b/crates/warframe-acquisition/src/mastery.rs
 @@ -1,6 +1,6 @@
@@ -4043,6 +4229,43 @@ index fbfc700..3046d01 100644
      /// A reward name to its parent recipe and the slot it fills there. Nothing when the name
      /// is not a part, or when the parent is an item mastery never touches.
      fn resolve(&self, reward_name: &str) -> Option<(&'a Recipe, usize)> {
+@@ -315,10 +357,35 @@ impl<'a> MasteryLedger<'a> {
+                         .map(|path| self.pending_path(path))
+                         .unwrap_or(0)
+             }
+-            ComponentKind::Ingredient => self.have(&slot.path),
++            // A whole item another one is built from (two Bronco Prime for an Akbronco): held when
++            // built or building, and also when every part to build it is in hand.
++            ComponentKind::Ingredient => self.have(&slot.path) + self.buildable(&slot.path),
+         }
+     }
+ 
++    /// Whole copies of an item the parts in hand would build, its own ingredients aside (one level
++    /// is all the game has: an Ak's pistol is built from parts, not from other weapons).
++    fn buildable(&self, item: &str) -> u32 {
++        let Some(recipe) = self.catalog.recipe(item) else {
++            return 0;
++        };
++        recipe
++            .components
++            .iter()
++            .filter(|slot| slot.kind != ComponentKind::Ingredient)
++            .map(|slot| {
++                let held = match slot.kind {
++                    ComponentKind::Blueprint => {
++                        self.holdings.quantity(&slot.path) + self.pending_path(&slot.path)
++                    }
++                    _ => self.held_of(slot),
++                };
++                held / slot.per_build.max(1)
++            })
++            .min()
++            .unwrap_or(0)
++    }
++
+     fn pending_path(&self, path: &str) -> u32 {
+         self.facts.map_or(0, |facts| facts.pending(path))
+     }
 diff --git a/crates/warframe-acquisition/src/relic_catalog.rs b/crates/warframe-acquisition/src/relic_catalog.rs
 index 0debbfe..de1659c 100644
 --- a/crates/warframe-acquisition/src/relic_catalog.rs
@@ -4247,10 +4470,10 @@ index d5e141a..b737bd4 100644
 +    assert!(none.imprints().is_empty());
 +}
 diff --git a/crates/warframe-acquisition/tests/mastery_ledger.rs b/crates/warframe-acquisition/tests/mastery_ledger.rs
-index 2c96e34..c972050 100644
+index 2c96e34..cbe75f0 100644
 --- a/crates/warframe-acquisition/tests/mastery_ledger.rs
 +++ b/crates/warframe-acquisition/tests/mastery_ledger.rs
-@@ -333,3 +333,54 @@ fn kiosk_mastery_reports_held_and_uses_for_live_unmastered_parts_only() {
+@@ -333,3 +333,81 @@ fn kiosk_mastery_reports_held_and_uses_for_live_unmastered_parts_only() {
          "kiosk strips need live evidence"
      );
  }
@@ -4304,6 +4527,33 @@ index 2c96e34..c972050 100644
 +            .set_view("Forma Blueprint")
 +            .is_none()
 +    );
++}
++
++#[test]
++fn a_pistol_slot_counts_as_held_when_its_parts_are_in_hand() {
++    let catalog = catalog();
++    let facts = live(&[], &[]);
++    // No Bronco built, but a full set of its parts: the Akbronco's Bronco slot is filled once.
++    let held = holdings(
++        &[
++            (BRONCO_BP, 1),
++            (BRONCO_BARREL, 1),
++            (BRONCO_RECEIVER, 1),
++            (AKBRONCO_BP, 1),
++            (AKBRONCO_LINK, 1),
++        ],
++        &[],
++    );
++    let set = MasteryLedger::new(&catalog, &held, Some(&facts))
++        .set_view("Akbronco Prime Link")
++        .unwrap();
++    let bronco = set
++        .parts
++        .iter()
++        .find(|slot| slot.name.contains("Bronco"))
++        .expect("the Bronco slot");
++    assert_eq!(bronco.held, 1, "one buildable Bronco counts as one held");
++    assert!(!set.completes, "the Akbronco takes two");
 +}
 diff --git a/crates/warframe-domain/src/lib.rs b/crates/warframe-domain/src/lib.rs
 index a30c993..ba9fc2a 100644
