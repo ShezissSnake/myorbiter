@@ -4,6 +4,7 @@
   import UpgradeDetail from "../ui/UpgradeDetail.svelte";
   import Browse from "../ui/Browse.svelte";
   import ItemCard from "../ui/ItemCard.svelte";
+  import ModCard from "../ui/ModCard.svelte";
   import { mkt } from "../marketStore.svelte";
   import P from "../ui/P.svelte";
   import Named from "../ui/Named.svelte";
@@ -145,8 +146,12 @@
   {/if}
 {/snippet}
 
+{#snippet arcaneCard(r: ArcaneRow)}
+  <ModCard arcane name={r.name} image={model.imageOf(r.name)} rarity={r.rarity} maxRank={r.maxRank} rank={r.highestRank ?? 0} width={96} />
+{/snippet}
 {#snippet card(r: ArcaneRow, open: () => void)}
-  <ItemCard hover={r.name} title={r.name} sub={r.type} image={model.imageOf(r.name)} artSize={84} owned={r.complete} onopen={open}>
+  <ItemCard hover={r.name} title={r.name} sub={r.type} image={model.imageOf(r.name)} owned={r.complete} onopen={open}>
+    {#snippet art()}{@render arcaneCard(r)}{/snippet}
     <div class="coll">
       <div class="ch"><span class="register">Copies</span>{#if note(r)}<span class="register note">{note(r)}</span>{/if}</div>
       {@render progressCell(r)}
@@ -164,7 +169,8 @@
   </ItemCard>
 {/snippet}
 {#snippet spareCard(x: SpareArcane, open: () => void)}
-  <ItemCard hover={x.row.name} title={x.row.name} sub={x.row.type} image={model.imageOf(x.row.name)} artSize={84} owned={x.verdict === "sell"} onopen={open}>
+  <ItemCard hover={x.row.name} title={x.row.name} sub={x.row.type} image={model.imageOf(x.row.name)} owned={x.verdict === "sell"} onopen={open}>
+    {#snippet art()}{@render arcaneCard(x.row)}{/snippet}
     {@render spareHave(x)}
     <div class="choice">
       <span class:win={x.verdict === "sell"}><span class="register">Sell</span>{@render sellCell(x)}</span>

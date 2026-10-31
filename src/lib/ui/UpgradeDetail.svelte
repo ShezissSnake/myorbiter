@@ -7,6 +7,7 @@
   import { describe, effectLines, placeName } from "../core/describe";
   import { marketUrl, openUrl, wikiUrl } from "../backend";
   import P from "./P.svelte";
+  import ModCard from "./ModCard.svelte";
   import PriceHistory from "./PriceHistory.svelte";
 
   let {
@@ -35,6 +36,11 @@
 </script>
 
 <div class="up">
+  {#if item}
+    <div class="show">
+      <ModCard arcane={d?.kind === "arcane"} {name} image={model.imageOf(name)} rarity={item.rarity ?? ""} polarity={item.polarity ?? null} drain={item.baseDrain ?? null} maxRank={item.maxRank ?? null} rank={ranks.length ? Math.max(...ranks.map((x) => x.rank)) : 0} label={item.compatName ?? ""} does={item.maxStats?.[0] ?? ""} width={150} />
+    </div>
+  {/if}
   {#if lines.length}
     <div class="effect"><span class="register">At max rank{item?.maxRank ? ` (${item.maxRank})` : ""}</span>{#each lines as l, i (i)}<p>{l}</p>{/each}</div>
   {/if}
@@ -64,6 +70,7 @@
 
 <style>
   .up { display: grid; gap: .8rem; }
+  .show { display: flex; justify-content: center; padding: .3rem 0; }
   .effect { display: grid; gap: .25rem; padding: .55rem .7rem; background: var(--well); border: 1px solid var(--rule); }
   .effect p { margin: 0; white-space: pre-line; color: var(--platinum); line-height: 1.4; font-size: .86rem; }
   .register { font-size: .6rem; }

@@ -18,6 +18,7 @@
     hover,
     children,
     foot,
+    art,
   }: {
     title: string;
     sub?: string;
@@ -35,6 +36,8 @@
     hover?: string | null;
     children?: Snippet;
     foot?: Snippet;
+    /** Drawn instead of the artwork: a mod or arcane as its in-game card. */
+    art?: Snippet;
   } = $props();
 
   // Buttons on the card (List, the star) do their own thing; anywhere else opens the details.
@@ -65,7 +68,7 @@
     {/if}
   </header>
   <div class="body">
-    <span class="pic" use:info={hover ?? null}><Art file={image} size={artSize} dim={dimArt} alt="" /></span>
+    <span class="pic" use:info={hover ?? null}>{#if art}{@render art()}{:else}<Art file={image} size={artSize} dim={dimArt} alt="" />{/if}</span>
     {#if children}<div class="side">{@render children()}</div>{/if}
   </div>
   {#if foot}<footer>{@render foot()}</footer>{/if}

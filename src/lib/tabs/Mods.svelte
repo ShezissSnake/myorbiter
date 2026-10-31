@@ -5,6 +5,7 @@
   import UpgradeDetail from "../ui/UpgradeDetail.svelte";
   import Browse from "../ui/Browse.svelte";
   import ItemCard from "../ui/ItemCard.svelte";
+  import ModCard from "../ui/ModCard.svelte";
   import { mkt } from "../marketStore.svelte";
   import P from "../ui/P.svelte";
   import Named from "../ui/Named.svelte";
@@ -68,9 +69,14 @@
 {#snippet priceCell(r: ModRow)}<P v={r.price} dim />{/snippet}
 {#snippet valueCell(r: ModRow)}<span title={worth(r) != null && worth(r)! < r.extrasValue! ? `All ${r.extras} would be ${Math.round(r.extrasValue!)}p, but the market takes about ${sellableCopies(r.extras, r.tradesPerDay)} a month` : undefined}><P v={worth(r)} /></span>{/snippet}
 {#snippet maxCell(r: ModRow)}<P v={r.priceMax} dim />{/snippet}
+{#snippet modCard(r: ModRow, width: number)}
+  {@const c = model.catalogByUnique.get(r.unique)}
+  <ModCard name={r.name} image={model.imageOf(r.name)} rarity={r.rarity} polarity={c?.polarity ?? null} drain={c?.baseDrain ?? null} maxRank={r.maxRank} rank={r.ranks[0]?.rank ?? 0} label={c?.compatName ?? ""} does={c?.maxStats?.[0] ?? ""} {width} />
+{/snippet}
 {#snippet card(r: ModRow, open: () => void)}
   <!-- Gold edge: copies to spare. With "Spares only" on that's every card, so it only marks them when it's off. -->
-  <ItemCard hover={r.name} title={r.name} sub={r.type} image={model.imageOf(r.name)} artSize={84} owned={!dupesOnly && r.extras > 0} onopen={open}>
+  <ItemCard hover={r.name} title={r.name} sub={r.type} image={model.imageOf(r.name)} owned={!dupesOnly && r.extras > 0} onopen={open}>
+    {#snippet art()}{@render modCard(r, 104)}{/snippet}
     <div class="have"><b class="mark qty">×{r.total}</b>{#if r.extras}<span class="dim small" title="Beyond your best copy and one to give away">{r.extras} spare</span>{/if}</div>
     <!-- Always there, empty when every copy is unranked, so cards side by side line up. -->
     <div class="ranks">{#each r.ranks.filter((x) => x.rank > 0) as x (x.rank)}<span class="rk">R{x.rank}{x.count > 1 ? ` ×${x.count}` : ""}</span>{/each}</div>
