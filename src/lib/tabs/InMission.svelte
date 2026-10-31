@@ -8,10 +8,12 @@
   import Stat from "../ui/Stat.svelte";
   import Avail from "../ui/Avail.svelte";
   import ListButton from "../ui/ListButton.svelte";
-  import { bestCard, defaultPickWeights, resolveName, scoreCards, type PickCard, type PickWeights } from "../core/pick";
+  import { bestCard, resolveName, scoreCards, type PickCard, type PickWeights } from "../core/pick";
   import { onWindows, type ScreenCards } from "../backend";
   import { info } from "../hover.svelte";
 
+  // The score weights are set in Settings → Fissures (something you set once, not look at in a
+  // fissure): here they're only named, with the way there.
   let {
     model,
     // Called `ms` here: a local `state` would clash with the $state rune.
@@ -21,7 +23,8 @@
     weights = $bindable(),
     windowMode = null,
     tennoscopeRunning = true,
-  }: { model: Model; state: MissionState | null; error: string | null; cards?: ScreenCards | null; weights: PickWeights; windowMode?: string | null; tennoscopeRunning?: boolean } = $props();
+    onsettings = null,
+  }: { model: Model; state: MissionState | null; error: string | null; cards?: ScreenCards | null; weights: PickWeights; windowMode?: string | null; tennoscopeRunning?: boolean; onsettings?: (() => void) | null } = $props();
 
   const live = $derived(!!ms && ms.relics.length > 0);
   const paths = $derived(ms ? (ms.relics.length ? ms.relics : ms.last_relics) : []);
@@ -57,24 +60,6 @@
     { k: "ducats", bar: "b-ducat", label: "Ducats", title: "Ducat value, out of 100" },
     { k: "set", bar: "b-set", label: "Complete set", title: "Finishes a set (half for leaving it one part short)" },
   ];
-  // At least one weight stays above 0: with all four at 0 every card would score 0.
-  let weightNote = $state<string | null>(null);
-  function setWeight(k: keyof PickWeights, el: HTMLSelectElement) {
-    const n = Number(el.value);
-    if (n === 0 && WEIGHTS.every((w) => w.k === k || weights[w.k] === 0)) {
-      el.value = String(weights[k]);
-      weightNote = "Keep at least one weight above 0.";
-      return;
-    }
-    weightNote = null;
-    weights = { ...weights, [k]: n };
-  }
-  const DEFAULT_WEIGHTS = defaultPickWeights();
-  const isDefault = $derived(WEIGHTS.every((w) => weights[w.k] === DEFAULT_WEIGHTS[w.k]));
-  function resetWeights() {
-    weights = defaultPickWeights();
-    weightNote = null;
-  }
   /** "Meso C10 R" (a relic and its refinement's letter) → the relic, for its hover card. */
   const relicOf = (from: string) => from.replace(/ [IEFR]$/, "");
   /** When TennoScope read the cards: a time of day, which can't go stale the way "n s ago" would. */
@@ -108,16 +93,10 @@
 {/snippet}
 
 {#snippet weightControls()}
-  <div class="weights">
-    <span class="register" title="The score is the weighted average of the four bars, 0–100">Score weights</span>
-    {#each WEIGHTS as w (w.k)}
-      <label title={w.title}><i class="sw {w.bar}"></i><span>{w.label}</span>
-        <select value={weights[w.k]} onchange={(e) => setWeight(w.k, e.currentTarget)}>{#each [0, 1, 2, 3, 4, 5, 6, 8, 10] as n (n)}<option value={n}>{n}</option>{/each}</select>
-      </label>
-    {/each}
-    {#if !isDefault}<button class="link" title="Back to plat 8, unmastered 4, ducats 2, set 1" onclick={resetWeights}>Reset</button>{/if}
-    {#if weightNote}<span class="small warn-text">{weightNote}</span>{/if}
-  </div>
+  <p class="weights dim small">
+    <span title="The score is the weighted average of the four bars, 0–100">Scored by {WEIGHTS.filter((w) => weights[w.k] > 0).map((w) => `${w.label.toLowerCase()} ${weights[w.k]}`).join(" · ")}</span>
+    {#if onsettings}<button class="link" title="Set how much plat, unmastered parts, ducats and sets count, in Settings → Fissures" onclick={onsettings}>Change in Settings</button>{/if}
+  </p>
 {/snippet}
 
 {#snippet relicCard(r: SquadRelic)}
@@ -305,9 +284,7 @@
   .bars .b-need { background: var(--gold); }
   .bars .b-ducat { background: repeating-linear-gradient(135deg, var(--gold-dim) 0 2px, transparent 2px 4px); box-shadow: inset 0 0 0 1px var(--gold-dim); }
   .bars .b-set { background: var(--verdigris); }
-  .weights { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; font-size: .8rem; color: var(--platinum-dim); }
-  .weights label { display: inline-flex; align-items: center; gap: .4rem; }
-  .weights select { padding: .3rem 1.5rem .3rem .5rem; background-position: right .45rem center; min-width: 3.4rem; min-height: 28px; }
+  .weights { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem 1rem; margin: 0; }
   .sw { display: inline-block; width: .55rem; height: .55rem; }
   .sw.b-plat { background: var(--platinum); }
   .sw.b-need { background: var(--gold); }
