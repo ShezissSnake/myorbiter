@@ -11,10 +11,16 @@ test("last copy: only shown sell listings with one copy left are hidden", () => 
   assert.deepEqual(lastCopies(orders).map((o) => o.id), ["a"]);
 });
 
-test("last copy: another whisper starts the wait again", () => {
+test("last copy: another whisper doesn't make the wait longer", () => {
   const first = hideNow([], [order("a", 1)], 0);
   const again = hideNow(first, [order("a", 1), order("b", 1)], 5 * MIN);
-  assert.deepEqual(again, [{ id: "a", at: 5 * MIN }, { id: "b", at: 5 * MIN }]);
+  assert.deepEqual(again, [{ id: "a", at: 0 }, { id: "b", at: 5 * MIN }]);
+});
+
+test("last copy: turned off, everything it hid is due now", () => {
+  const { show, keep } = dueToShow([{ id: "a", at: 1000 }], [order("a", 1, { visible: false })], 1000, 0);
+  assert.deepEqual(show.map((o) => o.id), ["a"]);
+  assert.deepEqual(keep, []);
 });
 
 test("last copy: shown again when the wait is over, unless it sold or you showed it", () => {

@@ -511,6 +511,13 @@ impl Client {
                 body["perTrade"] = 1.into();
                 self.call("POST", &url, Some(&body), true)?
             }
+            // Ayatan sculptures need how many stars are socketed. The ones you sell spare come
+            // from missions empty (the stars are listed on their own), so: none.
+            Err(MarketError::Rejected(why)) if needs_stars(&why) => {
+                body["amberStars"] = 0.into();
+                body["cyanStars"] = 0.into();
+                self.call("POST", &url, Some(&body), true)?
+            }
             other => other?,
         };
         serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unreachable(e.to_string()))
@@ -802,6 +809,11 @@ pub struct NewOrder {
 /** warframe.market's answer when a listing for a bulk-tradable item leaves out `perTrade`. */
 fn needs_per_trade(rejection: &str) -> bool {
     rejection.contains("\"perTrade\"") && rejection.contains("required")
+}
+
+/** warframe.market's answer when a listing for an Ayatan sculpture leaves out its stars. */
+fn needs_stars(rejection: &str) -> bool {
+    rejection.contains("\"amberStars\"") && rejection.contains("\"cyanStars\"") && rejection.contains("required")
 }
 
 fn yes() -> bool {
@@ -1121,6 +1133,9 @@ mod tests {
         let real = r#"400 {"apiVersion":"0.25.0","data":null,"error":{"inputs":{"perTrade":"app.field.required"}}}"#;
         assert!(needs_per_trade(real));
         assert!(!needs_per_trade(r#"400 {"error":{"inputs":{"platinum":"app.field.required"}}}"#));
+        let sculpture = r#"warframe.market rejected the request: 400 {"apiVersion":"0.25.0","data":null,"error":{"inputs":{"amberStars":"app.field.required","cyanStars":"app.field.required"}}}"#;
+        assert!(needs_stars(sculpture));
+        assert!(!needs_stars(r#"400 {"error":{"inputs":{"platinum":"app.field.required"}}}"#));
     }
 
     #[test]

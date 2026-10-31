@@ -82,6 +82,16 @@ export interface Notice {
 export const NOTICE_LOG = 100;
 
 /** Adds a notice to the front of the history, keeping it to NOTICE_LOG. */
+/**
+ * The history with notice `id` changed to say `n` and moved to the top, unread: a notification that
+ * grows while something runs (a repricing pass). Logged as new if it's no longer in the history.
+ */
+export function growNotice(log: Notice[], id: string | null, n: Omit<Notice, "id" | "read">): Notice[] {
+  const old = id ? log.find((x) => x.id === id) : undefined;
+  if (!old) return logNotice(log, n);
+  return [{ ...old, ...n, read: false }, ...log.filter((x) => x.id !== id)];
+}
+
 export function logNotice(log: Notice[], n: Omit<Notice, "id" | "read">): Notice[] {
   const notice: Notice = { ...n, id: `${n.at}-${Math.random().toString(36).slice(2, 8)}`, read: false };
   return [notice, ...log].slice(0, NOTICE_LOG);

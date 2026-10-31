@@ -80,7 +80,7 @@
   import RepButton from "./lib/ui/RepButton.svelte";
   import GameIcon from "./lib/ui/GameIcon.svelte";
   import { drawnOrder, orderPages, pagesFor, migrateTab, sectionsOf, type Page } from "./lib/pages";
-  import { logNotice, noticeKind, splitTarget, type NoticeKind } from "./lib/notices";
+  import { growNotice, logNotice, noticeKind, splitTarget, type NoticeKind } from "./lib/notices";
   import { toasts } from "./lib/toasts.svelte";
   import { alertNeeds, describeHelp } from "./lib/core/worldNeeds";
   import NoticesSheet from "./lib/NoticesSheet.svelte";
@@ -345,6 +345,47 @@
       if (settings.notifyOptions.toasts) toasts.push(n);
     } else if (settings.notifyOptions.desktop) notify(title, body, n.id);
   }
+  /**
+   * Repricing: one notification per pass, which grows as listings move (newest first, so the
+   * pop-up shows the latest) and settles once the pass ends, rather than one per listing. A pass
+   * that moves a single listing reads like a notification for that one. The desktop, which can't
+   * change a notification it sent, only gets the total once the pass is over.
+   */
+  let repricing: { id: string; lines: string[]; done: ReturnType<typeof setTimeout> | null } | null = null;
+  function tellRepriced(lines: string[]) {
+    if (!settings.notify.repriced) return;
+    const all = [...lines.slice().reverse(), ...(repricing?.lines ?? [])];
+    const running = !!mkt.pass;
+    const title = running ? `Repricing: ${all.length} so far` : `${all.length} listing${all.length === 1 ? "" : "s"} repriced`;
+    settings.game.notices = growNotice(settings.game.notices, repricing?.id ?? null, { at: Date.now(), kind: "repriced", title, body: all.join("\n") });
+    const n = settings.game.notices[0];
+    const first = !repricing;
+    repricing = { id: n.id, lines: all, done: repricing?.done ?? null };
+    if (!running) settleRepriced();
+    if (quietNow("repriced")) return;
+    if (typeof document !== "undefined" && document.hasFocus()) {
+      if (settings.notifyOptions.toasts) toasts.push(n);
+    } else if (first && !running && settings.notifyOptions.desktop) notify(title, n.body, n.id);
+  }
+  /** The pass ended: the notification gets its final title, and the next pass starts a new one. */
+  function settleRepriced() {
+    if (!repricing || repricing.done) return;
+    repricing.done = setTimeout(() => {
+      const r = repricing;
+      repricing = null;
+      if (!r) return;
+      const title = `${r.lines.length} listing${r.lines.length === 1 ? "" : "s"} repriced`;
+      settings.game.notices = growNotice(settings.game.notices, r.id, { at: Date.now(), kind: "repriced", title, body: r.lines.join("\n") });
+      const n = settings.game.notices[0];
+      if (quietNow("repriced")) return;
+      if (typeof document !== "undefined" && document.hasFocus()) {
+        if (settings.notifyOptions.toasts && toasts.list.some((t) => t.id === n.id)) toasts.push(n);
+      } else if (settings.notifyOptions.desktop) notify(title, n.body, n.id);
+    }, 1500);
+  }
+  $effect(() => {
+    if (!mkt.pass) untrack(settleRepriced);
+  });
   /** Why nothing pops up right now for this kind, if anything: kept in the history only. */
   function quietNow(kind: NoticeKind): boolean {
     const o = settings.notifyOptions;
@@ -505,7 +546,7 @@
     // Auto-match's changes as one notification ("Serration R0: 9p → 8p, …"), problems one each,
     // headed by what went wrong ("Couldn't reprice Serration").
     const moved = fresh.filter((l) => l.tone === "ok" && l.text.includes("→"));
-    if (moved.length) tell("repriced", `${moved.length} listing${moved.length === 1 ? "" : "s"} repriced`, moved.map((l) => l.text.replace(/, .*$/, "")).join("\n"));
+    if (moved.length) tellRepriced(moved.map((l) => l.text.replace(/, .*$/, "")).reverse());
     for (const l of fresh.filter((l) => l.tone === "warn" && !l.quiet)) {
       const head = l.text.split(/[:.](\s|$)/)[0];
       tell("market", head.length <= 70 ? head : "Something went wrong on warframe.market", l.text);
@@ -890,14 +931,10 @@
   // again once the wait is over unless they sold.
   async function hideLastCopies(who: string[]) {
     const lc = settings.market.lastCopy;
-    if (!lc.on || !mkt.linked) return;
-    const now = Date.now();
-    const already = new Set(lc.hidden.map((h) => h.id));
+    if (!lc.optIn || !mkt.linked) return;
     const toHide = lastCopies(mkt.orders);
     const hiddenNow = toHide.length ? await mkt.setShown(toHide, false) : [];
-    // Ones hidden on an earlier whisper wait again from this one.
-    const stillHidden = mkt.orders.filter((o) => !o.visible && already.has(o.id));
-    settings.market.lastCopy.hidden = hideNow(lc.hidden, [...hiddenNow, ...stillHidden], now);
+    settings.market.lastCopy.hidden = hideNow(settings.market.lastCopy.hidden, hiddenNow, Date.now());
     if (hiddenNow.length) {
       const names = hiddenNow.map((o) => mkt.item(o.itemId)?.name ?? "a listing");
       mkt.note(`${who.join(", ")} whispered you: hid ${names.length === 1 ? names[0] : `${names.length} last-copy listings (${names.slice(0, 4).join(", ")}${names.length > 4 ? "…" : ""})`} for ${lc.minutes >= 1 ? lc.minutes : DEFAULT_HIDE_MINUTES} min, back then unless sold`, "info");
@@ -907,7 +944,8 @@
     const lc = settings.market.lastCopy;
     if (!lc.hidden.length || !mkt.linked || !mkt.orders.length) return;
     // An emptied minutes box mustn't leave them hidden for ever.
-    const minutes = lc.minutes >= 1 ? lc.minutes : DEFAULT_HIDE_MINUTES;
+    // Turned off: whatever it hid comes back now.
+    const minutes = !lc.optIn ? 0 : lc.minutes >= 1 ? lc.minutes : DEFAULT_HIDE_MINUTES;
     const { show, keep } = dueToShow(lc.hidden, mkt.orders, Date.now(), minutes);
     if (!show.length) {
       if (keep.length !== lc.hidden.length) settings.market.lastCopy.hidden = keep;
@@ -916,7 +954,7 @@
     const shown = await mkt.setShown(show, true);
     const failed = show.filter((o) => !shown.includes(o)).map((o) => ({ id: o.id, at: Date.now() }));
     settings.market.lastCopy.hidden = [...keep, ...failed];
-    if (shown.length) mkt.note(`Shown again, not sold in ${minutes} min: ${shown.map((o) => mkt.item(o.itemId)?.name ?? "a listing").join(", ")}`, "info");
+    if (shown.length) mkt.note(`Shown again${minutes ? `, not sold in ${minutes} min` : ""}: ${shown.map((o) => mkt.item(o.itemId)?.name ?? "a listing").join(", ")}`, "info");
   }
   $effect(() => {
     const t = setInterval(() => void showLastCopiesDue(), 30_000);

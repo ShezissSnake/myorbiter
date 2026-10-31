@@ -71,8 +71,15 @@ const WARN_AGAIN_MS = 60 * 60_000;
 /** Stepping through the status switch with the arrow keys sends only where you stop. */
 const STATUS_SETTLE_MS = 400;
 
-/** Order books are cached briefly so opening the tab twice doesn't refetch everything. */
-const BOOK_TTL = 60_000;
+/**
+ * How long an order book read is reused. Checking prices, opening a listing form and the cheap-buy
+ * scan reuse one up to 10 minutes old: prices hardly move in that time, and reading every book again
+ * is most of what makes a check slow. Not longer: who is in game (the sellers repricing matches)
+ * changes within the hour.
+ */
+const BOOK_TTL = 10 * 60_000;
+/** Sending new prices reuses a book read in the last 2 minutes (the Check prices just before it), not older. */
+const APPLY_TTL = 2 * 60_000;
 /** Changes refused in a row before a loop stops sending more (warframe.market is having trouble). */
 const WRITE_FAILS = 3;
 /** A bulk plan older than this has its prices read again before it's applied. */
@@ -447,7 +454,7 @@ class MarketStore {
           continue;
         }
         try {
-          await this.book(it.slug, apply ? 0 : BOOK_TTL);
+          await this.book(it.slug, apply ? APPLY_TTL : BOOK_TTL);
           read++;
           failing = 0;
         } catch (e) {
@@ -757,7 +764,8 @@ class MarketStore {
     const draft: BuyDraft = { itemId: it.id, name: it.name, slug: it.slug, rank, maxRank: it.maxRank, subtype, subtypes: it.subtypes, quantity: Math.max(1, req.quantity ?? 1), platinum: null, topBuy: null, cheapestSell: null, median: null, loading: true };
     this.buyDraft = draft;
     try {
-      const [book, points] = await Promise.all([this.book(it.slug), this.history(it.slug).catch(() => [] as PricePoint[])]);
+      // Buying: who is selling right now, so a fresh read.
+      const [book, points] = await Promise.all([this.book(it.slug, 60_000), this.history(it.slug).catch(() => [] as PricePoint[])]);
       if (this.buyDraft?.itemId !== it.id) return;
       const me = (this.me ?? { id: "", platform: this.platform, crossplay: true }) as Me;
       const same = (o: BookOrder) => o.visible && (rank == null || (o.rank ?? 0) === rank) && (subtype == null || (o.subtype ?? it.subtypes?.[0] ?? null) === subtype) && o.user.id !== me.id && canTrade(me, o.user) && o.user.status !== "offline";

@@ -19,10 +19,14 @@ export function lastCopies(orders: MyOrder[]): MyOrder[] {
   return orders.filter((o) => o.type === "sell" && o.visible && o.quantity === 1);
 }
 
-/** The hidden list after hiding `orders` now: new ones added, and ones already hidden start their wait again. */
+/**
+ * The hidden list after hiding `orders` now. One already on the list keeps its time: whispers
+ * come one after another while you trade, and restarting the wait on each kept listings hidden
+ * for hours.
+ */
 export function hideNow(hidden: HiddenForWhisper[], orders: MyOrder[], now: number): HiddenForWhisper[] {
-  const ids = new Set(orders.map((o) => o.id));
-  return [...hidden.filter((h) => !ids.has(h.id)), ...orders.map((o) => ({ id: o.id, at: now }))];
+  const ids = new Set(hidden.map((h) => h.id));
+  return [...hidden, ...orders.filter((o) => !ids.has(o.id)).map((o) => ({ id: o.id, at: now }))];
 }
 
 /**

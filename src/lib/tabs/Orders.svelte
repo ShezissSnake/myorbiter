@@ -35,6 +35,7 @@
   const orders = $derived([...mkt.orders].sort((a, b) => (mkt.item(a.itemId)?.name ?? "").localeCompare(mkt.item(b.itemId)?.name ?? "")));
   const listed = $derived(orders.filter((o) => o.visible).reduce((n, o) => n + o.platinum * o.quantity, 0));
   const plans = $derived(new Map(orders.map((o) => [o.id, mkt.planFor(model, settings, o)])));
+  const hiddenOrders = $derived(orders.filter((o) => !o.visible));
   const pending = $derived(orders.filter((o) => o.visible && !settings.paused[listingKey(o)] && plans.get(o.id)?.change).length);
   const nextPass = $derived((settings.auto || settings.autoCheck) && mkt.lastPass ? new Date(mkt.lastPass + settings.every * 60_000) : null);
   /** Oldest order book behind what's on screen, so you know how fresh "Cheapest in game" is. */
@@ -389,6 +390,7 @@
         <Metal kind="plat" size={14} />
       </div>
       {#if nextPass}<span class="register next">Next check {fmt(+nextPass)}</span>{/if}
+      {#if hiddenOrders.length}<button class="link quiet" disabled={!!mkt.busy} title="Make every hidden listing visible to buyers again" onclick={() => mkt.setShown(hiddenOrders, true)}>Show all {hiddenOrders.length} hidden</button>{/if}
       {#if !console}<a class="link quiet tospares" href="#spares" title="Down to Put my spares on sale: list everything you can spare in one go" onclick={(e) => { e.preventDefault(); document.getElementById("spares")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>Put my spares on sale ↓</a>{/if}
     </div>
 

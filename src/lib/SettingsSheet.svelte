@@ -175,10 +175,10 @@
     {#if !onConsole}<Switch bind:on={settings.market.autoTrades} label="Mark sales sold from the game">
       When a trade goes through where you gave items and got platinum, orbiter reads it from Warframe's log, marks your listing sold on warframe.market (recorded on your profile) and logs the sale with the platinum you actually got. Usually within half a minute: the game writes its log in bursts.
     </Switch>{/if}
-    {#if !onConsole}<Switch bind:on={settings.market.lastCopy.on} label="Hide last copies while a buyer whispers you">
-      When someone whispers you in game, orbiter hides every listing down to its last copy, so a second buyer doesn't message you for one that's already promised. Each comes back after the time below unless it sold. The game's log says who whispered, not what about, so all of them are hidden for that while.
+    {#if !onConsole}<Switch bind:on={settings.market.lastCopy.optIn} label="Hide last copies while someone whispers you">
+      When anyone whispers you in game (a buyer, a friend, or you whispering a seller), orbiter hides every listing you have one copy of, so a second buyer doesn't message you for one that's already promised. The game's log says who whispered, not what about, so that's usually most of your listings. Each comes back after the time below unless it sold; a later whisper doesn't make the wait longer.
     </Switch>
-    {#if settings.market.lastCopy.on}<label class="field minutes">
+    {#if settings.market.lastCopy.optIn}<label class="field minutes">
       <span class="register">Hidden for</span>
       <span class="row"><input type="number" min="1" max="120" step="1" bind:value={settings.market.lastCopy.minutes} aria-label="Minutes hidden" /> <span class="hint">minutes</span></span>
     </label>{/if}{/if}
