@@ -23,6 +23,7 @@
   import { marketUrl, openUrl, wikiUrl } from "../backend";
   import { itemReadyTimes, levelStage } from "../core/foundry";
   import { until } from "../core/traders";
+  import PlatMastery from "../ui/PlatMastery.svelte";
 
   let { model, masteryRank = null, wishlist = $bindable([]), foundryReady = [] }: { model: Model; masteryRank?: number | null; wishlist?: string[]; foundryReady?: [string, number][] } = $props();
   // Things you only have to level: in your arsenal, built and waiting in the Foundry, or building.
@@ -54,6 +55,8 @@
   let effort = $state<"all" | "2" | "3" | "4">("all");
   let showUnavailable = $state(false);
   let sort = $state({ key: "effort", desc: false });
+  /** Easiest first, or what platinum buys, cheapest first. */
+  let view = $state<"effort" | "plat">("effort");
 
   const all = $derived(masteryRows(model));
   const categories = $derived([...new Set(all.map((r) => r.category))].sort());
@@ -171,6 +174,7 @@
     {/snippet}
   </PageHead>
 
+  <div class="views"><Seg bind:value={view} options={[{ v: "effort", label: "Easiest first", title: "Everything you haven't mastered, by how hard it is to get" }, { v: "plat", label: "Buy with plat", title: "What platinum gets you, cheapest first: the parts or items to buy, with a buy order a click away" }]} /></div>
   <div class="bar">
   <select bind:value={category} aria-label="Type">
     <option value="all">All types</option>
@@ -182,10 +186,15 @@
   <input type="search" placeholder="Filter items…" bind:value={query} />
   </div>
 
+  {#if view === "plat"}
+    <PlatMastery {model} {rows} {wished} onwish={toggleWish} />
+  {:else}
   <Browse id="mastery" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} empty="Nothing left to master here." />
+  {/if}
 </div></div>
 
 <style>
+  .views { margin-bottom: .8rem; }
   .missing { display: grid; gap: .9rem; }
   .mp-head { display: flex; gap: .6rem; align-items: center; margin-bottom: .4rem; }
   .relics { display: flex; flex-wrap: wrap; gap: .3rem; padding-left: calc(24px + .6rem); }
