@@ -6,6 +6,7 @@
   import type { AdviceSettings, MarketSettings } from "../backend";
   import { AS_LISTED, KIND_LABEL, LIMIT_WHY, LISTING_LIMIT, type BulkAction } from "../core/bulk";
   import { mkt } from "../marketStore.svelte";
+  import Seg from "./Seg.svelte";
   import Chip from "./Chip.svelte";
   import P from "./P.svelte";
   import Named from "./Named.svelte";
@@ -102,6 +103,12 @@
       <label class="keepn" title="Copies of each part to hold on to whatever the advice; 0 sells every spare"><span class="register">keep</span><input type="number" min="0" inputmode="numeric" value={settings.bulk.partsKeep} disabled={!settings.bulk.parts} aria-label="Copies of each prime part to keep" onchange={(e) => (settings.bulk.partsKeep = whole(e.currentTarget.value, 0))} onwheel={(e) => e.currentTarget.blur()} /></label>
     </span>
     <Chip bind:on={settings.bulk.other} label="Everything else I don't need" title="Weapon parts and blueprints, gems, fish, Captura scenes and Ayatan sculptures beyond what your unbuilt items need (Inventory, Spare only, shows each one and why), plus veiled rivens and relics if you sell them (Settings, Selling). Only what sells at least once a day, and never a relic worth more cracked" />
+    <span class="prio" title="Only matters when there's more to list than warframe.market's {LISTING_LIMIT} listings allow: which ones get the slots. Either way only what the ticks and your minimum price let through">
+      <Seg label="Over {LISTING_LIMIT}, keep" bind:value={settings.bulk.priority} options={[
+        { v: "plat", label: "Most plat", title: "The listings worth the most platinum (quantity × price)" },
+        { v: "trades", label: "Sells most often", title: "The listings that sell most often (most trades a day on warframe.market), so your slots keep turning over" },
+      ]} />
+    </span>
     <span class="dim small minnote" title="Your minimum price, set next to Floor above your listings: nothing cheaper is listed">Skips anything under {settings.minPrice}p{settings.bulk.other ? `, relics under ${settings.minRelicPrice}p` : ""}</span>
     <button class="stamp" disabled={!anyTicked || !!mkt.busy || waiting} onclick={makePlan}>{waiting ? "Waiting for relic prices…" : mkt.op === "Working out what to list" ? "Checking prices…" : mkt.bulk ? "Plan again" : "Plan the changes"}</button>
   </div>
@@ -114,7 +121,7 @@
   {/if}
 
   {#if mkt.bulk}
-    {#if overLimit || madeRoom}<p class="small warn">warframe.market allows {LISTING_LIMIT} listings, so the plan keeps the ones worth the most platinum{overLimit ? `: ${overLimit} cheaper thing${overLimit === 1 ? " is" : "s are"} left out` : ""}{madeRoom ? `${overLimit ? " and" : ":"} ${madeRoom} cheaper listing${madeRoom === 1 ? " comes" : "s come"} down to make room` : ""}.</p>{/if}
+    {#if overLimit || madeRoom}{@const fast = r.priority === "trades"}<p class="small warn">warframe.market allows {LISTING_LIMIT} listings, so the plan keeps the ones {fast ? "that sell most often" : "worth the most platinum"}{overLimit ? `: ${overLimit} ${fast ? "slower-selling" : "cheaper"} thing${overLimit === 1 ? " is" : "s are"} left out` : ""}{madeRoom ? `${overLimit ? " and" : ":"} ${madeRoom} ${fast ? "slower-selling" : "cheaper"} listing${madeRoom === 1 ? " comes" : "s come"} down to make room` : ""}.</p>{/if}
     {#if unread}<p class="small warn">warframe.market didn't answer for {unread} item{unread === 1 ? "" : "s"}, so {unread === 1 ? "it isn't" : "they aren't"} in this plan. Plan again to retry.</p>{/if}
     {#if stale}<p class="small warn">You changed what to sell since this plan: plan again before applying.</p>{/if}
     {#if !changes.length}

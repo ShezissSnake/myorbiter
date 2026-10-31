@@ -34,8 +34,14 @@ export interface BulkRules {
    * once a day, and never a relic worth more cracked.
    */
   other: boolean;
+  /**
+   * When there's more to list than warframe.market's 100 listings allow, which win: the ones worth
+   * the most platinum, or the ones that sell most often (most trades a day), so the slots turn over.
+   * Either way only what the rules above let through.
+   */
+  priority: "plat" | "trades";
 }
-export const defaultBulkRules = (): BulkRules => ({ sets: true, arcanes: true, mods: true, parts: false, partsKeep: 0, other: false });
+export const defaultBulkRules = (): BulkRules => ({ sets: true, arcanes: true, mods: true, parts: false, partsKeep: 0, other: false, priority: "plat" });
 
 export const KIND_LABEL: Record<BulkKind, string> = { set: "Set", arcane: "Arcane", mod: "Mod", part: "Prime part", other: "Other item" };
 /** Each kind's switch in BulkRules. */
@@ -198,6 +204,7 @@ export type BulkAction =
 /** warframe.market's cap on how many orders one account can have up at once. */
 export const LISTING_LIMIT = 100;
 export const LIMIT_WHY = `Over warframe.market's ${LISTING_LIMIT}-listing limit: your other listings are worth more`;
+export const LIMIT_WHY_TRADES = `Over warframe.market's ${LISTING_LIMIT}-listing limit: your other listings sell more often`;
 /** How the plan ends the reason for a listing of yours it leaves up though a rule wouldn't have made it. */
 export const AS_LISTED = "left as you listed it";
 
@@ -421,7 +428,7 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
       actions.push({ type: "skip", kind, name: it.name, rank: it.maxRank != null ? (o.rank ?? 0) : null, why: `${upper(rule.kept)} would be kept: ${AS_LISTED}` });
     }
   }
-  return fitLimit(c, ticked, actions);
+  return fitLimit(c, ticked, actions, rules.priority ?? "plat");
 }
 
 const upper = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -440,16 +447,18 @@ function ducatsFor(c: BulkContext, kind: BulkKind, it: MarketItem): string | nul
 
 /**
  * warframe.market takes at most 100 orders per account. When the plan would go over, the listings
- * worth the most platinum (quantity × price) win: the cheapest new ones are left out, and the
- * cheapest of your existing ones in the ticked categories make way. Listings you set to be left
+ * worth the most platinum (quantity × price) win, or with `priority` "trades" the ones that sell
+ * most often (trades a day, worth breaking ties): the rest of the new ones are left out, and the
+ * rest of your existing ones in the ticked categories make way. Listings you set to be left
  * alone, hidden ones and ones outside the ticked categories are never moved: they just take a slot.
  */
-export function fitLimit(c: BulkContext, ticked: Set<BulkKind>, actions: BulkAction[]): BulkAction[] {
+export function fitLimit(c: BulkContext, ticked: Set<BulkKind>, actions: BulkAction[], priority: BulkRules["priority"] = "plat"): BulkAction[] {
   const limit = c.limit ?? LISTING_LIMIT;
   const removed = new Set(actions.flatMap((a) => (a.type === "remove" ? [a.order.id] : [])));
   const updates = new Map(actions.flatMap((a) => (a.type === "update" ? [[a.order.id, a] as const] : [])));
 
-  type Slot = { value: number; create?: Extract<BulkAction, { type: "create" }>; order?: MyOrder; item?: MarketItem; kind?: BulkKind };
+  type Slot = { value: number; trades: number; create?: Extract<BulkAction, { type: "create" }>; order?: MyOrder; item?: MarketItem; kind?: BulkKind };
+  const tradesOf = (it: MarketItem) => c.model.tradesPerDay(it.name) ?? 0;
   const flexible: Slot[] = [];
   let fixed = c.otherOrders ?? 0;
   for (const o of c.orders) {
@@ -461,25 +470,26 @@ export function fitLimit(c: BulkContext, ticked: Set<BulkKind>, actions: BulkAct
       continue;
     }
     const u = updates.get(o.id);
-    flexible.push({ value: (u ? u.quantity * u.platinum : o.quantity * o.platinum), order: o, item: it, kind });
+    flexible.push({ value: (u ? u.quantity * u.platinum : o.quantity * o.platinum), trades: tradesOf(it), order: o, item: it, kind });
   }
-  for (const a of actions) if (a.type === "create") flexible.push({ value: a.quantity * a.platinum, create: a });
+  for (const a of actions) if (a.type === "create") flexible.push({ value: a.quantity * a.platinum, trades: tradesOf(a.item), create: a });
 
   const room = Math.max(0, limit - fixed);
   if (flexible.length <= room) return actions;
 
-  const keep = new Set([...flexible].sort((a, b) => b.value - a.value).slice(0, room));
+  const byTrades = priority === "trades";
+  const keep = new Set([...flexible].sort((a, b) => (byTrades ? b.trades - a.trades : 0) || b.value - a.value).slice(0, room));
   const dropCreates = new Set(flexible.filter((f) => !keep.has(f) && f.create).map((f) => f.create!));
   const dropOrders = new Map(flexible.filter((f) => !keep.has(f) && f.order).map((f) => [f.order!.id, f] as const));
 
   const out: BulkAction[] = [];
   for (const a of actions) {
-    if (a.type === "create" && dropCreates.has(a)) out.push({ type: "skip", kind: a.kind, name: a.item.name, rank: a.rank, why: LIMIT_WHY });
+    if (a.type === "create" && dropCreates.has(a)) out.push({ type: "skip", kind: a.kind, name: a.item.name, rank: a.rank, why: byTrades ? LIMIT_WHY_TRADES : LIMIT_WHY });
     else if (a.type === "update" && dropOrders.has(a.order.id)) continue; // replaced by the removal below
     else out.push(a);
   }
   for (const f of dropOrders.values()) {
-    out.push({ type: "remove", kind: f.kind!, item: f.item!, order: f.order!, why: `Makes room for listings worth more (warframe.market allows ${limit})` });
+    out.push({ type: "remove", kind: f.kind!, item: f.item!, order: f.order!, why: `Makes room for listings ${byTrades ? "that sell more often" : "worth more"} (warframe.market allows ${limit})` });
   }
   return out;
 }

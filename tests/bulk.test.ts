@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildModel } from "../src/lib/core/model";
-import { bulkPlan, sellTargets, defaultBulkRules, LIMIT_WHY, type BulkContext, type BulkRules } from "../src/lib/core/bulk";
+import { bulkPlan, sellTargets, defaultBulkRules, LIMIT_WHY, LIMIT_WHY_TRADES, type BulkContext, type BulkRules } from "../src/lib/core/bulk";
 import { indexItems, type BookOrder, type MarketItem, type MyOrder } from "../src/lib/core/market";
 import { defaultAdvice } from "../src/lib/backend";
 import type { Bundle, InventoryRow } from "../src/lib/core/types";
@@ -45,7 +45,7 @@ const rhino = (n: number) => [
   inv("/R/Helmet", "Rhino Prime Neuroptics Blueprint", "prime_part", n),
   inv("/R/Systems", "Rhino Prime Systems Blueprint", "prime_part", n),
 ];
-const only = (k: Partial<BulkRules>): BulkRules => ({ sets: false, arcanes: false, mods: false, parts: false, partsKeep: 10, other: false, ...k });
+const only = (k: Partial<BulkRules>): BulkRules => ({ sets: false, arcanes: false, mods: false, parts: false, partsKeep: 10, other: false, priority: "plat", ...k });
 
 test("sets: every complete set once mastered, all but one otherwise", () => {
   const unmastered = sellTargets(buildModel(bundle(rhino(3))), only({ sets: true }), defaultAdvice());
@@ -188,6 +188,17 @@ test("limit: over warframe.market's cap, the listings worth the most platinum wi
   assert.deepEqual(plan.filter((a) => a.type === "create").map((a) => a.type === "create" && a.item.name), ["Rhino Prime Set"]);
   const left = plan.find((a) => a.type === "skip")!;
   assert.equal(left.type === "skip" && [left.name, left.why].join("|"), `Serration|${LIMIT_WHY}`);
+});
+
+test("limit: sells most often first, when that's the choice", () => {
+  const m = buildModel(bundle([...rhino(3), inv("/M/Serration", "Serration", "mod", 1, { rank: 10 }), inv("/M/Serration", "Serration", "mod", 3)]));
+  const rules = { ...only({ sets: true, mods: true }), priority: "trades" as const };
+  const books = { rhino_prime_set: [seller(55)], serration: [seller(14, 0)] };
+  // Room for one: Serration sells 5 times a day, the set hasn't sold lately.
+  const plan = bulkPlan(ctx(m, [], books, { limit: 1 }), rules, sellTargets(m, rules, defaultAdvice()));
+  assert.deepEqual(plan.filter((a) => a.type === "create").map((a) => a.type === "create" && a.item.name), ["Serration"]);
+  const left = plan.find((a) => a.type === "skip")!;
+  assert.equal(left.type === "skip" && [left.name, left.why].join("|"), `Rhino Prime Set|${LIMIT_WHY_TRADES}`);
 });
 
 test("limit: a cheaper listing of yours makes way; left-alone and hidden ones only take a slot", () => {
