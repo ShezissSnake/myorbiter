@@ -624,8 +624,14 @@
   :global(html[data-room~="lt900"]) .willnote { display: block; }
   /* "auto 10" whole: the floor's placeholder without the wide capitals (and the box set wide enough, inline). */
   .floorcol input::placeholder { text-transform: none; letter-spacing: 0; font-size: .74rem; }
-  /* Less still: the per-listing floor box goes too (your floors still apply). */
-  :global(html[data-room~="lt760"]) .floorcol { display: none; }
+  /* The per-listing floor box goes next (your floors still apply, and the overall floor is above
+     the table): half a 1080p screen leaves the page about 800 px, where it no longer fits. */
+  :global(html[data-room~="lt900"]) .floorcol { display: none; }
+  /* Less still: the headings wrap onto two lines rather than set the column widths. */
+  :global(html[data-room~="lt760"]) .orders th { white-space: normal; line-height: 1.35; }
+  :global(html[data-room~="lt760"]) .orders input[type="number"] { width: 3.3rem; }
+  :global(html[data-room~="lt760"]) .acts { gap: .3rem; }
+  :global(html[data-room~="lt760"]) .orders :is(td, th):not(:first-child):not(:last-child) { padding-left: .3rem; padding-right: .3rem; }
   /* Page area under 1100 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt1100"]) .orders input[type="number"] { width: 3.8rem; }
   /* The floor's "auto 10" has to fit whole, or it reads as a 1p floor. */

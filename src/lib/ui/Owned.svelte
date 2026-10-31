@@ -15,5 +15,9 @@
   b { font-family: var(--face-mark); font-size: .95rem; letter-spacing: 0; color: var(--platinum); margin-right: .2rem; }
   .o-Radiant, .o-Radiant b { color: var(--gold); }
   .sep { color: var(--rule-control); }
+  /* Little room: one refinement a line, so the column narrows instead of the table overflowing. */
+  .o { white-space: nowrap; }
+  :global(html[data-room~="lt760"]) .owned { white-space: normal; flex-wrap: wrap; justify-content: flex-end; row-gap: 0; }
+  :global(html[data-room~="lt760"]) .sep { display: none; }
   .none { color: var(--rule-control); }
 </style>

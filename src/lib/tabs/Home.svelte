@@ -727,6 +727,9 @@
   :global(html[data-room~="lt900"]) .market, :global(html[data-room~="lt900"]) .ready, :global(html[data-room~="lt900"]) .fissures, :global(html[data-room~="lt900"]) .mastery, :global(html[data-room~="lt900"]) .baro, :global(html[data-room~="lt900"]) .varzia, :global(html[data-room~="lt900"]) .today, :global(html[data-room~="lt900"]) .foundry, :global(html[data-room~="lt900"]) .deals, :global(html[data-room~="lt900"]) .wishes , :global(html[data-room~="lt900"]) .panel.half { grid-column: span 12; }
   /* Half a small screen: the fissure table loses "Ends in" (the missions' own times are on hover), and the clocks go four to a row. */
   :global(html[data-room~="lt760"]) .ends { display: none; }
+  /* The open missions are a clipped list: narrower still, so the table fits beside them. */
+  :global(html[data-room~="lt760"]) .eras .clip { max-width: 11rem; }
+  :global(html[data-room~="lt640"]) .eras .clip { max-width: 7rem; }
   :global(html[data-room~="lt760"]) .world { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   :global(html[data-room~="lt760"]) .clock:nth-child(4n + 1) { border-left: 0; }
   :global(html[data-room~="lt760"]) .clock:nth-child(n + 5) { border-top: 1px solid var(--rule); }

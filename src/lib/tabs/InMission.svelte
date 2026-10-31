@@ -197,7 +197,7 @@
       </div>
       {#if !onScreen}{@render weightControls()}{/if}
       <table class="pool">
-        <thead><tr><th title="Its place in the pick order, best first">#</th>{#if !onScreen}<th class="right" title="0–100: the weighted average of the four bars">Score</th><th title="The four marks behind the score: plat · unmastered · ducats · completes a set">Score split</th>{/if}<th>Reward</th><th title="The squad relics that can give it. The letter after each is its refinement: I intact, E exceptional, F flawless, R radiant">From</th>{#if anyHeld}<th class="right" title="Copies you already hold">Held</th>{/if}<th class="right">Plat</th><th class="right">Ducats</th></tr></thead>
+        <thead><tr><th title="Its place in the pick order, best first">#</th>{#if !onScreen}<th class="right" title="0–100: the weighted average of the four bars">Score</th><th class="bc" title="The four marks behind the score: plat · unmastered · ducats · completes a set">Score split</th>{/if}<th>Reward</th><th title="The squad relics that can give it. The letter after each is its refinement: I intact, E exceptional, F flawless, R radiant">From</th>{#if anyHeld}<th class="right" title="Copies you already hold">Held</th>{/if}<th class="right">Plat</th><th class="right">Ducats</th></tr></thead>
         <tbody>
           {#each ranked as x, i (x.name)}
             <tr class:need={x.needed} class:yours={yours.has(x.name)}>
@@ -254,6 +254,8 @@
   .relic { border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 1rem 1.1rem 1.1rem; background: rgb(17 19 23 / 70%); }
   /* Page area under 640 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt640"]) .cards { grid-template-columns: minmax(0, 1fr); }
+  /* The bars behind the score go before the list stops fitting: the score itself stays. */
+  :global(html[data-room~="lt760"]) .pool .bc { display: none; }
   /* Page area 1850 or wider px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="ge1850"]) .cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .relic header { display: flex; justify-content: space-between; align-items: center; gap: .8rem; margin-bottom: .8rem; }
