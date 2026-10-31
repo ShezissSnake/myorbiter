@@ -12,6 +12,7 @@ import type { ImprintRaw } from "./core/imprints";
 import { DEFAULT_HIDE_MINUTES, type HiddenForWhisper } from "./core/lastCopy";
 import type { Invasion } from "./core/invasions";
 import type { SyndicateMission } from "./core/board";
+import type { RecipeData } from "./core/buildPlan";
 import type { WorldAlert } from "./core/worldNeeds";
 import type { RelicData } from "./core/relicData";
 import type { Bundle, CatalogPart, CollectionPart, DarvoDeal, DuviriCycle, Fissure, Live, MissionState, Nightwave, SortieLike, SteelPath, VaultTraderItem } from "./core/types";
@@ -444,6 +445,17 @@ export async function loadLive(): Promise<Live> {
       ? (raw!.voidTrader as { activation: string; expiry: string; location: string })
       : null,
   };
+}
+
+/** Every Foundry recipe, parts' own blueprints included (recipes.rs). Null when it can't be read. */
+export async function recipeData(): Promise<RecipeData | null> {
+  try {
+    if (inTauri) return await invoke<RecipeData>("recipe_data");
+    const res = await fetch("/dev-recipe-data.json");
+    return res.ok ? ((await res.json()) as RecipeData) : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

@@ -7,6 +7,7 @@ mod feed;
 mod presence;
 mod images;
 mod market;
+mod recipes;
 mod relicdata;
 
 use orbiter_data::ee_log::{find_ee_log, LogFollower, MissionState};
@@ -198,6 +199,15 @@ async fn worldstate() -> Value {
 async fn relic_data(app: tauri::AppHandle, force: Option<bool>) -> Result<Value, String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     tauri::async_runtime::spawn_blocking(move || relicdata::relic_data(&dir, force.unwrap_or(false)))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Every Foundry recipe, parts' own blueprints included (see recipes.rs): cached for a week.
+#[tauri::command]
+async fn recipe_data(app: tauri::AppHandle) -> Result<Value, String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || recipes::recipe_data(&dir))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -765,6 +775,7 @@ pub fn run() {
             data_stamp,
             worldstate,
             relic_data,
+            recipe_data,
             load_settings,
             save_settings,
             mission_state,

@@ -112,19 +112,17 @@
           onfav={() => toggleFav(c.unique)}
           onopen={() => details.open(c.unique)}
         >
+          <!-- Parts then resources in one row, wrapping together, so a resource sits beside the last part rather than under all of them. -->
           <div class="chips">
             {#each c.parts.filter((p) => !p.resource) as p, i (i)}<PartChip part={p} size={38} />{/each}
+            {#each c.parts.filter((p) => p.resource) as p, i (i)}<span class="res"><PartChip part={p} size={28} /></span>{/each}
           </div>
-          {#if c.parts.some((p) => p.resource)}
-            <div class="chips res">
-              {#each c.parts.filter((p) => p.resource) as p, i (i)}<PartChip part={p} size={28} />{/each}
-            </div>
-          {/if}
           {#snippet foot()}
             {#if c.mastered}<span class="tag good">✓ Mastered</span>
             {:else if c.owned}<span class="tag ok">Owned · level it</span>
             {:else if c.building}<span class="tag">Building</span>
-            {:else if c.buildable && c.short.length}<span class="tag warn" title="Every part in hand, but you need more {c.short.join(', ')}">Parts ready · short on {c.short[0]}{c.short.length > 1 ? ` +${c.short.length - 1}` : ""}</span>
+            {:else if c.buildable && c.tier === "hard"}<span class="tag bad" title="Every part in hand, but building needs {c.short.join(', ')}: from an open world or an event. Open it for what each part takes">Parts ready · needs {c.short[0]}{c.short.length > 1 ? ` +${c.short.length - 1}` : ""}</span>
+            {:else if c.buildable && c.short.length}<span class="tag warn" title="Every part in hand; still to farm: {c.short.join(', ')}. Open it for what each part takes">Parts ready · farm {c.short[0]}{c.short.length > 1 ? ` +${c.short.length - 1}` : ""}</span>
             {:else if c.buildable}<span class="tag ok">Ready to build</span>
             {:else if c.parts.some((p) => !p.resource)}<span class="dim small">{missing(c)} part{missing(c) === 1 ? "" : "s"} missing</span>{/if}
             {#if c.resurgence}<Avail v="resurgence" />{:else if c.vaulted}<Avail v="vaulted" />{/if}
@@ -144,7 +142,8 @@
   .bar { padding-top: .9rem; }
   .right { text-align: right; }
   .chips { display: flex; flex-wrap: wrap; gap: .45rem; }
-  .chips.res { gap: .75rem .55rem; padding-bottom: 4px; }
+  .chips { align-items: center; row-gap: .7rem; }
+  .chips .res { display: inline-flex; margin-left: .15rem; padding-bottom: 4px; }
   .pts { display: inline-flex; align-items: center; gap: .25rem; color: var(--platinum-dim); font-variant-numeric: tabular-nums; }
   .more { display: flex; justify-content: center; padding: 1.2rem 0; }
 </style>

@@ -1,6 +1,7 @@
 // One pass over the bundle that builds every lookup the views need.
 
 import { imprintCounts, type ImprintRaw } from "./imprints";
+import type { RecipeData } from "./buildPlan";
 import type {
   Bundle,
   CatalogItem,
@@ -121,6 +122,8 @@ export interface Model {
   live: Live;
   /** Imprints you hold, by the breed's companion path ("" for a breed orbiter couldn't read); null before TennoScope has passed any. */
   imprints: Map<string, number> | null;
+  /** Every Foundry recipe, parts' own included (recipes.rs); null until read. */
+  recipes: RecipeData | null;
 }
 
 export function baseId(itemId: string): string {
@@ -272,7 +275,7 @@ const DUCATS_NOW: Record<string, number> = { "Bronco Prime Barrel": 25, "Nami Sk
  */
 export const NO_MASTERY = new Set(["/Lotus/Powersuits/SiriusOrion/OrionSuit", "/Lotus/Weapons/Tenno/Grimoire/TnDoppelgangerGrimoire"]);
 
-export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurgence: null, resurgenceExpiry: null }, foundry: Record<string, number> | null = null, relicMarket: RelicMarket | null = null, imprints: ImprintRaw[] | null = null): Model {
+export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurgence: null, resurgenceExpiry: null }, foundry: Record<string, number> | null = null, relicMarket: RelicMarket | null = null, imprints: ImprintRaw[] | null = null, recipes: RecipeData | null = null): Model {
   bundle = withKnownNames(bundle);
   // Some relic entries list a reward twice ("2X Forma Blueprint" in Meso D1); merge them so every
   // reward name appears once per relic, with the chances added up.
@@ -569,5 +572,6 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
     inResurgence,
     live,
     imprints: imprints ? imprintCounts(imprints, (path) => catalogByUnique.has(path)) : null,
+    recipes,
   };
 }

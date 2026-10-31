@@ -17,6 +17,8 @@
   import Sheet from "./ui/Sheet.svelte";
   import Art from "./ui/Art.svelte";
   import PartChip from "./ui/PartChip.svelte";
+  import Thumb from "./ui/Thumb.svelte";
+  import { buildPlan, TIER_LABEL, TIER_TIP } from "./core/buildPlan";
   import P from "./ui/P.svelte";
   import Effort from "./ui/Effort.svelte";
   import Avail from "./ui/Avail.svelte";
@@ -38,6 +40,8 @@
     }
   });
   const c = $derived(item ? collectionItem(model, item) : null);
+  // What building it still takes from where you are, parts' own blueprints included.
+  const plan = $derived(item && c && !c.owned && !c.mastered && !c.building && c.parts.some((p) => !p.resource) ? buildPlan(model, item, model.recipes) : null);
   const wish = $derived(item ? wishItem(model, item.uniqueName) : null);
   const row = $derived(item && !model.isMastered(item.uniqueName) && item.masterable ? masteryRow(model, item) : null);
   const fav = $derived(!!item && settings.favourites.includes(item.uniqueName));
@@ -132,7 +136,7 @@
         <div class="tags">
           {#if c.mastered}<span class="tag good">Mastered</span>{:else if c.owned}<span class="tag ok">Owned, not mastered</span>{/if}
           {#if c.building}<span class="tag">Building</span>{/if}
-          {#if c.buildable}<span class="tag ok">Ready to build</span>{/if}
+          {#if c.buildable && plan}<span class="tag" class:ok={plan.tier === "now"} class:warn={plan.tier === "farm"} class:bad={plan.tier === "hard"} title={TIER_TIP[plan.tier]}>{plan.tier === "now" ? "Ready to build" : `Parts ready · ${TIER_LABEL[plan.tier].toLowerCase()}`}</span>{:else if c.buildable}<span class="tag ok">Ready to build</span>{/if}
           {#if c.resurgence}<Avail v="resurgence" />{:else if c.vaulted}<Avail v="vaulted" />{/if}
           {#if c.unobtainable}<span class="tag">No longer available</span>{/if}
         </div>
@@ -210,6 +214,32 @@
             </li>
           {/each}
         </ul>
+      </section>
+    {/if}
+
+    {#if plan && plan.resources.length}
+      <section class="plan">
+        <h3 class="register lead">What building it takes now <span class="tier t-{plan.tier}" title={TIER_TIP[plan.tier]}>{TIER_LABEL[plan.tier]}</span>{#if plan.credits} <span class="dim cost"><GameIcon name="credits" size={13} /> {plan.credits.toLocaleString("en")}</span>{/if}</h3>
+        {#if plan.parts.some((p) => p.state === "blueprint" || p.state === "missing")}
+          <ul class="steps">
+            {#each plan.parts.filter((p) => p.state !== "built") as p (p.label)}
+              <li class="s-{p.state}">
+                <PartChip part={{ label: p.label, name: p.name, image: p.image, required: 1, have: p.state === "missing" ? 0 : 1, resource: false, building: p.state === "building", price: null, ducats: null, tradable: false }} size={30} />
+                <span><b>{p.label}</b> <span class="dim small">{p.state === "missing" ? "still to get, blueprint and all" : p.state === "building" ? "building now" : p.needs.length ? `blueprint in hand; building it takes ${p.needs.map((n) => `${n.need.toLocaleString("en")} ${n.name}`).join(", ")}` : "blueprint in hand"}</span></span>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+        <ul class="needs">
+          {#each plan.resources as r (r.path)}
+            <li class:short={r.have < r.need} title="{r.name}: for {r.for.join(', ')}{r.kind === 'world' ? ' · from an open world, an event, fishing or mining' : ''}">
+              <Thumb file={r.image} name={r.name} size={30} />
+              <span class="rn"><b>{r.name}</b><span class="dim small">for {r.for.join(", ")}</span></span>
+              <span class="rq"><b>{r.have.toLocaleString("en")}</b><span class="dim">/ {r.need.toLocaleString("en")}</span></span>
+            </li>
+          {/each}
+        </ul>
+        {#if !plan.complete}<p class="dim small">The parts' own recipes haven't been read yet (they're fetched once a week), so only {item.name}'s own blueprint is counted.</p>{/if}
       </section>
     {/if}
 
@@ -311,4 +341,20 @@
   .players { display: block; margin-top: .35rem; font-size: .82rem; color: var(--platinum-deep); }
   .missing { color: var(--platinum-deep); }
   .inhand { color: var(--gold); }
+  /* What building takes now: each part still to build or get, then every resource, short ones first. */
+  .tier { margin-left: .5rem; padding: .1rem .45rem; border: 1px solid var(--rule-bright); font-size: .58rem; color: var(--platinum); }
+  .tier.t-now { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 50%, transparent); }
+  .tier.t-farm { color: var(--gold); border-color: var(--gold-dim); }
+  .tier.t-hard, .tier.t-parts { color: #e0a49a; border-color: color-mix(in srgb, var(--oxblood) 70%, transparent); }
+  .steps { list-style: none; margin: 0 0 .8rem; padding: 0; display: grid; gap: .45rem; }
+  .steps li { display: flex; align-items: center; gap: .7rem; }
+  .steps b { color: var(--platinum); }
+  .needs { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .5rem 1.2rem; }
+  .needs li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: .6rem; align-items: center; }
+  .rn { display: grid; min-width: 0; }
+  .rn b { font-weight: 600; color: var(--platinum); font-size: .88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rn .small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rq { font-variant-numeric: tabular-nums; white-space: nowrap; display: inline-flex; gap: .3rem; align-items: baseline; }
+  .needs li.short .rq b { color: var(--gold); }
+  .needs li:not(.short) .rq b { color: var(--verdigris); }
 </style>

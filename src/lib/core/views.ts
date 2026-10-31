@@ -1,6 +1,7 @@
 // Each function turns the model into the rows one tab shows. Pure, so they are tested directly.
 
 import { collectionItem } from "./collection";
+import { buildPlan, shortLine, type BuildTier } from "./buildPlan";
 import { REFINEMENTS, UNOBTAINABLE, baseId, relicRewardRarity, splitRelicName, type Model, type PrimePart, type Refinement, type RelicSource } from "./model";
 export { relicRewardRarity };
 import type { CatalogItem, InventoryRow } from "./types";
@@ -224,6 +225,10 @@ export interface MasteryRow {
   points: number;
   /** Primes: plat for the parts you're missing, at the daily median. */
   buyFor: number | null;
+  /** Every part in hand: how easy building is now (null when not that far, or the recipes aren't read yet). */
+  buildTier: BuildTier | null;
+  /** What's short to build it, in a line. */
+  buildShort: string;
 }
 
 export const MASTERY_CATEGORIES: Record<string, string> = {
@@ -277,6 +282,8 @@ export function masteryRows(m: Model): MasteryRow[] {
       wiki: null,
       acq: { method: "level", difficulty: 0, how: "You have it: take it to max rank.", icon: "mastery", available: true, tradable: false, researched: false, wiki: null },
       buyFor: null,
+      buildTier: null,
+      buildShort: "",
       points: masteryPoints({ name: r.name, category: r.category === "frame" ? "Warframes" : r.category === "companion" ? "Pets" : "Primary" }),
     });
   }
@@ -346,6 +353,8 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
   else if (total && partsOwned === total && !lackingWeapons.length) status = "build";
   else if (partsOwned > 0) status = "parts";
 
+  // Every part in hand: what building still takes, parts' own blueprints included.
+  const plan = status === "build" && !captured && m.recipes ? buildPlan(m, item, m.recipes) : null;
   const vaulted = isPrime && missingParts.some((p) => p.availability === "vaulted");
   const partPrices = missingParts.map((p) => m.price(p.name));
   // Each missing copy is bought: two Blades still to get cost two Blades.
@@ -356,6 +365,7 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
     isPrime,
     owned,
     buildable: status === "build",
+    build: plan ? { tier: plan.tier, short: shortLine(plan.short) } : null,
     partsTotal: parts.length,
     held: pieces.filter((p) => p.held).map((p) => p.label),
     toGet: pieces.filter((p) => !p.held).map((p) => p.label),
@@ -384,6 +394,8 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
     acq,
     points: masteryPoints(item),
     buyFor: isPrime ? buyFor : null,
+    buildTier: plan?.tier ?? null,
+    buildShort: plan ? shortLine(plan.short) : "",
   };
 }
 

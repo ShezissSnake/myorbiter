@@ -253,6 +253,17 @@ export interface AcquireContext {
   /** Not relic primes: the blueprint and parts you hold, and the ones still to get ("Chassis"). */
   held?: string[];
   toGet?: string[];
+  /** Every part in hand: what building still takes (buildPlan.ts), when the recipes are known. */
+  build?: { tier: "now" | "farm" | "hard" | "parts"; short: string } | null;
+}
+
+/** Every part in hand: as easy as the resources still short make it. */
+function buildAcquisition(ctx: AcquireContext): Pick<Acquisition, "method" | "difficulty" | "how" | "icon" | "available"> {
+  const b = ctx.build;
+  const base = { method: "build" as const, icon: "mastery", available: true };
+  if (b?.tier === "farm") return { ...base, difficulty: 2, how: `You have every part. Still to farm before building: ${b.short}.` };
+  if (b?.tier === "hard") return { ...base, difficulty: 4, how: `You have every part, but building needs ${b.short}, from an open world or an event.` };
+  return { ...base, difficulty: 1, how: b?.tier === "now" ? "You have every part and resource: build it in the Foundry." : "You have every part: build it in the Foundry." };
 }
 
 const memo = new WeakMap<Model, Map<string, Acquisition>>();
@@ -266,7 +277,7 @@ export function acquisition(m: Model, item: CatalogItem, ctx: AcquireContext): A
   }
   if (ctx.isPrime && ctx.partsTotal > 0) return primeAcquisition(m, item, ctx);
   const a = otherAcquisition(m, item);
-  if (ctx.buildable) return { ...a, method: "build", difficulty: 1, how: "You have every part: build it in the Foundry.", icon: "mastery", available: true };
+  if (ctx.buildable) return { ...a, ...buildAcquisition(ctx) };
   // Some of it in hand: say so before where the rest comes from.
   if (ctx.held?.length && ctx.toGet?.length) return { ...a, how: `You have the ${list(ctx.held)}; still to get: ${list(ctx.toGet)}. ${a.how}` };
   return a;
@@ -306,7 +317,7 @@ function fromDrops(m: Model, item: CatalogItem): Acquisition {
 
 function primeAcquisition(m: Model, item: CatalogItem, ctx: AcquireContext): Acquisition {
   const base = { icon: "relic-axi-intact", tradable: true, researched: false, wiki: item.wikiaUrl ?? null };
-  if (ctx.buildable) return { ...base, method: "build", difficulty: 1, how: "You have every part: build it in the Foundry.", icon: "mastery", available: true };
+  if (ctx.buildable) return { ...base, ...buildAcquisition(ctx) };
   const missing = ctx.missingParts;
   const vaulted = missing.filter((p) => p.availability === "vaulted");
   const resurgence = missing.filter((p) => p.availability === "resurgence");

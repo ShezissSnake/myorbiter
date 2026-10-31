@@ -218,6 +218,7 @@ a.link { text-decoration: none; text-transform: uppercase; display: inline-flex;
 .tag.ok { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 45%, transparent); }
 .tag.warn { color: var(--slab); background: var(--gold); border-color: var(--gold); }
 .tag.good { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 45%, transparent); }
+.tag.bad { color: #e0a49a; border-color: color-mix(in srgb, var(--oxblood) 70%, transparent); }
 .warn-text { color: var(--gold); }
 .plat-text { color: var(--platinum); font-weight: 600; }
 .ducat-text { color: var(--gold); font-weight: 600; }

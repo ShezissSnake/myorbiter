@@ -162,7 +162,10 @@
     if (editing === id) closeRule();
   };
   const builds = $derived(foundryBuilds(model, settings.game.foundryReady, now));
-  const buildable = $derived(rows.filter((r) => r.status === "build").sort((a, b) => b.points - a.points));
+  // Every part in hand: ready now first, then what's short on star-chart resources, then the ones
+  // that need an open world or an event (Hildryn's Lazulite Toroid).
+  const TIER_ORDER = { now: 0, farm: 1, hard: 2, parts: 3 } as const;
+  const buildable = $derived(rows.filter((r) => r.status === "build").sort((a, b) => TIER_ORDER[a.buildTier ?? "now"] - TIER_ORDER[b.buildTier ?? "now"] || b.points - a.points));
   // Your wishlist, still to get: what's left and whether a fissure for one of your relics is open now.
   // The ones you can crack a relic for now come first.
   const openNow = $derived(openEras(live.fissures, now));
@@ -507,10 +510,10 @@
         <p class="dim small">{settings.game.masteryRank != null ? "Nothing building." : "Shows once the patched TennoScope reads your inventory."}</p>
       {/if}
       {#if buildable.length}
-        <div class="register sub">You can build now</div>
+        <div class="register sub">Every part in hand</div>
         <ul class="fb">
           {#each buildable.slice(0, 4) as r (r.unique)}
-            <li><button class="row" data-opens aria-label="{r.name}: details" onclick={() => details.open(r.unique)}><Thumb file={model.imageOf(r.name)} name={r.name} size={26} /><span class="fn"><b class="mark">{r.name}</b><span class="dim small">every part in hand</span></span><span class="pts"><GameIcon name="mastery" size={13} />{r.points.toLocaleString("en")}</span></button></li>
+            <li><button class="row" data-opens aria-label="{r.name}: details" onclick={() => details.open(r.unique)}><Thumb file={model.imageOf(r.name)} name={r.name} size={26} /><span class="fn"><b class="mark">{r.name}</b><span class="small" class:dim={r.buildTier !== "now"} class:good={r.buildTier === "now"} title={r.buildShort ? `Still to get before building: ${r.buildShort}` : undefined}>{r.buildTier === "now" ? "Build now: everything in hand" : r.buildTier === "hard" ? `Needs ${r.buildShort}` : r.buildTier === "farm" ? `Farm ${r.buildShort}` : "every part in hand"}</span></span><span class="pts"><GameIcon name="mastery" size={13} />{r.points.toLocaleString("en")}</span></button></li>
           {/each}
         </ul>
       {/if}
@@ -709,6 +712,7 @@
   .today { grid-column: span 7; grid-row: span 3; }
   .wishes { grid-column: span 5; }
   .gold { color: var(--gold); }
+  .good { color: var(--verdigris); }
   .more { margin: .5rem 0 0; }
   .foundry { grid-column: span 5; }
   .deals { grid-column: span 5; }
@@ -819,6 +823,7 @@
   .when { display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap; }
   .when b { font-size: 1.5rem; }
   .gold { color: var(--gold); }
+  .good { color: var(--verdigris); }
   .ducats { display: flex; align-items: center; gap: .5rem; }
   .stock, .vz { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
   .stock li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto 4rem; gap: .6rem; align-items: center; }

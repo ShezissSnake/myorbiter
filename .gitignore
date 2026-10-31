@@ -15,3 +15,4 @@ public/dev-reward-screens.json
 public/dev-history-*.json
 vendor/
 public/dev-relic-data.json
+public/dev-recipe-data.json

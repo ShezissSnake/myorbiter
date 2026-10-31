@@ -9,6 +9,7 @@
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
   import { buildModel, ERAS } from "./lib/core/model";
   import { mergeRelics, type RelicData } from "./lib/core/relicData";
+  import type { RecipeData } from "./lib/core/buildPlan";
   import { today } from "./lib/core/today";
   import { bestCard, resolveName, scoreCards, vaultWord } from "./lib/core/pick";
   import { DEFAULT_HIDE_MINUTES, dueToShow, hideNow, lastCopies } from "./lib/core/lastCopy";
@@ -33,6 +34,7 @@
     onMarketOrder,
     onNoticeOpen,
     relicData,
+    recipeData,
     notify,
     openUrl,
     quit,
@@ -245,7 +247,9 @@
   /** The official drop tables' relics, over TennoScope's (see relicData.ts): current relics and vaulting. */
   let relicTables = $state.raw<RelicData | null>(null);
   const withTables = $derived(bundle && relicTables ? { ...bundle, relics: mergeRelics(bundle.relics, relicTables) } : bundle);
-  const model = $derived(withTables ? buildModel(withTables, live, foundry, settings.market.relicPrices, settings.game.imprints) : null);
+  /** Every Foundry recipe, parts' own included: what building something still takes. */
+  let recipes = $state.raw<RecipeData | null>(null);
+  const model = $derived(withTables ? buildModel(withTables, live, foundry, settings.market.relicPrices, settings.game.imprints, recipes) : null);
 
   // The reward screen: the cards a patched TennoScope read off it, scored here, and the pick
   // written back for TennoScope's overlay to show over the game.
@@ -1437,7 +1441,11 @@
       // The drop tables' relics: now, then every few hours (the cache says when to read them again).
       const tables = () => relicData().then((d) => { if (d) relicTables = d; });
       void tables();
-      tablesPoll = setInterval(tables, 3 * 3_600_000);
+      tablesPoll = setInterval(() => {
+        void tables();
+        void recipeData().then((r) => { if (r) recipes = r; });
+      }, 3 * 3_600_000);
+      void recipeData().then((r) => { if (r) recipes = r; });
       // TennoScope's log, for screens orbiter missed (a reading it didn't pass on, or a restart).
       screensPoll = setInterval(importScreens, 10 * 60_000);
       // EE.log is followed incrementally, so a short interval only reads what the game appended.

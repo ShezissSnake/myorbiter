@@ -4,6 +4,7 @@ import { masteryPoints } from "./acquire";
 import { partFullName, UNOBTAINABLE, type Model } from "./model";
 import { primeVaulted } from "./views";
 import type { CatalogItem, Component } from "./types";
+import { buildPlan, type BuildTier } from "./buildPlan";
 
 export type Group = "warframes" | "primary" | "secondary" | "melee" | "companions" | "archwing" | "other";
 
@@ -71,8 +72,10 @@ export interface CollectionItem {
   parts: PartState[];
   /** Every part (not resources) in hand: ready to build. */
   buildable: boolean;
-  /** Resources it takes that you don't have enough of ("Mortus Horn"). */
+  /** Resources it takes that you don't have enough of ("Mortus Horn"), parts' own blueprints included once the recipes are read. */
   short: string[];
+  /** Every part in hand: how easy building is now (buildPlan.ts); null otherwise. */
+  tier: BuildTier | null;
   /** Set price at the daily median, for primes. */
   setPrice: number | null;
   wiki: string | null;
@@ -156,6 +159,8 @@ export function collectionItem(m: Model, item: CatalogItem): CollectionItem {
   // Held built, not counting the one in the foundry: that one shows as Building.
   const owned = m.owned(item.uniqueName) - m.building(item.uniqueName) > 0;
   const pieces = parts.filter((p) => !p.resource);
+  const buildable = !owned && !building && pieces.length > 0 && pieces.every((p) => p.have >= p.required || p.building);
+  const plan = buildable && m.recipes ? buildPlan(m, item, m.recipes) : null;
   return {
     unique: item.uniqueName,
     name: item.name,
@@ -174,8 +179,9 @@ export function collectionItem(m: Model, item: CatalogItem): CollectionItem {
     masteryReq: item.masteryReq ?? 0,
     points: masteryPoints(item),
     parts,
-    buildable: !owned && !building && pieces.length > 0 && pieces.every((p) => p.have >= p.required || p.building),
-    short: parts.filter((p) => p.resource && p.have < p.required).map((p) => p.label),
+    buildable,
+    short: plan ? plan.short.map((r) => r.name) : parts.filter((p) => p.resource && p.have < p.required).map((p) => p.label),
+    tier: plan?.tier ?? null,
     setPrice: isPrime ? m.price(`${item.name} Set`) : null,
     wiki: item.wikiaUrl ?? null,
   };
