@@ -291,7 +291,7 @@ test("imprints: every one you hold is listed by breed, apart from your companion
   const RAKSA = "/Lotus/Types/Game/KubrowPet/GuardKubrowPetPowerSuit";
   const b = bundle([inv(RAKSA, "Raksa Kubrow", "companion", 1, { mastered: true })]);
   b.catalog.push({ uniqueName: RAKSA, name: "Raksa Kubrow", category: "Pets", masterable: true });
-  b.prices.prices["Raksa Kubrow Imprint"] = 15;
+  b.prices!.prices!["Raksa Kubrow Imprint"] = 15;
   const m = buildModel(b, undefined, null, null, [{ DominantTraits: { Personality: RAKSA } }, { DominantTraits: { Personality: RAKSA } }]);
   const rules = only({ imprints: true });
   const targets = sellTargets(m, rules, defaultAdvice());
