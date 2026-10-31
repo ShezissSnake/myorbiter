@@ -71,7 +71,7 @@
   import Wishlist from "./lib/tabs/Wishlist.svelte";
   import { openEras, wishlistEras } from "./lib/core/wishlist";
   import { rivens } from "./lib/rivenStore.svelte";
-  import { recordRivens, rivenTables, rollChoice } from "./lib/core/rivens";
+  import { cycleKey, recordRivens, rivenTables, rollChoice } from "./lib/core/rivens";
   import ItemDetails from "./lib/ItemDetails.svelte";
   import HoverCard from "./lib/HoverCard.svelte";
   import ListDialog from "./lib/ui/ListDialog.svelte";
@@ -959,9 +959,12 @@
       if (keep.length !== lc.hidden.length) settings.market.lastCopy.hidden = keep;
       return;
     }
+    const before = new Set(lc.hidden.map((h) => h.id));
+    const kept = new Set(keep.map((h) => h.id));
     const shown = await mkt.setShown(show, true);
     const failed = show.filter((o) => !shown.includes(o)).map((o) => ({ id: o.id, at: Date.now() }));
-    settings.market.lastCopy.hidden = [...keep, ...failed];
+    // From the list as it is now: a whisper while this waited may have hidden more, and those stay.
+    settings.market.lastCopy.hidden = [...settings.market.lastCopy.hidden.filter((h) => !before.has(h.id) || kept.has(h.id)), ...failed];
     if (shown.length) mkt.note(`Shown again${minutes ? `, not sold in ${minutes} min` : ""}: ${shown.map((o) => mkt.item(o.itemId)?.name ?? "a listing").join(", ")}`, "info");
   }
   $effect(() => {
@@ -1021,17 +1024,18 @@
   });
   // A riven mid-cycle (TennoScope read it while you choose): which roll to keep, as a notification
   // over the game, once per cycle.
-  const cycleSeen = new Set<string>();
   $effect(() => {
     const raws = settings.game.rivens;
     const m = model;
     if (!raws?.some((r) => r.pending) || !m) return;
     untrack(() => {
       const tables = rivenTables(m.catalogByUnique.values());
+      const seen = new Set(settings.game.cyclesNotified ?? []);
       for (const raw of raws) {
-        const key = `${raw.id}|${raw.pending?.rerolls ?? ""}|${JSON.stringify(raw.pending?.buffs ?? [])}`;
-        if (!raw.pending || cycleSeen.has(key)) continue;
-        cycleSeen.add(key);
+        if (!raw.pending) continue;
+        const key = cycleKey(raw);
+        if (seen.has(key)) continue;
+        settings.game.cyclesNotified = [key, ...(settings.game.cyclesNotified ?? [])].slice(0, 100);
         const c = rollChoice(m, tables, raw);
         if (c) tell("cycle", `${c.current.weapon}: ${c.verdict === "take" ? "take the new roll" : c.verdict === "keep" ? "keep the one it has" : "close call"}`, `${c.next.name} (${c.next.grade}) vs ${c.current.name} (${c.current.grade}). ${c.why}`, "rivens");
       }

@@ -267,11 +267,15 @@ export interface RollChoice {
   why: string;
 }
 
+/** One cycle of one riven: the riven, the cycle count and the roll on offer. */
+export const cycleKey = (raw: RivenRaw) => `${raw.id}|${raw.pending?.rerolls ?? ""}|${JSON.stringify(raw.pending?.buffs ?? [])}`;
+
 /** A riven mid-cycle: the roll it has and the one on offer, side by side, and which to keep. */
 export function rollChoice(m: Model, tables: Map<string, RivenStatDef[]>, raw: RivenRaw): RollChoice | null {
   if (!raw.pending?.buffs?.length) return null;
   const current = parseRiven(m, tables, raw);
-  const next = parseRiven(m, tables, { ...raw, fp: { ...raw.fp, ...raw.pending } });
+  // The new roll's own curses: none when it has none, never the old roll's.
+  const next = parseRiven(m, tables, { ...raw, fp: { ...raw.fp, ...raw.pending, curses: raw.pending.curses ?? [] } });
   if (!current || !next) return null;
   const a = rollScore(current);
   const b = rollScore(next);

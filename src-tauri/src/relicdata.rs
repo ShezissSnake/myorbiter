@@ -124,9 +124,10 @@ fn bounties(all: &Value) -> Value {
 pub fn relic_data(dir: &Path, force: bool) -> Result<Value, String> {
     let path = dir.join(FILE);
     let cached: Option<Value> = fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok());
-    // A cache from before the bounty tables were kept is read again, once.
-    let cached = cached.filter(|c| c.get("bounties").is_some());
-    if let Some(c) = &cached {
+    // A cache from before the bounty tables were kept is read again, once; it's still what's
+    // used if the tables can't be reached.
+    let complete = cached.as_ref().is_some_and(|c| c.get("bounties").is_some());
+    if let Some(c) = cached.as_ref().filter(|_| complete) {
         if !force && now().saturating_sub(c["checkedAt"].as_u64().unwrap_or(0)) < FRESH {
             return Ok(c.clone());
         }
@@ -137,7 +138,7 @@ pub fn relic_data(dir: &Path, force: bool) -> Result<Value, String> {
     };
     let hash = info["hash"].as_str().unwrap_or("").to_string();
     let modified = info["modified"].as_u64().unwrap_or(0);
-    if let Some(mut c) = cached.clone() {
+    if let Some(mut c) = cached.clone().filter(|_| complete) {
         if !hash.is_empty() && c["hash"].as_str() == Some(hash.as_str()) {
             c["checkedAt"] = json!(now());
             let _ = crate::write_atomic(&path, &serde_json::to_vec(&c).unwrap_or_default(), false);

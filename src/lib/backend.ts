@@ -207,6 +207,8 @@ export interface GameState {
   dealsNotified: string[];
   fissuresNotified: string[];
   rivensNotified: string[];
+  /** Riven cycles already told about (riven, cycle and roll), so a restart doesn't tell again. */
+  cyclesNotified: string[];
   /** Listings for more than you held, already told (order id | quantity listed). */
   shortNotified: string[];
   /** Inventory value over time: one point per inventory read. */
@@ -243,7 +245,7 @@ export interface TradeLogEntry {
   platOut: number;
   platIn: number;
 }
-export const defaultGame = (): GameState => ({ foundryReady: [], masteryRank: null, platinum: null, credits: null, endo: null, rivens: null, imprints: null, rivenHistory: {}, foundryNotified: [], whispersSeen: [], chatsSeen: {}, dealsNotified: [], fissuresNotified: [], rivensNotified: [], shortNotified: [], valueHistory: [], relicRuns: [], notices: [], worldNotified: [] });
+export const defaultGame = (): GameState => ({ foundryReady: [], masteryRank: null, platinum: null, credits: null, endo: null, rivens: null, imprints: null, rivenHistory: {}, foundryNotified: [], whispersSeen: [], chatsSeen: {}, dealsNotified: [], fissuresNotified: [], rivensNotified: [], cyclesNotified: [], shortNotified: [], valueHistory: [], relicRuns: [], notices: [], worldNotified: [] });
 
 export interface NotifySettings {
   /** The reward screen opened: which card to take. */

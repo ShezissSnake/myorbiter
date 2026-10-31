@@ -6,7 +6,7 @@
   import type { RivenWatch, Settings } from "../backend";
   import { marketUrl, openUrl } from "../backend";
   import { tradesFor, type RivenTrade } from "../core/rivens";
-  import { auctionItemFor, auctionOf, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, rollChoice, searchFor, type MyAuction, type Riven, type RivenAuction, type RivenChange, type RollChoice } from "../core/rivens";
+  import { auctionItemFor, auctionOf, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, rollChoice, cycleKey, searchFor, type MyAuction, type Riven, type RivenAuction, type RivenChange, type RollChoice } from "../core/rivens";
   import { mkt } from "../marketStore.svelte";
   import { rivens } from "../rivenStore.svelte";
   import PageHead from "../ui/PageHead.svelte";
@@ -31,22 +31,22 @@
   const veiled = $derived([...model.inventoryByBase.entries()].filter(([u]) => /\/Randomized\/Raw/.test(u)).reduce((n, [, rows]) => n + rows.reduce((k, r) => k + r.quantity, 0), 0));
   // What the last cycle orbiter saw did to each riven.
   // Rivens mid-cycle: the roll each has and the one on offer, and which to keep.
-  const choices = $derived((settings.game.rivens ?? []).map((raw) => rollChoice(model, tables, raw)).filter((c): c is RollChoice => !!c));
-  // What similar rivens are listed for, each roll, to settle a close call.
+  const choices = $derived((settings.game.rivens ?? []).filter((raw) => raw.pending).map((raw) => ({ key: cycleKey(raw), c: rollChoice(model, tables, raw) })).filter((x): x is { key: string; c: RollChoice } => !!x.c));
+  // What similar rivens are listed for, each roll, to settle a close call: per cycle, not per riven.
   let rollPrices = $state<Record<string, { current: number | null; next: number | null }>>({});
   $effect(() => {
     const m = meta;
     if (!m) return;
-    for (const c of choices) {
-      if (rollPrices[c.current.id]) continue;
-      rollPrices[c.current.id] = { current: null, next: null };
+    for (const { key, c } of choices) {
+      if (rollPrices[key]) continue;
+      rollPrices[key] = { current: null, next: null };
       void (async () => {
         const price = async (r: Riven) => {
           const q = searchFor(m, r);
           if (!q.weapon) return null;
           return priceCheck(await rivens.search(q.weapon, q.positive.slice(0, 2), null).catch(() => [])).typical;
         };
-        rollPrices[c.current.id] = { current: await price(c.current), next: await price(c.next) };
+        rollPrices[key] = { current: await price(c.current), next: await price(c.next) };
       })();
     }
   });
@@ -320,8 +320,8 @@
 
   {#if choices.length}
     <section class="cycling" aria-label="Cycling now">
-      {#each choices as c (c.current.id)}
-        {@const pc = rollPrices[c.current.id]}
+      {#each choices as { key, c } (key)}
+        {@const pc = rollPrices[key]}
         <article class="choice">
           <header><Thumb file={c.current.image} name={c.current.weapon} size={30} /><b class="mark">Cycling {c.current.weapon}</b><span class="verdict v-{c.verdict}">{c.verdict === "take" ? "Take the new roll" : c.verdict === "keep" ? "Keep the one it has" : "Too close to call"}</span></header>
           <p class="small">{c.why}{#if pc?.current != null && pc?.next != null}{" "}Similar rivens are listed around <b>{pc.current}p</b> for the one it has and <b>{pc.next}p</b> for the new roll.{/if}</p>

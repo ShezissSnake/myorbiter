@@ -835,19 +835,23 @@ index 9c554b3..d797b32 100644
          self.carry.extend_from_slice(bytes);
          let complete = self
 diff --git a/app/src-tauri/src/reward_ocr.rs b/app/src-tauri/src/reward_ocr.rs
-index 1e6a6f4..a9dd1c5 100644
+index 1e6a6f4..cff0e43 100644
 --- a/app/src-tauri/src/reward_ocr.rs
 +++ b/app/src-tauri/src/reward_ocr.rs
-@@ -169,7 +169,7 @@ impl VisualRewardSource for ScreenRewardSource {
+@@ -168,8 +168,11 @@ impl VisualRewardSource for ScreenRewardSource {
+         candidates: CardCandidates<'_>,
      ) -> Result<Vec<(String, f32)>, &'static str> {
          let frames = self.capture.capture_candidates()?;
++        // Once per poll, not per frame: with a frame per monitor, the first monitor would take
++        // the learning slot every time and the one with the game would never learn its colour.
++        let learn = learn_due();
          read_capture_candidates(&frames, &LATEST_MATCHED_RECT, |frame| {
 -            read_cards_in(frame, candidates)
-+            read_cards_learning(frame, candidates, learn_due())
++            read_cards_learning(frame, candidates, learn)
          })
      }
  }
-@@ -224,15 +224,175 @@ pub fn read_cards(
+@@ -224,15 +227,175 @@ pub fn read_cards(
  pub fn read_cards_in(
      image: &DynamicImage,
      candidates: CardCandidates<'_>,
@@ -1024,7 +1028,7 @@ index 1e6a6f4..a9dd1c5 100644
      if widest.is_ok() {
          return widest.map_err(|(_, reason)| reason);
      }
-@@ -251,7 +411,7 @@ pub fn read_cards_in(
+@@ -251,7 +414,7 @@ pub fn read_cards_in(
          if shares_slots_with_the_widest && !outside_the_block_is_empty {
              break;
          }
@@ -1033,7 +1037,7 @@ index 1e6a6f4..a9dd1c5 100644
              return Ok(read);
          }
      }
-@@ -269,16 +429,17 @@ fn read_cards_at(
+@@ -269,16 +432,17 @@ fn read_cards_at(
      height: u32,
      cards: usize,
      candidates: CardCandidates<'_>,
@@ -1053,7 +1057,7 @@ index 1e6a6f4..a9dd1c5 100644
          )
          .map_err(|reason| (slot, reason))?;
          let matched = best_card_match(&text, candidates);
-@@ -310,10 +471,33 @@ fn read_cards_at(
+@@ -310,10 +474,33 @@ fn read_cards_at(
          if normalise(&text).is_empty() {
              return Err((slot, BLANK_CARD));
          }
@@ -1091,7 +1095,7 @@ index 1e6a6f4..a9dd1c5 100644
      }
      Ok(read)
  }
-@@ -321,7 +505,7 @@ fn read_cards_at(
+@@ -321,7 +508,7 @@ fn read_cards_at(
  /// Crop one region and OCR it. Returns the text and the crop, which the caller deletes. It is
  /// kept only when the read was poor enough to be worth looking at.
  ///
@@ -1100,7 +1104,7 @@ index 1e6a6f4..a9dd1c5 100644
  /// greyscale crop directly makes it read the art: a dark helmet behind a word garbles it, and card
  /// borders at the edge of the crop come back as leading `|`, `Fr` or `pA UY`. Isolating the text
  /// from the art is what fixes both, and it is a two-step job. `-normalize` first, so the cutoff is
-@@ -341,24 +525,37 @@ fn read_region(
+@@ -341,24 +528,37 @@ fn read_region(
      y: u32,
      width: u32,
      height: u32,
@@ -1141,7 +1145,7 @@ index 1e6a6f4..a9dd1c5 100644
          .collect::<Vec<_>>();
      let prepared = threshold_inverted(&normalize_contrast(&grey));
      let prepared = GrayImage::from_raw(width, height, prepared)
-@@ -377,6 +574,18 @@ pub fn prepare_crop(source: &DynamicImage, x: u32, y: u32, width: u32, height: u
+@@ -377,6 +577,18 @@ pub fn prepare_crop(source: &DynamicImage, x: u32, y: u32, width: u32, height: u
      )
  }
  
@@ -1176,6 +1180,24 @@ index 5b69397..d2d9ef1 100644
      let exe = std::env::current_exe().unwrap_or_default();
      let appimage = std::env::var_os("APPIMAGE").map(std::path::PathBuf::from);
      let writable = appimage.as_ref().is_some_and(|p| file_writable(p));
+diff --git a/app/src-tauri/tauri.linux.conf.json b/app/src-tauri/tauri.linux.conf.json
+new file mode 100644
+index 0000000..846edb6
+--- /dev/null
++++ b/app/src-tauri/tauri.linux.conf.json
+@@ -0,0 +1,12 @@
++{
++  "bundle": {
++    "createUpdaterArtifacts": false,
++    "resources": {
++      "../../LICENSE": "LICENSE",
++      "../../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
++      "vendor/tesseract/tesseract": "tesseract/tesseract",
++      "vendor/tesseract/eng.traineddata": "tesseract/eng.traineddata",
++      "vendor/tesseract/lib/*": "tesseract/lib/"
++    }
++  }
++}
 diff --git a/app/src-tauri/tests/fixtures/reward-screen-blue-theme.png b/app/src-tauri/tests/fixtures/reward-screen-blue-theme.png
 new file mode 100644
 index 0000000000000000000000000000000000000000..fef34cfcff37599dcf220fcf9714eda34581c2d6
@@ -3233,6 +3255,9 @@ index 756d18e..019c706 100644
  /// The same screen at 16:10, which is a Steam Deck's native 1280x800.
  ///
  /// Warframe scales its HUD with window *height* and centres it horizontally, but the card geometry
+diff --git a/app/src-tauri/vendor/tesseract/.gitkeep b/app/src-tauri/vendor/tesseract/.gitkeep
+deleted file mode 100644
+index e69de29..0000000
 diff --git a/app/src/App.css b/app/src/App.css
 index bf03363..5db8f2e 100644
 --- a/app/src/App.css
