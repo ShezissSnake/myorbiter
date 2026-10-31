@@ -11,11 +11,25 @@ name: Release builds
 # storage limit, which a free account's private repository fills with one of these builds, so
 # nothing is passed between jobs as an artifact: each system builds TennoScope and orbiter in one
 # job and attaches its own file.
+#
+# Actions minutes: a private repository on the free plan gets 2,000 a month, and Windows minutes
+# count double and macOS ten times. A run started by hand builds Linux and Windows (about 45
+# minutes' worth) unless told otherwise: Windows can be left out (about 15), and macOS is only built
+# when asked for (about 20 more). A version tag builds all three.
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      windows:
+        description: "Windows installer (its minutes count double)"
+        type: boolean
+        default: true
+      macos:
+        description: "macOS dmg (its minutes count ten times)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -38,7 +52,7 @@ jobs:
         run: |
           gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --prerelease --title "orbiter $RELEASE_TAG" \
-            --notes "Built from ${GITHUB_SHA::7}. The AppImage is for Linux and the Steam Deck, the setup.exe for Windows, the .dmg for macOS (Apple silicon). tennoscope-orbiter-source.tar.gz is the source of the TennoScope inside them (GPL-3.0)."
+            --notes "Built from ${GITHUB_SHA::7}. The AppImage is for Linux and the Steam Deck, the setup.exe for Windows, the .dmg for macOS (Apple silicon), whichever this run built. tennoscope-orbiter-source.tar.gz is the source of the TennoScope inside them (GPL-3.0)."
 
   # ------------------------------------------------------------------ Linux and the Steam Deck
 
@@ -163,6 +177,7 @@ jobs:
   windows:
     name: Windows installer
     needs: release
+    if: github.event_name != 'workflow_dispatch' || inputs.windows
     runs-on: windows-latest
     defaults:
       run:
@@ -231,6 +246,7 @@ jobs:
   macos:
     name: macOS dmg
     needs: release
+    if: github.event_name != 'workflow_dispatch' || inputs.macos
     # Apple silicon, which is what Warframe on the Mac runs on.
     runs-on: macos-latest
     steps:
