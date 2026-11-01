@@ -8,8 +8,10 @@ pub mod ee_log;
 pub mod reward_log;
 
 use rusqlite::{Connection, OpenFlags};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use serde_json::value::RawValue;
 use serde_json::{Map, Value};
+use std::borrow::Cow;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -127,7 +129,7 @@ static CATALOG: Mutex<Option<Slimmed>> = Mutex::new(None);
 static RELICS: Mutex<Option<Slimmed>> = Mutex::new(None);
 
 /// `read` of `path`, reused while the file's size and modification time stay the same. Reading
-/// and slimming the ~80 MB catalog takes about a second and a few hundred MB at peak, and the
+/// and slimming the ~80 MB catalog takes most of a second, and the
 /// window reloads the bundle every time TennoScope writes its database.
 /// Also returns the file state the items go with. A file rewritten between that check and the read
 /// is reported with its older state, so the next check reads it again (and the window, seeing a new
@@ -247,15 +249,47 @@ fn read_json(path: &Path) -> Result<Value, DataError> {
 }
 
 /// TennoScope wraps both catalogs as `{ fetched_unix, catalog: [...] }`.
-fn catalog_entries(value: Value) -> Vec<Value> {
-    match value {
-        Value::Object(mut map) => match map.remove("catalog") {
-            Some(Value::Array(items)) => items,
-            _ => Vec::new(),
-        },
-        Value::Array(items) => items,
-        _ => Vec::new(),
+#[derive(Deserialize)]
+struct Wrapped<'a> {
+    #[serde(borrow, default)]
+    catalog: Vec<&'a RawValue>,
+}
+
+/// What an entry is, read before the rest of it.
+#[derive(Deserialize)]
+struct Head<'a> {
+    #[serde(borrow, default)]
+    category: Option<Cow<'a, str>>,
+    #[serde(default)]
+    masterable: Option<bool>,
+}
+
+/// The entries of a catalog file that `keep` wants, each with only `fields`. Most of the ~80 MB
+/// item catalog is skins, glyphs and patch logs: those are only scanned, never built, which reads
+/// it in about half the time of building the whole file and picking from it.
+fn catalog_entries(path: &Path, keep: fn(&str, bool) -> bool, fields: &[&str]) -> Result<Vec<Map<String, Value>>, DataError> {
+    let bytes = fs::read(path).map_err(|source| io_error(path, source))?;
+    let json = |source| DataError::Json { path: path.to_path_buf(), source };
+    let raw: Vec<&RawValue> = match serde_json::from_slice::<Wrapped>(&bytes) {
+        Ok(w) => w.catalog,
+        Err(first) => serde_json::from_slice(&bytes).map_err(|_| json(first))?,
+    };
+    let mut out = Vec::new();
+    for entry in raw {
+        let Ok(head) = serde_json::from_str::<Head>(entry.get()) else { continue };
+        if !keep(head.category.as_deref().unwrap_or(""), head.masterable.unwrap_or(false)) {
+            continue;
+        }
+        let parts: std::collections::HashMap<Cow<str>, &RawValue> = serde_json::from_str(entry.get()).map_err(json)?;
+        let mut obj = Map::new();
+        for f in fields {
+            if let Some(v) = parts.get(*f) {
+                obj.insert((*f).to_string(), serde_json::from_str(v.get()).map_err(json)?);
+            }
+        }
+        out.push(obj);
     }
+    Ok(out)
 }
 
 const KEPT_CATEGORIES: &[&str] = &[
@@ -288,20 +322,25 @@ fn pick(src: &Map<String, Value>, fields: &[&str]) -> Map<String, Value> {
         .collect()
 }
 
+/// Every field of an entry [`read_catalog`] looks at.
+const READ_FIELDS: &[&str] = &[
+    "abilities", "damage", "fusionLimit", "levelStats", "components", "drops", "polarity", "baseDrain",
+    "compatName", "upgradeEntries",
+];
+
+/// The item categories orbiter looks at: of Misc, only what counts for mastery (Plexus, amps).
+fn kept_item(category: &str, masterable: bool) -> bool {
+    KEPT_CATEGORIES.contains(&category) && (category != "Misc" || masterable)
+}
+
 /// Keeps the item categories orbiter looks at, and only the fields it reads. The full file is
 /// ~80 MB, mostly skins, glyphs and patch logs.
 fn read_catalog(path: &Path) -> Result<Vec<Value>, DataError> {
+    let fields: Vec<&str> = [ITEM_FIELDS, DETAIL_FIELDS, READ_FIELDS].concat();
     let mut out = Vec::new();
-    for item in catalog_entries(read_json(path)?) {
-        let Value::Object(obj) = item else { continue };
+    for obj in catalog_entries(path, kept_item, &fields)? {
         let category = obj.get("category").and_then(Value::as_str).unwrap_or("");
-        if !KEPT_CATEGORIES.contains(&category) {
-            continue;
-        }
         let masterable = obj.get("masterable").and_then(Value::as_bool).unwrap_or(false);
-        if category == "Misc" && !masterable {
-            continue;
-        }
         let mut slim = pick(&obj, ITEM_FIELDS);
         if masterable && category != "Mods" && category != "Arcanes" {
             slim.extend(pick(&obj, DETAIL_FIELDS));
@@ -403,8 +442,7 @@ fn slim_drops(drops: Option<&Value>) -> Vec<Value> {
 
 fn read_relics(path: &Path) -> Result<Vec<Value>, DataError> {
     let mut out = Vec::new();
-    for item in catalog_entries(read_json(path)?) {
-        let Value::Object(obj) = item else { continue };
+    for obj in catalog_entries(path, |_, _| true, &["uniqueName", "name", "vaulted", "tradable", "imageName", "drops", "rewards"])? {
         let mut slim = pick(&obj, &["uniqueName", "name", "vaulted", "tradable", "imageName"]);
         // Where the relic itself drops (best chance first), for "where to farm it".
         slim.insert("drops".into(), Value::Array(slim_drops(obj.get("drops"))));

@@ -90,7 +90,16 @@ export function primeToBuild(m: Model, unique: string): { copies: number; for: s
   return { copies: self, for: m.catalogByUnique.get(unique)?.name ?? "" };
 }
 
+/** Every prime set you hold a part of. Worked out once a model (several pages and the reward-pick
+ * score ask for it, the last once a relic), so callers must not change the list. */
+const setRowsMemo = new WeakMap<Model, SetRow[]>();
 export function setRows(m: Model): SetRow[] {
+  let rows = setRowsMemo.get(m);
+  if (!rows) setRowsMemo.set(m, (rows = computeSetRows(m)));
+  return rows;
+}
+
+function computeSetRows(m: Model): SetRow[] {
   const rows: SetRow[] = [];
   for (const parent of m.primeParents) {
     const parts = m.partsByParent.get(parent.uniqueName)!;

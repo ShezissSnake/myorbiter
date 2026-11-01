@@ -44,16 +44,26 @@ const PLAT_FLOOR = 10;
 const norm = (s: string) => s.toLowerCase().replace(/\s+blueprint$/, "").replace(/\s+/g, " ").trim();
 
 /** The model's name for a reward as TennoScope or a relic table spells it. */
+const byNorm = new WeakMap<Model, Map<string, string>>();
 export function resolveName(m: Model, raw: string): string {
   if (m.partByName.has(raw)) return raw;
-  const want = norm(raw);
-  for (const name of m.partByName.keys()) if (norm(name) === want) return name;
-  return raw;
+  let index = byNorm.get(m);
+  if (!index) {
+    index = new Map();
+    // The first name to give a spelling wins, as the search through the names did.
+    for (const name of m.partByName.keys()) if (!index.has(norm(name))) index.set(norm(name), name);
+    byNorm.set(m, index);
+  }
+  return index.get(norm(raw)) ?? raw;
 }
 
 /** One more set's worth: what's missing, per prime item, after the sets you already have. */
+const gapsMemo = new WeakMap<Model, Map<string, { set: string; missing: number }>>();
 function setGapsByPart(m: Model) {
+  const had = gapsMemo.get(m);
+  if (had) return had;
   const byPart = new Map<string, { set: string; missing: number }>();
+  gapsMemo.set(m, byPart);
   for (const s of setRows(m)) {
     const missing = s.missing.reduce((n, x) => n + x.count, 0);
     if (missing === 0 || missing > 2) continue;
