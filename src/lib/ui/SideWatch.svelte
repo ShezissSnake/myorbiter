@@ -49,7 +49,7 @@
   const builds = $derived(model && !console ? foundryBuilds(model, settings.game.foundryReady, now).slice(0, 6) : []);
   const need = (name: string) => !!model && !console && (scoreCards(model, [name])[0]?.needed ?? false);
   const boards = $derived(bountyBoards(live.syndicates ?? null, bountyTables, need));
-  const CYCLE_ICON: Record<string, GameIconName> = { earth: "cycles", cetus: "ostron", vallis: "solaris-united", cambion: "entrati", zariman: "holdfasts" };
+  const CYCLE_ICON: Record<string, GameIconName> = { earth: "cycles", cetus: "ostron", vallis: "solaris-united", cambion: "entrati", zariman: "holdfasts", duviri: "mastery" };
   const eraIcon = (era: string): GameIconName => (era === "Omnia" ? "void-tear" : (`relic-${era.toLowerCase()}-intact` as GameIconName));
   const left = (iso: string) => until(iso, now).replace("under a minute", "<1 min");
   const soldToday = $derived.by(() => {
@@ -155,6 +155,11 @@
   .era b { font-family: var(--face-mark); color: var(--platinum); }
   .st-day, .st-warm, .st-fass { color: var(--gold) !important; }
   .st-night, .st-cold, .st-vome { color: #8fb3e0 !important; }
+  .st-joy { color: var(--gold) !important; }
+  .st-anger { color: #e07a6a !important; }
+  .st-envy { color: #7fc79a !important; }
+  .st-sorrow { color: #8fb3e0 !important; }
+  .st-fear { color: #b49ae0 !important; }
   .figs { display: flex; gap: 1.2rem; }
   .figs > span { display: grid; }
   .figs b { font-family: var(--face-mark); font-size: 1.2rem; color: var(--platinum); }

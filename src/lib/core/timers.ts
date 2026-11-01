@@ -8,10 +8,11 @@ export const PLACE: Record<WorldCycle["key"], string> = {
   vallis: "Orb Vallis",
   cambion: "Cambion Drift",
   zariman: "Zariman",
+  duviri: "Duviri",
 };
 
 /** The next state each cycle turns to: what the timer counts down to. */
-const NEXT: Record<string, string> = { day: "night", night: "day", warm: "cold", cold: "warm", fass: "vome", vome: "fass", corpus: "grineer", grineer: "corpus" };
+const NEXT: Record<string, string> = { day: "night", night: "day", warm: "cold", cold: "warm", fass: "vome", vome: "fass", corpus: "grineer", grineer: "corpus", joy: "anger", anger: "envy", envy: "sorrow", sorrow: "fear", fear: "joy" };
 
 export interface Timer {
   key: string;
@@ -26,8 +27,8 @@ export function nextDailyUtc(now = Date.now()): string {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1)).toISOString();
 }
 
-/** How long each state lasts, in minutes, so a clock rolls on between worldstate refreshes (Earth: 4 h each; Plains: 100 min day, 50 night). */
-const LENGTH: Record<string, number> = { warm: 400 / 60, cold: 20, fass: 100, vome: 50, corpus: 150, grineer: 150 };
+/** How long each state lasts, in minutes, so a clock rolls on between worldstate refreshes (Earth: 4 h each; Plains: 100 min day, 50 night; Duviri: 2 h each mood). */
+const LENGTH: Record<string, number> = { warm: 400 / 60, cold: 20, fass: 100, vome: 50, corpus: 150, grineer: 150, joy: 120, anger: 120, envy: 120, sorrow: 120, fear: 120 };
 const length = (key: WorldCycle["key"], state: string) =>
   key === "earth" ? 240 : key === "cetus" ? (state === "day" ? 100 : 50) : (LENGTH[state] ?? 0);
 

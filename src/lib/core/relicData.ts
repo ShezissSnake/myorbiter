@@ -19,6 +19,8 @@ export interface RelicData {
   paths: Record<string, string>;
   /** The Zariman's, Cavia's and Höllvania's bounty tiers and what each pays (see board.ts). */
   bounties?: BountyTable[];
+  /** What the Sortie pays at the end: one reward from this table, best chance first. */
+  sortie?: RelicReward[];
 }
 
 const keyOf = (name: string) => {

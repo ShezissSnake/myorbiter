@@ -16,7 +16,7 @@ export interface Today {
   circuit: { frames: CircuitChoice[]; incarnons: CircuitChoice[]; resets: string } | null;
   steelPath: { reward: string; cost: number; ends: string } | null;
   nightwave: { standing: number; challenges: { title: string; desc: string; reputation: number; kind: "daily" | "weekly" | "elite" }[]; ends: string } | null;
-  sortie: { boss: string; missions: string[]; ends: string } | null;
+  sortie: { boss: string; faction: string; stages: { mission: string; node: string; modifier: string; desc: string }[]; ends: string } | null;
   archon: { boss: string; shard: string; missions: string[]; ends: string } | null;
   /** Darvo's daily deal; `wanted` when it's something masterable you haven't mastered or built. */
   darvo: { item: string; price: number; was: number; discount: number; left: number | null; ends: string; wanted: boolean; note: string | null } | null;
@@ -91,7 +91,9 @@ export function today(m: Model, live: Live, now = Date.now()): Today {
     : null;
 
   const s = live.sortie;
-  const sortie = s ? { boss: s.boss, missions: (s.variants ?? []).map((v) => `${v.missionType} · ${v.node}`), ends: s.expiry } : null;
+  const sortie = s
+    ? { boss: s.boss, faction: s.faction ?? "", stages: (s.variants ?? []).map((v) => ({ mission: v.missionType, node: v.node, modifier: v.modifier ?? "", desc: v.modifierDescription ?? "" })), ends: s.expiry }
+    : null;
   const a = live.archonHunt;
   const archon = a ? { boss: a.boss, shard: SHARD[a.boss] ?? "", missions: (a.missions ?? []).map((x) => `${x.type} · ${x.node}`), ends: a.expiry } : null;
 

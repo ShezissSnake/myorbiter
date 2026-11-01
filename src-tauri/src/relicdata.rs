@@ -83,7 +83,21 @@ fn compact(relics: &Value, all: &Value, wfcd: Option<&Value>, hash: &str, modifi
             paths.insert(u.to_string(), Value::String(n.to_string()));
         }
     }
-    json!({ "hash": hash, "modified": modified, "checkedAt": now(), "relics": list, "drops": drops, "paths": paths, "bounties": bounties(all) })
+    json!({ "hash": hash, "modified": modified, "checkedAt": now(), "relics": list, "drops": drops, "paths": paths, "bounties": bounties(all), "sortie": sortie(all) })
+}
+
+/// What the Sortie pays at the end, one reward from this table: `{ name, chance, rarity }`, best
+/// chance first. The worldstate only says the pool's name.
+fn sortie(all: &Value) -> Vec<Value> {
+    let mut out: Vec<Value> = all
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|d| d["place"].as_str() == Some("Sorties"))
+        .filter_map(|d| Some(json!({ "name": d["item"].as_str()?, "chance": d["chance"].as_f64()?, "rarity": d["rarity"].as_str().unwrap_or("") })))
+        .collect();
+    out.sort_by(|x, y| y["chance"].as_f64().unwrap_or(0.0).total_cmp(&x["chance"].as_f64().unwrap_or(0.0)));
+    out
 }
 
 /// The bounty reward tables the worldstate doesn't carry: the Zariman's, Albrecht's
@@ -142,9 +156,9 @@ fn bounties(all: &Value) -> Value {
 pub fn relic_data(dir: &Path, force: bool) -> Result<Value, String> {
     let path = dir.join(FILE);
     let cached: Option<Value> = fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok());
-    // A cache from before the bounty tables (or the open worlds' ones) were kept is read again, once; it's still what's
+    // A cache from before the bounty tables (the open worlds' ones, the Sortie's) were kept is read again, once; it's still what's
     // used if the tables can't be reached.
-    let complete = cached.as_ref().is_some_and(|c| c["bounties"].as_array().is_some_and(|b| b.iter().any(|t| t["place"] == "cetus" && t["rotation"].is_string())));
+    let complete = cached.as_ref().is_some_and(|c| c["bounties"].as_array().is_some_and(|b| b.iter().any(|t| t["place"] == "cetus" && t["rotation"].is_string())) && c["sortie"].is_array());
     if let Some(c) = cached.as_ref().filter(|_| complete) {
         if !force && now().saturating_sub(c["checkedAt"].as_u64().unwrap_or(0)) < FRESH {
             return Ok(c.clone());
@@ -204,6 +218,11 @@ mod tests {
         assert_eq!(drops.len(), 2);
         assert_eq!(drops[0]["location"], "Void/Mot (Survival), Rotation C", "best chance first, markup gone");
         assert!(v["drops"].get("Forma Blueprint").is_none());
+        assert_eq!(v["sortie"], json!([]));
+        let sorties = json!([{ "place": "Sorties", "item": "Forma", "rarity": "Rare", "chance": 2.5 }, { "place": "Sorties", "item": "4000 Endo", "rarity": "Uncommon", "chance": 12.0 }]);
+        let s = sortie(&sorties);
+        assert_eq!(s[0]["name"], "4000 Endo", "best chance first");
+        assert_eq!(s.len(), 2);
         assert_eq!(v["paths"]["/Lotus/Types/Game/Projections/T1VoidProjectionSteflosPrimeABronze"], "Lith A13 Intact");
     }
 

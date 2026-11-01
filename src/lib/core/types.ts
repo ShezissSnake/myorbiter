@@ -203,7 +203,9 @@ export interface Live {
   /** Darvo's daily deal in the in-game Market. */
   darvo?: DarvoDeal | null;
   duviriCycle?: DuviriCycle | null;
-  /** Day/night and the like on the open worlds: Earth, Cetus, Orb Vallis, Cambion Drift, Zariman. */
+  /** Events running in game: Tactical Alerts, operations, seasonal ones. */
+  events?: WorldEvent[] | null;
+  /** Day/night and the like on the open worlds: Earth, Cetus, Orb Vallis, Cambion Drift, Zariman; and Duviri's mood. */
   cycles?: WorldCycle[];
 }
 
@@ -220,10 +222,24 @@ export interface DarvoDeal {
 }
 
 export interface WorldCycle {
-  key: "earth" | "cetus" | "vallis" | "cambion" | "zariman";
-  /** "day", "night", "warm", "cold", "fass", "vome", "corpus", "grineer". */
+  key: "earth" | "cetus" | "vallis" | "cambion" | "zariman" | "duviri";
+  /** "day", "night", "warm", "cold", "fass", "vome", "corpus", "grineer"; Duviri's mood: "joy", "anger", "envy", "sorrow", "fear". */
   state: string;
   expiry: string;
+}
+
+/** An event running in game (a Tactical Alert, an operation, a seasonal one), from the worldstate. */
+export interface WorldEvent {
+  id: string;
+  description: string;
+  tooltip?: string;
+  node?: string;
+  activation?: string;
+  expiry: string;
+  maximumScore?: number;
+  currentScore?: number;
+  rewards?: { items?: string[]; countedItems?: { type: string; count: number }[]; credits?: number }[];
+  interimSteps?: { goal?: number; reward?: { items?: string[]; countedItems?: { type: string; count: number }[] } }[];
 }
 
 export interface Nightwave {
@@ -234,7 +250,7 @@ export interface SortieLike {
   expiry: string;
   boss: string;
   faction?: string;
-  variants?: { missionType: string; node: string; modifier?: string }[];
+  variants?: { missionType: string; node: string; modifier?: string; modifierDescription?: string }[];
   missions?: { type: string; node: string }[];
 }
 export interface SteelPath {

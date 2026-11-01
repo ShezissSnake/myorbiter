@@ -15,7 +15,7 @@ import type { SyndicateMission } from "./core/board";
 import type { RecipeData } from "./core/buildPlan";
 import type { WorldAlert } from "./core/worldNeeds";
 import type { RelicData } from "./core/relicData";
-import type { Bundle, CatalogPart, CollectionPart, DarvoDeal, DuviriCycle, Fissure, Live, MissionState, Nightwave, SortieLike, SteelPath, VaultTraderItem } from "./core/types";
+import type { Bundle, CatalogPart, CollectionPart, DarvoDeal, DuviriCycle, Fissure, Live, MissionState, Nightwave, SortieLike, SteelPath, VaultTraderItem, WorldEvent } from "./core/types";
 import { defaultPickWeights, type PickWeights } from "./core/pick";
 import type { Notice } from "./notices";
 
@@ -434,7 +434,7 @@ const obj = <T,>(v: unknown, key: string): T | null => (v && typeof v === "objec
  * there, the week's Sortie and Nightwave). Alerts, invasions and Darvo's deal don't: an old one
  * would mislead.
  */
-const KEEP_LIVE = new Set(["fissures", "baro", "resurgence", "resurgenceExpiry", "cycles", "sortie", "archonHunt", "steelPath", "nightwave", "duviriCycle", "syndicates"]);
+const KEEP_LIVE = new Set(["fissures", "baro", "resurgence", "resurgenceExpiry", "cycles", "sortie", "archonHunt", "steelPath", "nightwave", "duviriCycle", "syndicates", "events"]);
 export function mergeLive(old: Live, next: Live, now = Date.now()): Live {
   const out = { ...next } as Record<string, unknown>;
   for (const [k, v] of Object.entries(old)) {
@@ -463,7 +463,7 @@ export function pruneLive(live: Live, now = Date.now()): Live {
   const over = (end: string | undefined | null) => typeof end === "string" && Date.parse(end) <= now;
   const out: Live = { ...live };
   let changed = false;
-  const list = <T extends { expiry?: string }>(k: "fissures" | "alerts" | "syndicates") => {
+  const list = <T extends { expiry?: string }>(k: "fissures" | "alerts" | "syndicates" | "events") => {
     const xs = live[k] as T[] | null | undefined;
     if (!Array.isArray(xs)) return;
     const kept = xs.filter((x) => !over(x?.expiry));
@@ -475,6 +475,7 @@ export function pruneLive(live: Live, now = Date.now()): Live {
   list("fissures");
   list("alerts");
   list("syndicates");
+  list("events");
   for (const k of ["baro", "sortie", "archonHunt", "steelPath", "darvo", "duviriCycle", "nightwave"] as const) {
     if (over((live[k] as { expiry?: string } | null | undefined)?.expiry)) {
       out[k] = null;
@@ -518,7 +519,7 @@ export async function loadLive(): Promise<Live> {
     if (inTauri) raw = await invoke("worldstate");
     else {
       const get = (p: string) => fetch(`https://api.warframestat.us/pc/${p}?language=en`).then((r) => r.json()).catch(() => null);
-      const names = ["fissures", "vaultTrader", "voidTrader", "invasions", "nightwave", "sortie", "archonHunt", "steelPath", "duviriCycle", "earthCycle", "cetusCycle", "vallisCycle", "cambionCycle", "zarimanCycle", "alerts", "dailyDeals", "syndicateMissions"];
+      const names = ["fissures", "vaultTrader", "voidTrader", "invasions", "nightwave", "sortie", "archonHunt", "steelPath", "duviriCycle", "earthCycle", "cetusCycle", "vallisCycle", "cambionCycle", "zarimanCycle", "alerts", "dailyDeals", "syndicateMissions", "events"];
       raw = Object.fromEntries(await Promise.all(names.map(async (n) => [n, await get(n)] as const)));
     }
   } catch {
@@ -535,6 +536,7 @@ export async function loadLive(): Promise<Live> {
     invasions: Array.isArray(raw?.invasions) ? (raw!.invasions as Invasion[]) : null,
     alerts: Array.isArray(raw?.alerts) ? (raw!.alerts as WorldAlert[]) : null,
     syndicates: Array.isArray(raw?.syndicateMissions) ? (raw!.syndicateMissions as SyndicateMission[]) : null,
+    events: Array.isArray(raw?.events) ? (raw!.events as WorldEvent[]).filter((e) => e && typeof e.description === "string" && typeof e.expiry === "string") : null,
     fromGame: raw?.fromGame === true,
     nightwave: obj<Nightwave>(raw?.nightwave, "activeChallenges"),
     sortie: obj<SortieLike>(raw?.sortie, "boss"),
@@ -542,7 +544,7 @@ export async function loadLive(): Promise<Live> {
     steelPath: obj<SteelPath>(raw?.steelPath, "currentReward"),
     darvo: Array.isArray(raw?.dailyDeals) ? ((raw!.dailyDeals as DarvoDeal[]).find((d) => d && typeof d.item === "string" && typeof d.salePrice === "number") ?? null) : null,
     duviriCycle: obj<DuviriCycle>(raw?.duviriCycle, "choices"),
-    cycles: (["earth", "cetus", "vallis", "cambion", "zariman"] as const)
+    cycles: (["earth", "cetus", "vallis", "cambion", "zariman", "duviri"] as const)
       .map((k) => ({ key: k, c: obj<{ state: string; expiry: string }>(raw?.[`${k}Cycle`], "state") }))
       .filter((x): x is { key: (typeof x)["key"]; c: { state: string; expiry: string } } => !!x.c?.expiry)
       .map((x) => ({ key: x.key, state: x.c.state, expiry: x.c.expiry })),

@@ -27,6 +27,8 @@
   import { today } from "../core/today";
   import { foundryBuilds } from "../core/foundry";
   import { crackableFirst, crackableNow, openEras, wishItem, type WishItem } from "../core/wishlist";
+  import { eventViews } from "../core/events";
+  import type { RelicReward } from "../core/types";
   import { checkedWhen, cycleTimers, resetTimers, matchedFissures, planetOf, ruleLabel, sameRule, TIERS, type FissureRule } from "../core/timers";
   import { details } from "../details.svelte";
   import { bountyBoards, type BountyTable } from "../core/board";
@@ -37,7 +39,8 @@
 
   // console: you play on a console or phone, so there's no inventory: Home is the market, the
   // world's clocks, fissures, what's worth doing and Baro, without anything measured against a collection.
-  let { model, live, mission, settings = $bindable(), go, shortListings, liveAt = null, liveError = null, console = false, reveal = null, bountyTables = null }: { model: Model; live: Live; mission: MissionState | null; settings: Settings; go: (t: string) => void; shortListings: MyOrder[]; liveAt?: number | null; liveError?: string | null; console?: boolean; reveal?: string | null; bountyTables?: BountyTable[] | null } = $props();
+  let { model, live, mission, settings = $bindable(), go, shortListings, liveAt = null, liveError = null, console = false, reveal = null, bountyTables = null, sortieRewards = null }: { model: Model; live: Live; mission: MissionState | null; settings: Settings; go: (t: string) => void; shortListings: MyOrder[]; liveAt?: number | null; liveError?: string | null; console?: boolean; reveal?: string | null; bountyTables?: BountyTable[] | null; sortieRewards?: RelicReward[] | null } = $props();
+  let sortieOpen = $state(false);
   // The worldstate: still being asked for the first time, or unreachable (api.warframestat.us).
   const liveWaiting = $derived(liveAt == null && !liveError);
   const liveNote = $derived(liveWaiting ? "Asking api.warframestat.us…" : "api.warframestat.us didn't answer; orbiter asks again every few minutes.");
@@ -135,8 +138,9 @@
 
   // ------------------------------------------------------------ world clocks and fissure alerts
   const cycles = $derived(cycleTimers(live, now));
+  const events = $derived(eventViews(live.events, now));
   const resets = $derived(resetTimers(live, now));
-  const CYCLE_ICON: Record<string, GameIconName> = { earth: "cycles", cetus: "ostron", vallis: "solaris-united", cambion: "entrati", zariman: "holdfasts" };
+  const CYCLE_ICON: Record<string, GameIconName> = { earth: "cycles", cetus: "ostron", vallis: "solaris-united", cambion: "entrati", zariman: "holdfasts", duviri: "mastery" };
   // The clocks' own names, short enough to fit their column whole (the tooltip has the long one).
   const CYCLE_SHORT: Record<string, string> = { cetus: "Cetus", cambion: "Cambion" };
   const RESET_SHORT: Record<string, string> = { daily: "Standing caps", weekly: "Archon, Circuit" };
@@ -242,12 +246,13 @@
   // ---------------------------------------------------------------- what Home shows (Customise)
   const CARDS: { key: string; label: string; hint: string; consoleHint?: string }[] = [
     { key: "alerts", label: "Needs you", hint: "Alerts and invasions worth a look, listings to fix, Varzia's rotation ending", consoleHint: "Alerts with rare rewards" },
-    { key: "world", label: "World clocks", hint: "Day and night on the open worlds, and the daily and weekly resets" },
+    { key: "world", label: "World clocks", hint: "Day and night on the open worlds, Duviri's mood, and the daily and weekly resets" },
     { key: "market", label: "Market", hint: "Your warframe.market status, what you have listed, and what sold" },
     { key: "ready", label: "Ready to sell", hint: "Your spares worth listing, in the kinds ticked on Orders" },
     { key: "fissures", label: "Fissures now", hint: "Every open fissure (normal, Steel Path or Void Storms), your best relic for each era, and your fissure alerts", consoleHint: "Every open fissure (normal, Steel Path or Void Storms), and your fissure alerts" },
     { key: "bounties", label: "Bounties", hint: "The bounties in Cetus, Fortuna, the Necralisk, the Zariman, Cavia and Höllvania, and what each pays" },
-    { key: "today", label: "Worth doing today", hint: "The Duviri Circuit, Darvo's deal, Teshin, the Sortie, the Archon Hunt and Nightwave" },
+    { key: "events", label: "Events", hint: "Events running in game (Tactical Alerts, operations, seasonal ones): where, until when, and what they pay" },
+    { key: "today", label: "Worth doing today", hint: "The Duviri Circuit, Darvo's deal, Teshin, the Sortie (its missions, modifiers and reward chances), the Archon Hunt and Nightwave" },
     { key: "foundry", label: "Foundry", hint: "What's building, and what you have every part for" },
     { key: "wishes", label: "Your wishlist", hint: "What you starred and still need, with relics to crack for it" },
     { key: "deals", label: "Cheap buys", hint: "Parts and arcanes you're after, listed well under their usual price" },
@@ -297,7 +302,8 @@
       <h1 class="mark">Home</h1>
     </div>
     <div class="hr">
-      <p class="dim">{new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</p>
+      <div class="dt"><p class="dim">{new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</p>
+      {#if liveAt != null}<p class="dim small upd" class:old={!!liveError} title={`Fissures, the clocks, bounties, Baro, Varzia, the Sortie, events and the rest come from ${live.fromGame ? "the game's own worldstate (api.warframestat.us isn't answering)" : "api.warframestat.us"}, read every 5 minutes.${liveError ? " The last read failed, so this is what was read before; each thing in it goes when it ends." : ""}`}>{liveError ? `World from ${checkedWhen(liveAt, now)}` : `World read ${new Date(liveAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`}</p>{/if}</div>
       <IconButton icon="settings" tone="quiet" label="Customise Home" title="Choose what Home shows" aria-expanded={customising} onclick={() => (customising = !customising)} />
     </div>
   </header>
@@ -326,12 +332,12 @@
       <section class="panel world" class:off={off("world")} aria-label="World clocks">
         <!-- Still asking for the world: the five clocks' places, so nothing jumps when they arrive. -->
         {#if liveWaiting && !cycles.length}
-          {#each ["earth", "cetus", "vallis", "cambion", "zariman"] as k (k)}
-            <div class="clock wait" aria-hidden="true"><GameIcon name={CYCLE_ICON[k]} size={26} /><div><span class="register clip1">{CYCLE_SHORT[k] ?? { earth: "Earth", vallis: "Orb Vallis", zariman: "Zariman" }[k]}</span><b class="mark st">—</b><span class="dim small nowrap">&nbsp;</span></div></div>
+          {#each ["earth", "cetus", "vallis", "cambion", "zariman", "duviri"] as k (k)}
+            <div class="clock wait" aria-hidden="true"><GameIcon name={CYCLE_ICON[k]} size={26} /><div><span class="register clip1">{CYCLE_SHORT[k] ?? { earth: "Earth", vallis: "Orb Vallis", zariman: "Zariman", duviri: "Duviri" }[k]}</span><b class="mark st">—</b><span class="dim small nowrap">&nbsp;</span></div></div>
           {/each}
         {/if}
         {#each cycles as c (c.key)}
-          <div class="clock" title="{c.label}: {c.state}{c.next ? `, ${c.next} in ${until(c.ends, now)}` : ''}">
+          <div class="clock" title="{c.key === 'duviri' ? `Duviri's mood: ${c.state}, which sets the Spiral's look and what its missions and enemies are like` : `${c.label}: ${c.state}`}{c.next ? `, ${c.next} in ${until(c.ends, now)}` : ''}">
             <GameIcon name={CYCLE_ICON[c.key]} size={26} />
             <div><span class="register clip1">{CYCLE_SHORT[c.key] ?? c.label}</span><b class="mark st st-{c.state}">{c.state}</b><span class="dim small nowrap">{until(c.ends, now).replace("under a minute", "<1 min")}<span class="lft">{" left"}</span></span></div>
           </div>
@@ -446,6 +452,23 @@
       {/if}
     </section>
 
+    <!-- Events -->
+    {#if events.length}
+      <section class="panel events" data-card="events" class:off={off("events")}>
+        {@render head(null, "star", "Events", null, "")}
+        <ul class="ev">
+          {#each events as e (e.id)}
+            <li>
+              <div class="eh"><b class="mark">{e.name}</b><span class="dim small">{e.where ? `${e.where} · ` : ""}ends in {until(e.ends, now)}</span></div>
+              {#if e.note}<p class="dim small">{e.note}</p>{/if}
+              {#if e.progress}<div class="eprog" title="{e.progress.at.toLocaleString('en')} of {e.progress.of.toLocaleString('en')} toward its goal"><i style:width="{(e.progress.at / e.progress.of) * 100}%"></i></div>{/if}
+              {#if e.rewards.length}<p class="small erw"><span class="dim">Pays</span>{" "}{#each e.rewards as r, i (r)}{i ? " · " : ""}<span use:info={r.replace(/^[\d,]+ × /, "")}>{r}</span>{/each}</p>{/if}
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
+
     <!-- Worth doing today -->
     <section class="panel today" data-card="today" class:off={off("today")} class:full={alone("today")} style:grid-row={rowSpan("today")}>
       {@render head("nightwave", null, "Worth doing today", null, "")}
@@ -481,8 +504,18 @@
         {#if day.sortie || day.archon}
           <div class="tblock">
             {#if day.sortie}
-              <div class="th"><GameIcon name="sortie" size={18} /><b class="mark">Sortie</b><span class="dim small">{day.sortie.boss} · {until(day.sortie.ends, now)} left</span></div>
-              <p class="tline dim small">{day.sortie.missions.join(" · ")}</p>
+              <div class="th"><GameIcon name="sortie" size={18} /><b class="mark">Sortie</b><span class="dim small">{day.sortie.boss}{day.sortie.faction ? ` (${day.sortie.faction})` : ""} · {until(day.sortie.ends, now)} left</span></div>
+              <ol class="stages">
+                {#each day.sortie.stages as st, i (i)}
+                  <li title={st.desc || undefined}><span class="sn">{i + 1}</span><span class="nt"><span>{st.mission}<span class="dim">{" · "}{st.node}</span></span>{#if st.modifier}<span class="mod">{st.modifier}</span>{/if}</span></li>
+                {/each}
+              </ol>
+              {#if sortieRewards?.length}
+                <p class="tline dim small"><button class="link" aria-expanded={sortieOpen} title="What the Sortie pays when you finish all three missions: one reward from this table (the official drop tables)" onclick={() => (sortieOpen = !sortieOpen)}>{sortieOpen ? "Hide rewards" : "Reward chances"}</button>{#if !sortieOpen}{" · "}{sortieRewards.slice(0, 3).map((r) => `${r.name} ${r.chance}%`).join(" · ")}…{/if}</p>
+                {#if sortieOpen}
+                  <ul class="srl">{#each sortieRewards as r (r.name)}<li><span class="nt" use:info={r.name}>{r.name}</span><span class="dim small">{r.chance}%</span></li>{/each}</ul>
+                {/if}
+              {/if}
             {/if}
             {#if day.archon}
               <div class="th"><GameIcon name="archon-shard" size={18} /><b class="mark">Archon Hunt</b><span class="dim small">{day.archon.boss}{day.archon.shard ? ` · ${day.archon.shard} shard` : ""} · {until(day.archon.ends, now)} left</span></div>
@@ -693,6 +726,30 @@
   .ready { grid-column: span 5; }
   .fissures { grid-column: span 12; }
   .bounties { grid-column: span 12; }
+  .events { grid-column: span 12; }
+  .ev { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: .9rem 1.6rem; }
+  .ev li { display: grid; gap: .3rem; min-width: 0; }
+  .eh { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .6rem; }
+  .ev p { margin: 0; }
+  .erw { color: var(--platinum); }
+  .eprog { height: 4px; background: var(--rule); }
+  .eprog i { display: block; height: 100%; background: var(--gold); }
+  .stages { list-style: none; margin: .1rem 0 .2rem; padding: 0; display: grid; gap: .3rem; font-size: .85rem; }
+  .stages li { display: flex; gap: .55rem; align-items: baseline; }
+  .stages .sn { color: var(--gold); font-size: .75rem; }
+  .stages .nt { display: grid; }
+  .stages .mod { font-size: .75rem; color: var(--platinum-dim); }
+  .srl { list-style: none; margin: 0 0 .2rem; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: .15rem 1rem; font-size: .8rem; }
+  .srl li { display: flex; justify-content: space-between; gap: .5rem; }
+  .dt { display: grid; justify-items: end; gap: .1rem; }
+  .dt p { margin: 0; }
+  .upd { font-size: .72rem; }
+  .upd.old { color: var(--gold); }
+  .st-joy { color: var(--gold); }
+  .st-anger { color: #e07a6a; }
+  .st-envy { color: #7fc79a; }
+  .st-sorrow { color: #8fb3e0; }
+  .st-fear { color: #b49ae0; }
   .fromgame { margin: 0; }
   /* The same 7 + 5 split as the rows above, so the panel edges line up down the page. */
   .mastery { grid-column: span 7; grid-row: span 2; }
@@ -706,6 +763,8 @@
   .st-day, .st-warm, .st-fass, .st-corpus { color: var(--gold); }
   .st-night, .st-cold, .st-vome, .st-grineer { color: #8fb3e0; }
   .clock.reset b { color: var(--platinum); }
+  /* Eight clocks to a row: the resets' ↻ makes room for their names. */
+  .world:has(> .clock:nth-child(8)) .clock.reset > .rk { display: none; }
   .rk { font-size: 1.2rem; color: var(--gold-dim); width: 22px; text-align: center; }
   .rk:empty { display: none; }
   .clip1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
