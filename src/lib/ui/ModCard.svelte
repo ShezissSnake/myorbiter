@@ -49,7 +49,7 @@
   <div class="art">
     <span class="in">{#if image && !failed}<img src={imageUrl(image, width > 120)} alt="" loading="lazy" decoding="async" onerror={() => (failed = true)} />{:else}<i class="none" aria-hidden="true"></i>{/if}</span>
     {#if !arcane && (drain != null || polarity)}
-      <span class="drain">{#if drain != null}{drain}{/if}{#if polarity}<img src="/game/pol/{polarity}.png" alt={polarity} />{/if}</span>
+      <span class="drain">{#if drain != null}{drain}{/if}{#if polarity && polarity !== "aura"}<img src="/game/pol/{polarity === "universal" ? "any" : polarity}.png" alt={polarity} />{/if}</span>
     {/if}
   </div>
   <div class="plate">

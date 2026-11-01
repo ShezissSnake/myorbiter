@@ -144,7 +144,6 @@
       <header>
         <ModCard arcane={d.kind === "arcane"} name={d.name} image={d.image} rarity={it?.rarity ?? ""} polarity={it?.polarity && it.polarity !== "aura" ? it.polarity : null} drain={it?.baseDrain ?? null} maxRank={it?.maxRank ?? null} rank={d.kind === "mod" ? Math.max(0, ...(d.row?.ranks ?? []).map((x) => x.rank)) : (d.row?.highestRank ?? 0)} label={it?.compatName ?? ""} width={70} />
         <div class="ht"><b class="mark">{d.name}</b><span class="sub">{it?.type ?? (d.kind === "mod" ? "Mod" : "Arcane")}{it?.rarity ? ` · ${it.rarity}` : ""}</span></div>
-        {#if it?.polarity && it.polarity !== "aura"}<img class="pol" src="/game/pol/{it.polarity === "universal" ? "any" : it.polarity}.png" alt={it.polarity} title="{it.polarity}{it.baseDrain != null ? `, ${it.baseDrain} drain` : ''}" />{/if}
       </header>
       {#if lines.length}<div class="effect"><span class="register">At max rank{it?.maxRank ? ` (${it.maxRank})` : ""}</span>{#each lines as l, i (i)}<p>{l}</p>{/each}</div>{/if}
       <div class="figs">
