@@ -6,7 +6,7 @@
 set -euo pipefail
 dir=${1:?usage: tennoscope-notice.sh <folder>}
 here=$(cd "$(dirname "$0")/.." && pwd)
-commit=${TENNOSCOPE_COMMIT:-b75627f}
+commit=${TENNOSCOPE_COMMIT:-e5755f8}
 cp "$here/patches/tennoscope-orbiter.patch" "$dir/"
 cat > "$dir/NOTICE.md" <<NOTE
 # TennoScope, as orbiter carries it

@@ -3255,14 +3255,11 @@ index 756d18e..019c706 100644
  /// The same screen at 16:10, which is a Steam Deck's native 1280x800.
  ///
  /// Warframe scales its HUD with window *height* and centres it horizontally, but the card geometry
-diff --git a/app/src-tauri/vendor/tesseract/.gitkeep b/app/src-tauri/vendor/tesseract/.gitkeep
-deleted file mode 100644
-index e69de29..0000000
 diff --git a/app/src/App.css b/app/src/App.css
-index bf03363..5db8f2e 100644
+index e780e39..d7a934a 100644
 --- a/app/src/App.css
 +++ b/app/src/App.css
-@@ -437,6 +437,7 @@
+@@ -443,6 +443,7 @@
  .hallmark.owned { color: var(--platinum); }
  .hallmark.absent { color: var(--platinum-deep); background: var(--plate); }
  .hallmark.mastered { color: var(--gold); }
@@ -3270,7 +3267,7 @@ index bf03363..5db8f2e 100644
  /* A rank is a qualifier on the mark beside it, so it sits back from the ownership figure. Fully
     ranked is the state worth platinum, and it earns the struck lip rather than a new colour: the
     text reads 10/10 either way, and gold already means mastered. */
-@@ -945,6 +946,20 @@ svg.set-glyph { background: none; fill: currentColor; padding: .125rem; }
+@@ -951,6 +952,20 @@ svg.set-glyph { background: none; fill: currentColor; padding: .125rem; }
    .overlay-rewards .ledger:has(.set-slot:nth-child(5)) .set-glyph + .set-glyph { margin-left: -1rem; }
  }
  
@@ -3291,7 +3288,7 @@ index bf03363..5db8f2e 100644
  .overlay-empty {
    display: grid; place-content: center; justify-items: center; gap: .3rem; height: 100vh;
    background: var(--touchstone); box-shadow: inset 0 0 0 1px rgb(232 235 239 / 16%);
-@@ -1496,3 +1511,28 @@ svg.set-glyph { background: none; fill: currentColor; padding: .125rem; }
+@@ -1503,3 +1518,28 @@ svg.set-glyph { background: none; fill: currentColor; padding: .125rem; }
  .update-channel summary { cursor: pointer; padding: .3em 0; min-height: 24px; }
  .update-channel .check-row { margin-top: .4em; }
  .capture-status:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
@@ -3321,10 +3318,10 @@ index bf03363..5db8f2e 100644
 +.overlay-rewards .ledger:has(.set-slot:nth-child(5)) .set-glyph + .set-glyph { margin-left: -.85rem; }
 +.overlay-rewards .ledger:has(.set-slot:nth-child(5)) .set-row { gap: .1rem; }
 diff --git a/app/src/App.test.tsx b/app/src/App.test.tsx
-index 68f9d30..8e4d544 100644
+index 3cd3763..9265f99 100644
 --- a/app/src/App.test.tsx
 +++ b/app/src/App.test.tsx
-@@ -565,7 +565,7 @@ describe('MVP desktop interface', () => {
+@@ -670,7 +670,7 @@ describe('MVP desktop interface', () => {
      // A slip that carries a mark states it in the ledger and drops the ownership line, because the
      // set row already says how much of the part is held. The line stays for a card with no mark.
      const paris = within(advisor).getByRole('article', { name: 'Paris Prime String' })
@@ -3922,7 +3919,7 @@ literal 0
 HcmV?d00001
 
 diff --git a/app/src/backend.ts b/app/src/backend.ts
-index 85cb60c..bf2456d 100644
+index de07e7d..e537653 100644
 --- a/app/src/backend.ts
 +++ b/app/src/backend.ts
 @@ -11,7 +11,9 @@ export interface MasteryCategoryTotal { category: ItemCategory; mastered: number
@@ -3984,7 +3981,7 @@ index 939f465..895feb5 100644
  local-store = { path = "../local-store" }
  warframe-domain = { path = "../warframe-domain" }
 diff --git a/crates/app-core/src/lib.rs b/crates/app-core/src/lib.rs
-index 93ac141..513fab6 100644
+index 1e3c8b0..2598217 100644
 --- a/crates/app-core/src/lib.rs
 +++ b/crates/app-core/src/lib.rs
 @@ -74,6 +74,12 @@ impl MasteryView {
@@ -4058,10 +4055,10 @@ index 93ac141..513fab6 100644
      /// collection loads once here so a reward and a kiosk tile never disagree mid-render.
      pub fn mastery_view(&self) -> Result<MasteryView, AppError> {
 diff --git a/crates/warframe-acquisition/src/inventory.rs b/crates/warframe-acquisition/src/inventory.rs
-index 97ac561..f509196 100644
+index 7a58536..957a3b6 100644
 --- a/crates/warframe-acquisition/src/inventory.rs
 +++ b/crates/warframe-acquisition/src/inventory.rs
-@@ -106,11 +106,103 @@ impl<'a> InventoryJsonDecoder<'a> {
+@@ -110,11 +110,103 @@ impl<'a> InventoryJsonDecoder<'a> {
  pub struct MasteryFacts {
      xp: BTreeMap<String, u64>,
      pending: BTreeMap<String, u32>,
@@ -4166,7 +4163,7 @@ index 97ac561..f509196 100644
      }
  
      /// The affinity the inventory reports for an item, or 0 when it reports none.
-@@ -122,6 +214,11 @@ impl MasteryFacts {
+@@ -126,6 +218,11 @@ impl MasteryFacts {
      pub fn pending(&self, recipe: &str) -> u32 {
          self.pending.get(recipe).copied().unwrap_or(0)
      }
@@ -4178,7 +4175,7 @@ index 97ac561..f509196 100644
  }
  
  /// The rank an item's affinity reaches, capped at its max rank; `None` for categories without
-@@ -166,6 +263,14 @@ struct RawXpEntry {
+@@ -170,6 +267,14 @@ struct RawXpEntry {
  #[serde(rename_all = "PascalCase")]
  struct RawInventory {
      last_inventory_sync: serde_json::Value,
@@ -4193,10 +4190,10 @@ index 97ac561..f509196 100644
      #[serde(default, deserialize_with = "rows")]
      suits: Vec<serde_json::Value>,
      #[serde(default, deserialize_with = "rows")]
-@@ -210,6 +315,10 @@ struct RawInventory {
-     /// Built Railjack armaments.
+@@ -251,6 +356,10 @@ struct RawInventory {
+     adult_operator_load_outs: Vec<serde_json::Value>,
      #[serde(default, deserialize_with = "rows")]
-     crew_ship_weapons: Vec<serde_json::Value>,
+     kahl_load_outs: Vec<serde_json::Value>,
 +    /// Kubrow and Kavat imprints, one row per imprint. Not part of the collection; passed to
 +    /// orbiter, which lists them for sale.
 +    #[serde(default, deserialize_with = "rows")]
@@ -4204,7 +4201,7 @@ index 97ac561..f509196 100644
  }
  
  /// A section, tolerating the two shapes that are not a list of rows.
-@@ -391,6 +500,69 @@ impl InventoryJsonDecoder<'_> {
+@@ -437,6 +546,69 @@ impl InventoryJsonDecoder<'_> {
              None,
              &mut DecodeReport::default(),
          );
@@ -4274,7 +4271,7 @@ index 97ac561..f509196 100644
          let pending = pending_holdings
              .into_iter()
              .map(|(path, accumulated)| (path, accumulated.quantity.max(0) as u32))
-@@ -528,7 +700,14 @@ impl InventoryJsonDecoder<'_> {
+@@ -605,7 +777,14 @@ impl InventoryJsonDecoder<'_> {
          }
          let snapshot = InventorySnapshot::coherent(domain_entries)
              .map_err(|_| AcquisitionError::SnapshotInvalid)?;
@@ -4488,12 +4485,12 @@ index 0debbfe..de1659c 100644
 +    }
 +}
 diff --git a/crates/warframe-acquisition/tests/inventory_decoder.rs b/crates/warframe-acquisition/tests/inventory_decoder.rs
-index d5e141a..860a59b 100644
+index 6743d56..c8938bd 100644
 --- a/crates/warframe-acquisition/tests/inventory_decoder.rs
 +++ b/crates/warframe-acquisition/tests/inventory_decoder.rs
-@@ -526,3 +526,123 @@ fn mastery_rank_follows_the_affinity_curve_and_caps_at_max_rank() {
-     assert_eq!(mastery_rank(Category::Frame, 196_000, 30), Some(14));
-     assert_eq!(mastery_rank(Category::PrimePart, 10, 30), None);
+@@ -794,3 +794,123 @@ fn every_section_that_holds_a_build_is_read() {
+         );
+     }
  }
 +
 +#[test]

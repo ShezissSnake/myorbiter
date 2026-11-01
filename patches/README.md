@@ -16,7 +16,7 @@
 
 It replaces `tennoscope-reward-vaulted.patch` (the Vaulted mark alone, which also only showed in the main window, not on the overlay). Use only this one.
 
-The patch is written against TennoScope `main` at commit `b75627f` (26 October 2026, after v0.13.1). It changes:
+The patch is written against TennoScope `main` at commit `e5755f8` (30 October 2026, TennoScope v0.14.0). It changes:
 
 - `app/src-tauri/src/orbiter_bridge.rs` (new): the two files. Includes a test.
 - `app/src-tauri/src/update.rs`: no self-update for the copy inside orbiter.
@@ -28,7 +28,7 @@ The patch is written against TennoScope `main` at commit `b75627f` (26 October 2
 - `crates/warframe-acquisition/src/relic_catalog.rs`, `crates/warframe-domain/src/rewards.rs`: which rewards only drop from vaulted relics. Includes a test.
 - `app/src/RewardOverlay.tsx`, `RewardCards.tsx`, `backend.ts`, `App.css`: ask orbiter for its pick every half second while cards are up, and draw the score, Pick and Vaulted in the card's corner. `app/src/OrbiterPick.test.tsx` covers it.
 
-All 253 overlay tests pass, and so do the Rust tests, apart from three that also fail without the patch whenever the tests run as root (one AppImage-update test and two memory-permission tests: root can read a file with no permissions).
+All 264 overlay tests pass, and so do the Rust tests, apart from three that also fail without the patch whenever the tests run as root (one AppImage-update test and two memory-permission tests: root can read a file with no permissions).
 
 ## Keeping up with TennoScope
 
@@ -42,7 +42,7 @@ On CachyOS you need the toolchain once: `sudo pacman -S --needed base-devel rust
 cd ~/dev/projects
 git clone https://github.com/Deftera186/tennoscope.git
 cd tennoscope
-git checkout b75627f
+git checkout e5755f8
 git apply ~/dev/projects/orbiter/patches/tennoscope-orbiter.patch
 cd app
 pnpm install --frozen-lockfile
@@ -58,7 +58,7 @@ When the patch changes, put the clone back to the original and apply the new one
 ```fish
 cd ~/dev/projects/tennoscope
 git fetch --quiet origin
-git reset --hard b75627f
+git reset --hard e5755f8
 git clean -fd
 git apply ~/dev/projects/orbiter/patches/tennoscope-orbiter.patch
 cd app
