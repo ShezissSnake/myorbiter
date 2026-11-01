@@ -251,10 +251,10 @@
   /* Page area 1850 or wider px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="ge1850"]) .cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .relic header { display: flex; justify-content: space-between; align-items: center; gap: .8rem; margin-bottom: .8rem; }
-  .who { display: flex; align-items: center; gap: .8rem; min-width: 0; }
+  .who { display: flex; align-items: center; gap: .8rem; min-width: 0; flex: 1; }
   .who .grow { display: grid; gap: .3rem; min-width: 0; }
   .sub { display: flex; flex-wrap: wrap; gap: 0 .45rem; }
-  .sub > span { white-space: nowrap; }
+  .sub > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .sub > span + span::before { content: "·"; margin-right: .45rem; }
   h3 { margin: 0; font-family: var(--face-mark); font-weight: 700; font-size: 1.45rem; text-transform: uppercase; letter-spacing: -.01em; line-height: 1; }
   .ref { font-family: var(--face-register); font-size: .6rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; padding: .1rem .4rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); vertical-align: 4px; margin-left: .3rem; }
