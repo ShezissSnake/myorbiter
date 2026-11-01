@@ -166,3 +166,13 @@ test("only Discord webhook addresses are posted to", async () => {
   assert.ok(!isDiscordWebhook("http://discord.com/api/webhooks/1/x"));
   assert.ok(!isDiscordWebhook("https://discord.com/api/webhooks/1/x?wait=true"));
 });
+
+test("a kept worldstate part whose end has passed isn't kept", async () => {
+  const { mergeLive } = await import("../src/lib/backend");
+  const now = Date.parse("2026-11-02T12:00:00Z");
+  const old = { fissures: null, resurgence: null, resurgenceExpiry: null, duviriCycle: { expiry: "2026-11-02T00:00:00Z", choices: [] }, steelPath: { expiry: "2026-11-09T00:00:00Z", currentReward: null } } as never;
+  const next = { fissures: [], resurgence: null, resurgenceExpiry: null, duviriCycle: null, steelPath: null } as never;
+  const m = mergeLive(old, next, now) as unknown as Record<string, unknown>;
+  assert.equal(m.duviriCycle, null, "last week's Circuit is gone");
+  assert.ok(m.steelPath, "this week's Teshin offer stays");
+});

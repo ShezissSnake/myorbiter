@@ -411,10 +411,10 @@
                 <ul>
                   {#each sm as x (x.slug)}
                     {@const s = r.stats.find((y) => y.tag === x.tag)}
-                    <li class:sought={x.sought}><span class="nm">{x.sought ? "★ " : ""}{s?.label ?? x.slug}</span><span class="dim small">on {Math.round(x.share * 100)}% of listings</span><span class="small">{x.withIt != null ? `~${x.withIt}p` : "–"} <span class="dim">vs {x.without != null ? `${x.without}p` : "–"} without</span></span></li>
+                    <li class:sought={x.sought}><span class="nm">{x.sought ? "★ " : ""}{s?.label ?? x.slug}</span><span class="dim small">on {Math.round(x.share * 100)}% of listings</span><span class="small">{x.withIt != null ? `~${x.withIt.toLocaleString("en")}p` : "–"} <span class="dim">vs {x.without != null ? `${x.without.toLocaleString("en")}p` : "–"} without</span></span></li>
                   {/each}
                 </ul>
-                {#if sm.some((x) => x.sought)}<span class="dim small">★ listings with it ask half again as much or more: a stat buyers pay for.</span>{/if}
+                {#if sm.some((x) => x.sought)}<span class="dim small">★ among the cheapest listed, those with it ask clearly more (half again, and 20p or more).</span>{/if}
               </div>
             {/if}
           {/if}
@@ -475,7 +475,7 @@
               {@const fl = c?.any ? priceCheck(c.any) : null}
               <span class="pcs">
                 {#if fl}<span class="pc" title={fl.count ? `The cheapest ${r.weapon} riven listed right now, whatever its stats: what anyone can buy one for` : undefined}>{#if fl.count}<span class="dim small">Any {r.weapon} riven from</span><P v={fl.lowest} />{:else}<span class="dim small">No {r.weapon} rivens listed</span>{/if}</span>{/if}
-                <span class="pc" title={pc.count ? `${pc.count} rivens with the same two best stats listed: the cheapest at ${pc.lowest}p, most around ${pc.typical}p. Asking prices: what they sell for isn't published` : undefined}>{#if pc.count}<span class="dim small">{pc.count} similar listed from</span><P v={pc.lowest} /><span class="dim small">· ~</span><P v={pc.typical} />{:else}<span class="dim small">None like it listed right now</span>{/if}</span>
+                <span class="pc" title={pc.count ? `${pc.count} rivens with the same two best stats listed: the cheapest at ${pc.lowest}p, most around ${pc.typical}p. Asking prices: what they sell for isn't published` : undefined}>{#if pc.count}<span class="dim small">{pc.count} similar listed from</span><P v={pc.lowest} /><span class="dim small">· most around</span><P v={pc.typical} />{:else}<span class="dim small">None like it listed right now</span>{/if}</span>
               </span>
             {:else if c?.error}<span class="dim small">{c.error}</span>
             {:else if c?.loading}<span class="dim small">Checking prices…</span>

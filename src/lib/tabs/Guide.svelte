@@ -212,5 +212,6 @@
   b { color: var(--platinum); font-weight: 500; }
   code, kbd { font-family: var(--face-register); font-size: .8em; color: var(--platinum); }
   .sub { margin: .2rem 0 0; padding-left: 1.1rem; display: grid; gap: .2rem; }
-  .sub li { display: list-item; list-style: square; }
+  .sub li { display: list-item; list-style: square; counter-increment: none; grid-template-columns: none; }
+  .sub li::before { content: none; }
 </style>

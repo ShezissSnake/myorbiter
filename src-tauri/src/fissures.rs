@@ -36,7 +36,8 @@ fn tables(dir: &Path) -> Result<Value, String> {
     let path = dir.join(TABLES);
     let cached: Option<Value> = fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok());
     if let Some(c) = &cached {
-        if now().saturating_sub(c["at"].as_u64().unwrap_or(0)) < TABLES_FRESH && c["sorties"].is_object() {
+        // A copy saved without the sortie table (it failed to download) is read again next time.
+        if now().saturating_sub(c["at"].as_u64().unwrap_or(0)) < TABLES_FRESH && c["sorties"]["bosses"].is_object() {
             return Ok(c.clone());
         }
     }
@@ -129,7 +130,8 @@ fn cycles(ws: &Value, now_ms: i64) -> Map<String, Value> {
     let earth = now.rem_euclid(28_800);
     let (state, left) = if earth < 14_400 { ("day", 14_400 - earth) } else { ("night", 28_800 - earth) };
     out.insert("earthCycle".into(), json!({ "state": state, "expiry": iso((now + left) * 1000) }));
-    let vallis = (now - 1_541_837_628).rem_euclid(1600);
+    // WFCD's current reference point for the Vallis cycle (a warm period starting then).
+    let vallis = (now - 1_770_234_408).rem_euclid(1600);
     let (state, left) = if vallis < 400 { ("warm", 400 - vallis) } else { ("cold", 1600 - vallis) };
     out.insert("vallisCycle".into(), json!({ "state": state, "expiry": iso((now + left) * 1000) }));
     let cetus_end = ws["SyndicateMissions"].as_array().into_iter().flatten().find(|m| m["Tag"] == "CetusSyndicate").and_then(|m| millis(&m["Expiry"]));

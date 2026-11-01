@@ -311,7 +311,7 @@ export interface NotifyOptions {
 export const DISCORD_DEFAULT_KINDS = ["rivens", "deals", "fissures", "whispers", "sold"];
 export const defaultNotifyOptions = (): NotifyOptions => ({ paused: false, pausedUntil: null, toasts: true, desktop: true, quietInFissure: false, quiet: [], discord: { url: "", kinds: DISCORD_DEFAULT_KINDS } });
 /** A Discord webhook address, and nothing else: orbiter only ever posts to one of these. */
-export const isDiscordWebhook = (url: string) => /^https:\/\/(?:(?:ptb|canary)\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[\w-]+$/.test(url.trim());
+export const isDiscordWebhook = (url: string) => /^https:\/\/(?:(?:ptb\.|canary\.)?discord\.com|discordapp\.com)\/api\/webhooks\/\d+\/[\w-]+$/.test(url.trim());
 /** Posts a notification to your Discord webhook. */
 export async function discordPost(url: string, content: string): Promise<void> {
   if (!isDiscordWebhook(url)) throw new Error("Not a Discord webhook address");
@@ -435,10 +435,13 @@ const obj = <T,>(v: unknown, key: string): T | null => (v && typeof v === "objec
  * would mislead.
  */
 const KEEP_LIVE = new Set(["fissures", "baro", "resurgence", "resurgenceExpiry", "cycles", "sortie", "archonHunt", "steelPath", "nightwave", "duviriCycle", "syndicates"]);
-export function mergeLive(old: Live, next: Live): Live {
+export function mergeLive(old: Live, next: Live, now = Date.now()): Live {
   const out = { ...next } as Record<string, unknown>;
   for (const [k, v] of Object.entries(old)) {
     if (!KEEP_LIVE.has(k)) continue;
+    // Something with an end that has passed (last week's Circuit, yesterday's Teshin offer) isn't kept.
+    const ends = v && typeof v === "object" && !Array.isArray(v) ? (v as { expiry?: string }).expiry : undefined;
+    if (ends && Date.parse(ends) <= now) continue;
     const n = out[k];
     if (n == null || (k === "cycles" && Array.isArray(n) && !n.length)) out[k] = v;
   }

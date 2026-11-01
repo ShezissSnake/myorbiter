@@ -113,9 +113,8 @@ function install() {
     if (el) leave(el);
   });
   document.addEventListener("pointerdown", () => hover.target && hide(), true);
-  // Scrolling moves what the card points at: it goes, and comes back when the pointer moves again.
+  // Scrolling moves what the card points at: it goes (pointing at something again brings one back).
   document.addEventListener("scroll", () => (hover.target || pending) && hide(), { capture: true, passive: true });
-  document.addEventListener("wheel", () => (hover.target || pending) && hide(), { capture: true, passive: true });
 }
 
 export function info(node: HTMLElement, arg: Arg) {

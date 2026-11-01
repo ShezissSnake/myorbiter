@@ -106,7 +106,7 @@
 
 {#snippet weightControls()}
   <p class="weights dim small">
-    <span class="legend" title="The score is the weighted average of the four bars, 0–100; each bar's colour is one of these">Scored by {#each WEIGHTS.filter((w) => weights[w.k] > 0) as w, i (w.k)}{#if i}<span class="sep"> · </span>{/if}<span class="lg"><i class="sw {w.bar}"></i>{w.label.toLowerCase()} {weights[w.k]}</span>{/each}</span>
+    <span class="legend" title="The score is the weighted average of the four bars, 0–100; each bar's colour is one of these">Scored by (how much each counts) {#each WEIGHTS.filter((w) => weights[w.k] > 0) as w, i (w.k)}{#if i}{" · "}{/if}<span class="lg"><i class="sw {w.bar}"></i>{w.label.toLowerCase()} {weights[w.k]}</span>{/each}</span>
     {#if onsettings}<button class="link" title="Set how much plat, unmastered parts, ducats and sets count, in Settings → Fissures" onclick={onsettings}>Change in Settings</button>{/if}
   </p>
 {/snippet}
@@ -252,10 +252,11 @@
   :global(html[data-room~="ge1850"]) .cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .relic header { display: flex; justify-content: space-between; align-items: center; gap: .8rem; margin-bottom: .8rem; }
   .who { display: flex; align-items: center; gap: .8rem; min-width: 0; flex: 1; }
-  .who .grow { display: grid; gap: .3rem; min-width: 0; }
-  .sub { display: flex; flex-wrap: wrap; gap: 0 .45rem; }
-  .sub > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-  .sub > span + span::before { content: "·"; margin-right: .45rem; }
+  .who .grow { display: grid; gap: .3rem; min-width: 0; flex: 1 1 0; }
+  .relic header > :global(:last-child:not(.who)) { flex: none; }
+  /* One line each, cut short with an ellipsis rather than running under the badge beside it. */
+  .sub { display: grid; gap: .1rem; min-width: 0; }
+  .sub > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   h3 { margin: 0; font-family: var(--face-mark); font-weight: 700; font-size: 1.45rem; text-transform: uppercase; letter-spacing: -.01em; line-height: 1; }
   .ref { font-family: var(--face-register); font-size: .6rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; padding: .1rem .4rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); vertical-align: 4px; margin-left: .3rem; }
   .ref-Radiant { color: var(--gold); border-color: var(--gold-dim); }

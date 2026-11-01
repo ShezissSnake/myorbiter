@@ -197,6 +197,7 @@ async fn worldstate(app: tauri::AppHandle) -> Value {
             _ => false,
         };
         if FROM_GAME.iter().any(|k| missing(&out, k)) {
+            let no_fissures = missing(&out, "fissures");
             if let Some(game) = dir.as_deref().and_then(|d| fissures::from_game(d).ok()) {
                 for k in FROM_GAME {
                     if missing(&out, k) {
@@ -205,7 +206,8 @@ async fn worldstate(app: tauri::AppHandle) -> Value {
                         }
                     }
                 }
-                out.insert("fromGame".into(), Value::Bool(true));
+                // Said on Home only when the API gave no fissures at all, not for one part it refused.
+                out.insert("fromGame".into(), Value::Bool(no_fissures));
             }
         }
         Value::Object(out)
@@ -285,7 +287,11 @@ async fn discord_post(url: String, content: String) -> Result<(), String> {
             .timeout(Duration::from_secs(10))
             .send_json(serde_json::json!({ "username": "orbiter", "content": content, "allowed_mentions": { "parse": [] } }))
             .map(|_| ())
-            .map_err(|e| e.to_string())
+            // Never the error's own text: it carries the webhook address, token and all.
+            .map_err(|e| match e {
+                ureq::Error::Status(code, _) => format!("Discord answered {code}"),
+                ureq::Error::Transport(_) => "couldn't reach Discord".to_string(),
+            })
     })
     .await
     .map_err(|e| e.to_string())?

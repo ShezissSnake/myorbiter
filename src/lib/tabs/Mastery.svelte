@@ -121,7 +121,7 @@
     {#if parts.length}<div class="chips">{#each parts as p, i (i)}<PartChip part={p} size={32} />{/each}</div>{/if}
     {#if r.acq.difficulty > 0}<p class="chow" title={r.acq.players ? `${r.acq.how}\n\n${r.acq.players}` : r.acq.how}>{r.acq.how}</p>{/if}
     {#snippet foot()}
-      {#if r.status === "level"}<span class="tag" class:ok={stageOf(r).stage !== "building"}>{stageTag(r)}</span>{:else if r.status === "build" && r.buildTier === "hard"}<span class="tag bad" title="Every part in hand, but building needs {r.buildShort}, from an open world or an event">Parts ready · rare resources</span>{:else if r.status === "build" && r.buildTier === "farm"}<span class="tag warn" title="Every part in hand; still to farm: {r.buildShort}">Parts ready · farm</span>{:else if r.status === "build"}<span class="tag ok">Ready to build</span>{/if}
+      {#if r.status === "level"}<span class="tag" class:ok={stageOf(r).stage !== "building"}>{stageTag(r)}</span>{:else if r.status === "build" && r.buildTier === "hard"}<span class="tag bad" title="Every part in hand, but building needs {r.buildShort}, from an open world or an event">Parts ready · rare resources</span>{:else if r.status === "build" && r.buildTier === "farm"}<span class="tag ok" title="Every part in hand; still to farm: {r.buildShort}">Parts ready · farm</span>{:else if r.status === "build"}<span class="tag ok">Ready to build</span>{/if}
       {#if r.isPrime && r.missingParts.length}
         {@const worst = r.missingParts.some((p) => p.availability === "vaulted") ? "vaulted" : r.missingParts.some((p) => p.availability === "resurgence") ? "resurgence" : "farmable"}
         <Avail v={worst} />

@@ -82,7 +82,7 @@
       <Stat label="Mastered" note={`of ${inGroup.length} ${groupLabel}`}><GameIcon name="mastery" size={30} />{mastered}<span class="of">/{inGroup.length}</span></Stat>
       <Stat label="Owned, not mastered" tone="gold" note="Level these">{ownedOnly}</Stat>
       <Stat label="Ready to build" note={partsReady ? `Everything in hand · ${partsReady} more with resources to farm` : "Every part and resource in hand, not mastered yet"}>{buildable}</Stat>
-      <Stat label="Building" tone="dim" note="In your foundry now">{building}</Stat>
+      <Stat label="Building" tone="dim" note="Whole items in your foundry now (parts, and what's ready to claim, are on Home)">{building}</Stat>
     {/snippet}
   </PageHead>
 

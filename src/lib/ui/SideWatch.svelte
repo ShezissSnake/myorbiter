@@ -78,7 +78,7 @@
         <h3 class="register"><Icon name="bell" size={11} /> Alerts</h3>
         {#if !watched.length && !world.mastery.length && !world.rare.length && !invasions.length && !shortListings.length}<p class="dim small">Nothing that needs you right now.</p>{/if}
         <ul>
-          {#if shortListings.length}<li><GameIcon name="market" size={16} /><span class="tx"><button class="link" onclick={() => go("market")}>{shortListings.length} listing{shortListings.length === 1 ? "" : "s"} for more than you hold</button><span class="dim small">sold, or fix them on Orders</span></span></li>{/if}
+          {#if shortListings.length}<li><GameIcon name="market" size={16} /><span class="tx wrap"><button class="link" onclick={() => go("market")}>{shortListings.length} listing{shortListings.length === 1 ? "" : "s"} for more than you hold</button><span class="dim small">sold, or fix them on Orders</span></span></li>{/if}
           {#each watched as w (w.fissure.id)}<li><GameIcon name={eraIcon(w.fissure.tier)} size={16} /><span class="tx"><b>{w.fissure.isHard ? "SP " : ""}{w.fissure.tier} {w.fissure.missionType}</b><span class="dim small">{w.fissure.node}</span></span><span class="t">{left(w.fissure.expiry)}</span></li>{/each}
           {#each world.mastery as a (a.key)}<li><GameIcon name="mastery" size={16} /><span class="tx"><b>{a.reward}</b><span class="dim small">{a.node} · {describeHelp(a.reward, a.help!)}</span></span><span class="t">{left(a.expiry)}</span></li>{/each}
           {#each world.rare as a (a.key)}<li><GameIcon name="sortie" size={16} /><span class="tx"><b>{a.reward}</b><span class="dim small">{a.node} · {a.mission}</span></span><span class="t">{left(a.expiry)}</span></li>{/each}
@@ -144,6 +144,8 @@
   .tx { display: grid; min-width: 0; }
   .tx > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tx b { font-weight: 600; color: var(--platinum); }
+  .tx.wrap > * { white-space: normal; }
+  .tx .link { text-align: left; }
   .tx b.want { color: var(--gold); }
   .t { font-variant-numeric: tabular-nums; color: var(--platinum-dim); font-size: .76rem; white-space: nowrap; }
   .t.ready { color: var(--verdigris); }

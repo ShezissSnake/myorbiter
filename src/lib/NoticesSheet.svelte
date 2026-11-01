@@ -198,10 +198,11 @@
         <input type="url" placeholder="https://discord.com/api/webhooks/…" bind:value={settings.notifyOptions.discord.url} aria-label="Discord webhook address" class:bad={!!settings.notifyOptions.discord.url && !isDiscordWebhook(settings.notifyOptions.discord.url)} />
         {#if settings.notifyOptions.discord.url && !isDiscordWebhook(settings.notifyOptions.discord.url)}<span class="small warn-text">That isn't a Discord webhook address.</span>{/if}
         {#if isDiscordWebhook(settings.notifyOptions.discord.url)}
+          <span class="small dim">Send these to Discord:</span>
           <div class="dkinds">
             {#each NOTICE_KINDS.filter((k) => !(console && k.pcOnly)) as k (k.kind)}<Chip on={settings.notifyOptions.discord.kinds.includes(k.kind)} label={k.label} title={k.hint} onchange={(on: boolean) => (settings.notifyOptions.discord.kinds = on ? [...settings.notifyOptions.discord.kinds.filter((x) => x !== k.kind), k.kind] : settings.notifyOptions.discord.kinds.filter((x) => x !== k.kind))} />{/each}
           </div>
-          <div class="row"><button class="stamp" onclick={testDiscord}>Send a test to Discord</button>{#if discordNote}<span class="small dim">{discordNote}</span>{/if}</div>
+          <div class="row"><button class="stamp" title="Posts one test message to your Discord channel now, so you can see it works" onclick={testDiscord}>Send a test to Discord</button>{#if discordNote}<span class="small dim">{discordNote}</span>{/if}</div>
         {/if}
       </div>
     </section>
@@ -256,5 +257,7 @@
   .discord { display: grid; gap: .45rem; padding-top: .8rem; border-top: 1px solid var(--rule); }
   .discord p { margin: 0; }
   .discord input.bad { border-color: var(--oxblood); }
+  /* Webhook addresses are case-sensitive: shown as typed, placeholder included. */
+  .discord input, .discord input::placeholder { text-transform: none; letter-spacing: normal; font-family: var(--face-text); }
   .dkinds { display: flex; flex-wrap: wrap; gap: .3rem; }
 </style>

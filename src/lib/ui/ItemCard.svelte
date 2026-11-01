@@ -106,7 +106,8 @@
   .star.on { color: var(--gold); }
   .star.on svg { fill: var(--gold); }
   .body { display: flex; align-items: center; gap: .7rem; min-width: 0; }
-  .pic { display: contents; }
+  /* A real box (not display: contents), so the hover card has something to point at. */
+  .pic { display: block; flex: none; line-height: 0; }
   .side { flex: 1; min-width: 0; display: grid; gap: .45rem; align-content: center; }
   footer { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; min-height: 1.4rem; padding-top: .45rem; border-top: 1px solid var(--rule); font-size: .78rem; }
   footer:empty { display: none; }

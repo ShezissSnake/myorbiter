@@ -439,7 +439,7 @@ export function statMarket(meta: RivenMeta, r: Riven, listed: RivenAuction[]): S
     const no = priced.filter((a) => !has(a)).map((a) => a.price!);
     const withIt = median(yes);
     const without = median(no);
-    out.push({ tag: s.tag, slug, share: yes.length / priced.length, withIt, without, sought: yes.length >= 3 && withIt != null && without != null && withIt >= without * 1.5 });
+    out.push({ tag: s.tag, slug, share: yes.length / priced.length, withIt, without, sought: yes.length >= 3 && withIt != null && without != null && withIt >= without * 1.5 && withIt - without >= 20 });
   }
   return out;
 }

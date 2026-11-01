@@ -333,7 +333,7 @@
         {#each cycles as c (c.key)}
           <div class="clock" title="{c.label}: {c.state}{c.next ? `, ${c.next} in ${until(c.ends, now)}` : ''}">
             <GameIcon name={CYCLE_ICON[c.key]} size={26} />
-            <div><span class="register clip1">{CYCLE_SHORT[c.key] ?? c.label}</span><b class="mark st st-{c.state}">{c.state}</b><span class="dim small nowrap">{until(c.ends, now).replace("under a minute", "<1 min")} left</span></div>
+            <div><span class="register clip1">{CYCLE_SHORT[c.key] ?? c.label}</span><b class="mark st st-{c.state}">{c.state}</b><span class="dim small nowrap">{until(c.ends, now).replace("under a minute", "<1 min")}<span class="lft"> left</span></span></div>
           </div>
         {/each}
         {#each resets.filter((r) => r.key !== "sortie") as r (r.key)}
@@ -737,6 +737,7 @@
   /* The open worlds' icons say where; their names go (in the tooltip), the resets lose their ↻. */
   :global(html[data-room~="lt1100"]) .clock:not(.reset) .register { display: none; }
   :global(html[data-room~="lt1100"]) .clock.reset > .rk { display: none; }
+  :global(html[data-room~="lt1100"]) .clock .lft { display: none; }
   /* Page area under 930 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt930"]) .world { grid-template-columns: repeat(auto-fit, minmax(6.3rem, 1fr)); }
   :global(html[data-room~="lt930"]) .clock { padding: .6rem .55rem; }
@@ -842,6 +843,7 @@
   .stock li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto 4rem; gap: .6rem; align-items: center; }
   .stock li :global(.amt) { justify-self: end; }
   .sn { min-width: 0; display: grid; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sn > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sn .small { overflow: hidden; text-overflow: ellipsis; }
   .vz { grid-template-columns: repeat(auto-fill, minmax(min(26rem, 100%), 1fr)); column-gap: 1.6rem; }
   .vz li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto 16px; gap: .6rem; align-items: center; }
