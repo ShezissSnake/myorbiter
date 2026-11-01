@@ -36,6 +36,7 @@
     relicData,
     recipeData,
     mergeLive,
+    discordPost,
     notify,
     openUrl,
     quit,
@@ -348,6 +349,7 @@
   function tell(kind: NoticeKind, title: string, body: string, to?: string) {
     if (!settings.notify[kind] || (onConsole && noticeKind[kind].pcOnly)) return;
     settings.game.notices = logNotice(settings.game.notices, { at: Date.now(), kind, title, body, ...(to ? { to } : {}) });
+    toDiscord(kind, title, body);
     if (quietNow(kind)) return;
     const n = settings.game.notices[0];
     if (typeof document !== "undefined" && document.hasFocus()) {
@@ -386,6 +388,7 @@
       const title = `${r.lines.length} listing${r.lines.length === 1 ? "" : "s"} repriced`;
       settings.game.notices = growNotice(settings.game.notices, r.id, { at: Date.now(), kind: "repriced", title, body: r.lines.join("\n") });
       const n = settings.game.notices[0];
+      toDiscord("repriced", title, n.body);
       if (quietNow("repriced")) return;
       if (typeof document !== "undefined" && document.hasFocus()) {
         if (settings.notifyOptions.toasts && toasts.list.some((t) => t.id === n.id)) toasts.push(n);
@@ -395,6 +398,13 @@
   $effect(() => {
     if (!mkt.pass) untrack(settleRepriced);
   });
+  /** The kinds you chose also go to your Discord webhook, unless notifications are paused. */
+  function toDiscord(kind: NoticeKind, title: string, body: string) {
+    const d = settings.notifyOptions.discord;
+    const o = settings.notifyOptions;
+    if (!d?.url || !d.kinds.includes(kind) || o.paused || (o.pausedUntil != null && Date.now() < o.pausedUntil)) return;
+    void discordPost(d.url, `**${title}**${body ? `\n${body}` : ""}`).catch(() => {});
+  }
   /** Why nothing pops up right now for this kind, if anything: kept in the history only. */
   function quietNow(kind: NoticeKind): boolean {
     const o = settings.notifyOptions;

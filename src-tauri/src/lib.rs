@@ -262,6 +262,35 @@ fn civil_day(days: i64) -> String {
     format!("{y:04}-{m:02}-{d:02}")
 }
 
+/// A Discord webhook address, nothing else (the page checks too): orbiter posts only to these.
+fn discord_webhook(url: &str) -> bool {
+    let rest = ["https://discord.com/api/webhooks/", "https://discordapp.com/api/webhooks/", "https://ptb.discord.com/api/webhooks/", "https://canary.discord.com/api/webhooks/"]
+        .iter()
+        .find_map(|p| url.strip_prefix(p));
+    let Some((id, token)) = rest.and_then(|r| r.split_once('/')) else { return false };
+    !id.is_empty() && id.bytes().all(|b| b.is_ascii_digit()) && !token.is_empty() && token.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+}
+
+/// Posts a notification to your Discord webhook (Settings → notifications), for when you're away.
+#[tauri::command]
+async fn discord_post(url: String, content: String) -> Result<(), String> {
+    if !discord_webhook(&url) {
+        return Err("not a Discord webhook address".into());
+    }
+    let content: String = content.chars().take(1900).collect();
+    tauri::async_runtime::spawn_blocking(move || {
+        http_agent()
+            .post(&url)
+            .set("User-Agent", USER_AGENT)
+            .timeout(Duration::from_secs(10))
+            .send_json(serde_json::json!({ "username": "orbiter", "content": content, "allowed_mentions": { "parse": [] } }))
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Every Foundry recipe, parts' own blueprints included (see recipes.rs): cached for a week.
 #[tauri::command]
 async fn recipe_data(app: tauri::AppHandle) -> Result<Value, String> {
@@ -836,6 +865,7 @@ pub fn run() {
             relic_data,
             recipe_data,
             export_file,
+            discord_post,
             load_settings,
             save_settings,
             mission_state,
@@ -883,6 +913,15 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_discord_webhooks() {
+        assert!(discord_webhook("https://discord.com/api/webhooks/123456/abc_DEF-9"));
+        assert!(!discord_webhook("https://discord.com/api/webhooks/123456/"));
+        assert!(!discord_webhook("https://evil.example/api/webhooks/1/x"));
+        assert!(!discord_webhook("https://discord.com/api/webhooks/12a/x"));
+        assert!(!discord_webhook("https://discord.com.evil.example/api/webhooks/1/x"));
+    }
 
     #[test]
     fn export_dates() {

@@ -305,8 +305,18 @@ export interface NotifyOptions {
   quietInFissure: boolean;
   /** Kinds that only go in the history, never pop up. */
   quiet: string[];
+  /** A Discord webhook the chosen kinds also go to, for when you're away from the PC. "" = none. */
+  discord: { url: string; kinds: string[] };
 }
-export const defaultNotifyOptions = (): NotifyOptions => ({ paused: false, pausedUntil: null, toasts: true, desktop: true, quietInFissure: false, quiet: [] });
+export const DISCORD_DEFAULT_KINDS = ["rivens", "deals", "fissures", "whispers", "sold"];
+export const defaultNotifyOptions = (): NotifyOptions => ({ paused: false, pausedUntil: null, toasts: true, desktop: true, quietInFissure: false, quiet: [], discord: { url: "", kinds: DISCORD_DEFAULT_KINDS } });
+/** A Discord webhook address, and nothing else: orbiter only ever posts to one of these. */
+export const isDiscordWebhook = (url: string) => /^https:\/\/(?:(?:ptb|canary)\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[\w-]+$/.test(url.trim());
+/** Posts a notification to your Discord webhook. */
+export async function discordPost(url: string, content: string): Promise<void> {
+  if (!isDiscordWebhook(url)) throw new Error("Not a Discord webhook address");
+  if (inTauri) await invoke("discord_post", { url: url.trim(), content });
+}
 
 export const defaultSettings = (): Settings => ({
   advice: defaultAdvice(),
@@ -566,6 +576,10 @@ export async function loadSettings(): Promise<Settings> {
       desktop: raw?.notifyOptions?.desktop !== false,
       quietInFissure: raw?.notifyOptions?.quietInFissure === true,
       quiet: Array.isArray(raw?.notifyOptions?.quiet) ? raw.notifyOptions.quiet.filter((k: unknown): k is string => typeof k === "string") : [],
+      discord: {
+        url: typeof raw?.notifyOptions?.discord?.url === "string" ? raw.notifyOptions.discord.url : "",
+        kinds: Array.isArray(raw?.notifyOptions?.discord?.kinds) ? raw.notifyOptions.discord.kinds.filter((k: unknown): k is string => typeof k === "string") : DISCORD_DEFAULT_KINDS,
+      },
     },
     // Once: the pages most people rarely open leave the sidebar (Settings → Pages puts them back).
     pagesHidden: (() => {

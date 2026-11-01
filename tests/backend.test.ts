@@ -157,3 +157,12 @@ test("a worldstate read keeps what it couldn't get from the last one", async () 
   assert.equal(m.resurgenceExpiry, "x");
   assert.equal((m.cycles as unknown[]).length, 1);
 });
+
+test("only Discord webhook addresses are posted to", async () => {
+  const { isDiscordWebhook } = await import("../src/lib/backend");
+  assert.ok(isDiscordWebhook("https://discord.com/api/webhooks/1234567890/AbC_dEf-123"));
+  assert.ok(isDiscordWebhook("https://ptb.discord.com/api/webhooks/1/x"));
+  assert.ok(!isDiscordWebhook("https://discord.com.evil.example/api/webhooks/1/x"));
+  assert.ok(!isDiscordWebhook("http://discord.com/api/webhooks/1/x"));
+  assert.ok(!isDiscordWebhook("https://discord.com/api/webhooks/1/x?wait=true"));
+});

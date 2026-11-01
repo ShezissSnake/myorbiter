@@ -1,8 +1,8 @@
 <script lang="ts">
   // The bell in the sidebar: what orbiter told you lately (click one to open what it's about), and
   // what it tells you about, kind by kind, with a pause for all of them.
-  import type { Settings } from "./backend";
-  import { GROUP_NOTE, kindsFor, noticeKind, splitTarget, type Notice, type NoticeKind, type NoticeKindInfo } from "./notices";
+  import { discordPost, isDiscordWebhook, type Settings } from "./backend";
+  import { GROUP_NOTE, kindsFor, NOTICE_KINDS, noticeKind, splitTarget, type Notice, type NoticeKind, type NoticeKindInfo } from "./notices";
   import { pageById, type PageId } from "./pages";
   import Chip from "./ui/Chip.svelte";
   import Sheet from "./ui/Sheet.svelte";
@@ -110,6 +110,16 @@
     return new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   }
   let clearing = $state(false);
+  let discordNote = $state<string | null>(null);
+  async function testDiscord() {
+    discordNote = "Sending…";
+    try {
+      await discordPost(settings.notifyOptions.discord.url, "**orbiter**\nThis is how notifications will look here.");
+      discordNote = "Sent: check the channel.";
+    } catch (e) {
+      discordNote = `Couldn't send (${String(e).replace(/^Error:\s*/, "")})`;
+    }
+  }
 </script>
 
 <Sheet bind:open title="Notifications" kicker="orbiter">
@@ -182,6 +192,18 @@
         </Switch>
       {/if}
       <div class="row"><button class="stamp" onclick={test} title="Shows a notification now, the way they look. Nothing is saved.">Show a test notification</button></div>
+      <div class="discord">
+        <span class="register">Discord</span>
+        <p class="dim small">Also send some notifications to a Discord channel of yours, to see them on your phone while you're away: in Discord, a channel's Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL, and paste it here.</p>
+        <input type="url" placeholder="https://discord.com/api/webhooks/…" bind:value={settings.notifyOptions.discord.url} aria-label="Discord webhook address" class:bad={!!settings.notifyOptions.discord.url && !isDiscordWebhook(settings.notifyOptions.discord.url)} />
+        {#if settings.notifyOptions.discord.url && !isDiscordWebhook(settings.notifyOptions.discord.url)}<span class="small warn-text">That isn't a Discord webhook address.</span>{/if}
+        {#if isDiscordWebhook(settings.notifyOptions.discord.url)}
+          <div class="dkinds">
+            {#each NOTICE_KINDS.filter((k) => !(console && k.pcOnly)) as k (k.kind)}<Chip on={settings.notifyOptions.discord.kinds.includes(k.kind)} label={k.label} title={k.hint} onchange={(on: boolean) => (settings.notifyOptions.discord.kinds = on ? [...settings.notifyOptions.discord.kinds.filter((x) => x !== k.kind), k.kind] : settings.notifyOptions.discord.kinds.filter((x) => x !== k.kind))} />{/each}
+          </div>
+          <div class="row"><button class="stamp" onclick={testDiscord}>Send a test to Discord</button>{#if discordNote}<span class="small dim">{discordNote}</span>{/if}</div>
+        {/if}
+      </div>
     </section>
     {#each groups as grp (grp.g)}
       <section class="grp">
@@ -231,4 +253,8 @@
   .grp header .link { margin-left: auto; }
   .grp h3 { margin: 0; }
   .nowrap { white-space: nowrap; }
+  .discord { display: grid; gap: .45rem; padding-top: .8rem; border-top: 1px solid var(--rule); }
+  .discord p { margin: 0; }
+  .discord input.bad { border-color: var(--oxblood); }
+  .dkinds { display: flex; flex-wrap: wrap; gap: .3rem; }
 </style>
