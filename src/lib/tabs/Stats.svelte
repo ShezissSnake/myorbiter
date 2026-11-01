@@ -60,7 +60,7 @@
   const categoryOf = $derived(new Map([...model.catalogByUnique.values()].map((c) => [c.name, c.category])));
   function groupOf(name: string): Group {
     if (/ Set$/.test(name)) return "Sets";
-    if (/ Relic$|^(Lith|Meso|Neo|Axi|Requiem) [A-Z]+\d+$/.test(name)) return "Relics";
+    if (/ Relic$|^(Lith|Meso|Neo|Axi|Requiem) [A-Z]+\d+$|^Requiem [A-Z][a-z]+$/.test(name)) return "Relics";
     if (/Riven/.test(name)) return "Rivens";
     if (model.partByName.has(name)) return "Prime parts";
     const c = categoryOf.get(name) ?? model.inventoryByName.get(name)?.[0]?.category;

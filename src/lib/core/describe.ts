@@ -44,12 +44,13 @@ function index(m: Model, rate: number): Index {
   return ix;
 }
 
-/** "Axi A22", "Axi A22 Relic", "Axi A22 Radiant", "Axi A22 Relic (Radiant)" → "Axi A22". */
+/** "Axi A22", "Axi A22 Relic", "Axi A22 Radiant", "Axi A22 Relic (Radiant)" → "Axi A22". Requiem
+ * relics since 2026 have names ("Requiem Eterna") where the old ones had numbers ("Requiem IV"). */
 export function relicBase(name: string): string | null {
   const plain = name.replace(/ Relic( \((Intact|Exceptional|Flawless|Radiant)\))?$/, "");
   const split = splitRelicName(plain);
   const base = split?.base ?? plain;
-  return /^(Lith|Meso|Neo|Axi|Requiem|Vanguard) ([A-Z]+\d+|[IVX]+)$/.test(base) ? base : null;
+  return /^(Lith|Meso|Neo|Axi|Requiem|Vanguard) ([A-Z]+\d+|[IVX]+)$|^Requiem [A-Z][a-z]+$/.test(base) ? base : null;
 }
 
 /** The catalog entry a name most likely means: the one you hold, else the full (not Flawed) version. */

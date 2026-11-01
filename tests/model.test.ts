@@ -55,3 +55,13 @@ test("relics without their own picture get their era's", async () => {
   assert.equal(relicImage("Lith A13 Radiant Relic"), "RelicLithC.png");
   assert.equal(relicImage("Lithos Prime"), null);
 });
+
+test("relic names, old and new Requiem ones included, are told from item names", async () => {
+  const { relicBase } = await import("../src/lib/core/describe");
+  assert.equal(relicBase("Axi A22 Relic (Radiant)"), "Axi A22");
+  assert.equal(relicBase("Requiem IV"), "Requiem IV");
+  assert.equal(relicBase("Requiem Eterna"), "Requiem Eterna");
+  assert.equal(relicBase("Requiem Eterna Relic (Radiant)"), "Requiem Eterna");
+  assert.equal(relicBase("Axi Prime"), null);
+  assert.equal(relicBase("Lith"), null);
+});
