@@ -60,6 +60,18 @@
     { k: "ducats", bar: "b-ducat", label: "Ducats", title: "Ducat value, out of 100" },
     { k: "set", bar: "b-set", label: "Complete set", title: "Finishes a set (half for leaving it one part short)" },
   ];
+  // The cards with their prices, for squad chat ("Saryn Prime Systems 15p | Forma Blueprint | …").
+  const chatLine = $derived((onScreen ?? []).map((c) => `${c.name}${c.price != null ? ` ${Math.round(c.price)}p` : ""}${c.ducats ? ` (${c.ducats} ducats)` : ""}`).join(" | "));
+  let copiedChat = $state(false);
+  async function copyChat() {
+    try {
+      await navigator.clipboard.writeText(chatLine);
+      copiedChat = true;
+      setTimeout(() => (copiedChat = false), 2000);
+    } catch {
+      copiedChat = false;
+    }
+  }
   /** "Meso C10 R" (a relic and its refinement's letter) → the relic, for its hover card. */
   const relicOf = (from: string) => from.replace(/ [IEFR]$/, "");
   /** When TennoScope read the cards: a time of day, which can't go stale the way "n s ago" would. */
@@ -153,6 +165,7 @@
       <div class="pick-head">
         <h2 class="mark">Take {pick != null ? onScreen[pick].name : "—"}</h2>
         <span class="dim small">Cards read by TennoScope at {readAt(cards!.at)} · the same pick is marked on its overlay</span>
+        <button class="link small" title="Copy the four cards with their prices, to paste in squad chat: {chatLine}" onclick={copyChat}>{copiedChat ? "Copied" : "Copy for squad chat"}</button>
       </div>
       <div class="slips">
         {#each onScreen as c, i (i + c.name)}

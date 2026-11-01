@@ -33,6 +33,11 @@
   const price = $derived(model.price(name));
   const priceMax = $derived(model.priceMax(name));
   const pct = (v: number) => `${Math.round(v * 100) / 100}%`;
+  // Fusing a mod up costs 10 Endo × its rarity (1 common … 4 legendary/Primed) × 2^rank for each rank:
+  // 40,920 to max a Primed mod from nothing, 930 for a rare one with five ranks.
+  const RARITY_ENDO: Record<string, number> = { Common: 1, Uncommon: 2, Rare: 3, Legendary: 4 };
+  const best = $derived(ranks.length ? Math.max(...ranks.map((x) => x.rank)) : 0);
+  const endoLeft = $derived(d?.kind === "mod" && item?.maxRank && RARITY_ENDO[item.rarity ?? ""] ? 10 * RARITY_ENDO[item.rarity ?? ""] * (2 ** item.maxRank - 2 ** Math.min(best, item.maxRank)) : 0);
 </script>
 
 <div class="up">
@@ -51,6 +56,7 @@
       <span title="What a max-rank copy sells for (daily median)"><span class="register">Maxed</span><P v={priceMax} /></span>
     {:else}<span class="dim small">Can't be traded</span>{/if}
     {#if item?.rarity}<span><span class="register">Rarity</span><b class="small">{item.rarity}</b></span>{/if}
+    {#if endoLeft}<span title="Endo it takes to rank {best ? `your best copy (R${best})` : 'an unranked copy'} to max ({item?.maxRank}); credits on top"><span class="register">Endo to max</span><b>{endoLeft.toLocaleString("en")}</b></span>{/if}
   </div>
   {#if ranks.length}
     <div class="ranks" title="Your copies by rank">{#each [...ranks].sort((a, b) => b.rank - a.rank) as x (x.rank)}<span>{x.rank ? `R${x.rank}` : "Unranked"}{x.count > 1 ? ` ×${x.count}` : ""}</span>{/each}</div>
