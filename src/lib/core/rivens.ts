@@ -665,3 +665,79 @@ export function tradesFor(trades: RivenTrade[], kind: string, weapon: string, re
       })();
   return { same: family.find((t) => t.rerolled === rerolled) ?? null, other: family.find((t) => t.rerolled !== rerolled) ?? null };
 }
+
+// ---------------------------------------------------------------- price checks kept between runs
+
+/**
+ * The last price check of each of your rivens, kept on disk so the next start shows them at once
+ * (warframe.market answers slowly when asked about many rivens) until they're checked again.
+ * Only what the cards use: asking prices of the similar rivens, and for each weapon the price and
+ * buffs of the rivens listed for it.
+ */
+export interface SavedRivenPrices {
+  v: 1;
+  platform: string;
+  /** Per riven: the search it was checked with (a cycled riven's new roll is a new search). */
+  rivens: Record<string, { key: string; at: number; prices: number[] }>;
+  /** Per weapon: [asking price, buff slugs] of the rivens listed for it. */
+  weapons: Record<string, { at: number; listed: [number, string[]][] }>;
+}
+
+/** How long a kept check is worth keeping at all: a riven sold since drops out after this. */
+const KEEP_FOR = 30 * 86_400_000;
+
+export const searchKey = (weapon: string, positive: string[]) => `${weapon}|${[...positive].sort().join(",")}`;
+
+export const packPrices = (auctions: RivenAuction[]): number[] => auctions.map((a) => a.price).filter((p): p is number => p != null && p > 0);
+export const packListed = (auctions: RivenAuction[]): [number, string[]][] =>
+  auctions.filter((a) => a.price != null && a.price > 0).map((a) => [a.price!, a.attributes.filter((x) => x.positive).map((x) => x.url_name)]);
+
+const kept = (price: number, buffs: string[] = []): RivenAuction => ({
+  id: "",
+  price,
+  starting: null,
+  name: "",
+  rank: 0,
+  rerolls: 0,
+  mr: 0,
+  polarity: "",
+  attributes: buffs.map((url_name) => ({ url_name, value: 0, positive: true })),
+  seller: "",
+  status: "",
+  updated: "",
+});
+export const unpackPrices = (prices: number[]): RivenAuction[] => prices.map((p) => kept(p));
+export const unpackListed = (listed: [number, string[]][]): RivenAuction[] => listed.map(([p, buffs]) => kept(p, buffs));
+
+/** A file read back: anything malformed, or for another platform, counts as nothing kept. */
+export function readSavedPrices(raw: unknown, platform: string): SavedRivenPrices {
+  const empty: SavedRivenPrices = { v: 1, platform, rivens: {}, weapons: {} };
+  const s = raw as SavedRivenPrices | null;
+  if (!s || s.v !== 1 || s.platform !== platform || typeof s.rivens !== "object" || typeof s.weapons !== "object") return empty;
+  const nums = (xs: unknown): xs is number[] => Array.isArray(xs) && xs.every((x) => typeof x === "number");
+  const rivens: SavedRivenPrices["rivens"] = {};
+  for (const [id, r] of Object.entries(s.rivens ?? {})) if (r && typeof r.key === "string" && typeof r.at === "number" && nums(r.prices)) rivens[id] = r;
+  const weapons: SavedRivenPrices["weapons"] = {};
+  for (const [w, x] of Object.entries(s.weapons ?? {}))
+    if (x && typeof x.at === "number" && Array.isArray(x.listed) && x.listed.every((l) => Array.isArray(l) && typeof l[0] === "number" && Array.isArray(l[1]))) weapons[w] = x;
+  return { v: 1, platform, rivens, weapons };
+}
+
+/** The kept checks with this one added, and ones older than a month gone. */
+export function withSaved(s: SavedRivenPrices, now: number, riven?: { id: string; key: string; prices: number[] }, weapon?: { slug: string; listed: [number, string[]][] }): SavedRivenPrices {
+  const old = now - KEEP_FOR;
+  const rivens = Object.fromEntries(Object.entries(s.rivens).filter(([, r]) => r.at >= old));
+  const weapons = Object.fromEntries(Object.entries(s.weapons).filter(([, w]) => w.at >= old));
+  if (riven) rivens[riven.id] = { key: riven.key, at: now, prices: riven.prices };
+  if (weapon) weapons[weapon.slug] = { at: now, listed: weapon.listed };
+  return { ...s, rivens, weapons };
+}
+
+/** When a kept check was made, for its card: "today 13:52", "yesterday 21:05", "3 days ago". */
+export function checkedWhen(at: number, now: number): string {
+  const day = (ms: number) => new Date(ms).toDateString();
+  const time = new Date(at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  if (day(at) === day(now)) return `today ${time}`;
+  if (day(at) === day(now - 86_400_000)) return `yesterday ${time}`;
+  return `${Math.max(2, Math.round((now - at) / 86_400_000))} days ago`;
+}

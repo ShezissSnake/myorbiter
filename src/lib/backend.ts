@@ -1019,6 +1019,9 @@ export const market = {
     inTauri
       ? invoke<RivenAuction[]>("market_riven_auctions", { weapon, positive, negative })
       : fetch("/dev-auctions.json").then((r) => (r.ok ? r.json() : Promise.reject(new Error("warframe.market can only be searched from the desktop app")))),
+  /** Your rivens' last price checks, kept between runs (core/rivens.ts, SavedRivenPrices); null when none. */
+  rivenPricesRead: async (): Promise<unknown> => (inTauri ? invoke("riven_prices_read") : null),
+  rivenPricesWrite: async (prices: unknown): Promise<void> => (inTauri ? invoke("riven_prices_write", { prices }) : undefined),
   /** Your riven auctions (raw; see parseMyAuctions). */
   myAuctions: (): Promise<unknown> => (inTauri ? invoke("market_my_auctions") : Promise.resolve([])),
   createAuction: (auction: { starting_price: number; buyout_price: number | null; minimal_reputation: number; private: boolean; note: string; item: import("./core/rivens").AuctionItem }): Promise<unknown> =>

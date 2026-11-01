@@ -6,7 +6,7 @@
   import type { RivenWatch, Settings } from "../backend";
   import { marketUrl, openUrl } from "../backend";
   import { tradesFor, type RivenTrade } from "../core/rivens";
-  import { auctionItemFor, auctionOf, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, rollChoice, cycleKey, searchFor, statMarket, type MyAuction, type Riven, type RivenAuction, type RivenChange, type RollChoice } from "../core/rivens";
+  import { auctionItemFor, auctionOf, checkedWhen, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, rollChoice, cycleKey, searchFor, searchKey, statMarket, unpackListed, unpackPrices, type MyAuction, type Riven, type RivenAuction, type RivenChange, type RollChoice } from "../core/rivens";
   import { mkt } from "../marketStore.svelte";
   import { rivens } from "../rivenStore.svelte";
   import PageHead from "../ui/PageHead.svelte";
@@ -103,7 +103,9 @@
   // Price checks, per riven: rivens listed with its two best stats ("similar"), and any riven for
   // its weapon at all, whose cheapest is the floor anyone can buy one at. Both are asking prices:
   // warframe.market keeps no record of what rivens sold for.
-  let checks = $state<Record<string, { loading: boolean; error?: string; auctions?: RivenAuction[]; any?: RivenAuction[] }>>({});
+  // A check kept from an earlier run shows until it's checked again: `saved` marks it, `at` is when
+  // it was made. While a riven is checked again, or if that fails, what it had stays shown.
+  let checks = $state<Record<string, { loading: boolean; error?: string; auctions?: RivenAuction[]; any?: RivenAuction[]; at?: number; saved?: boolean }>>({});
   const SLOW = /slow down/;
   async function check(r: Riven, fresh = false) {
     if (!meta) return;
@@ -112,29 +114,57 @@
       checks[r.id] = { loading: false, error: "warframe.market doesn't list rivens for this weapon" };
       return;
     }
-    checks[r.id] = { loading: true };
+    const before = checks[r.id];
+    checks[r.id] = { ...before, loading: true, error: undefined };
     try {
-      const auctions = await rivens.search(q.weapon, q.positive.slice(0, 2), null, fresh ? 0 : undefined);
+      const positive = q.positive.slice(0, 2);
+      const auctions = await rivens.search(q.weapon, positive, null, fresh ? 0 : undefined);
       // The weapon's own search is shared by every riven for it, and kept a while.
       const any = await rivens.search(q.weapon, [], null).catch(() => undefined);
-      checks[r.id] = { loading: false, auctions, any };
+      checks[r.id] = { loading: false, auctions, any: any ?? before?.any, at: Date.now() };
+      rivens.remember(r.id, searchKey(q.weapon, positive), auctions, q.weapon, any);
     } catch (e) {
-      checks[r.id] = { loading: false, error: String(e).replace(/^Error: /, "") };
+      checks[r.id] = { ...before, loading: false, error: String(e).replace(/^Error: /, "") };
     }
   }
+  // Checks kept from the last run, for rivens that still have the roll they were checked with.
+  // Kept ones over a day old are checked again by themselves once the page is open (one after
+  // another, as Price check all does), and show until then.
+  let restored = false;
+  $effect(() => {
+    const m = meta;
+    const list = mine;
+    if (!m || restored) return;
+    restored = true;
+    void rivens.loadSaved(settings.market.platform).then((s) => {
+      let stale = false;
+      for (const r of list) {
+        const q = searchFor(m, r);
+        const k = q.weapon ? s.rivens[r.id] : undefined;
+        if (!q.weapon || !k || k.key !== searchKey(q.weapon, q.positive.slice(0, 2)) || checks[r.id]) continue;
+        const w = s.weapons[q.weapon];
+        checks[r.id] = { loading: false, auctions: unpackPrices(k.prices), any: w ? unpackListed(w.listed) : undefined, at: k.at, saved: true };
+        if (Date.now() - k.at > 86_400_000) stale = true;
+      }
+      if (stale && !checkingAll) void checkAll();
+    });
+  });
+  const keptAt = $derived(Math.min(...sorted.map((r) => (checks[r.id]?.saved ? checks[r.id]!.at! : Infinity))));
   // Price check every riven, one after another (warframe.market is asked at its own pace), skipping
   // ones already checked. Stop halts after the one in progress. Ones that fail on the way (turned
   // away, timed out) are tried once more at the end, after a pause; what still fails is said.
   let checkingAll = $state<{ done: number; total: number; paused?: boolean; retry?: boolean } | null>(null);
   let checkedAll = $state<{ ok: number; failed: Riven[]; reason: string } | null>(null);
   let stopAll = false;
-  const failedCheck = (r: Riven) => !!checks[r.id]?.error && !checks[r.id]?.auctions;
+  const failedCheck = (r: Riven) => !!checks[r.id]?.error;
+  /** Not checked this run: never, or only kept from an earlier one. */
+  const toCheck = (r: Riven) => !checks[r.id]?.auctions || !!checks[r.id]?.saved;
   /** Of the last run's failures, the ones still failing (one checked by hand since drops out). */
   const stillFailed = $derived(checkedAll?.failed.filter(failedCheck) ?? []);
   async function checkAll(only?: Riven[]) {
     const listed = meta ? (only ?? sorted).filter((r) => searchFor(meta, r).weapon) : [];
     // Everything checked already: check them all again (prices move).
-    const fresh = listed.filter((r) => !checks[r.id]?.auctions);
+    const fresh = listed.filter(toCheck);
     const again = !only && !fresh.length;
     const todo = again ? listed : fresh;
     checkedAll = null;
@@ -168,7 +198,7 @@
       }
     }
     const still = todo.filter(failedCheck);
-    checkedAll = { ok: todo.filter((r) => checks[r.id]?.auctions).length, failed: still, reason: still.length ? checks[still[0].id]!.error! : "" };
+    checkedAll = { ok: todo.filter((r) => !checks[r.id]?.error && checks[r.id]?.auctions).length, failed: still, reason: still.length ? checks[still[0].id]!.error! : "" };
     checkingAll = null;
   }
   // Selling: your riven auctions on warframe.market, and the form to put one up.
@@ -245,7 +275,8 @@
   const worth = $derived(priced.reduce((n, p) => n + (p.typical ?? 0), 0));
   // Rivens for weapons warframe.market doesn't list can't be checked: they don't count as left to do.
   // Price check all goes through the rivens the filters show.
-  const unchecked = $derived(meta ? shown.filter((r) => !checks[r.id]?.auctions && searchFor(meta, r).weapon).length : shown.length);
+  const unchecked = $derived(meta ? shown.filter((r) => toCheck(r) && searchFor(meta, r).weapon).length : shown.length);
+  const keptCount = $derived(shown.filter((r) => checks[r.id]?.saved).length);
 
   const searchUrl = (r: Riven) => {
     const q = meta ? searchFor(meta, r) : null;
@@ -372,7 +403,8 @@
         {#if stillFailed.length}
           <span class="checking"><span class="dim small" title={checkedAll!.reason}>Checked {checkedAll!.ok}; {stillFailed.length} couldn't be ({checkedAll!.reason.replace(/(; |\. ).*$/, "")})</span><button class="link" title="Check the ones that failed again" onclick={() => checkAll(stillFailed)}>Try those again</button></span>
         {/if}
-        <button class="stamp" disabled={!meta} title={!meta ? "Waiting for warframe.market's riven list" : !unchecked ? "Check every riven's price again" : "Find similar rivens for sale for each of yours, one after another"} onclick={() => checkAll()}>{!unchecked ? "Check prices again" : unchecked === shown.length ? (shown.length === mine.length ? "Price check all" : `Price check these ${unchecked}`) : `Price check the other ${unchecked}`}</button>
+        {#if keptCount && keptAt < Infinity}<span class="dim small kept" title="The prices shown are from orbiter's last check, kept so they show at once. Ones over a day old are checked again by themselves when you open this page">Prices from {checkedWhen(keptAt, Date.now())}</span>{/if}
+        <button class="stamp" disabled={!meta} title={!meta ? "Waiting for warframe.market's riven list" : !unchecked ? "Check every riven's price again" : keptCount === unchecked ? "Check again the prices kept from earlier, one after another" : "Find similar rivens for sale for each of yours, one after another"} onclick={() => checkAll()}>{!unchecked ? "Check prices again" : keptCount === unchecked ? "Update prices" : unchecked === shown.length ? (shown.length === mine.length ? "Price check all" : `Price check these ${unchecked}`) : `Price check the other ${unchecked}`}</button>
       {/if}
       <span class="dim small explain">Grades compare each roll with its range: S is the top of it, B the middle, F the bottom. A smaller curse grades higher. Dispositions are 1.2 for every weapon since the 22 October 2026 hotfix.</span>
     </div>
@@ -475,7 +507,8 @@
               {@const fl = c?.any ? priceCheck(c.any) : null}
               <span class="pcs">
                 {#if fl}<span class="pc" title={fl.count ? `The cheapest ${r.weapon} riven listed right now, whatever its stats: what anyone can buy one for` : undefined}>{#if fl.count}<span class="dim small">Any {r.weapon} riven from</span><P v={fl.lowest} />{:else}<span class="dim small">No {r.weapon} rivens listed</span>{/if}</span>{/if}
-                <span class="pc" title={pc.count ? `${pc.count} rivens with the same two best stats listed: the cheapest at ${pc.lowest}p, most around ${pc.typical}p. Asking prices: what they sell for isn't published` : undefined}>{#if pc.count}<span class="dim small">{pc.count} similar listed from</span><P v={pc.lowest} /><span class="dim small">· most around</span><P v={pc.typical} />{:else}<span class="dim small">None like it listed right now</span>{/if}</span>
+                <span class="pc" title={pc.count ? `${pc.count} rivens with the same two best stats listed${c?.saved ? ` when orbiter last checked (${checkedWhen(c.at!, Date.now())})` : ""}: the cheapest at ${pc.lowest}p, most around ${pc.typical}p. Asking prices: what they sell for isn't published` : undefined}>{#if pc.count}<span class="dim small">{pc.count} similar listed from</span><P v={pc.lowest} /><span class="dim small">· most around</span><P v={pc.typical} />{:else}<span class="dim small">None like it listed {c?.saved ? "then" : "right now"}</span>{/if}</span>
+                {#if c?.saved}<span class="dim small when" title={c.loading ? "Checking it again now" : c.error ? `Kept from orbiter's last check; checking again failed: ${c.error}` : "Kept from orbiter's last check; checked again when you update prices"}>{c.loading ? "updating…" : `checked ${checkedWhen(c.at!, Date.now())}`}</span>{/if}
               </span>
             {:else if c?.error}<span class="dim small">{c.error}</span>
             {:else if c?.loading}<span class="dim small">Checking prices…</span>

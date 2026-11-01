@@ -452,6 +452,30 @@ async fn market_riven_meta(app: tauri::AppHandle) -> Result<Value, String> {
     blocking(move || market::riven_meta(&cache)).await
 }
 
+/// Your rivens' last price checks (see SavedRivenPrices in src/lib/core/rivens.ts), kept so the
+/// next start shows them at once. Null when there are none yet.
+#[tauri::command]
+fn riven_prices_read(app: tauri::AppHandle) -> Value {
+    app.path()
+        .app_cache_dir()
+        .ok()
+        .and_then(|dir| fs::read(dir.join(RIVEN_PRICES)).ok())
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or(Value::Null)
+}
+
+#[tauri::command]
+async fn riven_prices_write(app: tauri::AppHandle, prices: Value) -> Result<(), String> {
+    let dir = app.path().app_cache_dir().map_err(|e| e.to_string())?;
+    let bytes = serde_json::to_vec(&prices).map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || write_atomic(&dir.join(RIVEN_PRICES), &bytes, false))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+}
+
+const RIVEN_PRICES: &str = "riven-prices.json";
+
 #[tauri::command]
 async fn market_riven_auctions(app: tauri::AppHandle, weapon: String, positive: Vec<String>, negative: Option<String>) -> Result<Value, String> {
     blocking(move || app.state::<market::Client>().riven_auctions(&weapon, &positive, negative.as_deref())).await
@@ -894,6 +918,8 @@ pub fn run() {
             market_my_orders,
             market_riven_meta,
             market_riven_auctions,
+            riven_prices_read,
+            riven_prices_write,
             market_order_book,
             market_user,
             market_closed_orders,

@@ -158,3 +158,28 @@ test("riven stats against the market: share of listings and asking price with an
   assert.equal(zoom.sought, false);
   assert.equal(statMarket(meta, r, listed.slice(0, 5)), null, "too few listings to say");
 });
+
+test("price checks kept between runs come back the same, and only for the same platform and roll", async () => {
+  const { packListed, packPrices, readSavedPrices, searchKey, unpackListed, unpackPrices, withSaved, checkedWhen } = await import("../src/lib/core/rivens");
+  const auction = (price: number | null, buffs: string[]) => ({ id: "x", price, starting: null, name: "", rank: 0, rerolls: 0, mr: 0, polarity: "", attributes: [...buffs.map((url_name) => ({ url_name, value: 1, positive: true })), { url_name: "zoom", value: -1, positive: false }], seller: "s", status: "ingame", updated: "" });
+  const similar = [auction(40, ["a"]), auction(null, []), auction(25, ["b"]), auction(90, ["a", "b"])];
+  const listed = [auction(12, ["a"]), auction(30, ["b", "c"])];
+  const now = Date.UTC(2026, 10, 1, 12);
+  let s = readSavedPrices(null, "pc");
+  s = withSaved(s, now, { id: "r1", key: searchKey("soma", ["b", "a"]), prices: packPrices(similar) }, { slug: "soma", listed: packListed(listed) });
+  // Written and read back: the same price check, and the same buffs for "its stats on the market".
+  const back = readSavedPrices(JSON.parse(JSON.stringify(s)), "pc");
+  assert.deepEqual(priceCheck(unpackPrices(back.rivens.r1.prices)), priceCheck(similar));
+  assert.equal(back.rivens.r1.key, "soma|a,b");
+  assert.deepEqual(unpackListed(back.weapons.soma.listed).map((a) => [a.price, a.attributes.map((x) => x.url_name)]), [[12, ["a"]], [30, ["b", "c"]]]);
+  // Another platform's, or a broken file: nothing kept.
+  assert.deepEqual(readSavedPrices(back, "ps4").rivens, {});
+  assert.deepEqual(readSavedPrices({ v: 1, platform: "pc", rivens: { r1: { key: 1 } }, weapons: [] }, "pc").rivens, {});
+  // A month on, a riven not checked since (sold, say) drops out.
+  const later = withSaved(back, now + 31 * 86_400_000, { id: "r2", key: "soma|c", prices: [5] });
+  assert.deepEqual(Object.keys(later.rivens), ["r2"]);
+  assert.deepEqual(later.weapons, {});
+  assert.match(checkedWhen(now - 3600_000, now), /^today /);
+  assert.match(checkedWhen(now - 86_400_000, now), /^yesterday /);
+  assert.equal(checkedWhen(now - 3 * 86_400_000, now), "3 days ago");
+});

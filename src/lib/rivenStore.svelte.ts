@@ -1,7 +1,7 @@
 // warframe.market's riven data: weapon and stat names (cached for a day on the Rust side) and
 // riven auctions, cached a few minutes per search so opening a card twice doesn't refetch.
 import { market } from "./backend";
-import { parseMyAuctions, parseWeeklyRivens, tradeUrl, type AuctionItem, type MyAuction, type RivenAuction, type RivenMeta, type RivenTrade } from "./core/rivens";
+import { packListed, packPrices, parseMyAuctions, parseWeeklyRivens, readSavedPrices, tradeUrl, withSaved, type AuctionItem, type MyAuction, type RivenAuction, type RivenMeta, type RivenTrade, type SavedRivenPrices } from "./core/rivens";
 
 const TTL = 10 * 60_000;
 
@@ -46,6 +46,32 @@ class Rivens {
       throw e;
     }
   }
+
+  // ------------------------------------------------------------ price checks kept between runs
+
+  /** Your rivens' last price checks, read once per platform (see SavedRivenPrices). */
+  saved = $state.raw<SavedRivenPrices | null>(null);
+  private savedRead: { platform: string; done: Promise<SavedRivenPrices> } | null = null;
+  async loadSaved(platform: string): Promise<SavedRivenPrices> {
+    if (this.savedRead?.platform !== platform) {
+      this.savedRead = {
+        platform,
+        done: market
+          .rivenPricesRead()
+          .catch(() => null)
+          .then((raw) => (this.saved = readSavedPrices(raw, platform))),
+      };
+    }
+    return this.savedRead.done;
+  }
+  /** Keeps a check of one of your rivens; written to disk a moment later, once for a run of them. */
+  remember(id: string, key: string, similar: RivenAuction[], weapon: string, listed: RivenAuction[] | undefined) {
+    if (!this.saved) return;
+    this.saved = withSaved(this.saved, Date.now(), { id, key, prices: packPrices(similar) }, listed ? { slug: weapon, listed: packListed(listed) } : undefined);
+    clearTimeout(this.writeSoon);
+    this.writeSoon = setTimeout(() => void market.rivenPricesWrite(this.saved).catch(() => {}), 3000);
+  }
+  private writeSoon: ReturnType<typeof setTimeout> | undefined;
 
   // ------------------------------------------------------------ last week's trades in game
 
