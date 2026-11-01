@@ -4,10 +4,10 @@ mod bridge;
 mod companion;
 mod desktop;
 mod feed;
-mod fissures;
+mod presence;
 mod images;
 mod market;
-mod presence;
+mod fissures;
 mod recipes;
 mod relicdata;
 
@@ -35,11 +35,7 @@ fn data_dir(dir: Option<String>) -> Result<PathBuf, String> {
 fn ptrace_scope() -> Option<u8> {
     #[cfg(target_os = "linux")]
     {
-        std::fs::read_to_string("/proc/sys/kernel/yama/ptrace_scope")
-            .ok()?
-            .trim()
-            .parse()
-            .ok()
+        std::fs::read_to_string("/proc/sys/kernel/yama/ptrace_scope").ok()?.trim().parse().ok()
     }
     #[cfg(not(target_os = "linux"))]
     {
@@ -106,9 +102,7 @@ fn data_stamp(dir: Option<String>) -> Result<u64, String> {
 /// NO_PROXY as they were at startup.
 pub(crate) fn http_agent() -> ureq::Agent {
     static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
-    AGENT
-        .get_or_init(|| ureq::AgentBuilder::new().try_proxy_from_env(true).build())
-        .clone()
+    AGENT.get_or_init(|| ureq::AgentBuilder::new().try_proxy_from_env(true).build()).clone()
 }
 
 /// Writes `bytes` to a temp file beside `path`, flushes it to disk and renames it into place, so
@@ -120,11 +114,7 @@ pub(crate) fn write_atomic(path: &Path, bytes: &[u8], private: bool) -> std::io:
     let dir = path.parent().unwrap_or(Path::new("."));
     fs::create_dir_all(dir)?;
     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("file");
-    let tmp = dir.join(format!(
-        ".{name}.{}.{}.tmp",
-        std::process::id(),
-        SEQ.fetch_add(1, Ordering::Relaxed)
-    ));
+    let tmp = dir.join(format!(".{name}.{}.{}.tmp", std::process::id(), SEQ.fetch_add(1, Ordering::Relaxed)));
     let mut options = fs::OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
@@ -169,23 +159,9 @@ fn get_json(path: &str) -> Result<Value, Unavailable> {
 }
 
 const WORLDSTATE_PARTS: &[&str] = &[
-    "fissures",
-    "vaultTrader",
-    "voidTrader",
-    "invasions",
-    "nightwave",
-    "sortie",
-    "archonHunt",
-    "steelPath",
-    "duviriCycle",
-    "earthCycle",
-    "cetusCycle",
-    "vallisCycle",
-    "cambionCycle",
-    "zarimanCycle",
-    "alerts",
-    "dailyDeals",
-    "syndicateMissions",
+    "fissures", "vaultTrader", "voidTrader", "invasions", "nightwave", "sortie", "archonHunt",
+    "steelPath", "duviriCycle", "earthCycle", "cetusCycle", "vallisCycle", "cambionCycle",
+    "zarimanCycle", "alerts", "dailyDeals", "syndicateMissions",
 ];
 
 /// Active void fissures and Varzia's Prime Resurgence stock. Failures come back as `null` per
@@ -214,18 +190,7 @@ async fn worldstate(app: tauri::AppHandle) -> Value {
             out.insert((*part).to_string(), value.unwrap_or(Value::Null));
         }
         // api.warframestat.us down or behind the game: what it couldn't give, from the game's own file.
-        const FROM_GAME: [&str; 10] = [
-            "fissures",
-            "voidTrader",
-            "vaultTrader",
-            "earthCycle",
-            "cetusCycle",
-            "vallisCycle",
-            "cambionCycle",
-            "sortie",
-            "archonHunt",
-            "syndicateMissions",
-        ];
+        const FROM_GAME: [&str; 10] = ["fissures", "voidTrader", "vaultTrader", "earthCycle", "cetusCycle", "vallisCycle", "cambionCycle", "sortie", "archonHunt", "syndicateMissions"];
         let missing = |out: &serde_json::Map<String, Value>, k: &str| match out.get(k) {
             None | Some(Value::Null) => true,
             Some(Value::Array(a)) => a.is_empty(),
@@ -256,11 +221,9 @@ async fn worldstate(app: tauri::AppHandle) -> Value {
 #[tauri::command]
 async fn relic_data(app: tauri::AppHandle, force: Option<bool>) -> Result<Value, String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    tauri::async_runtime::spawn_blocking(move || {
-        relicdata::relic_data(&dir, force.unwrap_or(false))
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || relicdata::relic_data(&dir, force.unwrap_or(false)))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// Saves an export (CSV) in your Downloads folder as `orbiter-<what>-<date>.csv`, never over an
@@ -270,11 +233,7 @@ fn export_file(app: tauri::AppHandle, what: String, text: String) -> Result<Stri
     if what.is_empty() || !what.bytes().all(|b| b.is_ascii_lowercase() || b == b'-') {
         return Err("bad export name".into());
     }
-    let dir = app
-        .path()
-        .download_dir()
-        .or_else(|_| app.path().home_dir())
-        .map_err(|e| e.to_string())?;
+    let dir = app.path().download_dir().or_else(|_| app.path().home_dir()).map_err(|e| e.to_string())?;
     let day = chrono_day();
     let mut path = dir.join(format!("orbiter-{what}-{day}.csv"));
     let mut n = 2;
@@ -288,11 +247,7 @@ fn export_file(app: tauri::AppHandle, what: String, text: String) -> Result<Stri
 
 /// Today's date (UTC) as YYYY-MM-DD, without a date library.
 fn chrono_day() -> String {
-    civil_day(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_secs() / 86_400) as i64,
-    )
+    civil_day(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() / 86_400) as i64)
 }
 
 /// Days since 1970-01-01 as YYYY-MM-DD (Howard Hinnant's civil-from-days).
@@ -311,23 +266,11 @@ fn civil_day(days: i64) -> String {
 
 /// A Discord webhook address, nothing else (the page checks too): orbiter posts only to these.
 fn discord_webhook(url: &str) -> bool {
-    let rest = [
-        "https://discord.com/api/webhooks/",
-        "https://discordapp.com/api/webhooks/",
-        "https://ptb.discord.com/api/webhooks/",
-        "https://canary.discord.com/api/webhooks/",
-    ]
-    .iter()
-    .find_map(|p| url.strip_prefix(p));
-    let Some((id, token)) = rest.and_then(|r| r.split_once('/')) else {
-        return false;
-    };
-    !id.is_empty()
-        && id.bytes().all(|b| b.is_ascii_digit())
-        && !token.is_empty()
-        && token
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+    let rest = ["https://discord.com/api/webhooks/", "https://discordapp.com/api/webhooks/", "https://ptb.discord.com/api/webhooks/", "https://canary.discord.com/api/webhooks/"]
+        .iter()
+        .find_map(|p| url.strip_prefix(p));
+    let Some((id, token)) = rest.and_then(|r| r.split_once('/')) else { return false };
+    !id.is_empty() && id.bytes().all(|b| b.is_ascii_digit()) && !token.is_empty() && token.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
 }
 
 /// Posts a notification to your Discord webhook (Settings → notifications), for when you're away.
@@ -384,10 +327,7 @@ fn ee_log_path() -> Option<PathBuf> {
 /// "MODE_WINDOWED"). On Windows an overlay can't draw over exclusive fullscreen, so orbiter says so.
 #[tauri::command(async)]
 fn warframe_window_mode(path: Option<String>) -> Option<String> {
-    let log = path
-        .filter(|p| !p.trim().is_empty())
-        .map(PathBuf::from)
-        .or_else(ee_log_path)?;
+    let log = path.filter(|p| !p.trim().is_empty()).map(PathBuf::from).or_else(ee_log_path)?;
     let text = fs::read_to_string(log.parent()?.join("EE.cfg")).ok()?;
     window_mode(&text)
 }
@@ -396,20 +336,13 @@ fn window_mode(cfg: &str) -> Option<String> {
     cfg.lines()
         .find_map(|l| l.trim().strip_prefix("Graphics.WindowMode="))
         .map(|v| v.trim().to_string())
-        .filter(|v| {
-            v.starts_with("MODE_")
-                && v.len() < 40
-                && v.bytes().all(|b| b.is_ascii_uppercase() || b == b'_')
-        })
+        .filter(|v| v.starts_with("MODE_") && v.len() < 40 && v.bytes().all(|b| b.is_ascii_uppercase() || b == b'_'))
 }
 
 /// What Warframe's EE.log says about the current fissure: the squad's relics, the reward screen.
 /// `None` when the log can't be found (game never run under this Steam, or a custom path is wrong).
 #[tauri::command]
-async fn mission_state(
-    app: tauri::AppHandle,
-    path: Option<String>,
-) -> Result<Option<MissionState>, String> {
+async fn mission_state(app: tauri::AppHandle, path: Option<String>) -> Result<Option<MissionState>, String> {
     // The first read of a long session's log can be large; keep it off the async workers.
     tauri::async_runtime::spawn_blocking(move || {
         let path = path
@@ -433,9 +366,7 @@ async fn mission_state(
 /// Every relic reward screen TennoScope has read, from its own log files (the current one and
 /// the ones it rotated out), oldest first: the history behind Stats' relic runs.
 #[tauri::command]
-async fn reward_screens(
-    dir: Option<String>,
-) -> Result<Vec<orbiter_data::reward_log::LoggedScreen>, String> {
+async fn reward_screens(dir: Option<String>) -> Result<Vec<orbiter_data::reward_log::LoggedScreen>, String> {
     let dir = data_dir(dir)?;
     tauri::async_runtime::spawn_blocking(move || {
         orbiter_data::reward_log::read_reward_logs(&orbiter_data::reward_log::reward_log_dirs(&dir))
@@ -446,9 +377,7 @@ async fn reward_screens(
 
 // ------------------------------------------------------------------ warframe.market
 
-async fn blocking<T: Send + 'static>(
-    f: impl FnOnce() -> Result<T, market::MarketError> + Send + 'static,
-) -> Result<T, String> {
+async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T, market::MarketError> + Send + 'static) -> Result<T, String> {
     tauri::async_runtime::spawn_blocking(f)
         .await
         .map_err(|e| e.to_string())?
@@ -470,28 +399,13 @@ async fn market_account(app: tauri::AppHandle) -> Result<MarketAccount, String> 
     tauri::async_runtime::spawn_blocking(move || {
         let client = app.state::<market::Client>();
         if !client.linked() {
-            return MarketAccount {
-                linked: false,
-                backing: client.store.backing(),
-                profile: None,
-                error: None,
-            };
+            return MarketAccount { linked: false, backing: client.store.backing(), profile: None, error: None };
         }
         let me = client.me().map_err(|e| e.to_string());
         let backing = client.store.backing();
         match me {
-            Ok(p) => MarketAccount {
-                linked: true,
-                backing,
-                profile: Some(p),
-                error: None,
-            },
-            Err(e) => MarketAccount {
-                linked: true,
-                backing,
-                profile: None,
-                error: Some(e),
-            },
+            Ok(p) => MarketAccount { linked: true, backing, profile: Some(p), error: None },
+            Err(e) => MarketAccount { linked: true, backing, profile: None, error: Some(e) },
         }
     })
     .await
@@ -499,11 +413,7 @@ async fn market_account(app: tauri::AppHandle) -> Result<MarketAccount, String> 
 }
 
 #[tauri::command]
-async fn market_sign_in(
-    app: tauri::AppHandle,
-    email: String,
-    password: String,
-) -> Result<market::Profile, String> {
+async fn market_sign_in(app: tauri::AppHandle, email: String, password: String) -> Result<market::Profile, String> {
     blocking(move || app.state::<market::Client>().sign_in(&email, &password)).await
 }
 
@@ -535,17 +445,8 @@ async fn market_riven_meta(app: tauri::AppHandle) -> Result<Value, String> {
 }
 
 #[tauri::command]
-async fn market_riven_auctions(
-    app: tauri::AppHandle,
-    weapon: String,
-    positive: Vec<String>,
-    negative: Option<String>,
-) -> Result<Value, String> {
-    blocking(move || {
-        app.state::<market::Client>()
-            .riven_auctions(&weapon, &positive, negative.as_deref())
-    })
-    .await
+async fn market_riven_auctions(app: tauri::AppHandle, weapon: String, positive: Vec<String>, negative: Option<String>) -> Result<Value, String> {
+    blocking(move || app.state::<market::Client>().riven_auctions(&weapon, &positive, negative.as_deref())).await
 }
 
 #[tauri::command]
@@ -554,10 +455,7 @@ async fn market_my_orders(app: tauri::AppHandle) -> Result<Vec<market::Order>, S
 }
 
 #[tauri::command]
-async fn market_order_book(
-    app: tauri::AppHandle,
-    slug: String,
-) -> Result<Vec<market::BookOrder>, String> {
+async fn market_order_book(app: tauri::AppHandle, slug: String) -> Result<Vec<market::BookOrder>, String> {
     blocking(move || app.state::<market::Client>().order_book(&slug)).await
 }
 
@@ -576,10 +474,7 @@ fn market_feed_state(app: tauri::AppHandle) -> feed::FeedState {
 
 /// A player's closed orders on warframe.market (yours, for importing sales).
 #[tauri::command]
-async fn market_closed_orders(
-    app: tauri::AppHandle,
-    name: String,
-) -> Result<Vec<market::ClosedOrder>, String> {
+async fn market_closed_orders(app: tauri::AppHandle, name: String) -> Result<Vec<market::ClosedOrder>, String> {
     blocking(move || app.state::<market::Client>().closed_orders(&name)).await
 }
 
@@ -597,11 +492,7 @@ async fn market_create_auction(app: tauri::AppHandle, auction: Value) -> Result<
 
 /// Changes an auction's prices or note.
 #[tauri::command]
-async fn market_update_auction(
-    app: tauri::AppHandle,
-    id: String,
-    change: Value,
-) -> Result<Value, String> {
+async fn market_update_auction(app: tauri::AppHandle, id: String, change: Value) -> Result<Value, String> {
     blocking(move || app.state::<market::Client>().update_auction(&id, &change)).await
 }
 
@@ -613,10 +504,7 @@ async fn market_close_auction(app: tauri::AppHandle, id: String) -> Result<(), S
 
 /// An item's daily closed trades on warframe.market, last 90 days.
 #[tauri::command]
-async fn market_item_history(
-    app: tauri::AppHandle,
-    slug: String,
-) -> Result<Vec<market::PricePoint>, String> {
+async fn market_item_history(app: tauri::AppHandle, slug: String) -> Result<Vec<market::PricePoint>, String> {
     blocking(move || app.state::<market::Client>().item_history(&slug)).await
 }
 
@@ -628,10 +516,7 @@ async fn market_chats(app: tauri::AppHandle) -> Result<Vec<market::ChatSummary>,
 
 /// A trade partner's warframe.market profile (None: no account under that name).
 #[tauri::command]
-async fn market_user(
-    app: tauri::AppHandle,
-    name: String,
-) -> Result<Option<market::MarketUser>, String> {
+async fn market_user(app: tauri::AppHandle, name: String) -> Result<Option<market::MarketUser>, String> {
     blocking(move || app.state::<market::Client>().user(&name)).await
 }
 
@@ -648,19 +533,12 @@ async fn market_give_rep(app: tauri::AppHandle, name: String, text: String) -> R
 }
 
 #[tauri::command]
-async fn market_create(
-    app: tauri::AppHandle,
-    order: market::NewOrder,
-) -> Result<market::Order, String> {
+async fn market_create(app: tauri::AppHandle, order: market::NewOrder) -> Result<market::Order, String> {
     blocking(move || app.state::<market::Client>().create(&order)).await
 }
 
 #[tauri::command]
-async fn market_update(
-    app: tauri::AppHandle,
-    id: String,
-    change: market::OrderChange,
-) -> Result<(), String> {
+async fn market_update(app: tauri::AppHandle, id: String, change: market::OrderChange) -> Result<(), String> {
     blocking(move || app.state::<market::Client>().update(&id, &change)).await
 }
 
@@ -694,9 +572,7 @@ fn load_settings(app: tauri::AppHandle) -> Result<Value, String> {
         Ok(v) => v,
         Err(_) => {
             // Keep a damaged file (floors, tiers...) instead of letting the defaults overwrite it.
-            let stamp = std::time::SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map_or(0, |d| d.as_secs());
+            let stamp = std::time::SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
             let _ = fs::rename(&path, path.with_extension(format!("json.broken-{stamp}")));
             Value::Null
         }
@@ -704,29 +580,19 @@ fn load_settings(app: tauri::AppHandle) -> Result<Value, String> {
 }
 
 #[tauri::command(async)]
-fn tennoscope_status(
-    companion: tauri::State<'_, companion::Companion>,
-    path: Option<String>,
-) -> companion::Status {
+fn tennoscope_status(companion: tauri::State<'_, companion::Companion>, path: Option<String>) -> companion::Status {
     companion.status(path.as_deref())
 }
 
 /// Starts TennoScope in the background, unless one is running already.
 #[tauri::command(async)]
-fn tennoscope_start(
-    companion: tauri::State<'_, companion::Companion>,
-    path: Option<String>,
-) -> Result<companion::Status, String> {
+fn tennoscope_start(companion: tauri::State<'_, companion::Companion>, path: Option<String>) -> Result<companion::Status, String> {
     companion.start(path.as_deref())
 }
 
 /// Passes a request (sync, screen-capture permission) to the running TennoScope.
 #[tauri::command(async)]
-fn tennoscope_ask(
-    companion: tauri::State<'_, companion::Companion>,
-    path: Option<String>,
-    ask: String,
-) -> Result<(), String> {
+fn tennoscope_ask(companion: tauri::State<'_, companion::Companion>, path: Option<String>, ask: String) -> Result<(), String> {
     companion.ask(path.as_deref(), &ask)
 }
 
@@ -739,10 +605,7 @@ fn tennoscope_opaque_overlay(on: bool) {
 
 /// Brings up TennoScope's own window.
 #[tauri::command(async)]
-fn tennoscope_show(
-    companion: tauri::State<'_, companion::Companion>,
-    path: Option<String>,
-) -> Result<(), String> {
+fn tennoscope_show(companion: tauri::State<'_, companion::Companion>, path: Option<String>) -> Result<(), String> {
     companion.show(path.as_deref())
 }
 
@@ -796,8 +659,8 @@ const QUIT_GRACE: Duration = Duration::from_secs(2);
 /// The window's X: instead of closing at once, ask the page to save and quit, and quit anyway
 /// after `QUIT_GRACE`.
 fn on_close_requested(window: &tauri::Window, api: &tauri::CloseRequestApi) {
-    use std::sync::atomic::AtomicBool;
     use tauri::Emitter;
+    use std::sync::atomic::AtomicBool;
     static ASKED: AtomicBool = AtomicBool::new(false);
     api.prevent_close();
     // Clicked again while waiting: the first request and its deadline stand.
@@ -824,19 +687,13 @@ fn reward_cards() -> Option<bridge::ScreenCards> {
 /// orbiter's pick for those cards, for TennoScope's overlay to show.
 #[tauri::command(async)]
 fn write_reward_pick(pick: Value) -> Result<(), String> {
-    bridge::write_pick_in(
-        &bridge::runtime_dir().ok_or("No private folder for the reward pick")?,
-        &pick,
-    )
+    bridge::write_pick_in(&bridge::runtime_dir().ok_or("No private folder for the reward pick")?, &pick)
 }
 
 /// Your overlay settings, for TennoScope: which overlays show and what the reward cards show.
 #[tauri::command]
 fn write_overlay_prefs(prefs: Value) -> Result<(), String> {
-    bridge::write_overlay_in(
-        &bridge::runtime_dir().ok_or("No private folder for the overlay settings")?,
-        &prefs,
-    )
+    bridge::write_overlay_in(&bridge::runtime_dir().ok_or("No private folder for the overlay settings")?, &prefs)
 }
 
 /// Saves in the order the page sent them: each save takes a number on arrival, and one that
@@ -847,11 +704,7 @@ static SETTINGS_WRITTEN: Mutex<u64> = Mutex::new(0);
 /// Written whole to a temp file, flushed to disk and renamed (see `write_atomic`), so a crash
 /// never leaves half a settings file. The flush waits on the disk, so not on the main thread.
 #[tauri::command]
-async fn save_settings(
-    app: tauri::AppHandle,
-    settings: Value,
-    rev: Option<u64>,
-) -> Result<(), String> {
+async fn save_settings(app: tauri::AppHandle, settings: Value, rev: Option<u64>) -> Result<(), String> {
     // The page numbers its saves (`rev`): async commands can start out of order, so numbering
     // them here could put an older save after a newer one. Without one, as they arrive.
     let seq = rev.unwrap_or_else(|| SETTINGS_SENT.fetch_add(1, Ordering::SeqCst) + 1);
@@ -893,8 +746,7 @@ fn tune_webkit_for_this_machine() {
         }
     };
     let wayland = std::env::var_os("WAYLAND_DISPLAY").is_some();
-    let nvidia = Path::new("/proc/driver/nvidia/version").exists()
-        || Path::new("/sys/module/nvidia").exists();
+    let nvidia = Path::new("/proc/driver/nvidia/version").exists() || Path::new("/sys/module/nvidia").exists();
     if wayland {
         set_default("GDK_BACKEND", "wayland,x11");
     }
@@ -912,32 +764,18 @@ fn tune_webkit_for_this_machine() {
 /// size only exists then, and by then the window-state plugin has put back the size you left it
 /// at, which fits and is kept.
 fn fit_first_window(app: &tauri::App) {
-    let Some(window) = app.get_webview_window("main") else {
-        return;
-    };
+    let Some(window) = app.get_webview_window("main") else { return };
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(600));
-        let Some(monitor) = window
-            .current_monitor()
-            .ok()
-            .flatten()
-            .or_else(|| window.primary_monitor().ok().flatten())
-        else {
-            return;
-        };
+        let Some(monitor) = window.current_monitor().ok().flatten().or_else(|| window.primary_monitor().ok().flatten()) else { return };
         let scale = monitor.scale_factor();
         let screen = monitor.size().to_logical::<f64>(scale);
-        let Ok(size) = window.outer_size() else {
-            return;
-        };
+        let Ok(size) = window.outer_size() else { return };
         let size = size.to_logical::<f64>(scale);
         if size.width > screen.width + 1.0 || size.height > screen.height + 1.0 {
             // Sized to the screen first: maximising is up to the window manager, and not every
             // session has one that does it.
-            let _ = window.set_size(tauri::LogicalSize::new(
-                size.width.min(screen.width),
-                size.height.min(screen.height),
-            ));
+            let _ = window.set_size(tauri::LogicalSize::new(size.width.min(screen.width), size.height.min(screen.height)));
             let _ = window.set_position(tauri::LogicalPosition::new(0.0, 0.0));
             let _ = window.maximize();
         }
@@ -974,9 +812,7 @@ pub fn run() {
             #[cfg(unix)]
             {
                 use signal_hook::consts::{SIGHUP, SIGINT, SIGTERM};
-                if let Ok(mut signals) =
-                    signal_hook::iterator::Signals::new([SIGINT, SIGTERM, SIGHUP])
-                {
+                if let Ok(mut signals) = signal_hook::iterator::Signals::new([SIGINT, SIGTERM, SIGHUP]) {
                     let handle = app.handle().clone();
                     std::thread::spawn(move || {
                         if signals.forever().next().is_some() {
@@ -990,11 +826,7 @@ pub fn run() {
             let config = app.path().app_config_dir()?;
             app.manage(market::Client::new(market::TokenStore::new(&config)));
             // The TennoScope this build carries, if it carries one (release builds do).
-            let bundled = app
-                .path()
-                .resource_dir()
-                .ok()
-                .map(|d| d.join(companion::BUNDLED));
+            let bundled = app.path().resource_dir().ok().map(|d| d.join(companion::BUNDLED));
             app.state::<companion::Companion>().set_bundled(bundled);
             fit_first_window(app);
             Ok(())
@@ -1010,9 +842,7 @@ pub fn run() {
             let path = request.uri().path().to_string();
             // The blocking pool reuses its threads (and caps them), where a thread per image
             // would start hundreds at once for a long table.
-            tauri::async_runtime::spawn_blocking(move || {
-                responder.respond(images::respond(&cache, &path))
-            });
+            tauri::async_runtime::spawn_blocking(move || responder.respond(images::respond(&cache, &path)));
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -1092,15 +922,11 @@ mod tests {
 
     #[test]
     fn only_discord_webhooks() {
-        assert!(discord_webhook(
-            "https://discord.com/api/webhooks/123456/abc_DEF-9"
-        ));
+        assert!(discord_webhook("https://discord.com/api/webhooks/123456/abc_DEF-9"));
         assert!(!discord_webhook("https://discord.com/api/webhooks/123456/"));
         assert!(!discord_webhook("https://evil.example/api/webhooks/1/x"));
         assert!(!discord_webhook("https://discord.com/api/webhooks/12a/x"));
-        assert!(!discord_webhook(
-            "https://discord.com.evil.example/api/webhooks/1/x"
-        ));
+        assert!(!discord_webhook("https://discord.com.evil.example/api/webhooks/1/x"));
     }
 
     #[test]
@@ -1113,10 +939,7 @@ mod tests {
     #[test]
     fn reads_the_window_mode_from_ee_cfg() {
         assert_eq!(window_mode("Graphics.DisplayAspectRatio=DAR_WIDESCREEN_16x9\r\nGraphics.WindowMode=MODE_BORDERLESS\r\n").as_deref(), Some("MODE_BORDERLESS"));
-        assert_eq!(
-            window_mode("Graphics.WindowMode=MODE_FULLSCREEN").as_deref(),
-            Some("MODE_FULLSCREEN")
-        );
+        assert_eq!(window_mode("Graphics.WindowMode=MODE_FULLSCREEN").as_deref(), Some("MODE_FULLSCREEN"));
         assert_eq!(window_mode("Graphics.WindowMode=<script>"), None);
         assert_eq!(window_mode("nothing here"), None);
     }

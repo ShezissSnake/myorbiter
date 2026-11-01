@@ -25,13 +25,9 @@ const LARGE: u32 = 400;
 fn valid_name(name: &str) -> bool {
     !name.is_empty()
         && name.len() < 120
-        && name
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'(' | b')'))
+        && name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'(' | b')'))
         && !name.starts_with('.')
-        && [".png", ".jpg", ".jpeg", ".webp"]
-            .iter()
-            .any(|ext| name.to_ascii_lowercase().ends_with(ext))
+        && [".png", ".jpg", ".jpeg", ".webp"].iter().any(|ext| name.to_ascii_lowercase().ends_with(ext))
 }
 
 enum Fetched {
@@ -74,10 +70,7 @@ const OFFLINE_PAUSE: Duration = Duration::from_secs(30);
 static OFFLINE_SINCE: Mutex<Option<Instant>> = Mutex::new(None);
 
 fn offline() -> bool {
-    OFFLINE_SINCE
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .is_some_and(|at| at.elapsed() < OFFLINE_PAUSE)
+    OFFLINE_SINCE.lock().unwrap_or_else(|e| e.into_inner()).is_some_and(|at| at.elapsed() < OFFLINE_PAUSE)
 }
 
 fn set_offline(yes: bool) {
@@ -107,8 +100,7 @@ fn fetch(name: &str) -> Fetched {
                 let mut bytes = Vec::new();
                 let mut reader = std::io::Read::take(resp.into_reader(), 8 * 1024 * 1024);
                 reached = true;
-                if std::io::Read::read_to_end(&mut reader, &mut bytes).is_ok() && !bytes.is_empty()
-                {
+                if std::io::Read::read_to_end(&mut reader, &mut bytes).is_ok() && !bytes.is_empty() {
                     if wfm.is_none() {
                         set_offline(false);
                     }
@@ -128,19 +120,13 @@ fn fetch(name: &str) -> Fetched {
     if wfm.is_none() {
         set_offline(!reached);
     }
-    if all_404 {
-        Fetched::Missing
-    } else {
-        Fetched::Failed
-    }
+    if all_404 { Fetched::Missing } else { Fetched::Failed }
 }
 
 /// Shrinks to a PNG thumbnail. `None` if it isn't an image: an error page served as 200 must
 /// not be cached (and served as a PNG) forever.
 fn thumbnail(bytes: &[u8], size: u32) -> Option<Vec<u8>> {
-    let mut reader = image::ImageReader::new(Cursor::new(bytes))
-        .with_guessed_format()
-        .ok()?;
+    let mut reader = image::ImageReader::new(Cursor::new(bytes)).with_guessed_format().ok()?;
     // Item art is a few hundred pixels; refuse anything that would decode to a huge buffer.
     let mut limits = image::Limits::default();
     limits.max_image_width = Some(4096);
@@ -148,11 +134,7 @@ fn thumbnail(bytes: &[u8], size: u32) -> Option<Vec<u8>> {
     limits.max_alloc = Some(128 * 1024 * 1024);
     reader.limits(limits);
     let img = reader.decode().ok()?;
-    let img = if img.width() > size || img.height() > size {
-        img.resize(size, size, image::imageops::FilterType::CatmullRom)
-    } else {
-        img
-    };
+    let img = if img.width() > size || img.height() > size { img.resize(size, size, image::imageops::FilterType::CatmullRom) } else { img };
     let mut out = Cursor::new(Vec::new());
     img.write_to(&mut out, image::ImageFormat::Png).ok()?;
     Some(out.into_inner())
@@ -163,21 +145,14 @@ pub fn cached(cache_dir: &Path, name: &str, large: bool) -> Option<PathBuf> {
     if !valid_name(name) {
         return None;
     }
-    let (size, suffix) = if large {
-        (LARGE, "large")
-    } else {
-        (SIZE, "thumb")
-    };
+    let (size, suffix) = if large { (LARGE, "large") } else { (SIZE, "thumb") };
     let path = cache_dir.join(format!("{name}.{suffix}.png"));
     if path.is_file() {
         return Some(path);
     }
     // Remember misses for a day so a missing image isn't requested on every render.
     let miss = cache_dir.join(format!("{name}.missing"));
-    if let Ok(age) = fs::metadata(&miss)
-        .and_then(|m| m.modified())
-        .and_then(|t| t.elapsed().map_err(std::io::Error::other))
-    {
+    if let Ok(age) = fs::metadata(&miss).and_then(|m| m.modified()).and_then(|t| t.elapsed().map_err(std::io::Error::other)) {
         if age.as_secs() < 86_400 {
             return None;
         }
@@ -224,10 +199,7 @@ pub fn respond(cache_dir: &Path, uri_path: &str) -> Response<Vec<u8>> {
             .header(header::CACHE_CONTROL, "max-age=31536000, immutable")
             .body(bytes)
             .unwrap_or_default(),
-        None => Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .body(Vec::new())
-            .unwrap_or_default(),
+        None => Response::builder().status(StatusCode::NOT_FOUND).body(Vec::new()).unwrap_or_default(),
     }
 }
 
@@ -265,9 +237,7 @@ mod tests {
         assert!(valid_name("rifle-damage_amount.mod.jpg"));
         assert!(!valid_name("../secret.png"));
         assert!(!valid_name("a/b.png"));
-        assert!(valid_name(
-            "wfm.equilibrium_(steam_pinnacle_pack).0326.128x128.webp"
-        ));
+        assert!(valid_name("wfm.equilibrium_(steam_pinnacle_pack).0326.128x128.webp"));
         assert!(!valid_name(".hidden.png"));
         assert!(!valid_name("script.js"));
     }
@@ -285,10 +255,7 @@ mod tests {
         assert!(cached(&dir, "DoesNotExist123.png", false).is_none());
         assert!(dir.join("DoesNotExist123.png.missing").exists());
         // warframe.market's own thumbnails, a PNG and a WebP one.
-        for name in [
-            "wfm.serration.711b19665b2acbac445c68c9e8f8b550.128x128.png",
-            "wfm.kuva_wytch_scene.24274e7f65c89a2b783895dd0dcb6bda.128x128.webp",
-        ] {
+        for name in ["wfm.serration.711b19665b2acbac445c68c9e8f8b550.128x128.png", "wfm.kuva_wytch_scene.24274e7f65c89a2b783895dd0dcb6bda.128x128.webp"] {
             let path = cached(&dir, name, false).expect("fetched from warframe.market");
             image::open(&path).expect("decodes");
         }
@@ -317,18 +284,8 @@ mod tests {
         fs::write(cache.join("Rhino.png.thumb.png"), b"png").unwrap();
         assert_eq!(respond(&cache, "/Rhino.png").status(), StatusCode::OK);
         assert_eq!(respond(&cache, "/Rhino.png").body(), b"png");
-        for evil in [
-            "/..%2Fsecret.png",
-            "/l/..%2F..%2Fsecret.png",
-            "/%2E%2E/secret.png",
-            "/a%00.png",
-            "/%aé.png",
-        ] {
-            assert_eq!(
-                respond(&cache, evil).status(),
-                StatusCode::NOT_FOUND,
-                "{evil}"
-            );
+        for evil in ["/..%2Fsecret.png", "/l/..%2F..%2Fsecret.png", "/%2E%2E/secret.png", "/a%00.png", "/%aé.png"] {
+            assert_eq!(respond(&cache, evil).status(), StatusCode::NOT_FOUND, "{evil}");
         }
         fs::remove_dir_all(&dir).ok();
     }
@@ -337,9 +294,7 @@ mod tests {
     fn only_real_images_become_thumbnails() {
         assert_eq!(thumbnail(b"<html>rate limited</html>", SIZE), None);
         let mut png = Cursor::new(Vec::new());
-        image::DynamicImage::new_rgba8(300, 150)
-            .write_to(&mut png, image::ImageFormat::Png)
-            .unwrap();
+        image::DynamicImage::new_rgba8(300, 150).write_to(&mut png, image::ImageFormat::Png).unwrap();
         let thumb = thumbnail(png.get_ref(), SIZE).expect("an image");
         let img = image::load_from_memory(&thumb).unwrap();
         assert_eq!((img.width(), img.height()), (128, 64));

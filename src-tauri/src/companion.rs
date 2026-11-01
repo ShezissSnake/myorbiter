@@ -77,17 +77,13 @@ const STATUS_FILE: &str = "tennoscope-status.json";
 const REPORT_FRESH_MS: u64 = 15_000;
 
 fn read_report(live: &[u32]) -> Option<serde_json::Value> {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .ok()?
-        .as_millis() as u64;
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?.as_millis() as u64;
     read_report_in(&crate::bridge::runtime_dir()?, live, now)
 }
 
 /// The report, if it's recent and from a TennoScope that is still running.
 fn read_report_in(dir: &Path, live: &[u32], now: u64) -> Option<serde_json::Value> {
-    let report: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(dir.join(STATUS_FILE)).ok()?).ok()?;
+    let report: serde_json::Value = serde_json::from_str(&fs::read_to_string(dir.join(STATUS_FILE)).ok()?).ok()?;
     let at = report.get("at")?.as_u64()?;
     let pid = report.get("pid").and_then(|p| p.as_u64()).map(|p| p as u32);
     let alive = pid.map_or(true, |p| live.contains(&p));
@@ -110,10 +106,7 @@ pub fn find_binary(custom: Option<&str>, bundled: Option<&Path>) -> Option<PathB
     let home = std::env::var_os("HOME").map(PathBuf::from);
     let mut candidates: Vec<PathBuf> = bundled.map(Path::to_path_buf).into_iter().collect();
     if let Some(h) = &home {
-        candidates.push(
-            h.join("dev/projects/tennoscope/target/release")
-                .join(PROCESS),
-        );
+        candidates.push(h.join("dev/projects/tennoscope/target/release").join(PROCESS));
     }
     if let Some(path) = std::env::var_os("PATH") {
         candidates.extend(std::env::split_paths(&path).map(|d| d.join(PROCESS)));
@@ -131,9 +124,7 @@ fn expand_home(p: &str) -> PathBuf {
 /// Process ids of every running TennoScope.
 #[cfg(target_os = "linux")]
 pub fn running_in(proc_root: &Path) -> Vec<u32> {
-    let Ok(entries) = fs::read_dir(proc_root) else {
-        return Vec::new();
-    };
+    let Ok(entries) = fs::read_dir(proc_root) else { return Vec::new() };
     entries
         .flatten()
         .filter_map(|e| e.file_name().to_str()?.parse::<u32>().ok())
@@ -161,10 +152,7 @@ fn exited(dir: &Path) -> bool {
 /// When the process started; the fields after the name begin at field 3, so 22 is index 19.
 #[cfg(target_os = "linux")]
 fn start_time_in(proc_root: &Path, pid: u32) -> Option<u64> {
-    stat_fields(&proc_root.join(pid.to_string()))?
-        .get(19)?
-        .parse()
-        .ok()
+    stat_fields(&proc_root.join(pid.to_string()))?.get(19)?.parse().ok()
 }
 
 #[cfg(target_os = "linux")]
@@ -179,10 +167,7 @@ fn proc_of(pid: u32) -> Option<Proc> {
     if exited(&root.join(pid.to_string())) {
         return None;
     }
-    Some(Proc {
-        pid,
-        start: start_time_in(root, pid)?,
-    })
+    Some(Proc { pid, start: start_time_in(root, pid)? })
 }
 
 /// Elsewhere the process table comes from the system through `sysinfo`.
@@ -208,16 +193,10 @@ fn running() -> Vec<u32> {
 fn proc_of(pid: u32) -> Option<Proc> {
     let sys = processes();
     let p = sys.process(sysinfo::Pid::from_u32(pid))?;
-    if matches!(
-        p.status(),
-        sysinfo::ProcessStatus::Zombie | sysinfo::ProcessStatus::Dead
-    ) {
+    if matches!(p.status(), sysinfo::ProcessStatus::Zombie | sysinfo::ProcessStatus::Dead) {
         return None;
     }
-    Some(Proc {
-        pid,
-        start: p.start_time(),
-    })
+    Some(Proc { pid, start: p.start_time() })
 }
 
 /// Still the same process orbiter started: its pid is running and it started when we noted. Not
@@ -246,10 +225,7 @@ fn remember(p: Option<Proc>) {
 
 fn parse_pid_file(text: &str) -> Option<Proc> {
     let mut it = text.split_whitespace();
-    Some(Proc {
-        pid: it.next()?.parse().ok()?,
-        start: it.next()?.parse().ok()?,
-    })
+    Some(Proc { pid: it.next()?.parse().ok()?, start: it.next()?.parse().ok()? })
 }
 
 #[cfg(unix)]
@@ -271,9 +247,7 @@ fn terminate(pid: u32) {
 /// not orbiter's.
 #[cfg(target_os = "linux")]
 fn scrub_appimage_env(cmd: &mut Command) {
-    let Some(appdir) = std::env::var_os("APPDIR").filter(|d| !d.is_empty()) else {
-        return;
-    };
+    let Some(appdir) = std::env::var_os("APPDIR").filter(|d| !d.is_empty()) else { return };
     let appdir = appdir.to_string_lossy().into_owned();
     for (key, value) in std::env::vars_os() {
         let Some(k) = key.to_str() else { continue };
@@ -285,10 +259,7 @@ fn scrub_appimage_env(cmd: &mut Command) {
         if !v.contains(&appdir) {
             continue;
         }
-        let kept: Vec<&str> = v
-            .split(':')
-            .filter(|part| !part.is_empty() && !part.starts_with(&appdir))
-            .collect();
+        let kept: Vec<&str> = v.split(':').filter(|part| !part.is_empty() && !part.starts_with(&appdir)).collect();
         if kept.is_empty() {
             cmd.env_remove(&key);
         } else {
@@ -302,9 +273,7 @@ fn scrub_appimage_env(cmd: &mut Command) {
 /// (`ORBITER_BUNDLED`): its own updater then stands down, as orbiter brings its updates.
 fn launch(bin: &Path, bundled: bool) -> Command {
     let mut cmd = Command::new(bin);
-    cmd.stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+    cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
     for key in crate::env_set_by_orbiter() {
         cmd.env_remove(key);
     }
@@ -344,10 +313,7 @@ impl Companion {
     /// Picks up a TennoScope an earlier orbiter started (say orbiter was closed from the terminal).
     /// Only if it is still that same process: a pid reused by something else is never adopted.
     pub fn adopt(&self) {
-        let Some(noted) = pid_file()
-            .and_then(|f| fs::read_to_string(f).ok())
-            .and_then(|t| parse_pid_file(&t))
-        else {
+        let Some(noted) = pid_file().and_then(|f| fs::read_to_string(f).ok()).and_then(|t| parse_pid_file(&t)) else {
             remember(None);
             return;
         };
@@ -385,9 +351,7 @@ impl Companion {
         }
         let ours = lock(&self.started).is_some_and(alive);
         if running().is_empty() && !ours {
-            let (bin, bundled) = self
-                .binary(custom)
-                .ok_or("TennoScope wasn't found. Set its path in Settings.")?;
+            let (bin, bundled) = self.binary(custom).ok_or("TennoScope wasn't found. Set its path in Settings.")?;
             let mut child = launch(&bin, bundled)
                 .arg("--background")
                 .spawn()
@@ -403,9 +367,7 @@ impl Companion {
 
     /// Opens TennoScope's own window: a running TennoScope raises it, otherwise it starts normally.
     pub fn show(&self, custom: Option<&str>) -> Result<(), String> {
-        let (bin, bundled) = self
-            .binary(custom)
-            .ok_or("TennoScope wasn't found. Set its path in Settings.")?;
+        let (bin, bundled) = self.binary(custom).ok_or("TennoScope wasn't found. Set its path in Settings.")?;
         let mut child = launch(&bin, bundled)
             .spawn()
             .map_err(|e| format!("Couldn't start {}: {e}", bin.display()))?;
@@ -424,9 +386,7 @@ impl Companion {
         if running().is_empty() {
             return Err("TennoScope isn't running.".into());
         }
-        let (bin, bundled) = self
-            .binary(custom)
-            .ok_or("TennoScope wasn't found. Set its path in Settings.")?;
+        let (bin, bundled) = self.binary(custom).ok_or("TennoScope wasn't found. Set its path in Settings.")?;
         let mut child = launch(&bin, bundled)
             .arg(arg)
             .spawn()
@@ -457,9 +417,7 @@ impl Companion {
 
     /// Stops the TennoScope orbiter started (and only that one), asking it to quit first.
     pub fn stop(&self) {
-        let Some(p) = lock(&self.started).take() else {
-            return;
-        };
+        let Some(p) = lock(&self.started).take() else { return };
         if alive(p) {
             terminate(p.pid);
         }
@@ -475,19 +433,10 @@ mod tests {
     #[test]
     fn finds_processes_by_name() {
         let root = std::env::temp_dir().join(format!("orbiter-proc-{}", std::process::id()));
-        for (pid, comm, state) in [
-            ("101", "tennoscope\n", "S"),
-            ("102", "orbiter\n", "S"),
-            ("103", "tennoscope\n", "Z"),
-            ("self", "x\n", "R"),
-        ] {
+        for (pid, comm, state) in [("101", "tennoscope\n", "S"), ("102", "orbiter\n", "S"), ("103", "tennoscope\n", "Z"), ("self", "x\n", "R")] {
             fs::create_dir_all(root.join(pid)).unwrap();
             fs::write(root.join(pid).join("comm"), comm).unwrap();
-            fs::write(
-                root.join(pid).join("stat"),
-                format!("{pid} (tenno scope) {state} 1 2 3"),
-            )
-            .unwrap();
+            fs::write(root.join(pid).join("stat"), format!("{pid} (tenno scope) {state} 1 2 3")).unwrap();
         }
         assert_eq!(running_in(&root), vec![101]);
         assert!(running_in(Path::new("/nonexistent")).is_empty());
@@ -499,17 +448,10 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("orbiter-report-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         assert!(read_report_in(&dir, &[7], 1_000).is_none(), "no file");
-        fs::write(
-            dir.join(STATUS_FILE),
-            r#"{"at": 100000, "pid": 7, "game_running": true}"#,
-        )
-        .unwrap();
+        fs::write(dir.join(STATUS_FILE), r#"{"at": 100000, "pid": 7, "game_running": true}"#).unwrap();
         assert!(read_report_in(&dir, &[7], 105_000).is_some());
         assert!(read_report_in(&dir, &[7], 200_000).is_none(), "stale");
-        assert!(
-            read_report_in(&dir, &[8], 105_000).is_none(),
-            "written by a TennoScope that has gone"
-        );
+        assert!(read_report_in(&dir, &[8], 105_000).is_none(), "written by a TennoScope that has gone");
         fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -519,22 +461,12 @@ mod tests {
         let root = std::env::temp_dir().join(format!("orbiter-stat-{}", std::process::id()));
         fs::create_dir_all(root.join("42")).unwrap();
         // The name may hold spaces and parentheses; field 22 is counted after the last ')'.
-        let fields: Vec<String> = (3..=25)
-            .map(|n| if n == 3 { "S".into() } else { n.to_string() })
-            .collect();
-        fs::write(
-            root.join("42/stat"),
-            format!("42 (tenno (x) scope) {}", fields.join(" ")),
-        )
-        .unwrap();
+        let fields: Vec<String> = (3..=25).map(|n| if n == 3 { "S".into() } else { n.to_string() }).collect();
+        fs::write(root.join("42/stat"), format!("42 (tenno (x) scope) {}", fields.join(" "))).unwrap();
         assert_eq!(start_time_in(&root, 42), Some(22));
         assert_eq!(start_time_in(&root, 43), None);
         assert_eq!(parse_pid_file("42 22\n"), Some(Proc { pid: 42, start: 22 }));
-        assert_eq!(
-            parse_pid_file("42"),
-            None,
-            "an old pid file without a start time isn't trusted"
-        );
+        assert_eq!(parse_pid_file("42"), None, "an old pid file without a start time isn't trusted");
         fs::remove_dir_all(&root).unwrap();
     }
 
@@ -542,10 +474,7 @@ mod tests {
     fn only_known_requests_pass() {
         assert!(allowed_ask("--sync"));
         assert!(allowed_ask("--authorize-capture"));
-        assert!(
-            !allowed_ask("--presence=ingame"),
-            "orbiter sets your status itself"
-        );
+        assert!(!allowed_ask("--presence=ingame"), "orbiter sets your status itself");
         assert!(!allowed_ask("--background"));
         assert!(!allowed_ask("; rm -rf ~"));
     }
@@ -553,15 +482,8 @@ mod tests {
     #[test]
     fn custom_path_wins_and_must_exist() {
         let me = std::env::current_exe().unwrap();
-        assert_eq!(
-            find_binary(Some("/definitely/not/here"), Some(&me)),
-            None,
-            "a wrong path in Settings isn't swapped for another"
-        );
-        assert_eq!(
-            find_binary(Some(me.to_str().unwrap()), None),
-            Some(me.clone())
-        );
+        assert_eq!(find_binary(Some("/definitely/not/here"), Some(&me)), None, "a wrong path in Settings isn't swapped for another");
+        assert_eq!(find_binary(Some(me.to_str().unwrap()), None), Some(me.clone()));
         // No path set: the one inside orbiter comes first.
         assert_eq!(find_binary(None, Some(&me)), Some(me));
     }
@@ -573,31 +495,17 @@ mod tests {
         // read them otherwise).
         std::env::set_var("APPDIR", "/tmp/.mount_orbiterX");
         std::env::set_var("APPIMAGE", "/home/me/orbiter.AppImage");
-        std::env::set_var(
-            "ORBITER_TEST_DIRS",
-            "/tmp/.mount_orbiterX/usr/share:/usr/share:/usr/local/share",
-        );
+        std::env::set_var("ORBITER_TEST_DIRS", "/tmp/.mount_orbiterX/usr/share:/usr/share:/usr/local/share");
         std::env::set_var("ORBITER_TEST_ONLY", "/tmp/.mount_orbiterX/usr/lib/gio");
         let cmd = launch(Path::new("/bin/true"), true);
-        let envs: std::collections::HashMap<_, _> = cmd
-            .get_envs()
-            .map(|(k, v)| {
-                (
-                    k.to_string_lossy().into_owned(),
-                    v.map(|v| v.to_string_lossy().into_owned()),
-                )
-            })
-            .collect();
+        let envs: std::collections::HashMap<_, _> = cmd.get_envs().map(|(k, v)| (k.to_string_lossy().into_owned(), v.map(|v| v.to_string_lossy().into_owned()))).collect();
         std::env::remove_var("APPDIR");
         std::env::remove_var("APPIMAGE");
         std::env::remove_var("ORBITER_TEST_DIRS");
         std::env::remove_var("ORBITER_TEST_ONLY");
         assert_eq!(envs.get("APPDIR"), Some(&None), "removed");
         assert_eq!(envs.get("APPIMAGE"), Some(&None));
-        assert_eq!(
-            envs.get("ORBITER_TEST_DIRS"),
-            Some(&Some("/usr/share:/usr/local/share".into()))
-        );
+        assert_eq!(envs.get("ORBITER_TEST_DIRS"), Some(&Some("/usr/share:/usr/local/share".into())));
         assert_eq!(envs.get("ORBITER_TEST_ONLY"), Some(&None));
         assert_eq!(envs.get("ORBITER_BUNDLED"), Some(&Some("1".into())));
     }

@@ -86,26 +86,15 @@ impl Feed {
 }
 
 /// One connection: until it drops (the reason) or the feed is stopped.
-fn run(
-    app: &tauri::AppHandle,
-    state: &Mutex<FeedState>,
-    generation: &AtomicU64,
-    gen: u64,
-) -> String {
+fn run(app: &tauri::AppHandle, state: &Mutex<FeedState>, generation: &AtomicU64, gen: u64) -> String {
     use tungstenite::{client::IntoClientRequest, Message};
     let _ = rustls::crypto::ring::default_provider().install_default();
     let mut request = match SOCKET.into_client_request() {
         Ok(r) => r,
         Err(e) => return e.to_string(),
     };
-    request.headers_mut().insert(
-        "Sec-WebSocket-Protocol",
-        tungstenite::http::HeaderValue::from_static(SUBPROTOCOL),
-    );
-    request.headers_mut().insert(
-        "User-Agent",
-        tungstenite::http::HeaderValue::from_static(crate::market::USER_AGENT),
-    );
+    request.headers_mut().insert("Sec-WebSocket-Protocol", tungstenite::http::HeaderValue::from_static(SUBPROTOCOL));
+    request.headers_mut().insert("User-Agent", tungstenite::http::HeaderValue::from_static(crate::market::USER_AGENT));
     let mut ws = match crate::presence::connect(request) {
         Ok(c) => c,
         Err(e) => return format!("Couldn't reach warframe.market's live feed ({e})"),
@@ -139,26 +128,15 @@ fn run(
                 heard = Instant::now();
                 t.to_string()
             }
-            Ok(Message::Close(_)) => {
-                return "warframe.market closed the live feed; reconnecting".into()
-            }
+            Ok(Message::Close(_)) => return "warframe.market closed the live feed; reconnecting".into(),
             Ok(_) => {
                 heard = Instant::now();
                 continue;
             }
-            Err(tungstenite::Error::Io(e))
-                if matches!(
-                    e.kind(),
-                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
-                ) =>
-            {
-                continue
-            }
+            Err(tungstenite::Error::Io(e)) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => continue,
             Err(e) => return format!("Lost warframe.market's live feed ({e}); reconnecting"),
         };
-        let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else {
-            continue;
-        };
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else { continue };
         match v["route"].as_str() {
             Some("@wfm|cmd/subscribe/newOrders:ok") => {
                 if let Ok(mut s) = state.lock() {
@@ -181,12 +159,7 @@ fn run(
 
 /// A sell order from someone you could whisper now: the only kind a cheap-buy alert is about.
 pub fn worth_passing_on(order: &serde_json::Value) -> bool {
-    order["type"] == "sell"
-        && order["visible"] != false
-        && matches!(
-            order["user"]["status"].as_str(),
-            Some("ingame") | Some("online")
-        )
+    order["type"] == "sell" && order["visible"] != false && matches!(order["user"]["status"].as_str(), Some("ingame") | Some("online"))
 }
 
 #[cfg(test)]
