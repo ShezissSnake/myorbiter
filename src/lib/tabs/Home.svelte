@@ -27,7 +27,7 @@
   import { today } from "../core/today";
   import { foundryBuilds } from "../core/foundry";
   import { crackableFirst, crackableNow, openEras, wishItem, type WishItem } from "../core/wishlist";
-  import { cycleTimers, resetTimers, matchedFissures, planetOf, ruleLabel, sameRule, TIERS, type FissureRule } from "../core/timers";
+  import { checkedWhen, cycleTimers, resetTimers, matchedFissures, planetOf, ruleLabel, sameRule, TIERS, type FissureRule } from "../core/timers";
   import { details } from "../details.svelte";
   import { bountyBoards, type BountyTable } from "../core/board";
   import { scoreCards } from "../core/pick";
@@ -402,7 +402,8 @@
       {#if live.fissures == null}
         <p class="dim" class:waiting={liveWaiting}>{liveNote}</p>
       {:else}
-        {#if live.fromGame}<p class="dim small fromgame">Read from the game's own worldstate: api.warframestat.us isn't answering, so Nightwave and the Circuit may be out of date, and alerts, invasions and Darvo's deal can't be read.</p>{/if}
+        {#if liveError && liveAt != null}<p class="dim small fromgame">The worldstate can't be read right now: these are from the last read ({checkedWhen(liveAt, now)}), each gone once it ends. orbiter asks again every few minutes.</p>
+        {:else if live.fromGame}<p class="dim small fromgame">Read from the game's own worldstate: api.warframestat.us isn't answering, so Nightwave and the Circuit may be out of date, and alerts, invasions and Darvo's deal can't be read.</p>{/if}
         <FissureBoard fissures={live.fissures} bind:mode={settings.homeFissures} {now} best={eraBest} watched={new Set(watched.map((w) => w.fissure.id))} onera={console ? null : (era) => go(`relics?era=${era}`)} />
       {/if}
       <div class="watch">

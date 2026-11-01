@@ -452,29 +452,34 @@ async fn market_riven_meta(app: tauri::AppHandle) -> Result<Value, String> {
     blocking(move || market::riven_meta(&cache)).await
 }
 
-/// Your rivens' last price checks (see SavedRivenPrices in src/lib/core/rivens.ts), kept so the
-/// next start shows them at once. Null when there are none yet.
-#[tauri::command]
-fn riven_prices_read(app: tauri::AppHandle) -> Value {
-    app.path()
-        .app_cache_dir()
+/// What orbiter last read from the network and keeps for its next start, so pages show it at once
+/// and update as new reads come in. Each is one JSON file in the cache folder; what's in it, and
+/// when it stops counting, is the page's business (see src/lib/saved.ts).
+const SAVED: [&str; 3] = ["riven-prices", "worldstate", "riven-trades"];
+
+fn saved_path(app: &tauri::AppHandle, name: &str) -> Result<std::path::PathBuf, String> {
+    if !SAVED.contains(&name) {
+        return Err(format!("nothing is saved as {name}"));
+    }
+    Ok(app.path().app_cache_dir().map_err(|e| e.to_string())?.join(format!("{name}.json")))
+}
+
+/// What was saved as `name`; null when there's nothing (yet), or it can't be read.
+#[tauri::command(async)]
+fn saved_read(app: tauri::AppHandle, name: String) -> Value {
+    saved_path(&app, &name)
         .ok()
-        .and_then(|dir| fs::read(dir.join(RIVEN_PRICES)).ok())
+        .and_then(|path| fs::read(path).ok())
         .and_then(|bytes| serde_json::from_slice(&bytes).ok())
         .unwrap_or(Value::Null)
 }
 
-#[tauri::command]
-async fn riven_prices_write(app: tauri::AppHandle, prices: Value) -> Result<(), String> {
-    let dir = app.path().app_cache_dir().map_err(|e| e.to_string())?;
-    let bytes = serde_json::to_vec(&prices).map_err(|e| e.to_string())?;
-    tauri::async_runtime::spawn_blocking(move || write_atomic(&dir.join(RIVEN_PRICES), &bytes, false))
-        .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())
+#[tauri::command(async)]
+fn saved_write(app: tauri::AppHandle, name: String, value: Value) -> Result<(), String> {
+    let path = saved_path(&app, &name)?;
+    let bytes = serde_json::to_vec(&value).map_err(|e| e.to_string())?;
+    write_atomic(&path, &bytes, false).map_err(|e| e.to_string())
 }
-
-const RIVEN_PRICES: &str = "riven-prices.json";
 
 #[tauri::command]
 async fn market_riven_auctions(app: tauri::AppHandle, weapon: String, positive: Vec<String>, negative: Option<String>) -> Result<Value, String> {
@@ -918,8 +923,8 @@ pub fn run() {
             market_my_orders,
             market_riven_meta,
             market_riven_auctions,
-            riven_prices_read,
-            riven_prices_write,
+            saved_read,
+            saved_write,
             market_order_book,
             market_user,
             market_closed_orders,

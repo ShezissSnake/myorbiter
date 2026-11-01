@@ -113,3 +113,26 @@ export function matchedFissures(rules: FissureRule[], fissures: Fissure[] | null
   }
   return out;
 }
+
+/** When something kept was read, for a note beside it: "today 13:52", "yesterday 21:05", "3 days ago". */
+export function checkedWhen(at: number, now: number): string {
+  const day = (ms: number) => new Date(ms).toDateString();
+  const time = new Date(at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  if (day(at) === day(now)) return `today ${time}`;
+  if (day(at) === day(now - 86_400_000)) return `yesterday ${time}`;
+  return `${Math.max(2, Math.round((now - at) / 86_400_000))} days ago`;
+}
+
+/**
+ * How many days behind TennoScope's item prices are, when that's a day or more: null while they're
+ * current. warframe.market publishes each day's figures the next day, so yesterday's (UTC) are the
+ * newest there are; `dumpDate` is the day they cover ("2026-10-28").
+ */
+export function pricesBehind(dumpDate: string | null | undefined, now = Date.now()): number | null {
+  if (!dumpDate || !/^\d{4}-\d{2}-\d{2}$/.test(dumpDate)) return null;
+  const day = Date.parse(`${dumpDate}T00:00:00Z`);
+  if (!Number.isFinite(day)) return null;
+  const today = Math.floor(now / 86_400_000) * 86_400_000;
+  const behind = Math.round((today - day) / 86_400_000) - 1;
+  return behind >= 1 ? behind : null;
+}

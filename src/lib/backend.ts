@@ -450,13 +450,66 @@ export function mergeLive(old: Live, next: Live, now = Date.now()): Live {
       out[k] = [...n, ...(v as { key: string }[]).filter((c) => !have.has(c.key))];
     } else if (n == null) out[k] = v;
   }
+  return pruneLive(out as unknown as Live, now);
+}
+
+/**
+ * The worldstate without what has ended: each fissure, alert, bounty rotation, Nightwave act,
+ * Sortie, Baro's visit, Varzia's stock and Darvo's deal goes at its own end time, so a kept read
+ * never shows something gone by. The clocks stay: the pages count them on from their last reading.
+ * The same object when nothing has ended.
+ */
+export function pruneLive(live: Live, now = Date.now()): Live {
+  const over = (end: string | undefined | null) => typeof end === "string" && Date.parse(end) <= now;
+  const out: Live = { ...live };
+  let changed = false;
+  const list = <T extends { expiry?: string }>(k: "fissures" | "alerts" | "syndicates") => {
+    const xs = live[k] as T[] | null | undefined;
+    if (!Array.isArray(xs)) return;
+    const kept = xs.filter((x) => !over(x?.expiry));
+    if (kept.length !== xs.length) {
+      (out as unknown as Record<string, unknown>)[k] = kept;
+      changed = true;
+    }
+  };
+  list("fissures");
+  list("alerts");
+  list("syndicates");
+  for (const k of ["baro", "sortie", "archonHunt", "steelPath", "darvo", "duviriCycle", "nightwave"] as const) {
+    if (over((live[k] as { expiry?: string } | null | undefined)?.expiry)) {
+      out[k] = null;
+      changed = true;
+    }
+  }
+  const nw = out.nightwave;
+  if (nw && Array.isArray(nw.activeChallenges) && nw.activeChallenges.some((c) => over(c.expiry))) {
+    out.nightwave = { ...nw, activeChallenges: nw.activeChallenges.filter((c) => !over(c.expiry)) };
+    changed = true;
+  }
   // Varzia's stock goes with its end: kept past it, Home would count down to a time gone by.
-  const ends = out.resurgenceExpiry;
-  if (typeof ends === "string" && Date.parse(ends) <= now) {
+  if (over(live.resurgenceExpiry)) {
     out.resurgence = null;
     out.resurgenceExpiry = null;
+    changed = true;
   }
-  return out as unknown as Live;
+  return changed ? out : live;
+}
+
+/** The worldstate as it was last read, kept for the next start. */
+export interface SavedLive {
+  at: number;
+  live: Live;
+}
+
+/**
+ * A kept worldstate read, with what has ended since taken out (see pruneLive). Invasions say
+ * nothing of when they end, so they're kept only an hour; anything a day old isn't used at all.
+ */
+export function restoreLive(raw: unknown, now = Date.now()): SavedLive | null {
+  const s = raw as SavedLive | null;
+  if (!s || typeof s.at !== "number" || !s.live || typeof s.live !== "object" || now - s.at > 86_400_000 || s.at > now + 60_000) return null;
+  const live = pruneLive({ ...s.live, invasions: now - s.at <= 3_600_000 ? s.live.invasions : null }, now);
+  return { at: s.at, live };
 }
 
 export async function loadLive(): Promise<Live> {
@@ -498,6 +551,26 @@ export async function loadLive(): Promise<Live> {
       : null,
   };
 }
+
+/**
+ * What orbiter last read from the network, kept for its next start so pages show it at once and
+ * update as new reads come in: your rivens' price checks, the worldstate, last week's riven trades.
+ * Null when nothing was kept (or it can't be read). In the browser, kept in localStorage.
+ */
+export type SavedName = "riven-prices" | "worldstate" | "riven-trades";
+export const saved = {
+  read: async (name: SavedName): Promise<unknown> => {
+    try {
+      return inTauri ? await invoke("saved_read", { name }) : JSON.parse(localStorage.getItem(`orbiter-saved-${name}`) ?? "null");
+    } catch {
+      return null;
+    }
+  },
+  write: async (name: SavedName, value: unknown): Promise<void> => {
+    if (inTauri) await invoke("saved_write", { name, value });
+    else localStorage.setItem(`orbiter-saved-${name}`, JSON.stringify(value));
+  },
+};
 
 /** Saves a CSV export in Downloads; where it went. In the browser, a download instead. */
 export async function exportFile(what: string, text: string): Promise<string> {
@@ -1019,9 +1092,6 @@ export const market = {
     inTauri
       ? invoke<RivenAuction[]>("market_riven_auctions", { weapon, positive, negative })
       : fetch("/dev-auctions.json").then((r) => (r.ok ? r.json() : Promise.reject(new Error("warframe.market can only be searched from the desktop app")))),
-  /** Your rivens' last price checks, kept between runs (core/rivens.ts, SavedRivenPrices); null when none. */
-  rivenPricesRead: async (): Promise<unknown> => (inTauri ? invoke("riven_prices_read") : null),
-  rivenPricesWrite: async (prices: unknown): Promise<void> => (inTauri ? invoke("riven_prices_write", { prices }) : undefined),
   /** Your riven auctions (raw; see parseMyAuctions). */
   myAuctions: (): Promise<unknown> => (inTauri ? invoke("market_my_auctions") : Promise.resolve([])),
   createAuction: (auction: { starting_price: number; buyout_price: number | null; minimal_reputation: number; private: boolean; note: string; item: import("./core/rivens").AuctionItem }): Promise<unknown> =>

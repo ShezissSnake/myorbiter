@@ -107,6 +107,7 @@
   // it was made. While a riven is checked again, or if that fails, what it had stays shown.
   let checks = $state<Record<string, { loading: boolean; error?: string; auctions?: RivenAuction[]; any?: RivenAuction[]; at?: number; saved?: boolean }>>({});
   const SLOW = /slow down/;
+  const DAY = 86_400_000;
   async function check(r: Riven, fresh = false) {
     if (!meta) return;
     const q = searchFor(meta, r);
@@ -144,7 +145,7 @@
         if (!q.weapon || !k || k.key !== searchKey(q.weapon, q.positive.slice(0, 2)) || checks[r.id]) continue;
         const w = s.weapons[q.weapon];
         checks[r.id] = { loading: false, auctions: unpackPrices(k.prices), any: w ? unpackListed(w.listed) : undefined, at: k.at, saved: true };
-        if (Date.now() - k.at > 86_400_000) stale = true;
+        if (Date.now() - k.at >= DAY) stale = true;
       }
       if (stale && !checkingAll) void checkAll();
     });
@@ -403,7 +404,7 @@
         {#if stillFailed.length}
           <span class="checking"><span class="dim small" title={checkedAll!.reason}>Checked {checkedAll!.ok}; {stillFailed.length} couldn't be ({checkedAll!.reason.replace(/(; |\. ).*$/, "")})</span><button class="link" title="Check the ones that failed again" onclick={() => checkAll(stillFailed)}>Try those again</button></span>
         {/if}
-        {#if keptCount && keptAt < Infinity}<span class="dim small kept" title="The prices shown are from orbiter's last check, kept so they show at once. Ones over a day old are checked again by themselves when you open this page">Prices from {checkedWhen(keptAt, Date.now())}</span>{/if}
+        {#if keptCount && Date.now() - keptAt >= DAY}<span class="dim small kept" title="Some prices shown are from orbiter's last check, a day or more ago: riven prices move little from one day to the next. They're checked again by themselves while this page is open">Some prices from {checkedWhen(keptAt, Date.now())}</span>{/if}
         <button class="stamp" disabled={!meta} title={!meta ? "Waiting for warframe.market's riven list" : !unchecked ? "Check every riven's price again" : keptCount === unchecked ? "Check again the prices kept from earlier, one after another" : "Find similar rivens for sale for each of yours, one after another"} onclick={() => checkAll()}>{!unchecked ? "Check prices again" : keptCount === unchecked ? "Update prices" : unchecked === shown.length ? (shown.length === mine.length ? "Price check all" : `Price check these ${unchecked}`) : `Price check the other ${unchecked}`}</button>
       {/if}
       <span class="dim small explain">Grades compare each roll with its range: S is the top of it, B the middle, F the bottom. A smaller curse grades higher. Dispositions are 1.2 for every weapon since the 22 October 2026 hotfix.</span>
@@ -508,7 +509,7 @@
               <span class="pcs">
                 {#if fl}<span class="pc" title={fl.count ? `The cheapest ${r.weapon} riven listed right now, whatever its stats: what anyone can buy one for` : undefined}>{#if fl.count}<span class="dim small">Any {r.weapon} riven from</span><P v={fl.lowest} />{:else}<span class="dim small">No {r.weapon} rivens listed</span>{/if}</span>{/if}
                 <span class="pc" title={pc.count ? `${pc.count} rivens with the same two best stats listed${c?.saved ? ` when orbiter last checked (${checkedWhen(c.at!, Date.now())})` : ""}: the cheapest at ${pc.lowest}p, most around ${pc.typical}p. Asking prices: what they sell for isn't published` : undefined}>{#if pc.count}<span class="dim small">{pc.count} similar listed from</span><P v={pc.lowest} /><span class="dim small">· most around</span><P v={pc.typical} />{:else}<span class="dim small">None like it listed {c?.saved ? "then" : "right now"}</span>{/if}</span>
-                {#if c?.saved}<span class="dim small when" title={c.loading ? "Checking it again now" : c.error ? `Kept from orbiter's last check; checking again failed: ${c.error}` : "Kept from orbiter's last check; checked again when you update prices"}>{c.loading ? "updating…" : `checked ${checkedWhen(c.at!, Date.now())}`}</span>{/if}
+                {#if c?.saved && (c.loading || Date.now() - c.at! >= DAY)}<span class="dim small when" title={c.loading ? "Checking it again now" : c.error ? `Kept from orbiter's last check; checking again failed: ${c.error}` : "Kept from orbiter's last check; checked again when you update prices"}>{c.loading ? "updating…" : `checked ${checkedWhen(c.at!, Date.now())}`}</span>{/if}
               </span>
             {:else if c?.error}<span class="dim small">{c.error}</span>
             {:else if c?.loading}<span class="dim small">Checking prices…</span>

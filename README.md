@@ -64,7 +64,7 @@ Everything comes from TennoScope's folder (`~/.local/share/io.github.deftera186.
 | `catalog/relic-generation.json` | relic contents and vault flags |
 | `collection-prices.json` | TennoScope's daily warframe.market prices |
 
-Fissures, Baro, Varzia, the Sortie, bounties and the open worlds' clocks come from api.warframestat.us; when it isn't answering (it was down for hours on 1 November 2026), orbiter reads them from the game's own worldstate (`api.warframe.com`) instead, naming its places with WFCD's tables (kept a week in its config folder), and Home says so. Bounty rewards then come from each bounty's level in the official drop tables.
+Fissures, Baro, Varzia, the Sortie, bounties and the open worlds' clocks come from api.warframestat.us; when it isn't answering (it was down for hours on 1 November 2026), orbiter reads them from the game's own worldstate (`api.warframe.com`) instead, naming its places with WFCD's tables (kept a week in its config folder), and Home says so. Bounty rewards then come from each bounty's level in the official drop tables. The last read is kept for the next start, so Home has fissures, Baro and the clocks at once while it reads again; each fissure, alert, bounty rotation and offer in it goes at its own end time (invasions, which don't say when they end, are kept an hour). Item prices come from warframe.market's daily figures, which TennoScope downloads when it starts; when they're a day or more behind the newest, a note says so.
 
 It also follows Warframe's `EE.log` (read-only), which it finds in your Steam libraries under the Proton prefix, or at a path you set in Settings. `orbiter-dump --ee-log` prints what it reads from the log.
 

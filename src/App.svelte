@@ -4,7 +4,7 @@
   import { invasionNeeds } from "./lib/core/invasions";
   import { foldSetSales, repCandidates, salesFromTrade, tradeKey } from "./lib/core/trades";
   import { foundryBuilds } from "./lib/core/foundry";
-  import { matchedFissures } from "./lib/core/timers";
+  import { matchedFissures, pricesBehind } from "./lib/core/timers";
   import { watchlist } from "./lib/core/deals";
   import { inventoryRows, masteryRows, relicRows } from "./lib/core/views";
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
@@ -37,6 +37,9 @@
     relicData,
     recipeData,
     mergeLive,
+    pruneLive,
+    restoreLive,
+    saved,
     discordPost,
     notify,
     openUrl,
@@ -158,6 +161,8 @@
    */
   let liveAt = $state<number | null>(null);
   let liveError = $state<string | null>(null);
+  /** A worldstate read worked since start (until then, what's shown may be the one kept from last time). */
+  let liveRead = $state(false);
   /** The last read of TennoScope's data failed: with nothing loaded yet, a notice instead of the pages; else a note above them. */
   let error = $state<string | null>(null);
   /**
@@ -257,6 +262,9 @@
   /** Every Foundry recipe, parts' own included: what building something still takes. */
   let recipes = $state.raw<RecipeData | null>(null);
   const model = $derived(withTables ? buildModel(withTables, live, foundry, settings.market.relicPrices, settings.game.imprints, recipes) : null);
+  /** TennoScope's item prices: days out of date, when a day or more (see pricesBehind). */
+  const pricesOld = $derived(onConsole ? null : pricesBehind(model?.priceDate, tick));
+  let pricesOldDismissed = $state<string | null>(null);
 
   // The reward screen: the cards a patched TennoScope read off it, scored here, and the pick
   // written back for TennoScope's overlay to show over the game.
@@ -891,7 +899,12 @@
 
   // Foundry builds turning ready: checked every half minute against their finish times.
   $effect(() => {
-    const t = setInterval(() => (tick = Date.now()), 30_000);
+    const t = setInterval(() => {
+      tick = Date.now();
+      // A fissure, alert or offer that ends goes when it ends, not at the next read.
+      const p = pruneLive(live, tick);
+      if (p !== live) live = p;
+    }, 30_000);
     return () => clearInterval(t);
   });
   $effect(() => {
@@ -1008,7 +1021,8 @@
   $effect(() => {
     const fs = live.fissures;
     const m = model;
-    if (!m || !fs) return;
+    // Not from the worldstate kept from last time: eras whose fissures ended since would seem to open.
+    if (!m || !fs || !liveRead) return;
     untrack(() => {
       const open = openEras(fs);
       const openNow = new Set(ERAS.filter((e) => (open[e]?.length ?? 0) > 0));
@@ -1401,6 +1415,9 @@
       // count on from there), rather than going blank because another part could be read.
       live = mergeLive(live, await loadLive());
       liveAt = Date.now();
+      liveRead = true;
+      // Kept for the next start, which shows it at once (what has ended taken out) until it reads.
+      void saved.write("worldstate", { at: liveAt, live }).catch(() => {});
     } catch {
       // Unreachable: what was read last stays (timers count down from it); the next read in 5 minutes.
       liveError = "api.warframestat.us didn't answer";
@@ -1449,6 +1466,14 @@
         })
         .catch(() => {});
     }, 30_000);
+    // The worldstate as last read, at once, until the first read comes in (see restoreLive).
+    void saved.read("worldstate").then((raw) => {
+      const kept = restoreLive(raw);
+      if (kept && liveAt == null) {
+        live = kept.live;
+        liveAt = kept.at;
+      }
+    });
     (async () => {
       settings = await loadSettings();
       if (stopped) return;
@@ -1744,6 +1769,12 @@
         <div class="stale" role="alert" title={`${loadProblem(error)}\n${error}`}>
           <span>Couldn't re-read TennoScope's data: showing what was loaded at {hhmm(loadedAt)}.</span>
           <button class="link" onclick={retry} disabled={loading}>{loading ? "Trying…" : "Try again"}</button>
+        </div>
+      {/if}
+      {#if pricesOld != null && model.priceDate !== pricesOldDismissed}
+        <div class="stale" role="status" title="Item prices on every page (prime parts, sets, mods, relics…) come from warframe.market's daily figures, which TennoScope downloads when it starts">
+          <span>Item prices are from warframe.market's figures for {new Date(`${model.priceDate}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short" })}, {pricesOld === 1 ? "a day" : `${pricesOld} days`} out of date. TennoScope gets newer ones when it starts.</span>
+          <IconButton icon="close" tone="quiet" label="Dismiss" onclick={() => (pricesOldDismissed = model?.priceDate ?? null)} />
         </div>
       {/if}
       {#if chatsDue.length}

@@ -1,6 +1,6 @@
 // warframe.market's riven data: weapon and stat names (cached for a day on the Rust side) and
 // riven auctions, cached a few minutes per search so opening a card twice doesn't refetch.
-import { market } from "./backend";
+import { market, saved as disk } from "./backend";
 import { packListed, packPrices, parseMyAuctions, parseWeeklyRivens, readSavedPrices, tradeUrl, withSaved, type AuctionItem, type MyAuction, type RivenAuction, type RivenMeta, type RivenTrade, type SavedRivenPrices } from "./core/rivens";
 
 const TTL = 10 * 60_000;
@@ -56,9 +56,8 @@ class Rivens {
     if (this.savedRead?.platform !== platform) {
       this.savedRead = {
         platform,
-        done: market
-          .rivenPricesRead()
-          .catch(() => null)
+        done: disk
+          .read("riven-prices")
           .then((raw) => (this.saved = readSavedPrices(raw, platform))),
       };
     }
@@ -69,7 +68,7 @@ class Rivens {
     if (!this.saved) return;
     this.saved = withSaved(this.saved, Date.now(), { id, key, prices: packPrices(similar) }, listed ? { slug: weapon, listed: packListed(listed) } : undefined);
     clearTimeout(this.writeSoon);
-    this.writeSoon = setTimeout(() => void market.rivenPricesWrite(this.saved).catch(() => {}), 3000);
+    this.writeSoon = setTimeout(() => void disk.write("riven-prices", this.saved).catch(() => {}), 3000);
   }
   private writeSoon: ReturnType<typeof setTimeout> | undefined;
 
@@ -81,17 +80,34 @@ class Rivens {
   tradesWeek = $state<string | null>(null);
   tradesError = $state<string | null>(null);
   private tradesFor: { platform: string; at: number } | null = null;
+  /** The platform `trades` are for. */
+  private tradesPlatform: string | null = null;
   /** Read once per platform, and again after six hours: the file changes on Mondays. */
   async loadTrades(platform: string) {
     if (this.tradesFor?.platform === platform && Date.now() - this.tradesFor.at < 6 * 3600_000) return;
     this.tradesFor = { platform, at: Date.now() };
+    // Last read's figures show at once (they change once a week), until this read comes in.
+    if (this.tradesPlatform !== platform) {
+      const k = (await disk.read("riven-trades")) as { platform?: string; at?: number; week?: string | null; trades?: RivenTrade[] } | null;
+      const kept = k?.platform === platform && typeof k.at === "number" && Date.now() - k.at < 8 * 86_400_000 && Array.isArray(k.trades);
+      if (this.tradesFor?.platform === platform) {
+        this.trades = kept ? k!.trades! : null;
+        this.tradesWeek = kept ? (k!.week ?? null) : null;
+        this.tradesPlatform = platform;
+      }
+    }
     try {
       const res = await fetch(tradeUrl(platform), { cache: "no-cache" });
       if (!res.ok) throw new Error(`warframe.com answered ${res.status}`);
-      this.trades = parseWeeklyRivens(await res.text());
+      const trades = parseWeeklyRivens(await res.text());
       const published = Date.parse(res.headers.get("last-modified") ?? "");
-      this.tradesWeek = Number.isFinite(published) ? weekBefore(published) : null;
+      const week = Number.isFinite(published) ? weekBefore(published) : null;
+      if (this.tradesFor?.platform !== platform) return;
+      this.trades = trades;
+      this.tradesWeek = week;
+      this.tradesPlatform = platform;
       this.tradesError = null;
+      void disk.write("riven-trades", { platform, at: Date.now(), week, trades }).catch(() => {});
     } catch (e) {
       // Tried again on the next visit to the page rather than in six hours.
       this.tradesFor = null;

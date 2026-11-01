@@ -183,3 +183,14 @@ test("price checks kept between runs come back the same, and only for the same p
   assert.match(checkedWhen(now - 86_400_000, now), /^yesterday /);
   assert.equal(checkedWhen(now - 3 * 86_400_000, now), "3 days ago");
 });
+
+test("item prices count as out of date once they're a day behind the newest figures", async () => {
+  const { pricesBehind } = await import("../src/lib/core/timers");
+  const now = Date.parse("2026-11-01T13:00:00Z");
+  assert.equal(pricesBehind("2026-11-01", now), null, "today's");
+  assert.equal(pricesBehind("2026-10-31", now), null, "yesterday's: the newest published");
+  assert.equal(pricesBehind("2026-10-30", now), 1);
+  assert.equal(pricesBehind("2026-10-28", now), 3);
+  assert.equal(pricesBehind(null, now), null);
+  assert.equal(pricesBehind("28 Oct", now), null);
+});

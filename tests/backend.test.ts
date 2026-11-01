@@ -205,3 +205,42 @@ test("the Watching column and Discord settings load safely", async () => {
   assert.equal(old.notifyOptions.discord.url, "");
   assert.deepEqual(old.notifyOptions.discord.kinds, DISCORD_DEFAULT_KINDS);
 });
+
+test("a kept worldstate loses each thing at its own end time", async () => {
+  const { pruneLive, restoreLive } = await import("../src/lib/backend");
+  const now = Date.parse("2026-11-01T12:00:00Z");
+  const at = (min: number) => new Date(now + min * 60_000).toISOString();
+  const live = {
+    fissures: [{ id: "gone", expiry: at(-1) }, { id: "37 min left", expiry: at(37) }],
+    resurgence: [{ uniqueName: "x" }],
+    resurgenceExpiry: at(600),
+    alerts: [{ id: "a", expiry: at(-5) }],
+    syndicates: [{ syndicateKey: "CetusSyndicate", expiry: at(20) }],
+    nightwave: { expiry: at(9000), activeChallenges: [{ id: "daily", expiry: at(-2) }, { id: "weekly", expiry: at(3000) }] },
+    sortie: { expiry: at(-30), boss: "x" },
+    baro: { activation: at(-100), expiry: at(100), location: "Relay" },
+    invasions: [{ id: "i" }],
+    cycles: [{ key: "earth", state: "day", expiry: at(-10) }],
+  } as never;
+  const p = pruneLive(live, now) as unknown as Record<string, unknown>;
+  assert.deepEqual((p.fissures as { id: string }[]).map((f) => f.id), ["37 min left"]);
+  assert.deepEqual(p.alerts, []);
+  assert.equal(p.sortie, null);
+  assert.deepEqual((p.nightwave as { activeChallenges: { id: string }[] }).activeChallenges.map((c) => c.id), ["weekly"]);
+  assert.ok(p.baro && p.resurgence, "Baro and Varzia are still here");
+  assert.equal((p.cycles as unknown[]).length, 1, "the clocks count on from their last reading");
+  // 37 minutes on, that fissure is gone too; nothing ended: the same object back.
+  assert.deepEqual((pruneLive(p as never, now + 38 * 60_000) as unknown as { fissures: unknown[] }).fissures, []);
+  const fresh = pruneLive(p as never, now);
+  assert.equal(fresh, p);
+  // Kept for the next start: invasions only for an hour (they don't say when they end), nothing past a day.
+  const soon = restoreLive(JSON.parse(JSON.stringify({ at: now, live })), now + 10 * 60_000)!;
+  assert.ok(soon.live.invasions?.length);
+  assert.equal(soon.at, now);
+  const later = restoreLive({ at: now, live }, now + 2 * 3_600_000)!;
+  assert.equal(later.live.invasions, null);
+  assert.deepEqual(later.live.fissures, []);
+  assert.equal(restoreLive({ at: now, live }, now + 25 * 3_600_000), null);
+  assert.equal(restoreLive(null, now), null);
+  assert.equal(restoreLive({ at: "x", live }, now), null);
+});

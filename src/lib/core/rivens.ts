@@ -6,6 +6,7 @@
 // (rank + 1). Since the 22 Oct 2026 hotfix every weapon's disposition is 1.2.
 import type { Model } from "./model";
 import type { CatalogItem } from "./types";
+export { checkedWhen } from "./timers";
 
 /** One stat on a riven as the game stores it: a tag and a roll from 0 to 0x3FFFFFFF. */
 export interface RivenStatRaw {
@@ -731,13 +732,4 @@ export function withSaved(s: SavedRivenPrices, now: number, riven?: { id: string
   if (riven) rivens[riven.id] = { key: riven.key, at: now, prices: riven.prices };
   if (weapon) weapons[weapon.slug] = { at: now, listed: weapon.listed };
   return { ...s, rivens, weapons };
-}
-
-/** When a kept check was made, for its card: "today 13:52", "yesterday 21:05", "3 days ago". */
-export function checkedWhen(at: number, now: number): string {
-  const day = (ms: number) => new Date(ms).toDateString();
-  const time = new Date(at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-  if (day(at) === day(now)) return `today ${time}`;
-  if (day(at) === day(now - 86_400_000)) return `yesterday ${time}`;
-  return `${Math.max(2, Math.round((now - at) / 86_400_000))} days ago`;
 }
