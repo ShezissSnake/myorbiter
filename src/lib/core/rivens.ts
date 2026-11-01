@@ -403,6 +403,47 @@ export function priceCheck(auctions: RivenAuction[]): { lowest: number | null; t
   return { lowest: prices[0] ?? null, typical: first.length ? first[Math.floor(first.length / 2)] : null, count: prices.length };
 }
 
+/** One of a riven's buffs against what's listed for its weapon. */
+export interface StatMarket {
+  tag: string;
+  slug: string;
+  /** Share of the weapon's listed rivens with it as a buff, 0..1. */
+  share: number;
+  /** Median asking price of listings with it, and without it. */
+  withIt: number | null;
+  without: number | null;
+  /** Listings with it ask clearly more (half again or more): a stat buyers pay for. */
+  sought: boolean;
+}
+
+const median = (xs: number[]) => {
+  if (!xs.length) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  return s[Math.floor(s.length / 2)];
+};
+
+/**
+ * What each of a riven's buffs is worth on the market for its weapon, from the rivens listed for it
+ * (any stats): how many of them carry it, and what they ask with it and without it. Asking prices,
+ * and only what's listed, so a hint, not a valuation; nothing is said with fewer than 8 listings.
+ */
+export function statMarket(meta: RivenMeta, r: Riven, listed: RivenAuction[]): StatMarket[] | null {
+  const priced = listed.filter((a) => a.price != null && a.price > 0);
+  if (priced.length < 8) return null;
+  const out: StatMarket[] = [];
+  for (const s of r.stats.filter((x) => x.buff)) {
+    const slug = attributeSlug(meta, s.tag);
+    if (!slug) continue;
+    const has = (a: RivenAuction) => a.attributes.some((x) => x.positive && x.url_name === slug);
+    const yes = priced.filter(has).map((a) => a.price!);
+    const no = priced.filter((a) => !has(a)).map((a) => a.price!);
+    const withIt = median(yes);
+    const without = median(no);
+    out.push({ tag: s.tag, slug, share: yes.length / priced.length, withIt, without, sought: yes.length >= 3 && withIt != null && without != null && withIt >= without * 1.5 });
+  }
+  return out;
+}
+
 /** The game's riven type for a weapon warframe.market lists, to read its rivens' numbers. */
 export function rivenTypeOf(meta: RivenMeta, slug: string): string | null {
   const w = meta.weapons.find((x) => x.slug === slug);

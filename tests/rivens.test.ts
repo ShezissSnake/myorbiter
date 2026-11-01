@@ -143,3 +143,18 @@ test("keep or take a cycled riven: crit and multishot beat reload and zoom, a zo
   assert.ok(rollScore(good) > rollScore(poor));
   assert.ok(rollScore(good) > rollScore(cursed), "a damage curse hurts; a zoom one doesn't");
 });
+
+test("riven stats against the market: share of listings and asking price with and without", async () => {
+  const { statMarket } = await import("../src/lib/core/rivens");
+  const meta = { weapons: [], attributes: [{ slug: "critical_chance", gameRef: "WeaponCritChanceMod" }, { slug: "zoom", gameRef: "WeaponZoomFovMod" }] } as unknown as RivenMeta;
+  const a = (price: number, ...stats: string[]) => ({ id: `${price}${stats}`, price, attributes: stats.map((url_name) => ({ url_name, value: 1, positive: true })) }) as never;
+  const listed = [a(200, "critical_chance"), a(300, "critical_chance"), a(250, "critical_chance", "zoom"), a(20), a(30, "zoom"), a(25), a(40), a(35, "zoom")];
+  const r = { stats: [{ tag: "WeaponCritChanceMod", buff: true }, { tag: "WeaponZoomFovMod", buff: true }] } as never;
+  const m = statMarket(meta, r, listed)!;
+  const crit = m.find((x) => x.slug === "critical_chance")!;
+  assert.equal(crit.share, 3 / 8);
+  assert.deepEqual([crit.withIt, crit.without, crit.sought], [250, 30, true]);
+  const zoom = m.find((x) => x.slug === "zoom")!;
+  assert.equal(zoom.sought, false);
+  assert.equal(statMarket(meta, r, listed.slice(0, 5)), null, "too few listings to say");
+});

@@ -6,7 +6,7 @@
   import type { RivenWatch, Settings } from "../backend";
   import { marketUrl, openUrl } from "../backend";
   import { tradesFor, type RivenTrade } from "../core/rivens";
-  import { auctionItemFor, auctionOf, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, rollChoice, cycleKey, searchFor, type MyAuction, type Riven, type RivenAuction, type RivenChange, type RollChoice } from "../core/rivens";
+  import { auctionItemFor, auctionOf, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, rollChoice, cycleKey, searchFor, statMarket, type MyAuction, type Riven, type RivenAuction, type RivenChange, type RollChoice } from "../core/rivens";
   import { mkt } from "../marketStore.svelte";
   import { rivens } from "../rivenStore.svelte";
   import PageHead from "../ui/PageHead.svelte";
@@ -403,6 +403,21 @@
               </li>
             {/each}
           </ul>
+          {#if meta && c?.any}
+            {@const sm = statMarket(meta, r, c.any)}
+            {#if sm?.length}
+              <div class="sm" title="From the cheapest {r.weapon} rivens listed on warframe.market right now (up to 60, asking prices): how many carry each of this riven's stats, and the middle price of those with it against those without. A hint, not a valuation">
+                <span class="register">Its stats on the market</span>
+                <ul>
+                  {#each sm as x (x.slug)}
+                    {@const s = r.stats.find((y) => y.tag === x.tag)}
+                    <li class:sought={x.sought}><span class="nm">{x.sought ? "★ " : ""}{s?.label ?? x.slug}</span><span class="dim small">on {Math.round(x.share * 100)}% of listings</span><span class="small">{x.withIt != null ? `~${x.withIt}p` : "–"} <span class="dim">vs {x.without != null ? `${x.without}p` : "–"} without</span></span></li>
+                  {/each}
+                </ul>
+                {#if sm.some((x) => x.sought)}<span class="dim small">★ listings with it ask half again as much or more: a stat buyers pay for.</span>{/if}
+              </div>
+            {/if}
+          {/if}
           {#if cycles[r.id]}
             {@const ch = cycles[r.id]}
             {#if ch.kept}
@@ -642,4 +657,10 @@
   .roll ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .2rem; font-size: .84rem; color: var(--platinum-dim); }
   .roll li b { color: var(--platinum); font-weight: 600; }
   .roll li.curse b { color: var(--oxblood); }
+  /* A riven's stats against what's listed for its weapon. */
+  .sm { display: grid; gap: .3rem; padding: .5rem .6rem; border: 1px solid var(--rule); background: var(--well); }
+  .sm ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .2rem; }
+  .sm li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: .7rem; align-items: baseline; font-size: .84rem; }
+  .sm .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--platinum-dim); }
+  .sm li.sought .nm { color: var(--gold); }
 </style>
