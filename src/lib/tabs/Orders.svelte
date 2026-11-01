@@ -19,6 +19,9 @@
   import Icon from "../ui/Icon.svelte";
   import IconButton from "../ui/IconButton.svelte";
   import PriceHistory from "../ui/PriceHistory.svelte";
+  import { rivens } from "../rivenStore.svelte";
+  import { openUrl } from "../backend";
+  import type { MyAuction } from "../core/rivens";
 
   // console: you play on a console or phone, so orbiter can't see what you hold. New listing then
   // finds anything warframe.market trades, and what needs your inventory (spares, "Can't deliver") is left out.
@@ -212,6 +215,45 @@
   $effect(() => () => {
     for (const id of Object.keys(edits)) mkt.editing.delete(id);
   });
+  // Your riven auctions: warframe.market keeps them apart from listings (Rivens has the same, per riven).
+  $effect(() => {
+    void mkt.ordersAt;
+    if (!mkt.linked) return;
+    void rivens.loadMeta();
+    void rivens.loadMine();
+  });
+  const auctions = $derived(rivens.mine.filter((a) => !a.closed));
+  const weaponOf = (a: MyAuction) => rivens.meta?.weapons.find((w) => w.slug === a.weapon);
+  const auctionTitle = (a: MyAuction) => `${weaponOf(a)?.name ?? a.weapon.replace(/_/g, " ")} ${a.name.replace(/(^|-)\p{L}/gu, (c) => c.toUpperCase())}`;
+  let auctionPrice = $state<{ id: string; buyout: number | null; busy: boolean; error: string | null } | null>(null);
+  let auctionBusy = $state<string | null>(null);
+  let auctionError = $state<string | null>(null);
+  async function saveAuctionPrice(a: MyAuction) {
+    const f = auctionPrice;
+    if (!f || !f.buyout) return;
+    const buyout = Math.round(f.buyout);
+    f.busy = true;
+    f.error = null;
+    try {
+      // Bids from where they were, but never above the new buyout.
+      await rivens.reprice(a, buyout, Math.min(a.starting, buyout));
+      auctionPrice = null;
+    } catch (e) {
+      f.error = String(e).replace(/^Error:\s*/, "");
+      f.busy = false;
+    }
+  }
+  async function takeDownAuction(a: MyAuction) {
+    auctionBusy = a.id;
+    auctionError = null;
+    try {
+      await rivens.close(a);
+    } catch (e) {
+      auctionError = String(e).replace(/^Error:\s*/, "");
+    } finally {
+      auctionBusy = null;
+    }
+  }
   /** Remove asks twice: the listing (and its place in the queue) is gone for good. */
   let removing = $state<string | null>(null);
   /** The listing whose "Sold" box is open, and how many. */
@@ -526,6 +568,39 @@
         </ul>
       </section>
     {/if}
+    {#if auctions.length}
+      <!-- Riven auctions: warframe.market keeps them apart from listings, and they aren't repriced automatically. -->
+      <section class="buys" aria-label="Your riven auctions">
+        <h2 class="register yours">Your riven auctions</h2>
+        <ul>
+          {#each auctions as a (a.id)}
+            {@const w = weaponOf(a)}
+            <li>
+              <Named file={w ? (model.catalogByUnique.get(w.gameRef)?.imageName ?? model.imageOf(w.name)) : null} name={auctionTitle(a)} size={26}>{#if !a.visible}<span class="tag">hidden</span>{/if}</Named>
+              {#if auctionPrice?.id === a.id}
+                <span class="plat"><input type="number" min="1" bind:value={auctionPrice.buyout} aria-label="New buyout price" use:focusIt onkeydown={onEsc(() => (auctionPrice = null))} /></span>
+                <IconButton icon="check" tone="gold" label={auctionPrice.busy ? "Saving…" : "Save the new price"} disabled={auctionPrice.busy || !auctionPrice.buyout} onclick={() => saveAuctionPrice(a)} />
+                <IconButton icon="close" tone="quiet" label="Cancel" onclick={() => (auctionPrice = null)} />
+                {#if auctionPrice.error}<span class="err small">{auctionPrice.error}</span>{/if}
+              {:else}
+                <span class="dim small">{a.topBid != null ? `top bid ${a.topBid}p · ` : ""}{a.starting < (a.buyout ?? Infinity) ? `bids from ${a.starting}p` : "no bidding"}</span>
+                {#if a.buyout != null}<P v={a.buyout} />{:else}<span class="dim small">no buyout</span>{/if}
+                <IconButton icon="pencil" tone="quiet" label="Change price" title="Change its buyout price" onclick={() => (auctionPrice = { id: a.id, buyout: a.buyout, busy: false, error: null })} />
+                <IconButton icon="external" tone="quiet" label="Open on warframe.market" onclick={() => openUrl(`https://warframe.market/auction/${a.id}`)} />
+                {#if removing === `auction:${a.id}`}
+                  <IconButton icon="trash" tone="danger" label="Take it down" title="Close this auction (it stays among your profile's closed auctions)" disabled={auctionBusy === a.id} onclick={() => { removing = null; void takeDownAuction(a); }} onkeydown={onEsc(() => (removing = null))} />
+                  <button type="button" class="ib quiet" aria-label="Keep" title="Keep it" onclick={() => (removing = null)} onkeydown={onEsc(() => (removing = null))} use:focusIt><Icon name="close" /></button>
+                {:else}
+                  <IconButton icon="trash" tone="danger quiet" label={auctionBusy === a.id ? "Taking down…" : "Take down"} title="Take down: close this auction on warframe.market" disabled={auctionBusy === a.id} onclick={() => (removing = `auction:${a.id}`)} />
+                {/if}
+              {/if}
+            </li>
+          {/each}
+        </ul>
+        {#if auctionError}<p class="err small">{auctionError}</p>{/if}
+        <p class="dim small">Riven auctions aren't repriced automatically: change a price here or on Rivens, where each riven's card has what similar ones are listed for.</p>
+      </section>
+    {/if}
     {#if mkt.log.length}
       <section class="log" aria-label="Activity">
         <div class="register">Activity</div>
@@ -552,6 +627,7 @@
   .buys ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
   .buys li { display: flex; align-items: center; gap: .9rem; padding: .35rem .5rem; border: 1px solid var(--rule); }
   .buys li > :global(.named) { flex: 1; }
+  .buys .plat input { width: 5.5rem; }
   .listhead { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.6rem; margin-top: var(--step); padding-top: .9rem; border-top: 1px solid var(--rule); }
   .minp { width: 4.2rem; padding: .4rem .5rem; }
 
