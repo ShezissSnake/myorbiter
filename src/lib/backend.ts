@@ -443,7 +443,18 @@ export function mergeLive(old: Live, next: Live, now = Date.now()): Live {
     const ends = v && typeof v === "object" && !Array.isArray(v) ? (v as { expiry?: string }).expiry : undefined;
     if (ends && Date.parse(ends) <= now) continue;
     const n = out[k];
-    if (n == null || (k === "cycles" && Array.isArray(n) && !n.length)) out[k] = v;
+    // Clocks by place: one the new read lacks (the game's own file has no Zariman clock) keeps
+    // its last reading, which the page rolls forward.
+    if (k === "cycles" && Array.isArray(n) && Array.isArray(v)) {
+      const have = new Set((n as { key: string }[]).map((c) => c.key));
+      out[k] = [...n, ...(v as { key: string }[]).filter((c) => !have.has(c.key))];
+    } else if (n == null) out[k] = v;
+  }
+  // Varzia's stock goes with its end: kept past it, Home would count down to a time gone by.
+  const ends = out.resurgenceExpiry;
+  if (typeof ends === "string" && Date.parse(ends) <= now) {
+    out.resurgence = null;
+    out.resurgenceExpiry = null;
   }
   return out as unknown as Live;
 }
@@ -490,7 +501,9 @@ export async function loadLive(): Promise<Live> {
 
 /** Saves a CSV export in Downloads; where it went. In the browser, a download instead. */
 export async function exportFile(what: string, text: string): Promise<string> {
-  if (inTauri) return invoke<string>("export_file", { what, text });
+  const d = new Date();
+  const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  if (inTauri) return invoke<string>("export_file", { what, text, day });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([text], { type: "text/csv" }));
   a.download = `orbiter-${what}.csv`;

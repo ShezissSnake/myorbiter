@@ -229,12 +229,14 @@ async fn relic_data(app: tauri::AppHandle, force: Option<bool>) -> Result<Value,
 /// Saves an export (CSV) in your Downloads folder as `orbiter-<what>-<date>.csv`, never over an
 /// existing file. Returns where it went.
 #[tauri::command]
-fn export_file(app: tauri::AppHandle, what: String, text: String) -> Result<String, String> {
+fn export_file(app: tauri::AppHandle, what: String, text: String, day: Option<String>) -> Result<String, String> {
     if what.is_empty() || !what.bytes().all(|b| b.is_ascii_lowercase() || b == b'-') {
         return Err("bad export name".into());
     }
     let dir = app.path().download_dir().or_else(|_| app.path().home_dir()).map_err(|e| e.to_string())?;
-    let day = chrono_day();
+    // The page's own date (local time, so a file saved after midnight isn't named for yesterday);
+    // today in UTC if it sent none or something that isn't a date.
+    let day = day.filter(|d| is_day(d)).unwrap_or_else(chrono_day);
     let mut path = dir.join(format!("orbiter-{what}-{day}.csv"));
     let mut n = 2;
     while path.exists() {
@@ -243,6 +245,12 @@ fn export_file(app: tauri::AppHandle, what: String, text: String) -> Result<Stri
     }
     fs::write(&path, text.as_bytes()).map_err(|e| e.to_string())?;
     Ok(path.display().to_string())
+}
+
+/// "2026-11-02": four digits, two, two.
+fn is_day(d: &str) -> bool {
+    let b = d.as_bytes();
+    b.len() == 10 && b[4] == b'-' && b[7] == b'-' && b.iter().enumerate().all(|(i, c)| i == 4 || i == 7 || c.is_ascii_digit())
 }
 
 /// Today's date (UTC) as YYYY-MM-DD, without a date library.
@@ -934,6 +942,8 @@ mod tests {
         assert_eq!(civil_day(0), "1970-01-01");
         assert_eq!(civil_day(20_758), "2026-11-01");
         assert_eq!(civil_day(19_782), "2024-02-29");
+        assert!(is_day("2026-11-02"));
+        assert!(!is_day("2026-11-2") && !is_day("../../x.csv") && !is_day("2026/11/02"));
     }
 
     #[test]

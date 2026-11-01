@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { discordSent } from "./lib/discordStatus.svelte";
   import { onMount, untrack } from "svelte";
   import { invasionNeeds } from "./lib/core/invasions";
   import { foldSetSales, repCandidates, salesFromTrade, tradeKey } from "./lib/core/trades";
@@ -403,7 +404,7 @@
     const d = settings.notifyOptions.discord;
     const o = settings.notifyOptions;
     if (!d?.url || !d.kinds.includes(kind) || o.paused || (o.pausedUntil != null && Date.now() < o.pausedUntil)) return;
-    void discordPost(d.url, `**${title}**${body ? `\n${body}` : ""}`).catch(() => {});
+    discordPost(d.url, `**${title}**${body ? `\n${body}` : ""}`).then(() => discordSent(null), discordSent);
   }
   /** Why nothing pops up right now for this kind, if anything: kept in the history only. */
   function quietNow(kind: NoticeKind): boolean {

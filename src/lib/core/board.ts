@@ -48,6 +48,8 @@ export interface SyndicateMission {
     rewardPoolDrops?: { item: string; rarity?: string; chance?: number }[];
     isVault?: boolean;
     timeBound?: string | null;
+    /** The reward table the game pays from: "…/TierATableCRewards" (table C). */
+    uniqueName?: string;
   }[];
 }
 
@@ -58,6 +60,8 @@ export interface SyndicateMission {
 export interface BountyTable {
   place: "zariman" | "cavia" | "hex" | "cetus" | "fortuna" | "necralisk" | "vault";
   level: string;
+  /** In the open worlds, which of the level's three tables (A, B, C) this is. */
+  rotation?: string;
   rewards: { name: string; chance: number; rarity: string }[];
 }
 
@@ -141,13 +145,18 @@ export function bountyBoards(missions: SyndicateMission[] | null, tables: Bounty
       const lv = j.enemyLevels ?? [];
       // No pool (read from the game's worldstate): the drop table for the bounty's level.
       const place = j.isVault ? "vault" : l.key;
-      const table = lv.length >= 2 ? tables?.find((t) => t.place === place && t.level === `${lv[0]} - ${lv[1]}`) : undefined;
+      // The table this rotation pays from (its letter is in the job's reward path); all three
+      // together only when the path doesn't say.
+      const letter = /Table([ABC])Rewards/.exec(j.uniqueName ?? "")?.[1];
+      const level = (tables ?? []).filter((t) => lv.length >= 2 && t.place === place && t.level === `${lv[0]} - ${lv[1]}`);
+      const exact = letter ? level.filter((t) => t.rotation === letter) : [];
+      const table = (exact.length ? exact : level).flatMap((t) => t.rewards);
       const rewards = uniqueRewards(
         j.rewardPoolDrops?.length
           ? j.rewardPoolDrops.map((d) => ({ name: d.item, chance: typeof d.chance === "number" ? d.chance : null, rarity: d.rarity ?? "" }))
           : j.rewardPool?.length
             ? j.rewardPool.map((name) => ({ name, chance: null, rarity: "" }))
-            : (table?.rewards ?? []).map((x) => ({ name: x.name, chance: x.chance, rarity: x.rarity })),
+            : table.map((x) => ({ name: x.name, chance: x.chance, rarity: x.rarity })),
       );
       return {
         name: j.type ?? "Bounty",
@@ -163,11 +172,13 @@ export function bountyBoards(missions: SyndicateMission[] | null, tables: Bounty
     out.push({ key: l.key, label: l.label, where: l.where, expiry: m.expiry ?? null, jobs, rotating: false });
   }
   for (const r of ROTATING) {
-    const tiers = (tables ?? []).filter((t) => t.place === r.place);
-    if (!tiers.length) continue;
-    const jobs = tiers.map((t): BountyJob => {
-      const rewards = uniqueRewards(t.rewards.map((x) => ({ name: x.name, chance: x.chance, rarity: x.rarity })));
-      return { name: `Level ${t.level.replace(" - ", "–")}`, levels: t.level.replace(" - ", "–"), standing: null, minMR: 0, rewards, ...headlineOf(rewards, need), when: null, vault: false };
+    // One row a level: its tables put together (the best chance each reward has in any of them).
+    const tiers = new Map<string, BountyTable["rewards"]>();
+    for (const t of (tables ?? []).filter((t) => t.place === r.place)) tiers.set(t.level, [...(tiers.get(t.level) ?? []), ...t.rewards]);
+    if (!tiers.size) continue;
+    const jobs = [...tiers].map(([level, pool]): BountyJob => {
+      const rewards = uniqueRewards(pool.map((x) => ({ name: x.name, chance: x.chance, rarity: x.rarity })));
+      return { name: `Level ${level.replace(" - ", "–")}`, levels: level.replace(" - ", "–"), standing: null, minMR: 0, rewards, ...headlineOf(rewards, need), when: null, vault: false };
     });
     out.push({ key: r.key, label: r.label, where: r.where, expiry: bySyndicate.get(r.syndicate)?.expiry ?? null, jobs, rotating: true });
   }

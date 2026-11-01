@@ -89,8 +89,10 @@ fn compact(relics: &Value, all: &Value, wfcd: Option<&Value>, hash: &str, modifi
 /// The bounty reward tables the worldstate doesn't carry: the Zariman's, Albrecht's
 /// Laboratories' (Cavia) and Höllvania's (1999). Their missions rotate in game, but each level
 /// tier always pays from the same table, so these are what the Bounties card shows on hover.
-/// `{ place, level, rewards }`, best chance first; place is zariman, cavia, hex, cetus, fortuna,
-/// necralisk or vault (the Cambion Drift's Isolation Vaults).
+/// `{ place, level, rotation, rewards }`, best chance first; place is zariman, cavia, hex, cetus,
+/// fortuna, necralisk or vault (the Cambion Drift's Isolation Vaults). In the open worlds the
+/// rotation (A, B or C) is which of three tables the game is paying from this time (a bounty's
+/// reward path names it: `TierATableCRewards`); the page puts them together where it can't tell.
 fn bounties(all: &Value) -> Value {
     // The open worlds' tables too: when the bounties come from the game's own worldstate (the API
     // is down), each one's rewards are its level's table.
@@ -103,7 +105,7 @@ fn bounties(all: &Value) -> Value {
         ("Cambion Drift Bounty", "necralisk"),
         ("Isolation Vault", "vault"),
     ];
-    let mut tiers: Vec<(String, String, Vec<Value>)> = Vec::new();
+    let mut tiers: Vec<(String, String, String, Vec<Value>)> = Vec::new();
     for d in all.as_array().into_iter().flatten() {
         let (Some(place), Some(item)) = (d["place"].as_str(), d["item"].as_str()) else { continue };
         let place = plain(place);
@@ -115,20 +117,21 @@ fn bounties(all: &Value) -> Value {
         // "Zariman Ten Zero (Level  50 - 55 Zariman Bounty), Rotation C" → "50 - 55"
         let Some(level) = place.split("Level").nth(1).and_then(|r| r.split(kind).next()) else { continue };
         let level = level.split_whitespace().collect::<Vec<_>>().join(" ");
+        let rotation = place.rsplit("Rotation ").next().filter(|_| place.contains("Rotation ")).unwrap_or("").trim().to_string();
         let reward = json!({ "name": item, "chance": d["chance"].as_f64().unwrap_or(0.0), "rarity": d["rarity"].as_str().unwrap_or("") });
-        match tiers.iter_mut().find(|(p, l, _)| p == key && *l == level) {
-            Some((_, _, rewards)) => rewards.push(reward),
-            None => tiers.push((key.to_string(), level, vec![reward])),
+        match tiers.iter_mut().find(|(p, l, r, _)| p == key && *l == level && *r == rotation) {
+            Some((_, _, _, rewards)) => rewards.push(reward),
+            None => tiers.push((key.to_string(), level, rotation, vec![reward])),
         }
     }
     let low = |level: &str| level.split(' ').next().and_then(|n| n.parse::<u32>().ok()).unwrap_or(0);
-    tiers.sort_by(|a, b| a.0.cmp(&b.0).then(low(&a.1).cmp(&low(&b.1))));
+    tiers.sort_by(|a, b| a.0.cmp(&b.0).then(low(&a.1).cmp(&low(&b.1))).then(a.2.cmp(&b.2)));
     Value::Array(
         tiers
             .into_iter()
-            .map(|(place, level, mut rewards)| {
+            .map(|(place, level, rotation, mut rewards)| {
                 rewards.sort_by(|x, y| y["chance"].as_f64().unwrap_or(0.0).total_cmp(&x["chance"].as_f64().unwrap_or(0.0)));
-                json!({ "place": place, "level": level, "rewards": rewards })
+                json!({ "place": place, "level": level, "rotation": rotation, "rewards": rewards })
             })
             .collect(),
     )
@@ -141,7 +144,7 @@ pub fn relic_data(dir: &Path, force: bool) -> Result<Value, String> {
     let cached: Option<Value> = fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok());
     // A cache from before the bounty tables (or the open worlds' ones) were kept is read again, once; it's still what's
     // used if the tables can't be reached.
-    let complete = cached.as_ref().is_some_and(|c| c["bounties"].as_array().is_some_and(|b| b.iter().any(|t| t["place"] == "cetus")));
+    let complete = cached.as_ref().is_some_and(|c| c["bounties"].as_array().is_some_and(|b| b.iter().any(|t| t["place"] == "cetus" && t["rotation"].is_string())));
     if let Some(c) = cached.as_ref().filter(|_| complete) {
         if !force && now().saturating_sub(c["checkedAt"].as_u64().unwrap_or(0)) < FRESH {
             return Ok(c.clone());
@@ -212,15 +215,18 @@ mod tests {
             { "place": "Zariman Ten Zero (<b>Level  50 - 55 Zariman Bounty</b>), Rotation C", "item": "500 Endo", "rarity": "Uncommon", "chance": 17.39 },
             { "place": "Höllvania (<b>Level  55 - 60 WF1999 Bounty</b>), Rotation C", "item": "Ayatan Anasa", "rarity": "Rare", "chance": 5.0 },
             { "place": "Earth/Cetus (<b>Level 5 - 15 Cetus Bounty</b>), Rotation A", "item": "50 Endo", "rarity": "Uncommon", "chance": 20.0 },
+            { "place": "Earth/Cetus (<b>Level 5 - 15 Cetus Bounty</b>), Rotation C", "item": "Vitality", "rarity": "Uncommon", "chance": 20.0 },
             { "place": "Deimos/Cambion Drift (<b>Level 30 - 40 Isolation Vault</b>), Rotation A", "item": "Fass Residue", "rarity": "Common", "chance": 20.0 },
             { "place": "Deimos/Cambion Drift (<b>Level 30 - 40 Arcana Isolation Vault</b>), Rotation A", "item": "Theorem Demulcent", "rarity": "Rare", "chance": 2.0 }
         ]);
         let b = bounties(&all);
         let tiers: Vec<(String, String)> = b.as_array().unwrap().iter().map(|t| (t["place"].as_str().unwrap().into(), t["level"].as_str().unwrap().into())).collect();
-        let want = [("cetus", "5 - 15"), ("hex", "55 - 60"), ("vault", "30 - 40"), ("zariman", "50 - 55"), ("zariman", "60 - 65")];
+        let want = [("cetus", "5 - 15"), ("cetus", "5 - 15"), ("hex", "55 - 60"), ("vault", "30 - 40"), ("zariman", "50 - 55"), ("zariman", "60 - 65")];
         assert_eq!(tiers, want.map(|(p, l)| (p.to_string(), l.to_string())));
-        assert_eq!(b[3]["rewards"][0]["name"], "500 Endo", "best chance first");
-        assert_eq!(b[2]["rewards"].as_array().unwrap().len(), 1, "not the vault's Arcana table");
+        assert_eq!((b[0]["rotation"].as_str(), b[1]["rotation"].as_str()), (Some("A"), Some("C")), "each of the three tables apart");
+        assert_eq!(b[1]["rewards"][0]["name"], "Vitality");
+        assert_eq!(b[4]["rewards"][0]["name"], "500 Endo", "best chance first");
+        assert_eq!(b[3]["rewards"].as_array().unwrap().len(), 1, "not the vault's Arcana table");
     }
 
     /// Reads the real tables (network): `cargo test -p orbiter relicdata -- --ignored`.

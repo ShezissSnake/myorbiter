@@ -176,3 +176,14 @@ test("a kept worldstate part whose end has passed isn't kept", async () => {
   assert.equal(m.duviriCycle, null, "last week's Circuit is gone");
   assert.ok(m.steelPath, "this week's Teshin offer stays");
 });
+
+test("a clock the new read lacks keeps its last reading, and Varzia's stock goes with its end", async () => {
+  const { mergeLive } = await import("../src/lib/backend");
+  const now = Date.parse("2026-11-02T12:00:00Z");
+  const old = { fissures: null, resurgence: [{ uniqueName: "x" }], resurgenceExpiry: "2026-11-02T11:00:00Z", cycles: [{ key: "earth", state: "day", expiry: "e1" }, { key: "zariman", state: "corpus", expiry: "z" }] } as never;
+  const next = { fissures: [], resurgence: null, resurgenceExpiry: null, cycles: [{ key: "earth", state: "night", expiry: "e2" }] } as never;
+  const m = mergeLive(old, next, now) as unknown as { cycles: { key: string; state: string }[]; resurgence: unknown; resurgenceExpiry: unknown };
+  assert.deepEqual(m.cycles.map((c) => `${c.key}:${c.state}`), ["earth:night", "zariman:corpus"]);
+  assert.equal(m.resurgence, null, "her rotation ended");
+  assert.equal(m.resurgenceExpiry, null);
+});

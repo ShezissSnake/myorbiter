@@ -84,4 +84,16 @@ test("bounties read from the game's worldstate take their rewards from the level
     ],
   )[0].jobs;
   assert.deepEqual(vault.rewards.map((r) => r.name), ["Fass Residue"], "a vault pays from the vault's table");
+  // The rotation's own table, named by the letter in the job's reward path.
+  const tables = [
+    { place: "cetus" as const, level: "5 - 15", rotation: "A", rewards: [{ name: "Pressure Point", chance: 20, rarity: "Uncommon" }] },
+    { place: "cetus" as const, level: "5 - 15", rotation: "C", rewards: [{ name: "Vitality", chance: 20, rarity: "Uncommon" }] },
+    { place: "zariman" as const, level: "50 - 55", rotation: "A", rewards: [{ name: "Aya", chance: 8, rarity: "Rare" }] },
+    { place: "zariman" as const, level: "50 - 55", rotation: "C", rewards: [{ name: "Entrati Lanthorn", chance: 4, rarity: "Rare" }] },
+  ];
+  const [cetus, zariman] = bountyBoards([{ syndicate: "Ostrons", expiry: "x", jobs: [{ enemyLevels: [5, 15], uniqueName: "/Lotus/Types/Game/MissionDecks/EidolonJobMissionRewards/TierATableCRewards" }, { enemyLevels: [5, 15] }] }], tables);
+  assert.deepEqual(cetus.jobs[0].rewards.map((r) => r.name), ["Vitality"], "table C only");
+  assert.deepEqual(cetus.jobs[1].rewards.map((r) => r.name).sort(), ["Pressure Point", "Vitality"], "no letter: all of the level's tables");
+  assert.equal(zariman.jobs.length, 1, "one row a level where the missions rotate");
+  assert.deepEqual(zariman.jobs[0].rewards.map((r) => r.name), ["Entrati Lanthorn", "Aya"]);
 });
