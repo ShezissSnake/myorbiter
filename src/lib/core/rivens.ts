@@ -192,7 +192,7 @@ export function parseRiven(m: Model, tables: Map<string, RivenStatDef[]>, raw: R
   }
   const qs = stats.filter((s) => s.buff && s.quality != null).map((s) => s.quality as number);
   const quality = qs.length ? qs.reduce((a, b) => a + b, 0) / qs.length : null;
-  const weaponItem = fp.compat ? m.catalogByUnique.get(fp.compat) : undefined;
+  const weaponItem = fp.compat ? compatWeapon(m, fp.compat) : undefined;
   const weapon = weaponItem?.name ?? (fp.compat ? m.nameOf(fp.compat) : "Unknown weapon");
   return {
     id: raw.id,
@@ -387,6 +387,28 @@ export interface RivenAuction {
   seller: string;
   status: string;
   updated: string;
+}
+
+/**
+ * The weapon a riven's `compat` names. Usually the weapon's own path; for some families the game
+ * names a shared base instead (the Hek's rivens say `.../Shotgun/QuadShotgunBase`), so a path
+ * ending in Base is the family's plain weapon beside it: the shortest path that starts with it.
+ */
+export function compatWeapon(m: Model, compat: string): CatalogItem | undefined {
+  const exact = m.catalogByUnique.get(compat);
+  if (exact || !/Base$/.test(compat)) return exact;
+  const stem = compat.replace(/Base$/, "");
+  const folder = compat.slice(0, compat.lastIndexOf("/") + 1);
+  const leaf = stem.slice(folder.length);
+  let best: CatalogItem | undefined;
+  for (const c of m.catalogByUnique.values()) {
+    if (!c.masterable) continue;
+    const u = c.uniqueName;
+    // In the same folder (QuadShotgun) or a folder of its own under it (QuadShotgun/QuadShotgun).
+    if (!(u === stem || u.startsWith(`${stem}/`) || (u.startsWith(folder) && u.slice(folder.length).startsWith(leaf)))) continue;
+    if (!best || u.length < best.uniqueName.length) best = c;
+  }
+  return best;
 }
 
 /** A riven's buffs as market slugs, and its curse, to find comparable ones for sale. */

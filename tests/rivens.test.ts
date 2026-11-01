@@ -194,3 +194,18 @@ test("item prices count as out of date once they're a day behind the newest figu
   assert.equal(pricesBehind(null, now), null);
   assert.equal(pricesBehind("28 Oct", now), null);
 });
+
+test("a riven naming its family's Base path is the plain weapon's (the Hek's say QuadShotgunBase)", async () => {
+  const { compatWeapon } = await import("../src/lib/core/rivens");
+  const cat = (uniqueName: string, name: string) => ({ uniqueName, name, category: "Primary", masterable: true });
+  const m = buildModel({
+    observed_at: 1,
+    inventory: [],
+    catalog: [cat("/Lotus/Weapons/Tenno/Shotgun/QuadShotgun", "Hek"), cat("/Lotus/Weapons/Tenno/Shotgun/QuadShotgunPrime", "Hek Prime"), cat("/Lotus/Weapons/Tenno/Shotgun/DoubleBarrel", "Sobek")],
+    relics: [],
+    prices: null,
+  } as Bundle);
+  assert.equal(compatWeapon(m, "/Lotus/Weapons/Tenno/Shotgun/QuadShotgunBase")?.name, "Hek");
+  assert.equal(compatWeapon(m, "/Lotus/Weapons/Tenno/Shotgun/QuadShotgunPrime")?.name, "Hek Prime", "an exact path stays itself");
+  assert.equal(compatWeapon(m, "/Lotus/Weapons/Tenno/Shotgun/NothingBase"), undefined);
+});

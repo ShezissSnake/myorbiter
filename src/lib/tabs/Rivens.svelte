@@ -58,7 +58,7 @@
     }
     return out;
   });
-  let sort = $state<"grade" | "weapon" | "rank" | "traded">("grade");
+  let sort = $state<"grade" | "weapon" | "rank" | "traded" | "any" | "similar">("grade");
   // Filters: the riven's kind (Rifle, Melee…), spliced ones only, and a weapon or name.
   let kind = $state("all");
   let splicedOnly = $state(false);
@@ -76,6 +76,8 @@
       sort === "grade" ? (b.quality ?? -1) - (a.quality ?? -1)
       : sort === "rank" ? b.rank - a.rank
       : sort === "traded" ? (tradeValue(b) ?? -1) - (tradeValue(a) ?? -1) || a.weapon.localeCompare(b.weapon)
+      : sort === "any" ? (anyPrice(b) ?? -1) - (anyPrice(a) ?? -1) || a.weapon.localeCompare(b.weapon)
+      : sort === "similar" ? (similarPrice(b) ?? -1) - (similarPrice(a) ?? -1) || a.weapon.localeCompare(b.weapon)
       : a.weapon.localeCompare(b.weapon),
     ),
   );
@@ -107,6 +109,9 @@
   // it was made. While a riven is checked again, or if that fails, what it had stays shown.
   let checks = $state<Record<string, { loading: boolean; error?: string; auctions?: RivenAuction[]; any?: RivenAuction[]; at?: number; saved?: boolean }>>({});
   const SLOW = /slow down/;
+  /** The cheapest riven listed for its weapon, and what similar ones mostly ask, from its price check. */
+  const anyPrice = (r: Riven) => (checks[r.id]?.any ? priceCheck(checks[r.id]!.any!).lowest : null);
+  const similarPrice = (r: Riven) => (checks[r.id]?.auctions ? priceCheck(checks[r.id]!.auctions!).typical : null);
   const DAY = 86_400_000;
   async function check(r: Riven, fresh = false) {
     if (!meta) return;
@@ -397,7 +402,7 @@
         {#if companions}<option value="companion">Companion weapons ({companions})</option>{/if}
       </select>
       {#if splicedCount}<Chip bind:on={splicedOnly} label="Spliced ({splicedCount})" title="Only rivens with a stat from Riven Splicing (Gas, Corrosive, Weak Point Damage…), which can't roll by cycling" />{/if}
-      <Seg label="Sort" bind:value={sort} options={[{ v: "grade", label: "Best rolls", title: "The best overall grade first" }, { v: "weapon", label: "Weapon", title: "By weapon, A to Z" }, { v: "rank", label: "Rank", title: "The highest rank first" }, { v: "traded", label: "Trade value", title: "What rivens for the weapon (cycled or not, like yours) traded for in game last week, highest first: the ones worth selling, whatever their stats" }]} />
+      <Seg label="Sort" bind:value={sort} options={[{ v: "grade", label: "Best rolls", title: "The best overall grade first" }, { v: "weapon", label: "Weapon", title: "By weapon, A to Z" }, { v: "rank", label: "Rank", title: "The highest rank first" }, { v: "traded", label: "Trade value", title: "What rivens for the weapon (cycled or not, like yours) traded for in game last week, highest first: the ones worth selling, whatever their stats" }, { v: "any", label: "Any price", title: "The cheapest riven listed for the weapon on warframe.market, whatever its stats (Any … riven from), highest first. Rivens not price checked yet go last" }, { v: "similar", label: "Similar price", title: "What rivens with the same two best stats are mostly listed for (most around), highest first. Rivens not price checked yet go last" }]} />
       {#if checkingAll}
         <span class="checking"><span class="dim small">{checkingAll.paused ? `${checkingAll.retry ? "Some checks failed" : "warframe.market asked to slow down"}: waiting half a minute, then ${checkingAll.retry ? "trying those again" : `${checkingAll.done + 1} of ${checkingAll.total}`}…` : `${checkingAll.retry ? "Trying again" : "Checking"} ${checkingAll.done + 1} of ${checkingAll.total}…`}</span><button class="link" onclick={() => (stopAll = true)}>Stop</button></span>
       {:else}

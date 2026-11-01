@@ -915,8 +915,16 @@ pub fn items(cache_dir: &Path) -> Result<Value, MarketError> {
 
 /// Only plain warframe.market slugs go into a riven search URL. One attribute has a slash in its
 /// slug (`base_damage_/_melee_damage`); it's escaped where it's used.
+/// A slug warframe.market uses for riven weapons and stats: lowercase words joined by `_`, with
+/// `/` in a few stats (`base_damage_/_melee_damage`) and brackets in one weapon
+/// (`dark_split_sword_(dual_swords)`). Nothing that could end the query or start another.
 fn plain_slug(s: &str) -> bool {
-    !s.is_empty() && s.len() < 80 && s.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'/')
+    !s.is_empty() && s.len() < 80 && s.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'_' | b'/' | b'-' | b'(' | b')'))
+}
+
+/// A slug as a query value: `/` and the brackets percent-encoded, as the site's own links do.
+fn query_value(s: &str) -> String {
+    s.replace('/', "%2F").replace('(', "%28").replace(')', "%29")
 }
 
 /// Riven weapons and attributes (`/v2/riven/weapons`, `/v2/riven/attributes`), trimmed and cached
@@ -967,12 +975,12 @@ impl Client {
         if !plain_slug(weapon) || positive.iter().any(|p| !plain_slug(p)) || negative.is_some_and(|n| !plain_slug(n)) {
             return Err(MarketError::Rejected("not a riven search".into()));
         }
-        let mut url = format!("{V1}/auctions/search?type=riven&weapon_url_name={weapon}&buyout_policy=direct&sort_by=price_asc");
+        let mut url = format!("{V1}/auctions/search?type=riven&weapon_url_name={}&buyout_policy=direct&sort_by=price_asc", query_value(weapon));
         if !positive.is_empty() {
-            url.push_str(&format!("&positive_stats={}", positive.join(",").replace('/', "%2F")));
+            url.push_str(&format!("&positive_stats={}", query_value(&positive.join(","))));
         }
         if let Some(n) = negative {
-            url.push_str(&format!("&negative_stats={}", n.replace('/', "%2F")));
+            url.push_str(&format!("&negative_stats={}", query_value(n)));
         }
         let v = self.call("GET", &url, None, false)?;
         let list: Vec<Value> = v["payload"]["auctions"]
@@ -1132,6 +1140,10 @@ mod tests {
         assert!(plain_slug("damage_vs_corpus"));
         assert!(!plain_slug("rubico&x=1"));
         assert!(plain_slug("base_damage_/_melee_damage"));
+        assert!(plain_slug("dark_split_sword_(dual_swords)"), "the one weapon with brackets");
+        assert_eq!(query_value("dark_split_sword_(dual_swords)"), "dark_split_sword_%28dual_swords%29");
+        assert_eq!(query_value("base_damage_/_melee_damage"), "base_damage_%2F_melee_damage");
+        assert!(!plain_slug("hek prime"));
         assert!(!plain_slug("../me"));
         assert!(!plain_slug(""));
     }
