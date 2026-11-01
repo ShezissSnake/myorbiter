@@ -132,11 +132,27 @@ fn trader(t: &Value, nodes: &Value) -> Option<Value> {
         .flatten()
         .filter_map(|x| {
             let path = x["ItemType"].as_str()?;
-            let item = path.rsplit('/').next().unwrap_or(path);
+            let item = words(path.rsplit('/').next().unwrap_or(path));
             Some(json!({ "uniqueName": path, "item": item, "ducats": x["PrimePrice"].as_u64(), "credits": x["RegularPrice"].as_u64() }))
         })
         .collect();
     Some(json!({ "activation": iso(activation), "expiry": iso(expiry), "location": nodes[node]["value"].as_str().unwrap_or(node), "inventory": inventory }))
+}
+
+/// A store name split into words as the API writes the ones it can't name: "EvilBaroArmourA" →
+/// "Evil Baro Armour A", "MPVNidusPrimeSinglePack" → "MPV Nidus Prime Single Pack". The page shows
+/// the catalog's name instead wherever it knows the item.
+fn words(name: &str) -> String {
+    let c: Vec<char> = name.chars().collect();
+    let mut out = String::new();
+    for (i, &ch) in c.iter().enumerate() {
+        let starts = i > 0 && ch.is_uppercase() && (c[i - 1].is_lowercase() || c[i - 1].is_ascii_digit() || (c[i - 1].is_uppercase() && c.get(i + 1).is_some_and(|n| n.is_lowercase())));
+        if starts {
+            out.push(' ');
+        }
+        out.push(ch);
+    }
+    out
 }
 
 /// The open worlds' clocks, worked out as the API does: Earth from the time of day, Orb Vallis from
@@ -152,8 +168,8 @@ fn cycles(ws: &Value, now_ms: i64) -> Map<String, Value> {
     let vallis = (now - 1_770_234_408).rem_euclid(1600);
     let (state, left) = if vallis < 400 { ("warm", 400 - vallis) } else { ("cold", 1600 - vallis) };
     out.insert("vallisCycle".into(), json!({ "state": state, "expiry": iso((now + left) * 1000) }));
-    let cetus_end = ws["SyndicateMissions"].as_array().into_iter().flatten().find(|m| m["Tag"] == "CetusSyndicate").and_then(|m| millis(&m["Expiry"]));
-    if let Some(end) = cetus_end.filter(|e| *e > now_ms) {
+    let cetus_end = current(ws, "CetusSyndicate", now_ms).and_then(|m| millis(&m["Expiry"]));
+    if let Some(end) = cetus_end {
         let night_from = end - 50 * 60_000;
         let (cetus, cambion, until) = if now_ms < night_from { ("day", "fass", night_from) } else { ("night", "vome", end) };
         out.insert("cetusCycle".into(), json!({ "state": cetus, "expiry": iso(until) }));
@@ -169,11 +185,22 @@ pub fn from_game(dir: &Path) -> Result<Map<String, Value>, String> {
     let ws = get(WORLDSTATE[0]).or_else(|_| get(WORLDSTATE[1]))?;
     let mut p = parts(&ws, &t["nodes"], &t["missions"], (now() * 1000) as i64);
     p.extend(sorties(&ws, &t["nodes"], &t["missions"], &t["sorties"]));
-    let bounties = syndicates(&ws, &t["jobs"]);
+    let bounties = syndicates(&ws, &t["jobs"], (now() * 1000) as i64);
     if !bounties.is_empty() {
         p.insert("syndicateMissions".into(), Value::Array(bounties));
     }
     Ok(p)
+}
+
+/// A syndicate's bounties running now. The game's file also lists the next rotation ahead of time
+/// (the same tag, starting when this one ends), which mustn't be taken for the current one.
+fn current<'a>(ws: &'a Value, tag: &str, now_ms: i64) -> Option<&'a Value> {
+    ws["SyndicateMissions"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|m| m["Tag"] == tag && millis(&m["Expiry"]).is_some_and(|e| e > now_ms) && millis(&m["Activation"]).map_or(true, |a| a <= now_ms))
+        .min_by_key(|m| millis(&m["Expiry"]))
 }
 
 /// The game's tag for each place with bounties, and the syndicate the API names it by.
@@ -188,10 +215,10 @@ const SYNDICATES: [(&str, &str); 6] = [
 
 /// The open worlds' bounties in the API's shape, without the reward pools: those come from the drop
 /// tables by level (as the API itself does), on the page.
-fn syndicates(ws: &Value, jobs: &Value) -> Vec<Value> {
+fn syndicates(ws: &Value, jobs: &Value, now_ms: i64) -> Vec<Value> {
     let mut out = Vec::new();
-    for m in ws["SyndicateMissions"].as_array().into_iter().flatten() {
-        let Some((_, name)) = SYNDICATES.iter().find(|(tag, _)| m["Tag"] == *tag) else { continue };
+    for (tag, name) in SYNDICATES {
+        let Some(m) = current(ws, tag, now_ms) else { continue };
         let Some(expiry) = millis(&m["Expiry"]) else { continue };
         let list: Vec<Value> = m["Jobs"]
             .as_array()
@@ -210,6 +237,11 @@ fn syndicates(ws: &Value, jobs: &Value) -> Vec<Value> {
                 job.insert("minMR".into(), json!(j["masteryReq"].as_u64().unwrap_or(0)));
                 job.insert("isVault".into(), json!(j["isVault"].as_bool().unwrap_or(false)));
                 job.insert("uniqueName".into(), j["rewards"].clone());
+                // Narmer's bounties run by day on the Plains and by night in the Vallis (as the API says).
+                if path.contains("/Narmer/") {
+                    let when = if m["Tag"] == "CetusSyndicate" { "day" } else { "night" };
+                    job.insert("timeBound".into(), json!(when));
+                }
                 Value::Object(job)
             })
             .collect();
@@ -292,19 +324,33 @@ mod tests {
     }
 
     #[test]
+    fn store_names_in_words() {
+        assert_eq!(words("EvilBaroArmourA"), "Evil Baro Armour A");
+        assert_eq!(words("MPVNidusPrimeSinglePack"), "MPV Nidus Prime Single Pack");
+        assert_eq!(words("PrimeScarfDItem"), "Prime Scarf D Item");
+        assert_eq!(words("Plain"), "Plain");
+    }
+
+    #[test]
     fn bounties_from_the_game() {
         let ws = json!({ "SyndicateMissions": [
-            { "Tag": "CetusSyndicate", "Expiry": { "$date": { "$numberLong": "1793504445687" } }, "Jobs": [
+            { "Tag": "CetusSyndicate", "Activation": { "$date": { "$numberLong": "1793495445687" } }, "Expiry": { "$date": { "$numberLong": "1793504445687" } }, "Jobs": [
                 { "jobType": "/Lotus/Types/Gameplay/Eidolon/Jobs/AttritionBountyCap", "rewards": "/Lotus/Types/Game/MissionDecks/EidolonJobMissionRewards/TierATableCRewards", "masteryReq": 0, "minEnemyLevel": 5, "maxEnemyLevel": 15, "xpAmounts": [470, 470, 470] },
                 { "jobType": "/Lotus/Types/Gameplay/Eidolon/Jobs/SomethingNew", "masteryReq": 3, "minEnemyLevel": 30, "maxEnemyLevel": 50, "xpAmounts": [600] },
+                { "jobType": "/Lotus/Types/Gameplay/Eidolon/Jobs/Narmer/AttritionBountyExt", "masteryReq": 0, "minEnemyLevel": 50, "maxEnemyLevel": 70, "xpAmounts": [780] },
                 { "rewards": "/Lotus/Types/Game/MissionDecks/DeimosMissionRewards/VaultBountyTierATableBRewards", "masteryReq": 5, "minEnemyLevel": 30, "maxEnemyLevel": 40, "xpAmounts": [2, 2, 2, 4], "locationTag": "ChamberB", "isVault": true }
             ] },
-            { "Tag": "SteelMeridianSyndicate", "Expiry": { "$date": { "$numberLong": "1793504445687" } }, "Jobs": [] }
+            { "Tag": "SteelMeridianSyndicate", "Expiry": { "$date": { "$numberLong": "1793504445687" } }, "Jobs": [] },
+            { "Tag": "CetusSyndicate", "Activation": { "$date": { "$numberLong": "1793504445687" } }, "Expiry": { "$date": { "$numberLong": "1793513445687" } }, "Jobs": [
+                { "jobType": "/Lotus/Types/Gameplay/Eidolon/Jobs/Next", "minEnemyLevel": 5, "maxEnemyLevel": 15 }
+            ] }
         ] });
         let names = job_names(&json!({ "/lotus/types/gameplay/eidolon/jobs/attritionbountycap": { "value": "Capture Their Leader" }, "/lotus/language/other": { "value": "x" } }));
         assert_eq!(names.as_object().unwrap().len(), 1, "only the bounties' names are kept");
-        let s = syndicates(&ws, &names);
-        assert_eq!(s.len(), 1, "only the places with bounties");
+        let s = syndicates(&ws, &names, 1_793_500_000_000);
+        assert_eq!(s.len(), 1, "only the places with bounties, and only the rotation running now");
+        let next = syndicates(&ws, &names, 1_793_505_000_000);
+        assert_eq!(next[0]["expiry"], "2026-11-01T06:10:45.687Z", "once it starts, the next rotation");
         assert_eq!(s[0]["syndicate"], "Ostrons");
         assert_eq!(s[0]["expiry"], "2026-11-01T03:40:45.687Z");
         let j = &s[0]["jobs"];
@@ -313,8 +359,10 @@ mod tests {
         assert_eq!(j[0]["standingStages"], json!([470, 470, 470]));
         assert_eq!(j[1]["type"], "Bounty", "a job the table doesn't name yet");
         assert_eq!(j[1]["minMR"], 3);
-        assert_eq!(j[2]["type"], "Isolation Vault Chamber B");
-        assert_eq!(j[2]["isVault"], true);
+        assert_eq!(j[2]["timeBound"], "day", "Narmer on the Plains");
+        assert!(j[0]["timeBound"].is_null());
+        assert_eq!(j[3]["type"], "Isolation Vault Chamber B");
+        assert_eq!(j[3]["isVault"], true);
     }
 
     #[test]
