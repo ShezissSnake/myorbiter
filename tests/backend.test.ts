@@ -187,3 +187,21 @@ test("a clock the new read lacks keeps its last reading, and Varzia's stock goes
   assert.equal(m.resurgence, null, "her rotation ended");
   assert.equal(m.resurgenceExpiry, null);
 });
+
+test("the Watching column and Discord settings load safely", async () => {
+  const { loadSettings, DISCORD_DEFAULT_KINDS } = await import("../src/lib/backend");
+  const saved = { side: { on: false, cards: ["fissures", 7, "clocks"] }, notifyOptions: { discord: { url: "https://discord.com/api/webhooks/1/x", kinds: ["sold", null] } } };
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify(saved) };
+  const s = await loadSettings();
+  assert.equal(s.side.on, false);
+  assert.deepEqual(s.side.cards, ["fissures", "clocks"], "only names of cards");
+  assert.equal(s.notifyOptions.discord.url, "https://discord.com/api/webhooks/1/x");
+  assert.deepEqual(s.notifyOptions.discord.kinds, ["sold"]);
+  // From before either existed: the column on with its usual cards, no Discord.
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({ notifyOptions: { discord: { url: 42 } } }) };
+  const old = await loadSettings();
+  assert.equal(old.side.on, true);
+  assert.ok(old.side.cards.includes("fissures"));
+  assert.equal(old.notifyOptions.discord.url, "");
+  assert.deepEqual(old.notifyOptions.discord.kinds, DISCORD_DEFAULT_KINDS);
+});

@@ -573,7 +573,7 @@ export async function loadSettings(): Promise<Settings> {
     folded: typeof raw?.folded === "boolean" ? raw.folded : null,
     withoutInventory: raw?.withoutInventory === true,
     homeDismissed: Array.isArray(raw?.homeDismissed) ? raw.homeDismissed.filter((k: unknown): k is string => typeof k === "string") : [],
- side: { on: raw?.side?.on !== false, cards: Array.isArray(raw?.side?.cards) ? raw.side.cards.filter((k: unknown): k is string => typeof k === "string") : base.side.cards },
+    side: { on: raw?.side?.on !== false, cards: Array.isArray(raw?.side?.cards) ? raw.side.cards.filter((k: unknown): k is string => typeof k === "string") : base.side.cards },
     homeFissures: raw?.homeFissures === "steel" || raw?.homeFissures === "storm" ? raw.homeFissures : "normal",
     homeHidden: Array.isArray(raw?.homeHidden) ? raw.homeHidden.filter((k: unknown): k is string => typeof k === "string") : [],
     plannerMode: raw?.plannerMode === "radiant" ? "radiant" : "sets",
