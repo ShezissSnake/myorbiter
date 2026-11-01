@@ -189,7 +189,7 @@
             {:else if !d.priced}
               <span class="dim">Reading the order book…</span>
             {:else if d.inGame}
-              <span>Matched to the cheapest seller in game: <P v={d.ladder[0]} />{#if d.ladder.length > 1}<span class="dim"> · then {d.ladder.slice(1, 4).map((x) => `${x}p`).join(", ")}</span>{/if}</span>
+              <span>Matched to the cheapest seller in game: <P v={d.ladder[0]} />{#if d.ladder.length > 1}<span class="dim">{" · "}then {d.ladder.slice(1, 4).map((x) => `${x}p`).join(", ")}</span>{/if}</span>
             {:else}
               <span class="dim">Nobody is selling this in game right now: set the price yourself.</span>
             {/if}

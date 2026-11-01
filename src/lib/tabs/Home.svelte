@@ -333,7 +333,7 @@
         {#each cycles as c (c.key)}
           <div class="clock" title="{c.label}: {c.state}{c.next ? `, ${c.next} in ${until(c.ends, now)}` : ''}">
             <GameIcon name={CYCLE_ICON[c.key]} size={26} />
-            <div><span class="register clip1">{CYCLE_SHORT[c.key] ?? c.label}</span><b class="mark st st-{c.state}">{c.state}</b><span class="dim small nowrap">{until(c.ends, now).replace("under a minute", "<1 min")}<span class="lft"> left</span></span></div>
+            <div><span class="register clip1">{CYCLE_SHORT[c.key] ?? c.label}</span><b class="mark st st-{c.state}">{c.state}</b><span class="dim small nowrap">{until(c.ends, now).replace("under a minute", "<1 min")}<span class="lft">{" left"}</span></span></div>
           </div>
         {/each}
         {#each resets.filter((r) => r.key !== "sortie") as r (r.key)}
@@ -467,7 +467,7 @@
             <div class="th"><GameIcon name="platinum" size={18} /><b class="mark">Darvo's deal</b><span class="dim small">{dv.left != null ? `${dv.left} left · ` : ""}ends in {until(dv.ends, now)}</span></div>
             <p class="tline" title="Darvo's daily deal in the in-game Market (Market → Darvo's Deal), limited stock">
               <b use:info={dv.item}>{dv.item}</b> <span class="dim">for {dv.price}p ({dv.discount}% off {dv.was}p)</span>
-              {#if dv.note && !console}<span class="dim small"> · {dv.note}</span>{#if dv.wanted}<em class="want" aria-label="worth taking">◆</em>{/if}{/if}
+              {#if dv.note && !console}<span class="dim small">{" · "}{dv.note}</span>{#if dv.wanted}<em class="want" aria-label="worth taking">◆</em>{/if}{/if}
             </p>
           </div>
         {/if}

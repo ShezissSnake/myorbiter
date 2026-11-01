@@ -160,7 +160,7 @@
   {#if s && s.needs.length > 1 && r.kind !== "relic"}
     <div class="odds">
       <span class="register">What it's kept for</span>
-      {#each s.needs as n (n.item)}<span class="src" use:info={n.item}>{n.item}{#if n.count > 1}<span class="dim"> ×{n.count}</span>{/if}</span>{/each}
+      {#each s.needs as n (n.item)}<span class="src" use:info={n.item}>{n.item}{#if n.count > 1}<span class="dim">{" "}×{n.count}</span>{/if}</span>{/each}
     </div>
   {/if}
   {#if r.kind === "part"}

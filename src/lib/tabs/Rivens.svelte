@@ -443,7 +443,7 @@
                   <IconButton icon="close" tone="quiet" label="Cancel" onclick={() => delete reprice[listed.id]} />
                   {#if rp.error}<span class="err small">{rp.error}</span>{/if}
                 {:else}
-                  <span>{#if listed.buyout != null}buyout <P v={listed.buyout} />{/if}{#if listed.starting < (listed.buyout ?? Infinity)}<span class="dim small"> · bids from {listed.starting}p</span>{/if}{#if listed.topBid != null}<span class="small"> · top bid <b>{listed.topBid}p</b></span>{/if}</span>
+                  <span>{#if listed.buyout != null}buyout <P v={listed.buyout} />{/if}{#if listed.starting < (listed.buyout ?? Infinity)}<span class="dim small">{" · "}bids from {listed.starting}p</span>{/if}{#if listed.topBid != null}<span class="small">{" · "}top bid <b>{listed.topBid}p</b></span>{/if}</span>
                   <span class="grow"></span>
                   <IconButton icon="pencil" tone="quiet" label="Change price" onclick={() => (reprice[listed.id] = { buyout: listed.buyout, busy: false, error: null })} />
                   <IconButton icon="stop" tone="danger quiet" label={closing === listed.id ? "Taking down…" : "Take down"} title="Take down: close the auction (it stays in your profile's closed auctions)" disabled={closing === listed.id} onclick={() => takeDown(listed)} />
