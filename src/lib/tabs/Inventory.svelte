@@ -230,7 +230,8 @@
   .have { display: flex; align-items: center; gap: .5rem; }
   .have .tag { margin-left: 0; }
   .qty { font-size: 1.3rem; }
-  .vals { display: flex; gap: 1rem; flex-wrap: wrap; }
+  /* Each figure in a column of its own width, so cards side by side line up and wrap the same way. */
+  .vals { display: grid; grid-template-columns: repeat(auto-fill, minmax(3.6rem, 1fr)); gap: .4rem .8rem; }
   .vals > span { display: grid; gap: .15rem; }
   .vals .register { font-size: .6rem; }
   .grow { flex: 1; }

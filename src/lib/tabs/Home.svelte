@@ -731,10 +731,12 @@
   .live:empty { display: none; }
   .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--verdigris); box-shadow: 0 0 0 3px color-mix(in srgb, var(--verdigris) 25%, transparent); }
   .varzia { grid-column: span 5; }
-  /* Narrower: the clocks drop their icons to stay on one row. */
+  /* Narrower: the clocks keep their icons and drop their names to stay on one row. */
   /* Page area under 1100 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt1100"]) .clock { padding: .7rem .75rem; }
-  :global(html[data-room~="lt1100"]) .clock > :global(:first-child:not(div)) { display: none; }
+  /* The open worlds' icons say where; their names go (in the tooltip), the resets lose their ↻. */
+  :global(html[data-room~="lt1100"]) .clock:not(.reset) .register { display: none; }
+  :global(html[data-room~="lt1100"]) .clock.reset > .rk { display: none; }
   /* Page area under 930 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt930"]) .world { grid-template-columns: repeat(auto-fit, minmax(6.3rem, 1fr)); }
   :global(html[data-room~="lt930"]) .clock { padding: .6rem .55rem; }

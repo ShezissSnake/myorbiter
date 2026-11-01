@@ -124,7 +124,7 @@
 {#snippet card(r: PartRow, open: () => void)}
   {@const v = verdict(r)}
   {@const parentItem = model.catalogByUnique.get(r.parentUnique)}
-  <ItemCard hover={r.name} title={r.name.replace(`${r.parentName} `, "")} sub={r.parentName} image={parentItem?.imageName ?? model.imageOf(r.parentName)} artSize={84} owned={r.spare > 0 && v !== "Keep"} onopen={open}>
+  <ItemCard hover={r.name} title={r.parentName} sub={r.name.replace(`${r.parentName} `, "")} image={parentItem?.imageName ?? model.imageOf(r.parentName)} artSize={84} owned={r.spare > 0 && v !== "Keep"} onopen={open}>
     <div class="have">
       <Thumb file={model.imageOf(r.name)} name={r.name} size={30} />
       <b class="mark qty" title={spareOnly && spareMatters ? `${r.spare} spare (of ${r.quantity} held)` : `${r.quantity} held${r.keep ? `, ${r.spare} of them spare` : ""}`}>×{qty(r)}</b>

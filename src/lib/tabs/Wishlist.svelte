@@ -116,7 +116,7 @@
   {#if !items.length}
     <section class="panel empty">
       <h2 class="mark">Nothing starred yet</h2>
-      <p class="prose">Star a warframe, weapon or companion (the ☆ on its card in Foundry or Mastery, or in its details), or add one above. orbiter then shows the relics you hold for each missing part, whether a fissure for them is open now, where to farm the relics you don't have, and what buying the parts would cost.</p>
+      <p class="prose">Star something (☆ in Foundry, Mastery or its details) or add it above: you'll see the relics for each missing part, and what buying them costs.</p>
     </section>
   {:else}
     <div class="list">

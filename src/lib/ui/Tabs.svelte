@@ -10,9 +10,9 @@
 
 <div class="tabs" role="tablist" aria-label={label}>
   {#each options as o (o.v)}
-    <button role="tab" aria-selected={value === o.v} class:on={value === o.v} title={o.title ?? o.label} onclick={() => (value = o.v)}>
+    <button role="tab" aria-selected={value === o.v} class:on={value === o.v} title={o.title ?? `${o.label}${o.count != null ? ` · ${o.count}` : ""}`} aria-label={o.label} onclick={() => (value = o.v)}>
       {#if o.icon}<GameIcon name={o.icon} size={18} />{/if}
-      <span>{o.label}</span>
+      <span class:lbl={!!o.icon}>{o.label}</span>
       {#if o.count != null}<em>{o.count}</em>{/if}
     </button>
   {/each}
@@ -33,5 +33,7 @@
   .on em { color: var(--gold); }
   /* Less room (half a wide screen, a Steam Deck): tighter, so a row of tabs stays one row. */
   :global(html[data-room~="lt1100"]) button { padding-left: .5rem; padding-right: .5rem; gap: .35rem; }
-  :global(html[data-room~="lt950"]) button :global(.gi) { display: none; }
+  /* Less still: the icons stay (they're what you look for) and the words go, but for the chosen tab's;
+     each tab's name and count stay in its tooltip. */
+  :global(html[data-room~="lt950"]) button:not(.on) .lbl, :global(html[data-room~="lt950"]) button:not(.on):has(.lbl) em { display: none; }
 </style>

@@ -16,12 +16,12 @@
     ["rivens", "Rivens", "find rivens for sale with each roll graded, see what the weapon's rivens traded for in game last week, and get alerts when one you want is listed at your price."],
   ];
 
-  type Step = [tab: string, label: string, text: string, planner?: "sets" | "radiant"];
+  type Step = [tab: string, label: string, text: string | string[], planner?: "sets" | "radiant"];
   const ROUTINES: { title: string; steps: Step[] }[] = [
     {
       title: "Each session",
       steps: [
-        ["home", "Home", "what needs you (an alert or invasion with something you haven't mastered and the side to take, alerts with rare rewards, listings to fix, Varzia's rotation ending), the open-world cycles and resets, your market, every open fissure (switch between normal, Steel Path and Void Storms) with your best relic to crack for each era, the bounties in Cetus, Fortuna, the Necralisk, the Zariman, Cavia and Höllvania (each with its best reward, in gold when it's something you need; hover one for everything it can pay and the chances), what's ready to sell, what's worth doing today (Circuit, Darvo's deal, Steel Path, Teshin, Sortie, Archon, Nightwave), your Foundry and Wishlist, cheap buys, the easiest mastery next, and Baro and Varzia against your collection. The gear by the date chooses which cards it shows; the × on a line under Needs you dismisses it. Under Fissures now, Add alert sets a fissure alert (era, mission, planet, Steel Path or not): a notification when one opens."],
+        ["home", "Home", ["Needs you: alerts and invasions with something you haven't mastered (and the side to take), rare alert rewards, listings to fix, Varzia's rotation ending. The × dismisses one.", "The open worlds' clocks and the resets.", "Your market, and what's ready to sell.", "Every open fissure (normal, Steel Path or Void Storms) with your best relic for each era. Add alert sets a fissure alert: a notification when one opens.", "The bounties in Cetus, Fortuna, the Necralisk, the Zariman, Cavia and Höllvania: each one's best reward, gold when you need it; hover for everything it pays.", "Worth doing today: the Circuit, Darvo, Teshin, the Sortie, the Archon Hunt, Nightwave.", "Your Foundry and Wishlist, cheap buys, the easiest mastery next, Baro and Varzia against your collection.", "The gear by the date chooses which cards Home shows."]],
         ["foundry", "Foundry", "everything you can master as cards, each part gold when you have it; click any card for stats, abilities, where each part drops (your relics first) and live prices. The star puts it on your Wishlist."],
         ["wishlist", "Wishlist", "what you've starred, with each missing part's way in: relics you hold (lit when a fissure of their era is open now), where to farm the ones you don't, or what buying it costs, with a Buy order button that posts one on warframe.market (your buy orders are listed on Orders). The gold percentage is the chance your relics finish it if you crack each once; orbiter can tell you when a fissure opens for them."],
         ["mastery", "Mastery", "everything you haven't mastered, easiest first: five pips from Market-and-build to Liches, where it comes from and how, and the mastery it's worth. Open a prime for the relics that drop each missing part. Buy with plat lists what platinum gets you instead, cheapest first or least plat per mastery point: the missing parts (or the set) from players, or the in-game Market's price, each part with a Buy order button that posts one on warframe.market, and a running total of what buying down the list costs."],
@@ -109,7 +109,7 @@
         <h2 class="mark">{r.title}</h2>
         <ol>
           {#each r.steps as [tab, label, text, planner] (label)}
-            <li><button class="link" onclick={() => { if (planner) plannerMode = planner; go(tab); }}>{label}</button><span>{text}</span></li>
+            <li><button class="link" onclick={() => { if (planner) plannerMode = planner; go(tab); }}>{label}</button>{#if Array.isArray(text)}<ul class="sub">{#each text as t (t)}<li>{t}</li>{/each}</ul>{:else}<span>{text}</span>{/if}</li>
           {/each}
         </ol>
       </article>
@@ -211,4 +211,6 @@
   ul.legend .tag { margin-left: 0; }
   b { color: var(--platinum); font-weight: 500; }
   code, kbd { font-family: var(--face-register); font-size: .8em; color: var(--platinum); }
+  .sub { margin: .2rem 0 0; padding-left: 1.1rem; display: grid; gap: .2rem; }
+  .sub li { display: list-item; list-style: square; }
 </style>
