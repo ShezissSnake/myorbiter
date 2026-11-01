@@ -203,6 +203,44 @@ async fn relic_data(app: tauri::AppHandle, force: Option<bool>) -> Result<Value,
         .map_err(|e| e.to_string())?
 }
 
+/// Saves an export (CSV) in your Downloads folder as `orbiter-<what>-<date>.csv`, never over an
+/// existing file. Returns where it went.
+#[tauri::command]
+fn export_file(app: tauri::AppHandle, what: String, text: String) -> Result<String, String> {
+    if what.is_empty() || !what.bytes().all(|b| b.is_ascii_lowercase() || b == b'-') {
+        return Err("bad export name".into());
+    }
+    let dir = app.path().download_dir().or_else(|_| app.path().home_dir()).map_err(|e| e.to_string())?;
+    let day = chrono_day();
+    let mut path = dir.join(format!("orbiter-{what}-{day}.csv"));
+    let mut n = 2;
+    while path.exists() {
+        path = dir.join(format!("orbiter-{what}-{day}-{n}.csv"));
+        n += 1;
+    }
+    fs::write(&path, text.as_bytes()).map_err(|e| e.to_string())?;
+    Ok(path.display().to_string())
+}
+
+/// Today's date (UTC) as YYYY-MM-DD, without a date library.
+fn chrono_day() -> String {
+    civil_day(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() / 86_400) as i64)
+}
+
+/// Days since 1970-01-01 as YYYY-MM-DD (Howard Hinnant's civil-from-days).
+fn civil_day(days: i64) -> String {
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = yoe + era * 400 + i64::from(m <= 2);
+    format!("{y:04}-{m:02}-{d:02}")
+}
+
 /// Every Foundry recipe, parts' own blueprints included (see recipes.rs): cached for a week.
 #[tauri::command]
 async fn recipe_data(app: tauri::AppHandle) -> Result<Value, String> {
@@ -776,6 +814,7 @@ pub fn run() {
             worldstate,
             relic_data,
             recipe_data,
+            export_file,
             load_settings,
             save_settings,
             mission_state,
@@ -823,6 +862,13 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn export_dates() {
+        assert_eq!(civil_day(0), "1970-01-01");
+        assert_eq!(civil_day(20_758), "2026-11-01");
+        assert_eq!(civil_day(19_782), "2024-02-29");
+    }
 
     #[test]
     fn reads_the_window_mode_from_ee_cfg() {

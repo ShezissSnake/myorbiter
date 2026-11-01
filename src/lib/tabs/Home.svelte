@@ -111,6 +111,15 @@
   /** A reward you'd want: a part for something you haven't mastered or built. */
   const need = (name: string) => !console && (scoreCards(model, [name])[0]?.needed ?? false);
   const boards = $derived(bountyBoards(live.syndicates ?? null, bountyTables, need));
+  /** A bounty reward that's a part or a whole item opens that item's details. */
+  const masterables = $derived(new Map([...model.catalogByUnique.values()].filter((i) => i.masterable).map((i) => [i.name, i.uniqueName])));
+  const rewardOpens = (name: string) => {
+    // "Gara Neuroptics Blueprint" → Gara: the longest item name it starts with.
+    const words = name.replace(/ Blueprint$/, "").split(" ");
+    let u: string | undefined;
+    for (let n = words.length; n > 0 && !u; n--) u = masterables.get(words.slice(0, n).join(" "));
+    return u ? () => details.open(u!) : null;
+  };
 
   // ------------------------------------------------------------ Baro & Varzia
   const baro = $derived(live.baro ?? null);
@@ -431,7 +440,7 @@
       {#if live.syndicates == null && !bountyTables}
         <p class="dim">{liveNote}</p>
       {:else}
-        <BountyBoard {boards} {now} imageOf={(n) => model.imageOf(n)} {need} />
+        <BountyBoard {boards} {now} imageOf={(n) => model.imageOf(n)} {need} opens={rewardOpens} />
       {/if}
     </section>
 

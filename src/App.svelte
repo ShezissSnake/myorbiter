@@ -1014,11 +1014,11 @@
     });
   });
 
-  // Riven alerts: every 15 minutes, each riven you're watching for, listed at or under your price.
+  // Riven alerts: every 5 minutes (one request per riven you watch, well inside warframe.market's limit), each riven you're watching for, listed at or under your price.
   let lastRivens = 0;
   $effect(() => {
     const now = tick;
-    if (!settings.rivenWatch.length || now - lastRivens < 15 * 60_000) return;
+    if (!settings.rivenWatch.length || now - lastRivens < 5 * 60_000) return;
     lastRivens = now;
     untrack(() => void scanRivens());
   });
@@ -1048,7 +1048,7 @@
     let failing = 0;
     for (const w of settings.rivenWatch) {
       try {
-        const list = await rivens.search(w.weapon, w.positive, w.negative, 14 * 60_000);
+        const list = await rivens.search(w.weapon, w.positive, w.negative, 4 * 60_000);
         failing = 0;
         for (const a of list) {
           if (a.price == null || a.price > w.maxPrice || seen.has(a.id)) continue;

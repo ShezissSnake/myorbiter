@@ -14,7 +14,8 @@
   import IconButton from "../ui/IconButton.svelte";
   import Chip from "../ui/Chip.svelte";
   import { knownName } from "../core/market";
-  import { market as wfm } from "../backend";
+  import { exportFile, market as wfm } from "../backend";
+  import { salesCsv } from "../core/exportCsv";
   import { importClosed } from "../core/closedOrders";
   import { mkt } from "../marketStore.svelte";
 
@@ -25,6 +26,13 @@
   // Sales from warframe.market's side: the orders you've closed there (see closedOrders.ts).
   let importing = $state(false);
   let imported = $state<string | null>(null);
+  async function exportSales() {
+    try {
+      imported = `Saved to ${await exportFile("sales", salesCsv(settings.market.sales))}`;
+    } catch (e) {
+      imported = `Couldn't save the export (${String(e).replace(/^Error:\s*/, "")})`;
+    }
+  }
   async function importFromMarket() {
     const me = mkt.me?.ingameName;
     if (!me) return;
@@ -203,6 +211,7 @@
     <div class="import">
       <h2 class="register">Sale log</h2>
       <IconButton icon="import" tone="quiet" label={importing ? "Reading warframe.market…" : "Import sales from warframe.market"} title={mkt.me?.ingameName ? "Import sales from warframe.market: every sale you marked sold there that isn't logged here yet" : "Import sales from warframe.market: sign in on Orders first"} disabled={importing || !mkt.me?.ingameName} onclick={importFromMarket} />
+      {#if sales.length}<IconButton icon="export" tone="quiet" label="Export sales as CSV" title="Save every logged sale as a CSV file in your Downloads folder, for a spreadsheet" onclick={exportSales} />{/if}
       {#if importing}<span class="small dim" role="status">Reading warframe.market…</span>{:else if imported}<span class="small dim" role="status">{imported}</span>{/if}
     </div>
     <form class="addsale" onsubmit={(e) => { e.preventDefault(); add(); }}>

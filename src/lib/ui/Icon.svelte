@@ -66,6 +66,8 @@
     rows: "M2.5 3.5h11M2.5 8h11M2.5 12.5h11",
     // Bring in from outside: an arrow down into a tray.
     import: "M8 1.8v8.4M4.6 6.8 8 10.2l3.4-3.4M2.5 10.5v3h11v-3",
+    // A sheet with rows going out: an export to a spreadsheet.
+    export: "M3 1.8h6.5L13 5.3v8.9H3zM9.5 1.8v3.5H13M5.5 8h5M5.5 10.4h5M5.5 12.6h3",
     "sign-out": "M6.5 2.5h-4v11h4M10.2 4.8 13.4 8l-3.2 3.2M13.4 8H6",
     "arrow-right": "M2.5 8h10.5M9.2 4.3 13 8l-3.8 3.7",
     // A stop in a hexagon: take it off the market.

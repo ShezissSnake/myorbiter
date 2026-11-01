@@ -457,6 +457,16 @@ export async function loadLive(): Promise<Live> {
   };
 }
 
+/** Saves a CSV export in Downloads; where it went. In the browser, a download instead. */
+export async function exportFile(what: string, text: string): Promise<string> {
+  if (inTauri) return invoke<string>("export_file", { what, text });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type: "text/csv" }));
+  a.download = `orbiter-${what}.csv`;
+  a.click();
+  return a.download;
+}
+
 /** Every Foundry recipe, parts' own blueprints included (recipes.rs). Null when it can't be read. */
 export async function recipeData(): Promise<RecipeData | null> {
   try {

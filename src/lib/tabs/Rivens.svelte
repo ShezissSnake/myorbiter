@@ -494,7 +494,7 @@
         <span class="plat"><input type="number" min="1" placeholder="Max price" bind:value={maxPrice} aria-label="Most you'd pay" /><GameIcon name="platinum" size={14} /></span>
         <span class="go">
           <button class="stamp" disabled={!weapon} onclick={find}><Icon name="search" />Search</button>
-          <button class="stamp gold" disabled={!weapon || !maxPrice} title={!weapon || !maxPrice ? "Pick a weapon and the most you'd pay first" : "Get a notification when one is listed at or under your price (checked every 15 minutes)"} onclick={watch}><Icon name="bell" />Alert me</button>
+          <button class="stamp gold" disabled={!weapon || !maxPrice} title={!weapon || !maxPrice ? "Pick a weapon and the most you'd pay first" : "Get a notification when one is listed at or under your price (checked every 5 minutes)"} onclick={watch}><Icon name="bell" />Alert me</button>
         </span>
       </div>
       {#if weaponName && !weapon}<p class="dim small">Pick a weapon from the list.</p>{/if}

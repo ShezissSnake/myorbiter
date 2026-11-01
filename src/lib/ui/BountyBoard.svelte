@@ -7,7 +7,7 @@
   import Seg from "./Seg.svelte";
   import Thumb from "./Thumb.svelte";
 
-  let { boards, now, imageOf = () => null, need = () => false }: { boards: BountyBoard[]; now: number; imageOf?: (name: string) => string | null; need?: (name: string) => boolean } = $props();
+  let { boards, now, imageOf = () => null, need = () => false, opens = () => null }: { boards: BountyBoard[]; now: number; imageOf?: (name: string) => string | null; need?: (name: string) => boolean; /** A reward that has details to open (a warframe's part, a weapon): what opens them. */ opens?: (name: string) => (() => void) | null } = $props();
 
   let picked = $state<string | null>(null);
   const board = $derived(boards.find((b) => b.key === picked) ?? boards[0] ?? null);
@@ -27,13 +27,14 @@
       <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
       <li class="job" tabindex="0" aria-describedby="pool-{board.key}-{i}">
         <span class="jn"><b>{j.name}</b><span class="dim small">{[j.levels && !board.rotating ? `Level ${j.levels}` : "", j.minMR ? `MR ${j.minMR}` : "", j.when ? `${j.when} only` : "", j.vault ? "vault" : ""].filter(Boolean).join(" · ")}</span></span>
-        {#if j.headline}<span class="hl" class:want={j.wanted} title={j.wanted ? "You need this" : "The rarest reward"}><Thumb file={imageOf(j.headline.name)} name={j.headline.name} size={22} /><span class="hn">{j.headline.name}</span>{#if j.headline.chance != null}<span class="dim small">{pct(j.headline.chance)}</span>{/if}</span>{/if}
+        {#if j.headline}{@const go = opens(j.headline.name)}<span class="hl" class:want={j.wanted} title={j.wanted ? "You need this" : "The rarest reward"}><Thumb file={imageOf(j.headline.name)} name={j.headline.name} size={22} />{#if go}<button class="hn link" onclick={go}>{j.headline.name}</button>{:else}<span class="hn">{j.headline.name}</span>{/if}{#if j.headline.chance != null}<span class="dim small">{pct(j.headline.chance)}</span>{/if}</span>{/if}
         <span class="st dim small">{j.standing ? `${j.standing.toLocaleString("en")} standing` : ""}</span>
         <div class="pool" role="tooltip" id="pool-{board.key}-{i}">
           <span class="register">Can pay · rarest first</span>
           <ul>
             {#each j.rewards as r (r.name)}
-              <li class:want={need(r.name)}><Thumb file={imageOf(r.name)} name={r.name} size={18} /><span>{r.name}</span><span class="dim small">{pct(r.chance)}</span></li>
+              {@const go = opens(r.name)}
+              <li class:want={need(r.name)}><Thumb file={imageOf(r.name)} name={r.name} size={18} />{#if go}<button class="link pn" onclick={go}>{r.name}</button>{:else}<span>{r.name}</span>{/if}<span class="dim small">{pct(r.chance)}</span></li>
             {/each}
           </ul>
           <span class="dim small">A chance is the best it has at any stage{board.rotating ? "" : "; the last stage pays the rare ones most"}.</span>
@@ -53,7 +54,9 @@
   .jn b { font-weight: 600; color: var(--platinum); font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .hl { display: inline-flex; align-items: center; gap: .45rem; min-width: 0; font-size: .86rem; }
   .hn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .hl.want .hn, li.want span:nth-child(2) { color: var(--gold); }
+  .hl.want .hn, li.want span:nth-child(2), li.want .pn { color: var(--gold); }
+  button.hn, .pn { padding: 0; border: 0; background: none; font: inherit; letter-spacing: normal; text-transform: none; text-align: left; color: var(--platinum); cursor: pointer; }
+  button.hn:hover, .pn:hover { color: var(--gold); text-decoration: underline; }
   .st { text-align: right; white-space: nowrap; }
   .pool { display: none; position: absolute; z-index: 20; top: calc(100% - 2px); left: 30%; width: min(24rem, 70vw); padding: .7rem .8rem; background: var(--plate); border: 1px solid var(--rule-bright); box-shadow: 0 10px 28px rgb(0 0 0 / 55%); gap: .4rem; }
   .job:hover .pool, .job:focus-visible .pool { display: grid; }

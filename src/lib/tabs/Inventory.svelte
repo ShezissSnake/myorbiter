@@ -9,6 +9,8 @@
   import { marketUrl, openUrl, wikiUrl } from "../backend";
   import Browse from "../ui/Browse.svelte";
   import ItemCard from "../ui/ItemCard.svelte";
+  import ModCard from "../ui/ModCard.svelte";
+  import Art from "../ui/Art.svelte";
   import { details } from "../details.svelte";
   import PageHead from "../ui/PageHead.svelte";
   import Stat from "../ui/Stat.svelte";
@@ -127,6 +129,14 @@
     {@render listCell(r)}
   {/snippet}
   <ItemCard hover={r.name} title={shown(r)} sub={spareOf(r)?.type ?? r.type} image={model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r))} artSize={64} owned={r.kind === "gear" && !r.mastered} onopen={open} foot={r.kind === "gear" || perDay(r) != null || spareOf(r) ? foot : undefined}>
+    {#snippet art()}
+      {#if r.kind === "mod" || r.kind === "arcane"}
+        {@const c = model.catalogByUnique.get(r.unique)}
+        <ModCard arcane={r.kind === "arcane"} name={r.name} image={model.imageOf(r.name)} rarity={c?.rarity ?? ""} polarity={c?.polarity ?? null} drain={c?.baseDrain ?? null} maxRank={r.maxRank ?? c?.maxRank ?? null} rank={r.rank ?? 0} label={c?.compatName ?? ""} width={84} />
+      {:else}
+        <Art file={model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r))} size={64} alt="" />
+      {/if}
+    {/snippet}
     <div class="have"><b class="mark qty">×{r.quantity.toLocaleString("en")}</b>{#if r.rank && r.maxRank}<span class="tag" class:ok={r.rank >= r.maxRank}>{r.rank >= r.maxRank ? "maxed" : `R${r.rank}`}</span>{/if}</div>
     {#if priceOf(r) != null || r.ducats}
       <div class="vals">

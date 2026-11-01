@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { exportFile } from "../backend";
+  import { tradesCsv } from "../core/exportCsv";
+  import IconButton from "../ui/IconButton.svelte";
   import { info } from "../hover.svelte";
   // Your account over time and every trade you've made. The charts get a point each time
   // TennoScope reads your inventory; the history comes from Warframe's own log of the trade window.
@@ -16,6 +19,14 @@
   import GameIcon, { type GameIconName } from "../ui/GameIcon.svelte";
 
   let { model, settings }: { model: Model; settings: Settings } = $props();
+  let exported = $state<string | null>(null);
+  async function exportTrades() {
+    try {
+      exported = `Saved to ${await exportFile("trades", tradesCsv(settings.market.trades))}`;
+    } catch (e) {
+      exported = `Couldn't save the export (${String(e).replace(/^Error:\s*/, "")})`;
+    }
+  }
 
   const DAY = 86_400_000;
   let span = $state<"30" | "90" | "all">("90");
@@ -142,6 +153,8 @@
     <section class="history">
       <div class="hh">
         <h2 class="register">Trade history</h2>
+        {#if settings.market.trades.length}<IconButton icon="export" tone="quiet" label="Export trades as CSV" title="Save every trade orbiter read from the game as a CSV file in your Downloads folder, for a spreadsheet" onclick={exportTrades} />{/if}
+        {#if exported}<span class="small dim" role="status">{exported}</span>{/if}
         <Seg bind:value={show} options={[{ v: "all", label: "All" }, { v: "sale", label: "Sales" }, { v: "purchase", label: "Purchases" }, { v: "trade", label: "Swaps" }]} />
       </div>
       {#if shown.length}

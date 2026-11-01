@@ -427,6 +427,8 @@ class MarketStore {
   async reprice(m: Model, s: MarketSettings, apply: boolean) {
     if (!this.linked || this.pass) return;
     this.pass = apply ? "Repricing" : "Checking prices";
+    // A check on a timer reads every book at least once a round: never reuse one from before the last round.
+    const checkTtl = Math.min(BOOK_TTL, Math.max(60_000, (s.every || 5) * 60_000 - 30_000));
     this.error = null;
     let changed = 0;
     let skipped = 0;
@@ -454,7 +456,7 @@ class MarketStore {
           continue;
         }
         try {
-          await this.book(it.slug, apply ? APPLY_TTL : BOOK_TTL);
+          await this.book(it.slug, apply ? APPLY_TTL : checkTtl);
           read++;
           failing = 0;
         } catch (e) {
