@@ -504,21 +504,16 @@ impl Client {
             body["subtype"] = s.clone().into();
         }
         let url = format!("{V2}/order");
-        let v = match self.call("POST", &url, Some(&body), true) {
-            // Bulk-tradable items (arcanes) need to say how many go per trade; any other item
-            // refuses the field. Asked for: one per trade, so a buyer can take any number.
-            Err(MarketError::Rejected(why)) if needs_per_trade(&why) => {
-                body["perTrade"] = 1.into();
-                self.call("POST", &url, Some(&body), true)?
+        // Some items need fields others refuse, and warframe.market says which ones it wants:
+        // bulk-tradable items (arcanes, Ayatan sculptures) how many go per trade, Ayatan
+        // sculptures how many stars are socketed. Add what it asks for and try again; a
+        // sculpture can ask for both at once, or one after the other.
+        let mut tries = 0;
+        let v = loop {
+            match self.call("POST", &url, Some(&body), true) {
+                Err(MarketError::Rejected(why)) if tries < 2 && fill_required(&mut body, &why) => tries += 1,
+                other => break other?,
             }
-            // Ayatan sculptures need how many stars are socketed. The ones you sell spare come
-            // from missions empty (the stars are listed on their own), so: none.
-            Err(MarketError::Rejected(why)) if needs_stars(&why) => {
-                body["amberStars"] = 0.into();
-                body["cyanStars"] = 0.into();
-                self.call("POST", &url, Some(&body), true)?
-            }
-            other => other?,
         };
         serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unreachable(e.to_string()))
     }
@@ -814,6 +809,26 @@ fn needs_per_trade(rejection: &str) -> bool {
 /** warframe.market's answer when a listing for an Ayatan sculpture leaves out its stars. */
 fn needs_stars(rejection: &str) -> bool {
     rejection.contains("\"amberStars\"") && rejection.contains("\"cyanStars\"") && rejection.contains("required")
+}
+
+/**
+ * Adds to a new listing the fields warframe.market's rejection asks for, with the answers
+ * orbiter always gives: one per trade, so a buyer can take any number, and no stars, since
+ * the sculptures you sell spare come from missions empty (stars are listed on their own).
+ * False when there was nothing new to add, so the rejection stands.
+ */
+fn fill_required(body: &mut Value, rejection: &str) -> bool {
+    let mut added = false;
+    if needs_per_trade(rejection) && body.get("perTrade").is_none() {
+        body["perTrade"] = 1.into();
+        added = true;
+    }
+    if needs_stars(rejection) && body.get("amberStars").is_none() {
+        body["amberStars"] = 0.into();
+        body["cyanStars"] = 0.into();
+        added = true;
+    }
+    added
 }
 
 fn yes() -> bool {
@@ -1136,6 +1151,22 @@ mod tests {
         let sculpture = r#"warframe.market rejected the request: 400 {"apiVersion":"0.25.0","data":null,"error":{"inputs":{"amberStars":"app.field.required","cyanStars":"app.field.required"}}}"#;
         assert!(needs_stars(sculpture));
         assert!(!needs_stars(r#"400 {"error":{"inputs":{"platinum":"app.field.required"}}}"#));
+    }
+
+    #[test]
+    fn a_sculpture_gets_every_field_it_asks_for() {
+        let both = r#"400 {"error":{"inputs":{"perTrade":"app.field.required","amberStars":"app.field.required","cyanStars":"app.field.required"}}}"#;
+        let mut body = serde_json::json!({ "itemId": "x", "platinum": 5 });
+        assert!(fill_required(&mut body, both));
+        assert_eq!((body["perTrade"].as_u64(), body["amberStars"].as_u64(), body["cyanStars"].as_u64()), (Some(1), Some(0), Some(0)));
+        // Asked again for what it already has: nothing new, so the rejection stands.
+        assert!(!fill_required(&mut body, both));
+        // One after the other also ends with both.
+        let mut body = serde_json::json!({ "itemId": "x" });
+        assert!(fill_required(&mut body, r#"400 {"error":{"inputs":{"perTrade":"app.field.required"}}}"#));
+        assert!(fill_required(&mut body, r#"400 {"error":{"inputs":{"amberStars":"app.field.required","cyanStars":"app.field.required"}}}"#));
+        assert!(body["perTrade"].is_number() && body["amberStars"].is_number());
+        assert!(!fill_required(&mut body, r#"400 {"error":{"inputs":{"platinum":"app.field.required"}}}"#));
     }
 
     #[test]
