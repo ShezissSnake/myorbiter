@@ -23,8 +23,13 @@
   import GameIcon from "../ui/GameIcon.svelte";
   import PriceHistory from "../ui/PriceHistory.svelte";
   import { matches, type Column } from "../ui/table";
+  import NotNeeded from "../ui/NotNeeded.svelte";
+  import { notNeeded, type GearCopy } from "../core/notNeeded";
 
-  let { model, sell, platPerDucat = 0, squad = 1 }: { model: Model; sell: SellChoices; platPerDucat?: number; squad?: number } = $props();
+  let { model, sell, platPerDucat = 0, squad = 1, gear = null, keepGear = $bindable([]) }: { model: Model; sell: SellChoices; platPerDucat?: number; squad?: number; gear?: GearCopy[] | null; keepGear?: string[] } = $props();
+  // Gear you no longer need and can't trade (core/notNeeded.ts), shown above the list when asked.
+  let letGo = $state(false);
+  const goCount = $derived(notNeeded(model, gear, new Set(keepGear)).go.length);
 
   let kind = $state<"all" | InventoryKind>("all");
   let tradableOnly = $state(false);
@@ -212,8 +217,11 @@
       <GameIcon name="platinum" size={14} />
     </label>
     <Chip bind:on={spareOnly} label="Spare only" title="Only what you hold more of than you need: beyond what your unbuilt items take, two of each mod, one maxed arcane, one of each Captura scene" />
+    <Chip bind:on={letGo} label="Not needed · {goCount}" title="Gear you can't trade and no longer need: a weapon, frame or companion a better version of which you own and have mastered (the Dual Decurion once you have Prisma Dual Decurions), and extra copies of something mastered. Sell them for credits in game" />
     <input type="search" placeholder="Filter items…" bind:value={query} />
   </div>
+
+  {#if letGo}<NotNeeded {model} {gear} bind:keep={keepGear} />{/if}
 
   <Browse id="inventory" {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (r.kind === "gear" && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" empty="Nothing matches these filters." />
 </div></div>

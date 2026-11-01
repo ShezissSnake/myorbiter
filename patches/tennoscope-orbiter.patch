@@ -12,7 +12,7 @@ index 718488f..7ef3aa3 100644
  ## Acquisition research and prior art
  
 diff --git a/app/src-tauri/src/lib.rs b/app/src-tauri/src/lib.rs
-index ce70bed..9d739ad 100644
+index ce70bed..bb1c196 100644
 --- a/app/src-tauri/src/lib.rs
 +++ b/app/src-tauri/src/lib.rs
 @@ -40,6 +40,7 @@ mod kiosk_view;
@@ -33,7 +33,7 @@ index ce70bed..9d739ad 100644
  };
  pub use reward_recognition::{
      FailureTrace, RecognitionTiming, RecognitionUpdate, RecognizedRewards, RewardPublication,
-@@ -561,6 +563,96 @@ fn market_inventory_writes_authorized(runtime: &Runtime) -> Result<(), String> {
+@@ -561,6 +563,100 @@ fn market_inventory_writes_authorized(runtime: &Runtime) -> Result<(), String> {
  }
  type SharedRuntime = Arc<Mutex<Runtime>>;
  
@@ -79,16 +79,17 @@ index ce70bed..9d739ad 100644
 +        let (credits, endo) = runtime.core.wallet();
 +        let rivens = runtime.core.rivens();
 +        let imprints = runtime.core.imprints();
++        let gear = runtime.core.gear();
 +        (
 +            view,
 +            runtime.setup.clone(),
 +            runtime.game_running,
 +            (
-+                foundry, ready, level, platinum, credits, endo, rivens, imprints,
++                foundry, ready, level, platinum, credits, endo, rivens, imprints, gear,
 +            ),
 +        )
 +    };
-+    let (foundry, ready, level, platinum, credits, endo, rivens, imprints) = foundry;
++    let (foundry, ready, level, platinum, credits, endo, rivens, imprints, gear) = foundry;
 +    let setup = current_setup_status(stored, game_running);
 +    let market = serde_json::to_value(view.market_account()).ok()?;
 +    Some(serde_json::json!({
@@ -111,6 +112,9 @@ index ce70bed..9d739ad 100644
 +        "rivens": rivens,
 +        // Kubrow and Kavat imprints, each the inventory's own row, for orbiter to list for sale.
 +        "imprints": imprints,
++        // Each copy of a warframe, weapon or companion, `{type, f, p}` (feature bits and Forma),
++        // for orbiter's list of gear you no longer need.
++        "gear": gear,
 +        "last_error": orbiter_bridge::last_error(),
 +    }))
 +}
@@ -130,7 +134,7 @@ index ce70bed..9d739ad 100644
  #[tauri::command]
  async fn get_view(state: State<'_, SharedRuntime>) -> Result<AppView, String> {
      let shared = Arc::clone(state.inner());
-@@ -684,6 +776,9 @@ async fn set_market_presence(
+@@ -684,6 +780,9 @@ async fn set_market_presence(
      status: Option<warframe_status::Presence>,
      auto: bool,
  ) -> Result<AppView, String> {
@@ -140,7 +144,7 @@ index ce70bed..9d739ad 100644
      let shared = Arc::clone(state.inner());
      tauri::async_runtime::spawn_blocking(move || {
          let mut runtime = shared
-@@ -2095,7 +2190,12 @@ pub fn run() {
+@@ -2095,7 +2194,12 @@ pub fn run() {
          // tail the same EE.log, write the same database and draw two override-redirect overlays at
          // the same coordinates over the game, where whichever raised last wins, so the strip on
          // screen need not be the build you just started.
@@ -154,7 +158,7 @@ index ce70bed..9d739ad 100644
              if let Some(window) = app.get_webview_window("main") {
                  let _ = window.unminimize();
                  let _ = window.show();
-@@ -2108,13 +2208,27 @@ pub fn run() {
+@@ -2108,13 +2212,27 @@ pub fn run() {
          // once the main window closes and the app stays up: tailing the log and drawing the overlay
          // over the game with no UI left to close it by.
          .on_window_event(|window, event| {
@@ -185,7 +189,7 @@ index ce70bed..9d739ad 100644
              // The file target keeps debug traces in dev builds and trims to Info in stable
              // releases: per-OCR-attempt debug lines land every 200 ms, and with only 5 MiB
              // per rotated file a stable session of hours would otherwise keep just the last
-@@ -2166,6 +2280,20 @@ pub fn run() {
+@@ -2166,6 +2284,20 @@ pub fn run() {
                  .map(|state| current_setup_status(state.setup.clone(), state.game_running))
                  .unwrap_or_default();
              app.manage(runtime);
@@ -206,7 +210,7 @@ index ce70bed..9d739ad 100644
              // The kiosk window's whole IPC surface: `get_kiosk_view` pulls whatever the poller
              // last published, so the cell exists from the start, empty until a kiosk opens.
              app.manage(kiosk_view::KioskState::default());
-@@ -2205,6 +2333,8 @@ pub fn run() {
+@@ -2205,6 +2337,8 @@ pub fn run() {
          })
          .invoke_handler(tauri::generate_handler![
              get_view,
@@ -3981,7 +3985,7 @@ index 939f465..895feb5 100644
  local-store = { path = "../local-store" }
  warframe-domain = { path = "../warframe-domain" }
 diff --git a/crates/app-core/src/lib.rs b/crates/app-core/src/lib.rs
-index 1e3c8b0..2598217 100644
+index 1e3c8b0..69bc44b 100644
 --- a/crates/app-core/src/lib.rs
 +++ b/crates/app-core/src/lib.rs
 @@ -74,6 +74,12 @@ impl MasteryView {
@@ -3997,7 +4001,7 @@ index 1e3c8b0..2598217 100644
      /// The strip a kiosk tile carries, or nothing without live facts or for mastered parts.
      pub fn kiosk_mastery(&self, part_name: &str) -> Option<KioskMastery> {
          let catalog = self.catalog.as_deref()?;
-@@ -167,6 +173,56 @@ impl AppCore {
+@@ -167,6 +173,63 @@ impl AppCore {
          self.reads_inventory = reads_inventory;
      }
  
@@ -4043,6 +4047,13 @@ index 1e3c8b0..2598217 100644
 +            .map(|facts| facts.imprints().to_vec())
 +    }
 +
++    /// Each copy of a warframe, weapon or companion from the last inventory read, for orbiter.
++    pub fn gear(&self) -> Option<Vec<serde_json::Value>> {
++        self.mastery_facts
++            .as_ref()
++            .map(|facts| facts.gear().to_vec())
++    }
++
 +    /// Builds waiting in the foundry, by recipe path, once an inventory read this run has seen
 +    /// them; `None` before that (for orbiter, which counts a part being crafted as held).
 +    pub fn foundry_builds(&self) -> Option<std::collections::BTreeMap<String, u32>> {
@@ -4055,10 +4066,10 @@ index 1e3c8b0..2598217 100644
      /// collection loads once here so a reward and a kiosk tile never disagree mid-render.
      pub fn mastery_view(&self) -> Result<MasteryView, AppError> {
 diff --git a/crates/warframe-acquisition/src/inventory.rs b/crates/warframe-acquisition/src/inventory.rs
-index 7a58536..957a3b6 100644
+index 7a58536..6531d55 100644
 --- a/crates/warframe-acquisition/src/inventory.rs
 +++ b/crates/warframe-acquisition/src/inventory.rs
-@@ -110,11 +110,103 @@ impl<'a> InventoryJsonDecoder<'a> {
+@@ -110,11 +110,117 @@ impl<'a> InventoryJsonDecoder<'a> {
  pub struct MasteryFacts {
      xp: BTreeMap<String, u64>,
      pending: BTreeMap<String, u32>,
@@ -4083,6 +4094,9 @@ index 7a58536..957a3b6 100644
 +    rivens: Vec<serde_json::Value>,
 +    /// Kubrow and Kavat imprints as the inventory gives them, passed through whole for orbiter.
 +    imprints: Vec<serde_json::Value>,
++    /// One row per copy of a warframe, weapon or companion: `{type, f, p}`, its path, the game's
++    /// feature bits (Orokin Catalyst/Reactor, Exilus, Incarnon Genesis installed…) and its Forma.
++    gear: Vec<serde_json::Value>,
  }
  
  impl MasteryFacts {
@@ -4147,6 +4161,17 @@ index 7a58536..957a3b6 100644
 +        &self.orbiter.imprints
 +    }
 +
++    /// Adds each copy of a warframe, weapon or companion, `{type, f, p}`.
++    pub fn with_gear(mut self, gear: Vec<serde_json::Value>) -> Self {
++        self.orbiter.gear = gear;
++        self
++    }
++
++    /// Each copy of a warframe, weapon or companion, `{type, f, p}` (shared with orbiter).
++    pub fn gear(&self) -> &[serde_json::Value] {
++        &self.orbiter.gear
++    }
++
 +    /// Platinum on the account, when the inventory said (shared with orbiter).
 +    pub fn platinum(&self) -> Option<u64> {
 +        self.orbiter.platinum
@@ -4163,7 +4188,7 @@ index 7a58536..957a3b6 100644
      }
  
      /// The affinity the inventory reports for an item, or 0 when it reports none.
-@@ -126,6 +218,11 @@ impl MasteryFacts {
+@@ -126,6 +232,11 @@ impl MasteryFacts {
      pub fn pending(&self, recipe: &str) -> u32 {
          self.pending.get(recipe).copied().unwrap_or(0)
      }
@@ -4175,7 +4200,7 @@ index 7a58536..957a3b6 100644
  }
  
  /// The rank an item's affinity reaches, capped at its max rank; `None` for categories without
-@@ -170,6 +267,14 @@ struct RawXpEntry {
+@@ -170,6 +281,14 @@ struct RawXpEntry {
  #[serde(rename_all = "PascalCase")]
  struct RawInventory {
      last_inventory_sync: serde_json::Value,
@@ -4190,7 +4215,7 @@ index 7a58536..957a3b6 100644
      #[serde(default, deserialize_with = "rows")]
      suits: Vec<serde_json::Value>,
      #[serde(default, deserialize_with = "rows")]
-@@ -251,6 +356,10 @@ struct RawInventory {
+@@ -251,6 +370,10 @@ struct RawInventory {
      adult_operator_load_outs: Vec<serde_json::Value>,
      #[serde(default, deserialize_with = "rows")]
      kahl_load_outs: Vec<serde_json::Value>,
@@ -4201,7 +4226,35 @@ index 7a58536..957a3b6 100644
  }
  
  /// A section, tolerating the two shapes that are not a list of rows.
-@@ -437,6 +546,69 @@ impl InventoryJsonDecoder<'_> {
+@@ -379,6 +502,27 @@ impl InventoryJsonDecoder<'_> {
+         }
+         // Before the `add_*` calls below take the sections.
+         let installed = installed_copies(&raw);
++        // Each copy of a warframe, weapon or companion: its path, the game's feature bits (512:
++        // an Incarnon Genesis installed) and its Forma, so orbiter can tell which copies matter.
++        let gear = [
++            &raw.suits,
++            &raw.long_guns,
++            &raw.pistols,
++            &raw.melee,
++            &raw.sentinels,
++            &raw.sentinel_weapons,
++            &raw.space_suits,
++            &raw.space_guns,
++            &raw.space_melee,
++        ]
++        .into_iter()
++        .flatten()
++        .filter_map(|v| {
++            let kind = v.get("ItemType")?.as_str()?;
++            let count = |k: &str| v.get(k).and_then(|n| n.as_u64()).unwrap_or(0);
++            Some(serde_json::json!({ "type": kind, "f": count("Features"), "p": count("Polarized") }))
++        })
++        .collect::<Vec<_>>();
+         let mut entries = BTreeMap::<String, AccumulatedEntry>::new();
+         let report = &mut DecodeReport::default();
+ 
+@@ -437,6 +581,69 @@ impl InventoryJsonDecoder<'_> {
              None,
              &mut DecodeReport::default(),
          );
@@ -4271,7 +4324,7 @@ index 7a58536..957a3b6 100644
          let pending = pending_holdings
              .into_iter()
              .map(|(path, accumulated)| (path, accumulated.quantity.max(0) as u32))
-@@ -605,7 +777,14 @@ impl InventoryJsonDecoder<'_> {
+@@ -605,7 +812,15 @@ impl InventoryJsonDecoder<'_> {
          }
          let snapshot = InventorySnapshot::coherent(domain_entries)
              .map_err(|_| AcquisitionError::SnapshotInvalid)?;
@@ -4282,7 +4335,8 @@ index 7a58536..957a3b6 100644
 +                .with_extras(ready, player_level, platinum)
 +                .with_wallet(credits, endo)
 +                .with_rivens(rivens)
-+                .with_imprints(imprints),
++                .with_imprints(imprints)
++                .with_gear(gear),
 +        ))
      }
  }
@@ -4485,10 +4539,10 @@ index 0debbfe..de1659c 100644
 +    }
 +}
 diff --git a/crates/warframe-acquisition/tests/inventory_decoder.rs b/crates/warframe-acquisition/tests/inventory_decoder.rs
-index 6743d56..c8938bd 100644
+index 6743d56..cbf5f38 100644
 --- a/crates/warframe-acquisition/tests/inventory_decoder.rs
 +++ b/crates/warframe-acquisition/tests/inventory_decoder.rs
-@@ -794,3 +794,123 @@ fn every_section_that_holds_a_build_is_read() {
+@@ -794,3 +794,159 @@ fn every_section_that_holds_a_build_is_read() {
          );
      }
  }
@@ -4611,6 +4665,42 @@ index 6743d56..c8938bd 100644
 +        .decode_with_facts(&complete_payload())
 +        .unwrap();
 +    assert!(none.imprints().is_empty());
++}
++
++#[test]
++fn each_copy_of_gear_is_kept_for_orbiter_with_its_features_and_forma() {
++    let mut payload: serde_json::Value = serde_json::from_slice(&complete_payload()).unwrap();
++    payload["LongGuns"] = serde_json::json!([
++        {"ItemId":{"$oid":"dddddddddddddddddddddddd"},"ItemType":"/Lotus/Weapons/Tenno/Rifle/Rifle","XP":900000,"Features":513,"Polarized":2},
++        {"ItemId":{"$oid":"eeeeeeeeeeeeeeeeeeeeeeee"},"ItemType":"/Lotus/Weapons/Tenno/Rifle/BratonPrime","XP":0}
++    ]);
++    payload["SpaceGuns"] = serde_json::json!([
++        {"ItemId":{"$oid":"ffffffffffffffffffffffff"},"ItemType":"/Lotus/Weapons/Tenno/Archwing/Primary/ArchwingHeavyPistols/ArchHeavyPistols","Features":0}
++    ]);
++    let (_, facts) = InventoryJsonDecoder::default()
++        .decode_with_facts(&serde_json::to_vec(&payload).unwrap())
++        .unwrap();
++    let gear = facts.gear();
++    let braton = gear
++        .iter()
++        .find(|g| g["type"] == "/Lotus/Weapons/Tenno/Rifle/Rifle")
++        .expect("the Braton is passed on");
++    assert_eq!(braton["f"], 513, "an Incarnon Genesis and a catalyst");
++    assert_eq!(braton["p"], 2);
++    let prime = gear
++        .iter()
++        .find(|g| g["type"] == "/Lotus/Weapons/Tenno/Rifle/BratonPrime")
++        .unwrap();
++    assert_eq!(
++        (prime["f"].as_u64(), prime["p"].as_u64()),
++        (Some(0), Some(0)),
++        "missing fields count as none"
++    );
++    assert!(gear.iter().any(|g| {
++        g["type"]
++            .as_str()
++            .is_some_and(|t| t.ends_with("ArchHeavyPistols"))
++    }));
 +}
 diff --git a/crates/warframe-acquisition/tests/mastery_ledger.rs b/crates/warframe-acquisition/tests/mastery_ledger.rs
 index 2c96e34..cbe75f0 100644

@@ -9,6 +9,7 @@ import { defaultBulkRules, type BulkRules } from "./core/bulk";
 import type { FissureRule } from "./core/timers";
 import type { RivenAuction, RivenMeta, RivenRaw, RivenSnap } from "./core/rivens";
 import type { ImprintRaw } from "./core/imprints";
+import type { GearCopy } from "./core/notNeeded";
 import { DEFAULT_HIDE_MINUTES, type HiddenForWhisper } from "./core/lastCopy";
 import type { Invasion } from "./core/invasions";
 import type { SyndicateMission } from "./core/board";
@@ -197,6 +198,10 @@ export interface GameState {
   rivens: RivenRaw[] | null;
   /** Imprints from the patched TennoScope's last read (null before one has passed them). */
   imprints: ImprintRaw[] | null;
+  /** Each copy of a warframe, weapon or companion from the patched TennoScope's last read (null before one has passed them). */
+  gear: GearCopy[] | null;
+  /** Gear you chose to keep though orbiter says you don't need it (item paths). */
+  keepGear: string[];
   /** Each riven's rolls as orbiter has seen them (by riven id, oldest first): for before-and-after on a cycle. */
   rivenHistory: Record<string, RivenSnap[]>;
   /** Announced already (newest first, capped). */
@@ -245,7 +250,7 @@ export interface TradeLogEntry {
   platOut: number;
   platIn: number;
 }
-export const defaultGame = (): GameState => ({ foundryReady: [], masteryRank: null, platinum: null, credits: null, endo: null, rivens: null, imprints: null, rivenHistory: {}, foundryNotified: [], whispersSeen: [], chatsSeen: {}, dealsNotified: [], fissuresNotified: [], rivensNotified: [], cyclesNotified: [], shortNotified: [], valueHistory: [], relicRuns: [], notices: [], worldNotified: [] });
+export const defaultGame = (): GameState => ({ foundryReady: [], masteryRank: null, platinum: null, credits: null, endo: null, rivens: null, imprints: null, gear: null, keepGear: [], rivenHistory: {}, foundryNotified: [], whispersSeen: [], chatsSeen: {}, dealsNotified: [], fissuresNotified: [], rivensNotified: [], cyclesNotified: [], shortNotified: [], valueHistory: [], relicRuns: [], notices: [], worldNotified: [] });
 
 export interface NotifySettings {
   /** The reward screen opened: which card to take. */
@@ -682,7 +687,7 @@ export async function loadSettings(): Promise<Settings> {
     startPage: typeof raw?.startPage === "string" && raw.startPage ? raw.startPage : "last",
     schema: base.schema,
     notifiedInvasions: Array.isArray(raw?.notifiedInvasions) ? raw.notifiedInvasions : [],
-    game: { ...defaultGame(), ...(raw?.game ?? {}), relicRuns: Array.isArray(raw?.game?.relicRuns) ? raw.game.relicRuns : [], notices: Array.isArray(raw?.game?.notices) ? raw.game.notices : [], worldNotified: Array.isArray(raw?.game?.worldNotified) ? raw.game.worldNotified : [] },
+    game: { ...defaultGame(), ...(raw?.game ?? {}), relicRuns: Array.isArray(raw?.game?.relicRuns) ? raw.game.relicRuns : [], notices: Array.isArray(raw?.game?.notices) ? raw.game.notices : [], worldNotified: Array.isArray(raw?.game?.worldNotified) ? raw.game.worldNotified : [], keepGear: Array.isArray(raw?.game?.keepGear) ? raw.game.keepGear.filter((x: unknown) => typeof x === "string") : [], gear: Array.isArray(raw?.game?.gear) ? raw.game.gear : null },
     favourites: Array.isArray(raw?.favourites) ? raw.favourites : [],
     fissureRules: Array.isArray(raw?.fissureRules) ? raw.fissureRules : [],
     rivenWatch: Array.isArray(raw?.rivenWatch) ? raw.rivenWatch : [],
@@ -840,6 +845,8 @@ export interface TennoscopeReport {
   rivens?: RivenRaw[] | null;
   /** Kubrow and Kavat imprints, the inventory's own rows, passed through. */
   imprints?: ImprintRaw[] | null;
+  /** Each copy of a warframe, weapon or companion: path, feature bits, Forma. */
+  gear?: GearCopy[] | null;
 }
 
 export type TennoscopeAsk = "--sync" | "--authorize-capture";

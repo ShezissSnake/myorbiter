@@ -884,6 +884,7 @@
       if (r.endo != null && r.endo !== g.endo) g.endo = r.endo;
       if (r.rivens && JSON.stringify(r.rivens) !== JSON.stringify(g.rivens)) g.rivens = r.rivens;
       if (r.imprints && JSON.stringify(r.imprints) !== JSON.stringify(g.imprints)) g.imprints = r.imprints;
+      if (r.gear && JSON.stringify(r.gear) !== JSON.stringify(g.gear)) g.gear = r.gear;
       if (r.rivens) {
         const hist = recordRivens(g.rivenHistory ?? {}, r.rivens);
         if (hist) g.rivenHistory = hist;
@@ -1807,7 +1808,7 @@
       {#snippet pMarket()}<Orders {model} console={onConsole} bind:settings={settings.market} advice={settings.advice} />{/snippet}
       {#snippet pGuide()}<Guide console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} go={(t: string) => (settings.tab = t)} bind:plannerMode={settings.plannerMode} />{/snippet}
       {#snippet pFoundry()}<Foundry {model} bind:settings={settings} />{/snippet}
-      {#snippet pInventory()}<Inventory {model} sell={settings.market.sellable} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad} />{/snippet}
+      {#snippet pInventory()}<Inventory {model} sell={settings.market.sellable} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad} gear={settings.game.gear} bind:keepGear={settings.game.keepGear} />{/snippet}
       {#snippet pBrowse()}<Market {model} />{/snippet}
       {#snippet pWishlist()}<Wishlist {model} bind:settings={settings} />{/snippet}
       {#snippet pRivens()}<Rivens {model} console={onConsole} bind:settings={settings} />{/snippet}
