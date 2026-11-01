@@ -34,9 +34,11 @@ pub fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<S
     // old notifications in a tray (GNOME) may never say it closed. Past a few, new ones are shown
     // without the click, so threads don't pile up over a long session.
     #[cfg(any(target_os = "linux", target_os = "windows"))]
-    let id = id.filter(|_| WAITING.fetch_add(1, Ordering::SeqCst) < MAX_WAITING || {
-        WAITING.fetch_sub(1, Ordering::SeqCst);
-        false
+    let id = id.filter(|_| {
+        WAITING.fetch_add(1, Ordering::SeqCst) < MAX_WAITING || {
+            WAITING.fetch_sub(1, Ordering::SeqCst);
+            false
+        }
     });
     // Sending waits on D-Bus (or the system's notification service), and waiting for the click
     // lasts as long as the notification: keep both off the command thread.
@@ -95,8 +97,14 @@ fn bring_up(app: &tauri::AppHandle, id: &str) {
 /// know the app id (from the Start menu shortcut), and a toast with an unknown one isn't shown.
 #[cfg(target_os = "windows")]
 fn installed() -> bool {
-    let Ok(exe) = std::env::current_exe() else { return false };
-    let dir = exe.parent().map(|d| d.display().to_string()).unwrap_or_default();
+    let Ok(exe) = std::env::current_exe() else {
+        return false;
+    };
+    let dir = exe
+        .parent()
+        .map(|d| d.display().to_string())
+        .unwrap_or_default();
     let sep = std::path::MAIN_SEPARATOR;
-    !(dir.ends_with(&format!("{sep}target{sep}debug")) || dir.ends_with(&format!("{sep}target{sep}release")))
+    !(dir.ends_with(&format!("{sep}target{sep}debug"))
+        || dir.ends_with(&format!("{sep}target{sep}release")))
 }

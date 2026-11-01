@@ -61,3 +61,27 @@ test("bounties: listed ones carry their rewards, the headline is what you need o
   assert.equal(z.jobs[0].headline!.name, "Entrati Lanthorn", "endo is never the headline");
   assert.equal(z.expiry, "2026-10-31T22:40:00Z");
 });
+
+test("bounties read from the game's worldstate take their rewards from the level's drop table", () => {
+  const boards = bountyBoards(
+    [{ syndicate: "Solaris United", expiry: "2026-11-01T03:40:45.687Z", jobs: [{ type: "Falling Star", enemyLevels: [10, 30], standingStages: [600, 600], minMR: 1 }, { type: "Bounty", enemyLevels: [70, 90] }] }],
+    [
+      { place: "fortuna", level: "10 - 30", rewards: [{ name: "1000 Credits", chance: 30, rarity: "Common" }, { name: "Gyromag Systems", chance: 6.67, rarity: "Rare" }] },
+      { place: "zariman", level: "10 - 30", rewards: [{ name: "Not this one", chance: 1, rarity: "Rare" }] },
+    ],
+  );
+  assert.deepEqual(boards.map((b) => b.key), ["fortuna", "zariman"]);
+  const [star, unknown] = boards[0].jobs;
+  assert.deepEqual(star.rewards.map((r) => r.name), ["Gyromag Systems", "1000 Credits"]);
+  assert.equal(star.headline?.name, "Gyromag Systems");
+  assert.equal(star.standing, 1200);
+  assert.deepEqual(unknown.rewards, [], "a level with no table pays nothing named");
+  const [vault] = bountyBoards(
+    [{ syndicate: "Entrati", expiry: "x", jobs: [{ type: "Isolation Vault Chamber B", enemyLevels: [30, 40], isVault: true }] }],
+    [
+      { place: "necralisk", level: "30 - 40", rewards: [{ name: "Core Samples' pay", chance: 5, rarity: "Rare" }] },
+      { place: "vault", level: "30 - 40", rewards: [{ name: "Fass Residue", chance: 20, rarity: "Common" }] },
+    ],
+  )[0].jobs;
+  assert.deepEqual(vault.rewards.map((r) => r.name), ["Fass Residue"], "a vault pays from the vault's table");
+});

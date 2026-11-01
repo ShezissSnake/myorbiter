@@ -19,7 +19,11 @@ const MIN_GAP: Duration = Duration::from_millis(400);
 const KEYRING_SERVICE: &str = "dev.orbiter.app";
 const KEYRING_USER: &str = "warframe.market";
 /// How orbiter introduces itself to warframe.market, on the API and on the status socket alike.
-pub const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"), " (personal order helper)");
+pub const USER_AGENT: &str = concat!(
+    "orbiter/",
+    env!("CARGO_PKG_VERSION"),
+    " (personal order helper)"
+);
 
 static LAST_CALL: Mutex<Option<Instant>> = Mutex::new(None);
 
@@ -34,7 +38,10 @@ pub fn platform() -> &'static str {
 
 /// Switches platform; anything warframe.market doesn't know is refused.
 pub fn set_platform(name: &str) -> Result<(), String> {
-    let p = PLATFORMS.iter().find(|p| **p == name).ok_or_else(|| format!("Unknown platform {name}"))?;
+    let p = PLATFORMS
+        .iter()
+        .find(|p| **p == name)
+        .ok_or_else(|| format!("Unknown platform {name}"))?;
     *PLATFORM.write().unwrap_or_else(|e| e.into_inner()) = p;
     Ok(())
 }
@@ -46,7 +53,10 @@ const SLOW_GAP: Duration = Duration::from_millis(1500);
 const SLOW_FOR: Duration = Duration::from_secs(90);
 
 fn wait_turn() {
-    let slow = SLOW_UNTIL.lock().unwrap_or_else(|e| e.into_inner()).is_some_and(|t| Instant::now() < t);
+    let slow = SLOW_UNTIL
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .is_some_and(|t| Instant::now() < t);
     let gap = if slow { SLOW_GAP } else { MIN_GAP };
     let mut last = LAST_CALL.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(at) = *last {
@@ -68,7 +78,10 @@ static RETRY_AFTER: Mutex<Option<Duration>> = Mutex::new(None);
 
 /// Notes a "too many requests" reply: everything slows down, and its Retry-After is kept.
 fn rate_limited(resp: &ureq::Response) -> MarketError {
-    let hint = resp.header("Retry-After").and_then(|v| v.trim().parse::<u64>().ok()).map(Duration::from_secs);
+    let hint = resp
+        .header("Retry-After")
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .map(Duration::from_secs);
     *RETRY_AFTER.lock().unwrap_or_else(|e| e.into_inner()) = hint;
     slow_down();
     MarketError::RateLimited
@@ -83,7 +96,9 @@ fn with_retries<T>(mut once: impl FnMut() -> Result<T, MarketError>) -> Result<T
             Err(MarketError::RateLimited) if tries < 2 => {
                 tries += 1;
                 let hint = RETRY_AFTER.lock().unwrap_or_else(|e| e.into_inner()).take();
-                std::thread::sleep(hint.map_or(Duration::from_secs(3 * tries), |h| h.min(Duration::from_secs(10))));
+                std::thread::sleep(hint.map_or(Duration::from_secs(3 * tries), |h| {
+                    h.min(Duration::from_secs(10))
+                }));
             }
             other => return other,
         }
@@ -94,8 +109,16 @@ fn with_retries<T>(mut once: impl FnMut() -> Result<T, MarketError>) -> Result<T
 fn get_json(url: &str, timeout: u64) -> Result<Value, MarketError> {
     with_retries(|| {
         wait_turn();
-        match crate::http_agent().get(url).set("User-Agent", USER_AGENT).set("Language", "en").timeout(Duration::from_secs(timeout)).call() {
-            Ok(r) => r.into_json::<Value>().map_err(|e| MarketError::Unreachable(e.to_string())),
+        match crate::http_agent()
+            .get(url)
+            .set("User-Agent", USER_AGENT)
+            .set("Language", "en")
+            .timeout(Duration::from_secs(timeout))
+            .call()
+        {
+            Ok(r) => r
+                .into_json::<Value>()
+                .map_err(|e| MarketError::Unreachable(e.to_string())),
             Err(ureq::Error::Status(429, resp)) => Err(rate_limited(&resp)),
             Err(e) => Err(MarketError::Unreachable(e.to_string())),
         }
@@ -115,7 +138,11 @@ pub struct TokenStore {
 
 impl TokenStore {
     pub fn new(config_dir: &Path) -> Self {
-        Self { fallback: config_dir.join("market-token"), backing: Mutex::new("file"), keyring: true }
+        Self {
+            fallback: config_dir.join("market-token"),
+            backing: Mutex::new("file"),
+            keyring: true,
+        }
     }
 
     fn entry(&self) -> Option<keyring::Entry> {
@@ -144,7 +171,10 @@ impl TokenStore {
                 Err(_) => settled = false,
             }
         }
-        let t = std::fs::read_to_string(&self.fallback).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+        let t = std::fs::read_to_string(&self.fallback)
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
         self.set_backing("file");
         let settled = settled || t.is_some();
         (t, settled)
@@ -196,8 +226,13 @@ impl std::fmt::Display for MarketError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             MarketError::NotLinked => write!(f, "Not signed in to warframe.market"),
-            MarketError::Unauthorized => write!(f, "warframe.market refused the sign-in; sign in again"),
-            MarketError::RateLimited => write!(f, "warframe.market asked to slow down; try again in a minute"),
+            MarketError::Unauthorized => {
+                write!(f, "warframe.market refused the sign-in; sign in again")
+            }
+            MarketError::RateLimited => write!(
+                f,
+                "warframe.market asked to slow down; try again in a minute"
+            ),
             MarketError::Rejected(d) => write!(f, "warframe.market rejected the request: {d}"),
             MarketError::Unreachable(d) => write!(f, "warframe.market is unreachable: {d}"),
             MarketError::Storage(d) => write!(f, "couldn't keep the warframe.market sign-in: {d}"),
@@ -216,7 +251,11 @@ pub struct Client {
 
 impl Client {
     pub fn new(store: TokenStore) -> Self {
-        Self { store, token: Mutex::new(None), loaded: Mutex::new(None) }
+        Self {
+            store,
+            token: Mutex::new(None),
+            loaded: Mutex::new(None),
+        }
     }
 
     /// The token slot, loaded from the store the first time.
@@ -255,8 +294,18 @@ impl Client {
 
     /// One call with the current token if `auth`. A renewed token in the reply replaces the one
     /// used, unless you signed out (or in again) while the call was out.
-    fn call(&self, method: &str, url: &str, body: Option<&Value>, auth: bool) -> Result<Value, MarketError> {
-        let token = if auth { Some(self.current().ok_or(MarketError::NotLinked)?) } else { None };
+    fn call(
+        &self,
+        method: &str,
+        url: &str,
+        body: Option<&Value>,
+        auth: bool,
+    ) -> Result<Value, MarketError> {
+        let token = if auth {
+            Some(self.current().ok_or(MarketError::NotLinked)?)
+        } else {
+            None
+        };
         let (value, renewed) = self.send(method, url, body, token.as_deref())?;
         if let (Some(used), Some(renewed)) = (token, renewed) {
             self.renew(&used, renewed);
@@ -279,7 +328,13 @@ impl Client {
     /// One request; `token` signs it. Returns the reply and any renewed token it carried. A read
     /// warframe.market turns away for going too fast is tried again (with_retries); a change
     /// isn't: it may have gone through.
-    fn send(&self, method: &str, url: &str, body: Option<&Value>, token: Option<&str>) -> Result<(Value, Option<String>), MarketError> {
+    fn send(
+        &self,
+        method: &str,
+        url: &str,
+        body: Option<&Value>,
+        token: Option<&str>,
+    ) -> Result<(Value, Option<String>), MarketError> {
         if method == "GET" {
             with_retries(|| self.send_once(method, url, body, token))
         } else {
@@ -287,7 +342,13 @@ impl Client {
         }
     }
 
-    fn send_once(&self, method: &str, url: &str, body: Option<&Value>, token: Option<&str>) -> Result<(Value, Option<String>), MarketError> {
+    fn send_once(
+        &self,
+        method: &str,
+        url: &str,
+        body: Option<&Value>,
+        token: Option<&str>,
+    ) -> Result<(Value, Option<String>), MarketError> {
         wait_turn();
         let mut req = crate::http_agent()
             .request(method, url)
@@ -301,7 +362,11 @@ impl Client {
             .set("Crossplay", "true")
             .timeout(Duration::from_secs(20));
         if let Some(t) = &token {
-            let scheme = if url.contains("/v1/") { "JWT" } else { "Bearer" };
+            let scheme = if url.contains("/v1/") {
+                "JWT"
+            } else {
+                "Bearer"
+            };
             req = req.set("Authorization", &format!("{scheme} {t}"));
         }
         let result = match body {
@@ -310,19 +375,27 @@ impl Client {
         };
         match result {
             Ok(resp) => {
-                let renewed = token.and(resp.header("Authorization")).and_then(token_from_header);
-                let text = resp.into_string().map_err(|e| MarketError::Unreachable(e.to_string()))?;
+                let renewed = token
+                    .and(resp.header("Authorization"))
+                    .and_then(token_from_header);
+                let text = resp
+                    .into_string()
+                    .map_err(|e| MarketError::Unreachable(e.to_string()))?;
                 if text.trim().is_empty() {
                     return Ok((Value::Null, renewed));
                 }
-                let value = serde_json::from_str(&text).map_err(|e| MarketError::Unreachable(e.to_string()))?;
+                let value = serde_json::from_str(&text)
+                    .map_err(|e| MarketError::Unreachable(e.to_string()))?;
                 Ok((value, renewed))
             }
             Err(ureq::Error::Status(401 | 403, _)) => Err(MarketError::Unauthorized),
             Err(ureq::Error::Status(429, resp)) => Err(rate_limited(&resp)),
             Err(ureq::Error::Status(code, resp)) => {
                 let detail = resp.into_string().unwrap_or_default();
-                Err(MarketError::Rejected(format!("{code} {}", detail.chars().take(300).collect::<String>())))
+                Err(MarketError::Rejected(format!(
+                    "{code} {}",
+                    detail.chars().take(300).collect::<String>()
+                )))
             }
             Err(e) => Err(MarketError::Unreachable(e.to_string())),
         }
@@ -339,25 +412,40 @@ impl Client {
             .set("Authorization", "JWT")
             .set("Content-Type", "application/json")
             .timeout(Duration::from_secs(20))
-            .send_json(serde_json::json!({ "email": email, "password": password, "auth_type": "header" }));
+            .send_json(
+                serde_json::json!({ "email": email, "password": password, "auth_type": "header" }),
+            );
         let resp = match resp {
             Ok(r) => r,
-            Err(ureq::Error::Status(400 | 401 | 403, _)) => return Err(MarketError::Rejected("wrong email or password".into())),
+            Err(ureq::Error::Status(400 | 401 | 403, _)) => {
+                return Err(MarketError::Rejected("wrong email or password".into()))
+            }
             Err(ureq::Error::Status(429, _)) => return Err(MarketError::RateLimited),
-            Err(ureq::Error::Status(code, _)) => return Err(MarketError::Rejected(format!("sign-in returned {code}; paste a token instead"))),
+            Err(ureq::Error::Status(code, _)) => {
+                return Err(MarketError::Rejected(format!(
+                    "sign-in returned {code}; paste a token instead"
+                )))
+            }
             Err(e) => return Err(MarketError::Unreachable(e.to_string())),
         };
         let token = resp
             .header("Authorization")
             .and_then(token_from_header)
-            .ok_or_else(|| MarketError::Rejected("no token in the reply; paste a token instead".into()))?;
+            .ok_or_else(|| {
+                MarketError::Rejected("no token in the reply; paste a token instead".into())
+            })?;
         self.use_token(&token)
     }
 
     /// Checks a token against `/v2/me` before keeping it. Until it passes, every other request
     /// goes on with the token you had.
     pub fn use_token(&self, token: &str) -> Result<Profile, MarketError> {
-        let token = token.trim().trim_start_matches("JWT ").trim_start_matches("Bearer ").trim().to_string();
+        let token = token
+            .trim()
+            .trim_start_matches("JWT ")
+            .trim_start_matches("Bearer ")
+            .trim()
+            .to_string();
         if token.is_empty() {
             return Err(MarketError::Rejected("empty token".into()));
         }
@@ -385,16 +473,22 @@ impl Client {
 
     pub fn my_orders(&self) -> Result<Vec<Order>, MarketError> {
         let v = self.call("GET", &format!("{V2}/orders/my"), None, true)?;
-        serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unreachable(e.to_string()))
+        serde_json::from_value(v["data"].clone())
+            .map_err(|e| MarketError::Unreachable(e.to_string()))
     }
 
     /// Every visible order on an item, both sides, with each seller's status.
     pub fn order_book(&self, slug: &str) -> Result<Vec<BookOrder>, MarketError> {
-        if slug.is_empty() || !slug.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-') {
+        if slug.is_empty()
+            || !slug
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+        {
             return Err(MarketError::Rejected("bad item".into()));
         }
         let v = self.call("GET", &format!("{V2}/orders/item/{slug}"), None, false)?;
-        serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unreachable(e.to_string()))
+        serde_json::from_value(v["data"].clone())
+            .map_err(|e| MarketError::Unreachable(e.to_string()))
     }
 
     /// A player's public warframe.market profile, by their in-game name (the market's names are
@@ -402,7 +496,9 @@ impl Client {
     pub fn user(&self, name: &str) -> Result<Option<MarketUser>, MarketError> {
         let slug = user_slug(name).ok_or_else(|| MarketError::Rejected("bad name".into()))?;
         match self.call("GET", &format!("{V2}/user/{slug}"), None, false) {
-            Ok(v) => serde_json::from_value(v["data"].clone()).map(Some).map_err(|e| MarketError::Unreachable(e.to_string())),
+            Ok(v) => serde_json::from_value(v["data"].clone())
+                .map(Some)
+                .map_err(|e| MarketError::Unreachable(e.to_string())),
             Err(MarketError::Rejected(e)) if e.starts_with("404") => Ok(None),
             Err(e) => Err(e),
         }
@@ -422,17 +518,30 @@ impl Client {
         let slug = user_slug(name).ok_or_else(|| MarketError::Rejected("bad name".into()))?;
         let text = text.trim();
         if text.is_empty() || text.chars().count() > 300 {
-            return Err(MarketError::Rejected("the message must be 1 to 300 characters".into()));
+            return Err(MarketError::Rejected(
+                "the message must be 1 to 300 characters".into(),
+            ));
         }
         let body = serde_json::json!({ "text": text, "review_type": 1 });
-        self.call("POST", &format!("{V1}/profile/{slug}/review"), Some(&body), true).map(|_| ())
+        self.call(
+            "POST",
+            &format!("{V1}/profile/{slug}/review"),
+            Some(&body),
+            true,
+        )
+        .map(|_| ())
     }
 
     /// The orders a player closed on warframe.market (marked sold or bought), newest first, as
     /// their public profile's statistics list them.
     pub fn closed_orders(&self, name: &str) -> Result<Vec<ClosedOrder>, MarketError> {
         let slug = user_slug(name).ok_or_else(|| MarketError::Rejected("bad name".into()))?;
-        let v = self.call("GET", &format!("{V1}/profile/{slug}/statistics"), None, false)?;
+        let v = self.call(
+            "GET",
+            &format!("{V1}/profile/{slug}/statistics"),
+            None,
+            false,
+        )?;
         Ok(parse_closed_orders(&v))
     }
 
@@ -451,7 +560,12 @@ impl Client {
         if auction["item"]["type"] != "riven" {
             return Err(MarketError::Rejected("only rivens".into()));
         }
-        let v = self.call("POST", &format!("{V1}/auctions/create"), Some(auction), true)?;
+        let v = self.call(
+            "POST",
+            &format!("{V1}/auctions/create"),
+            Some(auction),
+            true,
+        )?;
         Ok(v["payload"]["auction"].clone())
     }
 
@@ -459,19 +573,34 @@ impl Client {
     pub fn update_auction(&self, id: &str, change: &Value) -> Result<Value, MarketError> {
         check_id(id)?;
         check_auction(change)?;
-        let v = self.call("PUT", &format!("{V1}/auctions/entry/{id}"), Some(change), true)?;
+        let v = self.call(
+            "PUT",
+            &format!("{V1}/auctions/entry/{id}"),
+            Some(change),
+            true,
+        )?;
         Ok(v["payload"]["auction"].clone())
     }
 
     /// Takes an auction down (sold elsewhere, or you changed your mind).
     pub fn close_auction(&self, id: &str) -> Result<(), MarketError> {
         check_id(id)?;
-        self.call("PUT", &format!("{V1}/auctions/entry/{id}/close"), Some(&serde_json::json!({})), true).map(|_| ())
+        self.call(
+            "PUT",
+            &format!("{V1}/auctions/entry/{id}/close"),
+            Some(&serde_json::json!({})),
+            true,
+        )
+        .map(|_| ())
     }
 
     /// An item's closed trades a day for the last 90 days, by rank and variant.
     pub fn item_history(&self, slug: &str) -> Result<Vec<PricePoint>, MarketError> {
-        if slug.is_empty() || !slug.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-') {
+        if slug.is_empty()
+            || !slug
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+        {
             return Err(MarketError::Rejected("bad item".into()));
         }
         let v = self.call("GET", &format!("{V1}/items/{slug}/statistics"), None, false)?;
@@ -486,12 +615,18 @@ impl Client {
 
     pub fn create(&self, new: &NewOrder) -> Result<Order, MarketError> {
         if !(1..=900_000).contains(&new.platinum) || !(1..=9_999).contains(&new.quantity) {
-            return Err(MarketError::Rejected("price or quantity out of range".into()));
+            return Err(MarketError::Rejected(
+                "price or quantity out of range".into(),
+            ));
         }
         let kind = match new.kind.as_deref() {
             None | Some("sell") => "sell",
             Some("buy") => "buy",
-            Some(_) => return Err(MarketError::Rejected("an order is to buy or to sell".into())),
+            Some(_) => {
+                return Err(MarketError::Rejected(
+                    "an order is to buy or to sell".into(),
+                ))
+            }
         };
         let mut body = serde_json::json!({
             "itemId": new.item_id, "type": kind, "platinum": new.platinum,
@@ -520,7 +655,8 @@ impl Client {
             }
             other => other?,
         };
-        serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unreachable(e.to_string()))
+        serde_json::from_value(v["data"].clone())
+            .map_err(|e| MarketError::Unreachable(e.to_string()))
     }
 
     pub fn update(&self, id: &str, change: &OrderChange) -> Result<(), MarketError> {
@@ -541,7 +677,13 @@ impl Client {
         if let Some(v) = change.visible {
             body.insert("visible".into(), v.into());
         }
-        self.call("PATCH", &format!("{V2}/order/{id}"), Some(&Value::Object(body)), true).map(|_| ())
+        self.call(
+            "PATCH",
+            &format!("{V2}/order/{id}"),
+            Some(&Value::Object(body)),
+            true,
+        )
+        .map(|_| ())
     }
 
     /// Marks `quantity` of an order sold: warframe.market's own "Sold", which records the sale
@@ -552,12 +694,14 @@ impl Client {
             return Err(MarketError::Rejected("quantity out of range".into()));
         }
         let body = serde_json::json!({ "quantity": quantity });
-        self.call("POST", &format!("{V2}/order/{id}/close"), Some(&body), true).map(|_| ())
+        self.call("POST", &format!("{V2}/order/{id}/close"), Some(&body), true)
+            .map(|_| ())
     }
 
     pub fn delete(&self, id: &str) -> Result<(), MarketError> {
         valid_id(id)?;
-        self.call("DELETE", &format!("{V2}/order/{id}"), None, true).map(|_| ())
+        self.call("DELETE", &format!("{V2}/order/{id}"), None, true)
+            .map(|_| ())
     }
 }
 
@@ -573,7 +717,11 @@ fn valid_id(id: &str) -> Result<(), MarketError> {
 }
 
 fn token_from_header(h: &str) -> Option<String> {
-    let t = h.strip_prefix("JWT ").or_else(|| h.strip_prefix("Bearer ")).unwrap_or(h).trim();
+    let t = h
+        .strip_prefix("JWT ")
+        .or_else(|| h.strip_prefix("Bearer "))
+        .unwrap_or(h)
+        .trim();
     (!t.is_empty() && t != "JWT" && t != "Bearer").then(|| t.to_string())
 }
 
@@ -661,7 +809,9 @@ pub struct ClosedOrder {
 }
 
 fn parse_closed_orders(v: &Value) -> Vec<ClosedOrder> {
-    let Some(list) = v["payload"]["closed_orders"].as_array() else { return Vec::new() };
+    let Some(list) = v["payload"]["closed_orders"].as_array() else {
+        return Vec::new();
+    };
     list.iter()
         .filter_map(|o| {
             let item = &o["item"];
@@ -669,11 +819,17 @@ fn parse_closed_orders(v: &Value) -> Vec<ClosedOrder> {
                 id: o["id"].as_str()?.to_owned(),
                 kind: o["order_type"].as_str().unwrap_or("sell").to_owned(),
                 slug: item["url_name"].as_str()?.to_owned(),
-                name: item["en"]["item_name"].as_str().unwrap_or_default().to_owned(),
+                name: item["en"]["item_name"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_owned(),
                 rank: o["mod_rank"].as_u64().map(|r| r as u32),
                 quantity: o["quantity"].as_u64().unwrap_or(1) as u32,
                 platinum: o["platinum"].as_f64()?,
-                closed_at: o["closed_date"].as_str().or_else(|| o["updated_at"].as_str())?.to_owned(),
+                closed_at: o["closed_date"]
+                    .as_str()
+                    .or_else(|| o["updated_at"].as_str())?
+                    .to_owned(),
             })
         })
         .collect()
@@ -693,7 +849,9 @@ fn check_auction(a: &Value) -> Result<(), MarketError> {
     let start = a["starting_price"].as_u64().unwrap_or(0);
     let buyout = a["buyout_price"].as_u64();
     if !(1..=1_000_000).contains(&start) || buyout.is_some_and(|b| b < start || b > 1_000_000) {
-        return Err(MarketError::Rejected("prices must be 1 to 1,000,000, the buyout no lower than the starting price".into()));
+        return Err(MarketError::Rejected(
+            "prices must be 1 to 1,000,000, the buyout no lower than the starting price".into(),
+        ));
     }
     Ok(())
 }
@@ -712,7 +870,9 @@ pub struct PricePoint {
 }
 
 fn parse_history(v: &Value) -> Vec<PricePoint> {
-    let Some(days) = v["payload"]["statistics_closed"]["90days"].as_array() else { return Vec::new() };
+    let Some(days) = v["payload"]["statistics_closed"]["90days"].as_array() else {
+        return Vec::new();
+    };
     days.iter()
         .filter_map(|d| {
             Some(PricePoint {
@@ -742,17 +902,27 @@ pub struct ChatSummary {
 }
 
 fn parse_chats(v: &Value) -> Vec<ChatSummary> {
-    let Some(list) = v["payload"]["chats"].as_array() else { return Vec::new() };
+    let Some(list) = v["payload"]["chats"].as_array() else {
+        return Vec::new();
+    };
     list.iter()
         .filter_map(|c| {
-            let with = c["chat_name"].as_str().map(str::to_owned).or_else(|| c["chat_with"][0]["ingame_name"].as_str().map(str::to_owned))?;
-            let last = c["messages"].as_array().and_then(|m| m.iter().max_by_key(|x| x["send_date"].as_str().unwrap_or_default().to_owned()));
+            let with = c["chat_name"]
+                .as_str()
+                .map(str::to_owned)
+                .or_else(|| c["chat_with"][0]["ingame_name"].as_str().map(str::to_owned))?;
+            let last = c["messages"].as_array().and_then(|m| {
+                m.iter()
+                    .max_by_key(|x| x["send_date"].as_str().unwrap_or_default().to_owned())
+            });
             Some(ChatSummary {
                 id: c["id"].as_str()?.to_owned(),
                 with,
                 unread: c["unread_count"].as_u64().unwrap_or(0) as u32,
                 last_update: c["last_update"].as_str().unwrap_or_default().to_owned(),
-                last_message: last.and_then(|m| m["raw_message"].as_str().or_else(|| m["message"].as_str())).map(str::to_owned),
+                last_message: last
+                    .and_then(|m| m["raw_message"].as_str().or_else(|| m["message"].as_str()))
+                    .map(str::to_owned),
             })
         })
         .collect()
@@ -761,13 +931,22 @@ fn parse_chats(v: &Value) -> Vec<ChatSummary> {
 /// `own_review` in a v1 reviews reply: the type of the review the signed-in user left, if any.
 fn own_review_type(v: &Value) -> Option<i64> {
     let own = &v["payload"]["own_review"];
-    own.is_object().then(|| own["review_type"].as_i64().or_else(|| own["review_type"].as_str().and_then(|s| s.parse().ok())).unwrap_or(1))
+    own.is_object().then(|| {
+        own["review_type"]
+            .as_i64()
+            .or_else(|| own["review_type"].as_str().and_then(|s| s.parse().ok()))
+            .unwrap_or(1)
+    })
 }
 
 /// The market's profile slug for an in-game name: lower case. None for anything that isn't a name.
 pub fn user_slug(name: &str) -> Option<String> {
     let name = name.trim();
-    let ok = !name.is_empty() && name.len() <= 40 && name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'));
+    let ok = !name.is_empty()
+        && name.len() <= 40
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'));
     ok.then(|| name.to_ascii_lowercase())
 }
 
@@ -813,7 +992,9 @@ fn needs_per_trade(rejection: &str) -> bool {
 
 /** warframe.market's answer when a listing for an Ayatan sculpture leaves out its stars. */
 fn needs_stars(rejection: &str) -> bool {
-    rejection.contains("\"amberStars\"") && rejection.contains("\"cyanStars\"") && rejection.contains("required")
+    rejection.contains("\"amberStars\"")
+        && rejection.contains("\"cyanStars\"")
+        && rejection.contains("required")
 }
 
 fn yes() -> bool {
@@ -836,7 +1017,11 @@ pub struct OrderChange {
 /// fails to parse, since offline it's the only copy. An empty list (warframe.market answered,
 /// but not with data) isn't worth keeping over a good one.
 fn keep(path: &Path, value: &Value) {
-    let empty = value.as_array().is_some_and(Vec::is_empty) || value.get("weapons").and_then(Value::as_array).is_some_and(Vec::is_empty);
+    let empty = value.as_array().is_some_and(Vec::is_empty)
+        || value
+            .get("weapons")
+            .and_then(Value::as_array)
+            .is_some_and(Vec::is_empty);
     if empty {
         return;
     }
@@ -850,7 +1035,12 @@ fn keep(path: &Path, value: &Value) {
 fn thumb_name(v: &Value) -> Value {
     v.as_str()
         .and_then(|t| t.strip_prefix("items/images/en/thumbs/"))
-        .filter(|f| !f.is_empty() && f.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'(' | b')')))
+        .filter(|f| {
+            !f.is_empty()
+                && f.bytes().all(|b| {
+                    b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'(' | b')')
+                })
+        })
         .map_or(Value::Null, |f| Value::String(format!("wfm.{f}")))
 }
 
@@ -864,7 +1054,11 @@ pub fn items(cache_dir: &Path) -> Result<Value, MarketError> {
         .is_some_and(|age| age < Duration::from_secs(86_400));
     if fresh {
         // A list saved before it carried thumbnails is fetched again.
-        if let Some(v) = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).filter(|v| v[0].get("thumb").is_some()) {
+        if let Some(v) = std::fs::read(&path)
+            .ok()
+            .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+            .filter(|v| v[0].get("thumb").is_some())
+        {
             return Ok(v);
         }
     }
@@ -892,7 +1086,10 @@ pub fn items(cache_dir: &Path) -> Result<Value, MarketError> {
             Ok(out)
         }
         // Offline: an old list is better than none.
-        Err(e) => std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).ok_or(e),
+        Err(e) => std::fs::read(&path)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .ok_or(e),
     }
 }
 
@@ -901,7 +1098,10 @@ pub fn items(cache_dir: &Path) -> Result<Value, MarketError> {
 /// Only plain warframe.market slugs go into a riven search URL. One attribute has a slash in its
 /// slug (`base_damage_/_melee_damage`); it's escaped where it's used.
 fn plain_slug(s: &str) -> bool {
-    !s.is_empty() && s.len() < 80 && s.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'/')
+    !s.is_empty()
+        && s.len() < 80
+        && s.bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'/')
 }
 
 /// Riven weapons and attributes (`/v2/riven/weapons`, `/v2/riven/attributes`), trimmed and cached
@@ -914,7 +1114,10 @@ pub fn riven_meta(cache_dir: &Path) -> Result<Value, MarketError> {
         .and_then(|t| t.elapsed().ok())
         .is_some_and(|age| age < Duration::from_secs(86_400));
     if fresh {
-        if let Some(v) = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()) {
+        if let Some(v) = std::fs::read(&path)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+        {
             return Ok(v);
         }
     }
@@ -941,20 +1144,34 @@ pub fn riven_meta(cache_dir: &Path) -> Result<Value, MarketError> {
             keep(&path, &out);
             Ok(out)
         }
-        Err(e) => std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).ok_or(e),
+        Err(e) => std::fs::read(&path)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .ok_or(e),
     }
 }
 
 impl Client {
     /// Rivens for sale for a weapon with these stats, cheapest buyout first (v1 auctions: there's
     /// no v2 equivalent yet). Trimmed to what orbiter shows.
-    pub fn riven_auctions(&self, weapon: &str, positive: &[String], negative: Option<&str>) -> Result<Value, MarketError> {
-        if !plain_slug(weapon) || positive.iter().any(|p| !plain_slug(p)) || negative.is_some_and(|n| !plain_slug(n)) {
+    pub fn riven_auctions(
+        &self,
+        weapon: &str,
+        positive: &[String],
+        negative: Option<&str>,
+    ) -> Result<Value, MarketError> {
+        if !plain_slug(weapon)
+            || positive.iter().any(|p| !plain_slug(p))
+            || negative.is_some_and(|n| !plain_slug(n))
+        {
             return Err(MarketError::Rejected("not a riven search".into()));
         }
         let mut url = format!("{V1}/auctions/search?type=riven&weapon_url_name={weapon}&buyout_policy=direct&sort_by=price_asc");
         if !positive.is_empty() {
-            url.push_str(&format!("&positive_stats={}", positive.join(",").replace('/', "%2F")));
+            url.push_str(&format!(
+                "&positive_stats={}",
+                positive.join(",").replace('/', "%2F")
+            ));
         }
         if let Some(n) = negative {
             url.push_str(&format!("&negative_stats={}", n.replace('/', "%2F")));
@@ -988,7 +1205,10 @@ mod tests {
         assert_eq!(platform(), "pc");
         set_platform("xbox").unwrap();
         assert_eq!(platform(), "xbox");
-        assert!(set_platform("xbox360").is_err(), "unknown names are refused");
+        assert!(
+            set_platform("xbox360").is_err(),
+            "unknown names are refused"
+        );
         assert_eq!(platform(), "xbox");
         set_platform("pc").unwrap();
     }
@@ -996,7 +1216,15 @@ mod tests {
     fn reads_a_public_profile() {
         let v: serde_json::Value = serde_json::from_str(r#"{"apiVersion":"0.25.0","data":{"id":"aaaaaaaaaaaaaaaaaaaaaaaa","role":"user","tier":"none","ingameName":"Seller1","slug":"seller1","about":"<p>x</p>","reputation":15,"masteryRank":0,"status":"offline","platform":"pc","crossplay":true,"locale":"en"}}"#).unwrap();
         let u: MarketUser = serde_json::from_value(v["data"].clone()).unwrap();
-        assert_eq!(u, MarketUser { ingame_name: "Seller1".into(), slug: "seller1".into(), reputation: 15, status: Some("offline".into()) });
+        assert_eq!(
+            u,
+            MarketUser {
+                ingame_name: "Seller1".into(),
+                slug: "seller1".into(),
+                reputation: 15,
+                status: Some("offline".into())
+            }
+        );
     }
 
     #[test]
@@ -1004,8 +1232,19 @@ mod tests {
         let v: Value = serde_json::from_str(r#"{"payload": {"closed_orders": [{"order_type": "sell", "quantity": 1, "platinum": 26.0, "id": "cccccccccccccccccccccccc", "item": {"mod_max_rank": 5, "url_name": "arcane_agility", "en": {"item_name": "Arcane Agility"}}, "mod_rank": 5, "closed_date": "2026-09-17T21:14:52.081+00:00", "updated_at": "2026-09-17T21:14:52.081+00:00"}, {"order_type": "buy", "quantity": 2, "platinum": 7.0, "id": "x2", "item": {"url_name": "blind_rage", "en": {"item_name": "Blind Rage"}}, "updated_at": "2026-10-02T00:00:00+00:00"}]}}"#).unwrap();
         let o = parse_closed_orders(&v);
         assert_eq!(o.len(), 2);
-        assert_eq!((o[0].name.as_str(), o[0].rank, o[0].platinum, o[0].kind.as_str()), ("Arcane Agility", Some(5), 26.0, "sell"));
-        assert_eq!((o[1].quantity, o[1].rank, o[1].closed_at.as_str()), (2, None, "2026-10-02T00:00:00+00:00"));
+        assert_eq!(
+            (
+                o[0].name.as_str(),
+                o[0].rank,
+                o[0].platinum,
+                o[0].kind.as_str()
+            ),
+            ("Arcane Agility", Some(5), 26.0, "sell")
+        );
+        assert_eq!(
+            (o[1].quantity, o[1].rank, o[1].closed_at.as_str()),
+            (2, None, "2026-10-02T00:00:00+00:00")
+        );
     }
 
     #[test]
@@ -1018,9 +1257,18 @@ mod tests {
 
     #[test]
     fn auction_prices_are_checked() {
-        assert!(check_auction(&serde_json::json!({ "starting_price": 100, "buyout_price": 150 })).is_ok());
-        assert!(check_auction(&serde_json::json!({ "starting_price": 100, "buyout_price": null })).is_ok());
-        assert!(check_auction(&serde_json::json!({ "starting_price": 200, "buyout_price": 150 })).is_err());
+        assert!(
+            check_auction(&serde_json::json!({ "starting_price": 100, "buyout_price": 150 }))
+                .is_ok()
+        );
+        assert!(
+            check_auction(&serde_json::json!({ "starting_price": 100, "buyout_price": null }))
+                .is_ok()
+        );
+        assert!(
+            check_auction(&serde_json::json!({ "starting_price": 200, "buyout_price": 150 }))
+                .is_err()
+        );
         assert!(check_auction(&serde_json::json!({ "starting_price": 0 })).is_err());
         assert!(check_id("dddddddddddddddddddddddd").is_ok());
         assert!(check_id("../x").is_err());
@@ -1029,22 +1277,38 @@ mod tests {
     #[test]
     fn reads_chats() {
         let v: Value = serde_json::from_str(r#"{"payload": {"chats": [{"id": "c1", "last_update": "2026-10-27T09:00:00+00:00", "chat_with": [{"ingame_name": "Buyer"}], "messages": [{"id": "m1", "message": "<p>hi</p>", "raw_message": "hi", "message_from": "u", "send_date": "2026-10-27T08:59:00+00:00", "chat_id": "c1"}, {"id": "m2", "message": "wtb blind rage", "message_from": "u", "send_date": "2026-10-27T09:00:00+00:00", "chat_id": "c1"}], "unread_count": 2, "chat_name": "Buyer"}]}}"#).unwrap();
-        assert_eq!(parse_chats(&v), vec![ChatSummary { id: "c1".into(), with: "Buyer".into(), unread: 2, last_update: "2026-10-27T09:00:00+00:00".into(), last_message: Some("wtb blind rage".into()) }]);
+        assert_eq!(
+            parse_chats(&v),
+            vec![ChatSummary {
+                id: "c1".into(),
+                with: "Buyer".into(),
+                unread: 2,
+                last_update: "2026-10-27T09:00:00+00:00".into(),
+                last_message: Some("wtb blind rage".into())
+            }]
+        );
     }
 
     #[test]
     fn reads_your_own_review() {
-        let none: Value = serde_json::from_str(r#"{"payload": {"reviews": [], "total_review_count": 0, "own_review": null}}"#).unwrap();
+        let none: Value = serde_json::from_str(
+            r#"{"payload": {"reviews": [], "total_review_count": 0, "own_review": null}}"#,
+        )
+        .unwrap();
         assert_eq!(own_review_type(&none), None);
         let given: Value = serde_json::from_str(r#"{"payload": {"reviews": [], "own_review": {"id": "x", "review_type": 1, "text": "Smooth trade", "hidden": false, "date": "2026-10-27T10:00:00+00:00"}}}"#).unwrap();
         assert_eq!(own_review_type(&given), Some(1));
-        let reported: Value = serde_json::from_str(r#"{"payload": {"own_review": {"review_type": "-1"}}}"#).unwrap();
+        let reported: Value =
+            serde_json::from_str(r#"{"payload": {"own_review": {"review_type": "-1"}}}"#).unwrap();
         assert_eq!(own_review_type(&reported), Some(-1));
     }
 
     #[test]
     fn profile_slugs() {
-        assert_eq!(user_slug(" Seller1 ").as_deref(), Some("seller1"));
+        assert_eq!(
+            user_slug(" Seller1 ").as_deref(),
+            Some("seller1")
+        );
         assert_eq!(user_slug("a/../b"), None);
         assert_eq!(user_slug(""), None);
     }
@@ -1053,10 +1317,26 @@ mod tests {
 
     #[test]
     fn thumbnails_are_plain_names_under_the_thumbs_folder() {
-        assert_eq!(thumb_name(&serde_json::json!("items/images/en/thumbs/serration.711b.128x128.png")), serde_json::json!("wfm.serration.711b.128x128.png"));
-        assert_eq!(thumb_name(&serde_json::json!("items/images/en/thumbs/equilibrium_(steam_pinnacle_pack).0326.128x128.webp")), serde_json::json!("wfm.equilibrium_(steam_pinnacle_pack).0326.128x128.webp"));
-        assert_eq!(thumb_name(&serde_json::json!("items/images/en/thumbs/../../x.png")), Value::Null);
-        assert_eq!(thumb_name(&serde_json::json!("items/images/en/serration.png")), Value::Null);
+        assert_eq!(
+            thumb_name(&serde_json::json!(
+                "items/images/en/thumbs/serration.711b.128x128.png"
+            )),
+            serde_json::json!("wfm.serration.711b.128x128.png")
+        );
+        assert_eq!(
+            thumb_name(&serde_json::json!(
+                "items/images/en/thumbs/equilibrium_(steam_pinnacle_pack).0326.128x128.webp"
+            )),
+            serde_json::json!("wfm.equilibrium_(steam_pinnacle_pack).0326.128x128.webp")
+        );
+        assert_eq!(
+            thumb_name(&serde_json::json!("items/images/en/thumbs/../../x.png")),
+            Value::Null
+        );
+        assert_eq!(
+            thumb_name(&serde_json::json!("items/images/en/serration.png")),
+            Value::Null
+        );
         assert_eq!(thumb_name(&Value::Null), Value::Null);
     }
 
@@ -1106,8 +1386,15 @@ mod tests {
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
         crate::write_atomic(&path, b"secret", true).unwrap();
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "secret");
-        assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
-        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1, "no temp file left behind");
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert_eq!(
+            std::fs::read_dir(&dir).unwrap().count(),
+            1,
+            "no temp file left behind"
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -1132,10 +1419,14 @@ mod tests {
     fn spots_the_per_trade_rejection() {
         let real = r#"400 {"apiVersion":"0.25.0","data":null,"error":{"inputs":{"perTrade":"app.field.required"}}}"#;
         assert!(needs_per_trade(real));
-        assert!(!needs_per_trade(r#"400 {"error":{"inputs":{"platinum":"app.field.required"}}}"#));
+        assert!(!needs_per_trade(
+            r#"400 {"error":{"inputs":{"platinum":"app.field.required"}}}"#
+        ));
         let sculpture = r#"warframe.market rejected the request: 400 {"apiVersion":"0.25.0","data":null,"error":{"inputs":{"amberStars":"app.field.required","cyanStars":"app.field.required"}}}"#;
         assert!(needs_stars(sculpture));
-        assert!(!needs_stars(r#"400 {"error":{"inputs":{"platinum":"app.field.required"}}}"#));
+        assert!(!needs_stars(
+            r#"400 {"error":{"inputs":{"platinum":"app.field.required"}}}"#
+        ));
     }
 
     #[test]

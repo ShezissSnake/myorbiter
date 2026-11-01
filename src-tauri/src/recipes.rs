@@ -13,12 +13,15 @@ use std::fs;
 use std::path::Path;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-const EXPORT: &str = "https://raw.githubusercontent.com/calamity-inc/warframe-public-export-plus/senpai";
+const EXPORT: &str =
+    "https://raw.githubusercontent.com/calamity-inc/warframe-public-export-plus/senpai";
 const FRESH: u64 = 7 * 24 * 3600;
 const FILE: &str = "recipe-data.json";
 
 fn now() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs())
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
 }
 
 fn get(url: &str) -> Result<Value, String> {
@@ -35,7 +38,9 @@ fn get(url: &str) -> Result<Value, String> {
 /// Star-chart resources (Ferrite, Orokin Cell, Morphics…) live under MiscItems; the rest (Narmer
 /// Isoplast, Lazulite Toroid, fish and gems) come from open worlds and events.
 fn kind(path: &str) -> &'static str {
-    if path.starts_with("/Lotus/Types/Items/MiscItems/") || path.starts_with("/Lotus/Types/Items/Research/") {
+    if path.starts_with("/Lotus/Types/Items/MiscItems/")
+        || path.starts_with("/Lotus/Types/Items/Research/")
+    {
         "chart"
     } else {
         "world"
@@ -46,7 +51,9 @@ fn compact(recipes: &Value, resources: &Value, dict: &Value) -> Value {
     let mut out = Map::new();
     let mut used = std::collections::BTreeSet::new();
     for r in recipes.as_object().into_iter().flat_map(|o| o.values()) {
-        let Some(result) = r["resultType"].as_str() else { continue };
+        let Some(result) = r["resultType"].as_str() else {
+            continue;
+        };
         let ingredients: Vec<Value> = r["ingredients"]
             .as_array()
             .into_iter()
@@ -61,13 +68,22 @@ fn compact(recipes: &Value, resources: &Value, dict: &Value) -> Value {
             continue;
         }
         // Several blueprints can make the same thing (a market one and a clan one): the first is kept.
-        out.entry(result.to_string()).or_insert_with(|| json!({ "c": r["buildPrice"].as_u64().unwrap_or(0), "i": ingredients }));
+        out.entry(result.to_string()).or_insert_with(
+            || json!({ "c": r["buildPrice"].as_u64().unwrap_or(0), "i": ingredients }),
+        );
     }
     let mut names = Map::new();
     for path in used {
-        let Some(res) = resources.get(&path) else { continue };
-        let Some(name) = res["name"].as_str().and_then(|k| dict[k].as_str()) else { continue };
-        let img = res["icon"].as_str().and_then(|i| i.rsplit('/').next()).unwrap_or("");
+        let Some(res) = resources.get(&path) else {
+            continue;
+        };
+        let Some(name) = res["name"].as_str().and_then(|k| dict[k].as_str()) else {
+            continue;
+        };
+        let img = res["icon"]
+            .as_str()
+            .and_then(|i| i.rsplit('/').next())
+            .unwrap_or("");
         names.insert(path.clone(), json!({ "n": name, "img": img, "r": res["rarity"].as_str().unwrap_or(""), "k": kind(&path) }));
     }
     json!({ "checkedAt": now(), "recipes": out, "names": names })
@@ -77,7 +93,9 @@ fn compact(recipes: &Value, resources: &Value, dict: &Value) -> Value {
 /// else read again. Errors only when there's nothing at all.
 pub fn recipe_data(dir: &Path) -> Result<Value, String> {
     let path = dir.join(FILE);
-    let cached: Option<Value> = fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok());
+    let cached: Option<Value> = fs::read(&path)
+        .ok()
+        .and_then(|b| serde_json::from_slice(&b).ok());
     if let Some(c) = &cached {
         if now().saturating_sub(c["checkedAt"].as_u64().unwrap_or(0)) < FRESH {
             return Ok(c.clone());
@@ -124,10 +142,26 @@ mod tests {
         let v = compact(&recipes, &resources, &dict);
         let r = &v["recipes"]["/Lotus/Types/Recipes/WarframeRecipes/IronframeChassisComponent"];
         assert_eq!(r["c"], 15000);
-        assert_eq!(r["i"][1], json!(["/Lotus/Types/Items/MiscItems/Rubedo", 2300]));
-        assert!(v["recipes"].get("/Lotus/Types/Game/X").is_none(), "nothing to build from: left out");
+        assert_eq!(
+            r["i"][1],
+            json!(["/Lotus/Types/Items/MiscItems/Rubedo", 2300])
+        );
+        assert!(
+            v["recipes"].get("/Lotus/Types/Game/X").is_none(),
+            "nothing to build from: left out"
+        );
         let t = &v["names"]["/Lotus/Types/Gameplay/Venus/Resources/ArachnoidCamperTerraItem"];
-        assert_eq!((t["n"].as_str(), t["img"].as_str(), t["k"].as_str()), (Some("Lazulite Toroid"), Some("CrpArachnoidPowerCoreCamperTerra.png"), Some("world")));
-        assert_eq!(v["names"]["/Lotus/Types/Items/MiscItems/Rubedo"]["k"], "chart");
+        assert_eq!(
+            (t["n"].as_str(), t["img"].as_str(), t["k"].as_str()),
+            (
+                Some("Lazulite Toroid"),
+                Some("CrpArachnoidPowerCoreCamperTerra.png"),
+                Some("world")
+            )
+        );
+        assert_eq!(
+            v["names"]["/Lotus/Types/Items/MiscItems/Rubedo"]["k"],
+            "chart"
+        );
     }
 }

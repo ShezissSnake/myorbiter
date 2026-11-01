@@ -12,8 +12,8 @@
 //! two never fight over what buyers see.
 
 use serde::Serialize;
-use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -105,7 +105,11 @@ impl Presence {
 
     /// Hold `status`, opening the connection if there isn't one. `token` is asked when it
     /// connects, and again on each reconnect.
-    pub fn set(&self, status: Status, token: impl Fn() -> Option<String> + Send + 'static) -> Result<(), String> {
+    pub fn set(
+        &self,
+        status: Status,
+        token: impl Fn() -> Option<String> + Send + 'static,
+    ) -> Result<(), String> {
         if let Some(l) = lock(&self.link).as_ref() {
             if l.tx.send(Cmd::Set(status)).is_ok() {
                 lock(&l.state).wanted = Some(status);
@@ -118,7 +122,10 @@ impl Presence {
         let first = token().ok_or("Sign in to warframe.market first (on Orders).")?;
         let mut link = lock(&self.link);
         let (tx, rx) = channel();
-        let state = Arc::new(Mutex::new(State { wanted: Some(status), ..State::default() }));
+        let state = Arc::new(Mutex::new(State {
+            wanted: Some(status),
+            ..State::default()
+        }));
         let shared = Arc::clone(&state);
         let source: TokenSource = Box::new(token);
         let id = NEXT.fetch_add(1, Ordering::SeqCst);
@@ -140,15 +147,21 @@ impl Presence {
 }
 
 fn now_ms() -> u64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 fn write_heartbeat(id: u64, status: Status) {
     if ACTIVE.load(Ordering::SeqCst) != id {
         return;
     }
-    let Some(dir) = crate::bridge::runtime_dir() else { return };
-    let body = serde_json::json!({ "at": now_ms(), "pid": std::process::id(), "status": status.wire() });
+    let Some(dir) = crate::bridge::runtime_dir() else {
+        return;
+    };
+    let body =
+        serde_json::json!({ "at": now_ms(), "pid": std::process::id(), "status": status.wire() });
     let tmp = dir.join(format!(".{HELD_FILE}.{}", std::process::id()));
     if std::fs::write(&tmp, body.to_string()).is_ok() {
         let _ = std::fs::rename(&tmp, dir.join(HELD_FILE));
@@ -157,7 +170,10 @@ fn write_heartbeat(id: u64, status: Status) {
 
 /// Removes the heartbeat if connection `id` is still the one holding it.
 fn clear_heartbeat(id: u64) {
-    if ACTIVE.compare_exchange(id, 0, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+    if ACTIVE
+        .compare_exchange(id, 0, Ordering::SeqCst, Ordering::SeqCst)
+        .is_ok()
+    {
         clear_heartbeat_file();
     }
 }
@@ -174,13 +190,17 @@ fn frame(route: &str, payload: serde_json::Value) -> String {
 
 /// A frame's route and, for status frames, the status it carries.
 fn read_frame(text: &str) -> (Option<String>, Option<Status>) {
-    let Ok(v) = serde_json::from_str::<serde_json::Value>(text) else { return (None, None) };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(text) else {
+        return (None, None);
+    };
     let route = v.get("route").and_then(|r| r.as_str()).map(str::to_owned);
     let status = match route.as_deref() {
         Some("@wfm|cmd/status/set:ok") | Some("@wfm|event/status/set") => {
             let p = v.get("payload");
             // Seen both as the bare string and as {"status": "..."}.
-            p.and_then(|p| p.as_str()).or_else(|| p?.get("status")?.as_str()).and_then(Status::parse)
+            p.and_then(|p| p.as_str())
+                .or_else(|| p?.get("status")?.as_str())
+                .and_then(Status::parse)
         }
         _ => None,
     };
@@ -200,7 +220,14 @@ const PING_EVERY: Duration = Duration::from_secs(30);
 const SILENT_FOR: Duration = Duration::from_secs(75);
 
 /// The connection's thread: connect, hold, and reconnect with growing pauses until told to close.
-fn hold(id: u64, first: String, token: TokenSource, initial: Status, rx: Receiver<Cmd>, state: Arc<Mutex<State>>) {
+fn hold(
+    id: u64,
+    first: String,
+    token: TokenSource,
+    initial: Status,
+    rx: Receiver<Cmd>,
+    state: Arc<Mutex<State>>,
+) {
     let mut wanted = initial;
     let mut pause = Duration::from_secs(2);
     let mut current = Some(first);
@@ -209,7 +236,10 @@ fn hold(id: u64, first: String, token: TokenSource, initial: Status, rx: Receive
         // Signed out meanwhile: nothing to sign in with, so stop.
         let Some(t) = current.take().or_else(&token) else {
             if let Ok(mut s) = state.lock() {
-                *s = State { error: Some("Signed out of warframe.market.".into()), ..State::default() };
+                *s = State {
+                    error: Some("Signed out of warframe.market.".into()),
+                    ..State::default()
+                };
             }
             break;
         };
@@ -242,13 +272,23 @@ fn hold(id: u64, first: String, token: TokenSource, initial: Status, rx: Receive
 /// handshake that never answers (a captive portal, a stuck proxy) would hang its thread for good.
 pub(crate) fn connect(
     request: tungstenite::handshake::client::Request,
-) -> Result<tungstenite::WebSocket<tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>, tungstenite::Error> {
+) -> Result<
+    tungstenite::WebSocket<tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>,
+    tungstenite::Error,
+> {
     use std::net::{TcpStream, ToSocketAddrs};
     const LIMIT: Duration = Duration::from_secs(10);
     let uri = request.uri();
     let host = uri.host().unwrap_or_default().to_string();
-    let port = uri.port_u16().unwrap_or(if uri.scheme_str() == Some("ws") { 80 } else { 443 });
-    let mut last = std::io::Error::new(std::io::ErrorKind::NotFound, format!("no address for {host}"));
+    let port = uri.port_u16().unwrap_or(if uri.scheme_str() == Some("ws") {
+        80
+    } else {
+        443
+    });
+    let mut last = std::io::Error::new(
+        std::io::ErrorKind::NotFound,
+        format!("no address for {host}"),
+    );
     let mut stream = None;
     for addr in (host.as_str(), port).to_socket_addrs()? {
         match TcpStream::connect_timeout(&addr, LIMIT) {
@@ -266,34 +306,64 @@ pub(crate) fn connect(
         Ok((ws, _)) => Ok(ws),
         Err(tungstenite::HandshakeError::Failure(e)) => Err(e),
         // A read timed out mid-handshake.
-        Err(tungstenite::HandshakeError::Interrupted(_)) => Err(tungstenite::Error::Io(std::io::Error::new(std::io::ErrorKind::TimedOut, "the handshake timed out"))),
+        Err(tungstenite::HandshakeError::Interrupted(_)) => Err(tungstenite::Error::Io(
+            std::io::Error::new(std::io::ErrorKind::TimedOut, "the handshake timed out"),
+        )),
     }
 }
 
-fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state: &Mutex<State>) -> Ended {
+fn session(
+    id: u64,
+    token: &str,
+    wanted: &mut Status,
+    rx: &Receiver<Cmd>,
+    state: &Mutex<State>,
+) -> Ended {
     use tungstenite::{client::IntoClientRequest, Message};
     let _ = rustls::crypto::ring::default_provider().install_default();
     let mut request = match SOCKET.into_client_request() {
         Ok(r) => r,
         Err(e) => return Ended::Dropped(e.to_string()),
     };
-    request.headers_mut().insert("Sec-WebSocket-Protocol", tungstenite::http::HeaderValue::from_static(SUBPROTOCOL));
+    request.headers_mut().insert(
+        "Sec-WebSocket-Protocol",
+        tungstenite::http::HeaderValue::from_static(SUBPROTOCOL),
+    );
     // The same name orbiter gives on the API: a connection that says nothing about itself is
     // turned away (403) before it can sign in.
-    request.headers_mut().insert("User-Agent", tungstenite::http::HeaderValue::from_static(crate::market::USER_AGENT));
+    request.headers_mut().insert(
+        "User-Agent",
+        tungstenite::http::HeaderValue::from_static(crate::market::USER_AGENT),
+    );
     let mut ws = match connect(request) {
         Ok(c) => c,
         Err(tungstenite::Error::Http(resp)) if resp.status().as_u16() == 403 => {
-            return Ended::Dropped("warframe.market turned the status connection away (403 Forbidden); trying again".into())
+            return Ended::Dropped(
+                "warframe.market turned the status connection away (403 Forbidden); trying again"
+                    .into(),
+            )
         }
-        Err(e) => return Ended::Dropped(format!("Couldn't reach warframe.market ({e}); trying again")),
+        Err(e) => {
+            return Ended::Dropped(format!(
+                "Couldn't reach warframe.market ({e}); trying again"
+            ))
+        }
     };
     // Reads wait at most a second, so a choice or a close is never stuck behind a quiet socket.
     if let tungstenite::stream::MaybeTlsStream::Rustls(s) = ws.get_mut() {
         let _ = s.sock.set_read_timeout(Some(Duration::from_secs(1)));
     }
-    let send = |ws: &mut tungstenite::WebSocket<_>, text: String| ws.send(Message::Text(text.into())).map_err(|e| e.to_string());
-    if let Err(e) = send(&mut ws, frame("@wfm|cmd/auth/signIn", serde_json::json!({ "token": token }))) {
+    let send = |ws: &mut tungstenite::WebSocket<_>, text: String| {
+        ws.send(Message::Text(text.into()))
+            .map_err(|e| e.to_string())
+    };
+    if let Err(e) = send(
+        &mut ws,
+        frame(
+            "@wfm|cmd/auth/signIn",
+            serde_json::json!({ "token": token }),
+        ),
+    ) {
         return Ended::Dropped(e);
     }
 
@@ -312,7 +382,13 @@ fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state:
                     *wanted = s;
                     refused = None;
                     if signed_in {
-                        if let Err(e) = send(&mut ws, frame("@wfm|cmd/status/set", serde_json::json!({ "status": s.wire() }))) {
+                        if let Err(e) = send(
+                            &mut ws,
+                            frame(
+                                "@wfm|cmd/status/set",
+                                serde_json::json!({ "status": s.wire() }),
+                            ),
+                        ) {
                             return Ended::Dropped(e);
                         }
                         last_sent = Some(Instant::now());
@@ -344,10 +420,20 @@ fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state:
         let unconfirmed = committed != Some(*wanted) && refused != Some(*wanted);
         let due = match last_sent {
             None => signed_in,
-            Some(t) => signed_in && ((unconfirmed && t.elapsed() > Duration::from_secs(4)) || t.elapsed() > REASSERT),
+            Some(t) => {
+                signed_in
+                    && ((unconfirmed && t.elapsed() > Duration::from_secs(4))
+                        || t.elapsed() > REASSERT)
+            }
         };
         if due {
-            if let Err(e) = send(&mut ws, frame("@wfm|cmd/status/set", serde_json::json!({ "status": wanted.wire() }))) {
+            if let Err(e) = send(
+                &mut ws,
+                frame(
+                    "@wfm|cmd/status/set",
+                    serde_json::json!({ "status": wanted.wire() }),
+                ),
+            ) {
                 return Ended::Dropped(e);
             }
             last_sent = Some(Instant::now());
@@ -357,14 +443,27 @@ fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state:
                 heard = Instant::now();
                 t.to_string()
             }
-            Ok(Message::Close(_)) => return Ended::Dropped("warframe.market closed the connection; reconnecting".into()),
+            Ok(Message::Close(_)) => {
+                return Ended::Dropped("warframe.market closed the connection; reconnecting".into())
+            }
             Ok(_) => {
                 // A pong (or any other frame): the connection is alive.
                 heard = Instant::now();
                 continue;
             }
-            Err(tungstenite::Error::Io(e)) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => continue,
-            Err(e) => return Ended::Dropped(format!("Lost the connection to warframe.market ({e}); reconnecting")),
+            Err(tungstenite::Error::Io(e))
+                if matches!(
+                    e.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                continue
+            }
+            Err(e) => {
+                return Ended::Dropped(format!(
+                    "Lost the connection to warframe.market ({e}); reconnecting"
+                ))
+            }
         };
         let (route, status) = read_frame(&text);
         match route.as_deref() {
@@ -378,7 +477,10 @@ fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state:
             Some("@wfm|cmd/status/set:error") => {
                 refused = Some(*wanted);
                 if let Ok(mut s) = state.lock() {
-                    s.error = Some(format!("warframe.market didn't accept the status {}", wanted.wire()));
+                    s.error = Some(format!(
+                        "warframe.market didn't accept the status {}",
+                        wanted.wire()
+                    ));
                 }
             }
             Some("@wfm|cmd/auth/signIn:error") => {
@@ -415,19 +517,37 @@ mod tests {
         use tungstenite::client::IntoClientRequest;
         let _ = rustls::crypto::ring::default_provider().install_default();
         let mut request = SOCKET.into_client_request().unwrap();
-        request.headers_mut().insert("Sec-WebSocket-Protocol", tungstenite::http::HeaderValue::from_static(SUBPROTOCOL));
-        request.headers_mut().insert("User-Agent", tungstenite::http::HeaderValue::from_static(crate::market::USER_AGENT));
+        request.headers_mut().insert(
+            "Sec-WebSocket-Protocol",
+            tungstenite::http::HeaderValue::from_static(SUBPROTOCOL),
+        );
+        request.headers_mut().insert(
+            "User-Agent",
+            tungstenite::http::HeaderValue::from_static(crate::market::USER_AGENT),
+        );
         let mut ws = connect(request).expect("connected");
         let _ = ws.close(None);
     }
 
     #[test]
     fn reads_status_frames_in_both_shapes() {
-        assert_eq!(read_frame(r#"{"route":"@wfm|cmd/status/set:ok","payload":"ingame"}"#).1, Some(Status::Ingame));
-        assert_eq!(read_frame(r#"{"route":"@wfm|event/status/set","payload":{"status":"invisible"}}"#).1, Some(Status::Invisible));
-        assert_eq!(read_frame(r#"{"route":"@wfm|cmd/auth/signIn:ok","payload":{}}"#), (Some("@wfm|cmd/auth/signIn:ok".into()), None));
+        assert_eq!(
+            read_frame(r#"{"route":"@wfm|cmd/status/set:ok","payload":"ingame"}"#).1,
+            Some(Status::Ingame)
+        );
+        assert_eq!(
+            read_frame(r#"{"route":"@wfm|event/status/set","payload":{"status":"invisible"}}"#).1,
+            Some(Status::Invisible)
+        );
+        assert_eq!(
+            read_frame(r#"{"route":"@wfm|cmd/auth/signIn:ok","payload":{}}"#),
+            (Some("@wfm|cmd/auth/signIn:ok".into()), None)
+        );
         assert_eq!(read_frame("not json"), (None, None));
-        assert_eq!(read_frame(r#"{"route":"@wfm|cmd/status/set:ok","payload":"offline"}"#).1, None);
+        assert_eq!(
+            read_frame(r#"{"route":"@wfm|cmd/status/set:ok","payload":"offline"}"#).1,
+            None
+        );
     }
 
     /// Against the real server: a made-up token is refused, and the link says so and stops.
@@ -435,37 +555,56 @@ mod tests {
     #[ignore = "talks to ws.warframe.market"]
     fn live_server_refuses_a_bad_token() {
         let p = Presence::default();
-        p.set(Status::Invisible, || Some("not-a-real-token".into())).unwrap();
+        p.set(Status::Invisible, || Some("not-a-real-token".into()))
+            .unwrap();
         let deadline = Instant::now() + Duration::from_secs(20);
         while Instant::now() < deadline && p.state().error.is_none() {
             std::thread::sleep(Duration::from_millis(200));
         }
         let s = p.state();
         eprintln!("{s:?}");
-        assert!(s.error.as_deref().is_some_and(|e| e.contains("refused")), "{s:?}");
+        assert!(
+            s.error.as_deref().is_some_and(|e| e.contains("refused")),
+            "{s:?}"
+        );
     }
 
     #[test]
     fn a_closed_connection_can_no_longer_change_what_the_page_shows() {
         let p = Presence::default();
-        assert!(p.set(Status::Online, || None).is_err(), "no token: nothing to sign in with");
+        assert!(
+            p.set(Status::Online, || None).is_err(),
+            "no token: nothing to sign in with"
+        );
         assert!(p.state().wanted.is_none());
         // A connection as `set` makes one, without its thread.
         let (tx, _rx) = channel();
-        let state = Arc::new(Mutex::new(State { wanted: Some(Status::Ingame), ..State::default() }));
-        *lock(&p.link) = Some(Link { tx, state: Arc::clone(&state) });
+        let state = Arc::new(Mutex::new(State {
+            wanted: Some(Status::Ingame),
+            ..State::default()
+        }));
+        *lock(&p.link) = Some(Link {
+            tx,
+            state: Arc::clone(&state),
+        });
         assert_eq!(p.state().wanted, Some(Status::Ingame));
         p.close();
         // Its thread, still winding down, reports one last confirmation.
         lock(&state).committed = Some(Status::Ingame);
         lock(&state).connected = true;
         let shown = p.state();
-        assert!(shown.committed.is_none() && !shown.connected && shown.wanted.is_none(), "{shown:?}");
+        assert!(
+            shown.committed.is_none() && !shown.connected && shown.wanted.is_none(),
+            "{shown:?}"
+        );
     }
 
     #[test]
     fn frames_are_json_whatever_the_token_holds() {
-        let f = frame("@wfm|cmd/auth/signIn", serde_json::json!({ "token": "a\"b" }));
+        let f = frame(
+            "@wfm|cmd/auth/signIn",
+            serde_json::json!({ "token": "a\"b" }),
+        );
         let v: serde_json::Value = serde_json::from_str(&f).unwrap();
         assert_eq!(v["payload"]["token"], "a\"b");
     }

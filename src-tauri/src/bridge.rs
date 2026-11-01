@@ -19,7 +19,10 @@ pub const OVERLAY_FILE: &str = "orbiter-overlay.json";
 
 /// Where the shared files go, or `None` if there is nowhere private to put them.
 pub fn runtime_dir() -> Option<PathBuf> {
-    if let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).filter(|p| p.is_dir()) {
+    if let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR")
+        .map(PathBuf::from)
+        .filter(|p| p.is_dir())
+    {
         return Some(dir);
     }
     private_dir_in(&std::env::temp_dir(), uid())
@@ -90,12 +93,26 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("orbiter-bridge-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         assert_eq!(read_cards_in(&dir), None);
-        fs::write(dir.join(CARDS_FILE), r#"{"at": 5, "cards": ["Rhino Prime Systems", "Forma Blueprint"]}"#).unwrap();
-        assert_eq!(read_cards_in(&dir), Some(ScreenCards { at: 5, cards: vec!["Rhino Prime Systems".into(), "Forma Blueprint".into()], prices: Default::default() }));
+        fs::write(
+            dir.join(CARDS_FILE),
+            r#"{"at": 5, "cards": ["Rhino Prime Systems", "Forma Blueprint"]}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            read_cards_in(&dir),
+            Some(ScreenCards {
+                at: 5,
+                cards: vec!["Rhino Prime Systems".into(), "Forma Blueprint".into()],
+                prices: Default::default()
+            })
+        );
         fs::write(dir.join(CARDS_FILE), "{not json").unwrap();
         assert_eq!(read_cards_in(&dir), None);
         write_pick_in(&dir, &serde_json::json!({"best": 1})).unwrap();
-        assert_eq!(fs::read_to_string(dir.join(PICK_FILE)).unwrap(), r#"{"best":1}"#);
+        assert_eq!(
+            fs::read_to_string(dir.join(PICK_FILE)).unwrap(),
+            r#"{"best":1}"#
+        );
         fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -107,7 +124,10 @@ mod tests {
         fs::create_dir_all(&tmp).unwrap();
         let me = uid();
         let dir = private_dir_in(&tmp, me).expect("made");
-        assert_eq!(fs::metadata(&dir).unwrap().permissions().mode() & 0o777, 0o700);
+        assert_eq!(
+            fs::metadata(&dir).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
         // Opened up to others: refused.
         fs::set_permissions(&dir, fs::Permissions::from_mode(0o755)).unwrap();
         assert_eq!(private_dir_in(&tmp, me), None);

@@ -51,9 +51,12 @@ export interface SyndicateMission {
   }[];
 }
 
-/** One tier's rewards from the drop tables, for the places the worldstate doesn't list. */
+/**
+ * One tier's rewards from the drop tables: for the places the worldstate doesn't list, and for the
+ * open worlds when their bounties come from the game's own worldstate, which names no rewards.
+ */
 export interface BountyTable {
-  place: "zariman" | "cavia" | "hex";
+  place: "zariman" | "cavia" | "hex" | "cetus" | "fortuna" | "necralisk" | "vault";
   level: string;
   rewards: { name: string; chance: number; rarity: string }[];
 }
@@ -92,7 +95,7 @@ export interface BountyBoard {
   rotating: boolean;
 }
 
-const LISTED: { syndicate: string; key: string; label: string; where: string }[] = [
+const LISTED: { syndicate: string; key: "cetus" | "fortuna" | "necralisk"; label: string; where: string }[] = [
   { syndicate: "Ostrons", key: "cetus", label: "Cetus", where: "Plains of Eidolon" },
   { syndicate: "Solaris United", key: "fortuna", label: "Fortuna", where: "Orb Vallis" },
   { syndicate: "Entrati", key: "necralisk", label: "Necralisk", where: "Cambion Drift" },
@@ -135,12 +138,17 @@ export function bountyBoards(missions: SyndicateMission[] | null, tables: Bounty
     const m = bySyndicate.get(l.syndicate);
     if (!m?.jobs?.length) continue;
     const jobs = m.jobs.map((j): BountyJob => {
+      const lv = j.enemyLevels ?? [];
+      // No pool (read from the game's worldstate): the drop table for the bounty's level.
+      const place = j.isVault ? "vault" : l.key;
+      const table = lv.length >= 2 ? tables?.find((t) => t.place === place && t.level === `${lv[0]} - ${lv[1]}`) : undefined;
       const rewards = uniqueRewards(
         j.rewardPoolDrops?.length
           ? j.rewardPoolDrops.map((d) => ({ name: d.item, chance: typeof d.chance === "number" ? d.chance : null, rarity: d.rarity ?? "" }))
-          : (j.rewardPool ?? []).map((name) => ({ name, chance: null, rarity: "" })),
+          : j.rewardPool?.length
+            ? j.rewardPool.map((name) => ({ name, chance: null, rarity: "" }))
+            : (table?.rewards ?? []).map((x) => ({ name: x.name, chance: x.chance, rarity: x.rarity })),
       );
-      const lv = j.enemyLevels ?? [];
       return {
         name: j.type ?? "Bounty",
         levels: lv.length >= 2 ? (lv[0] === lv[1] ? `${lv[0]}` : `${lv[0]}–${lv[1]}`) : "",
