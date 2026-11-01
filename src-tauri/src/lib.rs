@@ -190,7 +190,7 @@ async fn worldstate(app: tauri::AppHandle) -> Value {
             out.insert((*part).to_string(), value.unwrap_or(Value::Null));
         }
         // api.warframestat.us down or behind the game: what it couldn't give, from the game's own file.
-        const FROM_GAME: [&str; 7] = ["fissures", "voidTrader", "vaultTrader", "earthCycle", "cetusCycle", "vallisCycle", "cambionCycle"];
+        const FROM_GAME: [&str; 9] = ["fissures", "voidTrader", "vaultTrader", "earthCycle", "cetusCycle", "vallisCycle", "cambionCycle", "sortie", "archonHunt"];
         let missing = |out: &serde_json::Map<String, Value>, k: &str| match out.get(k) {
             None | Some(Value::Null) => true,
             Some(Value::Array(a)) => a.is_empty(),

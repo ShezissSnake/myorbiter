@@ -12,6 +12,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 const WORLDSTATE: &str = "https://content.warframe.com/dynamic/worldState.php";
 const NODES: &str = "https://raw.githubusercontent.com/WFCD/warframe-worldstate-data/master/data/solNodes.json";
 const MISSIONS: &str = "https://raw.githubusercontent.com/WFCD/warframe-worldstate-data/master/data/missionTypes.json";
+const SORTIES: &str = "https://raw.githubusercontent.com/WFCD/warframe-worldstate-data/master/data/sortieData.json";
 const TABLES: &str = "worldstate-tables.json";
 const TABLES_FRESH: u64 = 7 * 24 * 3600;
 
@@ -35,13 +36,15 @@ fn tables(dir: &Path) -> Result<Value, String> {
     let path = dir.join(TABLES);
     let cached: Option<Value> = fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok());
     if let Some(c) = &cached {
-        if now().saturating_sub(c["at"].as_u64().unwrap_or(0)) < TABLES_FRESH {
+        if now().saturating_sub(c["at"].as_u64().unwrap_or(0)) < TABLES_FRESH && c["sorties"].is_object() {
             return Ok(c.clone());
         }
     }
     match (get(NODES), get(MISSIONS)) {
         (Ok(nodes), Ok(missions)) => {
-            let v = json!({ "at": now(), "nodes": nodes, "missions": missions });
+            // The sortie table only names bosses and conditions: without it the rest still works.
+            let sorties = get(SORTIES).unwrap_or_else(|_| json!({}));
+            let v = json!({ "at": now(), "nodes": nodes, "missions": missions, "sorties": sorties });
             let _ = fs::create_dir_all(dir);
             let _ = crate::write_atomic(&path, &serde_json::to_vec(&v).unwrap_or_default(), false);
             Ok(v)
@@ -144,7 +147,38 @@ fn cycles(ws: &Value, now_ms: i64) -> Map<String, Value> {
 pub fn from_game(dir: &Path) -> Result<Map<String, Value>, String> {
     let t = tables(dir)?;
     let ws = get(WORLDSTATE)?;
-    Ok(parts(&ws, &t["nodes"], &t["missions"], (now() * 1000) as i64))
+    let mut p = parts(&ws, &t["nodes"], &t["missions"], (now() * 1000) as i64);
+    p.extend(sorties(&ws, &t["nodes"], &t["missions"], &t["sorties"]));
+    Ok(p)
+}
+
+/// The Sortie and the Archon Hunt in the API's shape: the boss and each mission with its node.
+fn sorties(ws: &Value, nodes: &Value, missions: &Value, data: &Value) -> Map<String, Value> {
+    let mut out = Map::new();
+    let mission = |m: &Value| m["missionType"].as_str().map(|t| missions[t]["value"].as_str().unwrap_or(t).to_string()).unwrap_or_default();
+    let node = |m: &Value| m["node"].as_str().map(|n| nodes[n]["value"].as_str().unwrap_or(n).to_string()).unwrap_or_default();
+    let boss = |s: &Value| {
+        let key = s["Boss"].as_str().unwrap_or("");
+        (data["bosses"][key]["name"].as_str().unwrap_or(key).to_string(), data["bosses"][key]["faction"].as_str().unwrap_or("").to_string())
+    };
+    if let Some(s) = ws["Sorties"].as_array().and_then(|a| a.first()) {
+        if let Some(expiry) = millis(&s["Expiry"]) {
+            let (name, faction) = boss(s);
+            let variants: Vec<Value> = s["Variants"].as_array().into_iter().flatten().map(|v| {
+                let m = v["modifierType"].as_str().unwrap_or("");
+                json!({ "missionType": mission(v), "node": node(v), "modifier": data["modifierTypes"][m].as_str().unwrap_or(m) })
+            }).collect();
+            out.insert("sortie".into(), json!({ "expiry": iso(expiry), "boss": name, "faction": faction, "variants": variants }));
+        }
+    }
+    if let Some(s) = ws["LiteSorties"].as_array().and_then(|a| a.first()) {
+        if let Some(expiry) = millis(&s["Expiry"]) {
+            let (name, faction) = boss(s);
+            let list: Vec<Value> = s["Missions"].as_array().into_iter().flatten().map(|m| json!({ "type": mission(m), "node": node(m) })).collect();
+            out.insert("archonHunt".into(), json!({ "expiry": iso(expiry), "boss": name, "faction": faction, "missions": list }));
+        }
+    }
+    out
 }
 
 fn parts(ws: &Value, nodes: &Value, missions: &Value, now_ms: i64) -> Map<String, Value> {
@@ -162,6 +196,23 @@ fn parts(ws: &Value, nodes: &Value, missions: &Value, now_ms: i64) -> Map<String
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sortie_and_archon_hunt_from_the_game() {
+        let ws = json!({
+            "Sorties": [{ "Expiry": { "$date": { "$numberLong": "1793497200000" } }, "Boss": "SORTIE_BOSS_KELA", "Variants": [{ "missionType": "MT_DEFENSE", "modifierType": "SORTIE_MODIFIER_IMPACT", "node": "SolNode125" }] }],
+            "LiteSorties": [{ "Expiry": { "$date": { "$numberLong": "1793497200000" } }, "Boss": "SORTIE_BOSS_AMAR", "Missions": [{ "missionType": "MT_DEFENSE", "node": "SolNode125" }] }]
+        });
+        let nodes = json!({ "SolNode125": { "value": "Stephano (Uranus)" } });
+        let missions = json!({ "MT_DEFENSE": { "value": "Defense" } });
+        let data = json!({ "bosses": { "SORTIE_BOSS_KELA": { "name": "Kela De Thaym", "faction": "Grineer" } }, "modifierTypes": { "SORTIE_MODIFIER_IMPACT": "Enemy Physical Enhancement: Impact" } });
+        let s = sorties(&ws, &nodes, &missions, &data);
+        assert_eq!(s["sortie"]["boss"], "Kela De Thaym");
+        assert_eq!(s["sortie"]["variants"][0]["node"], "Stephano (Uranus)");
+        assert_eq!(s["sortie"]["variants"][0]["modifier"], "Enemy Physical Enhancement: Impact");
+        assert_eq!(s["archonHunt"]["boss"], "SORTIE_BOSS_AMAR", "a boss the table doesn't know keeps its key");
+        assert_eq!(s["archonHunt"]["missions"][0]["type"], "Defense");
+    }
 
     #[test]
     fn baro_varzia_and_the_clocks_from_the_game() {

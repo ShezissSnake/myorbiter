@@ -402,7 +402,7 @@
       {#if live.fissures == null}
         <p class="dim" class:waiting={liveWaiting}>{liveNote}</p>
       {:else}
-        {#if live.fromGame}<p class="dim small fromgame">Read from the game's own worldstate: api.warframestat.us isn't answering, so bounties, the Sortie and Nightwave may be out of date.</p>{/if}
+        {#if live.fromGame}<p class="dim small fromgame">Read from the game's own worldstate: api.warframestat.us isn't answering, so bounties, Nightwave and alerts may be out of date.</p>{/if}
         <FissureBoard fissures={live.fissures} bind:mode={settings.homeFissures} {now} best={eraBest} watched={new Set(watched.map((w) => w.fissure.id))} onera={console ? null : (era) => go(`relics?era=${era}`)} />
       {/if}
       <div class="watch">
