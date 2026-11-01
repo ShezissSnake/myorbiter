@@ -163,7 +163,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Mastery" blurb="Everything you haven’t mastered, easiest first.">
+  <PageHead title="Mastery" blurb={view === "plat" ? "What platinum gets you that you haven’t mastered, cheapest first." : "Everything you haven’t mastered, easiest first."}>
     {#snippet band()}
       {#if masteryRank != null}
         <Stat label="Your rank" tone="gold" note={`${rankLabel(masteryRank + 1)} at ${rankThreshold(masteryRank + 1).toLocaleString("en")} total mastery`}>{rankLabel(masteryRank)}</Stat>

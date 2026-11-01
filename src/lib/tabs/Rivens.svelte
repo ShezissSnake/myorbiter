@@ -306,7 +306,7 @@
 {#snippet grade(g: string, big = false)}<span class="grade g-{g.replace('+', 'p').replace('−', 'm')}" class:big>{g}</span>{/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Rivens" blurb={console ? "Find rivens for sale, each roll graded, what each weapon's rivens traded for last week, and alerts when one you want is listed at your price." : "Your rivens as the game rolled them, each stat graded against what it could have rolled, and what rivens for the weapon traded for in game last week."}>
+  <PageHead title="Rivens" blurb={console ? "Find rivens for sale, each roll graded, what each weapon's rivens traded for last week, and alerts when one you want is listed at your price." : "Your rivens graded stat by stat, and what each weapon's rivens sold for last week."}>
     {#snippet band()}
       {#if !console}
       <Stat label="Unveiled" note="Read from your inventory">{mine.length}</Stat>

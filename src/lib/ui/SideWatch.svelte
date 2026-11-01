@@ -19,7 +19,7 @@
   import Chip from "./Chip.svelte";
   import P from "./P.svelte";
 
-  let { model, live, settings = $bindable(), console = false, bountyTables = null, go }: { model: Model | null; live: Live; settings: Settings; console?: boolean; bountyTables?: BountyTable[] | null; go: (t: string) => void } = $props();
+  let { model, live, settings = $bindable(), console = false, bountyTables = null, go, shortListings = [], liveError = null }: { model: Model | null; live: Live; settings: Settings; console?: boolean; bountyTables?: BountyTable[] | null; go: (t: string) => void; shortListings?: { id: string; itemId: string }[]; liveError?: string | null } = $props();
 
   let now = $state(Date.now());
   $effect(() => {
@@ -76,8 +76,9 @@
     {#if on(k) && k === "alerts"}
       <section>
         <h3 class="register"><Icon name="bell" size={11} /> Alerts</h3>
-        {#if !watched.length && !world.mastery.length && !world.rare.length && !invasions.length}<p class="dim small">Nothing that needs you right now.</p>{/if}
+        {#if !watched.length && !world.mastery.length && !world.rare.length && !invasions.length && !shortListings.length}<p class="dim small">Nothing that needs you right now.</p>{/if}
         <ul>
+          {#if shortListings.length}<li><GameIcon name="market" size={16} /><span class="tx"><button class="link" onclick={() => go("market")}>{shortListings.length} listing{shortListings.length === 1 ? "" : "s"} for more than you hold</button><span class="dim small">sold, or fix them on Orders</span></span></li>{/if}
           {#each watched as w (w.fissure.id)}<li><GameIcon name={eraIcon(w.fissure.tier)} size={16} /><span class="tx"><b>{w.fissure.isHard ? "SP " : ""}{w.fissure.tier} {w.fissure.missionType}</b><span class="dim small">{w.fissure.node}</span></span><span class="t">{left(w.fissure.expiry)}</span></li>{/each}
           {#each world.mastery as a (a.key)}<li><GameIcon name="mastery" size={16} /><span class="tx"><b>{a.reward}</b><span class="dim small">{a.node} · {describeHelp(a.reward, a.help!)}</span></span><span class="t">{left(a.expiry)}</span></li>{/each}
           {#each world.rare as a (a.key)}<li><GameIcon name="sortie" size={16} /><span class="tx"><b>{a.reward}</b><span class="dim small">{a.node} · {a.mission}</span></span><span class="t">{left(a.expiry)}</span></li>{/each}
@@ -90,7 +91,7 @@
         {#each eras as e (e.era)}
           <div class="era"><GameIcon name={eraIcon(e.era)} size={16} /><b>{e.era}</b></div>
           <ul class="fs">{#each e.list as f (f.id)}<li title="{f.node} · {f.enemy}"><span class="tx"><span>{f.missionType} <span class="dim small">{f.node.replace(/ \(.*\)$/, "")}</span></span></span><span class="t">{left(f.expiry)}</span></li>{/each}</ul>
-        {:else}<p class="dim small">{live.fissures?.length && counts.normal + counts.steel + counts.storm === 0 ? "Out of date: the worldstate can't be read right now." : "None open right now."}</p>{/each}
+        {:else}<p class="dim small">{live.fissures == null ? (liveError ? "The worldstate can't be read right now." : "Reading the worldstate…") : live.fissures.length && counts.normal + counts.steel + counts.storm === 0 ? "Out of date: the worldstate can't be read right now." : "None open right now."}</p>{/each}
       </section>
     {:else if on(k) && k === "clocks" && cycles.length}
       <section>

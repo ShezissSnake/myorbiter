@@ -377,7 +377,7 @@
 
     <!-- Ready to sell -->
     <section class="panel ready" class:off={off("ready")} class:half={orphan("ready")} class:lone={lone("ready")} style:--n={share("ready")} data-card="ready">
-      {@render head("platinum", null, "Ready to sell", "market#spares", "Put them on sale")}
+      {@render head("platinum", null, "Ready to sell", "market#spares", "Put my spares on sale")}
       {#if !ticked}
         <p class="dim">Nothing ticked in <b>Put my spares on sale</b> on Orders.</p>
       {:else if !byKind.length}
@@ -400,7 +400,7 @@
     <section class="panel fissures" data-card="fissures" class:off={off("fissures")}>
       {@render head("void-tear", null, "Fissures now", console ? null : "relics", "Relics")}
       {#if live.fissures == null}
-        <p class="dim waiting">{liveNote}</p>
+        <p class="dim" class:waiting={liveWaiting}>{liveNote}</p>
       {:else}
         {#if live.fromGame}<p class="dim small fromgame">Read from the game's own worldstate: api.warframestat.us isn't answering, so bounties, the Sortie and Nightwave may be out of date.</p>{/if}
         <FissureBoard fissures={live.fissures} bind:mode={settings.homeFissures} {now} best={eraBest} watched={new Set(watched.map((w) => w.fissure.id))} onera={console ? null : (era) => go(`relics?era=${era}`)} />

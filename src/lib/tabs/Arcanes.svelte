@@ -162,7 +162,7 @@
       {#if !r.complete && r.costToFinish != null}<span title="Cheapest of buying the missing copies or one maxed copy"><span class="register">To finish</span><P v={r.costToFinish} /></span>{/if}
     </div>
     {#snippet foot()}
-      {#if r.tradesPerDay != null}<span class="dim small">{Math.round(r.tradesPerDay * 10) / 10}/day</span>{/if}
+      {#if r.tradesPerDay != null}<span class="dim small" title="How many times a day it trades on warframe.market">{Math.round(r.tradesPerDay * 10) / 10} sold/day</span>{/if}
       <span class="grow"></span>
       {@render listCell(r)}
     {/snippet}

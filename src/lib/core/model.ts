@@ -474,7 +474,11 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
     const f = imageByName.get(name);
     return f && f !== "blueprint.png" ? f : undefined;
   };
-  const imageOf = (name: string) => own(name) ?? own(name.replace(/ Blueprint$/, "")) ?? relicImage(name);
+  const imageOf = (name: string): string | null => {
+    // A stack ("2X Forma Blueprint") looks like one of it.
+    const one = name.replace(/^\d+\s*X\s+/i, "");
+    return own(one) ?? own(one.replace(/ Blueprint$/, "")) ?? relicImage(one);
+  };
 
   const relicByUnique = new Map<string, RelicEntry>();
   for (const relic of bundle.relics) relicByUnique.set(relic.uniqueName, relic);

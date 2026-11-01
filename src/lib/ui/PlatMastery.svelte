@@ -37,6 +37,7 @@
 {#if !list.length}
   <p class="dim">Nothing you haven't mastered has a platinum price orbiter knows.</p>
 {:else}
+  <div class="pmh register" aria-hidden="true"><span>Item</span><span>What to buy</span><span class="r">Cost · per 1,000 mastery</span><span class="r">Buying down to here</span><span></span></div>
   <ol class="pm">
     {#each list.slice(0, limit) as x, i (x.row.unique)}
       <li>
@@ -53,13 +54,13 @@
                 <Thumb file={model.imageOf(b.name.replace(/ Set$/, "")) ?? model.imageOf(x.row.name)} name={b.name} size={22} />
                 <span class="bn" title={b.name}>{b.name.replace(`${x.row.name} `, "")}{b.need > 1 ? ` ×${b.need}` : ""}</span>
                 <P v={b.price} dim />
-                <button class="link" title="Post a buy order for {b.name} on warframe.market: sellers whisper you, often for less" onclick={() => buy(x, b)}>WTB</button>
+                <button class="link" title="Post a buy order for {b.name} on warframe.market: sellers whisper you, often for less" onclick={() => buy(x, b)}>Buy order</button>
               </span>
             {/each}
           {/if}
         </span>
-        <span class="cost"><P v={x.plat} /><span class="dim small" title="Platinum per 1,000 mastery points">{x.perK}p / 1k</span></span>
-        <span class="tot dim small" title="Buying everything down the list to here">{running[i].plat.toLocaleString("en")}p for {running[i].pts.toLocaleString("en")}</span>
+        <span class="cost"><P v={x.plat} /><span class="dim small" title="Platinum per 1,000 mastery points">{x.perK}p per 1k</span></span>
+        <span class="tot dim small" title="Buying everything down the list to here">{running[i].plat.toLocaleString("en")}p → {running[i].pts.toLocaleString("en")} mastery</span>
         <button class="star" class:on={wished.has(x.row.unique)} aria-pressed={wished.has(x.row.unique)} aria-label={wished.has(x.row.unique) ? `Remove ${x.row.name} from your wishlist` : `Add ${x.row.name} to your wishlist`} title={wished.has(x.row.unique) ? "On your wishlist (click to remove)" : "Add to your wishlist: Home and the cheap-buy alerts watch for it"} onclick={() => onwish(x.row.unique)}>
           <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 1.6l1.9 4.1 4.5.5-3.4 3 1 4.4L8 11.4l-4 2.2 1-4.4-3.4-3 4.5-.5z" /></svg>
         </button>
@@ -72,6 +73,11 @@
 <style>
   .bar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1.2rem; margin-bottom: 1rem; }
   .pm { list-style: none; margin: 0; padding: 0; display: grid; gap: .15rem; }
+  .pmh { display: grid; grid-template-columns: minmax(12rem, 1.1fr) minmax(0, 2fr) 6.5rem 8.5rem 28px; gap: .9rem; padding: 0 .5rem .35rem; font-size: .56rem; color: var(--platinum-deep); }
+  .pmh .r { text-align: right; }
+  :global(html[data-room~="lt900"]) .pmh { grid-template-columns: minmax(10rem, 1fr) minmax(0, 1.4fr) 6rem 28px; }
+  :global(html[data-room~="lt900"]) .pmh span:nth-child(4) { display: none; }
+  :global(html[data-room~="lt640"]) .pmh { display: none; }
   .pm li { display: grid; grid-template-columns: minmax(12rem, 1.1fr) minmax(0, 2fr) 6.5rem 8.5rem 28px; gap: .9rem; align-items: center; padding: .4rem .5rem; border-top: 1px solid var(--rule); }
   .pm li:hover { background: var(--raised); }
   .it { all: unset; cursor: pointer; display: flex; align-items: center; gap: .6rem; min-width: 0; }

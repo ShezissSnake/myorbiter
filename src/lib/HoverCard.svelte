@@ -133,7 +133,7 @@
       </header>
       {#if it.health != null}
         <div class="figs"><span><span class="register">Health</span><b>{it.health}</b></span><span><span class="register">Shield</span><b>{it.shield}</b></span><span><span class="register">Armor</span><b>{it.armor}</b></span><span><span class="register">Energy</span><b>{it.power}</b></span></div>
-      {:else if it.criticalChance != null}
+      {:else if it.criticalChance != null && (it.totalDamage ?? 0) > 0}
         <div class="figs"><span><span class="register">Damage</span><b>{Math.round((it.totalDamage ?? 0) * 10) / 10}</b></span><span><span class="register">Crit</span><b>{Math.round(it.criticalChance * 100)}% ×{it.criticalMultiplier}</b></span><span><span class="register">Status</span><b>{Math.round((it.procChance ?? 0) * 100)}%</b></span><span><span class="register">Rate</span><b>{Math.round((it.fireRate ?? 0) * 100) / 100}</b></span></div>
       {/if}
       {#if c.parts.length}<div class="chips">{#each c.parts as p, i (i)}<PartChip part={p} size={30} />{/each}</div>{/if}

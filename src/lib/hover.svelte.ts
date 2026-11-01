@@ -52,8 +52,12 @@ function show(node: HTMLElement) {
   pending = node;
   showTimer = setTimeout(() => {
     pending = null;
+    const rect = node.getBoundingClientRect();
+    // Not laid out (a card just scrolled in, still skipped by content-visibility) or gone: no card,
+    // rather than one stuck in the window's top-left corner.
+    if (!node.isConnected || (!rect.width && !rect.height)) return;
     owner = node;
-    hover.target = { ...a, rect: node.getBoundingClientRect(), opens: !!node.closest(OPENS) };
+    hover.target = { ...a, rect, opens: !!node.closest(OPENS) };
   }, delay);
 }
 
@@ -109,6 +113,9 @@ function install() {
     if (el) leave(el);
   });
   document.addEventListener("pointerdown", () => hover.target && hide(), true);
+  // Scrolling moves what the card points at: it goes, and comes back when the pointer moves again.
+  document.addEventListener("scroll", () => (hover.target || pending) && hide(), { capture: true, passive: true });
+  document.addEventListener("wheel", () => (hover.target || pending) && hide(), { capture: true, passive: true });
 }
 
 export function info(node: HTMLElement, arg: Arg) {

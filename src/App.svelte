@@ -1795,7 +1795,7 @@
     {/if}
   </main>
   {#if sideShown && model}
-    <SideWatch {model} {live} bind:settings console={onConsole} bountyTables={relicTables?.bounties ?? null} go={(t: string) => goTo(t)} />
+    <SideWatch {model} {live} bind:settings console={onConsole} bountyTables={relicTables?.bounties ?? null} go={(t: string) => goTo(t)} {shortListings} {liveError} />
   {:else if wideEnough && model}
     <button class="sidetab" title="Show the Watching column: fissures, alerts, clocks and more beside every page" onclick={() => (settings.side.on = true)}>«</button>
   {/if}

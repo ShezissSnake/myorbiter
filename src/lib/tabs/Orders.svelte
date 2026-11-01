@@ -347,7 +347,7 @@
     <!-- Your listings first, with where to add one right beside the heading. -->
     <div class="listhead">
       <h2 class="register yours">Your listings</h2>
-      {#if wts.length}<button class="link wts" title={`Copy your shown listings as a trade chat line, to post in game too:\n${wts[0]}${wts.length > 1 ? `\n(${wts.length} lines: each press copies the next)` : ""}`} onclick={copyWts}>{wtsCopied ?? (wts.length > 1 ? `Copy WTS line 1 of ${wts.length}` : "Copy WTS line")}</button>{/if}
+      {#if wts.length}<button class="link wts" title={`Copy your shown listings as a trade chat line, to post in game too:\n${wts[0]}${wts.length > 1 ? `\n(${wts.length} lines: each press copies the next)` : ""}`} onclick={copyWts}>{wtsCopied ?? (wts.length > 1 ? `Copy trade-chat line 1 of ${wts.length}` : "Copy trade-chat line")}</button>{/if}
       <section class="newlisting" aria-label="New listing">
         <span class="register">New listing</span>
         <span class="searchbox" bind:this={searchBox}><input type="search" placeholder={console ? "Find anything to sell…" : "Find something you own…"} bind:value={search} aria-label={console ? "Find anything to sell" : "Find something you own"}

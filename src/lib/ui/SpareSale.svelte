@@ -105,7 +105,7 @@
     <Chip bind:on={settings.bulk.imprints} label="Imprints" title="Every Kubrow, Kavat and other companion imprint you hold, listed by breed (an imprint only hatches a companion: untick, or take the listing down, for ones you'll breed)" />
     <Chip bind:on={settings.bulk.other} label="Everything else I don't need" title="Weapon parts and blueprints, gems, fish, Captura scenes and Ayatan sculptures beyond what your unbuilt items need (Inventory, Spare only, shows each one and why), plus veiled rivens and relics if you sell them (Settings, Selling). Only what sells at least once a day, and never a relic worth more cracked" />
     <span class="prio" title="Only matters when there's more to list than warframe.market's {LISTING_LIMIT} listings allow: which ones get the slots. Either way only what the ticks and your minimum price let through">
-      <Seg label="Over {LISTING_LIMIT}, keep" bind:value={settings.bulk.priority} options={[
+      <Seg label="More than {LISTING_LIMIT} listings? Keep" bind:value={settings.bulk.priority} options={[
         { v: "plat", label: "Most plat", title: "The listings worth the most platinum (quantity × price)" },
         { v: "trades", label: "Sells most often", title: "The listings that sell most often (most trades a day on warframe.market), so your slots keep turning over" },
       ]} />

@@ -106,7 +106,7 @@
 
 {#snippet weightControls()}
   <p class="weights dim small">
-    <span title="The score is the weighted average of the four bars, 0–100">Scored by {WEIGHTS.filter((w) => weights[w.k] > 0).map((w) => `${w.label.toLowerCase()} ${weights[w.k]}`).join(" · ")}</span>
+    <span class="legend" title="The score is the weighted average of the four bars, 0–100; each bar's colour is one of these">Scored by {#each WEIGHTS.filter((w) => weights[w.k] > 0) as w, i (w.k)}{#if i}<span class="sep"> · </span>{/if}<span class="lg"><i class="sw {w.bar}"></i>{w.label.toLowerCase()} {weights[w.k]}</span>{/each}</span>
     {#if onsettings}<button class="link" title="Set how much plat, unmastered parts, ducats and sets count, in Settings → Fissures" onclick={onsettings}>Change in Settings</button>{/if}
   </p>
 {/snippet}
@@ -298,7 +298,8 @@
   .bars .b-ducat { background: repeating-linear-gradient(135deg, var(--gold-dim) 0 2px, transparent 2px 4px); box-shadow: inset 0 0 0 1px var(--gold-dim); }
   .bars .b-set { background: var(--verdigris); }
   .weights { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem 1rem; margin: 0; }
-  .sw { display: inline-block; width: .55rem; height: .55rem; }
+  .sw { display: inline-block; width: .55rem; height: .55rem; margin-right: .3rem; }
+  .lg { white-space: nowrap; }
   .sw.b-plat { background: var(--platinum); }
   .sw.b-need { background: var(--gold); }
   .sw.b-ducat { background: repeating-linear-gradient(135deg, var(--gold-dim) 0 2px, transparent 2px 4px); box-shadow: inset 0 0 0 1px var(--gold-dim); }

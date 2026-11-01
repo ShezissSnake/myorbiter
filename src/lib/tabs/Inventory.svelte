@@ -124,7 +124,7 @@
   <!-- No footer at all when there's nothing for it: a resource with no market data. -->
   {#snippet foot()}
     {#if r.kind === "gear"}{#if r.mastered}<span class="tag ok flush">✓ mastered</span>{:else}<span class="tag warn flush">level it</span>{/if}{/if}
-    {#if perDay(r) != null}<span class="dim small">{Math.round(perDay(r)! * 10) / 10}/day</span>{/if}
+    {#if perDay(r) != null}<span class="dim small" title="How many times a day it trades on warframe.market">{Math.round(perDay(r)! * 10) / 10} sold/day</span>{/if}
     <span class="grow"></span>
     {@render listCell(r)}
   {/snippet}

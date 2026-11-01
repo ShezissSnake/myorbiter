@@ -1,8 +1,8 @@
 <script lang="ts">
-  // The relics you hold by refinement, in words: "3 int · 1 rad". Radiant copies in gold.
+  // The relics you hold by refinement, in words: "3 intact · 1 radiant". Radiant copies in gold.
   import { REFINEMENTS } from "../core/model";
   let { owned }: { owned: Partial<Record<string, number>> } = $props();
-  const SHORT: Record<string, string> = { Intact: "int", Exceptional: "exc", Flawless: "flaw", Radiant: "rad" };
+  const SHORT: Record<string, string> = { Intact: "intact", Exceptional: "exceptional", Flawless: "flawless", Radiant: "radiant" };
   const parts = $derived(REFINEMENTS.filter((r) => owned[r]).map((r) => ({ r, n: owned[r]! })));
 </script>
 

@@ -73,7 +73,7 @@
   };
 
   const isFrame = $derived(!!item && item.health != null);
-  const isWeapon = $derived(!!item && item.criticalChance != null);
+  const isWeapon = $derived(!!item && item.criticalChance != null && (item.totalDamage ?? 0) > 0);
   const DAMAGE: Record<string, string> = { impact: "Impact", puncture: "Puncture", slash: "Slash", heat: "Heat", cold: "Cold", electricity: "Electricity", toxin: "Toxin", blast: "Blast", corrosive: "Corrosive", gas: "Gas", magnetic: "Magnetic", radiation: "Radiation", viral: "Viral", void: "Void", tau: "Tau", true: "True" };
 
   // Where each piece comes from.

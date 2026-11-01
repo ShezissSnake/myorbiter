@@ -86,7 +86,7 @@
     </div>
     {#snippet foot()}
       <span class="rar rar-{r.rarity}">{r.rarity}</span>
-      {#if !r.tradable}<span class="tag flush">untradable</span>{:else if r.tradesPerDay != null}<span class="dim small">{Math.round(r.tradesPerDay * 10) / 10}/day</span>{/if}
+      {#if !r.tradable}<span class="tag flush">untradable</span>{:else if r.tradesPerDay != null}<span class="dim small" title="How many times a day it trades on warframe.market">{Math.round(r.tradesPerDay * 10) / 10} sold/day</span>{/if}
       <span class="grow"></span>
       {@render listCell(r)}
     {/snippet}
