@@ -402,6 +402,7 @@
       {#if live.fissures == null}
         <p class="dim waiting">{liveNote}</p>
       {:else}
+        {#if live.fromGame}<p class="dim small fromgame">Read from the game's own worldstate: api.warframestat.us isn't answering, so bounties, the Sortie and Nightwave may be out of date.</p>{/if}
         <FissureBoard fissures={live.fissures} bind:mode={settings.homeFissures} {now} best={eraBest} watched={new Set(watched.map((w) => w.fissure.id))} onera={console ? null : (era) => go(`relics?era=${era}`)} />
       {/if}
       <div class="watch">
@@ -691,6 +692,7 @@
   .ready { grid-column: span 5; }
   .fissures { grid-column: span 12; }
   .bounties { grid-column: span 12; }
+  .fromgame { margin: 0; }
   /* The same 7 + 5 split as the rows above, so the panel edges line up down the page. */
   .mastery { grid-column: span 7; grid-row: span 2; }
   .baro { grid-column: span 5; }

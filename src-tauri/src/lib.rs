@@ -189,11 +189,23 @@ async fn worldstate(app: tauri::AppHandle) -> Value {
             };
             out.insert((*part).to_string(), value.unwrap_or(Value::Null));
         }
-        // api.warframestat.us down or behind the game: the fissures from the game's own file.
-        if !out.get("fissures").is_some_and(|v| v.as_array().is_some_and(|a| !a.is_empty())) {
-            if let Some(fs) = dir.as_deref().and_then(|d| fissures::from_game(d).ok()) {
-                out.insert("fissures".into(), Value::Array(fs));
-                out.insert("fissuresFrom".into(), Value::String("game".into()));
+        // api.warframestat.us down or behind the game: what it couldn't give, from the game's own file.
+        const FROM_GAME: [&str; 7] = ["fissures", "voidTrader", "vaultTrader", "earthCycle", "cetusCycle", "vallisCycle", "cambionCycle"];
+        let missing = |out: &serde_json::Map<String, Value>, k: &str| match out.get(k) {
+            None | Some(Value::Null) => true,
+            Some(Value::Array(a)) => a.is_empty(),
+            _ => false,
+        };
+        if FROM_GAME.iter().any(|k| missing(&out, k)) {
+            if let Some(game) = dir.as_deref().and_then(|d| fissures::from_game(d).ok()) {
+                for k in FROM_GAME {
+                    if missing(&out, k) {
+                        if let Some(v) = game.get(k) {
+                            out.insert(k.into(), v.clone());
+                        }
+                    }
+                }
+                out.insert("fromGame".into(), Value::Bool(true));
             }
         }
         Value::Object(out)

@@ -418,6 +418,23 @@ export async function dataStamp(dataDir: string): Promise<number> {
 /** A worldstate object if it has the field we need; the API answers {} or an error otherwise. */
 const obj = <T,>(v: unknown, key: string): T | null => (v && typeof v === "object" && key in (v as object) ? (v as T) : null);
 
+/**
+ * A new worldstate read over the last one: a part the new read lacks (null) keeps its last value,
+ * for the parts that stay right for a while (Baro's visit, Varzia, the cycles, which count on from
+ * there, the week's Sortie and Nightwave). Alerts, invasions and Darvo's deal don't: an old one
+ * would mislead.
+ */
+const KEEP_LIVE = new Set(["fissures", "baro", "resurgence", "resurgenceExpiry", "cycles", "sortie", "archonHunt", "steelPath", "nightwave", "duviriCycle", "syndicates"]);
+export function mergeLive(old: Live, next: Live): Live {
+  const out = { ...next } as Record<string, unknown>;
+  for (const [k, v] of Object.entries(old)) {
+    if (!KEEP_LIVE.has(k)) continue;
+    const n = out[k];
+    if (n == null || (k === "cycles" && Array.isArray(n) && !n.length)) out[k] = v;
+  }
+  return out as unknown as Live;
+}
+
 export async function loadLive(): Promise<Live> {
   let raw: Record<string, unknown> | null = null;
   try {
@@ -441,6 +458,7 @@ export async function loadLive(): Promise<Live> {
     invasions: Array.isArray(raw?.invasions) ? (raw!.invasions as Invasion[]) : null,
     alerts: Array.isArray(raw?.alerts) ? (raw!.alerts as WorldAlert[]) : null,
     syndicates: Array.isArray(raw?.syndicateMissions) ? (raw!.syndicateMissions as SyndicateMission[]) : null,
+    fromGame: raw?.fromGame === true,
     nightwave: obj<Nightwave>(raw?.nightwave, "activeChallenges"),
     sortie: obj<SortieLike>(raw?.sortie, "boss"),
     archonHunt: obj<SortieLike>(raw?.archonHunt, "boss"),

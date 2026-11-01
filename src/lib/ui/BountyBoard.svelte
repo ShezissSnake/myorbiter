@@ -19,7 +19,11 @@
 {:else if board}
   <Seg value={board.key} onchange={(v) => (picked = v)} label="Where" options={boards.map((b) => ({ v: b.key, label: b.label, title: `${b.label}: ${b.where}` }))} />
   <p class="sub dim small">
-    {[board.where, board.expiry ? `new bounties in ${until(board.expiry, now)}` : "", board.rotating ? "the missions rotate in game; each level pays from the table shown" : ""].filter(Boolean).join(" · ")}
+    {#if board.expiry && !board.rotating && Date.parse(board.expiry) <= now}
+      {board.where} · these have rotated since: the new ones show once api.warframestat.us answers again
+    {:else}
+      {[board.where, board.expiry && Date.parse(board.expiry) > now ? `new bounties in ${until(board.expiry, now)}` : "", board.rotating ? "the missions rotate in game; each level pays from the table shown" : ""].filter(Boolean).join(" · ")}
+    {/if}
   </p>
   <ul class="jobs">
     {#each board.jobs as j, i (i)}

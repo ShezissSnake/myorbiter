@@ -35,6 +35,7 @@
     onNoticeOpen,
     relicData,
     recipeData,
+    mergeLive,
     notify,
     openUrl,
     quit,
@@ -1385,7 +1386,9 @@
   async function refreshLive() {
     liveError = null;
     try {
-      live = await loadLive();
+      // A part this read couldn't get keeps what was read before (Baro's visit, the cycles, which
+      // count on from there), rather than going blank because another part could be read.
+      live = mergeLive(live, await loadLive());
       liveAt = Date.now();
     } catch {
       // Unreachable: what was read last stays (timers count down from it); the next read in 5 minutes.

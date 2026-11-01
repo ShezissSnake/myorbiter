@@ -191,6 +191,8 @@ export interface Live {
   invasions?: Invasion[] | null;
   /** Running alerts, from the worldstate. */
   alerts?: WorldAlert[] | null;
+  /** Some parts came from the game's own worldstate: api.warframestat.us couldn't give them. */
+  fromGame?: boolean;
   /** Each syndicate's bounties (Cetus, Fortuna, the Necralisk), see board.ts. */
   syndicates?: SyndicateMission[] | null;
   /** The rest of today's worldstate, for the "worth doing today" card (see today.ts). */

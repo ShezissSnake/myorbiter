@@ -146,3 +146,14 @@ test("platform, automatic checks and Home's cards are kept; old tiers and unknow
   assert.equal(odd.market.every, 5);
   assert.equal(odd.market.autoCheck, false);
 });
+
+test("a worldstate read keeps what it couldn't get from the last one", async () => {
+  const { mergeLive } = await import("../src/lib/backend");
+  const old = { fissures: [], resurgence: null, resurgenceExpiry: "x", baro: { activation: "a", expiry: "b", location: "Relay" }, cycles: [{ key: "earth", state: "day", expiry: "e" }] } as never;
+  const next = { fissures: [{ id: "f" }], resurgence: null, resurgenceExpiry: null, baro: null, cycles: [] } as never;
+  const m = mergeLive(old, next) as unknown as Record<string, unknown>;
+  assert.deepEqual(m.fissures, [{ id: "f" }], "new parts win");
+  assert.equal((m.baro as { location: string }).location, "Relay", "a part the read lacked keeps its last value");
+  assert.equal(m.resurgenceExpiry, "x");
+  assert.equal((m.cycles as unknown[]).length, 1);
+});

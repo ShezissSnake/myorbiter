@@ -1,4 +1,4 @@
-//! Void fissures straight from the game's own worldstate (content.warframe.com), for when
+//! Void fissures, Baro, Varzia and the open worlds' clocks straight from the game's own worldstate (content.warframe.com), for when
 //! api.warframestat.us can't answer: it was down for hours on 1 Nov 2026 ("WorldState Not
 //! Found"), and Home then showed no fissures at all. The game's file names nodes and mission types
 //! by their internal ids ("SolNode125", "MT_DEFENSE"); WFCD's node and mission-type tables turn
@@ -97,16 +97,92 @@ pub fn parse(ws: &Value, nodes: &Value, missions: &Value) -> Vec<Value> {
     out
 }
 
-/// The fissures from the game's worldstate, or why not.
-pub fn from_game(dir: &Path) -> Result<Vec<Value>, String> {
+/// A trader's visit (`VoidTraders` for Baro, `PrimeVaultTraders` for Varzia) in the API's shape:
+/// where and when, and the stock by store path with its two prices (ducats and credits for Baro;
+/// Regal Aya and Aya for Varzia, which the API also calls ducats and credits).
+fn trader(t: &Value, nodes: &Value) -> Option<Value> {
+    let activation = millis(&t["Activation"])?;
+    let expiry = millis(&t["Expiry"])?;
+    let node = t["Node"].as_str().unwrap_or("");
+    let inventory: Vec<Value> = t["Manifest"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|x| {
+            let path = x["ItemType"].as_str()?;
+            let item = path.rsplit('/').next().unwrap_or(path);
+            Some(json!({ "uniqueName": path, "item": item, "ducats": x["PrimePrice"].as_u64(), "credits": x["RegularPrice"].as_u64() }))
+        })
+        .collect();
+    Some(json!({ "activation": iso(activation), "expiry": iso(expiry), "location": nodes[node]["value"].as_str().unwrap_or(node), "inventory": inventory }))
+}
+
+/// The open worlds' clocks, worked out as the API does: Earth from the time of day, Orb Vallis from
+/// its fixed 1,600-second cycle, Cetus (and the Cambion Drift, which follows it) from when the
+/// Ostrons' bounties end, the last 50 minutes of each 150 being night.
+fn cycles(ws: &Value, now_ms: i64) -> Map<String, Value> {
+    let mut out = Map::new();
+    let now = now_ms / 1000;
+    let earth = now.rem_euclid(28_800);
+    let (state, left) = if earth < 14_400 { ("day", 14_400 - earth) } else { ("night", 28_800 - earth) };
+    out.insert("earthCycle".into(), json!({ "state": state, "expiry": iso((now + left) * 1000) }));
+    let vallis = (now - 1_541_837_628).rem_euclid(1600);
+    let (state, left) = if vallis < 400 { ("warm", 400 - vallis) } else { ("cold", 1600 - vallis) };
+    out.insert("vallisCycle".into(), json!({ "state": state, "expiry": iso((now + left) * 1000) }));
+    let cetus_end = ws["SyndicateMissions"].as_array().into_iter().flatten().find(|m| m["Tag"] == "CetusSyndicate").and_then(|m| millis(&m["Expiry"]));
+    if let Some(end) = cetus_end.filter(|e| *e > now_ms) {
+        let night_from = end - 50 * 60_000;
+        let (cetus, cambion, until) = if now_ms < night_from { ("day", "fass", night_from) } else { ("night", "vome", end) };
+        out.insert("cetusCycle".into(), json!({ "state": cetus, "expiry": iso(until) }));
+        out.insert("cambionCycle".into(), json!({ "state": cambion, "expiry": iso(until) }));
+    }
+    out
+}
+
+/// What the game's own worldstate gives for the parts api.warframestat.us couldn't: fissures,
+/// Baro, Varzia and the open worlds' clocks, by the API's names.
+pub fn from_game(dir: &Path) -> Result<Map<String, Value>, String> {
     let t = tables(dir)?;
     let ws = get(WORLDSTATE)?;
-    Ok(parse(&ws, &t["nodes"], &t["missions"]))
+    Ok(parts(&ws, &t["nodes"], &t["missions"], (now() * 1000) as i64))
+}
+
+fn parts(ws: &Value, nodes: &Value, missions: &Value, now_ms: i64) -> Map<String, Value> {
+    let mut out = cycles(ws, now_ms);
+    out.insert("fissures".into(), Value::Array(parse(ws, nodes, missions)));
+    if let Some(b) = ws["VoidTraders"].as_array().and_then(|a| a.first()).and_then(|t| trader(t, nodes)) {
+        out.insert("voidTrader".into(), b);
+    }
+    if let Some(v) = ws["PrimeVaultTraders"].as_array().and_then(|a| a.first()).and_then(|t| trader(t, nodes)) {
+        out.insert("vaultTrader".into(), v);
+    }
+    out
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn baro_varzia_and_the_clocks_from_the_game() {
+        let at = 1_793_491_200_000_i64; // 2026-11-01 00:00 UTC
+        let ws = json!({
+            "VoidTraders": [{ "Activation": { "$date": { "$numberLong": "1793400000000" } }, "Expiry": { "$date": { "$numberLong": "1793600000000" } }, "Node": "MercuryHUB", "Manifest": [{ "ItemType": "/Lotus/StoreItems/Upgrades/Mods/Rifle/Expert/WeaponFireDamageModExpert", "PrimePrice": 350, "RegularPrice": 110000 }] }],
+            "PrimeVaultTraders": [{ "Activation": { "$date": { "$numberLong": "1793400000000" } }, "Expiry": { "$date": { "$numberLong": "1795000000000" } }, "Node": "TennoConHUB2", "Manifest": [{ "ItemType": "/Lotus/StoreItems/Types/Game/Projections/T1VoidProjectionA", "RegularPrice": 1 }] }],
+            "SyndicateMissions": [{ "Tag": "CetusSyndicate", "Expiry": { "$date": { "$numberLong": "1793494800000" } } }]
+        });
+        let nodes = json!({ "MercuryHUB": { "value": "Larunda Relay (Mercury)" } });
+        let p = parts(&ws, &nodes, &json!({}), at);
+        assert_eq!(p["voidTrader"]["location"], "Larunda Relay (Mercury)");
+        assert_eq!(p["voidTrader"]["inventory"][0]["ducats"], 350);
+        assert_eq!(p["vaultTrader"]["inventory"][0]["credits"], 1);
+        assert_eq!(p["earthCycle"]["state"], "day", "midnight UTC is the start of an Earth day");
+        assert_eq!(p["earthCycle"]["expiry"], "2026-11-01T04:00:00.000Z");
+        // Bounties end at 01:00, so night runs from 00:10: at 00:00 it's still day.
+        assert_eq!((p["cetusCycle"]["state"].as_str(), p["cetusCycle"]["expiry"].as_str()), (Some("day"), Some("2026-11-01T00:10:00.000Z")));
+        assert_eq!(p["cambionCycle"]["state"], "fass");
+        assert!(p["fissures"].as_array().unwrap().is_empty());
+    }
 
     #[test]
     fn reads_fissures_and_storms_in_the_apis_shape() {
