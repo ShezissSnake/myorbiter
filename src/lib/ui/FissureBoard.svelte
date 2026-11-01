@@ -22,6 +22,8 @@
 
   const counts = $derived(fissureCounts(fissures, now));
   const eras = $derived(fissuresByEra(fissures, mode, now));
+  /** Every fissure read has closed: the read is stale (the worldstate couldn't be read since), not a quiet hour. */
+  const outOfDate = $derived(!!fissures?.length && counts.normal + counts.steel + counts.storm === 0);
   const icon = (era: string): GameIconName => (era === "Omnia" ? "void-tear" : (`relic-${era.toLowerCase()}-intact` as GameIconName));
   const left = (f: Fissure) => until(f.expiry, now).replace("under a minute", "<1 min");
 </script>
@@ -38,7 +40,9 @@
   />
 </div>
 
-{#if !eras.length}
+{#if outOfDate}
+  <p class="dim small">The fissure list is out of date: every fissure orbiter last read has closed, and the worldstate can't be read right now (api.warframestat.us and the game's own list). orbiter tries again every few minutes.</p>
+{:else if !eras.length}
   <p class="dim small">No {mode === "steel" ? "Steel Path fissures" : mode === "storm" ? "Void Storms" : "fissures"} open right now.</p>
 {:else}
   <div class="eras">

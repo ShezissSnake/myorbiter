@@ -7,6 +7,7 @@ mod feed;
 mod presence;
 mod images;
 mod market;
+mod fissures;
 mod recipes;
 mod relicdata;
 
@@ -166,8 +167,9 @@ const WORLDSTATE_PARTS: &[&str] = &[
 /// Active void fissures and Varzia's Prime Resurgence stock. Failures come back as `null` per
 /// field so the rest of the app keeps working offline.
 #[tauri::command]
-async fn worldstate() -> Value {
-    tauri::async_runtime::spawn_blocking(|| {
+async fn worldstate(app: tauri::AppHandle) -> Value {
+    let dir = app.path().app_config_dir().ok();
+    tauri::async_runtime::spawn_blocking(move || {
         let mut out = serde_json::Map::new();
         // Once the API can't be reached at all, the other parts won't fare better: don't wait
         // out a timeout for each of them.
@@ -186,6 +188,13 @@ async fn worldstate() -> Value {
                 None
             };
             out.insert((*part).to_string(), value.unwrap_or(Value::Null));
+        }
+        // api.warframestat.us down or behind the game: the fissures from the game's own file.
+        if !out.get("fissures").is_some_and(|v| v.as_array().is_some_and(|a| !a.is_empty())) {
+            if let Some(fs) = dir.as_deref().and_then(|d| fissures::from_game(d).ok()) {
+                out.insert("fissures".into(), Value::Array(fs));
+                out.insert("fissuresFrom".into(), Value::String("game".into()));
+            }
         }
         Value::Object(out)
     })

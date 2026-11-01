@@ -90,7 +90,7 @@
         {#each eras as e (e.era)}
           <div class="era"><GameIcon name={eraIcon(e.era)} size={16} /><b>{e.era}</b></div>
           <ul class="fs">{#each e.list as f (f.id)}<li title="{f.node} · {f.enemy}"><span class="tx"><span>{f.missionType} <span class="dim small">{f.node.replace(/ \(.*\)$/, "")}</span></span></span><span class="t">{left(f.expiry)}</span></li>{/each}</ul>
-        {:else}<p class="dim small">None open right now.</p>{/each}
+        {:else}<p class="dim small">{live.fissures?.length && counts.normal + counts.steel + counts.storm === 0 ? "Out of date: the worldstate can't be read right now." : "None open right now."}</p>{/each}
       </section>
     {:else if on(k) && k === "clocks" && cycles.length}
       <section>
