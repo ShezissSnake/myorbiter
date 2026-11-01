@@ -47,7 +47,7 @@
             class:right={c.align === "right"}
             class:center={c.align === "center"}
             class:sortable={c.sortable !== false}
-            class:minor={c.minor}
+            class:minor={c.minor} class:spare={c.spare}
             style:width={c.width}
             title={c.title}
             aria-sort={sort.key === c.key ? (sort.desc ? "descending" : "ascending") : undefined}
@@ -73,7 +73,7 @@
           onkeydown={(e) => detail && (e.key === "Enter" || e.key === " ") && e.target === e.currentTarget && (e.preventDefault(), (open = open === k ? null : k))}
         >
           {#each columns as c (c.key)}
-            <td class:right={c.align === "right"} class:center={c.align === "center"} class:muted={c.muted} class:minor={c.minor}>
+            <td class:right={c.align === "right"} class:center={c.align === "center"} class:muted={c.muted} class:minor={c.minor} class:spare={c.spare}>
               {#if c.cell}{@render c.cell(r)}{:else}{@const v = c.value(r)}{#if v == null}<span class="nil" aria-label="none">–</span>{:else}{v}{/if}{/if}
             </td>
           {/each}
@@ -124,6 +124,7 @@
   .nil { color: var(--rule-control); opacity: .7; }
   /* Page area under 1100 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt1100"]) .minor { display: none; }
+  :global(html[data-room~="lt760"]) .spare { display: none; }
   /* Little room (half a small screen): headings wrap onto two lines rather than widen their columns. */
   :global(html[data-room~="lt760"]) th { white-space: normal; line-height: 1.35; }
   .chev { width: 1.6rem; padding-right: 0; text-align: center; color: var(--platinum-deep); }

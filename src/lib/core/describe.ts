@@ -97,7 +97,10 @@ export function describe(m: Model, name: string, unique?: string | null, platPer
     const item = pick(m, ix.byName.get(name.replace(/ Set$/, "")));
     if (item) {
       const c = collectionItem(m, item);
-      return { kind: "set", name, parentUnique: item.uniqueName, image: c.image, price: m.price(name), parts: c.parts.filter((p) => p.tradable) };
+      // Prime sets: the tradable parts. Gear sets the catalog doesn't mark tradable (Broken War's
+      // blade and hilt): every part that isn't a resource.
+      const tradable = c.parts.filter((p) => p.tradable);
+      return { kind: "set", name, parentUnique: item.uniqueName, image: c.image, price: m.price(name), parts: tradable.length ? tradable : c.parts.filter((p) => !p.resource) };
     }
   }
   const item = pick(m, ix.byName.get(name), unique);

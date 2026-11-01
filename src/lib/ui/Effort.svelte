@@ -14,7 +14,7 @@
     <span class="what">
       <!-- The icon's place is kept when there's none, so the words line up down a list. -->
       {#if acq.icon}<GameIcon name={acq.icon as GameIconName} size={16} />{:else}<span class="noicon"></span>{/if}
-      {d === 0 ? DIFFICULTY_LABEL[0] : METHOD_LABEL[acq.method]}
+      <span class="word">{d === 0 ? DIFFICULTY_LABEL[0] : METHOD_LABEL[acq.method]}</span>
     </span>
   {/if}
 </span>

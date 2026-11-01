@@ -317,6 +317,8 @@
   .rw { display: flex; align-items: center; }
   .rw-name { display: inline-flex; align-items: center; gap: .5rem; }
   .from span:hover { color: var(--platinum); }
+  /* A relic's name stays whole ("Meso C10 R"); two relics may wrap between them. */
+  .from span { white-space: nowrap; }
   .empty { margin-top: var(--step); max-width: 46rem; padding: 1.4rem 1.6rem; border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); }
   .empty.compact p:last-child { display: none; }
 </style>

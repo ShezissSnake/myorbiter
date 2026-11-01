@@ -23,6 +23,8 @@ export interface Column<T> {
   muted?: boolean;
   /** Less important: hidden when the window is narrow. */
   minor?: boolean;
+  /** Hidden too when there's very little room (half a small screen), so the rest fit. */
+  spare?: boolean;
 }
 
 export const plat = (n: number | null | undefined) => (n == null ? null : `${Math.round(n * 10) / 10}p`);

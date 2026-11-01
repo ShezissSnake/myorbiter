@@ -73,7 +73,7 @@
 
 <style>
   .kinds { display: flex; flex-wrap: wrap; gap: .5rem; }
-  .eras { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(21rem, 100%), 1fr)); gap: .9rem 1.4rem; }
+  .eras { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(25rem, 100%), 1fr)); gap: .9rem 1.4rem; }
   .era header { display: flex; align-items: center; gap: .5rem; padding-bottom: .3rem; border-bottom: 1px solid var(--rule); min-width: 0; }
   .name { display: inline-flex; align-items: center; gap: .45rem; }
   .name b { font-size: 1.02rem; }

@@ -845,7 +845,11 @@
   .sn { min-width: 0; display: grid; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sn > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sn .small { overflow: hidden; text-overflow: ellipsis; }
+  /* Baro's names are bare text: a block, so they end in an ellipsis rather than being cut. */
+  .stock .sn { display: block; }
   .vz { grid-template-columns: repeat(auto-fill, minmax(min(26rem, 100%), 1fr)); column-gap: 1.6rem; }
+  /* Which relics, and for how many parts: worth a second line rather than an ellipsis. */
+  .vz .sn .small { white-space: normal; }
   .vz li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto 16px; gap: .6rem; align-items: center; }
   .tag.gold { color: var(--gold); border-color: var(--gold-dim); }
 </style>

@@ -85,14 +85,14 @@
 
 
   const columns: Column<InventoryItem>[] = [
-    { key: "name", label: "Item", value: (r) => r.name, cell: nameCell, defaultDesc: false, width: "26rem" },
+    { key: "name", label: "Item", value: (r) => r.name, cell: nameCell, defaultDesc: false, width: "min(26rem, 40%)" },
     { key: "type", label: "Kind", value: (r) => spareOf(r)?.type ?? r.type, muted: true, defaultDesc: false, minor: true },
     { key: "qty", label: "Have", value: (r) => r.quantity, align: "right" },
     { key: "spare", label: "Spare", value: (r) => (spareOf(r) ? spare(r) : null), align: "right", cell: spareCell, title: "What you can sell: what you hold beyond what you keep (hover a number for why)" },
     { key: "price", label: "Each", value: (r) => priceOf(r), align: "right", cell: priceCell },
     { key: "worth", label: "Worth", value: (r) => worthOf(r), align: "right", cell: worthCell },
     { key: "ducats", label: "Ducats", value: (r) => (r.ducats == null ? null : r.ducats * r.quantity), align: "right", cell: ducatCell, minor: true },
-    { key: "trades", label: "Trades/day", value: (r) => { const t = perDay(r); return t == null ? null : Math.round(t * 10) / 10; }, align: "right", muted: true, title: "How quickly it sells on warframe.market" },
+    { key: "trades", spare: true, label: "Trades/day", value: (r) => { const t = perDay(r); return t == null ? null : Math.round(t * 10) / 10; }, align: "right", muted: true, title: "How quickly it sells on warframe.market" },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
   ];
 </script>
@@ -124,7 +124,7 @@
   <!-- No footer at all when there's nothing for it: a resource with no market data. -->
   {#snippet foot()}
     {#if r.kind === "gear"}{#if r.mastered}<span class="tag ok flush">✓ mastered</span>{:else}<span class="tag warn flush">level it</span>{/if}{/if}
-    {#if perDay(r) != null}<span class="dim small" title="How many times a day it trades on warframe.market">{Math.round(perDay(r)! * 10) / 10} sold/day</span>{/if}
+    {#if perDay(r) != null}<span class="dim small" title="How many times a day it trades on warframe.market">{Math.round(perDay(r)! * 10) / 10} sold/day</span>{:else if r.kind !== "gear"}<span class="dim small" title="warframe.market's daily statistics have no trades of it">no recent sales</span>{/if}
     <span class="grow"></span>
     {@render listCell(r)}
   {/snippet}

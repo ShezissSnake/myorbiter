@@ -89,13 +89,13 @@
     { key: "name", label: "Part", value: (r) => r.name, defaultDesc: false, cell: nameCell, width: "min(26rem, 32%)" },
     { key: "qty", label: "Have", value: (r) => r.quantity, align: "right" },
     { key: "spare", minor: true, label: "Spare", value: (r) => r.spare, align: "right", title: "Copies beyond what you'd need to build an item you haven't mastered or built" },
-    { key: "price", label: "Price", value: (r) => r.price, align: "right", cell: priceCell },
+    { key: "price", spare: true, label: "Price", value: (r) => r.price, align: "right", cell: priceCell },
     { key: "value", label: "Total", value: (r) => (r.price ?? 0) * qty(r), align: "right", cell: totalCell },
-    { key: "ducats", label: "Ducats", value: (r) => r.ducats, align: "right", cell: ducatCell },
+    { key: "ducats", spare: true, label: "Ducats", value: (r) => r.ducats, align: "right", cell: ducatCell },
     { key: "ratio", minor: true, label: "Duc/plat", value: (r) => (r.ducatsPerPlat == null ? null : Math.round(r.ducatsPerPlat * 10) / 10), align: "right", muted: true, title: "Ducats you get per platinum of market value" },
     { key: "verdict", label: "Best as", value: verdict, cell: verdictCell, defaultDesc: false },
     { key: "trades", minor: true, label: "Trades/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true },
-    { key: "avail", label: "Vault", value: (r) => r.availability, cell: availCell, align: "center", defaultDesc: false },
+    { key: "avail", spare: true, label: "Vault", value: (r) => r.availability, cell: availCell, align: "center", defaultDesc: false },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
   ];
   const columns = $derived(spareMatters ? allColumns : allColumns.filter((c) => c.key !== "spare"));

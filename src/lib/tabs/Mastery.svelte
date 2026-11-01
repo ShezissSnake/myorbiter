@@ -83,7 +83,7 @@
     { key: "effort", label: "Effort", value: (r) => r.acq.difficulty, sortValue: (r) => r.acq.difficulty * 100_000 + (r.partsTotal ? (1 - r.partsOwned / r.partsTotal) * 50_000 : 50_000) - r.points, cell: effortCell, defaultDesc: false, title: "How hard it is to get: 0 you have it, 1 buy and build … 5 Liches and the like" },
     { key: "points", label: "Mastery", value: (r) => r.points, align: "right", cell: pointsCell, title: "Mastery points at max rank" },
     { key: "how", label: "How to get it", value: (r) => r.acq.how, cell: howCell, sortable: false },
-    { key: "buy", label: "Buy parts", value: (r) => r.buyFor, align: "right", cell: buyCell, title: "Primes: what the parts you're missing cost on warframe.market (daily median)" },
+    { key: "buy", spare: true, label: "Buy parts", value: (r) => r.buyFor, align: "right", cell: buyCell, title: "Primes: what the parts you're missing cost on warframe.market (daily median)" },
     { key: "parts", minor: true, label: "Parts", value: (r) => (r.status === "level" || !r.partsTotal ? null : `${r.partsOwned}/${r.partsTotal}`), sortValue: (r) => (r.partsTotal ? r.partsOwned / r.partsTotal : null), align: "right" },
     { key: "category", minor: true, label: "Type", value: (r) => r.category, muted: true, defaultDesc: false },
     { key: "star", label: "", value: () => null, cell: starCell, sortable: false, align: "right" },
@@ -100,9 +100,9 @@
     </button>
   {/if}
 {/snippet}
-{#snippet effortCell(r: MasteryRow)}<Effort acq={r.acq} />{/snippet}
+{#snippet effortCell(r: MasteryRow)}<span class="ecell"><Effort acq={r.acq} /></span>{/snippet}
 {#snippet pointsCell(r: MasteryRow)}<span class="pts"><GameIcon name="mastery" size={14} />{r.points.toLocaleString("en")}</span>{/snippet}
-{#snippet buyCell(r: MasteryRow)}{#if r.buyFor != null}<P v={r.buyFor} />{/if}{/snippet}
+{#snippet buyCell(r: MasteryRow)}{#if r.buyFor != null}<P v={r.buyFor} />{:else}<span class="dim" title={r.isPrime ? "No price for the parts you're missing" : "Only primes' parts are priced here"}>–</span>{/if}{/snippet}
 {#snippet howCell(r: MasteryRow)}
   <span class="how" title={r.acq.how}>
     {#if r.isPrime && r.missingParts.length}
@@ -210,7 +210,10 @@
   .grow { flex: 1; }
   .odds { font-family: var(--face-mark); font-weight: 700; color: var(--gold); }
   .pts { display: inline-flex; align-items: center; gap: .3rem; font-variant-numeric: tabular-nums; }
-  .how { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: .8rem; line-height: 1.35; color: var(--platinum-dim); min-width: 18rem; max-width: 46rem; }
+  .how { display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-size: .8rem; line-height: 1.35; color: var(--platinum-dim); min-width: 18rem; max-width: 46rem; }
+  :global(html[data-room~="lt760"]) .how { min-width: 10rem; }
+  /* Little room: in the list, the pips and the icon say how hard (the word is in the tooltip). */
+  :global(html[data-room~="lt760"]) .ecell :global(.word) { display: none; }
   /* Half a screen: the table fits without scrolling sideways (the star column stays in view). */
   :global(html[data-room~="lt1100"]) .how { min-width: 12rem; }
   :global(html[data-room~="lt950"]) .how { min-width: 8rem; }

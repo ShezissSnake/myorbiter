@@ -34,6 +34,8 @@
   }
   /* Page area under 760 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt760"]) .head { grid-template-columns: 1fr; }
+  /* Two a row, so four figures make two full rows rather than three and one left alone. */
+  :global(html[data-room~="lt760"]) .band:has(> :global(:nth-child(4):last-child)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* A short window (a Steam Deck's 800 px): a smaller title, so the page itself starts higher. */
   @media (max-height: 860px) {
     .head { padding: 18px 0 .6rem; }

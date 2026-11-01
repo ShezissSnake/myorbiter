@@ -145,6 +145,8 @@
   .tx > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tx b { font-weight: 600; color: var(--platinum); }
   .tx.wrap > * { white-space: normal; }
+  /* A title that opens a page: set like the other titles, not as a spaced-out caps link. */
+  .tx .link { padding: 0; font: inherit; font-weight: 600; letter-spacing: normal; text-transform: none; text-align: left; color: var(--gold); }
   .tx .link { text-align: left; }
   .tx b.want { color: var(--gold); }
   .t { font-variant-numeric: tabular-nums; color: var(--platinum-dim); font-size: .76rem; white-space: nowrap; }
