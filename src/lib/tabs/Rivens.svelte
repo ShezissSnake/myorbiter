@@ -7,9 +7,10 @@
   import type { RivenWatch, Settings } from "../backend";
   import { marketUrl, openUrl } from "../backend";
   import { tradesFor, type RivenTrade } from "../core/rivens";
-  import { auctionItemFor, auctionOf, checkedWhen, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, rollChoice, cycleKey, searchFor, searchKey, statMarket, unpackListed, unpackPrices, type MyAuction, type Riven, type RivenAuction, type RivenChange, type RollChoice } from "../core/rivens";
+  import { attributeSlug, auctionItemFor, auctionOf, checkedWhen, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, rollChoice, cycleKey, searchFor, searchKey, statMarket, unpackListed, unpackPrices, type MyAuction, type Riven, type RivenAuction, type RivenChange, type RollChoice } from "../core/rivens";
   import { mkt } from "../marketStore.svelte";
   import { rivens } from "../rivenStore.svelte";
+  import { cheap60, estimate, type Estimate } from "../core/rivenModel";
   import PageHead from "../ui/PageHead.svelte";
   import Stat from "../ui/Stat.svelte";
   import CardGrid from "../ui/CardGrid.svelte";
@@ -58,7 +59,7 @@
     }
     return out;
   });
-  let sort = $state<"grade" | "weapon" | "rank" | "traded" | "any" | "similar">("grade");
+  let sort = $state<"grade" | "weapon" | "rank" | "traded" | "any" | "similar" | "estimate">("grade");
   // Filters: the riven's kind (Rifle, Melee…), spliced ones only, and a weapon or name.
   let kind = $state("all");
   let splicedOnly = $state(false);
@@ -78,6 +79,7 @@
       : sort === "traded" ? (tradeValue(b) ?? -1) - (tradeValue(a) ?? -1) || a.weapon.localeCompare(b.weapon)
       : sort === "any" ? (anyPrice(b) ?? -1) - (anyPrice(a) ?? -1) || a.weapon.localeCompare(b.weapon)
       : sort === "similar" ? (similarPrice(b) ?? -1) - (similarPrice(a) ?? -1) || a.weapon.localeCompare(b.weapon)
+      : sort === "estimate" ? (estimateOf(b) ?? -1) - (estimateOf(a) ?? -1) || a.weapon.localeCompare(b.weapon)
       : a.weapon.localeCompare(b.weapon),
     ),
   );
@@ -109,6 +111,35 @@
   // it was made. While a riven is checked again, or if that fails, what it had stays shown.
   let checks = $state<Record<string, { loading: boolean; error?: string; auctions?: RivenAuction[]; any?: RivenAuction[]; at?: number; saved?: boolean }>>({});
   const SLOW = /slow down/;
+  // The price model's guess for each riven, once it's been price checked (the weapon's cheapest
+  // 60 listed are one of the things it reads). See core/rivenModel.ts.
+  $effect(() => {
+    void rivens.loadModel();
+  });
+  const estimates = $derived.by(() => {
+    const model = rivens.model;
+    const out: Record<string, Estimate> = {};
+    if (!model || !meta) return out;
+    for (const r of mine) {
+      const any = checks[r.id]?.any;
+      const made = any ? auctionItemFor(meta, r) : null;
+      if (!any || !made || "error" in made) continue;
+      const w = meta.weapons.find((x) => x.slug === made.item.weapon_url_name);
+      const c60 = cheap60(any.map((a) => a.price));
+      if (!w || c60 == null) continue;
+      const name = w.name.toLowerCase();
+      const trades = (rivens.trades ?? []).filter((t) => t.weapon?.toLowerCase() === name);
+      const t = trades.find((x) => x.rerolled === r.rerolls > 0) ?? trades.find((x) => x.rerolled !== r.rerolls > 0);
+      out[r.id] = estimate(model, { rivenType: w.rivenType, attributes: made.item.attributes, rerolls: r.rerolls, mr: r.mastery, rank: r.rank, polarity: made.item.polarity, weeklyMedian: t ? (t.median ?? t.avg) : null, weeklyPop: t?.pop ?? 0, cheap60: c60 });
+    }
+    return out;
+  });
+  const estimateOf = (r: Riven) => estimates[r.id]?.mid ?? null;
+  const factorLabel = (r: Riven, f: Estimate["factors"][number]) => {
+    const s = r.stats.find((x) => meta && attributeSlug(meta, x.tag) === f.slug);
+    return `${f.positive ? "" : "−"}${s?.label ?? f.slug.replace(/_/g, " ")}`;
+  };
+  const fmtRatio = (x: number) => (x >= 0.95 ? `×${x.toFixed(x >= 10 ? 0 : 1)}` : `÷${(1 / x).toFixed(1 / x >= 10 ? 0 : 1)}`);
   /** The cheapest riven listed for its weapon, and what similar ones mostly ask, from its price check. */
   const anyPrice = (r: Riven) => (checks[r.id]?.any ? priceCheck(checks[r.id]!.any!).lowest : null);
   const similarPrice = (r: Riven) => (checks[r.id]?.auctions ? priceCheck(checks[r.id]!.auctions!).typical : null);
@@ -284,6 +315,8 @@
   });
   const priced = $derived(mine.map((r) => checks[r.id]?.auctions).filter((a): a is RivenAuction[] => !!a).map((a) => priceCheck(a)));
   const worth = $derived(priced.reduce((n, p) => n + (p.typical ?? 0), 0));
+  const estimated = $derived(Object.values(estimates));
+  const estimatedSum = $derived(estimated.reduce((n, e) => n + e.mid, 0));
   // Rivens for weapons warframe.market doesn't list can't be checked: they don't count as left to do.
   // Price check all goes through the rivens the filters show.
   const unchecked = $derived(meta ? shown.filter((r) => toCheck(r) && searchFor(meta, r).weapon).length : shown.length);
@@ -355,6 +388,7 @@
       <Stat label="Veiled" tone="dim" note="Challenges still to do">{veiled}</Stat>
       <Stat label="Best roll" tone="gold" note={best ? `${best.weapon} ${best.name}` : "–"}>{best?.grade ?? "–"}</Stat>
       {#if tradedSum.n}<Stat label="Traded around" tone="gold" note={`Last week's in-game median for each weapon, ${tradedSum.n} of ${mine.length} rivens`}><P v={Math.round(tradedSum.total)} big /></Stat>{:else if priced.length}<Stat label="Listed around" tone="gold" note={`What similar ones are listed for (asking, not sold), ${priced.length} of ${mine.length} checked`}><P v={worth} big /></Stat>{/if}
+      {#if estimated.length}<Stat label="Estimated" note={`orbiter's estimate of what each would be listed for, ${estimated.length} of ${mine.length} price checked`}><P v={estimatedSum} big /></Stat>{/if}
       {/if}
       <Stat label="Alerts" note="Rivens you're watching for">{settings.rivenWatch.length}</Stat>
     {/snippet}
@@ -415,6 +449,7 @@
           <option value="traded" title="What rivens for the weapon (cycled or not, like yours) traded for in game last week, highest first: the ones worth selling, whatever their stats">Trade value</option>
           <option value="any" title="The cheapest riven listed for the weapon on warframe.market, whatever its stats (Any … riven from), highest first. Rivens not price checked yet go last">Any price</option>
           <option value="similar" title="What rivens with the same two best stats are mostly listed for (most around), highest first. Rivens not price checked yet go last">Similar price</option>
+          <option value="estimate" title="orbiter's estimate of what a riven like it is listed for, from all its stats, highest first. Rivens not price checked yet go last">Estimate</option>
         </select>
       </label>
       {#if checkingAll}
@@ -522,6 +557,14 @@
               {:else}<span class="dim" title="Digital Extremes' weekly figures list no in-game trade of a riven for this weapon last week: little demand">No {r.weapon} rivens traded in game last week</span>{/if}
             </p>
           {/if}
+          {#if estimates[r.id]}
+            {@const e = estimates[r.id]}
+            <div class="est" title="orbiter's estimate of what a riven like this one is listed for on warframe.market (asking prices: what rivens sell for isn't published), from all its stats and how good each roll is, its cycles, mastery and rank, what its weapon's rivens traded for in game last week and what the cheapest listed for it ask now. Trained on {rivens.model?.listings.toLocaleString('en')} listings for {rivens.model?.weapons} weapons ({rivens.model?.trained}); on listings it hadn't seen it was within ×1.6 half the time. A guide, not a promise">
+              <span class="register">Estimate</span>
+              <span class="v"><P v={e.mid} /> <span class="dim small">most like it listed {e.lo.toLocaleString("en")}–{e.hi.toLocaleString("en")}p</span></span>
+              {#if e.factors.length}<span class="small fx"><span class="dim">What moves it:</span>{" "}{#each [...e.factors].sort((x, y) => Math.abs(Math.log(y.ratio)) - Math.abs(Math.log(x.ratio))) as f, i (f.slug)}{i ? " · " : ""}<span class:up={f.ratio >= 1.15} class:down={f.ratio <= 1 / 1.15} title={f.positive ? `The estimate with this stat as rolled, against the same riven without it` : `The estimate with this curse, against the same riven without it`}>{factorLabel(r, f)} {fmtRatio(f.ratio)}</span>{/each}</span>{/if}
+            </div>
+          {/if}
           <footer>
             {#if pc}
               {@const fl = c?.any ? priceCheck(c.any) : null}
@@ -616,6 +659,11 @@
 
 <style>
   .sortsel { display: inline-flex; align-items: center; gap: .55rem; }
+  .est { display: grid; gap: .2rem; padding: .55rem .7rem; border: 1px solid var(--rule); background: rgb(214 174 74 / 4%); }
+  .est .register { font-size: .58rem; }
+  .est .v { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; }
+  .est .fx .up { color: var(--jade, #7fc79a); }
+  .est .fx .down { color: #e07a6a; }
   .sortsel .register { font-size: .6rem; }
   .selling { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; padding: .6rem .7rem; margin-top: .6rem; border: 1px solid var(--rule-bright); background: var(--well); }
   .selling.on { border-color: color-mix(in srgb, var(--verdigris) 45%, transparent); box-shadow: inset 2px 0 0 var(--verdigris); }

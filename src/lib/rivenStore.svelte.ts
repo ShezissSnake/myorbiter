@@ -1,6 +1,7 @@
 // warframe.market's riven data: weapon and stat names (cached for a day on the Rust side) and
 // riven auctions, cached a few minutes per search so opening a card twice doesn't refetch.
 import { market, saved as disk } from "./backend";
+import type { RivenModel } from "./core/rivenModel";
 import { packListed, packPrices, startingFor, parseMyAuctions, parseWeeklyRivens, readSavedPrices, tradeUrl, withSaved, type AuctionItem, type MyAuction, type RivenAuction, type RivenMeta, type RivenTrade, type SavedRivenPrices } from "./core/rivens";
 
 const TTL = 10 * 60_000;
@@ -45,6 +46,22 @@ class Rivens {
       this.keep(key, { at: Date.now(), error: String(e) });
       throw e;
     }
+  }
+
+  // ------------------------------------------------------------ the price model
+
+  /** orbiter's riven price model (core/rivenModel.ts), loaded when the Rivens page first wants it. */
+  model = $state.raw<RivenModel | null>(null);
+  private modelLoad: Promise<void> | null = null;
+  loadModel() {
+    this.modelLoad ??= import("./data/riven-model.json")
+      .then((m) => {
+        this.model = (m.default ?? m) as unknown as RivenModel;
+      })
+      .catch(() => {
+        this.modelLoad = null;
+      });
+    return this.modelLoad;
   }
 
   // ------------------------------------------------------------ price checks kept between runs
