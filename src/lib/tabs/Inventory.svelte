@@ -21,7 +21,7 @@
   import Chip from "../ui/Chip.svelte";
   import ListButton from "../ui/ListButton.svelte";
   import Icon from "../ui/Icon.svelte";
-  import GameIcon from "../ui/GameIcon.svelte";
+  import GameIcon, { kindIcon } from "../ui/GameIcon.svelte";
   import PriceHistory from "../ui/PriceHistory.svelte";
   import { matches, type Column } from "../ui/table";
   import NotNeeded from "../ui/NotNeeded.svelte";
@@ -135,7 +135,7 @@
     <span class="grow"></span>
     {@render listCell(r)}
   {/snippet}
-  <ItemCard hover={r.name} title={shown(r)} sub={spareOf(r)?.type ?? r.type} image={model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r))} artSize={64} owned={r.kind === "gear" && !r.mastered} onopen={open} foot={r.kind === "gear" || perDay(r) != null || spareOf(r) ? foot : undefined}>
+  <ItemCard hover={r.name} title={shown(r)} sub={spareOf(r)?.type ?? r.type} fallback={kindIcon(r.kind === "relic" ? "relic" : (spareOf(r)?.type ?? r.type), r.name)} image={model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r))} artSize={64} owned={r.kind === "gear" && !r.mastered} onopen={open} foot={r.kind === "gear" || perDay(r) != null || spareOf(r) ? foot : undefined}>
     {#snippet art()}
       {#if r.kind === "mod" || r.kind === "arcane"}
         {@const c = model.catalogByUnique.get(r.unique)}

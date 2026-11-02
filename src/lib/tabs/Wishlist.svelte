@@ -14,7 +14,7 @@
   import Art from "../ui/Art.svelte";
   import PartChip from "../ui/PartChip.svelte";
   import P from "../ui/P.svelte";
-  import GameIcon, { type GameIconName } from "../ui/GameIcon.svelte";
+  import GameIcon, { eraIcon, type GameIconName } from "../ui/GameIcon.svelte";
   import Icon from "../ui/Icon.svelte";
   import IconButton from "../ui/IconButton.svelte";
 
@@ -57,7 +57,6 @@
   }
   const remove = (u: string) => (settings.favourites = settings.favourites.filter((x) => x !== u));
   const pct = (x: number) => (x >= 0.995 ? "99%+" : x < 0.005 && x > 0 ? "<1%" : `${Math.round(x * 100)}%`);
-  const eraIcon = (era: string) => `relic-${era.toLowerCase()}-intact` as GameIconName;
   /** Missing parts that come from relics, but none you hold. */
   const uncovered = (w: WishItem) => w.missing.filter((p) => !p.yours.length && model.sourcesByReward.get(p.name)?.length).length;
   /** The best farm spots, one heading per relic. */

@@ -1,13 +1,15 @@
 <script lang="ts" generics="V extends string | number">
   // Segmented single choice: a row of struck plates, the chosen one inverted. An option with an
-  // icon shows just the icon; its label is then the tooltip and what a screen reader reads.
+  // icon shows just the icon; its label is then the tooltip and what a screen reader reads. One with
+  // a game icon (`game`) shows it before its label.
   import Icon from "./Icon.svelte";
+  import GameIcon, { type GameIconName } from "./GameIcon.svelte";
   let {
     value = $bindable(),
     options,
     label,
     onchange,
-  }: { value: V; options: { v: V; label: string; title?: string; icon?: string }[]; label?: string; onchange?: (v: V) => void } = $props();
+  }: { value: V; options: { v: V; label: string; title?: string; icon?: string; game?: GameIconName }[]; label?: string; onchange?: (v: V) => void } = $props();
 
   function pick(v: V) {
     value = v;
@@ -30,13 +32,14 @@
   {#if label}<span class="register">{label}</span>{/if}
   <div class="seg" role="radiogroup" aria-label={label} tabindex="-1" onkeydown={key}>
     {#each options as o (o.v)}
-      <button role="radio" aria-checked={value === o.v} tabindex={value === o.v || !options.some((x) => x.v === value) ? 0 : -1} class:on={value === o.v} class:icon={!!o.icon} title={o.title ?? (o.icon ? o.label : undefined)} aria-label={o.icon ? o.label : undefined} onclick={() => pick(o.v)}>{#if o.icon}<Icon name={o.icon} />{:else}{o.label}{/if}</button>
+      <button role="radio" aria-checked={value === o.v} tabindex={value === o.v || !options.some((x) => x.v === value) ? 0 : -1} class:on={value === o.v} class:icon={!!o.icon} title={o.title ?? (o.icon ? o.label : undefined)} aria-label={o.icon ? o.label : undefined} onclick={() => pick(o.v)}>{#if o.icon}<Icon name={o.icon} />{:else if o.game}<span class="gl"><GameIcon name={o.game} size={14} />{o.label}</span>{:else}{o.label}{/if}</button>
     {/each}
   </div>
 </div>
 
 <style>
   .seg-wrap { display: inline-flex; align-items: center; gap: .6rem; }
+  .gl { display: inline-flex; align-items: center; gap: .35rem; }
   .seg { display: inline-flex; }
   .seg button { margin-left: -1px; }
   .seg button.icon { display: inline-grid; place-items: center; width: 34px; padding: 0; }

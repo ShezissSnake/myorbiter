@@ -22,7 +22,8 @@
   import Owned from "../ui/Owned.svelte";
   import { expectedBest } from "../core/advice";
   import ListButton from "../ui/ListButton.svelte";
-  import GameIcon, { type GameIconName } from "../ui/GameIcon.svelte";
+  import GameIcon, { eraIcon, type GameIconName } from "../ui/GameIcon.svelte";
+  import Foe from "../ui/Foe.svelte";
 
   import type { AdviceSettings } from "../backend";
   // Solo or radshare is one setting, shared with the Planner.
@@ -140,7 +141,7 @@
 {#snippet ducatCell(r: RelicRow)}<P v={r.evDucatsIntact || null} d dim />{/snippet}
 {#snippet relicPriceCell(r: RelicRow)}<P v={r.relicPrice} dim />{/snippet}
 {#snippet card(r: RelicRow, open: () => void)}
-  <ItemCard hover={r.base} title={r.base} sub={rareOf(r) ? `Rare · ${rareOf(r)}` : undefined} image={model.imageOf(r.base)} artSize={78} owned={r.neededCount > 0} tint={eraTint(r.base)} onopen={open}>
+  <ItemCard hover={r.base} title={r.base} sub={rareOf(r) ? `Rare · ${rareOf(r)}` : undefined} image={model.imageOf(r.base)} fallback={eraIcon(r.base.split(" ")[0])} artSize={78} owned={r.neededCount > 0} tint={eraTint(r.base)} onopen={open}>
     <div class="rw">
       {#each r.rewards as x, i (i)}
         <span class="rwc rar-{x.rarity}" class:need={x.needed} class:done={x.parentMastered && !x.needed} use:info={x.name}>
@@ -236,14 +237,14 @@
       {@const list = [...(byEra.get(e) ?? []), ...(e === "Requiem" ? [] : omnia)]}
       <div class="era-cell">
         <button class="era" class:on={era === e} aria-pressed={era === e} style:--tint={eraTint(e)} onclick={() => (era = era === e ? "all" : e)}>
-          <strong><GameIcon name={`relic-${e.toLowerCase()}-intact` as GameIconName} size={22} />{e}</strong>
+          <strong><GameIcon name={eraIcon(e)} size={22} />{e}</strong>
           <span class="dim small counts">
             {#if list.length}
               <!-- As Home counts them: this era's own fissures, normal + Steel Path; Omnia ones apart. -->
               {@const own = (byEra.get(e) ?? []).filter((f) => !f.isStorm)}
               {@const sp = own.filter((f) => f.isHard).length}
               {@const om = e === "Requiem" ? 0 : omnia.filter((f) => !f.isStorm).length}
-              <span>{own.length - sp}{#if sp}<span class="sp" title="Steel Path">&nbsp;+&nbsp;{sp}&nbsp;SP</span>{/if} open</span>
+              <span>{own.length - sp}{#if sp}<span class="sp" title="Steel Path">&nbsp;+&nbsp;{sp}&nbsp;<GameIcon name="steel-essence" size={11} /></span>{/if} open</span>
               {#if om}<span title="Omnia fissures take a Lith, Meso, Neo or Axi relic (not Requiem)">{om} Omnia</span>{/if}
             {:else}<span title={feed == null ? "The fissure list (api.warframestat.us) hasn't answered" : undefined}>{feed == null ? "fissures unknown" : "no fissure now"}</span>{/if}
           </span>
@@ -255,8 +256,8 @@
             {#each fissureOrder(list) as f (f.id)}
               <div class="fz-row">
                 <span class="fz-type">{f.missionType}</span>
-                <span class="fz-node">{f.node}</span>
-                <span class="fz-kind">{#if f.isStorm}<span class="tag">Void Storm</span>{:else if f.isHard}<span class="tag ok">Steel Path</span>{/if}{#if f.tier === "Omnia"}<span class="tag" title="Takes a Lith, Meso, Neo or Axi relic">Omnia</span>{/if}</span>
+                <span class="fz-node">{f.node} <Foe enemy={f.enemy} size={12} name={false} /></span>
+                <span class="fz-kind">{#if f.isStorm}<span class="tag"><GameIcon name="railjack" size={11} /> Void Storm</span>{:else if f.isHard}<span class="tag ok"><GameIcon name="steel-essence" size={11} /> Steel Path</span>{/if}{#if f.tier === "Omnia"}<span class="tag" title="Takes a Lith, Meso, Neo or Axi relic">Omnia</span>{/if}</span>
                 <span class="fz-t">{left(f)}</span>
               </div>
             {/each}

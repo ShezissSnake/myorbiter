@@ -13,7 +13,7 @@
   import Named from "../ui/Named.svelte";
   import P from "../ui/P.svelte";
   import Chip from "../ui/Chip.svelte";
-  import GameIcon from "../ui/GameIcon.svelte";
+  import GameIcon, { kindIcon } from "../ui/GameIcon.svelte";
   import PriceHistory from "../ui/PriceHistory.svelte";
   import { matches, type Column } from "../ui/table";
 
@@ -89,7 +89,7 @@
     <span class="grow"></span>
     {@render buyCell(r)}
   {/snippet}
-  <ItemCard hover={r.name} title={r.name} sub={label(r.category)} image={art(r)} artSize={64} owned={!!r.have} onopen={open} {foot}>
+  <ItemCard hover={r.name} title={r.name} sub={label(r.category)} fallback={kindIcon(label(r.category), r.name)} image={art(r)} artSize={64} owned={!!r.have} onopen={open} {foot}>
     <div class="vals">
       <span><span class="register">Price</span><P v={r.price} /></span>
       {#if r.priceMax != null}<span><span class="register">Maxed</span><P v={r.priceMax} dim /></span>{/if}

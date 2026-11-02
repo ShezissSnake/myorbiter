@@ -5,6 +5,7 @@
   import { squadPool, squadRelics, type SquadRelic } from "../core/views";
   import P from "../ui/P.svelte";
   import Thumb from "../ui/Thumb.svelte";
+  import GameIcon, { type GameIconName } from "../ui/GameIcon.svelte";
   import PageHead from "../ui/PageHead.svelte";
   import Stat from "../ui/Stat.svelte";
   import Avail from "../ui/Avail.svelte";
@@ -75,6 +76,11 @@
   }
   /** "Meso C10 R" (a relic and its refinement's letter) → the relic, for its hover card. */
   const relicOf = (from: string) => from.replace(/ [IEFR]$/, "");
+  /** "Meso C10 R" → the Meso relic as it looks at that refinement (radiant, or intact for the rest). */
+  const relicIcon = (from: string): GameIconName | null => {
+    const era = from.split(" ")[0]?.toLowerCase();
+    return ["lith", "meso", "neo", "axi", "requiem"].includes(era) ? (`relic-${era}-${/ R$/.test(from) ? "radiant" : "intact"}` as GameIconName) : null;
+  };
   /** When TennoScope read the cards: a time of day, which can't go stale the way "n s ago" would. */
   const readAt = (at: number) => new Date(at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
@@ -200,7 +206,7 @@
                 <td class="bc">{@render bars(x)}</td>
               {/if}
               <td><div class="rw"><span class="rw-name" use:info={x.name}><Thumb file={model.imageOf(x.name)} size={24} /><span>{x.name}</span></span>{#if yours.has(x.name)}<span class="tag">your relic gave this</span>{/if}{#if x.needed}<span class="tag warn">need</span>{/if}{#if x.set === 1}<span class="tag ok">completes set</span>{/if}</div></td>
-              <td class="dim small from">{#each x.from as f, j (j)}{j ? ", " : ""}<span use:info={relicOf(f)}>{f}</span>{/each}</td>
+              <td class="dim small from">{#each x.from as f, j (j)}{j ? ", " : ""}<span class="rl" use:info={relicOf(f)}>{#if relicIcon(f)}<GameIcon name={relicIcon(f)!} size={14} />{/if}{f}</span>{/each}</td>
               {#if anyHeld}<td class="dim right">{x.owned || ""}</td>{/if}
               <td class="right"><P v={x.price} /></td>
               <td class="right"><P v={x.ducats || null} d dim /></td>
@@ -250,6 +256,7 @@
   :global(html[data-room~="lt640"]) .cards { grid-template-columns: minmax(0, 1fr); }
   /* The bars behind the score go before the list stops fitting: the score itself stays. */
   :global(html[data-room~="lt760"]) .pool .bc { display: none; }
+  :global(html[data-room~="lt760"]) .from .rl :global(.gi) { display: none; }
   /* Page area 1850 or wider px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="ge1850"]) .cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .relic header { display: flex; justify-content: space-between; align-items: center; gap: .8rem; margin-bottom: .8rem; }
@@ -321,6 +328,7 @@
   .from span:hover { color: var(--platinum); }
   /* A relic's name stays whole ("Meso C10 R"); two relics may wrap between them. */
   .from span { white-space: nowrap; }
+  .from .rl { display: inline-flex; align-items: center; gap: .25rem; }
   .empty { margin-top: var(--step); max-width: 46rem; padding: 1.4rem 1.6rem; border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); }
   .empty.compact p:last-child { display: none; }
 </style>

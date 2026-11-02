@@ -7,7 +7,8 @@
   import { until } from "../core/traders";
   import Seg from "./Seg.svelte";
   import Chip from "./Chip.svelte";
-  import GameIcon, { type GameIconName } from "./GameIcon.svelte";
+  import GameIcon, { eraIcon } from "./GameIcon.svelte";
+  import Foe from "./Foe.svelte";
   import Icon from "./Icon.svelte";
   import P from "./P.svelte";
   import { info } from "../hover.svelte";
@@ -43,7 +44,6 @@
   const eras = $derived(mine ? fissuresByEra((fissures ?? []).filter((f) => watched.has(f.id)), "all", now) : fissuresByEra(fissures, mode, now));
   /** Every fissure read has closed: the read is stale (the worldstate couldn't be read since), not a quiet hour. */
   const outOfDate = $derived(!!fissures?.length && counts.normal + counts.steel + counts.storm === 0);
-  const icon = (era: string): GameIconName => (era === "Omnia" ? "void-tear" : (`relic-${era.toLowerCase()}-intact` as GameIconName));
   /** "A, B and 3 more" */
   const some = (xs: string[], n = 4) => (xs.length <= n ? xs.join(", ") : `${xs.slice(0, n).join(", ")} and ${xs.length - n} more`);
   const left = (f: Fissure) => until(f.expiry, now).replace("under a minute", "<1 min");
@@ -54,9 +54,9 @@
     bind:value={mode}
     label="Show"
     options={[
-      { v: "normal", label: `Normal · ${counts.normal}`, title: "Normal fissures on the star chart" },
-      { v: "steel", label: `Steel Path · ${counts.steel}`, title: "Steel Path fissures: harder enemies, and Steel Essence and Kuva drops on top" },
-      { v: "storm", label: `Void Storms · ${counts.storm}`, title: "Railjack Void Storms on the Proxima nodes" },
+      { v: "normal", label: `Normal · ${counts.normal}`, game: "void-tear", title: "Normal fissures on the star chart" },
+      { v: "steel", label: `Steel Path · ${counts.steel}`, game: "steel-essence", title: "Steel Path fissures: harder enemies, and Steel Essence and Kuva drops on top" },
+      { v: "storm", label: `Void Storms · ${counts.storm}`, game: "railjack", title: "Railjack Void Storms on the Proxima nodes" },
     ]}
   />{/if}
   {#if alerts > 0}<Chip bind:on={only} label="Only my alerts" title="Show only the fissures your fissure alerts (below) match, normal, Steel Path and Void Storms together. Off: every fissure of the kind you pick" />{/if}
@@ -73,8 +73,8 @@
       {@const sv = saving(e.era)}
       <section class="era era-wash" style:--tint={eraTint(e.era)}>
         <header>
-          {#if onera && e.era !== "Omnia"}<button class="name go" title="Your {e.era} relics, on Relics" onclick={() => onera(e.era)}><GameIcon name={icon(e.era)} size={22} /><b class="mark">{e.era}</b></button>
-          {:else}<span class="name"><GameIcon name={icon(e.era)} size={22} /><b class="mark">{e.era}</b></span>{/if}
+          {#if onera && e.era !== "Omnia"}<button class="name go" title="Your {e.era} relics, on Relics" onclick={() => onera(e.era)}><GameIcon name={eraIcon(e.era)} size={22} /><b class="mark">{e.era}</b></button>
+          {:else}<span class="name"><GameIcon name={eraIcon(e.era)} size={22} /><b class="mark">{e.era}</b></span>{/if}
           <span class="dim small">{e.list.length}</span>
           {#if sv}<span class="saving" title="Your {some(sv.relics)} drop{sv.relics.length === 1 ? 's' : ''} a part still missing from {some(sv.sets.map((x) => `the ${x} Set`), 6)}, which your loose parts are waiting for (Sets → Saving up)">for {sv.sets.length === 1 ? sv.sets[0] : `${sv.sets.length} sets`}</span>{/if}
           <span class="grow"></span>
@@ -83,9 +83,9 @@
         <ul>
           {#each e.list as f (f.id)}
             <li class:hit={watched.has(f.id) && !mine}>
-              <span class="mt">{#if watched.has(f.id) && !mine}<Icon name="bell" size={11} />{/if}{#if mine && (f.isHard || f.isStorm)}<span class="kind" title={f.isStorm ? "Void Storm" : "Steel Path"}>{f.isStorm ? "Storm" : "SP"}</span>{/if}{f.missionType}</span>
+              <span class="mt">{#if watched.has(f.id) && !mine}<Icon name="bell" size={11} />{/if}{#if mine && (f.isHard || f.isStorm)}<span class="kind" title={f.isStorm ? "Void Storm" : "Steel Path"}><GameIcon name={f.isStorm ? "railjack" : "steel-essence"} size={10} />{f.isStorm ? "Storm" : "SP"}</span>{/if}{f.missionType}</span>
               <span class="node dim small" title="{f.node} · {f.enemy}">{f.node}</span>
-              <span class="foe dim small">{f.enemy}</span>
+              <span class="foe dim small"><Foe enemy={f.enemy} size={13} /></span>
               <span class="left small" class:soon={Date.parse(f.expiry) - now < 10 * 60_000}>{left(f)}</span>
             </li>
           {/each}
@@ -118,7 +118,7 @@
   .left.soon { color: var(--platinum-deep); }
   li.hit .mt { color: var(--gold); }
   .saving { font-size: .7rem; color: var(--verdigris); border: 1px solid color-mix(in srgb, var(--verdigris) 45%, transparent); padding: 0 .3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: default; }
-  .kind { font-family: var(--face-register); font-size: .58rem; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold-dim); padding: 0 .25rem; }
+  .kind { display: inline-flex; align-items: center; gap: .18rem; font-family: var(--face-register); font-size: .58rem; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold-dim); padding: 0 .25rem; }
   .kinds { align-items: center; }
   :global(html[data-room~="lt640"]) li { grid-template-columns: minmax(6rem, 1fr) minmax(0, 1.3fr) 4.4rem; }
   :global(html[data-room~="lt640"]) .foe { display: none; }

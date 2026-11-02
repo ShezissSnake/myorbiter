@@ -95,15 +95,15 @@
   </header>
 
   <div class="ticks">
-    <Chip bind:on={settings.bulk.sets} label="Sets I don't need" title="Every complete set of what you've mastered or built; for anything else, all but the one you keep to build and master" />
-    <Chip bind:on={settings.bulk.arcanes} label="Extra maxed arcanes" title="Maxed arcanes beyond the one you keep, at max rank (never ones worth more dissolved for Vosfor)" />
-    <Chip bind:on={settings.bulk.mods} label="Extra mods" title="Copies beyond the two you keep (your best one, and one to give a new player), for mods that sell at least once a day" />
+    <Chip bind:on={settings.bulk.sets} line="sets" label="Sets I don't need" title="Every complete set of what you've mastered or built; for anything else, all but the one you keep to build and master" />
+    <Chip bind:on={settings.bulk.arcanes} game="vosfor" label="Extra maxed arcanes" title="Maxed arcanes beyond the one you keep, at max rank (never ones worth more dissolved for Vosfor)" />
+    <Chip bind:on={settings.bulk.mods} game="endo" label="Extra mods" title="Copies beyond the two you keep (your best one, and one to give a new player), for mods that sell at least once a day" />
     <span class="partrule">
-      <Chip bind:on={settings.bulk.parts} label="Spare prime parts" title="The spares Prime parts counts (everything beyond what you need to build and master), as loose parts: never ones going out in a set, never one that's a better deal as ducats" />
+      <Chip bind:on={settings.bulk.parts} game="ducats" label="Spare prime parts" title="The spares Prime parts counts (everything beyond what you need to build and master), as loose parts: never ones going out in a set, never one that's a better deal as ducats" />
       <label class="keepn" title="Copies of each part to hold on to whatever the advice; 0 sells every spare"><span class="register">keep</span><input type="number" min="0" inputmode="numeric" value={settings.bulk.partsKeep} disabled={!settings.bulk.parts} aria-label="Copies of each prime part to keep" onchange={(e) => (settings.bulk.partsKeep = whole(e.currentTarget.value, 0))} onwheel={(e) => e.currentTarget.blur()} /></label>
     </span>
-    <Chip bind:on={settings.bulk.imprints} label="Imprints" title="Every Kubrow, Kavat and other companion imprint you hold, listed by breed (an imprint only hatches a companion: untick, or take the listing down, for ones you'll breed)" />
-    <Chip bind:on={settings.bulk.other} label="Everything else I don't need" title="Weapon parts and blueprints, gems, fish, Captura scenes and Ayatan sculptures beyond what your unbuilt items need (Inventory, Spare only, shows each one and why), plus veiled rivens and relics if you sell them (Settings, Selling). Only what sells at least once a day, and never a relic worth more cracked" />
+    <Chip bind:on={settings.bulk.imprints} game="companions" label="Imprints" title="Every Kubrow, Kavat and other companion imprint you hold, listed by breed (an imprint only hatches a companion: untick, or take the listing down, for ones you'll breed)" />
+    <Chip bind:on={settings.bulk.other} game="market" label="Everything else I don't need" title="Weapon parts and blueprints, gems, fish, Captura scenes and Ayatan sculptures beyond what your unbuilt items need (Inventory, Spare only, shows each one and why), plus veiled rivens and relics if you sell them (Settings, Selling). Only what sells at least once a day, and never a relic worth more cracked" />
     <span class="prio" title="Only matters when there's more to list than warframe.market's {LISTING_LIMIT} listings allow: which ones get the slots. Either way only what the ticks and your minimum price let through">
       <Seg label="More than {LISTING_LIMIT} listings? Keep" bind:value={settings.bulk.priority} options={[
         { v: "plat", label: "Most plat", title: "The listings worth the most platinum (quantity × price)" },

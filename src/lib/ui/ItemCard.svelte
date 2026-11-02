@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import Art from "./Art.svelte";
+  import GameIcon, { kindIcon, type GameIconName } from "./GameIcon.svelte";
   import { info } from "../hover.svelte";
   // An item as a card: its name, its artwork, whatever the page shows beside it (part chips,
   // rewards, prices), and a footer of tags. A gold edge means you own it.
@@ -19,6 +20,7 @@
     children,
     foot,
     art,
+    fallback = null,
     tint = null,
   }: {
     title: string;
@@ -39,9 +41,14 @@
     foot?: Snippet;
     /** Drawn instead of the artwork: a mod or arcane as its in-game card. */
     art?: Snippet;
+    /** Without artwork: the game's icon for its kind (a relic's era, Primary, Companion…) instead of an empty frame. */
+    fallback?: GameIconName | null;
     /** A relic's era colour (table.ts, eraTint): a faint wash of it over the card. */
     tint?: string | null;
   } = $props();
+
+  // A kind the Arsenal has a tab for ("Warframe", "Primary Mod", "Companion") gets that tab's icon.
+  const subIcon = $derived(kindIcon(sub));
 
   // Buttons on the card (List, the star) do their own thing; anywhere else opens the details.
   function click(e: MouseEvent) {
@@ -62,7 +69,7 @@
   <header>
     <div class="t">
       <h3 class="mark" title={hover ? undefined : title} use:info={hover ?? null}>{title}</h3>
-      {#if sub}<span class="register">{sub}</span>{/if}
+      {#if sub}<span class="register sub">{#if subIcon}<GameIcon name={subIcon} size={11} />{/if}{sub}</span>{/if}
     </div>
     {#if onfav}
       <button class="star" class:on={fav} aria-pressed={fav} aria-label={fav ? `Remove ${title} from your wishlist` : `Add ${title} to your wishlist`} title={fav ? "On your wishlist (click to remove)" : "Add to your wishlist"} onclick={(e) => { e.stopPropagation(); onfav(); }}>
@@ -71,7 +78,7 @@
     {/if}
   </header>
   <div class="body">
-    <span class="pic" use:info={hover ?? null}>{#if art}{@render art()}{:else}<Art file={image} size={artSize} dim={dimArt} alt="" />{/if}</span>
+    <span class="pic" use:info={hover ?? null}>{#if art}{@render art()}{:else if !image && fallback}<span class="kind-art" style:width="{artSize}px" style:height="{artSize}px"><GameIcon name={fallback} size={Math.round(artSize * 0.55)} /></span>{:else}<Art file={image} size={artSize} dim={dimArt} alt="" />{/if}</span>
     {#if children}<div class="side">{@render children()}</div>{/if}
   </div>
   {#if foot}<footer>{@render foot()}</footer>{/if}
@@ -116,4 +123,7 @@
   .side { flex: 1; min-width: 0; display: grid; gap: .45rem; align-content: center; }
   footer { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; min-height: 1.4rem; padding-top: .45rem; border-top: 1px solid var(--rule); font-size: .78rem; }
   footer:empty { display: none; }
+  .kind-art { display: inline-flex; align-items: center; justify-content: center; opacity: .6; background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--platinum) 6%, transparent), transparent 65%); }
+  .sub { display: inline-flex; align-items: center; gap: .3rem; }
+  .sub :global(.gi) { opacity: .75; }
 </style>

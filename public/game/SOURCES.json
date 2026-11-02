@@ -254,5 +254,41 @@
  "pol/any": {
   "file": "pol/any.png",
   "source": "https://wiki.warframe.com/w/File:Any_Pol(xWhite).png"
+ },
+ "faction-grineer": {
+  "file": "faction-grineer.png",
+  "source": "https://wiki.warframe.com/w/File:GrineerIconColor.png"
+ },
+ "faction-corpus": {
+  "file": "faction-corpus.png",
+  "source": "https://wiki.warframe.com/w/File:CorpusIconColor.png"
+ },
+ "faction-infested": {
+  "file": "faction-infested.png",
+  "source": "https://wiki.warframe.com/w/File:InfestedIconColor.png"
+ },
+ "faction-orokin": {
+  "file": "faction-orokin.png",
+  "source": "https://wiki.warframe.com/w/File:OrokinIconColor.png"
+ },
+ "faction-sentient": {
+  "file": "faction-sentient.png",
+  "source": "https://wiki.warframe.com/w/File:SentientIconColor.png"
+ },
+ "faction-murmur": {
+  "file": "faction-murmur.png",
+  "source": "https://wiki.warframe.com/w/File:TheMurmurIconColor.png"
+ },
+ "faction-scaldra": {
+  "file": "faction-scaldra.png",
+  "source": "https://wiki.warframe.com/w/File:ScaldraIcon(xWhite).png"
+ },
+ "faction-techrot": {
+  "file": "faction-techrot.png",
+  "source": "https://wiki.warframe.com/w/File:TechrotIcon(xWhite).png"
+ },
+ "railjack": {
+  "file": "railjack.png",
+  "source": "https://wiki.warframe.com/w/File:IconRailjack(xWhite).png"
  }
 }

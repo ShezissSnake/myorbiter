@@ -15,7 +15,7 @@
   import CardGrid from "../ui/CardGrid.svelte";
   import ItemCard from "../ui/ItemCard.svelte";
   import PartChip from "../ui/PartChip.svelte";
-  import GameIcon, { type GameIconName } from "../ui/GameIcon.svelte";
+  import GameIcon, { kindIcon, type GameIconName } from "../ui/GameIcon.svelte";
   import P from "../ui/P.svelte";
 
   let { model, settings = $bindable() }: { model: Model; settings: Settings } = $props();
@@ -108,6 +108,7 @@
           title={c.name}
           sub={`${c.type}${c.masteryReq ? ` · MR ${c.masteryReq}` : ""}`}
           image={c.image}
+          fallback={kindIcon(c.type, c.name)}
           owned={c.owned && !c.mastered}
           done={c.mastered}
           fav={favs.has(c.unique)}

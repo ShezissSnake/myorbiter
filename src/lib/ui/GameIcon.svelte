@@ -9,7 +9,49 @@
     | "ventkids" | "quills" | "kahl" | "nightwave" | "conclave" | "hexis" | "suda" | "steel-meridian" | "new-loka"
     | "perrin" | "red-veil"
     | "warframes" | "primary" | "secondary" | "melee" | "companions" | "archwing" | "foundry" | "riven" | "cycles"
+    | "railjack" | `faction-${Faction}`
     | `relic-${"lith" | "meso" | "neo" | "axi" | "requiem"}-${"intact" | "radiant"}`;
+
+  type Faction = "grineer" | "corpus" | "infested" | "orokin" | "sentient" | "murmur" | "scaldra" | "techrot";
+
+  /** A fissure's era as its relic (Omnia, which takes any, as the Void tear). */
+  export const eraIcon = (era: string): GameIconName => (era === "Omnia" ? "void-tear" : (`relic-${era.toLowerCase()}-intact` as GameIconName));
+
+  /**
+   * An item kind as the Arsenal's tab for it shows ("Warframe", "Primary", "Arch-Gun", "Companion"…):
+   * what stands in for an item's artwork when there's none. Null for kinds without one.
+   */
+  export function kindIcon(kind: string | null | undefined, name = ""): GameIconName | null {
+    const k = (kind ?? "").toLowerCase();
+    if (/plexus|railjack/i.test(name) || k.includes("railjack")) return "railjack";
+    if (k.startsWith("warframe") || k === "necramech") return "warframes";
+    if (k.startsWith("arch")) return "archwing";
+    if (k.startsWith("primary")) return "primary";
+    if (k.startsWith("secondary")) return "secondary";
+    if (k.startsWith("melee")) return "melee";
+    if (k.startsWith("compan") || k.startsWith("sentinel") || k.includes("pet")) return "companions";
+    if (k.includes("relic")) return "void-tear";
+    return null;
+  }
+
+  /**
+   * The enemy's faction sigil, as the game's star chart shows it: "Grineer", "Corpus", "Corrupted"
+   * or "Orokin", "The Murmur"... Crossfire (two factions), Narmer and anything new get none.
+   */
+  export function factionIcon(enemy: string | null | undefined): GameIconName | null {
+    const e = (enemy ?? "").toLowerCase().replace(/^the\s+/, "");
+    const f: Faction | null =
+      e.startsWith("grineer") || e === "kuva grineer" ? "grineer"
+      : e.startsWith("corpus") ? "corpus"
+      : e.startsWith("infest") ? "infested"
+      : e === "orokin" || e === "corrupted" ? "orokin"
+      : e.startsWith("sentient") ? "sentient"
+      : e === "murmur" ? "murmur"
+      : e === "scaldra" ? "scaldra"
+      : e === "techrot" ? "techrot"
+      : null;
+    return f ? `faction-${f}` : null;
+  }
 </script>
 
 <script lang="ts">

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { kindIcon } from "../ui/GameIcon.svelte";
   import type { Model } from "../core/model";
   import { SAVE_SOURCE_LABEL, saveForSets, type SetRow, type SetSave } from "../core/views";
   import { allSetSaves, type SellChoices } from "../core/spares";
@@ -176,7 +177,7 @@
   {@const item = model.catalogByUnique.get(r.unique)}
   <!-- The set's pieces: tradable prime parts, or for other sets the blueprint and parts (not resources). -->
   {@const parts = item ? collectionItem(model, item).parts.filter((p) => (r.prime ? p.tradable : !p.resource)) : []}
-  <ItemCard hover="{r.name} Set" title="{r.name} Set" sub={r.category} image={item?.imageName ?? model.imageOf(r.name)} owned={mode === "sell" ? sellableOf(r) > 0 : false} onopen={open}>
+  <ItemCard hover="{r.name} Set" title="{r.name} Set" sub={r.category} fallback={kindIcon(r.category, r.name)} image={item?.imageName ?? model.imageOf(r.name)} owned={mode === "sell" ? sellableOf(r) > 0 : false} onopen={open}>
     <div class="chips">{#each parts as p, i (i)}<PartChip part={p} size={32} />{/each}</div>
     {#if mode === "save"}
       <dl class="kv">

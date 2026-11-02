@@ -4,7 +4,7 @@
   import { masteryRows, type MasteryRow } from "../core/views";
   import { METHOD_LABEL, rankLabel, rankThreshold } from "../core/acquire";
   import Effort from "../ui/Effort.svelte";
-  import GameIcon from "../ui/GameIcon.svelte";
+  import GameIcon, { kindIcon } from "../ui/GameIcon.svelte";
   import Browse from "../ui/Browse.svelte";
   import ItemCard from "../ui/ItemCard.svelte";
   import PartChip from "../ui/PartChip.svelte";
@@ -116,7 +116,7 @@
 {#snippet card(r: MasteryRow, open: () => void)}
   {@const item = model.catalogByUnique.get(r.unique)}
   {@const parts = item && r.status !== "level" ? collectionItem(model, item).parts.filter((p) => !p.resource) : []}
-  <ItemCard hover={r.name} title={r.name} sub={r.category} image={item?.imageName ?? model.imageOf(r.name)} owned={r.status === "level"} onopen={open} fav={wished.has(r.unique)} onfav={item ? () => toggleWish(r.unique) : undefined}>
+  <ItemCard hover={r.name} title={r.name} sub={r.category} fallback={kindIcon(r.category, r.name)} image={item?.imageName ?? model.imageOf(r.name)} owned={r.status === "level"} onopen={open} fav={wished.has(r.unique)} onfav={item ? () => toggleWish(r.unique) : undefined}>
     {#if r.acq.difficulty > 0}<Effort acq={r.acq} />{:else}<p class="chow">{stageText(r)}</p>{/if}
     {#if parts.length}<div class="chips">{#each parts as p, i (i)}<PartChip part={p} size={32} />{/each}</div>{/if}
     {#if r.acq.difficulty > 0}<p class="chow" title={r.acq.players ? `${r.acq.how}\n\n${r.acq.players}` : r.acq.how}>{r.acq.how}</p>{/if}

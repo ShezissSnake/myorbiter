@@ -14,7 +14,8 @@
   import { baroStock, varziaNeeds, until } from "../core/traders";
   import { invasionNeeds } from "../core/invasions";
   import { alertNeeds, describeHelp } from "../core/worldNeeds";
-  import GameIcon, { type GameIconName } from "../ui/GameIcon.svelte";
+  import GameIcon, { eraIcon, type GameIconName } from "../ui/GameIcon.svelte";
+  import Foe from "../ui/Foe.svelte";
   import Icon from "../ui/Icon.svelte";
   import IconButton from "../ui/IconButton.svelte";
   import Chip from "../ui/Chip.svelte";
@@ -134,7 +135,6 @@
     const b = console ? null : bests.get(era);
     return b ? { name: b.r.base, refinement: b.refinement, held: `${b.r.owned[b.refinement] ?? 0} of ${b.r.total} held`, plat: b.v } : null;
   };
-  const eraIcon = (era: string): GameIconName => (era === "Omnia" ? "void-tear" : (`relic-${era.toLowerCase()}-intact` as GameIconName));
 
   // ------------------------------------------------------------ bounties
   /** A reward you'd want: a part for something you haven't mastered or built. */
@@ -250,7 +250,26 @@
   // ------------------------------------------------------------ alerts
   // key: what dismissing it remembers (the text changes as time passes). Problems that need fixing
   // (listings, the status connection) can't be dismissed: they go when they're fixed.
-  interface Alert { key: string | null; tone: "gold" | "red" | "info"; icon: GameIconName; text: string; act: string; to: string }
+  // Each a card: what it's about (the reward, or the problem) in bold, where and why under it, the
+  // faction to fight or side with as its sigil, and how long it has.
+  interface Alert {
+    key: string | null;
+    tone: "gold" | "red" | "info";
+    icon: GameIconName;
+    /** The item's artwork, when it's about one: shown instead of the kind's icon, which goes small on its corner. */
+    image?: string | null;
+    title: string;
+    sub: string;
+    /** Who the mission is against; `side`: the side to take in an invasion. */
+    foe?: string;
+    side?: string;
+    /** How far an invasion is, 0–100. */
+    progress?: number | null;
+    expiry?: string;
+    act: string;
+    to: string;
+    hint: string;
+  }
   const dismissed = $derived(new Set(settings.homeDismissed));
   function dismiss(key: string) {
     settings.homeDismissed = [key, ...settings.homeDismissed.filter((k) => k !== key)].slice(0, 200);
@@ -258,16 +277,19 @@
   const alerts = $derived.by(() => all().filter((a) => !a.key || !dismissed.has(a.key)));
   const all = () => {
     const out: Alert[] = [];
-    // Invasions rewarding a part for something you haven't mastered: they don't come back on demand.
-    for (const a of worldAlerts.mastery) out.push({ key: `alert|${a.key}`, tone: "gold", icon: "mastery", text: `Alert at ${a.node} (${a.mission}): ${describeHelp(a.reward, a.help!)}, ${until(a.expiry, now)} left`, act: "", to: "" });
-    for (const a of worldAlerts.rare) out.push({ key: `alert|${a.key}`, tone: "info", icon: "sortie", text: `Alert at ${a.node} (${a.mission}): ${a.reward}, ${until(a.expiry, now)} left`, act: "", to: "" });
-    if (!console) for (const n of invasions) out.push({ key: `invasion|${n.key}`, tone: "gold", icon: "invasion", text: `Invasion at ${n.node}: ${n.reward} for ${n.item} (side with ${n.side})${n.needed > 1 ? `, you have ${n.have} of ${n.needed}` : ""}`, act: "Mastery", to: "mastery" });
-    if (shortListings.length) out.push({ key: null, tone: "gold", icon: "market", text: `${shortListings.length} listing${shortListings.length === 1 ? "" : "s"} for more than you hold: sold, or fix them`, act: "Open Orders", to: "market" });
+    // Alerts and invasions rewarding a part for something you haven't mastered: they don't come back on demand.
+    for (const a of worldAlerts.mastery) {
+      const h = a.help!;
+      out.push({ key: `alert|${a.key}`, tone: "gold", icon: "mastery", image: model?.imageOf(h.item) ?? null, title: a.reward, sub: `${h.whole ? "" : `toward ${h.item} · `}${h.points.toLocaleString("en")} mastery${h.needed > 1 ? ` · ${h.have} of ${h.needed}` : ""} · ${a.mission} on ${a.node}`, foe: a.faction, expiry: a.expiry, act: "", to: "", hint: `An alert with something you haven't mastered: ${describeHelp(a.reward, h)}. ${a.mission} on ${a.node}` });
+    }
+    for (const a of worldAlerts.rare) out.push({ key: `alert|${a.key}`, tone: "info", icon: "sortie", image: model?.imageOf(a.reward.replace(/^\d+ × /, "")) ?? null, title: a.reward, sub: `${a.mission} on ${a.node}`, foe: a.faction, expiry: a.expiry, act: "", to: "", hint: `An alert with a rare reward: ${a.reward}. ${a.mission} on ${a.node}` });
+    if (!console) for (const n of invasions) out.push({ key: `invasion|${n.key}`, tone: "gold", icon: "invasion", image: n.itemImage, title: n.reward, sub: `toward ${n.item}${n.needed > 1 ? ` · ${n.have} of ${n.needed}` : ""} · ${n.node}`, side: n.side, progress: n.completion, act: "Mastery", to: "mastery", hint: `An invasion at ${n.node} rewards ${n.reward} for ${n.item}, which you haven't mastered: side with the ${n.side}` });
+    if (shortListings.length) out.push({ key: null, tone: "gold", icon: "market", title: `${shortListings.length} listing${shortListings.length === 1 ? "" : "s"} for more than you hold`, sub: "Sold in game, or listed by mistake: fix them on Orders", act: "Open Orders", to: "market", hint: "warframe.market lists more than your inventory holds" });
     const statusError = mkt.statusError ?? mkt.status?.error;
-    if (statusError) out.push({ key: null, tone: "red", icon: "market", text: `warframe.market status: ${statusError}`, act: "Open Orders", to: "market" });
+    if (statusError) out.push({ key: null, tone: "red", icon: "market", title: "warframe.market status", sub: statusError, act: "Open Orders", to: "market", hint: `Your status on warframe.market couldn't be set: ${statusError}` });
     const urgent = varzia.filter((v) => v.onlyHere > 0 || v.regalAya != null);
     // Varzia's card says what she has; the alert is only for a rotation about to end.
-    if (!console && urgent.length && live.resurgenceExpiry && Date.parse(live.resurgenceExpiry) - now < 3 * DAY) out.push({ key: `varzia|${live.resurgenceExpiry}`, tone: "gold", icon: "varzia", text: `Varzia's rotation ends in ${until(live.resurgenceExpiry, now)}, with ${urgent.length} prime${urgent.length === 1 ? "" : "s"} you need`, act: "", to: "" });
+    if (!console && urgent.length && live.resurgenceExpiry && Date.parse(live.resurgenceExpiry) - now < 3 * DAY) out.push({ key: `varzia|${live.resurgenceExpiry}`, tone: "gold", icon: "varzia", title: "Varzia's rotation is ending", sub: `with ${urgent.length} prime${urgent.length === 1 ? "" : "s"} you need`, expiry: live.resurgenceExpiry, act: "", to: "", hint: "Prime Resurgence: her primes go when the rotation ends" });
     return out;
   };
 
@@ -348,8 +370,20 @@
 
   {#if alerts.length}
     <section class="alerts" data-card="alerts" aria-label="Needs you" class:off={off("alerts")}>
-      {#each alerts as a (a.text)}
-        <div class="alert t-{a.tone}"><GameIcon name={a.icon} size={20} /><span>{a.text}</span>{#if a.to}<button class="link" onclick={() => go(a.to)}>{a.act} →</button>{/if}{#if a.key}<IconButton icon="close" tone="quiet" size={12} label="Dismiss" title="Dismiss: it doesn't come back for this alert" onclick={() => dismiss(a.key!)} />{/if}</div>
+      {#each alerts as a (a.key ?? a.title)}
+        <div class="alert t-{a.tone}" title={a.hint}>
+          {#if a.image}<span class="art"><Thumb file={a.image} name={a.title} size={38} /><span class="badge"><GameIcon name={a.icon} size={16} /></span></span>{:else}<span class="art"><GameIcon name={a.icon} size={30} /></span>{/if}
+          <span class="tx">
+            <b>{a.title}</b>
+            <span class="dim small where">{a.sub}{#if a.foe}&ensp;<Foe enemy={a.foe} size={13} />{/if}{#if a.side}&ensp;<span class="side">side with <Foe enemy={a.side} size={13} /></span>{/if}</span>
+            {#if a.progress != null}<span class="prog" title="{Math.round(a.progress)}% through"><i style:width="{Math.max(0, Math.min(100, a.progress))}%"></i></span>{/if}
+          </span>
+          <span class="end">
+            {#if a.expiry}<span class="small nowrap">{until(a.expiry, now)} left</span>{/if}
+            {#if a.to}<button class="link" onclick={() => go(a.to)}>{a.act} →</button>{/if}
+          </span>
+          {#if a.key}<IconButton icon="close" tone="quiet" size={12} label="Dismiss" title="Dismiss: it doesn't come back for this alert" onclick={() => dismiss(a.key!)} />{/if}
+        </div>
       {/each}
     </section>
   {/if}
@@ -462,7 +496,7 @@
       {#if watched.length && !(settings.homeFissuresOnly && settings.fissureRules.length)}
         <ul class="hits">
           {#each watched as w (w.fissure.id)}
-            <li><GameIcon name={eraIcon(w.fissure.tier)} size={18} /><b class="mark">{w.fissure.isHard ? "SP " : ""}{w.fissure.tier} {w.fissure.missionType}</b><span class="dim small">{w.fissure.node} · {w.fissure.enemy}</span><span class="grow"></span><span class="small nowrap">{until(w.fissure.expiry, now)} left</span></li>
+            <li><GameIcon name={eraIcon(w.fissure.tier)} size={18} /><b class="mark">{w.fissure.tier} {w.fissure.missionType}</b>{#if w.fissure.isHard}<GameIcon name="steel-essence" size={13} title="Steel Path" />{:else if w.fissure.isStorm}<GameIcon name="railjack" size={13} title="Void Storm" />{/if}<span class="dim small">{w.fissure.node} ·</span><span class="dim small"><Foe enemy={w.fissure.enemy} size={13} /></span><span class="grow"></span><span class="small nowrap">{until(w.fissure.expiry, now)} left</span></li>
           {/each}
         </ul>
       {:else if settings.fissureRules.length && !watched.length}
@@ -731,9 +765,18 @@
   .orn i { width: .5rem; height: .5rem; flex: none; background: var(--gold); transform: rotate(45deg); }
   .orn::after { content: ""; flex: 1; height: 1px; margin-left: .35rem; background: linear-gradient(90deg, var(--gold-dim), transparent); }
 
-  .alerts { display: grid; gap: .5rem; margin-bottom: var(--step); }
-  .alert { display: flex; align-items: center; gap: .8rem; padding: .65rem 1rem; border: 1px solid var(--rule); background: var(--plate); box-shadow: inset 3px 0 0 var(--platinum-deep); }
-  .alert span { flex: 1; }
+  /* Needs you: a card each, as many to a row as fit. */
+  .alerts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(24rem, 100%), 1fr)); gap: .5rem; margin-bottom: var(--step); }
+  .alert { display: flex; align-items: center; gap: .75rem; padding: .55rem .6rem .55rem .85rem; border: 1px solid var(--rule); background: var(--plate); box-shadow: inset 3px 0 0 var(--platinum-deep); min-width: 0; clip-path: var(--cut); }
+  .alert .art { position: relative; flex: none; display: inline-flex; width: 38px; justify-content: center; }
+  .alert .badge { position: absolute; right: -6px; bottom: -5px; display: inline-flex; padding: 1px; background: var(--plate); border: 1px solid var(--rule); }
+  .alert .tx { flex: 1; display: grid; gap: .12rem; min-width: 0; }
+  .alert .tx b { font-weight: 600; color: var(--platinum); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .alert .where { display: flex; flex-wrap: wrap; align-items: center; gap: 0 .1rem; }
+  .alert .side { display: inline-flex; align-items: center; gap: .3rem; color: var(--gold); }
+  .alert .prog { display: block; height: 3px; background: var(--well); margin-top: .2rem; }
+  .alert .prog i { display: block; height: 100%; background: var(--gold-dim); }
+  .alert .end { display: grid; justify-items: end; gap: .15rem; flex: none; }
   .t-gold { box-shadow: inset 3px 0 0 var(--gold); }
   .t-red { box-shadow: inset 3px 0 0 var(--oxblood); }
 

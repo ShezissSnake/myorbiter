@@ -14,7 +14,8 @@
   import { until } from "../core/traders";
   import { scoreCards } from "../core/pick";
   import { mkt } from "../marketStore.svelte";
-  import GameIcon, { type GameIconName } from "./GameIcon.svelte";
+  import GameIcon, { eraIcon, type GameIconName } from "./GameIcon.svelte";
+  import Foe from "./Foe.svelte";
   import Thumb from "./Thumb.svelte";
   import Icon from "./Icon.svelte";
   import Chip from "./Chip.svelte";
@@ -61,7 +62,6 @@
   const need = (name: string) => !!model && !console && (scoreCards(model, [name])[0]?.needed ?? false);
   const boards = $derived(bountyBoards(live.syndicates ?? null, bountyTables, need));
   const CYCLE_ICON: Record<string, GameIconName> = { earth: "cycles", cetus: "ostron", vallis: "solaris-united", cambion: "entrati", zariman: "holdfasts", duviri: "mastery" };
-  const eraIcon = (era: string): GameIconName => (era === "Omnia" ? "void-tear" : (`relic-${era.toLowerCase()}-intact` as GameIconName));
   const left = (iso: string) => until(iso, now).replace("under a minute", "<1 min");
   const soldToday = $derived.by(() => {
     const d = new Date(now);
@@ -89,8 +89,8 @@
     <li class="card era-wash" class:soon={Date.parse(f.expiry) - now < 10 * 60_000} style:--tint={eraTint(f.tier)} title="{f.tier}{f.isHard ? ' Steel Path' : f.isStorm ? ' Void Storm' : ''} {f.missionType} on {f.node}, against the {f.enemy}">
       {#if showEra}<GameIcon name={eraIcon(f.tier)} size={20} />{/if}
       <span class="tx">
-        <span class="top"><b>{f.missionType}</b>{#if f.isHard}<span class="kind">SP</span>{:else if f.isStorm}<span class="kind">Storm</span>{/if}{#if watchedIds.has(f.id) && !mine}<span class="bell" title="One of your fissure alerts matches it"><Icon name="bell" size={10} /></span>{/if}</span>
-        <span class="dim small">{at.node}{at.planet ? ` · ${at.planet}` : ""} · {f.enemy}</span>
+        <span class="top"><b>{f.missionType}</b>{#if f.isHard}<span class="kind"><GameIcon name="steel-essence" size={10} />SP</span>{:else if f.isStorm}<span class="kind"><GameIcon name="railjack" size={10} />Storm</span>{/if}{#if watchedIds.has(f.id) && !mine}<span class="bell" title="One of your fissure alerts matches it"><Icon name="bell" size={10} /></span>{/if}</span>
+        <span class="dim small where">{at.node}{at.planet ? ` · ${at.planet}` : ""} · <Foe enemy={f.enemy} size={12} /></span>
       </span>
       <span class="t">{left(f.expiry)}</span>
     </li>
@@ -105,8 +105,8 @@
           {#if shortListings.length}<li class="card era-wash" style:--tint="var(--gold)"><GameIcon name="market" size={20} /><span class="tx wrap"><button class="link" onclick={() => go("market")}>{shortListings.length} listing{shortListings.length === 1 ? "" : "s"} for more than you hold</button><span class="dim small">Sold, or fix them on Orders</span></span></li>{/if}
           {#each watched as w (w.fissure.id)}{@render fissureCard(w.fissure, true)}{/each}
           {#each world.mastery as a (a.key)}<li class="card era-wash" style:--tint="var(--verdigris)" title="Mastery you're missing"><GameIcon name="mastery" size={20} /><span class="tx"><b>{a.reward}</b><span class="dim small">{a.node} · {describeHelp(a.reward, a.help!)}</span></span><span class="t">{left(a.expiry)}</span></li>{/each}
-          {#each world.rare as a (a.key)}<li class="card era-wash" style:--tint="var(--gold)" title="A rare reward"><GameIcon name="sortie" size={20} /><span class="tx"><b>{a.reward}</b><span class="dim small">{a.node} · {a.mission}</span></span><span class="t">{left(a.expiry)}</span></li>{/each}
-          {#each invasions as n (n.key)}<li class="card era-wash" style:--tint="var(--verdigris)" title="An invasion with a part you need"><GameIcon name="invasion" size={20} /><span class="tx"><b>{n.reward}</b><span class="dim small">{n.node} · side with {n.side}</span></span></li>{/each}
+          {#each world.rare as a (a.key)}<li class="card era-wash" style:--tint="var(--gold)" title="A rare reward"><GameIcon name="sortie" size={20} /><span class="tx"><b>{a.reward}</b><span class="dim small where">{a.mission} · {place(a.node).node}{#if a.faction}&ensp;<Foe enemy={a.faction} size={12} name={false} />{/if}</span></span><span class="t">{left(a.expiry)}</span></li>{/each}
+          {#each invasions as n (n.key)}<li class="card era-wash" style:--tint="var(--verdigris)" title="An invasion with a part you need"><GameIcon name="invasion" size={20} /><span class="tx"><b>{n.reward}</b><span class="dim small">{n.node}</span></span><span class="t sd" title="Side with the {n.side} to earn it"><span class="register">side</span><Foe enemy={n.side} size={12} /></span></li>{/each}
         </ul>
       </section>
     {:else if on(k) && k === "fissures"}
@@ -177,7 +177,11 @@
   .card.soon { opacity: .72; }
   .card.soon .t { color: var(--oxblood); }
   .top { display: flex; align-items: center; gap: .35rem; }
-  .kind { font-family: var(--face-register); font-size: .55rem; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold-dim); padding: 0 .22rem; line-height: 1.35; }
+  .kind { display: inline-flex; align-items: center; gap: .18rem; font-family: var(--face-register); font-size: .55rem; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold-dim); padding: 0 .22rem; line-height: 1.35; }
+  /* Where, then the faction's sigil and name: one line, the name giving way first. */
+  .tx .where { display: flex; align-items: center; gap: .2rem; }
+  .t.sd { display: grid; justify-items: end; gap: .1rem; }
+  .t.sd .register { font-size: .5rem; }
   .bell { color: var(--gold); display: inline-flex; }
   /* An era's heading: its icon and name in its own colour, and how many are open. */
   .eh { display: flex; align-items: center; gap: .4rem; margin-top: .35rem; font-size: .8rem; }
