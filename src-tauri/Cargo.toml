@@ -41,6 +41,8 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 # Desktop notifications: the desktop's own notification service (D-Bus) on Linux, the Action
 # Center on Windows, the Notification Center on macOS.
 notify-rust = "4"
+# orbiter's own log file (applog.rs): the standard logging front end, already in the build through Tauri.
+log = "0.4"
 [target.'cfg(unix)'.dependencies]
 # Ctrl+C / logout: close the TennoScope orbiter started before exiting.
 signal-hook = "0.3"

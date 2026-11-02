@@ -74,7 +74,7 @@ pub fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<S
             Ok(_) => {
                 let _ = (&app, &id);
             }
-            Err(e) => eprintln!("orbiter: notification not shown: {e}"),
+            Err(e) => log::warn!(target: "orbiter::notify", "notification not shown: {e}"),
         }
     });
 }

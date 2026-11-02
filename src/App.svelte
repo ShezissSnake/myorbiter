@@ -11,6 +11,7 @@
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
   import { buildModel, ERAS } from "./lib/core/model";
   import { mergeRelics, type RelicData } from "./lib/core/relicData";
+  import { BUILD } from "./lib/build";
   import type { RecipeData } from "./lib/core/buildPlan";
   import { today } from "./lib/core/today";
   import { bestCard, resolveName, scoreCards, vaultWord } from "./lib/core/pick";
@@ -59,6 +60,7 @@
     NO_INVENTORY_YET,
     tennoscope,
     onSaveTrouble,
+    logLine,
   } from "./lib/backend";
   import { persistSettings } from "./lib/persist.svelte";
   import { backoff, handLoggedSale, keepSeen, thinHistory } from "./lib/core/upkeep";
@@ -421,6 +423,7 @@
    */
   function tell(kind: NoticeKind, title: string, body: string, to?: string) {
     if (!settings.notify[kind] || (onConsole && noticeKind[kind].pcOnly)) return;
+    logLine(kind === "tennoscope" || kind === "market" ? "warn" : "info", "notice", `${kind}: ${title}${body ? ` (${body.split("\n")[0].slice(0, 200)})` : ""}`);
     settings.game.notices = logNotice(settings.game.notices, { at: Date.now(), kind, title, body, ...(to ? { to } : {}) });
     toDiscord(kind, title, body);
     if (quietNow(kind)) return;
@@ -1412,6 +1415,7 @@
     // The same trouble with a new countdown ("tries again in 4 min") isn't news.
     const e = ts.error;
     const key = e?.replace(/ orbiter tries again in \d+ min\.$/, "") ?? null;
+    if (key && key !== lastTsError) logLine("warn", "tennoscope", e!);
     // Not where TennoScope can't run at all (macOS): there's nothing to fix.
     if (key && key !== lastTsError && settings.notify.tennoscope && ts.status?.supported !== false) tell("tennoscope", "TennoScope", e!);
     lastTsError = key;
@@ -1653,6 +1657,7 @@
       if (stopped) return;
       settings.tab = migrateTab(settings.startPage !== "last" ? settings.startPage : settings.tab);
       settingsReady = true;
+      logLine("info", "app", `build ${BUILD.commit}${BUILD.date ? ` (${BUILD.date})` : ""}, ${settings.market.platform}${onConsole ? " (console)" : ""}`);
       // Before reading its data: a fresh TennoScope re-reads the inventory once the game is up.
       ts.path = settings.tennoscope.path;
       ts.dataDir = settings.dataDir;

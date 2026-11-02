@@ -216,6 +216,7 @@ fn hold(id: u64, first: String, token: TokenSource, initial: Status, rx: Receive
         match session(id, &t, &mut wanted, &rx, &state) {
             Ended::Done => break,
             Ended::Dropped(why) => {
+                log::warn!(target: "orbiter::presence", "{why}");
                 // A connection that held for a while was a good one: start the waits over.
                 if began.elapsed() > Duration::from_secs(60) {
                     pause = Duration::from_secs(2);
@@ -416,6 +417,7 @@ fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state:
                     overrides.clear();
                     hold_until = Some(Instant::now() + Duration::from_secs(600));
                     if let Ok(mut s) = state.lock() {
+                        log::warn!(target: "orbiter::presence", "something else keeps changing the status: holding off for 10 minutes");
                         s.error = Some("Something else keeps changing your warframe.market status (the website or another app), so orbiter leaves it for 10 minutes. Pick a status to take it back now.".into());
                     }
                 } else {

@@ -111,8 +111,21 @@ fn with_retries<T>(mut once: impl FnMut() -> Result<T, MarketError>) -> Result<T
     }
 }
 
+/// A request's path for the log: "/v2/order/abc", without the host.
+fn log_path(url: &str) -> &str {
+    url.split_once("warframe.market").map_or(url, |(_, rest)| rest)
+}
+
 /// A plain read with no sign-in (the item list, riven names), with the same care for rate limits.
 fn get_json(url: &str, timeout: u64) -> Result<Value, MarketError> {
+    let result = get_json_once(url, timeout);
+    if let Err(e) = &result {
+        log::warn!(target: "orbiter::market", "GET {}: {e}", log_path(url));
+    }
+    result
+}
+
+fn get_json_once(url: &str, timeout: u64) -> Result<Value, MarketError> {
     with_retries(|| {
         wait_turn();
         match crate::http_agent().get(url).set("User-Agent", USER_AGENT).set("Language", "en").timeout(Duration::from_secs(timeout)).call() {
@@ -301,11 +314,18 @@ impl Client {
     /// warframe.market turns away for going too fast is tried again (with_retries); a change
     /// isn't: it may have gone through.
     fn send(&self, method: &str, url: &str, body: Option<&Value>, token: Option<&str>) -> Result<(Value, Option<String>), MarketError> {
-        if method == "GET" {
+        let result = if method == "GET" {
             with_retries(|| self.send_once(method, url, body, token))
         } else {
             self.send_once(method, url, body, token)
+        };
+        // The log: every change, and every request that failed (method and path, never the sign-in).
+        match &result {
+            Ok(_) if method != "GET" => log::info!(target: "orbiter::market", "{method} {}: ok", log_path(url)),
+            Ok(_) => {}
+            Err(e) => log::warn!(target: "orbiter::market", "{method} {}: {e}", log_path(url)),
         }
+        result
     }
 
     fn send_once(&self, method: &str, url: &str, body: Option<&Value>, token: Option<&str>) -> Result<(Value, Option<String>), MarketError> {

@@ -352,10 +352,11 @@ impl Companion {
         let ours = lock(&self.started).is_some_and(alive);
         if running().is_empty() && !ours {
             let (bin, bundled) = self.binary(custom).ok_or("TennoScope wasn't found. Set its path in Settings.")?;
-            let mut child = launch(&bin, bundled)
-                .arg("--background")
-                .spawn()
-                .map_err(|e| format!("Couldn't start {}: {e}", bin.display()))?;
+            let mut child = launch(&bin, bundled).arg("--background").spawn().map_err(|e| {
+                log::error!(target: "orbiter::tennoscope", "couldn't start {}: {e}", bin.display());
+                format!("Couldn't start {}: {e}", bin.display())
+            })?;
+            log::info!(target: "orbiter::tennoscope", "started {}{} (pid {})", bin.display(), if bundled { ", the one inside orbiter" } else { "" }, child.id());
             let started = proc_of(child.id());
             // Collected in the background whenever it exits, so it never lingers as a zombie.
             std::thread::spawn(move || child.wait());
@@ -394,6 +395,7 @@ impl Companion {
         // Normally it hands the request over and exits at once. If the TennoScope it was meant
         // for closed in the meantime, it becomes TennoScope itself (hidden, carrying out the
         // request): then it's one orbiter started, and orbiter closes it like the first.
+        log::info!(target: "orbiter::tennoscope", "asked {arg}");
         let started = Arc::clone(&self.started);
         std::thread::spawn(move || {
             let deadline = std::time::Instant::now() + HAND_OFF;
@@ -418,6 +420,7 @@ impl Companion {
     /// Stops the TennoScope orbiter started (and only that one), asking it to quit first.
     pub fn stop(&self) {
         let Some(p) = lock(&self.started).take() else { return };
+        log::info!(target: "orbiter::tennoscope", "stopping the TennoScope orbiter started");
         if alive(p) {
             terminate(p.pid);
         }

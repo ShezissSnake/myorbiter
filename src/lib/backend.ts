@@ -937,6 +937,24 @@ export const tennoscope = {
 /** The reward cards a patched TennoScope read off the screen (empty once it closes), or null. */
 // ---------------------------------------------------------------- desktop
 
+// ---------------------------------------------------------------- the log
+
+/** A line for orbiter's log (see applog.rs): the desktop app writes it; in a browser, the console. */
+export function logLine(level: "info" | "warn" | "error", area: string, message: string) {
+  if (inTauri) void invoke("log_line", { level, area, message }).catch(() => {});
+  else if (level !== "info") console[level === "error" ? "error" : "warn"](`[${area}] ${message}`);
+}
+
+/** Where orbiter's and TennoScope's logs are (null: none yet, or not the desktop app). */
+export async function logFolders(dataDir: string): Promise<{ orbiter: string | null; tennoscope: string | null }> {
+  return inTauri ? invoke("log_folders", { dir: dataDir || null }) : { orbiter: null, tennoscope: null };
+}
+
+/** Opens a log folder in the file manager. */
+export async function openLogFolder(which: "orbiter" | "tennoscope", dataDir: string): Promise<void> {
+  if (inTauri) await invoke("open_log_folder", { which, dir: dataDir || null });
+}
+
 /**
  * A desktop notification (App's `tell` decides when). `id`: its entry in the history, so clicking
  * it opens what it's about (see onNoticeOpen). In the browser dev mode it's logged.

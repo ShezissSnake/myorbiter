@@ -2832,6 +2832,7 @@ dependencies = [
  "image",
  "keyring",
  "libc",
+ "log",
  "notify-rust",
  "orbiter-data",
  "rustls",

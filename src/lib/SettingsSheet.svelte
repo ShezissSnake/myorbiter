@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { PLATFORM_LABEL, onWindows, type Platform, type Settings } from "./backend";
+  import { PLATFORM_LABEL, logFolders, onWindows, openLogFolder, type Platform, type Settings } from "./backend";
   import { ts } from "./tennoscopeStore.svelte";
   import Sheet from "./ui/Sheet.svelte";
   import Switch from "./ui/Switch.svelte";
@@ -18,6 +18,7 @@
     rivenKeyError = null,
   }: { open: boolean; settings: Settings; defaultDir: string; eeFound: string | null; onpaths: () => void; onnotices: () => void; rivenKeyError?: string | null } = $props();
 
+  let logError = $state<string | null>(null);
   // Paths are edited as drafts and applied together, because changing them reloads everything.
   let dataDir = $state("");
   let eeLog = $state("");
@@ -217,6 +218,19 @@
     <div class="row"><button class="stamp" onclick={() => { open = false; onnotices(); }}>Open notifications</button></div>
   </section>
 
+  <section>
+    <h3 class="register">Logs</h3>
+    <p class="hint">What orbiter did and what went wrong, one line each, for when something misbehaves: TennoScope starting or failing, every change it made to your listings and every request warframe.market turned down, and errors in this window. Never your warframe.market sign-in. TennoScope keeps its own. Send both when you report a problem.</p>
+    {#await logFolders(settings.dataDir) then f}
+      <div class="row">
+        <button class="stamp" disabled={!f.orbiter} title={f.orbiter ?? "Only in the desktop app"} onclick={() => openLogFolder("orbiter", settings.dataDir).catch((e) => (logError = String(e)))}>Open orbiter's log folder</button>
+        <button class="stamp" disabled={!f.tennoscope} title={f.tennoscope ?? "TennoScope hasn't written a log here yet"} onclick={() => openLogFolder("tennoscope", settings.dataDir).catch((e) => (logError = String(e)))}>Open TennoScope's log folder</button>
+      </div>
+      {#if f.orbiter}<p class="hint path-note">{f.orbiter}</p>{/if}
+    {/await}
+    {#if logError}<p class="hint err">{logError}</p>{/if}
+  </section>
+
 
   {#if dirty}
     <div class="unsaved">
@@ -241,6 +255,8 @@
   /* What's used when the field is empty: dimmer and slanted, so it doesn't read as typed in. */
   .path::placeholder { text-transform: none; letter-spacing: 0; font-size: .74rem; font-style: italic; color: var(--platinum-deep); opacity: .7; }
   .hint { font-size: .76rem; color: var(--platinum-deep); }
+  .path-note { word-break: break-all; margin: .3rem 0 0; }
+  .hint.err { color: var(--oxblood); }
   .row { display: flex; align-items: center; gap: .6rem; }
   .pagelist { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
   .pagelist li { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: .5rem; }

@@ -1,5 +1,6 @@
 use serde_json::Value;
 use std::fs;
+mod applog;
 mod bridge;
 mod companion;
 mod desktop;
@@ -222,11 +223,15 @@ async fn worldstate(app: tauri::AppHandle) -> Value {
 async fn relic_data(app: tauri::AppHandle, force: Option<bool>) -> Result<Value, String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     tauri::async_runtime::spawn_blocking(move || {
-        let data = relicdata::relic_data(&dir, force.unwrap_or(false))?;
+        let data = relicdata::relic_data(&dir, force.unwrap_or(false)).map_err(|e| {
+            log::warn!(target: "orbiter::relics", "drop tables couldn't be read: {e}");
+            e
+        })?;
         // TennoScope's reward reader goes by these too (see bridge.rs, RELICS_FILE).
         if let Some(rt) = bridge::runtime_dir() {
-            if let Err(e) = bridge::write_relics_in(&rt, &data) {
-                eprintln!("orbiter: writing the relic tables for TennoScope failed: {e}");
+            match bridge::write_relics_in(&rt, &data) {
+                Ok(()) => log::info!(target: "orbiter::relics", "drop tables {} ({} relics) written for TennoScope", data["hash"].as_str().unwrap_or("?"), data["relics"].as_array().map_or(0, Vec::len)),
+                Err(e) => log::warn!(target: "orbiter::relics", "writing the drop tables for TennoScope failed: {e}"),
             }
         }
         Ok(data)
@@ -336,6 +341,15 @@ fn ee_log_path() -> Option<PathBuf> {
         }
     }
     let path = find_ee_log();
+    let before = found.as_ref().map(|(p, _)| p.clone());
+    // Said once when orbiter starts looking, then whenever it changes.
+    static SAID: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if path != before || !SAID.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        match &path {
+            Some(p) => log::info!(target: "orbiter::ee_log", "found at {}", p.display()),
+            None => log::warn!(target: "orbiter::ee_log", "not found in any Steam library (set its path in Settings)"),
+        }
+    }
     *found = path.clone().map(|p| (p, Instant::now()));
     path
 }
@@ -703,7 +717,43 @@ fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<Strin
 /// started (see `RunEvent::Exit` in `run`).
 #[tauri::command]
 fn quit(app: tauri::AppHandle) {
+    log::info!(target: "orbiter::app", "quitting");
     app.exit(0);
+}
+
+/// A line for orbiter's log from the window: its errors, and what it tells you (see applog.rs).
+#[tauri::command]
+fn log_line(level: String, area: String, message: String) {
+    applog::from_ui(&level, &area, &message);
+}
+
+/// Where the logs are: orbiter's, and TennoScope's (the first of its log folders that exists).
+#[derive(serde::Serialize)]
+struct LogFolders {
+    orbiter: Option<String>,
+    tennoscope: Option<String>,
+}
+
+#[tauri::command(async)]
+fn log_folders(dir: Option<String>) -> LogFolders {
+    let tennoscope = data_dir(dir)
+        .ok()
+        .and_then(|d| orbiter_data::reward_log::reward_log_dirs(&d).into_iter().find(|p| p.is_dir()));
+    LogFolders { orbiter: applog::dir().map(|p| p.display().to_string()), tennoscope: tennoscope.map(|p| p.display().to_string()) }
+}
+
+/// Opens a log folder in the file manager: `which` is "orbiter" or "tennoscope".
+#[tauri::command(async)]
+fn open_log_folder(app: tauri::AppHandle, which: String, dir: Option<String>) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let folders = log_folders(dir);
+    let path = match which.as_str() {
+        "orbiter" => folders.orbiter,
+        "tennoscope" => folders.tennoscope,
+        _ => None,
+    }
+    .ok_or("That log folder doesn't exist yet")?;
+    app.opener().open_path(path, None::<&str>).map_err(|e| e.to_string())
 }
 
 /// Sent to the page when the window's X is clicked: it saves what is waiting to be saved (the last
@@ -818,7 +868,10 @@ async fn save_settings(app: tauri::AppHandle, settings: Value, rev: Option<u64>)
             return Ok(());
         }
         // Only you need to read it.
-        write_atomic(&path, &text, true).map_err(|e| e.to_string())?;
+        write_atomic(&path, &text, true).map_err(|e| {
+            log::error!(target: "orbiter::settings", "saving settings to {} failed: {e}", path.display());
+            e.to_string()
+        })?;
         *written = seq;
         Ok(())
     })
@@ -919,6 +972,10 @@ pub fn run() {
             c
         })
         .setup(|app| {
+            if let Ok(dir) = app.path().app_log_dir() {
+                applog::init(&dir);
+            }
+            log::info!(target: "orbiter::app", "orbiter {} started on {} {}", env!("CARGO_PKG_VERSION"), std::env::consts::OS, std::env::consts::ARCH);
             // Ctrl+C in a terminal, logout, `kill`: close the TennoScope orbiter started, then exit
             // (Ctrl+Q and the window's X go through `quit` and RunEvent::Exit below instead).
             #[cfg(unix)]
@@ -939,7 +996,9 @@ pub fn run() {
             // Before TennoScope is started: the relic tables its reward reader should go by, from
             // the last read (the page reads them again later and writes them anew if they changed).
             if let (Some(rt), Some(data)) = (bridge::runtime_dir(), relicdata::cached(&config)) {
-                let _ = bridge::write_relics_in(&rt, &data);
+                if let Err(e) = bridge::write_relics_in(&rt, &data) {
+                    log::warn!(target: "orbiter::relics", "writing the cached drop tables for TennoScope failed: {e}");
+                }
             }
             app.manage(market::Client::new(market::TokenStore::new(&config)));
             // The TennoScope this build carries, if it carries one (release builds do).
@@ -971,6 +1030,9 @@ pub fn run() {
             tennoscope_start,
             tennoscope_show,
             tennoscope_ask,
+            log_line,
+            log_folders,
+            open_log_folder,
             tennoscope_failure,
             reward_cards,
             notify,
