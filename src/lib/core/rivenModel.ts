@@ -124,12 +124,24 @@ export function cheap60(prices: (number | null)[]): number | null {
 }
 
 /** The model's guess for one of your rivens, given its weapon's cheapest listed and last week's trades; null when it can't say. */
-export function estimateRiven(model: RivenModel | null, meta: RivenMeta | null, trades: RivenTrade[] | null, r: Riven, any: RivenAuction[] | undefined): Estimate | null {
-  // Last week's trades not read (yet): "none for this weapon" would read as a weapon nobody wants.
+/** A riven as warframe.market writes one: its weapon's slug and stats, cycles, mastery, rank and polarity. */
+export interface ListedRiven {
+  weapon: string;
+  attributes: { url_name: string; value: number; positive: boolean }[];
+  rerolls: number;
+  mr: number;
+  rank: number;
+  polarity: string;
+}
+
+/**
+ * The model's guess for a riven, given its weapon's cheapest listed and last week's trades; null
+ * when it can't say. Last week's trades not read (yet) is null too: "none for this weapon" would
+ * read as a weapon nobody wants.
+ */
+export function estimateListed(model: RivenModel | null, meta: RivenMeta | null, trades: RivenTrade[] | null, r: ListedRiven, any: RivenAuction[] | undefined): Estimate | null {
   if (!model || !meta || !any || !trades) return null;
-  const made = auctionItemFor(meta, r);
-  if ("error" in made) return null;
-  const w = meta.weapons.find((x) => x.slug === made.item.weapon_url_name);
+  const w = meta.weapons.find((x) => x.slug === r.weapon);
   const c60 = cheap60(any.map((a) => a.price));
   if (!w || c60 == null) return null;
   // As DE's file names it once read: "Vinquibus (Melee)" is "Vinquibus" there.
@@ -137,5 +149,19 @@ export function estimateRiven(model: RivenModel | null, meta: RivenMeta | null, 
   const name = plain(w.name);
   const mine = trades.filter((t) => t.weapon != null && plain(t.weapon) === name);
   const t = mine.find((x) => x.rerolled === r.rerolls > 0) ?? mine.find((x) => x.rerolled !== r.rerolls > 0);
-  return estimate(model, { rivenType: w.rivenType, attributes: made.item.attributes, rerolls: r.rerolls, mr: r.mastery, rank: r.rank, polarity: made.item.polarity, weeklyMedian: t ? (t.median ?? t.avg) : null, weeklyPop: t?.pop ?? 0, cheap60: c60 });
+  return estimate(model, { rivenType: w.rivenType, attributes: r.attributes, rerolls: r.rerolls, mr: r.mr, rank: r.rank, polarity: r.polarity, weeklyMedian: t ? (t.median ?? t.avg) : null, weeklyPop: t?.pop ?? 0, cheap60: c60 });
+}
+
+/** The same for one of your rivens. */
+export function estimateRiven(model: RivenModel | null, meta: RivenMeta | null, trades: RivenTrade[] | null, r: Riven, any: RivenAuction[] | undefined): Estimate | null {
+  if (!meta) return null;
+  const made = auctionItemFor(meta, r);
+  if ("error" in made) return null;
+  return estimateListed(model, meta, trades, { weapon: made.item.weapon_url_name, attributes: made.item.attributes, rerolls: r.rerolls, mr: r.mastery, rank: r.rank, polarity: made.item.polarity }, any);
+}
+
+/** A listing against the estimate for a riven like it: its price as a share of the middle guess, and whether it's under the lower quartile. */
+export function dealOf(price: number | null, e: Estimate | null): { ratio: number; under: boolean } | null {
+  if (price == null || price <= 0 || !e || e.mid <= 0) return null;
+  return { ratio: price / e.mid, under: price < e.lo };
 }

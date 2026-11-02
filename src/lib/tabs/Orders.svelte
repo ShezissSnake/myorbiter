@@ -21,7 +21,8 @@
   import PriceHistory from "../ui/PriceHistory.svelte";
   import { rivens } from "../rivenStore.svelte";
   import { openUrl } from "../backend";
-  import type { MyAuction } from "../core/rivens";
+  import type { MyAuction, RivenAuction } from "../core/rivens";
+  import { estimateListed } from "../core/rivenModel";
 
   // console: you play on a console or phone, so orbiter can't see what you hold. New listing then
   // finds anything warframe.market trades, and what needs your inventory (spares, "Can't deliver") is left out.
@@ -223,6 +224,24 @@
     void rivens.loadMine();
   });
   const auctions = $derived(rivens.mine.filter((a) => !a.closed));
+  // Each auction against orbiter's estimate for a riven like it: the weapon's cheapest listed
+  // (one search per weapon, shared with Rivens), last week's trades and the price model.
+  let anyBy = $state<Record<string, RivenAuction[]>>({});
+  const anyAsked = new Set<string>();
+  $effect(() => {
+    const weapons = [...new Set(auctions.map((a) => a.weapon))].filter((w) => !anyAsked.has(w));
+    for (const w of weapons) anyAsked.add(w);
+    if (!weapons.length) return;
+    void rivens.loadModel();
+    void rivens.loadTrades(mkt.platform);
+    void (async () => {
+      for (const w of weapons) {
+        const any = await rivens.search(w, [], null).catch(() => null);
+        if (any) anyBy = { ...anyBy, [w]: any };
+      }
+    })();
+  });
+  const auctionEst = (a: MyAuction) => estimateListed(rivens.model, rivens.meta, rivens.trades, a, anyBy[a.weapon]);
   const weaponOf = (a: MyAuction) => rivens.meta?.weapons.find((w) => w.slug === a.weapon);
   const auctionTitle = (a: MyAuction) => `${weaponOf(a)?.name ?? a.weapon.replace(/_/g, " ")} ${a.name.replace(/(^|-)\p{L}/gu, (c) => c.toUpperCase())}`;
   let auctionPrice = $state<{ id: string; buyout: number | null; busy: boolean; error: string | null } | null>(null);
@@ -583,7 +602,9 @@
                 <IconButton icon="close" tone="quiet" label="Cancel" onclick={() => (auctionPrice = null)} />
                 {#if auctionPrice.error}<span class="err small">{auctionPrice.error}</span>{/if}
               {:else}
+                {@const e = auctionEst(a)}
                 <span class="dim small">{a.topBid != null ? `top bid ${a.topBid}p · ` : ""}{a.starting < (a.buyout ?? Infinity) ? `bids from ${a.starting}p` : "no bidding"}</span>
+                {#if e}<span class="dim small nowrap" title="orbiter's estimate of what a riven like it is listed for: the middle half of such listings ask {e.lo}–{e.hi}p">estimate ~{e.mid}p</span>{#if a.buyout != null && a.buyout > e.hi}<span class="tag warn" title="Your buyout is over what three in four rivens like it ask ({e.hi}p): it may sit unsold">over</span>{:else if a.buyout != null && a.buyout < e.lo}<span class="tag" title="Your buyout is under what three in four rivens like it ask ({e.lo}p): you may be leaving platinum behind">under</span>{/if}{/if}
                 {#if a.buyout != null}<P v={a.buyout} />{:else}<span class="dim small">no buyout</span>{/if}
                 <IconButton icon="pencil" tone="quiet" label="Change price" title="Change its buyout price" onclick={() => (auctionPrice = { id: a.id, buyout: a.buyout, busy: false, error: null })} />
                 <IconButton icon="external" tone="quiet" label="Open on warframe.market" onclick={() => openUrl(`https://warframe.market/auction/${a.id}`)} />

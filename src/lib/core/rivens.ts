@@ -564,6 +564,12 @@ export interface MyAuction {
   note: string;
   minRep: number;
   updated: string;
+  /** The riven as listed, for its estimate. */
+  attributes: { url_name: string; value: number; positive: boolean }[];
+  rerolls: number;
+  mr: number;
+  rank: number;
+  polarity: string;
 }
 
 /** `v1/profile/auctions` → your riven auctions. */
@@ -585,6 +591,11 @@ export function parseMyAuctions(raw: unknown): MyAuction[] {
       note: String(a.note_raw ?? a.note ?? ""),
       minRep: Number(a.minimal_reputation ?? 0),
       updated: String(a.updated ?? ""),
+      attributes: Array.isArray(item.attributes) ? (item.attributes as MyAuction["attributes"]).filter((x) => x && typeof x.url_name === "string" && typeof x.value === "number") : [],
+      rerolls: Number(item.re_rolls ?? 0),
+      mr: Number(item.mastery_level ?? 0),
+      rank: Number(item.mod_rank ?? 0),
+      polarity: String(item.polarity ?? ""),
     });
   }
   return out;

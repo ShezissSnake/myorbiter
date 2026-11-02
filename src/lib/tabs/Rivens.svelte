@@ -10,7 +10,7 @@
   import { attributeSlug, auctionItemFor, auctionOf, checkedWhen, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, rollChoice, cycleKey, searchFor, searchKey, statMarket, unpackListed, unpackPrices, type MyAuction, type Riven, type RivenAuction, type RivenChange, type RollChoice } from "../core/rivens";
   import { mkt } from "../marketStore.svelte";
   import { rivens } from "../rivenStore.svelte";
-  import { estimateRiven, type Estimate } from "../core/rivenModel";
+  import { dealOf, estimateListed, estimateRiven, type Estimate } from "../core/rivenModel";
   import PageHead from "../ui/PageHead.svelte";
   import Stat from "../ui/Stat.svelte";
   import CardGrid from "../ui/CardGrid.svelte";
@@ -336,7 +336,9 @@
   /** A stat picked in another box (wanted or curse) isn't offered again: a riven can't roll it twice. */
   const takenBut = (keep: string) => new Set([...pos, neg].filter((s) => s && s !== keep));
   // The results keep the weapon they were searched for, whatever the box says now.
-  let found = $state<{ key: string; weapon: { slug: string; name: string }; auctions?: RivenAuction[]; error?: string; loading: boolean } | null>(null);
+  let found = $state<{ key: string; weapon: { slug: string; name: string }; auctions?: RivenAuction[]; any?: RivenAuction[]; error?: string; loading: boolean } | null>(null);
+  /** Results by price as listed, or the best deal against the estimate first. */
+  let foundSort = $state<"price" | "deal">("price");
   async function find() {
     if (!weapon) return;
     const positive = pos.filter(Boolean);
@@ -345,7 +347,9 @@
     found = { key, weapon: w, loading: true };
     try {
       const auctions = await rivens.search(w.slug, positive, neg || null, 60_000);
-      if (found?.key === key) found = { key, weapon: w, loading: false, auctions };
+      // The weapon's cheapest listed, for the estimate of each result (shared with price checks).
+      const any = await rivens.search(w.slug, [], null).catch(() => undefined);
+      if (found?.key === key) found = { key, weapon: w, loading: false, auctions, any };
     } catch (e) {
       if (found?.key === key) found = { key, weapon: w, loading: false, error: String(e).replace(/^Error: /, "") };
     }
@@ -368,7 +372,23 @@
     settings.rivenWatch = [...settings.rivenWatch, w];
   }
   const unwatch = (id: string) => (settings.rivenWatch = settings.rivenWatch.filter((w) => w.id !== id));
-  const shownAuctions = $derived((found?.auctions ?? []).filter((a) => !maxPrice || (a.price ?? Infinity) <= maxPrice));
+  /** Each result's estimate, and its price against it. */
+  const foundEst = $derived.by(() => {
+    const out = new Map<string, { e: Estimate; deal: ReturnType<typeof dealOf> }>();
+    const f = found;
+    if (!f?.auctions || !f.any) return out;
+    for (const a of f.auctions) {
+      const e = estimateListed(rivens.model, meta, rivens.trades, { weapon: f.weapon.slug, attributes: a.attributes, rerolls: a.rerolls, mr: a.mr, rank: a.rank, polarity: a.polarity }, f.any);
+      if (e) out.set(a.id, { e, deal: dealOf(a.price, e) });
+    }
+    return out;
+  });
+  const shownAuctions = $derived.by(() => {
+    const list = (found?.auctions ?? []).filter((a) => !maxPrice || (a.price ?? Infinity) <= maxPrice);
+    if (foundSort !== "deal") return list;
+    const r = (a: RivenAuction) => foundEst.get(a.id)?.deal?.ratio ?? Infinity;
+    return [...list].sort((a, b) => r(a) - r(b));
+  });
   const statusLabel: Record<string, string> = { ingame: "In game", online: "Online", offline: "Offline" };
 </script>
 
@@ -539,7 +559,7 @@
                 {#if f.bids}<span class="plat"><input type="number" min="1" bind:value={f.starting} aria-label="Starting bid" /><GameIcon name="platinum" size={14} /></span>{/if}
                 <button class="stamp gold" disabled={f.busy || !f.buyout}>{f.busy ? "Listing…" : "List it"}</button>
                 <IconButton icon="close" tone="quiet" label="Cancel" onclick={() => delete sell[r.id]} />
-                {#if pc?.lowest != null}<span class="dim small hint">Cheapest similar: {pc.lowest}p{pc.typical != null ? `, typical ${pc.typical}p` : ""}</span>{/if}
+                {#if estimates[r.id] || pc?.lowest != null}<span class="dim small hint">{#if estimates[r.id]}Estimate {estimates[r.id].mid}p (the middle half of listings like it ask {estimates[r.id].lo}–{estimates[r.id].hi}p){pc?.lowest != null ? "; " : ""}{/if}{#if pc?.lowest != null}cheapest similar {pc.lowest}p{pc.typical != null ? `, most around ${pc.typical}p` : ""}{/if}. To sell sooner, ask toward the lower end.</span>{/if}
                 {#if f.error}<span class="err small">{f.error}</span>{/if}
               </form>
             {/if}
@@ -575,7 +595,7 @@
             <!-- The same three places on every card: check prices, sell, open on warframe.market. -->
             <IconButton icon={pc || c?.error ? "refresh" : "search"} tone="quiet" label={c?.loading ? "Checking…" : pc ? "Check again" : c?.error ? "Try again" : "Price check"} title={pc ? "Check again: find similar rivens for sale now" : "Price check: find similar rivens for sale"} disabled={!meta || c?.loading} onclick={() => check(r)} />
             {#if meta && auctionOf(meta, r, rivens.mine)}<span class="slot"></span>
-            {:else}<IconButton icon="list" tone={sell[r.id] ? "gold" : "quiet"} label="Sell" title={!mkt.linked ? "Sign in to warframe.market on Orders first" : "Sell: put it up as an auction on warframe.market"} disabled={!meta || !mkt.linked || !!sell[r.id]} onclick={() => openSell(r, pc?.typical ?? pc?.lowest ?? null)} />{/if}
+            {:else}<IconButton icon="list" tone={sell[r.id] ? "gold" : "quiet"} label="Sell" title={!mkt.linked ? "Sign in to warframe.market on Orders first" : "Sell: put it up as an auction on warframe.market"} disabled={!meta || !mkt.linked || !!sell[r.id]} onclick={() => openSell(r, estimates[r.id]?.mid ?? pc?.typical ?? pc?.lowest ?? null)} />{/if}
             <IconButton icon="external" tone="quiet" label="Similar rivens on warframe.market" onclick={() => openUrl(searchUrl(r))} />
           </footer>
         </article>
@@ -629,23 +649,29 @@
         {:else if found.error}<p class="dim small">{found.error}</p>
         {:else if !shownAuctions.length}<p class="dim small">Nothing listed{maxPrice ? ` at ${maxPrice}p or less` : ""} right now.</p>
         {:else}
+          <div class="rsort">
+            <span class="dim small">{shownAuctions.length > 30 ? `The first 30 of ${shownAuctions.length}` : `${shownAuctions.length} listed`}</span>
+            <label class="sortsel" title="By price as listed, or the best deal against the estimate first"><span class="register">Sort</span><select bind:value={foundSort} aria-label="Sort results"><option value="price">Price</option><option value="deal">Best deal</option></select></label>
+          </div>
           <table class="results">
-            <thead><tr><th>Riven</th><th>Stats</th><th class="right">Roll</th><th class="right">Rank · rerolls</th><th>Seller</th><th class="right">Price</th></tr></thead>
+            <thead><tr><th>Riven</th><th>Stats</th><th class="right">Roll</th><th class="right">Rank · rerolls</th><th>Seller</th><th class="right" title="orbiter's estimate of what a riven like this one is listed for (see Estimate on your rivens' cards)">Estimate</th><th class="right">Price</th></tr></thead>
             <tbody>
               {#each shownAuctions.slice(0, 30) as a (a.id)}
                 {@const g = gradeAuction(meta, tables, found.weapon.slug, a)}
+                {@const fe = foundEst.get(a.id)}
                 <tr>
                   <td class="nowrap"><b class="name-mark">{found.weapon.name} {a.name}</b></td>
                   <td>{#each a.attributes as x, i (i)}<span class="att" class:curse={!x.positive}>{x.value > 0 && x.positive ? "+" : ""}{x.value}{meta.attributes.find((m) => m.slug === x.url_name)?.unit === "percent" ? "%" : ""} {attrName(x.url_name)}{#if g}<em>{g.grades[i]}</em>{/if}</span>{/each}</td>
                   <td class="right">{#if g}{@render grade(g.grade)}{/if}</td>
                   <td class="right dim small nowrap">R{a.rank} · {a.rerolls}</td>
                   <td class="nowrap"><span class="st st-{a.status}">{statusLabel[a.status] ?? a.status}</span> {a.seller}</td>
-                  <td class="right"><P v={a.price} /></td>
+                  <td class="right dim small nowrap" title={fe ? `The middle half of listings like it ask ${fe.e.lo}–${fe.e.hi}p` : "No estimate: the weapon's listings or last week's trades aren't read yet"}>{fe ? `~${fe.e.mid.toLocaleString("en")}p` : "–"}</td>
+                  <td class="right nowrap"><P v={a.price} />{#if fe?.deal?.under}<span class="tag ok deal" title="Listed under the lower end of the estimate's range ({fe.e.lo}p): cheap for a riven like it, unless something about it the stats don't show (a seller who won't answer, a typo)">{Math.round((1 - fe.deal.ratio) * 100)}% under</span>{/if}</td>
                 </tr>
               {/each}
             </tbody>
           </table>
-          <p class="dim small">Rolls are worked out from the numbers sellers typed in; "?" means a number the riven couldn't have rolled (often a listing from before the disposition change).</p>
+          <p class="dim small">Rolls are worked out from the numbers sellers typed in; "?" means a number the riven couldn't have rolled (often a listing from before the disposition change). Estimates come from the same numbers, so a typo moves them too.</p>
         {/if}
       {/if}
     {/if}
@@ -654,6 +680,8 @@
 
 <style>
   .sortsel { display: inline-flex; align-items: center; gap: .55rem; }
+  .rsort { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: .4rem 0; }
+  .deal { margin-left: .4rem; }
   .est { display: grid; gap: .2rem; padding: .55rem .7rem; border: 1px solid var(--rule); background: rgb(214 174 74 / 4%); }
   .est .register { font-size: .58rem; }
   .est .v { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; }
