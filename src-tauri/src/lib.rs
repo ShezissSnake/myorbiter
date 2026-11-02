@@ -734,11 +734,36 @@ fn write_reward_pick(pick: Value) -> Result<(), String> {
 #[tauri::command]
 fn set_riven_key(app: tauri::AppHandle, key: Option<String>) -> Result<(), String> {
     use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    static HELD: Mutex<Option<String>> = Mutex::new(None);
+    let mut held = HELD.lock().map_err(|e| e.to_string())?;
+    let wanted = key.as_deref().map(str::trim).filter(|k| !k.is_empty()).map(str::to_owned);
+    if *held == wanted {
+        return Ok(());
+    }
     let shortcuts = app.global_shortcut();
-    shortcuts.unregister_all().map_err(|e| e.to_string())?;
-    match key.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
-        None => Ok(()),
-        Some(k) => shortcuts.register(k).map_err(|e| format!("{k}: {e}")),
+    if let Some(k) = &wanted {
+        riven_key_allowed(k)?;
+        // The new key first: if it can't be had, the one that worked stays.
+        shortcuts.register(k.as_str()).map_err(|e| format!("{k}: {e}"))?;
+    }
+    if let Some(old) = held.take() {
+        let _ = shortcuts.unregister(old.as_str());
+    }
+    *held = wanted;
+    Ok(())
+}
+
+/// A key held for orbiter is taken from every app, the game too: never a bare letter the game
+/// uses (R reloads), only a function key or a key with Ctrl, Alt, Shift or Super.
+fn riven_key_allowed(key: &str) -> Result<(), String> {
+    let parts: Vec<String> = key.split('+').map(|p| p.trim().to_ascii_lowercase()).collect();
+    let modified = parts.len() > 1 && parts[..parts.len() - 1].iter().all(|p| matches!(p.as_str(), "ctrl" | "control" | "alt" | "option" | "shift" | "super" | "meta" | "cmd" | "command" | "commandorcontrol" | "cmdorctrl"));
+    let last = parts.last().map(String::as_str).unwrap_or("");
+    let function = last.len() >= 2 && last.starts_with('f') && last[1..].parse::<u8>().is_ok_and(|n| (1..=24).contains(&n));
+    if modified || (parts.len() == 1 && function) {
+        Ok(())
+    } else {
+        Err(format!("{key}: use a function key (F9) or a key with Ctrl, Alt, Shift or Super (Ctrl+Shift+R): a bare key would be taken from the game"))
     }
 }
 
@@ -990,6 +1015,17 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn the_riven_key_is_a_function_key_or_has_a_modifier() {
+        for ok in ["F9", "f12", "Ctrl+Shift+R", "Alt+K", "Super+F1", "CmdOrCtrl+R"] {
+            assert!(riven_key_allowed(ok).is_ok(), "{ok}");
+        }
+        for bad in ["R", "Space", "F25", "Ctrl", "Shift+Foo+R"] {
+            assert!(riven_key_allowed(bad).is_err(), "{bad}");
+        }
+    }
+
     use super::*;
 
     #[test]

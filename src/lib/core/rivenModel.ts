@@ -27,6 +27,8 @@ export interface RivenModel {
   mid: Trees;
   lo: Trees;
   hi: Trees;
+  /** How it did on listings from sellers it hadn't learned from: the typical miss (a ratio) and the share within ×2. */
+  accuracy?: { typical: number; within2: number };
 }
 
 /** One riven as the model takes it: warframe.market's way of writing its stats (see auctionItemFor). */
@@ -104,15 +106,12 @@ export function estimate(model: RivenModel, input: ModelInput): Estimate {
   // The quartile models are trained apart: keep them either side of the middle.
   const lo = Math.min(walk(model.lo, x), mid);
   const hi = Math.max(walk(model.hi, x), mid);
-  const factors: Estimate["factors"] = [];
-  const idx = (f: string) => model.features.indexOf(f);
-  for (const a of input.attributes) {
-    const i = idx(a.positive ? `q_${a.url_name}` : `n_${a.url_name}`);
-    if (i < 0) continue;
-    const without = [...x];
-    without[i] = 0;
-    factors.push({ slug: a.url_name, positive: a.positive, ratio: Math.exp(mid - walk(model.mid, without)) });
-  }
+  // Each stat against the same riven without it: one buff fewer (or no curse), the others' rolls
+  // judged against that layout, as the model saw such rivens.
+  const factors: Estimate["factors"] = input.attributes.map((a) => {
+    const without = featurize(model, { ...input, attributes: input.attributes.filter((b) => b !== a) });
+    return { slug: a.url_name, positive: a.positive, ratio: Math.exp(mid - walk(model.mid, without)) };
+  });
   return { mid: round(Math.exp(mid)), lo: round(Math.exp(lo)), hi: round(Math.exp(hi)), factors };
 }
 
@@ -126,14 +125,17 @@ export function cheap60(prices: (number | null)[]): number | null {
 
 /** The model's guess for one of your rivens, given its weapon's cheapest listed and last week's trades; null when it can't say. */
 export function estimateRiven(model: RivenModel | null, meta: RivenMeta | null, trades: RivenTrade[] | null, r: Riven, any: RivenAuction[] | undefined): Estimate | null {
-  if (!model || !meta || !any) return null;
+  // Last week's trades not read (yet): "none for this weapon" would read as a weapon nobody wants.
+  if (!model || !meta || !any || !trades) return null;
   const made = auctionItemFor(meta, r);
   if ("error" in made) return null;
   const w = meta.weapons.find((x) => x.slug === made.item.weapon_url_name);
   const c60 = cheap60(any.map((a) => a.price));
   if (!w || c60 == null) return null;
-  const name = w.name.toLowerCase();
-  const mine = (trades ?? []).filter((t) => t.weapon?.toLowerCase() === name);
+  // As DE's file names it once read: "Vinquibus (Melee)" is "Vinquibus" there.
+  const plain = (n: string) => n.replace(/ \((Melee|Primary|Secondary)\)$/i, "").toLowerCase();
+  const name = plain(w.name);
+  const mine = trades.filter((t) => t.weapon != null && plain(t.weapon) === name);
   const t = mine.find((x) => x.rerolled === r.rerolls > 0) ?? mine.find((x) => x.rerolled !== r.rerolls > 0);
   return estimate(model, { rivenType: w.rivenType, attributes: made.item.attributes, rerolls: r.rerolls, mr: r.mastery, rank: r.rank, polarity: made.item.polarity, weeklyMedian: t ? (t.median ?? t.avg) : null, weeklyPop: t?.pop ?? 0, cheap60: c60 });
 }

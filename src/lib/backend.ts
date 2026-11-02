@@ -1000,13 +1000,13 @@ export interface RewardPickFile {
 }
 
 /** Your overlay settings, for TennoScope. Only the desktop app writes them. */
+export async function writeOverlayPrefs(prefs: OverlaySettings): Promise<void> {
+  if (inTauri) await invoke("write_overlay_prefs", { prefs });
+}
+
 /** A riven cycle for TennoScope to show over the game (see core/rivens.ts, cycleOverlay). */
 export async function writeRivenCycle(cycle: unknown): Promise<void> {
   if (inTauri) await invoke("write_riven_cycle", { cycle });
-}
-
-export async function writeOverlayPrefs(prefs: OverlaySettings): Promise<void> {
-  if (inTauri) await invoke("write_overlay_prefs", { prefs });
 }
 
 /** Every relic reward screen in TennoScope's own logs, oldest first (see crates/orbiter-data/src/reward_log.rs). */

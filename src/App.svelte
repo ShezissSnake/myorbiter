@@ -323,12 +323,16 @@
   // inventory, and a riven waiting for keep-or-take then shows over the game (see the cycle effect).
   let rivenKeyError = $state<string | null>(null);
   let rivenKeySet: string | null = null;
+  /** The riven key's last press (a few seconds apart at most: each asks TennoScope for a read). */
+  let rivenKeyAt = $state(0);
   $effect(() => {
     const key = settings.overlay.riven ? settings.overlay.rivenKey : "";
     if (!settingsReady || key === rivenKeySet) return;
     rivenKeySet = key;
     void setRivenKey(key, () => {
-      if (settings.market.platform === "pc") void ts.ask("--sync");
+      if (settings.market.platform !== "pc" || Date.now() - rivenKeyAt < 4000) return;
+      rivenKeyAt = Date.now();
+      void ts.ask("--sync");
     }).then((why) => (rivenKeyError = why));
   });
 
@@ -1066,41 +1070,54 @@
     untrack(() => void scanRivens());
   });
   // A riven mid-cycle (TennoScope read it while you choose): which roll to keep, as a notification
-  // over the game, once per cycle.
+  // once per cycle, and over the game on TennoScope's overlay: when a fresh read first shows it, or
+  // when a read after a press of the riven key does (again, if you ask again).
+  /** The cycle the overlay was last given, and when each was. */
+  let overlayLatest = "";
+  const overlayAt = new Map<string, number>();
   $effect(() => {
     const raws = settings.game.rivens;
     const m = model;
+    const pressed = rivenKeyAt;
     if (!raws?.some((r) => r.pending) || !m) return;
     untrack(() => {
       const tables = rivenTables(m.catalogByUnique.values());
       const seen = new Set(settings.game.cyclesNotified ?? []);
+      const readAt = m.observedAt ? +m.observedAt : 0;
       for (const raw of raws) {
         if (!raw.pending) continue;
         const key = cycleKey(raw);
-        if (seen.has(key)) continue;
-        settings.game.cyclesNotified = [key, ...(settings.game.cyclesNotified ?? [])].slice(0, 100);
+        const first = !seen.has(key);
+        if (first) settings.game.cyclesNotified = [key, ...(settings.game.cyclesNotified ?? [])].slice(0, 100);
         const c = rollChoice(m, tables, raw);
-        // Over the game too, on TennoScope's overlay, for 25 seconds; then again with the price
-        // model's estimate for each roll once the weapon's cheapest listed are read.
-        if (c && settings.overlay.riven) {
-          const shown = cycleOverlay(key, c);
-          void writeRivenCycle(shown).catch(() => {});
-          void (async () => {
-            const meta = await rivens.loadMeta();
-            await rivens.loadModel();
-            const weapon = meta ? searchFor(meta, c.current).weapon : null;
-            if (!meta || !weapon) return;
-            const any = await rivens.search(weapon, [], null).catch(() => undefined);
-            const cur = estimateRiven(rivens.model, meta, rivens.trades, c.current, any);
-            const next = estimateRiven(rivens.model, meta, rivens.trades, c.next, any);
-            if ((!cur && !next) || Date.now() > shown.until) return;
-            await writeRivenCycle({ ...shown, current: { ...shown.current, price: cur?.mid ?? null }, next: { ...shown.next, price: next?.mid ?? null } });
-          })().catch(() => {});
-        }
-        if (c) tell("cycle", `${c.current.weapon}: ${c.verdict === "take" ? "take the new roll" : c.verdict === "keep" ? "keep the one it has" : "close call"}`, `${c.next.name} (${c.next.grade}) vs ${c.current.name} (${c.current.grade}). ${c.why}`, "rivens");
+        if (!c) continue;
+        // Not one read while orbiter was closed and long since settled; one read after the key, yes.
+        const fresh = Date.now() - readAt < 120_000;
+        const asked = pressed > 0 && readAt >= pressed - 1000 && (overlayAt.get(key) ?? 0) < pressed;
+        if (settings.overlay.riven && ((first && fresh) || asked)) showCycle(key, c);
+        if (first) tell("cycle", `${c.current.weapon}: ${c.verdict === "take" ? "take the new roll" : c.verdict === "keep" ? "keep the one it has" : "close call"}`, `${c.next.name} (${c.next.grade}) vs ${c.current.name} (${c.current.grade}). ${c.why}`, "rivens");
       }
     });
   });
+  /** Both rolls over the game for 25 seconds; then again with the price model's estimate for each once it can say. */
+  function showCycle(key: string, c: NonNullable<ReturnType<typeof rollChoice>>) {
+    const shown = cycleOverlay(key, c);
+    overlayLatest = key;
+    overlayAt.set(key, shown.at);
+    void writeRivenCycle(shown).catch(() => {});
+    void (async () => {
+      const meta = await rivens.loadMeta();
+      await Promise.all([rivens.loadModel(), rivens.loadTrades(settings.market.platform)]);
+      const weapon = meta ? searchFor(meta, c.current).weapon : null;
+      if (!meta || !weapon) return;
+      const any = await rivens.search(weapon, [], null).catch(() => undefined);
+      const cur = estimateRiven(rivens.model, meta, rivens.trades, c.current, any);
+      const next = estimateRiven(rivens.model, meta, rivens.trades, c.next, any);
+      // A newer cycle on the overlay since, or this one's time up: leave it.
+      if ((!cur && !next) || overlayLatest !== key || Date.now() > shown.until) return;
+      await writeRivenCycle({ ...shown, current: { ...shown.current, price: cur?.mid ?? null }, next: { ...shown.next, price: next?.mid ?? null } });
+    })().catch(() => {});
+  }
   async function scanRivens() {
     const found: string[] = [];
     const ids: string[] = [];

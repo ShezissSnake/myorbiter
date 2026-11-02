@@ -10,7 +10,7 @@ def get(url):
     for attempt in range(4):
         last[0] = time.time()
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json", "Platform": "pc", "Language": "en"})
+            req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json", "Platform": "pc", "Language": "en", "Crossplay": "true"})
             with urllib.request.urlopen(req, timeout=30) as r:
                 return json.load(r)
         except urllib.error.HTTPError as e:

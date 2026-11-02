@@ -47,8 +47,14 @@ def load():
     W = {w["slug"]: w for w in json.load(open(os.path.join(DATA, "rw.json")))["data"]}
     week = weekly(os.path.join(DATA, "weekly.txt"))
     recs = []
-    for line in open(os.path.join(DATA, "auctions.jsonl")):
-        r = json.loads(line)
+    # The weapon's cheapest 60 as the app's search returns them: every listing with a price,
+    # before the ones too cheap or too dear to learn from are left out below.
+    every = collections.defaultdict(list)
+    rows = [json.loads(line) for line in open(os.path.join(DATA, "auctions.jsonl"))]
+    for r in rows:
+        if r["price"] and r["price"] > 0:
+            every[r["weapon"]].append(r["price"])
+    for r in rows:
         p = r["price"]
         if not p or p < 5 or p > 50000 or r["weapon"] not in W:
             continue
@@ -62,7 +68,7 @@ def load():
                          rerolls=r["rerolls"] or 0, mr=r["mr"] or 0, rank=r["rank"] or 0, pol=r["polarity"], pos={a["url_name"]: abs(a["value"]) for a in pos}, neg=neg[0]["url_name"] if neg else None))
     df = pd.DataFrame(recs)
     df = df[df.price <= 40 * df.groupby("weapon")["price"].transform("median")].reset_index(drop=True)
-    df["cheap60"] = df.weapon.map({w: math.log(float(np.median(sorted(g.price)[:60]))) for w, g in df.groupby("weapon")})
+    df["cheap60"] = df.weapon.map({w: math.log(float(np.median(sorted(every[w])[:60]))) for w in df.weapon.unique()})
     return df
 
 
@@ -140,12 +146,15 @@ def main():
     X = features(df, ref, stats, negs)
     y = np.log(df.price.values)
     # How it does on listings (and sellers) it didn't learn from, and on weapons it never saw.
+    accuracy = {}
     for label, groups in (("held-out sellers", df.seller.values), ("held-out weapons", df.weapon.values)):
         pred = np.zeros(len(df))
         for tr, te in GroupKFold(n_splits=5).split(X, y, groups):
             pred[te] = model("absolute_error").fit(X.iloc[tr].values, y[tr]).predict(X.iloc[te].values)
         e = np.abs(pred - y)
         print(f"{label}: typical error ×{math.exp(np.median(e)):.2f}, within ×2 {np.mean(e < math.log(2)) * 100:.0f}%")
+        accuracy.setdefault("typical", round(math.exp(float(np.median(e))), 3))
+        accuracy.setdefault("within2", round(float(np.mean(e < math.log(2))), 3))
     mid = model("absolute_error").fit(X.values, y)
     lo = model("quantile", 0.25, iters=150).fit(X.values, y)
     hi = model("quantile", 0.75, iters=150).fit(X.values, y)
@@ -160,6 +169,8 @@ def main():
         "negs": negs,
         "ref": ref,
         "cap": CAP,
+        # Sellers it hadn't learned from (the first of the two checks above).
+        "accuracy": accuracy,
         "mid": export(mid, names),
         "lo": export(lo, names),
         "hi": export(hi, names),

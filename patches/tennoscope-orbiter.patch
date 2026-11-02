@@ -26,7 +26,7 @@ index c3e74e9..b4c1b55 100644
    "permissions": [
      "process:allow-restart",
 diff --git a/app/src-tauri/src/lib.rs b/app/src-tauri/src/lib.rs
-index ce70bed..60af99d 100644
+index ce70bed..18cf799 100644
 --- a/app/src-tauri/src/lib.rs
 +++ b/app/src-tauri/src/lib.rs
 @@ -40,6 +40,7 @@ mod kiosk_view;
@@ -209,7 +209,7 @@ index ce70bed..60af99d 100644
              // The file target keeps debug traces in dev builds and trims to Info in stable
              // releases: per-OCR-attempt debug lines land every 200 ms, and with only 5 MiB
              // per rotated file a stable session of hours would otherwise keep just the last
-@@ -2166,6 +2290,39 @@ pub fn run() {
+@@ -2166,6 +2290,54 @@ pub fn run() {
                  .map(|state| current_setup_status(state.setup.clone(), state.game_running))
                  .unwrap_or_default();
              app.manage(runtime);
@@ -230,13 +230,28 @@ index ce70bed..60af99d 100644
 +                let app = app.handle().clone();
 +                std::thread::spawn(move || {
 +                    let mut shown: Option<String> = None;
++                    let mut tries = 0u32;
 +                    loop {
 +                        let key = orbiter_bridge::read_riven()
 +                            .and_then(|v| v.get("key").and_then(|k| k.as_str()).map(str::to_owned));
-+                        if key != shown {
++                        // Shown again if it isn't up yet (the game not located a moment ago),
++                        // every few seconds while orbiter's file still says to.
++                        let hidden = key.is_some()
++                            && key == shown
++                            && !app
++                                .get_webview_window("riven-overlay")
++                                .and_then(|w| w.is_visible().ok())
++                                .unwrap_or(true);
++                        if hidden {
++                            tries += 1;
++                        }
++                        if key != shown || (hidden && tries % 4 == 0) {
 +                            match &key {
 +                                Some(_) => overlay_window::show_riven_overlay(&app),
 +                                None => overlay_window::hide_riven_overlay(&app),
++                            }
++                            if key != shown {
++                                tries = 0;
 +                            }
 +                            shown = key;
 +                        }
@@ -249,7 +264,7 @@ index ce70bed..60af99d 100644
              // The kiosk window's whole IPC surface: `get_kiosk_view` pulls whatever the poller
              // last published, so the cell exists from the start, empty until a kiosk opens.
              app.manage(kiosk_view::KioskState::default());
-@@ -2205,6 +2362,9 @@ pub fn run() {
+@@ -2205,6 +2377,9 @@ pub fn run() {
          })
          .invoke_handler(tauri::generate_handler![
              get_view,
