@@ -10,7 +10,7 @@
   import { attributeSlug, auctionItemFor, auctionOf, checkedWhen, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, rollChoice, cycleKey, searchFor, searchKey, statMarket, unpackListed, unpackPrices, type MyAuction, type Riven, type RivenAuction, type RivenChange, type RollChoice } from "../core/rivens";
   import { mkt } from "../marketStore.svelte";
   import { rivens } from "../rivenStore.svelte";
-  import { cheap60, estimate, type Estimate } from "../core/rivenModel";
+  import { estimateRiven, type Estimate } from "../core/rivenModel";
   import PageHead from "../ui/PageHead.svelte";
   import Stat from "../ui/Stat.svelte";
   import CardGrid from "../ui/CardGrid.svelte";
@@ -34,7 +34,7 @@
   // Rivens mid-cycle: the roll each has and the one on offer, and which to keep.
   const choices = $derived((settings.game.rivens ?? []).filter((raw) => raw.pending).map((raw) => ({ key: cycleKey(raw), c: rollChoice(model, tables, raw) })).filter((x): x is { key: string; c: RollChoice } => !!x.c));
   // What similar rivens are listed for, each roll, to settle a close call: per cycle, not per riven.
-  let rollPrices = $state<Record<string, { current: number | null; next: number | null }>>({});
+  let rollPrices = $state<Record<string, { current: number | null; next: number | null; any?: RivenAuction[] }>>({});
   $effect(() => {
     const m = meta;
     if (!m) return;
@@ -47,7 +47,10 @@
           if (!q.weapon) return null;
           return priceCheck(await rivens.search(q.weapon, q.positive.slice(0, 2), null).catch(() => [])).typical;
         };
-        rollPrices[key] = { current: await price(c.current), next: await price(c.next) };
+        const qw = searchFor(m, c.current).weapon;
+        // The weapon's cheapest listed, for the price model's estimate of each roll.
+        const any = qw ? await rivens.search(qw, [], null).catch(() => undefined) : undefined;
+        rollPrices[key] = { current: await price(c.current), next: await price(c.next), any };
       })();
     }
   });
@@ -116,21 +119,12 @@
   $effect(() => {
     void rivens.loadModel();
   });
+  const estimateFor = (r: Riven, any: RivenAuction[] | undefined) => estimateRiven(rivens.model, meta, rivens.trades, r, any);
   const estimates = $derived.by(() => {
-    const model = rivens.model;
     const out: Record<string, Estimate> = {};
-    if (!model || !meta) return out;
     for (const r of mine) {
-      const any = checks[r.id]?.any;
-      const made = any ? auctionItemFor(meta, r) : null;
-      if (!any || !made || "error" in made) continue;
-      const w = meta.weapons.find((x) => x.slug === made.item.weapon_url_name);
-      const c60 = cheap60(any.map((a) => a.price));
-      if (!w || c60 == null) continue;
-      const name = w.name.toLowerCase();
-      const trades = (rivens.trades ?? []).filter((t) => t.weapon?.toLowerCase() === name);
-      const t = trades.find((x) => x.rerolled === r.rerolls > 0) ?? trades.find((x) => x.rerolled !== r.rerolls > 0);
-      out[r.id] = estimate(model, { rivenType: w.rivenType, attributes: made.item.attributes, rerolls: r.rerolls, mr: r.mastery, rank: r.rank, polarity: made.item.polarity, weeklyMedian: t ? (t.median ?? t.avg) : null, weeklyPop: t?.pop ?? 0, cheap60: c60 });
+      const e = estimateFor(r, checks[r.id]?.any);
+      if (e) out[r.id] = e;
     }
     return out;
   });
@@ -407,6 +401,7 @@
                 <span class="register">{x.label}</span>
                 <span class="rn"><b>{x.r.name}</b>{@render grade(x.r.grade)}</span>
                 <ul>{#each x.r.stats as s, i (i)}<li class:curse={!s.buff}><b>{s.display}</b> {s.label} {@render grade(s.grade)}</li>{/each}</ul>
+                {#if estimateFor(x.r, pc?.any)}{@const e = estimateFor(x.r, pc?.any)!}<span class="small" title="orbiter's estimate of what a riven like this roll is listed for (see Estimate on the cards below)"><span class="dim">Estimate</span> <b>{e.mid.toLocaleString("en")}p</b> <span class="dim">({e.lo.toLocaleString("en")}–{e.hi.toLocaleString("en")}p)</span></span>{/if}
               </div>
             {/each}
           </div>

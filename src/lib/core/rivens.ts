@@ -770,7 +770,7 @@ export interface CycleOverlay {
   weapon: string;
   verdict: RollChoice["verdict"];
   why: string;
-  current: { name: string; grade: string; stats: { label: string; display: string; grade: string; buff: boolean }[] };
+  current: { name: string; grade: string; stats: { label: string; display: string; grade: string; buff: boolean }[]; price?: number | null };
   next: CycleOverlay["current"];
 }
 

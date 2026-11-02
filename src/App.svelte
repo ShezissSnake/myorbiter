@@ -79,7 +79,8 @@
   import Wishlist from "./lib/tabs/Wishlist.svelte";
   import { openEras, wishlistEras } from "./lib/core/wishlist";
   import { rivens } from "./lib/rivenStore.svelte";
-  import { cycleKey, cycleOverlay, recordRivens, rivenTables, rollChoice } from "./lib/core/rivens";
+  import { cycleKey, cycleOverlay, recordRivens, rivenTables, rollChoice, searchFor } from "./lib/core/rivens";
+  import { estimateRiven } from "./lib/core/rivenModel";
   import ItemDetails from "./lib/ItemDetails.svelte";
   import HoverCard from "./lib/HoverCard.svelte";
   import ListDialog from "./lib/ui/ListDialog.svelte";
@@ -1079,8 +1080,23 @@
         if (seen.has(key)) continue;
         settings.game.cyclesNotified = [key, ...(settings.game.cyclesNotified ?? [])].slice(0, 100);
         const c = rollChoice(m, tables, raw);
-        // Over the game too, on TennoScope's overlay, for 25 seconds.
-        if (c && settings.overlay.riven) void writeRivenCycle(cycleOverlay(key, c)).catch(() => {});
+        // Over the game too, on TennoScope's overlay, for 25 seconds; then again with the price
+        // model's estimate for each roll once the weapon's cheapest listed are read.
+        if (c && settings.overlay.riven) {
+          const shown = cycleOverlay(key, c);
+          void writeRivenCycle(shown).catch(() => {});
+          void (async () => {
+            const meta = await rivens.loadMeta();
+            await rivens.loadModel();
+            const weapon = meta ? searchFor(meta, c.current).weapon : null;
+            if (!meta || !weapon) return;
+            const any = await rivens.search(weapon, [], null).catch(() => undefined);
+            const cur = estimateRiven(rivens.model, meta, rivens.trades, c.current, any);
+            const next = estimateRiven(rivens.model, meta, rivens.trades, c.next, any);
+            if ((!cur && !next) || Date.now() > shown.until) return;
+            await writeRivenCycle({ ...shown, current: { ...shown.current, price: cur?.mid ?? null }, next: { ...shown.next, price: next?.mid ?? null } });
+          })().catch(() => {});
+        }
         if (c) tell("cycle", `${c.current.weapon}: ${c.verdict === "take" ? "take the new roll" : c.verdict === "keep" ? "keep the one it has" : "close call"}`, `${c.next.name} (${c.next.grade}) vs ${c.current.name} (${c.current.grade}). ${c.why}`, "rivens");
       }
     });

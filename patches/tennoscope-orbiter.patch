@@ -3978,7 +3978,7 @@ index 4cb846a..eaf4560 100644
 +}
 diff --git a/app/src/RivenOverlay.test.tsx b/app/src/RivenOverlay.test.tsx
 new file mode 100644
-index 0000000..5b83870
+index 0000000..785ed4c
 --- /dev/null
 +++ b/app/src/RivenOverlay.test.tsx
 @@ -0,0 +1,31 @@
@@ -4001,7 +4001,7 @@ index 0000000..5b83870
 +    expect(await screen.findByText('Take the new roll')).toBeTruthy()
 +    const offer = screen.getByRole('article', { name: 'On offer: Visi-critatis' })
 +    expect(offer.className).toContain('chosen')
-+    expect(within(offer).getByText('similar listed ~300p')).toBeTruthy()
++    expect(within(offer).getByText('estimate ~300p')).toBeTruthy()
 +    expect(screen.getByRole('article', { name: 'It has: Crita-acridon' }).className).not.toContain('chosen')
 +    expect(screen.getByText('Multishot and crit beat damage on a crit rifle.')).toBeTruthy()
 +  })
@@ -4015,7 +4015,7 @@ index 0000000..5b83870
 +})
 diff --git a/app/src/RivenOverlay.tsx b/app/src/RivenOverlay.tsx
 new file mode 100644
-index 0000000..1eaa59c
+index 0000000..3e9bae9
 --- /dev/null
 +++ b/app/src/RivenOverlay.tsx
 @@ -0,0 +1,44 @@
@@ -4060,7 +4060,7 @@ index 0000000..1eaa59c
 +    <div className="riven-roll-head"><span className="riven-roll-title">{title}</span><span className="riven-grade">{roll.grade}</span></div>
 +    <div className="riven-name">{roll.name}</div>
 +    <ul>{roll.stats.map((s, i) => <li key={i} className={s.buff ? '' : 'curse'}><b>{s.display}</b> <span>{s.label}</span> <em>{s.grade}</em></li>)}</ul>
-+    {roll.price != null ? <div className="riven-price">similar listed ~{roll.price}p</div> : null}
++    {roll.price != null ? <div className="riven-price">estimate ~{roll.price.toLocaleString('en')}p</div> : null}
 +  </article>
 +}
 diff --git a/app/src/Root.tsx b/app/src/Root.tsx

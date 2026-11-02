@@ -5,6 +5,7 @@
 // tens of thousands of listings (scripts/riven-model/train.py) and walked here: a middle guess
 // and a lower and upper quartile. Asking prices, not sales: warframe.market keeps no record of
 // what rivens sold for.
+import { auctionItemFor, type Riven, type RivenAuction, type RivenMeta, type RivenTrade } from "./rivens";
 
 export interface Trees {
   base: number;
@@ -121,4 +122,18 @@ export function cheap60(prices: (number | null)[]): number | null {
   if (ps.length < 5) return null;
   const m = ps.length >> 1;
   return ps.length % 2 ? ps[m] : (ps[m - 1] + ps[m]) / 2;
+}
+
+/** The model's guess for one of your rivens, given its weapon's cheapest listed and last week's trades; null when it can't say. */
+export function estimateRiven(model: RivenModel | null, meta: RivenMeta | null, trades: RivenTrade[] | null, r: Riven, any: RivenAuction[] | undefined): Estimate | null {
+  if (!model || !meta || !any) return null;
+  const made = auctionItemFor(meta, r);
+  if ("error" in made) return null;
+  const w = meta.weapons.find((x) => x.slug === made.item.weapon_url_name);
+  const c60 = cheap60(any.map((a) => a.price));
+  if (!w || c60 == null) return null;
+  const name = w.name.toLowerCase();
+  const mine = (trades ?? []).filter((t) => t.weapon?.toLowerCase() === name);
+  const t = mine.find((x) => x.rerolled === r.rerolls > 0) ?? mine.find((x) => x.rerolled !== r.rerolls > 0);
+  return estimate(model, { rivenType: w.rivenType, attributes: made.item.attributes, rerolls: r.rerolls, mr: r.mastery, rank: r.rank, polarity: made.item.polarity, weeklyMedian: t ? (t.median ?? t.avg) : null, weeklyPop: t?.pop ?? 0, cheap60: c60 });
 }
