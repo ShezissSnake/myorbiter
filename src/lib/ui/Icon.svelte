@@ -74,8 +74,64 @@
     stop: "M5.3 1.8h5.4l3.5 3.5v5.4l-3.5 3.5H5.3l-3.5-3.5V5.3zM5.6 8h4.8",
     // A price over time: a line rising over a baseline.
     chart: "M2 13.5h12M2.5 11 6 7l2.6 2.2L13.5 3.5",
+
+    // Mission types, for fissures and alerts (the wiki has no set of these to borrow). Same pen.
+    // Exterminate: a reticle.
+    "m-exterminate": "M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zM8 1v4M8 11v4M1 8h4M11 8h4",
+    // Survival: the hourglass running down.
+    "m-survival": "M3.5 1.5h9M3.5 14.5h9M4.5 1.5c0 3.6 7 3.4 7 6.5s-7 2.9-7 6.5M11.5 1.5c0 3.6-7 3.4-7 6.5s7 2.9 7 6.5M6.2 13h3.6",
+    // Defense: the shield.
+    "m-defense": "M8 1.5 13.5 3.5v4c0 3.4-2.4 5.9-5.5 7-3.1-1.1-5.5-3.6-5.5-7v-4z",
+    // Mobile Defense: the shield, moving on.
+    "m-mobile-defense": "M8 1.5 13.5 3.5v4c0 3.4-2.4 5.9-5.5 7-3.1-1.1-5.5-3.6-5.5-7v-4zM5.6 9.4 8 7l2.4 2.4M5.6 6.6 8 4.2l2.4 2.4",
+    // Interception: a tower's flag.
+    "m-interception": "M3.5 14.5V1.5M3.5 2.5h9l-2.2 3 2.2 3h-9",
+    // Capture: the cuffs.
+    "m-capture": "M4.6 6.2a2.9 2.9 0 1 0 0 5.8 2.9 2.9 0 0 0 0-5.8zM11.4 4a2.9 2.9 0 1 0 0 5.8 2.9 2.9 0 0 0 0-5.8zM7.2 8.1l1.6-1",
+    // Rescue: the cell's bars.
+    "m-rescue": "M2.5 2.5h11v11h-11zM5.5 2.5v11M8 2.5v11M10.5 2.5v11",
+    // Spy: the eye.
+    "m-spy": "M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8zM8 6.2a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6z",
+    // Sabotage: the blast.
+    "m-sabotage": "M8 1.5l1.3 3.6 3.7-1.2-2 3.3 3.5 1.6-3.8.8.6 3.9L8 11.1l-3.3 2.4.6-3.9-3.8-.8 3.5-1.6-2-3.3 3.7 1.2z",
+    // Excavation: the excavator's drill.
+    "m-excavation": "M8 14.8 5 9h6zM5.8 9V5h4.4v4M4.5 5h7M8 5V1.5",
+    // Disruption: a conduit's charge.
+    "m-disruption": "M9.5 1.5 4 9h4l-1.5 5.5L12 7H8z",
+    // Alchemy: the flask.
+    "m-alchemy": "M6 1.5h4M6.8 1.5v4l-4 7.6c-.3.6.1 1.4.8 1.4h8.8c.7 0 1.1-.8.8-1.4l-4-7.6v-4M4.4 10.5h7.2",
+    // Void Cascade, Flood and Armageddon: the Void's drop.
+    "m-void": "M8 1.5S3.8 6.6 3.8 9.4a4.2 4.2 0 0 0 8.4 0C12.2 6.6 8 1.5 8 1.5zM6.2 10.2a1.8 1.8 0 0 0 1.8 1.8",
+    // Assassination: the mark struck through.
+    "m-assassination": "M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zM4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6",
+    // Hijack: the wheel.
+    "m-hijack": "M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zM8 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM8 2v4M8 10v4M2 8h4M10 8h4",
+    // Hive and other infestations: the cyst.
+    "m-hive": "M8 2 13 5v6l-5 3-5-3V5zM8 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z",
   };
   export type IconName = keyof typeof PATHS;
+
+  /** The glyph for a mission type ("Extermination", "Mobile Defense", "Void Cascade"…); the fissure's for anything else. */
+  export function missionIcon(type: string | null | undefined): string {
+    const t = (type ?? "").toLowerCase();
+    if (t.startsWith("exterminat")) return "m-exterminate";
+    if (t.includes("mobile defense")) return "m-mobile-defense";
+    if (t.includes("survival")) return "m-survival";
+    if (t.includes("defense") || t.includes("defence")) return "m-defense";
+    if (t.includes("interception")) return "m-interception";
+    if (t.startsWith("capture")) return "m-capture";
+    if (t.startsWith("rescue")) return "m-rescue";
+    if (t.startsWith("spy")) return "m-spy";
+    if (t.startsWith("sabotage")) return "m-sabotage";
+    if (t.startsWith("excavation")) return "m-excavation";
+    if (t.startsWith("disruption")) return "m-disruption";
+    if (t.startsWith("alchemy")) return "m-alchemy";
+    if (t.startsWith("void")) return "m-void";
+    if (t.startsWith("assassinat")) return "m-assassination";
+    if (t.startsWith("hijack")) return "m-hijack";
+    if (t.startsWith("hive") || t.includes("infest")) return "m-hive";
+    return "mission";
+  }
 </script>
 
 <script lang="ts">

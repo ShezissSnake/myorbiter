@@ -9,6 +9,7 @@
   import Chip from "./Chip.svelte";
   import GameIcon, { eraIcon } from "./GameIcon.svelte";
   import Foe from "./Foe.svelte";
+  import Mission from "./Mission.svelte";
   import Icon from "./Icon.svelte";
   import P from "./P.svelte";
   import { info } from "../hover.svelte";
@@ -83,7 +84,7 @@
         <ul>
           {#each e.list as f (f.id)}
             <li class:hit={watched.has(f.id) && !mine}>
-              <span class="mt">{#if watched.has(f.id) && !mine}<Icon name="bell" size={11} />{/if}{#if mine && (f.isHard || f.isStorm)}<span class="kind" title={f.isStorm ? "Void Storm" : "Steel Path"}><GameIcon name={f.isStorm ? "railjack" : "steel-essence"} size={10} />{f.isStorm ? "Storm" : "SP"}</span>{/if}{f.missionType}</span>
+              <span class="mt">{#if watched.has(f.id) && !mine}<Icon name="bell" size={11} />{/if}{#if mine && (f.isHard || f.isStorm)}<span class="kind" title={f.isStorm ? "Void Storm" : "Steel Path"}><GameIcon name={f.isStorm ? "railjack" : "steel-essence"} size={10} />{f.isStorm ? "Storm" : "SP"}</span>{/if}<span class="mg"><Mission type={f.missionType} storm={f.isStorm} size={13} /></span>{f.missionType}</span>
               <span class="node dim small" title="{f.node} · {f.enemy}">{f.node}</span>
               <span class="foe dim small"><Foe enemy={f.enemy} size={13} /></span>
               <span class="left small" class:soon={Date.parse(f.expiry) - now < 10 * 60_000}>{left(f)}</span>
@@ -117,6 +118,7 @@
   .left { text-align: right; font-variant-numeric: tabular-nums; color: var(--platinum-dim); white-space: nowrap; }
   .left.soon { color: var(--platinum-deep); }
   li.hit .mt { color: var(--gold); }
+  .mg { display: inline-flex; color: color-mix(in srgb, var(--tint) 65%, var(--platinum-dim)); }
   .saving { font-size: .7rem; color: var(--verdigris); border: 1px solid color-mix(in srgb, var(--verdigris) 45%, transparent); padding: 0 .3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: default; }
   .kind { display: inline-flex; align-items: center; gap: .18rem; font-family: var(--face-register); font-size: .58rem; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold-dim); padding: 0 .25rem; }
   .kinds { align-items: center; }

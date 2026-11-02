@@ -16,6 +16,7 @@
   import { alertNeeds, describeHelp } from "../core/worldNeeds";
   import GameIcon, { eraIcon, type GameIconName } from "../ui/GameIcon.svelte";
   import Foe from "../ui/Foe.svelte";
+  import Mission from "../ui/Mission.svelte";
   import Icon from "../ui/Icon.svelte";
   import IconButton from "../ui/IconButton.svelte";
   import Chip from "../ui/Chip.svelte";
@@ -496,7 +497,7 @@
       {#if watched.length && !(settings.homeFissuresOnly && settings.fissureRules.length)}
         <ul class="hits">
           {#each watched as w (w.fissure.id)}
-            <li><GameIcon name={eraIcon(w.fissure.tier)} size={18} /><b class="mark">{w.fissure.tier} {w.fissure.missionType}</b>{#if w.fissure.isHard}<GameIcon name="steel-essence" size={13} title="Steel Path" />{:else if w.fissure.isStorm}<GameIcon name="railjack" size={13} title="Void Storm" />{/if}<span class="dim small">{w.fissure.node} ·</span><span class="dim small"><Foe enemy={w.fissure.enemy} size={13} /></span><span class="grow"></span><span class="small nowrap">{until(w.fissure.expiry, now)} left</span></li>
+            <li><GameIcon name={eraIcon(w.fissure.tier)} size={18} /><Mission type={w.fissure.missionType} storm={w.fissure.isStorm} size={14} /><b class="mark">{w.fissure.tier} {w.fissure.missionType}</b>{#if w.fissure.isHard}<GameIcon name="steel-essence" size={13} title="Steel Path" />{:else if w.fissure.isStorm}<GameIcon name="railjack" size={13} title="Void Storm" />{/if}<span class="dim small">{w.fissure.node} ·</span><span class="dim small"><Foe enemy={w.fissure.enemy} size={13} /></span><span class="grow"></span><span class="small nowrap">{until(w.fissure.expiry, now)} left</span></li>
           {/each}
         </ul>
       {:else if settings.fissureRules.length && !watched.length}

@@ -24,6 +24,7 @@
   import ListButton from "../ui/ListButton.svelte";
   import GameIcon, { eraIcon, type GameIconName } from "../ui/GameIcon.svelte";
   import Foe from "../ui/Foe.svelte";
+  import Mission from "../ui/Mission.svelte";
 
   import type { AdviceSettings } from "../backend";
   // Solo or radshare is one setting, shared with the Planner.
@@ -255,7 +256,7 @@
             <div class="register">{e} fissures now</div>
             {#each fissureOrder(list) as f (f.id)}
               <div class="fz-row">
-                <span class="fz-type">{f.missionType}</span>
+                <span class="fz-type"><Mission type={f.missionType} storm={f.isStorm} size={12} /> {f.missionType}</span>
                 <span class="fz-node">{f.node} <Foe enemy={f.enemy} size={12} name={false} /></span>
                 <span class="fz-kind">{#if f.isStorm}<span class="tag"><GameIcon name="railjack" size={11} /> Void Storm</span>{:else if f.isHard}<span class="tag ok"><GameIcon name="steel-essence" size={11} /> Steel Path</span>{/if}{#if f.tier === "Omnia"}<span class="tag" title="Takes a Lith, Meso, Neo or Axi relic">Omnia</span>{/if}</span>
                 <span class="fz-t">{left(f)}</span>
@@ -320,7 +321,7 @@
   @keyframes pop { from { opacity: 0; transform: translateY(3px); } }
   .fz .register { font-size: .6rem; margin-bottom: .15rem; }
   .fz-row { display: grid; grid-template-columns: 7.5rem 1fr auto 3.4rem; align-items: center; gap: .7rem; padding-top: .3rem; border-top: 1px solid var(--rule); }
-  .fz-type { color: var(--platinum); }
+  .fz-type { color: var(--platinum); display: inline-flex; align-items: center; gap: .3rem; }
   .fz-node { color: var(--platinum-dim); white-space: nowrap; }
   .fz-kind { display: inline-flex; gap: .3rem; }
   .fz-kind .tag { margin: 0; }

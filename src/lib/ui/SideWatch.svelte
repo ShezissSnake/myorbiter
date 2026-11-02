@@ -16,6 +16,7 @@
   import { mkt } from "../marketStore.svelte";
   import GameIcon, { eraIcon, type GameIconName } from "./GameIcon.svelte";
   import Foe from "./Foe.svelte";
+  import Mission from "./Mission.svelte";
   import Thumb from "./Thumb.svelte";
   import Icon from "./Icon.svelte";
   import Chip from "./Chip.svelte";
@@ -84,15 +85,16 @@
   {/if}
 
   <!-- A fissure as a card: its era's colour washed in, the mission, where and against whom, and how long it has left. -->
-  {#snippet fissureCard(f: Fissure, showEra: boolean)}
+  {#snippet fissureCard(f: Fissure)}
     {@const at = place(f.node)}
-    <li class="card era-wash" class:soon={Date.parse(f.expiry) - now < 10 * 60_000} style:--tint={eraTint(f.tier)} title="{f.tier}{f.isHard ? ' Steel Path' : f.isStorm ? ' Void Storm' : ''} {f.missionType} on {f.node}, against the {f.enemy}">
-      {#if showEra}<GameIcon name={eraIcon(f.tier)} size={20} />{/if}
+    <!-- Told apart by shape, not just colour: the mission's glyph on the left, the era's relic on the right. -->
+    <li class="card fz era-wash" class:soon={Date.parse(f.expiry) - now < 10 * 60_000} style:--tint={eraTint(f.tier)} title="{f.tier}{f.isHard ? ' Steel Path' : f.isStorm ? ' Void Storm' : ''} {f.missionType} on {f.node}, against the {f.enemy}">
+      <span class="glyph"><Mission type={f.missionType} storm={f.isStorm} size={17} /></span>
       <span class="tx">
         <span class="top"><b>{f.missionType}</b>{#if f.isHard}<span class="kind"><GameIcon name="steel-essence" size={10} />SP</span>{:else if f.isStorm}<span class="kind"><GameIcon name="railjack" size={10} />Storm</span>{/if}{#if watchedIds.has(f.id) && !mine}<span class="bell" title="One of your fissure alerts matches it"><Icon name="bell" size={10} /></span>{/if}</span>
-        <span class="dim small where">{at.node}{at.planet ? ` · ${at.planet}` : ""} · <Foe enemy={f.enemy} size={12} /></span>
+        <span class="dim small where">{at.node}{at.planet ? ` · ${at.planet}` : ""}&ensp;<Foe enemy={f.enemy} size={12} name={false} /></span>
       </span>
-      <span class="t">{left(f.expiry)}</span>
+      <span class="end"><GameIcon name={eraIcon(f.tier)} size={16} title={f.tier} /><span class="t">{left(f.expiry)}</span></span>
     </li>
   {/snippet}
 
@@ -103,7 +105,7 @@
         {#if !watched.length && !world.mastery.length && !world.rare.length && !invasions.length && !shortListings.length}<p class="dim small">Nothing that needs you right now.</p>{/if}
         <ul class="cards">
           {#if shortListings.length}<li class="card era-wash" style:--tint="var(--gold)"><GameIcon name="market" size={20} /><span class="tx wrap"><button class="link" onclick={() => go("market")}>{shortListings.length} listing{shortListings.length === 1 ? "" : "s"} for more than you hold</button><span class="dim small">Sold, or fix them on Orders</span></span></li>{/if}
-          {#each watched as w (w.fissure.id)}{@render fissureCard(w.fissure, true)}{/each}
+          {#each watched as w (w.fissure.id)}{@render fissureCard(w.fissure)}{/each}
           {#each world.mastery as a (a.key)}<li class="card era-wash" style:--tint="var(--verdigris)" title="Mastery you're missing"><GameIcon name="mastery" size={20} /><span class="tx"><b>{a.reward}</b><span class="dim small">{a.node} · {describeHelp(a.reward, a.help!)}</span></span><span class="t">{left(a.expiry)}</span></li>{/each}
           {#each world.rare as a (a.key)}<li class="card era-wash" style:--tint="var(--gold)" title="A rare reward"><GameIcon name="sortie" size={20} /><span class="tx"><b>{a.reward}</b><span class="dim small where">{a.mission} · {place(a.node).node}{#if a.faction}&ensp;<Foe enemy={a.faction} size={12} name={false} />{/if}</span></span><span class="t">{left(a.expiry)}</span></li>{/each}
           {#each invasions as n (n.key)}<li class="card era-wash" style:--tint="var(--verdigris)" title="An invasion with a part you need"><GameIcon name="invasion" size={20} /><span class="tx"><b>{n.reward}</b><span class="dim small">{n.node}</span></span><span class="t sd" title="Side with the {n.side} to earn it"><span class="register">side</span><Foe enemy={n.side} size={12} /></span></li>{/each}
@@ -114,11 +116,11 @@
         <h3 class="register"><GameIcon name="void-tear" size={13} /> {mine ? `My alerts · ${watched.length}` : `${mode === "steel" ? "Steel Path" : mode === "storm" ? "Void Storms" : "Fissures"} · ${counts[mode]}`}</h3>
         {#if mine}
           <!-- Just your alerts' matches: few enough to read as one list, soonest to close first. -->
-          {#if soonest.length}<ul class="cards">{#each soonest as f (f.id)}{@render fissureCard(f, true)}{/each}</ul>{/if}
+          {#if soonest.length}<ul class="cards">{#each soonest as f (f.id)}{@render fissureCard(f)}{/each}</ul>{/if}
         {:else}
           {#each eras as e (e.era)}
             <div class="eh" style:--tint={eraTint(e.era)}><GameIcon name={eraIcon(e.era)} size={16} /><b>{e.era}</b><span class="dim small">{e.list.length}</span></div>
-            <ul class="cards">{#each e.list as f (f.id)}{@render fissureCard(f, false)}{/each}</ul>
+            <ul class="cards">{#each e.list as f (f.id)}{@render fissureCard(f)}{/each}</ul>
           {/each}
         {/if}
         {#if !(mine ? soonest.length : eras.length)}<p class="dim small">{live.fissures == null ? (liveError ? "The worldstate can't be read right now." : "Reading the worldstate…") : live.fissures.length && counts.normal + counts.steel + counts.storm === 0 ? "Out of date: the worldstate can't be read right now." : mine ? "None of the fissures open right now match your alerts." : "None open right now."}</p>{/if}
@@ -180,6 +182,9 @@
   .kind { display: inline-flex; align-items: center; gap: .18rem; font-family: var(--face-register); font-size: .55rem; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold-dim); padding: 0 .22rem; line-height: 1.35; }
   /* Where, then the faction's sigil and name: one line, the name giving way first. */
   .tx .where { display: flex; align-items: center; gap: .2rem; }
+  /* A fissure card's mission glyph, in a well edged in its era's colour. */
+  .fz .glyph { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex: none; color: color-mix(in srgb, var(--tint) 70%, var(--platinum)); border: 1px solid color-mix(in srgb, var(--tint) 45%, var(--rule)); background: color-mix(in srgb, var(--tint) 10%, var(--well)); }
+  .fz .end { display: grid; justify-items: end; align-content: space-between; gap: .2rem; align-self: stretch; }
   .t.sd { display: grid; justify-items: end; gap: .1rem; }
   .t.sd .register { font-size: .5rem; }
   .bell { color: var(--gold); display: inline-flex; }
