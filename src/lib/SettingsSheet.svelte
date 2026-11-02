@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { PLATFORM_LABEL, type Platform, type Settings } from "./backend";
+  import { PLATFORM_LABEL, onWindows, type Platform, type Settings } from "./backend";
   import { ts } from "./tennoscopeStore.svelte";
   import Sheet from "./ui/Sheet.svelte";
   import Switch from "./ui/Switch.svelte";
@@ -112,7 +112,7 @@
     <label class="field">
       <span class="register">Program</span>
       <input class="path" bind:value={tsPath} title={tsPath || undefined} placeholder={ts.status?.binary ? `Found: ${ts.status.binary}` : "Not found"} spellcheck="false" />
-      <span class="hint">Empty finds it: your patched build in ~/dev/projects/tennoscope, then an installed one.</span>
+      <span class="hint">Empty finds it: your patched build in ~/dev/projects/tennoscope, then the copy inside orbiter, then an installed one.</span>
     </label>
   </section>
 
@@ -125,8 +125,8 @@
     </label>
     <label class="field">
       <span class="register">Warframe's EE.log</span>
-      <input class="path" bind:value={eeLog} title={eeLog || undefined} placeholder={eeFound ? `Found: ${eeFound}` : "Found in your Steam libraries"} spellcheck="false" />
-      <span class="hint">Read only, never written. Empty finds it in your Steam libraries.</span>
+      <input class="path" bind:value={eeLog} title={eeLog || undefined} placeholder={eeFound ? `Found: ${eeFound}` : onWindows ? "Found in %LOCALAPPDATA%\\Warframe" : "Found in your Steam libraries"} spellcheck="false" />
+      <span class="hint">Read only, never written. Empty finds it {onWindows ? "in %LOCALAPPDATA%\\Warframe" : "in your Steam libraries (under the Proton prefix)"}.</span>
     </label>
   </section>
 
@@ -180,9 +180,9 @@
       <input bind:value={settings.market.repText} maxlength="300" placeholder=":)" />
       <span class="hint">What goes with +rep on a trade partner's warframe.market profile (reputation there is a positive review, one per player).</span>
     </label>
-    <Switch bind:on={settings.market.autoRep} label="Give +rep by itself after a trade">
+    {#if !onConsole}<Switch bind:on={settings.market.autoRep} label="Give +rep by itself after a trade">
       Each player you trade with in game gets +rep on warframe.market with the message above, once per player, without you leaving the game. If orbiter was closed during the trade, it catches up when it opens, while the game is still running. Needs you signed in to warframe.market on Orders. Off: a +rep button shows after each trade instead.
-    </Switch>
+    </Switch>{/if}
     {#if !onConsole}<Switch bind:on={settings.market.autoTrades} label="Mark sales sold from the game">
       When a trade goes through where you gave items and got platinum, orbiter reads it from Warframe's log, marks your listing sold on warframe.market (recorded on your profile) and logs the sale with the platinum you actually got. Usually within half a minute: the game writes its log in bursts.
     </Switch>{/if}

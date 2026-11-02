@@ -16,3 +16,8 @@ public/dev-history-*.json
 vendor/
 public/dev-relic-data.json
 public/dev-recipe-data.json
+__pycache__/
+# The riven model's collected listings (they carry seller ids): never committed.
+scripts/riven-model/*.jsonl
+scripts/riven-model/*.txt
+scripts/riven-model/rw.json
