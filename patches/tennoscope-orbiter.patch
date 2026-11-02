@@ -275,7 +275,7 @@ index ce70bed..18cf799 100644
              get_preferences,
              set_mastery_marks,
 diff --git a/app/src-tauri/src/monitor.rs b/app/src-tauri/src/monitor.rs
-index d09ca9a..9abcc59 100644
+index d09ca9a..ad9398b 100644
 --- a/app/src-tauri/src/monitor.rs
 +++ b/app/src-tauri/src/monitor.rs
 @@ -989,6 +989,13 @@ impl RewardSession {
@@ -335,7 +335,22 @@ index d09ca9a..9abcc59 100644
              if generation.is_current() {
                  reward_session.handle_event(
                      event,
-@@ -2320,6 +2340,11 @@ fn spawn_market_price_fetch(
+@@ -1520,6 +1540,14 @@ fn load_catalog(app_data: &Path) -> Option<CatalogIndex> {
+ }
+ 
+ fn load_relic_catalog(app_data: &Path) -> Option<RelicRewardIndex> {
++    // orbiter's tables first: current, where the fetched list is a fixed snapshot.
++    if let Some(index) = crate::orbiter_bridge::read_relics()
++        .and_then(|bytes| RelicRewardIndex::from_wfcd_json(&bytes).ok())
++        .filter(|index| index.reward_names().next().is_some())
++    {
++        log::info!("reward: relic tables from orbiter");
++        return Some(index);
++    }
+     let cache = RelicCatalogCache::new(app_data.join("catalog"));
+     if let Ok(catalog) = cache.load_cached() {
+         return Some(catalog.index().clone());
+@@ -2320,6 +2348,11 @@ fn spawn_market_price_fetch(
                      .is_empty()
                      .then_some("warframe.market pricing is unavailable for these rewards")
              });
@@ -347,7 +362,7 @@ index d09ca9a..9abcc59 100644
              (prices, failure)
          },
          move || {
-@@ -2391,6 +2416,25 @@ fn spawn_market_price_warm(pool: &[RewardCatalogEntry], price_cache: &MarketPric
+@@ -2391,6 +2424,25 @@ fn spawn_market_price_warm(pool: &[RewardCatalogEntry], price_cache: &MarketPric
      });
  }
  
@@ -373,7 +388,7 @@ index d09ca9a..9abcc59 100644
  fn apply_reward_observations(
      shared: &SharedRuntime,
      catalog: &[RewardCatalogEntry],
-@@ -2438,6 +2482,15 @@ fn apply_reward_observations(
+@@ -2438,6 +2490,15 @@ fn apply_reward_observations(
                  observation.confidence,
              )
              .ok()
@@ -391,10 +406,10 @@ index d09ca9a..9abcc59 100644
      let _ = runtime.core.apply_reward_candidates(candidates);
 diff --git a/app/src-tauri/src/orbiter_bridge.rs b/app/src-tauri/src/orbiter_bridge.rs
 new file mode 100644
-index 0000000..4c3cbe1
+index 0000000..7ceaf7b
 --- /dev/null
 +++ b/app/src-tauri/src/orbiter_bridge.rs
-@@ -0,0 +1,417 @@
+@@ -0,0 +1,445 @@
 +//! Hand-off to orbiter (a companion app) during the void fissure reward screen.
 +//!
 +//! When the cards are read, their names go to `tennoscope-reward-screen.json`; orbiter scores them
@@ -530,6 +545,16 @@ index 0000000..4c3cbe1
 +        .and_then(|p| p.get(kind))
 +        .and_then(|v| v.as_bool())
 +        .unwrap_or(true)
++}
++
++/// The relics as the official drop tables have them now, from orbiter, in the shape of WFCD's
++/// Relics.json. The relic list TennoScope fetches is a fixed snapshot, so it knows no relic added
++/// since (a new Prime Access's): read from it alone, those cards fall to the nearest name it does know.
++pub const RELICS_FILE: &str = "orbiter-relics.json";
++
++/// orbiter's relic tables, when it has written them.
++pub fn read_relics() -> Option<Vec<u8>> {
++    fs::read(runtime_dir()?.join(RELICS_FILE)).ok()
 +}
 +
 +fn runtime_dir() -> Option<PathBuf> {
@@ -687,6 +712,24 @@ index 0000000..4c3cbe1
 +
 +#[cfg(test)]
 +mod tests {
++
++    #[test]
++    fn orbiters_relic_tables_read_as_a_relic_list() {
++        // What orbiter writes (bridge.rs, relics_for_tennoscope): a relic TennoScope's own
++        // snapshot doesn't have, by path, with its rewards and whether it's vaulted.
++        let json = br#"[
++            {"uniqueName": "/Lotus/Types/Game/Projections/T4VoidProjectionCitrinePrimeAPlatinum", "name": "Axi S21 Radiant", "vaulted": false,
++             "rewards": [{"rarity": "Uncommon", "chance": 20, "item": {"name": "Gyre Prime Blueprint"}}, {"rarity": "Rare", "chance": 10, "item": {"name": "Steflos Prime Barrel"}}]},
++            {"uniqueName": "/Lotus/Types/Game/Projections/T1VoidProjectionABronze", "name": "Lith A1 Intact", "vaulted": true,
++             "rewards": [{"rarity": "Common", "chance": 25.33, "item": {"name": "Akstiletto Prime Barrel"}}]}
++        ]"#;
++        let index = warframe_acquisition::RelicRewardIndex::from_wfcd_json(json).unwrap();
++        let names: Vec<&str> = index.reward_names().collect();
++        assert!(names.contains(&"Gyre Prime Blueprint"));
++        assert!(index.is_vaulted("Akstiletto Prime Barrel"));
++        assert!(!index.is_vaulted("Gyre Prime Blueprint"));
++    }
++
 +    use super::*;
 +
 +    #[test]

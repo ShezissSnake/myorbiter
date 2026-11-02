@@ -18,6 +18,9 @@ pub const PICK_FILE: &str = "orbiter-reward-pick.json";
 pub const OVERLAY_FILE: &str = "orbiter-overlay.json";
 /// A riven being cycled, both rolls and which to keep, for TennoScope to show over the game.
 pub const RIVEN_FILE: &str = "orbiter-riven-cycle.json";
+/// The relics as the official drop tables have them, for TennoScope's reward-card reader: its own
+/// list is a fixed snapshot that knows no relic added since (a new Prime Access's Axi S21).
+pub const RELICS_FILE: &str = "orbiter-relics.json";
 
 /// Where the shared files go, or `None` if there is nowhere private to put them.
 pub fn runtime_dir() -> Option<PathBuf> {
@@ -83,6 +86,55 @@ pub fn write_riven_in(dir: &Path, cycle: &Value) -> Result<(), String> {
     crate::write_atomic(&dir.join(RIVEN_FILE), &bytes, false).map_err(|e| e.to_string())
 }
 
+/**
+ * orbiter's relic data (relicdata.rs) the way TennoScope reads a relic list (WFCD's Relics.json):
+ * one record per relic and refinement, by its in-game path, with its rewards' names and whether
+ * it's vaulted (in no drop table; Requiem relics never are). Relics with no known path are left
+ * out: TennoScope finds relics by path.
+ */
+pub fn relics_for_tennoscope(data: &Value) -> Value {
+    let mut path_of: std::collections::HashMap<&str, Vec<&str>> = std::collections::HashMap::new();
+    if let Some(paths) = data["paths"].as_object() {
+        for (path, name) in paths {
+            if let Some(n) = name.as_str() {
+                path_of.entry(n).or_default().push(path.as_str());
+            }
+        }
+    }
+    let drops = data["drops"].as_object();
+    let mut out = Vec::new();
+    for relic in data["relics"].as_array().into_iter().flatten() {
+        let Some(name) = relic["name"].as_str() else { continue };
+        let Some(paths) = path_of.get(name) else { continue };
+        // "Axi S21 Radiant" → "Axi S21": what the drop places are listed under.
+        let base = name.rsplit_once(' ').map_or(name, |(b, _)| b);
+        let vaulted = !base.starts_with("Requiem ") && !drops.is_some_and(|d| d.get(base).and_then(Value::as_array).is_some_and(|a| !a.is_empty()));
+        let rewards: Vec<Value> = relic["rewards"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|r| Some(serde_json::json!({ "rarity": r["rarity"], "chance": r["chance"], "item": { "name": r["name"].as_str()? } })))
+            .collect();
+        if rewards.is_empty() {
+            continue;
+        }
+        for path in paths {
+            out.push(serde_json::json!({ "uniqueName": path, "name": name, "vaulted": vaulted, "rewards": rewards }));
+        }
+    }
+    Value::Array(out)
+}
+
+/// Written when orbiter starts (from its cached tables) and whenever the tables are read again.
+pub fn write_relics_in(dir: &Path, data: &Value) -> Result<(), String> {
+    let list = relics_for_tennoscope(data);
+    if !list.as_array().is_some_and(|a| !a.is_empty()) {
+        return Err("no relics with a known path".into());
+    }
+    let bytes = serde_json::to_vec(&list).map_err(|e| e.to_string())?;
+    crate::write_atomic(&dir.join(RELICS_FILE), &bytes, false).map_err(|e| e.to_string())
+}
+
 /// Written whenever the overlay settings change; TennoScope reads it when it's about to draw.
 pub fn write_overlay_in(dir: &Path, prefs: &Value) -> Result<(), String> {
     let bytes = serde_json::to_vec(prefs).map_err(|e| e.to_string())?;
@@ -92,6 +144,32 @@ pub fn write_overlay_in(dir: &Path, prefs: &Value) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn relics_go_to_tennoscope_by_path_with_vaulting() {
+        let data = serde_json::json!({
+            "relics": [
+                { "name": "Axi S21 Radiant", "rewards": [{ "name": "Gyre Prime Blueprint", "chance": 20, "rarity": "Uncommon" }] },
+                { "name": "Lith A1 Intact", "rewards": [{ "name": "Forma Blueprint", "chance": 25.33, "rarity": "Common" }] },
+                { "name": "Requiem I Intact", "rewards": [{ "name": "Kuva", "chance": 25.33, "rarity": "Common" }] },
+                { "name": "Neo Z9 Intact", "rewards": [{ "name": "Unknown Part", "chance": 2, "rarity": "Rare" }] }
+            ],
+            "drops": { "Axi S21": [{ "location": "Void/Mot", "chance": 0.25 }], "Lith A1": [] },
+            "paths": {
+                "/Lotus/Types/Game/Projections/T4VoidProjectionCitrinePrimeAPlatinum": "Axi S21 Radiant",
+                "/Lotus/Types/Game/Projections/T1VoidProjectionABronze": "Lith A1 Intact",
+                "/Lotus/Types/Game/Projections/T5VoidProjectionRequiemIBronze": "Requiem I Intact"
+            }
+        });
+        let list = relics_for_tennoscope(&data);
+        let by = |p: &str| list.as_array().unwrap().iter().find(|r| r["uniqueName"].as_str().unwrap().ends_with(p)).cloned().unwrap();
+        let s21 = by("CitrinePrimeAPlatinum");
+        assert_eq!(s21["rewards"][0]["item"]["name"], "Gyre Prime Blueprint");
+        assert_eq!(s21["vaulted"], false);
+        assert_eq!(by("T1VoidProjectionABronze")["vaulted"], true, "drops nowhere: vaulted");
+        assert_eq!(by("RequiemIBronze")["vaulted"], false, "Requiem relics never are");
+        assert_eq!(list.as_array().unwrap().len(), 3, "a relic with no known path is left out");
+    }
 
     #[test]
     fn round_trip() {

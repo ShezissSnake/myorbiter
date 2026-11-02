@@ -151,6 +151,11 @@ fn bounties(all: &Value) -> Value {
     )
 }
 
+/// The cached relic data as last read, whatever its age; None before the first read.
+pub fn cached(dir: &Path) -> Option<Value> {
+    fs::read(dir.join(FILE)).ok().and_then(|b| serde_json::from_slice(&b).ok())
+}
+
 /// The relic data: from the cache while it's fresh (or when the site can't be reached), else read
 /// again. `force`: check now whatever the age. Errors only when there's nothing at all.
 pub fn relic_data(dir: &Path, force: bool) -> Result<Value, String> {

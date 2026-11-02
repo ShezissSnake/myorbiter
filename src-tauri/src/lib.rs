@@ -221,9 +221,18 @@ async fn worldstate(app: tauri::AppHandle) -> Value {
 #[tauri::command]
 async fn relic_data(app: tauri::AppHandle, force: Option<bool>) -> Result<Value, String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    tauri::async_runtime::spawn_blocking(move || relicdata::relic_data(&dir, force.unwrap_or(false)))
-        .await
-        .map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        let data = relicdata::relic_data(&dir, force.unwrap_or(false))?;
+        // TennoScope's reward reader goes by these too (see bridge.rs, RELICS_FILE).
+        if let Some(rt) = bridge::runtime_dir() {
+            if let Err(e) = bridge::write_relics_in(&rt, &data) {
+                eprintln!("orbiter: writing the relic tables for TennoScope failed: {e}");
+            }
+        }
+        Ok(data)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Saves an export (CSV) in your Downloads folder as `orbiter-<what>-<date>.csv`, never over an
@@ -927,6 +936,11 @@ pub fn run() {
                 }
             }
             let config = app.path().app_config_dir()?;
+            // Before TennoScope is started: the relic tables its reward reader should go by, from
+            // the last read (the page reads them again later and writes them anew if they changed).
+            if let (Some(rt), Some(data)) = (bridge::runtime_dir(), relicdata::cached(&config)) {
+                let _ = bridge::write_relics_in(&rt, &data);
+            }
             app.manage(market::Client::new(market::TokenStore::new(&config)));
             // The TennoScope this build carries, if it carries one (release builds do).
             let bundled = app.path().resource_dir().ok().map(|d| d.join(companion::BUNDLED));
