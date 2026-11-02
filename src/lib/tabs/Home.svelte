@@ -29,7 +29,8 @@
   import { crackableFirst, crackableNow, openEras, wishItem, type WishItem } from "../core/wishlist";
   import { eventViews } from "../core/events";
   import type { RelicReward } from "../core/types";
-  import { checkedWhen, cycleTimers, resetTimers, matchedFissures, planetOf, ruleLabel, sameRule, TIERS, type FissureRule } from "../core/timers";
+  import { checkedWhen, cycleTimers, resetTimers, matchedFissures, planetOf, ruleLabel, sameRule, TIERS, KIND_LABEL as FISSURE_KIND, tidyRule, type FissureRule } from "../core/timers";
+  import PickMany from "../ui/PickMany.svelte";
   import { details } from "../details.svelte";
   import { bountyBoards, type BountyTable } from "../core/board";
   import { scoreCards } from "../core/pick";
@@ -152,22 +153,24 @@
   let adding = $state(false);
   /** The alert being changed, when one was clicked: Save puts the change in its place. */
   let editing = $state<string | null>(null);
-  let draft = $state<Omit<FissureRule, "id">>({ tier: "any", mission: "any", planet: "any", mode: "any" });
-  const duplicate = $derived(settings.fissureRules.some((r) => r.id !== editing && sameRule(r, draft)));
+  const blank = (): Omit<FissureRule, "id"> => ({ kinds: [], tiers: [], missions: [], planets: [] });
+  let draft = $state<Omit<FissureRule, "id">>(blank());
+  const duplicate = $derived(settings.fissureRules.some((r) => r.id !== editing && sameRule(r, tidyRule(draft))));
   function closeRule() {
-    draft = { tier: "any", mission: "any", planet: "any", mode: "any" };
+    draft = blank();
     adding = false;
     editing = null;
   }
   function editRule(r: FissureRule) {
-    draft = { tier: r.tier, mission: r.mission, planet: r.planet, mode: r.mode };
+    draft = { kinds: [...r.kinds], tiers: [...r.tiers], missions: [...r.missions], planets: [...r.planets] };
     editing = r.id;
     adding = true;
   }
   function saveRule() {
     if (duplicate) return;
     const id = editing;
-    settings.fissureRules = id ? settings.fissureRules.map((r) => (r.id === id ? { ...draft, id } : r)) : [...settings.fissureRules, { ...draft, id: `${Date.now()}` }];
+    const rule = tidyRule(draft);
+    settings.fissureRules = id ? settings.fissureRules.map((r) => (r.id === id ? { ...rule, id } : r)) : [...settings.fissureRules, { ...rule, id: `${Date.now()}` }];
     closeRule();
   }
   const removeRule = (id: string) => {
@@ -410,7 +413,7 @@
       {:else}
         {#if liveError && liveAt != null}<p class="dim small fromgame">The worldstate can't be read right now: these are from the last read ({checkedWhen(liveAt, now)}), each gone once it ends. orbiter asks again every few minutes.</p>
         {:else if live.fromGame}<p class="dim small fromgame">Read from the game's own worldstate: api.warframestat.us isn't answering, so Nightwave and the Circuit may be out of date, and alerts, invasions and Darvo's deal can't be read.</p>{/if}
-        <FissureBoard fissures={live.fissures} bind:mode={settings.homeFissures} {now} best={eraBest} watched={new Set(watched.map((w) => w.fissure.id))} onera={console ? null : (era) => go(`relics?era=${era}`)} />
+        <FissureBoard fissures={live.fissures} bind:mode={settings.homeFissures} bind:only={settings.homeFissuresOnly} alerts={settings.fissureRules.length} {now} best={eraBest} watched={new Set(watched.map((w) => w.fissure.id))} onera={console ? null : (era) => go(`relics?era=${era}`)} />
       {/if}
       <div class="watch">
         <span class="register"><Icon name="bell" size={12} /> Fissure alerts</span>
@@ -419,10 +422,10 @@
         {/each}
         {#if adding}
           <span class="addrule">
-            <select bind:value={draft.mode} aria-label="Kind"><option value="any">Normal or SP</option><option value="normal">Normal</option><option value="steel">Steel Path</option><option value="storm">Void Storm</option></select>
-            <select bind:value={draft.tier} aria-label="Era"><option value="any">Any era</option>{#each TIERS as t (t)}<option value={t}>{t}</option>{/each}</select>
-            <select bind:value={draft.mission} aria-label="Mission"><option value="any">Any mission</option>{#each missionTypes as m (m)}<option value={m}>{m}</option>{/each}</select>
-            <select bind:value={draft.planet} aria-label="Planet"><option value="any">Any planet</option>{#each planets as p (p)}<option value={p}>{p}</option>{/each}</select>
+            <PickMany bind:value={draft.kinds} label="Kind" any="Normal or SP" noun="kinds" options={(["normal", "steel", "storm"] as const).map((k) => ({ v: k, label: FISSURE_KIND[k] }))} />
+            <PickMany bind:value={draft.tiers} label="Era" any="Any era" noun="eras" options={TIERS.map((t) => ({ v: t, label: t }))} />
+            <PickMany bind:value={draft.missions} label="Mission" any="Any mission" noun="missions" options={missionTypes.map((m) => ({ v: m, label: m }))} />
+            <PickMany bind:value={draft.planets} label="Planet" any="Any planet" noun="planets" options={planets.map((p) => ({ v: p, label: p }))} />
             <IconButton icon={editing ? "check" : "plus"} tone="gold" label={editing ? "Save this alert" : "Add this alert"} disabled={duplicate} onclick={saveRule} />
             <IconButton icon="close" tone="quiet" label="Cancel" onclick={closeRule} />
             {#if duplicate}<span class="dim small">You already have that alert.</span>{/if}
@@ -431,7 +434,7 @@
           <button class="link add" onclick={() => (adding = true)}><Icon name="plus" size={11} />Add alert</button>
         {/if}
       </div>
-      {#if watched.length}
+      {#if watched.length && !(settings.homeFissuresOnly && settings.fissureRules.length)}
         <ul class="hits">
           {#each watched as w (w.fissure.id)}
             <li><GameIcon name={eraIcon(w.fissure.tier)} size={18} /><b class="mark">{w.fissure.isHard ? "SP " : ""}{w.fissure.tier} {w.fissure.missionType}</b><span class="dim small">{w.fissure.node} · {w.fissure.enemy}</span><span class="grow"></span><span class="small nowrap">{until(w.fissure.expiry, now)} left</span></li>

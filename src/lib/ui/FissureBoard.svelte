@@ -1,10 +1,12 @@
 <script lang="ts">
   // Every open void fissure of one kind (normal, Steel Path or Void Storm), by era: what mission,
   // where, against whom, and how long it has left. Each era says your best relic to crack in it.
+  // With "Only my alerts", just the ones your fissure alerts match, of every kind.
   import type { Fissure } from "../core/types";
   import { fissureCounts, fissuresByEra, type FissureMode } from "../core/board";
   import { until } from "../core/traders";
   import Seg from "./Seg.svelte";
+  import Chip from "./Chip.svelte";
   import GameIcon, { type GameIconName } from "./GameIcon.svelte";
   import Icon from "./Icon.svelte";
   import P from "./P.svelte";
@@ -14,14 +16,18 @@
   let {
     fissures,
     mode = $bindable(),
+    only = $bindable(false),
+    alerts = 0,
     now,
     best = () => null,
     watched = new Set<string>(),
     onera = null,
-  }: { fissures: Fissure[] | null; mode: FissureMode; now: number; best?: (era: string) => Best; watched?: Set<string>; onera?: ((era: string) => void) | null } = $props();
+  }: { fissures: Fissure[] | null; mode: FissureMode; only?: boolean; alerts?: number; now: number; best?: (era: string) => Best; watched?: Set<string>; onera?: ((era: string) => void) | null } = $props();
 
   const counts = $derived(fissureCounts(fissures, now));
-  const eras = $derived(fissuresByEra(fissures, mode, now));
+  // Only with alerts to go by: none set, it's the whole board again.
+  const mine = $derived(only && alerts > 0);
+  const eras = $derived(mine ? fissuresByEra((fissures ?? []).filter((f) => watched.has(f.id)), "all", now) : fissuresByEra(fissures, mode, now));
   /** Every fissure read has closed: the read is stale (the worldstate couldn't be read since), not a quiet hour. */
   const outOfDate = $derived(!!fissures?.length && counts.normal + counts.steel + counts.storm === 0);
   const icon = (era: string): GameIconName => (era === "Omnia" ? "void-tear" : (`relic-${era.toLowerCase()}-intact` as GameIconName));
@@ -29,7 +35,7 @@
 </script>
 
 <div class="kinds">
-  <Seg
+  {#if !mine}<Seg
     bind:value={mode}
     label="Show"
     options={[
@@ -37,13 +43,14 @@
       { v: "steel", label: `Steel Path · ${counts.steel}`, title: "Steel Path fissures: harder enemies, and Steel Essence and Kuva drops on top" },
       { v: "storm", label: `Void Storms · ${counts.storm}`, title: "Railjack Void Storms on the Proxima nodes" },
     ]}
-  />
+  />{/if}
+  {#if alerts > 0}<Chip bind:on={only} label="Only my alerts" title="Show only the fissures your fissure alerts (below) match, normal, Steel Path and Void Storms together. Off: every fissure of the kind you pick" />{/if}
 </div>
 
 {#if outOfDate}
   <p class="dim small">The fissure list is out of date: every fissure orbiter last read has closed, and the worldstate can't be read right now (api.warframestat.us and the game's own list). orbiter tries again every few minutes.</p>
 {:else if !eras.length}
-  <p class="dim small">No {mode === "steel" ? "Steel Path fissures" : mode === "storm" ? "Void Storms" : "fissures"} open right now.</p>
+  <p class="dim small">{mine ? "None of the fissures open right now match your alerts." : `No ${mode === "steel" ? "Steel Path fissures" : mode === "storm" ? "Void Storms" : "fissures"} open right now.`}</p>
 {:else}
   <div class="eras">
     {#each eras as e (e.era)}
@@ -58,8 +65,8 @@
         </header>
         <ul>
           {#each e.list as f (f.id)}
-            <li class:hit={watched.has(f.id)}>
-              <span class="mt">{#if watched.has(f.id)}<Icon name="bell" size={11} />{/if}{f.missionType}</span>
+            <li class:hit={watched.has(f.id) && !mine}>
+              <span class="mt">{#if watched.has(f.id) && !mine}<Icon name="bell" size={11} />{/if}{#if mine && (f.isHard || f.isStorm)}<span class="kind" title={f.isStorm ? "Void Storm" : "Steel Path"}>{f.isStorm ? "Storm" : "SP"}</span>{/if}{f.missionType}</span>
               <span class="node dim small" title="{f.node} · {f.enemy}">{f.node}</span>
               <span class="foe dim small">{f.enemy}</span>
               <span class="left small" class:soon={Date.parse(f.expiry) - now < 10 * 60_000}>{left(f)}</span>
@@ -90,6 +97,8 @@
   .left { text-align: right; font-variant-numeric: tabular-nums; color: var(--platinum-dim); white-space: nowrap; }
   .left.soon { color: var(--platinum-deep); }
   li.hit .mt { color: var(--gold); }
+  .kind { font-family: var(--face-register); font-size: .58rem; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold-dim); padding: 0 .25rem; }
+  .kinds { align-items: center; }
   :global(html[data-room~="lt640"]) li { grid-template-columns: minmax(6rem, 1fr) minmax(0, 1.3fr) 4.4rem; }
   :global(html[data-room~="lt640"]) .foe { display: none; }
 </style>

@@ -69,41 +69,71 @@ export function resetTimers(live: Live, now = Date.now()): Timer[] {
 
 export const TIERS = ["Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia"] as const;
 
+export type FissureKind = "normal" | "steel" | "storm";
+export const KIND_LABEL: Record<FissureKind, string> = { normal: "Normal", steel: "Steel Path", storm: "Void Storm" };
+const KIND_ORDER: FissureKind[] = ["normal", "steel", "storm"];
+
+/**
+ * A fissure alert: each list holds the choices it accepts, any one of them; an empty list is any.
+ * No kinds ticked is normal or Steel Path: Void Storms (Railjack) only when ticked.
+ */
 export interface FissureRule {
   id: string;
-  /** "any" or an era. */
-  tier: string;
-  /** "any" or a mission type ("Disruption"). */
-  mission: string;
-  /** "any" or a planet ("Jupiter"), matched against the node's "(Planet)". */
-  planet: string;
-  /** "any": normal or Steel Path, not Void Storms. */
-  mode: "any" | "normal" | "steel" | "storm";
+  kinds: FissureKind[];
+  /** Eras ("Axi"). */
+  tiers: string[];
+  /** Mission types ("Mobile Defense"). */
+  missions: string[];
+  /** Planets ("Jupiter"), matched against the node's "(Planet)". */
+  planets: string[];
 }
 
 export const planetOf = (node: string) => node.match(/\(([^)]+)\)\s*$/)?.[1] ?? "";
 
+const kindOf = (f: Fissure): FissureKind => (f.isStorm ? "storm" : f.isHard ? "steel" : "normal");
+
 export function ruleMatches(r: FissureRule, f: Fissure): boolean {
-  if (r.tier !== "any" && f.tier !== r.tier) return false;
-  if (r.mission !== "any" && f.missionType !== r.mission) return false;
-  if (r.planet !== "any" && planetOf(f.node) !== r.planet) return false;
-  // "any" is normal or Steel Path; Void Storms (Railjack) only when asked for.
-  if (r.mode !== "storm" && f.isStorm) return false;
-  if (r.mode === "normal" && f.isHard) return false;
-  if (r.mode === "steel" && !f.isHard) return false;
-  if (r.mode === "storm" && !f.isStorm) return false;
+  const kind = kindOf(f);
+  if (r.kinds.length ? !r.kinds.includes(kind) : kind === "storm") return false;
+  if (r.tiers.length && !r.tiers.includes(f.tier)) return false;
+  if (r.missions.length && !r.missions.includes(f.missionType)) return false;
+  if (r.planets.length && !r.planets.includes(planetOf(f.node))) return false;
   return true;
 }
 
-/** An alert as words: "Steel Path Axi fissure", "Lith Capture on Sedna", "Any fissure". */
+/** "Axi or Neo", "Lith, Meso or Neo". */
+const either = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} or ${xs[xs.length - 1]}`);
+
+/** An alert as words: "Steel Path Axi fissure", "Lith Defense or Mobile Defense on Sedna", "Any fissure". */
 export function ruleLabel(r: FissureRule): string {
-  const what = [r.mode === "steel" ? "Steel Path" : r.mode === "storm" ? "Void Storm" : r.mode === "normal" ? "Normal" : "", r.tier === "any" ? "" : r.tier, r.mission === "any" ? "" : r.mission].filter(Boolean).join(" ");
-  const kind = !what ? "Any fissure" : r.mission === "any" ? `${what} fissure` : what;
-  return r.planet === "any" ? kind : `${kind} on ${r.planet}`;
+  const kinds = r.kinds.length === 3 ? "" : either(KIND_ORDER.filter((k) => r.kinds.includes(k)).map((k) => KIND_LABEL[k]));
+  const what = [kinds, either(r.tiers), either(r.missions)].filter(Boolean).join(" ");
+  const kind = r.kinds.length === 3 && !what ? "Any fissure or Void Storm" : !what ? "Any fissure" : r.missions.length ? what : `${what} fissure`;
+  return r.planets.length ? `${kind} on ${either(r.planets)}` : kind;
 }
 
+const same = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join("|") === [...b].sort().join("|");
 /** Two alerts for the same fissures. */
-export const sameRule = (a: Omit<FissureRule, "id">, b: Omit<FissureRule, "id">) => a.tier === b.tier && a.mission === b.mission && a.planet === b.planet && a.mode === b.mode;
+export const sameRule = (a: Omit<FissureRule, "id">, b: Omit<FissureRule, "id">) => same(a.kinds, b.kinds) && same(a.tiers, b.tiers) && same(a.missions, b.missions) && same(a.planets, b.planets);
+
+/**
+ * An alert as it's kept: copies of the lists, kinds in their usual order, and Normal plus Steel
+ * Path written as nothing ticked (the same fissures).
+ */
+export function tidyRule<R extends Omit<FissureRule, "id">>(r: R): Omit<FissureRule, "id"> {
+  const kinds = KIND_ORDER.filter((k) => r.kinds.includes(k));
+  return { kinds: kinds.length === 2 && !kinds.includes("storm") ? [] : kinds, tiers: [...r.tiers], missions: [...r.missions], planets: [...r.planets] };
+}
+
+/** A saved alert as this version keeps it; the first version's (one choice each, "any") carried over. Null when it isn't one. */
+export function normalizeRule(raw: unknown): FissureRule | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const list = (v: unknown, one: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : typeof one === "string" && one !== "any" && one ? [one] : [];
+  const kinds = list(r.kinds, r.mode).filter((k): k is FissureKind => k === "normal" || k === "steel" || k === "storm");
+  return { id: typeof r.id === "string" ? r.id : `${Date.now()}`, ...tidyRule({ kinds, tiers: list(r.tiers, r.tier), missions: list(r.missions, r.mission), planets: list(r.planets, r.planet) }) };
+}
 
 /** Open fissures that match any of your rules, with the first rule each matched. */
 export function matchedFissures(rules: FissureRule[], fissures: Fissure[] | null, now = Date.now()): { fissure: Fissure; rule: FissureRule }[] {

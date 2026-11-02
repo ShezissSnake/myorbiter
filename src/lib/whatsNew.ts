@@ -11,6 +11,14 @@ export interface NewsEntry {
 
 export const NEWS: NewsEntry[] = [
   {
+    id: 4,
+    date: "2026-11-02",
+    items: [
+      "Fissure alerts take several choices in each menu: Steel Path and Void Storm, Axi or Neo, Defense, Mobile Defense or Survival in one alert. Your alerts so far carry over.",
+      "Only my alerts, on Home's fissure board, shows just the fissures your alerts match, every kind together (SP and Storm marked).",
+    ],
+  },
+  {
     id: 3,
     date: "2026-11-02",
     items: [

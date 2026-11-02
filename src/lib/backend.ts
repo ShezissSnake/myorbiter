@@ -6,7 +6,7 @@ import type { BaroRate } from "./core/traders";
 import type { LoggedScreen, RelicRun } from "./core/relicRuns";
 import { defaultSellChoices, type SellChoices } from "./core/spares";
 import { defaultBulkRules, type BulkRules } from "./core/bulk";
-import type { FissureRule } from "./core/timers";
+import { normalizeRule, type FissureRule } from "./core/timers";
 import type { RivenAuction, RivenMeta, RivenRaw, RivenSnap } from "./core/rivens";
 import type { ImprintRaw } from "./core/imprints";
 import type { GearCopy } from "./core/notNeeded";
@@ -130,6 +130,8 @@ export interface Settings {
   homeHidden: string[];
   /** Which fissures Home lists: normal, Steel Path or Void Storms. */
   homeFissures: "normal" | "steel" | "storm";
+  /** Home's fissure board: only the fissures your alerts match, of every kind. */
+  homeFissuresOnly: boolean;
   /** The column on the right of a wide window: shown or folded, and what it shows, in order. */
   side: { on: boolean; cards: string[] };
   /** Lines under Needs you on Home you dismissed (an alert, an invasion, a Varzia rotation). */
@@ -342,6 +344,7 @@ export const defaultSettings = (): Settings => ({
   withoutInventory: false,
   homeHidden: [],
   homeFissures: "normal",
+  homeFissuresOnly: false,
   side: { on: true, cards: ["alerts", "fissures", "clocks", "foundry", "bounties"] },
   homeDismissed: [],
   notify: defaultNotify(),
@@ -684,6 +687,7 @@ export async function loadSettings(): Promise<Settings> {
     homeDismissed: Array.isArray(raw?.homeDismissed) ? raw.homeDismissed.filter((k: unknown): k is string => typeof k === "string") : [],
     side: { on: raw?.side?.on !== false, cards: Array.isArray(raw?.side?.cards) ? raw.side.cards.filter((k: unknown): k is string => typeof k === "string") : base.side.cards },
     homeFissures: raw?.homeFissures === "steel" || raw?.homeFissures === "storm" ? raw.homeFissures : "normal",
+    homeFissuresOnly: raw?.homeFissuresOnly === true,
     homeHidden: Array.isArray(raw?.homeHidden) ? raw.homeHidden.filter((k: unknown): k is string => typeof k === "string") : [],
     plannerMode: raw?.plannerMode === "radiant" ? "radiant" : "sets",
     market: { ...base.market, ...(raw?.market ?? {}), bulk: { ...base.market.bulk, ...(raw?.market?.bulk ?? {}) }, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: raw?.market?.sellable?.relicsWorthSelling ?? base.market.sellable.relicsWorthSelling }, sales: Array.isArray(raw?.market?.sales) ? raw.market.sales : [], tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], trades: Array.isArray(raw?.market?.trades) ? raw.market.trades : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: raw?.market?.platform && raw.market.platform in PLATFORM_LABEL ? raw.market.platform : "pc", autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, every: typeof raw?.market?.every === "number" && raw.market.every >= 1 ? raw.market.every : base.market.every, minRelicPrice: typeof raw?.market?.minRelicPrice === "number" && raw.market.minRelicPrice >= 1 ? Math.round(raw.market.minRelicPrice) : base.market.minRelicPrice, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)", lastCopy: { optIn: raw?.market?.lastCopy?.optIn === true, minutes: typeof raw?.market?.lastCopy?.minutes === "number" && raw.market.lastCopy.minutes >= 1 ? Math.round(raw.market.lastCopy.minutes) : DEFAULT_HIDE_MINUTES, hidden: Array.isArray(raw?.market?.lastCopy?.hidden) ? raw.market.lastCopy.hidden.filter((h: unknown): h is HiddenForWhisper => !!h && typeof (h as HiddenForWhisper).id === "string" && typeof (h as HiddenForWhisper).at === "number") : [] } },
@@ -720,7 +724,7 @@ export async function loadSettings(): Promise<Settings> {
     notifiedInvasions: Array.isArray(raw?.notifiedInvasions) ? raw.notifiedInvasions : [],
     game: { ...defaultGame(), ...(raw?.game ?? {}), relicRuns: Array.isArray(raw?.game?.relicRuns) ? raw.game.relicRuns : [], notices: Array.isArray(raw?.game?.notices) ? raw.game.notices : [], worldNotified: Array.isArray(raw?.game?.worldNotified) ? raw.game.worldNotified : [], keepGear: Array.isArray(raw?.game?.keepGear) ? raw.game.keepGear.filter((x: unknown) => typeof x === "string") : [], gear: Array.isArray(raw?.game?.gear) ? raw.game.gear : null },
     favourites: Array.isArray(raw?.favourites) ? raw.favourites : [],
-    fissureRules: Array.isArray(raw?.fissureRules) ? raw.fissureRules : [],
+    fissureRules: Array.isArray(raw?.fissureRules) ? raw.fissureRules.map(normalizeRule).filter((r: FissureRule | null): r is FissureRule => !!r) : [],
     rivenWatch: Array.isArray(raw?.rivenWatch) ? raw.rivenWatch : [],
   };
 }

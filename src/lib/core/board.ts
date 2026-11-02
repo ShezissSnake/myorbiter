@@ -23,9 +23,9 @@ export function fissureCounts(fs: Fissure[] | null, now: number): Record<Fissure
   return out;
 }
 
-/** The open fissures of one kind, by era (Lith first), each era's soonest to close first. Eras with none are left out. */
-export function fissuresByEra(fs: Fissure[] | null, mode: FissureMode, now: number): { era: string; list: Fissure[] }[] {
-  const mine = open(fs, now).filter((f) => modeOf(f) === mode);
+/** The open fissures of one kind (or every kind), by era (Lith first), each era's soonest to close first. Eras with none are left out. */
+export function fissuresByEra(fs: Fissure[] | null, mode: FissureMode | "all", now: number): { era: string; list: Fissure[] }[] {
+  const mine = open(fs, now).filter((f) => mode === "all" || modeOf(f) === mode);
   const eras = [...TIERS, ...new Set(mine.map((f) => f.tier).filter((t) => !(TIERS as readonly string[]).includes(t)))];
   return eras
     .map((era) => ({ era, list: mine.filter((f) => f.tier === era).sort((a, b) => Date.parse(a.expiry) - Date.parse(b.expiry)) }))
