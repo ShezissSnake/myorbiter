@@ -63,3 +63,11 @@ test("a sale logged by hand is matched once; a sale from an earlier trade isn't 
   assert.equal(handLoggedSale([sale(t0, "Arcane Energize")], "Arcane Energize", t0 + 11 * 60_000), -1);
   assert.equal(handLoggedSale([sale(t0, "Arcane Grace")], "Arcane Energize", t0), -1);
 });
+
+test("why TennoScope won't start, in words, with what to do when it's known", async () => {
+  const { failureWords } = await import("../src/lib/core/upkeep");
+  const old = failureWords("local store operation failed: database schema version 5 is not supported", 120_000);
+  assert.match(old, /older than the TennoScope that last opened your data/);
+  assert.match(old, /tries again in 2 min/);
+  assert.equal(failureWords("something else", 0), 'TennoScope stops as it starts. Its log says: "something else".');
+});

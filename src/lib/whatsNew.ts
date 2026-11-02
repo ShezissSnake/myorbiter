@@ -11,6 +11,13 @@ export interface NewsEntry {
 
 export const NEWS: NewsEntry[] = [
   {
+    id: 6,
+    date: "2026-11-02",
+    items: [
+      "A TennoScope that stops as soon as it starts is no longer started again every 15 seconds (a window flashing up): orbiter waits longer each time, and says why from TennoScope's own log, with what to do when it's an older TennoScope than the one that last opened your data.",
+    ],
+  },
+  {
     id: 5,
     date: "2026-11-02",
     items: [

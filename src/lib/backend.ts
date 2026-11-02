@@ -926,6 +926,8 @@ export const tennoscope = {
   start: (path: string): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_start", { path: path || null }) : devTennoscope()),
   show: (path: string): Promise<void> => (inTauri ? invoke("tennoscope_show", { path: path || null }) : Promise.resolve()),
   ask: (path: string, ask: TennoscopeAsk): Promise<void> => (inTauri ? invoke("tennoscope_ask", { path: path || null, ask }) : Promise.resolve()),
+  /** The last time TennoScope's log says it failed to start, and why (Unix ms, UTC). */
+  failure: (dataDir: string): Promise<{ at: number; message: string } | null> => (inTauri ? invoke("tennoscope_failure", { dir: dataDir || null }) : Promise.resolve(null)),
 };
 
 /** The reward cards a patched TennoScope read off the screen (empty once it closes), or null. */

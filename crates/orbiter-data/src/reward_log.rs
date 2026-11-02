@@ -78,6 +78,47 @@ pub fn reward_log_dirs(data_dir: &Path) -> Vec<PathBuf> {
     dirs
 }
 
+const START_FAILED: &str = "Failed to setup app: ";
+
+/// TennoScope failing as it starts: when (Unix ms, UTC) and why, in its own words.
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct StartFailure {
+    pub at: i64,
+    pub message: String,
+}
+
+/// The last time TennoScope's log says it failed to start, from the end of its current log
+/// (`tennoscope.log` in the first folder that has one). A panic in its setup is logged as a line
+/// with the time, then the message on the next line.
+pub fn last_start_failure(dirs: &[PathBuf]) -> Option<StartFailure> {
+    use std::io::{Read, Seek, SeekFrom};
+    let file = dirs.iter().map(|d| d.join("tennoscope.log")).find(|p| p.is_file())?;
+    let mut f = fs::File::open(file).ok()?;
+    let len = f.metadata().ok()?.len();
+    // The end is enough: the latest failure is what matters.
+    f.seek(SeekFrom::Start(len.saturating_sub(64 * 1024))).ok()?;
+    let mut bytes = Vec::new();
+    f.read_to_end(&mut bytes).ok()?;
+    start_failure_in(&String::from_utf8_lossy(&bytes))
+}
+
+/// The last start failure in a stretch of log text.
+pub fn start_failure_in(text: &str) -> Option<StartFailure> {
+    let mut at = None;
+    let mut found = None;
+    for line in text.lines() {
+        if let Some(t) = line_time(line) {
+            at = Some(t);
+        }
+        if let (Some(i), Some(t)) = (line.find(START_FAILED), at) {
+            let msg = line[i + START_FAILED.len()..].trim();
+            let msg = msg.strip_prefix("error encountered during setup hook: ").unwrap_or(msg);
+            found = Some(StartFailure { at: t, message: msg.to_string() });
+        }
+    }
+    found
+}
+
 /// The screens in one log's text, in file order (repeats not yet merged).
 pub fn parse_reward_log(text: &str) -> Vec<LoggedScreen> {
     text.lines().filter_map(parse_line).collect()
@@ -188,6 +229,17 @@ fn merge_repeats(screens: Vec<LoggedScreen>) -> Vec<LoggedScreen> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn start_failures_are_read_with_their_time() {
+        let log = "[2026-11-02][18:50:41][warframe_acquisition::orchestrator][INFO] acquisition: decode ok entries=3343\n\
+[2026-11-02][19:06:00][app_lib][ERROR] [DEBUG-kiosk] panic in thread main: panicked at /x/tauri-2.11.5/src/app.rs:1425:11:\n\
+Failed to setup app: error encountered during setup hook: local store operation failed: database schema version 5 is not supported\n";
+        let f = start_failure_in(log).unwrap();
+        assert_eq!(f.message, "local store operation failed: database schema version 5 is not supported");
+        assert_eq!(f.at, line_time("[2026-11-02][19:06:00]").unwrap());
+        assert_eq!(start_failure_in("[2026-11-02][18:50:41][x][INFO] fine\n"), None);
+    }
 
     #[test]
     fn quick_runs_stay_separate_screens() {

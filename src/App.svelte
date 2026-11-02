@@ -1355,6 +1355,7 @@
   // for a console player: it only reads Warframe on a PC.
   $effect(() => {
     ts.path = settings.tennoscope.path;
+    ts.dataDir = settings.dataDir;
     ts.launch = settings.tennoscope.launch && !onConsole;
   });
   $effect(() => {
@@ -1589,6 +1590,7 @@
       settingsReady = true;
       // Before reading its data: a fresh TennoScope re-reads the inventory once the game is up.
       ts.path = settings.tennoscope.path;
+      ts.dataDir = settings.dataDir;
       ts.launch = settings.tennoscope.launch && settings.market.platform === "pc";
       // Before it starts: how TennoScope draws its overlay is set when it launches.
       await tennoscopeOpaqueOverlay(settings.tennoscope.opaqueOverlay);

@@ -3,6 +3,7 @@
 // allow screen capture, open its window).
 
 import { tennoscope, type TennoscopeAsk, type TennoscopeStatus } from "./backend";
+import { failureWords } from "./core/upkeep";
 
 class TennoscopeStore {
   status = $state.raw<TennoscopeStatus | null>(null);
@@ -13,6 +14,8 @@ class TennoscopeStore {
   path = "";
   /** Start it whenever it isn't running. */
   launch = true;
+  /** TennoScope's data folder (Settings), where its log says why it wouldn't start; empty finds it. */
+  dataDir = "";
   private busy = false;
 
   get running() {
@@ -33,11 +36,13 @@ class TennoscopeStore {
   private nextLaunch = 0;
   private upSince = 0;
 
-  async check(start = false) {
+  /** `force`: you asked for it (Start TennoScope), so it starts now whatever the wait. */
+  async check(start = false, force = false) {
     if (this.busy) return;
     this.busy = true;
     try {
       const now = Date.now();
+      if (force) this.nextLaunch = 0;
       const wasRunning = !!this.status?.running;
       // Not where TennoScope can't run (macOS); and a start that fails waits longer each time,
       // like one that crashes, rather than trying (and notifying) every 15 seconds.
@@ -46,12 +51,19 @@ class TennoscopeStore {
         this.relaunches++;
         this.nextLaunch = now + Math.min(15_000 * 2 ** (this.relaunches - 1), 600_000);
       }
-      this.status = relaunch || (start && this.launch && wasRunning) ? await tennoscope.start(this.path) : await tennoscope.status(this.path);
+      // Only a relaunch starts it: a check while it seemed to run only looks, so one that stops as
+      // soon as it starts waits out the longer gaps above instead of being started every 15 s.
+      this.status = relaunch ? await tennoscope.start(this.path) : await tennoscope.status(this.path);
       if (this.status?.running) {
         this.upSince ||= now;
         if (now - this.upSince > 120_000) this.relaunches = 0;
       } else this.upSince = 0;
-      if (this.error && this.status?.running) this.error = null;
+      if (this.error && this.status?.running && now - this.upSince > 30_000) this.error = null;
+      // Stopped again right after a few starts: say why, from its own log.
+      if (!this.status?.running && this.relaunches >= 3) {
+        const f = await tennoscope.failure(this.dataDir).catch(() => null);
+        if (f && now - f.at < 15 * 60_000) this.error = failureWords(f.message, this.nextLaunch - now);
+      }
     } catch (e) {
       this.error = clean(e);
       this.status = await tennoscope.status(this.path).catch(() => null);

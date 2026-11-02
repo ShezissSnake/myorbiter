@@ -383,6 +383,16 @@ async fn reward_screens(dir: Option<String>) -> Result<Vec<orbiter_data::reward_
     .map_err(|e| e.to_string())
 }
 
+/// The last time TennoScope's log says it failed to start, and why: orbiter says so when the
+/// TennoScope it starts keeps stopping.
+#[tauri::command]
+async fn tennoscope_failure(dir: Option<String>) -> Result<Option<orbiter_data::reward_log::StartFailure>, String> {
+    let dir = data_dir(dir)?;
+    tauri::async_runtime::spawn_blocking(move || orbiter_data::reward_log::last_start_failure(&orbiter_data::reward_log::reward_log_dirs(&dir)))
+        .await
+        .map_err(|e| e.to_string())
+}
+
 // ------------------------------------------------------------------ warframe.market
 
 async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T, market::MarketError> + Send + 'static) -> Result<T, String> {
@@ -947,6 +957,7 @@ pub fn run() {
             tennoscope_start,
             tennoscope_show,
             tennoscope_ask,
+            tennoscope_failure,
             reward_cards,
             notify,
             quit,

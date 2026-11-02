@@ -61,7 +61,7 @@
       <p class="prose">
         {#if ts.status.binary}orbiter starts it in the background when it opens. Start it now, or check Settings if it keeps stopping.{:else}orbiter couldn't find TennoScope. Set its program in Settings.{/if}
       </p>
-      {#if ts.status.binary}<div><button class="stamp" onclick={() => ts.check(true)}>Start TennoScope</button></div>{/if}
+      {#if ts.status.binary}<div><button class="stamp" onclick={() => ts.check(true, true)}>Start TennoScope</button></div>{/if}
     {:else}
       <div class="line">
         <i class="dot ready"></i>

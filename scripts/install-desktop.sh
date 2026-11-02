@@ -69,3 +69,22 @@ DESKTOP
 refresh
 echo "Installed: $bin"
 echo "orbiter is in your app menu now. Start it from there (or run: $bin)."
+
+# This build carries no TennoScope: it starts your own patched build in ~/dev/projects/tennoscope.
+# One older than the TennoScope orbiter is made for can't open data a newer one has upgraded (it
+# stops as it starts), so say so. The commit is the one releases build (scripts/tennoscope-notice.sh).
+ts="$HOME/dev/projects/tennoscope"
+pinned=$(sed -n 's/^commit=${TENNOSCOPE_COMMIT:-\(.*\)}$/\1/p' scripts/tennoscope-notice.sh)
+if [[ -d "$ts/.git" && -n "$pinned" ]]; then
+  if ! git -C "$ts" cat-file -e "$pinned^{commit}" 2>/dev/null || ! git -C "$ts" merge-base --is-ancestor "$pinned" HEAD; then
+    cat <<NOTE
+
+Your TennoScope in $ts is older than the one orbiter is made for ($pinned).
+Update it (patches/README.md, "Updating an existing patched copy"):
+  cd $ts; git fetch --quiet origin; git reset --hard $pinned; git clean -fd
+  git apply $PWD/patches/tennoscope-orbiter.patch
+  $PWD/scripts/vendor-linux-tesseract.sh app/src-tauri/vendor/tesseract
+  cd app; pnpm install --frozen-lockfile; pnpm tauri build --no-bundle
+NOTE
+  fi
+fi

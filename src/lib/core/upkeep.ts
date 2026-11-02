@@ -50,3 +50,11 @@ export const SAME_SALE_MS = 10 * 60_000;
 export function handLoggedSale(sales: Sale[], item: string, at: number): number {
   return sales.findIndex((x) => x.trade == null && x.item === item && Math.abs(x.at - at) < SAME_SALE_MS);
 }
+
+/** TennoScope's reason for not starting, and what to do about it where that's known. */
+export function failureWords(message: string, retryIn: number): string {
+  const wait = retryIn > 0 ? ` orbiter tries again in ${Math.max(1, Math.round(retryIn / 60_000))} min.` : "";
+  if (/schema version \d+ is not supported/.test(message))
+    return `TennoScope stops as it starts: it's older than the TennoScope that last opened your data ("${message}"). Update the TennoScope orbiter starts (Settings → TennoScope; with your own build, rebuild it as patches/README.md says).${wait}`;
+  return `TennoScope stops as it starts. Its log says: "${message}".${wait}`;
+}
