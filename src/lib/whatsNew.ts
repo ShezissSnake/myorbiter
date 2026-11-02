@@ -18,6 +18,10 @@ export const NEWS: NewsEntry[] = [
       "Inventory, Not needed: gear you can't trade and don't need any more (the plain version once you own the Prime, extra copies), with what's kept back and why.",
       "Rivens sort by Any price and Similar price; Hek and Dark Split-Sword rivens price check again.",
       "Orders shows as cards in a narrow window.",
+      "Safer repricing: one seller far under everyone else isn't followed down (Orders says so), and on the timer a price is never more than halved without you pressing Reprice.",
+      "Mods with variants (atragraph Serration), fish sizes and Ayatan sculptures with stars are priced and counted as their own listings, and a trade from the game marks a listing sold only when you were paid near its price.",
+      "Online in game shows only while Warframe runs; Online until then.",
+      "This list: shown once after each update, and kept at the end of the Guide with which build you're running.",
     ],
   },
   {
