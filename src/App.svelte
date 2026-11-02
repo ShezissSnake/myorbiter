@@ -60,26 +60,32 @@
   } from "./lib/backend";
   import { persistSettings } from "./lib/persist.svelte";
   import { backoff, handLoggedSale, keepSeen, thinHistory } from "./lib/core/upkeep";
-  import Sets from "./lib/tabs/Sets.svelte";
   import Parts from "./lib/tabs/Parts.svelte";
-  import Mastery from "./lib/tabs/Mastery.svelte";
-  import Arcanes from "./lib/tabs/Arcanes.svelte";
-  import Mods from "./lib/tabs/Mods.svelte";
+  // Pages opened now and then load when first opened, so the app starts on less: Home, Orders,
+  // Current fissure and the collection pages people live on stay in the first bundle.
+  const once = <T,>(f: () => Promise<T>) => {
+    let p: Promise<T> | null = null;
+    return () => (p ??= f());
+  };
+  const loadSets = once(() => import("./lib/tabs/Sets.svelte"));
+  const loadMastery = once(() => import("./lib/tabs/Mastery.svelte"));
+  const loadArcanes = once(() => import("./lib/tabs/Arcanes.svelte"));
+  const loadMods = once(() => import("./lib/tabs/Mods.svelte"));
+  const loadPlanner = once(() => import("./lib/tabs/Planner.svelte"));
+  const loadSales = once(() => import("./lib/tabs/Sales.svelte"));
+  const loadGuide = once(() => import("./lib/tabs/Guide.svelte"));
+  const loadMarket = once(() => import("./lib/tabs/Market.svelte"));
+  const loadStats = once(() => import("./lib/tabs/Stats.svelte"));
+  const loadRivens = once(() => import("./lib/tabs/Rivens.svelte"));
+  const loadWishlist = once(() => import("./lib/tabs/Wishlist.svelte"));
   import Relics from "./lib/tabs/Relics.svelte";
   import InMission from "./lib/tabs/InMission.svelte";
   import Orders from "./lib/tabs/Orders.svelte";
-  import Planner from "./lib/tabs/Planner.svelte";
   import Home from "./lib/tabs/Home.svelte";
-  import Sales from "./lib/tabs/Sales.svelte";
-  import Guide from "./lib/tabs/Guide.svelte";
   import Inventory from "./lib/tabs/Inventory.svelte";
   import WhatsNew from "./lib/WhatsNew.svelte";
   import { NEWEST, newsSince } from "./lib/whatsNew";
-  import Market from "./lib/tabs/Market.svelte";
   import Foundry from "./lib/tabs/Foundry.svelte";
-  import Stats from "./lib/tabs/Stats.svelte";
-  import Rivens from "./lib/tabs/Rivens.svelte";
-  import Wishlist from "./lib/tabs/Wishlist.svelte";
   import { openEras, wishlistEras } from "./lib/core/wishlist";
   import { rivens } from "./lib/rivenStore.svelte";
   import { cycleKey, cycleOverlay, recordRivens, rivenTables, rollChoice, searchFor } from "./lib/core/rivens";
@@ -1875,23 +1881,23 @@
         {#if visited[id] && available.some((p) => p.id === id)}<div class="pane" class:shown={settings.tab === id}>{@render body()}</div>{/if}
       {/snippet}
       {#snippet pMission()}<InMission {model} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} {windowMode} tennoscopeRunning={!!ts.status?.running} onsettings={() => (showSettings = true)} />{/snippet}
-      {#snippet pSets()}<Sets {model} advice={settings.advice} />{/snippet}
+      {#snippet pSets()}{#await loadSets() then { default: Page }}<Page {model} advice={settings.advice} />{/await}{/snippet}
       {#snippet pParts()}<Parts {model} bind:advice={settings.advice} />{/snippet}
-      {#snippet pMastery()}<Mastery {model} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} />{/snippet}
-      {#snippet pArcanes()}<Arcanes {model} bind:advice={settings.advice} />{/snippet}
-      {#snippet pMods()}<Mods {model} />{/snippet}
+      {#snippet pMastery()}{#await loadMastery() then { default: Page }}<Page {model} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} />{/await}{/snippet}
+      {#snippet pArcanes()}{#await loadArcanes() then { default: Page }}<Page {model} bind:advice={settings.advice} />{/await}{/snippet}
+      {#snippet pMods()}{#await loadMods() then { default: Page }}<Page {model} />{/await}{/snippet}
       {#snippet pRelics()}<Relics {model} bind:advice={settings.advice} wishlist={settings.favourites} />{/snippet}
-      {#snippet pPlanner()}<Planner {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} wishlist={settings.favourites} />{/snippet}
+      {#snippet pPlanner()}{#await loadPlanner() then { default: Page }}<Page {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} wishlist={settings.favourites} />{/await}{/snippet}
       {#snippet pHome()}<Home {model} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => goTo(t)} {shortListings} {liveAt} {liveError} {liveRead} bountyTables={relicTables?.bounties ?? null} sortieRewards={relicTables?.sortie ?? null} />{/snippet}
-      {#snippet pSales()}<Sales {model} bind:settings={settings} go={(t: string) => (settings.tab = t)} />{/snippet}
+      {#snippet pSales()}{#await loadSales() then { default: Page }}<Page {model} bind:settings={settings} go={(t: string) => (settings.tab = t)} />{/await}{/snippet}
       {#snippet pMarket()}<Orders {model} console={onConsole} bind:settings={settings.market} advice={settings.advice} />{/snippet}
-      {#snippet pGuide()}<Guide console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} go={(t: string) => (settings.tab = t)} bind:plannerMode={settings.plannerMode} />{/snippet}
+      {#snippet pGuide()}{#await loadGuide() then { default: Page }}<Page console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} go={(t: string) => (settings.tab = t)} bind:plannerMode={settings.plannerMode} />{/await}{/snippet}
       {#snippet pFoundry()}<Foundry {model} bind:settings={settings} />{/snippet}
       {#snippet pInventory()}<Inventory {model} sell={settings.market.sellable} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad} gear={settings.game.gear} bind:keepGear={settings.game.keepGear} />{/snippet}
-      {#snippet pBrowse()}<Market {model} />{/snippet}
-      {#snippet pWishlist()}<Wishlist {model} bind:settings={settings} />{/snippet}
-      {#snippet pRivens()}<Rivens {model} console={onConsole} bind:settings={settings} />{/snippet}
-      {#snippet pStats()}<Stats {model} {settings} />{/snippet}
+      {#snippet pBrowse()}{#await loadMarket() then { default: Page }}<Page {model} />{/await}{/snippet}
+      {#snippet pWishlist()}{#await loadWishlist() then { default: Page }}<Page {model} bind:settings={settings} />{/await}{/snippet}
+      {#snippet pRivens()}{#await loadRivens() then { default: Page }}<Page {model} console={onConsole} bind:settings={settings} />{/await}{/snippet}
+      {#snippet pStats()}{#await loadStats() then { default: Page }}<Page {model} {settings} />{/await}{/snippet}
       {@render pane("mission", pMission)}
       {@render pane("sets", pSets)}
       {@render pane("parts", pParts)}
