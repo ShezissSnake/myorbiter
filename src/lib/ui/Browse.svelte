@@ -26,6 +26,7 @@
     empty = "Nothing matches these filters.",
     limit = 50,
     cardLimit = 24,
+    tint,
   }: {
     /** Remembers the layout under this name. */
     id: string;
@@ -38,6 +39,8 @@
     card: Snippet<[T, () => void]>;
     /** The details panel's heading. */
     title?: (r: T) => string;
+    /** A row's era colour in the table (see Table.svelte); cards take theirs from the page. */
+    tint?: (r: T) => string | null;
     /** Opens a row its own way; null or false declines, and the row's `detail` opens instead. */
     onopen?: (r: T) => unknown;
     min?: string;
@@ -158,7 +161,7 @@
 {/snippet}
 
 {#if layout === "list"}
-  <div class="list" use:rowOpener><Table rows={view} columns={listColumns} {key} bind:sort {detail} {empty} {limit} /></div>
+  <div class="list" use:rowOpener><Table rows={view} columns={listColumns} {key} bind:sort {detail} {empty} {limit} {tint} /></div>
 {:else if sorted.length}
   <CardGrid {min}>
     {#each sorted.slice(0, shown) as r (key(r))}{@render card(r, () => open(r))}{/each}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { eraTint } from "../ui/table";
   import type { Model } from "../core/model";
   import type { MissionState } from "../core/types";
   import { squadPool, squadRelics, type SquadRelic } from "../core/views";
@@ -112,7 +113,7 @@
 {/snippet}
 
 {#snippet relicCard(r: SquadRelic)}
-  <article class="relic" class:vaulted={r.status === "vaulted"}>
+  <article class="relic" class:era-wash={!!eraTint(r.name)} style:--tint={eraTint(r.name)} class:vaulted={r.status === "vaulted"}>
     <header>
       <div class="who" use:info={r.known ? r.name : null}>
         <Thumb file={model.imageOf(r.name)} size={44} />
@@ -244,6 +245,7 @@
   .why { margin: 0 0 var(--step); }
   .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--rule); border-left: 1px solid var(--rule); margin-top: var(--step); }
   .relic { border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 1rem 1.1rem 1.1rem; background: rgb(17 19 23 / 70%); }
+  .relic.era-wash { background: var(--era-bg); }
   /* Page area under 640 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt640"]) .cards { grid-template-columns: minmax(0, 1fr); }
   /* The bars behind the score go before the list stops fitting: the score itself stays. */

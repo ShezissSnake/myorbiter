@@ -38,10 +38,10 @@ export function matches(query: string, ...fields: (string | null | undefined)[])
   return q.split(/\s+/).every((w) => hay.includes(w));
 }
 
-/** The colour a relic's era is drawn in ("Axi A1", "Lith C13 Radiant"...), for its artwork's frame. */
+/** The colour a relic's era is drawn in ("Axi A1", "Lith C13 Radiant", a fissure's "Omnia"...), for its artwork's frame and its wash (app.css, .era-wash). */
 export function eraTint(relic: string): string | null {
   const era = relic.split(" ")[0]?.toLowerCase();
-  return era && ["lith", "meso", "neo", "axi", "requiem"].includes(era) ? `var(--era-${era})` : null;
+  return era && ["lith", "meso", "neo", "axi", "requiem", "omnia"].includes(era) ? `var(--era-${era})` : null;
 }
 
 /** Rows in a column's order; blanks always last. Shared by tables and card grids. */

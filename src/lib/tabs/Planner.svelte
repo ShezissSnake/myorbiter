@@ -190,7 +190,7 @@
   </div>
 
   {#if mode === "sets"}
-    <Table rows={crack} columns={crackCols} key={(r) => r.base} bind:sort={sortSets} empty={emptyLine(vaultedOnly ? "None of your vaulted relics drop a missing part." : "None of your relics drop a missing part.")} />
+    <Table rows={crack} columns={crackCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortSets} empty={emptyLine(vaultedOnly ? "None of your vaulted relics drop a missing part." : "None of your relics drop a missing part.")} />
     {#if lastCovered.length}
       <h2 class="register">One part from a complete set, and your relics drop it</h2>
       {@render gapList(lastCovered, "last")}
@@ -200,7 +200,7 @@
       {@render gapList(uncovered, "uncovered")}
     {/if}
   {:else}
-    <Table rows={radiant} columns={radCols} key={(r) => r.base} bind:sort={sortRad} empty={emptyLine(vaultedOnly ? "No vaulted relics left to refine." : "No relics left to refine.")} />
+    <Table rows={radiant} columns={radCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortRad} empty={emptyLine(vaultedOnly ? "No vaulted relics left to refine." : "No relics left to refine.")} />
   {/if}
 </div></div>
 

@@ -11,6 +11,7 @@
     detail,
     empty = "Nothing matches these filters.",
     limit = 50,
+    tint,
   }: {
     rows: T[];
     columns: Column<T>[];
@@ -19,6 +20,8 @@
     detail?: Snippet<[T]>;
     empty?: string;
     limit?: number;
+    /** A row's era colour (table.ts, eraTint): drawn as a faint wash (app.css, .era-wash). */
+    tint?: (r: T) => string | null;
   } = $props();
 
   let open = $state<string | null>(null);
@@ -64,7 +67,10 @@
     <tbody>
       {#each sorted.slice(0, shown) as r (key(r))}
         {@const k = key(r)}
+        {@const t = tint?.(r) ?? null}
         <tr
+          class:era-wash={!!t}
+          style:--tint={t}
           class:clickable={!!detail}
           class:open={open === k}
           tabindex={detail ? 0 : undefined}

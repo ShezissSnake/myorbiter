@@ -19,6 +19,7 @@
     children,
     foot,
     art,
+    tint = null,
   }: {
     title: string;
     sub?: string;
@@ -38,6 +39,8 @@
     foot?: Snippet;
     /** Drawn instead of the artwork: a mod or arcane as its in-game card. */
     art?: Snippet;
+    /** A relic's era colour (table.ts, eraTint): a faint wash of it over the card. */
+    tint?: string | null;
   } = $props();
 
   // Buttons on the card (List, the star) do their own thing; anywhere else opens the details.
@@ -55,7 +58,7 @@
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-<article class="card" class:owned class:done class:open={!!onopen} tabindex={onopen ? 0 : undefined} role={onopen ? "button" : undefined} aria-label={onopen ? `${title}: details` : undefined} onclick={click} onkeydown={key}>
+<article class="card" class:owned class:done class:tinted={!!tint} style:--tint={tint} class:open={!!onopen} tabindex={onopen ? 0 : undefined} role={onopen ? "button" : undefined} aria-label={onopen ? `${title}: details` : undefined} onclick={click} onkeydown={key}>
   <header>
     <div class="t">
       <h3 class="mark" title={hover ? undefined : title} use:info={hover ?? null}>{title}</h3>
@@ -92,6 +95,8 @@
   /* Owned: a gold rule along the top and a warm edge. */
   .card.owned { border-color: color-mix(in srgb, var(--gold) 38%, var(--rule)); background: linear-gradient(180deg, #1a1810, var(--plate) 45%); }
   .card.owned::before { content: ""; position: absolute; left: 7px; right: 0; top: 0; height: 2px; background: linear-gradient(90deg, var(--gold), transparent 85%); }
+  /* A relic's era: its colour washes in from the top (the gold line still says you own it). */
+  .card.tinted { background: linear-gradient(180deg, color-mix(in srgb, var(--tint) 11%, #14161a), var(--plate) 60%); border-color: color-mix(in srgb, var(--tint) 22%, var(--rule)); }
   .card.done { opacity: .78; }
   .card.done:hover { opacity: 1; }
   header { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; min-width: 0; }

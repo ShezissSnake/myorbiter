@@ -11,6 +11,7 @@
   import Icon from "./Icon.svelte";
   import P from "./P.svelte";
   import { info } from "../hover.svelte";
+  import { eraTint } from "./table";
 
   type Best = { name: string; refinement: string; held: string; plat: number } | null;
   let {
@@ -70,7 +71,7 @@
     {#each eras as e (e.era)}
       {@const b = best(e.era)}
       {@const sv = saving(e.era)}
-      <section class="era">
+      <section class="era era-wash" style:--tint={eraTint(e.era)}>
         <header>
           {#if onera && e.era !== "Omnia"}<button class="name go" title="Your {e.era} relics, on Relics" onclick={() => onera(e.era)}><GameIcon name={icon(e.era)} size={22} /><b class="mark">{e.era}</b></button>
           {:else}<span class="name"><GameIcon name={icon(e.era)} size={22} /><b class="mark">{e.era}</b></span>{/if}
@@ -97,7 +98,10 @@
 <style>
   .kinds { display: flex; flex-wrap: wrap; gap: .5rem; }
   .eras { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(25rem, 100%), 1fr)); gap: .9rem 1.4rem; }
-  .era header { display: flex; align-items: center; gap: .5rem; padding-bottom: .3rem; border-bottom: 1px solid var(--rule); min-width: 0; }
+  /* Each era a plate washed in its relic's colour (app.css, .era-wash), its name in that colour. */
+  .era { padding: .55rem .75rem .45rem .85rem; border: 1px solid color-mix(in srgb, var(--tint) 18%, var(--rule)); clip-path: var(--cut); }
+  .era header { display: flex; align-items: center; gap: .5rem; padding-bottom: .3rem; border-bottom: 1px solid color-mix(in srgb, var(--tint) 22%, var(--rule)); min-width: 0; }
+  .era header .mark { color: color-mix(in srgb, var(--tint) 70%, var(--platinum)); }
   .name { display: inline-flex; align-items: center; gap: .45rem; }
   .name b { font-size: 1.02rem; }
   button.go { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: .45rem; }

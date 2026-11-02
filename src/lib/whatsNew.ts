@@ -14,6 +14,7 @@ export const NEWS: NewsEntry[] = [
     id: 8,
     date: "2026-11-02",
     items: [
+      "Fissures and relics wear their era's colour, as the relics are cast in game: Lith copper, Meso green-tarnished steel, Neo silver, Axi gold, Requiem crimson, Omnia the Void's violet. The Watching column shows each fissure as a card, grouped by era (or soonest first with Only my alerts), and its alerts, clocks, Foundry and bounties as cards too.",
       "orbiter keeps a log (Settings, Logs): TennoScope starting or failing, every change made to your listings and every request warframe.market turned down, and errors in the window. Never your sign-in. Open it, and TennoScope's, from there when something misbehaves.",
       "The reward screen reads cards from the newest relics. TennoScope's relic list is a fixed snapshot, so a card from a relic added since (Gyre Prime Blueprint, from Axi S21) was read as the nearest name it knew. orbiter now hands it the current drop tables, from TennoScope's next start.",
     ],

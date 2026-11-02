@@ -36,12 +36,14 @@
   /* The Orokin plate: two opposite corners cut. */
   --cut: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
 
-  /* Relic eras, in the metals the game draws them in. */
-  --era-lith: #b07d4a;
-  --era-meso: #9ba2ac;
-  --era-neo: #d6ae4a;
-  --era-axi: #e6e9ee;
-  --era-requiem: #c45a4f;
+  /* Each relic era as its relic is cast in game: Lith copper, Meso green-tarnished steel, Neo
+     silver, Axi gold, Requiem's Kuva crimson; Omnia (any era) the Void's pale violet. */
+  --era-lith: #c0804c;
+  --era-meso: #7fae9c;
+  --era-neo: #c3cad4;
+  --era-axi: #d6ae4a;
+  --era-requiem: #cf5a52;
+  --era-omnia: #a2a8f0;
   --tab-point: polygon(0 0, 100% 0, 100% calc(100% - 9px), 50% 100%, 0 calc(100% - 9px));
   --struck: inset 0 1px 0 rgb(0 0 0 / 80%), inset 0 -1px 0 rgb(230 233 238 / 8%);
 
@@ -259,3 +261,18 @@ a.link { text-decoration: none; text-transform: uppercase; display: inline-flex;
 .panel.empty h2 { margin: 0; }
 .panel.empty p { margin: 0; }
 .nowrap { white-space: nowrap; }
+
+/* ---------------------------------------------------------------- relic eras
+   A fissure or relic tinted by its era (table.ts, eraTint, sets --tint): a faint wash of the
+   era's colour and an edge of it on the left. Quiet enough that a column of them reads as
+   grouped by colour without the colour shouting. */
+.era-wash {
+  /* Also as a variable, for a component whose own background would otherwise win. */
+  --era-bg: color-mix(in srgb, var(--tint, transparent) 8%, var(--plate));
+  background: var(--era-bg);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--tint, var(--rule)) 70%, transparent);
+}
+/* Table rows can't carry an inset shadow: the cells do. */
+tr.era-wash { background: none; box-shadow: none; }
+tr.era-wash > td { background: color-mix(in srgb, var(--tint, transparent) 6%, transparent); }
+tr.era-wash > td:first-child { box-shadow: inset 2px 0 0 color-mix(in srgb, var(--tint, var(--rule)) 70%, transparent); }

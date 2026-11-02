@@ -140,7 +140,7 @@
 {#snippet ducatCell(r: RelicRow)}<P v={r.evDucatsIntact || null} d dim />{/snippet}
 {#snippet relicPriceCell(r: RelicRow)}<P v={r.relicPrice} dim />{/snippet}
 {#snippet card(r: RelicRow, open: () => void)}
-  <ItemCard hover={r.base} title={r.base} sub={rareOf(r) ? `Rare · ${rareOf(r)}` : undefined} image={model.imageOf(r.base)} artSize={78} owned={r.neededCount > 0} onopen={open}>
+  <ItemCard hover={r.base} title={r.base} sub={rareOf(r) ? `Rare · ${rareOf(r)}` : undefined} image={model.imageOf(r.base)} artSize={78} owned={r.neededCount > 0} tint={eraTint(r.base)} onopen={open}>
     <div class="rw">
       {#each r.rewards as x, i (i)}
         <span class="rwc rar-{x.rarity}" class:need={x.needed} class:done={x.parentMastered && !x.needed} use:info={x.name}>
@@ -272,7 +272,7 @@
   <input type="search" placeholder="Relic or reward…" bind:value={query} />
   </div>
 
-  <Browse id="relics" {rows} {columns} key={(r) => r.base} bind:sort {detail} {card} title={(r) => `${r.base} Relic`} min="21rem" empty={filtering ? "No relics match these filters." : "No relics yet."} />
+  <Browse id="relics" {rows} {columns} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort {detail} {card} title={(r) => `${r.base} Relic`} min="21rem" empty={filtering ? "No relics match these filters." : "No relics yet."} />
   {#if filtering && !rows.length}<p class="clear"><button class="link" onclick={clearFilters}>Clear the filters</button></p>{/if}
   {#if unknown.length}
     <div class="unknown">

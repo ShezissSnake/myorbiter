@@ -3,7 +3,8 @@
   // on (the fissures, alerts worth a look, the open worlds' clocks, your Foundry, the bounties),
   // each one you choose, in a column you can fold away.
   import type { Model } from "../core/model";
-  import type { Live } from "../core/types";
+  import type { Fissure, Live } from "../core/types";
+  import { eraTint } from "./table";
   import type { Settings } from "../backend";
   import { bountyBoards, fissureCounts, fissuresByEra, type BountyTable } from "../core/board";
   import { cycleTimers, matchedFissures } from "../core/timers";
@@ -44,7 +45,15 @@
   const watched = $derived(matchedFissures(settings.fissureRules, live.fissures, now));
   // As Home's board: with Only my alerts, just the matches, of every kind.
   const mine = $derived(settings.homeFissuresOnly && settings.fissureRules.length > 0);
-  const eras = $derived(mine ? fissuresByEra(watched.map((w) => w.fissure), "all", now) : fissuresByEra(live.fissures, mode, now));
+  const eras = $derived(fissuresByEra(live.fissures, mode, now));
+  /** With Only my alerts: the matches of every kind, soonest to close first. */
+  const soonest = $derived(watched.map((w) => w.fissure).sort((a, b) => Date.parse(a.expiry) - Date.parse(b.expiry)));
+  const watchedIds = $derived(new Set(watched.map((w) => w.fissure.id)));
+  /** "Augustus (Mars)" → its node and planet. */
+  const place = (node: string) => {
+    const m = /^(.*?)\s*\(([^)]+)\)\s*$/.exec(node);
+    return m ? { node: m[1], planet: m[2] } : { node, planet: "" };
+  };
   const world = $derived(alertNeeds(console ? null : model, live.alerts, now));
   const invasions = $derived(model && !console ? invasionNeeds(model, live.invasions) : []);
   const cycles = $derived(cycleTimers(live, now));
@@ -74,45 +83,64 @@
     </div>
   {/if}
 
+  <!-- A fissure as a card: its era's colour washed in, the mission, where and against whom, and how long it has left. -->
+  {#snippet fissureCard(f: Fissure, showEra: boolean)}
+    {@const at = place(f.node)}
+    <li class="card era-wash" class:soon={Date.parse(f.expiry) - now < 10 * 60_000} style:--tint={eraTint(f.tier)} title="{f.tier}{f.isHard ? ' Steel Path' : f.isStorm ? ' Void Storm' : ''} {f.missionType} on {f.node}, against the {f.enemy}">
+      {#if showEra}<GameIcon name={eraIcon(f.tier)} size={20} />{/if}
+      <span class="tx">
+        <span class="top"><b>{f.missionType}</b>{#if f.isHard}<span class="kind">SP</span>{:else if f.isStorm}<span class="kind">Storm</span>{/if}{#if watchedIds.has(f.id) && !mine}<span class="bell" title="One of your fissure alerts matches it"><Icon name="bell" size={10} /></span>{/if}</span>
+        <span class="dim small">{at.node}{at.planet ? ` · ${at.planet}` : ""} · {f.enemy}</span>
+      </span>
+      <span class="t">{left(f.expiry)}</span>
+    </li>
+  {/snippet}
+
   {#each settings.side.cards as k (k)}
     {#if on(k) && k === "alerts"}
       <section>
         <h3 class="register"><Icon name="bell" size={11} /> Alerts</h3>
         {#if !watched.length && !world.mastery.length && !world.rare.length && !invasions.length && !shortListings.length}<p class="dim small">Nothing that needs you right now.</p>{/if}
-        <ul>
-          {#if shortListings.length}<li><GameIcon name="market" size={16} /><span class="tx wrap"><button class="link" onclick={() => go("market")}>{shortListings.length} listing{shortListings.length === 1 ? "" : "s"} for more than you hold</button><span class="dim small">sold, or fix them on Orders</span></span></li>{/if}
-          {#each watched as w (w.fissure.id)}<li><GameIcon name={eraIcon(w.fissure.tier)} size={16} /><span class="tx"><b>{w.fissure.isHard ? "SP " : ""}{w.fissure.tier} {w.fissure.missionType}</b><span class="dim small">{w.fissure.node}</span></span><span class="t">{left(w.fissure.expiry)}</span></li>{/each}
-          {#each world.mastery as a (a.key)}<li><GameIcon name="mastery" size={16} /><span class="tx"><b>{a.reward}</b><span class="dim small">{a.node} · {describeHelp(a.reward, a.help!)}</span></span><span class="t">{left(a.expiry)}</span></li>{/each}
-          {#each world.rare as a (a.key)}<li><GameIcon name="sortie" size={16} /><span class="tx"><b>{a.reward}</b><span class="dim small">{a.node} · {a.mission}</span></span><span class="t">{left(a.expiry)}</span></li>{/each}
-          {#each invasions as n (n.key)}<li><GameIcon name="invasion" size={16} /><span class="tx"><b>{n.reward}</b><span class="dim small">{n.node} · side with {n.side}</span></span></li>{/each}
+        <ul class="cards">
+          {#if shortListings.length}<li class="card era-wash" style:--tint="var(--gold)"><GameIcon name="market" size={20} /><span class="tx wrap"><button class="link" onclick={() => go("market")}>{shortListings.length} listing{shortListings.length === 1 ? "" : "s"} for more than you hold</button><span class="dim small">Sold, or fix them on Orders</span></span></li>{/if}
+          {#each watched as w (w.fissure.id)}{@render fissureCard(w.fissure, true)}{/each}
+          {#each world.mastery as a (a.key)}<li class="card era-wash" style:--tint="var(--verdigris)" title="Mastery you're missing"><GameIcon name="mastery" size={20} /><span class="tx"><b>{a.reward}</b><span class="dim small">{a.node} · {describeHelp(a.reward, a.help!)}</span></span><span class="t">{left(a.expiry)}</span></li>{/each}
+          {#each world.rare as a (a.key)}<li class="card era-wash" style:--tint="var(--gold)" title="A rare reward"><GameIcon name="sortie" size={20} /><span class="tx"><b>{a.reward}</b><span class="dim small">{a.node} · {a.mission}</span></span><span class="t">{left(a.expiry)}</span></li>{/each}
+          {#each invasions as n (n.key)}<li class="card era-wash" style:--tint="var(--verdigris)" title="An invasion with a part you need"><GameIcon name="invasion" size={20} /><span class="tx"><b>{n.reward}</b><span class="dim small">{n.node} · side with {n.side}</span></span></li>{/each}
         </ul>
       </section>
     {:else if on(k) && k === "fissures"}
       <section>
         <h3 class="register"><GameIcon name="void-tear" size={13} /> {mine ? `My alerts · ${watched.length}` : `${mode === "steel" ? "Steel Path" : mode === "storm" ? "Void Storms" : "Fissures"} · ${counts[mode]}`}</h3>
-        {#each eras as e (e.era)}
-          <div class="era"><GameIcon name={eraIcon(e.era)} size={16} /><b>{e.era}</b></div>
-          <ul class="fs">{#each e.list as f (f.id)}<li title="{f.node} · {f.enemy}"><span class="tx"><span>{mine && (f.isHard || f.isStorm) ? (f.isStorm ? "Storm " : "SP ") : ""}{f.missionType} <span class="dim small">{f.node.replace(/ \(.*\)$/, "")}</span></span></span><span class="t">{left(f.expiry)}</span></li>{/each}</ul>
-        {:else}<p class="dim small">{live.fissures == null ? (liveError ? "The worldstate can't be read right now." : "Reading the worldstate…") : live.fissures.length && counts.normal + counts.steel + counts.storm === 0 ? "Out of date: the worldstate can't be read right now." : mine ? "None of the fissures open right now match your alerts." : "None open right now."}</p>{/each}
+        {#if mine}
+          <!-- Just your alerts' matches: few enough to read as one list, soonest to close first. -->
+          {#if soonest.length}<ul class="cards">{#each soonest as f (f.id)}{@render fissureCard(f, true)}{/each}</ul>{/if}
+        {:else}
+          {#each eras as e (e.era)}
+            <div class="eh" style:--tint={eraTint(e.era)}><GameIcon name={eraIcon(e.era)} size={16} /><b>{e.era}</b><span class="dim small">{e.list.length}</span></div>
+            <ul class="cards">{#each e.list as f (f.id)}{@render fissureCard(f, false)}{/each}</ul>
+          {/each}
+        {/if}
+        {#if !(mine ? soonest.length : eras.length)}<p class="dim small">{live.fissures == null ? (liveError ? "The worldstate can't be read right now." : "Reading the worldstate…") : live.fissures.length && counts.normal + counts.steel + counts.storm === 0 ? "Out of date: the worldstate can't be read right now." : mine ? "None of the fissures open right now match your alerts." : "None open right now."}</p>{/if}
       </section>
     {:else if on(k) && k === "clocks" && cycles.length}
       <section>
         <h3 class="register"><GameIcon name="cycles" size={13} /> Clocks</h3>
-        <ul>{#each cycles as c (c.key)}<li><GameIcon name={CYCLE_ICON[c.key]} size={16} /><span class="tx"><b class="st-{c.state}">{c.state}</b><span class="dim small">{c.label}</span></span><span class="t">{left(c.ends)}</span></li>{/each}</ul>
+        <ul class="tiles">{#each cycles as c (c.key)}<li class="tile" title="{c.label}: {c.state} for {left(c.ends)}"><GameIcon name={CYCLE_ICON[c.key]} size={18} /><span class="tx"><b class="st-{c.state}">{c.state}</b><span class="dim small">{c.label}</span><span class="t">{left(c.ends)}</span></span></li>{/each}</ul>
       </section>
     {:else if on(k) && k === "foundry"}
       <section>
         <h3 class="register"><GameIcon name="foundry" size={13} /> Foundry</h3>
         {#if !builds.length}<p class="dim small">Nothing building.</p>{/if}
-        <ul>{#each builds as b (b.key)}<li><Thumb file={b.image} name={b.name} size={20} /><span class="tx"><b>{b.name}</b></span><span class="t" class:ready={b.ready}>{b.ready ? "Ready" : left(new Date(b.readyAt).toISOString())}</span></li>{/each}</ul>
+        <ul class="cards">{#each builds as b (b.key)}<li class="card" class:era-wash={b.ready} style:--tint={b.ready ? "var(--verdigris)" : null}><Thumb file={b.image} name={b.name} size={26} /><span class="tx"><b>{b.name}</b>{#if b.points}<span class="dim small">{b.points.toLocaleString()} mastery</span>{/if}</span><span class="t" class:ready={b.ready}>{b.ready ? "Ready" : left(new Date(b.readyAt).toISOString())}</span></li>{/each}</ul>
       </section>
     {:else if on(k) && k === "bounties" && boards.length}
       <section>
         <h3 class="register"><GameIcon name="ostron" size={13} /> Bounties</h3>
-        <ul>
+        <ul class="cards">
           {#each boards as b (b.key)}
             {@const j = b.jobs.find((x) => x.wanted) ?? b.jobs.reduce((best, x) => ((x.headline?.chance ?? 101) < (best.headline?.chance ?? 101) ? x : best), b.jobs[0])}
-            <li title="{b.label}: {j?.name}"><Thumb file={j?.headline ? model?.imageOf(j.headline.name) : null} name={j?.headline?.name} size={20} /><span class="tx"><b class:want={j?.wanted}>{j?.headline?.name ?? "—"}</b><span class="dim small">{b.label}{j && !b.rotating ? ` · ${j.name}` : ""}</span></span></li>
+            <li class="card" class:era-wash={j?.wanted} style:--tint={j?.wanted ? "var(--gold)" : null} title="{b.label}: {j?.name}"><Thumb file={j?.headline ? model?.imageOf(j.headline.name) : null} name={j?.headline?.name} size={26} /><span class="tx"><b class:want={j?.wanted}>{j?.headline?.name ?? "—"}</b><span class="dim small">{b.label}{j && !b.rotating ? ` · ${j.name}` : ""}</span></span></li>
           {/each}
         </ul>
         <button class="link small" onclick={() => go("home#bounties")}>Every bounty →</button>
@@ -141,8 +169,25 @@
   section { display: grid; gap: .35rem; }
   h3 { display: flex; align-items: center; gap: .35rem; margin: 0; font-size: .58rem; color: var(--platinum-dim); }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
-  li { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: .45rem; align-items: center; font-size: .82rem; }
-  .fs li { grid-template-columns: minmax(0, 1fr) auto; padding-left: 1.4rem; }
+  li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .5rem; align-items: center; font-size: .82rem; }
+  /* One thing per card: an Orokin plate, the wash of its era or kind (app.css, .era-wash). */
+  .card { padding: .42rem .55rem .42rem .6rem; background: var(--plate); border: 1px solid var(--rule); clip-path: var(--cut); }
+  .card.era-wash { background: var(--era-bg); border-color: color-mix(in srgb, var(--tint) 20%, var(--rule)); }
+  .card .tx { gap: .05rem; }
+  .card.soon { opacity: .72; }
+  .card.soon .t { color: var(--oxblood); }
+  .top { display: flex; align-items: center; gap: .35rem; }
+  .kind { font-family: var(--face-register); font-size: .55rem; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold-dim); padding: 0 .22rem; line-height: 1.35; }
+  .bell { color: var(--gold); display: inline-flex; }
+  /* An era's heading: its icon and name in its own colour, and how many are open. */
+  .eh { display: flex; align-items: center; gap: .4rem; margin-top: .35rem; font-size: .8rem; }
+  .eh b { font-family: var(--face-mark); letter-spacing: .02em; color: color-mix(in srgb, var(--tint) 75%, var(--platinum)); }
+  .eh .dim { margin-left: auto; font-variant-numeric: tabular-nums; }
+  /* The open worlds' clocks, two to a row. */
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .3rem; }
+  .tile { grid-template-columns: auto minmax(0, 1fr); align-items: start; padding: .38rem .45rem; background: var(--plate); border: 1px solid var(--rule); }
+  .tile b { text-transform: capitalize; }
+  .tile .t { font-size: .7rem; }
   .tx { display: grid; min-width: 0; }
   .tx > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tx b { font-weight: 600; color: var(--platinum); }
@@ -153,8 +198,6 @@
   .tx b.want { color: var(--gold); }
   .t { font-variant-numeric: tabular-nums; color: var(--platinum-dim); font-size: .76rem; white-space: nowrap; }
   .t.ready { color: var(--verdigris); }
-  .era { display: flex; align-items: center; gap: .4rem; margin-top: .2rem; font-size: .8rem; }
-  .era b { font-family: var(--face-mark); color: var(--platinum); }
   .st-day, .st-warm, .st-fass { color: var(--gold) !important; }
   .st-night, .st-cold, .st-vome { color: #8fb3e0 !important; }
   .st-joy { color: var(--gold) !important; }
