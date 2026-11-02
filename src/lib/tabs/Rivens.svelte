@@ -347,9 +347,11 @@
     found = { key, weapon: w, loading: true };
     try {
       const auctions = await rivens.search(w.slug, positive, neg || null, 60_000);
-      // The weapon's cheapest listed, for the estimate of each result (shared with price checks).
+      if (found?.key !== key) return;
+      // Results first; then the weapon's cheapest listed, for each result's estimate (shared with price checks).
+      found = { key, weapon: w, loading: false, auctions };
       const any = await rivens.search(w.slug, [], null).catch(() => undefined);
-      if (found?.key === key) found = { key, weapon: w, loading: false, auctions, any };
+      if (found?.key === key && any) found = { ...found, any };
     } catch (e) {
       if (found?.key === key) found = { key, weapon: w, loading: false, error: String(e).replace(/^Error: /, "") };
     }

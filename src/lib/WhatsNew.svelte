@@ -15,9 +15,9 @@
 </script>
 
 <Sheet bind:open title="What's new" kicker="Since you last opened orbiter">
-  {#each news as n (n.date)}
+  {#each news as n, i (n.id)}
     <section>
-      <h3 class="register">{day(n.date)}</h3>
+      {#if i === 0 || news[i - 1].date !== n.date}<h3 class="register">{day(n.date)}</h3>{/if}
       <ul>{#each n.items as item (item)}<li>{item}</li>{/each}</ul>
     </section>
   {/each}

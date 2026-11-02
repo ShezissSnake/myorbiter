@@ -106,4 +106,7 @@ test("only a sure listing is marked sold: unranked arcanes, refinements, unknown
   const sold = (orders: MyOrder[]) => salesFromTrade(trade({ offered: [{ name: "Serration", rank: 10, count: 1 }], platinum_received: 40 }), orders, sidx)![0].order?.id ?? null;
   assert.equal(sold([{ ...order("atra", "se", 1, 45, 10), subtype: "atragraph" }]), null);
   assert.equal(sold([{ ...order("atra", "se", 1, 45, 10), subtype: "atragraph" }, order("reg", "se", 1, 40, 10)]), "reg");
+  // A listed item traded with unlisted ones: the platinum is shared out evenly, so no price check.
+  const mixed = salesFromTrade(trade({ offered: [{ name: "Gauss Prime Neuroptics Blueprint", rank: null, count: 1 }, { name: "Forma Blueprint", rank: null, count: 3 }], platinum_received: 60 }), [order("g", "gp", 1, 45)], idx)!;
+  assert.equal(mixed[0].order?.id, "g");
 });

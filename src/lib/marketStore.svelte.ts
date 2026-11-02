@@ -119,6 +119,12 @@ class MarketStore {
   status = $state<PresenceState | null>(null);
   /** Clicked and not confirmed yet. */
   statusAsked = $state<Presence | "offline" | null>(null);
+  /** Whether Warframe is running, as TennoScope last said; null when unknown (App sets it). */
+  gameRunning = $state<boolean | null>(null);
+  /** "Online in game" only while Warframe runs: Online when TennoScope says it doesn't. */
+  presenceFor(p: Presence): Presence {
+    return p === "ingame" && this.gameRunning === false ? "online" : p;
+  }
   statusError = $state<string | null>(null);
   log = $state<LogLine[]>([]);
   lastPass = $state<number | null>(null);
@@ -444,6 +450,7 @@ class MarketStore {
     let deferred = 0;
     let held = 0;
     let moved = 0;
+    let unseen = 0;
     let failed = 0;
     let read = 0;
     // Three reads failing in a row is warframe.market not answering (or turning orbiter away):
@@ -493,7 +500,11 @@ class MarketStore {
         if ((timed && !s.auto) || s.paused[listingKey(o)]) continue;
         if (!timed) {
           const was = shown.get(o.id);
-          if (was == null || p.target < was) {
+          if (was == null) {
+            unseen++;
+            continue;
+          }
+          if (p.target < was) {
             moved++;
             continue;
           }
@@ -521,11 +532,12 @@ class MarketStore {
         }
       }
       if (skipped) this.note(`${skipped} listing${skipped === 1 ? "" : "s"} skipped: item not in warframe.market's list`, "warn");
+      if (unseen) this.note(`${unseen} listing${unseen === 1 ? "" : "s"} left as ${unseen === 1 ? "it was" : "they were"}: ${unseen === 1 ? "it" : "they"} needed no change when you checked, and do now; check again`, "info");
       if (moved) this.note(`${moved} listing${moved === 1 ? "" : "s"} left as ${moved === 1 ? "it was" : "they were"}: the price went lower since you checked; check again`, "info");
       if (deferred) this.note(`${deferred} listing${deferred === 1 ? "" : "s"} left for the next pass: you were editing`, "info");
       if (stopped) this.note("warframe.market stopped answering, so this pass stopped early; the rest are checked next pass", read ? "warn" : tone());
       else if (failed) this.note(`${failed} listing${failed === 1 ? "" : "s"} couldn't be checked; trying again next pass`, read ? "warn" : tone());
-      if (apply && !changed && !failed && !skipped && !deferred && !held && !moved) this.note("Prices checked: everything already matches", "info");
+      if (apply && !changed && !failed && !skipped && !deferred && !held && !moved && !unseen) this.note("Prices checked: everything already matches", "info");
       if (!apply) {
         const off = this.orders.filter((o) => o.visible && this.planFor(m, s, o)?.change).length;
         const checked = this.orders.filter((o) => o.visible && this.planFor(m, s, o)).length;

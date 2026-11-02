@@ -73,8 +73,8 @@ export interface Competitor {
   cheapest: { name: string | null; platinum: number } | null;
   /**
    * The cheapest in game, odd or not: a deal to buy. When it's under a third of the next one (and
-   * 5p or more under it), one forgotten or mistyped listing, `price` and `cheapest` skip it, so
-   * your listings don't follow it down.
+   * 5p or more under it) and the next two agree (within half again), one forgotten or mistyped
+   * listing, `price` and `cheapest` skip it, so your listings don't follow it down.
    */
   lowest: { name: string | null; platinum: number } | null;
   /** The next few in-game prices, cheapest first, to show what the order is matching. */
@@ -122,8 +122,8 @@ export function competitor(order: Pick<MyOrder, "rank" | "subtype"> & Stars, boo
         canTrade(me, o.user),
     )
     .sort((a, b) => a.platinum - b.platinum);
-  // One seller far under the next: a forgotten or mistyped listing, not the market.
-  const odd = rivals.length >= 2 && rivals[0].platinum * 3 < rivals[1].platinum && rivals[1].platinum - rivals[0].platinum >= 5;
+  // One seller far under the next two, who agree: a forgotten or mistyped listing, not the market.
+  const odd = rivals.length >= 3 && rivals[0].platinum * 3 < rivals[1].platinum && rivals[1].platinum - rivals[0].platinum >= 5 && rivals[2].platinum <= rivals[1].platinum * 1.5;
   const best = rivals[odd ? 1 : 0];
   const asks = book
     .filter((o) => o.type === "sell" && o.visible && o.user.id !== me.id && sameRank(o.rank, order.rank) && sameStars(o, order) && (o.subtype ?? defaultSubtype) === mine && canTrade(me, o.user))
@@ -189,6 +189,8 @@ export function plan(order: MyOrder, book: BookOrder[], me: Me, rule: FloorRule)
     return { target: order.platinum, change: false, reason: "no-sellers", competitor: comp, floor, value };
   }
   let target = comp.price;
+  // Skipping an odd cheap seller is there to keep you from following it down, never to raise you.
+  if (comp.lowest && comp.lowest.platinum !== comp.price && order.platinum > 0 && target > order.platinum) target = order.platinum;
   let reason: Plan["reason"] = "match";
   const sells = overAsked(comp.price, value);
   if (sells != null) {

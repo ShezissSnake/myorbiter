@@ -53,7 +53,6 @@
     nothingYet,
     PLATFORM_LABEL,
     type Platform,
-    type Presence,
     NO_INVENTORY_YET,
     tennoscope,
     onSaveTrouble,
@@ -63,10 +62,15 @@
   import Parts from "./lib/tabs/Parts.svelte";
   // Pages opened now and then load when first opened, so the app starts on less: Home, Orders,
   // Current fissure and the collection pages people live on stay in the first bundle.
+  // One import per page, kept; one that failed is tried again (Retry below, `lazyTry`).
   const once = <T,>(f: () => Promise<T>) => {
     let p: Promise<T> | null = null;
-    return () => (p ??= f());
+    return (_try = 0) => (p ??= f().catch((e) => {
+      p = null;
+      throw e;
+    }));
   };
+  let lazyTry = $state(0);
   const loadSets = once(() => import("./lib/tabs/Sets.svelte"));
   const loadMastery = once(() => import("./lib/tabs/Mastery.svelte"));
   const loadArcanes = once(() => import("./lib/tabs/Arcanes.svelte"));
@@ -733,16 +737,16 @@
   // once you sign in to warframe.market. A partner not on warframe.market is let go; one that
   // fails waits for the next run, and says why once.
   // "Online in game" only while Warframe runs (as TennoScope sees it): buyers who pick it expect
-  // an answer in game. Online until then, and again after you close the game.
-  function presenceNow(p: Presence): Presence {
-    return p === "ingame" && ts.report && !ts.report.game_running ? "online" : p;
-  }
+  // an answer in game. Online until then, and again after you close the game (mkt.presenceFor).
+  $effect(() => {
+    mkt.gameRunning = ts.report ? !!ts.report.game_running : null;
+  });
   $effect(() => {
     const want = settings.market.presence;
-    const running = ts.report?.game_running;
+    const running = mkt.gameRunning;
     if (want !== "ingame" || running == null || !mkt.linked || !mkt.status?.wanted) return;
     untrack(() => {
-      const now = presenceNow(want);
+      const now = mkt.presenceFor(want);
       if (mkt.status?.wanted !== now && mkt.statusAsked !== now) void mkt.setStatus(now);
     });
   });
@@ -1613,7 +1617,7 @@
           settings.market.platform = theirs as Platform;
           settings.market.relicPrices = {};
         }
-        if (mkt.linked && settings.market.presence) mkt.setStatus(presenceNow(settings.market.presence));
+        if (mkt.linked && settings.market.presence) mkt.setStatus(mkt.presenceFor(settings.market.presence));
       });
       mkt.pollStatus();
       statusPoll = setInterval(() => mkt.pollStatus(), 3_000);
@@ -1881,23 +1885,23 @@
         {#if visited[id] && available.some((p) => p.id === id)}<div class="pane" class:shown={settings.tab === id}>{@render body()}</div>{/if}
       {/snippet}
       {#snippet pMission()}<InMission {model} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} {windowMode} tennoscopeRunning={!!ts.status?.running} onsettings={() => (showSettings = true)} />{/snippet}
-      {#snippet pSets()}{#await loadSets() then { default: Page }}<Page {model} advice={settings.advice} />{/await}{/snippet}
+      {#snippet pSets()}{#await loadSets(lazyTry) then { default: Page }}<Page {model} advice={settings.advice} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pParts()}<Parts {model} bind:advice={settings.advice} />{/snippet}
-      {#snippet pMastery()}{#await loadMastery() then { default: Page }}<Page {model} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} />{/await}{/snippet}
-      {#snippet pArcanes()}{#await loadArcanes() then { default: Page }}<Page {model} bind:advice={settings.advice} />{/await}{/snippet}
-      {#snippet pMods()}{#await loadMods() then { default: Page }}<Page {model} />{/await}{/snippet}
+      {#snippet pMastery()}{#await loadMastery(lazyTry) then { default: Page }}<Page {model} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pArcanes()}{#await loadArcanes(lazyTry) then { default: Page }}<Page {model} bind:advice={settings.advice} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pMods()}{#await loadMods(lazyTry) then { default: Page }}<Page {model} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pRelics()}<Relics {model} bind:advice={settings.advice} wishlist={settings.favourites} />{/snippet}
-      {#snippet pPlanner()}{#await loadPlanner() then { default: Page }}<Page {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} wishlist={settings.favourites} />{/await}{/snippet}
+      {#snippet pPlanner()}{#await loadPlanner(lazyTry) then { default: Page }}<Page {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} wishlist={settings.favourites} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pHome()}<Home {model} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => goTo(t)} {shortListings} {liveAt} {liveError} {liveRead} bountyTables={relicTables?.bounties ?? null} sortieRewards={relicTables?.sortie ?? null} />{/snippet}
-      {#snippet pSales()}{#await loadSales() then { default: Page }}<Page {model} bind:settings={settings} go={(t: string) => (settings.tab = t)} />{/await}{/snippet}
+      {#snippet pSales()}{#await loadSales(lazyTry) then { default: Page }}<Page {model} bind:settings={settings} go={(t: string) => (settings.tab = t)} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pMarket()}<Orders {model} console={onConsole} bind:settings={settings.market} advice={settings.advice} />{/snippet}
-      {#snippet pGuide()}{#await loadGuide() then { default: Page }}<Page console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} go={(t: string) => (settings.tab = t)} bind:plannerMode={settings.plannerMode} />{/await}{/snippet}
+      {#snippet pGuide()}{#await loadGuide(lazyTry) then { default: Page }}<Page console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} go={(t: string) => (settings.tab = t)} bind:plannerMode={settings.plannerMode} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pFoundry()}<Foundry {model} bind:settings={settings} />{/snippet}
       {#snippet pInventory()}<Inventory {model} sell={settings.market.sellable} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad} gear={settings.game.gear} bind:keepGear={settings.game.keepGear} />{/snippet}
-      {#snippet pBrowse()}{#await loadMarket() then { default: Page }}<Page {model} />{/await}{/snippet}
-      {#snippet pWishlist()}{#await loadWishlist() then { default: Page }}<Page {model} bind:settings={settings} />{/await}{/snippet}
-      {#snippet pRivens()}{#await loadRivens() then { default: Page }}<Page {model} console={onConsole} bind:settings={settings} />{/await}{/snippet}
-      {#snippet pStats()}{#await loadStats() then { default: Page }}<Page {model} {settings} />{/await}{/snippet}
+      {#snippet pBrowse()}{#await loadMarket(lazyTry) then { default: Page }}<Page {model} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pWishlist()}{#await loadWishlist(lazyTry) then { default: Page }}<Page {model} bind:settings={settings} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pRivens()}{#await loadRivens(lazyTry) then { default: Page }}<Page {model} console={onConsole} bind:settings={settings} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pStats()}{#await loadStats(lazyTry) then { default: Page }}<Page {model} {settings} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {@render pane("mission", pMission)}
       {@render pane("sets", pSets)}
       {@render pane("parts", pParts)}

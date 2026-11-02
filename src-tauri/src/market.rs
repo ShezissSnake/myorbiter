@@ -66,14 +66,28 @@ fn slow_down() {
 /// How long the last "too many requests" said to wait (Retry-After), if it said.
 static RETRY_AFTER: Mutex<Option<Duration>> = Mutex::new(None);
 
-/// Notes a "too many requests" reply: everything slows down, and its Retry-After is kept.
-/// A 403 that says nothing, or names the sign-in (token, auth, login…): treated as signed out. One
-/// naming anything else (an order that isn't yours, a limit) is that one change refused.
+/// A 403 is a sign-out when it says nothing, or when warframe.market's error codes name the
+/// sign-in (`app.auth…`, a token, unauthorized). One naming anything else (an order that isn't
+/// yours, a limit), or a page that isn't JSON (a block page), is that one change refused.
 fn forbidden_means_signed_out(body: &str) -> bool {
-    let b = body.to_ascii_lowercase();
-    b.trim().is_empty() || ["token", "auth", "sign", "login", "jwt", "credential", "session"].iter().any(|w| b.contains(w))
+    if body.trim().is_empty() {
+        return true;
+    }
+    let Ok(v) = serde_json::from_str::<Value>(body) else { return false };
+    fn codes(v: &Value, out: &mut Vec<String>) {
+        match v {
+            Value::String(s) => out.push(s.to_ascii_lowercase()),
+            Value::Array(a) => a.iter().for_each(|x| codes(x, out)),
+            Value::Object(o) => o.values().for_each(|x| codes(x, out)),
+            _ => {}
+        }
+    }
+    let mut found = Vec::new();
+    codes(&v["error"], &mut found);
+    found.iter().any(|c| c.starts_with("app.auth") || c.contains("token") || c.contains("unauthorized") || c.contains("jwt"))
 }
 
+/// Notes a "too many requests" reply: everything slows down, and its Retry-After is kept.
 fn rate_limited(resp: &ureq::Response) -> MarketError {
     let hint = resp.header("Retry-After").and_then(|v| v.trim().parse::<u64>().ok()).map(Duration::from_secs);
     *RETRY_AFTER.lock().unwrap_or_else(|e| e.into_inner()) = hint;
@@ -1037,6 +1051,8 @@ mod tests {
         assert!(forbidden_means_signed_out(r#"{"error":"invalid token"}"#));
         assert!(forbidden_means_signed_out(r#"{"error":{"request":["app.auth.required"]}}"#));
         assert!(!forbidden_means_signed_out(r#"{"error":{"request":["app.order.notOwned"]}}"#));
+        assert!(!forbidden_means_signed_out(r#"{"error":{"inputs":{"author":"app.field.design"}}}"#));
+        assert!(!forbidden_means_signed_out("<html>Access denied: sign in to your network</html>"));
     }
 
 

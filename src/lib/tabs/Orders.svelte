@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import type { Model } from "../core/model";
   import type { AdviceSettings, MarketSettings } from "../backend";
   import { heldFor, holdings, listingKey, overAsked, wtsLines, type MyOrder, type Plan } from "../core/market";
@@ -226,22 +227,34 @@
   const auctions = $derived(rivens.mine.filter((a) => !a.closed));
   // Each auction against orbiter's estimate for a riven like it: the weapon's cheapest listed
   // (one search per weapon, shared with Rivens), last week's trades and the price model.
-  let anyBy = $state<Record<string, RivenAuction[]>>({});
-  const anyAsked = new Set<string>();
+  // Keyed by platform and weapon, and asked again after half an hour, so a long session doesn't
+  // judge auctions by hours-old listings. One that failed is asked again on the next round.
+  let anyBy = $state<Record<string, { at: number; auctions: RivenAuction[] }>>({});
+  const anyAsking = new Set<string>();
+  let anyTick = $state(0);
   $effect(() => {
-    const weapons = [...new Set(auctions.map((a) => a.weapon))].filter((w) => !anyAsked.has(w));
-    for (const w of weapons) anyAsked.add(w);
+    const t = setInterval(() => anyTick++, 5 * 60_000);
+    return () => clearInterval(t);
+  });
+  const anyKey = (w: string) => `${mkt.platform}|${w}`;
+  $effect(() => {
+    void anyTick;
+    const now = Date.now();
+    const weapons = [...new Set(auctions.map((a) => a.weapon))].filter((w) => !anyAsking.has(anyKey(w)) && !(now - (untrack(() => anyBy[anyKey(w)])?.at ?? 0) < 30 * 60_000));
     if (!weapons.length) return;
+    for (const w of weapons) anyAsking.add(anyKey(w));
     void rivens.loadModel();
     void rivens.loadTrades(mkt.platform);
     void (async () => {
       for (const w of weapons) {
+        const k = anyKey(w);
         const any = await rivens.search(w, [], null).catch(() => null);
-        if (any) anyBy = { ...anyBy, [w]: any };
+        anyAsking.delete(k);
+        if (any) anyBy = { ...anyBy, [k]: { at: Date.now(), auctions: any } };
       }
     })();
   });
-  const auctionEst = (a: MyAuction) => estimateListed(rivens.model, rivens.meta, rivens.trades, a, anyBy[a.weapon]);
+  const auctionEst = (a: MyAuction) => estimateListed(rivens.model, rivens.meta, rivens.trades, a, anyBy[anyKey(a.weapon)]?.auctions);
   const weaponOf = (a: MyAuction) => rivens.meta?.weapons.find((w) => w.slug === a.weapon);
   const auctionTitle = (a: MyAuction) => `${weaponOf(a)?.name ?? a.weapon.replace(/_/g, " ")} ${a.name.replace(/(^|-)\p{L}/gu, (c) => c.toUpperCase())}`;
   let auctionPrice = $state<{ id: string; buyout: number | null; busy: boolean; error: string | null } | null>(null);

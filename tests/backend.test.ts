@@ -274,6 +274,8 @@ test("What's new: everything for someone who had orbiter before, nothing on a fi
   (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => null };
   assert.equal((await loadSettings()).newsSeen, NEWEST);
   assert.equal(newsSince(NEWEST).length, 0);
-  (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({ newsSeen: "2026-11-01" }) };
-  assert.deepEqual(newsSince((await loadSettings()).newsSeen).map((n) => n.date), NEWS.filter((n) => n.date > "2026-11-01").map((n) => n.date));
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({ newsSeen: "1" }) };
+  assert.deepEqual(newsSince((await loadSettings()).newsSeen).map((n) => n.id), NEWS.filter((n) => n.id > 1).map((n) => n.id));
+  // Ids, not dates: several builds a day each get their own entry.
+  assert.ok(NEWS.every((n, i) => i === 0 || NEWS[i - 1].id === n.id + 1), "newest first, one apart");
 });

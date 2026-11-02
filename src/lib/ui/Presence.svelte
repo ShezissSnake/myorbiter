@@ -12,7 +12,7 @@
   const s = $derived(mkt.status);
   /** The switch shows what you clicked until warframe.market confirms it, then what it confirmed. */
   // "Online in game" chosen shows as chosen while it's Online for want of the game (App.svelte).
-  const waiting = $derived(settings.presence === "ingame" && s?.wanted === "online");
+  const waiting = $derived(settings.presence === "ingame" && (s?.wanted === "online" || mkt.statusAsked === "online"));
   const shown = $derived<Presence | null>(waiting ? "ingame" : mkt.statusAsked && mkt.statusAsked !== "offline" ? mkt.statusAsked : (s?.committed ?? s?.wanted ?? null));
   const connecting = $derived(!!s?.wanted && !s.committed);
   const seen = $derived(s?.committed ? WORD[s.committed] : connecting ? "Connecting…" : "Offline");
@@ -20,7 +20,7 @@
 
   function pick(p: Presence) {
     settings.presence = p;
-    mkt.setStatus(p);
+    mkt.setStatus(mkt.presenceFor(p));
   }
   function offline() {
     settings.presence = null;
@@ -46,7 +46,7 @@
 {:else if !s?.wanted && !quiet}
   <p class="note">Offline: buyers don't see your listings. Pick a status and orbiter holds it while it's open; closing orbiter takes you offline.</p>
 {:else if waiting}
-  <p class="note">Online until Warframe is running, then Online in game: buyers who look for that expect an answer in game.</p>
+  <p class="note">Online until TennoScope sees Warframe running, then Online in game: buyers who look for that expect an answer in game.</p>
 {:else if s?.committed === "invisible"}
   <p class="note warn">Invisible: buyers don't see your listings until you're online.</p>
 {/if}

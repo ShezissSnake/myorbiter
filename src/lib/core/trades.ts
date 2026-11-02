@@ -38,9 +38,13 @@ export function salesFromTrade(t: Trade, orders: MyOrder[], index: MarketIndex, 
   const weights = sales.every((s) => s.order) ? sales.map((s) => s.order!.platinum * s.count) : sales.map((s) => s.count);
   const total = weights.reduce((a, b) => a + b, 0) || 1;
   sales.forEach((s, i) => (s.platinumEach = Math.round((t.platinum_received * weights[i]) / total / s.count)));
-  // Paid far from the listing's price (under half, over double): likely another copy than the one
-  // listed (an unranked mod for your maxed listing), so that listing is left alone.
-  for (const s of sales) if (s.order && (s.platinumEach * 2 < s.order.platinum || s.platinumEach > s.order.platinum * 2)) s.order = null;
+  // Paid far from the listings' prices (under half, over double): likely another copy than the
+  // one listed (an unranked mod for your maxed listing), so the listings are left alone. Only
+  // when every item was listed: otherwise the platinum was shared out evenly, not by price.
+  if (sales.every((s) => s.order)) {
+    const asked = sales.reduce((n, s) => n + s.order!.platinum * s.count, 0);
+    if (t.platinum_received * 2 < asked || t.platinum_received > asked * 2) for (const s of sales) s.order = null;
+  }
   return sales;
 }
 

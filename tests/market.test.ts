@@ -210,3 +210,15 @@ test("a variant other than the first has no daily price, and what you hold of it
   assert.equal(competitor({ rank: null, subtype: null, amberStars: 2, cyanStars: 1 }, [{ ...sell(30, "ingame"), amberStars: 0, cyanStars: 0 }, { ...sell(70, "ingame"), amberStars: 2, cyanStars: 1 }], me).price, 70);
   assert.equal(heldFor(m, ser, { rank: 10, subtype: null, amberStars: 1 }), null);
 });
+
+test("an odd cheap seller is skipped only when the next two agree, and never raises a price", () => {
+  // 4p against 15p and 16p: skipped, but a 5p listing isn't raised to 15p because of it.
+  const b = [sell(4, "ingame"), sell(15, "ingame"), sell(16, "ingame")];
+  assert.equal(competitor(mine(5), b, me).price, 15);
+  const p = plan(mine(5), b, me, { floor: null, minShare: 0.5, reference: null });
+  assert.equal(p.target, 5);
+  assert.equal(p.change, false);
+  // Only two others, or the next two far apart: nothing to call odd.
+  assert.equal(competitor(mine(60), [sell(2, "ingame"), sell(58, "ingame")], me).price, 2);
+  assert.equal(competitor(mine(60), [sell(2, "ingame"), sell(20, "ingame"), sell(60, "ingame")], me).price, 2);
+});
