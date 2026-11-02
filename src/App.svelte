@@ -31,6 +31,8 @@
     rewardScreens,
     writeRewardPick,
     writeOverlayPrefs,
+    writeRivenCycle,
+    setRivenKey,
     market,
     onMarketOrder,
     onNoticeOpen,
@@ -77,7 +79,7 @@
   import Wishlist from "./lib/tabs/Wishlist.svelte";
   import { openEras, wishlistEras } from "./lib/core/wishlist";
   import { rivens } from "./lib/rivenStore.svelte";
-  import { cycleKey, recordRivens, rivenTables, rollChoice } from "./lib/core/rivens";
+  import { cycleKey, cycleOverlay, recordRivens, rivenTables, rollChoice } from "./lib/core/rivens";
   import ItemDetails from "./lib/ItemDetails.svelte";
   import HoverCard from "./lib/HoverCard.svelte";
   import ListDialog from "./lib/ui/ListDialog.svelte";
@@ -315,6 +317,19 @@
     }
   });
   let notifiedScreen = 0;
+
+  // The riven key: set when it changes (and at start); a press asks TennoScope to read the
+  // inventory, and a riven waiting for keep-or-take then shows over the game (see the cycle effect).
+  let rivenKeyError = $state<string | null>(null);
+  let rivenKeySet: string | null = null;
+  $effect(() => {
+    const key = settings.overlay.riven ? settings.overlay.rivenKey : "";
+    if (!settingsReady || key === rivenKeySet) return;
+    rivenKeySet = key;
+    void setRivenKey(key, () => {
+      if (settings.market.platform === "pc") void ts.ask("--sync");
+    }).then((why) => (rivenKeyError = why));
+  });
 
   // Your overlay settings, for TennoScope: written when they change, and once at start.
   let lastOverlay = "";
@@ -1064,6 +1079,8 @@
         if (seen.has(key)) continue;
         settings.game.cyclesNotified = [key, ...(settings.game.cyclesNotified ?? [])].slice(0, 100);
         const c = rollChoice(m, tables, raw);
+        // Over the game too, on TennoScope's overlay, for 25 seconds.
+        if (c && settings.overlay.riven) void writeRivenCycle(cycleOverlay(key, c)).catch(() => {});
         if (c) tell("cycle", `${c.current.weapon}: ${c.verdict === "take" ? "take the new roll" : c.verdict === "keep" ? "keep the one it has" : "close call"}`, `${c.next.name} (${c.next.grade}) vs ${c.current.name} (${c.current.grade}). ${c.why}`, "rivens");
       }
     });
@@ -1846,7 +1863,7 @@
 
 <NoticesSheet bind:open={showNotices} bind:view={noticesView} bind:settings console={onConsole} open_={openNotice} test={testNotice} />
 <Toasts open={openNotice} left={compact ? "5.2rem" : "15.3rem"} />
-<SettingsSheet bind:open={showSettings} bind:settings onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
+<SettingsSheet bind:open={showSettings} bind:settings {rivenKeyError} onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
 <TennoscopeSheet bind:open={showTennoscope} synced={model ? ago(model.observedAt, tick) : "not yet"} {syncing} onsync={refreshAll} {windowMode} bind:opaqueOverlay={settings.tennoscope.opaqueOverlay} />
 
 <style>

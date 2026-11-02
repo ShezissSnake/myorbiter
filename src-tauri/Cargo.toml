@@ -21,6 +21,9 @@ tauri-plugin-window-state = "2"
 tauri-plugin-opener = "2"
 # One orbiter at a time: two would each keep their own settings and log the same trades twice.
 tauri-plugin-single-instance = "2"
+# The riven key: read the inventory from in game, for the riven cycle overlay. On Linux it works
+# while an X11 window has focus, which a game under Proton/Wine is.
+tauri-plugin-global-shortcut = "2"
 orbiter-data = { path = "../crates/orbiter-data" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

@@ -2,19 +2,19 @@
   // Gear you no longer need and can't trade (core/notNeeded.ts): what can go, and what's kept
   // back and why. Keep takes one off the list for good; Undo puts it back.
   import type { Model } from "../core/model";
-  import { notNeeded, type GearCopy } from "../core/notNeeded";
+  import type { CanGo, KeptBack } from "../core/notNeeded";
   import { info } from "../hover.svelte";
   import Thumb from "./Thumb.svelte";
 
-  let { model, gear, keep = $bindable() }: { model: Model; gear: GearCopy[] | null; keep: string[] } = $props();
-
-  const out = $derived(notNeeded(model, gear, new Set(keep)));
+  // `out`: the list worked out once by the page (it shows the count too); `incarnons`: whether
+  // TennoScope passed each copy's Incarnon, so the lead says what's checked.
+  let { model, out, incarnons, keep = $bindable() }: { model: Model; out: { go: CanGo[]; kept: KeptBack[] }; incarnons: boolean; keep: string[] } = $props();
   let showKept = $state(false);
 </script>
 
 <section class="nn" aria-label="Not needed anymore">
   <p class="lead dim small">
-    Built gear can't be traded: sell these for credits in game (Arsenal or Inventory → Sell){out.go.some((g) => g.frame) ? ", or feed a warframe to the Helminth" : ""}. Kept back: what you haven't mastered, what a recipe you haven't mastered takes{gear ? ", one with its Incarnon installed when the better one has none" : ""}, and versions that aren't straight upgrades of each other (a Prime and a Vandal).
+    Built gear can't be traded: sell these for credits in game (Arsenal or Inventory → Sell){out.go.some((g) => g.frame) ? ", or feed a warframe to the Helminth" : ""}. Kept back: what you haven't mastered, what a recipe you haven't mastered takes{incarnons ? ", one with its Incarnon installed when the better one has none" : ""}, and versions that aren't straight upgrades of each other (a Prime and a Vandal).
   </p>
   {#if out.go.length}
     <ul class="go">

@@ -16,6 +16,8 @@ pub const CARDS_FILE: &str = "tennoscope-reward-screen.json";
 pub const PICK_FILE: &str = "orbiter-reward-pick.json";
 /// Your overlay settings (which overlays show, what the reward cards show), read by TennoScope.
 pub const OVERLAY_FILE: &str = "orbiter-overlay.json";
+/// A riven being cycled, both rolls and which to keep, for TennoScope to show over the game.
+pub const RIVEN_FILE: &str = "orbiter-riven-cycle.json";
 
 /// Where the shared files go, or `None` if there is nowhere private to put them.
 pub fn runtime_dir() -> Option<PathBuf> {
@@ -73,6 +75,12 @@ pub fn read_cards_in(dir: &Path) -> Option<ScreenCards> {
 pub fn write_pick_in(dir: &Path, pick: &Value) -> Result<(), String> {
     let bytes = serde_json::to_vec(pick).map_err(|e| e.to_string())?;
     crate::write_atomic(&dir.join(PICK_FILE), &bytes, false).map_err(|e| e.to_string())
+}
+
+/// Written when a read of the inventory shows a riven cycle waiting; TennoScope shows it until `until`.
+pub fn write_riven_in(dir: &Path, cycle: &Value) -> Result<(), String> {
+    let bytes = serde_json::to_vec(cycle).map_err(|e| e.to_string())?;
+    crate::write_atomic(&dir.join(RIVEN_FILE), &bytes, false).map_err(|e| e.to_string())
 }
 
 /// Written whenever the overlay settings change; TennoScope reads it when it's about to draw.

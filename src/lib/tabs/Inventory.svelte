@@ -29,7 +29,8 @@
   let { model, sell, platPerDucat = 0, squad = 1, gear = null, keepGear = $bindable([]) }: { model: Model; sell: SellChoices; platPerDucat?: number; squad?: number; gear?: GearCopy[] | null; keepGear?: string[] } = $props();
   // Gear you no longer need and can't trade (core/notNeeded.ts), shown above the list when asked.
   let letGo = $state(false);
-  const goCount = $derived(notNeeded(model, gear, new Set(keepGear)).go.length);
+  const unneeded = $derived(notNeeded(model, gear, new Set(keepGear)));
+  const goCount = $derived(unneeded.go.length);
 
   let kind = $state<"all" | InventoryKind>("all");
   let tradableOnly = $state(false);
@@ -221,7 +222,7 @@
     <input type="search" placeholder="Filter items…" bind:value={query} />
   </div>
 
-  {#if letGo}<NotNeeded {model} {gear} bind:keep={keepGear} />{/if}
+  {#if letGo}<NotNeeded {model} out={unneeded} incarnons={!!gear} bind:keep={keepGear} />{/if}
 
   <Browse id="inventory" {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (r.kind === "gear" && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" empty="Nothing matches these filters." />
 </div></div>

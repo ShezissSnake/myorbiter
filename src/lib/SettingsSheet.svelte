@@ -15,7 +15,8 @@
     eeFound,
     onpaths,
     onnotices,
-  }: { open: boolean; settings: Settings; defaultDir: string; eeFound: string | null; onpaths: () => void; onnotices: () => void } = $props();
+    rivenKeyError = null,
+  }: { open: boolean; settings: Settings; defaultDir: string; eeFound: string | null; onpaths: () => void; onnotices: () => void; rivenKeyError?: string | null } = $props();
 
   // Paths are edited as drafts and applied together, because changing them reloads everything.
   let dataDir = $state("");
@@ -154,6 +155,16 @@
         <Chip bind:on={settings.overlay.show.ducats} label="Ducats" title="What Baro gives for it" />
         <Chip bind:on={settings.overlay.show.pick} label="orbiter's pick" title="Each card's score, and the card to take outlined in gold" />
       </div>
+    {/if}
+    <Switch bind:on={settings.overlay.riven} label="Cycling a riven">
+      When orbiter reads a riven waiting for keep-or-take (Sync at the cycle screen, or the riven key below): both rolls graded side by side, and which to keep.
+    </Switch>
+    {#if settings.overlay.riven}
+      <label class="field">
+        <span class="register">Riven key</span>
+        <input type="text" placeholder="None (e.g. Ctrl+Shift+R or F9)" value={settings.overlay.rivenKey} onchange={(e) => (settings.overlay.rivenKey = e.currentTarget.value.trim())} aria-label="Riven key" />
+      </label>
+      <p class="dim small">Pressed in game at the cycle screen, TennoScope reads your inventory (it needs Full access) and the two rolls show over the game a few seconds later, no switching windows. On Linux it works while the game has focus; a key another app holds can't be had.{#if rivenKeyError}{" "}<span class="err">Couldn't set it: {rivenKeyError}</span>{/if}</p>
     {/if}
     <Switch bind:on={settings.overlay.kiosk} label="Baro's Ducat Kiosk">
       On each Prime part in the kiosk: its plat, or how many more you need while its item isn't mastered.

@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant, UNIX_EPOCH};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 const WORLDSTATE: &str = "https://api.warframestat.us/pc";
 const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"));
@@ -727,6 +727,27 @@ fn write_reward_pick(pick: Value) -> Result<(), String> {
     bridge::write_pick_in(&bridge::runtime_dir().ok_or("No private folder for the reward pick")?, &pick)
 }
 
+/// Sets the riven key ("Ctrl+Shift+R", "F9"…), or none. Pressed anywhere, even in game, it tells the
+/// page, which asks TennoScope to read the inventory: a riven waiting for keep-or-take then shows
+/// on the overlay. Refused when the key can't be had (taken by another app, or a desktop that
+/// doesn't let apps have keys).
+#[tauri::command]
+fn set_riven_key(app: tauri::AppHandle, key: Option<String>) -> Result<(), String> {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    let shortcuts = app.global_shortcut();
+    shortcuts.unregister_all().map_err(|e| e.to_string())?;
+    match key.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
+        None => Ok(()),
+        Some(k) => shortcuts.register(k).map_err(|e| format!("{k}: {e}")),
+    }
+}
+
+/// A riven cycle to show over the game (both rolls, which to keep), for TennoScope's overlay.
+#[tauri::command(async)]
+fn write_riven_cycle(cycle: Value) -> Result<(), String> {
+    bridge::write_riven_in(&bridge::runtime_dir().ok_or("No private folder for the riven overlay")?, &cycle)
+}
+
 /// Your overlay settings, for TennoScope: which overlays show and what the reward cards show.
 #[tauri::command]
 fn write_overlay_prefs(prefs: Value) -> Result<(), String> {
@@ -835,6 +856,16 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
+        // The riven key (see `set_riven_key`): pressed in game, the page asks TennoScope to read the inventory.
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        let _ = app.emit("riven-key", ());
+                    }
+                })
+                .build(),
+        )
         .manage(Mutex::new(LogFollower::default()))
         .manage(presence::Presence::default())
         .manage(feed::Feed::default())
@@ -898,6 +929,8 @@ pub fn run() {
             presence_set,
             write_reward_pick,
             write_overlay_prefs,
+            write_riven_cycle,
+            set_riven_key,
             default_data_dir,
             market_platform,
             ptrace_scope,

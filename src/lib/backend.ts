@@ -100,9 +100,13 @@ export interface OverlaySettings {
   reward: boolean;
   /** Baro's Ducat Kiosk overlay. */
   kiosk: boolean;
+  /** A riven being cycled: both rolls and which to keep, over the game. */
+  riven: boolean;
+  /** The riven key ("Ctrl+Shift+R"): pressed in game, TennoScope reads the inventory. Empty: none. */
+  rivenKey: string;
   show: OverlayShow;
 }
-export const defaultOverlay = (): OverlaySettings => ({ reward: true, kiosk: true, show: { mastered: true, vault: true, set: true, plat: true, ducats: true, pick: true } });
+export const defaultOverlay = (): OverlaySettings => ({ reward: true, kiosk: true, riven: true, rivenKey: "", show: { mastered: true, vault: true, set: true, plat: true, ducats: true, pick: true } });
 
 export interface Settings {
   advice: AdviceSettings;
@@ -681,7 +685,7 @@ export async function loadSettings(): Promise<Settings> {
     market: { ...base.market, ...(raw?.market ?? {}), bulk: { ...base.market.bulk, ...(raw?.market?.bulk ?? {}) }, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: raw?.market?.sellable?.relicsWorthSelling ?? base.market.sellable.relicsWorthSelling }, sales: Array.isArray(raw?.market?.sales) ? raw.market.sales : [], tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], trades: Array.isArray(raw?.market?.trades) ? raw.market.trades : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: raw?.market?.platform && raw.market.platform in PLATFORM_LABEL ? raw.market.platform : "pc", autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, every: typeof raw?.market?.every === "number" && raw.market.every >= 1 ? raw.market.every : base.market.every, minRelicPrice: typeof raw?.market?.minRelicPrice === "number" && raw.market.minRelicPrice >= 1 ? Math.round(raw.market.minRelicPrice) : base.market.minRelicPrice, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)", lastCopy: { optIn: raw?.market?.lastCopy?.optIn === true, minutes: typeof raw?.market?.lastCopy?.minutes === "number" && raw.market.lastCopy.minutes >= 1 ? Math.round(raw.market.lastCopy.minutes) : DEFAULT_HIDE_MINUTES, hidden: Array.isArray(raw?.market?.lastCopy?.hidden) ? raw.market.lastCopy.hidden.filter((h: unknown): h is HiddenForWhisper => !!h && typeof (h as HiddenForWhisper).id === "string" && typeof (h as HiddenForWhisper).at === "number") : [] } },
     advice: { ...base.advice, ...(raw?.advice ?? {}) },
     pick: { ...base.pick, ...(raw?.pick ?? {}) },
-    overlay: { reward: raw?.overlay?.reward !== false, kiosk: raw?.overlay?.kiosk !== false, show: { ...base.overlay.show, ...(raw?.overlay?.show ?? {}) } },
+    overlay: { reward: raw?.overlay?.reward !== false, kiosk: raw?.overlay?.kiosk !== false, riven: raw?.overlay?.riven !== false, rivenKey: typeof raw?.overlay?.rivenKey === "string" ? raw.overlay.rivenKey.slice(0, 40) : "", show: { ...base.overlay.show, ...(raw?.overlay?.show ?? {}) } },
     tennoscope: { ...base.tennoscope, ...(raw?.tennoscope ?? {}) },
     // "Your listings" was one switch before it was split: off stays off for all three.
     notify: { ...base.notify, ...(raw?.notify?.market === false ? { sold: false, repriced: false } : {}), ...(raw?.notify ?? {}) },
@@ -949,6 +953,22 @@ export async function quitOnWindowClose(): Promise<() => void> {
   }
 }
 
+/**
+ * Sets the riven key (see `set_riven_key`), or none with "". Resolves to why it couldn't be set,
+ * or null. Each press calls `onpress`.
+ */
+let rivenKeyListener: Promise<() => void> | null = null;
+export async function setRivenKey(key: string, onpress: () => void): Promise<string | null> {
+  if (!inTauri) return null;
+  rivenKeyListener ??= import("@tauri-apps/api/event").then(({ listen }) => listen("riven-key", () => onpress()));
+  try {
+    await invoke("set_riven_key", { key: key.trim() || null });
+    return null;
+  } catch (e) {
+    return String(e).replace(/^Error:\s*/, "");
+  }
+}
+
 export async function rewardCards(): Promise<ScreenCards | null> {
   if (inTauri) return invoke<ScreenCards | null>("reward_cards");
   const res = await fetch("/dev-reward-screen.json").catch(() => null);
@@ -980,6 +1000,11 @@ export interface RewardPickFile {
 }
 
 /** Your overlay settings, for TennoScope. Only the desktop app writes them. */
+/** A riven cycle for TennoScope to show over the game (see core/rivens.ts, cycleOverlay). */
+export async function writeRivenCycle(cycle: unknown): Promise<void> {
+  if (inTauri) await invoke("write_riven_cycle", { cycle });
+}
+
 export async function writeOverlayPrefs(prefs: OverlaySettings): Promise<void> {
   if (inTauri) await invoke("write_overlay_prefs", { prefs });
 }

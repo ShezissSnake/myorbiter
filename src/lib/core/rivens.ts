@@ -760,3 +760,21 @@ export function withSaved(s: SavedRivenPrices, now: number, riven?: { id: string
 export function startingFor(a: { starting: number; buyout: number | null }, buyout: number): number {
   return a.starting < (a.buyout ?? a.starting) ? Math.min(a.starting, buyout) : buyout;
 }
+
+/** A riven cycle as TennoScope's overlay draws it (its RivenOverlay.tsx): both rolls, graded, and which to keep. */
+export interface CycleOverlay {
+  key: string;
+  at: number;
+  /** Shown until then (unix ms). */
+  until: number;
+  weapon: string;
+  verdict: RollChoice["verdict"];
+  why: string;
+  current: { name: string; grade: string; stats: { label: string; display: string; grade: string; buff: boolean }[] };
+  next: CycleOverlay["current"];
+}
+
+export function cycleOverlay(key: string, c: RollChoice, now = Date.now(), showFor = 25_000): CycleOverlay {
+  const roll = (r: Riven) => ({ name: `${r.weapon} ${r.name}`, grade: r.grade, stats: r.stats.map((s) => ({ label: s.label, display: s.display, grade: s.grade, buff: s.buff })) });
+  return { key, at: now, until: now + showFor, weapon: c.current.weapon, verdict: c.verdict, why: c.why, current: roll(c.current), next: roll(c.next) };
+}

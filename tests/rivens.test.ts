@@ -223,3 +223,13 @@ test("a clock kept from yesterday still rolls forward, Orb Vallis included", asy
   const live = { fissures: null, resurgence: null, resurgenceExpiry: null, cycles: [{ key: "vallis", state: "warm", expiry: new Date(read + 60_000).toISOString() }] } as never;
   assert.equal(cycleTimers(live, read + 20 * 3_600_000).length, 1);
 });
+
+test("a riven cycle as TennoScope's overlay draws it", async () => {
+  const { cycleOverlay } = await import("../src/lib/core/rivens");
+  const roll = (name: string, grade: string) => ({ weapon: "Rubico Prime", name, grade, stats: [{ label: "Multishot", display: "+120.4%", grade: "A", buff: true, tag: "x", value: 1.2, quality: 0.8, spliced: false }] }) as never;
+  const o = cycleOverlay("r|4", { current: roll("Crita-acridon", "C"), next: roll("Visi-critatis", "A-"), verdict: "take", why: "Multishot beats damage." }, 1000, 25_000);
+  assert.equal(o.until, 26_000);
+  assert.equal(o.next.name, "Rubico Prime Visi-critatis");
+  assert.deepEqual(o.current.stats[0], { label: "Multishot", display: "+120.4%", grade: "A", buff: true });
+  assert.equal(o.verdict, "take");
+});
