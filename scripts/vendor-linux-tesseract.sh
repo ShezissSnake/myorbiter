@@ -31,7 +31,10 @@ install -m 644 "$model" "$out/"
 # its loader and its split-out parts stay the system's: they must match the kernel interface the
 # system provides, and every Linux has them.
 skip='^(linux-vdso|linux-gate|ld-linux|libc\.so|libm\.so|libdl\.so|libpthread\.so|librt\.so|libresolv\.so|libutil\.so)'
+# Some distributions (Arch, CachyOS) list the loader by its full path ("/lib64/ld-linux-x86-64.so.2
+# => …"): the name is taken without its folder.
 ldd "$src" | awk '/=> \// { print $1, $3 }' | while read -r name path; do
+  name=${name##*/}
   if [[ $name =~ $skip ]]; then continue; fi
   install -m 644 "$path" "$out/lib/$name"
 done

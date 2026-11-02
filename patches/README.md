@@ -49,12 +49,13 @@ git clone https://github.com/Deftera186/tennoscope.git
 cd tennoscope
 git checkout e5755f8
 git apply ~/dev/projects/orbiter/patches/tennoscope-orbiter.patch
+~/dev/projects/orbiter/scripts/vendor-linux-tesseract.sh app/src-tauri/vendor/tesseract
 cd app
 pnpm install --frozen-lockfile
 pnpm tauri build --no-bundle
 ```
 
-`--no-bundle` skips the AppImage/.deb/.rpm, which you don't need (and whose last step fails without TennoScope's signing key). The program is `~/dev/projects/tennoscope/target/release/tennoscope`, which orbiter finds and starts on its own. It uses the same data folder and settings as an installed TennoScope.
+The patched build carries its own Tesseract (the reward card reader) in `app/src-tauri/vendor/tesseract`, so the vendor step needs `patchelf` too (`sudo pacman -S --needed patchelf`). `--no-bundle` skips the AppImage/.deb/.rpm, which you don't need (and whose last step fails without TennoScope's signing key). The program is `~/dev/projects/tennoscope/target/release/tennoscope`, which orbiter finds and starts on its own. It uses the same data folder and settings as an installed TennoScope.
 
 ### Updating an existing patched copy
 
@@ -66,7 +67,9 @@ git fetch --quiet origin
 git reset --hard e5755f8
 git clean -fd
 git apply ~/dev/projects/orbiter/patches/tennoscope-orbiter.patch
+~/dev/projects/orbiter/scripts/vendor-linux-tesseract.sh app/src-tauri/vendor/tesseract
 cd app
+pnpm install --frozen-lockfile
 pnpm tauri build --no-bundle
 ```
 
