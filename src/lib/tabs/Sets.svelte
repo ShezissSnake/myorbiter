@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { Model } from "../core/model";
-  import type { SetRow } from "../core/views";
+  import { SAVE_SOURCE_LABEL, saveForSets, type SetRow, type SetSave } from "../core/views";
+  import { allSetSaves, type SellChoices } from "../core/spares";
+  import { drops } from "../drops.svelte";
   import { allSetRows } from "../core/spares";
   import { ducatsWin } from "../core/bulk";
   import type { DucatOptions } from "../core/advice";
@@ -23,15 +25,15 @@
   import { marketUrl, openUrl } from "../backend";
   import { info } from "../hover.svelte";
 
-  let { model, advice }: { model: Model; advice: DucatOptions } = $props();
+  let { model, advice, sell }: { model: Model; advice: DucatOptions; sell: SellChoices } = $props();
 
-  let mode = $state<"sell" | "close">("sell");
+  let mode = $state<"sell" | "close" | "save">("sell");
   let query = $state("");
   let keepOne = $state(true);
   let sort = $state({ key: "value", desc: true });
   // Each view opens on its own useful order (the sell view's sort key isn't a column in the other).
   $effect(() => {
-    sort = mode === "sell" ? { key: "value", desc: true } : { key: "gain", desc: true };
+    sort = mode === "sell" ? { key: "value", desc: true } : mode === "save" ? { key: "left", desc: false } : { key: "gain", desc: true };
   });
 
   // Prime sets, and the others warframe.market trades whole (Mandonel, Lato Vandal…), once its item list is in.
@@ -39,11 +41,30 @@
   /** Worth more to you traded to Baro than sold: why, or null. */
   const forDucats = (r: SetRow) => (r.prime ? ducatsWin(r.setPrice, r.ducats, advice) : null);
   const sellableOf = (r: SetRow) => (keepOne ? r.sellable : r.completeSets);
+  // Sets your loose parts wait for (Settings → Selling): worth more whole, every missing part still to be had.
+  const saveOn = $derived(saveForSets(sell, advice.platPerDucat, drops.recent));
+  const saves = $derived(saveOn ? allSetSaves(model, mkt.index.byId.size ? mkt.index : null, saveOn) : new Map<string, SetSave>());
+  // A row can outlive its save for a moment while the view changes: an empty one stands in.
+  const NO_SAVE: SetSave = { set: "", unique: "", setPrice: 0, partsPrice: 0, held: [], missing: [], prime: true };
+  const saveOf = (r: SetRow): SetSave => saves.get(r.unique) ?? NO_SAVE;
+  const leftOf = (r: SetRow) => saveOf(r).missing.reduce((n, x) => n + x.count, 0);
+  const heldOf = (r: SetRow) => saveOf(r).held.reduce((n, x) => n + x.count, 0);
+  const premium = (r: SetRow) => Math.round(saveOf(r).setPrice - saveOf(r).partsPrice);
+  /** Buying the parts still missing instead of farming them, at their daily median. */
+  const buyRest = (r: SetRow) => {
+    let n = 0;
+    for (const x of saveOf(r).missing) {
+      const p = model.price(x.name);
+      if (p == null) return null;
+      n += p * x.count;
+    }
+    return Math.round(n);
+  };
   /** Parts still to get for the set, counting copies (2× Blade is two). */
   const missingN = (r: SetRow) => r.missing.reduce((n, m) => n + m.count, 0);
   const rows = $derived(
     all.filter((r) =>
-      mode === "sell" ? sellableOf(r) > 0 && matches(query, r.name) : r.completeSets === 0 && missingN(r) <= 2 && matches(query, r.name),
+      mode === "sell" ? sellableOf(r) > 0 && matches(query, r.name) : mode === "save" ? saves.has(r.unique) && matches(query, r.name, ...saveOf(r).missing.map((x) => x.name)) : r.completeSets === 0 && missingN(r) <= 2 && matches(query, r.name),
     ),
   );
   /** Complete sets held back by "Keep one to build" (shown, or not shown because that was the only one). */
@@ -66,6 +87,14 @@
     return Math.round(r.setPrice - cost - loose);
   };
 
+  /** The set's price over its parts sold one by one. */
+  const moreAsSet = (r: SetRow) => (r.setPrice == null || r.partsPrice == null ? null : Math.round(r.setPrice - r.partsPrice));
+  /** How many times faster the set sells than its slowest part (selling the parts waits on that one). */
+  const faster = (r: SetRow) => {
+    if (!r.tradesPerDay) return null;
+    const slowest = Math.min(...r.parts.map((p) => (model.tradesPerDay(p.name) ?? 0) / p.required));
+    return slowest > 0 ? Math.round((r.tradesPerDay / slowest) * 10) / 10 : null;
+  };
   const worthFinishing = $derived(mode === "close" ? rows.filter((r) => (completeGain(r) ?? 0) > 0).length : 0);
 
   const sellCols: Column<SetRow>[] = $derived([
@@ -75,6 +104,8 @@
     { key: "setPrice", label: "Set price", value: (r) => r.setPrice, align: "right", cell: setPriceCell },
     { key: "value", label: "Total", value: (r) => (r.setPrice == null ? null : r.setPrice * sellableOf(r)), align: "right", cell: totalCell },
     { key: "partsPrice", minor: true, label: "As parts", value: (r) => r.partsPrice, align: "right", cell: partsCell, title: "Selling the parts one by one" },
+    { key: "more", label: "More as set", value: moreAsSet, align: "right", cell: moreCell, title: "What one set sells for over its parts sold one by one" },
+    { key: "faster", minor: true, label: "Sells faster", value: faster, align: "right", cell: fasterCell, title: "How many times as often the set sells as its slowest part: selling the parts waits on that one" },
     { key: "ducats", label: "Ducats", value: (r) => r.ducats, align: "right", cell: ducatCell },
     { key: "trades", minor: true, label: "Trades/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "How many of this set warframe.market completes per day" },
     { key: "vault", label: "Vault", value: (r) => (r.vaulted ? 1 : 0), cell: vaultCell, align: "center" },
@@ -90,6 +121,19 @@
     { key: "gain", label: "Finish & sell", value: completeGain, align: "right", cell: gainCell, title: "Set price, minus buying the missing parts, minus what the parts you have would sell for loose. Positive: completing the set and selling it earns more." },
     { key: "vault", label: "Vault", value: (r) => (r.vaulted ? 1 : 0), cell: vaultCell, align: "center" },
   ];
+
+  const saveCols: Column<SetRow>[] = [
+    { key: "name", label: "Set", value: (r) => r.name, defaultDesc: false, cell: nameCell },
+    { key: "held", label: "Saved", value: heldOf, align: "right", title: "Parts you hold toward the set, waiting instead of being sold" },
+    { key: "left", label: "To get", value: leftOf, align: "right", defaultDesc: false, title: "Parts still missing" },
+    { key: "missingParts", label: "Still to get, and from", value: (r) => saveOf(r).missing.map((x) => x.name).join(", "), cell: toGetCell },
+    { key: "setPrice", label: "Set price", value: (r) => saveOf(r).setPrice, align: "right", cell: setPriceCell },
+    { key: "partsPrice", minor: true, label: "As parts", value: (r) => saveOf(r).partsPrice, align: "right", cell: savePartsCell, title: "Selling the parts one by one (or trading one to Baro, at your ducat rate, where that's worth more)" },
+    { key: "premium", label: "More as a set", value: premium, align: "right", cell: premiumCell, title: "What the set sells for over its parts sold one by one" },
+    { key: "buy", minor: true, label: "Or buy them", value: buyRest, align: "right", cell: buyCell, title: "What the missing parts cost on warframe.market, if you'd rather buy than farm them" },
+  ];
+  const FROM_SHORT: Record<SetSave["missing"][number]["from"], string> = { relic: "your relic", farmable: "relics", resurgence: "Varzia", dropped: "you get it" };
+  const savedPremium = $derived(rows.reduce((n, r) => n + (mode === "save" ? premium(r) : 0), 0));
 </script>
 
 {#snippet nameCell(r: SetRow)}
@@ -110,6 +154,14 @@
 {#snippet missingCell(r: SetRow)}
   <span class="miss">{#each r.missing as m, i (m.name)}<span class="mp" use:info={m.name}>{m.count > 1 ? `${m.count}× ` : ""}{m.name.replace(r.name + " ", "")}</span>{#if i < r.missing.length - 1}<span class="sep">,</span>{/if}{/each}</span>
 {/snippet}
+{#snippet toGetCell(r: SetRow)}
+  <span class="miss">{#each saveOf(r).missing as x, i (x.name)}<span class="mp" use:info={x.name} title="From {SAVE_SOURCE_LABEL[x.from]}{x.got ? ` · ${x.got} in the last 30 days` : ``}">{x.count > 1 ? `${x.count}× ` : ""}{x.name.replace(r.name + " ", "")}</span> <span class="from from-{x.from}">{FROM_SHORT[x.from]}{#if x.got}<span title="Copies that turned up in your inventory in the last 30 days, trades left out"> · got {x.got}</span>{/if}</span>{#if i < saveOf(r).missing.length - 1}<span class="sep">,</span>{/if}{/each}</span>
+{/snippet}
+{#snippet moreCell(r: SetRow)}{@const g = moreAsSet(r)}{#if g != null}<span class:pos={g > 0} class:neg={g <= 0}>{g > 0 ? "+" : ""}{g}p</span>{/if}{/snippet}
+{#snippet fasterCell(r: SetRow)}{@const f = faster(r)}{#if f != null}<span class="dim">×{f}</span>{/if}{/snippet}
+{#snippet savePartsCell(r: SetRow)}<P v={Math.round(saveOf(r).partsPrice)} dim />{/snippet}
+{#snippet buyCell(r: SetRow)}<P v={buyRest(r)} dim />{/snippet}
+{#snippet premiumCell(r: SetRow)}<span class="pos">+{premium(r)}p</span>{/snippet}
 {#snippet vaultCell(r: SetRow)}{#if r.vaulted}<Avail v="vaulted" />{/if}{/snippet}
 
 {#snippet card(r: SetRow, open: () => void)}
@@ -118,7 +170,13 @@
   {@const parts = item ? collectionItem(model, item).parts.filter((p) => (r.prime ? p.tradable : !p.resource)) : []}
   <ItemCard hover="{r.name} Set" title="{r.name} Set" sub={r.category} image={item?.imageName ?? model.imageOf(r.name)} owned={mode === "sell" ? sellableOf(r) > 0 : false} onopen={open}>
     <div class="chips">{#each parts as p, i (i)}<PartChip part={p} size={32} />{/each}</div>
-    {#if mode === "sell"}
+    {#if mode === "save"}
+      <dl class="kv">
+        <dt class="register">Saved</dt><dd>{saveOf(r).held.map((x) => `${x.count > 1 ? `${x.count}× ` : ""}${x.name.replace(r.name + " ", "")}`).join(", ")}</dd>
+        <dt class="register">To get</dt><dd>{@render toGetCell(r)}</dd>
+        <dt class="register" title="What the set sells for over its parts sold one by one">More</dt><dd><span class="gain pos">+{premium(r)}p</span> <span class="dim small">as a set</span></dd>
+      </dl>
+    {:else if mode === "sell"}
       <div class="line"><b class="mark big">×{sellableOf(r)}</b><span class="dim small">to sell{#if r.keptForBuild && keepOne} · {r.completeSets - r.sellable} kept to build{/if}</span></div>
     {:else}
       {@const g = completeGain(r)}
@@ -154,9 +212,12 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Sets" blurb="Complete sets you can sell, prime and the others warframe.market trades whole, and the ones almost done.">
+  <PageHead title="Sets" blurb="Complete sets you can sell, prime and the others warframe.market trades whole, the ones almost done, and the ones your loose parts are saved for.">
     {#snippet band()}
-      {#if mode === "sell"}
+      {#if mode === "save"}
+      <Stat label="Sets saved for" note={saveOn ? "Their loose parts wait instead of being sold" : "Off in Settings → Selling"}>{rows.length}</Stat>
+      <Stat label="More as sets" tone={savedPremium ? "gold" : "dim"} note="Over selling those parts one by one"><P v={savedPremium} big /></Stat>
+    {:else if mode === "sell"}
       <Stat label="Sets to sell" note={!keepOne ? "Every complete set, none kept back" : keptBack ? `${keptBack} more kept back to build and master` : "Nothing kept back to build"}>{totalSets}</Stat>
       <Stat label="At set price" note="warframe.market daily median"><P v={totalPlat} big /></Stat>
     {:else}
@@ -167,7 +228,7 @@
   </PageHead>
 
   <div class="bar">
-  <Seg bind:value={mode} options={[{ v: "sell", label: "Sets you can sell", title: "Complete sets in your inventory, and what each sells for" }, { v: "close", label: "Almost complete", title: "Sets one or two parts short: what the missing parts cost, and what finishing and selling gains" }]} />
+  <Seg bind:value={mode} options={[{ v: "sell", label: "Sets you can sell", title: "Complete sets in your inventory, and what each sells for" }, { v: "close", label: "Almost complete", title: "Sets one or two parts short: what the missing parts cost, and what finishing and selling gains" }, { v: "save", label: "Saving up", title: "Sets your loose parts wait for instead of being sold one by one: worth more whole, and you can still get every missing part" }]} />
   {#if mode === "sell"}
     <Chip bind:on={keepOne} label="Keep one to build" title="Hold back one set of anything you have neither built nor mastered" />
   {/if}
@@ -177,7 +238,7 @@
   <Browse
     id="sets"
     {rows}
-    columns={mode === "sell" ? sellCols : closeCols}
+    columns={mode === "sell" ? sellCols : mode === "save" ? saveCols : closeCols}
     key={(r) => r.unique}
     bind:sort
     {detail}
@@ -185,7 +246,7 @@
     title={(r) => `${r.name} Set`}
     onopen={(r) => details.open(r.unique)}
     min="21rem"
-    empty={mode === "sell" ? "No complete sets to sell right now." : "No sets one or two parts away."}
+    empty={mode === "sell" ? "No complete sets to sell right now." : mode === "save" ? (saveOn ? "No loose parts are waiting for a set." : "Saving parts for sets is off (Settings → Selling).") : "No sets one or two parts away."}
   />
 </div></div>
 
@@ -204,4 +265,6 @@
   .mp { cursor: default; border-bottom: 1px dotted var(--rule-control); }
   .mp:hover { color: var(--platinum); border-bottom-color: var(--platinum-dim); }
   .sep { color: var(--platinum-deep); margin-right: .35em; }
+  .from { font-size: .62rem; letter-spacing: .06em; text-transform: uppercase; color: var(--platinum-deep); }
+  .from-relic { color: var(--verdigris); }
 </style>

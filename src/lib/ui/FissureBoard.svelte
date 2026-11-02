@@ -22,7 +22,19 @@
     best = () => null,
     watched = new Set<string>(),
     onera = null,
-  }: { fissures: Fissure[] | null; mode: FissureMode; only?: boolean; alerts?: number; now: number; best?: (era: string) => Best; watched?: Set<string>; onera?: ((era: string) => void) | null } = $props();
+    saving = () => null,
+  }: {
+    fissures: Fissure[] | null;
+    mode: FissureMode;
+    only?: boolean;
+    alerts?: number;
+    now: number;
+    best?: (era: string) => Best;
+    watched?: Set<string>;
+    onera?: ((era: string) => void) | null;
+    /** Sets you're saving parts for that a relic of yours of this era drops a missing part of, and those relics. */
+    saving?: (era: string) => { sets: string[]; relics: string[] } | null;
+  } = $props();
 
   const counts = $derived(fissureCounts(fissures, now));
   // Only with alerts to go by: none set, it's the whole board again.
@@ -31,6 +43,8 @@
   /** Every fissure read has closed: the read is stale (the worldstate couldn't be read since), not a quiet hour. */
   const outOfDate = $derived(!!fissures?.length && counts.normal + counts.steel + counts.storm === 0);
   const icon = (era: string): GameIconName => (era === "Omnia" ? "void-tear" : (`relic-${era.toLowerCase()}-intact` as GameIconName));
+  /** "A, B and 3 more" */
+  const some = (xs: string[], n = 4) => (xs.length <= n ? xs.join(", ") : `${xs.slice(0, n).join(", ")} and ${xs.length - n} more`);
   const left = (f: Fissure) => until(f.expiry, now).replace("under a minute", "<1 min");
 </script>
 
@@ -55,11 +69,13 @@
   <div class="eras">
     {#each eras as e (e.era)}
       {@const b = best(e.era)}
+      {@const sv = saving(e.era)}
       <section class="era">
         <header>
           {#if onera && e.era !== "Omnia"}<button class="name go" title="Your {e.era} relics, on Relics" onclick={() => onera(e.era)}><GameIcon name={icon(e.era)} size={22} /><b class="mark">{e.era}</b></button>
           {:else}<span class="name"><GameIcon name={icon(e.era)} size={22} /><b class="mark">{e.era}</b></span>{/if}
           <span class="dim small">{e.list.length}</span>
+          {#if sv}<span class="saving" title="Your {some(sv.relics)} drop{sv.relics.length === 1 ? 's' : ''} a part still missing from {some(sv.sets.map((x) => `the ${x} Set`), 6)}, which your loose parts are waiting for (Sets → Saving up)">for {sv.sets.length === 1 ? sv.sets[0] : `${sv.sets.length} sets`}</span>{/if}
           <span class="grow"></span>
           {#if b}<span class="best" title="Your relic whose crack is worth most here ({b.held}), and the average platinum of the reward you'd take"><span class="dim small">Crack</span> <b use:info={b.name}>{b.name}</b> <span class="dim small">{b.refinement}</span> <P v={b.plat} /></span>{/if}
         </header>
@@ -97,6 +113,7 @@
   .left { text-align: right; font-variant-numeric: tabular-nums; color: var(--platinum-dim); white-space: nowrap; }
   .left.soon { color: var(--platinum-deep); }
   li.hit .mt { color: var(--gold); }
+  .saving { font-size: .7rem; color: var(--verdigris); border: 1px solid color-mix(in srgb, var(--verdigris) 45%, transparent); padding: 0 .3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: default; }
   .kind { font-family: var(--face-register); font-size: .58rem; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold-dim); padding: 0 .25rem; }
   .kinds { align-items: center; }
   :global(html[data-room~="lt640"]) li { grid-template-columns: minmax(6rem, 1fr) minmax(0, 1.3fr) 4.4rem; }

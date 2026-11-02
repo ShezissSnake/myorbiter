@@ -5,7 +5,7 @@
 import { baseId, gearSetParts, heldCount, UNOBTAINABLE, type Model, type Refinement } from "./model";
 import { findItem, type MarketIndex } from "./market";
 import { copyValue } from "./vosfor";
-import { arcaneRows, inventoryRows, MASTERY_CATEGORIES, modRows, modSpares, partRows, relicRows, setRows, type InventoryItem, type InventoryKind, type RelicRow, type SetRow } from "./views";
+import { arcaneRows, inventoryRows, MASTERY_CATEGORIES, modRows, modSpares, partRows, relicRows, saveForSets, savedLine, saveSource, setRows, setSaves, worthSaving, type SaveForSets, type SetSave, type InventoryItem, type InventoryKind, type RelicRow, type SetRow } from "./views";
 import { expectedBest } from "./advice";
 
 /** Something unbuilt that a held item goes into, and how many of it the recipe takes. */
@@ -42,6 +42,8 @@ export interface SpareRow {
   crack: number | null;
   /** Spare copies that make up whole sets you can sell (a Mandonel Barrel in a spare Mandonel Set): better sold as the set. */
   inSets: number;
+  /** Copies waiting for a set worth more whole (Settings → Selling), counted in `keep`. */
+  forSet: number;
 }
 
 /**
@@ -111,6 +113,41 @@ export function gearSetRows(m: Model, index: MarketIndex | null, needs: Map<stri
   return rows;
 }
 
+/**
+ * The other sets warframe.market trades whole (Lato Vandal, Mandonel…) your loose parts wait for,
+ * by the set's path: worth clearly more whole than as parts (worthSaving), and every missing part one you've been
+ * getting lately (core/drops.ts) or that a relic still drops. Copies held are the loose ones, after
+ * what building takes and the complete sets you can sell, enough for one more set.
+ */
+export function gearSetSaves(m: Model, index: MarketIndex | null, opts: SaveForSets, needs: Map<string, Need[]> = needsByUnique(m)): Map<string, SetSave> {
+  const out = new Map<string, SetSave>();
+  for (const s of gearSetRows(m, index, needs)) {
+    if (s.setPrice == null || s.partsPrice == null || !worthSaving(s.setPrice, s.partsPrice)) continue;
+    const parts = gearSetParts(m, s.unique) ?? [];
+    const held: SetSave["held"] = [];
+    const missing: SetSave["missing"] = [];
+    let gettable = true;
+    for (const p of parts) {
+      const owned = heldCount(m, p.unique);
+      const keep = Math.min(owned, sum((needs.get(p.unique) ?? []).map((x) => x.count)));
+      const have = Math.min(Math.max(0, owned - keep - s.sellable * p.required), p.required);
+      if (have) held.push({ name: p.name, count: have });
+      if (have >= p.required) continue;
+      const from = saveSource(m, p.name, opts.drops);
+      if (!from) gettable = false;
+      else missing.push({ name: p.name, count: p.required - have, from, got: opts.drops.get(p.name) ?? 0 });
+    }
+    if (!gettable || !held.length || !missing.length) continue;
+    out.set(s.unique, { set: s.name, unique: s.unique, setPrice: s.setPrice, partsPrice: s.partsPrice, held, missing, prime: false });
+  }
+  return out;
+}
+
+/** Every set your loose parts wait for, prime and the others (Sets → Saving up). */
+export function allSetSaves(m: Model, index: MarketIndex | null, opts: SaveForSets): Map<string, SetSave> {
+  return new Map([...setSaves(m, opts), ...gearSetSaves(m, index, opts)]);
+}
+
 /** Every set you hold parts of: prime ones, and (with warframe.market's item list) the others it trades. */
 export function allSetRows(m: Model, index: MarketIndex | null): SetRow[] {
   return [...setRows(m), ...gearSetRows(m, index)];
@@ -165,8 +202,13 @@ export interface SellChoices {
    * "keep every relic" doesn't carry over.)
    */
   relicsWorthSelling: boolean;
+  /**
+   * Loose prime parts of a set worth more whole, whose missing parts you can get, wait for the set
+   * instead of being sold one by one (views.ts, setSaves).
+   */
+  saveForSets: boolean;
 }
-export const defaultSellChoices = (): SellChoices => ({ veiledRivens: false, relicsWorthSelling: true });
+export const defaultSellChoices = (): SellChoices => ({ veiledRivens: false, relicsWorthSelling: true, saveForSets: true });
 
 /**
  * Modular gear: hounds, MOAs, kitguns, zaws and amps are built from parts, and each family's
@@ -235,11 +277,12 @@ export function relicCrackFor(m: Model, name: string, subtype: string | null, pl
 /** The lowest whole price that beats a crack worth `crack`. */
 export const aboveCrack = (crack: number | null) => (crack == null ? null : Math.floor(crack) + 1);
 
-export function spareRows(m: Model, index: MarketIndex | null = null, sell: SellChoices = defaultSellChoices(), platPerDucat = 0, squad = 1): SpareRow[] {
+export function spareRows(m: Model, index: MarketIndex | null = null, sell: SellChoices = defaultSellChoices(), platPerDucat = 0, squad = 1, drops: ReadonlyMap<string, number> = new Map()): SpareRow[] {
   const families = unmasteredByFamily(m);
   const needs = needsByUnique(m);
   const display = partNames(m);
-  const parts = new Map(partRows(m).map((p) => [p.name, p]));
+  const save = saveForSets(sell, platPerDucat, drops);
+  const parts = new Map(partRows(m, save).map((p) => [p.name, p]));
   const mods = new Map(modRows(m).map((r) => [r.name, new Map(modSpares(r.ranks).map((x) => [x.rank, x.count]))]));
   const arcanes = new Map(arcaneRows(m).map((a) => [a.name, a]));
   const relicKeep = relicsYouNeed(m);
@@ -250,6 +293,16 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
   for (const s of gearSetRows(m, index, needs)) {
     if (s.sellable <= 0) continue;
     for (const p of gearSetParts(m, s.unique) ?? []) inSets.set(p.unique, (inSets.get(p.unique) ?? 0) + s.sellable * p.required);
+  }
+  // Loose parts of other gear sets waiting for the set (Settings → Selling), by path.
+  const gearSaved = new Map<string, { count: number; save: SetSave }>();
+  if (save) {
+    for (const g of gearSetSaves(m, index, save, needs).values()) {
+      for (const p of gearSetParts(m, g.unique) ?? []) {
+        const h = g.held.find((x) => x.name === p.name);
+        if (h) gearSaved.set(p.unique, { count: h.count, save: g });
+      }
+    }
   }
   const keyWants = new Map(KEYS.map((k) => [k.mission, partsStillNeededFrom(m, k.mission)]));
   const damaged = damagedPartNeeds(m);
@@ -288,7 +341,9 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
       // what still needs it, at the end.
       const p = parts.get(r.name)!;
       keep = p.keep;
-      why = keep ? `${plural(keep, "copy", "copies")} to build ${p.keptFor === p.parentName ? p.parentName : `${p.parentName} for ${p.keptFor}`}` : p.parentMastered ? `${p.parentName} is mastered` : p.parentOwned ? `${p.parentName} is built` : "";
+      const build = p.keep - p.forSet;
+      why = build ? `${plural(build, "copy", "copies")} to build ${p.keptFor === p.parentName ? p.parentName : `${p.parentName} for ${p.keptFor}`}` : p.parentMastered ? `${p.parentName} is mastered` : p.parentOwned ? `${p.parentName} is built` : "";
+      if (p.saving) why = `${why}${why ? ". " : ""}${savedLine(p.forSet, p.saving)}`;
     } else if (r.kind === "mod" && VEILED.test(r.unique)) {
       keep = sell.veiledRivens ? 0 : r.quantity;
       why = sell.veiledRivens ? "Veiled rivens all count as spare: unveil any you'd rather roll yourself first" : "You keep veiled rivens (Settings, Selling)";
@@ -373,6 +428,15 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
       why = !total ? "Nothing you still need to build takes it" : keep || !built ? `For ${listNeeds(need)}` : `You already hold the built part for ${listNeeds(need)}`;
     }
     keep = Math.max(0, Math.min(r.quantity, keep));
+    // Shared out between rows of the same thing (the set counts every copy held).
+    const waits = gearSaved.get(baseId(r.unique));
+    let forSet = 0;
+    if (waits && waits.count > 0 && keep < r.quantity) {
+      forSet = Math.min(waits.count, r.quantity - keep);
+      waits.count -= forSet;
+      keep += forSet;
+      why = `${why}${why ? ". " : ""}${savedLine(forSet, waits.save)}`;
+    }
     const spare = r.quantity - keep;
     if (!why) why = spare === r.quantity ? "Nothing keeps it" : "";
     const setsOf = Math.min(spare, inSets.get(baseId(r.unique)) ?? 0);
@@ -396,6 +460,7 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
       needs: need,
       crack,
       inSets: setsOf,
+      forSet,
     });
   }
   return merge(out);
@@ -417,6 +482,7 @@ function merge(rows: SpareRow[]): SpareRow[] {
     had.keep += r.keep;
     had.spare += r.spare;
     had.inSets += r.inSets;
+    had.forSet += r.forSet;
     had.worth = had.price == null ? null : had.price * had.spare;
   }
   return [...by.values()];

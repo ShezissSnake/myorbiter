@@ -24,6 +24,7 @@ import { aboveCrack, relicCrackFor } from "./core/spares";
 import { LISTING_LIMIT, bulkPlan, cheapByMedian, planSignature, resolve, sellTargets, type BulkAction } from "./core/bulk";
 import type { DucatOptions } from "./core/advice";
 import { backoff } from "./core/upkeep";
+import { drops } from "./drops.svelte";
 
 export interface Draft {
   itemId: string;
@@ -1020,7 +1021,7 @@ class MarketStore {
       await this.refresh();
       const me = this.me;
       if (!me) throw new Error("Not signed in to warframe.market");
-      const targets = sellTargets(m, s.bulk, advice, this.index, s.sellable);
+      const targets = sellTargets(m, s.bulk, advice, this.index, s.sellable, drops.recent);
       // Fresh order books for everything that might be listed, one at a time (warframe.market
       // allows a few requests a second; the app paces them).
       // Things clearly under your minimum by their daily median are settled without a fetch.
@@ -1054,7 +1055,7 @@ class MarketStore {
       }
       const books = Object.fromEntries(slugs.map((sl) => [sl, got.has(sl) ? this.books[sl]?.orders : undefined]));
       this.bulk = {
-        actions: bulkPlan({ model: m, index: this.index, orders: this.orders, me, books, minPrice: s.minPrice, minRelicPrice: s.minRelicPrice, minShare: s.minShare, floors: s.floors, paused: s.paused, otherOrders: this.otherOrders, sell: s.sellable, advice }, s.bulk, targets),
+        actions: bulkPlan({ model: m, index: this.index, orders: this.orders, me, books, minPrice: s.minPrice, minRelicPrice: s.minRelicPrice, minShare: s.minShare, floors: s.floors, paused: s.paused, otherOrders: this.otherOrders, sell: s.sellable, advice, drops: drops.recent }, s.bulk, targets),
         at: Date.now(),
         books,
       };
@@ -1087,7 +1088,7 @@ class MarketStore {
     await this.guard("Updating your listings", async () => {
       await this.refresh().catch(() => {});
       // Priced from the books the plan was priced from: one that failed then isn't priced from an older copy now.
-      const fresh = bulkPlan({ model: m, index: this.index, orders: this.orders, me: this.me!, books: shown.books, minPrice: s.minPrice, minRelicPrice: s.minRelicPrice, minShare: s.minShare, floors: s.floors, paused: s.paused, otherOrders: this.otherOrders, sell: s.sellable, advice }, s.bulk, sellTargets(m, s.bulk, advice, this.index, s.sellable));
+      const fresh = bulkPlan({ model: m, index: this.index, orders: this.orders, me: this.me!, books: shown.books, minPrice: s.minPrice, minRelicPrice: s.minRelicPrice, minShare: s.minShare, floors: s.floors, paused: s.paused, otherOrders: this.otherOrders, sell: s.sellable, advice, drops: drops.recent }, s.bulk, sellTargets(m, s.bulk, advice, this.index, s.sellable, drops.recent));
       if (planSignature(fresh) !== planSignature(shown.actions)) {
         this.bulk = { actions: fresh, at: shown.at, books: shown.books };
         this.note("Your inventory or listings changed since the plan: here is the updated plan. Look it over and apply again.", "warn");

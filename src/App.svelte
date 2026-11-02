@@ -15,6 +15,8 @@
   import { bestCard, resolveName, scoreCards, vaultWord } from "./lib/core/pick";
   import { DEFAULT_HIDE_MINUTES, dueToShow, hideNow, lastCopies } from "./lib/core/lastCopy";
   import { mergeLogged, recordScreen, resolvePicks } from "./lib/core/relicRuns";
+  import { dropCounts, recentDrops, recordRead } from "./lib/core/drops";
+  import { drops } from "./lib/drops.svelte";
   import { heldFor } from "./lib/core/market";
   import type { Bundle, Live, MissionState } from "./lib/core/types";
   import {
@@ -1283,6 +1285,22 @@
       if (next) settings.game.relicRuns = next;
     });
   });
+  // Parts that turned up between inventory reads, from anything but a trade (core/drops.ts): what
+  // you keep getting counts as a way to finish a set (Settings → Selling, Save prime parts for sets).
+  $effect(() => {
+    const m = model;
+    if (!m?.observedAt || !settingsReady) return;
+    const at = +m.observedAt;
+    untrack(() => {
+      const next = recordRead(settings.game.drops, dropCounts(m), at, Date.now());
+      if (next) settings.game.drops = next;
+    });
+  });
+  $effect(() => {
+    const log = settings.game.drops;
+    const trades = settings.market.trades;
+    drops.recent = recentDrops(log, trades);
+  });
   /** Screens from TennoScope's own log that orbiter didn't see live: history, and while it was closed. */
   async function importScreens() {
     try {
@@ -1885,8 +1903,8 @@
         {#if visited[id] && available.some((p) => p.id === id)}<div class="pane" class:shown={settings.tab === id}>{@render body()}</div>{/if}
       {/snippet}
       {#snippet pMission()}<InMission {model} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} {windowMode} tennoscopeRunning={!!ts.status?.running} onsettings={() => (showSettings = true)} />{/snippet}
-      {#snippet pSets()}{#await loadSets(lazyTry) then { default: Page }}<Page {model} advice={settings.advice} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pParts()}<Parts {model} bind:advice={settings.advice} />{/snippet}
+      {#snippet pSets()}{#await loadSets(lazyTry) then { default: Page }}<Page {model} advice={settings.advice} sell={settings.market.sellable} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pParts()}<Parts {model} bind:advice={settings.advice} sell={settings.market.sellable} />{/snippet}
       {#snippet pMastery()}{#await loadMastery(lazyTry) then { default: Page }}<Page {model} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pArcanes()}{#await loadArcanes(lazyTry) then { default: Page }}<Page {model} bind:advice={settings.advice} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pMods()}{#await loadMods(lazyTry) then { default: Page }}<Page {model} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}

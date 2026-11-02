@@ -64,7 +64,7 @@ test("built or mastered, nothing is kept for it", () => {
 });
 
 test("one Captura scene is kept; sculptures can all go; veiled rivens only when you sell them; unveiled rivens aren't here", () => {
-  const rows = spareRows(buildModel(bundle(held)), null, { veiledRivens: true, relicsWorthSelling: false });
+  const rows = spareRows(buildModel(bundle(held)), null, { veiledRivens: true, relicsWorthSelling: false, saveForSets: false });
   assert.deepEqual([row(rows, "Corpus Depository Scene")!.keep, row(rows, "Corpus Depository Scene")!.type], [1, "Captura scene"]);
   assert.equal(row(rows, "Ayatan Anasa Sculpture")!.spare, 4);
   const riven = row(rows, "Melee Riven Mod (Veiled)")!;
@@ -101,7 +101,7 @@ test("'everything else' lists what sells daily, under the market's names", () =>
   const items = indexItems([
     { id: "b", slug: "mandonel_barrel", gameRef: `${PARTS}TnConcreteArchgunBarrel`, name: "Mandonel Barrel", maxRank: null, subtypes: null, tags: ["weapon", "component"] },
   ] as MarketItem[]);
-  const targets = sellTargets(buildModel(bundle(held)), { ...defaultBulkRules(), sets: false, arcanes: false, mods: false, other: true }, defaultAdvice(), items, { veiledRivens: true, relicsWorthSelling: false });
+  const targets = sellTargets(buildModel(bundle(held)), { ...defaultBulkRules(), sets: false, arcanes: false, mods: false, other: true }, defaultAdvice(), items, { veiledRivens: true, relicsWorthSelling: false, saveForSets: false });
   assert.deepEqual(
     targets.map((t) => [t.name, t.quantity]).sort(),
     [["Ayatan Anasa Sculpture", 4], ["Corpus Depository Scene", 21], ["Heart Noctrul", 192], ["Mandonel Barrel", 15], ["Melee Riven Mod (Veiled)", 12]].sort(),
@@ -270,4 +270,32 @@ test("a prime's parts are kept while an unbuilt weapon made from it needs more o
   assert.deepEqual(setRows(m).filter((s) => s.name === "Vasto Prime").map((s) => [s.completeSets, s.sellable]), [[2, 1]]);
   // Akvasto built: nothing kept.
   assert.ok(partRows(held(true, [inv("/Lotus/Weapons/AkvastoPrime", "Akvasto Prime", "weapon", 1)])).every((r) => r.keep === 0));
+});
+
+test("sets that aren't prime: a loose part waits for the set when you keep getting the part it's missing", async () => {
+  const { gearSetSaves } = await import("../src/lib/core/spares");
+  const { saveForSets } = await import("../src/lib/core/views");
+  const { dropCounts } = await import("../src/lib/core/drops");
+  const BP = "/Lotus/Types/Recipes/Weapons/TnConcreteArchgunBlueprint";
+  // Two barrels and a blueprint, Mandonel unbuilt: one of each kept to build it, one barrel loose.
+  const m = buildModel(bundle([inv(`${PARTS}TnConcreteArchgunBarrel`, "Tn Concrete Archgun Barrel", "resource", 2), inv(BP, "Tn Concrete Archgun Blueprint", "blueprint", 1)], {
+    prices: { prices: { "Mandonel Set": 15, "Mandonel Barrel": 4, "Mandonel Blueprint": 6 }, max_rank_prices: {}, trade_rate: { "Mandonel Barrel": [3, 0, ""] } },
+  } as Partial<Bundle>));
+  const items = indexItems([
+    { id: "ms", slug: "mandonel_set", gameRef: "/Lotus/Weapons/Mandonel", name: "Mandonel Set", maxRank: null, subtypes: null, tags: ["weapon", "set"] },
+    { id: "mb", slug: "mandonel_barrel", gameRef: `${PARTS}TnConcreteArchgunBarrel`, name: "Mandonel Barrel", maxRank: null, subtypes: null, tags: ["weapon", "component"] },
+    { id: "mp", slug: "mandonel_blueprint", gameRef: BP, name: "Mandonel Blueprint", maxRank: null, subtypes: null, tags: ["weapon", "blueprint"] },
+  ] as MarketItem[]);
+  // The drop log names the parts the same way.
+  assert.deepEqual(dropCounts(m), { "Mandonel Barrel": 2, "Mandonel Blueprint": 1 });
+  const sell = { veiledRivens: false, relicsWorthSelling: false, saveForSets: true };
+  // No relic drops the blueprint: without having got one lately, the barrel is sold.
+  assert.equal(gearSetSaves(m, items, saveForSets(sell, 0)!).size, 0);
+  assert.equal(row(spareRows(m, items, sell), "Mandonel Barrel")!.spare, 1);
+  const got = new Map([["Mandonel Blueprint", 2]]);
+  const s = gearSetSaves(m, items, saveForSets(sell, 0, got)!).get("/Lotus/Weapons/Mandonel")!;
+  assert.deepEqual([s.held, s.missing], [[{ name: "Mandonel Barrel", count: 1 }], [{ name: "Mandonel Blueprint", count: 1, from: "dropped", got: 2 }]]);
+  const barrel = row(spareRows(m, items, sell, 0, 1, got), "Mandonel Barrel")!;
+  assert.equal(barrel.spare, 0);
+  assert.match(barrel.why, /1 saved for a Mandonel Set \(15p, 10p as parts\): 1 part to go/);
 });

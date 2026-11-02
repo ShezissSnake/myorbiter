@@ -22,7 +22,8 @@
   import Thumb from "../ui/Thumb.svelte";
   import P from "../ui/P.svelte";
   import Presence from "../ui/Presence.svelte";
-  import { partRows } from "../core/views";
+  import { partRows, saveForSets, setSaves } from "../core/views";
+  import { drops } from "../drops.svelte";
   import { decide } from "../core/advice";
   import { today } from "../core/today";
   import { foundryBuilds } from "../core/foundry";
@@ -67,7 +68,7 @@
 
   // ------------------------------------------------------------ ready to sell
   // What would go on sale: not what's held back for ducats.
-  const targets = $derived(sellTargets(model, settings.market.bulk, settings.advice, mkt.index, settings.market.sellable).filter((t) => !t.hold));
+  const targets = $derived(sellTargets(model, settings.market.bulk, settings.advice, mkt.index, settings.market.sellable, drops.recent).filter((t) => !t.hold));
   const valueOf = (kind: BulkKind, name: string) => (kind === "arcane" ? (model.priceMax(name) ?? model.price(name)) : model.price(name));
   const worthy = $derived(targets.map((t) => ({ ...t, each: t.each !== undefined ? t.each : valueOf(t.kind, t.name) })).filter((t) => t.each != null && t.each >= settings.market.minPrice));
   const byKind = $derived(
@@ -104,6 +105,25 @@
     return best;
   };
   // Your best relic for each era, worked out once per era rather than per fissure.
+  // Sets your loose parts wait for (Settings → Selling), by the era of the relics of yours that drop a missing part.
+  const savingByEra = $derived.by(() => {
+    const out = new Map<string, { sets: string[]; relics: string[] }>();
+    const opts = saveForSets(settings.market.sellable, settings.advice.platPerDucat, drops.recent);
+    if (!opts) return out;
+    for (const s of setSaves(model, opts).values()) {
+      for (const x of s.missing) {
+        for (const src of model.sourcesByReward.get(x.name) ?? []) {
+          if (!(model.ownedRelicCount.get(src.base) ?? 0)) continue;
+          const era = src.base.split(" ")[0];
+          const e = out.get(era) ?? { sets: [], relics: [] };
+          if (!e.sets.includes(s.set)) e.sets.push(s.set);
+          if (!e.relics.includes(src.base)) e.relics.push(src.base);
+          out.set(era, e);
+        }
+      }
+    }
+    return out;
+  });
   const bests = $derived(new Map<string, ReturnType<typeof bestFor>>(ERAS.map((era) => [era, bestFor(era)])));
   const eraBest = (era: string) => {
     const b = console ? null : bests.get(era);
@@ -207,7 +227,7 @@
   }
   // Ducats your spare parts would fetch, counting only the ones better traded in than sold.
   // As Prime parts counts them: parts that go into a complete set you can sell are sold as the set.
-  const spareDucats = $derived(partRows(model).filter((p) => p.spare > 0 && p.inSets <= 0 && decide(p.price, p.ducats, p.tradesPerDay, settings.advice).verdict === "ducats").reduce((n, p) => n + p.ducats * p.spare, 0));
+  const spareDucats = $derived(partRows(model, saveForSets(settings.market.sellable, settings.advice.platPerDucat, drops.recent)).filter((p) => p.spare > 0 && p.inSets <= 0 && decide(p.price, p.ducats, p.tradesPerDay, settings.advice).verdict === "ducats").reduce((n, p) => n + p.ducats * p.spare, 0));
   const varzia = $derived(console ? [] : varziaNeeds(model, rows));
   // On a console, her stock as it is: the primes she sells whole, and how many relics.
   const varziaWhole = $derived((live.resurgence ?? []).filter((v) => v.ducats != null && !/ Relic$/.test(v.item)).sort((a, b) => (b.ducats ?? 0) - (a.ducats ?? 0)));
@@ -413,7 +433,7 @@
       {:else}
         {#if liveError && liveAt != null}<p class="dim small fromgame">The worldstate can't be read right now: these are from the last read ({checkedWhen(liveAt, now)}), each gone once it ends. orbiter asks again every few minutes.</p>
         {:else if live.fromGame}<p class="dim small fromgame">Read from the game's own worldstate: api.warframestat.us isn't answering, so Nightwave and the Circuit may be out of date, and alerts, invasions and Darvo's deal can't be read.</p>{/if}
-        <FissureBoard fissures={live.fissures} bind:mode={settings.homeFissures} bind:only={settings.homeFissuresOnly} alerts={settings.fissureRules.length} {now} best={eraBest} watched={new Set(watched.map((w) => w.fissure.id))} onera={console ? null : (era) => go(`relics?era=${era}`)} />
+        <FissureBoard fissures={live.fissures} bind:mode={settings.homeFissures} bind:only={settings.homeFissuresOnly} alerts={settings.fissureRules.length} {now} best={eraBest} watched={new Set(watched.map((w) => w.fissure.id))} onera={console ? null : (era) => go(`relics?era=${era}`)} saving={(era) => savingByEra.get(era) ?? null} />
       {/if}
       <div class="watch">
         <span class="register"><Icon name="bell" size={12} /> Fissure alerts</span>

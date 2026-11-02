@@ -5,7 +5,7 @@ import { decide, type DucatOptions } from "./advice";
 import { competitor, findItem, heldFor, marketValue, overAsked, type BookOrder, type FloorRule, type Me, type MarketIndex, type MarketItem, type MyOrder, listingKey, referencePrice } from "./market";
 import { aboveCrack, allSetRows, spareRows, type SellChoices, type SpareRow } from "./spares";
 import type { Model } from "./model";
-import { arcaneRows, inventoryRows, modRows, modSpares, partRows } from "./views";
+import { arcaneRows, inventoryRows, modRows, modSpares, partRows, saveForSets, savedLine } from "./views";
 import { gearSetParts } from "./model";
 import { packValues, spareArcanes, vosforWorth } from "./vosfor";
 
@@ -82,7 +82,8 @@ export function otherSpare(r: SpareRow): boolean {
 }
 
 /** What your collection says should be on sale, for the ticked categories. */
-export function sellTargets(m: Model, rules: BulkRules, advice: DucatOptions, index: MarketIndex | null = null, sell?: SellChoices): SellTarget[] {
+/** `drops`: what you got of each part lately (core/drops.ts), for which parts wait for a set. */
+export function sellTargets(m: Model, rules: BulkRules, advice: DucatOptions, index: MarketIndex | null = null, sell?: SellChoices, drops: ReadonlyMap<string, number> = new Map()): SellTarget[] {
   const out: SellTarget[] = [];
   if (rules.sets) {
     for (const s of allSetRows(m, index)) {
@@ -133,13 +134,20 @@ export function sellTargets(m: Model, rules: BulkRules, advice: DucatOptions, in
     }
   }
   if (rules.parts) {
-    for (const p of partRows(m)) {
+    for (const p of partRows(m, saveForSets(sell, advice.platPerDucat, drops))) {
       // Parts going out inside a set aren't listed again on their own.
       const loose = p.spare - (rules.sets ? p.inSets : 0);
       const over = p.quantity - (rules.sets ? p.inSets : 0) - rules.partsKeep;
       const n = Math.min(loose, over);
-      if (n <= 0) continue;
-      const why = p.keep ? `${p.quantity} held, ${p.keep} kept to build ${p.parentName}` : `${p.quantity} held, ${p.parentName} ${p.parentMastered ? "mastered" : "built"}`;
+      if (n <= 0) {
+        // Every copy you don't need to build waits for a set (Settings → Selling): a listing of yours
+        // for it comes down. With copies kept to build or inside complete sets too, it's left as listed.
+        if (p.saving && p.spare <= 0) out.push({ kind: "part", name: p.name, unique: null, rank: null, quantity: p.forSet, why: `${p.quantity} held`, hold: { why: savedLine(p.forSet, p.saving), takeDown: p.keep === p.forSet } });
+        continue;
+      }
+      const build = p.keep - p.forSet;
+      let why = build ? `${p.quantity} held, ${build} kept to build ${p.parentName}` : `${p.quantity} held, ${p.parentName} ${p.parentMastered ? "mastered" : "built"}`;
+      if (p.saving) why = `${why}, ${savedLine(p.forSet, p.saving)}`;
       const part: SellTarget = { kind: "part", name: p.name, unique: null, rank: null, quantity: n, why: rules.partsKeep > p.keep ? `${why}, ${rules.partsKeep} kept in all` : why };
       // Better traded to Baro: kept for ducats, and a listing of yours for it comes down. Not worth a
       // trade, or slow and close to its ducats: not listed, but a listing you made stays.
@@ -158,8 +166,13 @@ export function sellTargets(m: Model, rules: BulkRules, advice: DucatOptions, in
     }
   }
   if (rules.other) {
-    for (const r of spareRows(m, index, sell, advice.platPerDucat, advice.squad ?? 1)) {
-      if (r.spare <= 0 || !otherSpare(r)) continue;
+    for (const r of spareRows(m, index, sell, advice.platPerDucat, advice.squad ?? 1, drops)) {
+      if (!otherSpare(r)) continue;
+      if (r.spare <= 0) {
+        // Every copy waits for a set (a Lato Vandal part): a listing of yours for it comes down.
+        if (r.forSet > 0 && r.keep === r.forSet) out.push({ kind: "other", name: r.name, unique: r.unique, rank: null, subtype: r.subtype, quantity: r.forSet, why: `${r.quantity} held`, hold: { why: r.why, takeDown: true } });
+        continue;
+      }
       // Relics have no trade count of their own: what they sell for decides, and cracking may beat it.
       if (r.kind === "relic" ? r.crack != null && r.price != null && r.crack >= r.price : (r.tradesPerDay ?? 0) < 1) continue;
       // Copies that go out inside a whole set (Sets I don't need) aren't listed again on their own.
@@ -244,6 +257,8 @@ export interface BulkContext {
   sell?: SellChoices;
   /** Your ducat rate: a prime part or set worth more as ducats comes off the market. */
   advice?: DucatOptions;
+  /** What you got of each part lately (core/drops.ts): which parts wait for a set. */
+  drops?: ReadonlyMap<string, number>;
 }
 
 /** The market item for a target, or null when warframe.market doesn't trade it. */
@@ -375,9 +390,9 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
   let setIndex: Map<string, ReturnType<typeof allSetRows>[number]> | null = null;
   const setsByUnique = () => (setIndex ??= new Map(allSetRows(c.model, c.index).map((r) => [r.unique, r])));
   let partIndex: Map<string, ReturnType<typeof partRows>[number]> | null = null;
-  const parts = () => (partIndex ??= new Map(partRows(c.model).map((r) => [r.name, r])));
+  const parts = () => (partIndex ??= new Map(partRows(c.model, saveForSets(c.sell, c.advice?.platPerDucat ?? 0, c.drops)).map((r) => [r.name, r])));
   let otherIndex: Map<string, SpareRow> | null = null;
-  const others = () => (otherIndex ??= new Map(spareRows(c.model, c.index, c.sell, c.advice?.platPerDucat ?? 0, c.advice?.squad ?? 1).filter(otherSpare).map((r) => [`${r.name}|${r.subtype ?? ""}`, r])));
+  const others = () => (otherIndex ??= new Map(spareRows(c.model, c.index, c.sell, c.advice?.platPerDucat ?? 0, c.advice?.squad ?? 1, c.drops).filter(otherSpare).map((r) => [`${r.name}|${r.subtype ?? ""}`, r])));
   let arcaneIndex: Map<string, ReturnType<typeof arcaneRows>[number]> | null = null;
   const arcanes = () => (arcaneIndex ??= new Map(arcaneRows(c.model).map((r) => [r.name, r])));
   /**
@@ -398,7 +413,10 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
     }
     if (kind === "part") {
       const part = parts().get(it.name);
-      return part ? { spare: part.spare, kept: `the ${part.keep > 1 ? "copies" : "copy"} to build ${part.parentName}` } : null;
+      if (!part) return null;
+      const build = part.keep - part.forSet;
+      const kept = [build ? `the ${build > 1 ? "copies" : "copy"} to build ${part.parentName}` : "", part.forSet ? `${part.forSet} saved for the ${part.parentName} Set` : ""].filter(Boolean).join(" and ");
+      return { spare: part.spare, kept: kept || "nothing" };
     }
     if (kind === "imprint") {
       const held = it.gameRef ? (c.model.imprints?.get(it.gameRef) ?? 0) : 0;

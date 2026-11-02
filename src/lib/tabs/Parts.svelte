@@ -1,7 +1,9 @@
 <script lang="ts">
   import GameIcon from "../ui/GameIcon.svelte";
   import type { Model } from "../core/model";
-  import { partRows, setRows, type PartRow } from "../core/views";
+  import { partRows, saveForSets, savedLine, setRows, type PartRow } from "../core/views";
+  import type { SellChoices } from "../core/spares";
+  import { drops } from "../drops.svelte";
   import ListButton from "../ui/ListButton.svelte";
   import Browse from "../ui/Browse.svelte";
   import ItemCard from "../ui/ItemCard.svelte";
@@ -25,24 +27,27 @@
   import { takeIntent } from "../intent.svelte";
 
   // The ducat rate and smallest sale worth a trade are yours to set here; the bulk sale uses them too.
-  let { model, advice = $bindable() }: { model: Model; advice: AdviceSettings } = $props();
+  // Settings → Selling: whether loose parts wait for a set worth more whole.
+  let { model, advice = $bindable(), sell }: { model: Model; advice: AdviceSettings; sell: SellChoices } = $props();
 
   let query = $state("");
   let parent = $state<"all" | "mastered" | "unmastered">("mastered");
   let spareOnly = $state(false);
   let avail = $state<"all" | "farmable" | "vaulted">("all");
-  let best = $state<"all" | "Keep" | "Set" | "Sell" | "Ducats">("all");
+  let best = $state<"all" | Verdict>("all");
   let sort = $state({ key: "value", desc: true });
   // A link that asked for one kind of advice (Baro's card: Spares for ducats).
   $effect(() => {
     const want = takeIntent("parts");
     if (!want) return;
     query = "";
-    if (want.best === "Keep" || want.best === "Set" || want.best === "Sell" || want.best === "Ducats") best = want.best;
+    if (want.best === "Keep" || want.best === "Save" || want.best === "Set" || want.best === "Sell" || want.best === "Ducats") best = want.best;
     if (want.best) parent = "all";
   });
 
-  const all = $derived(partRows(model));
+  const all = $derived(partRows(model, saveForSets(sell, advice.platPerDucat, drops.recent)));
+  /** Copies kept to build and master the item (the rest of `keep` waits for a set). */
+  const built = (r: PartRow) => r.keep - r.forSet;
   const rows = $derived(
     all.filter(
       (r) =>
@@ -70,20 +75,23 @@
   // Complete sets you can sell, by item: their parts are better sold as a set.
   const setsFor = $derived(new Map(setRows(model).filter((s) => s.sellable > 0).map((s) => [s.name, s.sellable])));
 
-  // Keep: copies you need to build and master the item. Set: part of a complete set you can sell.
-  // Otherwise plat or ducats, at your ducat rate and smallest sale worth a trade.
-  type Verdict = "Keep" | "Set" | "Sell" | "Ducats";
+  // Keep: copies you need to build and master the item. Save: waiting for a set worth more whole.
+  // Set: part of a complete set you can sell. Otherwise plat or ducats, at your ducat rate and
+  // smallest sale worth a trade.
+  type Verdict = "Keep" | "Save" | "Set" | "Sell" | "Ducats";
   const verdict = (r: PartRow): Verdict => {
-    if (r.spare <= 0) return "Keep";
+    if (r.spare <= 0) return r.forSet > 0 && built(r) <= 0 ? "Save" : "Keep";
     if (r.inSets > 0) return "Set";
     return decide(r.price, r.ducats, r.tradesPerDay, advice).verdict === "ducats" ? "Ducats" : "Sell";
   };
   const VERDICT_TITLE: Record<Verdict, string> = {
     Keep: "You need these to build and master the item",
+    Save: "Waiting for its set: the set sells for more than its parts one by one, and you can still get the parts it's missing",
     Set: "Part of a complete set you can sell: sell the set",
     Sell: "Worth more on warframe.market than its ducats",
     Ducats: "Worth more to you as ducats at Baro Ki’Teer",
   };
+  const LABEL: Record<Verdict, string> = { Keep: "Keep", Save: "Save for set", Set: "Sell as set", Sell: "Sell", Ducats: "Ducats" };
 
   const allColumns: Column<PartRow>[] = [
     { key: "name", label: "Part", value: (r) => r.name, defaultDesc: false, cell: nameCell, width: "min(26rem, 32%)" },
@@ -94,6 +102,7 @@
     { key: "ducats", spare: true, label: "Ducats", value: (r) => r.ducats, align: "right", cell: ducatCell },
     { key: "ratio", minor: true, label: "Duc/plat", value: (r) => (r.ducatsPerPlat == null ? null : Math.round(r.ducatsPerPlat * 10) / 10), align: "right", muted: true, title: "Ducats you get per platinum of market value" },
     { key: "verdict", label: "Best as", value: verdict, cell: verdictCell, defaultDesc: false },
+    { key: "got", minor: true, label: "Got (30d)", value: (r) => drops.recent.get(r.name) ?? 0, align: "right", muted: true, title: "Copies that turned up in your inventory in the last 30 days, from relics or anything else; trades left out" },
     { key: "trades", minor: true, label: "Trades/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true },
     { key: "avail", spare: true, label: "Vault", value: (r) => r.availability, cell: availCell, align: "center", defaultDesc: false },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
@@ -105,14 +114,15 @@
 
 {#snippet nameCell(r: PartRow)}
   <Named file={model.imageOf(r.name)} name={r.name}>
-    {#if r.keep > 0}<span class="tag" title="Held back so you can build {r.keptFor === r.parentName ? `and master ${r.parentName}` : `${r.parentName} for ${r.keptFor}`}">keep {r.keep}</span>{/if}
+    {#if built(r) > 0}<span class="tag" title="Held back so you can build {r.keptFor === r.parentName ? `and master ${r.parentName}` : `${r.parentName} for ${r.keptFor}`}">keep {built(r)}</span>{/if}
+    {#if r.saving}<span class="tag good" title={savedLine(r.forSet, r.saving)}>for set {r.forSet}</span>{/if}
     {#if parent === "all" && !r.parentMastered}<span class="tag warn" title="{r.parentName} isn't mastered">{r.parentOwned ? "built" : "need"}</span>{/if}
   </Named>
 {/snippet}
 {#snippet priceCell(r: PartRow)}<P v={r.price} />{/snippet}
 {#snippet totalCell(r: PartRow)}<P v={r.price == null ? null : r.price * qty(r)} />{/snippet}
 {#snippet ducatCell(r: PartRow)}<P v={r.ducats} d dim />{/snippet}
-{#snippet verdictCell(r: PartRow)}{@const v = verdict(r)}<span class="v-{v}" title={VERDICT_TITLE[v]}>{v === "Set" ? "Sell as set" : v}</span>{/snippet}
+{#snippet verdictCell(r: PartRow)}{@const v = verdict(r)}<span class="v-{v}" title={VERDICT_TITLE[v]}>{LABEL[v]}</span>{/snippet}
 {#snippet listCell(r: PartRow)}
   {#if r.spare > 0 && r.inSets > 0}
     <ListButton {model} name="{r.parentName} Set" label="List set" req={{ quantity: setsFor.get(r.parentName) ?? 1 }} />
@@ -128,9 +138,10 @@
     <div class="have">
       <Thumb file={model.imageOf(r.name)} name={r.name} size={30} />
       <b class="mark qty" title={spareOnly && spareMatters ? `${r.spare} spare (of ${r.quantity} held)` : `${r.quantity} held${r.keep ? `, ${r.spare} of them spare` : ""}`}>×{qty(r)}</b>
-      {#if r.keep}<span class="dim small" title={r.keptFor === r.parentName ? `Held back to build ${r.parentName}, which you haven't mastered or built` : `Held back to build ${r.parentName} for ${r.keptFor}, which you haven't built`}>{r.keep} kept</span>{/if}
+      {#if built(r)}<span class="dim small" title={r.keptFor === r.parentName ? `Held back to build ${r.parentName}, which you haven't mastered or built` : `Held back to build ${r.parentName} for ${r.keptFor}, which you haven't built`}>{built(r)} kept</span>{/if}
+      {#if r.saving}<span class="dim small" title={savedLine(r.forSet, r.saving)}>{r.forSet} for the set</span>{/if}
     </div>
-    <div class="vline"><span class="v-{v}" title={VERDICT_TITLE[v]}>{v === "Set" ? "Sell as set" : v}</span><span class="grow"></span><P v={r.price} /><P v={r.ducats} d dim /></div>
+    <div class="vline"><span class="v-{v}" title={VERDICT_TITLE[v]}>{LABEL[v]}</span><span class="grow"></span><P v={r.price} /><P v={r.ducats} d dim /></div>
     {#snippet foot()}
       <Avail v={r.availability} />
       {#if parent === "all" && !r.parentMastered}<span class="tag warn">{r.parentOwned ? "built" : "need"}</span>{/if}
@@ -148,12 +159,14 @@
     <span title="Copies you hold"><span class="register">Held</span><b class="mark">{r.quantity}</b></span>
     <span title="Daily median on warframe.market"><span class="register">Price</span><P v={r.price} /></span>
     <span title="What Baro Ki'Teer gives for one"><span class="register">Ducats</span><P v={r.ducats} d /></span>
+    <span title="Copies that turned up in your inventory in the last 30 days, from relics or anything else; trades left out"><span class="register">Got (30d)</span><b>{drops.recent.get(r.name) ?? 0}</b></span>
     {#if r.tradesPerDay != null}<span title="How many sell on warframe.market in a day, on average"><span class="register">Sells</span><b>{Math.round(r.tradesPerDay * 10) / 10}<small class="dim">/day</small></b></span>{/if}
-    <span title={VERDICT_TITLE[v]}><span class="register">Best as</span><b class="v-{v}">{v === "Set" ? "Sell as set" : v}</b></span>
+    <span title={VERDICT_TITLE[v]}><span class="register">Best as</span><b class="v-{v}">{LABEL[v]}</b></span>
   </div>
   <p class="small dim">
-    {r.keep ? `${r.keep} kept to build ${r.parentName}${r.keptFor === r.parentName ? "" : ` for ${r.keptFor}`}` : r.parentMastered ? `${r.parentName} is mastered: every copy is spare` : `${r.parentName} is built: every copy is spare`}{r.inSets ? ` · ${r.inSets} go into ${setsFor.get(r.parentName) ?? 0} complete set${setsFor.get(r.parentName) === 1 ? "" : "s"}` : ""}{r.spare - r.inSets > 0 ? ` · ${r.spare - r.inSets} loose ${v === "Ducats" ? "for ducats" : "to sell"}` : ""}
+    {built(r) ? `${built(r)} kept to build ${r.parentName}${r.keptFor === r.parentName ? "" : ` for ${r.keptFor}`}` : r.parentMastered ? `${r.parentName} is mastered: every copy is spare` : `${r.parentName} is built: every copy is spare`}{r.inSets ? ` · ${r.inSets} go into ${setsFor.get(r.parentName) ?? 0} complete set${setsFor.get(r.parentName) === 1 ? "" : "s"}` : ""}{r.spare - r.inSets > 0 ? ` · ${r.spare - r.inSets} loose ${v === "Ducats" ? "for ducats" : "to sell"}` : ""}
   </p>
+  {#if r.saving}<p class="small saving">{savedLine(r.forSet, r.saving)}. Still to get: {r.saving.missing.map((x) => `${x.count > 1 ? `${x.count}× ` : ""}${x.name.replace(`${r.parentName} `, "")}`).join(", ")}.</p>{/if}
   {#if (r.tradesPerDay ?? 1) > 0}<div class="hist"><PriceHistory name={r.name} height={130} /></div>{/if}
   {#if src.length}
     <div class="odds">
@@ -171,7 +184,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Prime parts" blurb="Every prime part you hold and its best use: keep, sell, sell as a set, or trade to Baro.">
+  <PageHead title="Prime parts" blurb="Every prime part you hold and its best use: keep, save for its set, sell, sell as a set, or trade to Baro.">
     {#snippet band()}
       <Stat label="Spares to sell" note={`${plural(spares.filter((r) => verdict(r) !== "Ducats").reduce((n, r) => n + r.spare, 0), "part")} · daily median`}><P v={asPlat} big /></Stat>
       <Stat label="Spares for ducats" tone="gold" note={`${plural(spares.filter((r) => verdict(r) === "Ducats").reduce((n, r) => n + r.spare, 0), "part")}, better traded in`}><P v={asDucats} d big /></Stat>
@@ -190,7 +203,7 @@
       ]}
     />
     <Seg label="Relics" bind:value={avail} options={[{ v: "all", label: "Any", title: "Farmable and vaulted alike" }, { v: "farmable", label: "Farmable", title: "A relic that drops it can still be farmed: its price may drop" }, { v: "vaulted", label: "Vaulted", title: "Only vaulted relics drop it: no new copies, so prices tend to rise" }]} />
-    <Seg label="Best as" bind:value={best} options={[{ v: "all", label: "Any", title: "Whatever is best for each part" }, { v: "Sell", label: "Sell", title: "Worth more sold on its own" }, { v: "Set", label: "Set", title: "Worth more sold in a complete set" }, { v: "Ducats", label: "Ducats", title: "Worth more traded to Baro, at your ducat rate" }, { v: "Keep", label: "Keep", title: "You need it to build something you haven't mastered" }]} />
+    <Seg label="Best as" bind:value={best} options={[{ v: "all", label: "Any", title: "Whatever is best for each part" }, { v: "Sell", label: "Sell", title: "Worth more sold on its own" }, { v: "Set", label: "Set", title: "Worth more sold in a complete set" }, { v: "Ducats", label: "Ducats", title: "Worth more traded to Baro, at your ducat rate" }, { v: "Save", label: "Save", title: "Waiting for its set, which sells for more than its parts and whose missing parts you can still get (Settings → Selling)" }, { v: "Keep", label: "Keep", title: "You need it to build something you haven't mastered" }]} />
   </div>
   <div class="bar second">
     <input type="search" placeholder="Filter parts…" bind:value={query} />
@@ -238,7 +251,7 @@
 <style>
   .baro { display: inline-flex; align-items: center; gap: .4rem; color: var(--gold); border-color: var(--gold-dim); background: transparent; }
   .baro:hover:not(:disabled) { background: var(--gold); border-color: var(--gold); color: var(--slab); }
-  .v-Keep, .v-Set, .v-Sell, .v-Ducats { white-space: nowrap; }
+  .v-Keep, .v-Save, .v-Set, .v-Sell, .v-Ducats { white-space: nowrap; }
   .have { display: flex; align-items: center; gap: .55rem; }
   .qty { font-size: 1.45rem; }
   .vline { display: flex; align-items: center; gap: .6rem; font-size: .84rem; }
@@ -246,7 +259,9 @@
   .filters { padding-bottom: .6rem; }
   .second { padding-top: 0; }
   .v-Keep { color: var(--platinum-deep); }
+  .v-Save { color: var(--verdigris); }
   .v-Set { color: var(--platinum); font-weight: 600; }
+  .saving { color: var(--verdigris); margin: .2rem 0 .6rem; }
   .v-Sell { color: var(--platinum); }
   .v-Ducats { color: var(--gold); }
   .figs { display: flex; flex-wrap: wrap; gap: 1.4rem; align-items: end; margin-bottom: .6rem; }

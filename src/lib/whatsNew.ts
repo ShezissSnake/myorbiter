@@ -11,6 +11,16 @@ export interface NewsEntry {
 
 export const NEWS: NewsEntry[] = [
   {
+    id: 5,
+    date: "2026-11-02",
+    items: [
+      "Prime parts wait for their set: a loose part isn't sold alone when its set sells for clearly more (10% and 5p or better) and you can still get the missing parts (a relic you own, relics that still drop, Varzia, or parts you keep getting). Sets, Saving up shows what's waiting, what's left and where from. Turn it off in Settings, Selling.",
+      "orbiter counts the parts you get between inventory reads, from relics or anything else, trades left out: Got (30d) on Prime parts, and on Saving up. A part you keep getting (a Lato Vandal part, say) counts as one you can finish a set with.",
+      "Sets you can sell shows what each set sells for over its parts, and how much faster it sells than its slowest part.",
+      "Home's fissure board marks the eras where a relic of yours drops a part a set you're saving for is missing.",
+    ],
+  },
+  {
     id: 4,
     date: "2026-11-02",
     items: [

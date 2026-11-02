@@ -5,6 +5,7 @@
   import { info } from "../hover.svelte";
   import { inventoryRows, type InventoryItem, type InventoryKind } from "../core/views";
   import { sellableCopies, spareRows, type SellChoices, type SpareRow } from "../core/spares";
+  import { drops } from "../drops.svelte";
   import { mkt } from "../marketStore.svelte";
   import { marketUrl, openUrl, wikiUrl } from "../backend";
   import Browse from "../ui/Browse.svelte";
@@ -45,7 +46,7 @@
   // anything unbuilt, your best copy of each mod and one to give away, one maxed arcane, the parts,
   // blueprints and resources your unbuilt things take, one of each Captura scene (core/spares.ts).
   // The market's item list names things the game knows by internal names ("Tn Concrete Archgun Barrel").
-  const ledger = $derived(new Map(spareRows(model, mkt.index, sell, platPerDucat, squad).map((x) => [x.key, x])));
+  const ledger = $derived(new Map(spareRows(model, mkt.index, sell, platPerDucat, squad, drops.recent).map((x) => [x.key, x])));
   const spareOf = (r: InventoryItem): SpareRow | undefined => ledger.get(r.key);
   const spare = (r: InventoryItem) => spareOf(r)?.spare ?? 0;
   /** The market's name, where the game's own is an internal one. */

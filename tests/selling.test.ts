@@ -113,11 +113,11 @@ test("relics: sold only when the sale beats a crack (ducats counted), never one 
     return buildModel(b);
   };
   const mastered = [inv(RHINO, "Rhino Prime", "warframe", 1, { mastered: true })];
-  const row = (m: ReturnType<typeof buildModel>, sell = { veiledRivens: false, relicsWorthSelling: true }, rate = 0) => spareRows(m, null, sell, rate).find((r) => r.kind === "relic")!;
+  const row = (m: ReturnType<typeof buildModel>, sell = { veiledRivens: false, relicsWorthSelling: true, saveForSets: false }, rate = 0) => spareRows(m, null, sell, rate).find((r) => r.kind === "relic")!;
   // A crack: 2% of a 30p Systems = 0.6p (Kuva sells for nothing).
   const sells = row(withPrice(3, mastered));
   assert.deepEqual([sells.spare, sells.crack], [5, 0.6]);
-  assert.equal(row(withPrice(3, mastered), { veiledRivens: false, relicsWorthSelling: false }).spare, 0, "off keeps every relic");
+  assert.equal(row(withPrice(3, mastered), { veiledRivens: false, relicsWorthSelling: false, saveForSets: false }).spare, 0, "off keeps every relic");
   // Counting the Systems' 45 ducats at 1p each (45p beats 30p): a crack is 0.9p, more than 0.8p sold.
   assert.equal(row(withPrice(0.8, mastered)).spare, 5);
   const ducats = row(withPrice(0.8, mastered), undefined, 1);
@@ -169,7 +169,7 @@ test("relics by refinement: each sold only for more than a crack at its own odds
     b.prices!.prices!["Lith K1 Relic"] = 3;
     return buildModel(b, undefined, null, radiant == null ? null : { "Lith K1": { at: 0, prices: { intact: 3, radiant } } });
   };
-  const radiant = (m: ReturnType<typeof buildModel>, squad = 1) => spareRows(m, null, { veiledRivens: false, relicsWorthSelling: true }, 0, squad).find((r) => r.subtype === "radiant")!;
+  const radiant = (m: ReturnType<typeof buildModel>, squad = 1) => spareRows(m, null, { veiledRivens: false, relicsWorthSelling: true, saveForSets: false }, 0, squad).find((r) => r.subtype === "radiant")!;
   // A radiant crack: 10% of a 30p Systems = 3p, far more than the 0.6p an intact one is worth.
   const unknown = radiant(model(null));
   assert.deepEqual([unknown.spare, unknown.crack, unknown.price], [0, 3, null], "no radiant sales: the 3p intact price doesn't stand in");
@@ -184,7 +184,7 @@ test("relics by refinement: each sold only for more than a crack at its own odds
   const items = indexItems([{ id: "k1", slug: "lith_k1_relic", gameRef: "/Relic/K1", name: "Lith K1 Relic", maxRank: null, subtypes: ["intact", "exceptional", "flawless", "radiant"], tags: ["relic"] }]);
   const rules = { sets: false, arcanes: false, mods: false, parts: false, partsKeep: 10, other: true, imprints: false, priority: "plat" as const };
   const advice = { platPerDucat: 0, minPlat: 0, slowBelow: 1, squad: 1 };
-  const targets = sellTargets(m, rules, advice, items, { veiledRivens: false, relicsWorthSelling: true });
+  const targets = sellTargets(m, rules, advice, items, { veiledRivens: false, relicsWorthSelling: true, saveForSets: false });
   assert.deepEqual(targets.map((t) => [t.subtype, t.quantity, t.crack]), [["radiant", 5, 3]]);
   const book = (platinum: number) => [{ id: "b", type: "sell", platinum, quantity: 1, rank: null, subtype: "radiant", visible: true, user: { id: "u", ingameName: "Seller", status: "ingame", platform: "pc", crossplay: true } }];
   const ctx = (p: number) => ({ model: m, index: items, orders: [], me: { id: "me", platform: "pc", crossplay: true }, books: { lith_k1_relic: book(p) as never }, minPrice: 1, minShare: 0, floors: {}, paused: {} });
@@ -196,7 +196,7 @@ test("relics by refinement: each sold only for more than a crack at its own odds
   // A few lucky sales don't make it worth selling: 50p sold lately, but sellers on the site ask 2p
   // and the one in game 40p. It goes for 2p, under the 3p crack: kept.
   const lucky = model(50);
-  const lt = sellTargets(lucky, rules, advice, items, { veiledRivens: false, relicsWorthSelling: true });
+  const lt = sellTargets(lucky, rules, advice, items, { veiledRivens: false, relicsWorthSelling: true, saveForSets: false });
   const on = (platinum: number, id: string) => ({ ...book(platinum)[0], id, user: { ...book(platinum)[0].user, id, status: "online" } });
   const asks = [book(40)[0], on(2, "a"), on(2, "b"), on(2, "c")];
   const kept = bulkPlan({ ...ctx(40), model: lucky, books: { lith_k1_relic: asks as never } }, rules, lt);

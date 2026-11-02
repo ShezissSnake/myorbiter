@@ -158,6 +158,10 @@ export interface PartRow {
   spare: number;
   /** Spare copies that go into complete sets you can sell (sell those as a set). */
   inSets: number;
+  /** Copies held toward one more set worth more than its parts, whose missing parts you can get (counted in `keep`). */
+  forSet: number;
+  /** That set, when `forSet` > 0. */
+  saving: SetSave | null;
   price: number | null;
   ducats: number;
   ducatsPerPlat: number | null;
@@ -165,8 +169,132 @@ export interface PartRow {
   tradesPerDay: number | null;
 }
 
-export function partRows(m: Model): PartRow[] {
+// ---------------------------------------------------------------- saving parts for sets
+
+/** How you can get a part a set you're saving for is missing. */
+export type SaveSource = "relic" | "farmable" | "resurgence" | "dropped";
+export const SAVE_SOURCE_LABEL: Record<SaveSource, string> = {
+  relic: "a relic you own",
+  farmable: "relics that still drop",
+  resurgence: "Varzia's relics",
+  dropped: "what you've been getting",
+};
+
+/** A prime set worth more whole than as parts, whose missing parts you can get: its loose parts wait for it. */
+export interface SetSave {
+  set: string; // "Rhino Prime"
+  unique: string;
+  setPrice: number;
+  /** Its parts, each sold one by one or traded to Baro, whichever is worth more at your ducat rate. */
+  partsPrice: number;
+  /** Copies of each part held toward the set. */
+  held: { name: string; count: number }[];
+  /** Each missing part, where you'd get it, and how many you got in the last 30 days (core/drops.ts). */
+  missing: { name: string; count: number; from: SaveSource; got: number }[];
+  prime: boolean;
+}
+
+/**
+ * Turned on by Settings → Selling ("Save prime parts for sets"). Your ducat rate, so a set Baro
+ * pays more for isn't waited on, and what you got of each part lately (core/drops.ts): a part you
+ * keep getting can be waited for even when no relic drops it.
+ */
+export interface SaveForSets {
+  platPerDucat: number;
+  drops: ReadonlyMap<string, number>;
+}
+
+/** "1 saved for a Rhino Prime Set: 2 parts to go, from relics you own" */
+export function savedLine(count: number, s: SetSave): string {
+  const left = s.missing.reduce((n, x) => n + x.count, 0);
+  const from = [...new Set(s.missing.map((x) => SAVE_SOURCE_LABEL[x.from]))];
+  return `${count} saved for a ${s.set} Set (${Math.round(s.setPrice)}p, ${Math.round(s.partsPrice)}p as parts): ${left} part${left === 1 ? "" : "s"} to go, from ${from.join(" or ")}`;
+}
+
+/** A set is only waited for when it's worth clearly more than its parts: this much more… */
+export const SAVE_MIN_SHARE = 0.1;
+/** …and at least this many platinum. */
+export const SAVE_MIN_PLAT = 5;
+/** Whether a set at `setPrice` is worth waiting for over parts worth `loose`. */
+export const worthSaving = (setPrice: number, loose: number) => setPrice - loose >= Math.max(SAVE_MIN_PLAT, loose * SAVE_MIN_SHARE);
+
+/** Off when the setting is: what partRows and the pages that sell parts take. */
+const NO_DROPS: ReadonlyMap<string, number> = new Map();
+// The same object for the same rate and drop totals, so setSaves works each out once.
+const optsMemo = new WeakMap<ReadonlyMap<string, number>, Map<number, SaveForSets>>();
+export function saveForSets(sell: { saveForSets?: boolean } | null | undefined, platPerDucat = 0, drops: ReadonlyMap<string, number> = NO_DROPS): SaveForSets | null {
+  if (sell?.saveForSets === false) return null;
+  let byRate = optsMemo.get(drops);
+  if (!byRate) optsMemo.set(drops, (byRate = new Map()));
+  let o = byRate.get(platPerDucat);
+  if (!o) byRate.set(platPerDucat, (o = { platPerDucat, drops }));
+  return o;
+}
+
+/**
+ * Where you'd get a part from: a relic you own first, then relics that drop now, then Varzia, then
+ * copies you've been getting anyway; null when none of those.
+ */
+export function saveSource(m: Model, partName: string, drops: ReadonlyMap<string, number> = new Map()): SaveSource | null {
+  const sources = m.sourcesByReward.get(partName) ?? [];
+  if (sources.some((s) => (m.ownedRelicCount.get(s.base) ?? 0) > 0)) return "relic";
+  if (sources.length) {
+    const a = partAvailability(m, partName);
+    if (a === "farmable" || a === "resurgence") return a;
+  }
+  return (drops.get(partName) ?? 0) > 0 ? "dropped" : null;
+}
+
+/**
+ * The prime sets your loose parts wait for, by the set's path. A set qualifies when it sells for
+ * clearly more (worthSaving) than its parts one by one, each at its price or its ducats at your rate, and every
+ * part still missing comes from a relic you own, one that still drops, or Varzia. The copies held
+ * are the loose ones, after what building and mastering takes and the complete sets you can sell,
+ * enough for one more set. A set some part of which you can't get anymore isn't waited on.
+ */
+const savesMemo = new WeakMap<Model, WeakMap<SaveForSets, Map<string, SetSave>>>();
+export function setSaves(m: Model, opts: SaveForSets): Map<string, SetSave> {
+  let byOpts = savesMemo.get(m);
+  if (!byOpts) savesMemo.set(m, (byOpts = new WeakMap()));
+  let out = byOpts.get(opts);
+  if (out) return out;
+  out = new Map();
+  byOpts.set(opts, out);
+  for (const s of setRows(m)) {
+    if (s.setPrice == null || s.partsPrice == null) continue;
+    const parts = m.partsByParent.get(s.unique) ?? [];
+    // Each part the way it's worth most loose: its price, or its ducats at your rate.
+    const loose = sum(parts.map((p) => Math.max(m.price(p.fullName) ?? 0, p.ducats * opts.platPerDucat) * p.required));
+    if (!worthSaving(s.setPrice, loose)) continue;
+    const build = primeToBuild(m, s.unique);
+    const held: SetSave["held"] = [];
+    const short: { name: string; count: number }[] = [];
+    for (const p of parts) {
+      const owned = m.ownedPartQty.get(p.fullName) ?? 0;
+      // The same count partRows makes: kept to build, then the complete sets you can sell.
+      const keep = Math.min(owned, Math.max(0, build.copies * p.required - (m.craftingPartQty.get(p.fullName) ?? 0)));
+      const spare = Math.max(0, owned - keep - s.sellable * p.required);
+      const have = Math.min(spare, p.required);
+      if (have) held.push({ name: p.fullName, count: have });
+      if (have < p.required) short.push({ name: p.fullName, count: p.required - have });
+    }
+    if (!held.length || !short.length) continue;
+    const missing: SetSave["missing"] = [];
+    for (const x of short) {
+      const from = saveSource(m, x.name, opts.drops);
+      if (!from) break;
+      missing.push({ ...x, from, got: opts.drops.get(x.name) ?? 0 });
+    }
+    if (missing.length < short.length) continue;
+    out.set(s.unique, { set: s.name, unique: s.unique, setPrice: s.setPrice, partsPrice: loose, held, missing, prime: true });
+  }
+  return out;
+}
+
+/** Every prime part you hold. With `save` (Settings → Selling), loose copies wait for a set worth more whole (setSaves). */
+export function partRows(m: Model, save: SaveForSets | null = null): PartRow[] {
   const rows: PartRow[] = [];
+  const saves = save ? setSaves(m, save) : null;
   // Parts that make up complete sets you can sell: you'd rather sell those as a set.
   const inSets = new Map<string, number>();
   for (const s of setRows(m)) {
@@ -181,7 +309,9 @@ export function partRows(m: Model): PartRow[] {
     // Copies already being crafted in the foundry count toward the build: fewer held ones are kept.
     // Kept for each copy still to build: to master it, or for a weapon made from it (Akvasto Prime).
     const build = primeToBuild(m, part.parentUnique);
-    const keep = Math.max(0, build.copies * part.required - (m.craftingPartQty.get(name) ?? 0));
+    const keep = Math.min(qty, Math.max(0, build.copies * part.required - (m.craftingPartQty.get(name) ?? 0)));
+    const saving = saves?.get(part.parentUnique) ?? null;
+    const forSet = saving?.held.find((h) => h.name === name)?.count ?? 0;
     const price = m.price(name);
     rows.push({
       name,
@@ -191,9 +321,11 @@ export function partRows(m: Model): PartRow[] {
       keptFor: build.for,
       parentMastered,
       parentOwned,
-      keep: Math.min(qty, keep),
-      spare: Math.max(0, qty - keep),
-      inSets: Math.min(Math.max(0, qty - keep), inSets.get(name) ?? 0),
+      keep: Math.min(qty, keep + forSet),
+      spare: Math.max(0, qty - keep - forSet),
+      inSets: Math.min(Math.max(0, qty - keep - forSet), inSets.get(name) ?? 0),
+      forSet,
+      saving: forSet ? saving : null,
       price,
       ducats: part.ducats,
       ducatsPerPlat: price ? part.ducats / price : null,
@@ -855,12 +987,12 @@ export function inventoryRows(m: Model): InventoryItem[] {
  * for anything unbuilt, two copies of each mod (your best and one to give away), one maxed arcane. Null: no rule, use what
  * you hold. `rank` is the rank to list at, when it matters.
  */
-export function spareOf(m: Model, name: string, tags: string[] | null): { rank: number | null; quantity: number } | null {
+export function spareOf(m: Model, name: string, tags: string[] | null, save: SaveForSets | null = null): { rank: number | null; quantity: number } | null {
   if (tags?.includes("set")) {
     const set = setRows(m).find((s) => `${s.name} Set` === name);
     return set ? { rank: null, quantity: set.sellable } : { rank: null, quantity: 0 };
   }
-  const part = partRows(m).find((p) => p.name === name);
+  const part = partRows(m, save).find((p) => p.name === name);
   if (part) return { rank: null, quantity: part.spare };
   if (tags?.includes("mod")) {
     const mod = modRows(m).find((r) => r.name === name);

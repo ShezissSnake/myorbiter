@@ -4,7 +4,8 @@
   import type { AdviceSettings, MarketSettings } from "../backend";
   import { heldFor, holdings, listingKey, overAsked, wtsLines, type MyOrder, type Plan } from "../core/market";
   import { LISTING_LIMIT } from "../core/bulk";
-  import { arcaneRows, spareOf } from "../core/views";
+  import { arcaneRows, saveForSets, spareOf } from "../core/views";
+  import { drops } from "../drops.svelte";
   import { aboveCrack, relicCrackFor } from "../core/spares";
   import { mkt } from "../marketStore.svelte";
   import PageHead from "../ui/PageHead.svelte";
@@ -73,7 +74,7 @@
       .filter((x) => x.it.name.toLowerCase().includes(q))
       .sort((a, b) => Number(b.it.name.toLowerCase().startsWith(q)) - Number(a.it.name.toLowerCase().startsWith(q)) || b.held - a.held)
       .slice(0, 40)
-      .map((x) => ({ ...x, spare: spareOf(model, x.it.name, x.it.tags) }))
+      .map((x) => ({ ...x, spare: spareOf(model, x.it.name, x.it.tags, saveForSets(settings.sellable, advice.platPerDucat, drops.recent)) }))
       // Things you can actually spare first.
       .sort((a, b) => Number((b.spare?.quantity ?? b.held) > 0) - Number((a.spare?.quantity ?? a.held) > 0))
       .slice(0, 10);
