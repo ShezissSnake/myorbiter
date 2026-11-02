@@ -2,6 +2,7 @@
   import type { Model } from "../core/model";
   import { SAVE_SOURCE_LABEL, saveForSets, type SetRow, type SetSave } from "../core/views";
   import { allSetSaves, type SellChoices } from "../core/spares";
+  import { finishEase } from "../core/wishlist";
   import { drops } from "../drops.svelte";
   import { allSetRows } from "../core/spares";
   import { ducatsWin } from "../core/bulk";
@@ -33,7 +34,7 @@
   let sort = $state({ key: "value", desc: true });
   // Each view opens on its own useful order (the sell view's sort key isn't a column in the other).
   $effect(() => {
-    sort = mode === "sell" ? { key: "value", desc: true } : mode === "save" ? { key: "left", desc: false } : { key: "gain", desc: true };
+    sort = mode === "sell" ? { key: "value", desc: true } : mode === "save" ? { key: "cracks", desc: false } : { key: "gain", desc: true };
   });
 
   // Prime sets, and the others warframe.market trades whole (Mandonel, Lato Vandal…), once its item list is in.
@@ -50,6 +51,9 @@
   const leftOf = (r: SetRow) => saveOf(r).missing.reduce((n, x) => n + x.count, 0);
   const heldOf = (r: SetRow) => saveOf(r).held.reduce((n, x) => n + x.count, 0);
   const premium = (r: SetRow) => Math.round(saveOf(r).setPrice - saveOf(r).partsPrice);
+  // How easy each is to finish from relics: the odds your relics give every missing part, and about how many cracks it takes.
+  const eases = $derived(mode === "save" ? new Map([...saves].map(([u, s]) => [u, finishEase(model, s.missing)])) : new Map<string, ReturnType<typeof finishEase>>());
+  const easeOf = (r: SetRow) => eases.get(r.unique) ?? { odds: 0, cracks: null };
   /** Buying the parts still missing instead of farming them, at their daily median. */
   const buyRest = (r: SetRow) => {
     let n = 0;
@@ -126,6 +130,8 @@
     { key: "name", label: "Set", value: (r) => r.name, defaultDesc: false, cell: nameCell },
     { key: "held", label: "Saved", value: heldOf, align: "right", title: "Parts you hold toward the set, waiting instead of being sold" },
     { key: "left", label: "To get", value: leftOf, align: "right", defaultDesc: false, title: "Parts still missing" },
+    { key: "cracks", label: "Cracks", value: (r) => easeOf(r).cracks, align: "right", cell: cracksCell, defaultDesc: false, title: "About how many relic cracks finish it: each missing part at the best chance you can crack for it (your best copy, or an intact relic that still drops). Blank: a part comes from no relic you can crack" },
+    { key: "odds", minor: true, label: "Your relics", value: (r) => easeOf(r).odds, align: "right", cell: oddsCell, title: "The chance the relics you hold finish it, cracking each copy once" },
     { key: "missingParts", label: "Still to get, and from", value: (r) => saveOf(r).missing.map((x) => x.name).join(", "), cell: toGetCell },
     { key: "setPrice", label: "Set price", value: (r) => saveOf(r).setPrice, align: "right", cell: setPriceCell },
     { key: "partsPrice", minor: true, label: "As parts", value: (r) => saveOf(r).partsPrice, align: "right", cell: savePartsCell, title: "Selling the parts one by one (or trading one to Baro, at your ducat rate, where that's worth more)" },
@@ -160,6 +166,8 @@
 {#snippet moreCell(r: SetRow)}{@const g = moreAsSet(r)}{#if g != null}<span class:pos={g > 0} class:neg={g <= 0}>{g > 0 ? "+" : ""}{g}p</span>{/if}{/snippet}
 {#snippet fasterCell(r: SetRow)}{@const f = faster(r)}{#if f != null}<span class="dim">×{f}</span>{/if}{/snippet}
 {#snippet savePartsCell(r: SetRow)}<P v={Math.round(saveOf(r).partsPrice)} dim />{/snippet}
+{#snippet cracksCell(r: SetRow)}{@const c = easeOf(r).cracks}{#if c != null}<span class:easy={c <= 15}>≈{c}</span>{:else}<span class="dim">–</span>{/if}{/snippet}
+{#snippet oddsCell(r: SetRow)}{@const o = easeOf(r).odds}<span class:dim={o < 0.05}>{Math.round(o * 100)}%</span>{/snippet}
 {#snippet buyCell(r: SetRow)}<P v={buyRest(r)} dim />{/snippet}
 {#snippet premiumCell(r: SetRow)}<span class="pos">+{premium(r)}p</span>{/snippet}
 {#snippet vaultCell(r: SetRow)}{#if r.vaulted}<Avail v="vaulted" />{/if}{/snippet}
@@ -174,6 +182,7 @@
       <dl class="kv">
         <dt class="register">Saved</dt><dd>{saveOf(r).held.map((x) => `${x.count > 1 ? `${x.count}× ` : ""}${x.name.replace(r.name + " ", "")}`).join(", ")}</dd>
         <dt class="register">To get</dt><dd>{@render toGetCell(r)}</dd>
+        <dt class="register" title="About how many relic cracks finish it, and the chance the relics you hold do">Ease</dt><dd>{#if easeOf(r).cracks != null}<span class:easy={(easeOf(r).cracks ?? 99) <= 15}>≈{easeOf(r).cracks} cracks</span>{:else}<span class="dim">not from relics</span>{/if} <span class="dim small">· your relics {Math.round(easeOf(r).odds * 100)}%</span></dd>
         <dt class="register" title="What the set sells for over its parts sold one by one">More</dt><dd><span class="gain pos">+{premium(r)}p</span> <span class="dim small">as a set</span></dd>
       </dl>
     {:else if mode === "sell"}
@@ -267,4 +276,5 @@
   .sep { color: var(--platinum-deep); margin-right: .35em; }
   .from { font-size: .62rem; letter-spacing: .06em; text-transform: uppercase; color: var(--platinum-deep); }
   .from-relic { color: var(--verdigris); }
+  .easy { color: var(--verdigris); }
 </style>

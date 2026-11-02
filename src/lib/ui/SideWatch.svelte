@@ -29,7 +29,7 @@
 
   const SIDE_CARDS: { key: string; label: string; hint: string; pc?: boolean }[] = [
     { key: "alerts", label: "Alerts", hint: "Fissures matching your alerts, alerts and invasions with something you need" },
-    { key: "fissures", label: "Fissures", hint: "Every open fissure of the kind Home shows (normal, Steel Path or Void Storms)" },
+    { key: "fissures", label: "Fissures", hint: "Every open fissure of the kind Home shows (normal, Steel Path or Void Storms); with Only my alerts on there, just the ones your alerts match" },
     { key: "clocks", label: "Clocks", hint: "Day and night on the open worlds" },
     { key: "foundry", label: "Foundry", hint: "What's building and when it's ready", pc: true },
     { key: "bounties", label: "Bounties", hint: "Each place's best bounty reward" },
@@ -40,9 +40,11 @@
   const toggle = (k: string, v: boolean) => (settings.side.cards = v ? [...settings.side.cards.filter((x) => x !== k), k] : settings.side.cards.filter((x) => x !== k));
 
   const mode = $derived(settings.homeFissures);
-  const eras = $derived(fissuresByEra(live.fissures, mode, now));
   const counts = $derived(fissureCounts(live.fissures, now));
   const watched = $derived(matchedFissures(settings.fissureRules, live.fissures, now));
+  // As Home's board: with Only my alerts, just the matches, of every kind.
+  const mine = $derived(settings.homeFissuresOnly && settings.fissureRules.length > 0);
+  const eras = $derived(mine ? fissuresByEra(watched.map((w) => w.fissure), "all", now) : fissuresByEra(live.fissures, mode, now));
   const world = $derived(alertNeeds(console ? null : model, live.alerts, now));
   const invasions = $derived(model && !console ? invasionNeeds(model, live.invasions) : []);
   const cycles = $derived(cycleTimers(live, now));
@@ -87,11 +89,11 @@
       </section>
     {:else if on(k) && k === "fissures"}
       <section>
-        <h3 class="register"><GameIcon name="void-tear" size={13} /> {mode === "steel" ? "Steel Path" : mode === "storm" ? "Void Storms" : "Fissures"} · {counts[mode]}</h3>
+        <h3 class="register"><GameIcon name="void-tear" size={13} /> {mine ? `My alerts · ${watched.length}` : `${mode === "steel" ? "Steel Path" : mode === "storm" ? "Void Storms" : "Fissures"} · ${counts[mode]}`}</h3>
         {#each eras as e (e.era)}
           <div class="era"><GameIcon name={eraIcon(e.era)} size={16} /><b>{e.era}</b></div>
-          <ul class="fs">{#each e.list as f (f.id)}<li title="{f.node} · {f.enemy}"><span class="tx"><span>{f.missionType} <span class="dim small">{f.node.replace(/ \(.*\)$/, "")}</span></span></span><span class="t">{left(f.expiry)}</span></li>{/each}</ul>
-        {:else}<p class="dim small">{live.fissures == null ? (liveError ? "The worldstate can't be read right now." : "Reading the worldstate…") : live.fissures.length && counts.normal + counts.steel + counts.storm === 0 ? "Out of date: the worldstate can't be read right now." : "None open right now."}</p>{/each}
+          <ul class="fs">{#each e.list as f (f.id)}<li title="{f.node} · {f.enemy}"><span class="tx"><span>{mine && (f.isHard || f.isStorm) ? (f.isStorm ? "Storm " : "SP ") : ""}{f.missionType} <span class="dim small">{f.node.replace(/ \(.*\)$/, "")}</span></span></span><span class="t">{left(f.expiry)}</span></li>{/each}</ul>
+        {:else}<p class="dim small">{live.fissures == null ? (liveError ? "The worldstate can't be read right now." : "Reading the worldstate…") : live.fissures.length && counts.normal + counts.steel + counts.storm === 0 ? "Out of date: the worldstate can't be read right now." : mine ? "None of the fissures open right now match your alerts." : "None open right now."}</p>{/each}
       </section>
     {:else if on(k) && k === "clocks" && cycles.length}
       <section>

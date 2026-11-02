@@ -141,14 +141,15 @@ export interface GearSetPart {
 
 /**
  * What warframe.market sells together as a set that isn't prime ("Mandonel Set", "Lato Vandal
- * Set"): the blueprint and the parts the recipe takes, not its resources. Null for prime sets
+ * Set", "Voidrig Set"): the blueprint and the parts the recipe takes, not its resources. Null for prime sets
  * (partsByParent has those) and for anything without parts.
  */
 export function gearSetParts(m: Model, unique: string): GearSetPart[] | null {
   if (m.partsByParent.has(unique)) return null;
   const item = m.catalogByUnique.get(unique);
   const parts = (item?.components ?? [])
-    .filter((c) => c.uniqueName.includes("/Recipes/"))
+    // Necramechs and their arch-guns (Voidrig, Cortege) keep their parts under /Resources/Mechs/.
+    .filter((c) => c.uniqueName.includes("/Recipes/") || c.uniqueName.includes("/Resources/Mechs/"))
     .map((c) => ({ unique: baseId(c.uniqueName), name: c.name.startsWith(item!.name) ? c.name : `${item!.name} ${c.name}`, required: c.itemCount ?? 1 }));
   return parts.length ? parts : null;
 }

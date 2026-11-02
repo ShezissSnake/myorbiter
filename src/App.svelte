@@ -6,7 +6,8 @@
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
   import { watchlist } from "./lib/core/deals";
-  import { inventoryRows, masteryRows, relicRows } from "./lib/core/views";
+  import { inventoryRows, masteryRows, relicRows, saveForSets, type SetSave } from "./lib/core/views";
+  import { allSetRows, allSetSaves } from "./lib/core/spares";
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
   import { buildModel, ERAS } from "./lib/core/model";
   import { mergeRelics, type RelicData } from "./lib/core/relicData";
@@ -15,7 +16,7 @@
   import { bestCard, resolveName, scoreCards, vaultWord } from "./lib/core/pick";
   import { DEFAULT_HIDE_MINUTES, dueToShow, hideNow, lastCopies } from "./lib/core/lastCopy";
   import { mergeLogged, recordScreen, resolvePicks } from "./lib/core/relicRuns";
-  import { dropCounts, recentDrops, recordRead } from "./lib/core/drops";
+  import { dropBuilding, dropCounts, recentDrops, recordRead } from "./lib/core/drops";
   import { drops } from "./lib/drops.svelte";
   import { heldFor } from "./lib/core/market";
   import type { Bundle, Live, MissionState } from "./lib/core/types";
@@ -318,21 +319,33 @@
     }
   }
   let lastWritten = "";
+  // A failed write of the pick or the overlay settings (a file briefly locked, say by an antivirus
+  // scan) is tried again a few times, a little later each time: nothing else would trigger it.
+  let pickRetry = $state(0);
+  let overlayRetry = $state(0);
+  const retryLater = (n: number, again: () => void) => {
+    if (n < 5) setTimeout(again, 1000 * 2 ** n);
+  };
   // Saving settings failed (a full disk, a locked file): said above the page until it works again.
   let saveError = $state<string | null>(null);
   onSaveTrouble((e) => (saveError = e));
   $effect(() => {
+    void pickRetry;
     if (!model || !freshCards) return;
     const cards = scoreCards(model, freshCards.cards, settings.pick, freshCards.prices);
     const file = { at: freshCards.at, cards: freshCards.cards, scores: cards.map((c) => c.score), best: bestCard(cards), reasons: cards.map((c) => c.reasons), vault: cards.map((c) => vaultWord(model!, c.name)) };
     const key = JSON.stringify(file);
     if (key === lastWritten) return;
     lastWritten = key;
-    writeRewardPick(file).catch((e) => {
-      console.error("writing the reward pick failed", e);
-      // Written again on the next card read (a file briefly locked, say by an antivirus scan).
-      if (lastWritten === key) lastWritten = "";
-    });
+    const tries = untrack(() => pickRetry);
+    writeRewardPick(file).then(
+      () => untrack(() => pickRetry) && (pickRetry = 0),
+      (e) => {
+        console.error("writing the reward pick failed", e);
+        if (lastWritten === key) lastWritten = "";
+        retryLater(tries, () => pickRetry++);
+      },
+    );
     // Once per reward screen, for a second monitor: the card to take and why.
     const best = file.best == null ? null : cards[file.best];
     if (best && settings.notify.reward && notifiedScreen !== freshCards.at) {
@@ -364,14 +377,20 @@
   // Your overlay settings, for TennoScope: written when they change, and once at start.
   let lastOverlay = "";
   $effect(() => {
+    void overlayRetry;
     const prefs = $state.snapshot(settings.overlay);
     const key = JSON.stringify(prefs);
     if (key === lastOverlay) return;
     lastOverlay = key;
-    writeOverlayPrefs(prefs).catch((e) => {
-      console.error("writing the overlay settings failed", e);
-      if (lastOverlay === key) lastOverlay = "";
-    });
+    const tries = untrack(() => overlayRetry);
+    writeOverlayPrefs(prefs).then(
+      () => untrack(() => overlayRetry) && (overlayRetry = 0),
+      (e) => {
+        console.error("writing the overlay settings failed", e);
+        if (lastOverlay === key) lastOverlay = "";
+        retryLater(tries, () => overlayRetry++);
+      },
+    );
   });
 
   // Each new sale gets the item's daily median of the day it sold, so Sales compares it with the
@@ -1287,12 +1306,16 @@
   });
   // Parts that turned up between inventory reads, from anything but a trade (core/drops.ts): what
   // you keep getting counts as a way to finish a set (Settings → Selling, Save prime parts for sets).
+  let dropsReadAt = 0;
   $effect(() => {
     const m = model;
     if (!m?.observedAt || !settingsReady) return;
     const at = +m.observedAt;
+    // Once per read: the model is rebuilt for other reasons (prices, the world) with the same read.
+    if (at === dropsReadAt) return;
+    dropsReadAt = at;
     untrack(() => {
-      const next = recordRead(settings.game.drops, dropCounts(m), at, Date.now());
+      const next = recordRead(settings.game.drops, dropCounts(m), at, Date.now(), dropBuilding(m));
       if (next) settings.game.drops = next;
     });
   });
@@ -1300,6 +1323,29 @@
     const log = settings.game.drops;
     const trades = settings.market.trades;
     drops.recent = recentDrops(log, trades);
+  });
+  // A set your loose parts were saved for, complete now (one more whole set than when it was being
+  // saved for, and one you can sell): say so. Checked once per inventory read.
+  let savingCheckedAt = 0;
+  $effect(() => {
+    const m = model;
+    if (!m?.observedAt || !settingsReady) return;
+    const at = +m.observedAt;
+    if (at === savingCheckedAt) return;
+    savingCheckedAt = at;
+    untrack(() => {
+      const index = mkt.index.byId.size ? mkt.index : null;
+      const rows = new Map(allSetRows(m, index).map((r) => [r.unique, r]));
+      const done: string[] = [];
+      for (const [u, was] of Object.entries(settings.game.savingFor)) {
+        const r = rows.get(u);
+        if (r && r.completeSets > was.complete && r.sellable > 0) done.push(`${r.name} Set`);
+      }
+      const opts = saveForSets(settings.market.sellable, settings.advice.platPerDucat, drops.recent);
+      const now = opts ? allSetSaves(m, index, opts) : new Map<string, SetSave>();
+      settings.game.savingFor = Object.fromEntries([...now].map(([u, s]) => [u, { set: s.set, complete: rows.get(u)?.completeSets ?? 0 }]));
+      if (done.length) tell("setDone", done.length === 1 ? `${done[0]} complete` : `${done.length} sets complete`, `${done.join(", ")}: the parts you were saving came in. Ready to sell on Sets.`, "sets");
+    });
   });
   /** Screens from TennoScope's own log that orbiter didn't see live: history, and while it was closed. */
   async function importScreens() {
@@ -1346,10 +1392,12 @@
 
   let lastTsError: string | null = null;
   $effect(() => {
+    // The same trouble with a new countdown ("tries again in 4 min") isn't news.
     const e = ts.error;
+    const key = e?.replace(/ orbiter tries again in \d+ min\.$/, "") ?? null;
     // Not where TennoScope can't run at all (macOS): there's nothing to fix.
-    if (e && e !== lastTsError && settings.notify.tennoscope && ts.status?.supported !== false) tell("tennoscope", "TennoScope", e);
-    lastTsError = e;
+    if (key && key !== lastTsError && settings.notify.tennoscope && ts.status?.supported !== false) tell("tennoscope", "TennoScope", e!);
+    lastTsError = key;
   });
   // TennoScope runs in the background (orbiter starts it); its settings live in orbiter's. Not
   // for a console player: it only reads Warframe on a PC.

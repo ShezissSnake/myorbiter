@@ -265,6 +265,26 @@ export function referencePrice(m: Model, item: MarketItem, rank: number | null, 
   return m.price(item.name);
 }
 
+/**
+ * Items warframe.market sells both as the blueprint and built (Ambassador and Ghoulsaw parts, Cinta
+ * blueprints): the game holds the two under paths that differ by a trailing "Blueprint". The
+ * market's path is either one.
+ */
+export function craftVariants(item: MarketItem): { crafted: string; blueprint: string } | null {
+  if (!item.gameRef || item.tags?.includes("set") || !item.subtypes?.includes("blueprint") || !item.subtypes.includes("crafted")) return null;
+  const crafted = item.gameRef.replace(/Blueprint$/, "");
+  return { crafted, blueprint: `${crafted}Blueprint` };
+}
+
+/** The market item a held blueprint or built part sells as, and which of its two variants it is. */
+export function craftVariantOf(idx: MarketIndex, unique: string): { item: MarketItem; subtype: "blueprint" | "crafted" } | null {
+  const u = baseId(unique);
+  const crafted = u.replace(/Blueprint$/, "");
+  const item = idx.byGameRef.get(crafted) ?? idx.byGameRef.get(`${crafted}Blueprint`);
+  if (!item || !craftVariants(item)) return null;
+  return { item, subtype: u === crafted ? "crafted" : "blueprint" };
+}
+
 const REFINEMENT_SUBTYPE: Record<string, string> = { Bronze: "intact", Silver: "exceptional", Gold: "flawless", Platinum: "radiant" };
 
 /**
@@ -276,7 +296,7 @@ export function heldFor(m: Model, item: MarketItem, o: { rank: number | null; su
   const def = item.subtypes?.[0] ?? null;
   // Your inventory tells relic refinements apart, not other variants (an atragraph Serration, a
   // large fish, a crafted item): for any but the first, what you hold is unknown, not none.
-  if (!item.tags?.includes("relic") && (o.subtype ?? def) !== def) return null;
+  if (!item.tags?.includes("relic") && !craftVariants(item) && (o.subtype ?? def) !== def) return null;
   // Nor which of your sculptures have stars in.
   if (hasStars(o)) return null;
   const held = holdings(m, item);
@@ -298,7 +318,10 @@ export function holdings(m: Model, item: MarketItem): Holding[] | null {
   if (item.gameRef && item.tags?.includes("relic")) {
     const out: Holding[] = [];
     for (const [suffix, subtype] of Object.entries(REFINEMENT_SUBTYPE)) {
-      const count = (m.inventoryByBase.get(item.gameRef + suffix) ?? []).reduce((n, r) => n + r.quantity, 0);
+      let count = (m.inventoryByBase.get(item.gameRef + suffix) ?? []).reduce((n, r) => n + r.quantity, 0);
+      // A relic with no refinements (Requiem Eterna, …T5VoidProjectionImmortalOmniA) is held under
+      // its bare path: intact.
+      if (suffix === "Bronze") count += (m.inventoryByBase.get(item.gameRef) ?? []).reduce((n, r) => n + r.quantity, 0);
       if (count > 0) out.push({ rank: null, subtype, count });
     }
     return out;
@@ -321,6 +344,16 @@ export function holdings(m: Model, item: MarketItem): Holding[] | null {
       ? Math.min(...parts.map((p) => Math.floor((m.ownedPartQty.get(p.fullName) ?? 0) / p.required)))
       : Math.min(...gear!.map((p) => Math.floor(heldCount(m, p.unique) / p.required)));
     return sets > 0 ? [{ rank: null, subtype: null, count: sets }] : [];
+  }
+  // Sold as the blueprint or built: each counted under its own path.
+  const variants = craftVariants(item);
+  if (variants) {
+    const out: Holding[] = [];
+    for (const subtype of ["blueprint", "crafted"] as const) {
+      const count = heldCount(m, variants[subtype]);
+      if (count > 0) out.push({ rank: null, subtype, count });
+    }
+    return out;
   }
   // Veiled rivens: warframe.market files them under the unveiled riven's path, but what you hold
   // veiled is the game's …/Randomized/Raw… item of the same name.

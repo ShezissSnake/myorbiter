@@ -11,6 +11,16 @@ export interface NewsEntry {
 
 export const NEWS: NewsEntry[] = [
   {
+    id: 7,
+    date: "2026-11-03",
+    items: [
+      "Sets, Saving up: easiest to finish first. About how many relic cracks each set takes (each missing part at the best chance you can crack for it), and the chance the relics you hold finish it.",
+      "Stats: the parts you got in the span, from relics, missions or anything but a trade, with what they're worth.",
+      "A notification when a set you were saving parts for is complete and ready to sell (Notifications, Trading).",
+      "A part claimed from the foundry no longer counts as one you got.",
+    ],
+  },
+  {
     id: 6,
     date: "2026-11-02",
     items: [

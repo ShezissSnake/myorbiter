@@ -158,6 +158,13 @@ class MarketStore {
    * other platform's, so they go.
    */
   async usePlatform(p: Platform) {
+    // One switch at a time, in the order asked: PC → Xbox → PC quickly ends on PC.
+    const run = this.switching.then(() => this.switchPlatform(p));
+    this.switching = run.catch(() => {});
+    return run;
+  }
+  private switching: Promise<void> = Promise.resolve();
+  private async switchPlatform(p: Platform) {
     if (p === this.platform) return;
     await market.setPlatform(p);
     this.platform = p;

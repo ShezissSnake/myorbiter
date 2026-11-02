@@ -232,6 +232,8 @@ export interface GameState {
   relicRuns: RelicRun[];
   /** Parts that turned up between inventory reads, from anything but a trade (core/drops.ts). */
   drops: DropLog;
+  /** The sets your loose parts were saved for at the last read, with how many complete ones you held then: one more is a set done. */
+  savingFor: Record<string, { set: string; complete: number }>;
   /** Notifications sent, newest first (the bell in the sidebar). */
   notices: Notice[];
   /** Alerts, Baro visits, Varzia rotations and Circuit weeks already announced. */
@@ -262,7 +264,7 @@ export interface TradeLogEntry {
   platOut: number;
   platIn: number;
 }
-export const defaultGame = (): GameState => ({ foundryReady: [], masteryRank: null, platinum: null, credits: null, endo: null, rivens: null, imprints: null, gear: null, keepGear: [], rivenHistory: {}, foundryNotified: [], whispersSeen: [], chatsSeen: {}, dealsNotified: [], fissuresNotified: [], rivensNotified: [], cyclesNotified: [], shortNotified: [], valueHistory: [], relicRuns: [], drops: emptyDropLog(), notices: [], worldNotified: [] });
+export const defaultGame = (): GameState => ({ foundryReady: [], masteryRank: null, platinum: null, credits: null, endo: null, rivens: null, imprints: null, gear: null, keepGear: [], rivenHistory: {}, foundryNotified: [], whispersSeen: [], chatsSeen: {}, dealsNotified: [], fissuresNotified: [], rivensNotified: [], cyclesNotified: [], shortNotified: [], valueHistory: [], relicRuns: [], drops: emptyDropLog(), savingFor: {}, notices: [], worldNotified: [] });
 
 export interface NotifySettings {
   /** The reward screen opened: which card to take. */
@@ -271,6 +273,8 @@ export interface NotifySettings {
   market: boolean;
   /** A trade in game sold one of your listings (marked sold and logged). */
   sold: boolean;
+  /** A set your loose parts were saved for is complete and can be sold. */
+  setDone: boolean;
   /** Apply automatically moved listings to the cheapest price in game. */
   repriced: boolean;
   /** TennoScope couldn't be started or a request to it failed. */
@@ -304,7 +308,7 @@ export interface NotifySettings {
   /** The Duviri Circuit's weekly picks include something for you. */
   circuit: boolean;
 }
-export const defaultNotify = (): NotifySettings => ({ reward: true, market: true, sold: true, repriced: true, tennoscope: true, invasions: true, foundry: true, whispers: true, deals: true, fissures: true, rivens: true, cycle: true, wishlist: true, siteChat: true, alerts: true, alertLoot: true, baro: true, varzia: true, circuit: true });
+export const defaultNotify = (): NotifySettings => ({ reward: true, market: true, sold: true, setDone: true, repriced: true, tennoscope: true, invasions: true, foundry: true, whispers: true, deals: true, fissures: true, rivens: true, cycle: true, wishlist: true, siteChat: true, alerts: true, alertLoot: true, baro: true, varzia: true, circuit: true });
 
 /** How notifications reach you, whatever they're about. */
 export interface NotifyOptions {
@@ -725,7 +729,7 @@ export async function loadSettings(): Promise<Settings> {
     startPage: typeof raw?.startPage === "string" && raw.startPage ? raw.startPage : "last",
     schema: base.schema,
     notifiedInvasions: Array.isArray(raw?.notifiedInvasions) ? raw.notifiedInvasions : [],
-    game: { ...defaultGame(), ...(raw?.game ?? {}), relicRuns: Array.isArray(raw?.game?.relicRuns) ? raw.game.relicRuns : [], drops: raw?.game?.drops && typeof raw.game.drops.at === "number" && raw.game.drops.counts && Array.isArray(raw.game.drops.windows) ? raw.game.drops : emptyDropLog(), notices: Array.isArray(raw?.game?.notices) ? raw.game.notices : [], worldNotified: Array.isArray(raw?.game?.worldNotified) ? raw.game.worldNotified : [], keepGear: Array.isArray(raw?.game?.keepGear) ? raw.game.keepGear.filter((x: unknown) => typeof x === "string") : [], gear: Array.isArray(raw?.game?.gear) ? raw.game.gear : null },
+    game: { ...defaultGame(), ...(raw?.game ?? {}), relicRuns: Array.isArray(raw?.game?.relicRuns) ? raw.game.relicRuns : [], drops: raw?.game?.drops && typeof raw.game.drops.at === "number" && raw.game.drops.counts && Array.isArray(raw.game.drops.windows) ? raw.game.drops : emptyDropLog(), savingFor: raw?.game?.savingFor && typeof raw.game.savingFor === "object" && !Array.isArray(raw.game.savingFor) ? raw.game.savingFor : {}, notices: Array.isArray(raw?.game?.notices) ? raw.game.notices : [], worldNotified: Array.isArray(raw?.game?.worldNotified) ? raw.game.worldNotified : [], keepGear: Array.isArray(raw?.game?.keepGear) ? raw.game.keepGear.filter((x: unknown) => typeof x === "string") : [], gear: Array.isArray(raw?.game?.gear) ? raw.game.gear : null },
     favourites: Array.isArray(raw?.favourites) ? raw.favourites : [],
     fissureRules: Array.isArray(raw?.fissureRules) ? raw.fissureRules.map(normalizeRule).filter((r: FissureRule | null): r is FissureRule => !!r) : [],
     rivenWatch: Array.isArray(raw?.rivenWatch) ? raw.rivenWatch : [],

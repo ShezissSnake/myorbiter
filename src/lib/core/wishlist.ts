@@ -146,6 +146,25 @@ export function finishOdds(m: Model, parts: { name: string; need: number }[]): n
   return dist.get(want.map(() => 0).join(",")) ?? 0;
 }
 
+/**
+ * How easy the parts a set is missing are to get by cracking relics: the chance the relics you hold
+ * give them all (each copy cracked once, finishOdds), and about how many cracks it takes, each part
+ * at the best chance you can crack for it (your best copy, or an intact relic that still drops or
+ * Varzia sells). Cracks is null when some part comes from no relic you can crack.
+ */
+export function finishEase(m: Model, missing: { name: string; count: number }[]): { odds: number; cracks: number | null } {
+  const odds = finishOdds(m, missing.map((x) => ({ name: x.name, need: x.count })));
+  let cracks = 0;
+  for (const x of missing) {
+    const yours = relicsFor(m, x.name)[0]?.best ?? 0;
+    const farm = Math.max(0, ...(m.sourcesByReward.get(x.name) ?? []).filter((s) => !s.vaulted || s.resurgence).map((s) => s.chanceIntact));
+    const p = Math.max(yours, farm) / 100;
+    if (!(p > 0)) return { odds, cracks: null };
+    cracks += x.count / p;
+  }
+  return { odds, cracks: Math.ceil(cracks) };
+}
+
 /** Chance of `need` copies of a part from the relics you hold, cracking each once. */
 export const partOdds = (m: Model, part: string, need = 1) => finishOdds(m, [{ name: part, need }]);
 

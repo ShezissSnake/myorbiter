@@ -17,6 +17,7 @@
   import RelicRuns from "../ui/RelicRuns.svelte";
   import RepButton from "../ui/RepButton.svelte";
   import GameIcon, { type GameIconName } from "../ui/GameIcon.svelte";
+  import { dropTotals } from "../core/drops";
 
   let { model, settings }: { model: Model; settings: Settings } = $props();
   let exported = $state<string | null>(null);
@@ -46,6 +47,17 @@
     { key: "vosfor", title: "Vosfor", icon: "vosfor", get: (p) => p.held?.vosfor },
     { key: "relics", title: "Relics held", icon: "relic-axi-intact", get: (p) => p.held?.relics },
   ];
+
+  // ---------------------------------------------------------------- parts you got
+  // Every prime part (and other gear part) that turned up between inventory reads in this span,
+  // trades left out (core/drops.ts), most first.
+  const got = $derived(
+    [...dropTotals(settings.game.drops, settings.market.trades, since)]
+      .map(([name, n]) => ({ name, n, each: model.price(name) }))
+      .sort((a, b) => b.n - a.n || (b.each ?? 0) * b.n - (a.each ?? 0) * a.n || a.name.localeCompare(b.name)),
+  );
+  const gotWorth = $derived(got.reduce((s, g) => s + (g.each ?? 0) * g.n, 0));
+  const gotCount = $derived(got.reduce((s, g) => s + g.n, 0));
 
   // ---------------------------------------------------------------- trades
   const trades = $derived(settings.market.trades.filter((t) => t.at >= since));
@@ -111,7 +123,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Stats" blurb="Your account over time, what your relic runs come to, and every trade you've made in game.">
+  <PageHead title="Stats" blurb="Your account over time, what your relic runs come to, the parts you got, and every trade you've made in game.">
     {#snippet band()}
       <Stat label="Revenue" note="Sales in this span"><P v={revenue} big /></Stat>
       <Stat label="Spent" tone="dim" note="Platinum paid for items"><P v={spent} big /></Stat>
@@ -134,6 +146,23 @@
   </div>
 
   <RelicRuns {model} runs={settings.game.relicRuns} {since} platPerDucat={settings.advice.platPerDucat} />
+
+  <section class="got">
+    <div class="hh">
+      <h2 class="register" title="Parts that turned up in your inventory between two reads, from relics, missions or anything else; what a trade brought in is left out">Parts you got</h2>
+      {#if got.length}<span class="small dim">{gotCount} part{gotCount === 1 ? "" : "s"} · <P v={Math.round(gotWorth)} /> at today's prices</span>{/if}
+    </div>
+    {#if got.length}
+      <ul class="gotl">
+        {#each got.slice(0, 60) as g (g.name)}
+          <li use:info={g.name}><Thumb file={model.imageOf(g.name)} name={g.name} size={26} /><span class="gn">{g.name}</span><b class="gq">×{g.n}</b><P v={g.each} dim /></li>
+        {/each}
+      </ul>
+      {#if got.length > 60}<p class="dim small">The 60 you got most of, of {got.length}.</p>{/if}
+    {:else}
+      <p class="dim small">{settings.game.drops.at ? "Nothing new between inventory reads in this span yet." : "Counted from your next inventory reads: each one is compared with the one before."} Prime parts and the parts of other gear count, from relics, missions or anything else; what a trade brought in doesn't.</p>
+    {/if}
+  </section>
 
   <div class="split">
     <section class="types">
@@ -179,6 +208,11 @@
 
 <style>
   .one { margin: .4rem 0 0; }
+  .got { margin: 0 0 var(--course); }
+  .gotl { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(17rem, 100%), 1fr)); gap: .35rem 1.2rem; }
+  .gotl li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: .5rem; align-items: center; min-width: 0; }
+  .gn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .88rem; }
+  .gq { font-family: var(--face-mark); color: var(--gold); }
   .nm { color: var(--platinum-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 14rem; }
   .bar { padding-top: .2rem; }
   .charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr)); gap: .8rem; margin: .8rem 0 var(--course); }

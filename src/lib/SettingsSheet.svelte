@@ -198,7 +198,7 @@
   <section>
     <h3 class="register">Selling</h3>
     <Switch bind:on={settings.market.sellable.saveForSets} label="Save prime parts for sets">
-      A loose prime part waits for its set instead of being sold on its own when the set sells for clearly more than its parts one by one (at least 10% and 5p more, each part at its price or its ducats at your rate, whichever is more), and you can still get every part it's missing: from a relic you own, a relic that still drops, or Varzia. When you put your spares on sale, your listing for a part comes down if every copy you hold is waiting (one you also keep copies of to build stays as you listed it). Sets → Saving up shows what's waiting and what's left to get.
+      A loose prime part waits for its set instead of being sold on its own when the set sells for clearly more than its parts one by one (at least 10% and 5p more, each part at its price or its ducats at your rate, whichever is more), and you can still get every part it's missing: from a relic you own, a relic that still drops, Varzia, or a part you've been getting lately (Stats, Parts you got). When you put your spares on sale, your listing for a part comes down if every copy you hold is waiting (one you also keep copies of to build stays as you listed it). Sets → Saving up shows what's waiting and what's left to get.
     </Switch>
     {#if !onConsole}
     <p class="hint">Off: never counted as spare on Inventory, and never put up by "Everything else I don't need" on Orders.</p>

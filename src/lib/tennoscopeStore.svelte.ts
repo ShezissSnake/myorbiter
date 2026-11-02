@@ -38,7 +38,11 @@ class TennoscopeStore {
 
   /** `force`: you asked for it (Start TennoScope), so it starts now whatever the wait. */
   async check(start = false, force = false) {
-    if (this.busy) return;
+    // A press of Start isn't dropped because a routine check is under way: it runs right after.
+    if (this.busy) {
+      if (force) setTimeout(() => void this.check(start, force), 400);
+      return;
+    }
     this.busy = true;
     try {
       const now = Date.now();
@@ -46,7 +50,7 @@ class TennoscopeStore {
       const wasRunning = !!this.status?.running;
       // Not where TennoScope can't run (macOS); and a start that fails waits longer each time,
       // like one that crashes, rather than trying (and notifying) every 15 seconds.
-      const relaunch = start && this.launch && this.status?.supported !== false && !wasRunning && now >= this.nextLaunch;
+      const relaunch = start && (force || this.launch) && this.status?.supported !== false && !wasRunning && now >= this.nextLaunch;
       if (relaunch) {
         this.relaunches++;
         this.nextLaunch = now + Math.min(15_000 * 2 ** (this.relaunches - 1), 600_000);

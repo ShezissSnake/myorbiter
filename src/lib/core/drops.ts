@@ -25,10 +25,12 @@ export interface DropLog {
   counts: Record<string, number>;
   /** Reads that added something, oldest first. */
   windows: DropWindow[];
-  /** A read with under half the parts was skipped; a second one in a row is believed (you sold or traded in a lot). */
-  low?: boolean;
+  /** When a read with under half the parts was skipped; a later one in a row is believed (you sold or traded in a lot). */
+  lowAt?: number;
   /** Parts a read showed none of, kept at their last count until a second read agrees (one read missing a whole category isn't a sale). */
   gone?: string[];
+  /** What was being built of each tracked part in the foundry then: one claimed since isn't a drop. */
+  building?: Record<string, number>;
 }
 
 export const emptyDropLog = (): DropLog => ({ at: 0, counts: {}, windows: [] });
@@ -68,6 +70,19 @@ export function dropCounts(m: Model): Record<string, number> {
   return out;
 }
 
+/** What's being built in the foundry of each tracked part (a Duviri weapon's barrel, say), by name. */
+export function dropBuilding(m: Model): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [u, name] of gearParts(m)) {
+    const n = m.inFoundry(`${u}Blueprint`) + m.inFoundry(u);
+    if (n > 0) out[name] = (out[name] ?? 0) + n;
+  }
+  return out;
+}
+
+/** This many parts vanishing in one read is a read that missed them, not a sale. */
+const GONE_AT_ONCE = 3;
+
 const total = (c: Record<string, number>) => Object.values(c).reduce((a, b) => a + b, 0);
 
 const same = (a: Record<string, number>, b: Record<string, number>) => {
@@ -79,32 +94,36 @@ const same = (a: Record<string, number>, b: Record<string, number>) => {
  * Takes in an inventory read. The first one holding anything sets the baseline. Partial reads don't
  * become drops: a read showing under half the parts the last one did is skipped, unless the next
  * one agrees (then it's the new baseline, with nothing counted); a part a read shows none of keeps
- * its last count until the next read agrees. Null when nothing changes (an older or the same read).
+ * its last count until the next read agrees. A part that left the foundry since (`building`, what
+ * the foundry held of each part) was built, not dropped. Null when nothing changes (an older or the
+ * same read).
  */
-export function recordRead(log: DropLog, counts: Record<string, number>, at: number, now = at): DropLog | null {
+export function recordRead(log: DropLog, counts: Record<string, number>, at: number, now = at, building: Record<string, number> = {}): DropLog | null {
   if (at <= log.at) return null;
   const sum = total(counts);
-  if (!log.at) return sum > 0 ? { at, counts, windows: [] } : null;
+  const withBuilding = (l: DropLog): DropLog => (Object.keys(building).length ? { ...l, building } : l);
+  if (!log.at) return sum > 0 ? withBuilding({ at, counts, windows: [] }) : null;
   const before = total(log.counts);
-  if (sum < before / 2) return log.low ? { at, counts, windows: log.windows } : { ...log, low: true };
-  // A part that's gone: kept at its last count for one read.
+  // The same read again (the model rebuilt) isn't a second one.
+  if (sum < before / 2) return log.lowAt != null && at > log.lowAt ? withBuilding({ at, counts, windows: log.windows }) : log.lowAt === at ? null : { ...log, lowAt: at };
+  // Parts that are gone: one or two you sold the last of; several at once is a read that missed a
+  // kind of item, so those keep their last count for one read.
   const base: Record<string, number> = { ...counts };
-  const gone: string[] = [];
-  for (const [name, n] of Object.entries(log.counts)) {
-    if (name in counts || log.gone?.includes(name)) continue;
-    base[name] = n;
-    gone.push(name);
-  }
+  const vanished = Object.keys(log.counts).filter((name) => !(name in counts) && !log.gone?.includes(name));
+  const gone = vanished.length >= GONE_AT_ONCE ? vanished : [];
+  for (const name of gone) base[name] = log.counts[name];
   const gains: Record<string, number> = {};
   for (const [name, n] of Object.entries(counts)) {
-    const more = n - (log.counts[name] ?? 0);
+    // Copies that left the foundry since the last read were claimed, not dropped.
+    const claimed = Math.max(0, (log.building?.[name] ?? 0) - (building[name] ?? 0));
+    const more = n - (log.counts[name] ?? 0) - claimed;
     if (more > 0) gains[name] = more;
   }
   const kept = log.windows.filter((w) => w.at >= now - KEEP_DAYS * DAY);
   const any = Object.keys(gains).length > 0;
   // Nothing new and nothing to forget: no need to save the log again.
-  if (!any && kept.length === log.windows.length && !log.low && !gone.length && !log.gone?.length && same(base, log.counts)) return null;
-  const next: DropLog = { at, counts: base, windows: any ? [...kept, { from: log.at, at, gains }] : kept };
+  if (!any && kept.length === log.windows.length && log.lowAt == null && !gone.length && !log.gone?.length && same(base, log.counts) && same(building, log.building ?? {})) return null;
+  const next: DropLog = withBuilding({ at, counts: base, windows: any ? [...kept, { from: log.at, at, gains }] : kept });
   if (gone.length) next.gone = gone;
   return next;
 }

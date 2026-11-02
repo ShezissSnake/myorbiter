@@ -990,7 +990,8 @@ export function inventoryRows(m: Model): InventoryItem[] {
 export function spareOf(m: Model, name: string, tags: string[] | null, save: SaveForSets | null = null): { rank: number | null; quantity: number } | null {
   if (tags?.includes("set")) {
     const set = setRows(m).find((s) => `${s.name} Set` === name);
-    return set ? { rank: null, quantity: set.sellable } : { rank: null, quantity: 0 };
+    // Other sets (Mandonel, Sarofang) aren't counted here: what you hold decides.
+    return set ? { rank: null, quantity: set.sellable } : tags.includes("prime") ? { rank: null, quantity: 0 } : null;
   }
   const part = partRows(m, save).find((p) => p.name === name);
   if (part) return { rank: null, quantity: part.spare };

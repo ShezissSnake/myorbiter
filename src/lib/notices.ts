@@ -25,6 +25,7 @@ export interface NoticeKindInfo {
 
 export const NOTICE_KINDS: NoticeKindInfo[] = [
   { kind: "sold", group: "Trading", label: "Something sold", hint: "A trade in game sold one of your listings: orbiter marked it sold on warframe.market and logged the platinum.", icon: "platinum", to: "sales", pcOnly: true },
+  { kind: "setDone", group: "Trading", label: "A set you saved for is complete", hint: "The parts your loose ones were waiting for came in: the whole set is in your inventory, ready to sell (Sets → Sets you can sell).", icon: "foundry", to: "sets", pcOnly: true },
   { kind: "repriced", group: "Trading", label: "Listings repriced", hint: "Apply automatically moved some of your listings to the cheapest price in game: which, from what, to what.", icon: "market", to: "market", pcOnly: false },
   { kind: "market", group: "Trading", label: "Listing problems", hint: "A listing for more than you now hold, warframe.market refusing a change or not answering, or your sign-in expiring.", consoleHint: "warframe.market refusing a change or not answering, or your sign-in expiring.", icon: "market", to: "market", pcOnly: false },
   { kind: "siteChat", group: "Trading", label: "Messages on warframe.market", hint: "A buyer writes to you on the website's chat rather than whispering in game (read each minute while you're signed in).", icon: "market", to: "market", pcOnly: false },

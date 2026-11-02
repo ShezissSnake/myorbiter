@@ -70,7 +70,9 @@
   // What would go on sale: not what's held back for ducats.
   const targets = $derived(sellTargets(model, settings.market.bulk, settings.advice, mkt.index, settings.market.sellable, drops.recent).filter((t) => !t.hold));
   const valueOf = (kind: BulkKind, name: string) => (kind === "arcane" ? (model.priceMax(name) ?? model.price(name)) : model.price(name));
-  const worthy = $derived(targets.map((t) => ({ ...t, each: t.each !== undefined ? t.each : valueOf(t.kind, t.name) })).filter((t) => t.each != null && t.each >= settings.market.minPrice));
+  const worthy = $derived(targets.map((t) => ({ ...t, each: t.each !== undefined ? t.each : valueOf(t.kind, t.name) })).filter((t) => t.each != null && t.each >= minFor(t.name)));
+  // Relics have their own minimum, as Put my spares on sale uses (they go in stacks).
+  const minFor = (name: string) => (/ Relic$/.test(name) ? settings.market.minRelicPrice : settings.market.minPrice);
   const byKind = $derived(
     BULK_KINDS
       .map((k) => {
@@ -114,11 +116,14 @@
       for (const x of s.missing) {
         for (const src of model.sourcesByReward.get(x.name) ?? []) {
           if (!(model.ownedRelicCount.get(src.base) ?? 0)) continue;
+          // Omnia fissures take a relic of any era but Requiem.
           const era = src.base.split(" ")[0];
-          const e = out.get(era) ?? { sets: [], relics: [] };
-          if (!e.sets.includes(s.set)) e.sets.push(s.set);
-          if (!e.relics.includes(src.base)) e.relics.push(src.base);
-          out.set(era, e);
+          for (const key of era === "Requiem" ? [era] : [era, "Omnia"]) {
+            const e = out.get(key) ?? { sets: [], relics: [] };
+            if (!e.sets.includes(s.set)) e.sets.push(s.set);
+            if (!e.relics.includes(src.base)) e.relics.push(src.base);
+            out.set(key, e);
+          }
         }
       }
     }
@@ -412,7 +417,7 @@
       {:else if !byKind.length}
         <p class="dim">Nothing spare worth {settings.market.minPrice}p or more in what you ticked.</p>
       {:else}
-        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Only the kinds ticked under Put my spares on sale, on Orders, and only what's worth at least your minimum price there">at daily median prices: what Put my spares on sale covers, {settings.market.minPrice}p and up{unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
+        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Only the kinds ticked under Put my spares on sale, on Orders, and only what's worth at least your minimum price there (relics: your relic minimum)">at daily median prices: what Put my spares on sale covers, {settings.market.minPrice}p and up{settings.market.bulk.other ? ` (relics ${settings.market.minRelicPrice}p)` : ""}{unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
         <ul class="kinds">
           {#each byKind as k (k.kind)}
             <li>
@@ -460,7 +465,7 @@
             <li><GameIcon name={eraIcon(w.fissure.tier)} size={18} /><b class="mark">{w.fissure.isHard ? "SP " : ""}{w.fissure.tier} {w.fissure.missionType}</b><span class="dim small">{w.fissure.node} · {w.fissure.enemy}</span><span class="grow"></span><span class="small nowrap">{until(w.fissure.expiry, now)} left</span></li>
           {/each}
         </ul>
-      {:else if settings.fissureRules.length}
+      {:else if settings.fissureRules.length && !watched.length}
         <p class="dim small">Nothing matching open right now{settings.notify.fissures ? "; you'll get a notification when one opens" : ""}.</p>
       {/if}
     </section>

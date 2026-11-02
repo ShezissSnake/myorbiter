@@ -114,9 +114,10 @@ test("the drop log skips a partial read and forgets gains after 90 days", () => 
   const full = { [SYS]: 4, [BP]: 4, [CHASSIS]: 4 };
   let log = recordRead(emptyDropLog(), full, t0)!;
   log = recordRead(log, { [SYS]: 1 }, t0 + 1000)!;
-  assert.deepEqual([log.at, log.low, log.counts], [t0, true, full], "a read with most of it missing is set aside");
+  assert.deepEqual([log.at, log.lowAt, log.counts], [t0, t0 + 1000, full], "a read with most of it missing is set aside");
+  assert.equal(recordRead(log, { [SYS]: 1 }, t0 + 1000), null, "the same read again (the model rebuilt) isn't a second one");
   log = recordRead(log, { ...full, [SYS]: 5 }, t0 + 2000)!;
-  assert.equal(log.low, undefined);
+  assert.equal(log.lowAt, undefined);
   assert.deepEqual(log.windows.map((w) => w.gains), [{ [SYS]: 1 }]);
   const later = t0 + 91 * 86_400_000;
   log = recordRead(log, { ...full, [SYS]: 5, [BP]: 5 }, later)!;
@@ -143,14 +144,15 @@ test("the drop log after a big sale, an empty first read, and a read missing a w
   let log = recordRead(emptyDropLog(), { a: 100, b: 100 }, t0)!;
   log = recordRead(log, { a: 20, b: 30 }, t0 + 1000)!;
   log = recordRead(log, { a: 21, b: 30 }, t0 + 2000)!;
-  assert.deepEqual([log.counts, log.windows.length, log.low], [{ a: 21, b: 30 }, 0, undefined]);
+  assert.deepEqual([log.counts, log.windows.length, log.lowAt], [{ a: 21, b: 30 }, 0, undefined]);
   log = recordRead(log, { a: 22, b: 30 }, t0 + 3000)!;
   assert.deepEqual(log.windows.map((w) => w.gains), [{ a: 1 }], "and drops count again after");
-  // One read missing the gear parts: they keep their count, and coming back isn't a drop.
-  log = recordRead(emptyDropLog(), { a: 10, b: 10, c: 3 }, t0)!;
+  // One read missing the gear parts (several at once): they keep their count, and coming back isn't a drop.
+  const gear = { c: 3, d: 1, e: 2 };
+  log = recordRead(emptyDropLog(), { a: 10, b: 10, ...gear }, t0)!;
   log = recordRead(log, { a: 10, b: 10 }, t0 + 1000)!;
-  assert.deepEqual([log.counts.c, log.gone], [3, ["c"]]);
-  log = recordRead(log, { a: 10, b: 10, c: 3 }, t0 + 2000)!;
+  assert.deepEqual([log.counts.c, log.gone], [3, ["c", "d", "e"]]);
+  log = recordRead(log, { a: 10, b: 10, ...gear }, t0 + 2000)!;
   assert.deepEqual([log.windows.length, log.gone], [0, undefined]);
   // Gone two reads running: sold, and forgotten.
   log = recordRead(log, { a: 10, b: 10 }, t0 + 3000)!;
@@ -169,4 +171,37 @@ test("a waiting part's listing comes down only when nothing else keeps a copy", 
   // The Blueprint and Neuroptics come from no relic here: ones you've been getting.
   const c = sellTargets(unbuilt, rules, advice, null, sell, new Map([[BP, 1], [NEURO, 1]])).find((x) => x.name === CHASSIS);
   assert.equal(c?.hold?.takeDown, false, "copies kept to build: a listing you made stays as listed");
+});
+
+test("a part claimed from the foundry isn't a drop", () => {
+  const t0 = 1_800_000_000_000;
+  let log = recordRead(emptyDropLog(), { a: 5, "Barrel": 1 }, t0, t0, { "Barrel": 1 })!;
+  // The barrel being built is claimed: one more held, nothing building.
+  log = recordRead(log, { a: 5, "Barrel": 2 }, t0 + 1000, t0 + 1000, {})!;
+  assert.deepEqual(log.windows, []);
+  // A barrel that drops while another is building is still a drop.
+  log = recordRead(log, { a: 5, "Barrel": 3 }, t0 + 2000, t0 + 2000, { "Barrel": 1 })!;
+  assert.deepEqual(log.windows.map((w) => w.gains), [{ "Barrel": 1 }]);
+});
+
+test("how easy a saved set is to finish: cracks at the best chance, and odds from relics you hold", async () => {
+  const { finishEase } = await import("../src/lib/core/wishlist");
+  const missing = [{ name: SYS, count: 1 }];
+  // Lith K1 still drops (2% intact) but you hold none.
+  const none = finishEase(buildModel(bundle(three())), missing);
+  assert.deepEqual(none, { odds: 0, cracks: 50 });
+  // Holding three: each crack 2%.
+  const held = finishEase(buildModel(bundle([...three(), inv("/Relic/K1Bronze", "Lith K1 Intact", "relic", 3)])), missing);
+  assert.equal(held.cracks, 50);
+  assert.ok(Math.abs(held.odds - (1 - 0.98 ** 3)) < 1e-9);
+  // A part from no relic (the blueprint): no crack count.
+  assert.equal(finishEase(buildModel(bundle(three())), [{ name: BP, count: 1 }]).cracks, null);
+});
+
+test("a part you sold the last of, then got again, is a drop", () => {
+  const t0 = 1_800_000_000_000;
+  let log = recordRead(emptyDropLog(), { a: 1, b: 10 }, t0)!;
+  log = recordRead(log, { b: 10 }, t0 + 1000)!;
+  log = recordRead(log, { a: 1, b: 10 }, t0 + 2000)!;
+  assert.deepEqual(log.windows.map((w) => w.gains), [{ a: 1 }]);
 });

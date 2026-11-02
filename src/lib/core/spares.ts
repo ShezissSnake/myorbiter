@@ -3,7 +3,7 @@
 // rivens. What you need is worked out from what you haven't built yet: every unmastered thing
 // you don't own keeps the parts, blueprints and resources its recipe takes.
 import { baseId, gearSetParts, heldCount, UNOBTAINABLE, type Model, type Refinement } from "./model";
-import { findItem, type MarketIndex } from "./market";
+import { craftVariantOf, findItem, type MarketIndex } from "./market";
 import { copyValue } from "./vosfor";
 import { arcaneRows, inventoryRows, MASTERY_CATEGORIES, modRows, modSpares, partRows, relicRows, saveForSets, savedLine, saveSource, setRows, setSaves, worthSaving, type SaveForSets, type SetSave, type InventoryItem, type InventoryKind, type RelicRow, type SetRow } from "./views";
 import { expectedBest } from "./advice";
@@ -321,6 +321,18 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
         price = m.price(veiled);
       }
     }
+    // Sold as the blueprint or built (Ambassador Barrel, Cinta Lower Limb Blueprint): the market's
+    // item, as the variant this copy is.
+    let variant: string | null = null;
+    if ((r.kind === "resource" || r.kind === "blueprint") && index) {
+      const v = craftVariantOf(index, r.unique);
+      if (v) {
+        name = v.item.name;
+        variant = v.subtype;
+        // The daily price is for the first variant only.
+        price = v.item.subtypes?.[0] === v.subtype ? m.price(name) : null;
+      }
+    }
     if (!name && (r.kind === "resource" || r.kind === "blueprint")) {
       const shown = display.get(baseId(r.unique)) ?? r.name;
       const listed = index ? findItem(index, shown, r.unique) : null;
@@ -449,7 +461,7 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
       kind: r.kind,
       type: typeOf(r, name),
       rank: r.rank,
-      subtype: r.subtype,
+      subtype: variant ?? r.subtype,
       quantity: r.quantity,
       keep,
       spare,

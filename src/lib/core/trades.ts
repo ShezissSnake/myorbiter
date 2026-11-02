@@ -53,7 +53,11 @@ const REFINEMENT = /\s*[[(]?\b(Intact|Exceptional|Flawless|Radiant)\b[\])]?/i;
 /** A relic's refinement, when the trade names it ("Axi A1 Relic [Radiant]"), and the name without it. */
 export function splitRefinement(name: string): { name: string; subtype: string | null } {
   const hit = REFINEMENT.exec(name);
-  return hit ? { name: name.replace(REFINEMENT, "").trim(), subtype: hit[1].toLowerCase() } : { name, subtype: null };
+  if (!hit) return { name, subtype: null };
+  const rest = name.replace(REFINEMENT, "").trim();
+  // Only a relic's: "Radiant Zodian" is a gem, not a radiant Zodian.
+  if (!/\bRelic\b/i.test(rest) && !/^(Lith|Meso|Neo|Axi|Requiem)\s/i.test(rest)) return { name, subtype: null };
+  return { name: rest, subtype: hit[1].toLowerCase() };
 }
 
 /**
