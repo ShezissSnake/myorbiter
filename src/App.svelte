@@ -72,6 +72,8 @@
   import Sales from "./lib/tabs/Sales.svelte";
   import Guide from "./lib/tabs/Guide.svelte";
   import Inventory from "./lib/tabs/Inventory.svelte";
+  import WhatsNew from "./lib/WhatsNew.svelte";
+  import { NEWEST, newsSince } from "./lib/whatsNew";
   import Market from "./lib/tabs/Market.svelte";
   import Foundry from "./lib/tabs/Foundry.svelte";
   import Stats from "./lib/tabs/Stats.svelte";
@@ -215,6 +217,16 @@
   let loading = $state(true);
   let showSettings = $state(false);
   let showTennoscope = $state(false);
+  // What's new: once after an update, when there's something you haven't seen.
+  let showNews = $state(false);
+  let newsChecked = false;
+  $effect(() => {
+    // Read first: settingsReady isn't reactive, the loaded settings are.
+    const seen = settings.newsSeen;
+    if (!settingsReady || newsChecked) return;
+    newsChecked = true;
+    if (newsSince(seen).length) showNews = true;
+  });
   let defaultDir = $state("");
   let stamp = 0;
   let mission = $state.raw<MissionState | null>(null);
@@ -1354,10 +1366,10 @@
       return;
     }
     // From Settings, Notifications or TennoScope's panel, F1 and Ctrl+, still go where they say.
-    const sheetOpen = showSettings || showNotices || showTennoscope;
+    const sheetOpen = showSettings || showNotices || showTennoscope || showNews;
     if (sheetOpen && (e.key === "F1" || (ctrl && e.key === ","))) {
       e.preventDefault();
-      showNotices = showTennoscope = false;
+      showNotices = showTennoscope = showNews = false;
       showSettings = e.key !== "F1";
       if (e.key === "F1") settings.tab = "guide";
       return;
@@ -1896,6 +1908,7 @@
 
 <NoticesSheet bind:open={showNotices} bind:view={noticesView} bind:settings console={onConsole} open_={openNotice} test={testNotice} />
 <Toasts open={openNotice} left={compact ? "5.2rem" : "15.3rem"} />
+<WhatsNew bind:open={showNews} seen={settings.newsSeen} ondone={() => (settings.newsSeen = NEWEST)} />
 <SettingsSheet bind:open={showSettings} bind:settings {rivenKeyError} onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
 <TennoscopeSheet bind:open={showTennoscope} synced={model ? ago(model.observedAt, tick) : "not yet"} {syncing} onsync={refreshAll} {windowMode} bind:opaqueOverlay={settings.tennoscope.opaqueOverlay} />
 

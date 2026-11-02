@@ -10,6 +10,7 @@ import type { FissureRule } from "./core/timers";
 import type { RivenAuction, RivenMeta, RivenRaw, RivenSnap } from "./core/rivens";
 import type { ImprintRaw } from "./core/imprints";
 import type { GearCopy } from "./core/notNeeded";
+import { NEWEST } from "./whatsNew";
 import { DEFAULT_HIDE_MINUTES, type HiddenForWhisper } from "./core/lastCopy";
 import type { Invasion } from "./core/invasions";
 import type { SyndicateMission } from "./core/board";
@@ -138,6 +139,8 @@ export interface Settings {
   notifyOptions: NotifyOptions;
   /** Pages you took out of the sidebar (Settings → Pages). */
   pagesHidden: string[];
+  /** The What's new entry last seen (its date); "" for none yet. */
+  newsSeen: string;
   /** Which tidy-ups of the sidebar have been applied (1: Planner, Market and Stats out by default, Oct 2026). */
   simplified: number;
   /** The sidebar's order, when you changed it (Settings → Pages): page ids. */
@@ -344,6 +347,7 @@ export const defaultSettings = (): Settings => ({
   notify: defaultNotify(),
   notifyOptions: defaultNotifyOptions(),
   pagesHidden: ["planner", "browse", "stats"],
+  newsSeen: NEWEST,
   simplified: 1,
   pageOrder: [],
   startPage: "last",
@@ -703,6 +707,8 @@ export async function loadSettings(): Promise<Settings> {
       },
     },
     // Once: the pages most people rarely open leave the sidebar (Settings → Pages puts them back).
+    // Someone who had orbiter before this was kept: everything is new to them. A first start: nothing is.
+    newsSeen: typeof raw?.newsSeen === "string" ? raw.newsSeen : raw ? "" : NEWEST,
     pagesHidden: (() => {
       const had: string[] = Array.isArray(raw?.pagesHidden) ? raw.pagesHidden.filter((k: unknown): k is string => typeof k === "string") : [];
       return raw && (raw.simplified ?? 0) < 1 ? [...new Set([...had, "planner", "browse", "stats"])] : raw ? had : base.pagesHidden;

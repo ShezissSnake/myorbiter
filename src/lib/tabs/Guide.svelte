@@ -5,6 +5,8 @@
   import Metal from "../ui/Metal.svelte";
   import Effort from "../ui/Effort.svelte";
   import Icon from "../ui/Icon.svelte";
+  import { NEWS } from "../whatsNew";
+  import { BUILD } from "../build";
 
   // console: the short guide, for the pages a console or phone player has. platform: where they play.
   let { go, plannerMode = $bindable(), console = false, platform = "PC" }: { go: (tab: string) => void; plannerMode: "sets" | "radiant"; console?: boolean; platform?: string } = $props();
@@ -186,9 +188,21 @@
     </article>
   </section>
 {/if}
+
+  <section class="news" aria-label="What's new">
+    <h3 class="register lead">What's new</h3>
+    {#each NEWS as n (n.date)}
+      <h4 class="register">{new Date(`${n.date}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}</h4>
+      <ul>{#each n.items as item (item)}<li>{item}</li>{/each}</ul>
+    {/each}
+    <p class="dim small">This build: {BUILD.commit}{BUILD.date ? `, ${BUILD.date}` : ""}. Say it when you report a problem.</p>
+  </section>
 </div></div>
 
 <style>
+  .news { margin-top: var(--course); display: grid; gap: .5rem; max-width: 80ch; }
+  .news h4 { margin: .6rem 0 0; font-size: .6rem; color: var(--platinum-deep); }
+  .news ul { margin: 0; padding-left: 1.1rem; display: grid; gap: .35rem; font-size: .86rem; color: var(--platinum-dim); line-height: 1.5; }
   /* An icon named in the text, drawn as it is on the page. */
   .ic { display: inline-grid; place-items: center; width: 1.3rem; height: 1.3rem; vertical-align: -.3rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
   .ic.good { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 50%, transparent); }

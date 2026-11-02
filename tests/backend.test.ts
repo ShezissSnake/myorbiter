@@ -264,3 +264,16 @@ test("the Circuit's picks last the week, not the two-hour mood its expiry gives;
   assert.equal(kept.live.invasions?.length, 1);
   assert.equal(pruneLive(kept.live, at + 61 * 60_000).invasions, null);
 });
+
+test("What's new: everything for someone who had orbiter before, nothing on a first start", async () => {
+  const { loadSettings } = await import("../src/lib/backend");
+  const { NEWEST, newsSince, NEWS } = await import("../src/lib/whatsNew");
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({ market: {} }) };
+  assert.equal((await loadSettings()).newsSeen, "");
+  assert.equal(newsSince("").length, NEWS.length);
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => null };
+  assert.equal((await loadSettings()).newsSeen, NEWEST);
+  assert.equal(newsSince(NEWEST).length, 0);
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({ newsSeen: "2026-11-01" }) };
+  assert.deepEqual(newsSince((await loadSettings()).newsSeen).map((n) => n.date), NEWS.filter((n) => n.date > "2026-11-01").map((n) => n.date));
+});
