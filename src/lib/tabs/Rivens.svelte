@@ -15,7 +15,6 @@
   import Art from "../ui/Art.svelte";
   import P from "../ui/P.svelte";
   import GameIcon from "../ui/GameIcon.svelte";
-  import Seg from "../ui/Seg.svelte";
   import Chip from "../ui/Chip.svelte";
   import IconButton from "../ui/IconButton.svelte";
   import Icon from "../ui/Icon.svelte";
@@ -402,7 +401,16 @@
         {#if companions}<option value="companion">Companion weapons ({companions})</option>{/if}
       </select>
       {#if splicedCount}<Chip bind:on={splicedOnly} label="Spliced ({splicedCount})" title="Only rivens with a stat from Riven Splicing (Gas, Corrosive, Weak Point Damage…), which can't roll by cycling" />{/if}
-      <Seg label="Sort" bind:value={sort} options={[{ v: "grade", label: "Best rolls", title: "The best overall grade first" }, { v: "weapon", label: "Weapon", title: "By weapon, A to Z" }, { v: "rank", label: "Rank", title: "The highest rank first" }, { v: "traded", label: "Trade value", title: "What rivens for the weapon (cycled or not, like yours) traded for in game last week, highest first: the ones worth selling, whatever their stats" }, { v: "any", label: "Any price", title: "The cheapest riven listed for the weapon on warframe.market, whatever its stats (Any … riven from), highest first. Rivens not price checked yet go last" }, { v: "similar", label: "Similar price", title: "What rivens with the same two best stats are mostly listed for (most around), highest first. Rivens not price checked yet go last" }]} />
+      <label class="sortsel" title="How the rivens are ordered"><span class="register">Sort</span>
+        <select bind:value={sort} aria-label="Sort rivens">
+          <option value="grade" title="The best overall grade first">Best rolls</option>
+          <option value="weapon" title="By weapon, A to Z">Weapon</option>
+          <option value="rank" title="The highest rank first">Rank</option>
+          <option value="traded" title="What rivens for the weapon (cycled or not, like yours) traded for in game last week, highest first: the ones worth selling, whatever their stats">Trade value</option>
+          <option value="any" title="The cheapest riven listed for the weapon on warframe.market, whatever its stats (Any … riven from), highest first. Rivens not price checked yet go last">Any price</option>
+          <option value="similar" title="What rivens with the same two best stats are mostly listed for (most around), highest first. Rivens not price checked yet go last">Similar price</option>
+        </select>
+      </label>
       {#if checkingAll}
         <span class="checking"><span class="dim small">{checkingAll.paused ? `${checkingAll.retry ? "Some checks failed" : "warframe.market asked to slow down"}: waiting half a minute, then ${checkingAll.retry ? "trying those again" : `${checkingAll.done + 1} of ${checkingAll.total}`}…` : `${checkingAll.retry ? "Trying again" : "Checking"} ${checkingAll.done + 1} of ${checkingAll.total}…`}</span><button class="link" onclick={() => (stopAll = true)}>Stop</button></span>
       {:else}
@@ -601,6 +609,8 @@
 </div></div>
 
 <style>
+  .sortsel { display: inline-flex; align-items: center; gap: .55rem; }
+  .sortsel .register { font-size: .6rem; }
   .selling { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; padding: .6rem .7rem; margin-top: .6rem; border: 1px solid var(--rule-bright); background: var(--well); }
   .selling.on { border-color: color-mix(in srgb, var(--verdigris) 45%, transparent); box-shadow: inset 2px 0 0 var(--verdigris); }
   .selling label { display: inline-flex; align-items: center; gap: .45rem; }

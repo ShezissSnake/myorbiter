@@ -450,8 +450,8 @@
           {@const paused = settings.paused[listingKey(o)]}
           {@const held = stock(o)}
           {@const change = changeOf(o)}
-          <tr class:hidden={!o.visible}>
-            <td class="fade">
+          <tr class="order" class:hidden={!o.visible}>
+            <td class="fade c-item">
               <Named file={model.imageOf(it?.name ?? "")} name={it?.name ?? o.itemId}>
                 {#if it}<button type="button" class="charted" class:on={charted === o.id} aria-label="Price history" aria-expanded={charted === o.id} title="What it sold for over the last 90 days, against your price" onclick={() => (charted = charted === o.id ? null : o.id)}><Icon name="chart" size={13} /></button>{/if}
                 {#if rankLabel(o)}<span class="tag">{rankLabel(o)}</span>{/if}
@@ -468,11 +468,11 @@
                 </div>
               {/if}
             </td>
-            <td class="right">
+            <td class="right c-qty" data-label="Qty">
               <input type="number" min="1" inputmode="numeric" class:edited={change?.quantity != null} value={edits[o.id]?.quantity ?? o.quantity}
                 oninput={(e) => edit(o, "quantity", e.currentTarget.value)} onkeydown={(e) => editKey(o, e)} onwheel={(e) => e.currentTarget.blur()} aria-label="Quantity" />
             </td>
-            <td class="right">
+            <td class="right c-price" data-label="Your price">
               <input type="number" min="1" inputmode="numeric" class:edited={change?.platinum != null} value={edits[o.id]?.platinum ?? o.platinum}
                 oninput={(e) => edit(o, "platinum", e.currentTarget.value)} onkeydown={(e) => editKey(o, e)} onwheel={(e) => e.currentTarget.blur()} aria-label="Your price" />
               <!-- Narrow windows hide Will set: what Reprice would do shows under the price instead. -->
@@ -486,7 +486,7 @@
                 </div>
               {/if}
             </td>
-            <td class="fade">
+            <td class="fade c-comp" data-label="Cheapest in game">
               {#if p && p.competitor.price != null}
                 <span class="comp"><P v={p.competitor.price} /> <span class="dim small">{p.competitor.cheapest?.name} · {p.competitor.sellers} in game</span></span>
                 {@const goes = goesFor(p)}
@@ -504,9 +504,9 @@
               {:else if p}<span class="register ok">matched</span>{/if}
             </td>
             <td class="right floorcol"><input type="number" min="1" style:width="4.8rem" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor for this listing" title="Your own floor for this listing; empty uses the automatic one" value={settings.floors[listingKey(o)] ?? ""} onchange={(e) => setFloor(o, e.currentTarget.value)} /></td>
-            <td class="center"><Toggle on={!paused && o.visible} disabled={!o.visible} label="Auto-price: match the cheapest in-game seller" title={!o.visible ? "Hidden listings aren't repriced" : paused ? "Auto-price off: the price stays as you set it" : "Auto-price on: kept at the cheapest in-game seller's price"} onchange={() => togglePause(o)} /></td>
-            <td class="center"><Toggle on={o.visible} label="Shown to buyers" title={o.visible ? "Visible to buyers" : "Hidden from buyers"} disabled={!!mkt.busy} onchange={(v) => mkt.update(o, { visible: v })} /></td>
-            <td class="right">
+            <td class="center c-auto" data-label="Auto-price"><Toggle on={!paused && o.visible} disabled={!o.visible} label="Auto-price: match the cheapest in-game seller" title={!o.visible ? "Hidden listings aren't repriced" : paused ? "Auto-price off: the price stays as you set it" : "Auto-price on: kept at the cheapest in-game seller's price"} onchange={() => togglePause(o)} /></td>
+            <td class="center c-shown" data-label="Shown"><Toggle on={o.visible} label="Shown to buyers" title={o.visible ? "Visible to buyers" : "Hidden from buyers"} disabled={!!mkt.busy} onchange={(v) => mkt.update(o, { visible: v })} /></td>
+            <td class="right c-acts">
               <!-- Three fixed places, the same on every row: sold one, sold several, remove. A
                    confirm takes over the same places, its safe choice where the click just was. -->
               <span class="acts">
@@ -707,6 +707,21 @@
   :global(html[data-room~="lt900"]) .floorcol { display: none; }
   /* Less still: the headings wrap onto two lines rather than set the column widths. */
   :global(html[data-room~="lt760"]) .orders th { white-space: normal; line-height: 1.35; }
+  /* A narrow window: each listing a card. The item across the top, the rest in a row under it, each with its name. */
+  :global(html[data-room~="lt760"]) table.orders thead { display: none; }
+  :global(html[data-room~="lt760"]) table.orders, :global(html[data-room~="lt760"]) table.orders tbody { display: block; }
+  :global(html[data-room~="lt760"]) .orders tr.order { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto auto; grid-template-areas: "item item item item item item" "qty price comp auto shown acts"; column-gap: .6rem; row-gap: .45rem; align-items: end; padding: .7rem 0; border-bottom: 1px solid var(--rule); }
+  :global(html[data-room~="lt760"]) .orders tr.order > td { display: block; border: 0; padding: 0 !important; }
+  :global(html[data-room~="lt760"]) .orders tr.order > td:is(.willset, .floorcol) { display: none; }
+  :global(html[data-room~="lt760"]) .orders tr.order > td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .25rem; font-family: var(--face-register); font-size: .55rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); text-align: left; white-space: nowrap; }
+  :global(html[data-room~="lt760"]) .orders .c-item { grid-area: item; }
+  :global(html[data-room~="lt760"]) .orders .c-qty { grid-area: qty; }
+  :global(html[data-room~="lt760"]) .orders .c-price { grid-area: price; }
+  :global(html[data-room~="lt760"]) .orders .c-comp { grid-area: comp; min-width: 0; }
+  :global(html[data-room~="lt760"]) .orders .c-auto { grid-area: auto; }
+  :global(html[data-room~="lt760"]) .orders .c-shown { grid-area: shown; }
+  :global(html[data-room~="lt760"]) .orders .c-acts { grid-area: acts; }
+  :global(html[data-room~="lt760"]) .orders tr.chartrow, :global(html[data-room~="lt760"]) .orders tr.chartrow > td { display: block; }
   :global(html[data-room~="lt760"]) .orders input[type="number"] { width: 3.3rem; }
   :global(html[data-room~="lt760"]) .acts { gap: .3rem; }
   :global(html[data-room~="lt760"]) .orders :is(td, th):not(:first-child):not(:last-child) { padding-left: .3rem; padding-right: .3rem; }

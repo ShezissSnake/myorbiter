@@ -765,6 +765,9 @@
   .clock.reset b { color: var(--platinum); }
   /* Eight clocks to a row: the resets' ↻ makes room for their names. */
   .world:has(> .clock:nth-child(8)) .clock.reset > .rk { display: none; }
+  /* …and slimmer columns, so all eight share a row where seven otherwise would, leaving one alone. */
+  .world:has(> .clock:nth-child(8)) { grid-template-columns: repeat(auto-fit, minmax(7.4rem, 1fr)); }
+  .world:has(> .clock:nth-child(8)) .clock { padding-left: .7rem; padding-right: .6rem; gap: .5rem; }
   .rk { font-size: 1.2rem; color: var(--gold-dim); width: 22px; text-align: center; }
   .rk:empty { display: none; }
   .clip1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

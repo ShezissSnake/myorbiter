@@ -64,7 +64,7 @@
   const crackCols: Column<CrackRow>[] = [
     { key: "base", label: "Relic", value: (r) => r.base, defaultDesc: false, cell: relicCell },
     { key: "owned", label: "You have", value: (r) => Object.values(r.owned).reduce((a, b) => a + b, 0), cell: ownedCell, align: "right" },
-    { key: "vault", label: "Vault", value: (r) => (r.vaulted ? 1 : 0), cell: vaultCell, align: "center", title: "Vaulted: no new copies drop" },
+    { key: "vault", label: "Vault", spare: true, value: (r) => (r.vaulted ? 1 : 0), cell: vaultCell, align: "center", title: "Vaulted: no new copies drop" },
     { key: "chance", label: "Part chance", value: (r) => r.chance, cell: chanceCell, align: "right", title: "Chance one crack, at your best refinement, gives a part a near-complete set is missing" },
     { key: "value", label: "Per crack", value: (r) => r.value, cell: valueCell, align: "right", title: "Platinum per crack toward sets: each missing part at what it adds to its set (the set's price over what your other parts already sell for loose), never less than the part's own price" },
     { key: "hits", label: "Parts it can give", value: (r) => r.hits.length, cell: hitsCell, sortable: false, width: "40%" },
@@ -97,7 +97,7 @@
   const radCols: Column<RadiantRow>[] = $derived([
     { key: "base", label: "Relic", value: (r) => r.base, defaultDesc: false, cell: radRelicCell },
     { key: "owned", label: "You have", value: (r) => r.refinable, cell: radOwnedCell, align: "right", title: "Copies you could still refine" },
-    { key: "vault", label: "Vault", value: (r) => (r.vaulted ? 1 : 0), cell: vaultCell, align: "center", title: "Vaulted: no new copies drop" },
+    { key: "vault", label: "Vault", spare: true, value: (r) => (r.vaulted ? 1 : 0), cell: vaultCell, align: "center", title: "Vaulted: no new copies drop" },
     { key: "rare", label: "Rare reward", value: (r) => r.rare?.price ?? null, cell: rareCell, title: "The rare drop: 2% from an intact relic, 10% from a radiant one" },
     { key: "intact", label: `${metric === "need" ? "Need, intact" : "Avg intact"}${settings.squad > 1 ? " ×4" : ""}`, value: (r) => r.intact, cell: intactCell, align: "right" },
     { key: "radiant", label: `${metric === "need" ? "Need, radiant" : "Avg radiant"}${settings.squad > 1 ? " ×4" : ""}`, value: (r) => r.radiant, cell: radiantCell, align: "right" },
