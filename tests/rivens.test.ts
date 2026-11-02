@@ -209,3 +209,17 @@ test("a riven naming its family's Base path is the plain weapon's (the Hek's say
   assert.equal(compatWeapon(m, "/Lotus/Weapons/Tenno/Shotgun/QuadShotgunPrime")?.name, "Hek Prime", "an exact path stays itself");
   assert.equal(compatWeapon(m, "/Lotus/Weapons/Tenno/Shotgun/NothingBase"), undefined);
 });
+
+test("a new buyout keeps an auction what it was: no bidding stays no bidding", async () => {
+  const { startingFor } = await import("../src/lib/core/rivens");
+  assert.equal(startingFor({ starting: 500, buyout: 500 }, 600), 600, "fixed price: starts at the new buyout");
+  assert.equal(startingFor({ starting: 200, buyout: 500 }, 600), 200, "taking bids: from where it was");
+  assert.equal(startingFor({ starting: 200, buyout: 500 }, 150), 150, "never above the buyout");
+});
+
+test("a clock kept from yesterday still rolls forward, Orb Vallis included", async () => {
+  const { cycleTimers } = await import("../src/lib/core/timers");
+  const read = Date.parse("2026-11-01T08:00:00Z");
+  const live = { fissures: null, resurgence: null, resurgenceExpiry: null, cycles: [{ key: "vallis", state: "warm", expiry: new Date(read + 60_000).toISOString() }] } as never;
+  assert.equal(cycleTimers(live, read + 20 * 3_600_000).length, 1);
+});

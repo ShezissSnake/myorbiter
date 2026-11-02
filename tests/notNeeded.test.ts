@@ -87,3 +87,11 @@ test("extra copies of something mastered can go; a frame may go to the Helminth;
   assert.deepEqual(names(kept.go), ["Lato"]);
   assert.ok(kept.kept.some((k) => k.name === "Saryn" && k.yours));
 });
+
+test("a spare Kuva copy is held back: fuse it, don't sell it", () => {
+  const cat = [...CATALOG, item(`${W}KuvaHek`, "Kuva Hek", "Shotguns")];
+  const m = buildModel({ observed_at: 1, inventory: [{ item_id: `${W}KuvaHek`, name: "Kuva Hek", category: "weapon", quantity: 2, mastered: true, image_name: null, rank: null, max_rank: null }], catalog: cat.map((c) => (c.name === "Kuva Hek" ? { ...c, productCategory: "LongGuns" } : c)), relics: [], prices: null } as Bundle);
+  const r = notNeeded(m, []);
+  assert.deepEqual(r.go, []);
+  assert.match(r.kept[0].why, /Valence Fusion/);
+});

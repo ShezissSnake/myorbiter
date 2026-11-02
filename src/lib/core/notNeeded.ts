@@ -133,6 +133,11 @@ export function notNeeded(m: Model, gear: GearCopy[] | null, keep: ReadonlySet<s
       }
       continue;
     }
+    // A spare Kuva, Tenet or Coda copy is worth fusing into the one you keep (Valence Fusion), not selling.
+    if (!superseded && /^(Kuva|Tenet|Coda) /.test(h.name)) {
+      kept.push({ unique: u, name: h.name, why: `You have ${h.qty}: fuse the spare into the one you keep (Valence Fusion) to raise its bonus, rather than selling it`, yours: false });
+      continue;
+    }
     if (keep.has(u)) {
       kept.push({ unique: u, name: h.name, why: "You chose to keep it", yours: true });
       continue;
@@ -148,7 +153,6 @@ export function notNeeded(m: Model, gear: GearCopy[] | null, keep: ReadonlySet<s
     const doubled = mine.some((c) => (c.f & DOUBLED) !== 0);
     if (forma || doubled) notes.push(`${[forma ? plural(forma, "Forma", "Forma") : "", doubled ? (h.frame ? "an Orokin Reactor" : "an Orokin Catalyst") : ""].filter(Boolean).join(" and ")} in ${h.qty > 1 ? "your copies" : "it"}`);
     if (!superseded && h.qty > 1 && mine.length > 1) notes.push("Keep the copy with the most in it");
-    if (/^(Kuva|Tenet|Coda) /.test(h.name) && h.qty > 1) notes.push("Copies can differ in their bonus element: keep the better one");
     if (h.frame) notes.push("Or feed it to the Helminth, if you haven't subsumed its ability");
     if (need) notes.push(`Keep ${plural(need.qty, "copy", "copies")} for ${list(need.for)}`);
     const check = superseded && !gear && genesisFor(fam.base) ? `orbiter can't see installed Incarnons yet: if you put its Incarnon Genesis in, keep it` : null;

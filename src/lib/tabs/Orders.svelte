@@ -235,8 +235,8 @@
     f.busy = true;
     f.error = null;
     try {
-      // Bids from where they were, but never above the new buyout.
-      await rivens.reprice(a, buyout, Math.min(a.starting, buyout));
+      // No bidding stays no bidding; bids from where they were, never above the new buyout; hidden stays hidden.
+      await rivens.reprice(a, buyout);
       auctionPrice = null;
     } catch (e) {
       f.error = String(e).replace(/^Error:\s*/, "");

@@ -244,3 +244,23 @@ test("a kept worldstate loses each thing at its own end time", async () => {
   assert.equal(restoreLive(null, now), null);
   assert.equal(restoreLive({ at: "x", live }, now), null);
 });
+
+test("the Circuit's picks last the week, not the two-hour mood its expiry gives; kept invasions go an hour after their read", async () => {
+  const { pruneLive, restoreLive, circuitEnds, mergeLive } = await import("../src/lib/backend");
+  // Sunday 22:00–Monday 00:00 UTC mood: the week's picks end Monday 00:00.
+  const circuit = { activation: "2026-11-01T22:00:00.000Z", expiry: "2026-11-02T00:00:00.000Z", state: "joy", choices: [{ category: "normal", choices: ["Mesa"] }] };
+  assert.equal(circuitEnds(circuit), "2026-11-02T00:00:00.000Z");
+  const tuesday = { ...circuit, activation: "2026-11-03T10:00:00.000Z", expiry: "2026-11-03T12:00:00.000Z" };
+  assert.equal(circuitEnds(tuesday), "2026-11-09T00:00:00.000Z");
+  const live = { fissures: [], resurgence: null, resurgenceExpiry: null, duviriCycle: tuesday } as never;
+  assert.ok((pruneLive(live, Date.parse("2026-11-04T09:00:00Z")) as { duviriCycle: unknown }).duviriCycle, "a day after its mood ended, the week's picks stay");
+  assert.equal((pruneLive(live, Date.parse("2026-11-09T00:00:01Z")) as { duviriCycle: unknown }).duviriCycle, null);
+  // A fresh read without it keeps the kept one through the week.
+  const m = mergeLive(live, { fissures: [], resurgence: null, resurgenceExpiry: null, duviriCycle: null } as never, Date.parse("2026-11-05T00:00:00Z")) as unknown as { duviriCycle: unknown };
+  assert.ok(m.duviriCycle);
+  // Invasions restored 59 minutes on stay; still shown with no read since, they go at the hour.
+  const at = Date.parse("2026-11-04T08:00:00Z");
+  const kept = restoreLive({ at, live: { fissures: [], resurgence: null, resurgenceExpiry: null, invasions: [{ id: "i", node: "x" }] } }, at + 59 * 60_000)!;
+  assert.equal(kept.live.invasions?.length, 1);
+  assert.equal(pruneLive(kept.live, at + 61 * 60_000).invasions, null);
+});

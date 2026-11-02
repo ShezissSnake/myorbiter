@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   // Your rivens, read from the game: each stat as the game shows it, how good each roll is, and
   // what comparable rivens sell for. Below, a finder for rivens on warframe.market, and alerts for
   // the ones you want at your price.
@@ -127,7 +128,7 @@
       // The weapon's own search is shared by every riven for it, and kept a while.
       const any = await rivens.search(q.weapon, [], null).catch(() => undefined);
       checks[r.id] = { loading: false, auctions, any: any ?? before?.any, at: Date.now() };
-      rivens.remember(r.id, searchKey(q.weapon, positive), auctions, q.weapon, any);
+      rivens.remember(settings.market.platform, r.id, searchKey(q.weapon, positive), auctions, q.weapon, any);
     } catch (e) {
       checks[r.id] = { ...before, loading: false, error: String(e).replace(/^Error: /, "") };
     }
@@ -135,23 +136,28 @@
   // Checks kept from the last run, for rivens that still have the roll they were checked with.
   // Kept ones over a day old are checked again by themselves once the page is open (one after
   // another, as Price check all does), and show until then.
-  let restored = false;
+  let restoredFor: string | null = null;
   $effect(() => {
     const m = meta;
     const list = mine;
-    if (!m || restored) return;
-    restored = true;
-    void rivens.loadSaved(settings.market.platform).then((s) => {
-      let stale = false;
+    const platform = settings.market.platform;
+    if (!m || restoredFor === platform) return;
+    // Another platform's kept checks don't count here.
+    if (restoredFor != null) untrack(() => { for (const [id, c] of Object.entries(checks)) if (c.saved) delete checks[id]; });
+    restoredFor = platform;
+    void rivens.loadSaved(platform).then((s) => {
+      if (restoredFor !== platform) return;
+      const stale: Riven[] = [];
       for (const r of list) {
         const q = searchFor(m, r);
         const k = q.weapon ? s.rivens[r.id] : undefined;
         if (!q.weapon || !k || k.key !== searchKey(q.weapon, q.positive.slice(0, 2)) || checks[r.id]) continue;
         const w = s.weapons[q.weapon];
         checks[r.id] = { loading: false, auctions: unpackPrices(k.prices), any: w ? unpackListed(w.listed) : undefined, at: k.at, saved: true };
-        if (Date.now() - k.at >= DAY) stale = true;
+        if (Date.now() - k.at >= DAY) stale.push(r);
       }
-      if (stale && !checkingAll) void checkAll();
+      // Only those: one never checked, or checked minutes ago, waits for you to ask.
+      if (stale.length && !checkingAll) void checkAll(stale);
     });
   });
   const keptAt = $derived(Math.min(...sorted.map((r) => (checks[r.id]?.saved ? checks[r.id]!.at! : Infinity))));
@@ -243,8 +249,8 @@
     f.error = null;
     try {
       const buyout = Math.round(f.buyout);
-      // A bid auction keeps its starting price unless the buyout goes under it.
-      await rivens.reprice(a, buyout, a.starting < (a.buyout ?? a.starting) ? Math.min(a.starting, buyout) : buyout);
+      // A bid auction keeps its starting price unless the buyout goes under it (see Rivens.reprice).
+      await rivens.reprice(a, buyout);
       delete reprice[a.id];
     } catch (e) {
       f.error = String(e).replace(/^Error:\s*/, "");

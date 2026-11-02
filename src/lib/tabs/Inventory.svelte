@@ -217,7 +217,7 @@
       <GameIcon name="platinum" size={14} />
     </label>
     <Chip bind:on={spareOnly} label="Spare only" title="Only what you hold more of than you need: beyond what your unbuilt items take, two of each mod, one maxed arcane, one of each Captura scene" />
-    <Chip bind:on={letGo} label="Not needed · {goCount}" title="Gear you can't trade and no longer need: a weapon, frame or companion a better version of which you own and have mastered (the Dual Decurion once you have Prisma Dual Decurions), and extra copies of something mastered. Sell them for credits in game" />
+    <Chip bind:on={letGo} label="Not needed · {goCount}" title="Gear you can't trade and no longer need: a weapon, frame or companion once you've mastered it and own a better version of it (the Dual Decurion once you have Prisma Dual Decurions), and extra copies of something mastered. Sell them for credits in game" />
     <input type="search" placeholder="Filter items…" bind:value={query} />
   </div>
 

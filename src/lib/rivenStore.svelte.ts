@@ -1,7 +1,7 @@
 // warframe.market's riven data: weapon and stat names (cached for a day on the Rust side) and
 // riven auctions, cached a few minutes per search so opening a card twice doesn't refetch.
 import { market, saved as disk } from "./backend";
-import { packListed, packPrices, parseMyAuctions, parseWeeklyRivens, readSavedPrices, tradeUrl, withSaved, type AuctionItem, type MyAuction, type RivenAuction, type RivenMeta, type RivenTrade, type SavedRivenPrices } from "./core/rivens";
+import { packListed, packPrices, startingFor, parseMyAuctions, parseWeeklyRivens, readSavedPrices, tradeUrl, withSaved, type AuctionItem, type MyAuction, type RivenAuction, type RivenMeta, type RivenTrade, type SavedRivenPrices } from "./core/rivens";
 
 const TTL = 10 * 60_000;
 
@@ -64,8 +64,9 @@ class Rivens {
     return this.savedRead.done;
   }
   /** Keeps a check of one of your rivens; written to disk a moment later, once for a run of them. */
-  remember(id: string, key: string, similar: RivenAuction[], weapon: string, listed: RivenAuction[] | undefined) {
-    if (!this.saved) return;
+  remember(platform: string, id: string, key: string, similar: RivenAuction[], weapon: string, listed: RivenAuction[] | undefined) {
+    // Kept per platform: a check made after switching isn't filed under the old one.
+    if (this.saved?.platform !== platform) return void this.loadSaved(platform);
     this.saved = withSaved(this.saved, Date.now(), { id, key, prices: packPrices(similar) }, listed ? { slug: weapon, listed: packListed(listed) } : undefined);
     clearTimeout(this.writeSoon);
     this.writeSoon = setTimeout(() => void disk.write("riven-prices", this.saved).catch(() => {}), 3000);
@@ -138,8 +139,14 @@ class Rivens {
     await market.createAuction({ starting_price: starting, buyout_price: buyout, minimal_reputation: minRep, private: false, note, item });
     await this.loadMine();
   }
-  async reprice(a: MyAuction, buyout: number, starting: number) {
-    await market.updateAuction(a.id, { starting_price: starting, buyout_price: buyout, minimal_reputation: a.minRep, private: false, note: a.note });
+  /**
+   * A new buyout for one of your auctions. It stays what it was: one with no bidding (starting at
+   * the buyout) keeps starting at the new buyout; one taking bids keeps its starting bid unless the
+   * buyout goes under it; a hidden one stays hidden.
+   */
+  async reprice(a: MyAuction, buyout: number) {
+    const starting = startingFor(a, buyout);
+    await market.updateAuction(a.id, { starting_price: starting, buyout_price: buyout, minimal_reputation: a.minRep, private: !a.visible, note: a.note });
     await this.loadMine();
   }
   async close(a: MyAuction) {

@@ -445,7 +445,7 @@ export function mergeLive(old: Live, next: Live, now = Date.now()): Live {
   for (const [k, v] of Object.entries(old)) {
     if (!KEEP_LIVE.has(k)) continue;
     // Something with an end that has passed (last week's Circuit, yesterday's Teshin offer) isn't kept.
-    const ends = v && typeof v === "object" && !Array.isArray(v) ? (v as { expiry?: string }).expiry : undefined;
+    const ends = k === "duviriCycle" ? circuitEnds(v as DuviriCycle) : v && typeof v === "object" && !Array.isArray(v) ? (v as { expiry?: string }).expiry : undefined;
     if (ends && Date.parse(ends) <= now) continue;
     const n = out[k];
     // Clocks by place: one the new read lacks (the game's own file has no Zariman clock) keeps
@@ -481,11 +481,22 @@ export function pruneLive(live: Live, now = Date.now()): Live {
   list("alerts");
   list("syndicates");
   list("events");
-  for (const k of ["baro", "sortie", "archonHunt", "steelPath", "darvo", "duviriCycle", "nightwave"] as const) {
+  for (const k of ["baro", "sortie", "archonHunt", "steelPath", "darvo", "nightwave"] as const) {
     if (over((live[k] as { expiry?: string } | null | undefined)?.expiry)) {
       out[k] = null;
       changed = true;
     }
+  }
+  // The Circuit's picks last the week; its expiry is only the current mood's end, two hours on.
+  if (live.duviriCycle && over(circuitEnds(live.duviriCycle))) {
+    out.duviriCycle = null;
+    changed = true;
+  }
+  // Invasions kept from last time say nothing of when they end: an hour after that read, they go.
+  if (live.invasions && live.invasionsAt != null && now - live.invasionsAt > 3_600_000) {
+    out.invasions = null;
+    out.invasionsAt = undefined;
+    changed = true;
   }
   const nw = out.nightwave;
   if (nw && Array.isArray(nw.activeChallenges) && nw.activeChallenges.some((c) => over(c.expiry))) {
@@ -501,6 +512,16 @@ export function pruneLive(live: Live, now = Date.now()): Live {
   return changed ? out : live;
 }
 
+/** When the Circuit's weekly picks change: the Monday 00:00 UTC after the reading (its mood began two hours before its expiry). */
+export function circuitEnds(c: DuviriCycle | null | undefined): string | undefined {
+  if (!c) return undefined;
+  const from = Date.parse(c.activation ?? "") || Date.parse(c.expiry) - 2 * 3_600_000;
+  if (!Number.isFinite(from)) return undefined;
+  const d = new Date(from);
+  const days = (8 - d.getUTCDay()) % 7 || 7;
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + days)).toISOString();
+}
+
 /** The worldstate as it was last read, kept for the next start. */
 export interface SavedLive {
   at: number;
@@ -514,7 +535,7 @@ export interface SavedLive {
 export function restoreLive(raw: unknown, now = Date.now()): SavedLive | null {
   const s = raw as SavedLive | null;
   if (!s || typeof s.at !== "number" || !s.live || typeof s.live !== "object" || now - s.at > 86_400_000 || s.at > now + 60_000) return null;
-  const live = pruneLive({ ...s.live, invasions: now - s.at <= 3_600_000 ? s.live.invasions : null }, now);
+  const live = pruneLive({ ...s.live, invasions: s.live.invasions ?? null, invasionsAt: s.at }, now);
   return { at: s.at, live };
 }
 

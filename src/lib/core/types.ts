@@ -203,6 +203,8 @@ export interface Live {
   /** Darvo's daily deal in the in-game Market. */
   darvo?: DarvoDeal | null;
   duviriCycle?: DuviriCycle | null;
+  /** When the invasions shown were read, if they're from a read kept from last time (they say nothing of when they end). */
+  invasionsAt?: number;
   /** Events running in game: Tactical Alerts, operations, seasonal ones. */
   events?: WorldEvent[] | null;
   /** Day/night and the like on the open worlds: Earth, Cetus, Orb Vallis, Cambion Drift, Zariman; and Duviri's mood. */
@@ -258,6 +260,8 @@ export interface SteelPath {
   expiry: string;
 }
 export interface DuviriCycle {
+  /** The current mood's start and end (two hours); the Circuit's picks last the week. */
+  activation?: string;
   expiry: string;
   state: string;
   choices: { category: string; choices: string[] }[];

@@ -38,7 +38,8 @@ export function cycleTimers(live: Live, now = Date.now()): Timer[] {
   for (const c of live.cycles ?? []) {
     let state = c.state;
     let ends = Date.parse(c.expiry);
-    for (let i = 0; ends <= now && i < 50; i++) {
+    // A reading kept from yesterday: Orb Vallis turns over about 110 times a day.
+    for (let i = 0; ends <= now && i < 400; i++) {
       const next = NEXT[state];
       const mins = next ? length(c.key, next) : 0;
       if (!next || !mins) break;
@@ -133,7 +134,9 @@ export function pricesBehind(dumpDate: string | null | undefined, now = Date.now
   if (!dumpDate || !/^\d{4}-\d{2}-\d{2}$/.test(dumpDate)) return null;
   const day = Date.parse(`${dumpDate}T00:00:00Z`);
   if (!Number.isFinite(day)) return null;
-  const today = Math.floor(now / 86_400_000) * 86_400_000;
+  // A day's figures come out early the next day (UTC): counted from 06:00, so the hours before
+  // they're published don't read as a day behind.
+  const today = Math.floor((now - 6 * 3_600_000) / 86_400_000) * 86_400_000;
   const behind = Math.round((today - day) / 86_400_000) - 1;
   return behind >= 1 ? behind : null;
 }

@@ -755,3 +755,8 @@ export function withSaved(s: SavedRivenPrices, now: number, riven?: { id: string
   if (weapon) weapons[weapon.slug] = { at: now, listed: weapon.listed };
   return { ...s, rivens, weapons };
 }
+
+/** The starting bid an auction keeps under a new buyout (see Rivens.reprice). */
+export function startingFor(a: { starting: number; buyout: number | null }, buyout: number): number {
+  return a.starting < (a.buyout ?? a.starting) ? Math.min(a.starting, buyout) : buyout;
+}
