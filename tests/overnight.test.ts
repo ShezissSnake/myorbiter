@@ -29,7 +29,7 @@ test("only a relic's name loses its refinement: Radiant Zodian is a gem", () => 
   assert.deepEqual(splitRefinement("Lith G1 Radiant"), { name: "Lith G1", subtype: "radiant" });
 });
 
-test("a Necramech set's parts are its Capsule, Casing, Engine and Weapon Pod, not just the blueprint", () => {
+test("a Necramech set is its Capsule, Casing and so on: not the blueprint, which the market's set leaves out", () => {
   const VOIDRIG = "/Lotus/Powersuits/EntratiMech/NecroMech";
   const MECH = "/Lotus/Types/Gameplay/InfestedMicroplanet/Resources/Mechs/";
   const m = buildModel(bundle([], [{
@@ -41,7 +41,7 @@ test("a Necramech set's parts are its Capsule, Casing, Engine and Weapon Pod, no
       { uniqueName: "/Lotus/Types/Items/MiscItems/Morphic", name: "Morphics", itemCount: 10 },
     ],
   }]));
-  assert.deepEqual(gearSetParts(m, VOIDRIG)?.map((p) => p.name), ["Voidrig Blueprint", "Voidrig Capsule", "Voidrig Casing"]);
+  assert.deepEqual(gearSetParts(m, VOIDRIG)?.map((p) => p.name), ["Voidrig Capsule", "Voidrig Casing"]);
 });
 
 test("a part sold both as the blueprint and built is listed as the variant you hold", () => {

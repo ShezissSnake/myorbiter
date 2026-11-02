@@ -147,7 +147,7 @@ test("the drop log after a big sale, an empty first read, and a read missing a w
   assert.deepEqual([log.counts, log.windows.length, log.lowAt], [{ a: 21, b: 30 }, 0, undefined]);
   log = recordRead(log, { a: 22, b: 30 }, t0 + 3000)!;
   assert.deepEqual(log.windows.map((w) => w.gains), [{ a: 1 }], "and drops count again after");
-  // One read missing the gear parts (several at once): they keep their count, and coming back isn't a drop.
+  // One read missing the gear parts: they keep their count, and coming back isn't a drop.
   const gear = { c: 3, d: 1, e: 2 };
   log = recordRead(emptyDropLog(), { a: 10, b: 10, ...gear }, t0)!;
   log = recordRead(log, { a: 10, b: 10 }, t0 + 1000)!;
@@ -198,10 +198,31 @@ test("how easy a saved set is to finish: cracks at the best chance, and odds fro
   assert.equal(finishEase(buildModel(bundle(three())), [{ name: BP, count: 1 }]).cracks, null);
 });
 
-test("a part you sold the last of, then got again, is a drop", () => {
+test("a part you traded away the last of, then got again, is a drop; one a read missed isn't", () => {
   const t0 = 1_800_000_000_000;
   let log = recordRead(emptyDropLog(), { a: 1, b: 10 }, t0)!;
-  log = recordRead(log, { b: 10 }, t0 + 1000)!;
+  log = recordRead(log, { b: 10 }, t0 + 1000, t0 + 1000, {}, ["a"])!;
   log = recordRead(log, { a: 1, b: 10 }, t0 + 2000)!;
   assert.deepEqual(log.windows.map((w) => w.gains), [{ a: 1 }]);
+  // No trade took it: the read missed it, and it coming back isn't a drop (one or two parts as much as many).
+  let missed = recordRead(emptyDropLog(), { a: 1, b: 10 }, t0)!;
+  missed = recordRead(missed, { b: 10 }, t0 + 1000)!;
+  missed = recordRead(missed, { a: 1, b: 10 }, t0 + 2000)!;
+  assert.deepEqual(missed.windows, []);
+});
+
+test("a foundry report late for its read: the claimed part comes off that read's drops", async () => {
+  const { laterClaims } = await import("../src/lib/core/drops");
+  const t0 = 1_800_000_000_000;
+  let log = recordRead(emptyDropLog(), { a: 5, Barrel: 1 }, t0, t0, { Barrel: 1 })!;
+  // Claimed just before the next read, but the report still says it's building.
+  log = recordRead(log, { a: 5, Barrel: 2 }, t0 + 60_000, t0 + 60_000, { Barrel: 1 })!;
+  assert.deepEqual(log.windows.map((w) => w.gains), [{ Barrel: 1 }]);
+  // The report catches up a few seconds later.
+  log = laterClaims(log, {}, t0 + 70_000)!;
+  assert.deepEqual([log.windows, log.building], [[], undefined]);
+  // Long after the read, a report showing a claim waits for the next read instead.
+  let late = recordRead(emptyDropLog(), { Barrel: 1 }, t0, t0, { Barrel: 1 })!;
+  late = recordRead(late, { Barrel: 2 }, t0 + 60_000, t0 + 60_000, { Barrel: 1 })!;
+  assert.equal(laterClaims(late, {}, t0 + 60 * 60_000), null);
 });

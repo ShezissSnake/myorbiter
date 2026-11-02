@@ -17,6 +17,7 @@ class TennoscopeStore {
   /** TennoScope's data folder (Settings), where its log says why it wouldn't start; empty finds it. */
   dataDir = "";
   private busy = false;
+  private forceWaiting = false;
 
   get running() {
     return !!this.status?.running;
@@ -38,9 +39,16 @@ class TennoscopeStore {
 
   /** `force`: you asked for it (Start TennoScope), so it starts now whatever the wait. */
   async check(start = false, force = false) {
-    // A press of Start isn't dropped because a routine check is under way: it runs right after.
+    // A press of Start isn't dropped because a routine check is under way: it runs right after,
+    // once however many times it was pressed.
     if (this.busy) {
-      if (force) setTimeout(() => void this.check(start, force), 400);
+      if (force && !this.forceWaiting) {
+        this.forceWaiting = true;
+        setTimeout(() => {
+          this.forceWaiting = false;
+          void this.check(start, force);
+        }, 400);
+      }
       return;
     }
     this.busy = true;

@@ -16,7 +16,7 @@
   import { bestCard, resolveName, scoreCards, vaultWord } from "./lib/core/pick";
   import { DEFAULT_HIDE_MINUTES, dueToShow, hideNow, lastCopies } from "./lib/core/lastCopy";
   import { mergeLogged, recordScreen, resolvePicks } from "./lib/core/relicRuns";
-  import { dropBuilding, dropCounts, recentDrops, recordRead } from "./lib/core/drops";
+  import { dropBuilding, dropCounts, laterClaims, recentDrops, recordRead } from "./lib/core/drops";
   import { drops } from "./lib/drops.svelte";
   import { heldFor } from "./lib/core/market";
   import type { Bundle, Live, MissionState } from "./lib/core/types";
@@ -1311,11 +1311,21 @@
     const m = model;
     if (!m?.observedAt || !settingsReady) return;
     const at = +m.observedAt;
-    // Once per read: the model is rebuilt for other reasons (prices, the world) with the same read.
-    if (at === dropsReadAt) return;
+    // Once per read; the model is also rebuilt for other reasons (prices, the world, a later foundry
+    // report) with the same read, and then only a claim the report was late with is taken off.
+    if (at === dropsReadAt) {
+      untrack(() => {
+        const next = laterClaims(settings.game.drops, dropBuilding(m), Date.now());
+        if (next) settings.game.drops = next;
+      });
+      return;
+    }
     dropsReadAt = at;
     untrack(() => {
-      const next = recordRead(settings.game.drops, dropCounts(m), at, Date.now(), dropBuilding(m));
+      const since = settings.game.drops.at;
+      // What you gave away in trades since the last read: a part gone that way was sold, not missed.
+      const away = settings.market.trades.filter((t) => t.at > since && t.at <= at + 60_000).flatMap((t) => t.offered.map((o) => o.name));
+      const next = recordRead(settings.game.drops, dropCounts(m), at, Date.now(), dropBuilding(m), away);
       if (next) settings.game.drops = next;
     });
   });
@@ -1334,6 +1344,10 @@
     if (at === savingCheckedAt) return;
     savingCheckedAt = at;
     untrack(() => {
+      // A read the drop log took for a partial one (most parts missing, or a kind of item gone)
+      // isn't compared: the full read after it would look like sets coming in.
+      const log = settings.game.drops;
+      if (log.lowAt === at || (log.at === at && log.gone?.length)) return;
       const index = mkt.index.byId.size ? mkt.index : null;
       const rows = new Map(allSetRows(m, index).map((r) => [r.unique, r]));
       const done: string[] = [];
@@ -1343,7 +1357,10 @@
       }
       const opts = saveForSets(settings.market.sellable, settings.advice.platPerDucat, drops.recent);
       const now = opts ? allSetSaves(m, index, opts) : new Map<string, SetSave>();
-      settings.game.savingFor = Object.fromEntries([...now].map(([u, s]) => [u, { set: s.set, complete: rows.get(u)?.completeSets ?? 0 }]));
+      const next: Record<string, { set: string; complete: number }> = Object.fromEntries([...now].map(([u, s]) => [u, { set: s.set, complete: rows.get(u)?.completeSets ?? 0 }]));
+      // Before warframe.market's item list is in, sets that aren't prime can't be counted: kept as they were.
+      if (!index) for (const [u, was] of Object.entries(settings.game.savingFor)) if (!m.partsByParent.has(u) && !(u in next)) next[u] = was;
+      if (JSON.stringify(next) !== JSON.stringify(settings.game.savingFor)) settings.game.savingFor = next;
       if (done.length) tell("setDone", done.length === 1 ? `${done[0]} complete` : `${done.length} sets complete`, `${done.join(", ")}: the parts you were saving came in. Ready to sell on Sets.`, "sets");
     });
   });

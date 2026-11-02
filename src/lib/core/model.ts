@@ -147,9 +147,11 @@ export interface GearSetPart {
 export function gearSetParts(m: Model, unique: string): GearSetPart[] | null {
   if (m.partsByParent.has(unique)) return null;
   const item = m.catalogByUnique.get(unique);
+  // Necramechs and their arch-guns (Voidrig, Cortege) keep their parts under /Resources/Mechs/,
+  // and warframe.market's set is those parts alone: the blueprint (Necraloid's) isn't in it.
+  const mech = (item?.components ?? []).some((c) => c.uniqueName.includes("/Resources/Mechs/"));
   const parts = (item?.components ?? [])
-    // Necramechs and their arch-guns (Voidrig, Cortege) keep their parts under /Resources/Mechs/.
-    .filter((c) => c.uniqueName.includes("/Recipes/") || c.uniqueName.includes("/Resources/Mechs/"))
+    .filter((c) => (mech ? c.uniqueName.includes("/Resources/Mechs/") : c.uniqueName.includes("/Recipes/")))
     .map((c) => ({ unique: baseId(c.uniqueName), name: c.name.startsWith(item!.name) ? c.name : `${item!.name} ${c.name}`, required: c.itemCount ?? 1 }));
   return parts.length ? parts : null;
 }

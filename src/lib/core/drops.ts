@@ -7,7 +7,7 @@
 // Tracked: prime parts, and the blueprint parts of other gear (the sets warframe.market trades
 // whole: Lato Vandal, Mandonel…).
 
-import { baseId, heldCount, type Model } from "./model";
+import { gearSetParts, heldCount, type Model } from "./model";
 
 /** What one read added over the read before it, by part name. */
 export interface DropWindow {
@@ -49,12 +49,7 @@ function gearParts(m: Model): Map<string, string> {
   out = new Map();
   gearMemo.set(m, out);
   for (const item of m.catalogByUnique.values()) {
-    if (m.partsByParent.has(item.uniqueName)) continue;
-    for (const c of item.components ?? []) {
-      if (!c.uniqueName.includes("/Recipes/")) continue;
-      const u = baseId(c.uniqueName);
-      if (!out.has(u)) out.set(u, c.name.startsWith(item.name) ? c.name : `${item.name} ${c.name}`);
-    }
+    for (const p of gearSetParts(m, item.uniqueName) ?? []) if (!out.has(p.unique)) out.set(p.unique, p.name);
   }
   return out;
 }
@@ -80,9 +75,6 @@ export function dropBuilding(m: Model): Record<string, number> {
   return out;
 }
 
-/** This many parts vanishing in one read is a read that missed them, not a sale. */
-const GONE_AT_ONCE = 3;
-
 const total = (c: Record<string, number>) => Object.values(c).reduce((a, b) => a + b, 0);
 
 const same = (a: Record<string, number>, b: Record<string, number>) => {
@@ -94,11 +86,12 @@ const same = (a: Record<string, number>, b: Record<string, number>) => {
  * Takes in an inventory read. The first one holding anything sets the baseline. Partial reads don't
  * become drops: a read showing under half the parts the last one did is skipped, unless the next
  * one agrees (then it's the new baseline, with nothing counted); a part a read shows none of keeps
- * its last count until the next read agrees. A part that left the foundry since (`building`, what
- * the foundry held of each part) was built, not dropped. Null when nothing changes (an older or the
- * same read).
+ * its last count until the next read agrees, unless a trade since took it (`tradedAway`, the names
+ * you gave in trades since the last read): then it was sold. A part that left the foundry since
+ * (`building`, what the foundry held of each part) was built, not dropped. Null when nothing
+ * changes (an older or the same read).
  */
-export function recordRead(log: DropLog, counts: Record<string, number>, at: number, now = at, building: Record<string, number> = {}): DropLog | null {
+export function recordRead(log: DropLog, counts: Record<string, number>, at: number, now = at, building: Record<string, number> = {}, tradedAway: string[] = []): DropLog | null {
   if (at <= log.at) return null;
   const sum = total(counts);
   const withBuilding = (l: DropLog): DropLog => (Object.keys(building).length ? { ...l, building } : l);
@@ -106,11 +99,11 @@ export function recordRead(log: DropLog, counts: Record<string, number>, at: num
   const before = total(log.counts);
   // The same read again (the model rebuilt) isn't a second one.
   if (sum < before / 2) return log.lowAt != null && at > log.lowAt ? withBuilding({ at, counts, windows: log.windows }) : log.lowAt === at ? null : { ...log, lowAt: at };
-  // Parts that are gone: one or two you sold the last of; several at once is a read that missed a
-  // kind of item, so those keep their last count for one read.
+  // Parts that are gone: traded away, they were sold; otherwise the read may have missed them, so
+  // they keep their last count for one read.
   const base: Record<string, number> = { ...counts };
-  const vanished = Object.keys(log.counts).filter((name) => !(name in counts) && !log.gone?.includes(name));
-  const gone = vanished.length >= GONE_AT_ONCE ? vanished : [];
+  const sold = new Set(tradedAway.map(norm));
+  const gone = Object.keys(log.counts).filter((name) => !(name in counts) && !log.gone?.includes(name) && !sold.has(norm(name)));
   for (const name of gone) base[name] = log.counts[name];
   const gains: Record<string, number> = {};
   for (const [name, n] of Object.entries(counts)) {
@@ -127,6 +120,38 @@ export function recordRead(log: DropLog, counts: Record<string, number>, at: num
   if (gone.length) next.gone = gone;
   return next;
 }
+
+/**
+ * The foundry's report can arrive after the inventory read it belongs with: a part claimed just
+ * before a read then still shows as building, and its copy as a drop. When a later report (`now`
+ * within a few minutes of the read) shows fewer building than the read recorded, and that read
+ * counted the part as a drop, the claimed copies come off it. Anything else waits for the next read,
+ * which counts a claim the usual way.
+ */
+export function laterClaims(log: DropLog, building: Record<string, number>, now: number): DropLog | null {
+  const last = log.windows.at(-1);
+  if (!log.building || !last || last.at !== log.at || now - log.at > LATE_REPORT_MS) return null;
+  const gains = { ...last.gains };
+  const was = { ...log.building };
+  let changed = false;
+  for (const [name, n] of Object.entries(log.building)) {
+    const claimed = Math.min(n - (building[name] ?? 0), gains[name] ?? 0);
+    if (claimed <= 0) continue;
+    changed = true;
+    gains[name] -= claimed;
+    if (!gains[name]) delete gains[name];
+    was[name] = n - claimed;
+    if (!was[name]) delete was[name];
+  }
+  if (!changed) return null;
+  const windows = Object.keys(gains).length ? [...log.windows.slice(0, -1), { ...last, gains }] : log.windows.slice(0, -1);
+  const next: DropLog = { ...log, windows, building: was };
+  if (!Object.keys(was).length) delete next.building;
+  return next;
+}
+
+/** How late the foundry's report may come after an inventory read and still belong with it. */
+const LATE_REPORT_MS = 5 * 60_000;
 
 /** A trade, as far as the totals need it: when, and what came in. */
 export interface ReceivedTrade {
