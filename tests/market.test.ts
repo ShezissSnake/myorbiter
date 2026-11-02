@@ -112,12 +112,12 @@ test("everyone in game asking more than twice what it sells for: priced at what 
   assert.equal(plan(mine(4), [sell(30, "ingame")], me, { floor: 10, minShare: 0.5, reference: 4 }).target, 10);
 });
 
-test("a relic's value: no more than what sellers on the site ask (the third cheapest, in game or not)", () => {
+test("a relic's value: no more than what sellers on the site ask (the middle ask, in game or not)", () => {
   // Axi Y2 intact as it was: three sales at 25–100p lift the recent price to 75p, while four
   // sellers in game ask 8p and dozens offline ask 2p.
   const b = [sell(2, "offline"), sell(2, "offline"), sell(8, "ingame"), sell(8, "ingame"), sell(9, "online"), sell(10, "ingame"), sell(500, "ingame", { user: { id: "me" } })];
   const comp = competitor(mine(38), b, me);
-  assert.equal(comp.askLevel, 8, "the third cheapest of everyone but you");
+  assert.equal(comp.askLevel, 8, "the middle ask of everyone but you");
   assert.equal(marketValue(75, comp), 8);
   assert.equal(marketValue(5, comp), 5, "recent sales lower than the asks stand");
   assert.equal(marketValue(null, comp), 8);
@@ -125,6 +125,10 @@ test("a relic's value: no more than what sellers on the site ask (the third chea
   // One or two odd listings don't set it: with only two sellers, the dearer one does.
   assert.equal(competitor(mine(1), [sell(1, "ingame"), sell(30, "online")], me).askLevel, 30);
   assert.equal(competitor(mine(1), [sell(3, "offline", { user: { id: "me" } })], me).askLevel, null);
+  // A few forgotten listings at 2p don't set it either: 12–14p in game, three offline at 2p.
+  const forgotten = [sell(2, "offline"), sell(2, "offline"), sell(2, "offline"), sell(12, "ingame"), sell(13, "ingame"), sell(14, "ingame")];
+  assert.equal(competitor(mine(14), forgotten, me).askLevel, 12);
+  assert.equal(plan(mine(14), forgotten, me, { floor: null, minShare: 0.5, reference: 15, capByAsks: true }).target, 12);
   // Repricing a relic: held at half of 8p (4p), matching the 8p in game, not the 38p half of 75p.
   const capped = plan(mine(38), b, me, { floor: null, minShare: 0.5, reference: 75, capByAsks: true });
   assert.deepEqual([capped.target, capped.floor, capped.value], [8, 4, 8]);
@@ -179,4 +183,30 @@ test("a ranked item's reference price is its unranked or maxed price only, never
   assert.equal(referencePrice(m, ce, 9), null);
   // Maxed with no maxed price: none either.
   assert.equal(referencePrice(m, { ...ce, name: "Lone Mod" }, 10), null);
+});
+
+test("one seller far under everyone else isn't followed down; a buyer still sees them", () => {
+  const b = [sell(2, "ingame"), sell(58, "ingame"), sell(60, "ingame")];
+  const c = competitor(mine(60), b, me);
+  assert.equal(c.price, 58);
+  assert.equal(c.lowest?.platinum, 2);
+  assert.equal(plan(mine(60), b, me, { floor: null, minShare: 0.5, reference: null }).target, 58);
+  // Close together, or only a few platinum apart: the market, followed.
+  assert.equal(competitor(mine(60), [sell(20, "ingame"), sell(25, "ingame")], me).price, 20);
+  assert.equal(competitor(mine(9), [sell(1, "ingame"), sell(4, "ingame")], me).price, 1);
+  // Alone: nothing to tell it by.
+  assert.equal(competitor(mine(60), [sell(2, "ingame")], me).price, 2);
+});
+
+test("a variant other than the first has no daily price, and what you hold of it is unknown", async () => {
+  const { referencePrice, heldFor } = await import("../src/lib/core/market");
+  const ser = { id: "se", slug: "serration", gameRef: "/M/Serration", name: "Serration", maxRank: 10, subtypes: ["regular", "atragraph"], tags: ["mod"] };
+  const m = { price: () => 5, priceMax: () => 40, observedAt: new Date(), inventoryByBase: new Map([["/M/Serration", [{ quantity: 1, rank: 10 }]]]), inventoryByName: new Map(), partByName: new Map(), catalogByUnique: new Map(), catalogNames: new Set() } as never;
+  assert.equal(referencePrice(m, ser, 10, "regular"), 40);
+  assert.equal(referencePrice(m, ser, 10, "atragraph"), null);
+  assert.equal(heldFor(m, ser, { rank: 10, subtype: null }), 1);
+  assert.equal(heldFor(m, ser, { rank: 10, subtype: "atragraph" }), null);
+  // Ayatan sculptures: a full one is its own listing, and not counted from your inventory.
+  assert.equal(competitor({ rank: null, subtype: null, amberStars: 2, cyanStars: 1 }, [{ ...sell(30, "ingame"), amberStars: 0, cyanStars: 0 }, { ...sell(70, "ingame"), amberStars: 2, cyanStars: 1 }], me).price, 70);
+  assert.equal(heldFor(m, ser, { rank: 10, subtype: null, amberStars: 1 }), null);
 });

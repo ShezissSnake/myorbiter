@@ -86,16 +86,24 @@ test("only a sure listing is marked sold: unranked arcanes, refinements, unknown
     { id: "a1", slug: "axi_a1_relic", gameRef: "/R/AxiA1", name: "Axi A1 Relic", maxRank: null, subtypes: ["intact", "exceptional", "flawless", "radiant"], tags: ["relic"] },
   ];
   const idx = indexItems(more);
-  const sell = (name: string, rank: number | null, orders: MyOrder[]) => salesFromTrade(trade({ offered: [{ name, rank, count: 1 }], platinum_received: 5 }), orders, idx)![0].order?.id ?? null;
+  const sell = (name: string, rank: number | null, orders: MyOrder[], platinum = 5) => salesFromTrade(trade({ offered: [{ name, rank, count: 1 }], platinum_received: platinum }), orders, idx)![0].order?.id ?? null;
   // An unranked arcane has no pips in the log: it's rank 0, never the maxed listing.
   assert.equal(sell("Arcane Barrier", null, [order("max", "ab", 1, 80, 5), order("r0", "ab", 3, 5, 0)]), "r0");
   assert.equal(sell("Arcane Barrier", null, [order("max", "ab", 1, 80, 5)]), null);
   // Relics: by the refinement when the log names it; with none named, only if one refinement is listed.
   const relics = [{ ...order("rad", "a1", 2, 20), subtype: "radiant" }, { ...order("int", "a1", 5, 3), subtype: "intact" }];
-  assert.equal(sell("Axi A1 Relic [Radiant]", null, relics), "rad");
+  assert.equal(sell("Axi A1 Relic [Radiant]", null, relics, 18), "rad");
   assert.equal(sell("Axi A1 Relic", null, relics), null);
   assert.equal(sell("Axi A1 Relic", null, [relics[1]]), "int");
   // A ranked mod with no rank logged: only when it has a single listing.
   assert.equal(sell("Condition Overload", null, [order("o1", "co", 2, 20, 0), order("o2", "co", 1, 55, 3)]), null);
-  assert.equal(sell("Condition Overload", null, [order("o2", "co", 1, 55, 3)]), "o2");
+  assert.equal(sell("Condition Overload", null, [order("o2", "co", 1, 55, 3)], 52), "o2");
+  // …and only at about its price: 5p for your 55p listing was another copy (an unranked one).
+  assert.equal(sell("Condition Overload", null, [order("o2", "co", 1, 55, 3)], 5), null);
+  // Variants the log can't tell apart: only the first one (regular, not atragraph).
+  const ser: MarketItem = { id: "se", slug: "serration", gameRef: "/M/Serration", name: "Serration", maxRank: 10, subtypes: ["regular", "atragraph"], tags: ["mod"] };
+  const sidx = indexItems([...more, ser]);
+  const sold = (orders: MyOrder[]) => salesFromTrade(trade({ offered: [{ name: "Serration", rank: 10, count: 1 }], platinum_received: 40 }), orders, sidx)![0].order?.id ?? null;
+  assert.equal(sold([{ ...order("atra", "se", 1, 45, 10), subtype: "atragraph" }]), null);
+  assert.equal(sold([{ ...order("atra", "se", 1, 45, 10), subtype: "atragraph" }, order("reg", "se", 1, 40, 10)]), "reg");
 });

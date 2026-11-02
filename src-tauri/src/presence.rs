@@ -303,6 +303,10 @@ fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state:
     // The server said no to a status (set:error): don't keep asking every few seconds.
     let mut refused: Option<Status> = None;
     let mut last_sent: Option<Instant> = None;
+    // Changed from elsewhere again and again (the website, another app holding it too): after the
+    // third time in ten minutes, orbiter stops putting it back for ten minutes rather than fight.
+    let mut overrides: Vec<Instant> = Vec::new();
+    let mut hold_until: Option<Instant> = None;
     let mut last_beat = Instant::now() - HEARTBEAT;
     loop {
         // Your choices first.
@@ -311,6 +315,8 @@ fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state:
                 Ok(Cmd::Set(s)) => {
                     *wanted = s;
                     refused = None;
+                    hold_until = None;
+                    overrides.clear();
                     if signed_in {
                         if let Err(e) = send(&mut ws, frame("@wfm|cmd/status/set", serde_json::json!({ "status": s.wire() }))) {
                             return Ended::Dropped(e);
@@ -342,7 +348,8 @@ fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state:
         let committed = state.lock().ok().and_then(|s| s.committed);
         // Not confirmed within a few seconds, or time to say it again: (re)send it.
         let unconfirmed = committed != Some(*wanted) && refused != Some(*wanted);
-        let due = match last_sent {
+        let held = hold_until.is_some_and(|t| Instant::now() < t);
+        let due = !held && match last_sent {
             None => signed_in,
             Some(t) => signed_in && ((unconfirmed && t.elapsed() > Duration::from_secs(4)) || t.elapsed() > REASSERT),
         };
@@ -391,14 +398,29 @@ fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state:
             _ => {}
         }
         if let Some(st) = status {
+            let holding = hold_until.is_some_and(|t| Instant::now() < t);
             if let Ok(mut s) = state.lock() {
                 s.committed = Some(st);
                 s.connected = true;
-                s.error = None;
+                // Holding off (see `overrides`): the note saying why stays.
+                if !holding {
+                    s.error = None;
+                }
             }
-            // Someone else (another app or the website) changed it: put yours back.
-            if signed_in && st != *wanted {
-                last_sent = Some(Instant::now() - REASSERT);
+            // Someone else (another app or the website) changed it: put yours back, unless that
+            // keeps happening.
+            if signed_in && st != *wanted && !hold_until.is_some_and(|t| Instant::now() < t) {
+                overrides.retain(|t| t.elapsed() < Duration::from_secs(600));
+                overrides.push(Instant::now());
+                if overrides.len() >= 3 {
+                    overrides.clear();
+                    hold_until = Some(Instant::now() + Duration::from_secs(600));
+                    if let Ok(mut s) = state.lock() {
+                        s.error = Some("Something else keeps changing your warframe.market status (the website or another app), so orbiter leaves it for 10 minutes. Pick a status to take it back now.".into());
+                    }
+                } else {
+                    last_sent = Some(Instant::now() - REASSERT);
+                }
             }
         }
     }

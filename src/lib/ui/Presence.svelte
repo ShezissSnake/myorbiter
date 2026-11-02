@@ -11,7 +11,9 @@
   const WORD: Record<Presence, string> = { invisible: "Invisible", online: "Online", ingame: "Online in game" };
   const s = $derived(mkt.status);
   /** The switch shows what you clicked until warframe.market confirms it, then what it confirmed. */
-  const shown = $derived<Presence | null>(mkt.statusAsked && mkt.statusAsked !== "offline" ? mkt.statusAsked : (s?.committed ?? s?.wanted ?? null));
+  // "Online in game" chosen shows as chosen while it's Online for want of the game (App.svelte).
+  const waiting = $derived(settings.presence === "ingame" && s?.wanted === "online");
+  const shown = $derived<Presence | null>(waiting ? "ingame" : mkt.statusAsked && mkt.statusAsked !== "offline" ? mkt.statusAsked : (s?.committed ?? s?.wanted ?? null));
   const connecting = $derived(!!s?.wanted && !s.committed);
   const seen = $derived(s?.committed ? WORD[s.committed] : connecting ? "Connecting…" : "Offline");
   const visible = $derived(s?.committed === "online" || s?.committed === "ingame");
@@ -35,7 +37,7 @@
       { v: "offline", label: "Offline", title: "No connection: buyers see you as offline" },
       { v: "invisible", label: "Invisible", title: "Connected, but buyers don't see you or your listings" },
       { v: "online", label: "Online", title: "Buyers see you and your listings" },
-      { v: "ingame", label: "Online in game", title: "Online, and shown as in game: buyers who want to trade now look for this" },
+      { v: "ingame", label: "Online in game", title: "Online, and shown as in game while Warframe runs (Online when it doesn't): buyers who want to trade now look for this" },
     ]}
   />
 </div>
@@ -43,6 +45,8 @@
   <p class="note warn">{mkt.statusError ?? s?.error}</p>
 {:else if !s?.wanted && !quiet}
   <p class="note">Offline: buyers don't see your listings. Pick a status and orbiter holds it while it's open; closing orbiter takes you offline.</p>
+{:else if waiting}
+  <p class="note">Online until Warframe is running, then Online in game: buyers who look for that expect an answer in game.</p>
 {:else if s?.committed === "invisible"}
   <p class="note warn">Invisible: buyers don't see your listings until you're online.</p>
 {/if}

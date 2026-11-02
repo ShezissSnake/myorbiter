@@ -31,6 +31,9 @@ export interface MyOrder {
   subtype: string | null;
   visible: boolean;
   updatedAt: string | null;
+  /** An Ayatan sculpture's stars put in (absent on anything else). */
+  amberStars?: number | null;
+  cyanStars?: number | null;
 }
 
 export interface BookUser {
@@ -49,6 +52,8 @@ export interface BookOrder {
   rank: number | null;
   subtype: string | null;
   visible: boolean;
+  amberStars?: number | null;
+  cyanStars?: number | null;
   user: BookUser;
 }
 
@@ -61,21 +66,33 @@ export interface Me {
 }
 
 export interface Competitor {
+  /** The price to match: the cheapest in game, unless it's one seller far under everyone else (see `lowest`). */
   price: number | null;
   /** In-game sellers at any price, for the same listing. */
   sellers: number;
   cheapest: { name: string | null; platinum: number } | null;
+  /**
+   * The cheapest in game, odd or not: a deal to buy. When it's under a third of the next one (and
+   * 5p or more under it), one forgotten or mistyped listing, `price` and `cheapest` skip it, so
+   * your listings don't follow it down.
+   */
+  lowest: { name: string | null; platinum: number } | null;
   /** The next few in-game prices, cheapest first, to show what the order is matching. */
   ladder: number[];
   /**
-   * What sellers on the site ask, in game or not: the third cheapest, so one or two odd listings
-   * don't set it. Buyers see the offline ones too, and most relic sellers are offline (dozens
-   * ask 2–3p while the few in game ask 30p). Null when nobody but you sells it.
+   * What sellers on the site ask, in game or not: the middle ask (with only one or two, the
+   * dearer), so a few odd listings at either end don't set it. Buyers see the offline ones too,
+   * and most relic sellers are offline (dozens ask 2–3p while the few in game ask 30p). Null when
+   * nobody but you sells it.
    */
   askLevel: number | null;
 }
 
 const sameRank = (a: number | null | undefined, b: number | null | undefined) => (a ?? null) === (b ?? null);
+type Stars = { amberStars?: number | null; cyanStars?: number | null };
+/** Ayatan sculptures: a full one and an empty one are different listings. */
+const sameStars = (a: Stars, b: Stars) => (a.amberStars ?? 0) === (b.amberStars ?? 0) && (a.cyanStars ?? 0) === (b.cyanStars ?? 0);
+export const hasStars = (o: Stars) => (o.amberStars ?? 0) + (o.cyanStars ?? 0) > 0;
 
 /**
  * Can this seller trade with me? Same platform, or both have cross-play on. Not platinum between
@@ -90,7 +107,7 @@ export function canTrade(me: Me, user: BookUser): boolean {
 
 /** `defaultSubtype`: on items with variants (Serration: regular/atragraph, relics: intact…radiant)
  * an order without a subtype counts as the first variant. */
-export function competitor(order: Pick<MyOrder, "rank" | "subtype">, book: BookOrder[], me: Me, defaultSubtype: string | null = null): Competitor {
+export function competitor(order: Pick<MyOrder, "rank" | "subtype"> & Stars, book: BookOrder[], me: Me, defaultSubtype: string | null = null): Competitor {
   const mine = order.subtype ?? defaultSubtype;
   const rivals = book
     .filter(
@@ -100,21 +117,25 @@ export function competitor(order: Pick<MyOrder, "rank" | "subtype">, book: BookO
         o.user.status === "ingame" &&
         o.user.id !== me.id &&
         sameRank(o.rank, order.rank) &&
+        sameStars(o, order) &&
         (o.subtype ?? defaultSubtype) === mine &&
         canTrade(me, o.user),
     )
     .sort((a, b) => a.platinum - b.platinum);
-  const best = rivals[0];
+  // One seller far under the next: a forgotten or mistyped listing, not the market.
+  const odd = rivals.length >= 2 && rivals[0].platinum * 3 < rivals[1].platinum && rivals[1].platinum - rivals[0].platinum >= 5;
+  const best = rivals[odd ? 1 : 0];
   const asks = book
-    .filter((o) => o.type === "sell" && o.visible && o.user.id !== me.id && sameRank(o.rank, order.rank) && (o.subtype ?? defaultSubtype) === mine && canTrade(me, o.user))
+    .filter((o) => o.type === "sell" && o.visible && o.user.id !== me.id && sameRank(o.rank, order.rank) && sameStars(o, order) && (o.subtype ?? defaultSubtype) === mine && canTrade(me, o.user))
     .map((o) => o.platinum)
     .sort((a, b) => a - b);
   return {
     price: best?.platinum ?? null,
     sellers: rivals.length,
     cheapest: best ? { name: best.user.ingameName, platinum: best.platinum } : null,
-    ladder: rivals.slice(0, 5).map((o) => o.platinum),
-    askLevel: asks.length ? asks[Math.min(2, asks.length - 1)] : null,
+    lowest: rivals[0] ? { name: rivals[0].user.ingameName, platinum: rivals[0].platinum } : null,
+    ladder: rivals.slice(odd ? 1 : 0, (odd ? 1 : 0) + 5).map((o) => o.platinum),
+    askLevel: asks.length ? asks[asks.length < 3 ? asks.length - 1 : asks.length >> 1] : null,
   };
 }
 
@@ -231,6 +252,10 @@ export function referencePrice(m: Model, item: MarketItem, rank: number | null, 
     // By refinement: "radiant" → "Radiant"; none named is intact.
     return subtype ? m.relicPrice(base, subtype.charAt(0).toUpperCase() + subtype.slice(1)) : m.relicPrice(base);
   }
+  // The daily prices are for an item's first variant: a regular Serration, not an atragraph one,
+  // a small fish, a blueprint. Another variant has none.
+  const def = item.subtypes?.[0] ?? null;
+  if (subtype && def && subtype !== def) return null;
   // Ranked items: the daily prices are for unranked and maxed copies only. A copy in between (a
   // rank-9 Cutting Edge) has no reference, and a maxed one without a maxed price none either:
   // the unranked price would drag the listing down to a few platinum.
@@ -245,8 +270,13 @@ const REFINEMENT_SUBTYPE: Record<string, string> = { Bronze: "intact", Silver: "
  * Null when orbiter can't tell (an item TennoScope doesn't track, a set whose parts it doesn't
  * know): callers leave such a listing alone rather than treat it as "you hold none".
  */
-export function heldFor(m: Model, item: MarketItem, o: { rank: number | null; subtype: string | null }): number | null {
+export function heldFor(m: Model, item: MarketItem, o: { rank: number | null; subtype: string | null } & Stars): number | null {
   const def = item.subtypes?.[0] ?? null;
+  // Your inventory tells relic refinements apart, not other variants (an atragraph Serration, a
+  // large fish, a crafted item): for any but the first, what you hold is unknown, not none.
+  if (!item.tags?.includes("relic") && (o.subtype ?? def) !== def) return null;
+  // Nor which of your sculptures have stars in.
+  if (hasStars(o)) return null;
   const held = holdings(m, item);
   if (!held) return null;
   return held

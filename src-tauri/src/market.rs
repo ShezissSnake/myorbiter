@@ -67,6 +67,13 @@ fn slow_down() {
 static RETRY_AFTER: Mutex<Option<Duration>> = Mutex::new(None);
 
 /// Notes a "too many requests" reply: everything slows down, and its Retry-After is kept.
+/// A 403 that says nothing, or names the sign-in (token, auth, login…): treated as signed out. One
+/// naming anything else (an order that isn't yours, a limit) is that one change refused.
+fn forbidden_means_signed_out(body: &str) -> bool {
+    let b = body.to_ascii_lowercase();
+    b.trim().is_empty() || ["token", "auth", "sign", "login", "jwt", "credential", "session"].iter().any(|w| b.contains(w))
+}
+
 fn rate_limited(resp: &ureq::Response) -> MarketError {
     let hint = resp.header("Retry-After").and_then(|v| v.trim().parse::<u64>().ok()).map(Duration::from_secs);
     *RETRY_AFTER.lock().unwrap_or_else(|e| e.into_inner()) = hint;
@@ -318,7 +325,17 @@ impl Client {
                 let value = serde_json::from_str(&text).map_err(|e| MarketError::Unreachable(e.to_string()))?;
                 Ok((value, renewed))
             }
-            Err(ureq::Error::Status(401 | 403, _)) => Err(MarketError::Unauthorized),
+            Err(ureq::Error::Status(401, _)) => Err(MarketError::Unauthorized),
+            // A 403 is a sign-out only when it says so; otherwise one change was refused, and the
+            // account stays signed in.
+            Err(ureq::Error::Status(403, resp)) => {
+                let detail = resp.into_string().unwrap_or_default();
+                if forbidden_means_signed_out(&detail) {
+                    Err(MarketError::Unauthorized)
+                } else {
+                    Err(MarketError::Rejected(format!("403 {}", detail.chars().take(300).collect::<String>())))
+                }
+            }
             Err(ureq::Error::Status(429, resp)) => Err(rate_limited(&resp)),
             Err(ureq::Error::Status(code, resp)) => {
                 let detail = resp.into_string().unwrap_or_default();
@@ -343,7 +360,7 @@ impl Client {
         let resp = match resp {
             Ok(r) => r,
             Err(ureq::Error::Status(400 | 401 | 403, _)) => return Err(MarketError::Rejected("wrong email or password".into())),
-            Err(ureq::Error::Status(429, _)) => return Err(MarketError::RateLimited),
+            Err(ureq::Error::Status(429, resp)) => return Err(rate_limited(&resp)),
             Err(ureq::Error::Status(code, _)) => return Err(MarketError::Rejected(format!("sign-in returned {code}; paste a token instead"))),
             Err(e) => return Err(MarketError::Unreachable(e.to_string())),
         };
@@ -608,6 +625,11 @@ pub struct Order {
     pub visible: bool,
     #[serde(default)]
     pub updated_at: Option<String>,
+    /// An Ayatan sculpture's stars put in; none on anything else.
+    #[serde(default)]
+    pub amber_stars: Option<u32>,
+    #[serde(default)]
+    pub cyan_stars: Option<u32>,
 }
 
 fn one() -> u32 {
@@ -781,6 +803,10 @@ pub struct BookOrder {
     pub subtype: Option<String>,
     #[serde(default)]
     pub visible: bool,
+    #[serde(default)]
+    pub amber_stars: Option<u32>,
+    #[serde(default)]
+    pub cyan_stars: Option<u32>,
     pub user: BookUser,
 }
 
@@ -1005,6 +1031,14 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_403_is_a_sign_out_only_when_it_says_so() {
+        assert!(forbidden_means_signed_out(""));
+        assert!(forbidden_means_signed_out(r#"{"error":"invalid token"}"#));
+        assert!(forbidden_means_signed_out(r#"{"error":{"request":["app.auth.required"]}}"#));
+        assert!(!forbidden_means_signed_out(r#"{"error":{"request":["app.order.notOwned"]}}"#));
+    }
+
 
     #[test]
     fn platform_is_one_warframe_market_knows() {

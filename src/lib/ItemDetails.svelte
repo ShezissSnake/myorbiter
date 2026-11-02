@@ -115,7 +115,7 @@
         const me = mkt.me ?? { id: "" };
         const sell = competitor({ rank: null, subtype: null }, orders, me, mi.subtypes?.[0] ?? null);
         const buyers = orders.filter((o) => o.type === "buy" && o.visible && (o.user.status === "ingame" || o.user.status === "online") && o.user.id !== me.id);
-        book = { slug: mi.slug, sell: sell.price, sellers: sell.sellers, buy: buyers.length ? Math.max(...buyers.map((o) => o.platinum)) : null, buyers: buyers.length };
+        book = { slug: mi.slug, sell: sell.lowest?.platinum ?? null, sellers: sell.sellers, buy: buyers.length ? Math.max(...buyers.map((o) => o.platinum)) : null, buyers: buyers.length };
         bookState = "ok";
       } catch {
         if (tradeName === name) bookState = "failed";

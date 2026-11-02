@@ -330,6 +330,15 @@
   const fmt = (t: number) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   /** The listing whose price history is open under its row. */
   let charted = $state<string | null>(null);
+  // A minimum typed in: a whole number of 1 or more; an emptied or odd box keeps the one you had.
+  function minFrom(box: HTMLInputElement, was: number): number {
+    const v = Math.round(Number(box.value));
+    if (box.value.trim() === "" || !Number.isFinite(v) || v < 1) {
+      box.value = String(was);
+      return was;
+    }
+    return v;
+  }
 </script>
 
 <svelte:window onpointerdown={outside} />
@@ -444,10 +453,10 @@
           {#each [0, 0.3, 0.5, 0.7, 0.85] as f (f)}<option value={f}>{f ? `${f * 100}% of market` : "none"}</option>{/each}
         </select>
         <span class="register" title="Nothing is listed or repriced below this, anywhere in orbiter (relics have their own minimum)">never under</span>
-        <input class="minp" type="number" min="1" inputmode="numeric" value={settings.minPrice} aria-label="Minimum price" onchange={(e) => (settings.minPrice = Math.max(1, Math.round(Number(e.currentTarget.value)) || 1))} onwheel={(e) => e.currentTarget.blur()} />
+        <input class="minp" type="number" min="1" inputmode="numeric" value={settings.minPrice} aria-label="Minimum price" onchange={(e) => (settings.minPrice = minFrom(e.currentTarget, settings.minPrice))} onwheel={(e) => e.currentTarget.blur()} />
         <Metal kind="plat" size={14} />
         <span class="register" title="Relics sell for a few platinum each and go in stacks: the lowest a relic is listed or repriced at">relics</span>
-        <input class="minp" type="number" min="1" inputmode="numeric" value={settings.minRelicPrice} aria-label="Minimum relic price" onchange={(e) => (settings.minRelicPrice = Math.max(1, Math.round(Number(e.currentTarget.value)) || 1))} onwheel={(e) => e.currentTarget.blur()} />
+        <input class="minp" type="number" min="1" inputmode="numeric" value={settings.minRelicPrice} aria-label="Minimum relic price" onchange={(e) => (settings.minRelicPrice = minFrom(e.currentTarget, settings.minRelicPrice))} onwheel={(e) => e.currentTarget.blur()} />
         <Metal kind="plat" size={14} />
       </div>
       {#if nextPass}<span class="register next">Next check {fmt(+nextPass)}</span>{/if}
@@ -507,7 +516,7 @@
             </td>
             <td class="fade c-comp" data-label="Cheapest in game">
               {#if p && p.competitor.price != null}
-                <span class="comp"><P v={p.competitor.price} /> <span class="dim small">{p.competitor.cheapest?.name} · {p.competitor.sellers} in game</span></span>
+                <span class="comp"><P v={p.competitor.price} /> <span class="dim small">{p.competitor.cheapest?.name} · {p.competitor.sellers} in game{#if p.competitor.lowest && p.competitor.lowest.platinum !== p.competitor.price}<span title="{p.competitor.lowest.name ?? 'One seller'} asks {p.competitor.lowest.platinum}p, far under everyone else: likely a forgotten or mistyped listing, so it isn't matched. Buy it if it's real."> · {p.competitor.lowest.platinum}p left out</span>{/if}</span></span>
                 {@const goes = goesFor(p)}
                 {#if goes != null}<div class="register goes" title="Everyone in game asks more than twice what it really goes for: what it sold for lately, or what sellers on the site ask if that's lower ({p.competitor.askLevel ?? '–'}p, in game or not). Priced at that, so it sells.">goes for ~{goes}p</div>
                 {:else if p.competitor.ladder.length > 1}<div class="register ladder" title="The next cheapest in-game prices">{p.competitor.ladder.join(" · ")}</div>{/if}

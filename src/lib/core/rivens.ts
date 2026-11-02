@@ -546,8 +546,10 @@ export function auctionItemFor(meta: RivenMeta, r: Riven): { item: AuctionItem }
     attributes.push({ url_name: slug, positive: s.buff, value: marketValue(meta, slug, s.value) });
   }
   if (!r.name) return { error: "The riven's name couldn't be worked out" };
+  // Listed with the wrong polarity, it would show the wrong one to buyers.
+  if (!r.polarity) return { error: "The riven's polarity couldn't be read" };
   return {
-    item: { type: "riven", weapon_url_name: weapon, name: r.name.toLowerCase(), attributes, mastery_level: r.mastery, mod_rank: r.rank, re_rolls: r.rerolls, polarity: r.polarity ?? "madurai" },
+    item: { type: "riven", weapon_url_name: weapon, name: r.name.toLowerCase(), attributes, mastery_level: r.mastery, mod_rank: r.rank, re_rolls: r.rerolls, polarity: r.polarity },
   };
 }
 
@@ -769,7 +771,8 @@ export function withSaved(s: SavedRivenPrices, now: number, riven?: { id: string
 
 /** The starting bid an auction keeps under a new buyout (see Rivens.reprice). */
 export function startingFor(a: { starting: number; buyout: number | null }, buyout: number): number {
-  return a.starting < (a.buyout ?? a.starting) ? Math.min(a.starting, buyout) : buyout;
+  // Bids only (no buyout), or bids under the buyout: it keeps taking bids.
+  return a.buyout == null || a.starting < a.buyout ? Math.min(a.starting, buyout) : buyout;
 }
 
 /** A riven cycle as TennoScope's overlay draws it (its RivenOverlay.tsx): both rolls, graded, and which to keep. */

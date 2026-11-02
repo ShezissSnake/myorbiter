@@ -9,6 +9,7 @@ import {
   listingKey,
   plan,
   referencePrice,
+  hasStars,
   type BookOrder,
   type MarketItem,
   type Me,
@@ -412,7 +413,8 @@ class MarketStore {
     return plan(o, book, this.me, {
       floor: crack != null ? Math.max(own ?? 0, crack) : own,
       minShare: s.minShare,
-      reference: referencePrice(m, it, o.rank, o.subtype ?? it.subtypes?.[0] ?? null),
+      // The daily price is for an empty sculpture: one with stars in has none.
+      reference: hasStars(o) ? null : referencePrice(m, it, o.rank, o.subtype ?? it.subtypes?.[0] ?? null),
       defaultSubtype: it.subtypes?.[0] ?? null,
       min: minFor(s, it),
       capByAsks: !!it.tags?.includes("relic"),
@@ -424,8 +426,15 @@ class MarketStore {
    * Only one pass runs at a time; a pass that fails still counts as a pass, so the timer waits
    * its full interval instead of retrying every few seconds.
    */
-  async reprice(m: Model, s: MarketSettings, apply: boolean) {
+  async reprice(m: Model, s: MarketSettings, apply: boolean, timed = false) {
     if (!this.linked || this.pass) return;
+    // What Reprice was showing when you pressed it: a book read since can only move a price up
+    // past what you approved, never further down (that waits for you to look again).
+    const shown = new Map<string, number>();
+    if (apply && !timed) for (const o of this.orders) {
+      const p = o.visible ? this.planFor(m, s, o) : null;
+      if (p?.change) shown.set(o.id, p.target);
+    }
     this.pass = apply ? "Repricing" : "Checking prices";
     // A check on a timer reads every book at least once a round: never reuse one from before the last round.
     const checkTtl = Math.min(BOOK_TTL, Math.max(60_000, (s.every || 5) * 60_000 - 30_000));
@@ -433,6 +442,8 @@ class MarketStore {
     let changed = 0;
     let skipped = 0;
     let deferred = 0;
+    let held = 0;
+    let moved = 0;
     let failed = 0;
     let read = 0;
     // Three reads failing in a row is warframe.market not answering (or turning orbiter away):
@@ -478,6 +489,20 @@ class MarketStore {
           deferred++;
           continue;
         }
+        // Settings can change during a long pass: Apply automatically turned off, this listing paused.
+        if ((timed && !s.auto) || s.paused[listingKey(o)]) continue;
+        if (!timed) {
+          const was = shown.get(o.id);
+          if (was == null || p.target < was) {
+            moved++;
+            continue;
+          }
+        } else if (p.target < o.platinum / 2) {
+          // More than halving a price is never done unattended: it waits for you to press Reprice.
+          held++;
+          this.note(`${it.name}${o.rank != null ? ` R${o.rank}` : ""}: would go from ${o.platinum}p to ${p.target}p; left for you to check (Reprice)`, "warn");
+          continue;
+        }
         try {
           await market.update(o.id, { platinum: p.target });
           writeFailing = 0;
@@ -496,10 +521,11 @@ class MarketStore {
         }
       }
       if (skipped) this.note(`${skipped} listing${skipped === 1 ? "" : "s"} skipped: item not in warframe.market's list`, "warn");
+      if (moved) this.note(`${moved} listing${moved === 1 ? "" : "s"} left as ${moved === 1 ? "it was" : "they were"}: the price went lower since you checked; check again`, "info");
       if (deferred) this.note(`${deferred} listing${deferred === 1 ? "" : "s"} left for the next pass: you were editing`, "info");
       if (stopped) this.note("warframe.market stopped answering, so this pass stopped early; the rest are checked next pass", read ? "warn" : tone());
       else if (failed) this.note(`${failed} listing${failed === 1 ? "" : "s"} couldn't be checked; trying again next pass`, read ? "warn" : tone());
-      if (apply && !changed && !failed && !skipped && !deferred) this.note("Prices checked: everything already matches", "info");
+      if (apply && !changed && !failed && !skipped && !deferred && !held && !moved) this.note("Prices checked: everything already matches", "info");
       if (!apply) {
         const off = this.orders.filter((o) => o.visible && this.planFor(m, s, o)?.change).length;
         const checked = this.orders.filter((o) => o.visible && this.planFor(m, s, o)).length;
@@ -530,7 +556,9 @@ class MarketStore {
         this.passFailures++;
       }
     } finally {
-      if (apply) this.lastPass = Date.now();
+      // A pass on the timer counts whether it applied or only checked, so "Check automatically"
+      // runs every N minutes too, not on every tick.
+      if (apply || timed) this.lastPass = Date.now();
       this.pass = null;
     }
   }
@@ -660,7 +688,14 @@ class MarketStore {
         );
       } else {
         if (this.room <= 0) throw new Error(`warframe.market allows ${LISTING_LIMIT} listings and you have that many: add to an existing listing or remove one first`);
-        await market.create({ itemId: d.itemId, platinum: d.platinum!, quantity: d.quantity, rank: d.rank, subtype: d.subtype, visible: true });
+        const before = this.ordersAt != null ? new Set(this.orders.map((o) => o.id)) : null;
+        try {
+          await market.create({ itemId: d.itemId, platinum: d.platinum!, quantity: d.quantity, rank: d.rank, subtype: d.subtype, visible: true });
+        } catch (e) {
+          // No answer in time doesn't mean it wasn't made: look before letting you send it again.
+          await this.refresh().catch(() => {});
+          if (!before || !this.orders.some((o) => !before.has(o.id) && o.itemId === d.itemId)) throw e;
+        }
         this.note(`Listed ${d.quantity}× ${tag} at ${d.platinum}p`, "ok");
       }
       this.draftDone = this.log[0]?.text ?? null;
@@ -687,11 +722,16 @@ class MarketStore {
       try {
         await market.update(o.id, { visible });
         done.push(o);
+        // Kept here at once: the read below can fail or be skipped, and what's hidden must still be known.
+        this.orders = this.orders.map((x) => (x.id === o.id ? { ...x, visible } : x));
+        // A read already on its way predates this: it mustn't bring the old visibility back.
+        this.localEdits++;
       } catch (e) {
         this.note(`${this.item(o.itemId)?.name ?? "A listing"}: couldn't ${visible ? "show" : "hide"} it (${clean(e)})`, "warn");
       }
     }
-    if (done.length) await this.refresh();
+    // What was changed is returned even if this read fails: the caller records it either way.
+    if (done.length) await this.refresh().catch(() => {});
     return done;
   }
 
@@ -954,7 +994,8 @@ class MarketStore {
   // ------------------------------------------------------------ put my spares on sale
 
   /** The changes "Put my spares on sale" would make, for you to look over before applying. */
-  bulk = $state.raw<{ actions: BulkAction[]; at: number } | null>(null);
+  /** The plan, when it was worked out, and the order books it priced from (Apply prices from those, never an older copy). */
+  bulk = $state.raw<{ actions: BulkAction[]; at: number; books: Record<string, BookOrder[] | undefined> } | null>(null);
   /** A long run's progress (planning, applying, removing everything). */
   progress = $state<{ done: number; total: number } | null>(null);
 
@@ -1003,6 +1044,7 @@ class MarketStore {
       this.bulk = {
         actions: bulkPlan({ model: m, index: this.index, orders: this.orders, me, books, minPrice: s.minPrice, minRelicPrice: s.minRelicPrice, minShare: s.minShare, floors: s.floors, paused: s.paused, otherOrders: this.otherOrders, sell: s.sellable, advice }, s.bulk, targets),
         at: Date.now(),
+        books,
       };
     });
     this.progress = null;
@@ -1022,14 +1064,8 @@ class MarketStore {
       if (this.bulk) this.note("That plan was over 10 minutes old, so its prices were read again: look it over and apply again.", "warn");
       return;
     }
-    await this.refresh().catch(() => {});
-    const books = Object.fromEntries(Object.entries(this.books).map(([slug, b]) => [slug, b.orders]));
-    const fresh = bulkPlan({ model: m, index: this.index, orders: this.orders, me: this.me, books, minPrice: s.minPrice, minRelicPrice: s.minRelicPrice, minShare: s.minShare, floors: s.floors, paused: s.paused, otherOrders: this.otherOrders, sell: s.sellable, advice }, s.bulk, sellTargets(m, s.bulk, advice, this.index, s.sellable));
-    if (planSignature(fresh) !== planSignature(shown.actions)) {
-      this.bulk = { actions: fresh, at: Date.now() };
-      this.note("Your inventory or listings changed since the plan: here is the updated plan. Look it over and apply again.", "warn");
-      return;
-    }
+    // Busy from here, before the first wait: a second click mustn't start a second run.
+    let changed = false;
     // Removals first, so new listings have room under the 100-listing limit.
     const ORDER = { remove: 0, update: 1, create: 2, skip: 3 } as const;
     const todo = shown.actions.filter((a) => a.type !== "skip").sort((a, b) => ORDER[a.type] - ORDER[b.type]);
@@ -1037,6 +1073,15 @@ class MarketStore {
     let failed = 0;
     let writeFailing = 0;
     await this.guard("Updating your listings", async () => {
+      await this.refresh().catch(() => {});
+      // Priced from the books the plan was priced from: one that failed then isn't priced from an older copy now.
+      const fresh = bulkPlan({ model: m, index: this.index, orders: this.orders, me: this.me!, books: shown.books, minPrice: s.minPrice, minRelicPrice: s.minRelicPrice, minShare: s.minShare, floors: s.floors, paused: s.paused, otherOrders: this.otherOrders, sell: s.sellable, advice }, s.bulk, sellTargets(m, s.bulk, advice, this.index, s.sellable));
+      if (planSignature(fresh) !== planSignature(shown.actions)) {
+        this.bulk = { actions: fresh, at: shown.at, books: shown.books };
+        this.note("Your inventory or listings changed since the plan: here is the updated plan. Look it over and apply again.", "warn");
+        changed = true;
+        return;
+      }
       this.progress = { done: 0, total: todo.length };
       for (const a of todo) {
         const tag = (name: string, rank: number | null) => `${name}${rank != null ? ` R${rank}` : ""}`;
@@ -1066,12 +1111,13 @@ class MarketStore {
       }
     });
     this.progress = null;
+    if (changed) return;
     await this.refresh().catch(() => {});
     if (this.error) {
       // Stopped part way (the sign-in expired): keep only what wasn't sent, so a second Apply
       // doesn't list things twice.
       const left = shown.actions.filter((a) => !sent.has(a));
-      this.bulk = left.some((a) => a.type !== "skip") ? { actions: left, at: Date.now() } : null;
+      this.bulk = left.some((a) => a.type !== "skip") ? { actions: left, at: Date.now(), books: shown.books } : null;
       this.note(`Stopped after ${sent.size} of ${todo.length} changes: ${this.error}`, "warn");
       return;
     }
@@ -1111,6 +1157,9 @@ class MarketStore {
 
   /** Runs a change you asked for, showing it as in progress; false (and the error shown) when it failed. */
   private async guard(label: string, f: () => Promise<void>): Promise<boolean> {
+    // Counted: one change ending mustn't clear "busy" while another still runs (the timer would
+    // start a pass in the middle of it).
+    this.running++;
     this.op = label;
     this.error = null;
     try {
@@ -1120,9 +1169,10 @@ class MarketStore {
       this.error = clean(e);
       return false;
     } finally {
-      this.op = null;
+      if (--this.running === 0) this.op = null;
     }
   }
+  private running = 0;
 }
 
 const clean = (e: unknown) => String(e).replace(/^Error: /, "");

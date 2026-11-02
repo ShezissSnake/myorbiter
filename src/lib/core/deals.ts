@@ -61,17 +61,19 @@ export function findDeals(m: Model, index: MarketIndex, books: Record<string, Bo
     const usual = referencePrice(m, it, rank, it.subtypes?.[0] ?? null);
     if (usual == null || usual < DEAL_MIN_REF) continue;
     const c = competitor({ rank, subtype: null }, book, me, it.subtypes?.[0] ?? null);
-    if (c.price == null || !c.cheapest || c.price > usual * DEAL_SHARE) continue;
+    // The cheapest, odd or not: one seller far under the rest is exactly the deal.
+    const low = c.lowest;
+    if (!low || low.platinum > usual * DEAL_SHARE) continue;
     out.push({
-      key: `${it.slug}|${c.price}|${c.cheapest.name}`,
+      key: `${it.slug}|${low.platinum}|${low.name}`,
       name: it.name,
       slug: it.slug,
       rank,
-      price: c.price,
+      price: low.platinum,
       usual: Math.round(usual),
-      seller: c.cheapest.name ?? "?",
+      seller: low.name ?? "?",
       why: w.why,
-      whisper: `/w ${c.cheapest.name} Hi! I want to buy: "${it.name}${rank != null ? ` (rank ${rank})` : ""}" for ${c.price} platinum. (warframe.market)`,
+      whisper: `/w ${low.name} Hi! I want to buy: "${it.name}${rank != null ? ` (rank ${rank})` : ""}" for ${low.platinum} platinum. (warframe.market)`,
     });
   }
   return out.sort((a, b) => b.usual - b.price - (a.usual - a.price));

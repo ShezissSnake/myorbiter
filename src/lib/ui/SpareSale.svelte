@@ -4,7 +4,7 @@
   import { tick } from "svelte";
   import type { Model } from "../core/model";
   import type { AdviceSettings, MarketSettings } from "../backend";
-  import { AS_LISTED, KIND_LABEL, LIMIT_WHY, LISTING_LIMIT, type BulkAction } from "../core/bulk";
+  import { AS_LISTED, KIND_LABEL, LIMIT_WHY, LIMIT_WHY_TRADES, LISTING_LIMIT, type BulkAction } from "../core/bulk";
   import { mkt } from "../marketStore.svelte";
   import Seg from "./Seg.svelte";
   import Chip from "./Chip.svelte";
@@ -42,13 +42,13 @@
   const actions = $derived(mkt.bulk?.actions ?? []);
   const changes = $derived(actions.filter((a) => a.type !== "skip"));
   // warframe.market's 100-listing cap: what the plan left out, or took down, to stay under it.
-  const overLimit = $derived(actions.filter((a) => a.type === "skip" && a.why === LIMIT_WHY).length);
+  const overLimit = $derived(actions.filter((a) => a.type === "skip" && (a.why === LIMIT_WHY || a.why === LIMIT_WHY_TRADES)).length);
   const madeRoom = $derived(actions.filter((a) => a.type === "remove" && a.why.startsWith("Makes room")).length);
   // Left out, the ones you can do something about first: prices that didn't load, the listing cap,
   // then your own listings the plan leaves as they are.
   const UNREAD = "Couldn't load its prices";
   const unread = $derived(actions.filter((a) => a.type === "skip" && a.why === UNREAD).length);
-  const order = (why: string) => (why === UNREAD ? 0 : why === LIMIT_WHY ? 1 : why.endsWith(AS_LISTED) ? 2 : why.includes("minimum") ? 4 : 3);
+  const order = (why: string) => (why === UNREAD ? 0 : why === LIMIT_WHY || why === LIMIT_WHY_TRADES ? 1 : why.endsWith(AS_LISTED) ? 2 : why.includes("minimum") ? 4 : 3);
   const skipped = $derived(actions.filter((a) => a.type === "skip").sort((a, b) => order(a.why) - order(b.why)));
   const count = (t: BulkAction["type"]) => actions.filter((a) => a.type === t).length;
   const gain = $derived(

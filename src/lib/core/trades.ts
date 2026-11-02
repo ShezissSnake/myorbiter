@@ -38,6 +38,9 @@ export function salesFromTrade(t: Trade, orders: MyOrder[], index: MarketIndex, 
   const weights = sales.every((s) => s.order) ? sales.map((s) => s.order!.platinum * s.count) : sales.map((s) => s.count);
   const total = weights.reduce((a, b) => a + b, 0) || 1;
   sales.forEach((s, i) => (s.platinumEach = Math.round((t.platinum_received * weights[i]) / total / s.count)));
+  // Paid far from the listing's price (under half, over double): likely another copy than the one
+  // listed (an unranked mod for your maxed listing), so that listing is left alone.
+  for (const s of sales) if (s.order && (s.platinumEach * 2 < s.order.platinum || s.platinumEach > s.order.platinum * 2)) s.order = null;
   return sales;
 }
 
@@ -65,6 +68,11 @@ export function listingFor(it: MarketItem, rank: number | null, subtype: string 
     const of = (o: MyOrder) => o.subtype ?? "intact";
     // Refinement not logged: only when you list just one refinement of it.
     mine = subtype ? mine.filter((o) => of(o) === subtype) : new Set(mine.map(of)).size === 1 ? mine : [];
+  } else if (it.subtypes?.length) {
+    // Other variants (regular or atragraph, a fish's size): the log doesn't say which was traded,
+    // so only the first variant, the one a plain name stands for.
+    const def = it.subtypes[0];
+    mine = mine.filter((o) => (o.subtype ?? def) === def);
   }
   return mine[0] ?? null;
 }

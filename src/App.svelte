@@ -53,6 +53,7 @@
     nothingYet,
     PLATFORM_LABEL,
     type Platform,
+    type Presence,
     NO_INVENTORY_YET,
     tennoscope,
     onSaveTrouble,
@@ -725,6 +726,20 @@
   // with your message. Also when orbiter opens after the trade (the game log still has it) and
   // once you sign in to warframe.market. A partner not on warframe.market is let go; one that
   // fails waits for the next run, and says why once.
+  // "Online in game" only while Warframe runs (as TennoScope sees it): buyers who pick it expect
+  // an answer in game. Online until then, and again after you close the game.
+  function presenceNow(p: Presence): Presence {
+    return p === "ingame" && ts.report && !ts.report.game_running ? "online" : p;
+  }
+  $effect(() => {
+    const want = settings.market.presence;
+    const running = ts.report?.game_running;
+    if (want !== "ingame" || running == null || !mkt.linked || !mkt.status?.wanted) return;
+    untrack(() => {
+      const now = presenceNow(want);
+      if (mkt.status?.wanted !== now && mkt.statusAsked !== now) void mkt.setStatus(now);
+    });
+  });
   let repRunning = false;
   const repFailed = new Set<string>();
   async function runAutoRep() {
@@ -733,6 +748,8 @@
     try {
       for (const t of repCandidates(settings.market.trades, settings.market.rep, Date.now())) {
         if (repFailed.has(t.key)) continue;
+        // Turned off, or signed out, part way through: stop there.
+        if (!settings.market.autoRep || !mkt.linked) break;
         let u: Awaited<ReturnType<typeof mkt.user>>;
         try {
           u = await mkt.user(t.partner);
@@ -1590,7 +1607,7 @@
           settings.market.platform = theirs as Platform;
           settings.market.relicPrices = {};
         }
-        if (mkt.linked && settings.market.presence) mkt.setStatus(settings.market.presence);
+        if (mkt.linked && settings.market.presence) mkt.setStatus(presenceNow(settings.market.presence));
       });
       mkt.pollStatus();
       statusPoll = setInterval(() => mkt.pollStatus(), 3_000);
@@ -1611,7 +1628,7 @@
         // Check (and, with Apply automatically, send) on your timer.
         if (!model || !(s.auto || s.autoCheck) || !mkt.linked || mkt.busy) return;
         if (mkt.lastPass && Date.now() - mkt.lastPass < mkt.passDelay(s.every * 60_000)) return;
-        mkt.reprice(model, s, s.auto);
+        mkt.reprice(model, s, s.auto, true);
       }, 15_000);
       // Signed in but warframe.market was unreachable (offline start, outage): try again each minute.
       // And the website's chat, each minute while signed in.

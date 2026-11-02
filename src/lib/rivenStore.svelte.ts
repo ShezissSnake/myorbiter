@@ -153,7 +153,15 @@ class Rivens {
    * (the same as the buyout: no bidding, it just sells at that price).
    */
   async sell(item: AuctionItem, buyout: number, starting: number, note = "", minRep = 0) {
-    await market.createAuction({ starting_price: starting, buyout_price: buyout, minimal_reputation: minRep, private: false, note, item });
+    const before = this.mineAt != null ? new Set(this.mine.map((a) => a.id)) : null;
+    try {
+      await market.createAuction({ starting_price: starting, buyout_price: buyout, minimal_reputation: minRep, private: false, note, item });
+    } catch (e) {
+      // No answer in time doesn't mean it wasn't made: look before letting you send it again.
+      await this.loadMine().catch(() => {});
+      if (before && this.mine.some((a) => !before.has(a.id) && a.weapon === item.weapon_url_name)) return;
+      throw e;
+    }
     await this.loadMine();
   }
   /**
