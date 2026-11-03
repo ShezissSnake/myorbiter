@@ -69,12 +69,14 @@
 
   /* Each relic era as its relic is cast in game: Lith copper, Meso olive bronze, Neo silver,
      Axi gold, Requiem's Kuva crimson-violet; Omnia (any era) the Void's pale violet. Meso and
-     Requiem stay clear of verdigris (good) and oxblood (bad), so an era never reads as a state. */
+     Requiem stay clear of verdigris (good) and oxblood (bad), so an era never reads as a state.
+     Each is text too (a fissure card's era, the Relics tile): at least 4.5:1 on the slab and on its
+     own washed card. */
   --era-lith: #c0804c;
   --era-meso: #9aa37a;
   --era-neo: #c3cad4;
   --era-axi: #d6ae4a;
-  --era-requiem: #b0435a;
+  --era-requiem: #d46a8e;
   --era-omnia: #a2a8f0;
 
   /* Each section's own colour, from where that part of the game lives: Fissures the Void's violet,
