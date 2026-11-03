@@ -73,8 +73,8 @@
     label="Show"
     options={[
       { v: "normal", label: `Normal · ${counts.normal}`, game: "void-tear", title: "Normal fissures on the star chart" },
-      { v: "steel", label: `Steel Path · ${counts.steel}`, game: "steel-essence", title: "Steel Path fissures: harder enemies, and Steel Essence and Kuva drops on top" },
-      { v: "storm", label: `Void Storms · ${counts.storm}`, game: "railjack", title: "Railjack Void Storms on the Proxima nodes" },
+      { v: "steel", label: `Steel Path · ${counts.steel}`, game: "steel-essence", title: "Steel Path fissures: Steel Path enemies (higher levels, Acolytes), and 1 Steel Essence at the end of the mission for each relic you open yourself" },
+      { v: "storm", label: `Void Storms · ${counts.storm}`, game: "railjack", title: "Void Storms: Railjack missions on the Proxima nodes. Open a relic as usual (Reactant drops are shared by the crew), and an extra end-of-mission reward table (Corrupted Holokeys and more) pays even without a relic" },
     ]}
   />{/if}
   {#if alerts > 0}<Chip bind:on={only} label="Only my alerts" title="Show only the fissures your fissure alerts (below) match, normal, Steel Path and Void Storms together. Off: every fissure of the kind you pick" />{/if}

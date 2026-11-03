@@ -60,4 +60,9 @@ test("world clocks: cycles still running, and the resets", () => {
   assert.deepEqual(cycleTimers(vallis, NOW).map((c) => [c.state, c.ends]), [["cold", "2026-10-21T12:15:00.000Z"]]);
   assert.equal(nextDailyUtc(NOW), "2026-10-22T00:00:00.000Z");
   assert.deepEqual(resetTimers(live, NOW).map((r) => [r.key, r.ends]), [["daily", "2026-10-22T00:00:00.000Z"], ["weekly", "2026-10-26T00:00:00.000Z"]]);
+  // The weekly reset names what resets, not a vague "traders".
+  const weekly = resetTimers(live, NOW).find((r) => r.key === "weekly")!.state;
+  assert.match(weekly, /Teshin/);
+  assert.match(weekly, /Archimedea/);
+  assert.doesNotMatch(weekly, /traders/);
 });

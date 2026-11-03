@@ -114,7 +114,8 @@ const RANKS: Record<string, string[]> = {
   "The Holdfasts": ["Fallen", "Watcher", "Guardian", "Seraph", "Angel"],
   Ventkids: ["Glinty", "Whozit", "Proper Felon", "Primo", "Logical"],
   "The Quills": ["Mote", "Observer", "Adherent", "Instrument", "Architect"],
-  "Kahl's Garrison": ["Encampment", "Settlement", "Fort", "Home"],
+  // No Neutral rank: you start at 1, Shelter, and each weekly Break Narmer ranks you up.
+  "Kahl's Garrison": ["Shelter", "Encampment", "Fort", "Settlement", "Home"],
   Cavia: ["Assistant", "Researcher", "Colleague", "Scholar", "Illuminate"],
   "Steel Meridian": ["Brave", "Valiant", "Defender", "Protector", "General"],
   "Red Veil": ["Respected", "Honored", "Esteemed", "Revered", "Exalted"],
@@ -167,7 +168,7 @@ const RELAY_WEAPONS: Record<string, string> = {
 };
 
 /** "Vox Solaris, Hand" → syndicate, vendor and rank (1–5, or null if the title isn't known). */
-function syndicateOf(loc: string): { name: string; vendor: string | null; title: string; rank: number | null } | null {
+export function syndicateOf(loc: string): { name: string; vendor: string | null; title: string; rank: number | null } | null {
   const m = /^([^,(]+?)(?: \(([^)]+)\))?, (.+)$/.exec(loc);
   if (!m) return null;
   const name = m[1].trim();
