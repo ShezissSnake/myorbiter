@@ -16,3 +16,6 @@ scripts/riven-model/rw.json
 # Local leftovers: a file list with checksums, the dev server's log.
 .pc-md5.txt
 /vite.log
+# Generated at build time (scripts/tennoscope-notice.sh, repack-appimage.sh): never committed.
+/THIRD-PARTY-NOTICES/SOURCES.md
+/THIRD-PARTY-NOTICES/linux/

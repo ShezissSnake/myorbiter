@@ -41,3 +41,19 @@ These are bundled with orbiter but are not covered by its licence:
   are in `THIRD-PARTY-NOTICES/fonts/`).
 - The libraries that come with the Tesseract in the Linux and Windows downloads: each under its own
   licence, with its notice in the download's `tennoscope/THIRD-PARTY-NOTICES/tesseract/`.
+- The system libraries in the Linux AppImage (GTK, WebKitGTK, GLib and the rest, as linuxdeploy
+  copies them from Ubuntu): each under its own licence, with its copyright file in the download's
+  `THIRD-PARTY-NOTICES/linux/`.
+
+## Source of the bundled GPL and LGPL libraries
+
+Some of those libraries are under the GPL or the LGPL (JBIG-KIT, GLib, the GCC runtime and others).
+Each download's `THIRD-PARTY-NOTICES/SOURCES.md`, written when it's built, lists every bundled
+library with its exact version and where its source is: on Linux, each Ubuntu package and its
+source package (launchpad.net/ubuntu/+source/<package>/<version>); on Windows, the DLLs from UB
+Mannheim's Tesseract installer (`tennoscope/packaging/windows-tesseract/SOURCES.md`).
+
+For three years from the date of each release, the complete corresponding source code of the GPL-
+and LGPL-licensed libraries bundled in it is available on request: open an issue at
+https://github.com/ShezissSnake/orbiter or contact the maintainer. The source of orbiter and TennoScope
+is attached to every release as `orbiter-source.tar.gz`.

@@ -11,7 +11,9 @@
 # different copies).
 #
 # Needs tesseract-ocr, tesseract-ocr-eng and patchelf installed where it runs (the build machine).
-# The notices of everything copied go in `licenses/` (scripts/collect-linux-notices.sh).
+# The notices of everything copied go in `licenses/` (scripts/collect-linux-notices.sh), with
+# SOURCES.md: each package's version, where its source is, and the written offer
+# (scripts/collect-linux-sources.sh).
 set -euo pipefail
 
 out=${1:?usage: vendor-linux-tesseract.sh <folder>}
@@ -46,6 +48,9 @@ mapfile -t libs < <(ldd "$src" | awk '/=> \// { print $1, $3 }' | while read -r 
   [[ ${name##*/} =~ $skip ]] || echo "$path"
 done)
 "$(dirname "$0")/collect-linux-notices.sh" "$out/licenses" "$src" "$model" "${libs[@]}"
+# And where each package's source is, at the version copied, with the written offer for the GPL and
+# LGPL ones (scripts/collect-linux-sources.sh): licenses/SOURCES.md.
+"$(dirname "$0")/collect-linux-sources.sh" "$out/licenses/SOURCES.md" "$src" "$model" "${libs[@]}"
 
 # The program finds them beside it; each library finds its siblings in the same folder.
 patchelf --force-rpath --set-rpath '$ORIGIN/lib' "$out/tesseract"
