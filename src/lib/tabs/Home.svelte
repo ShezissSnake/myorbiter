@@ -11,7 +11,7 @@
   import { masteryRows, relicRows, type RelicRow } from "../core/views";
   import { sellTargets, KIND_LABEL, BULK_KINDS, RULE_OF, type BulkKind } from "../core/bulk";
   import { expectedBest } from "../core/advice";
-  import { baroStock, varziaNeeds, until } from "../core/traders";
+  import { baroFlips, baroStock, shortCredits, varziaNeeds, until } from "../core/traders";
   import { invasionNeeds, invasionRares } from "../core/invasions";
   import { alertNeeds, describeHelp } from "../core/worldNeeds";
   import GameIcon, { eraIcon, type GameIconName } from "../ui/GameIcon.svelte";
@@ -159,6 +159,8 @@
   const baroHere = $derived(!!baro && now >= Date.parse(baro.activation) && now < Date.parse(baro.expiry));
   const stock = $derived(baroHere ? baroStock(model) : []);
   const baroNeed = $derived(stock.filter((s) => s.mark === "mastery" || s.mark === "new"));
+  /** His stock that sells on warframe.market, best platinum per ducat first. */
+  const flips = $derived(baroHere && !console ? baroFlips(model, stock) : []);
   const heldDucats = $derived((model.inventoryByBase.get("/Lotus/Types/Items/MiscItems/PrimeBucks") ?? []).reduce((n, r) => n + r.quantity, 0));
   const rows = $derived(masteryRows(model));
   const invasions = $derived(invasionNeeds(model, live.invasions));
@@ -743,11 +745,25 @@
                 <span class="sn" use:info={s.name}>{s.name}</span>
                 <span class="mk">{#if console}{:else if s.mark === "mastery"}<span class="tag gold" title="You haven't mastered it">+{s.points?.toLocaleString("en")} mastery</span>{:else if s.mark === "new"}<span class="tag gold">new to you</span>{:else if s.mark === "have"}<span class="tag">you have it</span>{/if}</span>
                 <P v={s.ducats} d dim={s.mark === "have"} />
+                <span class="cr dim small" title={s.credits ? `${s.credits.toLocaleString("en")} credits, on top of the ducats` : undefined}>{#if s.credits}<GameIcon name="credits" size={11} />{shortCredits(s.credits)}{/if}</span>
               </li>
             {/each}
           </ul>
           {#if !console && !baroNeed.length}<p class="dim small">Nothing in his stock you don't already have.</p>{/if}
           {#if !console && stock.length > baroNeed.length}<p class="dim small">+{stock.length - baroNeed.length} more you have or that give no mastery (cosmetics and the like).</p>{/if}
+          {#if flips.length}
+            <div class="register sub" title="What he sells that trades on warframe.market, by the platinum each ducat turns into when you sell it (its daily median price over his ducat cost). Buy from him, list it, and the ducats become platinum">Best ducats to plat</div>
+            <ul class="stock flips">
+              {#each flips as f (f.unique)}
+                <li title="{f.name}: sells for about {Math.round(f.price)}p, {f.ducats} ducats{f.credits ? ` and ${f.credits.toLocaleString('en')} credits` : ''} from Baro{f.tradesPerDay != null ? `; about ${f.tradesPerDay < 1 ? f.tradesPerDay.toFixed(1) : Math.round(f.tradesPerDay)} trades a day` : ''}">
+                  <span class="sn" use:info={f.name}>{f.name}</span>
+                  <span class="mk dim small">{f.perDucat.toFixed(2)}p/ducat · {f.tradesPerDay != null ? `${f.tradesPerDay < 1 ? f.tradesPerDay.toFixed(1) : Math.round(f.tradesPerDay)}/day` : "?/day"}</span>
+                  <P v={f.price} />
+                  <span class="cr dim small">{#if f.credits}<GameIcon name="credits" size={11} />{shortCredits(f.credits)}{/if}</span>
+                </li>
+              {/each}
+            </ul>
+          {/if}
         {/if}
       {/if}
     </section>
@@ -1019,7 +1035,9 @@
   .good { color: var(--verdigris); }
   .ducats { display: flex; align-items: center; gap: .5rem; }
   .stock, .vz { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
-  .stock li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto 4rem; gap: .6rem; align-items: center; }
+  .stock li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto 4rem 3rem; gap: .6rem; align-items: center; }
+  .stock.flips li { grid-template-columns: minmax(0, 1fr) auto 3.5rem 3rem; }
+  .stock .cr { display: inline-flex; align-items: center; gap: .2rem; justify-self: end; white-space: nowrap; }
   .stock li :global(.amt) { justify-self: end; }
   .sn { min-width: 0; display: grid; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sn > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
