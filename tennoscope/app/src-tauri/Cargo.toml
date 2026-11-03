@@ -1,0 +1,80 @@
+[package]
+name = "tennoscope"
+version.workspace = true
+description = "TennoScope local-first Warframe companion"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+atomicwrites = "=0.4.4"
+serde_json = "1.0"
+serde.workspace = true
+log.workspace = true
+tauri = { version = "2.11.3", features = [] }
+tauri-plugin-log = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-clipboard-manager = "2"
+app-core = { path = "../../crates/app-core" }
+local-store = { path = "../../crates/local-store" }
+warframe-acquisition = { path = "../../crates/warframe-acquisition" }
+warframe-domain = { path = "../../crates/warframe-domain" }
+tauri-plugin-single-instance = "2"
+image = { version = "0.25", default-features = false, features = ["png", "pnm"] }
+xcap = { version = "0.9.7", features = ["image"] }
+warframe-market = { path = "../../crates/warframe-market" }
+warframe-status = { path = "../../crates/warframe-status" }
+regex = "1"
+tauri-plugin-process = "2"
+semver = "1"
+url = "2"
+time = { version = "0.3", features = ["formatting"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+xcb = "=1.7.0"
+# Direct native-Wayland capture for wlroots compositors. Exact pins keep the protocol probe and
+# capture implementation on the versions audited together here.
+libwayshot-xcap = "=0.3.3"
+wayland-client = "=0.31.15"
+# KWin's ScreenShot2 path: a D-Bus call that hands back raw pixels over a pipe. `zbus` is already
+# in the tree via `ashpd`; pinning it here makes the direct dependency explicit. `wayland-protocols`
+# supplies xdg-output, which is the only source of per-output logical geometry and connector names.
+zbus = "=5.18.0"
+wayland-protocols = { version = "=0.32.13", features = ["client", "unstable"] }
+rustix = { version = "=1.1.4", features = ["event", "pipe"] }
+# The portal ScreenCast path. `ashpd` needs both `tokio` and `screencast`: without `screencast`
+# the module is compiled out entirely. Linux-gated so a Windows build never sees D-Bus/PipeWire.
+ashpd = { version = "0.13.13", default-features = false, features = ["tokio", "screencast"] }
+pipewire = "0.10.0"
+libspa = "0.10.0"
+# `net` is for the IO driver `enable_all()` turns on. It arrives via ashpd/zbus by feature
+# unification anyway, so declaring it changes nothing today and keeps a dependency bump from
+# silently removing it.
+tokio = { version = "1", default-features = false, features = [
+    "rt",
+    "rt-multi-thread",
+    "time",
+    "net",
+] }
+
+[target."cfg(windows)".dependencies]
+win-capture = { path = "../../crates/win-capture" }
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+
+[dev-dependencies]
+tempfile = "3"
+app-core = { path = "../../crates/app-core" }

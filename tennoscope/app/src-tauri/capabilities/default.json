@@ -1,0 +1,23 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "enables the default permissions",
+  "windows": [
+    "main",
+    "reward-overlay",
+    "kiosk-overlay"
+  ],
+  "permissions": [
+    "process:allow-restart",
+    "core:default",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    { "identifier": "opener:allow-open-url", "allow": [{ "url": "https://github.com/Deftera186/tennoscope/**" }] },
+    "core:window:allow-start-dragging",
+    { "identifier": "opener:allow-reveal-item-in-dir", "allow": [{ "path": "$APPDATA/reports/**" }] },
+    "clipboard-manager:allow-write-text"
+  ]
+}
