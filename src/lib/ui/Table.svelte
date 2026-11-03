@@ -3,6 +3,7 @@
   import { sortRows, type Column } from "./table";
   import { nearEnd } from "./nearEnd";
   import NoMatch from "./NoMatch.svelte";
+  import { inView, progressive } from "../progress.svelte";
 
   let {
     rows,
@@ -37,6 +38,11 @@
   });
 
   const sorted = $derived(sortRows(rows, columns, sort));
+  // The rows in sight drawn at once, the rest a slice a frame after (lib/progress.svelte.ts): a
+  // re-sort or a filter waits only for the screenful you see.
+  let body = $state<HTMLElement | null>(null);
+  const view = inView(() => body);
+  const drawn = $derived.by(progressive(() => sorted.slice(0, shown), (r) => key(r), { first: view.count, measure: view.measure }));
 
   function setSort(c: Column<T>) {
     if (c.sortable === false) return;
@@ -45,7 +51,7 @@
   }
 </script>
 
-<div class="wrap">
+<div class="wrap" use:view.watch>
   <table>
     <thead>
       <tr>
@@ -68,8 +74,8 @@
         {#if detail}<th class="chev" aria-label="Details"></th>{/if}
       </tr>
     </thead>
-    <tbody>
-      {#each sorted.slice(0, shown) as r (key(r))}
+    <tbody bind:this={body}>
+      {#each drawn as r (key(r))}
         {@const k = key(r)}
         {@const t = tint?.(r) ?? null}
         <tr

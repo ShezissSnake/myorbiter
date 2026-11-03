@@ -14,6 +14,7 @@
   import { nearEnd } from "./nearEnd";
   import Count from "./Count.svelte";
   import { keepWhile } from "../pane.svelte";
+  import { inView, progressive } from "../progress.svelte";
 
   let {
     id,
@@ -168,6 +169,10 @@
   const listRows = $derived.by(keepWhile(() => layout === "list", () => view));
   const listSort = $derived.by(keepWhile(() => layout === "list", () => sort));
   const cardRows = $derived.by(keepWhile(() => layout === "cards", () => sorted));
+  // The cards in sight drawn at once, the rest a few a frame after (lib/progress.svelte.ts).
+  let grid = $state<HTMLElement | null>(null);
+  const cardView = inView(() => grid?.firstElementChild as HTMLElement | null, { min: 6, guess: 180 });
+  const cardsDrawn = $derived.by(progressive(() => cardRows.slice(0, shown), (r) => key(r), { first: cardView.count, step: 6, measure: cardView.measure }));
 </script>
 
 <div class="tools">
@@ -195,10 +200,10 @@
   <div class="list" class:off={layout !== "list"} use:rowOpener><Table rows={listRows} columns={listColumns} {key} bind:sort={() => listSort, (v) => (sort = v)} {detail} {empty} {clear} {limit} {tint} /></div>
 {/if}
 {#if drawnCards}
-  <div class="cards" class:off={layout !== "cards"}>
+  <div class="cards" class:off={layout !== "cards"} bind:this={grid} use:cardView.watch>
     {#if cardRows.length}
       <CardGrid {min}>
-        {#each cardRows.slice(0, shown) as r (key(r))}{@render card(r, () => open(r))}{/each}
+        {#each cardsDrawn as r (key(r))}{@render card(r, () => open(r))}{/each}
       </CardGrid>
       {#if cardRows.length > shown}<div class="more dim small" use:nearEnd={() => (shown += 48)}>{cardRows.length - shown} more below</div>{/if}
     {:else}
