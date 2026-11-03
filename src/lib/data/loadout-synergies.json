@@ -4,6 +4,19 @@
     "source": "https://wiki.warframe.com/w/Archon_Shard",
     "slots": 5,
     "tauforgedNote": "Tauforged shards give 1.5× the base bonus (from Archon Hunts, Netracells, Deep and Temporal Archimedea, or fusing three of a colour).",
+    "_tauforgedOnly": "orbiter suggests only Tauforged shards, at every tier (orbiter's rule: a plain shard is the same stat at two thirds of the value).",
+    "fusion": { "name": "Ascent Fusion", "ratio": 3, "cost": "100 Stela", "needs": "the Helminth's Coalescent Segment", "since": "Update 35.5 (2024-03-27)", "effect": "fuses three shards of the same colour into one Tauforged shard of that colour, in the Helminth", "source": "https://wiki.warframe.com/w/Archon_Shard" },
+    "_elements": "Which element each colour feeds, from the same page. Only Violet (Electricity), Emerald (Corrosion, Toxin) and Topaz (Radiation) raise ability damage or status damage; Topaz's Heat and Blast stats are kill rewards for weapons (secondary crit per Heat-affected kill, health or shields per Blast kill), and no shard has a Cold or Viral stat.",
+    "elements": {
+      "electricity": { "colour": "violet", "stat": "Ability Damage on Electricity-affected enemies" },
+      "corrosive": { "colour": "emerald", "stat": "Ability Damage on Corrosion-affected enemies" },
+      "toxin": { "colour": "emerald", "stat": "Toxin Status Damage" },
+      "radiation": { "colour": "topaz", "stat": "Ability Damage on Radiation-affected enemies" },
+      "heat": { "colour": null, "stat": null, "note": "No shard raises Heat ability damage; Topaz's Heat stat is secondary crit chance per kill of a Heat-affected enemy (+1.5% Tauforged, to +75%)." },
+      "blast": { "colour": null, "stat": null, "note": "Topaz's Blast stats give health or shields per Blast kill, not ability damage." },
+      "cold": { "colour": null, "stat": null, "note": "No shard has a Cold stat." },
+      "viral": { "colour": null, "stat": null, "note": "No shard has a Viral stat." }
+    },
     "stats": [
       { "colour": "crimson", "stat": "Ability Strength", "value": "+10%", "tauforged": "+15%" },
       { "colour": "crimson", "stat": "Ability Duration", "value": "+10%", "tauforged": "+15%" },
@@ -69,7 +82,170 @@
     "Vazarin": { "effect": "Mending Soul: your first revives are instant. Protective Sling: allies your Void Sling touches are immune to damage for 5 s and heal.", "source": "https://wiki.warframe.com/w/Vazarin" },
     "Madurai": { "effect": "Sling Strength: switching back to the Warframe after a Chained Sling gives +40% Ability Strength for 20 s.", "source": "https://wiki.warframe.com/w/Madurai" }
   },
+  "kitElements": {
+    "_about": "Frames whose catalog ability text carries no element tag (<DT_*_COLOR>), with the element their damage abilities deal, read by hand on the page named. Only frames read are here; the rest are found from the tags.",
+    "Ember": { "element": "heat", "ability": "Fire Blast", "source": "https://wiki.warframe.com/w/Ember/Abilities" },
+    "Gyre": { "element": "electricity", "ability": "Arcsphere", "source": "https://wiki.warframe.com/w/Arcsphere" }
+  },
+  "shieldGating": {
+    "_about": "Frames commonly built to shield-gate (break shields, get a moment of invulnerability, refill them by casting), from the page named. A reviewable list, not a rule: any frame with shields can shield-gate.",
+    "frames": ["Mag", "Harrow", "Hildryn"],
+    "source": "https://www.destructoid.com/how-to-use-shield-gating-in-warframe/",
+    "note": "The same page pairs it with Brief Respite or the Augur set, which turn energy spent into shields."
+  },
+  "sets": {
+    "_about": "Mod sets whose pieces span the frame, its weapons and its companion. Pieces, where each goes and each piece's own effect are the catalog's (each mod's type, compatName and stats); set bonuses were read by hand on the page in `source`. `fit` names orbiter's rule for which frames get the set (suggest.ts, setPicks); null: checked and not suggested by frame role. `replaces`: the plain mod a frame piece stands in for.",
+    "Augur": {
+      "pieces": [
+        { "name": "Augur Secrets", "slot": "warframe", "replaces": "Intensify" },
+        { "name": "Augur Reach", "slot": "warframe", "replaces": "Stretch" },
+        { "name": "Augur Message", "slot": "warframe", "replaces": "Continuity" },
+        { "name": "Augur Accord", "slot": "warframe", "replaces": "Redirection" },
+        { "name": "Augur Pact", "slot": "secondary", "replaces": "Hornet Strike" },
+        { "name": "Augur Seeker", "slot": "secondary" }
+      ],
+      "bonus": "40% of the energy you spend on abilities comes back as shields for each piece worn: 160% with the four frame pieces, 240% with all six.",
+      "fit": "shieldGate",
+      "why": "Every cast refills the shields this frame gates on.",
+      "source": "https://wiki.warframe.com/w/Augur_Secrets ; https://www.destructoid.com/how-to-use-shield-gating-in-warframe/"
+    },
+    "Mecha": {
+      "pieces": [
+        { "name": "Mecha Empowered", "slot": "warframe", "aura": true },
+        { "name": "Mecha Pulse", "slot": "warframe" },
+        { "name": "Mecha Overdrive", "slot": "companionWeapon" },
+        { "name": "Mecha Recharge", "slot": "companion" }
+      ],
+      "bonus": "Your Kubrow marks an enemy every 60/45/30/15 s (1 to 4 pieces); killing it spreads its status effects to enemies within 7.5/15/22.5/30 m.",
+      "companion": "kubrow",
+      "fit": "statusKit",
+      "why": "The kit puts status on enemies, and the marked kill spreads it through the group.",
+      "source": "https://wiki.warframe.com/w/Mecha_Overdrive ; https://wiki.warframe.com/w/Mecha_Empowered"
+    },
+    "Strain": {
+      "pieces": [
+        { "name": "Strain Consume", "slot": "warframe" },
+        { "name": "Strain Infection", "slot": "melee" },
+        { "name": "Strain Eruption", "slot": "companion" },
+        { "name": "Strain Fever", "slot": "companionWeapon" }
+      ],
+      "bonus": "The Helminth Charger grows 2/4/6/8 cysts (1 to 4 pieces) that erupt every 25 s, each spawning a Maggot that attacks; Strain Consume eats dead Maggots within 10 m for +4% max health and 2 health/s for 45 s.",
+      "companion": "charger",
+      "fit": "healthTank",
+      "why": "A health tank that fights in the crowd: the Maggots keep spawning around it and feed its health.",
+      "source": "https://wiki.warframe.com/w/Strain_Consume ; https://wiki.warframe.com/w/Helminth_Charger"
+    },
+    "Hunter": {
+      "pieces": [
+        { "name": "Hunter Adrenaline", "slot": "warframe" },
+        { "name": "Hunter Munitions", "slot": "primary" },
+        { "name": "Hunter Track", "slot": "primary" },
+        { "name": "Hunter Command", "slot": "companion" },
+        { "name": "Hunter Recovery", "slot": "companion" },
+        { "name": "Hunter Synergy", "slot": "companionWeapon" }
+      ],
+      "bonus": "Companions deal +25% damage per piece (+150% with all six) to enemies with a Slash status.",
+      "companion": "beast",
+      "fit": "spamTank",
+      "why": "Hunter Adrenaline turns damage taken on health into energy, for a frame that tanks on health and casts all the time.",
+      "source": "https://wiki.warframe.com/w/Hunter_Munitions"
+    },
+    "Carnis": {
+      "pieces": [
+        { "name": "Carnis Carapace", "slot": "warframe", "replaces": "Steel Fiber" },
+        { "name": "Carnis Mandible", "slot": "melee" },
+        { "name": "Carnis Stinger", "slot": "secondary" }
+      ],
+      "bonus": "A heavy-attack kill gives 10/20/30% evasion and immunity to status effects for 2/4/6 s (1 to 3 pieces).",
+      "fit": "healthTank",
+      "why": "Status immunity for a health tank that finishes fights with heavy attacks.",
+      "source": "https://wiki.warframe.com/w/Carnis_Carapace"
+    },
+    "Gladiator": {
+      "pieces": [
+        { "name": "Gladiator Aegis", "slot": "warframe" },
+        { "name": "Gladiator Resolve", "slot": "warframe" },
+        { "name": "Gladiator Finesse", "slot": "warframe" },
+        { "name": "Gladiator Might", "slot": "melee" },
+        { "name": "Gladiator Rush", "slot": "melee" },
+        { "name": "Gladiator Vice", "slot": "melee" }
+      ],
+      "bonus": "+10% to +60% melee critical chance per combo multiplier, rising with the pieces worn.",
+      "fit": null,
+      "why": "A melee build's choice, not a frame role: orbiter doesn't suggest it from the frame.",
+      "source": "https://wiki.warframe.com/w/Gladiator_Set"
+    },
+    "Vigilante": {
+      "pieces": [
+        { "name": "Vigilante Pursuit", "slot": "warframe" },
+        { "name": "Vigilante Vigor", "slot": "warframe" },
+        { "name": "Vigilante Armaments", "slot": "primary" },
+        { "name": "Vigilante Fervor", "slot": "primary" },
+        { "name": "Vigilante Offense", "slot": "primary" },
+        { "name": "Vigilante Supplies", "slot": "primary" }
+      ],
+      "bonus": "Each piece gives primary-weapon critical hits a 5% chance (30% with six) to gain +100% critical chance.",
+      "fit": null,
+      "why": "A primary weapon's choice, not a frame role.",
+      "source": "https://wiki.warframe.com/w/Vigilante_Armaments"
+    },
+    "Jugulus": {
+      "pieces": [
+        { "name": "Jugulus Carapace", "slot": "warframe" },
+        { "name": "Jugulus Barbs", "slot": "melee" },
+        { "name": "Jugulus Spines", "slot": "secondary" }
+      ],
+      "bonus": "Slam attacks raise tendrils that skewer enemies within 3/6/9 m for 25/50/75 Puncture and stun them for 3 s, every 12/9/6 s (1 to 3 pieces).",
+      "fit": null,
+      "why": "A slam-attack melee choice, not a frame role.",
+      "source": "https://wiki.warframe.com/w/Jugulus_Carapace"
+    },
+    "Saxum": {
+      "pieces": [
+        { "name": "Saxum Carapace", "slot": "warframe" },
+        { "name": "Saxum Thorax", "slot": "melee" },
+        { "name": "Saxum Spittle", "slot": "secondary" }
+      ],
+      "bonus": "Lifted enemies explode on death for 10/20/30% of their max health as Impact within 4/8/12 m (1 to 3 pieces).",
+      "fit": null,
+      "why": "Pays off with weapons that lift enemies, not with a frame role.",
+      "source": "https://wiki.warframe.com/w/Saxum_Carapace"
+    },
+    "Synth": {
+      "pieces": [
+        { "name": "Synth Reflex", "slot": "warframe" },
+        { "name": "Synth Charge", "slot": "secondary" },
+        { "name": "Synth Deconstruct", "slot": "companion" },
+        { "name": "Synth Fiber", "slot": "companion" }
+      ],
+      "bonus": "Holstered primary and secondary weapons reload 5% of their magazine per second per piece (20% with four), from reserve ammo.",
+      "fit": null,
+      "why": "A weapon-handling set, not a frame role.",
+      "source": "https://wiki.warframe.com/w/Synth_Fiber"
+    },
+    "Umbral": {
+      "pieces": [
+        { "name": "Umbral Vitality", "slot": "warframe" },
+        { "name": "Umbral Fiber", "slot": "warframe" },
+        { "name": "Umbral Intensify", "slot": "warframe" }
+      ],
+      "bonus": "Each piece raises the others' main stat: by 25% of its value with two pieces, 75% with three.",
+      "fit": null,
+      "why": "All three are Warframe mods: orbiter's high-tier builds already put them in when you hold them.",
+      "source": "https://wiki.warframe.com/w/Umbral_Intensify"
+    }
+  },
+  "primers": {
+    "_about": "Companions that put status effects on enemies on their own, and how (precept or set piece), read by hand on the pages named. Which frame gets which is orbiter's rule (suggest.ts, primerPicks): the element of the frame's own kit first, else Viral.",
+    "Panzer Vulpaphyla": { "items": [{ "name": "Panzer Vulpaphyla", "path": "/Lotus/Types/Friendly/Pets/CreaturePets/ArmoredInfestedCatbrowPetPowerSuit" }], "mod": "Viral Quills", "element": "viral", "effect": "Viral Quills fires 6 quills at enemies within 20 m every 4 s, 60 Viral damage each at 40% status chance; it comes with the companion.", "source": "https://wiki.warframe.com/w/Viral_Quills" },
+    "Diriga": { "items": [{ "name": "Diriga", "path": "/Lotus/Types/Sentinels/SentinelPowersuits/ArcDronePowerSuit" }], "mod": "Arc Coil", "element": "electricity", "effect": "Arc Coil zaps up to 7 enemies within 10 m with Electricity, about once a second.", "source": "https://wiki.warframe.com/w/Arc_Coil", "bond": { "name": "Manifold Bond", "effect": "the companion's abilities also inflict the status effects of your equipped weapon (robotic companions only)", "source": "https://wiki.warframe.com/w/Bond_Mods" }, "weapon": { "items": [{ "name": "Verglas Prime", "path": "/Lotus/Types/Sentinels/SentinelWeapons/SentinelFreezeRayPrimeRifle" }, { "name": "Verglas", "path": "/Lotus/Types/Sentinels/SentinelWeapons/SentinelFreezeRayRifle" }], "mod": "Contagious Bond", "effect": "Cold damage at 36% status chance (the catalog's numbers; Verglas: 34%); with Contagious Bond, enemies the companion kills spread part of their status effects to enemies nearby", "source": "https://cw-warframe-guides.github.io/guides/companion-mod/ ; https://wiki.warframe.com/w/Bond_Mods" } },
+    "Helminth Charger": { "items": [{ "name": "Helminth Charger", "path": "/Lotus/Types/Game/KubrowPet/ChargerKubrowPetPowerSuit" }], "mod": "Strain Eruption", "element": "corrosive", "effect": "Its Maggots explode on death for 4% of an enemy's current health as Corrosive within 8 m, always applying Corrosive status (since Update 37.0); its claws add 50 Toxin at 25% status chance.", "source": "https://wiki.warframe.com/w/Helminth_Charger" }
+  },
   "checkedAndLeftOut": {
+    "Tek set": "The Kavat marks a zone that deals damage; the page read (https://progametalk.com/warframe/tek-mods-guide/) doesn't say how the bonus grows with the pieces, so orbiter doesn't state it.",
+    "Amar, Boreal and Nira sets": "Their pieces are in the catalog (a Warframe mod, an exilus mod and a melee mod each), but their set bonuses weren't read on a page, so orbiter doesn't suggest them.",
+    "Motus, Proton and Aero sets": "Parkour and aim-glide sets: weapon handling in the air, nothing a frame role asks for.",
+    "Momentous Bond": "Eximus kills give the companion a random element for 30 s; the page doesn't give the values (https://wiki.warframe.com/w/Bond_Mods).",
     "Pax Charge": "Kitgun reload: makes the magazine recharge. Nothing for abilities (https://wiki.warframe.com/w/Pax_Charge).",
     "Pax Seeker": "Homing projectiles on headshot kills. Weapon damage only (https://wiki.warframe.com/w/Magus_Arcane).",
     "Pax Soar": "Accuracy, less recoil and aim glide in the air. Weapon handling only (https://wiki.warframe.com/w/Magus_Arcane).",
