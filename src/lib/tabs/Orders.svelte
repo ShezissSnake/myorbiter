@@ -36,7 +36,12 @@
 
   // console: you play on a console or phone, so orbiter can't see what you hold. New listing then
   // finds anything warframe.market trades, and what needs your inventory (spares, "Listed more than you hold") is left out.
-  let { model, settings = $bindable(), advice, console = false, masteryRank = null, credits = null }: { model: Model; settings: MarketSettings; advice: AdviceSettings; console?: boolean; masteryRank?: number | null; credits?: number | null } = $props();
+  let { model, settings = $bindable(), advice, console = false, masteryRank = null, credits = null, whispers = [] }: { model: Model; settings: MarketSettings; advice: AdviceSettings; console?: boolean; masteryRank?: number | null; credits?: number | null; whispers?: { name: string; uptime: number; at: number | null }[] } = $props();
+  // Who whispered you this game session (from EE.log; the message itself isn't logged), newest first.
+  const whisperers = $derived(
+    [...new Map([...whispers].sort((a, b) => (a.at ?? a.uptime) - (b.at ?? b.uptime)).map((w) => [w.name, w])).values()].reverse().slice(0, 8),
+  );
+  const agoWord = (at: number | null) => (at == null ? "" : (() => { const m = Math.max(0, Math.round((minute / 1000 - at) / 60)); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)} h ago`; })());
   // The daily trade limit (core/tradeLimit.ts), refreshed each minute.
   let minute = $state(Date.now());
   $effect(() => {
@@ -607,6 +612,21 @@
     </section>
   {:else}
 
+    {#if whisperers.length}
+      <!-- Who whispered you this session: one place to find a buyer again once the toast is gone. -->
+      <section class="whispers" aria-label="Whispered you this session">
+        <span class="register">Whispered you</span>
+        {#each whisperers as w (w.name)}
+          <span class="wh">
+            <b>{w.name}</b>{#if w.at != null}<span class="dim small">{agoWord(w.at)}</span>{/if}
+            <CopyButton look="chip" text={`/invite ${w.name}`} label="Invite" title="Copy /invite {w.name}, to paste in game chat and invite them to your squad for the trade" />
+            <button type="button" class="link quiet small" title="Their warframe.market profile: reputation and reviews" onclick={() => openUrl(`https://warframe.market/profile/${encodeURIComponent(w.name)}`)}>profile ↗</button>
+          </span>
+        {/each}
+        {#if settings.lastCopy.hidden.length}<span class="dim small" title="Put my spares on sale's last-copy rule (Settings, Selling): your last copies are hidden while a buyer whispers, so a second buyer doesn't come for the same one">{settings.lastCopy.hidden.length} last cop{settings.lastCopy.hidden.length === 1 ? "y" : "ies"} hidden for now</span>{/if}
+      </section>
+    {/if}
+
     <!-- Put my spares on sale up top, folded: one click away for those who use it, a line for those
          who don't. Folded, it stays alive (hidden, not removed), so a plan being applied carries on. -->
     {#if !console}
@@ -972,6 +992,8 @@
   table.orders { width: 100%; border-collapse: collapse; margin-top: var(--step); border-top: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
   .orders th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .15em; text-transform: uppercase; color: var(--platinum-deep); padding: .7rem .6rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
   .orders th.right { text-align: right; }
+  .whispers { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1.2rem; margin: var(--step) 0 0; padding: .55rem .8rem; border: 1px solid var(--rule); border-left: 2px solid var(--gold-dim); }
+  .wh { display: inline-flex; align-items: center; gap: .45rem; }
   .sparesfold { margin: var(--step) 0 .4rem; border: 1px solid var(--rule); background: var(--plate); }
   .sparesfold.open { border-color: var(--rule-bright); }
   .foldhead { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: .6rem; padding: .7rem .9rem; cursor: pointer; }
