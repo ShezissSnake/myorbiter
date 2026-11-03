@@ -15,6 +15,10 @@ export const ALWAYS_OFF = [
   'TennoScope telemetry',
 ] as const
 
+/** Shown beside Full wherever it can be turned on: what it does and what it risks, plainly. */
+export const FULL_ACCESS_WARNING =
+  "Full reads Warframe's memory to fetch your inventory. Warframe's EULA forbids unauthorised third-party programs, so using it could put your account at risk. TennoScope only reads, and only sends your login session to Digital Extremes."
+
 export const ACCESS_MODES: readonly AccessModeDefinition[] = [
   {
     id: 'companion',

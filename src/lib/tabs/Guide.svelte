@@ -200,7 +200,7 @@
     <h3 class="register lead">What orbiter does to your game</h3>
     <ul>
       <li><b>Nothing.</b> orbiter never sends keys, clicks or anything else to Warframe. It reads Warframe's log file and its <code>EE.cfg</code> (for the display mode), and what TennoScope saves. It writes to warframe.market when you ask (a button: Sell, Sold, a price, Post buy order), when you turn on Apply automatically in Orders, when the game log shows you sold a listing (Settings, Trades), to give each player you trade with +rep with your message (on unless you turn it off in Settings, Trades), and, if you turn it on, to hide your last copies while someone whispers you.</li>
-      <li>TennoScope reads the game's memory to find your session, read only, then downloads your inventory from the same address the official companion app uses. It doesn't write to the game either.</li>
+      <li><b>Full mode</b> (off until you turn it on: <i>Read my inventory</i> in the first-run steps, the TennoScope panel or Settings): TennoScope reads the game's memory to find your session, read only, then downloads your inventory from the same address the official companion app uses. It doesn't write to the game either. Warframe's EULA forbids unauthorised third-party programs, so using Full mode could put your account at risk: that's your call. Without it, TennoScope only reads the log and the reward screen (Overlay mode), and orbiter shows everything that doesn't need your inventory.</li>
       <li>Mods: orbiter can't see which copy is fitted to a build, so it always keeps your best copy and one more. What it calls spare is past those two.</li>
       <li>Everything orbiter records (sales, trades, value over time, settings) stays on this computer. Your warframe.market sign-in is kept in the system keyring (a private file if there isn't one).</li>
     </ul>
@@ -286,7 +286,7 @@
         <li>Stats, abilities and build costs: the item catalog TennoScope keeps (WFCD). Rivens: each one's stats from your inventory, with the game's own base values; asking prices from warframe.market's riven auctions; last week's in-game trades from Digital Extremes' weekly figures (read again every six hours while orbiter is open); the Estimate from orbiter's own price model, trained on about 80,000 listings (<code>scripts/riven-model/README.md</code>).</li>
         <li>Relics in a mission: Warframe's own <code>EE.log</code>, read only.</li>
         <li>Finish odds on Wishlist and Mastery: each relic's drop chance at the refinement you hold, assuming you crack every copy once. Squadmates' relics aren't counted.</li>
-        <li>The four reward cards: Warframe only logs your own, so orbiter gets them from a TennoScope patched to share them (<code>patches/README.md</code>). That patch also puts orbiter's score and <b>Pick</b> on TennoScope's overlay. Without it, Current fissure ranks everything the squad's relics can drop.</li>
+        <li>The four reward cards: Warframe only logs your own, so orbiter gets them from a TennoScope changed to share them (orbiter's own, built from <code>tennoscope/</code>: <code>tennoscope/ORBITER.md</code>). That change also puts orbiter's score and <b>Pick</b> on TennoScope's overlay. Without it, Current fissure ranks everything the squad's relics can drop.</li>
       </ul>
     </article>
   </section>

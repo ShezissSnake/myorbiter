@@ -5,10 +5,12 @@ import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
 import { buildModel } from "../src/lib/core/model";
 import { goalsFor, kitgunStats, recipeItem, recipeItems, recipesFor, zawStats, RANKING_LABEL, type Holdings } from "../src/lib/core/recipes";
-import parts from "../src/lib/data/modular-parts.json";
+import { wikiFile } from "./wikiFiles";
 import paths from "../src/lib/data/modular-parts-paths.json";
 import type { GearCopy } from "../src/lib/core/notNeeded";
 import type { Bundle, InventoryRow } from "../src/lib/core/types";
+
+const parts = wikiFile("modular-parts.json") as { KitgunSecondary: { Loader: Record<string, unknown> }; Zaw: { Link: Record<string, unknown> } };
 
 const CATCHMOON = "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelAPart";
 const GIBBER = "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Handle/SUModularSecondaryHandleDPart";
@@ -168,12 +170,28 @@ test("holdings come straight from orbiter's model", () => {
   assert.equal(gibber.status, "held");
 });
 
-test("the wiki snapshot is bundled with its licence, and orbiter never fetches the wiki for it", () => {
-  assert.ok(existsSync("src/lib/data/modular-parts.LICENSE.md"));
-  const licence = readFileSync("src/lib/data/modular-parts.LICENSE.md", "utf8");
+test("the wiki snapshot ships beside the app with its licence, isn't compiled in, and orbiter never fetches the wiki for it", () => {
+  assert.ok(existsSync("public/data/wiki/LICENSE.md"));
+  const licence = readFileSync("public/data/wiki/LICENSE.md", "utf8");
   assert.match(licence, /CC BY-NC-SA 3\.0/);
   assert.match(licence, /creativecommons\.org\/licenses\/by-nc-sa\/3\.0/);
   assert.match(licence, /Warframe Wiki contributors/);
   assert.equal((parts as unknown as { _source: { revision: number } })._source.revision, 2787806);
   assert.doesNotMatch(readFileSync("src/lib/core/recipes.ts", "utf8"), /fetch\(|https?:\/\/wiki\.warframe\.com/);
+  for (const f of ["src/lib/core/recipes.ts", "src/lib/core/vosfor.ts"]) assert.doesNotMatch(readFileSync(f, "utf8"), /import [^;]*(modular-parts\.json|modular-parts-extra|vosfor\.json)/, `${f} doesn't import the wiki's files`);
+  for (const f of ["modular-parts.json", "modular-parts-extra.json", "vosfor.json"]) assert.ok(existsSync(`public/data/wiki/${f}`), f);
+  assert.match(licence, /vosfor\.json/);
+});
+
+test("without the wiki's file (it failed to load), recipes are simply empty, never an error", async () => {
+  const { setWikiData, wikiData } = await import("../src/lib/core/wikiData");
+  const kept = wikiData();
+  setWikiData(null);
+  try {
+    assert.deepEqual(recipeItems(), []);
+    assert.equal(recipeItem("Catchmoon"), null);
+    assert.equal(recipesFor("Catchmoon"), null);
+  } finally {
+    setWikiData(kept);
+  }
 });

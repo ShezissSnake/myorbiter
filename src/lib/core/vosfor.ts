@@ -1,7 +1,9 @@
 // Arcane Dissolution: Loid turns arcanes into Vosfor, and sells packs of three random arcanes from
 // a collection for 200 Vosfor. For each spare arcane: sell it, or dissolve it for packs?
-// The yields and pack contents come from the wiki (src/lib/data/vosfor.json).
-import data from "../data/vosfor.json";
+// The yields and pack contents come from the wiki: public/data/wiki/vosfor.json, under the wiki's
+// licence (CC BY-NC-SA 3.0), shipped beside the app and read at start (wikiData.ts), never compiled
+// in. Until it's read there's nothing to dissolve into: no yields, no packs.
+import { wikiData, wikiGeneration } from "./wikiData";
 import type { Model } from "./model";
 import { copiesForRank, type ArcaneRow } from "./views";
 
@@ -17,7 +19,9 @@ interface Pack {
   arcanesPerPack: number;
   pools: Pool[];
 }
-const DATA = data as { yield: Record<string, number>; packs: Pack[] };
+type VosforData = { yield: Record<string, number>; packs: Pack[] };
+const NONE: VosforData = { yield: {}, packs: [] };
+const vosforData = (): VosforData => (wikiData()?.vosfor as VosforData | undefined) ?? NONE;
 
 /**
  * An arcane that trades fewer times a day than this doesn't count as sellable when weighing
@@ -26,14 +30,22 @@ const DATA = data as { yield: Record<string, number>; packs: Pack[] };
  */
 export const SELLS_DAILY = 5;
 
+let collectionsMemo: { gen: number; list: { name: string; arcanes: Set<string> }[] } | null = null;
 /** Loid's collections ("Eidolon", "Duviri"…), each with the arcanes its packs can hold. */
-export const COLLECTIONS: { name: string; arcanes: Set<string> }[] = DATA.packs.map((p) => ({
-  name: p.name.replace(/ Arcane Collection$/, ""),
-  arcanes: new Set(p.pools.flatMap((pool) => pool.arcanes)),
-}));
+export function collections(): { name: string; arcanes: Set<string> }[] {
+  if (collectionsMemo?.gen !== wikiGeneration())
+    collectionsMemo = {
+      gen: wikiGeneration(),
+      list: vosforData().packs.map((p) => ({
+        name: p.name.replace(/ Arcane Collection$/, ""),
+        arcanes: new Set(p.pools.flatMap((pool) => pool.arcanes)),
+      })),
+    };
+  return collectionsMemo.list;
+}
 
 /** Vosfor for dissolving one unranked copy, or null if it can't be dissolved. */
-export const vosforYield = (name: string): number | null => DATA.yield[name] ?? null;
+export const vosforYield = (name: string): number | null => vosforData().yield[name] ?? null;
 
 export const VOSFOR_UNIQUE = "/Lotus/Types/Items/MiscItems/DistillPoints";
 export const vosforHeld = (m: Model) => (m.inventoryByBase.get(VOSFOR_UNIQUE) ?? []).reduce((n, r) => n + r.quantity, 0);
@@ -75,7 +87,7 @@ export function copyValue(m: Model, name: string, r: ArcaneRow | undefined): num
 
 export function packValues(m: Model, rows: ArcaneRow[]): PackValue[] {
   const byName = new Map(rows.map((r) => [r.name, r]));
-  return DATA.packs.map((p) => {
+  return vosforData().packs.map((p) => {
     let plat = 0;
     let needCopies = 0;
     let needPlat = 0;

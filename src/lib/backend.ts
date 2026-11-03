@@ -21,6 +21,7 @@ import type { WorldAlert } from "./core/worldNeeds";
 import type { RelicData } from "./core/relicData";
 import { marketItemsOf, recipeDataOf, relicDataOf, rivenMetaOf } from "./core/shapes";
 import type { Archimedea, Bundle, Calendar1999, CatalogPart, CollectionPart, DarvoDeal, Descendia, DuviriCycle, Fissure, Live, MissionState, Nightwave, SortieLike, SteelPath, VaultTraderItem, WorldEvent } from "./core/types";
+import { openable } from "./core/links";
 import { defaultPickWeights, type PickWeights } from "./core/pick";
 import type { Notice } from "./notices";
 import { DEFAULT_BUILDS_MAX_AGE_DAYS, sanitizeBuilds, sanitizeMaxAgeDays, type Build } from "./core/builds/types";
@@ -902,12 +903,18 @@ export function onSaveTrouble(f: (error: string | null) => void) {
   saveListener = f;
 }
 
+/** Opens a link in your browser: only https links to the sites in core/links.ts, anything else is refused. */
 export async function openUrl(url: string) {
+  const safe = openable(url);
+  if (!safe) {
+    logLine("warn", "app", `refused to open a link outside orbiter's sites: ${url.slice(0, 200)}`);
+    return;
+  }
   if (inTauri) {
     const { openUrl } = await import("@tauri-apps/plugin-opener");
-    return openUrl(url);
+    return openUrl(safe);
   }
-  window.open(url, "_blank", "noopener");
+  window.open(safe, "_blank", "noopener");
 }
 
 /** warframe.market URL slug for an item name. */
@@ -921,6 +928,8 @@ export const wikiUrl = (name: string) => `https://wiki.warframe.com/w/${encodeUR
 export interface TennoscopeStatus {
   /** The program orbiter would start, if found. */
   binary: string | null;
+  /** The program chosen in Settings, if one is. */
+  custom?: string | null;
   /** That program is the TennoScope that comes inside orbiter. */
   bundled?: boolean;
   /** TennoScope runs on this system (it doesn't on macOS). */
@@ -972,7 +981,8 @@ export interface TennoscopeReport {
   consumed_suits?: string[] | null;
 }
 
-export type TennoscopeAsk = "--sync" | "--authorize-capture";
+/** `--access=…`: the Full mode switch (FullMode.svelte), Full or back to Overlay. */
+export type TennoscopeAsk = "--sync" | "--authorize-capture" | "--access=full" | "--access=overlay";
 
 /** Your warframe.market status as orbiter holds it on its own connection (see presence.rs). */
 export interface PresenceState {
@@ -1006,10 +1016,12 @@ const devTennoscope = async (): Promise<TennoscopeStatus | null> => {
 export const tennoscope = {
   /** Linux's Yama ptrace_scope: above 0, TennoScope can't read the game's memory. Null: no such limit. */
   ptraceScope: (): Promise<number | null> => (inTauri ? invoke<number | null>("ptrace_scope") : Promise.resolve(null)),
-  status: (path: string): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_status", { path: path || null }) : devTennoscope()),
-  start: (path: string): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_start", { path: path || null }) : devTennoscope()),
-  show: (path: string): Promise<void> => (inTauri ? invoke("tennoscope_show", { path: path || null }) : Promise.resolve()),
-  ask: (path: string, ask: TennoscopeAsk): Promise<void> => (inTauri ? invoke("tennoscope_ask", { path: path || null, ask }) : Promise.resolve()),
+  status: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_status") : devTennoscope()),
+  /** The program orbiter starts as TennoScope (Settings; empty finds it). Kept by orbiter's Rust side, which refuses anything not named like TennoScope. */
+  setPath: (path: string): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_set_path", { path: path || null }) : devTennoscope()),
+  start: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_start") : devTennoscope()),
+  show: (): Promise<void> => (inTauri ? invoke("tennoscope_show") : Promise.resolve()),
+  ask: (ask: TennoscopeAsk): Promise<void> => (inTauri ? invoke("tennoscope_ask", { ask }) : Promise.resolve()),
   /** The last time TennoScope's log says it failed to start, and why (Unix ms, UTC). */
   failure: (dataDir: string): Promise<{ at: number; message: string } | null> => (inTauri ? invoke("tennoscope_failure", { dir: dataDir || null }) : Promise.resolve(null)),
 };

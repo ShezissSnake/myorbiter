@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildModel } from "../src/lib/core/model";
 import { arcaneRows } from "../src/lib/core/views";
+import "./wikiFiles";
 import { packValues, spareArcanes, vosforHeld, vosforWorth, vosforYield } from "../src/lib/core/vosfor";
 import type { Bundle, InventoryRow } from "../src/lib/core/types";
 

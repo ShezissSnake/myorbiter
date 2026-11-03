@@ -92,7 +92,7 @@ fn fetch(name: &str) -> Fetched {
     for (base, name) in sources {
         match crate::http_agent()
             .get(&format!("{base}{name}"))
-            .set("User-Agent", concat!("orbiter/", env!("CARGO_PKG_VERSION")))
+            .set("User-Agent", crate::USER_AGENT)
             .timeout(Duration::from_secs(15))
             .call()
         {

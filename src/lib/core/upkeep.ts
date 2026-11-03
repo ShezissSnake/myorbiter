@@ -55,6 +55,6 @@ export function handLoggedSale(sales: Sale[], item: string, at: number): number 
 export function failureWords(message: string, retryIn: number): string {
   const wait = retryIn > 0 ? ` orbiter tries again in ${Math.max(1, Math.round(retryIn / 60_000))} min.` : "";
   if (/schema version \d+ is not supported/.test(message))
-    return `TennoScope stops as it starts: it's older than the TennoScope that last opened your data ("${message}"). Update the TennoScope orbiter starts (Settings → TennoScope; with your own build, rebuild it as patches/README.md says).${wait}`;
+    return `TennoScope stops as it starts: it's older than the TennoScope that last opened your data ("${message}"). Update the TennoScope orbiter starts (Settings → TennoScope; with your own build, rebuild it as tennoscope/ORBITER.md says).${wait}`;
   return `TennoScope stops as it starts. Its log says: "${message}".${wait}`;
 }

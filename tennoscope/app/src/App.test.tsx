@@ -187,13 +187,16 @@ describe('MVP desktop interface', () => {
     windowApi.watchWindowResized.mockResolvedValue(() => {})
   })
 
-  it('preselects Full on first run but waits for affirmative confirmation', async () => {
+  it('preselects Overlay on first run; Full shows its warning and waits for affirmative confirmation', async () => {
     backend.getSetupStatus.mockResolvedValue({ setup_complete: false, access_mode: null, desktop_capture_action_available: false })
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: 'Choose Warframe access' })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'What may TennoScope observe?' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /Full/ })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /Overlay/ })).toBeChecked()
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('radio', { name: /Full/ }))
+    expect(screen.getByRole('note')).toHaveTextContent(/EULA forbids unauthorised third-party programs.*account at risk/)
     expect(backend.setAccessMode).not.toHaveBeenCalled()
     expect(screen.getByText('Each level includes the previous level. Nothing starts until you confirm.')).toBeInTheDocument()
     expect(screen.queryByText(/Effective mode:/)).not.toBeInTheDocument()
@@ -214,8 +217,8 @@ describe('MVP desktop interface', () => {
     render(<App />)
 
     const full = await screen.findByRole('radio', { name: /Full/ })
-    expect(document.querySelectorAll('.access-node.included')).toHaveLength(3)
-    expect(screen.getByRole('region', { name: 'What Full adds' })).toBeInTheDocument()
+    expect(document.querySelectorAll('.access-node.included')).toHaveLength(2)
+    expect(screen.getByRole('region', { name: 'What Overlay adds' })).toBeInTheDocument()
 
     full.focus()
     await userEvent.keyboard('{Home}')
@@ -236,12 +239,12 @@ describe('MVP desktop interface', () => {
   it('shows only the selected stop’s additions and swaps them on selection', async () => {
     backend.getSetupStatus.mockResolvedValue({ setup_complete: false, access_mode: null, desktop_capture_action_available: false })
     render(<App />)
-    expect(await screen.findByRole('region', { name: 'What Full adds' })).toHaveTextContent(/Read-only process memory.*Inventory acquisition/i)
-    expect(screen.queryByText(/Visible-pixel OCR/i)).not.toBeInTheDocument()
-
-    await userEvent.click(screen.getByRole('radio', { name: /Overlay/ }))
     expect(await screen.findByRole('region', { name: 'What Overlay adds' })).toHaveTextContent(/Warframe process presence.*EE.log.*Visible-pixel OCR.*Click-through overlay/i)
     expect(screen.queryByText(/Inventory acquisition/i)).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('radio', { name: /Full/ }))
+    expect(await screen.findByRole('region', { name: 'What Full adds' })).toHaveTextContent(/Read-only process memory.*Inventory acquisition/i)
+    expect(screen.queryByText(/Visible-pixel OCR/i)).not.toBeInTheDocument()
   })
 
   it('supports wrapping arrow keys and boundary keys across the three named access modes', async () => {
@@ -295,6 +298,7 @@ describe('MVP desktop interface', () => {
 
     expect(screen.getByText('Pending: Full')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'New observation to grant' })).toHaveTextContent(/Warframe process presence.*EE\.log.*visible-pixel OCR.*click-through overlay.*read-only process memory.*inventory acquisition/i)
+    expect(screen.getByRole('note')).toHaveTextContent(/EULA/)
     expect(screen.getByRole('button', { name: 'Confirm Full' })).toBeEnabled()
   })
 

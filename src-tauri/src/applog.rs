@@ -61,8 +61,22 @@ pub fn init(dir: &Path) {
     }));
 }
 
+/// Only you can read it (0600 on Unix, an existing file made so too): it names your trades and
+/// partners.
 fn open(path: &Path) -> Option<Sink> {
-    let file = OpenOptions::new().create(true).append(true).open(path).ok()?;
+    let mut options = OpenOptions::new();
+    options.create(true).append(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let file = options.open(path).ok()?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = file.set_permissions(fs::Permissions::from_mode(0o600));
+    }
     let size = file.metadata().map(|m| m.len()).unwrap_or(0);
     Some(Sink { path: path.to_path_buf(), file, size })
 }
@@ -161,7 +175,8 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
 }
 
 /// Cuts out anything shaped like a sign-in: a JWT (three dot-separated base64 runs starting
-/// "eyJ"), and whatever follows "Bearer", "JWT" or "token".
+/// "eyJ"), whatever follows "Bearer", "JWT" or "token", and a Discord webhook address (its id and
+/// token are all it takes to post as it).
 pub fn redact(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut hide_next = false;
@@ -171,6 +186,13 @@ pub fn redact(s: &str) -> String {
         }
         let bare = word.trim_matches(|c: char| !c.is_ascii_alphanumeric());
         let jwt = word.contains("eyJ") && word.matches('.').count() >= 2;
+        if let Some(at) = word.find("/api/webhooks/").filter(|_| word.contains("discord")) {
+            let start = word[..at].rfind("http").unwrap_or(0);
+            out.push_str(&word[..start]);
+            out.push_str("[redacted webhook]");
+            hide_next = false;
+            continue;
+        }
         if hide_next || jwt {
             out.push_str("[redacted]");
             hide_next = false;
@@ -203,7 +225,28 @@ mod tests {
         assert_eq!(redact("Authorization: Bearer abc.def"), "Authorization: Bearer [redacted]");
         assert_eq!(redact("got eyJhbGciOi.eyJzdWIi.sig back"), "got [redacted] back");
         assert_eq!(redact("url ?token=secret&x=1 done"), "url ?token=[redacted] done");
+        assert_eq!(redact("posting to https://discord.com/api/webhooks/123/abc_DEF failed"), "posting to [redacted webhook] failed");
+        assert_eq!(redact("(https://discordapp.com/api/webhooks/1/x)"), "([redacted webhook]");
+        assert_eq!(redact("see https://example.com/api/webhooks/1/x"), "see https://example.com/api/webhooks/1/x", "only Discord's");
         assert_eq!(redact("POST /v2/order: 429"), "POST /v2/order: 429");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn only_you_can_read_the_log() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("orbiter-log-mode-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(FILE);
+        fs::write(&path, b"old\n").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+        let _sink = open(&path).unwrap();
+        assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600, "an existing log is made private");
+        fs::remove_file(&path).unwrap();
+        let _sink = open(&path).unwrap();
+        assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600, "a new one starts private");
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
