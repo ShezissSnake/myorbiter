@@ -12,6 +12,7 @@
   import Sheet from "./Sheet.svelte";
   import NoMatch from "./NoMatch.svelte";
   import { nearEnd } from "./nearEnd";
+  import Count from "./Count.svelte";
 
   let {
     id,
@@ -166,7 +167,7 @@
     </label>
   {/if}
   <span class="grow"></span>
-  <span class="dim small nowrap">{count ? count(view.length) : `${view.length.toLocaleString("en")} ${view.length === 1 ? "item" : "items"}`}</span>
+  <span class="dim small nowrap"><Count value={view.length} format={(n) => (count ? count(Math.round(n)) : `${Math.round(n).toLocaleString("en")} ${Math.round(n) === 1 ? "item" : "items"}`)} /></span>
   <Seg bind:value={layout} onchange={remember} options={[{ v: "cards", label: "Cards", icon: "cards", title: "Show them as cards" }, { v: "list", label: "Table", icon: "rows", title: "Show them as a table you can sort by any column" }]} />
   {#if tools}{@render tools()}{/if}
 </div>

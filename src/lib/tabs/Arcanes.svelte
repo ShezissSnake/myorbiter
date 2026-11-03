@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Count from "../ui/Count.svelte";
+  import PTick from "../ui/PTick.svelte";
   import Fold from "../ui/Fold.svelte";
   import Tabs from "../ui/Tabs.svelte";
   import { takeIntent } from "../intent.svelte";
@@ -275,9 +277,9 @@
       <Showcase items={exhibits} caption={shelf.mode === "held" ? "Nothing marked Sell: your dearest arcanes" : "Your most valuable arcanes to sell"} note={shelf.mode === "held" ? "Each, at the daily median · click one for its details" : "By Worth selling · click one for its details"} empty="No arcanes read yet: press Sync while Warframe is running, and they go on display here." />
     {/snippet}
     {#snippet band()}
-      <Stat label="Maxed" note="Arcanes you have at max rank">{completeCount}<span class="of">/{all.length}</span></Stat>
-      <Stat label="Worth selling" note={`${things(toSell.length, "arcane")} marked Sell · no more of each than sells in a month`} title="Worth selling: the spare arcanes marked Sell (not the ones worth more dissolved, or under a trade's worth), maxed copies at the max-rank price and loose ones at their share of one, no more of each than the market sells in a month. Counted the same way on Prime parts, Mods and Home"><P v={sellWorth} big /></Stat>
-      <Stat label="Vosfor held" note={gain ? `+${gain.toLocaleString("en")} from the ${toDissolve.length} marked Dissolve` : "Nothing marked Dissolve"}><GameIcon name="vosfor" size={30} />{held.toLocaleString("en")}</Stat>
+      <Stat label="Maxed" note="Arcanes you have at max rank"><Count value={completeCount} /><span class="of">/{all.length}</span></Stat>
+      <Stat label="Worth selling" note={`${things(toSell.length, "arcane")} marked Sell · no more of each than sells in a month`} title="Worth selling: the spare arcanes marked Sell (not the ones worth more dissolved, or under a trade's worth), maxed copies at the max-rank price and loose ones at their share of one, no more of each than the market sells in a month. Counted the same way on Prime parts, Mods and Home"><PTick v={sellWorth} /></Stat>
+      <Stat label="Vosfor held" note={gain ? `+${gain.toLocaleString("en")} from the ${toDissolve.length} marked Dissolve` : "Nothing marked Dissolve"}><GameIcon name="vosfor" size={30} /><Count value={held} /></Stat>
     {/snippet}
   </PageHead>
 

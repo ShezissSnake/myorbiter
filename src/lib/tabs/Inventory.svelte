@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Count from "../ui/Count.svelte";
+  import PTick from "../ui/PTick.svelte";
   import Fold from "../ui/Fold.svelte";
   // Everything you own, the way TennoScope's collection shows it: gear, parts, relics, mods,
   // arcanes, resources and blueprints, with what each is worth and a way to list it.
@@ -276,11 +278,11 @@
       />
     {/snippet}
     {#snippet band()}
-      <Stat label="Spare value" tone="gold" note="Beyond what you keep, no more of each than the market sells in a month" title={`Spare value: every copy beyond what you keep, of every kind, at the daily median, no more of each item than the market sells in a month (slow sellers count only that; unranked arcanes as their share of a maxed one).${spareSplit ? ` By kind: ${spareSplit}.` : ""} Worth selling, on Prime parts, Mods and Arcanes, is the narrower figure: it leaves out what's better as ducats or Vosfor, what isn't worth a trade and mods that don't sell daily.`}><P v={value.spare} big /></Stat>
-      <Stat label="Spare copies" note={`Of ${spareItems.size.toLocaleString("en")} items, beyond what you keep`} title="Every copy you hold beyond what you keep: what your unbuilt items take, two of each mod, one maxed arcane, one of each Captura scene">{spareCopies.toLocaleString("en")}</Stat>
-      <Stat label="Sell daily" note="Items with copies to spare that trade every day on warframe.market: where to start" title="Items you have copies to spare of that trade at least once a day on warframe.market (their daily statistics): the ones that sell quickly">{sellDaily.toLocaleString("en")}</Stat>
-      <Stat extra label="Quick-sale value" note="Everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month"><P v={value.easy} big /></Stat>
-      <Stat extra label="Market value" tone="dim" note="Every copy at the daily median, slow sellers included"><P v={value.market} big /></Stat>
+      <Stat label="Spare value" tone="gold" note="Beyond what you keep, no more of each than the market sells in a month" title={`Spare value: every copy beyond what you keep, of every kind, at the daily median, no more of each item than the market sells in a month (slow sellers count only that; unranked arcanes as their share of a maxed one).${spareSplit ? ` By kind: ${spareSplit}.` : ""} Worth selling, on Prime parts, Mods and Arcanes, is the narrower figure: it leaves out what's better as ducats or Vosfor, what isn't worth a trade and mods that don't sell daily.`}><PTick v={value.spare} /></Stat>
+      <Stat label="Spare copies" note={`Of ${spareItems.size.toLocaleString("en")} items, beyond what you keep`} title="Every copy you hold beyond what you keep: what your unbuilt items take, two of each mod, one maxed arcane, one of each Captura scene"><Count value={spareCopies} /></Stat>
+      <Stat label="Sell daily" note="Items with copies to spare that trade every day on warframe.market: where to start" title="Items you have copies to spare of that trade at least once a day on warframe.market (their daily statistics): the ones that sell quickly"><Count value={sellDaily} /></Stat>
+      <Stat extra label="Quick-sale value" note="Everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month"><PTick v={value.easy} /></Stat>
+      <Stat extra label="Market value" tone="dim" note="Every copy at the daily median, slow sellers included"><PTick v={value.market} /></Stat>
     {/snippet}
   </PageHead>
 
@@ -304,7 +306,7 @@
     </Fold>
     <span class="grow"></span>
     <!-- Not a filter: it opens the list of gear you can sell to the game for credits. -->
-    <button type="button" class="letgo" class:on={letGo} aria-pressed={letGo} onclick={() => (letGo = !letGo)} title="Gear you can't trade and no longer need: a weapon, frame or companion once you've mastered it and own a better version of it (the Dual Decurion once you have Prisma Dual Decurions), and extra copies of something mastered. Sell them for credits in game">Gear to sell for credits · {goCount}</button>
+    <button type="button" class="letgo" class:on={letGo} aria-pressed={letGo} onclick={() => (letGo = !letGo)} title="Gear you can't trade and no longer need: a weapon, frame or companion once you've mastered it and own a better version of it (the Dual Decurion once you have Prisma Dual Decurions), and extra copies of something mastered. Sell them for credits in game">Gear to sell for credits · <Count value={goCount} /></button>
   </div>
 
   {#if letGo}<div class="reveal" transition:reveal><NotNeeded {model} out={unneeded} incarnons={!!gear} bind:keep={keepGear} /></div>{/if}

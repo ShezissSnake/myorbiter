@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Count from "../ui/Count.svelte";
+  import PTick from "../ui/PTick.svelte";
   import Fold from "../ui/Fold.svelte";
   import { takeIntent } from "../intent.svelte";
   import { daysToTrade } from "../core/tradeLimit";
@@ -160,8 +162,8 @@
       <Showcase items={exhibits} caption={shelf.mode === "held" ? "Nothing worth selling: your dearest mods" : "Your most valuable spare mods"} note={shelf.mode === "held" ? "Each, at the daily median · click one for its details" : "By Worth selling · click one for its details"} empty="No mods read yet: press Sync while Warframe is running, and your spares go on display here." />
     {/snippet}
     {#snippet band()}
-      <Stat label="Spare copies" note={tradeDays != null && tradeDays > 1 ? `Beyond your best copy and one to give away · ${tradeDays} days of trades to sell them all` : "Beyond your best copy and one to give away"} title={tradeDays != null ? `Beyond your best copy and one to give away. Trades a day are your Mastery Rank (${masteryRank}), up to 6 items each: selling every spare copy would take ${tradeDays} days of trading, at best` : null}>{extras.toLocaleString("en")}</Stat>
-      <Stat label="Worth selling" tone="dim" note={`Mods that sell daily, no more of each than the market sells in a month; only what's worth ${minPlat}p a trade`} title={`Worth selling: the spare copies of tradable mods that sell at least daily (as Put my spares on sale lists them), at the daily median, no more of each than the market sells in a month, and only what's worth ${minPlat}p a trade. The filters don't change it. Counted the same way on Prime parts, Arcanes and Home; Inventory's Spare value adds slow sellers and small change`}><P v={value} big /></Stat>
+      <Stat label="Spare copies" note={tradeDays != null && tradeDays > 1 ? `Beyond your best copy and one to give away · ${tradeDays} days of trades to sell them all` : "Beyond your best copy and one to give away"} title={tradeDays != null ? `Beyond your best copy and one to give away. Trades a day are your Mastery Rank (${masteryRank}), up to 6 items each: selling every spare copy would take ${tradeDays} days of trading, at best` : null}><Count value={extras} /></Stat>
+      <Stat label="Worth selling" tone="dim" note={`Mods that sell daily, no more of each than the market sells in a month; only what's worth ${minPlat}p a trade`} title={`Worth selling: the spare copies of tradable mods that sell at least daily (as Put my spares on sale lists them), at the daily median, no more of each than the market sells in a month, and only what's worth ${minPlat}p a trade. The filters don't change it. Counted the same way on Prime parts, Arcanes and Home; Inventory's Spare value adds slow sellers and small change`}><PTick v={value} /></Stat>
     {/snippet}
   </PageHead>
 

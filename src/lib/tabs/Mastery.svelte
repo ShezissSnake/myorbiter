@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Count from "../ui/Count.svelte";
   import Fold from "../ui/Fold.svelte";
   import Tabs from "../ui/Tabs.svelte";
   import { info } from "../hover.svelte";
@@ -211,9 +212,9 @@
       {#if masteryRank != null}
         <Stat label="Your rank" tone="gold" note={`${rankLabel(masteryRank)} from ${rankThreshold(masteryRank).toLocaleString("en")} · ${rankLabel(masteryRank + 1)} at ${rankThreshold(masteryRank + 1).toLocaleString("en")} total mastery`} title={`${rankLabel(masteryRank + 1)} takes ${(rankThreshold(masteryRank + 1) - rankThreshold(masteryRank)).toLocaleString("en")} mastery more than ${rankLabel(masteryRank)}. The game doesn't say how far into the rank you are, so the figures below are what's left to earn, not what's left to the next rank.`}>{rankLabel(masteryRank)}</Stat>
       {/if}
-      <Stat label="Rank up what you own" note={`${things(levelRows.length)} in your arsenal, not yet at max rank`}><GameIcon name="mastery" size={30} />{pts(levelRows).toLocaleString("en")}</Stat>
-      <Stat label="Easy to get" note={`${things(easyRows.length)}: buy and build, or an easy boss`}><GameIcon name="mastery" size={30} />{pts(easyRows).toLocaleString("en")}</Stat>
-      <Stat label="Left to master" tone="dim" note={`${things(open.length)} you can still get`}><GameIcon name="mastery" size={30} />{pts(open).toLocaleString("en")}</Stat>
+      <Stat label="Rank up what you own" note={`${things(levelRows.length)} in your arsenal, not yet at max rank`}><GameIcon name="mastery" size={30} /><Count value={pts(levelRows)} /></Stat>
+      <Stat label="Easy to get" note={`${things(easyRows.length)}: buy and build, or an easy boss`}><GameIcon name="mastery" size={30} /><Count value={pts(easyRows)} /></Stat>
+      <Stat label="Left to master" tone="dim" note={`${things(open.length)} you can still get`}><GameIcon name="mastery" size={30} /><Count value={pts(open)} /></Stat>
     {/snippet}
     {#snippet hero()}<CodexRings {rings} {lit} onpick={pickRing} all={{ onpick: () => { ring = null; category = "all"; }, action: "Click to show every kind" }} action={(r) => (lit === r.group ? "Click to show every kind" : `Click to show only ${r.label.toLowerCase()} left to master`)} line={nextLine} />{/snippet}
   </PageHead>

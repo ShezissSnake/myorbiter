@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Count from "../ui/Count.svelte";
+  import PTick from "../ui/PTick.svelte";
   import Tabs from "../ui/Tabs.svelte";
   import { kindIcon } from "../ui/GameIcon.svelte";
   import type { Model } from "../core/model";
@@ -253,14 +255,14 @@
     {/snippet}
     {#snippet band()}
       {#if mode === "save"}
-      <Stat label="Sets saved for" note={saveOn ? "Their loose parts wait instead of being sold" : "Off in Settings → Selling"}>{rows.length}</Stat>
-      <Stat label="More as sets" tone={savedPremium ? "gold" : "dim"} note="Over selling those parts one by one"><P v={savedPremium} big /></Stat>
+      <Stat label="Sets saved for" note={saveOn ? "Their loose parts wait instead of being sold" : "Off in Settings → Selling"}><Count value={rows.length} /></Stat>
+      <Stat label="More as sets" tone={savedPremium ? "gold" : "dim"} note="Over selling those parts one by one"><PTick v={savedPremium} /></Stat>
     {:else if mode === "sell"}
-      <Stat label="Sets to sell" note={!keepOne ? "Every complete set, none kept back" : keptBack ? `${keptBack} more kept back to build and master` : "Nothing kept back to build"}>{totalSets}</Stat>
-      <Stat label="At set price" note="warframe.market daily median"><P v={totalPlat} big /></Stat>
+      <Stat label="Sets to sell" note={!keepOne ? "Every complete set, none kept back" : keptBack ? `${keptBack} more kept back to build and master` : "Nothing kept back to build"}><Count value={totalSets} /></Stat>
+      <Stat label="At set price" note="warframe.market daily median"><PTick v={totalPlat} /></Stat>
     {:else}
-      <Stat label="Sets 1–2 parts away" note="Missing one or two parts">{rows.length}</Stat>
-      <Stat label="Worth finishing" tone={worthFinishing ? "gold" : "dim"} note="Earn more as a set than sold loose">{worthFinishing}</Stat>
+      <Stat label="Sets 1–2 parts away" note="Missing one or two parts"><Count value={rows.length} /></Stat>
+      <Stat label="Worth finishing" tone={worthFinishing ? "gold" : "dim"} note="Earn more as a set than sold loose"><Count value={worthFinishing} /></Stat>
     {/if}
     {/snippet}
   </PageHead>
