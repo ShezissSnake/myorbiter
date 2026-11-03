@@ -1,0 +1,11 @@
+# The release workflow pins every action to a commit. Dependabot proposes the update (a pull
+# request with the new commit and the version it is) once a week, so the pins don't go stale.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
