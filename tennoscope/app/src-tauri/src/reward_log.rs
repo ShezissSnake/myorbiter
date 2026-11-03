@@ -58,6 +58,28 @@ impl RewardLogMachine {
         self.reward_window_open
     }
 
+    /// Catches up on a mission already in progress from the log's recent tail, read once when
+    /// TennoScope attaches to the game (the live tail starts at the end of the file). History
+    /// emits nothing; only if the tail ends with this mission's relics loaded and no reward
+    /// screen open does it arm for that screen, as the relics loading would have. Without it, a
+    /// TennoScope started mid-mission (orbiter restarting it) misses that mission's screen.
+    pub fn adopt_tail(&mut self, tail: &[u8]) -> Vec<RewardLogEvent> {
+        // Whole lines only: the tail can start mid-line.
+        let start = tail
+            .iter()
+            .position(|b| *b == b'\n')
+            .map_or(tail.len(), |i| i + 1);
+        let _ = self.observe_bytes(&tail[start..]);
+        self.carry.clear();
+        if self.reward_window_open || self.loaded_relics.is_empty() {
+            return Vec::new();
+        }
+        self.baseline_requested = true;
+        vec![RewardLogEvent::BaselineRequested {
+            relic_paths: self.loaded_relics.clone(),
+        }]
+    }
+
     pub fn observe_bytes(&mut self, bytes: &[u8]) -> Vec<RewardLogEvent> {
         self.carry.extend_from_slice(bytes);
         let complete = self

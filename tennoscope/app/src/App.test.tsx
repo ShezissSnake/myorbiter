@@ -670,7 +670,7 @@ describe('MVP desktop interface', () => {
     // A slip that carries a mark states it in the ledger and drops the ownership line, because the
     // set row already says how much of the part is held. The line stays for a card with no mark.
     const paris = within(advisor).getByRole('article', { name: 'Paris Prime String' })
-    expect(paris).toHaveTextContent('Unmastered')
+    expect(within(paris).getByRole('img', { name: 'Not mastered' })).toBeInTheDocument()
     expect(paris).toHaveClass('ruled')
     expect(within(paris).getByRole('list', { name: 'Set' })).toBeInTheDocument()
     expect(paris).not.toHaveTextContent('Owned ×1')

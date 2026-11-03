@@ -354,3 +354,33 @@ fn is_render_lifecycle_event(event: &RewardLogEvent) -> bool {
         RewardLogEvent::BaselineRequested { .. } | RewardLogEvent::ChoicesReady { .. }
     )
 }
+
+// Started mid-mission (orbiter restarting TennoScope): the relics this fissure loaded are in the
+// log's tail, read once at attach, and arm for its reward screen as their loading would have.
+#[test]
+fn a_mission_in_progress_is_caught_up_from_the_tail() {
+    const RELIC: &str = "12.0 Script [Info]: x /Lotus/Types/Game/Projections/T4VoidProjectionVorunaPrimeCBronze ok\n";
+    const OPEN: &str = "13.0 Script [Info]: VoidProjections: OpenVoidProjectionRewardScreenRMI\n";
+    const CLOSE: &str =
+        "14.0 Script [Info]: ProjectionRewardChoice.lua: Relic reward screen shut down\n";
+    let mut machine = RewardLogMachine::default();
+    let events = machine.adopt_tail(format!("cut line\n{RELIC}{OPEN}{CLOSE}{RELIC}").as_bytes());
+    assert!(
+        matches!(events.as_slice(), [RewardLogEvent::BaselineRequested { relic_paths }] if relic_paths.len() == 1)
+    );
+    assert_eq!(
+        machine.observe_line(OPEN.trim()),
+        vec![RewardLogEvent::RewardWindowOpened]
+    );
+    // History alone (the last screen closed, or one still open) arms nothing.
+    assert!(
+        RewardLogMachine::default()
+            .adopt_tail(format!("x\n{RELIC}{OPEN}{CLOSE}").as_bytes())
+            .is_empty()
+    );
+    assert!(
+        RewardLogMachine::default()
+            .adopt_tail(format!("x\n{RELIC}{OPEN}").as_bytes())
+            .is_empty()
+    );
+}

@@ -40,6 +40,7 @@ mod kiosk_view;
 pub mod linux_renderer;
 pub mod market_account;
 pub mod monitor;
+mod orbiter_bridge;
 mod overlay_window;
 mod preferences;
 pub mod report;
@@ -68,7 +69,8 @@ pub use reward_observer::{
 pub use reward_ocr::{
     MAX_CARDS, ScreenRewardSource, TESSERACT_EXECUTABLE, best_card_match, best_match,
     card_block_left, card_block_width, luma, normalize_contrast, ocr_crop, prepare_crop,
-    read_cards, read_cards_in, tesseract_program, threshold_inverted,
+    read_cards, read_cards_in, tesseract_program, threshold_inverted, title_brightness,
+    title_closeness, title_colours,
 };
 pub use reward_recognition::{
     FailureTrace, RecognitionTiming, RecognitionUpdate, RecognizedRewards, RewardPublication,
@@ -561,6 +563,113 @@ fn market_inventory_writes_authorized(runtime: &Runtime) -> Result<(), String> {
 }
 type SharedRuntime = Arc<Mutex<Runtime>>;
 
+/// Carry out what orbiter asked for (see `orbiter_bridge::Ask`), off the main thread. The outcome
+/// shows up in the status file, which is what orbiter reads.
+fn run_asks(app: &AppHandle, args: &[String]) {
+    for ask in orbiter_bridge::asks(args) {
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            let state = app.state::<SharedRuntime>();
+            let outcome = match ask {
+                orbiter_bridge::Ask::Sync => refresh_inventory(state).await.map(|_| ()),
+                orbiter_bridge::Ask::Presence { status, auto } => {
+                    set_market_presence(state, status, auto).await.map(|_| ())
+                }
+                orbiter_bridge::Ask::AuthorizeCapture => {
+                    authorize_screen_capture(app.clone(), state)
+                        .await
+                        .map(|_| ())
+                }
+            };
+            if let Err(error) = outcome {
+                log::warn!("orbiter asked for {ask:?}: {error}");
+                orbiter_bridge::note_error(error.to_string());
+            }
+        });
+    }
+}
+
+/// What orbiter shows about TennoScope: health, the account and its status, and access setup.
+fn bridge_status(shared: &SharedRuntime) -> Option<serde_json::Value> {
+    let (view, stored, game_running, foundry) = {
+        let mut runtime = shared.lock().ok()?;
+        // orbiter holds the status: let go of ours, so the two never undo each other.
+        if orbiter_bridge::orbiter_holds_presence() {
+            runtime.presence.sign_out();
+        }
+        let view = publish_presence(&mut runtime).ok()?;
+        let foundry = runtime.core.foundry_builds();
+        let ready = runtime.core.foundry_ready();
+        let level = runtime.core.player_level();
+        let platinum = runtime.core.platinum();
+        let (credits, endo) = runtime.core.wallet();
+        let rivens = runtime.core.rivens();
+        let imprints = runtime.core.imprints();
+        let gear = runtime.core.gear();
+        let consumed = runtime.core.consumed_suits();
+        (
+            view,
+            runtime.setup.clone(),
+            runtime.game_running,
+            (
+                foundry, ready, level, platinum, credits, endo, rivens, imprints, gear, consumed,
+            ),
+        )
+    };
+    let (foundry, ready, level, platinum, credits, endo, rivens, imprints, gear, consumed) =
+        foundry;
+    let setup = current_setup_status(stored, game_running);
+    let market = serde_json::to_value(view.market_account()).ok()?;
+    Some(serde_json::json!({
+        "health": view.health(),
+        "snapshot": view.collection().snapshot(),
+        "market": { "link": market["link"], "backing": market["backing"], "presence": market["presence"] },
+        "setup": setup,
+        "game_running": game_running,
+        // What's being built in the foundry, by recipe path (null until this run read the
+        // inventory): orbiter counts a part being crafted as held, an item being built as built.
+        "foundry": foundry,
+        // When each of those builds finishes, [recipe path, unix ms], for orbiter's alerts.
+        "foundry_ready": ready,
+        // Your mastery rank, from the same read.
+        "mastery_rank": level,
+        "platinum": platinum,
+        "credits": credits,
+        "endo": endo,
+        // Unveiled rivens, `{type, id, fp}` with the game's own fingerprint, for orbiter's riven page.
+        "rivens": rivens,
+        // Kubrow and Kavat imprints, each the inventory's own row, for orbiter to list for sale.
+        "imprints": imprints,
+        // Each copy of a warframe, weapon or companion, `{type, f, p, s}` (feature bits, Forma,
+        // section), with a modular build's parts (`m`) and its affinity (`x`): for orbiter's list
+        // of gear you no longer need, and which kitguns, zaws, amps, MOAs and hounds are gilded.
+        // For orbiter's Builds, also its slots' polarities (`pol`), archon shards (`shards`) and
+        // each config's Helminth ability (`ab`).
+        "gear": gear,
+        // The warframes fed to the Helminth, by path (null until this run read the inventory).
+        "consumed_suits": consumed,
+        "last_error": orbiter_bridge::last_error(),
+    }))
+}
+
+/// orbiter's scored pick for the reward cards on screen, when orbiter is running.
+#[tauri::command]
+fn orbiter_pick() -> Option<orbiter_bridge::OrbiterPick> {
+    orbiter_bridge::read_pick()
+}
+
+/// orbiter's riven cycle, while it's to be shown over the game.
+#[tauri::command]
+fn orbiter_riven() -> Option<serde_json::Value> {
+    orbiter_bridge::read_riven()
+}
+
+/// orbiter's overlay settings: what the reward cards show.
+#[tauri::command]
+fn orbiter_overlay() -> Option<serde_json::Value> {
+    orbiter_bridge::overlay_prefs()
+}
+
 #[tauri::command]
 async fn get_view(state: State<'_, SharedRuntime>) -> Result<AppView, String> {
     let shared = Arc::clone(state.inner());
@@ -684,6 +793,9 @@ async fn set_market_presence(
     status: Option<warframe_status::Presence>,
     auto: bool,
 ) -> Result<AppView, String> {
+    if orbiter_bridge::orbiter_holds_presence() {
+        return Err("orbiter is managing your warframe.market status: change it there.".to_owned());
+    }
     let shared = Arc::clone(state.inner());
     tauri::async_runtime::spawn_blocking(move || {
         let mut runtime = shared
@@ -2095,7 +2207,12 @@ pub fn run() {
         // tail the same EE.log, write the same database and draw two override-redirect overlays at
         // the same coordinates over the game, where whichever raised last wins, so the strip on
         // screen need not be the build you just started.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // A companion asking for TennoScope in the background must not pop the window up.
+            if orbiter_bridge::wants_background(&args) {
+                run_asks(app, &args);
+                return;
+            }
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
                 let _ = window.show();
@@ -2108,13 +2225,27 @@ pub fn run() {
         // once the main window closes and the app stays up: tailing the log and drawing the overlay
         // over the game with no UI left to close it by.
         .on_window_event(|window, event| {
-            if window.label() == "main"
-                && matches!(event, tauri::WindowEvent::CloseRequested { .. })
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event
+                && window.label() == "main"
             {
-                window.app_handle().exit(0);
+                // Started in the background by orbiter: closing the window only hides it again,
+                // so the overlay keeps working until orbiter closes TennoScope.
+                if orbiter_bridge::wants_background(&std::env::args().collect::<Vec<_>>()) {
+                    api.prevent_close();
+                    let _ = window.hide();
+                } else {
+                    window.app_handle().exit(0);
+                }
             }
         })
         .setup(|app| {
+            // `--background` (how orbiter starts it): no main window, just the log watcher and the
+            // reward overlay. Starting TennoScope again normally shows the window.
+            if orbiter_bridge::wants_background(&std::env::args().collect::<Vec<_>>())
+                && let Some(window) = app.get_webview_window("main")
+            {
+                let _ = window.hide();
+            }
             // The file target keeps debug traces in dev builds and trims to Info in stable
             // releases: per-OCR-attempt debug lines land every 200 ms, and with only 5 MiB
             // per rotated file a stable session of hours would otherwise keep just the last
@@ -2166,6 +2297,54 @@ pub fn run() {
                 .map(|state| current_setup_status(state.setup.clone(), state.game_running))
                 .unwrap_or_default();
             app.manage(runtime);
+            // For orbiter: TennoScope's state, every few seconds, in the runtime folder.
+            {
+                let app = app.handle().clone();
+                std::thread::spawn(move || {
+                    loop {
+                        if let Some(status) = bridge_status(app.state::<SharedRuntime>().inner()) {
+                            orbiter_bridge::publish_status(status);
+                        }
+                        std::thread::sleep(std::time::Duration::from_secs(3));
+                    }
+                });
+            }
+            // orbiter's riven cycle: shown over the game while orbiter's file says so, hidden after.
+            {
+                let app = app.handle().clone();
+                std::thread::spawn(move || {
+                    let mut shown: Option<String> = None;
+                    let mut tries = 0u32;
+                    loop {
+                        let key = orbiter_bridge::read_riven()
+                            .and_then(|v| v.get("key").and_then(|k| k.as_str()).map(str::to_owned));
+                        // Shown again if it isn't up yet (the game not located a moment ago),
+                        // every few seconds while orbiter's file still says to.
+                        let hidden = key.is_some()
+                            && key == shown
+                            && !app
+                                .get_webview_window("riven-overlay")
+                                .and_then(|w| w.is_visible().ok())
+                                .unwrap_or(true);
+                        if hidden {
+                            tries += 1;
+                        }
+                        if key != shown || (hidden && tries % 4 == 0) {
+                            match &key {
+                                Some(_) => overlay_window::show_riven_overlay(&app),
+                                None => overlay_window::hide_riven_overlay(&app),
+                            }
+                            if key != shown {
+                                tries = 0;
+                            }
+                            shown = key;
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(700));
+                    }
+                });
+            }
+            // Started by orbiter with a request (`--sync`…) rather than to be looked at.
+            run_asks(app.handle(), &std::env::args().collect::<Vec<_>>());
             // The kiosk window's whole IPC surface: `get_kiosk_view` pulls whatever the poller
             // last published, so the cell exists from the start, empty until a kiosk opens.
             app.manage(kiosk_view::KioskState::default());
@@ -2205,6 +2384,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_view,
+            orbiter_pick,
+            orbiter_riven,
+            orbiter_overlay,
             get_setup_status,
             get_preferences,
             set_mastery_marks,

@@ -2,7 +2,7 @@ use std::cmp::Reverse;
 
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 
-use crate::{DomainError, MasteryMark};
+use crate::{DomainError, MasteryMark, SetView};
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct RewardCandidate {
@@ -13,9 +13,25 @@ pub struct RewardCandidate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mastery: Option<MasteryMark>,
     pub confidence: f32,
+    /// Only vaulted relics drop it. Omitted from the JSON when false.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub vaulted: bool,
+    /// The set this reward's item is built from, for the set row. Omitted when it builds nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub set: Option<SetView>,
 }
 
 impl RewardCandidate {
+    pub fn with_vaulted(mut self, vaulted: bool) -> Self {
+        self.vaulted = vaulted;
+        self
+    }
+
+    pub fn with_set(mut self, set: Option<SetView>) -> Self {
+        self.set = set;
+        self
+    }
+
     pub fn new(
         name: impl Into<String>,
         platinum: u32,
@@ -38,6 +54,8 @@ impl RewardCandidate {
             owned,
             mastery,
             confidence,
+            vaulted: false,
+            set: None,
         })
     }
 }
@@ -51,6 +69,10 @@ struct RewardCandidateDto {
     #[serde(default)]
     mastery: Option<MasteryMark>,
     confidence: f32,
+    #[serde(default)]
+    vaulted: bool,
+    #[serde(default)]
+    set: Option<SetView>,
 }
 
 impl<'de> Deserialize<'de> for RewardCandidate {
@@ -67,6 +89,7 @@ impl<'de> Deserialize<'de> for RewardCandidate {
             dto.mastery,
             dto.confidence,
         )
+        .map(|candidate| candidate.with_vaulted(dto.vaulted).with_set(dto.set))
         .map_err(D::Error::custom)
     }
 }

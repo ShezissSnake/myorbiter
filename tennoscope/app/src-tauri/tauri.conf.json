@@ -53,6 +53,22 @@
         "skipTaskbar": true,
         "resizable": false,
         "fullscreen": false
+      },
+      {
+        "label": "riven-overlay",
+        "title": "TennoScope: Riven Cycle",
+        "url": "/riven",
+        "width": 640,
+        "height": 300,
+        "visible": false,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "focus": false,
+        "focusable": false,
+        "skipTaskbar": true,
+        "resizable": false,
+        "fullscreen": false
       }
     ],
     "security": {

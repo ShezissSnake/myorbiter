@@ -27,7 +27,7 @@ They are used unaltered in form, for identification of the currency they depict,
 
 ## Prime part silhouettes
 
-`app/src/assets/parts/*.png` are Digital Extremes' generic Prime part icons, taken from the [WFCD warframe-items](https://github.com/WFCD/warframe-items) image set (`data/img`) and reduced to 64px single-colour silhouettes, so the reward overlay can show which parts make up a set. They are bundled rather than fetched because a slip drawn over the running game must render whether or not the network does. The art belongs to Digital Extremes and is not covered by this project's license. Distributors who remove these files lose nothing else: the set row falls back to an authored glyph.
+`app/src/assets/parts/*.png` are Digital Extremes' generic Prime part icons, taken from the [WFCD warframe-items](https://github.com/WFCD/warframe-items) image set (`data/img`) and reduced to 64px single-colour silhouettes, so the reward overlay can show which parts make up a set. `BroncoPrime.png`, `LexPrime.png`, `MagnusPrime.png` and `VastoPrime.png` are the same treatment of those four pistols' item icons from the same set, for the dual pistols built from two of them. They are bundled rather than fetched because a slip drawn over the running game must render whether or not the network does. The art belongs to Digital Extremes and is not covered by this project's license. Distributors who remove these files lose nothing else: the set row falls back to an authored glyph.
 
 ## Acquisition research and prior art
 

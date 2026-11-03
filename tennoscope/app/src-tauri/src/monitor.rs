@@ -989,6 +989,13 @@ impl RewardSession {
                     &transition.choices,
                     &BTreeMap::new(),
                 );
+                crate::orbiter_bridge::publish_cards(
+                    &transition
+                        .choices
+                        .iter()
+                        .map(|c| c.name.clone())
+                        .collect::<Vec<_>>(),
+                );
                 overlay_notice = overlay_window::show_reward_overlay(app, transition.choices.len());
                 let _ = app.emit_to("reward-overlay", "reward-updated", ());
                 spawn_market_price_fetch(
@@ -1185,6 +1192,8 @@ pub(crate) fn run(
     let procfs = ProcessObserver::new();
     let mut machine = MonitorMachine::new(15);
     let mut reward_log = RewardLogMachine::default();
+    // Events from catching up on a mission in progress at attach, handled with the next poll's.
+    let mut adopted_reward_events: Vec<RewardLogEvent> = Vec::new();
     let mut kiosk_session = KioskSession::new();
     // The kiosk session's window/thread side effects, as hooks so the session logic itself stays
     // testable without an AppHandle.
@@ -1303,6 +1312,9 @@ pub(crate) fn run(
         .lock()
         .ok()
         .and_then(|runtime| load_relic_catalog(&runtime.app_data));
+    if let Some(index) = &relic_catalog {
+        remember_vaulted_rewards(index);
+    }
     let mut reward_session =
         RewardSession::new(catalog, relic_catalog, reward_catalog, price_cache.clone());
     // EE.log reaches us seconds after the events it describes (measured at ~7.5s on 2026-07-27),
@@ -1377,6 +1389,10 @@ pub(crate) fn run(
                         // tail starts at EOF, so a kiosk already on screen when the app started
                         // has no open marker left for us to see. Fold the recent tail once, at
                         // attach, to adopt the session in progress.
+                        // The same for a fissure in progress: the relics it loaded are in the
+                        // tail, and without them its reward screen can't be read.
+                        adopted_reward_events =
+                            reward_log.adopt_tail(&log_tail(ee_path, KIOSK_TAIL_SCAN));
                         if let Some(kiosk_view_cell) = app.try_state::<KioskState>() {
                             kiosk_session.adopt_log_tail(
                                 &log_tail(ee_path, KIOSK_TAIL_SCAN),
@@ -1424,7 +1440,11 @@ pub(crate) fn run(
                 };
             }
         }
-        for event in reward_log.observe_bytes(&log_bytes) {
+        let caught_up = std::mem::take(&mut adopted_reward_events);
+        for event in caught_up
+            .into_iter()
+            .chain(reward_log.observe_bytes(&log_bytes))
+        {
             if generation.is_current() {
                 reward_session.handle_event(
                     event,
@@ -1520,6 +1540,14 @@ fn load_catalog(app_data: &Path) -> Option<CatalogIndex> {
 }
 
 fn load_relic_catalog(app_data: &Path) -> Option<RelicRewardIndex> {
+    // orbiter's tables first: current, where the fetched list is a fixed snapshot.
+    if let Some(index) = crate::orbiter_bridge::read_relics()
+        .and_then(|bytes| RelicRewardIndex::from_wfcd_json(&bytes).ok())
+        .filter(|index| index.reward_names().next().is_some())
+    {
+        log::info!("reward: relic tables from orbiter");
+        return Some(index);
+    }
     let cache = RelicCatalogCache::new(app_data.join("catalog"));
     if let Ok(catalog) = cache.load_cached() {
         return Some(catalog.index().clone());
@@ -2320,6 +2348,11 @@ fn spawn_market_price_fetch(
                     .is_empty()
                     .then_some("warframe.market pricing is unavailable for these rewards")
             });
+            // orbiter scores the cards with the same live prices the overlay shows.
+            crate::orbiter_bridge::publish_card_prices(
+                &choices.iter().map(|c| c.name.clone()).collect::<Vec<_>>(),
+                &prices,
+            );
             (prices, failure)
         },
         move || {
@@ -2391,6 +2424,25 @@ fn spawn_market_price_warm(pool: &[RewardCatalogEntry], price_cache: &MarketPric
     });
 }
 
+/// Rewards that only vaulted relics drop, from the relic catalog the session loaded. Kept apart
+/// from the runtime so the card builder can read it without threading the index through every
+/// caller; empty (nothing marked) until a catalog loads.
+static VAULTED_REWARDS: std::sync::RwLock<std::collections::BTreeSet<String>> =
+    std::sync::RwLock::new(std::collections::BTreeSet::new());
+
+fn remember_vaulted_rewards(index: &RelicRewardIndex) {
+    if let Ok(mut vaulted) = VAULTED_REWARDS.write() {
+        vaulted.clone_from(index.vaulted_rewards());
+    }
+}
+
+fn reward_is_vaulted(name: &str) -> bool {
+    VAULTED_REWARDS
+        .read()
+        .map(|vaulted| vaulted.contains(name.trim()))
+        .unwrap_or(false)
+}
+
 fn apply_reward_observations(
     shared: &SharedRuntime,
     catalog: &[RewardCatalogEntry],
@@ -2438,6 +2490,15 @@ fn apply_reward_observations(
                 observation.confidence,
             )
             .ok()
+            .map(|candidate| {
+                candidate
+                    .with_vaulted(reward_is_vaulted(&observation.name))
+                    .with_set(
+                        marks
+                            .as_ref()
+                            .and_then(|marks| marks.set_view(&observation.name)),
+                    )
+            })
         })
         .collect();
     let _ = runtime.core.apply_reward_candidates(candidates);

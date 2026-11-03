@@ -794,3 +794,339 @@ fn every_section_that_holds_a_build_is_read() {
         );
     }
 }
+
+#[test]
+fn foundry_finish_times_and_mastery_rank_are_kept_for_orbiter() {
+    let payload = String::from_utf8(complete_payload())
+        .unwrap()
+        .replace(
+            r#""PendingRecipes":[{"ItemType":"/Lotus/Types/Recipes/Weapons/LexPrimeBlueprint","ItemCount":1}]"#,
+            r#""PendingRecipes":[{"ItemType":"/Lotus/Types/Recipes/Weapons/LexPrimeBlueprint","CompletionDate":{"$date":{"$numberLong":"1753400000000"}}}],"PlayerLevel":24,"PremiumCredits":1234"#,
+        );
+    let (_, facts) = InventoryJsonDecoder::default()
+        .decode_with_facts(payload.as_bytes())
+        .unwrap();
+    assert_eq!(
+        facts.foundry_ready(),
+        &[(
+            "/Lotus/Types/Recipes/Weapons/LexPrimeBlueprint".to_owned(),
+            1_753_400_000_000
+        )]
+    );
+    assert_eq!(facts.player_level(), Some(24));
+    assert_eq!(facts.platinum(), Some(1234));
+    let (_, none) = InventoryJsonDecoder::default()
+        .decode_with_facts(&complete_payload())
+        .unwrap();
+    assert!(none.foundry_ready().is_empty());
+    assert_eq!(none.player_level(), None);
+}
+
+#[test]
+fn wallet_and_unveiled_rivens_are_kept_for_orbiter() {
+    let mut payload: serde_json::Value = serde_json::from_slice(&complete_payload()).unwrap();
+    payload["RegularCredits"] = serde_json::json!(4_500_000);
+    payload["FusionPoints"] = serde_json::json!({"$numberLong": "123456"});
+    let fp = r#"{"compat":"/Lotus/Weapons/Tenno/Rifle/BratonPrime","lim":0,"lvlReq":11,"lvl":8,"rerolls":3,"pol":"AP_ATTACK","buffs":[{"Tag":"WeaponCritChanceMod","Value":536870912},{"Tag":"WeaponCritDamageMod","Value":805306368}],"curses":[{"Tag":"WeaponZoomFovMod","Value":268435456}]}"#;
+    payload["Upgrades"] = serde_json::json!([
+        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaaaa"},"ItemType":"/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare","UpgradeFingerprint":fp},
+        {"ItemId":{"$oid":"bbbbbbbbbbbbbbbbbbbbbbbb"},"ItemType":"/Lotus/Upgrades/Mods/Randomized/LotusPistolRandomModRare","UpgradeFingerprint":"{\"challenge\":{\"Type\":\"/Lotus/Types/Challenges/RandomizedRivenChallenge\",\"Progress\":0,\"Required\":3}}"},
+        {"ItemId":{"$oid":"cccccccccccccccccccccccc"},"ItemType":"/Lotus/Upgrades/Mods/Rifle/WeaponDamageAmountMod","UpgradeFingerprint":"{\"lvl\":5}"}
+    ]);
+    let (snapshot, facts) = InventoryJsonDecoder::default()
+        .decode_with_facts(&serde_json::to_vec(&payload).unwrap())
+        .unwrap();
+    assert_eq!(facts.credits(), Some(4_500_000));
+    assert_eq!(facts.endo(), Some(123_456));
+    let rivens = facts.rivens();
+    assert_eq!(
+        rivens.len(),
+        1,
+        "the veiled riven and the plain mod are left out"
+    );
+    assert_eq!(rivens[0]["id"], "aaaaaaaaaaaaaaaaaaaaaaaa");
+    assert_eq!(
+        rivens[0]["type"],
+        "/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare"
+    );
+    assert_eq!(rivens[0]["fp"]["lvl"], 8);
+    assert_eq!(rivens[0]["fp"]["buffs"][1]["Tag"], "WeaponCritDamageMod");
+    assert!(rivens[0].get("pending").is_none(), "not mid-cycle");
+    // The snapshot itself is unchanged: rivens still count as riven mods.
+    assert!(snapshot.entries().iter().any(|e| {
+        e.item
+            .id
+            .as_str()
+            .starts_with("/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare")
+    }));
+}
+
+#[test]
+fn a_riven_mid_cycle_carries_the_roll_waiting_to_be_taken() {
+    let mut payload: serde_json::Value = serde_json::from_slice(&complete_payload()).unwrap();
+    let fp = r#"{"compat":"/Lotus/Weapons/Tenno/Rifle/BratonPrime","lvl":8,"rerolls":3,"buffs":[{"Tag":"WeaponCritChanceMod","Value":536870912}],"curses":[]}"#;
+    let pending = r#"{"compat":"/Lotus/Weapons/Tenno/Rifle/BratonPrime","lvl":8,"rerolls":4,"buffs":[{"Tag":"WeaponFireRateMod","Value":100}],"curses":[]}"#;
+    payload["Upgrades"] = serde_json::json!([
+        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaaaa"},"ItemType":"/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare","UpgradeFingerprint":fp,"PendingRerollFingerprint":pending}
+    ]);
+    let (_, facts) = InventoryJsonDecoder::default()
+        .decode_with_facts(&serde_json::to_vec(&payload).unwrap())
+        .unwrap();
+    let rivens = facts.rivens();
+    assert_eq!(
+        rivens[0]["fp"]["buffs"][0]["Tag"], "WeaponCritChanceMod",
+        "the roll it has"
+    );
+    assert_eq!(
+        rivens[0]["pending"]["buffs"][0]["Tag"], "WeaponFireRateMod",
+        "the roll on offer"
+    );
+    assert_eq!(rivens[0]["pending"]["rerolls"], 4);
+}
+
+#[test]
+fn imprints_are_kept_for_orbiter() {
+    let mut payload: serde_json::Value = serde_json::from_slice(&complete_payload()).unwrap();
+    payload["KubrowPetPrints"] = serde_json::json!([
+        {"ItemId":{"$oid":"dddddddddddddddddddddddd"},"ItemType":"/Lotus/Types/Game/KubrowPet/ImprintedTraitPrint","Name":"Biscuit","IsMale":true,"Size":0.8,
+         "DominantTraits":{"Personality":"/Lotus/Types/Game/KubrowPet/HunterKubrowPetPowerSuit"},
+         "RecessiveTraits":{"Personality":"/Lotus/Types/Game/KubrowPet/GuardKubrowPetPowerSuit"}}
+    ]);
+    let (snapshot, facts) = InventoryJsonDecoder::default()
+        .decode_with_facts(&serde_json::to_vec(&payload).unwrap())
+        .unwrap();
+    let imprints = facts.imprints();
+    assert_eq!(imprints.len(), 1);
+    assert_eq!(imprints[0]["ItemId"]["$oid"], "dddddddddddddddddddddddd");
+    assert_eq!(
+        imprints[0]["DominantTraits"]["Personality"],
+        "/Lotus/Types/Game/KubrowPet/HunterKubrowPetPowerSuit"
+    );
+    // Imprints are not collection items.
+    assert!(
+        !snapshot
+            .entries()
+            .iter()
+            .any(|e| e.item.id.as_str().contains("ImprintedTraitPrint"))
+    );
+    let (_, none) = InventoryJsonDecoder::default()
+        .decode_with_facts(&complete_payload())
+        .unwrap();
+    assert!(none.imprints().is_empty());
+}
+
+#[test]
+fn each_copy_of_gear_is_kept_for_orbiter_with_its_features_and_forma() {
+    let mut payload: serde_json::Value = serde_json::from_slice(&complete_payload()).unwrap();
+    payload["LongGuns"] = serde_json::json!([
+        {"ItemId":{"$oid":"dddddddddddddddddddddddd"},"ItemType":"/Lotus/Weapons/Tenno/Rifle/Rifle","XP":900000,"Features":513,"Polarized":2},
+        {"ItemId":{"$oid":"eeeeeeeeeeeeeeeeeeeeeeee"},"ItemType":"/Lotus/Weapons/Tenno/Rifle/BratonPrime","XP":0}
+    ]);
+    payload["SpaceGuns"] = serde_json::json!([
+        {"ItemId":{"$oid":"ffffffffffffffffffffffff"},"ItemType":"/Lotus/Weapons/Tenno/Archwing/Primary/ArchwingHeavyPistols/ArchHeavyPistols","Features":0}
+    ]);
+    let (_, facts) = InventoryJsonDecoder::default()
+        .decode_with_facts(&serde_json::to_vec(&payload).unwrap())
+        .unwrap();
+    let gear = facts.gear();
+    let braton = gear
+        .iter()
+        .find(|g| g["type"] == "/Lotus/Weapons/Tenno/Rifle/Rifle")
+        .expect("the Braton is passed on");
+    assert_eq!(braton["f"], 513, "an Incarnon Genesis and a catalyst");
+    assert_eq!(braton["p"], 2);
+    let prime = gear
+        .iter()
+        .find(|g| g["type"] == "/Lotus/Weapons/Tenno/Rifle/BratonPrime")
+        .unwrap();
+    assert_eq!(
+        (prime["f"].as_u64(), prime["p"].as_u64()),
+        (Some(0), Some(0)),
+        "missing fields count as none"
+    );
+    assert!(gear.iter().any(|g| {
+        g["type"]
+            .as_str()
+            .is_some_and(|t| t.ends_with("ArchHeavyPistols"))
+    }));
+}
+
+#[test]
+fn modular_builds_carry_their_parts_section_and_affinity_for_orbiter() {
+    let mut payload: serde_json::Value = serde_json::from_slice(&complete_payload()).unwrap();
+    // A primary kitgun keeps the Secondary chamber path; gilded is feature bit 8.
+    payload["LongGuns"] = serde_json::json!([
+        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaaa1"},"ItemType":"/Lotus/Weapons/SolarisUnited/Primary/LotusModularPrimary","XP":120000,"Features":8,
+         "ModularParts":["/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelAPart","/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleAPart","/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Clip/SUModularPrimaryClipAPart"]}
+    ]);
+    payload["OperatorAmps"] = serde_json::json!([
+        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaaa2"},"ItemType":"/Lotus/Weapons/Sentients/OperatorAmplifiers/OperatorAmpWeapon",
+         "ModularParts":["/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartA","/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartA","/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartA"]}
+    ]);
+    payload["MoaPets"] = serde_json::json!([
+        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaaa3"},"ItemType":"/Lotus/Types/Friendly/Pets/MoaPets/MoaPetPowerSuit","Features":8,
+         "ModularParts":["/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetHeadPara","/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetEngineArmor"]}
+    ]);
+    payload["Hoverboards"] = serde_json::json!([
+        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaaa4"},"ItemType":"/Lotus/Types/Vehicles/Hoverboard/HoverboardSuit","XP":900000,
+         "ModularParts":["/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardSolarisA/HoverboardSolarisADeck"]}
+    ]);
+    payload["KubrowPets"] = serde_json::json!([
+        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaaa5"},"ItemType":"/Lotus/Types/Friendly/Pets/CreaturePets/VizierPredatorKubrowPetPowerSuit","Features":8}
+    ]);
+    payload["CrewShipHarnesses"] = serde_json::json!([
+        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaaa6"},"ItemType":"/Lotus/Types/Game/CrewShip/RailJack/DefaultHarness","XP":900000}
+    ]);
+    let (_, facts) = InventoryJsonDecoder::default()
+        .decode_with_facts(&serde_json::to_vec(&payload).unwrap())
+        .unwrap();
+    let gear = facts.gear();
+    let of = |section: &str| {
+        gear.iter()
+            .find(|g| g["s"] == section)
+            .unwrap_or_else(|| panic!("a {section} row"))
+    };
+    let kitgun = of("LongGuns");
+    assert_eq!(kitgun["f"], 8, "gilded");
+    assert_eq!(kitgun["x"], 120000);
+    assert_eq!(
+        kitgun["m"][0],
+        "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelAPart"
+    );
+    assert_eq!(of("OperatorAmps")["m"].as_array().map(Vec::len), Some(3));
+    assert!(
+        of("OperatorAmps").get("x").is_none(),
+        "no affinity, no field"
+    );
+    assert_eq!(
+        of("MoaPets")["m"][0],
+        "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetHeadPara"
+    );
+    assert_eq!(of("Hoverboards")["x"], 900000);
+    let predasite = of("KubrowPets");
+    assert_eq!(predasite["f"], 8);
+    assert!(predasite.get("m").is_none(), "not built from parts");
+    assert_eq!(
+        of("CrewShipHarnesses")["type"],
+        "/Lotus/Types/Game/CrewShip/RailJack/DefaultHarness"
+    );
+}
+
+#[test]
+fn polarities_archon_shards_and_helminth_abilities_are_kept_for_orbiter_builds() {
+    let mut payload: serde_json::Value = serde_json::from_slice(&complete_payload()).unwrap();
+    // The shapes SpaceNinjaServer's IEquipmentClient gives them: `Polarity: [{Slot, Value}]`,
+    // `ArchonCrystalUpgrades: [{UpgradeType, Color}]` (an emptied slot is `{}`), and
+    // `Configs[i].AbilityOverride: {Ability, Index}`.
+    payload["Suits"] = serde_json::json!([
+        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaab1"},"ItemType":"/Lotus/Powersuits/Excalibur/Excalibur","Features":1,"Polarized":2,
+         "Polarity":[{"Slot":1,"Value":"AP_ATTACK"},{"Slot":5,"Value":"AP_UMBRA"},{"Slot":"x","Value":"AP_TACTIC"},{"Slot":7}],
+         "ArchonCrystalUpgrades":[
+           {"UpgradeType":"/Lotus/Upgrades/Invigorations/ArchonCrystalUpgrades/ArchonCrystalUpgradeWarframeAbilityStrength","Color":"ACC_RED"},
+           {},
+           {"UpgradeType":"/Lotus/Upgrades/Invigorations/ArchonCrystalUpgrades/ArchonCrystalUpgradeWarframeHealthMaxMythic","Color":"ACC_GREEN_MYTHIC"}
+         ],
+         "Configs":[
+           {"Upgrades":[]},
+           {"AbilityOverride":{"Ability":"/Lotus/Powersuits/PowersuitAbilities/Nidus/NidusRavenousAbility","Index":3}},
+           {"AbilityOverride":{"Ability":7}}
+         ]}
+    ]);
+    payload["MechSuits"] = serde_json::json!([
+        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaab2"},"ItemType":"/Lotus/Powersuits/EntratiMech/ThanotechSuit","XP":1600000,"Features":5,
+         "Polarity":[{"Slot":0,"Value":"AP_UNIVERSAL"}]}
+    ]);
+    payload["SpecialItems"] = serde_json::json!([
+        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaab3"},"ItemType":"/Lotus/Powersuits/Excalibur/ExcaliburSword","Features":32,
+         "Polarity":[{"Slot":9,"Value":"AP_ANY"}]}
+    ]);
+    payload["InfestedFoundry"] = serde_json::json!({
+        "Name":"Helminth","XP":1600000,
+        "ConsumedSuits":[
+          {"s":"/Lotus/Powersuits/Nidus/Nidus","c":{"t0":1}},
+          {"s":"/Lotus/Powersuits/Saryn/Saryn"},
+          {"c":{"t0":2}}
+        ]
+    });
+    let (snapshot, facts) = InventoryJsonDecoder::default()
+        .decode_with_facts(&serde_json::to_vec(&payload).unwrap())
+        .unwrap();
+    let gear = facts.gear();
+    let of = |section: &str| {
+        gear.iter()
+            .find(|g| g["s"] == section)
+            .unwrap_or_else(|| panic!("a {section} row"))
+    };
+    let excalibur = of("Suits");
+    assert_eq!(
+        excalibur["pol"],
+        serde_json::json!([[1, "AP_ATTACK"], [5, "AP_UMBRA"]]),
+        "an entry missing its slot or its value is dropped"
+    );
+    assert_eq!(
+        excalibur["shards"],
+        serde_json::json!([
+            [
+                0,
+                "ACC_RED",
+                "/Lotus/Upgrades/Invigorations/ArchonCrystalUpgrades/ArchonCrystalUpgradeWarframeAbilityStrength"
+            ],
+            [
+                2,
+                "ACC_GREEN_MYTHIC",
+                "/Lotus/Upgrades/Invigorations/ArchonCrystalUpgrades/ArchonCrystalUpgradeWarframeHealthMaxMythic"
+            ]
+        ]),
+        "the empty slot is skipped, the others keep their place"
+    );
+    assert_eq!(
+        excalibur["ab"],
+        serde_json::json!([[
+            1,
+            "/Lotus/Powersuits/PowersuitAbilities/Nidus/NidusRavenousAbility",
+            3
+        ]]),
+        "per config; an override it can't read is left out"
+    );
+    let mech = of("MechSuits");
+    assert_eq!(mech["type"], "/Lotus/Powersuits/EntratiMech/ThanotechSuit");
+    assert_eq!(mech["pol"], serde_json::json!([[0, "AP_UNIVERSAL"]]));
+    assert!(
+        mech.get("shards").is_none() && mech.get("ab").is_none(),
+        "none, no field"
+    );
+    let exalted = of("SpecialItems");
+    assert_eq!(exalted["f"], 32);
+    assert_eq!(exalted["pol"], serde_json::json!([[9, "AP_ANY"]]));
+    assert_eq!(
+        facts.consumed_suits(),
+        [
+            "/Lotus/Powersuits/Nidus/Nidus",
+            "/Lotus/Powersuits/Saryn/Saryn"
+        ]
+    );
+    // The holdings are unchanged: exalted weapons are still not collection items.
+    assert!(
+        !snapshot
+            .entries()
+            .iter()
+            .any(|e| e.item.id.as_str().contains("ExcaliburSword"))
+    );
+
+    // Without any of it (an account with no Helminth, unpolarised gear), nothing new appears.
+    let (_, plain) = InventoryJsonDecoder::default()
+        .decode_with_facts(&complete_payload())
+        .unwrap();
+    assert!(plain.consumed_suits().is_empty());
+    assert!(
+        plain.gear().iter().all(|g| {
+            g.get("pol").is_none() && g.get("shards").is_none() && g.get("ab").is_none()
+        })
+    );
+    // A Helminth in a shape this doesn't read is nothing fed, not a failed read.
+    payload["InfestedFoundry"] = serde_json::json!("unexpected");
+    let (_, odd) = InventoryJsonDecoder::default()
+        .decode_with_facts(&serde_json::to_vec(&payload).unwrap())
+        .unwrap();
+    assert!(odd.consumed_suits().is_empty());
+}

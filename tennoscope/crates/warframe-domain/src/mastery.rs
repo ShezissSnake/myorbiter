@@ -32,6 +32,15 @@ pub struct SetPart {
     pub this: bool,
 }
 
+/// Every slot of the set a Prime part belongs to, for the overlay's set row whether the item is
+/// mastered or not: `held` is progress toward the next whole set (copies beyond the complete sets
+/// already held), and `completes` says this reward finishes one, a first or an extra.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SetView {
+    pub parts: Vec<SetPart>,
+    pub completes: bool,
+}
+
 /// A part of an item the player has not mastered: how many copies they hold, and how many
 /// one build uses. Kiosk tiles name parts, so this is all a strip has room to say.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]

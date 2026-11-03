@@ -333,3 +333,81 @@ fn kiosk_mastery_reports_held_and_uses_for_live_unmastered_parts_only() {
         "kiosk strips need live evidence"
     );
 }
+
+#[test]
+fn the_set_row_counts_toward_the_next_set_and_an_extra_set_completes() {
+    let catalog = catalog();
+    let facts = live(&[], &[]);
+    // Mastered, three of each part but two Blade pairs and a half: a Blade finishes a third set.
+    let held = holdings(
+        &[
+            (GUANDAO, 1),
+            (GUANDAO_BP, 3),
+            (GUANDAO_HANDLE, 3),
+            (GUANDAO_BLADE, 5),
+        ],
+        &[GUANDAO],
+    );
+    let set = MasteryLedger::new(&catalog, &held, Some(&facts))
+        .set_view("Guandao Prime Blade")
+        .unwrap();
+    assert!(set.completes, "the sixth Blade finishes a third set");
+    assert_eq!(
+        set.parts,
+        vec![
+            part("Blueprint", "blueprint.png", 1, 1, false),
+            part("Blade", "GenericWeaponPrimeBlade.png", 2, 1, true),
+            part("Handle", "GenericWeaponPrimeHandle.png", 1, 1, false),
+        ],
+        "progress toward the third set: the two whole sets are not drawn"
+    );
+    // A Handle there is a spare: it finishes nothing.
+    let spare = MasteryLedger::new(&catalog, &held, Some(&facts))
+        .set_view("Guandao Prime Handle")
+        .unwrap();
+    assert!(!spare.completes);
+    // Unmastered and short: the first set, the one to build.
+    let first = holdings(
+        &[(GUANDAO_BP, 1), (GUANDAO_HANDLE, 1), (GUANDAO_BLADE, 1)],
+        &[],
+    );
+    assert!(
+        MasteryLedger::new(&catalog, &first, Some(&facts))
+            .set_view("Guandao Prime Blade")
+            .unwrap()
+            .completes
+    );
+    // Forma builds nothing.
+    assert!(
+        MasteryLedger::new(&catalog, &first, Some(&facts))
+            .set_view("Forma Blueprint")
+            .is_none()
+    );
+}
+
+#[test]
+fn a_pistol_slot_counts_as_held_when_its_parts_are_in_hand() {
+    let catalog = catalog();
+    let facts = live(&[], &[]);
+    // No Bronco built, but a full set of its parts: the Akbronco's Bronco slot is filled once.
+    let held = holdings(
+        &[
+            (BRONCO_BP, 1),
+            (BRONCO_BARREL, 1),
+            (BRONCO_RECEIVER, 1),
+            (AKBRONCO_BP, 1),
+            (AKBRONCO_LINK, 1),
+        ],
+        &[],
+    );
+    let set = MasteryLedger::new(&catalog, &held, Some(&facts))
+        .set_view("Akbronco Prime Link")
+        .unwrap();
+    let bronco = set
+        .parts
+        .iter()
+        .find(|slot| slot.name.contains("Bronco"))
+        .expect("the Bronco slot");
+    assert_eq!(bronco.held, 1, "one buildable Bronco counts as one held");
+    assert!(!set.completes, "the Akbronco takes two");
+}

@@ -157,6 +157,30 @@ fn kiosk_geometry(window: &WebviewWindow) -> tauri::Result<Option<OverlayGeometr
     ))
 }
 
+/// The riven cycle panel's rectangle: centred near the top of the game, sized to its height
+/// (Warframe scales its HUD with window height), clear of the cycle screen's own riven card.
+pub fn riven_overlay_geometry(
+    screen_width: u32,
+    screen_height: u32,
+    screen_x: i32,
+    screen_y: i32,
+) -> OverlayGeometry {
+    let h = f64::from(screen_height);
+    let width = ((h * 0.6).round() as u32).min(screen_width);
+    let height = (h * 0.3).round() as u32;
+    OverlayGeometry {
+        x: screen_x + i32::try_from((screen_width - width) / 2).unwrap_or_default(),
+        y: screen_y + (h * 0.04).round() as i32,
+        width,
+        height,
+    }
+}
+
+fn riven_geometry(window: &WebviewWindow) -> tauri::Result<Option<OverlayGeometry>> {
+    // Where the kiosk would cover: the game window, or failing that (off Linux) the monitor.
+    Ok(kiosk_geometry(window)?.map(|r| riven_overlay_geometry(r.width, r.height, r.x, r.y)))
+}
+
 /// What to tell the player when the game window could not be located.
 ///
 /// On Windows an exclusive-fullscreen game owns the display outright: it is absent from the
@@ -209,6 +233,8 @@ fn configure_reward_overlay(
     window.set_focusable(false)?;
     window.set_ignore_cursor_events(true)?;
     window.set_always_on_top(true)?;
+    #[cfg(windows)]
+    make_layered_visible(window);
     // Escape hatch for the one failure this cannot be tested for from here: a WebView2 child HWND
     // under `WS_EX_LAYERED` with no layer attributes is the likeliest way `transparent: true` comes
     // out invisible or black on a real Windows machine. Setting a colour makes the strip opaque,
@@ -253,6 +279,8 @@ pub fn configure_kiosk_overlay(window: &WebviewWindow) -> tauri::Result<()> {
     window.set_focusable(false)?;
     window.set_ignore_cursor_events(true)?;
     window.set_always_on_top(true)?;
+    #[cfg(windows)]
+    make_layered_visible(window);
     if std::env::var_os("TENNOSCOPE_OPAQUE_OVERLAY").is_some() {
         window.set_background_color(Some(tauri::window::Color(14, 16, 22, 255)))?;
     }
@@ -351,6 +379,20 @@ fn show_over_game(window: &WebviewWindow, geometry: OverlayGeometry) -> bool {
 /// Both ends of the overlay's life are traced, because "the overlay lingered" has several possible
 /// owners (the poller not noticing the screen went, the monitor not acting on it, or the hide
 /// call itself not taking effect), and they are indistinguishable from outside.
+/// Click-through on Windows (`set_ignore_cursor_events`) makes the window `WS_EX_LAYERED`, and
+/// a layered window is not drawn at all until `SetLayeredWindowAttributes` (or
+/// `UpdateLayeredWindow`) has been called for it, which tao never does: the overlay was shown and
+/// stayed invisible. Full opacity at the layer level, so what the page draws is what shows.
+#[cfg(windows)]
+fn make_layered_visible(window: &WebviewWindow) {
+    if let Ok(hwnd) = window.hwnd() {
+        let ok = win_capture::make_layered_visible(hwnd.0);
+        // At Info, unlike the other overlay traces: a release build keeps it, so a report of an
+        // invisible overlay on Windows says whether the window was made drawable at all.
+        log::info!("[DEBUG-overlay] layered attributes set: {ok}");
+    }
+}
+
 fn trace_overlay(action: &str) {
     log::debug!("[DEBUG-overlay] {action}");
 }
@@ -358,6 +400,11 @@ fn trace_overlay(action: &str) {
 /// `cards` is how many rewards are on screen, so the strip lands on the block the game actually
 /// drew rather than on a four-card block it may not have.
 pub fn show_reward_overlay(app: &tauri::AppHandle, cards: usize) -> Option<&'static str> {
+    // Turned off in orbiter's settings: the cards are still read (orbiter still picks), just not drawn.
+    if !crate::orbiter_bridge::overlay_enabled("reward") {
+        trace_overlay("reward overlay off in orbiter");
+        return None;
+    }
     let located = warframe_window_rect_with_origin();
     let notice = placement_notice(
         matches!(located, Some((_, GameRectOrigin::X11))),
@@ -383,6 +430,8 @@ pub fn show_reward_overlay(app: &tauri::AppHandle, cards: usize) -> Option<&'sta
             // drop it out of the topmost band it was placed in. Re-asserting after the show is what
             // keeps the strip above a borderless game rather than behind it.
             let _ = window.set_always_on_top(true);
+            #[cfg(windows)]
+            make_layered_visible(&window);
             trace_overlay("shown via plain window");
         });
     }
@@ -390,6 +439,8 @@ pub fn show_reward_overlay(app: &tauri::AppHandle, cards: usize) -> Option<&'sta
 }
 
 pub fn hide_reward_overlay(app: &tauri::AppHandle) {
+    // The cards are gone; orbiter stops showing a pick for them.
+    crate::orbiter_bridge::publish_cards(&[]);
     if let Some(window) = app.get_webview_window("reward-overlay") {
         let _ = app.run_on_main_thread(move || {
             trace_overlay("hide");
@@ -400,6 +451,10 @@ pub fn hide_reward_overlay(app: &tauri::AppHandle) {
 }
 
 pub fn show_kiosk_overlay(app: &tauri::AppHandle) {
+    if !crate::orbiter_bridge::overlay_enabled("kiosk") {
+        trace_overlay("kiosk overlay off in orbiter");
+        return;
+    }
     if let Some(window) = app.get_webview_window("kiosk-overlay") {
         let _ = app.run_on_main_thread(move || {
             trace_overlay("show kiosk");
@@ -420,6 +475,44 @@ pub fn show_kiosk_overlay(app: &tauri::AppHandle) {
             }
             let _ = configure_kiosk_overlay(&window);
             let _ = window.show();
+        });
+    }
+}
+
+/// orbiter's riven cycle over the game (see `orbiter_bridge::read_riven`).
+pub fn show_riven_overlay(app: &tauri::AppHandle) {
+    if !crate::orbiter_bridge::overlay_enabled("riven") {
+        trace_overlay("riven overlay off in orbiter");
+        return;
+    }
+    if let Some(window) = app.get_webview_window("riven-overlay") {
+        let _ = app.run_on_main_thread(move || {
+            trace_overlay("show riven");
+            let Ok(Some(geometry)) = riven_geometry(&window) else {
+                trace_overlay("riven show deferred until capture locates the game");
+                return;
+            };
+            #[cfg(target_os = "linux")]
+            if show_over_game(&window, geometry) {
+                return;
+            }
+            let _ = window.set_size(PhysicalSize::new(geometry.width, geometry.height));
+            let _ = window.set_position(PhysicalPosition::new(geometry.x, geometry.y));
+            let _ = window.set_focusable(false);
+            let _ = window.set_ignore_cursor_events(true);
+            let _ = window.show();
+            let _ = window.set_always_on_top(true);
+            #[cfg(windows)]
+            make_layered_visible(&window);
+        });
+    }
+}
+
+pub fn hide_riven_overlay(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("riven-overlay") {
+        let _ = app.run_on_main_thread(move || {
+            trace_overlay("hide riven");
+            let _ = window.hide();
         });
     }
 }
@@ -454,6 +547,18 @@ pub fn hide_kiosk_overlay(app: &tauri::AppHandle) {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn the_riven_panel_sits_centred_near_the_top_of_the_game() {
+        let g = super::riven_overlay_geometry(1920, 1080, 0, 0);
+        assert_eq!((g.width, g.height), (648, 324));
+        assert_eq!(g.x, (1920 - 648) / 2);
+        assert_eq!(g.y, 43);
+        // A Steam Deck, offset on a second monitor.
+        let d = super::riven_overlay_geometry(1280, 800, 1920, 0);
+        assert_eq!((d.width, d.x), (480, 1920 + 400));
+    }
+
     use super::{
         GameRectOrigin, OverlayGeometry, WindowRect, kiosk_geometry_from_sources, logical_for_gtk,
         placement_notice, preferred_game_rect,

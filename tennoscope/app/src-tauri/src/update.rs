@@ -135,6 +135,11 @@ pub fn file_writable(path: &std::path::Path) -> bool {
 }
 
 fn current_classification() -> (InstallKind, bool) {
+    // Shipped inside orbiter: orbiter brings new versions. TennoScope's own updater would swap in a
+    // build without orbiter's patch (or fail on a read-only mount), so it stands down.
+    if crate::orbiter_bridge::bundled_in_orbiter() {
+        return (InstallKind::Unknown, false);
+    }
     let exe = std::env::current_exe().unwrap_or_default();
     let appimage = std::env::var_os("APPIMAGE").map(std::path::PathBuf::from);
     let writable = appimage.as_ref().is_some_and(|p| file_writable(p));
