@@ -23,7 +23,7 @@
   import CodexRings from "../ui/CodexRings.svelte";
   import { codexRings, starredBy } from "../core/codex";
   import type { Group } from "../core/collection";
-  import { arrive, calm, flip, leave, pulse } from "../motion";
+  import { arrive, calm, flip, leave, pulse, reveal } from "../motion";
   import Count from "../ui/Count.svelte";
   import { whileShown } from "../pane.svelte";
 
@@ -187,13 +187,15 @@
   {:else}
     <div class="list">
       <!-- Each card in a slot that arrives when you add it and, once its Undo runs out, leaves while
-           the cards below close up (motion.ts). Undo brings the card back in. -->
+           the cards below close up (motion.ts). Removing it folds the card down to its Undo line
+           and Undo unfolds it again (reveal), so the cards below slide rather than jump. -->
       {#each items as w (w.c.unique)}
         <div class="wslot" in:arrive out:leave animate:flip>
         {#if undo.has(w.c.unique)}
-          <article class="wish ghost"><UndoSlot label="Removed from your wishlist" what={w.c.name} onundo={() => undo.undo(w.c.unique)} /></article>
+          <div class="reveal" transition:reveal><div><article class="wish ghost"><UndoSlot label="Removed from your wishlist" what={w.c.name} onundo={() => undo.undo(w.c.unique)} /></article></div></div>
         {:else}
-        <article class="wish" class:done={!w.missing.length} class:new={added === w.c.unique} data-unique={w.c.unique} data-groups={w.c.groups.join(" ")} in:arrive={{ y: 3 }}>
+        <div class="reveal" transition:reveal><div>
+        <article class="wish" class:done={!w.missing.length} class:new={added === w.c.unique} data-unique={w.c.unique} data-groups={w.c.groups.join(" ")}>
           <div class="who">
             <button class="art" onclick={() => details.open(w.c.unique)} aria-label="{w.c.name}: details" use:info={w.c.name}><Art file={w.c.image} size={96} fallback="foundry" /></button>
             <div class="wt">
@@ -253,6 +255,7 @@
             </table>
           {/if}
         </article>
+        </div></div>
         {/if}
         </div>
       {/each}
