@@ -46,8 +46,14 @@ env:
   RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('build-{0}', github.run_number) }}
 
 jobs:
+  # A known vulnerability in either Cargo.lock stops the run before anything is built.
+  audit:
+    name: Dependency audit
+    uses: ./.github/workflows/audit.yml
+
   release:
     name: Make the pre-release
+    needs: audit
     runs-on: ubuntu-24.04
     permissions:
       contents: write
