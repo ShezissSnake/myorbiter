@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildModel } from "../src/lib/core/model";
-import { crackableFirst, crackableNow, dropSpots, farmFor, openEras, partOdds, relicsFor, wishItem, wishlistEras } from "../src/lib/core/wishlist";
+import { ODDS_COPIES, crackableFirst, crackableNow, dropSpots, farmFor, openEras, partOdds, relicsFor, wishItem, wishlistEras } from "../src/lib/core/wishlist";
 import type { Bundle, Fissure, InventoryRow } from "../src/lib/core/types";
 
 const inv = (item_id: string, name: string, category: string, quantity: number): InventoryRow => ({ item_id, name, category, quantity, mastered: false, image_name: null, rank: null, max_rank: null });
@@ -72,4 +72,11 @@ test("the wishlist puts what you can crack for right now first (Omnia counts for
   assert.deepEqual(crackableNow(rhino, openEras([f("Omnia")])), ["Axi R1"]);
   assert.deepEqual(crackableFirst([none, rhino], openEras([f("Axi")])).map((w) => w.c.unique), [RHINO, "/Other"]);
   assert.deepEqual(crackableFirst([none, rhino], openEras([])).map((w) => w.c.unique), ["/Other", RHINO], "otherwise in the order you starred them");
+});
+
+test("a huge relic count is counted up to a couple of hundred copies, not one array entry each", () => {
+  const huge = buildModel(bundle([inv("/Relic/R1Bronze", "Axi R1 Intact", "relic", 2 ** 32)]));
+  const capped = buildModel(bundle([inv("/Relic/R1Bronze", "Axi R1 Intact", "relic", ODDS_COPIES)]));
+  assert.equal(partOdds(huge, SYS), partOdds(capped, SYS));
+  assert.ok(Math.abs(partOdds(huge, SYS) - (1 - 0.98 ** ODDS_COPIES)) < 1e-9);
 });

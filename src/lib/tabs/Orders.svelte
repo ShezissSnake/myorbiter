@@ -980,7 +980,9 @@
   @keyframes rowsweep { from { background-position: -60% 0; } to { background-position: 160% 0; } }
   @media (prefers-reduced-motion: reduce) { .busyword i { animation: none; background: var(--gold-dim); } }
   .bang { display: inline-grid; place-items: center; width: 1.05em; height: 1.05em; border: 1px solid currentColor; font-family: var(--face-register); font-size: .6rem; font-weight: 700; line-height: 1; }
-  tr.ghost td { opacity: .6; }
+  /* Sold out, on its way off: dimmed by colour, not opacity, so its words stay readable (about 5:1). */
+  tr.ghost td { color: var(--platinum-deep); --platinum: var(--platinum-deep); --platinum-dim: var(--platinum-deep); }
+  tr.ghost td :global(img) { opacity: .6; }
 
   .log { margin-top: var(--step); max-height: 9.5rem; overflow: auto; display: grid; gap: .3rem; padding: .7rem 1rem; border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); }
   .line { font-size: .82rem; color: var(--platinum-dim); }
@@ -1054,14 +1056,16 @@
   :global(html[data-room~="lt1100"]) .orders :is(td, th):last-child { padding-right: 0; }
   :global(html[data-room~="lt1100"]) .ladder { display: none; }
   :global(html[data-room~="lt1100"]) .acts { gap: .6rem; }
-  /* A hidden listing reads faded; its switches and actions stay at full strength. */
-  tr.hidden td.fade { opacity: .45; }
+  /* A hidden listing reads faded; its switches and actions stay at full strength. Faded by colour
+     (the tokens its parts use, turned down), not opacity, so its words stay readable (about 5:1). */
+  tr.hidden td.fade { color: var(--platinum-deep); --platinum: var(--platinum-deep); --platinum-dim: var(--platinum-deep); --gold: var(--gold-dim); }
+  tr.hidden td.fade :global(img) { opacity: .45; }
   .right { text-align: right; }
   .center { text-align: center; }
   .comp { display: inline-flex; align-items: center; gap: .45rem; }
   .ladder { margin-top: .15rem; font-size: .6rem; }
   .goes { margin-top: .15rem; font-size: .6rem; color: var(--gold); }
-  .none { color: var(--rule-control); }
+  .none { color: var(--platinum-deep); }
   .target { display: inline-flex; align-items: center; justify-content: flex-end; white-space: nowrap; }
   .target.down .delta { color: var(--oxblood); }
   .target.up .delta { color: var(--verdigris); }

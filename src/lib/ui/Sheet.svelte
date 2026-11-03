@@ -2,75 +2,20 @@
   // A panel that slides over the right side of the window: Settings, TennoScope, an item's details.
   // Esc or a click outside closes it. While it's open, Tab stays inside it; closed, the keyboard
   // goes back to what opened it.
-  import { tick, untrack, type Snippet } from "svelte";
+  import type { Snippet } from "svelte";
   import { fade, fly } from "svelte/transition";
   import { cubicIn, cubicOut } from "svelte/easing";
+  import { trap } from "./trap";
   // Opening and closing slide; with reduced motion they just appear and go.
   const still = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
   let { open = $bindable(), title, kicker, wide = false, children }: { open: boolean; title: string; kicker?: string; wide?: boolean; children: Snippet } = $props();
-
-  let panel = $state<HTMLElement | null>(null);
-  $effect(() => {
-    if (!open) return;
-    const active = document.activeElement;
-    const opener = active instanceof HTMLElement && active !== document.body ? active : null;
-    // After this render, so the panel is there to take it.
-    tick().then(() => untrack(() => panel)?.focus());
-    // Closed (or gone, when what it showed went away): focus back where it was, unless something
-    // else took it meanwhile.
-    return () => {
-      setTimeout(() => {
-        const now = document.activeElement;
-        if (opener?.isConnected && (!now || now === document.body)) opener.focus();
-      });
-    };
-  });
-
-  const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
-  function focusables(root: HTMLElement) {
-    return [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.getClientRects().length > 0);
-  }
-
-  function onKey(e: KeyboardEvent) {
-    if (!open) return;
-    if (e.key === "Escape") {
-      e.stopPropagation();
-      open = false;
-      return;
-    }
-    if (e.key !== "Tab" || !panel) return;
-    const target = e.target instanceof Node ? e.target : null;
-    const inside = !!target && panel.contains(target);
-    // Another dialog over this one (the listing form) has the keyboard.
-    if (!inside && [...document.querySelectorAll('[aria-modal="true"]')].some((d) => d !== panel)) return;
-    const els = focusables(panel);
-    if (!els.length) {
-      e.preventDefault();
-      panel.focus();
-      return;
-    }
-    const first = els[0];
-    const last = els[els.length - 1];
-    if (!inside) {
-      e.preventDefault();
-      (e.shiftKey ? last : first).focus();
-    } else if (e.shiftKey && (target === first || target === panel)) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && target === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  }
 </script>
-
-<svelte:window onkeydown={onKey} />
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="scrim" onclick={() => (open = false)} transition:fade={{ duration: still ? 0 : 150 }}></div>
-  <div class="sheet" class:wide role="dialog" in:fly={{ x: still ? 0 : 32, duration: still ? 0 : 200, easing: cubicOut }} out:fly={{ x: still ? 0 : 24, duration: still ? 0 : 140, easing: cubicIn }} aria-modal="true" aria-label={title} tabindex="-1" bind:this={panel}>
+  <div class="sheet" class:wide role="dialog" in:fly={{ x: still ? 0 : 32, duration: still ? 0 : 200, easing: cubicOut }} out:fly={{ x: still ? 0 : 24, duration: still ? 0 : 140, easing: cubicIn }} aria-modal="true" aria-label={title} tabindex="-1" use:trap={{ onescape: () => (open = false) }}>
     <header>
       <div>
         {#if kicker}<div class="register">{kicker}</div>{/if}

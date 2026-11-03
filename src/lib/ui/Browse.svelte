@@ -181,5 +181,6 @@
   .tools { display: flex; align-items: center; gap: .8rem; margin: 0 0 .8rem; }
   .sort { display: inline-flex; align-items: center; gap: .5rem; }
   .more { display: flex; justify-content: center; padding: 1.2rem 0; min-height: 3rem; }
-  .nil { color: var(--rule-control); opacity: .7; }
+  /* Nothing here: quiet, but still readable (about 5:1). */
+  .nil { color: var(--platinum-deep); }
 </style>

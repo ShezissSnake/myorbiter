@@ -221,7 +221,7 @@
       {/if}
       <div class="planbox">
       <table class="plan">
-        <thead><tr><th></th><th>Item</th><th>Kind</th><th class="right">Quantity</th><th class="right">Price</th><th class="why">Why</th></tr></thead>
+        <thead><tr><th><span class="sr">Change</span></th><th>Item</th><th>Kind</th><th class="right">Quantity</th><th class="right">Price</th><th class="why">Why</th></tr></thead>
         <tbody>
           {#each rows as a (a)}
             {@const ap = mkt.applying}
@@ -307,4 +307,6 @@
   .skipped li { display: flex; align-items: baseline; gap: .8rem; }
   .sk { font-family: var(--face-mark); font-weight: 700; text-transform: uppercase; color: var(--platinum-dim); white-space: nowrap; cursor: default; }
   .sk:hover { color: var(--platinum); }
+  /* For screen readers only: the first column's name (each row says New, Change, Remove or Skip). */
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 </style>

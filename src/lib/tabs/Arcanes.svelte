@@ -317,5 +317,6 @@
   .fill { height: 100%; background: var(--platinum); }
   .fill.done { background: var(--platinum); }
   .links { display: flex; gap: 1rem; }
-  .nil { color: var(--rule-control); opacity: .7; }
+  /* Nothing here: quiet, but still readable (about 5:1). */
+  .nil { color: var(--platinum-deep); }
 </style>

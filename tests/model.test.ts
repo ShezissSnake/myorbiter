@@ -65,3 +65,10 @@ test("relic names, old and new Requiem ones included, are told from item names",
   assert.equal(relicBase("Axi Prime"), null);
   assert.equal(relicBase("Lith"), null);
 });
+
+test("a damaged read: rows without a name or path are left out, the rest still builds", () => {
+  const row = inv("/Lotus/Types/Recipes/WarframeRecipes/ValkyrPrimeSystemsComponent", "Valkyr Prime Systems", 1);
+  const broken = [{ ...row, category: "relic", name: null }, { ...row, item_id: null }] as unknown as InventoryRow[];
+  const m = buildModel({ observed_at: 1, inventory: [row, ...broken], catalog: [], relics: [], prices: { prices: {}, max_rank_prices: {} } });
+  assert.deepEqual([...m.inventoryByBase.values()].flat().map((r) => r.name), ["Valkyr Prime Systems"]);
+});

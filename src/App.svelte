@@ -9,7 +9,7 @@
   import { inventoryRows, masteryRows, relicRows, saveForSets, type SetSave } from "./lib/core/views";
   import { allSetRows, allSetSaves, inventoryValue, spareRows } from "./lib/core/spares";
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
-  import { buildModel, ERAS } from "./lib/core/model";
+  import { buildModel, ERAS, type Model } from "./lib/core/model";
   import { mergeRelics, type RelicData } from "./lib/core/relicData";
   import { BUILD } from "./lib/build";
   import type { RecipeData } from "./lib/core/buildPlan";
@@ -309,7 +309,20 @@
   const withTables = $derived(bundle && relicTables ? { ...bundle, relics: mergeRelics(bundle.relics, relicTables) } : bundle);
   /** Every Foundry recipe, parts' own included: what building something still takes. */
   let recipes = $state.raw<RecipeData | null>(null);
-  const model = $derived(withTables ? buildModel(withTables, live, foundry, settings.market.relicPrices, settings.game.imprints, recipes) : null);
+  // A read the model can't be built from says so (with Try again) rather than leaving the app on
+  // "Reading your collection…" for good.
+  const built = $derived.by((): { model: Model | null; error: string | null } => {
+    if (!withTables) return { model: null, error: null };
+    try {
+      return { model: buildModel(withTables, live, foundry, settings.market.relicPrices, settings.game.imprints, recipes), error: null };
+    } catch (e) {
+      console.error("Building the collection failed:", e);
+      return { model: null, error: `Building your collection failed: ${e instanceof Error ? e.message : String(e)}` };
+    }
+  });
+  const model = $derived(built.model);
+  /** A page that threw (its boundary shows "This page hit an error"): what went wrong goes to the log. */
+  const pageError = (id: string, e: unknown) => console.error(`The ${id} page hit an error:`, e);
   /** TennoScope's item prices: days out of date, when a day or more (see pricesBehind). */
   const pricesOld = $derived(onConsole ? null : pricesBehind(model?.priceDate, tick));
   let pricesOldDismissed = $state<string | null>(null);
@@ -1607,6 +1620,7 @@
     const go = (id: string) => {
       e.preventDefault();
       settings.tab = id;
+      focusPage(document.activeElement);
     };
     if (ctrl && /^[1-9]$/.test(e.key) && ORDER[Number(e.key) - 1]) return go(ORDER[Number(e.key) - 1]);
     if (ctrl && (e.key === "PageDown" || e.key === "PageUp" || e.key === "Tab")) {
@@ -1635,6 +1649,25 @@
       e.preventDefault();
       showSettings = true;
     }
+  }
+  /**
+   * After a page switch by keyboard (or Skip to page): the focus on the page's title, so the next
+   * Tab is in the page rather than back in the sidebar. A page still loading gets a moment; the
+   * focus stays put if you've moved it meanwhile.
+   */
+  function focusPage(from: Element | null, tries = 20) {
+    setTimeout(() => {
+      const now = document.activeElement;
+      if (now && now !== from && now !== document.body && now.getClientRects().length) return;
+      const title = document.querySelector<HTMLElement>(".pane.shown h1");
+      if (!title) {
+        if (tries > 0) focusPage(from, tries - 1);
+        else document.querySelector<HTMLElement>("main")?.focus({ preventScroll: true });
+        return;
+      }
+      if (!title.hasAttribute("tabindex")) title.setAttribute("tabindex", "-1");
+      title.focus({ preventScroll: true });
+    }, 50);
   }
   /** No web-page menu (Back, Reload…) on right-click; text fields and selected text keep theirs. */
   function onContextMenu(e: MouseEvent) {
@@ -1907,7 +1940,16 @@
     const tab = settings.tab;
     const n = navEl;
     if (!n) return;
-    queueMicrotask(() => n.querySelector<HTMLElement>(".nav.on")?.scrollIntoView({ block: "nearest" }));
+    // By hand: scrollIntoView would also move where the next Tab starts, past Skip to page.
+    queueMicrotask(() => {
+      const on = n.querySelector<HTMLElement>(".nav.on")?.getBoundingClientRect();
+      const box = n.getBoundingClientRect();
+      const css = getComputedStyle(n);
+      const top = box.top + (parseFloat(css.scrollPaddingTop) || 0);
+      const bottom = box.bottom - (parseFloat(css.scrollPaddingBottom) || 0);
+      if (on && on.top < top) n.scrollTop -= top - on.top;
+      else if (on && on.bottom > bottom) n.scrollTop += on.bottom - bottom;
+    });
     void tab;
   });
   const checkNav = () => {
@@ -1928,6 +1970,8 @@
 
 <svelte:window onkeydown={onKey} oncontextmenu={onContextMenu} bind:innerWidth={width} />
 
+<!-- Keyboard: the first Tab offers to jump past the sidebar to the page. -->
+<a class="skip" href="#main" title="Jump past the sidebar to this page's title" onclick={(e) => { e.preventDefault(); focusPage(document.activeElement, 0); }}>Skip to page</a>
 <div class="shell" class:compact class:withside={sideShown}>
   <aside class="rail" aria-label="orbiter">
     <div class="brand">
@@ -1986,7 +2030,7 @@
     </div>
   </aside>
 
-  <main aria-busy={loading && !bundle} use:room>
+  <main id="main" tabindex="-1" aria-busy={loading && !bundle} use:room>
     <!-- The first read of TennoScope's data, before there's anything to show. Everything after
          that (a sync, a warframe.market change, the background re-read when TennoScope writes)
          shows its progress in the button that started it, not up here. -->
@@ -2033,6 +2077,16 @@
             <button onclick={() => (showSettings = true)}>Settings</button>
           </div>
         {/if}
+      </div></div>
+    {:else if !model && built.error}
+      <div class="page-inner"><div class="notice" role="alert">
+        <h2 class="mark">Can't make sense of TennoScope's data</h2>
+        <p class="prose">TennoScope's last read has something orbiter can't use. It may have been writing it just then: try again, or sync once Warframe is running. The log has the details.</p>
+        <details class="why"><summary>Details</summary><code>{built.error}</code></details>
+        <div class="row">
+          <button class="stamp" onclick={() => (showTennoscope = true)}>TennoScope panel</button>
+          <button onclick={retry} disabled={loading} title="Read TennoScope's data again">{loading ? "Trying…" : "Try again"}</button>
+        </div>
       </div></div>
     {:else if !model && error}
       <div class="page-inner"><div class="notice">
@@ -2087,27 +2141,31 @@
           <IconButton icon="close" tone="quiet" label="Not now" title="Not now: no +rep for this trade" onclick={() => markRep(repDue.t.key, "skipped")} />
         </div>
       {/if}
+      <!-- A page that throws says so, with Try again, instead of staying blank or loading for good.
+           Pages loaded on first visit get their own boundary inside {:then}: one around the
+           {#await} doesn't catch what throws once it has resolved. -->
+      {#snippet pageFailed(_e: unknown, reset: () => void)}<div class="page-inner"><p class="pagefail dim" role="alert">This page hit an error · <button class="link" title="Draw the page again (the log has what went wrong)" onclick={reset}>Try again</button></p></div>{/snippet}
       {#snippet pane(id: string, body: import("svelte").Snippet)}
-        {#if visited[id] && available.some((p) => p.id === id)}<div class="pane" class:shown={settings.tab === id}>{@render body()}</div>{/if}
+        {#if visited[id] && available.some((p) => p.id === id)}<div class="pane" class:shown={settings.tab === id}><svelte:boundary failed={pageFailed} onerror={(e) => pageError(id, e)}>{@render body()}</svelte:boundary></div>{/if}
       {/snippet}
       {#snippet pMission()}<InMission {model} masteryRank={settings.game.masteryRank} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} {windowMode} tennoscopeRunning={!!ts.status?.running} onsettings={() => (showSettings = true)} />{/snippet}
-      {#snippet pSets()}{#await loadSets(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} advice={settings.advice} sell={settings.market.sellable} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pSets()}{#await loadSets(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("sets", e)}><Page {model} advice={settings.advice} sell={settings.market.sellable} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pParts()}<Parts {model} bind:advice={settings.advice} sell={settings.market.sellable} />{/snippet}
-      {#snippet pMastery()}{#await loadMastery(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pArcanes()}{#await loadArcanes(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} bind:advice={settings.advice} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pMods()}{#await loadMods(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} masteryRank={settings.game.masteryRank} minPlat={settings.advice.minPlat} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pMastery()}{#await loadMastery(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mastery", e)}><Page {model} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pArcanes()}{#await loadArcanes(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("arcanes", e)}><Page {model} bind:advice={settings.advice} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pMods()}{#await loadMods(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mods", e)}><Page {model} masteryRank={settings.game.masteryRank} minPlat={settings.advice.minPlat} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pRelics()}<Relics {model} bind:advice={settings.advice} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} />{/snippet}
-      {#snippet pPlanner()}{#await loadPlanner(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pPlanner()}{#await loadPlanner(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("planner", e)}><Page {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pHome()}<Home {model} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => goTo(t)} {shortListings} {liveAt} {liveError} {liveRead} bountyTables={relicTables?.bounties ?? null} sortieRewards={relicTables?.sortie ?? null} />{/snippet}
-      {#snippet pSales()}{#await loadSales(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} bind:settings={settings} go={(t: string) => (settings.tab = t)} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pSales()}{#await loadSales(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("sales", e)}><Page {model} bind:settings={settings} go={(t: string) => (settings.tab = t)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pMarket()}<Orders {model} console={onConsole} whispers={mission?.whispers ?? []} bind:settings={settings.market} advice={settings.advice} masteryRank={settings.game.masteryRank} credits={settings.game.credits} />{/snippet}
-      {#snippet pGuide()}{#await loadGuide(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} go={(t: string) => (settings.tab = t)} bind:plannerMode={settings.plannerMode} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pGuide()}{#await loadGuide(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("guide", e)}><Page console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} go={(t: string) => (settings.tab = t)} bind:plannerMode={settings.plannerMode} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pFoundry()}<Foundry {model} bind:settings={settings} />{/snippet}
       {#snippet pInventory()}<Inventory {model} sell={settings.market.sellable} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad} gear={settings.game.gear} bind:keepGear={settings.game.keepGear} />{/snippet}
-      {#snippet pBrowse()}{#await loadMarket(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pWishlist()}{#await loadWishlist(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} bind:settings={settings} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pRivens()}{#await loadRivens(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} console={onConsole} bind:settings={settings} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pStats()}{#await loadStats(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} {settings} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pBrowse()}{#await loadMarket(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("browse", e)}><Page {model} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pWishlist()}{#await loadWishlist(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("wishlist", e)}><Page {model} bind:settings={settings} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pRivens()}{#await loadRivens(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("rivens", e)}><Page {model} console={onConsole} bind:settings={settings} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pStats()}{#await loadStats(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("stats", e)}><Page {model} {settings} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {@render pane("mission", pMission)}
       {@render pane("sets", pSets)}
       {@render pane("parts", pParts)}
@@ -2156,12 +2214,19 @@
   .sidetab:hover { color: var(--gold); }
   .pane { display: none; flex: 1; min-height: 0; min-width: 0; flex-direction: column; }
   .pane.shown { display: flex; }
-  main { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+  main { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; outline: none; }
+  /* Out of sight until the keyboard lands on it. */
+  .skip { position: fixed; z-index: 80; top: .5rem; left: .5rem; padding: .55rem .9rem; background: var(--plate); color: var(--platinum); border: 1px solid var(--gold); font-size: .85rem; transform: translateY(calc(-100% - 1rem)); }
+  .skip:focus { transform: none; }
+  /* A page's title takes the focus after a keyboard page switch: no ring on it (Home's too). */
+  .pane :global(h1:focus) { outline: none; }
   .progress { position: absolute; top: 0; left: 0; right: 0; height: 2px; z-index: 5; overflow: hidden; pointer-events: none; background: rgb(214 174 74 / 12%); }
   .progress::after { content: ""; position: absolute; top: 0; bottom: 0; width: 30%; background: linear-gradient(90deg, transparent, var(--gold), transparent); animation: sweep 1.1s ease-in-out infinite; }
   @keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
   /* A page still loading its code: one quiet line where it will be. */
   .lazyload { margin: 0; padding: 3rem 1rem; text-align: center; }
+  /* A page that threw: the same quiet line, with Try again. */
+  .pagefail { margin: 0; padding: 3rem 1rem; text-align: center; }
 
   /* ---- sidebar: a dark struck plate, gold hairline on its edge */
   .rail {
@@ -2273,12 +2338,13 @@
   .notice .row { display: flex; gap: .6rem; flex-wrap: wrap; }
   .notice .why { font-size: .78rem; color: var(--platinum-deep); }
   .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: .9rem; counter-reset: step; }
-  .steps li { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: .25rem .8rem; align-items: start; opacity: .55; }
+  /* Steps to come and done are turned down by colour, not opacity, so they stay readable (about 5:1 and 7:1). */
+  .steps li { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: .25rem .8rem; align-items: start; }
+  .steps li:not(.now, .done) { color: var(--platinum-deep); --platinum: var(--platinum-deep); --platinum-dim: var(--platinum-deep); }
   .steps li::before { content: counter(step); grid-row: span 4; display: grid; place-items: center; width: 1.7rem; height: 1.7rem; border: 1px solid var(--rule-bright); font-family: var(--face-register); font-size: .8rem; color: var(--platinum-dim); }
   .steps li > * { grid-column: 2; }
-  .steps li.now { opacity: 1; }
   .steps li.now::before { border-color: var(--gold); color: var(--gold); }
-  .steps li.done { opacity: .8; }
+  .steps li.done { color: var(--platinum-dim); --platinum: var(--platinum-dim); }
   .steps li.done::before { content: "✓"; border-color: var(--verdigris); color: var(--verdigris); }
   .steps .cmd { display: block; padding: .45rem .7rem; background: var(--well); border: 1px solid var(--rule); font-family: var(--face-register); font-size: .8rem; user-select: all; }
   .steps strong { font-family: var(--face-mark); text-transform: uppercase; font-size: 1.05rem; letter-spacing: .01em; }

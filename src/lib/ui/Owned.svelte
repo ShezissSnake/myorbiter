@@ -35,7 +35,8 @@
   /* Little room: one refinement a line, so the column narrows instead of the table overflowing. */
   :global(html[data-room~="lt760"]) .owned:not(.compact) { white-space: normal; flex-wrap: wrap; justify-content: flex-end; row-gap: 0; }
   :global(html[data-room~="lt760"]) .owned:not(.compact) .sep { display: none; }
-  .none { color: var(--rule-control); }
+  /* Nothing here: quiet, but still readable (about 5:1). */
+  .none { color: var(--platinum-deep); }
   /* Under 1100 px a table's row has no room for the words: the pictures and counts stay, the words go to the tooltip. */
   :global(html[data-room~="lt1100"]) .w.pw { display: none; }
 </style>

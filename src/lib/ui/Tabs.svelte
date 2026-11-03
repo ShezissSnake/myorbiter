@@ -10,7 +10,7 @@
 
 <div class="tabs" role="tablist" aria-label={label}>
   {#each options as o (o.v)}
-    <button role="tab" aria-selected={value === o.v} class:on={value === o.v} title={o.title ?? `${o.label}${o.count != null ? ` · ${o.count}` : ""}`} aria-label={o.label} onclick={() => (value = o.v)}>
+    <button role="tab" aria-selected={value === o.v} class:on={value === o.v} title={o.title ?? `${o.label}${o.count != null ? ` · ${o.count}` : ""}`} aria-label={o.count != null ? `${o.label}, ${o.count}` : o.label} onclick={() => (value = o.v)}>
       {#if o.icon}<GameIcon name={o.icon} size={18} />{/if}
       <span class:lbl={!!o.icon}>{o.label}</span>
       {#if o.count != null}<em>{o.count}</em>{/if}
