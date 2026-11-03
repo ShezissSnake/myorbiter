@@ -10,6 +10,7 @@
   import type { Settings, TradeLogEntry } from "../backend";
   import { salesCoveredByTrades } from "../core/market";
   import PageHead from "../ui/PageHead.svelte";
+  import Ticker, { type Tick } from "../ui/Ticker.svelte";
   import Stat from "../ui/Stat.svelte";
   import P from "../ui/P.svelte";
   import Seg from "../ui/Seg.svelte";
@@ -44,6 +45,19 @@
   const at = $derived(hist.map((p) => p.at));
   /** The read the figures beside the value chart's title are from. */
   const lastRead = $derived(settings.game.valueHistory.at(-1)?.at ?? null);
+  // The ticker tape under the title: your inventory's value at the last read, and how far it moved
+  // since the read before (the chart below draws every read).
+  const reads = $derived(settings.game.valueHistory);
+  const last = $derived(reads.at(-1) ?? null);
+  const prev = $derived(reads.at(-2) ?? null);
+  const signed = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(Math.round(v)).toLocaleString("en")}`;
+  const day = (t: number) => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  const tape = $derived<Tick[]>([
+    { key: "worth", label: "Inventory value", value: last ? Math.round(last.worth) : null, plat: true, title: "Inventory value: every copy you hold at the daily median (Market value), at the last inventory read" },
+    { key: "change", label: "Since the read before", value: last && prev ? Math.round(last.worth - prev.worth) : null, text: last && prev ? signed(last.worth - prev.worth) : "–", plat: !!(last && prev), sub: prev ? day(prev.at) : "after the next read", tone: last && prev && last.worth < prev.worth ? "dim" : undefined, title: last && prev ? `Change in inventory value between the read of ${day(prev.at)} and the last one, ${day(last.at)}` : "Change in inventory value: shows from the next inventory read" },
+    { key: "liquid", label: "Quick-sale value", value: last ? Math.round(last.liquid) : null, plat: true, sub: last && prev ? signed(last.liquid - prev.liquid) : undefined, title: "Quick-sale value: everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month, at the last read (beside it, the change since the read before)" },
+    { key: "read", label: "Last read", value: last?.at ?? null, text: last ? day(last.at) : "none yet", still: true, tone: "dim", title: last ? `The last inventory read orbiter worked these out at: ${new Date(last.at).toLocaleString()}` : "No inventory read yet: press Sync while Warframe is running" },
+  ]);
   // CSS colours (app.css tokens): the chart draws its lines with them as styles.
   const GOLD = "var(--chart-gold)";
 
@@ -136,7 +150,8 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Stats" brief="Your trades, relic runs and account over time." blurb="Your account over time, what your relic runs come to, the parts you got, and every trade you've made in game.">
+  {#snippet ticker()}<Ticker id="stats" label="Your inventory's value, live" items={tape} />{/snippet}
+  <PageHead hero={ticker} title="Stats" brief="Your trades, relic runs and account over time." blurb="Your account over time, what your relic runs come to, the parts you got, and every trade you've made in game.">
     {#snippet band()}
       <Stat label="Revenue" note="Sales in this span, from the game's trade log" title="Revenue: platinum from sales in this span, from the game's trade log (the trade window orbiter read), plus sales logged on Sales that no logged trade covers"><P v={revenue} big /></Stat>
       <Stat label="Spent" tone="dim" note="Platinum paid for items"><P v={spent} big /></Stat>

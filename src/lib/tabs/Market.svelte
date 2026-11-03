@@ -10,7 +10,7 @@
   import Browse from "../ui/Browse.svelte";
   import ItemCard from "../ui/ItemCard.svelte";
   import PageHead from "../ui/PageHead.svelte";
-  import Stat from "../ui/Stat.svelte";
+  import Ticker, { type Tick } from "../ui/Ticker.svelte";
   import Named from "../ui/Named.svelte";
   import P from "../ui/P.svelte";
   import Chip from "../ui/Chip.svelte";
@@ -62,6 +62,18 @@
   const pace = (t: number | null) => (t == null ? "No recent sales" : t >= 1 ? `${daily(t)} sold/day` : t >= 1 / 7 ? `~${Math.round(t * 7)} sold/week` : "Sold rarely");
   const sellsDaily = $derived(rows.filter((r) => (r.tradesPerDay ?? 0) >= 1).length);
   const filtered = $derived(category !== "all" || min != null || max != null || minTrades != null || owned || !weekly || !!query.trim());
+  // The ticker tape under the title: what's listed, what sells daily and what you hold of it, for
+  // the items the filters show (it replaces the band's one figure).
+  const heldCount = $derived(rows.filter((r) => (r.have ?? 0) > 0).length);
+  const tape = $derived<Tick[]>(
+    mkt.items.length
+      ? [
+          { key: "items", label: filtered ? "Items shown" : "Items", value: rows.length, of: filtered ? `/${all.length.toLocaleString("en")}` : undefined, title: filtered ? `Items shown: ${rows.length.toLocaleString("en")} of the ${all.length.toLocaleString("en")} warframe.market trades` : `Items: everything warframe.market trades${weekly ? `, ${(all.length - rows.length).toLocaleString("en")} that sell less than weekly hidden (Sold weekly)` : ""}` },
+          { key: "daily", label: "Sold daily", value: sellsDaily, title: `Sold daily: of the ${rows.length.toLocaleString("en")} ${filtered ? "shown" : "items"}, the ones that sell at least once a day` },
+          { key: "held", label: "You hold", value: heldCount, title: `You hold: of the ${rows.length.toLocaleString("en")} ${filtered ? "shown" : "items"}, the ones you have at least one of (You have shows only those)` },
+        ]
+      : [{ key: "items", label: "Items", value: null, text: loadError ? "couldn't load" : "loading…", tone: "dim", title: loadError ? `warframe.market's item list didn't load: ${loadError}` : "Loading warframe.market's item list" }],
+  );
   function clear() {
     category = "all";
     min = max = minTrades = null;
@@ -126,9 +138,7 @@
 
 <div class="page"><div class="page-inner">
   <PageHead title="Browse market" brief="Everything on warframe.market, by price." blurb="Everything warframe.market trades: what it sold for lately, how often it sells.">
-    {#snippet band()}
-      <Stat label="Sold daily" note={filtered ? `Of the ${rows.length.toLocaleString("en")} shown, ones that sell at least once a day` : `Of the ${all.length.toLocaleString("en")} on warframe.market, ones that sell at least once a day`}><b class="mark big">{sellsDaily.toLocaleString("en")}</b></Stat>
-    {/snippet}
+    {#snippet hero()}<Ticker id="browse" label="The market, live" items={tape} />{/snippet}
   </PageHead>
 
   <div class="bar">
@@ -183,7 +193,6 @@
   .vals .register { font-size: .6rem; }
   .grow { flex: 1; }
   .hist { max-width: 46rem; margin: 0 0 .8rem; }
-  .big { font-size: 1.9rem; }
   .more { text-align: center; }
   /* Price at least / at most stay together when the bar wraps. */
   .pair { display: inline-flex; gap: inherit; flex-wrap: nowrap; }

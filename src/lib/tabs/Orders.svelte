@@ -15,6 +15,7 @@
   import { aboveCrack, relicCrackFor } from "../core/spares";
   import { mkt } from "../marketStore.svelte";
   import PageHead from "../ui/PageHead.svelte";
+  import Ticker, { type Tick } from "../ui/Ticker.svelte";
   import Stat from "../ui/Stat.svelte";
   import Named from "../ui/Named.svelte";
   import P from "../ui/P.svelte";
@@ -519,6 +520,15 @@
     for (const id of soldTimers.keys()) void commitSale(id);
   });
   const fmt = (t: number) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  // The ticker tape under the title: the figures you trade by, live (the band keeps your listings).
+  const tape = $derived<Tick[]>([
+    ...(!console && trades.limit != null
+      ? [{ key: "left", label: "Trades left", value: trades.left, of: `/${trades.limit}`, sub: `resets in ${until(new Date(trades.resets).toISOString(), minute)}`, tone: trades.left != null && trades.left <= 3 ? ("gold" as const) : undefined, title: `Trades left today: ${trades.used} made since 00:00 UTC, refreshes in ${until(new Date(trades.resets).toISOString(), minute)}. Trades a day are your Mastery Rank (${trades.limit}; Founders get 2 more), each counting once whatever it carried (up to 6 items each way). Counted from the game's log while orbiter was reading it` }]
+      : []),
+    { key: "listed", label: "Listed value", value: listed, plat: true, title: "Listed value: your visible listings, price × quantity" },
+    { key: "reprice", label: "To reprice", value: checkedAt ? pending : null, tone: checkedAt && pending ? "gold" : checkedAt ? "dim" : undefined, title: checkedAt ? (pending ? `To reprice: ${pending} listing${pending === 1 ? "" : "s"} off the cheapest in-game price` : "To reprice: none, all match the cheapest in-game price") : "To reprice: press Check prices to compare" },
+    { key: "check", label: "Last check", value: checkedAt, text: checkedAt ? fmt(checkedAt) : "not yet", still: true, tone: checkedAt ? undefined : "dim", title: checkedAt ? `Last check: the oldest order book behind what's on screen, read at ${fmt(checkedAt)}${nextPass ? `; next at ${fmt(+nextPass)}` : ""}` : "Last check: none yet. Press Check prices" },
+  ]);
   /** The listing whose price history is open under its row. */
   let charted = $state<string | null>(null);
   // A minimum typed in: a whole number of 1 or more; an emptied or odd box keeps the one you had.
@@ -535,13 +545,11 @@
 <svelte:window onpointerdown={outside} />
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Orders" brief="Your listings, kept at the cheapest price." blurb="Your warframe.market listings, kept at the cheapest in-game price." band={mkt.linked ? band : undefined} />
+  <PageHead title="Orders" brief="Your listings, kept at the cheapest price." blurb="Your warframe.market listings, kept at the cheapest in-game price." band={mkt.linked ? band : undefined} hero={mkt.linked ? ticker : undefined} />
+  {#snippet ticker()}<Ticker id="orders" label="Your trading, live" items={tape} />{/snippet}
   {#snippet band()}
-      <Stat extra label="Listed value" note="Visible listings, price × quantity"><P v={listed} big /></Stat>
       <Stat label="Listings" tone={mkt.room <= 0 ? "gold" : "platinum"} note={`${mkt.room <= 0 ? "At warframe.market's limit" : `${mkt.room} more allowed`} · ${orders.filter((o) => !o.visible).length} hidden`}>{orders.length}<span class="of">/{LISTING_LIMIT - mkt.otherOrders}</span></Stat>
       {#if !console}<Stat label="Listed more than you hold" tone={shortShown ? "gold" : "dim"} note={`${shortShown ? "Sold in game, or used: fix them below" : short.length ? "Only in hidden listings, which nobody can buy" : "You hold everything you list"}${shortShown && short.length > shortShown ? ` · +${short.length - shortShown} hidden` : ""}`} title={`Listed more than you hold: visible listings for more copies than you hold now, as Home counts them${short.length > shortShown ? `. ${short.length - shortShown} hidden listing${short.length - shortShown === 1 ? "" : "s"} too, marked in the list: nobody can buy those` : ""}`}>{shortShown}</Stat>{/if}
-      {#if !console && trades.limit != null}<Stat keep label="Trades left today" tone={trades.left != null && trades.left <= 3 ? "gold" : "platinum"} note={`${trades.used} made since 00:00 UTC · refreshes in ${until(new Date(trades.resets).toISOString(), minute)}`} title={`Trades a day are your Mastery Rank (${trades.limit}; Founders get 2 more), each counting once whatever it carried (up to 6 items each way). Counted from the game's log while orbiter was reading it.`}>{trades.left}<span class="of">/{trades.limit}</span></Stat>{/if}
-      <Stat label="To reprice" tone={pending ? "gold" : "dim"} note={checkedAt ? `${pending ? "Off the cheapest in-game price" : "All match"} · checked ${fmt(checkedAt)}` : "Press Check prices to compare"}>{checkedAt ? pending : "–"}</Stat>
   {/snippet}
 
   <section class="status">
