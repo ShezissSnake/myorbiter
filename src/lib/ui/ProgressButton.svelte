@@ -210,6 +210,12 @@
   /* Done: a verdigris edge and a tick. Failed: an oxblood edge and "!". */
   .pb.done, .pb.done.stamp, .pb.stamp.gold.done { border-color: var(--verdigris); color: var(--verdigris); }
   .pb.failed, .pb.failed.stamp, .pb.stamp.gold.failed { border-color: var(--oxblood); color: var(--oxblood); }
+  /* Done and failed are a message: hovering brightens the edge but doesn't invert the button. */
+  .pb.stamp.done:hover:not(:disabled), .pb.stamp.failed:hover:not(:disabled) { background: var(--raised); }
+  .pb.stamp.done:hover:not(:disabled) { color: var(--verdigris); border-color: var(--verdigris); }
+  .pb.stamp.failed:hover:not(:disabled) { color: var(--oxblood); border-color: var(--oxblood); }
+  .pb.ib.done:hover:not(:disabled) { background: transparent; color: var(--verdigris); }
+  .pb.ib.failed:hover:not(:disabled) { background: transparent; color: var(--oxblood); }
   .pb.link.done { border: 0; }
   .pb.link.failed { border: 0; }
   .pb.ib.quiet.done, .pb.ib.quiet.failed { border-color: transparent; }

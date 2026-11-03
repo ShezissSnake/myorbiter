@@ -23,6 +23,9 @@
   import Icon from "../ui/Icon.svelte";
   import IconButton from "../ui/IconButton.svelte";
   import PriceHistory from "../ui/PriceHistory.svelte";
+  import ProgressButton from "../ui/ProgressButton.svelte";
+  import CopyButton from "../ui/CopyButton.svelte";
+  import { Job, JobError, Jobs } from "../job.svelte";
   import { rivens } from "../rivenStore.svelte";
   import { openUrl } from "../backend";
   import type { MyAuction, RivenAuction } from "../core/rivens";
@@ -52,7 +55,9 @@
   const plans = $derived(new Map(orders.map((o) => [o.id, mkt.planFor(model, settings, o)])));
   const hiddenOrders = $derived(orders.filter((o) => !o.visible));
   const pending = $derived(orders.filter((o) => o.visible && !settings.paused[listingKey(o)] && plans.get(o.id)?.change).length);
-  const nextPass = $derived((settings.auto || settings.autoCheck) && mkt.lastPass ? new Date(mkt.lastPass + settings.every * 60_000) : null);
+  // The timer waits longer while warframe.market isn't answering (passDelay): the next check is then, not at your interval.
+  const passWait = $derived(mkt.passDelay(settings.every * 60_000));
+  const nextPass = $derived((settings.auto || settings.autoCheck) && mkt.lastPass ? new Date(mkt.lastPass + passWait) : null);
   /** Oldest order book behind what's on screen, so you know how fresh "Cheapest in game" is. */
   const checkedAt = $derived.by(() => {
     const times = orders.map((o) => mkt.books[mkt.item(o.itemId)?.slug ?? ""]?.at).filter((t): t is number => t != null);
@@ -168,20 +173,8 @@
   }
   // Your shown listings as trade chat lines (core/market.ts, wtsLines); each press copies the next.
   const wts = $derived(wtsLines(mkt.orders.filter((o) => o.visible).map((o) => ({ name: mkt.item(o.itemId)?.name ?? o.itemId, rank: o.rank, platinum: o.platinum }))));
-  let wtsNext = 0;
-  let wtsCopied = $state<string | null>(null);
-  async function copyWts() {
-    const i = wtsNext % wts.length;
-    try {
-      await navigator.clipboard.writeText(wts[i]);
-      wtsCopied = wts.length > 1 ? `Copied line ${i + 1} of ${wts.length}: paste it in trade chat` : "Copied: paste it in trade chat";
-      wtsNext = i + 1;
-    } catch {
-      wtsCopied = "Couldn't copy";
-    }
-    const was = wtsCopied;
-    setTimeout(() => wtsCopied === was && (wtsCopied = null), 3000);
-  }
+  let wtsNext = $state(0);
+  const wtsAt = $derived(wts.length ? wtsNext % wts.length : 0);
   function revert(o: MyOrder) {
     delete edits[o.id];
     mkt.editing.delete(o.id);
@@ -189,9 +182,103 @@
   async function save(o: MyOrder) {
     if (overHeld(o)) return;
     const change = changeOf(o);
+    if (!change) return revert(o);
     // Refused (or warframe.market turned orbiter away): what you typed stays, to save again.
-    if (change && !(await mkt.update(o, change))) return;
-    revert(o);
+    await rowAct(o.id, { working: "Saving…", done: "Saved", fail: "Couldn't save" }, async () => {
+      if (!(await mkt.update(o, change))) return false;
+      revert(o);
+    });
+  }
+
+  // ------------------------------------------------------------ each row's own work
+  // Save, Remove, Shown, Sold and the like: the row says what it's doing, then that it's done, or
+  // why it failed with Try again, in the row itself. A row that is working ignores more clicks.
+  // A failure stays a while, with its reason and Try again.
+  const rowBusy = new Jobs(undefined, 20_000);
+  let rowWords = $state<Record<string, { working: string; done: string; fail: string }>>({});
+  let retryOf = $state<Record<string, () => void>>({});
+  /** The store's error for a change you made on a row: shown in the row, so not at the top as well. */
+  function rowError(): string {
+    const why = mkt.error ?? "warframe.market didn't take it";
+    mkt.error = null;
+    return why;
+  }
+  /** Runs a row's change; `f` returns false (or throws) when it didn't go through. */
+  function rowAct(id: string, words: { working: string; done: string; fail: string }, f: () => Promise<boolean | void>): Promise<boolean> {
+    const j = rowBusy.get(id);
+    rowWords[id] = words;
+    const go = () =>
+      j.run(async (job) => {
+        job.phase = words.working;
+        if ((await f()) === false) throw new Error(rowError());
+        return words.done;
+      });
+    retryOf[id] = () => void go();
+    return go();
+  }
+  /** A row action can be pressed: nothing you asked for is running, and this row isn't working. A timed check doesn't count. */
+  const rowFree = (id: string) => !mkt.op && !rowBusy.busy(id);
+  function removeRow(o: MyOrder, buy = false) {
+    void rowAct(o.id, { working: buy ? "Taking down…" : "Removing…", done: buy ? "Taken down" : "Removed", fail: buy ? "Couldn't take it down" : "Couldn't remove" }, () => mkt.remove(o));
+  }
+  function setVisible(o: MyOrder, v: boolean) {
+    void rowAct(o.id, { working: v ? "Showing…" : "Hiding…", done: v ? "Shown" : "Hidden", fail: v ? "Couldn't show it" : "Couldn't hide it" }, () => mkt.update(o, { visible: v }));
+  }
+  function lowerTo(o: MyOrder, n: number) {
+    void rowAct(o.id, { working: "Saving…", done: `Listed ${n}`, fail: "Couldn't change it" }, () => mkt.update(o, { quantity: n }));
+  }
+
+  // The buttons above the table.
+  const checkJob = new Job();
+  const repriceJob = new Job();
+  const reloadJob = new Job();
+  const showJob = new Job();
+  const retryJob = new Job();
+  const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+  function checkPrices() {
+    void checkJob.run(async () => {
+      const r = await mkt.reprice(model, settings, false);
+      if (!r) return null;
+      if (r.error) throw new JobError("Failed", r.error);
+      if (r.stopped) throw new JobError("Stopped", "warframe.market stopped answering part way: the rest are checked on the next pass");
+      if (r.failed) throw new JobError(`${r.failed} unread`, `${plural(r.failed, "order book")} couldn't be read${r.off ? `; ${r.off} to reprice among the rest` : ""}. Check again in a minute.`);
+      return r.off ? `${r.off} to reprice` : "All match";
+    });
+  }
+  function repriceNow() {
+    void repriceJob.run(async () => {
+      const r = await mkt.reprice(model, settings, true);
+      if (!r) return null;
+      if (r.error) throw new JobError("Failed", r.error);
+      if (r.failed) throw new JobError(`${r.failed} failed`, `${plural(r.failed, "listing")} couldn't be repriced${r.changed ? `; ${r.changed} ${r.changed === 1 ? "was" : "were"}` : ""}. The Activity log below says why.`);
+      return r.changed ? `${r.changed} repriced` : "All match";
+    });
+  }
+  const passCount = $derived(mkt.passProgress ? `${mkt.passProgress.done}/${mkt.passProgress.total}` : "");
+  const passFill = $derived(mkt.passProgress?.total ? mkt.passProgress.done / mkt.passProgress.total : null);
+  function reloadListings() {
+    void reloadJob.run(async () => {
+      await mkt.reload();
+      if (mkt.error) throw new Error(mkt.error);
+      return "Reloaded";
+    });
+  }
+  function showAll() {
+    const list = hiddenOrders;
+    void showJob.run(async (j) => {
+      j.step(0, list.length);
+      const n = await mkt.showHidden(list, (d, t) => j.step(d, t));
+      if (n < list.length) throw new JobError(`${list.length - n} failed`, `${plural(list.length - n, "listing")} couldn't be shown; the Activity log below says why`);
+      return `${n} shown`;
+    });
+  }
+  function retryAccount() {
+    void retryJob.run(async () => {
+      await mkt.init();
+      if (mkt.accountError) throw new Error(mkt.accountError);
+      if (mkt.error) throw new Error(mkt.error);
+      return "Connected";
+    });
   }
   /** A quantity over what you hold can't be delivered: refused, as the List form refuses it. */
   /** What it really goes for, when every in-game seller asks more than twice that (the listing follows it instead). */
@@ -343,9 +430,28 @@
     const already = Math.max(0, (soldFrom.get(id) ?? o.quantity) - o.quantity);
     soldFrom.delete(id);
     if (n - already < 1) return;
-    const sale = await mkt.sold(o, Math.min(n - already, o.quantity));
-    if (sale) settings.sales = [sale, ...settings.sales].slice(0, 2000);
+    await sendSale(o, Math.min(n - already, o.quantity));
   }
+  /**
+   * Sends a sale (after the undo wait, or Try again). A listing sold out leaves the table at once:
+   * a faded copy of its row stays, saying "Sending…" then "Sold", until it's through; if
+   * warframe.market refuses, the listing comes back with the reason and Try again.
+   */
+  let sending = $state<Record<string, MyOrder>>({});
+  function sendSale(o: MyOrder, n: number) {
+    sending[o.id] = o;
+    return rowAct(o.id, { working: `Sending ${n} sold…`, done: `Sold ${n}`, fail: "Couldn't mark sold" }, async () => {
+      let why = "";
+      const sale = await mkt.sold(o, n, { failed: (r) => (why = r) });
+      if (!sale) throw new Error(why || "warframe.market didn't take it");
+      settings.sales = [sale, ...settings.sales].slice(0, 2000);
+    });
+  }
+  /** Rows sold out and gone from your listings, still showing how the sale went. */
+  const ghosts = $derived(Object.values(sending).filter((o) => !mkt.orders.some((x) => x.id === o.id) && rowBusy.get(o.id).state !== "idle"));
+  const ghostIds = $derived(new Set(ghosts.map((o) => o.id)));
+  /** The table's rows: your listings, and any sold-out one still sending, in its place by name. */
+  const rows = $derived(ghosts.length ? [...orders, ...ghosts].sort((a, b) => (mkt.item(a.itemId)?.name ?? "").localeCompare(mkt.item(b.itemId)?.name ?? "")) : orders);
   // Leaving the page (or quitting) doesn't lose a sale that was waiting.
   $effect(() => () => {
     for (const id of soldTimers.keys()) void commitSale(id);
@@ -385,7 +491,7 @@
     {#if mkt.linked}
       <span class="account">
         <span class="who register" title={`orbiter's own sign-in to warframe.market; the token is kept in ${mkt.account?.backing === "keyring" ? "the system keyring" : "a private file"}`}>Signed in as <strong>{mkt.me?.ingameName ?? "?"}</strong></span>
-        <IconButton icon="refresh" tone="quiet" label={mkt.op === "Reloading" ? "Reloading…" : "Reload"} title="Fetch your listings from warframe.market again" disabled={!!mkt.busy} onclick={() => mkt.reload()} />
+        <ProgressButton variant="icon" icon="refresh" spin tone="quiet" job={reloadJob} label="Reload" working="Reloading…" doneLabel="Reloaded" failLabel="Couldn't reload" title="Fetch your listings from warframe.market again" disabled={!!mkt.op} onclick={reloadListings} />
         {@render signOut()}
       </span>
     {/if}
@@ -403,6 +509,18 @@
     </span>
   {/snippet}
 
+  <!-- A row's own work: what it's doing, then done, or why it failed with Try again. -->
+  {#snippet rowStatus(id: string)}
+    {@const j = rowBusy.get(id)}
+    {#if j.state !== "idle"}
+      <div class="rowst {j.state}" role="status">
+        {#if j.state === "working"}<span class="busyword">{j.phase}<i aria-hidden="true"></i></span>
+        {:else if j.state === "done"}<Icon name="check" size={11} />{j.note}
+        {:else}<b class="bang" aria-hidden="true">!</b><span>{rowWords[id]?.fail ?? "Failed"}: {j.error}</span>{#if retryOf[id]}<button type="button" class="link" title="Send the same change again" disabled={!!mkt.op} onclick={retryOf[id]}>Try again</button>{/if}{/if}
+      </div>
+    {/if}
+  {/snippet}
+
   {#if mkt.error}<div class="alert">{mkt.error}</div>{/if}
 
   {#if mkt.accountError}
@@ -414,7 +532,7 @@
       {:else}
         <h2 class="mark">Can't reach warframe.market</h2>
         <p class="prose">You're signed in, but warframe.market didn't answer: {mkt.accountError}. orbiter tries again every minute; your listings and the repricer come back on their own.</p>
-        <div class="row"><button class="stamp" disabled={!!mkt.busy} onclick={() => mkt.init()}>Try again now</button>{@render signOut()}</div>
+        <div class="row"><ProgressButton job={retryJob} label="Try again now" working="Trying…" doneLabel="Connected" failLabel="Still no answer" status title="Try reaching warframe.market now instead of waiting for the next minute" disabled={!!mkt.op} onclick={retryAccount} />{@render signOut()}</div>
       {/if}
     </section>
   {:else if !mkt.linked}
@@ -441,7 +559,8 @@
     <!-- Your listings first, with where to add one right beside the heading. -->
     <div class="listhead">
       <h2 class="register yours">Your listings</h2>
-      {#if wts.length}<button class="link wts" title={`Copy your shown listings as a trade chat line, to post in game too:\n${wts[0]}${wts.length > 1 ? `\n(${wts.length} lines: each press copies the next)` : ""}`} onclick={copyWts}>{wtsCopied ?? (wts.length > 1 ? `Copy trade-chat line 1 of ${wts.length}` : "Copy trade-chat line")}</button>{/if}
+      {#if wts.length}<CopyButton class="wts" text={() => wts[wtsAt]} label={wts.length > 1 ? `Copy trade-chat line ${wtsAt + 1} of ${wts.length}` : "Copy trade-chat line"} sizer={wts.length > 1 ? [`Copy trade-chat line ${wts.length} of ${wts.length}`] : []} oncopied={() => (wtsNext = wtsAt + 1)}
+        title={`Copy your shown listings as a trade chat line, to paste in game too:\n${wts[wtsAt]}${wts.length > 1 ? `\n(${wts.length} lines: each press copies the next)` : ""}`} />{/if}
       <section class="newlisting" aria-label="New listing">
         <span class="register">New listing</span>
         <span class="searchbox" bind:this={searchBox}><input type="search" placeholder={console ? "Find anything to sell…" : "Find something you own…"} bind:value={search} aria-label={console ? "Find anything to sell" : "Find something you own"}
@@ -461,10 +580,14 @@
     </div>
     <div class="bar tools">
       <div class="grp">
-        <button class="stamp" disabled={!!mkt.busy} onclick={() => mkt.reprice(model, settings, false)} title="Read the order books and show, per listing below, what it would be repriced to">{mkt.pass === "Checking prices" ? "Checking…" : "Check prices"}</button>
-        <button class="stamp gold" disabled={!!mkt.busy || !pending} title={pending ? `Send the new prices to warframe.market: the ${pending} listing${pending === 1 ? "" : "s"} with a Will set` : "Nothing to change: Check prices first, or every listing matches already"} onclick={() => mkt.reprice(model, settings, true)}>{mkt.pass === "Repricing" ? "Applying…" : pending ? `Reprice ${pending}` : "Reprice"}</button>
+        <ProgressButton job={checkJob} busy={mkt.pass === "Checking prices"} progress={mkt.pass === "Checking prices" ? passFill : undefined} label="Check prices" working={passCount ? `Checking ${passCount}` : "Checking…"} sizer={["Checking 00/00", "00 to reprice"]}
+          title={mkt.pass === "Checking prices" && !mkt.passManual ? "The timer's own check is running" : "Read the order books and show, per listing below, what it would be repriced to"} disabled={!!mkt.busy} onclick={checkPrices} />
+        <ProgressButton tone="gold" job={repriceJob} busy={mkt.pass === "Repricing"} progress={mkt.pass === "Repricing" ? passFill : undefined} label={pending ? `Reprice ${pending}` : "Reprice"} working={passCount ? `Repricing ${passCount}` : "Repricing…"} sizer={["Repricing 00/00", "00 repriced"]}
+          title={mkt.pass === "Repricing" && !mkt.passManual ? "Apply automatically is sending new prices now" : pending ? `Send the new prices to warframe.market: the ${pending} listing${pending === 1 ? "" : "s"} with a Will set` : "Nothing to change: Check prices first, or every listing matches already"} disabled={!!mkt.busy || !pending} onclick={repriceNow} />
       </div>
-      <div class="grp">
+      <div class="grp autos">
+        <!-- Time left to the next timed pass: a hairline that runs out (longer while warframe.market isn't answering). -->
+        {#if nextPass && !mkt.pass}{#key `${mkt.lastPass}|${passWait}`}<i class="countdown" aria-hidden="true" style:animation-duration="{passWait}ms" style:animation-delay="-{Math.min(passWait, Math.max(0, Date.now() - (mkt.lastPass ?? 0)))}ms"></i>{/key}{/if}
         <Chip bind:on={settings.autoCheck} label="Check automatically" title="Read the order books on a timer while orbiter is open, and show what each listing would change to" onchange={(on) => { if (!on) settings.auto = false; }} />
         <Chip bind:on={settings.auto} label="Apply automatically" title="Also send the new prices to warframe.market on that timer, as Reprice would" onchange={(on) => { if (on) settings.autoCheck = true; }} />
         <select bind:value={settings.every} aria-label="How often" title="How often the automatic check runs" disabled={!settings.autoCheck && !settings.auto}>
@@ -483,8 +606,8 @@
         <input class="minp" type="number" min="1" inputmode="numeric" value={settings.minRelicPrice} aria-label="Minimum relic price" onchange={(e) => (settings.minRelicPrice = minFrom(e.currentTarget, settings.minRelicPrice))} onwheel={(e) => e.currentTarget.blur()} />
         <Metal kind="plat" size={14} />
       </div>
-      {#if nextPass}<span class="register next">Next check {fmt(+nextPass)}</span>{/if}
-      {#if hiddenOrders.length}<button class="link quiet" disabled={!!mkt.busy} title="Make every hidden listing visible to buyers again" onclick={() => mkt.setShown(hiddenOrders, true)}>Show all {hiddenOrders.length} hidden</button>{/if}
+      {#if nextPass}<span class="register next" title={mkt.passFailures ? `warframe.market didn't answer the last ${mkt.passFailures === 1 ? "pass" : `${mkt.passFailures} passes`}, so the timer waits longer (${Math.round(passWait / 60_000)} min) before the next` : `The timer checks every ${settings.every} min`}>{mkt.pass && !mkt.passManual ? "Checking now" : `Next check ${fmt(+nextPass)}`}</span>{/if}
+      {#if hiddenOrders.length || showJob.state !== "idle"}<ProgressButton variant="link" tone="quiet" job={showJob} label="Show all {hiddenOrders.length} hidden" working="Showing {showJob.done}/{showJob.total ?? '…'}" sizer={[`Showing ${hiddenOrders.length}/${hiddenOrders.length}`]} title="Make every hidden listing visible to buyers again" disabled={!!mkt.op} onclick={showAll} />{/if}
       {#if !console}<a class="link quiet tospares" href="#spares" title="Down to Put my spares on sale: list everything you can spare in one go" onclick={(e) => { e.preventDefault(); document.getElementById("spares")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>Put my spares on sale ↓</a>{/if}
     </div>
 
@@ -496,8 +619,14 @@
         </tr>
       </thead>
       <tbody>
-        {#each orders as o (o.id)}
+        {#each rows as o (o.id)}
           {@const it = mkt.item(o.itemId)}
+          {#if ghostIds.has(o.id)}
+            <!-- Sold out: the listing is gone, this row stays until the sale is through. -->
+            <tr class="order ghost">
+              <td class="fade c-item" colspan="9"><Named file={model.imageOf(it?.name ?? "")} name={it?.name ?? o.itemId} />{@render rowStatus(o.id)}</td>
+            </tr>
+          {:else}
           {@const p = plans.get(o.id)}
           {@const paused = settings.paused[listingKey(o)]}
           {@const held = stock(o)}
@@ -516,11 +645,12 @@
                 <!-- A question with two answers: both buttons change the listing on warframe.market. -->
                 <div class="fix">
                   <span class="dim small q">{o.quantity - held} gone since you listed. Sold?</span>
-                  <button class="stamp gold" onclick={() => recordSale(o, o.quantity - held)} title="Log the sale on Sales and {held === 0 ? 'close the listing' : `lower the listing to ${held}`} on warframe.market">Yes: log {o.quantity - held} sold</button>
+                  <button class="stamp gold" disabled={rowBusy.busy(o.id)} onclick={() => recordSale(o, o.quantity - held)} title="Log the sale on Sales and {held === 0 ? 'close the listing' : `lower the listing to ${held}`} on warframe.market">Yes: log {o.quantity - held} sold</button>
                   {#if held === 0}<button class="stamp" onclick={() => (removing = o.id)} title="You didn't sell it (used it in game, say): just take the listing down on warframe.market">No: remove listing</button>
-                  {:else}<button class="stamp" onclick={() => mkt.update(o, { quantity: held })} title="You didn't sell them (used in game, say): just lower the listing to {held} on warframe.market">No: list {held}</button>{/if}
+                  {:else}<button class="stamp" disabled={!rowFree(o.id)} onclick={() => lowerTo(o, held)} title="You didn't sell them (used in game, say): just lower the listing to {held} on warframe.market">No: list {held}</button>{/if}
                 </div>
               {/if}
+              {@render rowStatus(o.id)}
             </td>
             <td class="right c-qty" data-label="Qty">
               <input type="number" min="1" inputmode="numeric" class:edited={change?.quantity != null} value={edits[o.id]?.quantity ?? o.quantity}
@@ -535,7 +665,7 @@
                 {@const over = overHeld(o)}
                 {#if over}<p class="err small">{over}</p>{/if}
                 <div class="save">
-                  <IconButton icon="check" tone="gold" label="Save" title={over ?? "Save: update the listing on warframe.market (Enter)"} disabled={!!mkt.busy || !!over} onclick={() => save(o)} />
+                  <ProgressButton variant="icon" icon="check" tone="gold" job={rowBusy.get(o.id)} state={rowBusy.get(o.id).working ? "working" : "idle"} label="Save" working="Saving…" title={over ?? "Save: update the listing on warframe.market (Enter)"} disabled={!!mkt.op || !!over} onclick={() => save(o)} />
                   <IconButton icon="undo" tone="quiet" label="Undo" title="Undo: put back {o.quantity} at {o.platinum}p (Esc)" onclick={() => revert(o)} />
                 </div>
               {/if}
@@ -559,7 +689,7 @@
             </td>
             <td class="right floorcol"><input type="number" min="1" style:width="4.8rem" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor for this listing" title="Your own floor for this listing; empty uses the automatic one" value={settings.floors[listingKey(o)] ?? ""} onchange={(e) => setFloor(o, e.currentTarget.value)} /></td>
             <td class="center c-auto" data-label="Auto-price"><Toggle on={!paused && o.visible} disabled={!o.visible} label="Auto-price: match the cheapest in-game seller" title={!o.visible ? "Hidden listings aren't repriced" : paused ? "Auto-price off: the price stays as you set it" : "Auto-price on: kept at the cheapest in-game seller's price"} onchange={() => togglePause(o)} /></td>
-            <td class="center c-shown" data-label="Shown"><Toggle on={o.visible} label="Shown to buyers" title={o.visible ? "Visible to buyers" : "Hidden from buyers"} disabled={!!mkt.busy} onchange={(v) => mkt.update(o, { visible: v })} /></td>
+            <td class="center c-shown" data-label="Shown"><Toggle on={o.visible} label="Shown to buyers" title={o.visible ? "Visible to buyers" : "Hidden from buyers"} disabled={!rowFree(o.id)} onchange={(v) => setVisible(o, v)} /></td>
             <td class="right c-acts">
               <!-- Three fixed places, the same on every row: sold one, sold several, remove. A
                    confirm takes over the same places, its safe choice where the click just was. -->
@@ -577,13 +707,13 @@
                   <IconButton icon="close" tone="quiet" label="Cancel" onclick={() => (selling = null)} />
                 {:else if removing === o.id}
                   <span class="ask register">Remove?</span>
-                  <IconButton icon="trash" tone="danger" label="Remove it" title="Remove it: take {it?.name ?? 'this listing'} off warframe.market" disabled={!!mkt.busy} onclick={() => { removing = null; mkt.remove(o); }} onkeydown={onEsc(() => (removing = null))} />
+                  <IconButton icon="trash" tone="danger" label="Remove it" title="Remove it: take {it?.name ?? 'this listing'} off warframe.market" disabled={!rowFree(o.id)} onclick={() => { removing = null; removeRow(o); }} onkeydown={onEsc(() => (removing = null))} />
                   <button type="button" class="ib quiet" aria-label="Keep" title="Keep it" onclick={() => (removing = null)} onkeydown={onEsc(() => (removing = null))} use:focusIt><Icon name="close" /></button>
                 {:else}
-                  <IconButton icon="sold" tone="gold" label={o.quantity > 1 ? "Sold one" : "Sold"} title="Sold {o.quantity > 1 ? 'one' : 'it'} in game: marked sold on warframe.market (recorded on your profile), the listing goes down by one and the sale is logged. You get a few seconds to undo." onclick={() => recordSale(o, 1)} />
-                  {#if o.quantity > 1}<IconButton icon="sold-many" tone="quiet" label="Sold several" title="Sold several at once: say how many" onclick={() => (selling = { id: o.id, n: 2 })} />{:else}<span class="slot"></span>{/if}
+                  <IconButton icon="sold" tone="gold" disabled={rowBusy.busy(o.id)} label={o.quantity > 1 ? "Sold one" : "Sold"} title="Sold {o.quantity > 1 ? 'one' : 'it'} in game: marked sold on warframe.market (recorded on your profile), the listing goes down by one and the sale is logged. You get a few seconds to undo." onclick={() => recordSale(o, 1)} />
+                  {#if o.quantity > 1}<IconButton icon="sold-many" tone="quiet" disabled={rowBusy.busy(o.id)} label="Sold several" title="Sold several at once: say how many" onclick={() => (selling = { id: o.id, n: 2 })} />{:else}<span class="slot"></span>{/if}
                   <!-- Set apart from the sale buttons: a slip of the mouse shouldn't land on it. -->
-                  <span class="apart"><IconButton icon="trash" tone="danger quiet" label="Remove" title="Remove: take this listing off warframe.market" onclick={() => (removing = o.id)} /></span>
+                  <span class="apart"><IconButton icon="trash" tone="danger quiet" label="Remove" title="Remove: take this listing off warframe.market" disabled={rowBusy.busy(o.id)} onclick={() => (removing = o.id)} /></span>
                 {/if}
               </span>
             </td>
@@ -595,6 +725,7 @@
                   lines={[{ label: "Your price", value: o.platinum, color: "#c9ccd1" }, ...(p?.competitor.price != null ? [{ label: "Cheapest in game", value: p.competitor.price, color: "#6fa38a" }] : [])]} />
               </td>
             </tr>
+          {/if}
           {/if}
         {:else}
           <tr><td colspan="9" class="nothing">No sell listings yet</td></tr>
@@ -611,12 +742,13 @@
             <li>
               <Named file={model.imageOf(it?.name ?? "")} name={it?.name ?? o.itemId} size={26}>{#if o.rank != null}<span class="tag">R{o.rank}</span>{/if}{#if !o.visible}<span class="tag">hidden</span>{/if}</Named>
               <span class="dim small">wants {o.quantity}</span>
+              {@render rowStatus(o.id)}
               <P v={o.platinum} />
               {#if removing === o.id}
-                <IconButton icon="trash" tone="danger" label="Take it down" title="Take this buy order off warframe.market" disabled={!!mkt.busy} onclick={() => { removing = null; mkt.remove(o); }} onkeydown={onEsc(() => (removing = null))} />
+                <IconButton icon="trash" tone="danger" label="Take it down" title="Take this buy order off warframe.market" disabled={!rowFree(o.id)} onclick={() => { removing = null; removeRow(o, true); }} onkeydown={onEsc(() => (removing = null))} />
                 <button type="button" class="ib quiet" aria-label="Keep" title="Keep it" onclick={() => (removing = null)} onkeydown={onEsc(() => (removing = null))} use:focusIt><Icon name="close" /></button>
               {:else}
-                <IconButton icon="trash" tone="danger quiet" label="Remove" title="Remove: take this buy order off warframe.market" onclick={() => (removing = o.id)} />
+                <IconButton icon="trash" tone="danger quiet" label="Remove" title="Remove: take this buy order off warframe.market" disabled={rowBusy.busy(o.id)} onclick={() => (removing = o.id)} />
               {/if}
             </li>
           {/each}
@@ -734,6 +866,25 @@
   .tools { gap: .6rem 2.2rem; }
   .grp { display: flex; align-items: center; gap: .5rem; }
   .next { margin-left: auto; }
+  /* Check / Apply automatically: a hairline under them runs out until the next timed pass. */
+  .autos { position: relative; }
+  .countdown { position: absolute; left: 0; right: 0; bottom: -5px; height: 1px; background: var(--gold-dim); transform-origin: left center; animation: runout linear forwards; pointer-events: none; }
+  @keyframes runout { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+  @media (prefers-reduced-motion: reduce) { .countdown { display: none; } }
+
+  /* A row's own work, under its name. */
+  .rowst { display: flex; flex-wrap: wrap; align-items: center; gap: .2rem .5rem; margin-top: .3rem; padding-left: calc(34px + .75rem); font-family: var(--face-register); font-size: .62rem; letter-spacing: .08em; text-transform: uppercase; color: var(--platinum-dim); white-space: normal; }
+  .buys .rowst { margin-top: 0; padding-left: 0; }
+  :global(html[data-room~="lt1100"]) .rowst { padding-left: 0; }
+  .rowst.done { color: var(--verdigris); }
+  .rowst.failed { color: var(--oxblood); text-transform: none; letter-spacing: 0; font-family: var(--face-text); font-size: .78rem; }
+  .rowst .link { font-size: .62rem; }
+  .busyword { position: relative; padding-bottom: 3px; }
+  .busyword i { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: rowsweep 1.2s ease-in-out infinite; }
+  @keyframes rowsweep { from { background-position: -60% 0; } to { background-position: 160% 0; } }
+  @media (prefers-reduced-motion: reduce) { .busyword i { animation: none; background: var(--gold-dim); } }
+  .bang { display: inline-grid; place-items: center; width: 1.05em; height: 1.05em; border: 1px solid currentColor; font-family: var(--face-register); font-size: .6rem; font-weight: 700; line-height: 1; }
+  tr.ghost td { opacity: .6; }
 
   .log { margin-top: var(--step); max-height: 9.5rem; overflow: auto; display: grid; gap: .3rem; padding: .7rem 1rem; border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); }
   .line { font-size: .82rem; color: var(--platinum-dim); }
