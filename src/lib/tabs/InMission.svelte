@@ -6,6 +6,7 @@
   import P from "../ui/P.svelte";
   import Thumb from "../ui/Thumb.svelte";
   import GameIcon, { relicIcon as refIcon, type GameIconName } from "../ui/GameIcon.svelte";
+  import { nearTraceCap, traceCap, voidTraces } from "../core/traces";
   import PageHead from "../ui/PageHead.svelte";
   import Stat from "../ui/Stat.svelte";
   import Avail from "../ui/Avail.svelte";
@@ -29,7 +30,8 @@
     windowMode = null,
     tennoscopeRunning = true,
     onsettings = null,
-  }: { model: Model; state: MissionState | null; error: string | null; cards?: ScreenCards | null; weights: PickWeights; windowMode?: string | null; tennoscopeRunning?: boolean; onsettings?: (() => void) | null } = $props();
+    masteryRank = null,
+  }: { model: Model; masteryRank?: number | null; state: MissionState | null; error: string | null; cards?: ScreenCards | null; weights: PickWeights; windowMode?: string | null; tennoscopeRunning?: boolean; onsettings?: (() => void) | null } = $props();
 
   // Relics loaded, and the log heard from lately: a squad from hours ago is the last fissure, not this one.
   let liveNow = $state(Date.now());
@@ -101,6 +103,18 @@
   const fissureCount = $derived(history.filter((h) => h.relics.length).length);
   const sessionValue = $derived(history.reduce((n, h) => n + h.value, 0));
   const sessionRewards = $derived(history.reduce((n, h) => n + h.rewards.length, 0));
+  // The session at a glance: what the rewards come to in ducats, which go toward gear you haven't
+  // built, and the Void Traces you're at (the cracks bring more, up to the cap).
+  const sessionGot = $derived(history.flatMap((h) => h.rewardsNamed));
+  const sessionDucats = $derived(sessionGot.reduce((n, x) => n + (model.partByName.get(x.name)?.[0]?.ducats ?? 0), 0));
+  const sessionForGear = $derived(
+    sessionGot.filter((x) => {
+      const part = model.partByName.get(x.name)?.[0];
+      return !!part && !model.isMastered(part.parentUnique) && model.owned(part.parentUnique) === 0;
+    }),
+  );
+  const traces = $derived(voidTraces(model));
+  const cap = $derived(traceCap(masteryRank));
   const clock = (h: { started_at: number | null; uptime: number }) =>
     h.started_at != null
       ? new Date(h.started_at * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
@@ -234,6 +248,13 @@
 
   {#if history.length}
     <h2 class="register">This session{sessionRewards ? ` · ${sessionRewards} relic reward${sessionRewards === 1 ? "" : "s"}` : ""}</h2>
+    <p class="sum small">
+      <span>{history.length} mission{history.length === 1 ? "" : "s"}{fissureCount ? ` · ${fissureCount} fissure${fissureCount === 1 ? "" : "s"}` : ""}</span>
+      {#if sessionValue}<span title="What the rewards you took sell for, at daily median prices"><P v={sessionValue} /></span>{/if}
+      {#if sessionDucats}<span title="What they'd fetch from Baro, in ducats"><GameIcon name="ducats" size={13} />{sessionDucats.toLocaleString("en")}</span>{/if}
+      {#if sessionForGear.length}<span class="gold" title={`Parts of gear you haven't built or mastered: ${sessionForGear.map((x) => x.name).join(", ")}`}>{sessionForGear.length} toward gear you haven't built</span>{/if}
+      <span class="dim" class:near={nearTraceCap(traces, cap)} title="Void Traces you hold (as of the last inventory read) and the most you can: past the cap, a crack's traces are lost"><GameIcon name="void-traces" size={13} />{traces.toLocaleString("en")}{cap != null ? ` / ${cap.toLocaleString("en")}` : ""} traces{nearTraceCap(traces, cap) ? " · near the cap: refine some" : ""}</span>
+    </p>
     <table class="pool history">
       <tbody>
         {#each history as h, i (h.uptime + "-" + i)}
@@ -254,6 +275,10 @@
 
 <style>
   h2 { margin: var(--course) 0 .6rem; }
+  .sum { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem 1.1rem; margin: -.2rem 0 .6rem; }
+  .sum > span { display: inline-flex; align-items: center; gap: .3rem; }
+  .sum .gold { color: var(--gold); }
+  .sum .near { color: var(--alert); }
   /* A squad is at most four: 2×2 or one row of four, never three and a stray. */
   .why { margin: 0 0 var(--step); }
   .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--rule); border-left: 1px solid var(--rule); margin-top: var(--step); }

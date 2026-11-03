@@ -7,6 +7,10 @@
   import type { Settings } from "../backend";
   import { collection, GROUPS, type CollectionItem, type Group } from "../core/collection";
   import { details } from "../details.svelte";
+  import { foundryBuilds } from "../core/foundry";
+  import { describe } from "../core/describe";
+  import { until } from "../core/traders";
+  import Thumb from "../ui/Thumb.svelte";
   import PageHead from "../ui/PageHead.svelte";
   import Stat from "../ui/Stat.svelte";
   import Tabs from "../ui/Tabs.svelte";
@@ -67,12 +71,23 @@
   // Ready means everything in hand: parts with resources still to farm count apart.
   const buildable = $derived(inGroup.filter((c) => c.buildable && !c.mastered && (c.tier == null || c.tier === "now")).length);
   const partsReady = $derived(inGroup.filter((c) => c.buildable && !c.mastered && c.tier != null && c.tier !== "now").length);
-  const building = $derived(inGroup.filter((c) => c.building).length);
   const groupLabel = $derived(group === "all" ? "items" : (GROUPS.find((g) => g.v === group)?.label.toLowerCase() ?? ""));
 
   function toggleFav(u: string) {
     settings.favourites = favs.has(u) ? settings.favourites.filter((x) => x !== u) : [u, ...settings.favourites];
   }
+  // What's in your foundry now (as Home shows it), so this page and Home tell the same story.
+  let now = $state(Date.now());
+  $effect(() => {
+    const t = setInterval(() => (now = Date.now()), 60_000);
+    return () => clearInterval(t);
+  });
+  const builds = $derived(foundryBuilds(model, settings.game.foundryReady, now));
+  const readyToClaim = $derived(builds.filter((b) => b.ready).length);
+  const gearOf = (name: string) => {
+    const d = describe(model, name);
+    return d?.kind === "gear" ? d.item.uniqueName : null;
+  };
   const missing = (c: CollectionItem) => c.parts.filter((p) => !p.resource && p.have < p.required && !p.building).length;
 </script>
 
@@ -82,9 +97,25 @@
       <Stat label="Mastered" note={`of ${inGroup.length} ${groupLabel}`}><GameIcon name="mastery" size={30} />{mastered}<span class="of">/{inGroup.length}</span></Stat>
       <Stat label="Owned, not mastered" tone="gold" note="Level these">{ownedOnly}</Stat>
       <Stat label="Ready to build" note={partsReady ? `Everything in hand · ${partsReady} more with resources to farm` : "Every part and resource in hand, not mastered yet"}>{buildable}</Stat>
-      <Stat label="Building" tone="dim" note="Whole items in your foundry now (parts, and what's ready to claim, are on Home)">{building}</Stat>
+      <Stat label="In your foundry" tone={readyToClaim ? "gold" : "dim"} note={readyToClaim ? `${readyToClaim} ready to claim` : builds.length ? "Nothing ready yet" : "Nothing building"}>{builds.length}</Stat>
     {/snippet}
   </PageHead>
+
+  {#if builds.length}
+    <!-- The foundry itself: what's building and what's ready to claim, soonest first. -->
+    <ul class="queue" aria-label="In your foundry">
+      {#each builds as b (b.key)}
+        {@const u = gearOf(b.name)}
+        <li class:ready={b.ready}>
+          <button type="button" class="qb" disabled={!u} title={u ? `${b.name}: details` : b.name} onclick={() => u && details.open(u)}>
+            <Thumb file={b.image} size={24} name={b.name} />
+            <span class="qn">{b.name}</span>
+            <span class="qw">{b.ready ? "Ready" : until(new Date(b.readyAt).toISOString(), now)}</span>
+          </button>
+        </li>
+      {/each}
+    </ul>
+  {/if}
 
   <Tabs bind:value={group} label="Category" options={[{ v: "all", label: "All", count: all.length }, ...GROUPS.map((g) => ({ v: g.v, label: g.label, icon: ICON[g.v], count: count(g.v).length }))]} />
 
@@ -145,6 +176,15 @@
 </div></div>
 
 <style>
+  .queue { list-style: none; margin: 0 0 var(--step); padding: 0; display: flex; flex-wrap: wrap; gap: .5rem; }
+  .qb { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: .5rem; padding: .3rem .7rem .3rem .35rem; border: 1px solid var(--rule); background: var(--plate); cursor: pointer; font-size: .84rem; }
+  .qb:disabled { cursor: default; }
+  .qb:not(:disabled):hover { border-color: var(--gold-dim); }
+  .qb:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .qn { color: var(--platinum); }
+  .qw { color: var(--platinum-deep); font-size: .76rem; }
+  .ready .qb { border-color: color-mix(in srgb, var(--verdigris) 55%, transparent); }
+  .ready .qw { color: var(--verdigris); font-weight: 600; }
   .bar { padding-top: .9rem; }
   .right { text-align: right; }
   .chips { display: flex; flex-wrap: wrap; gap: .45rem; }
