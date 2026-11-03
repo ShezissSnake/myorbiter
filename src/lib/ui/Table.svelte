@@ -42,7 +42,7 @@
   // re-sort or a filter waits only for the screenful you see.
   let body = $state<HTMLElement | null>(null);
   const view = inView(() => body);
-  const drawn = $derived.by(progressive(() => sorted.slice(0, shown), (r) => key(r), { first: view.count, measure: view.measure }));
+  const drawn = $derived.by(progressive(() => sorted.slice(0, shown), (r) => key(r), { first: view.count, measure: view.measure, hidden: view.hidden, onShow: view.onShow }));
 
   function setSort(c: Column<T>) {
     if (c.sortable === false) return;

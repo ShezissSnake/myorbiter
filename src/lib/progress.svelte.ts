@@ -3,6 +3,7 @@
 // then waits only for the dozen on screen.
 import { untrack } from "svelte";
 import { rowsInView, settled, stepRows } from "./core/progress";
+import { whenIdle } from "./pane.svelte";
 
 /**
  * How many of a list's items fill the window, kept up to date as the page scrolls and as the list
@@ -20,7 +21,7 @@ export function inView(box: () => HTMLElement | null, { min = 8, guess = 44 }: {
     if (!el || typeof window === "undefined") return;
     // On a page or a view out of sight (kept drawn but not laid out): reading its layout would lay
     // it out just for this, the slowest thing here. Measured once it's shown.
-    if (el.closest(".pane:not(.shown), .off")) return;
+    if (hidden()) return;
     const kids = el.children;
     if (!kids.length) return;
     const a = kids[0].getBoundingClientRect();
@@ -45,13 +46,30 @@ export function inView(box: () => HTMLElement | null, { min = 8, guess = 44 }: {
   const onScroll = () => {
     if (!scrollFrame) scrollFrame = requestAnimationFrame(() => ((scrollFrame = 0), measure(true)));
   };
-  /** The action for the list's scrolling page: <div use:watch> on any element inside it. */
+  const wakers = new Set<() => void>();
+  /**
+   * The action for the list (any element of it, in its scrolling page): follows the page's scroll,
+   * and tells `onShow`'s callbacks when the list comes into sight (its page or view shown again).
+   */
   function watch(node: HTMLElement) {
     const page = node.closest<HTMLElement>(".page") ?? window;
     page.addEventListener("scroll", onScroll, { passive: true });
-    return { destroy: () => page.removeEventListener("scroll", onScroll) };
+    const io = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver((es) => {
+      if (es.some((e) => e.isIntersecting)) for (const f of wakers) f();
+    });
+    io?.observe(node);
+    return {
+      destroy: () => {
+        page.removeEventListener("scroll", onScroll);
+        io?.disconnect();
+      },
+    };
   }
-  return { count: () => count, measure, watch };
+  /** Whether the list is out of sight: on a hidden page, or a view kept drawn but not shown. */
+  const hidden = () => !!box()?.closest(".pane:not(.shown), .off");
+  /** Calls `f` each time the list comes into sight; returns a stop. */
+  const onShow = (f: () => void) => (wakers.add(f), () => void wakers.delete(f));
+  return { count: () => count, measure, watch, hidden, onShow };
 }
 
 let quietly = false;
@@ -82,9 +100,19 @@ export function inBackground(f: () => void) {
 export function progressive<T>(
   target: () => readonly T[],
   key: (r: T) => string,
-  { first, step = 12, measure }: { first: () => number; step?: number; measure?: () => void },
+  {
+    first,
+    step = 12,
+    measure,
+    hidden,
+    onShow,
+  }: { first: () => number; step?: number; measure?: () => void; hidden?: () => boolean; onShow?: (f: () => void) => () => void },
 ): () => readonly T[] {
-  const now = () => (quietly ? Math.min(BACKGROUND_FIRST, first()) : first());
+  // Out of sight (drawn in the background, or on a hidden page or view): a few rows now, the rest
+  // when the app is idle and nobody's clicking (pane.svelte.ts, whenIdle), never in the middle of
+  // something moving on screen.
+  const away = () => quietly || !!hidden?.();
+  const now = () => (away() ? Math.min(BACKGROUND_FIRST, first()) : first());
   let drawn = $state.raw<readonly T[]>(untrack(() => target().slice(0, now())));
   let frame = 0;
   let idle = 0;
@@ -93,17 +121,41 @@ export function progressive<T>(
     if (frame) cancelAnimationFrame(frame);
     if (idle) window.cancelIdleCallback(idle);
     clearTimeout(timer);
+    unidle?.();
+    unidle = waiting = null;
     frame = idle = 0;
   };
+  // Shown again with slices still waiting for idle time: they come now, as for a list in sight.
+  if (onShow)
+    $effect(() =>
+      onShow(() => {
+        const f = waiting;
+        if (!f || away()) return;
+        unidle?.();
+        unidle = waiting = null;
+        later(f);
+      }),
+    );
   /**
    * `f` once the step before has been drawn: in the next idle moment with a little room, so the
    * rows below the screen give way to what's moving on it (a figure rolling, a row closing up),
-   * or within 150 ms anyway. Where there's no requestIdleCallback (WebKitGTK): the next frame,
-   * then a task.
+   * or within 250 ms anyway (a figure rolls for 160). Where there's no requestIdleCallback
+   * (WebKitGTK): the next frame, then a task.
    */
+  let unidle: (() => void) | null = null;
+  /** A slice waiting for idle time while out of sight. */
+  let waiting: (() => void) | null = null;
   const later = (f: () => void) => {
+    if (away()) {
+      waiting = f;
+      unidle = whenIdle(() => {
+        unidle = waiting = null;
+        f();
+      });
+      return;
+    }
     if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-      const due = performance.now() + 150;
+      const due = performance.now() + 250;
       const ask = () =>
         (idle = window.requestIdleCallback(
           (d) => {

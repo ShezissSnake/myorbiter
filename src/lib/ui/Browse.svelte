@@ -172,7 +172,7 @@
   // The cards in sight drawn at once, the rest a few a frame after (lib/progress.svelte.ts).
   let grid = $state<HTMLElement | null>(null);
   const cardView = inView(() => grid?.firstElementChild as HTMLElement | null, { min: 6, guess: 180 });
-  const cardsDrawn = $derived.by(progressive(() => cardRows.slice(0, shown), (r) => key(r), { first: cardView.count, step: 6, measure: cardView.measure }));
+  const cardsDrawn = $derived.by(progressive(() => cardRows.slice(0, shown), (r) => key(r), { first: cardView.count, step: 6, measure: cardView.measure, hidden: cardView.hidden, onShow: cardView.onShow }));
 </script>
 
 <div class="tools">
