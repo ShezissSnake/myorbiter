@@ -12,6 +12,7 @@
   import NewsItems from "../ui/NewsItems.svelte";
   import Rich from "../ui/Rich.svelte";
   import { BUILD } from "../build";
+  import { arrive } from "../motion";
 
   // console: the short guide, for the pages a console or phone player has. platform: where they play.
   // hidden: the pages Settings → Pages keeps out of the sidebar.
@@ -185,7 +186,7 @@
           {#each r.steps as [tab, label, text, planner] (label)}
             {@const key = `${r.title}|${label}`}
             <!-- One line each, the page's name taking you there; the whole of it a click away. -->
-            <li><button class="link" onclick={() => { if (planner) plannerMode = planner; go(tab); }} title="Open {label}">{label}</button>{#if openSteps[key]}{#if Array.isArray(text)}<ul class="sub">{#each text as t (t)}<li><Rich text={t} {go} /></li>{/each}</ul>{:else}<span><Rich {text} {go} /></span>{/if}{:else}<span><Rich text={brief(text)} {go} /></span>{/if} <button class="more" aria-expanded={!!openSteps[key]} title={openSteps[key] ? "Less" : "Everything about it"} onclick={() => (openSteps[key] = !openSteps[key])}>{openSteps[key] ? "less" : "more"}</button></li>
+            <li><button class="link" onclick={() => { if (planner) plannerMode = planner; go(tab); }} title="Open {label}">{label}</button>{#if openSteps[key]}{#if Array.isArray(text)}<ul class="sub" in:arrive={{ y: 0 }}>{#each text as t (t)}<li><Rich text={t} {go} /></li>{/each}</ul>{:else}<span in:arrive={{ y: 0 }}><Rich {text} {go} /></span>{/if}{:else}<span><Rich text={brief(text)} {go} /></span>{/if} <button class="more" aria-expanded={!!openSteps[key]} title={openSteps[key] ? "Less" : "Everything about it"} onclick={() => (openSteps[key] = !openSteps[key])}>{openSteps[key] ? "less" : "more"}</button></li>
           {/each}
         </ol>
       </article>

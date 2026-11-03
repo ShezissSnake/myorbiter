@@ -24,6 +24,7 @@
   import Presence from "../ui/Presence.svelte";
   import Toggle from "../ui/Toggle.svelte";
   import SpareSale from "../ui/SpareSale.svelte";
+  import { fold } from "../motion";
   import Metal from "../ui/Metal.svelte";
   import Icon from "../ui/Icon.svelte";
   import IconButton from "../ui/IconButton.svelte";
@@ -656,9 +657,9 @@
           <GameIcon name="platinum" size={18} />
           <span class="register">Put my spares on sale</span>
           <span class="dim small sub">{#if mkt.applying && mkt.progress}Applying the plan: {mkt.progress.done} of {mkt.progress.total}{:else if mkt.bulk}A plan of {mkt.bulk.actions.filter((a) => a.type !== "skip").length} changes, ready to look over{:else}List everything you can spare in one go, after a look at the plan{/if}</span>
-          <span class="chev" aria-hidden="true">{settings.sparesOpen ? "▴" : "▾"}</span>
+          <span class="chev" aria-hidden="true">▾</span>
         </button>
-        <div id="spares-body" hidden={!settings.sparesOpen}><SpareSale {model} {settings} {advice} {masteryRank} {credits} folded /></div>
+        <div id="spares-body" use:fold={!!settings.sparesOpen}><div class="spares-in"><SpareSale {model} {settings} {advice} {masteryRank} {credits} folded /></div></div>
       </section>
     {/if}
 
@@ -1025,7 +1026,8 @@
   .foldhead:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
   .foldhead .sub { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .foldhead .chev { color: var(--platinum-deep); font-size: .75rem; }
-  #spares-body { padding: 0 .9rem .9rem; }
+  /* Unfolds on the grid row (motion.ts, fold); the padding goes inside, so folded there's none. */
+  .spares-in { padding: 0 .9rem .9rem; }
   .orders th.sortable { cursor: pointer; user-select: none; }
   .orders th.sortable:hover, .orders th[aria-sort] { color: var(--platinum); }
   .orders th.sortable:focus-visible { outline: none; box-shadow: inset 0 -2px 0 var(--gold); color: var(--platinum); }
