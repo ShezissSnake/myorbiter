@@ -22,6 +22,7 @@
     detail,
     card,
     title,
+    kicker,
     onopen,
     min = "19rem",
     empty = "Nothing matches these filters.",
@@ -43,6 +44,8 @@
     card: Snippet<[T, () => void]>;
     /** The details panel's heading. */
     title?: (r: T) => string;
+    /** The line over that heading (its kind), as the item details sheet has. */
+    kicker?: (r: T) => string;
     /** A row's era colour in the table (see Table.svelte); cards take theirs from the page. */
     tint?: (r: T) => string | null;
     /** Opens a row its own way; null or false declines, and the row's `detail` opens instead. */
@@ -183,7 +186,7 @@
 {/if}
 
 {#if detail && opened != null}
-  <Sheet bind:open={sheet.v} title={title ? title(opened) : ""} wide>
+  <Sheet bind:open={sheet.v} title={title ? title(opened) : ""} kicker={kicker?.(opened)} wide>
     {@render detail(opened)}
   </Sheet>
 {/if}

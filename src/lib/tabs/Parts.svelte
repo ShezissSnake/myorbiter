@@ -180,7 +180,7 @@
     {built(r) ? `${built(r)} kept to build ${r.parentName}${r.keptFor === r.parentName ? "" : ` for ${r.keptFor}`}` : r.parentMastered ? `${r.parentName} is mastered: every copy is spare` : `${r.parentName} is built: every copy is spare`}{r.inSets ? ` · ${r.inSets} go into ${setsFor.get(r.parentName) ?? 0} complete set${setsFor.get(r.parentName) === 1 ? "" : "s"}` : ""}{r.spare - r.inSets > 0 ? ` · ${r.spare - r.inSets} loose ${v === "Ducats" ? "for ducats" : "to sell"}` : ""}
   </p>
   {#if r.saving}<p class="small saving">{savedLine(r.forSet, r.saving)}. Still to get: {r.saving.missing.map((x) => `${x.count > 1 ? `${x.count}× ` : ""}${x.name.replace(`${r.parentName} `, "")}`).join(", ")}.</p>{/if}
-  {#if (r.tradesPerDay ?? 1) > 0}<div class="hist"><PriceHistory name={r.name} height={130} /></div>{/if}
+  {#if (r.tradesPerDay ?? 1) > 0}<div class="hist"><PriceHistory name={r.name} height={130} known={r.price != null || r.tradesPerDay != null} /></div>{/if}
   {#if src.length}
     <div class="odds">
       <span class="register">Drops from (intact → radiant)</span>

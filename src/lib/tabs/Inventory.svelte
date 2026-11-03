@@ -181,7 +181,7 @@
   <p class="small dim">
     {r.quantity} held{r.rank != null ? ` at rank ${r.rank}` : ""}{price != null ? ` · ${price}p each on warframe.market` : " · no market price"}{#if s}{" · "}you keep {s.keep}, can spare {s.spare}{/if}{#if s?.heldAs}{" · "}listed as {s.name} (the game calls it {s.heldAs}){/if}
   </p>
-  {#if s && (s.tradesPerDay ?? 1) > 0}<div class="hist"><PriceHistory name={s.name} unique={r.kind === "relic" || s.type === "Veiled riven" ? null : r.unique} rank={r.rank} subtype={r.subtype} height={130} /></div>{/if}
+  {#if s && (s.tradesPerDay ?? 1) > 0}<div class="hist"><PriceHistory name={s.name} unique={r.kind === "relic" || s.type === "Veiled riven" ? null : r.unique} rank={r.rank} subtype={r.subtype} height={130} known={price != null || perDay(r) != null} /></div>{/if}
   {#if s}<p class="small why">{s.keep ? `Kept: ${s.why}.` : `${s.why}.`}{#if s.crack != null && r.kind === "relic"}{" "}A crack is worth about {Math.round(s.crack * 10) / 10}p on average.{/if}</p>{/if}
   {#if s && s.needs.length > 1 && r.kind !== "relic"}
     <div class="odds">
@@ -208,9 +208,11 @@
       </div>
     {/if}
   {/if}
-  <div class="actions">
-    {#if spareOf(r)}<button class="link" onclick={() => openUrl(itemUrl(spareOf(r)!.name))}>warframe.market ↗</button>{/if}
-    <button class="link" onclick={() => openUrl(wikiUrl(r.kind === "relic" ? r.marketName ?? r.name : r.name))}>Wiki ↗</button>
+  <!-- The same buttons as an item's own details sheet. -->
+  <div class="detail-acts">
+    {@render listCell(r, true)}
+    <button title="Its page on the official wiki" onclick={() => openUrl(wikiUrl(r.kind === "relic" ? r.marketName ?? r.name : r.name))}>Wiki</button>
+    {#if spareOf(r)}<button title="Its page on warframe.market: orders and price history" onclick={() => openUrl(itemUrl(spareOf(r)!.name))}>warframe.market</button>{/if}
   </div>
 {/snippet}
 
@@ -248,7 +250,7 @@
 
   {#if letGo}<NotNeeded {model} out={unneeded} incarnons={!!gear} bind:keep={keepGear} />{/if}
 
-  <Browse id="inventory" {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (r.kind === "gear" && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" clear={filtered ? clear : null} empty="Nothing in your inventory yet." />
+  <Browse id="inventory" {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => shown(r)} kicker={(r) => spareOf(r)?.type ?? r.type} onopen={(r) => (r.kind === "gear" && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" clear={filtered ? clear : null} empty="Nothing in your inventory yet." />
 </div></div>
 
 <style>

@@ -105,8 +105,8 @@
   </p>
   {#if r.tradesPerDay}
     <!-- Mods and arcanes: unranked and maxed copies sell apart, at different prices. -->
-    <div class="hist"><PriceHistory name={r.name} unique={r.category === "relic" ? null : r.gameRef} rank={r.maxRank ? 0 : null} height={130} /></div>
-    {#if r.maxRank}<div class="hist"><PriceHistory name={r.name} unique={r.gameRef} rank={r.maxRank} height={130} /></div>{/if}
+    <div class="hist"><PriceHistory name={r.name} unique={r.category === "relic" ? null : r.gameRef} rank={r.maxRank ? 0 : null} height={130} known={r.price != null} /></div>
+    {#if r.maxRank}<div class="hist"><PriceHistory name={r.name} unique={r.gameRef} rank={r.maxRank} height={130} known={r.priceMax != null} /></div>{/if}
   {/if}
   <div class="actions">
     <button class="link" title="See the cheapest seller and best buyer now, and post a buy order" onclick={() => buy(r)}>Buy order</button>
