@@ -919,6 +919,8 @@
   /* The per-listing floor box goes next (your floors still apply, and the overall floor is above
      the table): half a 1080p screen leaves the page about 800 px, where it no longer fits. */
   :global(html[data-room~="lt900"]) .floorcol { display: none; }
+  /* Details off: the per-listing floor goes (the automatic one still applies; Details shows it). */
+  :global(html:not([data-details])) .orders .floorcol { display: none; }
   /* Less still: the headings wrap onto two lines rather than set the column widths. */
   :global(html[data-room~="lt760"]) .orders th { white-space: normal; line-height: 1.35; }
   /* A narrow window: each listing a card. The item across the top, the rest in a row under it, each with its name. */

@@ -286,6 +286,9 @@
   function removePriceAlert(a: (typeof settings.market.buyAlerts)[number]) {
     undo.hold(alertKey(a), () => (settings.market.buyAlerts = settings.market.buyAlerts.filter((x) => alertKey(x) !== alertKey(a))));
   }
+  // Bounties and Worth doing today start as a line each; the whole of them a click away.
+  let openBounties = $state(false);
+  let openToday = $state(false);
   const all = () => {
     const out: Alert[] = [];
     // Alerts and invasions rewarding a part for something you haven't mastered: they don't come back on demand.
@@ -473,7 +476,7 @@
       {:else if !byKind.length}
         <p class="dim">Nothing spare worth {settings.market.minPrice}p or more in what you ticked.</p>
       {:else}
-        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Only the kinds ticked under Put my spares on sale, on Orders, and only what's worth at least your minimum price there (relics: your relic minimum) and worth a trade: at least {settings.advice.minPlat}p in one trade of up to six copies (Not worth a trade under, set on Prime parts). Everything you could spare, of every kind, is on Inventory (You can spare)">at daily median prices: what Put my spares on sale would list (the kinds ticked there), {settings.market.minPrice}p and up{settings.market.bulk.other ? ` (relics ${settings.market.minRelicPrice}p)` : ""}{unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
+        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Only the kinds ticked under Put my spares on sale, on Orders, and only what's worth at least your minimum price there (relics: your relic minimum) and worth a trade: at least {settings.advice.minPlat}p in one trade of up to six copies (Not worth a trade under, set on Prime parts). Everything you could spare, of every kind, is on Inventory (You can spare). At daily median prices: what Put my spares on sale would list, {settings.market.minPrice}p and up{settings.market.bulk.other ? ` (relics ${settings.market.minRelicPrice}p)` : ""}">if you list your spares{unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
         <ul class="kinds">
           {#each byKind as k (k.kind)}
             <li>
@@ -531,8 +534,18 @@
       {@render head("bounty", null, "Bounties", null, "")}
       {#if live.syndicates == null && !bountyTables}
         <p class="dim">{liveNote}</p>
-      {:else}
+      {:else if openBounties}
         <BountyBoard {boards} {now} imageOf={(n) => model.imageOf(n)} {need} opens={rewardOpens} />
+        <button class="link fold" onclick={() => (openBounties = false)}>Fewer</button>
+      {:else}
+        <!-- One line a place: its best (or wanted) reward; the boards a click away. -->
+        <ul class="bsum">
+          {#each boards as b (b.label)}
+            {@const j = b.jobs.find((x) => x.wanted) ?? b.jobs.reduce((best, x) => ((x.headline?.chance ?? 101) < (best.headline?.chance ?? 101) ? x : best), b.jobs[0])}
+            <li><b>{b.label}</b><span class:gold={j?.wanted} use:info={j?.headline?.name ?? null}>{j?.headline?.name ?? "—"}</span>{#if j?.headline?.chance != null}<span class="dim small" title={j.wanted ? "A reward you need, and its chance per run" : "Its rarest reward, and its chance per run"}>{Math.round(j.headline.chance * 10) / 10}%</span>{/if}</li>
+          {/each}
+        </ul>
+        <button class="link fold" onclick={() => (openBounties = true)} title="Every bounty in each place: levels, rewards and standing">Every bounty →</button>
       {/if}
     </section>
 
@@ -554,7 +567,8 @@
     {/if}
 
     <!-- Worth doing today -->
-    <section class="panel today" data-card="today" class:off={off("today")} class:full={alone("today")} style:grid-row={rowSpan("today")}>
+    <!-- Folded, each task is its heading line (what and how long); open, its missions, offers and challenges. -->
+    <section class="panel today" class:open={openToday} data-card="today" class:off={off("today")} class:full={alone("today")} style:grid-row={rowSpan("today")}>
       {@render head("nightwave", null, "Worth doing today", null, "")}
       <div class="tgrid">
         {#if day.circuit}
@@ -636,6 +650,7 @@
         {/if}
         {#if !day.circuit && !day.steelPath && !day.nightwave && !day.sortie && !day.darvo}<p class="dim">{liveNote}</p>{/if}
       </div>
+      <button class="link fold" aria-expanded={openToday} onclick={() => (openToday = !openToday)} title="The Sortie's missions and modifiers, the Archon Hunt's, Nightwave's challenges, Darvo's deal and the rest">{openToday ? "Fewer" : "Everything →"}</button>
     </section>
 
     <!-- Foundry -->
@@ -1075,4 +1090,11 @@
   .vz .sn .small { white-space: normal; }
   .vz li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto 16px; gap: .6rem; align-items: center; }
   .tag.gold { color: var(--gold); border-color: var(--gold-dim); }
+  .bsum { list-style: none; margin: .4rem 0 0; padding: 0; display: grid; gap: .3rem; }
+  .bsum li { display: flex; align-items: baseline; gap: .6rem; min-width: 0; }
+  .bsum li b { min-width: 6.5rem; font-weight: 600; color: var(--platinum-dim); }
+  .bsum li span:not(.dim) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fold { display: block; margin: .6rem 0 0; }
+  .today:not(.open) .tblock > :not(.th) { display: none; }
+  .today:not(.open) .tgrid { gap: .45rem; }
 </style>

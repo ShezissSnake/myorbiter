@@ -437,7 +437,7 @@
   const statusLabel: Record<string, string> = { ingame: "In game", online: "Online", offline: "Offline" };
 </script>
 
-{#snippet grade(g: string, big = false)}<span class="grade g-{g.replace('+', 'p').replace('−', 'm')}" class:big>{g}</span>{/snippet}
+{#snippet grade(g: string, big = false)}<span class="grade g-{g.replace('+', 'p').replace('−', 'm')}" class:big title="Grade {g}: how good the roll is within its range (S the top of it, B the middle, F the bottom)">{g}</span>{/snippet}
 <!-- A curse gets a word, not a letter: whether it costs anything (a red C− on a harmless Ammo Maximum curse misleads). -->
 {#snippet curse(s: { tag: string; label: string; quality: number | null })}{@const w = curseWord(s.tag)}<span class="cw cw-{w}" title={w === "hurts" ? `A curse on ${s.label}, which players want on a riven: it costs you something. Rolled ${s.quality == null ? "?" : Math.round(s.quality * 100)}% of the way to the mildest curse` : `A curse on ${s.label}, which hardly matters on most builds: it costs next to nothing`}>{w}</span>{/snippet}
 
@@ -752,6 +752,8 @@
   .note { margin: var(--step) 0; }
   .riven { display: flex; flex-direction: column; border: 1px solid var(--rule); background: linear-gradient(180deg, #17141d, var(--plate) 45%); clip-path: var(--cut); padding: .8rem .9rem .6rem; gap: .6rem; }
   .explain { max-width: 75ch; }
+  /* The grading key is for Details; the grades themselves carry it in their tooltips. */
+  :global(html:not([data-details])) .explain { display: none; }
   .riven header { display: grid; grid-template-columns: auto 1fr auto; gap: .7rem; align-items: start; }
   .t { display: grid; gap: .25rem; min-width: 0; }
   .t .register { font-size: .6rem; color: var(--rarity-riven); }

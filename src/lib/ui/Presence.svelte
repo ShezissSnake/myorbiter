@@ -48,7 +48,7 @@
 {#if mkt.statusError || s?.error}
   <p class="note warn">{mkt.statusError ?? s?.error}</p>
 {:else if !s?.wanted && !quiet}
-  <p class="note">Offline: buyers don't see your listings. Pick a status and orbiter holds it while it's open; closing orbiter takes you offline.</p>
+  <p class="note" title="Pick a status and orbiter holds it while it's open; closing orbiter takes you offline">Buyers can't see your listings while you're offline.</p>
 {:else if waiting}
   <p class="note">Online until TennoScope sees Warframe running, then Online in game: buyers who look for that expect an answer in game.</p>
 {:else if s?.committed === "invisible"}

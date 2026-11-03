@@ -11,6 +11,17 @@ export interface NewsEntry {
 
 export const NEWS: NewsEntry[] = [
   {
+    id: 10,
+    date: "2026-11-04",
+    items: [
+      "Simpler pages: Details, by each page's title, shows the sentence under every figure, the full description and every column; off (the start), the rest is on hover. Filters most visits don't need sit under More filters ▾, with a count when any are set. Page modes are tabs.",
+      "Buttons that take a while fill up as they work: Sync until the new inventory read arrives, Check prices and Reprice with a count, Plan and Apply the plan, riven Price check all. Copy buttons say Copied ✓. Saving, removing or marking a listing sold shows on its row, and dismissing an alert, unstarring or removing a price alert can be undone.",
+      "Home: Bounties and Worth doing today fold to a line each (click for everything), a smaller prices note and \"Synced 5 d ago\" in the sidebar. Current fissure shows the six best rewards first (Show all for the rest), with the squad's relics behind a click.",
+      "Looks: relic rewards drawn as on the reward screen (a square with a rarity bar), rarity colours everywhere, Meso and Requiem off the green and red that mean good and bad, faction sigils you can read on dark, and the game's icons for Duviri, the Archon and its shard, Regal Aya, bounties, the resets, Amp and Plexus.",
+      "Game: invasions for a Catalyst, Reactor, Forma or Exilus are flagged; Forma blueprints valued on the reward screen; Copy recruit line says when the squad's relics don't make a 4b4; Teshin says when Umbra Forma is next; Deep and Temporal Archimedea, the 1999 Calendar and Descendia in Worth doing today; Baro's best ducat flips; the trade tax in the sell plan; a harmless riven curse says so; quick missions marked on the fissure board; Incarnon picks skip weapons that already have the adapter.",
+    ],
+  },
+  {
     id: 9,
     date: "2026-11-03",
     items: [

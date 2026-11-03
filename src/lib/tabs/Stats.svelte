@@ -146,7 +146,7 @@
 
   <TimeChart single={hist.length === 1 ? "" : undefined} title="Inventory value at each read" {at} series={[{ label: "Market value", color: "var(--chart-plat)", values: hist.map((p) => p.worth) }, { label: "Easy to sell", color: GOLD, values: hist.map((p) => p.liquid) }]} height={190} />
 
-  {#if hist.length === 1}<p class="dim small one">One inventory read so far: each line below starts with the next one. The figures beside each title are from that read.</p>{/if}
+  {#if hist.length === 1}<p class="dim small one" title="Each line starts with the next read; the figures beside each title are from this one">One inventory read so far: the lines start with the next.</p>{/if}
   <div class="charts">
     {#each allCharts ? CHARTS : CHARTS.slice(0, 3) as c (c.key)}
       <TimeChart single="" title={c.title} {at} series={[{ label: c.title, color: GOLD, values: hist.map(c.get) }]} empty={c.key === "credits" || c.key === "endo" || c.key === "platinum" ? "Needs the patched TennoScope; fills in from its next reads." : undefined}>
@@ -255,6 +255,5 @@
   .kind { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; padding: .2rem .45rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
   .k-sale { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 45%, transparent); }
   .k-purchase { color: var(--gold); border-color: var(--gold-dim); }
-  :global(html:not([data-details])) .one { display: none; }
   .more { display: block; margin: .4rem 0 0; }
 </style>
