@@ -9,6 +9,7 @@ mod presence;
 mod images;
 mod market;
 mod fissures;
+mod noxsframe;
 mod recipes;
 mod relicdata;
 
@@ -478,6 +479,29 @@ async fn market_sign_out(app: tauri::AppHandle) -> Result<(), String> {
 async fn market_items(app: tauri::AppHandle) -> Result<Value, String> {
     let cache = app.path().app_cache_dir().map_err(|e| e.to_string())?;
     blocking(move || market::items(&cache)).await
+}
+
+/// An item's top builds on Nox's Frame (noxsframe.rs): read when its builds are opened, kept a week.
+#[tauri::command]
+async fn nox_item_builds(app: tauri::AppHandle, item: String, refresh: Option<bool>) -> Result<Value, String> {
+    let cache = app.path().app_cache_dir().map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || noxsframe::item_builds(&cache, &item, refresh == Some(true))).await.map_err(|e| e.to_string())?
+}
+
+/// One Nox's Frame build, read when it's opened and kept a week. `cachedOnly`: null when not kept.
+#[tauri::command]
+async fn nox_build(app: tauri::AppHandle, path: String, refresh: Option<bool>, cached_only: Option<bool>) -> Result<Value, String> {
+    let cache = app.path().app_cache_dir().map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || noxsframe::build(&cache, &path, refresh == Some(true), cached_only == Some(true))).await.map_err(|e| e.to_string())?
+}
+
+/// A pasted Nox's Frame build code, unpacked (no network).
+#[tauri::command]
+fn nox_decode_code(code: String) -> Result<Value, String> {
+    if code.len() > 64 * 1024 {
+        return Err("that's too long for a build code".into());
+    }
+    noxsframe::decode_code(&code)
 }
 
 #[tauri::command]
@@ -1069,6 +1093,9 @@ pub fn run() {
             market_items,
             market_my_orders,
             market_riven_meta,
+            nox_item_builds,
+            nox_build,
+            nox_decode_code,
             market_riven_auctions,
             saved_read,
             saved_write,

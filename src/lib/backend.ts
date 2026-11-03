@@ -24,6 +24,7 @@ import type { Archimedea, Bundle, Calendar1999, CatalogPart, CollectionPart, Dar
 import { defaultPickWeights, type PickWeights } from "./core/pick";
 import type { Notice } from "./notices";
 import { DEFAULT_BUILDS_MAX_AGE_DAYS, sanitizeBuilds, sanitizeMaxAgeDays, type Build } from "./core/builds/types";
+import type { NoxAnswer, NoxFetcher, NoxListing, NoxPage } from "./core/builds/noxsframe";
 
 
 /** warframe.market's platforms: whose market orbiter reads and lists on. */
@@ -212,6 +213,8 @@ export interface Settings {
   builds: Build[];
   /** Builds older than this many days are hidden (their source's date, else when added); 0: no limit. */
   buildsMaxAgeDays: number;
+  /** Read an item's builds from Nox's Frame when its builds are opened (core/builds/noxsframe.ts). */
+  buildsFromNox: boolean;
 }
 
 export interface RivenWatch {
@@ -427,6 +430,7 @@ export const defaultSettings = (): Settings => ({
   rivenWatch: [],
   builds: [],
   buildsMaxAgeDays: DEFAULT_BUILDS_MAX_AGE_DAYS,
+  buildsFromNox: true,
 });
 
 const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -802,6 +806,8 @@ export async function loadSettings(): Promise<Settings> {
     // Settings from before builds get none, and the one-year age limit.
     builds: sanitizeBuilds(raw?.builds),
     buildsMaxAgeDays: sanitizeMaxAgeDays(raw?.buildsMaxAgeDays),
+    // On unless turned off.
+    buildsFromNox: raw?.buildsFromNox !== false,
   };
 }
 
@@ -1292,4 +1298,28 @@ export const market = {
   remove: (id: string): Promise<void> => (inTauri ? invoke("market_delete", { id }) : devNoop()),
   /** warframe.market's own "Sold": records the sale on your profile and lowers or closes the order. */
   close: (id: string, quantity: number): Promise<void> => (inTauri ? invoke("market_close", { id, quantity }) : devNoop()),
+};
+
+// ------------------------------------------------------------------ Nox's Frame builds
+
+/** A pasted build code unpacked in the browser (dev mode only; the app unpacks it in Rust). */
+async function decodeNoxInBrowser(code: string): Promise<unknown> {
+  const body = code.trim().replace(/^NFB1:/, "").replace(/-/g, "+").replace(/_/g, "/").replace(/=+$/, "");
+  if (body === code.trim() || typeof DecompressionStream === "undefined") throw new Error("not a Nox's Frame build code");
+  const bin = atob(body + "=".repeat((4 - (body.length % 4)) % 4));
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate"));
+  return JSON.parse(await new Response(stream).text());
+}
+
+const needAppForNox = (): Promise<never> => Promise.reject(new Error("Reading Nox's Frame needs the orbiter app"));
+
+/**
+ * Nox's Frame through the Rust side (src-tauri/src/noxsframe.rs): spaced 3 s apart, kept a week.
+ * Hand it to makeNox (core/builds/noxsframe.ts).
+ */
+export const noxFetcher: NoxFetcher = {
+  list: (item, refresh = false) => (inTauri ? invoke<NoxAnswer<NoxListing[]>>("nox_item_builds", { item, refresh }) : needAppForNox()),
+  build: (path, opts = {}) => (inTauri ? invoke<NoxAnswer<NoxPage> | null>("nox_build", { path, refresh: opts.refresh === true, cachedOnly: opts.cachedOnly === true }) : opts.cachedOnly ? Promise.resolve(null) : needAppForNox()),
+  decode: (code) => (inTauri ? invoke<unknown>("nox_decode_code", { code }) : decodeNoxInBrowser(code)),
 };
