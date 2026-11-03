@@ -17,7 +17,9 @@
   import { recruitLine } from "../core/recruit";
   import CopyButton from "./CopyButton.svelte";
 
-  type Best = { name: string; refinement: string; held: string; plat: number } | null;
+  type Pick = { name: string; refinement: string; held: string; plat: number; radiant: number };
+  /** Your best relic for the era, and the next ones (`more`) behind a click. */
+  type Best = (Pick & { more?: Pick[] }) | null;
   let {
     fissures,
     mode = $bindable(),
@@ -40,6 +42,8 @@
     /** Sets you're saving parts for that a relic of yours of this era drops a missing part of, and those relics. */
     saving?: (era: string) => { sets: string[]; relics: string[] } | null;
   } = $props();
+  /** The era whose next-best relics are open. */
+  let opened = $state<string | null>(null);
 
   const counts = $derived(fissureCounts(fissures, now));
   // Only with alerts to go by: none set, it's the whole board again.
@@ -79,10 +83,19 @@
           {#if onera && e.era !== "Omnia"}<button class="name go" title="Your {e.era} relics, on Relics" onclick={() => onera(e.era)}><GameIcon name={eraIcon(e.era)} size={22} /><b class="mark">{e.era}</b></button>
           {:else}<span class="name"><GameIcon name={eraIcon(e.era)} size={22} /><b class="mark">{e.era}</b></span>{/if}
           <span class="dim small">{e.list.length}</span>
-          {#if sv}<span class="saving" title="Your {some(sv.relics)} drop{sv.relics.length === 1 ? 's' : ''} a part still missing from {some(sv.sets.map((x) => `the ${x} Set`), 6)}, which your loose parts are waiting for (Sets → Saving up)">parts for {sv.sets.length === 1 ? sv.sets[0] : `${sv.sets.length} sets`}</span>{/if}
+          {#if sv}<span class="saving" title="Your {some(sv.relics)} drop{sv.relics.length === 1 ? 's' : ''} a part still missing from {some(sv.sets.map((x) => `the ${x} Set`), 6)}, which your loose parts are waiting for (Sets → Saving up)">{sv.sets.length === 1 ? `for ${sv.sets[0]}` : `${sv.sets.length} sets`}</span>{/if}
           <span class="grow"></span>
-          {#if b}<span class="best" title="Your relic whose crack is worth most here ({b.held}), and the average platinum of the reward you'd take"><span class="dim small crackw">Crack</span> <b use:info={b.name}>{b.name}</b> <span class="dim small refw">{b.refinement}</span> <span class="pv"><P v={b.plat} /></span></span><!-- Recruit: the line for a squad sharing your best relic of the era, on the clipboard. --><CopyButton look="chip" class="recruit" text={recruitLine(b.name, b.refinement)} label="Copy recruit line" title="Copy a recruiting line for a squad sharing {b.name} ({recruitLine(b.name, b.refinement)}): paste it in Recruiting chat" />{/if}
+          {#if b}<span class="best" title="Your relic whose crack is worth most here ({b.held}), and the average platinum of the reward you'd take"><span class="dim small crackw">Crack</span> <b use:info={b.name}>{b.name}</b> <span class="dim small refw">{b.refinement}</span> <span class="pv"><P v={b.plat} /></span></span><!-- Recruit: the line for a squad sharing your best relic of the era, on the clipboard. --><CopyButton look="chip" class="recruit" text={recruitLine(b.name, b.refinement)} label="Recruit" title="Copy a recruiting line for a squad sharing {b.name} ({recruitLine(b.name, b.refinement)}): paste it in Recruiting chat" />{/if}
+          {#if b?.more?.length}<button type="button" class="moreb" aria-expanded={opened === e.era} title="Your next best {e.era} relics to bring{opened === e.era ? '' : ` (${b.more.length} more)`}" onclick={() => (opened = opened === e.era ? null : e.era)}>{opened === e.era ? "−" : `+${b.more.length}`}</button>{/if}
         </header>
+        {#if b && opened === e.era}
+          <!-- What else to bring: the next best relics you hold for this era, and how many radiant (to host a radshare). -->
+          <ol class="also">
+            {#each [b, ...(b.more ?? [])] as x, k (x.name)}
+              <li><span class="dim small">{k + 1}</span><b use:info={x.name}>{x.name}</b><span class="dim small">{x.refinement}</span><span class="pv"><P v={x.plat} /></span><span class="dim small" title="Radiant copies you hold: four of one relic, radiant, is a radshare">{x.radiant} radiant</span></li>
+            {/each}
+          </ol>
+        {/if}
         <ul>
           {#each e.list as f (f.id)}
             <li class:hit={watched.has(f.id) && !mine}>
@@ -100,7 +113,8 @@
 
 <style>
   .kinds { display: flex; flex-wrap: wrap; gap: .5rem; }
-  .eras { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(29rem, 100%), 1fr)); gap: .9rem 1.4rem; }
+  /* Two across at most (each era card needs room for its header), one when two won't fit. */
+  .eras { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, max(26rem, calc((100% - 1.4rem) / 2))), 1fr)); gap: .9rem 1.4rem; }
   /* Each era a plate washed in its relic's colour (app.css, .era-wash), its name in that colour. */
   .era { padding: .55rem .75rem .45rem .85rem; border: 1px solid color-mix(in srgb, var(--tint) 18%, var(--rule)); clip-path: var(--cut); }
   .era header { display: flex; align-items: center; gap: .5rem; padding-bottom: .3rem; border-bottom: 1px solid color-mix(in srgb, var(--tint) 22%, var(--rule)); min-width: 0; }
@@ -112,6 +126,12 @@
   button.go:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
   .grow { flex: 1; }
   .best { display: inline-flex; align-items: baseline; gap: .3rem; min-width: 0; white-space: nowrap; }
+  .moreb { all: unset; box-sizing: border-box; flex: none; min-width: 1.6rem; padding: .05rem .3rem; text-align: center; font-size: .7rem; color: var(--platinum-deep); border: 1px solid var(--rule-control); cursor: pointer; }
+  .moreb:hover, .moreb[aria-expanded="true"] { color: var(--platinum); border-color: var(--gold-dim); }
+  .moreb:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .also { list-style: none; margin: 0 0 .5rem; padding: .4rem .5rem; display: grid; gap: .25rem; background: rgb(0 0 0 / 18%); }
+  .also li { display: grid; grid-template-columns: 1rem minmax(0, 1fr) auto auto auto; gap: .5rem; align-items: baseline; font-size: .82rem; }
+  .also b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* The relic's name gives way first; its value and the Recruit button never do. */
   .best b { font-weight: 600; color: var(--platinum); font-size: .86rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .pv { flex: none; }

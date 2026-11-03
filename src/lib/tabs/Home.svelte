@@ -134,15 +134,16 @@
     const v = radiant ? (squad === 1 ? r.evRadiant : r.outRadiant.length ? expectedBest(r.outRadiant, squad) : null) : squad === 1 ? r.evIntact : r.outIntact.length ? expectedBest(r.outIntact, squad) : null;
     return { v: v == null ? null : Math.round(v * 10) / 10, refinement: radiant ? "Radiant" : "Intact" };
   };
+  /** Your relics worth cracking in this era's fissures, best first (the top three). */
   const bestFor = (era: string) => {
-    let best: { r: RelicRow; v: number; refinement: string } | null = null;
+    const out: { r: RelicRow; v: number; refinement: string }[] = [];
     for (const r of relics) {
       // Omnia fissures take Lith to Axi relics, not Requiem ones.
       if (era === "Omnia" ? r.era === "Requiem" : r.era !== era) continue;
       const c = crackValue(r);
-      if (c.v != null && (!best || c.v > best.v)) best = { r, v: c.v, refinement: c.refinement };
+      if (c.v != null) out.push({ r, v: c.v, refinement: c.refinement });
     }
-    return best;
+    return out.sort((a, b) => b.v - a.v).slice(0, 3);
   };
   // Your best relic for each era, worked out once per era rather than per fissure.
   // Sets your loose parts wait for (Settings → Selling), by the era of the relics of yours that drop a missing part.
@@ -169,8 +170,9 @@
   });
   const bests = $derived(new Map<string, ReturnType<typeof bestFor>>(ERAS.map((era) => [era, bestFor(era)])));
   const eraBest = (era: string) => {
-    const b = console ? null : bests.get(era);
-    return b ? { name: b.r.base, refinement: b.refinement, held: `${b.r.owned[b.refinement] ?? 0} of ${b.r.total} held`, plat: b.v } : null;
+    const top = console ? [] : (bests.get(era) ?? []);
+    const one = (b: (typeof top)[number]) => ({ name: b.r.base, refinement: b.refinement, held: `${b.r.owned[b.refinement] ?? 0} of ${b.r.total} held`, plat: b.v, radiant: b.r.owned.Radiant ?? 0 });
+    return top.length ? { ...one(top[0]), more: top.slice(1).map(one) } : null;
   };
 
   // ------------------------------------------------------------ bounties
