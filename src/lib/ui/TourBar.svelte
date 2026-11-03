@@ -1,6 +1,7 @@
 <script lang="ts">
   // The tour's bar, along the bottom of the page while a tour is on (tour.svelte.ts): the change
-  // shown now (its icon, title and line), how far along you are, Back, Next and Done. App opens
+  // shown now (its icon, title and line), how far along you are, Back, Next and End tour (on the
+  // last change, Finish ends it and End tour goes). App opens
   // each change's page and lights its spot. Keys: → or Enter next, ← back, Esc ends it.
   import { tick } from "svelte";
   import { tour, tourStop, stepTour, endTour } from "../tour.svelte";
@@ -64,7 +65,8 @@
     <div class="ctl">
       <button type="button" class="back" disabled={tour.at === 0} title="The change before (←)" onclick={() => stepTour(-1)}>Back</button>
       <button type="button" class="stamp gold" bind:this={nextEl} title={last ? "The last change: end the tour (→ or Enter)" : "The next change, on its page (→ or Enter)"} onclick={() => stepTour(1)}>{last ? "Finish" : "Next"}</button>
-      <button type="button" class="link quiet" title="End the tour here (Esc)" onclick={endTour}>Done</button>
+      <!-- On the last change Finish ends it: End tour keeps its place, so Finish doesn't move. -->
+      <button type="button" class="link quiet end" class:gone={last} aria-hidden={last ? "true" : undefined} title="End the tour here (Esc)" onclick={endTour}>End tour</button>
     </div>
   </div>
 {/if}
@@ -91,6 +93,8 @@
   .x { font-size: .82rem; color: var(--platinum-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .ctl { display: flex; align-items: center; gap: .5rem; }
   .ctl .stamp { min-width: 5.5rem; }
+  .ctl .end { white-space: nowrap; }
+  .ctl .end.gone { visibility: hidden; }
   @media (max-width: 1400px) {
     .words { grid-template-columns: auto minmax(0, 1fr); }
     .x { grid-column: 1 / -1; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }

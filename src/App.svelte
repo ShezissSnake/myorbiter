@@ -605,38 +605,100 @@
   /** The last spot asked for: a slower look for an earlier one gives up. */
   let spotAsk = 0;
   /** The tour's spot, outlined until the next. */
-  let held: Animation | null = null;
+  let held: { cancel(): void } | null = null;
+  /** The spot lit now (Show me's fades by itself): a new one puts it out. */
+  let lit: { cancel(): void } | null = null;
+  /** The ring over a lit spot, and the box that keeps it inside the page (or the sidebar). */
+  let ringBox = $state<HTMLDivElement | null>(null);
+  let ringEl = $state<HTMLDivElement | null>(null);
+  /** Room between a spot and its ring, so the ring never touches the text. */
+  const RING_PAD = 10;
   /**
-   * Brings a spot into view and lights it: a gold ring and glow that fades (with `hold`, settles to
-   * the ring). Reduced motion: no scrolling glide and no fade, a plain gold outline for a moment.
+   * Where a page scrolls to show a spot. A spot that fits on the first screen, or starts near the
+   * page's title, leaves the page at its top, title and all; any other lands with its start a
+   * little below the top edge, the title scrolled wholly away. Never half a title.
    */
-  function spotlight(el: HTMLElement, hold: boolean): Animation {
+  function spotTop(el: HTMLElement, page: HTMLElement): number {
+    const pr = page.getBoundingClientRect();
+    const er = el.getBoundingClientRect();
+    const top = er.top - pr.top + page.scrollTop;
+    const bar = document.querySelector<HTMLElement>("main .tour");
+    const view = page.clientHeight - (bar?.offsetHeight ?? 0);
+    const room = RING_PAD + 28;
+    if (top + er.height + room <= view) return 0;
+    const title = page.querySelector<HTMLElement>("h1");
+    const titleEnd = title ? title.getBoundingClientRect().bottom - pr.top + page.scrollTop : 0;
+    const want = top - room;
+    return want <= titleEnd ? 0 : want;
+  }
+  /**
+   * Brings a spot into view and lights it: a gold ring a little way out from it, with a glow that
+   * fades (with `hold`, settles to the ring). The ring is drawn over the page rather than on the
+   * spot, so nothing the spot sits in clips it, and it follows the spot as the page scrolls or
+   * redraws; it stays inside the page, off the banner above and the tour's bar below. Reduced
+   * motion: no scrolling glide and no fade, a plain gold ring for a moment.
+   */
+  function spotlight(el: HTMLElement, hold: boolean): { cancel(): void } {
+    lit?.cancel();
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    // A tall spot (a table, a list) shows its top, a little below the page's edge; a small one
-    // comes to the middle.
-    const page = el.closest<HTMLElement>(".page");
     const behavior = still ? "auto" : "smooth";
-    if (page && el.offsetHeight > page.clientHeight * 0.6) page.scrollTo({ top: page.scrollTop + el.getBoundingClientRect().top - page.getBoundingClientRect().top - 24, behavior });
-    else el.scrollIntoView({ block: "center", behavior });
+    const page = el.closest<HTMLElement>(".page");
+    const rail = el.closest<HTMLElement>(".rail");
+    if (page) page.scrollTo({ top: spotTop(el, page), behavior });
+    else if (!rail) el.scrollIntoView({ block: "nearest", behavior });
     // Show me from the keyboard: Tab goes on from the spot, not from the top of the window.
     if (!hold && (document.activeElement === document.body || !document.activeElement)) {
       if (!el.matches("a[href], button, input, select, textarea, summary, [tabindex]")) el.tabIndex = -1;
       el.focus({ preventScroll: true });
     }
-    // The inner ring shows even where the page clips the outer glow.
-    const ring = "inset 0 0 0 1px rgb(214 174 74), 0 0 0 1px rgb(214 174 74)";
-    const lit = `${ring}, 0 0 26px rgb(214 174 74 / 45%)`;
-    const off = "inset 0 0 0 1px transparent, 0 0 0 1px transparent, 0 0 0 transparent";
-    if (still) return el.animate([{ boxShadow: ring }, { boxShadow: ring }], hold ? { duration: 1, fill: "forwards" } : { duration: 3000 });
-    return el.animate(
-      [
-        { boxShadow: off, offset: 0 },
-        { boxShadow: lit, offset: 0.15 },
-        { boxShadow: lit, offset: 0.45 },
-        { boxShadow: hold ? ring : off, offset: 1 },
-      ],
-      { duration: 2000, delay: 350, easing: "ease-out", fill: hold ? "forwards" : "none" },
-    );
+    const box = ringBox;
+    const ring = ringEl;
+    if (!box || !ring) return { cancel() {} };
+    const frame = page ?? rail ?? document.documentElement;
+    let raf = 0;
+    // Every frame while lit: the page may scroll, fold or load under it.
+    const place = () => {
+      const r = el.getBoundingClientRect();
+      const f = frame.getBoundingClientRect();
+      const bar = document.querySelector<HTMLElement>("main .tour")?.getBoundingClientRect();
+      const bottom = Math.min(f.bottom, bar && bar.top > f.top ? bar.top : Infinity);
+      if (!r.width && !r.height) box.style.display = "none";
+      else {
+        Object.assign(box.style, { display: "block", left: `${f.left}px`, top: `${f.top}px`, width: `${frame.clientWidth || f.width}px`, height: `${Math.max(0, bottom - f.top)}px` });
+        // Sideways the ring keeps inside the frame, so a spot as wide as the page still shows both edges.
+        const left = Math.max(r.left - RING_PAD, f.left + 2) - f.left;
+        const right = Math.min(r.right + RING_PAD, f.left + (frame.clientWidth || f.width) - 2) - f.left;
+        Object.assign(ring.style, { left: `${left}px`, top: `${r.top - RING_PAD - f.top}px`, width: `${Math.max(0, right - left)}px`, height: `${r.height + 2 * RING_PAD}px` });
+      }
+      raf = requestAnimationFrame(place);
+    };
+    place();
+    const glow = "0 0 0 1px rgb(0 0 0 / 55%), 0 0 26px rgb(214 174 74 / 45%), inset 0 0 18px rgb(214 174 74 / 12%)";
+    const calm = "0 0 0 1px rgb(0 0 0 / 55%), 0 0 0 transparent, inset 0 0 0 transparent";
+    const anim = still
+      ? ring.animate([{ opacity: 1, boxShadow: calm }, { opacity: 1, boxShadow: calm }], hold ? { duration: 1, fill: "forwards" } : { duration: 3000 })
+      : ring.animate(
+          [
+            { opacity: 0, boxShadow: calm, offset: 0 },
+            { opacity: 1, boxShadow: glow, offset: 0.15 },
+            { opacity: 1, boxShadow: glow, offset: 0.45 },
+            { opacity: hold ? 1 : 0, boxShadow: calm, offset: 1 },
+          ],
+          { duration: 2000, delay: 350, easing: "ease-out", fill: hold ? "both" : "backwards" },
+        );
+    let done = false;
+    const off = () => {
+      if (done) return;
+      done = true;
+      cancelAnimationFrame(raf);
+      anim.cancel();
+      box.style.display = "none";
+      if (lit === handle) lit = null;
+    };
+    const handle = { cancel: off };
+    if (!hold) anim.finished.then(off, () => {});
+    lit = handle;
+    return handle;
   }
   tourGate.ok = (page) => available.some((p) => p.id === page);
   // The tour (What's New, Take the tour): each change's page, its spot held lit; ended, the light goes.
@@ -2227,7 +2289,7 @@
       {#snippet pHome()}<Home {model} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => goTo(t)} {shortListings} {liveAt} {liveError} {liveRead} bountyTables={relicTables?.bounties ?? null} sortieRewards={relicTables?.sortie ?? null} />{/snippet}
       {#snippet pSales()}{#await loadSales(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("sales", e)}><Page {model} bind:settings={settings} go={(t: string) => (settings.tab = t)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pMarket()}<Orders {model} console={onConsole} whispers={mission?.whispers ?? []} bind:settings={settings.market} advice={settings.advice} masteryRank={settings.game.masteryRank} credits={settings.game.credits} />{/snippet}
-      {#snippet pGuide()}{#await loadGuide(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("guide", e)}><Page console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} go={(t: string) => goTo(t)} bind:plannerMode={settings.plannerMode} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pGuide()}{#await loadGuide(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("guide", e)}><Page console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} hidden={settings.pagesHidden} go={(t: string) => goTo(t)} bind:plannerMode={settings.plannerMode} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pFoundry()}<Foundry {model} bind:settings={settings} />{/snippet}
       {#snippet pInventory()}<Inventory {model} sell={settings.market.sellable} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad} gear={settings.game.gear} bind:keepGear={settings.game.keepGear} />{/snippet}
       {#snippet pBrowse()}{#await loadMarket(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("browse", e)}><Page {model} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
@@ -2268,6 +2330,8 @@
   {/if}
 </div>
 
+<!-- The ring Show me and the tour put round a spot (spotlight): over the page, inside its edges. -->
+<div class="spotbox" bind:this={ringBox} aria-hidden="true"><div class="spotring" bind:this={ringEl}></div></div>
 <NoticesSheet bind:open={showNotices} bind:view={noticesView} bind:settings console={onConsole} open_={openNotice} test={testNotice} />
 <Toasts open={openNotice} left={compact ? "5.2rem" : "15.3rem"} />
 <WhatsNew bind:open={showNews} seen={settings.newsSeen} ondone={() => (settings.newsSeen = NEWEST)} go={(t: string) => goTo(t)} />
@@ -2275,6 +2339,9 @@
 <TennoscopeSheet bind:open={showTennoscope} synced={model ? ago(model.observedAt, tick) : "not yet"} job={syncJob} onsync={refreshAll} {windowMode} bind:opaqueOverlay={settings.tennoscope.opaqueOverlay} />
 
 <style>
+  /* Show me's ring: drawn over the page, clipped to it, never catching the pointer. */
+  .spotbox { display: none; position: fixed; z-index: 29; overflow: hidden; pointer-events: none; }
+  .spotring { position: absolute; border: 1px solid rgb(214 174 74); opacity: 0; }
   /* The frame: a sidebar of pages, and the page. minmax(0, 1fr): a wide table never stretches the window. */
   .shell { display: grid; grid-template-columns: 14.5rem minmax(0, 1fr); height: 100vh; }
   .shell.compact { grid-template-columns: 4.4rem minmax(0, 1fr); }
