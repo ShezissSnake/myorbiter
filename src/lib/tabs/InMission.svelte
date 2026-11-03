@@ -225,7 +225,9 @@
           </div>
         {/each}
       </div>
-      <p class="screen-foot dim small">{ms?.reward_screen_open ? "The reward screen is open." : live ? "Each relic cracks into one reward here when the reward screen opens: with the patched TennoScope, the cards stand here and the one to take is lit." : "Your squad's relics from the last fissure. The next fissure's replace them as it loads."}</p>
+      <p class="screen-foot dim small">{ms?.reward_screen_open ? "The reward screen is open." : live ? "Each relic cracks into one reward here when the reward screen opens: with the patched TennoScope, the cards stand here and the one to take is lit." : "Your squad's relics from the last fissure. The next fissure's replace them as it loads."}
+        <!-- Under the relics it's about: whether they're all one relic at one refinement. -->
+        {#if share}<span class="share" class:off={!share.matched} title={share.matched ? "4×4 (a 4b4): all four players brought the same relic at the same refinement, so the four reward cards are four rolls on one table" : `4×4 (a 4b4) is all four players bringing the same relic at the same refinement. ${share.allDiffer ? "Each of the squad brought a different relic or refinement" : `Most of the squad brought ${share.main}; the odd ones out (${share.off.join(", ")}) roll on a different table`}`}>{share.text}</span>{/if}</p>
     {:else}
       <div class="row">
         {#each SLOT_ERAS as e, i (e)}
@@ -290,7 +292,6 @@
       {#if ranked.length > TOP}<button class="link more" onclick={() => (showAll = !showAll)} title="Every reward the squad's relics can drop, in pick order">{showAll ? `Show the top ${TOP}` : `Show all ${ranked.length}`}</button>{/if}
     {/if}
 
-    {#if share}<p class="share small" class:off={!share.matched} title={share.matched ? "All four players brought the same relic at the same refinement: four rolls on one reward table" : `A 4b4 is four of one relic at one refinement. ${share.text.endsWith("different relics") ? "Each of the squad brought a different relic or refinement" : `Most of the squad brought ${share.main}; the odd ones out (${share.off.join(", ")}) roll on a different table`}`}>{share.text}</p>{/if}
     <!-- Each relic's own rewards, a click away: the list above already says what to take. -->
     <h2 class="register relhead"><button class="link" aria-expanded={showRelics} onclick={() => (showRelics = !showRelics)} title="Each relic in the squad with its rewards and odds"><span class="chev side" aria-hidden="true">▸</span> The squad's relics · {relics.length}</button>{#if showRelics}<span class="legend">Gold: a part you still need · dimmed: you've mastered what it builds · the edge: its rarity (bronze common, silver uncommon, gold rare)</span>{/if}</h2>
     {#if showRelics}<div class="reveal" transition:reveal><section class="cards">{#each relics as r, i (r.path + i)}{@render relicCard(r)}{/each}</section></div>{/if}
@@ -446,7 +447,7 @@
   .sw.b-need { background: var(--verdigris); }
   .sw.b-ducat { background: repeating-linear-gradient(135deg, var(--gold-dim) 0 2px, transparent 2px 4px); box-shadow: inset 0 0 0 1px var(--gold-dim); }
   .sw.b-set { background: color-mix(in srgb, var(--verdigris) 22%, transparent); box-shadow: inset 0 0 0 1px var(--verdigris); }
-  .share { margin: var(--course, 1rem) 0 -.4rem; color: var(--platinum-dim); }
+  .share { color: var(--platinum-dim); }
   .share.off { color: var(--alert); }
   .pool-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem 1rem; margin: var(--course) 0 .6rem; }
   .pool-head h2 { margin: 0; }
