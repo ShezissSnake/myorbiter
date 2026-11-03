@@ -229,5 +229,5 @@
   dd { margin: 0; color: var(--platinum-dim); }
   .ups ul { margin: 0; padding-left: 1rem; font-size: .8rem; display: grid; gap: .15rem; }
   .ups b { font-weight: 500; color: var(--platinum); }
-  .note { margin: 0; display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.5; }
+  .note { margin: 0; white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.5; }
 </style>
