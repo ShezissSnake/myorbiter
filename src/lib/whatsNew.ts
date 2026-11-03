@@ -1,14 +1,21 @@
-// What changed, newest first: shown once after an update (WhatsNew.svelte), and on the Guide.
-// One entry per batch of builds. From entry 11 on, each change is a card: an icon, a few words
-// for a title, a line on it as a player would put it (page names and game words in it get their
-// icons, core/richText.ts) and where to see it. Older entries are a sentence each.
+// What changed, newest first: shown once after an update (WhatsNew.svelte, the update screen), and
+// on the Guide. One entry per batch of builds; entries out the same day show as one update. From
+// entry 11 on, each change is an item: an icon, a few words for a title, a line on it as a player
+// would put it (page names and game words in it get their icons, core/richText.ts) and where to see
+// it, down to the spot on the page (Show me, and the tour). Older entries are a sentence each.
 
 export interface NewsItem {
   title: string;
   text: string;
-  /** The game's icon, one of orbiter's line icons, or a page's own sidebar icon. */
-  icon: { game: string } | { line: string } | { page: string };
-  /** Where to see it, as App's links put it ("market?spares=1#spares", "home#today"). */
+  /**
+   * The game's icon, one of orbiter's line icons, a page's own sidebar icon, or the four sections'
+   * sigils in their colours.
+   */
+  icon: { game: string } | { line: string } | { page: string } | { sections: true };
+  /**
+   * Where to see it, as App's links put it: a page, filters, and a spot on it that Show me lights
+   * ("market?spares=1#spares", "home#today": a `data-card` or an id on the page, or in the sidebar).
+   */
   open?: string;
 }
 
@@ -25,23 +32,26 @@ export const NEWS: NewsEntry[] = [
     id: 12,
     date: "2026-11-04",
     items: [
-      { title: "What's New, as cards", icon: { line: "cards" }, text: "Each change with its icon, a few words and a button to the page it's about.", open: "guide" },
-      { title: "Icons in the text, like the wiki", icon: { game: "platinum" }, text: "In What's New and the Guide, a page's name takes you there (Orders, Prime parts, Relics…), and platinum, ducats, Void Traces, Kuva, Vosfor and the rest carry their game icon.", open: "guide" },
+      { title: "Each section its own colour", icon: { sections: true }, text: "Fissures in Void violet, Progress in mastery teal, Collection in the Arsenal's steel blue, Trade in market gold, each with its sigil over the page's title and on its label in the sidebar. You can tell where you are at a glance.", open: "relics#sections" },
+      { title: "An update screen, with a tour", icon: { line: "guide" }, text: "What's New opens like the game's own: the biggest change first, the rest in a list, older ones folded. Take the tour walks you through each change on its page. The Guide keeps them all.", open: "guide#news" },
+      { title: "Show me", icon: { line: "search" }, text: "On any change here: opens its page and lights the very thing that changed, a figure, a fold or a column.", open: "guide#showme" },
+      { title: "Icons in the text, like the wiki", icon: { game: "platinum" }, text: "In What's New and the Guide, a page's name takes you there, and platinum, ducats, Void Traces, Kuva and the rest carry their game icon.", open: "guide#walks" },
     ],
   },
   {
     id: 11,
     date: "2026-11-04",
     items: [
-      { title: "Requiem and Antivirus mods kept", icon: { game: "kuva" }, text: "Five of each, while a Kuva, Tenet or Coda weapon is left to master; copies beyond five can go. Mods says which weapons they're kept for.", open: "mods" },
+      { title: "Requiem and Antivirus mods kept", icon: { game: "kuva" }, text: "Five of each, while a Kuva, Tenet or Coda weapon is left to master; copies beyond five can go. Mods says which weapons they're kept for.", open: "mods#liches" },
       { title: "A settled sidebar", icon: { line: "list" }, text: "Each section answers one question. Fissures: what should I crack? Progress: what's left to get? Collection: what do I hold, and what do I keep or sell? Trade: your activity on warframe.market." },
       { title: "Never sold under its ducats", icon: { game: "ducats" }, text: "A prime part or set is judged at the price it would actually list at, and Reprice never takes one down to its ducat value. A set is weighed whole against all its parts' ducats.", open: "parts" },
       { title: "Trade tax, corrected", icon: { game: "credits" }, text: "Warframe charges whoever receives: selling costs you 500 credits for each platinum you're paid. The buyer pays the item's own tax.", open: "market?spares=1#spares" },
-      { title: "Orders, rearranged", icon: { page: "market" }, text: "Put my spares on sale sits at the top, folded; applying a plan ticks each change off as it's sent. Sort the table by any column, see who whispered you, go invisible when your trades run out.", open: "market" },
+      { title: "Orders, rearranged", icon: { page: "market" }, text: "Put my spares on sale sits at the top, folded; applying a plan ticks each change off as it's sent. Sort the table by any column, see who whispered you, go invisible when your trades run out.", open: "market#sort" },
       { title: "Chores to tick off", icon: { game: "nightwave" }, text: "Worth doing today has a box for each chore, cleared at its reset, Kahl's Garrison and Netracells included; Nightwave tasks and Archimedea risks spelled out; +2 for each era's next best relics.", open: "home#today" },
       { title: "The same number, the same name", icon: { page: "inventory" }, text: "Spare value on Inventory, Worth selling on Prime parts, Mods and Arcanes, Ready to list on Home, and Stats agrees with Inventory.", open: "inventory" },
       { title: "One toolbar on every list", icon: { line: "rows" }, text: "Foundry and Rivens sort, count and switch to a table like the rest; Clear when a filter hides everything; Sell everywhere for selling.", open: "foundry" },
-      { title: "Your foundry, your Void Traces", icon: { game: "void-traces" }, text: "Foundry shows what's building and ready; Relics and Current fissure show your Void Traces against the cap; Ctrl+K finds anything warframe.market trades.", open: "relics" },
+      { title: "Your foundry", icon: { game: "foundry" }, text: "Foundry shows what's building and what's ready to claim, soonest first.", open: "foundry#queue" },
+      { title: "Your Void Traces", icon: { game: "void-traces" }, text: "Relics and Current fissure show your Void Traces against the cap; Ctrl+K finds anything warframe.market trades.", open: "relics#traces" },
       { title: "Sturdier", icon: { line: "check" }, text: "A page that hits an error offers Try again; number boxes take whole numbers; dialogs keep keyboard focus; Ctrl+1…9 lands on the page." },
     ],
   },
@@ -153,6 +163,30 @@ export const NEWS: NewsEntry[] = [
 ];
 
 export const NEWEST = String(NEWS[0].id);
+
+/** One update as the update screen shows it: the entries out the same day, newest first. */
+export interface NewsBatch {
+  date: string;
+  /** The entries' ids, newest first. */
+  ids: number[];
+  items: (string | NewsItem)[];
+}
+
+/** Entries (newest first) gathered into updates: the entries out on the same day are one. */
+export function batches(entries: NewsEntry[]): NewsBatch[] {
+  const out: NewsBatch[] = [];
+  for (const e of entries) {
+    const last = out[out.length - 1];
+    if (last && last.date === e.date) {
+      last.ids.push(e.id);
+      last.items.push(...e.items);
+    } else out.push({ date: e.date, ids: [e.id], items: [...e.items] });
+  }
+  return out;
+}
+
+/** The changes in an update that have a place to show, in order: the tour's stops. */
+export const tourStops = (items: (string | NewsItem)[]): NewsItem[] => items.filter((x): x is NewsItem => typeof x !== "string" && !!x.open);
 
 /** The entries since the one last seen (all of them for "", or anything that isn't an id). */
 export const newsSince = (seen: string) => {

@@ -7,7 +7,8 @@
   import Icon from "../ui/Icon.svelte";
   import PartChip from "../ui/PartChip.svelte";
   import GameIcon from "../ui/GameIcon.svelte";
-  import { NEWS } from "../whatsNew";
+  import { NEWS, batches, tourStops } from "../whatsNew";
+  import { startTour } from "../tour.svelte";
   import NewsItems from "../ui/NewsItems.svelte";
   import Rich from "../ui/Rich.svelte";
   import { BUILD } from "../build";
@@ -23,6 +24,9 @@
   ];
 
   type Step = [tab: string, label: string, text: string | string[], planner?: "sets" | "radiant"];
+  // What's new, one update a day; the latest one's tour.
+  const updates = batches(NEWS);
+  const latestStops = tourStops(updates[0]?.items ?? []);
   // Each page in a line: its first clause, the rest on "more".
   let openSteps = $state<Record<string, boolean>>({});
   const brief = (t: string | string[]) => {
@@ -136,6 +140,7 @@
       <h3 class="register lead">Getting around</h3>
       <ul>
         <li><b>Hover</b> over any button or number for what it does.</li>
+        <li data-card="showme"><b>Show me</b>, on a change in What's New, opens its page and lights the very thing that changed. <b>Take the tour</b> steps through every change of the latest update, page by page, with a bar at the bottom of the window: <kbd>→</kbd> or <kbd>Enter</kbd> for the next, <kbd>←</kbd> back, <kbd>Esc</kbd> to stop.</li>
         <li><b>Sync</b>, at the bottom of the sidebar, reloads your listings, the fissures and Baro; it fills as it goes and ticks when done.</li>
         <li><b>Keyboard:</b> <kbd>Ctrl</kbd>+<kbd>1</kbd>…<kbd>4</kbd> pages in sidebar order, <kbd>Ctrl</kbd>+<kbd>R</kbd> or <kbd>F5</kbd> sync, <kbd>Ctrl</kbd>+<kbd>,</kbd> settings, <kbd>F1</kbd> this guide, <kbd>Esc</kbd> closes a panel, <kbd>Ctrl</kbd>+<kbd>Q</kbd> quits.</li>
         <li><span class="ic"><Icon name="bell" /></span> <b>Notifications</b>: what orbiter told you lately (click one to open it), and under <b>Choose</b> which kinds you get, with a pause for all of them. Choose can also send the kinds you pick to a Discord channel (paste its webhook address), to get them on your phone while you're away.</li>
@@ -155,7 +160,7 @@
 {:else}
   <PageHead title="Guide" blurb="What each page is for. orbiter runs TennoScope for you in the background." />
 
-  <section class="walks" aria-label="Walkthroughs">
+  <section class="walks" aria-label="Walkthroughs" data-card="walks">
     {#each WALKS as w (w.title)}
       <article>
         <h2 class="mark">{w.title}</h2>
@@ -196,6 +201,7 @@
       <ul>
         <li><span class="ic"><Icon name="list" /></span> at the end of a row puts it on warframe.market without leaving the page: only the copies you can spare, priced at the cheapest seller in game. A padlock <span class="ic"><Icon name="lock" /></span> (or nothing) means you need what you have; the green <span class="ic good"><Icon name="listed" /></span> means it's on the market already (click to add more or change the price). Every icon says what it does when you hover it.</li>
         <li><b>Cards or rows:</b> collection pages show cards by default; <span class="ic"><Icon name="rows" /></span> above the cards switches that page to a sortable table, <span class="ic"><Icon name="cards" /></span> back, and it's remembered. A gold notch in a card's top corner marks one to look at: spares you can sell, gear you own but haven't mastered, a relic with a part you need, an arcane you've maxed (hover the notch for that card's reason). On round part icons, a gold ring is enough in hand, dashed is building; a relic's rewards are square, like the game's reward screen.</li>
+        <li data-card="showme"><b>Show me</b>, on a change in What's New, opens its page and lights the very thing that changed. <b>Take the tour</b> steps through every change of the latest update, page by page, with a bar at the bottom of the window: <kbd>→</kbd> or <kbd>Enter</kbd> for the next, <kbd>←</kbd> back, <kbd>Esc</kbd> to stop.</li>
         <li><b>Hover</b> over anything with a name (a relic, a part, a mod, an arcane, a warframe or weapon) for what it is: a relic's rewards with their odds and prices, where a part drops and what it sells for, a mod's effect at max rank. Move off it, scroll or press <kbd>Esc</kbd> to close it.</li>
         <li><b>Click a card or row</b> to open it: a warframe, weapon or companion opens its full details (stats, parts, drops, prices); other things show relic odds, how many you keep, and warframe.market links.</li>
         <li><b>Details</b>, by each page's title, shows the sentence under every figure, the full page description and every table column; off (the start), pages keep to the essentials and the rest is on hover. <b>More filters ▾</b> holds the filters most visits don't need (a number on it says how many are set; Clear puts them back).</li>
@@ -272,11 +278,14 @@
   </section>
 {/if}
 
-  <section class="news" aria-label="What's new">
-    <h3 class="register lead">What's new</h3>
-    {#each NEWS as n, i (n.id)}
-      {#if i === 0 || NEWS[i - 1].date !== n.date}<h4 class="register">{new Date(`${n.date}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}</h4>{/if}
-      <NewsItems items={n.items} {go} />
+  <section class="news" aria-label="What's new" data-card="news">
+    <div class="newshead">
+      <h3 class="register lead">What's new</h3>
+      {#if latestStops.length > 1}<button class="stamp" title="Step through each change of the latest update on its page, with a bar at the bottom of the window: arrow keys or Enter for the next, Esc to stop" onclick={() => startTour(latestStops)}>Take the tour <span class="dim">{latestStops.length}</span></button>{/if}
+    </div>
+    {#each updates as u (u.ids[0])}
+      <h4 class="register">{new Date(`${u.date}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}</h4>
+      <NewsItems items={u.items} {go} />
     {/each}
     <p class="dim small">This build: {BUILD.commit}{BUILD.date ? `, ${BUILD.date}` : ""}. Say it when you report a problem.</p>
   </section>
@@ -288,9 +297,10 @@
   .walks h2 { font-size: 1.05rem; margin: 0 0 .5rem; }
   .walks ol { margin: 0; padding-left: 1.1rem; display: grid; gap: .35rem; font-size: .86rem; }
   .walks .hidden-pages { grid-column: 1 / -1; margin: 0; }
-  .news { margin-top: var(--course); display: grid; gap: .5rem; max-width: 80ch; }
-  .news h4 { margin: .6rem 0 0; font-size: .6rem; color: var(--platinum-deep); }
-  .news :global(.lines) { font-size: .86rem; color: var(--platinum-dim); }
+  .news { margin-top: var(--course); display: grid; gap: .5rem; max-width: 72rem; }
+  .news h4 { margin: .9rem 0 0; font-size: .6rem; color: var(--platinum-deep); }
+  .newshead { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .newshead .lead { margin: 0; }
   /* An icon named in the text, drawn as it is on the page. */
   .ic { display: inline-grid; place-items: center; width: 1.3rem; height: 1.3rem; vertical-align: -.3rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
   .ic.good { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 50%, transparent); }

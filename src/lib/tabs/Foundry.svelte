@@ -141,13 +141,13 @@
       <Stat label="Mastered" note={`of ${inGroup.length} ${groupLabel}`}><GameIcon name="mastery" size={30} />{mastered}<span class="of">/{inGroup.length}</span></Stat>
       <Stat label="Owned, not mastered" tone="gold" note={group === "all" ? "Level these" : `Level these · ${groupLabel}`}>{ownedOnly}</Stat>
       <Stat label="Ready to build" note={`${partsReady ? `Everything in hand · ${partsReady} more with resources to farm` : "Every part and resource in hand, not mastered yet"}${group === "all" ? "" : ` · ${groupLabel}`}`}>{buildable}</Stat>
-      <Stat label="In your foundry" tone={readyToClaim ? "gold" : "dim"} note={readyToClaim ? `${readyToClaim} ready to claim` : builds.length ? "Nothing ready yet" : "Nothing building"}>{builds.length}</Stat>
+      <Stat label="In your foundry" spot={builds.length ? null : "queue"} tone={readyToClaim ? "gold" : "dim"} note={readyToClaim ? `${readyToClaim} ready to claim` : builds.length ? "Nothing ready yet" : "Nothing building"}>{builds.length}</Stat>
     {/snippet}
   </PageHead>
 
   {#if builds.length}
     <!-- The foundry itself: what's building and what's ready to claim, soonest first. -->
-    <ul class="queue" aria-label="In your foundry">
+    <ul class="queue" aria-label="In your foundry" data-card="queue">
       {#each builds as b (b.key)}
         {@const u = gearOf(b.name)}
         <li class:ready={b.ready}>

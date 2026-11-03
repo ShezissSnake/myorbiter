@@ -7,10 +7,11 @@
   // With details off (lib/view.svelte.ts) the note goes to hover, unless `keep`: a note that is
   // the point (what to crack now, when it refreshes).
   // `extra`: a figure only Details shows (the page's main figures stay).
-  let { label, note, tone = "platinum", hover = null, title = null, keep = false, extra = false, children }: { label: string; note?: string; tone?: "platinum" | "gold" | "dim"; hover?: string | null; title?: string | null; keep?: boolean; extra?: boolean; children: Snippet } = $props();
+  // `spot`: its name for links that light it (App's goTo, "relics#traces").
+  let { label, note, tone = "platinum", hover = null, title = null, keep = false, extra = false, spot = null, children }: { label: string; note?: string; tone?: "platinum" | "gold" | "dim"; hover?: string | null; title?: string | null; keep?: boolean; extra?: boolean; spot?: string | null; children: Snippet } = $props();
 </script>
 
-<div class="cell" class:extra title={title ?? (note ? `${label}: ${note}` : label)}>
+<div class="cell" class:extra data-card={spot} title={title ?? (note ? `${label}: ${note}` : label)}>
   <div class="v mark t-{tone}">{@render children()}</div>
   <div class="register l">{label}</div>
   {#if note}<div class="note" class:keep><span use:info={hover}>{note}</span></div>{/if}
