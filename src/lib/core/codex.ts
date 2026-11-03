@@ -49,3 +49,19 @@ export function rowGroup(m: Model, unique: string, category: string): Group {
   if (item) return groupOf(item.category) ?? "other";
   return category === "Warframe" ? "warframes" : category === "Companion" ? "companions" : "other";
 }
+
+/** Every ring added up: mastered of all, across the categories shown (the "All" ring). */
+export function ringTotal(rings: CodexRing[]): { mastered: number; total: number } {
+  return rings.reduce((t, r) => ({ mastered: t.mastered + r.mastered, total: t.total + r.total }), { mastered: 0, total: 0 });
+}
+
+/** How many you starred in each category: the gold mark on Wishlist's rings. */
+export function starredBy(m: Model, uniques: string[]): Partial<Record<Group, number>> {
+  return Object.fromEntries(ringsFor(m, uniques).map((r) => [r.group, r.total]));
+}
+
+/** "Gauss, Lavos +7": the first few names, then how many more. */
+export function someNames(names: string[], max = 2): string {
+  const shown = names.slice(0, max).join(", ");
+  return names.length > max ? `${shown} +${names.length - max}` : shown;
+}

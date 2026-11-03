@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildModel } from "../src/lib/core/model";
-import { codexRings, ringsFor, rowGroup } from "../src/lib/core/codex";
+import { codexRings, ringsFor, ringTotal, rowGroup, someNames, starredBy } from "../src/lib/core/codex";
 import type { Bundle, InventoryRow } from "../src/lib/core/types";
 
 const inv = (item_id: string, name: string, category: string, quantity: number, mastered = false): InventoryRow => ({ item_id, name, category, quantity, mastered, image_name: null, rank: null, max_rank: null });
@@ -45,4 +45,27 @@ test("a Mastery row's category: its catalog entry, or the kind the inventory giv
   assert.equal(rowGroup(m, "/Not/InCatalog", "Warframe"), "warframes");
   assert.equal(rowGroup(m, "/Not/InCatalog", "Companion"), "companions");
   assert.equal(rowGroup(m, "/Not/InCatalog", "Weapon"), "other");
+});
+
+test("the All ring adds up every category's", () => {
+  const m = buildModel(bundle([inv("/W/Rhino", "Rhino", "frame", 1, true), inv("/A/Imperator", "Imperator", "weapon", 1, true)]));
+  const rings = codexRings(m);
+  const t = ringTotal(rings);
+  assert.equal(t.mastered, rings.reduce((n, r) => n + r.mastered, 0));
+  assert.equal(t.total, rings.reduce((n, r) => n + r.total, 0));
+  assert.deepEqual(ringTotal([]), { mastered: 0, total: 0 });
+});
+
+test("Wishlist's marks: how many you starred in each category, each item once", () => {
+  const m = buildModel(bundle([]));
+  assert.deepEqual(starredBy(m, ["/W/Rhino", "/W/Mesa", "/W/Mesa", "/A/Imperator", "/Unknown/Thing"]), { warframes: 2, archwing: 1 });
+  assert.deepEqual(starredBy(m, []), {});
+});
+
+test("a few names, then how many more", () => {
+  assert.equal(someNames([]), "");
+  assert.equal(someNames(["Gauss"]), "Gauss");
+  assert.equal(someNames(["Gauss", "Lavos"]), "Gauss, Lavos");
+  assert.equal(someNames(["Gauss", "Lavos", "Ash", "Mesa"]), "Gauss, Lavos +2");
+  assert.equal(someNames(["Gauss", "Lavos", "Ash"], 1), "Gauss +2");
 });
