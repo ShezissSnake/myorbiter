@@ -486,7 +486,7 @@
         {@const pc = c?.auctions ? priceCheck(c.auctions) : null}
         <article class="riven">
           <header>
-            <Art file={r.image} size={74} />
+            <Art file={r.image} size={74} fallback="riven" />
             <div class="t">
               <span class="register">{r.kind} riven · {r.weapon}{r.companion ? " · companion" : ""}</span>
               <h3 class="mark" title="{r.weapon} {r.name}">{r.weapon} {r.name}</h3>

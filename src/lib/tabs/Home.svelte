@@ -422,7 +422,7 @@
           <div class="clock reset" title={r.state}>
             <span class="rk">{#if RESET_ICON[r.key]}<GameIcon name={RESET_ICON[r.key]} size={22} title={r.label} />{/if}</span>
             {#if r.key === "sortie"}<GameIcon name="sortie" size={22} />{/if}
-            <div><span class="register">{r.label}</span><b class="mark">{until(r.ends, now)}</b><span class="dim small clip1">{RESET_SHORT[r.key] ?? r.state}</span></div>
+            <div><span class="register">{#if RESET_ICON[r.key]}<span class="rk-sm"><GameIcon name={RESET_ICON[r.key]} size={11} /></span>{/if}{r.label}</span><b class="mark">{until(r.ends, now)}</b><span class="dim small clip1">{RESET_SHORT[r.key] ?? r.state}</span></div>
           </div>
         {/each}
       </section>
@@ -871,6 +871,10 @@
   .clock.reset b { color: var(--platinum); }
   /* …and slimmer columns, so all eight share a row where seven otherwise would, leaving one alone. */
   .world:has(> .clock:nth-child(8)) { grid-template-columns: repeat(auto-fit, minmax(7.4rem, 1fr)); }
+  /* Eight clocks to a row: a reset's icon moves up beside its name, leaving room for the time. */
+  .rk-sm { display: none; margin-right: .3rem; vertical-align: -1px; }
+  .world:has(> .clock:nth-child(8)) .clock.reset > .rk { display: none; }
+  .world:has(> .clock:nth-child(8)) .rk-sm { display: inline-flex; }
   .world:has(> .clock:nth-child(8)) .clock { padding-left: .7rem; padding-right: .6rem; gap: .5rem; }
   .rk { display: inline-flex; width: 22px; justify-content: center; opacity: .85; }
   .rk:empty { display: none; }

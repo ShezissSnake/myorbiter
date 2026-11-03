@@ -123,7 +123,7 @@
       {#each items as w (w.c.unique)}
         <article class="wish" class:done={!w.missing.length}>
           <div class="who">
-            <button class="art" onclick={() => details.open(w.c.unique)} aria-label="{w.c.name}: details" use:info={w.c.name}><Art file={w.c.image} size={96} /></button>
+            <button class="art" onclick={() => details.open(w.c.unique)} aria-label="{w.c.name}: details" use:info={w.c.name}><Art file={w.c.image} size={96} fallback="foundry" /></button>
             <div class="wt">
               <button class="nm" onclick={() => details.open(w.c.unique)}><b class="mark">{w.c.name}</b></button>
               <span class="register">{w.c.type}</span>

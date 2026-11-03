@@ -26,7 +26,7 @@
   import Art from "./ui/Art.svelte";
   import P from "./ui/P.svelte";
   import PartChip from "./ui/PartChip.svelte";
-  import GameIcon, { eraIcon } from "./ui/GameIcon.svelte";
+  import GameIcon, { eraIcon, kindIcon } from "./ui/GameIcon.svelte";
   import Avail from "./ui/Avail.svelte";
 
   // squad: solo (1) or a radshare (4), as set on Relics: a crack's worth follows it, as the pages do.
@@ -124,7 +124,7 @@
       {@const it = d.item}
       {@const c = d.c}
       <header class="gear">
-        <Art file={c.image} size={78} />
+        <Art file={c.image} size={78} fallback={kindIcon(c.type, it.name) ?? "foundry"} />
         <div class="ht">
           <b class="mark">{it.name}</b>
           <span class="sub">{c.type}{c.masteryReq ? ` · MR ${c.masteryReq}` : ""}</span>

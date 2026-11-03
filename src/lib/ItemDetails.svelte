@@ -22,7 +22,7 @@
   import P from "./ui/P.svelte";
   import Effort from "./ui/Effort.svelte";
   import Avail from "./ui/Avail.svelte";
-  import GameIcon, { eraIcon } from "./ui/GameIcon.svelte";
+  import GameIcon, { eraIcon, kindIcon } from "./ui/GameIcon.svelte";
   import Metal from "./ui/Metal.svelte";
 
   let { model, settings = $bindable() }: { model: Model; settings: Settings } = $props();
@@ -131,7 +131,7 @@
   <Sheet bind:open={open.v} title={item.name} kicker={`${c.type}${c.masteryReq ? ` · Mastery rank ${c.masteryReq}` : ""}`} wide>
     <span class="anchor" bind:this={anchor} hidden></span>
     <section class="hero">
-      <Art file={c.image} size={230} alt={item.name} />
+      <Art file={c.image} size={230} alt={item.name} fallback={kindIcon(c.type, item.name) ?? "foundry"} />
       <div class="intro">
         <div class="tags">
           {#if c.mastered}<span class="tag good">Mastered</span>{:else if c.owned}<span class="tag mastery">Owned, not mastered</span>{/if}

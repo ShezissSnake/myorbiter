@@ -149,7 +149,7 @@
         {@const c = model.catalogByUnique.get(r.unique)}
         <ModCard arcane={r.kind === "arcane"} name={r.name} image={model.imageOf(r.name)} rarity={c?.rarity ?? ""} polarity={c?.polarity ?? null} drain={c?.baseDrain ?? null} maxRank={r.maxRank ?? c?.maxRank ?? null} rank={r.rank ?? 0} label={c?.compatName ?? ""} width={84} />
       {:else}
-        <Art file={model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r))} size={64} alt="" />
+        <Art file={model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r))} size={64} alt="" fallback={kindIcon(r.kind === "relic" ? "relic" : (spareOf(r)?.type ?? r.type), r.name) ?? "foundry"} />
       {/if}
     {/snippet}
     <div class="have"><b class="mark qty">×{r.quantity.toLocaleString("en")}</b>{#if r.rank && r.maxRank}<span class="tag" class:ok={r.rank >= r.maxRank}>{r.rank >= r.maxRank ? "maxed" : `R${r.rank}`}</span>{/if}</div>
