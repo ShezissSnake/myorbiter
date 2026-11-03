@@ -26,6 +26,9 @@
   import { itemReadyTimes, levelStage } from "../core/foundry";
   import { until } from "../core/traders";
   import PlatMastery from "../ui/PlatMastery.svelte";
+  import CodexRings from "../ui/CodexRings.svelte";
+  import { codexRings, rowGroup } from "../core/codex";
+  import type { Group } from "../core/collection";
 
   let { model, masteryRank = null, wishlist = $bindable([]), foundryReady = [] }: { model: Model; masteryRank?: number | null; wishlist?: string[]; foundryReady?: [string, number][] } = $props();
   // Things you only have to level: in your arsenal, built and waiting in the Foundry, or building.
@@ -56,15 +59,18 @@
   let kind = $state<"all" | "prime" | "normal">("all");
   let effort = $state<"all" | "2" | "3" | "4">("all");
   let showUnavailable = $state(false);
+  /** A Codex ring picked above: one category, its kinds together (Archwing with arch-guns and arch-melee). */
+  let ring = $state<Group | null>(null);
   let sort = $state({ key: "effort", desc: false });
   /** Easiest first, or what platinum buys, cheapest first. */
   let view = $state<"effort" | "plat">("effort");
 
   // Show unavailable only adds, so on its own it hides nothing.
-  const filtered = $derived(!!query.trim() || category !== "all" || kind !== "all" || effort !== "all");
+  const filtered = $derived(!!query.trim() || category !== "all" || ring != null || kind !== "all" || effort !== "all");
   function clear() {
     query = "";
     category = "all";
+    ring = null;
     kind = "all";
     effort = "all";
     showUnavailable = false;
@@ -77,6 +83,7 @@
       (r) =>
         (showUnavailable || r.acq.available) &&
         (category === "all" || r.category === category) &&
+        (ring == null || rowGroup(model, r.unique, r.category) === ring) &&
         (kind === "all" || (kind === "prime") === r.isPrime) &&
         (effort === "all" || r.acq.difficulty <= Number(effort)) &&
         matches(query, r.name, r.type, METHOD_LABEL[r.acq.method]),
@@ -101,6 +108,15 @@
     { key: "star", label: "", value: () => null, cell: starCell, sortable: false, align: "right" },
   ];
   const things = (n: number, one = "thing", many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+  const rings = $derived(codexRings(model));
+  /** A kind picked in the list lights its ring, when it falls in one. */
+  const KIND_RING: Record<string, Group> = { Warframe: "warframes", Primary: "primary", Secondary: "secondary", Melee: "melee", Companion: "companions", Archwing: "archwing", "Arch-Gun": "archwing", "Arch-Melee": "archwing" };
+  const lit = $derived(ring ?? KIND_RING[category] ?? null);
+  function pickRing(g: Group) {
+    ring = lit === g ? null : g;
+    category = "all";
+  }
+  const nextLine = $derived(`${levelRows.length ? `${levelRows.length} owned to level` : "Nothing owned to level"} · ${pts(easyRows).toLocaleString("en")} mastery easy to get`);
 </script>
 
 {#snippet nameCell(r: MasteryRow)}<Named file={model.imageOf(r.name)} name={r.name} />{/snippet}
@@ -184,13 +200,14 @@
       <Stat label="Easy to get" note={`${things(easyRows.length)}: buy and build, or an easy boss`}><GameIcon name="mastery" size={30} />{pts(easyRows).toLocaleString("en")}</Stat>
       <Stat label="Left to master" tone="dim" note={`${things(open.length)} you can still get`}><GameIcon name="mastery" size={30} />{pts(open).toLocaleString("en")}</Stat>
     {/snippet}
+    {#snippet hero()}<CodexRings {rings} {lit} onpick={pickRing} action={(r) => (lit === r.group ? "Click to show every kind" : `Click to show only ${r.label.toLowerCase()} left to master`)} line={nextLine} />{/snippet}
   </PageHead>
 
   <!-- The page's two modes as tabs, then the filters: the box first, the kind, the rest folded. -->
   <div class="views"><Tabs bind:value={view} label="Mastery view" options={[{ v: "effort", label: "Easiest first", title: "Everything you haven't mastered, by how hard it is to get" }, { v: "plat", label: "Buy with plat", title: "What platinum gets you, cheapest first: the parts or items to buy, with a buy order a click away" }]} /></div>
   <div class="bar">
   <input type="search" placeholder="Filter items…" bind:value={query} />
-  <select bind:value={category} aria-label="Kind" title="Which kind of item">
+  <select bind:value={category} onchange={() => (ring = null)} aria-label="Kind" title="Which kind of item">
     <option value="all">All kinds</option>
     {#each categories as c (c)}<option value={c}>{c}</option>{/each}
   </select>

@@ -20,6 +20,9 @@
   import IconButton from "../ui/IconButton.svelte";
   import UndoSlot from "../ui/UndoSlot.svelte";
   import { UndoSlots } from "../undo.svelte";
+  import CodexRings from "../ui/CodexRings.svelte";
+  import { ringsFor } from "../core/codex";
+  import type { Group } from "../core/collection";
 
   let { model, settings = $bindable() }: { model: Model; settings: Settings } = $props();
 
@@ -75,6 +78,24 @@
     }
     return out;
   }
+  const rings = $derived(ringsFor(model, settings.favourites));
+  /** A ring's click: to the first thing you starred in that category. */
+  function jump(g: Group) {
+    const el = document.querySelector<HTMLElement>(`.wish[data-group="${g}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    el.querySelector<HTMLElement>("button.nm")?.focus({ preventScroll: true });
+  }
+  // The next thing to do: what's ready to build, else what's closest (fewest parts missing).
+  const nextLine = $derived.by(() => {
+    const todo = items.filter((w) => !w.c.mastered && !w.c.owned && !w.c.building && !undo.has(w.c.unique));
+    const ready = todo.filter((w) => !w.missing.length);
+    if (ready.length) return `Ready to build: ${ready.map((w) => w.c.name).join(", ")}`;
+    const [w] = [...todo].sort((a, b) => a.missing.length - b.missing.length || (b.odds ?? 0) - (a.odds ?? 0));
+    if (!w) return "Everything you starred is built or mastered";
+    const how = w.odds ? ` · ${pct(w.odds)} from your relics` : w.buyCost != null ? ` · ${Math.round(w.buyCost)}p to buy` : "";
+    return `Closest: ${w.c.name}, ${w.missing.length} part${w.missing.length === 1 ? "" : "s"} missing${how}`;
+  });
   const liveFor = (era: string) => (open[era]?.length ?? 0) + (open.Omnia?.length ?? 0);
   /** As Relics and Home say it: this era's normal fissures + Steel Path, then Omnia ones apart. */
   const fissureCount = (era: string) => {
@@ -93,8 +114,10 @@
   <Stat keep label="Crack now" tone="gold" note={crackNow.length ? crackNow.map((c) => c.era).join(", ") + " fissures open" : "No matching fissure open"}>{crackNow.length}</Stat>
 {/snippet}
 
+{#snippet codex()}<CodexRings {rings} what="starred" onpick={jump} action={() => "Click to go to the first one"} line={nextLine} />{/snippet}
+
 <div class="page"><div class="page-inner">
-  <PageHead title="Wishlist" brief="What you starred, and how to get each part." blurb="What you've starred, and the quickest way to each missing part: a relic you hold, where to farm one, or what it costs." band={items.length ? band : undefined} />
+  <PageHead title="Wishlist" brief="What you starred, and how to get each part." blurb="What you've starred, and the quickest way to each missing part: a relic you hold, where to farm one, or what it costs." band={items.length ? band : undefined} hero={rings.length ? codex : undefined} />
 
   <div class="bar">
     <input list="wish-names" placeholder="Add something to your wishlist…" bind:value={adding} onkeydown={(e) => e.key === "Enter" && add()} aria-label="Item to add" />
@@ -129,7 +152,7 @@
         {#if undo.has(w.c.unique)}
           <article class="wish ghost"><UndoSlot label="Removed from your wishlist" what={w.c.name} onundo={() => undo.undo(w.c.unique)} /></article>
         {:else}
-        <article class="wish" class:done={!w.missing.length}>
+        <article class="wish" class:done={!w.missing.length} data-group={w.c.group}>
           <div class="who">
             <button class="art" onclick={() => details.open(w.c.unique)} aria-label="{w.c.name}: details" use:info={w.c.name}><Art file={w.c.image} size={96} fallback="foundry" /></button>
             <div class="wt">

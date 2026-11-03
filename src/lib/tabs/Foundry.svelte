@@ -22,6 +22,8 @@
   import PartChip from "../ui/PartChip.svelte";
   import GameIcon, { kindIcon, type GameIconName } from "../ui/GameIcon.svelte";
   import P from "../ui/P.svelte";
+  import CodexRings from "../ui/CodexRings.svelte";
+  import { codexRings } from "../core/codex";
 
   let { model, settings = $bindable() }: { model: Model; settings: Settings } = $props();
 
@@ -92,6 +94,15 @@
     const d = describe(model, name);
     return d?.kind === "gear" ? d.item.uniqueName : null;
   };
+  const rings = $derived(codexRings(model));
+  // What to do next in the category you're in: claim, build, then level.
+  const nextLine = $derived(
+    [
+      readyToClaim ? `${readyToClaim} ready to claim in your foundry` : "",
+      buildable ? `${buildable} ${groupLabel} ready to build` : "",
+      ownedOnly ? `${ownedOnly} owned to level` : "",
+    ].filter(Boolean).join(" · ") || (inGroup.length && mastered === inGroup.length ? `Every one of the ${groupLabel} mastered` : `Nothing to build or level here: the cards show what each still needs`),
+  );
   const missing = (c: CollectionItem) => c.parts.filter((p) => !p.resource && p.have < p.required && !p.building).length;
 </script>
 
@@ -143,6 +154,7 @@
       <Stat label="Ready to build" note={`${partsReady ? `Everything in hand · ${partsReady} more with resources to farm` : "Every part and resource in hand, not mastered yet"}${group === "all" ? "" : ` · ${groupLabel}`}`}>{buildable}</Stat>
       <Stat label="In your foundry" tone={readyToClaim ? "gold" : "dim"} note={readyToClaim ? `${readyToClaim} ready to claim` : builds.length ? "Nothing ready yet" : "Nothing building"}>{builds.length}</Stat>
     {/snippet}
+    {#snippet hero()}<CodexRings {rings} lit={group === "all" ? null : group} onpick={(g) => (group = group === g ? "all" : g)} action={(r) => (group === r.group ? "Click to show every category" : `Click to show only ${r.label.toLowerCase()}`)} line={nextLine} />{/snippet}
   </PageHead>
 
   {#if builds.length}
