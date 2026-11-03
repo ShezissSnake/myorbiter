@@ -23,6 +23,7 @@ import { marketItemsOf, recipeDataOf, relicDataOf, rivenMetaOf } from "./core/sh
 import type { Archimedea, Bundle, Calendar1999, CatalogPart, CollectionPart, DarvoDeal, Descendia, DuviriCycle, Fissure, Live, MissionState, Nightwave, SortieLike, SteelPath, VaultTraderItem, WorldEvent } from "./core/types";
 import { defaultPickWeights, type PickWeights } from "./core/pick";
 import type { Notice } from "./notices";
+import { DEFAULT_BUILDS_MAX_AGE_DAYS, sanitizeBuilds, sanitizeMaxAgeDays, type Build } from "./core/builds/types";
 
 
 /** warframe.market's platforms: whose market orbiter reads and lists on. */
@@ -207,6 +208,10 @@ export interface Settings {
   fissureRules: FissureRule[];
   /** Rivens you want: a notification when one is listed at or under your price. */
   rivenWatch: RivenWatch[];
+  /** Mod and arcane loadouts: pasted, your own, orbiter's suggestions (core/builds). */
+  builds: Build[];
+  /** Builds older than this many days are hidden (their source's date, else when added); 0: no limit. */
+  buildsMaxAgeDays: number;
 }
 
 export interface RivenWatch {
@@ -418,6 +423,8 @@ export const defaultSettings = (): Settings => ({
   favourites: [],
   fissureRules: [],
   rivenWatch: [],
+  builds: [],
+  buildsMaxAgeDays: DEFAULT_BUILDS_MAX_AGE_DAYS,
 });
 
 const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -790,6 +797,9 @@ export async function loadSettings(): Promise<Settings> {
     favourites: Array.isArray(raw?.favourites) ? raw.favourites : [],
     fissureRules: Array.isArray(raw?.fissureRules) ? raw.fissureRules.map(normalizeRule).filter((r: FissureRule | null): r is FissureRule => !!r) : [],
     rivenWatch: Array.isArray(raw?.rivenWatch) ? raw.rivenWatch : [],
+    // Settings from before builds get none, and the one-year age limit.
+    builds: sanitizeBuilds(raw?.builds),
+    buildsMaxAgeDays: sanitizeMaxAgeDays(raw?.buildsMaxAgeDays),
   };
 }
 
