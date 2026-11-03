@@ -72,6 +72,15 @@
     return it ? `https://warframe.market/items/${it.slug}` : marketUrl(name);
   };
 
+  // Spare only and the folded filters, the kind and a search: what Clear puts back.
+  const filtered = $derived(!!query.trim() || kind !== "all" || tradableOnly || minTrades != null || minEach != null || spareOnly);
+  function clear() {
+    query = "";
+    kind = "all";
+    tradableOnly = spareOnly = false;
+    minTrades = minEach = null;
+  }
+
   const all = $derived(inventoryRows(model));
   const rows = $derived(all.filter((r) => (kind === "all" || r.kind === kind) && (!tradableOnly || spareOf(r)) && (minTrades == null || (perDay(r) ?? 0) >= minTrades) && (minEach == null || (priceOf(r) ?? 0) >= minEach) && (!spareOnly || spare(r) > 0) && matches(query, r.name, r.type, shown(r), spareOf(r)?.type ?? "")));
   const pctOf = (x: number | null | undefined) => (x == null ? "–" : `${Math.round(x * 10) / 10}%`);
@@ -216,8 +225,8 @@
 
   <div class="bar">
     <input type="search" placeholder="Filter items…" bind:value={query} />
-    <select bind:value={kind} aria-label="Kind" class="kinds">
-      {#each KINDS as k (k.v)}<option value={k.v}>{k.label} ({count(k.v)})</option>{/each}
+    <select bind:value={kind} aria-label="Kind" class="kinds" title="Only one kind of item">
+      {#each KINDS as k (k.v)}<option value={k.v}>{k.label} ({count(k.v).toLocaleString("en")})</option>{/each}
     </select>
     <Chip bind:on={spareOnly} label="Spare only" title="Only what you hold more of than you need: beyond what your unbuilt items take, two of each mod, one maxed arcane, one of each Captura scene" />
     <Fold active={(tradableOnly ? 1 : 0) + (minTrades != null ? 1 : 0) + (minEach != null ? 1 : 0)} reset={() => { tradableOnly = false; minTrades = null; minEach = null; }}>
@@ -239,7 +248,7 @@
 
   {#if letGo}<NotNeeded {model} out={unneeded} incarnons={!!gear} bind:keep={keepGear} />{/if}
 
-  <Browse id="inventory" {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (r.kind === "gear" && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" empty="Nothing matches these filters." />
+  <Browse id="inventory" {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (r.kind === "gear" && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" clear={filtered ? clear : null} empty="Nothing in your inventory yet." />
 </div></div>
 
 <style>

@@ -30,6 +30,7 @@
     tint,
     clear = null,
     tools,
+    count,
   }: {
     /** Remembers the layout under this name. */
     id: string;
@@ -54,6 +55,8 @@
     clear?: (() => void) | null;
     /** The page's own buttons, at the right end of the sort row (Rivens' Check prices). */
     tools?: Snippet;
+    /** The count's words, when "N items" would mislead (Sets: copies against kinds of set). */
+    count?: (n: number) => string;
   } = $props();
 
   const key_ = () => `orbiter-layout-${id}`;
@@ -158,7 +161,7 @@
     </label>
   {/if}
   <span class="grow"></span>
-  <span class="dim small nowrap">{view.length.toLocaleString("en")} {view.length === 1 ? "item" : "items"}</span>
+  <span class="dim small nowrap">{count ? count(view.length) : `${view.length.toLocaleString("en")} ${view.length === 1 ? "item" : "items"}`}</span>
   <Seg bind:value={layout} onchange={remember} options={[{ v: "cards", label: "Cards", icon: "cards", title: "Show them as cards" }, { v: "list", label: "Table", icon: "rows", title: "Show them as a table you can sort by any column" }]} />
   {#if tools}{@render tools()}{/if}
 </div>

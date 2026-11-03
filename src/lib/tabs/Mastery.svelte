@@ -60,6 +60,16 @@
   /** Easiest first, or what platinum buys, cheapest first. */
   let view = $state<"effort" | "plat">("effort");
 
+  // Show unavailable only adds, so on its own it hides nothing.
+  const filtered = $derived(!!query.trim() || category !== "all" || kind !== "all" || effort !== "all");
+  function clear() {
+    query = "";
+    category = "all";
+    kind = "all";
+    effort = "all";
+    showUnavailable = false;
+  }
+
   const all = $derived(masteryRows(model));
   const categories = $derived([...new Set(all.map((r) => r.category))].sort());
   const rows = $derived(
@@ -192,9 +202,9 @@
   </div>
 
   {#if view === "plat"}
-    <PlatMastery {model} {rows} {wished} onwish={toggleWish} />
+    <PlatMastery {model} {rows} {wished} onwish={toggleWish} clear={filtered ? clear : null} />
   {:else}
-  <Browse id="mastery" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} empty="Nothing left to master here." />
+  <Browse id="mastery" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} clear={filtered ? clear : null} empty="Nothing left to master here." />
   {/if}
 </div></div>
 

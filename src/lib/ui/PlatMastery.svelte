@@ -11,8 +11,9 @@
   import Thumb from "./Thumb.svelte";
   import P from "./P.svelte";
   import GameIcon from "./GameIcon.svelte";
+  import NoMatch from "./NoMatch.svelte";
 
-  let { model, rows, wished, onwish }: { model: Model; rows: MasteryRow[]; wished: Set<string>; onwish: (unique: string) => void } = $props();
+  let { model, rows, wished, onwish, clear = null }: { model: Model; rows: MasteryRow[]; wished: Set<string>; onwish: (unique: string) => void; clear?: (() => void) | null } = $props();
 
   let order = $state<"plat" | "perK">("plat");
   let limit = $state(60);
@@ -35,7 +36,7 @@
 </div>
 
 {#if !list.length}
-  <p class="dim">Nothing you haven't mastered has a platinum price orbiter knows.</p>
+  {#if clear}<p class="nothing"><NoMatch {clear} /></p>{:else}<p class="dim">Nothing you haven't mastered has a platinum price orbiter knows.</p>{/if}
 {:else}
   <div class="pmh register" aria-hidden="true"><span>Item</span><span>What to buy</span><span class="r">Cost · per 1,000 mastery</span><span class="r">Buying down to here</span><span></span></div>
   <ol class="pm">

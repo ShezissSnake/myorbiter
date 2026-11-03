@@ -51,6 +51,12 @@
         matches(query, r.name, r.type),
     ),
   );
+  const filtered = $derived(!!query.trim() || rarity !== "all" || !dupesOnly || !tradableOnly || !sellingOnly);
+  function clear() {
+    query = "";
+    rarity = "all";
+    dupesOnly = tradableOnly = sellingOnly = true;
+  }
   const extras = $derived(rows.reduce((n, r) => n + r.extras, 0));
   /** Extras are your lowest-ranked copies: list those, never the one you keep. */
   const listReq = (r: ModRow) => {
@@ -140,7 +146,7 @@
   </Fold>
   </div>
 
-  <Browse id="mods" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" />
+  <Browse id="mods" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty="No spare mod copies: your best copy and one to give away are kept." />
 </div></div>
 
 <style>

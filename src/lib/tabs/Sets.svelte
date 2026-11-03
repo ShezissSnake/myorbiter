@@ -77,6 +77,8 @@
   const keptBack = $derived(keepOne ? all.filter((r) => r.keptForBuild && matches(query, r.name)).length : 0);
   const totalPlat = $derived(rows.reduce((n, r) => n + (mode === "sell" ? sellableOf(r) * (r.setPrice ?? 0) : 0), 0));
   const totalSets = $derived(rows.reduce((n, r) => n + sellableOf(r), 0));
+  /** Sets to sell counts copies; the list has one card per set. */
+  const countWords = (n: number) => (mode === "sell" && totalSets !== n ? `${totalSets.toLocaleString("en")} ${totalSets === 1 ? "copy" : "copies"} · ${n.toLocaleString("en")} ${n === 1 ? "set" : "sets"}` : `${n.toLocaleString("en")} ${n === 1 ? "set" : "sets"}`);
   const missingCost = (r: SetRow) => (r.missing.every((m) => m.price != null) ? r.missing.reduce((n, m) => n + (m.price as number) * m.count, 0) : null);
   /** Buy the missing parts and sell a full set, against selling the parts you have loose. */
   const completeGain = (r: SetRow) => {
@@ -259,6 +261,8 @@
     title={(r) => `${r.name} Set`}
     onopen={(r) => details.open(r.unique)}
     min="21rem"
+    count={countWords}
+    clear={query.trim() ? () => (query = "") : null}
     empty={mode === "sell" ? "No complete sets to sell right now." : mode === "save" ? (saveOn ? "No loose parts are waiting for a set." : "Saving parts for sets is off (Settings → Selling).") : "No sets one or two parts away."}
   />
 </div></div>

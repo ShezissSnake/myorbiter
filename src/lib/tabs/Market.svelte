@@ -126,8 +126,8 @@
   <div class="bar">
     <input type="search" placeholder="Filter items…" bind:value={query} aria-label="Filter items by name" />
     <select bind:value={category} aria-label="Category" class="kinds" title="Only one kind of item, by warframe.market's own tags">
-      <option value="all">All kinds ({count("all")})</option>
-      {#each CATEGORIES as c (c.v)}<option value={c.v}>{c.label} ({count(c.v)})</option>{/each}
+      <option value="all">All kinds ({count("all").toLocaleString("en")})</option>
+      {#each CATEGORIES as c (c.v)}<option value={c.v}>{c.label} ({count(c.v).toLocaleString("en")})</option>{/each}
     </select>
     <Chip bind:on={weekly} label="Sells weekly" title="Only what sells at least once a week, on several different days. Off: everything, including prices from a sale or two, which can be jokes (a set &quot;sold&quot; for 80,000p)" />
     <Chip bind:on={owned} label="You have" title="Only what you hold" />
@@ -158,9 +158,8 @@
       <p class="dim">Loading warframe.market's item list…</p>
     {/if}
   {:else}
-    <Browse id="market-browse" {rows} {columns} key={(r) => r.slug} bind:sort {detail} {card} title={(r) => r.name} min="16rem" empty="Nothing matches these filters." />
-    {#if slowHidden}<p class="dim small more">{slowHidden.toLocaleString("en")} more sold too rarely for a steady price: theirs may not be real. <button class="link" onclick={() => (weekly = false)}>Show them</button></p>
-    {:else if !rows.length && filtered}<p class="dim more"><button class="link" onclick={clear}>Clear the filters</button></p>{/if}
+    <Browse id="market-browse" {rows} {columns} key={(r) => r.slug} bind:sort {detail} {card} title={(r) => r.name} min="16rem" clear={filtered ? clear : null} />
+    {#if slowHidden}<p class="dim small more">{slowHidden.toLocaleString("en")} more sold too rarely for a steady price: theirs may not be real. <button class="link" onclick={() => (weekly = false)}>Show them</button></p>{/if}
   {/if}
 </div></div>
 

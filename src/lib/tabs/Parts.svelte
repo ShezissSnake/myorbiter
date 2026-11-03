@@ -39,6 +39,14 @@
   let avail = $state<"all" | "farmable" | "vaulted">("all");
   let best = $state<"all" | Verdict>("all");
   let sort = $state({ key: "value", desc: true });
+  const filtered = $derived(!!query.trim() || best !== "all" || spareOnly || parent !== "mastered" || avail !== "all");
+  function clear() {
+    query = "";
+    best = "all";
+    spareOnly = false;
+    parent = "mastered";
+    avail = "all";
+  }
   // A link that asked for one kind of advice (Baro's card: Spares for ducats).
   $effect(() => {
     const want = takeIntent("parts");
@@ -230,7 +238,7 @@
     </Fold>
   </div>
 
-  <Browse id="parts" {rows} {columns} key={(r) => r.name} bind:sort {detail} {card} title={(r) => r.name} min="18rem" />
+  <Browse id="parts" {rows} {columns} key={(r) => r.name} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty="No prime parts of mastered items." />
 
   <!-- Baro week: parts that turn platinum into ducats cheapest, beyond the ones you hold. -->
   <section class="dbuy" id="ducat-buys">

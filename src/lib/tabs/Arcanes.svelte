@@ -38,6 +38,14 @@
   let type = $state("all");
   /** Loid's collection an arcane comes from ("Eidolon", "Duviri"…); "none" for arcanes in no pack. */
   let collection = $state("all");
+  // Owned only filters outside Sell or dissolve, where it's shown.
+  const filtered = $derived(!!query.trim() || type !== "all" || collection !== "all" || (show !== "spares" && owned !== "all"));
+  function clear() {
+    query = "";
+    type = "all";
+    collection = "all";
+    owned = "all";
+  }
   // Ctrl+K asked for one arcane: every arcane, searched for it.
   $effect(() => {
     const want = takeIntent("arcanes");
@@ -228,6 +236,30 @@
     { v: "spares", label: "Sell or dissolve", title: "Copies beyond the one you keep: sell them, or dissolve them for Vosfor" },
     { v: "all", label: "All arcanes", title: "Every arcane, held or not" },
   ]} /></div>
+  <!-- Loid's packs above the filters, so the filters and the sort row under them stay together. -->
+  {#if show === "spares"}
+  <section class="vosfor">
+    <header>
+      <span class="register"><GameIcon name="vosfor" size={18} /> Loid's arcane packs · 200 Vosfor each</span>
+      <Seg label="Value Vosfor by" bind:value={advice.vosforLens} options={[
+        { v: "need", label: "Arcanes I'm collecting", title: "A pack is worth the arcanes in it you haven't finished, at what buying those copies would cost" },
+        { v: "market", label: "Market price", title: "A pack is worth all three arcanes at their unranked market price" },
+      ]} />
+    </header>
+    <p class="small dim">You hold <b>{held.toLocaleString("en")}</b> Vosfor{gain ? `, ${(held + gain).toLocaleString("en")} after dissolving what's marked Dissolve` : ""}: {Math.floor((held + gain) / 200)} pack{Math.floor((held + gain) / 200) === 1 ? "" : "s"}. Best pack {lens === "need" ? "for what you're collecting" : "by market value"}: <b>{worth.best ? short(worth.best.name) : "none"}</b>, about {worth.perVosfor ? (worth.perVosfor * 200).toFixed(0) : 0}p a pack.</p>
+    <p class="small dim" title="The wiki lists Vosfor per unranked arcane and doesn't say how rank changes it">A ranked copy is counted as the copies it's made of (a maxed one is 21, or 10 for arcanes that max at R3). Loid shows the exact Vosfor before you confirm a dissolution.</p>
+    <div class="packs">
+      {#each rankedPacks as p (p.name)}
+        <div class="pack" class:best={p === worth.best}>
+          <div class="ph"><b class="mark">{short(p.name)}</b>{#if lens === "market"}<span class="dim small" title="All three arcanes at their unranked market price">≈ {Math.round(p.plat)}p / pack</span>{:else if p.needCopies}<span class="dim small" title="On average {p.needCopies.toFixed(1)} of a pack's three arcanes are ones you're still collecting, worth what buying those copies would cost">{p.needPlat < 0.5 ? "under 1p" : `≈ ${Math.round(p.needPlat)}p`} / pack</span>{/if}</div>
+          {#if p.wanted.length}
+            <div class="wanted">{#each p.wanted.slice(0, 4) as w (w.name)}<span use:info={w.name}><Thumb file={model.imageOf(w.name)} size={18} />{w.name}</span>{/each}{#if p.wanted.length > 4}<span class="dim small" title={p.wanted.slice(4).map((w) => w.name).join(", ")}>+{p.wanted.length - 4}</span>{/if}</div>
+          {:else}<span class="dim small">Nothing you still need</span>{/if}
+        </div>
+      {/each}
+    </div>
+  </section>
+  {/if}
   <div class="bar">
   <input type="search" placeholder="Filter arcanes…" bind:value={query} />
   <select bind:value={type} aria-label="Slot" title="What it goes on">
@@ -245,30 +277,9 @@
   </div>
 
   {#if show === "spares"}
-    <section class="vosfor">
-      <header>
-        <span class="register"><GameIcon name="vosfor" size={18} /> Loid's arcane packs · 200 Vosfor each</span>
-        <Seg label="Value Vosfor by" bind:value={advice.vosforLens} options={[
-          { v: "need", label: "Arcanes I'm collecting", title: "A pack is worth the arcanes in it you haven't finished, at what buying those copies would cost" },
-          { v: "market", label: "Market price", title: "A pack is worth all three arcanes at their unranked market price" },
-        ]} />
-      </header>
-      <p class="small dim">You hold <b>{held.toLocaleString("en")}</b> Vosfor{gain ? `, ${(held + gain).toLocaleString("en")} after dissolving what's marked Dissolve` : ""}: {Math.floor((held + gain) / 200)} pack{Math.floor((held + gain) / 200) === 1 ? "" : "s"}. Best pack {lens === "need" ? "for what you're collecting" : "by market value"}: <b>{worth.best ? short(worth.best.name) : "none"}</b>, about {worth.perVosfor ? (worth.perVosfor * 200).toFixed(0) : 0}p a pack.</p>
-      <p class="small dim" title="The wiki lists Vosfor per unranked arcane and doesn't say how rank changes it">A ranked copy is counted as the copies it's made of (a maxed one is 21, or 10 for arcanes that max at R3). Loid shows the exact Vosfor before you confirm a dissolution.</p>
-      <div class="packs">
-        {#each rankedPacks as p (p.name)}
-          <div class="pack" class:best={p === worth.best}>
-            <div class="ph"><b class="mark">{short(p.name)}</b>{#if lens === "market"}<span class="dim small" title="All three arcanes at their unranked market price">≈ {Math.round(p.plat)}p / pack</span>{:else if p.needCopies}<span class="dim small" title="On average {p.needCopies.toFixed(1)} of a pack's three arcanes are ones you're still collecting, worth what buying those copies would cost">{p.needPlat < 0.5 ? "under 1p" : `≈ ${Math.round(p.needPlat)}p`} / pack</span>{/if}</div>
-            {#if p.wanted.length}
-              <div class="wanted">{#each p.wanted.slice(0, 4) as w (w.name)}<span use:info={w.name}><Thumb file={model.imageOf(w.name)} size={18} />{w.name}</span>{/each}{#if p.wanted.length > 4}<span class="dim small" title={p.wanted.slice(4).map((w) => w.name).join(", ")}>+{p.wanted.length - 4}</span>{/if}</div>
-            {:else}<span class="dim small">Nothing you still need</span>{/if}
-          </div>
-        {/each}
-      </div>
-    </section>
-    <Browse id="arcane-spares" rows={spareRows} columns={spareColumns} key={(x) => x.row.unique} bind:sort={spareSort} detail={spareDetail} card={spareCard} title={(x) => x.row.name} min="18rem" empty="No spare arcanes: you keep one of each and have nothing extra." />
+    <Browse id="arcane-spares" rows={spareRows} columns={spareColumns} key={(x) => x.row.unique} bind:sort={spareSort} detail={spareDetail} card={spareCard} title={(x) => x.row.name} min="18rem" clear={filtered ? clear : null} empty="No spare arcanes: you keep one of each and have nothing extra." />
   {:else}
-    <Browse id="arcanes" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" />
+    <Browse id="arcanes" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty={show === "unfinished" ? "Every arcane maxed: nothing left to collect." : "No arcanes."} />
   {/if}
 </div></div>
 
