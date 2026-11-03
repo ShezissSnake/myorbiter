@@ -33,7 +33,7 @@
   import { estimateListed } from "../core/rivenModel";
 
   // console: you play on a console or phone, so orbiter can't see what you hold. New listing then
-  // finds anything warframe.market trades, and what needs your inventory (spares, "Can't deliver") is left out.
+  // finds anything warframe.market trades, and what needs your inventory (spares, "Listed more than you hold") is left out.
   let { model, settings = $bindable(), advice, console = false, masteryRank = null, credits = null }: { model: Model; settings: MarketSettings; advice: AdviceSettings; console?: boolean; masteryRank?: number | null; credits?: number | null } = $props();
   // The daily trade limit (core/tradeLimit.ts), refreshed each minute.
   let minute = $state(Date.now());
@@ -489,7 +489,7 @@
   {#snippet band()}
       <Stat extra label="Listed value" note="Visible listings, price × quantity"><P v={listed} big /></Stat>
       <Stat label="Listings" tone={mkt.room <= 0 ? "gold" : "platinum"} note={`${mkt.room <= 0 ? "At warframe.market's limit" : `${mkt.room} more allowed`} · ${orders.filter((o) => !o.visible).length} hidden`}>{orders.length}<span class="of">/{LISTING_LIMIT - mkt.otherOrders}</span></Stat>
-      {#if !console}<Stat label="Can't deliver" tone={shortShown ? "gold" : "dim"} note={shortShown ? `Listing more than you hold${short.length > shortShown ? ` (+${short.length - shortShown} hidden)` : ""}` : short.length ? `Only in hidden listings (${short.length}), which nobody can buy` : "You hold everything you list"}>{shortShown}</Stat>{/if}
+      {#if !console}<Stat label="Listed more than you hold" tone={shortShown ? "gold" : "dim"} note={shortShown ? "Sold in game, or used: fix them below" : short.length ? "Only in hidden listings, which nobody can buy" : "You hold everything you list"} title={`Listed more than you hold: visible listings for more copies than you hold now, as Home counts them${short.length > shortShown ? `. ${short.length - shortShown} hidden listing${short.length - shortShown === 1 ? "" : "s"} too, marked in the list: nobody can buy those` : ""}`}>{shortShown}{#if short.length > shortShown}<span class="of">+{short.length - shortShown} hidden</span>{/if}</Stat>{/if}
       {#if !console && trades.limit != null}<Stat keep label="Trades left today" tone={trades.left != null && trades.left <= 3 ? "gold" : "platinum"} note={`${trades.used} made since 00:00 UTC · refreshes in ${until(new Date(trades.resets).toISOString(), minute)}`} title={`Trades a day are your Mastery Rank (${trades.limit}; Founders get 2 more), each counting once whatever it carried (up to 6 items each way). Counted from the game's log while orbiter was reading it.`}>{trades.left}<span class="of">/{trades.limit}</span></Stat>{/if}
       <Stat label="To reprice" tone={pending ? "gold" : "dim"} note={checkedAt ? `${pending ? "Off the cheapest in-game price" : "All match"} · checked ${fmt(checkedAt)}` : "Press Check prices to compare"}>{pending}</Stat>
   {/snippet}

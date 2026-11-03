@@ -3,6 +3,7 @@
   import { takeIntent } from "../intent.svelte";
   import { daysToTrade } from "../core/tradeLimit";
   import { sellableCopies } from "../core/spares";
+  import { modsWorthSelling, worthTotal } from "../core/worthSelling";
   import { worthATrade } from "../core/advice";
   import type { Model } from "../core/model";
   import { modRows, modSpares, type ModRow } from "../core/views";
@@ -63,8 +64,11 @@
   /** Each spare copy's price, and whether selling them is worth a trade ("Not worth a trade under Np", set on Prime parts, judged on up to six copies a trade). */
   const each = (r: ModRow) => (r.extrasValue == null ? null : r.extrasValue / Math.max(1, r.extras));
   const tradeWorthy = (r: ModRow) => worthATrade(each(r), r.extras, minPlat);
-  /** Spares worth: only the mods worth a trade. */
-  const value = $derived(rows.reduce((n, r) => n + (tradeWorthy(r) ? (worth(r) ?? 0) : 0), 0));
+  /**
+   * Worth selling, counted as Prime parts, Arcanes and Home's Ready to list count it
+   * (core/worthSelling.ts): every mod's spares, whatever the filters show.
+   */
+  const value = $derived(worthTotal(modsWorthSelling(all, minPlat)));
   /** Days of trades every spare copy takes at your rank (core/tradeLimit.ts). */
   const tradeDays = $derived(masteryRank != null && masteryRank >= 2 ? daysToTrade(extras, masteryRank) : null);
 
@@ -75,7 +79,7 @@
     { key: "total", label: "Have", value: (r) => r.total, align: "right" },
     { key: "ranks", minor: true, label: "Ranked copies", value: (r) => r.ranks.filter((x) => x.rank > 0).map((x) => `R${x.rank}${x.count > 1 ? `×${x.count}` : ""}`).join(" ") || null, muted: true, sortable: false },
     { key: "price", label: "Price", value: (r) => r.price, align: "right", cell: priceCell },
-    { key: "value", label: "Spares worth", value: (r) => (tradeWorthy(r) ? worth(r) : null), align: "right", cell: valueCell, title: "Your spare copies at the daily median, counting no more copies than warframe.market sells in a month" },
+    { key: "value", label: "Spares sell for", value: (r) => (tradeWorthy(r) ? worth(r) : null), align: "right", cell: valueCell, title: "Your spare copies at the daily median, counting no more copies than warframe.market sells in a month. Worth selling adds these up for the mods that sell daily" },
     { key: "priceMax", minor: true, label: "Maxed", value: (r) => r.priceMax, align: "right", cell: maxCell, title: "Price of a max-rank copy" },
     { key: "trades", label: "Trades/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "How quickly it sells. Common mods at 2–5p rarely move." },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
@@ -87,7 +91,7 @@
   {#if r.tradable && r.extras > 0}<ListButton {model} {labelled} name={r.name} req={listReq(r)} />{/if}
 {/snippet}
 {#snippet priceCell(r: ModRow)}<P v={r.price} dim />{/snippet}
-{#snippet valueCell(r: ModRow)}{#if worth(r) != null && !tradeWorthy(r)}<span class="small dim" title="Not worth a trade under {minPlat}p (set on Prime parts): {Math.round(each(r)! * 10) / 10}p a copy, {Math.min(r.extras, 6)} in one trade at most. Left out of Spares worth">under {minPlat}p a trade</span>{:else}<span title={worth(r) != null && worth(r)! < r.extrasValue! ? `All ${r.extras} would be ${Math.round(r.extrasValue!)}p, but the market takes about ${sellableCopies(r.extras, r.tradesPerDay)} a month` : undefined}><P v={worth(r)} /></span>{/if}{/snippet}
+{#snippet valueCell(r: ModRow)}{#if worth(r) != null && !tradeWorthy(r)}<span class="small dim" title="Not worth a trade under {minPlat}p (set on Prime parts): {Math.round(each(r)! * 10) / 10}p a copy, {Math.min(r.extras, 6)} in one trade at most. Left out of Worth selling">under {minPlat}p a trade</span>{:else}<span title={worth(r) != null && worth(r)! < r.extrasValue! ? `All ${r.extras} would be ${Math.round(r.extrasValue!)}p, but the market takes about ${sellableCopies(r.extras, r.tradesPerDay)} a month` : undefined}><P v={worth(r)} /></span>{/if}{/snippet}
 {#snippet maxCell(r: ModRow)}<P v={r.priceMax} dim />{/snippet}
 {#snippet modCard(r: ModRow, width: number)}
   {@const c = model.catalogByUnique.get(r.unique)}
@@ -123,7 +127,7 @@
   <PageHead title="Mods" blurb="Mods you have spare copies of. Your best copy and one to give away are always kept.">
     {#snippet band()}
       <Stat label="Spare copies" note={tradeDays != null && tradeDays > 1 ? `Beyond your best copy and one to give away · ${tradeDays} days of trades to sell them all` : "Beyond your best copy and one to give away"} title={tradeDays != null ? `Beyond your best copy and one to give away. Trades a day are your Mastery Rank (${masteryRank}), up to 6 items each: selling every spare copy would take ${tradeDays} days of trading, at best` : null}>{extras.toLocaleString("en")}</Stat>
-      <Stat label="Spares worth" tone="dim" note={`${sellingOnly ? "Mods that sell daily, no more of each than the market sells in a month" : "Slow sellers too, no more of each than the market sells in a month (as Inventory counts)"}; only what's worth ${minPlat}p a trade`}><P v={value} big /></Stat>
+      <Stat label="Worth selling" tone="dim" note={`Mods that sell daily, no more of each than the market sells in a month; only what's worth ${minPlat}p a trade`} title={`Worth selling: the spare copies of tradable mods that sell at least daily (as Put my spares on sale lists them), at the daily median, no more of each than the market sells in a month, and only what's worth ${minPlat}p a trade. The filters don't change it. Counted the same way on Prime parts, Arcanes and Home; Inventory's Spare value adds slow sellers and small change`}><P v={value} big /></Stat>
     {/snippet}
   </PageHead>
 

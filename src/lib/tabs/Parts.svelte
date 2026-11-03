@@ -1,6 +1,6 @@
 <script lang="ts">
   import Fold from "../ui/Fold.svelte";
-  import { sellableCopies } from "../core/spares";
+  import { partsWorthSelling, worthTotal } from "../core/worthSelling";
   import GameIcon from "../ui/GameIcon.svelte";
   import Icon from "../ui/Icon.svelte";
   import type { Model } from "../core/model";
@@ -67,8 +67,10 @@
 
   // What every spare is worth the way it's best sold: plat on warframe.market, or ducats at Baro.
   const spares = $derived(all.filter((r) => r.spare > 0));
-  // As Inventory counts spares (core/spares.ts, inventoryValue): no more of each than the market sells in a month.
-  const asPlat = $derived(Math.round(spares.filter((r) => verdict(r) !== "Ducats").reduce((n, r) => n + (r.price ?? 0) * sellableCopies(r.spare, r.tradesPerDay), 0)));
+  // Worth selling, counted as Mods, Arcanes and Home's Ready to list count it (core/worthSelling.ts):
+  // the loose spares best sold for platinum, no more of each than the market sells in a month.
+  const selling = $derived(partsWorthSelling(all, advice));
+  const asPlat = $derived(worthTotal(selling));
   const asDucats = $derived(spares.filter((r) => verdict(r) === "Ducats").reduce((n, r) => n + r.ducats * r.spare, 0));
   const heldDucats = $derived((model.inventoryByBase.get("/Lotus/Types/Items/MiscItems/PrimeBucks") ?? []).reduce((n, r) => n + r.quantity, 0));
   const baro = $derived(model.live.baro ?? null);
@@ -191,7 +193,7 @@
 <div class="page"><div class="page-inner">
   <PageHead title="Prime parts" blurb="Every prime part you hold and its best use: keep, save for its set, sell, sell as a set, or trade to Baro.">
     {#snippet band()}
-      <Stat label="Spares to sell" note={`${plural(spares.filter((r) => verdict(r) !== "Ducats").reduce((n, r) => n + r.spare, 0), "part")} · daily median, no more of each than sells in a month`}><P v={asPlat} big /></Stat>
+      <Stat label="Worth selling" note={`${plural(selling.reduce((n, x) => n + x.copies, 0), "part")} · daily median, no more of each than sells in a month`} title="Worth selling: your spare parts best sold for platinum (Best as Sell), at the daily median, no more of each than the market sells in a month. Parts that go out inside a whole set are left out (sell the set, on Sets), as are the ones better traded to Baro for ducats or not worth a trade. Counted the same way on Mods, Arcanes and Home"><P v={asPlat} big /></Stat>
       <Stat label="Spares for ducats" tone="gold" note={`${plural(spares.filter((r) => verdict(r) === "Ducats").reduce((n, r) => n + r.spare, 0), "part")}, better traded in`}><P v={asDucats} d big /></Stat>
       <Stat keep label="Ducats held" tone="gold" note={baro ? (baroHere ? `Baro is here · leaves in ${until(baro.expiry)}` : `Baro arrives in ${until(baro.activation)}`) : "Baro's schedule unavailable"}><P v={heldDucats} d big /></Stat>
     {/snippet}

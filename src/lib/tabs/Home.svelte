@@ -6,10 +6,12 @@
   import type { Model } from "../core/model";
   import type { Live, MissionState } from "../core/types";
   import type { Settings } from "../backend";
-  import type { MyOrder } from "../core/market";
+  import { heldFor, type MyOrder } from "../core/market";
   import { mkt } from "../marketStore.svelte";
   import { masteryRows, relicRows, type RelicRow } from "../core/views";
   import { sellTargets, KIND_LABEL, BULK_KINDS, RULE_OF, type BulkKind } from "../core/bulk";
+  import { sellableCopies, UNKNOWN_TRADES_PER_DAY } from "../core/spares";
+  import { worthSelling, type WorthKind } from "../core/worthSelling";
   import { expectedBest, worthATrade } from "../core/advice";
   import { baroFlips, baroStock, shortCredits, varziaNeeds, until } from "../core/traders";
   import { invasionNeeds, invasionRares } from "../core/invasions";
@@ -64,6 +66,8 @@
   const orders = $derived(mkt.orders.filter((o) => o.type === "sell"));
   const listed = $derived(orders.filter((o) => o.visible).reduce((n, o) => n + o.platinum * o.quantity, 0));
   const hiddenCount = $derived(orders.filter((o) => !o.visible).length);
+  /** Hidden listings for more than you hold: nobody can buy them, so they're beside the count, not in it. */
+  const hiddenShort = $derived(console ? 0 : orders.filter((o) => { const it = !o.visible ? mkt.item(o.itemId) : undefined; const n = it ? heldFor(model, it, o) : null; return n != null && n < o.quantity; }).length);
   const DAY = 86_400_000;
   // The daily trade limit (core/tradeLimit.ts): trades today against your rank's worth.
   const trades = $derived(tradeAllowance(settings.market.trades, settings.game.masteryRank, now));
@@ -74,20 +78,40 @@
   });
   const sold = (from: number) => settings.market.sales.filter((s) => s.at >= from).reduce((n, s) => n + s.quantity * s.platinum, 0);
 
-  // ------------------------------------------------------------ ready to sell
-  // What would go on sale: not what's held back for ducats.
-  const targets = $derived(sellTargets(model, settings.market.bulk, settings.advice, mkt.index, settings.market.sellable, drops.recent).filter((t) => !t.hold));
+  // ------------------------------------------------------------ ready to list
+  // Prime parts, mods and arcanes: Worth selling, the items their pages count (core/worthSelling.ts),
+  // so each line here and what's under your minimum add up to the page's figure.
+  const WORTH_KINDS: BulkKind[] = ["part", "mod", "arcane"];
+  const worth = $derived(worthSelling(model, settings.advice, settings.market.sellable, drops.recent));
+  // Sets, imprints and everything else: what Put my spares on sale would list, not what's held back for ducats.
+  const targets = $derived(sellTargets(model, { ...settings.market.bulk, parts: false, mods: false, arcanes: false }, settings.advice, mkt.index, settings.market.sellable, drops.recent).filter((t) => !t.hold));
   const valueOf = (kind: BulkKind, name: string) => (kind === "arcane" ? (model.priceMax(name) ?? model.price(name)) : model.price(name));
-  // At least your minimum price each, and worth a trade: "Not worth a trade under Np" (Prime parts),
-  // judged on one trade of up to six copies, as for prime parts.
-  const worthy = $derived(targets.map((t) => ({ ...t, each: t.each !== undefined ? t.each : valueOf(t.kind, t.name) })).filter((t) => t.each != null && t.each >= minFor(t.name) && worthATrade(t.each, t.quantity, settings.advice.minPlat)));
+  /** Trades a day, for the month's cap: relics, whose sales warframe.market never reports, about one. */
+  const paceOf = (name: string) => (/ Relic$/.test(name) ? UNKNOWN_TRADES_PER_DAY : model.tradesPerDay(name));
+  // One shape for both: what it is, how many to list, each, and the platinum no more than a month of
+  // sales comes to (as Worth selling and Inventory's Spare value count it). Worth a trade: "Not worth a
+  // trade under Np" (Prime parts), judged on one trade of up to six copies.
+  const candidates = $derived([
+    ...worth.filter((x) => settings.market.bulk[RULE_OF[x.kind as WorthKind]]).map((x) => ({ kind: x.kind as BulkKind, name: x.name, quantity: x.copies, each: x.each as number | null, plat: x.plat })),
+    ...targets
+      .map((t) => ({ ...t, each: t.each !== undefined ? t.each : valueOf(t.kind, t.name) }))
+      .filter((t) => t.each != null && worthATrade(t.each, t.quantity, settings.advice.minPlat))
+      .map((t) => ({ kind: t.kind, name: t.name, quantity: t.quantity, each: t.each, plat: (t.each ?? 0) * sellableCopies(t.quantity, paceOf(t.name)) })),
+  ]);
+  // At least your minimum price each, as Put my spares on sale lists them.
+  const worthy = $derived(candidates.filter((t) => t.each != null && t.each >= minFor(t.name)));
+  /** What your minimum leaves out, so the lines here add up to the selling pages' Worth selling. */
+  const under = $derived(candidates.filter((t) => t.each != null && t.each < minFor(t.name)));
+  const underMin = $derived(Math.round(under.reduce((n, t) => n + t.plat, 0)));
+  /** "Mods 9,476p · Prime parts 893p": what the minimum leaves out of each kind. */
+  const underSplit = $derived(BULK_KINDS.map((k) => [k, Math.round(under.filter((t) => t.kind === k).reduce((n, t) => n + t.plat, 0))] as const).filter(([, v]) => v >= 1).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${KIND_LABEL[k]}s ${v.toLocaleString("en")}p`).join(" · "));
   // Relics have their own minimum, as Put my spares on sale uses (they go in stacks).
   const minFor = (name: string) => (/ Relic$/.test(name) ? settings.market.minRelicPrice : settings.market.minPrice);
   const byKind = $derived(
     BULK_KINDS
       .map((k) => {
         const xs = worthy.filter((t) => t.kind === k);
-        return { kind: k, count: xs.reduce((n, t) => n + t.quantity, 0), plat: Math.round(xs.reduce((n, t) => n + t.quantity * (t.each ?? 0), 0)) };
+        return { kind: k, count: xs.reduce((n, t) => n + t.quantity, 0), plat: Math.round(xs.reduce((n, t) => n + t.plat, 0)) };
       })
       .filter((k) => k.count > 0),
   );
@@ -299,7 +323,7 @@
     for (const a of worldAlerts.rare) out.push({ key: `alert|${a.key}`, tone: "info", icon: "sortie", image: model?.imageOf(a.reward.replace(/^\d+ × /, "")) ?? null, title: a.reward, sub: `${a.mission} on ${a.node}`, foe: a.faction, expiry: a.expiry, act: "", to: "", hint: `An alert with a rare reward: ${a.reward}. ${a.mission} on ${a.node}` });
     if (!console) for (const n of invasions) out.push({ key: `invasion|${n.key}`, tone: "gold", icon: "invasion", image: n.itemImage, title: n.reward, sub: `toward ${n.item}${n.needed > 1 ? ` · ${n.have} of ${n.needed}` : ""} · ${n.node}`, side: n.side, progress: n.completion, sides: n.attacker && n.defender ? [n.attacker, n.defender] : null, act: "Mastery", to: "mastery", hint: `An invasion at ${n.node} rewards ${n.reward} for ${n.item}, which you haven't mastered: side with the ${n.side}` });
     for (const n of rareInvasions) out.push({ key: `invasion|${n.key}`, tone: "info", icon: "invasion", image: model?.imageOf(n.reward.replace(/^\d+ × /, "")) ?? null, title: n.reward, sub: `invasion · ${n.node}`, side: n.side, progress: n.completion, act: "", to: "", hint: `An invasion at ${n.node} pays a rare reward, ${n.reward}: side with the ${n.side}. Three runs earn it` });
-    if (shortListings.length) out.push({ key: null, tone: "gold", icon: "market", title: `${shortListings.length} listing${shortListings.length === 1 ? "" : "s"} for more than you hold`, sub: "Sold in game, or listed by mistake: fix them on Orders", act: "Open Orders", to: "market", hint: "warframe.market lists more than your inventory holds" });
+    if (shortListings.length) out.push({ key: null, tone: "gold", icon: "market", title: "Listed more than you hold", sub: `${shortListings.length} listing${shortListings.length === 1 ? "" : "s"}${hiddenShort ? ` (+${hiddenShort} hidden)` : ""}: sold in game, or listed by mistake. Fix them on Orders`, act: "Open Orders", to: "market", hint: "Your visible listings on warframe.market for more copies than your inventory holds" });
     const statusError = mkt.statusError ?? mkt.status?.error;
     if (statusError) out.push({ key: null, tone: "red", icon: "market", title: "warframe.market status", sub: statusError, act: "Open Orders", to: "market", hint: `Your status on warframe.market couldn't be set: ${statusError}` });
     const urgent = varzia.filter((v) => v.onlyHere > 0 || v.regalAya != null);
@@ -313,7 +337,7 @@
     { key: "alerts", label: "Needs you", hint: "Alerts and invasions worth a look, listings to fix, Varzia's rotation ending", consoleHint: "Alerts and invasions with rare rewards" },
     { key: "world", label: "World clocks", hint: "Day and night on the open worlds, Duviri's mood, and the daily and weekly resets" },
     { key: "market", label: "Your orders", hint: "Your warframe.market status, what you have listed, and what sold" },
-    { key: "ready", label: "Ready to sell", hint: "Your spares worth listing, in the kinds ticked on Orders" },
+    { key: "ready", label: "Ready to list", hint: "Your spares worth listing, in the kinds ticked on Orders, at or over your minimum" },
     { key: "fissures", label: "Fissures now", hint: "Every open fissure (normal, Steel Path or Void Storms), your best relic for each era, and your fissure alerts", consoleHint: "Every open fissure (normal, Steel Path or Void Storms), and your fissure alerts" },
     { key: "bounties", label: "Bounties", hint: "The bounties in Cetus, Fortuna, the Necralisk, the Zariman, Cavia and Höllvania, and what each pays" },
     { key: "events", label: "Events", hint: "Events running in game (Tactical Alerts, operations, seasonal ones): where, until when, and what they pay" },
@@ -445,17 +469,18 @@
         <div class="presence"><Presence settings={settings.market} quiet /></div>
         <div class="figs">
           <div title="Your visible listings on warframe.market: price × quantity, and how many{hiddenCount ? ` (${hiddenCount} hidden ones not counted)` : ''}"><P v={listed} /><span class="register">Listed · {orders.length - hiddenCount}</span></div>
-          {#if !console}<div title="Listings for more than you hold now: sold, or used in game. Fix them on Orders, or a buyer finds you can't deliver"><b class="mark" class:amber={shortListings.length}>{#if shortListings.length}<span class="bang" aria-hidden="true">!</span>{/if}{shortListings.length}</b><span class="register">Can't deliver</span></div>{/if}
-          <div title="Platinum from what you sold today, from Sales"><P v={sold(dayStart)} /><span class="register">Sold today</span></div>
+          {#if !console}<div title="Listed more than you hold: visible listings for more copies than you hold now (sold, or used in game). Fix them on Orders, or a buyer finds you can't deliver{hiddenShort ? `. ${hiddenShort} hidden listing${hiddenShort === 1 ? '' : 's'} too, which nobody can buy` : ''}"><b class="mark" class:amber={shortListings.length}>{#if shortListings.length}<span class="bang" aria-hidden="true">!</span>{/if}{shortListings.length}</b><span class="register">Listed more than you hold</span></div>{/if}
+          <div title="Platinum from what you sold today, from Sales: since your local midnight (Trades left counts from 00:00 UTC)"><P v={sold(dayStart)} /><span class="register">Sold today</span></div>
           <div title="Platinum from what you sold in the last 7 days"><P v={sold(now - 7 * DAY)} /><span class="register">Last 7 days</span></div>
           {#if !console && trades.limit != null}<div title="Trades a day are your Mastery Rank ({trades.limit}; Founders get 2 more), each one counting whatever it carried (up to 6 items). {trades.used} since 00:00 UTC, from the game's log while orbiter was reading it. Refreshes in {until(new Date(trades.resets).toISOString(), now)}"><b class="mark" class:amber={trades.left != null && trades.left <= 3}>{#if trades.left != null && trades.left <= 3}<span class="bang" aria-hidden="true">!</span>{/if}{trades.left}<small class="dim">/{trades.limit}</small></b><span class="register">Trades left</span></div>{/if}
         </div>
-        {#if shortListings.length}
+        {#if shortListings.length || hiddenShort}
           <ul class="mini">
             {#each shortListings.slice(0, 3) as o (o.id)}
               {@const it = mkt.item(o.itemId)}
-              <li><Thumb file={model.imageOf(it?.name ?? "")} name={it?.name ?? ""} size={22} /><span>{it?.name ?? "?"}</span><span class="amber small">! listed {o.quantity}, sold some?</span></li>
+              <li><Thumb file={model.imageOf(it?.name ?? "")} name={it?.name ?? ""} size={22} /><span>{it?.name ?? "?"}</span><span class="amber small" title="Listed more than you hold: sold in game, or used">! listed {o.quantity}, you hold {it ? (heldFor(model, it, o) ?? "?") : "?"}</span></li>
             {/each}
+            {#if hiddenShort}<li class="dim small" title="Hidden listings for more than you hold: nobody can buy them, so they're not in the count above. Fix them on Orders">+{hiddenShort} hidden listing{hiddenShort === 1 ? "" : "s"} for more than you hold</li>{/if}
           </ul>
         {/if}
         <div class="foot"><button class="link" onclick={() => go("sales")}>Sales log →</button></div>
@@ -468,15 +493,15 @@
       {/if}
     </section>
 
-    <!-- Ready to sell -->
+    <!-- Ready to list -->
     <section class="panel ready" class:off={off("ready")} class:half={orphan("ready")} class:lone={lone("ready")} style:--n={share("ready")} data-card="ready">
-      {@render head("platinum", null, "Ready to sell", "market#spares", "Put my spares on sale")}
+      {@render head("platinum", null, "Ready to list", "market#spares", "Put my spares on sale")}
       {#if !ticked}
         <p class="dim">Nothing ticked in <b>Put my spares on sale</b> on Orders.</p>
       {:else if !byKind.length}
         <p class="dim">Nothing spare worth {settings.market.minPrice}p or more in what you ticked.</p>
       {:else}
-        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Only the kinds ticked under Put my spares on sale, on Orders, and only what's worth at least your minimum price there (relics: your relic minimum) and worth a trade: at least {settings.advice.minPlat}p in one trade of up to six copies (Not worth a trade under, set on Prime parts). Everything you could spare, of every kind, is on Inventory (You can spare). At daily median prices: what Put my spares on sale would list, {settings.market.minPrice}p and up{settings.market.bulk.other ? ` (relics ${settings.market.minRelicPrice}p)` : ""}">if you list your spares{unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
+        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Ready to list: the kinds ticked under Put my spares on sale, on Orders, at or over your minimum price there ({settings.market.minPrice}p{settings.market.bulk.other ? `; relics ${settings.market.minRelicPrice}p` : ""}), at the daily median and no more of each than the market sells in a month. Prime parts, mods and arcanes are their pages' Worth selling (not worth a trade under {settings.advice.minPlat}p, ducat and Vosfor picks left out) less what's under your minimum. Everything you could spare, of every kind, is Spare value on Inventory">if you list your spares{unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
         <ul class="kinds">
           {#each byKind as k (k.kind)}
             <li>
@@ -485,6 +510,7 @@
             </li>
           {/each}
         </ul>
+        {#if underMin >= 1}<p class="dim small note" title="Spares in the kinds you ticked that are worth a trade but priced under your minimum (Orders, Put my spares on sale): counted in Worth selling on their pages, but not listed. {underSplit}">+<P v={underMin} /> under your {settings.market.minPrice}p minimum</p>{/if}
         {#if !console && !settings.market.bulk.parts}<p class="dim small note">Spare prime parts aren't ticked: <button class="link" onclick={() => go("parts?best=Sell")}>Prime parts</button> has them.</p>{/if}
       {/if}
     </section>
