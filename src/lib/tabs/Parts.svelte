@@ -28,6 +28,8 @@
   import { info } from "../hover.svelte";
   import PriceHistory from "../ui/PriceHistory.svelte";
   import { takeIntent } from "../intent.svelte";
+  import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
+  import { pickShowcase } from "../core/showcase";
 
   // The ducat rate and smallest sale worth a trade are yours to set here; the bulk sale uses them too.
   // Settings → Selling: whether loose parts wait for a set worth more whole.
@@ -85,6 +87,30 @@
   const baroHere = $derived(!!baro && Date.now() >= Date.parse(baro.activation) && Date.now() < Date.parse(baro.expiry));
   const RATES = [0.05, 0.08, 0.1, 0.12, 0.15, 0.2];
   const buys = $derived(ducatBuys(model, { limit: 12 }));
+
+  // The showcase: the five parts worth most in Worth selling, each on the item it builds; with none
+  // to sell, the dearest parts you hold.
+  let opened = $state<PartRow | null>(null);
+  const sellingBy = $derived(new Map(selling.map((x) => [x.name, x])));
+  const shelf = $derived(pickShowcase(all, { spare: (r) => sellingBy.get(r.name)?.plat, held: (r) => (r.quantity > 0 ? r.price : null), name: (r) => r.name }));
+  const exhibits = $derived(
+    shelf.items.map(({ row: r, value }): Exhibit => {
+      const w = sellingBy.get(r.name);
+      const part = r.name.replace(`${r.parentName} `, "");
+      return {
+        key: r.name,
+        name: r.parentName,
+        sub: w ? `${part} · ×${w.copies} to sell` : `${part} · ×${r.quantity} held · each`,
+        value: Math.round(value),
+        title: w ? `${r.name}: ${w.copies} loose to sell at about ${Math.round(w.each)}p, ${Math.round(value).toLocaleString("en")}p in all (no more than the market sells in a month: its part of Worth selling). Click for its details` : `${r.name}: ${Math.round(value)}p each, ${r.quantity} held. Click for its details`,
+        open: () => (opened = r),
+        image: model.catalogByUnique.get(r.parentUnique)?.imageName ?? model.imageOf(r.parentName),
+        badge: model.imageOf(r.name),
+        look: "art",
+        fallback: "foundry",
+      };
+    }),
+  );
 
   // Complete sets you can sell, by item: their parts are better sold as a set.
   const setsFor = $derived(new Map(setRows(model).filter((s) => s.sellable > 0).map((s) => [s.name, s.sellable])));
@@ -200,6 +226,9 @@
 
 <div class="page"><div class="page-inner">
   <PageHead title="Prime parts" brief="Each prime part's best use." blurb="Every prime part you hold and its best use: keep, save for its set, sell, sell as a set, or trade to Baro.">
+    {#snippet hero()}
+      <Showcase items={exhibits} caption={shelf.mode === "held" ? "Nothing to sell: your dearest parts" : "Your most valuable parts to sell"} note={shelf.mode === "held" ? "Each, at the daily median · click one for its details" : "By Worth selling · click one for its details"} empty="No prime parts yet: they turn up here from your relics once orbiter has read your inventory (press Sync)." />
+    {/snippet}
     {#snippet band()}
       <Stat label="Worth selling" note={`${plural(selling.reduce((n, x) => n + x.copies, 0), "part")} · daily median, no more of each than sells in a month`} title="Worth selling: your spare parts best sold for platinum (Best as Sell), at the daily median, no more of each than the market sells in a month. Parts that go out inside a whole set are left out (sell the set, on Sets), as are the ones better traded to Baro for ducats or not worth a trade. Counted the same way on Mods, Arcanes and Home"><P v={asPlat} big /></Stat>
       <Stat label="Spares for ducats" tone="gold" note={`${plural(spares.filter((r) => verdict(r) === "Ducats").reduce((n, r) => n + r.spare, 0), "part")}, better traded in`}><P v={asDucats} d big /></Stat>
@@ -226,7 +255,7 @@
     </Fold>
   </div>
 
-  <Browse id="parts" {rows} {columns} key={(r) => r.name} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty="No prime parts of mastered items.">
+  <Browse id="parts" bind:opened {rows} {columns} key={(r) => r.name} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty="No prime parts of mastered items.">
     {#snippet tools()}
       <!-- Not filters: how Best as weighs platinum against ducats (Put my spares on sale uses them too), so they sit at the end of the sort row rather than wrapping alone under the filters. -->
       <Fold label="Your rates" title="What a ducat is worth to you and the smallest sale worth a trade: how Best as weighs platinum against ducats (Put my spares on sale uses the same)">

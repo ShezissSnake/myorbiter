@@ -22,6 +22,8 @@
   import { COLLECTIONS, packValues, spareArcanes, vosforHeld, vosforWorth, type SpareArcane } from "../core/vosfor";
   import { info } from "../hover.svelte";
   import { arcanesWorthSelling, worthTotal } from "../core/worthSelling";
+  import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
+  import { pickShowcase } from "../core/showcase";
 
   let { model, advice = $bindable() }: { model: Model; advice: AdviceSettings } = $props();
   /** Your copies of an arcane by rank. */
@@ -90,6 +92,48 @@
   // Worth selling, counted as Prime parts, Mods and Home's Ready to list count it
   // (core/worthSelling.ts): the ones marked Sell, no more of each than the market sells in a month.
   const sellWorth = $derived(worthTotal(arcanesWorthSelling(spares)));
+  // The showcase: the five arcanes worth most in Worth selling (maxed and loose copies together), as
+  // their sigils; with none to sell, the dearest arcanes you hold. A click opens it under Sell or
+  // dissolve (or, held, under All arcanes).
+  let opened = $state<ArcaneRow | null>(null);
+  let spareOpened = $state<SpareArcane | null>(null);
+  const sellingBy = $derived.by(() => {
+    const out = new Map<string, { plat: number; copies: number }>();
+    for (const x of arcanesWorthSelling(spares)) {
+      const g = out.get(x.name) ?? { plat: 0, copies: 0 };
+      g.plat += x.plat;
+      g.copies += x.copies;
+      out.set(x.name, g);
+    }
+    return out;
+  });
+  const shelf = $derived(pickShowcase(all, { spare: (r) => sellingBy.get(r.name)?.plat, held: (r) => (r.copies > 0 ? (r.priceMax ?? r.price) : null), name: (r) => r.name, key: (r) => r.unique }));
+  function openShelf(r: ArcaneRow) {
+    const x = spares.find((y) => y.row.unique === r.unique);
+    if (x && shelf.mode === "spares") {
+      show = "spares";
+      spareOpened = x;
+    } else {
+      if (show === "spares") show = "all";
+      opened = r;
+    }
+  }
+  const exhibits = $derived(
+    shelf.items.map(({ row: r, value }): Exhibit => {
+      const w = sellingBy.get(r.name);
+      return {
+        key: r.unique,
+        name: r.name,
+        sub: w ? `×${w.copies} to sell · ${r.type}` : `×${r.copies} held · ${r.priceMax != null ? `R${r.maxRank}, each` : "each"}`,
+        value: Math.round(value),
+        title: w ? `${r.name}: ${w.copies} marked Sell, ${Math.round(value).toLocaleString("en")}p in all (maxed copies at the max-rank price, loose ones at their share; no more than the market sells in a month: its part of Worth selling). Click for its details` : `${r.name}: ${Math.round(value)}p each${r.priceMax != null ? ` at R${r.maxRank}` : ""}, ${r.copies} held. Click for its details`,
+        open: () => openShelf(r),
+        image: model.imageOf(r.name),
+        look: "arcane",
+        card: { rarity: r.rarity, maxRank: r.maxRank, rank: r.highestRank ?? 0 },
+      };
+    }),
+  );
   const toDissolve = $derived(spares.filter((x) => x.verdict === "dissolve"));
   const held = $derived(vosforHeld(model));
   const gain = $derived(toDissolve.reduce((n, x) => n + (x.vosfor ?? 0), 0));
@@ -227,6 +271,9 @@
 
 <div class="page"><div class="page-inner">
   <PageHead title="Arcanes" brief="Arcanes by worth, and how close to maxed." blurb="What each arcane is worth, and how close you are to maxing it.">
+    {#snippet hero()}
+      <Showcase items={exhibits} caption={shelf.mode === "held" ? "Nothing marked Sell: your dearest arcanes" : "Your most valuable arcanes to sell"} note={shelf.mode === "held" ? "Each, at the daily median · click one for its details" : "By Worth selling · click one for its details"} empty="No arcanes read yet: press Sync while Warframe is running, and they go on display here." />
+    {/snippet}
     {#snippet band()}
       <Stat label="Maxed" note="Arcanes you have at max rank">{completeCount}<span class="of">/{all.length}</span></Stat>
       <Stat label="Worth selling" note={`${things(toSell.length, "arcane")} marked Sell · no more of each than sells in a month`} title="Worth selling: the spare arcanes marked Sell (not the ones worth more dissolved, or under a trade's worth), maxed copies at the max-rank price and loose ones at their share of one, no more of each than the market sells in a month. Counted the same way on Prime parts, Mods and Home"><P v={sellWorth} big /></Stat>
@@ -281,9 +328,9 @@
   </div>
 
   {#if show === "spares"}
-    <Browse id="arcane-spares" rows={spareRows} columns={spareColumns} key={(x) => x.row.unique} bind:sort={spareSort} detail={spareDetail} card={spareCard} title={(x) => x.row.name} min="18rem" clear={filtered ? clear : null} empty="No spare arcanes: you keep one of each and have nothing extra." />
+    <Browse id="arcane-spares" bind:opened={spareOpened} rows={spareRows} columns={spareColumns} key={(x) => x.row.unique} bind:sort={spareSort} detail={spareDetail} card={spareCard} title={(x) => x.row.name} min="18rem" clear={filtered ? clear : null} empty="No spare arcanes: you keep one of each and have nothing extra." />
   {:else}
-    <Browse id="arcanes" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty={show === "unfinished" ? "Every arcane maxed: nothing left to collect." : "No arcanes."} />
+    <Browse id="arcanes" bind:opened {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty={show === "unfinished" ? "Every arcane maxed: nothing left to collect." : "No arcanes."} />
   {/if}
 </div></div>
 

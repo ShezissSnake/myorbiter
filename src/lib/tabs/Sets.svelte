@@ -27,6 +27,8 @@
   import ListButton from "../ui/ListButton.svelte";
   import { marketUrl, openUrl } from "../backend";
   import { info } from "../hover.svelte";
+  import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
+  import { pickShowcase } from "../core/showcase";
 
   let { model, advice, sell }: { model: Model; advice: DucatOptions; sell: SellChoices } = $props();
 
@@ -103,6 +105,25 @@
     const slowest = Math.min(...r.parts.map((p) => (model.tradesPerDay(p.name) ?? 0) / p.required));
     return slowest > 0 ? Math.round((r.tradesPerDay / slowest) * 10) / 10 : null;
   };
+  // The showcase: the five sets you can sell worth most (sets × set price, the Total column), whatever
+  // the view below; with none to sell, the dearest complete sets you're keeping.
+  const shelf = $derived(pickShowcase(all, { spare: (r) => (r.setPrice == null ? null : sellableOf(r) * r.setPrice), held: (r) => (r.completeSets > 0 ? r.setPrice : null), name: (r) => r.name, key: (r) => r.unique }));
+  const exhibits = $derived(
+    shelf.items.map(({ row: r, value }): Exhibit => {
+      const n = shelf.mode === "spares" ? sellableOf(r) : r.completeSets;
+      return {
+        key: r.unique,
+        name: r.name,
+        sub: `×${n} ${shelf.mode === "spares" ? "to sell" : "kept"} · ${r.category}`,
+        value: Math.round(value),
+        title: shelf.mode === "spares" ? `${r.name} Set: ${n} to sell at ${r.setPrice}p, ${Math.round(value).toLocaleString("en")}p in all. Click for the set` : `${r.name} Set: ${r.setPrice}p a set, ${n} complete, kept to build. Click for the set`,
+        open: () => details.open(r.unique),
+        image: model.catalogByUnique.get(r.unique)?.imageName ?? model.imageOf(r.name),
+        look: "art",
+        fallback: kindIcon(r.category, r.name) ?? "foundry",
+      };
+    }),
+  );
   const worthFinishing = $derived(mode === "close" ? rows.filter((r) => (completeGain(r) ?? 0) > 0).length : 0);
 
   const sellCols: Column<SetRow>[] = $derived([
@@ -227,6 +248,9 @@
 
 <div class="page"><div class="page-inner">
   <PageHead title="Sets" brief="Sets to sell, almost done, or saving up." blurb="Complete sets to sell (prime, and the others warframe.market trades whole), the ones almost done, and the ones your loose parts wait for.">
+    {#snippet hero()}
+      <Showcase items={exhibits} caption={shelf.mode === "held" ? "Nothing to sell: your dearest complete sets" : "Your most valuable sets to sell"} note={shelf.mode === "held" ? "Kept to build · click one for the set" : "Sets to sell × set price · click one for the set"} empty="No complete sets yet: a set goes on display here once you hold every part of it." />
+    {/snippet}
     {#snippet band()}
       {#if mode === "save"}
       <Stat label="Sets saved for" note={saveOn ? "Their loose parts wait instead of being sold" : "Off in Settings → Selling"}>{rows.length}</Stat>

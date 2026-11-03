@@ -27,6 +27,8 @@
   import { matches, type Column } from "../ui/table";
   import NotNeeded from "../ui/NotNeeded.svelte";
   import { notNeeded, type GearCopy } from "../core/notNeeded";
+  import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
+  import { pickShowcase } from "../core/showcase";
 
   let { model, sell, platPerDucat = 0, squad = 1, gear = null, keepGear = $bindable([]) }: { model: Model; sell: SellChoices; platPerDucat?: number; squad?: number; gear?: GearCopy[] | null; keepGear?: string[] } = $props();
   // Gear you no longer need and can't trade (core/notNeeded.ts), shown above the list when asked.
@@ -115,6 +117,35 @@
   /** "mods 9,033 · prime parts 1,210 · …": where the spare figure comes from, biggest first. */
   const spareSplit = $derived([...value.byKind].filter(([, v]) => v >= 1).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${KIND_WORD[k] ?? k} ${Math.round(v).toLocaleString("en")}p`).join(" · "));
 
+  // The showcase: the kind you're looking at, its five most valuable spares by Spare value (every
+  // rank or refinement of one item in one place); with none spare, the dearest things you hold.
+  let opened = $state<InventoryItem | null>(null);
+  const shelfRows = $derived(kind === "all" ? all : all.filter((r) => r.kind === kind));
+  const shelfKey = (r: InventoryItem) => `${r.kind}|${shown(r)}`;
+  const shelf = $derived(pickShowcase(shelfRows, { spare: (r) => full.rows.get(r.key)?.spare ?? null, held: (r) => priceOf(r), name: shown, key: shelfKey }));
+  const imageFor = (r: InventoryItem) => model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r));
+  const exhibits = $derived(
+    shelf.items.map(({ row: r, value }): Exhibit => {
+      const c = model.catalogByUnique.get(r.unique);
+      const same = shelfRows.filter((x) => shelfKey(x) === shelfKey(r));
+      const spareN = same.reduce((n, x) => n + spare(x), 0);
+      const heldN = same.reduce((n, x) => n + x.quantity, 0);
+      const spares = shelf.mode === "spares";
+      return {
+        key: shelfKey(r),
+        name: shown(r),
+        sub: spares ? `×${spareN.toLocaleString("en")} spare · ${spareOf(r)?.type ?? r.type}` : `×${heldN.toLocaleString("en")} held · each`,
+        value: Math.round(value),
+        title: spares ? `${shown(r)}: ${spareN.toLocaleString("en")} spare, about ${Math.round(value).toLocaleString("en")}p (no more than the market sells in a month: its part of Spare value). Click for its details` : `${shown(r)}: ${Math.round(value).toLocaleString("en")}p each, ${heldN.toLocaleString("en")} held. Click for its details`,
+        open: () => (r.kind === "gear" && c ? details.open(r.unique) : (opened = r)),
+        image: imageFor(r),
+        look: r.kind === "mod" ? "mod" : r.kind === "arcane" ? "arcane" : "art",
+        fallback: kindIcon(r.kind === "relic" ? "relic" : (spareOf(r)?.type ?? r.type), r.name) ?? "foundry",
+        card: { rarity: c?.rarity ?? "", polarity: c?.polarity ?? null, drain: c?.baseDrain ?? null, maxRank: r.maxRank ?? c?.maxRank ?? null, rank: r.rank ?? 0, label: c?.compatName ?? "", does: c?.maxStats?.[0] ?? "" },
+      };
+    }),
+  );
+  const KIND_LABEL = $derived(KINDS.find((k) => k.v === kind)?.label.toLowerCase() ?? "");
 
   const columns: Column<InventoryItem>[] = [
     { key: "name", label: "Item", value: (r) => r.name, cell: nameCell, defaultDesc: false, width: "min(26rem, 40%)" },
@@ -228,6 +259,14 @@
 
 <div class="page"><div class="page-inner">
   <PageHead title="Inventory" brief="Everything you own, and what it's worth." blurb="Everything you own, with what it's worth on warframe.market.">
+    {#snippet hero()}
+      <Showcase
+        items={exhibits}
+        caption={shelf.mode === "held" ? `Nothing spare${kind === "all" ? "" : ` in ${KIND_LABEL}`}: your dearest` : kind === "all" ? "Your most valuable spares" : `Your most valuable spare ${KIND_LABEL}`}
+        note={shelf.mode === "held" ? "Each, at the daily median · click one for its details" : "By what they'd sell for (Spare value) · click one for its details"}
+        empty={all.length ? `No ${KIND_LABEL} with a market price.` : "Nothing read yet: press Sync while Warframe is running, and your gear goes on display here."}
+      />
+    {/snippet}
     {#snippet band()}
       <Stat label="Spare value" tone="gold" note="Beyond what you keep, no more of each than the market sells in a month" title={`Spare value: every copy beyond what you keep, of every kind, at the daily median, no more of each item than the market sells in a month (slow sellers count only that; unranked arcanes as their share of a maxed one).${spareSplit ? ` By kind: ${spareSplit}.` : ""} Worth selling, on Prime parts, Mods and Arcanes, is the narrower figure: it leaves out what's better as ducats or Vosfor, what isn't worth a trade and mods that don't sell daily.`}><P v={value.spare} big /></Stat>
       <Stat extra label="Quick-sale value" note="Everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month"><P v={value.easy} big /></Stat>
@@ -260,7 +299,7 @@
 
   {#if letGo}<NotNeeded {model} out={unneeded} incarnons={!!gear} bind:keep={keepGear} />{/if}
 
-  <Browse id="inventory" {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => shown(r)} kicker={(r) => spareOf(r)?.type ?? r.type} onopen={(r) => (r.kind === "gear" && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" clear={filtered ? clear : null} empty="Nothing in your inventory yet." />
+  <Browse id="inventory" bind:opened {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => shown(r)} kicker={(r) => spareOf(r)?.type ?? r.type} onopen={(r) => (r.kind === "gear" && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" clear={filtered ? clear : null} empty="Nothing in your inventory yet." />
 </div></div>
 
 <style>

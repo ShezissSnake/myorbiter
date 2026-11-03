@@ -27,6 +27,8 @@
   import { matches, sortRows, type Column } from "../ui/table";
   import Browse from "../ui/Browse.svelte";
   import Named from "../ui/Named.svelte";
+  import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
+  import { pickShowcase } from "../core/showcase";
 
   // console: you play on a console or phone, where orbiter can't read your rivens: the finder and
   // alerts only.
@@ -346,6 +348,35 @@
     }
     return { total, n };
   });
+  // The showcase: your five best-graded rivens as their cards, with what each weapon's rivens go for
+  // (last week's trades, else what similar ones are listed for, else orbiter's estimate).
+  let opened = $state<Riven | null>(null);
+  const shelf = $derived(pickShowcase(mine, { spare: () => null, held: (r) => r.quality, name: (r) => `${r.weapon} ${r.name}`, key: (r) => r.id }));
+  const goingRate = (r: Riven): { v: number | null; how: string } => {
+    const t = tradeValue(r);
+    if (t != null) return { v: t, how: "last week's in-game median for the weapon's rivens" };
+    const sp = similarPrice(r);
+    if (sp != null) return { v: sp, how: "what similar ones are listed for (asking)" };
+    const e = estimateOf(r);
+    return e != null ? { v: e, how: "orbiter's estimate" } : { v: null, how: "not priced yet: press Check prices" };
+  };
+  const exhibits = $derived(
+    shelf.items.map(({ row: r }): Exhibit => {
+      const g = goingRate(r);
+      return {
+        key: r.id,
+        name: r.weapon,
+        sub: `${r.name} · ${r.rerolls ? `${r.rerolls} cycle${r.rerolls === 1 ? "" : "s"}` : "unrolled"}`,
+        value: g.v == null ? null : Math.round(g.v),
+        grade: r.grade,
+        title: `${r.weapon} ${r.name}: grade ${r.grade}, its stats rolled ${r.quality == null ? "?" : Math.round(r.quality * 100)}% of the way up their ranges on average. ${g.v == null ? "No price yet" : `About ${Math.round(g.v).toLocaleString("en")}p`}: ${g.how}. Click for its card`,
+        open: () => (opened = r),
+        image: r.image,
+        look: "riven",
+        card: { rank: r.rank, maxRank: 8, label: `${r.kind} riven`, polarity: r.polarity ?? null },
+      };
+    }),
+  );
   const priced = $derived(mine.map((r) => checks[r.id]?.auctions).filter((a): a is RivenAuction[] => !!a).map((a) => priceCheck(a)));
   const worth = $derived(priced.reduce((n, p) => n + (p.typical ?? 0), 0));
   const estimated = $derived(Object.values(estimates));
@@ -585,8 +616,12 @@
   </article>
 {/snippet}
 
+{#snippet showcase()}
+  <Showcase items={exhibits} caption="Your best-graded rivens" note="By grade, with what the weapon's rivens go for · click one for its card" />
+{/snippet}
+
 <div class="page"><div class="page-inner">
-  <PageHead title="Rivens" brief={console ? "Rivens for sale, graded, and alerts." : "Your rivens graded, and what they sell for."} blurb={console ? "Find rivens for sale, each roll graded, what each weapon's rivens traded for last week, and alerts when one you want is listed at your price." : "Your rivens graded stat by stat, and what each weapon's rivens sold for last week."}>
+  <PageHead hero={!console && mine.length ? showcase : undefined} title="Rivens" brief={console ? "Rivens for sale, graded, and alerts." : "Your rivens graded, and what they sell for."} blurb={console ? "Find rivens for sale, each roll graded, what each weapon's rivens traded for last week, and alerts when one you want is listed at your price." : "Your rivens graded stat by stat, and what each weapon's rivens sold for last week."}>
     {#snippet band()}
       {#if !console}
       <Stat label="Unveiled" note="Read from your inventory">{mine.length}</Stat>
@@ -649,7 +684,7 @@
       {#if splicedCount}<Chip bind:on={splicedOnly} label="Spliced ({splicedCount})" title="Only rivens with a stat from Riven Splicing (Gas, Corrosive, Weak Point Damage…), which can't roll by cycling" />{/if}
       <span class="dim small explain">Grades compare each roll with its range: S is the top of it, B the middle, F the bottom. A curse says whether it hurts (on a stat players want) or is harmless (ammo, zoom, recoil and the like). Dispositions are 1.2 for every weapon since the 22 October 2026 hotfix.</span>
     </div>
-    <Browse id="rivens" rows={shown} {columns} key={(r) => r.id} bind:sort {card} detail={rivenDetail} title={(r) => `${r.weapon} ${r.name}`} min="23rem" cardLimit={36} clear={filtered ? clear : null} empty="No unveiled rivens in your inventory.">
+    <Browse id="rivens" bind:opened rows={shown} {columns} key={(r) => r.id} bind:sort {card} detail={rivenDetail} title={(r) => `${r.weapon} ${r.name}`} min="23rem" cardLimit={36} clear={filtered ? clear : null} empty="No unveiled rivens in your inventory.">
       {#snippet tools()}
         {#if checkingAll?.paused}
           <span class="dim small">{checkingAll.retry ? "Some checks failed" : "warframe.market asked to slow down"}: waiting half a minute, then {checkingAll.retry ? "trying those again" : `${checkingAll.done + 1} of ${checkingAll.total}`}</span>
