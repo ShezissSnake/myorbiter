@@ -169,7 +169,7 @@
     </article>
   </section>
 {:else}
-  <PageHead title="Guide" blurb="What each page is for. orbiter runs TennoScope for you in the background." />
+  <PageHead title="Guide" brief="What each page is for." blurb="What each page is for. orbiter runs TennoScope for you in the background." />
 
   <section class="walks" aria-label="Walkthroughs" data-card="walks">
     {#each WALKS as w (w.title)}
@@ -309,7 +309,10 @@
 </div></div>
 
 <style>
-  .walks { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1rem 1.6rem; margin: 0 0 var(--course); }
+  .walks { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem 1.6rem; margin: 0 0 var(--course); }
+  /* Two by two where four won't fit, so no walk sits alone on a row. */
+  :global(html[data-room~="lt1100"]) .walks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :global(html[data-room~="lt640"]) .walks { grid-template-columns: 1fr; }
   .walks article { padding: .8rem 1rem; border: 1px solid var(--rule); background: var(--plate); }
   .walks h2 { font-size: 1.05rem; margin: 0 0 .5rem; }
   .walks ol { margin: 0; padding-left: 1.1rem; display: grid; gap: .35rem; font-size: .86rem; }

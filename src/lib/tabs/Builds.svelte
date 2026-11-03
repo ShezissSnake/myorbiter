@@ -38,7 +38,7 @@
   import { canSuggest, heldFrom, modIndex, ownedFrom, suggest, toBuild, variantsFor, type RivenContext, type Suggestion } from "../core/builds/suggest";
   import { parseRiven, rivenTables, unpackListed, weaponSlug, type Riven } from "../core/rivens";
   import { rivens } from "../rivenStore.svelte";
-  import { ageLine, arrange, buildableItems, isOverframe, buildKindOf, kindLabelOf, noxUrl, overframeUrl, recentItems, savedFrom, tagsIn, TIER_MEANS, TIER_NAME, TIER_TIP, TIERS, withTags, type Shown } from "../core/buildsPage";
+  import { ageLine, arrange, buildableItems, isOverframe, buildKindOf, kindLabelOf, noxUrl, overframeUrl, recentItems, savedFrom, startingItems, tagsIn, TIER_MEANS, TIER_NAME, TIER_TIP, TIERS, withTags, type Shown } from "../core/buildsPage";
   import { byFamily } from "../ui/builds/tags";
   import { recipeItem } from "../core/recipes";
   import { takeIntent } from "../intent.svelte";
@@ -72,6 +72,8 @@
   /** Items opened this session, newest first. */
   let opened = $state<string[]>([]);
   const recent = $derived(recentItems(opened, settings.builds).map((u) => byUnique.get(u)).filter((x) => !!x));
+  /** Nothing open yet: your most built gear, to start from (once TennoScope reads your gear: by name alone it says nothing). */
+  const starters = $derived(pick || !model.gear?.length ? [] : startingItems(items, (u) => { const c = bestCopy(model.gear, u); return c ? (c.p ?? 0) + (c.f & 1) : 0; }).filter((x) => !opened.includes(x.unique)));
   const item = $derived<CatalogItem | null>(pick ? (model.catalogByUnique.get(pick) ?? null) : null);
   const kind = $derived(item ? buildKindOf(item) : null);
   const label = $derived(item && kind ? kindLabelOf(item, kind) : "");
@@ -359,6 +361,14 @@
       </div>
     {:else}
       <p class="lead dim">Pick anything that takes mods: a warframe or its exalted weapon, any weapon, a companion or its weapon, an archwing, arch-gun or arch-melee, a Necramech, a kitgun chamber, zaw strike or amp prism. Its builds, orbiter's suggestion and what you're missing for each show here.</p>
+      {#if starters.length}
+        <div class="starters" aria-label="Start with yours">
+          <span class="register">Your most built</span>
+          {#each starters as r (r.unique)}
+            <button type="button" class="st" title="Builds for your {r.name} ({r.label})" onclick={() => choose(r.unique)}><Thumb file={model.imageOf(r.name)} size={34} /><span><b>{r.name}</b><small>{r.label}</small></span></button>
+          {/each}
+        </div>
+      {/if}
     {/if}
   </div>
 {/snippet}
@@ -473,6 +483,13 @@
   .rc { display: inline-flex; align-items: center; gap: .4rem; padding: .18rem .55rem .18rem .2rem; font-family: var(--face-text); font-size: .8rem; letter-spacing: 0; text-transform: none; color: var(--platinum-dim); }
   .rc:hover:not(:disabled) { color: var(--platinum); }
   .lead { margin: 0; max-width: 72ch; font-size: .88rem; line-height: 1.6; }
+  .starters { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; }
+  .starters .register { flex-basis: 100%; font-size: .56rem; }
+  .st { display: inline-flex; align-items: center; gap: .55rem; padding: .25rem .8rem .25rem .25rem; font-family: var(--face-text); letter-spacing: 0; text-transform: none; text-align: left; }
+  .st span { display: grid; line-height: 1.15; }
+  .st b { font-weight: 500; font-size: .86rem; color: var(--platinum); }
+  .st small { font-size: .7rem; color: var(--platinum-deep); }
+  .st:focus-visible { outline: 2px solid var(--sec); outline-offset: 2px; }
   .strip { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1.2rem; }
   .art { width: 132px; height: 132px; display: grid; place-items: center; border: 1px solid var(--rule); background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--sec) 10%, var(--plate)), var(--well) 75%); clip-path: var(--cut); }
   .who { display: grid; gap: .35rem; min-width: 0; }

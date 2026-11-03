@@ -5,7 +5,7 @@ import { test } from "node:test";
 import "./wikiFiles";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { ago, ageLine, arrange, buildableItems, buildKindOf, cheapestSeller, helminthShow, kindLabelOf, noxUrl, overframeUrl, placeIn, recentItems, rivenShort, searchItems, shardSlots, slugOf, sourceName, whisperLine, withItLines, type BuildableItem } from "../src/lib/core/buildsPage";
+import { ago, ageLine, arrange, buildableItems, buildKindOf, cheapestSeller, helminthShow, kindLabelOf, noxUrl, overframeUrl, placeIn, recentItems, rivenShort, searchItems, shardSlots, startingItems, slugOf, sourceName, whisperLine, withItLines, type BuildableItem } from "../src/lib/core/buildsPage";
 import { tierOf, type Build, type Tier, type TierResult } from "../src/lib/core/builds";
 import { recipeItems } from "../src/lib/core/recipes";
 import type { BookOrder } from "../src/lib/core/market";
@@ -256,4 +256,12 @@ test("Nox's Frame's list in words: days, card dates, a stale copy, the saved bui
   const kept = build({ source: { url, site: "Nox's Frame" } });
   assert.equal(savedFrom([build(), kept], url), kept);
   assert.equal(savedFrom([build()], url), undefined);
+});
+
+test("where to start: your most built gear, two of a kind at most", () => {
+  const it = (name: string, kind: BuildableItem["kind"], owned = true, modular = false): BuildableItem => ({ unique: `/${name}`, name, kind, label: kind, owned, modular });
+  const items = [it("Ash", "warframe"), it("Saryn Prime", "warframe"), it("Rhino", "warframe"), it("Soma Prime", "primary"), it("Braton", "primary", false), it("Catchmoon", "secondary", true, true), it("Lex", "secondary"), it("Voidrig", "necramech")];
+  const forma: Record<string, number> = { "/Saryn Prime": 6, "/Soma Prime": 4, "/Rhino": 1 };
+  assert.deepEqual(startingItems(items, (u) => forma[u] ?? 0).map((x) => x.name), ["Saryn Prime", "Soma Prime", "Rhino", "Lex"]);
+  assert.deepEqual(startingItems(items, () => 0, 3).map((x) => x.name), ["Ash", "Rhino", "Soma Prime"]);
 });

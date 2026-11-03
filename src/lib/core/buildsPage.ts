@@ -127,6 +127,28 @@ export function searchItems(items: readonly BuildableItem[], q: string, limit = 
     .map((v) => v.x);
 }
 
+/**
+ * Where to start when nothing is open yet: your own gear, the most built first (`invest`: Forma
+ * and a Catalyst or Reactor on your best copy), at most two of a kind, frames and the three weapon
+ * slots before companions. Without gear data every score is 0 and it goes by name.
+ */
+export function startingItems(items: readonly BuildableItem[], invest: (unique: string) => number, limit = 6): BuildableItem[] {
+  const order: GearKind[] = ["warframe", "primary", "secondary", "melee", "companion"];
+  const mine = items
+    .filter((x) => x.owned && !x.modular && order.includes(x.kind))
+    .map((x) => ({ x, n: invest(x.unique) }))
+    .sort((a, b) => b.n - a.n || order.indexOf(a.x.kind) - order.indexOf(b.x.kind) || a.x.name.localeCompare(b.x.name));
+  const out: BuildableItem[] = [];
+  const per = new Map<GearKind, number>();
+  for (const { x } of mine) {
+    if ((per.get(x.kind) ?? 0) >= 2) continue;
+    per.set(x.kind, (per.get(x.kind) ?? 0) + 1);
+    out.push(x);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 /** Recent items: the ones opened this session (newest first), then the ones with saved builds, newest first. */
 export function recentItems(opened: readonly string[], builds: readonly Build[], limit = 8): string[] {
   const out: string[] = [];
