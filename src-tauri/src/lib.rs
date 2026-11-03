@@ -20,7 +20,8 @@ use std::time::{Duration, Instant, UNIX_EPOCH};
 use tauri::{Emitter, Manager};
 
 const WORLDSTATE: &str = "https://api.warframestat.us/pc";
-const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"));
+/// Who's asking, and where to find out more (the APIs orbiter reads like to know).
+pub(crate) const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"), " (+https://github.com/ShezissSnake/orbiter)");
 
 /// TennoScope's data folder: the one from Settings, or where TennoScope keeps it. A folder from
 /// Settings must be a full path without `..` (orbiter only reads TennoScope's own files in it).
@@ -167,9 +168,11 @@ enum Unavailable {
     Unreachable,
 }
 
+/// One part of the worldstate ("fissures"), or all of it (an empty path).
 fn get_json(path: &str) -> Result<Value, Unavailable> {
+    let url = if path.is_empty() { WORLDSTATE.to_string() } else { format!("{WORLDSTATE}/{path}") };
     match http_agent()
-        .get(&format!("{WORLDSTATE}/{path}"))
+        .get(&url)
         .set("User-Agent", USER_AGENT)
         .query("language", "en")
         .timeout(Duration::from_secs(10))
@@ -195,10 +198,19 @@ async fn worldstate(app: tauri::AppHandle) -> Value {
     let dir = app.path().app_config_dir().ok();
     tauri::async_runtime::spawn_blocking(move || {
         let mut out = serde_json::Map::new();
+        // The whole worldstate in one request (the same parts as asking for each); one at a time
+        // only if that's refused.
+        let whole = get_json("");
+        if let Ok(Value::Object(all)) = &whole {
+            for part in WORLDSTATE_PARTS {
+                out.insert((*part).to_string(), all.get(*part).cloned().unwrap_or(Value::Null));
+            }
+        }
         // Once the API can't be reached at all, the other parts won't fare better: don't wait
         // out a timeout for each of them.
-        let mut reachable = true;
-        for part in WORLDSTATE_PARTS {
+        let mut reachable = !matches!(whole, Err(Unavailable::Unreachable));
+        let one_by_one = out.is_empty();
+        for part in WORLDSTATE_PARTS.iter().filter(|_| one_by_one) {
             let value = if reachable {
                 match get_json(part) {
                     Ok(v) => Some(v),
