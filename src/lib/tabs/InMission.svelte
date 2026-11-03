@@ -2,7 +2,7 @@
   import { eraTint } from "../ui/table";
   import type { Model } from "../core/model";
   import type { MissionState } from "../core/types";
-  import { squadPool, squadRelics, type SquadRelic } from "../core/views";
+  import { squadPool, squadRelics, yourRelicIndex, type SquadRelic } from "../core/views";
   import P from "../ui/P.svelte";
   import Thumb from "../ui/Thumb.svelte";
   import GameIcon, { relicIcon as refIcon, type GameIconName } from "../ui/GameIcon.svelte";
@@ -44,6 +44,13 @@
   const paths = $derived(ms ? (ms.relics.length ? ms.relics : ms.last_relics) : []);
   const relics = $derived(squadRelics(model, paths));
   const pool = $derived(squadPool(relics));
+  /** The reward the log says you got from these relics (the screen's, or the last round's): it names your relic. */
+  const gotReward = $derived.by(() => {
+    const p = ms?.reward_screen_open && ms.rewards_given.length ? ms.rewards_given.at(-1) : [...(ms?.history ?? [])].reverse().find((h) => h.relics.length && h.relics.join("|") === paths.join("|"))?.rewards.at(-1);
+    return p ? resolveName(model, model.nameOf(p)) : null;
+  });
+  /** Which of the four is your own relic, when only one of them drops what you got. */
+  const mine = $derived(yourRelicIndex(relics, gotReward));
   /** With four relics: whether they're a 4b4 (one relic, one refinement), and which are off if not. */
   // A relic orbiter can't name gets a placeholder ("Meso relic"): four of those aren't known to match.
   const share = $derived(relics.every((r) => r.known) ? shareCheck(relics) : null);
@@ -199,27 +206,27 @@
 {#snippet screen()}
   <section class="screen" aria-label={onScreen ? "The reward screen" : "The reward screen, before it opens"}>
     {#if onScreen}
-      <div class="row" style:--n={onScreen.length}>{#each onScreen as c, i (i + c.name)}{@render rewardCard(c, i)}{/each}</div>
+      <div class="row">{#each onScreen as c, i (i + c.name)}{@render rewardCard(c, i)}{/each}</div>
       <div class="screen-foot">
         <span class="dim small">Read by TennoScope at {readAt(cards!.at)} · the same pick is marked on its overlay</span>
         <CopyButton text={chatLine} label="Copy for squad chat" title="Copy the four cards with their prices, to paste in squad chat: {chatLine}" />
       </div>
       {@render weightControls()}
     {:else if relics.length}
-      <div class="row" style:--n={relics.length}>
+      <div class="row">
         {#each relics as r, i (r.path + i)}
           {@const icon = refIcon(r.name.split(" ")[0] ?? "", r.refinement)}
           <div class="rc slot relic-slot" style:--tint={eraTint(r.name)} use:info={r.known ? r.name : null}>
-            <div class="rc-top"><span class="register lot">Choice {i + 1}</span></div>
+            <div class="rc-top">{#if i === mine}<span class="register lot mine" title="Your own relic: the reward the game's log says you got ({gotReward}) drops only from this one">Your relic</span>{:else}<span class="register lot" title="A relic someone in the squad brought. It cracks into one reward card when the reward screen opens">Relic {i + 1}</span>{/if}</div>
             <div class="rc-art">{#if icon}<GameIcon name={icon} size={84} />{:else}<GameIcon name="void-tear" size={64} />{/if}</div>
             <h3 class="rc-name">{r.name}</h3>
             <span class="register ref-word">{r.refinement}</span>
           </div>
         {/each}
       </div>
-      <p class="screen-foot dim small">{ms?.reward_screen_open ? "The reward screen is open." : live ? "Each relic cracks into one reward here when the reward screen opens: with the patched TennoScope, the cards stand here and the one to take is lit." : "The last fissure's relics. The next fissure's take their places as it loads."}</p>
+      <p class="screen-foot dim small">{ms?.reward_screen_open ? "The reward screen is open." : live ? "Each relic cracks into one reward here when the reward screen opens: with the patched TennoScope, the cards stand here and the one to take is lit." : "Your squad's relics from the last fissure. The next fissure's replace them as it loads."}</p>
     {:else}
-      <div class="row" style:--n={4}>
+      <div class="row">
         {#each SLOT_ERAS as e, i (e)}
           <div class="rc slot empty-slot">
             <div class="rc-top"><span class="register lot">Choice {i + 1}</span></div>
@@ -375,7 +382,8 @@
   /* The reward screen, as the game draws it: the cards side by side, each item's art large, its
      rarity a bar along the bottom edge. The one to take glows with the Void. */
   .screen { display: grid; gap: .7rem; }
-  .row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8rem; max-width: calc(var(--n, 4) * 17.5rem); }
+  /* Always in quarters across the page, as the figures below are: a solo screen's one card keeps its place. */
+  .row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8rem; }
   :global(html[data-room~="lt640"]) .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rc {
     --rar: var(--rule-bright);
@@ -389,6 +397,7 @@
   .rc.rar-Rare { --rar: var(--rarity-rare); }
   .rc-top { min-height: 1.3rem; display: flex; align-items: center; justify-content: center; }
   .lot { font-size: .58rem; color: var(--platinum-deep); }
+  .lot.mine { color: var(--sec); }
   .rc-art { display: flex; align-items: center; justify-content: center; width: 100%; height: 8.8rem; }
   .rc-art :global(.art) { max-width: 100%; }
   .rc-name {
