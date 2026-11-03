@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildModel } from "../src/lib/core/model";
-import { codexRings, ringsFor, ringTotal, rowGroup, someNames, starredBy } from "../src/lib/core/codex";
+import { codexRings, ringsFor, ringTotal, rowGroups, someNames, starredBy } from "../src/lib/core/codex";
 import type { Bundle, InventoryRow } from "../src/lib/core/types";
 
 const inv = (item_id: string, name: string, category: string, quantity: number, mastered = false): InventoryRow => ({ item_id, name, category, quantity, mastered, image_name: null, rank: null, max_rank: null });
@@ -27,10 +27,10 @@ const bundle = (inventory: InventoryRow[]): Bundle =>
 test("the Codex rings count mastered of every masterable item, per category, in the Codex's order", () => {
   const m = buildModel(bundle([inv("/W/Rhino", "Rhino", "frame", 1, true), inv("/A/Imperator", "Imperator", "weapon", 1, true)]));
   const rings = codexRings(m).map((r) => [r.group, r.mastered, r.total]);
-  // Arch-guns and archwings are one category; nothing in Secondary or Melee: no ring for them.
-  // (Other holds the masterable things the model always knows, the amps and the like: last.)
-  assert.deepEqual(rings.slice(0, 4), [["warframes", 1, 2], ["primary", 0, 1], ["companions", 0, 1], ["archwing", 1, 2]]);
-  assert.ok(rings.slice(4).every(([g]) => g === "other"));
+  // Arch-guns and archwings are one category; nothing in Melee: no ring for it. The model always
+  // knows the Infested kitgun chambers (Primary and Secondary both), the Plexus (Companions) and the
+  // amps (their own ring); nothing is left in Other, so it has no ring.
+  assert.deepEqual(rings, [["warframes", 1, 2], ["primary", 0, 3], ["secondary", 0, 2], ["companions", 0, 2], ["archwing", 1, 2], ["amps", 0, 8]]);
 });
 
 test("a wishlist's rings: only the categories of what you starred, each counted once", () => {
@@ -41,18 +41,20 @@ test("a wishlist's rings: only the categories of what you starred, each counted 
 
 test("a Mastery row's category: its catalog entry, or the kind the inventory gives it", () => {
   const m = buildModel(bundle([]));
-  assert.equal(rowGroup(m, "/A/Imperator", "Arch-Gun"), "archwing");
-  assert.equal(rowGroup(m, "/Not/InCatalog", "Warframe"), "warframes");
-  assert.equal(rowGroup(m, "/Not/InCatalog", "Companion"), "companions");
-  assert.equal(rowGroup(m, "/Not/InCatalog", "Weapon"), "other");
+  assert.deepEqual(rowGroups(m, "/A/Imperator", "Arch-Gun"), ["archwing"]);
+  assert.deepEqual(rowGroups(m, "/Not/InCatalog", "Warframe"), ["warframes"]);
+  assert.deepEqual(rowGroups(m, "/Not/InCatalog", "Companion"), ["companions"]);
+  assert.deepEqual(rowGroups(m, "/Not/InCatalog", "Weapon"), ["other"]);
 });
 
-test("the All ring adds up every category's", () => {
+test("the All ring adds up every category's, each item once (a kitgun chamber is in two)", () => {
   const m = buildModel(bundle([inv("/W/Rhino", "Rhino", "frame", 1, true), inv("/A/Imperator", "Imperator", "weapon", 1, true)]));
   const rings = codexRings(m);
   const t = ringTotal(rings);
   assert.equal(t.mastered, rings.reduce((n, r) => n + r.mastered, 0));
-  assert.equal(t.total, rings.reduce((n, r) => n + r.total, 0));
+  // Sporelacer and Vermisplicer are in Primary and Secondary: counted once.
+  assert.equal(t.total, rings.reduce((n, r) => n + r.total, 0) - 2);
+  assert.equal(t.total, m.catalogByUnique.size - 1, "every masterable item once (the resource isn't one)");
   assert.deepEqual(ringTotal([]), { mastered: 0, total: 0 });
 });
 

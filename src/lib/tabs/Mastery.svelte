@@ -27,7 +27,7 @@
   import { until } from "../core/traders";
   import PlatMastery from "../ui/PlatMastery.svelte";
   import CodexRings from "../ui/CodexRings.svelte";
-  import { codexRings, rowGroup, someNames } from "../core/codex";
+  import { codexRings, rowGroups, someNames } from "../core/codex";
   import type { Group } from "../core/collection";
 
   let { model, masteryRank = null, wishlist = $bindable([]), foundryReady = [] }: { model: Model; masteryRank?: number | null; wishlist?: string[]; foundryReady?: [string, number][] } = $props();
@@ -40,11 +40,14 @@
   const readyAt = $derived(itemReadyTimes(model, foundryReady));
   const stageOf = (r: MasteryRow) => levelStage(model, r.unique, readyAt, now);
   const stageTag = (r: MasteryRow) => {
+    if (r.stepTag) return r.stepTag;
     const s = stageOf(r);
     return s.stage === "claim" ? "Built · claim it in the Foundry" : s.stage === "building" ? `Building${s.readyAt ? ` · ready in ${until(new Date(s.readyAt).toISOString(), now)}` : ""}` : "Owned · level it";
   };
   const rankTo = (r: MasteryRow) => (r.points === 4000 || r.points === 8000 ? 40 : 30);
   const stageText = (r: MasteryRow) => {
+    // Modular gear says what levelling means for it (gilded, or gild first).
+    if (r.step) return r.acq.how;
     const s = stageOf(r);
     return s.stage === "claim" ? `Built and waiting in your Foundry: claim it, then rank it to ${rankTo(r)} for the mastery.` : s.stage === "building" ? `Building in your Foundry${s.readyAt ? `, ready in ${until(new Date(s.readyAt).toISOString(), now)}` : ""}: then rank it to ${rankTo(r)}.` : `In your arsenal: rank it to ${rankTo(r)} for the mastery.`;
   };
@@ -83,7 +86,7 @@
       (r) =>
         (showUnavailable || r.acq.available) &&
         (category === "all" || r.category === category) &&
-        (ring == null || rowGroup(model, r.unique, r.category) === ring) &&
+        (ring == null || rowGroups(model, r.unique, r.category).includes(ring)) &&
         (kind === "all" || (kind === "prime") === r.isPrime) &&
         (effort === "all" || r.acq.difficulty <= Number(effort)) &&
         matches(query, r.name, r.type, METHOD_LABEL[r.acq.method]),
@@ -112,7 +115,8 @@
   const things = (n: number, one = "thing", many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
   const rings = $derived(codexRings(model));
   /** A kind picked in the list lights its ring, when it falls in one. */
-  const KIND_RING: Record<string, Group> = { Warframe: "warframes", Primary: "primary", Secondary: "secondary", Melee: "melee", Companion: "companions", Archwing: "archwing", "Arch-Gun": "archwing", "Arch-Melee": "archwing" };
+  // (Kitguns are in two rings, so they light none.)
+  const KIND_RING: Record<string, Group> = { Warframe: "warframes", Primary: "primary", Secondary: "secondary", Melee: "melee", Zaw: "melee", Companion: "companions", "Companion weapon": "companions", Plexus: "companions", Archwing: "archwing", "Arch-Gun": "archwing", "Arch-Melee": "archwing", Amp: "amps", "K-Drive": "kdrives" };
   const lit = $derived(ring ?? KIND_RING[category] ?? null);
   function pickRing(g: Group) {
     ring = lit === g ? null : g;
@@ -121,7 +125,7 @@
   // What the figures don't say: which things, by name, in the category picked on the rings. What
   // you own to rank up (the most mastery first), then the easiest thing to get next.
   const nextLine = $derived.by(() => {
-    const inRing = (r: MasteryRow) => lit == null || rowGroup(model, r.unique, r.category) === lit;
+    const inRing = (r: MasteryRow) => lit == null || rowGroups(model, r.unique, r.category).includes(lit);
     const scope = lit == null ? "" : `${rings.find((x) => x.group === lit)?.label ?? ""}: `;
     const level = levelRows.filter(inRing).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name)).map((r) => r.name);
     const [easiest] = open.filter((r) => r.acq.difficulty > 0 && inRing(r)).sort((a, b) => effortOrder(a) - effortOrder(b));
@@ -148,19 +152,19 @@
       {@const worst = r.missingParts.some((p) => p.availability === "vaulted") ? "vaulted" : r.missingParts.some((p) => p.availability === "resurgence") ? "resurgence" : "farmable"}
       <Avail v={worst} />
     {/if}
-    {r.acq.difficulty === 0 ? (stageOf(r).stage === "level" ? "You have it: level it to max rank." : stageTag(r)) : r.acq.how}
+    {r.acq.difficulty === 0 ? (r.step ? r.acq.how : stageOf(r).stage === "level" ? "You have it: level it to max rank." : stageTag(r)) : r.acq.how}
   </span>
 {/snippet}
 
 {#snippet card(r: MasteryRow, open: () => void)}
   {@const item = model.catalogByUnique.get(r.unique)}
-  {@const parts = item && r.status !== "level" ? collectionItem(model, item).parts.filter((p) => !p.resource) : []}
+  {@const parts = item && r.status !== "level" && !r.step ? collectionItem(model, item).parts.filter((p) => !p.resource) : []}
   <ItemCard hover={r.name} title={r.name} sub={r.category} fallback={kindIcon(r.category, r.name)} image={item?.imageName ?? model.imageOf(r.name)} markPrime onopen={open} fav={wished.has(r.unique)} onfav={item ? () => toggleWish(r.unique) : undefined}>
     {#if r.acq.difficulty > 0}<Effort acq={r.acq} />{:else}<p class="chow">{stageText(r)}</p>{/if}
     {#if parts.length}<div class="chips">{#each parts as p, i (i)}<PartChip part={p} size={32} />{/each}</div>{/if}
     {#if r.acq.difficulty > 0}<p class="chow" title={r.acq.players ? `${r.acq.how}\n\n${r.acq.players}` : r.acq.how}>{r.acq.how}</p>{/if}
     {#snippet foot()}
-      {#if r.status === "level"}<span class="tag" class:ok={stageOf(r).stage !== "building"}>{stageTag(r)}</span>{:else if r.status === "build" && r.buildTier === "hard"}<span class="tag bad" title="Every part in hand, but building needs {r.buildShort}, from an open world or an event">Parts ready · rare resources</span>{:else if r.status === "build" && r.buildTier === "farm"}<span class="tag ok" title="Every part in hand; still to farm: {r.buildShort}">Parts ready · farm</span>{:else if r.status === "build"}<span class="tag ok">Can build now</span>{/if}
+      {#if r.status === "level"}<span class="tag" class:ok={stageOf(r).stage !== "building"}>{stageTag(r)}</span>{:else if r.status === "gild" || r.status === "assemble"}<span class="tag ok" title={r.acq.how}>{r.stepTag}</span>{:else if r.status === "build" && r.buildTier === "hard"}<span class="tag bad" title="Every part in hand, but building needs {r.buildShort}, from an open world or an event">Parts ready · rare resources</span>{:else if r.status === "build" && r.buildTier === "farm"}<span class="tag ok" title="Every part in hand; still to farm: {r.buildShort}">Parts ready · farm</span>{:else if r.status === "build"}<span class="tag ok">Can build now</span>{/if}
       {#if r.isPrime && r.missingParts.length}
         {@const worst = r.missingParts.some((p) => p.availability === "vaulted") ? "vaulted" : r.missingParts.some((p) => p.availability === "resurgence") ? "resurgence" : "farmable"}
         <Avail v={worst} />

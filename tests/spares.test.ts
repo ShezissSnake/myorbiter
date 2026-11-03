@@ -90,6 +90,25 @@ test("hound, MOA, kitgun and zaw parts are kept while anything in the family is 
   assert.equal(row(spareRows(buildModel(b(true))), "Zanuka Pet Part Body C Blueprint")!.spare, 2);
 });
 
+test("kitgun parts are kept while an Infested chamber is unmastered (its path says Barrels)", () => {
+  // The catalog here has no Solaris chambers: the only kitguns are the Infested ones (Sporelacer,
+  // Vermisplicer) the model always knows.
+  const grip = inv("/Lotus/Weapons/Infested/Pistols/InfKitGun/Handles/InfHandleA/InfModularHandleABlueprint", "Infested Kitgun Grip Blueprint", "blueprint", 1);
+  const b = (mastered: boolean) => {
+    const x = bundle([grip]) as Bundle & { prices: { prices: Record<string, number> } };
+    x.prices.prices["Infested Kitgun Grip Blueprint"] = 10;
+    if (mastered) {
+      x.inventory.push(inv("/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelEgg/InfModularBarrelEggPart", "Sporelacer", "weapon", 0, { mastered: true }));
+      x.inventory.push(inv("/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelBeam/InfModularBarrelBeamPart", "Vermisplicer", "weapon", 0, { mastered: true }));
+    }
+    return x;
+  };
+  const kept = row(spareRows(buildModel(b(false))), "Infested Kitgun Grip Blueprint")!;
+  assert.deepEqual([kept.keep, kept.spare], [1, 0]);
+  assert.match(kept.why, /Kitgun part: you have 2 kitguns still to master/);
+  assert.equal(row(spareRows(buildModel(b(true))), "Infested Kitgun Grip Blueprint")!.spare, 1);
+});
+
 test("veiled rivens are counted for listings by the game's veiled path, not the market's", () => {
   const m = buildModel(bundle(held));
   const it = { id: "v", slug: "melee_riven_mod_(veiled)", gameRef: "/Lotus/Upgrades/Mods/Randomized/PlayerMeleeWeaponRandomModRare", name: "Melee Riven Mod (Veiled)", maxRank: null, subtypes: null, tags: ["mod", "riven_mod", "veiled_riven"] } as MarketItem;

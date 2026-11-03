@@ -2,6 +2,8 @@
 
 import { imprintCounts, type ImprintRaw } from "./imprints";
 import type { RecipeData } from "./buildPlan";
+import { familyOf, GILDED, MOTE, MOTE_HELD_AS, type ModularHave } from "./modular";
+import type { GearCopy } from "./notNeeded";
 import type {
   Bundle,
   CatalogItem,
@@ -124,6 +126,14 @@ export interface Model {
   imprints: Map<string, number> | null;
   /** Every Foundry recipe, parts' own included (recipes.rs); null until read. */
   recipes: RecipeData | null;
+  /** Each copy of your gear, as the patched TennoScope read it; null before it has. */
+  gear: GearCopy[] | null;
+  /**
+   * A kitgun chamber, zaw strike, amp prism, MOA or hound model, Predasite or Vulpaphyla, or K-Drive
+   * board: the parts you hold, the copies built from it and how many of those are gilded (modular.ts).
+   * Null for anything else.
+   */
+  modular(unique: string): ModularHave | null;
 }
 
 export function baseId(itemId: string): string {
@@ -270,7 +280,9 @@ export const EXTRA_MASTERABLE: CatalogItem[] = [
  */
 const PLEXUS = "/Lotus/Types/Game/CrewShip/RailJack/DefaultHarness";
 /** Held as something else: the game gives the Mote Amp as a built training amp. */
-const HELD_AS: Record<string, string> = { "/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/SentAmpTrainingBarrel": "/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/OperatorTrainingAmpWeapon" };
+const HELD_AS: Record<string, string> = { [MOTE]: MOTE_HELD_AS };
+/** The Plexus is mastered at rank 30: 200 a rank, so 1,000 × 30² affinity. */
+const PLEXUS_MASTERED_XP = 900_000;
 
 /** Categories the catalog TennoScope carries has wrong (WFCD and the wiki agree on these). */
 const CATEGORY_NOW: Record<string, string> = { "/Lotus/Weapons/Tenno/Archwing/Melee/PrimeCorufell/PrimeCorufellScytheWeapon": "Melee" };
@@ -285,7 +297,7 @@ const DUCATS_NOW: Record<string, number> = { "Bronco Prime Barrel": 25, "Nami Sk
  */
 export const NO_MASTERY = new Set(["/Lotus/Powersuits/SiriusOrion/OrionSuit", "/Lotus/Weapons/Tenno/Grimoire/TnDoppelgangerGrimoire"]);
 
-export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurgence: null, resurgenceExpiry: null }, foundry: Record<string, number> | null = null, relicMarket: RelicMarket | null = null, imprints: ImprintRaw[] | null = null, recipes: RecipeData | null = null): Model {
+export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurgence: null, resurgenceExpiry: null }, foundry: Record<string, number> | null = null, relicMarket: RelicMarket | null = null, imprints: ImprintRaw[] | null = null, recipes: RecipeData | null = null, gear: GearCopy[] | null = null): Model {
   // A row without a path, or still without a name once the known ones are filled in (a damaged
   // read), is left out rather than breaking every page.
   const whole = (ok: (r: InventoryRow) => boolean) => (b: Bundle): Bundle => (b.inventory.every(ok) ? b : { ...b, inventory: b.inventory.filter(ok) });
@@ -295,10 +307,15 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
   // Some items list the same component twice (Akbronco Prime: two Bronco Prime, one each); merge
   // them so it reads as one component needed twice.
   const known = new Set(bundle.catalog.map((c) => c.uniqueName));
+  const extra = new Map(EXTRA_MASTERABLE.map((x) => [x.uniqueName, x]));
   bundle = {
     ...bundle,
     catalog: [...bundle.catalog, ...EXTRA_MASTERABLE.filter((x) => !known.has(x.uniqueName))].map((item) => {
       if (item.masterable && NO_MASTERY.has(item.uniqueName)) item = { ...item, masterable: false };
+      // The catalog has it (orbiter-data keeps the prisms and Infested chambers now), but calls it
+      // not masterable in an older read, and the Mote Amp "Mote Prism": the game's word wins.
+      const x = extra.get(item.uniqueName);
+      if (x && (!item.masterable || item.name !== x.name)) item = { ...item, masterable: true, name: x.name };
       const fixed = CATEGORY_NOW[item.uniqueName];
       if (fixed && item.category !== fixed) item = { ...item, category: fixed, type: fixed };
       // A few melee weapons come typed as rifles in the catalog (Venato, Prova, Ruvox…).
@@ -344,7 +361,48 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
   /** Items being built in the foundry (filled in below, once the parts are known). */
   const building = new Map<string, number>();
   const held = (unique: string) => (inventoryByBase.get(unique) ?? []).reduce((n, r) => n + r.quantity, 0);
+
+  // Modular builds, by the part their mastery goes by: a primary or a secondary kitgun both by its
+  // chamber, a Predasite by its subspecies (held under its own path), the Mote Amp as the training amp.
+  const copies = Array.isArray(gear) ? gear.filter((g) => g && typeof g.type === "string") : null;
+  const builds = new Map<string, { built: number; gilded: number; sections: string[] }>();
+  for (const g of copies ?? []) {
+    const parts = Array.isArray(g.m) && g.m.length ? g.m : [g.type === MOTE_HELD_AS ? MOTE : g.type];
+    for (const p of parts) {
+      if (typeof p !== "string" || !familyOf(p)) continue;
+      const b = builds.get(p) ?? { built: 0, gilded: 0, sections: [] };
+      b.built++;
+      if ((g.f & GILDED) !== 0) b.gilded++;
+      if (g.s && !b.sections.includes(g.s)) b.sections.push(g.s);
+      builds.set(p, b);
+    }
+    // The Plexus has one copy, ranked like a frame: mastered at 30.
+    if (g.type === PLEXUS && (g.x ?? 0) >= PLEXUS_MASTERED_XP) mastered.add(PLEXUS);
+  }
+  const modular = (unique: string): ModularHave | null => {
+    const family = familyOf(unique);
+    if (!family) return null;
+    const b = builds.get(unique);
+    // Held whole (a revived Predasite, the training amp) or only as parts (the rest: built
+    // kitguns, zaws, amps, MOAs, hounds and K-Drives aren't in the inventory TennoScope stores).
+    const whole = family.assemble == null;
+    const inArsenal = whole ? held(HELD_AS[unique] ?? unique) : 0;
+    return {
+      family,
+      loose: whole ? 0 : held(unique),
+      built: Math.max(inArsenal, b?.built ?? 0),
+      gilded: b?.gilded ?? 0,
+      known: copies != null,
+      sections: b?.sections ?? [],
+    };
+  };
   const owned = (unique: string) => {
+    // A kitgun chamber, zaw strike, amp prism, MOA or hound model or K-Drive board: the part you
+    // hold and the builds made from it (the inventory only has the part). Either way you have it,
+    // for everything that asks whether there's more to collect; Foundry and Mastery tell the two
+    // apart (modular()).
+    const family = familyOf(unique);
+    if (family && family.assemble != null) return held(unique) + (builds.get(unique)?.built ?? 0) + (building.get(unique) ?? 0);
     const n = held(unique) + (HELD_AS[unique] ? held(HELD_AS[unique]) : 0) + (building.get(unique) ?? 0);
     return n === 0 && unique === PLEXUS && inventoryByBase.has(PLEXUS) ? 1 : n;
   };
@@ -593,5 +651,7 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
     live,
     imprints: imprints ? imprintCounts(imprints, (path) => catalogByUnique.has(path)) : null,
     recipes,
+    gear: copies,
+    modular,
   };
 }

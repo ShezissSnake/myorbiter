@@ -1,6 +1,7 @@
 // Each function turns the model into the rows one tab shows. Pure, so they are tested directly.
 
-import { collectionItem } from "./collection";
+import { collectionItem, inCodex } from "./collection";
+import { familyOf, modularNext, type ModularStep } from "./modular";
 import { buildPlan, shortLine, type BuildTier } from "./buildPlan";
 import { REFINEMENTS, UNOBTAINABLE, baseId, relicRewardRarity, splitRelicName, type Model, type PrimePart, type Refinement, type RelicSource } from "./model";
 export { relicRewardRarity };
@@ -338,7 +339,8 @@ export function partRows(m: Model, save: SaveForSets | null = null): PartRow[] {
 
 // ---------------------------------------------------------------- 3. mastery to-do
 
-export type MasteryStatus = "level" | "build" | "parts" | "missing";
+/** Modular gear adds two of its own: a part in hand to put together, a build to gild. */
+export type MasteryStatus = "level" | "build" | "parts" | "missing" | "assemble" | "gild";
 
 export interface MasteryRow {
   name: string;
@@ -372,6 +374,10 @@ export interface MasteryRow {
   revive?: boolean;
   /** What's short to build it, in a line. */
   buildShort: string;
+  /** Modular gear's next step once its part is in hand: assemble, gild, level (modular.ts). */
+  step?: ModularStep;
+  /** That step in a few words, for a card's tag ("Built · gild it"). */
+  stepTag?: string;
 }
 
 export const MASTERY_CATEGORIES: Record<string, string> = {
@@ -391,18 +397,27 @@ export const MASTERY_CATEGORIES: Record<string, string> = {
  * The kind an item is shown as: its catalog category, made plainer where the catalog lumps things
  * together (a MOA's or sentinel's gun filed as Primary, kitgun and K-Drive parts as Misc).
  */
-export function masteryCategory(item: { category: string; type?: string | null; productCategory?: string | null }): string | undefined {
+export function masteryCategory(item: { category: string; type?: string | null; productCategory?: string | null; uniqueName?: string }): string | undefined {
   const type = item.type ?? "";
   if (item.productCategory === "SentinelWeapons" || type === "Companion Weapon") return "Companion weapon";
-  if (item.productCategory === "OperatorAmps") return "Amp";
+  const family = item.uniqueName ? familyOf(item.uniqueName) : null;
+  // The Infested chambers come typed as pistols; the prisms as plain "Amp" Misc.
+  if (family?.id === "kitgun") return "Kitgun";
+  if (family?.id === "amp" || item.productCategory === "OperatorAmps" || type === "Amp") return "Amp";
   if (/^Kitgun/i.test(type)) return "Kitgun";
   if (/^K-Drive/i.test(type)) return "K-Drive";
   if (/^Zaw/i.test(type)) return "Zaw";
+  if (type === "Plexus") return "Plexus";
   return MASTERY_CATEGORIES[item.category];
 }
 
 /** Inventory rows filed as weapons/companions that are really consumables or tools. */
 const NOT_GEAR = /Genetic Code|Heartcell|Arcane Adapter|Training Amp|Pulsar Mk/i;
+/**
+ * Built modular gear the inventory names by its path ("Lotus Modular Primary Shotgun", a zaw, an
+ * amp, a MOA): its mastery goes by the chamber, strike, prism or model, which has a row of its own.
+ */
+const BUILT_MODULAR = /\/LotusModular\w*$|\/OperatorAmplifiers\/OperatorAmpWeapon$|\/MoaPetPowerSuit$|\/ZanukaPet\w*PowerSuit$|\/HoverboardSuit$/;
 
 const INVENTORY_KIND: Record<string, string> = { frame: "Warframe", weapon: "Weapon", companion: "Companion" };
 
@@ -410,7 +425,7 @@ export function masteryRows(m: Model): MasteryRow[] {
   const rows: MasteryRow[] = [];
   const seen = new Set<string>();
   for (const item of m.catalogByUnique.values()) {
-    if (!item.masterable || !(item.category in MASTERY_CATEGORIES)) continue;
+    if (!inCodex(item)) continue;
     seen.add(item.uniqueName);
     if (m.isMastered(item.uniqueName)) continue;
     rows.push(masteryRow(m, item));
@@ -419,7 +434,7 @@ export function masteryRows(m: Model): MasteryRow[] {
   for (const [unique, invRows] of m.inventoryByBase) {
     const r = invRows[0];
     if (seen.has(unique) || !(r.category in INVENTORY_KIND) || m.isMastered(unique)) continue;
-    if (r.quantity <= 0 || NOT_GEAR.test(r.name)) continue;
+    if (r.quantity <= 0 || NOT_GEAR.test(r.name) || BUILT_MODULAR.test(unique)) continue;
     rows.push({
       name: r.name,
       unique,
@@ -448,6 +463,8 @@ export function masteryRows(m: Model): MasteryRow[] {
 }
 
 export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
+  const next = modularNext(m.modular(item.uniqueName), m.isMastered(item.uniqueName));
+  if (next) return modularRow(m, item, next);
   const owned = m.owned(item.uniqueName) > 0;
   const parts = m.partsByParent.get(item.uniqueName) ?? [];
   const isPrime = parts.length > 0 || item.isPrime === true;
@@ -550,6 +567,51 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
     buildTier: plan?.tier ?? null,
     buildShort: plan ? shortLine(plan.short) : "",
     revive: captured,
+  };
+}
+
+/**
+ * A kitgun, zaw, amp, MOA, hound, Predasite or K-Drive past getting its part: assemble it, gild it
+ * or level it, at the vendor that does that.
+ */
+function modularRow(m: Model, item: CatalogItem, next: NonNullable<ReturnType<typeof modularNext>>): MasteryRow {
+  const level = next.step === "level";
+  const acq: Acquisition = {
+    method: level ? "level" : next.step === "assemble" ? "build" : "syndicate",
+    // Levelling is only levelling; a part in hand is a vendor visit; gilding takes the build to 30
+    // first, and a syndicate rank.
+    difficulty: level ? 0 : next.step === "assemble" ? 1 : 2,
+    how: next.how,
+    icon: next.icon,
+    available: true,
+    tradable: false,
+    researched: true,
+    wiki: item.wikiaUrl ?? null,
+  };
+  return {
+    name: item.name,
+    unique: item.uniqueName,
+    category: masteryCategory(item) ?? "Other",
+    type: item.type ?? item.category,
+    masteryReq: item.masteryReq ?? 0,
+    isPrime: false,
+    status: next.step === "assemble" ? "assemble" : next.step === "gild" ? "gild" : "level",
+    unobtainable: false,
+    vaulted: false,
+    setPrice: null,
+    partsOwned: 0,
+    partsTotal: 0,
+    missingParts: [],
+    ownedRelicsForIt: 0,
+    sources: [],
+    wiki: item.wikiaUrl ?? null,
+    acq,
+    points: masteryPoints(item),
+    buyFor: null,
+    buildTier: null,
+    buildShort: "",
+    step: next.step,
+    stepTag: next.tag,
   };
 }
 

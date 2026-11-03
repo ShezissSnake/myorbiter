@@ -2,6 +2,7 @@
 // you hold (and whether its era has a fissure open right now), farm a relic that still drops, buy
 // the part, or Varzia. Also the odds of finishing an item from the relics you already hold.
 import { collectionItem, type CollectionItem } from "./collection";
+import { researchedStep } from "./acquire";
 import { REFINEMENTS, splitRelicName, type Model, type Refinement } from "./model";
 import type { Fissure } from "./types";
 
@@ -44,6 +45,8 @@ export interface WantedPart {
   odds: number;
   /** For parts that don't come from relics: where they drop (bosses, bounties…), best first. */
   drops: { location: string; chance: number }[];
+  /** A part with no drops at all (a vendor's blueprint: a kitgun chamber's, a K-Drive board's): where to get it, researched. */
+  how: string | null;
 }
 
 export interface WishItem {
@@ -203,7 +206,8 @@ export function wishItem(m: Model, unique: string): WishItem | null {
   if (!item) return null;
   const c = collectionItem(m, item);
   const missing: WantedPart[] = [];
-  if (!c.owned && !c.mastered && !c.building) {
+  // A modular part in hand or built: nothing left to collect, only to assemble, gild or level.
+  if (!c.owned && !c.mastered && !c.building && !c.step) {
     for (const p of c.parts) {
       if (p.resource || p.have >= p.required || p.building) continue;
       const sources = m.sourcesByReward.get(p.name) ?? [];
@@ -221,7 +225,10 @@ export function wishItem(m: Model, unique: string): WishItem | null {
         resurgence: sources.some((s) => s.resurgence) || m.inResurgence(unique),
         odds: partOdds(m, p.name, p.required - p.have),
         drops: sources.length ? [] : dropSpots(item.components?.find((x) => x.name === p.label)?.drops ?? []),
+        how: null,
       });
+      const last = missing[missing.length - 1];
+      if (!sources.length && !last.drops.length && p.label === "Blueprint") last.how = researchedStep(item.name);
     }
   }
   const relicParts = missing.filter((p) => (m.sourcesByReward.get(p.name) ?? []).length);

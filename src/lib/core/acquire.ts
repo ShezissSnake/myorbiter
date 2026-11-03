@@ -92,6 +92,18 @@ const RESEARCH = research as Record<string, Researched>;
 /** Items whose blueprints come from clan dojo research, by lab (from the wiki's Research pages). */
 const DOJO = dojoLabs as Record<string, string>;
 
+/**
+ * The first step of an item's researched how-to-get, for a part with no drops of its own (a vendor's
+ * blueprint): "Buy the board blueprint at Roky (Ventkids, Neutral, 5,000), in Fortuna (needs the
+ * Vox Solaris quest), and build it". Null when the item isn't researched.
+ */
+export function researchedStep(name: string): string | null {
+  const how = RESEARCH[name]?.how;
+  if (!how) return null;
+  const cut = how.search(/; |\. /);
+  return cut < 0 ? how.replace(/\.$/, "") : how.slice(0, cut);
+}
+
 // ---------------------------------------------------------------- mastery points
 
 /** Mastery points for taking it to max rank: 200 a rank for frames, companions, archwings and
@@ -233,7 +245,9 @@ const COMMON = new Set(["Salvage", "Alloy Plate", "Ferrite", "Polymer Bundle", "
 const RARE = new Set(["Nitain Extract", "Tellurium", "Neural Sensors", "Argon Crystal"]);
 /** Star-chart resources; anything else named in a build comes from an open world or a vendor. */
 const STAR_CHART = new Set([...RARE, "Orokin Cell", "Neurodes", "Control Module", "Gallium", "Morphics", "Cryotic", "Oxium", "Kuva", "Forma", "Detonite Ampule", "Fieldron", "Mutagen Mass", "Detonite Injector", "Fieldron Sample", "Mutagen Sample", "Hexenon", "Scrap"]);
-const isResource = (c: Component) => /\/MiscItems\/|\/Gems\/|\/Fish\/|\/Plants\//.test(c.uniqueName);
+// Open-world resources live under Gameplay too (Thermal Sludge is …/Gameplay/Venus/Resources/…):
+// a resource with drops of its own isn't a part to farm.
+const isResource = (c: Component) => /\/MiscItems\/|\/Gems\/|\/Fish\/|\/Plants\/|\/Gameplay\/\w+\/Resources\//.test(c.uniqueName);
 const isPart = (c: Component) => /\/Recipes\//.test(c.uniqueName) || /Blueprint$/.test(c.name);
 
 // ---------------------------------------------------------------- an item

@@ -17,6 +17,12 @@ export interface GearCopy {
   f: number;
   /** Forma used on it. */
   p: number;
+  /** The inventory section it sits in (LongGuns, Pistols, OperatorAmps, MoaPets…), once TennoScope passes it. */
+  s?: string;
+  /** A modular build's parts: its chamber, strike, prism, model or board among them. */
+  m?: string[];
+  /** Its affinity, when it has any. */
+  x?: number;
 }
 
 export const INCARNON = 512;

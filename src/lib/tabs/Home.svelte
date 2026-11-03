@@ -252,7 +252,8 @@
   // Every part in hand: ready now first, then what's short on star-chart resources, then the ones
   // that need an open world or an event (Hildryn's Lazulite Toroid).
   const TIER_ORDER = { now: 0, farm: 1, hard: 2, parts: 3 } as const;
-  const buildable = $derived(rows.filter((r) => r.status === "build").sort((a, b) => TIER_ORDER[a.buildTier ?? "now"] - TIER_ORDER[b.buildTier ?? "now"] || b.points - a.points));
+  // A modular part in hand (a chamber, a MOA's model) is every part too: assembled at its vendor.
+  const buildable = $derived(rows.filter((r) => r.status === "build" || r.status === "assemble").sort((a, b) => TIER_ORDER[a.buildTier ?? "now"] - TIER_ORDER[b.buildTier ?? "now"] || b.points - a.points));
   // Your wishlist, still to get: what's left and whether a fissure for one of your relics is open now.
   // The ones you can crack a relic for now come first.
   const openNow = $derived(openEras(live.fissures, now));
@@ -770,7 +771,7 @@
         <div class="register sub" title="Everything you can make now, or nearly: built in the Foundry, or revived with Son for a captured infested companion">Every part in hand</div>
         <ul class="fb">
           {#each buildable.slice(0, 4) as r (r.unique)}
-            <li><button class="row" data-opens aria-label="{r.name}: details" onclick={() => details.open(r.unique)}><Thumb file={model.imageOf(r.name)} name={r.name} size={26} /><span class="fn"><b class="mark">{r.name}</b><span class="small" class:dim={r.buildTier !== "now"} class:good={r.buildTier === "now"} title={r.buildShort ? `Still to get before building: ${r.buildShort}` : undefined}>{r.revive ? "Captured: revive it with Son, in the Necralisk" : r.buildTier === "now" ? "Build now: everything in hand" : r.buildTier === "hard" ? `Needs ${r.buildShort}` : r.buildTier === "farm" ? `Farm ${r.buildShort}` : "every part in hand"}</span></span><span class="pts"><GameIcon name="mastery" size={13} />{r.points.toLocaleString("en")}</span></button></li>
+            <li><button class="row" data-opens aria-label="{r.name}: details" onclick={() => details.open(r.unique)}><Thumb file={model.imageOf(r.name)} name={r.name} size={26} /><span class="fn"><b class="mark">{r.name}</b><span class="small" class:dim={r.buildTier !== "now"} class:good={r.buildTier === "now"} title={r.step ? r.acq.how : r.buildShort ? `Still to get before building: ${r.buildShort}` : undefined}>{r.revive ? "Captured: revive it with Son, in the Necralisk" : r.stepTag ? r.stepTag : r.buildTier === "now" ? "Build now: everything in hand" : r.buildTier === "hard" ? `Needs ${r.buildShort}` : r.buildTier === "farm" ? `Farm ${r.buildShort}` : "every part in hand"}</span></span><span class="pts"><GameIcon name="mastery" size={13} />{r.points.toLocaleString("en")}</span></button></li>
           {/each}
         </ul>
       {/if}

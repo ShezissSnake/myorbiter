@@ -319,7 +319,7 @@
   const built = $derived.by((): { model: Model | null; error: string | null } => {
     if (!withTables) return { model: null, error: null };
     try {
-      return { model: buildModel(withTables, live, foundry, settings.market.relicPrices, settings.game.imprints, recipes), error: null };
+      return { model: buildModel(withTables, live, foundry, settings.market.relicPrices, settings.game.imprints, recipes, settings.game.gear), error: null };
     } catch (e) {
       console.error("Building the collection failed:", e);
       return { model: null, error: `Building your collection failed: ${e instanceof Error ? e.message : String(e)}` };

@@ -223,8 +223,8 @@ export const defaultSellChoices = (): SellChoices => ({ veiledRivens: false, rel
 const FAMILIES: { name: string; plural: string; part: RegExp; gear: RegExp }[] = [
   { name: "Hound", plural: "hounds", part: /ZanukaPet/, gear: /ZanukaPets\/ZanukaPetParts\/ZanukaPetPartHead/ },
   { name: "MOA", plural: "MOAs", part: /MoaPet/, gear: /MoaPets\/MoaPetParts\/MoaPetHead/ },
-  { name: "Kitgun", plural: "kitguns", part: /SUModular|InfKitGun|KitGun/i, gear: /(SUModular(Primary|Secondary)Set\d+|InfKitGun)\/Barrel\// },
-  { name: "Zaw", plural: "zaws", part: /ModularMelee|OstronMelee/, gear: /ModularMelee\d+\/Tip\// },
+  { name: "Kitgun", plural: "kitguns", part: /SUModular|InfKitGun|KitGun/i, gear: /(SUModular(Primary|Secondary)Set\d+|InfKitGun)\/Barrels?\// },
+  { name: "Zaw", plural: "zaws", part: /ModularMelee|OstronMelee/, gear: /ModularMelee(\d+|Infested)\/Tips?\// },
   { name: "Amp", plural: "amps", part: /OperatorAmplifiers|OperatorAmp|SentAmp/, gear: /OperatorAmplifiers\/.*Barrel/ },
 ];
 
