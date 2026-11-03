@@ -11,6 +11,7 @@
 import type { CatalogItem } from "../types";
 import { gearKindOf, slotLayout } from "./gear";
 import { matchName, nameIndex, normName, type Matched, type NameIndex, type Unmatched } from "./match";
+import { canonicalTag, onlyTags, tagsInText } from "./tags";
 import { newBuildId, type Build, type BuildHelminth, type BuildShard, type BuildSourceRef, type GearKind, type ShardColour } from "./types";
 
 export type SlotRole = "aura" | "exilus" | "stance" | "mod" | "arcane";
@@ -41,7 +42,7 @@ export interface PasteOptions {
   held?: (path: string) => number;
 }
 
-const LABEL = /^\s*(?:[-*•·▪►>]+\s*|\d{1,2}\s*[.)]\s*)?(aura|exilus|stance|arcanes?|mods?|archon\s+shards?|shards?|helminth|subsumed?|slot\s*\d{1,2}|forma|notes?|description)\s*(?:\([^)]*\))?\s*[:\-–—=]\s*/i;
+const LABEL = /^\s*(?:[-*•·▪►>]+\s*|\d{1,2}\s*[.)]\s*)?(aura|exilus|stance|arcanes?|mods?|archon\s+shards?|shards?|helminth|subsumed?|slot\s*\d{1,2}|forma|notes?|description|tags?)\s*(?:\([^)]*\))?\s*[:\-–—=]\s*/i;
 const BULLET = /^\s*(?:[-*•·▪►>]+|\d{1,2}\s*[.)])\s*/;
 const RANK = /\b(?:r|rank|lvl|lv|level)\s*[:.]?\s*(\d{1,2})\b|\((\d{1,2})\s*\/\s*\d{1,2}\)|\[(\d{1,2})\]|\b(max(?:ed)?(?:\s+rank)?|unranked)\b/gi;
 const SHARD = /(?:(\d)\s*[x×]\s*)?(tauforged\s+)?(crimson|azure|amber|violet|topaz|emerald)(?:\s+archon)?\s+shards?(?:\s*[x×]\s*(\d))?(?:\s*(?::|=|-|–|—|→|->|\(|\bfor\b)\s*([^,;()\n]*[^,;()\n\s]))?\)?/gi;
@@ -115,6 +116,7 @@ export function parsePaste(text: string, item: CatalogItem, catalog: ReadonlyMap
   let catalyst = null as boolean | null;
   const adapters: { exilus?: boolean; arcane?: boolean } = {};
   let gameUpdate = undefined as string | undefined;
+  const labelTags: string[] = [];
 
   const addShards = (m: RegExpExecArray) => {
     const n = Math.min(5, Math.max(1, Number(m[1] ?? m[4] ?? 1)));
@@ -134,6 +136,10 @@ export function parsePaste(text: string, item: CatalogItem, catalog: ReadonlyMap
       line = line.slice(lm[0].length);
     }
     if (label === "note" || label === "notes" || label === "description") continue;
+    if (label === "tag" || label === "tags") {
+      for (const t of line.split(/[,;|]/)) if (t.trim()) labelTags.push(canonicalTag(t).slice(0, 40));
+      continue;
+    }
 
     // Taken out wherever they are.
     line = takeAll(line, /\b(?:update|u)\s*(\d{2}(?:\.\d{1,2}){0,2})\b/gi, (m) => (gameUpdate ??= m[1]));
@@ -235,6 +241,8 @@ export function parsePaste(text: string, item: CatalogItem, catalog: ReadonlyMap
           // The item's own name or one of its abilities: a title or a description, not a mod.
           const runText = ` ${r.map((t) => t.norm).join(" ")} `;
           if (ownWords.some((w) => runText.includes(` ${w} `))) continue;
+          // Only tag words ("Steel Path nuke"): what the build is for, not a mod.
+          if (onlyTags(chunk.slice(r[0].start, r[r.length - 1].end))) continue;
           // Without the filler at either end, or a trailing "?" or "!".
           const first = r.findIndex((t) => !FILLER.has(t.norm));
           const last = r.length - 1 - [...r].reverse().findIndex((t) => !FILLER.has(t.norm));
@@ -272,6 +280,9 @@ export function parsePaste(text: string, item: CatalogItem, catalog: ReadonlyMap
     importedAt: now,
   };
   if (opts.title) build.title = opts.title;
+  // Tags: a "Tags:" line as written, then the tags the title and text name.
+  const tags = [...labelTags, ...tagsInText(text, opts.title)].filter((t, k, all) => all.findIndex((x) => x.toLowerCase() === t.toLowerCase()) === k).slice(0, 12);
+  if (tags.length) build.tags = tags;
   const leftOut: PasteResult["leftOut"] = [];
   const matched: ReadName[] = [];
   const used = new Set<string>();
