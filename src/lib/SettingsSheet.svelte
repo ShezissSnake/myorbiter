@@ -8,6 +8,7 @@
   import Icon from "./ui/Icon.svelte";
   import { flip } from "./motion";
   import WeightSliders from "./ui/WeightSliders.svelte";
+  import { NOX_SETTING } from "./core/builds";
 
   let {
     open = $bindable(),
@@ -217,6 +218,13 @@
       A relic counts as spare only when it sells for more than a crack is worth, each refinement on its own: a radiant one's odds against what radiant ones sell for (Solo or Radshare, as set on Relics). It's never listed at or under that. Relics that drop a part you still need are always kept. Off keeps every relic.
     </Switch>
     {/if}
+  </section>
+
+  <section>
+    <h3 class="register">Builds</h3>
+    <Switch bind:on={settings.buildsFromNox} label={NOX_SETTING.label}>
+      {NOX_SETTING.help} Off: Builds lists none, and its Nox's Frame link still opens the site in your browser.
+    </Switch>
   </section>
 
   <section>
