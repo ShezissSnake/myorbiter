@@ -69,7 +69,7 @@
  },
  "holdfasts": {
   "file": "holdfasts.png",
-  "source": "https://wiki.warframe.com/w/File:TheHoldfastsIcon%28xDark%29.png"
+  "source": "https://wiki.warframe.com/w/File:HoldfastsAngelSigil(SxWhite).png"
  },
  "necraloid": {
   "file": "necraloid.png",
@@ -165,7 +165,7 @@
  },
  "vox-solaris": {
   "file": "vox-solaris.png",
-  "source": "https://wiki.warframe.com/w/File:VoxSolarisIcon(xDark).png"
+  "source": "https://wiki.warframe.com/w/File:VoxSolarisAgentSigil(SxWhite).png"
  },
  "vosfor": {
   "file": "vosfor.png",
@@ -290,5 +290,85 @@
  "railjack": {
   "file": "railjack.png",
   "source": "https://wiki.warframe.com/w/File:IconRailjack(xWhite).png"
+ },
+ "duviri": {
+  "file": "duviri.png",
+  "source": "https://wiki.warframe.com/w/File:DuviriIcon.png"
+ },
+ "archon-hunt": {
+  "file": "archon-hunt.png",
+  "source": "https://wiki.warframe.com/w/File:ArchonHunter(xWhite).png"
+ },
+ "archon-shard-azure": {
+  "file": "archon-shard-azure.png",
+  "source": "https://wiki.warframe.com/w/File:AzureArchonShard.png"
+ },
+ "archon-shard-amber": {
+  "file": "archon-shard-amber.png",
+  "source": "https://wiki.warframe.com/w/File:AmberArchonShard.png"
+ },
+ "regal-aya": {
+  "file": "regal-aya.png",
+  "source": "https://wiki.warframe.com/w/File:RegalAya.png"
+ },
+ "daily-reset": {
+  "file": "daily-reset.png",
+  "source": "https://wiki.warframe.com/w/File:SyndicateDailies(xWhite).png"
+ },
+ "bounty": {
+  "file": "bounty.png",
+  "source": "https://wiki.warframe.com/w/File:BountySigil(SxWhite).png"
+ },
+ "hex": {
+  "file": "hex.png",
+  "source": "https://wiki.warframe.com/w/File:HexIcon(xLight).png"
+ },
+ "amp": {
+  "file": "amp.png",
+  "source": "https://wiki.warframe.com/w/File:AmpIcon(xWhite).png"
+ },
+ "plexus": {
+  "file": "plexus.png",
+  "source": "https://wiki.warframe.com/w/File:PlexusOffensiveIcon(xWhite).png"
+ },
+ "relic-lith-exceptional": {
+  "file": "relic-lith-exceptional.png",
+  "source": "https://wiki.warframe.com/w/File:LithRelicExceptional.png"
+ },
+ "relic-lith-flawless": {
+  "file": "relic-lith-flawless.png",
+  "source": "https://wiki.warframe.com/w/File:LithRelicFlawless.png"
+ },
+ "relic-meso-exceptional": {
+  "file": "relic-meso-exceptional.png",
+  "source": "https://wiki.warframe.com/w/File:MesoRelicExceptional.png"
+ },
+ "relic-meso-flawless": {
+  "file": "relic-meso-flawless.png",
+  "source": "https://wiki.warframe.com/w/File:MesoRelicFlawless.png"
+ },
+ "relic-neo-exceptional": {
+  "file": "relic-neo-exceptional.png",
+  "source": "https://wiki.warframe.com/w/File:NeoRelicExceptional.png"
+ },
+ "relic-neo-flawless": {
+  "file": "relic-neo-flawless.png",
+  "source": "https://wiki.warframe.com/w/File:NeoRelicFlawless.png"
+ },
+ "relic-axi-exceptional": {
+  "file": "relic-axi-exceptional.png",
+  "source": "https://wiki.warframe.com/w/File:AxiRelicExceptional.png"
+ },
+ "relic-axi-flawless": {
+  "file": "relic-axi-flawless.png",
+  "source": "https://wiki.warframe.com/w/File:AxiRelicFlawless.png"
+ },
+ "relic-requiem-exceptional": {
+  "file": "relic-requiem-exceptional.png",
+  "source": "https://wiki.warframe.com/w/File:RequiemRelicExceptional.png"
+ },
+ "relic-requiem-flawless": {
+  "file": "relic-requiem-flawless.png",
+  "source": "https://wiki.warframe.com/w/File:RequiemRelicFlawless.png"
  }
 }
