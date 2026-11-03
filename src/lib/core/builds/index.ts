@@ -30,6 +30,12 @@
  * the Helminth, the arcane adapter's bit. missing() says "unknown" for those, never "missing".
  * The catalog has no stance-slot polarity: tierOf counts it as none and says so.
  *
+ * Overframe's popular builds (overframeList.ts): a list bundled with the app, collected by hand in
+ * a browser with Overframe's permission (lists only), never fetched by orbiter:
+ *
+ *   const file = await loadOverframe();                     // public/data/overframe/popular.json
+ *   const { builds } = overframeFor(file, item.uniqueName, { name: item.name });   // ≤ 5, ≤ 2 years
+ *
  * Sources: orbiter never fetches Overframe or the wiki. registerSource takes a BuildSource
  * (orbiter's suggestions; a fetcher only with the site's permission, or its terms as checked, on record).
  *
@@ -52,4 +58,5 @@ export { TAGS, NOX_TAGS, TAG_FAMILY, TAG_FAMILIES, familyOfTag, byFamily, canoni
 export { missing, bestCopy, endoCost, ENDO_BASE, PATHS, SHARD_PATH, shardPath, type MissingReport, type MissingLine, type MissingKind, type Have } from "./missing";
 export { buildDate, buildAgeDays, withinAge, filterByAge, buildsFor, toggleFavourite, saveBuild, removeBuild } from "./store";
 export { registerSource, unregisterSource, buildSources, sourceBuilds, BLOCKED_HOSTS, TERMS_HOSTS, type BuildSource, type SourceContext, type SourcePermission } from "./source";
+export { overframeFor, overframeWithinAge, overframeBuildUrl, parseOverframeFile, loadOverframe, resetOverframe, matchRate, isBuildPath, updatedAt, OVERFRAME_SITE, OVERFRAME_ORIGIN, OVERFRAME_SOURCE, OVERFRAME_PERMISSION, OVERFRAME_FILE, OVERFRAME_CATEGORIES, OVERFRAME_SHOWN, OVERFRAME_MAX_AGE_DAYS, type OverframeListed, type OverframeFile, type OverframeCategory, type OverframeOptions, type OverframeResult } from "./overframeList";
 export { makeNox, noxToBuild, noxListedWithinAge, noxItems, parseNoxCode, looksLikeNoxCode, NOX_SITE, NOX_HOST, NOX_PERMISSION, NOX_SETTING, NOX_MODES, NOX_LISTED, type Nox, type NoxFetcher, type NoxAnswer, type NoxListing, type NoxListed, type NoxListResult, type NoxPage, type NoxMapped, type NoxOpened, type NoxCodeResult } from "./noxsframe";
