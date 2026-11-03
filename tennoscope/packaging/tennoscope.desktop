@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=TennoScope
+Comment=Local-first Warframe collection and relic companion
+Exec=/usr/bin/tennoscope
+Icon=tennoscope
+# Keep the window class aligned with the deb/rpm desktop template so every package groups under
+# the launcher icon identically.
+StartupWMClass=tennoscope
+Terminal=false
+Categories=Utility;Game;
+Keywords=Warframe;Relic;Prime;Void;Ducat;Platinum;
+X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2

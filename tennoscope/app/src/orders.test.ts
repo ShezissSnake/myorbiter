@@ -1,0 +1,175 @@
+import { describe, expect, it } from 'vitest'
+import type { CollectionItem, ReconciledOrder } from './backend'
+import { backingLabel, fixLabel, isFlagged, isListable, listedLabel, listedOrderFor, orderValue, sortOrders, statusLabel, uncountedReason } from './orders'
+
+function entry(
+  id: string,
+  status: ReconciledOrder['status'],
+  overrides: Partial<ReconciledOrder['order']> = {},
+  rowId?: string,
+): ReconciledOrder {
+  return {
+    order: {
+      id,
+      item_id: `item-${id}`,
+      kind: 'sell',
+      platinum: 12,
+      quantity: 1,
+      per_trade: 1,
+      visible: true,
+      updated_at: 1_785_405_600,
+      ...overrides,
+    },
+    name: 'Braton Prime Blueprint',
+    row_id: rowId,
+    status,
+  }
+}
+
+function held(id: string, overrides: Partial<CollectionItem> = {}): CollectionItem {
+  return {
+    id,
+    name: 'Item',
+    category: 'mod',
+    quantity: 1,
+    mastered: false,
+    live: false,
+    priceable: true,
+    ...overrides,
+  }
+}
+
+describe('order flags', () => {
+  it('treats only claims as flags', () => {
+    expect(isFlagged({ state: 'missing' })).toBe(true)
+    expect(isFlagged({ state: 'overshoot', owned: 1 })).toBe(true)
+    expect(isFlagged({ state: 'ok' })).toBe(false)
+    // The rule the whole feature rests on: not knowing is not a problem, and a row that says so
+    // would be an accusation the app cannot support.
+    expect(isFlagged({ state: 'unverifiable' })).toBe(false)
+  })
+
+  it('says what is wrong in the row, in the player’s terms', () => {
+    expect(statusLabel(entry('a', { state: 'missing' }))).toBe('You no longer own this')
+    expect(statusLabel(entry('b', { state: 'overshoot', owned: 1 }, { quantity: 3 }))).toBe(
+      'You own 1 of 3 listed',
+    )
+    expect(statusLabel(entry('c', { state: 'ok' }))).toBeNull()
+    expect(statusLabel(entry('d', { state: 'unverifiable' }))).toBe('Unverifiable')
+  })
+
+  it('names the fix as the action it performs, and leaves removal to every row', () => {
+    expect(fixLabel({ state: 'overshoot', owned: 1 })).toBe('Lower to 1')
+    expect(fixLabel({ state: 'missing' })).toBeNull()
+    expect(fixLabel({ state: 'ok' })).toBeNull()
+    expect(fixLabel({ state: 'unverifiable' })).toBeNull()
+  })
+})
+
+describe('order ordering', () => {
+  it('puts the rows needing attention first', () => {
+    const sorted = sortOrders([
+      entry('fine', { state: 'ok' }),
+      entry('unknown', { state: 'unverifiable' }),
+      entry('gone', { state: 'missing' }),
+      entry('over', { state: 'overshoot', owned: 1 }),
+    ])
+
+    expect(sorted.map(each => each.order.id)).toEqual(['gone', 'over', 'fine', 'unknown'])
+  })
+
+  it('is stable for rows of equal standing, so the list does not shuffle on refresh', () => {
+    const first = entry('one', { state: 'ok' })
+    const second = entry('two', { state: 'ok' })
+
+    expect(sortOrders([first, second]).map(each => each.order.id)).toEqual(['one', 'two'])
+    expect(sortOrders([second, first]).map(each => each.order.id)).toEqual(['two', 'one'])
+  })
+})
+
+describe('the collection badge', () => {
+  // The regression this whole join exists for: an order's `item_id` is warframe.market's opaque id
+  // and a collection row is a `/Lotus/` path, and a badge that compared the two matched nothing,
+  // ever, which is how a successful sell used to leave the card it was pressed on unchanged.
+  // The row the backend resolves is the only id the two namespaces share.
+  it('finds a visible sell order through the row it names, not the market id it carries', () => {
+    const orders = [entry('a', { state: 'ok' }, { item_id: '54a73e65e779893a797fff33', platinum: 24 }, '/Lotus/Thing')]
+
+    expect(listedOrderFor(orders, '/Lotus/Thing')?.platinum).toBe(24)
+  })
+
+  it('ignores hidden orders and buy orders, which are not listings anybody sees', () => {
+    const hidden = entry('h', { state: 'ok' }, { visible: false }, '/Lotus/Thing')
+    const buying = entry('b', { state: 'ok' }, { kind: 'buy' }, '/Lotus/Thing')
+
+    expect(listedOrderFor([hidden, buying], '/Lotus/Thing')).toBeNull()
+  })
+
+  it('has nothing to say about an item with no order', () => {
+    expect(listedOrderFor([], '/Lotus/Thing')).toBeNull()
+  })
+
+  it('has nothing to say about an order that names no row of the collection', () => {
+    // A set, a sculpture, a retired item: real listings, but not listings of any row on a card.
+    const orders = [entry('a', { state: 'unverifiable' }, { item_id: '54a73e65e779893a797ffef1' })]
+
+    expect(listedOrderFor(orders, '/Lotus/Weapons/Tenno/Rifle/BratonPrime')).toBeNull()
+  })
+})
+
+describe('what the listed badge says', () => {
+  it('counts the unlisted remainder when the listing covers part of the holding', () => {
+    expect(listedLabel(entry('a', { state: 'ok' }, { platinum: 12, quantity: 3 }).order, 5)).toBe('listed 3 of 5 @ 12p')
+  })
+
+  it('states the listing plain when it covers the whole holding', () => {
+    expect(listedLabel(entry('a', { state: 'ok' }, { platinum: 12, quantity: 5 }).order, 5)).toBe('listed 5 @ 12p')
+  })
+
+  it('never divides a listing against a holding smaller than itself: the orders screen carries that claim', () => {
+    expect(listedLabel(entry('a', { state: 'overshoot', owned: 5 }, { platinum: 12, quantity: 7 }).order, 5)).toBe('listed 7 @ 12p')
+  })
+})
+
+describe('credential backing', () => {
+  it('names where the credential lives, because the two are not equally strong', () => {
+    expect(backingLabel('keyring')).toBe('System keyring')
+    expect(backingLabel('database')).toBe('Local database file')
+    expect(backingLabel(undefined)).toBe('Not stored')
+  })
+})
+
+describe('what a row contributes to the listed total', () => {
+  it('prices the trade, not the unit', () => {
+    // 12 units at 38p per six is asking 76p, not 456p.
+    expect(orderValue(entry('a', { state: 'ok' }, { platinum: 38, quantity: 12, per_trade: 6 }).order)).toBe(76)
+    expect(orderValue(entry('a', { state: 'ok' }, { quantity: 3 }).order)).toBe(36)
+  })
+
+  it('counts nothing from an order nobody can buy, and says which', () => {
+    const hidden = entry('a', { state: 'ok' }, { visible: false }).order
+    const buying = entry('a', { state: 'ok' }, { kind: 'buy' }).order
+    expect(orderValue(hidden)).toBeNull()
+    expect(uncountedReason(hidden)).toBe('Hidden')
+    expect(orderValue(buying)).toBeNull()
+    expect(uncountedReason(buying)).toBe('Buy order')
+    expect(uncountedReason(entry('a', { state: 'ok' }).order)).toBeNull()
+  })
+})
+
+describe('what can be listed', () => {
+  it('offers a row the account may publish, held', () => {
+    expect(isListable(held('/Lotus/Upgrades/serration'), ['/Lotus/Upgrades/serration'])).toBe(true)
+    expect(isListable(held('/Lotus/Upgrades/serration#10'), ['/Lotus/Upgrades/serration#10'])).toBe(true)
+  })
+
+  it('offers the row, not the card: an unranked stack is not a maxed copy', () => {
+    // The backend names rows because the rows are what differ. Rank 0 and the ceiling are two
+    // listings, and conflating them here would offer one for the other.
+    expect(isListable(held('/Lotus/Upgrades/serration'), ['/Lotus/Upgrades/serration#10'])).toBe(false)
+  })
+
+  it('offers nothing for a row with nothing held', () => {
+    expect(isListable(held('/Lotus/Upgrades/serration', { quantity: 0 }), ['/Lotus/Upgrades/serration'])).toBe(false)
+  })
+})

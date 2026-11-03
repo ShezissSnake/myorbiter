@@ -1,0 +1,34 @@
+[workspace]
+members = [
+  "app/src-tauri",
+  "crates/app-core",
+  "crates/local-store",
+  "crates/warframe-acquisition",
+  "crates/warframe-domain",
+  "crates/warframe-market",
+  "crates/warframe-status",
+  "crates/win-capture",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.14.0"
+edition = "2024"
+license = "GPL-3.0-only"
+rust-version = "1.85"
+repository = "https://github.com/Deftera186/tennoscope"
+
+[workspace.dependencies]
+log = { version = "0.4", features = ["std"] }
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+zeroize = "1"
+
+[profile.dev]
+opt-level = 2
+# Off because `opt-level` is on. Incremental reuses a codegen unit while its neighbours are
+# regenerated, and an optimised build gives the private symbols they share names that change with
+# the unit -- so the reused object links against an `anon.<hash>.llvm.<id>` nobody emits any more and
+# the binary fails to link. Little is lost: at `opt-level = 2` most of a rebuild is optimisation
+# work incremental cannot skip anyway, and a clean build of the whole workspace takes 22s.
+incremental = false
