@@ -1,10 +1,10 @@
 <script lang="ts">
   // The update screen: what changed since you last looked, shown once after an update the way the
   // game shows its own. The update's date as a stamp, its biggest change struck large with Show me,
-  // the rest of it as rows, earlier updates folded under their dates; Take the tour steps through
-  // each change on its page. "Got it", Esc or a click outside closes it, and it counts as seen.
+  // the rest of it as rows, earlier days folded under their dates; Take the tour steps through
+  // every change since you last looked, each on its page. The Guide lists each day whole instead. "Got it", Esc or a click outside closes it, and it counts as seen.
   import { fade } from "svelte/transition";
-  import { batches, newsSince, tourStops, type NewsItem } from "./whatsNew";
+  import { sinceSeen, type NewsItem } from "./whatsNew";
   import { pageById, type PageId } from "./pages";
   import { parseTarget } from "./intent.svelte";
   import { startTour } from "./tour.svelte";
@@ -18,12 +18,13 @@
   const still = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
   // At most the last three entries: someone back after months doesn't need the whole history.
-  const updates = $derived(batches(newsSince(seen).slice(0, 3)));
+  const since = $derived(sinceSeen(seen));
+  const updates = $derived(since.updates);
   const latest = $derived(updates[0] ?? null);
   /** The update's first change leads, if it's one with a title (older entries are plain sentences). */
   const head = $derived(latest && typeof latest.items[0] !== "string" ? (latest.items[0] as NewsItem) : null);
   const rest = $derived(latest ? (head ? latest.items.slice(1) : latest.items) : []);
-  const stops = $derived(latest ? tourStops(latest.items) : []);
+  const stops = $derived(since.stops);
   const pageOf = (to: string) => pageById[parseTarget(to).page as PageId] ?? null;
 
   const date = (d: string) => new Date(`${d}T12:00:00Z`);
@@ -58,7 +59,7 @@
       </div>
       <div class="kick">
         <h2 id="upd-title" class="register">What's new in orbiter</h2>
-        <p class="dim small">Since you last opened it · {latest.items.length} {latest.items.length === 1 ? "change" : "changes"}</p>
+        <p class="dim small">{since.count} {since.count === 1 ? "change" : "changes"} since you last opened orbiter</p>
       </div>
       <button class="close" aria-label="Close" title="Close (Esc)" onclick={close}>
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="1.5" /></svg>
@@ -80,7 +81,7 @@
 
       {#if rest.length}
         <section class="more" aria-labelledby="upd-more">
-          <h3 id="upd-more" class="register">{head ? "Also in this update" : "In this update"} · {rest.length}</h3>
+          <h3 id="upd-more" class="register">{head ? "Also new" : "New"} · {rest.length}</h3>
           <NewsItems items={rest} go={go ? visit : null} />
         </section>
       {/if}
@@ -94,8 +95,8 @@
     </div>
 
     <footer>
-      {#if stops.length > 1 && go}<button class="stamp" title="Step through each change on its page, with a bar at the bottom of the window: arrow keys or Enter for the next, Esc to stop" onclick={tour}>Take the tour <span class="n">{stops.length}</span></button>{/if}
-      <p class="dim small">The Guide keeps these, at the end.</p>
+      {#if stops.length > 1 && go}<button class="stamp" title="Step through these {stops.length} changes, each on its page, with a bar at the bottom of the window: arrow keys or Enter for the next, Esc to stop" onclick={tour}>Take the tour <span class="n">{stops.length} stops</span></button>{/if}
+      <p class="dim small">Find these again at the end of the {#if go}<button type="button" class="link guide" title="Open the Guide at What's new" onclick={() => visit("guide#news")}>Guide</button>{:else}Guide{/if}.</p>
       <button class="stamp gold" onclick={close}>Got it</button>
     </footer>
   </div>
@@ -159,6 +160,7 @@
   footer { display: flex; align-items: center; gap: 1rem; padding: 1rem 2rem 1.2rem; border-top: 1px solid var(--rule); background: var(--plate); }
   footer p { margin: 0 auto 0 0; }
   footer .n { margin-left: .4rem; color: var(--platinum-deep); }
+  footer .guide { font-size: inherit; letter-spacing: normal; text-transform: none; font-family: inherit; }
 
   /* A narrow window: the headline's icon beside a smaller title. */
   @media (max-width: 1100px) {

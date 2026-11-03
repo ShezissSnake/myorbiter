@@ -1,5 +1,6 @@
 // What changed, newest first: shown once after an update (WhatsNew.svelte, the update screen), and
-// on the Guide. One entry per batch of builds; entries out the same day show as one update. From
+// on the Guide. One entry per batch of builds. The update screen shows what's new since the entry
+// last seen; the Guide lists every day's entries together, as one update each. From
 // entry 11 on, each change is an item: an icon, a few words for a title, a line on it as a player
 // would put it (page names and game words in it get their icons, core/richText.ts) and where to see
 // it, down to the spot on the page (Show me, and the tour). Older entries are a sentence each.
@@ -30,7 +31,7 @@ export interface NewsEntry {
 export const NEWS: NewsEntry[] = [
   {
     id: 12,
-    date: "2026-11-04",
+    date: "2026-11-03",
     items: [
       { title: "Each section its own colour", icon: { sections: true }, text: "Fissures in Void violet, Progress in mastery teal, Collection in the Arsenal's steel blue, Trade in market gold, each with its sigil over the page's title and on its label in the sidebar. You can tell where you are at a glance.", open: "relics#sections" },
       { title: "Current fissure, as the reward screen", icon: { game: "void-tear" }, text: "The four rewards stand as the game shows them: art large, rarity along the bottom, the pick lit in Void violet with Take this. With no fissure on, four empty relic slots wait for it.", open: "mission#hero" },
@@ -38,17 +39,17 @@ export const NEWS: NewsEntry[] = [
       { title: "The Codex rings", icon: { game: "mastery" }, text: "Mastery, Foundry and Wishlist open on a ring for each category, filled by what you've mastered of it, and what to do next. Click a ring to show only that category.", open: "mastery#hero" },
       { title: "The Arsenal showcase", icon: { game: "warframes" }, text: "Inventory, Prime parts, Sets, Mods, Arcanes and Rivens open on your five most valuable spares, large, the way the Arsenal shows gear. Click one for its details.", open: "inventory#hero" },
       { title: "The market ticker", icon: { game: "market" }, text: "Orders, Browse market, Sales and Stats carry one line of live figures (trades left, listed value, today's sales), with a gold ▲ or ▼ on any that moved since you last looked.", open: "market#hero" },
-      { title: "An update screen, with a tour", icon: { line: "guide" }, text: "What's New opens like the game's own: the biggest change first, the rest in a list, older ones folded. Take the tour walks you through each change on its page. The Guide keeps them all.", open: "guide#news" },
-      { title: "Show me", icon: { line: "search" }, text: "On any change here: opens its page and lights the very thing that changed, a figure, a fold or a column.", open: "guide#showme" },
+      { title: "An update screen, with a tour", icon: { line: "guide" }, text: "What's New opens like the game's own: the biggest change first, the rest in a list, older ones folded. Take the tour shows you each change on its own page. Every update stays listed at the end of the Guide.", open: "guide#news" },
+      { title: "Show me", icon: { line: "search" }, text: "Press it on any change to open that page with the changed part lit up.", open: "guide#showme" },
       { title: "Icons in the text, like the wiki", icon: { game: "platinum" }, text: "In What's New and the Guide, a page's name takes you there, and platinum, ducats, Void Traces, Kuva and the rest carry their game icon.", open: "guide#walks" },
     ],
   },
   {
     id: 11,
-    date: "2026-11-04",
+    date: "2026-11-03",
     items: [
       { title: "Requiem and Antivirus mods kept", icon: { game: "kuva" }, text: "Five of each, while a Kuva, Tenet or Coda weapon is left to master; copies beyond five can go. Mods says which weapons they're kept for.", open: "mods#liches" },
-      { title: "A settled sidebar", icon: { line: "list" }, text: "Each section answers one question. Fissures: what should I crack? Progress: what's left to get? Collection: what do I hold, and what do I keep or sell? Trade: your activity on warframe.market." },
+      { title: "A settled sidebar", icon: { line: "list" }, text: "Each section answers one question. Fissures: what should I crack? Progress: what's left to get? Collection: what do I hold, and what do I keep or sell? Trade: your activity on warframe.market.", open: "home#sections" },
       { title: "Never sold under its ducats", icon: { game: "ducats" }, text: "A prime part or set is judged at the price it would actually list at, and Reprice never takes one down to its ducat value. A set is weighed whole against all its parts' ducats.", open: "parts" },
       { title: "Trade tax, corrected", icon: { game: "credits" }, text: "Warframe charges whoever receives: selling costs you 500 credits for each platinum you're paid. The buyer pays the item's own tax.", open: "market?spares=1#spares" },
       { title: "Orders, rearranged", icon: { page: "market" }, text: "Put my spares on sale sits at the top, folded; applying a plan ticks each change off as it's sent. Sort the table by any column, see who whispered you, go invisible when your trades run out.", open: "market#sort" },
@@ -62,7 +63,7 @@ export const NEWS: NewsEntry[] = [
   },
   {
     id: 10,
-    date: "2026-11-04",
+    date: "2026-11-03",
     items: [
       "Simpler pages: Details, by each page's title, shows the sentence under every figure, the full description and every column; off (the start), the rest is on hover. Filters most visits don't need sit under More filters ▾, with a count when any are set. Page modes are tabs.",
       "Buttons that take a while fill up as they work: Sync until the new inventory read arrives, Check prices and Reprice with a count, Plan and Apply the plan, Check prices on Rivens. Copy buttons say Copied ✓. Saving, removing or marking a listing sold shows on its row, and dismissing an alert, unstarring or removing a price alert can be undone.",
@@ -98,7 +99,7 @@ export const NEWS: NewsEntry[] = [
   },
   {
     id: 7,
-    date: "2026-11-03",
+    date: "2026-11-02",
     items: [
       "Sets, Saving up: easiest to finish first. About how many relic cracks each set takes (each missing part at the best chance you can crack for it), and the chance the relics you hold finish it.",
       "Stats: the parts you got in the span, from relics, missions or anything but a trade, with what they're worth.",
@@ -198,3 +199,15 @@ export const newsSince = (seen: string) => {
   const last = /^\d+$/.test(seen) ? Number(seen) : 0;
   return NEWS.filter((n) => n.id > last);
 };
+
+/**
+ * What the update screen shows: the changes since the entry last seen (at most the last `max`
+ * entries), by day, newest first; how many changes that is; and the tour of all of them. The Guide
+ * instead lists every day whole, each with a tour of its own (`batches`, `tourStops`).
+ */
+export function sinceSeen(seen: string, entries: NewsEntry[] = NEWS, max = 3) {
+  const last = /^\d+$/.test(seen) ? Number(seen) : 0;
+  const updates = batches(entries.filter((n) => n.id > last).slice(0, max));
+  const items = updates.flatMap((u) => u.items);
+  return { updates, count: items.length, stops: tourStops(items) };
+}

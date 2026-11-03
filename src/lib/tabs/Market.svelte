@@ -111,6 +111,8 @@
     <span class="grow"></span>
     {@render buyCell(r)}
   {/snippet}
+  <!-- A box of its own only for the long names' style: display contents, so the grid still sees the card. -->
+  <div class="mcard">
   <ItemCard hover={r.name} title={r.name} sub={label(r.category)} fallback={kindIcon(label(r.category), r.name)} image={art(r)} artSize={64} owned={!!r.have} ownedNote="You have {r.have}" onopen={open} {foot}>
     <div class="vals">
       <span><span class="register">Price</span><P v={r.price} /></span>
@@ -119,6 +121,7 @@
       {#if r.have}<span><span class="register">You have</span><b class="mark">×{r.have}</b></span>{/if}
     </div>
   </ItemCard>
+  </div>
 {/snippet}
 {#snippet detail(r: MarketRow)}
   <p class="small dim">
@@ -182,6 +185,11 @@
 </div></div>
 
 <style>
+  .mcard { display: contents; }
+  /* A long name (Equilibrium (Steam Pinnacle Pack)) takes a second line rather than an ellipsis. */
+  .mcard :global(.card h3) { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.05; }
+  /* Its art and prices still line up with the cards beside it: they sit on the footer. */
+  .mcard :global(.card .body) { align-self: end; }
   .kinds { min-width: 13rem; }
   .min { display: inline-flex; align-items: center; gap: .45rem; }
   .min .register { font-size: .6rem; white-space: nowrap; }

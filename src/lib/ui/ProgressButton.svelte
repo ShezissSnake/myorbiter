@@ -201,8 +201,8 @@
   @keyframes pb-turn { to { transform: rotate(360deg); } }
 
   /* Working: the button keeps its colour, and hovering doesn't invert it (there's nothing to press). */
-  .pb.stamp[aria-busy="true"]:hover, .pb.stamp[aria-busy="true"]:active { background: var(--raised); border-color: var(--rule-control); color: var(--platinum); transform: none; }
-  .pb.stamp.gold[aria-busy="true"]:hover, .pb.stamp.gold[aria-busy="true"]:active { border-color: var(--gold-dim); color: var(--gold); }
+  .pb.stamp[aria-busy="true"]:hover, .pb.stamp[aria-busy="true"]:active { background: var(--raised); --edge: var(--rule-control); border-color: var(--rule-control); color: var(--platinum); transform: none; }
+  .pb.stamp.gold[aria-busy="true"]:hover, .pb.stamp.gold[aria-busy="true"]:active { --edge: var(--gold-dim); border-color: var(--gold-dim); color: var(--gold); }
   .pb.text:not(.stamp)[aria-busy="true"]:hover { color: var(--platinum-dim); border-color: var(--rule-bright); }
   .pb[aria-busy="true"] { cursor: progress; }
   .pb[aria-busy="true"]:active { transform: none; }
@@ -211,12 +211,12 @@
   .pb[aria-busy="true"]:not([aria-disabled]) { cursor: pointer; }
 
   /* Done: a verdigris edge and a tick. Failed: an oxblood edge and "!". */
-  .pb.done, .pb.done.stamp, .pb.stamp.gold.done { border-color: var(--verdigris); color: var(--verdigris); }
-  .pb.failed, .pb.failed.stamp, .pb.stamp.gold.failed { border-color: var(--oxblood); color: var(--oxblood); }
+  .pb.done, .pb.done.stamp, .pb.stamp.gold.done { --edge: var(--verdigris); border-color: var(--verdigris); color: var(--verdigris); }
+  .pb.failed, .pb.failed.stamp, .pb.stamp.gold.failed { --edge: var(--oxblood); border-color: var(--oxblood); color: var(--oxblood); }
   /* Done and failed are a message: hovering brightens the edge but doesn't invert the button. */
   .pb.stamp.done:hover:not(:disabled), .pb.stamp.failed:hover:not(:disabled) { background: var(--raised); }
-  .pb.stamp.done:hover:not(:disabled) { color: var(--verdigris); border-color: var(--verdigris); }
-  .pb.stamp.failed:hover:not(:disabled) { color: var(--oxblood); border-color: var(--oxblood); }
+  .pb.stamp.done:hover:not(:disabled) { color: var(--verdigris); --edge: var(--verdigris); border-color: var(--verdigris); }
+  .pb.stamp.failed:hover:not(:disabled) { color: var(--oxblood); --edge: var(--oxblood); border-color: var(--oxblood); }
   .pb.ib.done:hover:not(:disabled) { background: transparent; color: var(--verdigris); }
   .pb.ib.failed:hover:not(:disabled) { background: transparent; color: var(--oxblood); }
   .pb.link.done { border: 0; }
