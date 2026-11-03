@@ -134,7 +134,7 @@
       <Art file={c.image} size={230} alt={item.name} />
       <div class="intro">
         <div class="tags">
-          {#if c.mastered}<span class="tag good">Mastered</span>{:else if c.owned}<span class="tag ok">Owned, not mastered</span>{/if}
+          {#if c.mastered}<span class="tag good">Mastered</span>{:else if c.owned}<span class="tag mastery">Owned, not mastered</span>{/if}
           {#if c.building}<span class="tag">Building</span>{/if}
           {#if c.buildable && plan}<span class="tag" class:ok={plan.tier === "now"} class:warn={plan.tier === "farm"} class:bad={plan.tier === "hard"} title={TIER_TIP[plan.tier]}>{plan.tier === "now" ? "Ready to build" : `Parts ready · ${TIER_LABEL[plan.tier].toLowerCase()}`}</span>{:else if c.buildable}<span class="tag ok">Ready to build</span>{/if}
           {#if c.resurgence}<Avail v="resurgence" />{:else if c.vaulted}<Avail v="vaulted" />{/if}

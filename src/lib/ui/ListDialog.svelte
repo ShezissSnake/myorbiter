@@ -242,7 +242,8 @@
   .end button { padding: .65rem 1rem; }
   .end { justify-content: flex-end; }
   .merge { display: flex; gap: .5rem; align-items: center; color: var(--platinum); }
-  .warn { color: var(--gold); margin: 0; }
+  .warn { color: var(--alert); margin: 0; }
+  .warn::before { content: "! "; font-weight: 700; }
   .err { color: var(--oxblood); margin: 0; }
   .foot { margin: 0; }
   .done { margin: 0; color: var(--verdigris); }

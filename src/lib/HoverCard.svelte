@@ -128,7 +128,7 @@
         <div class="ht">
           <b class="mark">{it.name}</b>
           <span class="sub">{c.type}{c.masteryReq ? ` · MR ${c.masteryReq}` : ""}</span>
-          <span class="tags">{#if c.mastered}<span class="tag good">✓ Mastered</span>{:else if c.owned}<span class="tag ok">Owned</span>{:else if c.building}<span class="tag">Building</span>{:else if c.buildable}<span class="tag ok">Ready to build</span>{/if}{#if c.resurgence}<Avail v="resurgence" />{:else if c.vaulted}<Avail v="vaulted" />{/if}</span>
+          <span class="tags">{#if c.mastered}<span class="tag good">✓ Mastered</span>{:else if c.owned}<span class="tag mastery" title="Owned, not mastered yet">Owned</span>{:else if c.building}<span class="tag">Building</span>{:else if c.buildable}<span class="tag ok">Ready to build</span>{/if}{#if c.resurgence}<Avail v="resurgence" />{:else if c.vaulted}<Avail v="vaulted" />{/if}</span>
         </div>
       </header>
       {#if it.health != null}

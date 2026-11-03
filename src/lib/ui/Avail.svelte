@@ -20,8 +20,8 @@
   }
   /* Most relics are vaulted, so vaulted is the quiet one (a dark plate, gold letters) and the
      states you can act on stand out: farmable now, or in Varzia's Resurgence. */
-  .farmable { background: #343a43; color: var(--platinum); }
-  .vaulted { background: #221e14; color: var(--gold); }
+  .farmable { background: var(--rule-bright); color: var(--platinum); }
+  .vaulted { background: color-mix(in srgb, var(--gold) 9%, var(--well)); color: var(--gold); }
   .resurgence { background: var(--verdigris); color: var(--slab); }
   .unknown { color: var(--platinum-deep); }
 </style>

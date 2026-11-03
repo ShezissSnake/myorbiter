@@ -2189,7 +2189,8 @@
   .steps strong { font-family: var(--face-mark); text-transform: uppercase; font-size: 1.05rem; letter-spacing: .01em; }
   .notice .why code { display: block; margin-top: .4rem; font-family: var(--face-register); font-size: .9em; white-space: pre-wrap; word-break: break-word; }
   /* A reload failed with data on screen: one slim line above the page, which stays as it was. */
-  .stale { flex: none; display: flex; align-items: center; gap: .9rem; padding: .45rem 1.4rem; font-size: .8rem; color: var(--platinum-dim); background: rgb(214 174 74 / 8%); border-bottom: 1px solid var(--gold-dim); box-shadow: inset 3px 0 0 var(--gold); }
+  .stale { flex: none; display: flex; align-items: center; gap: .9rem; padding: .45rem 1.4rem; font-size: .8rem; color: var(--platinum-dim); background: color-mix(in srgb, var(--alert) 7%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--alert) 55%, transparent); box-shadow: inset 3px 0 0 var(--alert); }
+  .stale::before { content: "!"; font-weight: 700; color: var(--alert); margin-right: -.4rem; }
   .stale .link { font-size: .64rem; }
   .repdue { background: rgb(111 183 163 / 7%); border-bottom-color: color-mix(in srgb, var(--verdigris) 45%, transparent); box-shadow: inset 3px 0 0 var(--verdigris); }
   .repdue b { color: var(--platinum); font-weight: 600; }
