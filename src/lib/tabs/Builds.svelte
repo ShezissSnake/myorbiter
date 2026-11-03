@@ -381,7 +381,7 @@
     </div>
 
     {#if tags.length}
-      <div class="tagbar" role="group" aria-label="Show builds tagged">
+      <div class="tagbar" data-card="tags" role="group" aria-label="Show builds tagged">
         {#each tagGroups as g (g.family)}
           <span class="tg"><span class="register">{g.family}</span>{#each g.tags as t (t)}<button type="button" class="tagchip" class:on={picked.includes(t)} aria-pressed={picked.includes(t)} title={picked.includes(t) ? `Showing builds tagged ${t}: click to drop it` : `Show only builds tagged ${t}${picked.length ? " (and the other tags picked)" : ""}`} onclick={() => toggleTag(t)}>{t}</button>{/each}</span>
         {/each}

@@ -27,7 +27,7 @@
   const collected = $derived(file ? Date.parse(file.collected) : NaN);
 </script>
 
-<section class="ofl" aria-label="Popular on {OVERFRAME_SITE}" aria-busy={file === undefined}>
+<section class="ofl" data-card="popular" aria-label="Popular on {OVERFRAME_SITE}" aria-busy={file === undefined}>
   <header class="hd">
     <h2 class="register">Popular on {OVERFRAME_SITE}</h2>
     <span class="sub">Most voted builds for {item.name}, updated in the last two years</span>

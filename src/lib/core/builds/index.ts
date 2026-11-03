@@ -43,7 +43,7 @@
  *
  *   const nox = makeNox(noxFetcher, () => settings.buildsFromNox);   // noxFetcher: backend.ts
  *   registerSource(nox.source);            // once; sourceBuilds then includes builds already opened
- *   const list = await nox.listing(item, ctx);              // top-voted, ≤ 10: one request a week at most
+ *   const list = await nox.listing(item, ctx);              // ≤ NOX_LISTED (5), the most voted within the age limit: one request a week at most
  *   const got = await nox.open(item, list.entries[0].path, ctx);   // one build: got.build, got.notes
  *   const pasted = await parseNoxCode(code, item, m.catalogByUnique, noxFetcher.decode);
  */
