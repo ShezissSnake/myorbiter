@@ -5,6 +5,8 @@
   import Metal from "../ui/Metal.svelte";
   import Effort from "../ui/Effort.svelte";
   import Icon from "../ui/Icon.svelte";
+  import PartChip from "../ui/PartChip.svelte";
+  import GameIcon from "../ui/GameIcon.svelte";
   import { NEWS } from "../whatsNew";
   import { BUILD } from "../build";
 
@@ -156,12 +158,14 @@
       <h3 class="register lead">Getting around</h3>
       <ul>
         <li><span class="ic"><Icon name="list" /></span> at the end of a row puts it on warframe.market without leaving the page: only the copies you can spare, priced at the cheapest seller in game. A padlock <span class="ic"><Icon name="lock" /></span> (or nothing) means you need what you have; the green <span class="ic good"><Icon name="listed" /></span> means it's on the market already (click to add more or change the price). Every icon says what it does when you hover it.</li>
-        <li><b>Cards or rows:</b> collection pages show cards by default; <span class="ic"><Icon name="rows" /></span> above the cards switches that page to a sortable table, <span class="ic"><Icon name="cards" /></span> back, and it's remembered. A gold notch in a card's top corner marks one to look at: spares you can sell, gear you own but haven't mastered, a relic with a part you need, an arcane you've maxed (hover the notch for which). On round part icons, a gold ring is enough in hand, dashed is building; a relic's rewards are square, like the game's reward screen.</li>
+        <li><b>Cards or rows:</b> collection pages show cards by default; <span class="ic"><Icon name="rows" /></span> above the cards switches that page to a sortable table, <span class="ic"><Icon name="cards" /></span> back, and it's remembered. A gold notch in a card's top corner marks one to look at: spares you can sell, gear you own but haven't mastered, a relic with a part you need, an arcane you've maxed (hover the notch for that card's reason). On round part icons, a gold ring is enough in hand, dashed is building; a relic's rewards are square, like the game's reward screen.</li>
         <li><b>Hover</b> over anything with a name (a relic, a part, a mod, an arcane, a warframe or weapon) for what it is: a relic's rewards with their odds and prices, where a part drops and what it sells for, a mod's effect at max rank. Move off it, scroll or press <kbd>Esc</kbd> to close it.</li>
         <li><b>Click a card or row</b> to open it: a warframe, weapon or companion opens its full details (stats, parts, drops, prices); other things show relic odds, how many you keep, and warframe.market links.</li>
         <li><b>Details</b>, by each page's title, shows the sentence under every figure, the full page description and every table column; off (the start), pages keep to the essentials and the rest is on hover. <b>More filters ▾</b> holds the filters most visits don't need (a number on it says how many are set; Clear puts them back).</li>
         <li><b>Keyboard:</b> <kbd>Ctrl</kbd>+<kbd>1</kbd>…<kbd>9</kbd> pages in sidebar order (change it in Settings → Pages), <kbd>Ctrl</kbd>+<kbd>PgUp</kbd>/<kbd>PgDn</kbd> (or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Tab</kbd>/<kbd>Ctrl</kbd>+<kbd>Tab</kbd>) previous or next page, <kbd>Ctrl</kbd>+<kbd>K</kbd> find anything by name (an item opens its details, a relic, mod or arcane its page; the magnifier by Sync does the same), <kbd>Ctrl</kbd>+<kbd>F</kbd> or <kbd>/</kbd> the filter, <kbd>Tab</kbd> onto a button or figure shows what it does, <kbd>Ctrl</kbd>+<kbd>R</kbd> or <kbd>F5</kbd> sync, <kbd>Ctrl</kbd>+<kbd>,</kbd> settings, <kbd>F1</kbd> this guide, <kbd>Esc</kbd> closes a panel, <kbd>Ctrl</kbd>+<kbd>Q</kbd> quits.</li>
-        <li><b>Sort</b> with the menu above the cards, or by clicking a column header in the table; click again (or <span class="ic"><Icon name="sort-desc" /></span> beside the menu) to flip the order.</li>
+        <li><b>Sort</b> with the menu above the cards, or by clicking a column header in the table; click again (or <span class="ic"><Icon name="sort-desc" /></span> beside the menu) to flip the order. The same row has how many are shown and Cards or Table on every list page (Rivens' Check prices at its end).</li>
+        <li><b>Nothing matches these filters · Clear</b>: a search or filter hid everything; Clear puts the search and filters back. A page only says it has nothing when there truly is nothing.</li>
+        <li><b>Show</b> (Relics, Foundry) picks which ones the list shows; <b>Squad</b> on Relics values a crack solo or in a radshare.</li>
         <li>Filters and sorting stay as you left them while orbiter is open.</li>
         <li><b>Sync</b> (bottom of the sidebar) asks TennoScope to read your inventory from the game, fills while it waits for that new read (up to half a minute), and ticks once it's loaded; if no read comes, it says why under the button. When Warframe isn't running or TennoScope can't read the game, it re-reads what TennoScope last saved instead. Buttons that start longer work (Check prices on Orders and Rivens, Reprice, the spares plan) fill the same way and say how it went.</li>
         <li><b>TennoScope</b> under it opens its panel: whether it's healthy, screen-capture permission for the reward overlay, and inventory sync. Its light is green when all is well, gold when something wants a look, red when it isn't running or something failed.</li>
@@ -180,7 +184,11 @@
         <li><span class="k"><span class="tag good">✓ mastered</span></span><span>you've mastered it, or the item the part builds</span></li>
         <li><span class="k"><span class="tag mastery">level it</span></span><span>you own it but haven't mastered it</span></li>
         <li><span class="k"><span class="tag warn">need</span></span><span>a part for something you haven't built or mastered</span></li>
-        <li><span class="k"><span class="notch-demo" aria-hidden="true"></span></span><span>a gold notch in a card's corner: one to look at (hover it for why)</span></li>
+        <li><span class="k"><span class="notch-demo" aria-hidden="true"></span></span><span>a gold notch in a card's corner: one to look at; hover it for that card's reason ("10 spare to sell", "Not mastered", "Drops a part you need")</span></li>
+        <li><span class="k"><PartChip part={{ label: "Chassis", name: "Chassis", image: null, required: 1, have: 3, resource: false, building: false, price: null, ducats: null, tradable: false }} size={26} /></span><span>a part ring: gold when you hold enough; the number is how many you hold (hover it: "Held: 3")</span></li>
+        <li><span class="k"><span class="tag">★ Wishlist 4</span></span><span>on Foundry: only what you starred, from every category, with how many (hidden until you star something)</span></li>
+        <li><span class="k"><span class="sell-demo"><Icon name="list" size={12} />Sell</span></span><span>on every card, rivens too: sell it on warframe.market (the form shows the price first; nothing is posted until you confirm)</span></li>
+        <li><span class="k"><GameIcon name="kuva" size={16} /></span><span>on a riven, "3,100 Kuva spent · next roll 1,400": the Kuva its cycles have cost so far, and what the next cycle costs; "unrolled" ones were never cycled</span></li>
         <li><span class="k"><span class="rwd r"><i></i></span><span class="rwd u"></span><span class="rwd c"><b></b></span></span><span>a relic's rewards, as on the reward screen: frame and bar in its rarity, a gold diamond on a rare, a silver dot on an uncommon; a gold disc at the corner is a part you still need</span></li>
         <li><span class="k"><span class="sw" style:--c="var(--rarity-common)"></span><span class="sw" style:--c="var(--rarity-uncommon)"></span><span class="sw" style:--c="var(--rarity-rare)"></span></span><span>rarity, everywhere: bronze common, silver uncommon, gold rare (Rivens violet)</span></li>
         <li><span class="k">{#each ["lith", "meso", "neo", "axi", "requiem"] as e (e)}<span class="sw" style:--c="var(--era-{e})"></span>{/each}</span><span>relic eras: Lith copper, Meso olive, Neo silver, Axi gold, Requiem crimson</span></li>
@@ -193,7 +201,7 @@
         <li><span class="k"><Effort acq={{ method: "market-credits", difficulty: 1, how: "", icon: null, available: true, tradable: false, researched: false, wiki: null }} compact /> … <Effort acq={{ method: "lich-sister", difficulty: 5, how: "", icon: null, available: true, tradable: false, researched: false, wiki: null }} compact /></span><span>how hard something is to get, from buy-and-build to Liches</span></li>
         <li><span class="k"><Metal kind="plat" /></span><span>platinum (warframe.market daily median)</span></li>
         <li><span class="k"><Metal kind="ducat" /></span><span>ducats</span></li>
-        <li><span class="k"><Owned owned={{ Intact: 1, Radiant: 2 }} /></span><span>relics you hold, by refinement: intact, exceptional, flawless, radiant</span></li>
+        <li><span class="k"><Owned owned={{ Intact: 8, Radiant: 3 }} /></span><span>relics you hold, by refinement: intact, exceptional, flawless, radiant</span></li>
       </ul>
     </article>
     <article>
@@ -275,6 +283,7 @@
   .rwd.u::before { width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--rarity-uncommon); }
   .rwd b { position: absolute; right: -3px; bottom: -3px; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 1.5px var(--plate); }
   .sw { display: inline-block; width: 10px; height: 10px; background: var(--c); }
+  .sell-demo { display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .45rem; border: 1px solid var(--rule-bright); font-family: var(--face-register); font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-dim); }
   .notch-demo { display: inline-block; width: 22px; height: 16px; border: 1px solid color-mix(in srgb, var(--gold) 30%, var(--rule)); background: linear-gradient(225deg, var(--gold) 0 7px, var(--plate) 7px); }
   .gold-word { font-family: var(--face-mark); font-weight: 700; text-transform: uppercase; color: var(--gold); }
   .lastmark { font-family: var(--face-register); font-size: .56rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }

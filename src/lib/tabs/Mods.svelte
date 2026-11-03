@@ -101,7 +101,7 @@
 {/snippet}
 {#snippet card(r: ModRow, open: () => void)}
   <!-- Gold edge: copies to spare. With "Spares only" on that's every card, so it only marks them when it's off. -->
-  <ItemCard hover={r.name} title={r.name} sub={r.type} image={model.imageOf(r.name)} owned={!dupesOnly && r.extras > 0} onopen={open}>
+  <ItemCard hover={r.name} title={r.name} sub={r.type} image={model.imageOf(r.name)} owned={!dupesOnly && r.extras > 0} ownedNote="{r.extras} spare to sell" onopen={open}>
     {#snippet art()}{@render modCard(r, 104)}{/snippet}
     <div class="have"><b class="mark qty">×{r.total}</b>{#if r.extras}<span class="dim small" title="Beyond your best copy and one to give away">{r.extras} spare</span>{/if}</div>
     <!-- Always there, empty when every copy is unranked, so cards side by side line up. -->

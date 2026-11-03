@@ -145,7 +145,7 @@
 {#snippet ducatCell(r: RelicRow)}<P v={r.evDucatsIntact || null} d dim />{/snippet}
 {#snippet relicPriceCell(r: RelicRow)}<P v={r.relicPrice} dim />{/snippet}
 {#snippet card(r: RelicRow, open: () => void)}
-  <ItemCard hover={r.base} title={r.base} sub={rareOf(r) ? `Rare · ${rareOf(r)}` : undefined} image={model.imageOf(r.base)} fallback={eraIcon(r.base.split(" ")[0])} artSize={78} owned={r.neededCount > 0} ownedNote="Drops a part you still need" tint={eraTint(r.base)} onopen={open}>
+  <ItemCard hover={r.base} title={r.base} sub={rareOf(r) ? `Rare · ${rareOf(r)}` : undefined} image={model.imageOf(r.base)} fallback={eraIcon(r.base.split(" ")[0])} artSize={78} owned={r.neededCount > 0} ownedNote={r.neededCount === 1 ? "Drops a part you need" : `Drops ${r.neededCount} parts you need`} tint={eraTint(r.base)} onopen={open}>
     <div class="rw">
       {#each r.rewards as x, i (i)}
         <span class="rwc rar-{x.rarity}" class:need={x.needed} class:done={x.parentMastered && !x.needed} use:info={x.name}>

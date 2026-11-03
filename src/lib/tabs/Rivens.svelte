@@ -117,7 +117,7 @@
   const tradeValue = (r: Riven) => traded(r)?.same?.median ?? null;
   const fmtP = (v: number) => `${Math.round(v).toLocaleString("en")}p`;
   const tradeTitle = (r: Riven, t: RivenTrade) =>
-    `Riven trades completed in game ${rivens.tradesWeek ?? "last week"} for ${t.weapon} rivens that were ${t.rerolled ? "cycled" : "never cycled"}: median ${t.median == null ? "?" : fmtP(t.median)}, average ${fmtP(t.avg)}, from ${fmtP(t.min)} to ${fmtP(t.max)} (Digital Extremes' weekly figures, 1p trades left out). They don't say which stats sold, so a great roll goes well over the median and a poor one under it.`;
+    `Riven trades completed in game ${rivens.tradesWeek ?? "last week"} for ${t.weapon} rivens that were ${t.rerolled ? "cycled" : "unrolled (never cycled)"}: median ${t.median == null ? "?" : fmtP(t.median)}, average ${fmtP(t.avg)}, from ${fmtP(t.min)} to ${fmtP(t.max)} (Digital Extremes' weekly figures, 1p trades left out). They don't say which stats sold, so a great roll goes well over the median and a poor one under it.`;
   const meta = $derived(rivens.meta);
 
   // Price checks, per riven: rivens listed with its two best stats ("similar"), and any riven for
@@ -470,9 +470,9 @@
         <h3 class="mark" title="{r.weapon} {r.name}">{r.weapon} {r.name}</h3>
         <span class="meta dim small">
           {#if r.polarity}<img src="/game/pol/{r.polarity}.png" alt={r.polarity} title={r.polarity} class="pol" />{/if}
-          Rank {r.rank}/8 · MR {r.mastery} · {r.rerolls ? `${r.rerolls} cycle${r.rerolls === 1 ? "" : "s"}` : "never cycled"}
+          Rank {r.rank}/8 · MR {r.mastery} · {r.rerolls ? `${r.rerolls} cycle${r.rerolls === 1 ? "" : "s"}` : "unrolled"}
         </span>
-        {#if r.rerolls}<span class="meta dim small" title="Kuva its cycles have cost (counting any before it was yours), and what the next cycle costs"><GameIcon name="kuva" size={13} />{kuvaSpent(r.rerolls).toLocaleString("en")} in · next {cycleCost(r.rerolls).toLocaleString("en")}</span>{/if}
+        {#if r.rerolls}<span class="meta dim small" title="Kuva its cycles have cost (counting any before it was yours), and what the next cycle costs"><GameIcon name="kuva" size={13} />{kuvaSpent(r.rerolls).toLocaleString("en")} Kuva spent · next roll {cycleCost(r.rerolls).toLocaleString("en")}</span>{/if}
       </div>
       {@render grade(r.grade, true)}
     </header>
@@ -547,8 +547,8 @@
     {#if rivens.trades}
       {@const tr = traded(r)}
       <p class="traded small">
-        {#if tr?.same}<span title={tradeTitle(r, tr.same)}><span class="dim">Traded in game {rivens.tradesWeek ?? "last week"}</span> <b>~{tr.same.median == null ? "?" : fmtP(tr.same.median)}</b> <span class="dim">· {fmtP(tr.same.min)}–{fmtP(tr.same.max)}</span></span>{#if tr.other?.median != null}<span class="dim" title={tradeTitle(r, tr.other)}>{" · "}{tr.other.rerolled ? "cycled" : "never cycled"} ~{fmtP(tr.other.median)}</span>{/if}
-        {:else if tr?.other}<span class="dim" title={tradeTitle(r, tr.other)}>No {r.rerolls ? "cycled" : "uncycled"} {r.weapon} rivens traded in game last week; {tr.other.rerolled ? "cycled" : "never cycled"} ones went for ~{tr.other.median == null ? "?" : fmtP(tr.other.median)}</span>
+        {#if tr?.same}<span title={tradeTitle(r, tr.same)}><span class="dim">Traded in game {rivens.tradesWeek ?? "last week"}</span> <b>~{tr.same.median == null ? "?" : fmtP(tr.same.median)}</b> <span class="dim">· {fmtP(tr.same.min)}–{fmtP(tr.same.max)}</span></span>{#if tr.other?.median != null}<span class="dim" title={tradeTitle(r, tr.other)}>{" · "}{tr.other.rerolled ? "cycled" : "unrolled"} ones ~{fmtP(tr.other.median)}</span>{/if}
+        {:else if tr?.other}<span class="dim" title={tradeTitle(r, tr.other)}>No {r.rerolls ? "cycled" : "unrolled"} {r.weapon} rivens traded in game last week; {tr.other.rerolled ? "cycled" : "unrolled"} ones went for ~{tr.other.median == null ? "?" : fmtP(tr.other.median)}</span>
         {:else}<span class="dim" title="Digital Extremes' weekly figures list no in-game trade of a riven for this weapon last week: little demand">No {r.weapon} rivens traded in game last week</span>{/if}
       </p>
     {/if}
@@ -575,7 +575,7 @@
       <!-- The same three places on every card: check prices, sell, open on warframe.market. -->
       <ProgressButton variant="icon" icon={pc || c?.error || c?.loading ? "refresh" : "search"} spin tone="quiet" state={c?.loading ? "working" : "idle"} label={pc ? "Check again" : c?.error ? "Try again" : "Check prices"} working="Checking…" title={pc ? "Check again: find similar rivens for sale now" : "Check prices: find similar rivens for sale"} disabled={!meta} onclick={() => check(r)} />
       {#if meta && auctionOf(meta, r, rivens.mine)}<span class="slot"></span>
-      {:else}<IconButton icon="list" tone={sell[r.id] ? "gold" : "quiet"} label="Sell" title={!mkt.linked ? "Sign in to warframe.market on Orders first" : "Sell: put it up as an auction on warframe.market"} disabled={!meta || !mkt.linked || !!sell[r.id]} onclick={() => openSell(r, estimates[r.id]?.mid ?? pc?.typical ?? pc?.lowest ?? null)} />{/if}
+      {:else}<button type="button" class="ib rsell" class:on={!!sell[r.id]} aria-label="Sell: {r.weapon} {r.name}" title={!mkt.linked ? "Sign in to warframe.market on Orders first" : "Sell: put it up as an auction on warframe.market"} disabled={!meta || !mkt.linked || !!sell[r.id]} onclick={() => openSell(r, estimates[r.id]?.mid ?? pc?.typical ?? pc?.lowest ?? null)}><Icon name="list" /><span>Sell</span></button>{/if}
       <IconButton icon="external" tone="quiet" label="Similar rivens on warframe.market" onclick={() => openUrl(searchUrl(r))} />
     </footer>
   </article>
@@ -588,7 +588,7 @@
       <Stat label="Unveiled" note="Read from your inventory">{mine.length}</Stat>
       <Stat label="Veiled" tone="dim" note="Challenges still to do">{veiled}</Stat>
       <Stat keep label="Best roll" note={best ? `${best.weapon} ${best.name}` : "–"}>{#if best?.grade}<span class="g-{best.grade.replace('+', 'p').replace('−', 'm')}">{best.grade}</span>{:else}–{/if}</Stat>
-      {#if tradedSum.n}<Stat label="Traded around" tone="gold" note={`Last week's in-game median for each weapon, ${tradedSum.n} of ${mine.length} rivens`}><P v={Math.round(tradedSum.total)} big /></Stat>{:else if priced.length}<Stat label="Listed around" tone="gold" note={`What similar ones are listed for (asking, not sold), ${priced.length} of ${mine.length} checked`}><P v={worth} big /></Stat>{/if}
+      {#if tradedSum.n}<Stat label="Your rivens' going rate" tone="gold" note={`Last week's in-game median for each weapon, ${tradedSum.n} of ${mine.length} rivens`}><P v={Math.round(tradedSum.total)} big /></Stat>{:else if priced.length}<Stat label="Listed around" tone="gold" note={`What similar ones are listed for (asking, not sold), ${priced.length} of ${mine.length} checked`}><P v={worth} big /></Stat>{/if}
       {#if estimated.length}<Stat label="Estimated" note={`orbiter's estimate of what each would be listed for, ${estimated.length} of ${mine.length} price checked`}><P v={estimatedSum} big /></Stat>{/if}
       {/if}
       <Stat extra label="Alerts" note="Rivens you're watching for">{settings.rivenWatch.length}</Stat>
@@ -687,7 +687,7 @@
         {@const t = tradesFor(rivens.trades, k, weapon.name, false)}
         <p class="small traded">
           {#if t.same || t.other}<span class="dim">{weapon.name} rivens traded in game last week:</span>
-            {#each [t.same, t.other].filter((x): x is RivenTrade => !!x) as x, i (i)}{i ? " · " : " "}<span title="Digital Extremes' weekly figures for trades completed in game (1p trades left out); they don't say which stats sold"><span class="dim">{x.rerolled ? "cycled" : "never cycled"}</span> <b>~{x.median == null ? "?" : fmtP(x.median)}</b> <span class="dim">({fmtP(x.min)}–{fmtP(x.max)})</span></span>{/each}
+            {#each [t.same, t.other].filter((x): x is RivenTrade => !!x) as x, i (i)}{i ? " · " : " "}<span title="Digital Extremes' weekly figures for trades completed in game (1p trades left out); they don't say which stats sold"><span class="dim">{x.rerolled ? "cycled" : "unrolled"}</span> <b>~{x.median == null ? "?" : fmtP(x.median)}</b> <span class="dim">({fmtP(x.min)}–{fmtP(x.max)})</span></span>{/each}
           {:else}<span class="dim">No {weapon.name} rivens traded in game last week.</span>{/if}
         </p>
       {/if}
@@ -789,6 +789,11 @@
   /* Cards in a row share a height; the footer sits at the bottom of each. */
   .riven footer { margin-top: auto; display: flex; align-items: center; gap: .35rem; padding-top: .5rem; border-top: 1px solid var(--rule); min-height: 1.6rem; }
   .riven footer .slot { width: 30px; }
+  /* Sell with its word, as on every other card (ListButton's look). */
+  .rsell { width: auto; display: inline-flex; gap: .35rem; padding: 0 .55rem 0 .45rem; font-size: .6rem; color: var(--platinum-dim); border-color: var(--rule-bright); background: transparent; }
+  .riven:hover .rsell:not(:disabled) { color: var(--gold); border-color: var(--gold-dim); }
+  .rsell:hover:not(:disabled), .rsell.on { background: var(--gold); border-color: var(--gold); color: var(--slab); }
+  .rsell:disabled { color: var(--platinum-deep); border-color: var(--rule); opacity: .6; }
   .traded { margin: 0; line-height: 1.4; }
   .traded b { color: var(--platinum); font-family: var(--face-mark); font-size: .95rem; }
   .pcs { display: grid; gap: .15rem; min-width: 0; }

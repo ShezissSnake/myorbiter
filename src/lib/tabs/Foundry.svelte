@@ -100,8 +100,6 @@
     sub={`${c.type}${c.masteryReq ? ` · MR ${c.masteryReq}` : ""}`}
     image={c.image}
     fallback={kindIcon(c.type, c.name)}
-    owned={c.owned && !c.mastered}
-    ownedNote="Not mastered: you own it, level it to master it"
     markPrime
     done={c.mastered}
     fav={favs.has(c.unique)}

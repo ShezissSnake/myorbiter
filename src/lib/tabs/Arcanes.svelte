@@ -171,7 +171,7 @@
   <ModCard arcane name={r.name} image={model.imageOf(r.name)} rarity={r.rarity} maxRank={r.maxRank} rank={r.highestRank ?? 0} width={96} />
 {/snippet}
 {#snippet card(r: ArcaneRow, open: () => void)}
-  <ItemCard hover={r.name} title={r.name} sub={r.type} image={model.imageOf(r.name)} owned={r.complete} onopen={open}>
+  <ItemCard hover={r.name} title={r.name} sub={r.type} image={model.imageOf(r.name)} owned={r.complete} ownedNote={r.maxedCopies ? "Maxed" : "Enough copies to max it"} onopen={open}>
     {#snippet art()}{@render arcaneCard(r)}{/snippet}
     <div class="coll">
       <div class="ch"><span class="register">Copies</span>{#if note(r)}<span class="register note">{note(r)}</span>{/if}</div>
@@ -190,7 +190,7 @@
   </ItemCard>
 {/snippet}
 {#snippet spareCard(x: SpareArcane, open: () => void)}
-  <ItemCard hover={x.row.name} title={x.row.name} sub={x.row.type} image={model.imageOf(x.row.name)} owned={x.verdict === "sell"} onopen={open}>
+  <ItemCard hover={x.row.name} title={x.row.name} sub={x.row.type} image={model.imageOf(x.row.name)} owned={x.verdict === "sell"} ownedNote="Worth more sold than dissolved: sell it" onopen={open}>
     {#snippet art()}{@render arcaneCard(x.row)}{/snippet}
     {@render spareHave(x)}
     <div class="choice">
