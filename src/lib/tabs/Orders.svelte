@@ -711,7 +711,7 @@
     </div>
 
     <table class="orders" class:ownfloors={rows.some((o) => settings.floors[listingKey(o)] != null)}>
-      <thead>
+      <thead data-card="sort">
         <tr>
           {@render sh("name", "Item", "", "Sort by name")}{@render sh("qty", "Qty", "right", "Sort by how many you list")}{@render sh("price", "Your price", "right", "Sort by your price (click again for the other way)")}{@render sh("cheapest", "Cheapest in game", "", "The cheapest seller who is in game right now (and how many are), from the last check. Sort by it")}
           {@render sh("change", "Will set", "right willset", "What the repricer would change the price to, and why. Sort by the change (the biggest rises first, falls last)")}<th class="right floorcol" title="Never go below this">Floor</th><th class="center" title="Auto-price on: when you check prices, this listing is moved to the cheapest in-game seller's price (never under its floor). Off: orbiter leaves its price as you set it">Auto-price</th><th class="center" title="Whether buyers see the listing on warframe.market (hidden ones keep their place)">Shown</th><th></th>
