@@ -94,6 +94,8 @@
   import Home from "./lib/tabs/Home.svelte";
   import Inventory from "./lib/tabs/Inventory.svelte";
   import WhatsNew from "./lib/WhatsNew.svelte";
+  import TourBar from "./lib/ui/TourBar.svelte";
+  import { tourGate, tourStop } from "./lib/tour.svelte";
   import { NEWEST, newsSince } from "./lib/whatsNew";
   import Foundry from "./lib/tabs/Foundry.svelte";
   import { openEras, wishlistEras } from "./lib/core/wishlist";
@@ -569,33 +571,85 @@
   });
   /**
    * Opens a page, from a link like "parts?best=Ducats#top": the filters go to the page (intent),
-   * and a spot ("home#baro", "market#spares") is scrolled to and lit up briefly.
+   * and a spot ("home#baro", "market#spares") is scrolled to and lit up briefly. `hold`: the spot
+   * stays outlined until the next goTo (the tour, one change at a time).
    */
-  function goTo(target: string, spot: string | null = null) {
+  function goTo(target: string, spot: string | null = null, hold = false) {
     const t = parseTarget(target);
     const page = t.page;
     const card = spot ?? t.spot;
     setIntent(page, t.want);
     settings.tab = page;
+    held?.cancel();
+    held = null;
     if (!card) return;
     if (page === "home") homeReveal = card;
-    // After Home has drawn the card. The glow is an animation of its own (the page redraws the
-    // card's classes, which would wipe a class put on by hand), starting once the scroll lands.
-    setTimeout(() => {
-      const el = document.querySelector<HTMLElement>(`.pane.shown [data-card="${card}"], .pane.shown #${CSS.escape(card)}`);
-      if (!el) return;
-      const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
-      el.scrollIntoView({ block: "center", behavior: still ? "auto" : "smooth" });
-      el.animate(
-        [
-          { boxShadow: "0 0 0 1px rgb(214 174 74), 0 0 22px rgb(214 174 74 / 35%)", offset: 0 },
-          { boxShadow: "0 0 0 1px rgb(214 174 74), 0 0 22px rgb(214 174 74 / 35%)", offset: 0.4 },
-          { boxShadow: "0 0 0 1px transparent, 0 0 0 transparent", offset: 1 },
-        ],
-        { duration: still ? 1200 : 1800, delay: still ? 0 : 350, easing: "ease-out" },
-      );
-    }, 60);
+    const asked = ++spotAsk;
+    // After the page has drawn it: a page opened for the first time loads, so look again for a
+    // moment. The glow is an animation of its own (the page redraws the spot's classes, which
+    // would wipe a class put on by hand), starting once the scroll lands. A spot outside the page
+    // (the sidebar's sections) is looked for there.
+    let tries = 0;
+    const look = () => {
+      if (asked !== spotAsk) return;
+      const sel = `[data-card="${CSS.escape(card)}"]`;
+      const el = document.querySelector<HTMLElement>(`.pane.shown ${sel}, .pane.shown #${CSS.escape(card)}`) ?? document.querySelector<HTMLElement>(`.rail ${sel}`);
+      if (!el || !el.getClientRects().length) {
+        if (++tries < 30) setTimeout(look, 80);
+        return;
+      }
+      held = spotlight(el, hold);
+    };
+    setTimeout(look, 60);
   }
+  /** The last spot asked for: a slower look for an earlier one gives up. */
+  let spotAsk = 0;
+  /** The tour's spot, outlined until the next. */
+  let held: Animation | null = null;
+  /**
+   * Brings a spot into view and lights it: a gold ring and glow that fades (with `hold`, settles to
+   * the ring). Reduced motion: no scrolling glide and no fade, a plain gold outline for a moment.
+   */
+  function spotlight(el: HTMLElement, hold: boolean): Animation {
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // A tall spot (a table, a list) shows its top, a little below the page's edge; a small one
+    // comes to the middle.
+    const page = el.closest<HTMLElement>(".page");
+    const behavior = still ? "auto" : "smooth";
+    if (page && el.offsetHeight > page.clientHeight * 0.6) page.scrollTo({ top: page.scrollTop + el.getBoundingClientRect().top - page.getBoundingClientRect().top - 24, behavior });
+    else el.scrollIntoView({ block: "center", behavior });
+    // Show me from the keyboard: Tab goes on from the spot, not from the top of the window.
+    if (!hold && (document.activeElement === document.body || !document.activeElement)) {
+      if (!el.matches("a[href], button, input, select, textarea, summary, [tabindex]")) el.tabIndex = -1;
+      el.focus({ preventScroll: true });
+    }
+    // The inner ring shows even where the page clips the outer glow.
+    const ring = "inset 0 0 0 1px rgb(214 174 74), 0 0 0 1px rgb(214 174 74)";
+    const lit = `${ring}, 0 0 26px rgb(214 174 74 / 45%)`;
+    const off = "inset 0 0 0 1px transparent, 0 0 0 1px transparent, 0 0 0 transparent";
+    if (still) return el.animate([{ boxShadow: ring }, { boxShadow: ring }], hold ? { duration: 1, fill: "forwards" } : { duration: 3000 });
+    return el.animate(
+      [
+        { boxShadow: off, offset: 0 },
+        { boxShadow: lit, offset: 0.15 },
+        { boxShadow: lit, offset: 0.45 },
+        { boxShadow: hold ? ring : off, offset: 1 },
+      ],
+      { duration: 2000, delay: 350, easing: "ease-out", fill: hold ? "forwards" : "none" },
+    );
+  }
+  tourGate.ok = (page) => available.some((p) => p.id === page);
+  // The tour (What's New, Take the tour): each change's page, its spot held lit; ended, the light goes.
+  $effect(() => {
+    const s = tourStop();
+    untrack(() => {
+      if (s?.open) goTo(s.open, null, true);
+      else if (!s) {
+        held?.cancel();
+        held = null;
+      }
+    });
+  });
   /** Marks a world event announced; false when it was already. Remembers the last 300. */
   function firstTime(key: string): boolean {
     if (settings.game.worldNotified.includes(key)) return false;
@@ -2011,7 +2065,7 @@
       </button>
     {/snippet}
 
-    <nav aria-label="Pages" bind:this={navEl} onscroll={checkNav} class:more={navMore} class:above={navAbove}>
+    <nav aria-label="Pages" data-card="sections" bind:this={navEl} onscroll={checkNav} class:more={navMore} class:above={navAbove}>
       {@render navItem(pages[0])}
       {#each sections as sec (sec)}
         <div class="sec register" data-section={sec}>{sec}</div>
@@ -2044,7 +2098,7 @@
     </div>
   </aside>
 
-  <main id="main" tabindex="-1" aria-busy={loading && !bundle} use:room>
+  <main id="main" tabindex="-1" aria-busy={loading && !bundle} use:room class:touring={!!tourStop()}>
     <!-- The first read of TennoScope's data, before there's anything to show. Everything after
          that (a sync, a warframe.market change, the background re-read when TennoScope writes)
          shows its progress in the button that started it, not up here. -->
@@ -2205,6 +2259,7 @@
       {#if !onConsole}<Lookup bind:open={showLookup} {model} go={(t: string) => (settings.tab = t)} />{/if}
       <HoverCard {model} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad > 1 ? 4 : 1} />
     {/if}
+    <TourBar go={(t: string) => goTo(t)} />
   </main>
   {#if sideShown && model}
     <SideWatch {model} {live} bind:settings console={onConsole} bountyTables={relicTables?.bounties ?? null} go={(t: string) => goTo(t)} {shortListings} {liveError} />
@@ -2229,6 +2284,8 @@
   .sidetab:hover { color: var(--gold); }
   .pane { display: none; flex: 1; min-height: 0; min-width: 0; flex-direction: column; }
   .pane.shown { display: flex; }
+  /* The tour's bar on the page's bottom edge: room under the page to scroll past it. */
+  main.touring :global(.page-inner) { padding-bottom: 7rem; }
   main { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; outline: none; }
   /* Out of sight until the keyboard lands on it. */
   .skip { position: fixed; z-index: 80; top: .5rem; left: .5rem; padding: .55rem .9rem; background: var(--plate); color: var(--platinum); border: 1px solid var(--gold); font-size: .85rem; transform: translateY(calc(-100% - 1rem)); }
