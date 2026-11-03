@@ -27,6 +27,7 @@ test("an invasion rewarding a part for something you haven't mastered is flagged
   assert.equal(rest.length, 0, "Fieldron builds nothing you master");
   assert.deepEqual([n.reward, n.item, n.side, n.node], ["Dera Vandal Barrel", "Dera Vandal", "Corpus", "Gulliver (Phobos)"]);
   assert.equal(n.key, `i1|${BARREL}`);
+  assert.deepEqual([n.attacker, n.defender], ["Grineer", "Corpus"], "both sides, for the tug-of-war bar");
 });
 
 test("not flagged once you've mastered or built the item, already hold the part, or the invasion is over", () => {
