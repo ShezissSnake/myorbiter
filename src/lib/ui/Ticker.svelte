@@ -28,9 +28,10 @@
 <script lang="ts">
   // The Trade pages' signature: one dense line of live figures, as a market terminal shows them,
   // under the page's title. A gold tick marks a figure that moved since you last looked at the page
-  // (or while you watch). One line where it fits; on a narrow page it wraps onto a second.
+  // (or while you watch), and a figure that changes while you watch rolls to its new value (Count). One line where it fits; on a narrow page it wraps onto a second.
   import { untrack } from "svelte";
   import Metal from "./Metal.svelte";
+  import Count from "./Count.svelte";
 
   let { id, items, label }: { id: string; items: Tick[]; label: string } = $props();
 
@@ -83,7 +84,7 @@
     {@const m = moved.get(x.key)}
     <span class="fig t-{x.tone ?? 'plain'}" class:moved={!!m} class:word={x.value == null && !!x.text} title={m ? `${x.title}. ${m === "up" ? "Up" : "Down"} from ${fmt(was(x.key) ?? null)} since you last looked` : x.title}>
       <span class="lb">{x.label}</span>
-      <b class="v">{x.text ?? fmt(x.value)}{#if x.plat && x.value != null}<Metal kind="plat" size={14} />{/if}{#if x.of}<span class="of">{x.of}</span>{/if}</b>
+      <b class="v">{#if x.text != null}{x.text}{:else if x.value != null}<Count value={x.value} format={fmt} />{:else}–{/if}{#if x.plat && x.value != null}<Metal kind="plat" size={14} />{/if}{#if x.of}<span class="of">{x.of}</span>{/if}</b>
       {#if m}{@const d = (x.value ?? 0) - (was(x.key) ?? 0)}<i class="tick" aria-label="{m === 'up' ? 'up' : 'down'} {fmt(Math.abs(d))} since you last looked">{m === "up" ? "▲" : "▼"}{fmt(Math.abs(d))}</i>{/if}
       {#if x.sub}<span class="sub">{x.sub}</span>{/if}
     </span>

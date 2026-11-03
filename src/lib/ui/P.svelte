@@ -1,15 +1,20 @@
 <script lang="ts">
   import Metal from "./Metal.svelte";
+  import Count from "./Count.svelte";
   import { numberFormat } from "./table";
   const one = numberFormat(1);
   const tenth = new Intl.NumberFormat("en", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   // An amount in one of the two metals. A price nobody knows is a struck dash, never a guess.
   // Tenths only where they matter: 2.5p a part, not 75,883.2p of inventory. `tenths`: always one
-  // decimal under 100, for a column of them (4.0 beside 5.2, not 4).
-  let { v, d = false, dim = false, big = false, tenths = false }: { v: number | null | undefined; d?: boolean; dim?: boolean; big?: boolean; tenths?: boolean } = $props();
+  // decimal under 100, for a column of them (4.0 beside 5.2, not 4). `tick`: a total that rolls to
+  // its new value when it changes (Count), as a span or a filter changes it.
+  let { v, d = false, dim = false, big = false, tenths = false, tick = false }: { v: number | null | undefined; d?: boolean; dim?: boolean; big?: boolean; tenths?: boolean; tick?: boolean } = $props();
+  const fmt = (n: number) => (Math.abs(n) >= 100 ? one.format(Math.round(n)) : (tenths ? tenth : one).format(n));
+  // Rolling between whole amounts stays whole (no 56.3 on the way from 0 to 500).
+  const rolled = (n: number) => fmt(v != null && Number.isInteger(v) ? Math.round(n) : n);
 </script>
 
-{#if v == null}<span class="none" title="No price">–</span>{:else}<span class="amt" class:d class:dim class:big><b>{Math.abs(v) >= 100 ? one.format(Math.round(v)) : (tenths ? tenth : one).format(v)}</b><Metal kind={d ? "ducat" : "plat"} size={big ? 22 : 12} /></span>{/if}
+{#if v == null}<span class="none" title="No price">–</span>{:else}<span class="amt" class:d class:dim class:big><b>{#if tick}<Count value={v} format={rolled} />{:else}{fmt(v)}{/if}</b><Metal kind={d ? "ducat" : "plat"} size={big ? 22 : 12} /></span>{/if}
 
 <style>
   .amt { display: inline-flex; align-items: center; gap: .28rem; white-space: nowrap; }

@@ -24,7 +24,8 @@
   import Presence from "../ui/Presence.svelte";
   import Toggle from "../ui/Toggle.svelte";
   import SpareSale from "../ui/SpareSale.svelte";
-  import { fold } from "../motion";
+  import { flip, fold, leave, OUT_CSS, calm, SETTLE } from "../motion";
+  import Check from "../ui/Tick.svelte";
   import Metal from "../ui/Metal.svelte";
   import Icon from "../ui/Icon.svelte";
   import IconButton from "../ui/IconButton.svelte";
@@ -78,13 +79,14 @@
       case "qty": return o.quantity;
       case "price": return o.platinum;
       case "total": return o.platinum * o.quantity;
-      case "cheapest": return plans.get(o.id)?.competitor.price ?? null;
-      case "change": { const p = plans.get(o.id); return p?.change ? p.target - o.platinum : null; }
+      case "cheapest": return planOf(o)?.competitor.price ?? null;
+      case "change": { const p = planOf(o); return p?.change ? p.target - o.platinum : null; }
     }
   };
   const sortedOrders = $derived.by(() => {
     const dir = sortBy.desc ? -1 : 1;
-    return orders
+    // A ghost (sold out or removed, still saying so) keeps its place among the rest until it leaves.
+    return (ghosts.length ? [...orders, ...ghosts] : orders)
       .map((o, i) => ({ o, i, v: sortValue(o) }))
       .sort((a, b) => {
         // Nothing to sort by (not checked yet) goes last either way.
@@ -96,6 +98,9 @@
   });
   const listed = $derived(orders.filter((o) => o.visible).reduce((n, o) => n + o.platinum * o.quantity, 0));
   const plans = $derived(new Map(orders.map((o) => [o.id, mkt.planFor(model, settings, o)])));
+  /** A gone listing's last plan, so a ghost row sorts where the listing was. */
+  const keptPlans = new Map<string, Plan | null | undefined>();
+  const planOf = (o: MyOrder) => plans.get(o.id) ?? keptPlans.get(o.id);
   const hiddenOrders = $derived(orders.filter((o) => !o.visible));
   /** The folded repricer settings, in one line: "Auto: check every 5 min · floor 50% · min 10p". */
   const autoLine = $derived(`Auto: ${settings.auto ? `apply every ${settings.every} min` : settings.autoCheck ? `check every ${settings.every} min` : "off"} · floor ${settings.minShare ? `${settings.minShare * 100}%` : "none"} · min ${settings.minPrice}p`);
@@ -276,10 +281,44 @@
   /** A row action can be pressed: nothing you asked for is running, and this row isn't working. A timed check doesn't count. */
   const rowFree = (id: string) => !mkt.op && !rowBusy.busy(id);
   function removeRow(o: MyOrder, buy = false) {
+    // A listing taken down leaves the table as warframe.market confirms it: a faded copy of its row
+    // stays to say "✓ Removed", then goes and the rows close up (see ghosts).
+    if (!buy) {
+      removed[o.id] = o;
+      keptPlans.set(o.id, plans.get(o.id));
+    }
     void rowAct(o.id, { working: buy ? "Taking down…" : "Removing…", done: buy ? "Taken down" : "Removed", fail: buy ? "Couldn't take it down" : "Couldn't remove" }, () => mkt.remove(o));
   }
+  // Shown moves at once: the switch (and the row's dimming) follow what you set while warframe.market
+  // is asked; if it refuses, they go back with a shake, and the row says why with Try again.
+  let shownNow = $state<Record<string, boolean>>({});
+  const isShown = (o: MyOrder) => shownNow[o.id] ?? o.visible;
+  /** Each listing's refusals so far: a new one shakes its switch. */
+  let refusedShown = $state<Record<string, number>>({});
   function setVisible(o: MyOrder, v: boolean) {
-    void rowAct(o.id, { working: v ? "Showing…" : "Hiding…", done: v ? "Shown" : "Hidden", fail: v ? "Couldn't show it" : "Couldn't hide it" }, () => mkt.update(o, { visible: v }));
+    void rowAct(o.id, { working: v ? "Showing…" : "Hiding…", done: v ? "Shown" : "Hidden", fail: v ? "Couldn't show it" : "Couldn't hide it" }, async () => {
+      shownNow[o.id] = v;
+      let ok = false;
+      try {
+        ok = await mkt.update(o, { visible: v });
+        return ok;
+      } finally {
+        delete shownNow[o.id];
+        if (!ok) refusedShown[o.id] = (refusedShown[o.id] ?? 0) + 1;
+      }
+    });
+  }
+  /** A switch that went back: a short shake (none under reduced motion; the row's reason still shows). */
+  function shake(node: HTMLElement, n: number | undefined) {
+    let last = n;
+    return {
+      update(v: number | undefined) {
+        if (v === last) return;
+        last = v;
+        if (v && !calm.current && typeof node.animate === "function")
+          node.animate([{ transform: "none" }, { transform: "translateX(-6px)" }, { transform: "translateX(6px)" }, { transform: "translateX(-4px)" }, { transform: "translateX(2px)" }, { transform: "none" }], { duration: SETTLE, easing: OUT_CSS });
+      },
+    };
   }
   function lowerTo(o: MyOrder, n: number) {
     void rowAct(o.id, { working: "Saving…", done: `Listed ${n}`, fail: "Couldn't change it" }, () => mkt.update(o, { quantity: n }));
@@ -504,8 +543,11 @@
    * warframe.market refuses, the listing comes back with the reason and Try again.
    */
   let sending = $state<Record<string, MyOrder>>({});
+  /** Listings you removed, still saying so on a faded row until it leaves. */
+  let removed = $state<Record<string, MyOrder>>({});
   function sendSale(o: MyOrder, n: number) {
     sending[o.id] = o;
+    keptPlans.set(o.id, plans.get(o.id));
     return rowAct(o.id, { working: `Sending ${n} sold…`, done: `Sold ${n}`, fail: "Couldn't mark sold" }, async () => {
       let why = "";
       const sale = await mkt.sold(o, n, { failed: (r) => (why = r) });
@@ -513,11 +555,33 @@
       settings.sales = [sale, ...settings.sales].slice(0, 2000);
     });
   }
-  /** Rows sold out and gone from your listings, still showing how the sale went. */
-  const ghosts = $derived(Object.values(sending).filter((o) => !mkt.orders.some((x) => x.id === o.id) && rowBusy.get(o.id).state !== "idle"));
+  /**
+   * Rows gone from your listings (sold out, or removed), still showing how it went: "Sending…" or
+   * "Removing…", then ticked off ("✓ Sold 2", "✓ Removed"). Once the tick has been seen the row
+   * leaves and the rows below close up, as Put my spares on sale's rows do.
+   */
+  const ghosts = $derived([...new Map([...Object.values(sending), ...Object.values(removed)].map((o) => [o.id, o])).values()].filter((o) => !mkt.orders.some((x) => x.id === o.id) && rowBusy.get(o.id).state !== "idle"));
   const ghostIds = $derived(new Set(ghosts.map((o) => o.id)));
-  /** The table's rows: your listings, and any sold-out one still sending, in its place by name. */
-  const rows = $derived(ghosts.length ? [...sortedOrders, ...ghosts] : sortedOrders);
+  /** How long a ticked-off row stays before it leaves (as Put my spares on sale's). */
+  const SEEN_MS = 650;
+  const seeing = new Map<string, ReturnType<typeof setTimeout>>();
+  $effect(() => {
+    for (const o of ghosts) {
+      const id = o.id;
+      if (seeing.has(id) || rowBusy.get(id).state !== "done") continue;
+      seeing.set(id, setTimeout(() => {
+        seeing.delete(id);
+        keptPlans.delete(id);
+        delete sending[id];
+        delete removed[id];
+      }, SEEN_MS));
+    }
+  });
+  $effect(() => () => {
+    for (const t of seeing.values()) clearTimeout(t);
+  });
+  /** The table's rows: your listings, and any ghost, in its place. */
+  const rows = $derived(sortedOrders);
   // Leaving the page (or quitting) doesn't lose a sale that was waiting.
   $effect(() => () => {
     for (const id of soldTimers.keys()) void commitSale(id);
@@ -593,7 +657,7 @@
     {#if j.state !== "idle"}
       <div class="rowst {j.state}" role="status">
         {#if j.state === "working"}<span class="busyword">{j.phase}<i aria-hidden="true"></i></span>
-        {:else if j.state === "done"}<Icon name="check" size={11} />{j.note}
+        {:else if j.state === "done"}<span class="tickoff"><Check on drawn size={.95} /></span>{j.note}
         {:else}<b class="bang" aria-hidden="true">!</b><span>{rowWords[id]?.fail ?? "Failed"}: {j.error}</span>{#if retryOf[id]}<button type="button" class="link" title="Send the same change again" disabled={!!mkt.op} onclick={retryOf[id]}>Try again</button>{/if}{/if}
       </div>
     {/if}
@@ -728,20 +792,22 @@
           {@render sh("change", "Will set", "right willset", "What the repricer would change the price to, and why. Sort by the change (the biggest rises first, falls last)")}<th class="right floorcol" title="Never go below this">Floor</th><th class="center" title="Auto-price on: when you check prices, this listing is moved to the cheapest in-game seller's price (never under its floor). Off: orbiter leaves its price as you set it">Auto-price</th><th class="center" title="Whether buyers see the listing on warframe.market (hidden ones keep their place)">Shown</th><th></th>
         </tr>
       </thead>
-      <tbody>
-        {#each rows as o (o.id)}
-          {@const it = mkt.item(o.itemId)}
+      <!-- One body a listing (its row, and the rows under it), so it can leave and the rest close up. -->
+      {#each rows as o (o.id)}
+        {@const it = mkt.item(o.itemId)}
+        <tbody out:leave={{ duration: SETTLE }} animate:flip>
           {#if ghostIds.has(o.id)}
-            <!-- Sold out: the listing is gone, this row stays until the sale is through. -->
-            <tr class="order ghost">
-              <td class="fade c-item" colspan="9"><Named file={model.imageOf(it?.name ?? "")} name={it?.name ?? o.itemId} />{@render rowStatus(o.id)}</td>
+            <!-- Sold out or removed: the listing is gone, this row stays to say how it went, then leaves. -->
+            <tr class="order ghost" class:done={rowBusy.get(o.id).state === "done"}>
+              <td class="fade c-item" colspan="9"><div class="ghostline"><Named file={model.imageOf(it?.name ?? "")} name={it?.name ?? o.itemId} />{@render rowStatus(o.id)}</div></td>
             </tr>
           {:else}
           {@const p = plans.get(o.id)}
+          {@const shown = isShown(o)}
           {@const paused = settings.paused[listingKey(o)]}
           {@const held = stock(o)}
           {@const change = changeOf(o)}
-          <tr class="order" class:hidden={!o.visible}>
+          <tr class="order" class:hidden={!shown}>
             <td class="fade c-item">
               <Named file={model.imageOf(it?.name ?? "")} name={it?.name ?? o.itemId}>
                 {#if it}<button type="button" class="charted" class:on={charted === o.id} aria-label="Price history" aria-expanded={charted === o.id} title="What it sold for over the last 90 days, against your price" onclick={() => (charted = charted === o.id ? null : o.id)}><Icon name="chart" size={13} /></button>{/if}
@@ -758,7 +824,7 @@
               <input type="number" min="1" inputmode="numeric" class:edited={change?.platinum != null} value={edits[o.id]?.platinum ?? o.platinum}
                 oninput={(e) => edit(o, "platinum", e.currentTarget.value)} onkeydown={(e) => editKey(o, e)} onwheel={(e) => e.currentTarget.blur()} aria-label="Your price" />
               <!-- Narrow windows hide Will set: what Reprice would do shows under the price instead. -->
-              {#if p?.change && !paused && o.visible && !change}<div class="willnote" class:up={p.target > o.platinum} title={p.reason === "floor" ? "Reprice sets this, held up by the floor" : "Reprice sets this"}>→ {p.target}p{p.reason === "floor" ? (p.competitor.price != null && p.target > p.competitor.price ? " · over market" : " · floor") : ""}</div>{/if}
+              {#if p?.change && !paused && shown && !change}<div class="willnote" class:up={p.target > o.platinum} title={p.reason === "floor" ? "Reprice sets this, held up by the floor" : "Reprice sets this"}>→ {p.target}p{p.reason === "floor" ? (p.competitor.price != null && p.target > p.competitor.price ? " · over market" : " · floor") : ""}</div>{/if}
               {#if badEdit(o)}<p class="err small">{badEdit(o)}</p>{/if}
               {#if change}
                 {@const over = overHeld(o)}
@@ -776,19 +842,19 @@
                 {#if goes != null}<div class="register goes" title="Everyone in game asks more than twice what it really goes for: what it sold for lately, or what sellers on the site ask if that's lower ({p.competitor.askLevel ?? '–'}p, in game or not). Priced at that, so it sells.">goes for ~{goes}p</div>
                 {:else if p.competitor.ladder.length > 1}<div class="register ladder" title="The next cheapest in-game prices">{p.competitor.ladder.join(" · ")}</div>{/if}
               {:else if p}<span class="dim small">Nobody in game</span>
-              {:else if !o.visible || paused}<span class="none" title="The order book isn't read for a listing that's {o.visible ? 'left alone' : 'hidden'}">–</span>
+              {:else if !shown || paused}<span class="none" title="The order book isn't read for a listing that's {shown ? 'left alone' : 'hidden'}">–</span>
               {:else}<span class="dim small">Not checked yet</span>{/if}
             </td>
             <td class="right fade willset">
-              {#if p?.change && !paused && o.visible}<span class="target" class:down={p.target < o.platinum} class:up={p.target > o.platinum}><span class="dim">{o.platinum} →</span> <P v={p.target} /> <span class="delta">{p.target > o.platinum ? "+" : "−"}{Math.abs(p.target - o.platinum)}</span>{#if p.reason === "floor" && crackHeld(o, p) != null}<span class="tag ok" title="Worth more cracked: a crack of it is worth about {crackHeld(o, p)}p, so it isn't listed under {p.floor}p. Take it down to crack it instead.">crack</span>{:else if p.reason === "floor" && p.competitor.price != null && p.target > p.competitor.price}<span class="tag alert" title="Your floor ({p.floor}p) is over what the cheapest seller in game asks ({p.competitor.price}p): at this price it's unlikely to sell. Lower this listing's floor, or take it down.">over market</span>{:else if p.reason === "floor"}<span class="tag ok" title="Held up by the floor">floor</span>{:else if p.reason === "median"}<span class="tag" title="Everyone in game asks more than twice what it really goes for ({p.competitor.price}p and up): priced at that instead">sells for</span>{/if}</span>
-              {:else if !o.visible}<span class="register" title="Hidden listings aren't repriced">hidden</span>
+              {#if p?.change && !paused && shown}<span class="target" class:down={p.target < o.platinum} class:up={p.target > o.platinum}><span class="dim">{o.platinum} →</span> <P v={p.target} /> <span class="delta">{p.target > o.platinum ? "+" : "−"}{Math.abs(p.target - o.platinum)}</span>{#if p.reason === "floor" && crackHeld(o, p) != null}<span class="tag ok" title="Worth more cracked: a crack of it is worth about {crackHeld(o, p)}p, so it isn't listed under {p.floor}p. Take it down to crack it instead.">crack</span>{:else if p.reason === "floor" && p.competitor.price != null && p.target > p.competitor.price}<span class="tag alert" title="Your floor ({p.floor}p) is over what the cheapest seller in game asks ({p.competitor.price}p): at this price it's unlikely to sell. Lower this listing's floor, or take it down.">over market</span>{:else if p.reason === "floor"}<span class="tag ok" title="Held up by the floor">floor</span>{:else if p.reason === "median"}<span class="tag" title="Everyone in game asks more than twice what it really goes for ({p.competitor.price}p and up): priced at that instead">sells for</span>{/if}</span>
+              {:else if !shown}<span class="register" title="Hidden listings aren't repriced">hidden</span>
               {:else if paused}<span class="register" title="Auto-price is off: orbiter leaves this price as you set it">left alone</span>
               {:else if p && goesFor(p) != null}<span class="register ok" title="At what it really goes for: in game they ask {p.competitor.price}p and up">at its value</span>
               {:else if p}<span class="register ok">matched</span>{/if}
             </td>
             <td class="right floorcol"><input type="number" min="1" style:width="4.8rem" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor for this listing" title="Your own floor for this listing; empty uses the automatic one" value={settings.floors[listingKey(o)] ?? ""} onchange={(e) => setFloor(o, e.currentTarget.value)} /></td>
-            <td class="center c-auto" data-label="Auto-price"><Toggle on={!paused && o.visible} disabled={!o.visible} label="Auto-price: match the cheapest in-game seller" title={!o.visible ? "Hidden listings aren't repriced" : paused ? "Auto-price off: the price stays as you set it" : "Auto-price on: kept at the cheapest in-game seller's price"} onchange={() => togglePause(o)} /></td>
-            <td class="center c-shown" data-label="Shown"><Toggle on={o.visible} label="Shown to buyers" title={o.visible ? "Visible to buyers" : "Hidden from buyers"} disabled={!rowFree(o.id)} onchange={(v) => setVisible(o, v)} /></td>
+            <td class="center c-auto" data-label="Auto-price"><Toggle on={!paused && shown} disabled={!shown} label="Auto-price: match the cheapest in-game seller" title={!shown ? "Hidden listings aren't repriced" : paused ? "Auto-price off: the price stays as you set it" : "Auto-price on: kept at the cheapest in-game seller's price"} onchange={() => togglePause(o)} /></td>
+            <td class="center c-shown" data-label="Shown"><span class="shake" use:shake={refusedShown[o.id]}><Toggle on={shown} label="Shown to buyers" title={shown ? "Visible to buyers" : "Hidden from buyers"} disabled={!rowFree(o.id)} onchange={(v) => setVisible(o, v)} /></span></td>
             <td class="right c-acts">
               <!-- Three fixed places, the same on every row: sold one, sold several, remove. A
                    confirm takes over the same places, its safe choice where the click just was. -->
@@ -839,10 +905,10 @@
             </tr>
           {/if}
           {/if}
-        {:else}
-          <tr><td colspan="9" class="nothing">No sell listings yet</td></tr>
-        {/each}
-      </tbody>
+        </tbody>
+      {:else}
+        <tbody><tr><td colspan="9" class="nothing">No sell listings yet</td></tr></tbody>
+      {/each}
     </table>
     {#if mkt.buys.length}
       <!-- Buy orders you posted (from Wishlist, or on the website): what you're paying, and a way to take one down. -->
@@ -851,7 +917,7 @@
         <ul>
           {#each mkt.buys as o (o.id)}
             {@const it = mkt.item(o.itemId)}
-            <li>
+            <li out:leave animate:flip>
               <Named file={model.imageOf(it?.name ?? "")} name={it?.name ?? o.itemId} size={26}>{#if o.rank != null}<span class="tag">R{o.rank}</span>{/if}{#if !o.visible}<span class="tag">hidden</span>{/if}</Named>
               <span class="dim small">wants {o.quantity}</span>
               {@render rowStatus(o.id)}
@@ -874,7 +940,7 @@
         <ul>
           {#each auctions as a (a.id)}
             {@const w = weaponOf(a)}
-            <li>
+            <li out:leave animate:flip>
               <Named file={w ? (model.catalogByUnique.get(w.gameRef)?.imageName ?? model.imageOf(w.name)) : null} name={auctionTitle(a)} size={26}>{#if !a.visible}<span class="tag">hidden</span>{/if}</Named>
               {#if auctionPrice?.id === a.id}
                 <span class="plat"><input type="number" min="1" bind:value={auctionPrice.buyout} aria-label="New buyout price" use:focusIt onkeydown={onEsc(() => (auctionPrice = null))} /></span>
@@ -1006,6 +1072,14 @@
   /* Sold out, on its way off: dimmed by colour, not opacity, so its words stay readable (about 5:1). */
   tr.ghost td { color: var(--platinum-deep); --platinum: var(--platinum-deep); --platinum-dim: var(--platinum-deep); }
   tr.ghost td :global(img) { opacity: .6; }
+  /* Its name and how it went on one line, so the row keeps about a listing's height. */
+  .ghostline { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem 1.2rem; min-height: 36px; }
+  .ghostline .rowst { margin-top: 0; padding-left: 0; }
+  /* Ticked off: the name struck through, as Put my spares on sale strikes a sent row. */
+  tr.ghost.done :global(.name-mark) { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--verdigris) 70%, transparent); }
+  .tickoff { display: inline-grid; line-height: 0; }
+  /* The Shown switch's own box, for the shake when warframe.market refuses. */
+  .shake { display: inline-block; }
 
   .log { margin-top: var(--step); max-height: 9.5rem; overflow: auto; display: grid; gap: .3rem; padding: .7rem 1rem; border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); }
   .line { font-size: .82rem; color: var(--platinum-dim); }

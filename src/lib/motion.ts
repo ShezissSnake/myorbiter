@@ -110,11 +110,31 @@ export function arrive(node: Element, { y = 6, duration = QUICK, delay = 0, alwa
  */
 export function leave(node: Element, { y = -4, duration = QUICK, delay = 0 }: { y?: number; duration?: number; delay?: number } = {}): TransitionConfig {
   if (calm.current || !spend()) return NONE;
+  keepColumns(node);
   // With animate:flip, Svelte takes the leaving row out of the flow (position: absolute) and holds
   // it where it was with an inline translate: keep that, or the row jumps to the list's top.
   const held = (node as HTMLElement).style?.transform || "";
   const at = held && held !== "none" ? `${held} ` : "";
   return { delay, duration, easing: out, css: (t, u) => `opacity:${t};transform:${at}translateY(${(u * y).toFixed(2)}px)` };
+}
+
+/**
+ * A table row taken out of the flow while it leaves (flip's close-up) is laid out on its own, so
+ * its cells would shrink to their contents and the row squash as it fades. Keeps each cell at its
+ * column's width, read from a row still in the table with as many cells.
+ */
+function keepColumns(node: Element) {
+  if (typeof HTMLTableRowElement === "undefined" || !(node instanceof HTMLTableRowElement)) return;
+  const ref = [...(node.closest("table")?.rows ?? [])].find((r) => r !== node && r.cells.length === node.cells.length && r.parentElement?.tagName !== "THEAD" && getComputedStyle(r).position !== "absolute")
+    ?? node.closest("table")?.tHead?.rows[0];
+  if (!ref || ref.cells.length !== node.cells.length) return;
+  const widths = [...ref.cells].map((c) => c.getBoundingClientRect().width);
+  node.style.display = "table";
+  node.style.tableLayout = "fixed";
+  [...node.cells].forEach((c, i) => {
+    c.style.boxSizing = "border-box";
+    c.style.width = `${widths[i]}px`;
+  });
 }
 
 /**

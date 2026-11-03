@@ -21,6 +21,8 @@
   import { mkt } from "../marketStore.svelte";
   import ProgressButton from "../ui/ProgressButton.svelte";
   import { Job } from "../job.svelte";
+  import Count from "../ui/Count.svelte";
+  import { arrive, flip, leave } from "../motion";
 
   let { model, settings = $bindable(), go }: { model: Model; settings: Settings; go: (t: string) => void } = $props();
 
@@ -101,6 +103,8 @@
       : { key: "best", label: "Best sale", value: null, tone: "dim", title: "Best sale: the most platinum one sale brought, once you've logged some" },
   ]);
   let span = $state<"7" | "30" | "all">("30");
+  /** Span picks so far: the chart's bars grow from nothing when a pick redraws them (not on load). */
+  let picks = $state(0);
   const inSpan = $derived(span === "all" ? sales : since(now - Number(span) * DAY));
   const top = $derived(
     [...inSpan.reduce((m, s) => m.set(s.item, { item: s.item, qty: (m.get(s.item)?.qty ?? 0) + s.quantity, plat: (m.get(s.item)?.plat ?? 0) + s.quantity * s.platinum }), new Map<string, { item: string; qty: number; plat: number }>()).values()]
@@ -144,7 +148,13 @@
     const n = Math.round(qty ?? 1);
     if (blocked || !price) return;
     const rank = ranked ? (maxed ? (ranked.maxRank ?? null) : 0) : null;
-    settings.market.sales = [{ at: Date.now(), item: known ?? item.trim(), rank, quantity: n, platinum: Math.round(price) }, ...sales].slice(0, 2000);
+    const sale: Sale = { at: Date.now(), item: known ?? item.trim(), rank, quantity: n, platinum: Math.round(price) };
+    // Stamped with today's median here, as App stamps every new sale: done now, the log changes once,
+    // so its rows close up and the new one arrives (a second rewrite in the same moment loses that).
+    const median = rank != null && rank > 0 ? (model.priceMax(sale.item) ?? model.price(sale.item)) : model.price(sale.item);
+    if (median != null) sale.median = Math.round(median * 10) / 10;
+    settings.market.sales = [sale, ...sales].slice(0, 2000);
+    added = keyOf(sale);
     item = "";
     maxed = false;
     qty = null;
@@ -153,6 +163,19 @@
   // The delete confirm sticks to its sale, not its row: a sale logged meanwhile shifts the rows.
   const keyOf = (s: Sale) => `${s.at}|${s.item}|${s.rank ?? ""}|${s.quantity}|${s.platinum}|${s.trade ?? ""}`;
   let removing = $state<string | null>(null);
+  /** The sale you just added by hand: it arrives in the log with a gold wash. */
+  let added = $state<string | null>(null);
+  // The log, each row keyed by its sale (a sale logged meanwhile doesn't shift a row's state onto
+  // another); two identical sales get a count after the second's key.
+  const log = $derived.by(() => {
+    const seen = new Map<string, number>();
+    return sales.slice(0, 200).map((s) => {
+      const k = keyOf(s);
+      const n = seen.get(k) ?? 0;
+      seen.set(k, n + 1);
+      return { s, key: n ? `${k}#${n}` : k };
+    });
+  });
   function drop(key: string) {
     const i = sales.findIndex((x) => keyOf(x) === key);
     if (i >= 0) settings.market.sales = sales.filter((_, j) => j !== i);
@@ -199,9 +222,9 @@
   <PageHead title="Sales" brief="What you've sold, and the platinum it made." blurb="What you've sold, and the platinum it made." band={sales.length ? band : undefined} hero={ticker} />
     {#snippet ticker()}<Ticker id="sales" label="Your sales, live" items={tape} />{/snippet}
     {#snippet band()}
-      <Stat label="Last 30 days" note={`${trades(month)} sold`}><P v={plat(month)} big /></Stat>
-      {#if vsMonth != null}<Stat label="Vs market, 30 days" tone={vsMonth < UNDER ? "gold" : "platinum"} note={underCount ? `${underCount} sale${underCount === 1 ? "" : "s"} under ${Math.round(UNDER * 100)}% of the median` : "Every sale near the daily median or better"}>{Math.round(vsMonth * 100)}%</Stat>{/if}
-      <Stat label="All logged" note={sales.length ? `since ${new Date(Math.min(...sales.map((s) => s.at))).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}` : "Nothing yet"}><P v={plat(sales)} big /></Stat>
+      <Stat label="Last 30 days" note={`${trades(month)} sold`}><P v={plat(month)} big tick /></Stat>
+      {#if vsMonth != null}<Stat label="Vs market, 30 days" tone={vsMonth < UNDER ? "gold" : "platinum"} note={underCount ? `${underCount} sale${underCount === 1 ? "" : "s"} under ${Math.round(UNDER * 100)}% of the median` : "Every sale near the daily median or better"}><Count value={Math.round(vsMonth * 100)} format={(n) => `${Math.round(n)}%`} /></Stat>{/if}
+      <Stat label="All logged" note={sales.length ? `since ${new Date(Math.min(...sales.map((s) => s.at))).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}` : "Nothing yet"}><P v={plat(sales)} big tick /></Stat>
     {/snippet}
 
   {#if !sales.length}
@@ -217,14 +240,17 @@
   {:else}
     <div class="grid">
       <section class="chart">
-        <div class="head"><span class="register">Platinum per day</span>{#if days.some((d) => d.plat > 0)}<span class="dim small">best day <P v={peak} /></span>{/if}<span class="grow"></span><Seg bind:value={span} options={[{ v: "7", label: "7 days" }, { v: "30", label: "30 days" }, { v: "all", label: "All", title: "Best sellers over everything logged; the chart shows 30 days" }]} /></div>
-        <div class="bars" role="img" aria-label="Platinum made per day">
+        <div class="head"><span class="register">Platinum per day</span>{#if days.some((d) => d.plat > 0)}<span class="dim small">best day <P v={peak} tick /></span>{/if}<span class="grow"></span><Seg bind:value={span} onchange={() => picks++} options={[{ v: "7", label: "7 days" }, { v: "30", label: "30 days" }, { v: "all", label: "All", title: "Best sellers over everything logged; the chart shows 30 days" }]} /></div>
+        <!-- A span picked redraws the bars growing up from the axis (scaleY, QUICK); a new sale just changes them. -->
+        {#key picks}
+        <div class="bars" class:grow={picks > 0} role="img" aria-label="Platinum made per day">
           {#each days as d (d.at)}
             <div class="col" title="{new Date(d.at).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}: {d.plat}p">
               <div class="fill" style:height="{(d.plat / peak) * 100}%"></div>
             </div>
           {/each}
         </div>
+        {/key}
         <div class="axis register"><span>{new Date(days[0].at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span><span>today</span></div>
       </section>
       <section class="top">
@@ -263,8 +289,8 @@
     <table class="log">
       <thead><tr><th>When</th><th>Item</th><th class="right">Qty</th><th class="right">Each</th><th class="right" title="The sale price next to the item's daily median on warframe.market when it sold (today's, for sales from before orbiter recorded it)">Vs market</th><th class="right">Total</th><th></th></tr></thead>
       <tbody>
-        {#each sales.slice(0, 200) as s, i (s.at + s.item + i)}
-          <tr>
+        {#each log as { s, key } (key)}
+          <tr class:added={added === keyOf(s)} in:arrive out:leave animate:flip>
             <td class="dim when">{when(s.at)}</td>
             <td><Named file={image(s.item)} name={s.item}>{#if s.rank != null}<span class="tag">R{s.rank}</span>{/if}</Named></td>
             <td class="right">{s.quantity}</td>
@@ -295,7 +321,9 @@
   .head .small { display: inline-flex; align-items: center; gap: .4rem; }
   .bars { display: flex; align-items: flex-end; gap: 3px; height: 9rem; }
   .col { flex: 1; height: 100%; display: flex; align-items: flex-end; background: rgb(255 255 255 / 2%); }
-  .fill { width: 100%; background: linear-gradient(var(--platinum), var(--platinum-deep)); }
+  .fill { width: 100%; background: linear-gradient(var(--platinum), var(--platinum-deep)); transform-origin: bottom; }
+  .grow .fill { animation: bar-grow var(--quick) var(--out) both; }
+  @keyframes bar-grow { from { transform: scaleY(0); } }
   .col:hover .fill { background: var(--gold); }
   .col:hover { background: rgb(255 255 255 / 5%); }
   .axis { display: flex; justify-content: space-between; margin-top: .4rem; color: var(--platinum-deep); }
@@ -322,6 +350,9 @@
   .log th:first-child, .log td:first-child { padding-left: 0; }
   .log th:last-child, .log td:last-child { padding-right: 0; }
   .log tbody tr:hover td { background: rgb(255 255 255 / 1.5%); }
+  /* Just added by hand: a gold wash that fades over a second (a colour, so it shows under reduced motion too). */
+  .log tr.added td { animation: sale-added 1s ease-out; }
+  @keyframes sale-added { 0%, 30% { background: color-mix(in srgb, var(--gold) 16%, transparent); } 100% { background: transparent; } }
   .when { white-space: nowrap; font-size: .84rem; }
   .right { text-align: right; }
   .vs { color: var(--platinum-dim); white-space: nowrap; }
