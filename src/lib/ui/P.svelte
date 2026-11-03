@@ -16,5 +16,6 @@
   .dim b { color: var(--platinum-dim); font-weight: 600; }
   .d.dim b { color: var(--gold-dim); }
   .big b { font-size: inherit; }
-  .none { color: var(--rule-control); opacity: .7; }
+  /* Nothing here: quiet, but still readable (about 5:1). */
+  .none { color: var(--platinum-deep); }
 </style>

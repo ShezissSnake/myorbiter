@@ -2330,12 +2330,13 @@
   .notice .row { display: flex; gap: .6rem; flex-wrap: wrap; }
   .notice .why { font-size: .78rem; color: var(--platinum-deep); }
   .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: .9rem; counter-reset: step; }
-  .steps li { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: .25rem .8rem; align-items: start; opacity: .55; }
+  /* Steps to come and done are turned down by colour, not opacity, so they stay readable (about 5:1 and 7:1). */
+  .steps li { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: .25rem .8rem; align-items: start; }
+  .steps li:not(.now, .done) { color: var(--platinum-deep); --platinum: var(--platinum-deep); --platinum-dim: var(--platinum-deep); }
   .steps li::before { content: counter(step); grid-row: span 4; display: grid; place-items: center; width: 1.7rem; height: 1.7rem; border: 1px solid var(--rule-bright); font-family: var(--face-register); font-size: .8rem; color: var(--platinum-dim); }
   .steps li > * { grid-column: 2; }
-  .steps li.now { opacity: 1; }
   .steps li.now::before { border-color: var(--gold); color: var(--gold); }
-  .steps li.done { opacity: .8; }
+  .steps li.done { color: var(--platinum-dim); --platinum: var(--platinum-dim); }
   .steps li.done::before { content: "✓"; border-color: var(--verdigris); color: var(--verdigris); }
   .steps .cmd { display: block; padding: .45rem .7rem; background: var(--well); border: 1px solid var(--rule); font-family: var(--face-register); font-size: .8rem; user-select: all; }
   .steps strong { font-family: var(--face-mark); text-transform: uppercase; font-size: 1.05rem; letter-spacing: .01em; }

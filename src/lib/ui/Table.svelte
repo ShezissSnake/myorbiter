@@ -129,7 +129,8 @@
   tr.detail td { background: var(--plate); padding: .4rem 1rem 1.2rem .6rem; cursor: default; border-bottom: 1px solid var(--rule-bright); box-shadow: inset 2px 0 0 var(--gold-dim); }
   tr.detail:hover td { background: var(--plate); }
   .more { margin: 1.2rem auto; display: block; text-align: center; min-height: 2rem; }
-  .nil { color: var(--rule-control); opacity: .7; }
+  /* Nothing here: quiet, but still readable (about 5:1). */
+  .nil { color: var(--platinum-deep); }
   /* Page area under 1100 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt1100"]) .minor { display: none; }
   /* Details off (Settings, or the switch by the page title): the minor columns go at any width. */

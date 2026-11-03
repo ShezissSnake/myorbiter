@@ -235,6 +235,7 @@
   {#if history.length}
     <h2 class="register">This session{sessionRewards ? ` · ${sessionRewards} relic reward${sessionRewards === 1 ? "" : "s"}` : ""}</h2>
     <table class="pool history">
+      <thead><tr><th>Time</th><th>Mission</th><th>Relics</th><th>Rewards</th><th class="right" title="What the rewards are worth on warframe.market">Plat</th></tr></thead>
       <tbody>
         {#each history as h, i (h.uptime + "-" + i)}
           <tr class:current={i === 0}>
@@ -339,6 +340,7 @@
   .pool tr.yours td { background: var(--plate); }
   .history .time { width: 6rem; white-space: nowrap; font-family: var(--face-register); font-size: .66rem; letter-spacing: .08em; color: var(--platinum-deep); }
   .history tr.current td { background: var(--plate); }
+  .history th:first-child { padding-left: 0; }
   .got { display: inline-flex; align-items: center; gap: .4rem; margin-right: 1.1rem; }
   .rw { display: flex; align-items: center; }
   .rw-name { display: inline-flex; align-items: center; gap: .5rem; }
