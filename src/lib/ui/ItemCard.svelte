@@ -3,6 +3,7 @@
   import Art from "./Art.svelte";
   import GameIcon, { kindIcon, kindLabel, type GameIconName } from "./GameIcon.svelte";
   import { info } from "../hover.svelte";
+  import { pop } from "../motion";
   // An item as a card: its name, its artwork, whatever the page shows beside it (part chips,
   // rewards, prices), and a footer of tags. A gold notch in the top corner marks one to look at.
   let {
@@ -83,7 +84,7 @@
       {#if sub}<span class="register sub">{#if subIcon}<GameIcon name={subIcon} size={11} />{/if}{subText}</span>{/if}
     </div>
     {#if onfav}
-      <button class="star" class:on={fav} aria-pressed={fav} aria-label={fav ? `Remove ${title} from your wishlist` : `Add ${title} to your wishlist`} title={fav ? "On your wishlist (click to remove)" : "Add to your wishlist"} onclick={(e) => { e.stopPropagation(); onfav(); }}>
+      <button class="star" class:on={fav} use:pop={!!fav} aria-pressed={fav} aria-label={fav ? `Remove ${title} from your wishlist` : `Add ${title} to your wishlist`} title={fav ? "On your wishlist (click to remove)" : "Add to your wishlist"} onclick={(e) => { e.stopPropagation(); onfav(); }}>
         <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 1.6l1.9 4.1 4.5.5-3.4 3 1 4.4L8 11.4l-4 2.2 1-4.4-3.4-3 4.5-.5z" /></svg>
       </button>
     {/if}
@@ -102,14 +103,14 @@
     background: linear-gradient(180deg, #14161a, var(--plate) 40%);
     border: 1px solid var(--rule); clip-path: var(--cut);
     padding: .75rem .85rem .65rem; gap: .4rem;
-    transition: border-color .15s, background .15s, transform .15s;
+    /* Hover only lights the edge (no motion on hover); pressing it gives a touch (app.css). */
+    transition: border-color var(--quick), background var(--quick);
     /* Off-screen cards skip layout and paint until scrolled near: big grids switch in and scroll smoothly. */
     content-visibility: auto;
     contain-intrinsic-size: auto 13rem;
   }
   .card.open { cursor: pointer; }
   .card.open:hover { border-color: var(--rule-control); background: linear-gradient(180deg, #181a1f, #121418 50%); }
-  .card.open:hover :global(.art img) { transform: translateY(-2px) scale(1.03); }
   .card:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--gold); }
   /* One to look at: a gold notch folded into the top corner (a shape, so it can't be mistaken
      for an Axi relic's gold wash), and a warmer edge. */
@@ -130,6 +131,8 @@
   .star:hover { color: var(--gold); }
   .star.on { color: var(--gold); }
   .star.on svg { fill: var(--gold); }
+  /* Starred: the star pops (motion.ts, pop) as it fills. */
+  .star svg { transition: fill var(--snap) var(--out); }
   .body { display: flex; align-items: center; gap: .7rem; min-width: 0; }
   /* A real box (not display: contents), so the hover card has something to point at. */
   .pic { display: block; flex: none; line-height: 0; }

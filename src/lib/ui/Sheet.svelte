@@ -3,19 +3,20 @@
   // Esc or a click outside closes it. While it's open, Tab stays inside it; closed, the keyboard
   // goes back to what opened it.
   import type { Snippet } from "svelte";
-  import { fade, fly } from "svelte/transition";
-  import { cubicIn, cubicOut } from "svelte/easing";
+  import { fly } from "svelte/transition";
   import { trap } from "./trap";
-  // Opening and closing slide; with reduced motion they just appear and go.
-  const still = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  import { ms, out, SETTLE, shade } from "../motion";
+  // Opening slides in over SETTLE; closing slides off in 100 ms, as a dialog closes (nobody waits
+  // to watch it go). With reduced motion they just appear and go. |global: an item's details mount
+  // the sheet inside their own {#if} (Browse, ItemDetails), and it slides there too.
 
   let { open = $bindable(), title, kicker, wide = false, children }: { open: boolean; title: string; kicker?: string; wide?: boolean; children: Snippet } = $props();
 </script>
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="scrim" onclick={() => (open = false)} transition:fade={{ duration: still ? 0 : 150 }}></div>
-  <div class="sheet" class:wide role="dialog" in:fly={{ x: still ? 0 : 32, duration: still ? 0 : 200, easing: cubicOut }} out:fly={{ x: still ? 0 : 24, duration: still ? 0 : 140, easing: cubicIn }} aria-modal="true" aria-label={title} tabindex="-1" use:trap={{ onescape: () => (open = false) }}>
+  <div class="scrim" onclick={() => (open = false)} in:shade|global={{ duration: SETTLE }} out:shade|global></div>
+  <div class="sheet" class:wide role="dialog" in:fly|global={{ x: 40, opacity: 0, duration: ms(SETTLE), easing: out }} out:fly|global={{ x: 32, opacity: 0, duration: ms(100), easing: out }} aria-modal="true" aria-label={title} tabindex="-1" use:trap={{ onescape: () => (open = false) }}>
     <header>
       <div>
         {#if kicker}<div class="register">{kicker}</div>{/if}
