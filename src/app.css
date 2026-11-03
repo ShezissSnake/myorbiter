@@ -91,6 +91,14 @@
   --face-text: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   --face-register: "IBM Plex Mono", ui-monospace, "DejaVu Sans Mono", monospace;
 
+  /* Motion (src/lib/motion.ts has the same numbers): three durations and one easing. --snap for
+     presses, ticks and pops; --quick for folds, chevrons, crossfades and counts; --settle for list
+     close-ups and sheets. Reduced motion sets them to 0 (at the end of this file). */
+  --snap: 90ms;
+  --quick: 160ms;
+  --settle: 240ms;
+  --out: cubic-bezier(.2, .8, .2, 1);
+
   --hair: 4px;
   --tight: 8px;
   --step: 16px;
@@ -165,7 +173,7 @@ button {
   letter-spacing: .12em;
   text-transform: uppercase;
   color: var(--platinum-dim);
-  transition: color .12s, border-color .12s, background .12s;
+  transition: color var(--quick), border-color var(--quick), background var(--quick);
 }
 button:hover:not(:disabled) { color: var(--platinum); border-color: var(--rule-control); }
 /* Pressed: the button sinks a pixel, so every click is felt at once. */
@@ -310,9 +318,50 @@ a.link { text-decoration: none; text-transform: uppercase; display: inline-flex;
 /* One height for every control in a toolbar row. */
 .bar :is(button:not(.link), input, select), .tools :is(button:not(.link), input, select) { height: 36px; }
 
-/* Less motion when the system asks for it. */
+/* ---------------------------------------------------------------- motion
+   The contract (src/lib/motion.ts): motion answers a click and never decorates; transform and
+   opacity only (grid rows for folds); --snap, --quick, --settle and --out. */
+
+/* Pressed, on everything you click that isn't a <button> (which sinks a pixel, above): a card
+   gives a touch, a sort header or a row sinks a pixel. In over --snap, back at once. Pressing a
+   button inside a card presses the button, not the card. */
+article.card[role="button"]:active:not(:has(button:active, a:active, input:active, select:active, label:active)) { transform: scale(.99); transition: transform var(--snap) var(--out); }
+th.sortable:active, tr.clickable:active:not(:has(button:active, a:active, input:active, select:active)) { transform: translateY(1px); transition: transform var(--snap) var(--out); }
+th.sortable:active { background: var(--well); }
+
+/* A fold's chevron (▾): turns over when its button opens what it folds (aria-expanded), over --quick.
+   .side for one that points across (▸) and turns down. */
+span.chev { display: inline-block; transition: transform var(--quick) var(--out); }
+[aria-expanded="true"] > span.chev, span.chev.open { transform: rotate(180deg); }
+[aria-expanded="true"] > span.chev.side, span.chev.side.open { transform: rotate(90deg); }
+
+/* A fold's body (motion.ts, reveal and fold): one child, whose height runs on the grid row. */
+.reveal { display: grid; grid-template-rows: 1fr; min-width: 0; }
+.reveal > * { min-height: 0; align-self: start; }
+.reveal[hidden] { display: none; }
+
+/* Turned on (motion.ts, pop): 1 → 1.25 → 1. Two names, so a second pop restarts it. */
+[data-pop="a"] { animation: pop-a var(--snap) var(--out); }
+[data-pop="b"] { animation: pop-b var(--snap) var(--out); }
+@keyframes pop-a { 50% { transform: scale(1.25); } }
+@keyframes pop-b { 50% { transform: scale(1.25); } }
+
+/* Done, with nothing else to show it (motion.ts, confirm): a gold ring that fades. A colour, not a
+   movement, so it shows under reduced motion too. --ring-base: the shadow the control already has. */
+[data-confirm="a"] { animation: confirm-a calc(var(--settle) * 2) ease-out; }
+[data-confirm="b"] { animation: confirm-b calc(var(--settle) * 2) ease-out; }
+@keyframes confirm-a { 0%, 35% { box-shadow: inset 0 0 0 2px var(--gold), var(--ring-base, 0 0 #0000); } 100% { box-shadow: inset 0 0 0 1px transparent, var(--ring-base, 0 0 #0000); } }
+@keyframes confirm-b { 0%, 35% { box-shadow: inset 0 0 0 2px var(--gold), var(--ring-base, 0 0 #0000); } 100% { box-shadow: inset 0 0 0 1px transparent, var(--ring-base, 0 0 #0000); } }
+.stamp { --ring-base: var(--struck); }
+
+/* A check drawn in (Tick, with drawn). */
+@keyframes tick-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+
+/* Less motion when the system asks for it: every duration 0, every state still shown. */
 @media (prefers-reduced-motion: reduce) {
+  :root { --snap: 0ms; --quick: 0ms; --settle: 0ms; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  [data-confirm] { animation-duration: 480ms !important; }
 }
 
 .parts { display: grid; grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr)); gap: .3rem 1.5rem; margin-bottom: .6rem; }
