@@ -19,6 +19,7 @@
   import { details } from "../details.svelte";
   import { openEras, wishlistRelics } from "../core/wishlist";
   import type { Fissure } from "../core/types";
+  import RelicPlate from "../ui/RelicPlate.svelte";
 
   // The mode is kept in settings, so it survives a restart and the Guide can open either one.
   // fissures: the live ones, so a relic you can crack right now says so.
@@ -87,10 +88,6 @@
       (r) => r.refinable > 0 && (!vaultedOnly || r.vaulted) && (!openOnly || isOpen(r.base)) && (!wishOnly || forWish.has(r.base)) && matches(query, r.base, r.rare?.name),
     ),
   );
-  const canRefine = $derived(Math.floor(traces / 100));
-  /** The most traces you can hold: 100 + 50 a Mastery Rank. Past it, a crack's traces are lost. */
-  const traceCap = $derived(masteryRank == null ? null : 100 + 50 * masteryRank);
-  const nearCap = $derived(traceCap != null && traces >= traceCap - 100);
   /** Your traces spent where each one gains the most: how many relics that refines, and what it adds altogether. */
   const spend = $derived.by(() => {
     let left = traces;
@@ -179,7 +176,6 @@
         <Stat label="Relics that help" note={filtered ? "Matching the filters" : "From your inventory"}>{crack.length}</Stat>
         <Stat extra label="Sets with no relic" tone="dim" note="None of your relics drop what's missing: buy the part or farm relics">{uncovered.length}</Stat>
       {:else}
-        <Stat label="Void Traces" tone={nearCap ? "gold" : "platinum"} note={`Enough to refine ${canRefine} relic${canRefine === 1 ? "" : "s"} to radiant${traceCap != null ? (nearCap ? ` · near your cap of ${traceCap.toLocaleString("en")}: spend some, or new ones are lost` : ` · you can hold ${traceCap.toLocaleString("en")}`) : ""}`} title={traceCap != null ? `You hold ${traces.toLocaleString("en")} of the ${traceCap.toLocaleString("en")} your rank allows (100 + 50 a Mastery Rank). Traces from a crack past the cap are lost, so refine before you get there.` : null}>{traces.toLocaleString("en")}{#if traceCap != null}<span class="of">/{traceCap.toLocaleString("en")}</span>{/if}</Stat>
         <Stat label="Best gain" tone="gold" note={radiant[0] ? `${radiant[0].base}${filtered ? ", of the relics matching the filters" : ""}` : "—"}>
           {#if radiant[0]}{#if unit(radiant[0].gain)}+{unit(radiant[0].gain)}{:else}+<P v={Math.round(radiant[0].gain * 10) / 10} d={metric === "ducats"} big />{/if}{:else}—{/if}
         </Stat>
@@ -188,6 +184,7 @@
         </Stat>
       {/if}
     {/snippet}
+    {#snippet hero()}<RelicPlate {model} {masteryRank} />{/snippet}
   </PageHead>
 
   <!-- The page's modes as tabs (they change the whole page), the filters under them. -->
