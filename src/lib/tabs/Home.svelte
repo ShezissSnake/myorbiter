@@ -49,6 +49,8 @@
   import FissureBoard from "../ui/FissureBoard.svelte";
   import BountyBoard from "../ui/BountyBoard.svelte";
   import { describe } from "../core/describe";
+  import { arrive, fresh } from "../motion";
+  import Tick from "../ui/Tick.svelte";
 
   // console: you play on a console or phone, so there's no inventory: Home is the market, the
   // world's clocks, fissures, what's worth doing and Baro, without anything measured against a collection.
@@ -417,7 +419,7 @@
 
 {#snippet tick(key: string, resets: string, what: string)}
   {@const on = doneNow(key, resets)}
-  <button type="button" class="tick" class:on aria-pressed={on} aria-label="{what} done" title={on ? `${what}: done. Click to untick` : `Tick off ${what} once it's done; it clears itself at the reset, in ${until(resets, now)}`} onclick={() => toggleChore(key, resets)}><Icon name="check" size={12} /></button>
+  <span class="tick"><Tick {on} label="{what} done" title={on ? `${what}: done. Click to untick` : `Tick off ${what} once it's done; it clears itself at the reset, in ${until(resets, now)}`} onclick={() => toggleChore(key, resets)} /></span>
 {/snippet}
 
 {#snippet head(icon: GameIconName | null, line: string | null, title: string, to: string | null, action: string)}
@@ -446,7 +448,7 @@
       <header><span class="register">Start here</span><span class="dim small">{startSteps.filter((x) => x.done).length} of {startSteps.length} done</span><button type="button" class="link quiet small" title="Put this card away (it goes on its own once every step is done)" onclick={() => (settings.startDone = true)}>Not now</button></header>
       <ol>
         {#each startSteps as x (x.label)}
-          <li class:done={x.done}><span class="box" aria-hidden="true">{#if x.done}<Icon name="check" size={11} />{/if}</span><button type="button" class="link" disabled={x.done} title={x.hint} onclick={x.go}>{x.label}</button><span class="dim small">{x.why}</span></li>
+          <li class:done={x.done}><Tick on={x.done} size={1.05} /><button type="button" class="link" disabled={x.done} title={x.hint} onclick={x.go}>{x.label}</button><span class="dim small">{x.why}</span></li>
         {/each}
       </ol>
     </section>
@@ -616,11 +618,11 @@
       {#if live.syndicates == null && !bountyTables}
         <p class="dim">{liveNote}</p>
       {:else if openBounties}
-        <BountyBoard {boards} {now} imageOf={(n) => model.imageOf(n)} {need} opens={rewardOpens} />
+        <div class="bboard" in:arrive={{ y: 0 }}><BountyBoard {boards} {now} imageOf={(n) => model.imageOf(n)} {need} opens={rewardOpens} /></div>
         <button class="link fold" aria-expanded="true" onclick={() => (openBounties = false)}>Fewer</button>
       {:else}
         <!-- One line a place: its best (or wanted) reward; the boards a click away. -->
-        <ul class="bsum">
+        <ul class="bsum" in:arrive={{ y: 0 }}>
           {#each boards as b (b.label)}
             {@const j = b.jobs.find((x) => x.wanted) ?? b.jobs.reduce((best, x) => ((x.headline?.chance ?? 101) < (best.headline?.chance ?? 101) ? x : best), b.jobs[0])}
             <li><b>{b.label}</b><span class:gold={j?.wanted} use:info={j?.headline?.name ?? null}>{j?.headline?.name ?? "—"}</span>{#if j?.headline?.chance != null}<span class="dim small" title={j.wanted ? "A reward you need, and its chance per run" : "Its rarest reward, and its chance per run"}>{Math.round(j.headline.chance * 10) / 10}%</span>{/if}</li>
@@ -649,7 +651,7 @@
 
     <!-- Worth doing today -->
     <!-- Folded, each task is its heading line (what and how long); open, its missions, offers and challenges. -->
-    <section class="panel today" class:open={openToday} data-card="today" class:off={off("today")} class:full={alone("today")} style:grid-row={rowSpan("today")}>
+    <section class="panel today" class:open={openToday} use:fresh={openToday} data-card="today" class:off={off("today")} class:full={alone("today")} style:grid-row={rowSpan("today")}>
       {@render head("nightwave", null, "Worth doing today", null, "")}
       <p class="dim small chorecount" title="Tick each one once it's done: the game doesn't say. Every tick clears itself at that chore's own reset (daily for the Sortie, Monday 00:00 UTC for the weeklies)">{choresDone} of {chores.length} done · tick each when it's done</p>
       <div class="tgrid">
@@ -1081,15 +1083,11 @@
   .start header .link { margin-left: auto; }
   .start ol { list-style: none; margin: 0; padding: 0; display: grid; gap: .35rem; }
   .start li { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
-  .start .box { flex: none; width: 1.05rem; height: 1.05rem; display: grid; place-items: center; border: 1px solid var(--rule-control); color: var(--verdigris); }
-  .start li.done .box { border-color: var(--verdigris); }
   .start li.done .link { color: var(--platinum-deep); text-decoration: line-through; }
   .th { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
   /* The chore tick at the end of each heading: an empty box, a green tick once done. */
-  .tick { all: unset; box-sizing: border-box; margin-left: auto; flex: none; width: 1.3rem; height: 1.3rem; display: grid; place-items: center; border: 1px solid var(--rule-control); color: transparent; cursor: pointer; }
-  .tick:hover { border-color: var(--gold-dim); color: var(--platinum-deep); }
-  .tick:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
-  .tick.on { border-color: var(--verdigris); background: color-mix(in srgb, var(--verdigris) 16%, transparent); color: var(--verdigris); }
+  /* A chore's box (Tick: the check draws in as you tick it), at the row's end. */
+  .tick { margin-left: auto; flex: none; display: inline-flex; }
   .th.done .mark { color: var(--platinum-deep); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--verdigris) 70%, transparent); }
   .chorecount { margin: -.2rem 0 .6rem; }
   .archx { list-style: none; margin: .25rem 0 0; padding: 0; display: grid; gap: .2rem; }
@@ -1211,5 +1209,10 @@
   .bsum li span:not(.dim) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fold { display: block; margin: .6rem 0 0; }
   .today:not(.open) .tblock > :not(.th) { display: none; }
+  /* Everything: the lines that were folded away fade up as they show (--quick, motion.ts). */
+  .today.open:global([data-fresh]) .tblock > :not(.th) { animation: today-in var(--quick) var(--out); }
+  @keyframes today-in { from { opacity: 0; transform: translateY(4px); } }
+  /* Every bounty: the boards keep the panel's spacing. */
+  .bboard { display: flex; flex-direction: column; gap: .8rem; min-width: 0; }
   .today:not(.open) .tgrid { gap: .45rem; }
 </style>
