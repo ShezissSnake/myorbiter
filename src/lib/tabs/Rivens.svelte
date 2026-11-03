@@ -7,7 +7,7 @@
   import type { RivenWatch, Settings } from "../backend";
   import { marketUrl, openUrl } from "../backend";
   import { tradesFor, type RivenTrade } from "../core/rivens";
-  import { attributeSlug, auctionItemFor, auctionOf, checkedWhen, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, rollChoice, cycleKey, searchFor, searchKey, statMarket, unpackListed, unpackPrices, type MyAuction, type Riven, type RivenAuction, type RivenChange, type RollChoice } from "../core/rivens";
+  import { attributeSlug, auctionItemFor, auctionOf, checkedWhen, curseWord, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, rollChoice, cycleKey, searchFor, searchKey, statMarket, unpackListed, unpackPrices, type MyAuction, type Riven, type RivenAuction, type RivenChange, type RollChoice } from "../core/rivens";
   import { mkt } from "../marketStore.svelte";
   import { rivens } from "../rivenStore.svelte";
   import { dealOf, estimateListed, estimateRiven, type Estimate } from "../core/rivenModel";
@@ -395,6 +395,8 @@
 </script>
 
 {#snippet grade(g: string, big = false)}<span class="grade g-{g.replace('+', 'p').replace('−', 'm')}" class:big>{g}</span>{/snippet}
+<!-- A curse gets a word, not a letter: whether it costs anything (a red C− on a harmless Ammo Maximum curse misleads). -->
+{#snippet curse(s: { tag: string; label: string; quality: number | null })}{@const w = curseWord(s.tag)}<span class="cw cw-{w}" title={w === "hurts" ? `A curse on ${s.label}, which players want on a riven: it costs you something. Rolled ${s.quality == null ? "?" : Math.round(s.quality * 100)}% of the way to the mildest curse` : `A curse on ${s.label}, which hardly matters on most builds: it costs next to nothing`}>{w}</span>{/snippet}
 
 <div class="page"><div class="page-inner">
   <PageHead title="Rivens" blurb={console ? "Find rivens for sale, each roll graded, what each weapon's rivens traded for last week, and alerts when one you want is listed at your price." : "Your rivens graded stat by stat, and what each weapon's rivens sold for last week."}>
@@ -422,7 +424,7 @@
               <div class="roll" class:win={x.win}>
                 <span class="register">{x.label}</span>
                 <span class="rn"><b>{x.r.name}</b>{@render grade(x.r.grade)}</span>
-                <ul>{#each x.r.stats as s, i (i)}<li class:curse={!s.buff}><b>{s.display}</b> {s.label} {@render grade(s.grade)}</li>{/each}</ul>
+                <ul>{#each x.r.stats as s, i (i)}<li class:curse={!s.buff}><b>{s.display}</b> {s.label} {#if s.buff}{@render grade(s.grade)}{:else}{@render curse(s)}{/if}</li>{/each}</ul>
                 {#if estimateFor(x.r, pc?.any)}{@const e = estimateFor(x.r, pc?.any)!}<span class="small" title="orbiter's estimate of what a riven like this roll is listed for (see Estimate on the cards below)"><span class="dim">Estimate</span> <b>{e.mid.toLocaleString("en")}p</b> <span class="dim">({e.lo.toLocaleString("en")}–{e.hi.toLocaleString("en")}p)</span></span>{/if}
               </div>
             {/each}
@@ -478,7 +480,7 @@
         {#if keptCount && Date.now() - keptAt >= DAY}<span class="dim small kept" title="Some prices shown are from orbiter's last check, a day or more ago: riven prices move little from one day to the next. They're checked again by themselves while this page is open">Some prices from {checkedWhen(keptAt, Date.now())}</span>{/if}
         <button class="stamp" disabled={!meta} title={!meta ? "Waiting for warframe.market's riven list" : !unchecked ? "Check every riven's price again" : keptCount === unchecked ? "Check again the prices kept from earlier, one after another" : "Find similar rivens for sale for each of yours, one after another"} onclick={() => checkAll()}>{!unchecked ? "Check prices again" : keptCount === unchecked ? "Update prices" : unchecked === shown.length ? (shown.length === mine.length ? "Price check all" : `Price check these ${unchecked}`) : `Price check the other ${unchecked}`}</button>
       {/if}
-      <span class="dim small explain">Grades compare each roll with its range: S is the top of it, B the middle, F the bottom. A smaller curse grades higher. Dispositions are 1.2 for every weapon since the 22 October 2026 hotfix.</span>
+      <span class="dim small explain">Grades compare each roll with its range: S is the top of it, B the middle, F the bottom. A curse says whether it hurts (on a stat players want) or is harmless (ammo, zoom, recoil and the like). Dispositions are 1.2 for every weapon since the 22 October 2026 hotfix.</span>
     </div>
     <CardGrid min="23rem">
       {#each sorted as r (r.id)}
@@ -503,7 +505,7 @@
               <li class:curse={!s.buff}>
                 <b class="val">{s.display}</b><span class="lbl">{s.label}{#if s.spliced}<span class="tag ok" title="From Riven Splicing: it stays locked through cycles">spliced</span>{/if}</span>
                 <span class="rbar" title="Roll {s.quality == null ? '?' : Math.round(s.quality * 100)}% of its range"><i style:width="{(s.quality ?? 0) * 100}%"></i></span>
-                {@render grade(s.grade)}
+                {#if s.buff}{@render grade(s.grade)}{:else}{@render curse(s)}{/if}
               </li>
             {/each}
           </ul>
@@ -736,6 +738,9 @@
   .grow { flex: 1; }
   .grade { font-family: var(--face-mark); font-weight: 700; font-size: .9rem; text-align: center; min-width: 1.8rem; color: var(--platinum-dim); }
   .grade.big { font-size: 1.9rem; min-width: 2.6rem; }
+  .cw { font-family: var(--face-register); font-size: .7rem; text-align: center; min-width: 1.8rem; }
+  .cw-hurts { color: var(--oxblood); }
+  .cw-harmless { color: var(--platinum-deep); }
   .g-S { color: var(--gold); }
   .g-Ap, .g-A, .g-Am { color: var(--verdigris); }
   .g-Cp, .g-C, .g-Cm, .g-F { color: var(--oxblood); }

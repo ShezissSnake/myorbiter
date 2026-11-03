@@ -243,6 +243,13 @@ const WANT: [RegExp, number][] = [
 export const statWant = (tag: string) => WANT.find(([re]) => re.test(tag))?.[1] ?? 1;
 
 /**
+ * A curse in words rather than a letter: "hurts" when it's on a stat players want (crit, damage, an
+ * element, status, fire rate, heavy attacks…), "harmless" when it isn't (ammo, zoom, recoil, reload).
+ * A letter grade on a harmless curse (C− for −57.7% Ammo Maximum) reads as a flaw it isn't.
+ */
+export const curseWord = (tag: string): "hurts" | "harmless" => (statWant(tag) >= 1.5 ? "hurts" : "harmless");
+
+/**
  * A roll's worth for keep-or-take, on its own: each buff by how much it's wanted and how well it
  * rolled, more stats being better, and a curse counted against by how much it hurts (a curse on
  * zoom or recoil is free).
@@ -282,11 +289,11 @@ export function rollChoice(m: Model, tables: Map<string, RivenStatDef[]>, raw: R
   const b = rollScore(next);
   const best = (r: Riven) => r.stats.filter((x) => x.buff).sort((x, y) => statWant(y.tag) - statWant(x.tag))[0]?.label ?? "";
   const curse = (r: Riven) => r.stats.find((x) => !x.buff);
-  const curseWord = (r: Riven) => (curse(r) ? (statWant(curse(r)!.tag) >= 1.5 ? `, though its ${curse(r)!.label} curse hurts` : `, and its ${curse(r)!.label} curse costs nothing`) : ", with no curse");
+  const curseLine = (r: Riven) => (curse(r) ? (curseWord(curse(r)!.tag) === "hurts" ? `, though its ${curse(r)!.label} curse hurts` : `, and its ${curse(r)!.label} curse costs nothing`) : ", with no curse");
   if (Math.abs(a - b) < 0.6) return { current, next, verdict: "close", why: "About as good either way on the stats: what similar rivens sell for decides." };
   return b > a
-    ? { current, next, verdict: "take", why: `The new roll is better: ${best(next)} leads it${curseWord(next)}.` }
-    : { current, next, verdict: "keep", why: `The one it has is better: ${best(current)} leads it${curseWord(current)}.` };
+    ? { current, next, verdict: "take", why: `The new roll is better: ${best(next)} leads it${curseLine(next)}.` }
+    : { current, next, verdict: "keep", why: `The one it has is better: ${best(current)} leads it${curseLine(current)}.` };
 }
 
 /** A riven's roll as orbiter saw it on one read. */

@@ -233,3 +233,12 @@ test("a riven cycle as TennoScope's overlay draws it", async () => {
   assert.deepEqual(o.current.stats[0], { label: "Multishot", display: "+120.4%", grade: "A", buff: true });
   assert.equal(o.verdict, "take");
 });
+
+test("a curse is called harmless or hurts, not given a letter", async () => {
+  const { curseWord } = await import("../src/lib/core/rivens");
+  assert.equal(curseWord("WeaponAmmoMaxMod"), "harmless", "Zylok's −57.7% Ammo Maximum costs nothing");
+  assert.equal(curseWord("WeaponZoomFovMod"), "harmless");
+  assert.equal(curseWord("WeaponCritChanceMod"), "hurts");
+  assert.equal(curseWord("WeaponFireDamageMod"), "hurts");
+  assert.equal(curseWord("WeaponFireRateMod"), "hurts");
+});
