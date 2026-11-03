@@ -11,6 +11,19 @@ export interface NewsEntry {
 
 export const NEWS: NewsEntry[] = [
   {
+    id: 11,
+    date: "2026-11-04",
+    items: [
+      "Trade tax, corrected: Warframe charges whoever receives an item, so selling costs you 500 credits for each platinum you're paid (the buyer pays the item's own tax). The sell plan had it the other way round.",
+      "Orders: Put my spares on sale moves to the top, folded until you open it; applying a plan ticks each change off as it's sent and the list shrinks. The table sorts by any column. Who whispered you this session, with Invite. Out of trades while buyers can see you? Go invisible until 00:00 UTC.",
+      "Home: a box to tick off each chore in Worth doing today (they clear at the reset), with Kahl's Garrison and Netracells; Nightwave's tasks and Archimedea's risks spelled out; each era's next best relics on the fissure board (+2); Start here in your first days.",
+      "The same figure, the same name: Spare value (Inventory), Worth selling (Prime parts, Mods, Arcanes), Ready to list (Home), Quick-sale value; Stats and Inventory now agree. An unranked arcane shows its own price, an Exceptional or Flawless relic no longer borrows the Intact one.",
+      "Every list page has the same toolbar (Foundry and Rivens now sort, count and switch to a table), one line when a filter hides everything (with Clear), one-line page subtitles, Sell everywhere for selling, and marks that say what they mean (8 intact · 3 radiant, the gold corner's own reason).",
+      "Foundry shows your foundry; Relics and Current fissure show your Void Traces against the cap; Current fissure sums up the session; Ctrl+K finds anything warframe.market trades; riven cards count their stats in demand.",
+      "Sturdier: a page that hits an error says so with Try again; the number boxes only take whole numbers; dialogs keep keyboard focus; Ctrl+1…9 lands you on the page; better contrast on dimmed text.",
+    ],
+  },
+  {
     id: 10,
     date: "2026-11-04",
     items: [
