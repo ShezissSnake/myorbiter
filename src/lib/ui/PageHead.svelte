@@ -4,7 +4,9 @@
   // Details switch shows or hides the detail every page keeps on hover (lib/view.svelte.ts): off,
   // the page's short `brief`, which fits one line; on, the whole `blurb`.
   import { view } from "../view.svelte";
-  let { title, blurb, brief, band }: { title: string; blurb?: string; brief?: string; band?: Snippet } = $props();
+  // hero: the section's signature (the reward screen, the Codex rings, the showcase, the ticker),
+  // between the title and the figures.
+  let { title, blurb, brief, band, hero }: { title: string; blurb?: string; brief?: string; band?: Snippet; hero?: Snippet } = $props();
   const line = $derived(view.details ? blurb : (brief ?? blurb));
 </script>
 
@@ -19,6 +21,7 @@
     <button type="button" class="details" class:on={view.details} aria-pressed={view.details} title={view.details ? "Details are showing: the sentence under each figure, every column. Click to keep just the essentials (the rest stays on hover)" : "Show details: the sentence under each figure and every column, on every page. Off, they're on hover"} onclick={() => view.set(!view.details)}><span class="box"></span>Details</button>
   </div>
 </header>
+{#if hero}<div class="hero">{@render hero()}</div>{/if}
 {#if band}<section class="band">{@render band()}</section>{/if}
 
 <style>
@@ -40,15 +43,18 @@
   .details .box { width: .55rem; height: .55rem; border: 1px solid var(--rule-control); }
   .details.on { color: var(--platinum); }
   .details.on .box { background: var(--gold); border-color: var(--gold); }
-  /* The Orokin rule: a gold hairline struck from a small diamond, above every title. */
+  /* The Orokin rule above every title, struck from the section's sigil in its colour (a void tear,
+     the mastery mark, the Arsenal, the market); a gold diamond outside a section. */
   .orn { display: flex; align-items: center; width: 4.5rem; margin-bottom: .6rem; }
-  .orn i { width: .5rem; height: .5rem; flex: none; background: var(--gold); transform: rotate(45deg); }
-  .orn::after { content: ""; flex: 1; height: 1px; margin-left: .35rem; background: linear-gradient(90deg, var(--gold-dim), transparent); }
+  .orn i { width: .5rem; height: .5rem; flex: none; background: var(--sec); transform: rotate(45deg); }
+  :global([data-section]) .orn i { width: 1.1rem; height: 1.1rem; transform: none; -webkit-mask: var(--sec-sigil) center / contain no-repeat; mask: var(--sec-sigil) center / contain no-repeat; }
+  .orn::after { content: ""; flex: 1; height: 1px; margin-left: .35rem; background: linear-gradient(90deg, var(--sec-dim), transparent); }
+  .hero { margin: 0 0 var(--step); }
   .band {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
     border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
     /* Engraved: the rule under the figures is cut twice. */
-    box-shadow: 0 2px 0 var(--slab), 0 3px 0 var(--rule);
+    box-shadow: 0 2px 0 var(--slab), 0 3px 0 var(--sec-dim);
     margin-bottom: var(--step);
   }
   /* Page area under 760 px (App sets the flag, by the room pages actually have). */

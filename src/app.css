@@ -76,6 +76,14 @@
   --era-axi: #d6ae4a;
   --era-requiem: #b0435a;
   --era-omnia: #a2a8f0;
+
+  /* Each section's own colour, from where that part of the game lives: Fissures the Void's violet,
+     Progress mastery's teal, Collection the Arsenal's steel blue, Trade the market's gold. It marks
+     the title's sigil, the rule under the figures, and the sidebar; nothing else changes colour.
+     Pages outside a section (Home, the Guide) keep gold. */
+  --sec: var(--gold);
+  --sec-dim: var(--gold-dim);
+  --sec-sigil: none;
   --tab-point: polygon(0 0, 100% 0, 100% calc(100% - 9px), 50% 100%, 0 calc(100% - 9px));
   --struck: inset 0 1px 0 rgb(0 0 0 / 80%), inset 0 -1px 0 rgb(230 233 238 / 8%);
 
@@ -330,3 +338,9 @@ tr.era-wash > td:first-child { box-shadow: inset 2px 0 0 color-mix(in srgb, var(
 
 /* A page's modes (Sets, Arcanes, Planner, Mastery): tabs on a row of their own above the filters. */
 .modes { margin-top: .2rem; }
+
+/* The sections (pages.ts groups; App puts data-section on each page and sidebar entry). */
+[data-section="Fissures"] { --sec: #a2a8f0; --sec-dim: #6d72b4; --sec-sigil: url("/game/void-tear.png"); }
+[data-section="Progress"] { --sec: #6fb7a3; --sec-dim: #4a8677; --sec-sigil: url("/game/mastery.png"); }
+[data-section="Collection"] { --sec: #9cb6dc; --sec-dim: #6681a8; --sec-sigil: url("/game/warframes.png"); }
+[data-section="Trade"] { --sec: #d6ae4a; --sec-dim: #a3843a; --sec-sigil: url("/game/market.png"); }

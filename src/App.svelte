@@ -112,7 +112,7 @@
   import { SYNC_LIMIT_MS, syncFill, waitForNewRead } from "./lib/core/syncWait";
   import RepButton from "./lib/ui/RepButton.svelte";
   import GameIcon from "./lib/ui/GameIcon.svelte";
-  import { drawnOrder, orderPages, pagesFor, migrateTab, sectionsOf, type Page } from "./lib/pages";
+  import { drawnOrder, orderPages, pageById, pagesFor, migrateTab, sectionsOf, type Page, type PageId } from "./lib/pages";
   import { growNotice, logNotice, noticeKind, splitTarget, type NoticeKind } from "./lib/notices";
   import { toasts } from "./lib/toasts.svelte";
   import { alertNeeds, describeHelp } from "./lib/core/worldNeeds";
@@ -2002,7 +2002,7 @@
     </div>
 
     {#snippet navItem(p: Page)}
-      <button class="nav" class:on={settings.tab === p.id} title={shortcutOf(p.id) ? `${p.label}: ${p.hint} (${shortcutOf(p.id)})` : `${p.label}: ${p.hint}`} aria-current={settings.tab === p.id ? "page" : undefined} onclick={() => (settings.tab = p.id)}>
+      <button class="nav" class:on={settings.tab === p.id} data-section={p.group || undefined} title={shortcutOf(p.id) ? `${p.label}: ${p.hint} (${shortcutOf(p.id)})` : `${p.label}: ${p.hint}`} aria-current={settings.tab === p.id ? "page" : undefined} onclick={() => (settings.tab = p.id)}>
         <span class="ic">{#if "game" in p.icon}<GameIcon name={p.icon.game} size={20} />{:else}<Icon name={p.icon.line} size={18} stroke={1.5} />{/if}</span>
         <span class="lbl">{p.label}</span>
         {#if p.id === "mission" && inFissure(mission, tick)}<span class="live" title="Fissure in progress"></span>{/if}
@@ -2014,7 +2014,7 @@
     <nav aria-label="Pages" bind:this={navEl} onscroll={checkNav} class:more={navMore} class:above={navAbove}>
       {@render navItem(pages[0])}
       {#each sections as sec (sec)}
-        <div class="sec register">{sec}</div>
+        <div class="sec register" data-section={sec}>{sec}</div>
         {#each pages.filter((p) => p.group === sec) as p (p.id)}{@render navItem(p)}{/each}
       {/each}
     </nav>
@@ -2160,7 +2160,7 @@
            {#await} doesn't catch what throws once it has resolved. -->
       {#snippet pageFailed(_e: unknown, reset: () => void)}<div class="page-inner"><p class="pagefail dim" role="alert">This page hit an error · <button class="link" title="Draw the page again (the log has what went wrong)" onclick={reset}>Try again</button></p></div>{/snippet}
       {#snippet pane(id: string, body: import("svelte").Snippet)}
-        {#if visited[id] && available.some((p) => p.id === id)}<div class="pane" class:shown={settings.tab === id}><svelte:boundary failed={pageFailed} onerror={(e) => pageError(id, e)}>{@render body()}</svelte:boundary></div>{/if}
+        {#if visited[id] && available.some((p) => p.id === id)}<div class="pane" class:shown={settings.tab === id} data-section={pageById[id as PageId]?.group || undefined}><svelte:boundary failed={pageFailed} onerror={(e) => pageError(id, e)}>{@render body()}</svelte:boundary></div>{/if}
       {/snippet}
       {#snippet pMission()}<InMission {model} masteryRank={settings.game.masteryRank} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} {windowMode} tennoscopeRunning={!!ts.status?.running} onsettings={() => (showSettings = true)} />{/snippet}
       {#snippet pSets()}{#await loadSets(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("sets", e)}><Page {model} advice={settings.advice} sell={settings.market.sellable} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
@@ -2259,8 +2259,8 @@
   nav.more { mask-image: linear-gradient(180deg, #000 calc(100% - 3rem), transparent); }
   nav.above { mask-image: linear-gradient(0deg, #000 calc(100% - 2.5rem), transparent); }
   nav.more.above { mask-image: linear-gradient(180deg, transparent, #000 2.5rem, #000 calc(100% - 3rem), transparent); }
-  .sec { padding: .85rem .65rem .35rem; font-size: .6rem; color: var(--gold-dim); letter-spacing: .2em; display: flex; align-items: center; gap: .5rem; }
-  .sec::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--rule-bright), transparent); }
+  .sec { padding: .85rem .65rem .35rem; font-size: .6rem; color: var(--sec); letter-spacing: .2em; display: flex; align-items: center; gap: .5rem; }
+  .sec::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--sec-dim), transparent); }
   .nav {
     position: relative; display: flex; align-items: center; gap: .75rem; width: 100%; text-align: left;
     border: 0; background: transparent; padding: .44rem .65rem; color: var(--platinum-dim);
@@ -2269,8 +2269,8 @@
   .nav .ic { width: 1.5rem; height: 1.5rem; display: grid; place-items: center; flex: none; opacity: .78; transition: opacity .12s; }
   .nav:hover:not(:disabled) { color: var(--platinum); background: rgb(230 233 238 / 4%); }
   .nav:hover .ic, .nav.on .ic { opacity: 1; }
-  .nav.on { color: var(--platinum); background: linear-gradient(90deg, rgb(214 174 74 / 14%), rgb(214 174 74 / 2%) 70%); box-shadow: inset 2px 0 0 var(--gold); }
-  .nav.on .ic :global(svg) { color: var(--gold); }
+  .nav.on { color: var(--platinum); background: linear-gradient(90deg, color-mix(in srgb, var(--sec) 14%, transparent), color-mix(in srgb, var(--sec) 2%, transparent) 70%); box-shadow: inset 2px 0 0 var(--sec); }
+  .nav.on .ic :global(svg) { color: var(--sec); }
   .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .badge { margin-left: auto; min-width: 1.35rem; padding: .05rem .35rem; text-align: center; font-family: var(--face-register); font-size: .62rem; font-weight: 700; color: var(--slab); background: var(--gold); clip-path: var(--cut); }
   .nav .live { margin-left: auto; width: .5rem; height: .5rem; background: var(--gold); transform: rotate(45deg); flex: none; box-shadow: 0 0 6px rgb(214 174 74 / 60%); }
