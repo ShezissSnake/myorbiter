@@ -61,12 +61,18 @@ function held<T>(visible: () => boolean, f: () => T, tick: () => number): () => 
   return () => out;
 }
 
-/** Runs `f` when the app is idle (or soon, where there's no requestIdleCallback: WebKitGTK). */
-export function whenIdle(f: () => void, timeout = 2000): () => void {
+/**
+ * Runs `f` once the app is really idle: an idle period with room for a slice of work (`room` ms),
+ * so a slice doesn't start just before the next frame or a click. Where there's no
+ * requestIdleCallback (WebKitGTK), a little later instead.
+ */
+export function whenIdle(f: () => void, room = 30): () => void {
   if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-    const id = window.requestIdleCallback(f, { timeout });
+    let id = 0;
+    const ask = () => (id = window.requestIdleCallback((d) => (d.timeRemaining() >= room || d.didTimeout ? f() : ask()), { timeout: 10_000 }));
+    ask();
     return () => window.cancelIdleCallback(id);
   }
-  const id = setTimeout(f, 40);
+  const id = setTimeout(f, 300);
   return () => clearTimeout(id);
 }

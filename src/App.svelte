@@ -348,21 +348,25 @@
     const m = shownModel ?? model;
     if (m) untrack(() => drawn[id] !== m && (drawn = { ...drawn, [id]: m }));
   });
-  /** Hidden pages catch up with a change (a sync, a setting) in idle time, one a slice, once changes settle for a moment. */
+  /**
+   * Hidden pages catch up with a change (a sync, a setting) when the app is idle, one a slice (most
+   * often a few pages have nothing to do). Opening one catches it up at once anyway.
+   */
+  const stale = new Set<string>();
   let catching: (() => void) | null = null;
   function catchUpHidden() {
-    catching?.();
-    const step = (queue: string[]) => {
-      const id = queue.shift();
-      if (!id) return void (catching = null);
-      if (id !== settings.tab) {
-        if (model && drawn[id] !== model) drawn = { ...drawn, [id]: model };
-        catchUp(id);
-      }
-      catching = whenIdle(() => step(queue));
-    };
-    const wait = setTimeout(() => (catching = whenIdle(() => step(Object.keys(visited)))), 1500);
-    catching = () => clearTimeout(wait);
+    for (const id of Object.keys(visited)) stale.add(id);
+    catching ??= whenIdle(catchUpOne);
+  }
+  function catchUpOne() {
+    catching = null;
+    stale.delete(settings.tab);
+    const id = stale.values().next().value;
+    if (id == null) return;
+    stale.delete(id);
+    if (model && drawn[id] !== model) drawn = { ...drawn, [id]: model };
+    catchUp(id);
+    if (stale.size) catching = whenIdle(catchUpOne);
   }
   $effect(() => {
     if (model) untrack(catchUpHidden);
@@ -2251,8 +2255,10 @@
     const tab = settings.tab;
     const n = navEl;
     if (!n) return;
-    // By hand: scrollIntoView would also move where the next Tab starts, past Skip to page.
-    queueMicrotask(() => {
+    // By hand: scrollIntoView would also move where the next Tab starts, past Skip to page. In the
+    // frame, before it's drawn, once the page switched to is laid out (not in between: a layout of
+    // its own, of the whole new page, before the switch is done).
+    requestAnimationFrame(() => {
       const on = n.querySelector<HTMLElement>(".nav.on")?.getBoundingClientRect();
       const box = n.getBoundingClientRect();
       const css = getComputedStyle(n);
