@@ -23,6 +23,7 @@
   import { drops } from "./lib/drops.svelte";
   import { heldFor, overListed } from "./lib/core/market";
   import type { Bundle, Live, MissionState } from "./lib/core/types";
+  import { keepModelLive } from "./lib/core/modelLive";
   import {
     dataStamp,
     defaultDataDir,
@@ -345,6 +346,11 @@
     const next = ts.report?.foundry ?? null;
     if (next && JSON.stringify(next) !== JSON.stringify(foundry)) foundry = next;
   });
+  // The worldstate the model is built with: only what it reads (fissures, Baro, Varzia), kept as one
+  // object until that changes (core/modelLive.ts), so the worldstate read on every sync and every few
+  // minutes rebuilds the model, and every page's rows with it, only when it brings something new.
+  let modelLiveKept: Live | null = null;
+  const modelLive = $derived.by(() => (modelLiveKept = keepModelLive(modelLiveKept, live)));
   /** The official drop tables' relics, over TennoScope's (see relicData.ts): current relics and vaulting. */
   let relicTables = $state.raw<RelicData | null>(null);
   const withTables = $derived(bundle && relicTables ? { ...bundle, relics: mergeRelics(bundle.relics, relicTables) } : bundle);
@@ -355,7 +361,7 @@
   const built = $derived.by((): { model: Model | null; error: string | null } => {
     if (!withTables) return { model: null, error: null };
     try {
-      return { model: buildModel(withTables, live, foundry, settings.market.relicPrices, settings.game.imprints, recipes, settings.game.gear, settings.game.consumedSuits), error: null };
+      return { model: buildModel(withTables, modelLive, foundry, settings.market.relicPrices, settings.game.imprints, recipes, settings.game.gear, settings.game.consumedSuits), error: null };
     } catch (e) {
       console.error("Building the collection failed:", e);
       return { model: null, error: `Building your collection failed: ${e instanceof Error ? e.message : String(e)}` };
@@ -1949,9 +1955,14 @@
         j.phase = "Reading…";
         syncStep = "Reloading TennoScope's saved data and the live worldstate";
         // The worldstate comes on its own (21 requests, a slow site can take a while): the button
-        // is about your data, and the world's cards update as it lands.
-        void refreshLive();
-        await Promise.all([reload(), onConsole && mkt.linked ? mkt.reload() : null]);
+        // is about your data, and the world's cards update as it lands; with the read when it's
+        // there within a moment of it.
+        const world = worldWithRead();
+        try {
+          await Promise.all([reload(world.take), onConsole && mkt.linked ? mkt.reload() : null]);
+        } finally {
+          world.done();
+        }
         if (error) throw new JobError("Not read", loadProblem(error));
         return "Up to date";
       } finally {
@@ -2069,7 +2080,10 @@
 
   // A read that fails keeps what was loaded on screen (the pages stay as they are, with a note
   // above them), and its error stays until a read works: the note doesn't blink on each retry.
-  async function reload() {
+  /** How long a sync's read waits for its worldstate read to land with it (ms). */
+  const WORLD_WITH_READ_MS = 400;
+  /** `take`: what else lands with the read, asked for just before it lands (a sync's worldstate). */
+  async function reload(take?: () => Promise<Live | null>) {
     loading = true;
     try {
       // The stamp first: if TennoScope writes while the bundle loads, the next check sees a newer
@@ -2080,6 +2094,9 @@
       // TennoScope has started but not read the game yet: its item data, no inventory.
       const empty = read.observed_at == null && !read.inventory.length;
       if (empty && !(settings.withoutInventory || noTennoScope) && (!bundle || noInventory)) throw new Error(NO_INVENTORY_YET);
+      // In the same task as the read, so the model is built once with both.
+      const world = take ? await take() : null;
+      if (world) landLive(world);
       bundle = read;
       noInventory = empty;
       loadedAt = Date.now();
@@ -2111,19 +2128,56 @@
   const hhmm = (at: number | null) => (at == null ? "?" : new Date(at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }));
 
   async function refreshLive() {
+    const next = await readLive();
+    if (next) landLive(next);
+  }
+  /** A worldstate read; null when it couldn't be read (what was read last stays, timers count down from it; the next read in 5 minutes). */
+  async function readLive(): Promise<Live | null> {
     liveError = null;
     try {
-      // A part this read couldn't get keeps what was read before (Baro's visit, the cycles, which
-      // count on from there), rather than going blank because another part could be read.
-      live = mergeLive(live, await loadLive());
-      liveAt = Date.now();
-      liveRead = true;
-      // Kept for the next start, which shows it at once (what has ended taken out) until it reads.
-      void saved.write("worldstate", { at: liveAt, live }).catch(() => {});
+      return await loadLive();
     } catch {
-      // Unreachable: what was read last stays (timers count down from it); the next read in 5 minutes.
       liveError = "api.warframestat.us didn't answer";
+      return null;
     }
+  }
+  function landLive(next: Live) {
+    // A part this read couldn't get keeps what was read before (Baro's visit, the cycles, which
+    // count on from there), rather than going blank because another part could be read.
+    live = mergeLive(live, next);
+    liveAt = Date.now();
+    liveRead = true;
+    // Kept for the next start, which shows it at once (what has ended taken out) until it reads.
+    void saved.write("worldstate", { at: liveAt, live }).catch(() => {});
+  }
+  /**
+   * A sync's worldstate read, landing with its read of your data when it answers within a moment
+   * of it (`WORLD_WITH_READ_MS`): a new fissure and a new inventory make one new collection, not two
+   * one after the other. `take` is for reload, just before the read lands: the worldstate to land
+   * with it, or null (it lands on its own once it answers). `done`, once the read landed or failed.
+   */
+  function worldWithRead() {
+    const world = readLive();
+    let decided = false;
+    let arrived = false;
+    let got: Live | null = null;
+    void world.then((l) => {
+      arrived = true;
+      got = l;
+      if (decided && l) landLive(l);
+    });
+    return {
+      take: async (): Promise<Live | null> => {
+        if (!arrived) await Promise.race([world, new Promise((r) => setTimeout(r, WORLD_WITH_READ_MS))]);
+        decided = true;
+        return arrived ? got : null;
+      },
+      done: () => {
+        if (decided) return;
+        decided = true;
+        if (arrived && got) landLive(got);
+      },
+    };
   }
   /** Try again after a failed read: TennoScope's data and the worldstate. */
   function retry() {
