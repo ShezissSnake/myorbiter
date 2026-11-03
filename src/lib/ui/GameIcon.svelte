@@ -41,7 +41,8 @@
    */
   export function kindIcon(kind: string | null | undefined, name = ""): GameIconName | null {
     const k = (kind ?? "").toLowerCase();
-    if (/plexus/i.test(name) || k.includes("plexus")) return "plexus";
+    // The Plexus is the Railjack's: its sigil, not the Plexus mods' chevron.
+    if (/plexus/i.test(name) || k.includes("plexus")) return "railjack";
     if (/railjack/i.test(name) || k.includes("railjack")) return "railjack";
     if (/\bmods?\b/.test(k)) return "endo";
     if (k.includes("blueprint")) return "foundry";
@@ -55,6 +56,14 @@
     if (k.includes("relic")) return "void-tear";
     return null;
   }
+
+  /** Why a kind sits where it does, when that isn't obvious: the tooltip on its kind line. */
+  const KIND_NOTE: Record<string, string> = {
+    "railjack plexus": "The Railjack's Plexus: the game ranks it like a companion (200 mastery a rank, to 30), so it's counted with Companions",
+    "kitgun chamber": "A kitgun's chamber: its mastery counts once, whether you build it as a primary or a secondary, so it shows under both",
+    kitgun: "A kitgun's chamber: its mastery counts once, whether you build it as a primary or a secondary, so it shows under both",
+  };
+  export const kindNote = (kind: string | null | undefined): string | null => KIND_NOTE[(kind ?? "").toLowerCase()] ?? null;
 
   // The plural category names the item data uses, as one of them is called ("Warframes" → "Warframe").
   const SINGULAR: Record<string, string> = { warframes: "Warframe", sentinels: "Sentinel", pets: "Companion", mods: "Mod", arcanes: "Arcane", companions: "Companion", relics: "Relic" };

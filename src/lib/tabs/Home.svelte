@@ -262,7 +262,18 @@
   // Your wishlist, still to get: what's left and whether a fissure for one of your relics is open now.
   // The ones you can crack a relic for now come first.
   const openNow = $derived(openEras(live.fissures, now));
-  const wishes = $derived.by(whileShown("home", () => crackableFirst(settings.favourites.map((u) => wishItem(model, u)).filter((w): w is WishItem => !!w && w.missing.length > 0), openNow)));
+  // Then modular gear with a step left (a chamber to assemble, a build to gild): nothing to collect, but still to do.
+  const wishes = $derived.by(
+    whileShown("home", () => {
+      const all = settings.favourites.map((u) => wishItem(model, u)).filter((w): w is WishItem => !!w && !w.c.mastered);
+      return [...crackableFirst(all.filter((w) => w.missing.length > 0), openNow), ...all.filter((w) => !w.missing.length && w.c.step)];
+    }),
+  );
+  /** A modular item's next step, as far as who to see: "Assemble it at Father or Rude Zuud". */
+  const stepLine = (w: WishItem) => {
+    const s = (w.c.stepBrief ?? w.c.stepTag ?? "").replace(/^(Not gilded yet\? )?Rank it to 30, /, "").split(/, then |\. /)[0].replace(/\.$/, "");
+    return s[0].toUpperCase() + s.slice(1);
+  };
   const crackable = (w: WishItem) => crackableNow(w, openNow);
   /** The item a Foundry build makes, when it's one with details (not a part). */
   const buildUnique = (name: string) => {
@@ -556,11 +567,11 @@
       {#if mkt.linked}
         <div class="presence"><Presence settings={settings.market} quiet tradesLeft={trades.left} resets={trades.resets} /></div>
         <div class="figs">
-          <div title="Your visible listings on warframe.market: price × quantity, and how many{hiddenCount ? ` (${hiddenCount} hidden ones not counted)` : ''}"><P v={listed} /><span class="register">Listed · {orders.length - hiddenCount}</span></div>
-          {#if !console}<div title="Listed more than you hold: visible listings for more copies than you hold now (sold, or used in game). Fix them on Orders, or a buyer finds you can't deliver{hiddenShort ? `. ${hiddenShort} hidden listing${hiddenShort === 1 ? '' : 's'} too, which nobody can buy` : ''}"><b class="mark" class:amber={shortListings.length}>{#if shortListings.length}<span class="bang" aria-hidden="true">!</span>{/if}{shortListings.length}</b><span class="register">Listed more than you hold</span></div>{/if}
+          <div title="Your visible listings on warframe.market: price × quantity, and how many{hiddenCount ? ` (${hiddenCount} hidden ones not counted)` : ''}"><P v={listed} /><span class="register">In {orders.length - hiddenCount} listing{orders.length - hiddenCount === 1 ? "" : "s"}</span></div>
+          {#if !console}<div title="Listed more than you hold: visible listings for more copies than you hold now (sold, or used in game). Fix them on Orders, or a buyer finds you can't deliver{hiddenShort ? `. ${hiddenShort} hidden listing${hiddenShort === 1 ? '' : 's'} too, which nobody can buy` : ''}"><b class="mark" class:amber={shortListings.length}>{shortListings.length}</b><span class="register">Listed more than you hold</span></div>{/if}
           <div title="Platinum from what you sold today, from Sales: since your local midnight (Trades left counts from 00:00 UTC)"><P v={sold(dayStart)} /><span class="register">Sold today</span></div>
           <div title="Platinum from what you sold in the last 7 days"><P v={sold(now - 7 * DAY)} /><span class="register">Last 7 days</span></div>
-          {#if !console && trades.limit != null}<div title="Trades a day are your Mastery Rank ({trades.limit}; Founders get 2 more), each one counting whatever it carried (up to 6 items). {trades.used} since 00:00 UTC, from the game's log while orbiter was reading it. Refreshes in {until(new Date(trades.resets).toISOString(), now)}"><b class="mark" class:amber={trades.left != null && trades.left <= 3}>{#if trades.left != null && trades.left <= 3}<span class="bang" aria-hidden="true">!</span>{/if}{trades.left}<small class="dim">/{trades.limit}</small></b><span class="register">Trades left</span></div>{/if}
+          {#if !console && trades.limit != null}<div title="Trades a day are your Mastery Rank ({trades.limit}; Founders get 2 more), each one counting whatever it carried (up to 6 items). {trades.used} since 00:00 UTC, from the game's log while orbiter was reading it. Refreshes in {until(new Date(trades.resets).toISOString(), now)}"><b class="mark" class:amber={trades.left != null && trades.left <= 3}>{trades.left}<small class="dim">/{trades.limit}</small></b><span class="register">Trades left</span></div>{/if}
         </div>
         {#if shortListings.length || hiddenShort}
           <ul class="mini">
@@ -818,12 +829,12 @@
             {@const now2 = crackable(w)}
             <li><button class="row" data-opens aria-label="{w.c.name}: details" onclick={() => details.open(w.c.unique)}>
               <Thumb file={w.c.image} name={w.c.name} size={26} />
-              <span class="fn"><b class="mark">{w.c.name}</b>{#if now2.length}<span class="small gold">Crack {now2.slice(0, 2).join(" or ")} now</span>{:else}<span class="dim small">{w.missing.length} part{w.missing.length === 1 ? "" : "s"} to get{w.odds ? ` · ${Math.round(w.odds * 100)}% from your relics` : ""}</span>{/if}</span>
+              <span class="fn"><b class="mark">{w.c.name}</b>{#if !w.missing.length && w.c.step}<span class="small gold" title={w.c.stepHow}>{stepLine(w)}</span>{:else if now2.length}<span class="small gold">Crack {now2.slice(0, 2).join(" or ")} now</span>{:else}<span class="dim small">{w.missing.length} part{w.missing.length === 1 ? "" : "s"} to get{w.odds ? ` · ${Math.round(w.odds * 100)}% from your relics` : ""}</span>{/if}</span>
               {#if w.buyCost != null}<span class="when2" title="Buying what's missing at the daily median"><P v={w.buyCost} /></span>{/if}
             </button></li>
           {/each}
         </ul>
-        {#if wishes.length > 4}<p class="dim small more">+{wishes.length - 4} more on your wishlist</p>{/if}
+        {#if wishes.length > 4}<p class="dim small more">+{wishes.length - 4} more on your wishlist{wishes.slice(4).some((w) => w.c.step) ? `, ${wishes.slice(4).filter((w) => w.c.step).length} with a next step` : ""}</p>{/if}
       {:else}
         <p class="dim small">{settings.favourites.length ? "Everything you starred is built or ready to build." : "Star a warframe or weapon in Foundry or Mastery and it shows here, with the relics to crack for it."}</p>
       {/if}
@@ -1194,7 +1205,6 @@
   .figs > div :global(.amt b) { font-size: 1.5rem; }
   .figs b.mark { font-size: 1.5rem; line-height: 1; }
   .figs b.amber { color: var(--alert); }
-  .bang { margin-right: .15rem; }
   .figs .register { font-size: .6rem; color: var(--platinum-deep); }
   .mini { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
   .mini li { display: flex; align-items: center; gap: .6rem; }

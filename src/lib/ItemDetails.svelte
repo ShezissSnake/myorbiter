@@ -9,6 +9,8 @@
   import { imageUrl, marketUrl, openUrl, wikiUrl } from "./backend";
   import { collectionItem, type PartState } from "./core/collection";
   import { masteryRow, partAvailability } from "./core/views";
+  import { vendorBlueprint } from "./core/acquire";
+  import { familyOf } from "./core/modular";
   import { competitor, findItem, type BookOrder } from "./core/market";
   import { details } from "./details.svelte";
   import { wishItem } from "./core/wishlist";
@@ -43,7 +45,11 @@
   });
   const c = $derived(item ? collectionItem(model, item) : null);
   // What building it still takes from where you are, parts' own blueprints included.
-  const plan = $derived(item && c && !c.owned && !c.mastered && !c.building && c.parts.some((p) => !p.resource) ? buildPlan(model, item, model.recipes) : null);
+  const plan = $derived(item && c && !c.owned && !c.mastered && !c.building && !c.partBuilt && c.parts.some((p) => !p.resource) ? buildPlan(model, item, model.recipes) : null);
+  /** Nothing left to collect for it: owned, mastered, or a modular part already built (a chamber in hand). */
+  const done = $derived(!!c && (c.owned || c.mastered || c.partBuilt));
+  // A vendor's blueprint (a zaw strike's at Hok): the vendor, never the drop tables (Conclave's twin's).
+  const vendor = $derived(item ? vendorBlueprint(item.name, item.uniqueName) : null);
   const wish = $derived(item ? wishItem(model, item.uniqueName) : null);
   const row = $derived(item && !model.isMastered(item.uniqueName) && item.masterable ? masteryRow(model, item) : null);
   const fav = $derived(!!item && settings.favourites.includes(item.uniqueName));
@@ -85,6 +91,7 @@
       .map((s) => ({ ...s, owned: model.ownedRelicCount.get(s.base) ?? 0 }))
       .sort((a, b) => b.owned - a.owned || Number(a.vaulted) - Number(b.vaulted) || b.chanceRadiant - a.chanceRadiant);
     if (relics.length) return { kind: "relics" as const, relics, availability: partAvailability(model, p.name) };
+    if (vendor && p.label === "Blueprint") return { kind: "vendor" as const, who: vendor.who, step: vendor.step };
     const comp = item?.components?.find((x) => x.name === p.label);
     const drops = (comp?.drops ?? []).slice(0, 4);
     return { kind: "drops" as const, drops };
@@ -143,6 +150,7 @@
         <div class="tags">
           {#if c.mastered}<span class="tag good">Mastered</span>{:else if c.owned}<span class="tag mastery">Owned, not mastered</span>{/if}
           {#if c.building}<span class="tag">Building</span>{/if}
+          {#if c.partBuilt && !c.owned && c.stepTag}<span class="tag ok" title={c.stepHow}>{c.stepTag}</span>{/if}
           {#if c.buildable && plan}<span class="tag" class:ok={plan.tier === "now"} class:warn={plan.tier === "farm"} class:bad={plan.tier === "hard"} title={TIER_TIP[plan.tier]}>{plan.tier === "now" ? "Can build now" : `Parts ready · ${TIER_LABEL[plan.tier].toLowerCase()}`}</span>{:else if c.buildable}<span class="tag ok">Can build now</span>{/if}
           {#if c.resurgence}<Avail v="resurgence" />{:else if c.vaulted}<Avail v="vaulted" />{/if}
           {#if c.unobtainable}<span class="tag">No longer available</span>{/if}
@@ -190,7 +198,7 @@
 
     {#if c.parts.length}
       <section>
-        <h3 class="register lead">Built from{#if item.buildPrice} <span class="dim cost"><GameIcon name="credits" size={13} /> {item.buildPrice.toLocaleString("en")} · {days(item.buildTime)}</span>{/if}</h3>
+        <h3 class="register lead">Built from{#if c.partBuilt} <span class="built" title="You hold the {familyOf(item.uniqueName)?.part ?? 'part'} already, or it's in a build: its blueprint and resources are spent">Built ✓</span>{:else if item.buildPrice} <span class="dim cost"><GameIcon name="credits" size={13} /> {item.buildPrice.toLocaleString("en")} · {days(item.buildTime)}</span>{/if}</h3>
         <ul class="bom">
           {#each c.parts as p (p.name)}
             {@const w = where(p)}
@@ -198,8 +206,8 @@
               <PartChip part={p} size={40} />
               <div class="pname">
                 <b class="name-mark">{p.resource ? p.label : p.label === "Blueprint" ? "Blueprint" : p.label}</b>
-                <span class="small" class:missing={p.have < p.required && !p.building && !c.owned && !c.mastered} class:inhand={!p.resource && p.have >= p.required && !c.owned && !c.mastered} class:dim={c.owned || c.mastered || (p.resource && p.have >= p.required)}>
-                  {#if p.building}Building now{:else if p.resource}{p.have.toLocaleString("en")} held · {p.required} needed{:else if p.have >= p.required}In hand{p.have > p.required ? ` (${p.have})` : ""}{:else if c.owned || c.mastered}{p.have ? `${p.have} held` : "None held"}{:else}Missing{p.required > 1 ? ` ${p.required - p.have} of ${p.required}` : ""}{/if}
+                <span class="small" class:missing={p.have < p.required && !p.building && !done} class:inhand={!p.resource && p.have >= p.required && !done} class:dim={done || (p.resource && p.have >= p.required)}>
+                  {#if p.building}Building now{:else if p.resource}{p.have.toLocaleString("en")} held · {p.required} needed{:else if p.have >= p.required}In hand{p.have > p.required ? ` (${p.have})` : ""}{:else if c.partBuilt}Used{:else if done}{p.have ? `${p.have} held` : "None held"}{:else}Missing{p.required > 1 ? ` ${p.required - p.have} of ${p.required}` : ""}{/if}
                 </span>
               </div>
               <div class="src">
@@ -211,6 +219,8 @@
                     </span>
                   {/each}
                   {#if w.relics.length > 4}<span class="dim small">+{w.relics.length - 4}</span>{/if}
+                {:else if w.kind === "vendor"}
+                  <span class="drop vendor" title={w.step}>{w.who}</span>
                 {:else if w.kind === "drops"}
                   {#each w.drops as d, j (j)}<span class="drop" title="{Math.round(d.chance * 100) / 100}% a run">{placeName(d.location)}</span>{:else}<span class="dim small">{p.label === "Blueprint" && (item.bpCost || item.marketCost) ? "Market" : ""}</span>{/each}
                 {/if}
@@ -318,6 +328,8 @@
   .cell.buy .register { color: var(--verdigris); }
   .cell.sell .register { color: var(--gold); }
   h3 { margin: 0 0 .7rem; display: flex; align-items: center; gap: .6rem; }
+  /* The part's already built: said once, in the heading, rather than "Missing" down the list. */
+  .built { margin-left: .4rem; color: var(--verdigris); letter-spacing: .1em; }
   .cost { display: inline-flex; align-items: center; gap: .3rem; letter-spacing: .06em; text-transform: none; font-family: var(--face-text); font-size: .78rem; }
   .finish { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin: .7rem 0 0; }
   .finish b { font-size: 1.25rem; color: var(--gold); }

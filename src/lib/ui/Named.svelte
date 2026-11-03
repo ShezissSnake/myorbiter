@@ -8,7 +8,7 @@
 </script>
 
 <span class="named" use:info={hover === false ? null : (hover ?? name)}>
-  <Thumb {file} {size} {tint} />
+  <Thumb {file} {size} {tint} of={name} />
   <span class="txt">
     {#if kind}<span class="register kind">{kind}</span>{/if}
     <span class="line"><span class="name-mark" class:keep={name.length <= 14}>{name}</span>{@render children?.()}</span>

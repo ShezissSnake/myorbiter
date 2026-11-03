@@ -727,11 +727,13 @@
       </section>
     {/if}
 
-    <!-- Your listings first, with where to add one right beside the heading. -->
+    <!-- Your listings: the heading and the trade-chat line on one row, where to add one under it. -->
     <div class="listhead">
+      <div class="lhtop">
       <h2 class="register yours">Your listings</h2>
       {#if wts.length}<CopyButton class="wts" text={() => wts[wtsAt]} label={wts.length > 1 ? `Copy trade-chat line ${wtsAt + 1} of ${wts.length}` : "Copy trade-chat line"} sizer={wts.length > 1 ? [`Copy trade-chat line ${wts.length} of ${wts.length}`] : []} oncopied={() => (wtsNext = wtsAt + 1)}
         title={`Copy your shown listings as a trade chat line, to paste in game too:\n${wts[wtsAt]}${wts.length > 1 ? `\n(${wts.length} lines: each press copies the next)` : ""}`} />{/if}
+      </div>
       <section class="newlisting" aria-label="New listing">
         <span class="register">New listing</span>
         <span class="searchbox" bind:this={searchBox}><input type="search" placeholder={console ? "Find anything to sell…" : "Find something you own…"} bind:value={search} aria-label={console ? "Find anything to sell" : "Find something you own"}
@@ -782,7 +784,7 @@
         </div>
       </Fold>
       {#if nextPass}<span class="register next" title={mkt.passFailures ? `warframe.market didn't answer the last ${mkt.passFailures === 1 ? "pass" : `${mkt.passFailures} passes`}, so the timer waits longer (${Math.round(passWait / 60_000)} min) before the next` : `The timer checks every ${settings.every} min`}>{mkt.pass && !mkt.passManual ? "Checking now" : `Next check ${fmt(+nextPass)}`}</span>{/if}
-      {#if hiddenOrders.length || showJob.state !== "idle"}<ProgressButton variant="link" tone="quiet" job={showJob} label={hiddenOrders.length === 1 ? "Make 1 hidden listing visible" : `Make ${hiddenOrders.length} hidden listings visible`} working="Showing {showJob.done}/{showJob.total ?? '…'}" sizer={[`Showing ${hiddenOrders.length}/${hiddenOrders.length}`]} title="Make every hidden listing visible to buyers again" disabled={!!mkt.op} onclick={showAll} />{/if}
+      {#if hiddenOrders.length || showJob.state !== "idle"}<ProgressButton class="showall" variant="link" job={showJob} label={hiddenOrders.length === 1 ? "Make 1 hidden listing visible" : `Make ${hiddenOrders.length} hidden listings visible`} working="Showing {showJob.done}/{showJob.total ?? '…'}" sizer={[`Showing ${hiddenOrders.length}/${hiddenOrders.length}`]} title="Make every hidden listing visible to buyers again" disabled={!!mkt.op} onclick={showAll} />{/if}
     </div>
 
     <table class="orders" class:ownfloors={rows.some((o) => settings.floors[listingKey(o)] != null)}>
@@ -892,7 +894,7 @@
                   <span class="small q"><b class="held" title="As of TennoScope's last read of your inventory">! You {held === 0 ? "have none" : `hold ${held}`}</b> <span class="dim">· {o.quantity - held} gone since you listed. Sold?</span></span>
                   <button class="stamp gold" disabled={rowBusy.busy(o.id)} onclick={() => recordSale(o, o.quantity - held)} title="Log the sale on Sales and {held === 0 ? 'close the listing' : `lower the listing to ${held}`} on warframe.market">Yes: log {o.quantity - held} sold</button>
                   {#if held === 0}<button class="stamp" onclick={() => (removing = o.id)} title="You didn't sell it (used it in game, say): just take the listing down on warframe.market">No: remove listing</button>
-                  {:else}<button class="stamp" disabled={!rowFree(o.id)} onclick={() => lowerTo(o, held)} title="You didn't sell them (used in game, say): just lower the listing to {held} on warframe.market">No: list {held}</button>{/if}
+                  {:else}<button class="stamp" disabled={!rowFree(o.id)} onclick={() => lowerTo(o, held)} title="You didn't sell them (used in game, say): just lower the listing to {held} on warframe.market">No: list {held} instead</button>{/if}
                 </div>
             </td></tr>
           {/if}
@@ -994,7 +996,8 @@
   .buys li { display: flex; align-items: center; gap: .9rem; padding: .35rem .5rem; border: 1px solid var(--rule); }
   .buys li > :global(.named) { flex: 1; }
   .buys .plat input { width: 5.5rem; }
-  .listhead { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.6rem; margin-top: var(--step); padding-top: .9rem; border-top: 1px solid var(--rule); }
+  .listhead { display: grid; gap: .7rem; margin-top: var(--step); padding-top: .9rem; border-top: 1px solid var(--rule); }
+  .lhtop { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1.6rem; }
   .minp { width: 4.2rem; padding: .4rem .5rem; }
 
   /* New listing: a search with a dropdown of what you hold. */

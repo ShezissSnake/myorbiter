@@ -4,6 +4,7 @@
   // its drain and polarity in the corner, its name, what it does at max rank, and a pip per rank
   // (filled up to your best copy). Arcanes get the game's hexagonal frame.
   import { imageUrl } from "../backend";
+  import { marketThumb } from "../marketStore.svelte";
 
   let {
     name,
@@ -33,11 +34,9 @@
     arcane?: boolean;
   } = $props();
 
-  let failed = $state(false);
-  $effect(() => {
-    void image;
-    failed = false;
-  });
+  // The game data's art, else warframe.market's thumbnail (an arcane newer than the catalog).
+  let failed = $state<string[]>([]);
+  const src = $derived([image, marketThumb(name)].find((f): f is string => !!f && !failed.includes(f)) ?? null);
   const tone = $derived(/legendary|primed/i.test(rarity) ? "legendary" : /riven/i.test(rarity) ? "riven" : /rare/i.test(rarity) ? "rare" : /uncommon/i.test(rarity) ? "uncommon" : "common");
   // The game's own markup in effect text.
   const text = $derived(does.replace(/<[^>]+>/g, "").replace(/\|[A-Z_0-9]+\|/g, "").replace(/\s+/g, " ").trim());
@@ -49,14 +48,14 @@
 
 <div class="mc t-{tone}" class:arcane style:--w="{width}px" title="{name}{rarity ? ` · ${rarity}` : ''}{text ? `\n${text}` : ''}">
   <div class="art">
-    <span class="in">{#if image && !failed}<img src={imageUrl(image, width > 120)} alt="" loading="lazy" decoding="async" onerror={() => (failed = true)} />{:else}<i class="none" aria-hidden="true"></i>{/if}</span>
+    <span class="in">{#if src}<img src={imageUrl(src, width > 120 && !src.startsWith("wfm."))} alt="" loading="lazy" decoding="async" onerror={() => src && (failed = [...failed, src])} />{:else}<i class="none" aria-hidden="true"></i>{/if}</span>
     {#if !arcane && (drain != null || polarity)}
       <span class="drain">{#if drain != null}{drain}{/if}{#if polarity && polarity !== "aura"}<img src="/game/pol/{polarity === "universal" ? "any" : polarity}.png" alt={polarity} />{/if}</span>
     {/if}
   </div>
   <div class="plate">
     <!-- A small mod card's plate has room for the rank or the name, not both; the card it sits on has the name already. -->
-    {#if !tiny || arcane}<b class="nm">{name}</b>{/if}
+    {#if !tiny || arcane}<b class="nm" class:long={name.length > 13}>{name}</b>{/if}
     {#if text && width >= 110}<span class="fx">{text}</span>{/if}
     {#if tiny}{#if maxRank}<span class="rt" title="Your best copy: rank {rank} of {maxRank}">R{rank}/{maxRank}</span>{/if}
     {:else}
@@ -75,6 +74,8 @@
     border: 1px solid var(--edge); border-radius: 3px 3px 10px 10px;
     box-shadow: 0 0 0 1px rgb(0 0 0 / 60%), 0 4px 14px var(--glow), inset 0 0 12px var(--glow);
     overflow: hidden; font-family: var(--face-text);
+    /* Its own line height: a card's art slot (ItemCard's .pic) sets 0, which stacked the pips on the label. */
+    line-height: 1.25;
   }
   .t-uncommon { --edge: var(--rarity-uncommon); --glow: color-mix(in srgb, var(--edge) 18%, transparent); }
   .t-rare { --edge: var(--rarity-rare); --glow: color-mix(in srgb, var(--edge) 24%, transparent); }
@@ -89,6 +90,8 @@
   .drain img { width: calc(var(--w) * .1); height: calc(var(--w) * .1); filter: brightness(1.6); }
   .plate { display: grid; justify-items: center; align-content: start; gap: calc(var(--w) * .03); padding: calc(var(--w) * .04) calc(var(--w) * .05) calc(var(--w) * .06); text-align: center; border-top: 1px solid color-mix(in srgb, var(--edge) 70%, transparent); }
   .nm { color: var(--edge); font-family: var(--face-mark); font-weight: 700; font-size: calc(var(--w) * .1); line-height: 1.05; text-transform: uppercase; letter-spacing: .02em; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  /* A long name ("Terminal Velocity") on one line, a little smaller, so every plate is the same height. */
+  .nm.long { font-size: calc(var(--w) * .085); -webkit-line-clamp: 1; line-clamp: 1; word-break: break-all; }
   .fx { color: var(--platinum-dim); font-size: calc(var(--w) * .075); line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .pips { display: flex; gap: calc(var(--w) * .022); justify-content: center; flex-wrap: wrap; margin-top: 1px; }
   .pips i { width: calc(var(--w) * .045); height: calc(var(--w) * .045); transform: rotate(45deg); border: 1px solid color-mix(in srgb, var(--edge) 60%, transparent); }

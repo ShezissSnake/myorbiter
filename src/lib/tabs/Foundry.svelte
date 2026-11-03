@@ -39,6 +39,7 @@
     if (!want) return;
     if (want.group === "all" || GROUPS.some((g) => g.v === want.group)) group = want.group as Group | "all";
     if (want.show && ["all", "todo", "owned", "build"].includes(want.show)) show = want.show as typeof show;
+    if (want.q != null) q = want.q;
   });
   let sort = $state({ key: "name", desc: false });
   let q = $state("");
@@ -50,7 +51,8 @@
     const needle = q.trim().toLowerCase();
     // A search, and your wishlist (its count is every category's), look through every category.
     return (needle || show === "fav" ? all : inGroup).filter((c) => {
-      if (needle && !c.name.toLowerCase().includes(needle)) return false;
+      // By name or kind ("kitgun" finds every chamber).
+      if (needle && !c.name.toLowerCase().includes(needle) && !c.type.toLowerCase().includes(needle)) return false;
       if (show === "todo") return !c.mastered && !c.unobtainable;
       if (show === "owned") return c.owned;
       if (show === "build") return c.buildable || c.building;
@@ -146,7 +148,7 @@
   {:else if c.buildable && c.tier === "hard"}<span class="tag bad" title="Every part in hand, but building needs {c.short.join(', ')}: from an open world or an event. Open it for what each part takes">Parts ready · needs {c.short[0]}{c.short.length > 1 ? ` +${c.short.length - 1}` : ""}</span>
   {:else if c.buildable && c.short.length}<span class="tag warn" title="Every part in hand; still to farm: {c.short.join(', ')}. Open it for what each part takes">Parts ready · farm {c.short[0]}{c.short.length > 1 ? ` +${c.short.length - 1}` : ""}</span>
   {:else if c.buildable}<span class="tag ok" title="Every part and resource in hand: build it in your foundry">Can build now</span>
-  {:else if c.parts.some((p) => !p.resource)}<span class="dim small">{missing(c)} part{missing(c) === 1 ? "" : "s"} missing</span>{/if}
+  {:else if c.parts.some((p) => !p.resource)}<span class="tag" title="Parts or blueprints you don't hold yet: open it for where each comes from">{missing(c)} part{missing(c) === 1 ? "" : "s"} missing</span>{/if}
   {#if c.resurgence}<Avail v="resurgence" />{:else if c.vaulted}<Avail v="vaulted" />{/if}
 {/snippet}
 {#snippet card(c: CollectionItem, open: () => void)}
@@ -161,13 +163,19 @@
     fav={favs.has(c.unique)}
     onfav={() => toggleFav(c.unique)}
     onopen={open}
+    spot={c.groups.length > 1 ? "chamber" : undefined}
   >
     <!-- Parts then resources in one row, wrapping together, so a resource sits beside the last part rather than under all of them. -->
+    {#if c.partBuilt}
+      <!-- A chamber or model already built: its blueprint is spent. What's next instead, and who does it. -->
+      {#if c.stepBrief && !c.mastered}<p class="next" title={c.stepHow}>{c.stepBrief}</p>{/if}
+    {:else}
     <div class="chips">
       {#each c.parts.filter((p) => !p.resource) as p, i (i)}<PartChip part={p} size={38} />{/each}
       <!-- Resources only when you're short of one: the 839 Orokin Cells you hold say nothing on a mastered frame. -->
       {#each c.parts.filter((p) => p.resource && !c.mastered && p.have < p.required) as p, i (i)}<span class="res"><PartChip part={p} size={28} /></span>{/each}
     </div>
+    {/if}
     {#snippet foot()}
       {@render stateCell(c)}
       <span class="grow"></span>
@@ -207,7 +215,7 @@
   {/if}
 
   <div class="bar">
-    <input type="search" placeholder="Filter items…" bind:value={q} aria-label="Filter items by name" title="Looks through every category" />
+    <input type="search" placeholder="Filter items…" bind:value={q} aria-label="Filter items by name or kind" title="Looks through every category, by name or kind (Kitgun, MOA, Zaw)" />
     <Seg label="Show" bind:value={show} options={[{ v: "all", label: "All", title: "Everything in this group" }, { v: "todo", label: "Not mastered", title: "What you still have to master" }, { v: "owned", label: "Owned", title: "What you have built (mastered or not)" }, { v: "build", label: "Can build", title: "Every part in hand, or building now" }, ...(favs.size || show === "fav" ? [{ v: "fav" as const, label: `★ Wishlist ${favs.size}`, title: "What you starred, from every category (star a card to add it)" }] : [])]} />
   </div>
 
@@ -232,5 +240,6 @@
   .chips { align-items: center; row-gap: .7rem; }
   .chips .res { display: inline-flex; margin-left: .15rem; padding-bottom: 4px; }
   .pts { display: inline-flex; align-items: center; gap: .25rem; color: var(--platinum-dim); font-variant-numeric: tabular-nums; }
+  .next { margin: 0; font-size: .8rem; line-height: 1.4; color: var(--platinum-dim); display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
   .star { margin-left: .4rem; color: var(--gold); }
 </style>

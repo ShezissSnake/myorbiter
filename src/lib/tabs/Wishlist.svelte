@@ -135,6 +135,15 @@
     const how = w.odds ? ` · ${pct(w.odds)} from your relics` : w.buyCost != null ? ` · ${Math.round(w.buyCost)}p to buy` : "";
     return `Closest: ${w.c.name}, ${w.missing.length} part${w.missing.length === 1 ? "" : "s"} missing${how}`;
   });
+  /** What to do next once nothing's left to collect: assemble, gild, level or build. Null when mastered. */
+  const nextStep = (w: WishItem): string | null => {
+    if (w.c.mastered) return null;
+    if (w.c.stepHow) return w.c.stepHow;
+    if (w.c.owned) return "In your arsenal: rank it to max for the mastery.";
+    if (w.c.building) return "Building in your Foundry: claim it once it's done, then rank it to max.";
+    if (!w.missing.length) return "Every part in hand: build it in your Foundry.";
+    return null;
+  };
   const liveFor = (era: string) => (open[era]?.length ?? 0) + (open.Omnia?.length ?? 0);
   /** As Relics and Home say it: this era's normal fissures + Steel Path, then Omnia ones apart. */
   const fissureCount = (era: string) => {
@@ -195,14 +204,16 @@
         {#if undo.has(w.c.unique)}
           <div class="reveal" transition:reveal><div><article class="wish ghost"><UndoSlot label="Removed from your wishlist" what={w.c.name} onundo={() => undo.undo(w.c.unique)} /></article></div></div>
         {:else}
+        {@const next = nextStep(w)}
         <div class="reveal" transition:reveal><div>
-        <article class="wish" class:done={!w.missing.length} class:new={added === w.c.unique} data-unique={w.c.unique} data-groups={w.c.groups.join(" ")}>
+        <article class="wish" class:done={!w.missing.length && !next} class:new={added === w.c.unique} data-unique={w.c.unique} data-groups={w.c.groups.join(" ")}>
           <div class="who">
             <button class="art" onclick={() => details.open(w.c.unique)} aria-label="{w.c.name}: details" use:info={w.c.name}><Art file={w.c.image} size={96} fallback="foundry" /></button>
             <div class="wt">
               <button class="nm" onclick={() => details.open(w.c.unique)}><b class="mark">{w.c.name}</b></button>
               <span class="register">{w.c.type}</span>
-              <div class="chips">{#each w.c.parts.filter((p) => !p.resource) as p (p.name)}<PartChip part={p} size={30} />{/each}</div>
+              <!-- A chamber or model already built: its blueprint is spent, so no chip says it's missing. -->
+              {#if !w.c.partBuilt}<div class="chips">{#each w.c.parts.filter((p) => !p.resource) as p (p.name)}<PartChip part={p} size={30} />{/each}</div>{/if}
               <div class="sum">
                 {#if w.c.mastered}<span class="tag good">✓ Mastered</span><button class="link quiet" title="You've mastered it: take it off your wishlist" onclick={() => remove(w.c.unique)}>Done: remove it</button>
                 {:else if w.c.step === "level"}<span class="tag mastery" title={w.c.stepHow}>{w.c.stepTag}</span>
@@ -219,9 +230,16 @@
             </div>
             <button class="unstar" title="Remove from your wishlist (you get a few seconds to undo)" aria-label="Remove {w.c.name} from your wishlist" onclick={() => remove(w.c.unique)}><Icon name="star" size={15} /></button>
           </div>
+          {#if !w.missing.length && next}
+            <!-- Nothing left to collect: what to do next, and where, in the room the parts table would take. -->
+            <div class="next">
+              <span class="register">Next step</span>
+              <p class="prose">{next}</p>
+            </div>
+          {/if}
           {#if w.missing.length}
             <table>
-              <colgroup><col style="width: 26%" /><col style="width: 39%" /><col style="width: 35%" /><col style="width: 6.8rem" /></colgroup>
+              <colgroup><col style="width: 30%" /><col style="width: 35%" /><col style="width: 35%" /><col style="width: 6.8rem" /></colgroup>
               <thead><tr><th>Missing</th><th>Your relics</th><th>Farm</th><th class="r">Buy</th></tr></thead>
               <tbody>
                 {#each w.missing as p (p.name)}
@@ -308,8 +326,11 @@
   tr:last-child td { border-bottom: 0; }
   .r { text-align: right; }
   .part { display: inline-flex; align-items: center; gap: .55rem; max-width: 100%; min-width: 0; }
-  /* A long part name ("Neuroptics Blueprint") ends in … rather than running into the next column. */
-  .part b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* A long part name ("Neuroptics Blueprint") wraps between words rather than ending in … or running into the next column. */
+  .part b { min-width: 0; overflow-wrap: normal; }
+  .next { display: grid; gap: .35rem; align-content: start; padding: .1rem 0 0 1.2rem; border-left: 1px solid var(--rule); max-width: 46rem; }
+  .next .prose { margin: 0; font-size: .88rem; line-height: 1.45; color: var(--platinum); }
+  :global(html[data-room~="lt950"]) .next { padding: .7rem 0 0; border-left: 0; border-top: 1px solid var(--rule); }
   .relics { display: flex; gap: .35rem; flex-wrap: wrap; margin-bottom: .2rem; }
   .relic { display: inline-flex; align-items: center; gap: .3rem; padding: .12rem .45rem .12rem .25rem; border: 1px solid var(--rule-bright); font-size: .78rem; }
   .relic em { font-style: normal; color: var(--gold); font-weight: 600; }

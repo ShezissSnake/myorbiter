@@ -93,7 +93,7 @@
       <span class="glyph"><Mission type={f.missionType} storm={f.isStorm} size={17} /></span>
       <span class="tx">
         <span class="top"><b>{f.missionType}</b>{#if f.isHard}<span class="kind"><GameIcon name="steel-essence" size={10} />SP</span>{:else if f.isStorm}<span class="kind"><GameIcon name="railjack" size={10} />Storm</span>{/if}{#if watchedIds.has(f.id) && !mine}<span class="bell" title="One of your fissure alerts matches it"><Icon name="bell" size={10} /></span>{/if}</span>
-        <span class="dim small where">{at.node}{at.planet ? ` · ${at.planet}` : ""}&ensp;<Foe enemy={f.enemy} size={12} name={false} /></span>
+        <span class="dim small where"><span class="loc" title="{at.node}{at.planet ? ` · ${at.planet}` : ''}">{at.node}{at.planet ? ` · ${at.planet}` : ""}</span><span class="dot"><Foe enemy={f.enemy} size={12} name={false} /></span></span>
       </span>
       <span class="end"><GameIcon name={eraIcon(f.tier)} size={16} title={f.tier} /><span class="t">{left(f.expiry)}</span></span>
     </li>
@@ -108,7 +108,7 @@
           {#if shortListings.length}<li class="card era-wash" style:--tint="var(--gold)"><GameIcon name="market" size={20} /><span class="tx wrap"><button class="link" onclick={() => go("market")} title="Visible listings on warframe.market for more copies than you hold now">Listed more than you hold: {shortListings.length} listing{shortListings.length === 1 ? "" : "s"}</button><span class="dim small">Sold, or fix them on Orders</span></span></li>{/if}
           {#each watched as w (w.fissure.id)}{@render fissureCard(w.fissure)}{/each}
           {#each world.mastery as a (a.key)}<li class="card era-wash" style:--tint="var(--verdigris)" title="Mastery you're missing"><GameIcon name="mastery" size={20} /><span class="tx"><b>{a.reward}</b><span class="dim small">{a.node} · {describeHelp(a.reward, a.help!)}</span></span><span class="t">{left(a.expiry)}</span></li>{/each}
-          {#each world.rare as a (a.key)}<li class="card era-wash" style:--tint="var(--gold)" title="A rare reward"><GameIcon name="sortie" size={20} /><span class="tx"><b>{a.reward}</b><span class="dim small where">{a.mission} · {place(a.node).node}{#if a.faction}&ensp;<Foe enemy={a.faction} size={12} name={false} />{/if}</span></span><span class="t">{left(a.expiry)}</span></li>{/each}
+          {#each world.rare as a (a.key)}<li class="card era-wash" style:--tint="var(--gold)" title="A rare reward"><GameIcon name="sortie" size={20} /><span class="tx"><b>{a.reward}</b><span class="dim small where"><span class="loc">{a.mission} · {place(a.node).node}</span>{#if a.faction}<span class="dot"><Foe enemy={a.faction} size={12} name={false} /></span>{/if}</span></span><span class="t">{left(a.expiry)}</span></li>{/each}
           {#each invasions as n (n.key)}<li class="card era-wash" style:--tint="var(--verdigris)" title="An invasion with a part you need"><GameIcon name="invasion" size={20} /><span class="tx"><b>{n.reward}</b><span class="dim small">{n.node}</span></span><span class="t sd" title="Side with the {n.side} to earn it"><span class="register">side</span><Foe enemy={n.side} size={12} /></span></li>{/each}
           {#each rareInvasions as n (n.key)}<li class="card era-wash" style:--tint="var(--gold)" title="An invasion paying a rare reward: {n.reward}"><GameIcon name="invasion" size={20} /><span class="tx"><b>{n.reward}</b><span class="dim small">{n.node}</span></span><span class="t sd" title="Side with the {n.side} to earn it"><span class="register">side</span><Foe enemy={n.side} size={12} /></span></li>{/each}
         </ul>
@@ -183,7 +183,10 @@
   .top { display: flex; align-items: center; gap: .35rem; }
   .kind { display: inline-flex; align-items: center; gap: .18rem; font-family: var(--face-register); font-size: .55rem; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold-dim); padding: 0 .22rem; line-height: 1.35; }
   /* Where, then the faction's sigil and name: one line, the name giving way first. */
-  .tx .where { display: flex; align-items: center; gap: .2rem; }
+  .tx .where { display: flex; align-items: center; gap: .4rem; min-width: 0; }
+  /* A long place ("Taveuni · Kuva Fortress") ends in … and the faction's sigil always shows. */
+  .where .loc { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .where .dot { flex: none; display: inline-flex; }
   /* A fissure card's mission glyph, in a well edged in its era's colour. */
   .fz .glyph { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex: none; color: color-mix(in srgb, var(--tint) 70%, var(--platinum)); border: 1px solid color-mix(in srgb, var(--tint) 45%, var(--rule)); background: color-mix(in srgb, var(--tint) 10%, var(--well)); }
   .fz .end { display: grid; justify-items: end; align-content: space-between; gap: .2rem; align-self: stretch; }

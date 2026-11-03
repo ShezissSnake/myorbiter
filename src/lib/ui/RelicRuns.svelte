@@ -64,9 +64,10 @@
     </div>
     {#if sum.estimated || sum.unread}
       <p class="dim small basis">
-        Your pick is known for {known} of {sum.screens} screens.
-        {#if sum.estimated}{sum.estimated}, mostly older history from TennoScope's log, count at their average card.{/if}
-        {#if sum.unread}{sum.unread} couldn't be read and count as an average screen.{/if}
+        {#if known}Which card you took is known for {known} of {sum.screens} screens.
+          {#if sum.estimated}{sum.estimated} more, mostly older history, count as their average card.{/if}
+        {:else}Which card you took isn't known yet for any of these screens, so each counts as its average card.{/if}
+        {#if sum.unread}{sum.unread} couldn't be read at all and count as an average screen.{/if}
       </p>
     {/if}
 

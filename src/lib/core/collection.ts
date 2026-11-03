@@ -123,9 +123,15 @@ export interface CollectionItem {
   wiki: string | null;
   /** Modular gear's next step once you hold its part or have built it: assemble, gild, level (modular.ts). */
   step: ModularStep | null;
-  /** That step in a few words ("Built · gild it") and in a sentence. */
+  /** That step in a few words ("Built · gild it"), in a sentence, and in a short one naming only who to see. */
   stepTag: string | null;
   stepHow: string | null;
+  stepBrief: string | null;
+  /**
+   * Modular gear whose part is built: the chamber, strike, prism, model or board is in hand or
+   * already in a build. Its blueprint and resources are spent; nothing is left to collect.
+   */
+  partBuilt: boolean;
 }
 
 // Necramech parts (Capsule, Casing, Engine, Weapon Pod) live under Resources but are parts you
@@ -208,11 +214,12 @@ export function collectionItem(m: Model, item: CatalogItem): CollectionItem {
   // you hold (a chamber, a MOA's model) isn't the gear until it's put together.
   const mod = m.modular(item.uniqueName);
   const owned = mod && mod.family.assemble != null ? mod.built > 0 : m.owned(item.uniqueName) - m.building(item.uniqueName) > 0;
+  const partBuilt = !!mod && mod.family.assemble != null && (mod.loose > 0 || mod.built > 0);
   const pieces = parts.filter((p) => !p.resource);
-  const buildable = !owned && !building && pieces.length > 0 && pieces.every((p) => p.have >= p.required || p.building);
+  const buildable = !owned && !building && !partBuilt && pieces.length > 0 && pieces.every((p) => p.have >= p.required || p.building);
   const plan = buildable && m.recipes ? buildPlan(m, item, m.recipes) : null;
   const groups = groupsOf(item);
-  const next = modularNext(m.modular(item.uniqueName), m.isMastered(item.uniqueName));
+  const next = modularNext(mod, m.isMastered(item.uniqueName));
   return {
     unique: item.uniqueName,
     name: item.name,
@@ -221,7 +228,7 @@ export function collectionItem(m: Model, item: CatalogItem): CollectionItem {
     category: item.category,
     // The catalog files Kubrows, Kavats and the like as "Pets": Mastery calls them companions.
     // Modular parts say what they are of what ("Kitgun chamber", not "Pistol" or "Misc").
-    type: modularType(item.uniqueName) ?? (item.type === "Pets" ? "Companion" : item.type) ?? item.category,
+    type: modularType(item.uniqueName) ?? (item.type === "Pets" ? "Companion" : item.type === "Plexus" ? "Railjack Plexus" : item.type) ?? item.category,
     image: item.imageName ?? m.imageOf(item.name),
     owned,
     mastered: m.isMastered(item.uniqueName),
@@ -234,13 +241,15 @@ export function collectionItem(m: Model, item: CatalogItem): CollectionItem {
     points: masteryPoints(item),
     parts,
     buildable,
-    short: plan ? plan.short.map((r) => r.name) : parts.filter((p) => p.resource && p.have < p.required).map((p) => p.label),
+    short: plan ? plan.short.map((r) => r.name) : partBuilt ? [] : parts.filter((p) => p.resource && p.have < p.required).map((p) => p.label),
     tier: plan?.tier ?? null,
     setPrice: isPrime ? m.price(`${item.name} Set`) : null,
     wiki: item.wikiaUrl ?? null,
     step: next?.step ?? null,
     stepTag: next?.tag ?? null,
     stepHow: next?.how ?? null,
+    stepBrief: next?.brief ?? null,
+    partBuilt,
   };
 }
 

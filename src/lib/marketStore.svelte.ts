@@ -1336,3 +1336,12 @@ export const mkt = new MarketStore();
 // The dev build (npm run dev, never a release) hands the store to the page, for screenshots of states
 // warframe.market can't be asked for from a plain browser.
 if (import.meta.env?.DEV && typeof window !== "undefined") (window as unknown as { __mkt: MarketStore }).__mkt = mkt;
+
+/**
+ * warframe.market's own thumbnail for an item the game data has no art for (an arcane newer than
+ * the catalog, the Eidolon Lens Blueprint): what Thumb, Art and ModCard fall back to. Null until
+ * the item list has loaded, or when the market doesn't list it.
+ */
+export function marketThumb(name: string | null | undefined): string | null {
+  return name ? (mkt.index.byName.get(name.toLowerCase())?.thumb ?? null) : null;
+}

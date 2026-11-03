@@ -252,7 +252,7 @@
 },
 "Catchmoon": {
 "method": "syndicate",
-"how": "Buy the chamber blueprint at Rude Zuud (Solaris United, Neutral, 500), in Fortuna, and build it; then assemble a kitgun with it, a grip and a loader at Rude Zuud (4,000 credits; grips and loaders from 500 standing). Kitguns only give mastery once gilded (at Rude Zuud once it's rank 30, Doer: 10 Shelter Debt-Bonds and 5,000 standing), and only once per chamber, whether you build it as a primary or a secondary.",
+"how": "Buy the chamber blueprint at Rude Zuud (Solaris United, Neutral, 500), in Fortuna, and build it; then assemble a kitgun with it, a grip and a loader at Rude Zuud, or at Father in the Necralisk (4,000 credits; grips and loaders from 500 standing). Kitguns only give mastery once gilded (at Rude Zuud once it's rank 30, Doer: 10 Shelter Debt-Bonds and 5,000 standing; or at Father), and only once per chamber, whether you build it as a primary or a secondary.",
 "difficulty": 2,
 "available": true,
 "tradable": false,
@@ -827,7 +827,7 @@
 },
 "Gaze": {
 "method": "syndicate",
-"how": "Buy the chamber blueprint at Rude Zuud (Solaris United, Neutral, 500), in Fortuna, and build it; then assemble a kitgun with it, a grip and a loader at Rude Zuud (4,000 credits; grips and loaders from 500 standing). Kitguns only give mastery once gilded (at Rude Zuud once it's rank 30, Doer: 10 Shelter Debt-Bonds and 5,000 standing), and only once per chamber, whether you build it as a primary or a secondary.",
+"how": "Buy the chamber blueprint at Rude Zuud (Solaris United, Neutral, 500), in Fortuna, and build it; then assemble a kitgun with it, a grip and a loader at Rude Zuud, or at Father in the Necralisk (4,000 credits; grips and loaders from 500 standing). Kitguns only give mastery once gilded (at Rude Zuud once it's rank 30, Doer: 10 Shelter Debt-Bonds and 5,000 standing; or at Father), and only once per chamber, whether you build it as a primary or a secondary.",
 "difficulty": 2,
 "available": true,
 "tradable": false,
@@ -2053,7 +2053,7 @@
 },
 "Rattleguts": {
 "method": "syndicate",
-"how": "Buy the chamber blueprint at Rude Zuud (Solaris United, Neutral, 500), in Fortuna, and build it; then assemble a kitgun with it, a grip and a loader at Rude Zuud (4,000 credits; grips and loaders from 500 standing). Kitguns only give mastery once gilded (at Rude Zuud once it's rank 30, Doer: 10 Shelter Debt-Bonds and 5,000 standing), and only once per chamber, whether you build it as a primary or a secondary.",
+"how": "Buy the chamber blueprint at Rude Zuud (Solaris United, Neutral, 500), in Fortuna, and build it; then assemble a kitgun with it, a grip and a loader at Rude Zuud, or at Father in the Necralisk (4,000 credits; grips and loaders from 500 standing). Kitguns only give mastery once gilded (at Rude Zuud once it's rank 30, Doer: 10 Shelter Debt-Bonds and 5,000 standing; or at Father), and only once per chamber, whether you build it as a primary or a secondary.",
 "difficulty": 2,
 "available": true,
 "tradable": false,
@@ -2549,7 +2549,7 @@
 },
 "Tombfinger": {
 "method": "syndicate",
-"how": "Buy the chamber blueprint at Rude Zuud (Solaris United, Neutral, 500), in Fortuna, and build it; then assemble a kitgun with it, a grip and a loader at Rude Zuud (4,000 credits; grips and loaders from 500 standing). Kitguns only give mastery once gilded (at Rude Zuud once it's rank 30, Doer: 10 Shelter Debt-Bonds and 5,000 standing), and only once per chamber, whether you build it as a primary or a secondary.",
+"how": "Buy the chamber blueprint at Rude Zuud (Solaris United, Neutral, 500), in Fortuna, and build it; then assemble a kitgun with it, a grip and a loader at Rude Zuud, or at Father in the Necralisk (4,000 credits; grips and loaders from 500 standing). Kitguns only give mastery once gilded (at Rude Zuud once it's rank 30, Doer: 10 Shelter Debt-Bonds and 5,000 standing; or at Father), and only once per chamber, whether you build it as a primary or a secondary.",
 "difficulty": 2,
 "available": true,
 "tradable": false,

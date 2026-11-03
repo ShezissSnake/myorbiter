@@ -33,15 +33,15 @@ export const NEWS: NewsEntry[] = [
     id: 14,
     date: "2026-11-03",
     items: [
-      { title: "Modular gear, where it belongs", icon: { game: "amp" }, text: "Kitgun chambers (Catchmoon and the rest) show under Primary and Secondary both, counted once in every total; amps and K-Drives have rings of their own on Mastery, Foundry and Wishlist, and companion weapons and the Plexus are with Companions. Other is gone: nothing was left in it.", open: "foundry?group=amps#hero" },
-      { title: "The next step for each", icon: { game: "solaris-united" }, text: "Every chamber, strike, prism, MOA or hound model and K-Drive board says how to get it (Buy the chamber blueprint at Rude Zuud, Solaris United, Neutral, 500), then what's next once you have it: assemble the part, gild the build, or level it once gilded. Modular gear gives mastery only after it's gilded.", open: "mastery#hero" },
+      { title: "Modular gear, where it belongs", icon: { game: "amp" }, text: "Kitgun chambers (Catchmoon and the rest) show under Primary and Secondary both, counted once in every total; amps and K-Drives have rings of their own on Mastery, Foundry and Wishlist, and companion weapons and the Plexus are with Companions. The Other ring is gone.", open: "foundry?group=primary&q=kitgun#chamber" },
+      { title: "The next step for each", icon: { game: "solaris-united" }, text: "Every kitgun chamber, zaw strike, amp prism, MOA or hound model and K-Drive board says how to get it, then what's next once you have it: assemble it, gild it, or level it once gilded. Most modular gear only gives mastery after it's gilded; K-Drives never need it.", open: "mastery?group=amps#next-step" },
     ],
   },
   {
     id: 13,
     date: "2026-11-03",
     items: [
-      { title: "Told when you sell", icon: { game: "platinum" }, text: "Every sale in game gets a notification: what you sold, to whom, for how much platinum, and whether its listing was marked sold on warframe.market. No more checking the website. Signed in and giving +rep by hand? The notification has +rep for the buyer (Give +rep on the desktop one).", open: "sales#notices" },
+      { title: "Told when you sell", icon: { game: "platinum" }, text: "Every sale in game gets a notification: what you sold, to whom, for how much platinum, and whether its listing was marked sold on warframe.market. No more checking the website. Signed in and giving +rep by hand? The notification has a +rep button for the buyer, in orbiter and on your desktop.", open: "sales#notices" },
     ],
   },
   {

@@ -5,11 +5,15 @@
 import research from "../data/acquisition.json";
 import dojoLabs from "../data/dojo.json";
 import type { Model } from "./model";
+import { familyOf } from "./modular";
 import type { CatalogItem, Component } from "./types";
 
 export type Method =
   | "level"
   | "build"
+  | "revive"
+  | "assemble"
+  | "gild"
   | "relics"
   | "market-credits"
   | "syndicate"
@@ -31,6 +35,9 @@ export type Method =
 export const METHOD_LABEL: Record<Method, string> = {
   level: "Level it",
   build: "Build it",
+  revive: "Revive it",
+  assemble: "Assemble it",
+  gild: "Gild it",
   relics: "Relics",
   "market-credits": "Market",
   syndicate: "Syndicate",
@@ -102,6 +109,23 @@ export function researchedStep(name: string): string | null {
   if (!how) return null;
   const cut = how.search(/; |\. /);
   return cut < 0 ? how.replace(/\.$/, "") : how.slice(0, cut);
+}
+
+/** Researched ways in that are a vendor: bought with standing, or from an event's vendor. */
+const VENDOR_METHODS = new Set<Method>(["syndicate", "vendor", "event"]);
+
+/**
+ * A modular part whose blueprint a vendor sells (a kitgun chamber's at Rude Zuud, a zaw strike's at
+ * Hok): who, in a word or two, and the researched step. The drop tables don't apply to it: what
+ * they list under its name is Conclave's twin (Balla's "Variant Team Annihilation"), or nothing.
+ * Null for anything else.
+ */
+export function vendorBlueprint(name: string, unique: string): { who: string; step: string } | null {
+  const r = RESEARCH[name];
+  if (!r || !familyOf(unique) || !VENDOR_METHODS.has(r.method)) return null;
+  const step = researchedStep(name);
+  const who = step && (/\bat ([A-Z][\w' ]*?) \(/.exec(step) ?? /\bfrom ([A-Z][\w']*)/.exec(step));
+  return step && who ? { who: who[1], step } : null;
 }
 
 // ---------------------------------------------------------------- mastery points
