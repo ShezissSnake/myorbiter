@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { takeIntent } from "../intent.svelte";
   import type { Model } from "../core/model";
   import { arcaneRows, type ArcaneRow } from "../core/views";
   import UpgradeDetail from "../ui/UpgradeDetail.svelte";
@@ -35,6 +36,16 @@
   let type = $state("all");
   /** Loid's collection an arcane comes from ("Eidolon", "Duviri"…); "none" for arcanes in no pack. */
   let collection = $state("all");
+  // Ctrl+K asked for one arcane: every arcane, searched for it.
+  $effect(() => {
+    const want = takeIntent("arcanes");
+    if (!want?.q) return;
+    query = want.q;
+    show = "all";
+    owned = "all";
+    type = "all";
+    collection = "all";
+  });
   const inCollection = (name: string) =>
     collection === "all" || (collection === "none" ? !COLLECTIONS.some((c) => c.arcanes.has(name)) : !!COLLECTIONS.find((c) => c.name === collection)?.arcanes.has(name));
   let sort = $state({ key: "priceMax", desc: true });

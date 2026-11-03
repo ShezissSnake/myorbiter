@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { takeIntent } from "../intent.svelte";
   import { daysToTrade } from "../core/tradeLimit";
   import { sellableCopies } from "../core/spares";
   import type { Model } from "../core/model";
@@ -24,6 +25,14 @@
   let tradableOnly = $state(true);
   // Common mods at 2–5p rarely move: by default only the ones that trade at least daily.
   let sellingOnly = $state(true);
+  // Ctrl+K asked for one mod: every mod, searched for it.
+  $effect(() => {
+    const want = takeIntent("mods");
+    if (!want?.q) return;
+    query = want.q;
+    dupesOnly = false;
+    sellingOnly = false;
+  });
   let rarity = $state("all");
   let sort = $state({ key: "value", desc: true });
 

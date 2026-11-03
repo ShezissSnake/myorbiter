@@ -1,6 +1,7 @@
 // Every page orbiter has, in sidebar order. The sidebar, the keyboard shortcuts (Ctrl+1…9 follow
 // this order) and the Guide read this list; adding a page is one entry here plus its component in
-// App.svelte.
+// App.svelte. Collection: what you have and what's left to get. Trade: everything about selling,
+// your listings first (Ctrl+9), then what to sell by kind, then the market, sales and stats.
 import type { GameIconName } from "./ui/GameIcon.svelte";
 
 export type PageId =
@@ -41,16 +42,16 @@ export const PAGES: Page[] = [
   { id: "relics", label: "Relics", group: "Fissures", icon: { game: "relic-axi-intact" }, hint: "Your relics: what's vaulted, what a crack is worth, live fissures" },
   { id: "planner", label: "Planner", group: "Fissures", icon: { game: "void-traces" }, hint: "Which relics to crack to complete sets, and which to make radiant" },
   { id: "foundry", label: "Foundry", group: "Collection", icon: { game: "foundry" }, hint: "Every warframe, weapon and companion with its parts: what you own, what you've mastered, what you can build" },
+  { id: "mastery", label: "Mastery", group: "Collection", icon: { game: "mastery" }, hint: "Everything you haven't mastered, easiest first, and how to get it" },
   { id: "wishlist", label: "Wishlist", group: "Collection", icon: { line: "star" }, hint: "The things you starred, and the quickest way to each missing part: a relic you hold, where to farm one, or what it costs" },
   { id: "inventory", label: "Inventory", group: "Collection", icon: { line: "inventory" }, hint: "Everything you own, with what it's worth" },
-  { id: "mastery", label: "Mastery", group: "Collection", icon: { game: "mastery" }, hint: "Everything you haven't mastered, easiest first, and how to get it" },
-  { id: "arcanes", label: "Arcanes", group: "Collection", icon: { game: "vosfor" }, hint: "Arcanes by price, how close you are to maxing each, and spares to sell or dissolve for Vosfor" },
-  { id: "mods", label: "Mods", group: "Collection", icon: { game: "endo" }, hint: "Spare mod copies to sell, beyond your best one and one to give away" },
-  { id: "rivens", label: "Rivens", group: "Collection", icon: { game: "riven" }, hint: "Your rivens graded, what similar ones sell for, and alerts for the ones you want", consoleHint: "Find rivens for sale, each roll graded, and alerts for the ones you want" },
+  { id: "market", label: "Orders", group: "Trade", icon: { game: "market" }, hint: "Your warframe.market listings, kept at the cheapest in-game price" },
   { id: "sets", label: "Sets", group: "Trade", icon: { line: "sets" }, hint: "Complete prime sets you could sell, and sets almost done" },
   { id: "parts", label: "Prime parts", group: "Trade", icon: { game: "ducats" }, hint: "Every prime part: keep it, sell it, or trade it to Baro for ducats" },
-  { id: "browse", label: "Market", group: "Trade", icon: { line: "search" }, hint: "Everything warframe.market trades, yours or not: browse by category, price and how often it sells" },
-  { id: "market", label: "Orders", group: "Trade", icon: { game: "market" }, hint: "Your warframe.market listings, kept at the cheapest in-game price" },
+  { id: "mods", label: "Mods", group: "Trade", icon: { game: "endo" }, hint: "Spare mod copies to sell, beyond your best one and one to give away" },
+  { id: "arcanes", label: "Arcanes", group: "Trade", icon: { game: "vosfor" }, hint: "Arcanes by price, how close you are to maxing each, and spares to sell or dissolve for Vosfor" },
+  { id: "rivens", label: "Rivens", group: "Trade", icon: { game: "riven" }, hint: "Your rivens graded, what similar ones sell for, and alerts for the ones you want", consoleHint: "Find rivens for sale, each roll graded, and alerts for the ones you want" },
+  { id: "browse", label: "Browse market", group: "Trade", icon: { line: "search" }, hint: "Everything warframe.market trades, yours or not: browse by category, price and how often it sells" },
   { id: "sales", label: "Sales", group: "Trade", icon: { game: "platinum" }, hint: "What you've sold and the platinum it made" },
   { id: "stats", label: "Stats", group: "Trade", icon: { game: "credits" }, hint: "Your platinum, credits, Endo and more over time, and every trade you've made" },
   { id: "guide", label: "Guide", group: "", icon: { line: "guide" }, hint: "What each page is for and how to use it" },

@@ -39,7 +39,7 @@
   $effect(() => {
     const want = takeIntent("relics");
     if (!want) return;
-    query = "";
+    query = want.q ?? "";
     neededOnly = false;
     era = want.era ?? "all";
     vault = want.vault === "resurgence" || want.vault === "vaulted" || want.vault === "farmable" ? want.vault : "all";
@@ -360,6 +360,10 @@
   .rwc.rar-Common { box-shadow: inset 0 0 0 1.5px #8a6a4a; }
   .rwc.rar-Uncommon { box-shadow: inset 0 0 0 1.5px #a9b0ba; }
   .rwc.rar-Rare { box-shadow: inset 0 0 0 1.5px var(--gold); }
+  /* Rarity by shape as well as by ring colour: a gold diamond on a rare, a silver dot on an uncommon. */
+  .rwc.rar-Rare::before, .rwc.rar-Uncommon::before { content: ""; position: absolute; top: -3px; left: 50%; z-index: 1; }
+  .rwc.rar-Rare::before { width: 7px; height: 7px; margin-left: -3.5px; background: var(--gold); transform: rotate(45deg); box-shadow: 0 0 0 1.5px var(--plate); }
+  .rwc.rar-Uncommon::before { width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: #a9b0ba; box-shadow: 0 0 0 1.5px var(--plate); }
   .rwc.done img { opacity: .45; }
   .rwc i { position: absolute; right: -2px; top: -2px; width: 8px; height: 8px; background: var(--gold); transform: rotate(45deg); box-shadow: 0 0 0 2px var(--plate); }
   .ev { display: flex; gap: 1.1rem; }

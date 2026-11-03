@@ -12,7 +12,8 @@ test("a console player gets only the pages that work without reading the game", 
   // Rivens moves to Trade, so the sidebar has one section.
   assert.deepEqual([...new Set(pages.map((p) => p.group).filter(Boolean))], ["Trade"]);
   // The shared list isn't changed.
-  assert.equal(PAGES.find((p) => p.id === "rivens")?.group, "Collection");
+  assert.equal(PAGES.find((p) => p.id === "rivens")?.group, "Trade");
+  assert.equal(PAGES.find((p) => p.id === "rivens")?.label, "Rivens");
 });
 
 test("your page order: pages move within their section, sections move whole, Ctrl+1…9 follow the sidebar", async () => {
@@ -25,10 +26,9 @@ test("your page order: pages move within their section, sections move whole, Ctr
   const pages = orderPages(PAGES, order);
   assert.deepEqual(sectionsOf(pages), ["Trade", "Fissures", "Collection"]);
   const drawn = drawnOrder(pages).map((p) => p.id);
-  assert.deepEqual(drawn.slice(0, 3), ["home", "sets", "parts"]);
-  // Orders up three within Trade (past Market, Prime parts and Sets): first there.
-  order = movePage(grouped(pages), "market", -1);
-  order = movePage(grouped(orderPages(PAGES, order)), "market", -1);
-  order = movePage(grouped(orderPages(PAGES, order)), "market", -1);
-  assert.deepEqual(drawnOrder(orderPages(PAGES, order)).map((p) => p.id).slice(0, 2), ["home", "market"]);
+  assert.deepEqual(drawn.slice(0, 3), ["home", "market", "sets"], "Orders leads Trade");
+  // Prime parts up two within Trade (past Sets and Orders): first there.
+  order = movePage(grouped(pages), "parts", -1);
+  order = movePage(grouped(orderPages(PAGES, order)), "parts", -1);
+  assert.deepEqual(drawnOrder(orderPages(PAGES, order)).map((p) => p.id).slice(0, 3), ["home", "parts", "market"]);
 });

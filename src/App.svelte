@@ -118,6 +118,7 @@
   import SideWatch from "./lib/ui/SideWatch.svelte";
   import { mkt } from "./lib/marketStore.svelte";
   import { inFissure } from "./lib/core/mission";
+  import Lookup from "./lib/ui/Lookup.svelte";
   import { parseTarget, setIntent } from "./lib/intent.svelte";
   import { ts } from "./lib/tennoscopeStore.svelte";
 
@@ -236,6 +237,8 @@
   let showTennoscope = $state(false);
   // What's new: once after an update, when there's something you haven't seen.
   let showNews = $state(false);
+  /** Ctrl+K: find anything by name (ui/Lookup.svelte). */
+  let showLookup = $state(false);
   let newsChecked = false;
   $effect(() => {
     // Read first: settingsReady isn't reactive, the loaded settings are.
@@ -1493,6 +1496,11 @@
     }
     // A dialog or panel is open: it owns the keyboard (Esc closes it).
     if (document.querySelector('[aria-modal="true"]')) return;
+    if (ctrl && e.key.toLowerCase() === "k" && model) {
+      e.preventDefault();
+      showLookup = true;
+      return;
+    }
     const go = (id: string) => {
       e.preventDefault();
       settings.tab = id;
@@ -1861,6 +1869,7 @@
         <Icon name="refresh" size={12} />
         <span class="lbl">{syncing ? "Syncing…" : loading ? "Reading…" : !onConsole && ts.report?.setup.access_mode === "full" && ts.report.game_running ? "Sync" : "Refresh"}</span>
       </button>
+        {#if model && !onConsole}<button class="tool" aria-label="Find anything" aria-expanded={showLookup} title="Find anything by name: an item, a prime part, a relic, a mod or arcane you hold (Ctrl+K)" onclick={() => (showLookup = true)}><Icon name="search" size={14} /></button>{/if}
         <button class="tool bell" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what orbiter told you, and what it tells you about` : unread ? `Notifications: ${unread} new` : "Notifications: what orbiter told you, and what it tells you about"} onclick={() => openNotices("recent")}><Icon name="bell" size={14} />{#if unread}<span class="count">{unread > 99 ? "99+" : unread}</span>{/if}</button>
       </div>
       <div class="tools">
@@ -2015,6 +2024,7 @@
       <ListDialog {model} market={settings.market} advice={onConsole ? null : settings.advice} go={(t: string) => (settings.tab = t)} />
       <BuyDialog {model} go={(t: string) => (settings.tab = t)} />
       <ItemDetails {model} bind:settings={settings} />
+      {#if !onConsole}<Lookup bind:open={showLookup} {model} go={(t: string) => (settings.tab = t)} />{/if}
       <HoverCard {model} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad > 1 ? 4 : 1} />
     {/if}
   </main>
@@ -2096,7 +2106,7 @@
   .tool { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; padding-left: .6rem; padding-right: .6rem; }
   /* The page that's open (Guide): marked the way the sidebar marks its page, a gold edge, not a white block. */
   .tool.on { color: var(--platinum); background: rgb(214 174 74 / 12%); box-shadow: inset 2px 0 0 var(--gold); }
-  .tsbtn { flex: 1; justify-content: flex-start; }
+  .tsbtn { flex: 1; min-width: 0; justify-content: flex-start; }
   .bell { position: relative; }
   .bell .count { position: absolute; top: -.45rem; right: -.45rem; min-width: 1.1rem; padding: .05rem .25rem; font-family: var(--face-register); font-size: .55rem; font-weight: 700; line-height: 1.3; text-align: center; color: var(--slab); background: var(--gold); clip-path: var(--cut); animation: pop .25s ease-out; }
   .bell.paused :global(svg) { opacity: .45; }
