@@ -5,7 +5,7 @@ import { test } from "node:test";
 import "./wikiFiles";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { ago, ageLine, arrange, buildableItems, buildKindOf, cheapestSeller, kindLabelOf, loadoutLines, noxUrl, overframeUrl, placeIn, recentItems, searchItems, slugOf, sourceName, whisperLine, type BuildableItem } from "../src/lib/core/buildsPage";
+import { ago, ageLine, arrange, buildableItems, buildKindOf, cheapestSeller, helminthShow, kindLabelOf, noxUrl, overframeUrl, placeIn, recentItems, rivenShort, searchItems, shardSlots, slugOf, sourceName, whisperLine, withItLines, type BuildableItem } from "../src/lib/core/buildsPage";
 import { tierOf, type Build, type Tier, type TierResult } from "../src/lib/core/builds";
 import { recipeItems } from "../src/lib/core/recipes";
 import type { BookOrder } from "../src/lib/core/market";
@@ -147,24 +147,59 @@ test("a name picked for an unmatched one goes in the first free slot of its kind
   assert.equal(placeIn(full, P.intensify, false), full);
 });
 
-test("orbiter's suggestion's loadout, whatever shape it comes in, as labelled lines", () => {
-  assert.deepEqual(loadoutLines(undefined), []);
-  assert.deepEqual(loadoutLines(["x"]), []);
-  const lines = loadoutLines({
-    shards: [{ colour: "azure", tauforged: true, stat: "Energy max" }, { colour: "crimson", stat: "Ability Strength" }],
-    helminth: { ability: "Nourish", replaces: "Roar", why: "energy for the squad" },
-    support: ["Nautilus", { name: "Vinquibus" }],
-    companion: "Smeeta Kavat",
-    focusSchool: { school: "Zenurik" },
-    empty: null,
-  });
-  assert.deepEqual(lines, [
-    { label: "Archon shards", text: "Tauforged Azure: Energy max, Crimson: Ability Strength" },
-    { label: "Helminth", text: "Nourish: replaces Roar, energy for the squad" },
-    { label: "Support weapons", text: "Nautilus, Vinquibus" },
-    { label: "Companion", text: "Smeeta Kavat" },
-    { label: "Focus School", text: "Zenurik" },
-  ]);
+test("shard slots: a build's own shards, else orbiter's suggestion's, always five on a warframe", () => {
+  const pick = (colour: "crimson" | "amber", owned: boolean | null, fuse?: string) => ({ name: `Tauforged ${colour}`, owned, reason: "why", tier: "high" as const, source: "wiki", colour, tauforged: true, stat: colour === "crimson" ? "Ability Strength" : "Casting Speed", ...(fuse ? { fuse } : {}) });
+  const loadout = { shards: [pick("crimson", false, "fuse 3 for 1"), pick("crimson", false), pick("amber", true)] };
+  const empty = shardSlots({ kind: "warframe", shards: [] }, loadout);
+  assert.equal(empty.length, 5);
+  assert.deepEqual(empty[0], { colour: "crimson", tauforged: true, stat: "Ability Strength", owned: false, reason: "why", fuse: "fuse 3 for 1" });
+  assert.equal(empty[2]?.owned, true);
+  assert.equal(empty[3], null);
+  // Its own shards win, plain ones kept plain.
+  const own = shardSlots({ kind: "warframe", shards: [{ colour: "azure", tauforged: false, stat: "Armor" }] }, loadout);
+  assert.deepEqual(own[0], { colour: "azure", tauforged: false, stat: "Armor", owned: null });
+  assert.equal(own[1], null);
+  assert.deepEqual(shardSlots({ kind: "primary", shards: [] }, null), []);
+});
+
+test("the Helminth: the build's own, else the suggestion's", () => {
+  const h = { name: "Nourish", ability: "Nourish", replaces: "Molt", owned: null, reason: "energy", tier: "high" as const, source: "x" };
+  assert.deepEqual(helminthShow({}, { helminth: h }), { ability: "Nourish", replaces: "Molt", reason: "energy", owned: null });
+  assert.deepEqual(helminthShow({ helminth: { ability: "Roar", replaces: "Spores" } }, { helminth: h }), { ability: "Roar", replaces: "Spores", reason: null, owned: null });
+  assert.equal(helminthShow({}, null), null);
+});
+
+test("With it: the loadout as short lines, arcanes already slotted left out", () => {
+  const p = (name: string, owned: boolean | null, path?: string) => ({ name, path, owned, reason: "r", tier: "high" as const, source: "s" });
+  const lines = withItLines({
+    shards: [],
+    helminth: null,
+    weapons: [p("Grimoire", false), { ...p("Vome Invocation", true), on: "Grimoire" }],
+    arcanes: [p("Molt Augmented", true, "/a/molt"), p("Molt Efficiency", true, "/a/eff")],
+    companion: [p("Nautilus Prime", false)],
+    focus: p("Zenurik", null),
+    note: "n",
+    element: { element: "corrosive", ability: "Spores", colour: "emerald", stat: "Ability Damage on Corrosion-affected enemies", source: "the catalog's ability text" },
+    primer: [p("Helminth Charger", false)],
+    sets: [{ name: "Mecha", pieces: [{ name: "Mecha Empowered", slotKind: "warframe", aura: true, owned: true }, { name: "Mecha Pulse", slotKind: "warframe", owned: false, replaces: "Vitality" }], bonus: "b", reason: "r", cost: "the aura slot, 1 Warframe slot; on the frame, x.", tier: "high", source: "s", companion: { name: "Sunika Kubrow", path: "/k", owned: false } }],
+  }, ["/a/molt"]);
+  assert.deepEqual(lines.map((l) => l.key), ["element", "companion", "primer", "support", "arcanes", "focus", "set"]);
+  assert.equal(lines[0].text, "Corrosive, from Spores");
+  assert.equal(lines[0].colour, "emerald");
+  assert.deepEqual(lines[4].picks.map((x) => x.name), ["Molt Efficiency"]);
+  const set = lines[6];
+  assert.equal(set.label, "Mecha set");
+  assert.equal(set.text, "the aura slot, 1 Warframe slot");
+  assert.deepEqual(set.picks.map((x) => [x.name, x.owned, x.on]), [["Mecha Empowered", true, "aura"], ["Mecha Pulse", false, "frame"], ["Sunika Kubrow", false, "companion"]]);
+  assert.match(set.picks[1].reason, /instead of Vitality/);
+  assert.deepEqual(withItLines(null), []);
+});
+
+test("riven stats as players write them", () => {
+  assert.equal(rivenShort({ slug: "critical_chance", stat: "Critical Chance" }), "CC");
+  assert.equal(rivenShort({ slug: "fire_rate_/_attack_speed", stat: "Fire Rate / Attack Speed" }), "FR");
+  assert.equal(rivenShort({ slug: "fire_rate_/_attack_speed", stat: "Fire Rate / Attack Speed" }, true), "AS");
+  assert.equal(rivenShort({ slug: "something_new", stat: "Something New" }), "Something New");
 });
 
 test("tierOf drives the tabs: a real build lands in the tier it needs", () => {

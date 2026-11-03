@@ -35,7 +35,9 @@
     type Tier,
     type TierResult,
   } from "../core/builds";
-  import { canSuggest, modIndex, ownedFrom, suggestAll, toBuild, type Suggestion } from "../core/builds/suggest";
+  import { canSuggest, heldFrom, modIndex, ownedFrom, suggest, toBuild, variantsFor, type RivenContext, type Suggestion } from "../core/builds/suggest";
+  import { parseRiven, rivenTables, unpackListed, weaponSlug, type Riven } from "../core/rivens";
+  import { rivens } from "../rivenStore.svelte";
   import { ageLine, arrange, buildableItems, isOverframe, buildKindOf, kindLabelOf, noxUrl, overframeUrl, recentItems, savedFrom, tagsIn, TIER_MEANS, TIER_NAME, TIER_TIP, TIERS, withTags, type Shown } from "../core/buildsPage";
   import { byFamily } from "../ui/builds/tags";
   import { recipeItem } from "../core/recipes";
@@ -86,6 +88,7 @@
     opened = [u, ...opened.filter((x) => x !== u)].slice(0, 12);
     showOld = false;
     picked = [];
+    variantOf = { low: null, medium: null, high: null };
     const c = bestCopy(model.gear, u);
     tier = !c ? "low" : (c.f & 1) && (c.p ?? 0) > 0 ? "high" : c.f & 1 ? "medium" : "low";
   }
@@ -107,8 +110,29 @@
   const savedAll = $derived(pick ? buildsFor(settings.builds, pick).filter((b) => !isOverframe(b)) : []);
   const saved = $derived(showOld ? savedAll : filterByAge(savedAll, settings.buildsMaxAgeDays, now));
 
-  // orbiter's suggestions: from the mods you hold, for each tier.
-  const owns = $derived(ownedFrom([...model.inventoryByBase.values()].flat() as InventoryRow[]));
+  // orbiter's suggestions: from the mods you hold, for each tier, in the variant picked on its card.
+  const rows = $derived([...model.inventoryByBase.values()].flat() as InventoryRow[]);
+  const owns = $derived(ownedFrom(rows));
+  /** Everything held (shards, companions, the Grimoire…), so the loadout can mark what you have. */
+  const held = $derived(heldFrom(rows));
+  let variantOf = $state<Record<Tier, string | null>>({ low: null, medium: null, high: null });
+  const variants = $derived(item && canSuggest(item) ? variantsFor(item).map((v) => ({ id: v.id, label: v.label, tags: v.tags })) : []);
+  // A weapon's ideal riven: your rivens for it, and the listings the Rivens page last read for it.
+  const takesRiven = $derived(kind === "primary" || kind === "secondary" || kind === "melee" || kind === "archgun" || kind === "companionWeapon");
+  $effect(() => {
+    if (!takesRiven) return;
+    void rivens.loadSaved(settings.market.platform);
+    void rivens.loadMeta();
+  });
+  let tablesMemo: { cat: unknown; t: ReturnType<typeof rivenTables> } | null = null;
+  const rivenCtx = $derived.by((): RivenContext | null => {
+    if (!takesRiven || !item) return null;
+    const tables = tablesMemo?.cat === model.catalogByUnique ? tablesMemo.t : (tablesMemo = { cat: model.catalogByUnique, t: rivenTables(model.catalogByUnique.values()) }).t;
+    const mine = (settings.game.rivens ?? []).map((r) => parseRiven(model, tables, r)).filter((r): r is Riven => !!r);
+    const slug = rivens.meta ? weaponSlug(rivens.meta, item.uniqueName, item.name) : null;
+    const w = slug ? rivens.saved?.weapons[slug] : undefined;
+    return { mine, market: w ? { listed: unpackListed(w.listed), at: w.at } : null };
+  });
   let indexMemo: { cat: unknown; idx: ReturnType<typeof modIndex> } | null = null;
   const index = () => (indexMemo?.cat === model.catalogByUnique ? indexMemo.idx : (indexMemo = { cat: model.catalogByUnique, idx: modIndex([...model.catalogByUnique.values()]) }).idx);
   // Worked out when the app is idle after the page opens, so the first item picked answers at once.
@@ -123,7 +147,8 @@
   const suggestions = $derived.by((): Partial<Record<Tier, Suggestion>> => {
     if (!item || !canSuggest(item)) return {};
     try {
-      return suggestAll(item, owns, index(), now);
+      const idx = index();
+      return Object.fromEntries(TIERS.map((t) => [t, suggest(item, t, owns, idx, now, held, rivenCtx, variantOf[t])])) as Record<Tier, Suggestion>;
     } catch (e) {
       console.error("orbiter's suggestion failed:", e);
       return {};
@@ -215,8 +240,10 @@
   const ready = (t: Tier) => filtered[t].filter((s) => reportFor(s.build).todo === 0).length;
   const extrasOf = (s: Shown): Extras | null => {
     if (s.build.source !== "orbiter" || s.saved) return null;
-    const sug = Object.values(suggestions).find((x) => x?.id === s.build.id) as (Suggestion & { loadout?: unknown }) | undefined;
-    return sug ? { why: sug.reasons, upgrades: sug.upgrades, loadout: sug.loadout } : null;
+    const sug = Object.values(suggestions).find((x) => x?.id === s.build.id);
+    if (!sug) return null;
+    const t = sug.tier;
+    return { why: sug.reasons, upgrades: sug.upgrades, loadout: sug.loadout ?? null, riven: sug.riven ?? null, variants, variant: sug.variant.id, onvariant: (id: string) => (variantOf = { ...variantOf, [t]: id }) };
   };
 
   // ---------------------------------------------------------------- changes
@@ -370,7 +397,8 @@
 
     {#key `${pick}|${tier}`}
       <ul class="builds" in:arrive={{ y: 0 }}>
-        {#each shown as s (s.build.id)}
+        <!-- orbiter's suggestion keeps its place when its variant changes. -->
+        {#each shown as s (s.place === "orbiter" && !s.saved ? "orbiter" : s.build.id)}
           <li class:fresh={fresh === s.build.id} data-build={s.build.id} animate:flip out:leave>
             {#if undo.has(s.build.id)}<UndoSlot label="Deleted" what={s.build.title ?? "the build"} onundo={() => undo.undo(s.build.id)} />
             {:else}
