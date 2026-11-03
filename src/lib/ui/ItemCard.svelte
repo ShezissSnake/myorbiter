@@ -12,6 +12,7 @@
     artSize = 116,
     owned = false,
     ownedNote = "One to look at: spares to sell, gear to master, a part you need",
+    markPrime = false,
     done = false,
     dimArt = false,
     fav,
@@ -32,6 +33,8 @@
     owned?: boolean;
     /** What the notch means on this page, on hover. */
     ownedNote?: string;
+    /** Where Primes and their plain versions sit together (Foundry, Mastery, Sets): "Prime" in Orokin gold. */
+    markPrime?: boolean;
     /** Finished with it (mastered): quieter. */
     done?: boolean;
     dimArt?: boolean;
@@ -51,9 +54,12 @@
   } = $props();
 
   // A kind the Arsenal has a tab for ("Warframe", "Primary Mod", "Companion") gets that tab's icon.
-  const subIcon = $derived(sub && !sub.includes("·") ? kindIcon(sub) : null);
+  // Only the kind before any " · " ("Warframe · MR 5"; not "Rare · Okina Prime Blueprint").
+  const subKind = $derived(sub?.split(" · ")[0] ?? "");
+  const subIcon = $derived(subKind ? kindIcon(subKind) : null);
+  const subText = $derived(sub ? kindLabel(subKind) + sub.slice(subKind.length) : "");
   // A Prime's name carries the word in Orokin gold, so Ash Prime stands apart from Ash at a glance.
-  const titleParts = $derived(title.split(/\b(Prime)\b/));
+  const titleParts = $derived(markPrime ? title.split(/\b(Prime)\b/) : [title]);
 
   // Buttons on the card (List, the star) do their own thing; anywhere else opens the details.
   function click(e: MouseEvent) {
@@ -74,7 +80,7 @@
   <header>
     <div class="t">
       <h3 class="mark" title={hover ? undefined : title} use:info={hover ?? null}>{#each titleParts as t, i (i)}{#if i % 2}<span class="prime">{t}</span>{:else}{t}{/if}{/each}</h3>
-      {#if sub}<span class="register sub">{#if subIcon}<GameIcon name={subIcon} size={11} />{/if}{kindLabel(sub)}</span>{/if}
+      {#if sub}<span class="register sub">{#if subIcon}<GameIcon name={subIcon} size={11} />{/if}{subText}</span>{/if}
     </div>
     {#if onfav}
       <button class="star" class:on={fav} aria-pressed={fav} aria-label={fav ? `Remove ${title} from your wishlist` : `Add ${title} to your wishlist`} title={fav ? "On your wishlist (click to remove)" : "Add to your wishlist"} onclick={(e) => { e.stopPropagation(); onfav(); }}>

@@ -15,6 +15,7 @@
   import PartChip from "../ui/PartChip.svelte";
   import P from "../ui/P.svelte";
   import GameIcon, { eraIcon, type GameIconName } from "../ui/GameIcon.svelte";
+  import { eraTint } from "../ui/table";
   import Icon from "../ui/Icon.svelte";
   import IconButton from "../ui/IconButton.svelte";
 
@@ -101,7 +102,7 @@
   {#if crackNow.length}
     <section class="now" aria-label="Crack now">
       {#each crackNow as c (c.era)}
-        <div class="era">
+        <div class="era era-wash" style:--tint={eraTint(c.era)}>
           <div class="eh"><GameIcon name={eraIcon(c.era)} size={26} /><b class="mark">{c.era}</b><span class="dim small">{fissureCount(c.era)} · next closes in {until([...c.fissures].sort((a, b) => Date.parse(a.expiry) - Date.parse(b.expiry))[0].expiry, now)}</span></div>
           <ul>
             {#each c.relics.slice(0, 4) as r, i (i)}<li><b class="name-mark" use:info={r.relic}>{r.relic}</b><span class="dim small">for</span><span use:info={r.part}>{r.part.replace(`${r.item} `, "")}</span><span class="dim small">· {r.item}</span></li>{/each}
@@ -129,7 +130,7 @@
               <div class="chips">{#each w.c.parts.filter((p) => !p.resource) as p (p.name)}<PartChip part={p} size={30} />{/each}</div>
               <div class="sum">
                 {#if w.c.mastered}<span class="tag good">✓ Mastered</span><button class="link quiet" title="You've mastered it: take it off your wishlist" onclick={() => remove(w.c.unique)}>Done: remove it</button>
-                {:else if w.c.owned}<span class="tag ok">Owned · level it</span>
+                {:else if w.c.owned}<span class="tag mastery">Owned · level it</span>
                 {:else if w.c.building}<span class="tag">Building</span>
                 {:else if !w.missing.length}<span class="tag ok">Ready to build</span>
                 {:else}
@@ -188,9 +189,10 @@
   .buyo { font-size: .58rem; white-space: nowrap; padding: 0; }
   .bar input[list] { min-width: 22rem; }
   .now { align-items: start; display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: .8rem; margin: 0 0 var(--step); }
-  .era { border: 1px solid var(--gold-dim); background: linear-gradient(180deg, #1a1810, var(--plate) 55%); padding: .7rem .9rem; display: grid; gap: .5rem; clip-path: var(--cut); }
+  /* Each era a plate washed in its relic's colour (app.css, .era-wash), as on Home's fissure board. */
+  .era { border: 1px solid color-mix(in srgb, var(--tint) 22%, var(--rule)); padding: .7rem .9rem; display: grid; gap: .5rem; clip-path: var(--cut); }
   .eh { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
-  .eh b { font-size: 1.15rem; color: var(--gold); }
+  .eh b { font-size: 1.15rem; color: color-mix(in srgb, var(--tint) 70%, var(--platinum)); }
   .era ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .25rem; font-size: .82rem; }
   .era li { display: flex; gap: .35rem; align-items: baseline; flex-wrap: wrap; }
   .list { display: grid; gap: .9rem; }
