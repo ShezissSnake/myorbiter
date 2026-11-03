@@ -942,8 +942,9 @@ export function inventoryRows(m: Model): InventoryItem[] {
       const maxRank = ranked ? (r.max_rank ?? item?.maxRank ?? null) : null;
       const atMax = maxRank != null && rank != null && rank >= maxRank && maxRank > 0;
       const tradeName = relic ? `${relic.base} Relic` : name;
-      // A relic at its own refinement; the intact price stands in when that one isn't known.
-      const price = built ? null : relic ? (m.relicPrice(relic.base, relic.refinement) ?? m.relicPrice(relic.base)) : atMax ? (m.priceMax(name) ?? m.price(name)) : m.price(name);
+      // A relic at its own refinement only: never the intact price standing in for an exceptional or
+      // flawless one, which sells for something else (as spares.ts prices them).
+      const price = built ? null : relic ? m.relicPrice(relic.base, relic.refinement) : atMax ? (m.priceMax(name) ?? m.price(name)) : m.price(name);
       const part = kind === "part" ? m.partByName.get(name)?.[0] : undefined;
       // A part with no ducats and no market price (Sagek Prime's, from the Perita Rebellion) isn't a
       // relic part and can't be traded; nor are the Sticker items, which TennoScope lists under mods

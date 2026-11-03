@@ -5,7 +5,7 @@
   import { splitRelicName, type Model } from "../core/model";
   import { info } from "../hover.svelte";
   import { inventoryRows, type InventoryItem, type InventoryKind } from "../core/views";
-  import { inventoryValue, sellableCopies, spareRows, UNKNOWN_TRADES_PER_DAY, type SellChoices, type SpareRow } from "../core/spares";
+  import { inventoryValue, spareRows, valueTotals, type SellChoices, type SpareRow } from "../core/spares";
   import { drops } from "../drops.svelte";
   import { mkt } from "../marketStore.svelte";
   import { marketUrl, openUrl, wikiUrl } from "../backend";
@@ -61,18 +61,27 @@
     return p == null ? null : p * r.quantity;
   };
   const perDay = (r: InventoryItem) => spareOf(r)?.tradesPerDay ?? r.tradesPerDay;
-  /** The spare copies at their price, no more than the market sells in a month (as You can spare counts them). */
-  const sellable = (r: InventoryItem) => {
-    const s = spareOf(r);
-    return s && s.spare > 0 && s.price != null ? Math.round(s.price * sellableCopies(s.spare, perDay(r) ?? (r.kind === "relic" ? UNKNOWN_TRADES_PER_DAY : null))) || null : null;
-  };
+  // Every row's share of the figures, worked out over everything held: an item's rows (a mod at two
+  // ranks, a relic's refinements) share one month of sales, so the rows add up to the figures above.
+  const all = $derived(inventoryRows(model));
+  const full = $derived(inventoryValue(all, ledger));
+  /** The row's spare copies' share of Spare value: no more of the item than the market sells in a month. */
+  const sellable = (r: InventoryItem) => Math.round(full.rows.get(r.key)?.spare ?? 0) || null;
+  /** Mods and arcanes by name, each rank a row of its own. */
+  const byName = $derived.by(() => {
+    const out = new Map<string, InventoryItem[]>();
+    for (const x of all) if (x.rank != null) out.set(`${x.kind}|${x.name}`, [...(out.get(`${x.kind}|${x.name}`) ?? []), x]);
+    return out;
+  });
+  /** "+1 at R3": the same mod or arcane held at other ranks, so ×193 here and ×194 on Mods both add up. */
+  const otherRanks = (r: InventoryItem) =>
+    r.rank == null ? "" : (byName.get(`${r.kind}|${r.name}`) ?? []).filter((x) => x.rank !== r.rank).map((x) => `+${x.quantity.toLocaleString("en")} at R${x.rank}`).join(", ");
   /** The item's page, by the market's own slug when its item list is loaded ("…_(veiled)"). */
   const itemUrl = (name: string) => {
     const it = mkt.index.byName.get(name.toLowerCase());
     return it ? `https://warframe.market/items/${it.slug}` : marketUrl(name);
   };
 
-  const all = $derived(inventoryRows(model));
   const rows = $derived(all.filter((r) => (kind === "all" || r.kind === kind) && (!tradableOnly || spareOf(r)) && (minTrades == null || (perDay(r) ?? 0) >= minTrades) && (minEach == null || (priceOf(r) ?? 0) >= minEach) && (!spareOnly || spare(r) > 0) && matches(query, r.name, r.type, shown(r), spareOf(r)?.type ?? "")));
   const pctOf = (x: number | null | undefined) => (x == null ? "–" : `${Math.round(x * 10) / 10}%`);
   const why = (r: InventoryItem) => spareOf(r)?.why ?? "Nothing to spare";
@@ -90,9 +99,9 @@
   ];
   const count = (k: "all" | InventoryKind) => (k === "all" ? all.length : all.filter((r) => r.kind === k).length);
 
-  // The three figures, worked out as Stats and the selling pages do (core/spares.ts, inventoryValue).
-  // Of what's shown: the kind and filters above narrow them too.
-  const value = $derived(inventoryValue(rows, ledger));
+  // The three figures, worked out as Stats does (core/spares.ts, inventoryValue): the rows shown,
+  // added up, so the kind and filters above narrow them too.
+  const value = $derived(valueTotals(rows, full.rows));
   const KIND_WORD: Record<string, string> = { gear: "gear", part: "prime parts", relic: "relics", mod: "mods", arcane: "arcanes", resource: "resources", blueprint: "blueprints", imprint: "imprints", other: "other" };
   /** "mods 9,033 · prime parts 1,210 · …": where the spare figure comes from, biggest first. */
   const spareSplit = $derived([...value.byKind].filter(([, v]) => v >= 1).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${KIND_WORD[k] ?? k} ${Math.round(v).toLocaleString("en")}p`).join(" · "));
@@ -101,12 +110,12 @@
   const columns: Column<InventoryItem>[] = [
     { key: "name", label: "Item", value: (r) => r.name, cell: nameCell, defaultDesc: false, width: "min(26rem, 40%)" },
     { key: "type", label: "Kind", value: (r) => spareOf(r)?.type ?? r.type, muted: true, defaultDesc: false, minor: true },
-    { key: "qty", label: "Have", value: (r) => r.quantity, align: "right" },
+    { key: "qty", label: "Have", value: (r) => r.quantity, align: "right", cell: qtyCell },
     { key: "spare", label: "Spare", value: (r) => (spareOf(r) ? spare(r) : null), align: "right", cell: spareCell, title: "What you can sell: what you hold beyond what you keep (hover a number for why)" },
     { key: "price", label: "Each", value: (r) => priceOf(r), align: "right", cell: priceCell },
     { key: "worth", label: "Worth", value: (r) => worthOf(r), align: "right", cell: worthCell },
-    { key: "sellable", label: "Spare sells for", value: (r) => sellable(r), align: "right", cell: sellableCell, title: "What your spare copies would bring: no more of them than the market sells in a month (the You can spare figure, item by item)" },
-    { key: "ducats", label: "Ducats", value: (r) => (r.ducats == null ? null : r.ducats * r.quantity), align: "right", cell: ducatCell, minor: true },
+    { key: "sellable", label: "Spare sells for", value: (r) => sellable(r), align: "right", cell: sellableCell, title: "What your spare copies would bring: no more of each item than the market sells in a month, shared between its ranks or refinements (Spare value, row by row: the rows add up to it)" },
+    { key: "ducats", label: "Ducats (all)", value: (r) => (r.ducats == null ? null : r.ducats * r.quantity), align: "right", cell: ducatCell, minor: true, title: "Ducats for every copy you hold: ducats each × copies" },
     { key: "trades", spare: true, label: "Trades/day", value: (r) => { const t = perDay(r); return t == null ? null : Math.round(t * 10) / 10; }, align: "right", muted: true, title: "How quickly it sells on warframe.market" },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
   ];
@@ -122,6 +131,7 @@
     {#if r.kind === "gear"}{#if r.mastered}<span class="tag good">✓ mastered</span>{:else}<span class="tag mastery" title="Not mastered: rank it up for its mastery">level it</span>{/if}{/if}
   </Named>
 {/snippet}
+{#snippet qtyCell(r: InventoryItem)}{r.quantity.toLocaleString("en")}{#if otherRanks(r)}<span class="dim small ranks" title="The same {r.kind} held at other ranks: each rank is a row of its own"> {otherRanks(r)}</span>{/if}{/snippet}
 {#snippet priceCell(r: InventoryItem)}<P v={priceOf(r)} dim />{/snippet}
 {#snippet worthCell(r: InventoryItem)}<P v={worthOf(r)} />{/snippet}
 {#snippet sellableCell(r: InventoryItem)}<P v={sellable(r)} />{/snippet}
@@ -153,14 +163,14 @@
         <Art file={model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r))} size={64} alt="" fallback={kindIcon(r.kind === "relic" ? "relic" : (spareOf(r)?.type ?? r.type), r.name) ?? "foundry"} />
       {/if}
     {/snippet}
-    <div class="have"><b class="mark qty">×{r.quantity.toLocaleString("en")}</b>{#if r.rank && r.maxRank}<span class="tag" class:ok={r.rank >= r.maxRank}>{r.rank >= r.maxRank ? "maxed" : `R${r.rank}`}</span>{/if}</div>
+    <div class="have"><b class="mark qty">×{r.quantity.toLocaleString("en")}</b>{#if otherRanks(r)}<span class="dim small" title="The same {r.kind} held at other ranks: each rank is a card of its own">at R{r.rank}, {otherRanks(r)}</span>{/if}{#if r.rank && r.maxRank}<span class="tag" class:ok={r.rank >= r.maxRank}>{r.rank >= r.maxRank ? "maxed" : `R${r.rank}`}</span>{/if}</div>
     {#if priceOf(r) != null || r.ducats}
       <div class="vals">
         {#if priceOf(r) != null}<span><span class="register">Each</span><P v={priceOf(r)} dim /></span>{/if}
         {#if r.quantity > 1 && worthOf(r) != null}<span><span class="register">All</span><P v={worthOf(r)} /></span>{/if}
         {#if spareOf(r) && spare(r) > 0}<span title={why(r)}><span class="register">Spare</span><b class="sp">{spare(r) === r.quantity ? "all" : `×${spare(r).toLocaleString("en")}`}</b></span>{/if}
-        {#if sellable(r) != null}<span title="What your spare copies would bring: no more of them than the market sells in a month (the order the cards are in)"><span class="register">Sells for</span><P v={sellable(r)} /></span>{/if}
-        {#if r.ducats}<span><span class="register">Ducats</span><P v={r.ducats * r.quantity} d dim /></span>{/if}
+        {#if sellable(r) != null}<span title="What your spare copies would bring: no more of the item than the market sells in a month, shared between its ranks or refinements (its part of Spare value; the order the cards are in)"><span class="register">Sells for</span><P v={sellable(r)} /></span>{/if}
+        {#if r.ducats}<span title="Ducats for every copy you hold: ducats each × copies"><span class="register">Ducats (all)</span><P v={r.ducats * r.quantity} d dim /></span>{/if}
       </div>
     {/if}
   </ItemCard>
@@ -208,8 +218,8 @@
 <div class="page"><div class="page-inner">
   <PageHead title="Inventory" blurb="Everything you own, with what it's worth on warframe.market.">
     {#snippet band()}
-      <Stat label="You can spare" tone="gold" note="Beyond what you keep, no more of each than the market sells in a month" title={`You can spare: beyond what you keep, no more of each than the market sells in a month (slow sellers count only that).${spareSplit ? ` By kind: ${spareSplit}. Mods (with Actually sells off) counts its spares the same way; Prime parts leaves out the ones better traded to Baro for ducats.` : ""}`}><P v={value.spare} big /></Stat>
-      <Stat extra label="Easy to sell" note="Everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month"><P v={value.easy} big /></Stat>
+      <Stat label="Spare value" tone="gold" note="Beyond what you keep, no more of each than the market sells in a month" title={`Spare value: every copy beyond what you keep, of every kind, at the daily median, no more of each item than the market sells in a month (slow sellers count only that; unranked arcanes as their share of a maxed one).${spareSplit ? ` By kind: ${spareSplit}.` : ""} Worth selling, on Prime parts, Mods and Arcanes, is the narrower figure: it leaves out what's better as ducats or Vosfor, what isn't worth a trade and mods that don't sell daily.`}><P v={value.spare} big /></Stat>
+      <Stat extra label="Quick-sale value" note="Everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month"><P v={value.easy} big /></Stat>
       <Stat extra label="Market value" tone="dim" note="Every copy at the daily median, slow sellers included"><P v={value.market} big /></Stat>
     {/snippet}
   </PageHead>

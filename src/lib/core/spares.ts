@@ -29,9 +29,14 @@ export interface SpareRow {
   quantity: number;
   keep: number;
   spare: number;
-  /** Each, at this rank or refinement. */
+  /** Each, at this rank or refinement: the market's price, as every page shows it. */
   price: number | null;
-  /** The spare copies at that price. */
+  /**
+   * What each spare copy counts for in Spare value: the price, except unranked arcanes, which count
+   * as their share of a maxed one when that's lower (a pile of them rarely fetches their own price).
+   */
+  spareEach: number | null;
+  /** The spare copies at `spareEach`. */
   worth: number | null;
   tradesPerDay: number | null;
   /** Why the kept copies are kept, or why everything can go. */
@@ -348,6 +353,8 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
     let why = "";
     let need: Need[] = [];
     let crack: number | null = null;
+    // What a spare copy counts for, when it isn't the price (unranked arcanes).
+    let spareEach: number | null | undefined;
     if (r.kind === "part" && parts.has(r.name)) {
       // A part the market prices but the catalog has no ducats for isn't here: it falls through to
       // what still needs it, at the end.
@@ -368,13 +375,14 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
       const spare = !a ? 0 : r.rank != null && r.rank >= a.maxRank ? a.extraMaxed : r.rank === 0 ? Math.min(r.quantity, a.unranked, a.spare) : 0;
       keep = r.quantity - spare;
       why = keep ? (a?.complete ? "Your maxed copy" : `Toward a maxed one (${a?.copies ?? 0}/${a?.needed ?? 21})`) : "";
-      // Unranked copies count as their share of a maxed one: their own median, from a few copies
-      // at a time, overstates what a pile of them fetches (vosfor.ts, copyValue).
+      // Spare unranked copies count as their share of a maxed one: their own median, from a few
+      // copies at a time, overstates what a pile of them fetches (vosfor.ts, copyValue). Only in
+      // Spare value: Each stays the unranked price every other page shows.
       if (a && r.rank === 0 && a.priceMax != null) {
         const each = copyValue(m, a.name, a);
         if (price == null || each < price) {
-          price = Math.round(each * 10) / 10;
-          if (spare) why = `${why ? `${why}; ` : ""}priced as 1/${a.needed} of a maxed one (${a.priceMax}p)`;
+          spareEach = Math.round(each * 10) / 10;
+          if (spare) why = `${why ? `${why}; ` : ""}spare copies count as 1/${a.needed} of a maxed one (${a.priceMax}p) in Spare value`;
         }
       }
     } else if (r.kind === "relic") {
@@ -450,6 +458,7 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
       why = `${why}${why ? ". " : ""}${savedLine(forSet, waits.save)}`;
     }
     const spare = r.quantity - keep;
+    const counted = spareEach === undefined ? price : spareEach;
     if (!why) why = spare === r.quantity ? "Nothing keeps it" : "";
     const setsOf = Math.min(spare, inSets.get(baseId(r.unique)) ?? 0);
     if (setsOf) why = `${why}${why ? ". " : ""}${setsOf} of the spare ones make whole sets: better sold as the set (Sets)`;
@@ -466,7 +475,8 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
       keep,
       spare,
       price,
-      worth: price == null ? null : price * spare,
+      spareEach: counted,
+      worth: counted == null ? null : counted * spare,
       tradesPerDay: r.kind === "relic" ? null : m.tradesPerDay(name),
       why,
       needs: need,
@@ -495,7 +505,7 @@ function merge(rows: SpareRow[]): SpareRow[] {
     had.spare += r.spare;
     had.inSets += r.inSets;
     had.forSet += r.forSet;
-    had.worth = had.price == null ? null : had.price * had.spare;
+    had.worth = had.spareEach == null ? null : had.spareEach * had.spare;
   }
   return [...by.values()];
 }
@@ -531,44 +541,85 @@ export function sellableCopies(count: number, tradesPerDay: number | null | unde
   return Math.min(count, Math.max(0, Math.ceil(tradesPerDay * days)));
 }
 
+/** One row's share of Inventory's figures (inventoryValue). */
+export interface RowValue {
+  market: number;
+  easy: number;
+  spare: number;
+}
+
+/** Inventory's three figures, and the spare one by kind. */
+export interface ValueTotals {
+  market: number;
+  easy: number;
+  spare: number;
+  /** Spare value by kind (mods, prime parts…), so the pages' own totals can be traced back to it. */
+  byKind: Map<InventoryKind, number>;
+}
+
 /**
  * What your inventory comes to on warframe.market, worked out one way for every page that shows it
- * (Inventory's figures, the value chart on Stats, each selling page's share of "spare"):
+ * (Inventory's figures and rows, the value chart on Stats):
  * - market: every tradable copy at the daily median, slow sellers included;
- * - easy: copies of what trades at least daily, no more of each than the market sells in a month;
- * - spare: the copies beyond what you keep, slow sellers too, no more of each than the market sells
- *   in a month (a part that sells twice a week counts its 8 or 9, not all 40);
- * - byKind: spare by kind (mods, prime parts…), so the pages' own totals can be traced back to it.
- * Built gear has no price here: it can't be traded. Items warframe.market reports no sales for
- * count toward market but not toward easy or spare; relics, whose sales it never reports, count
- * about one a day.
+ * - easy (Quick-sale value): copies of what trades at least daily, kept ones too, no more of each
+ *   item than the market sells in a month;
+ * - spare (Spare value): the copies beyond what you keep, slow sellers too, no more of each item
+ *   than the market sells in a month (a part that sells twice a week counts its 8 or 9, not all 40).
+ * The month is per item, not per row: a mod held at two ranks, or a relic at two refinements, shares
+ * one month of sales, and each row gets its share of the item's figure by platinum, so the rows add
+ * up to the totals. Built gear has no price here: it can't be traded. Items warframe.market reports
+ * no sales for count toward market but not toward easy or spare; relics, whose sales it never
+ * reports, count about one a day.
  */
-export function inventoryValue(rows: InventoryItem[], ledger: Map<string, SpareRow>) {
-  let market = 0;
-  let easy = 0;
-  let spare = 0;
-  const byKind = new Map<InventoryKind, number>();
-  const items = new Map<string, { kind: InventoryKind; copies: number; plat: number; pace: number | null }>();
+export function inventoryValue(rows: InventoryItem[], ledger: Map<string, SpareRow>): ValueTotals & { rows: Map<string, RowValue> } {
+  type Member = { key: string; market: number; spare: number };
+  const items = new Map<string, { pace: number | null; copies: number; plat: number; spareCopies: number; sparePlat: number; members: Member[] }>();
   for (const r of rows) {
     const s = ledger.get(r.key);
     const price = r.kind === "gear" && !s ? null : (s?.price ?? r.price);
     if (price == null) continue;
     const pace = s?.tradesPerDay ?? r.tradesPerDay ?? (r.kind === "relic" ? UNKNOWN_TRADES_PER_DAY : null);
-    market += price * r.quantity;
-    if ((pace ?? 0) >= 1) easy += price * sellableCopies(r.quantity, pace);
-    if (s && s.spare > 0 && s.price != null) {
-      // One item's rows (a mod at two ranks, a relic's refinements) share one month of sales.
-      const k = `${r.kind}|${s.name ?? r.name}`;
-      const g = items.get(k) ?? { kind: r.kind, copies: 0, plat: 0, pace };
-      g.copies += s.spare;
-      g.plat += s.price * s.spare;
-      items.set(k, g);
+    const k = `${r.kind}|${s?.name ?? r.name}`;
+    const g = items.get(k) ?? { pace, copies: 0, plat: 0, spareCopies: 0, sparePlat: 0, members: [] };
+    g.pace ??= pace;
+    g.copies += r.quantity;
+    g.plat += price * r.quantity;
+    const each = s ? (s.spareEach ?? s.price) : null;
+    const spare = s && s.spare > 0 && each != null ? each * s.spare : 0;
+    if (s && s.spare > 0 && each != null) {
+      g.spareCopies += s.spare;
+      g.sparePlat += spare;
+    }
+    g.members.push({ key: r.key, market: price * r.quantity, spare });
+    items.set(k, g);
+  }
+  const out = new Map<string, RowValue>();
+  for (const g of items.values()) {
+    const easy = (g.pace ?? 0) >= 1 && g.copies ? (g.plat / g.copies) * sellableCopies(g.copies, g.pace) : 0;
+    const spare = g.spareCopies ? (g.sparePlat / g.spareCopies) * sellableCopies(g.spareCopies, g.pace) : 0;
+    for (const x of g.members) {
+      out.set(x.key, { market: x.market, easy: g.plat ? (easy * x.market) / g.plat : 0, spare: g.sparePlat ? (spare * x.spare) / g.sparePlat : 0 });
     }
   }
-  for (const g of items.values()) {
-    const v = (g.plat / g.copies) * sellableCopies(g.copies, g.pace);
-    spare += v;
-    byKind.set(g.kind, (byKind.get(g.kind) ?? 0) + v);
+  return { ...valueTotals(rows, out), rows: out };
+}
+
+/**
+ * The totals of some of the rows inventoryValue worked out (the ones a filter shows): their shares
+ * added up, so the figures are always the sum of the rows beneath them.
+ */
+export function valueTotals(rows: InventoryItem[], values: Map<string, RowValue>): ValueTotals {
+  let market = 0;
+  let easy = 0;
+  let spare = 0;
+  const byKind = new Map<InventoryKind, number>();
+  for (const r of rows) {
+    const v = values.get(r.key);
+    if (!v) continue;
+    market += v.market;
+    easy += v.easy;
+    spare += v.spare;
+    if (v.spare) byKind.set(r.kind, (byKind.get(r.kind) ?? 0) + v.spare);
   }
   return { market: Math.round(market), easy: Math.round(easy), spare: Math.round(spare), byKind };
 }
