@@ -124,6 +124,10 @@
   .name b { font-size: 1.02rem; }
   button.go { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: .45rem; }
   button.go:hover b { color: var(--gold); }
+  /* Pressed (all: unset drops the buttons' own): the name sinks a pixel and lights, over --snap. */
+  button.go { transition: transform var(--snap) var(--out); }
+  button.go:active { transform: translateY(1px); }
+  button.go:active b { color: var(--gold); }
   button.go:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
   .grow { flex: 1; }
   .best { display: inline-flex; align-items: baseline; gap: .3rem; min-width: 0; white-space: nowrap; }

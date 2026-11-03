@@ -7,6 +7,7 @@
   import { tour, tourStop, stepTour, endTour } from "../tour.svelte";
   import NewsIcon from "./NewsIcon.svelte";
   import Rich from "./Rich.svelte";
+  import { leave } from "../motion";
 
   // go: a page named in the line (it opens; the tour stays on).
   let { go = null }: { go?: ((page: string) => void) | null } = $props();
@@ -54,7 +55,8 @@
 <svelte:window onkeydown={onKey} />
 
 {#if stop}
-  <div class="tour" role="region" aria-label="Tour of what's new" bind:this={bar}>
+  <!-- Ended (End tour, Finish or Esc): the bar slides down off the page's edge as it fades. -->
+  <div class="tour" role="region" aria-label="Tour of what's new" bind:this={bar} out:leave={{ y: 40 }}>
     <ol class="ticks" aria-hidden="true">{#each tour.stops as s, i (i)}<li class:on={i === tour.at} class:done={i < tour.at}></li>{/each}</ol>
     <span class="art" aria-hidden="true"><NewsIcon icon={stop.icon} size={26} /></span>
     <div class="words" aria-live="polite" aria-atomic="true">

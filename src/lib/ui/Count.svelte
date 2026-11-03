@@ -16,8 +16,12 @@
       shown = to;
       return;
     }
-    const t0 = performance.now();
+    // Timed from the first frame's own clock: a frame's timestamp can trail performance.now()
+    // (and stays behind for good when the page's animations are slowed, in devtools), which
+    // would hold the figure short of its value.
+    let t0 = -1;
     let raf = requestAnimationFrame(function step(now) {
+      if (t0 < 0) t0 = now;
       const t = Math.min(1, (now - t0) / duration);
       shown = t >= 1 ? to : from + (to - from) * out(t);
       if (t < 1) raf = requestAnimationFrame(step);

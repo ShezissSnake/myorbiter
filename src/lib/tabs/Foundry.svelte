@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Count from "../ui/Count.svelte";
   // Every warframe, weapon, companion and archwing as a card: its artwork, each part as a chip
   // (gold when you have it), and whether you own it, have mastered it, or can build it now.
   // A click opens everything about it.
@@ -100,9 +101,21 @@
   });
   const builds = $derived(foundryBuilds(model, settings.game.foundryReady, now));
   const readyToClaim = $derived(builds.filter((b) => b.ready).length);
-  const gearOf = (name: string) => {
+  /**
+   * What a build in your foundry opens: the gear itself, or for a part (Gauss Chassis) the gear it
+   * goes into, whose details list it. Null for what has no details (Forma, a Lazulite Toroid).
+   */
+  const opensOf = (name: string): { u: string; parent: string | null } | null => {
     const d = describe(model, name);
-    return d?.kind === "gear" ? d.item.uniqueName : null;
+    if (d?.kind === "gear") return { u: d.item.uniqueName, parent: null };
+    if (d?.kind === "part") return { u: d.parentUnique, parent: d.parent };
+    if (d?.kind === "set") return { u: d.parentUnique, parent: null };
+    const words = name.split(" ");
+    for (let n = words.length - 1; n > 0; n--) {
+      const g = describe(model, words.slice(0, n).join(" "));
+      if (g?.kind === "gear") return { u: g.item.uniqueName, parent: g.item.name };
+    }
+    return null;
   };
   const rings = $derived(codexRings(model));
   // What to do next in the category picked, by name: build, then level (the most mastery first).
@@ -166,10 +179,10 @@
 <div class="page"><div class="page-inner">
   <PageHead title="Foundry" brief="Everything you can master, part by part." blurb="Everything you can master, with the parts you hold (gold: in hand). Click one for its stats, drops and prices.">
     {#snippet band()}
-      <Stat label="Mastered" note={`Of all ${all.length.toLocaleString("en")}, every category`}><GameIcon name="mastery" size={30} />{mastered}<span class="of">/{all.length}</span></Stat>
-      <Stat label="Owned, not mastered" tone="gold" note="Every category · level these">{ownedOnly}</Stat>
-      <Stat label="Can build now" note={partsReady ? `Every category · ${partsReady} more with resources to farm` : "Every category · every part and resource in hand"}>{buildable}</Stat>
-      <Stat label="Ready to claim" spot={builds.length ? null : "queue"} tone={readyToClaim ? "gold" : "dim"} note={builds.length ? `Of ${builds.length} in your foundry` : "Nothing building"}>{readyToClaim}</Stat>
+      <Stat label="Mastered" note={`Of all ${all.length.toLocaleString("en")}, every category`}><GameIcon name="mastery" size={30} /><Count value={mastered} /><span class="of">/{all.length}</span></Stat>
+      <Stat label="Owned, not mastered" tone="gold" note="Every category · level these"><Count value={ownedOnly} /></Stat>
+      <Stat label="Can build now" note={partsReady ? `Every category · ${partsReady} more with resources to farm` : "Every category · every part and resource in hand"}><Count value={buildable} /></Stat>
+      <Stat label="Ready to claim" spot={builds.length ? null : "queue"} tone={readyToClaim ? "gold" : "dim"} note={builds.length ? `Of ${builds.length} in your foundry` : "Nothing building"}><Count value={readyToClaim} /></Stat>
     {/snippet}
     {#snippet hero()}<CodexRings {rings} lit={group === "all" ? null : group} onpick={(g) => (group = group === g ? "all" : g)} all={{ onpick: () => (group = "all"), action: "Click to show every category" }} action={(r) => (group === r.group ? "Click to show every category" : `Click to show only ${r.label.toLowerCase()}`)} line={nextLine} />{/snippet}
   </PageHead>
@@ -178,13 +191,16 @@
     <!-- The foundry itself: what's building and what's ready to claim, soonest first. -->
     <ul class="queue" aria-label="In your foundry" data-card="queue">
       {#each builds as b (b.key)}
-        {@const u = gearOf(b.name)}
+        {@const o = opensOf(b.name)}
         <li class:ready={b.ready}>
-          <button type="button" class="qb" disabled={!u} title={u ? `${b.name}: details` : b.name} onclick={() => u && details.open(u)}>
+          {#snippet inner()}
             <Thumb file={b.image} size={24} name={b.name} />
             <span class="qn">{b.name}</span>
             <span class="qw">{b.ready ? "Ready" : until(new Date(b.readyAt).toISOString(), now)}</span>
-          </button>
+          {/snippet}
+          <!-- A part opens the gear it's for; what has no details is a plain tag, not a dead button. -->
+          {#if o}<button type="button" class="qb" title={o.parent ? `${b.name}: part of ${o.parent}. Click for ${o.parent}'s details` : `${b.name}: details`} onclick={() => details.open(o.u)}>{@render inner()}</button>
+          {:else}<span class="qb tag-like" title={b.name}>{@render inner()}</span>{/if}
         </li>
       {/each}
     </ul>
@@ -201,8 +217,11 @@
 <style>
   .queue { list-style: none; margin: 0 0 var(--step); padding: 0; display: flex; flex-wrap: wrap; gap: .5rem; }
   .qb { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: .5rem; padding: .3rem .7rem .3rem .35rem; border: 1px solid var(--rule); background: var(--plate); cursor: pointer; font-size: .84rem; }
-  .qb:disabled { cursor: default; }
-  .qb:not(:disabled):hover { border-color: var(--gold-dim); }
+  .qb.tag-like { cursor: default; }
+  /* Pressed (all: unset drops the buttons' own): it sinks a pixel. */
+  button.qb { transition: transform var(--snap) var(--out); }
+  button.qb:active { transform: translateY(1px); background: var(--well); }
+  button.qb:hover { border-color: var(--gold-dim); }
   .qb:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   .qn { color: var(--platinum); }
   .qw { color: var(--platinum-deep); font-size: .76rem; }

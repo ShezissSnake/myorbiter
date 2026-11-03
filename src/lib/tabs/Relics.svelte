@@ -25,6 +25,7 @@
   import GameIcon, { eraIcon, type GameIconName } from "../ui/GameIcon.svelte";
   import Foe from "../ui/Foe.svelte";
   import Mission from "../ui/Mission.svelte";
+  import Count from "../ui/Count.svelte";
   import RelicPlate from "../ui/RelicPlate.svelte";
 
   import type { AdviceSettings } from "../backend";
@@ -224,10 +225,10 @@
     {#snippet band()}
       {@const filtered = rows.length !== all.length}
       <Stat label="Relics" note={filtered ? "Matching the filters" : unknown.length ? `All refinements, with ${unknown.reduce((n, u) => n + u.total, 0)} not in the relic list` : "Across all refinements"}>
-        {(rows.reduce((n, r) => n + r.total, 0) + (filtered ? 0 : unknown.reduce((n, u) => n + u.total, 0))).toLocaleString("en")}
+        <Count value={rows.reduce((n, r) => n + r.total, 0) + (filtered ? 0 : unknown.reduce((n, u) => n + u.total, 0))} />
       </Stat>
-      <Stat label="Vaulted kinds" tone="gold" note="No new copies drop">{rows.filter((r) => r.vaulted).length}</Stat>
-      <Stat label="With parts you need" note="Worth cracking">{rows.filter((r) => r.neededCount).length}</Stat>
+      <Stat label="Vaulted kinds" tone="gold" note="No new copies drop"><Count value={rows.filter((r) => r.vaulted).length} /></Stat>
+      <Stat label="With parts you need" note="Worth cracking"><Count value={rows.filter((r) => r.neededCount).length} /></Stat>
     {/snippet}
     {#snippet hero()}<RelicPlate {model} {masteryRank} {era} onera={(e) => (era = era === e ? "all" : e)} />{/snippet}
   </PageHead>

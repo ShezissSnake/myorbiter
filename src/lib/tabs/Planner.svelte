@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { arrive } from "../motion";
+  import Count from "../ui/Count.svelte";
+  import PTick from "../ui/PTick.svelte";
   import Fold from "../ui/Fold.svelte";
   import Tabs from "../ui/Tabs.svelte";
   import type { Model } from "../core/model";
@@ -145,7 +148,7 @@
 {#snippet gapList(list: SetGap[], key: string)}
   <div class="gaps">
     {#each open[key] ? list : list.slice(0, GAPS_SHOWN) as g (g.unique)}
-      <div class="gap">
+      <div class="gap" in:arrive>
         <button class="set" use:info={`${g.set} Set`} onclick={() => details.open(g.unique)}>
           <Thumb file={model.imageOf(g.set)} size={22} /><span class="name-mark">{g.set}</span>
         </button>
@@ -171,16 +174,16 @@
   >
     {#snippet band()}
       {#if mode === "sets"}
-        <Stat label="Sets close to done" note={`${settings.maxMissing === 1 ? "One part" : `Up to ${settings.maxMissing} parts`} away${filtered ? ", matching the filters" : ""}`}>{gaps.length}</Stat>
-        <Stat label="One part away" tone="gold" note="A single drop completes them">{lastParts.length}</Stat>
-        <Stat label="Relics that help" note={filtered ? "Matching the filters" : "From your inventory"}>{crack.length}</Stat>
-        <Stat extra label="Sets with no relic" tone="dim" note="None of your relics drop what's missing: buy the part or farm relics">{uncovered.length}</Stat>
+        <Stat label="Sets close to done" note={`${settings.maxMissing === 1 ? "One part" : `Up to ${settings.maxMissing} parts`} away${filtered ? ", matching the filters" : ""}`}><Count value={gaps.length} /></Stat>
+        <Stat label="One part away" tone="gold" note="A single drop completes them"><Count value={lastParts.length} /></Stat>
+        <Stat label="Relics that help" note={filtered ? "Matching the filters" : "From your inventory"}><Count value={crack.length} /></Stat>
+        <Stat extra label="Sets with no relic" tone="dim" note="None of your relics drop what's missing: buy the part or farm relics"><Count value={uncovered.length} /></Stat>
       {:else}
         <Stat label="Best gain" tone="gold" note={radiant[0] ? `${radiant[0].base}${filtered ? ", of the relics matching the filters" : ""}` : "—"}>
-          {#if radiant[0]}{#if unit(radiant[0].gain)}+{unit(radiant[0].gain)}{:else}+<P v={Math.round(radiant[0].gain * 10) / 10} d={metric === "ducats"} big />{/if}{:else}—{/if}
+          {#if radiant[0]}{#if unit(radiant[0].gain)}+{unit(radiant[0].gain)}{:else}+<PTick v={Math.round(radiant[0].gain * 10) / 10} d={metric === "ducats"} />{/if}{:else}—{/if}
         </Stat>
         <Stat label="Your traces, spent best" note={spend.copies ? `Refining your top ${spend.copies} cop${spend.copies === 1 ? "y" : "ies"}${filtered ? " matching the filters" : ""}${metric === "need" ? `: ${spend.copies === 1 ? "its gain" : "their gains"} in chance of a part you need, added up` : ""}` : "Not enough traces to refine one"}>
-          {#if !spend.copies}—{:else if unit(spend.total)}+{unit(spend.total)}{:else}+<P v={Math.round(spend.total * 10) / 10} d={metric === "ducats"} big />{/if}
+          {#if !spend.copies}—{:else if unit(spend.total)}+{unit(spend.total)}{:else}+<PTick v={Math.round(spend.total * 10) / 10} d={metric === "ducats"} />{/if}
         </Stat>
       {/if}
     {/snippet}

@@ -23,7 +23,8 @@
   import CodexRings from "../ui/CodexRings.svelte";
   import { codexRings, starredBy } from "../core/codex";
   import type { Group } from "../core/collection";
-  import { calm } from "../motion";
+  import { arrive, calm, flip, leave, pulse } from "../motion";
+  import Count from "../ui/Count.svelte";
 
   let { model, settings = $bindable(), go = null }: { model: Model; settings: Settings; go?: ((to: string) => void) | null } = $props();
 
@@ -57,10 +58,18 @@
     return same.find((c) => settings.favourites.includes(c.uniqueName)) ?? same[0] ?? null;
   });
   const already = $derived(!!pick && settings.favourites.includes(pick.uniqueName));
+  // What you just added: its card comes in with a gold edge for a second, and is brought into view.
+  let added = $state<string | null>(null);
+  let addedTimer: ReturnType<typeof setTimeout> | undefined;
   function add() {
     if (!pick || already) return;
-    settings.favourites = [pick.uniqueName, ...settings.favourites];
+    const u = pick.uniqueName;
+    settings.favourites = [u, ...settings.favourites];
     adding = "";
+    added = u;
+    clearTimeout(addedTimer);
+    addedTimer = setTimeout(() => added === u && (added = null), 1100);
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(`.wish[data-unique="${CSS.escape(u)}"]`)?.scrollIntoView({ block: "nearest", behavior: calm.current ? "auto" : "smooth" }));
   }
   // Taking something off the wishlist waits a few seconds, with Undo, before it's done.
   const undo = new UndoSlots();
@@ -85,12 +94,34 @@
   const rings = $derived(codexRings(model));
   const marks = $derived(starredBy(model, settings.favourites));
   const pickRing = (g: Group) => (marks[g] ? jump(g) : go?.(`foundry?group=${g}&show=todo`));
-  /** A ring's click: to the first thing you starred in that category. */
+  /**
+   * A ring's click: to the first thing you starred in that category, which flashes gold (motion.ts,
+   * pulse) so you see which it is: at once when it's already on screen, else once the scroll lands.
+   */
   function jump(g: Group) {
     const el = document.querySelector<HTMLElement>(`.wish[data-groups~="${g}"]`);
     if (!el) return;
-    el.scrollIntoView({ behavior: calm.current ? "auto" : "smooth", block: "start" });
     el.querySelector<HTMLElement>("button.nm")?.focus({ preventScroll: true });
+    const r = el.getBoundingClientRect();
+    const page = el.closest<HTMLElement>(".page")?.getBoundingClientRect();
+    const seen = r.top >= (page?.top ?? 0) && r.top + Math.min(r.height, 160) <= (page?.bottom ?? innerHeight);
+    if (seen || calm.current) {
+      if (!seen) el.scrollIntoView({ block: "start" });
+      pulse(el);
+      return;
+    }
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    // Once the scroll lands (scrollend, or a moment for a window without it).
+    const scroller = el.closest<HTMLElement>(".page") ?? window;
+    let done = false;
+    const land = () => {
+      if (done) return;
+      done = true;
+      scroller.removeEventListener("scrollend", land);
+      pulse(el);
+    };
+    scroller.addEventListener("scrollend", land, { once: true });
+    setTimeout(land, 700);
   }
   // The next thing to do: what's ready to build, else what's closest (fewest parts missing).
   const nextLine = $derived.by(() => {
@@ -114,10 +145,10 @@
 
 <!-- The band only once something is starred: four zeros say nothing. -->
 {#snippet band()}
-  <Stat label="Wished for" note="Star anything in Foundry, Mastery or its details">{items.length}</Stat>
-  <Stat label="Parts missing" tone="dim" note="Across everything you starred">{missingCount}</Stat>
-  <Stat extra label="Relics you hold" note="That drop one of those parts">{relicsHeld}</Stat>
-  <Stat keep label="Crack now" tone="gold" note={crackNow.length ? crackNow.map((c) => c.era).join(", ") + " fissures open" : "No matching fissure open"}>{crackNow.length}</Stat>
+  <Stat label="Wished for" note="Star anything in Foundry, Mastery or its details"><Count value={items.length} /></Stat>
+  <Stat label="Parts missing" tone="dim" note="Across everything you starred"><Count value={missingCount} /></Stat>
+  <Stat extra label="Relics you hold" note="That drop one of those parts"><Count value={relicsHeld} /></Stat>
+  <Stat keep label="Crack now" tone="gold" note={crackNow.length ? crackNow.map((c) => c.era).join(", ") + " fissures open" : "No matching fissure open"}><Count value={crackNow.length} /></Stat>
 {/snippet}
 
 {#snippet codex()}<CodexRings {rings} {marks} onpick={pickRing} action={(r) => (marks[r.group] ? `Click to go to the first one you starred` : `Nothing starred here: click to pick from the ${r.label.toLowerCase()} you haven't mastered, on Foundry`)} line={items.length ? nextLine : "Click a category to pick from what you haven't mastered in it, on Foundry"} />{/snippet}
@@ -154,11 +185,14 @@
     </section>
   {:else}
     <div class="list">
+      <!-- Each card in a slot that arrives when you add it and, once its Undo runs out, leaves while
+           the cards below close up (motion.ts). Undo brings the card back in. -->
       {#each items as w (w.c.unique)}
+        <div class="wslot" in:arrive out:leave animate:flip>
         {#if undo.has(w.c.unique)}
           <article class="wish ghost"><UndoSlot label="Removed from your wishlist" what={w.c.name} onundo={() => undo.undo(w.c.unique)} /></article>
         {:else}
-        <article class="wish" class:done={!w.missing.length} data-groups={w.c.groups.join(" ")}>
+        <article class="wish" class:done={!w.missing.length} class:new={added === w.c.unique} data-unique={w.c.unique} data-groups={w.c.groups.join(" ")} in:arrive={{ y: 3 }}>
           <div class="who">
             <button class="art" onclick={() => details.open(w.c.unique)} aria-label="{w.c.name}: details" use:info={w.c.name}><Art file={w.c.image} size={96} fallback="foundry" /></button>
             <div class="wt">
@@ -219,6 +253,7 @@
           {/if}
         </article>
         {/if}
+        </div>
       {/each}
     </div>
   {/if}
@@ -238,6 +273,11 @@
   .era li { display: flex; gap: .35rem; align-items: baseline; flex-wrap: wrap; }
   .list { display: grid; gap: .9rem; }
   .wish { border: 1px solid var(--rule); background: linear-gradient(180deg, #14161a, var(--plate) 40%); clip-path: var(--cut); padding: .9rem 1rem; display: grid; grid-template-columns: minmax(18rem, 24rem) 1fr; gap: 1.2rem; align-items: start; }
+  .wslot { min-width: 0; }
+  /* Just added: a gold edge that fades over a second. A colour, so it shows with reduced motion too. */
+  .wish.new { animation: wish-new 1s ease-out; }
+  @keyframes wish-new { 0%, 45% { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold), inset 0 0 24px rgb(214 174 74 / 14%); } 100% { border-color: var(--rule); box-shadow: inset 0 0 0 1px transparent, inset 0 0 24px transparent; } }
+  @media (prefers-reduced-motion: reduce) { .wish.new { animation-duration: 1s !important; } }
   .wish.ghost { display: block; padding: .4rem 0; border-color: transparent; background: none; clip-path: none; }
   .wish.done { grid-template-columns: 1fr; }
   /* Page area under 950 px (App sets the flag, by the room pages actually have). */
