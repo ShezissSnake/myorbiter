@@ -160,7 +160,8 @@ function WindowControls() {
 
 function App() {
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null)
-  const [selectedMode, setSelectedMode] = useState<AccessMode>('full')
+  // Overlay first: Full (reading the game's memory) is chosen, never preselected (orbiter's change).
+  const [selectedMode, setSelectedMode] = useState<AccessMode>('overlay')
   const [modeBusy, setModeBusy] = useState(false)
   const [modeError, setModeError] = useState<string | null>(null)
   const [view, setView] = useState<AppView | null>(null)

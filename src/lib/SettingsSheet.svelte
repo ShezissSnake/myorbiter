@@ -8,6 +8,7 @@
   import Icon from "./ui/Icon.svelte";
   import { flip } from "./motion";
   import WeightSliders from "./ui/WeightSliders.svelte";
+  import FullMode from "./FullMode.svelte";
 
   let {
     open = $bindable(),
@@ -134,10 +135,11 @@
     <Switch bind:on={settings.tennoscope.launch} label="Start TennoScope with orbiter">
       In the background, with no window of its own, and closed again when you close orbiter. A TennoScope you start yourself is left alone.
     </Switch>
+    <FullMode kind="switch" />
     <label class="field">
       <span class="register">Program</span>
       <input class="path" bind:value={tsPath} title={tsPath || undefined} placeholder={ts.status?.binary ? `Found: ${ts.status.binary}` : "Not found"} spellcheck="false" />
-      <span class="hint">Empty finds it: the copy inside orbiter, then (in a development build) one built in orbiter's tennoscope/ folder, then one in ~/dev/projects/tennoscope, then an installed one. A path here must be the full path to a program named tennoscope, tennoscope.exe or TennoScope….AppImage.</span>
+      <span class="hint">Empty finds it: the copy inside orbiter, then (in a development build) one built in orbiter's tennoscope/ folder or an older checkout in your home folder, then an installed one. A path here must be the full path to a program named tennoscope or tennoscope.exe, or a TennoScope AppImage.</span>
       {#if tsChanged && tsPath.trim()}<span class="hint warn">orbiter will run this program as TennoScope from now on, each time it starts. Use only a TennoScope you built or downloaded yourself. Apply to confirm.</span>{/if}
       {#if tsError}<span class="hint err">Not changed: {tsError}</span>{/if}
     </label>
@@ -191,7 +193,7 @@
         <span class="register">Riven key</span>
         <input type="text" placeholder="None (e.g. Ctrl+Shift+R or F9)" value={settings.overlay.rivenKey} onchange={(e) => (settings.overlay.rivenKey = e.currentTarget.value.trim())} aria-label="Riven key" />
       </label>
-      <p class="dim small">Pressed in game at the cycle screen, TennoScope reads your inventory (it needs Full access) and the two rolls show over the game a few seconds later, no switching windows. On Linux it works while the game has focus; a key another app holds can't be had.{#if rivenKeyError}{" "}<span class="err">Couldn't set it: {rivenKeyError}</span>{/if}</p>
+      <p class="dim small">Pressed in game at the cycle screen, TennoScope reads your inventory (it needs Full mode) and the two rolls show over the game a few seconds later, no switching windows. On Linux it works while the game has focus; a key another app holds can't be had.{#if rivenKeyError}{" "}<span class="err">Couldn't set it: {rivenKeyError}</span>{/if}</p>
     {/if}
     <Switch bind:on={settings.overlay.kiosk} label="Baro's Ducat Kiosk">
       On each Prime part in the kiosk: its plat, or how many more you need while its item isn't mastered.

@@ -1,6 +1,6 @@
 import { useRef, type KeyboardEvent } from 'react'
 import type { AccessMode } from './backend'
-import { ACCESS_MODES, ALWAYS_OFF, accessGrantedBetween, accessLevel, accessMode } from './access'
+import { ACCESS_MODES, ALWAYS_OFF, FULL_ACCESS_WARNING, accessGrantedBetween, accessLevel, accessMode } from './access'
 
 interface AccessSelectorProps {
   value: AccessMode
@@ -89,6 +89,8 @@ export function AccessSelector({ value, onChange, effectiveMode = null, onConfir
         {onConfirmUpgrade && <button type="button" className="stamp" onClick={onConfirmUpgrade} disabled={disabled} aria-busy={disabled}>{disabled ? `Applying ${selected.name}…` : `Confirm ${selected.name}`}</button>}
       </div>}
     </article>
+
+    {value === 'full' && (isFirstRun || reviewingUpgrade) && <p className="access-warning" role="note">{FULL_ACCESS_WARNING}</p>}
 
     <section className="access-always-off" aria-label="Always prohibited">
       <h3>Always prohibited, at every level</h3>
