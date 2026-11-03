@@ -306,6 +306,24 @@ export function heldFor(m: Model, item: MarketItem, o: { rank: number | null; su
     .reduce((n, h) => n + h.count, 0);
 }
 
+/**
+ * Listings for more than you hold now (as of the last inventory read): sold or used in game. Split
+ * as every page counts them: `shown`, which a buyer can find and be let down by (Home, the sidebar's
+ * badge, Orders' figure), and `hidden`, which nobody can buy but still ask "Sold?" on Orders. A
+ * listing whose holding can't be told (`held` gives null) is neither, nor is a buy order.
+ */
+export function overListed<T extends { visible: boolean; quantity: number; type?: string }>(orders: readonly T[], held: (o: T) => number | null): { shown: T[]; hidden: T[] } {
+  const shown: T[] = [];
+  const hidden: T[] = [];
+  for (const o of orders) {
+    if (o.type === "buy") continue;
+    const n = held(o);
+    if (n == null || n >= o.quantity) continue;
+    (o.visible ? shown : hidden).push(o);
+  }
+  return { shown, hidden };
+}
+
 type Holding = { rank: number | null; subtype: string | null; count: number };
 
 /** What you hold of a market item, by rank and variant; [] when you hold none; null when unknown. */

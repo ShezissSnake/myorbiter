@@ -14,7 +14,7 @@
   import Icon from "../ui/Icon.svelte";
   import IconButton from "../ui/IconButton.svelte";
   import Chip from "../ui/Chip.svelte";
-  import { heldFor, knownName } from "../core/market";
+  import { heldFor, knownName, overListed } from "../core/market";
   import { exportFile, market as wfm } from "../backend";
   import { salesCsv } from "../core/exportCsv";
   import { importClosed } from "../core/closedOrders";
@@ -188,7 +188,8 @@
   const underCount = $derived(month.filter((s) => (ratio(s) ?? 1) < UNDER).length);
   // What sold three or more times in 30 days: worth keeping listed, and listing more copies of.
   /** Listings for more than you hold now: Orders asks "Sold?" under each, and a Yes logs the sale here. */
-  const maybeSold = $derived(mkt.orders.filter((o) => { const it = mkt.item(o.itemId); const n = it ? heldFor(model, it, o) : null; return n != null && n < o.quantity; }).length);
+  const over = $derived(overListed(mkt.orders, (o) => { const it = mkt.item(o.itemId); return it ? heldFor(model, it, o) : null; }));
+  const maybeSold = $derived(over.shown.length + over.hidden.length);
   const OFTEN = 3;
   const fast = $derived(new Set([...month.reduce((m, s) => m.set(s.item, (m.get(s.item) ?? 0) + s.quantity), new Map<string, number>())].filter(([, n]) => n >= OFTEN).map(([k]) => k)));
 </script>

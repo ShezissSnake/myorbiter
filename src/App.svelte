@@ -20,7 +20,7 @@
   import { mergeLogged, recordScreen, resolvePicks } from "./lib/core/relicRuns";
   import { dropBuilding, dropCounts, laterClaims, recentDrops, recordRead } from "./lib/core/drops";
   import { drops } from "./lib/drops.svelte";
-  import { heldFor } from "./lib/core/market";
+  import { heldFor, overListed } from "./lib/core/market";
   import type { Bundle, Live, MissionState } from "./lib/core/types";
   import {
     dataStamp,
@@ -747,12 +747,10 @@
   /** Visible listings for more than you hold now (as of TennoScope's last read): sold, or used. */
   const shortListings = $derived(
     model
-      ? mkt.orders.filter((o) => {
+      ? overListed(mkt.orders, (o) => {
           const it = mkt.item(o.itemId);
-          if (!it || !o.visible) return false;
-          const held = heldFor(model, it, o);
-          return held != null && held < o.quantity;
-        })
+          return it ? heldFor(model, it, o) : null;
+        }).shown
       : [],
   );
   // A listing for more than you now hold (you sold or used some in game): said once per listing and

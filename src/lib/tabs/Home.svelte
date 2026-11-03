@@ -7,7 +7,7 @@
   import type { Live, MissionState } from "../core/types";
   import type { Settings } from "../backend";
   import { defaultAdvice } from "../backend";
-  import { heldFor, type MyOrder } from "../core/market";
+  import { heldFor, overListed, type MyOrder } from "../core/market";
   import { mkt } from "../marketStore.svelte";
   import { masteryRows, relicRows, type RelicRow } from "../core/views";
   import { sellTargets, KIND_LABEL, BULK_KINDS, RULE_OF, type BulkKind } from "../core/bulk";
@@ -70,7 +70,7 @@
   const listed = $derived(orders.filter((o) => o.visible).reduce((n, o) => n + o.platinum * o.quantity, 0));
   const hiddenCount = $derived(orders.filter((o) => !o.visible).length);
   /** Hidden listings for more than you hold: nobody can buy them, so they're beside the count, not in it. */
-  const hiddenShort = $derived(console ? 0 : orders.filter((o) => { const it = !o.visible ? mkt.item(o.itemId) : undefined; const n = it ? heldFor(model, it, o) : null; return n != null && n < o.quantity; }).length);
+  const hiddenShort = $derived(console ? 0 : overListed(orders, (o) => { const it = mkt.item(o.itemId); return it ? heldFor(model, it, o) : null; }).hidden.length);
   const DAY = 86_400_000;
   // The daily trade limit (core/tradeLimit.ts): trades today against your rank's worth.
   const trades = $derived(tradeAllowance(settings.market.trades, settings.game.masteryRank, now));
