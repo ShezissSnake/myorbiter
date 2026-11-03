@@ -106,6 +106,9 @@
   import TennoscopeSheet from "./lib/TennoscopeSheet.svelte";
   import Icon from "./lib/ui/Icon.svelte";
   import IconButton from "./lib/ui/IconButton.svelte";
+  import ProgressButton from "./lib/ui/ProgressButton.svelte";
+  import { Job, JobError } from "./lib/job.svelte";
+  import { syncFill, waitForNewRead } from "./lib/core/syncWait";
   import RepButton from "./lib/ui/RepButton.svelte";
   import GameIcon from "./lib/ui/GameIcon.svelte";
   import { drawnOrder, orderPages, pagesFor, migrateTab, sectionsOf, type Page } from "./lib/pages";
@@ -1463,23 +1466,56 @@
     return () => clearInterval(t);
   });
 
-  /** Refresh: ask TennoScope to read the inventory from the game when it can, then re-read its files. */
-  let syncing = $state(false);
-  async function refreshAll() {
-    const r = ts.report;
-    if (!onConsole && r && r.setup.access_mode === "full" && r.game_running) {
-      syncing = true;
-      await ts.ask("--sync");
-      // The new snapshot lands in TennoScope's folder within a few seconds; the stamp poll and
-      // this delayed reload pick it up.
-      setTimeout(async () => {
-        await reload();
-        syncing = false;
-      }, 6000);
+  /**
+   * Sync: with Warframe running and TennoScope on Full access, TennoScope is asked to read the
+   * inventory from the game, and the sync lasts until that new read lands in its folder (the data
+   * stamp changes), up to half a minute. Otherwise it reloads TennoScope's last saved read and the
+   * live worldstate. Either way the button fills as it goes and says how it ended.
+   */
+  // A failed sync stays a while: its reason is under the button.
+  const syncJob = new Job(undefined, 15_000);
+  let syncButton = $state<{ flash: () => void } | null>(null);
+  const syncMode = $derived(!onConsole && ts.report?.setup.access_mode === "full" && !!ts.report.game_running);
+  /** The sync's step in words, for the button's tooltip (the button itself has a word for it). */
+  let syncStep = $state<string | null>(null);
+  function refreshAll() {
+    // Already at it (Ctrl+R again): the button flashes rather than the key doing nothing.
+    if (syncJob.working) {
+      syncButton?.flash();
+      return;
     }
-    reload();
-    refreshLive();
-    if (onConsole && mkt.linked) void mkt.reload();
+    void syncJob.run(async (j) => {
+      try {
+        if (syncMode) {
+          j.phase = "Asking…";
+          syncStep = "Asking TennoScope to read your inventory";
+          j.fraction = 0.05;
+          // What's there now, so the new read is known when it lands.
+          const before = await dataStamp(settings.dataDir).catch(() => stamp);
+          await ts.ask("--sync");
+          if (ts.error) throw new Error(ts.error);
+          void refreshLive();
+          j.phase = "Waiting…";
+          syncStep = "Waiting for TennoScope's new read";
+          j.fraction = syncFill(0);
+          await waitForNewRead(() => dataStamp(settings.dataDir), before, { abort: () => ts.error, onTick: (ms) => (j.fraction = syncFill(ms)) });
+          j.phase = "Reading…";
+          syncStep = "Reading the new inventory";
+          j.fraction = 0.9;
+          await reload();
+          if (error) throw new JobError("Not read", loadProblem(error));
+          j.fraction = 1;
+          return "Synced";
+        }
+        j.phase = "Reading…";
+        syncStep = "Reloading TennoScope's saved data and the live worldstate";
+        await Promise.all([reload(), refreshLive(), onConsole && mkt.linked ? mkt.reload() : null]);
+        if (error) throw new JobError("Not read", loadProblem(error));
+        return "Up to date";
+      } finally {
+        syncStep = null;
+      }
+    });
   }
 
   // ---------------------------------------------------------------- keyboard, like a desktop app
@@ -1541,7 +1577,7 @@
     }
     if ((ctrl && e.key.toLowerCase() === "r") || e.key === "F5") {
       e.preventDefault();
-      if (!loading && !syncing) refreshAll();
+      refreshAll();
       return;
     }
     if (ctrl && e.key === ",") {
@@ -1880,14 +1916,13 @@
         <span class="lbl"><strong>{inFissure(mission, tick) ? "In a fissure" : mission ? "Watching" : "Idle"}</strong><small>{inFissure(mission, tick) ? (mission?.mission ?? "") : model ? `Synced ${ago(model.observedAt, tick)}` : "No data yet"}</small></span>
       </div>{/if}
       <div class="syncrow">
-      <button class="stamp sync" onclick={refreshAll} disabled={loading || syncing}
-        title={onConsole ? "Reload your warframe.market listings, the fissures and Baro (Ctrl+R)" : ts.report?.setup.access_mode === "full" && ts.report.game_running ? "Ask TennoScope to read your inventory from the game, then reload (Ctrl+R)" : "Reload TennoScope's saved data and the live fissures (Ctrl+R)"}>
-        <Icon name="refresh" size={12} />
-        <span class="lbl">{syncing ? "Syncing…" : loading ? "Reading…" : !onConsole && ts.report?.setup.access_mode === "full" && ts.report.game_running ? "Sync" : "Refresh"}</span>
-      </button>
+      <ProgressButton bind:this={syncButton} class="sync" job={syncJob} busy={loading && !bundle} icon="refresh" spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} sizer={["Waiting…", "Up to date", "Not synced"]}
+        title={`${syncStep ? `${syncStep}…\n\n` : ""}${onConsole ? "Reload your warframe.market listings, the fissures and Baro" : syncMode ? "Sync: ask TennoScope to read your inventory from the game now, and wait for the new read" : "Sync: reload TennoScope's last saved read and the live fissures. With Warframe running and TennoScope on Full access, it asks TennoScope for a fresh read from the game instead"} (Ctrl+R)`}
+        onclick={refreshAll} />
         {#if model && !onConsole}<button class="tool" aria-label="Find anything" aria-expanded={showLookup} title="Find anything by name: an item, a prime part, a relic, a mod or arcane you hold (Ctrl+K)" onclick={() => (showLookup = true)}><Icon name="search" size={14} /></button>{/if}
         <button class="tool bell" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what orbiter told you, and what it tells you about` : unread ? `Notifications: ${unread} new` : "Notifications: what orbiter told you, and what it tells you about"} onclick={() => openNotices("recent")}><Icon name="bell" size={14} />{#if unread}<span class="count">{unread > 99 ? "99+" : unread}</span>{/if}</button>
       </div>
+      {#if syncJob.state === "failed" && syncJob.error}<p class="syncerr" role="status">{syncJob.error}</p>{/if}
       <div class="tools">
         {#if ts.status && !noTennoScope}
           <button class="tool tsbtn tone-{tsTone}" aria-label="TennoScope" title={tsTone === "ok" ? "TennoScope: status, inventory sync, screen capture" : tsTone === "bad" ? "TennoScope: not running, or something failed. Open for details" : "TennoScope: something needs a look. Open for details"} onclick={() => (showTennoscope = true)}>
@@ -1900,9 +1935,11 @@
     </div>
   </aside>
 
-  <main aria-busy={loading || syncing || !!mkt.op} use:room>
-    <!-- Something you started is working: reading TennoScope, syncing, a warframe.market change. -->
-    {#if loading || syncing || mkt.op}<div class="progress" role="progressbar" aria-label={mkt.op ? `warframe.market: ${mkt.op}` : syncing ? "Syncing" : "Loading"}></div>{/if}
+  <main aria-busy={loading && !bundle} use:room>
+    <!-- The first read of TennoScope's data, before there's anything to show. Everything after
+         that (a sync, a warframe.market change, the background re-read when TennoScope writes)
+         shows its progress in the button that started it, not up here. -->
+    {#if loading && !bundle}<div class="progress" role="progressbar" aria-label="Reading TennoScope's data"></div>{/if}
     {#if !model && error && nothingYet(error)}
       <!-- First start: nothing read yet. What TennoScope needs, step by step. -->
       <div class="page-inner"><div class="notice">
@@ -2002,23 +2039,23 @@
         {#if visited[id] && available.some((p) => p.id === id)}<div class="pane" class:shown={settings.tab === id}>{@render body()}</div>{/if}
       {/snippet}
       {#snippet pMission()}<InMission {model} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} {windowMode} tennoscopeRunning={!!ts.status?.running} onsettings={() => (showSettings = true)} />{/snippet}
-      {#snippet pSets()}{#await loadSets(lazyTry) then { default: Page }}<Page {model} advice={settings.advice} sell={settings.market.sellable} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pSets()}{#await loadSets(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} advice={settings.advice} sell={settings.market.sellable} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pParts()}<Parts {model} bind:advice={settings.advice} sell={settings.market.sellable} />{/snippet}
-      {#snippet pMastery()}{#await loadMastery(lazyTry) then { default: Page }}<Page {model} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pArcanes()}{#await loadArcanes(lazyTry) then { default: Page }}<Page {model} bind:advice={settings.advice} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pMods()}{#await loadMods(lazyTry) then { default: Page }}<Page {model} masteryRank={settings.game.masteryRank} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pMastery()}{#await loadMastery(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pArcanes()}{#await loadArcanes(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} bind:advice={settings.advice} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pMods()}{#await loadMods(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} masteryRank={settings.game.masteryRank} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pRelics()}<Relics {model} bind:advice={settings.advice} wishlist={settings.favourites} />{/snippet}
-      {#snippet pPlanner()}{#await loadPlanner(lazyTry) then { default: Page }}<Page {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pPlanner()}{#await loadPlanner(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pHome()}<Home {model} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => goTo(t)} {shortListings} {liveAt} {liveError} {liveRead} bountyTables={relicTables?.bounties ?? null} sortieRewards={relicTables?.sortie ?? null} />{/snippet}
-      {#snippet pSales()}{#await loadSales(lazyTry) then { default: Page }}<Page {model} bind:settings={settings} go={(t: string) => (settings.tab = t)} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pSales()}{#await loadSales(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} bind:settings={settings} go={(t: string) => (settings.tab = t)} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pMarket()}<Orders {model} console={onConsole} bind:settings={settings.market} advice={settings.advice} masteryRank={settings.game.masteryRank} />{/snippet}
-      {#snippet pGuide()}{#await loadGuide(lazyTry) then { default: Page }}<Page console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} go={(t: string) => (settings.tab = t)} bind:plannerMode={settings.plannerMode} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pGuide()}{#await loadGuide(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} go={(t: string) => (settings.tab = t)} bind:plannerMode={settings.plannerMode} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pFoundry()}<Foundry {model} bind:settings={settings} />{/snippet}
       {#snippet pInventory()}<Inventory {model} sell={settings.market.sellable} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad} gear={settings.game.gear} bind:keepGear={settings.game.keepGear} />{/snippet}
-      {#snippet pBrowse()}{#await loadMarket(lazyTry) then { default: Page }}<Page {model} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pWishlist()}{#await loadWishlist(lazyTry) then { default: Page }}<Page {model} bind:settings={settings} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pRivens()}{#await loadRivens(lazyTry) then { default: Page }}<Page {model} console={onConsole} bind:settings={settings} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pStats()}{#await loadStats(lazyTry) then { default: Page }}<Page {model} {settings} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pBrowse()}{#await loadMarket(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pWishlist()}{#await loadWishlist(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} bind:settings={settings} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pRivens()}{#await loadRivens(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} console={onConsole} bind:settings={settings} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pStats()}{#await loadStats(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} {settings} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {@render pane("mission", pMission)}
       {@render pane("sets", pSets)}
       {@render pane("parts", pParts)}
@@ -2055,7 +2092,7 @@
 <Toasts open={openNotice} left={compact ? "5.2rem" : "15.3rem"} />
 <WhatsNew bind:open={showNews} seen={settings.newsSeen} ondone={() => (settings.newsSeen = NEWEST)} />
 <SettingsSheet bind:open={showSettings} bind:settings {rivenKeyError} onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
-<TennoscopeSheet bind:open={showTennoscope} synced={model ? ago(model.observedAt, tick) : "not yet"} {syncing} onsync={refreshAll} {windowMode} bind:opaqueOverlay={settings.tennoscope.opaqueOverlay} />
+<TennoscopeSheet bind:open={showTennoscope} synced={model ? ago(model.observedAt, tick) : "not yet"} job={syncJob} onsync={refreshAll} {windowMode} bind:opaqueOverlay={settings.tennoscope.opaqueOverlay} />
 
 <style>
   /* The frame: a sidebar of pages, and the page. minmax(0, 1fr): a wide table never stretches the window. */
@@ -2071,6 +2108,8 @@
   .progress { position: absolute; top: 0; left: 0; right: 0; height: 2px; z-index: 5; overflow: hidden; pointer-events: none; background: rgb(214 174 74 / 12%); }
   .progress::after { content: ""; position: absolute; top: 0; bottom: 0; width: 30%; background: linear-gradient(90deg, transparent, var(--gold), transparent); animation: sweep 1.1s ease-in-out infinite; }
   @keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+  /* A page still loading its code: one quiet line where it will be. */
+  .lazyload { margin: 0; padding: 3rem 1rem; text-align: center; }
 
   /* ---- sidebar: a dark struck plate, gold hairline on its edge */
   .rail {
@@ -2115,9 +2154,12 @@
   .pill.live + .lbl strong { color: var(--gold); }
   .pill.idle i { clip-path: none; background: var(--platinum-deep); }
   .syncrow { display: flex; gap: .4rem; }
-  .sync { display: flex; justify-content: center; align-items: center; gap: .5rem; flex: 1; min-width: 0; }
+  .syncrow :global(.sync) { display: flex; justify-content: center; align-items: center; gap: .5rem; flex: 1; min-width: 0; }
   /* Every button down here is one height, folded or not. */
-  .sync, .tool { height: 36px; padding-top: 0; padding-bottom: 0; }
+  .syncrow :global(.sync), .tool { height: 36px; padding-top: 0; padding-bottom: 0; }
+  /* Why the last sync failed, under the button (it goes with the button's failed look). */
+  .syncerr { margin: 0; font-size: .7rem; line-height: 1.35; color: var(--oxblood); }
+  .compact .syncerr { display: none; }
   .tools { display: flex; gap: .4rem; }
   .tool { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; padding-left: .6rem; padding-right: .6rem; }
   /* The page that's open (Guide): marked the way the sidebar marks its page, a gold edge, not a white block. */
@@ -2150,9 +2192,10 @@
   .compact .game { justify-content: center; }
   /* Folded: under the game light, Sync across, then the bell, TennoScope, Guide and Settings two by two. */
   .compact .foot { grid-template-columns: 1fr 1fr; gap: .35rem; padding: .6rem .5rem .7rem; }
-  .compact .game, .compact .sync { grid-column: 1 / -1; }
+  .compact .game, .compact :global(.sync) { grid-column: 1 / -1; }
+  .compact :global(.sync .lbls) { display: none; }
   .compact .tools, .compact .syncrow { display: contents; }
-  .compact .sync, .compact .tool { padding-left: 0; padding-right: 0; min-width: 0; }
+  .compact :global(.sync), .compact .tool { padding-left: 0; padding-right: 0; min-width: 0; }
   .compact .tsbtn { justify-content: center; }
   /* A short window: tighter rows, so every page and the tools fit (all 16 folded at 700 px high). */
   @media (max-height: 900px) {

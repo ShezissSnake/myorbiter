@@ -4,17 +4,20 @@
   import { onWindows, type Health, type HealthState } from "./backend";
   import Sheet from "./ui/Sheet.svelte";
   import Switch from "./ui/Switch.svelte";
+  import ProgressButton from "./ui/ProgressButton.svelte";
+  import { Job } from "./job.svelte";
 
-  // `onsync` is the sidebar's Sync: TennoScope reads the inventory, then orbiter reloads it.
+  // `onsync` is the sidebar's Sync: TennoScope reads the inventory, then orbiter reloads it; `job`
+  // is that sync's progress, shown here as on the sidebar's button.
   // `windowMode`: Warframe's display mode from its EE.cfg; `opaqueOverlay`: the Windows setting.
   let {
     open = $bindable(),
     synced,
-    syncing,
+    job,
     onsync,
     windowMode = null,
     opaqueOverlay = $bindable(false),
-  }: { open: boolean; synced: string; syncing: boolean; onsync: () => void; windowMode?: string | null; opaqueOverlay?: boolean } = $props();
+  }: { open: boolean; synced: string; job: Job; onsync: () => void; windowMode?: string | null; opaqueOverlay?: boolean } = $props();
   const MODE_WORD: Record<string, string> = { MODE_BORDERLESS: "Borderless", MODE_FULLSCREEN: "Fullscreen (exclusive)", MODE_WINDOWED: "Windowed" };
   /** On Windows nothing can draw over exclusive fullscreen: the overlay can't show at all. */
   const blocksOverlay = $derived(onWindows && windowMode === "MODE_FULLSCREEN");
@@ -48,6 +51,37 @@
   const canSync = $derived(!!r && r.setup.access_mode === "full" && r.game_running);
   const recentError = $derived(r?.last_error && Date.now() - r.last_error.at < 60_000 ? r.last_error.message : null);
   const dot = (h: Health) => h.state;
+
+  // Start, Open and Allow show they're working until TennoScope has done it (or said why not).
+  const startJob = new Job();
+  const openJob = new Job();
+  const allowJob = new Job();
+  /** Waits until `ok()` holds, looking twice a second, for up to `ms`. */
+  async function until(ok: () => boolean, ms: number): Promise<boolean> {
+    for (let t = 0; t < ms && !ok(); t += 500) await new Promise((r) => setTimeout(r, 500));
+    return ok();
+  }
+  const start = () =>
+    startJob.run(async () => {
+      await ts.check(true, true);
+      // A check already under way runs the start right after it; the sheet looks every few seconds.
+      if (!(await until(() => ts.running, 12_000))) throw new Error(ts.error ?? "TennoScope didn't start: check its program in Settings");
+      return "Started";
+    });
+  const openWindow = () =>
+    openJob.run(async () => {
+      await ts.show();
+      if (ts.error) throw new Error(ts.error);
+      return "Opened";
+    });
+  const allow = () =>
+    allowJob.run(async () => {
+      await ts.ask("--authorize-capture");
+      if (ts.error) throw new Error(ts.error);
+      // Its report says when the desktop's question has been asked (or answered).
+      await until(() => ts.pending !== "--authorize-capture", 10_000);
+      return "Asked";
+    });
 </script>
 
 <Sheet bind:open title="TennoScope" kicker="Runs alongside orbiter">
@@ -61,7 +95,7 @@
       <p class="prose">
         {#if ts.status.binary}orbiter starts it in the background when it opens. Start it now, or check Settings if it keeps stopping.{:else}orbiter couldn't find TennoScope. Set its program in Settings.{/if}
       </p>
-      {#if ts.status.binary}<div><button class="stamp" onclick={() => ts.check(true, true)}>Start TennoScope</button></div>{/if}
+      {#if ts.status.binary}<div><ProgressButton job={startJob} label="Start TennoScope" working="Starting…" failLabel="Didn't start" status title="Start TennoScope in the background now" onclick={start} /></div>{/if}
     {:else}
       <div class="line">
         <i class="dot ready"></i>
@@ -69,7 +103,7 @@
         <span class="dim small">{ts.status.started_by_orbiter ? `orbiter started ${ts.status.bundled ? "the copy inside it" : "it"} and closes it when you close orbiter` : "you started it; orbiter leaves it running"}</span>
       </div>
       <div class="row">
-        <button onclick={() => ts.show()}>Open its window</button>
+        <ProgressButton job={openJob} stamp={false} label="Open its window" working="Opening…" failLabel="Couldn't open" status title="Bring TennoScope's own window up" onclick={openWindow} />
       </div>
     {/if}
     {#if ts.error}<p class="err small">{ts.error}</p>{/if}
@@ -88,7 +122,7 @@
       <section class="callout gold">
         <h3 class="register">Allow screen capture</h3>
         <p class="prose">TennoScope can't see the reward screen yet, so there's no overlay and orbiter gets no cards. Your desktop asks once which screen it may read.</p>
-        <div><button class="stamp gold" disabled={ts.pending === "--authorize-capture"} onclick={() => ts.ask("--authorize-capture")}>Allow screen capture</button></div>
+        <div><ProgressButton job={allowJob} tone="gold" label="Allow screen capture" working="Asking…" failLabel="Couldn't ask" status title="Ask TennoScope to request screen capture: your desktop asks which screen it may read" onclick={allow} /></div>
       </section>
     {/if}
 
@@ -116,12 +150,12 @@
       </div>
       <p class="dim small">{access?.note ?? "Open TennoScope's window once to choose what it may read."}</p>
       <div class="row">
-        <button class="stamp" disabled={!canSync || syncing} onclick={onsync}>{syncing ? "Syncing…" : "Sync inventory now"}</button>
+        <ProgressButton {job} label="Sync inventory now" working={job.phase ? `Syncing: ${job.phase.toLowerCase()}` : "Syncing…"} failLabel="Not synced" sizer={["Syncing: waiting…"]} status disabled={!canSync} title="Ask TennoScope to read your inventory from the game now; done when the new read has arrived" onclick={onsync} />
         <span class="dim small">
           {#if r.setup.access_mode !== "full"}Needs Full access.{:else if !r.game_running}Works while Warframe is running.{:else}After trading, crafting or opening relics.{/if}
         </span>
       </div>
-      {#if !r.setup.setup_complete || !r.setup.access_mode}<div><button onclick={() => ts.show()}>Choose access in TennoScope</button></div>{/if}
+      {#if !r.setup.setup_complete || !r.setup.access_mode}<div><ProgressButton job={openJob} stamp={false} label="Choose access in TennoScope" working="Opening…" failLabel="Couldn't open" status title="Open TennoScope's window, where it asks what it may read" onclick={openWindow} /></div>{/if}
     </section>
 
     <section>
