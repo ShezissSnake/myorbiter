@@ -55,6 +55,11 @@
         "depends": []
       }
     },
-    "license": "GPL-3.0-only"
+    "license": "GPL-3.0-only",
+    "resources": {
+      "../LICENSE": "LICENSE",
+      "../NOTICE.md": "NOTICE.md",
+      "../THIRD-PARTY-NOTICES/": "THIRD-PARTY-NOTICES/"
+    }
   }
 }

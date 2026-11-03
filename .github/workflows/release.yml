@@ -164,7 +164,7 @@ jobs:
           mkdir -p vendor/tennoscope
           cp tennoscope/target/release/bundle/appimage/*.AppImage vendor/tennoscope/TennoScope.AppImage
           chmod +x vendor/tennoscope/TennoScope.AppImage
-          cp tennoscope/LICENSE vendor/tennoscope/LICENSE
+          # Its licence, its notices and its Tesseract's, and NOTICE.md (where its source is).
           scripts/tennoscope-notice.sh vendor/tennoscope
 
       - name: Build orbiter
@@ -236,7 +236,7 @@ jobs:
           mkdir -p vendor/tennoscope/tesseract
           cp tennoscope/target/release/tennoscope.exe vendor/tennoscope/
           cp -r tennoscope/app/src-tauri/vendor/tesseract/* vendor/tennoscope/tesseract/
-          cp tennoscope/LICENSE vendor/tennoscope/LICENSE
+          # Its licence, its notices and its Tesseract's, and NOTICE.md (where its source is).
           scripts/tennoscope-notice.sh vendor/tennoscope
 
       - name: Build orbiter

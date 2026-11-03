@@ -58,3 +58,15 @@ Copy-Item (Join-Path $staging 'tessdata/osd.traineddata') $vendor
 $probe = & (Join-Path $vendor 'tesseract.exe') --tessdata-dir $vendor --version
 if ($LASTEXITCODE -ne 0) { throw 'the vendored tesseract does not run' }
 Write-Host $probe
+
+# Their notices, in licenses/ beside them: Tesseract's licence and authors from the installer,
+# Leptonica's licence and the table of every DLL's project and licence
+# (packaging/windows-tesseract/), and the list of the DLLs copied here.
+$licenses = Join-Path $vendor 'licenses'
+New-Item -ItemType Directory -Force -Path $licenses | Out-Null
+Copy-Item (Join-Path $staging 'doc/LICENSE') (Join-Path $licenses 'tesseract-LICENSE.txt')
+Copy-Item (Join-Path $staging 'doc/AUTHORS') (Join-Path $licenses 'tesseract-AUTHORS.txt')
+Copy-Item (Join-Path $root 'packaging/windows-tesseract/*') $licenses
+$dlls = Get-ChildItem -LiteralPath $vendor -Filter '*.dll' | Sort-Object Name | ForEach-Object { $_.Name }
+@("From UB Mannheim's tesseract-ocr-w64-setup-$version.exe (SHA-256 $sha256):", 'tesseract.exe') + $dlls |
+  Set-Content -LiteralPath (Join-Path $licenses 'DLLS.txt') -Encoding utf8
