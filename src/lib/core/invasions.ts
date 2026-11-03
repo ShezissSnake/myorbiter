@@ -3,6 +3,7 @@
 // parts (Dera Vandal, Twin Vipers Wraith…), the only regular way to get those.
 import { masteryPoints } from "./acquire";
 import type { Model } from "./model";
+import { RARE_REWARD } from "./worldNeeds";
 
 export interface InvasionReward {
   uniqueName: string;
@@ -70,6 +71,41 @@ export function invasionNeeds(m: Model, invasions: Invasion[] | null | undefined
           points: part.points,
           have,
           needed: part.needed,
+          completion: typeof inv.completion === "number" ? inv.completion : null,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/** An invasion paying something rare: an Orokin Catalyst or Reactor blueprint, Forma, an Exilus Adapter blueprint… */
+export interface InvasionRare {
+  /** Invasion id plus the reward: what a notification is sent once for. */
+  key: string;
+  node: string;
+  /** "Orokin Reactor Blueprint", or "3 × Forma Blueprint". */
+  reward: string;
+  side: string;
+  completion: number | null;
+}
+
+/**
+ * Running invasions with a rare reward (`RARE_REWARD`, as for alerts). Needs no inventory, so it
+ * works on a console too. One entry per invasion and reward.
+ */
+export function invasionRares(invasions: Invasion[] | null | undefined): InvasionRare[] {
+  const out: InvasionRare[] = [];
+  for (const inv of invasions ?? []) {
+    if (!inv || inv.completed) continue;
+    for (const side of [inv.attacker, inv.defender]) {
+      for (const r of side?.reward?.countedItems ?? []) {
+        if (!r?.type || !RARE_REWARD.test(r.type)) continue;
+        out.push({
+          key: `${inv.id}|${r.uniqueName ?? r.type}`,
+          node: inv.node,
+          reward: (r.count ?? 1) > 1 ? `${r.count} × ${r.type}` : r.type,
+          side: side?.faction ?? "?",
           completion: typeof inv.completion === "number" ? inv.completion : null,
         });
       }

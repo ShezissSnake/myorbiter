@@ -279,3 +279,16 @@ test("What's new: everything for someone who had orbiter before, nothing on a fi
   // Ids, not dates: several builds a day each get their own entry.
   assert.ok(NEWS.every((n, i) => i === 0 || NEWS[i - 1].id === n.id + 1), "newest first, one apart");
 });
+
+test("the week's Archimedeas, Calendar and Descendia are kept between reads and go at their end", async () => {
+  const { mergeLive, pruneLive } = await import("../src/lib/backend");
+  const now = Date.parse("2026-11-03T12:00:00Z");
+  const week = "2026-11-09T00:00:00Z";
+  const old = { fissures: null, resurgence: null, resurgenceExpiry: null, archimedeas: [{ expiry: week, typeKey: "C T_ L A B" }], calendar: { expiry: week, days: [] }, descendia: { expiry: week, challenges: [] } } as never;
+  const next = { fissures: [], resurgence: null, resurgenceExpiry: null, archimedeas: null, calendar: null, descendia: null } as never;
+  const m = mergeLive(old, next, now) as unknown as Record<string, unknown>;
+  assert.equal((m.archimedeas as unknown[]).length, 1);
+  assert.ok(m.calendar && m.descendia);
+  const later = pruneLive(m as never, Date.parse("2026-11-09T00:00:01Z")) as unknown as Record<string, unknown>;
+  assert.deepEqual([later.archimedeas, later.calendar, later.descendia], [[], null, null]);
+});

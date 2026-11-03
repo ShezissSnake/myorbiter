@@ -1,7 +1,7 @@
 <script lang="ts">
   import { discordSent } from "./lib/discordStatus.svelte";
   import { onMount, untrack } from "svelte";
-  import { invasionNeeds } from "./lib/core/invasions";
+  import { invasionNeeds, invasionRares } from "./lib/core/invasions";
   import { foldSetSales, repCandidates, salesFromTrade, tradeKey } from "./lib/core/trades";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
@@ -589,6 +589,16 @@
       if (freshR.length) tell("alertLoot", freshR.length === 1 ? `Alert: ${freshR[0].reward}` : `${freshR.length} alerts with rare rewards`, freshR.map(line).join("\n"));
     });
   });
+  // Invasions paying a rare reward (a Catalyst or Reactor blueprint, Forma…): as alerts' rare
+  // rewards, once per invasion and reward. No inventory needed, so consoles get them too.
+  $effect(() => {
+    const invs = live.invasions;
+    if (!invs?.length || !settingsReady) return;
+    untrack(() => {
+      const fresh = invasionRares(invs).filter((n) => firstTime(`invasion|${n.key}`));
+      if (fresh.length) tell("alertLoot", fresh.length === 1 ? `Invasion: ${fresh[0].reward}` : `${fresh.length} invasions with rare rewards`, fresh.map((n) => `${n.reward}: side with ${n.side} at ${n.node}`).join("\n"));
+    });
+  });
   // Baro's arrival: what he brings that you haven't mastered or don't have. Once per visit.
   $effect(() => {
     const b = live.baro;
@@ -626,7 +636,7 @@
     const m = model;
     if (!m || !live.duviriCycle || !settingsReady || onConsole) return;
     untrack(() => {
-      const c = today(m, live).circuit;
+      const c = today(m, live, Date.now(), settings.game.gear).circuit;
       if (!c) return;
       const frames = c.frames.filter((x) => x.wanted).map((x) => x.name);
       const incarnons = c.incarnons.filter((x) => x.wanted).map((x) => x.name);

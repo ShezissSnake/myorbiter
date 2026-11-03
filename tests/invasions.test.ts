@@ -36,3 +36,18 @@ test("not flagged once you've mastered or built the item, already hold the part,
   assert.deepEqual(invasionNeeds(buildModel(bundle([])), [invasion(true)]), []);
   assert.deepEqual(invasionNeeds(buildModel(bundle([])), null), []);
 });
+
+test("invasions paying a rare reward are flagged without an inventory, one per invasion and reward", async () => {
+  const { invasionRares } = await import("../src/lib/core/invasions");
+  const rare: Invasion = {
+    id: "i2", node: "Kiliken (Venus)", completion: 40,
+    attacker: { faction: "Grineer", reward: { countedItems: [{ uniqueName: "/Lotus/StoreItems/Types/Recipes/Components/OrokinReactorBlueprint", type: "Orokin Reactor Blueprint", count: 1 }] } },
+    defender: { faction: "Corpus", reward: { countedItems: [{ uniqueName: "/Lotus/StoreItems/Types/Recipes/Components/FormaBlueprint", type: "Forma Blueprint", count: 3 }] } },
+  };
+  const exilus: Invasion = { id: "i3", node: "Cerberus (Pluto)", vsInfestation: true, attacker: { faction: "Infested", reward: null }, defender: { faction: "Corpus", reward: { countedItems: [{ uniqueName: "x", type: "Exilus Weapon Adapter Blueprint", count: 1 }] } } };
+  const got = invasionRares([invasion(), rare, exilus, { ...rare, id: "i4", completed: true }]);
+  assert.deepEqual(got.map((r) => [r.reward, r.side]), [["Orokin Reactor Blueprint", "Grineer"], ["3 × Forma Blueprint", "Corpus"], ["Exilus Weapon Adapter Blueprint", "Corpus"]]);
+  assert.equal(got[0].key, "i2|/Lotus/StoreItems/Types/Recipes/Components/OrokinReactorBlueprint");
+  assert.equal(got[0].completion, 40);
+  assert.deepEqual(invasionRares(null), []);
+});
