@@ -975,7 +975,8 @@ export interface TennoscopeReport {
   consumed_suits?: string[] | null;
 }
 
-export type TennoscopeAsk = "--sync" | "--authorize-capture";
+/** `--access=…`: the Full mode switch (FullMode.svelte), Full or back to Overlay. */
+export type TennoscopeAsk = "--sync" | "--authorize-capture" | "--access=full" | "--access=overlay";
 
 /** Your warframe.market status as orbiter holds it on its own connection (see presence.rs). */
 export interface PresenceState {

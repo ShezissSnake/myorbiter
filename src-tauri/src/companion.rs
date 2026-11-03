@@ -98,9 +98,10 @@ fn read_report_in(dir: &Path, live: &[u32], now: u64) -> Option<serde_json::Valu
 }
 
 /// The requests orbiter sends a patched TennoScope (see its `orbiter_bridge::asks`). Your
-/// warframe.market status isn't one: orbiter holds that itself (see presence.rs).
+/// warframe.market status isn't one: orbiter holds that itself (see presence.rs). `--access=…`
+/// is the Full mode switch (Settings, setup), which shows its warning beside it.
 pub fn allowed_ask(arg: &str) -> bool {
-    matches!(arg, "--sync" | "--authorize-capture")
+    matches!(arg, "--sync" | "--authorize-capture" | "--access=full" | "--access=overlay")
 }
 
 /// A program orbiter may start as TennoScope, by its file name: `tennoscope` (`tennoscope.exe` on
@@ -557,6 +558,8 @@ mod tests {
     fn only_known_requests_pass() {
         assert!(allowed_ask("--sync"));
         assert!(allowed_ask("--authorize-capture"));
+        assert!(allowed_ask("--access=full") && allowed_ask("--access=overlay"));
+        assert!(!allowed_ask("--access=companion"), "orbiter turns Full off to Overlay, never further");
         assert!(!allowed_ask("--presence=ingame"), "orbiter sets your status itself");
         assert!(!allowed_ask("--background"));
         assert!(!allowed_ask("; rm -rf ~"));

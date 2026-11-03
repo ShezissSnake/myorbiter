@@ -6,6 +6,7 @@
   import Switch from "./ui/Switch.svelte";
   import ProgressButton from "./ui/ProgressButton.svelte";
   import { Job } from "./job.svelte";
+  import FullMode from "./FullMode.svelte";
 
   // `onsync` is the sidebar's Sync: TennoScope reads the inventory, then orbiter reloads it; `job`
   // is that sync's progress, shown here as on the sidebar's button.
@@ -148,14 +149,15 @@
         <span>Last read</span><strong>{synced}</strong>
         <span>Access</span><strong>{access?.name ?? "Not set up"}</strong>
       </div>
-      <p class="dim small">{access?.note ?? "Open TennoScope's window once to choose what it may read."}</p>
+      <p class="dim small">{access?.note ?? "Not set up yet: nothing is read from the game."}</p>
+      <FullMode />
       <div class="row">
         <ProgressButton {job} label="Sync inventory now" working={job.phase ? `Syncing: ${job.phase.toLowerCase()}` : "Syncing…"} failLabel="Not synced" sizer={["Syncing: waiting…"]} status disabled={!canSync} title="Ask TennoScope to read your inventory from the game now; done when the new read has arrived" onclick={onsync} />
         <span class="dim small">
-          {#if r.setup.access_mode !== "full"}Needs Full access.{:else if !r.game_running}Works while Warframe is running.{:else}After trading, crafting or opening relics.{/if}
+          {#if r.setup.access_mode !== "full"}Needs Full mode.{:else if !r.game_running}Works while Warframe is running.{:else}After trading, crafting or opening relics.{/if}
         </span>
       </div>
-      {#if !r.setup.setup_complete || !r.setup.access_mode}<div><ProgressButton job={openJob} stamp={false} label="Choose access in TennoScope" working="Opening…" failLabel="Couldn't open" status title="Open TennoScope's window, where it asks what it may read" onclick={openWindow} /></div>{/if}
+
     </section>
 
     <section>

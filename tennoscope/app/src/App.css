@@ -831,6 +831,7 @@ svg.set-glyph { background: none; fill: currentColor; padding: .125rem; }
    sheet. */
 .access-detail li::before { position: absolute; left: 0; top: .62em; width: .5rem; height: 1px; background: var(--gold); content: ''; }
 .access-observation ul { grid-template-columns: 1fr; }
+.access-warning { margin: 0; padding: var(--tight) var(--step); border: 1px solid var(--rule); border-top: 0; border-left: 2px solid var(--gold); color: var(--platinum); line-height: 1.5; }
 .access-always-off { display: grid; grid-template-columns: minmax(8rem, auto) minmax(0, 1fr); gap: var(--tight) var(--step); align-items: baseline; padding: var(--tight) var(--step); border: 1px solid var(--rule); border-top: 0; color: var(--platinum-deep); }
 .access-always-off h3 { margin: 0; color: var(--platinum-deep); }
 .access-always-off ul { display: grid; grid-template-columns: repeat(5, minmax(0, auto)); justify-content: space-between; gap: var(--tight) var(--step); margin: 0; padding: 0; list-style: none; }

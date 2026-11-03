@@ -580,6 +580,9 @@ fn run_asks(app: &AppHandle, args: &[String]) {
                         .await
                         .map(|_| ())
                 }
+                orbiter_bridge::Ask::Access(mode) => {
+                    set_access_mode(app.clone(), state, mode).await.map(|_| ())
+                }
             };
             if let Err(error) = outcome {
                 log::warn!("orbiter asked for {ask:?}: {error}");

@@ -34,6 +34,10 @@ pub enum Ask {
     },
     /// Open the system's screen-capture permission dialog.
     AuthorizeCapture,
+    /// Change the access mode (`--access=full`, `overlay` or `companion`): orbiter's "Read my
+    /// inventory (Full mode)" switch, in its setup and Settings, which show the account-risk
+    /// warning beside it. The same transition as choosing it in this window.
+    Access(crate::AccessMode),
 }
 
 pub fn asks(args: &[String]) -> Vec<Ask> {
@@ -43,6 +47,9 @@ pub fn asks(args: &[String]) -> Vec<Ask> {
         .filter_map(|a| match a.as_str() {
             "--sync" => Some(Ask::Sync),
             "--authorize-capture" => Some(Ask::AuthorizeCapture),
+            "--access=full" => Some(Ask::Access(crate::AccessMode::Full)),
+            "--access=overlay" => Some(Ask::Access(crate::AccessMode::Overlay)),
+            "--access=companion" => Some(Ask::Access(crate::AccessMode::Companion)),
             _ => match a.strip_prefix("--presence=")? {
                 "online" => Some(Ask::Presence {
                     status: Some(Presence::Online),
@@ -373,6 +380,21 @@ mod tests {
         );
         assert_eq!(asks(&args(&["tennoscope", "--background"])), vec![]);
         assert!(wants_background(&args(&["tennoscope", "--sync"])));
+        assert_eq!(
+            asks(&args(&[
+                "tennoscope",
+                "--access=full",
+                "--access=overlay",
+                "--access=companion",
+                "--access=everything"
+            ])),
+            vec![
+                Ask::Access(crate::AccessMode::Full),
+                Ask::Access(crate::AccessMode::Overlay),
+                Ask::Access(crate::AccessMode::Companion)
+            ]
+        );
+        assert!(wants_background(&args(&["tennoscope", "--access=full"])));
     }
 
     #[test]
