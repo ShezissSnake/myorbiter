@@ -1,6 +1,6 @@
 <script lang="ts">
   // Overframe's popular builds for the item, from the list bundled with orbiter (overframeList.ts):
-  // at most 5, the most voted updated in the last two years so the list stays short and current. Each row is what
+  // at most 5, the most voted updated in the last two years. Each row is what
   // Overframe's own list shows (title, author, votes, Forma, update, age) and opens the build on
   // overframe.gg in the browser, so its author gets the visit. No contents, no slot grid, no
   // missing check: Overframe allows showing its lists, not its builds. orbiter never contacts it.
