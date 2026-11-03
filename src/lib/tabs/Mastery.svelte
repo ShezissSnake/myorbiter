@@ -11,7 +11,9 @@
   import Browse from "../ui/Browse.svelte";
   import ItemCard from "../ui/ItemCard.svelte";
   import PartChip from "../ui/PartChip.svelte";
-  import { collectionItem } from "../core/collection";
+  import { collectionItem, GROUPS } from "../core/collection";
+  import { familyOf } from "../core/modular";
+  import { takeIntent } from "../intent.svelte";
   import { details } from "../details.svelte";
   import { finishOdds } from "../core/wishlist";
   import P from "../ui/P.svelte";
@@ -70,6 +72,13 @@
   let sort = $state({ key: "effort", desc: false });
   /** Easiest first, or what platinum buys, cheapest first. */
   let view = $state<"effort" | "plat">("effort");
+  // A link may ask for a ring or a search ("mastery?group=amps", What's New's Show me).
+  $effect(() => {
+    const want = takeIntent("mastery");
+    if (!want) return;
+    if (want.group && GROUPS.some((g) => g.v === want.group)) ring = want.group as Group;
+    if (want.q != null) query = want.q;
+  });
 
   // Show unavailable only adds, so on its own it hides nothing.
   const filtered = $derived(!!query.trim() || category !== "all" || ring != null || kind !== "all" || effort !== "all");
@@ -177,9 +186,10 @@
   {@const item = model.catalogByUnique.get(r.unique)}
   {@const parts = item && r.status !== "level" && !r.step ? collectionItem(model, item).parts.filter((p) => !p.resource) : []}
   <ItemCard hover={r.name} title={r.name} sub={r.category} fallback={kindIcon(r.category, r.name)} image={item?.imageName ?? model.imageOf(r.name)} markPrime onopen={open} fav={wished.has(r.unique)} onfav={item ? () => toggleWish(r.unique) : undefined}>
-    {#if r.acq.difficulty > 0}<Effort acq={r.acq} />{:else}<p class="chow" title={r.acq.how}>{stageText(r)}</p>{/if}
+    <!-- A modular item's how-to is what What's New's tour lights for "The next step for each". -->
+    {#if r.acq.difficulty > 0}<Effort acq={r.acq} />{:else}<p class="chow" title={r.acq.how} data-card={familyOf(r.unique) ? "next-step" : undefined}>{stageText(r)}</p>{/if}
     {#if parts.length}<div class="chips">{#each parts as p, i (i)}<PartChip part={p} size={32} />{/each}</div>{/if}
-    {#if r.acq.difficulty > 0}<p class="chow" title={r.acq.players ? `${r.acq.how}\n\n${r.acq.players}` : r.acq.how}>{r.stepBrief ?? r.acq.how}</p>{/if}
+    {#if r.acq.difficulty > 0}<p class="chow" data-card={familyOf(r.unique) ? "next-step" : undefined} title={r.acq.players ? `${r.acq.how}\n\n${r.acq.players}` : r.acq.how}>{r.stepBrief ?? r.acq.how}</p>{/if}
     {#snippet foot()}
       <!-- One tone per state, as on Foundry and Wishlist: teal filled for one you have (level it), gold outline for a step to take, plain for waiting. -->
       {#if r.status === "level"}<span class="tag" class:mastery={stageOf(r).stage === "level" || !!r.step} class:ok={stageOf(r).stage === "claim" && !r.step} title={r.step ? r.acq.how : undefined}>{stageTag(r)}</span>{:else if r.status === "gild" || r.status === "assemble"}<span class="tag ok" title={r.acq.how}>{r.stepTag}</span>{:else if r.revive}<span class="tag ok" title={r.acq.how}>Captured · revive it</span>{:else if r.status === "build" && r.buildTier === "hard"}<span class="tag bad" title="Every part in hand, but building needs {r.buildShort}, from an open world or an event">Parts ready · rare resources</span>{:else if r.status === "build" && r.buildTier === "farm"}<span class="tag warn" title="Every part in hand; still to farm: {r.buildShort}">Parts ready · farm</span>{:else if r.status === "build"}<span class="tag ok" title="Every part and resource in hand: build it in your foundry">Can build now</span>{/if}

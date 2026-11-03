@@ -26,6 +26,7 @@
     fallback = null,
     tint = null,
     kind = undefined,
+    spot = undefined,
   }: {
     title: string;
     sub?: string;
@@ -55,6 +56,8 @@
     tint?: string | null;
     /** The icon on the kind line when `sub` doesn't name a kind (a prime part: its gear's kind). */
     kind?: GameIconName | null;
+    /** A spot a link can light ("foundry#chamber": What's New's Show me, the tour). */
+    spot?: string;
   } = $props();
 
   // A kind the Arsenal has a tab for ("Warframe", "Primary Mod", "Companion") gets that tab's icon.
@@ -80,7 +83,7 @@
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-<article class="card" class:owned class:done class:tinted={!!tint} style:--tint={tint} class:open={!!onopen} tabindex={onopen ? 0 : undefined} role={onopen ? "button" : undefined} aria-label={onopen ? `${title}: details` : undefined} onclick={click} onkeydown={key}>
+<article data-card={spot} class="card" class:owned class:done class:tinted={!!tint} style:--tint={tint} class:open={!!onopen} tabindex={onopen ? 0 : undefined} role={onopen ? "button" : undefined} aria-label={onopen ? `${title}: details` : undefined} onclick={click} onkeydown={key}>
   <header>
     <div class="t">
       <h3 class="mark" title={hover ? undefined : title} use:info={hover ?? null}>{#each titleParts as t, i (i)}{#if i % 2}<span class="prime">{t}</span>{:else}{t}{/if}{/each}</h3>

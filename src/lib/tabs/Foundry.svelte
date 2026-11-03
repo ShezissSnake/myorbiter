@@ -39,6 +39,7 @@
     if (!want) return;
     if (want.group === "all" || GROUPS.some((g) => g.v === want.group)) group = want.group as Group | "all";
     if (want.show && ["all", "todo", "owned", "build"].includes(want.show)) show = want.show as typeof show;
+    if (want.q != null) q = want.q;
   });
   let sort = $state({ key: "name", desc: false });
   let q = $state("");
@@ -50,7 +51,8 @@
     const needle = q.trim().toLowerCase();
     // A search, and your wishlist (its count is every category's), look through every category.
     return (needle || show === "fav" ? all : inGroup).filter((c) => {
-      if (needle && !c.name.toLowerCase().includes(needle)) return false;
+      // By name or kind ("kitgun" finds every chamber).
+      if (needle && !c.name.toLowerCase().includes(needle) && !c.type.toLowerCase().includes(needle)) return false;
       if (show === "todo") return !c.mastered && !c.unobtainable;
       if (show === "owned") return c.owned;
       if (show === "build") return c.buildable || c.building;
@@ -161,6 +163,7 @@
     fav={favs.has(c.unique)}
     onfav={() => toggleFav(c.unique)}
     onopen={open}
+    spot={c.groups.length > 1 ? "chamber" : undefined}
   >
     <!-- Parts then resources in one row, wrapping together, so a resource sits beside the last part rather than under all of them. -->
     {#if c.partBuilt}
@@ -212,7 +215,7 @@
   {/if}
 
   <div class="bar">
-    <input type="search" placeholder="Filter items…" bind:value={q} aria-label="Filter items by name" title="Looks through every category" />
+    <input type="search" placeholder="Filter items…" bind:value={q} aria-label="Filter items by name or kind" title="Looks through every category, by name or kind (Kitgun, MOA, Zaw)" />
     <Seg label="Show" bind:value={show} options={[{ v: "all", label: "All", title: "Everything in this group" }, { v: "todo", label: "Not mastered", title: "What you still have to master" }, { v: "owned", label: "Owned", title: "What you have built (mastered or not)" }, { v: "build", label: "Can build", title: "Every part in hand, or building now" }, ...(favs.size || show === "fav" ? [{ v: "fav" as const, label: `★ Wishlist ${favs.size}`, title: "What you starred, from every category (star a card to add it)" }] : [])]} />
   </div>
 
