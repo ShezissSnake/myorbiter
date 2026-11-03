@@ -333,13 +333,21 @@
   // once and the others when the app is idle, one at a time, or when you open one (lib/pane.svelte.ts).
   setShownPage(() => settings.tab);
   let drawn = $state.raw<Record<string, Model>>({});
-  // The page on screen gets a new collection a moment after it's built (the next task), so building
-  // it and redrawing the page are two shorter tasks rather than one long one.
+  // A new collection reaches the page on screen in the task after it's built, and the
+  // notifications and bookkeeping below (bgModel) in the task after that: three shorter tasks
+  // rather than one long one.
   let shownModel = $state.raw<Model | null>(null);
+  let bgModel = $state.raw<Model | null>(null);
   $effect(() => {
     const m = model;
-    if (!m || !untrack(() => shownModel)) return void (shownModel = m);
-    const t = setTimeout(() => (shownModel = m), 0);
+    if (!m || !untrack(() => shownModel)) {
+      shownModel = bgModel = m;
+      return;
+    }
+    let t = setTimeout(() => {
+      shownModel = m;
+      t = setTimeout(() => (bgModel = m), 0);
+    }, 0);
     return () => clearTimeout(t);
   });
   const modelFor = (id: string): Model => (settings.tab === id ? (shownModel ?? model) : (drawn[id] ?? shownModel ?? model))!;
@@ -413,9 +421,9 @@
   onSaveTrouble((e) => (saveError = e));
   $effect(() => {
     void pickRetry;
-    if (!model || !freshCards) return;
-    const cards = scoreCards(model, freshCards.cards, settings.pick, freshCards.prices);
-    const file = { at: freshCards.at, cards: freshCards.cards, scores: cards.map((c) => c.score), best: bestCard(cards), reasons: cards.map((c) => c.reasons), vault: cards.map((c) => vaultWord(model!, c.name)) };
+    if (!bgModel || !freshCards) return;
+    const cards = scoreCards(bgModel, freshCards.cards, settings.pick, freshCards.prices);
+    const file = { at: freshCards.at, cards: freshCards.cards, scores: cards.map((c) => c.score), best: bestCard(cards), reasons: cards.map((c) => c.reasons), vault: cards.map((c) => vaultWord(bgModel!, c.name)) };
     const key = JSON.stringify(file);
     if (key === lastWritten) return;
     lastWritten = key;
@@ -478,7 +486,7 @@
   // Each new sale gets the item's daily median of the day it sold, so Sales compares it with the
   // market as it was then rather than as it is when you look.
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     const count = settings.market.sales.length;
     if (!m || !settingsReady || !count) return;
     untrack(() => {
@@ -772,7 +780,7 @@
   // Alerts: a reward toward something you haven't mastered, or a rare one. Once per alert and reward.
   $effect(() => {
     const alerts = live.alerts;
-    const m = onConsole ? null : model;
+    const m = onConsole ? null : bgModel;
     if (!alerts?.length || !settingsReady || (!m && !onConsole)) return;
     untrack(() => {
       const { mastery, rare } = alertNeeds(m, alerts);
@@ -796,7 +804,7 @@
   // Baro's arrival: what he brings that you haven't mastered or don't have. Once per visit.
   $effect(() => {
     const b = live.baro;
-    const m = model;
+    const m = bgModel;
     if (!m || !b || !settingsReady) return;
     if (Date.now() < Date.parse(b.activation) || Date.now() > Date.parse(b.expiry)) return;
     untrack(() => {
@@ -816,7 +824,7 @@
   // Varzia's new rotation, with primes you need from it. Once per rotation.
   $effect(() => {
     const exp = live.resurgenceExpiry;
-    const m = model;
+    const m = bgModel;
     if (!m || !exp || !live.resurgence?.length || !settingsReady || onConsole) return;
     untrack(() => {
       const needs = varziaNeeds(m, masteryRows(m));
@@ -827,7 +835,7 @@
   });
   // The Duviri Circuit's week: warframes you haven't mastered, adapters for weapons you have. Once a week.
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     if (!m || !live.duviriCycle || !settingsReady || onConsole) return;
     untrack(() => {
       const c = today(m, live, Date.now(), settings.game.gear).circuit;
@@ -868,7 +876,7 @@
   // quantity listed, remembered across restarts. (A count orbiter can't make isn't short: see above.)
   $effect(() => {
     const short = shortListings;
-    const m = model;
+    const m = bgModel;
     if (!m || !short.length || !settingsReady) return;
     untrack(() => {
       const key = (o: (typeof short)[number]) => `${o.id}|${o.quantity}`;
@@ -899,7 +907,7 @@
   });
   // An invasion rewarding a part you need: one notification per invasion and part, remembered
   // across restarts so the same invasion doesn't announce itself every time orbiter opens.
-  const invasionsNeeded = $derived(model && !onConsole ? invasionNeeds(model, live.invasions) : []);
+  const invasionsNeeded = $derived(bgModel && !onConsole ? invasionNeeds(bgModel, live.invasions) : []);
   $effect(() => {
     const needs = invasionsNeeded;
     if (!needs.length) return;
@@ -1044,7 +1052,7 @@
   // Whole sets sold in one trade before orbiter logged them as sets: one sale per part becomes one
   // set sale. Runs when the data loads; does nothing once they're folded.
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     if (!m || !settingsReady) return;
     untrack(() => {
       const next = foldSetSales(settings.market.sales, settings.market.trades, m);
@@ -1341,8 +1349,8 @@
   });
   $effect(() => {
     const now = tick;
-    if (!model || onConsole) return;
-    const ready = foundryBuilds(model, settings.game.foundryReady, now).filter((b) => b.ready);
+    if (!bgModel || onConsole) return;
+    const ready = foundryBuilds(bgModel, settings.game.foundryReady, now).filter((b) => b.ready);
     untrack(() => {
       const seen = new Set(settings.game.foundryNotified);
       const fresh = ready.filter((b) => !seen.has(b.key));
@@ -1452,7 +1460,7 @@
   let erasOpenBefore: Set<string> | null = null;
   $effect(() => {
     const fs = live.fissures;
-    const m = model;
+    const m = bgModel;
     // Not from the worldstate kept from last time: eras whose fissures ended since would seem to open.
     if (!m || !fs || !liveRead) return;
     untrack(() => {
@@ -1488,7 +1496,7 @@
   const overlayAt = new Map<string, number>();
   $effect(() => {
     const raws = settings.game.rivens;
-    const m = model;
+    const m = bgModel;
     const pressed = rivenKeyAt;
     if (!raws?.some((r) => r.pending) || !m) return;
     untrack(() => {
@@ -1560,7 +1568,7 @@
   // depends on it. Checked hourly; only relics not read in the last day are fetched.
   let relicPricesChecked = 0;
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     const on = settings.market.sellable.relicsWorthSelling;
     const items = mkt.items.length;
     if (!m || !on || !items || !settingsReady) return;
@@ -1576,7 +1584,7 @@
 
   // While Baro is here: what a ducat is worth by his stock, kept for Prime parts' Your rates.
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     if (!m || !settingsReady || !m.live.baro?.inventory?.length) return;
     const next = baroRate(m);
     untrack(() => {
@@ -1587,7 +1595,7 @@
 
   // The live feed watches a longer list than the scan: it costs no requests.
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     const items = mkt.items.length;
     // Your price alerts: a new one is watched at once, a removed one stops.
     const alerts = $state.snapshot(settings.market.buyAlerts);
@@ -1615,9 +1623,9 @@
   let lastDeals = 0;
   $effect(() => {
     const now = tick;
-    if (!model || onConsole || now - lastDeals < 10 * 60_000) return;
+    if (!bgModel || onConsole || now - lastDeals < 10 * 60_000) return;
     lastDeals = now;
-    const m = model;
+    const m = bgModel;
     untrack(() => void mkt.scanDeals(m, watchlist(m, 20, settings.market.buyAlerts)));
   });
   $effect(() => {
@@ -1643,7 +1651,7 @@
   const heldOf = (m: NonNullable<typeof model>, name: string) => m.ownedPartQty.get(name) ?? (m.inventoryByName.get(name) ?? []).reduce((n, r) => n + r.quantity, 0);
   $effect(() => {
     const c = freshCards;
-    const m = model;
+    const m = bgModel;
     const ms = mission;
     if (!c || !m || !settingsReady) return;
     untrack(() => {
@@ -1663,7 +1671,7 @@
     });
   });
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     if (!m?.observedAt || !settingsReady) return;
     const at = +m.observedAt;
     untrack(() => {
@@ -1675,7 +1683,7 @@
   // you keep getting counts as a way to finish a set (Settings → Selling, Save prime parts for sets).
   let dropsReadAt = 0;
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     if (!m?.observedAt || !settingsReady) return;
     const at = +m.observedAt;
     // Once per read; the model is also rebuilt for other reasons (prices, the world, a later foundry
@@ -1705,7 +1713,7 @@
   // saved for, and one you can sell): say so. Checked once per inventory read.
   let savingCheckedAt = 0;
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     if (!m?.observedAt || !settingsReady) return;
     const at = +m.observedAt;
     if (at === savingCheckedAt) return;
@@ -1748,7 +1756,7 @@
   // patches it above), so Stats ends up with the figures Inventory shows for the same read.
   let pointInputs = 0;
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     if (!m?.observedAt) return;
     const at = +m.observedAt;
     const inputs = (mkt.index.byId.size ? 1 : 0) + (relicTables ? 1 : 0) + (recipes ? 1 : 0);
