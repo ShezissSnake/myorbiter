@@ -9,20 +9,115 @@
 // Umbra) aren't straight upgrades of each other: neither is offered.
 import type { Model } from "./model";
 
-/** One copy of a weapon, frame or companion, as the patched TennoScope read it from the game. */
+/**
+ * One copy of a weapon, frame or companion, as the patched TennoScope read it from the game. Every
+ * field after `p` is optional: an older TennoScope doesn't pass it, and a copy without any (no
+ * Forma'd slot, no shard) leaves it out.
+ */
 export interface GearCopy {
   /** The item's path. */
   type: string;
-  /** The game's feature bits: 1 Orokin Catalyst/Reactor, 2 Exilus, 8 gilded, 512 Incarnon Genesis installed. */
+  /** The game's feature bits (FEATURE): 1 Orokin Catalyst/Reactor, 2 Exilus, 8 gilded, 512 Incarnon Genesis installed. */
   f: number;
   /** Forma used on it. */
   p: number;
-  /** The inventory section it sits in (LongGuns, Pistols, OperatorAmps, MoaPets…), once TennoScope passes it. */
+  /** The inventory section it sits in (LongGuns, Pistols, OperatorAmps, MoaPets, MechSuits, SpecialItems…), once TennoScope passes it. */
   s?: string;
   /** A modular build's parts: its chamber, strike, prism, model or board among them. */
   m?: string[];
   /** Its affinity, when it has any. */
   x?: number;
+  /** Its polarised slots: [slot, the game's code, "AP_ATTACK"…]. `slotPolarities` names them as the catalog does. */
+  pol?: [number, string][];
+  /** A warframe's archon shards: [slot, colour ("ACC_RED", "ACC_GREEN_MYTHIC"…; null if the game gave none), the upgrade's path]. */
+  shards?: [number, string | null, string][];
+  /** The Helminth ability each of a warframe's configs puts in: [config, the ability's path, the ability slot it replaces]. */
+  ab?: [number, string, number][];
+}
+
+/**
+ * The game's feature bits on a copy (`Features`). As the SpaceNinjaServer emulator sets them
+ * (`eEquipmentFeatures`, and in its upgrades handler which item sets which): the catalyst or
+ * reactor, the Exilus Adapter, the gravimag (`HeavyWeaponCatalyst`, arch-guns), gilding, an
+ * arcane adapter (`Weapon…ArcaneUnlocker`: the first slot 32, the second 64), an Incarnon Genesis
+ * and the Valence Adapter. Not yet checked against a live account's inventory.
+ */
+export const FEATURE = {
+  DOUBLED: 1,
+  EXILUS: 2,
+  GRAVIMAG: 4,
+  GILDED: 8,
+  ARCANE_SLOT: 32,
+  SECOND_ARCANE_SLOT: 64,
+  INCARNON: 512,
+  VALENCE_SWAP: 1024,
+} as const;
+
+/**
+ * The game's polarity codes by the catalog's names (WFCD's config/polarities.json, lower-cased the
+ * way the catalog writes them). AP_ANY is what WFCD calls the aura polarity.
+ */
+const POLARITY: Record<string, string> = {
+  AP_ATTACK: "madurai",
+  AP_DEFENSE: "vazarin",
+  AP_TACTIC: "naramon",
+  AP_POWER: "zenurik",
+  AP_WARD: "unairu",
+  AP_UMBRA: "umbra",
+  AP_PRECEPT: "penjaga",
+  AP_UNIVERSAL: "universal",
+  AP_ANY: "aura",
+};
+
+/** A polarity code as the catalog names it ("AP_ATTACK" → "madurai"); null for a code orbiter doesn't know. */
+export function polarityName(code: string): string | null {
+  return POLARITY[code] ?? null;
+}
+
+/**
+ * A copy's polarised slots, by slot, named as the catalog does; a code orbiter doesn't know keeps
+ * the game's own ("AP_NEW"), so the slot still reads as polarised. Malformed entries are left out.
+ */
+export function slotPolarities(c: GearCopy): { slot: number; polarity: string }[] {
+  if (!Array.isArray(c.pol)) return [];
+  return c.pol
+    .filter((e) => Array.isArray(e) && typeof e[0] === "number" && typeof e[1] === "string")
+    .map(([slot, code]) => ({ slot, polarity: polarityName(code) ?? code }))
+    .sort((a, b) => a.slot - b.slot);
+}
+
+export interface InstalledShard {
+  slot: number;
+  /** "red", "yellow", "blue", "green", "orange", "violet"; null when the game didn't say. */
+  colour: string | null;
+  /** Tauforged (the colour ends in _MYTHIC). */
+  tauforged: boolean;
+  /** The upgrade's path: which stat it gives. */
+  upgrade: string;
+}
+
+const SHARD_COLOUR: Record<string, string> = { RED: "red", YELLOW: "yellow", BLUE: "blue", GREEN: "green", ORANGE: "orange", PURPLE: "violet" };
+
+/** A warframe's archon shards. Entries orbiter can't read are left out. */
+export function installedShards(c: GearCopy): InstalledShard[] {
+  if (!Array.isArray(c.shards)) return [];
+  const out: InstalledShard[] = [];
+  for (const e of c.shards) {
+    if (!Array.isArray(e) || typeof e[0] !== "number" || typeof e[2] !== "string") continue;
+    const code = typeof e[1] === "string" ? e[1] : null;
+    const tauforged = !!code?.endsWith("_MYTHIC");
+    const colour = code ? (SHARD_COLOUR[code.replace(/^ACC_/, "").replace(/_MYTHIC$/, "")] ?? null) : null;
+    out.push({ slot: e[0], colour, tauforged, upgrade: e[2] });
+  }
+  return out.sort((a, b) => a.slot - b.slot);
+}
+
+/** The Helminth ability each config puts in. Entries orbiter can't read are left out. */
+export function helminthAbilities(c: GearCopy): { config: number; ability: string; slot: number }[] {
+  if (!Array.isArray(c.ab)) return [];
+  return c.ab
+    .filter((e) => Array.isArray(e) && typeof e[0] === "number" && typeof e[1] === "string" && typeof e[2] === "number")
+    .map(([config, ability, slot]) => ({ config, ability, slot }));
 }
 
 export const INCARNON = 512;

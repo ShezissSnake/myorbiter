@@ -26,7 +26,7 @@ index c3e74e9..b4c1b55 100644
    "permissions": [
      "process:allow-restart",
 diff --git a/app/src-tauri/src/lib.rs b/app/src-tauri/src/lib.rs
-index ce70bed..a65d0d4 100644
+index ce70bed..7f2abb5 100644
 --- a/app/src-tauri/src/lib.rs
 +++ b/app/src-tauri/src/lib.rs
 @@ -40,6 +40,7 @@ mod kiosk_view;
@@ -47,7 +47,7 @@ index ce70bed..a65d0d4 100644
  };
  pub use reward_recognition::{
      FailureTrace, RecognitionTiming, RecognitionUpdate, RecognizedRewards, RewardPublication,
-@@ -561,6 +563,107 @@ fn market_inventory_writes_authorized(runtime: &Runtime) -> Result<(), String> {
+@@ -561,6 +563,113 @@ fn market_inventory_writes_authorized(runtime: &Runtime) -> Result<(), String> {
  }
  type SharedRuntime = Arc<Mutex<Runtime>>;
  
@@ -94,16 +94,18 @@ index ce70bed..a65d0d4 100644
 +        let rivens = runtime.core.rivens();
 +        let imprints = runtime.core.imprints();
 +        let gear = runtime.core.gear();
++        let consumed = runtime.core.consumed_suits();
 +        (
 +            view,
 +            runtime.setup.clone(),
 +            runtime.game_running,
 +            (
-+                foundry, ready, level, platinum, credits, endo, rivens, imprints, gear,
++                foundry, ready, level, platinum, credits, endo, rivens, imprints, gear, consumed,
 +            ),
 +        )
 +    };
-+    let (foundry, ready, level, platinum, credits, endo, rivens, imprints, gear) = foundry;
++    let (foundry, ready, level, platinum, credits, endo, rivens, imprints, gear, consumed) =
++        foundry;
 +    let setup = current_setup_status(stored, game_running);
 +    let market = serde_json::to_value(view.market_account()).ok()?;
 +    Some(serde_json::json!({
@@ -129,7 +131,11 @@ index ce70bed..a65d0d4 100644
 +        // Each copy of a warframe, weapon or companion, `{type, f, p, s}` (feature bits, Forma,
 +        // section), with a modular build's parts (`m`) and its affinity (`x`): for orbiter's list
 +        // of gear you no longer need, and which kitguns, zaws, amps, MOAs and hounds are gilded.
++        // For orbiter's Builds, also its slots' polarities (`pol`), archon shards (`shards`) and
++        // each config's Helminth ability (`ab`).
 +        "gear": gear,
++        // The warframes fed to the Helminth, by path (null until this run read the inventory).
++        "consumed_suits": consumed,
 +        "last_error": orbiter_bridge::last_error(),
 +    }))
 +}
@@ -155,7 +161,7 @@ index ce70bed..a65d0d4 100644
  #[tauri::command]
  async fn get_view(state: State<'_, SharedRuntime>) -> Result<AppView, String> {
      let shared = Arc::clone(state.inner());
-@@ -684,6 +787,9 @@ async fn set_market_presence(
+@@ -684,6 +793,9 @@ async fn set_market_presence(
      status: Option<warframe_status::Presence>,
      auto: bool,
  ) -> Result<AppView, String> {
@@ -165,7 +171,7 @@ index ce70bed..a65d0d4 100644
      let shared = Arc::clone(state.inner());
      tauri::async_runtime::spawn_blocking(move || {
          let mut runtime = shared
-@@ -2095,7 +2201,12 @@ pub fn run() {
+@@ -2095,7 +2207,12 @@ pub fn run() {
          // tail the same EE.log, write the same database and draw two override-redirect overlays at
          // the same coordinates over the game, where whichever raised last wins, so the strip on
          // screen need not be the build you just started.
@@ -179,7 +185,7 @@ index ce70bed..a65d0d4 100644
              if let Some(window) = app.get_webview_window("main") {
                  let _ = window.unminimize();
                  let _ = window.show();
-@@ -2108,13 +2219,27 @@ pub fn run() {
+@@ -2108,13 +2225,27 @@ pub fn run() {
          // once the main window closes and the app stays up: tailing the log and drawing the overlay
          // over the game with no UI left to close it by.
          .on_window_event(|window, event| {
@@ -210,7 +216,7 @@ index ce70bed..a65d0d4 100644
              // The file target keeps debug traces in dev builds and trims to Info in stable
              // releases: per-OCR-attempt debug lines land every 200 ms, and with only 5 MiB
              // per rotated file a stable session of hours would otherwise keep just the last
-@@ -2166,6 +2291,54 @@ pub fn run() {
+@@ -2166,6 +2297,54 @@ pub fn run() {
                  .map(|state| current_setup_status(state.setup.clone(), state.game_running))
                  .unwrap_or_default();
              app.manage(runtime);
@@ -265,7 +271,7 @@ index ce70bed..a65d0d4 100644
              // The kiosk window's whole IPC surface: `get_kiosk_view` pulls whatever the poller
              // last published, so the cell exists from the start, empty until a kiosk opens.
              app.manage(kiosk_view::KioskState::default());
-@@ -2205,6 +2378,9 @@ pub fn run() {
+@@ -2205,6 +2384,9 @@ pub fn run() {
          })
          .invoke_handler(tauri::generate_handler![
              get_view,
@@ -4393,7 +4399,7 @@ index 939f465..895feb5 100644
  local-store = { path = "../local-store" }
  warframe-domain = { path = "../warframe-domain" }
 diff --git a/crates/app-core/src/lib.rs b/crates/app-core/src/lib.rs
-index 1e3c8b0..69bc44b 100644
+index 1e3c8b0..10cef1d 100644
 --- a/crates/app-core/src/lib.rs
 +++ b/crates/app-core/src/lib.rs
 @@ -74,6 +74,12 @@ impl MasteryView {
@@ -4409,7 +4415,7 @@ index 1e3c8b0..69bc44b 100644
      /// The strip a kiosk tile carries, or nothing without live facts or for mastered parts.
      pub fn kiosk_mastery(&self, part_name: &str) -> Option<KioskMastery> {
          let catalog = self.catalog.as_deref()?;
-@@ -167,6 +173,63 @@ impl AppCore {
+@@ -167,6 +173,70 @@ impl AppCore {
          self.reads_inventory = reads_inventory;
      }
  
@@ -4460,6 +4466,13 @@ index 1e3c8b0..69bc44b 100644
 +        self.mastery_facts
 +            .as_ref()
 +            .map(|facts| facts.gear().to_vec())
++    }
++
++    /// The warframes fed to the Helminth from the last inventory read, by path, for orbiter.
++    pub fn consumed_suits(&self) -> Option<Vec<String>> {
++        self.mastery_facts
++            .as_ref()
++            .map(|facts| facts.consumed_suits().to_vec())
 +    }
 +
 +    /// Builds waiting in the foundry, by recipe path, once an inventory read this run has seen
@@ -4520,10 +4533,10 @@ index 08ed312..b37bcd7 100644
      let category = item.category.to_ascii_lowercase();
      let item_type = item.item_type.to_ascii_lowercase();
 diff --git a/crates/warframe-acquisition/src/inventory.rs b/crates/warframe-acquisition/src/inventory.rs
-index 7a58536..df2bd99 100644
+index 7a58536..ec6e0a4 100644
 --- a/crates/warframe-acquisition/src/inventory.rs
 +++ b/crates/warframe-acquisition/src/inventory.rs
-@@ -110,11 +110,119 @@ impl<'a> InventoryJsonDecoder<'a> {
+@@ -110,11 +110,136 @@ impl<'a> InventoryJsonDecoder<'a> {
  pub struct MasteryFacts {
      xp: BTreeMap<String, u64>,
      pending: BTreeMap<String, u32>,
@@ -4550,8 +4563,14 @@ index 7a58536..df2bd99 100644
 +    imprints: Vec<serde_json::Value>,
 +    /// One row per copy of a warframe, weapon or companion: `{type, f, p, s}`, its path, the game's
 +    /// feature bits (Orokin Catalyst/Reactor, Exilus, gilded, Incarnon Genesis installed…), its
-+    /// Forma and its inventory section; `m`, a modular build's parts, and `x`, its affinity.
++    /// Forma and its inventory section; `m`, a modular build's parts, and `x`, its affinity. Also,
++    /// when the copy has them: `pol`, its slots' polarities, `[slot, "AP_…"]`; `shards`, its archon
++    /// shards, `[slot, colour, upgrade path]`; `ab`, a Helminth ability per config,
++    /// `[config, ability path, ability slot]`.
 +    gear: Vec<serde_json::Value>,
++    /// The warframes fed to the Helminth (`InfestedFoundry.ConsumedSuits`), by path: whose
++    /// abilities are subsumed. Empty when the account has no Helminth.
++    consumed_suits: Vec<String>,
  }
  
  impl MasteryFacts {
@@ -4622,10 +4641,21 @@ index 7a58536..df2bd99 100644
 +        self
 +    }
 +
-+    /// Each copy of a warframe, weapon or companion, `{type, f, p, s}` (and `m`, `x`; shared with
-+    /// orbiter).
++    /// Each copy of a warframe, weapon or companion, `{type, f, p, s}` (and `m`, `x`, `pol`,
++    /// `shards`, `ab`; shared with orbiter).
 +    pub fn gear(&self) -> &[serde_json::Value] {
 +        &self.orbiter.gear
++    }
++
++    /// Adds the warframes fed to the Helminth.
++    pub fn with_consumed_suits(mut self, suits: Vec<String>) -> Self {
++        self.orbiter.consumed_suits = suits;
++        self
++    }
++
++    /// The warframes fed to the Helminth, by path (shared with orbiter).
++    pub fn consumed_suits(&self) -> &[String] {
++        &self.orbiter.consumed_suits
 +    }
 +
 +    /// Platinum on the account, when the inventory said (shared with orbiter).
@@ -4644,7 +4674,7 @@ index 7a58536..df2bd99 100644
      }
  
      /// The affinity the inventory reports for an item, or 0 when it reports none.
-@@ -126,6 +234,11 @@ impl MasteryFacts {
+@@ -126,6 +251,11 @@ impl MasteryFacts {
      pub fn pending(&self, recipe: &str) -> u32 {
          self.pending.get(recipe).copied().unwrap_or(0)
      }
@@ -4656,7 +4686,7 @@ index 7a58536..df2bd99 100644
  }
  
  /// The rank an item's affinity reaches, capped at its max rank; `None` for categories without
-@@ -170,6 +283,14 @@ struct RawXpEntry {
+@@ -170,6 +300,14 @@ struct RawXpEntry {
  #[serde(rename_all = "PascalCase")]
  struct RawInventory {
      last_inventory_sync: serde_json::Value,
@@ -4671,7 +4701,7 @@ index 7a58536..df2bd99 100644
      #[serde(default, deserialize_with = "rows")]
      suits: Vec<serde_json::Value>,
      #[serde(default, deserialize_with = "rows")]
-@@ -251,6 +372,10 @@ struct RawInventory {
+@@ -251,6 +389,14 @@ struct RawInventory {
      adult_operator_load_outs: Vec<serde_json::Value>,
      #[serde(default, deserialize_with = "rows")]
      kahl_load_outs: Vec<serde_json::Value>,
@@ -4679,10 +4709,14 @@ index 7a58536..df2bd99 100644
 +    /// orbiter, which lists them for sale.
 +    #[serde(default, deserialize_with = "rows")]
 +    kubrow_pet_prints: Vec<serde_json::Value>,
++    /// The Helminth: only `ConsumedSuits` is read, for orbiter. Any shape is accepted here and
++    /// whatever isn't understood reads as nothing fed.
++    #[serde(default)]
++    infested_foundry: Option<serde_json::Value>,
  }
  
  /// A section, tolerating the two shapes that are not a list of rows.
-@@ -379,6 +504,53 @@ impl InventoryJsonDecoder<'_> {
+@@ -379,6 +525,67 @@ impl InventoryJsonDecoder<'_> {
          }
          // Before the `add_*` calls below take the sections.
          let installed = installed_copies(&raw);
@@ -4690,7 +4724,9 @@ index 7a58536..df2bd99 100644
 +        // an Incarnon Genesis installed, 8: gilded) and its Forma, so orbiter can tell which copies
 +        // matter. Also the section it sits in, the parts a modular build (kitgun, zaw, amp, MOA,
 +        // hound, K-Drive) was made from, and its affinity: orbiter reads what each is and whether
-+        // it's gilded, since mastery goes by the chamber, strike, prism, model or board.
++        // it's gilded, since mastery goes by the chamber, strike, prism, model or board. And what a
++        // build needs from the copy: its slots' polarities, its archon shards and the Helminth
++        // ability each config puts in, for orbiter's Builds. Necramechs and exalted weapons too.
 +        let gear = [
 +            ("Suits", &raw.suits),
 +            ("LongGuns", &raw.long_guns),
@@ -4706,6 +4742,8 @@ index 7a58536..df2bd99 100644
 +            ("KubrowPets", &raw.kubrow_pets),
 +            ("Hoverboards", &raw.hoverboards),
 +            ("CrewShipHarnesses", &raw.crew_ship_harnesses),
++            ("MechSuits", &raw.mech_suits),
++            ("SpecialItems", &raw.special_items),
 +        ]
 +        .into_iter()
 +        .flat_map(|(section, rows)| rows.iter().map(move |row| (section, row)))
@@ -4730,13 +4768,23 @@ index 7a58536..df2bd99 100644
 +            if xp > 0 {
 +                row["x"] = serde_json::json!(xp);
 +            }
++            for (key, list) in [
++                ("pol", slot_polarities(v)),
++                ("shards", archon_shards(v)),
++                ("ab", ability_overrides(v)),
++            ] {
++                if !list.is_empty() {
++                    row[key] = serde_json::Value::Array(list);
++                }
++            }
 +            Some(row)
 +        })
 +        .collect::<Vec<_>>();
++        let consumed_suits = consumed_suits(raw.infested_foundry.as_ref());
          let mut entries = BTreeMap::<String, AccumulatedEntry>::new();
          let report = &mut DecodeReport::default();
  
-@@ -437,6 +609,69 @@ impl InventoryJsonDecoder<'_> {
+@@ -437,6 +644,69 @@ impl InventoryJsonDecoder<'_> {
              None,
              &mut DecodeReport::default(),
          );
@@ -4806,7 +4854,7 @@ index 7a58536..df2bd99 100644
          let pending = pending_holdings
              .into_iter()
              .map(|(path, accumulated)| (path, accumulated.quantity.max(0) as u32))
-@@ -605,7 +840,15 @@ impl InventoryJsonDecoder<'_> {
+@@ -605,10 +875,80 @@ impl InventoryJsonDecoder<'_> {
          }
          let snapshot = InventorySnapshot::coherent(domain_entries)
              .map_err(|_| AcquisitionError::SnapshotInvalid)?;
@@ -4818,11 +4866,76 @@ index 7a58536..df2bd99 100644
 +                .with_wallet(credits, endo)
 +                .with_rivens(rivens)
 +                .with_imprints(imprints)
-+                .with_gear(gear),
++                .with_gear(gear)
++                .with_consumed_suits(consumed_suits),
 +        ))
      }
  }
  
++/// A copy's polarised slots, `Polarity: [{Slot, Value}]`, as `[slot, "AP_…"]`. The code is passed
++/// as the game writes it (`AP_ATTACK`, `AP_UNIVERSAL`, `AP_ANY`…); orbiter names it. An entry
++/// missing either half is dropped.
++fn slot_polarities(row: &serde_json::Value) -> Vec<serde_json::Value> {
++    row.get("Polarity")
++        .and_then(serde_json::Value::as_array)
++        .into_iter()
++        .flatten()
++        .filter_map(|p| {
++            let slot = p.get("Slot")?.as_u64()?;
++            let value = p.get("Value")?.as_str()?;
++            Some(serde_json::json!([slot, value]))
++        })
++        .collect()
++}
++
++/// A warframe's archon shards, `ArchonCrystalUpgrades: [{UpgradeType, Color}]`, as
++/// `[slot, colour, upgrade path]`, the slot being the entry's place in the list. An empty slot (`{}`,
++/// or a shard taken out) has no `UpgradeType` and is dropped; a missing colour passes as null.
++fn archon_shards(row: &serde_json::Value) -> Vec<serde_json::Value> {
++    row.get("ArchonCrystalUpgrades")
++        .and_then(serde_json::Value::as_array)
++        .into_iter()
++        .flatten()
++        .enumerate()
++        .filter_map(|(slot, shard)| {
++            let upgrade = shard.get("UpgradeType")?.as_str()?;
++            let colour = shard.get("Color").and_then(serde_json::Value::as_str);
++            Some(serde_json::json!([slot, colour, upgrade]))
++        })
++        .collect()
++}
++
++/// The Helminth ability each config of a warframe puts in, `Configs[i].AbilityOverride: {Ability,
++/// Index}`, as `[config, ability path, ability slot]`.
++fn ability_overrides(row: &serde_json::Value) -> Vec<serde_json::Value> {
++    row.get("Configs")
++        .and_then(serde_json::Value::as_array)
++        .into_iter()
++        .flatten()
++        .enumerate()
++        .filter_map(|(config, c)| {
++            let ability = c.get("AbilityOverride")?;
++            let path = ability.get("Ability")?.as_str()?;
++            let index = ability.get("Index")?.as_u64()?;
++            Some(serde_json::json!([config, path, index]))
++        })
++        .collect()
++}
++
++/// The warframes fed to the Helminth, `InfestedFoundry.ConsumedSuits: [{s, c}]`, by path.
++fn consumed_suits(foundry: Option<&serde_json::Value>) -> Vec<String> {
++    foundry
++        .and_then(|f| f.get("ConsumedSuits"))
++        .and_then(serde_json::Value::as_array)
++        .into_iter()
++        .flatten()
++        .filter_map(|suit| suit.get("s")?.as_str().map(str::to_owned))
++        .collect()
++}
++
+ /// One accumulated holding as a domain entry, or nothing if it cannot become one.
+ fn build_entry(path: String, accumulated: AccumulatedEntry) -> Option<InventoryEntry> {
+     let name = match accumulated.name {
 diff --git a/crates/warframe-acquisition/src/mastery.rs b/crates/warframe-acquisition/src/mastery.rs
 index fbfc700..b634e4c 100644
 --- a/crates/warframe-acquisition/src/mastery.rs
@@ -5064,10 +5177,10 @@ index 364e0b9..c73e78c 100644
 +    }
 +}
 diff --git a/crates/warframe-acquisition/tests/inventory_decoder.rs b/crates/warframe-acquisition/tests/inventory_decoder.rs
-index 6743d56..4154385 100644
+index 6743d56..2b68a65 100644
 --- a/crates/warframe-acquisition/tests/inventory_decoder.rs
 +++ b/crates/warframe-acquisition/tests/inventory_decoder.rs
-@@ -794,3 +794,220 @@ fn every_section_that_holds_a_build_is_read() {
+@@ -794,3 +794,339 @@ fn every_section_that_holds_a_build_is_read() {
          );
      }
  }
@@ -5287,6 +5400,125 @@ index 6743d56..4154385 100644
 +        of("CrewShipHarnesses")["type"],
 +        "/Lotus/Types/Game/CrewShip/RailJack/DefaultHarness"
 +    );
++}
++
++#[test]
++fn polarities_archon_shards_and_helminth_abilities_are_kept_for_orbiter_builds() {
++    let mut payload: serde_json::Value = serde_json::from_slice(&complete_payload()).unwrap();
++    // The shapes SpaceNinjaServer's IEquipmentClient gives them: `Polarity: [{Slot, Value}]`,
++    // `ArchonCrystalUpgrades: [{UpgradeType, Color}]` (an emptied slot is `{}`), and
++    // `Configs[i].AbilityOverride: {Ability, Index}`.
++    payload["Suits"] = serde_json::json!([
++        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaab1"},"ItemType":"/Lotus/Powersuits/Excalibur/Excalibur","Features":1,"Polarized":2,
++         "Polarity":[{"Slot":1,"Value":"AP_ATTACK"},{"Slot":5,"Value":"AP_UMBRA"},{"Slot":"x","Value":"AP_TACTIC"},{"Slot":7}],
++         "ArchonCrystalUpgrades":[
++           {"UpgradeType":"/Lotus/Upgrades/Invigorations/ArchonCrystalUpgrades/ArchonCrystalUpgradeWarframeAbilityStrength","Color":"ACC_RED"},
++           {},
++           {"UpgradeType":"/Lotus/Upgrades/Invigorations/ArchonCrystalUpgrades/ArchonCrystalUpgradeWarframeHealthMaxMythic","Color":"ACC_GREEN_MYTHIC"}
++         ],
++         "Configs":[
++           {"Upgrades":[]},
++           {"AbilityOverride":{"Ability":"/Lotus/Powersuits/PowersuitAbilities/Nidus/NidusRavenousAbility","Index":3}},
++           {"AbilityOverride":{"Ability":7}}
++         ]}
++    ]);
++    payload["MechSuits"] = serde_json::json!([
++        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaab2"},"ItemType":"/Lotus/Powersuits/EntratiMech/ThanotechSuit","XP":1600000,"Features":5,
++         "Polarity":[{"Slot":0,"Value":"AP_UNIVERSAL"}]}
++    ]);
++    payload["SpecialItems"] = serde_json::json!([
++        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaab3"},"ItemType":"/Lotus/Powersuits/Excalibur/ExcaliburSword","Features":32,
++         "Polarity":[{"Slot":9,"Value":"AP_ANY"}]}
++    ]);
++    payload["InfestedFoundry"] = serde_json::json!({
++        "Name":"Helminth","XP":1600000,
++        "ConsumedSuits":[
++          {"s":"/Lotus/Powersuits/Nidus/Nidus","c":{"t0":1}},
++          {"s":"/Lotus/Powersuits/Saryn/Saryn"},
++          {"c":{"t0":2}}
++        ]
++    });
++    let (snapshot, facts) = InventoryJsonDecoder::default()
++        .decode_with_facts(&serde_json::to_vec(&payload).unwrap())
++        .unwrap();
++    let gear = facts.gear();
++    let of = |section: &str| {
++        gear.iter()
++            .find(|g| g["s"] == section)
++            .unwrap_or_else(|| panic!("a {section} row"))
++    };
++    let excalibur = of("Suits");
++    assert_eq!(
++        excalibur["pol"],
++        serde_json::json!([[1, "AP_ATTACK"], [5, "AP_UMBRA"]]),
++        "an entry missing its slot or its value is dropped"
++    );
++    assert_eq!(
++        excalibur["shards"],
++        serde_json::json!([
++            [
++                0,
++                "ACC_RED",
++                "/Lotus/Upgrades/Invigorations/ArchonCrystalUpgrades/ArchonCrystalUpgradeWarframeAbilityStrength"
++            ],
++            [
++                2,
++                "ACC_GREEN_MYTHIC",
++                "/Lotus/Upgrades/Invigorations/ArchonCrystalUpgrades/ArchonCrystalUpgradeWarframeHealthMaxMythic"
++            ]
++        ]),
++        "the empty slot is skipped, the others keep their place"
++    );
++    assert_eq!(
++        excalibur["ab"],
++        serde_json::json!([[
++            1,
++            "/Lotus/Powersuits/PowersuitAbilities/Nidus/NidusRavenousAbility",
++            3
++        ]]),
++        "per config; an override it can't read is left out"
++    );
++    let mech = of("MechSuits");
++    assert_eq!(mech["type"], "/Lotus/Powersuits/EntratiMech/ThanotechSuit");
++    assert_eq!(mech["pol"], serde_json::json!([[0, "AP_UNIVERSAL"]]));
++    assert!(
++        mech.get("shards").is_none() && mech.get("ab").is_none(),
++        "none, no field"
++    );
++    let exalted = of("SpecialItems");
++    assert_eq!(exalted["f"], 32);
++    assert_eq!(exalted["pol"], serde_json::json!([[9, "AP_ANY"]]));
++    assert_eq!(
++        facts.consumed_suits(),
++        [
++            "/Lotus/Powersuits/Nidus/Nidus",
++            "/Lotus/Powersuits/Saryn/Saryn"
++        ]
++    );
++    // The holdings are unchanged: exalted weapons are still not collection items.
++    assert!(
++        !snapshot
++            .entries()
++            .iter()
++            .any(|e| e.item.id.as_str().contains("ExcaliburSword"))
++    );
++
++    // Without any of it (an account with no Helminth, unpolarised gear), nothing new appears.
++    let (_, plain) = InventoryJsonDecoder::default()
++        .decode_with_facts(&complete_payload())
++        .unwrap();
++    assert!(plain.consumed_suits().is_empty());
++    assert!(
++        plain.gear().iter().all(|g| {
++            g.get("pol").is_none() && g.get("shards").is_none() && g.get("ab").is_none()
++        })
++    );
++    // A Helminth in a shape this doesn't read is nothing fed, not a failed read.
++    payload["InfestedFoundry"] = serde_json::json!("unexpected");
++    let (_, odd) = InventoryJsonDecoder::default()
++        .decode_with_facts(&serde_json::to_vec(&payload).unwrap())
++        .unwrap();
++    assert!(odd.consumed_suits().is_empty());
 +}
 diff --git a/crates/warframe-acquisition/tests/mastery_ledger.rs b/crates/warframe-acquisition/tests/mastery_ledger.rs
 index 2c96e34..cbe75f0 100644

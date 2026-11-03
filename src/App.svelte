@@ -323,7 +323,7 @@
   const built = $derived.by((): { model: Model | null; error: string | null } => {
     if (!withTables) return { model: null, error: null };
     try {
-      return { model: buildModel(withTables, live, foundry, settings.market.relicPrices, settings.game.imprints, recipes, settings.game.gear), error: null };
+      return { model: buildModel(withTables, live, foundry, settings.market.relicPrices, settings.game.imprints, recipes, settings.game.gear, settings.game.consumedSuits), error: null };
     } catch (e) {
       console.error("Building the collection failed:", e);
       return { model: null, error: `Building your collection failed: ${e instanceof Error ? e.message : String(e)}` };
@@ -1349,6 +1349,7 @@
       if (r.rivens && JSON.stringify(r.rivens) !== JSON.stringify(g.rivens)) g.rivens = r.rivens;
       if (r.imprints && JSON.stringify(r.imprints) !== JSON.stringify(g.imprints)) g.imprints = r.imprints;
       if (r.gear && JSON.stringify(r.gear) !== JSON.stringify(g.gear)) g.gear = r.gear;
+      if (r.consumed_suits && JSON.stringify(r.consumed_suits) !== JSON.stringify(g.consumedSuits)) g.consumedSuits = r.consumed_suits;
       if (r.rivens) {
         const hist = recordRivens(g.rivenHistory ?? {}, r.rivens);
         if (hist) g.rivenHistory = hist;

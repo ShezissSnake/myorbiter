@@ -255,6 +255,8 @@ export interface GameState {
   imprints: ImprintRaw[] | null;
   /** Each copy of a warframe, weapon or companion from the patched TennoScope's last read (null before one has passed them). */
   gear: GearCopy[] | null;
+  /** The warframes fed to the Helminth, by path, from the same read (null before a TennoScope that passes them has). */
+  consumedSuits: string[] | null;
   /** Gear you chose to keep though orbiter says you don't need it (item paths). */
   keepGear: string[];
   /** Each riven's rolls as orbiter has seen them (by riven id, oldest first): for before-and-after on a cycle. */
@@ -314,7 +316,7 @@ export interface TradeLogEntry {
   platOut: number;
   platIn: number;
 }
-export const defaultGame = (): GameState => ({ foundryReady: [], masteryRank: null, platinum: null, credits: null, endo: null, rivens: null, imprints: null, gear: null, keepGear: [], rivenHistory: {}, foundryNotified: [], whispersSeen: [], chatsSeen: {}, dealsNotified: [], fissuresNotified: [], rivensNotified: [], cyclesNotified: [], shortNotified: [], valueHistory: [], relicRuns: [], drops: emptyDropLog(), savingFor: {}, notices: [], worldNotified: [] });
+export const defaultGame = (): GameState => ({ foundryReady: [], masteryRank: null, platinum: null, credits: null, endo: null, rivens: null, imprints: null, gear: null, consumedSuits: null, keepGear: [], rivenHistory: {}, foundryNotified: [], whispersSeen: [], chatsSeen: {}, dealsNotified: [], fissuresNotified: [], rivensNotified: [], cyclesNotified: [], shortNotified: [], valueHistory: [], relicRuns: [], drops: emptyDropLog(), savingFor: {}, notices: [], worldNotified: [] });
 
 export interface NotifySettings {
   /** The reward screen opened: which card to take. */
@@ -793,7 +795,7 @@ export async function loadSettings(): Promise<Settings> {
     startPage: typeof raw?.startPage === "string" && raw.startPage ? raw.startPage : "last",
     schema: base.schema,
     notifiedInvasions: Array.isArray(raw?.notifiedInvasions) ? raw.notifiedInvasions : [],
-    game: { ...defaultGame(), ...(raw?.game ?? {}), relicRuns: Array.isArray(raw?.game?.relicRuns) ? raw.game.relicRuns : [], drops: raw?.game?.drops && typeof raw.game.drops.at === "number" && raw.game.drops.counts && Array.isArray(raw.game.drops.windows) ? raw.game.drops : emptyDropLog(), savingFor: raw?.game?.savingFor && typeof raw.game.savingFor === "object" && !Array.isArray(raw.game.savingFor) ? raw.game.savingFor : {}, notices: Array.isArray(raw?.game?.notices) ? raw.game.notices : [], worldNotified: Array.isArray(raw?.game?.worldNotified) ? raw.game.worldNotified : [], keepGear: Array.isArray(raw?.game?.keepGear) ? raw.game.keepGear.filter((x: unknown) => typeof x === "string") : [], gear: Array.isArray(raw?.game?.gear) ? raw.game.gear : null },
+    game: { ...defaultGame(), ...(raw?.game ?? {}), relicRuns: Array.isArray(raw?.game?.relicRuns) ? raw.game.relicRuns : [], drops: raw?.game?.drops && typeof raw.game.drops.at === "number" && raw.game.drops.counts && Array.isArray(raw.game.drops.windows) ? raw.game.drops : emptyDropLog(), savingFor: raw?.game?.savingFor && typeof raw.game.savingFor === "object" && !Array.isArray(raw.game.savingFor) ? raw.game.savingFor : {}, notices: Array.isArray(raw?.game?.notices) ? raw.game.notices : [], worldNotified: Array.isArray(raw?.game?.worldNotified) ? raw.game.worldNotified : [], keepGear: Array.isArray(raw?.game?.keepGear) ? raw.game.keepGear.filter((x: unknown) => typeof x === "string") : [], gear: Array.isArray(raw?.game?.gear) ? raw.game.gear : null, consumedSuits: Array.isArray(raw?.game?.consumedSuits) ? raw.game.consumedSuits.filter((x: unknown) => typeof x === "string") : null },
     favourites: Array.isArray(raw?.favourites) ? raw.favourites : [],
     fissureRules: Array.isArray(raw?.fissureRules) ? raw.fissureRules.map(normalizeRule).filter((r: FissureRule | null): r is FissureRule => !!r) : [],
     rivenWatch: Array.isArray(raw?.rivenWatch) ? raw.rivenWatch : [],
@@ -955,8 +957,13 @@ export interface TennoscopeReport {
   rivens?: RivenRaw[] | null;
   /** Kubrow and Kavat imprints, the inventory's own rows, passed through. */
   imprints?: ImprintRaw[] | null;
-  /** Each copy of a warframe, weapon or companion: path, feature bits, Forma. */
+  /**
+   * Each copy of a warframe, weapon or companion: path, feature bits, Forma, section, and when it
+   * has them a modular build's parts, affinity, slot polarities, archon shards and Helminth abilities.
+   */
   gear?: GearCopy[] | null;
+  /** The warframes fed to the Helminth (`InfestedFoundry.ConsumedSuits`), by path; absent from an older TennoScope. */
+  consumed_suits?: string[] | null;
 }
 
 export type TennoscopeAsk = "--sync" | "--authorize-capture";
