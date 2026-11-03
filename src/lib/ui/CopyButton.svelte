@@ -67,7 +67,8 @@
     <span class="lbls">
       <span class:on={st === "idle"}>{label}</span>
       <span class:on={st === "done"}>{copied}<Icon name="check" size={look === "chip" ? 9 : 11} /></span>
-      <span class:on={st === "failed"}>Couldn't copy</span>
+      <!-- A chip is small: "Failed", the field under it says the rest. -->
+      <span class:on={st === "failed"}>{look === "chip" ? "Failed" : "Couldn't copy"}</span>
       {#each sizer as s, i (i)}<span>{s}</span>{/each}
     </span>
   </button>
@@ -84,8 +85,10 @@
   .link.done, .chip.done { color: var(--verdigris); }
   .link.failed, .chip.failed { color: var(--oxblood); }
   /* The fissure board's Recruit: a small struck button. */
-  .chip { font-family: var(--face-register); font-size: .54rem; letter-spacing: .04em; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-dim); background: none; padding: .1rem .35rem; cursor: pointer; height: auto; }
-  .chip:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+  /* Filled faintly and struck, so it reads as a button to press, not a field to type in. */
+  .chip { font-family: var(--face-register); font-size: .54rem; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-dim); background: color-mix(in srgb, var(--gold) 12%, transparent); box-shadow: inset 0 -1px 0 rgb(0 0 0 / 45%); padding: .12rem .45rem; cursor: pointer; height: auto; }
+  .chip .lbls > span { justify-content: center; }
+  .chip:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); background: color-mix(in srgb, var(--gold) 20%, transparent); }
   .chip.done { border-color: var(--verdigris); }
   .chip.failed { border-color: var(--oxblood); }
   /* The clipboard refused: the line under the button, selected, over whatever is below. */

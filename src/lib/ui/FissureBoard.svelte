@@ -142,7 +142,7 @@
   .pv { flex: none; }
   :global(html[data-room~="lt1100"]) .best .crackw, :global(html[data-room~="lt1100"]) .best .refw { display: none; }
   ul { list-style: none; margin: .3rem 0 0; padding: 0; display: grid; gap: .15rem; }
-  li { display: grid; grid-template-columns: minmax(6.5rem, 1fr) minmax(0, 1.3fr) 4.2rem 4.6rem; gap: .5rem; align-items: baseline; padding: .12rem 0; }
+  li { display: grid; grid-template-columns: minmax(6.5rem, 1.2fr) minmax(0, 1fr) 4.2rem 4.6rem; gap: .5rem; align-items: baseline; padding: .12rem 0; }
   .mt { display: inline-flex; align-items: center; gap: .3rem; color: var(--platinum); font-size: .88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .node, .foe { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .left { text-align: right; font-variant-numeric: tabular-nums; color: var(--platinum-dim); white-space: nowrap; }
@@ -151,7 +151,8 @@
   .mtn { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .mg { display: inline-flex; color: color-mix(in srgb, var(--tint) 65%, var(--platinum-dim)); }
   .saving { font-size: .7rem; color: var(--verdigris); border: 1px solid color-mix(in srgb, var(--verdigris) 45%, transparent); padding: 0 .3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: default; }
-  .quick { flex: none; font-family: var(--face-register); font-size: .58rem; letter-spacing: .08em; color: var(--verdigris); }
+  /* Set like the other small chips (SP, Storm): capitals in a hairline box, in verdigris. */
+  .quick { flex: none; font-family: var(--face-register); font-size: .52rem; letter-spacing: .06em; text-transform: uppercase; color: var(--verdigris); border: 1px solid color-mix(in srgb, var(--verdigris) 45%, transparent); padding: 0 .2rem; line-height: 1.4; }
   .kind { display: inline-flex; align-items: center; gap: .18rem; font-family: var(--face-register); font-size: .58rem; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold-dim); padding: 0 .25rem; }
   .kinds { align-items: center; }
   :global(html[data-room~="lt640"]) li { grid-template-columns: minmax(6rem, 1fr) minmax(0, 1.3fr) 4.4rem; }
