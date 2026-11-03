@@ -93,3 +93,17 @@ test("loadOverframe: reads the app's own file once, never a web address", async 
   assert.equal(await loadOverframe(async () => Promise.reject(new Error("missing"))), null);
   resetOverframe();
 });
+
+test("the shipped file: list fields only, every link a build page, dated", () => {
+  const raw = JSON.parse(readFileSync(new URL("../public/data/overframe/popular.json", import.meta.url), "utf8"));
+  const file = parseOverframeFile(raw);
+  assert.ok(file);
+  assert.equal(file.builds.length, raw.builds.length, "every row parses");
+  assert.match(raw.permission, /lists only/);
+  const allowed = new Set(["id", "path", "title", "item", "uniqueName", "author", "score", "formas", "created", "updated", "patch", "category"]);
+  for (const b of raw.builds) {
+    for (const k of Object.keys(b)) assert.ok(allowed.has(k), `unexpected field ${k}`);
+    assert.ok(isBuildPath(b.path), b.path);
+  }
+  assert.ok(matchRate(file) > 0.9);
+});
