@@ -24,6 +24,8 @@
   import Effort from "../ui/Effort.svelte";
   import Thumb from "../ui/Thumb.svelte";
   import CopyButton from "../ui/CopyButton.svelte";
+  import UndoSlot from "../ui/UndoSlot.svelte";
+  import { UndoSlots } from "../undo.svelte";
   import P from "../ui/P.svelte";
   import Presence from "../ui/Presence.svelte";
   import { partRows, saveForSets, setSaves } from "../core/views";
@@ -267,6 +269,13 @@
     settings.homeDismissed = [key, ...settings.homeDismissed.filter((k) => k !== key)].slice(0, 200);
   }
   const alerts = $derived.by(() => all().filter((a) => !a.key || !dismissed.has(a.key)));
+  // Dismissing an alert or removing a price alert waits a few seconds, with Undo, before it's done.
+  const undo = new UndoSlots();
+  $effect(() => () => undo.flush());
+  const alertKey = (a: { name: string; rank: number | null }) => `price:${a.name}|${a.rank ?? ""}`;
+  function removePriceAlert(a: (typeof settings.market.buyAlerts)[number]) {
+    undo.hold(alertKey(a), () => (settings.market.buyAlerts = settings.market.buyAlerts.filter((x) => alertKey(x) !== alertKey(a))));
+  }
   const all = () => {
     const out: Alert[] = [];
     // Alerts and invasions rewarding a part for something you haven't mastered: they don't come back on demand.
@@ -363,6 +372,9 @@
   {#if alerts.length}
     <section class="alerts" data-card="alerts" aria-label="Needs you" class:off={off("alerts")}>
       {#each alerts as a (a.key ?? a.title)}
+        {#if a.key && undo.has(a.key)}
+          <div class="alert ghost"><UndoSlot label="Dismissed" what={a.title} onundo={() => undo.undo(a.key!)} /></div>
+        {:else}
         <div class="alert t-{a.tone}" title={a.hint}>
           {#if a.image}<span class="art"><Thumb file={a.image} name={a.title} size={38} /><span class="badge"><GameIcon name={a.icon} size={16} /></span></span>{:else}<span class="art"><GameIcon name={a.icon} size={30} /></span>{/if}
           <span class="tx">
@@ -374,8 +386,9 @@
             {#if a.expiry}<span class="small nowrap">{until(a.expiry, now)} left</span>{/if}
             {#if a.to}<button class="link" onclick={() => go(a.to)}>{a.act} →</button>{/if}
           </span>
-          {#if a.key}<IconButton icon="close" tone="quiet" size={12} label="Dismiss" title="Dismiss: it doesn't come back for this alert" onclick={() => dismiss(a.key!)} />{/if}
+          {#if a.key}<IconButton icon="close" tone="quiet" size={12} label="Dismiss" title="Dismiss: it doesn't come back for this alert (you get a few seconds to undo)" onclick={() => undo.hold(a.key!, () => dismiss(a.key!))} />{/if}
         </div>
+        {/if}
       {/each}
     </section>
   {/if}
@@ -661,7 +674,8 @@
         <div class="alertlist">
           <span class="register" title="Set with Alert me in Post a buy order (the Buy order buttons on Wishlist, Mastery, Browse market…): orbiter tells you when someone lists one at your price or less">Your price alerts</span>
           {#each settings.market.buyAlerts as a (a.name + (a.rank ?? ""))}
-            <span class="pa" use:info={a.name}>{a.name}{a.rank != null ? ` R${a.rank}` : ""} <span class="dim">≤</span><P v={a.maxPrice} /><IconButton icon="close" tone="quiet" size={10} label="Remove alert" title="Stop watching {a.name}" onclick={() => (settings.market.buyAlerts = settings.market.buyAlerts.filter((x) => x !== a))} /></span>
+            {#if undo.has(alertKey(a))}<UndoSlot label="Removed" what={a.name} onundo={() => undo.undo(alertKey(a))} />
+            {:else}<span class="pa" use:info={a.name}>{a.name}{a.rank != null ? ` R${a.rank}` : ""} <span class="dim">≤</span><P v={a.maxPrice} /><IconButton icon="close" tone="quiet" size={10} label="Remove alert" title="Stop watching {a.name} (you get a few seconds to undo)" onclick={() => removePriceAlert(a)} /></span>{/if}
           {/each}
         </div>
       {/if}
@@ -770,6 +784,8 @@
   /* Needs you: a card each, as many to a row as fit. */
   .alerts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(24rem, 100%), 1fr)); gap: .5rem; margin-bottom: var(--step); }
   .alert { display: flex; align-items: center; gap: .75rem; padding: .55rem .6rem .55rem .85rem; border: 1px solid var(--rule); background: var(--plate); box-shadow: inset 3px 0 0 var(--platinum-deep); min-width: 0; clip-path: var(--cut); }
+  /* Dismissed, waiting out its Undo: just the collapsed line. */
+  .alert.ghost { background: none; border-color: transparent; box-shadow: none; clip-path: none; padding: .3rem 0; }
   .alert .art { position: relative; flex: none; display: inline-flex; width: 38px; justify-content: center; }
   .alert .badge { position: absolute; right: -6px; bottom: -5px; display: inline-flex; padding: 1px; background: var(--plate); border: 1px solid var(--rule); }
   .alert .tx { flex: 1; display: grid; gap: .12rem; min-width: 0; }

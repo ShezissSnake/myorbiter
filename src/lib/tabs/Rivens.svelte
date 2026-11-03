@@ -22,6 +22,8 @@
   import Icon from "../ui/Icon.svelte";
   import Thumb from "../ui/Thumb.svelte";
   import ProgressButton from "../ui/ProgressButton.svelte";
+  import UndoSlot from "../ui/UndoSlot.svelte";
+  import { UndoSlots } from "../undo.svelte";
   import { Job, JobError } from "../job.svelte";
   import { matches } from "../ui/table";
 
@@ -411,7 +413,10 @@
     watchNote = null;
     settings.rivenWatch = [...settings.rivenWatch, w];
   }
-  const unwatch = (id: string) => (settings.rivenWatch = settings.rivenWatch.filter((w) => w.id !== id));
+  // Stop watching waits a few seconds, with Undo, before the alert is gone.
+  const undo = new UndoSlots();
+  $effect(() => () => undo.flush());
+  const unwatch = (id: string) => undo.hold(id, () => (settings.rivenWatch = settings.rivenWatch.filter((w) => w.id !== id)));
   /** Each result's estimate, and its price against it. */
   const foundEst = $derived.by(() => {
     const out = new Map<string, { e: Estimate; deal: ReturnType<typeof dealOf> }>();
@@ -681,7 +686,8 @@
         <div class="watching">
           <span class="register">Watching</span>
           {#each settings.rivenWatch as w (w.id)}
-            <span class="rule">{w.weaponName}{w.positive.length ? ` · ${w.positive.map(attrName).join(", ")}` : ""}{w.negative ? ` · −${attrName(w.negative)}` : ""} · ≤ {w.maxPrice}p<IconButton icon="close" tone="quiet" size={12} label="Stop watching" onclick={() => unwatch(w.id)} /></span>
+            {#if undo.has(w.id)}<UndoSlot label="Stopped watching" what={w.weaponName} onundo={() => undo.undo(w.id)} />
+            {:else}<span class="rule">{w.weaponName}{w.positive.length ? ` · ${w.positive.map(attrName).join(", ")}` : ""}{w.negative ? ` · −${attrName(w.negative)}` : ""} · ≤ {w.maxPrice}p<IconButton icon="close" tone="quiet" size={12} label="Stop watching" title="Stop watching for this riven (you get a few seconds to undo)" onclick={() => unwatch(w.id)} /></span>{/if}
           {/each}
         </div>
       {/if}

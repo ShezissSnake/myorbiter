@@ -17,6 +17,8 @@
   import GameIcon, { eraIcon, type GameIconName } from "../ui/GameIcon.svelte";
   import Icon from "../ui/Icon.svelte";
   import IconButton from "../ui/IconButton.svelte";
+  import UndoSlot from "../ui/UndoSlot.svelte";
+  import { UndoSlots } from "../undo.svelte";
 
   let { model, settings = $bindable() }: { model: Model; settings: Settings } = $props();
 
@@ -55,7 +57,10 @@
     settings.favourites = [pick.uniqueName, ...settings.favourites];
     adding = "";
   }
-  const remove = (u: string) => (settings.favourites = settings.favourites.filter((x) => x !== u));
+  // Taking something off the wishlist waits a few seconds, with Undo, before it's done.
+  const undo = new UndoSlots();
+  $effect(() => () => undo.flush());
+  const remove = (u: string) => undo.hold(u, () => (settings.favourites = settings.favourites.filter((x) => x !== u)));
   const pct = (x: number) => (x >= 0.995 ? "99%+" : x < 0.005 && x > 0 ? "<1%" : `${Math.round(x * 100)}%`);
   /** Missing parts that come from relics, but none you hold. */
   const uncovered = (w: WishItem) => w.missing.filter((p) => !p.yours.length && model.sourcesByReward.get(p.name)?.length).length;
@@ -120,6 +125,9 @@
   {:else}
     <div class="list">
       {#each items as w (w.c.unique)}
+        {#if undo.has(w.c.unique)}
+          <article class="wish ghost"><UndoSlot label="Removed from your wishlist" what={w.c.name} onundo={() => undo.undo(w.c.unique)} /></article>
+        {:else}
         <article class="wish" class:done={!w.missing.length}>
           <div class="who">
             <button class="art" onclick={() => details.open(w.c.unique)} aria-label="{w.c.name}: details" use:info={w.c.name}><Art file={w.c.image} size={96} /></button>
@@ -139,7 +147,7 @@
                 {/if}
               </div>
             </div>
-            <button class="unstar" title="Remove from your wishlist" aria-label="Remove {w.c.name} from your wishlist" onclick={() => remove(w.c.unique)}><Icon name="star" size={15} /></button>
+            <button class="unstar" title="Remove from your wishlist (you get a few seconds to undo)" aria-label="Remove {w.c.name} from your wishlist" onclick={() => remove(w.c.unique)}><Icon name="star" size={15} /></button>
           </div>
           {#if w.missing.length}
             <table>
@@ -177,6 +185,7 @@
             </table>
           {/if}
         </article>
+        {/if}
       {/each}
     </div>
   {/if}
@@ -195,6 +204,7 @@
   .era li { display: flex; gap: .35rem; align-items: baseline; flex-wrap: wrap; }
   .list { display: grid; gap: .9rem; }
   .wish { border: 1px solid var(--rule); background: linear-gradient(180deg, #14161a, var(--plate) 40%); clip-path: var(--cut); padding: .9rem 1rem; display: grid; grid-template-columns: minmax(18rem, 24rem) 1fr; gap: 1.2rem; align-items: start; }
+  .wish.ghost { display: block; padding: .4rem 0; border-color: transparent; background: none; clip-path: none; }
   .wish.done { grid-template-columns: 1fr; }
   /* Page area under 950 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt950"]) .wish { grid-template-columns: 1fr; }
