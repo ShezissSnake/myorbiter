@@ -226,7 +226,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Sets" blurb="Complete sets to sell (prime, and the others warframe.market trades whole), the ones almost done, and the ones your loose parts wait for.">
+  <PageHead title="Sets" brief="Sets to sell, almost done, or saving up." blurb="Complete sets to sell (prime, and the others warframe.market trades whole), the ones almost done, and the ones your loose parts wait for.">
     {#snippet band()}
       {#if mode === "save"}
       <Stat label="Sets saved for" note={saveOn ? "Their loose parts wait instead of being sold" : "Off in Settings → Selling"}>{rows.length}</Stat>

@@ -485,7 +485,7 @@
 <svelte:window onpointerdown={outside} />
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Orders" blurb="Your warframe.market listings, kept at the cheapest in-game price." band={mkt.linked ? band : undefined} />
+  <PageHead title="Orders" brief="Your listings, kept at the cheapest price." blurb="Your warframe.market listings, kept at the cheapest in-game price." band={mkt.linked ? band : undefined} />
   {#snippet band()}
       <Stat extra label="Listed value" note="Visible listings, price × quantity"><P v={listed} big /></Stat>
       <Stat label="Listings" tone={mkt.room <= 0 ? "gold" : "platinum"} note={`${mkt.room <= 0 ? "At warframe.market's limit" : `${mkt.room} more allowed`} · ${orders.filter((o) => !o.visible).length} hidden`}>{orders.length}<span class="of">/{LISTING_LIMIT - mkt.otherOrders}</span></Stat>

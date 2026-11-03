@@ -167,6 +167,7 @@
 <div class="page"><div class="page-inner">
   <PageHead
     title="Planner"
+    brief={mode === "sets" ? "Relics to crack for sets you're close to." : "Where your Void Traces gain the most."}
     blurb={mode === "sets"
       ? "Your relics most likely to finish a set you're close to."
       : "Where 100 Void Traces gain the most."}

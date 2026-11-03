@@ -94,7 +94,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Wishlist" blurb="What you've starred, and the quickest way to each missing part: a relic you hold, where to farm one, or what it costs." band={items.length ? band : undefined} />
+  <PageHead title="Wishlist" brief="What you starred, and how to get each part." blurb="What you've starred, and the quickest way to each missing part: a relic you hold, where to farm one, or what it costs." band={items.length ? band : undefined} />
 
   <div class="bar">
     <input list="wish-names" placeholder="Add something to your wishlist…" bind:value={adding} onkeydown={(e) => e.key === "Enter" && add()} aria-label="Item to add" />

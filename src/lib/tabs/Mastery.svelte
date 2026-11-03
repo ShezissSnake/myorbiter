@@ -175,7 +175,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Mastery" blurb={view === "plat" ? "What platinum gets you that you haven’t mastered, cheapest first." : "Everything you haven’t mastered, easiest first."}>
+  <PageHead title="Mastery" brief={view === "plat" ? "What platinum buys toward mastery." : "What's left to master, easiest first."} blurb={view === "plat" ? "What platinum gets you that you haven’t mastered, cheapest first." : "Everything you haven’t mastered, easiest first."}>
     {#snippet band()}
       {#if masteryRank != null}
         <Stat label="Your rank" tone="gold" note={`${rankLabel(masteryRank)} from ${rankThreshold(masteryRank).toLocaleString("en")} · ${rankLabel(masteryRank + 1)} at ${rankThreshold(masteryRank + 1).toLocaleString("en")} total mastery`} title={`${rankLabel(masteryRank + 1)} takes ${(rankThreshold(masteryRank + 1) - rankThreshold(masteryRank)).toLocaleString("en")} mastery more than ${rankLabel(masteryRank)}. The game doesn't say how far into the rank you are, so the figures below are what's left to earn, not what's left to the next rank.`}>{rankLabel(masteryRank)}</Stat>

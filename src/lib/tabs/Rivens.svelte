@@ -582,7 +582,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Rivens" blurb={console ? "Find rivens for sale, each roll graded, what each weapon's rivens traded for last week, and alerts when one you want is listed at your price." : "Your rivens graded stat by stat, and what each weapon's rivens sold for last week."}>
+  <PageHead title="Rivens" brief={console ? "Rivens for sale, graded, and alerts." : "Your rivens graded, and what they sell for."} blurb={console ? "Find rivens for sale, each roll graded, what each weapon's rivens traded for last week, and alerts when one you want is listed at your price." : "Your rivens graded stat by stat, and what each weapon's rivens sold for last week."}>
     {#snippet band()}
       {#if !console}
       <Stat label="Unveiled" note="Read from your inventory">{mine.length}</Stat>

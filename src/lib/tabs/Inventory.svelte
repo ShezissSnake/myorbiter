@@ -215,7 +215,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Inventory" blurb="Everything you own, with what it's worth on warframe.market.">
+  <PageHead title="Inventory" brief="Everything you own, and what it's worth." blurb="Everything you own, with what it's worth on warframe.market.">
     {#snippet band()}
       <Stat label="You can spare" tone="gold" note="Beyond what you keep, no more of each than the market sells in a month" title={`You can spare: beyond what you keep, no more of each than the market sells in a month (slow sellers count only that).${spareSplit ? ` By kind: ${spareSplit}. Mods (with Actually sells off) counts its spares the same way; Prime parts leaves out the ones better traded to Baro for ducats.` : ""}`}><P v={value.spare} big /></Stat>
       <Stat extra label="Easy to sell" note="Everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month"><P v={value.easy} big /></Stat>

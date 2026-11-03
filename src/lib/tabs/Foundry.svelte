@@ -123,7 +123,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Foundry" blurb="Everything you can master, with the parts you hold (gold: in hand). Click one for its stats, drops and prices.">
+  <PageHead title="Foundry" brief="Everything you can master, part by part." blurb="Everything you can master, with the parts you hold (gold: in hand). Click one for its stats, drops and prices.">
     {#snippet band()}
       <Stat label="Mastered" note={`of ${inGroup.length} ${groupLabel}`}><GameIcon name="mastery" size={30} />{mastered}<span class="of">/{inGroup.length}</span></Stat>
       <Stat label="Owned, not mastered" tone="gold" note="Level these">{ownedOnly}</Stat>

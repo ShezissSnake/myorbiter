@@ -219,7 +219,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Relics" blurb="Your relics, and what one crack of each is worth: each reward at its price, or its ducats at your rate (Prime parts) when that's more.">
+  <PageHead title="Relics" brief="Your relics and what one crack is worth." blurb="Your relics, and what one crack of each is worth: each reward at its price, or its ducats at your rate (Prime parts) when that's more.">
     {#snippet band()}
       {@const filtered = rows.length !== all.length}
       <Stat label="Relics" note={filtered ? "Matching the filters" : unknown.length ? `All refinements, with ${unknown.reduce((n, u) => n + u.total, 0)} not in the relic list` : "Across all refinements"}>

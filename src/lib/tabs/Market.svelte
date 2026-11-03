@@ -116,7 +116,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Browse market" blurb="Everything warframe.market trades: what it sold for lately, how often it sells.">
+  <PageHead title="Browse market" brief="Everything on warframe.market, by price." blurb="Everything warframe.market trades: what it sold for lately, how often it sells.">
     {#snippet band()}
       <Stat label="Sold daily" note={filtered ? `Of the ${rows.length.toLocaleString("en")} shown, ones that sell at least once a day` : `Of the ${all.length.toLocaleString("en")} on warframe.market, ones that sell at least once a day`}><b class="mark big">{sellsDaily.toLocaleString("en")}</b></Stat>
     {/snippet}

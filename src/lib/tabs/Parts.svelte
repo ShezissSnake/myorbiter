@@ -197,7 +197,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Prime parts" blurb="Every prime part you hold and its best use: keep, save for its set, sell, sell as a set, or trade to Baro.">
+  <PageHead title="Prime parts" brief="Each prime part's best use." blurb="Every prime part you hold and its best use: keep, save for its set, sell, sell as a set, or trade to Baro.">
     {#snippet band()}
       <Stat label="Spares to sell" note={`${plural(spares.filter((r) => verdict(r) !== "Ducats").reduce((n, r) => n + r.spare, 0), "part")} · daily median, no more of each than sells in a month`}><P v={asPlat} big /></Stat>
       <Stat label="Spares for ducats" tone="gold" note={`${plural(spares.filter((r) => verdict(r) === "Ducats").reduce((n, r) => n + r.spare, 0), "part")}, better traded in`}><P v={asDucats} d big /></Stat>

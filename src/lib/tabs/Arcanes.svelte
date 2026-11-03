@@ -222,7 +222,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Arcanes" blurb="What each arcane is worth, and how close you are to maxing it.">
+  <PageHead title="Arcanes" brief="Arcanes by worth, and how close to maxed." blurb="What each arcane is worth, and how close you are to maxing it.">
     {#snippet band()}
       <Stat label="Maxed" note="Arcanes you have at max rank">{completeCount}<span class="of">/{all.length}</span></Stat>
       <Stat label="Spares to sell" note={`${things(toSell.length, "arcane")} worth more sold than kept`}><P v={Math.round(toSell.reduce((n, x) => n + (x.sellPlat ?? 0), 0))} big /></Stat>

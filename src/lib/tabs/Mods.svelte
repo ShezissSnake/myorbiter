@@ -126,7 +126,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Mods" blurb="Mods you have spare copies of. Your best copy and one to give away are always kept.">
+  <PageHead title="Mods" brief="Spare mod copies to sell." blurb="Mods you have spare copies of. Your best copy and one to give away are always kept.">
     {#snippet band()}
       <Stat label="Spare copies" note={tradeDays != null && tradeDays > 1 ? `Beyond your best copy and one to give away · ${tradeDays} days of trades to sell them all` : "Beyond your best copy and one to give away"} title={tradeDays != null ? `Beyond your best copy and one to give away. Trades a day are your Mastery Rank (${masteryRank}), up to 6 items each: selling every spare copy would take ${tradeDays} days of trading, at best` : null}>{extras.toLocaleString("en")}</Stat>
       <Stat label="Spares worth" tone="dim" note={`${sellingOnly ? "Mods that sell daily, no more of each than the market sells in a month" : "Slow sellers too, no more of each than the market sells in a month (as Inventory counts)"}; only what's worth ${minPlat}p a trade`}><P v={value} big /></Stat>

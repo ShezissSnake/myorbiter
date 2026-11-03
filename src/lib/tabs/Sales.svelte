@@ -183,7 +183,7 @@
 
 <div class="page"><div class="page-inner">
   <!-- Nothing logged: no row of zeros, just how sales get here. -->
-  <PageHead title="Sales" blurb="What you've sold, and the platinum it made." band={sales.length ? band : undefined} />
+  <PageHead title="Sales" brief="What you've sold, and the platinum it made." blurb="What you've sold, and the platinum it made." band={sales.length ? band : undefined} />
     {#snippet band()}
       <Stat label="Today" note={`${trades(today)} sold`}><P v={plat(today)} big /></Stat>
       <Stat label="Last 7 days" note={`${trades(week)} sold`}><P v={plat(week)} big /></Stat>
