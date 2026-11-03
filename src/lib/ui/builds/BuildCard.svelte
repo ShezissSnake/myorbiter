@@ -76,7 +76,11 @@
   const riven = $derived(extras?.riven ?? null);
   const melee = $derived(b.kind === "melee" || b.kind === "archmelee");
   const variants = $derived(extras?.variants ?? []);
-  const variantLabel = $derived(variants.find((v) => v.id === extras?.variant)?.label ?? variants[0]?.label ?? null);
+  // "Default" (gear without variants: companions, archwings, Necramechs) says nothing as a title.
+  const variantLabel = $derived.by(() => {
+    const l = variants.find((v) => v.id === extras?.variant)?.label ?? variants[0]?.label ?? null;
+    return l === "Default" && variants.length < 2 ? null : l;
+  });
   const site = $derived(typeof b.source === "object" ? b.source : null);
   // orbiter's suggestion: the source line says whose it is; the title says which variant.
   const title = $derived(b.source === "orbiter" && !shown.saved ? (variantLabel ?? "Suggested build") : b.source === "orbiter" ? (b.title?.replace(/^orbiter's suggestion \((.*)\)$/, "$1") ?? "orbiter's suggestion") : (b.title ?? (b.source === "mine" ? "Your build" : site ? `${site.site} build` : "Pasted build")));
