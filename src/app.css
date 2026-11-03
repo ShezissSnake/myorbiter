@@ -354,7 +354,8 @@ tr.era-wash > td:first-child { box-shadow: inset 2px 0 0 color-mix(in srgb, var(
 .modes { margin-top: .2rem; }
 
 /* The sections (pages.ts groups; App puts data-section on each page and sidebar entry). */
-[data-section="Fissures"] { --sec: #a2a8f0; --sec-dim: #6d72b4; --sec-sigil: url("/game/void-tear.png"); }
+/* Four hues far apart, each at least 7:1 on the slab: Void violet, mastery teal, Arsenal steel, market gold. */
+[data-section="Fissures"] { --sec: #b59cf2; --sec-dim: #7a62b8; --sec-sigil: url("/game/void-tear.png"); }
 [data-section="Progress"] { --sec: #6fb7a3; --sec-dim: #4a8677; --sec-sigil: url("/game/mastery.png"); }
-[data-section="Collection"] { --sec: #9cb6dc; --sec-dim: #6681a8; --sec-sigil: url("/game/warframes.png"); }
+[data-section="Collection"] { --sec: #9ec2d0; --sec-dim: #5f8592; --sec-sigil: url("/game/warframes.png"); }
 [data-section="Trade"] { --sec: #d6ae4a; --sec-dim: #a3843a; --sec-sigil: url("/game/market.png"); }

@@ -1093,6 +1093,16 @@ export interface SquadRelic {
   ev: number | null;
 }
 
+/**
+ * Which of the squad's relics is yours: the one whose rewards hold the reward the game's log says
+ * you got. Null when none or several could have given it (a Forma, a 4b4), so it's never a guess.
+ */
+export function yourRelicIndex(relics: readonly { rewards: readonly { name: string }[] }[], reward: string | null | undefined): number | null {
+  if (!reward) return null;
+  const hits = relics.flatMap((r, i) => (r.rewards.some((x) => x.name === reward) ? [i] : []));
+  return hits.length === 1 ? hits[0] : null;
+}
+
 export function squadRelics(m: Model, paths: string[]): SquadRelic[] {
   return paths.map((path) => {
     const suffix = path.match(/(Bronze|Silver|Gold|Platinum)$/)?.[1] ?? "Bronze";

@@ -68,9 +68,11 @@
   const tape = $derived<Tick[]>(
     mkt.items.length
       ? [
-          { key: "items", label: filtered ? "Items shown" : "Items", value: rows.length, of: filtered ? `/${all.length.toLocaleString("en")}` : undefined, title: filtered ? `Items shown: ${rows.length.toLocaleString("en")} of the ${all.length.toLocaleString("en")} warframe.market trades` : `Items: everything warframe.market trades${weekly ? `, ${(all.length - rows.length).toLocaleString("en")} that sell less than weekly hidden (Sold weekly)` : ""}` },
-          { key: "daily", label: "Sold daily", value: sellsDaily, title: `Sold daily: of the ${rows.length.toLocaleString("en")} ${filtered ? "shown" : "items"}, the ones that sell at least once a day` },
-          { key: "held", label: "You hold", value: heldCount, title: `You hold: of the ${rows.length.toLocaleString("en")} ${filtered ? "shown" : "items"}, the ones you have at least one of (You have shows only those)` },
+          // What the filters show, of all warframe.market trades (Sold weekly, on to start, hides some).
+          { key: "items", label: "Shown", value: rows.length, of: rows.length < all.length ? `/${all.length.toLocaleString("en")}` : undefined, title: `Shown: ${rows.length.toLocaleString("en")} of the ${all.length.toLocaleString("en")} items warframe.market trades${rows.length < all.length ? `, as the filters leave them${weekly ? ` (Sold weekly hides ${slowHidden.toLocaleString("en")} that sell less than once a week)` : ""}` : ""}` },
+          // Said as the cards say how often a thing sells ("2.3 sold/day").
+          { key: "daily", label: "1+ sold/day", value: sellsDaily, title: `1+ sold/day: of the ${rows.length.toLocaleString("en")} shown, the ones that sell at least once a day` },
+          { key: "held", label: "You hold", value: heldCount, title: `You hold: of the ${rows.length.toLocaleString("en")} shown, the ones you have at least one of (You have shows only those)` },
         ]
       : [{ key: "items", label: "Items", value: null, text: loadError ? "couldn't load" : "loading…", tone: "dim", title: loadError ? `warframe.market's item list didn't load: ${loadError}` : "Loading warframe.market's item list" }],
   );

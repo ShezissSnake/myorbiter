@@ -47,16 +47,16 @@
       <i class="f"></i>
       {#if cap != null}<i class="zone" style:--zone="{(TO_RADIANT / scale) * 100}%"></i>{/if}
     </div>
-    <span class="m-note">{refines ? `${n(refines)} to Radiant` : "Not enough to refine one"}{#if cap != null}{" · "}{near ? (traces >= cap ? "at the cap: refine some" : "near the cap: refine some") : `${n(cap - traces)} to the cap`}{:else}{" · cap once your rank is read"}{/if}</span>
+    <span class="m-note">{refines ? `Enough for ${n(refines)} Radiant` : "Not enough to refine one"}{#if cap != null}{" · "}{near ? (traces >= cap ? "at the cap: refine some" : "near the cap: refine some") : `${n(cap - traces)} until the cap`}{:else}{" · cap once your rank is read"}{/if}</span>
   </div>
 </section>
 
 {#snippet cell(e: { era: string; total: number; radiant: number }, icon: ReturnType<typeof relicIcon>)}
-  {#if icon}<GameIcon name={icon} size={40} />{:else}<GameIcon name="void-tear" size={34} />{/if}
+  {#if icon}<GameIcon name={icon} size={36} />{:else}<GameIcon name="void-tear" size={30} />{/if}
   <span class="txt">
     <span class="en">{e.era}</span>
     <b>{n(e.total)}</b>
-    <span class="rad" class:zero={!e.radiant}>{e.radiant ? `${n(e.radiant)} radiant` : "none radiant"}</span>
+    <span class="rad" class:zero={!e.radiant}>{n(e.radiant)} radiant</span>
   </span>
 {/snippet}
 
@@ -68,7 +68,7 @@
   }
   .eras { display: flex; flex: 1 1 34rem; min-width: 0; }
   .era {
-    all: unset; box-sizing: border-box; display: flex; align-items: center; gap: .55rem; padding: .6rem .8rem .6rem .9rem; flex: 1 1 0; min-width: 0;
+    all: unset; box-sizing: border-box; display: flex; align-items: center; gap: .5rem; padding: .6rem .7rem .6rem .8rem; flex: 1 1 0; min-width: 0;
     border-right: 1px solid var(--rule); position: relative;
   }
   button.era { cursor: pointer; }
@@ -83,7 +83,7 @@
   .era.none b { color: var(--platinum-deep); }
   .rad { font-size: .7rem; color: var(--platinum-dim); white-space: nowrap; }
   .rad.zero { color: var(--platinum-deep); }
-  .meter { flex: 1 1 17rem; display: grid; align-content: center; gap: .4rem; padding: .6rem 1.1rem .65rem; min-width: 0; }
+  .meter { flex: 1 1 15rem; display: grid; align-content: center; gap: .4rem; padding: .6rem 1.1rem .65rem; min-width: 0; }
   .m-head { display: flex; align-items: center; gap: .45rem; }
   .m-head .register { font-size: .6rem; color: var(--platinum-dim); }
   .m-fig { margin-left: auto; display: inline-flex; align-items: baseline; gap: .1rem; }
@@ -99,5 +99,11 @@
   .near .gauge .f { background: var(--alert); }
   .near .m-fig b { color: var(--alert); }
   .m-note { font-size: .72rem; color: var(--platinum-deep); }
+  /* Page area under 950 px: the eras take the whole row, each with room for its "143 radiant", and
+     the meter goes under them. */
+  :global(html[data-room~="lt950"]) .eras { flex-basis: 100%; }
+  :global(html[data-room~="lt950"]) .meter { border-top: 1px solid var(--rule); grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 1.2rem; }
+  :global(html[data-room~="lt950"]) .gauge { grid-column: 2; grid-row: 1; }
+  :global(html[data-room~="lt950"]) .m-note { grid-column: 1 / -1; }
   .near .m-note { color: var(--alert); }
 </style>

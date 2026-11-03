@@ -8,7 +8,7 @@
   import { untrack } from "svelte";
   import type { Model } from "../core/model";
   import type { AdviceSettings, MarketSettings, OrderSortKey } from "../backend";
-  import { heldFor, holdings, listingKey, overAsked, wtsLines, type MyOrder, type Plan } from "../core/market";
+  import { heldFor, holdings, listingKey, overAsked, overListed, wtsLines, type MyOrder, type Plan } from "../core/market";
   import { LISTING_LIMIT } from "../core/bulk";
   import { arcaneRows, saveForSets, spareOf } from "../core/views";
   import { drops } from "../drops.svelte";
@@ -173,9 +173,11 @@
     const it = mkt.item(o.itemId);
     return it ? heldFor(model, it, o) : null;
   }
-  const short = $derived(orders.filter((o) => { const n = stock(o); return n != null && n < o.quantity; }));
-  // Counted like Home and the notices: a hidden listing can't be bought, so it can't let anyone down.
-  const shortShown = $derived(short.filter((o) => o.visible).length);
+  // Counted like Home and the notices: the visible ones first (a buyer can be let down), the hidden
+  // ones beside them (nobody can buy those, but their rows still ask "Sold?").
+  const over = $derived(overListed(orders, stock));
+  const shortShown = $derived(over.shown.length);
+  const shortHidden = $derived(over.hidden.length);
 
   const rankLabel = (o: { rank: number | null; subtype: string | null }) =>
     [o.rank != null ? `R${o.rank}` : null, o.subtype].filter(Boolean).join(" · ");
@@ -549,7 +551,7 @@
   {#snippet ticker()}<Ticker id="orders" label="Your trading, live" items={tape} />{/snippet}
   {#snippet band()}
       <Stat label="Listings" tone={mkt.room <= 0 ? "gold" : "platinum"} note={`${mkt.room <= 0 ? "At warframe.market's limit" : `${mkt.room} more allowed`} · ${orders.filter((o) => !o.visible).length} hidden`}>{orders.length}<span class="of">/{LISTING_LIMIT - mkt.otherOrders}</span></Stat>
-      {#if !console}<Stat label="Listed more than you hold" tone={shortShown ? "gold" : "dim"} note={`${shortShown ? "Sold in game, or used: fix them below" : short.length ? "Only in hidden listings, which nobody can buy" : "You hold everything you list"}${shortShown && short.length > shortShown ? ` · +${short.length - shortShown} hidden` : ""}`} title={`Listed more than you hold: visible listings for more copies than you hold now, as Home counts them${short.length > shortShown ? `. ${short.length - shortShown} hidden listing${short.length - shortShown === 1 ? "" : "s"} too, marked in the list: nobody can buy those` : ""}`}>{shortShown}</Stat>{/if}
+      {#if !console}<Stat label="Listed more than you hold" tone={shortShown ? "gold" : "dim"} note={shortShown ? "Sold in game, or used: fix them below" : shortHidden ? "Only in hidden listings, which nobody can buy" : "You hold everything you list"} title={`Listed more than you hold: ${shortShown} visible listing${shortShown === 1 ? "" : "s"} for more copies than you hold now, as Home counts them${shortHidden ? `, and ${shortHidden} hidden, which nobody can buy. Each is flagged in the list: Sold?` : ""}`}>{shortShown}{#if shortHidden}<span class="of">+{shortHidden} hidden</span>{/if}</Stat>{/if}
   {/snippet}
 
   <section class="status">
