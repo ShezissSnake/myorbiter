@@ -4,6 +4,7 @@
   // Details switch shows or hides the detail every page keeps on hover (lib/view.svelte.ts): off,
   // the page's short `brief`, which fits one line; on, the whole `blurb`.
   import { view } from "../view.svelte";
+  import { reveal } from "../motion";
   // hero: the section's signature (the reward screen, the Codex rings, the showcase, the ticker),
   // between the title and the figures.
   let { title, blurb, brief, band, hero }: { title: string; blurb?: string; brief?: string; band?: Snippet; hero?: Snippet } = $props();
@@ -23,7 +24,8 @@
 </header>
 <!-- data-card "hero": What's New's Show me lights a section's signature (page#hero). -->
 {#if hero}<div class="hero" data-card="hero">{@render hero()}</div>{/if}
-{#if band}<section class="band">{@render band()}</section>{/if}
+<!-- A band that comes or goes with the page's data (Sales' first or last sale) folds rather than snaps. -->
+{#if band}<div class="reveal" transition:reveal><div><section class="band">{@render band()}</section></div></div>{/if}
 
 <style>
   .head {
