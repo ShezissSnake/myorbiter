@@ -29,7 +29,7 @@
   function pageOwns(el: EventTarget | null) {
     if (!(el instanceof HTMLElement)) return false;
     if (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName)) return true;
-    return !!el.closest('[role="tablist"], [role="radiogroup"], [role="listbox"], [role="slider"], [role="menu"], [role="grid"]');
+    return !!el.closest('[role="tablist"], [role="radiogroup"], [role="toolbar"], [role="listbox"], [role="slider"], [role="menu"], [role="grid"]');
   }
   function onKey(e: KeyboardEvent) {
     if (!stop || e.ctrlKey || e.altKey || e.metaKey) return;

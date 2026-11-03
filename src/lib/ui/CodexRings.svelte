@@ -45,20 +45,37 @@
   const tip = (r: CodexRing) =>
     `${r.label}: ${n(r.mastered)} of ${n(r.total)} mastered (${pct(r.mastered, r.total)}%)${starred(r.group) ? `, ${n(starred(r.group))} starred` : ""}. ${action(r)}`;
   const sum = $derived(ringTotal(rings));
+
+  // One tab stop for the row (the lit tile, else the first); ←/→, Home and End move the focus
+  // between tiles, and Enter or Space picks, since a pick filters the page or jumps away.
+  let row = $state<HTMLElement | null>(null);
+  let at = $state<number | null>(null);
+  const litAt = $derived(all ? (lit == null ? 0 : 1 + rings.findIndex((r) => r.group === lit)) : Math.max(0, rings.findIndex((r) => r.group === lit)));
+  const stop = (i: number) => i === (at ?? litAt);
+  function key(e: KeyboardEvent) {
+    const tiles = [...(row?.querySelectorAll<HTMLElement>("button.ring") ?? [])];
+    if (!tiles.length) return;
+    const from = Math.max(0, tiles.indexOf(e.target as HTMLElement));
+    const to = e.key === "ArrowRight" ? from + 1 : e.key === "ArrowLeft" ? from - 1 : e.key === "Home" ? 0 : e.key === "End" ? tiles.length - 1 : null;
+    if (to == null) return;
+    e.preventDefault();
+    at = (to + tiles.length) % tiles.length;
+    tiles[at].focus();
+  }
 </script>
 
 <section class="codex" aria-label="Codex: mastered by category">
-  <div class="rings">
+  <div class="rings" role="toolbar" aria-label="Categories" tabindex="-1" bind:this={row} onkeydown={key} onfocusout={(e) => { if (!row?.contains(e.relatedTarget as Node | null)) at = null; }}>
     {#if all}
       {@const tipAll = `Every category: ${n(sum.mastered)} of ${n(sum.total)} mastered (${pct(sum.mastered, sum.total)}%). ${all.action}`}
-      <button type="button" class="ring" class:lit={lit == null} aria-pressed={lit == null} aria-label={tipAll} title={tipAll} onclick={all.onpick}>
+      <button type="button" class="ring" class:lit={lit == null} aria-pressed={lit == null} tabindex={stop(0) ? 0 : -1} aria-label={tipAll} title={tipAll} onclick={all.onpick}>
         {@render dial(sum.total ? sum.mastered / sum.total : 0, sum.mastered === sum.total, null)}
         <span class="count"><b>{n(sum.mastered)}</b><span class="of">/{n(sum.total)}</span></span>
         <span class="name">All</span>
       </button>
     {/if}
-    {#each rings as r (r.group)}
-      <button type="button" class="ring" class:lit={lit === r.group} aria-pressed={lit === r.group} aria-label={tip(r)} title={tip(r)} onclick={() => onpick(r.group)}>
+    {#each rings as r, i (r.group)}
+      <button type="button" class="ring" class:lit={lit === r.group} aria-pressed={lit === r.group} tabindex={stop(all ? i + 1 : i) ? 0 : -1} aria-label={tip(r)} title={tip(r)} onclick={() => onpick(r.group)}>
         {@render dial(r.total ? r.mastered / r.total : 0, r.mastered === r.total, ICON[r.group])}
         <span class="count"><b>{n(r.mastered)}</b><span class="of">/{n(r.total)}</span></span>
         <span class="name">{r.label}</span>
@@ -102,6 +119,8 @@
   .full .arc { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--sec) 60%, transparent)); }
   @media (prefers-reduced-motion: reduce) { .arc, .ring { transition: none; } }
   .gi-wrap { display: inline-flex; opacity: .7; }
+  /* The K-Drives sigil (the Ventkids') is drawn in yellow: white like the rest. */
+  .gi-wrap :global(.gi.ventkids) { filter: grayscale(1) brightness(1.06); }
   .ring:hover .gi-wrap, .ring.lit .gi-wrap { opacity: 1; }
   .count { display: inline-flex; align-items: baseline; font-variant-numeric: tabular-nums; line-height: 1.1; }
   .count b { font-family: var(--face-mark); font-weight: 700; font-size: 1.05rem; color: var(--platinum-dim); }

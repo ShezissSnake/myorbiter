@@ -98,9 +98,10 @@
   /**
    * A ring's click: to the first thing you starred in that category, which flashes gold (motion.ts,
    * pulse) so you see which it is: at once when it's already on screen, else once the scroll lands.
+   * The All ring (g null): the first thing on the list.
    */
-  function jump(g: Group) {
-    const el = document.querySelector<HTMLElement>(`.wish[data-groups~="${g}"]`);
+  function jump(g: Group | null) {
+    const el = document.querySelector<HTMLElement>(g ? `.wish[data-groups~="${g}"]` : ".wish[data-unique]");
     if (!el) return;
     el.querySelector<HTMLElement>("button.nm")?.focus({ preventScroll: true });
     const r = el.getBoundingClientRect();
@@ -152,7 +153,7 @@
   <Stat keep label="Crack now" tone="gold" note={crackNow.length ? crackNow.map((c) => c.era).join(", ") + " fissures open" : "No matching fissure open"}><Count value={crackNow.length} /></Stat>
 {/snippet}
 
-{#snippet codex()}<CodexRings {rings} {marks} onpick={pickRing} action={(r) => (marks[r.group] ? `Click to go to the first one you starred` : `Nothing starred here: click to pick from the ${r.label.toLowerCase()} you haven't mastered, on Foundry`)} line={items.length ? nextLine : "Click a category to pick from what you haven't mastered in it, on Foundry"} />{/snippet}
+{#snippet codex()}<CodexRings {rings} {marks} onpick={pickRing} all={{ onpick: () => (items.length ? jump(null) : go?.("foundry?show=todo")), action: items.length ? "Click to go to the first thing you starred" : "Nothing starred yet: click to pick from everything you haven't mastered, on Foundry" }} action={(r) => (marks[r.group] ? `Click to go to the first one you starred` : `Nothing starred here: click to pick from the ${r.label.toLowerCase()} you haven't mastered, on Foundry`)} line={items.length ? nextLine : "Click a category to pick from what you haven't mastered in it, on Foundry"} />{/snippet}
 
 <div class="page"><div class="page-inner">
   <PageHead title="Wishlist" brief="What you starred, and how to get each part." blurb="What you've starred, and the quickest way to each missing part: a relic you hold, where to farm one, or what it costs." band={items.length ? band : undefined} hero={codex} />
