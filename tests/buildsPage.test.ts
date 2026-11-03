@@ -172,3 +172,22 @@ test("tierOf drives the tabs: a real build lands in the tier it needs", () => {
   const r = arrange([light], [], {}, (b) => tierOf(b, rhino, CAT));
   assert.equal(r.low.length, 1);
 });
+
+test("tags: the ones on an item's builds, the builds carrying every one picked, typed tags cleaned", async () => {
+  const { tagsIn, withTags, parseTags } = await import("../src/lib/core/buildsPage");
+  const { sanitizeBuild } = await import("../src/lib/core/builds");
+  const { byFamily, familyOfTag } = await import("../src/lib/ui/builds/tags");
+  const rows = [{ build: build({ tags: ["Steel Path", "DPS"] }) }, { build: build({ tags: ["DPS", "Nuke"] }) }, { build: build() }];
+  assert.deepEqual(tagsIn(rows.map((r) => r.build)), ["Steel Path", "DPS", "Nuke"]);
+  assert.equal(withTags(rows, []).length, 3);
+  assert.equal(withTags(rows, ["dps"]).length, 2);
+  assert.equal(withTags(rows, ["DPS", "Steel Path"]).length, 1);
+  assert.deepEqual(parseTags(" Steel  Path, support;steel path\nNuke,, "), ["Steel Path", "support", "Nuke"]);
+  // Saved tags are kept clean: strings only, trimmed, each once.
+  assert.deepEqual(sanitizeBuild({ item: "/x", kind: "primary", tags: ["DPS", " DPS ", 3, "", "Solo"] })?.tags, ["DPS", "Solo"]);
+  assert.equal(sanitizeBuild({ item: "/x", kind: "primary", tags: "DPS" })?.tags, undefined);
+  // Families group the chips; an unknown tag is Other.
+  assert.equal(familyOfTag("steel path"), "Content");
+  assert.equal(familyOfTag("Speedrun"), "Other");
+  assert.deepEqual(byFamily(["Nuke", "DPS", "Overguard", "Steel Path"]).map((g) => [g.family, g.tags]), [["Role", ["DPS"]], ["Content", ["Steel Path"]], ["Survivability", ["Overguard"]], ["Other", ["Nuke"]]]);
+});

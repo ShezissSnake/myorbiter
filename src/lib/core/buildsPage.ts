@@ -12,9 +12,20 @@ import { familyOf } from "./modular";
 import { competitor, type BookOrder, type Me } from "./market";
 
 export const TIERS: Tier[] = ["low", "medium", "high"];
-/** The tab's name and what it means. */
-export const TIER_NAME: Record<Tier, string> = { low: "Low", medium: "Medium", high: "High" };
-export const TIER_MEANS: Record<Tier, string> = { low: "No Catalyst", medium: "Catalyst", high: "Catalyst, Forma, adapters" };
+/**
+ * The tiers as player progression: what a new, an intermediate and a veteran
+ * player can put in a build. The tab a build lands in is still the core's tier value (tierOf, from
+ * capacity); its reasons show under each build as the capacity side of it.
+ */
+export const TIER_NAME: Record<Tier, string> = { low: "New player", medium: "Intermediate", high: "Veteran" };
+/** A few words under the tab. */
+export const TIER_MEANS: Record<Tier, string> = { low: "Basic mods", medium: "Catalyst, Forma, easy arcanes", high: "Everything" };
+/** The tab's tooltip: what the tier allows. */
+export const TIER_TIP: Record<Tier, string> = {
+  low: "New player: basic mods only. No Orokin Catalyst or Reactor, no Forma, no Archon shards, no arcanes.",
+  medium: "Intermediate: an Orokin Catalyst or Reactor, an Exilus Adapter, regular Forma, augments, corrupted mods, Lua and spy-vault mods, and easy arcanes (Molt Augmented and the like). No Primed, Archon or Umbral mods, no Umbra Forma, no shards, no hard arcanes.",
+  high: "Veteran: everything, Primed, Archon and Umbral mods, Umbra Forma and Tauforged Archon shards included.",
+};
 
 export const KIND_LABEL: Record<GearKind, string> = {
   warframe: "Warframe",
@@ -314,4 +325,33 @@ export function loadoutLines(loadout: unknown): LoadoutLine[] {
   return Object.entries(loadout as Record<string, unknown>)
     .map(([k, v]) => ({ label: titleCase(k), text: said(v) }))
     .filter((l) => l.text);
+}
+
+// ---------------------------------------------------------------- tags
+
+/** The tags on a set of builds, each once, in the order first seen. */
+export function tagsIn(builds: readonly Pick<Build, "tags">[]): string[] {
+  const out: string[] = [];
+  for (const b of builds) for (const t of b.tags ?? []) if (!out.includes(t)) out.push(t);
+  return out;
+}
+
+/** The builds carrying every tag picked (none picked: all of them). Tags compare without case. */
+export function withTags<T extends { build: Pick<Build, "tags"> }>(rows: readonly T[], picked: readonly string[]): T[] {
+  if (!picked.length) return [...rows];
+  const want = picked.map((t) => t.toLowerCase());
+  return rows.filter((r) => {
+    const has = (r.build.tags ?? []).map((t) => t.toLowerCase());
+    return want.every((t) => has.includes(t));
+  });
+}
+
+/** Tags typed in a box ("Steel Path, support; Nuke") as a clean list: trimmed, each once, at most 12. */
+export function parseTags(text: string): string[] {
+  const out: string[] = [];
+  for (const t of text.split(/[,;\n]/)) {
+    const v = t.trim().replace(/\s+/g, " ").slice(0, 40);
+    if (v && !out.some((x) => x.toLowerCase() === v.toLowerCase())) out.push(v);
+  }
+  return out.slice(0, 12);
 }
