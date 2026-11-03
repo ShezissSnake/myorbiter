@@ -9,6 +9,7 @@
   import Thumb from "./Thumb.svelte";
   import GameIcon, { eraIcon, kindIcon } from "./GameIcon.svelte";
   import { MASTERY_CATEGORIES, masteryCategory } from "../core/views";
+  import { trap } from "./trap";
 
   let { open = $bindable(false), model, go }: { open: boolean; model: Model; go: (tab: string) => void } = $props();
 
@@ -91,11 +92,9 @@
     open = false;
     h.act();
   }
+  // Esc anywhere in it closes it, Tab stays inside, and closed the focus goes back (use:trap).
   function key(e: KeyboardEvent) {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      open = false;
-    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       if (hits.length) at = (at + (e.key === "ArrowDown" ? 1 : -1) + hits.length) % hits.length;
     } else if (e.key === "Enter") {
@@ -108,13 +107,13 @@
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="scrim" onclick={() => (open = false)}>
-    <div class="dialog" role="dialog" tabindex="-1" aria-modal="true" aria-label="Find anything" onclick={(e) => e.stopPropagation()}>
+    <div class="dialog" role="dialog" tabindex="-1" aria-modal="true" aria-label="Find anything" use:trap={{ onescape: () => (open = false) }} onclick={(e) => e.stopPropagation()}>
       <input bind:this={field} type="search" placeholder="Find an item, part, relic, mod or arcane…" bind:value={query} onkeydown={key} aria-controls="lookup-hits" aria-activedescendant={hits[at] ? `lk-${at}` : undefined} />
       {#if hits.length}
         <ul id="lookup-hits" role="listbox" aria-label="Matches">
           {#each hits as h, i (h.key)}
             <li id="lk-{i}" role="option" aria-selected={i === at}>
-              <button class:on={i === at} onmouseenter={() => (at = i)} onclick={() => pick(h)}>
+              <button class:on={i === at} onmouseenter={() => (at = i)} onfocus={() => (at = i)} onclick={() => pick(h)}>
                 {#if h.era}<GameIcon name={eraIcon(h.era)} size={24} />{:else}<Thumb file={h.image} size={24} />{/if}
                 <span class="n">{h.name}</span>
                 <span class="k">{#if kindIcon(h.kind, h.name)}<GameIcon name={kindIcon(h.kind, h.name)!} size={12} />{/if}{h.kind}</span>
@@ -138,6 +137,8 @@
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; max-height: 60vh; overflow: auto; }
   button { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: .65rem; padding: .4rem .55rem; cursor: pointer; }
   button.on { background: color-mix(in srgb, var(--gold) 12%, var(--well)); box-shadow: inset 2px 0 0 var(--gold); }
+  /* all: unset took the focus ring away: Tab onto a match shows where you are. */
+  button:focus-visible { outline: 1px solid var(--select); outline-offset: -1px; }
   .n { flex: 1; min-width: 0; color: var(--platinum); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .k { display: inline-flex; align-items: center; gap: .3rem; font-size: .74rem; color: var(--platinum-deep); white-space: nowrap; }
   p { margin: .2rem .3rem; }

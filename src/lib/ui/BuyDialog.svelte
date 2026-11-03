@@ -9,6 +9,7 @@
   import type { BuyAlert } from "../core/deals";
   import ProgressButton from "./ProgressButton.svelte";
   import { Job } from "../job.svelte";
+  import { trap } from "./trap";
   import { MAX_PLAT, MAX_QTY, amountProblem, shown, wholeIn } from "../core/amounts";
 
   let { model, go, onalert = null }: { model: Model; go: (tab: string) => void; onalert?: ((a: BuyAlert) => void) | null } = $props();
@@ -61,12 +62,10 @@
       return "Posted";
     });
   }
+  // Esc, Tab kept inside and the focus back to what opened it: use:trap.
   function onKey(e: KeyboardEvent) {
     if (!open) return;
-    if (e.key === "Escape") {
-      e.stopPropagation();
-      close();
-    } else if (e.key === "Enter" && (e.target as HTMLElement)?.tagName === "INPUT") {
+    if (e.key === "Enter" && (e.target as HTMLElement)?.tagName === "INPUT") {
       e.preventDefault();
       void place();
     }
@@ -84,7 +83,7 @@
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="scrim" onclick={close}>
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <div class="dialog" role="dialog" tabindex="-1" aria-modal="true" aria-label="Post a buy order on warframe.market" bind:this={dialog} onclick={(e) => e.stopPropagation()}>
+    <div class="dialog" role="dialog" tabindex="-1" aria-modal="true" aria-label="Post a buy order on warframe.market" bind:this={dialog} use:trap={{ onescape: close }} onclick={(e) => e.stopPropagation()}>
       <div class="register head">Post a buy order</div>
       {#if !d}
         <p class="err">{mkt.buyError}</p>

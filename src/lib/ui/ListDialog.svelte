@@ -1,7 +1,6 @@
 <script lang="ts">
   // The "List on market" form, over whatever page you're on: priced at the cheapest seller who is
   // in game right now, with the quantity set to what you can spare.
-  import { untrack } from "svelte";
   import type { Model } from "../core/model";
   import { listingKey, referencePrice } from "../core/market";
   import type { MarketSettings } from "../backend";
@@ -12,6 +11,7 @@
   import Named from "./Named.svelte";
   import P from "./P.svelte";
   import ProgressButton from "./ProgressButton.svelte";
+  import { trap } from "./trap";
 
   // market: your Orders settings, so the form can say when a price is under the floor the
   // repricer holds listings at.
@@ -80,18 +80,10 @@
   /** The order book couldn't be read (offline, or warframe.market down): the price is yours to set. */
   const bookFailed = $derived(!!d && !d.priced && !!mkt.draftError);
 
-  // The form takes the focus while it's open (so Esc closes it whatever is loading) and gives it
-  // back to what opened it. The price box gets it once the first price is in.
-  let dialog = $state<HTMLElement | null>(null);
+  // The form takes the focus while it's open (so Esc closes it whatever is loading), keeps Tab
+  // inside it and gives the focus back to what opened it (use:trap). The price box gets it once
+  // the first price is in.
   let priceInput = $state<HTMLInputElement | null>(null);
-  $effect(() => {
-    if (!open) return;
-    const back = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
-    untrack(() => dialog)?.focus();
-    return () => {
-      if (back?.isConnected) back.focus();
-    };
-  });
   let focusedFor: object | null = null;
   $effect(() => {
     if (!d?.priced || !priceInput || focusedFor === d) return;
@@ -116,23 +108,13 @@
     const t = setTimeout(() => mkt.closeDraft(), 2500);
     return () => clearTimeout(t);
   });
-
-  function onKey(e: KeyboardEvent) {
-    if (!open) return;
-    if (e.key === "Escape") {
-      e.stopPropagation();
-      mkt.closeDraft();
-    }
-  }
 </script>
-
-<svelte:window onkeydown={onKey} />
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="scrim" onclick={() => mkt.closeDraft()}>
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <div class="dialog" role="dialog" tabindex="-1" aria-modal="true" aria-label="List on warframe.market" bind:this={dialog} onclick={(e) => e.stopPropagation()}>
+    <div class="dialog" role="dialog" tabindex="-1" aria-modal="true" aria-label="List on warframe.market" use:trap={{ onescape: () => mkt.closeDraft() }} onclick={(e) => e.stopPropagation()}>
       <div class="register head">List on warframe.market</div>
 
       {#if mkt.draftDone && !d}
