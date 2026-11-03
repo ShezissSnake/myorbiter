@@ -6,9 +6,8 @@
   // "Put my spares on sale": tick what to sell, look over the changes, apply them in one go.
   // Only the ticked categories are touched; listings you set to be left alone, or hid, never are.
   import { tick } from "svelte";
-  import { fade } from "svelte/transition";
-  import { flip } from "svelte/animate";
-  import Icon from "./Icon.svelte";
+  import { calm, flip, leave, opens, SETTLE } from "../motion";
+  import Tick from "./Tick.svelte";
   import type { Model } from "../core/model";
   import type { AdviceSettings, MarketSettings } from "../backend";
   import { AS_LISTED, KIND_LABEL, LIMIT_WHY, LIMIT_WHY_TRADES, LISTING_LIMIT, type BulkAction } from "../core/bulk";
@@ -115,7 +114,6 @@
     for (const t of leaving.values()) clearTimeout(t);
   });
   const rows = $derived(changes.filter((a) => !gone.has(a)));
-  const calm = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
   /** Keeps the row being sent in view inside the plan's scrolling box. */
   function current(node: HTMLElement, on: boolean) {
     // Only the plan's own box scrolls (scrollIntoView would move the whole page under you).
@@ -124,8 +122,8 @@
       if (!box) return;
       const top = node.offsetTop - (box.querySelector("thead")?.offsetHeight ?? 0);
       const bottom = node.offsetTop + node.offsetHeight;
-      if (top < box.scrollTop) box.scrollTo({ top, behavior: calm ? "auto" : "smooth" });
-      else if (bottom > box.scrollTop + box.clientHeight) box.scrollTo({ top: bottom - box.clientHeight, behavior: calm ? "auto" : "smooth" });
+      if (top < box.scrollTop) box.scrollTo({ top, behavior: calm.current ? "auto" : "smooth" });
+      else if (bottom > box.scrollTop + box.clientHeight) box.scrollTo({ top: bottom - box.clientHeight, behavior: calm.current ? "auto" : "smooth" });
     };
     look(on);
     return { update: look };
@@ -234,8 +232,8 @@
             {@const sent = !!ap?.sent.has(a)}
             {@const refused = !!ap?.failed.has(a)}
             {@const now = ap?.now === a}
-            <tr class={a.type} class:sent class:refused class:now use:current={now} out:fade={{ duration: calm ? 0 : 220 }} animate:flip={{ duration: calm ? 0 : 260 }}>
-              <td><span class="what">{#if sent}<span class="tickoff" aria-label="sent"><Icon name="check" size={12} /></span>{:else if refused}<span title="warframe.market refused it: the Activity log says why">! Refused</span>{:else if now}<span class="sending">Sending…</span>{:else}{WORD[a.type]}{/if}</span></td>
+            <tr class={a.type} class:sent class:refused class:now use:current={now} out:leave={{ duration: SETTLE }} animate:flip>
+              <td><span class="what">{#if sent}<span class="tickoff" role="img" aria-label="sent"><Tick on drawn size={1.1} /></span>{:else if refused}<span title="warframe.market refused it: the Activity log says why">! Refused</span>{:else if now}<span class="sending">Sending…</span>{:else}{WORD[a.type]}{/if}</span></td>
               <td><Named file={image(nameOf(a))} name={nameOf(a)} size={26}>{#if rankOf(a) != null}<span class="tag">R{rankOf(a)}</span>{/if}{#if refinementOf(a)}<span class="tag" class:ok={refinementOf(a) === "Radiant"}>{refinementOf(a)}</span>{/if}</Named></td>
               <td class="dim small">{KIND_LABEL[a.kind]}</td>
               <td class="right">
@@ -263,9 +261,9 @@
   <!-- Away from the buttons you press every day: it takes every listing down. -->
   <div class="danger-zone">
     {#if confirmRemoveAll}
-      <span class="small warn">Take all {mkt.orders.length} listings off warframe.market?</span>
-      <button class="danger" disabled={!!mkt.busy} onclick={() => { confirmRemoveAll = false; removeAll(); }} onkeydown={keepOnEsc}>Remove all</button>
-      <button onclick={() => (confirmRemoveAll = false)} onkeydown={keepOnEsc} use:focusIt>Keep them</button>
+      <span class="small warn" in:opens>Take all {mkt.orders.length} listings off warframe.market?</span>
+      <button class="danger" in:opens disabled={!!mkt.busy} onclick={() => { confirmRemoveAll = false; removeAll(); }} onkeydown={keepOnEsc}>Remove all</button>
+      <button in:opens onclick={() => (confirmRemoveAll = false)} onkeydown={keepOnEsc} use:focusIt>Keep them</button>
     {:else}
       <ProgressButton variant="link" tone="danger" class="removeall" job={removeJob} label="Remove all my listings" working={count("Removing every listing", "Removing")} progress={fill("Removing every listing")} sizer={["Removing 000/000"]} title="Take every one of your sell listings off warframe.market" disabled={!!mkt.busy || !mkt.orders.length} onclick={() => (confirmRemoveAll = true)} />
     {/if}
@@ -314,7 +312,8 @@
   .sending { color: var(--gold); }
   .plan tr.sent td { color: var(--platinum-deep); }
   .plan tr.sent td:not(:first-child) { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--verdigris) 70%, transparent); }
-  .tickoff { display: inline-grid; place-items: center; width: 1.1rem; height: 1.1rem; border: 1px solid var(--verdigris); background: color-mix(in srgb, var(--verdigris) 16%, transparent); color: var(--verdigris); }
+  /* Sent: the box ticks, its check drawing in (Tick, drawn), before the row leaves. */
+  .tickoff { display: inline-grid; line-height: 0; }
   .plan tr.refused td:first-child, .plan tr.refused .what { color: var(--oxblood); border-color: var(--oxblood); }
   .plan tr.sent .what, .plan tr.now .what { border-color: transparent; background: none; padding-left: 0; padding-right: 0; }
   .planbox th { position: sticky; top: 0; background: var(--plate); z-index: 1; }

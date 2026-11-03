@@ -11,6 +11,7 @@
   import GameIcon, { eraIcon, kindIcon } from "./GameIcon.svelte";
   import { MASTERY_CATEGORIES, masteryCategory } from "../core/views";
   import { trap } from "./trap";
+  import { opens, shade } from "../motion";
   import { mkt } from "../marketStore.svelte";
 
   let { open = $bindable(false), model, go }: { open: boolean; model: Model; go: (tab: string) => void } = $props();
@@ -115,8 +116,8 @@
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="scrim" onclick={() => (open = false)}>
-    <div class="dialog" role="dialog" tabindex="-1" aria-modal="true" aria-label="Find anything" use:trap={{ onescape: () => (open = false) }} onclick={(e) => e.stopPropagation()}>
+  <div class="scrim" in:shade|global out:shade|global onclick={() => (open = false)}>
+    <div class="dialog" role="dialog" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} tabindex="-1" aria-modal="true" aria-label="Find anything" use:trap={{ onescape: () => (open = false) }} onclick={(e) => e.stopPropagation()}>
       <input bind:this={field} type="search" placeholder="Find an item, part, relic, mod or arcane…" bind:value={query} onkeydown={key} aria-controls="lookup-hits" aria-activedescendant={hits[at] ? `lk-${at}` : undefined} />
       {#if hits.length}
         <ul id="lookup-hits" role="listbox" aria-label="Matches">

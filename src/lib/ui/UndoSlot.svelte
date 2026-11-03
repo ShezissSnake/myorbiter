@@ -2,11 +2,14 @@
   // What's left of something you just dismissed or removed, for a few seconds: one collapsed line,
   // "Dismissed · Undo", with a hairline running out until it's gone for good (see undo.svelte.ts).
   import { UNDO_MS } from "../undo.svelte";
+  import { arrive } from "../motion";
+  // It arrives (fades up) where the thing was. When it runs out, the parent's list closes up:
+  // put out:leave and animate:flip (motion.ts) on the list's own item, not on this slot.
 
   let { label = "Dismissed", what = "", ms = UNDO_MS, onundo }: { label?: string; what?: string; ms?: number; onundo: () => void } = $props();
 </script>
 
-<span class="slot" role="status">
+<span class="slot" role="status" in:arrive={{ y: 3 }}>
   <span class="word">{label}{#if what}<span class="what">: {what}</span>{/if}</span>
   <button type="button" class="link" title="Undo: bring it back as it was" onclick={onundo}>Undo</button>
   <i style:animation-duration="{ms}ms" aria-hidden="true"></i>
