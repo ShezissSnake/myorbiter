@@ -23,6 +23,7 @@
   import Chip from "../ui/Chip.svelte";
   import Effort from "../ui/Effort.svelte";
   import Thumb from "../ui/Thumb.svelte";
+  import CopyButton from "../ui/CopyButton.svelte";
   import P from "../ui/P.svelte";
   import Presence from "../ui/Presence.svelte";
   import { partRows, saveForSets, setSaves } from "../core/views";
@@ -221,19 +222,6 @@
     const d = describe(model, name);
     return d?.kind === "gear" ? d.item.uniqueName : null;
   };
-  // The button says how the copy went; a failed one shows the whisper to copy by hand.
-  let copied = $state<{ key: string; ok: boolean } | null>(null);
-  async function copy(d: { key: string; whisper: string }) {
-    let ok = true;
-    try {
-      await navigator.clipboard.writeText(d.whisper);
-    } catch {
-      ok = false;
-    }
-    const mark = { key: d.key, ok };
-    copied = mark;
-    setTimeout(() => copied === mark && (copied = null), ok ? 2500 : 15_000);
-  }
   // Ducats your spare parts would fetch, counting only the ones better traded in than sold.
   // As Prime parts counts them: parts that go into a complete set you can sell are sold as the set.
   const spareDucats = $derived(partRows(model, saveForSets(settings.market.sellable, settings.advice.platPerDucat, drops.recent)).filter((p) => p.spare > 0 && p.inSets <= 0 && decide(p.price, p.ducats, p.tradesPerDay, settings.advice, p.spare).verdict === "ducats").reduce((n, p) => n + p.ducats * p.spare, 0));
@@ -661,8 +649,7 @@
               <Thumb file={model.imageOf(d.name)} name={d.name} size={26} />
               <span class="fn"><b class="mark">{d.name}</b><span class="dim small">{d.seller} · {d.why}</span></span>
               <span class="pr"><P v={d.price} /><s class="dim small">{d.usual}</s></span>
-              <button class="link" class:failed={copied?.key === d.key && !copied.ok} onclick={() => copy(d)} title="Copy the whisper to paste in game chat">{copied?.key === d.key ? (copied.ok ? "Copied" : "Couldn't copy") : "Copy whisper"}</button>
-              {#if copied?.key === d.key && !copied.ok}<input class="whisper" readonly value={d.whisper} aria-label="Whisper to copy by hand" onfocus={(e) => e.currentTarget.select()} />{/if}
+              <CopyButton text={d.whisper} label="Copy whisper" title="Copy the whisper to {d.seller}, to paste in game chat: {d.whisper}" />
             </li>
           {/each}
         </ul>
@@ -937,9 +924,6 @@
   .when2 { font-variant-numeric: tabular-nums; color: var(--platinum-dim); white-space: nowrap; }
   .sub { margin-top: .4rem; color: var(--platinum-deep); }
   .dl li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto auto; gap: .6rem; align-items: center; }
-  /* The clipboard refused: the whisper, selected, to copy by hand. */
-  .dl .failed { color: var(--oxblood); }
-  .dl .whisper { grid-column: 2 / -1; font-size: .78rem; padding: .3rem .5rem; }
   .pr { display: inline-flex; align-items: center; gap: .4rem; }
 
   .ph { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding-bottom: .6rem; border-bottom: 1px solid var(--rule); }

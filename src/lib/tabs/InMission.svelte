@@ -14,6 +14,7 @@
   import { onWindows, type ScreenCards } from "../backend";
   import { info } from "../hover.svelte";
   import { inFissure } from "../core/mission";
+  import CopyButton from "../ui/CopyButton.svelte";
 
   // The score weights are set in Settings → Fissures (something you set once, not look at in a
   // fissure): here they're only named, with the way there.
@@ -71,16 +72,6 @@
   ];
   // The cards with their prices, for squad chat ("Saryn Prime Systems 15p | Forma Blueprint | …").
   const chatLine = $derived((onScreen ?? []).map((c) => `${c.name}${c.price != null ? ` ${Math.round(c.price)}p` : ""}${c.ducats ? ` (${c.ducats} ducats)` : ""}`).join(" | "));
-  let copiedChat = $state(false);
-  async function copyChat() {
-    try {
-      await navigator.clipboard.writeText(chatLine);
-      copiedChat = true;
-      setTimeout(() => (copiedChat = false), 2000);
-    } catch {
-      copiedChat = false;
-    }
-  }
   /** "Meso C10 R" (a relic and its refinement's letter) → the relic, for its hover card. */
   const relicOf = (from: string) => from.replace(/ [IEFR]$/, "");
   /** "Meso C10 R" → the Meso relic as it looks at that refinement (radiant, or intact for the rest). */
@@ -179,7 +170,7 @@
       <div class="pick-head">
         <h2 class="mark">Take {pick != null ? onScreen[pick].name : "—"}</h2>
         <span class="dim small">Cards read by TennoScope at {readAt(cards!.at)} · the same pick is marked on its overlay</span>
-        <button class="link small" title="Copy the four cards with their prices, to paste in squad chat: {chatLine}" onclick={copyChat}>{copiedChat ? "Copied" : "Copy for squad chat"}</button>
+        <CopyButton text={chatLine} label="Copy for squad chat" title="Copy the four cards with their prices, to paste in squad chat: {chatLine}" />
       </div>
       <div class="slips">
         {#each onScreen as c, i (i + c.name)}

@@ -84,7 +84,7 @@
   .link.done, .chip.done { color: var(--verdigris); }
   .link.failed, .chip.failed { color: var(--oxblood); }
   /* The fissure board's Recruit: a small struck button. */
-  .chip { font-family: var(--face-register); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-dim); background: none; padding: .1rem .35rem; cursor: pointer; height: auto; }
+  .chip { font-family: var(--face-register); font-size: .54rem; letter-spacing: .04em; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-dim); background: none; padding: .1rem .35rem; cursor: pointer; height: auto; }
   .chip:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
   .chip.done { border-color: var(--verdigris); }
   .chip.failed { border-color: var(--oxblood); }

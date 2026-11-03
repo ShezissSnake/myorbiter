@@ -15,6 +15,7 @@
   import { info } from "../hover.svelte";
   import { eraTint } from "./table";
   import { recruitLine } from "../core/recruit";
+  import CopyButton from "./CopyButton.svelte";
 
   type Best = { name: string; refinement: string; held: string; plat: number } | null;
   let {
@@ -49,24 +50,8 @@
   /** "A, B and 3 more" */
   const some = (xs: string[], n = 4) => (xs.length <= n ? xs.join(", ") : `${xs.slice(0, n).join(", ")} and ${xs.length - n} more`);
   const left = (f: Fissure) => until(f.expiry, now).replace("under a minute", "<1 min");
-  // Recruit: the line for a squad sharing your best relic of the era, on the clipboard.
-  let copied = $state<string | null>(null);
-  /** The clipboard refused: the line to copy by hand. */
-  let failedLine = $state<string | null>(null);
-  async function copyLine(era: string, line: string) {
-    try {
-      await navigator.clipboard.writeText(line);
-      failedLine = null;
-      copied = era;
-      setTimeout(() => (copied === era ? (copied = null) : null), 2000);
-    } catch {
-      copied = null;
-      failedLine = line;
-    }
-  }
 </script>
 
-{#if failedLine}<p class="small warn">Couldn't copy: <input class="by-hand" readonly value={failedLine} aria-label="Recruiting line to copy by hand" onfocus={(e) => e.currentTarget.select()} /></p>{/if}
 <div class="kinds">
   {#if !mine}<Seg
     bind:value={mode}
@@ -96,7 +81,7 @@
           <span class="dim small">{e.list.length}</span>
           {#if sv}<span class="saving" title="Your {some(sv.relics)} drop{sv.relics.length === 1 ? 's' : ''} a part still missing from {some(sv.sets.map((x) => `the ${x} Set`), 6)}, which your loose parts are waiting for (Sets → Saving up)">parts for {sv.sets.length === 1 ? sv.sets[0] : `${sv.sets.length} sets`}</span>{/if}
           <span class="grow"></span>
-          {#if b}<span class="best" title="Your relic whose crack is worth most here ({b.held}), and the average platinum of the reward you'd take"><span class="dim small crackw">Crack</span> <b use:info={b.name}>{b.name}</b> <span class="dim small refw">{b.refinement}</span> <span class="pv"><P v={b.plat} /></span></span><button class="copy" class:done={copied === e.era} title="Copy a recruiting line for a squad sharing it ({recruitLine(b.name, b.refinement)}): paste it in Recruiting chat" aria-label="Copy a recruiting line for {b.name}" onclick={() => copyLine(e.era, recruitLine(b.name, b.refinement))}>{copied === e.era ? "Copied" : "Recruit"}</button>{/if}
+          {#if b}<span class="best" title="Your relic whose crack is worth most here ({b.held}), and the average platinum of the reward you'd take"><span class="dim small crackw">Crack</span> <b use:info={b.name}>{b.name}</b> <span class="dim small refw">{b.refinement}</span> <span class="pv"><P v={b.plat} /></span></span><!-- Recruit: the line for a squad sharing your best relic of the era, on the clipboard. --><CopyButton look="chip" class="recruit" text={recruitLine(b.name, b.refinement)} label="Copy recruit line" title="Copy a recruiting line for a squad sharing {b.name} ({recruitLine(b.name, b.refinement)}): paste it in Recruiting chat" />{/if}
         </header>
         <ul>
           {#each e.list as f (f.id)}
@@ -130,8 +115,6 @@
   /* The relic's name gives way first; its value and the Recruit button never do. */
   .best b { font-weight: 600; color: var(--platinum); font-size: .86rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .pv { flex: none; }
-  .copy { flex: none; }
-  .by-hand { width: 16rem; }
   :global(html[data-room~="lt1100"]) .best .crackw, :global(html[data-room~="lt1100"]) .best .refw { display: none; }
   ul { list-style: none; margin: .3rem 0 0; padding: 0; display: grid; gap: .15rem; }
   li { display: grid; grid-template-columns: minmax(6.5rem, 1fr) minmax(0, 1.3fr) 4.2rem 4.6rem; gap: .5rem; align-items: baseline; padding: .12rem 0; }
@@ -147,8 +130,6 @@
   .kinds { align-items: center; }
   :global(html[data-room~="lt640"]) li { grid-template-columns: minmax(6rem, 1fr) minmax(0, 1.3fr) 4.4rem; }
   :global(html[data-room~="lt640"]) .foe { display: none; }
-  /* Recruit: a small struck button after the best relic. */
-  .copy { font-family: var(--face-register); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-dim); background: none; padding: .1rem .35rem; margin-left: .35rem; cursor: pointer; }
-  .copy:hover { border-color: var(--gold); }
-  .copy.done { color: var(--verdigris); border-color: var(--verdigris); }
+  /* Recruit: a small struck button after the best relic (CopyButton's chip). */
+  header :global(.recruit) { margin-left: .35rem; }
 </style>
