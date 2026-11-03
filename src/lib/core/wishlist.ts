@@ -203,7 +203,8 @@ export function wishItem(m: Model, unique: string): WishItem | null {
   if (!item) return null;
   const c = collectionItem(m, item);
   const missing: WantedPart[] = [];
-  if (!c.owned && !c.mastered && !c.building) {
+  // A modular part in hand or built: nothing left to collect, only to assemble, gild or level.
+  if (!c.owned && !c.mastered && !c.building && !c.step) {
     for (const p of c.parts) {
       if (p.resource || p.have >= p.required || p.building) continue;
       const sources = m.sourcesByReward.get(p.name) ?? [];

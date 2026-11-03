@@ -1,6 +1,6 @@
 <script lang="ts">
   // The Codex rings atop Mastery, Foundry and Wishlist: a tile per category (Warframes, Primary,
-  // Secondary, Melee, Companions, Archwing, Other), its sigil in a ring of mastered against all,
+  // Secondary, Melee, Companions, Archwing, Amps, K-Drives), its sigil in a ring of mastered against all,
   // the count and the category's name under it. Each is a button (a filter, or a jump), the page's
   // category lit. `all`: an "All" tile first, every category added up, lit when none is picked.
   // `marks`: a gold ★ count on a tile (what you starred in it). `line`: the next thing to do.
@@ -29,7 +29,8 @@
     action: (r: CodexRing) => string;
   } = $props();
 
-  const ICON: Record<Group, GameIconName> = { warframes: "warframes", primary: "primary", secondary: "secondary", melee: "melee", companions: "companions", archwing: "archwing", other: "foundry" };
+  // K-Drives under the Ventkids' sigil: Roky sells every board.
+  const ICON: Record<Group, GameIconName> = { warframes: "warframes", primary: "primary", secondary: "secondary", melee: "melee", companions: "companions", archwing: "archwing", amps: "amp", kdrives: "ventkids", other: "foundry" };
   const R = 20;
   const C = 2 * Math.PI * R;
   // The rings fill once, as the page opens (at once with reduced motion: see the style).

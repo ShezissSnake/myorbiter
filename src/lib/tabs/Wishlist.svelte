@@ -86,14 +86,14 @@
   const pickRing = (g: Group) => (marks[g] ? jump(g) : go?.(`foundry?group=${g}&show=todo`));
   /** A ring's click: to the first thing you starred in that category. */
   function jump(g: Group) {
-    const el = document.querySelector<HTMLElement>(`.wish[data-group="${g}"]`);
+    const el = document.querySelector<HTMLElement>(`.wish[data-groups~="${g}"]`);
     if (!el) return;
     el.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
     el.querySelector<HTMLElement>("button.nm")?.focus({ preventScroll: true });
   }
   // The next thing to do: what's ready to build, else what's closest (fewest parts missing).
   const nextLine = $derived.by(() => {
-    const todo = items.filter((w) => !w.c.mastered && !w.c.owned && !w.c.building && !undo.has(w.c.unique));
+    const todo = items.filter((w) => !w.c.mastered && !w.c.owned && !w.c.building && !w.c.step && !undo.has(w.c.unique));
     const ready = todo.filter((w) => !w.missing.length);
     if (ready.length) return `Can build now: ${ready.map((w) => w.c.name).join(", ")}`;
     const [w] = [...todo].sort((a, b) => a.missing.length - b.missing.length || (b.odds ?? 0) - (a.odds ?? 0));
@@ -157,7 +157,7 @@
         {#if undo.has(w.c.unique)}
           <article class="wish ghost"><UndoSlot label="Removed from your wishlist" what={w.c.name} onundo={() => undo.undo(w.c.unique)} /></article>
         {:else}
-        <article class="wish" class:done={!w.missing.length} data-group={w.c.group}>
+        <article class="wish" class:done={!w.missing.length} data-groups={w.c.groups.join(" ")}>
           <div class="who">
             <button class="art" onclick={() => details.open(w.c.unique)} aria-label="{w.c.name}: details" use:info={w.c.name}><Art file={w.c.image} size={96} fallback="foundry" /></button>
             <div class="wt">
@@ -166,6 +166,8 @@
               <div class="chips">{#each w.c.parts.filter((p) => !p.resource) as p (p.name)}<PartChip part={p} size={30} />{/each}</div>
               <div class="sum">
                 {#if w.c.mastered}<span class="tag good">✓ Mastered</span><button class="link quiet" title="You've mastered it: take it off your wishlist" onclick={() => remove(w.c.unique)}>Done: remove it</button>
+                {:else if w.c.step === "level"}<span class="tag mastery" title={w.c.stepHow}>{w.c.stepTag}</span>
+                {:else if w.c.step}<span class="tag ok" title={w.c.stepHow}>{w.c.stepTag}</span>
                 {:else if w.c.owned}<span class="tag mastery">Owned · level it</span>
                 {:else if w.c.building}<span class="tag">Building</span>
                 {:else if !w.missing.length}<span class="tag ok" title="Every part in hand: build it in your foundry">Can build now</span>

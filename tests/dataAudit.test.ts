@@ -116,9 +116,12 @@ test("amp prisms, the Infested kitgun chambers and the Plexus are mastery too, t
   const by = new Map(rows.map((r) => [r.name, r]));
   for (const n of ["Raplak Prism", "Klamora Prism", "Mote Amp", "Sporelacer", "Vermisplicer"]) assert.equal(by.get(n)?.points, 3000, n);
   assert.equal(by.get("Plexus")?.points, 6000);
-  // The Mote Amp is held as the training amp the game gives: level it, not get it.
+  // Shown as what they are, not as Other.
+  assert.deepEqual(["Raplak Prism", "Mote Amp", "Sporelacer", "Plexus"].map((n) => by.get(n)?.category), ["Amp", "Amp", "Kitgun", "Plexus"]);
+  // The Mote Amp is held as the training amp the game gives: level it (gilded first), not get it.
   const held = masteryRows(buildModel(bundle([inv("/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/OperatorTrainingAmpWeapon", "Operator Training Amp Weapon", "weapon", 1)], [])));
   assert.equal(held.find((r) => r.name === "Mote Amp")?.status, "level");
+  assert.match(held.find((r) => r.name === "Mote Amp")!.acq.how, /Gild it at Onkko/);
   // Mastered (the game reports it by the prism's path): gone from the list.
   const done = masteryRows(buildModel(bundle([inv("/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartA", "Raplak Prism", "weapon", 0, { mastered: true })], [])));
   assert.ok(!done.some((r) => r.name === "Raplak Prism"));

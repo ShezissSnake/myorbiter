@@ -43,7 +43,8 @@
   let q = $state("");
 
   const favs = $derived(new Set(settings.favourites));
-  const inGroup = $derived(group === "all" ? all : all.filter((c) => c.group === group));
+  // A kitgun chamber shows under Primary and Secondary both (counted once in every total).
+  const inGroup = $derived(group === "all" ? all : all.filter((c) => c.groups.includes(group as Group)));
   const shown = $derived.by(() => {
     const needle = q.trim().toLowerCase();
     // A search, and your wishlist (its count is every category's), look through every category.
@@ -108,9 +109,12 @@
   const nextLine = $derived.by(() => {
     const byPoints = (xs: CollectionItem[]) => [...xs].sort((a, b) => b.points - a.points || a.name.localeCompare(b.name)).map((c) => c.name);
     const build = byPoints(inGroup.filter(canBuild));
-    const level = byPoints(inGroup.filter((c) => c.owned && !c.mastered));
+    const level = byPoints(inGroup.filter((c) => c.owned && !c.mastered && c.step !== "gild"));
+    // Modular gear: a part in hand to put together, a build to gild.
+    const assemble = byPoints(inGroup.filter((c) => c.step === "assemble"));
+    const gild = byPoints(inGroup.filter((c) => c.step === "gild"));
     const said =
-      [build.length ? `build ${someNames(build)}` : "", level.length ? `level ${someNames(level)}` : ""].filter(Boolean).join(" · ") ||
+      [build.length ? `build ${someNames(build)}` : "", assemble.length ? `assemble ${someNames(assemble)}` : "", gild.length ? `gild ${someNames(gild)}` : "", level.length ? `level ${someNames(level)}` : ""].filter(Boolean).join(" · ") ||
       (inGroup.length && inGroup.every((c) => c.mastered) ? "every one mastered" : "nothing to build or level now. The cards show what each still needs");
     return group === "all" ? said[0].toUpperCase() + said.slice(1) : `${groupLabel}: ${said}`;
   });
@@ -122,6 +126,8 @@
 {#snippet priceCell(c: CollectionItem)}{#if c.setPrice != null}<P v={Math.round(c.setPrice)} />{/if}{/snippet}
 {#snippet stateCell(c: CollectionItem)}
   {#if c.mastered}<span class="tag good">✓ Mastered</span>
+  {:else if c.step === "level"}<span class="tag mastery" title={c.stepHow}>{c.stepTag}</span>
+  {:else if c.step}<span class="tag ok" title={c.stepHow}>{c.stepTag}</span>
   {:else if c.owned}<span class="tag mastery">Owned · level it</span>
   {:else if c.building}<span class="tag">Building</span>
   {:else if c.buildable && c.tier === "hard"}<span class="tag bad" title="Every part in hand, but building needs {c.short.join(', ')}: from an open world or an event. Open it for what each part takes">Parts ready · needs {c.short[0]}{c.short.length > 1 ? ` +${c.short.length - 1}` : ""}</span>

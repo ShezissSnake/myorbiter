@@ -111,6 +111,22 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Azothane"
 },
+"Bad Baby": {
+"method": "syndicate",
+"how": "Buy the board blueprint at Roky (Ventkids, Neutral, 5,000), in Fortuna (needs the Vox Solaris quest), and build it; then assemble a K-Drive with it, a reactor, a nose and a jet at Roky (from 5,000 standing each). Only the board counts for mastery (200 a rank, to 30), and K-Drives need no gilding.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Bad Baby"
+},
+"Balla": {
+"method": "syndicate",
+"how": "Buy the strike blueprint at Hok (Ostron, Neutral, 1,000), in Cetus, and build it; then forge a zaw with it, a grip and a link at Hok (4,000 credits; grips and links from 1,000 standing). Zaws only give mastery once gilded (at Hok once it's rank 30, Trusted: 2 Cetus Wisps and 5,000 standing), and mastery goes by the strike.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Balla"
+},
 "Banshee": {
 "method": "dojo",
 "how": "All blueprints are researched in the Clan Dojo Tenno Lab and then bought for credits (35,000 for the main blueprint); joining an established clan skips the research. In-game Market: 225 platinum.",
@@ -155,7 +171,7 @@
 },
 "Bhaira Hound": {
 "method": "lich-sister",
-"how": "Vanquish Sisters of Parvos for random Hound component blueprints (or buy the Bhaira Model blueprint from a player), build the parts (some need Spectral Debris from Granum Void), then assemble at Legs in Fortuna for 4,000 credits.",
+"how": "Vanquish Sisters of Parvos for random Hound component blueprints (or buy the Bhaira Model blueprint from a player), build the parts (some need Spectral Debris from Granum Void), then assemble at Legs in Fortuna for 4,000 credits. Hounds only give mastery once gilded (at Legs once it's rank 30, Doer: 10 Training Debt-Bonds and 5,000 standing), and mastery goes by the model.",
 "difficulty": 4,
 "available": true,
 "tradable": true,
@@ -220,7 +236,7 @@
 },
 "Cantic Prism": {
 "method": "syndicate",
-"how": "Blueprint from Little Duck (Vox Solaris, Fortuna) for Vox Solaris standing; build it into an amp with any scaffold and brace. Amps only give mastery once gilded (with Little Duck, at Hand), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
+"how": "Buy the prism blueprint at Little Duck (Vox Solaris, Agent, 3,000), in Fortuna, and build it; then assemble an amp with it, a scaffold and a brace at Little Duck or Onkko (4,000 credits; scaffolds and braces from 1,000 standing). Amps only give mastery once gilded (once it's rank 30, for 5,000 standing: at Onkko at Adherent, or Little Duck at Hand), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
@@ -233,6 +249,14 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Carrier"
+},
+"Catchmoon": {
+"method": "syndicate",
+"how": "Buy the chamber blueprint at Rude Zuud (Solaris United, Neutral, 500), in Fortuna, and build it; then assemble a kitgun with it, a grip and a loader at Rude Zuud (4,000 credits; grips and loaders from 500 standing). Kitguns only give mastery once gilded (at Rude Zuud once it's rank 30, Doer: 10 Shelter Debt-Bonds and 5,000 standing), and only once per chamber, whether you build it as a primary or a secondary.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Catchmoon"
 },
 "Ceramic Dagger": {
 "method": "nightwave",
@@ -412,6 +436,14 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Crescent_Vulpaphyla"
 },
+"Cyath": {
+"method": "syndicate",
+"how": "Buy the strike blueprint at Hok (Ostron, Neutral, 1,000), in Cetus, and build it; then forge a zaw with it, a grip and a link at Hok (4,000 credits; grips and links from 1,000 standing). Zaws only give mastery once gilded (at Hok once it's rank 30, Trusted: 2 Cetus Wisps and 5,000 standing), and mastery goes by the strike.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Cyath"
+},
 "Cyte-09": {
 "method": "syndicate",
 "how": "Main blueprint from The Hex quest, or from Amir of The Hex for 50,000 standing at Rank 4 - Hot & Fresh; parts are uncommon drops from Höllvania Central Mall bounties (11.6-13.3%), or bought from Amir of The Hex for 20,000 standing each at Rank 2 - Fresh Slice. In-game Market: 370 platinum.",
@@ -488,6 +520,14 @@
 "available": true,
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Deconstructor_Prime"
+},
+"Dehtat": {
+"method": "syndicate",
+"how": "Buy the strike blueprint at Hok (Ostron, Neutral, 1,000), in Cetus, and build it; then forge a zaw with it, a grip and a link at Hok (4,000 credits; grips and links from 1,000 standing). Zaws only give mastery once gilded (at Hok once it's rank 30, Trusted: 2 Cetus Wisps and 5,000 standing), and mastery goes by the strike.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Dehtat"
 },
 "Dera Vandal": {
 "method": "mission-drop",
@@ -569,9 +609,17 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Djinn"
 },
+"Dokrahm": {
+"method": "syndicate",
+"how": "Buy the strike blueprint at Hok (Ostron, Neutral, 1,000), in Cetus, and build it; then forge a zaw with it, a grip and a link at Hok (4,000 credits; grips and links from 1,000 standing). Zaws only give mastery once gilded (at Hok once it's rank 30, Trusted: 2 Cetus Wisps and 5,000 standing), and mastery goes by the strike.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Dokrahm"
+},
 "Dorma Hound": {
 "method": "lich-sister",
-"how": "Vanquish Sisters of Parvos for random Hound component blueprints (or buy the Dorma Model blueprint from a player), build the parts (some need Spectral Debris from Granum Void), then assemble at Legs in Fortuna for 4,000 credits.",
+"how": "Vanquish Sisters of Parvos for random Hound component blueprints (or buy the Dorma Model blueprint from a player), build the parts (some need Spectral Debris from Granum Void), then assemble at Legs in Fortuna for 4,000 credits. Hounds only give mastery once gilded (at Legs once it's rank 30, Doer: 10 Training Debt-Bonds and 5,000 standing), and mastery goes by the model.",
 "difficulty": 4,
 "available": true,
 "tradable": true,
@@ -690,11 +738,19 @@
 },
 "Feverspine": {
 "method": "open-world",
-"how": "Blueprint awarded for completing the 'Dead Drop' K-Drive race on the Cambion Drift (Deimos); races rotate daily; build with 25 Ganglion, 40 Adramal Alloy, 50 Benign Infested Tumor, 15 Parasitic Tethermaw, 1 h. Only the board counts for mastery.",
+"how": "Blueprint awarded for completing the 'Dead Drop' K-Drive race on the Cambion Drift (Deimos); races rotate daily; build with 25 Ganglion, 40 Adramal Alloy, 50 Benign Infested Tumor, 15 Parasitic Tethermaw, 1 h. Assemble a K-Drive with it, a reactor, a nose and a jet at Roky in Fortuna. Only the board counts for mastery (200 a rank, to 30), and K-Drives need no gilding.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Feverspine"
+},
+"Flatbelly": {
+"method": "syndicate",
+"how": "Buy the board blueprint at Roky (Ventkids, Whozit, 10,000), in Fortuna (needs the Vox Solaris quest), and build it; then assemble a K-Drive with it, a reactor, a nose and a jet at Roky (from 5,000 standing each). Only the board counts for mastery (200 a rank, to 30), and K-Drives need no gilding.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Flatbelly"
 },
 "Follie": {
 "method": "mission-drop",
@@ -769,6 +825,14 @@
 "https://massivelyop.com/2026/01/15/warframe-of-mind-the-most-irritating-warframes-to-farm-and-how-they-could-be-improved/"
 ]
 },
+"Gaze": {
+"method": "syndicate",
+"how": "Buy the chamber blueprint at Rude Zuud (Solaris United, Neutral, 500), in Fortuna, and build it; then assemble a kitgun with it, a grip and a loader at Rude Zuud (4,000 credits; grips and loaders from 500 standing). Kitguns only give mastery once gilded (at Rude Zuud once it's rank 30, Doer: 10 Shelter Debt-Bonds and 5,000 standing), and only once per chamber, whether you build it as a primary or a secondary.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Gaze"
+},
 "Ghoulsaw": {
 "method": "dojo",
 "how": "Research the main and component blueprints in the clan dojo's Ventkids' Bash Lab, then buy and build them. It used to come only from Nakak at Operational Supply Rank 3 during Operation: Plague Star. All parts are tradable.",
@@ -803,7 +867,7 @@
 },
 "Granmu Prism": {
 "method": "syndicate",
-"how": "Blueprint from Onkko (The Quills, Cetus) for 2,000 Quills standing; build it into an amp with any scaffold and brace. Amps only give mastery once gilded (with Onkko, at Adherent), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
+"how": "Buy the prism blueprint at Onkko (The Quills, Adherent, 2,000), in Cetus (needs The War Within and Saya's Vigil), and build it; then assemble an amp with it, a scaffold and a brace at Onkko or Little Duck (4,000 credits; scaffolds and braces from 1,000 standing). Amps only give mastery once gilded (once it's rank 30, for 5,000 standing: at Onkko at Adherent, or Little Duck at Hand), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
 "difficulty": 2,
 "available": true,
 "tradable": false,
@@ -1022,7 +1086,7 @@
 },
 "Klamora Prism": {
 "method": "syndicate",
-"how": "Blueprint from Little Duck (Vox Solaris, Fortuna) for Vox Solaris standing; build it into an amp with any scaffold and brace. Amps only give mastery once gilded (with Little Duck, at Hand), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
+"how": "Buy the prism blueprint at Little Duck (Vox Solaris, Instrument, 3,000), in Fortuna, and build it; then assemble an amp with it, a scaffold and a brace at Little Duck or Onkko (4,000 credits; scaffolds and braces from 1,000 standing). Amps only give mastery once gilded (once it's rank 30, for 5,000 standing: at Onkko at Adherent, or Little Duck at Hand), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
@@ -1048,6 +1112,14 @@
 "https://blaurascon.nfshost.com/blog/warframe-shrine-defense-is-pretty-neat",
 "https://forums.warframe.com/topic/1419385-shrine-defense-is-a-pretty-fun-new-game-mode"
 ]
+},
+"Kronsh": {
+"method": "syndicate",
+"how": "Buy the strike blueprint at Hok (Ostron, Neutral, 1,000), in Cetus, and build it; then forge a zaw with it, a grip and a link at Hok (4,000 credits; grips and links from 1,000 standing). Zaws only give mastery once gilded (at Hok once it's rank 30, Trusted: 2 Cetus Wisps and 5,000 standing), and mastery goes by the strike.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Kronsh"
 },
 "Kullervo": {
 "method": "vendor",
@@ -1239,6 +1311,14 @@
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Lacerten"
 },
+"Lambeo Moa": {
+"method": "syndicate",
+"how": "Buy the model blueprint at Legs (Solaris United, Outworlder, 1,000), in Fortuna, and build it; then configure the MOA with it, a core, a gyro and a bracket at Legs (4,000 credits; cores, gyros and brackets from 500 standing). MOAs only give mastery once gilded (at Legs once it's rank 30, Doer: 10 Training Debt-Bonds and 5,000 standing), and mastery goes by the model.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Lambeo_Moa"
+},
 "Laser Rifle": {
 "method": "market-credits",
 "how": "Comes automatically with the Wyrm sentinel: buy Wyrm's blueprint in the Market for 100,000 credits and build it (15,000 credits, 500 Alloy Plate, 400 Circuits, 200 Nano Spores, 1 Control Module), or buy Wyrm built for 75 platinum. Needs 2 companion slots.",
@@ -1285,7 +1365,7 @@
 },
 "Lega Prism": {
 "method": "syndicate",
-"how": "Blueprint from Little Duck (Vox Solaris, Fortuna) for Vox Solaris standing; build it into an amp with any scaffold and brace. Amps only give mastery once gilded (with Little Duck, at Hand), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
+"how": "Buy the prism blueprint at Little Duck (Vox Solaris, Hand, 3,000), in Fortuna, and build it; then assemble an amp with it, a scaffold and a brace at Little Duck or Onkko (4,000 credits; scaffolds and braces from 1,000 standing). Amps only give mastery once gilded (once it's rank 30, for 5,000 standing: at Onkko at Adherent, or Little Duck at Hand), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
 "difficulty": 3,
 "available": true,
 "tradable": false,
@@ -1381,6 +1461,14 @@
 "https://steamcommunity.com/app/230410/discussions/0/803471225741567834/"
 ]
 },
+"Mewan": {
+"method": "syndicate",
+"how": "Buy the strike blueprint at Hok (Ostron, Neutral, 1,000), in Cetus, and build it; then forge a zaw with it, a grip and a link at Hok (4,000 credits; grips and links from 1,000 standing). Zaws only give mastery once gilded (at Hok once it's rank 30, Trusted: 2 Cetus Wisps and 5,000 standing), and mastery goes by the strike.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Mewan"
+},
 "Mirage": {
 "method": "quest",
 "how": "Main blueprint from the Market for 35,000 credits; each part is awarded at the end of a mission of the Hidden Messages quest (unlocked by the Eris-Sedna junction; its riddles need specific mods). Extra parts cost 25,000 Simaris standing, and The Circuit offers her on rotation; 275 platinum in the Market.",
@@ -1452,11 +1540,11 @@
 },
 "Mote Amp": {
 "method": "quest",
-"how": "The training amp you get during The War Within. To count for mastery it has to be gilded (with Onkko, at Adherent) and levelled to 30.",
+"how": "Free from Onkko in Cetus once you've done The War Within and Saya's Vigil. Like any amp it only gives mastery once gilded (once it's rank 30, for 5,000 standing: at Onkko at Adherent, or Little Duck at Hand); then level it to 30 again.",
 "difficulty": 2,
 "available": true,
 "tradable": false,
-"source": "https://wiki.warframe.com/w/Amp"
+"source": "https://wiki.warframe.com/w/Mote_Amp"
 },
 "Multron": {
 "method": "syndicate",
@@ -1487,6 +1575,14 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Nataruk"
+},
+"Needlenose": {
+"method": "syndicate",
+"how": "Buy the board blueprint at Roky (Ventkids, Primo, 15,000), in Fortuna (needs the Vox Solaris quest), and build it; then assemble a K-Drive with it, a reactor, a nose and a jet at Roky (from 5,000 standing each). Only the board counts for mastery (200 a rank, to 30), and K-Drives need no gilding.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Needlenose"
 },
 "Nekros": {
 "method": "boss",
@@ -1563,6 +1659,14 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Nunchasa"
 },
+"Nychus Moa": {
+"method": "syndicate",
+"how": "Buy the model blueprint at Legs (Solaris United, Doer, 3,000), in Fortuna, and build it; then configure the MOA with it, a core, a gyro and a bracket at Legs (4,000 credits; cores, gyros and brackets from 500 standing). MOAs only give mastery once gilded (at Legs once it's rank 30, Doer: 10 Training Debt-Bonds and 5,000 standing), and mastery goes by the model.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Nychus_Moa"
+},
 "Nyx": {
 "method": "boss",
 "how": "Main blueprint from the Market for 25,000 credits; parts drop from Phorid in assassinations that only appear during Infested invasions (Systems 22.56%, Chassis/Neuroptics 38.72%). Also on The Circuit rotation; 225 platinum in the Market.",
@@ -1611,6 +1715,22 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Odonata"
 },
+"Oloro Moa": {
+"method": "syndicate",
+"how": "Buy the model blueprint at Legs (Solaris United, Rapscallion, 2,000), in Fortuna, and build it; then configure the MOA with it, a core, a gyro and a bracket at Legs (4,000 credits; cores, gyros and brackets from 500 standing). MOAs only give mastery once gilded (at Legs once it's rank 30, Doer: 10 Training Debt-Bonds and 5,000 standing), and mastery goes by the model.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Oloro_Moa"
+},
+"Ooltha": {
+"method": "syndicate",
+"how": "Buy the strike blueprint at Hok (Ostron, Neutral, 1,000), in Cetus, and build it; then forge a zaw with it, a grip and a link at Hok (4,000 credits; grips and links from 1,000 standing). Zaws only give mastery once gilded (at Hok once it's rank 30, Trusted: 2 Cetus Wisps and 5,000 standing), and mastery goes by the strike.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Ooltha"
+},
 "Opticor Vandal": {
 "method": "event",
 "how": "Earned by reaching 100 points in the recurring Thermia Fractures event on Orb Vallis, or bought from Baro Ki'Teer when stocked (550,000 credits, 650 Ducats); also buyable from other players.",
@@ -1648,6 +1768,14 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Panzer_Vulpaphyla"
 },
+"Para Moa": {
+"method": "syndicate",
+"how": "Buy the model blueprint at Legs (Solaris United, Neutral, 500), in Fortuna, and build it; then configure the MOA with it, a core, a gyro and a bracket at Legs (4,000 credits; cores, gyros and brackets from 500 standing). MOAs only give mastery once gilded (at Legs once it's rank 30, Doer: 10 Training Debt-Bonds and 5,000 standing), and mastery goes by the model.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Para_Moa"
+},
 "Paracesis": {
 "method": "quest",
 "how": "Blueprint from the Chimera Prologue quest (needs The Sacrifice), then build: 30,000 credits, 1,000 Ducats, 1 built Galatine, 5 Eidolon Shards, 15 Orokin Cells.",
@@ -1671,6 +1799,22 @@
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Pharaoh_Predasite"
+},
+"Plague Keewar": {
+"method": "event",
+"how": "Strike blueprint only from Nakak during Operation: Plague Star (Operational Supply, Champion: 2,000 standing and 3,500 credits); the operation came back in September 2025 and September 2026, so wait for the next run. Forge it into a zaw with a grip and a link at Hok in Cetus (4,000 credits). Zaws only give mastery once gilded (at Hok once it's rank 30, Trusted: 2 Cetus Wisps and 5,000 standing), and mastery goes by the strike.",
+"difficulty": 4,
+"available": false,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Plague_Keewar"
+},
+"Plague Kripath": {
+"method": "event",
+"how": "Strike blueprint only from Nakak during Operation: Plague Star (Operational Supply, Champion: 2,000 standing and 3,500 credits); the operation came back in September 2025 and September 2026, so wait for the next run. Forge it into a zaw with a grip and a link at Hok in Cetus (4,000 credits). Zaws only give mastery once gilded (at Hok once it's rank 30, Trusted: 2 Cetus Wisps and 5,000 standing), and mastery goes by the strike.",
+"difficulty": 4,
+"available": false,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Plague_Kripath"
 },
 "Plasma Sword": {
 "method": "nightwave",
@@ -1875,9 +2019,17 @@
 "tradable": true,
 "source": "https://wiki.warframe.com/w/Quanta_Vandal"
 },
+"Rabvee": {
+"method": "syndicate",
+"how": "Buy the strike blueprint at Hok (Ostron, Neutral, 1,000), in Cetus, and build it; then forge a zaw with it, a grip and a link at Hok (4,000 credits; grips and links from 1,000 standing). Zaws only give mastery once gilded (at Hok once it's rank 30, Trusted: 2 Cetus Wisps and 5,000 standing), and mastery goes by the strike.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Rabvee"
+},
 "Rahn Prism": {
 "method": "syndicate",
-"how": "Blueprint from Onkko (The Quills, Cetus) for 2,500 Quills standing; build it into an amp with any scaffold and brace. Amps only give mastery once gilded (with Onkko, at Adherent), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
+"how": "Buy the prism blueprint at Onkko (The Quills, Instrument, 2,500), in Cetus (needs The War Within and Saya's Vigil), and build it; then assemble an amp with it, a scaffold and a brace at Onkko or Little Duck (4,000 credits; scaffolds and braces from 1,000 standing). Amps only give mastery once gilded (once it's rank 30, for 5,000 standing: at Onkko at Adherent, or Little Duck at Hand), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
 "difficulty": 2,
 "available": true,
 "tradable": false,
@@ -1893,11 +2045,19 @@
 },
 "Raplak Prism": {
 "method": "syndicate",
-"how": "Blueprint from Onkko (The Quills, Cetus) for 1,000 Quills standing; build it into an amp with any scaffold and brace. Amps only give mastery once gilded (with Onkko, at Adherent), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
+"how": "Buy the prism blueprint at Onkko (The Quills, Mote, 1,000), in Cetus (needs The War Within and Saya's Vigil), and build it; then assemble an amp with it, a scaffold and a brace at Onkko or Little Duck (4,000 credits; scaffolds and braces from 1,000 standing). Amps only give mastery once gilded (once it's rank 30, for 5,000 standing: at Onkko at Adherent, or Little Duck at Hand), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
 "difficulty": 2,
 "available": true,
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Amp"
+},
+"Rattleguts": {
+"method": "syndicate",
+"how": "Buy the chamber blueprint at Rude Zuud (Solaris United, Neutral, 500), in Fortuna, and build it; then assemble a kitgun with it, a grip and a loader at Rude Zuud (4,000 credits; grips and loaders from 500 standing). Kitguns only give mastery once gilded (at Rude Zuud once it's rank 30, Doer: 10 Shelter Debt-Bonds and 5,000 standing), and only once per chamber, whether you build it as a primary or a secondary.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Rattleguts"
 },
 "Rauta": {
 "method": "open-world",
@@ -1950,6 +2110,14 @@
 "tradable": false,
 "source": "https://wiki.warframe.com/w/Rumblejack"
 },
+"Runway": {
+"method": "syndicate",
+"how": "Buy the board blueprint at Roky (Ventkids, Logical, 15,000), in Fortuna (needs the Vox Solaris quest), and build it; then assemble a K-Drive with it, a reactor, a nose and a jet at Roky (from 5,000 standing each). Only the board counts for mastery (200 a rank, to 30), and K-Drives need no gilding.",
+"difficulty": 3,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Runway"
+},
 "Sagek Prime": {
 "method": "mission-drop",
 "how": "Not from relics. Blueprints drop from rotation A of The Perita Rebellion missions in the Dark Refractory, Deimos (5.71% each, after The Old Peace), or buy them from Roathe in La Cathedrale for Maphica: 25 per part, 35 for the main, 85 in all.",
@@ -1988,6 +2156,14 @@
 "https://steamcommunity.com/app/230410/discussions/1/135514507318309213/"
 ]
 },
+"Sepfahn": {
+"method": "syndicate",
+"how": "Buy the strike blueprint at Hok (Ostron, Neutral, 1,000), in Cetus, and build it; then forge a zaw with it, a grip and a link at Hok (4,000 credits; grips and links from 1,000 standing). Zaws only give mastery once gilded (at Hok once it's rank 30, Trusted: 2 Cetus Wisps and 5,000 standing), and mastery goes by the strike.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Sepfahn"
+},
 "Sevagoth": {
 "method": "mission-drop",
 "how": "Main blueprint from Call of the Tempestarii (needs The Deadlock Protocol, an owned Railjack and MR 4; extra copies 50,000 Simaris standing); each part has a 10% chance (9.52% Neptune) as a bonus reward at the end of Void Storm missions in Neptune, Pluto or Veil Proxima. 325 platinum in the Market.",
@@ -2020,7 +2196,7 @@
 },
 "Shwaak Prism": {
 "method": "syndicate",
-"how": "Blueprint from Onkko (The Quills, Cetus) for 1,500 Quills standing; build it into an amp with any scaffold and brace. Amps only give mastery once gilded (with Onkko, at Adherent), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
+"how": "Buy the prism blueprint at Onkko (The Quills, Observer, 1,500), in Cetus (needs The War Within and Saya's Vigil), and build it; then assemble an amp with it, a scaffold and a brace at Onkko or Little Duck (4,000 credits; scaffolds and braces from 1,000 standing). Amps only give mastery once gilded (once it's rank 30, for 5,000 standing: at Onkko at Adherent, or Little Duck at Hand), and mastery goes by the prism: one gilded amp with it, levelled to 30.",
 "difficulty": 2,
 "available": true,
 "tradable": false,
@@ -2092,7 +2268,7 @@
 },
 "Sporelacer": {
 "method": "syndicate",
-"how": "Chamber blueprint from Father in the Necralisk (Entrati, from rank 0); build an Infested kitgun with it. Kitguns only give mastery once gilded, and mastery goes by the chamber.",
+"how": "Buy the chamber blueprint at Father (Entrati, Neutral, 500), in the Necralisk (needs Heart of Deimos), and build it; then assemble an Infested kitgun with it, a grip and a loader at Father or Rude Zuud (4,000 credits). Kitguns only give mastery once gilded (at Father once it's rank 30: 25 Father Tokens and 5,000 Entrati standing; or at Rude Zuud), and only once per chamber, whether you build it as a primary or a secondary.",
 "difficulty": 2,
 "available": true,
 "tradable": false,
@@ -2371,6 +2547,14 @@
 "https://steamcommunity.com/app/230410/discussions/0/2534848209925519679/"
 ]
 },
+"Tombfinger": {
+"method": "syndicate",
+"how": "Buy the chamber blueprint at Rude Zuud (Solaris United, Neutral, 500), in Fortuna, and build it; then assemble a kitgun with it, a grip and a loader at Rude Zuud (4,000 credits; grips and loaders from 500 standing). Kitguns only give mastery once gilded (at Rude Zuud once it's rank 30, Doer: 10 Shelter Debt-Bonds and 5,000 standing), and only once per chamber, whether you build it as a primary or a secondary.",
+"difficulty": 2,
+"available": true,
+"tradable": false,
+"source": "https://wiki.warframe.com/w/Tombfinger"
+},
 "Trinity": {
 "method": "boss",
 "how": "Main blueprint from the Market for 25,000 credits; parts drop from Ambulas on Hades, Pluto (Systems 22.56%, Chassis/Neuroptics 38.72%). Also on The Circuit; 225 platinum in the Market.",
@@ -2482,7 +2666,7 @@
 },
 "Vermisplicer": {
 "method": "syndicate",
-"how": "Chamber blueprint from Father in the Necralisk (Entrati, from rank 0); build an Infested kitgun with it. Kitguns only give mastery once gilded, and mastery goes by the chamber.",
+"how": "Buy the chamber blueprint at Father (Entrati, Neutral, 500), in the Necralisk (needs Heart of Deimos), and build it; then assemble an Infested kitgun with it, a grip and a loader at Father or Rude Zuud (4,000 credits). Kitguns only give mastery once gilded (at Father once it's rank 30: 25 Father Tokens and 5,000 Entrati standing; or at Rude Zuud), and only once per chamber, whether you build it as a primary or a secondary.",
 "difficulty": 2,
 "available": true,
 "tradable": false,

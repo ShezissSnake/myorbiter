@@ -233,7 +233,9 @@ const COMMON = new Set(["Salvage", "Alloy Plate", "Ferrite", "Polymer Bundle", "
 const RARE = new Set(["Nitain Extract", "Tellurium", "Neural Sensors", "Argon Crystal"]);
 /** Star-chart resources; anything else named in a build comes from an open world or a vendor. */
 const STAR_CHART = new Set([...RARE, "Orokin Cell", "Neurodes", "Control Module", "Gallium", "Morphics", "Cryotic", "Oxium", "Kuva", "Forma", "Detonite Ampule", "Fieldron", "Mutagen Mass", "Detonite Injector", "Fieldron Sample", "Mutagen Sample", "Hexenon", "Scrap"]);
-const isResource = (c: Component) => /\/MiscItems\/|\/Gems\/|\/Fish\/|\/Plants\//.test(c.uniqueName);
+// Open-world resources live under Gameplay too (Thermal Sludge is …/Gameplay/Venus/Resources/…):
+// a resource with drops of its own isn't a part to farm.
+const isResource = (c: Component) => /\/MiscItems\/|\/Gems\/|\/Fish\/|\/Plants\/|\/Gameplay\/\w+\/Resources\//.test(c.uniqueName);
 const isPart = (c: Component) => /\/Recipes\//.test(c.uniqueName) || /Blueprint$/.test(c.name);
 
 // ---------------------------------------------------------------- an item

@@ -5,8 +5,9 @@ import { partFullName, UNOBTAINABLE, type Model } from "./model";
 import { primeVaulted } from "./views";
 import type { CatalogItem, Component } from "./types";
 import { buildPlan, type BuildTier } from "./buildPlan";
+import { familyOf, modularNext, type ModularStep } from "./modular";
 
-export type Group = "warframes" | "primary" | "secondary" | "melee" | "companions" | "archwing" | "other";
+export type Group = "warframes" | "primary" | "secondary" | "melee" | "companions" | "archwing" | "amps" | "kdrives" | "other";
 
 export const GROUPS: { v: Group; label: string }[] = [
   { v: "warframes", label: "Warframes" },
@@ -15,6 +16,8 @@ export const GROUPS: { v: Group; label: string }[] = [
   { v: "melee", label: "Melee" },
   { v: "companions", label: "Companions" },
   { v: "archwing", label: "Archwing" },
+  { v: "amps", label: "Amps" },
+  { v: "kdrives", label: "K-Drives" },
   { v: "other", label: "Other" },
 ];
 
@@ -33,6 +36,39 @@ const GROUP_OF: Record<string, Group> = {
 
 /** The Codex category an item's catalog category falls in ("Arch-Gun" → archwing); null outside them. */
 export const groupOf = (category: string): Group | null => GROUP_OF[category] ?? null;
+
+/** The Railjack's Plexus: ranked like a companion, 200 a rank. */
+const PLEXUS = "/Lotus/Types/Game/CrewShip/RailJack/DefaultHarness";
+
+/**
+ * The Codex categories an item counts in, its own first: a kitgun chamber is a Primary and a
+ * Secondary (the game masters it once, so totals count it once); amps (Sirocco too) and K-Drive
+ * boards have their own; companion weapons and the Plexus go with Companions. Empty outside the
+ * Codex (mods, resources).
+ */
+export function groupsOf(item: { uniqueName: string; category: string; type?: string; productCategory?: string }): Group[] {
+  const family = familyOf(item.uniqueName);
+  if (family) return family.groups;
+  if (item.productCategory === "OperatorAmps" || item.type === "Amp") return ["amps"];
+  if (item.type === "K-Drive Component") return ["kdrives"];
+  if (item.productCategory === "SentinelWeapons" || item.type === "Companion Weapon") return ["companions"];
+  if (item.uniqueName === PLEXUS || item.type === "Plexus") return ["companions"];
+  const g = GROUP_OF[item.category];
+  return g ? [g] : [];
+}
+
+/** What a modular part is, in the Foundry's words: "Kitgun chamber", "Zaw strike", "MOA"; null for anything else. */
+export function modularType(unique: string): string | null {
+  const f = familyOf(unique);
+  if (!f || f.id === "creature") return null;
+  if (f.id === "moa" || f.id === "hound") return f.build === "MOA" ? "MOA" : "Hound";
+  if (!f.assemble) return "Amp";
+  return `${f.build[0].toUpperCase()}${f.build.slice(1)} ${f.part}`;
+}
+
+/** In the Codex: masterable, in one of its categories. Every page counts the same items. */
+export const inCodex = (item: { masterable?: boolean; uniqueName: string; category: string; type?: string; productCategory?: string }): boolean =>
+  !!item.masterable && groupsOf(item).length > 0;
 
 export interface PartState {
   /** The component's own name: "Blueprint", "Chassis", "Orokin Cell". */
@@ -58,7 +94,10 @@ export interface PartState {
 export interface CollectionItem {
   unique: string;
   name: string;
+  /** Its own Codex category (the first of `groups`). */
   group: Group;
+  /** Every Codex category it counts in: a kitgun chamber is a Primary and a Secondary. */
+  groups: Group[];
   category: string;
   type: string;
   image: string | null;
@@ -82,11 +121,17 @@ export interface CollectionItem {
   /** Set price at the daily median, for primes. */
   setPrice: number | null;
   wiki: string | null;
+  /** Modular gear's next step once you hold its part or have built it: assemble, gild, level (modular.ts). */
+  step: ModularStep | null;
+  /** That step in a few words ("Built · gild it") and in a sentence. */
+  stepTag: string | null;
+  stepHow: string | null;
 }
 
 // Necramech parts (Capsule, Casing, Engine, Weapon Pod) live under Resources but are parts you
-// build or find, counted and shown like any other part.
-const isResource = (c: Component) => !/\/Recipes\//.test(c.uniqueName) && !/\/Weapons\//.test(c.uniqueName) && !/\/Resources\/Mechs\//.test(c.uniqueName);
+// build or find, counted and shown like any other part. Anything that's a blueprint is a part too,
+// wherever it lives (a K-Drive board's, under Vehicles).
+const isResource = (c: Component) => !/\/Recipes\//.test(c.uniqueName) && !/\/Weapons\//.test(c.uniqueName) && !/\/Resources\/Mechs\//.test(c.uniqueName) && !/Blueprint$/.test(c.uniqueName);
 
 /** The blueprint and built-part paths a component goes by: …ChassisBlueprint and …ChassisComponent. */
 function paths(unique: string): string[] {
@@ -164,13 +209,17 @@ export function collectionItem(m: Model, item: CatalogItem): CollectionItem {
   const pieces = parts.filter((p) => !p.resource);
   const buildable = !owned && !building && pieces.length > 0 && pieces.every((p) => p.have >= p.required || p.building);
   const plan = buildable && m.recipes ? buildPlan(m, item, m.recipes) : null;
+  const groups = groupsOf(item);
+  const next = modularNext(m.modular(item.uniqueName), m.isMastered(item.uniqueName));
   return {
     unique: item.uniqueName,
     name: item.name,
-    group: GROUP_OF[item.category] ?? "other",
+    group: groups[0] ?? "other",
+    groups: groups.length ? groups : ["other"],
     category: item.category,
     // The catalog files Kubrows, Kavats and the like as "Pets": Mastery calls them companions.
-    type: (item.type === "Pets" ? "Companion" : item.type) ?? item.category,
+    // Modular parts say what they are of what ("Kitgun chamber", not "Pistol" or "Misc").
+    type: modularType(item.uniqueName) ?? (item.type === "Pets" ? "Companion" : item.type) ?? item.category,
     image: item.imageName ?? m.imageOf(item.name),
     owned,
     mastered: m.isMastered(item.uniqueName),
@@ -187,6 +236,9 @@ export function collectionItem(m: Model, item: CatalogItem): CollectionItem {
     tier: plan?.tier ?? null,
     setPrice: isPrime ? m.price(`${item.name} Set`) : null,
     wiki: item.wikiaUrl ?? null,
+    step: next?.step ?? null,
+    stepTag: next?.tag ?? null,
+    stepHow: next?.how ?? null,
   };
 }
 
@@ -196,7 +248,7 @@ export function collection(m: Model): CollectionItem[] {
   for (const item of m.catalogByUnique.values()) {
     // Not `excludeFromCodex`: the hound weapons (Akaten, Batoten, Lacerten) carry it but give
     // mastery all the same, as Mastery counts them. Orion's second suit is dropped as NO_MASTERY.
-    if (!item.masterable || !(item.category in GROUP_OF)) continue;
+    if (!inCodex(item)) continue;
     out.push(collectionItem(m, item));
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
