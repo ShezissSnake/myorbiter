@@ -258,16 +258,35 @@ struct Wrapped<'a> {
 /// What an entry is, read before the rest of it.
 #[derive(Deserialize)]
 struct Head<'a> {
+    #[serde(borrow, default, rename = "uniqueName")]
+    unique_name: Option<Cow<'a, str>>,
     #[serde(borrow, default)]
     category: Option<Cow<'a, str>>,
     #[serde(default)]
     masterable: Option<bool>,
 }
 
+impl Head<'_> {
+    /// Masterable, by the catalog's flag or because the game gives mastery by it anyway.
+    fn masterable(&self) -> bool {
+        self.masterable.unwrap_or(false) || self.unique_name.as_deref().is_some_and(masterable_part)
+    }
+}
+
+/// Parts the game gives mastery by although the catalog marks them not masterable: an amp's prism
+/// (the Mote Amp's included) and the Infested kitgun chambers. Mastery goes by that part once the
+/// amp or kitgun built from it is gilded, as for the Solaris chambers the catalog already marks.
+/// Their blueprints, scaffolds and braces give none. (TennoScope, patched, says the same.)
+fn masterable_part(path: &str) -> bool {
+    !path.ends_with("Blueprint")
+        && ((path.contains("/OperatorAmplifiers/") && (path.contains("/Barrel/") || path.ends_with("/SentAmpTrainingBarrel")))
+            || path.contains("/InfKitGun/Barrels/"))
+}
+
 /// The entries of a catalog file that `keep` wants, each with only `fields`. Most of the ~80 MB
 /// item catalog is skins, glyphs and patch logs: those are only scanned, never built, which reads
 /// it in about half the time of building the whole file and picking from it.
-fn catalog_entries(path: &Path, keep: fn(&str, bool) -> bool, fields: &[&str]) -> Result<Vec<Map<String, Value>>, DataError> {
+fn catalog_entries(path: &Path, keep: fn(&Head) -> bool, fields: &[&str]) -> Result<Vec<Map<String, Value>>, DataError> {
     let bytes = fs::read(path).map_err(|source| io_error(path, source))?;
     let json = |source| DataError::Json { path: path.to_path_buf(), source };
     let raw: Vec<&RawValue> = match serde_json::from_slice::<Wrapped>(&bytes) {
@@ -277,7 +296,7 @@ fn catalog_entries(path: &Path, keep: fn(&str, bool) -> bool, fields: &[&str]) -
     let mut out = Vec::new();
     for entry in raw {
         let Ok(head) = serde_json::from_str::<Head>(entry.get()) else { continue };
-        if !keep(head.category.as_deref().unwrap_or(""), head.masterable.unwrap_or(false)) {
+        if !keep(&head) {
             continue;
         }
         let parts: std::collections::HashMap<Cow<str>, &RawValue> = serde_json::from_str(entry.get()).map_err(json)?;
@@ -286,6 +305,9 @@ fn catalog_entries(path: &Path, keep: fn(&str, bool) -> bool, fields: &[&str]) -
             if let Some(v) = parts.get(*f) {
                 obj.insert((*f).to_string(), serde_json::from_str(v.get()).map_err(json)?);
             }
+        }
+        if head.masterable() && obj.get("masterable") != Some(&Value::Bool(true)) {
+            obj.insert("masterable".into(), Value::Bool(true));
         }
         out.push(obj);
     }
@@ -328,9 +350,11 @@ const READ_FIELDS: &[&str] = &[
     "compatName", "upgradeEntries",
 ];
 
-/// The item categories orbiter looks at: of Misc, only what counts for mastery (Plexus, amps).
-fn kept_item(category: &str, masterable: bool) -> bool {
-    KEPT_CATEGORIES.contains(&category) && (category != "Misc" || masterable)
+/// The item categories orbiter looks at: of Misc, only what counts for mastery (kitgun chambers,
+/// amp prisms, K-Drive boards).
+fn kept_item(head: &Head) -> bool {
+    let category = head.category.as_deref().unwrap_or("");
+    KEPT_CATEGORIES.contains(&category) && (category != "Misc" || head.masterable())
 }
 
 /// Keeps the item categories orbiter looks at, and only the fields it reads. The full file is
@@ -442,7 +466,7 @@ fn slim_drops(drops: Option<&Value>) -> Vec<Value> {
 
 fn read_relics(path: &Path) -> Result<Vec<Value>, DataError> {
     let mut out = Vec::new();
-    for obj in catalog_entries(path, |_, _| true, &["uniqueName", "name", "vaulted", "tradable", "imageName", "drops", "rewards"])? {
+    for obj in catalog_entries(path, |_| true, &["uniqueName", "name", "vaulted", "tradable", "imageName", "drops", "rewards"])? {
         let mut slim = pick(&obj, &["uniqueName", "name", "vaulted", "tradable", "imageName"]);
         // Where the relic itself drops (best chance first), for "where to farm it".
         slim.insert("drops".into(), Value::Array(slim_drops(obj.get("drops"))));
@@ -556,6 +580,33 @@ mod tests {
 
         assert!(matches!(load_catalogs(&dir.join("nope")), Err(DataError::MissingDir(_))));
         assert!(matches!(load_collection(&dir.join("nope")), Err(DataError::MissingDir(_))));
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn amp_prisms_and_infested_chambers_are_kept_as_masterable_with_their_parts() {
+        let dir = temp_dir("modular");
+        let path = dir.join("catalog/catalog-generation.json");
+        let comps = r#""components": [{"uniqueName": "/X/Blueprint", "name": "Blueprint", "itemCount": 1}]"#;
+        fs::write(
+            &path,
+            format!(
+                r#"{{"catalog": [
+                  {{"uniqueName": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartA", "name": "Raplak Prism", "category": "Misc", "type": "Amp", "masterable": false, {comps}}},
+                  {{"uniqueName": "/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/SentAmpTrainingBarrel", "name": "Mote Prism", "category": "Misc", "type": "Amp", "masterable": false}},
+                  {{"uniqueName": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelEgg/InfModularBarrelEggPart", "name": "Sporelacer", "category": "Misc", "type": "Pistol", "masterable": false, {comps}}},
+                  {{"uniqueName": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartA", "name": "Pencha Scaffold", "category": "Misc", "type": "Amp", "masterable": false}},
+                  {{"uniqueName": "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardSolarisA/HoverboardSolarisADeck", "name": "Bad Baby", "category": "Misc", "type": "K-Drive Component", "masterable": true}}
+                ]}}"#
+            ),
+        )
+        .unwrap();
+        let items = read_catalog(&path).unwrap();
+        let names: Vec<&str> = items.iter().filter_map(|i| i["name"].as_str()).collect();
+        assert_eq!(names, ["Raplak Prism", "Mote Prism", "Sporelacer", "Bad Baby"], "the scaffold gives no mastery");
+        assert!(items.iter().all(|i| i["masterable"] == Value::Bool(true)));
+        assert_eq!(items[0]["components"][0]["name"], "Blueprint", "with what building it takes");
+        assert!(!masterable_part("/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartABlueprint"));
         fs::remove_dir_all(&dir).ok();
     }
 
