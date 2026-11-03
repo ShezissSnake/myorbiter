@@ -35,5 +35,7 @@ export function shareCheck(relics: { name: string; refinement: string }[]): Shar
   if (!rest.length) return { matched: true, text: `4b4: four ${label(top)}`, main: label(top), off: [] };
   // The odd ones out in squad order.
   const off = rest.sort((a, b) => a.first - b.first).map((g) => `${g.n} ${label(g)}`);
+  // No two alike: nothing to measure the rest against.
+  if (top.n === 1) return { matched: false, text: "Not a 4b4: four different relics", main: label(top), off };
   return { matched: false, text: `Not a 4b4: ${off.join(", ")}`, main: label(top), off };
 }

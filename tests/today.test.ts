@@ -141,8 +141,8 @@ test("the week's Archimedeas, 1999 Calendar prizes and Descendia, from warframes
   assert.equal(t.archimedeas[0].missions[0].deviation, "Sealed Armor");
   assert.equal(t.calendar!.season, "Summer");
   assert.deepEqual(t.calendar!.prizes, [
-    { day: "11 Jul", choices: ["Vosfor Cache", "Arcane Enhancements: Double Pack"], notable: false },
-    { day: "23 Sep", choices: ["Arcane Enhancements", "Primary Arcane Adapter"], notable: true },
+    { day: "11 Jul", choices: ["Vosfor Cache", "Arcane Enhancements: Double Pack"], notable: false, pick: "Vosfor Cache" },
+    { day: "23 Sep", choices: ["Arcane Enhancements", "Primary Arcane Adapter"], notable: true, pick: "Primary Arcane Adapter" },
   ]);
   assert.deepEqual(t.descendia, { floors: 21, ends });
   // Missing or broken parts don't throw.

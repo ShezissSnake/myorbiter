@@ -20,6 +20,10 @@ test("a different relic or refinement is named against the squad's main one", ()
   assert.equal(shareCheck([r("Neo N1"), r("Meso M1", "Intact"), r("Neo N1"), r("Lith L1", "Exceptional")])!.text, "Not a 4b4: 1 intact Meso M1, 1 exceptional Lith L1");
 });
 
+test("four different relics say so", () => {
+  assert.equal(shareCheck([r("Lith C13", "Intact"), r("Neo P9"), r("Axi A22"), r("Meso C10")])!.text, "Not a 4b4: four different relics");
+});
+
 test("only with four relics", () => {
   assert.equal(shareCheck([]), null);
   assert.equal(shareCheck([r("Axi A1"), r("Axi A1"), r("Axi A1")]), null);

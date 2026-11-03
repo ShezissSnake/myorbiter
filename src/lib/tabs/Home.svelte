@@ -585,7 +585,7 @@
               {@const cal = day.calendar}
               {@const best = cal.prizes.filter((p) => p.notable)}
               <div class="th"><GameIcon name="faction-techrot" size={18} /><b class="mark" title="The 1999 Calendar in Höllvania: each season lasts a week, with two prizes to choose between each month">1999 Calendar</b><span class="dim small">{cal.season ? `${cal.season} · ` : ""}{until(cal.ends, now)} left</span></div>
-              <p class="tline dim small" title="Every prize day this season (pick one of each pair): {cal.prizes.map((p) => `${p.day}: ${p.choices.join(' or ')}`).join('; ')}">{#if best.length}{best.map((p) => `${p.day}: ${p.choices.join(" or ")}`).join(" · ")}{:else}{cal.prizes.length} prize day{cal.prizes.length === 1 ? "" : "s"}, nothing rare{/if}</p>
+              <p class="tline dim small" title="The prize days worth a look (hover for the lot). Every prize day this season, one of each pair to pick: {cal.prizes.map((p) => `${p.day}: ${p.choices.join(' or ')}`).join('; ')}">{#if best.length}{best.map((p) => `${p.day} ${p.pick}`).join(" · ")}{:else}{cal.prizes.length} prize day{cal.prizes.length === 1 ? "" : "s"}, nothing rare{/if}</p>
             {/if}
             {#if day.descendia}
               <div class="th"><GameIcon name="faction-orokin" size={18} /><b class="mark" title="The Descendia: a tower of {day.descendia.floors} floors (Infernums), new challenges each Monday; each floor's reward comes once a week, and Infernum 21 always drops an Uriel or Vinquibus part">Descendia</b><span class="dim small">{day.descendia.floors} Infernums · {until(day.descendia.ends, now)} left</span></div>

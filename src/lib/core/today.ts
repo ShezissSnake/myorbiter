@@ -26,7 +26,7 @@ export interface Today {
   /** The week's Deep and Temporal Archimedea: their missions, and each one's deviation for the tooltip. */
   archimedeas: { kind: "Deep" | "Temporal"; missions: { type: string; deviation: string }[]; ends: string }[];
   /** The 1999 Calendar's season (a week): its prize days, the ones with a reward worth picking first. */
-  calendar: { season: string; prizes: { day: string; choices: string[]; notable: boolean }[]; ends: string } | null;
+  calendar: { season: string; prizes: { day: string; choices: string[]; notable: boolean; pick: string }[]; ends: string } | null;
   /** The week's Descendia: how many Infernums (floors). */
   descendia: { floors: number; ends: string } | null;
 }
@@ -167,7 +167,8 @@ export function today(m: Model, live: Live, now = Date.now(), gear: GearCopy[] |
   const cal = open(live.calendar) ? live.calendar! : null;
   const prizes = (cal?.days ?? []).flatMap((d) => {
     const choices = (d?.events ?? []).filter((e) => e?.type === "Big Prize!" && typeof e.reward === "string").map((e) => PRIZE_NAME[e.reward!] ?? e.reward!);
-    return choices.length ? [{ day: calendarDay(d.date), choices, notable: choices.some((c) => NOTABLE_PRIZE.test(c)) }] : [];
+    const best = choices.find((c) => NOTABLE_PRIZE.test(c));
+    return choices.length ? [{ day: calendarDay(d.date), choices, notable: !!best, pick: best ?? choices[0] }] : [];
   });
   const calendar = cal && prizes.length ? { season: cal.season ?? "", prizes, ends: cal.expiry } : null;
   const ds = open(live.descendia) ? live.descendia! : null;

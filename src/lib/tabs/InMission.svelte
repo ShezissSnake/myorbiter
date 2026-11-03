@@ -226,7 +226,7 @@
       </table>
     {/if}
 
-    {#if share}<p class="share small" class:off={!share.matched} title={share.matched ? "All four players brought the same relic at the same refinement: four rolls on one reward table" : `A 4b4 is four of one relic at one refinement. Most of the squad brought ${share.main}; the odd ones out (${share.off.join(", ")}) roll on a different table`}>{share.text}</p>{/if}
+    {#if share}<p class="share small" class:off={!share.matched} title={share.matched ? "All four players brought the same relic at the same refinement: four rolls on one reward table" : `A 4b4 is four of one relic at one refinement. ${share.text.endsWith("different relics") ? "Each of the squad brought a different relic or refinement" : `Most of the squad brought ${share.main}; the odd ones out (${share.off.join(", ")}) roll on a different table`}`}>{share.text}</p>{/if}
     <h2 class="register">The squad's relics <span class="legend">Gold: a part you still need · bright: worth a look · dimmed: you've mastered what it builds</span></h2>
     <section class="cards">{#each relics as r, i (r.path + i)}{@render relicCard(r)}{/each}</section>
   {:else if !onScreen}

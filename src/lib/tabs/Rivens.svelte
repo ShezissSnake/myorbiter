@@ -713,7 +713,7 @@
   .meta { display: inline-flex; align-items: center; gap: .35rem; }
   .pol { width: 14px; height: 14px; opacity: .85; }
   .stats { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
-  .stats li { display: grid; grid-template-columns: 4.6rem 1fr 4rem 2rem; gap: .5rem; align-items: center; font-size: .84rem; }
+  .stats li { display: grid; grid-template-columns: 4.6rem 1fr 4rem 3.4rem; gap: .5rem; align-items: center; font-size: .84rem; }
   .val { font-family: var(--face-mark); font-size: 1rem; color: var(--verdigris); font-variant-numeric: tabular-nums; }
   .curse .val { color: var(--oxblood); }
   .lbl { color: var(--platinum-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -738,7 +738,8 @@
   .grow { flex: 1; }
   .grade { font-family: var(--face-mark); font-weight: 700; font-size: .9rem; text-align: center; min-width: 1.8rem; color: var(--platinum-dim); }
   .grade.big { font-size: 1.9rem; min-width: 2.6rem; }
-  .cw { font-family: var(--face-register); font-size: .7rem; text-align: center; min-width: 1.8rem; }
+  .cw { font-family: var(--face-register); font-size: .68rem; text-align: center; min-width: 1.8rem; }
+  .stats li > .grade, .stats li > .cw { justify-self: end; }
   .cw-hurts { color: var(--oxblood); }
   .cw-harmless { color: var(--platinum-deep); }
   .g-S { color: var(--gold); }
