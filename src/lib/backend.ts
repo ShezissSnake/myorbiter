@@ -21,6 +21,7 @@ import type { WorldAlert } from "./core/worldNeeds";
 import type { RelicData } from "./core/relicData";
 import { marketItemsOf, recipeDataOf, relicDataOf, rivenMetaOf } from "./core/shapes";
 import type { Archimedea, Bundle, Calendar1999, CatalogPart, CollectionPart, DarvoDeal, Descendia, DuviriCycle, Fissure, Live, MissionState, Nightwave, SortieLike, SteelPath, VaultTraderItem, WorldEvent } from "./core/types";
+import { openable } from "./core/links";
 import { defaultPickWeights, type PickWeights } from "./core/pick";
 import type { Notice } from "./notices";
 import { DEFAULT_BUILDS_MAX_AGE_DAYS, sanitizeBuilds, sanitizeMaxAgeDays, type Build } from "./core/builds/types";
@@ -896,12 +897,18 @@ export function onSaveTrouble(f: (error: string | null) => void) {
   saveListener = f;
 }
 
+/** Opens a link in your browser: only https links to the sites in core/links.ts, anything else is refused. */
 export async function openUrl(url: string) {
+  const safe = openable(url);
+  if (!safe) {
+    logLine("warn", "app", `refused to open a link outside orbiter's sites: ${url.slice(0, 200)}`);
+    return;
+  }
   if (inTauri) {
     const { openUrl } = await import("@tauri-apps/plugin-opener");
-    return openUrl(url);
+    return openUrl(safe);
   }
-  window.open(url, "_blank", "noopener");
+  window.open(safe, "_blank", "noopener");
 }
 
 /** warframe.market URL slug for an item name. */

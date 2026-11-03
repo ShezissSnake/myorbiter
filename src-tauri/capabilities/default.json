@@ -1,11 +1,21 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window",
+  "description": "Main window. The opener may open only these sites, over https (the page checks too: src/lib/core/links.ts); it can't open files or folders, or show them in the file manager (orbiter's log folders are opened from Rust).",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "window-state:default",
-    "opener:default"
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "https://warframe.market/*" },
+        { "url": "https://wiki.warframe.com/*" },
+        { "url": "https://warframe.fandom.com/*" },
+        { "url": "https://overframe.gg/*" },
+        { "url": "https://noxsframe.com/*" },
+        { "url": "https://github.com/ShezissSnake/*" }
+      ]
+    }
   ]
 }
