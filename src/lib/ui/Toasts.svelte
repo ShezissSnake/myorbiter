@@ -45,7 +45,7 @@
 <style>
   .toasts { position: fixed; bottom: 1rem; z-index: 60; display: grid; gap: .5rem; width: min(24rem, calc(100vw - 2rem)); pointer-events: none; }
   /* A side panel open: they go behind its shade, so they never cover the panel's controls (the bell keeps them). */
-  :global(body:has(.scrim)) .toasts { z-index: 39; }
+  :global(html[data-scrim]) .toasts { z-index: 39; }
   .toast { position: relative; pointer-events: auto; display: grid; grid-template-columns: 1fr auto; overflow: hidden; border: 1px solid var(--rule-bright); background: var(--plate); box-shadow: 0 10px 30px rgb(0 0 0 / 55%), inset 3px 0 0 var(--gold); clip-path: var(--cut); }
   .body { display: grid; grid-template-columns: 1.9rem 1fr; gap: .7rem; padding: .75rem .4rem .8rem .9rem; text-align: left; border: 0; background: transparent; color: var(--platinum-dim); font-family: var(--face-text); font-size: .82rem; letter-spacing: 0; text-transform: none; }
   .body:hover { background: rgb(230 233 238 / 4%); }

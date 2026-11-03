@@ -1,5 +1,6 @@
 <script lang="ts" generics="V extends string">
   import GameIcon, { type GameIconName } from "./GameIcon.svelte";
+  import { afterPaint } from "./soon";
   // A row of categories with the game's icons, the chosen one lit gold beneath. The gold line
   // slides to the tab you pick (QUICK, transform only); it's placed without moving on first draw.
   let {
@@ -8,17 +9,33 @@
     label,
   }: { value: V; options: { v: V; label: string; icon?: GameIconName; count?: number; title?: string }[]; label?: string } = $props();
 
+  // A tab picked lights (and its line slides) at once; the page under it changes a frame later
+  // (soon.ts), so a view that draws a long list doesn't hold up the press.
+  let chosen = $state<{ v: V } | null>(null);
+  const current = $derived(chosen ? chosen.v : value);
+  let cancel: (() => void) | null = null;
+  function pick(v: V) {
+    cancel?.();
+    chosen = { v };
+    cancel = afterPaint(() => {
+      cancel = null;
+      chosen = null;
+      value = v;
+    });
+  }
+  $effect(() => () => cancel?.());
+
   let row = $state<HTMLElement | null>(null);
   // One tab stop for the row; ←/→ pick the tab before or after (round), Home and End the first and last.
   function key(e: KeyboardEvent) {
-    const i = options.findIndex((o) => o.v === value);
+    const i = options.findIndex((o) => o.v === current);
     const to = e.key === "ArrowRight" ? i + 1 : e.key === "ArrowLeft" ? i - 1 : e.key === "Home" ? 0 : e.key === "End" ? options.length - 1 : null;
     if (to == null || !options.length) return;
     e.preventDefault();
-    value = options[(to + options.length) % options.length].v;
+    pick(options[(to + options.length) % options.length].v);
     queueMicrotask(() => row?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus());
   }
-  const stop = (i: number) => options[i].v === value || (i === 0 && !options.some((x) => x.v === value));
+  const stop = (i: number) => options[i].v === current || (i === 0 && !options.some((x) => x.v === current));
   let line = $state<HTMLElement | null>(null);
   // The line goes under the chosen tab (its left, foot and width), measured once it's drawn.
   function place(moving: boolean) {
@@ -34,7 +51,7 @@
   }
   let placed = false;
   $effect(() => {
-    void value;
+    void current;
     void options;
     // Measured just before the frame is drawn, once the page under the tabs has redrawn too, so
     // reading the layout doesn't make the browser lay it out twice.
@@ -56,7 +73,7 @@
 
 <div class="tabs" role="tablist" aria-label={label} tabindex="-1" bind:this={row} onkeydown={key}>
   {#each options as o, i (o.v)}
-    <button role="tab" aria-selected={value === o.v} tabindex={stop(i) ? 0 : -1} class:on={value === o.v} title={o.title ?? `${o.label}${o.count != null ? ` · ${o.count}` : ""}`} aria-label={o.count != null ? `${o.label}, ${o.count}` : o.label} onclick={() => (value = o.v)}>
+    <button role="tab" aria-selected={current === o.v} tabindex={stop(i) ? 0 : -1} class:on={current === o.v} title={o.title ?? `${o.label}${o.count != null ? ` · ${o.count}` : ""}`} aria-label={o.count != null ? `${o.label}, ${o.count}` : o.label} onclick={() => pick(o.v)}>
       {#if o.icon}<GameIcon name={o.icon} size={18} />{/if}
       <span class:lbl={!!o.icon}>{o.label}</span>
       {#if o.count != null}<em>{o.count.toLocaleString("en")}</em>{/if}

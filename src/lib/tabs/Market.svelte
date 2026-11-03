@@ -56,9 +56,11 @@
   });
 
   const all = $derived.by(whileShown("browse", () => marketRows(model, mkt.items)));
-  const rows = $derived(filterRows(all, { category, min, max, minTrades, owned, weekly }).filter((r) => matches(q, r.name)));
+  /** The category the list is filtered on: the select shows a pick at once, the list a frame later (typed.svelte.ts). */
+  const categoryNow = $derived.by(typed(() => category));
+  const rows = $derived(filterRows(all, { category: categoryNow, min, max, minTrades, owned, weekly }).filter((r) => matches(q, r.name)));
   /** What "Sold weekly" is hiding from the rest of the filters. */
-  const slowHidden = $derived(weekly ? filterRows(all, { category, min, max, minTrades, owned, weekly: false }).filter((r) => matches(q, r.name)).length - rows.length : 0);
+  const slowHidden = $derived(weekly ? filterRows(all, { category: categoryNow, min, max, minTrades, owned, weekly: false }).filter((r) => matches(q, r.name)).length - rows.length : 0);
   const count = (c: MarketCategory | "all") => (c === "all" ? all.length : all.filter((r) => r.category === c).length);
   const label = (c: MarketCategory) => CATEGORIES.find((x) => x.v === c)?.label ?? "";
   const daily = (t: number | null) => (t == null ? null : Math.round(t * 10) / 10);

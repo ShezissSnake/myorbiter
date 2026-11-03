@@ -70,6 +70,21 @@ if (typeof window !== "undefined") {
   window.addEventListener("pointerdown", mark, { capture: true, passive: true });
   window.addEventListener("keydown", mark, { capture: true, passive: true });
 }
+let movingUntil = 0;
+/**
+ * Something on screen moves for the next `ms` (a row leaving, a fold opening, a figure rolling):
+ * background work (lib/pane.svelte.ts, whenIdle) waits for it to finish rather than make it stutter.
+ * Every transition and animation here says so; returns `ms`.
+ */
+export function moving(ms: number): number {
+  if (ms > 0 && typeof performance !== "undefined") movingUntil = Math.max(movingUntil, performance.now() + ms);
+  return ms;
+}
+/** Whether something on screen is still moving (`moving`). */
+export const stillMoving = () => typeof performance !== "undefined" && performance.now() < movingUntil;
+
+/** How long since the last click or key (ms); Infinity before the first. */
+export const sinceInput = () => (typeof performance === "undefined" ? Infinity : performance.now() - lastInput);
 /** Whether a click or a key came in just now: arrivals move only in answer to one. */
 export const answering = () => typeof performance !== "undefined" && performance.now() - lastInput < 800;
 
@@ -99,6 +114,7 @@ const NONE: TransitionConfig = { duration: 0 };
  */
 export function arrive(node: Element, { y = 6, duration = QUICK, delay = 0, always = false }: { y?: number; duration?: number; delay?: number; always?: boolean } = {}): TransitionConfig {
   if (calm.current || (!always && !answering()) || !spend()) return NONE;
+  moving(delay + duration);
   return { delay, duration, easing: out, css: (t, u) => `opacity:${t};transform:translateY(${(u * y).toFixed(2)}px)` };
 }
 
@@ -115,6 +131,7 @@ export function leave(node: Element, { y = -4, duration = QUICK, delay = 0 }: { 
   // it where it was with an inline translate: keep that, or the row jumps to the list's top.
   const held = (node as HTMLElement).style?.transform || "";
   const at = held && held !== "none" ? `${held} ` : "";
+  moving(delay + duration);
   return { delay, duration, easing: out, css: (t, u) => `opacity:${t};transform:${at}translateY(${(u * y).toFixed(2)}px)` };
 }
 
@@ -146,6 +163,7 @@ function keepColumns(node: Element) {
 export function reveal(node: Element, { duration = QUICK, always = false }: { duration?: number; always?: boolean } = {}): TransitionConfig {
   node.classList.add("reveal");
   if (calm.current || (!always && !answering()) || !spend()) return NONE;
+  moving(duration);
   return { duration, easing: out, css: (t) => `grid-template-rows:${t.toFixed(4)}fr;opacity:${Math.min(1, t * 1.6).toFixed(3)};overflow:hidden` };
 }
 
@@ -159,13 +177,14 @@ export function reveal(node: Element, { duration = QUICK, always = false }: { du
 export function opens(node: Element, { scale = 0.98, fade = true }: { scale?: number; fade?: boolean } = {}, opts?: { direction?: "in" | "out" | "both" }): TransitionConfig {
   if (calm.current) return NONE;
   const duration = opts?.direction === "out" ? 100 : 120;
+  moving(duration);
   return { duration, easing: out, css: (t) => `${fade ? `opacity:${t};` : ""}transform:scale(${(scale + (1 - scale) * t).toFixed(4)})` };
 }
 
 /** The shade behind a dialog or sheet: fades. Pair it with the dialog's own in:/out:. */
 export function shade(node: Element, { duration = 120 }: { duration?: number } = {}, opts?: { direction?: "in" | "out" | "both" }): TransitionConfig {
   if (calm.current) return NONE;
-  return { duration: opts?.direction === "out" ? 100 : duration, easing: out, css: (t) => `opacity:${t}` };
+  return { duration: moving(opts?.direction === "out" ? 100 : duration), easing: out, css: (t) => `opacity:${t}` };
 }
 
 /**
@@ -185,6 +204,7 @@ export function flip(node: Element, rects: { from: DOMRect; to: DOMRect }, param
   const now = typeof getComputedStyle === "function" ? getComputedStyle(node).transform : "none";
   const base = now && now !== "none" ? `${now} ` : "";
   const duration = typeof params.duration === "number" ? params.duration : SETTLE;
+  moving((params.delay ?? 0) + duration);
   return { delay: params.delay ?? 0, duration, easing: params.easing ?? out, css: (_t, u) => `transform:${base}translate(${(u * dx).toFixed(2)}px,${(u * dy).toFixed(2)}px)` };
 }
 
@@ -273,7 +293,7 @@ export function fold(node: HTMLElement, open: boolean) {
     node.hidden = false;
     const frames = [{ gridTemplateRows: "0fr", opacity: 0 }, { gridTemplateRows: "1fr", opacity: 1 }];
     node.style.overflow = "hidden";
-    const a = node.animate(o ? frames : frames.reverse(), { duration: QUICK, easing: OUT_CSS });
+    const a = node.animate(o ? frames : frames.reverse(), { duration: moving(QUICK), easing: OUT_CSS });
     anim = a;
     a.onfinish = () => {
       if (anim !== a) return;

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { scrim } from "./ui/scrim";
   // The update screen: what changed since you last looked, shown once after an update the way the
   // game shows its own. The update's date as a stamp, its biggest change struck large with Show me,
   // the rest of it as rows, earlier days folded under their dates; Take the tour steps through
@@ -56,7 +57,7 @@
 
 {#if open && latest}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="scrim" onclick={close} in:shade out:shade></div>
+  <div class="scrim" use:scrim onclick={close} in:shade out:shade></div>
   <!-- Modal while open; on its way out it lets go, so the tour's keys work at once. -->
   <div class="update" role="dialog" aria-modal={open ? "true" : undefined} aria-labelledby="upd-title" tabindex="-1" use:trap={{ onescape: close }} in:shade out:shade onoutroend={flush}>
     <header class="top">

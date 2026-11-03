@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { scrim } from "./scrim";
   // The "Post a buy order" form, over whatever page you're on: for a part or item you're after,
   // priced one over the best buyer in game and never up to the cheapest seller.
   import { tick } from "svelte";
@@ -89,7 +90,7 @@
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="scrim" in:shade|global out:shade|global onclick={close}>
+  <div class="scrim" use:scrim in:shade|global out:shade|global onclick={close}>
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="dialog" role="dialog" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} tabindex="-1" aria-modal="true" aria-label="Post a buy order on warframe.market" bind:this={dialog} use:trap={{ onescape: close }} onclick={(e) => e.stopPropagation()}>
       <div class="register head">Post a buy order</div>

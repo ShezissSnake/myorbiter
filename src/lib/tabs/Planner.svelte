@@ -24,6 +24,7 @@
   import type { Fissure } from "../core/types";
   import RelicPlate from "../ui/RelicPlate.svelte";
   import { keepWhile, shownPage, whenIdle, whileShown } from "../pane.svelte";
+  import { inBackground } from "../progress.svelte";
   import { typed } from "../typed.svelte";
 
   // The mode is kept in settings, so it survives a restart and the Guide can open either one.
@@ -124,7 +125,7 @@
     else drawnRadiant = true;
   });
   $effect(() => {
-    if (shownPage("planner") && !(drawnSets && drawnRadiant)) return whenIdle(() => (drawnSets = drawnRadiant = true));
+    if (shownPage("planner") && !(drawnSets && drawnRadiant)) return whenIdle(() => inBackground(() => (drawnSets = drawnRadiant = true)));
   });
   const setsRows = $derived.by(keepWhile(() => mode === "sets", () => crack));
   const setsLast = $derived.by(keepWhile(() => mode === "sets", () => lastCovered));
