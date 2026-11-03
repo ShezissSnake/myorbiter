@@ -27,7 +27,7 @@
     let pts = 0;
     return list.map((x) => ((plat += x.plat), (pts += x.row.points), { plat, pts }));
   });
-  const buy = (x: PlatMastery, b: PlatMastery["buys"][number]) => mkt.startBuy(b.name, { quantity: b.need });
+  const buy = (x: PlatMastery, b: PlatMastery["buys"][number]) => mkt.startBuy(b.name, { quantity: b.need, known: b.price });
 </script>
 
 <div class="bar">

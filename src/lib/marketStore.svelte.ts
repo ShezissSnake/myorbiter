@@ -857,7 +857,7 @@ class MarketStore {
    * than the best buyer in game, never up to the cheapest seller (you'd just buy that), or under
    * the 30-day median when nobody's buying.
    */
-  async startBuy(name: string, req: { unique?: string | null; rank?: number | null; subtype?: string | null; quantity?: number } = {}) {
+  async startBuy(name: string, req: { unique?: string | null; rank?: number | null; subtype?: string | null; quantity?: number; known?: number | null } = {}) {
     this.buyError = null;
     this.buyDraft = null;
     try {
@@ -874,7 +874,7 @@ class MarketStore {
     const rank = req.rank ?? (it.maxRank != null ? 0 : null);
     // A relic's refinement (intact unless you pick another): buyers and sellers of others don't count.
     const subtype = req.subtype ?? it.subtypes?.[0] ?? null;
-    const draft: BuyDraft = { itemId: it.id, name: it.name, slug: it.slug, rank, maxRank: it.maxRank, subtype, subtypes: it.subtypes, quantity: Math.max(1, req.quantity ?? 1), platinum: null, topBuy: null, cheapestSell: null, median: null, loading: true };
+    const draft: BuyDraft = { itemId: it.id, name: it.name, slug: it.slug, rank, maxRank: it.maxRank, subtype, subtypes: it.subtypes, quantity: Math.max(1, req.quantity ?? 1), platinum: null, topBuy: null, cheapestSell: null, median: null, known: req.known ?? null, loading: true };
     this.buyDraft = draft;
     try {
       // Buying: who is selling right now, so a fresh read.
@@ -1304,6 +1304,8 @@ export interface BuyDraft {
   topBuy: number | null;
   cheapestSell: number | null;
   median: number | null;
+  /** What the card that opened the form gave as its price, shown when the order book has none. */
+  known?: number | null;
   loading: boolean;
 }
 

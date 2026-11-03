@@ -137,7 +137,7 @@
 {#snippet verdictCell(r: PartRow)}{@const v = verdict(r)}<span class="v-{v}" title={VERDICT_TITLE[v]}>{LABEL[v]}</span>{/snippet}
 {#snippet listCell(r: PartRow, labelled = false)}
   {#if r.spare > 0 && r.inSets > 0}
-    <ListButton {model} {labelled} name="{r.parentName} Set" label="List set" req={{ quantity: setsFor.get(r.parentName) ?? 1 }} />
+    <ListButton {model} {labelled} name="{r.parentName} Set" label="Sell set" req={{ quantity: setsFor.get(r.parentName) ?? 1 }} />
   {:else if r.spare > 0}
     <ListButton {model} {labelled} name={r.name} req={{ quantity: r.spare }} />
   {/if}
@@ -256,7 +256,7 @@
             <td class="r"><P v={b.price} /></td>
             <td class="r"><b class:good={b.rate >= 1 / advice.platPerDucat}>{Math.round(b.rate * 10) / 10}</b></td>
             <td class="r dim">{b.tradesPerDay == null ? "–" : Math.round(b.tradesPerDay * 10) / 10}</td>
-            <td class="r"><button class="link" title="Post a buy order on warframe.market for {b.name}: sellers whisper you" onclick={() => mkt.startBuy(b.name, { quantity: 5 })}>Buy order</button></td>
+            <td class="r"><button class="link" title="Post a buy order on warframe.market for {b.name}: sellers whisper you" onclick={() => mkt.startBuy(b.name, { quantity: 5, known: b.price })}>Buy order</button></td>
           </tr>
         {/each}
       </tbody>

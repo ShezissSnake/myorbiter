@@ -537,7 +537,7 @@
           <label><span class="register">Buyout</span><span class="plat"><input type="number" min="1" bind:value={f.buyout} aria-label="Buyout price" /><GameIcon name="platinum" size={14} /></span></label>
           <Chip bind:on={f.bids} label="Take bids from" title="Let buyers bid below the buyout, from a starting price" />
           {#if f.bids}<span class="plat"><input type="number" min="1" bind:value={f.starting} aria-label="Starting bid" /><GameIcon name="platinum" size={14} /></span>{/if}
-          <button class="stamp gold" disabled={f.busy || !f.buyout}>{f.busy ? "Listing…" : "List it"}</button>
+          <button class="stamp gold" title="Put it up as an auction on warframe.market at this buyout" disabled={f.busy || !f.buyout}>{f.busy ? "Listing…" : "Sell it"}</button>
           <IconButton icon="close" tone="quiet" label="Cancel" onclick={() => delete sell[r.id]} />
           {#if estimates[r.id] || pc?.lowest != null}<span class="dim small hint">{#if estimates[r.id]}Estimate {estimates[r.id].mid}p (the middle half of listings like it ask {estimates[r.id].lo}–{estimates[r.id].hi}p){pc?.lowest != null ? "; " : ""}{/if}{#if pc?.lowest != null}cheapest similar {pc.lowest}p{pc.typical != null ? `, most around ${pc.typical}p` : ""}{/if}. To sell sooner, ask toward the lower end.</span>{/if}
           {#if f.error}<span class="err small">{f.error}</span>{/if}
@@ -573,7 +573,7 @@
       {:else}<span class="dim small">Not checked yet</span>{/if}
       <span class="grow"></span>
       <!-- The same three places on every card: check prices, sell, open on warframe.market. -->
-      <ProgressButton variant="icon" icon={pc || c?.error || c?.loading ? "refresh" : "search"} spin tone="quiet" state={c?.loading ? "working" : "idle"} label={pc ? "Check again" : c?.error ? "Try again" : "Price check"} working="Checking…" title={pc ? "Check again: find similar rivens for sale now" : "Price check: find similar rivens for sale"} disabled={!meta} onclick={() => check(r)} />
+      <ProgressButton variant="icon" icon={pc || c?.error || c?.loading ? "refresh" : "search"} spin tone="quiet" state={c?.loading ? "working" : "idle"} label={pc ? "Check again" : c?.error ? "Try again" : "Check prices"} working="Checking…" title={pc ? "Check again: find similar rivens for sale now" : "Check prices: find similar rivens for sale"} disabled={!meta} onclick={() => check(r)} />
       {#if meta && auctionOf(meta, r, rivens.mine)}<span class="slot"></span>
       {:else}<IconButton icon="list" tone={sell[r.id] ? "gold" : "quiet"} label="Sell" title={!mkt.linked ? "Sign in to warframe.market on Orders first" : "Sell: put it up as an auction on warframe.market"} disabled={!meta || !mkt.linked || !!sell[r.id]} onclick={() => openSell(r, estimates[r.id]?.mid ?? pc?.typical ?? pc?.lowest ?? null)} />{/if}
       <IconButton icon="external" tone="quiet" label="Similar rivens on warframe.market" onclick={() => openUrl(searchUrl(r))} />

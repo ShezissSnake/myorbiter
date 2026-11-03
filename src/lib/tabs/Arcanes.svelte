@@ -137,7 +137,7 @@
 {/snippet}
 {#snippet listCell(r: ArcaneRow, labelled = false)}
   {#if r.tradable && r.extraSets > 0}
-    <ListButton {model} {labelled} name={r.name} label="List {r.extraSets}× R{r.maxRank}" req={{ unique: r.unique, rank: r.maxRank, quantity: r.extraSets }} hint={fuseHint(r)} />
+    <ListButton {model} {labelled} name={r.name} label="Sell {r.extraSets}× R{r.maxRank}" req={{ unique: r.unique, rank: r.maxRank, quantity: r.extraSets }} hint={fuseHint(r)} />
   {:else if r.tradable && looseSpare(r) > 0}
     <ListButton {model} {labelled} name={r.name} req={{ unique: r.unique, rank: 0, quantity: looseSpare(r) }} />
   {/if}
@@ -161,7 +161,7 @@
 {#snippet verdictCell(x: SpareArcane)}<span class="vc" title={x.why}><span class="verdict v-{x.verdict}">{x.verdict === "sell" ? "Sell" : "Dissolve"}</span>{#if !PLAIN.has(x.why)}<span class="why">{x.why}</span>{/if}</span>{/snippet}
 {#snippet spareList(x: SpareArcane)}
   {#if x.verdict === "sell" && x.row.tradable && x.maxed > 0}
-    <ListButton {model} name={x.row.name} label="List {x.maxed}× R{x.row.maxRank}" req={{ unique: x.row.unique, rank: x.row.maxRank, quantity: x.maxed }} hint={fuseHint(x.row)} />
+    <ListButton {model} name={x.row.name} label="Sell {x.maxed}× R{x.row.maxRank}" req={{ unique: x.row.unique, rank: x.row.maxRank, quantity: x.maxed }} hint={fuseHint(x.row)} />
   {:else if x.verdict === "sell" && x.row.tradable && x.unranked > 0}
     <ListButton {model} name={x.row.name} req={{ unique: x.row.unique, rank: 0, quantity: x.unranked }} />
   {/if}
@@ -217,7 +217,7 @@
 {#snippet detail(r: ArcaneRow)}
   <UpgradeDetail {model} name={r.name} unique={r.unique} ranks={ranksOf(r)} tradable={r.tradable}>
     <p class="small dim">{r.complete ? "Maxed, or enough copies to max it" : `${r.copies} of ${r.needed} copies to max it`}{r.maxedCopies ? ` · ${r.maxedCopies} maxed` : ""}</p>
-    {#if r.tradable && r.extraSets > 0 && leftover(r) > 0}<div><button class="stamp" onclick={(e) => { e.stopPropagation(); mkt.startListing(model, r.name, { unique: r.unique, rank: 0, quantity: leftover(r) }); }}>List {leftover(r)} unranked</button></div>{/if}
+    {#if r.tradable && r.extraSets > 0 && leftover(r) > 0}<div><button class="stamp" title="Sell on warframe.market the unranked copies left over beyond the ones that make up maxed arcanes" onclick={(e) => { e.stopPropagation(); mkt.startListing(model, r.name, { unique: r.unique, rank: 0, quantity: leftover(r) }); }}>Sell {leftover(r)} unranked</button></div>{/if}
   </UpgradeDetail>
 {/snippet}
 
