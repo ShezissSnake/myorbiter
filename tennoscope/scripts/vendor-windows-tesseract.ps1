@@ -19,6 +19,14 @@ $ErrorActionPreference = 'Stop'
 
 $version = '5.4.0.20240606'
 $url = "https://digi.bib.uni-mannheim.de/tesseract/tesseract-ocr-w64-setup-$version.exe"
+# The installer's SHA-256, checked before anything is extracted from it. UB Mannheim publishes no
+# checksums, so this one was taken from two independent sources that agree: the file downloaded
+# from the URL above on 3 November 2026, and the InstallerSha256 that winget's community
+# repository has recorded for this version since June 2024
+# (microsoft/winget-pkgs, manifests/u/UB-Mannheim/TesseractOCR/5.4.0.20240606, which lists
+# UB Mannheim's GitHub release of the same file). Bumping the version means a new hash, checked the
+# same way.
+$sha256 = 'C885FFF6998E0608BA4BB8AB51436E1C6775C2BAFC2559A19B423E18678B60C9'
 $root = Split-Path -Parent $PSScriptRoot
 $vendor = Join-Path $root 'app/src-tauri/vendor/tesseract'
 $staging = Join-Path $env:RUNNER_TEMP 'tesseract-extract'
@@ -30,6 +38,12 @@ if (Test-Path (Join-Path $vendor 'tesseract.exe')) {
 
 $installer = Join-Path $env:RUNNER_TEMP 'tesseract-setup.exe'
 Invoke-DownloadWithRetry -Uri $url -OutFile $installer
+$actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer).Hash
+if ($actual -ne $sha256) {
+  Remove-Item -Force $installer -ErrorAction SilentlyContinue
+  throw "the Tesseract installer's SHA-256 is $actual, not the pinned $sha256: not extracting it"
+}
+Write-Host "tesseract installer SHA-256 verified ($sha256)"
 Remove-Item -Recurse -Force $staging -ErrorAction SilentlyContinue
 & 7z x $installer "-o$staging" | Out-Null
 
