@@ -1,9 +1,10 @@
 // Where builds come from, behind one small interface.
 //
-// Today: text the user pastes (parse.ts), the user's own editor, and orbiter's suggestions. orbiter
-// never fetches Overframe or the wiki: their terms forbid automated access. A fetcher can plug in
-// here later only with the site's permission on record; registerSource refuses a network source
-// without it, and always refuses the hosts in BLOCKED_HOSTS unless that permission names the host.
+// Text the user pastes (parse.ts), the user's own editor, orbiter's suggestions, and Nox's Frame
+// (noxsframe.ts). orbiter never fetches Overframe or the wiki: their terms forbid automated access.
+// registerSource refuses a network source without a record of why it may read: the site's written
+// permission, or (for the hosts in TERMS_HOSTS only) its terms as checked by hand. The hosts in
+// BLOCKED_HOSTS need written permission naming the host.
 
 import type { CatalogItem } from "../types";
 import type { Build } from "./types";
@@ -16,14 +17,21 @@ export interface SourceContext {
   now: number;
 }
 
-/** A site's written permission for automated access: who granted it, when, and for which host. */
-export interface SourcePermission {
-  host: string;
-  grantedBy: string;
-  /** ISO date. */
-  on: string;
-  note?: string;
-}
+/**
+ * Why a network source may read a site. "granted": the site's written permission (who, when, for
+ * which host). "terms": the site's own terms, read by hand on `checked`, allow reading its public
+ * pages on demand; only for the hosts in TERMS_HOSTS, never for BLOCKED_HOSTS.
+ */
+export type SourcePermission =
+  | { kind?: "granted"; host: string; grantedBy: string; /** ISO date. */ on: string; note?: string }
+  | { kind: "terms"; host: string; /** What the terms allow and what orbiter does about it. */ note: string; /** ISO date. */ checked: string };
+
+/**
+ * Sites whose terms were read and allow reading public pages on demand, a few at a time:
+ * noxsframe.com (Nov 2026: "automated mass requests" are what's forbidden; robots.txt allows the
+ * build pages). Adding a host here is a decision, made after reading its terms.
+ */
+export const TERMS_HOSTS = ["noxsframe.com"];
 
 export interface BuildSource {
   /** "orbiter" for the suggestions; a site's own id for a fetcher. */
@@ -45,9 +53,14 @@ const sources: BuildSource[] = [];
 /** Adds a source (replacing one with the same id). Throws for a network source without permission. */
 export function registerSource(s: BuildSource): void {
   if (s.network) {
-    if (!s.permission?.grantedBy || !s.permission.on || !s.permission.host) throw new Error(`${s.label}: a network source needs the site's permission on record`);
+    const p = s.permission;
+    if (!p?.host) throw new Error(`${s.label}: a network source needs the site's permission on record`);
+    if (p.kind === "terms") {
+      if (!TERMS_HOSTS.includes(p.host) || BLOCKED_HOSTS.includes(p.host) || !p.note || !/^\d{4}-\d{2}-\d{2}$/.test(p.checked ?? "")) throw new Error(`${s.label}: ${p.host}'s terms aren't on record as allowing it; it needs the site's permission on record`);
+      if (!s.id.includes(p.host)) throw new Error(`${s.label}: the terms on record are ${p.host}'s, not this source's`);
+    } else if (!p.grantedBy || !p.on) throw new Error(`${s.label}: a network source needs the site's permission on record`);
     for (const host of BLOCKED_HOSTS) {
-      if (s.id.includes(host) && s.permission.host !== host) throw new Error(`${s.label}: ${host} forbids automated access without its permission`);
+      if (s.id.includes(host) && (p.kind === "terms" || p.host !== host)) throw new Error(`${s.label}: ${host} forbids automated access without its permission`);
     }
   }
   const i = sources.findIndex((x) => x.id === s.id);

@@ -1,0 +1,1430 @@
+{
+  "list": [
+    {
+      "author": "Author Two",
+      "date": "2026-10-31",
+      "item": "Ember Prime",
+      "path": "Zt1qnzGVQA9c-rays-gloom-ember",
+      "tags": [
+        "All-round",
+        "Star Chart",
+        "Steel Path"
+      ],
+      "title": "Rays Gloom Ember",
+      "url": "https://noxsframe.com/builds/Zt1qnzGVQA9c-rays-gloom-ember",
+      "votes": 1
+    },
+    {
+      "author": "Author Three",
+      "date": "2026-11-01",
+      "item": "Kuva Nukor",
+      "path": "iTWopjQX-PiC-kuva-nukor-starkes-allrounder-build",
+      "tags": [
+        "All-round",
+        "Endurance",
+        "Farming"
+      ],
+      "title": "Kuva Nukor - Starkes Allrounder Build",
+      "url": "https://noxsframe.com/builds/iTWopjQX-PiC-kuva-nukor-starkes-allrounder-build",
+      "votes": 0
+    },
+    {
+      "author": "Author Three",
+      "date": "2026-11-01",
+      "item": "Dante",
+      "path": "1yEfiJBGk9lB-dante-sterben-ist-keine-option",
+      "tags": [
+        "Steel Path",
+        "Endurance",
+        "Archon Hunt"
+      ],
+      "title": "Dante - Sterben ist keine Option",
+      "url": "https://noxsframe.com/builds/1yEfiJBGk9lB-dante-sterben-ist-keine-option",
+      "votes": 0
+    },
+    {
+      "author": "Author One",
+      "date": "2026-11-01",
+      "item": "Mirage Prime",
+      "path": "02OZ99LT_8kP-mirage-prime-glaive-prime-build",
+      "tags": [
+        "All-round",
+        "Steel Path",
+        "Archon Hunt",
+        "Farming"
+      ],
+      "title": "Mirage Prime - Glaive Prime Build",
+      "url": "https://noxsframe.com/builds/02OZ99LT_8kP-mirage-prime-glaive-prime-build",
+      "votes": 0
+    }
+  ],
+  "mirage": {
+    "author": "Author One",
+    "build": {
+      "archgun": {
+        "arcane": {
+          "arcaneId": null,
+          "rank": 0
+        },
+        "attackIndex": 0,
+        "catalyst": true,
+        "exilus": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "itemId": null,
+        "rank": 30,
+        "riven": null,
+        "slots": [
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          }
+        ],
+        "stance": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "valence": null
+      },
+      "archmelee": {
+        "arcane": {
+          "arcaneId": null,
+          "rank": 0
+        },
+        "attackIndex": 0,
+        "catalyst": true,
+        "exilus": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "itemId": null,
+        "rank": 30,
+        "riven": null,
+        "slots": [
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          }
+        ],
+        "stance": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "valence": null
+      },
+      "archwing": {
+        "itemId": null,
+        "rank": 30,
+        "reactor": true,
+        "slots": [
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          }
+        ]
+      },
+      "companion": {
+        "itemId": null,
+        "rank": 30,
+        "reactor": true,
+        "slots": [
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          }
+        ]
+      },
+      "config": {
+        "activeWeapon": "melee",
+        "comboMultiplier": 1,
+        "conditions": {},
+        "enemy": null,
+        "faction": "none",
+        "statusTypes": 0
+      },
+      "exalted": {
+        "arcane": {
+          "arcaneId": null,
+          "rank": 0
+        },
+        "attackIndex": 0,
+        "catalyst": true,
+        "exilus": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "itemId": null,
+        "rank": 30,
+        "riven": null,
+        "slots": [
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          }
+        ],
+        "stance": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "valence": null
+      },
+      "melee": {
+        "arcane": {
+          "arcaneId": "/Lotus/Upgrades/CosmeticEnhancers/Offensive/ReplayLightCritHits",
+          "rank": 5
+        },
+        "attackIndex": 6,
+        "catalyst": true,
+        "exilus": {
+          "modId": "/Lotus/Upgrades/Mods/Melee/MoveSpeedOnChannelKillMod",
+          "polarity": "naramon",
+          "rank": 5
+        },
+        "itemId": "/Lotus/Weapons/Tenno/Melee/Glaives/PrimeGlaive/PrimeGlaiveWeapon",
+        "rank": 30,
+        "riven": null,
+        "slots": [
+          {
+            "modId": "/Lotus/Upgrades/Mods/Melee/WeaponGlaivePowerthrowMod",
+            "polarity": "madurai",
+            "rank": 5
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Melee/WeaponGlaiveExplodingReflectionDecreaseMod",
+            "polarity": "naramon",
+            "rank": 3
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Melee/MeleeStatusDamageDuoMod",
+            "polarity": "vazarin",
+            "rank": 5
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Melee/Expert/WeaponHeavyAttackEfficiencySPMod",
+            "polarity": "madurai",
+            "rank": 10
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/DualSource/Melee/CritDamageChargeSpeedMod",
+            "polarity": "madurai",
+            "rank": 5
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Sets/Sacrifice/MeleeSacrificeModB",
+            "polarity": null,
+            "rank": 10
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Melee/Expert/WeaponToxinDamageModExpert",
+            "polarity": null,
+            "rank": 10
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Melee/Expert/WeaponMeleeDamageModExpert",
+            "polarity": "madurai",
+            "rank": 10
+          }
+        ],
+        "stance": {
+          "modId": "/Lotus/Weapons/Tenno/Melee/MeleeTrees/GlaiveCmbTwoMeleeTree",
+          "polarity": "naramon",
+          "rank": 3
+        },
+        "valence": null
+      },
+      "name": "Mirage Prime - Glaive Prime Build",
+      "necramech": {
+        "itemId": null,
+        "rank": 30,
+        "reactor": true,
+        "slots": [
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          }
+        ]
+      },
+      "notes": "## Rotation\n1. **Hall of Mirrors (1):** Clones draw aggro and split enemy fire.\n2. **Xata's Whisper (2, Helminth, replaces Sleight of Hand):** Adds Void damage to your weapons.\n3. **Hold Eclipse (3):** Weapon damage buff. If things get rough, tap it for damage reduction instead.\n4. Charge-throw **[[Glaive Prime]]** into the group, detonate it mid-air, charge again right away.\n5. Recast buffs before they run out. Energy comes from health orbs via [[Equilibrium]].\nPrism (4) is optional in this build.\n\n## Why it works\n- **[[Primed Flow]] + Violet Archon Shards:** Above 500 max energy, the shards' melee crit damage doubles. Without Primed Flow you lose half of the shard bonus.\n- **[[Melee Duplicate]]:** Yellow crits hit a second time. Crit chance above 100% barely pays off here, because orange crits aren't duplicated.\n- **[[Arcane Fury]]:** Crits trigger the melee damage buff. With over 80% crit chance, it's up almost permanently.\n- **[[Galvanized Reflex]] + [[Melee Elementalist]]:** Heavy attacks cost less combo and kills grant Initial Combo. You charge faster and deal more status damage.\n- **[[Primed Fever Strike]]:** Toxin bypasses shields, and its procs keep [[Growing Power]] active.\n- **[[Blind Rage]] / [[Narrow Minded]]:** Efficiency and range are sacrificed on purpose. The build barely needs range, and [[Equilibrium]] covers the energy cost.\n\n## Survival\n- Mirage only has around 900 effective health, so keep moving.\n- [[Rolling Guard]]: Rolling makes you briefly invulnerable and removes status effects.\n- Thanks to [[Equilibrium]], energy orbs heal you as well.\n- In an emergency, tap Eclipse for damage reduction.\n\n## Variants\n- **No Violet shards:** Use Crimson shards with melee crit damage. This frees up the [[Primed Flow]] slot.\n- **No Primed Flow:** Arcane Battery also raises max energy and counts toward the shards, but it costs an arcane slot.\n- **Group play:** Swap in Total Eclipse, e.g. for [[Natural Talent]] (check capacity). Allies within 15 m and your clones get the Eclipse buff.\n- **Tip:** You can swap tap/hold for abilities in the settings, so the damage buff sits on tap.",
+      "primary": {
+        "arcane": {
+          "arcaneId": null,
+          "rank": 0
+        },
+        "attackIndex": 0,
+        "catalyst": true,
+        "exilus": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "itemId": null,
+        "rank": 30,
+        "riven": null,
+        "slots": [
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          }
+        ],
+        "stance": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "valence": null
+      },
+      "secondary": {
+        "arcane": {
+          "arcaneId": null,
+          "rank": 0
+        },
+        "attackIndex": 0,
+        "catalyst": true,
+        "exilus": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "itemId": null,
+        "rank": 30,
+        "riven": null,
+        "slots": [
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          }
+        ],
+        "stance": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "valence": null
+      },
+      "version": 1,
+      "warframe": {
+        "arcanes": [
+          {
+            "arcaneId": "/Lotus/Upgrades/CosmeticEnhancers/Offensive/PowerStrengthOnKill",
+            "rank": 5
+          },
+          {
+            "arcaneId": "/Lotus/Upgrades/CosmeticEnhancers/Offensive/GolemArcaneMeleeDamageOnCrit",
+            "rank": 5
+          }
+        ],
+        "aura": {
+          "modId": "/Lotus/Upgrades/Mods/Aura/FairyQuest/FairyQuestCritToAbilityAuraMod",
+          "polarity": "madurai",
+          "rank": 5
+        },
+        "exilus": {
+          "modId": "/Lotus/Upgrades/Mods/OrokinChallenge/OrokinChallengeModPower",
+          "polarity": null,
+          "rank": 5
+        },
+        "formaBudget": 5,
+        "helminth": {
+          "ability": "BrokenRotAbility",
+          "offense": null,
+          "slot": 1,
+          "utility": null
+        },
+        "itemId": "/Lotus/Powersuits/Harlequin/MiragePrime",
+        "rank": 30,
+        "reactor": true,
+        "shards": [
+          {
+            "color": "violet",
+            "stat": 2,
+            "tauforged": false
+          },
+          {
+            "color": "violet",
+            "stat": 2,
+            "tauforged": false
+          },
+          {
+            "color": "violet",
+            "stat": 2,
+            "tauforged": false
+          },
+          {
+            "color": "violet",
+            "stat": 2,
+            "tauforged": false
+          },
+          {
+            "color": "violet",
+            "stat": 2,
+            "tauforged": false
+          }
+        ],
+        "slots": [
+          {
+            "modId": "/Lotus/Upgrades/Mods/Warframe/AvatarInvulnOnRollMod",
+            "polarity": "vazarin",
+            "rank": 10
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Warframe/AvatarPickupBonusMod",
+            "polarity": "naramon",
+            "rank": 10
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Warframe/Expert/AvatarPowerMaxModExpert",
+            "polarity": "naramon",
+            "rank": 10
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Warframe/DualStat/CorruptedPowerStrengthPowerDurationWarframe",
+            "polarity": "madurai",
+            "rank": 10
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Warframe/DualStat/CorruptedPowerEfficiencyWarframe",
+            "polarity": "madurai",
+            "rank": 10
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Warframe/AvatarCastingSpeedMod",
+            "polarity": "naramon",
+            "rank": 3
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Sets/Umbra/WarframeUmbraModC",
+            "polarity": null,
+            "rank": 10
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Warframe/DualStat/CorruptedDurationRangeWarframe",
+            "polarity": "vazarin",
+            "rank": 10
+          }
+        ]
+      }
+    },
+    "code": "NFB1:eNrtWm1v2zgS_isDFYt2c6qdtNvDnb_lrUmwm00vSdtbJP4wlkYSEYrUDkk72kX_-2FI23Hz0qTdAncH-EtgyeS8PvPMkM6f2ZTYKWuy0VaeGWwpG2XHirEmeMeqJXgJBxrVdPG4E5Quszwz1pPLRtmzZ3BqPXplzaXZGsDGxiFqDbaCY8Vs2cGLrR9HGxuwq60hByXjDLCu2QKaElynlQcy1PZQKabBpXklQv6NHp87-Ngo1xHDi1c5HJJulfFNDkydxoIcnGlSdeNF2yGaMurZLksHH6wqocRW3PAWehsYZoSdNW5waV5HM60uYb_QqnMEL17HvR_jksXGSaiqARxV4Btlagc1eWAb6iYHjx0oD5XlxWKmMhQSBVDGecJycGl-GsBug1zTS9-wncHGxsXFajDH440NUMZb8A1BzTZ0OZTkrUFPIr9V5UtUnEMRxQDWqAxw9Bln2A8uzZsBnFKBzkdzHUyoskwisAcOBmzwA9g3xHUPhW3JQcW2hYZQ-wYsTxxMFcLFxf7vQWk1YRXa8Xhwad6xci28-OlHUA5sJ66hBmUkGg4mAoPBpbk0z57Bx6YXa2eWr9yleRn9jA6W8Fbb2XgMf4MPymrysM1FYw2cNcili-ma2CnBm81NaPFagMB1n8d4uLjmObSkiaBg5RexLm2YaHID-Kh8Y4OHFWWSa9DWETSoK0HGUhZMrAmS_2ThcZS7FzqtCvQ0Hos5v5EWIaLNQaM8IDgqrCnBq5YGsCtmFA2aggCj6Vubmz_ABJl0Dx32DmxVQUNMOUyowOAILKOpaS4UmcxzD-VCb7k0aJsLNARvA_fJmN24wbOqa-LoR4rFZ_iUGICdEsM_Nn9IYUr25aD8cwehA9StdR464hYNGa_7pc4D1FM06g8q4ZQqTdcxWYvg7GtqyXjUyvlk0iHhtAf0HosrB4WI1eTkUztJFX2ltHZQMxoPR0Z5hRp25dsB_GbDAskVOk8cN5SEGloBrfPog5u7N7iNJBIfzzyrq3muzu21MjDpO3SOHLhGkS5dHoVK4Dq2hYMrog4uLg7YzpSp4Z2dEY_HgIVX0xslO1qZEk6xpvEYhnBx8SuylOyxMiWVSd9-ValCkSn6qCIlFcVuLFhVqqASrIEucGcdDeC8oVQnC3gYotKlfcnKW1UHheTRxUzTomSdX5TZWeCpmqIWm-cUbY3uoUFBlQ2mhH9ubgJVFUXn5kWeg7MpCq2dKlNHny8uTq3WEpCDgCwOwuJFi1fkYhlNWFGle1BmGrQhxomm5Dq1diohTwlLGlNlnTdorpyQ7i3n8oVLkXPEtKgDHcxI67j3yAAaoJa4lignml1Q9H1cu4jMB2SFxs_J51e7YBu3pJn3jqScWmfN_C3MpHDukIukTQlJEsXakVzcZjOnrR8sda18FwktVfEOek_cA2pngVEJQm8YLkaxsMFIfduZkNMN5eUwCV4IVZLvJCSYZK7oPZBmAZ3GXnSezaQfGTi3HvUiYjnQoB7EuAmcfWDUcI6ajB-P4UXRUHEFBXZYKN__OIBtrRWlsCgDW2-gjVbG3lmk5i0dUOxc5CQyUDLoXHWRP6XE0YATizx2w0barNiAE6WVFw2xhxA48l76asSnvFihNXBSwNaIiEGWZzPkiuNw8memPLVHZTbKhr9YH9wwVrQLyrvhIbKm34Myw1QfMTVZnjGaq2z0ejPPmLDwlrOR50B5hoFRZLa2XBX5vqsZS3LDY1u64XZgHL5Fxf2_Ajm_8lEI-txuR896WXZsy6W6N3nWWY2sfJ-NshbLwKiyT3lG10oH96jaE7ZXyuw2qDWZmm4_H9syen6_PhO0_pRnghiXjS4eUfVxHt7h9hQ98lGs9xMjjLDq0dbmZy5N8Q9kZbJP-deJf6eKq9DtSDP-gnSDjK39Gun71x2xXyiR2Bzj9bEt0_vvp2cvoD7z6Ie7ljl0nlIizjyTqX0TH_YCx5l4sekh7Tew-Ivab5rT91eZIrqLTur1rCMqV_P2-tvCeUbeDd-3E8alovh0bMvdB0xPoP72QC2Sciod-LEwLdE9zrPEv6mQ0ud79e9a15JXxb6JAxi74UlVkXFqSsPPIHJiflZa31SuOPWNcg-spjb1nDiz7UUSPTFCTSsKxnmWmkv0obBaODCbxjaZ5Zk08mz0Ks88hspyTWU2qlA7Esv-L1eP86yZHxiFaVP3kbzusL0ic2r9nLazxJLx_GtjWCkhLc-Cn2-as2llucWdUNbkY9KyjlWL3K92pbTzpuEU6FH3zi86jvOSwhXyX91wD9rvdovHNtzh_Ec2rNfdu25Z9hE-y-L8bNOnPEtHoSNT0nWUwmpKZrFsKtNWQTepiUfJNWLWiHkqYuL55L6pN11VueE5GWOHkfqH6W7JDePYmx5WP6ct2Vdh7Uvq4t9zOSjNNe-2k_OZXb5-dEJ46iQ8V2enFIePExmCjSEtTfThiXtFzxPH4KQnuZo8il07Xt49ZbL_avH71522pTJ1vHuJR9o9KpjQ0XeYsFaydBYP6mk22Av2YWeePNMn4fORO_kU74a2I7pvptGzd1-Y8Z8cujjL2cDF3J-hjDfJnXTDemcq_cYcxan0bHGfMw_e4vHYljt_ZTS9J2bxDis58thJ5VtVrIyFjx6GlnF6gMu-ajQ9lWv6_he5rZZ0HSrvVkfez4nw748QIV2j9jLerRvnunE-oXEiF00dzBova7w8GS93hq01YtaIeRAxhW07NPGn84cRc-u-eZ3O_014zAlAfiFcZ_O_EX1DhVzGFs06_Ot1d-FRWFOpWJoVxmOynIOtofkVcHDnfSf385uRlif2OGivOq2I472u3Lop2SatV2o9_j4-vw8ZzS9Z8iz-G9Jc66f_AJ5I0zY",
+    "description": "Mirage Prime as a buff platform for a heavy-throw Glaive Prime. Mirage stacks damage through Eclipse, Xata's Whisper and Arcane Fury. The Glaive is charge-thrown into a group and detonated mid-air. Toxin and Blast damage, yellow crits and Melee Duplicate do the rest.\n\nWhat matters\nMax energy above 500: Primed Flow takes Mirage to 641 energy. Only above 500 do the five Violet Archon Shards double their melee crit damage. Primed Flow stays in, even at the cost of efficiency.\nYellow crits: Melee Duplicate only makes yellow crits hit a second time. That's why crit chance deliberately stays below 100%.\nStrength for the buffs: 313% in the arsenal, and more during missions from Growing Power (status effects) and Molt Augmented (stacks with kills, lasts until death).\nDuration for uptime: Eclipse, Hall of Mirrors and Xata's Whisper last a long time, so you rarely recast.\n\nPlaystyle\nGet your buffs up, charge-throw the Glaive, detonate it inside the group, repeat. Kills build Initial Combo through Galvanized Reflex, and Melee Elementalist speeds up the charge. Don't stand still: with around 900 effective health, Mirage can't take much. Roll (Rolling Guard), use the clones as a distraction, and switch Eclipse to damage reduction when needed.\n\nRequirements: Melee Arcane Adapter, Galvanized mods and Archon Shards. This is an endgame build.",
+    "down": 0,
+    "id": "02OZ99LT_8kP",
+    "item": "Mirage Prime",
+    "modes": [
+      "allround",
+      "steelpath",
+      "archon",
+      "farming"
+    ],
+    "modified": "2026-11-01T10:17:41.148Z",
+    "path": "02OZ99LT_8kP-mirage-prime-glaive-prime-build",
+    "published": "2026-11-01T10:09:20.023Z",
+    "tags": [
+      "All-round",
+      "Steel Path",
+      "Archon Hunt",
+      "Farming"
+    ],
+    "title": "Mirage Prime - Glaive Prime Build",
+    "up": 0,
+    "url": "https://noxsframe.com/builds/02OZ99LT_8kP-mirage-prime-glaive-prime-build",
+    "votes": 0
+  },
+  "nukor": {
+    "author": "Author Three",
+    "build": {
+      "archgun": {
+        "arcane": {
+          "arcaneId": null,
+          "rank": 0
+        },
+        "attackIndex": 0,
+        "catalyst": true,
+        "exilus": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "itemId": null,
+        "rank": 30,
+        "riven": null,
+        "slots": [
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          }
+        ],
+        "stance": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "valence": null
+      },
+      "archmelee": {
+        "arcane": {
+          "arcaneId": null,
+          "rank": 0
+        },
+        "attackIndex": 0,
+        "catalyst": true,
+        "exilus": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "itemId": null,
+        "rank": 30,
+        "riven": null,
+        "slots": [
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          }
+        ],
+        "stance": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "valence": null
+      },
+      "archwing": {
+        "itemId": null,
+        "rank": 30,
+        "reactor": true,
+        "slots": [
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          }
+        ]
+      },
+      "companion": {
+        "itemId": null,
+        "rank": 30,
+        "reactor": true,
+        "slots": [
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          }
+        ]
+      },
+      "config": {
+        "activeWeapon": "secondary",
+        "comboMultiplier": 1,
+        "conditions": {},
+        "enemy": null,
+        "faction": "none",
+        "statusTypes": 0
+      },
+      "exalted": {
+        "arcane": {
+          "arcaneId": null,
+          "rank": 0
+        },
+        "attackIndex": 0,
+        "catalyst": true,
+        "exilus": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "itemId": null,
+        "rank": 30,
+        "riven": null,
+        "slots": [
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          }
+        ],
+        "stance": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "valence": null
+      },
+      "melee": {
+        "arcane": {
+          "arcaneId": null,
+          "rank": 0
+        },
+        "attackIndex": 0,
+        "catalyst": true,
+        "exilus": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "itemId": null,
+        "rank": 30,
+        "riven": null,
+        "slots": [
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          }
+        ],
+        "stance": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "valence": null
+      },
+      "name": "Kuva Nukor - Starkes Allrounder Build",
+      "necramech": {
+        "itemId": null,
+        "rank": 30,
+        "reactor": true,
+        "slots": [
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          }
+        ]
+      },
+      "notes": "",
+      "primary": {
+        "arcane": {
+          "arcaneId": null,
+          "rank": 0
+        },
+        "attackIndex": 0,
+        "catalyst": true,
+        "exilus": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "itemId": null,
+        "rank": 30,
+        "riven": null,
+        "slots": [
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          }
+        ],
+        "stance": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "valence": null
+      },
+      "secondary": {
+        "arcane": {
+          "arcaneId": "/Lotus/Upgrades/CosmeticEnhancers/Offensive/SecondaryDamageOnKill",
+          "rank": 5
+        },
+        "attackIndex": 0,
+        "catalyst": true,
+        "exilus": {
+          "modId": "/Lotus/Upgrades/Mods/Pistol/WeaponAmmoMaxMod",
+          "polarity": "madurai",
+          "rank": 5
+        },
+        "itemId": "/Lotus/Weapons/Grineer/KuvaLich/Secondaries/Nukor/KuvaNukor",
+        "rank": 40,
+        "riven": null,
+        "slots": [
+          {
+            "modId": "/Lotus/Upgrades/Mods/Pistol/WeaponDamageAmountMod",
+            "polarity": "madurai",
+            "rank": 10
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Pistol/Expert/WeaponCritChanceModBeginnerExpert",
+            "polarity": "madurai",
+            "rank": 10
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Pistol/Expert/PrimedWeaponCritDamageMod",
+            "polarity": "madurai",
+            "rank": 10
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Pistol/WeaponFireIterationsMod",
+            "polarity": "madurai",
+            "rank": 5
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Pistol/DualStat/GrinderMod",
+            "polarity": "madurai",
+            "rank": 5
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Pistol/WeaponFreezeDamageMod",
+            "polarity": null,
+            "rank": 5
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Pistol/WeaponToxinDamageMod",
+            "polarity": null,
+            "rank": 5
+          },
+          {
+            "modId": "/Lotus/Upgrades/Mods/Pistol/Expert/WeaponFireDamageModExpert",
+            "polarity": null,
+            "rank": 10
+          }
+        ],
+        "stance": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "valence": null
+      },
+      "version": 1,
+      "warframe": {
+        "arcanes": [
+          {
+            "arcaneId": null,
+            "rank": 0
+          },
+          {
+            "arcaneId": null,
+            "rank": 0
+          }
+        ],
+        "aura": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "exilus": {
+          "modId": null,
+          "polarity": null,
+          "rank": 0
+        },
+        "helminth": {
+          "ability": null,
+          "offense": null,
+          "slot": 3,
+          "utility": null
+        },
+        "itemId": null,
+        "rank": 30,
+        "reactor": true,
+        "shards": [
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "slots": [
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          },
+          {
+            "modId": null,
+            "polarity": null,
+            "rank": 0
+          }
+        ]
+      }
+    },
+    "code": "NFB1:eNrtmE1v2zAMhv9KwLMHZ-h68a1fG4o2a4F22GHogZWZWIhEGZSUJiv63wfLSZo1beACGbYBvgRGRL2kyMcUzEeYkXjtGIqPGTBaggIu4gwHX-PUyeDD4CagTMkPjowRF7kkGRxHbUrIgF0gDwVABg8oY0m7H0EHsuclFByNyUCQp1AcDDMQQhWcQBEkUgYYBRtz68qX1sMMamdQdFi0C08Z0Fyb6N-xwRsXPBQ_um7o7V61u8sARSFTm8v2eWtbI_fW0l0GvkIpG4G08srPXQYVGas5VE2J8V6bdQhtKaE4yMCNx8SeVv_HsGH29JRBLdqiLHZRqDCgWfiwwtAHZEU9iP8PiAmQtzAEDAHV9JxLmicV0TPildkMDaVqr0pDynH5ghjIL12IPv9OWDv2-RfRTCR50xYvtarym-UuTT5PbTItpSdYhfLpj6C2Cu1bPREsyecjV_r8WvvgzDLeI2vdCOcjV65jOdyUBotlFNTwGpkd9E_R4oSOrIscNp18HL7hpZv42bwmCUsfJ6LDSdUka-TKY5poZpLWYs_-rkVbKp-9tqfb47la6c9a6DyQYNCOfZfadFM_jWhuAobEaEmyP-Vl3EL0k7aTcrjjLe4ge-vmmveo-hs8Ta7X2juh2dVWtvydOG8paHXGCUzx-VW6jPSM1g1h0fq94gttzPOx3tuVLBmi_g7r77BOtNAcTaCy56XnpRMvKKqaRO556XnpzEt_I_XEdCdGOVsjp6FS52lQX85_E49lA3jQPOmr-Teyz6Sawaqq-vT3dtt4KMdjnV7NMaqQei6wY4J0B4fobxd1M7odprZ870bRBF0bTZIm_s13q05DCSgem3ddBT2j9kMaio35WAbEZNej1l8MH08q",
+    "description": null,
+    "down": 0,
+    "id": "iTWopjQX-PiC",
+    "item": "Kuva Nukor",
+    "modes": [
+      "allround",
+      "endurance",
+      "farming"
+    ],
+    "modified": "2026-11-01T12:24:10.563Z",
+    "path": "iTWopjQX-PiC-kuva-nukor-starkes-allrounder-build",
+    "published": "2026-11-01T12:23:58.511Z",
+    "tags": [
+      "All-round",
+      "Endurance",
+      "Farming"
+    ],
+    "title": "Kuva Nukor - Starkes Allrounder Build",
+    "up": 0,
+    "url": "https://noxsframe.com/builds/iTWopjQX-PiC-kuva-nukor-starkes-allrounder-build",
+    "votes": 0
+  }
+}

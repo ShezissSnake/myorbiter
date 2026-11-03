@@ -41,6 +41,10 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 # Desktop notifications: the desktop's own notification service (D-Bus) on Linux, the Action
 # Center on Windows, the Notification Center on macOS.
 notify-rust = "4"
+# Nox's Frame build codes (noxsframe.rs): zlib-packed, base64url. Both already in the build
+# through ureq; named here to use them directly.
+flate2 = "1"
+base64 = "0.22"
 # orbiter's own log file (applog.rs): the standard logging front end, already in the build through Tauri.
 log = "0.4"
 [target.'cfg(unix)'.dependencies]
