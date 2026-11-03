@@ -170,7 +170,10 @@ export interface Settings {
   pagesHidden: string[];
   /** The What's new entry last seen (its date); "" for none yet. */
   newsSeen: string;
-  /** Which tidy-ups of the sidebar have been applied (1: Planner, Market and Stats out by default, Oct 2026). */
+  /**
+   * Which tidy-ups of the sidebar have been applied (1: Planner, Market and Stats out by default,
+   * Oct 2026; 2: the four sections of Nov 2026, so an order saved for the old ones is let go).
+   */
   simplified: number;
   /**
    * Show details: the sentence under each figure, full page descriptions, the minor table
@@ -398,7 +401,7 @@ export const defaultSettings = (): Settings => ({
   notifyOptions: defaultNotifyOptions(),
   pagesHidden: ["planner", "browse", "stats"],
   newsSeen: NEWEST,
-  simplified: 1,
+  simplified: 2,
   details: false,
   chores: {},
   startDone: false,
@@ -775,8 +778,9 @@ export async function loadSettings(): Promise<Settings> {
       const had: string[] = Array.isArray(raw?.pagesHidden) ? raw.pagesHidden.filter((k: unknown): k is string => typeof k === "string") : [];
       return raw && (raw.simplified ?? 0) < 1 ? [...new Set([...had, "planner", "browse", "stats"])] : raw ? had : base.pagesHidden;
     })(),
-    simplified: 1,
-    pageOrder: Array.isArray(raw?.pageOrder) ? raw.pageOrder.filter((k: unknown): k is string => typeof k === "string") : [],
+    simplified: 2,
+    // An order saved for the old sections would scatter the new ones: once, the sidebar starts fresh.
+    pageOrder: raw && (raw.simplified ?? 0) < 2 ? [] : Array.isArray(raw?.pageOrder) ? raw.pageOrder.filter((k: unknown): k is string => typeof k === "string") : [],
     startPage: typeof raw?.startPage === "string" && raw.startPage ? raw.startPage : "last",
     schema: base.schema,
     notifiedInvasions: Array.isArray(raw?.notifiedInvasions) ? raw.notifiedInvasions : [],
