@@ -26,7 +26,7 @@ index c3e74e9..b4c1b55 100644
    "permissions": [
      "process:allow-restart",
 diff --git a/app/src-tauri/src/lib.rs b/app/src-tauri/src/lib.rs
-index ce70bed..18cf799 100644
+index ce70bed..a65d0d4 100644
 --- a/app/src-tauri/src/lib.rs
 +++ b/app/src-tauri/src/lib.rs
 @@ -40,6 +40,7 @@ mod kiosk_view;
@@ -47,7 +47,7 @@ index ce70bed..18cf799 100644
  };
  pub use reward_recognition::{
      FailureTrace, RecognitionTiming, RecognitionUpdate, RecognizedRewards, RewardPublication,
-@@ -561,6 +563,106 @@ fn market_inventory_writes_authorized(runtime: &Runtime) -> Result<(), String> {
+@@ -561,6 +563,107 @@ fn market_inventory_writes_authorized(runtime: &Runtime) -> Result<(), String> {
  }
  type SharedRuntime = Arc<Mutex<Runtime>>;
  
@@ -126,8 +126,9 @@ index ce70bed..18cf799 100644
 +        "rivens": rivens,
 +        // Kubrow and Kavat imprints, each the inventory's own row, for orbiter to list for sale.
 +        "imprints": imprints,
-+        // Each copy of a warframe, weapon or companion, `{type, f, p}` (feature bits and Forma),
-+        // for orbiter's list of gear you no longer need.
++        // Each copy of a warframe, weapon or companion, `{type, f, p, s}` (feature bits, Forma,
++        // section), with a modular build's parts (`m`) and its affinity (`x`): for orbiter's list
++        // of gear you no longer need, and which kitguns, zaws, amps, MOAs and hounds are gilded.
 +        "gear": gear,
 +        "last_error": orbiter_bridge::last_error(),
 +    }))
@@ -154,7 +155,7 @@ index ce70bed..18cf799 100644
  #[tauri::command]
  async fn get_view(state: State<'_, SharedRuntime>) -> Result<AppView, String> {
      let shared = Arc::clone(state.inner());
-@@ -684,6 +786,9 @@ async fn set_market_presence(
+@@ -684,6 +787,9 @@ async fn set_market_presence(
      status: Option<warframe_status::Presence>,
      auto: bool,
  ) -> Result<AppView, String> {
@@ -164,7 +165,7 @@ index ce70bed..18cf799 100644
      let shared = Arc::clone(state.inner());
      tauri::async_runtime::spawn_blocking(move || {
          let mut runtime = shared
-@@ -2095,7 +2200,12 @@ pub fn run() {
+@@ -2095,7 +2201,12 @@ pub fn run() {
          // tail the same EE.log, write the same database and draw two override-redirect overlays at
          // the same coordinates over the game, where whichever raised last wins, so the strip on
          // screen need not be the build you just started.
@@ -178,7 +179,7 @@ index ce70bed..18cf799 100644
              if let Some(window) = app.get_webview_window("main") {
                  let _ = window.unminimize();
                  let _ = window.show();
-@@ -2108,13 +2218,27 @@ pub fn run() {
+@@ -2108,13 +2219,27 @@ pub fn run() {
          // once the main window closes and the app stays up: tailing the log and drawing the overlay
          // over the game with no UI left to close it by.
          .on_window_event(|window, event| {
@@ -209,7 +210,7 @@ index ce70bed..18cf799 100644
              // The file target keeps debug traces in dev builds and trims to Info in stable
              // releases: per-OCR-attempt debug lines land every 200 ms, and with only 5 MiB
              // per rotated file a stable session of hours would otherwise keep just the last
-@@ -2166,6 +2290,54 @@ pub fn run() {
+@@ -2166,6 +2291,54 @@ pub fn run() {
                  .map(|state| current_setup_status(state.setup.clone(), state.game_running))
                  .unwrap_or_default();
              app.manage(runtime);
@@ -264,7 +265,7 @@ index ce70bed..18cf799 100644
              // The kiosk window's whole IPC surface: `get_kiosk_view` pulls whatever the poller
              // last published, so the cell exists from the start, empty until a kiosk opens.
              app.manage(kiosk_view::KioskState::default());
-@@ -2205,6 +2377,9 @@ pub fn run() {
+@@ -2205,6 +2378,9 @@ pub fn run() {
          })
          .invoke_handler(tauri::generate_handler![
              get_view,
@@ -4472,11 +4473,57 @@ index 1e3c8b0..69bc44b 100644
      /// A snapshot of what mastery marks may say, taken once per overlay publish. The
      /// collection loads once here so a reward and a kiosk tile never disagree mid-render.
      pub fn mastery_view(&self) -> Result<MasteryView, AppError> {
+diff --git a/crates/warframe-acquisition/src/catalog.rs b/crates/warframe-acquisition/src/catalog.rs
+index 08ed312..b37bcd7 100644
+--- a/crates/warframe-acquisition/src/catalog.rs
++++ b/crates/warframe-acquisition/src/catalog.rs
+@@ -208,13 +208,19 @@ impl CatalogIndex {
+             if !valid_unique_name(&item.unique_name) {
+                 continue;
+             }
+-            let category = classify_item(item);
++            let mastered_part = masterable_part(&item.unique_name);
++            let category = if mastered_part {
++                Some(Category::Weapon)
++            } else {
++                classify_item(item)
++            };
+             index.insert(
+                 &item.unique_name,
+                 CatalogMetadata {
+                     name: validated_name(&item.name)?,
+                     category,
+-                    masterable: item.masterable && category.is_some_and(is_equipment),
++                    masterable: (item.masterable || mastered_part)
++                        && category.is_some_and(is_equipment),
+                     max_rank: catalog_max_rank(&item.name),
+                     fusion_limit: believable_fusion_limit(item.fusion_limit),
+                     image_name: validated_image_name(item.image_name.as_deref())?,
+@@ -560,6 +566,19 @@ struct WfcdComponent {
+     item_count: Option<u32>,
+ }
+ 
++/// Parts the game gives mastery by although WFCD marks them not masterable: an amp's prism (the
++/// Mote Amp's included) and the Infested kitgun chambers. As with the Solaris chambers WFCD
++/// already marks, the mastery goes by this part once the amp or kitgun built from it is gilded,
++/// and the inventory's XP for it is keyed by its path. Their blueprints are not.
++fn masterable_part(path: &str) -> bool {
++    if path.ends_with("Blueprint") {
++        return false;
++    }
++    (path.contains("/OperatorAmplifiers/")
++        && (path.contains("/Barrel/") || path.ends_with("/SentAmpTrainingBarrel")))
++        || path.contains("/InfKitGun/Barrels/")
++}
++
+ fn classify_item(item: &WfcdItem) -> Option<Category> {
+     let category = item.category.to_ascii_lowercase();
+     let item_type = item.item_type.to_ascii_lowercase();
 diff --git a/crates/warframe-acquisition/src/inventory.rs b/crates/warframe-acquisition/src/inventory.rs
-index 7a58536..6531d55 100644
+index 7a58536..df2bd99 100644
 --- a/crates/warframe-acquisition/src/inventory.rs
 +++ b/crates/warframe-acquisition/src/inventory.rs
-@@ -110,11 +110,117 @@ impl<'a> InventoryJsonDecoder<'a> {
+@@ -110,11 +110,119 @@ impl<'a> InventoryJsonDecoder<'a> {
  pub struct MasteryFacts {
      xp: BTreeMap<String, u64>,
      pending: BTreeMap<String, u32>,
@@ -4501,8 +4548,9 @@ index 7a58536..6531d55 100644
 +    rivens: Vec<serde_json::Value>,
 +    /// Kubrow and Kavat imprints as the inventory gives them, passed through whole for orbiter.
 +    imprints: Vec<serde_json::Value>,
-+    /// One row per copy of a warframe, weapon or companion: `{type, f, p}`, its path, the game's
-+    /// feature bits (Orokin Catalyst/Reactor, Exilus, Incarnon Genesis installed…) and its Forma.
++    /// One row per copy of a warframe, weapon or companion: `{type, f, p, s}`, its path, the game's
++    /// feature bits (Orokin Catalyst/Reactor, Exilus, gilded, Incarnon Genesis installed…), its
++    /// Forma and its inventory section; `m`, a modular build's parts, and `x`, its affinity.
 +    gear: Vec<serde_json::Value>,
  }
  
@@ -4568,13 +4616,14 @@ index 7a58536..6531d55 100644
 +        &self.orbiter.imprints
 +    }
 +
-+    /// Adds each copy of a warframe, weapon or companion, `{type, f, p}`.
++    /// Adds each copy of a warframe, weapon or companion, `{type, f, p, s}` (and `m`, `x`).
 +    pub fn with_gear(mut self, gear: Vec<serde_json::Value>) -> Self {
 +        self.orbiter.gear = gear;
 +        self
 +    }
 +
-+    /// Each copy of a warframe, weapon or companion, `{type, f, p}` (shared with orbiter).
++    /// Each copy of a warframe, weapon or companion, `{type, f, p, s}` (and `m`, `x`; shared with
++    /// orbiter).
 +    pub fn gear(&self) -> &[serde_json::Value] {
 +        &self.orbiter.gear
 +    }
@@ -4595,7 +4644,7 @@ index 7a58536..6531d55 100644
      }
  
      /// The affinity the inventory reports for an item, or 0 when it reports none.
-@@ -126,6 +232,11 @@ impl MasteryFacts {
+@@ -126,6 +234,11 @@ impl MasteryFacts {
      pub fn pending(&self, recipe: &str) -> u32 {
          self.pending.get(recipe).copied().unwrap_or(0)
      }
@@ -4607,7 +4656,7 @@ index 7a58536..6531d55 100644
  }
  
  /// The rank an item's affinity reaches, capped at its max rank; `None` for categories without
-@@ -170,6 +281,14 @@ struct RawXpEntry {
+@@ -170,6 +283,14 @@ struct RawXpEntry {
  #[serde(rename_all = "PascalCase")]
  struct RawInventory {
      last_inventory_sync: serde_json::Value,
@@ -4622,7 +4671,7 @@ index 7a58536..6531d55 100644
      #[serde(default, deserialize_with = "rows")]
      suits: Vec<serde_json::Value>,
      #[serde(default, deserialize_with = "rows")]
-@@ -251,6 +370,10 @@ struct RawInventory {
+@@ -251,6 +372,10 @@ struct RawInventory {
      adult_operator_load_outs: Vec<serde_json::Value>,
      #[serde(default, deserialize_with = "rows")]
      kahl_load_outs: Vec<serde_json::Value>,
@@ -4633,35 +4682,61 @@ index 7a58536..6531d55 100644
  }
  
  /// A section, tolerating the two shapes that are not a list of rows.
-@@ -379,6 +502,27 @@ impl InventoryJsonDecoder<'_> {
+@@ -379,6 +504,53 @@ impl InventoryJsonDecoder<'_> {
          }
          // Before the `add_*` calls below take the sections.
          let installed = installed_copies(&raw);
 +        // Each copy of a warframe, weapon or companion: its path, the game's feature bits (512:
-+        // an Incarnon Genesis installed) and its Forma, so orbiter can tell which copies matter.
++        // an Incarnon Genesis installed, 8: gilded) and its Forma, so orbiter can tell which copies
++        // matter. Also the section it sits in, the parts a modular build (kitgun, zaw, amp, MOA,
++        // hound, K-Drive) was made from, and its affinity: orbiter reads what each is and whether
++        // it's gilded, since mastery goes by the chamber, strike, prism, model or board.
 +        let gear = [
-+            &raw.suits,
-+            &raw.long_guns,
-+            &raw.pistols,
-+            &raw.melee,
-+            &raw.sentinels,
-+            &raw.sentinel_weapons,
-+            &raw.space_suits,
-+            &raw.space_guns,
-+            &raw.space_melee,
++            ("Suits", &raw.suits),
++            ("LongGuns", &raw.long_guns),
++            ("Pistols", &raw.pistols),
++            ("Melee", &raw.melee),
++            ("Sentinels", &raw.sentinels),
++            ("SentinelWeapons", &raw.sentinel_weapons),
++            ("SpaceSuits", &raw.space_suits),
++            ("SpaceGuns", &raw.space_guns),
++            ("SpaceMelee", &raw.space_melee),
++            ("OperatorAmps", &raw.operator_amps),
++            ("MoaPets", &raw.moa_pets),
++            ("KubrowPets", &raw.kubrow_pets),
++            ("Hoverboards", &raw.hoverboards),
++            ("CrewShipHarnesses", &raw.crew_ship_harnesses),
 +        ]
 +        .into_iter()
-+        .flatten()
-+        .filter_map(|v| {
++        .flat_map(|(section, rows)| rows.iter().map(move |row| (section, row)))
++        .filter_map(|(section, v)| {
 +            let kind = v.get("ItemType")?.as_str()?;
 +            let count = |k: &str| v.get(k).and_then(|n| n.as_u64()).unwrap_or(0);
-+            Some(serde_json::json!({ "type": kind, "f": count("Features"), "p": count("Polarized") }))
++            let mut row = serde_json::json!({
++                "type": kind,
++                "f": count("Features"),
++                "p": count("Polarized"),
++                "s": section,
++            });
++            let parts = v
++                .get("ModularParts")
++                .and_then(|m| m.as_array())
++                .map(|m| m.iter().filter_map(|p| p.as_str()).collect::<Vec<_>>())
++                .unwrap_or_default();
++            if !parts.is_empty() {
++                row["m"] = serde_json::json!(parts);
++            }
++            let xp = count("XP");
++            if xp > 0 {
++                row["x"] = serde_json::json!(xp);
++            }
++            Some(row)
 +        })
 +        .collect::<Vec<_>>();
          let mut entries = BTreeMap::<String, AccumulatedEntry>::new();
          let report = &mut DecodeReport::default();
  
-@@ -437,6 +581,69 @@ impl InventoryJsonDecoder<'_> {
+@@ -437,6 +609,69 @@ impl InventoryJsonDecoder<'_> {
              None,
              &mut DecodeReport::default(),
          );
@@ -4731,7 +4806,7 @@ index 7a58536..6531d55 100644
          let pending = pending_holdings
              .into_iter()
              .map(|(path, accumulated)| (path, accumulated.quantity.max(0) as u32))
-@@ -605,7 +812,15 @@ impl InventoryJsonDecoder<'_> {
+@@ -605,7 +840,15 @@ impl InventoryJsonDecoder<'_> {
          }
          let snapshot = InventorySnapshot::coherent(domain_entries)
              .map_err(|_| AcquisitionError::SnapshotInvalid)?;
@@ -4945,11 +5020,54 @@ index 0debbfe..de1659c 100644
 +        assert!(!index.is_vaulted("Paris Prime String"));
 +    }
 +}
+diff --git a/crates/warframe-acquisition/tests/catalog_index.rs b/crates/warframe-acquisition/tests/catalog_index.rs
+index 364e0b9..c73e78c 100644
+--- a/crates/warframe-acquisition/tests/catalog_index.rs
++++ b/crates/warframe-acquisition/tests/catalog_index.rs
+@@ -706,3 +706,38 @@ fn everything_held_or_unmasterable_leaves_nothing_to_pad() {
+          can classify: {padding:?}"
+     );
+ }
++
++#[test]
++fn amp_prisms_and_infested_chambers_are_masterable_though_wfcd_says_not() {
++    // WFCD files an amp's prism as a Misc "Amp" and the Infested chambers as Misc "Pistol", none
++    // masterable; the game gives mastery by them once the amp or kitgun is gilded.
++    let catalog = CatalogIndex::from_wfcd_json(
++        br#"[
++      {"uniqueName":"/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartA","name":"Raplak Prism","type":"Amp","category":"Misc","masterable":false,"components":[]},
++      {"uniqueName":"/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartC","name":"Klamora Prism","type":"Amp","category":"Misc","masterable":false,"components":[]},
++      {"uniqueName":"/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/SentAmpTrainingBarrel","name":"Mote Prism","type":"Amp","category":"Misc","masterable":false,"components":[]},
++      {"uniqueName":"/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelEgg/InfModularBarrelEggPart","name":"Sporelacer","type":"Pistol","category":"Misc","masterable":false,"components":[]},
++      {"uniqueName":"/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartA","name":"Pencha Scaffold","type":"Amp","category":"Misc","masterable":false,"components":[]},
++      {"uniqueName":"/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartA","name":"Clapkra Brace","type":"Amp","category":"Misc","masterable":false,"components":[]}
++    ]"#,
++    )
++    .unwrap();
++    for path in [
++        "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartA",
++        "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartC",
++        "/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/SentAmpTrainingBarrel",
++        "/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelEgg/InfModularBarrelEggPart",
++    ] {
++        let metadata = catalog.resolve(path).unwrap();
++        assert_eq!(metadata.category(), Some(Category::Weapon), "{path}");
++        assert!(metadata.masterable(), "{path}");
++        assert_eq!(metadata.max_rank(), 30, "{path}");
++    }
++    // A scaffold or a brace gives none.
++    for path in [
++        "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartA",
++        "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartA",
++    ] {
++        assert!(!catalog.resolve(path).unwrap().masterable(), "{path}");
++    }
++}
 diff --git a/crates/warframe-acquisition/tests/inventory_decoder.rs b/crates/warframe-acquisition/tests/inventory_decoder.rs
-index 6743d56..cbf5f38 100644
+index 6743d56..4154385 100644
 --- a/crates/warframe-acquisition/tests/inventory_decoder.rs
 +++ b/crates/warframe-acquisition/tests/inventory_decoder.rs
-@@ -794,3 +794,159 @@ fn every_section_that_holds_a_build_is_read() {
+@@ -794,3 +794,220 @@ fn every_section_that_holds_a_build_is_read() {
          );
      }
  }
@@ -5108,6 +5226,67 @@ index 6743d56..cbf5f38 100644
 +            .as_str()
 +            .is_some_and(|t| t.ends_with("ArchHeavyPistols"))
 +    }));
++}
++
++#[test]
++fn modular_builds_carry_their_parts_section_and_affinity_for_orbiter() {
++    let mut payload: serde_json::Value = serde_json::from_slice(&complete_payload()).unwrap();
++    // A primary kitgun keeps the Secondary chamber path; gilded is feature bit 8.
++    payload["LongGuns"] = serde_json::json!([
++        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaaa1"},"ItemType":"/Lotus/Weapons/SolarisUnited/Primary/LotusModularPrimary","XP":120000,"Features":8,
++         "ModularParts":["/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelAPart","/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleAPart","/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Clip/SUModularPrimaryClipAPart"]}
++    ]);
++    payload["OperatorAmps"] = serde_json::json!([
++        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaaa2"},"ItemType":"/Lotus/Weapons/Sentients/OperatorAmplifiers/OperatorAmpWeapon",
++         "ModularParts":["/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartA","/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartA","/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartA"]}
++    ]);
++    payload["MoaPets"] = serde_json::json!([
++        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaaa3"},"ItemType":"/Lotus/Types/Friendly/Pets/MoaPets/MoaPetPowerSuit","Features":8,
++         "ModularParts":["/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetHeadPara","/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetEngineArmor"]}
++    ]);
++    payload["Hoverboards"] = serde_json::json!([
++        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaaa4"},"ItemType":"/Lotus/Types/Vehicles/Hoverboard/HoverboardSuit","XP":900000,
++         "ModularParts":["/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardSolarisA/HoverboardSolarisADeck"]}
++    ]);
++    payload["KubrowPets"] = serde_json::json!([
++        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaaa5"},"ItemType":"/Lotus/Types/Friendly/Pets/CreaturePets/VizierPredatorKubrowPetPowerSuit","Features":8}
++    ]);
++    payload["CrewShipHarnesses"] = serde_json::json!([
++        {"ItemId":{"$oid":"aaaaaaaaaaaaaaaaaaaaaaa6"},"ItemType":"/Lotus/Types/Game/CrewShip/RailJack/DefaultHarness","XP":900000}
++    ]);
++    let (_, facts) = InventoryJsonDecoder::default()
++        .decode_with_facts(&serde_json::to_vec(&payload).unwrap())
++        .unwrap();
++    let gear = facts.gear();
++    let of = |section: &str| {
++        gear.iter()
++            .find(|g| g["s"] == section)
++            .unwrap_or_else(|| panic!("a {section} row"))
++    };
++    let kitgun = of("LongGuns");
++    assert_eq!(kitgun["f"], 8, "gilded");
++    assert_eq!(kitgun["x"], 120000);
++    assert_eq!(
++        kitgun["m"][0],
++        "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelAPart"
++    );
++    assert_eq!(of("OperatorAmps")["m"].as_array().map(Vec::len), Some(3));
++    assert!(
++        of("OperatorAmps").get("x").is_none(),
++        "no affinity, no field"
++    );
++    assert_eq!(
++        of("MoaPets")["m"][0],
++        "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetHeadPara"
++    );
++    assert_eq!(of("Hoverboards")["x"], 900000);
++    let predasite = of("KubrowPets");
++    assert_eq!(predasite["f"], 8);
++    assert!(predasite.get("m").is_none(), "not built from parts");
++    assert_eq!(
++        of("CrewShipHarnesses")["type"],
++        "/Lotus/Types/Game/CrewShip/RailJack/DefaultHarness"
++    );
 +}
 diff --git a/crates/warframe-acquisition/tests/mastery_ledger.rs b/crates/warframe-acquisition/tests/mastery_ledger.rs
 index 2c96e34..cbe75f0 100644
