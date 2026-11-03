@@ -1,5 +1,6 @@
 <script lang="ts">
-  // Nox's Frame's top-voted builds for the item (at most 10), read on demand through the source in
+  // Nox's Frame's top-voted builds for the item (at most 5, NOX_LISTED: the most voted within the age
+  // limit, settings.buildsMaxAgeDays, two years unless changed), read on demand through the source in
   // nox.ts: the list when the item is opened (one request a week at most), a build's page only when
   // you open it. An opened build joins the page's tiers as a full card (the page's onopen); one
   // already opened shows from the copy kept on this computer, with no request. Credit to the
@@ -124,7 +125,7 @@
   const listCopy = $derived(list?.st === "done" ? copyLine(list) : null);
 </script>
 
-<section class="nox" aria-label="Builds on {NOX_SITE}" aria-busy={!list || list.st === "reading" || refreshing}>
+<section class="nox" data-card="nox" aria-label="Builds on {NOX_SITE}" aria-busy={!list || list.st === "reading" || refreshing}>
   <header class="hd">
     <h2 class="register">On {NOX_SITE}</h2>
     <span class="sub">Top-voted builds for {item.name}</span>

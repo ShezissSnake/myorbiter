@@ -15,6 +15,12 @@ install -m 644 "$here/tennoscope/THIRD_PARTY_NOTICES.md" "$dir/THIRD_PARTY_NOTIC
 rm -rf "$dir/THIRD-PARTY-NOTICES/tesseract"
 mkdir -p "$dir/THIRD-PARTY-NOTICES"
 cp -R "$tesseract_notices" "$dir/THIRD-PARTY-NOTICES/tesseract"
+# Where the source of those libraries is, with the written offer for the GPL and LGPL ones, goes in
+# orbiter's own THIRD-PARTY-NOTICES/ too (Linux: collect-linux-sources.sh wrote it; Windows: the
+# table in tennoscope/packaging/windows-tesseract/). On Linux, repack-appimage.sh then replaces it
+# inside the AppImage with the list of every library the AppImage carries.
+[ -f "$tesseract_notices/SOURCES.md" ] || { echo "no SOURCES.md in $tesseract_notices: vendor Tesseract again" >&2; exit 1; }
+install -m 644 "$tesseract_notices/SOURCES.md" "$here/THIRD-PARTY-NOTICES/SOURCES.md"
 version=$(sed -n 's/^version = "\(.*\)"$/\1/p' "$here/tennoscope/Cargo.toml" | head -n 1)
 commit=$(git -C "$here" rev-parse --short HEAD 2>/dev/null || echo unknown)
 cat > "$dir/NOTICE.md" <<NOTE
@@ -31,6 +37,8 @@ overlay, leaves your warframe.market status to orbiter while orbiter holds it, a
 orbiter. Its Tesseract (the OCR engine that reads the reward cards) is Apache-2.0; it and the
 libraries that come with it are listed, with their copyright and licence files, in
 THIRD-PARTY-NOTICES/tesseract/. TennoScope's own notices are in THIRD_PARTY_NOTICES.md.
+THIRD-PARTY-NOTICES/tesseract/SOURCES.md gives each library's version and where its source is, with
+a written offer of the source of the GPL- and LGPL-licensed ones.
 
 The complete source of this build, orbiter and TennoScope both, comes with every orbiter release as
 orbiter-source.tar.gz.

@@ -7,7 +7,8 @@
 # libraries from inside it. TennoScope's AppImage is a program to it too, and the rewrite moves its
 # ELF headers, which breaks it (it then crashes on start: the runtime can no longer find its
 # filesystem). So the untouched copy goes back in, and the AppDir is packed again with the same
-# packer Tauri used (TennoScope's own build repacks its AppImage the same way).
+# packer Tauri used (TennoScope's own build repacks its AppImage the same way). Before packing,
+# THIRD-PARTY-NOTICES/SOURCES.md in it lists every bundled library's package, version and source.
 set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
 bundle="$here/target/release/bundle/appimage"
@@ -32,6 +33,17 @@ for entry in "$appdir"/*.desktop "$appdir"/usr/share/applications/*.desktop; do
   real=$(readlink -f "$entry")
   grep -q '^X-AppImage-Integrate=' "$real" || sed -i '/^\[Desktop Entry\]/a X-AppImage-Integrate=false' "$real"
 done
+# Where the source of every library the AppImage carries is: linuxdeploy's (GTK, WebKitGTK and the
+# rest, in the AppDir), the TennoScope AppImage's own and its Tesseract's, each matched to the Ubuntu
+# package it came from on this build machine, with the written offer for the GPL and LGPL ones
+# (scripts/collect-linux-sources.sh). The copyright files of linuxdeploy's go beside them in linux/.
+notices="$appdir/usr/lib/orbiter/THIRD-PARTY-NOTICES"
+[ -d "$notices" ] || { echo "no THIRD-PARTY-NOTICES in the AppDir at $notices" >&2; exit 1; }
+inner=$(mktemp -d)
+(cd "$inner" && APPIMAGE_EXTRACT_AND_RUN=1 "$pristine" --appimage-extract >/dev/null)
+NOTICES_DIR="$notices/linux" "$here/scripts/collect-linux-sources.sh" "$notices/SOURCES.md" "$appdir/usr/lib" "$appdir/usr/bin" "$inner/squashfs-root/usr"
+rm -rf "$inner"
+
 log=$(mktemp)
 (cd "$bundle" && APPIMAGE_EXTRACT_AND_RUN=1 LDAI_OUTPUT="$built" OUTPUT="$built" "$packer" --appdir "$appdir" >"$log" 2>&1) || { cat "$log" >&2; exit 1; }
 rm -f "$log"
@@ -45,4 +57,7 @@ cmp "$check/squashfs-root/usr/lib/orbiter/tennoscope/TennoScope.AppImage" "$pris
 # And its launcher entry asks AppImageLauncher not to add a second one.
 (cd "$check" && APPIMAGE_EXTRACT_AND_RUN=1 "$built" --appimage-extract 'usr/share/applications/*' >/dev/null)
 grep -q '^X-AppImage-Integrate=false' "$check"/squashfs-root/usr/share/applications/orbiter.desktop
+# And it says where the source of what it carries is.
+(cd "$check" && APPIMAGE_EXTRACT_AND_RUN=1 "$built" --appimage-extract usr/lib/orbiter/THIRD-PARTY-NOTICES/SOURCES.md >/dev/null)
+grep -q 'complete corresponding source code' "$check"/squashfs-root/usr/lib/orbiter/THIRD-PARTY-NOTICES/SOURCES.md
 echo "repacked $(basename "$built") ($(du -h "$built" | cut -f1)) with TennoScope intact"

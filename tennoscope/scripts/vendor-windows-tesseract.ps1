@@ -60,8 +60,9 @@ if ($LASTEXITCODE -ne 0) { throw 'the vendored tesseract does not run' }
 Write-Host $probe
 
 # Their notices, in licenses/ beside them: Tesseract's licence and authors from the installer,
-# Leptonica's licence and the table of every DLL's project and licence
-# (packaging/windows-tesseract/), and the list of the DLLs copied here.
+# Leptonica's licence, the table of every DLL's project and licence and SOURCES.md (the GPL and
+# LGPL ones' versions, where their source is, and the written offer) from packaging/windows-tesseract/,
+# and the list of the DLLs copied here.
 $licenses = Join-Path $vendor 'licenses'
 New-Item -ItemType Directory -Force -Path $licenses | Out-Null
 Copy-Item (Join-Path $staging 'doc/LICENSE') (Join-Path $licenses 'tesseract-LICENSE.txt')

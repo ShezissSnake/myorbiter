@@ -17,6 +17,7 @@
   import type { Model } from "../../core/model";
   import { polarityOf, POLARITY_LABEL, slotLayout, type Build, type BuildMod, type MissingReport, type Polarity, type SlotRef, type TierResult } from "../../core/builds";
   import { imageUrl } from "../../backend";
+  import { helminthShow, shardSlots, type ShardShow } from "../../core/buildsPage";
 
   let {
     model,
@@ -24,6 +25,8 @@
     tier,
     report = null,
     why = null,
+    shards: givenShards = null,
+    helminth: givenHelminth = null,
   }: {
     model: Model;
     build: Build;
@@ -31,6 +34,10 @@
     report?: MissingReport | null;
     /** Why each slot holds what it holds (orbiter's suggestion), by slot. */
     why?: { aura?: string; exilus?: string; stance?: string; mods: (string | null)[]; arcanes: string[] } | null;
+    /** The shard slots, when the card has them from orbiter's suggestion (else the build's own). */
+    shards?: (ShardShow | null)[] | null;
+    /** The Helminth ability, likewise. */
+    helminth?: { ability: string; replaces: string; reason: string | null; owned: boolean | null } | null;
   } = $props();
 
   const layout = $derived(slotLayout(build.kind));
@@ -97,7 +104,8 @@
       return { name, rarity: c?.rarity ?? "", image: model.imageOf(name), rank: Math.max(0, Math.min(max, a.rank ?? max)), max, have: haveOf(a.path, "arcane"), held: line?.held ?? null, need: line?.need ?? null, why: why?.arcanes[i] ?? null };
     }),
   );
-  const shardSlots = $derived(build.kind === "warframe" ? 5 : build.shards.length);
+  const shards = $derived(givenShards ?? shardSlots(build, null));
+  const helminth = $derived(givenHelminth ?? helminthShow(build, null));
 
   const tone = (r: string) => (/legendary|primed/i.test(r) ? "legendary" : /rare/i.test(r) ? "rare" : /uncommon/i.test(r) ? "uncommon" : "common");
   const polImg = (p: Polarity) => `/game/pol/${p === "universal" ? "any" : p}.png`;
@@ -116,6 +124,12 @@
     return bits.filter(Boolean).join("\n");
   }
   const SHARD_TINT: Record<string, string> = { crimson: "#d0574a", azure: "#6ea8dc", amber: "#e2a94a", violet: "#a78bd4", topaz: "#d98b3a", emerald: "#6fb77a" };
+  const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
+  function shardTip(s: ShardShow): string {
+    const head = `${s.tauforged ? "Tauforged " : ""}${cap(s.colour)} Archon Shard${s.stat ? `: ${s.stat}` : ""}`;
+    const held = s.owned === true ? "You hold one (a filled gem)." : s.owned === false ? "You don't hold one yet (an outlined gem)." : "";
+    return [head, s.reason && s.reason !== s.stat ? s.reason : "", held, s.fuse ?? ""].filter(Boolean).join("\n");
+  }
 </script>
 
 {#snippet slot(t: Tile, wide = false)}
@@ -146,7 +160,7 @@
   {#if mods.length}
     <div class="mods">{#each mods as t (t.ref)}{@render slot(t)}{/each}</div>
   {/if}
-  {#if arcanes.length || shardSlots || build.helminth}
+  {#if arcanes.length || shards.length || helminth}
     <div class="extras">
       {#if arcanes.length}
         <div class="group">
@@ -164,21 +178,21 @@
           </div>
         </div>
       {/if}
-      {#if shardSlots}
+      {#if shards.length}
         <div class="group">
           <span class="register cap">Archon shards</span>
           <div class="shards">
-            {#each Array.from({ length: shardSlots }, (_, i) => build.shards[i] ?? null) as s, i (i)}
-              {#if s}<span class="shard" class:tau={s.tauforged} style:--tint={SHARD_TINT[s.colour]} title="{s.tauforged ? 'Tauforged ' : ''}{s.colour[0].toUpperCase() + s.colour.slice(1)} Archon Shard{s.stat ? `: ${s.stat}` : ''}"></span>
+            {#each shards as s, i (i)}
+              {#if s}<span class="shard" class:tau={s.tauforged} class:missing={s.owned === false} style:--tint={SHARD_TINT[s.colour]} title={shardTip(s)} aria-label={shardTip(s).split("\n")[0]}>{#if s.fuse}<span class="fuse" aria-hidden="true"></span>{/if}</span>
               {:else}<span class="shard none" title="Shard slot: empty"></span>{/if}
             {/each}
           </div>
         </div>
       {/if}
-      {#if build.helminth}
-        <div class="group helm" title="Helminth: {build.helminth.ability} replaces {build.helminth.replaces}">
+      {#if helminth}
+        <div class="group helm" title="Helminth: {helminth.ability} replaces {helminth.replaces}{helminth.reason ? `\n${helminth.reason}` : ''}{helminth.owned === null && helminth.reason ? `\norbiter can't see your Helminth yet` : ''}">
           <span class="register cap">Helminth</span>
-          <span class="hx"><b>{build.helminth.ability}</b> <span class="dim">for {build.helminth.replaces}</span></span>
+          <span class="hx"><b>{helminth.ability}</b> <span class="dim">for {helminth.replaces}</span></span>
         </div>
       {/if}
     </div>
@@ -248,11 +262,16 @@
   .an small { font-family: var(--face-register); font-size: .6rem; color: var(--platinum-deep); letter-spacing: .08em; }
   .arc .have { left: auto; right: -.4rem; top: -.2rem; bottom: auto; }
   .arc.missing .hex { opacity: .5; }
-  .shards { display: flex; gap: .35rem; }
-  /* Archon shards: the game's cut gems, in their colours. */
-  .shard { width: 1.15rem; height: 1.4rem; background: var(--tint); clip-path: polygon(50% 0, 100% 30%, 100% 70%, 50% 100%, 0 70%, 0 30%); opacity: .85; }
-  .shard.tau { opacity: 1; box-shadow: inset 0 0 0 2px rgb(255 255 255 / 35%); filter: saturate(1.3) brightness(1.15); }
-  .shard.none { background: var(--rule-bright); opacity: .6; }
+  .shards { display: flex; gap: .45rem; padding-top: .1rem; }
+  /* Archon shards: the game's cut gems, in their colours; a Tauforged one brighter, with a light core. */
+  .shard { position: relative; width: 1.25rem; height: 1.55rem; }
+  .shard::before { content: ""; position: absolute; inset: 0; background: var(--tint); clip-path: polygon(50% 0, 100% 30%, 100% 70%, 50% 100%, 0 70%, 0 30%); opacity: .85; }
+  .shard.tau::before { opacity: 1; filter: saturate(1.3) brightness(1.15); background: radial-gradient(circle at 50% 38%, rgb(255 255 255 / 55%), transparent 38%), var(--tint); }
+  .shard.none::before { background: var(--rule-bright); opacity: .6; }
+  /* One you don't hold: the gem's outline only, as an empty socket in its colour. */
+  .shard.missing::after { content: ""; position: absolute; inset: 2px; background: var(--well); clip-path: polygon(50% 0, 100% 30%, 100% 70%, 50% 100%, 0 70%, 0 30%); }
+  /* You hold plain shards of this colour to fuse into it: a gold dot (the tooltip says how). */
+  .fuse { position: absolute; left: -.2rem; top: -.15rem; width: .38rem; height: .38rem; border-radius: 50%; background: var(--gold); }
   .hx b { font-family: var(--face-mark); text-transform: uppercase; font-size: .86rem; }
   .hx .dim { font-size: .78rem; }
   :global(html[data-room~="lt640"]) .mods { grid-template-columns: repeat(2, minmax(0, 1fr)); }
