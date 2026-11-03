@@ -130,7 +130,7 @@
   import { view } from "./lib/view.svelte";
   import { parseTarget, setIntent } from "./lib/intent.svelte";
   import { ts } from "./lib/tennoscopeStore.svelte";
-  import { calm as reducedMotion } from "./lib/motion";
+  import { calm as reducedMotion, reveal as unfold } from "./lib/motion";
 
   /** Your choice from the fold button (kept in settings); until you make one, it folds by itself in a narrow window. */
   let width = $state(typeof window === "undefined" ? 1600 : window.innerWidth);
@@ -2389,24 +2389,25 @@
       {/if}
       {#if pricesOld != null && model.priceDate !== pricesOldDismissed}
         <!-- Short: a warning on every page that reads like a paragraph teaches you to skip warnings. -->
-        <div class="stale slim" role="status" title="Item prices on every page (prime parts, sets, mods, relics…) come from warframe.market's daily figures for {new Date(`${model.priceDate}T12:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, which TennoScope downloads when it starts: starting TennoScope again gets newer ones">
+        <!-- Dismissed: it folds away (motion.ts), so the page slides up rather than jumping. -->
+        <div class="fold reveal" out:unfold><div class="stale slim" role="status" title="Item prices on every page (prime parts, sets, mods, relics…) come from warframe.market's daily figures for {new Date(`${model.priceDate}T12:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, which TennoScope downloads when it starts: starting TennoScope again gets newer ones">
           <span><b>Prices {pricesOld === 1 ? "a day" : `${pricesOld} days`} old</b> <span class="dim">· TennoScope updates them when it starts</span></span>
           <IconButton icon="close" tone="quiet" label="Dismiss" onclick={() => (pricesOldDismissed = model?.priceDate ?? null)} />
-        </div>
+        </div></div>
       {/if}
       {#if chatsDue.length}
-        <div class="stale repdue" role="status">
+        <div class="fold reveal" out:unfold><div class="stale repdue" role="status">
           <span>{chatsDue.length === 1 ? `${chatsDue[0].with} messaged you on warframe.market` : `${chatsDue.length} unread chats on warframe.market`}{#if chatsDue.length === 1 && chatsDue[0].lastMessage}: <i class="msg">“{chatsDue[0].lastMessage.slice(0, 120)}”</i>{/if}</span>
           <IconButton icon="external" tone="quiet" label="Open warframe.market" onclick={() => openUrl("https://warframe.market/")} />
           <IconButton icon="close" tone="quiet" label="Dismiss" onclick={chatsRead} />
-        </div>
+        </div></div>
       {/if}
       {#if repDue}
-        <div class="stale repdue" role="status">
+        <div class="fold reveal" out:unfold><div class="stale repdue" role="status">
           <span>Traded with <b>{repDue.t.partner}</b>, who's on warframe.market ({repDue.u.reputation} reputation).</span>
           <RepButton partner={repDue.t.partner} text={settings.market.repText} ongiven={() => markRep(repDue.t.key, "given")} />
           <IconButton icon="close" tone="quiet" label="Not now" title="Not now: no +rep for this trade" onclick={() => markRep(repDue.t.key, "skipped")} />
-        </div>
+        </div></div>
       {/if}
       <!-- A page that throws says so, with Try again, instead of staying blank or loading for good.
            Pages loaded on first visit get their own boundary inside {:then}: one around the
@@ -2636,6 +2637,8 @@
   .steps strong { font-family: var(--face-mark); text-transform: uppercase; font-size: 1.05rem; letter-spacing: .01em; }
   .notice .why code { display: block; margin-top: .4rem; font-family: var(--face-register); font-size: .9em; white-space: pre-wrap; word-break: break-word; }
   /* A reload failed with data on screen: one slim line above the page, which stays as it was. */
+  /* A banner you can dismiss, in its fold. */
+  .fold { flex: none; }
   .stale { flex: none; display: flex; align-items: center; gap: .9rem; padding: .45rem 1.4rem; font-size: .8rem; color: var(--platinum-dim); background: color-mix(in srgb, var(--alert) 7%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--alert) 55%, transparent); box-shadow: inset 3px 0 0 var(--alert); }
   .stale::before { content: "!"; font-weight: 700; color: var(--alert); margin-right: -.4rem; }
   .stale .link { font-size: .64rem; }
