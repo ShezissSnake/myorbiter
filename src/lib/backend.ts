@@ -19,7 +19,7 @@ import type { SyndicateMission } from "./core/board";
 import type { RecipeData } from "./core/buildPlan";
 import type { WorldAlert } from "./core/worldNeeds";
 import type { RelicData } from "./core/relicData";
-import type { Bundle, CatalogPart, CollectionPart, DarvoDeal, DuviriCycle, Fissure, Live, MissionState, Nightwave, SortieLike, SteelPath, VaultTraderItem, WorldEvent } from "./core/types";
+import type { Archimedea, Bundle, Calendar1999, CatalogPart, CollectionPart, DarvoDeal, Descendia, DuviriCycle, Fissure, Live, MissionState, Nightwave, SortieLike, SteelPath, VaultTraderItem, WorldEvent } from "./core/types";
 import { defaultPickWeights, type PickWeights } from "./core/pick";
 import type { Notice } from "./notices";
 
@@ -466,7 +466,7 @@ const obj = <T,>(v: unknown, key: string): T | null => (v && typeof v === "objec
  * there, the week's Sortie and Nightwave). Alerts, invasions and Darvo's deal don't: an old one
  * would mislead.
  */
-const KEEP_LIVE = new Set(["fissures", "baro", "resurgence", "resurgenceExpiry", "cycles", "sortie", "archonHunt", "steelPath", "nightwave", "duviriCycle", "syndicates", "events"]);
+const KEEP_LIVE = new Set(["fissures", "baro", "resurgence", "resurgenceExpiry", "cycles", "sortie", "archonHunt", "steelPath", "nightwave", "duviriCycle", "syndicates", "events", "archimedeas", "calendar", "descendia"]);
 export function mergeLive(old: Live, next: Live, now = Date.now()): Live {
   const out = { ...next } as Record<string, unknown>;
   for (const [k, v] of Object.entries(old)) {
@@ -495,7 +495,7 @@ export function pruneLive(live: Live, now = Date.now()): Live {
   const over = (end: string | undefined | null) => typeof end === "string" && Date.parse(end) <= now;
   const out: Live = { ...live };
   let changed = false;
-  const list = <T extends { expiry?: string }>(k: "fissures" | "alerts" | "syndicates" | "events") => {
+  const list = <T extends { expiry?: string }>(k: "fissures" | "alerts" | "syndicates" | "events" | "archimedeas") => {
     const xs = live[k] as T[] | null | undefined;
     if (!Array.isArray(xs)) return;
     const kept = xs.filter((x) => !over(x?.expiry));
@@ -508,7 +508,8 @@ export function pruneLive(live: Live, now = Date.now()): Live {
   list("alerts");
   list("syndicates");
   list("events");
-  for (const k of ["baro", "sortie", "archonHunt", "steelPath", "darvo", "nightwave"] as const) {
+  list("archimedeas");
+  for (const k of ["baro", "sortie", "archonHunt", "steelPath", "darvo", "nightwave", "calendar", "descendia"] as const) {
     if (over((live[k] as { expiry?: string } | null | undefined)?.expiry)) {
       out[k] = null;
       changed = true;
@@ -572,7 +573,7 @@ export async function loadLive(): Promise<Live> {
     if (inTauri) raw = await invoke("worldstate");
     else {
       const get = (p: string) => fetch(`https://api.warframestat.us/pc/${p}?language=en`).then((r) => r.json()).catch(() => null);
-      const names = ["fissures", "vaultTrader", "voidTrader", "invasions", "nightwave", "sortie", "archonHunt", "steelPath", "duviriCycle", "earthCycle", "cetusCycle", "vallisCycle", "cambionCycle", "zarimanCycle", "alerts", "dailyDeals", "syndicateMissions", "events"];
+      const names = ["fissures", "vaultTrader", "voidTrader", "invasions", "nightwave", "sortie", "archonHunt", "steelPath", "duviriCycle", "earthCycle", "cetusCycle", "vallisCycle", "cambionCycle", "zarimanCycle", "alerts", "dailyDeals", "syndicateMissions", "events", "archimedeas", "calendar", "descendia"];
       raw = Object.fromEntries(await Promise.all(names.map(async (n) => [n, await get(n)] as const)));
     }
   } catch {
@@ -595,6 +596,9 @@ export async function loadLive(): Promise<Live> {
     sortie: obj<SortieLike>(raw?.sortie, "boss"),
     archonHunt: obj<SortieLike>(raw?.archonHunt, "boss"),
     steelPath: obj<SteelPath>(raw?.steelPath, "currentReward"),
+    archimedeas: Array.isArray(raw?.archimedeas) ? (raw!.archimedeas as Archimedea[]).filter((a) => a && typeof a.expiry === "string") : null,
+    calendar: obj<Calendar1999>(raw?.calendar, "days"),
+    descendia: obj<Descendia>(raw?.descendia, "challenges"),
     darvo: Array.isArray(raw?.dailyDeals) ? ((raw!.dailyDeals as DarvoDeal[]).find((d) => d && typeof d.item === "string" && typeof d.salePrice === "number") ?? null) : null,
     duviriCycle: obj<DuviriCycle>(raw?.duviriCycle, "choices"),
     cycles: (["earth", "cetus", "vallis", "cambion", "zariman", "duviri"] as const)
@@ -709,7 +713,8 @@ export async function loadSettings(): Promise<Settings> {
     plannerMode: raw?.plannerMode === "radiant" ? "radiant" : "sets",
     market: { ...base.market, ...(raw?.market ?? {}), bulk: { ...base.market.bulk, ...(raw?.market?.bulk ?? {}) }, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: raw?.market?.sellable?.relicsWorthSelling ?? base.market.sellable.relicsWorthSelling, saveForSets: raw?.market?.sellable?.saveForSets !== false }, sales: Array.isArray(raw?.market?.sales) ? raw.market.sales : [], tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], trades: Array.isArray(raw?.market?.trades) ? raw.market.trades : [], buyAlerts: Array.isArray(raw?.market?.buyAlerts) ? raw.market.buyAlerts.filter((a: unknown): a is BuyAlert => !!a && typeof (a as BuyAlert).name === "string" && typeof (a as BuyAlert).maxPrice === "number") : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: raw?.market?.platform && raw.market.platform in PLATFORM_LABEL ? raw.market.platform : "pc", autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, every: typeof raw?.market?.every === "number" && raw.market.every >= 1 ? raw.market.every : base.market.every, minRelicPrice: typeof raw?.market?.minRelicPrice === "number" && raw.market.minRelicPrice >= 1 ? Math.round(raw.market.minRelicPrice) : base.market.minRelicPrice, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)", lastCopy: { optIn: raw?.market?.lastCopy?.optIn === true, minutes: typeof raw?.market?.lastCopy?.minutes === "number" && raw.market.lastCopy.minutes >= 1 ? Math.round(raw.market.lastCopy.minutes) : DEFAULT_HIDE_MINUTES, hidden: Array.isArray(raw?.market?.lastCopy?.hidden) ? raw.market.lastCopy.hidden.filter((h: unknown): h is HiddenForWhisper => !!h && typeof (h as HiddenForWhisper).id === "string" && typeof (h as HiddenForWhisper).at === "number") : [] } },
     advice: { ...base.advice, ...(raw?.advice ?? {}) },
-    pick: { ...base.pick, ...(raw?.pick ?? {}) },
+    // `forma` came later: settings saved before it get the default (3p).
+    pick: { ...base.pick, ...(raw?.pick ?? {}), forma: typeof raw?.pick?.forma === "number" && Number.isFinite(raw.pick.forma) && raw.pick.forma >= 0 ? raw.pick.forma : base.pick.forma },
     overlay: { reward: raw?.overlay?.reward !== false, kiosk: raw?.overlay?.kiosk !== false, riven: raw?.overlay?.riven !== false, rivenKey: typeof raw?.overlay?.rivenKey === "string" ? raw.overlay.rivenKey.slice(0, 40) : "", show: { ...base.overlay.show, ...(raw?.overlay?.show ?? {}) } },
     tennoscope: { ...base.tennoscope, ...(raw?.tennoscope ?? {}) },
     // "Your listings" was one switch before it was split: off stays off for all three.

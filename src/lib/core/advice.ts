@@ -183,6 +183,16 @@ export interface DucatRow {
 import { ITEMS_PER_TRADE } from "./tradeLimit";
 
 /**
+ * Whether selling `copies` at `each` is worth a trade: judged on one trade of up to six copies, not
+ * one copy (five barrels at 3p go in one 15p trade). The floor is "Not worth a trade under Np"
+ * (advice.minPlat). Null prices aren't worth one.
+ */
+export function worthATrade(each: number | null | undefined, copies: number, minPlat: number): boolean {
+  if (each == null) return false;
+  return each * Math.min(Math.max(1, copies), ITEMS_PER_TRADE) >= minPlat;
+}
+
+/**
  * Plat or ducats for a part (or set) at `plat` each. `copies`: how many you have to sell. The
  * smallest sale worth a trade is judged on the trade, not the copy: five barrels at 3p go in one
  * 15p trade.
@@ -193,7 +203,7 @@ export function decide(plat: number | null, ducats: number, trades: number | nul
   const baroWorth = ducats * o.platPerDucat;
   if (baroWorth >= plat) return { verdict: "ducats", reason: `${ducats}d is worth ~${Math.round(baroWorth * 10) / 10}p to you`, slow };
   const perTrade = Math.min(Math.max(1, copies), ITEMS_PER_TRADE);
-  if (plat * perTrade < o.minPlat) return { verdict: "ducats", reason: perTrade > 1 ? `Under ${o.minPlat}p a trade, even ${perTrade} at once: not worth one` : `Under ${o.minPlat}p: not worth a trade`, slow };
+  if (!worthATrade(plat, copies, o.minPlat)) return { verdict: "ducats", reason: perTrade > 1 ? `Under ${o.minPlat}p a trade, even ${perTrade} at once: not worth one` : `Under ${o.minPlat}p: not worth a trade`, slow };
   if (slow && baroWorth >= plat * 0.6) return { verdict: "ducats", reason: "Sells slowly and ducats come close", slow };
   return { verdict: "plat", reason: slow ? "Worth more as plat, but sells slowly" : `Sells for more than its ducats are worth`, slow };
 }

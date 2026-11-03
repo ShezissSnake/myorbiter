@@ -143,3 +143,9 @@ test("a captured Infested companion is one revive away; a listed Plexus is yours
   const none = masteryRows(buildModel({ observed_at: 1, inventory: [], catalog: cat, relics: [], prices: {} } as unknown as Bundle)).find((x) => x.name === "Plexus")!;
   assert.equal(none.status, "missing");
 });
+
+test("Kahl's Garrison titles map to their ranks: 1 Shelter … 5 Home (the wiki's Kahl's Garrison page)", async () => {
+  const { syndicateOf } = await import("../src/lib/core/acquire");
+  assert.deepEqual(["Shelter", "Encampment", "Fort", "Settlement", "Home"].map((t) => syndicateOf(`Kahl's Garrison, ${t}`)?.rank), [1, 2, 3, 4, 5]);
+  assert.equal(syndicateOf("Vox Solaris, Hand")?.rank, 3);
+});

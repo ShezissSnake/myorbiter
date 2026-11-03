@@ -10,9 +10,9 @@
   import { mkt } from "../marketStore.svelte";
   import { masteryRows, relicRows, type RelicRow } from "../core/views";
   import { sellTargets, KIND_LABEL, BULK_KINDS, RULE_OF, type BulkKind } from "../core/bulk";
-  import { expectedBest } from "../core/advice";
-  import { baroStock, varziaNeeds, until } from "../core/traders";
-  import { invasionNeeds } from "../core/invasions";
+  import { expectedBest, worthATrade } from "../core/advice";
+  import { baroFlips, baroStock, shortCredits, varziaNeeds, until } from "../core/traders";
+  import { invasionNeeds, invasionRares } from "../core/invasions";
   import { alertNeeds, describeHelp } from "../core/worldNeeds";
   import GameIcon, { eraIcon, factionIcon, shardIcon, type GameIconName } from "../ui/GameIcon.svelte";
   import Foe from "../ui/Foe.svelte";
@@ -78,7 +78,9 @@
   // What would go on sale: not what's held back for ducats.
   const targets = $derived(sellTargets(model, settings.market.bulk, settings.advice, mkt.index, settings.market.sellable, drops.recent).filter((t) => !t.hold));
   const valueOf = (kind: BulkKind, name: string) => (kind === "arcane" ? (model.priceMax(name) ?? model.price(name)) : model.price(name));
-  const worthy = $derived(targets.map((t) => ({ ...t, each: t.each !== undefined ? t.each : valueOf(t.kind, t.name) })).filter((t) => t.each != null && t.each >= minFor(t.name)));
+  // At least your minimum price each, and worth a trade: "Not worth a trade under Np" (Prime parts),
+  // judged on one trade of up to six copies, as for prime parts.
+  const worthy = $derived(targets.map((t) => ({ ...t, each: t.each !== undefined ? t.each : valueOf(t.kind, t.name) })).filter((t) => t.each != null && t.each >= minFor(t.name) && worthATrade(t.each, t.quantity, settings.advice.minPlat)));
   // Relics have their own minimum, as Put my spares on sale uses (they go in stacks).
   const minFor = (name: string) => (/ Relic$/.test(name) ? settings.market.minRelicPrice : settings.market.minPrice);
   const byKind = $derived(
@@ -162,12 +164,15 @@
   const baroHere = $derived(!!baro && now >= Date.parse(baro.activation) && now < Date.parse(baro.expiry));
   const stock = $derived(baroHere ? baroStock(model) : []);
   const baroNeed = $derived(stock.filter((s) => s.mark === "mastery" || s.mark === "new"));
+  /** His stock that sells on warframe.market, best platinum per ducat first. */
+  const flips = $derived(baroHere && !console ? baroFlips(model, stock) : []);
   const heldDucats = $derived((model.inventoryByBase.get("/Lotus/Types/Items/MiscItems/PrimeBucks") ?? []).reduce((n, r) => n + r.quantity, 0));
   const rows = $derived(masteryRows(model));
   const invasions = $derived(invasionNeeds(model, live.invasions));
+  const rareInvasions = $derived(invasionRares(live.invasions));
   // Running alerts worth a look: mastery you're missing (PC only: it needs your inventory), rare rewards.
   const worldAlerts = $derived(alertNeeds(console ? null : model, live.alerts, now));
-  const day = $derived(today(model, live, now));
+  const day = $derived(today(model, live, now, settings.game.gear));
 
   // ------------------------------------------------------------ world clocks and fissure alerts
   const cycles = $derived(cycleTimers(live, now));
@@ -290,6 +295,7 @@
     }
     for (const a of worldAlerts.rare) out.push({ key: `alert|${a.key}`, tone: "info", icon: "sortie", image: model?.imageOf(a.reward.replace(/^\d+ × /, "")) ?? null, title: a.reward, sub: `${a.mission} on ${a.node}`, foe: a.faction, expiry: a.expiry, act: "", to: "", hint: `An alert with a rare reward: ${a.reward}. ${a.mission} on ${a.node}` });
     if (!console) for (const n of invasions) out.push({ key: `invasion|${n.key}`, tone: "gold", icon: "invasion", image: n.itemImage, title: n.reward, sub: `toward ${n.item}${n.needed > 1 ? ` · ${n.have} of ${n.needed}` : ""} · ${n.node}`, side: n.side, progress: n.completion, sides: n.attacker && n.defender ? [n.attacker, n.defender] : null, act: "Mastery", to: "mastery", hint: `An invasion at ${n.node} rewards ${n.reward} for ${n.item}, which you haven't mastered: side with the ${n.side}` });
+    for (const n of rareInvasions) out.push({ key: `invasion|${n.key}`, tone: "info", icon: "invasion", image: model?.imageOf(n.reward.replace(/^\d+ × /, "")) ?? null, title: n.reward, sub: `invasion · ${n.node}`, side: n.side, progress: n.completion, act: "", to: "", hint: `An invasion at ${n.node} pays a rare reward, ${n.reward}: side with the ${n.side}. Three runs earn it` });
     if (shortListings.length) out.push({ key: null, tone: "gold", icon: "market", title: `${shortListings.length} listing${shortListings.length === 1 ? "" : "s"} for more than you hold`, sub: "Sold in game, or listed by mistake: fix them on Orders", act: "Open Orders", to: "market", hint: "warframe.market lists more than your inventory holds" });
     const statusError = mkt.statusError ?? mkt.status?.error;
     if (statusError) out.push({ key: null, tone: "red", icon: "market", title: "warframe.market status", sub: statusError, act: "Open Orders", to: "market", hint: `Your status on warframe.market couldn't be set: ${statusError}` });
@@ -301,7 +307,7 @@
 
   // ---------------------------------------------------------------- what Home shows (Customise)
   const CARDS: { key: string; label: string; hint: string; consoleHint?: string }[] = [
-    { key: "alerts", label: "Needs you", hint: "Alerts and invasions worth a look, listings to fix, Varzia's rotation ending", consoleHint: "Alerts with rare rewards" },
+    { key: "alerts", label: "Needs you", hint: "Alerts and invasions worth a look, listings to fix, Varzia's rotation ending", consoleHint: "Alerts and invasions with rare rewards" },
     { key: "world", label: "World clocks", hint: "Day and night on the open worlds, Duviri's mood, and the daily and weekly resets" },
     { key: "market", label: "Your orders", hint: "Your warframe.market status, what you have listed, and what sold" },
     { key: "ready", label: "Ready to sell", hint: "Your spares worth listing, in the kinds ticked on Orders" },
@@ -467,7 +473,7 @@
       {:else if !byKind.length}
         <p class="dim">Nothing spare worth {settings.market.minPrice}p or more in what you ticked.</p>
       {:else}
-        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Only the kinds ticked under Put my spares on sale, on Orders, and only what's worth at least your minimum price there (relics: your relic minimum). Everything you could spare, of every kind, is on Inventory (You can spare)">at daily median prices: what Put my spares on sale would list (the kinds ticked there), {settings.market.minPrice}p and up{settings.market.bulk.other ? ` (relics ${settings.market.minRelicPrice}p)` : ""}{unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
+        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Only the kinds ticked under Put my spares on sale, on Orders, and only what's worth at least your minimum price there (relics: your relic minimum) and worth a trade: at least {settings.advice.minPlat}p in one trade of up to six copies (Not worth a trade under, set on Prime parts). Everything you could spare, of every kind, is on Inventory (You can spare)">at daily median prices: what Put my spares on sale would list (the kinds ticked there), {settings.market.minPrice}p and up{settings.market.bulk.other ? ` (relics ${settings.market.minRelicPrice}p)` : ""}{unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
         <ul class="kinds">
           {#each byKind as k (k.kind)}
             <li>
@@ -577,6 +583,24 @@
           <div class="tblock">
             <div class="th"><GameIcon name="steel-essence" size={18} /><b class="mark">Teshin's offer</b><span class="dim small">changes in {until(day.steelPath.ends, now)}</span></div>
             <p class="tline"><b>{day.steelPath.reward}</b> <span class="dim inl">for {day.steelPath.cost} <GameIcon name="steel-essence" size={13} title="Steel Essence" /> Steel Essence</span></p>
+            {#if day.steelPath.umbraIn != null && day.steelPath.umbraIn > 0}{@const w = day.steelPath.umbraIn}<p class="tline dim small" title="Teshin's weekly offer runs through an 8-week rotation; Umbra Forma (150 Steel Essence) is its rarest. It changes on Mondays, 00:00 UTC">Umbra Forma in {w} week{w === 1 ? "" : "s"}</p>{/if}
+          </div>
+        {/if}
+        {#if day.archimedeas.length || day.calendar || day.descendia}
+          <div class="tblock">
+            {#each day.archimedeas as a (a.kind)}
+              <div class="th"><GameIcon name={a.kind === "Deep" ? "cavia" : "faction-scaldra"} size={18} /><b class="mark" title={a.kind === "Deep" ? "Deep Archimedea, in the Sanctum Anatomica (rank 5 with Cavia): three hard missions, each with its risks and a deviation, new each Monday" : "Temporal Archimedea, in Höllvania: three hard missions, each with its risks and a deviation, new each Monday"}>{a.kind} Archimedea</b><span class="dim small">{until(a.ends, now)} left</span></div>
+              <p class="tline dim small arch">{#each a.missions as x, i (i)}{#if i}{" · "}{/if}<span title={x.deviation ? `Deviation: ${x.deviation}` : x.type}><Mission type={x.type} size={12} />{x.type}</span>{/each}</p>
+            {/each}
+            {#if day.calendar}
+              {@const cal = day.calendar}
+              {@const best = cal.prizes.filter((p) => p.notable)}
+              <div class="th"><GameIcon name="faction-techrot" size={18} /><b class="mark" title="The 1999 Calendar in Höllvania: each season lasts a week, with two prizes to choose between each month">1999 Calendar</b><span class="dim small">{cal.season ? `${cal.season} · ` : ""}{until(cal.ends, now)} left</span></div>
+              <p class="tline dim small" title="The prize days worth a look (hover for the lot). Every prize day this season, one of each pair to pick: {cal.prizes.map((p) => `${p.day}: ${p.choices.join(' or ')}`).join('; ')}">{#if best.length}{best.map((p) => `${p.day} ${p.pick}`).join(" · ")}{:else}{cal.prizes.length} prize day{cal.prizes.length === 1 ? "" : "s"}, nothing rare{/if}</p>
+            {/if}
+            {#if day.descendia}
+              <div class="th"><GameIcon name="faction-orokin" size={18} /><b class="mark" title="The Descendia: a tower of {day.descendia.floors} floors (Infernums), new challenges each Monday; each floor's reward comes once a week, and Infernum 21 always drops an Uriel or Vinquibus part">Descendia</b><span class="dim small">{day.descendia.floors} Infernums · {until(day.descendia.ends, now)} left</span></div>
+            {/if}
           </div>
         {/if}
         {#if day.sortie || day.archon}
@@ -603,7 +627,7 @@
         {/if}
         {#if day.nightwave}
           <div class="tblock">
-            <div class="th"><GameIcon name="nightwave" size={18} /><b class="mark">Nightwave</b><span class="dim small inl"><GameIcon name="nightwave" size={13} title="Nightwave standing" />{day.nightwave.standing.toLocaleString("en")} standing up for grabs</span></div>
+            <div class="th"><GameIcon name="nightwave" size={18} /><b class="mark">Nightwave</b><span class="dim small inl" title="What the challenges still open give, all of them done">up to <GameIcon name="nightwave" size={13} title="Nightwave standing" />{day.nightwave.standing.toLocaleString("en")} standing</span></div>
             <ul class="nw">
               {#each day.nightwave.challenges.slice(0, 6) as c (c.title)}<li title="{c.desc}{c.expiry ? ` · ${until(c.expiry, now)} left` : ''}"><span class="k k-{c.kind}">{c.kind}</span><span class="nt">{c.title}</span><span class="dim small inl"><GameIcon name="nightwave" size={11} title="Nightwave standing" />{c.reputation.toLocaleString("en")}</span></li>{/each}
             </ul>
@@ -734,11 +758,25 @@
                 <span class="sn" use:info={s.name}>{s.name}</span>
                 <span class="mk">{#if console}{:else if s.mark === "mastery"}<span class="tag gold" title="You haven't mastered it">+{s.points?.toLocaleString("en")} mastery</span>{:else if s.mark === "new"}<span class="tag gold">new to you</span>{:else if s.mark === "have"}<span class="tag">you have it</span>{/if}</span>
                 <P v={s.ducats} d dim={s.mark === "have"} />
+                <span class="cr dim small" title={s.credits ? `${s.credits.toLocaleString("en")} credits, on top of the ducats` : undefined}>{#if s.credits}<GameIcon name="credits" size={11} />{shortCredits(s.credits)}{/if}</span>
               </li>
             {/each}
           </ul>
           {#if !console && !baroNeed.length}<p class="dim small">Nothing in his stock you don't already have.</p>{/if}
           {#if !console && stock.length > baroNeed.length}<p class="dim small">+{stock.length - baroNeed.length} more you have or that give no mastery (cosmetics and the like).</p>{/if}
+          {#if flips.length}
+            <div class="register sub" title="What he sells that trades on warframe.market, by the platinum each ducat turns into when you sell it (its daily median price over his ducat cost). Buy from him, list it, and the ducats become platinum">Best ducats to plat</div>
+            <ul class="stock flips">
+              {#each flips as f (f.unique)}
+                <li title="{f.name}: sells for about {Math.round(f.price)}p, {f.ducats} ducats{f.credits ? ` and ${f.credits.toLocaleString('en')} credits` : ''} from Baro{f.tradesPerDay != null ? `; about ${f.tradesPerDay < 1 ? f.tradesPerDay.toFixed(1) : Math.round(f.tradesPerDay)} trades a day` : ''}">
+                  <span class="sn" use:info={f.name}>{f.name}</span>
+                  <span class="mk dim small">{f.perDucat.toFixed(2)}p/ducat · {f.tradesPerDay != null ? `${f.tradesPerDay < 1 ? f.tradesPerDay.toFixed(1) : Math.round(f.tradesPerDay)}/day` : "?/day"}</span>
+                  <P v={f.price} />
+                  <span class="cr dim small">{#if f.credits}<GameIcon name="credits" size={11} />{shortCredits(f.credits)}{/if}</span>
+                </li>
+              {/each}
+            </ul>
+          {/if}
         {/if}
       {/if}
     </section>
@@ -933,6 +971,7 @@
   .th.sub { margin-top: .2rem; }
   .tline { margin: 0; }
   /* The Archon Hunt's three missions, in order, each its glyph and node. */
+  .arch span { display: inline-flex; align-items: center; gap: .3rem; }
   .archon { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: .2rem .9rem; }
   .archon li { display: inline-flex; align-items: center; gap: .3rem; }
   .archon li + li::before { content: "→"; margin-right: .5rem; color: var(--rule-control); }
@@ -1022,7 +1061,9 @@
   .good { color: var(--verdigris); }
   .ducats { display: flex; align-items: center; gap: .5rem; }
   .stock, .vz { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
-  .stock li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto 4rem; gap: .6rem; align-items: center; }
+  .stock li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto 4rem 3rem; gap: .6rem; align-items: center; }
+  .stock.flips li { grid-template-columns: minmax(0, 1fr) auto 3.5rem 3rem; }
+  .stock .cr { display: inline-flex; align-items: center; gap: .2rem; justify-self: end; white-space: nowrap; }
   .stock li :global(.amt) { justify-self: end; }
   .sn { min-width: 0; display: grid; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sn > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

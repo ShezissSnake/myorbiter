@@ -200,6 +200,10 @@ export interface Live {
   sortie?: SortieLike | null;
   archonHunt?: SortieLike | null;
   steelPath?: SteelPath | null;
+  /** The week's Deep and Temporal Archimedea, the 1999 Calendar's season and the Descendia (warframestat only). */
+  archimedeas?: Archimedea[] | null;
+  calendar?: Calendar1999 | null;
+  descendia?: Descendia | null;
   /** Darvo's daily deal in the in-game Market. */
   darvo?: DarvoDeal | null;
   duviriCycle?: DuviriCycle | null;
@@ -258,6 +262,30 @@ export interface SortieLike {
 export interface SteelPath {
   currentReward: { name: string; cost: number } | null;
   expiry: string;
+  /** Teshin's weekly offers in order (8 weeks, Umbra Forma among them); missing from the game's own file. */
+  rotation?: { name: string; cost: number }[];
+}
+/** A week's Deep (CT_LAB) or Temporal (CT_HEX) Archimedea, from api.warframestat.us. */
+export interface Archimedea {
+  id?: string;
+  expiry: string;
+  /** "C T_ L A B", spaced out as warframestat spells it; `typeKey` the same. */
+  type?: string;
+  typeKey?: string;
+  missions?: { missionType?: string; faction?: string; deviation?: { name?: string; description?: string } | null; risks?: { name?: string; description?: string; isHard?: boolean }[] }[];
+  personalModifiers?: { name?: string; description?: string }[];
+}
+/** The 1999 Calendar's current season (a week long), from api.warframestat.us. */
+export interface Calendar1999 {
+  expiry: string;
+  season?: string;
+  /** In-game 1999 dates; "Big Prize!" events offer a choice of two rewards. */
+  days?: { date: string; events?: { type?: string; reward?: string; challenge?: { title?: string; description?: string } }[] }[];
+}
+/** The week's Descendia (the Tower of Hell's 21 Infernums), from api.warframestat.us. */
+export interface Descendia {
+  expiry: string;
+  challenges?: { index?: number; typeKey?: string; challenge?: string }[];
 }
 export interface DuviriCycle {
   /** The current mood's start and end (two hours); the Circuit's picks last the week. */

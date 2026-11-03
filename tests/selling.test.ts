@@ -157,6 +157,12 @@ test("Baro's ducat rate: the best price per ducat among what he sells that trade
   const r = baroRate(buildModel(b, live));
   assert.deepEqual(r && [r.item, r.rate], ["Primed Flow", 0.26], "Prisma Skana's 0.8p a ducat doesn't count: it hardly sells");
   assert.equal(baroRate(buildModel(b)), null, "away: nothing to go by");
+  // His flips: by platinum per ducat, with trades a day and his credit cost; a weekly-or-rarer seller left out.
+  const { baroFlips, shortCredits } = await import("../src/lib/core/traders");
+  (b.prices as unknown as { trade_rate: Record<string, unknown> }).trade_rate["Prisma Skana"] = [0.1, 0, ""];
+  const flips = baroFlips(buildModel(b, { ...live, baro: { ...live.baro, inventory: live.baro.inventory.map((x) => ({ ...x, credits: 100_000 })) } }));
+  assert.deepEqual(flips.map((f) => [f.name, f.perDucat, f.tradesPerDay, f.credits]), [["Primed Flow", 0.26, 2, 100_000], ["Primed Fury", 0.2, 3, 100_000]]);
+  assert.deepEqual([shortCredits(100_000), shortCredits(1_250_000), shortCredits(250)], ["100k", "1.25M", "250"]);
 });
 
 test("relics by refinement: each sold only for more than a crack at its own odds, never on the intact price", async () => {

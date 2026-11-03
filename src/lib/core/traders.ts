@@ -75,6 +75,43 @@ export function baroRate(m: Model, stock: StockItem[] = baroStock(m)): BaroRate 
   return best;
 }
 
+/** One of Baro's items as a ducats-to-platinum flip: buy it from him, sell it on warframe.market. */
+export interface BaroFlip {
+  name: string;
+  unique: string;
+  ducats: number;
+  credits: number | null;
+  /** What it sells for (warframe.market's daily median). */
+  price: number;
+  /** Platinum per ducat, two decimals. */
+  perDucat: number;
+  /** Trades a day on warframe.market, when known: how quickly it would sell. */
+  tradesPerDay: number | null;
+}
+
+/**
+ * Baro's stock that trades on warframe.market, best platinum per ducat first: what to turn your
+ * ducats into to sell. Items that sell under once a week (or have no price) are left out.
+ */
+export function baroFlips(m: Model, stock: StockItem[] = baroStock(m), max = 5): BaroFlip[] {
+  const out: BaroFlip[] = [];
+  for (const s of stock) {
+    const price = m.price(s.name);
+    if (!s.ducats || price == null || price <= 0) continue;
+    const tradesPerDay = m.tradesPerDay(s.name);
+    if (tradesPerDay != null && tradesPerDay < 1 / 7) continue;
+    out.push({ name: s.name, unique: s.unique, ducats: s.ducats, credits: s.credits, price, perDucat: Math.round((price / s.ducats) * 100) / 100, tradesPerDay });
+  }
+  return out.sort((a, b) => b.perDucat - a.perDucat || (b.tradesPerDay ?? 0) - (a.tradesPerDay ?? 0)).slice(0, max);
+}
+
+/** "100,000" → "100k", "1,250,000" → "1.25M": a credit cost, short. */
+export function shortCredits(n: number): string {
+  if (n >= 1_000_000) return `${Math.round(n / 10_000) / 100}M`;
+  if (n >= 1_000) return `${Math.round(n / 100) / 10}k`;
+  return String(n);
+}
+
 export interface VarziaNeed {
   name: string;
   image: string | null;

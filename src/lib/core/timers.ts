@@ -58,8 +58,9 @@ export function resetTimers(live: Live, now = Date.now()): Timer[] {
   const days = (8 - d.getUTCDay()) % 7 || 7;
   const weekly = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + days)).toISOString();
   const out: Timer[] = [
-    { key: "daily", label: "Daily reset", state: "Standing caps, daily Nightwave, Steel Path", next: null, ends: nextDailyUtc(now) },
-    { key: "weekly", label: "Weekly reset", state: "Archon Hunt, Circuit, Nightwave weeklies, traders", next: null, ends: weekly },
+    // What resets when, per the wiki's Reset page.
+    { key: "daily", label: "Daily reset", state: "Standing caps, the trade limit, Focus cap, the daily Nightwave act, Steel Path Incursions, Daily Tribute", next: null, ends: nextDailyUtc(now) },
+    { key: "weekly", label: "Weekly reset", state: "Archon Hunt, the Circuit's rewards, Nightwave weeklies, Deep and Temporal Archimedea, the Descendia, a new 1999 Calendar season, Break Narmer, Maroo's Ayatan hunt; Teshin's offer, Acrithis, Palladino, Bird 3's Archon Shard and Nightwave Cred offerings", next: null, ends: weekly },
   ];
   if (live.sortie?.expiry && Date.parse(live.sortie.expiry) > now) out.push({ key: "sortie", label: "Sortie", state: live.sortie.boss, next: null, ends: live.sortie.expiry });
   return out;

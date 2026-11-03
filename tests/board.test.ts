@@ -21,6 +21,18 @@ test("fissures: every open one, by kind and era, soonest to close first", () => 
   assert.deepEqual(fissuresByEra(fs, "steel", NOW).map((e) => e.era), ["Lith"]);
 });
 
+test("fissures: quick missions (Capture, Exterminate, Rescue, Sabotage) first within an era", async () => {
+  const { isQuickMission } = await import("../src/lib/core/board");
+  assert.deepEqual(["Capture", "Extermination", "Exterminate", "Rescue", "Sabotage", "Spy", "Survival", "Defense", "Mobile Defense"].map(isQuickMission), [true, true, true, true, true, false, false, false, false]);
+  const fs = [
+    f("surv", "Axi", { missionType: "Survival", expiry: "2026-10-31T20:10:00Z" }),
+    f("cap", "Axi", { missionType: "Capture", expiry: "2026-10-31T21:50:00Z" }),
+    f("ext", "Axi", { missionType: "Extermination", expiry: "2026-10-31T21:00:00Z" }),
+    f("def", "Axi", { missionType: "Defense", expiry: "2026-10-31T20:40:00Z" }),
+  ];
+  assert.deepEqual(fissuresByEra(fs, "normal", NOW)[0].list.map((x) => x.id), ["ext", "cap", "surv", "def"], "quick ones first, then soonest to close");
+});
+
 test("bounties: listed ones carry their rewards, the headline is what you need or the rarest", () => {
   const boards = bountyBoards(
     [

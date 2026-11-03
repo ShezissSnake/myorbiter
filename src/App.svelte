@@ -1,7 +1,7 @@
 <script lang="ts">
   import { discordSent } from "./lib/discordStatus.svelte";
   import { onMount, untrack } from "svelte";
-  import { invasionNeeds } from "./lib/core/invasions";
+  import { invasionNeeds, invasionRares } from "./lib/core/invasions";
   import { foldSetSales, repCandidates, salesFromTrade, tradeKey } from "./lib/core/trades";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
@@ -604,6 +604,16 @@
       if (freshR.length) tell("alertLoot", freshR.length === 1 ? `Alert: ${freshR[0].reward}` : `${freshR.length} alerts with rare rewards`, freshR.map(line).join("\n"));
     });
   });
+  // Invasions paying a rare reward (a Catalyst or Reactor blueprint, Forma…): as alerts' rare
+  // rewards, once per invasion and reward. No inventory needed, so consoles get them too.
+  $effect(() => {
+    const invs = live.invasions;
+    if (!invs?.length || !settingsReady) return;
+    untrack(() => {
+      const fresh = invasionRares(invs).filter((n) => firstTime(`invasion|${n.key}`));
+      if (fresh.length) tell("alertLoot", fresh.length === 1 ? `Invasion: ${fresh[0].reward}` : `${fresh.length} invasions with rare rewards`, fresh.map((n) => `${n.reward}: side with ${n.side} at ${n.node}`).join("\n"));
+    });
+  });
   // Baro's arrival: what he brings that you haven't mastered or don't have. Once per visit.
   $effect(() => {
     const b = live.baro;
@@ -641,7 +651,7 @@
     const m = model;
     if (!m || !live.duviriCycle || !settingsReady || onConsole) return;
     untrack(() => {
-      const c = today(m, live).circuit;
+      const c = today(m, live, Date.now(), settings.game.gear).circuit;
       if (!c) return;
       const frames = c.frames.filter((x) => x.wanted).map((x) => x.name);
       const incarnons = c.incarnons.filter((x) => x.wanted).map((x) => x.name);
@@ -2056,12 +2066,12 @@
       {#snippet pParts()}<Parts {model} bind:advice={settings.advice} sell={settings.market.sellable} />{/snippet}
       {#snippet pMastery()}{#await loadMastery(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pArcanes()}{#await loadArcanes(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} bind:advice={settings.advice} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pMods()}{#await loadMods(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} masteryRank={settings.game.masteryRank} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pMods()}{#await loadMods(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} masteryRank={settings.game.masteryRank} minPlat={settings.advice.minPlat} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pRelics()}<Relics {model} bind:advice={settings.advice} wishlist={settings.favourites} />{/snippet}
       {#snippet pPlanner()}{#await loadPlanner(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pHome()}<Home {model} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => goTo(t)} {shortListings} {liveAt} {liveError} {liveRead} bountyTables={relicTables?.bounties ?? null} sortieRewards={relicTables?.sortie ?? null} />{/snippet}
       {#snippet pSales()}{#await loadSales(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page {model} bind:settings={settings} go={(t: string) => (settings.tab = t)} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pMarket()}<Orders {model} console={onConsole} bind:settings={settings.market} advice={settings.advice} masteryRank={settings.game.masteryRank} />{/snippet}
+      {#snippet pMarket()}<Orders {model} console={onConsole} bind:settings={settings.market} advice={settings.advice} masteryRank={settings.game.masteryRank} credits={settings.game.credits} />{/snippet}
       {#snippet pGuide()}{#await loadGuide(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<Page console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} go={(t: string) => (settings.tab = t)} bind:plannerMode={settings.plannerMode} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pFoundry()}<Foundry {model} bind:settings={settings} />{/snippet}
       {#snippet pInventory()}<Inventory {model} sell={settings.market.sellable} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad} gear={settings.game.gear} bind:keepGear={settings.game.keepGear} />{/snippet}

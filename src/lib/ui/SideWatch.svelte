@@ -9,7 +9,7 @@
   import { bountyBoards, fissureCounts, fissuresByEra, type BountyTable } from "../core/board";
   import { cycleTimers, matchedFissures } from "../core/timers";
   import { foundryBuilds } from "../core/foundry";
-  import { invasionNeeds } from "../core/invasions";
+  import { invasionNeeds, invasionRares } from "../core/invasions";
   import { alertNeeds, describeHelp } from "../core/worldNeeds";
   import { until } from "../core/traders";
   import { scoreCards } from "../core/pick";
@@ -58,6 +58,7 @@
   };
   const world = $derived(alertNeeds(console ? null : model, live.alerts, now));
   const invasions = $derived(model && !console ? invasionNeeds(model, live.invasions) : []);
+  const rareInvasions = $derived(invasionRares(live.invasions));
   const cycles = $derived(cycleTimers(live, now));
   const builds = $derived(model && !console ? foundryBuilds(model, settings.game.foundryReady, now).slice(0, 6) : []);
   const need = (name: string) => !!model && !console && (scoreCards(model, [name])[0]?.needed ?? false);
@@ -102,13 +103,14 @@
     {#if on(k) && k === "alerts"}
       <section>
         <h3 class="register"><Icon name="bell" size={11} /> Alerts</h3>
-        {#if !watched.length && !world.mastery.length && !world.rare.length && !invasions.length && !shortListings.length}<p class="dim small">Nothing that needs you right now.</p>{/if}
+        {#if !watched.length && !world.mastery.length && !world.rare.length && !invasions.length && !rareInvasions.length && !shortListings.length}<p class="dim small">Nothing that needs you right now.</p>{/if}
         <ul class="cards">
           {#if shortListings.length}<li class="card era-wash" style:--tint="var(--gold)"><GameIcon name="market" size={20} /><span class="tx wrap"><button class="link" onclick={() => go("market")}>{shortListings.length} listing{shortListings.length === 1 ? "" : "s"} for more than you hold</button><span class="dim small">Sold, or fix them on Orders</span></span></li>{/if}
           {#each watched as w (w.fissure.id)}{@render fissureCard(w.fissure)}{/each}
           {#each world.mastery as a (a.key)}<li class="card era-wash" style:--tint="var(--verdigris)" title="Mastery you're missing"><GameIcon name="mastery" size={20} /><span class="tx"><b>{a.reward}</b><span class="dim small">{a.node} · {describeHelp(a.reward, a.help!)}</span></span><span class="t">{left(a.expiry)}</span></li>{/each}
           {#each world.rare as a (a.key)}<li class="card era-wash" style:--tint="var(--gold)" title="A rare reward"><GameIcon name="sortie" size={20} /><span class="tx"><b>{a.reward}</b><span class="dim small where">{a.mission} · {place(a.node).node}{#if a.faction}&ensp;<Foe enemy={a.faction} size={12} name={false} />{/if}</span></span><span class="t">{left(a.expiry)}</span></li>{/each}
           {#each invasions as n (n.key)}<li class="card era-wash" style:--tint="var(--verdigris)" title="An invasion with a part you need"><GameIcon name="invasion" size={20} /><span class="tx"><b>{n.reward}</b><span class="dim small">{n.node}</span></span><span class="t sd" title="Side with the {n.side} to earn it"><span class="register">side</span><Foe enemy={n.side} size={12} /></span></li>{/each}
+          {#each rareInvasions as n (n.key)}<li class="card era-wash" style:--tint="var(--gold)" title="An invasion paying a rare reward: {n.reward}"><GameIcon name="invasion" size={20} /><span class="tx"><b>{n.reward}</b><span class="dim small">{n.node}</span></span><span class="t sd" title="Side with the {n.side} to earn it"><span class="register">side</span><Foe enemy={n.side} size={12} /></span></li>{/each}
         </ul>
       </section>
     {:else if on(k) && k === "fissures"}

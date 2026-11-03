@@ -28,7 +28,10 @@ const keyOf = (name: string) => {
   return s ? `${s.base}|${s.refinement}` : null;
 };
 
-/** Requiem relics are bought from Palladino with Kuva, not dropped: never vaulted. */
+/**
+ * Requiem relics are never vaulted: Requiem Eterna drops from Kuva Siphons and Floods (and Lich
+ * thralls), and the retired Requiem I–IV are sold by Palladino for Riven Slivers.
+ */
 const alwaysThere = (base: string) => base.startsWith("Requiem ");
 
 export function mergeRelics(theirs: RelicEntry[], data: RelicData | null | undefined): RelicEntry[] {

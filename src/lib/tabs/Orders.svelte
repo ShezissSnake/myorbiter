@@ -34,7 +34,7 @@
 
   // console: you play on a console or phone, so orbiter can't see what you hold. New listing then
   // finds anything warframe.market trades, and what needs your inventory (spares, "Can't deliver") is left out.
-  let { model, settings = $bindable(), advice, console = false, masteryRank = null }: { model: Model; settings: MarketSettings; advice: AdviceSettings; console?: boolean; masteryRank?: number | null } = $props();
+  let { model, settings = $bindable(), advice, console = false, masteryRank = null, credits = null }: { model: Model; settings: MarketSettings; advice: AdviceSettings; console?: boolean; masteryRank?: number | null; credits?: number | null } = $props();
   // The daily trade limit (core/tradeLimit.ts), refreshed each minute.
   let minute = $state(Date.now());
   $effect(() => {
@@ -805,7 +805,7 @@
       </section>
     {/if}
 
-    {#if !console}<div id="spares"><SpareSale {model} {settings} {advice} {masteryRank} /></div>{/if}
+    {#if !console}<div id="spares"><SpareSale {model} {settings} {advice} {masteryRank} {credits} /></div>{/if}
 
   {/if}
 </div></div>

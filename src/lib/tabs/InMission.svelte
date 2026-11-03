@@ -10,7 +10,8 @@
   import Stat from "../ui/Stat.svelte";
   import Avail from "../ui/Avail.svelte";
   import ListButton from "../ui/ListButton.svelte";
-  import { bestCard, resolveName, scoreCards, type PickCard, type PickWeights } from "../core/pick";
+  import { shareCheck } from "../core/radshare";
+  import { bestCard, resolveName, scoreCards, type PickCard, type PickWeights, type WeightKey } from "../core/pick";
   import { onWindows, type ScreenCards } from "../backend";
   import { info } from "../hover.svelte";
   import { inFissure } from "../core/mission";
@@ -40,6 +41,8 @@
   const paths = $derived(ms ? (ms.relics.length ? ms.relics : ms.last_relics) : []);
   const relics = $derived(squadRelics(model, paths));
   const pool = $derived(squadPool(relics));
+  /** With four relics: whether they're a 4b4 (one relic, one refinement), and which are off if not. */
+  const share = $derived(shareCheck(relics));
   const best = $derived(pool.reduce<(typeof pool)[number] | null>((b, r) => (r.price != null && (b == null || r.price > (b.price ?? 0)) ? r : b), null));
   const needed = $derived(pool.filter((r) => r.needed));
   /** On Windows nothing draws over exclusive fullscreen: TennoScope's overlay can't show. */
@@ -64,7 +67,7 @@
   const ranked = $derived(scoreCards(model, pool.map((x) => x.name), weights).map((c, i) => ({ ...c, from: pool[i].from, owned: pool[i].owned, rarity: pool[i].rarity })).sort((a, b) => b.score - a.score || (b.price ?? 0) - (a.price ?? 0)));
   /** Your own relic's reward, which the log names as soon as the screen opens. */
   const yours = $derived(new Set((ms?.reward_screen_open ? ms.rewards_given : []).map((p) => resolveName(model, model.nameOf(p)))));
-  const WEIGHTS: { k: keyof PickWeights; label: string; title: string; bar: string }[] = [
+  const WEIGHTS: { k: WeightKey; label: string; title: string; bar: string }[] = [
     { k: "plat", bar: "b-plat", label: "Plat", title: "Market price, as a share of the best card on the screen" },
     { k: "needed", bar: "b-need", label: "Unmastered", title: "A part for something you haven't mastered or built, that you don't have yet" },
     { k: "ducats", bar: "b-ducat", label: "Ducats", title: "Ducat value, out of 100" },
@@ -217,6 +220,7 @@
       {#if ranked.length > TOP}<button class="link more" onclick={() => (showAll = !showAll)} title="Every reward the squad's relics can drop, in pick order">{showAll ? `Show the top ${TOP}` : `Show all ${ranked.length}`}</button>{/if}
     {/if}
 
+    {#if share}<p class="share small" class:off={!share.matched} title={share.matched ? "All four players brought the same relic at the same refinement: four rolls on one reward table" : `A 4b4 is four of one relic at one refinement. ${share.text.endsWith("different relics") ? "Each of the squad brought a different relic or refinement" : `Most of the squad brought ${share.main}; the odd ones out (${share.off.join(", ")}) roll on a different table`}`}>{share.text}</p>{/if}
     <!-- Each relic's own rewards, a click away: the list above already says what to take. -->
     <h2 class="register relhead"><button class="link" aria-expanded={showRelics} onclick={() => (showRelics = !showRelics)} title="Each relic in the squad with its rewards and odds">{showRelics ? "▾" : "▸"} The squad's relics · {relics.length}</button>{#if showRelics}<span class="legend">Gold: a part you still need · dimmed: you've mastered what it builds · the edge: its rarity (bronze common, silver uncommon, gold rare)</span>{/if}</h2>
     {#if showRelics}<section class="cards">{#each relics as r, i (r.path + i)}{@render relicCard(r)}{/each}</section>{/if}
@@ -323,6 +327,8 @@
   .sw.b-need { background: var(--verdigris); }
   .sw.b-ducat { background: repeating-linear-gradient(135deg, var(--gold-dim) 0 2px, transparent 2px 4px); box-shadow: inset 0 0 0 1px var(--gold-dim); }
   .sw.b-set { background: color-mix(in srgb, var(--verdigris) 22%, transparent); box-shadow: inset 0 0 0 1px var(--verdigris); }
+  .share { margin: var(--course, 1rem) 0 -.4rem; color: var(--platinum-dim); }
+  .share.off { color: var(--alert); }
   .pool-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem 1rem; margin: var(--course) 0 .6rem; }
   .pool-head h2 { margin: 0; }
   .pool .rank { width: 2rem; color: var(--platinum-deep); font-family: var(--face-register); font-size: .66rem; }

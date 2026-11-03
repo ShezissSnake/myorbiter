@@ -69,7 +69,7 @@ test("a part that completes a set is marked, half for one part away", () => {
 
 test("weights decide: ducats only picks the 100-ducat part", () => {
   const m = buildModel(bundle([inv(RHINO, "Rhino Prime", "frame", 0, { mastered: true }), inv(BOAR, "Boar Prime", "weapon", 0, { mastered: true })]));
-  const cards = scoreCards(m, ["Rhino Prime Systems Blueprint", "Boar Prime Stock"], { plat: 0, needed: 0, ducats: 1, set: 0 });
+  const cards = scoreCards(m, ["Rhino Prime Systems Blueprint", "Boar Prime Stock"], { plat: 0, needed: 0, ducats: 1, set: 0, forma: 3 });
   assert.equal(bestCard(cards), 1);
   assert.equal(cards[1].score, 100);
 });
@@ -79,7 +79,7 @@ test("names from the screen without 'Blueprint' still resolve", () => {
   assert.equal(resolveName(m, "Rhino Prime Systems"), "Rhino Prime Systems Blueprint");
   assert.equal(resolveName(m, "rhino prime systems blueprint"), "Rhino Prime Systems Blueprint");
   assert.equal(bestCard([]), null);
-  assert.deepEqual(Object.keys(defaultPickWeights()), ["plat", "needed", "ducats", "set"]);
+  assert.deepEqual(Object.keys(defaultPickWeights()), ["plat", "needed", "ducats", "set", "forma"]);
 });
 
 // ------------------------------------------------------------------ the foundry
@@ -149,4 +149,19 @@ test("live prices from the reward screen win over the daily median, so the score
   const live = scoreCards(m, ["Rhino Prime Systems Blueprint", "Boar Prime Stock"], defaultPickWeights(), { "Rhino Prime Systems Blueprint": 1 });
   assert.equal(live[0].price, 1);
   assert.equal(bestCard(live), 1, "6p and 100 ducats beat 1p and 45 ducats");
+});
+
+test("a Forma Blueprint counts as what it's worth to you (3p by default, double for 2X), above a 2p common", async () => {
+  const { scoreCards, bestCard, formaCount, defaultPickWeights } = await import("../src/lib/core/pick");
+  const { buildModel } = await import("../src/lib/core/model");
+  const m = buildModel({ observed_at: 1, inventory: [], catalog: [], relics: [], prices: { prices: { "Bronco Prime Barrel": 2 }, max_rank_prices: {} } } as never);
+  assert.deepEqual(["Forma Blueprint", "2X Forma Blueprint", "Forma", "Umbra Forma Blueprint", "Lex Prime Barrel"].map(formaCount), [1, 2, 1, 0, 0]);
+  const cards = scoreCards(m, ["Bronco Prime Barrel", "Forma Blueprint", "2X Forma Blueprint"]);
+  assert.deepEqual(cards.map((c) => c.price), [2, 3, 6]);
+  assert.equal(cards[1].priceIsYours, true);
+  assert.match(cards[1].reasons[0], /Forma, worth 3p to you/);
+  assert.equal(bestCard(cards), 2, "2X Forma wins");
+  assert.ok(cards[1].score > cards[0].score, "Forma above a 2p common");
+  // Set to 0: no price, as before.
+  assert.equal(scoreCards(m, ["Forma Blueprint"], { ...defaultPickWeights(), forma: 0 })[0].price, null);
 });
