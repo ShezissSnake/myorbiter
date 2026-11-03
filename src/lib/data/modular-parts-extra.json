@@ -1,0 +1,84 @@
+{
+ "_source": [
+  { "page": "Amp", "url": "https://wiki.warframe.com/w/Amp", "revision": 2818529, "lastEdited": "2026-10-14", "fetched": "2026-11-03" },
+  { "page": "Predasite", "url": "https://wiki.warframe.com/w/Predasite", "revision": 2822723, "lastEdited": "2026-11-02", "fetched": "2026-11-03" },
+  { "page": "Vulpaphyla", "url": "https://wiki.warframe.com/w/Vulpaphyla", "revision": 2822724, "lastEdited": "2026-11-02", "fetched": "2026-11-03" }
+ ],
+ "_how": "Hand-copied from each page's tables, read once each. License: CC BY-NC-SA 3.0 (see modular-parts.LICENSE.md).",
+ "Amp": {
+  "_gaps": "The Amp page gives each prism and scaffold's fire mode in words, not its damage, crit, status or fire rate; only the braces have numbers. No per-part damage is recorded here.",
+  "Prism": {
+   "Raplak": { "series": 1, "syndicate": "The Quills", "rank": "Mote", "fire": "Semi-auto, long-range, precise hit-scan." },
+   "Shwaak": { "series": 2, "syndicate": "The Quills", "rank": "Observer", "fire": "Semi-auto, medium range, punch-through projectile." },
+   "Granmu": { "series": 3, "syndicate": "The Quills", "rank": "Adherent", "fire": "Three-shot grenade burst." },
+   "Rahn": { "series": 4, "syndicate": "The Quills", "rank": "Instrument", "fire": "Fully-auto, long range shots." },
+   "Cantic": { "series": 5, "syndicate": "Vox Solaris", "rank": "Agent", "fire": "Quick and precise three-shot burst." },
+   "Lega": { "series": 6, "syndicate": "Vox Solaris", "rank": "Hand", "fire": "Continuous, widespread jet of void fire with medium range." },
+   "Klamora": { "series": 7, "syndicate": "Vox Solaris", "rank": "Instrument", "fire": "Wide, short ranged beam." }
+  },
+  "Scaffold": {
+   "Pencha": { "series": 1, "syndicate": "The Quills", "rank": "Mote", "fire": "Charged beam." },
+   "Shraksun": { "series": 2, "syndicate": "The Quills", "rank": "Observer", "fire": "Short-range flak grenade." },
+   "Klebrik": { "series": 3, "syndicate": "The Quills", "rank": "Adherent", "fire": "Continuous homing beam." },
+   "Phahd": { "series": 4, "syndicate": "The Quills", "rank": "Instrument", "fire": "Powerful shots bounce between targets." },
+   "Exard": { "series": 5, "syndicate": "Vox Solaris", "rank": "Agent", "fire": "Automatic grenade launcher that shoots until out of ammo." },
+   "Dissic": { "series": 6, "syndicate": "Vox Solaris", "rank": "Hand", "fire": "Clusterbomb launcher." },
+   "Propa": { "series": 7, "syndicate": "Vox Solaris", "rank": "Instrument", "fire": "Timed explosive. Also detonates on impact with an object" }
+  },
+  "Brace": {
+   "Clapkra": { "series": 1, "syndicate": "The Quills", "rank": "Mote", "effect": "+40 Amp Energy pool", "energyPool": 40 },
+   "Juttni": { "series": 2, "syndicate": "The Quills", "rank": "Observer", "effect": "-1 second Amp Recharge delay", "rechargeDelay": -1 },
+   "Lohrin": { "series": 3, "syndicate": "The Quills", "rank": "Adherent", "effect": "+12% Amp Critical/Status Chance", "critChance": 0.12, "statusChance": 0.12 },
+   "Anspatha": { "series": 4, "syndicate": "The Quills", "rank": "Instrument", "effect": "+20 Amp Energy Pool, +15/s Energy Recharge Rate", "energyPool": 20, "rechargeRate": 15 },
+   "Suo": { "series": 5, "syndicate": "Vox Solaris", "rank": "Agent", "effect": "+100 Amp Energy Pool, +2s Amp Recharge Delay", "energyPool": 100, "rechargeDelay": 2 },
+   "Plaga": { "series": 6, "syndicate": "Vox Solaris", "rank": "Hand", "effect": "-20 Amp Energy Pool, -1.5s Amp Recharge Delay", "energyPool": -20, "rechargeDelay": -1.5 },
+   "Certus": { "series": 7, "syndicate": "Vox Solaris", "rank": "Instrument", "effect": "+20% Amp Critical chance", "critChance": 0.2 }
+  },
+  "standing": {
+   "_note": "The Quills' part costs after Update 30.9 (patch notes on the Amp page): the same for a series' prism, scaffold and brace. Vox Solaris part costs aren't on the page.",
+   "The Quills": { "1": 1000, "2": 1500, "3": 2000, "4": 2500 }
+  }
+ },
+ "Predasite": {
+  "base": { "health": 710, "armor": 300, "shields": 350 },
+  "Subspecies": {
+   "Vizier": { "precepts": ["Acidic Spittle", "Iatric Mycelium"], "claws": { "damage": 300, "statusChance": 0.3, "critChance": 0.05, "critMultiplier": 2 } },
+   "Medjay": { "precepts": ["Infectious Bite", "Paralytic Spores"], "claws": { "damage": 350, "statusChance": 0.2, "critChance": 0.1, "critMultiplier": 3 } },
+   "Pharaoh": { "precepts": ["Anabolic Pollination", "Endoparasitic Vector"], "claws": { "damage": 325, "statusChance": 0.25, "critChance": 0.075, "critMultiplier": 2.5 } }
+  },
+  "Mutagen": {
+   "Leptosam": { "resists": ["Heat", "Puncture"], "standing": 1250, "rank": 1, "rankName": "Stranger" },
+   "Chiten": { "resists": ["Electricity", "Slash"], "standing": 2500, "rank": 2, "rankName": "Acquaintance" },
+   "Arioli": { "resists": ["Cold", "Impact"], "standing": 4000, "rank": 3, "rankName": "Associate" },
+   "Monachod": { "resists": ["Toxin", "Slash"], "standing": 6000, "rank": 4, "rankName": "Friend" }
+  },
+  "Antigen": {
+   "Iranon": { "polarity": "Vazarin", "standing": 1250, "rank": 1, "rankName": "Stranger" },
+   "Elasmun": { "polarity": "Madurai", "standing": 2500, "rank": 2, "rankName": "Acquaintance" },
+   "Ibexan": { "polarity": "Naramon", "standing": 4000, "rank": 3, "rankName": "Associate" },
+   "Tethron": { "polarity": "Penjaga", "standing": 6000, "rank": 4, "rankName": "Friend" }
+  },
+  "_gaps": "Claw stats are from the Update 37.0 notes on the page (Pharaoh and Medjay status fixed in Hotfix 37.0.7). Per-type damage split isn't on the page."
+ },
+ "Vulpaphyla": {
+  "base": { "health": 680, "armor": 300, "shields": 370 },
+  "Subspecies": {
+   "Crescent": { "precepts": ["Crescent Charge", "Crescent Devolution"], "claws": { "damage": 100, "statusChance": 0.175, "critChance": 0.225, "critMultiplier": 2 } },
+   "Panzer": { "precepts": ["Viral Quills", "Panzer Devolution"], "claws": { "damage": 90, "statusChance": 0.125, "critChance": 0.25, "critMultiplier": 2 } },
+   "Sly": { "precepts": ["Survival Instinct", "Sly Devolution"], "claws": { "damage": 80, "statusChance": 0.2, "critChance": 0.2, "critMultiplier": 2 } }
+  },
+  "Mutagen": {
+   "Adra": { "resists": ["Heat", "Puncture"], "standing": 1250, "rank": 1, "rankName": "Stranger" },
+   "Elsa": { "resists": ["Electricity", "Slash"], "standing": 2500, "rank": 2, "rankName": "Acquaintance" },
+   "Zarim": { "resists": ["Cold", "Impact"], "standing": 4000, "rank": 3, "rankName": "Associate" },
+   "Phijar": { "resists": ["Toxin", "Slash"], "standing": 6000, "rank": 4, "rankName": "Friend" }
+  },
+  "Antigen": {
+   "Desus": { "polarity": "Vazarin", "standing": 1250, "rank": 1, "rankName": "Stranger" },
+   "Virox": { "polarity": "Madurai", "standing": 2500, "rank": 2, "rankName": "Acquaintance" },
+   "Plagen": { "polarity": "Naramon", "standing": 4000, "rank": 3, "rankName": "Associate" },
+   "Poxi": { "polarity": "Penjaga", "standing": 6000, "rank": 4, "rankName": "Friend" }
+  },
+  "_gaps": "Claw stats are from the Update 37.0 notes on the page. The Devolution precepts and Viral Quills aren't described on the page."
+ }
+}
