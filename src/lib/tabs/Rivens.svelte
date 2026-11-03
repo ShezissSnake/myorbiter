@@ -29,6 +29,7 @@
   import Named from "../ui/Named.svelte";
   import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
   import { pickShowcase } from "../core/showcase";
+  import { arrive, calm, confirm, flip, leave, reveal } from "../motion";
 
   // console: you play on a console or phone, where orbiter can't read your rivens: the finder and
   // alerts only.
@@ -442,16 +443,37 @@
     void [weaponName, neg, maxPrice, ...pos];
     watchNote = null;
   });
+  const sameStats = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
+  const sameWatch = (x: RivenWatch, w: Pick<RivenWatch, "weapon" | "positive" | "negative" | "maxPrice">) => x.weapon === w.weapon && sameStats(x.positive, w.positive) && x.negative === w.negative && x.maxPrice === w.maxPrice;
+  /** The form describes an alert you have: Alert me reads Watching ✓ until the form changes. */
+  const watching = $derived.by(() => {
+    if (!weapon || !maxPrice) return false;
+    const w = { weapon: weapon.slug, positive: pos.filter(Boolean), negative: neg || null, maxPrice: Math.round(maxPrice) };
+    return settings.rivenWatch.some((x) => !undo.has(x.id) && sameWatch(x, w));
+  });
+  /** Each press of Alert me that set (or found) an alert: the button's gold ring. */
+  let watchedAt = $state(0);
+  /** The alert just set: its chip arrives, scrolled into view if it's off screen. */
+  let justWatched = $state<string | null>(null);
   function watch() {
     if (!weapon || !maxPrice) return;
     const w: RivenWatch = { id: `${Date.now()}`, weapon: weapon.slug, weaponName: weapon.name, positive: pos.filter(Boolean), negative: neg || null, maxPrice: Math.round(maxPrice) };
-    const same = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
-    if (settings.rivenWatch.some((x) => x.weapon === w.weapon && same(x.positive, w.positive) && x.negative === w.negative && x.maxPrice === w.maxPrice)) {
+    watchedAt = Date.now();
+    if (settings.rivenWatch.some((x) => !undo.has(x.id) && sameWatch(x, w))) {
       watchNote = "You're already watching for that.";
       return;
     }
     watchNote = null;
+    justWatched = w.id;
     settings.rivenWatch = [...settings.rivenWatch, w];
+  }
+  /** Brings a chip that just arrived into view, unless it's on screen already. */
+  function inView(node: HTMLElement, on: boolean) {
+    if (!on) return;
+    requestAnimationFrame(() => {
+      const r = node.getBoundingClientRect();
+      if (r.top < 0 || r.bottom > innerHeight) node.scrollIntoView({ block: "nearest", behavior: calm.current ? "auto" : "smooth" });
+    });
   }
   // Stop watching waits a few seconds, with Undo, before the alert is gone.
   const undo = new UndoSlots();
@@ -568,6 +590,7 @@
           {/if}
         </div>
       {:else if f}
+        <div transition:reveal>
         <form class="selling" onsubmit={(e) => { e.preventDefault(); void list(r); }}>
           <label><span class="register">Buyout</span><span class="plat"><input type="number" min="1" bind:value={f.buyout} aria-label="Buyout price" /><GameIcon name="platinum" size={14} /></span></label>
           <Chip bind:on={f.bids} label="Take bids from" title="Let buyers bid below the buyout, from a starting price" />
@@ -577,6 +600,7 @@
           {#if estimates[r.id] || pc?.lowest != null}<span class="dim small hint">{#if estimates[r.id]}Estimate {estimates[r.id].mid}p (the middle half of listings like it ask {estimates[r.id].lo}–{estimates[r.id].hi}p){pc?.lowest != null ? "; " : ""}{/if}{#if pc?.lowest != null}cheapest similar {pc.lowest}p{pc.typical != null ? `, most around ${pc.typical}p` : ""}{/if}. To sell sooner, ask toward the lower end.</span>{/if}
           {#if f.error}<span class="err small">{f.error}</span>{/if}
         </form>
+        </div>
       {/if}
     {/if}
     {#if rivens.trades}
@@ -717,7 +741,7 @@
         <span class="plat"><input type="number" min="1" placeholder="Max price" bind:value={maxPrice} aria-label="Most you'd pay" /><GameIcon name="platinum" size={14} /></span>
         <span class="go">
           <ProgressButton icon="search" job={findJob} label="Search" working="Searching…" sizer={["000 found"]} title={weapon ? "Find rivens for sale with these stats" : "Pick a weapon first"} disabled={!weapon} onclick={search} />
-          <button class="stamp gold" disabled={!weapon || !maxPrice} title={!weapon || !maxPrice ? "Pick a weapon and the most you'd pay first" : "Get a notification when one is listed at or under your price (checked every 5 minutes)"} onclick={watch}><Icon name="bell" />Alert me</button>
+          <button class="stamp gold" disabled={!weapon || !maxPrice} title={!weapon || !maxPrice ? "Pick a weapon and the most you'd pay first" : watching ? "You're watching for this one: a notification comes when one is listed at or under your price (checked every 5 minutes)" : "Get a notification when one is listed at or under your price (checked every 5 minutes)"} onclick={watch} use:confirm={watchedAt}><Icon name="bell" /><span class="swap"><span class:off={watching}>Alert me</span><span class:off={!watching} aria-hidden={!watching}>Watching ✓</span></span></button>
         </span>
       </div>
       {#if weaponName && !weapon}<p class="dim small">Pick a weapon from the list.</p>{/if}
@@ -736,8 +760,10 @@
         <div class="watching">
           <span class="register">Watching</span>
           {#each settings.rivenWatch as w (w.id)}
-            {#if undo.has(w.id)}<UndoSlot label="Stopped watching" what={w.weaponName} onundo={() => undo.undo(w.id)} />
-            {:else}<span class="rule">{w.weaponName}{w.positive.length ? ` · ${w.positive.map(attrName).join(", ")}` : ""}{w.negative ? ` · −${attrName(w.negative)}` : ""} · ≤ {w.maxPrice}p<IconButton icon="close" tone="quiet" size={12} label="Stop watching" title="Stop watching for this riven (you get a few seconds to undo)" onclick={() => unwatch(w.id)} /></span>{/if}
+            <span class="w" in:arrive out:leave animate:flip use:inView={w.id === justWatched}>
+              {#if undo.has(w.id)}<UndoSlot label="Stopped watching" what={w.weaponName} onundo={() => undo.undo(w.id)} />
+              {:else}<span class="rule">{w.weaponName}{w.positive.length ? ` · ${w.positive.map(attrName).join(", ")}` : ""}{w.negative ? ` · −${attrName(w.negative)}` : ""} · ≤ {w.maxPrice}p<IconButton icon="close" tone="quiet" size={12} label="Stop watching" title="Stop watching for this riven (you get a few seconds to undo)" onclick={() => unwatch(w.id)} /></span>{/if}
+            </span>
           {/each}
         </div>
       {/if}
@@ -864,6 +890,11 @@
   :global(html[data-room~="lt760"]) .form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .plat { display: inline-flex; align-items: center; gap: .35rem; }
   .watching { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; margin-top: .9rem; }
+  .w { display: inline-flex; min-width: 0; max-width: 100%; }
+  /* Alert me and Watching ✓ share one place (the wider sets the width), crossfading over QUICK. */
+  .swap { display: inline-grid; }
+  .swap > span { grid-area: 1 / 1; transition: opacity var(--quick) var(--out); }
+  .swap > .off { opacity: 0; }
   .rule { display: inline-flex; align-items: center; gap: .3rem; padding: .1rem .1rem .1rem .55rem; border: 1px solid var(--gold-dim); font-size: .8rem; }
   .rule :global(.ib) { --ib: 22px; }
   .results { width: 100%; border-collapse: collapse; margin-top: 1rem; font-variant-numeric: tabular-nums; }
