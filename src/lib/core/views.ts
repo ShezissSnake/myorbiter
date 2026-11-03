@@ -669,8 +669,8 @@ export interface ModRow {
   extras: number;
   ranks: { rank: number; count: number }[];
   /**
-   * Kept whole, none spare, and why: Requiem mods while a Kuva or Tenet weapon is left to master
-   * (Kuva Liches and Sisters drop them), Antivirus mods while a Coda weapon is (the Technocyte Coda).
+   * Kept five deep (LICH_MOD_KEEP), and why: Requiem mods while a Kuva or Tenet weapon is left to
+   * master (Kuva Liches and Sisters take them), Antivirus mods while a Coda weapon is (the Technocyte Coda).
    */
   keptFor: string | null;
   maxRank: number | null;
@@ -690,8 +690,19 @@ export interface ModRow {
  * never sold.
  */
 export const MOD_KEEP = 2;
+/** Requiem and Antivirus mods while lich weapons are left: five of each, the best ranks first; the rest are spare. */
+export const LICH_MOD_KEEP = 5;
 export function modSpares(mod: { ranks: { rank: number; count: number }[]; keptFor?: string | null }): { rank: number; count: number }[] {
-  if (mod.keptFor) return [];
+  if (mod.keptFor) {
+    let keep = LICH_MOD_KEEP;
+    return mod.ranks
+      .map((r) => {
+        const k = Math.min(keep, r.count);
+        keep -= k;
+        return { rank: r.rank, count: r.count - k };
+      })
+      .filter((r) => r.count > 0);
+  }
   const left = mod.ranks.map((r) => ({ ...r }));
   if (left.length) left[0].count--; // your best copy
   const lowest = [...left].reverse().find((r) => r.count > 0);
@@ -735,11 +746,11 @@ export function modRows(m: Model): ModRow[] {
     const price = m.price(name);
     const keptFor =
       REQUIEM_MOD.test(unique) && left.requiem.length
-        ? `For the ${left.requiem.length} Kuva and Tenet weapon${left.requiem.length === 1 ? "" : "s"} you haven't mastered (${some(left.requiem)}): Kuva Liches and Sisters of Parvos take Requiem mods`
+        ? `${LICH_MOD_KEEP} kept for the ${left.requiem.length} Kuva and Tenet weapon${left.requiem.length === 1 ? "" : "s"} you haven't mastered (${some(left.requiem)}): Kuva Liches and Sisters of Parvos take Requiem mods`
         : ANTIVIRUS_MOD.test(unique) && left.antivirus.length
-          ? `For the ${left.antivirus.length} Coda weapon${left.antivirus.length === 1 ? "" : "s"} you haven't mastered (${some(left.antivirus)}): the Technocyte Coda take Antivirus mods`
+          ? `${LICH_MOD_KEEP} kept for the ${left.antivirus.length} Coda weapon${left.antivirus.length === 1 ? "" : "s"} you haven't mastered (${some(left.antivirus)}): the Technocyte Coda take Antivirus mods`
           : null;
-    const extras = keptFor ? 0 : Math.max(0, total - MOD_KEEP);
+    const extras = Math.max(0, total - (keptFor ? LICH_MOD_KEEP : MOD_KEEP));
     rows.push({
       name,
       unique,

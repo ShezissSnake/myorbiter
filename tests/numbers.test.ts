@@ -115,7 +115,7 @@ test("Worth selling, arcanes: the ones marked Sell, maxed and loose at their own
   assert.equal(worthTotal(worthSelling(m, advice).filter((x) => x.kind === "arcane")), worthTotal(items));
 });
 
-test("Requiem and Antivirus mods are kept whole while a lich weapon is left to master", async () => {
+test("Requiem and Antivirus mods: five of each kept while a lich weapon is left to master", async () => {
   const { modRows, modSpares, lichWeaponsLeft } = await import("../src/lib/core/views");
   const { buildModel } = await import("../src/lib/core/model");
   const cat = (uniqueName: string, name: string, category: string, extra: object = {}) => ({ uniqueName, name, category, ...extra });
@@ -137,11 +137,13 @@ test("Requiem and Antivirus mods are kept whole while a lich weapon is left to m
   const m = buildModel(bundle(false) as never);
   assert.deepEqual(lichWeaponsLeft(m), { requiem: ["Kuva Bramma"], antivirus: [] });
   const rows = new Map(modRows(m).map((r) => [r.name, r]));
-  assert.equal(rows.get("Lohk")!.extras, 0, "a Kuva weapon left: every Requiem mod kept");
+  assert.equal(rows.get("Lohk")!.extras, 0, "a Kuva weapon left: five of each Requiem mod kept");
   assert.deepEqual(modSpares(rows.get("Lohk")!), []);
   assert.match(rows.get("Lohk")!.keptFor ?? "", /Kuva Bramma/);
   assert.equal(rows.get("Byteryte")!.extras, 3, "no Coda weapon left to master here: Antivirus mods spare as usual");
   assert.equal(rows.get("Serration")!.extras, 3);
+  const seven = buildModel({ ...bundle(false), inventory: bundle(false).inventory.map((r) => (r.name === "Lohk" ? { ...r, quantity: 7 } : r)) } as never);
+  assert.equal(modRows(seven).find((r) => r.name === "Lohk")!.extras, 2, "over five, the rest are spare");
   const done = buildModel(bundle(true) as never);
   assert.equal(modRows(done).find((r) => r.name === "Lohk")!.extras, 3, "everything mastered: Requiem mods are spare again");
 });

@@ -107,7 +107,7 @@
   <!-- Gold edge: copies to spare. With "Spares only" on that's every card, so it only marks them when it's off. -->
   <ItemCard hover={r.name} title={r.name} sub={r.type} image={model.imageOf(r.name)} owned={!dupesOnly && r.extras > 0} ownedNote="{r.extras} spare to sell" onopen={open}>
     {#snippet art()}{@render modCard(r, 104)}{/snippet}
-    <div class="have"><b class="mark qty">×{r.total}</b>{#if r.extras}<span class="dim small" title="Beyond your best copy and one to give away">{r.extras} spare</span>{:else if r.keptFor}<span class="dim small" title={r.keptFor}>all kept, for liches</span>{/if}</div>
+    <div class="have"><b class="mark qty">×{r.total}</b>{#if r.extras}<span class="dim small" title={r.keptFor ?? "Beyond your best copy and one to give away"}>{r.extras} spare</span>{:else if r.keptFor}<span class="dim small" title={r.keptFor}>kept, for liches</span>{/if}</div>
     <!-- Always there, empty when every copy is unranked, so cards side by side line up. -->
     <div class="ranks">{#each r.ranks.filter((x) => x.rank > 0) as x (x.rank)}<span class="rk">R{x.rank}{x.count > 1 ? ` ×${x.count}` : ""}</span>{/each}</div>
     <div class="prices">
@@ -125,7 +125,7 @@
 
 {#snippet detail(r: ModRow)}
   <UpgradeDetail {model} name={r.name} unique={r.unique} ranks={r.ranks} tradable={r.tradable}>
-    {#if r.keptFor}<p class="small dim">All {r.total} kept. {r.keptFor}.</p>{/if}
+    {#if r.keptFor}<p class="small dim">{r.keptFor}.</p>{/if}
     {#if r.extras > 0}<p class="small dim">{r.extras} spare, beyond your best copy and one to give away{#if r.tradable}&nbsp;· <ListButton {model} name={r.name} req={listReq(r)} label="Sell spares" />{/if}</p>{/if}
   </UpgradeDetail>
 {/snippet}

@@ -14,7 +14,7 @@ export const NEWS: NewsEntry[] = [
     id: 11,
     date: "2026-11-04",
     items: [
-      "Requiem and Antivirus mods are kept, not sold, while a Kuva, Tenet or Coda weapon is left to master: liches, sisters and the Technocyte Coda take them. Mods says which weapons they're kept for.",
+      "Five of each Requiem and Antivirus mod are kept, not sold, while a Kuva, Tenet or Coda weapon is left to master (copies beyond five can go): liches, sisters and the Technocyte Coda take them. Mods says which weapons they're kept for.",
       "Trade tax, corrected: Warframe charges whoever receives an item, so selling costs you 500 credits for each platinum you're paid (the buyer pays the item's own tax). The sell plan had it the other way round.",
       "Orders: Put my spares on sale moves to the top, folded until you open it; applying a plan ticks each change off as it's sent and the list shrinks. The table sorts by any column. Who whispered you this session, with Invite. Out of trades while buyers can see you? Go invisible until 00:00 UTC.",
       "Home: a box to tick off each chore in Worth doing today (they clear at the reset), with Kahl's Garrison and Netracells; Nightwave's tasks and Archimedea's risks spelled out; each era's next best relics on the fissure board (+2); Start here in your first days.",

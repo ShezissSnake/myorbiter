@@ -128,7 +128,7 @@ export function sellTargets(m: Model, rules: BulkRules, advice: DucatOptions, in
           unique: mod.unique,
           rank: mod.maxRank != null ? r.rank : null,
           quantity: r.count,
-          why: `${mod.total} copies: your best (R${best?.rank ?? 0}) and one to give away kept`,
+          why: mod.keptFor ? `${mod.total} copies: ${mod.keptFor.split(":")[0]}` : `${mod.total} copies: your best (R${best?.rank ?? 0}) and one to give away kept`,
         });
       }
     }
@@ -405,7 +405,7 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
       const mod = mods().get(it.name);
       if (!mod) return null;
       const spare = modSpares(mod).filter((r) => it.maxRank == null || r.rank === (o.rank ?? 0)).reduce((n, r) => n + r.count, 0);
-      return { spare, kept: mod.keptFor ? mod.keptFor.split(":")[0].replace(/^For/, "for") : "your own copy and one to give away" };
+      return { spare, kept: mod.keptFor ? mod.keptFor.split(":")[0] : "your own copy and one to give away" };
     }
     if (kind === "set") {
       const set = it.gameRef ? setsByUnique().get(it.gameRef) : undefined;
