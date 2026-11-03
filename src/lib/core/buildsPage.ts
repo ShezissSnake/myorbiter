@@ -378,3 +378,35 @@ export function parseTags(text: string): string[] {
   }
   return out.slice(0, 12);
 }
+
+// ---------------------------------------------------------------- Nox's Frame's list
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** A day in words, in UTC: "3 Nov 2026". */
+export function dayOf(at: number): string {
+  const d = new Date(at);
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+/** A listed build's card date ("2026-11-01") as a time, or null. */
+export function listedAt(date: string | null | undefined): number | null {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  const at = Date.parse(`${date}T00:00:00Z`);
+  return Number.isFinite(at) ? at : null;
+}
+
+/**
+ * What to say when an answer from Nox's Frame isn't fresh: a copy older than a week, served
+ * because the site didn't answer ("Showing a copy from 27 Oct 2026: Nox's Frame didn't answer
+ * (timed out)"). Null when it's fresh from the site or from the week's cache.
+ */
+export function copyLine(a: { stale: boolean; error?: string; fetchedAt: number }): string | null {
+  if (!a.stale && !a.error) return null;
+  return `Showing a copy from ${dayOf(a.fetchedAt)}${a.error ? `: Nox's Frame didn't answer (${a.error.replace(/^Error:\s*/, "")})` : ""}`;
+}
+
+/** The saved build that came from this page (by its address), if any. */
+export function savedFrom<T extends Pick<Build, "source">>(builds: readonly T[], url: string): T | undefined {
+  return builds.find((b) => isSite(b.source) && b.source.url === url);
+}
