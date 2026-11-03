@@ -180,8 +180,7 @@ export interface DucatRow {
   vaulted: boolean;
 }
 
-/** The most items one trade can carry. */
-export const ITEMS_PER_TRADE = 6;
+import { ITEMS_PER_TRADE } from "./tradeLimit";
 
 /**
  * Plat or ducats for a part (or set) at `plat` each. `copies`: how many you have to sell. The

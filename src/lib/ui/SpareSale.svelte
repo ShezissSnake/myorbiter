@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { daysToTrade } from "../core/tradeLimit";
   // "Put my spares on sale": tick what to sell, look over the changes, apply them in one go.
   // Only the ticked categories are touched; listings you set to be left alone, or hid, never are.
   import { tick } from "svelte";
@@ -12,7 +13,7 @@
   import Named from "./Named.svelte";
   import { info } from "../hover.svelte";
 
-  let { model, settings, advice }: { model: Model; settings: MarketSettings; advice: AdviceSettings } = $props();
+  let { model, settings, advice, masteryRank = null }: { model: Model; settings: MarketSettings; advice: AdviceSettings; masteryRank?: number | null } = $props();
 
   const r = $derived(settings.bulk);
   const anyTicked = $derived(r.sets || r.arcanes || r.mods || r.parts || r.imprints || r.other);
@@ -137,6 +138,11 @@
         <button class="stamp gold" disabled={!!mkt.busy || stale} onclick={() => mkt.applyBulk(model, settings, advice)}>{mkt.op === "Updating your listings" ? "Applying…" : `Apply the plan (${changes.length})`}</button>
         <button disabled={!!mkt.busy} onclick={() => (mkt.bulk = null)}>Cancel</button>
       </div>
+      {#if masteryRank != null && masteryRank >= 2}
+        {@const copies = changes.reduce((n, a) => n + (a.type === "remove" ? 0 : a.quantity), 0)}
+        {@const days = daysToTrade(copies, masteryRank)}
+        {#if days != null && days > 1}<p class="dim small" title="Trades a day are your Mastery Rank ({masteryRank}), each carrying up to 6 items; buyers often take just one, so it's usually longer">{copies.toLocaleString("en")} copies in new or changed listings: at {masteryRank} trades a day, 6 items each at best, selling them all takes {days} days or more.</p>{/if}
+      {/if}
       <div class="planbox">
       <table class="plan">
         <thead><tr><th></th><th>Item</th><th>Kind</th><th class="right">Quantity</th><th class="right">Price</th><th class="why">Why</th></tr></thead>

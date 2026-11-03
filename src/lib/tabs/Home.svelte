@@ -17,6 +17,7 @@
   import GameIcon, { eraIcon, type GameIconName } from "../ui/GameIcon.svelte";
   import Foe from "../ui/Foe.svelte";
   import Mission from "../ui/Mission.svelte";
+  import { tradeAllowance } from "../core/tradeLimit";
   import Icon from "../ui/Icon.svelte";
   import IconButton from "../ui/IconButton.svelte";
   import Chip from "../ui/Chip.svelte";
@@ -61,6 +62,8 @@
   const listed = $derived(orders.filter((o) => o.visible).reduce((n, o) => n + o.platinum * o.quantity, 0));
   const hiddenCount = $derived(orders.filter((o) => !o.visible).length);
   const DAY = 86_400_000;
+  // The daily trade limit (core/tradeLimit.ts): trades today against your rank's worth.
+  const trades = $derived(tradeAllowance(settings.market.trades, settings.game.masteryRank, now));
   const dayStart = $derived.by(() => {
     const d = new Date(now);
     d.setHours(0, 0, 0, 0);
@@ -425,6 +428,7 @@
           {#if !console}<div title="Listings for more than you hold now: sold, or used in game. Fix them on Orders, or a buyer finds you can't deliver"><b class="mark" class:warn={shortListings.length}>{shortListings.length}</b><span class="register">Can't deliver</span></div>{/if}
           <div title="Platinum from what you sold today, from Sales"><P v={sold(dayStart)} /><span class="register">Sold today</span></div>
           <div title="Platinum from what you sold in the last 7 days"><P v={sold(now - 7 * DAY)} /><span class="register">Last 7 days</span></div>
+          {#if !console && trades.limit != null}<div title="Trades a day are your Mastery Rank ({trades.limit}; Founders get 2 more), each one counting whatever it carried (up to 6 items). {trades.used} since 00:00 UTC, from the game's log while orbiter was reading it. Refreshes in {until(new Date(trades.resets).toISOString(), now)}"><b class="mark" class:warn={trades.left != null && trades.left <= 3}>{trades.left}<small class="dim">/{trades.limit}</small></b><span class="register">Trades left</span></div>{/if}
         </div>
         {#if shortListings.length}
           <ul class="mini">
@@ -941,7 +945,7 @@
   .levelrow > span:nth-child(2) { display: grid; min-width: 0; }
   .levelrow .small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pts.big { font-family: var(--face-mark); font-size: 1.3rem; color: var(--platinum); }
-  .figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
+  .figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr)); gap: 1rem; }
   .figs > div { display: grid; grid-template-rows: 1.75rem auto; gap: .3rem; align-content: start; align-items: center; }
   .figs > div :global(.amt b) { font-size: 1.5rem; }
   .figs b.mark { font-size: 1.5rem; line-height: 1; }

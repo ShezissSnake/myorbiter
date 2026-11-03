@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { tradeAllowance } from "../core/tradeLimit";
+  import { until } from "../core/traders";
   import { untrack } from "svelte";
   import type { Model } from "../core/model";
   import type { AdviceSettings, MarketSettings } from "../backend";
@@ -28,7 +30,14 @@
 
   // console: you play on a console or phone, so orbiter can't see what you hold. New listing then
   // finds anything warframe.market trades, and what needs your inventory (spares, "Can't deliver") is left out.
-  let { model, settings = $bindable(), advice, console = false }: { model: Model; settings: MarketSettings; advice: AdviceSettings; console?: boolean } = $props();
+  let { model, settings = $bindable(), advice, console = false, masteryRank = null }: { model: Model; settings: MarketSettings; advice: AdviceSettings; console?: boolean; masteryRank?: number | null } = $props();
+  // The daily trade limit (core/tradeLimit.ts), refreshed each minute.
+  let minute = $state(Date.now());
+  $effect(() => {
+    const t = setInterval(() => (minute = Date.now()), 60_000);
+    return () => clearInterval(t);
+  });
+  const trades = $derived(tradeAllowance(settings.trades, masteryRank, minute));
   // Arcanes you're still collecting copies of to max: an unranked listing of one works against that.
   const collecting = $derived(console ? new Map<string, { copies: number; needed: number }>() : new Map(arcaneRows(model).filter((a) => !a.complete && a.copies > 0).map((a) => [a.name, { copies: a.copies, needed: a.needed }])));
 
@@ -363,6 +372,7 @@
       <Stat label="Listed value" note="Visible listings, price × quantity"><P v={listed} big /></Stat>
       <Stat label="Listings" tone={mkt.room <= 0 ? "gold" : "platinum"} note={`${mkt.room <= 0 ? "At warframe.market's limit" : `${mkt.room} more allowed`} · ${orders.filter((o) => !o.visible).length} hidden`}>{orders.length}<span class="of">/{LISTING_LIMIT - mkt.otherOrders}</span></Stat>
       {#if !console}<Stat label="Can't deliver" tone={shortShown ? "gold" : "dim"} note={shortShown ? `Listing more than you hold${short.length > shortShown ? ` (+${short.length - shortShown} hidden)` : ""}` : short.length ? `Only in hidden listings (${short.length}), which nobody can buy` : "You hold everything you list"}>{shortShown}</Stat>{/if}
+      {#if !console && trades.limit != null}<Stat label="Trades left today" tone={trades.left != null && trades.left <= 3 ? "gold" : "platinum"} note={`${trades.used} made since 00:00 UTC · refreshes in ${until(new Date(trades.resets).toISOString(), minute)}`} title={`Trades a day are your Mastery Rank (${trades.limit}; Founders get 2 more), each counting once whatever it carried (up to 6 items each way). Counted from the game's log while orbiter was reading it.`}>{trades.left}<span class="of">/{trades.limit}</span></Stat>{/if}
       <Stat label="To reprice" tone={pending ? "gold" : "dim"} note={checkedAt ? `${pending ? "Off the cheapest in-game price" : "All match"} · checked ${fmt(checkedAt)}` : "Press Check prices to compare"}>{pending}</Stat>
   {/snippet}
 
@@ -654,7 +664,7 @@
       </section>
     {/if}
 
-    {#if !console}<div id="spares"><SpareSale {model} {settings} {advice} /></div>{/if}
+    {#if !console}<div id="spares"><SpareSale {model} {settings} {advice} {masteryRank} /></div>{/if}
 
   {/if}
 </div></div>

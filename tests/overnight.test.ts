@@ -79,3 +79,16 @@ test("a fissure the log hasn't mentioned in 45 minutes is over", async () => {
   assert.equal(inFissure(ms([], 3500), now), false, "no relics loaded");
   assert.equal(inFissure({ relics: ["/a"], last_event: 10, session_start: null } as never, now), true, "no clock: can't tell, so live");
 });
+
+test("trades left today: your rank's worth, counted since 00:00 UTC", async () => {
+  const { tradeAllowance, daysToTrade } = await import("../src/lib/core/tradeLimit");
+  const now = Date.UTC(2026, 10, 3, 15, 0);
+  const t = (h: number, d = 3) => ({ at: Date.UTC(2026, 10, d, h, 0) });
+  const a = tradeAllowance([t(1), t(9), t(14), t(23, 2), t(16)], 24, now);
+  assert.equal(a.used, 3, "yesterday's and a later one don't count");
+  assert.equal(a.left, 21);
+  assert.equal(a.resets, Date.UTC(2026, 10, 4));
+  assert.equal(tradeAllowance([], null, now).left, null);
+  assert.equal(tradeAllowance([], 1, now).limit, 0, "trading starts at rank 2");
+  assert.equal(daysToTrade(4840, 24), 34);
+});
