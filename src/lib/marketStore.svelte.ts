@@ -104,6 +104,10 @@ class MarketStore {
   editing = new Set<string>();
   /** A repricing pass in progress. Kept apart from `op` so a quick edit can't end a pass early. */
   pass = $state<string | null>(null);
+  /** How far the pass is: listings gone through (book read, failed or skipped) of those it will look at. */
+  passProgress = $state<{ done: number; total: number } | null>(null);
+  /** The pass running was started by hand (Check prices, Reprice), not by the timer. */
+  passManual = $state(false);
   get busy(): string | null {
     return this.op ?? this.pass;
   }
@@ -440,8 +444,8 @@ class MarketStore {
    * Only one pass runs at a time; a pass that fails still counts as a pass, so the timer waits
    * its full interval instead of retrying every few seconds.
    */
-  async reprice(m: Model, s: MarketSettings, apply: boolean, timed = false) {
-    if (!this.linked || this.pass) return;
+  async reprice(m: Model, s: MarketSettings, apply: boolean, timed = false): Promise<PassSummary | null> {
+    if (!this.linked || this.pass) return null;
     // What Reprice was showing when you pressed it: a book read since can only move a price up
     // past what you approved, never further down (that waits for you to look again).
     const shown = new Map<string, number>();
@@ -450,6 +454,9 @@ class MarketStore {
       if (p?.change) shown.set(o.id, p.target);
     }
     this.pass = apply ? "Repricing" : "Checking prices";
+    this.passManual = !timed;
+    this.passProgress = null;
+    const summary: PassSummary = { changed: 0, failed: 0, off: 0, stopped: false, error: null };
     // A check on a timer reads every book at least once a round: never reuse one from before the last round.
     const checkTtl = Math.min(BOOK_TTL, Math.max(60_000, (s.every || 5) * 60_000 - 30_000));
     this.error = null;
@@ -472,71 +479,90 @@ class MarketStore {
       await this.ensureItems();
       if (!this.items.length) throw new Error("Couldn't load warframe.market's item list; nothing was checked");
       await this.refresh();
+      // What the pass goes through, for its progress: Reprice by hand counts the listings it was
+      // shown a change for; a check (or the timer) every listing it reads.
+      const looked = this.orders.filter((o) => o.visible && !s.paused[listingKey(o)] && (timed || !apply || shown.has(o.id)));
+      const counted = new Set(looked.map((o) => o.id));
+      let gone = 0;
+      this.passProgress = { done: 0, total: looked.length };
+      const tick = (id: string) => {
+        if (!counted.delete(id)) return;
+        this.passProgress = { done: ++gone, total: looked.length };
+      };
       for (const planned of this.orders) {
         // The list can change under a pass (you hid or edited something); act on the latest.
         const o = this.orders.find((x) => x.id === planned.id);
-        if (!o || !o.visible || s.paused[listingKey(o)]) continue;
+        if (!o || !o.visible || s.paused[listingKey(o)]) {
+          tick(planned.id);
+          continue;
+        }
         const it = this.item(o.itemId);
         if (!it) {
           skipped++;
+          tick(o.id);
           continue;
         }
+        // Counted once this listing is done with, however it ends.
         try {
-          await this.book(it.slug, apply ? APPLY_TTL : checkTtl);
-          read++;
-          failing = 0;
-        } catch (e) {
-          if (isAuthError(e)) throw e;
-          failed++;
-          if (++failing >= 3) {
-            stopped = true;
-            break;
-          }
-          continue;
-        }
-        const p = this.planFor(m, s, o);
-        if (!p?.change || !apply) continue;
-        const now = this.orders.find((x) => x.id === o.id);
-        if (!now || !now.visible || now.platinum !== o.platinum) continue;
-        // You're editing or removing something right now: leave the listings alone this pass
-        // rather than race your change (the next pass picks them up).
-        if (this.op || this.editing.has(o.id)) {
-          deferred++;
-          continue;
-        }
-        // Settings can change during a long pass: Apply automatically turned off, this listing paused.
-        if ((timed && !s.auto) || s.paused[listingKey(o)]) continue;
-        if (!timed) {
-          const was = shown.get(o.id);
-          if (was == null) {
-            unseen++;
+          try {
+            await this.book(it.slug, apply ? APPLY_TTL : checkTtl);
+            read++;
+            failing = 0;
+          } catch (e) {
+            if (isAuthError(e)) throw e;
+            failed++;
+            if (++failing >= 3) {
+              stopped = true;
+              break;
+            }
             continue;
           }
-          if (p.target < was) {
-            moved++;
+          const p = this.planFor(m, s, o);
+          if (!p?.change || !apply) continue;
+          const now = this.orders.find((x) => x.id === o.id);
+          if (!now || !now.visible || now.platinum !== o.platinum) continue;
+          // You're editing or removing something right now: leave the listings alone this pass
+          // rather than race your change (the next pass picks them up).
+          if (this.op || this.editing.has(o.id)) {
+            deferred++;
             continue;
           }
-        } else if (p.target < o.platinum / 2) {
-          // More than halving a price is never done unattended: it waits for you to press Reprice.
-          held++;
-          this.note(`${it.name}${o.rank != null ? ` R${o.rank}` : ""}: would go from ${o.platinum}p to ${p.target}p; left for you to check (Reprice)`, "warn");
-          continue;
-        }
-        try {
-          await market.update(o.id, { platinum: p.target });
-          writeFailing = 0;
-          changed++;
-          const why = p.reason === "floor" ? `held at your floor (${p.floor}p)` : `cheapest in game: ${p.competitor.cheapest?.name ?? "?"}`;
-          this.note(`${it.name}${o.rank != null ? ` R${o.rank}` : ""}: ${o.platinum}p → ${p.target}p, ${why}`, "ok");
-        } catch (e) {
-          if (isAuthError(e)) throw e;
-          failed++;
-          this.note(`${it.name}: couldn't update (${clean(e)})`, "warn");
-          // Refused again and again (an outage): stop sending changes this pass.
-          if (++writeFailing >= WRITE_FAILS) {
-            stopped = true;
-            break;
+          // Settings can change during a long pass: Apply automatically turned off, this listing paused.
+          if ((timed && !s.auto) || s.paused[listingKey(o)]) continue;
+          if (!timed) {
+            const was = shown.get(o.id);
+            if (was == null) {
+              unseen++;
+              continue;
+            }
+            if (p.target < was) {
+              moved++;
+              continue;
+            }
+          } else if (p.target < o.platinum / 2) {
+            // More than halving a price is never done unattended: it waits for you to press Reprice.
+            held++;
+            this.note(`${it.name}${o.rank != null ? ` R${o.rank}` : ""}: would go from ${o.platinum}p to ${p.target}p; left for you to check (Reprice)`, "warn");
+            continue;
           }
+          try {
+            await market.update(o.id, { platinum: p.target });
+            writeFailing = 0;
+            changed++;
+            const why = p.reason === "floor" ? `held at your floor (${p.floor}p)` : `cheapest in game: ${p.competitor.cheapest?.name ?? "?"}`;
+            this.note(`${it.name}${o.rank != null ? ` R${o.rank}` : ""}: ${o.platinum}p → ${p.target}p, ${why}`, "ok");
+          } catch (e) {
+            if (isAuthError(e)) throw e;
+            failed++;
+            this.note(`${it.name}: couldn't update (${clean(e)})`, "warn");
+            // Refused again and again (an outage): stop sending changes this pass.
+            if (++writeFailing >= WRITE_FAILS) {
+              stopped = true;
+              break;
+            }
+          }
+        } finally {
+          tick(o.id);
         }
       }
       if (skipped) this.note(`${skipped} listing${skipped === 1 ? "" : "s"} skipped: item not in warframe.market's list`, "warn");
@@ -546,8 +572,12 @@ class MarketStore {
       if (stopped) this.note("warframe.market stopped answering, so this pass stopped early; the rest are checked next pass", read ? "warn" : tone());
       else if (failed) this.note(`${failed} listing${failed === 1 ? "" : "s"} couldn't be checked; trying again next pass`, read ? "warn" : tone());
       if (apply && !changed && !failed && !skipped && !deferred && !held && !moved && !unseen) this.note("Prices checked: everything already matches", "info");
+      summary.changed = changed;
+      summary.failed = failed;
+      summary.stopped = stopped;
       if (!apply) {
         const off = this.orders.filter((o) => o.visible && this.planFor(m, s, o)?.change).length;
+        summary.off = this.orders.filter((o) => o.visible && !s.paused[listingKey(o)] && this.planFor(m, s, o)?.change).length;
         const checked = this.orders.filter((o) => o.visible && this.planFor(m, s, o)).length;
         this.note(
           off
@@ -566,6 +596,7 @@ class MarketStore {
       }
     } catch (e) {
       this.error = clean(e);
+      summary.error = clean(e);
       if (isAuthError(e) && this.account) {
         this.note(clean(e), "warn");
         // Signed out on warframe.market's side: stop acting until you sign in again.
@@ -580,7 +611,10 @@ class MarketStore {
       // runs every N minutes too, not on every tick.
       if (apply || timed) this.lastPass = Date.now();
       this.pass = null;
+      this.passProgress = null;
+      this.passManual = false;
     }
+    return summary;
   }
 
   /** Opens the listing form for something from your collection, priced at the cheapest in-game seller. */
@@ -733,10 +767,10 @@ class MarketStore {
   }
 
   /**
-   * Hides or shows several listings, then reloads them once. Returns the ones warframe.market
-   * took; one it refuses is logged and left as it was.
+   * Hides or shows several listings, then reloads them once (unless `reread` is false). Returns
+   * the ones warframe.market took; one it refuses is logged and left as it was.
    */
-  async setShown(orders: MyOrder[], visible: boolean): Promise<MyOrder[]> {
+  async setShown(orders: MyOrder[], visible: boolean, reread = true): Promise<MyOrder[]> {
     const done: MyOrder[] = [];
     for (const o of orders) {
       try {
@@ -751,8 +785,24 @@ class MarketStore {
       }
     }
     // What was changed is returned even if this read fails: the caller records it either way.
-    if (done.length) await this.refresh().catch(() => {});
+    if (done.length && reread) await this.refresh().catch(() => {});
     return done;
+  }
+
+  /**
+   * Show all hidden, pressed on Orders: as one change you asked for (so the timer waits for it),
+   * saying how far it got. Returns how many warframe.market took.
+   */
+  async showHidden(orders: MyOrder[], step?: (done: number, total: number) => void): Promise<number> {
+    let shown = 0;
+    await this.guard("Showing hidden listings", async () => {
+      for (const [i, o] of orders.entries()) {
+        shown += (await this.setShown([o], true, false)).length;
+        step?.(i + 1, orders.length);
+      }
+      await this.refresh().catch(() => {});
+    });
+    return shown;
   }
 
   /** True when warframe.market took the change. */
@@ -768,9 +818,9 @@ class MarketStore {
    * recorded on your profile and the order lowered, or closed when that was all of it). The
    * listing changes on screen at once; if warframe.market refuses, it's put back.
    * Returns the sale to log, or null if it didn't go through. `quiet`: the caller tells you about
-   * a failure itself, so the log line doesn't notify too.
+   * a failure itself, so the log line doesn't notify too; `failed` gets the reason.
    */
-  async sold(o: MyOrder, n: number, { quiet = false }: { quiet?: boolean } = {}): Promise<Sale | null> {
+  async sold(o: MyOrder, n: number, { quiet = false, failed }: { quiet?: boolean; failed?: (reason: string) => void } = {}): Promise<Sale | null> {
     const name = this.item(o.itemId)?.name ?? "order";
     n = Math.max(1, Math.min(o.quantity, Math.round(n)));
     const before = this.orders;
@@ -784,6 +834,7 @@ class MarketStore {
       // Put it back unless something else changed the list meanwhile.
       if (this.orders.every((x) => before.some((b) => b.id === x.id))) this.orders = before;
       this.note(`${name}: couldn't mark it sold (${clean(e)})`, "warn", quiet);
+      failed?.(clean(e));
       if (isAuthError(e) && this.account) {
         this.error = clean(e);
         this.account = { ...this.account, profile: null, error: clean(e) };
@@ -858,9 +909,10 @@ class MarketStore {
     return ok;
   }
 
-  async remove(o: MyOrder) {
+  /** True when warframe.market took it down. */
+  async remove(o: MyOrder): Promise<boolean> {
     const name = this.item(o.itemId)?.name ?? "order";
-    await this.guard("Removing", async () => {
+    return this.guard("Removing", async () => {
       await market.remove(o.id);
       this.note(`Removed ${name}${o.rank != null ? ` R${o.rank}` : ""}`, "info");
       await this.refresh();
@@ -1197,6 +1249,20 @@ class MarketStore {
 
 const clean = (e: unknown) => String(e).replace(/^Error: /, "");
 const isAuthError = (e: unknown) => /refused the sign-in|Not signed in/i.test(String(e));
+
+/** How a repricing pass went, for the button that started it. */
+export interface PassSummary {
+  /** Prices sent. */
+  changed: number;
+  /** Order books that couldn't be read, and prices warframe.market refused. */
+  failed: number;
+  /** After a check: listings off the cheapest in-game price (Reprice would change them). */
+  off: number;
+  /** warframe.market stopped answering part way. */
+  stopped: boolean;
+  /** Why the whole pass failed, when it did. */
+  error: string | null;
+}
 
 export interface BuyDraft {
   itemId: string;

@@ -456,6 +456,8 @@
     const first = !repricing;
     repricing = { id: n.id, lines: all, done: repricing?.done ?? null };
     if (!running) settleRepriced();
+    // A pass you started by hand shows its progress on its own button: no "so far" pop-up.
+    if (running && mkt.passManual) return;
     if (quietNow("repriced")) return;
     if (typeof document !== "undefined" && document.hasFocus()) {
       if (settings.notifyOptions.toasts) toasts.push(n);
