@@ -4,6 +4,7 @@
   // preferred; a name orbiter can't place shows suggestions to pick. Archon shards and the Helminth
   // for warframes.
   import { tick } from "svelte";
+  import { scrim } from "../scrim";
   import type { Model } from "../../core/model";
   import type { CatalogItem } from "../../core/types";
   import { heldCount } from "../../core/model";
@@ -162,7 +163,7 @@
 {#each ["aura", "stance", "mod", "arcane"] as const as r (r)}<datalist id={listId(r)}>{#each names[r] as n (n)}<option value={n}></option>{/each}</datalist>{/each}
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="scrim" in:shade|global out:shade|global onclick={onclose}>
+<div class="scrim" use:scrim in:shade|global out:shade|global onclick={onclose}>
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="dialog" role="dialog" aria-modal="true" aria-label="{copy ? 'Edit a copy' : 'Edit the build'} for {item.name}" tabindex="-1" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} use:trap={{ onescape: onclose }} onclick={(e) => e.stopPropagation()}>
     <div class="register head">{copy ? "Edit a copy" : "Edit"} · {item.name}</div>

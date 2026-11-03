@@ -117,3 +117,12 @@ test("a page opened in the background works its rows out at once", () => {
   assert.equal(rows(), 42);
   stop();
 });
+
+test("background work starts only in an idle period with room, a second after the last click", async () => {
+  const { idleReady, QUIET_MS } = await import("../src/lib/pane.svelte");
+  assert.equal(idleReady(40, QUIET_MS + 1), true);
+  assert.equal(idleReady(40, 200), false, "just clicked: wait, another click may follow");
+  assert.equal(idleReady(10, QUIET_MS + 1), false, "no room left in this idle period");
+  assert.equal(idleReady(0, 0, 30, QUIET_MS, true), true, "the idle callback's own deadline passed");
+  assert.equal(idleReady(40, QUIET_MS + 1, 30, QUIET_MS, false, true), false, "a row still closing up on screen: after it");
+});

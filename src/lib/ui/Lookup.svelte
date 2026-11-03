@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { scrim } from "./scrim";
   // Ctrl+K: find anything by name from any page. Gear opens its details; a prime part its item's
   // details; a relic, mod or arcane opens its page searched for it; anything else warframe.market
   // trades opens Browse market searched for it. The best matches first: names
@@ -121,7 +122,7 @@
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="scrim" in:shade|global out:shade|global onclick={() => (open = false)}>
+  <div class="scrim" use:scrim in:shade|global out:shade|global onclick={() => (open = false)}>
     <div class="dialog" role="dialog" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} tabindex="-1" aria-modal="true" aria-label="Find anything" use:trap={{ onescape: () => (open = false) }} onclick={(e) => e.stopPropagation()}>
       <input bind:this={field} type="search" placeholder="Find an item, part, relic, mod or arcane…" bind:value={query} onkeydown={key} aria-controls="lookup-hits" aria-activedescendant={hits[at] ? `lk-${at}` : undefined} />
       {#if hits.length}

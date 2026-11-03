@@ -5,6 +5,7 @@
   // A Nox's Frame build code (NFB1:…, its "Copy build code") is unpacked here, with no network:
   // the part for this item, and what it couldn't carry over.
   import { tick } from "svelte";
+  import { scrim } from "../scrim";
   import type { Model } from "../../core/model";
   import type { CatalogItem } from "../../core/types";
   import { heldCount } from "../../core/model";
@@ -121,7 +122,7 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="scrim" in:shade|global out:shade|global onclick={onclose}>
+<div class="scrim" use:scrim in:shade|global out:shade|global onclick={onclose}>
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="dialog" role="dialog" aria-modal="true" aria-label="Paste a build for {item.name}" tabindex="-1" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} use:trap={{ onescape: onclose }} onclick={(e) => e.stopPropagation()}>
     <div class="register head">Paste a build · {item.name}</div>

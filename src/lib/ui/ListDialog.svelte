@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { scrim } from "./scrim";
   // The Sell form, over whatever page you're on: priced at the cheapest seller who is
   // in game right now, with the quantity set to what you can spare.
   import type { Model } from "../core/model";
@@ -114,7 +115,7 @@
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="scrim" in:shade|global out:shade|global onclick={() => mkt.closeDraft()}>
+  <div class="scrim" use:scrim in:shade|global out:shade|global onclick={() => mkt.closeDraft()}>
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="dialog" role="dialog" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} tabindex="-1" aria-modal="true" aria-label="Sell on warframe.market" use:trap={{ onescape: () => mkt.closeDraft() }} onclick={(e) => e.stopPropagation()}>
       <div class="register head">Sell on warframe.market</div>

@@ -68,6 +68,8 @@
   } from "./lib/backend";
   import { persistSettings } from "./lib/persist.svelte";
   import { catchUp, setShownPage, whenIdle } from "./lib/pane.svelte";
+  import { inBackground } from "./lib/progress.svelte";
+  import { afterPaint } from "./lib/ui/soon";
   import { backoff, handLoggedSale, keepSeen, thinHistory } from "./lib/core/upkeep";
   import Parts from "./lib/tabs/Parts.svelte";
   // Pages opened now and then load when first opened, so the app starts on less: Home, Orders,
@@ -171,6 +173,20 @@
     document.documentElement.toggleAttribute("data-details", settings.details);
   });
 
+  // A page picked in the sidebar lights there at once; the page itself is shown a frame later
+  // (ui/soon.ts), so drawing it doesn't hold up the press.
+  let navTo = $state<string | null>(null);
+  let navCancel: (() => void) | null = null;
+  function navigate(id: string) {
+    navCancel?.();
+    if (id === settings.tab) return void (navTo = null);
+    navTo = id;
+    navCancel = afterPaint(() => {
+      navCancel = null;
+      navTo = null;
+      settings.tab = id;
+    });
+  }
   // Pages stay mounted once opened, so filters, sorting and scroll survive switching tabs.
   let visited = $state<Record<string, boolean>>({});
   $effect(() => {
@@ -178,22 +194,35 @@
   });
   // Once the app is idle after starting, open the other pages in the background one at a time, so
   // the first visit to each is as quick as switching back to it. Rivens waits for a visit: opening
-  // it asks warframe.market for its riven list.
+  // it asks warframe.market for its riven list. Each page is a slice of its own, in a quiet moment
+  // (no click for a second, lib/pane.svelte.ts), its lists drawn a few rows at first
+  // (lib/progress.svelte.ts); a page loaded on demand has its code fetched first and is drawn in a
+  // later slice, so its arrival doesn't land on top of another page's first draw.
   let warmed = false;
+  const lazyPages: Partial<Record<string, () => Promise<unknown>>> = {
+    sets: loadSets, mastery: loadMastery, arcanes: loadArcanes, mods: loadMods, planner: loadPlanner, sales: loadSales,
+    guide: loadGuide, browse: loadMarket, stats: loadStats, wishlist: loadWishlist,
+  };
   $effect(() => {
     if (!model || warmed) return;
     warmed = true;
     const queue = available.map((p) => p.id).filter((id) => id !== "rivens");
-    const idle = (f: () => void) =>
-      "requestIdleCallback" in window ? window.requestIdleCallback(f, { timeout: 3000 }) : setTimeout(f, 250);
     const next = () => {
       const id = queue.shift();
       if (!id) return;
-      if (!visited[id]) visited[id] = true;
-      if (model && !drawn[id]) drawn = { ...drawn, [id]: model };
-      idle(next);
+      if (visited[id]) return void whenIdle(next);
+      const load = lazyPages[id];
+      const draw = () => {
+        inBackground(() => {
+          if (!visited[id]) visited[id] = true;
+          if (model && !drawn[id]) drawn = { ...drawn, [id]: model };
+        });
+        whenIdle(next);
+      };
+      if (load) load().then(() => whenIdle(draw), () => whenIdle(next));
+      else draw();
     };
-    setTimeout(() => idle(next), 1500);
+    setTimeout(() => whenIdle(next), 1500);
   });
 
   let settings = $state<Settings>(defaultSettings());
@@ -400,8 +429,10 @@
     const id = stale.values().next().value;
     if (id == null) return;
     stale.delete(id);
-    if (model && drawn[id] !== model) drawn = { ...drawn, [id]: model };
-    catchUp(id);
+    inBackground(() => {
+      if (model && drawn[id] !== model) drawn = { ...drawn, [id]: model };
+      catchUp(id);
+    });
     if (stale.size) catching = whenIdle(catchUpOne);
   }
   $effect(() => {
@@ -2345,7 +2376,7 @@
     </div>
 
     {#snippet navItem(p: Page)}
-      <button class="nav" class:on={settings.tab === p.id} data-section={p.group || undefined} title={shortcutOf(p.id) ? `${p.label}: ${p.hint} (${shortcutOf(p.id)})` : `${p.label}: ${p.hint}`} aria-current={settings.tab === p.id ? "page" : undefined} onclick={() => (settings.tab = p.id)}>
+      <button class="nav" class:on={(navTo ?? settings.tab) === p.id} data-section={p.group || undefined} title={shortcutOf(p.id) ? `${p.label}: ${p.hint} (${shortcutOf(p.id)})` : `${p.label}: ${p.hint}`} aria-current={settings.tab === p.id ? "page" : undefined} onclick={() => navigate(p.id)}>
         <span class="ic">{#if "game" in p.icon}<GameIcon name={p.icon.game} size={20} />{:else}<Icon name={p.icon.line} size={18} stroke={1.5} />{/if}</span>
         <span class="lbl">{p.label}</span>
         {#if p.id === "mission" && inFissure(mission, tick)}<span class="live" title="Fissure in progress"></span>{/if}
