@@ -366,10 +366,10 @@
       return {
         key: r.id,
         name: r.weapon,
-        sub: `${r.name} · ${r.rerolls ? `${r.rerolls} cycle${r.rerolls === 1 ? "" : "s"}` : "unrolled"}`,
+        sub: r.name,
         value: g.v == null ? null : Math.round(g.v),
         grade: r.grade,
-        title: `${r.weapon} ${r.name}: grade ${r.grade}, its stats rolled ${r.quality == null ? "?" : Math.round(r.quality * 100)}% of the way up their ranges on average. ${g.v == null ? "No price yet" : `About ${Math.round(g.v).toLocaleString("en")}p`}: ${g.how}. Click for its card`,
+        title: `${r.weapon} ${r.name} (${r.rerolls ? `${r.rerolls} cycle${r.rerolls === 1 ? "" : "s"}` : "unrolled"}): grade ${r.grade}, its stats rolled ${r.quality == null ? "?" : Math.round(r.quality * 100)}% of the way up their ranges on average. ${g.v == null ? "No price yet" : `About ${Math.round(g.v).toLocaleString("en")}p`}: ${g.how}. Click for its card`,
         open: () => (opened = r),
         image: r.image,
         look: "riven",

@@ -100,7 +100,7 @@
       return {
         key: r.name,
         name: r.parentName,
-        sub: w ? `${part} · ×${w.copies} to sell` : `${part} · ×${r.quantity} held · each`,
+        sub: w ? `${part} · ×${w.copies}` : `${part} · ×${r.quantity} held`,
         value: Math.round(value),
         title: w ? `${r.name}: ${w.copies} loose to sell at about ${Math.round(w.each)}p, ${Math.round(value).toLocaleString("en")}p in all (no more than the market sells in a month: its part of Worth selling). Click for its details` : `${r.name}: ${Math.round(value)}p each, ${r.quantity} held. Click for its details`,
         open: () => (opened = r),

@@ -124,7 +124,7 @@
       return {
         key: r.unique,
         name: r.name,
-        sub: w ? `×${w.copies} to sell · ${r.type}` : `×${r.copies} held · ${r.priceMax != null ? `R${r.maxRank}, each` : "each"}`,
+        sub: w ? `×${w.copies} to sell` : `×${r.copies} held · ${r.priceMax != null ? `R${r.maxRank}, each` : "each"}`,
         value: Math.round(value),
         title: w ? `${r.name}: ${w.copies} marked Sell, ${Math.round(value).toLocaleString("en")}p in all (maxed copies at the max-rank price, loose ones at their share; no more than the market sells in a month: its part of Worth selling). Click for its details` : `${r.name}: ${Math.round(value)}p each${r.priceMax != null ? ` at R${r.maxRank}` : ""}, ${r.copies} held. Click for its details`,
         open: () => openShelf(r),

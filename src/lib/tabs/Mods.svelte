@@ -89,7 +89,7 @@
       return {
         key: r.unique,
         name: r.name,
-        sub: w ? `×${w.copies.toLocaleString("en")} spare · ${r.rarity || "mod"}` : `×${r.total} held · ${r.priceMax != null ? "maxed, each" : "each"}`,
+        sub: w ? `×${w.copies.toLocaleString("en")} spare` : `×${r.total} held · ${r.priceMax != null ? "maxed, each" : "each"}`,
         value: Math.round(value),
         title: w ? `${r.name}: ${w.copies} spare at about ${Math.round(w.each)}p, ${Math.round(value).toLocaleString("en")}p in all (no more than the market sells in a month: its part of Worth selling). Click for its details` : `${r.name}: ${Math.round(value)}p each${r.priceMax != null ? " maxed" : ""}, ${r.total} held. Click for its details`,
         open: () => (opened = r),

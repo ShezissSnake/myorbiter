@@ -122,7 +122,9 @@
   let opened = $state<InventoryItem | null>(null);
   const shelfRows = $derived(kind === "all" ? all : all.filter((r) => r.kind === kind));
   const shelfKey = (r: InventoryItem) => `${r.kind}|${shown(r)}`;
-  const shelf = $derived(pickShowcase(shelfRows, { spare: (r) => full.rows.get(r.key)?.spare ?? null, held: (r) => priceOf(r), name: shown, key: shelfKey }));
+  /** With nothing spare, what a thing you hold is worth: its price, or for built gear (which can't be traded) its set's. */
+  const heldWorth = (r: InventoryItem) => priceOf(r) ?? (r.kind === "gear" ? model.price(`${r.name} Set`) : null);
+  const shelf = $derived(pickShowcase(shelfRows, { spare: (r) => full.rows.get(r.key)?.spare ?? null, held: heldWorth, name: shown, key: shelfKey }));
   const imageFor = (r: InventoryItem) => model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r));
   const exhibits = $derived(
     shelf.items.map(({ row: r, value }): Exhibit => {
@@ -134,9 +136,9 @@
       return {
         key: shelfKey(r),
         name: shown(r),
-        sub: spares ? `×${spareN.toLocaleString("en")} spare · ${spareOf(r)?.type ?? r.type}` : `×${heldN.toLocaleString("en")} held · each`,
+        sub: spares ? `×${spareN.toLocaleString("en")} spare · ${spareOf(r)?.type ?? r.type}` : priceOf(r) == null ? `${r.type} · its set` : `×${heldN.toLocaleString("en")} held · each`,
         value: Math.round(value),
-        title: spares ? `${shown(r)}: ${spareN.toLocaleString("en")} spare, about ${Math.round(value).toLocaleString("en")}p (no more than the market sells in a month: its part of Spare value). Click for its details` : `${shown(r)}: ${Math.round(value).toLocaleString("en")}p each, ${heldN.toLocaleString("en")} held. Click for its details`,
+        title: spares ? `${shown(r)}: ${spareN.toLocaleString("en")} spare, about ${Math.round(value).toLocaleString("en")}p (no more than the market sells in a month: its part of Spare value). Click for its details` : priceOf(r) == null ? `${shown(r)}: built gear can't be traded; its set sells for ${Math.round(value).toLocaleString("en")}p. Click for its details` : `${shown(r)}: ${Math.round(value).toLocaleString("en")}p each, ${heldN.toLocaleString("en")} held. Click for its details`,
         open: () => (r.kind === "gear" && c ? details.open(r.unique) : (opened = r)),
         image: imageFor(r),
         look: r.kind === "mod" ? "mod" : r.kind === "arcane" ? "arcane" : "art",
@@ -262,9 +264,9 @@
     {#snippet hero()}
       <Showcase
         items={exhibits}
-        caption={shelf.mode === "held" ? `Nothing spare${kind === "all" ? "" : ` in ${KIND_LABEL}`}: your dearest` : kind === "all" ? "Your most valuable spares" : `Your most valuable spare ${KIND_LABEL}`}
-        note={shelf.mode === "held" ? "Each, at the daily median · click one for its details" : "By what they'd sell for (Spare value) · click one for its details"}
-        empty={all.length ? `No ${KIND_LABEL} with a market price.` : "Nothing read yet: press Sync while Warframe is running, and your gear goes on display here."}
+        caption={shelf.mode === "empty" ? (kind === "all" ? "Your inventory" : `Your ${KIND_LABEL}`) : shelf.mode === "held" ? (kind === "all" ? "Nothing spare: your dearest" : `No spare ${KIND_LABEL}: your dearest`) : kind === "all" ? "Your most valuable spares" : `Your most valuable spare ${KIND_LABEL}`}
+        note={shelf.mode === "empty" ? "" : shelf.mode === "held" ? (kind === "gear" ? "By what its set sells for · click one for its details" : "Each, at the daily median · click one for its details") : "By what they'd sell for (Spare value) · click one for its details"}
+        empty={all.length ? `Nothing here with a market price: ${KIND_LABEL} that trade on warframe.market go on display.` : "Nothing read yet: press Sync while Warframe is running, and your gear goes on display here."}
       />
     {/snippet}
     {#snippet band()}
