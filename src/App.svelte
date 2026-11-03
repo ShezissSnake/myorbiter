@@ -1612,6 +1612,7 @@
     const go = (id: string) => {
       e.preventDefault();
       settings.tab = id;
+      focusPage(document.activeElement);
     };
     if (ctrl && /^[1-9]$/.test(e.key) && ORDER[Number(e.key) - 1]) return go(ORDER[Number(e.key) - 1]);
     if (ctrl && (e.key === "PageDown" || e.key === "PageUp" || e.key === "Tab")) {
@@ -1640,6 +1641,25 @@
       e.preventDefault();
       showSettings = true;
     }
+  }
+  /**
+   * After a page switch by keyboard (or Skip to page): the focus on the page's title, so the next
+   * Tab is in the page rather than back in the sidebar. A page still loading gets a moment; the
+   * focus stays put if you've moved it meanwhile.
+   */
+  function focusPage(from: Element | null, tries = 20) {
+    setTimeout(() => {
+      const now = document.activeElement;
+      if (now && now !== from && now !== document.body && now.getClientRects().length) return;
+      const title = document.querySelector<HTMLElement>(".pane.shown h1");
+      if (!title) {
+        if (tries > 0) focusPage(from, tries - 1);
+        else document.querySelector<HTMLElement>("main")?.focus({ preventScroll: true });
+        return;
+      }
+      if (!title.hasAttribute("tabindex")) title.setAttribute("tabindex", "-1");
+      title.focus({ preventScroll: true });
+    }, 50);
   }
   /** No web-page menu (Back, Reload…) on right-click; text fields and selected text keep theirs. */
   function onContextMenu(e: MouseEvent) {
@@ -1912,7 +1932,16 @@
     const tab = settings.tab;
     const n = navEl;
     if (!n) return;
-    queueMicrotask(() => n.querySelector<HTMLElement>(".nav.on")?.scrollIntoView({ block: "nearest" }));
+    // By hand: scrollIntoView would also move where the next Tab starts, past Skip to page.
+    queueMicrotask(() => {
+      const on = n.querySelector<HTMLElement>(".nav.on")?.getBoundingClientRect();
+      const box = n.getBoundingClientRect();
+      const css = getComputedStyle(n);
+      const top = box.top + (parseFloat(css.scrollPaddingTop) || 0);
+      const bottom = box.bottom - (parseFloat(css.scrollPaddingBottom) || 0);
+      if (on && on.top < top) n.scrollTop -= top - on.top;
+      else if (on && on.bottom > bottom) n.scrollTop += on.bottom - bottom;
+    });
     void tab;
   });
   const checkNav = () => {
@@ -1933,6 +1962,8 @@
 
 <svelte:window onkeydown={onKey} oncontextmenu={onContextMenu} bind:innerWidth={width} />
 
+<!-- Keyboard: the first Tab offers to jump past the sidebar to the page. -->
+<a class="skip" href="#main" title="Jump past the sidebar to this page's title" onclick={(e) => { e.preventDefault(); focusPage(document.activeElement, 0); }}>Skip to page</a>
 <div class="shell" class:compact class:withside={sideShown}>
   <aside class="rail" aria-label="orbiter">
     <div class="brand">
@@ -1991,7 +2022,7 @@
     </div>
   </aside>
 
-  <main aria-busy={loading && !bundle} use:room>
+  <main id="main" tabindex="-1" aria-busy={loading && !bundle} use:room>
     <!-- The first read of TennoScope's data, before there's anything to show. Everything after
          that (a sync, a warframe.market change, the background re-read when TennoScope writes)
          shows its progress in the button that started it, not up here. -->
@@ -2175,7 +2206,12 @@
   .sidetab:hover { color: var(--gold); }
   .pane { display: none; flex: 1; min-height: 0; min-width: 0; flex-direction: column; }
   .pane.shown { display: flex; }
-  main { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+  main { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; outline: none; }
+  /* Out of sight until the keyboard lands on it. */
+  .skip { position: fixed; z-index: 80; top: .5rem; left: .5rem; padding: .55rem .9rem; background: var(--plate); color: var(--platinum); border: 1px solid var(--gold); font-size: .85rem; transform: translateY(calc(-100% - 1rem)); }
+  .skip:focus { transform: none; }
+  /* A page's title takes the focus after a keyboard page switch: no ring on it (Home's too). */
+  .pane :global(h1:focus) { outline: none; }
   .progress { position: absolute; top: 0; left: 0; right: 0; height: 2px; z-index: 5; overflow: hidden; pointer-events: none; background: rgb(214 174 74 / 12%); }
   .progress::after { content: ""; position: absolute; top: 0; bottom: 0; width: 30%; background: linear-gradient(90deg, transparent, var(--gold), transparent); animation: sweep 1.1s ease-in-out infinite; }
   @keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(340%); } }

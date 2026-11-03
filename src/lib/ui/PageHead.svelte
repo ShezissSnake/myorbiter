@@ -9,7 +9,8 @@
 <header class="head">
   <div>
     <span class="orn" aria-hidden="true"><i></i></span>
-    <h1 class="mark">{title}</h1>
+    <!-- tabindex -1: a page switch by keyboard puts the focus here (App.svelte, focusPage). -->
+    <h1 class="mark" tabindex="-1">{title}</h1>
   </div>
   <div class="side">
     {#if blurb}<p class="prose" title={blurb}>{blurb}</p>{/if}
@@ -25,6 +26,8 @@
   }
   /* Struck large, but not so large the page starts halfway down a laptop screen. */
   h1 { font-size: clamp(2.3rem, 4.2vw, 3.7rem); }
+  /* Focused only to start the page there: no ring on a title you can't press. */
+  h1:focus { outline: none; }
   /* At most two lines, so a long one doesn't push the title down (the whole of it on hover). */
   .head .prose { margin: 0; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   /* Details off: one line, the rest on hover. */
