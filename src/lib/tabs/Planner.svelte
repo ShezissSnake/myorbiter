@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { arrive } from "../motion";
+  import { arrive, fresh } from "../motion";
   import Count from "../ui/Count.svelte";
   import PTick from "../ui/PTick.svelte";
   import Fold from "../ui/Fold.svelte";
@@ -236,7 +236,7 @@
   </div>
 
   {#if drawnSets}
-    <div class="view" class:off={mode !== "sets"}>
+    <div class="view swap" class:off={mode !== "sets"} use:fresh={mode === "sets"} in:arrive={{ y: 0 }}>
       <div class="sets-table"><Table rows={setsRows} columns={crackCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortSets} clear={setsAnyFilter ? clear : null} empty="None of your relics drop a missing part." /></div>
       {#if setsLast.length}
         <h2 class="register">One part from a complete set, and your relics drop it</h2>
@@ -249,7 +249,7 @@
     </div>
   {/if}
   {#if drawnRadiant}
-    <div class="view" class:off={mode !== "radiant"}>
+    <div class="view swap" class:off={mode !== "radiant"} use:fresh={mode === "radiant"} in:arrive={{ y: 0 }}>
       <Table rows={radRows} columns={radCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortRad} clear={radAnyFilter ? clear : null} empty="No relics left to refine." />
     </div>
   {/if}
