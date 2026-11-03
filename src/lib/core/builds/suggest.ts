@@ -15,6 +15,19 @@
 // Every suggestion says it is orbiter's (`source: "orbiter"`), gives a one-line reason per slot,
 // and ends with an honest note.
 //
+// Optional fields a page can render (all backwards compatible; absent means "nothing to show"):
+//  - `loadout` (warframes): shards, helminth, weapons, arcanes, companion, focus, note, and
+//     - `loadout.shards`: always Tauforged, at every tier so the list stays short and current. A pick's `fuse` says how
+//       to turn the plain shards the player holds of that colour into Tauforged ones (Ascent Fusion).
+//     - `loadout.element`: the element the frame's kit deals and the shard colour that feeds on it.
+//     - `loadout.primer`: a companion that primes enemies with status, picked by the kit's element,
+//       with its precept, and for a robotic one a bond mod and a companion weapon. You bring one
+//       companion: this is the alternative to `loadout.companion` when status matters.
+//     - `loadout.sets`: mod sets that fit the frame's role. Each `set` is {name, pieces: [{name,
+//       path, slotKind, owned, aura?, replaces?}], bonus, reason, cost, companion?, tier, source}.
+//       `slotKind` is where the piece goes: warframe (aura: true for the aura slot), primary,
+//       secondary, melee, companion (the companion itself) or companionWeapon (a beast's claws).
+//
 // Shapes: the minimal Build fields used here are declared locally below (the same names as
 // ./types's Build). `toBuild` is the one place that turns a Suggestion into a saved Build;
 // switching to ./types means replacing the local block with
@@ -114,12 +127,58 @@ export interface LoadoutPick {
   stat?: string;
   ability?: string;
   replaces?: string;
+  /** Shards: how to make Tauforged ones from the plain ones of this colour you hold. */
+  fuse?: string;
 }
+
+/** Where a set piece goes. */
+export type SlotKind = "warframe" | "primary" | "secondary" | "melee" | "companion" | "companionWeapon";
+
+/** One piece of a mod set. */
+export interface SetPiece {
+  name: string;
+  path?: string;
+  slotKind: SlotKind;
+  /** The aura slot (a warframe piece). */
+  aura?: boolean;
+  /** The plain mod a frame piece stands in for. */
+  replaces?: string;
+  owned: boolean;
+}
+
+/** A mod set that fits the frame, with what it costs. */
+export interface SetPick {
+  name: string;
+  pieces: SetPiece[];
+  bonus: string;
+  reason: string;
+  /** The slots it takes ("4 Warframe slots, 2 secondary slots"). */
+  cost: string;
+  /** The companion the set bonus needs, if any. */
+  companion?: { name: string; path: string; owned: boolean | null };
+  /** medium: you hold every piece (and the companion); high: something to get. */
+  tier: Tier;
+  source: string;
+}
+
+/** The element a frame's kit deals, and the Archon Shard stat that feeds on it (if any). */
+export interface KitElement {
+  element: Element;
+  ability: string;
+  colour: ShardColour | null;
+  stat: string | null;
+  /** Where orbiter read it: the catalog's ability text, or the page for a curated frame. */
+  source: string;
+  /** For an element no shard feeds. */
+  note?: string;
+}
+export type Element = "electricity" | "corrosive" | "toxin" | "radiation" | "heat" | "cold" | "blast" | "viral";
 
 /**
  * What goes around a warframe build, by tier. Low: only what costs nothing extra (a Focus school,
- * a companion and support weapon you already hold). Medium: also Archon Shards, the Helminth and
- * the arcanes you hold. High: also Tauforged shards and what you'd still have to get.
+ * a companion, primer and support weapon you already hold). Medium: also Tauforged Archon Shards,
+ * the Helminth, the arcanes you hold and sets you hold every piece of. High: also what you'd still
+ * have to get. Shards are always Tauforged, never plain.
  */
 export interface Loadout {
   shards: LoadoutPick[];
@@ -129,6 +188,12 @@ export interface Loadout {
   companion: LoadoutPick[];
   focus: LoadoutPick | null;
   note: string;
+  /** The kit's element and the shard colour that feeds on it. */
+  element?: KitElement | null;
+  /** A companion that primes status, instead of `companion` (you bring one). */
+  primer?: LoadoutPick[];
+  /** Mod sets that fit the frame's role (medium: all held; high: to get). */
+  sets?: SetPick[];
 }
 
 /** Everything the inventory holds, by path (no "#rank"): quantities summed over ranks. */
@@ -1290,8 +1355,37 @@ interface Named {
 }
 type Need = "strength" | "energy" | "efficiency" | "duration";
 type School = "Zenurik" | "Vazarin" | "Madurai";
+interface SetDef {
+  pieces: { name: string; slot: SlotKind; aura?: boolean; replaces?: string }[];
+  bonus: string;
+  companion?: "kubrow" | "charger" | "beast";
+  fit: SetFit | null;
+  why: string;
+  source: string;
+}
+type SetFit = "shieldGate" | "statusKit" | "healthTank" | "spamTank";
+interface PrimerDef {
+  items: Named[];
+  mod: string;
+  element: Element;
+  effect: string;
+  source: string;
+  bond?: { name: string; effect: string; source: string };
+  weapon?: { items: Named[]; mod: string; effect: string; source: string };
+}
 interface Synergies {
-  shards: { source: string; slots: number; tauforgedNote: string; stats: ShardStat[] };
+  shards: {
+    source: string;
+    slots: number;
+    tauforgedNote: string;
+    stats: ShardStat[];
+    fusion: { name: string; ratio: number; cost: string; needs: string; since: string; effect: string; source: string };
+    elements: Record<Element, { colour: ShardColour | null; stat: string | null; note?: string }>;
+  };
+  kitElements: Record<string, { element: Element; ability: string; source: string }>;
+  shieldGating: { frames: string[]; source: string; note: string };
+  sets: Record<string, SetDef>;
+  primers: Record<string, PrimerDef>;
   helminth: { frames: Record<string, { ability: string; replaces: string; from: string | null; fromPath: string | null; alt: string; why: string; source: string }> };
   grimoire: { name: string; path: string; note: string; source: string; invocations: Record<Need, { name: string; effect: string; source: string }> };
   kitgun: { name: string; on: string; effect: string; note: string; source: string };
@@ -1315,20 +1409,57 @@ const SHARD_NAME: Record<ShardColour, string> = { crimson: "Crimson", azure: "Az
 const TIER_RANK: Record<Tier, number> = { low: 0, medium: 1, high: 2 };
 const atLeast = (tier: Tier, from: Tier) => TIER_RANK[tier] >= TIER_RANK[from];
 
-/** The element the kit applies, from the catalog's ability text, for the shard that feeds on it. */
-function kitElement(item: CatalogItem): { stat: string; why: string } | null {
+const TAG_ELEMENT: Record<string, Element> = {
+  DT_CORROSIVE_COLOR: "corrosive",
+  DT_ELECTRICITY_COLOR: "electricity",
+  DT_RADIATION_COLOR: "radiation",
+  DT_POISON_COLOR: "toxin",
+  DT_FIRE_COLOR: "heat",
+  DT_FREEZE_COLOR: "cold",
+  DT_EXPLOSION_COLOR: "blast",
+  DT_VIRAL_COLOR: "viral",
+};
+const baseName = (name: string) => name.replace(/\s+(Prime|Umbra)$/, "");
+
+/**
+ * The elements a frame's kit deals, in ability order: from the catalog's ability text tags
+ * (<DT_*_COLOR>), else from orbiter's curated list for frames the text doesn't tag (Ember, Gyre).
+ */
+export function kitElements(item: CatalogItem): KitElement[] {
   const abilities = ((item as { abilities?: { name?: string; description?: string }[] }).abilities ?? []).filter((a) => a.description);
-  const rules: [string, string, string][] = [
-    ["DT_CORROSIVE_COLOR", "Ability Damage on Corrosion-affected enemies", "Corrosive"],
-    ["DT_ELECTRICITY_COLOR", "Ability Damage on Electricity-affected enemies", "Electricity"],
-    ["DT_RADIATION_COLOR", "Ability Damage on Radiation-affected enemies", "Radiation"],
-    ["DT_POISON_COLOR", "Toxin Status Damage", "Toxin"],
-  ];
-  for (const [tag, stat, element] of rules) {
-    const by = abilities.find((a) => a.description!.includes(`<${tag}>`));
-    if (by) return { stat, why: `${by.name} deals ${element}, so this one feeds on the kit's own hits.` };
+  const out: KitElement[] = [];
+  const add = (element: Element, ability: string, source: string) => {
+    if (out.some((e) => e.element === element)) return;
+    const e = SYN.shards.elements[element];
+    out.push({ element, ability, colour: e?.colour ?? null, stat: e?.stat ?? null, source, ...(e?.note ? { note: e.note } : {}) });
+  };
+  for (const a of abilities) {
+    for (const m of a.description!.matchAll(/<(DT_[A-Z_]+)>/g)) {
+      const el = TAG_ELEMENT[m[1]];
+      if (el) add(el, a.name ?? "", "the catalog's ability text");
+    }
   }
-  return null;
+  if (!out.length) {
+    const c = SYN.kitElements[baseName(item.name)];
+    if (c) add(c.element, c.ability, c.source);
+  }
+  return out;
+}
+
+// The shard stats an element can feed, best first: ability damage, then Toxin's status damage.
+const SHARD_ELEMENT_ORDER: Element[] = ["corrosive", "electricity", "radiation", "toxin"];
+
+/** The kit element a shard feeds on, if any (Saryn's Corrosive Spores, Volt's Electricity). */
+export function shardElement(item: CatalogItem): KitElement | null {
+  const els = kitElements(item).filter((e) => e.stat);
+  return SHARD_ELEMENT_ORDER.map((el) => els.find((e) => e.element === el)).find((e) => !!e) ?? null;
+}
+
+function kitElement(item: CatalogItem): { stat: string; why: string } | null {
+  const e = shardElement(item);
+  if (!e) return null;
+  const name = { corrosive: "Corrosive", electricity: "Electricity", radiation: "Radiation", toxin: "Toxin" }[e.element as "corrosive"];
+  return { stat: e.stat!, why: `${e.ability} deals ${name}, so this one feeds on the kit's own hits.` };
 }
 
 /** The five shard stats for a frame, from its roles and flags. */
@@ -1367,25 +1498,35 @@ function shardPlan(item: CatalogItem, info: FrameInfo): { stat: string; why: str
 
 function shardPicks(item: CatalogItem, info: FrameInfo, tier: Tier, held: Held | null): LoadoutPick[] {
   if (!atLeast(tier, "medium")) return [];
-  const tauforged = tier === "high";
-  // Each shard you hold marks one pick: three picks of a colour with two held marks two.
+  // Tauforged only, at every tier: a plain shard is the same stat at two thirds of the value.
+  // Each Tauforged shard you hold marks one pick: three picks of a colour with two held marks two.
   const left = new Map<string, number>();
+  const f = SYN.shards.fusion;
+  // The fusion note goes on the first pick of a colour you don't hold, once.
+  const noted = new Set<ShardColour>();
   return shardPlan(item, info).map(({ stat, why }) => {
     const s = SYN.shards.stats.find((x) => x.stat === stat)!;
-    const path = SHARD_PATHS[s.colour] + (tauforged ? "Mythic" : "");
+    const path = SHARD_PATHS[s.colour] + "Mythic";
     const have = left.get(path) ?? held?.get(path) ?? 0;
     left.set(path, have - 1);
-    return {
-      name: `${tauforged ? "Tauforged " : ""}${SHARD_NAME[s.colour]} Archon Shard`,
+    const plain = held?.get(SHARD_PATHS[s.colour]) ?? 0;
+    const pick: LoadoutPick = {
+      name: `Tauforged ${SHARD_NAME[s.colour]} Archon Shard`,
       path,
       owned: held ? have > 0 : null,
-      reason: `${s.stat} ${tauforged ? s.tauforged : s.value}: ${why}${tauforged ? "" : ` Tauforged gives ${s.tauforged} (high tier).`}`,
-      tier: tauforged ? "high" : "medium",
+      reason: `${s.stat} ${s.tauforged}: ${why}`,
+      tier: "medium",
       source: SYN.shards.source,
       colour: s.colour,
-      tauforged,
+      tauforged: true,
       stat: s.stat,
     };
+    if (held && have <= 0 && plain > 0 && !noted.has(s.colour)) {
+      noted.add(s.colour);
+      const make = Math.floor(plain / f.ratio);
+      pick.fuse = `You hold ${plain} plain ${SHARD_NAME[s.colour]} shard${plain === 1 ? "" : "s"}: ${f.name} ${f.effect} (${f.ratio} for 1, ${f.cost}; needs ${f.needs}; since ${f.since}).${make ? ` Yours make ${make}.` : ` You need ${f.ratio - (plain % f.ratio)} more for one.`}`;
+    }
+    return pick;
   });
 }
 
@@ -1502,6 +1643,142 @@ function focusPick(info: FrameInfo): LoadoutPick {
   return { name: school, owned: null, reason: `${why} ${f.effect}`, tier: "low", source: f.source };
 }
 
+/** The primers a frame wants, best first: the one that applies the kit's own element, then Viral. */
+function primerOrder(item: CatalogItem, info: FrameInfo): string[] {
+  const roles = new Set(info.roles);
+  // Tanks and support frames don't live on status; their companion stays as it is.
+  if (info.roles[0] === "tank" || info.roles[0] === "efficiency") return [];
+  if (!roles.has("strength") && !roles.has("range")) return [];
+  const els = kitElements(item).map((e) => e.element);
+  const order: string[] = [];
+  if (els.includes("electricity")) order.push("Diriga");
+  if (els.includes("corrosive") || els.includes("toxin")) order.push("Helminth Charger");
+  order.push("Panzer Vulpaphyla", "Diriga", "Helminth Charger");
+  return order.filter((n, k) => order.indexOf(n) === k);
+}
+
+function primerPicks(item: CatalogItem, info: FrameInfo, tier: Tier, owned: Owned, held: Held | null, index: ModIndex): LoadoutPick[] {
+  const order = primerOrder(item, info);
+  if (!order.length) return [];
+  const heldItem = (items: Named[]) => items.find((x) => (held?.get(x.path) ?? 0) > 0) ?? null;
+  // Below the high tier, the best one you hold; at the high tier, the best one.
+  const pick = tier === "high" ? order[0] : order.find((c) => heldItem(SYN.primers[c].items)) ?? null;
+  if (!pick) return [];
+  const p = SYN.primers[pick];
+  const have = heldItem(p.items);
+  const it = have ?? p.items[0];
+  const why = (() => {
+    const kit = kitElements(item).find((e) => e.element === p.element || (p.element === "corrosive" && e.element === "toxin"));
+    const shard = shardElement(item);
+    if (kit && shard && (shard.element === p.element || (p.element === "corrosive" && shard.element === "toxin"))) return `It primes the ${p.element === "corrosive" ? "Corrosion and Toxin" : p.element} your kit deals (${kit.ability}), which the ${SHARD_NAME[shard.colour!]} shard feeds on.`;
+    if (kit) return `It primes the ${p.element} your kit deals (${kit.ability}) on enemies your abilities haven't reached yet.`;
+    return "Viral on everything near you, for a kit that deals damage.";
+  })();
+  const better = pick === order[0] ? "" : ` ${order[0]} suits it better (high tier).`;
+  const out: LoadoutPick[] = [
+    { name: it.name, path: it.path, owned: held ? !!have : null, reason: `Instead of the companion above, to prime status: ${why}${better}`, tier: have ? "low" : "high", source: p.source },
+  ];
+  const showRest = !!have || tier === "high";
+  if (!showRest) return out;
+  const modPick = (name: string, reason: string, source: string, on: string): LoadoutPick | null => {
+    const m = index.byName.get(name);
+    const has = !!m && owned.has(m.uniqueName);
+    if (!has && tier !== "high") return null;
+    return { name, path: m?.uniqueName, owned: has, reason, tier: has && have ? "low" : "high", source, on };
+  };
+  const precept = modPick(p.mod, p.effect, p.source, it.name);
+  if (precept) out.push(precept);
+  if (p.bond) {
+    const b = modPick(p.bond.name, `On ${it.name}: ${p.bond.effect}, so it spreads what your gun applies too.`, p.bond.source, it.name);
+    if (b) out.push(b);
+  }
+  if (p.weapon) {
+    const wHave = heldItem(p.weapon.items);
+    const w = wHave ?? p.weapon.items[0];
+    if (wHave || tier === "high") {
+      out.push({ name: w.name, path: w.path, owned: held ? !!wHave : null, reason: `${it.name}'s weapon: ${p.weapon.effect}.`, tier: wHave && have ? "low" : "high", source: p.weapon.source, on: it.name });
+      const wm = modPick(p.weapon.mod, `On ${it.name}: enemies it kills spread part of their status effects to enemies nearby.`, p.weapon.source, it.name);
+      if (wm) out.push(wm);
+    }
+  }
+  return out;
+}
+
+const KUBROW = /^\/Lotus\/Types\/Game\/KubrowPet\/(?!Charger)/;
+const BEAST = /^\/Lotus\/Types\/(Game\/(KubrowPet|CatbrowPet)|Friendly\/Pets\/CreaturePets)\//;
+// The Kubrows by name, so a page can say which of the player's the set uses (paths from the catalog).
+const KUBROWS: Named[] = [
+  { name: "Sunika Kubrow", path: "/Lotus/Types/Game/KubrowPet/HunterKubrowPetPowerSuit" },
+  { name: "Chesa Kubrow", path: "/Lotus/Types/Game/KubrowPet/RetrieverKubrowPetPowerSuit" },
+  { name: "Huras Kubrow", path: "/Lotus/Types/Game/KubrowPet/FurtiveKubrowPetPowerSuit" },
+  { name: "Raksa Kubrow", path: "/Lotus/Types/Game/KubrowPet/GuardKubrowPetPowerSuit" },
+  { name: "Sahasa Kubrow", path: "/Lotus/Types/Game/KubrowPet/AdventurerKubrowPetPowerSuit" },
+];
+const SET_COMPANION: Record<NonNullable<SetDef["companion"]>, { name: string; test: (path: string) => boolean; fallback: Named }> = {
+  kubrow: { name: "a Kubrow", test: (p) => KUBROW.test(p), fallback: KUBROWS[0] },
+  charger: { name: "the Helminth Charger", test: (p) => p === "/Lotus/Types/Game/KubrowPet/ChargerKubrowPetPowerSuit", fallback: { name: "Helminth Charger", path: "/Lotus/Types/Game/KubrowPet/ChargerKubrowPetPowerSuit" } },
+  beast: { name: "a beast companion", test: (p) => BEAST.test(p), fallback: { name: "Panzer Vulpaphyla", path: "/Lotus/Types/Friendly/Pets/CreaturePets/ArmoredInfestedCatbrowPetPowerSuit" } },
+};
+
+/** Whether a set's rule fits the frame. */
+function setFits(fit: SetFit, item: CatalogItem, info: FrameInfo): boolean {
+  const roles = new Set(info.roles);
+  switch (fit) {
+    case "shieldGate":
+      // Augur turns energy spent into shields: nothing for a frame that spends none (Hildryn).
+      return SYN.shieldGating.frames.includes(baseName(item.name)) && !info.noEnergy;
+    case "statusKit":
+      return info.roles[0] !== "tank" && (roles.has("strength") || roles.has("range")) && kitElements(item).length > 0;
+    case "healthTank":
+      return info.roles[0] === "tank" && !info.shields;
+    case "spamTank":
+      return roles.has("tank") && !info.shields && !!info.spam && !info.noEnergy;
+  }
+}
+
+const SLOT_WORD: Record<SlotKind, string> = { warframe: "Warframe", primary: "primary", secondary: "secondary", melee: "melee", companion: "companion", companionWeapon: "companion weapon" };
+
+/** At most two sets a frame, medium only when you hold every piece. */
+function setPicks(item: CatalogItem, info: FrameInfo, tier: Tier, owned: Owned, held: Held | null, index: ModIndex): SetPick[] {
+  if (!atLeast(tier, "medium")) return [];
+  const out: SetPick[] = [];
+  for (const [name, d] of Object.entries(SYN.sets)) {
+    if (name.startsWith("_") || !d.fit || !setFits(d.fit, item, info)) continue;
+    const pieces: SetPiece[] = d.pieces.map((p) => {
+      const m = index.byName.get(p.name);
+      return { name: p.name, path: m?.uniqueName, slotKind: p.slot, ...(p.aura ? { aura: true } : {}), ...(p.replaces ? { replaces: p.replaces } : {}), owned: !!m && owned.has(m.uniqueName) };
+    });
+    let companion: SetPick["companion"];
+    if (d.companion) {
+      const c = SET_COMPANION[d.companion];
+      const mine = held ? [...held.entries()].find(([path, n]) => n > 0 && c.test(path)) : undefined;
+      const known = [...KUBROWS, ...Object.values(SET_COMPANION).map((x) => x.fallback), ...SYN.companions["Smeeta Kavat"].items];
+      // The player's own first: a named one they hold, else any that fits.
+      const mineKnown = held ? known.find((x) => c.test(x.path) && (held.get(x.path) ?? 0) > 0) : undefined;
+      companion = mineKnown ? { ...mineKnown, owned: true } : mine ? { name: `your ${c.name.replace(/^an? |^the /, "")}`, path: mine[0], owned: true } : { name: c.fallback.name, path: c.fallback.path, owned: held ? false : null };
+    }
+    const all = pieces.every((p) => p.owned) && (!companion || companion.owned === true);
+    if (!all && tier !== "high") continue;
+    const counts = new Map<string, number>();
+    for (const p of pieces) {
+      const k = p.aura ? "the aura slot" : SLOT_WORD[p.slotKind];
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+    const swaps = pieces.filter((p) => p.replaces).map((p) => `${p.name} for ${p.replaces}`);
+    const cost = [...counts].map(([k, n]) => (k === "the aura slot" ? k : `${n} ${k} slot${n === 1 ? "" : "s"}`)).join(", ") + (swaps.length ? `; on the frame, ${swaps.join(", ")}, a weaker copy of each.` : ".");
+    const note = d.fit === "shieldGate" ? ` ${SYN.shieldGating.note}` : "";
+    out.push({ name, pieces, bonus: d.bonus, reason: `${d.why}${note}${companion ? ` The bonus needs ${SET_COMPANION[d.companion!].name}${companion.owned ? `: your ${companion.name}` : ""}.` : ""}`, cost, ...(companion ? { companion } : {}), tier: all ? "medium" : "high", source: d.source });
+    if (out.length >= 2) break;
+  }
+  return out;
+}
+
+/** Why a frame gets no set it might look like it should. */
+function setNote(item: CatalogItem, info: FrameInfo): string {
+  if (SYN.shieldGating.frames.includes(baseName(item.name)) && info.noEnergy) return ` ${item.name} shield-gates, but spends no energy, so the Augur set (energy spent into shields) gives her nothing.`;
+  return "";
+}
+
 /**
  * The loadout around a warframe suggestion at a tier, or null for anything else. `held` is the
  * whole inventory (heldFrom); without it, what orbiter can't check is `owned: null`.
@@ -1509,6 +1786,7 @@ function focusPick(info: FrameInfo): LoadoutPick {
 export function loadoutFor(item: CatalogItem, tier: Tier, owned: Owned, index: ModIndex, held: Held | null = null): Loadout | null {
   if (gearKindOf(item) !== "warframe") return null;
   const info = frameInfo(item.name) ?? DEFAULT_FRAME;
+  const els = kitElements(item);
   return {
     shards: shardPicks(item, info, tier, held),
     helminth: helminthPick(item, tier, held),
@@ -1516,7 +1794,10 @@ export function loadoutFor(item: CatalogItem, tier: Tier, owned: Owned, index: M
     arcanes: arcanePicks(info, tier, owned, index),
     companion: companionLoadout(info, tier, owned, held, index),
     focus: focusPick(info),
-    note: "orbiter's suggestion around the build: facts read by hand on the page each pick names (orbiter doesn't fetch them); which pick suits which frame is orbiter's own rule.",
+    note: `orbiter's suggestion around the build: facts read by hand on the page each pick names (orbiter doesn't fetch them); which pick suits which frame is orbiter's own rule. Archon Shards are always Tauforged.${setNote(item, info)}`,
+    element: shardElement(item) ?? els[0] ?? null,
+    primer: primerPicks(item, info, tier, owned, held, index),
+    sets: setPicks(item, info, tier, owned, held, index),
   };
 }
 
@@ -1526,6 +1807,13 @@ export function loadoutModNames(): string[] {
   for (const i of Object.values(SYN.grimoire.invocations)) out.add(i.name);
   out.add(SYN.kitgun.name);
   for (const c of Object.values(SYN.companions)) out.add(c.mod);
+  for (const [n, p] of Object.entries(SYN.primers)) {
+    if (n.startsWith("_")) continue;
+    out.add(p.mod);
+    if (p.bond) out.add(p.bond.name);
+    if (p.weapon) out.add(p.weapon.mod);
+  }
+  for (const [n, d] of Object.entries(SYN.sets)) if (!n.startsWith("_")) for (const p of d.pieces) out.add(p.name);
   return [...out].sort();
 }
 
@@ -1533,6 +1821,9 @@ export function loadoutModNames(): string[] {
 export function loadoutItems(): Named[] {
   const out: Named[] = [{ name: SYN.grimoire.name, path: SYN.grimoire.path }];
   for (const c of Object.values(SYN.companions)) out.push(...c.items);
+  for (const [n, p] of Object.entries(SYN.primers)) if (!n.startsWith("_")) out.push(...p.items, ...(p.weapon?.items ?? []));
+  for (const c of Object.values(SET_COMPANION)) out.push(c.fallback);
+  out.push(...KUBROWS);
   for (const h of Object.values(SYN.helminth.frames)) if (h.from && h.fromPath) out.push({ name: h.from, path: h.fromPath });
   return out.filter((x, k) => out.findIndex((y) => y.path === x.path) === k);
 }
