@@ -1424,13 +1424,22 @@
   }
 
   // What your inventory is worth, one point per inventory read, for the value chart on Stats.
+  // warframe.market's item list, the relic tables and the recipes arrive after the first model:
+  // until all three are in, the read's point is worked out again as each arrives (as the wallet
+  // patches it above), so Stats ends up with the figures Inventory shows for the same read.
+  let pointInputs = 0;
   $effect(() => {
     const m = model;
     if (!m?.observedAt) return;
     const at = +m.observedAt;
+    const inputs = (mkt.index.byId.size ? 1 : 0) + (relicTables ? 1 : 0) + (recipes ? 1 : 0);
     untrack(() => {
       const h = settings.game.valueHistory;
-      if (h.length && h[h.length - 1].at >= at) return;
+      const last = h.at(-1);
+      if (last && last.at > at) return;
+      const again = last?.at === at;
+      if (again && (last.complete || inputs <= pointInputs)) return;
+      pointInputs = inputs;
       // Worked out as Inventory does (core/spares.ts, inventoryValue), so the chart and its figures agree.
       const rows = inventoryRows(m);
       const ledger = new Map(spareRows(m, mkt.index, settings.market.sellable, settings.advice.platPerDucat, settings.advice.squad, drops.recent).map((x) => [x.key, x]));
@@ -1438,21 +1447,20 @@
       const held = (u: string) => (m.inventoryByBase.get(u) ?? []).reduce((n, r) => n + r.quantity, 0);
       const relics = [...m.inventoryByBase.values()].flat().filter((r) => r.category === "relic").reduce((n, r) => n + r.quantity, 0);
       const M = "/Lotus/Types/Items/MiscItems/";
-      settings.game.valueHistory = [
-        ...h,
-        {
-          at,
-          worth,
-          liquid,
-          platinum: settings.game.platinum,
-          credits: settings.game.credits,
-          endo: settings.game.endo,
-          held: { ducats: held(`${M}PrimeBucks`), aya: held(`${M}SchismKey`), kuva: held(`${M}Kuva`), traces: held(`${M}VoidTearDrop`), vosfor: held(`${M}DistillPoints`), essence: held(`${M}SteelEssence`), relics },
-        },
-      ];
+      const point = {
+        at,
+        worth,
+        liquid,
+        platinum: settings.game.platinum,
+        credits: settings.game.credits,
+        endo: settings.game.endo,
+        held: { ducats: held(`${M}PrimeBucks`), aya: held(`${M}SchismKey`), kuva: held(`${M}Kuva`), traces: held(`${M}VoidTearDrop`), vosfor: held(`${M}DistillPoints`), essence: held(`${M}SteelEssence`), relics },
+        ...(inputs === 3 ? { complete: true } : {}),
+      };
+      settings.game.valueHistory = again ? [...h.slice(0, -1), point] : [...h, point];
       // Every read of the last month, one a day before that: a cap of 500 reads kept only a few
       // weeks for someone whose inventory is read many times a day.
-      settings.game.valueHistory = thinHistory(settings.game.valueHistory, at);
+      if (!again) settings.game.valueHistory = thinHistory(settings.game.valueHistory, at);
     });
   });
 

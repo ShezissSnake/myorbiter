@@ -259,6 +259,11 @@ export interface ValuePoint {
   endo?: number | null;
   /** What you held of each currency and relics in total: ducats, aya, kuva, traces, vosfor, essence, relics. */
   held?: Record<string, number>;
+  /**
+   * Worked out with warframe.market's item list, the relic tables and the recipes all in. Until then
+   * the point is worked out again as they arrive (App.svelte).
+   */
+  complete?: boolean;
 }
 
 /** Every trade the game log showed, sales, purchases and swaps alike. */
