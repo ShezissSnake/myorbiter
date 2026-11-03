@@ -123,6 +123,30 @@ test("background work starts only in an idle period with room, a second after th
   assert.equal(idleReady(40, QUIET_MS + 1), true);
   assert.equal(idleReady(40, 200), false, "just clicked: wait, another click may follow");
   assert.equal(idleReady(10, QUIET_MS + 1), false, "no room left in this idle period");
-  assert.equal(idleReady(0, 0, 30, QUIET_MS, true), true, "the idle callback's own deadline passed");
+  assert.equal(idleReady(0, QUIET_MS + 1, 30, QUIET_MS, true), true, "the idle callback's own deadline passed: room or not");
+  assert.equal(idleReady(0, 0, 30, QUIET_MS, true), false, "past the deadline, but just clicked: still after the clicks");
   assert.equal(idleReady(40, QUIET_MS + 1, 30, QUIET_MS, false, true), false, "a row still closing up on screen: after it");
+});
+
+test("a hold (a sync) keeps background work back until it's released, and a timed-out idle callback too", async () => {
+  const { idleReady, QUIET_MS, holdBackground, backgroundHeld, whenIdle } = await import("../src/lib/pane.svelte");
+  assert.equal(idleReady(40, QUIET_MS + 1, 30, QUIET_MS, true, false, true), false, "held: not even past the deadline");
+  const release = holdBackground();
+  const again = holdBackground();
+  assert.equal(backgroundHeld(), true);
+  let ran = 0;
+  whenIdle(() => ran++);
+  const cancelled = whenIdle(() => ran += 100);
+  cancelled();
+  await new Promise((r) => setTimeout(r, 400));
+  assert.equal(ran, 0, "held: waits");
+  release();
+  release();
+  assert.equal(backgroundHeld(), true, "one release each: the other hold still holds");
+  await new Promise((r) => setTimeout(r, 120));
+  assert.equal(ran, 0);
+  again();
+  assert.equal(backgroundHeld(), false);
+  await new Promise((r) => setTimeout(r, 120));
+  assert.equal(ran, 1, "runs once released; the cancelled one never");
 });

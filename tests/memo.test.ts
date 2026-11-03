@@ -4,8 +4,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildModel, type Model } from "../src/lib/core/model";
 import { idOf, perModel } from "../src/lib/core/memo";
-import { arcaneRows, inventoryRows, modRows, partRows, relicRows, saveForSets, setRows } from "../src/lib/core/views";
-import { defaultSellChoices, spareRows } from "../src/lib/core/spares";
+import { arcaneRows, inventoryRows, masteryRows, modRows, partRows, relicRows, saveForSets, setRows } from "../src/lib/core/views";
+import { damagedPartNeeds, defaultSellChoices, gearSetRows, needsByUnique, partsStillNeededFrom, relicsYouNeed, spareRows } from "../src/lib/core/spares";
 import { describe } from "../src/lib/core/describe";
 import type { Bundle, InventoryRow } from "../src/lib/core/types";
 
@@ -58,6 +58,12 @@ const views: [string, (m: Model) => unknown][] = [
   ["relicRows all at a rate", (m) => relicRows(m, { includeUnowned: true, platPerDucat: 0.2 })],
   ["inventoryRows", (m) => inventoryRows(m)],
   ["spareRows", (m) => spareRows(m, null, defaultSellChoices(), 0.1, 4)],
+  ["masteryRows", (m) => masteryRows(m)],
+  ["needsByUnique", (m) => needsByUnique(m)],
+  ["gearSetRows", (m) => gearSetRows(m, null)],
+  ["relicsYouNeed", (m) => relicsYouNeed(m)],
+  ["damagedPartNeeds", (m) => damagedPartNeeds(m)],
+  ["partsStillNeededFrom", (m) => partsStillNeededFrom(m, "Jordas Golem")],
 ];
 
 test("the rows are the same as worked out fresh, and the same rows for the same model and arguments", () => {
@@ -77,6 +83,8 @@ test("different arguments get their own rows", () => {
   assert.notEqual(relicRows(m), relicRows(m, { includeUnowned: true }));
   assert.equal(relicRows(m), relicRows(m, {}), "no options and empty options are the same");
   assert.notEqual(spareRows(m, null, defaultSellChoices(), 0.1, 1), spareRows(m, null, defaultSellChoices(), 0.1, 4));
+  assert.notEqual(partsStillNeededFrom(m, "Jordas Golem"), partsStillNeededFrom(m, "Lephantis"), "each mission its own");
+  assert.equal(partsStillNeededFrom(m, "Lephantis"), partsStillNeededFrom(m, "Lephantis"));
   assert.notEqual(spareRows(m, null, { ...defaultSellChoices(), relicsWorthSelling: false }), spareRows(m, null, defaultSellChoices()));
   assert.notEqual(spareRows(m, null, defaultSellChoices(), 0, 1, new Map([["x", 1]])), spareRows(m, null, defaultSellChoices(), 0, 1, new Map([["x", 1]])), "other drops: worked out again");
   assert.notEqual(partRows(m, saveForSets(defaultSellChoices(), 0.05)), partRows(m, saveForSets(defaultSellChoices(), 0.2)));
