@@ -41,7 +41,7 @@ Invoke-DownloadWithRetry -Uri $url -OutFile $installer
 $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer).Hash
 if ($actual -ne $sha256) {
   Remove-Item -Force $installer -ErrorAction SilentlyContinue
-  throw "the Tesseract installer's SHA-256 is $actual, not the pinned $sha256: not extracting it"
+  throw "the Tesseract installer's SHA-256 is $actual, not the pinned ${sha256}: not extracting it"
 }
 Write-Host "tesseract installer SHA-256 verified ($sha256)"
 Remove-Item -Recurse -Force $staging -ErrorAction SilentlyContinue
