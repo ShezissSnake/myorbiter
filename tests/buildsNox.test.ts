@@ -262,3 +262,11 @@ test("reading Nox's Frame is on unless turned off", async () => {
   (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({}) };
   assert.equal((await loadSettings()).buildsFromNox, true, "settings from before it: on");
 });
+
+test("the list's age filter goes by the card's date; no date or no limit keeps it", async () => {
+  const { noxListedWithinAge } = await import("../src/lib/core/builds");
+  assert.equal(noxListedWithinAge({ date: "2026-11-01" }, 30, NOW), true);
+  assert.equal(noxListedWithinAge({ date: "2025-01-01" }, 30, NOW), false);
+  assert.equal(noxListedWithinAge({ date: "2025-01-01" }, 0, NOW), true);
+  assert.equal(noxListedWithinAge({ date: null }, 30, NOW), true);
+});

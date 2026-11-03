@@ -206,3 +206,18 @@ test("an Overframe build is a link only: never its contents", async () => {
   assert.deepEqual([l.mods, l.arcanes, l.shards, l.exilus, l.forma, l.note], [[], [], [], undefined, undefined, undefined]);
   assert.deepEqual([l.title, l.author, l.tags, l.source], [b.title, b.author, b.tags, b.source]);
 });
+
+test("Nox's Frame's list in words: days, card dates, a stale copy, the saved build from a page", async () => {
+  const { dayOf, listedAt, copyLine, savedFrom } = await import("../src/lib/core/buildsPage");
+  assert.equal(dayOf(Date.parse("2026-11-03T23:30:00Z")), "3 Nov 2026");
+  assert.equal(listedAt("2026-11-01"), Date.parse("2026-11-01T00:00:00Z"));
+  assert.equal(listedAt("Nov 1"), null);
+  assert.equal(listedAt(null), null);
+  assert.equal(copyLine({ stale: false, fetchedAt: NOW }), null);
+  assert.equal(copyLine({ stale: true, fetchedAt: Date.parse("2026-10-27T10:00:00Z") }), "Showing a copy from 27 Oct 2026");
+  assert.equal(copyLine({ stale: true, error: "Error: timed out", fetchedAt: Date.parse("2026-10-27T10:00:00Z") }), "Showing a copy from 27 Oct 2026: Nox's Frame didn't answer (timed out)");
+  const url = "https://noxsframe.com/builds/abc-x";
+  const kept = build({ source: { url, site: "Nox's Frame" } });
+  assert.equal(savedFrom([build(), kept], url), kept);
+  assert.equal(savedFrom([build()], url), undefined);
+});
