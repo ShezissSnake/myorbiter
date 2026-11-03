@@ -27,9 +27,12 @@ impl Drop for Waiting {
 
 /// Shows a notification. Best effort: with no notification service running nothing happens.
 /// `id`: the notification in orbiter's history. Clicking the notification then brings orbiter's
-/// window up and tells the page (event `notice-open`), which opens what it's about. Linux and
-/// Windows; macOS shows it without the click.
-pub fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<String>) {
+/// window up and tells the page (event `notice-open`), which opens what it's about. `actions`:
+/// buttons of its own beside that, as (action, label): pressing one tells the page (event
+/// `notice-action`, with the id and the action) and leaves orbiter where it is, so a sale's
+/// "Give +rep" doesn't take you out of the game. Linux and Windows (a button on the toast); macOS
+/// shows it without the click or the buttons.
+pub fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<String>, actions: Vec<(String, String)>) {
     // Each notification that can be clicked keeps a thread waiting for it, and a desktop that keeps
     // old notifications in a tray (GNOME) may never say it closed. Past a few, new ones are shown
     // without the click, so threads don't pile up over a long session.
@@ -55,16 +58,23 @@ pub fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<S
             // orbiter, with its name and icon (not from PowerShell, notify-rust's stand-in).
             n.app_id(&app.config().identifier);
         }
+        // The page's own buttons, never one that stands for the click or the close.
+        let actions: Vec<(String, String)> = actions.into_iter().filter(|(a, _)| !a.is_empty() && a != "default" && a != "__closed").collect();
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         if id.is_some() {
             n.action("default", "Open");
+            for (action, label) in &actions {
+                n.action(action, label);
+            }
         }
         match n.show() {
             #[cfg(any(target_os = "linux", target_os = "windows"))]
             Ok(handle) => {
                 if let Some(id) = id {
                     handle.wait_for_action(|action| {
-                        if action != "__closed" {
+                        if actions.iter().any(|(a, _)| a == action) {
+                            tell_action(&app, &id, action);
+                        } else if action != "__closed" {
                             bring_up(&app, &id);
                         }
                     });
@@ -72,7 +82,7 @@ pub fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<S
             }
             #[cfg(not(any(target_os = "linux", target_os = "windows")))]
             Ok(_) => {
-                let _ = (&app, &id);
+                let _ = (&app, &id, &actions);
             }
             Err(e) => log::warn!(target: "orbiter::notify", "notification not shown: {e}"),
         }
@@ -89,6 +99,23 @@ fn bring_up(app: &tauri::AppHandle, id: &str) {
         let _ = w.set_focus();
         let _ = w.emit("notice-open", id.to_string());
     }
+}
+
+/// One of notification `id`'s own buttons was pressed: the page does it, orbiter stays where it is.
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+fn tell_action(app: &tauri::AppHandle, id: &str, action: &str) {
+    use tauri::{Emitter, Manager};
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.emit("notice-action", NoticeAction { id: id.to_string(), action: action.to_string() });
+    }
+}
+
+/// What `notice-action` carries.
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[derive(Clone, serde::Serialize)]
+struct NoticeAction {
+    id: String,
+    action: String,
 }
 
 /// Run from where the installer put it, rather than from a build folder: only then does Windows

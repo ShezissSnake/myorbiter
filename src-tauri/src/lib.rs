@@ -708,10 +708,11 @@ async fn presence_set(app: tauri::AppHandle, status: String) -> Result<presence:
 }
 
 /// A desktop notification (the page only sends one while orbiter's window isn't focused). `id`:
-/// its entry in the page's history, so a click on it opens what it's about.
+/// its entry in the page's history, so a click on it opens what it's about. `actions`: buttons of
+/// its own, as [action, label] (a sale's "Give +rep"), told to the page as `notice-action`.
 #[tauri::command]
-fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<String>) {
-    desktop::notify(app, summary, body, id);
+fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<String>, actions: Option<Vec<(String, String)>>) {
+    desktop::notify(app, summary, body, id, actions.unwrap_or_default());
 }
 
 /// Ctrl+Q, and the window's X once the page has saved: quit, stopping the TennoScope orbiter

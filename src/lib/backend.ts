@@ -1012,11 +1012,13 @@ export async function openLogFolder(which: "orbiter" | "tennoscope", dataDir: st
 
 /**
  * A desktop notification (App's `tell` decides when). `id`: its entry in the history, so clicking
- * it opens what it's about (see onNoticeOpen). In the browser dev mode it's logged.
+ * it opens what it's about (see onNoticeOpen). `actions`: buttons beside Open, as [action, label]
+ * (a sale's "Give +rep"); pressing one tells the page (onNoticeAction) without bringing orbiter up.
+ * Linux and Windows. In the browser dev mode it's logged.
  */
-export function notify(summary: string, body: string, id?: string) {
-  if (inTauri) invoke("notify", { summary, body, id: id ?? null }).catch(() => {});
-  else console.info(`[notification] ${summary}: ${body}`);
+export function notify(summary: string, body: string, id?: string, actions: [string, string][] = []) {
+  if (inTauri) invoke("notify", { summary, body, id: id ?? null, actions }).catch(() => {});
+  else console.info(`[notification] ${summary}: ${body}${actions.length ? ` [${actions.map((a) => a[1]).join("] [")}]` : ""}`);
 }
 
 /** Quit orbiter (Ctrl+Q, or the window's X), closing the TennoScope it started. */
@@ -1192,6 +1194,13 @@ export async function onNoticeOpen(fn: (id: string) => void): Promise<() => void
   if (!inTauri) return () => {};
   const { listen } = await import("@tauri-apps/api/event");
   return listen<string>("notice-open", (e) => fn(e.payload));
+}
+
+/** One of a desktop notification's own buttons was pressed (see notify's `actions`): its id in the history and the action. */
+export async function onNoticeAction(fn: (id: string, action: string) => void): Promise<() => void> {
+  if (!inTauri) return () => {};
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<{ id: string; action: string }>("notice-action", (e) => fn(e.payload.id, e.payload.action));
 }
 
 /** Each sell order from the live feed, as it goes up. Resolves to a function that stops listening. */
