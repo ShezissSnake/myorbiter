@@ -132,4 +132,6 @@ The interface follows TennoScope's lead, a Warframe-style ledger: a dark slab wi
 
 ## Licence
 
-MIT
+orbiter © 2026 Sheziss, licensed under the GNU General Public License v3.0 only (GPL-3.0-only, `LICENSE`). Every release carries its complete source as `orbiter-source.tar.gz`.
+
+It includes TennoScope (`tennoscope/`) © Deftera186 and the TennoScope contributors, also GPL-3.0-only (`tennoscope/LICENSE`), with orbiter's changes; `tennoscope/ORBITER.md` says how it came into this repository with its history. Some bundled files are under other licences: the modular part data from the Warframe Wiki is CC BY-NC-SA 3.0 (`src/lib/data/modular-parts.LICENSE.md`), and Warframe's icons in `public/game` belong to Digital Extremes. `NOTICE.md` lists them all.

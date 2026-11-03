@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Local-first Warframe collection helper that reads TennoScope's data: sets to sell, mastery to-do, arcane ranking, duplicate mods, vaulted relics.",
   "private": true,
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
     "dev": "vite",
