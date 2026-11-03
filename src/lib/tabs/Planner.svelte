@@ -120,12 +120,12 @@
 {#snippet ownedCell(r: CrackRow)}<Owned owned={r.owned} base={r.base} />{/snippet}
 {#snippet vaultCell(r: { vaulted: boolean })}<Avail v={r.vaulted ? "vaulted" : "farmable"} />{/snippet}
 {#snippet chanceCell(r: CrackRow)}<span class="pct" title={refinementLine(r)}>{(r.chance * 100).toFixed(1)}%</span>{/snippet}
-{#snippet valueCell(r: CrackRow)}<span title={refinementLine(r)}><P v={Math.round(r.value * 10) / 10} /></span>{/snippet}
+{#snippet valueCell(r: CrackRow)}<span title={refinementLine(r)}><P v={Math.round(r.value * 10) / 10} tenths /></span>{/snippet}
 {#snippet hitsCell(r: CrackRow)}
   <span class="hits">
     {#each r.hits as h (h.reward + h.set)}
       <span class="hit" class:last={h.last} use:info={h.reward}>
-        <Thumb file={model.imageOf(h.reward)} size={20} />{h.reward}{#if h.last}<i class="lastmark" title="The last part you need for the {h.set} Set">last</i>{/if}
+        <Thumb file={model.imageOf(h.reward)} size={20} /><span class="hn">{h.reward}</span>{#if h.last}<i class="lastmark" title="The last part you need for the {h.set} Set">last</i>{/if}
       </span>
     {/each}
   </span>
@@ -138,9 +138,9 @@
 {#snippet rareCell(r: RadiantRow)}
   {#if r.rare}<span class="rr"><span class="rr-name" use:info={r.rare.name}><Thumb file={model.imageOf(r.rare.name)} size={22} />{r.rare.name}</span><P v={r.rare.price} dim /></span>{/if}
 {/snippet}
-{#snippet intactCell(r: RadiantRow)}{#if unit(r.intact)}<span class="pct dim">{unit(r.intact)}</span>{:else}<P v={Math.round(r.intact * 10) / 10} d={metric === "ducats"} dim />{/if}{/snippet}
-{#snippet radiantCell(r: RadiantRow)}{#if unit(r.radiant)}<span class="pct">{unit(r.radiant)}</span>{:else}<P v={Math.round(r.radiant * 10) / 10} d={metric === "ducats"} />{/if}{/snippet}
-{#snippet gainCell(r: RadiantRow)}{#if unit(r.gain)}<span class="pct gain">+{unit(r.gain)}</span>{:else}<span class="gain">+<P v={Math.round(r.gain * 10) / 10} d={metric === "ducats"} /></span>{/if}{/snippet}
+{#snippet intactCell(r: RadiantRow)}{#if unit(r.intact)}<span class="pct dim">{unit(r.intact)}</span>{:else}<P v={Math.round(r.intact * 10) / 10} d={metric === "ducats"} dim tenths />{/if}{/snippet}
+{#snippet radiantCell(r: RadiantRow)}{#if unit(r.radiant)}<span class="pct">{unit(r.radiant)}</span>{:else}<P v={Math.round(r.radiant * 10) / 10} d={metric === "ducats"} tenths />{/if}{/snippet}
+{#snippet gainCell(r: RadiantRow)}{#if unit(r.gain)}<span class="pct gain">+{unit(r.gain)}</span>{:else}<span class="gain">+<P v={Math.round(r.gain * 10) / 10} d={metric === "ducats"} tenths /></span>{/if}{/snippet}
 
 {#snippet gapList(list: SetGap[], key: string)}
   <div class="gaps">
@@ -207,7 +207,7 @@
   </div>
 
   {#if mode === "sets"}
-    <Table rows={crack} columns={crackCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortSets} clear={anyFilter ? clear : null} empty="None of your relics drop a missing part." />
+    <div class="sets-table"><Table rows={crack} columns={crackCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortSets} clear={anyFilter ? clear : null} empty="None of your relics drop a missing part." /></div>
     {#if lastCovered.length}
       <h2 class="register">One part from a complete set, and your relics drop it</h2>
       {@render gapList(lastCovered, "last")}
@@ -232,8 +232,15 @@
   .more { margin-top: .5rem; font-size: .78rem; }
   .pct { font-family: var(--face-mark); font-weight: 700; font-size: .98rem; font-variant-numeric: tabular-nums; }
   .gain { color: var(--gold); display: inline-flex; align-items: center; gap: .1rem; font-family: var(--face-mark); font-weight: 700; }
-  .hits { display: flex; flex-wrap: wrap; gap: .3rem .8rem; }
-  .hit { display: inline-flex; align-items: center; gap: .35rem; font-size: .8rem; color: var(--platinum-dim); }
+  /* Each part on one line, cut short with an ellipsis when the column is narrow (the whole name on
+     hover). The list takes no width of its own, so the column keeps the share the table gives it. */
+  .hits { display: flex; flex-wrap: wrap; gap: .3rem .8rem; contain: inline-size; min-width: 14rem; }
+  /* Page area under 1100 px: the headings wrap onto two lines, so the parts keep room for their names. */
+  :global(html[data-room~="lt1100"]) .sets-table :global(th) { white-space: normal; line-height: 1.35; vertical-align: bottom; }
+  .hit { display: inline-flex; align-items: center; gap: .35rem; max-width: 100%; min-width: 0; font-size: .8rem; color: var(--platinum-dim); }
+  .hit :global(.thumb) { flex: none; }
+  .hn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lastmark { flex: none; }
   .hit.last { color: var(--gold); }
   .lastmark { font-style: normal; font-family: var(--face-register); font-size: .56rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); margin-left: .2rem; }
   .fin { font-family: var(--face-mark); font-size: 1rem; color: var(--gold); }
