@@ -1918,12 +1918,36 @@ fn apply_outcome(
         .map_err(|_| "inventory health could not be applied".to_owned())
 }
 
+/// The data folder holds your inventory, your account and your warframe.market sign-in: on Unix it
+/// is made readable by you alone (0700), and the database too (0600, its WAL and shared-memory
+/// files with it), whatever the umask made them (orbiter's change).
+#[cfg(unix)]
+fn keep_private(app_data: &Path, database: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    if let Err(error) = fs::set_permissions(app_data, fs::Permissions::from_mode(0o700)) {
+        log::warn!("data folder: could not make it private ({error})");
+    }
+    for suffix in ["", "-wal", "-shm"] {
+        let mut file = database.as_os_str().to_owned();
+        file.push(suffix);
+        let file = PathBuf::from(file);
+        if file.exists()
+            && let Err(error) = fs::set_permissions(&file, fs::Permissions::from_mode(0o600))
+        {
+            log::warn!("database: could not make {suffix:?} private ({error})");
+        }
+    }
+}
+#[cfg(not(unix))]
+fn keep_private(_app_data: &Path, _database: &Path) {}
+
 fn initialize_runtime(app: &AppHandle) -> Result<SharedRuntime, Box<dyn std::error::Error>> {
     let app_data = app.path().app_data_dir()?;
     fs::create_dir_all(&app_data)?;
     let paths = resolve_local_paths(&app_data);
     let setup = read_setup_status(&paths.setup).map_err(std::io::Error::other)?;
     let mut core = AppCore::open(&paths.database)?;
+    keep_private(&app_data, &paths.database);
     let live_prices = MarketPriceCache::new();
     core.set_live_prices(live_prices.clone());
     Ok(Arc::new(Mutex::new(Runtime {
@@ -2489,6 +2513,27 @@ mod live_bench {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn data_folder_and_database_are_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let data = dir.path().join("data");
+        fs::create_dir_all(&data).unwrap();
+        fs::set_permissions(&data, fs::Permissions::from_mode(0o755)).unwrap();
+        let db = data.join("tennoscope.sqlite3");
+        for f in ["tennoscope.sqlite3", "tennoscope.sqlite3-wal"] {
+            fs::write(data.join(f), b"").unwrap();
+            fs::set_permissions(data.join(f), fs::Permissions::from_mode(0o644)).unwrap();
+        }
+        keep_private(&data, &db);
+        let mode = |p: &Path| fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&data), 0o700);
+        assert_eq!(mode(&db), 0o600);
+        assert_eq!(mode(&data.join("tennoscope.sqlite3-wal")), 0o600);
+        assert!(!data.join("tennoscope.sqlite3-shm").exists(), "absent files aren't created");
+    }
     use std::sync::Mutex as StdMutex;
     use warframe_acquisition::{CatalogIndex, MasteryEvidence, MasteryFacts};
     use warframe_domain::{
