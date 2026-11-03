@@ -32,7 +32,7 @@
     type TierResult,
   } from "../core/builds";
   import { canSuggest, modIndex, ownedFrom, suggestAll, toBuild, type Suggestion } from "../core/builds/suggest";
-  import { arrange, buildableItems, buildKindOf, kindLabelOf, noxUrl, overframeUrl, recentItems, tagsIn, TIER_MEANS, TIER_NAME, TIER_TIP, TIERS, withTags, type Shown } from "../core/buildsPage";
+  import { ageLine, arrange, buildableItems, isOverframe, buildKindOf, kindLabelOf, noxUrl, overframeUrl, recentItems, tagsIn, TIER_MEANS, TIER_NAME, TIER_TIP, TIERS, withTags, type Shown } from "../core/buildsPage";
   import { byFamily } from "../ui/builds/tags";
   import { recipeItem } from "../core/recipes";
   import { takeIntent } from "../intent.svelte";
@@ -85,14 +85,17 @@
     const want = takeIntent("builds");
     if (!want?.item) return;
     const u = model.catalogByUnique.has(want.item) ? want.item : items.find((x) => x.name.toLowerCase() === want.item.toLowerCase())?.unique;
-    if (u) choose(u);
+    // The page shows first; the item's builds a frame later.
+    if (u) requestAnimationFrame(() => setTimeout(() => choose(u), 0));
   });
 
   // ---------------------------------------------------------------- the builds
 
   let showOld = $state(false);
   const now = $derived(model.observedAt ? Math.max(Date.now(), model.observedAt.getTime()) : Date.now());
-  const savedAll = $derived(pick ? buildsFor(settings.builds, pick) : []);
+  // Overframe's builds are links only (Overframe allows linking, not showing them): kept apart,
+  // never in a tier, never drawn or checked against your inventory.
+  const savedAll = $derived(pick ? buildsFor(settings.builds, pick).filter((b) => !isOverframe(b)) : []);
   const saved = $derived(showOld ? savedAll : filterByAge(savedAll, settings.buildsMaxAgeDays, now));
 
   // orbiter's suggestions: from the mods you hold, for each tier.
@@ -146,7 +149,15 @@
     );
     return () => (gone = true);
   });
-  const siteAll = $derived(net.item === pick ? net.builds : []);
+  const siteAll = $derived(net.item === pick ? net.builds.filter((b) => !isOverframe(b)) : []);
+  /** Overframe links for the item: saved ones (from before, or pasted with an Overframe link) and any a permitted source lists. */
+  const overframeLinks = $derived.by(() => {
+    if (!pick) return [];
+    const mine = buildsFor(settings.builds, pick).filter(isOverframe);
+    const ids = new Set(mine.map((b) => b.id));
+    const listed = (net.item === pick ? net.builds : []).filter((b) => isOverframe(b) && !ids.has(b.id));
+    return [...mine, ...listed].map((b) => ({ build: b, saved: ids.has(b.id) }));
+  });
   const site = $derived(showOld ? siteAll : siteAll.filter((b) => withinAge(b, settings.buildsMaxAgeDays, now)));
   const hiddenOld = $derived(savedAll.length - saved.length + siteAll.length - site.length);
 
@@ -194,6 +205,8 @@
     if (item && kind) tier = tierFor(b).tier;
     setTimeout(() => fresh === b.id && (fresh = null), 1200);
   }
+  /** After the next paint: the dialog closes on the press, the list changes a frame later. */
+  const later = (f: () => void) => requestAnimationFrame(() => setTimeout(f, 0));
   function fav(s: Shown) {
     if (s.saved) settings.builds = toggleFavourite(settings.builds, s.build.id);
     else settings.builds = saveBuild(settings.builds, { ...s.build, favourite: true, importedAt: s.build.source === "orbiter" ? Date.now() : s.build.importedAt });
@@ -251,7 +264,7 @@
             {:else}<span class="dim">You don't have it yet.</span>{/if}
           </p>
           <div class="out">
-            <button type="button" class="link" title="Open {item.name} on Overframe in your browser (a search for its arsenal page; orbiter never reads Overframe)" onclick={() => openUrl(overframeUrl(item!.name))}>Overframe <Icon name="external" size={11} /></button>
+            <button type="button" class="link" title="Find {item.name}'s builds on Overframe, in your browser (orbiter never reads Overframe)" onclick={() => openUrl(overframeUrl(item!.name))}>Overframe <Icon name="external" size={11} /></button>
             <button type="button" class="link" title="Open {item.name}'s builds on Nox's Frame in your browser" onclick={() => openUrl(noxUrl(item!.name, kind!, !!recipeItem(item!.uniqueName)))}>Nox's Frame <Icon name="external" size={11} /></button>
           </div>
         </div>
@@ -261,7 +274,7 @@
               <span class="tmark t-{t}" aria-hidden="true"><i></i><i></i><i></i></span>
               <b class="mark tn">{TIER_NAME[t]}</b>
               <span class="tm">{TIER_MEANS[t]}</span>
-              <span class="tc"><Count value={counts[t]} /> build{counts[t] === 1 ? "" : "s"}{#if ready(t)}<span class="rd" title="Builds you have everything for"> · {ready(t)} ready</span>{/if}</span>
+              <span class="tc"><Count value={counts[t]} /> build{counts[t] === 1 ? "" : "s"}{#if ready(t)}<span class="rd" title="Builds you have everything for">&nbsp;· {ready(t)} ready</span>{/if}</span>
               {#if copyTier === t}<span class="mine" title="Your copy has what this tier takes">Your copy</span>{/if}
             </button>
           {/each}
@@ -274,13 +287,13 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Builds" brief="Mod builds for anything, and what you're missing." blurb="Mod and arcane builds for anything that takes them, in three tiers by what they take, with what you're missing of each against your inventory. Paste a build from any site, make your own, or start from orbiter's suggestion." {hero} />
+  <PageHead title="Builds" brief="Mod builds for anything, and what you're missing." blurb="Mod and arcane builds for anything that takes them, in three tiers by what they take, with what you're missing of each against your inventory. Paste a build from anywhere, make your own, or start from orbiter's suggestion." {hero} />
 
   {#if item && kind}
     <div class="bar">
       <h2 class="register th"><span class="tn2">{TIER_NAME[tier]}</span> · {TIER_MEANS[tier]}</h2>
       <span class="grow"></span>
-      <button type="button" class="stamp" title="Paste a build copied from a site, a message or chat: orbiter reads the names" onclick={() => (pasting = true)}><Icon name="import" size={12} /> Paste a build</button>
+      <button type="button" class="stamp" title="Paste a build from anywhere (Nox's Frame, a friend, Discord…): orbiter reads the names" onclick={() => (pasting = true)}><Icon name="import" size={12} /> Paste a build</button>
       <button type="button" title="Make a build of your own, slot by slot" onclick={() => (editing = { build: blank(), copy: false })}><Icon name="plus" size={12} /> New</button>
       <label class="age" title="Builds from other people older than this are hidden (by their site's date, else when you added them). 0: never hidden. Yours and orbiter's never are">
         <span class="register">Hide older than</span>
@@ -331,19 +344,42 @@
           <p>No {TIER_NAME[tier].toLowerCase()} builds saved for {item.name} yet: paste one{canSuggest(item) ? ", or start from orbiter's suggestion in another tier" : ", or make your own"}.</p>
           <p class="dim small">{TIER_TIP[tier]}{#if hiddenOld} {hiddenOld} older build{hiddenOld === 1 ? " is" : "s are"} hidden for their age.{/if}</p>
           <div class="eacts">
-            <button type="button" class="stamp" title="Paste a build copied from a site, a message or chat" onclick={() => (pasting = true)}><Icon name="import" size={12} /> Paste a build</button>
+            <button type="button" class="stamp" title="Paste a build from anywhere (Nox's Frame, a friend, Discord…)" onclick={() => (pasting = true)}><Icon name="import" size={12} /> Paste a build</button>
             <button type="button" title="Make a build of your own, slot by slot" onclick={() => (editing = { build: blank(), copy: false })}><Icon name="plus" size={12} /> Make one</button>
           </div>
         </div>
       {/if}
     {/key}
 
+    <!-- Overframe: links only, opened on overframe.gg. (The slot for a per-item list of Overframe's
+         build links, once its details are agreed with Overframe.) -->
+    {#if overframeLinks.length}
+      <section class="ofr" data-card="overframe" aria-label="On Overframe">
+        <h2 class="register">On Overframe</h2>
+        <p class="dim small">Overframe's builds open on overframe.gg: orbiter keeps the link only.</p>
+        <ul>
+          {#each overframeLinks as o (o.build.id)}
+            {@const src = o.build.source as { url: string; site: string }}
+            <li animate:flip out:leave>
+              {#if undo.has(o.build.id)}<UndoSlot label="Deleted" what={o.build.title ?? "the link"} onundo={() => undo.undo(o.build.id)} />
+              {:else}
+                <span class="ot"><b>{o.build.title ?? "Overframe build"}</b>{#if o.build.author}<span class="dim small"> by {o.build.author}</span>{/if}<span class="dim small"> · {ageLine(o.build, now)}</span></span>
+                <button type="button" class="link out" title="Open it on Overframe, in your browser" onclick={() => openUrl(src.url)}>Open on Overframe <Icon name="external" size={11} /></button>
+                {#if o.saved}<button type="button" class="ib quiet" title="Delete the link (you get a few seconds to undo)" aria-label="Delete the link" onclick={() => undo.hold(o.build.id, () => (settings.builds = removeBuild(settings.builds, o.build.id)))}><Icon name="trash" size={12} /></button>
+                {:else}<button type="button" class="link" title="Keep the link with your builds" onclick={() => keep({ ...o.build, importedAt: Date.now() })}>Save link</button>{/if}
+              {/if}
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
+
     {#if recipeItem(item.uniqueName)}<Recipes {model} unique={item.uniqueName} />{/if}
   {/if}
 </div></div>
 
-{#if pasting && item && kind}<PasteDialog {model} {item} {kind} onsave={(b) => { keep(b); pasting = false; }} onclose={() => (pasting = false)} />{/if}
-{#if editing && item && kind}<BuildEditor {model} {item} {kind} build={editing.build} copy={editing.copy} onsave={(b) => { keep(b); editing = null; }} onclose={() => (editing = null)} />{/if}
+{#if pasting && item && kind}<PasteDialog {model} {item} {kind} onsave={(b) => { pasting = false; later(() => keep(b)); }} onclose={() => (pasting = false)} />{/if}
+{#if editing && item && kind}<BuildEditor {model} {item} {kind} build={editing.build} copy={editing.copy} onsave={(b) => { editing = null; later(() => keep(b)); }} onclose={() => (editing = null)} />{/if}
 
 <style>
   /* The hero: what you're building, as the Arsenal shows it, with the three tiers as its tabs. */
@@ -412,6 +448,14 @@
   @keyframes run { from { background-position: 100% 0; } to { background-position: -100% 0; } }
   @media (prefers-reduced-motion: reduce) { .run { animation: none; background: var(--sec-dim); } }
 
+  .ofr { margin-top: var(--course); padding-top: var(--step); border-top: 1px solid var(--rule); }
+  .ofr h2 { margin: 0 0 .3rem; color: var(--sec); font-size: .7rem; }
+  .ofr ul { list-style: none; margin: .5rem 0 0; padding: 0; display: grid; gap: .3rem; }
+  .ofr li { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; padding: .5rem .75rem; background: var(--plate); border: 1px solid var(--rule); }
+  .ot { flex: 1; min-width: 0; }
+  .ot b { font-weight: 500; color: var(--platinum); }
+  .ot .dim { margin-left: .35em; }
+  .ofr .out { display: inline-flex; align-items: center; gap: .3rem; font-size: .82rem; }
   .builds { list-style: none; margin: 0; padding: 0; display: grid; gap: .9rem; }
   .builds > li { min-width: 0; }
   .builds > li.fresh :global(.build) { box-shadow: 0 0 0 1px var(--gold); transition: box-shadow 1s var(--out); }

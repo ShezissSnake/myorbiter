@@ -33,7 +33,7 @@ export const NEWS: NewsEntry[] = [
     id: 15,
     date: "2026-11-03",
     items: [
-      { title: "Builds", icon: { page: "builds" }, text: "Mod and arcane builds for anything that takes them, in three tiers (New player, Intermediate, Veteran), laid out as the Arsenal shows them, with what you're missing for each: mods and the Endo to rank them, arcanes, shards, the Catalyst, adapters and Forma, and the cheapest seller's whisper for what you lack. Paste a build from any site, make your own, or start from orbiter's suggestion. Builds on any item's details opens it.", open: "builds#hero" },
+      { title: "Builds", icon: { page: "builds" }, text: "Mod and arcane builds for anything that takes them, in three tiers (New player, Intermediate, Veteran), laid out as the Arsenal shows them, with what you're missing for each: mods and the Endo to rank them, arcanes, shards, the Catalyst, adapters and Forma, and the cheapest seller's whisper for what you lack. Paste a build from anywhere (Nox's Frame, a friend, Discord), make your own, or start from orbiter's suggestion; tags (Steel Path, Support…) narrow the list. Builds on any item's details opens it.", open: "builds#hero" },
     ],
   },
   {

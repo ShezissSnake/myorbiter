@@ -202,7 +202,7 @@
           {#each TAG_FAMILIES as f (f)}
             <span class="tf"><span class="register">{f}</span>{#each KNOWN_TAGS[f] as t (t)}<button type="button" class="tagchip" class:on={hasTag(t)} aria-pressed={hasTag(t)} title={hasTag(t) ? `Tagged ${t}: click to take it off` : `Tag it ${t}`} onclick={() => flipTag(t)}>{t}</button>{/each}</span>
           {/each}
-          {#each tags.filter((t) => !offered.includes(t.toLowerCase())) as t (t)}<button type="button" class="tagchip on" aria-pressed="true" title="Tagged {t}: click to take it off" onclick={() => flipTag(t)}>{t}</button>{/each}
+          {#if tags.some((t) => !offered.includes(t.toLowerCase()))}<span class="tf"><span class="register">Yours</span>{#each tags.filter((t) => !offered.includes(t.toLowerCase())) as t (t)}<button type="button" class="tagchip on" aria-pressed="true" title="Tagged {t}: click to take it off" onclick={() => flipTag(t)}>{t}</button>{/each}</span>{/if}
           <input class="tagin" bind:value={tagText} placeholder="Other tags, by commas" aria-label="Other tags" title="Any other tag: type it and press Enter (commas between several)" onkeydown={(e) => e.key === "Enter" && (e.preventDefault(), addTyped())} onblur={addTyped} />
         </div>
         <label class="field t"><span class="register">Note</span><textarea bind:value={note} rows="2" placeholder="Optional" title="Anything to remember about it"></textarea></label>

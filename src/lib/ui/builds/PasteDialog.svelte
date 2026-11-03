@@ -1,13 +1,13 @@
 <script lang="ts">
-  // Paste a build: text copied from a build page, a message or chat. orbiter reads the mod and
+  // Paste a build from anywhere: Nox's Frame, a friend, Discord. orbiter reads the mod and
   // arcane names in it (and ranks, shards, Helminth, Forma, the Catalyst), shows what it matched and
   // what it couldn't, with suggestions to pick for those, and the build as it would be. Save keeps it.
   import { tick } from "svelte";
   import type { Model } from "../../core/model";
   import type { CatalogItem } from "../../core/types";
   import { heldCount } from "../../core/model";
-  import { parsePaste, tierOf, type Build, type GearKind, type PasteResult } from "../../core/builds";
-  import { parseTags, placeIn } from "../../core/buildsPage";
+  import { newBuildId, parsePaste, tierOf, type Build, type GearKind, type PasteResult } from "../../core/builds";
+  import { linkOnly, onOverframe, parseTags, placeIn } from "../../core/buildsPage";
   import { opens, shade } from "../../motion";
   import { trap } from "../trap";
   import ModGrid from "./ModGrid.svelte";
@@ -62,14 +62,18 @@
   };
   const linkOk = $derived(!link.trim() || !!siteOf(link));
   const draft = $derived.by((): Build | null => {
+    const src = link.trim() ? siteOf(link) : null;
+    const tags = parseTags(tagText);
+    const meta = { ...(title.trim() ? { title: title.trim() } : {}), ...(author.trim() ? { author: author.trim() } : {}), ...(tags.length ? { tags } : {}) };
+    // Overframe allows linking to its builds, not showing them: only the link is kept, whatever was pasted.
+    if (src && onOverframe(src.url)) return linkOnly({ id: newBuildId(), item: item.uniqueName, kind, mods: [], arcanes: [], shards: [], importedAt: Date.now(), ...meta, title: meta.title ?? `${item.name} on Overframe`, source: src });
     if (!read) return null;
     let b = read.build;
     for (const p of picks) b = placeIn(b, p.path, p.arcane);
-    const src = link.trim() ? siteOf(link) : null;
-    const tags = parseTags(tagText);
-    return { ...b, ...(title.trim() ? { title: title.trim() } : {}), ...(author.trim() ? { author: author.trim() } : {}), ...(tags.length ? { tags } : {}), source: src ?? "pasted" };
+    return { ...b, ...meta, source: src ?? "pasted" };
   });
-  const tier = $derived(draft ? tierOf(draft, item, model.catalogByUnique, kind) : null);
+  const linkOnlyNow = $derived(!!link.trim() && onOverframe(link.trim()));
+  const tier = $derived(draft && !linkOnlyNow ? tierOf(draft, item, model.catalogByUnique, kind) : null);
   const left = $derived(read ? read.unmatched.filter((u) => !picks.some((p) => p.text === u.text)) : []);
   const found = $derived(draft ? [draft.aura, draft.exilus, draft.stance, ...draft.mods, ...draft.arcanes].filter(Boolean).length : 0);
 
@@ -78,6 +82,7 @@
     picks = [...picks.filter((p) => p.text !== textOf), { text: textOf, path, arcane: c?.category === "Arcanes" }];
   }
   function save() {
+    if (linkOnlyNow && linkOk && draft) return onsave({ ...draft, importedAt: Date.now() });
     if (!draft || !found || !linkOk) return;
     onsave({ ...draft, importedAt: Date.now() });
   }
@@ -91,7 +96,7 @@
     <div class="register head">Paste a build · {item.name}</div>
     <label class="field">
       <span class="register">The build</span>
-      <textarea bind:this={area} bind:value={text} rows="7" placeholder={"Paste it here: a build page copied whole, or a list like\nAura: Corrosive Projection\nVitality, Steel Fiber R8, Primed Continuity…\nArcanes: Energize, Grace"} title="Copy a build page (Ctrl+A, Ctrl+C) or any list of mod and arcane names, and paste it here" oninput={() => readSoon()} onpaste={() => readSoon(true)}></textarea>
+      <textarea bind:this={area} bind:value={text} rows="7" placeholder={"Paste a build from anywhere: Nox's Frame, a friend, Discord…\nAura: Corrosive Projection\nVitality, Steel Fiber R8, Primed Continuity…\nArcanes: Energize, Grace"} title="Any list of mod and arcane names, with ranks if you like: paste it here" oninput={() => readSoon()} onpaste={() => readSoon(true)}></textarea>
     </label>
     <div class="row3">
       <label class="field"><span class="register">Title</span><input bind:value={title} placeholder="Optional" title="A name for it, as you'd like to find it again" /></label>
@@ -101,7 +106,9 @@
     <label class="field"><span class="register">Tags</span><input bind:value={tagText} placeholder="Optional: Steel Path, Support, Shield gating…" title="What it's for, by commas: a role (DPS, Support, Tank), where (Star chart, Steel Path, Level cap), how it survives (Overguard, Shield gating)… The Builds page can show only builds with the tags you pick" /></label>
     {#if error}<p class="err small">{error}</p>{/if}
 
-    {#if read && draft && tier}
+    {#if linkOnlyNow}
+      <p class="note small">That's an Overframe link: orbiter keeps the link only, to open on overframe.gg. Overframe doesn't allow its builds to be shown here.</p>
+    {:else if read && draft && tier}
       <div class="preview">
         <div class="found">
           <span class="register">Read {found} name{found === 1 ? "" : "s"}</span>
@@ -143,7 +150,7 @@
 
     <div class="row end">
       <button type="button" onclick={onclose} title="Close without saving">Cancel</button>
-      <button type="button" class="stamp gold" disabled={!draft || !found || !linkOk} title={!draft || !found ? "Paste a build first: orbiter needs at least one mod or arcane it knows" : !linkOk ? "The link isn't a web address" : `Save it to ${item.name}'s builds`} onclick={save}>Save build</button>
+      <button type="button" class="stamp gold" disabled={linkOnlyNow ? false : !draft || !found || !linkOk} title={linkOnlyNow ? "Keep the link to it on Overframe" : !draft || !found ? "Paste a build first: orbiter needs at least one mod or arcane it knows" : !linkOk ? "The link isn't a web address" : `Save it to ${item.name}'s builds`} onclick={save}>{linkOnlyNow ? "Save link" : "Save build"}</button>
     </div>
   </div>
 </div>
@@ -175,6 +182,7 @@
   .sug { padding: .15rem .45rem; font-size: .58rem; }
   .notes { margin: 0; padding-left: 1rem; }
   .err { color: var(--oxblood); margin: 0; }
+  .note { margin: 0; color: var(--platinum-dim); padding: .5rem .7rem; border-left: 2px solid var(--sec-dim); background: var(--well); }
   .row { display: flex; gap: .6rem; align-items: center; }
   .end { justify-content: flex-end; }
   :global(html[data-room~="lt760"]) .row3 { grid-template-columns: 1fr; }
