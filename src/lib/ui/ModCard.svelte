@@ -55,7 +55,8 @@
     {/if}
   </div>
   <div class="plate">
-    <b class="nm">{name}</b>
+    <!-- A small mod card's plate has room for the rank or the name, not both; the card it sits on has the name already. -->
+    {#if !tiny || arcane}<b class="nm">{name}</b>{/if}
     {#if text && width >= 110}<span class="fx">{text}</span>{/if}
     {#if tiny}{#if maxRank}<span class="rt" title="Your best copy: rank {rank} of {maxRank}">R{rank}/{maxRank}</span>{/if}
     {:else}
