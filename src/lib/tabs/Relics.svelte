@@ -245,7 +245,7 @@
               {@const own = (byEra.get(e) ?? []).filter((f) => !f.isStorm)}
               {@const sp = own.filter((f) => f.isHard).length}
               {@const om = e === "Requiem" ? 0 : omnia.filter((f) => !f.isStorm).length}
-              <span>{own.length - sp}{#if sp}<span class="sp" title="Steel Path">&nbsp;+&nbsp;{sp}&nbsp;<GameIcon name="steel-essence" size={11} /></span>{/if} open</span>
+              {#if own.length - sp}<span title="Normal fissures of this era open now">{own.length - sp} open</span>{/if}{#if sp}<span class="sp" title="Steel Path fissures of this era open now"><GameIcon name="steel-essence" size={11} />{sp} Steel Path</span>{/if}
               {#if om}<span title="Omnia fissures take a Lith, Meso, Neo or Axi relic (not Requiem)">{om} Omnia</span>{/if}
             {:else}<span title={feed == null ? "The fissure list (api.warframestat.us) hasn't answered" : undefined}>{feed == null ? "fissures unknown" : "no fissure now"}</span>{/if}
           </span>
@@ -308,6 +308,7 @@
   .era.on { border-color: var(--gold); background: var(--raised); box-shadow: inset 3px 0 0 var(--tint, var(--gold)), inset 0 2px 0 var(--gold); }
   /* One fact a line: the era's own fissures, then the Omnia ones. */
   .counts { display: grid; }
+  .counts .sp { display: inline-flex; align-items: center; gap: .25rem; }
   /* An era's live fissures, on hover: which missions, which are Steel Path or storms, how long they're open. */
   .fz {
     position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: max-content; min-width: 100%; max-width: 34rem; pointer-events: none;

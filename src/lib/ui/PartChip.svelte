@@ -3,7 +3,8 @@
   import type { PartState } from "../core/collection";
   import { info } from "../hover.svelte";
   // One thing an item is built from, as a round chip: gold ring when you have enough, a dashed ring
-  // while it's building, dark when you have none. The number is how many you hold.
+  // while it's building, dark when you have none. The number is how many you hold; "1/2" when an
+  // item takes more than one and you're short.
   let { part, size = 34 }: { part: PartState; size?: number } = $props();
   const enough = $derived(part.have >= part.required);
   const some = $derived(part.have > 0 && !enough);
@@ -22,7 +23,7 @@
 
 <span class="chip" class:enough class:some class:building={part.building && !enough} class:res={part.resource} class:bp={part.blueprint} style:width="{size}px" style:height="{size}px" aria-label={title} use:info={part.name}>
   {#if part.image && !failed}<img src={imageUrl(part.image)} alt="" loading="lazy" onerror={() => (failed = true)} />{:else}<i class="none"></i>{/if}
-  {#if part.have > 0 || part.required > 1}<b class="n" class:short={!enough}>{part.resource || part.have >= 1000 ? count(part.have) : part.required > 1 ? `${part.have}/${part.required}` : part.have}</b>{/if}
+  {#if part.have > 0 || part.required > 1}<b class="n" class:short={!enough}>{part.resource || part.have >= 1000 ? count(part.have) : part.required > 1 && part.have < part.required ? `${part.have}/${part.required}` : part.have}</b>{/if}
 </span>
 
 <style>

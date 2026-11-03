@@ -4,7 +4,7 @@
   import { splitRelicName, type Model } from "../core/model";
   import { info } from "../hover.svelte";
   import { inventoryRows, type InventoryItem, type InventoryKind } from "../core/views";
-  import { inventoryValue, spareRows, type SellChoices, type SpareRow } from "../core/spares";
+  import { inventoryValue, sellableCopies, spareRows, type SellChoices, type SpareRow } from "../core/spares";
   import { drops } from "../drops.svelte";
   import { mkt } from "../marketStore.svelte";
   import { marketUrl, openUrl, wikiUrl } from "../backend";
@@ -40,7 +40,8 @@
   let minEach = $state<number | null>(null);
   let spareOnly = $state(false);
   let query = $state("");
-  let sort = $state({ key: "worth", desc: true });
+  // What selling would bring first: 532 Thumpers at 4p each aren't where to start.
+  let sort = $state({ key: "sellable", desc: true });
 
   // What you can spare of everything tradable, and why the rest is kept: a set's parts for
   // anything unbuilt, your best copy of each mod and one to give away, one maxed arcane, the parts,
@@ -59,6 +60,11 @@
     return p == null ? null : p * r.quantity;
   };
   const perDay = (r: InventoryItem) => spareOf(r)?.tradesPerDay ?? r.tradesPerDay;
+  /** The spare copies at their price, no more than the market sells in a month (as You can spare counts them). */
+  const sellable = (r: InventoryItem) => {
+    const s = spareOf(r);
+    return s && s.spare > 0 && s.price != null ? Math.round(s.price * sellableCopies(s.spare, perDay(r))) : null;
+  };
   /** The item's page, by the market's own slug when its item list is loaded ("…_(veiled)"). */
   const itemUrl = (name: string) => {
     const it = mkt.index.byName.get(name.toLowerCase());
@@ -98,6 +104,7 @@
     { key: "spare", label: "Spare", value: (r) => (spareOf(r) ? spare(r) : null), align: "right", cell: spareCell, title: "What you can sell: what you hold beyond what you keep (hover a number for why)" },
     { key: "price", label: "Each", value: (r) => priceOf(r), align: "right", cell: priceCell },
     { key: "worth", label: "Worth", value: (r) => worthOf(r), align: "right", cell: worthCell },
+    { key: "sellable", label: "Spare sells for", value: (r) => sellable(r), align: "right", cell: sellableCell, title: "What your spare copies would bring: no more of them than the market sells in a month (the You can spare figure, item by item)" },
     { key: "ducats", label: "Ducats", value: (r) => (r.ducats == null ? null : r.ducats * r.quantity), align: "right", cell: ducatCell, minor: true },
     { key: "trades", spare: true, label: "Trades/day", value: (r) => { const t = perDay(r); return t == null ? null : Math.round(t * 10) / 10; }, align: "right", muted: true, title: "How quickly it sells on warframe.market" },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
@@ -116,6 +123,7 @@
 {/snippet}
 {#snippet priceCell(r: InventoryItem)}<P v={priceOf(r)} dim />{/snippet}
 {#snippet worthCell(r: InventoryItem)}<P v={worthOf(r)} />{/snippet}
+{#snippet sellableCell(r: InventoryItem)}<P v={sellable(r)} />{/snippet}
 {#snippet ducatCell(r: InventoryItem)}<P v={r.ducats == null ? null : r.ducats * r.quantity} d dim />{/snippet}
 {#snippet listCell(r: InventoryItem)}
   {@const s = spareOf(r)}

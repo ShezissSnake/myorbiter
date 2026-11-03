@@ -223,7 +223,7 @@
       </table>
     {/if}
 
-    <h2 class="register">The squad's relics</h2>
+    <h2 class="register">The squad's relics <span class="legend">Gold: a part you still need · bright: worth a look · dimmed: you've mastered what it builds</span></h2>
     <section class="cards">{#each relics as r, i (r.path + i)}{@render relicCard(r)}{/each}</section>
   {:else if !onScreen}
     <div class="empty" class:compact={history.length > 0}>
@@ -284,6 +284,7 @@
   .pc { text-align: right; }
   .pool { border-collapse: collapse; width: 100%; border-top: 1px solid var(--rule); }
   .nm.done { color: var(--platinum-deep); }
+  .legend { margin-left: .8rem; font-family: var(--face-body, inherit); letter-spacing: normal; text-transform: none; font-size: .74rem; color: var(--platinum-deep); }
   .pool { font-variant-numeric: tabular-nums; }
   .pool th { position: sticky; top: 0; z-index: 1; background: var(--slab); text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .15em; text-transform: uppercase; color: var(--platinum-deep); padding: .55rem .6rem; border-bottom: 1px solid var(--rule); }
   .pool th:first-child { padding-left: 0; }

@@ -97,7 +97,7 @@ export function today(m: Model, live: Live, now = Date.now()): Today {
     ? { boss: s.boss, faction: s.faction ?? "", stages: (s.variants ?? []).map((v) => ({ mission: v.missionType, node: v.node, modifier: v.modifier ?? "", desc: v.modifierDescription ?? "" })), ends: s.expiry }
     : null;
   const a = live.archonHunt;
-  const archon = a ? { boss: a.boss, shard: SHARD[a.boss] ?? "", missions: (a.missions ?? []).map((x) => `${x.type} · ${x.node}`), ends: a.expiry } : null;
+  const archon = a ? { boss: a.boss, shard: SHARD[a.boss] ?? "", missions: (a.missions ?? []).map((x) => `${x.type} (${x.node})`), ends: a.expiry } : null;
 
   const d = live.darvo;
   const darvoItem = d ? (d.uniqueName ? m.catalogByUnique.get(d.uniqueName.replace("/StoreItems/", "/")) : undefined) ?? (byName.has(d.item) ? m.catalogByUnique.get(byName.get(d.item)!.unique) : undefined) : undefined;

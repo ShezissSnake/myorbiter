@@ -118,7 +118,8 @@
           <!-- Parts then resources in one row, wrapping together, so a resource sits beside the last part rather than under all of them. -->
           <div class="chips">
             {#each c.parts.filter((p) => !p.resource) as p, i (i)}<PartChip part={p} size={38} />{/each}
-            {#each c.parts.filter((p) => p.resource) as p, i (i)}<span class="res"><PartChip part={p} size={28} /></span>{/each}
+            <!-- Resources only when you're short of one: the 839 Orokin Cells you hold say nothing on a mastered frame. -->
+            {#each c.parts.filter((p) => p.resource && !c.mastered && p.have < p.required) as p, i (i)}<span class="res"><PartChip part={p} size={28} /></span>{/each}
           </div>
           {#snippet foot()}
             {#if c.mastered}<span class="tag good">✓ Mastered</span>

@@ -77,7 +77,7 @@
           {#if onera && e.era !== "Omnia"}<button class="name go" title="Your {e.era} relics, on Relics" onclick={() => onera(e.era)}><GameIcon name={eraIcon(e.era)} size={22} /><b class="mark">{e.era}</b></button>
           {:else}<span class="name"><GameIcon name={eraIcon(e.era)} size={22} /><b class="mark">{e.era}</b></span>{/if}
           <span class="dim small">{e.list.length}</span>
-          {#if sv}<span class="saving" title="Your {some(sv.relics)} drop{sv.relics.length === 1 ? 's' : ''} a part still missing from {some(sv.sets.map((x) => `the ${x} Set`), 6)}, which your loose parts are waiting for (Sets → Saving up)">for {sv.sets.length === 1 ? sv.sets[0] : `${sv.sets.length} sets`}</span>{/if}
+          {#if sv}<span class="saving" title="Your {some(sv.relics)} drop{sv.relics.length === 1 ? 's' : ''} a part still missing from {some(sv.sets.map((x) => `the ${x} Set`), 6)}, which your loose parts are waiting for (Sets → Saving up)">parts for {sv.sets.length === 1 ? sv.sets[0] : `${sv.sets.length} sets`}</span>{/if}
           <span class="grow"></span>
           {#if b}<span class="best" title="Your relic whose crack is worth most here ({b.held}), and the average platinum of the reward you'd take"><span class="dim small">Crack</span> <b use:info={b.name}>{b.name}</b> <span class="dim small">{b.refinement}</span> <P v={b.plat} /></span>{/if}
         </header>

@@ -63,13 +63,16 @@
   /** The two lists below the table don't repeat each other: one part away with a relic for it, then no relic for it. */
   const lastCovered = $derived(lastParts.filter((g) => g.relicsOwned > 0));
 
+  /** Sets a crack of it could complete (it drops their last missing part). */
+  const finishes = (r: CrackRow) => new Set(r.hits.filter((h) => h.last).map((h) => h.set)).size;
   const crackCols: Column<CrackRow>[] = [
     { key: "base", label: "Relic", value: (r) => r.base, defaultDesc: false, cell: relicCell },
     { key: "owned", label: "You have", value: (r) => Object.values(r.owned).reduce((a, b) => a + b, 0), cell: ownedCell, align: "right" },
     { key: "vault", label: "Vault", spare: true, value: (r) => (r.vaulted ? 1 : 0), cell: vaultCell, align: "center", title: "Vaulted: no new copies drop" },
     { key: "chance", label: "Part chance", value: (r) => r.chance, cell: chanceCell, align: "right", title: "Chance one crack gives a part a near-complete set is missing: the average over the copies you hold (hover a figure for each refinement), solo or radshare as set on Relics" },
     { key: "value", label: "Per crack", value: (r) => r.value, cell: valueCell, align: "right", title: "Platinum per crack toward sets: each missing part at what it adds to its set (the set's price over what your other parts already sell for loose), never less than the part's own price" },
-    { key: "hits", label: "Parts it can give", value: (r) => r.hits.length, cell: hitsCell, sortable: false, width: "40%" },
+    { key: "finishes", label: "Finishes", value: (r) => finishes(r), cell: finishesCell, align: "right", title: "Sets one of its parts would complete: the last part you're missing" },
+    { key: "hits", label: "Parts it can give", value: (r) => r.hits.length, cell: hitsCell, sortable: false, width: "38%", title: "The missing parts it drops; gold, with a ◆: the last part of a set" },
   ];
 
   // ------------------------------------------------ radiant
@@ -116,11 +119,13 @@
   <span class="hits">
     {#each r.hits as h (h.reward + h.set)}
       <span class="hit" class:last={h.last} use:info={h.reward}>
-        <Thumb file={model.imageOf(h.reward)} size={20} />{h.reward}{#if h.last}<b title="The last part you need for a complete set">last</b>{/if}
+        <Thumb file={model.imageOf(h.reward)} size={20} />{h.reward}{#if h.last}<i class="lastmark" title="The last part you need for the {h.set} Set">◆</i>{/if}
       </span>
     {/each}
   </span>
 {/snippet}
+
+{#snippet finishesCell(r: CrackRow)}{#if finishes(r)}<b class="fin" title="Sets it can complete">{finishes(r)}</b>{:else}<span class="dim">–</span>{/if}{/snippet}
 
 {#snippet radRelicCell(r: RadiantRow)}{@render relicCell(r)}{/snippet}
 {#snippet radOwnedCell(r: RadiantRow)}<Owned owned={r.owned} base={r.base} />{/snippet}
@@ -219,8 +224,9 @@
   .gain { color: var(--gold); display: inline-flex; align-items: center; gap: .1rem; font-family: var(--face-mark); font-weight: 700; }
   .hits { display: flex; flex-wrap: wrap; gap: .3rem .8rem; }
   .hit { display: inline-flex; align-items: center; gap: .35rem; font-size: .8rem; color: var(--platinum-dim); }
-  .hit.last { color: var(--platinum); }
-  .hit b { font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; background: var(--gold); color: var(--slab); padding: .05rem .3rem; }
+  .hit.last { color: var(--gold); }
+  .lastmark { font-style: normal; font-size: .6rem; color: var(--gold); }
+  .fin { font-family: var(--face-mark); font-size: 1rem; color: var(--gold); }
   .gaps { display: grid; grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr)); gap: 0 2.4rem; border-top: 1px solid var(--rule); margin-bottom: var(--step); }
   .gap { display: flex; align-items: center; gap: .6rem; padding: .5rem 0; border-bottom: 1px solid var(--rule); }
   .gap .needs { flex: 1; min-width: 0; }

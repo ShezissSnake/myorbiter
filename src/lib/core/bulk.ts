@@ -47,7 +47,7 @@ export interface BulkRules {
    */
   priority: "plat" | "trades";
 }
-export const defaultBulkRules = (): BulkRules => ({ sets: true, arcanes: true, mods: true, parts: false, partsKeep: 0, other: false, imprints: true, priority: "plat" });
+export const defaultBulkRules = (): BulkRules => ({ sets: true, arcanes: true, mods: true, parts: true, partsKeep: 0, other: false, imprints: true, priority: "plat" });
 
 export const KIND_LABEL: Record<BulkKind, string> = { set: "Set", arcane: "Arcane", mod: "Mod", part: "Prime part", imprint: "Imprint", other: "Other item" };
 /** Each kind's switch in BulkRules. */

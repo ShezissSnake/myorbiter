@@ -513,10 +513,12 @@
               </Named>
               {#if held != null && held < o.quantity}
                 <!-- Holding fewer than you list usually means some sold: say so, and orbiter closes them. -->
+                <!-- A question with two answers: both buttons change the listing on warframe.market. -->
                 <div class="fix">
-                  <button class="stamp gold" onclick={() => recordSale(o, o.quantity - held)} title="Record the sale and {held === 0 ? 'close the listing' : `lower the listing to ${held}`}">Sold {o.quantity - held}</button>
-                  {#if held === 0}<button class="link quiet" onclick={() => (removing = o.id)} title="You didn't sell it: just take the listing down">Didn't sell: remove</button>
-                  {:else}<button class="link quiet" onclick={() => mkt.update(o, { quantity: held })} title="You didn't sell them: just lower the quantity">Didn't sell: set to {held}</button>{/if}
+                  <span class="dim small q">{o.quantity - held} gone since you listed. Sold?</span>
+                  <button class="stamp gold" onclick={() => recordSale(o, o.quantity - held)} title="Log the sale on Sales and {held === 0 ? 'close the listing' : `lower the listing to ${held}`} on warframe.market">Yes: log {o.quantity - held} sold</button>
+                  {#if held === 0}<button class="stamp" onclick={() => (removing = o.id)} title="You didn't sell it (used it in game, say): just take the listing down on warframe.market">No: remove listing</button>
+                  {:else}<button class="stamp" onclick={() => mkt.update(o, { quantity: held })} title="You didn't sell them (used in game, say): just lower the listing to {held} on warframe.market">No: list {held}</button>{/if}
                 </div>
               {/if}
             </td>
@@ -580,7 +582,8 @@
                 {:else}
                   <IconButton icon="sold" tone="gold" label={o.quantity > 1 ? "Sold one" : "Sold"} title="Sold {o.quantity > 1 ? 'one' : 'it'} in game: marked sold on warframe.market (recorded on your profile), the listing goes down by one and the sale is logged. You get a few seconds to undo." onclick={() => recordSale(o, 1)} />
                   {#if o.quantity > 1}<IconButton icon="sold-many" tone="quiet" label="Sold several" title="Sold several at once: say how many" onclick={() => (selling = { id: o.id, n: 2 })} />{:else}<span class="slot"></span>{/if}
-                  <IconButton icon="trash" tone="danger quiet" label="Remove" title="Remove: take this listing off warframe.market" onclick={() => (removing = o.id)} />
+                  <!-- Set apart from the sale buttons: a slip of the mouse shouldn't land on it. -->
+                  <span class="apart"><IconButton icon="trash" tone="danger quiet" label="Remove" title="Remove: take this listing off warframe.market" onclick={() => (removing = o.id)} /></span>
                 {/if}
               </span>
             </td>
@@ -806,4 +809,5 @@
   .charted.on { color: var(--gold); border-color: var(--gold-dim); }
   /* The chart sits in from the table's edges, which its first and last cells otherwise touch. */
   .orders tr.chartrow > td, :global(html[data-room~="lt1100"]) .orders tr.chartrow > td { padding: .6rem 1rem 1.1rem; background: rgb(17 19 23 / 55%); }
+  .apart { display: inline-flex; margin-left: .55rem; padding-left: .55rem; border-left: 1px solid var(--rule); }
 </style>

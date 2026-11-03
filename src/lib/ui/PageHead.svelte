@@ -16,13 +16,14 @@
 <style>
   .head {
     display: grid; grid-template-columns: minmax(0, 1fr) minmax(14rem, 26rem); align-items: end; gap: var(--course);
-    padding: clamp(28px, 5vh, 56px) 0 var(--step);
+    padding: clamp(18px, 3vh, 34px) 0 calc(var(--step) * .8);
   }
-  h1 { font-size: clamp(2.6rem, 5.4vw, 4.6rem); }
+  /* Struck large, but not so large the page starts halfway down a laptop screen. */
+  h1 { font-size: clamp(2.3rem, 4.2vw, 3.7rem); }
   /* At most two lines, so a long one doesn't push the title down (the whole of it on hover). */
   .head .prose { margin: 0; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   /* The Orokin rule: a gold hairline struck from a small diamond, above every title. */
-  .orn { display: flex; align-items: center; width: 4.5rem; margin-bottom: .9rem; }
+  .orn { display: flex; align-items: center; width: 4.5rem; margin-bottom: .6rem; }
   .orn i { width: .5rem; height: .5rem; flex: none; background: var(--gold); transform: rotate(45deg); }
   .orn::after { content: ""; flex: 1; height: 1px; margin-left: .35rem; background: linear-gradient(90deg, var(--gold-dim), transparent); }
   .band {

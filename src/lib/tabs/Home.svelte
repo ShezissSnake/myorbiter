@@ -172,7 +172,7 @@
   const resets = $derived(resetTimers(live, now));
   const CYCLE_ICON: Record<string, GameIconName> = { earth: "cycles", cetus: "ostron", vallis: "solaris-united", cambion: "entrati", zariman: "holdfasts", duviri: "mastery" };
   // The clocks' own names, short enough to fit their column whole (the tooltip has the long one).
-  const CYCLE_SHORT: Record<string, string> = { cetus: "Cetus", cambion: "Cambion" };
+  const CYCLE_SHORT: Record<string, string> = { cetus: "Cetus", cambion: "Cambion", vallis: "Vallis" };
   const RESET_SHORT: Record<string, string> = { daily: "Standing caps", weekly: "Archon, Circuit" };
   const watched = $derived(matchedFissures(settings.fissureRules, live.fissures, now));
   const MISSIONS = ["Capture", "Defense", "Disruption", "Excavation", "Extermination", "Hijack", "Interception", "Mobile Defense", "Rescue", "Sabotage", "Spy", "Survival", "Void Cascade", "Void Flood", "Void Armageddon", "Alchemy", "Skirmish", "Volatile", "Orphix"];
@@ -586,7 +586,7 @@
             {/if}
             {#if day.archon}
               <div class="th"><GameIcon name="archon-shard" size={18} /><b class="mark">Archon Hunt</b><span class="dim small">{day.archon.boss}{day.archon.shard ? ` · ${day.archon.shard} shard` : ""} · {until(day.archon.ends, now)} left</span></div>
-              <p class="tline dim small">{day.archon.missions.join(" · ")}</p>
+              <ol class="tline dim small archon">{#each day.archon.missions as m, i (i)}<li><Mission type={m.replace(/ \(.*$/, "")} size={12} />{m}</li>{/each}</ol>
             {/if}
           </div>
         {/if}
@@ -679,7 +679,7 @@
       {#if toLevel.length}
         <button class="levelrow" onclick={() => go("mastery")} title="Things you own that aren't at max rank yet">
           <GameIcon name="mastery" size={26} />
-          <span><b class="mark">{toLevel.length} to level</b><span class="dim small">{toLevel.slice(0, 4).map((r) => r.name).join(", ")}{toLevel.length > 4 ? "…" : ""}</span></span>
+          <span><b class="mark" title="Things you own that aren't at max rank yet: ranking them up is mastery you already have">{toLevel.length} to rank up</b><span class="dim small">{toLevel.slice(0, 4).map((r) => r.name).join(", ")}{toLevel.length > 4 ? "…" : ""}</span></span>
           <span class="pts big" title="Mastery points at max rank"><GameIcon name="mastery" size={18} />{toLevel.reduce((n, r) => n + r.points, 0).toLocaleString("en")}</span>
         </button>
       {/if}
@@ -874,12 +874,15 @@
   /* Narrower: the clocks keep their icons and drop their names to stay on one row. */
   /* Page area under 1100 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt1100"]) .clock { padding: .7rem .75rem; }
-  /* The open worlds' icons say where; their names go (in the tooltip), the resets lose their ↻. */
-  :global(html[data-room~="lt1100"]) .clock:not(.reset) .register { display: none; }
+  /* The names stay (two "Night" clocks told apart only by their icons won't do), shortened; the resets lose their ↻. */
   :global(html[data-room~="lt1100"]) .clock.reset > .rk { display: none; }
+  :global(html[data-room~="lt1100"]) .clock :global(.gi) { width: 22px; height: 22px; }
   :global(html[data-room~="lt1100"]) .clock .lft { display: none; }
   /* Page area under 930 px (App sets the flag, by the room pages actually have). */
-  :global(html[data-room~="lt930"]) .world { grid-template-columns: repeat(auto-fit, minmax(6.3rem, 1fr)); }
+  /* Under 1100 px, four to a row, two rows: never seven on one and the last alone on the next. */
+  :global(html[data-room~="lt1100"]) .world, :global(html[data-room~="lt1100"]) .world:has(> .clock:nth-child(8)) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  :global(html[data-room~="lt1100"]) .clock:nth-child(4n + 1) { border-left: 0; }
+  :global(html[data-room~="lt1100"]) .clock:nth-child(n + 5) { border-top: 1px solid var(--rule); }
   :global(html[data-room~="lt930"]) .clock { padding: .6rem .55rem; }
   /* Page area under 900 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt900"]) .market, :global(html[data-room~="lt900"]) .ready, :global(html[data-room~="lt900"]) .fissures, :global(html[data-room~="lt900"]) .mastery, :global(html[data-room~="lt900"]) .baro, :global(html[data-room~="lt900"]) .varzia, :global(html[data-room~="lt900"]) .today, :global(html[data-room~="lt900"]) .foundry, :global(html[data-room~="lt900"]) .deals, :global(html[data-room~="lt900"]) .wishes , :global(html[data-room~="lt900"]) .panel.half { grid-column: span 12; }
@@ -893,6 +896,10 @@
   .th b { font-size: 1rem; }
   .th.sub { margin-top: .2rem; }
   .tline { margin: 0; }
+  /* The Archon Hunt's three missions, in order, each its glyph and node. */
+  .archon { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: .2rem .9rem; }
+  .archon li { display: inline-flex; align-items: center; gap: .3rem; }
+  .archon li + li::before { content: "→"; margin-right: .5rem; color: var(--rule-control); }
   .tline b { color: var(--platinum); font-weight: 600; }
   .chips { display: flex; flex-wrap: wrap; gap: .35rem; }
   .pick { display: inline-flex; align-items: center; gap: .4rem; padding: .2rem .55rem .2rem .25rem; border: 1px solid var(--rule); font-size: .82rem; color: var(--platinum-dim); }

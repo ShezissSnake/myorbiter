@@ -75,7 +75,7 @@
     const own = open[era] ?? [];
     const sp = own.filter((f) => f.isHard).length;
     const om = open.Omnia?.length ?? 0;
-    return `${own.length - sp}${sp ? ` + ${sp} SP` : ""} open${om ? ` · ${om} Omnia` : ""}`;
+    return [own.length - sp ? `${own.length - sp} open` : "", sp ? `${sp} Steel Path` : "", om ? `${om} Omnia` : ""].filter(Boolean).join(" · ");
   };
 </script>
 

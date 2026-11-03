@@ -14,7 +14,7 @@
 </div>
 
 <style>
-  .cell { padding: 1.1rem 1.2rem 1.2rem 0; min-width: 0; }
+  .cell { padding: .85rem 1.2rem .9rem 0; min-width: 0; }
   .cell + :global(.cell) { padding-left: 1.2rem; border-left: 1px solid var(--rule); }
   .v { font-size: clamp(1.9rem, 3vw, 2.7rem); font-variant-numeric: tabular-nums; line-height: 1; display: flex; align-items: center; gap: .35rem; }
   .t-gold { color: var(--gold); }
