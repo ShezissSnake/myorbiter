@@ -163,7 +163,7 @@
       <Owned owned={r.owned} base={r.base} compact />
       <span class="grow"></span>
       {#if forWish.has(r.base)}<span class="tag ok" title={wishTitle(r.base)}>wishlist</span>{:else if r.neededCount}<span class="tag warn" title="Rewards you still need">{r.neededCount} you need</span>{/if}
-      <ListButton {model} name="{r.base} Relic" />
+      <ListButton {model} labelled name="{r.base} Relic" />
     {/snippet}
   </ItemCard>
 {/snippet}

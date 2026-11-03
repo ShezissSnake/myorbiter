@@ -78,8 +78,8 @@
 </script>
 
 {#snippet nameCell(r: ModRow)}<Named file={model.imageOf(r.name)} name={r.name}>{#if !r.tradable}<span class="tag">untradable</span>{/if}</Named>{/snippet}
-{#snippet listCell(r: ModRow)}
-  {#if r.tradable && r.extras > 0}<ListButton {model} name={r.name} req={listReq(r)} />{/if}
+{#snippet listCell(r: ModRow, labelled = false)}
+  {#if r.tradable && r.extras > 0}<ListButton {model} {labelled} name={r.name} req={listReq(r)} />{/if}
 {/snippet}
 {#snippet priceCell(r: ModRow)}<P v={r.price} dim />{/snippet}
 {#snippet valueCell(r: ModRow)}<span title={worth(r) != null && worth(r)! < r.extrasValue! ? `All ${r.extras} would be ${Math.round(r.extrasValue!)}p, but the market takes about ${sellableCopies(r.extras, r.tradesPerDay)} a month` : undefined}><P v={worth(r)} /></span>{/snippet}
@@ -103,7 +103,7 @@
       <span class="rar rar-{r.rarity}">{r.rarity}</span>
       {#if !r.tradable}<span class="tag flush">untradable</span>{:else if r.tradesPerDay != null}<span class="dim small" title="How many times a day it trades on warframe.market">{Math.round(r.tradesPerDay * 10) / 10} sold/day</span>{/if}
       <span class="grow"></span>
-      {@render listCell(r)}
+      {@render listCell(r, true)}
     {/snippet}
   </ItemCard>
 {/snippet}

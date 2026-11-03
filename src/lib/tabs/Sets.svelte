@@ -204,7 +204,7 @@
       <span class="grow"></span>
       {#if r.prime}<P v={r.ducats} d dim />{/if}
       <P v={r.setPrice} />
-      {#if mode === "sell"}<ListButton {model} name="{r.name} Set" req={{ quantity: sellableOf(r) }} />{/if}
+      {#if mode === "sell"}<ListButton {model} labelled name="{r.name} Set" req={{ quantity: sellableOf(r) }} />{/if}
     {/snippet}
   </ItemCard>
 {/snippet}

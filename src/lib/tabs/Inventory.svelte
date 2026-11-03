@@ -126,11 +126,11 @@
 {#snippet worthCell(r: InventoryItem)}<P v={worthOf(r)} />{/snippet}
 {#snippet sellableCell(r: InventoryItem)}<P v={sellable(r)} />{/snippet}
 {#snippet ducatCell(r: InventoryItem)}<P v={r.ducats == null ? null : r.ducats * r.quantity} d dim />{/snippet}
-{#snippet listCell(r: InventoryItem)}
+{#snippet listCell(r: InventoryItem, labelled = false)}
   {@const s = spareOf(r)}
   {#if s}
     {#if s.spare > 0}
-      <ListButton {model} name={s.name} req={{ unique: r.kind === "relic" || s.type === "Veiled riven" ? null : r.unique, rank: r.rank, subtype: r.subtype, quantity: s.spare }} />
+      <ListButton {model} {labelled} name={s.name} req={{ unique: r.kind === "relic" || s.type === "Veiled riven" ? null : r.unique, rank: r.rank, subtype: r.subtype, quantity: s.spare }} />
     {:else}
       <span class="kept" role="img" aria-label="Kept" title={`Kept: ${why(r)}`}><Icon name="lock" /></span>
     {/if}
@@ -142,7 +142,7 @@
     {#if r.kind === "gear"}{#if r.mastered}<span class="tag ok flush">✓ mastered</span>{:else}<span class="tag warn flush">level it</span>{/if}{/if}
     {#if perDay(r) != null}<span class="dim small" title="How many times a day it trades on warframe.market">{Math.round(perDay(r)! * 10) / 10} sold/day</span>{:else if r.kind !== "gear"}<span class="dim small" title="warframe.market's daily statistics have no trades of it">no recent sales</span>{/if}
     <span class="grow"></span>
-    {@render listCell(r)}
+    {@render listCell(r, true)}
   {/snippet}
   <ItemCard hover={r.name} title={shown(r)} sub={spareOf(r)?.type ?? r.type} fallback={kindIcon(r.kind === "relic" ? "relic" : (spareOf(r)?.type ?? r.type), r.name)} image={model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r))} artSize={64} owned={r.kind === "gear" && !r.mastered} onopen={open} foot={r.kind === "gear" || perDay(r) != null || spareOf(r) ? foot : undefined}>
     {#snippet art()}

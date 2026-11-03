@@ -19,6 +19,14 @@
   ];
 
   type Step = [tab: string, label: string, text: string | string[], planner?: "sets" | "radiant"];
+  // Each page in a line: its first clause, the rest on "more".
+  let openSteps = $state<Record<string, boolean>>({});
+  const brief = (t: string | string[]) => {
+    const s = Array.isArray(t) ? t[0] : t;
+    const cut = s.search(/[.:;(]/);
+    if (cut > 20 && cut < 120) return s.slice(0, cut).trimEnd() + "…";
+    return s.length > 110 ? s.slice(0, 110).replace(/\s\S*$/, "") + "…" : s;
+  };
   const ROUTINES: { title: string; steps: Step[] }[] = [
     {
       title: "Each session",
@@ -124,7 +132,9 @@
         <h2 class="mark">{r.title}</h2>
         <ol>
           {#each r.steps as [tab, label, text, planner] (label)}
-            <li><button class="link" onclick={() => { if (planner) plannerMode = planner; go(tab); }}>{label}</button>{#if Array.isArray(text)}<ul class="sub">{#each text as t (t)}<li>{t}</li>{/each}</ul>{:else}<span>{text}</span>{/if}</li>
+            {@const key = `${r.title}|${label}`}
+            <!-- One line each, the page's name taking you there; the whole of it a click away. -->
+            <li><button class="link" onclick={() => { if (planner) plannerMode = planner; go(tab); }} title="Open {label}">{label}</button>{#if openSteps[key]}{#if Array.isArray(text)}<ul class="sub">{#each text as t (t)}<li>{t}</li>{/each}</ul>{:else}<span>{text}</span>{/if}{:else}<span>{brief(text)}</span>{/if} <button class="more" aria-expanded={!!openSteps[key]} title={openSteps[key] ? "Less" : "Everything about it"} onclick={() => (openSteps[key] = !openSteps[key])}>{openSteps[key] ? "less" : "more"}</button></li>
           {/each}
         </ol>
       </article>
@@ -252,4 +262,6 @@
   .rar.r { color: var(--gold); }
   .rar.u { color: #a9b0ba; }
   .gold { color: var(--gold); }
+  .more { border: 0; background: none; padding: 0 .2rem; font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; color: var(--gold-dim); cursor: pointer; }
+  .more:hover { color: var(--gold); }
 </style>

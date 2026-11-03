@@ -127,11 +127,11 @@
     <span class="dim small">{r.complete && r.copies <= r.needed ? "maxed" : `${r.copies}/${r.needed}`}</span>
   </div>
 {/snippet}
-{#snippet listCell(r: ArcaneRow)}
+{#snippet listCell(r: ArcaneRow, labelled = false)}
   {#if r.tradable && r.extraSets > 0}
-    <ListButton {model} name={r.name} label="List {r.extraSets}× R{r.maxRank}" req={{ unique: r.unique, rank: r.maxRank, quantity: r.extraSets }} hint={fuseHint(r)} />
+    <ListButton {model} {labelled} name={r.name} label="List {r.extraSets}× R{r.maxRank}" req={{ unique: r.unique, rank: r.maxRank, quantity: r.extraSets }} hint={fuseHint(r)} />
   {:else if r.tradable && looseSpare(r) > 0}
-    <ListButton {model} name={r.name} req={{ unique: r.unique, rank: 0, quantity: looseSpare(r) }} />
+    <ListButton {model} {labelled} name={r.name} req={{ unique: r.unique, rank: 0, quantity: looseSpare(r) }} />
   {/if}
 {/snippet}
 {#snippet nameCell(r: ArcaneRow)}<Named file={model.imageOf(r.name)} name={r.name} />{/snippet}
@@ -177,7 +177,7 @@
     {#snippet foot()}
       {#if r.tradesPerDay != null}<span class="dim small" title="How many times a day it trades on warframe.market">{Math.round(r.tradesPerDay * 10) / 10} sold/day</span>{/if}
       <span class="grow"></span>
-      {@render listCell(r)}
+      {@render listCell(r, true)}
     {/snippet}
   </ItemCard>
 {/snippet}

@@ -126,11 +126,11 @@
 {#snippet totalCell(r: PartRow)}<P v={r.price == null ? null : r.price * qty(r)} />{/snippet}
 {#snippet ducatCell(r: PartRow)}<P v={r.ducats} d dim />{/snippet}
 {#snippet verdictCell(r: PartRow)}{@const v = verdict(r)}<span class="v-{v}" title={VERDICT_TITLE[v]}>{LABEL[v]}</span>{/snippet}
-{#snippet listCell(r: PartRow)}
+{#snippet listCell(r: PartRow, labelled = false)}
   {#if r.spare > 0 && r.inSets > 0}
-    <ListButton {model} name="{r.parentName} Set" label="List set" req={{ quantity: setsFor.get(r.parentName) ?? 1 }} />
+    <ListButton {model} {labelled} name="{r.parentName} Set" label="List set" req={{ quantity: setsFor.get(r.parentName) ?? 1 }} />
   {:else if r.spare > 0}
-    <ListButton {model} name={r.name} req={{ quantity: r.spare }} />
+    <ListButton {model} {labelled} name={r.name} req={{ quantity: r.spare }} />
   {/if}
 {/snippet}
 {#snippet availCell(r: PartRow)}<Avail v={r.availability} />{/snippet}
@@ -150,7 +150,7 @@
       {#if parent === "all" && !r.parentMastered}<span class="tag warn">{r.parentOwned ? "built" : "need"}</span>{/if}
       <span class="grow"></span>
       <button class="link" use:info={{ name: r.parentName, unique: r.parentUnique }} onclick={() => details.open(r.parentUnique)}>{r.parentName.replace(/ Prime$/, "")} ›</button>
-      {@render listCell(r)}
+      {@render listCell(r, true)}
     {/snippet}
   </ItemCard>
 {/snippet}
@@ -179,7 +179,7 @@
     </div>
   {/if}
   <div class="actions">
-    {@render listCell(r)}
+    {@render listCell(r, true)}
     {#if r.inSets > 0 && r.spare > r.inSets}<button class="stamp" onclick={(e) => { e.stopPropagation(); mkt.startListing(model, r.name, { quantity: r.spare - r.inSets }); }}>Or list {r.spare - r.inSets} loose</button>{/if}
     <button class="link" onclick={() => details.open(r.parentUnique)}>{r.parentName} ›</button>
     <button class="link" onclick={() => openUrl(marketUrl(r.name))}>warframe.market ↗</button>

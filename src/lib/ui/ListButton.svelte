@@ -12,6 +12,7 @@
     label = "List",
     why = null,
     hint = null,
+    labelled = false,
   }: {
     model: Model;
     /** warframe.market's name for it: "Rhino Prime Set", "Lith A1 Relic"… */
@@ -22,6 +23,8 @@
     why?: string | null;
     /** A line added to the tooltip ("fuse 1 in game first"). */
     hint?: string | null;
+    /** On a card: the icon and a word (Sell, or Listed), so it reads without hovering. */
+    labelled?: boolean;
   } = $props();
 
   // Already on warframe.market? Then the button says so (and still opens the form, to add or reprice).
@@ -34,7 +37,7 @@
   // listing form) go on as usual.
   const key = (e: KeyboardEvent) => (e.key === "Enter" || e.key === " ") && e.stopPropagation();
   // "List R5", "List set": what the plain icon can't say goes beside it.
-  const extra = $derived(label.replace(/^List\s*/i, ""));
+  const extra = $derived(label.replace(/^List\s*/i, "") || (labelled ? (listed ? "Listed" : "Sell") : ""));
   const tip = $derived(why ?? (listed ? `Listed: ${listed.quantity} at ${listed.platinum}p${listed.visible ? "" : ", hidden from buyers"}. Click to add more or change the price.` : `${label} on warframe.market: ${req.quantity ?? ""} ${name}`.replace(/\s+/g, " ")) + (hint && !why ? `. ${hint}` : ""));
 </script>
 
