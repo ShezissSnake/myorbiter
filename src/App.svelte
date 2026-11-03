@@ -4,6 +4,7 @@
   import { onMount, untrack } from "svelte";
   import { invasionNeeds, invasionRares } from "./lib/core/invasions";
   import { foldSetSales, repCandidates, salesFromTrade, tradeKey } from "./lib/core/trades";
+  import { repOffered, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
   import { watchlist } from "./lib/core/deals";
@@ -41,6 +42,7 @@
     market,
     onMarketOrder,
     onNoticeOpen,
+    onNoticeAction,
     relicData,
     recipeData,
     mergeLive,
@@ -115,7 +117,7 @@
   import RepButton from "./lib/ui/RepButton.svelte";
   import GameIcon from "./lib/ui/GameIcon.svelte";
   import { drawnOrder, orderPages, pageById, pagesFor, migrateTab, sectionsOf, type Page, type PageId } from "./lib/pages";
-  import { growNotice, logNotice, noticeKind, splitTarget, type NoticeKind } from "./lib/notices";
+  import { growNotice, logNotice, noticeKind, splitTarget, type Notice, type NoticeKind } from "./lib/notices";
   import { toasts } from "./lib/toasts.svelte";
   import { alertNeeds, describeHelp } from "./lib/core/worldNeeds";
   import NoticesSheet from "./lib/NoticesSheet.svelte";
@@ -454,16 +456,18 @@
    * on a console), kept in the history (the bell), and shown unless notifications are paused, as
    * a pop-up inside orbiter while you're looking at it, else on the desktop.
    */
-  function tell(kind: NoticeKind, title: string, body: string, to?: string) {
-    if (!settings.notify[kind] || (onConsole && noticeKind[kind].pcOnly)) return;
+  function tell(kind: NoticeKind, title: string, body: string, to?: string, rep?: Notice["rep"]): string | null {
+    if (!settings.notify[kind] || (onConsole && noticeKind[kind].pcOnly)) return null;
     logLine(kind === "tennoscope" || kind === "market" ? "warn" : "info", "notice", `${kind}: ${title}${body ? ` (${body.split("\n")[0].slice(0, 200)})` : ""}`);
-    settings.game.notices = logNotice(settings.game.notices, { at: Date.now(), kind, title, body, ...(to ? { to } : {}) });
+    settings.game.notices = logNotice(settings.game.notices, { at: Date.now(), kind, title, body, ...(to ? { to } : {}), ...(rep ? { rep } : {}) });
     toDiscord(kind, title, body);
-    if (quietNow(kind)) return;
     const n = settings.game.notices[0];
+    if (quietNow(kind)) return n.id;
     if (typeof document !== "undefined" && document.hasFocus()) {
       if (settings.notifyOptions.toasts) toasts.push(n);
-    } else if (settings.notifyOptions.desktop) notify(title, body, n.id);
+      // A sale's +rep: a button of the desktop notification's own, beside Open.
+    } else if (settings.notifyOptions.desktop) notify(title, body, n.id, rep ? [["rep", "Give +rep"]] : []);
+    return n.id;
   }
   /**
    * Repricing: one notification per pass, which grows as listings move (newest first, so the
@@ -1070,32 +1074,161 @@
   /** Game sessions whose trade log this run has read once (see the trade effect). */
   const tradeSessionsRead = new Set<number | string>();
   async function handleTrades(trades: NonNullable<MissionState["trades"]>, session: number | null) {
-    const done: string[] = [];
-    let unmarked = 0;
-    for (const t of trades) {
-      const sales = salesFromTrade(t, mkt.orders, mkt.index, model);
-      if (!sales) continue;
-      const at = t.at ? t.at * 1000 : Date.now();
-      const key = tradeKey(session, t);
-      for (const s of sales) {
-        // Logged by hand within ten minutes of the trade: already counted. Only by hand: a sale
-        // this logged from an earlier trade (the same item to another buyer) is a sale of its own.
-        const hand = handLoggedSale(settings.market.sales, s.name, at);
-        if (hand >= 0) {
-          settings.market.sales[hand] = { ...settings.market.sales[hand], trade: key };
+    // Each trade's sale notification waits for what this makes of it (saleOutcome).
+    for (const t of trades) marking.add(tradeKey(session, t));
+    let done = 0;
+    try {
+      for (const t of trades) {
+        const key = tradeKey(session, t);
+        const sales = salesFromTrade(t, mkt.orders, mkt.index, model);
+        if (!sales) {
+          saleOutcome(key, null);
           continue;
         }
-        const marked = s.order ? await mkt.sold(s.order, Math.min(s.count, s.order.quantity), { quiet: true }) : null;
-        if (s.order && !marked) unmarked++;
-        settings.market.sales = [{ at, item: s.name, rank: s.rank, quantity: s.count, platinum: s.platinumEach, trade: key }, ...settings.market.sales].slice(0, 2000);
-        done.push(`${s.count > 1 ? `${s.count} × ` : ""}${s.name} for ${s.count * s.platinumEach}p${s.order ? (marked ? "" : " (still listed)") : " (not listed)"}`);
+        const at = t.at ? t.at * 1000 : Date.now();
+        const lines: SoldLine[] = [];
+        for (const s of sales) {
+          // Logged by hand within ten minutes of the trade: already counted. Only by hand: a sale
+          // this logged from an earlier trade (the same item to another buyer) is a sale of its own.
+          const hand = handLoggedSale(settings.market.sales, s.name, at);
+          if (hand >= 0) {
+            settings.market.sales[hand] = { ...settings.market.sales[hand], trade: key };
+            lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: "hand" });
+            continue;
+          }
+          const marked = s.order ? await mkt.sold(s.order, Math.min(s.count, s.order.quantity), { quiet: true }) : null;
+          settings.market.sales = [{ at, item: s.name, rank: s.rank, quantity: s.count, platinum: s.platinumEach, trade: key }, ...settings.market.sales].slice(0, 2000);
+          lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: s.order ? (marked ? "marked" : "still listed") : "not listed" });
+          done++;
+        }
+        saleOutcome(key, lines);
       }
+    } finally {
+      // Whatever went wrong part way: the notifications waiting on the rest go without it.
+      for (const t of trades) if (marking.has(tradeKey(session, t))) saleOutcome(tradeKey(session, t), null);
     }
-    if (!done.length) return;
-    const outcome = unmarked ? `Logged; ${unmarked} couldn't be marked sold on warframe.market (see Orders).` : "Marked sold on warframe.market and logged.";
-    tell("sold", done.length === 1 ? `Sold ${done[0]}` : `${done.length} sales`, `${done.join("\n")}\n${outcome}`, "sales");
+    if (!done) return;
     // Your inventory changed: have TennoScope read it again so spares and listings line up.
     if (ts.report?.setup.access_mode === "full" && ts.report.game_running) void ts.ask("--sync");
+  }
+
+  // Every sale in game gets a notification, signed in or not, marking sales on or off: what you
+  // sold, to whom, for how much (one per trade, never two). When the marking above handles the
+  // trade, the notification waits for it (seconds) and says what became of the listing on a
+  // second line. Each trade is looked at once, kept across restarts (tradesTold), and only the
+  // last half hour's are told, by the same rules as the marking.
+  $effect(() => {
+    const trades = mission?.trades ?? [];
+    const session = mission?.session_start ?? null;
+    if (!trades.length) return;
+    untrack(() => {
+      const key = (t: (typeof trades)[number]) => tradeKey(session, t);
+      const had = new Set(settings.market.tradesTold);
+      if (trades.every((t) => had.has(key(t)))) return;
+      const firstRead = !toldSessionsRead.has(session ?? "?");
+      toldSessionsRead.add(session ?? "?");
+      const { tell: due, fresh } = salesToTell(trades, key, had, Date.now(), firstRead);
+      settings.market.tradesTold = keepSeen(fresh, settings.market.tradesTold, 300, session == null ? "?" : String(session));
+      for (const t of due) void tellSale(t, key(t));
+    });
+  });
+  // Development only: window.__trade({ partner, offered, platinum_received }) adds a trade to the game
+  // log as read, to see its notification without the game.
+  if (import.meta.env.DEV && typeof window !== "undefined") {
+    type T = NonNullable<MissionState["trades"]>[number];
+    (window as unknown as { __trade: (t: Partial<T>) => void }).__trade = (t) => {
+      if (!mission) return;
+      const full: T = { uptime: Math.round(performance.now()) / 1000, at: Math.floor(Date.now() / 1000), partner: "Bob", offered: [], received: [], platinum_offered: 0, platinum_received: 0, ...t };
+      mission = { ...mission, trades: [...(mission.trades ?? []), full] };
+    };
+  }
+  /** Game sessions whose trades the sale notifications have read once (see above). */
+  const toldSessionsRead = new Set<number | string>();
+  /** Trades the marking of sales is working on: their notifications wait for it. */
+  const marking = new Set<string>();
+  /** What the marking made of a trade, when it finished before its notification asked. */
+  const outcomes = new Map<string, SoldLine[] | null>();
+  const outcomeWaits = new Map<string, (lines: SoldLine[] | null) => void>();
+  /** Notifications told, by trade: a marking that finishes late still lands in the history's copy. */
+  const toldNotice = new Map<string, string>();
+  function saleOutcome(key: string, lines: SoldLine[] | null) {
+    marking.delete(key);
+    const waiting = outcomeWaits.get(key);
+    if (waiting) {
+      outcomeWaits.delete(key);
+      return waiting(lines);
+    }
+    const id = toldNotice.get(key);
+    const n = id ? settings.game.notices.find((x) => x.id === id) : undefined;
+    const t = mission?.trades?.find((x) => tradeKey(mission?.session_start ?? null, x) === key);
+    if (n && t && lines) {
+      // Too late for the pop-up: the history says it, without popping up again.
+      settings.game.notices = settings.game.notices.map((x) => (x.id === n.id ? { ...x, body: saleNotice(t, lines).body } : x));
+      return;
+    }
+    if (!id) outcomes.set(key, lines);
+  }
+  /** What the marking makes of a trade, waiting up to `ms` for it. Null: it didn't (or won't) say. */
+  function outcomeOf(key: string, ms: number): Promise<SoldLine[] | null> {
+    if (outcomes.has(key)) {
+      const lines = outcomes.get(key) ?? null;
+      outcomes.delete(key);
+      return Promise.resolve(lines);
+    }
+    return new Promise((done) => {
+      const t = setTimeout(() => {
+        outcomeWaits.delete(key);
+        done(null);
+      }, ms);
+      outcomeWaits.set(key, (lines) => {
+        clearTimeout(t);
+        done(lines);
+      });
+    });
+  }
+  async function tellSale(t: NonNullable<MissionState["trades"]>[number], key: string) {
+    // The marking runs off the same read of the log: let it start first.
+    await new Promise((r) => setTimeout(r, 0));
+    // It's marking this trade, or will once your listings are read (orbiter starting, back after
+    // an outage): wait for it. Else it isn't going to.
+    const loading = mkt.ordersAt == null || !mkt.items.length;
+    const wait = marking.has(key) || outcomes.has(key) ? 60_000 : mkt.linked && settings.market.autoTrades && loading ? 20_000 : 0;
+    const [lines, u] = await Promise.all([
+      wait ? outcomeOf(key, wait) : Promise.resolve(null),
+      // +rep by hand: whether the buyer is on warframe.market (one lookup, shared with the trade history's).
+      !settings.market.autoRep && mkt.linked ? mkt.user(t.partner).catch(() => undefined) : Promise.resolve(undefined),
+    ]);
+    const { title, body } = saleNotice(t, lines);
+    const at = t.at ? t.at * 1000 : Date.now();
+    const offer = repOffered({ key, partner: t.partner, at, now: Date.now(), autoRep: settings.market.autoRep, linked: mkt.linked, onMarket: !!u, rep: settings.market.rep, trades: settings.market.trades });
+    const id = tell("sold", title, body, "sales", offer ? { key, partner: t.partner } : undefined);
+    if (id) toldNotice.set(key, id);
+  }
+  /**
+   * A notification's +rep, while it's still due: you give it by hand, the buyer is on
+   * warframe.market and has none from you yet. Once given it stays, as "+rep given ✓"; Not now
+   * (here or on the strip at the top) takes it away.
+   */
+  function repShown(n: Notice): { key: string; partner: string; given: boolean } | null {
+    const r = n.rep;
+    if (!r) return null;
+    if (settings.market.rep[r.key] === "given") return { ...r, given: true };
+    const at = settings.market.trades.find((x) => x.key === r.key)?.at ?? n.at;
+    const ok = repOffered({ key: r.key, partner: r.partner, at, now: clock, autoRep: settings.market.autoRep, linked: mkt.linked, onMarket: !!mkt.users[r.partner.toLowerCase()], rep: settings.market.rep, trades: settings.market.trades });
+    return ok ? { ...r, given: false } : null;
+  }
+  /** The desktop notification's Give +rep: given from here, orbiter left where it is. */
+  async function repFromNotice(id: string) {
+    const n = settings.game.notices.find((x) => x.id === id);
+    const r = n ? repShown(n) : null;
+    if (!r || r.given) return;
+    try {
+      const how = await mkt.giveRep(r.partner, settings.market.repText);
+      markRep(r.key, how === "reported" ? "skipped" : "given");
+      if (settings.notifyOptions.desktop) notify(how === "reported" ? `${r.partner}: you reported them on warframe.market` : `+rep given to ${r.partner}`, how === "reported" ? "Your review of them is a report: left as it is." : "");
+    } catch (e) {
+      tell("sold", `Couldn't give ${r.partner} +rep`, `${String(e).replace(/^Error:\s*/, "")}. The sale's notification under the bell still has its +rep button.`);
+    }
   }
   // The game restarted, or started after TennoScope: its read of your inventory is from before
   // this game session. TennoScope reads it when it sees the game start, which is often before you
@@ -1903,6 +2036,10 @@
     const orderListener = onMarketOrder((o) => mkt.feedOrder(o));
     // A desktop notification clicked: open what it's about (the window is brought up already).
     const noticeListener = onNoticeOpen((id) => openNotice(id));
+    // A desktop notification's own button: a sale's Give +rep.
+    const noticeActionListener = onNoticeAction((id, action) => {
+      if (action === "rep") void repFromNotice(id);
+    });
     let feedPoll: ReturnType<typeof setInterval> | undefined;
     market
       .feed(true)
@@ -2017,6 +2154,7 @@
       closeListener.then((stop) => stop());
       orderListener.then((stop) => stop());
       noticeListener.then((stop) => stop());
+      noticeActionListener.then((stop) => stop());
       clearInterval(feedPoll);
       clearInterval(poll);
       clearInterval(livePoll);
@@ -2143,7 +2281,7 @@
         title={`${syncStep ? `${syncStep}…\n\n` : ""}${onConsole ? "Reload your warframe.market listings, the fissures and Baro" : syncMode ? "Sync: ask TennoScope to read your inventory from the game now, and wait for the new read" : "Sync: reload TennoScope's last saved read and the live fissures. With Warframe running and TennoScope on Full access, it asks TennoScope for a fresh read from the game instead"} (Ctrl+R)`}
         onclick={refreshAll} />
         {#if model && !onConsole}<button class="tool" aria-label="Find anything" aria-expanded={showLookup} title="Find anything by name: an item, a prime part, a relic, a mod or arcane you hold (Ctrl+K)" onclick={() => (showLookup = true)}><Icon name="search" size={14} /></button>{/if}
-        <button class="tool bell" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what orbiter told you, and what it tells you about` : unread ? `Notifications: ${unread} new` : "Notifications: what orbiter told you, and what it tells you about"} onclick={() => openNotices("recent")}><Icon name="bell" size={14} />{#if unread}<span class="count">{unread > 99 ? "99+" : unread}</span>{/if}</button>
+        <button class="tool bell" data-card="notices" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what orbiter told you, and what it tells you about` : unread ? `Notifications: ${unread} new` : "Notifications: what orbiter told you, and what it tells you about"} onclick={() => openNotices("recent")}><Icon name="bell" size={14} />{#if unread}<span class="count">{unread > 99 ? "99+" : unread}</span>{/if}</button>
       </div>
       {#if syncJob.state === "failed" && syncJob.error}<p class="syncerr" role="status">{syncJob.error}</p>{/if}
       <div class="tools">
@@ -2330,8 +2468,16 @@
 
 <!-- The ring Show me and the tour put round a spot (spotlight): over the page, inside its edges. -->
 <div class="spotbox" bind:this={ringBox} aria-hidden="true"><div class="spotring" bind:this={ringEl}></div></div>
-<NoticesSheet bind:open={showNotices} bind:view={noticesView} bind:settings console={onConsole} open_={openNotice} test={testNotice} />
-<Toasts open={openNotice} left={compact ? "5.2rem" : "15.3rem"} />
+<!-- A notification's own controls: a sale's +rep for the buyer, while it's due (repShown). -->
+{#snippet noticeActs(n: Notice)}
+  {@const r = repShown(n)}
+  {#if r}
+    <RepButton partner={r.partner} text={settings.market.repText} label="+rep {r.partner}" given={r.given} ongiven={() => markRep(r.key, "given")} />
+    {#if !r.given}<button class="link quiet" title="No +rep for this trade (the reminder at the top goes too)" onclick={() => markRep(r.key, "skipped")}>Not now</button>{/if}
+  {/if}
+{/snippet}
+<NoticesSheet bind:open={showNotices} bind:view={noticesView} bind:settings console={onConsole} open_={openNotice} test={testNotice} acts={noticeActs} />
+<Toasts open={openNotice} left={compact ? "5.2rem" : "15.3rem"} acts={noticeActs} />
 <WhatsNew bind:open={showNews} seen={settings.newsSeen} ondone={() => (settings.newsSeen = NEWEST)} go={(t: string) => goTo(t)} />
 <SettingsSheet bind:open={showSettings} bind:settings {rivenKeyError} onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
 <TennoscopeSheet bind:open={showTennoscope} synced={model ? ago(model.observedAt, tick) : "not yet"} job={syncJob} onsync={refreshAll} {windowMode} bind:opaqueOverlay={settings.tennoscope.opaqueOverlay} />

@@ -12,6 +12,7 @@
   import GameIcon from "./ui/GameIcon.svelte";
   import ProgressButton from "./ui/ProgressButton.svelte";
   import { Job } from "./job.svelte";
+  import type { Snippet } from "svelte";
 
   let {
     open = $bindable(),
@@ -20,7 +21,8 @@
     console = false,
     open_,
     test,
-  }: { open: boolean; view?: "recent" | "choose"; settings: Settings; console?: boolean; open_: (id: string) => void; test: () => void } = $props();
+    acts,
+  }: { open: boolean; view?: "recent" | "choose"; settings: Settings; console?: boolean; open_: (id: string) => void; test: () => void; acts?: Snippet<[Notice]> } = $props();
 
   let now = $state(Date.now());
   // Seen once you've had Recent open and close the panel: the count on the bell starts again from zero.
@@ -165,6 +167,7 @@
                   <span class="k dim small">{k?.label ?? n.kind}</span>
                 </span>
               </button>
+              {#if acts}<div class="nacts">{@render acts(n)}</div>{/if}
             </li>
           {/each}
         </ul>
@@ -239,6 +242,12 @@
   .notice:hover { background: rgb(230 233 238 / 4%); border-color: var(--rule); }
   .notice.unread { background: rgb(214 174 74 / 7%); box-shadow: inset 2px 0 0 var(--gold); color: var(--platinum); }
   .ic { padding-top: .1rem; }
+  /* A notification's own controls (a sale's +rep), under its text and in line with it. */
+  .nacts { display: flex; align-items: center; gap: .9rem; padding: 0 .7rem .6rem 3.2rem; font-size: .8rem; }
+  .nacts:not(:has(*)) { display: none; }
+  /* With controls under it, the whole entry is lit as new, not just its text. */
+  li:has(.nacts > :global(*)):has(.notice.unread) { background: rgb(214 174 74 / 7%); box-shadow: inset 2px 0 0 var(--gold); }
+  li:has(.nacts > :global(*)) .notice.unread { background: transparent; box-shadow: none; }
   .txt { display: grid; gap: .2rem; min-width: 0; }
   .t { display: flex; justify-content: space-between; gap: .8rem; align-items: baseline; }
   .t b { font-weight: 600; color: var(--platinum); }

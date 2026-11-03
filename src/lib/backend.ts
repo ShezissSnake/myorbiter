@@ -73,6 +73,8 @@ export interface MarketSettings {
   autoTrades: boolean;
   /** Trades already handled (session|uptime), newest first. */
   tradesSeen: string[];
+  /** Trades the sale notification has looked at (session|uptime), newest first: told once, never again after a restart. */
+  tradesTold: string[];
   /** Every trade from the game log, newest first. */
   trades: TradeLogEntry[];
   /** Price alerts: tell me when someone lists one of these at or under my price (Cheap buys). */
@@ -105,7 +107,7 @@ function presenceBackOf(v: unknown): { p: Presence; until: number } | null {
   return o && typeof o === "object" && (o.p === "invisible" || o.p === "online" || o.p === "ingame") && typeof o.until === "number" && Number.isFinite(o.until) ? { p: o.p, until: o.until } : null;
 }
 
-export const defaultMarketSettings = (): MarketSettings => ({ platform: "pc", auto: false, autoCheck: false, every: 5, minShare: 0.5, floors: {}, paused: {}, presence: null, minPrice: 10, minRelicPrice: 3, relicPrices: {}, bulk: defaultBulkRules(), sellable: defaultSellChoices(), sales: [], autoTrades: true, tradesSeen: [], trades: [], buyAlerts: [], rep: {}, repText: ":)", autoRep: true, lastCopy: { optIn: false, minutes: DEFAULT_HIDE_MINUTES, hidden: [] } });
+export const defaultMarketSettings = (): MarketSettings => ({ platform: "pc", auto: false, autoCheck: false, every: 5, minShare: 0.5, floors: {}, paused: {}, presence: null, minPrice: 10, minRelicPrice: 3, relicPrices: {}, bulk: defaultBulkRules(), sellable: defaultSellChoices(), sales: [], autoTrades: true, tradesSeen: [], tradesTold: [], trades: [], buyAlerts: [], rep: {}, repText: ":)", autoRep: true, lastCopy: { optIn: false, minutes: DEFAULT_HIDE_MINUTES, hidden: [] } });
 
 export interface AdviceSettings {
   platPerDucat: number;
@@ -750,7 +752,7 @@ export async function loadSettings(): Promise<Settings> {
     chores: raw?.chores && typeof raw.chores === "object" && !Array.isArray(raw.chores) ? Object.fromEntries(Object.entries(raw.chores).filter(([, v]) => typeof v === "number" && v > Date.now())) as Record<string, number> : {},
     homeHidden: Array.isArray(raw?.homeHidden) ? raw.homeHidden.filter((k: unknown): k is string => typeof k === "string") : [],
     plannerMode: raw?.plannerMode === "radiant" ? "radiant" : "sets",
-    market: { ...base.market, ...(raw?.market ?? {}), bulk: { ...base.market.bulk, ...(raw?.market?.bulk ?? {}) }, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: raw?.market?.sellable?.relicsWorthSelling ?? base.market.sellable.relicsWorthSelling, saveForSets: raw?.market?.sellable?.saveForSets !== false }, sales: Array.isArray(raw?.market?.sales) ? raw.market.sales : [], tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], trades: Array.isArray(raw?.market?.trades) ? raw.market.trades : [], buyAlerts: Array.isArray(raw?.market?.buyAlerts) ? raw.market.buyAlerts.filter((a: unknown): a is BuyAlert => !!a && typeof (a as BuyAlert).name === "string" && typeof (a as BuyAlert).maxPrice === "number") : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: raw?.market?.platform && raw.market.platform in PLATFORM_LABEL ? raw.market.platform : "pc", autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, every: typeof raw?.market?.every === "number" && raw.market.every >= 1 ? raw.market.every : base.market.every, minRelicPrice: typeof raw?.market?.minRelicPrice === "number" && raw.market.minRelicPrice >= 1 ? Math.round(raw.market.minRelicPrice) : base.market.minRelicPrice, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)", lastCopy: { optIn: raw?.market?.lastCopy?.optIn === true, minutes: typeof raw?.market?.lastCopy?.minutes === "number" && raw.market.lastCopy.minutes >= 1 ? Math.round(raw.market.lastCopy.minutes) : DEFAULT_HIDE_MINUTES, hidden: Array.isArray(raw?.market?.lastCopy?.hidden) ? raw.market.lastCopy.hidden.filter((h: unknown): h is HiddenForWhisper => !!h && typeof (h as HiddenForWhisper).id === "string" && typeof (h as HiddenForWhisper).at === "number") : [] } , presenceBack: presenceBackOf(raw?.market?.presenceBack), ordersSort: ordersSortOf(raw?.market?.ordersSort), sparesOpen: raw?.market?.sparesOpen === true },
+    market: { ...base.market, ...(raw?.market ?? {}), bulk: { ...base.market.bulk, ...(raw?.market?.bulk ?? {}) }, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: raw?.market?.sellable?.relicsWorthSelling ?? base.market.sellable.relicsWorthSelling, saveForSets: raw?.market?.sellable?.saveForSets !== false }, sales: Array.isArray(raw?.market?.sales) ? raw.market.sales : [], tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], tradesTold: Array.isArray(raw?.market?.tradesTold) ? raw.market.tradesTold.filter((k: unknown): k is string => typeof k === "string") : [], trades: Array.isArray(raw?.market?.trades) ? raw.market.trades : [], buyAlerts: Array.isArray(raw?.market?.buyAlerts) ? raw.market.buyAlerts.filter((a: unknown): a is BuyAlert => !!a && typeof (a as BuyAlert).name === "string" && typeof (a as BuyAlert).maxPrice === "number") : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: raw?.market?.platform && raw.market.platform in PLATFORM_LABEL ? raw.market.platform : "pc", autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, every: typeof raw?.market?.every === "number" && raw.market.every >= 1 ? raw.market.every : base.market.every, minRelicPrice: typeof raw?.market?.minRelicPrice === "number" && raw.market.minRelicPrice >= 1 ? Math.round(raw.market.minRelicPrice) : base.market.minRelicPrice, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)", lastCopy: { optIn: raw?.market?.lastCopy?.optIn === true, minutes: typeof raw?.market?.lastCopy?.minutes === "number" && raw.market.lastCopy.minutes >= 1 ? Math.round(raw.market.lastCopy.minutes) : DEFAULT_HIDE_MINUTES, hidden: Array.isArray(raw?.market?.lastCopy?.hidden) ? raw.market.lastCopy.hidden.filter((h: unknown): h is HiddenForWhisper => !!h && typeof (h as HiddenForWhisper).id === "string" && typeof (h as HiddenForWhisper).at === "number") : [] } , presenceBack: presenceBackOf(raw?.market?.presenceBack), ordersSort: ordersSortOf(raw?.market?.ordersSort), sparesOpen: raw?.market?.sparesOpen === true },
     advice: { ...base.advice, ...(raw?.advice ?? {}) },
     // `forma` came later: settings saved before it get the default (3p).
     pick: { ...base.pick, ...(raw?.pick ?? {}), forma: typeof raw?.pick?.forma === "number" && Number.isFinite(raw.pick.forma) && raw.pick.forma >= 0 ? raw.pick.forma : base.pick.forma },
@@ -1012,11 +1014,13 @@ export async function openLogFolder(which: "orbiter" | "tennoscope", dataDir: st
 
 /**
  * A desktop notification (App's `tell` decides when). `id`: its entry in the history, so clicking
- * it opens what it's about (see onNoticeOpen). In the browser dev mode it's logged.
+ * it opens what it's about (see onNoticeOpen). `actions`: buttons beside Open, as [action, label]
+ * (a sale's "Give +rep"); pressing one tells the page (onNoticeAction) without bringing orbiter up.
+ * Linux and Windows. In the browser dev mode it's logged.
  */
-export function notify(summary: string, body: string, id?: string) {
-  if (inTauri) invoke("notify", { summary, body, id: id ?? null }).catch(() => {});
-  else console.info(`[notification] ${summary}: ${body}`);
+export function notify(summary: string, body: string, id?: string, actions: [string, string][] = []) {
+  if (inTauri) invoke("notify", { summary, body, id: id ?? null, actions }).catch(() => {});
+  else console.info(`[notification] ${summary}: ${body}${actions.length ? ` [${actions.map((a) => a[1]).join("] [")}]` : ""}`);
 }
 
 /** Quit orbiter (Ctrl+Q, or the window's X), closing the TennoScope it started. */
@@ -1192,6 +1196,13 @@ export async function onNoticeOpen(fn: (id: string) => void): Promise<() => void
   if (!inTauri) return () => {};
   const { listen } = await import("@tauri-apps/api/event");
   return listen<string>("notice-open", (e) => fn(e.payload));
+}
+
+/** One of a desktop notification's own buttons was pressed (see notify's `actions`): its id in the history and the action. */
+export async function onNoticeAction(fn: (id: string, action: string) => void): Promise<() => void> {
+  if (!inTauri) return () => {};
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<{ id: string; action: string }>("notice-action", (e) => fn(e.payload.id, e.payload.action));
 }
 
 /** Each sell order from the live feed, as it goes up. Resolves to a function that stops listening. */

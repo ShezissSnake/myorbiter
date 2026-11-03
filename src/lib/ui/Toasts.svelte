@@ -6,10 +6,13 @@
   import { noticeKind } from "../notices";
   import GameIcon from "./GameIcon.svelte";
   import Icon from "./Icon.svelte";
+  import type { Snippet } from "svelte";
+  import type { Notice } from "../notices";
 
   // left: just past the sidebar, so they come out of the bell's side and don't cover the panels
   // that open on the right.
-  let { open, left = "1rem" }: { open: (id: string) => void; left?: string } = $props();
+  // acts: a notification's own controls under its text (a sale's +rep), from App.
+  let { open, left = "1rem", acts }: { open: (id: string) => void; left?: string; acts?: Snippet<[Notice]> } = $props();
   const still = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 </script>
 
@@ -23,6 +26,7 @@
         <span class="txt"><b>{n.title}</b>{#if n.body}<span>{n.body}</span>{/if}</span>
       </button>
       <button class="x" aria-label="Dismiss" title="Dismiss (it stays under the bell)" onclick={() => toasts.dismiss(n.id)}><Icon name="close" size={11} /></button>
+      {#if acts}<div class="nacts">{@render acts(n)}</div>{/if}
       <i class="timer" class:still aria-hidden="true"></i>
     </div>
   {/each}
@@ -37,7 +41,10 @@
   .body:hover { background: rgb(230 233 238 / 4%); }
   .txt { display: grid; gap: .25rem; min-width: 0; }
   .txt b { color: var(--platinum); font-weight: 600; font-size: .88rem; }
-  .txt span { font-weight: 400; white-space: pre-line; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .txt span { font-weight: 400; white-space: pre-line; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  /* Under the text, in line with it; gone when the notification has none. */
+  .nacts { grid-column: 1 / -1; display: flex; align-items: center; gap: .9rem; padding: 0 .9rem .75rem 3.5rem; margin-top: -.35rem; font-size: .8rem; }
+  .nacts:not(:has(*)) { display: none; }
   .x { align-self: start; margin: .45rem .45rem 0 0; padding: .3rem; line-height: 0; border-color: transparent; background: transparent; color: var(--platinum-deep); }
   .x:hover { color: var(--platinum); }
   /* How long it has left: a hairline that runs down, and stops while you hover it, as the timer does. */

@@ -6,7 +6,8 @@
   import { mkt } from "../marketStore.svelte";
   import IconButton from "./IconButton.svelte";
 
-  let { partner, text, given = false, ongiven }: { partner: string; text: string; given?: boolean; ongiven?: () => void } = $props();
+  // label: the button's words ("+rep" where the partner is named beside it; "+rep Bob" on a notification).
+  let { partner, text, given = false, ongiven, label = "+rep" }: { partner: string; text: string; given?: boolean; ongiven?: () => void; label?: string } = $props();
 
   let busy = $state(false);
   let error = $state<string | null>(null);
@@ -44,7 +45,7 @@
   <span class="note" title="Your review of {partner} on warframe.market is a report: left as it is">You reported them</span>
 {:else}
   <span class="rep">
-    <button class="link" disabled={busy || !mkt.linked} title={!mkt.linked ? "Sign in to warframe.market on Orders first" : error ? `Couldn't give +rep: ${error}` : `Give ${partner} +rep on warframe.market, with "${text}"${known ? ` (they have ${known.reputation})` : ""}`} onclick={give}>{busy ? "Giving…" : error ? "Try again" : "+rep"}</button>
+    <button class="link" disabled={busy || !mkt.linked} title={!mkt.linked ? "Sign in to warframe.market on Orders first" : error ? `Couldn't give +rep: ${error}` : `Give ${partner} +rep on warframe.market, with "${text}"${known ? ` (they have ${known.reputation})` : ""}`} onclick={give}>{busy ? "Giving…" : error ? "Try again" : label}</button>
     {#if why}<span class="why" role="status" title={error}>{why}</span>{/if}
     {#if error || !mkt.linked}<IconButton icon="external" tone="quiet" size={12} label="Their profile" title={error ?? "Their warframe.market profile, to give +rep there"} onclick={profile} />{/if}
   </span>
