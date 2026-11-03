@@ -239,12 +239,35 @@ export function noxUrl(name: string, kind: GearKind, modular = false): string {
 }
 
 /**
- * Overframe's page for the item. Its arsenal pages carry a number orbiter doesn't have, so this
- * asks DuckDuckGo for the first Overframe arsenal page with the name (its "\" jump straight to the
- * first result). Opened in your browser: orbiter never fetches Overframe, whose terms forbid it.
+ * Overframe, for the item: its search, on overframe.gg, opened in your browser. orbiter never
+ * fetches Overframe. Its terms (and its reply by email, 3 Nov) allow linking to it; they don't
+ * allow showing its builds' contents in orbiter. Unverified: the search path (/search/?q=).
  */
 export function overframeUrl(name: string): string {
-  return `https://duckduckgo.com/?q=${encodeURIComponent(`\\site:overframe.gg/items/arsenal "${name}"`)}`;
+  return `https://overframe.gg/search/?q=${encodeURIComponent(name)}`;
+}
+
+/** Whether a URL is on Overframe (overframe.gg or a subdomain). */
+export function onOverframe(url: string): boolean {
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    return h === "overframe.gg" || h.endsWith(".overframe.gg");
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A build from Overframe: shown only as a link to it (title, author, Open on Overframe), never with
+ * its mods, arcanes or shards, and never checked against your inventory. Overframe allows linking
+ * to its builds, not showing them.
+ */
+export const isOverframe = (b: Pick<Build, "source">): boolean => typeof b.source === "object" && b.source !== null && onOverframe(b.source.url);
+
+/** An Overframe build as orbiter may keep it: the link, title, author and dates, none of its contents. */
+export function linkOnly(b: Build): Build {
+  const { aura: _a, exilus: _e, stance: _s, polarities: _p, helminth: _h, parts: _pa, forma: _f, catalyst: _c, adapters: _ad, note: _n, ...rest } = b;
+  return { ...rest, mods: [], arcanes: [], shards: [] };
 }
 
 // ---------------------------------------------------------------- the whisper

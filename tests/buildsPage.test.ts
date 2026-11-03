@@ -110,7 +110,7 @@ test("ages and sources in words", () => {
   assert.equal(sourceName({ url: "https://noxsframe.com/builds/x", site: "Nox's Frame" }), "Nox's Frame");
 });
 
-test("links out: Nox's Frame's item pages as its sitemap has them, Overframe through a search, never fetched", () => {
+test("links out: Nox's Frame's item pages as its sitemap has them, Overframe's own search, never fetched", () => {
   assert.equal(slugOf("Soma Prime"), "soma-prime");
   assert.equal(slugOf("Kuva Nukor"), "kuva-nukor");
   assert.equal(noxUrl("Soma Prime", "primary"), "https://noxsframe.com/primary-weapons/soma-prime");
@@ -119,9 +119,9 @@ test("links out: Nox's Frame's item pages as its sitemap has them, Overframe thr
   assert.equal(noxUrl("Imperator Vandal", "archgun"), "https://noxsframe.com/arch-guns/imperator-vandal");
   assert.equal(noxUrl("Catchmoon", "secondary", true), "https://noxsframe.com/builds");
   assert.equal(noxUrl("Exalted Blade", "exalted"), "https://noxsframe.com/builds");
-  const o = overframeUrl("Soma Prime");
-  assert.ok(o.startsWith("https://duckduckgo.com/?q="));
-  assert.equal(decodeURIComponent(o.split("q=")[1]), '\\site:overframe.gg/items/arsenal "Soma Prime"');
+  // Overframe: a plain link to overframe.gg itself.
+  assert.equal(overframeUrl("Soma Prime"), "https://overframe.gg/search/?q=Soma%20Prime");
+  assert.equal(new URL(overframeUrl("Soma Prime")).hostname, "overframe.gg");
 });
 
 test("the whisper: the cheapest seller in game at the rank, in warframe.market's words", () => {
@@ -190,4 +190,19 @@ test("tags: the ones on an item's builds, the builds carrying every one picked, 
   assert.equal(familyOfTag("steel path"), "Content");
   assert.equal(familyOfTag("Speedrun"), "Other");
   assert.deepEqual(byFamily(["Nuke", "DPS", "Overguard", "Steel Path"]).map((g) => [g.family, g.tags]), [["Role", ["DPS"]], ["Content", ["Steel Path"]], ["Survivability", ["Overguard"]], ["Other", ["Nuke"]]]);
+});
+
+test("an Overframe build is a link only: never its contents", async () => {
+  const { isOverframe, linkOnly, onOverframe } = await import("../src/lib/core/buildsPage");
+  assert.ok(onOverframe("https://overframe.gg/build/482503/soma-prime/x/"));
+  assert.ok(onOverframe("https://www.overframe.gg/build/1"));
+  assert.ok(!onOverframe("https://notoverframe.gg/build/1"));
+  assert.ok(!onOverframe("not a url"));
+  const b = build({ title: "General use", author: "Someone", source: { url: "https://overframe.gg/build/1/soma-prime/x/", site: "Overframe" }, mods: [{ path: P.serration }], arcanes: [{ path: P.merciless }], shards: [{ colour: "azure", tauforged: true }], exilus: { path: P.vigilante }, forma: 4, note: "copied", tags: ["DPS"] });
+  assert.ok(isOverframe(b));
+  assert.ok(!isOverframe(build({ source: { url: "https://noxsframe.com/builds/x", site: "Nox's Frame" } })));
+  assert.ok(!isOverframe(build({ source: "pasted" })));
+  const l = linkOnly(b);
+  assert.deepEqual([l.mods, l.arcanes, l.shards, l.exilus, l.forma, l.note], [[], [], [], undefined, undefined, undefined]);
+  assert.deepEqual([l.title, l.author, l.tags, l.source], [b.title, b.author, b.tags, b.source]);
 });
