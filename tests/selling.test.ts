@@ -129,7 +129,7 @@ test("relics: sold only when the sale beats a crack (ducats counted), never one 
   assert.match(needed.why, /which you still need/);
 });
 
-test("relic prices by refinement: warframe.market's sales first, the intact price only standing in", async () => {
+test("relic prices by refinement: warframe.market's sales first, never the intact price standing in", async () => {
   const { inventoryRows } = await import("../src/lib/core/views");
   const b = bundle([inv("/Relic/K1Platinum", "Lith K1 Radiant", "relic", 2), inv("/Relic/K1Bronze", "Lith K1 Intact", "relic", 2)]);
   b.prices!.prices!["Lith K1 Relic"] = 3;
@@ -139,7 +139,8 @@ test("relic prices by refinement: warframe.market's sales first, the intact pric
   const sold = buildModel(b, undefined, null, { "Lith K1": { at: 0, prices: { intact: 2.5, radiant: 9 } } });
   assert.deepEqual([sold.relicPrice("Lith K1"), sold.relicPrice("Lith K1", "Radiant")], [2.5, 9]);
   const price = (m: ReturnType<typeof buildModel>, ref: string) => inventoryRows(m).find((r) => r.name === `Lith K1 ${ref}`)?.price;
-  assert.deepEqual([price(plain, "Radiant"), price(sold, "Radiant"), price(sold, "Intact")], [3, 9, 2.5]);
+  // Inventory too: a radiant with no price of its own has none (it once showed the intact 3p).
+  assert.deepEqual([price(plain, "Radiant"), price(sold, "Radiant"), price(sold, "Intact")], [null, 9, 2.5]);
 });
 
 test("Baro's ducat rate: the best price per ducat among what he sells that trades daily", async () => {

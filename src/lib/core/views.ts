@@ -447,12 +447,8 @@ export function masteryRows(m: Model): MasteryRow[] {
   return rows;
 }
 
-/** The Railjack's Plexus. The game lists it (with its XP) once you have one, but with no count. */
-const PLEXUS = "/Lotus/Types/Game/CrewShip/RailJack/DefaultHarness";
-
 export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
-  // It can't be sold, so being listed at all means you have it.
-  const owned = m.owned(item.uniqueName) > 0 || (item.uniqueName === PLEXUS && m.inventoryByBase.has(PLEXUS));
+  const owned = m.owned(item.uniqueName) > 0;
   const parts = m.partsByParent.get(item.uniqueName) ?? [];
   const isPrime = parts.length > 0 || item.isPrime === true;
   let partsOwned = 0;
@@ -946,8 +942,9 @@ export function inventoryRows(m: Model): InventoryItem[] {
       const maxRank = ranked ? (r.max_rank ?? item?.maxRank ?? null) : null;
       const atMax = maxRank != null && rank != null && rank >= maxRank && maxRank > 0;
       const tradeName = relic ? `${relic.base} Relic` : name;
-      // A relic at its own refinement; the intact price stands in when that one isn't known.
-      const price = built ? null : relic ? (m.relicPrice(relic.base, relic.refinement) ?? m.relicPrice(relic.base)) : atMax ? (m.priceMax(name) ?? m.price(name)) : m.price(name);
+      // A relic at its own refinement only: never the intact price standing in for an exceptional or
+      // flawless one, which sells for something else (as spares.ts prices them).
+      const price = built ? null : relic ? m.relicPrice(relic.base, relic.refinement) : atMax ? (m.priceMax(name) ?? m.price(name)) : m.price(name);
       const part = kind === "part" ? m.partByName.get(name)?.[0] : undefined;
       // A part with no ducats and no market price (Sagek Prime's, from the Perita Rebellion) isn't a
       // relic part and can't be traded; nor are the Sticker items, which TennoScope lists under mods

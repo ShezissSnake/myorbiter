@@ -72,7 +72,7 @@
     { key: "owned", label: "You have", value: (r) => Object.values(r.owned).reduce((a, b) => a + b, 0), cell: ownedCell, align: "right" },
     { key: "vault", label: "Vault", spare: true, value: (r) => (r.vaulted ? 1 : 0), cell: vaultCell, align: "center", title: "Vaulted: no new copies drop" },
     { key: "chance", label: "Part chance", value: (r) => r.chance, cell: chanceCell, align: "right", title: "Chance one crack gives a part a near-complete set is missing: the average over the copies you hold (hover a figure for each refinement), solo or radshare as set on Relics" },
-    { key: "value", label: "Per crack", value: (r) => r.value, cell: valueCell, align: "right", title: "Platinum per crack toward sets: each missing part at what it adds to its set (the set's price over what your other parts already sell for loose), never less than the part's own price" },
+    { key: "value", label: "Toward sets / crack", value: (r) => r.value, cell: valueCell, align: "right", title: "Platinum per crack toward finishing sets: each missing part at what it adds to its set (the set's price over what your other parts already sell for loose), never less than the part's own price. Not the Relics page's plat per crack, which counts every reward at its own price" },
     { key: "finishes", label: "Finishes", value: (r) => finishes(r), cell: finishesCell, align: "right", title: "Sets one of its parts would complete: the last part you're missing" },
     { key: "hits", label: "Parts it can give", value: (r) => r.hits.length, cell: hitsCell, sortable: false, width: "38%", title: "The missing parts it drops; gold, with a ◆: the last part of a set" },
   ];

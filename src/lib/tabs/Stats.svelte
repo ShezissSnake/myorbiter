@@ -37,10 +37,13 @@
   }
 
   const DAY = 86_400_000;
-  let span = $state<"30" | "90" | "all">("90");
+  // A month, like Sales: the span most questions are about.
+  let span = $state<"30" | "90" | "all">("30");
   const since = $derived(span === "all" ? 0 : Date.now() - Number(span) * DAY);
   const hist = $derived(settings.game.valueHistory.filter((p) => p.at >= since));
   const at = $derived(hist.map((p) => p.at));
+  /** The read the figures beside the value chart's title are from. */
+  const lastRead = $derived(settings.game.valueHistory.at(-1)?.at ?? null);
   // CSS colours (app.css tokens): the chart draws its lines with them as styles.
   const GOLD = "var(--chart-gold)";
 
@@ -135,7 +138,7 @@
 <div class="page"><div class="page-inner">
   <PageHead title="Stats" blurb="Your account over time, what your relic runs come to, the parts you got, and every trade you've made in game.">
     {#snippet band()}
-      <Stat label="Revenue" note="Sales in this span"><P v={revenue} big /></Stat>
+      <Stat label="Revenue" note="Sales in this span, from the game's trade log" title="Revenue: platinum from sales in this span, from the game's trade log (the trade window orbiter read), plus sales logged on Sales that no logged trade covers"><P v={revenue} big /></Stat>
       <Stat label="Spent" tone="dim" note="Platinum paid for items"><P v={spent} big /></Stat>
       <Stat label="Profit" tone={revenue - spent >= 0 ? "gold" : "dim"} note="Revenue minus spent"><P v={revenue - spent} big /></Stat>
       <Stat label="Trades" note={trades.length ? `with ${partners} player${partners === 1 ? "" : "s"}` : "No trades in this span"}>{trades.length}</Stat>
@@ -144,7 +147,9 @@
 
   <div class="bar"><Seg bind:value={span} options={[{ v: "30", label: "30 days" }, { v: "90", label: "90 days" }, { v: "all", label: "All" }]} /></div>
 
-  <TimeChart single={hist.length === 1 ? "" : undefined} title="Inventory value at each read" {at} series={[{ label: "Market value", color: "var(--chart-plat)", values: hist.map((p) => p.worth) }, { label: "Easy to sell", color: GOLD, values: hist.map((p) => p.liquid) }]} height={190} />
+  <div title="Worked out as Inventory does, at each inventory read. Market value: every copy at the daily median. Quick-sale value: everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month. The figures by the title are from the last read">
+    <TimeChart single={hist.length === 1 ? "" : undefined} title={lastRead ? `Inventory value · at last read, ${new Date(lastRead).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : "Inventory value"} {at} series={[{ label: "Market value", color: "var(--chart-plat)", values: hist.map((p) => p.worth) }, { label: "Quick-sale value", color: GOLD, values: hist.map((p) => p.liquid) }]} height={190} />
+  </div>
 
   {#if hist.length === 1}<p class="dim small one" title="Each line starts with the next read; the figures beside each title are from this one">One inventory read so far: the lines start with the next.</p>{/if}
   <div class="charts">
@@ -177,7 +182,7 @@
 
   <div class="split">
     <section class="types">
-      <div class="hh"><h2 class="register">Profit by type</h2></div>
+      <div class="hh"><h2 class="register" title="Revenue and spent by what was traded, from the game's trade log (plus sales on Sales that no logged trade covers)">Profit by type</h2><span class="dim small">from the game's trade log</span></div>
       {#if byType.length}
         <table>
           <thead><tr><th>Type</th><th class="right">Revenue</th><th class="right">Spent</th><th class="right">Profit</th></tr></thead>

@@ -21,6 +21,7 @@
   import type { AdviceSettings } from "../backend";
   import { COLLECTIONS, packValues, spareArcanes, vosforHeld, vosforWorth, type SpareArcane } from "../core/vosfor";
   import { info } from "../hover.svelte";
+  import { arcanesWorthSelling, worthTotal } from "../core/worthSelling";
 
   let { model, advice = $bindable() }: { model: Model; advice: AdviceSettings } = $props();
   /** Your copies of an arcane by rank. */
@@ -78,6 +79,9 @@
   const spares = $derived(spareArcanes(model, all, worth.perVosfor, { lens, minPrice: advice.minPlat }));
   const spareRows = $derived(spares.filter((x) => matches(query, x.row.name, x.row.type) && (type === "all" || x.row.type === type) && inCollection(x.row.name)));
   const toSell = $derived(spares.filter((x) => x.verdict === "sell"));
+  // Worth selling, counted as Prime parts, Mods and Home's Ready to list count it
+  // (core/worthSelling.ts): the ones marked Sell, no more of each than the market sells in a month.
+  const sellWorth = $derived(worthTotal(arcanesWorthSelling(spares)));
   const toDissolve = $derived(spares.filter((x) => x.verdict === "dissolve"));
   const held = $derived(vosforHeld(model));
   const gain = $derived(toDissolve.reduce((n, x) => n + (x.vosfor ?? 0), 0));
@@ -217,7 +221,7 @@
   <PageHead title="Arcanes" blurb="What each arcane is worth, and how close you are to maxing it.">
     {#snippet band()}
       <Stat label="Maxed" note="Arcanes you have at max rank">{completeCount}<span class="of">/{all.length}</span></Stat>
-      <Stat label="Spares to sell" note={`${things(toSell.length, "arcane")} worth more sold than kept`}><P v={Math.round(toSell.reduce((n, x) => n + (x.sellPlat ?? 0), 0))} big /></Stat>
+      <Stat label="Worth selling" note={`${things(toSell.length, "arcane")} marked Sell · no more of each than sells in a month`} title="Worth selling: the spare arcanes marked Sell (not the ones worth more dissolved, or under a trade's worth), maxed copies at the max-rank price and loose ones at their share of one, no more of each than the market sells in a month. Counted the same way on Prime parts, Mods and Home"><P v={sellWorth} big /></Stat>
       <Stat label="Vosfor held" note={gain ? `+${gain.toLocaleString("en")} from the ${toDissolve.length} marked Dissolve` : "Nothing marked Dissolve"}><GameIcon name="vosfor" size={30} />{held.toLocaleString("en")}</Stat>
     {/snippet}
   </PageHead>
