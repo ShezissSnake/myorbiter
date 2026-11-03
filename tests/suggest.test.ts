@@ -8,12 +8,15 @@ import {
   focusOf,
   frameInfo,
   MAX_FORMA,
+  allowedAt,
   meleeClassOf,
   modIndex,
   ownedFrom,
   suggest,
   suggestAll,
   suggestionNames,
+  suggestVariants,
+  variantsFor,
   TIERS,
   toBuild,
   type ModIndex,
@@ -77,7 +80,9 @@ function checkWhole(s: Suggestion, owned: Owned, idx: ModIndex) {
   for (const p of paths) assert.ok(owned.has(p), `${idx.byPath.get(p)?.name} is owned`);
   assert.equal(new Set(paths).size, paths.length, "no mod twice");
   s.mods.forEach((m, i) => assert.equal(!!m, !!s.reasons.mods[i], "a reason for every filled slot"));
-  if (s.tier !== "high") assert.equal(s.forma, 0);
+  if (s.tier === "low") assert.equal(s.forma, 0, "no Forma for a new player");
+  if (s.tier !== "high") assert.equal(s.umbraForma, 0, "Umbra Forma is Veteran");
+  for (const p of paths) assert.ok(allowedAt(idx.byPath.get(p)!, s.tier), `${idx.byPath.get(p)?.name} is within ${s.tier}`);
   assert.ok(s.formaSlots <= MAX_FORMA);
 }
 
@@ -100,24 +105,24 @@ test("aura and stance: base + rank added, doubled when matched, a fifth less whe
   assert.equal(bonusIn(cp, 5, "madurai"), 5);
 });
 
-test("capacity at each tier: 30, 60 with a catalyst, 60 with Forma; Kuva weapons reach 80 only with five Forma", () => {
+test("capacity at each tier: 30, 60 with a catalyst, 60 with Forma; Kuva weapons reach 80 with five Forma from Intermediate", () => {
   const soma = suggestAll(item("Soma Prime"), all, index);
   assert.deepEqual(TIERS.map((t) => soma[t].capacity.max), [30, 60, 60]);
   assert.deepEqual(TIERS.map((t) => soma[t].catalyst), [false, true, true]);
   const hek = suggestAll(item("Kuva Hek"), all, index);
-  assert.deepEqual(TIERS.map((t) => hek[t].capacity.max), [30, 60, 80]);
-  assert.ok(hek.high.forma! >= 5, "rank 40 takes five Forma");
+  assert.deepEqual(TIERS.map((t) => hek[t].capacity.max), [30, 80, 80]);
+  assert.ok(hek.medium.forma! >= 5 && hek.high.forma! >= 5, "rank 40 takes five Forma");
   const mech = suggestAll(item("Voidrig"), all, index);
   assert.deepEqual(TIERS.map((t) => mech[t].capacity.max), [40, 80, 80]);
   for (const s of [...Object.values(soma), ...Object.values(hek), ...Object.values(mech)]) checkWhole(s, all, index);
 });
 
-test("capacity fitting: below the high tier no Forma, no exilus and no weapon arcane; the least valuable mods give way first", () => {
+test("capacity fitting: no Forma or exilus for a new player; Intermediate gets both, but no weapon arcane; the least valuable mods give way first", () => {
   const soma = suggestAll(item("Soma Prime"), all, index);
   assert.equal(soma.low.forma, 0);
   assert.equal(soma.low.exilus, undefined);
-  assert.equal(soma.medium.exilus, undefined);
-  assert.deepEqual(soma.medium.arcanes, [], "weapon arcanes need an adapter: high tier only");
+  assert.equal(soma.medium.names.exilus, "Rifle Ammo Mutation", "the plain one: Primed mods are Veteran");
+  assert.deepEqual(soma.medium.arcanes, [], "weapon arcanes need an Arcane Adapter: Veteran only");
   assert.equal(soma.high.adapters?.arcane, true);
   assert.equal(soma.high.adapters?.exilus, true);
   // At 30 the core stays at full rank and what's lowered or left out is further down the list.
@@ -126,7 +131,7 @@ test("capacity fitting: below the high tier no Forma, no exilus and no weapon ar
   const serration = soma.low.mods.find((m) => m?.path === mod("Serration").uniqueName);
   assert.equal(serration?.rank, undefined, "Serration at max rank");
   assert.ok(modNames(soma.medium).length > low.length, "more fits with a catalyst");
-  assert.ok(modNames(soma.high).length === 8, "and all eight with Forma");
+  assert.ok(modNames(soma.medium).length === 8 && modNames(soma.high).length === 8, "and all eight with Forma");
   assert.ok(soma.high.formaSlots > 0);
 });
 
@@ -200,12 +205,16 @@ test("a melee whose class orbiter can't tell gets no stance, and the note says s
   assert.match(s.note, /can't tell this weapon's class/);
 });
 
-test("Primed versions when owned, the plain ones otherwise, with the Primed one as an upgrade", () => {
-  const withPrimed = suggest(item("Kuva Hek"), "medium", all, index);
+test("Primed versions when owned, the plain ones otherwise, with the Primed one as an upgrade (Veteran)", () => {
+  const withPrimed = suggest(item("Kuva Hek"), "high", all, index);
   assert.ok(modNames(withPrimed).includes("Primed Point Blank"));
-  const plain = suggest(item("Kuva Hek"), "medium", without("Primed Point Blank"), index);
+  const plain = suggest(item("Kuva Hek"), "high", without("Primed Point Blank"), index);
   assert.ok(modNames(plain).includes("Point Blank"));
   assert.deepEqual(plain.upgrades.find((u) => u.name === "Primed Point Blank")?.replaces, "Point Blank");
+  // Below Veteran, Primed mods are neither used nor offered.
+  const mid = suggest(item("Kuva Hek"), "medium", all, index);
+  assert.ok(modNames(mid).includes("Point Blank") && !modNames(mid).includes("Primed Point Blank"));
+  assert.ok(!mid.upgrades.some((u) => u.name.startsWith("Primed ")), mid.upgrades.map((u) => u.name).join(", "));
 });
 
 test("only owned mods go in the main build; the rest are listed as upgrades", () => {
@@ -259,7 +268,8 @@ test("a caster frame (Saryn Prime): strength and range, energy mods because she 
   assert.equal(s.umbraForma, 1, "an Umbra Forma for Umbral Intensify");
   assert.deepEqual(s.names.arcanes, ["Molt Augmented", "Arcane Energize"]);
   // Below the high tier the plain Intensify, not the Umbral or Archon one.
-  assert.ok(modNames(suggest(saryn, "medium", all, index)).includes("Intensify"));
+  const mid = modNames(suggest(saryn, "medium", all, index));
+  assert.ok(mid.includes("Intensify") && mid.includes("Flow") && !mid.includes("Primed Flow"), mid.join(", "));
   checkWhole(s, all, index);
 });
 
@@ -278,15 +288,78 @@ test("knockdowns: Primed Sure Footed in the exilus at the high tier for frames t
   const ex = item("Excalibur");
   assert.equal(frameInfo(ex.name)?.knockdown, true);
   assert.equal(suggest(ex, "high", all, index).names.exilus, "Primed Sure Footed");
-  assert.equal(suggest(ex, "medium", all, index).exilus, undefined, "no exilus without an adapter");
+  assert.equal(suggest(ex, "medium", all, index).names.exilus, "Sure Footed", "Intermediate: an adapter, but no Primed mods");
+  assert.equal(suggest(ex, "low", all, index).exilus, undefined, "no exilus for a new player");
   const fallback = suggest(ex, "high", without("Primed Sure Footed"), index);
   assert.equal(fallback.names.exilus, "Sure Footed");
   assert.equal(fallback.upgrades.find((u) => u.name === "Primed Sure Footed")?.replaces, "Sure Footed");
 });
 
-test("frame arcanes from the medium tier, none at low", () => {
+test("frame arcanes from Intermediate (the easy ones), none for a new player", () => {
   assert.equal(suggest(item("Saryn Prime"), "low", all, index).arcanes.length, 0);
-  assert.equal(suggest(item("Saryn Prime"), "medium", all, index).arcanes.length, 2);
+  assert.deepEqual(suggest(item("Saryn Prime"), "medium", all, index).names.arcanes, ["Molt Augmented"], "Arcane Energize is an Eidolon arcane: Veteran");
+  assert.equal(suggest(item("Saryn Prime"), "high", all, index).arcanes.length, 2);
+});
+
+// ---------------------------------------------------------------- variants and tags
+
+test("variants: Saryn's Star Chart and Steel Path nuke, tagged; the nuke takes survival up front", () => {
+  const saryn = item("Saryn Prime");
+  const vs = variantsFor(saryn);
+  assert.deepEqual(vs.map((v) => [v.id, v.label]), [["starChart", "Star Chart"], ["steelPath", "Steel Path nuke"]]);
+  assert.deepEqual(vs[0].tags, ["Caster", "Star Chart", "Nuke"]);
+  assert.deepEqual(vs[1].tags, ["Caster", "Steel Path", "Nuke", "Health tank"]);
+  const [chart, sp] = suggestVariants(saryn, "medium", all, index);
+  assert.deepEqual(sp.tags, vs[1].tags);
+  assert.equal(sp.variant.id, "steelPath");
+  assert.ok(modNames(sp).includes("Vitality"), modNames(sp).join(", "));
+  assert.ok(!modNames(chart).includes("Vitality"), modNames(chart).join(", "));
+  assert.equal(chart.id, `orbiter-medium-${saryn.uniqueName}`, "the default keeps its id");
+  assert.equal(sp.id, `orbiter-medium-steelPath-${saryn.uniqueName}`);
+  assert.match(sp.note, /This is the Steel Path nuke variant/);
+  for (const s of [chart, sp]) checkWhole(s, all, index);
+});
+
+test("variants: Rhino's Tank / Steel Path and Caster / Star Chart choose different mods", () => {
+  const rhino = item("Rhino Prime");
+  assert.deepEqual(variantsFor(rhino).map((v) => [v.label, v.tags]), [["Tank / Steel Path", ["Tank", "Steel Path", "Health tank"]], ["Caster / Star Chart", ["Caster", "Star Chart"]]]);
+  const [tank, caster] = suggestVariants(rhino, "medium", all, index);
+  assert.ok(modNames(tank).includes("Steel Fiber") && modNames(tank).includes("Vitality"), modNames(tank).join(", "));
+  assert.ok(modNames(caster).includes("Streamline") && !modNames(tank).includes("Streamline"), `${modNames(caster).join(", ")} / ${modNames(tank).join(", ")}`);
+  assert.equal(suggest(rhino, "medium", all, index, 0, null, null, "caster").variant.label, "Caster / Star Chart");
+  assert.equal(suggest(rhino, "medium", all, index, 0, null, null, "nope").variant.id, "tank", "an unknown variant falls back to the default");
+});
+
+test("variants: Hildryn is a shield tank, Mag gates with Catalyzing Shields and Brief Respite", () => {
+  const hil = variantsFor(item("Hildryn"));
+  assert.deepEqual(hil.map((v) => v.label), ["Tank / Steel Path", "Caster / Star Chart"]);
+  assert.deepEqual(hil[0].tags, ["Tank", "Steel Path", "Shield gating"]);
+  const tank = suggest(item("Hildryn"), "medium", all, index);
+  assert.ok(modNames(tank).includes("Redirection"), modNames(tank).join(", "));
+  assert.ok(!modNames(tank).includes("Catalyzing Shields") && tank.names.aura !== "Brief Respite", "her shields are her energy: no gating mods");
+  const mag = variantsFor(item("Mag"));
+  assert.equal(mag[1].survival, "shieldGate");
+  assert.ok(mag[1].tags.includes("Shield gating"));
+  const gate = suggest(item("Mag"), "medium", all, index, 0, null, null, mag[1].id);
+  assert.ok(modNames(gate).includes("Catalyzing Shields"), modNames(gate).join(", "));
+  assert.equal(gate.names.aura, "Brief Respite");
+  // A new player has neither (both Intermediate): the build goes without.
+  const low = suggest(item("Mag"), "low", all, index, 0, null, null, mag[1].id);
+  assert.ok(!modNames(low).includes("Catalyzing Shields") && low.names.aura !== "Brief Respite");
+  checkWhole(gate, all, index);
+});
+
+test("weapons: one build, tagged by what it's built around; toBuild keeps the tags", () => {
+  assert.deepEqual(suggest(item("Soma Prime"), "high", all, index).tags, ["All-round", "Crit"]);
+  assert.deepEqual(suggest(item("Exergis"), "high", all, index).tags, ["All-round", "Status"]);
+  assert.equal(variantsFor(item("Soma Prime")).length, 1);
+  assert.deepEqual(toBuild(suggest(item("Saryn Prime"), "high", all, index, 0, null, null, "steelPath"), 1).tags, ["Caster", "Steel Path", "Nuke", "Health tank"]);
+});
+
+test("every tier keeps to its availability, for every variant of the fixture's frames", () => {
+  for (const f of catalog.filter((c) => c.category === "Warframes" && c.type === "Warframe")) {
+    for (const tier of TIERS) for (const s of suggestVariants(f, tier, all, index)) checkWhole(s, all, index);
+  }
 });
 
 // ---------------------------------------------------------------- the rest
@@ -301,7 +374,7 @@ test("a Necramech: twelve slots, survival first, Ironbride mods on Bonewidow", (
 });
 
 test("companions and archwings: ten and eight slots, loot and survival", () => {
-  const carrier = suggest(item("Carrier Prime"), "medium", all, index);
+  const carrier = suggest(item("Carrier Prime"), "high", all, index);
   assert.equal(carrier.mods.length, 10);
   assert.ok(modNames(carrier).includes("Vacuum") && modNames(carrier).includes("Primed Regen"));
   const smeeta = suggest(item("Smeeta Kavat"), "medium", all, index);
@@ -321,7 +394,7 @@ test("arch-guns, pistols and companion weapons take their own families", () => {
   assert.ok(modNames(lex).includes("Hornet Strike"));
   const sweeper = item("Sweeper Prime");
   assert.ok(canSuggest(sweeper));
-  assert.ok(modNames(suggest(sweeper, "medium", all, index)).includes("Primed Point Blank"), "Sweeper takes shotgun mods");
+  assert.ok(modNames(suggest(sweeper, "high", all, index)).includes("Primed Point Blank"), "Sweeper takes shotgun mods");
   for (const s of [g, lex]) checkWhole(s, all, index);
 });
 

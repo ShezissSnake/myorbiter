@@ -1,4 +1,17 @@
-// Mod capacity, and the investment tier a build needs.
+// Mod capacity, and the tier a build needs.
+//
+// The tiers are player progression (defined 3 Nov), with the internal ids kept:
+// - low, "New player": no Orokin Catalyst or Reactor, no Forma, no Exilus Adapter, no Archon
+//   shards, no arcanes, no Helminth, and only "new" mods (availability.ts).
+// - medium, "Intermediate": a Catalyst or Reactor, the Exilus Adapter, regular Forma (no Umbra
+//   Forma), the Helminth, and "intermediate" mods and arcanes (Corrupted, augments, Lua and
+//   spy-vault mods, easy arcanes). No shards, no Primed, Archon or Umbral mods.
+// - high, "Veteran": everything (an Arcane Adapter for a weapon too: Steel Path Honors sells them).
+// tierOf returns the lowest tier whose rules the build meets, with a reason for each thing that
+// lifted it above New player; the capacity facts (rank, drain, Forma plan, slots) stay as they were,
+// with `capacityTier` for what capacity alone needs (fits as is, with a doubler, or with Forma).
+//
+// Capacity:
 //
 // The rules (as researched on 3 Nov):
 // - Capacity is the item's rank: 30; 40 for Necramechs; Kuva, Tenet and Coda weapons and
@@ -19,11 +32,32 @@
 // order (its first mod is slot 1).
 
 import type { CatalogItem } from "../types";
-import { arcaneNeedsAdapter, doublerName, FORTY_BY_FORMA, rankWith, slotLayout } from "./gear";
+import { arcaneNeedsAdapter, doublerName, doublerShort, FORTY_BY_FORMA, rankWith, slotLayout } from "./gear";
 import { polarityOf, POLARITY_LABEL, POLARITY_SYMBOL, type Build, type BuildMod, type GearKind, type Polarity } from "./types";
+import { AVAILABILITY_LABEL, availability, availabilityRank, hardDonorOf, type Availability } from "./availability";
 
 export type Tier = "low" | "medium" | "high";
-export const TIER_LABEL: Record<Tier, string> = { low: "No Catalyst", medium: "Catalyst", high: "Catalyst, Forma and adapters" };
+export const TIERS: Tier[] = ["low", "medium", "high"];
+/** The tiers' names: player progression. */
+export const TIER_LABEL: Record<Tier, string> = { low: "New player", medium: "Intermediate", high: "Veteran" };
+/** What capacity alone needs, in the old words (TierResult.capacityTier). */
+export const CAPACITY_LABEL: Record<Tier, string> = { low: "No Catalyst", medium: "Catalyst", high: "Catalyst, Forma and adapters" };
+/** A tier and the availability level it allows. */
+export const TIER_AVAILABILITY: Record<Tier, Availability> = { low: "new", medium: "intermediate", high: "veteran" };
+export const tierOfAvailability = (a: Availability): Tier => (a === "new" ? "low" : a === "intermediate" ? "medium" : "high");
+const TIER_RANK: Record<Tier, number> = { low: 0, medium: 1, high: 2 };
+
+/** One thing that lifts a build above New player, and the tier it needs. */
+export interface TierLimit {
+  kind: "mod" | "arcane" | "doubler" | "forma" | "umbraForma" | "exilusAdapter" | "arcaneAdapter" | "shards" | "helminth";
+  tier: Tier;
+  /** What it is: a mod's name, "an Orokin Reactor", "2 Forma". */
+  what: string;
+  /** Why it needs that tier ("Primed, from Baro Ki'Teer"). */
+  why: string;
+  path?: string;
+  source?: string;
+}
 
 /** Where a Forma goes: a mod slot (the build's 1-based order), the aura, exilus or stance slot, or any slot just for rank. */
 export type SlotRef = number | "aura" | "exilus" | "stance" | "any";
@@ -49,7 +83,12 @@ export interface SlotDrain {
 }
 
 export interface TierResult {
+  /** The lowest tier whose rules the build meets (player progression). */
   tier: Tier;
+  /** What capacity alone needs: low fits as is, medium with a Catalyst/Reactor, high with Forma or adapters. */
+  capacityTier: Tier;
+  /** Everything that lifts the build above New player, the highest first. */
+  limits: TierLimit[];
   /** False when even the high tier doesn't fit: `reasons` says by how much. */
   fits: boolean;
   /** The rank (base capacity) counted. */
@@ -66,7 +105,7 @@ export interface TierResult {
   arcaneAdapter: boolean;
   /** Each slot as this tier has it. */
   slots: SlotDrain[];
-  /** Why, in a sentence or two. */
+  /** Why: the tier's reasons ("Uses Primed Flow (Primed, from Baro Ki'Teer), which is Veteran."), then capacity's. */
   reasons: string[];
   /** Mods in the build orbiter doesn't know (left out of the count). */
   unknown: string[];
@@ -174,12 +213,15 @@ const polWord = (p: Polarity) => `${POLARITY_LABEL[p]} (${POLARITY_SYMBOL[p]})`;
 const slotWord = (s: SlotRef) => (s === "any" ? "any slot" : typeof s === "number" ? `slot ${s}` : `the ${s} slot`);
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+/** What capacity alone needs: TierResult without the progression part (tier is capacityTier). */
+export type CapacityResult = Omit<TierResult, "capacityTier" | "limits">;
+
 /**
- * The tier a build needs on an item, and why: low (fits without a Catalyst/Reactor), medium (needs
- * one), high (Catalyst plus the fewest Forma, worked out greedily by capacity freed, and adapters).
- * `catalog`: the model's catalogByUnique. `kind` defaults to the build's.
+ * What capacity alone needs on an item, and why: low (fits without a Catalyst/Reactor), medium
+ * (needs one), high (Catalyst plus the fewest Forma, worked out greedily by capacity freed, and
+ * adapters). `catalog`: the model's catalogByUnique. `kind` defaults to the build's.
  */
-export function tierOf(build: Build, item: CatalogItem, catalog: ReadonlyMap<string, CatalogItem>, kind: GearKind = build.kind): TierResult {
+export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap<string, CatalogItem>, kind: GearKind = build.kind): CapacityResult {
   const layout = slotLayout(kind);
   const unknown: string[] = [];
   const piece = (m: BuildMod | null | undefined, at: Piece["at"]) => {
@@ -209,7 +251,7 @@ export function tierOf(build: Build, item: CatalogItem, catalog: ReadonlyMap<str
   const fortyByForma = kind !== "necramech" && FORTY_BY_FORMA(item.name);
   const doubler = doublerName(kind);
 
-  const reasonsFor = (r: Omit<TierResult, "reasons" | "tier">, tier: Tier): string[] => {
+  const reasonsFor = (r: Omit<CapacityResult, "reasons" | "tier">, tier: Tier): string[] => {
     const out: string[] = [];
     const aura = pieces.aura;
     const auraPart = aura ? ` with the ${aura.name} aura${startPlan.aura && aura.pol && matches(aura.pol, startPlan.aura) ? ` on its ${POLARITY_LABEL[startPlan.aura]} slot` : ""}` : "";
@@ -244,7 +286,7 @@ export function tierOf(build: Build, item: CatalogItem, catalog: ReadonlyMap<str
     const e = evaluate(plan, pieces, rank * (catalyst ? 2 : 1));
     return { e, rank };
   };
-  const result = (tier: Tier, catalyst: boolean, plan: Plan, withAdapters: boolean): TierResult => {
+  const result = (tier: Tier, catalyst: boolean, plan: Plan, withAdapters: boolean): CapacityResult => {
     const { e, rank } = at(catalyst, plan);
     const r = {
       fits: e.drain <= e.capacity,
@@ -310,3 +352,61 @@ export function tierOf(build: Build, item: CatalogItem, catalog: ReadonlyMap<str
   }
   return result("high", true, plan, true);
 }
+
+// ---------------------------------------------------------------- the progression tier
+
+const a = (n: number, one: string, many = `${one}s`) => (n === 1 ? `a${/^[AEIOU]/.test(one) ? "n" : ""} ${one}` : `${n} ${many}`);
+
+/**
+ * The tier a build needs: the lowest one whose rules it meets (see the top of this file), from what
+ * capacity needs and from each mod's and arcane's availability. `catalog`: the model's
+ * catalogByUnique. `kind` defaults to the build's.
+ */
+export function tierOf(build: Build, item: CatalogItem, catalog: ReadonlyMap<string, CatalogItem>, kind: GearKind = build.kind): TierResult {
+  const cap = capacityOf(build, item, catalog, kind);
+  const limits: TierLimit[] = [];
+  const add = (l: TierLimit) => limits.push(l);
+  const doubler = doublerName(kind);
+
+  // Capacity: a doubler or regular Forma are Intermediate, Umbra Forma Veteran.
+  if (cap.catalyst) add({ kind: "doubler", tier: "medium", what: doubler, why: `drain ${cap.drain} is over the ${cap.rank} it has without one` });
+  const plain = cap.forma - cap.umbraForma;
+  if (plain > 0) add({ kind: "forma", tier: "medium", what: a(plain, "Forma", "Forma"), why: "to fit the mods" });
+  if (cap.umbraForma > 0) add({ kind: "umbraForma", tier: "high", what: a(cap.umbraForma, "Umbra Forma", "Umbra Forma"), why: "for its Umbral mods" });
+  if (build.exilus) add({ kind: "exilusAdapter", tier: "medium", what: "an Exilus Adapter", why: "for its exilus mod" });
+  if (cap.arcaneAdapter) add({ kind: "arcaneAdapter", tier: "high", what: "an Arcane Adapter", why: "Steel Path Honors sells them", source: "https://wiki.warframe.com/w/The_Steel_Path" });
+
+  // Mods and arcanes by availability.
+  const seen = new Set<string>();
+  const each = (m: BuildMod | null | undefined, kind2: "mod" | "arcane") => {
+    if (!m || seen.has(m.path)) return;
+    seen.add(m.path);
+    const c = catalog.get(m.path);
+    if (!c) return;
+    const av = availability(c);
+    if (av.level === "new") return;
+    add({ kind: kind2, tier: tierOfAvailability(av.level), what: c.name, why: av.why, path: m.path, ...(av.source ? { source: av.source } : {}) });
+  };
+  for (const m of [build.aura, build.stance, ...build.mods, build.exilus]) each(m, "mod");
+  for (const m of build.arcanes) each(m, "arcane");
+
+  // Shards (Veteran: Archon hunts), the Helminth (Intermediate; a hard donor's ability Veteran).
+  if (build.shards.length) add({ kind: "shards", tier: "high", what: a(build.shards.length, "Archon Shard"), why: "Archon shards come from Archon hunts" });
+  if (build.helminth) {
+    const hard = hardDonorOf(build.helminth.ability);
+    if (hard) add({ kind: "helminth", tier: "high", what: `${build.helminth.ability} on the Helminth`, why: `it comes from ${hard.frame}: ${hard.why}`, source: hard.source });
+    else add({ kind: "helminth", tier: "medium", what: "the Helminth", why: "Heart of Deimos, then the Helminth segment from Son at Entrati rank 3", source: "https://www.highgroundgaming.com/warframe-helminth/" });
+  }
+
+  limits.sort((x, y) => TIER_RANK[y.tier] - TIER_RANK[x.tier]);
+  const tier: Tier = !cap.fits ? "high" : limits[0]?.tier ?? "low";
+  const lead =
+    limits.length === 0 ? [`${TIER_LABEL.low}: basic mods only, and it fits without a ${doublerShort(kind)}.`]
+    : limits.map((l) => `${l.kind === "mod" || l.kind === "arcane" ? `Uses ${l.what} (${l.why})` : `Needs ${l.what} (${l.why})`}, which is ${TIER_LABEL[l.tier]}.`);
+  return { ...cap, tier, capacityTier: cap.tier, limits, reasons: [...lead, ...cap.reasons] };
+}
+
+/** Whether a tier allows an availability level. */
+export const tierAllows = (tier: Tier, level: Availability): boolean => availabilityRank(level) <= TIER_RANK[tier];
+/** The availability label for a level, for reasons. */
+export { AVAILABILITY_LABEL };
