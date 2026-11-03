@@ -18,26 +18,46 @@
   import { salesCsv } from "../core/exportCsv";
   import { importClosed } from "../core/closedOrders";
   import { mkt } from "../marketStore.svelte";
+  import ProgressButton from "../ui/ProgressButton.svelte";
+  import { Job } from "../job.svelte";
 
   let { model, settings = $bindable(), go }: { model: Model; settings: Settings; go: (t: string) => void } = $props();
 
   const sales = $derived(settings.market.sales);
 
   // Sales from warframe.market's side: the orders you've closed there (see closedOrders.ts).
-  let importing = $state(false);
+  // Import and Export: each button turns or ticks as it goes; the line beside them says how it went.
+  const importJob = new Job();
+  const exportJob = new Job();
+  const importing = $derived(importJob.working);
   let imported = $state<string | null>(null);
-  async function exportSales() {
-    try {
-      imported = `Saved to ${await exportFile("sales", salesCsv(settings.market.sales))}`;
-    } catch (e) {
-      imported = `Couldn't save the export (${String(e).replace(/^Error:\s*/, "")})`;
-    }
+  /** The line beside the buttons is a failure (in oxblood). */
+  let importFailed = $state(false);
+  function exportSales() {
+    void exportJob.run(async () => {
+      try {
+        imported = `Saved to ${await exportFile("sales", salesCsv(settings.market.sales))}`;
+        importFailed = false;
+        return "Saved";
+      } catch (e) {
+        imported = `Couldn't save the export (${String(e).replace(/^Error:\s*/, "")})`;
+        importFailed = true;
+        throw e;
+      }
+    });
   }
-  async function importFromMarket() {
+  function importFromMarket() {
+    void importJob.run(async () => {
+      await importSales();
+      if (importFailed) throw new Error(imported ?? "Couldn't read your closed orders");
+      return "Imported";
+    });
+  }
+  async function importSales() {
     const me = mkt.me?.ingameName;
     if (!me) return;
-    importing = true;
     imported = null;
+    importFailed = false;
     try {
       const closed = await wfm.closedOrders(me);
       const r = importClosed(settings.market.sales, closed);
@@ -46,8 +66,7 @@
       imported = !sells ? "warframe.market has no closed sales on your profile." : r.added ? `Added ${r.added} sale${r.added === 1 ? "" : "s"} from warframe.market; the other ${sells - r.added} ${sells - r.added === 1 ? "was" : "were"} already logged.` : `All ${sells} closed sale${sells === 1 ? " on warframe.market was" : "s on warframe.market were"} already logged.`;
     } catch (e) {
       imported = `Couldn't read your closed orders: ${String(e).replace(/^Error:\s*/, "")}`;
-    } finally {
-      importing = false;
+      importFailed = true;
     }
   }
   const DAY = 86_400_000;
@@ -210,9 +229,9 @@
   <div class="loghead">
     <div class="import">
       <h2 class="register">Sale log</h2>
-      <IconButton icon="import" tone="quiet" label={importing ? "Reading warframe.market…" : "Import sales from warframe.market"} title={mkt.me?.ingameName ? "Import sales from warframe.market: every sale you marked sold there that isn't logged here yet" : "Import sales from warframe.market: sign in on Orders first"} disabled={importing || !mkt.me?.ingameName} onclick={importFromMarket} />
-      {#if sales.length}<IconButton icon="export" tone="quiet" label="Export sales as CSV" title="Save every logged sale as a CSV file in your Downloads folder, for a spreadsheet" onclick={exportSales} />{/if}
-      {#if importing}<span class="small dim" role="status">Reading warframe.market…</span>{:else if imported}<span class="small dim" role="status">{imported}</span>{/if}
+      <ProgressButton variant="icon" icon="import" busyIcon="refresh" spin tone="quiet" job={importJob} label="Import sales from warframe.market" working="Reading warframe.market…" doneLabel="Imported" failLabel="Couldn't import" title={mkt.me?.ingameName ? "Import sales from warframe.market: every sale you marked sold there that isn't logged here yet" : "Import sales from warframe.market: sign in on Orders first"} disabled={!mkt.me?.ingameName} onclick={importFromMarket} />
+      {#if sales.length}<ProgressButton variant="icon" icon="export" tone="quiet" job={exportJob} label="Export sales as CSV" doneLabel="Saved" failLabel="Couldn't save" title="Save every logged sale as a CSV file in your Downloads folder, for a spreadsheet" onclick={exportSales} />{/if}
+      {#if importing}<span class="small dim" role="status">Reading warframe.market…</span>{:else if imported}<span class="small" class:dim={!importFailed} class:bad={importFailed} role="status">{imported}</span>{/if}
     </div>
     <form class="addsale" onsubmit={(e) => { e.preventDefault(); add(); }}>
       <input class="it" list="sale-names" placeholder="Add a sale by hand: item" bind:value={item} aria-label="Item sold" />
@@ -253,6 +272,7 @@
 
 <style>
   .import { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+  .import .bad { color: var(--oxblood); }
   .ic { display: inline-grid; place-items: center; width: 1.3rem; height: 1.3rem; vertical-align: -.3rem; border: 1px solid var(--gold-dim); color: var(--gold); }
   .grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(18rem, 1fr); gap: 1.6rem; margin: var(--step) 0 var(--course); }
   /* Page area under 950 px (App sets the flag, by the room pages actually have). */

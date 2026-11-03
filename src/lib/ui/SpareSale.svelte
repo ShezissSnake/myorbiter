@@ -12,6 +12,8 @@
   import P from "./P.svelte";
   import Named from "./Named.svelte";
   import { info } from "../hover.svelte";
+  import ProgressButton from "./ProgressButton.svelte";
+  import { Job, JobError } from "../job.svelte";
 
   let { model, settings, advice, masteryRank = null }: { model: Model; settings: MarketSettings; advice: AdviceSettings; masteryRank?: number | null } = $props();
 
@@ -25,6 +27,49 @@
   const stale = $derived(!!mkt.bulk && rulesKey !== plannedWith);
   // Waiting for the relic prices orbiter reads on start: the button says so, rather than nothing.
   let waiting = $state(false);
+  // Plan, Apply and Remove all fill as they go (mkt.progress) and say how they ended.
+  const planJob = new Job();
+  const applyJob = new Job();
+  const removeJob = new Job();
+  const fill = (op: string) => (mkt.op === op && mkt.progress?.total ? mkt.progress.done / mkt.progress.total : null);
+  const count = (op: string, verb: string) => (mkt.op === op && mkt.progress ? `${verb} ${mkt.progress.done}/${mkt.progress.total}` : `${verb}…`);
+  /** The store's error from this run: said on the button, so not at the top of the page as well. */
+  const failure = () => {
+    const e = mkt.error;
+    mkt.error = null;
+    return e;
+  };
+  function plan() {
+    void planJob.run(async () => {
+      await makePlan();
+      const e = failure();
+      if (e) throw new JobError("Couldn't plan", e);
+      const n = (mkt.bulk?.actions ?? []).filter((a) => a.type !== "skip").length;
+      return n ? `${n} to change` : "Nothing to change";
+    });
+  }
+  function apply() {
+    void applyJob.run(async () => {
+      const r = await mkt.applyBulk(model, settings, advice);
+      if (!r) return null;
+      if (r.outcome === "changed") throw new JobError("Plan changed", "Your inventory or listings changed since the plan: look over the updated plan and apply again");
+      if (r.outcome === "replanned") throw new JobError("Plan refreshed", "That plan was over 10 minutes old, so its prices were read again: look it over and apply again");
+      if (r.outcome === "stopped") throw new JobError("Stopped", failure() ?? `Stopped after ${r.sent} changes`);
+      if (r.failed) throw new JobError(`${r.failed} failed`, `${r.sent} change${r.sent === 1 ? "" : "s"} made, ${r.failed} refused: the Activity log above says why`);
+      return `${r.sent} done`;
+    });
+  }
+  function removeAll() {
+    void removeJob.run(async () => {
+      const r = await mkt.removeAll();
+      if (!r) return null;
+      const e = failure();
+      if (e) throw new JobError("Stopped", e);
+      if (r.failed) throw new JobError(`${r.failed} failed`, `${r.done} removed, ${r.failed} couldn't be: the Activity log above says why`);
+      return `${r.done} removed`;
+    });
+  }
+
   async function makePlan() {
     plannedWith = rulesKey;
     // Relic prices still being read (orbiter just started): plan with them, not before them.
@@ -51,7 +96,7 @@
   const unread = $derived(actions.filter((a) => a.type === "skip" && a.why === UNREAD).length);
   const order = (why: string) => (why === UNREAD ? 0 : why === LIMIT_WHY || why === LIMIT_WHY_TRADES ? 1 : why.endsWith(AS_LISTED) ? 2 : why.includes("minimum") ? 4 : 3);
   const skipped = $derived(actions.filter((a) => a.type === "skip").sort((a, b) => order(a.why) - order(b.why)));
-  const count = (t: BulkAction["type"]) => actions.filter((a) => a.type === t).length;
+  const kinds = (t: BulkAction["type"]) => actions.filter((a) => a.type === t).length;
   const gain = $derived(
     changes.reduce((n, a) => n + (a.type === "create" ? a.quantity * a.platinum : a.type === "update" ? a.quantity * a.platinum - a.order.quantity * a.order.platinum : a.type === "remove" ? -a.order.quantity * a.order.platinum : 0), 0),
   );
@@ -87,10 +132,10 @@
     <div class="danger-zone">
       {#if confirmRemoveAll}
         <span class="small warn">Take all {mkt.orders.length} listings off warframe.market?</span>
-        <button class="danger" disabled={!!mkt.busy} onclick={() => { confirmRemoveAll = false; mkt.removeAll(); }} onkeydown={keepOnEsc}>Remove all</button>
+        <button class="danger" disabled={!!mkt.busy} onclick={() => { confirmRemoveAll = false; removeAll(); }} onkeydown={keepOnEsc}>Remove all</button>
         <button onclick={() => (confirmRemoveAll = false)} onkeydown={keepOnEsc} use:focusIt>Keep them</button>
       {:else}
-        <button class="link dim" disabled={!!mkt.busy || !mkt.orders.length} onclick={() => (confirmRemoveAll = true)} title="Take every one of your sell listings off warframe.market">Remove all my listings</button>
+        <ProgressButton variant="link" tone="dim" class="removeall" job={removeJob} label="Remove all my listings" working={count("Removing every listing", "Removing")} progress={fill("Removing every listing")} sizer={["Removing 000/000"]} title="Take every one of your sell listings off warframe.market" disabled={!!mkt.busy || !mkt.orders.length} onclick={() => (confirmRemoveAll = true)} />
       {/if}
     </div>
   </header>
@@ -112,15 +157,11 @@
       ]} />
     </span>
     <span class="dim small minnote" title="Your minimum price, set next to Floor above your listings: nothing cheaper is listed">Skips anything under {settings.minPrice}p{settings.bulk.other ? `, relics under ${settings.minRelicPrice}p` : ""}</span>
-    <button class="stamp" disabled={!anyTicked || !!mkt.busy || waiting} onclick={makePlan}>{waiting ? "Waiting for relic prices…" : mkt.op === "Working out what to list" ? "Checking prices…" : mkt.bulk ? "Plan again" : "Plan the changes"}</button>
+    <ProgressButton class="planbtn" job={planJob} label={mkt.bulk ? "Plan again" : "Plan the changes"} working={waiting ? "Waiting for relics" : count("Working out what to list", "Pricing")} progress={fill("Working out what to list")} sizer={["Waiting for relics", "000 to change"]}
+      title={!anyTicked ? "Tick at least one kind of thing to sell first" : "Read the prices of everything you can spare in the ticked categories and work out the changes, for you to look over before anything is sent"} disabled={!anyTicked || !!mkt.op} onclick={plan} />
   </div>
-
-  {#if mkt.progress && mkt.op}
-    <div class="progress" aria-label="{mkt.op}: {mkt.progress.done} of {mkt.progress.total}">
-      <div class="track"><div class="fill" style:width="{mkt.progress.total ? (mkt.progress.done / mkt.progress.total) * 100 : 0}%"></div></div>
-      <span class="register">{mkt.op} · {mkt.progress.done}/{mkt.progress.total}</span>
-    </div>
-  {/if}
+  <!-- Why the last plan, apply or remove-all failed, here by its buttons rather than at the top of the page. -->
+  {#each [planJob, applyJob, removeJob].filter((j) => j.state === "failed" && j.error) as j (j)}<p class="small err" role="status">{j.error}</p>{/each}
 
   {#if mkt.bulk}
     {#if overLimit || madeRoom}{@const fast = r.priority === "trades"}<p class="small warn">warframe.market allows {LISTING_LIMIT} listings, so the plan keeps the ones {fast ? "that sell most often" : "worth the most platinum"}{overLimit ? `: ${overLimit} ${fast ? "slower-selling" : "cheaper"} thing${overLimit === 1 ? " is" : "s are"} left out` : ""}{madeRoom ? `${overLimit ? " and" : ":"} ${madeRoom} ${fast ? "slower-selling" : "cheaper"} listing${madeRoom === 1 ? " comes" : "s come"} down to make room` : ""}.</p>{/if}
@@ -130,12 +171,13 @@
       <p class="small">{unread ? "Nothing to change among what could be priced." : "Your listings already match: nothing to change."}{skipped.length ? ` ${skipped.length} thing${skipped.length === 1 ? " was" : "s were"} left out (below).` : ""}</p>
     {:else}
       <div class="summary">
-        <span><strong>{count("create")}</strong> new</span>
-        <span><strong>{count("update")}</strong> changed</span>
-        <span><strong>{count("remove")}</strong> removed</span>
+        <span><strong>{kinds("create")}</strong> new</span>
+        <span><strong>{kinds("update")}</strong> changed</span>
+        <span><strong>{kinds("remove")}</strong> removed</span>
         <span class="dim">Listed value {gain >= 0 ? "+" : "−"}<P v={Math.abs(gain)} /></span>
         <div class="grow"></div>
-        <button class="stamp gold" disabled={!!mkt.busy || stale} onclick={() => mkt.applyBulk(model, settings, advice)}>{mkt.op === "Updating your listings" ? "Applying…" : `Apply the plan (${changes.length})`}</button>
+        <ProgressButton tone="gold" job={applyJob} label="Apply the plan ({changes.length})" working={count("Updating your listings", "Applying")} progress={fill("Updating your listings")} sizer={["Applying 000/000"]}
+          title={stale ? "You changed what to sell since this plan: plan again first" : "Send these changes to warframe.market, one at a time"} disabled={!!mkt.busy || stale} onclick={apply} />
         <button disabled={!!mkt.busy} onclick={() => (mkt.bulk = null)}>Cancel</button>
       </div>
       {#if masteryRank != null && masteryRank >= 2}
@@ -182,8 +224,9 @@
   h3 { margin: 0 0 .35rem; color: var(--gold); }
   header p { margin: 0; max-width: 70ch; }
   .danger-zone { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; justify-content: flex-end; }
-  .danger-zone .link.dim { color: var(--platinum-deep); white-space: nowrap; }
-  .danger-zone .link.dim:hover:not(:disabled) { color: var(--oxblood); }
+  .danger-zone :global(.removeall:not(.done):not(.failed)) { color: var(--platinum-deep); white-space: nowrap; }
+  .danger-zone :global(.removeall:not(.done):not(.failed):hover:not(:disabled)) { color: var(--oxblood); }
+  .err { color: var(--oxblood); margin: 0; }
   .warn { color: var(--alert); }
   .warn::before { content: "! "; font-weight: 700; }
   .ticks { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; }
@@ -191,10 +234,7 @@
   .keepn { display: inline-flex; align-items: center; gap: .35rem; }
   .keepn .register { font-size: .6rem; }
   .ticks input[type="number"] { width: 4.2rem; padding: .4rem .5rem; height: 32px; }
-  .ticks .stamp { margin-left: auto; }
-  .progress { display: flex; align-items: center; gap: .8rem; }
-  .progress .track { flex: 1; height: 4px; background: var(--rule); }
-  .progress .fill { height: 100%; background: var(--gold); transition: width .2s; }
+  .ticks :global(.planbtn) { margin-left: auto; }
   .summary { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem 1.2rem; font-size: .86rem; }
   .summary strong { color: var(--platinum); font-family: var(--face-mark); font-size: 1.2rem; margin-right: .2rem; }
   .grow { flex: 1; }

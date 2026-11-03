@@ -23,6 +23,9 @@
   import Chip from "../ui/Chip.svelte";
   import Effort from "../ui/Effort.svelte";
   import Thumb from "../ui/Thumb.svelte";
+  import CopyButton from "../ui/CopyButton.svelte";
+  import UndoSlot from "../ui/UndoSlot.svelte";
+  import { UndoSlots } from "../undo.svelte";
   import P from "../ui/P.svelte";
   import Presence from "../ui/Presence.svelte";
   import { partRows, saveForSets, setSaves } from "../core/views";
@@ -224,19 +227,6 @@
     const d = describe(model, name);
     return d?.kind === "gear" ? d.item.uniqueName : null;
   };
-  // The button says how the copy went; a failed one shows the whisper to copy by hand.
-  let copied = $state<{ key: string; ok: boolean } | null>(null);
-  async function copy(d: { key: string; whisper: string }) {
-    let ok = true;
-    try {
-      await navigator.clipboard.writeText(d.whisper);
-    } catch {
-      ok = false;
-    }
-    const mark = { key: d.key, ok };
-    copied = mark;
-    setTimeout(() => copied === mark && (copied = null), ok ? 2500 : 15_000);
-  }
   // Ducats your spare parts would fetch, counting only the ones better traded in than sold.
   // As Prime parts counts them: parts that go into a complete set you can sell are sold as the set.
   const spareDucats = $derived(partRows(model, saveForSets(settings.market.sellable, settings.advice.platPerDucat, drops.recent)).filter((p) => p.spare > 0 && p.inSets <= 0 && decide(p.price, p.ducats, p.tradesPerDay, settings.advice, p.spare).verdict === "ducats").reduce((n, p) => n + p.ducats * p.spare, 0));
@@ -284,6 +274,13 @@
     settings.homeDismissed = [key, ...settings.homeDismissed.filter((k) => k !== key)].slice(0, 200);
   }
   const alerts = $derived.by(() => all().filter((a) => !a.key || !dismissed.has(a.key)));
+  // Dismissing an alert or removing a price alert waits a few seconds, with Undo, before it's done.
+  const undo = new UndoSlots();
+  $effect(() => () => undo.flush());
+  const alertKey = (a: { name: string; rank: number | null }) => `price:${a.name}|${a.rank ?? ""}`;
+  function removePriceAlert(a: (typeof settings.market.buyAlerts)[number]) {
+    undo.hold(alertKey(a), () => (settings.market.buyAlerts = settings.market.buyAlerts.filter((x) => alertKey(x) !== alertKey(a))));
+  }
   const all = () => {
     const out: Alert[] = [];
     // Alerts and invasions rewarding a part for something you haven't mastered: they don't come back on demand.
@@ -380,6 +377,9 @@
   {#if alerts.length}
     <section class="alerts" data-card="alerts" aria-label="Needs you" class:off={off("alerts")}>
       {#each alerts as a (a.key ?? a.title)}
+        {#if a.key && undo.has(a.key)}
+          <div class="alert ghost"><UndoSlot label="Dismissed" what={a.title} onundo={() => undo.undo(a.key!)} /></div>
+        {:else}
         <div class="alert t-{a.tone}" title={a.hint}>
           {#if a.image}<span class="art"><Thumb file={a.image} name={a.title} size={38} /><span class="badge"><GameIcon name={a.icon} size={16} /></span></span>{:else}<span class="art"><GameIcon name={a.icon} size={30} /></span>{/if}
           <span class="tx">
@@ -396,8 +396,9 @@
             {#if a.expiry}<span class="small nowrap">{until(a.expiry, now)} left</span>{/if}
             {#if a.to}<button class="link" onclick={() => go(a.to)}>{a.act} →</button>{/if}
           </span>
-          {#if a.key}<IconButton icon="close" tone="quiet" size={12} label="Dismiss" title="Dismiss: it doesn't come back for this alert" onclick={() => dismiss(a.key!)} />{/if}
+          {#if a.key}<IconButton icon="close" tone="quiet" size={12} label="Dismiss" title="Dismiss: it doesn't come back for this alert (you get a few seconds to undo)" onclick={() => undo.hold(a.key!, () => dismiss(a.key!))} />{/if}
         </div>
+        {/if}
       {/each}
     </section>
   {/if}
@@ -671,8 +672,7 @@
               <Thumb file={model.imageOf(d.name)} name={d.name} size={26} />
               <span class="fn"><b class="mark">{d.name}</b><span class="dim small">{d.seller} · {d.why}</span></span>
               <span class="pr"><P v={d.price} /><s class="dim small">{d.usual}</s></span>
-              <button class="link" class:failed={copied?.key === d.key && !copied.ok} onclick={() => copy(d)} title="Copy the whisper to paste in game chat">{copied?.key === d.key ? (copied.ok ? "Copied" : "Couldn't copy") : "Copy whisper"}</button>
-              {#if copied?.key === d.key && !copied.ok}<input class="whisper" readonly value={d.whisper} aria-label="Whisper to copy by hand" onfocus={(e) => e.currentTarget.select()} />{/if}
+              <CopyButton text={d.whisper} label="Copy whisper" title="Copy the whisper to {d.seller}, to paste in game chat: {d.whisper}" />
             </li>
           {/each}
         </ul>
@@ -684,7 +684,8 @@
         <div class="alertlist">
           <span class="register" title="Set with Alert me in Post a buy order (the Buy order buttons on Wishlist, Mastery, Browse market…): orbiter tells you when someone lists one at your price or less">Your price alerts</span>
           {#each settings.market.buyAlerts as a (a.name + (a.rank ?? ""))}
-            <span class="pa" use:info={a.name}>{a.name}{a.rank != null ? ` R${a.rank}` : ""} <span class="dim">≤</span><P v={a.maxPrice} /><IconButton icon="close" tone="quiet" size={10} label="Remove alert" title="Stop watching {a.name}" onclick={() => (settings.market.buyAlerts = settings.market.buyAlerts.filter((x) => x !== a))} /></span>
+            {#if undo.has(alertKey(a))}<UndoSlot label="Removed" what={a.name} onundo={() => undo.undo(alertKey(a))} />
+            {:else}<span class="pa" use:info={a.name}>{a.name}{a.rank != null ? ` R${a.rank}` : ""} <span class="dim">≤</span><P v={a.maxPrice} /><IconButton icon="close" tone="quiet" size={10} label="Remove alert" title="Stop watching {a.name} (you get a few seconds to undo)" onclick={() => removePriceAlert(a)} /></span>{/if}
           {/each}
         </div>
       {/if}
@@ -793,6 +794,8 @@
   /* Needs you: a card each, as many to a row as fit. */
   .alerts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(24rem, 100%), 1fr)); gap: .5rem; margin-bottom: var(--step); }
   .alert { display: flex; align-items: center; gap: .75rem; padding: .55rem .6rem .55rem .85rem; border: 1px solid var(--rule); background: var(--plate); box-shadow: inset 3px 0 0 var(--platinum-deep); min-width: 0; clip-path: var(--cut); }
+  /* Dismissed, waiting out its Undo: just the collapsed line. */
+  .alert.ghost { background: none; border-color: transparent; box-shadow: none; clip-path: none; padding: .3rem 0; }
   .alert .art { position: relative; flex: none; display: inline-flex; width: 38px; justify-content: center; }
   .alert .badge { position: absolute; right: -6px; bottom: -5px; display: inline-flex; padding: 1px; background: var(--plate); border: 1px solid var(--rule); }
   .alert .tx { flex: 1; display: grid; gap: .12rem; min-width: 0; }
@@ -960,9 +963,6 @@
   .when2 { font-variant-numeric: tabular-nums; color: var(--platinum-dim); white-space: nowrap; }
   .sub { margin-top: .4rem; color: var(--platinum-deep); }
   .dl li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto auto; gap: .6rem; align-items: center; }
-  /* The clipboard refused: the whisper, selected, to copy by hand. */
-  .dl .failed { color: var(--oxblood); }
-  .dl .whisper { grid-column: 2 / -1; font-size: .78rem; padding: .3rem .5rem; }
   .pr { display: inline-flex; align-items: center; gap: .4rem; }
 
   .ph { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding-bottom: .6rem; border-bottom: 1px solid var(--rule); }

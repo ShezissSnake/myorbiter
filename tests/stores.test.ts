@@ -199,3 +199,70 @@ test("the listing form drops the old price when you pick another rank", async ()
   mkt.closeDraft();
 });
 
+
+test("a pass counts its progress through the listings, read or not, and says how it went", async () => {
+  const s = defaultMarketSettings();
+  const items = ["a", "b", "c", "d"].map((id) => ({ id, slug: id, gameRef: `/${id}`, name: id.toUpperCase(), maxRank: null, subtypes: null, tags: [] }));
+  market.items = async () => items;
+  mkt.items = items;
+  const mine = [order("a"), order("b"), { ...order("c"), itemId: "c" }, { ...order("d"), itemId: "d", visible: false }].map((o) => ({ ...o, itemId: o.id }));
+  market.myOrders = async () => mine;
+  const seen: (string | null)[] = [];
+  market.book = async (slug: string) => {
+    seen.push(mkt.passProgress ? `${mkt.passProgress.done}/${mkt.passProgress.total}` : null);
+    if (slug === "b") throw new Error("timed out");
+    return [];
+  };
+  const planFor = mkt.planFor;
+  mkt.planFor = () => null;
+  try {
+    mkt.books = {};
+    const r = await mkt.reprice(model, s, false);
+    assert.deepEqual(seen, ["0/3", "1/3", "2/3"], "the hidden listing isn't counted");
+    assert.equal(mkt.passProgress, null, "cleared once over");
+    assert.equal(mkt.passManual, false);
+    assert.equal(r?.failed, 1);
+    assert.equal(r?.off, 0);
+    assert.equal(r?.error, null);
+  } finally {
+    mkt.planFor = planFor;
+  }
+});
+
+test("a pass by hand is marked as one, so its notification needn't pop up while it runs", async () => {
+  market.items = async () => [{ id: "it", slug: "it", gameRef: "/it", name: "It", maxRank: null, subtypes: null, tags: [] }];
+  let during: boolean | null = null;
+  market.myOrders = async () => {
+    during = mkt.passManual;
+    return [];
+  };
+  await mkt.reprice(model, defaultMarketSettings(), false);
+  assert.equal(during, true);
+  await mkt.reprice(model, defaultMarketSettings(), false, true);
+  assert.equal(during, false, "the timer's own pass");
+});
+
+test("a sale warframe.market refuses comes back, and the reason is handed to whoever asked", async () => {
+  mkt.orders = [order("a", 2)];
+  market.close = async () => {
+    throw new Error("503 Service Unavailable");
+  };
+  let why: string | null = null;
+  const sale = await mkt.sold(mkt.orders[0], 2, { failed: (r) => (why = r) });
+  assert.equal(sale, null);
+  assert.equal(why, "503 Service Unavailable");
+  assert.deepEqual(mkt.orders.map((o) => o.quantity), [2], "the listing is back as it was");
+});
+
+test("Show all hidden goes one by one, says how far it got, and returns how many were shown", async () => {
+  mkt.orders = [{ ...order("a"), visible: false }, { ...order("b"), visible: false }];
+  market.update = async (id: string) => {
+    if (id === "b") throw new Error("refused");
+  };
+  market.myOrders = async () => mkt.orders;
+  const steps: string[] = [];
+  const n = await mkt.showHidden(mkt.orders, (d, t) => steps.push(`${d}/${t}`));
+  assert.equal(n, 1);
+  assert.deepEqual(steps, ["1/2", "2/2"]);
+  assert.equal(mkt.op, null);
+});

@@ -10,6 +10,8 @@
   import Switch from "./ui/Switch.svelte";
   import Seg from "./ui/Seg.svelte";
   import GameIcon from "./ui/GameIcon.svelte";
+  import ProgressButton from "./ui/ProgressButton.svelte";
+  import { Job } from "./job.svelte";
 
   let {
     open = $bindable(),
@@ -111,16 +113,14 @@
     return new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   }
   let clearing = $state(false);
-  let discordNote = $state<string | null>(null);
-  async function testDiscord() {
-    discordNote = "Sending…";
-    try {
+  // The test: working while it posts (a second click does nothing), then "Sent" or why not.
+  const discordJob = new Job(4000);
+  function testDiscord() {
+    void discordJob.run(async () => {
       await discordPost(settings.notifyOptions.discord.url, "**orbiter**\nThis is how notifications will look here.");
-      discordNote = "Sent: check the channel.";
       discordSent(null);
-    } catch (e) {
-      discordNote = `Couldn't send (${String(e).replace(/^Error:\s*/, "")})`;
-    }
+      return "Sent";
+    });
   }
 </script>
 
@@ -204,7 +204,7 @@
           <div class="dkinds">
             {#each NOTICE_KINDS.filter((k) => !(console && k.pcOnly)) as k (k.kind)}<Chip on={settings.notifyOptions.discord.kinds.includes(k.kind)} label={k.label} title={k.hint} onchange={(on: boolean) => (settings.notifyOptions.discord.kinds = on ? [...settings.notifyOptions.discord.kinds.filter((x) => x !== k.kind), k.kind] : settings.notifyOptions.discord.kinds.filter((x) => x !== k.kind))} />{/each}
           </div>
-          <div class="row"><button class="stamp" title="Posts one test message to your Discord channel now, so you can see it works" onclick={testDiscord}>Send a test to Discord</button>{#if discordNote}<span class="small dim">{discordNote}</span>{/if}</div>
+          <div class="row"><ProgressButton job={discordJob} label="Send a test to Discord" working="Sending…" doneLabel="Sent: check the channel" failLabel="Couldn't send" status title="Posts one test message to your Discord channel now, so you can see it works" onclick={testDiscord} /></div>
           {#if discordStatus.failed}<span class="small warn-text">The last notification didn't reach Discord ({discordStatus.failed}, {new Date(discordStatus.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}). If the webhook was deleted, paste a new one.</span>{/if}
         {/if}
       </div>
