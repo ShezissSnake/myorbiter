@@ -13,6 +13,14 @@ one, with its own `LICENSE` (GPL-3.0-only), `NOTICE.md`, `THIRD_PARTY_NOTICES.md
 that comes with it (on Linux, one per Ubuntu package it was copied from, listed in `PACKAGES.txt`;
 on Windows, Tesseract's and Leptonica's licences and the project and licence of each DLL).
 
+The Linux and Windows downloads also have `SOURCES.md` here, written when they're built: every
+library they carry from Ubuntu's packages (Linux) or UB Mannheim's Tesseract installer (Windows),
+with its exact version and where its source is, and a written offer: for three years from the date
+of the release, the complete corresponding source code of the GPL- and LGPL-licensed libraries
+bundled in it is available on request (an issue at https://github.com/ShezissSnake/orbiter, or the
+maintainer). On Linux, `linux/` holds the copyright file of each library the AppImage carries
+beside orbiter itself (GTK, WebKitGTK and the rest).
+
 orbiter's Rust crates and npm packages are under their own licences (MIT, Apache-2.0 and others
 compatible with the GPL): `Cargo.lock` and `package-lock.json` in orbiter's source
 (`orbiter-source.tar.gz`) list them, and each one's licence comes with its source.
