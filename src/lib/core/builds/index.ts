@@ -27,7 +27,15 @@
  * The catalog has no stance-slot polarity: tierOf counts it as none and says so.
  *
  * Sources: orbiter never fetches Overframe or the wiki. registerSource takes a BuildSource
- * suggestions; later a fetcher, only with the site's permission on record).
+ * (orbiter's suggestions; a fetcher only with the site's permission, or its terms as checked, on record).
+ *
+ * Nox's Frame (noxsframe.ts; Rust: src-tauri/src/noxsframe.rs), read on demand only:
+ *
+ *   const nox = makeNox(noxFetcher, () => settings.buildsFromNox);   // noxFetcher: backend.ts
+ *   registerSource(nox.source);            // once; sourceBuilds then includes builds already opened
+ *   const list = await nox.listing(item, ctx);              // top-voted, ≤ 10: one request a week at most
+ *   const got = await nox.open(item, list.entries[0].path, ctx);   // one build: got.build, got.notes
+ *   const pasted = await parseNoxCode(code, item, m.catalogByUnique, noxFetcher.decode);
  */
 
 export * from "./types";
@@ -37,4 +45,5 @@ export { parsePaste, type PasteResult, type PasteOptions, type ReadName, type Sl
 export { tierOf, drainIn, bonusIn, matches, TIER_LABEL, type Tier, type TierResult, type FormaStep, type SlotDrain, type SlotRef } from "./capacity";
 export { missing, bestCopy, endoCost, ENDO_BASE, PATHS, SHARD_PATH, shardPath, type MissingReport, type MissingLine, type MissingKind, type Have } from "./missing";
 export { buildDate, buildAgeDays, withinAge, filterByAge, buildsFor, toggleFavourite, saveBuild, removeBuild } from "./store";
-export { registerSource, unregisterSource, buildSources, sourceBuilds, BLOCKED_HOSTS, type BuildSource, type SourceContext, type SourcePermission } from "./source";
+export { registerSource, unregisterSource, buildSources, sourceBuilds, BLOCKED_HOSTS, TERMS_HOSTS, type BuildSource, type SourceContext, type SourcePermission } from "./source";
+export { makeNox, noxToBuild, noxItems, parseNoxCode, looksLikeNoxCode, NOX_SITE, NOX_HOST, NOX_PERMISSION, NOX_SETTING, NOX_MODES, NOX_LISTED, type Nox, type NoxFetcher, type NoxAnswer, type NoxListing, type NoxListed, type NoxListResult, type NoxPage, type NoxMapped, type NoxOpened, type NoxCodeResult } from "./noxsframe";
