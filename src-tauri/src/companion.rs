@@ -46,6 +46,11 @@ struct Proc {
 pub struct Companion {
     /// The TennoScope inside this build of orbiter, if it carries one.
     bundled: Mutex<Option<PathBuf>>,
+    /// The program you chose in Settings, if any, and the file that keeps it (see `set_custom`).
+    /// It lives here, not in the page's settings: the page can ask to change it, but can't make
+    /// orbiter start a program by naming it in a request.
+    custom: Mutex<Option<String>>,
+    custom_file: Mutex<Option<PathBuf>>,
     /// The TennoScope orbiter started, if it's the one running. Shared with the threads that
     /// watch a hand-off (see `ask`).
     started: Arc<Mutex<Option<Proc>>>,
@@ -61,6 +66,8 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 pub struct Status {
     /// The program orbiter would start, if found.
     pub binary: Option<String>,
+    /// The program chosen in Settings, if one is (empty: orbiter finds it).
+    pub custom: Option<String>,
     /// That program is the one inside orbiter.
     pub bundled: bool,
     /// TennoScope runs on this system (not on macOS).
@@ -96,13 +103,37 @@ pub fn allowed_ask(arg: &str) -> bool {
     matches!(arg, "--sync" | "--authorize-capture")
 }
 
+/// A program orbiter may start as TennoScope, by its file name: `tennoscope` (`tennoscope.exe` on
+/// Windows), or a TennoScope AppImage (`TennoScope*.AppImage`, any case). orbiter starts nothing
+/// else, whatever path it is given.
+pub fn program_allowed(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|n| n.to_str()) else { return false };
+    let lower = name.to_ascii_lowercase();
+    lower == "tennoscope" || lower == "tennoscope.exe" || (lower.starts_with("tennoscope") && lower.ends_with(".appimage"))
+}
+
+/// The path from Settings as orbiter will use it, if it may: `~/` expanded, absolute, an existing
+/// file, with a TennoScope name (see `program_allowed`).
+pub fn check_custom(path: &str) -> Result<PathBuf, String> {
+    let p = expand_home(path.trim());
+    if !p.is_absolute() {
+        return Err(format!("{}: give the program's full path", p.display()));
+    }
+    if !program_allowed(&p) {
+        return Err(format!("{}: orbiter only starts a program named tennoscope, tennoscope.exe or TennoScope….AppImage", p.display()));
+    }
+    if !p.is_file() {
+        return Err(format!("{}: there's no such file", p.display()));
+    }
+    Ok(p)
+}
+
 /// Where to find TennoScope: the path from Settings, then the one inside orbiter, then (in a
 /// development build) one built in this checkout's `tennoscope/` folder, then whatever
 /// `~/dev/projects/tennoscope` (the old clone), then whatever `tennoscope` is on PATH.
 pub fn find_binary(custom: Option<&str>, bundled: Option<&Path>) -> Option<PathBuf> {
     if let Some(c) = custom.map(str::trim).filter(|c| !c.is_empty()) {
-        let p = expand_home(c);
-        return p.is_file().then_some(p);
+        return check_custom(c).ok();
     }
     let home = std::env::var_os("HOME").map(PathBuf::from);
     let mut candidates: Vec<PathBuf> = bundled.map(Path::to_path_buf).into_iter().collect();
@@ -318,9 +349,42 @@ impl Companion {
         *lock(&self.bundled) = path.filter(|p| p.is_file());
     }
 
-    fn binary(&self, custom: Option<&str>) -> Option<(PathBuf, bool)> {
+    /// Reads the program chosen in Settings from `file` (orbiter's config folder). The first time
+    /// (no file yet), takes it from `legacy`, the path older orbiters kept in the page's settings,
+    /// if it's one orbiter may start, and writes the file.
+    pub fn load_custom(&self, file: PathBuf, legacy: Option<String>) {
+        let kept = match fs::read_to_string(&file) {
+            Ok(text) => Some(text.trim().to_owned()),
+            Err(_) => {
+                let migrated = legacy.filter(|l| check_custom(l).is_ok()).unwrap_or_default();
+                let _ = crate::write_atomic(&file, migrated.as_bytes(), true);
+                Some(migrated)
+            }
+        };
+        *lock(&self.custom) = kept.filter(|k| !k.is_empty());
+        *lock(&self.custom_file) = Some(file);
+    }
+
+    /// Sets the program from Settings (None or empty: find it), once it passes `check_custom`, and
+    /// keeps it for the next start.
+    pub fn set_custom(&self, path: Option<&str>) -> Result<(), String> {
+        let path = path.map(str::trim).filter(|p| !p.is_empty());
+        let value = match path {
+            Some(p) => Some(check_custom(p)?.display().to_string()),
+            None => None,
+        };
+        if let Some(file) = lock(&self.custom_file).as_ref() {
+            crate::write_atomic(file, value.as_deref().unwrap_or("").as_bytes(), true).map_err(|e| format!("couldn't keep the path: {e}"))?;
+        }
+        log::info!(target: "orbiter::tennoscope", "program set to {}", value.as_deref().unwrap_or("(found by orbiter)"));
+        *lock(&self.custom) = value;
+        Ok(())
+    }
+
+    fn binary(&self) -> Option<(PathBuf, bool)> {
+        let custom = lock(&self.custom).clone();
         let bundled = lock(&self.bundled).clone();
-        let bin = find_binary(custom, bundled.as_deref())?;
+        let bin = find_binary(custom.as_deref(), bundled.as_deref())?;
         let is_bundled = bundled.as_deref() == Some(bin.as_path());
         Some((bin, is_bundled))
     }
@@ -339,16 +403,17 @@ impl Companion {
         }
     }
 
-    pub fn status(&self, custom: Option<&str>) -> Status {
+    pub fn status(&self) -> Status {
         let live = running();
         let mut started = lock(&self.started);
         if started.is_some_and(|p| !alive(p)) {
             *started = None;
             remember(None);
         }
-        let found = self.binary(custom);
+        let found = self.binary();
         Status {
             binary: found.as_ref().map(|(p, _)| p.display().to_string()),
+            custom: lock(&self.custom).clone(),
             bundled: found.is_some_and(|(_, b)| b),
             supported: SUPPORTED,
             // The one orbiter just started counts while it's still turning into TennoScope.
@@ -359,14 +424,14 @@ impl Companion {
     }
 
     /// Starts TennoScope in the background unless one is already running.
-    pub fn start(&self, custom: Option<&str>) -> Result<Status, String> {
+    pub fn start(&self) -> Result<Status, String> {
         let _one_at_a_time = lock(&self.starting);
         if !SUPPORTED {
             return Err("TennoScope doesn't run on macOS.".into());
         }
         let ours = lock(&self.started).is_some_and(alive);
         if running().is_empty() && !ours {
-            let (bin, bundled) = self.binary(custom).ok_or("TennoScope wasn't found. Set its path in Settings.")?;
+            let (bin, bundled) = self.binary().ok_or("TennoScope wasn't found. Set its path in Settings.")?;
             let mut child = launch(&bin, bundled).arg("--background").spawn().map_err(|e| {
                 log::error!(target: "orbiter::tennoscope", "couldn't start {}: {e}", bin.display());
                 format!("Couldn't start {}: {e}", bin.display())
@@ -378,12 +443,12 @@ impl Companion {
             *lock(&self.started) = started;
             remember(started);
         }
-        Ok(self.status(custom))
+        Ok(self.status())
     }
 
     /// Opens TennoScope's own window: a running TennoScope raises it, otherwise it starts normally.
-    pub fn show(&self, custom: Option<&str>) -> Result<(), String> {
-        let (bin, bundled) = self.binary(custom).ok_or("TennoScope wasn't found. Set its path in Settings.")?;
+    pub fn show(&self) -> Result<(), String> {
+        let (bin, bundled) = self.binary().ok_or("TennoScope wasn't found. Set its path in Settings.")?;
         let mut child = launch(&bin, bundled)
             .spawn()
             .map_err(|e| format!("Couldn't start {}: {e}", bin.display()))?;
@@ -395,14 +460,14 @@ impl Companion {
 
     /// Hands a request to the running TennoScope: starting it again with the flag passes it over
     /// (single instance) and the new process exits at once.
-    pub fn ask(&self, custom: Option<&str>, arg: &str) -> Result<(), String> {
+    pub fn ask(&self, arg: &str) -> Result<(), String> {
         if !allowed_ask(arg) {
             return Err(format!("Unknown request {arg}"));
         }
         if running().is_empty() {
             return Err("TennoScope isn't running.".into());
         }
-        let (bin, bundled) = self.binary(custom).ok_or("TennoScope wasn't found. Set its path in Settings.")?;
+        let (bin, bundled) = self.binary().ok_or("TennoScope wasn't found. Set its path in Settings.")?;
         let mut child = launch(&bin, bundled)
             .arg(arg)
             .spawn()
@@ -498,12 +563,58 @@ mod tests {
     }
 
     #[test]
-    fn custom_path_wins_and_must_exist() {
+    fn custom_path_wins_must_exist_and_be_tennoscope() {
+        let dir = std::env::temp_dir().join(format!("orbiter-find-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let ts = dir.join(PROCESS);
+        fs::write(&ts, b"").unwrap();
         let me = std::env::current_exe().unwrap();
-        assert_eq!(find_binary(Some("/definitely/not/here"), Some(&me)), None, "a wrong path in Settings isn't swapped for another");
-        assert_eq!(find_binary(Some(me.to_str().unwrap()), None), Some(me.clone()));
+        assert_eq!(find_binary(Some("/definitely/not/here/tennoscope"), Some(&me)), None, "a wrong path in Settings isn't swapped for another");
+        assert_eq!(find_binary(Some(ts.to_str().unwrap()), None), Some(ts.clone()));
+        assert_eq!(find_binary(Some(me.to_str().unwrap()), None), None, "a program that isn't TennoScope is never started");
         // No path set: the one inside orbiter comes first.
         assert_eq!(find_binary(None, Some(&me)), Some(me));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn only_tennoscope_names_may_start() {
+        for ok in ["/opt/tennoscope", "/x/tennoscope.exe", "/x/TennoScope.exe", "/x/TennoScope_0.14.0_amd64.AppImage", "/x/tennoscope.appimage"] {
+            assert!(program_allowed(Path::new(ok)), "{ok}");
+        }
+        for no in ["/bin/sh", "/x/tennoscope.sh", "/x/tennoscope-evil", "/x/not-tennoscope", "/x/TennoScope.AppImage.sh", "/x/", "tennoscope/.."] {
+            assert!(!program_allowed(Path::new(no)), "{no}");
+        }
+        assert!(check_custom("tennoscope").is_err(), "a relative path isn't taken");
+        assert!(check_custom("/definitely/not/here/tennoscope").is_err(), "nor a missing file");
+    }
+
+    #[test]
+    fn the_chosen_program_is_kept_and_migrated_once() {
+        let dir = std::env::temp_dir().join(format!("orbiter-custom-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let ts = dir.join(PROCESS);
+        fs::write(&ts, b"").unwrap();
+        let file = dir.join("tennoscope-program");
+        // First start of this orbiter: the old setting is taken over if it's a TennoScope.
+        let c = Companion::default();
+        c.load_custom(file.clone(), Some(ts.display().to_string()));
+        assert_eq!(c.status().custom, Some(ts.display().to_string()));
+        // Later starts read the file, whatever the page's settings say.
+        let c = Companion::default();
+        c.load_custom(file.clone(), Some("/bin/sh".into()));
+        assert_eq!(c.status().custom, Some(ts.display().to_string()));
+        // Something else is refused and changes nothing.
+        assert!(c.set_custom(Some("/bin/sh")).is_err());
+        assert_eq!(c.status().custom, Some(ts.display().to_string()));
+        c.set_custom(None).unwrap();
+        assert_eq!(fs::read_to_string(&file).unwrap(), "");
+        // An old setting that isn't a TennoScope isn't migrated.
+        fs::remove_file(&file).unwrap();
+        let c = Companion::default();
+        c.load_custom(file.clone(), Some("/bin/sh".into()));
+        assert_eq!(c.status().custom, None);
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[cfg(target_os = "linux")]

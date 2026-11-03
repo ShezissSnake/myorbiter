@@ -922,6 +922,8 @@ export const wikiUrl = (name: string) => `https://wiki.warframe.com/w/${encodeUR
 export interface TennoscopeStatus {
   /** The program orbiter would start, if found. */
   binary: string | null;
+  /** The program chosen in Settings, if one is. */
+  custom?: string | null;
   /** That program is the TennoScope that comes inside orbiter. */
   bundled?: boolean;
   /** TennoScope runs on this system (it doesn't on macOS). */
@@ -1007,10 +1009,12 @@ const devTennoscope = async (): Promise<TennoscopeStatus | null> => {
 export const tennoscope = {
   /** Linux's Yama ptrace_scope: above 0, TennoScope can't read the game's memory. Null: no such limit. */
   ptraceScope: (): Promise<number | null> => (inTauri ? invoke<number | null>("ptrace_scope") : Promise.resolve(null)),
-  status: (path: string): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_status", { path: path || null }) : devTennoscope()),
-  start: (path: string): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_start", { path: path || null }) : devTennoscope()),
-  show: (path: string): Promise<void> => (inTauri ? invoke("tennoscope_show", { path: path || null }) : Promise.resolve()),
-  ask: (path: string, ask: TennoscopeAsk): Promise<void> => (inTauri ? invoke("tennoscope_ask", { path: path || null, ask }) : Promise.resolve()),
+  status: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_status") : devTennoscope()),
+  /** The program orbiter starts as TennoScope (Settings; empty finds it). Kept by orbiter's Rust side, which refuses anything not named like TennoScope. */
+  setPath: (path: string): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_set_path", { path: path || null }) : devTennoscope()),
+  start: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_start") : devTennoscope()),
+  show: (): Promise<void> => (inTauri ? invoke("tennoscope_show") : Promise.resolve()),
+  ask: (ask: TennoscopeAsk): Promise<void> => (inTauri ? invoke("tennoscope_ask", { ask }) : Promise.resolve()),
   /** The last time TennoScope's log says it failed to start, and why (Unix ms, UTC). */
   failure: (dataDir: string): Promise<{ at: number; message: string } | null> => (inTauri ? invoke("tennoscope_failure", { dir: dataDir || null }) : Promise.resolve(null)),
 };
