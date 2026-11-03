@@ -13,25 +13,32 @@
   import Thumb from "../ui/Thumb.svelte";
   import PageHead from "../ui/PageHead.svelte";
   import Stat from "../ui/Stat.svelte";
-  import Tabs from "../ui/Tabs.svelte";
   import Seg from "../ui/Seg.svelte";
   import Browse from "../ui/Browse.svelte";
   import Named from "../ui/Named.svelte";
   import type { Column } from "../ui/table";
   import ItemCard from "../ui/ItemCard.svelte";
   import PartChip from "../ui/PartChip.svelte";
-  import GameIcon, { kindIcon, type GameIconName } from "../ui/GameIcon.svelte";
+  import GameIcon, { kindIcon } from "../ui/GameIcon.svelte";
   import P from "../ui/P.svelte";
   import CodexRings from "../ui/CodexRings.svelte";
-  import { codexRings } from "../core/codex";
+  import { codexRings, someNames } from "../core/codex";
+  import { takeIntent } from "../intent.svelte";
 
   let { model, settings = $bindable() }: { model: Model; settings: Settings } = $props();
 
   const all = $derived(collection(model));
-  const ICON: Record<Group, GameIconName> = { warframes: "warframes", primary: "primary", secondary: "secondary", melee: "melee", companions: "companions", archwing: "archwing", other: "foundry" };
 
+  // The category is picked on the Codex rings above (a click on the lit one, or All, shows every one).
   let group = $state<Group | "all">("warframes");
   let show = $state<"all" | "todo" | "owned" | "build" | "fav">("all");
+  // A link may ask for a category and what to show ("foundry?group=primary&show=todo", from Wishlist's rings).
+  $effect(() => {
+    const want = takeIntent("foundry");
+    if (!want) return;
+    if (want.group === "all" || GROUPS.some((g) => g.v === want.group)) group = want.group as Group | "all";
+    if (want.show && ["all", "todo", "owned", "build"].includes(want.show)) show = want.show as typeof show;
+  });
   let sort = $state({ key: "name", desc: false });
   let q = $state("");
 
@@ -70,14 +77,16 @@
     { key: "mr", label: "MR", value: (c) => c.masteryReq || null, align: "right", muted: true, minor: true, title: "The Mastery Rank it needs" },
     { key: "state", label: "", value: () => null, cell: stateCell, sortable: false },
   ];
-  const count = (g: Group | "all") => (g === "all" ? all : all.filter((c) => c.group === g));
-  const mastered = $derived(inGroup.filter((c) => c.mastered).length);
-  const ownedOnly = $derived(inGroup.filter((c) => c.owned && !c.mastered).length);
+  // The band counts every category (the rings above give each one's mastered); the line under the
+  // rings names what to build and level in the one picked.
+  const mastered = $derived(all.filter((c) => c.mastered).length);
+  const ownedOnly = $derived(all.filter((c) => c.owned && !c.mastered).length);
   // Only what would still give mastery: a part set for something mastered is just spares.
-  // Ready means everything in hand: parts with resources still to farm count apart.
-  const buildable = $derived(inGroup.filter((c) => c.buildable && !c.mastered && (c.tier == null || c.tier === "now")).length);
-  const partsReady = $derived(inGroup.filter((c) => c.buildable && !c.mastered && c.tier != null && c.tier !== "now").length);
-  const groupLabel = $derived(group === "all" ? "items" : (GROUPS.find((g) => g.v === group)?.label.toLowerCase() ?? ""));
+  // Can build now means everything in hand: parts with resources still to farm count apart.
+  const canBuild = (c: CollectionItem) => c.buildable && !c.mastered && (c.tier == null || c.tier === "now");
+  const buildable = $derived(all.filter(canBuild).length);
+  const partsReady = $derived(all.filter((c) => c.buildable && !c.mastered && c.tier != null && c.tier !== "now").length);
+  const groupLabel = $derived(GROUPS.find((g) => g.v === group)?.label ?? "");
 
   function toggleFav(u: string) {
     settings.favourites = favs.has(u) ? settings.favourites.filter((x) => x !== u) : [u, ...settings.favourites];
@@ -95,14 +104,16 @@
     return d?.kind === "gear" ? d.item.uniqueName : null;
   };
   const rings = $derived(codexRings(model));
-  // What to do next in the category you're in: claim, build, then level.
-  const nextLine = $derived(
-    [
-      readyToClaim ? `${readyToClaim} ready to claim in your foundry` : "",
-      buildable ? `${buildable} ${groupLabel} ready to build` : "",
-      ownedOnly ? `${ownedOnly} owned to level` : "",
-    ].filter(Boolean).join(" · ") || (inGroup.length && mastered === inGroup.length ? `Every one of the ${groupLabel} mastered` : `Nothing to build or level here: the cards show what each still needs`),
-  );
+  // What to do next in the category picked, by name: build, then level (the most mastery first).
+  const nextLine = $derived.by(() => {
+    const byPoints = (xs: CollectionItem[]) => [...xs].sort((a, b) => b.points - a.points || a.name.localeCompare(b.name)).map((c) => c.name);
+    const build = byPoints(inGroup.filter(canBuild));
+    const level = byPoints(inGroup.filter((c) => c.owned && !c.mastered));
+    const said =
+      [build.length ? `build ${someNames(build)}` : "", level.length ? `level ${someNames(level)}` : ""].filter(Boolean).join(" · ") ||
+      (inGroup.length && inGroup.every((c) => c.mastered) ? "every one mastered" : "nothing to build or level now. The cards show what each still needs");
+    return group === "all" ? said[0].toUpperCase() + said.slice(1) : `${groupLabel}: ${said}`;
+  });
   const missing = (c: CollectionItem) => c.parts.filter((p) => !p.resource && p.have < p.required && !p.building).length;
 </script>
 
@@ -115,7 +126,7 @@
   {:else if c.building}<span class="tag">Building</span>
   {:else if c.buildable && c.tier === "hard"}<span class="tag bad" title="Every part in hand, but building needs {c.short.join(', ')}: from an open world or an event. Open it for what each part takes">Parts ready · needs {c.short[0]}{c.short.length > 1 ? ` +${c.short.length - 1}` : ""}</span>
   {:else if c.buildable && c.short.length}<span class="tag warn" title="Every part in hand; still to farm: {c.short.join(', ')}. Open it for what each part takes">Parts ready · farm {c.short[0]}{c.short.length > 1 ? ` +${c.short.length - 1}` : ""}</span>
-  {:else if c.buildable}<span class="tag ok">Ready to build</span>
+  {:else if c.buildable}<span class="tag ok" title="Every part and resource in hand: build it in your foundry">Can build now</span>
   {:else if c.parts.some((p) => !p.resource)}<span class="dim small">{missing(c)} part{missing(c) === 1 ? "" : "s"} missing</span>{/if}
   {#if c.resurgence}<Avail v="resurgence" />{:else if c.vaulted}<Avail v="vaulted" />{/if}
 {/snippet}
@@ -149,12 +160,12 @@
 <div class="page"><div class="page-inner">
   <PageHead title="Foundry" brief="Everything you can master, part by part." blurb="Everything you can master, with the parts you hold (gold: in hand). Click one for its stats, drops and prices.">
     {#snippet band()}
-      <Stat label="Mastered" note={`of ${inGroup.length} ${groupLabel}`}><GameIcon name="mastery" size={30} />{mastered}<span class="of">/{inGroup.length}</span></Stat>
-      <Stat label="Owned, not mastered" tone="gold" note={group === "all" ? "Level these" : `Level these · ${groupLabel}`}>{ownedOnly}</Stat>
-      <Stat label="Ready to build" note={`${partsReady ? `Everything in hand · ${partsReady} more with resources to farm` : "Every part and resource in hand, not mastered yet"}${group === "all" ? "" : ` · ${groupLabel}`}`}>{buildable}</Stat>
-      <Stat label="In your foundry" spot={builds.length ? null : "queue"} tone={readyToClaim ? "gold" : "dim"} note={readyToClaim ? `${readyToClaim} ready to claim` : builds.length ? "Nothing ready yet" : "Nothing building"}>{builds.length}</Stat>
+      <Stat label="Mastered" note={`Of all ${all.length.toLocaleString("en")}, every category`}><GameIcon name="mastery" size={30} />{mastered}<span class="of">/{all.length}</span></Stat>
+      <Stat label="Owned, not mastered" tone="gold" note="Every category · level these">{ownedOnly}</Stat>
+      <Stat label="Can build now" note={partsReady ? `Every category · ${partsReady} more with resources to farm` : "Every category · every part and resource in hand"}>{buildable}</Stat>
+      <Stat label="Ready to claim" spot={builds.length ? null : "queue"} tone={readyToClaim ? "gold" : "dim"} note={builds.length ? `Of ${builds.length} in your foundry` : "Nothing building"}>{readyToClaim}</Stat>
     {/snippet}
-    {#snippet hero()}<CodexRings {rings} lit={group === "all" ? null : group} onpick={(g) => (group = group === g ? "all" : g)} action={(r) => (group === r.group ? "Click to show every category" : `Click to show only ${r.label.toLowerCase()}`)} line={nextLine} />{/snippet}
+    {#snippet hero()}<CodexRings {rings} lit={group === "all" ? null : group} onpick={(g) => (group = group === g ? "all" : g)} all={{ onpick: () => (group = "all"), action: "Click to show every category" }} action={(r) => (group === r.group ? "Click to show every category" : `Click to show only ${r.label.toLowerCase()}`)} line={nextLine} />{/snippet}
   </PageHead>
 
   {#if builds.length}
@@ -172,8 +183,6 @@
       {/each}
     </ul>
   {/if}
-
-  <Tabs bind:value={group} label="Category" options={[{ v: "all", label: "All", count: all.length }, ...GROUPS.map((g) => ({ v: g.v, label: g.label, icon: ICON[g.v], count: count(g.v).length }))]} />
 
   <div class="bar">
     <input type="search" placeholder="Filter items…" bind:value={q} aria-label="Filter items by name" title="Looks through every category" />

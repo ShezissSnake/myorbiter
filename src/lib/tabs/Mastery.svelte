@@ -27,7 +27,7 @@
   import { until } from "../core/traders";
   import PlatMastery from "../ui/PlatMastery.svelte";
   import CodexRings from "../ui/CodexRings.svelte";
-  import { codexRings, rowGroup } from "../core/codex";
+  import { codexRings, rowGroup, someNames } from "../core/codex";
   import type { Group } from "../core/collection";
 
   let { model, masteryRank = null, wishlist = $bindable([]), foundryReady = [] }: { model: Model; masteryRank?: number | null; wishlist?: string[]; foundryReady?: [string, number][] } = $props();
@@ -93,13 +93,15 @@
   const pts = (rs: MasteryRow[]) => rs.reduce((n, r) => n + r.points, 0);
   const levelRows = $derived(open.filter((r) => r.acq.difficulty === 0));
   const easyRows = $derived(open.filter((r) => r.acq.difficulty >= 1 && r.acq.difficulty <= 2));
+  /** Easiest first; among equally easy things, the one you're closest to having, then the most mastery. */
+  const effortOrder = (r: MasteryRow) => r.acq.difficulty * 100_000 + (r.partsTotal ? (1 - r.partsOwned / r.partsTotal) * 50_000 : 50_000) - r.points;
 
 
   const columns: Column<MasteryRow>[] = [
     { key: "name", label: "Item", value: (r) => r.name, defaultDesc: false, cell: nameCell, width: "min(19rem, 24%)" },
     // Easiest first; among equally easy things, the one you're closest to having (Saryn with 3 of
     // 4 parts before Loki with 1), then the one worth the most mastery.
-    { key: "effort", label: "Effort", value: (r) => r.acq.difficulty, sortValue: (r) => r.acq.difficulty * 100_000 + (r.partsTotal ? (1 - r.partsOwned / r.partsTotal) * 50_000 : 50_000) - r.points, cell: effortCell, defaultDesc: false, title: "How hard it is to get: 0 you have it, 1 buy and build … 5 Liches and the like" },
+    { key: "effort", label: "Effort", value: (r) => r.acq.difficulty, sortValue: effortOrder, cell: effortCell, defaultDesc: false, title: "How hard it is to get: 0 you have it, 1 buy and build … 5 Liches and the like" },
     { key: "points", label: "Mastery", value: (r) => r.points, align: "right", cell: pointsCell, title: "Mastery points at max rank" },
     { key: "how", label: "How to get it", value: (r) => r.acq.how, cell: howCell, sortable: false },
     { key: "buy", spare: true, label: "Buy parts", value: (r) => r.buyFor, align: "right", cell: buyCell, title: "Primes: what the parts you're missing cost on warframe.market (daily median)" },
@@ -116,7 +118,16 @@
     ring = lit === g ? null : g;
     category = "all";
   }
-  const nextLine = $derived(`${levelRows.length ? `${levelRows.length} owned to level` : "Nothing owned to level"} · ${pts(easyRows).toLocaleString("en")} mastery easy to get`);
+  // What the figures don't say: which things, by name, in the category picked on the rings. What
+  // you own to rank up (the most mastery first), then the easiest thing to get next.
+  const nextLine = $derived.by(() => {
+    const inRing = (r: MasteryRow) => lit == null || rowGroup(model, r.unique, r.category) === lit;
+    const scope = lit == null ? "" : `${rings.find((x) => x.group === lit)?.label ?? ""}: `;
+    const level = levelRows.filter(inRing).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name)).map((r) => r.name);
+    const [easiest] = open.filter((r) => r.acq.difficulty > 0 && inRing(r)).sort((a, b) => effortOrder(a) - effortOrder(b));
+    const said = [level.length ? `rank up ${someNames(level)}` : "", easiest ? `easiest to get next: ${easiest.name}` : ""].filter(Boolean).join(" · ") || "nothing left you can get here";
+    return scope ? `${scope}${said}` : said[0].toUpperCase() + said.slice(1);
+  });
 </script>
 
 {#snippet nameCell(r: MasteryRow)}<Named file={model.imageOf(r.name)} name={r.name} />{/snippet}
@@ -149,7 +160,7 @@
     {#if parts.length}<div class="chips">{#each parts as p, i (i)}<PartChip part={p} size={32} />{/each}</div>{/if}
     {#if r.acq.difficulty > 0}<p class="chow" title={r.acq.players ? `${r.acq.how}\n\n${r.acq.players}` : r.acq.how}>{r.acq.how}</p>{/if}
     {#snippet foot()}
-      {#if r.status === "level"}<span class="tag" class:ok={stageOf(r).stage !== "building"}>{stageTag(r)}</span>{:else if r.status === "build" && r.buildTier === "hard"}<span class="tag bad" title="Every part in hand, but building needs {r.buildShort}, from an open world or an event">Parts ready · rare resources</span>{:else if r.status === "build" && r.buildTier === "farm"}<span class="tag ok" title="Every part in hand; still to farm: {r.buildShort}">Parts ready · farm</span>{:else if r.status === "build"}<span class="tag ok">Ready to build</span>{/if}
+      {#if r.status === "level"}<span class="tag" class:ok={stageOf(r).stage !== "building"}>{stageTag(r)}</span>{:else if r.status === "build" && r.buildTier === "hard"}<span class="tag bad" title="Every part in hand, but building needs {r.buildShort}, from an open world or an event">Parts ready · rare resources</span>{:else if r.status === "build" && r.buildTier === "farm"}<span class="tag ok" title="Every part in hand; still to farm: {r.buildShort}">Parts ready · farm</span>{:else if r.status === "build"}<span class="tag ok">Can build now</span>{/if}
       {#if r.isPrime && r.missingParts.length}
         {@const worst = r.missingParts.some((p) => p.availability === "vaulted") ? "vaulted" : r.missingParts.some((p) => p.availability === "resurgence") ? "resurgence" : "farmable"}
         <Avail v={worst} />
@@ -200,7 +211,7 @@
       <Stat label="Easy to get" note={`${things(easyRows.length)}: buy and build, or an easy boss`}><GameIcon name="mastery" size={30} />{pts(easyRows).toLocaleString("en")}</Stat>
       <Stat label="Left to master" tone="dim" note={`${things(open.length)} you can still get`}><GameIcon name="mastery" size={30} />{pts(open).toLocaleString("en")}</Stat>
     {/snippet}
-    {#snippet hero()}<CodexRings {rings} {lit} onpick={pickRing} action={(r) => (lit === r.group ? "Click to show every kind" : `Click to show only ${r.label.toLowerCase()} left to master`)} line={nextLine} />{/snippet}
+    {#snippet hero()}<CodexRings {rings} {lit} onpick={pickRing} all={{ onpick: () => { ring = null; category = "all"; }, action: "Click to show every kind" }} action={(r) => (lit === r.group ? "Click to show every kind" : `Click to show only ${r.label.toLowerCase()} left to master`)} line={nextLine} />{/snippet}
   </PageHead>
 
   <!-- The page's two modes as tabs, then the filters: the box first, the kind, the rest folded. -->

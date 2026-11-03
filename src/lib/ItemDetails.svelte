@@ -142,7 +142,7 @@
         <div class="tags">
           {#if c.mastered}<span class="tag good">Mastered</span>{:else if c.owned}<span class="tag mastery">Owned, not mastered</span>{/if}
           {#if c.building}<span class="tag">Building</span>{/if}
-          {#if c.buildable && plan}<span class="tag" class:ok={plan.tier === "now"} class:warn={plan.tier === "farm"} class:bad={plan.tier === "hard"} title={TIER_TIP[plan.tier]}>{plan.tier === "now" ? "Ready to build" : `Parts ready · ${TIER_LABEL[plan.tier].toLowerCase()}`}</span>{:else if c.buildable}<span class="tag ok">Ready to build</span>{/if}
+          {#if c.buildable && plan}<span class="tag" class:ok={plan.tier === "now"} class:warn={plan.tier === "farm"} class:bad={plan.tier === "hard"} title={TIER_TIP[plan.tier]}>{plan.tier === "now" ? "Can build now" : `Parts ready · ${TIER_LABEL[plan.tier].toLowerCase()}`}</span>{:else if c.buildable}<span class="tag ok">Can build now</span>{/if}
           {#if c.resurgence}<Avail v="resurgence" />{:else if c.vaulted}<Avail v="vaulted" />{/if}
           {#if c.unobtainable}<span class="tag">No longer available</span>{/if}
         </div>

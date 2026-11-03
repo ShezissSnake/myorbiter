@@ -122,6 +122,10 @@
   let opened = $state<InventoryItem | null>(null);
   const shelfRows = $derived(kind === "all" ? all : all.filter((r) => r.kind === kind));
   const shelfKey = (r: InventoryItem) => `${r.kind}|${shown(r)}`;
+  // Spare copies, and how many items with copies to spare sell every day: the shown rows, as the figures above them.
+  const spareCopies = $derived(rows.reduce((n, r) => n + spare(r), 0));
+  const spareItems = $derived(new Set(rows.filter((r) => spare(r) > 0).map(shelfKey)));
+  const sellDaily = $derived(new Set(rows.filter((r) => spare(r) > 0 && (perDay(r) ?? 0) >= 1).map(shelfKey)).size);
   /** With nothing spare, what a thing you hold is worth: its price, or for built gear (which can't be traded) its set's. */
   const heldWorth = (r: InventoryItem) => priceOf(r) ?? (r.kind === "gear" ? model.price(`${r.name} Set`) : null);
   const shelf = $derived(pickShowcase(shelfRows, { spare: (r) => full.rows.get(r.key)?.spare ?? null, held: heldWorth, name: shown, key: shelfKey }));
@@ -205,13 +209,14 @@
         <Art file={model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r))} size={64} alt="" fallback={kindIcon(r.kind === "relic" ? "relic" : (spareOf(r)?.type ?? r.type), r.name) ?? "foundry"} />
       {/if}
     {/snippet}
-    <div class="have"><b class="mark qty">×{r.quantity.toLocaleString("en")}</b>{#if otherRanks(r)}<span class="dim small" title="The same {r.kind} held at other ranks: each rank is a card of its own">at R{r.rank}, {otherRanks(r)}</span>{/if}{#if r.rank && r.maxRank}<span class="tag" class:ok={r.rank >= r.maxRank}>{r.rank >= r.maxRank ? "maxed" : `R${r.rank}`}</span>{/if}</div>
+    <!-- As on Mods: what you hold, how many of those are spare, then what the spares sell for. -->
+    <div class="have"><b class="mark qty">×{r.quantity.toLocaleString("en")}</b>{#if spareOf(r) && spare(r) > 0}<span class="dim small" title={why(r)}>{spare(r) === r.quantity ? "all spare" : `${spare(r).toLocaleString("en")} spare`}</span>{/if}{#if otherRanks(r)}<span class="dim small" title="The same {r.kind} held at other ranks: each rank is a card of its own">at R{r.rank}, {otherRanks(r)}</span>{/if}{#if r.rank && r.maxRank}<span class="tag" class:ok={r.rank >= r.maxRank}>{r.rank >= r.maxRank ? "maxed" : `R${r.rank}`}</span>{/if}</div>
     {#if priceOf(r) != null || r.ducats}
       <div class="vals">
         {#if priceOf(r) != null}<span><span class="register">Each</span><P v={priceOf(r)} dim /></span>{/if}
-        {#if r.quantity > 1 && worthOf(r) != null}<span><span class="register">All</span><P v={worthOf(r)} /></span>{/if}
-        {#if spareOf(r) && spare(r) > 0}<span title={why(r)}><span class="register">Spare</span><b class="sp">{spare(r) === r.quantity ? "all" : `×${spare(r).toLocaleString("en")}`}</b></span>{/if}
-        {#if sellable(r) != null}<span title="What your spare copies would bring: no more of the item than the market sells in a month, shared between its ranks or refinements (its part of Spare value; the order the cards are in)"><span class="register">Sells for</span><P v={sellable(r)} /></span>{/if}
+        <!-- One total: what the spares sell for, or with none spare, what every copy is worth. -->
+        {#if sellable(r) != null}<span title="What your spare copies would bring: no more of the item than the market sells in a month, shared between its ranks or refinements (its part of Spare value; the order the cards are in)"><span class="register">Spares</span><P v={sellable(r)} /></span>
+        {:else if r.quantity > 1 && worthOf(r) != null}<span title="Every copy you hold, at the daily median: none of them spare"><span class="register">All</span><P v={worthOf(r)} /></span>{/if}
         {#if r.ducats}<span title="Ducats for every copy you hold: ducats each × copies"><span class="register">Ducats (all)</span><P v={r.ducats * r.quantity} d dim /></span>{/if}
       </div>
     {/if}
@@ -271,6 +276,8 @@
     {/snippet}
     {#snippet band()}
       <Stat label="Spare value" tone="gold" note="Beyond what you keep, no more of each than the market sells in a month" title={`Spare value: every copy beyond what you keep, of every kind, at the daily median, no more of each item than the market sells in a month (slow sellers count only that; unranked arcanes as their share of a maxed one).${spareSplit ? ` By kind: ${spareSplit}.` : ""} Worth selling, on Prime parts, Mods and Arcanes, is the narrower figure: it leaves out what's better as ducats or Vosfor, what isn't worth a trade and mods that don't sell daily.`}><P v={value.spare} big /></Stat>
+      <Stat label="Spare copies" note={`Of ${spareItems.size.toLocaleString("en")} items, beyond what you keep`} title="Every copy you hold beyond what you keep: what your unbuilt items take, two of each mod, one maxed arcane, one of each Captura scene">{spareCopies.toLocaleString("en")}</Stat>
+      <Stat label="Sell daily" note="Items with copies to spare that trade every day on warframe.market: where to start" title="Items you have copies to spare of that trade at least once a day on warframe.market (their daily statistics): the ones that sell quickly">{sellDaily.toLocaleString("en")}</Stat>
       <Stat extra label="Quick-sale value" note="Everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month"><P v={value.easy} big /></Stat>
       <Stat extra label="Market value" tone="dim" note="Every copy at the daily median, slow sellers included"><P v={value.market} big /></Stat>
     {/snippet}
@@ -313,7 +320,7 @@
   /* Kept: a padlock where the List button would be, the same size so the column lines up. */
   .kept { display: inline-grid; place-items: center; width: 30px; height: 30px; color: var(--platinum-deep); }
   .flush { margin-left: 0; }
-  .have { display: flex; align-items: center; gap: .5rem; }
+  .have { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; }
   .have .tag { margin-left: 0; }
   .qty { font-size: 1.3rem; }
   /* Each figure in a column of its own width, so cards side by side line up and wrap the same way. */

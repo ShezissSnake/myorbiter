@@ -21,10 +21,10 @@
   import UndoSlot from "../ui/UndoSlot.svelte";
   import { UndoSlots } from "../undo.svelte";
   import CodexRings from "../ui/CodexRings.svelte";
-  import { ringsFor } from "../core/codex";
+  import { codexRings, starredBy } from "../core/codex";
   import type { Group } from "../core/collection";
 
-  let { model, settings = $bindable() }: { model: Model; settings: Settings } = $props();
+  let { model, settings = $bindable(), go = null }: { model: Model; settings: Settings; go?: ((to: string) => void) | null } = $props();
 
   let now = $state(Date.now());
   $effect(() => {
@@ -78,7 +78,12 @@
     }
     return out;
   }
-  const rings = $derived(ringsFor(model, settings.favourites));
+  // The rings: mastered of all in each category, as on Mastery and Foundry, each marked with how
+  // many you starred in it. A click goes to the first of those, or, with none starred there, to
+  // Foundry's not-mastered ones in that category, where you star them.
+  const rings = $derived(codexRings(model));
+  const marks = $derived(starredBy(model, settings.favourites));
+  const pickRing = (g: Group) => (marks[g] ? jump(g) : go?.(`foundry?group=${g}&show=todo`));
   /** A ring's click: to the first thing you starred in that category. */
   function jump(g: Group) {
     const el = document.querySelector<HTMLElement>(`.wish[data-group="${g}"]`);
@@ -90,7 +95,7 @@
   const nextLine = $derived.by(() => {
     const todo = items.filter((w) => !w.c.mastered && !w.c.owned && !w.c.building && !undo.has(w.c.unique));
     const ready = todo.filter((w) => !w.missing.length);
-    if (ready.length) return `Ready to build: ${ready.map((w) => w.c.name).join(", ")}`;
+    if (ready.length) return `Can build now: ${ready.map((w) => w.c.name).join(", ")}`;
     const [w] = [...todo].sort((a, b) => a.missing.length - b.missing.length || (b.odds ?? 0) - (a.odds ?? 0));
     if (!w) return "Everything you starred is built or mastered";
     const how = w.odds ? ` · ${pct(w.odds)} from your relics` : w.buyCost != null ? ` · ${Math.round(w.buyCost)}p to buy` : "";
@@ -114,10 +119,10 @@
   <Stat keep label="Crack now" tone="gold" note={crackNow.length ? crackNow.map((c) => c.era).join(", ") + " fissures open" : "No matching fissure open"}>{crackNow.length}</Stat>
 {/snippet}
 
-{#snippet codex()}<CodexRings {rings} what="starred" onpick={jump} action={() => "Click to go to the first one"} line={nextLine} />{/snippet}
+{#snippet codex()}<CodexRings {rings} {marks} onpick={pickRing} action={(r) => (marks[r.group] ? `Click to go to the first one you starred` : `Nothing starred here: click to pick from the ${r.label.toLowerCase()} you haven't mastered, on Foundry`)} line={items.length ? nextLine : "Click a category to pick from what you haven't mastered in it, on Foundry"} />{/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Wishlist" brief="What you starred, and how to get each part." blurb="What you've starred, and the quickest way to each missing part: a relic you hold, where to farm one, or what it costs." band={items.length ? band : undefined} hero={rings.length ? codex : undefined} />
+  <PageHead title="Wishlist" brief="What you starred, and how to get each part." blurb="What you've starred, and the quickest way to each missing part: a relic you hold, where to farm one, or what it costs." band={items.length ? band : undefined} hero={codex} />
 
   <div class="bar">
     <input list="wish-names" placeholder="Add something to your wishlist…" bind:value={adding} onkeydown={(e) => e.key === "Enter" && add()} aria-label="Item to add" />
@@ -144,7 +149,7 @@
   {#if !items.length}
     <section class="panel empty">
       <h2 class="mark">Nothing starred yet</h2>
-      <p class="prose">Star something (☆ in Foundry, Mastery or its details) or add it above: you'll see the relics for each missing part, and what buying them costs.</p>
+      <p class="prose">Star an item with ☆ on Foundry, Mastery or its details to track it here, or add it above. You'll see the relics for each missing part, and what buying them costs.</p>
     </section>
   {:else}
     <div class="list">
@@ -163,7 +168,7 @@
                 {#if w.c.mastered}<span class="tag good">✓ Mastered</span><button class="link quiet" title="You've mastered it: take it off your wishlist" onclick={() => remove(w.c.unique)}>Done: remove it</button>
                 {:else if w.c.owned}<span class="tag mastery">Owned · level it</span>
                 {:else if w.c.building}<span class="tag">Building</span>
-                {:else if !w.missing.length}<span class="tag ok">Ready to build</span>
+                {:else if !w.missing.length}<span class="tag ok" title="Every part in hand: build it in your foundry">Can build now</span>
                 {:else}
                   {#if w.odds != null && w.odds > 0}<span class="odds" title="Chance your relics give every missing part if you crack each of them once">{pct(w.odds)} <span class="dim small">from your relics</span></span>
                   {:else if uncovered(w)}<span class="dim small">{uncovered(w) === w.missing.length ? "None of the missing parts are in your relics" : `${uncovered(w)} of ${w.missing.length} missing parts aren't in your relics`}</span>{/if}
