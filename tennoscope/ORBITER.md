@@ -39,9 +39,8 @@ pnpm install --frozen-lockfile
 pnpm tauri build --no-bundle
 ```
 
-The program is `tennoscope/target/release/tennoscope`. Point orbiter's Settings → TennoScope at it
-(`~/dev/projects/orbiter/tennoscope/target/release/tennoscope`); without a path set, a development
-orbiter still looks for the old clone in `~/dev/projects/tennoscope` first. After pulling changes
+The program is `tennoscope/target/release/tennoscope`. A development orbiter (`npm run tauri dev`)
+finds it there by itself; Settings → TennoScope can point any orbiter at it. After pulling changes
 to `tennoscope/`, run the last two lines again.
 
 TennoScope is its own Cargo workspace and pnpm project, separate from orbiter's (it uses Rust

@@ -113,7 +113,7 @@
   {#if ts.unpatched}
     <section class="callout">
       <h3 class="register">This TennoScope doesn't talk to orbiter</h3>
-      <p class="prose">It's an unpatched build, so orbiter can't show its state, read the reward cards or run it without a window. Build the patched one (see <code>patches/README.md</code> in orbiter's folder) and point Settings at it.</p>
+      <p class="prose">It's an unpatched build, so orbiter can't show its state, read the reward cards or run it without a window. Build orbiter's TennoScope (see <code>tennoscope/ORBITER.md</code> in orbiter's folder) and point Settings at it.</p>
     </section>
   {/if}
 

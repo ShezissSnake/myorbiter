@@ -96,8 +96,9 @@ pub fn allowed_ask(arg: &str) -> bool {
     matches!(arg, "--sync" | "--authorize-capture")
 }
 
-/// Where to find TennoScope: the path from Settings, then the one inside orbiter, then a build in
-/// `~/dev/projects/tennoscope` (the patched one), then whatever `tennoscope` is on PATH.
+/// Where to find TennoScope: the path from Settings, then the one inside orbiter, then (in a
+/// development build) one built in this checkout's `tennoscope/` folder, then whatever
+/// `~/dev/projects/tennoscope` (the old clone), then whatever `tennoscope` is on PATH.
 pub fn find_binary(custom: Option<&str>, bundled: Option<&Path>) -> Option<PathBuf> {
     if let Some(c) = custom.map(str::trim).filter(|c| !c.is_empty()) {
         let p = expand_home(c);
@@ -105,6 +106,7 @@ pub fn find_binary(custom: Option<&str>, bundled: Option<&Path>) -> Option<PathB
     }
     let home = std::env::var_os("HOME").map(PathBuf::from);
     let mut candidates: Vec<PathBuf> = bundled.map(Path::to_path_buf).into_iter().collect();
+    candidates.extend(checkout_build());
     if let Some(h) = &home {
         candidates.push(h.join("dev/projects/tennoscope/target/release").join(PROCESS));
     }
@@ -112,6 +114,19 @@ pub fn find_binary(custom: Option<&str>, bundled: Option<&Path>) -> Option<PathB
         candidates.extend(std::env::split_paths(&path).map(|d| d.join(PROCESS)));
     }
     candidates.into_iter().find(|p| p.is_file())
+}
+
+/// TennoScope as built in the orbiter checkout this development build came from
+/// (`tennoscope/target/release/tennoscope`, tennoscope/ORBITER.md). Release builds don't look
+/// there: the build machine's folder means nothing on the player's.
+#[cfg(debug_assertions)]
+fn checkout_build() -> Option<PathBuf> {
+    let checkout = Path::new(env!("CARGO_MANIFEST_DIR")).parent()?;
+    Some(checkout.join("tennoscope/target/release").join(PROCESS))
+}
+#[cfg(not(debug_assertions))]
+fn checkout_build() -> Option<PathBuf> {
+    None
 }
 
 fn expand_home(p: &str) -> PathBuf {

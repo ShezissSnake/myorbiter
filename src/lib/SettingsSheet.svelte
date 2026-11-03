@@ -120,7 +120,7 @@
     <label class="field">
       <span class="register">Program</span>
       <input class="path" bind:value={tsPath} title={tsPath || undefined} placeholder={ts.status?.binary ? `Found: ${ts.status.binary}` : "Not found"} spellcheck="false" />
-      <span class="hint">Empty finds it: your patched build in ~/dev/projects/tennoscope, then the copy inside orbiter, then an installed one.</span>
+      <span class="hint">Empty finds it: the copy inside orbiter, then (in a development build) one built in orbiter's tennoscope/ folder, then one in ~/dev/projects/tennoscope, then an installed one.</span>
     </label>
   </section>
 
