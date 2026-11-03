@@ -25,6 +25,7 @@ import { LISTING_LIMIT, bulkPlan, cheapByMedian, planSignature, resolve, sellTar
 import type { DucatOptions } from "./core/advice";
 import { backoff } from "./core/upkeep";
 import { drops } from "./drops.svelte";
+import { MAX_PLAT, MAX_QTY, wholeIn } from "./core/amounts";
 
 export interface Draft {
   itemId: string;
@@ -730,8 +731,9 @@ class MarketStore {
 
   async submitDraft() {
     const d = this.draft;
-    if (!d || d.platinum == null) return;
-    const existing = d.addToExisting ? this.existingFor(d) : null;
+    const existing = d?.addToExisting ? this.existingFor(d) : null;
+    // Whole numbers in range only (the form checks too): warframe.market refuses anything else.
+    if (!d || !wholeIn(d.platinum, 1, MAX_PLAT) || !wholeIn(d.quantity, existing ? 0 : 1, MAX_QTY)) return;
     await this.guard("Listing", async () => {
       const tag = `${d.name}${d.rank != null ? ` R${d.rank}` : ""}${d.subtype ? ` (${d.subtype})` : ""}`;
       if (existing) {
@@ -899,7 +901,7 @@ class MarketStore {
   /** Posts the buy order in the form; true when warframe.market took it. `keep`: the form stays open (it says "Posted" first, then closes itself). */
   async placeBuy(keep = false): Promise<boolean> {
     const d = this.buyDraft;
-    if (!d || !d.platinum || !this.linked) return false;
+    if (!d || !wholeIn(d.platinum, 1, MAX_PLAT) || !wholeIn(d.quantity, 1, MAX_QTY) || !this.linked) return false;
     const ok = await this.guard("Posting a buy order", async () => {
       await market.create({ itemId: d.itemId, platinum: Math.round(d.platinum!), quantity: Math.round(d.quantity), rank: d.rank, subtype: d.subtype, type: "buy" });
       this.note(`Buy order posted: ${d.name}${d.rank != null ? ` R${d.rank}` : ""}${d.subtype && d.subtypes && d.subtypes.length > 1 ? ` (${d.subtype})` : ""}, ${d.quantity} at ${Math.round(d.platinum!)}p`, "ok");

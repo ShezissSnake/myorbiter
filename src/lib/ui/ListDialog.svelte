@@ -8,6 +8,7 @@
   import type { DucatOptions } from "../core/advice";
   import { relicCrackFor } from "../core/spares";
   import { minFor, mkt } from "../marketStore.svelte";
+  import { MAX_PLAT, MAX_QTY, amountProblem, shown, wholeIn } from "../core/amounts";
   import Named from "./Named.svelte";
   import P from "./P.svelte";
   import ProgressButton from "./ProgressButton.svelte";
@@ -98,8 +99,10 @@
     priceInput.focus();
   });
 
+  // Whole numbers only: warframe.market takes whole platinum and copies, and an empty box isn't 0.
+  const badNumber = $derived(d ? amountProblem(d.quantity, d.platinum, merging ? 0 : 1) : null);
   const ready = $derived(
-    !!d && d.platinum != null && d.platinum >= 1 && d.quantity >= (merging ? 0 : 1) && !oversell && !(repriceOnly && existing?.platinum === d.platinum) && !mkt.busy,
+    !!d && wholeIn(d.platinum, 1, MAX_PLAT) && wholeIn(d.quantity, merging ? 0 : 1, MAX_QTY) && !oversell && !(repriceOnly && existing?.platinum === d.platinum) && !mkt.busy,
   );
   /** Enter in the quantity or price box lists it, as Save does on Orders. */
   function enter(e: KeyboardEvent) {
@@ -176,11 +179,11 @@
               <div class="static"><span class="register">Listed</span><strong>{existing.quantity}</strong></div>
             {:else}
               <label><span class="register">{merging ? "Add" : "Quantity"}</span>
-                <input type="number" min={merging ? 0 : 1} max="999" bind:value={d.quantity} onkeydown={enter} />
+                <input type="number" min={merging ? 0 : 1} max={MAX_QTY} step="1" bind:value={d.quantity} onkeydown={enter} title={merging ? "How many more copies to add to your listing (0 changes only its price)" : "How many copies to list: a whole number"} />
               </label>
             {/if}
             <label><span class="register">Price each</span>
-              <input class="price" type="number" min="1" bind:value={d.platinum} bind:this={priceInput} onkeydown={enter} placeholder={d.priced || bookFailed ? "set a price" : "…"} />
+              <input class="price" type="number" min="1" max={MAX_PLAT} step="1" title="Platinum for each copy: a whole number" bind:value={d.platinum} bind:this={priceInput} onkeydown={enter} placeholder={d.priced || bookFailed ? "set a price" : "…"} />
             </label>
           </div>
 
@@ -198,7 +201,8 @@
             {#if d.available != null}<span class="dim">You can spare {d.available}</span>{/if}
           </div>
 
-          {#if noneHere}<p class="err small">You hold none at this {d.maxRank != null ? "rank" : "variant"}: pick one you have.</p>
+          {#if badNumber}<p class="err small">{badNumber}</p>
+          {:else if noneHere}<p class="err small">You hold none at this {d.maxRank != null ? "rank" : "variant"}: pick one you have.</p>
           {:else if oversell}<p class="err small">You hold {heldHere} at this {d.maxRank != null ? "rank" : "variant"}{merging && existing ? `, ${existing.quantity} listed already` : ""}: you can't list more than that.</p>
           {:else if tooMany}<p class="warn small">{merging && existing ? `You can spare ${d.available} and ${existing.quantity} are listed already, so ${room} more at most.` : `That's more than the ${d.available} you can spare; the rest are copies orbiter keeps back for you.`}</p>{/if}
           {#if repriceOnly && existing}<p class="small dim">All you can spare is listed already ({existing.quantity} at {existing.platinum}p). This only changes the price.</p>{/if}
@@ -217,7 +221,7 @@
 
           <div class="row end">
             <button onclick={() => mkt.closeDraft()}>Cancel</button>
-            <ProgressButton tone="gold" busy={mkt.op === "Listing"} label={repriceOnly ? (d.platinum ? `Set price to ${d.platinum}p` : "Set the price") : `${merging ? "Add" : "List"} ${d.quantity}${d.platinum ? ` at ${d.platinum}p` : ""}`} working={repriceOnly ? "Setting…" : merging ? "Adding…" : "Listing…"}
+            <ProgressButton tone="gold" busy={mkt.op === "Listing"} label={repriceOnly ? (d.platinum ? `Set price to ${d.platinum}p` : "Set the price") : `${merging ? "Add" : "List"} ${shown(d.quantity)}${d.platinum ? ` at ${d.platinum}p` : ""}`} working={repriceOnly ? "Setting…" : merging ? "Adding…" : "Listing…"}
               title={repriceOnly ? "Change your listing's price on warframe.market" : merging ? "Add these to your listing on warframe.market" : "Put it up on warframe.market"} disabled={!ready} onclick={() => mkt.submitDraft()} />
           </div>
           {#if !merging}<p class="dim small foot">It joins your Orders, where Reprice (or Apply automatically) keeps it at the cheapest in-game price.</p>{/if}
