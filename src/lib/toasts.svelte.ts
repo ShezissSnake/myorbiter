@@ -4,19 +4,35 @@
 import type { Notice } from "./notices";
 
 export const SHOWN_FOR = 7000;
+/** At most this many at once; the rest of a burst (several at launch) fold into one "N more" line. */
+export const MAX_SHOWN = 2;
 
 class Toasts {
   list = $state<Notice[]>([]);
+  /** How many of this burst were folded away (they're all under the bell): one line, gone with the burst. */
+  more = $state(0);
+  private moreTimer: ReturnType<typeof setTimeout> | undefined;
   private timers = new Map<string, ReturnType<typeof setTimeout>>();
   /** Time left for each one: its deadline while running, what's left while held. */
   private left = new Map<string, number>();
   private due = new Map<string, number>();
 
   push(n: Notice) {
-    // At most three at once: a burst drops the oldest.
+    // At most MAX_SHOWN at once: a burst folds the oldest into the "N more" line, keeping a sale
+    // whose +rep is still to give (its button is on the toast).
     const kept = [n, ...this.list.filter((t) => t.id !== n.id)];
-    for (const gone of kept.slice(3)) this.forget(gone.id);
-    this.list = kept.slice(0, 3);
+    while (kept.length > MAX_SHOWN) {
+      let i = kept.length - 1;
+      while (i > 0 && kept[i].rep) i--;
+      const [gone] = kept.splice(i > 0 ? i : kept.length - 1, 1);
+      this.forget(gone.id);
+      this.more++;
+    }
+    this.list = kept;
+    if (this.more) {
+      clearTimeout(this.moreTimer);
+      this.moreTimer = setTimeout(() => (this.more = 0), SHOWN_FOR);
+    }
     this.left.set(n.id, SHOWN_FOR);
     this.arm(n.id);
   }
@@ -32,6 +48,11 @@ class Toasts {
     this.timers.delete(id);
     const due = this.due.get(id);
     if (due != null) this.left.set(id, Math.max(1500, due - Date.now()));
+  }
+  /** The "N more" line goes (opened under the bell, or dismissed). */
+  dropMore() {
+    clearTimeout(this.moreTimer);
+    this.more = 0;
   }
   dismiss(id: string) {
     this.forget(id);

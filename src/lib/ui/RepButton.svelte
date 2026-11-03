@@ -6,8 +6,10 @@
   import { mkt } from "../marketStore.svelte";
   import IconButton from "./IconButton.svelte";
 
-  // label: the button's words ("+rep" where the partner is named beside it; "+rep Bob" on a notification).
-  let { partner, text, given = false, ongiven, label = "+rep" }: { partner: string; text: string; given?: boolean; ongiven?: () => void; label?: string } = $props();
+  // label: the button's words ("+rep" where the partner is named beside it). named: "+rep Bob", on a
+  // notification; the name keeps its case (warframe.market names are case-sensitive), unlike the
+  // register-type button around it.
+  let { partner, text, given = false, ongiven, label = "+rep", named = false }: { partner: string; text: string; given?: boolean; ongiven?: () => void; label?: string; named?: boolean } = $props();
 
   let busy = $state(false);
   let error = $state<string | null>(null);
@@ -45,7 +47,7 @@
   <span class="note" title="Your review of {partner} on warframe.market is a report: left as it is">You reported them</span>
 {:else}
   <span class="rep">
-    <button class="link" disabled={busy || !mkt.linked} title={!mkt.linked ? "Sign in to warframe.market on Orders first" : error ? `Couldn't give +rep: ${error}` : `Give ${partner} +rep on warframe.market, with "${text}"${known ? ` (they have ${known.reputation})` : ""}`} onclick={give}>{busy ? "Giving…" : error ? "Try again" : label}</button>
+    <button class="link" disabled={busy || !mkt.linked} title={!mkt.linked ? "Sign in to warframe.market on Orders first" : error ? `Couldn't give +rep: ${error}` : `Give ${partner} +rep on warframe.market, with "${text}"${known ? ` (they have ${known.reputation})` : ""}`} onclick={give}>{#if busy}Giving…{:else if error}Try again{:else}{label}{#if named}&nbsp;<span class="who">{partner}</span>{/if}{/if}</button>
     {#if why}<span class="why" role="status" title={error}>{why}</span>{/if}
     {#if error || !mkt.linked}<IconButton icon="external" tone="quiet" size={12} label="Their profile" title={error ?? "Their warframe.market profile, to give +rep there"} onclick={profile} />{/if}
   </span>
@@ -54,6 +56,7 @@
 <style>
   .rep { display: inline-flex; align-items: center; gap: .5rem; white-space: nowrap; }
   .rep :global(.ib) { --ib: 24px; }
+  .who { text-transform: none; letter-spacing: .02em; }
   .note { font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); white-space: nowrap; }
   .done { color: var(--verdigris); }
   /* Why +rep didn't go through: in oxblood beside the button. */
