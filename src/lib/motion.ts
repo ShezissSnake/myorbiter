@@ -154,7 +154,11 @@ export function flip(node: Element, rects: { from: DOMRect; to: DOMRect }, param
   const vh = typeof innerHeight === "number" ? innerHeight : 1e9;
   const off = (r: DOMRect) => r.bottom < 0 || r.top > vh;
   if (calm.current || (off(rects.from) && off(rects.to)) || !spend()) return { duration: 0 };
-  return svelteFlip(node, rects, { duration: SETTLE, easing: out, ...params });
+  // Moves only, never scales: Svelte's flip also stretches an item whose size changed in the same
+  // update (a row growing a status line, a row turning into its one-line ghost), which squashes
+  // its text for the whole close-up. Measured from the top left, where rows and cards stack from.
+  const from = new DOMRect(rects.from.left, rects.from.top, rects.to.width, rects.to.height);
+  return svelteFlip(node, { from, to: rects.to }, { duration: SETTLE, easing: out, ...params });
 }
 
 // ---------------------------------------------------------------- actions
