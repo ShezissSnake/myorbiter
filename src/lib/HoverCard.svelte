@@ -128,7 +128,7 @@
         <div class="ht">
           <b class="mark">{it.name}</b>
           <span class="sub">{c.type}{c.masteryReq ? ` · MR ${c.masteryReq}` : ""}</span>
-          <span class="tags">{#if c.mastered}<span class="tag good">✓ Mastered</span>{:else if c.owned}<span class="tag mastery" title="Owned, not mastered yet">Owned</span>{:else if c.building}<span class="tag">Building</span>{:else if c.buildable}<span class="tag ok">Can build now</span>{/if}{#if c.resurgence}<Avail v="resurgence" />{:else if c.vaulted}<Avail v="vaulted" />{/if}</span>
+          <span class="tags">{#if c.mastered}<span class="tag good">✓ Mastered</span>{:else if c.owned}<span class="tag mastery" title="Owned, not mastered yet">Owned</span>{:else if c.building}<span class="tag">Building</span>{:else if c.step}<span class="tag ok">{c.stepTag}</span>{:else if c.buildable}<span class="tag ok">Can build now</span>{/if}{#if c.resurgence}<Avail v="resurgence" />{:else if c.vaulted}<Avail v="vaulted" />{/if}</span>
         </div>
       </header>
       {#if it.health != null}
@@ -136,7 +136,7 @@
       {:else if it.criticalChance != null && (it.totalDamage ?? 0) > 0}
         <div class="figs"><span><span class="register">Damage</span><b>{Math.round((it.totalDamage ?? 0) * 10) / 10}</b></span><span><span class="register">Crit</span><b>{Math.round(it.criticalChance * 100)}% ×{it.criticalMultiplier}</b></span><span><span class="register">Status</span><b>{Math.round((it.procChance ?? 0) * 100)}%</b></span><span><span class="register">Rate</span><b>{Math.round((it.fireRate ?? 0) * 100) / 100}</b></span></div>
       {/if}
-      {#if c.parts.length}<div class="chips">{#each c.parts as p, i (i)}<PartChip part={p} size={30} />{/each}</div>{/if}
+      {#if c.parts.length && !c.partBuilt}<div class="chips">{#each c.parts as p, i (i)}<PartChip part={p} size={30} />{/each}</div>{/if}
       <footer><span class="pts"><GameIcon name="mastery" size={13} />{c.points.toLocaleString("en")} mastery</span>{#if c.setPrice != null}<span class="grow"></span><span class="dim">set</span><P v={Math.round(c.setPrice)} />{/if}{#if t.opens}<span class="hint">click for details</span>{/if}</footer>
     {:else if d.kind === "mod" || d.kind === "arcane"}
       {@const it = d.item}

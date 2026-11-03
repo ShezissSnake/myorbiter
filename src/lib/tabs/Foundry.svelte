@@ -146,7 +146,7 @@
   {:else if c.buildable && c.tier === "hard"}<span class="tag bad" title="Every part in hand, but building needs {c.short.join(', ')}: from an open world or an event. Open it for what each part takes">Parts ready · needs {c.short[0]}{c.short.length > 1 ? ` +${c.short.length - 1}` : ""}</span>
   {:else if c.buildable && c.short.length}<span class="tag warn" title="Every part in hand; still to farm: {c.short.join(', ')}. Open it for what each part takes">Parts ready · farm {c.short[0]}{c.short.length > 1 ? ` +${c.short.length - 1}` : ""}</span>
   {:else if c.buildable}<span class="tag ok" title="Every part and resource in hand: build it in your foundry">Can build now</span>
-  {:else if c.parts.some((p) => !p.resource)}<span class="dim small">{missing(c)} part{missing(c) === 1 ? "" : "s"} missing</span>{/if}
+  {:else if c.parts.some((p) => !p.resource)}<span class="tag" title="Parts or blueprints you don't hold yet: open it for where each comes from">{missing(c)} part{missing(c) === 1 ? "" : "s"} missing</span>{/if}
   {#if c.resurgence}<Avail v="resurgence" />{:else if c.vaulted}<Avail v="vaulted" />{/if}
 {/snippet}
 {#snippet card(c: CollectionItem, open: () => void)}
@@ -163,11 +163,16 @@
     onopen={open}
   >
     <!-- Parts then resources in one row, wrapping together, so a resource sits beside the last part rather than under all of them. -->
+    {#if c.partBuilt}
+      <!-- A chamber or model already built: its blueprint is spent. What's next instead, and who does it. -->
+      {#if c.stepBrief && !c.mastered}<p class="next" title={c.stepHow}>{c.stepBrief}</p>{/if}
+    {:else}
     <div class="chips">
       {#each c.parts.filter((p) => !p.resource) as p, i (i)}<PartChip part={p} size={38} />{/each}
       <!-- Resources only when you're short of one: the 839 Orokin Cells you hold say nothing on a mastered frame. -->
       {#each c.parts.filter((p) => p.resource && !c.mastered && p.have < p.required) as p, i (i)}<span class="res"><PartChip part={p} size={28} /></span>{/each}
     </div>
+    {/if}
     {#snippet foot()}
       {@render stateCell(c)}
       <span class="grow"></span>
@@ -232,5 +237,6 @@
   .chips { align-items: center; row-gap: .7rem; }
   .chips .res { display: inline-flex; margin-left: .15rem; padding-bottom: 4px; }
   .pts { display: inline-flex; align-items: center; gap: .25rem; color: var(--platinum-dim); font-variant-numeric: tabular-nums; }
+  .next { margin: 0; font-size: .8rem; line-height: 1.4; color: var(--platinum-dim); display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
   .star { margin-left: .4rem; color: var(--gold); }
 </style>

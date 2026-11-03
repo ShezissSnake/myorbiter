@@ -48,8 +48,9 @@
   };
   const rankTo = (r: MasteryRow) => (r.points === 4000 || r.points === 8000 ? 40 : 30);
   const stageText = (r: MasteryRow) => {
-    // Modular gear says what levelling means for it (gilded, or gild first).
-    if (r.step) return r.acq.how;
+    // Modular gear says what levelling means for it (gilded, or gild first), naming who to see;
+    // the card's tooltip has where and what it takes.
+    if (r.step) return r.stepBrief ?? r.acq.how;
     const s = stageOf(r);
     return s.stage === "claim" ? `Built and waiting in your Foundry: claim it, then rank it to ${rankTo(r)} for the mastery.` : s.stage === "building" ? `Building in your Foundry${s.readyAt ? `, ready in ${until(new Date(s.readyAt).toISOString(), now)}` : ""}: then rank it to ${rankTo(r)}.` : `In your arsenal: rank it to ${rankTo(r)} for the mastery.`;
   };
@@ -132,7 +133,7 @@
   const rings = $derived.by(whileShown("mastery", () => codexRings(model)));
   /** A kind picked in the list lights its ring, when it falls in one. */
   // (Kitguns are in two rings, so they light none.)
-  const KIND_RING: Record<string, Group> = { Warframe: "warframes", Primary: "primary", Secondary: "secondary", Melee: "melee", Zaw: "melee", Companion: "companions", "Companion weapon": "companions", Plexus: "companions", Archwing: "archwing", "Arch-Gun": "archwing", "Arch-Melee": "archwing", Amp: "amps", "K-Drive": "kdrives" };
+  const KIND_RING: Record<string, Group> = { Warframe: "warframes", Primary: "primary", Secondary: "secondary", Melee: "melee", Zaw: "melee", Companion: "companions", "Companion weapon": "companions", "Railjack Plexus": "companions", Archwing: "archwing", "Arch-Gun": "archwing", "Arch-Melee": "archwing", Amp: "amps", "K-Drive": "kdrives" };
   const lit = $derived(ring ?? KIND_RING[category] ?? null);
   function pickRing(g: Group) {
     ring = lit === g ? null : g;
@@ -176,11 +177,12 @@
   {@const item = model.catalogByUnique.get(r.unique)}
   {@const parts = item && r.status !== "level" && !r.step ? collectionItem(model, item).parts.filter((p) => !p.resource) : []}
   <ItemCard hover={r.name} title={r.name} sub={r.category} fallback={kindIcon(r.category, r.name)} image={item?.imageName ?? model.imageOf(r.name)} markPrime onopen={open} fav={wished.has(r.unique)} onfav={item ? () => toggleWish(r.unique) : undefined}>
-    {#if r.acq.difficulty > 0}<Effort acq={r.acq} />{:else}<p class="chow">{stageText(r)}</p>{/if}
+    {#if r.acq.difficulty > 0}<Effort acq={r.acq} />{:else}<p class="chow" title={r.acq.how}>{stageText(r)}</p>{/if}
     {#if parts.length}<div class="chips">{#each parts as p, i (i)}<PartChip part={p} size={32} />{/each}</div>{/if}
-    {#if r.acq.difficulty > 0}<p class="chow" title={r.acq.players ? `${r.acq.how}\n\n${r.acq.players}` : r.acq.how}>{r.acq.how}</p>{/if}
+    {#if r.acq.difficulty > 0}<p class="chow" title={r.acq.players ? `${r.acq.how}\n\n${r.acq.players}` : r.acq.how}>{r.stepBrief ?? r.acq.how}</p>{/if}
     {#snippet foot()}
-      {#if r.status === "level"}<span class="tag" class:ok={stageOf(r).stage !== "building"}>{stageTag(r)}</span>{:else if r.status === "gild" || r.status === "assemble"}<span class="tag ok" title={r.acq.how}>{r.stepTag}</span>{:else if r.status === "build" && r.buildTier === "hard"}<span class="tag bad" title="Every part in hand, but building needs {r.buildShort}, from an open world or an event">Parts ready · rare resources</span>{:else if r.status === "build" && r.buildTier === "farm"}<span class="tag ok" title="Every part in hand; still to farm: {r.buildShort}">Parts ready · farm</span>{:else if r.status === "build"}<span class="tag ok">Can build now</span>{/if}
+      <!-- One tone per state, as on Foundry and Wishlist: teal filled for one you have (level it), gold outline for a step to take, plain for waiting. -->
+      {#if r.status === "level"}<span class="tag" class:mastery={stageOf(r).stage === "level" || !!r.step} class:ok={stageOf(r).stage === "claim" && !r.step} title={r.step ? r.acq.how : undefined}>{stageTag(r)}</span>{:else if r.status === "gild" || r.status === "assemble"}<span class="tag ok" title={r.acq.how}>{r.stepTag}</span>{:else if r.revive}<span class="tag ok" title={r.acq.how}>Captured · revive it</span>{:else if r.status === "build" && r.buildTier === "hard"}<span class="tag bad" title="Every part in hand, but building needs {r.buildShort}, from an open world or an event">Parts ready · rare resources</span>{:else if r.status === "build" && r.buildTier === "farm"}<span class="tag warn" title="Every part in hand; still to farm: {r.buildShort}">Parts ready · farm</span>{:else if r.status === "build"}<span class="tag ok" title="Every part and resource in hand: build it in your foundry">Can build now</span>{/if}
       {#if r.isPrime && r.missingParts.length}
         {@const worst = r.missingParts.some((p) => p.availability === "vaulted") ? "vaulted" : r.missingParts.some((p) => p.availability === "resurgence") ? "resurgence" : "farmable"}
         <Avail v={worst} />
