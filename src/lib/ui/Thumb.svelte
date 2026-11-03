@@ -7,12 +7,13 @@
   // for it (a new arcane); without any, the game's icon for its kind (a blueprint the Foundry, a
   // relic its era), else a small Orokin diamond.
   // `name`: what it shows, for a hover card about it and to find its art or kind.
+  // `of`: what it shows, to find its art or kind, without a hover card (Named has its own).
   // `fallback`: the kind's icon when the caller knows it better than the name says.
-  let { file, size = 28, alt = "", tint, name, fallback = null }: { file: string | null | undefined; size?: number; alt?: string; tint?: string | null; name?: string | null; fallback?: GameIconName | null } = $props();
+  let { file, size = 28, alt = "", tint, name, of = null, fallback = null }: { file: string | null | undefined; size?: number; alt?: string; tint?: string | null; name?: string | null; of?: string | null; fallback?: GameIconName | null } = $props();
   // Each picture that didn't load (none in the image cache, or offline): the next one is tried.
   let failed = $state<string[]>([]);
-  const src = $derived([file, marketThumb(name ?? alt)].find((f): f is string => !!f && !failed.includes(f)) ?? null);
-  const what = $derived(name ?? alt);
+  const src = $derived([file, marketThumb(name ?? of ?? alt)].find((f): f is string => !!f && !failed.includes(f)) ?? null);
+  const what = $derived(name ?? of ?? alt);
   const relic = $derived(/^(Lith|Meso|Neo|Axi|Requiem) [A-Z]\d+\b/.exec(what ?? ""));
   const icon = $derived<GameIconName | null>(fallback ?? (/\bBlueprint$/.test(what ?? "") ? "foundry" : relic ? eraIcon(relic[1]) : kindIcon(null, what ?? "")));
 </script>

@@ -96,7 +96,7 @@
     {/if}
   </header>
   <div class="body">
-    <span class="pic" use:info={hover ?? null}>{#if art}{@render art()}{:else}<Art file={image} size={artSize} dim={dimArt} alt="" name={hover ?? title} fallback={fallback ?? subIcon ?? "foundry"} />{/if}</span>
+    <span class="pic" use:info={hover ?? null}>{#if art}{@render art()}{:else}<Art file={image} size={artSize} dim={dimArt} alt="" name={title} fallback={fallback ?? subIcon ?? "foundry"} />{/if}</span>
     {#if children}<div class="side">{@render children()}</div>{/if}
   </div>
   <!-- The notch's tooltip says what the gold corner means here; it's hovered on a bigger square than it draws. -->
