@@ -41,7 +41,7 @@
       "icons/icon.icns"
     ],
     "category": "Game",
-    "shortDescription": "Warframe collection helper",
+    "shortDescription": "Warframe companion",
     "longDescription": "Reads what TennoScope stores about your Warframe account to show sets you can sell, what you have not mastered, arcane collections, duplicate mods and vaulted relics, and keeps your warframe.market listings priced.",
     "linux": {
       "appimage": {
