@@ -64,7 +64,9 @@
   .seg-wrap { display: inline-flex; align-items: center; gap: .6rem; }
   .gl { display: inline-flex; align-items: center; gap: .35rem; }
   .seg { display: inline-flex; }
-  .seg button { margin-left: -1px; }
+  /* The choice inverts at once: fading text and plate together passes both through the same grey,
+     so the label would be unreadable mid-change. Only the hover edge fades. */
+  .seg button { margin-left: -1px; transition: border-color var(--quick); }
   .seg button.icon { display: inline-grid; place-items: center; width: 34px; padding: 0; }
   .seg button.on { background: var(--platinum); border-color: var(--platinum); color: var(--slab); position: relative; }
   .seg button:focus-visible { position: relative; z-index: 1; }

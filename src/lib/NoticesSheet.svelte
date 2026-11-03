@@ -256,7 +256,7 @@
   .how { display: grid; gap: 1rem; padding-bottom: 1.2rem; border-bottom: 1px solid var(--rule); }
   .pause { display: grid; gap: .45rem; }
   .pausebtns { display: flex; flex-wrap: wrap; gap: 0; }
-  .pausebtns button { margin-left: -1px; padding: .35rem .7rem; font-size: .66rem; }
+  .pausebtns button { margin-left: -1px; padding: .35rem .7rem; font-size: .66rem; transition: border-color var(--quick); }
   .pausebtns button.on { color: var(--slab); background: var(--platinum); border-color: var(--platinum); }
   .kind { display: grid; gap: .4rem; }
   .kind :global(.chip) { justify-self: start; font-size: .62rem; padding: .2rem .5rem; }
