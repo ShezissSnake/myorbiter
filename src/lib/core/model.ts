@@ -129,6 +129,14 @@ export interface Model {
   /** Each copy of your gear, as the patched TennoScope read it; null before it has. */
   gear: GearCopy[] | null;
   /**
+   * Your copies of one item (by path), as the patched TennoScope read them: their Forma, feature
+   * bits, slot polarities, archon shards and Helminth abilities (notNeeded.ts reads those). Empty
+   * when you hold none, or before TennoScope has passed your gear.
+   */
+  gearOf(path: string): GearCopy[];
+  /** The warframes you fed to the Helminth (their abilities are subsumed), by path; null before a patched TennoScope passed them. */
+  consumedSuits: Set<string> | null;
+  /**
    * A kitgun chamber, zaw strike, amp prism, MOA or hound model, Predasite or Vulpaphyla, or K-Drive
    * board: the parts you hold, the copies built from it and how many of those are gilded (modular.ts).
    * Null for anything else.
@@ -297,7 +305,7 @@ const DUCATS_NOW: Record<string, number> = { "Bronco Prime Barrel": 25, "Nami Sk
  */
 export const NO_MASTERY = new Set(["/Lotus/Powersuits/SiriusOrion/OrionSuit", "/Lotus/Weapons/Tenno/Grimoire/TnDoppelgangerGrimoire"]);
 
-export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurgence: null, resurgenceExpiry: null }, foundry: Record<string, number> | null = null, relicMarket: RelicMarket | null = null, imprints: ImprintRaw[] | null = null, recipes: RecipeData | null = null, gear: GearCopy[] | null = null): Model {
+export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurgence: null, resurgenceExpiry: null }, foundry: Record<string, number> | null = null, relicMarket: RelicMarket | null = null, imprints: ImprintRaw[] | null = null, recipes: RecipeData | null = null, gear: GearCopy[] | null = null, consumedSuits: string[] | null = null): Model {
   // A row without a path, or still without a name once the known ones are filled in (a damaged
   // read), is left out rather than breaking every page.
   const whole = (ok: (r: InventoryRow) => boolean) => (b: Bundle): Bundle => (b.inventory.every(ok) ? b : { ...b, inventory: b.inventory.filter(ok) });
@@ -365,6 +373,12 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
   // Modular builds, by the part their mastery goes by: a primary or a secondary kitgun both by its
   // chamber, a Predasite by its subspecies (held under its own path), the Mote Amp as the training amp.
   const copies = Array.isArray(gear) ? gear.filter((g) => g && typeof g.type === "string") : null;
+  const copiesByType = new Map<string, GearCopy[]>();
+  for (const g of copies ?? []) {
+    const list = copiesByType.get(g.type);
+    if (list) list.push(g);
+    else copiesByType.set(g.type, [g]);
+  }
   const builds = new Map<string, { built: number; gilded: number; sections: string[] }>();
   for (const g of copies ?? []) {
     const parts = Array.isArray(g.m) && g.m.length ? g.m : [g.type === MOTE_HELD_AS ? MOTE : g.type];
@@ -652,6 +666,8 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
     imprints: imprints ? imprintCounts(imprints, (path) => catalogByUnique.has(path)) : null,
     recipes,
     gear: copies,
+    gearOf: (path) => copiesByType.get(path) ?? [],
+    consumedSuits: Array.isArray(consumedSuits) ? new Set(consumedSuits.filter((s) => typeof s === "string")) : null,
     modular,
   };
 }
