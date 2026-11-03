@@ -30,6 +30,14 @@ export interface NewsEntry {
 
 export const NEWS: NewsEntry[] = [
   {
+    id: 14,
+    date: "2026-11-03",
+    items: [
+      { title: "Modular gear, where it belongs", icon: { game: "amp" }, text: "Kitgun chambers (Catchmoon and the rest) show under Primary and Secondary both, counted once in every total; amps and K-Drives have rings of their own on Mastery, Foundry and Wishlist, and companion weapons and the Plexus are with Companions. Other is gone: nothing was left in it.", open: "foundry?group=amps#hero" },
+      { title: "The next step for each", icon: { game: "solaris-united" }, text: "Every chamber, strike, prism, MOA or hound model and K-Drive board says how to get it (Buy the chamber blueprint at Rude Zuud, Solaris United, Neutral, 500), then what's next once you have it: assemble the part, gild the build, or level it once gilded. Modular gear gives mastery only after it's gilded.", open: "mastery#hero" },
+    ],
+  },
+  {
     id: 13,
     date: "2026-11-03",
     items: [
