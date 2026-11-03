@@ -8,7 +8,9 @@
   // Sources: what you paste or make, orbiter's suggestions, and any network source registered with
   // the builds core (source.ts: a site's, only with its permission on record): Nox's Frame, read on
   // demand when the setting is on (nox.ts), its top builds listed under the tiers to open. orbiter
-  // never reads Overframe: its buttons open the site in your browser.
+  // never reads Overframe: its popular builds come from a list bundled with the app (collected with
+  // its permission, lists only), each a link to the build on overframe.gg, and its buttons open the
+  // site in your browser.
   import type { Model } from "../core/model";
   import type { Settings } from "../backend";
   import { openUrl } from "../backend";
@@ -54,6 +56,7 @@
   import BuildEditor from "../ui/builds/BuildEditor.svelte";
   import Recipes from "../ui/builds/Recipes.svelte";
   import NoxList from "../ui/builds/NoxList.svelte";
+  import OverframeList from "../ui/builds/OverframeList.svelte";
 
   let { model, settings = $bindable() }: { model: Model; settings: Settings } = $props();
   // Nox's Frame: registered with the builds core on the first mount (then sourceBuilds includes it).
@@ -402,11 +405,13 @@
       <NoxList {nox} {item} catalog={model.catalogByUnique} maxAgeDays={settings.buildsMaxAgeDays} bind:showOld ready={net.item === pick && net.state !== "reading"} readError={noxError} saved={settings.builds} onopen={noxOpen} onshow={noxShow} bind:hidden={noxHidden} bind:count={noxListed} />
     {/if}
 
-    <!-- Overframe: links only, opened on overframe.gg. (The slot for a per-item list of Overframe's
-         build links, once its details are agreed with Overframe.) -->
+    <!-- Overframe: its popular builds from orbiter's bundled copy of its lists (links only, opened
+         on overframe.gg), then the Overframe links you saved. -->
+    <OverframeList {item} />
+
     {#if overframeLinks.length}
-      <section class="ofr" data-card="overframe" aria-label="On Overframe">
-        <h2 class="register">On Overframe</h2>
+      <section class="ofr" data-card="overframe" aria-label="Saved from Overframe">
+        <h2 class="register">Saved from Overframe</h2>
         <p class="dim small">Overframe's builds open on overframe.gg: orbiter keeps the link only.</p>
         <ul>
           {#each overframeLinks as o (o.build.id)}
