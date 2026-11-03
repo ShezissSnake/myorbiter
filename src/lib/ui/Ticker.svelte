@@ -85,7 +85,8 @@
     <span class="fig t-{x.tone ?? 'plain'}" class:moved={!!m} class:word={x.value == null && !!x.text} title={m ? `${x.title}. ${m === "up" ? "Up" : "Down"} from ${fmt(was(x.key) ?? null)} since you last looked` : x.title}>
       <span class="lb">{x.label}</span>
       <b class="v">{#if x.text != null}{x.text}{:else if x.value != null}<Count value={x.value} format={fmt} />{:else}–{/if}{#if x.plat && x.value != null}<Metal kind="plat" size={14} />{/if}{#if x.of}<span class="of">{x.of}</span>{/if}</b>
-      {#if m}{@const d = (x.value ?? 0) - (was(x.key) ?? 0)}<i class="tick" aria-label="{m === 'up' ? 'up' : 'down'} {fmt(Math.abs(d))} since you last looked">{m === "up" ? "▲" : "▼"}{fmt(Math.abs(d))}</i>{/if}
+      <!-- The move's size only when it says something the figure doesn't: up 24 from nothing is just the 24. -->
+      {#if m}{@const d = (x.value ?? 0) - (was(x.key) ?? 0)}<i class="tick" aria-label="{m === 'up' ? 'up' : 'down'} {fmt(Math.abs(d))} since you last looked">{m === "up" ? "▲" : "▼"}{#if Math.abs(d) !== Math.abs(x.value ?? 0)}{fmt(Math.abs(d))}{/if}</i>{/if}
       {#if x.sub}<span class="sub">{x.sub}</span>{/if}
     </span>
   {/each}
