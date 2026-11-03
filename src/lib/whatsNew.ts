@@ -1,29 +1,48 @@
 // What changed, newest first: shown once after an update (WhatsNew.svelte), and on the Guide.
-// One entry per batch of builds; a line per change, in a sentence, as a player would put it.
+// One entry per batch of builds. From entry 11 on, each change is a card: an icon, a few words
+// for a title, a line on it as a player would put it (page names and game words in it get their
+// icons, core/richText.ts) and where to see it. Older entries are a sentence each.
+
+export interface NewsItem {
+  title: string;
+  text: string;
+  /** The game's icon, one of orbiter's line icons, or a page's own sidebar icon. */
+  icon: { game: string } | { line: string } | { page: string };
+  /** Where to see it, as App's links put it ("market?spares=1#spares", "home#today"). */
+  open?: string;
+}
 
 export interface NewsEntry {
   /** One more than the entry before: what "seen" remembers (several builds can come out a day). */
   id: number;
   /** The day it came out. */
   date: string;
-  items: string[];
+  items: (string | NewsItem)[];
 }
 
 export const NEWS: NewsEntry[] = [
   {
+    id: 12,
+    date: "2026-11-04",
+    items: [
+      { title: "What's New, as cards", icon: { line: "cards" }, text: "Each change with its icon, a few words and a button to the page it's about.", open: "guide" },
+      { title: "Icons in the text, like the wiki", icon: { game: "platinum" }, text: "In What's New and the Guide, a page's name takes you there (Orders, Prime parts, Relics…), and platinum, ducats, Void Traces, Kuva, Vosfor and the rest carry their game icon.", open: "guide" },
+    ],
+  },
+  {
     id: 11,
     date: "2026-11-04",
     items: [
-      "Five of each Requiem and Antivirus mod are kept, not sold, while a Kuva, Tenet or Coda weapon is left to master (copies beyond five can go): liches, sisters and the Technocyte Coda take them. Mods says which weapons they're kept for.",
-      "The sidebar, settled: each section answers one question. Fissures: what should I crack? (Current fissure, Relics, Planner.) Progress: what's left to get? (Mastery, Foundry, Wishlist.) Collection: what do I hold, and what do I keep or sell? (Inventory, Prime parts, Sets, Mods, Arcanes, Rivens.) Trade: your activity on warframe.market (Orders, Browse market, Sales, Stats). A page order you'd set starts fresh once.",
-      "Nothing goes on sale for less than its ducats are worth to you: a prime part or set is judged at the price it would actually list at (the cheapest in game, not the daily median), and Reprice never takes one down to or under its ducat value. A set is weighed whole against all its parts' ducats.",
-      "Trade tax, corrected: Warframe charges whoever receives an item, so selling costs you 500 credits for each platinum you're paid (the buyer pays the item's own tax). The sell plan had it the other way round.",
-      "Orders: Put my spares on sale moves to the top, folded until you open it; applying a plan ticks each change off as it's sent and the list shrinks. The table sorts by any column. Who whispered you this session, with Invite. Out of trades while buyers can see you? Go invisible until 00:00 UTC.",
-      "Home: a box to tick off each chore in Worth doing today (they clear at the reset), with Kahl's Garrison and Netracells; Nightwave's tasks and Archimedea's risks spelled out; each era's next best relics on the fissure board (+2); Start here in your first days.",
-      "The same figure, the same name: Spare value (Inventory), Worth selling (Prime parts, Mods, Arcanes), Ready to list (Home), Quick-sale value; Stats and Inventory now agree. An unranked arcane shows its own price, an Exceptional or Flawless relic no longer borrows the Intact one.",
-      "Every list page has the same toolbar (Foundry and Rivens now sort, count and switch to a table), one line when a filter hides everything (with Clear), one-line page subtitles, Sell everywhere for selling, and marks that say what they mean (8 intact · 3 radiant, the gold corner's own reason).",
-      "Foundry shows your foundry; Relics and Current fissure show your Void Traces against the cap; Current fissure sums up the session; Ctrl+K finds anything warframe.market trades; riven cards count their stats in demand.",
-      "Sturdier: a page that hits an error says so with Try again; the number boxes only take whole numbers; dialogs keep keyboard focus; Ctrl+1…9 lands you on the page; better contrast on dimmed text.",
+      { title: "Requiem and Antivirus mods kept", icon: { game: "kuva" }, text: "Five of each, while a Kuva, Tenet or Coda weapon is left to master; copies beyond five can go. Mods says which weapons they're kept for.", open: "mods" },
+      { title: "A settled sidebar", icon: { line: "list" }, text: "Each section answers one question. Fissures: what should I crack? Progress: what's left to get? Collection: what do I hold, and what do I keep or sell? Trade: your activity on warframe.market." },
+      { title: "Never sold under its ducats", icon: { game: "ducats" }, text: "A prime part or set is judged at the price it would actually list at, and Reprice never takes one down to its ducat value. A set is weighed whole against all its parts' ducats.", open: "parts" },
+      { title: "Trade tax, corrected", icon: { game: "credits" }, text: "Warframe charges whoever receives: selling costs you 500 credits for each platinum you're paid. The buyer pays the item's own tax.", open: "market?spares=1#spares" },
+      { title: "Orders, rearranged", icon: { page: "market" }, text: "Put my spares on sale sits at the top, folded; applying a plan ticks each change off as it's sent. Sort the table by any column, see who whispered you, go invisible when your trades run out.", open: "market" },
+      { title: "Chores to tick off", icon: { game: "nightwave" }, text: "Worth doing today has a box for each chore, cleared at its reset, Kahl's Garrison and Netracells included; Nightwave tasks and Archimedea risks spelled out; +2 for each era's next best relics.", open: "home#today" },
+      { title: "The same number, the same name", icon: { page: "inventory" }, text: "Spare value on Inventory, Worth selling on Prime parts, Mods and Arcanes, Ready to list on Home, and Stats agrees with Inventory.", open: "inventory" },
+      { title: "One toolbar on every list", icon: { line: "rows" }, text: "Foundry and Rivens sort, count and switch to a table like the rest; Clear when a filter hides everything; Sell everywhere for selling.", open: "foundry" },
+      { title: "Your foundry, your Void Traces", icon: { game: "void-traces" }, text: "Foundry shows what's building and ready; Relics and Current fissure show your Void Traces against the cap; Ctrl+K finds anything warframe.market trades.", open: "relics" },
+      { title: "Sturdier", icon: { line: "check" }, text: "A page that hits an error offers Try again; number boxes take whole numbers; dialogs keep keyboard focus; Ctrl+1…9 lands on the page." },
     ],
   },
   {

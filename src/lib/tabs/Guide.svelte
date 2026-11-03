@@ -8,6 +8,8 @@
   import PartChip from "../ui/PartChip.svelte";
   import GameIcon from "../ui/GameIcon.svelte";
   import { NEWS } from "../whatsNew";
+  import NewsItems from "../ui/NewsItems.svelte";
+  import Rich from "../ui/Rich.svelte";
   import { BUILD } from "../build";
 
   // console: the short guide, for the pages a console or phone player has. platform: where they play.
@@ -113,7 +115,7 @@
       <h2 class="mark">The pages</h2>
       <ol>
         {#each CONSOLE_STEPS as [tab, label, text] (label)}
-          <li><button class="link" onclick={() => go(tab)}>{label}</button><span>{text}</span></li>
+          <li><button class="link" onclick={() => go(tab)}>{label}</button><span><Rich text={Array.isArray(text) ? text.join(" ") : text} {go} /></span></li>
         {/each}
       </ol>
     </article>
@@ -157,10 +159,10 @@
     {#each WALKS as w (w.title)}
       <article>
         <h2 class="mark">{w.title}</h2>
-        <ol>{#each w.steps as [tab, page, what], i (i)}<li><button class="link" onclick={() => go(tab)} title="Open {page}">{page}</button> <span class="dim">{what}</span></li>{/each}</ol>
+        <ol>{#each w.steps as [tab, page, what], i (i)}<li><button class="link" onclick={() => go(tab)} title="Open {page}">{page}</button> <span class="dim"><Rich text={what} {go} /></span></li>{/each}</ol>
       </article>
     {/each}
-    <p class="dim small hidden-pages">Planner, Browse market and Stats start out of the sidebar, to keep it short: put them back in Settings → Pages. Links to them still work.</p>
+    <p class="dim small hidden-pages"><Rich text="Planner, Browse market and Stats start out of the sidebar, to keep it short: put them back in Settings → Pages. Links to them still work, like these." {go} /></p>
   </section>
 
   <section class="routines">
@@ -171,7 +173,7 @@
           {#each r.steps as [tab, label, text, planner] (label)}
             {@const key = `${r.title}|${label}`}
             <!-- One line each, the page's name taking you there; the whole of it a click away. -->
-            <li><button class="link" onclick={() => { if (planner) plannerMode = planner; go(tab); }} title="Open {label}">{label}</button>{#if openSteps[key]}{#if Array.isArray(text)}<ul class="sub">{#each text as t (t)}<li>{t}</li>{/each}</ul>{:else}<span>{text}</span>{/if}{:else}<span>{brief(text)}</span>{/if} <button class="more" aria-expanded={!!openSteps[key]} title={openSteps[key] ? "Less" : "Everything about it"} onclick={() => (openSteps[key] = !openSteps[key])}>{openSteps[key] ? "less" : "more"}</button></li>
+            <li><button class="link" onclick={() => { if (planner) plannerMode = planner; go(tab); }} title="Open {label}">{label}</button>{#if openSteps[key]}{#if Array.isArray(text)}<ul class="sub">{#each text as t (t)}<li><Rich text={t} {go} /></li>{/each}</ul>{:else}<span><Rich {text} {go} /></span>{/if}{:else}<span><Rich text={brief(text)} {go} /></span>{/if} <button class="more" aria-expanded={!!openSteps[key]} title={openSteps[key] ? "Less" : "Everything about it"} onclick={() => (openSteps[key] = !openSteps[key])}>{openSteps[key] ? "less" : "more"}</button></li>
           {/each}
         </ol>
       </article>
@@ -274,7 +276,7 @@
     <h3 class="register lead">What's new</h3>
     {#each NEWS as n, i (n.id)}
       {#if i === 0 || NEWS[i - 1].date !== n.date}<h4 class="register">{new Date(`${n.date}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}</h4>{/if}
-      <ul>{#each n.items as item (item)}<li>{item}</li>{/each}</ul>
+      <NewsItems items={n.items} {go} />
     {/each}
     <p class="dim small">This build: {BUILD.commit}{BUILD.date ? `, ${BUILD.date}` : ""}. Say it when you report a problem.</p>
   </section>
@@ -288,7 +290,7 @@
   .walks .hidden-pages { grid-column: 1 / -1; margin: 0; }
   .news { margin-top: var(--course); display: grid; gap: .5rem; max-width: 80ch; }
   .news h4 { margin: .6rem 0 0; font-size: .6rem; color: var(--platinum-deep); }
-  .news ul { margin: 0; padding-left: 1.1rem; display: grid; gap: .35rem; font-size: .86rem; color: var(--platinum-dim); line-height: 1.5; }
+  .news :global(.lines) { font-size: .86rem; color: var(--platinum-dim); }
   /* An icon named in the text, drawn as it is on the page. */
   .ic { display: inline-grid; place-items: center; width: 1.3rem; height: 1.3rem; vertical-align: -.3rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
   .ic.good { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 50%, transparent); }
