@@ -13,5 +13,6 @@ export * from "./types";
 export { gearKindOf, slotLayout, modFits, arcaneFits, arcaneNeedsAdapter, rankWith, usesReactor, doublerName, doublerShort, FORTY_BY_FORMA, NECRAMECH_RANK, type SlotLayout } from "./gear";
 export { normName, nameIndex, matchName, suggest, type NameIndex, type Matched, type Unmatched, type MatchResult, type MatchVia } from "./match";
 export { parsePaste, type PasteResult, type PasteOptions, type ReadName, type SlotRole } from "./parse";
+export { tierOf, drainIn, bonusIn, matches, TIER_LABEL, type Tier, type TierResult, type FormaStep, type SlotDrain, type SlotRef } from "./capacity";
 export { buildDate, buildAgeDays, withinAge, filterByAge, buildsFor, toggleFavourite, saveBuild, removeBuild } from "./store";
 export { registerSource, unregisterSource, buildSources, sourceBuilds, BLOCKED_HOSTS, type BuildSource, type SourceContext, type SourcePermission } from "./source";
