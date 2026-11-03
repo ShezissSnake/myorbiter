@@ -766,7 +766,7 @@
               <Named file={w ? (model.catalogByUnique.get(w.gameRef)?.imageName ?? model.imageOf(w.name)) : null} name={auctionTitle(a)} size={26}>{#if !a.visible}<span class="tag">hidden</span>{/if}</Named>
               {#if auctionPrice?.id === a.id}
                 <span class="plat"><input type="number" min="1" bind:value={auctionPrice.buyout} aria-label="New buyout price" use:focusIt onkeydown={onEsc(() => (auctionPrice = null))} /></span>
-                <IconButton icon="check" tone="gold" label={auctionPrice.busy ? "Saving…" : "Save the new price"} disabled={auctionPrice.busy || !auctionPrice.buyout} onclick={() => saveAuctionPrice(a)} />
+                <ProgressButton variant="icon" icon="check" tone="gold" state={auctionPrice.busy ? "working" : "idle"} label="Save the new price" working="Saving…" title="Save: change this auction's buyout on warframe.market" disabled={!auctionPrice.buyout} onclick={() => saveAuctionPrice(a)} />
                 <IconButton icon="close" tone="quiet" label="Cancel" onclick={() => (auctionPrice = null)} />
                 {#if auctionPrice.error}<span class="err small">{auctionPrice.error}</span>{/if}
               {:else}
@@ -780,7 +780,7 @@
                   <IconButton icon="trash" tone="danger" label="Take it down" title="Close this auction (it stays among your profile's closed auctions)" disabled={auctionBusy === a.id} onclick={() => { removing = null; void takeDownAuction(a); }} onkeydown={onEsc(() => (removing = null))} />
                   <button type="button" class="ib quiet" aria-label="Keep" title="Keep it" onclick={() => (removing = null)} onkeydown={onEsc(() => (removing = null))} use:focusIt><Icon name="close" /></button>
                 {:else}
-                  <IconButton icon="trash" tone="danger quiet" label={auctionBusy === a.id ? "Taking down…" : "Take down"} title="Take down: close this auction on warframe.market" disabled={auctionBusy === a.id} onclick={() => (removing = `auction:${a.id}`)} />
+                  <ProgressButton variant="icon" icon="trash" tone="danger quiet" state={auctionBusy === a.id ? "working" : "idle"} label="Take down" working="Taking down…" title="Take down: close this auction on warframe.market" onclick={() => (removing = `auction:${a.id}`)} />
                 {/if}
               {/if}
             </li>
