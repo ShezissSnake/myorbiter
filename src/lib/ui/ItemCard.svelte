@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import Art from "./Art.svelte";
-  import GameIcon, { kindIcon, kindLabel, type GameIconName } from "./GameIcon.svelte";
+  import GameIcon, { kindIcon, kindLabel, kindNote, type GameIconName } from "./GameIcon.svelte";
   import { info } from "../hover.svelte";
   import { pop } from "../motion";
   // An item as a card: its name, its artwork, whatever the page shows beside it (part chips,
@@ -81,7 +81,7 @@
   <header>
     <div class="t">
       <h3 class="mark" title={hover ? undefined : title} use:info={hover ?? null}>{#each titleParts as t, i (i)}{#if i % 2}<span class="prime">{t}</span>{:else}{t}{/if}{/each}</h3>
-      {#if sub}<span class="register sub">{#if subIcon}<GameIcon name={subIcon} size={11} />{/if}{subText}</span>{/if}
+      {#if sub}<span class="register sub" title={kindNote(subKind)}>{#if subIcon}<GameIcon name={subIcon} size={11} />{/if}{subText}</span>{/if}
     </div>
     {#if onfav}
       <button class="star" class:on={fav} use:pop={!!fav} aria-pressed={fav} aria-label={fav ? `Remove ${title} from your wishlist` : `Add ${title} to your wishlist`} title={fav ? "On your wishlist (click to remove)" : "Add to your wishlist"} onclick={(e) => { e.stopPropagation(); onfav(); }}>
@@ -90,7 +90,7 @@
     {/if}
   </header>
   <div class="body">
-    <span class="pic" use:info={hover ?? null}>{#if art}{@render art()}{:else}<Art file={image} size={artSize} dim={dimArt} alt="" fallback={fallback ?? subIcon ?? "foundry"} />{/if}</span>
+    <span class="pic" use:info={hover ?? null}>{#if art}{@render art()}{:else}<Art file={image} size={artSize} dim={dimArt} alt="" name={hover ?? title} fallback={fallback ?? subIcon ?? "foundry"} />{/if}</span>
     {#if children}<div class="side">{@render children()}</div>{/if}
   </div>
   {#if owned}<span class="notch" title={ownedNote} aria-label={ownedNote}></span>{/if}

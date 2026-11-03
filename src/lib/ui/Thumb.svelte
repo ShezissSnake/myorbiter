@@ -1,23 +1,27 @@
 <script lang="ts">
   import { imageUrl } from "../backend";
   import { info } from "../hover.svelte";
-  import GameIcon from "./GameIcon.svelte";
-  // An item's artwork in a sunk square; an empty well when there is none (a blueprint without
-  // art shows the Foundry).
-  // `name`: what it shows, for a hover card about it.
-  let { file, size = 28, alt = "", tint, name }: { file: string | null | undefined; size?: number; alt?: string; tint?: string | null; name?: string | null } = $props();
-  let failed = $state(false);
-  $effect(() => {
-    file;
-    failed = false;
-  });
+  import GameIcon, { eraIcon, kindIcon, type GameIconName } from "./GameIcon.svelte";
+  import { marketThumb } from "../marketStore.svelte";
+  // An item's artwork in a sunk square. Without art in the game data, warframe.market's thumbnail
+  // for it (a new arcane); without any, the game's icon for its kind (a blueprint the Foundry, a
+  // relic its era), else a small Orokin diamond.
+  // `name`: what it shows, for a hover card about it and to find its art or kind.
+  // `fallback`: the kind's icon when the caller knows it better than the name says.
+  let { file, size = 28, alt = "", tint, name, fallback = null }: { file: string | null | undefined; size?: number; alt?: string; tint?: string | null; name?: string | null; fallback?: GameIconName | null } = $props();
+  // Each picture that didn't load (none in the image cache, or offline): the next one is tried.
+  let failed = $state<string[]>([]);
+  const src = $derived([file, marketThumb(name ?? alt)].find((f): f is string => !!f && !failed.includes(f)) ?? null);
+  const what = $derived(name ?? alt);
+  const relic = $derived(/^(Lith|Meso|Neo|Axi|Requiem) [A-Z]\d+\b/.exec(what ?? ""));
+  const icon = $derived<GameIconName | null>(fallback ?? (/\bBlueprint$/.test(what ?? "") ? "foundry" : relic ? eraIcon(relic[1]) : kindIcon(null, what ?? "")));
 </script>
 
 <span class="thumb" use:info={name} style:width="{size}px" style:height="{size}px" style:border-color={tint ?? null}>
-  {#if file && !failed}
-    <img src={imageUrl(file)} {alt} loading="lazy" decoding="async" width={size} height={size} onerror={() => (failed = true)} />
-  {:else if /\bBlueprint$/.test(name ?? alt)}
-    <span class="kind"><GameIcon name="foundry" size={Math.round(size * 0.7)} /></span>
+  {#if src}
+    <img src={imageUrl(src)} {alt} loading="lazy" decoding="async" width={size} height={size} onerror={() => src && (failed = [...failed, src])} />
+  {:else if icon}
+    <span class="kind"><GameIcon name={icon} size={Math.round(size * 0.7)} /></span>
   {:else}
     <i class="none" aria-hidden="true"></i>
   {/if}

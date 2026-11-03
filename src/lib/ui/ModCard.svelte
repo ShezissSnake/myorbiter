@@ -4,6 +4,7 @@
   // its drain and polarity in the corner, its name, what it does at max rank, and a pip per rank
   // (filled up to your best copy). Arcanes get the game's hexagonal frame.
   import { imageUrl } from "../backend";
+  import { marketThumb } from "../marketStore.svelte";
 
   let {
     name,
@@ -33,11 +34,9 @@
     arcane?: boolean;
   } = $props();
 
-  let failed = $state(false);
-  $effect(() => {
-    void image;
-    failed = false;
-  });
+  // The game data's art, else warframe.market's thumbnail (an arcane newer than the catalog).
+  let failed = $state<string[]>([]);
+  const src = $derived([image, marketThumb(name)].find((f): f is string => !!f && !failed.includes(f)) ?? null);
   const tone = $derived(/legendary|primed/i.test(rarity) ? "legendary" : /riven/i.test(rarity) ? "riven" : /rare/i.test(rarity) ? "rare" : /uncommon/i.test(rarity) ? "uncommon" : "common");
   // The game's own markup in effect text.
   const text = $derived(does.replace(/<[^>]+>/g, "").replace(/\|[A-Z_0-9]+\|/g, "").replace(/\s+/g, " ").trim());
@@ -49,7 +48,7 @@
 
 <div class="mc t-{tone}" class:arcane style:--w="{width}px" title="{name}{rarity ? ` · ${rarity}` : ''}{text ? `\n${text}` : ''}">
   <div class="art">
-    <span class="in">{#if image && !failed}<img src={imageUrl(image, width > 120)} alt="" loading="lazy" decoding="async" onerror={() => (failed = true)} />{:else}<i class="none" aria-hidden="true"></i>{/if}</span>
+    <span class="in">{#if src}<img src={imageUrl(src, width > 120 && !src.startsWith("wfm."))} alt="" loading="lazy" decoding="async" onerror={() => src && (failed = [...failed, src])} />{:else}<i class="none" aria-hidden="true"></i>{/if}</span>
     {#if !arcane && (drain != null || polarity)}
       <span class="drain">{#if drain != null}{drain}{/if}{#if polarity && polarity !== "aura"}<img src="/game/pol/{polarity === "universal" ? "any" : polarity}.png" alt={polarity} />{/if}</span>
     {/if}
