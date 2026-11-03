@@ -122,7 +122,7 @@
   <span class="hits">
     {#each r.hits as h (h.reward + h.set)}
       <span class="hit" class:last={h.last} use:info={h.reward}>
-        <Thumb file={model.imageOf(h.reward)} size={20} />{h.reward}{#if h.last}<i class="lastmark" title="The last part you need for the {h.set} Set">◆</i>{/if}
+        <Thumb file={model.imageOf(h.reward)} size={20} />{h.reward}{#if h.last}<i class="lastmark" title="The last part you need for the {h.set} Set">last</i>{/if}
       </span>
     {/each}
   </span>
@@ -228,7 +228,7 @@
   .hits { display: flex; flex-wrap: wrap; gap: .3rem .8rem; }
   .hit { display: inline-flex; align-items: center; gap: .35rem; font-size: .8rem; color: var(--platinum-dim); }
   .hit.last { color: var(--gold); }
-  .lastmark { font-style: normal; font-size: .6rem; color: var(--gold); }
+  .lastmark { font-style: normal; font-family: var(--face-register); font-size: .56rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); margin-left: .2rem; }
   .fin { font-family: var(--face-mark); font-size: 1rem; color: var(--gold); }
   .gaps { display: grid; grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr)); gap: 0 2.4rem; border-top: 1px solid var(--rule); margin-bottom: var(--step); }
   .gap { display: flex; align-items: center; gap: .6rem; padding: .5rem 0; border-bottom: 1px solid var(--rule); }
