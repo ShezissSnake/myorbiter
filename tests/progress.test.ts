@@ -102,3 +102,13 @@ test("rows in view: from the list's top to the window's foot, at least the minim
   assert.equal(rowsInView(0, 0, 1000, 8), 8); // not laid out
   assert.equal(rowsInView(0, 40, 1000, 8, false), 8);
 });
+
+test("a list out of sight sizes its next slice by how long the last took", async () => {
+  const { rowsFor } = await import("../src/lib/core/progress");
+  assert.equal(rowsFor(6, 12, 12, 12), 12, "a dozen rows in 6 ms: a dozen again");
+  assert.equal(rowsFor(48, 12, 12, 12), 3, "a dozen in 48 ms (a slow machine): 3 next, about 12 ms");
+  assert.equal(rowsFor(400, 12, 12, 12), 2, "never fewer than 2");
+  assert.equal(rowsFor(1, 2, 12, 12), 12, "fast again: back up to the most");
+  assert.equal(rowsFor(0, 12, 12, 12, 5), 5, "no time measured: as before");
+  assert.equal(rowsFor(30, 0, 12, 12, 5), 5, "nothing drawn: as before");
+});

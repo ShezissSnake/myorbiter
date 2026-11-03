@@ -2,7 +2,7 @@
 // a frame after (core/progress.ts says which rows each step draws). A click that re-sorts fifty rows
 // then waits only for the dozen on screen.
 import { untrack } from "svelte";
-import { rowsInView, settled, stepRows } from "./core/progress";
+import { rowsFor, rowsInView, settled, stepRows } from "./core/progress";
 import { whenIdle } from "./pane.svelte";
 import { stillMoving } from "./motion";
 
@@ -77,6 +77,12 @@ let quietly = false;
 /** Rows a list drawn in the background (a page or a view out of sight) draws at first. */
 const BACKGROUND_FIRST = 6;
 /**
+ * How long a slice of rows drawn out of sight may take (ms). A click can land on one: it waits for
+ * the slice to finish. On a slow machine a dozen rich rows take a lot longer than on a fast one, so
+ * each list sizes its next slice by how long the last took (core/progress.ts, `rowsFor`).
+ */
+const BACKGROUND_BUDGET_MS = 12;
+/**
  * Runs `f` as background work: a list it draws or redraws in this task (a page opened out of sight,
  * a hidden page catching up) draws only a few rows now and the rest a slice a frame, since nobody
  * is looking at it yet. The page drawn in one slice of idle time then costs a fraction.
@@ -146,12 +152,18 @@ export function progressive<T>(
   let unidle: (() => void) | null = null;
   /** A slice waiting for idle time while out of sight. */
   let waiting: (() => void) | null = null;
+  /** Rows a slice out of sight draws: sized by how long the last one took (`BACKGROUND_BUDGET_MS`). */
+  let awayStep = step;
   const later = (f: () => void) => {
     if (away()) {
       waiting = f;
       unidle = whenIdle(() => {
         unidle = waiting = null;
+        const t0 = performance.now();
+        const rows = awayStep;
         f();
+        // The slice's drawing happens in this task's microtasks (Svelte's flush), queued before these.
+        queueMicrotask(() => queueMicrotask(() => (awayStep = rowsFor(performance.now() - t0, rows, BACKGROUND_BUDGET_MS, step, awayStep))));
       });
       return;
     }
@@ -182,7 +194,8 @@ export function progressive<T>(
       drawn = stepRows(t, drawn, key, upto);
       const next = () => {
         measure?.();
-        upto = Math.max(upto + step, first());
+        // Out of sight: a slice that fits the budget, never a whole screenful at once.
+        upto = away() ? upto + awayStep : Math.max(upto + step, first());
         drawn = stepRows(t, drawn, key, upto);
         if (!settled(t, drawn)) later(next);
       };

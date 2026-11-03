@@ -62,6 +62,31 @@ function held<T>(visible: () => boolean, f: () => T, tick: () => number): () => 
   return () => out;
 }
 
+/** Work that holds background work back while it runs (a sync, until its read is on screen). */
+let holds = 0;
+/** Background work waiting for the holds to end: looks again then. */
+const onRelease = new Set<() => void>();
+/**
+ * Holds background work (pages catching up, lists filling in out of sight, pages opened ahead)
+ * until the returned release is called: what's running now gets the app to itself. A click that
+ * starts a sync would otherwise share its next seconds with the catch-up it makes moot anyway.
+ */
+export function holdBackground(): () => void {
+  holds++;
+  let done = false;
+  return () => {
+    if (done) return;
+    done = true;
+    holds--;
+    if (holds > 0) return;
+    const waiting = [...onRelease];
+    onRelease.clear();
+    for (const f of waiting) f();
+  };
+}
+/** Whether something holds background work back now (`holdBackground`). */
+export const backgroundHeld = () => holds > 0;
+
 /** No click or key for this long: the user is reading, not about to click again (ms). */
 export const QUIET_MS = 1000;
 
@@ -69,10 +94,13 @@ export const QUIET_MS = 1000;
  * Whether background work may start now: an idle period with room for a slice (`room` ms), and no
  * click or key in the last `quiet` ms (a click often comes in a burst, Radshare then Platinum; work
  * started between them makes the second one wait), and nothing on screen still moving (motion.ts,
- * `moving`: a row closing up shouldn't stutter for it). Past the idle callback's own timeout, at once.
+ * `moving`: a row closing up shouldn't stutter for it). Past the idle callback's own timeout, as soon
+ * as it's quiet, room or not (a click still never lands on it); while something holds background work
+ * back (`held`, see `holdBackground`), not even then.
  */
-export function idleReady(left: number, since: number, room = 30, quiet = QUIET_MS, timedOut = false, moving = false): boolean {
-  return timedOut || (left >= room && since >= quiet && !moving);
+export function idleReady(left: number, since: number, room = 30, quiet = QUIET_MS, timedOut = false, moving = false, held = false): boolean {
+  if (held || since < quiet) return false;
+  return timedOut || (left >= room && !moving);
 }
 
 /**
@@ -85,32 +113,41 @@ export function whenIdle(f: () => void, room = 30): () => void {
   let id = 0;
   let wait: ReturnType<typeof setTimeout> | undefined;
   let done = false;
+  let resume: (() => void) | null = null;
   const cancel = () => {
     done = true;
     clearTimeout(wait);
+    if (resume) onRelease.delete(resume);
     if (id && typeof window !== "undefined" && "cancelIdleCallback" in window) window.cancelIdleCallback(id);
   };
-  /** Not quiet yet: look again once it could be. */
-  const later = (ask: () => void) => (wait = setTimeout(ask, Math.max(50, QUIET_MS - sinceInput())));
+  /** Not quiet yet: look again once it could be. Held back: once the hold ends, then once it's quiet. */
+  const later = (ask: () => void) => {
+    if (backgroundHeld()) {
+      onRelease.add((resume = () => ((resume = null), later(ask))));
+      return;
+    }
+    wait = setTimeout(ask, Math.max(50, QUIET_MS - sinceInput()));
+  };
   if (typeof window !== "undefined" && "requestIdleCallback" in window) {
     const ask = () => {
       if (done) return;
       id = window.requestIdleCallback(
         (d) => {
           if (done) return;
-          if (idleReady(d.timeRemaining(), sinceInput(), room, QUIET_MS, d.didTimeout, stillMoving())) f();
-          else if (sinceInput() < QUIET_MS) later(ask);
+          if (idleReady(d.timeRemaining(), sinceInput(), room, QUIET_MS, d.didTimeout, stillMoving(), backgroundHeld())) f();
+          else if (backgroundHeld() || sinceInput() < QUIET_MS) later(ask);
           else ask();
         },
         { timeout: 10_000 },
       );
     };
-    ask();
+    if (backgroundHeld()) later(ask);
+    else ask();
     return cancel;
   }
   const tick = () => {
     if (done) return;
-    if (sinceInput() >= QUIET_MS && !stillMoving()) f();
+    if (!backgroundHeld() && sinceInput() >= QUIET_MS && !stillMoving()) f();
     else later(tick);
   };
   wait = setTimeout(tick, 300);

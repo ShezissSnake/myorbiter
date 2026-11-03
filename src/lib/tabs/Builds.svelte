@@ -42,6 +42,7 @@
   import { byFamily } from "../ui/builds/tags";
   import { recipeItem } from "../core/recipes";
   import { takeIntent } from "../intent.svelte";
+  import { shownPage, whenIdle } from "../pane.svelte";
   import { UndoSlots } from "../undo.svelte";
   import { arrive, calm, flip, leave } from "../motion";
   import { useNox } from "../nox";
@@ -137,11 +138,13 @@
   });
   let indexMemo: { cat: unknown; idx: ReturnType<typeof modIndex> } | null = null;
   const index = () => (indexMemo?.cat === model.catalogByUnique ? indexMemo.idx : (indexMemo = { cat: model.catalogByUnique, idx: modIndex([...model.catalogByUnique.values()]) }).idx);
-  // Worked out when the app is idle after the page opens, so the first item picked answers at once.
+  // Worked out when the app is idle after the page opens, so the first item picked answers at once,
+  // in a quiet moment (lib/pane.svelte.ts). Again for a new collection only while the page is on
+  // screen: out of sight, every sync would have it worked out again for nobody, on top of the sync.
   $effect(() => {
     void model;
-    const idle = (f: () => void) => ("requestIdleCallback" in window ? window.requestIdleCallback(f, { timeout: 2000 }) : setTimeout(f, 200));
-    idle(() => {
+    if (indexMemo && !shownPage("builds")) return;
+    return whenIdle(() => {
       index();
       void owns;
     });
