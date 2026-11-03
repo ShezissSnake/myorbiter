@@ -474,7 +474,11 @@
         </span>
         {#if r.rerolls}<span class="meta dim small" title="Kuva its cycles have cost (counting any before it was yours), and what the next cycle costs"><GameIcon name="kuva" size={13} />{kuvaSpent(r.rerolls).toLocaleString("en")} Kuva spent · next roll {cycleCost(r.rerolls).toLocaleString("en")}</span>{/if}
       </div>
-      {@render grade(r.grade, true)}
+      <span class="gcol">
+        {@render grade(r.grade, true)}
+        <!-- The grade measures how high each stat rolled; this says how many of its stats buyers pay more for. -->
+        {#if meta && c?.any}{@const sm = statMarket(meta, r, c.any)}{#if sm?.some((x) => x.sought)}{@const n = sm.filter((x) => x.sought).length}<span class="demand" title="{n} of its stats are ones buyers pay clearly more for on this weapon (★ under Its stats on the market): the grade only says how high each one rolled">★ {n} in demand</span>{/if}{/if}
+      </span>
     </header>
     <ul class="stats">
       {#each r.stats as s, i (i)}
@@ -738,6 +742,8 @@
 </div></div>
 
 <style>
+  .gcol { display: grid; justify-items: end; gap: .2rem; align-self: start; }
+  .demand { font-size: .7rem; color: var(--gold); white-space: nowrap; }
   .sortsel { display: inline-flex; align-items: center; gap: .55rem; }
   .rsort { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: .4rem 0; }
   .deal { margin-left: .4rem; }
