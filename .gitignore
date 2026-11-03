@@ -13,7 +13,8 @@ public/dev-rivens.json
 public/dev-auctions.json
 public/dev-reward-screens.json
 public/dev-history-*.json
-vendor/
+# The TennoScope release builds put inside orbiter (only at the top: tennoscope/ keeps its own vendor/).
+/vendor/
 public/dev-relic-data.json
 public/dev-recipe-data.json
 __pycache__/
