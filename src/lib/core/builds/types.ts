@@ -225,7 +225,8 @@ export function sanitizeBuilds(raw: unknown): Build[] {
 }
 
 /** `settings.buildsMaxAgeDays`: whole days, 0 for no limit; 365 when unset or odd. */
-export const DEFAULT_BUILDS_MAX_AGE_DAYS = 365;
+/** Builds updated within two years show by default: older ones are often out of date. */
+export const DEFAULT_BUILDS_MAX_AGE_DAYS = 730;
 export function sanitizeMaxAgeDays(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.min(36500, Math.round(v)) : DEFAULT_BUILDS_MAX_AGE_DAYS;
 }

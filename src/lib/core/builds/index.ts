@@ -1,7 +1,7 @@
 /**
  * Builds core: mod and arcane loadouts, pure TypeScript (no Svelte). For the Builds page.
  *
- * Storage: `settings.builds: Build[]` and `settings.buildsMaxAgeDays` (default 365, 0 = no limit),
+ * Storage: `settings.builds: Build[]` and `settings.buildsMaxAgeDays` (default 730, 0 = no limit),
  * sanitised on load in backend.ts. Replace the array to change it (saveBuild, removeBuild,
  * toggleFavourite all return a new one).
  *

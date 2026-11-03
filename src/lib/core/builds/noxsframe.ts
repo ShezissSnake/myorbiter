@@ -308,8 +308,8 @@ export function noxToBuild(raw: unknown, item: CatalogItem, catalog: ReadonlyMap
 // ---------------------------------------------------------------- reading on demand
 
 const DAY = 86_400_000;
-/** At most this many builds listed for an item (the first page, top-voted first). */
-export const NOX_LISTED = 10;
+/** At most this many builds listed for an item: the most voted among those within the age limit. */
+export const NOX_LISTED = 5;
 
 export interface NoxListed extends NoxListing {
   /** Its page is kept: opening it needs no request. */
@@ -363,15 +363,16 @@ export function makeNox(fetcher: NoxFetcher, enabled: () => boolean): Nox {
     const kept = new Map<string, NoxAnswer<NoxPage>>();
     if (!gearKindOf(item)) return [{ entries: [], hiddenByAge: 0, fetchedAt: ctx.now, fromCache: true, stale: false }, kept];
     const answer = await fetcher.list(item.uniqueName, refresh);
-    const all = (Array.isArray(answer.data) ? answer.data : []).slice(0, NOX_LISTED);
-    const shown = all.filter((l) => noxListedWithinAge(l, ctx.maxAgeDays, ctx.now));
+    const all = Array.isArray(answer.data) ? answer.data : [];
+    const fresh = all.filter((l) => noxListedWithinAge(l, ctx.maxAgeDays, ctx.now));
+    const shown = [...fresh].sort((a, b) => (b.votes ?? 0) - (a.votes ?? 0)).slice(0, NOX_LISTED);
     const entries: NoxListed[] = [];
     for (const l of shown) {
       const page = await fetcher.build(l.path, { cachedOnly: true });
       if (page) kept.set(l.path, page);
       entries.push({ ...l, opened: !!page });
     }
-    return [{ entries, hiddenByAge: all.length - shown.length, fetchedAt: answer.fetchedAt, fromCache: answer.fromCache, stale: answer.stale, ...(answer.error ? { error: answer.error } : {}) }, kept];
+    return [{ entries, hiddenByAge: all.length - fresh.length, fetchedAt: answer.fetchedAt, fromCache: answer.fromCache, stale: answer.stale, ...(answer.error ? { error: answer.error } : {}) }, kept];
   }
 
   async function listing(item: CatalogItem, ctx: SourceContext, opts: { refresh?: boolean } = {}): Promise<NoxListResult> {

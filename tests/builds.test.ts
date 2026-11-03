@@ -49,18 +49,18 @@ test("saved builds are sanitised: broken ones dropped, odd fields cleaned, ids m
   assert.equal(polarityOf("vaporwave"), null);
 });
 
-test("the age limit defaults to a year; 0 is no limit; odd values fall back", () => {
-  assert.equal(sanitizeMaxAgeDays(undefined), 365);
+test("the age limit defaults to two years; 0 is no limit; odd values fall back", () => {
+  assert.equal(sanitizeMaxAgeDays(undefined), 730);
   assert.equal(sanitizeMaxAgeDays(0), 0);
   assert.equal(sanitizeMaxAgeDays(90.4), 90);
-  assert.equal(sanitizeMaxAgeDays(-3), 365);
-  assert.equal(sanitizeMaxAgeDays("30"), 365);
+  assert.equal(sanitizeMaxAgeDays(-3), 730);
+  assert.equal(sanitizeMaxAgeDays("30"), 730);
 });
 
-test("settings carry builds and their age limit; older settings get none and a year", async () => {
+test("settings carry builds and their age limit; older settings get none and two years", async () => {
   const { loadSettings, defaultSettings } = await import("../src/lib/backend");
   assert.deepEqual(defaultSettings().builds, []);
-  assert.equal(defaultSettings().buildsMaxAgeDays, 365);
+  assert.equal(defaultSettings().buildsMaxAgeDays, 730);
   const saved = { builds: [{ id: "x", item: P.braton, kind: "primary", mods: [], source: "pasted", importedAt: NOW }, { broken: true }], buildsMaxAgeDays: 30 };
   (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify(saved) };
   const s = await loadSettings();
@@ -70,7 +70,7 @@ test("settings carry builds and their age limit; older settings get none and a y
   (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({ favourites: [] }) };
   const old = await loadSettings();
   assert.deepEqual(old.builds, []);
-  assert.equal(old.buildsMaxAgeDays, 365);
+  assert.equal(old.buildsMaxAgeDays, 730);
 });
 
 // ---------------------------------------------------------------- age, favourites, storage helpers
