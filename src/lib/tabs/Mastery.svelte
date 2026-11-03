@@ -246,14 +246,20 @@
 
   <!-- Both views stay drawn once drawn, the other hidden (see the script). -->
   {#if drawnPlat}
-    <div hidden={view !== "plat"}><PlatMastery {model} rows={platRows} {wished} onwish={toggleWish} clear={filtered ? clear : null} /></div>
+    <div class="view" class:off={view !== "plat"}><PlatMastery {model} rows={platRows} {wished} onwish={toggleWish} clear={filtered ? clear : null} /></div>
   {/if}
   {#if drawnEffort}
-    <div hidden={view === "plat"}><Browse id="mastery" rows={effortRows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} clear={filtered ? clear : null} empty="Nothing left to master here." /></div>
+    <div class="view" class:off={view === "plat"}><Browse id="mastery" rows={effortRows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} clear={filtered ? clear : null} empty="Nothing left to master here." /></div>
   {/if}
 </div></div>
 
 <style>
+  /* The view not chosen: kept laid out but not drawn, so showing it again is quick (where
+     content-visibility isn't known, simply not there). */
+  .view.off { display: none; }
+  @supports (content-visibility: hidden) {
+    .view.off { display: block; content-visibility: hidden; }
+  }
   .views { margin-bottom: .8rem; }
   .missing { display: grid; gap: .9rem; }
   .mp-head { display: flex; gap: .6rem; align-items: center; margin-bottom: .4rem; }

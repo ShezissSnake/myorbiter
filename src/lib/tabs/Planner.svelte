@@ -233,7 +233,7 @@
   </div>
 
   {#if drawnSets}
-    <div hidden={mode !== "sets"}>
+    <div class="view" class:off={mode !== "sets"}>
       <div class="sets-table"><Table rows={setsRows} columns={crackCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortSets} clear={setsAnyFilter ? clear : null} empty="None of your relics drop a missing part." /></div>
       {#if setsLast.length}
         <h2 class="register">One part from a complete set, and your relics drop it</h2>
@@ -246,13 +246,19 @@
     </div>
   {/if}
   {#if drawnRadiant}
-    <div hidden={mode !== "radiant"}>
+    <div class="view" class:off={mode !== "radiant"}>
       <Table rows={radRows} columns={radCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortRad} clear={radAnyFilter ? clear : null} empty="No relics left to refine." />
     </div>
   {/if}
 </div></div>
 
 <style>
+  /* The tab not chosen: kept laid out but not drawn, so showing it again is quick (where
+     content-visibility isn't known, simply not there). */
+  .view.off { display: none; }
+  @supports (content-visibility: hidden) {
+    .view.off { display: block; content-visibility: hidden; }
+  }
   h2 { margin: var(--course, 2rem) 0 .6rem; }
   .closed { margin-left: .5rem; font-family: var(--face-register); font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); white-space: nowrap; }
   .buyp { white-space: nowrap; margin-left: auto; }

@@ -191,10 +191,10 @@
 {/snippet}
 
 {#if drawnList}
-  <div class="list" hidden={layout !== "list"} use:rowOpener><Table rows={listRows} columns={listColumns} {key} bind:sort={() => listSort, (v) => (sort = v)} {detail} {empty} {clear} {limit} {tint} /></div>
+  <div class="list" class:off={layout !== "list"} use:rowOpener><Table rows={listRows} columns={listColumns} {key} bind:sort={() => listSort, (v) => (sort = v)} {detail} {empty} {clear} {limit} {tint} /></div>
 {/if}
 {#if drawnCards}
-  <div class="cards" hidden={layout !== "cards"}>
+  <div class="cards" class:off={layout !== "cards"}>
     {#if cardRows.length}
       <CardGrid {min}>
         {#each cardRows.slice(0, shown) as r (key(r))}{@render card(r, () => open(r))}{/each}
@@ -213,6 +213,12 @@
 {/if}
 
 <style>
+  /* The layout not chosen: kept laid out but not drawn, so switching back is quick (where
+     content-visibility isn't known, simply not there). */
+  .off { display: none; }
+  @supports (content-visibility: hidden) {
+    .off { display: block; content-visibility: hidden; }
+  }
   .tools { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .8rem; margin: 0 0 .8rem; }
   .sort { display: inline-flex; align-items: center; gap: .5rem; }
   .more { display: flex; justify-content: center; padding: 1.2rem 0; min-height: 3rem; }
