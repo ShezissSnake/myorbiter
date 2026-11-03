@@ -31,8 +31,9 @@
 //
 // Optional fields a page can render (all backwards compatible; absent means "nothing to show"):
 //  - `loadout` (warframes): shards, helminth, weapons, arcanes, companion, focus, note, and
-//     - `loadout.shards`: Veteran only, always Tauforged (a plain shard is worth less). A pick's `fuse` says how
-//       to turn the plain shards the player holds of that colour into Tauforged ones (Ascent Fusion).
+//     - `loadout.shards`: Veteran only, always Tauforged (a plain shard is worth less). A pick's
+//       `fuse` says how to turn the plain shards the player holds of that colour into Tauforged
+//       ones (Ascent Fusion).
 //     - `loadout.element`: the element the frame's kit deals and the shard colour that feeds on it.
 //     - `loadout.primer`: a companion that primes enemies with status, picked by the kit's element,
 //       with its precept, and for a robotic one a bond mod and a companion weapon. You bring one
