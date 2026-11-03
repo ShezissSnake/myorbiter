@@ -21,7 +21,8 @@
     <button type="button" class="details" class:on={view.details} aria-pressed={view.details} title={view.details ? "Details are showing: the sentence under each figure, every column. Click to keep just the essentials (the rest stays on hover)" : "Show details: the sentence under each figure and every column, on every page. Off, they're on hover"} onclick={() => view.set(!view.details)}><span class="box"></span>Details</button>
   </div>
 </header>
-{#if hero}<div class="hero">{@render hero()}</div>{/if}
+<!-- data-card "hero": What's New's Show me lights a section's signature (page#hero). -->
+{#if hero}<div class="hero" data-card="hero">{@render hero()}</div>{/if}
 {#if band}<section class="band">{@render band()}</section>{/if}
 
 <style>
