@@ -178,7 +178,7 @@ test("opening an item's builds reads its list once; a build's page only when it'
   assert.ok(calls.filter((c) => c.startsWith("build")).every((c) => c.endsWith(" cached")), "never a page from the network");
 
   const list = await nox.listing(mirage, ctx());
-  assert.equal(list.entries.length, 9, "ten at most, less the one past the age limit");
+  assert.equal(list.entries.length, 5, "five at most: the most voted within the age limit");
   assert.equal(list.hiddenByAge, 1);
   assert.equal(list.entries[0].path, READ.mirage.path, "the site's order: top-voted first");
   assert.equal(list.entries[0].opened, false);
