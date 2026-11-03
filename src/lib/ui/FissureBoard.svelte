@@ -91,11 +91,11 @@
         </header>
         {#if b && opened === e.era}
           <!-- What else to bring: the next best relics you hold for this era, and how many radiant (to host a radshare). -->
-          <div class="reveal" transition:reveal><ol class="also">
+          <div class="reveal" transition:reveal><div><ol class="also">
             {#each [b, ...(b.more ?? [])] as x, k (x.name)}
               <li><span class="dim small">{k + 1}</span><b use:info={x.name}>{x.name}</b><span class="dim small">{x.refinement}</span><span class="pv"><P v={x.plat} /></span><span class="dim small" title="Radiant copies you hold: four of one relic, radiant, is a radshare">{x.radiant} radiant</span></li>
             {/each}
-          </ol></div>
+          </ol></div></div>
         {/if}
         <ul>
           {#each e.list as f (f.id)}

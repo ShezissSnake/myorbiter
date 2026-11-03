@@ -723,7 +723,7 @@
           <span class="dim small sub">{#if mkt.applying && mkt.progress}Applying the plan: {mkt.progress.done} of {mkt.progress.total}{:else if mkt.bulk}A plan of {mkt.bulk.actions.filter((a) => a.type !== "skip").length} changes, ready to look over{:else}List everything you can spare in one go, after a look at the plan{/if}</span>
           <span class="chev" aria-hidden="true">▾</span>
         </button>
-        <div id="spares-body" use:fold={!!settings.sparesOpen}><div class="spares-in"><SpareSale {model} {settings} {advice} {masteryRank} {credits} folded /></div></div>
+        <div id="spares-body" use:fold={!!settings.sparesOpen}><div><div class="spares-in"><SpareSale {model} {settings} {advice} {masteryRank} {credits} folded /></div></div></div>
       </section>
     {/if}
 

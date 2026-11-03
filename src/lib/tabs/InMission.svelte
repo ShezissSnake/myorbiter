@@ -293,7 +293,7 @@
     {#if share}<p class="share small" class:off={!share.matched} title={share.matched ? "All four players brought the same relic at the same refinement: four rolls on one reward table" : `A 4b4 is four of one relic at one refinement. ${share.text.endsWith("different relics") ? "Each of the squad brought a different relic or refinement" : `Most of the squad brought ${share.main}; the odd ones out (${share.off.join(", ")}) roll on a different table`}`}>{share.text}</p>{/if}
     <!-- Each relic's own rewards, a click away: the list above already says what to take. -->
     <h2 class="register relhead"><button class="link" aria-expanded={showRelics} onclick={() => (showRelics = !showRelics)} title="Each relic in the squad with its rewards and odds"><span class="chev side" aria-hidden="true">▸</span> The squad's relics · {relics.length}</button>{#if showRelics}<span class="legend">Gold: a part you still need · dimmed: you've mastered what it builds · the edge: its rarity (bronze common, silver uncommon, gold rare)</span>{/if}</h2>
-    {#if showRelics}<div class="reveal" transition:reveal><section class="cards">{#each relics as r, i (r.path + i)}{@render relicCard(r)}{/each}</section></div>{/if}
+    {#if showRelics}<div class="reveal" transition:reveal><div><section class="cards">{#each relics as r, i (r.path + i)}{@render relicCard(r)}{/each}</section></div></div>{/if}
   {:else if !onScreen}
     <div class="empty" class:compact={history.length > 0}>
       <p>Start a void fissure and the squad's relics show up here as the mission loads. Warframe writes them to its log, and orbiter only reads that file.</p>

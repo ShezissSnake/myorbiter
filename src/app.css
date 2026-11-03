@@ -335,7 +335,9 @@ span.chev { display: inline-block; transition: transform var(--quick) var(--out)
 [aria-expanded="true"] > span.chev, span.chev.open { transform: rotate(180deg); }
 [aria-expanded="true"] > span.chev.side, span.chev.side.open { transform: rotate(90deg); }
 
-/* A fold's body (motion.ts, reveal and fold): one child, whose height runs on the grid row. */
+/* A fold's body (motion.ts, reveal and fold): one child, whose height runs on the grid row. That
+   child has no padding, border or margin of its own (put them on a grandchild): the row can't close
+   past them, so the fold would stall a few px open and then snap shut. */
 .reveal { display: grid; grid-template-rows: 1fr; min-width: 0; }
 .reveal > * { min-height: 0; align-self: start; }
 .reveal[hidden] { display: none; }
