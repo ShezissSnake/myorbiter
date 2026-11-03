@@ -288,7 +288,9 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
   const display = partNames(m);
   const save = saveForSets(sell, platPerDucat, drops);
   const parts = new Map(partRows(m, save).map((p) => [p.name, p]));
-  const mods = new Map(modRows(m).map((r) => [r.name, new Map(modSpares(r.ranks).map((x) => [x.rank, x.count]))]));
+  const modList = modRows(m);
+  const modKept = new Map(modList.filter((r) => r.keptFor).map((r) => [r.name, r.keptFor!]));
+  const mods = new Map(modList.map((r) => [r.name, new Map(modSpares(r).map((x) => [x.rank, x.count]))]));
   const arcanes = new Map(arcaneRows(m).map((a) => [a.name, a]));
   const relicKeep = relicsYouNeed(m);
   // A crack counts each reward at its price, or its ducats at your rate when that's more.
@@ -369,7 +371,7 @@ export function spareRows(m: Model, index: MarketIndex | null = null, sell: Sell
     } else if (r.kind === "mod") {
       const spare = mods.get(r.name)?.get(r.rank ?? 0) ?? 0;
       keep = r.quantity - spare;
-      why = keep ? "Your best copy and one to give away" : "";
+      why = keep ? (mods.get(r.name) && modKept.get(r.name)) || "Your best copy and one to give away" : "";
     } else if (r.kind === "arcane") {
       const a = arcanes.get(r.name);
       const spare = !a ? 0 : r.rank != null && r.rank >= a.maxRank ? a.extraMaxed : r.rank === 0 ? Math.min(r.quantity, a.unranked, a.spare) : 0;

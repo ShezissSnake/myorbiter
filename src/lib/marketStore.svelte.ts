@@ -1196,22 +1196,27 @@ class MarketStore {
         this.progress = { done: sent.size + failed, total: todo.length };
       }
       this.applying = { now: null, sent: new Set(sent), failed: new Set(refused) };
-      // The last tick stays a moment before the plan goes, so it's seen.
-      if (sent.size) await new Promise((r) => setTimeout(r, 900));
+      // Your listings as they now are, still busy (Apply can't be pressed again meanwhile); the last
+      // tick stays a moment before the plan goes, so it's seen.
+      await Promise.all([this.refresh().catch(() => {}), sent.size ? new Promise((r) => setTimeout(r, 900)) : null]);
     });
-    this.applying = null;
     this.progress = null;
-    if (changed) return { sent: 0, failed: 0, outcome: "changed" };
-    await this.refresh().catch(() => {});
+    if (changed) {
+      this.applying = null;
+      return { sent: 0, failed: 0, outcome: "changed" };
+    }
     if (this.error) {
       // Stopped part way (the sign-in expired): keep only what wasn't sent, so a second Apply
       // doesn't list things twice.
       const left = shown.actions.filter((a) => !sent.has(a));
       this.bulk = left.some((a) => a.type !== "skip") ? { actions: left, at: Date.now(), books: shown.books } : null;
       this.note(`Stopped after ${sent.size} of ${todo.length} changes: ${this.error}`, "warn");
+      this.applying = null;
       return { sent: sent.size, failed, outcome: "stopped" };
     }
+    // The plan goes before the ticks are cleared, so its rows don't come back for a moment.
     this.bulk = null;
+    this.applying = null;
     this.note(`Your spares are on sale: ${sent.size} change${sent.size === 1 ? "" : "s"} made${failed ? `, ${failed} failed (see above)` : ""}`, failed ? "warn" : "ok");
     return { sent: sent.size, failed, outcome: "done" };
   }

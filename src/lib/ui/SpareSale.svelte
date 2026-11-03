@@ -96,22 +96,37 @@
   // While applying, each row ticks off as it's sent and then leaves the list, which shrinks as
   // it goes (the one being sent is marked). `gone`: sent rows whose tick has been seen.
   let gone = $state.raw<ReadonlySet<BulkAction>>(new Set());
+  // One timer a row, kept outside the effect: a new row being sent mustn't cancel the last one's.
+  const leaving = new Map<BulkAction, ReturnType<typeof setTimeout>>();
   $effect(() => {
     const ap = mkt.applying;
     if (!ap) {
+      for (const t of leaving.values()) clearTimeout(t);
+      leaving.clear();
       gone = new Set();
       return;
     }
-    const fresh = [...ap.sent].filter((a) => !gone.has(a));
-    if (!fresh.length) return;
-    const t = setTimeout(() => (gone = new Set([...gone, ...fresh])), 650);
-    return () => clearTimeout(t);
+    for (const a of ap.sent) {
+      if (leaving.has(a)) continue;
+      leaving.set(a, setTimeout(() => (gone = new Set([...gone, a])), 650));
+    }
+  });
+  $effect(() => () => {
+    for (const t of leaving.values()) clearTimeout(t);
   });
   const rows = $derived(changes.filter((a) => !gone.has(a)));
   const calm = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
   /** Keeps the row being sent in view inside the plan's scrolling box. */
   function current(node: HTMLElement, on: boolean) {
-    const look = (v: boolean) => v && node.scrollIntoView({ block: "nearest", behavior: calm ? "auto" : "smooth" });
+    // Only the plan's own box scrolls (scrollIntoView would move the whole page under you).
+    const look = (v: boolean) => {
+      const box = v ? node.closest<HTMLElement>(".planbox") : null;
+      if (!box) return;
+      const top = node.offsetTop - (box.querySelector("thead")?.offsetHeight ?? 0);
+      const bottom = node.offsetTop + node.offsetHeight;
+      if (top < box.scrollTop) box.scrollTo({ top, behavior: calm ? "auto" : "smooth" });
+      else if (bottom > box.scrollTop + box.clientHeight) box.scrollTo({ top: bottom - box.clientHeight, behavior: calm ? "auto" : "smooth" });
+    };
     look(on);
     return { update: look };
   }
@@ -291,7 +306,7 @@
   tr.remove .what { color: var(--oxblood); border-color: var(--oxblood); }
   tr.remove :global(.name-mark) { color: var(--platinum-dim); }
   .more { justify-self: start; }
-  .planbox { max-height: 60vh; overflow: auto; border-bottom: 1px solid var(--rule); }
+  .planbox { position: relative; max-height: 60vh; overflow: auto; border-bottom: 1px solid var(--rule); }
   /* Applying: the row being sent lit, each sent one ticked and struck through before it leaves. */
   .plan tr.now td { background: color-mix(in srgb, var(--gold) 9%, transparent); }
   .plan tr.now td:first-child { box-shadow: inset 2px 0 0 var(--gold); }

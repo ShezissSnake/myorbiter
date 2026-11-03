@@ -120,7 +120,7 @@ export function sellTargets(m: Model, rules: BulkRules, advice: DucatOptions, in
       // Common mods at a few platinum hardly ever move: only the ones that trade daily.
       if ((mod.tradesPerDay ?? 0) < 1) continue;
       const best = mod.ranks[0];
-      for (const r of modSpares(mod.ranks)) {
+      for (const r of modSpares(mod)) {
         if (r.count <= 0) continue;
         out.push({
           kind: "mod",
@@ -404,8 +404,8 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
     if (kind === "mod") {
       const mod = mods().get(it.name);
       if (!mod) return null;
-      const spare = modSpares(mod.ranks).filter((r) => it.maxRank == null || r.rank === (o.rank ?? 0)).reduce((n, r) => n + r.count, 0);
-      return { spare, kept: "your own copy and one to give away" };
+      const spare = modSpares(mod).filter((r) => it.maxRank == null || r.rank === (o.rank ?? 0)).reduce((n, r) => n + r.count, 0);
+      return { spare, kept: mod.keptFor ? mod.keptFor.split(":")[0].replace(/^For/, "for") : "your own copy and one to give away" };
     }
     if (kind === "set") {
       const set = it.gameRef ? setsByUnique().get(it.gameRef) : undefined;

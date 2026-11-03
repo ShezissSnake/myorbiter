@@ -668,6 +668,11 @@ export interface ModRow {
   total: number;
   extras: number;
   ranks: { rank: number; count: number }[];
+  /**
+   * Kept whole, none spare, and why: Requiem mods while a Kuva or Tenet weapon is left to master
+   * (Kuva Liches and Sisters drop them), Antivirus mods while a Coda weapon is (the Technocyte Coda).
+   */
+  keptFor: string | null;
   maxRank: number | null;
   rarity: string;
   type: string;
@@ -685,16 +690,40 @@ export interface ModRow {
  * never sold.
  */
 export const MOD_KEEP = 2;
-export function modSpares(ranks: { rank: number; count: number }[]): { rank: number; count: number }[] {
-  const left = ranks.map((r) => ({ ...r }));
+export function modSpares(mod: { ranks: { rank: number; count: number }[]; keptFor?: string | null }): { rank: number; count: number }[] {
+  if (mod.keptFor) return [];
+  const left = mod.ranks.map((r) => ({ ...r }));
   if (left.length) left[0].count--; // your best copy
   const lowest = [...left].reverse().find((r) => r.count > 0);
   if (lowest) lowest.count--; // one to give away
   return left.filter((r) => r.count > 0);
 }
 
+/** Requiem mods (the eight and Oull) and the Coda's Antivirus mods, by their paths. */
+const REQUIEM_MOD = /^\/Lotus\/Upgrades\/Mods\/Immortal\/Immortal[A-Za-z]+Mod$/;
+const ANTIVIRUS_MOD = /^\/Lotus\/Upgrades\/Mods\/Immortal\/Antivirus[A-Za-z]+Mod$/;
+
+/**
+ * The weapons a lich or sister still has to give you: Kuva and Tenet ones (Requiem mods kill those)
+ * and Coda ones (Antivirus mods), not mastered yet. A Tenet weapon Ergo Glast sells counts too:
+ * sisters are how most of them come.
+ */
+export function lichWeaponsLeft(m: Model): { requiem: string[]; antivirus: string[] } {
+  const requiem: string[] = [];
+  const antivirus: string[] = [];
+  for (const i of m.catalogByUnique.values()) {
+    if (!i.masterable || m.isMastered(i.uniqueName)) continue;
+    if (!/^(Primary|Secondary|Melee|Arch-Gun|Arch-Melee)$/.test(i.category)) continue;
+    if (/^(Kuva|Tenet) /.test(i.name)) requiem.push(i.name);
+    else if (/^(Dual )?Coda /.test(i.name)) antivirus.push(i.name);
+  }
+  return { requiem, antivirus };
+}
+const some = (names: string[]) => (names.length <= 3 ? names.join(", ") : `${names.slice(0, 3).join(", ")} and ${names.length - 3} more`);
+
 export function modRows(m: Model): ModRow[] {
   const rows: ModRow[] = [];
+  const left = lichWeaponsLeft(m);
   for (const [unique, inv] of m.inventoryByBase) {
     if (inv[0].category !== "mod" || unique.includes("/Randomized/")) continue;
     const total = sum(inv.map((r) => r.quantity));
@@ -704,12 +733,19 @@ export function modRows(m: Model): ModRow[] {
     const byRank = new Map<number, number>();
     for (const r of inv) byRank.set(r.rank ?? 0, (byRank.get(r.rank ?? 0) ?? 0) + r.quantity);
     const price = m.price(name);
-    const extras = Math.max(0, total - MOD_KEEP);
+    const keptFor =
+      REQUIEM_MOD.test(unique) && left.requiem.length
+        ? `For the ${left.requiem.length} Kuva and Tenet weapon${left.requiem.length === 1 ? "" : "s"} you haven't mastered (${some(left.requiem)}): Kuva Liches and Sisters of Parvos take Requiem mods`
+        : ANTIVIRUS_MOD.test(unique) && left.antivirus.length
+          ? `For the ${left.antivirus.length} Coda weapon${left.antivirus.length === 1 ? "" : "s"} you haven't mastered (${some(left.antivirus)}): the Technocyte Coda take Antivirus mods`
+          : null;
+    const extras = keptFor ? 0 : Math.max(0, total - MOD_KEEP);
     rows.push({
       name,
       unique,
       total,
       extras,
+      keptFor,
       ranks: [...byRank.entries()].filter(([, c]) => c > 0).sort((a, b) => b[0] - a[0]).map(([rank, count]) => ({ rank, count })),
       // The game's own number (TennoScope reads it) beats the catalog's.
       maxRank: inv.find((r) => r.max_rank != null)?.max_rank ?? item?.maxRank ?? null,
@@ -1013,7 +1049,7 @@ export function spareOf(m: Model, name: string, tags: string[] | null, save: Sav
   if (tags?.includes("mod")) {
     const mod = modRows(m).find((r) => r.name === name);
     if (!mod) return null;
-    const lowest = modSpares(mod.ranks).at(-1);
+    const lowest = modSpares(mod).at(-1);
     return { rank: lowest?.rank ?? 0, quantity: lowest?.count ?? 0 };
   }
   if (tags?.includes("arcane_enhancement") || tags?.includes("arcane")) {

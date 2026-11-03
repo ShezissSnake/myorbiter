@@ -817,6 +817,19 @@
       if (mkt.status?.wanted !== now && mkt.statusAsked !== now) void mkt.setStatus(now);
     });
   });
+  // Gone invisible for the rest of the day because your trades ran out (Presence's offer): back to
+  // what you had at the reset, whichever page is open (checked on the half-minute clock).
+  $effect(() => {
+    const b = settings.market.presenceBack;
+    if (!b || tick < b.until || !mkt.linked) return;
+    untrack(() => {
+      settings.market.presenceBack = null;
+      // A status you chose since stands; only the invisible orbiter set goes back.
+      if (settings.market.presence !== "invisible") return;
+      settings.market.presence = b.p;
+      void mkt.setStatus(mkt.presenceFor(b.p));
+    });
+  });
   let repRunning = false;
   const repFailed = new Set<string>();
   async function runAutoRep() {

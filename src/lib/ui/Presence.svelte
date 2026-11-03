@@ -41,19 +41,7 @@
     pick("invisible");
     settings.presenceBack = back;
   }
-  // Back at the reset (checked every minute while orbiter runs, and on start).
-  let clock = $state(Date.now());
-  $effect(() => {
-    const t = setInterval(() => (clock = Date.now()), 60_000);
-    return () => clearInterval(t);
-  });
-  $effect(() => {
-    const b = settings.presenceBack;
-    if (!b || clock < b.until) return;
-    settings.presenceBack = null;
-    // Only if you're still on the invisible orbiter set: a status you chose since stands.
-    if (settings.presence === "invisible") pick(b.p);
-  });
+  // Back at the reset: App.svelte does that, whichever page is open.
 </script>
 
 <div class="row">

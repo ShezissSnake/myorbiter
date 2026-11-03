@@ -2,7 +2,7 @@
   import Fold from "../ui/Fold.svelte";
   import GameIcon from "../ui/GameIcon.svelte";
   import { takeIntent } from "../intent.svelte";
-  import { MAX_PLAT } from "../core/amounts";
+  import { MAX_PLAT, MAX_QTY, wholeIn } from "../core/amounts";
   import { tradeAllowance } from "../core/tradeLimit";
   import { until } from "../core/traders";
   import { untrack } from "svelte";
@@ -194,17 +194,26 @@
   // Quantity and price change a live listing, so an edit is held (gold) until you press Enter or
   // Save; Esc or Undo puts the listing's value back.
   let edits = $state<Record<string, { quantity?: string; platinum?: string }>>({});
-  const whole = (v: string | undefined) => {
-    const n = Math.round(Number(v));
-    // Rounded to a whole number; nothing over what a listing can ask (core/amounts).
-    return v != null && v.trim() !== "" && Number.isFinite(n) && n > 0 && n <= MAX_PLAT ? n : null;
+  /** A whole number from 1 to `max` (core/amounts), as the dialogs take; anything else isn't a change. */
+  const whole = (v: string | undefined, max: number) => {
+    const n = v == null || v.trim() === "" ? NaN : Number(v);
+    return wholeIn(n, 1, max) ? n : null;
   };
+  /** What's wrong with a number typed into a row, so a box that can't be saved says why. */
+  function badEdit(o: MyOrder): string | null {
+    const e = edits[o.id];
+    if (!e) return null;
+    const off = (v: string | undefined, max: number) => v != null && v.trim() !== "" && whole(v, max) == null;
+    if (off(e.quantity, MAX_QTY)) return `Quantity: a whole number from 1 to ${MAX_QTY.toLocaleString("en")}`;
+    if (off(e.platinum, MAX_PLAT)) return `Price: whole platinum from 1 to ${MAX_PLAT.toLocaleString("en")}`;
+    return null;
+  }
   function changeOf(o: MyOrder): { quantity?: number; platinum?: number } | null {
     const e = edits[o.id];
     if (!e) return null;
     const out: { quantity?: number; platinum?: number } = {};
-    const q = whole(e.quantity);
-    const pr = whole(e.platinum);
+    const q = whole(e.quantity, MAX_QTY);
+    const pr = whole(e.platinum, MAX_PLAT);
     if (q != null && q !== o.quantity) out.quantity = q;
     if (pr != null && pr !== o.platinum) out.platinum = pr;
     return Object.keys(out).length ? out : null;
@@ -739,6 +748,7 @@
                 oninput={(e) => edit(o, "platinum", e.currentTarget.value)} onkeydown={(e) => editKey(o, e)} onwheel={(e) => e.currentTarget.blur()} aria-label="Your price" />
               <!-- Narrow windows hide Will set: what Reprice would do shows under the price instead. -->
               {#if p?.change && !paused && o.visible && !change}<div class="willnote" class:up={p.target > o.platinum} title={p.reason === "floor" ? "Reprice sets this, held up by the floor" : "Reprice sets this"}>→ {p.target}p{p.reason === "floor" ? (p.competitor.price != null && p.target > p.competitor.price ? " · over market" : " · floor") : ""}</div>{/if}
+              {#if badEdit(o)}<p class="err small">{badEdit(o)}</p>{/if}
               {#if change}
                 {@const over = overHeld(o)}
                 {#if over}<p class="err small">{over}</p>{/if}

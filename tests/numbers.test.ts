@@ -114,3 +114,34 @@ test("Worth selling, arcanes: the ones marked Sell, maxed and loose at their own
   // Home counts the same items.
   assert.equal(worthTotal(worthSelling(m, advice).filter((x) => x.kind === "arcane")), worthTotal(items));
 });
+
+test("Requiem and Antivirus mods are kept whole while a lich weapon is left to master", async () => {
+  const { modRows, modSpares, lichWeaponsLeft } = await import("../src/lib/core/views");
+  const { buildModel } = await import("../src/lib/core/model");
+  const cat = (uniqueName: string, name: string, category: string, extra: object = {}) => ({ uniqueName, name, category, ...extra });
+  const bundle = (kuvaMastered: boolean) => ({
+    observed_at: 1, relics: [], prices: { prices: {}, max_rank_prices: {} },
+    catalog: [
+      cat("/Lotus/Weapons/Grineer/KuvaLich/LongGuns/KuvaBramma", "Kuva Bramma", "Primary", { masterable: true }),
+      cat("/Lotus/Upgrades/Mods/Immortal/ImmortalOneMod", "Lohk", "Mods", { rarity: "Rare" }),
+      cat("/Lotus/Upgrades/Mods/Immortal/AntivirusOneMod", "Byteryte", "Mods", { rarity: "Rare" }),
+      cat("/Lotus/Upgrades/Mods/Rifle/Serration", "Serration", "Mods", { rarity: "Rare" }),
+    ],
+    inventory: [
+      { item_id: "/Lotus/Upgrades/Mods/Immortal/ImmortalOneMod", name: "Lohk", category: "mod", quantity: 5, mastered: false, image_name: null, rank: null, max_rank: 3 },
+      { item_id: "/Lotus/Upgrades/Mods/Immortal/AntivirusOneMod", name: "Byteryte", category: "mod", quantity: 5, mastered: false, image_name: null, rank: null, max_rank: 3 },
+      { item_id: "/Lotus/Upgrades/Mods/Rifle/Serration", name: "Serration", category: "mod", quantity: 5, mastered: false, image_name: null, rank: null, max_rank: 10 },
+      ...(kuvaMastered ? [{ item_id: "/Lotus/Weapons/Grineer/KuvaLich/LongGuns/KuvaBramma", name: "Kuva Bramma", category: "weapon", quantity: 1, mastered: true, image_name: null, rank: null, max_rank: null }] : []),
+    ],
+  });
+  const m = buildModel(bundle(false) as never);
+  assert.deepEqual(lichWeaponsLeft(m), { requiem: ["Kuva Bramma"], antivirus: [] });
+  const rows = new Map(modRows(m).map((r) => [r.name, r]));
+  assert.equal(rows.get("Lohk")!.extras, 0, "a Kuva weapon left: every Requiem mod kept");
+  assert.deepEqual(modSpares(rows.get("Lohk")!), []);
+  assert.match(rows.get("Lohk")!.keptFor ?? "", /Kuva Bramma/);
+  assert.equal(rows.get("Byteryte")!.extras, 3, "no Coda weapon left to master here: Antivirus mods spare as usual");
+  assert.equal(rows.get("Serration")!.extras, 3);
+  const done = buildModel(bundle(true) as never);
+  assert.equal(modRows(done).find((r) => r.name === "Lohk")!.extras, 3, "everything mastered: Requiem mods are spare again");
+});
