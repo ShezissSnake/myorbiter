@@ -201,7 +201,8 @@
   .rw tr.need .nm { color: var(--gold); }
   .rw tr.done .nm span { color: var(--platinum-deep); }
   .rw em, .srcs em { font-style: normal; font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
-  .rar { display: inline-block; width: 7px; height: 7px; transform: rotate(45deg); }
+  /* A reward's rarity as a small square card, as on the relic cards (the diamond is for ornaments). */
+  .rar { display: inline-block; width: 8px; height: 8px; border-radius: 2px; }
   .rar-c { background: var(--rarity-common); }
   .rar-u { background: var(--rarity-uncommon); }
   .rar-r { background: var(--rarity-rare); }
