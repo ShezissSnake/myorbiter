@@ -101,7 +101,7 @@
     changes.reduce((n, a) => n + (a.type === "create" ? a.quantity * a.platinum : a.type === "update" ? a.quantity * a.platinum - a.order.quantity * a.order.platinum : a.type === "remove" ? -a.order.quantity * a.order.platinum : 0), 0),
   );
   let showSkipped = $state(false);
-  /** The trading tax for selling every copy in the plan's new and resized listings (the seller pays it, in credits). */
+  /** The seller's trading tax for selling every copy in the plan's new and resized listings: 500 credits a platinum. */
   const tax = $derived(planTax(model, actions));
 
   let confirmRemoveAll = $state(false);
@@ -189,7 +189,7 @@
       {/if}
       {#if tax.credits > 0}
         {@const short = credits != null && tax.credits > credits}
-        <p class="small" class:warn={short} class:dim={!short} title="Warframe charges the one handing an item over a credit tax for it: by kind and rarity (2,000 a prime part, a set per part, mods 2,000–1,000,000 by rarity, arcanes by rarity and rank, relics 2,000 or 4,000 by era). This is the base tax for selling every copy listed; Maroo's Bazaar adds 10%, a clan dojo up to 100%{tax.unknown.length ? `. Not counted, tax unknown: ${tax.unknown.join(', ')}` : ''}"><GameIcon name="credits" size={12} /> Selling all of it costs about {shortCredits(tax.credits)} credits in trade tax ({shortCredits(tax.maroo)} in Maroo's Bazaar){#if short}: more than the {shortCredits(credits!)} you have, so some trades won't go through until you farm credits{:else if credits != null}; you have {shortCredits(credits)}{/if}{tax.unknown.length ? `, plus ${tax.unknown.length} item${tax.unknown.length === 1 ? "" : "s"} orbiter can't price the tax of` : ""}.</p>
+        <p class="small" class:warn={short} class:dim={!short} title="Warframe charges each player a credit tax for what they receive: selling, that's 500 credits for each platinum you're paid. This is for selling every copy at its listed price ({tax.platinum.toLocaleString('en')}p); Maroo's Bazaar adds 10%, a clan dojo up to 100%. Your buyers pay the items' own tax{tax.buyers ? ` (about ${shortCredits(tax.buyers)} between them)` : ''}, not you"><GameIcon name="credits" size={12} /> Selling all of it costs you about {shortCredits(tax.credits)} credits in trade tax ({shortCredits(tax.maroo)} in Maroo's Bazaar){#if short}: more than the {shortCredits(credits!)} you have, so some trades won't go through until you farm credits{:else if credits != null}; you have {shortCredits(credits)}{/if}.</p>
       {/if}
       <div class="planbox">
       <table class="plan">

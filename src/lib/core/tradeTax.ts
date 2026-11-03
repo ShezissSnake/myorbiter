@@ -1,13 +1,20 @@
-// Warframe's trading tax: credits charged per item handed over in a trade, by the item's kind and
-// rarity (the wiki's Trading page, "Trade Tax", November 2026). This is the base tax; trading in
-// Maroo's Bazaar adds 10%, a clan dojo whatever its treasurers set (0–100%). Whoever hands an item
-// over pays its tax: a seller pays for the items, a buyer 500 credits for each platinum.
+// Warframe's trading tax: credits each player pays for what they RECEIVE in a trade (the wiki's
+// Trading page, "Trade Tax", November 2026). Selling, you receive platinum: 500 credits for each
+// one. The buyer pays the item's tax, by its kind and rarity. This is the base tax; trading in
+// Maroo's Bazaar adds 10%, a clan dojo whatever its treasurers set (0–100%).
 import type { BulkAction, BulkKind } from "./bulk";
 import type { MarketItem } from "./market";
 import { gearSetParts, type Model } from "./model";
 
 export const TAX = { common: 2_000, uncommon: 4_000, rare: 8_000, legendary: 1_000_000 } as const;
-/** Arcanes by rarity, unranked to rank 5. */
+/** What receiving one platinum costs: the seller's tax. */
+export const PLAT_TAX = 500;
+/** An Ayatan sculpture with stars in it (an empty one is uncommon-tier). */
+export const FILLED_SCULPTURE_TAX = 12_000;
+/**
+ * Arcanes by rarity, unranked to rank 5. The game charges common, uncommon and rare arcanes their
+ * unranked tax at any rank (a long-standing bug the wiki notes); only legendary ones scale.
+ */
 export const ARCANE_TAX: Record<"common" | "uncommon" | "rare" | "legendary", number[]> = {
   common: [2_000, 6_000, 12_000, 20_000, 30_000, 42_000],
   uncommon: [4_000, 12_000, 24_000, 40_000, 60_000, 84_000],
@@ -32,7 +39,7 @@ function rarityOf(m: Model, it: MarketItem): Rarity | null {
  * The base tax on one of this item (one set: every part in it), in credits; null when orbiter
  * can't tell (an unknown rarity, a Requiem relic, a set whose parts it doesn't know).
  */
-export function taxEach(m: Model, kind: BulkKind, it: MarketItem, rank: number | null = null): number | null {
+export function taxEach(m: Model, kind: BulkKind, it: MarketItem, rank: number | null = null, withStars = false): number | null {
   const tags = it.tags ?? [];
   if (kind === "set") {
     const parts = it.gameRef ? (m.partsByParent.get(it.gameRef)?.map((p) => p.required) ?? gearSetParts(m, it.gameRef)?.map((p) => p.required)) : null;
@@ -47,7 +54,8 @@ export function taxEach(m: Model, kind: BulkKind, it: MarketItem, rank: number |
   }
   if (kind === "arcane") {
     const r = rarityOf(m, it);
-    return r ? ARCANE_TAX[r][Math.max(0, Math.min(5, rank ?? 0))] : null;
+    if (!r) return null;
+    return ARCANE_TAX[r][r === "legendary" ? Math.max(0, Math.min(5, rank ?? 0)) : 0];
   }
   // Everything else orbiter lists.
   if (tags.includes("relic") || / Relic$/.test(it.name)) {
@@ -56,40 +64,45 @@ export function taxEach(m: Model, kind: BulkKind, it: MarketItem, rank: number |
     return null;
   }
   if (tags.includes("ayatan_star")) return TAX.rare;
-  if (tags.includes("ayatan_sculpture")) return TAX.uncommon;
+  if (tags.includes("ayatan_sculpture")) return withStars ? FILLED_SCULPTURE_TAX : TAX.uncommon;
   // Gems, fish, Captura scenes, lenses, blueprints and weapon parts: common-tier.
   return TAX.common;
 }
 
 export interface PlanTax {
-  /** The base tax for selling everything the plan leaves listed by it (new listings and resized ones), in credits. */
+  /** The seller's tax for selling every copy the plan leaves listed (new and resized listings) at its price, in credits. */
   credits: number;
   /** The same in Maroo's Bazaar. */
   maroo: number;
   /** How many copies go into it. */
   items: number;
-  /** Listings whose tax orbiter can't tell (left out of `credits`). */
+  /** The platinum they'd bring in. */
+  platinum: number;
+  /** What the buyers pay between them for the items (their tax, not yours), where orbiter can tell. */
+  buyers: number;
+  /** Listings whose item tax orbiter can't tell (left out of `buyers`). */
   unknown: string[];
 }
 
 /**
- * What selling the plan's new and changed listings would cost in trading tax, every copy sold.
- * Listings the plan takes down or leaves alone don't count.
+ * What selling the plan's new and changed listings would cost you in trading tax, every copy sold
+ * at its listed price: 500 credits for each platinum you receive. Listings the plan takes down or
+ * leaves alone don't count. The buyers' side (each item's tax) comes along for the tooltip.
  */
 export function planTax(m: Model, actions: BulkAction[]): PlanTax {
-  let credits = 0;
+  let platinum = 0;
+  let buyers = 0;
   let items = 0;
   const unknown: string[] = [];
   for (const a of actions) {
     if (a.type !== "create" && a.type !== "update") continue;
+    platinum += a.platinum * a.quantity;
+    items += a.quantity;
     const rank = a.type === "create" ? a.rank : a.order.rank;
     const each = taxEach(m, a.kind, a.item, rank);
-    if (each == null) {
-      unknown.push(a.item.name);
-      continue;
-    }
-    credits += each * a.quantity;
-    items += a.quantity;
+    if (each == null) unknown.push(a.item.name);
+    else buyers += each * a.quantity;
   }
-  return { credits, maroo: Math.round(credits * (1 + MAROO_HUB)), items, unknown };
+  const credits = platinum * PLAT_TAX;
+  return { credits, maroo: Math.round(credits * (1 + MAROO_HUB)), items, platinum, buyers, unknown };
 }

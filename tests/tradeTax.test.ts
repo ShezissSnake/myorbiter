@@ -35,16 +35,17 @@ test("each kind's tax: parts and sets by their parts, mods and arcanes by rarity
   assert.equal(taxEach(model, "mod", item("Unknown Mod", null, ["mod"])), null);
   assert.equal(taxEach(model, "arcane", item("Arcane Energize", "/A/Energize", ["arcane_enhancement"]), 5), 2_100_000);
   assert.equal(taxEach(model, "arcane", item("Arcane Grace", "/A/Grace", ["arcane_enhancement"]), 0), 8_000);
-  assert.equal(taxEach(model, "arcane", item("Arcane Grace", "/A/Grace", ["arcane_enhancement"]), 5), 168_000);
+  assert.equal(taxEach(model, "arcane", item("Arcane Grace", "/A/Grace", ["arcane_enhancement"]), 5), 8_000, "below legendary, the game charges the unranked tax at any rank");
   assert.equal(taxEach(model, "other", item("Lith K1 Relic", null, ["relic"])), 2_000);
   assert.equal(taxEach(model, "other", item("Axi A1 Relic", null, ["relic"])), 4_000);
   assert.equal(taxEach(model, "other", item("Requiem I Relic", null, ["relic"])), null);
   assert.equal(taxEach(model, "other", item("Rifle Riven Mod (Veiled)", null, ["mod"])), TAX.rare);
   assert.equal(taxEach(model, "other", item("Ayatan Anasa Sculpture", null, ["ayatan_sculpture"])), 4_000);
+  assert.equal(taxEach(model, "other", item("Ayatan Anasa Sculpture", null, ["ayatan_sculpture"]), null, true), 12_000, "with its stars in");
   assert.equal(taxEach(model, "imprint", item("Chesa Kubrow Imprint", null, ["imprint"])), 2_000);
 });
 
-test("a plan's tax: every copy of its new and resized listings; removals and skips cost nothing", () => {
+test("a plan's tax: the seller pays 500 credits a platinum on every copy of its new and resized listings", () => {
   const order = (quantity: number, rank: number | null = null): MyOrder => ({ id: "o", itemId: "x", type: "sell", platinum: 10, quantity, rank, subtype: null, visible: true, updatedAt: null });
   const actions: BulkAction[] = [
     { type: "create", kind: "set", item: item("Rhino Prime Set", RHINO, ["set"]), rank: null, subtype: null, quantity: 2, platinum: 60, why: "", priceWhy: "" },
@@ -54,9 +55,11 @@ test("a plan's tax: every copy of its new and resized listings; removals and ski
     { type: "skip", kind: "mod", name: "Serration", rank: 0, why: "" },
   ];
   const t = planTax(model, actions);
-  assert.equal(t.credits, 2 * 8_000 + 3 * 168_000);
+  assert.equal(t.platinum, 2 * 60 + 3 * 30 + 1 * 5);
+  assert.equal(t.credits, t.platinum * 500, "removals and skips cost nothing");
   assert.equal(t.maroo, Math.round(t.credits * 1.1));
-  assert.equal(t.items, 5);
+  assert.equal(t.items, 6);
+  assert.equal(t.buyers, 2 * 8_000 + 3 * 8_000, "the buyers' side, where it's known");
   assert.deepEqual(t.unknown, ["Unknown Mod"]);
-  assert.deepEqual(planTax(model, []), { credits: 0, maroo: 0, items: 0, unknown: [] });
+  assert.deepEqual(planTax(model, []), { credits: 0, maroo: 0, items: 0, platinum: 0, buyers: 0, unknown: [] });
 });

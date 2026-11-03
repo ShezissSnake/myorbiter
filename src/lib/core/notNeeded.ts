@@ -26,8 +26,8 @@ export const INCARNON = 512;
  */
 const GENESIS = new Set([
   "Ack & Brunt", "Angstrum", "Anku", "Atomos", "Ballistica", "Bo", "Boar", "Boltor", "Braton", "Bronco", "Burston", "Ceramic Dagger", "Cestra", "Dera", "Despair",
-  "Destreza", "Dread", "Dual Ichor", "Furax", "Furis", "Gammacor", "Gorgon", "Gram", "Hate", "Hek", "Kronen", "Kunai", "Lato", "Latron", "Lex", "Magistar", "Miter",
-  "Nami Solo", "Obex", "Okina", "Paris", "Sibear", "Sicarus", "Skana", "Soma", "Strun", "Stug", "Sybaris", "Torid", "Vasto", "Vectis", "Viper", "Zylok",
+  "Destreza", "Dread", "Dual Ichor", "Dual Toxocyst", "Furax", "Furis", "Gammacor", "Gorgon", "Hate", "Kunai", "Lato", "Latron", "Lex", "Magistar", "Miter",
+  "Nami Solo", "Obex", "Okina", "Paris", "Sibear", "Sicarus", "Skana", "Soma", "Strun", "Stug", "Sybaris", "Torid", "Vasto", "Vectis", "Zylok",
 ]);
 const DOUBLED = 1;
 
