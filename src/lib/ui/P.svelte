@@ -1,5 +1,4 @@
 <script lang="ts">
-  import Metal from "./Metal.svelte";
   import Count from "./Count.svelte";
   import { numberFormat } from "./table";
   const one = numberFormat(1);
@@ -14,10 +13,14 @@
   const rolled = (n: number) => fmt(v != null && Number.isInteger(v) ? Math.round(n) : n);
 </script>
 
-{#if v == null}<span class="none" title="No price">–</span>{:else}<span class="amt" class:d class:dim class:big><b>{#if tick}<Count value={v} format={rolled} />{:else}{fmt(v)}{/if}</b><Metal kind={d ? "ducat" : "plat"} size={big ? 22 : 12} /></span>{/if}
+<!-- The metal's icon drawn here rather than with <Metal>: a table shows hundreds of these, and two
+     components fewer each is most of what drawing one costs. The same picture, size and title. -->
+{#if v == null}<span class="none" title="No price">–</span>{:else}<span class="amt" class:d class:dim class:big><b>{#if tick}<Count value={v} format={rolled} />{:else}{fmt(v)}{/if}</b><img class="gi {d ? 'ducats' : 'platinum'}" src="/game/{d ? 'ducats' : 'platinum'}.png" width={big ? 25 : 14} height={big ? 25 : 14} alt={d ? "ducats" : "platinum"} title={d ? "ducats" : "platinum"} draggable="false" /></span>{/if}
 
 <style>
   .amt { display: inline-flex; align-items: center; gap: .28rem; white-space: nowrap; }
+  /* As GameIcon draws it. */
+  .gi { display: inline-block; flex: none; object-fit: contain; vertical-align: middle; }
   b { font-family: var(--face-mark); font-weight: 700; font-size: .98rem; font-variant-numeric: tabular-nums; color: var(--platinum); }
   .d b { color: var(--gold); }
   .dim b { color: var(--platinum-dim); font-weight: 600; }

@@ -31,18 +31,24 @@
   import { takeIntent } from "../intent.svelte";
   import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
   import { pickShowcase } from "../core/showcase";
+  import { whileShown } from "../pane.svelte";
+  import { typed } from "../typed.svelte";
 
   // The ducat rate and smallest sale worth a trade are yours to set here; the bulk sale uses them too.
   // Settings → Selling: whether loose parts wait for a set worth more whole.
   let { model, advice = $bindable(), sell }: { model: Model; advice: AdviceSettings; sell: SellChoices } = $props();
 
   let query = $state("");
+
+  /** What the list is filtered on: the box, a moment later while you type (typed.svelte.ts). */
+
+  const q = $derived.by(typed(() => query));
   let parent = $state<"all" | "mastered" | "unmastered">("mastered");
   let spareOnly = $state(false);
   let avail = $state<"all" | "farmable" | "vaulted">("all");
   let best = $state<"all" | Verdict>("all");
   let sort = $state({ key: "value", desc: true });
-  const filtered = $derived(!!query.trim() || best !== "all" || spareOnly || parent !== "mastered" || avail !== "all");
+  const filtered = $derived(!!q.trim() || best !== "all" || spareOnly || parent !== "mastered" || avail !== "all");
   function clear() {
     query = "";
     best = "all";
@@ -59,19 +65,19 @@
     if (want.best) parent = "all";
   });
 
-  const all = $derived(partRows(model, saveForSets(sell, advice.platPerDucat, drops.recent)));
+  const all = $derived.by(whileShown("parts", () => partRows(model, saveForSets(sell, advice.platPerDucat, drops.recent))));
   /** Copies kept to build and master the item (the rest of `keep` waits for a set). */
   const built = (r: PartRow) => r.keep - r.forSet;
-  const rows = $derived(
+  const rows = $derived.by(whileShown("parts", () =>
     all.filter(
       (r) =>
         (parent === "all" || (parent === "mastered" ? r.parentMastered : !r.parentMastered)) &&
         (!spareOnly || !spareMatters || r.spare > 0) &&
         (best === "all" || verdict(r) === best) &&
         (avail === "all" || (avail === "farmable" ? r.availability === "farmable" : r.availability === "vaulted" || r.availability === "resurgence")) &&
-        matches(query, r.name, r.parentName),
+        matches(q, r.name, r.parentName),
     ),
-  );
+  ));
   // Parts of mastered items are all spare: "Spare" and "Spare only" only mean something otherwise.
   const spareMatters = $derived(parent !== "mastered");
   const qty = (r: PartRow) => (spareOnly && spareMatters ? r.spare : r.quantity);
@@ -80,14 +86,14 @@
   const spares = $derived(all.filter((r) => r.spare > 0));
   // Worth selling, counted as Mods, Arcanes and Home's Ready to list count it (core/worthSelling.ts):
   // the loose spares best sold for platinum, no more of each than the market sells in a month.
-  const selling = $derived(partsWorthSelling(all, advice));
+  const selling = $derived.by(whileShown("parts", () => partsWorthSelling(all, advice)));
   const asPlat = $derived(worthTotal(selling));
   const asDucats = $derived(spares.filter((r) => verdict(r) === "Ducats").reduce((n, r) => n + r.ducats * r.spare, 0));
   const heldDucats = $derived((model.inventoryByBase.get("/Lotus/Types/Items/MiscItems/PrimeBucks") ?? []).reduce((n, r) => n + r.quantity, 0));
   const baro = $derived(model.live.baro ?? null);
   const baroHere = $derived(!!baro && Date.now() >= Date.parse(baro.activation) && Date.now() < Date.parse(baro.expiry));
   const RATES = [0.05, 0.08, 0.1, 0.12, 0.15, 0.2];
-  const buys = $derived(ducatBuys(model, { limit: 12 }));
+  const buys = $derived.by(whileShown("parts", () => ducatBuys(model, { limit: 12 })));
 
   // The showcase: the five parts worth most in Worth selling, each on the item it builds; with none
   // to sell, the dearest parts you hold.
@@ -114,7 +120,7 @@
   );
 
   // Complete sets you can sell, by item: their parts are better sold as a set.
-  const setsFor = $derived(new Map(setRows(model).filter((s) => s.sellable > 0).map((s) => [s.name, s.sellable])));
+  const setsFor = $derived.by(whileShown("parts", () => new Map(setRows(model).filter((s) => s.sellable > 0).map((s) => [s.name, s.sellable]))));
 
   // Keep: copies you need to build and master the item. Save: waiting for a set worth more whole.
   // Set: part of a complete set you can sell. Otherwise plat or ducats, at your ducat rate and

@@ -26,6 +26,8 @@
   import { arcanesWorthSelling, worthTotal } from "../core/worthSelling";
   import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
   import { pickShowcase } from "../core/showcase";
+  import { whileShown } from "../pane.svelte";
+  import { typed } from "../typed.svelte";
 
   let { model, advice = $bindable() }: { model: Model; advice: AdviceSettings } = $props();
   /** Your copies of an arcane by rank. */
@@ -37,6 +39,12 @@
 
 
   let query = $state("");
+
+
+  /** What the list is filtered on: the box, a moment later while you type (typed.svelte.ts). */
+
+
+  const q = $derived.by(typed(() => query));
   /** Unfinished: still collecting. Spares: copies beyond the one you keep, to sell or dissolve. */
   let show = $state<"unfinished" | "spares" | "all">("unfinished");
   let owned = $state<"all" | "owned" | "unowned">("all");
@@ -44,7 +52,7 @@
   /** Loid's collection an arcane comes from ("Eidolon", "Duviri"…); "none" for arcanes in no pack. */
   let collection = $state("all");
   // Owned only filters outside Sell or dissolve, where it's shown.
-  const filtered = $derived(!!query.trim() || type !== "all" || collection !== "all" || (show !== "spares" && owned !== "all"));
+  const filtered = $derived(!!q.trim() || type !== "all" || collection !== "all" || (show !== "spares" && owned !== "all"));
   function clear() {
     query = "";
     type = "all";
@@ -65,7 +73,7 @@
     collection === "all" || (collection === "none" ? !COLLECTIONS.some((c) => c.arcanes.has(name)) : !!COLLECTIONS.find((c) => c.name === collection)?.arcanes.has(name));
   let sort = $state({ key: "priceMax", desc: true });
 
-  const all = $derived(arcaneRows(model));
+  const all = $derived.by(whileShown("arcanes", () => arcaneRows(model)));
   const types = $derived([...new Set(all.map((r) => r.type))].sort());
   const rows = $derived(
     all.filter(
@@ -74,7 +82,7 @@
         (owned === "all" || (owned === "owned") === r.copies > 0) &&
         (type === "all" || r.type === type) &&
         inCollection(r.name) &&
-        matches(query, r.name, r.type),
+        matches(q, r.name, r.type),
     ),
   );
   const completeCount = $derived(all.filter((r) => r.complete).length);
@@ -86,10 +94,10 @@
 
   // ---------------------------------------------------------------- sell or dissolve
   const lens = $derived(advice.vosforLens ?? "need");
-  const packs = $derived(packValues(model, all));
+  const packs = $derived.by(whileShown("arcanes", () => packValues(model, all)));
   const worth = $derived(vosforWorth(packs, lens));
-  const spares = $derived(spareArcanes(model, all, worth.perVosfor, { lens, minPrice: advice.minPlat }));
-  const spareRows = $derived(spares.filter((x) => matches(query, x.row.name, x.row.type) && (type === "all" || x.row.type === type) && inCollection(x.row.name)));
+  const spares = $derived.by(whileShown("arcanes", () => spareArcanes(model, all, worth.perVosfor, { lens, minPrice: advice.minPlat })));
+  const spareRows = $derived(spares.filter((x) => matches(q, x.row.name, x.row.type) && (type === "all" || x.row.type === type) && inCollection(x.row.name)));
   const toSell = $derived(spares.filter((x) => x.verdict === "sell"));
   // Worth selling, counted as Prime parts, Mods and Home's Ready to list count it
   // (core/worthSelling.ts): the ones marked Sell, no more of each than the market sells in a month.

@@ -31,11 +31,15 @@
   import { info } from "../hover.svelte";
   import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
   import { pickShowcase } from "../core/showcase";
+  import { whileShown } from "../pane.svelte";
+  import { typed } from "../typed.svelte";
 
   let { model, advice, sell }: { model: Model; advice: DucatOptions; sell: SellChoices } = $props();
 
   let mode = $state<"sell" | "close" | "save">("sell");
   let query = $state("");
+  /** What the list is filtered on: the box, a moment later while you type (typed.svelte.ts). */
+  const q = $derived.by(typed(() => query));
   let keepOne = $state(true);
   let sort = $state({ key: "value", desc: true });
   // Each view opens on its own useful order (the sell view's sort key isn't a column in the other).
@@ -44,13 +48,13 @@
   });
 
   // Prime sets, and the others warframe.market trades whole (Mandonel, Lato Vandal…), once its item list is in.
-  const all = $derived(allSetRows(model, mkt.index.byId.size ? mkt.index : null));
+  const all = $derived.by(whileShown("sets", () => allSetRows(model, mkt.index.byId.size ? mkt.index : null)));
   /** Worth more to you traded to Baro than sold: why, or null. */
   const forDucats = (r: SetRow) => (r.prime ? ducatsWin(r.setPrice, r.ducats, advice) : null);
   const sellableOf = (r: SetRow) => (keepOne ? r.sellable : r.completeSets);
   // Sets your loose parts wait for (Settings → Selling): worth more whole, every missing part still to be had.
   const saveOn = $derived(saveForSets(sell, advice.platPerDucat, drops.recent));
-  const saves = $derived(saveOn ? allSetSaves(model, mkt.index.byId.size ? mkt.index : null, saveOn) : new Map<string, SetSave>());
+  const saves = $derived.by(whileShown("sets", () => saveOn ? allSetSaves(model, mkt.index.byId.size ? mkt.index : null, saveOn) : new Map<string, SetSave>()));
   // A row can outlive its save for a moment while the view changes: an empty one stands in.
   const NO_SAVE: SetSave = { set: "", unique: "", setPrice: 0, partsPrice: 0, held: [], missing: [], prime: true };
   const saveOf = (r: SetRow): SetSave => saves.get(r.unique) ?? NO_SAVE;
@@ -74,11 +78,11 @@
   const missingN = (r: SetRow) => r.missing.reduce((n, m) => n + m.count, 0);
   const rows = $derived(
     all.filter((r) =>
-      mode === "sell" ? sellableOf(r) > 0 && matches(query, r.name) : mode === "save" ? saves.has(r.unique) && matches(query, r.name, ...saveOf(r).missing.map((x) => x.name)) : r.completeSets === 0 && missingN(r) <= 2 && matches(query, r.name),
+      mode === "sell" ? sellableOf(r) > 0 && matches(q, r.name) : mode === "save" ? saves.has(r.unique) && matches(q, r.name, ...saveOf(r).missing.map((x) => x.name)) : r.completeSets === 0 && missingN(r) <= 2 && matches(q, r.name),
     ),
   );
   /** Complete sets held back by "Keep one to build" (shown, or not shown because that was the only one). */
-  const keptBack = $derived(keepOne ? all.filter((r) => r.keptForBuild && matches(query, r.name)).length : 0);
+  const keptBack = $derived(keepOne ? all.filter((r) => r.keptForBuild && matches(q, r.name)).length : 0);
   const totalPlat = $derived(rows.reduce((n, r) => n + (mode === "sell" ? sellableOf(r) * (r.setPrice ?? 0) : 0), 0));
   const totalSets = $derived(rows.reduce((n, r) => n + sellableOf(r), 0));
   /** Sets to sell counts copies; the list has one card per set. */

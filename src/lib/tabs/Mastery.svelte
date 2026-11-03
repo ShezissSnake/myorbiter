@@ -30,6 +30,7 @@
   import CodexRings from "../ui/CodexRings.svelte";
   import { codexRings, rowGroups, someNames } from "../core/codex";
   import type { Group } from "../core/collection";
+  import { keepWhile, shownPage, whenIdle, whileShown } from "../pane.svelte";
 
   let { model, masteryRank = null, wishlist = $bindable([]), foundryReady = [] }: { model: Model; masteryRank?: number | null; wishlist?: string[]; foundryReady?: [string, number][] } = $props();
   // Things you only have to level: in your arsenal, built and waiting in the Foundry, or building.
@@ -38,7 +39,7 @@
     const t = setInterval(() => (now = Date.now()), 60_000);
     return () => clearInterval(t);
   });
-  const readyAt = $derived(itemReadyTimes(model, foundryReady));
+  const readyAt = $derived.by(whileShown("mastery", () => itemReadyTimes(model, foundryReady)));
   const stageOf = (r: MasteryRow) => levelStage(model, r.unique, readyAt, now);
   const stageTag = (r: MasteryRow) => {
     if (r.stepTag) return r.stepTag;
@@ -52,7 +53,7 @@
     const s = stageOf(r);
     return s.stage === "claim" ? `Built and waiting in your Foundry: claim it, then rank it to ${rankTo(r)} for the mastery.` : s.stage === "building" ? `Building in your Foundry${s.readyAt ? `, ready in ${until(new Date(s.readyAt).toISOString(), now)}` : ""}: then rank it to ${rankTo(r)}.` : `In your arsenal: rank it to ${rankTo(r)} for the mastery.`;
   };
-  const wished = $derived(new Set(wishlist));
+  const wished = $derived.by(whileShown("mastery", () => new Set(wishlist)));
   const toggleWish = (u: string) => (wishlist = wished.has(u) ? wishlist.filter((x) => x !== u) : [u, ...wishlist]);
   /** Chance of every missing part from the relics you hold (primes whose parts all come from relics). */
   const odds = (r: MasteryRow) => (r.isPrime && r.missingParts.length && r.missingParts.every((p) => p.sources.length) ? finishOdds(model, r.missingParts) : null);
@@ -80,7 +81,7 @@
     showUnavailable = false;
   }
 
-  const all = $derived(masteryRows(model));
+  const all = $derived.by(whileShown("mastery", () => masteryRows(model)));
   const categories = $derived([...new Set(all.map((r) => r.category))].sort());
   const rows = $derived(
     all.filter(
@@ -93,6 +94,20 @@
         matches(query, r.name, r.type, METHOD_LABEL[r.acq.method]),
     ),
   );
+  // The two views (tabs): both stay drawn once drawn (the other too, once the page is on screen and
+  // idle), the one not chosen hidden and keeping its rows until it's shown again; switching is then
+  // only showing it.
+  let drawnPlat = $state(false);
+  let drawnEffort = $state(false);
+  $effect.pre(() => {
+    if (view === "plat") drawnPlat = true;
+    else drawnEffort = true;
+  });
+  $effect(() => {
+    if (shownPage("mastery") && !(drawnPlat && drawnEffort)) return whenIdle(() => (drawnPlat = drawnEffort = true));
+  });
+  const platRows = $derived.by(keepWhile(() => view === "plat", () => rows));
+  const effortRows = $derived.by(keepWhile(() => view !== "plat", () => rows));
   const open = $derived(all.filter((r) => r.acq.available));
   const pts = (rs: MasteryRow[]) => rs.reduce((n, r) => n + r.points, 0);
   const levelRows = $derived(open.filter((r) => r.acq.difficulty === 0));
@@ -114,7 +129,7 @@
     { key: "star", label: "", value: () => null, cell: starCell, sortable: false, align: "right" },
   ];
   const things = (n: number, one = "thing", many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-  const rings = $derived(codexRings(model));
+  const rings = $derived.by(whileShown("mastery", () => codexRings(model)));
   /** A kind picked in the list lights its ring, when it falls in one. */
   // (Kitguns are in two rings, so they light none.)
   const KIND_RING: Record<string, Group> = { Warframe: "warframes", Primary: "primary", Secondary: "secondary", Melee: "melee", Zaw: "melee", Companion: "companions", "Companion weapon": "companions", Plexus: "companions", Archwing: "archwing", "Arch-Gun": "archwing", "Arch-Melee": "archwing", Amp: "amps", "K-Drive": "kdrives" };
@@ -234,14 +249,22 @@
   </Fold>
   </div>
 
-  {#if view === "plat"}
-    <PlatMastery {model} {rows} {wished} onwish={toggleWish} clear={filtered ? clear : null} />
-  {:else}
-  <Browse id="mastery" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} clear={filtered ? clear : null} empty="Nothing left to master here." />
+  <!-- Both views stay drawn once drawn, the other hidden (see the script). -->
+  {#if drawnPlat}
+    <div class="view" class:off={view !== "plat"}><PlatMastery {model} rows={platRows} {wished} onwish={toggleWish} clear={filtered ? clear : null} /></div>
+  {/if}
+  {#if drawnEffort}
+    <div class="view" class:off={view === "plat"}><Browse id="mastery" rows={effortRows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} clear={filtered ? clear : null} empty="Nothing left to master here." /></div>
   {/if}
 </div></div>
 
 <style>
+  /* The view not chosen: kept laid out but not drawn, so showing it again is quick (where
+     content-visibility isn't known, simply not there). */
+  .view.off { display: none; }
+  @supports (content-visibility: hidden) {
+    .view.off { display: block; content-visibility: hidden; }
+  }
   .views { margin-bottom: .8rem; }
   .missing { display: grid; gap: .9rem; }
   .mp-head { display: flex; gap: .6rem; align-items: center; margin-bottom: .4rem; }

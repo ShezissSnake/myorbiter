@@ -18,11 +18,16 @@ export type HoverInfo =
 interface Index {
   /** The ducat rate the relic values were worked out at. */
   rate: number;
-  relics: Map<string, RelicRow>;
   byName: Map<string, CatalogItem[]>;
-  mods: Map<string, ModRow>;
-  arcanes: Map<string, ArcaneRow>;
+  // Worked out the first time a name needs them: a gear item's card doesn't need every relic's.
+  relics: () => Map<string, RelicRow>;
+  mods: () => Map<string, ModRow>;
+  arcanes: () => Map<string, ArcaneRow>;
 }
+const lazy = <T>(f: () => T) => {
+  let v: T | undefined;
+  return () => (v ??= f());
+};
 const cache = new WeakMap<Model, Index>();
 function index(m: Model, rate: number): Index {
   let ix = cache.get(m);
@@ -35,10 +40,10 @@ function index(m: Model, rate: number): Index {
   }
   ix = {
     rate,
-    relics: new Map(relicRows(m, { includeUnowned: true, platPerDucat: rate }).map((r) => [r.base, r])),
+    relics: lazy(() => new Map(relicRows(m, { includeUnowned: true, platPerDucat: rate }).map((r) => [r.base, r]))),
     byName,
-    mods: new Map(modRows(m).map((r) => [r.name, r])),
-    arcanes: new Map(arcaneRows(m).map((r) => [r.name, r])),
+    mods: lazy(() => new Map(modRows(m).map((r) => [r.name, r]))),
+    arcanes: lazy(() => new Map(arcaneRows(m).map((r) => [r.name, r]))),
   };
   cache.set(m, ix);
   return ix;
@@ -71,7 +76,7 @@ export function describe(m: Model, name: string, unique?: string | null, platPer
   const ix = index(m, platPerDucat);
   const base = relicBase(name);
   if (base) {
-    const row = ix.relics.get(base) ?? null;
+    const row = ix.relics().get(base) ?? null;
     const group = m.relicGroups.get(base);
     return { kind: "relic", row, base, image: m.imageOf(base), vaulted: group?.vaulted ?? row?.vaulted ?? false };
   }
@@ -105,8 +110,8 @@ export function describe(m: Model, name: string, unique?: string | null, platPer
     }
   }
   const item = pick(m, ix.byName.get(name), unique);
-  if (item?.category === "Arcanes" || ix.arcanes.has(name)) return { kind: "arcane", item, row: ix.arcanes.get(name) ?? null, name, image: item?.imageName ?? m.imageOf(name) };
-  if (item?.category === "Mods" || ix.mods.has(name)) return { kind: "mod", item, row: ix.mods.get(name) ?? null, name, image: item?.imageName ?? m.imageOf(name), price: m.price(name), priceMax: m.priceMax(name) };
+  if (item?.category === "Arcanes" || ix.arcanes().has(name)) return { kind: "arcane", item, row: ix.arcanes().get(name) ?? null, name, image: item?.imageName ?? m.imageOf(name) };
+  if (item?.category === "Mods" || ix.mods().has(name)) return { kind: "mod", item, row: ix.mods().get(name) ?? null, name, image: item?.imageName ?? m.imageOf(name), price: m.price(name), priceMax: m.priceMax(name) };
   if (item?.masterable && item.category !== "Mods") return { kind: "gear", item, c: collectionItem(m, item) };
   if (!item && !m.inventoryByName.has(name) && m.price(name) == null) return null;
   return { kind: "other", name, image: item?.imageName ?? m.imageOf(name), held: held(m, name), price: m.price(name), tradesPerDay: m.tradesPerDay(name) };

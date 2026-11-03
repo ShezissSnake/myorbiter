@@ -32,11 +32,13 @@
   import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
   import { pickShowcase } from "../core/showcase";
   import { reveal } from "../motion";
+  import { whileShown } from "../pane.svelte";
+  import { typed } from "../typed.svelte";
 
   let { model, sell, platPerDucat = 0, squad = 1, gear = null, keepGear = $bindable([]) }: { model: Model; sell: SellChoices; platPerDucat?: number; squad?: number; gear?: GearCopy[] | null; keepGear?: string[] } = $props();
   // Gear you no longer need and can't trade (core/notNeeded.ts), shown above the list when asked.
   let letGo = $state(false);
-  const unneeded = $derived(notNeeded(model, gear, new Set(keepGear)));
+  const unneeded = $derived.by(whileShown("inventory", () => notNeeded(model, gear, new Set(keepGear))));
   const goCount = $derived(unneeded.go.length);
 
   let kind = $state<"all" | InventoryKind>("all");
@@ -46,6 +48,8 @@
   let minEach = $state<number | null>(null);
   let spareOnly = $state(false);
   let query = $state("");
+  /** What the list is filtered on: the box, a moment later while you type (typed.svelte.ts). */
+  const q = $derived.by(typed(() => query));
   // What selling would bring first: 532 Thumpers at 4p each aren't where to start.
   let sort = $state({ key: "sellable", desc: true });
 
@@ -53,7 +57,8 @@
   // anything unbuilt, your best copy of each mod and one to give away, one maxed arcane, the parts,
   // blueprints and resources your unbuilt things take, one of each Captura scene (core/spares.ts).
   // The market's item list names things the game knows by internal names ("Tn Concrete Archgun Barrel").
-  const ledger = $derived(new Map(spareRows(model, mkt.index, sell, platPerDucat, squad, drops.recent).map((x) => [x.key, x])));
+  // While hidden, kept as last drawn: the squad or ducat rate changed on another page waits for a visit (lib/pane.svelte.ts).
+  const ledger = $derived.by(whileShown("inventory", () => new Map(spareRows(model, mkt.index, sell, platPerDucat, squad, drops.recent).map((x) => [x.key, x]))));
   const spareOf = (r: InventoryItem): SpareRow | undefined => ledger.get(r.key);
   const spare = (r: InventoryItem) => spareOf(r)?.spare ?? 0;
   /** The market's name, where the game's own is an internal one. */
@@ -68,7 +73,7 @@
   const perDay = (r: InventoryItem) => spareOf(r)?.tradesPerDay ?? r.tradesPerDay;
   // Every row's share of the figures, worked out over everything held: an item's rows (a mod at two
   // ranks, a relic's refinements) share one month of sales, so the rows add up to the figures above.
-  const all = $derived(inventoryRows(model));
+  const all = $derived.by(whileShown("inventory", () => inventoryRows(model)));
   const full = $derived(inventoryValue(all, ledger));
   /** The row's spare copies' share of Spare value: no more of the item than the market sells in a month. */
   const sellable = (r: InventoryItem) => Math.round(full.rows.get(r.key)?.spare ?? 0) || null;
@@ -88,7 +93,7 @@
   };
 
   // Spare only and the folded filters, the kind and a search: what Clear puts back.
-  const filtered = $derived(!!query.trim() || kind !== "all" || tradableOnly || minTrades != null || minEach != null || spareOnly);
+  const filtered = $derived(!!q.trim() || kind !== "all" || tradableOnly || minTrades != null || minEach != null || spareOnly);
   function clear() {
     query = "";
     kind = "all";
@@ -96,7 +101,7 @@
     minTrades = minEach = null;
   }
 
-  const rows = $derived(all.filter((r) => (kind === "all" || r.kind === kind) && (!tradableOnly || spareOf(r)) && (minTrades == null || (perDay(r) ?? 0) >= minTrades) && (minEach == null || (priceOf(r) ?? 0) >= minEach) && (!spareOnly || spare(r) > 0) && matches(query, r.name, r.type, shown(r), spareOf(r)?.type ?? "")));
+  const rows = $derived(all.filter((r) => (kind === "all" || r.kind === kind) && (!tradableOnly || spareOf(r)) && (minTrades == null || (perDay(r) ?? 0) >= minTrades) && (minEach == null || (priceOf(r) ?? 0) >= minEach) && (!spareOnly || spare(r) > 0) && matches(q, r.name, r.type, shown(r), spareOf(r)?.type ?? "")));
   const pctOf = (x: number | null | undefined) => (x == null ? "–" : `${Math.round(x * 10) / 10}%`);
   const why = (r: InventoryItem) => spareOf(r)?.why ?? "Nothing to spare";
 

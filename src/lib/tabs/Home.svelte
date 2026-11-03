@@ -52,6 +52,7 @@
   import { tick as nextTick } from "svelte";
   import { arrive, calm, flip, fresh, leave, opens, OUT_CSS, QUICK, reveal as unfold } from "../motion";
   import Tick from "../ui/Tick.svelte";
+  import { whileShown } from "../pane.svelte";
 
   // console: you play on a console or phone, so there's no inventory: Home is the market, the
   // world's clocks, fissures, what's worth doing and Baro, without anything measured against a collection.
@@ -69,6 +70,7 @@
   });
 
   // ------------------------------------------------------------ market
+  // The heavy figures below are worked out while Home is on screen, and kept while it's hidden (lib/pane.svelte.ts).
   const orders = $derived(mkt.orders.filter((o) => o.type === "sell"));
   const listed = $derived(orders.filter((o) => o.visible).reduce((n, o) => n + o.platinum * o.quantity, 0));
   const hiddenCount = $derived(orders.filter((o) => !o.visible).length);
@@ -88,9 +90,9 @@
   // Prime parts, mods and arcanes: Worth selling, the items their pages count (core/worthSelling.ts),
   // so each line here and what's under your minimum add up to the page's figure.
   const WORTH_KINDS: BulkKind[] = ["part", "mod", "arcane"];
-  const worth = $derived(worthSelling(model, settings.advice, settings.market.sellable, drops.recent));
+  const worth = $derived.by(whileShown("home", () => worthSelling(model, settings.advice, settings.market.sellable, drops.recent)));
   // Sets, imprints and everything else: what Put my spares on sale would list, not what's held back for ducats.
-  const targets = $derived(sellTargets(model, { ...settings.market.bulk, parts: false, mods: false, arcanes: false }, settings.advice, mkt.index, settings.market.sellable, drops.recent).filter((t) => !t.hold));
+  const targets = $derived.by(whileShown("home", () => sellTargets(model, { ...settings.market.bulk, parts: false, mods: false, arcanes: false }, settings.advice, mkt.index, settings.market.sellable, drops.recent).filter((t) => !t.hold)));
   const valueOf = (kind: BulkKind, name: string) => (kind === "arcane" ? (model.priceMax(name) ?? model.price(name)) : model.price(name));
   /** Trades a day, for the month's cap: relics, whose sales warframe.market never reports, about one. */
   const paceOf = (name: string) => (/ Relic$/.test(name) ? UNKNOWN_TRADES_PER_DAY : model.tradesPerDay(name));
@@ -131,8 +133,8 @@
 
   // ------------------------------------------------------------ fissures
   const ERAS = ["Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia"] as const;
-  const squad = $derived(settings.advice.squad > 1 ? 4 : 1);
-  const relics = $derived(relicRows(model, { platPerDucat: settings.advice.platPerDucat }));
+  const squad = $derived.by(whileShown("home", () => settings.advice.squad > 1 ? 4 : 1));
+  const relics = $derived.by(whileShown("home", () => relicRows(model, { platPerDucat: settings.advice.platPerDucat })));
   const crackValue = (r: RelicRow) => {
     const radiant = (r.owned.Radiant ?? 0) > 0;
     const v = radiant ? (squad === 1 ? r.evRadiant : r.outRadiant.length ? expectedBest(r.outRadiant, squad) : null) : squad === 1 ? r.evIntact : r.outIntact.length ? expectedBest(r.outIntact, squad) : null;
@@ -151,7 +153,7 @@
   };
   // Your best relic for each era, worked out once per era rather than per fissure.
   // Sets your loose parts wait for (Settings → Selling), by the era of the relics of yours that drop a missing part.
-  const savingByEra = $derived.by(() => {
+  const savingByEra = $derived.by(whileShown("home", () => {
     const out = new Map<string, { sets: string[]; relics: string[] }>();
     const opts = saveForSets(settings.market.sellable, settings.advice.platPerDucat, drops.recent);
     if (!opts) return out;
@@ -171,8 +173,8 @@
       }
     }
     return out;
-  });
-  const bests = $derived(new Map<string, ReturnType<typeof bestFor>>(ERAS.map((era) => [era, bestFor(era)])));
+  }));
+  const bests = $derived.by(whileShown("home", () => new Map<string, ReturnType<typeof bestFor>>(ERAS.map((era) => [era, bestFor(era)]))));
   const eraBest = (era: string) => {
     const top = console ? [] : (bests.get(era) ?? []);
     const one = (b: (typeof top)[number]) => ({ name: b.r.base, refinement: b.refinement, held: `${b.r.owned[b.refinement] ?? 0} of ${b.r.total} held`, plat: b.v, radiant: b.r.owned.Radiant ?? 0 });
@@ -182,7 +184,7 @@
   // ------------------------------------------------------------ bounties
   /** A reward you'd want: a part for something you haven't mastered or built. */
   const need = (name: string) => !console && (scoreCards(model, [name])[0]?.needed ?? false);
-  const boards = $derived(bountyBoards(live.syndicates ?? null, bountyTables, need));
+  const boards = $derived.by(whileShown("home", () => bountyBoards(live.syndicates ?? null, bountyTables, need)));
   /** A bounty reward that's a part or a whole item opens that item's details. */
   const masterables = $derived(new Map([...model.catalogByUnique.values()].filter((i) => i.masterable).map((i) => [i.name, i.uniqueName])));
   const rewardOpens = (name: string) => {
@@ -196,17 +198,17 @@
   // ------------------------------------------------------------ Baro & Varzia
   const baro = $derived(live.baro ?? null);
   const baroHere = $derived(!!baro && now >= Date.parse(baro.activation) && now < Date.parse(baro.expiry));
-  const stock = $derived(baroHere ? baroStock(model) : []);
+  const stock = $derived.by(whileShown("home", () => baroHere ? baroStock(model) : []));
   const baroNeed = $derived(stock.filter((s) => s.mark === "mastery" || s.mark === "new"));
   /** His stock that sells on warframe.market, best platinum per ducat first. */
-  const flips = $derived(baroHere && !console ? baroFlips(model, stock) : []);
+  const flips = $derived.by(whileShown("home", () => baroHere && !console ? baroFlips(model, stock) : []));
   const heldDucats = $derived((model.inventoryByBase.get("/Lotus/Types/Items/MiscItems/PrimeBucks") ?? []).reduce((n, r) => n + r.quantity, 0));
-  const rows = $derived(masteryRows(model));
-  const invasions = $derived(invasionNeeds(model, live.invasions));
+  const rows = $derived.by(whileShown("home", () => masteryRows(model)));
+  const invasions = $derived.by(whileShown("home", () => invasionNeeds(model, live.invasions)));
   const rareInvasions = $derived(invasionRares(live.invasions));
   // Running alerts worth a look: mastery you're missing (PC only: it needs your inventory), rare rewards.
-  const worldAlerts = $derived(alertNeeds(console ? null : model, live.alerts, now));
-  const day = $derived(today(model, live, now, settings.game.gear));
+  const worldAlerts = $derived.by(whileShown("home", () => alertNeeds(console ? null : model, live.alerts, now)));
+  const day = $derived.by(whileShown("home", () => today(model, live, now, settings.game.gear)));
 
   // ------------------------------------------------------------ world clocks and fissure alerts
   const cycles = $derived(cycleTimers(live, now));
@@ -251,7 +253,7 @@
     settings.fissureRules = settings.fissureRules.filter((r) => r.id !== id);
     if (editing === id) closeRule();
   };
-  const builds = $derived(foundryBuilds(model, settings.game.foundryReady, now));
+  const builds = $derived.by(whileShown("home", () => foundryBuilds(model, settings.game.foundryReady, now)));
   // Every part in hand: ready now first, then what's short on star-chart resources, then the ones
   // that need an open world or an event (Hildryn's Lazulite Toroid).
   const TIER_ORDER = { now: 0, farm: 1, hard: 2, parts: 3 } as const;
@@ -260,7 +262,7 @@
   // Your wishlist, still to get: what's left and whether a fissure for one of your relics is open now.
   // The ones you can crack a relic for now come first.
   const openNow = $derived(openEras(live.fissures, now));
-  const wishes = $derived(crackableFirst(settings.favourites.map((u) => wishItem(model, u)).filter((w): w is WishItem => !!w && w.missing.length > 0), openNow));
+  const wishes = $derived.by(whileShown("home", () => crackableFirst(settings.favourites.map((u) => wishItem(model, u)).filter((w): w is WishItem => !!w && w.missing.length > 0), openNow)));
   const crackable = (w: WishItem) => crackableNow(w, openNow);
   /** The item a Foundry build makes, when it's one with details (not a part). */
   const buildUnique = (name: string) => {
@@ -269,8 +271,8 @@
   };
   // Ducats your spare parts would fetch, counting only the ones better traded in than sold.
   // As Prime parts counts them: parts that go into a complete set you can sell are sold as the set.
-  const spareDucats = $derived(partRows(model, saveForSets(settings.market.sellable, settings.advice.platPerDucat, drops.recent)).filter((p) => p.spare > 0 && p.inSets <= 0 && decide(p.price, p.ducats, p.tradesPerDay, settings.advice, p.spare).verdict === "ducats").reduce((n, p) => n + p.ducats * p.spare, 0));
-  const varzia = $derived(console ? [] : varziaNeeds(model, rows));
+  const spareDucats = $derived.by(whileShown("home", () => partRows(model, saveForSets(settings.market.sellable, settings.advice.platPerDucat, drops.recent)).filter((p) => p.spare > 0 && p.inSets <= 0 && decide(p.price, p.ducats, p.tradesPerDay, settings.advice, p.spare).verdict === "ducats").reduce((n, p) => n + p.ducats * p.spare, 0)));
+  const varzia = $derived.by(whileShown("home", () => console ? [] : varziaNeeds(model, rows)));
   // On a console, her stock as it is: the primes she sells whole, and how many relics.
   const varziaWhole = $derived((live.resurgence ?? []).filter((v) => v.ducats != null && !/ Relic$/.test(v.item)).sort((a, b) => (b.ducats ?? 0) - (a.ducats ?? 0)));
   const varziaRelics = $derived((live.resurgence ?? []).filter((v) => / Relic$/.test(v.item)).length);

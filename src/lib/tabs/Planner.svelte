@@ -23,12 +23,14 @@
   import { openEras, wishlistRelics } from "../core/wishlist";
   import type { Fissure } from "../core/types";
   import RelicPlate from "../ui/RelicPlate.svelte";
+  import { keepWhile, shownPage, whenIdle, whileShown } from "../pane.svelte";
+  import { typed } from "../typed.svelte";
 
   // The mode is kept in settings, so it survives a restart and the Guide can open either one.
   // fissures: the live ones, so a relic you can crack right now says so.
   // wishlist: what you starred; relics you hold for it are marked, and can be the only ones shown.
   let { model, settings = $bindable(), mode = $bindable("sets"), fissures = null, wishlist = [], masteryRank = null }: { model: Model; settings: AdviceSettings; mode?: "sets" | "radiant"; fissures?: Fissure[] | null; wishlist?: string[]; masteryRank?: number | null } = $props();
-  const forWish = $derived(wishlistRelics(model, wishlist));
+  const forWish = $derived.by(whileShown("planner", () => wishlistRelics(model, wishlist)));
   let wishOnly = $state(false);
   const wishTitle = (base: string) => `For your wishlist: ${(forWish.get(base) ?? []).map((x) => x.part).join(", ")}`;
   let openOnly = $state(false);
@@ -46,6 +48,8 @@
   let metric = $state<RadiantMetric>("plat");
   let vaultedOnly = $state(false);
   let query = $state("");
+  /** What the list is filtered on: the box, a moment later while you type (typed.svelte.ts). */
+  const q = $derived.by(typed(() => query));
   let sortSets = $state({ key: "value", desc: true });
   let sortRad = $state({ key: "gain", desc: true });
 
@@ -54,18 +58,18 @@
   const traces = $derived((model.inventoryByBase.get("/Lotus/Types/Items/MiscItems/VoidTearDrop") ?? []).reduce((n, r) => n + r.quantity, 0));
 
   // ------------------------------------------------ crack for sets
-  const plan = $derived(crackRows(model, settings.maxMissing, settings.squad));
-  const crack = $derived(plan.relics.filter((r) => (!vaultedOnly || r.vaulted) && (!openOnly || isOpen(r.base)) && (!wishOnly || forWish.has(r.base)) && matches(query, r.base, ...r.hits.map((h) => h.reward))));
+  const plan = $derived.by(whileShown("planner", () => crackRows(model, settings.maxMissing, settings.squad)));
+  const crack = $derived(plan.relics.filter((r) => (!vaultedOnly || r.vaulted) && (!openOnly || isOpen(r.base)) && (!wishOnly || forWish.has(r.base)) && matches(q, r.base, ...r.hits.map((h) => h.reward))));
   /** The gap lists show a few at first: the table above them is the plan. */
   const GAPS_SHOWN = 10;
   let open = $state<Record<string, boolean>>({});
   // The stats and the lists below follow the table's filters.
-  const filtered = $derived(vaultedOnly || !!query.trim());
-  const gaps = $derived(filterGaps(model, plan, vaultedOnly, (...fields) => matches(query, ...fields)));
+  const filtered = $derived(vaultedOnly || !!q.trim());
+  const gaps = $derived.by(whileShown("planner", () => filterGaps(model, plan, vaultedOnly, (...fields) => matches(q, ...fields))));
   const lastParts = $derived(gaps.filter((g) => g.missingCount === 1));
   const uncovered = $derived(gaps.filter((g) => g.relicsOwned === 0));
   /** Any filter on, for the tables' empty line: Clear puts them all back. */
-  const anyFilter = $derived(!!query.trim() || vaultedOnly || wishOnly || openOnly);
+  const anyFilter = $derived(!!q.trim() || vaultedOnly || wishOnly || openOnly);
   function clear() {
     query = "";
     vaultedOnly = wishOnly = openOnly = false;
@@ -86,9 +90,11 @@
   ];
 
   // ------------------------------------------------ radiant
-  const radiant = $derived(
-    radiantRows(model, { squad: settings.squad, metric, platPerDucat: settings.platPerDucat }).filter(
-      (r) => r.refinable > 0 && (!vaultedOnly || r.vaulted) && (!openOnly || isOpen(r.base)) && (!wishOnly || forWish.has(r.base)) && matches(query, r.base, r.rare?.name),
+  const radiant = $derived.by(
+    whileShown("planner", () =>
+      radiantRows(model, { squad: settings.squad, metric, platPerDucat: settings.platPerDucat }).filter(
+        (r) => r.refinable > 0 && (!vaultedOnly || r.vaulted) && (!openOnly || isOpen(r.base)) && (!wishOnly || forWish.has(r.base)) && matches(q, r.base, r.rare?.name),
+      ),
     ),
   );
   /** Your traces spent where each one gains the most: how many relics that refines, and what it adds altogether. */
@@ -108,7 +114,27 @@
   });
   const unit = (v: number) => (metric === "need" ? `${Math.round(v * 1000) / 10}%` : null);
 
-  const radCols: Column<RadiantRow>[] = $derived([
+  // Both tabs stay drawn once drawn (the other one too, once the page is on screen and idle), the
+  // one not chosen hidden: switching is then only showing it. The hidden one keeps its rows until
+  // it's shown again, so a search typed in one doesn't redraw the other meanwhile.
+  let drawnSets = $state(false);
+  let drawnRadiant = $state(false);
+  $effect.pre(() => {
+    if (mode === "sets") drawnSets = true;
+    else drawnRadiant = true;
+  });
+  $effect(() => {
+    if (shownPage("planner") && !(drawnSets && drawnRadiant)) return whenIdle(() => (drawnSets = drawnRadiant = true));
+  });
+  const setsRows = $derived.by(keepWhile(() => mode === "sets", () => crack));
+  const setsLast = $derived.by(keepWhile(() => mode === "sets", () => lastCovered));
+  const setsUncovered = $derived.by(keepWhile(() => mode === "sets", () => uncovered));
+  const radRows = $derived.by(keepWhile(() => mode === "radiant", () => radiant));
+  const setsAnyFilter = $derived.by(keepWhile(() => mode === "sets", () => anyFilter));
+  const radAnyFilter = $derived.by(keepWhile(() => mode === "radiant", () => anyFilter));
+
+  // The squad and ducat rate are shared with Relics: while hidden, these wait for the next visit (lib/pane.svelte.ts).
+  const radCols: Column<RadiantRow>[] = $derived.by(whileShown("planner", () => [
     { key: "base", label: "Relic", value: (r) => r.base, defaultDesc: false, cell: radRelicCell },
     { key: "owned", label: "You have", value: (r) => r.refinable, cell: radOwnedCell, align: "right", title: "Copies you could still refine" },
     { key: "vault", label: "Vault", spare: true, value: (r) => (r.vaulted ? 1 : 0), cell: vaultCell, align: "center", title: "Vaulted: no new copies drop" },
@@ -116,7 +142,7 @@
     { key: "intact", label: `${metric === "need" ? "Need, intact" : "Avg intact"}${settings.squad > 1 ? " ×4" : ""}`, value: (r) => r.intact, cell: intactCell, align: "right" },
     { key: "radiant", label: `${metric === "need" ? "Need, radiant" : "Avg radiant"}${settings.squad > 1 ? " ×4" : ""}`, value: (r) => r.radiant, cell: radiantCell, align: "right" },
     { key: "gain", label: "Gain", value: (r) => r.gain, cell: gainCell, align: "right", title: settings.squad > 1 ? "What 100 Void Traces add: the best reward of a 4-person radshare, radiant vs intact" : "What 100 Void Traces add: one crack, radiant vs intact" },
-  ]);
+  ]));
 </script>
 
 {#snippet relicCell(r: { base: string })}<span class="rel"><Named file={model.imageOf(r.base)} name={r.base} tint={eraTint(r.base)} />{#if forWish.has(r.base)}<span class="tag ok" title={wishTitle(r.base)}>wishlist</span>{/if}{#if fissures && !isOpen(r.base)}<span class="closed" title="No {r.base.split(' ')[0]} fissure is open right now: an Omnia one takes it, or wait for the next">no fissure now</span>{/if}</span>{/snippet}
@@ -209,22 +235,33 @@
     </Fold>
   </div>
 
-  {#if mode === "sets"}
-    <div class="sets-table"><Table rows={crack} columns={crackCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortSets} clear={anyFilter ? clear : null} empty="None of your relics drop a missing part." /></div>
-    {#if lastCovered.length}
-      <h2 class="register">One part from a complete set, and your relics drop it</h2>
-      {@render gapList(lastCovered, "last")}
-    {/if}
-    {#if uncovered.length}
-      <h2 class="register">Close, but none of your relics drop the missing part</h2>
-      {@render gapList(uncovered, "uncovered")}
-    {/if}
-  {:else}
-    <Table rows={radiant} columns={radCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortRad} clear={anyFilter ? clear : null} empty="No relics left to refine." />
+  {#if drawnSets}
+    <div class="view" class:off={mode !== "sets"}>
+      <div class="sets-table"><Table rows={setsRows} columns={crackCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortSets} clear={setsAnyFilter ? clear : null} empty="None of your relics drop a missing part." /></div>
+      {#if setsLast.length}
+        <h2 class="register">One part from a complete set, and your relics drop it</h2>
+        {@render gapList(setsLast, "last")}
+      {/if}
+      {#if setsUncovered.length}
+        <h2 class="register">Close, but none of your relics drop the missing part</h2>
+        {@render gapList(setsUncovered, "uncovered")}
+      {/if}
+    </div>
+  {/if}
+  {#if drawnRadiant}
+    <div class="view" class:off={mode !== "radiant"}>
+      <Table rows={radRows} columns={radCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortRad} clear={radAnyFilter ? clear : null} empty="No relics left to refine." />
+    </div>
   {/if}
 </div></div>
 
 <style>
+  /* The tab not chosen: kept laid out but not drawn, so showing it again is quick (where
+     content-visibility isn't known, simply not there). */
+  .view.off { display: none; }
+  @supports (content-visibility: hidden) {
+    .view.off { display: block; content-visibility: hidden; }
+  }
   h2 { margin: var(--course, 2rem) 0 .6rem; }
   .closed { margin-left: .5rem; font-family: var(--face-register); font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); white-space: nowrap; }
   .buyp { white-space: nowrap; margin-left: auto; }

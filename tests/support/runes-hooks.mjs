@@ -13,3 +13,11 @@ export async function load(url, context, next) {
   const js = compileModule(code, { generate: "client", filename: file }).js.code;
   return { format: "module", source: js, shortCircuit: true };
 }
+
+// A store's `import { untrack } from "svelte"` gets Svelte's client build, as in the app (Node
+// would otherwise pick the server build, whose untrack does nothing), to match the client
+// internals the compiled store runs on.
+export async function resolve(specifier, context, next) {
+  if (specifier === "svelte" && /\.svelte\.(ts|js)$/.test((context.parentURL ?? "").split("?")[0])) return next(specifier, { ...context, conditions: ["browser", ...context.conditions] });
+  return next(specifier, context);
+}

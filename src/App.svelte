@@ -8,7 +8,7 @@
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
   import { watchlist } from "./lib/core/deals";
-  import { inventoryRows, masteryRows, relicRows, saveForSets, type SetSave } from "./lib/core/views";
+  import { arcaneRows, inventoryRows, masteryRows, modRows, partRows, relicRows, saveForSets, type SetSave } from "./lib/core/views";
   import { allSetRows, allSetSaves, inventoryValue, spareRows } from "./lib/core/spares";
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
   import { buildModel, ERAS, type Model } from "./lib/core/model";
@@ -49,6 +49,7 @@
     pruneLive,
     restoreLive,
     saved,
+    saveSettings,
     discordPost,
     notify,
     openUrl,
@@ -66,6 +67,7 @@
     logLine,
   } from "./lib/backend";
   import { persistSettings } from "./lib/persist.svelte";
+  import { catchUp, setShownPage, whenIdle } from "./lib/pane.svelte";
   import { backoff, handLoggedSale, keepSeen, thinHistory } from "./lib/core/upkeep";
   import Parts from "./lib/tabs/Parts.svelte";
   // Pages opened now and then load when first opened, so the app starts on less: Home, Orders,
@@ -185,6 +187,7 @@
       const id = queue.shift();
       if (!id) return;
       if (!visited[id]) visited[id] = true;
+      if (model && !drawn[id]) drawn = { ...drawn, [id]: model };
       idle(next);
     };
     setTimeout(() => idle(next), 1500);
@@ -327,6 +330,80 @@
     }
   });
   const model = $derived(built.model);
+  // A hidden page keeps the collection it was drawn with: a sync redraws the page on screen at
+  // once and the others when the app is idle, one at a time, or when you open one (lib/pane.svelte.ts).
+  setShownPage(() => settings.tab);
+  let drawn = $state.raw<Record<string, Model>>({});
+  // A new collection reaches the page on screen in the task after it's built, and the
+  // notifications and bookkeeping below (bgModel) in the task after that: three shorter tasks
+  // rather than one long one.
+  let shownModel = $state.raw<Model | null>(null);
+  let bgModel = $state.raw<Model | null>(null);
+  $effect(() => {
+    const m = model;
+    if (!m || !untrack(() => shownModel)) {
+      shownModel = bgModel = m;
+      return;
+    }
+    // First the rows most pages share (core/memo.ts keeps them per model), one set a task, so the
+    // page's own redraw that follows finds them done.
+    const steps = untrack(() => sharedRows(m));
+    let t: ReturnType<typeof setTimeout>;
+    const next = () => {
+      const step = steps.shift();
+      if (step) {
+        step();
+        t = setTimeout(next, 0);
+        return;
+      }
+      shownModel = m;
+      t = setTimeout(() => (bgModel = m), 0);
+    };
+    t = setTimeout(next, 0);
+    return () => clearTimeout(t);
+  });
+  /** The rows of a new collection that most pages and Home ask for, as they ask for them. */
+  function sharedRows(m: Model): (() => unknown)[] {
+    const a = settings.advice;
+    const sell = settings.market.sellable;
+    return [
+      () => inventoryRows(m),
+      () => modRows(m),
+      () => arcaneRows(m),
+      () => relicRows(m, { platPerDucat: a.platPerDucat }),
+      () => partRows(m, saveForSets(sell, a.platPerDucat, drops.recent)),
+      () => spareRows(m, mkt.index, sell, a.platPerDucat, a.squad, drops.recent),
+    ];
+  }
+  const modelFor = (id: string): Model => (settings.tab === id ? (shownModel ?? model) : (drawn[id] ?? shownModel ?? model))!;
+  $effect.pre(() => {
+    const id = settings.tab;
+    const m = shownModel ?? model;
+    if (m) untrack(() => drawn[id] !== m && (drawn = { ...drawn, [id]: m }));
+  });
+  /**
+   * Hidden pages catch up with a change (a sync, a setting) when the app is idle, one a slice (most
+   * often a few pages have nothing to do). Opening one catches it up at once anyway.
+   */
+  const stale = new Set<string>();
+  let catching: (() => void) | null = null;
+  function catchUpHidden() {
+    for (const id of Object.keys(visited)) stale.add(id);
+    catching ??= whenIdle(catchUpOne);
+  }
+  function catchUpOne() {
+    catching = null;
+    stale.delete(settings.tab);
+    const id = stale.values().next().value;
+    if (id == null) return;
+    stale.delete(id);
+    if (model && drawn[id] !== model) drawn = { ...drawn, [id]: model };
+    catchUp(id);
+    if (stale.size) catching = whenIdle(catchUpOne);
+  }
+  $effect(() => {
+    if (model) untrack(catchUpHidden);
+  });
   /** A page that threw (its boundary shows "This page hit an error"): what went wrong goes to the log. */
   const pageError = (id: string, e: unknown) => console.error(`The ${id} page hit an error:`, e);
   /** TennoScope's item prices: days out of date, when a day or more (see pricesBehind). */
@@ -369,9 +446,9 @@
   onSaveTrouble((e) => (saveError = e));
   $effect(() => {
     void pickRetry;
-    if (!model || !freshCards) return;
-    const cards = scoreCards(model, freshCards.cards, settings.pick, freshCards.prices);
-    const file = { at: freshCards.at, cards: freshCards.cards, scores: cards.map((c) => c.score), best: bestCard(cards), reasons: cards.map((c) => c.reasons), vault: cards.map((c) => vaultWord(model!, c.name)) };
+    if (!bgModel || !freshCards) return;
+    const cards = scoreCards(bgModel, freshCards.cards, settings.pick, freshCards.prices);
+    const file = { at: freshCards.at, cards: freshCards.cards, scores: cards.map((c) => c.score), best: bestCard(cards), reasons: cards.map((c) => c.reasons), vault: cards.map((c) => vaultWord(bgModel!, c.name)) };
     const key = JSON.stringify(file);
     if (key === lastWritten) return;
     lastWritten = key;
@@ -434,7 +511,7 @@
   // Each new sale gets the item's daily median of the day it sold, so Sales compares it with the
   // market as it was then rather than as it is when you look.
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     const count = settings.market.sales.length;
     if (!m || !settingsReady || !count) return;
     untrack(() => {
@@ -728,7 +805,7 @@
   // Alerts: a reward toward something you haven't mastered, or a rare one. Once per alert and reward.
   $effect(() => {
     const alerts = live.alerts;
-    const m = onConsole ? null : model;
+    const m = onConsole ? null : bgModel;
     if (!alerts?.length || !settingsReady || (!m && !onConsole)) return;
     untrack(() => {
       const { mastery, rare } = alertNeeds(m, alerts);
@@ -752,7 +829,7 @@
   // Baro's arrival: what he brings that you haven't mastered or don't have. Once per visit.
   $effect(() => {
     const b = live.baro;
-    const m = model;
+    const m = bgModel;
     if (!m || !b || !settingsReady) return;
     if (Date.now() < Date.parse(b.activation) || Date.now() > Date.parse(b.expiry)) return;
     untrack(() => {
@@ -772,7 +849,7 @@
   // Varzia's new rotation, with primes you need from it. Once per rotation.
   $effect(() => {
     const exp = live.resurgenceExpiry;
-    const m = model;
+    const m = bgModel;
     if (!m || !exp || !live.resurgence?.length || !settingsReady || onConsole) return;
     untrack(() => {
       const needs = varziaNeeds(m, masteryRows(m));
@@ -783,7 +860,7 @@
   });
   // The Duviri Circuit's week: warframes you haven't mastered, adapters for weapons you have. Once a week.
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     if (!m || !live.duviriCycle || !settingsReady || onConsole) return;
     untrack(() => {
       const c = today(m, live, Date.now(), settings.game.gear).circuit;
@@ -824,7 +901,7 @@
   // quantity listed, remembered across restarts. (A count orbiter can't make isn't short: see above.)
   $effect(() => {
     const short = shortListings;
-    const m = model;
+    const m = bgModel;
     if (!m || !short.length || !settingsReady) return;
     untrack(() => {
       const key = (o: (typeof short)[number]) => `${o.id}|${o.quantity}`;
@@ -855,7 +932,7 @@
   });
   // An invasion rewarding a part you need: one notification per invasion and part, remembered
   // across restarts so the same invasion doesn't announce itself every time orbiter opens.
-  const invasionsNeeded = $derived(model && !onConsole ? invasionNeeds(model, live.invasions) : []);
+  const invasionsNeeded = $derived(bgModel && !onConsole ? invasionNeeds(bgModel, live.invasions) : []);
   $effect(() => {
     const needs = invasionsNeeded;
     if (!needs.length) return;
@@ -1000,7 +1077,7 @@
   // Whole sets sold in one trade before orbiter logged them as sets: one sale per part becomes one
   // set sale. Runs when the data loads; does nothing once they're folded.
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     if (!m || !settingsReady) return;
     untrack(() => {
       const next = foldSetSales(settings.market.sales, settings.market.trades, m);
@@ -1297,8 +1374,8 @@
   });
   $effect(() => {
     const now = tick;
-    if (!model || onConsole) return;
-    const ready = foundryBuilds(model, settings.game.foundryReady, now).filter((b) => b.ready);
+    if (!bgModel || onConsole) return;
+    const ready = foundryBuilds(bgModel, settings.game.foundryReady, now).filter((b) => b.ready);
     untrack(() => {
       const seen = new Set(settings.game.foundryNotified);
       const fresh = ready.filter((b) => !seen.has(b.key));
@@ -1408,7 +1485,7 @@
   let erasOpenBefore: Set<string> | null = null;
   $effect(() => {
     const fs = live.fissures;
-    const m = model;
+    const m = bgModel;
     // Not from the worldstate kept from last time: eras whose fissures ended since would seem to open.
     if (!m || !fs || !liveRead) return;
     untrack(() => {
@@ -1444,7 +1521,7 @@
   const overlayAt = new Map<string, number>();
   $effect(() => {
     const raws = settings.game.rivens;
-    const m = model;
+    const m = bgModel;
     const pressed = rivenKeyAt;
     if (!raws?.some((r) => r.pending) || !m) return;
     untrack(() => {
@@ -1516,7 +1593,7 @@
   // depends on it. Checked hourly; only relics not read in the last day are fetched.
   let relicPricesChecked = 0;
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     const on = settings.market.sellable.relicsWorthSelling;
     const items = mkt.items.length;
     if (!m || !on || !items || !settingsReady) return;
@@ -1532,7 +1609,7 @@
 
   // While Baro is here: what a ducat is worth by his stock, kept for Prime parts' Your rates.
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     if (!m || !settingsReady || !m.live.baro?.inventory?.length) return;
     const next = baroRate(m);
     untrack(() => {
@@ -1543,7 +1620,7 @@
 
   // The live feed watches a longer list than the scan: it costs no requests.
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     const items = mkt.items.length;
     // Your price alerts: a new one is watched at once, a removed one stops.
     const alerts = $state.snapshot(settings.market.buyAlerts);
@@ -1571,9 +1648,9 @@
   let lastDeals = 0;
   $effect(() => {
     const now = tick;
-    if (!model || onConsole || now - lastDeals < 10 * 60_000) return;
+    if (!bgModel || onConsole || now - lastDeals < 10 * 60_000) return;
     lastDeals = now;
-    const m = model;
+    const m = bgModel;
     untrack(() => void mkt.scanDeals(m, watchlist(m, 20, settings.market.buyAlerts)));
   });
   $effect(() => {
@@ -1599,7 +1676,7 @@
   const heldOf = (m: NonNullable<typeof model>, name: string) => m.ownedPartQty.get(name) ?? (m.inventoryByName.get(name) ?? []).reduce((n, r) => n + r.quantity, 0);
   $effect(() => {
     const c = freshCards;
-    const m = model;
+    const m = bgModel;
     const ms = mission;
     if (!c || !m || !settingsReady) return;
     untrack(() => {
@@ -1619,7 +1696,7 @@
     });
   });
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     if (!m?.observedAt || !settingsReady) return;
     const at = +m.observedAt;
     untrack(() => {
@@ -1631,7 +1708,7 @@
   // you keep getting counts as a way to finish a set (Settings → Selling, Save prime parts for sets).
   let dropsReadAt = 0;
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     if (!m?.observedAt || !settingsReady) return;
     const at = +m.observedAt;
     // Once per read; the model is also rebuilt for other reasons (prices, the world, a later foundry
@@ -1661,7 +1738,7 @@
   // saved for, and one you can sell): say so. Checked once per inventory read.
   let savingCheckedAt = 0;
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     if (!m?.observedAt || !settingsReady) return;
     const at = +m.observedAt;
     if (at === savingCheckedAt) return;
@@ -1704,7 +1781,7 @@
   // patches it above), so Stats ends up with the figures Inventory shows for the same read.
   let pointInputs = 0;
   $effect(() => {
-    const m = model;
+    const m = bgModel;
     if (!m?.observedAt) return;
     const at = +m.observedAt;
     const inputs = (mkt.index.byId.size ? 1 : 0) + (relicTables ? 1 : 0) + (recipes ? 1 : 0);
@@ -2174,6 +2251,10 @@
   persistSettings(
     () => settings,
     () => settingsReady,
+    (get) => {
+      saveSettings(get);
+      catchUpHidden();
+    },
   );
 
   const fmtTime = (d: Date | null) =>
@@ -2207,8 +2288,10 @@
     const tab = settings.tab;
     const n = navEl;
     if (!n) return;
-    // By hand: scrollIntoView would also move where the next Tab starts, past Skip to page.
-    queueMicrotask(() => {
+    // By hand: scrollIntoView would also move where the next Tab starts, past Skip to page. In the
+    // frame, before it's drawn, once the page switched to is laid out (not in between: a layout of
+    // its own, of the whole new page, before the switch is done).
+    requestAnimationFrame(() => {
       const on = n.querySelector<HTMLElement>(".nav.on")?.getBoundingClientRect();
       const box = n.getBoundingClientRect();
       const css = getComputedStyle(n);
@@ -2416,25 +2499,25 @@
       {#snippet pane(id: string, body: import("svelte").Snippet)}
         {#if visited[id] && available.some((p) => p.id === id)}<div class="pane" class:shown={settings.tab === id} data-section={pageById[id as PageId]?.group || undefined}><svelte:boundary failed={pageFailed} onerror={(e) => pageError(id, e)}>{@render body()}</svelte:boundary></div>{/if}
       {/snippet}
-      {#snippet pMission()}<InMission {model} masteryRank={settings.game.masteryRank} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} {windowMode} tennoscopeRunning={!!ts.status?.running} onsettings={() => (showSettings = true)} />{/snippet}
-      {#snippet pSets()}{#await loadSets(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("sets", e)}><Page {model} advice={settings.advice} sell={settings.market.sellable} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pParts()}<Parts {model} bind:advice={settings.advice} sell={settings.market.sellable} />{/snippet}
-      {#snippet pMastery()}{#await loadMastery(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mastery", e)}><Page {model} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pArcanes()}{#await loadArcanes(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("arcanes", e)}><Page {model} bind:advice={settings.advice} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pMods()}{#await loadMods(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mods", e)}><Page {model} masteryRank={settings.game.masteryRank} minPlat={settings.advice.minPlat} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pRelics()}<Relics {model} bind:advice={settings.advice} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} />{/snippet}
-      {#snippet pPlanner()}{#await loadPlanner(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("planner", e)}><Page {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pHome()}<Home {model} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => goTo(t)} {shortListings} {liveAt} {liveError} {liveRead} bountyTables={relicTables?.bounties ?? null} sortieRewards={relicTables?.sortie ?? null} />{/snippet}
-      {#snippet pSales()}{#await loadSales(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("sales", e)}><Page {model} bind:settings={settings} go={(t: string) => (settings.tab = t)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pMarket()}<Orders {model} console={onConsole} whispers={mission?.whispers ?? []} bind:settings={settings.market} advice={settings.advice} masteryRank={settings.game.masteryRank} credits={settings.game.credits} />{/snippet}
+      {#snippet pMission()}<InMission model={modelFor("mission")} masteryRank={settings.game.masteryRank} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} {windowMode} tennoscopeRunning={!!ts.status?.running} onsettings={() => (showSettings = true)} />{/snippet}
+      {#snippet pSets()}{#await loadSets(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("sets", e)}><Page model={modelFor("sets")} advice={settings.advice} sell={settings.market.sellable} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pParts()}<Parts model={modelFor("parts")} bind:advice={settings.advice} sell={settings.market.sellable} />{/snippet}
+      {#snippet pMastery()}{#await loadMastery(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mastery", e)}><Page model={modelFor("mastery")} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pArcanes()}{#await loadArcanes(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("arcanes", e)}><Page model={modelFor("arcanes")} bind:advice={settings.advice} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pMods()}{#await loadMods(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mods", e)}><Page model={modelFor("mods")} masteryRank={settings.game.masteryRank} minPlat={settings.advice.minPlat} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pRelics()}<Relics model={modelFor("relics")} bind:advice={settings.advice} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} />{/snippet}
+      {#snippet pPlanner()}{#await loadPlanner(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("planner", e)}><Page model={modelFor("planner")} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pHome()}<Home model={modelFor("home")} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => goTo(t)} {shortListings} {liveAt} {liveError} {liveRead} bountyTables={relicTables?.bounties ?? null} sortieRewards={relicTables?.sortie ?? null} />{/snippet}
+      {#snippet pSales()}{#await loadSales(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("sales", e)}><Page model={modelFor("sales")} bind:settings={settings} go={(t: string) => (settings.tab = t)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pMarket()}<Orders model={modelFor("market")} console={onConsole} whispers={mission?.whispers ?? []} bind:settings={settings.market} advice={settings.advice} masteryRank={settings.game.masteryRank} credits={settings.game.credits} />{/snippet}
       {#snippet pGuide()}{#await loadGuide(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("guide", e)}><Page console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} hidden={settings.pagesHidden} go={(t: string) => goTo(t)} bind:plannerMode={settings.plannerMode} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pFoundry()}<Foundry {model} bind:settings={settings} />{/snippet}
-      {#snippet pInventory()}<Inventory {model} sell={settings.market.sellable} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad} gear={settings.game.gear} bind:keepGear={settings.game.keepGear} />{/snippet}
-      {#snippet pBrowse()}{#await loadMarket(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("browse", e)}><Page {model} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pWishlist()}{#await loadWishlist(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("wishlist", e)}><Page {model} bind:settings={settings} go={(t: string) => goTo(t)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pFoundry()}<Foundry model={modelFor("foundry")} bind:settings={settings} />{/snippet}
+      {#snippet pInventory()}<Inventory model={modelFor("inventory")} sell={settings.market.sellable} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad} gear={settings.game.gear} bind:keepGear={settings.game.keepGear} />{/snippet}
+      {#snippet pBrowse()}{#await loadMarket(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("browse", e)}><Page model={modelFor("browse")} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pWishlist()}{#await loadWishlist(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("wishlist", e)}><Page model={modelFor("wishlist")} bind:settings={settings} go={(t: string) => goTo(t)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       <!-- Rivens is the slowest page to load the first time: its heading shows at once, not a bare Loading…. -->
-      {#snippet pRivens()}{#await loadRivens(lazyTry)}<div class="page"><div class="page-inner"><PageHead title="Rivens" brief={onConsole ? "Rivens for sale, graded, and alerts." : "Your rivens graded, and what they sell for."} /><p class="lazyload register" role="status">Loading your rivens…</p></div></div>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("rivens", e)}><Page {model} console={onConsole} bind:settings={settings} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pStats()}{#await loadStats(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("stats", e)}><Page {model} {settings} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pRivens()}{#await loadRivens(lazyTry)}<div class="page"><div class="page-inner"><PageHead title="Rivens" brief={onConsole ? "Rivens for sale, graded, and alerts." : "Your rivens graded, and what they sell for."} /><p class="lazyload register" role="status">Loading your rivens…</p></div></div>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("rivens", e)}><Page model={modelFor("rivens")} console={onConsole} bind:settings={settings} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pStats()}{#await loadStats(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("stats", e)}><Page model={modelFor("stats")} {settings} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {@render pane("mission", pMission)}
       {@render pane("sets", pSets)}
       {@render pane("parts", pParts)}
@@ -2497,6 +2580,12 @@
   .sidetab:hover { color: var(--gold); }
   .pane { display: none; flex: 1; min-height: 0; min-width: 0; flex-direction: column; }
   .pane.shown { display: flex; }
+  /* A page not on screen stays laid out but isn't drawn, out of the flow and the pointer's way:
+     going back to it is a repaint rather than a layout of the whole page (where content-visibility
+     isn't known, it's simply not there, as before). */
+  @supports (content-visibility: hidden) {
+    .pane:not(.shown) { display: flex; content-visibility: hidden; position: absolute; inset: 0; visibility: hidden; pointer-events: none; }
+  }
   /* The tour's bar on the page's bottom edge: room under the page to scroll past it. */
   main.touring :global(.page-inner) { padding-bottom: 7rem; }
   main { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; outline: none; }
