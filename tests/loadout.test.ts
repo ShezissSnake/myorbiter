@@ -67,6 +67,9 @@ test("a caster (Saryn Prime): strength shards and the kit's element, Nourish ove
   assert.match(l.shards.find((s) => s.colour === "emerald")!.reason, /Spores deals Corrosive/);
   assert.deepEqual([l.helminth?.ability, l.helminth?.replaces], ["Nourish", "Molt"]);
   assert.equal(l.helminth?.owned, true, "a base Grendel is held, so it can be fed");
+  assert.equal(l.helminth?.tier, "high", "Grendel's parts need Arbitrations: Nourish is Veteran");
+  assert.match(l.helminth!.reason, /Veteran: Grendel's parts come from missions unlocked by locators/);
+  assert.equal(loadoutFor(saryn, "medium", everyMod, index, everyItem)!.helminth, null, "no Nourish below Veteran");
   assert.deepEqual(names(l.weapons), ["Grimoire", "Vome Invocation", "Pax Bolt"]);
   assert.equal(l.weapons[1].on, "Grimoire");
   assert.match(l.weapons[1].reason, /Xata Invocation instead/, "she spams: the energy Invocation as the swap");
@@ -81,9 +84,13 @@ test("a caster (Saryn Prime): strength shards and the kit's element, Nourish ove
 
 test("a tank (Rhino Prime): armour and health shards, Parasitic Armor over Rhino Stomp, Panzer Vulpaphyla, Vazarin", () => {
   const rhino = item("Rhino Prime");
-  const l = loadoutFor(rhino, "medium", everyMod, index, everyItem)!;
+  const l = loadoutFor(rhino, "high", everyMod, index, everyItem)!;
   assert.deepEqual(stats(l), ["azure:Armor", "azure:Armor", "azure:Health", "crimson:Ability Strength", "amber:Casting Speed"]);
-  assert.ok(l.shards.every((s) => s.tauforged && s.path!.endsWith("Mythic")), "medium: Tauforged too");
+  assert.ok(l.shards.every((s) => s.tauforged && s.path!.endsWith("Mythic") && s.tier === "high"), "Veteran: Tauforged");
+  const mid = loadoutFor(rhino, "medium", everyMod, index, everyItem)!;
+  assert.deepEqual(mid.shards, [], "Archon shards are Veteran");
+  assert.equal(mid.helminth?.ability, "Parasitic Armor", "the Helminth is Intermediate");
+  assert.ok(!names(mid.arcanes).includes("Arcane Grace"), "an Eidolon arcane: Veteran");
   assert.deepEqual([l.helminth?.ability, l.helminth?.replaces], ["Parasitic Armor", "Rhino Stomp"]);
   assert.equal(l.helminth?.owned, null, "a Helminth ability: orbiter can't see the Helminth");
   assert.equal(l.focus?.name, "Vazarin");
@@ -109,8 +116,8 @@ test("Wisp and Mesa: the curated Helminth slot, and the right Invocation", () =>
 });
 
 test("the kit's element picks the shard (Electricity for Volt); a shield tank gets shields", () => {
-  assert.ok(stats(loadoutFor(item("Volt"), "medium", everyMod, index, everyItem)!).includes("violet:Ability Damage on Electricity-affected enemies"));
-  const hil = loadoutFor(item("Hildryn"), "medium", everyMod, index, everyItem)!;
+  assert.ok(stats(loadoutFor(item("Volt"), "high", everyMod, index, everyItem)!).includes("violet:Ability Damage on Electricity-affected enemies"));
+  const hil = loadoutFor(item("Hildryn"), "high", everyMod, index, everyItem)!;
   assert.equal(stats(hil).filter((s) => s === "azure:Shield Capacity").length, 3, "she lives on shields");
   assert.equal(hil.helminth, null, "no curated Helminth line: none");
   assert.ok(!hil.weapons.some((w) => w.name === "Xata Invocation" || w.name === "Netra Invocation"), "no energy for a frame that doesn't use it");
@@ -119,7 +126,8 @@ test("the kit's element picks the shard (Electricity for Volt); a shield tank ge
 test("shards the player holds are marked, Tauforged only; plain ones held get the fusion note", () => {
   const saryn = item("Saryn Prime");
   const held = heldOnly([[SHARD_PATHS.crimson, 1], [MYTHIC("amber"), 2]]);
-  for (const tier of ["medium", "high"] as const) {
+  assert.deepEqual(loadoutFor(saryn, "medium", everyMod, index, held)!.shards, [], "no shards below Veteran");
+  for (const tier of ["high"] as const) {
     const sh = loadoutFor(saryn, tier, everyMod, index, held)!.shards;
     assert.ok(sh.every((s) => s.tauforged && s.name.startsWith("Tauforged ") && s.path === SHARD_PATHS[s.colour!] + "Mythic"), `${tier}: Tauforged only`);
     assert.deepEqual(sh.filter((s) => s.colour === "amber").map((s) => s.owned), [true, true], `${tier}: both Tauforged amber held`);
@@ -132,7 +140,7 @@ test("shards the player holds are marked, Tauforged only; plain ones held get th
   const four = loadoutFor(saryn, "high", everyMod, index, heldOnly([[SHARD_PATHS.crimson, 4]]))!.shards.find((s) => s.colour === "crimson")!;
   assert.match(four.fuse!, /You hold 4 plain Crimson shards: .*Yours make 1\./);
   // Without the inventory orbiter can't tell.
-  assert.ok(loadoutFor(saryn, "medium", everyMod, index)!.shards.every((s) => s.owned === null && !s.fuse));
+  assert.ok(loadoutFor(saryn, "high", everyMod, index)!.shards.every((s) => s.owned === null && !s.fuse));
 });
 
 test("heldFrom sums every row by path, any category", () => {
@@ -156,6 +164,8 @@ function checkBudget(l: Loadout, tier: Tier, what: string) {
     assert.equal(l.sets?.length ?? 0, 0, `${what}: no sets at low`);
     for (const p of l.primer ?? []) assert.equal(p.owned, true, `${what}: low only asks for what you hold (${p.name})`);
   }
+  if (tier !== "high") assert.equal(l.shards.length, 0, `${what}: Archon shards are Veteran`);
+  if (tier !== "high" && l.helminth) assert.equal(l.helminth.tier, "medium", `${what}: a Veteran Helminth ability below Veteran`);
   if (tier === "medium") {
     for (const p of [...l.weapons, ...l.companion, ...l.arcanes, ...(l.primer ?? [])]) assert.equal(p.owned, true, `${what}: medium gets nothing to buy or farm (${p.name})`);
     for (const st of l.sets ?? []) assert.ok(st.pieces.every((x) => x.owned) && (!st.companion || st.companion.owned === true), `${what}: medium sets are all held (${st.name})`);
