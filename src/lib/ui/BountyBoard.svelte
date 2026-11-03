@@ -6,18 +6,22 @@
   import { until } from "../core/traders";
   import Seg from "./Seg.svelte";
   import Thumb from "./Thumb.svelte";
+  import GameIcon, { type GameIconName } from "./GameIcon.svelte";
 
   let { boards, now, imageOf = () => null, need = () => false, opens = () => null }: { boards: BountyBoard[]; now: number; imageOf?: (name: string) => string | null; need?: (name: string) => boolean; /** A reward that has details to open (a warframe's part, a weapon): what opens them. */ opens?: (name: string) => (() => void) | null } = $props();
 
   let picked = $state<string | null>(null);
   const board = $derived(boards.find((b) => b.key === picked) ?? boards[0] ?? null);
+  // Each place's syndicate sigil, on its tab and beside the standing it pays.
+  const SIGIL: Record<string, GameIconName> = { cetus: "ostron", fortuna: "solaris-united", necralisk: "entrati", zariman: "holdfasts", cavia: "cavia", hex: "hex" };
+  const SYNDICATE: Record<string, string> = { cetus: "Ostron", fortuna: "Solaris United", necralisk: "Entrati", zariman: "The Holdfasts", cavia: "Cavia", hex: "The Hex" };
   const pct = (c: number | null) => (c == null ? "" : c >= 10 ? `${Math.round(c)}%` : `${c.toFixed(1)}%`);
 </script>
 
 {#if !boards.length}
   <p class="dim small">Bounties show once the worldstate and the drop tables have been read.</p>
 {:else if board}
-  <Seg value={board.key} onchange={(v) => (picked = v)} label="Where" options={boards.map((b) => ({ v: b.key, label: b.label, title: `${b.label}: ${b.where}` }))} />
+  <Seg value={board.key} onchange={(v) => (picked = v)} label="Where" options={boards.map((b) => ({ v: b.key, label: b.label, game: SIGIL[b.key], title: `${b.label}: ${b.where}${SYNDICATE[b.key] ? ` (${SYNDICATE[b.key]})` : ""}` }))} />
   <p class="sub dim small">
     {#if board.expiry && !board.rotating && Date.parse(board.expiry) <= now}
       {board.where} · these have rotated since: the new ones show once api.warframestat.us answers again
@@ -32,7 +36,7 @@
       <li class="job" tabindex="0" aria-describedby="pool-{board.key}-{i}">
         <span class="jn"><b>{j.name}</b><span class="dim small">{[j.levels && !board.rotating ? `Level ${j.levels}` : "", j.minMR ? `MR ${j.minMR}` : "", j.when ? `${j.when} only` : "", j.vault ? "vault" : ""].filter(Boolean).join(" · ")}</span></span>
         {#if j.headline}{@const go = opens(j.headline.name)}<span class="hl" class:want={j.wanted} title={j.wanted ? "You need this" : "The rarest reward"}><Thumb file={imageOf(j.headline.name)} name={j.headline.name} size={22} />{#if go}<button class="hn link" onclick={go}>{j.headline.name}</button>{:else}<span class="hn">{j.headline.name}</span>{/if}{#if j.headline.chance != null}<span class="dim small">{pct(j.headline.chance)}</span>{/if}</span>{/if}
-        <span class="st dim small">{j.standing ? `${j.standing.toLocaleString("en")} standing` : ""}</span>
+        <span class="st dim small">{#if j.standing}{#if SIGIL[board.key]}<GameIcon name={SIGIL[board.key]} size={12} title="{SYNDICATE[board.key]} standing" />{/if}{j.standing.toLocaleString("en")} standing{/if}</span>
         <div class="pool" role="tooltip" id="pool-{board.key}-{i}">
           <span class="register">Can pay · rarest first</span>
           <ul>
@@ -62,6 +66,7 @@
   button.hn, .pn { padding: 0; border: 0; background: none; font: inherit; letter-spacing: normal; text-transform: none; text-align: left; color: var(--platinum); cursor: pointer; }
   button.hn:hover, .pn:hover { color: var(--gold); text-decoration: underline; }
   .st { text-align: right; white-space: nowrap; }
+  .st :global(.gi) { margin-right: .3rem; vertical-align: -2px; }
   .pool { display: none; position: absolute; z-index: 20; top: calc(100% - 2px); left: 30%; width: min(24rem, 70vw); padding: .7rem .8rem; background: var(--plate); border: 1px solid var(--rule-bright); box-shadow: 0 10px 28px rgb(0 0 0 / 55%); gap: .4rem; }
   .job:hover .pool, .job:focus-visible .pool { display: grid; }
   .pool ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .2rem; }

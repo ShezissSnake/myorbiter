@@ -521,7 +521,7 @@
 
     <!-- Bounties -->
     <section class="panel bounties" data-card="bounties" class:off={off("bounties")}>
-      {@render head("ostron", null, "Bounties", null, "")}
+      {@render head("bounty", null, "Bounties", null, "")}
       {#if live.syndicates == null && !bountyTables}
         <p class="dim">{liveNote}</p>
       {:else}

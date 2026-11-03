@@ -136,6 +136,7 @@ const SYNDICATE_ICON: Record<string, string> = {
   "The Quills": "quills",
   "Kahl's Garrison": "kahl",
   Cavia: "cavia",
+  "The Hex": "hex",
   "Steel Meridian": "steel-meridian",
   "Red Veil": "red-veil",
   "New Loka": "new-loka",
@@ -154,7 +155,7 @@ const METHOD_ICON: Partial<Record<Method, string>> = {
   "lich-sister": "kuva",
   nightwave: "nightwave",
   level: "mastery",
-  build: "mastery",
+  build: "foundry",
 };
 
 const RELAY_WEAPONS: Record<string, string> = {
@@ -260,7 +261,7 @@ export interface AcquireContext {
 /** Every part in hand: as easy as the resources still short make it. */
 function buildAcquisition(ctx: AcquireContext): Pick<Acquisition, "method" | "difficulty" | "how" | "icon" | "available"> {
   const b = ctx.build;
-  const base = { method: "build" as const, icon: "mastery", available: true };
+  const base = { method: "build" as const, icon: "foundry", available: true };
   if (b?.tier === "farm") return { ...base, difficulty: 2, how: `You have every part. Still to farm before building: ${b.short}.` };
   if (b?.tier === "hard") return { ...base, difficulty: 4, how: `You have every part, but building needs ${b.short}, from an open world or an event.` };
   return { ...base, difficulty: 1, how: b?.tier === "now" ? "You have every part and resource: build it in the Foundry." : "You have every part: build it in the Foundry." };

@@ -14,7 +14,7 @@
   import { until } from "../core/traders";
   import { scoreCards } from "../core/pick";
   import { mkt } from "../marketStore.svelte";
-  import GameIcon, { eraIcon, type GameIconName } from "./GameIcon.svelte";
+  import GameIcon, { eraIcon, factionIcon, type GameIconName } from "./GameIcon.svelte";
   import Foe from "./Foe.svelte";
   import Mission from "./Mission.svelte";
   import Thumb from "./Thumb.svelte";
@@ -62,7 +62,7 @@
   const builds = $derived(model && !console ? foundryBuilds(model, settings.game.foundryReady, now).slice(0, 6) : []);
   const need = (name: string) => !!model && !console && (scoreCards(model, [name])[0]?.needed ?? false);
   const boards = $derived(bountyBoards(live.syndicates ?? null, bountyTables, need));
-  const CYCLE_ICON: Record<string, GameIconName> = { earth: "cycles", cetus: "ostron", vallis: "solaris-united", cambion: "entrati", zariman: "holdfasts", duviri: "mastery" };
+  const CYCLE_ICON: Record<string, GameIconName> = { earth: "cycles", cetus: "ostron", vallis: "solaris-united", cambion: "entrati", zariman: "holdfasts", duviri: "duviri" };
   const left = (iso: string) => until(iso, now).replace("under a minute", "<1 min");
   const soldToday = $derived.by(() => {
     const d = new Date(now);
@@ -128,7 +128,7 @@
     {:else if on(k) && k === "clocks" && cycles.length}
       <section>
         <h3 class="register"><GameIcon name="cycles" size={13} /> Clocks</h3>
-        <ul class="tiles">{#each cycles as c (c.key)}<li class="tile" title="{c.label}: {c.state} for {left(c.ends)}"><GameIcon name={CYCLE_ICON[c.key]} size={18} /><span class="tx"><b class="st-{c.state}">{c.state}</b><span class="dim small">{c.label}</span><span class="t">{left(c.ends)}</span></span></li>{/each}</ul>
+        <ul class="tiles">{#each cycles as c (c.key)}<li class="tile" title="{c.label}: {c.state} for {left(c.ends)}"><GameIcon name={(c.key === "zariman" && factionIcon(c.state)) || CYCLE_ICON[c.key]} size={18} /><span class="tx"><b class="st-{c.state}">{c.state}</b><span class="dim small">{c.label}</span><span class="t">{left(c.ends)}</span></span></li>{/each}</ul>
       </section>
     {:else if on(k) && k === "foundry"}
       <section>
@@ -138,7 +138,7 @@
       </section>
     {:else if on(k) && k === "bounties" && boards.length}
       <section>
-        <h3 class="register"><GameIcon name="ostron" size={13} /> Bounties</h3>
+        <h3 class="register"><GameIcon name="bounty" size={13} /> Bounties</h3>
         <ul class="cards">
           {#each boards as b (b.key)}
             {@const j = b.jobs.find((x) => x.wanted) ?? b.jobs.reduce((best, x) => ((x.headline?.chance ?? 101) < (best.headline?.chance ?? 101) ? x : best), b.jobs[0])}
@@ -202,18 +202,20 @@
   .tx b { font-weight: 600; color: var(--platinum); }
   .tx.wrap > * { white-space: normal; }
   /* A title that opens a page: set like the other titles, not as a spaced-out caps link. */
-  .tx .link { padding: 0; font: inherit; font-weight: 600; letter-spacing: normal; text-transform: none; text-align: left; color: var(--gold); }
+  .tx .link { padding: 0; font: inherit; font-weight: 600; letter-spacing: normal; text-transform: none; text-align: left; color: var(--platinum); text-decoration: none; }
   .tx .link { text-align: left; }
   .tx b.want { color: var(--gold); }
   .t { font-variant-numeric: tabular-nums; color: var(--platinum-dim); font-size: .76rem; white-space: nowrap; }
   .t.ready { color: var(--verdigris); }
-  .st-day, .st-warm, .st-fass { color: var(--gold) !important; }
-  .st-night, .st-cold, .st-vome { color: #8fb3e0 !important; }
-  .st-joy { color: var(--gold) !important; }
-  .st-anger { color: #e07a6a !important; }
-  .st-envy { color: #7fc79a !important; }
-  .st-sorrow { color: #8fb3e0 !important; }
-  .st-fear { color: #b49ae0 !important; }
+  .st-day, .st-warm, .st-fass { color: var(--cycle-warm) !important; }
+  .st-night, .st-cold, .st-vome { color: var(--cycle-cold) !important; }
+  .st-corpus { color: var(--faction-corpus) !important; }
+  .st-grineer { color: var(--faction-grineer) !important; }
+  .st-joy { color: var(--cycle-warm) !important; }
+  .st-anger { color: var(--mood-anger) !important; }
+  .st-envy { color: var(--mood-envy) !important; }
+  .st-sorrow { color: var(--mood-sorrow) !important; }
+  .st-fear { color: var(--mood-fear) !important; }
   .figs { display: flex; gap: 1.2rem; }
   .figs > span { display: grid; }
   .figs b { font-family: var(--face-mark); font-size: 1.2rem; color: var(--platinum); }
