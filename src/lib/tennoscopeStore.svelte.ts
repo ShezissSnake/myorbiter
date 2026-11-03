@@ -10,8 +10,6 @@ class TennoscopeStore {
   error = $state<string | null>(null);
   /** A request just sent, until the next report shows its effect. */
   pending = $state<TennoscopeAsk | null>(null);
-  /** Where to find TennoScope (Settings); empty finds it on its own. */
-  path = "";
   /** Start it whenever it isn't running. */
   launch = true;
   /** TennoScope's data folder (Settings), where its log says why it wouldn't start; empty finds it. */
@@ -65,7 +63,7 @@ class TennoscopeStore {
       }
       // Only a relaunch starts it: a check while it seemed to run only looks, so one that stops as
       // soon as it starts waits out the longer gaps above instead of being started every 15 s.
-      this.status = relaunch ? await tennoscope.start(this.path) : await tennoscope.status(this.path);
+      this.status = relaunch ? await tennoscope.start() : await tennoscope.status();
       if (this.status?.running) {
         this.upSince ||= now;
         if (now - this.upSince > 120_000) this.relaunches = 0;
@@ -78,7 +76,7 @@ class TennoscopeStore {
       }
     } catch (e) {
       this.error = clean(e);
-      this.status = await tennoscope.status(this.path).catch(() => null);
+      this.status = await tennoscope.status().catch(() => null);
     } finally {
       this.busy = false;
     }
@@ -87,7 +85,7 @@ class TennoscopeStore {
   async ask(ask: TennoscopeAsk) {
     try {
       this.pending = ask;
-      await tennoscope.ask(this.path, ask);
+      await tennoscope.ask(ask);
       this.error = null;
       // The running TennoScope acts on it and reports within a few seconds.
       for (const ms of [1200, 3500, 7000]) setTimeout(() => this.check(), ms);
@@ -98,9 +96,14 @@ class TennoscopeStore {
     }
   }
 
+  /** Sets the program to start (Settings → TennoScope → Program; empty finds it). Throws why it was refused. */
+  async setPath(path: string) {
+    this.status = await tennoscope.setPath(path.trim());
+  }
+
   async show() {
     try {
-      await tennoscope.show(this.path);
+      await tennoscope.show();
       this.error = null;
       setTimeout(() => this.check(), 2000);
     } catch (e) {
