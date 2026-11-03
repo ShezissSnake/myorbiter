@@ -86,7 +86,7 @@ export const CATALOG: CatalogItem[] = [
   mod(P.primedContinuity, "Primed Continuity", "Warframe Mod", "madurai", 4, 10, "Legendary", "WARFRAME"),
   mod(P.continuity, "Continuity", "Warframe Mod", "madurai", 2, 5, "Rare", "WARFRAME"),
   mod(P.intensify, "Intensify", "Warframe Mod", "madurai", 4, 5, "Rare", "WARFRAME"),
-  mod(P.vitality, "Vitality", "Warframe Mod", "vazarin", 2, 10, "Common", "WARFRAME"),
+  mod(P.vitality, "Vitality", "Warframe Mod", "vazarin", 2, 10, "Common", "WARFRAME", { drops: [{ location: "Lancer", chance: 0.0101, rarity: "Common" }] }),
   mod(P.streamline, "Streamline", "Warframe Mod", "naramon", 4, 5, "Rare", "WARFRAME"),
   mod(P.umbralVitality, "Umbral Vitality", "Warframe Mod", "umbra", 6, 10, "Legendary", "WARFRAME"),
   mod(P.umbralFiber, "Umbral Fiber", "Warframe Mod", "umbra", 6, 10, "Legendary", "WARFRAME"),
