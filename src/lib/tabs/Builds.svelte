@@ -6,8 +6,9 @@
   // seller's whisper for a mod or arcane you lack. Modular gear also gets its part recipes.
   //
   // Sources: what you paste or make, orbiter's suggestions, and any network source registered with
-  // the builds core (source.ts: a site's, only with its permission on record). orbiter never reads
-  // Overframe: its buttons open the site in your browser.
+  // the builds core (source.ts: a site's, only with its permission on record): Nox's Frame, read on
+  // demand when the setting is on (nox.ts), its top builds listed under the tiers to open. orbiter
+  // never reads Overframe: its buttons open the site in your browser.
   import type { Model } from "../core/model";
   import type { Settings } from "../backend";
   import { openUrl } from "../backend";
@@ -26,18 +27,20 @@
     toggleFavourite,
     newBuildId,
     withinAge,
+    NOX_HOST,
     type Build,
     type MissingReport,
     type Tier,
     type TierResult,
   } from "../core/builds";
   import { canSuggest, modIndex, ownedFrom, suggestAll, toBuild, type Suggestion } from "../core/builds/suggest";
-  import { ageLine, arrange, buildableItems, isOverframe, buildKindOf, kindLabelOf, noxUrl, overframeUrl, recentItems, tagsIn, TIER_MEANS, TIER_NAME, TIER_TIP, TIERS, withTags, type Shown } from "../core/buildsPage";
+  import { ageLine, arrange, buildableItems, isOverframe, buildKindOf, kindLabelOf, noxUrl, overframeUrl, recentItems, savedFrom, tagsIn, TIER_MEANS, TIER_NAME, TIER_TIP, TIERS, withTags, type Shown } from "../core/buildsPage";
   import { byFamily } from "../ui/builds/tags";
   import { recipeItem } from "../core/recipes";
   import { takeIntent } from "../intent.svelte";
   import { UndoSlots } from "../undo.svelte";
-  import { arrive, flip, leave } from "../motion";
+  import { arrive, calm, flip, leave } from "../motion";
+  import { useNox } from "../nox";
   import PageHead from "../ui/PageHead.svelte";
   import Art from "../ui/Art.svelte";
   import Thumb from "../ui/Thumb.svelte";
@@ -50,8 +53,11 @@
   import PasteDialog from "../ui/builds/PasteDialog.svelte";
   import BuildEditor from "../ui/builds/BuildEditor.svelte";
   import Recipes from "../ui/builds/Recipes.svelte";
+  import NoxList from "../ui/builds/NoxList.svelte";
 
   let { model, settings = $bindable() }: { model: Model; settings: Settings } = $props();
+  // Nox's Frame: registered with the builds core on the first mount (then sourceBuilds includes it).
+  const nox = useNox(() => settings.buildsFromNox);
 
   // ---------------------------------------------------------------- the item
 
@@ -122,14 +128,16 @@
   });
   const suggested = $derived(Object.fromEntries(Object.entries(suggestions).map(([t, s]) => [t, toBuild(s, now) as unknown as Build])) as Partial<Record<Tier, Build>>);
 
-  // A network source's builds (Nox's Frame, when it's registered): read once per item, on choosing it.
+  // A network source's builds (Nox's Frame, when it's on): read once per item, on choosing it, with
+  // no age limit (the page hides old ones itself, so "show" needs no second read).
   let net = $state<{ item: string | null; state: "none" | "reading" | "done"; builds: Build[]; errors: { source: string; label: string; error: string }[]; labels: string[] }>({ item: null, state: "none", builds: [], errors: [], labels: [] });
   let netTry = $state(0);
   $effect(() => {
     void netTry;
     const it = item;
     if (!it) return;
-    const sources = buildSources().filter((s) => s.network);
+    const noxOn = settings.buildsFromNox;
+    const sources = buildSources().filter((s) => s.network && (noxOn || s.id !== NOX_HOST));
     const labels = sources.map((s) => s.label);
     if (!sources.length) {
       net = { item: it.uniqueName, state: "none", builds: [], errors: [], labels };
@@ -137,7 +145,7 @@
     }
     net = { item: it.uniqueName, state: "reading", builds: [], errors: [], labels };
     let gone = false;
-    void sourceBuilds(it, { catalog: model.catalogByUnique, maxAgeDays: settings.buildsMaxAgeDays, now: Date.now() }).then(
+    void sourceBuilds(it, { catalog: model.catalogByUnique, maxAgeDays: 0, now: Date.now() }).then(
       (r) => {
         if (gone) return;
         const name = (id: string) => buildSources().find((s) => s.id === id)?.label ?? id;
@@ -149,7 +157,14 @@
     );
     return () => (gone = true);
   });
-  const siteAll = $derived(net.item === pick ? net.builds.filter((b) => !isOverframe(b)) : []);
+  /** Nox's Frame builds opened from its list this session (any item), newest first. */
+  let noxOpened = $state.raw<Build[]>([]);
+  const siteAll = $derived.by(() => {
+    if (!pick) return [];
+    const mine = noxOpened.filter((b) => b.item === pick);
+    const ids = new Set(mine.map((b) => b.id));
+    return [...mine, ...(net.item === pick ? net.builds : []).filter((b) => !ids.has(b.id))].filter((b) => !isOverframe(b));
+  });
   /** Overframe links for the item: saved ones (from before, or pasted with an Overframe link) and any a permitted source lists. */
   const overframeLinks = $derived.by(() => {
     if (!pick) return [];
@@ -158,8 +173,16 @@
     const listed = (net.item === pick ? net.builds : []).filter((b) => isOverframe(b) && !ids.has(b.id));
     return [...mine, ...listed].map((b) => ({ build: b, saved: ids.has(b.id) }));
   });
-  const site = $derived(showOld ? siteAll : siteAll.filter((b) => withinAge(b, settings.buildsMaxAgeDays, now)));
-  const hiddenOld = $derived(savedAll.length - saved.length + siteAll.length - site.length);
+  const siteFresh = $derived(siteAll.filter((b) => withinAge(b, settings.buildsMaxAgeDays, now)));
+  const site = $derived(showOld ? siteAll : siteFresh);
+  /** Nox's Frame's list shows (the setting on, an item that takes a build). */
+  const noxShows = $derived(settings.buildsFromNox && !!item && !!kind);
+  /** Nox's Frame's listed builds hidden for their age (NoxList's count). */
+  let noxHidden = $state(0);
+  /** Nox's Frame's listed builds shown. */
+  let noxListed = $state(0);
+  // Counted whether or not they're shown, so "Hide old ones" stays while they are.
+  const hiddenOld = $derived(savedAll.length - filterByAge(savedAll, settings.buildsMaxAgeDays, now).length + siteAll.length - siteFresh.length + (noxShows ? noxHidden : 0));
 
   // Tiers and reports, worked out once per build (a build is replaced, never changed, when edited).
   const tiers = new WeakMap<Build, TierResult>();
@@ -233,6 +256,30 @@
   }
 
   const counts = $derived(Object.fromEntries(TIERS.map((t) => [t, filtered[t].length])) as Record<Tier, number>);
+
+  // ---------------------------------------------------------------- Nox's Frame's list
+
+  const noxError = $derived(net.item === pick ? (net.errors.find((e) => e.source === NOX_HOST)?.error ?? null) : null);
+  /** Shows a build on the page: its tier, the tags and age that would hide it cleared, scrolled to, edged in gold. */
+  function bring(b: Build) {
+    if (!item || !kind) return;
+    if (picked.length && !withTags([{ build: b }], picked).length) picked = [];
+    if (!showOld && !withinAge(b, settings.buildsMaxAgeDays, now)) showOld = true;
+    tier = tierFor(b).tier;
+    fresh = b.id;
+    setTimeout(() => fresh === b.id && (fresh = null), 1200);
+    later(() => document.querySelector(`.builds > li[data-build="${CSS.escape(b.id)}"]`)?.scrollIntoView({ block: "start", behavior: calm.current ? "auto" : "smooth" }));
+  }
+  function noxOpen(b: Build) {
+    noxOpened = [b, ...noxOpened.filter((x) => x.id !== b.id)];
+    bring(savedAll.find((x) => x.id === b.id) ?? b);
+  }
+  function noxShow(url: string): boolean {
+    const b = savedFrom(savedAll, url) ?? savedFrom(siteAll, url);
+    if (!b) return false;
+    bring(b);
+    return true;
+  }
 </script>
 
 {#snippet hero()}
@@ -293,7 +340,7 @@
     <div class="bar">
       <h2 class="register th"><span class="tn2">{TIER_NAME[tier]}</span> · {TIER_MEANS[tier]}</h2>
       <span class="grow"></span>
-      <button type="button" class="stamp" title="Paste a build from anywhere (Nox's Frame, a friend, Discord…): orbiter reads the names" onclick={() => (pasting = true)}><Icon name="import" size={12} /> Paste a build</button>
+      <button type="button" class="stamp" title="Paste a build from anywhere (Nox's Frame, a friend, Discord…), or a Nox's Frame build code: orbiter reads the names" onclick={() => (pasting = true)}><Icon name="import" size={12} /> Paste a build</button>
       <button type="button" title="Make a build of your own, slot by slot" onclick={() => (editing = { build: blank(), copy: false })}><Icon name="plus" size={12} /> New</button>
       <label class="age" title="Builds from other people older than this are hidden (by their site's date, else when you added them). 0: never hidden. Yours and orbiter's never are">
         <span class="register">Hide older than</span>
@@ -314,14 +361,14 @@
 
     {#if net.state === "reading" && net.item === pick}
       <p class="netline reading" role="status"><span class="run" aria-hidden="true"></span>Reading {net.labels.join(" and ")}…</p>
-    {:else if net.errors.length && net.item === pick}
-      <p class="netline bad" role="alert">{net.errors.map((e) => `${e.label} didn't answer (${e.error})`).join("; ")}. <button type="button" class="link" title="Ask again" onclick={() => netTry++}>Try again</button></p>
+    {:else if net.item === pick && net.errors.some((e) => e.source !== NOX_HOST || !noxShows)}
+      <p class="netline bad" role="alert">{net.errors.filter((e) => e.source !== NOX_HOST || !noxShows).map((e) => `${e.label} didn't answer (${e.error})`).join("; ")}. <button type="button" class="link" title="Ask again" onclick={() => netTry++}>Try again</button></p>
     {/if}
 
     {#key `${pick}|${tier}`}
       <ul class="builds" in:arrive={{ y: 0 }}>
         {#each shown as s (s.build.id)}
-          <li class:fresh={fresh === s.build.id} animate:flip out:leave>
+          <li class:fresh={fresh === s.build.id} data-build={s.build.id} animate:flip out:leave>
             {#if undo.has(s.build.id)}<UndoSlot label="Deleted" what={s.build.title ?? "the build"} onundo={() => undo.undo(s.build.id)} />
             {:else}
               <BuildCard {model} shown={s} report={reportFor(s.build)} extras={extrasOf(s)} {now}
@@ -341,15 +388,19 @@
         </div>
       {:else if !shown.length}
         <div class="empty">
-          <p>No {TIER_NAME[tier].toLowerCase()} builds saved for {item.name} yet: paste one{canSuggest(item) ? ", or start from orbiter's suggestion in another tier" : ", or make your own"}.</p>
+          <p>No {TIER_NAME[tier].toLowerCase()} builds saved for {item.name} yet: paste one{noxShows && noxListed ? ", open one of Nox's Frame's below" : ""}{canSuggest(item) ? ", or start from orbiter's suggestion in another tier" : ", or make your own"}.</p>
           <p class="dim small">{TIER_TIP[tier]}{#if hiddenOld} {hiddenOld} older build{hiddenOld === 1 ? " is" : "s are"} hidden for their age.{/if}</p>
           <div class="eacts">
-            <button type="button" class="stamp" title="Paste a build from anywhere (Nox's Frame, a friend, Discord…)" onclick={() => (pasting = true)}><Icon name="import" size={12} /> Paste a build</button>
+            <button type="button" class="stamp" title="Paste a build from anywhere (Nox's Frame, a friend, Discord…), or a Nox's Frame build code" onclick={() => (pasting = true)}><Icon name="import" size={12} /> Paste a build</button>
             <button type="button" title="Make a build of your own, slot by slot" onclick={() => (editing = { build: blank(), copy: false })}><Icon name="plus" size={12} /> Make one</button>
           </div>
         </div>
       {/if}
     {/key}
+
+    {#if noxShows}
+      <NoxList {nox} {item} catalog={model.catalogByUnique} maxAgeDays={settings.buildsMaxAgeDays} bind:showOld ready={net.item === pick && net.state !== "reading"} readError={noxError} saved={settings.builds} onopen={noxOpen} onshow={noxShow} bind:hidden={noxHidden} bind:count={noxListed} />
+    {/if}
 
     <!-- Overframe: links only, opened on overframe.gg. (The slot for a per-item list of Overframe's
          build links, once its details are agreed with Overframe.) -->
@@ -457,7 +508,7 @@
   .ot .dim { margin-left: .35em; }
   .ofr .out { display: inline-flex; align-items: center; gap: .3rem; font-size: .82rem; }
   .builds { list-style: none; margin: 0; padding: 0; display: grid; gap: .9rem; }
-  .builds > li { min-width: 0; }
+  .builds > li { min-width: 0; scroll-margin-top: 1rem; }
   .builds > li.fresh :global(.build) { box-shadow: 0 0 0 1px var(--gold); transition: box-shadow 1s var(--out); }
   .empty { padding: 1.4rem 1.2rem; border: 1px dashed var(--rule-bright); display: grid; gap: .4rem; justify-items: start; }
   .empty p { margin: 0; }
