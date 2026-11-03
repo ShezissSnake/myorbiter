@@ -6,7 +6,8 @@
       "../../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
       "vendor/tesseract/tesseract": "tesseract/tesseract",
       "vendor/tesseract/eng.traineddata": "tesseract/eng.traineddata",
-      "vendor/tesseract/lib/*": "tesseract/lib/"
+      "vendor/tesseract/lib/*": "tesseract/lib/",
+      "vendor/tesseract/licenses/*": "tesseract/licenses/"
     }
   }
 }
