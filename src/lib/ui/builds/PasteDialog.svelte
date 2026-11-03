@@ -2,11 +2,14 @@
   // Paste a build from anywhere: Nox's Frame, a friend, Discord. orbiter reads the mod and
   // arcane names in it (and ranks, shards, Helminth, Forma, the Catalyst), shows what it matched and
   // what it couldn't, with suggestions to pick for those, and the build as it would be. Save keeps it.
+  // A Nox's Frame build code (NFB1:…, its "Copy build code") is unpacked here, with no network:
+  // the part for this item, and what it couldn't carry over.
   import { tick } from "svelte";
   import type { Model } from "../../core/model";
   import type { CatalogItem } from "../../core/types";
   import { heldCount } from "../../core/model";
-  import { newBuildId, parsePaste, tierOf, type Build, type GearKind, type PasteResult } from "../../core/builds";
+  import { looksLikeNoxCode, newBuildId, parseNoxCode, parsePaste, tierOf, type Build, type GearKind, type NoxCodeResult, type PasteResult } from "../../core/builds";
+  import { noxDecode } from "../../nox";
   import { linkOnly, onOverframe, parseTags, placeIn } from "../../core/buildsPage";
   import { opens, shade } from "../../motion";
   import { trap } from "../trap";
@@ -22,6 +25,9 @@
   /** Names picked for the ones orbiter couldn't match: the unmatched text → the path picked. */
   let picks = $state<{ text: string; path: string; arcane: boolean }[]>([]);
   let read = $state.raw<PasteResult | null>(null);
+  /** A Nox's Frame build code, unpacked. */
+  let code = $state.raw<NoxCodeResult | null>(null);
+  let codeBusy = $state(false);
   let error = $state("");
   let area = $state<HTMLTextAreaElement | null>(null);
 
@@ -35,14 +41,38 @@
     error = "";
     if (!text.trim()) {
       read = null;
+      code = null;
       return;
     }
+    if (looksLikeNoxCode(text)) {
+      read = null;
+      void readCode(text);
+      return;
+    }
+    code = null;
+    codeTry++;
+    codeBusy = false;
     try {
       read = parsePaste(text, item, model.catalogByUnique, { kind, held: (p) => heldCount(model, p) });
       picks = picks.filter((p) => read!.unmatched.some((u) => u.text === p.text));
     } catch (e) {
       error = String(e).replace(/^Error:\s*/, "");
       read = null;
+    }
+  }
+  let codeTry = 0;
+  async function readCode(t: string) {
+    const n = ++codeTry;
+    codeBusy = true;
+    try {
+      const r = await parseNoxCode(t, item, model.catalogByUnique, noxDecode);
+      if (n === codeTry) code = r;
+    } catch (e) {
+      if (n !== codeTry) return;
+      code = null;
+      error = String(e).replace(/^Error:\s*/, "");
+    } finally {
+      if (n === codeTry) codeBusy = false;
     }
   }
   $effect(() => {
@@ -67,6 +97,7 @@
     const meta = { ...(title.trim() ? { title: title.trim() } : {}), ...(author.trim() ? { author: author.trim() } : {}), ...(tags.length ? { tags } : {}) };
     // Overframe allows linking to its builds, not showing them: only the link is kept, whatever was pasted.
     if (src && onOverframe(src.url)) return linkOnly({ id: newBuildId(), item: item.uniqueName, kind, mods: [], arcanes: [], shards: [], importedAt: Date.now(), ...meta, title: meta.title ?? `${item.name} on Overframe`, source: src });
+    if (code) return { ...code.build, ...meta, source: src ?? "pasted" };
     if (!read) return null;
     let b = read.build;
     for (const p of picks) b = placeIn(b, p.path, p.arcane);
@@ -96,7 +127,7 @@
     <div class="register head">Paste a build · {item.name}</div>
     <label class="field">
       <span class="register">The build</span>
-      <textarea bind:this={area} bind:value={text} rows="7" placeholder={"Paste a build from anywhere: Nox's Frame, a friend, Discord…\nAura: Corrosive Projection\nVitality, Steel Fiber R8, Primed Continuity…\nArcanes: Energize, Grace"} title="Any list of mod and arcane names, with ranks if you like: paste it here" oninput={() => readSoon()} onpaste={() => readSoon(true)}></textarea>
+      <textarea bind:this={area} bind:value={text} rows="7" placeholder={"Paste a build from anywhere: Nox's Frame, a friend, Discord…, or a Nox's Frame build code (NFB1:…)\nAura: Corrosive Projection\nVitality, Steel Fiber R8, Primed Continuity…\nArcanes: Energize, Grace"} title="Any list of mod and arcane names, with ranks if you like, or a Nox's Frame build code (Copy build code on its build page): paste it here" oninput={() => readSoon()} onpaste={() => readSoon(true)}></textarea>
     </label>
     <div class="row3">
       <label class="field"><span class="register">Title</span><input bind:value={title} placeholder="Optional" title="A name for it, as you'd like to find it again" /></label>
@@ -106,7 +137,33 @@
     <label class="field"><span class="register">Tags</span><input bind:value={tagText} placeholder="Optional: Steel Path, Support, Shield gating…" title="What it's for, by commas: a role (DPS, Support, Tank), where (Star chart, Steel Path, Level cap), how it survives (Overguard, Shield gating)… The Builds page can show only builds with the tags you pick" /></label>
     {#if error}<p class="err small">{error}</p>{/if}
 
-    {#if linkOnlyNow}
+    {#if codeBusy && !code}
+      <p class="dim small" role="status">Reading the Nox's Frame build code…</p>
+    {:else if code && draft && tier && !linkOnlyNow}
+      <div class="preview">
+        <div class="found">
+          <span class="register">Nox's Frame build code · read {found} name{found === 1 ? "" : "s"}</span>
+          <ul class="chips">
+            {#each [["aura", draft.aura], ["exilus", draft.exilus], ["stance", draft.stance]] as const as [role, m] (role)}
+              {#if m}<li class="chip" title="{ROLE[role]}: {model.nameOf(m.path)}"><span class="role">{ROLE[role]}</span>{model.nameOf(m.path)}{#if m.rank != null}<span class="rk">R{m.rank}</span>{/if}</li>{/if}
+            {/each}
+            {#each draft.mods as m, i (i)}
+              {#if m}<li class="chip" title="Slot {i + 1}: {model.nameOf(m.path)}"><span class="role">Mod</span>{model.nameOf(m.path)}{#if m.rank != null}<span class="rk">R{m.rank}</span>{/if}</li>{/if}
+            {/each}
+            {#each draft.arcanes as a, i (i)}
+              <li class="chip" title="Arcane: {model.nameOf(a.path)}"><span class="role">Arcane</span>{model.nameOf(a.path)}{#if a.rank != null}<span class="rk">R{a.rank}</span>{/if}</li>
+            {/each}
+          </ul>
+        </div>
+        {#if code.others.length || code.notes.length}
+          <ul class="notes dim small">
+            {#if code.others.length}<li>The code also has {code.others.join(", ")}: open {code.others.length === 1 ? "its" : "their"} builds and paste it there for {code.others.length === 1 ? "that part" : "those parts"}.</li>{/if}
+            {#each code.notes as n, i (i)}<li>{n}</li>{/each}
+          </ul>
+        {/if}
+        <ModGrid {model} build={draft} {tier} />
+      </div>
+    {:else if linkOnlyNow}
       <p class="note small">That's an Overframe link: orbiter keeps the link only, to open on overframe.gg. Overframe doesn't allow its builds to be shown here.</p>
     {:else if read && draft && tier}
       <div class="preview">
@@ -145,7 +202,7 @@
         <ModGrid {model} build={draft} {tier} />
       </div>
     {:else if !text.trim()}
-      <p class="dim small">orbiter reads it here, on your computer: it never opens the page it came from.</p>
+      <p class="dim small">Mod and arcane names, or a Nox's Frame build code (its Copy build code). orbiter reads it here, on your computer: it never opens the page it came from.</p>
     {/if}
 
     <div class="row end">
