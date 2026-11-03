@@ -101,7 +101,9 @@
     minTrades = minEach = null;
   }
 
-  const rows = $derived(all.filter((r) => (kind === "all" || r.kind === kind) && (!tradableOnly || spareOf(r)) && (minTrades == null || (perDay(r) ?? 0) >= minTrades) && (minEach == null || (priceOf(r) ?? 0) >= minEach) && (!spareOnly || spare(r) > 0) && matches(q, r.name, r.type, shown(r), spareOf(r)?.type ?? "")));
+  /** The kind the list is filtered on: the select shows a pick at once, the list a frame later (typed.svelte.ts). */
+  const kindNow = $derived.by(typed(() => kind));
+  const rows = $derived(all.filter((r) => (kindNow === "all" || r.kind === kindNow) && (!tradableOnly || spareOf(r)) && (minTrades == null || (perDay(r) ?? 0) >= minTrades) && (minEach == null || (priceOf(r) ?? 0) >= minEach) && (!spareOnly || spare(r) > 0) && matches(q, r.name, r.type, shown(r), spareOf(r)?.type ?? "")));
   const pctOf = (x: number | null | undefined) => (x == null ? "–" : `${Math.round(x * 10) / 10}%`);
   const why = (r: InventoryItem) => spareOf(r)?.why ?? "Nothing to spare";
 
@@ -128,7 +130,7 @@
   // The showcase: the kind you're looking at, its five most valuable spares by Spare value (every
   // rank or refinement of one item in one place); with none spare, the dearest things you hold.
   let opened = $state<InventoryItem | null>(null);
-  const shelfRows = $derived(kind === "all" ? all : all.filter((r) => r.kind === kind));
+  const shelfRows = $derived(kindNow === "all" ? all : all.filter((r) => r.kind === kindNow));
   const shelfKey = (r: InventoryItem) => `${r.kind}|${shown(r)}`;
   // Spare copies, and how many items with copies to spare sell every day: the shown rows, as the figures above them.
   const spareCopies = $derived(rows.reduce((n, r) => n + spare(r), 0));

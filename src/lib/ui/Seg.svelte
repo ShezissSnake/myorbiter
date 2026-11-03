@@ -4,6 +4,7 @@
   // a game icon (`game`) shows it before its label.
   import Icon from "./Icon.svelte";
   import GameIcon, { type GameIconName } from "./GameIcon.svelte";
+  import { afterPaint } from "./soon";
   let {
     value = $bindable(),
     options,
@@ -23,12 +24,24 @@
   } = $props();
   /** Manual: the option the arrow keys are on, until the focus leaves the group. */
   let at = $state<number | null>(null);
+  // A pick shows on the plates at once and reaches the page a frame later (soon.ts), so a page that
+  // redraws a long list on it doesn't hold up the press.
+  let chosen = $state<{ v: V } | null>(null);
+  const current = $derived(chosen ? chosen.v : value);
+  let cancel: (() => void) | null = null;
 
   function pick(v: V) {
     at = null;
-    value = v;
-    onchange?.(v);
+    cancel?.();
+    chosen = { v };
+    cancel = afterPaint(() => {
+      cancel = null;
+      chosen = null;
+      value = v;
+      onchange?.(v);
+    });
   }
+  $effect(() => () => cancel?.());
   // A radio group: one tab stop, arrow keys move the choice (or, manual, just the focus).
   function key(e: KeyboardEvent) {
     const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
@@ -38,24 +51,24 @@
     if (manual) {
       const buttons = [...group.querySelectorAll<HTMLElement>('[role="radio"]')];
       const from = buttons.indexOf(e.target as HTMLElement);
-      at = ((from >= 0 ? from : options.findIndex((o) => o.v === value)) + step + options.length) % options.length;
+      at = ((from >= 0 ? from : options.findIndex((o) => o.v === current)) + step + options.length) % options.length;
       queueMicrotask(() => buttons[at!]?.focus());
       return;
     }
-    const i = options.findIndex((o) => o.v === value);
+    const i = options.findIndex((o) => o.v === current);
     const next = options[(i + step + options.length) % options.length];
     pick(next.v);
     queueMicrotask(() => group.querySelector<HTMLElement>('[aria-checked="true"]')?.focus());
   }
   /** The one tab stop: the option the arrows are on (manual), else the chosen one, else the first. */
-  const stop = (i: number) => (at != null ? i === at : options[i].v === value || (i === 0 && !options.some((x) => x.v === value)));
+  const stop = (i: number) => (at != null ? i === at : options[i].v === current || (i === 0 && !options.some((x) => x.v === current)));
 </script>
 
 <div class="seg-wrap">
   {#if label}<span class="register">{label}</span>{/if}
   <div class="seg" role="radiogroup" aria-label={label} tabindex="-1" onkeydown={key} onfocusout={(e) => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null)) at = null; }}>
     {#each options as o, i (o.v)}
-      <button role="radio" aria-checked={value === o.v} tabindex={stop(i) ? 0 : -1} class:on={value === o.v} class:pending={pending === o.v} aria-busy={pending === o.v || undefined} class:icon={!!o.icon} title={o.title ?? (o.icon ? o.label : undefined)} aria-label={o.icon ? o.label : undefined} onclick={() => pick(o.v)}>{#if o.icon}<Icon name={o.icon} />{:else if o.game}<span class="gl"><GameIcon name={o.game} size={14} />{o.label}</span>{:else}{o.label}{/if}</button>
+      <button role="radio" aria-checked={current === o.v} tabindex={stop(i) ? 0 : -1} class:on={current === o.v} class:pending={pending === o.v} aria-busy={pending === o.v || undefined} class:icon={!!o.icon} title={o.title ?? (o.icon ? o.label : undefined)} aria-label={o.icon ? o.label : undefined} onclick={() => pick(o.v)}>{#if o.icon}<Icon name={o.icon} />{:else if o.game}<span class="gl"><GameIcon name={o.game} size={14} />{o.label}</span>{:else}{o.label}{/if}</button>
     {/each}
   </div>
 </div>

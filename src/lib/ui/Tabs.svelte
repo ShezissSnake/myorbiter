@@ -1,5 +1,6 @@
 <script lang="ts" generics="V extends string">
   import GameIcon, { type GameIconName } from "./GameIcon.svelte";
+  import { afterPaint } from "./soon";
   // A row of categories with the game's icons, the chosen one lit gold beneath. The gold line
   // slides to the tab you pick (QUICK, transform only); it's placed without moving on first draw.
   let {
@@ -7,6 +8,22 @@
     options,
     label,
   }: { value: V; options: { v: V; label: string; icon?: GameIconName; count?: number; title?: string }[]; label?: string } = $props();
+
+  // A tab picked lights (and its line slides) at once; the page under it changes a frame later
+  // (soon.ts), so a view that draws a long list doesn't hold up the press.
+  let chosen = $state<{ v: V } | null>(null);
+  const current = $derived(chosen ? chosen.v : value);
+  let cancel: (() => void) | null = null;
+  function pick(v: V) {
+    cancel?.();
+    chosen = { v };
+    cancel = afterPaint(() => {
+      cancel = null;
+      chosen = null;
+      value = v;
+    });
+  }
+  $effect(() => () => cancel?.());
 
   let row = $state<HTMLElement | null>(null);
   let line = $state<HTMLElement | null>(null);
@@ -24,7 +41,7 @@
   }
   let placed = false;
   $effect(() => {
-    void value;
+    void current;
     void options;
     // Measured just before the frame is drawn, once the page under the tabs has redrawn too, so
     // reading the layout doesn't make the browser lay it out twice.
@@ -46,7 +63,7 @@
 
 <div class="tabs" role="tablist" aria-label={label} bind:this={row}>
   {#each options as o (o.v)}
-    <button role="tab" aria-selected={value === o.v} class:on={value === o.v} title={o.title ?? `${o.label}${o.count != null ? ` · ${o.count}` : ""}`} aria-label={o.count != null ? `${o.label}, ${o.count}` : o.label} onclick={() => (value = o.v)}>
+    <button role="tab" aria-selected={current === o.v} class:on={current === o.v} title={o.title ?? `${o.label}${o.count != null ? ` · ${o.count}` : ""}`} aria-label={o.count != null ? `${o.label}, ${o.count}` : o.label} onclick={() => pick(o.v)}>
       {#if o.icon}<GameIcon name={o.icon} size={18} />{/if}
       <span class:lbl={!!o.icon}>{o.label}</span>
       {#if o.count != null}<em>{o.count.toLocaleString("en")}</em>{/if}

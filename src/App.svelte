@@ -69,6 +69,7 @@
   import { persistSettings } from "./lib/persist.svelte";
   import { catchUp, setShownPage, whenIdle } from "./lib/pane.svelte";
   import { inBackground } from "./lib/progress.svelte";
+  import { afterPaint } from "./lib/ui/soon";
   import { backoff, handLoggedSale, keepSeen, thinHistory } from "./lib/core/upkeep";
   import Parts from "./lib/tabs/Parts.svelte";
   // Pages opened now and then load when first opened, so the app starts on less: Home, Orders,
@@ -169,6 +170,20 @@
     document.documentElement.toggleAttribute("data-details", settings.details);
   });
 
+  // A page picked in the sidebar lights there at once; the page itself is shown a frame later
+  // (ui/soon.ts), so drawing it doesn't hold up the press.
+  let navTo = $state<string | null>(null);
+  let navCancel: (() => void) | null = null;
+  function navigate(id: string) {
+    navCancel?.();
+    if (id === settings.tab) return void (navTo = null);
+    navTo = id;
+    navCancel = afterPaint(() => {
+      navCancel = null;
+      navTo = null;
+      settings.tab = id;
+    });
+  }
   // Pages stay mounted once opened, so filters, sorting and scroll survive switching tabs.
   let visited = $state<Record<string, boolean>>({});
   $effect(() => {
@@ -2354,7 +2369,7 @@
     </div>
 
     {#snippet navItem(p: Page)}
-      <button class="nav" class:on={settings.tab === p.id} data-section={p.group || undefined} title={shortcutOf(p.id) ? `${p.label}: ${p.hint} (${shortcutOf(p.id)})` : `${p.label}: ${p.hint}`} aria-current={settings.tab === p.id ? "page" : undefined} onclick={() => (settings.tab = p.id)}>
+      <button class="nav" class:on={(navTo ?? settings.tab) === p.id} data-section={p.group || undefined} title={shortcutOf(p.id) ? `${p.label}: ${p.hint} (${shortcutOf(p.id)})` : `${p.label}: ${p.hint}`} aria-current={settings.tab === p.id ? "page" : undefined} onclick={() => navigate(p.id)}>
         <span class="ic">{#if "game" in p.icon}<GameIcon name={p.icon.game} size={20} />{:else}<Icon name={p.icon.line} size={18} stroke={1.5} />{/if}</span>
         <span class="lbl">{p.label}</span>
         {#if p.id === "mission" && inFissure(mission, tick)}<span class="live" title="Fissure in progress"></span>{/if}
