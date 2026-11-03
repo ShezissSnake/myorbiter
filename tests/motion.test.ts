@@ -53,3 +53,9 @@ test("a fold opens on grid rows; a dialog opens faster than it closes", async ()
   assert.equal(opens(node, {}, { direction: "out" }).duration, 100);
   assert.doesNotMatch(opens(node, { fade: false }, { direction: "in" }).css!(0.5, 0.5), /opacity/);
 });
+
+test("a row leaving a flipped list stays where Svelte holds it while it fades", async () => {
+  await new Promise((r) => setTimeout(r, 20)); // a new frame's budget
+  const node = { style: { transform: "translate(0px, 96px)" } } as unknown as Element;
+  assert.match(leave(node).css!(0.5, 0.5), /transform:translate\(0px, 96px\) translateY\(-2\.00px\)/);
+});
