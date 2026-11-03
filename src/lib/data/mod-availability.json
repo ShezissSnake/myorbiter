@@ -1,0 +1,183 @@
+{
+  "_about": "orbiter's mod and arcane availability (src/lib/core/builds/availability.ts): how far into the game a player is before they can have a mod or arcane, as orbiter defines the tiers (New player, Intermediate, Veteran). The rules live in availability.ts; this file holds the facts they lean on, each with the page it was read on (by hand; orbiter never fetches these pages). `overrides` win over every rule, by path or name. `fullDrops` is generated (scripts/mod-availability-drops.ts) and is the only part not written by hand.",
+  "sources": {
+    "primed": "https://wiki.warframe.com/w/Primed_Reach",
+    "umbral": "https://wiki.warframe.com/w/Umbra_Mods",
+    "archon": "https://wiki.warframe.com/w/Archon_Mods",
+    "galvanized": "https://wiki.warframe.com/w/Galvanized",
+    "arbitrations": "https://wiki.warframe.com/w/Vitus_Essence",
+    "steelPath": "https://wiki.warframe.com/w/The_Steel_Path",
+    "amalgam": "orbiter's rule: Amalgam mods are Veteran",
+    "sacrificial": "orbiter's rule: Sacrificial mods are Veteran",
+    "riven": "orbiter's rule: Rivens come from sorties, the Steel Path and endgame rewards, or the market",
+    "corrupted": "https://wiki.warframe.com/w/Corrupted_Mod",
+    "augment": "orbiter's rule: augments are Intermediate",
+    "drift": "https://wiki.warframe.com/w/Lua",
+    "nightwave": "https://wiki.warframe.com/w/Nightwave",
+    "conclave": "orbiter's rule: Conclave mods are bought from Teshin with Conclave standing",
+    "spy": "https://wiki.warframe.com/w/Spy",
+    "arcanes": "https://warframe.com/droptables (via the catalog's drop data)",
+    "helminth": "https://www.highgroundgaming.com/warframe-helminth/",
+    "noxTags": "https://noxsframe.com/builds"
+  },
+  "corrupted": [
+    "Blind Rage",
+    "Catalyzing Shields",
+    "Fleeting Expertise",
+    "Narrow Minded",
+    "Overextended",
+    "Transient Fortitude",
+    "Critical Delay",
+    "Heavy Caliber",
+    "Vile Precision",
+    "Tainted Mag",
+    "Vile Acceleration",
+    "Depleted Reload",
+    "Burdened Magazine",
+    "Vicious Spread",
+    "Tainted Shell",
+    "Frail Momentum",
+    "Critical Deceleration",
+    "Anemic Agility",
+    "Creeping Bullseye",
+    "Hollow Point",
+    "Magnum Force",
+    "Tainted Clip",
+    "Spoiled Strike",
+    "Corrupt Charge"
+  ],
+  "overrides": {
+    "Molt Augmented": {
+      "level": "intermediate",
+      "why": "a Zariman arcane: Void Angels and Thrax drop it, and Cavalero sells it at Holdfasts rank 5",
+      "source": "https://wiki.warframe.com/w/Molt_Augmented"
+    },
+    "Arcane Energize": {
+      "level": "veteran",
+      "why": "an Eidolon arcane (the Hydrolyst), also from Railjack's Veil Proxima",
+      "source": "https://warframe.com/droptables"
+    },
+    "Arcane Grace": {
+      "level": "veteran",
+      "why": "an Eidolon arcane (the Hydrolyst), also from Railjack's Veil Proxima",
+      "source": "https://warframe.com/droptables"
+    },
+    "Primary Merciless": {
+      "level": "veteran",
+      "why": "dropped by the Acolytes, who spawn in Steel Path missions",
+      "source": "https://wiki.warframe.com/w/The_Steel_Path"
+    },
+    "Primary Deadhead": {
+      "level": "veteran",
+      "why": "dropped by the Acolytes, who spawn in Steel Path missions",
+      "source": "https://wiki.warframe.com/w/The_Steel_Path"
+    },
+    "Secondary Merciless": {
+      "level": "veteran",
+      "why": "dropped by the Acolytes, who spawn in Steel Path missions",
+      "source": "https://wiki.warframe.com/w/The_Steel_Path"
+    },
+    "Secondary Deadhead": {
+      "level": "veteran",
+      "why": "dropped by the Acolytes, who spawn in Steel Path missions",
+      "source": "https://wiki.warframe.com/w/The_Steel_Path"
+    },
+    "Brief Respite": {
+      "level": "intermediate",
+      "why": "an aura only Specters drop (Orphid, Knave…); the catalog files it under FairyQuest, Titania's quest The Silver Grove",
+      "source": "https://warframe.com/droptables (via the catalog's drop data)"
+    },
+    "Growing Power": {
+      "level": "intermediate",
+      "why": "an aura only Specters drop (Orphid, Knave…); the catalog files it under FairyQuest, Titania's quest The Silver Grove",
+      "source": "https://warframe.com/droptables (via the catalog's drop data)"
+    }
+  },
+  "hardFrames": {
+    "Grendel": {
+      "abilities": [
+        "Nourish"
+      ],
+      "why": "Grendel's parts come from missions unlocked by locators bought with Vitus Essence from Arbitrations, which open only after the whole star chart",
+      "source": "https://progametalk.com/warframe/how-to-get-grendel/ ; https://wiki.warframe.com/w/Vitus_Essence"
+    }
+  },
+  "fullDrops": {
+    "_about": "Generated: the level from each item's full drop table where it is earlier than what orbiter's catalog (eight drops per item) shows. By path.",
+    "levels": {
+      "/Lotus/Upgrades/CosmeticEnhancers/Utility/ExtraProcOnProc": "new",
+      "/Lotus/Upgrades/Mods/Melee/Beginner/WeaponCritDamageModBeginner": "new",
+      "/Lotus/Upgrades/Mods/Melee/Beginner/WeaponFireRateModBeginner": "new",
+      "/Lotus/Upgrades/Mods/Melee/Beginner/WeaponSlashDamageModBeginner": "new",
+      "/Lotus/Upgrades/Mods/Melee/Beginner/WeaponToxinDamageModBeginner": "new",
+      "/Lotus/Upgrades/Mods/Melee/Expert/WeaponCritDamageModExpert": "new",
+      "/Lotus/Upgrades/Mods/Melee/Expert/WeaponSlashDamageModExpert": "new",
+      "/Lotus/Upgrades/Mods/Melee/Intermediate/WeaponMeleeRangeIncModIntermediate": "new",
+      "/Lotus/Upgrades/Mods/Melee/WeaponCritDamageMod": "new",
+      "/Lotus/Upgrades/Mods/Melee/WeaponFireRateMod": "new",
+      "/Lotus/Upgrades/Mods/Melee/WeaponMeleeRangeIncMod": "new",
+      "/Lotus/Upgrades/Mods/Melee/WeaponMeleeSlamDamageMod": "new",
+      "/Lotus/Upgrades/Mods/Melee/WeaponSlashDamageMod": "new",
+      "/Lotus/Upgrades/Mods/Melee/WeaponToxinDamageMod": "new",
+      "/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponCritChanceModBeginner": "new",
+      "/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponDamageAmountModBeginner": "new",
+      "/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponFreezeDamageModBeginner": "new",
+      "/Lotus/Upgrades/Mods/Pistol/Beginner/WeaponImpactDamageModBeginner": "new",
+      "/Lotus/Upgrades/Mods/Pistol/Expert/WeaponFreezeDamageModExpert": "new",
+      "/Lotus/Upgrades/Mods/Pistol/Expert/WeaponImpactDamageModExpert": "new",
+      "/Lotus/Upgrades/Mods/Pistol/Intermediate/WeaponDamageAmountModIntermediate": "new",
+      "/Lotus/Upgrades/Mods/Pistol/WeaponCritChanceMod": "new",
+      "/Lotus/Upgrades/Mods/Pistol/WeaponDamageAmountMod": "new",
+      "/Lotus/Upgrades/Mods/Pistol/WeaponFreezeDamageMod": "new",
+      "/Lotus/Upgrades/Mods/Pistol/WeaponImpactDamageMod": "new",
+      "/Lotus/Upgrades/Mods/PvPMods/Shotgun/PassiveReloadMod": "new",
+      "/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipAttractorAbilityCard": "new",
+      "/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipBlackHoleAbilityCard": "new",
+      "/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipEMPAbilityCard": "new",
+      "/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipPhoenixAbilityCard": "new",
+      "/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipRamAbilityCard": "new",
+      "/Lotus/Upgrades/Mods/Railjack/Abilities/CrewShipTetherAbilityCard": "new",
+      "/Lotus/Upgrades/Mods/Railjack/Gunnery/LavanOrdnanceDamage": "new",
+      "/Lotus/Upgrades/Mods/Rifle/Beginner/WeaponDamageAmountModBeginner": "new",
+      "/Lotus/Upgrades/Mods/Rifle/Beginner/WeaponToxinDamageModBeginner": "new",
+      "/Lotus/Upgrades/Mods/Rifle/Expert/WeaponToxinDamageModExpert": "new",
+      "/Lotus/Upgrades/Mods/Rifle/Intermediate/WeaponDamageAmountModIntermediate": "new",
+      "/Lotus/Upgrades/Mods/Rifle/Intermediate/WeaponRecoilReductionModIntermediate": "new",
+      "/Lotus/Upgrades/Mods/Rifle/WeaponDamageAmountMod": "new",
+      "/Lotus/Upgrades/Mods/Rifle/WeaponRecoilReductionMod": "new",
+      "/Lotus/Upgrades/Mods/Rifle/WeaponToxinDamageMod": "new",
+      "/Lotus/Upgrades/Mods/Sentinel/SentinelArmourMod": "new",
+      "/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponFireRateModBeginner": "new",
+      "/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponFreezeDamageModBeginner": "new",
+      "/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponSlashDamageModBeginner": "new",
+      "/Lotus/Upgrades/Mods/Shotgun/Beginner/WeaponToxinDamageModBeginner": "new",
+      "/Lotus/Upgrades/Mods/Shotgun/DualStat/BlazeMod": "new",
+      "/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponFireRateModExpert": "new",
+      "/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponSlashDamageModExpert": "new",
+      "/Lotus/Upgrades/Mods/Shotgun/Expert/WeaponToxinDamageModExpert": "new",
+      "/Lotus/Upgrades/Mods/Shotgun/WeaponFireRateMod": "new",
+      "/Lotus/Upgrades/Mods/Shotgun/WeaponFreezeDamageMod": "new",
+      "/Lotus/Upgrades/Mods/Shotgun/WeaponSlashDamageMod": "new",
+      "/Lotus/Upgrades/Mods/Shotgun/WeaponToxinDamageMod": "new",
+      "/Lotus/Upgrades/Mods/Warframe/AvatarAbilityEfficiencyMod": "new",
+      "/Lotus/Upgrades/Mods/Warframe/AvatarDamageToEnergyMod": "new",
+      "/Lotus/Upgrades/Mods/Warframe/AvatarEnemyRadarMod": "new",
+      "/Lotus/Upgrades/Mods/Warframe/AvatarFallingImpactMod": "new",
+      "/Lotus/Upgrades/Mods/Warframe/AvatarKnockdownRecoveryMod": "new",
+      "/Lotus/Upgrades/Mods/Warframe/AvatarProcTimeMod": "new",
+      "/Lotus/Upgrades/Mods/Warframe/AvatarShieldMaxMod": "new",
+      "/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarAbilityEfficiencyModBeginner": "new",
+      "/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarEnemyRadarModBeginner": "new",
+      "/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarFallingImpactModBeginner": "new",
+      "/Lotus/Upgrades/Mods/Warframe/Beginner/AvatarShieldMaxModBeginner": "new",
+      "/Lotus/Upgrades/Mods/Warframe/Expert/AvatarDamageToEnergyModExpert": "new",
+      "/Lotus/Upgrades/Mods/Warframe/Expert/AvatarEnemyRadarModExpert": "new",
+      "/Lotus/Upgrades/Mods/Warframe/Expert/AvatarFallingImpactModExpert": "new",
+      "/Lotus/Upgrades/Mods/Warframe/Expert/AvatarKnockdownRecoveryModExpert": "new",
+      "/Lotus/Upgrades/Mods/Warframe/Intermediate/AvatarDamageToEnergyModIntermediate": "new",
+      "/Lotus/Upgrades/Mods/Warframe/Intermediate/AvatarKnockdownRecoveryModIntermediate": "new",
+      "/Lotus/Upgrades/Mods/Warframe/Intermediate/AvatarShieldMaxModIntermediate": "new"
+    }
+  },
+  "_aboutHardFrames": "hardFrames: frames whose subsumed Helminth ability is Veteran, with the abilities they give (from loadout-synergies.json's Helminth picks). The Helminth itself is Intermediate."
+}
