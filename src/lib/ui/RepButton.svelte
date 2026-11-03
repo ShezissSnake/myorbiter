@@ -28,6 +28,8 @@
       busy = false;
     }
   }
+  /** The reason, short enough to sit beside the button (the whole of it is in the tooltip). */
+  const why = $derived(error ? error.replace(/[:;(].*$/, "").trim() : null);
   async function profile() {
     const u = await mkt.user(partner).catch(() => null);
     openUrl(u ? profileUrl(u) : `https://warframe.market/profile/${encodeURIComponent(partner)}`);
@@ -43,6 +45,7 @@
 {:else}
   <span class="rep">
     <button class="link" disabled={busy || !mkt.linked} title={!mkt.linked ? "Sign in to warframe.market on Orders first" : error ? `Couldn't give +rep: ${error}` : `Give ${partner} +rep on warframe.market, with "${text}"${known ? ` (they have ${known.reputation})` : ""}`} onclick={give}>{busy ? "Giving…" : error ? "Try again" : "+rep"}</button>
+    {#if why}<span class="why" role="status" title={error}>{why}</span>{/if}
     {#if error || !mkt.linked}<IconButton icon="external" tone="quiet" size={12} label="Their profile" title={error ?? "Their warframe.market profile, to give +rep there"} onclick={profile} />{/if}
   </span>
 {/if}
@@ -52,4 +55,6 @@
   .rep :global(.ib) { --ib: 24px; }
   .note { font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); white-space: nowrap; }
   .done { color: var(--verdigris); }
+  /* Why +rep didn't go through: in oxblood beside the button. */
+  .why { font-size: .74rem; color: var(--oxblood); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 22rem; }
 </style>

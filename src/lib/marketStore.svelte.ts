@@ -896,8 +896,8 @@ class MarketStore {
     }
   }
 
-  /** Posts the buy order in the form; true when warframe.market took it. */
-  async placeBuy(): Promise<boolean> {
+  /** Posts the buy order in the form; true when warframe.market took it. `keep`: the form stays open (it says "Posted" first, then closes itself). */
+  async placeBuy(keep = false): Promise<boolean> {
     const d = this.buyDraft;
     if (!d || !d.platinum || !this.linked) return false;
     const ok = await this.guard("Posting a buy order", async () => {
@@ -905,7 +905,7 @@ class MarketStore {
       this.note(`Buy order posted: ${d.name}${d.rank != null ? ` R${d.rank}` : ""}${d.subtype && d.subtypes && d.subtypes.length > 1 ? ` (${d.subtype})` : ""}, ${d.quantity} at ${Math.round(d.platinum!)}p`, "ok");
       await this.refresh();
     });
-    if (ok) this.buyDraft = null;
+    if (ok && !keep) this.buyDraft = null;
     return ok;
   }
 

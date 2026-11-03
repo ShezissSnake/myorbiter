@@ -7,6 +7,8 @@
   import Named from "./Named.svelte";
   import P from "./P.svelte";
   import type { BuyAlert } from "../core/deals";
+  import ProgressButton from "./ProgressButton.svelte";
+  import { Job } from "../job.svelte";
 
   let { model, go, onalert = null }: { model: Model; go: (tab: string) => void; onalert?: ((a: BuyAlert) => void) | null } = $props();
   // Alert me: no order posted; Cheap buys tells you when someone lists it at or under the price.
@@ -15,7 +17,8 @@
     if (!d || !d.platinum || !onalert) return;
     onalert({ name: d.name, rank: d.rank, subtype: d.subtype, maxPrice: Math.round(d.platinum), at: Date.now() });
     alerted = true;
-    setTimeout(close, 900);
+    // A tick for a moment, so you see it was set, then the form goes.
+    setTimeout(close, 1500);
   }
 
   const open = $derived(!!(mkt.buyDraft || mkt.buyError));
@@ -33,8 +36,15 @@
     mkt.buyError = null;
     alerted = false;
   };
-  async function place() {
-    if (ready) await mkt.placeBuy();
+  // Buy: working while it posts, "Posted" with a tick for a moment, then the form closes.
+  const buyJob = new Job();
+  function place() {
+    if (!ready || buyJob.state !== "idle") return;
+    void buyJob.run(async () => {
+      if (!(await mkt.placeBuy(true))) throw new Error(mkt.error ?? "warframe.market didn't take it");
+      setTimeout(close, 1200);
+      return "Posted";
+    });
   }
   function onKey(e: KeyboardEvent) {
     if (!open) return;
@@ -49,6 +59,11 @@
 </script>
 
 <svelte:window onkeydown={onKey} />
+
+{#snippet alertButton(d: NonNullable<typeof mkt.buyDraft>)}
+  <ProgressButton stamp={false} state={alerted ? "done" : "idle"} label="Alert me at {d.platinum ?? '…'}p" doneLabel="Alert set" sizer={["Alert me at 0000p"]} disabled={!d.platinum || d.loading}
+    title="Don't post anything: orbiter watches warframe.market (Cheap buys, on Home) and tells you when someone lists it at {d.platinum ?? '…'}p or less" onclick={alertMe} />
+{/snippet}
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -85,19 +100,19 @@
             {/if}
           </div>
           {#if overSeller}<p class="warn small">That's the cheapest seller's price or more: whisper them and buy it now instead, or lower your price.</p>{/if}
-          {#if mkt.error && mkt.op == null}<p class="err small">{mkt.error}</p>{/if}
+          {#if mkt.error && mkt.op == null}<p class="err small" role="status">{mkt.error}</p>{/if}
           {#if !mkt.linked}
           <p class="prose small">To post a buy order, sign in to warframe.market first (orbiter keeps its own sign-in; you only do it once). An alert needs no sign-in.</p>
           <div class="row end">
             <button onclick={close}>Cancel</button>
-            {#if onalert}<button disabled={!d.platinum || d.loading || alerted} title="Don't post anything: orbiter watches warframe.market (Cheap buys, on Home) and tells you when someone lists it at {d.platinum ?? '…'}p or less" onclick={alertMe}>{alerted ? "Alert set" : `Alert me at ${d.platinum ?? "…"}p`}</button>{/if}
+            {#if onalert}{@render alertButton(d)}{/if}
             <button class="stamp gold" onclick={() => { close(); go("market"); }}>Sign in on Orders</button>
           </div>
           {:else}
           <div class="row end">
             <button onclick={close}>Cancel</button>
-            {#if onalert}<button disabled={!d.platinum || d.loading || alerted} title="Don't post anything: orbiter watches warframe.market (Cheap buys, on Home) and tells you when someone lists it at {d.platinum ?? '…'}p or less" onclick={alertMe}>{alerted ? "Alert set" : `Alert me at ${d.platinum ?? "…"}p`}</button>{/if}
-            <button class="stamp gold" disabled={!ready} onclick={place}>{mkt.op === "Posting a buy order" ? "Posting…" : `Buy ${d.quantity}${d.platinum ? ` at ${d.platinum}p` : ""}`}</button>
+            {#if onalert}{@render alertButton(d)}{/if}
+            <ProgressButton tone="gold" job={buyJob} label="Buy {d.quantity}{d.platinum ? ` at ${d.platinum}p` : ''}" working="Posting…" doneLabel="Posted" failLabel="Not posted" title="Post this buy order on warframe.market" disabled={!ready || buyJob.state === "done"} onclick={place} />
           </div>
           <p class="dim small foot">Sellers see it on warframe.market and whisper you in game. Your buy orders are on Orders, to change or take down.</p>
         {/if}

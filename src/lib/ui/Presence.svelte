@@ -17,6 +17,9 @@
   const connecting = $derived(!!s?.wanted && !s.committed);
   const seen = $derived(s?.committed ? WORD[s.committed] : connecting ? "Connecting…" : "Offline");
   const visible = $derived(s?.committed === "online" || s?.committed === "ingame");
+  // The choice on its way to warframe.market: underlined on the switch until it's confirmed.
+  const chosen = $derived((s?.wanted || mkt.statusAsked ? (shown ?? "offline") : "offline") as Presence | "offline");
+  const pending = $derived(mkt.statusAsked || connecting ? chosen : null);
 
   function pick(p: Presence) {
     settings.presence = p;
@@ -31,8 +34,9 @@
 <div class="row">
   <span class="seen">Seen as <strong class:live={visible} class:hidden={!visible && !connecting}>{seen}</strong></span>
   <Seg
-    value={(s?.wanted || mkt.statusAsked ? (shown ?? "offline") : "offline") as Presence | "offline"}
+    value={chosen}
     onchange={(v: Presence | "offline") => (v === "offline" ? offline() : pick(v))}
+    {pending}
     options={[
       { v: "offline", label: "Offline", title: "No connection: buyers see you as offline" },
       { v: "invisible", label: "Invisible", title: "Connected, but buyers don't see you or your listings" },

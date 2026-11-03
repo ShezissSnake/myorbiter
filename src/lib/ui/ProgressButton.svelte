@@ -27,6 +27,7 @@
     tone = "",
     icon = null,
     spin = false,
+    busyIcon = null,
     size = 14,
     status = false,
     title = undefined,
@@ -63,6 +64,8 @@
     icon?: string | null;
     /** The icon turns while working (a refresh). */
     spin?: boolean;
+    /** Icon variant: shown (turning, with spin) in place of the icon while working: an import's arrow becomes a refresh. */
+    busyIcon?: string | null;
     size?: number;
     /** A line under the button: what it's doing, or why it failed. */
     status?: boolean;
@@ -135,7 +138,7 @@
       <span class="mark">
         {#if st === "done"}<Icon name="check" {size} />
         {:else if st === "failed"}<b class="bang">!</b>
-        {:else}<span class:turn={spin && st === "working"}><Icon name={icon ?? "refresh"} {size} /></span>{/if}
+        {:else}<span class:turn={spin && st === "working"}><Icon name={(st === "working" && busyIcon) || icon || "refresh"} {size} /></span>{/if}
       </span>
     {:else}
       {#if icon}

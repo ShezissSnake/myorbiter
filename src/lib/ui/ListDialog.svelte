@@ -10,6 +10,7 @@
   import { minFor, mkt } from "../marketStore.svelte";
   import Named from "./Named.svelte";
   import P from "./P.svelte";
+  import ProgressButton from "./ProgressButton.svelte";
 
   // market: your Orders settings, so the form can say when a price is under the floor the
   // repricer holds listings at.
@@ -216,9 +217,8 @@
 
           <div class="row end">
             <button onclick={() => mkt.closeDraft()}>Cancel</button>
-            <button class="stamp gold" disabled={!ready} onclick={() => mkt.submitDraft()}>
-              {mkt.op === "Listing" ? "Listing…" : repriceOnly ? (d.platinum ? `Set price to ${d.platinum}p` : "Set the price") : `${merging ? "Add" : "List"} ${d.quantity}${d.platinum ? ` at ${d.platinum}p` : ""}`}
-            </button>
+            <ProgressButton tone="gold" busy={mkt.op === "Listing"} label={repriceOnly ? (d.platinum ? `Set price to ${d.platinum}p` : "Set the price") : `${merging ? "Add" : "List"} ${d.quantity}${d.platinum ? ` at ${d.platinum}p` : ""}`} working={repriceOnly ? "Setting…" : merging ? "Adding…" : "Listing…"}
+              title={repriceOnly ? "Change your listing's price on warframe.market" : merging ? "Add these to your listing on warframe.market" : "Put it up on warframe.market"} disabled={!ready} onclick={() => mkt.submitDraft()} />
           </div>
           {#if !merging}<p class="dim small foot">It joins your Orders, where Reprice (or Apply automatically) keeps it at the cheapest in-game price.</p>{/if}
         {/if}
