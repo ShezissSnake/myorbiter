@@ -333,10 +333,19 @@
   // once and the others when the app is idle, one at a time, or when you open one (lib/pane.svelte.ts).
   setShownPage(() => settings.tab);
   let drawn = $state.raw<Record<string, Model>>({});
-  const modelFor = (id: string): Model => (settings.tab === id ? model : (drawn[id] ?? model))!;
+  // The page on screen gets a new collection a moment after it's built (the next task), so building
+  // it and redrawing the page are two shorter tasks rather than one long one.
+  let shownModel = $state.raw<Model | null>(null);
+  $effect(() => {
+    const m = model;
+    if (!m || !untrack(() => shownModel)) return void (shownModel = m);
+    const t = setTimeout(() => (shownModel = m), 0);
+    return () => clearTimeout(t);
+  });
+  const modelFor = (id: string): Model => (settings.tab === id ? (shownModel ?? model) : (drawn[id] ?? shownModel ?? model))!;
   $effect.pre(() => {
     const id = settings.tab;
-    const m = model;
+    const m = shownModel ?? model;
     if (m) untrack(() => drawn[id] !== m && (drawn = { ...drawn, [id]: m }));
   });
   /** Hidden pages catch up with a change (a sync, a setting) in idle time, one a slice, once changes settle for a moment. */
