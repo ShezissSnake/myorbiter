@@ -77,6 +77,8 @@
   const keptBack = $derived(keepOne ? all.filter((r) => r.keptForBuild && matches(query, r.name)).length : 0);
   const totalPlat = $derived(rows.reduce((n, r) => n + (mode === "sell" ? sellableOf(r) * (r.setPrice ?? 0) : 0), 0));
   const totalSets = $derived(rows.reduce((n, r) => n + sellableOf(r), 0));
+  /** Sets to sell counts copies; the list has one card per set. */
+  const countWords = (n: number) => (mode === "sell" && totalSets !== n ? `${totalSets.toLocaleString("en")} ${totalSets === 1 ? "copy" : "copies"} · ${n.toLocaleString("en")} ${n === 1 ? "set" : "sets"}` : `${n.toLocaleString("en")} ${n === 1 ? "set" : "sets"}`);
   const missingCost = (r: SetRow) => (r.missing.every((m) => m.price != null) ? r.missing.reduce((n, m) => n + (m.price as number) * m.count, 0) : null);
   /** Buy the missing parts and sell a full set, against selling the parts you have loose. */
   const completeGain = (r: SetRow) => {
@@ -113,7 +115,7 @@
     { key: "more", label: "More as set", value: moreAsSet, align: "right", cell: moreCell, title: "What one set sells for over its parts sold one by one" },
     { key: "faster", minor: true, label: "Sells faster", value: faster, align: "right", cell: fasterCell, title: "How many times as often the set sells as its slowest part: selling the parts waits on that one" },
     { key: "ducats", label: "Ducats", value: (r) => r.ducats, align: "right", cell: ducatCell },
-    { key: "trades", minor: true, label: "Trades/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "How many of this set warframe.market completes per day" },
+    { key: "trades", minor: true, label: "Sold/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "How many of this set warframe.market completes per day" },
     { key: "vault", label: "Vault", value: (r) => (r.vaulted ? 1 : 0), cell: vaultCell, align: "center" },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
   ]);
@@ -178,7 +180,7 @@
   {@const item = model.catalogByUnique.get(r.unique)}
   <!-- The set's pieces: tradable prime parts, or for other sets the blueprint and parts (not resources). -->
   {@const parts = item ? collectionItem(model, item).parts.filter((p) => (r.prime ? p.tradable : !p.resource)) : []}
-  <ItemCard hover="{r.name} Set" title="{r.name} Set" sub={r.category} fallback={kindIcon(r.category, r.name)} image={item?.imageName ?? model.imageOf(r.name)} owned={mode === "sell" ? sellableOf(r) > 0 : false} ownedNote="A complete set you can sell" markPrime onopen={open}>
+  <ItemCard hover="{r.name} Set" title="{r.name} Set" sub={r.category} fallback={kindIcon(r.category, r.name)} image={item?.imageName ?? model.imageOf(r.name)} owned={mode === "sell" ? sellableOf(r) > 0 : false} ownedNote={`${sellableOf(r)} complete set${sellableOf(r) === 1 ? "" : "s"} to sell`} markPrime onopen={open}>
     <div class="chips">{#each parts as p, i (i)}<PartChip part={p} size={32} />{/each}</div>
     {#if mode === "save"}
       <dl class="kv">
@@ -224,7 +226,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Sets" blurb="Complete sets to sell (prime, and the others warframe.market trades whole), the ones almost done, and the ones your loose parts wait for.">
+  <PageHead title="Sets" brief="Sets to sell, almost done, or saving up." blurb="Complete sets to sell (prime, and the others warframe.market trades whole), the ones almost done, and the ones your loose parts wait for.">
     {#snippet band()}
       {#if mode === "save"}
       <Stat label="Sets saved for" note={saveOn ? "Their loose parts wait instead of being sold" : "Off in Settings → Selling"}>{rows.length}</Stat>
@@ -259,6 +261,8 @@
     title={(r) => `${r.name} Set`}
     onopen={(r) => details.open(r.unique)}
     min="21rem"
+    count={countWords}
+    clear={query.trim() ? () => (query = "") : null}
     empty={mode === "sell" ? "No complete sets to sell right now." : mode === "save" ? (saveOn ? "No loose parts are waiting for a set." : "Saving parts for sets is off (Settings → Selling).") : "No sets one or two parts away."}
   />
 </div></div>

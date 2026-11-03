@@ -52,6 +52,12 @@
         matches(query, r.name, r.type),
     ),
   );
+  const filtered = $derived(!!query.trim() || rarity !== "all" || !dupesOnly || !tradableOnly || !sellingOnly);
+  function clear() {
+    query = "";
+    rarity = "all";
+    dupesOnly = tradableOnly = sellingOnly = true;
+  }
   const extras = $derived(rows.reduce((n, r) => n + r.extras, 0));
   /** Extras are your lowest-ranked copies: list those, never the one you keep. */
   const listReq = (r: ModRow) => {
@@ -81,7 +87,7 @@
     { key: "price", label: "Price", value: (r) => r.price, align: "right", cell: priceCell },
     { key: "value", label: "Spares sell for", value: (r) => (tradeWorthy(r) ? worth(r) : null), align: "right", cell: valueCell, title: "Your spare copies at the daily median, counting no more copies than warframe.market sells in a month. Worth selling adds these up for the mods that sell daily" },
     { key: "priceMax", minor: true, label: "Maxed", value: (r) => r.priceMax, align: "right", cell: maxCell, title: "Price of a max-rank copy" },
-    { key: "trades", label: "Trades/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "How quickly it sells. Common mods at 2–5p rarely move." },
+    { key: "trades", label: "Sold/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "How quickly it sells. Common mods at 2–5p rarely move." },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
   ];
 </script>
@@ -99,7 +105,7 @@
 {/snippet}
 {#snippet card(r: ModRow, open: () => void)}
   <!-- Gold edge: copies to spare. With "Spares only" on that's every card, so it only marks them when it's off. -->
-  <ItemCard hover={r.name} title={r.name} sub={r.type} image={model.imageOf(r.name)} owned={!dupesOnly && r.extras > 0} onopen={open}>
+  <ItemCard hover={r.name} title={r.name} sub={r.type} image={model.imageOf(r.name)} owned={!dupesOnly && r.extras > 0} ownedNote="{r.extras} spare to sell" onopen={open}>
     {#snippet art()}{@render modCard(r, 104)}{/snippet}
     <div class="have"><b class="mark qty">×{r.total}</b>{#if r.extras}<span class="dim small" title="Beyond your best copy and one to give away">{r.extras} spare</span>{/if}</div>
     <!-- Always there, empty when every copy is unranked, so cards side by side line up. -->
@@ -119,12 +125,12 @@
 
 {#snippet detail(r: ModRow)}
   <UpgradeDetail {model} name={r.name} unique={r.unique} ranks={r.ranks} tradable={r.tradable}>
-    {#if r.extras > 0}<p class="small dim">{r.extras} spare, beyond your best copy and one to give away{#if r.tradable}&nbsp;· <ListButton {model} name={r.name} req={listReq(r)} label="List spares" />{/if}</p>{/if}
+    {#if r.extras > 0}<p class="small dim">{r.extras} spare, beyond your best copy and one to give away{#if r.tradable}&nbsp;· <ListButton {model} name={r.name} req={listReq(r)} label="Sell spares" />{/if}</p>{/if}
   </UpgradeDetail>
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Mods" blurb="Mods you have spare copies of. Your best copy and one to give away are always kept.">
+  <PageHead title="Mods" brief="Spare mod copies to sell." blurb="Mods you have spare copies of. Your best copy and one to give away are always kept.">
     {#snippet band()}
       <Stat label="Spare copies" note={tradeDays != null && tradeDays > 1 ? `Beyond your best copy and one to give away · ${tradeDays} days of trades to sell them all` : "Beyond your best copy and one to give away"} title={tradeDays != null ? `Beyond your best copy and one to give away. Trades a day are your Mastery Rank (${masteryRank}), up to 6 items each: selling every spare copy would take ${tradeDays} days of trading, at best` : null}>{extras.toLocaleString("en")}</Stat>
       <Stat label="Worth selling" tone="dim" note={`Mods that sell daily, no more of each than the market sells in a month; only what's worth ${minPlat}p a trade`} title={`Worth selling: the spare copies of tradable mods that sell at least daily (as Put my spares on sale lists them), at the daily median, no more of each than the market sells in a month, and only what's worth ${minPlat}p a trade. The filters don't change it. Counted the same way on Prime parts, Arcanes and Home; Inventory's Spare value adds slow sellers and small change`}><P v={value} big /></Stat>
@@ -138,13 +144,13 @@
     {#each ["Common", "Uncommon", "Rare", "Legendary"] as x (x)}<option value={x}>{x}</option>{/each}
   </select>
   <Chip bind:on={dupesOnly} label="Spare only" title="Three or more copies: more than your own and one to give away" />
-  <Fold on={[tradableOnly ? "tradable" : "", sellingOnly ? "sells daily" : ""].filter(Boolean).join(", ")} active={(tradableOnly ? 0 : 1) + (sellingOnly ? 0 : 1)} reset={() => { tradableOnly = true; sellingOnly = true; }}>
+  <Fold on={[tradableOnly ? "tradable" : "", sellingOnly ? "sold daily" : ""].filter(Boolean).join(", ")} active={(tradableOnly ? 0 : 1) + (sellingOnly ? 0 : 1)} reset={() => { tradableOnly = true; sellingOnly = true; }}>
     <Chip bind:on={tradableOnly} label="Tradable" title="Only mods you can sell or trade (not Flawed ones, and the like)" />
-    <Chip bind:on={sellingOnly} label="Sells daily" title="At least one trade a day on warframe.market" />
+    <Chip bind:on={sellingOnly} label="Sold daily" title="Only mods that sell at least once a day on warframe.market" />
   </Fold>
   </div>
 
-  <Browse id="mods" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" />
+  <Browse id="mods" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty="No spare mod copies: your best copy and one to give away are kept." />
 </div></div>
 
 <style>

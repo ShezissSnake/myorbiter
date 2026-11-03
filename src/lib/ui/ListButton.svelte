@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The small List button at the end of a row: opens the listing form for that row. A price tag
+  // The small Sell button at the end of a row: opens the Sell form for that row. A price tag
   // with a plus; with a tick, and in green, once it's already up on warframe.market.
   import type { Model } from "../core/model";
   import Icon from "./Icon.svelte";
@@ -9,7 +9,7 @@
     model,
     name,
     req = {},
-    label = "List",
+    label = "Sell",
     why = null,
     hint = null,
     labelled = false,
@@ -36,8 +36,8 @@
   // Enter and Space press the button, not the row or card it sits in; other keys (Esc for the
   // listing form) go on as usual.
   const key = (e: KeyboardEvent) => (e.key === "Enter" || e.key === " ") && e.stopPropagation();
-  // "List R5", "List set": what the plain icon can't say goes beside it.
-  const extra = $derived(label.replace(/^List\s*/i, "") || (labelled ? (listed ? "Listed" : "Sell") : ""));
+  // "Sell R5", "Sell set": what the plain icon can't say goes beside it.
+  const extra = $derived(label.replace(/^(List|Sell)\s*/i, "") || (labelled ? (listed ? "Listed" : "Sell") : ""));
   const tip = $derived(why ?? (listed ? `Listed: ${listed.quantity} at ${listed.platinum}p${listed.visible ? "" : ", hidden from buyers"}. Click to add more or change the price.` : `${label} on warframe.market: ${req.quantity ?? ""} ${name}`.replace(/\s+/g, " ")) + (hint && !why ? `. ${hint}` : ""));
 </script>
 

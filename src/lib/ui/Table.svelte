@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
   import { sortRows, type Column } from "./table";
   import { nearEnd } from "./nearEnd";
+  import NoMatch from "./NoMatch.svelte";
 
   let {
     rows,
@@ -12,6 +13,7 @@
     empty = "Nothing matches these filters.",
     limit = 50,
     tint,
+    clear = null,
   }: {
     rows: T[];
     columns: Column<T>[];
@@ -22,6 +24,8 @@
     limit?: number;
     /** A row's era colour (table.ts, eraTint): drawn as a faint wash (app.css, .era-wash). */
     tint?: (r: T) => string | null;
+    /** Set while a search or filter is on: an empty table then says so, with a Clear, rather than `empty`. */
+    clear?: (() => void) | null;
   } = $props();
 
   let open = $state<string | null>(null);
@@ -89,7 +93,7 @@
           <tr class="detail"><td colspan={columns.length + 1}>{@render detail(r)}</td></tr>
         {/if}
       {:else}
-        <tr><td class="nothing" colspan={columns.length + (detail ? 1 : 0)}>{empty}</td></tr>
+        <tr><td class="nothing" colspan={columns.length + (detail ? 1 : 0)}>{#if clear}<NoMatch {clear} />{:else}{empty}{/if}</td></tr>
       {/each}
     </tbody>
   </table>

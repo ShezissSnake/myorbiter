@@ -179,6 +179,7 @@
   {/snippet}
   <PageHead
     title={ms?.reward_screen_open || onScreen ? "Choose a reward" : "Current fissure"}
+    brief={ms?.mission && (live || ms.reward_screen_open) ? ms.mission : live || paths.length ? "The squad's relics and rewards." : "Not in a fissure right now."}
     blurb={ms?.mission && (live || ms.reward_screen_open) ? ms.mission : live || paths.length ? "The squad's relics and rewards." : "Not in a fissure. The squad's relics and rewards show here once a void fissure loads; other missions have nothing to pick."}
     band={onScreen ? undefined : stats}
   />

@@ -6,6 +6,7 @@
   import { mkt } from "../marketStore.svelte";
   import Named from "./Named.svelte";
   import P from "./P.svelte";
+  import GameIcon from "./GameIcon.svelte";
   import type { BuyAlert } from "../core/deals";
   import ProgressButton from "./ProgressButton.svelte";
   import { Job } from "../job.svelte";
@@ -25,6 +26,12 @@
 
   const open = $derived(!!(mkt.buyDraft || mkt.buyError));
   const d = $derived(mkt.buyDraft);
+  /** The order book couldn't be read (offline, or warframe.market down): the price is yours to set. */
+  const bookFailed = $derived(!!d && !d.loading && !!mkt.buyError);
+  /** Read, but nobody is buying or selling it and it hasn't sold lately. */
+  const bookEmpty = $derived(!!d && !d.loading && !mkt.buyError && d.topBuy == null && d.cheapestSell == null && d.median == null);
+  /** Sold for: the last 30 days' median, or the price the card showed when there isn't one. */
+  const soldFor = $derived(d ? (d.median ?? d.known ?? null) : null);
   // Paying the cheapest seller's price or more: just buy from them.
   const overSeller = $derived(!!d && d.platinum != null && d.cheapestSell != null && d.platinum >= d.cheapestSell);
   // At or over the cheapest seller, a buy order only overpays: buy from them instead.
@@ -75,7 +82,7 @@
 <svelte:window onkeydown={onKey} />
 
 {#snippet alertButton(d: NonNullable<typeof mkt.buyDraft>)}
-  <ProgressButton stamp={false} state={alerted ? "done" : "idle"} label="Alert me at {shown(d.platinum)}p" doneLabel="Alert set" sizer={["Alert me at 0000p"]} disabled={!priceOk || d.loading}
+  <ProgressButton stamp={false} state={alerted ? "done" : "idle"} label="Alert me at this price" doneLabel="Alert set" sizer={["Alert me at this price"]} disabled={!priceOk || d.loading}
     title="Don't post anything: orbiter watches warframe.market (Cheap buys, on Home) and tells you when someone lists it at {shown(d.platinum)}p or less" onclick={alertMe} />
 {/snippet}
 
@@ -103,14 +110,17 @@
               </label>
             {/if}
             <label><span class="register">How many</span><input type="number" min="1" max={MAX_QTY} step="1" title="How many copies you want: a whole number" bind:value={d.quantity} onwheel={(e) => e.currentTarget.blur()} /></label>
-            <label><span class="register">Price each</span><input class="price" type="number" min="1" max={MAX_PLAT} step="1" title="Platinum you'd pay for each copy: a whole number" bind:value={d.platinum} placeholder={d.loading ? "…" : "price"} onwheel={(e) => e.currentTarget.blur()} /></label>
+            <label><span class="register">Price each</span><span class="pricebox"><input class="price" type="number" min="1" max={MAX_PLAT} step="1" title="Platinum you'd pay for each copy: a whole number" bind:value={d.platinum} placeholder={d.loading ? "…" : "your price"} onwheel={(e) => e.currentTarget.blur()} /><GameIcon name="platinum" size={14} /></span></label>
           </div>
           <div class="facts small">
             {#if d.loading}<span>Reading the order book…</span>
+            {:else if bookFailed || bookEmpty}
+              <span class="warn">{bookFailed ? "Couldn't read the order book" : "Nobody is buying or selling it right now"}: set the price yourself.</span>
+              {#if soldFor != null}<span title={d.median == null ? "The price the page you came from showed for it" : "What it sold for over the last 30 days (median)"}>Sold for <P v={Math.round(soldFor)} /></span>{/if}
             {:else}
               <span title="The highest buy order from someone you can trade with">Best buyer <P v={d.topBuy} /></span>
               <span title="The cheapest seller you can trade with, online now">Cheapest seller <P v={d.cheapestSell} /></span>
-              <span title="What it sold for over the last 30 days (median), so it can differ from the daily price elsewhere">Sold for <P v={d.median == null ? null : Math.round(d.median)} /></span>
+              <span title={d.median == null && d.known != null ? "No sales on record for the last 30 days: the price the page you came from showed" : "What it sold for over the last 30 days (median), so it can differ from the daily price elsewhere"}>Sold for <P v={soldFor == null ? null : Math.round(soldFor)} /></span>
             {/if}
           </div>
           {#if badNumber}<p class="err small">{badNumber}</p>
@@ -124,12 +134,12 @@
             <button class="stamp gold" onclick={() => { close(); go("market"); }}>Sign in on Orders</button>
           </div>
           {:else}
+          <p class="dim small foot">Sellers see it on warframe.market and whisper you in game. Your buy orders are on Orders, to change or take down.</p>
           <div class="row end">
             <button onclick={close}>Cancel</button>
             {#if onalert}{@render alertButton(d)}{/if}
-            <ProgressButton tone="gold" job={buyJob} label="Buy {shown(d.quantity)}{d.platinum ? ` at ${d.platinum}p` : ''}" working="Posting…" doneLabel="Posted" failLabel="Not posted" title="Post this buy order on warframe.market" disabled={!ready || buyJob.state === "done"} onclick={place} />
+            <ProgressButton tone="gold" job={buyJob} label="Post buy order ({shown(d.quantity)})" working="Posting…" doneLabel="Posted" failLabel="Not posted" title={`Post this buy order on warframe.market: ${d.quantity} at ${d.platinum ?? "…"}p each`} disabled={!ready || buyJob.state === "done"} onclick={place} />
           </div>
-          <p class="dim small foot">Sellers see it on warframe.market and whisper you in game. Your buy orders are on Orders, to change or take down.</p>
         {/if}
       {/if}
     </div>
@@ -144,12 +154,16 @@
   .fields label { display: grid; gap: .3rem; }
   .fields input { width: 6.5rem; text-align: right; }
   .fields input.price { width: 8rem; }
+  /* A field, not a button: the hint in plain lower case, platinum's mark beside the box. */
+  .fields input.price::placeholder { font-family: inherit; font-size: .85rem; letter-spacing: 0; text-transform: none; font-style: italic; }
+  .pricebox { display: inline-flex; align-items: center; gap: .4rem; }
   .facts { display: flex; flex-wrap: wrap; gap: .3rem 1.1rem; color: var(--platinum-dim); }
   .facts span { display: inline-flex; align-items: center; gap: .35rem; }
   .row { display: flex; gap: .6rem; align-items: center; }
   .end button { padding: .65rem 1rem; }
   .end { justify-content: flex-end; }
   .warn { color: var(--gold); margin: 0; }
+  .facts .warn { flex-basis: 100%; }
   .err { color: var(--oxblood); margin: 0; }
   .foot { margin: 0; }
 </style>

@@ -298,6 +298,10 @@ a.link { text-decoration: none; text-transform: uppercase; display: inline-flex;
 .set-part.short .set-pn { color: var(--gold); }
 .set-pn { display: inline-flex; align-items: center; gap: .5rem; }
 .actions { display: flex; align-items: center; gap: 1.2rem; margin-top: .6rem; }
+/* A details panel's buttons (an item's sheet, Inventory's): Sell, the wishlist, Wiki, warframe.market, one height. */
+.detail-acts { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.detail-acts > button:not(.ib) { height: 34px; padding-top: 0; padding-bottom: 0; }
+.detail-acts .ib { --ib: 34px; }
 
 
 /* A page with nothing in it yet: one look everywhere (Wishlist, Sales). */

@@ -149,7 +149,7 @@
 {#snippet ducatCell(r: RelicRow)}<P v={r.evDucatsIntact || null} d dim />{/snippet}
 {#snippet relicPriceCell(r: RelicRow)}<P v={r.relicPrice} dim />{/snippet}
 {#snippet card(r: RelicRow, open: () => void)}
-  <ItemCard hover={r.base} title={r.base} sub={rareOf(r) ? `Rare · ${rareOf(r)}` : undefined} image={model.imageOf(r.base)} fallback={eraIcon(r.base.split(" ")[0])} artSize={78} owned={r.neededCount > 0} ownedNote="Drops a part you still need" tint={eraTint(r.base)} onopen={open}>
+  <ItemCard hover={r.base} title={r.base} sub={rareOf(r) ? `Rare · ${rareOf(r)}` : undefined} image={model.imageOf(r.base)} fallback={eraIcon(r.base.split(" ")[0])} artSize={78} owned={r.neededCount > 0} ownedNote={r.neededCount === 1 ? "Drops a part you need" : `Drops ${r.neededCount} parts you need`} tint={eraTint(r.base)} onopen={open}>
     <div class="rw">
       {#each r.rewards as x, i (i)}
         <span class="rwc rar-{x.rarity}" class:need={x.needed} class:done={x.parentMastered && !x.needed} use:info={x.name}>
@@ -223,7 +223,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Relics" blurb="Your relics, and what one crack of each is worth: each reward at its price, or its ducats at your rate (Prime parts) when that's more.">
+  <PageHead title="Relics" brief="Your relics and what one crack is worth." blurb="Your relics, and what one crack of each is worth: each reward at its price, or its ducats at your rate (Prime parts) when that's more.">
     {#snippet band()}
       {@const filtered = rows.length !== all.length}
       <Stat label="Relics" note={filtered ? "Matching the filters" : unknown.length ? `All refinements, with ${unknown.reduce((n, u) => n + u.total, 0)} not in the relic list` : "Across all refinements"}>
@@ -278,14 +278,13 @@
     {/each}
   </section>
   <div class="bar">
-  <Seg bind:value={vault} options={[{ v: "all", label: "All", title: "Every relic you hold" }, { v: "vaulted", label: "Vaulted", title: "Relics that drop nowhere now: no new copies, so they tend to sell for more" }, { v: "farmable", label: "Farmable", title: "Relics that still drop in missions" }, { v: "resurgence", label: "Varzia", title: "Relics Varzia sells this rotation (Prime Resurgence), for Aya or Regal Aya" }]} />
+  <Seg label="Show" bind:value={vault} options={[{ v: "all", label: "All", title: "Every relic you hold" }, { v: "vaulted", label: "Vaulted", title: "Relics that drop nowhere now: no new copies, so they tend to sell for more" }, { v: "farmable", label: "Farmable", title: "Relics that still drop in missions" }, { v: "resurgence", label: "Varzia", title: "Relics Varzia sells this rotation (Prime Resurgence), for Aya or Regal Aya" }]} />
   <Chip bind:on={neededOnly} label="Has parts I need" title="Only relics that drop a part for something you haven't built or mastered" />
-  <Seg bind:value={advice.squad} options={[{ v: 1, label: "Solo", title: "One crack, your own reward" }, { v: 4, label: "Radshare", title: "Four players crack the same relic and you pick the best of the four rewards" }]} />
+  <Seg label="Squad" bind:value={advice.squad} options={[{ v: 1, label: "Solo", title: "One crack, your own reward" }, { v: 4, label: "Radshare", title: "Four players crack the same relic and you pick the best of the four rewards" }]} />
   <input type="search" placeholder="Relic or reward…" bind:value={query} />
   </div>
 
-  <Browse id="relics" {rows} {columns} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort {detail} {card} title={(r) => `${r.base} Relic`} min="21rem" empty={filtering ? "No relics match these filters." : "No relics yet."} />
-  {#if filtering && !rows.length}<p class="clear"><button class="link" onclick={clearFilters}>Clear the filters</button></p>{/if}
+  <Browse id="relics" {rows} {columns} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort {detail} {card} title={(r) => `${r.base} Relic`} min="21rem" clear={filtering ? clearFilters : null} empty="No relics yet." />
   {#if unknown.length}
     <div class="unknown">
       <div class="register">Not in the relic data yet</div>
@@ -299,7 +298,6 @@
 </div></div>
 
 <style>
-  .clear { margin: .4rem 0 0; }
   .dhead { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin-bottom: .6rem; }
   .refs { display: inline-flex; gap: .8rem; font-size: .82rem; color: var(--platinum-dim); }
   .refs b { color: var(--platinum); font-family: var(--face-mark); font-size: 1rem; }

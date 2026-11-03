@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The "List on market" form, over whatever page you're on: priced at the cheapest seller who is
+  // The Sell form, over whatever page you're on: priced at the cheapest seller who is
   // in game right now, with the quantity set to what you can spare.
   import type { Model } from "../core/model";
   import { listingKey, referencePrice } from "../core/market";
@@ -10,6 +10,7 @@
   import { MAX_PLAT, MAX_QTY, amountProblem, shown, wholeIn } from "../core/amounts";
   import Named from "./Named.svelte";
   import P from "./P.svelte";
+  import GameIcon from "./GameIcon.svelte";
   import ProgressButton from "./ProgressButton.svelte";
   import { trap } from "./trap";
 
@@ -114,8 +115,8 @@
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="scrim" onclick={() => mkt.closeDraft()}>
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <div class="dialog" role="dialog" tabindex="-1" aria-modal="true" aria-label="List on warframe.market" use:trap={{ onescape: () => mkt.closeDraft() }} onclick={(e) => e.stopPropagation()}>
-      <div class="register head">List on warframe.market</div>
+    <div class="dialog" role="dialog" tabindex="-1" aria-modal="true" aria-label="Sell on warframe.market" use:trap={{ onescape: () => mkt.closeDraft() }} onclick={(e) => e.stopPropagation()}>
+      <div class="register head">Sell on warframe.market</div>
 
       {#if mkt.draftDone && !d}
         <p class="done" role="status">{mkt.draftDone}.</p>
@@ -165,7 +166,7 @@
               </label>
             {/if}
             <label><span class="register">Price each</span>
-              <input class="price" type="number" min="1" max={MAX_PLAT} step="1" title="Platinum for each copy: a whole number" bind:value={d.platinum} bind:this={priceInput} onkeydown={enter} placeholder={d.priced || bookFailed ? "set a price" : "…"} />
+              <span class="pricebox"><input class="price" type="number" min="1" max={MAX_PLAT} step="1" title="Platinum for each copy: a whole number" bind:value={d.platinum} bind:this={priceInput} onkeydown={enter} placeholder={d.priced || bookFailed ? "your price" : "…"} /><GameIcon name="platinum" size={14} /></span>
             </label>
           </div>
 
@@ -201,12 +202,12 @@
           {/if}
           {#if mkt.draftError && !bookFailed}<p class="err small">{mkt.draftError}</p>{/if}
 
+          {#if !merging}<p class="dim small foot">It joins your Orders, where Reprice (or Apply automatically) keeps it at the cheapest in-game price.</p>{/if}
           <div class="row end">
             <button onclick={() => mkt.closeDraft()}>Cancel</button>
-            <ProgressButton tone="gold" busy={mkt.op === "Listing"} label={repriceOnly ? (d.platinum ? `Set price to ${d.platinum}p` : "Set the price") : `${merging ? "Add" : "List"} ${shown(d.quantity)}${d.platinum ? ` at ${d.platinum}p` : ""}`} working={repriceOnly ? "Setting…" : merging ? "Adding…" : "Listing…"}
-              title={repriceOnly ? "Change your listing's price on warframe.market" : merging ? "Add these to your listing on warframe.market" : "Put it up on warframe.market"} disabled={!ready} onclick={() => mkt.submitDraft()} />
+            <ProgressButton tone="gold" busy={mkt.op === "Listing"} label={repriceOnly ? (d.platinum ? `Set price to ${d.platinum}p` : "Set the price") : `${merging ? "Add" : "Sell"} ${shown(d.quantity)}${d.platinum ? ` at ${d.platinum}p` : ""}`} working={repriceOnly ? "Setting…" : merging ? "Adding…" : "Listing…"}
+              title={repriceOnly ? "Change your listing's price on warframe.market" : merging ? "Add these to your listing on warframe.market" : "Put it up for sale on warframe.market"} disabled={!ready} onclick={() => mkt.submitDraft()} />
           </div>
-          {#if !merging}<p class="dim small foot">It joins your Orders, where Reprice (or Apply automatically) keeps it at the cheapest in-game price.</p>{/if}
         {/if}
       {/if}
     </div>
@@ -221,6 +222,9 @@
   .fields label { display: grid; gap: .3rem; }
   .fields input { width: 6.5rem; text-align: right; }
   .fields input.price { width: 8rem; }
+  /* A field, not a button: the hint in plain lower case, platinum's mark beside the box. */
+  .fields input.price::placeholder { font-family: inherit; font-size: .85rem; letter-spacing: 0; text-transform: none; font-style: italic; }
+  .pricebox { display: inline-flex; align-items: center; gap: .4rem; }
   .static { display: grid; gap: .3rem; }
   .static strong { font-family: var(--face-mark); font-size: 1.5rem; line-height: 1.4; }
   .facts { display: flex; flex-wrap: wrap; gap: .3rem 1.1rem; color: var(--platinum-dim); }

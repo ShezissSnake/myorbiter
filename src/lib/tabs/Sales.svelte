@@ -13,7 +13,7 @@
   import Icon from "../ui/Icon.svelte";
   import IconButton from "../ui/IconButton.svelte";
   import Chip from "../ui/Chip.svelte";
-  import { knownName } from "../core/market";
+  import { heldFor, knownName } from "../core/market";
   import { exportFile, market as wfm } from "../backend";
   import { salesCsv } from "../core/exportCsv";
   import { importClosed } from "../core/closedOrders";
@@ -177,13 +177,15 @@
   });
   const underCount = $derived(month.filter((s) => (ratio(s) ?? 1) < UNDER).length);
   // What sold three or more times in 30 days: worth keeping listed, and listing more copies of.
+  /** Listings for more than you hold now: Orders asks "Sold?" under each, and a Yes logs the sale here. */
+  const maybeSold = $derived(mkt.orders.filter((o) => { const it = mkt.item(o.itemId); const n = it ? heldFor(model, it, o) : null; return n != null && n < o.quantity; }).length);
   const OFTEN = 3;
   const fast = $derived(new Set([...month.reduce((m, s) => m.set(s.item, (m.get(s.item) ?? 0) + s.quantity), new Map<string, number>())].filter(([, n]) => n >= OFTEN).map(([k]) => k)));
 </script>
 
 <div class="page"><div class="page-inner">
   <!-- Nothing logged: no row of zeros, just how sales get here. -->
-  <PageHead title="Sales" blurb="What you've sold, and the platinum it made." band={sales.length ? band : undefined} />
+  <PageHead title="Sales" brief="What you've sold, and the platinum it made." blurb="What you've sold, and the platinum it made." band={sales.length ? band : undefined} />
     {#snippet band()}
       <Stat label="Today" note={`${trades(today)} sold`} title={`Today: ${trades(today)} sold since your local midnight (Trades left, on Home and Orders, counts from 00:00 UTC)`}><P v={plat(today)} big /></Stat>
       <Stat label="Last 7 days" note={`${trades(week)} sold`}><P v={plat(week)} big /></Stat>
@@ -200,6 +202,7 @@
       {:else}
       <p class="prose">Sales log themselves when you trade items for platinum in game. For anything else, press <span class="ic"><Icon name="sold" size={13} /></span> on a listing in <button class="link" onclick={() => go("market")}>Orders</button>, or add it below.</p>
       {/if}
+      {#if maybeSold}<p><button class="link" title="Listings for more than you hold now: on Orders, answer Sold? and a Yes logs the sale here" onclick={() => go("market")}>{maybeSold} possible sale{maybeSold === 1 ? "" : "s"} waiting on Orders →</button></p>{/if}
     </section>
   {:else}
     <div class="grid">
@@ -229,7 +232,7 @@
   <div class="loghead">
     <div class="import">
       <h2 class="register">Sale log</h2>
-      <ProgressButton variant="icon" icon="import" busyIcon="refresh" spin tone="quiet" job={importJob} label="Import sales from warframe.market" working="Reading warframe.market…" doneLabel="Imported" failLabel="Couldn't import" title={mkt.me?.ingameName ? "Import sales from warframe.market: every sale you marked sold there that isn't logged here yet" : "Import sales from warframe.market: sign in on Orders first"} disabled={!mkt.me?.ingameName} onclick={importFromMarket} />
+      <ProgressButton stamp={false} icon="import" job={importJob} label="Import" working="Importing…" doneLabel="Imported" failLabel="Couldn't import" title={mkt.me?.ingameName ? "Import sales from warframe.market: every sale you marked sold there that isn't logged here yet" : "Import sales from warframe.market: sign in on Orders first"} disabled={!mkt.me?.ingameName} onclick={importFromMarket} />
       {#if sales.length}<ProgressButton variant="icon" icon="export" tone="quiet" job={exportJob} label="Export sales as CSV" doneLabel="Saved" failLabel="Couldn't save" title="Save every logged sale as a CSV file in your Downloads folder, for a spreadsheet" onclick={exportSales} />{/if}
       {#if importing}<span class="small dim" role="status">Reading warframe.market…</span>{:else if imported}<span class="small" class:dim={!importFailed} class:bad={importFailed} role="status">{imported}</span>{/if}
     </div>

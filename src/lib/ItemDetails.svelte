@@ -24,6 +24,7 @@
   import Avail from "./ui/Avail.svelte";
   import GameIcon, { eraIcon, kindIcon } from "./ui/GameIcon.svelte";
   import Metal from "./ui/Metal.svelte";
+  import ListButton from "./ui/ListButton.svelte";
 
   let { model, settings = $bindable() }: { model: Model; settings: Settings } = $props();
 
@@ -122,6 +123,11 @@
       }
     })();
   });
+  /** Complete sets of a prime you hold: what its Sell button offers, as the Sets card's does. */
+  const setsHeld = $derived.by(() => {
+    const parts = c?.isPrime ? c.parts.filter((p) => p.tradable) : [];
+    return parts.length ? Math.min(...parts.map((p) => Math.floor(p.have / Math.max(1, p.required)))) : 0;
+  });
   const bookNote = $derived(bookState === "failed" ? "warframe.market didn't answer" : bookState === "missing" ? "not listed on warframe.market" : "Checking…");
 
   const open = { get v() { return !!details.unique; }, set v(x: boolean) { if (!x) details.close(); } };
@@ -145,10 +151,11 @@
           <span><GameIcon name="mastery" size={16} /> {c.points.toLocaleString("en")} mastery</span>
           {#if item.releaseDate}<span class="dim">Released {new Date(item.releaseDate).getFullYear()}</span>{/if}
         </div>
-        <div class="acts">
-          <button class="star" class:on={fav} onclick={toggleFav}>{fav ? "★ On your wishlist" : "☆ Add to wishlist"}</button>
-          <button onclick={() => openUrl(item.wikiaUrl ?? wikiUrl(item.name))}>Wiki</button>
-          {#if tradeName && bookState !== "missing"}<button onclick={() => openUrl(marketUrl(tradeName ?? item.name))}>warframe.market</button>{/if}
+        <div class="detail-acts">
+          {#if tradeName && setsHeld > 0 && bookState !== "missing"}<ListButton {model} labelled name={tradeName} req={{ quantity: setsHeld }} />{/if}
+          <button class="star" class:on={fav} title={fav ? "On your wishlist: click to take it off" : "Add it to your wishlist (Wishlist, and ★ on Foundry)"} onclick={toggleFav}>{fav ? "★ On your wishlist" : "☆ Add to wishlist"}</button>
+          <button title="Its page on the official wiki" onclick={() => openUrl(item.wikiaUrl ?? wikiUrl(item.name))}>Wiki</button>
+          {#if tradeName && bookState !== "missing"}<button title="Its page on warframe.market: orders and price history" onclick={() => openUrl(marketUrl(tradeName ?? item.name))}>warframe.market</button>{/if}
         </div>
       </div>
     </section>
@@ -163,7 +170,7 @@
           <div class="cell"><span class="register">Parts sold loose</span><P v={loose == null ? null : Math.round(loose)} big /></div>
         {/if}
       </section>
-      {#if bookState !== "missing"}<section class="history"><PriceHistory name={tradeName} /></section>{/if}
+      {#if bookState !== "missing"}<section class="history"><PriceHistory name={tradeName} known={(c.setPrice ?? model.price(item.name)) != null} /></section>{/if}
     {/if}
 
     {#if row && !row.unobtainable}
@@ -300,7 +307,6 @@
   .tags .tag { margin: 0; }
   .facts { display: flex; gap: 1.2rem; align-items: center; font-size: .86rem; }
   .facts span { display: inline-flex; align-items: center; gap: .35rem; }
-  .acts { display: flex; gap: .5rem; flex-wrap: wrap; }
   .star.on { color: var(--gold); border-color: var(--gold-dim); }
   .history { margin-top: .8rem; }
   .market { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); border: 1px solid var(--rule); background: var(--well); }

@@ -60,8 +60,12 @@
   const gaps = $derived(filterGaps(model, plan, vaultedOnly, (...fields) => matches(query, ...fields)));
   const lastParts = $derived(gaps.filter((g) => g.missingCount === 1));
   const uncovered = $derived(gaps.filter((g) => g.relicsOwned === 0));
-  /** The table's empty line: what the filters found nothing for. */
-  const emptyLine = (none: string) => (query.trim() ? `Nothing matches “${query.trim()}”.` : none);
+  /** Any filter on, for the tables' empty line: Clear puts them all back. */
+  const anyFilter = $derived(!!query.trim() || vaultedOnly || wishOnly || openOnly);
+  function clear() {
+    query = "";
+    vaultedOnly = wishOnly = openOnly = false;
+  }
   /** The two lists below the table don't repeat each other: one part away with a relic for it, then no relic for it. */
   const lastCovered = $derived(lastParts.filter((g) => g.relicsOwned > 0));
 
@@ -163,6 +167,7 @@
 <div class="page"><div class="page-inner">
   <PageHead
     title="Planner"
+    brief={mode === "sets" ? "Relics to crack for sets you're close to." : "Where your Void Traces gain the most."}
     blurb={mode === "sets"
       ? "Your relics most likely to finish a set you're close to."
       : "Where 100 Void Traces gain the most."}
@@ -205,7 +210,7 @@
   </div>
 
   {#if mode === "sets"}
-    <Table rows={crack} columns={crackCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortSets} empty={emptyLine(vaultedOnly ? "None of your vaulted relics drop a missing part." : "None of your relics drop a missing part.")} />
+    <Table rows={crack} columns={crackCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortSets} clear={anyFilter ? clear : null} empty="None of your relics drop a missing part." />
     {#if lastCovered.length}
       <h2 class="register">One part from a complete set, and your relics drop it</h2>
       {@render gapList(lastCovered, "last")}
@@ -215,7 +220,7 @@
       {@render gapList(uncovered, "uncovered")}
     {/if}
   {:else}
-    <Table rows={radiant} columns={radCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortRad} empty={emptyLine(vaultedOnly ? "No vaulted relics left to refine." : "No relics left to refine.")} />
+    <Table rows={radiant} columns={radCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortRad} clear={anyFilter ? clear : null} empty="No relics left to refine." />
   {/if}
 </div></div>
 

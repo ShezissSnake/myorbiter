@@ -11,7 +11,7 @@
     image,
     artSize = 116,
     owned = false,
-    ownedNote = "One to look at: spares to sell, gear to master, a part you need",
+    ownedNote = "One to look at",
     markPrime = false,
     done = false,
     dimArt = false,
@@ -31,7 +31,7 @@
     artSize?: number;
     /** The gold corner notch: one to look at (you have it, or need something from it). */
     owned?: boolean;
-    /** What the notch means on this page, on hover. */
+    /** Why this card has the notch, on hover: its own reason ("10 spare to sell", "Not mastered"). */
     ownedNote?: string;
     /** Where Primes and their plain versions sit together (Foundry, Mastery, Sets): "Prime" in Orokin gold. */
     markPrime?: boolean;

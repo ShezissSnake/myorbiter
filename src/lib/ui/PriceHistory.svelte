@@ -13,6 +13,7 @@
     subtype = null,
     height = 150,
     lines = [],
+    known = false,
   }: {
     name: string;
     unique?: string | null;
@@ -21,6 +22,8 @@
     height?: number;
     /** Prices to draw across the chart for comparison: your listing, the cheapest in game. */
     lines?: { label: string; value: number; color: string }[];
+    /** The page already shows a price or how often it sells: no history then isn't "nobody sold one". */
+    known?: boolean;
   } = $props();
 
   let days = $state<Day[] | null>(null);
@@ -65,8 +68,10 @@
       {#if words}<b class:up={(t?.change ?? 0) >= 0.05} class:down={(t?.change ?? 0) <= -0.05}>{words}</b>{" · "}{/if}<span class="dim">about {t && t.perDay >= 10 ? Math.round(t.perDay) : Math.round((t?.perDay ?? 0) * 10) / 10} sold a day{t?.week != null ? ` · ${p(t.week)}p this week` : ""}{t?.month != null ? `, ${p(t.month)}p the month before` : ""}</span>
     </p>
   </div>
-{:else}
+{:else if !known}
   <p class="dim small">Nobody has sold one on warframe.market in 90 days.</p>
+{:else if rank != null}
+  <p class="dim small">No price history for this rank.</p>
 {/if}
 
 <style>

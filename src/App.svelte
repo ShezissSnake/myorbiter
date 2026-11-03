@@ -1,4 +1,5 @@
 <script lang="ts">
+  import PageHead from "./lib/ui/PageHead.svelte";
   import { discordSent } from "./lib/discordStatus.svelte";
   import { onMount, untrack } from "svelte";
   import { invasionNeeds, invasionRares } from "./lib/core/invasions";
@@ -2164,7 +2165,8 @@
       {#snippet pInventory()}<Inventory {model} sell={settings.market.sellable} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad} gear={settings.game.gear} bind:keepGear={settings.game.keepGear} />{/snippet}
       {#snippet pBrowse()}{#await loadMarket(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("browse", e)}><Page {model} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pWishlist()}{#await loadWishlist(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("wishlist", e)}><Page {model} bind:settings={settings} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pRivens()}{#await loadRivens(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("rivens", e)}><Page {model} console={onConsole} bind:settings={settings} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      <!-- Rivens is the slowest page to load the first time: its heading shows at once, not a bare Loading…. -->
+      {#snippet pRivens()}{#await loadRivens(lazyTry)}<div class="page"><div class="page-inner"><PageHead title="Rivens" brief={onConsole ? "Rivens for sale, graded, and alerts." : "Your rivens graded, and what they sell for."} /><p class="lazyload register" role="status">Loading your rivens…</p></div></div>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("rivens", e)}><Page {model} console={onConsole} bind:settings={settings} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pStats()}{#await loadStats(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("stats", e)}><Page {model} {settings} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {@render pane("mission", pMission)}
       {@render pane("sets", pSets)}

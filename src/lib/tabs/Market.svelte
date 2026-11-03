@@ -17,6 +17,7 @@
   import GameIcon, { kindIcon } from "../ui/GameIcon.svelte";
   import PriceHistory from "../ui/PriceHistory.svelte";
   import { matches, type Column } from "../ui/table";
+  import { takeIntent } from "../intent.svelte";
 
   let { model }: { model: Model } = $props();
 
@@ -29,6 +30,14 @@
   let weekly = $state(true);
   let query = $state("");
   let sort = $state({ key: "price", desc: true });
+  // Ctrl+K asked for one item: every category, slow sellers too, searched for its name.
+  $effect(() => {
+    const want = takeIntent("browse");
+    if (!want?.q) return;
+    clear();
+    weekly = false;
+    query = want.q;
+  });
 
   // warframe.market's item list: loaded once, shared with Orders and the buy order form.
   let loadError = $state<string | null>(null);
@@ -44,13 +53,13 @@
 
   const all = $derived(marketRows(model, mkt.items));
   const rows = $derived(filterRows(all, { category, min, max, minTrades, owned, weekly }).filter((r) => matches(query, r.name)));
-  /** What "Sells weekly" is hiding from the rest of the filters. */
+  /** What "Sold weekly" is hiding from the rest of the filters. */
   const slowHidden = $derived(weekly ? filterRows(all, { category, min, max, minTrades, owned, weekly: false }).filter((r) => matches(query, r.name)).length - rows.length : 0);
   const count = (c: MarketCategory | "all") => (c === "all" ? all.length : all.filter((r) => r.category === c).length);
   const label = (c: MarketCategory) => CATEGORIES.find((x) => x.v === c)?.label ?? "";
   const daily = (t: number | null) => (t == null ? null : Math.round(t * 10) / 10);
-  /** How often it sells, in words, for the cards and the tooltips. */
-  const pace = (t: number | null) => (t == null ? "No recent sales" : t >= 1 ? (daily(t) === 1 ? "Sells once a day" : `Sells ${daily(t)} times a day`) : t >= 1 / 7 ? (Math.round(t * 7) === 1 ? "Sells about once a week" : `Sells about ${Math.round(t * 7)} times a week`) : "Sells rarely");
+  /** How often it sells, for the cards and the tooltips: sold/day as everywhere, by the week when it's under one a day. */
+  const pace = (t: number | null) => (t == null ? "No recent sales" : t >= 1 ? `${daily(t)} sold/day` : t >= 1 / 7 ? `~${Math.round(t * 7)} sold/week` : "Sold rarely");
   const sellsDaily = $derived(rows.filter((r) => (r.tradesPerDay ?? 0) >= 1).length);
   const filtered = $derived(category !== "all" || min != null || max != null || minTrades != null || owned || !weekly || !!query.trim());
   function clear() {
@@ -63,13 +72,13 @@
   /** orbiter's own art where it has some, else warframe.market's thumbnail. */
   // Relics: orbiter files their art under the relic ("Axi S17"); the market has none.
   const art = (r: MarketRow) => model.imageOf(r.name) ?? (r.category === "relic" ? model.imageOf(r.name.replace(/ Relic$/, "")) : null) ?? r.thumb;
-  const buy = (r: MarketRow) => mkt.startBuy(r.name, { unique: r.gameRef });
+  const buy = (r: MarketRow) => mkt.startBuy(r.name, { unique: r.gameRef, known: r.price });
 
   const columns: Column<MarketRow>[] = [
     { key: "name", label: "Item", value: (r) => r.name, cell: nameCell, defaultDesc: false, width: "24rem" },
     { key: "kind", label: "Category", value: (r) => label(r.category), muted: true, defaultDesc: false, minor: true },
     { key: "price", label: "Price", value: (r) => r.price, sortValue: (r) => topPrice(r), align: "right", cell: priceCell, title: "What it sold for lately on warframe.market (the daily median). Mods and arcanes: unranked, then maxed" },
-    { key: "trades", label: "Trades/day", value: (r) => daily(r.tradesPerDay), align: "right", muted: true, title: "How many sell a day on warframe.market (mods and arcanes: every rank together): below 1 sells slowly, blank hasn't sold lately" },
+    { key: "trades", label: "Sold/day", value: (r) => daily(r.tradesPerDay), align: "right", muted: true, title: "How many sold a day on warframe.market lately (mods and arcanes: every rank together): below 1 sells slowly, blank hasn't sold lately" },
     { key: "ducats", label: "Ducats", value: (r) => r.ducats, align: "right", cell: ducatCell, minor: true, title: "What Baro gives for it" },
     { key: "have", label: "You have", value: (r) => r.have || null, align: "right", muted: true, minor: true, title: "How many you hold (sets: complete sets)" },
     { key: "buy", label: "", value: () => null, cell: buyCell, sortable: false, align: "right" },
@@ -90,7 +99,7 @@
     <span class="grow"></span>
     {@render buyCell(r)}
   {/snippet}
-  <ItemCard hover={r.name} title={r.name} sub={label(r.category)} fallback={kindIcon(label(r.category), r.name)} image={art(r)} artSize={64} owned={!!r.have} onopen={open} {foot}>
+  <ItemCard hover={r.name} title={r.name} sub={label(r.category)} fallback={kindIcon(label(r.category), r.name)} image={art(r)} artSize={64} owned={!!r.have} ownedNote="You have {r.have}" onopen={open} {foot}>
     <div class="vals">
       <span><span class="register">Price</span><P v={r.price} /></span>
       {#if r.priceMax != null}<span><span class="register">Maxed</span><P v={r.priceMax} dim /></span>{/if}
@@ -105,8 +114,8 @@
   </p>
   {#if r.tradesPerDay}
     <!-- Mods and arcanes: unranked and maxed copies sell apart, at different prices. -->
-    <div class="hist"><PriceHistory name={r.name} unique={r.category === "relic" ? null : r.gameRef} rank={r.maxRank ? 0 : null} height={130} /></div>
-    {#if r.maxRank}<div class="hist"><PriceHistory name={r.name} unique={r.gameRef} rank={r.maxRank} height={130} /></div>{/if}
+    <div class="hist"><PriceHistory name={r.name} unique={r.category === "relic" ? null : r.gameRef} rank={r.maxRank ? 0 : null} height={130} known={r.price != null} /></div>
+    {#if r.maxRank}<div class="hist"><PriceHistory name={r.name} unique={r.gameRef} rank={r.maxRank} height={130} known={r.priceMax != null} /></div>{/if}
   {/if}
   <div class="actions">
     <button class="link" title="See the cheapest seller and best buyer now, and post a buy order" onclick={() => buy(r)}>Buy order</button>
@@ -116,20 +125,19 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Browse market" blurb="Everything warframe.market trades: what it sold for lately, how often it sells.">
+  <PageHead title="Browse market" brief="Everything on warframe.market, by price." blurb="Everything warframe.market trades: what it sold for lately, how often it sells.">
     {#snippet band()}
-      <Stat label="Items shown" note={filtered ? `Of ${all.length.toLocaleString("en")} on warframe.market` : "Everything on warframe.market"}><b class="mark big">{rows.length.toLocaleString("en")}</b></Stat>
-      <Stat label="Sell daily" tone="dim" note="Of those shown, ones that sell at least once a day"><b class="mark big">{sellsDaily.toLocaleString("en")}</b></Stat>
+      <Stat label="Sold daily" note={filtered ? `Of the ${rows.length.toLocaleString("en")} shown, ones that sell at least once a day` : `Of the ${all.length.toLocaleString("en")} on warframe.market, ones that sell at least once a day`}><b class="mark big">{sellsDaily.toLocaleString("en")}</b></Stat>
     {/snippet}
   </PageHead>
 
   <div class="bar">
     <input type="search" placeholder="Filter items…" bind:value={query} aria-label="Filter items by name" />
     <select bind:value={category} aria-label="Category" class="kinds" title="Only one kind of item, by warframe.market's own tags">
-      <option value="all">All kinds ({count("all")})</option>
-      {#each CATEGORIES as c (c.v)}<option value={c.v}>{c.label} ({count(c.v)})</option>{/each}
+      <option value="all">All kinds ({count("all").toLocaleString("en")})</option>
+      {#each CATEGORIES as c (c.v)}<option value={c.v}>{c.label} ({count(c.v).toLocaleString("en")})</option>{/each}
     </select>
-    <Chip bind:on={weekly} label="Sells weekly" title="Only what sells at least once a week, on several different days. Off: everything, including prices from a sale or two, which can be jokes (a set &quot;sold&quot; for 80,000p)" />
+    <Chip bind:on={weekly} label="Sold weekly" title="Only what sells at least once a week, on several different days. Off: everything, including prices from a sale or two, which can be jokes (a set &quot;sold&quot; for 80,000p)" />
     <Chip bind:on={owned} label="You have" title="Only what you hold" />
     <Fold active={(min != null ? 1 : 0) + (max != null ? 1 : 0) + (minTrades != null ? 1 : 0)} reset={() => { min = null; max = null; minTrades = null; }}>
     <span class="pair">
@@ -145,8 +153,8 @@
       </label>
     </span>
     <label class="min" title="Only what sells at least this many times a day on warframe.market (1: it actually sells). Empty: any.">
-      <span class="register">Trades/day ≥</span>
-      <input type="number" min="0" step="any" placeholder="any" bind:value={minTrades} aria-label="Minimum trades a day" />
+      <span class="register">Sold/day ≥</span>
+      <input type="number" min="0" step="any" placeholder="any" bind:value={minTrades} aria-label="Minimum sold a day" />
     </label>
     </Fold>
   </div>
@@ -158,9 +166,8 @@
       <p class="dim">Loading warframe.market's item list…</p>
     {/if}
   {:else}
-    <Browse id="market-browse" {rows} {columns} key={(r) => r.slug} bind:sort {detail} {card} title={(r) => r.name} min="16rem" empty="Nothing matches these filters." />
-    {#if slowHidden}<p class="dim small more">{slowHidden.toLocaleString("en")} more sold too rarely for a steady price: theirs may not be real. <button class="link" onclick={() => (weekly = false)}>Show them</button></p>
-    {:else if !rows.length && filtered}<p class="dim more"><button class="link" onclick={clear}>Clear the filters</button></p>{/if}
+    <Browse id="market-browse" {rows} {columns} key={(r) => r.slug} bind:sort {detail} {card} title={(r) => r.name} min="16rem" clear={filtered ? clear : null} />
+    {#if slowHidden}<p class="dim small more">{slowHidden.toLocaleString("en")} more sold too rarely for a steady price: theirs may not be real. <button class="link" onclick={() => (weekly = false)}>Show them</button></p>{/if}
   {/if}
 </div></div>
 

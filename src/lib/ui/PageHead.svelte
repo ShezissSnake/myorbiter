@@ -1,9 +1,11 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   // A page's struck title, a line of what it is, and an optional band of figures beneath. The
-  // Details switch shows or hides the detail every page keeps on hover (lib/view.svelte.ts).
+  // Details switch shows or hides the detail every page keeps on hover (lib/view.svelte.ts): off,
+  // the page's short `brief`, which fits one line; on, the whole `blurb`.
   import { view } from "../view.svelte";
-  let { title, blurb, band }: { title: string; blurb?: string; band?: Snippet } = $props();
+  let { title, blurb, brief, band }: { title: string; blurb?: string; brief?: string; band?: Snippet } = $props();
+  const line = $derived(view.details ? blurb : (brief ?? blurb));
 </script>
 
 <header class="head">
@@ -13,7 +15,7 @@
     <h1 class="mark" tabindex="-1">{title}</h1>
   </div>
   <div class="side">
-    {#if blurb}<p class="prose" title={blurb}>{blurb}</p>{/if}
+    {#if line}<p class="prose" title={blurb}>{line}</p>{/if}
     <button type="button" class="details" class:on={view.details} aria-pressed={view.details} title={view.details ? "Details are showing: the sentence under each figure, every column. Click to keep just the essentials (the rest stays on hover)" : "Show details: the sentence under each figure and every column, on every page. Off, they're on hover"} onclick={() => view.set(!view.details)}><span class="box"></span>Details</button>
   </div>
 </header>
@@ -28,9 +30,9 @@
   h1 { font-size: clamp(2.3rem, 4.2vw, 3.7rem); }
   /* Focused only to start the page there: no ring on a title you can't press. */
   h1:focus { outline: none; }
-  /* At most two lines, so a long one doesn't push the title down (the whole of it on hover). */
-  .head .prose { margin: 0; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  /* Details off: one line, the rest on hover. */
+  /* At most three lines, so a long one doesn't push the title down (the whole of it on hover). */
+  .head .prose { margin: 0; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  /* Details off: the brief, on one line (the whole blurb on hover). */
   :global(html:not([data-details])) .head .prose { -webkit-line-clamp: 1; line-clamp: 1; }
   .side { display: grid; gap: .5rem; justify-items: end; min-width: 0; }
   .side .prose { justify-self: stretch; }

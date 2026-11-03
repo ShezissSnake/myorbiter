@@ -497,7 +497,7 @@
         <!-- Still asking for the world: the five clocks' places, so nothing jumps when they arrive. -->
         {#if liveWaiting && !cycles.length}
           {#each ["earth", "cetus", "vallis", "cambion", "zariman", "duviri"] as k (k)}
-            <div class="clock wait" aria-hidden="true"><GameIcon name={CYCLE_ICON[k]} size={26} /><div><span class="register clip1">{CYCLE_SHORT[k] ?? { earth: "Earth", vallis: "Orb Vallis", zariman: "Zariman", duviri: "Duviri" }[k]}</span><b class="mark st">—</b><span class="dim small nowrap">&nbsp;</span></div></div>
+            <div class="clock wait" aria-hidden="true"><GameIcon name={CYCLE_ICON[k]} size={26} /><div><span class="register clip1">{CYCLE_SHORT[k] ?? { earth: "Earth", vallis: "Orb Vallis", zariman: "Zariman", duviri: "Duviri" }[k]}</span><b class="mark st">Loading…</b><span class="dim small nowrap">&nbsp;</span></div></div>
           {/each}
         {/if}
         {#each cycles as c (c.key)}
@@ -573,7 +573,7 @@
     <section class="panel fissures" data-card="fissures" class:off={off("fissures")}>
       {@render head("void-tear", null, "Fissures now", console ? null : "relics", "Relics")}
       {#if live.fissures == null}
-        <p class="dim" class:waiting={liveWaiting}>{liveNote}</p>
+        <p class="dim" class:waiting={liveWaiting}>{liveWaiting ? "Loading fissures…" : liveNote}</p>
       {:else}
         {#if liveError && liveAt != null}<p class="dim small fromgame">The worldstate can't be read right now: these are from the last read ({checkedWhen(liveAt, now)}), each gone once it ends. orbiter asks again every few minutes.</p>
         {:else if live.fromGame}<p class="dim small fromgame">Read from the game's own worldstate: api.warframestat.us isn't answering, so Nightwave and the Circuit may be out of date, and alerts, invasions and Darvo's deal can't be read.</p>{/if}

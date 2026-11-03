@@ -67,7 +67,7 @@
     <ul class="srcs">{#each item.drops.slice(0, 6) as x, i (i)}<li><span>{placeName(x.location)}</span><span class="grow"></span><span class="dim">{pct(x.chance)}</span></li>{/each}</ul>
     {#if item.drops.length > 6}<p class="dim small">and {item.drops.length - 6} more places</p>{/if}
   {/if}
-  {#if tradable}<div class="hist"><PriceHistory {name} {unique} rank={0} height={130} /></div>{/if}
+  {#if tradable}<div class="hist"><PriceHistory {name} {unique} rank={0} height={130} known={price != null} /></div>{/if}
   <div class="links">
     <button class="link" onclick={() => openUrl(wikiUrl(name))}>Wiki ↗</button>
     {#if tradable}<button class="link" onclick={() => openUrl(marketUrl(name))}>warframe.market ↗</button>{/if}

@@ -1,6 +1,7 @@
 <script lang="ts">
   // Ctrl+K: find anything by name from any page. Gear opens its details; a prime part its item's
-  // details; a relic, mod or arcane opens its page searched for it. The best matches first: names
+  // details; a relic, mod or arcane opens its page searched for it; anything else warframe.market
+  // trades opens Browse market searched for it. The best matches first: names
   // that start with what you typed, then names with a word that does, then the rest.
   import { tick } from "svelte";
   import { splitRelicName, type Model } from "../core/model";
@@ -10,6 +11,7 @@
   import GameIcon, { eraIcon, kindIcon } from "./GameIcon.svelte";
   import { MASTERY_CATEGORIES, masteryCategory } from "../core/views";
   import { trap } from "./trap";
+  import { mkt } from "../marketStore.svelte";
 
   let { open = $bindable(false), model, go }: { open: boolean; model: Model; go: (tab: string) => void } = $props();
 
@@ -62,6 +64,13 @@
         const tab = r.category === "mod" ? "mods" : "arcanes";
         out.push({ key: `${tab}|${r.name}`, name: r.name, kind: r.category === "mod" ? "Mod you hold" : "Arcane you hold", image: model.imageOf(r.name), act: page(tab, { q: r.name }) });
       }
+    }
+    // Everything else warframe.market trades (cosmetics, Captura, mods you don't hold…), from the
+    // item list the app already loads: Browse market, searched for it. Names found above stay theirs.
+    const named = new Set(out.map((h) => h.name.toLowerCase()));
+    for (const it of mkt.items) {
+      if (named.has(it.name.toLowerCase())) continue;
+      out.push({ key: `browse|${it.slug}`, name: it.name, kind: "On warframe.market", image: model.imageOf(it.name) ?? it.thumb ?? null, act: page("browse", { q: it.name }) });
     }
     return out;
   });
@@ -122,9 +131,9 @@
           {/each}
         </ul>
       {:else if query.trim()}
-        <p class="dim small">Nothing by that name. Anything warframe.market trades is on Browse market.</p>
+        <p class="dim small">{mkt.items.length ? "Nothing by that name." : "Nothing by that name. warframe.market's item list hasn't loaded yet: anything it trades is on Browse market."}</p>
       {:else}
-        <p class="dim small">Gear opens its details, a prime part its item's, a relic, mod or arcane its page. ↑↓ to pick, Enter to open, Esc to close.</p>
+        <p class="dim small">Gear opens its details, a prime part its item's, a relic, mod or arcane its page, anything else on warframe.market Browse market. ↑↓ to pick, Enter to open, Esc to close.</p>
       {/if}
     </div>
   </div>

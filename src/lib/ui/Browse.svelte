@@ -10,6 +10,7 @@
   import Seg from "./Seg.svelte";
   import IconButton from "./IconButton.svelte";
   import Sheet from "./Sheet.svelte";
+  import NoMatch from "./NoMatch.svelte";
   import { nearEnd } from "./nearEnd";
 
   let {
@@ -21,12 +22,16 @@
     detail,
     card,
     title,
+    kicker,
     onopen,
     min = "19rem",
     empty = "Nothing matches these filters.",
     limit = 50,
     cardLimit = 24,
     tint,
+    clear = null,
+    tools,
+    count,
   }: {
     /** Remembers the layout under this name. */
     id: string;
@@ -39,6 +44,8 @@
     card: Snippet<[T, () => void]>;
     /** The details panel's heading. */
     title?: (r: T) => string;
+    /** The line over that heading (its kind), as the item details sheet has. */
+    kicker?: (r: T) => string;
     /** A row's era colour in the table (see Table.svelte); cards take theirs from the page. */
     tint?: (r: T) => string | null;
     /** Opens a row its own way; null or false declines, and the row's `detail` opens instead. */
@@ -47,6 +54,12 @@
     empty?: string;
     limit?: number;
     cardLimit?: number;
+    /** Set while a search or filter is on: an empty list then says so, with a Clear that calls this, rather than `empty`. */
+    clear?: (() => void) | null;
+    /** The page's own buttons, at the right end of the sort row (Rivens' Check prices). */
+    tools?: Snippet;
+    /** The count's words, when "N items" would mislead (Sets: copies against kinds of set). */
+    count?: (n: number) => string;
   } = $props();
 
   const key_ = () => `orbiter-layout-${id}`;
@@ -151,8 +164,9 @@
     </label>
   {/if}
   <span class="grow"></span>
-  <span class="dim small">{view.length} {view.length === 1 ? "item" : "items"}</span>
-  <Seg bind:value={layout} onchange={remember} options={[{ v: "cards", label: "Cards", icon: "cards" }, { v: "list", label: "Table", icon: "rows" }]} />
+  <span class="dim small nowrap">{count ? count(view.length) : `${view.length.toLocaleString("en")} ${view.length === 1 ? "item" : "items"}`}</span>
+  <Seg bind:value={layout} onchange={remember} options={[{ v: "cards", label: "Cards", icon: "cards", title: "Show them as cards" }, { v: "list", label: "Table", icon: "rows", title: "Show them as a table you can sort by any column" }]} />
+  {#if tools}{@render tools()}{/if}
 </div>
 
 {#snippet firstCell(r: T)}
@@ -161,24 +175,24 @@
 {/snippet}
 
 {#if layout === "list"}
-  <div class="list" use:rowOpener><Table rows={view} columns={listColumns} {key} bind:sort {detail} {empty} {limit} {tint} /></div>
+  <div class="list" use:rowOpener><Table rows={view} columns={listColumns} {key} bind:sort {detail} {empty} {clear} {limit} {tint} /></div>
 {:else if sorted.length}
   <CardGrid {min}>
     {#each sorted.slice(0, shown) as r (key(r))}{@render card(r, () => open(r))}{/each}
   </CardGrid>
   {#if sorted.length > shown}<div class="more dim small" use:nearEnd={() => (shown += 48)}>{sorted.length - shown} more below</div>{/if}
 {:else}
-  <p class="nothing">{empty}</p>
+  <p class="nothing">{#if clear}<NoMatch {clear} />{:else}{empty}{/if}</p>
 {/if}
 
 {#if detail && opened != null}
-  <Sheet bind:open={sheet.v} title={title ? title(opened) : ""} wide>
+  <Sheet bind:open={sheet.v} title={title ? title(opened) : ""} kicker={kicker?.(opened)} wide>
     {@render detail(opened)}
   </Sheet>
 {/if}
 
 <style>
-  .tools { display: flex; align-items: center; gap: .8rem; margin: 0 0 .8rem; }
+  .tools { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .8rem; margin: 0 0 .8rem; }
   .sort { display: inline-flex; align-items: center; gap: .5rem; }
   .more { display: flex; justify-content: center; padding: 1.2rem 0; min-height: 3rem; }
   /* Nothing here: quiet, but still readable (about 5:1). */

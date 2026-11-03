@@ -82,6 +82,15 @@
     return it ? `https://warframe.market/items/${it.slug}` : marketUrl(name);
   };
 
+  // Spare only and the folded filters, the kind and a search: what Clear puts back.
+  const filtered = $derived(!!query.trim() || kind !== "all" || tradableOnly || minTrades != null || minEach != null || spareOnly);
+  function clear() {
+    query = "";
+    kind = "all";
+    tradableOnly = spareOnly = false;
+    minTrades = minEach = null;
+  }
+
   const rows = $derived(all.filter((r) => (kind === "all" || r.kind === kind) && (!tradableOnly || spareOf(r)) && (minTrades == null || (perDay(r) ?? 0) >= minTrades) && (minEach == null || (priceOf(r) ?? 0) >= minEach) && (!spareOnly || spare(r) > 0) && matches(query, r.name, r.type, shown(r), spareOf(r)?.type ?? "")));
   const pctOf = (x: number | null | undefined) => (x == null ? "–" : `${Math.round(x * 10) / 10}%`);
   const why = (r: InventoryItem) => spareOf(r)?.why ?? "Nothing to spare";
@@ -116,7 +125,7 @@
     { key: "worth", label: "Worth", value: (r) => worthOf(r), align: "right", cell: worthCell },
     { key: "sellable", label: "Spare sells for", value: (r) => sellable(r), align: "right", cell: sellableCell, title: "What your spare copies would bring: no more of each item than the market sells in a month, shared between its ranks or refinements (Spare value, row by row: the rows add up to it)" },
     { key: "ducats", label: "Ducats (all)", value: (r) => (r.ducats == null ? null : r.ducats * r.quantity), align: "right", cell: ducatCell, minor: true, title: "Ducats for every copy you hold: ducats each × copies" },
-    { key: "trades", spare: true, label: "Trades/day", value: (r) => { const t = perDay(r); return t == null ? null : Math.round(t * 10) / 10; }, align: "right", muted: true, title: "How quickly it sells on warframe.market" },
+    { key: "trades", spare: true, label: "Sold/day", value: (r) => { const t = perDay(r); return t == null ? null : Math.round(t * 10) / 10; }, align: "right", muted: true, title: "How quickly it sells on warframe.market" },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
   ];
 </script>
@@ -154,7 +163,7 @@
     <span class="grow"></span>
     {@render listCell(r, true)}
   {/snippet}
-  <ItemCard hover={r.name} title={shown(r)} sub={spareOf(r)?.type ?? r.type} fallback={kindIcon(r.kind === "relic" ? "relic" : (spareOf(r)?.type ?? r.type), r.name)} image={model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r))} artSize={64} owned={r.kind === "gear" && !r.mastered} onopen={open} foot={r.kind === "gear" || perDay(r) != null || spareOf(r) ? foot : undefined}>
+  <ItemCard hover={r.name} title={shown(r)} sub={spareOf(r)?.type ?? r.type} fallback={kindIcon(r.kind === "relic" ? "relic" : (spareOf(r)?.type ?? r.type), r.name)} image={model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r))} artSize={64} owned={r.kind === "gear" && !r.mastered} ownedNote="Not mastered" onopen={open} foot={r.kind === "gear" || perDay(r) != null || spareOf(r) ? foot : undefined}>
     {#snippet art()}
       {#if r.kind === "mod" || r.kind === "arcane"}
         {@const c = model.catalogByUnique.get(r.unique)}
@@ -182,7 +191,7 @@
   <p class="small dim">
     {r.quantity} held{r.rank != null ? ` at rank ${r.rank}` : ""}{price != null ? ` · ${price}p each on warframe.market` : " · no market price"}{#if s}{" · "}you keep {s.keep}, can spare {s.spare}{/if}{#if s?.heldAs}{" · "}listed as {s.name} (the game calls it {s.heldAs}){/if}
   </p>
-  {#if s && (s.tradesPerDay ?? 1) > 0}<div class="hist"><PriceHistory name={s.name} unique={r.kind === "relic" || s.type === "Veiled riven" ? null : r.unique} rank={r.rank} subtype={r.subtype} height={130} /></div>{/if}
+  {#if s && (s.tradesPerDay ?? 1) > 0}<div class="hist"><PriceHistory name={s.name} unique={r.kind === "relic" || s.type === "Veiled riven" ? null : r.unique} rank={r.rank} subtype={r.subtype} height={130} known={price != null || perDay(r) != null} /></div>{/if}
   {#if s}<p class="small why">{s.keep ? `Kept: ${s.why}.` : `${s.why}.`}{#if s.crack != null && r.kind === "relic"}{" "}A crack is worth about {Math.round(s.crack * 10) / 10}p on average.{/if}</p>{/if}
   {#if s && s.needs.length > 1 && r.kind !== "relic"}
     <div class="odds">
@@ -209,14 +218,16 @@
       </div>
     {/if}
   {/if}
-  <div class="actions">
-    {#if spareOf(r)}<button class="link" onclick={() => openUrl(itemUrl(spareOf(r)!.name))}>warframe.market ↗</button>{/if}
-    <button class="link" onclick={() => openUrl(wikiUrl(r.kind === "relic" ? r.marketName ?? r.name : r.name))}>Wiki ↗</button>
+  <!-- The same buttons as an item's own details sheet. -->
+  <div class="detail-acts">
+    {@render listCell(r, true)}
+    <button title="Its page on the official wiki" onclick={() => openUrl(wikiUrl(r.kind === "relic" ? r.marketName ?? r.name : r.name))}>Wiki</button>
+    {#if spareOf(r)}<button title="Its page on warframe.market: orders and price history" onclick={() => openUrl(itemUrl(spareOf(r)!.name))}>warframe.market</button>{/if}
   </div>
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Inventory" blurb="Everything you own, with what it's worth on warframe.market.">
+  <PageHead title="Inventory" brief="Everything you own, and what it's worth." blurb="Everything you own, with what it's worth on warframe.market.">
     {#snippet band()}
       <Stat label="Spare value" tone="gold" note="Beyond what you keep, no more of each than the market sells in a month" title={`Spare value: every copy beyond what you keep, of every kind, at the daily median, no more of each item than the market sells in a month (slow sellers count only that; unranked arcanes as their share of a maxed one).${spareSplit ? ` By kind: ${spareSplit}.` : ""} Worth selling, on Prime parts, Mods and Arcanes, is the narrower figure: it leaves out what's better as ducats or Vosfor, what isn't worth a trade and mods that don't sell daily.`}><P v={value.spare} big /></Stat>
       <Stat extra label="Quick-sale value" note="Everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month"><P v={value.easy} big /></Stat>
@@ -226,15 +237,15 @@
 
   <div class="bar">
     <input type="search" placeholder="Filter items…" bind:value={query} />
-    <select bind:value={kind} aria-label="Kind" class="kinds">
-      {#each KINDS as k (k.v)}<option value={k.v}>{k.label} ({count(k.v)})</option>{/each}
+    <select bind:value={kind} aria-label="Kind" class="kinds" title="Only one kind of item">
+      {#each KINDS as k (k.v)}<option value={k.v}>{k.label} ({count(k.v).toLocaleString("en")})</option>{/each}
     </select>
     <Chip bind:on={spareOnly} label="Spare only" title="Only what you hold more of than you need: beyond what your unbuilt items take, two of each mod, one maxed arcane, one of each Captura scene" />
     <Fold active={(tradableOnly ? 1 : 0) + (minTrades != null ? 1 : 0) + (minEach != null ? 1 : 0)} reset={() => { tradableOnly = false; minTrades = null; minEach = null; }}>
       <Chip bind:on={tradableOnly} label="Tradable" title="Only things warframe.market trades" />
       <label class="min" title="Only what trades at least this many times a day on warframe.market (1: it actually sells). Empty: any.">
-        <span class="register">Trades/day ≥</span>
-        <input type="number" min="0" step="any" placeholder="any" bind:value={minTrades} aria-label="Minimum trades a day" />
+        <span class="register">Sold/day ≥</span>
+        <input type="number" min="0" step="any" placeholder="any" bind:value={minTrades} aria-label="Minimum sold a day" />
       </label>
       <label class="min" title="Only what's worth at least this much a copy, at the daily median. Empty: any.">
         <span class="register">Each ≥</span>
@@ -249,7 +260,7 @@
 
   {#if letGo}<NotNeeded {model} out={unneeded} incarnons={!!gear} bind:keep={keepGear} />{/if}
 
-  <Browse id="inventory" {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (r.kind === "gear" && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" empty="Nothing matches these filters." />
+  <Browse id="inventory" {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => shown(r)} kicker={(r) => spareOf(r)?.type ?? r.type} onopen={(r) => (r.kind === "gear" && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" clear={filtered ? clear : null} empty="Nothing in your inventory yet." />
 </div></div>
 
 <style>

@@ -136,7 +136,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Stats" blurb="Your account over time, what your relic runs come to, the parts you got, and every trade you've made in game.">
+  <PageHead title="Stats" brief="Your trades, relic runs and account over time." blurb="Your account over time, what your relic runs come to, the parts you got, and every trade you've made in game.">
     {#snippet band()}
       <Stat label="Revenue" note="Sales in this span, from the game's trade log" title="Revenue: platinum from sales in this span, from the game's trade log (the trade window orbiter read), plus sales logged on Sales that no logged trade covers"><P v={revenue} big /></Stat>
       <Stat label="Spent" tone="dim" note="Platinum paid for items"><P v={spent} big /></Stat>

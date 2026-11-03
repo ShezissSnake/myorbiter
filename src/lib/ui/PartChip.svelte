@@ -23,7 +23,7 @@
 
 <span class="chip" class:enough class:some class:building={part.building && !enough} class:res={part.resource} class:bp={part.blueprint} style:width="{size}px" style:height="{size}px" aria-label={title} use:info={part.name}>
   {#if part.image && !failed}<img src={imageUrl(part.image)} alt="" loading="lazy" onerror={() => (failed = true)} />{:else}<i class="none"></i>{/if}
-  {#if part.have > 0 || part.required > 1}<b class="n" class:short={!enough}>{part.resource || part.have >= 1000 ? count(part.have) : part.required > 1 && part.have < part.required ? `${part.have}/${part.required}` : part.have}</b>{/if}
+  {#if part.have > 0 || part.required > 1}<b class="n" class:short={!enough} title={part.required > 1 || part.resource ? `Held: ${part.have.toLocaleString("en")} of ${part.required.toLocaleString("en")} needed` : `Held: ${part.have}`}>{part.resource || part.have >= 1000 ? count(part.have) : part.required > 1 && part.have < part.required ? `${part.have}/${part.required}` : part.have}</b>{/if}
 </span>
 
 <style>

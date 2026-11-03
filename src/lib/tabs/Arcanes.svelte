@@ -39,6 +39,14 @@
   let type = $state("all");
   /** Loid's collection an arcane comes from ("Eidolon", "Duviri"…); "none" for arcanes in no pack. */
   let collection = $state("all");
+  // Owned only filters outside Sell or dissolve, where it's shown.
+  const filtered = $derived(!!query.trim() || type !== "all" || collection !== "all" || (show !== "spares" && owned !== "all"));
+  function clear() {
+    query = "";
+    type = "all";
+    collection = "all";
+    owned = "all";
+  }
   // Ctrl+K asked for one arcane: every arcane, searched for it.
   $effect(() => {
     const want = takeIntent("arcanes");
@@ -96,7 +104,7 @@
     { key: "sell", label: "Sell for", value: (x) => x.sellPlat, cell: sellCell, align: "right", title: "Priced as maxed arcanes: maxed copies at the max-rank price, loose ones at their share of one (a maxed arcane is 21 copies). Unranked copies sell a few at a time, so their own price overstates them" },
     { key: "vosfor", label: "Dissolve for", value: (x) => x.vosfor, cell: vosforCell, align: "right", title: "Vosfor from Loid's Arcane Dissolution, and what it's worth through the best pack" },
     { key: "best", label: "Best as", value: (x) => x.verdict, sortValue: (x) => (x.verdict === "sell" ? (x.sellPlat ?? 0) : (x.dissolvePlat ?? 0)), cell: verdictCell },
-    { key: "trades", minor: true, label: "Trades/day", value: (x) => (x.row.tradesPerDay == null ? null : Math.round(x.row.tradesPerDay * 10) / 10), align: "right", muted: true },
+    { key: "trades", minor: true, label: "Sold/day", value: (x) => (x.row.tradesPerDay == null ? null : Math.round(x.row.tradesPerDay * 10) / 10), align: "right", muted: true },
     { key: "list", label: "", value: () => null, cell: spareList, sortable: false, align: "right" },
   ];
 
@@ -115,7 +123,7 @@
     { key: "priceMax", label: "Max price", value: (r) => r.priceMax, align: "right", cell: maxCell },
     { key: "cost", label: "To finish", value: (r) => (r.complete ? null : r.costToFinish), align: "right", cell: costCell, defaultDesc: false, title: "Cheapest of buying the missing copies or one maxed copy" },
     ...(show !== "all" ? [] : [{ key: "spare", label: "Spare", value: (r: ArcaneRow) => r.extraSets * 1000 + leftover(r) || null, cell: rowSpare, align: "right", title: "Maxed copies beyond the one you keep, and loose unranked copies beyond what it needs" }] as Column<ArcaneRow>[]),
-    { key: "trades", minor: true, label: "Trades/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "Demand on warframe.market" },
+    { key: "trades", minor: true, label: "Sold/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "Demand on warframe.market" },
     // Still collecting has nothing spare, so nothing to list.
     ...(show !== "all" ? [] : [{ key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" }] as Column<ArcaneRow>[]),
   ] as Column<ArcaneRow>[]));
@@ -133,7 +141,7 @@
 {/snippet}
 {#snippet listCell(r: ArcaneRow, labelled = false)}
   {#if r.tradable && r.extraSets > 0}
-    <ListButton {model} {labelled} name={r.name} label="List {r.extraSets}× R{r.maxRank}" req={{ unique: r.unique, rank: r.maxRank, quantity: r.extraSets }} hint={fuseHint(r)} />
+    <ListButton {model} {labelled} name={r.name} label="Sell {r.extraSets}× R{r.maxRank}" req={{ unique: r.unique, rank: r.maxRank, quantity: r.extraSets }} hint={fuseHint(r)} />
   {:else if r.tradable && looseSpare(r) > 0}
     <ListButton {model} {labelled} name={r.name} req={{ unique: r.unique, rank: 0, quantity: looseSpare(r) }} />
   {/if}
@@ -157,7 +165,7 @@
 {#snippet verdictCell(x: SpareArcane)}<span class="vc" title={x.why}><span class="verdict v-{x.verdict}">{x.verdict === "sell" ? "Sell" : "Dissolve"}</span>{#if !PLAIN.has(x.why)}<span class="why">{x.why}</span>{/if}</span>{/snippet}
 {#snippet spareList(x: SpareArcane)}
   {#if x.verdict === "sell" && x.row.tradable && x.maxed > 0}
-    <ListButton {model} name={x.row.name} label="List {x.maxed}× R{x.row.maxRank}" req={{ unique: x.row.unique, rank: x.row.maxRank, quantity: x.maxed }} hint={fuseHint(x.row)} />
+    <ListButton {model} name={x.row.name} label="Sell {x.maxed}× R{x.row.maxRank}" req={{ unique: x.row.unique, rank: x.row.maxRank, quantity: x.maxed }} hint={fuseHint(x.row)} />
   {:else if x.verdict === "sell" && x.row.tradable && x.unranked > 0}
     <ListButton {model} name={x.row.name} req={{ unique: x.row.unique, rank: 0, quantity: x.unranked }} />
   {/if}
@@ -167,7 +175,7 @@
   <ModCard arcane name={r.name} image={model.imageOf(r.name)} rarity={r.rarity} maxRank={r.maxRank} rank={r.highestRank ?? 0} width={96} />
 {/snippet}
 {#snippet card(r: ArcaneRow, open: () => void)}
-  <ItemCard hover={r.name} title={r.name} sub={r.type} image={model.imageOf(r.name)} owned={r.complete} onopen={open}>
+  <ItemCard hover={r.name} title={r.name} sub={r.type} image={model.imageOf(r.name)} owned={r.complete} ownedNote={r.maxedCopies ? "Maxed" : "Enough copies to max it"} onopen={open}>
     {#snippet art()}{@render arcaneCard(r)}{/snippet}
     <div class="coll">
       <div class="ch"><span class="register">Copies</span>{#if note(r)}<span class="register note">{note(r)}</span>{/if}</div>
@@ -186,7 +194,7 @@
   </ItemCard>
 {/snippet}
 {#snippet spareCard(x: SpareArcane, open: () => void)}
-  <ItemCard hover={x.row.name} title={x.row.name} sub={x.row.type} image={model.imageOf(x.row.name)} owned={x.verdict === "sell"} onopen={open}>
+  <ItemCard hover={x.row.name} title={x.row.name} sub={x.row.type} image={model.imageOf(x.row.name)} owned={x.verdict === "sell"} ownedNote="Worth more sold than dissolved: sell it" onopen={open}>
     {#snippet art()}{@render arcaneCard(x.row)}{/snippet}
     {@render spareHave(x)}
     <div class="choice">
@@ -213,12 +221,12 @@
 {#snippet detail(r: ArcaneRow)}
   <UpgradeDetail {model} name={r.name} unique={r.unique} ranks={ranksOf(r)} tradable={r.tradable}>
     <p class="small dim">{r.complete ? "Maxed, or enough copies to max it" : `${r.copies} of ${r.needed} copies to max it`}{r.maxedCopies ? ` · ${r.maxedCopies} maxed` : ""}</p>
-    {#if r.tradable && r.extraSets > 0 && leftover(r) > 0}<div><button class="stamp" onclick={(e) => { e.stopPropagation(); mkt.startListing(model, r.name, { unique: r.unique, rank: 0, quantity: leftover(r) }); }}>List {leftover(r)} unranked</button></div>{/if}
+    {#if r.tradable && r.extraSets > 0 && leftover(r) > 0}<div><button class="stamp" title="Sell on warframe.market the unranked copies left over beyond the ones that make up maxed arcanes" onclick={(e) => { e.stopPropagation(); mkt.startListing(model, r.name, { unique: r.unique, rank: 0, quantity: leftover(r) }); }}>Sell {leftover(r)} unranked</button></div>{/if}
   </UpgradeDetail>
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Arcanes" blurb="What each arcane is worth, and how close you are to maxing it.">
+  <PageHead title="Arcanes" brief="Arcanes by worth, and how close to maxed." blurb="What each arcane is worth, and how close you are to maxing it.">
     {#snippet band()}
       <Stat label="Maxed" note="Arcanes you have at max rank">{completeCount}<span class="of">/{all.length}</span></Stat>
       <Stat label="Worth selling" note={`${things(toSell.length, "arcane")} marked Sell · no more of each than sells in a month`} title="Worth selling: the spare arcanes marked Sell (not the ones worth more dissolved, or under a trade's worth), maxed copies at the max-rank price and loose ones at their share of one, no more of each than the market sells in a month. Counted the same way on Prime parts, Mods and Home"><P v={sellWorth} big /></Stat>
@@ -232,6 +240,30 @@
     { v: "spares", label: "Sell or dissolve", title: "Copies beyond the one you keep: sell them, or dissolve them for Vosfor" },
     { v: "all", label: "All arcanes", title: "Every arcane, held or not" },
   ]} /></div>
+  <!-- Loid's packs above the filters, so the filters and the sort row under them stay together. -->
+  {#if show === "spares"}
+  <section class="vosfor">
+    <header>
+      <span class="register"><GameIcon name="vosfor" size={18} /> Loid's arcane packs · 200 Vosfor each</span>
+      <Seg label="Value Vosfor by" bind:value={advice.vosforLens} options={[
+        { v: "need", label: "Arcanes I'm collecting", title: "A pack is worth the arcanes in it you haven't finished, at what buying those copies would cost" },
+        { v: "market", label: "Market price", title: "A pack is worth all three arcanes at their unranked market price" },
+      ]} />
+    </header>
+    <p class="small dim">You hold <b>{held.toLocaleString("en")}</b> Vosfor{gain ? `, ${(held + gain).toLocaleString("en")} after dissolving what's marked Dissolve` : ""}: {Math.floor((held + gain) / 200)} pack{Math.floor((held + gain) / 200) === 1 ? "" : "s"}. Best pack {lens === "need" ? "for what you're collecting" : "by market value"}: <b>{worth.best ? short(worth.best.name) : "none"}</b>, about {worth.perVosfor ? (worth.perVosfor * 200).toFixed(0) : 0}p a pack.</p>
+    <p class="small dim" title="The wiki lists Vosfor per unranked arcane and doesn't say how rank changes it">A ranked copy is counted as the copies it's made of (a maxed one is 21, or 10 for arcanes that max at R3). Loid shows the exact Vosfor before you confirm a dissolution.</p>
+    <div class="packs">
+      {#each rankedPacks as p (p.name)}
+        <div class="pack" class:best={p === worth.best}>
+          <div class="ph"><b class="mark">{short(p.name)}</b>{#if lens === "market"}<span class="dim small" title="All three arcanes at their unranked market price">≈ {Math.round(p.plat)}p / pack</span>{:else if p.needCopies}<span class="dim small" title="On average {p.needCopies.toFixed(1)} of a pack's three arcanes are ones you're still collecting, worth what buying those copies would cost">{p.needPlat < 0.5 ? "under 1p" : `≈ ${Math.round(p.needPlat)}p`} / pack</span>{/if}</div>
+          {#if p.wanted.length}
+            <div class="wanted">{#each p.wanted.slice(0, 4) as w (w.name)}<span use:info={w.name}><Thumb file={model.imageOf(w.name)} size={18} />{w.name}</span>{/each}{#if p.wanted.length > 4}<span class="dim small" title={p.wanted.slice(4).map((w) => w.name).join(", ")}>+{p.wanted.length - 4}</span>{/if}</div>
+          {:else}<span class="dim small">Nothing you still need</span>{/if}
+        </div>
+      {/each}
+    </div>
+  </section>
+  {/if}
   <div class="bar">
   <input type="search" placeholder="Filter arcanes…" bind:value={query} />
   <select bind:value={type} aria-label="Slot" title="What it goes on">
@@ -249,30 +281,9 @@
   </div>
 
   {#if show === "spares"}
-    <section class="vosfor">
-      <header>
-        <span class="register"><GameIcon name="vosfor" size={18} /> Loid's arcane packs · 200 Vosfor each</span>
-        <Seg label="Value Vosfor by" bind:value={advice.vosforLens} options={[
-          { v: "need", label: "Arcanes I'm collecting", title: "A pack is worth the arcanes in it you haven't finished, at what buying those copies would cost" },
-          { v: "market", label: "Market price", title: "A pack is worth all three arcanes at their unranked market price" },
-        ]} />
-      </header>
-      <p class="small dim">You hold <b>{held.toLocaleString("en")}</b> Vosfor{gain ? `, ${(held + gain).toLocaleString("en")} after dissolving what's marked Dissolve` : ""}: {Math.floor((held + gain) / 200)} pack{Math.floor((held + gain) / 200) === 1 ? "" : "s"}. Best pack {lens === "need" ? "for what you're collecting" : "by market value"}: <b>{worth.best ? short(worth.best.name) : "none"}</b>, about {worth.perVosfor ? (worth.perVosfor * 200).toFixed(0) : 0}p a pack.</p>
-      <p class="small dim" title="The wiki lists Vosfor per unranked arcane and doesn't say how rank changes it">A ranked copy is counted as the copies it's made of (a maxed one is 21, or 10 for arcanes that max at R3). Loid shows the exact Vosfor before you confirm a dissolution.</p>
-      <div class="packs">
-        {#each rankedPacks as p (p.name)}
-          <div class="pack" class:best={p === worth.best}>
-            <div class="ph"><b class="mark">{short(p.name)}</b>{#if lens === "market"}<span class="dim small" title="All three arcanes at their unranked market price">≈ {Math.round(p.plat)}p / pack</span>{:else if p.needCopies}<span class="dim small" title="On average {p.needCopies.toFixed(1)} of a pack's three arcanes are ones you're still collecting, worth what buying those copies would cost">{p.needPlat < 0.5 ? "under 1p" : `≈ ${Math.round(p.needPlat)}p`} / pack</span>{/if}</div>
-            {#if p.wanted.length}
-              <div class="wanted">{#each p.wanted.slice(0, 4) as w (w.name)}<span use:info={w.name}><Thumb file={model.imageOf(w.name)} size={18} />{w.name}</span>{/each}{#if p.wanted.length > 4}<span class="dim small" title={p.wanted.slice(4).map((w) => w.name).join(", ")}>+{p.wanted.length - 4}</span>{/if}</div>
-            {:else}<span class="dim small">Nothing you still need</span>{/if}
-          </div>
-        {/each}
-      </div>
-    </section>
-    <Browse id="arcane-spares" rows={spareRows} columns={spareColumns} key={(x) => x.row.unique} bind:sort={spareSort} detail={spareDetail} card={spareCard} title={(x) => x.row.name} min="18rem" empty="No spare arcanes: you keep one of each and have nothing extra." />
+    <Browse id="arcane-spares" rows={spareRows} columns={spareColumns} key={(x) => x.row.unique} bind:sort={spareSort} detail={spareDetail} card={spareCard} title={(x) => x.row.name} min="18rem" clear={filtered ? clear : null} empty="No spare arcanes: you keep one of each and have nothing extra." />
   {:else}
-    <Browse id="arcanes" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" />
+    <Browse id="arcanes" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty={show === "unfinished" ? "Every arcane maxed: nothing left to collect." : "No arcanes."} />
   {/if}
 </div></div>
 

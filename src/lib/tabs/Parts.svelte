@@ -39,6 +39,14 @@
   let avail = $state<"all" | "farmable" | "vaulted">("all");
   let best = $state<"all" | Verdict>("all");
   let sort = $state({ key: "value", desc: true });
+  const filtered = $derived(!!query.trim() || best !== "all" || spareOnly || parent !== "mastered" || avail !== "all");
+  function clear() {
+    query = "";
+    best = "all";
+    spareOnly = false;
+    parent = "mastered";
+    avail = "all";
+  }
   // A link that asked for one kind of advice (Baro's card: Spares for ducats).
   $effect(() => {
     const want = takeIntent("parts");
@@ -109,7 +117,7 @@
     { key: "ratio", minor: true, label: "Duc/plat", value: (r) => (r.ducatsPerPlat == null ? null : Math.round(r.ducatsPerPlat * 10) / 10), align: "right", muted: true, title: "Ducats you get per platinum of market value" },
     { key: "verdict", label: "Best as", value: verdict, cell: verdictCell, defaultDesc: false },
     { key: "got", minor: true, label: "Got (30d)", value: (r) => drops.recent.get(r.name) ?? 0, align: "right", muted: true, title: "Copies that turned up in your inventory in the last 30 days, from relics or anything else; trades left out" },
-    { key: "trades", minor: true, label: "Trades/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true },
+    { key: "trades", minor: true, label: "Sold/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true },
     { key: "avail", spare: true, label: "Vault", value: (r) => r.availability, cell: availCell, align: "center", defaultDesc: false },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
   ];
@@ -131,7 +139,7 @@
 {#snippet verdictCell(r: PartRow)}{@const v = verdict(r)}<span class="v-{v}" title={VERDICT_TITLE[v]}>{LABEL[v]}</span>{/snippet}
 {#snippet listCell(r: PartRow, labelled = false)}
   {#if r.spare > 0 && r.inSets > 0}
-    <ListButton {model} {labelled} name="{r.parentName} Set" label="List set" req={{ quantity: setsFor.get(r.parentName) ?? 1 }} />
+    <ListButton {model} {labelled} name="{r.parentName} Set" label="Sell set" req={{ quantity: setsFor.get(r.parentName) ?? 1 }} />
   {:else if r.spare > 0}
     <ListButton {model} {labelled} name={r.name} req={{ quantity: r.spare }} />
   {/if}
@@ -140,7 +148,7 @@
 {#snippet card(r: PartRow, open: () => void)}
   {@const v = verdict(r)}
   {@const parentItem = model.catalogByUnique.get(r.parentUnique)}
-  <ItemCard hover={r.name} title={r.parentName} sub={r.name.replace(`${r.parentName} `, "")} image={parentItem?.imageName ?? model.imageOf(r.parentName)} artSize={84} owned={r.spare > 0 && v !== "Keep"} onopen={open}>
+  <ItemCard hover={r.name} title={r.parentName} sub={r.name.replace(`${r.parentName} `, "")} image={parentItem?.imageName ?? model.imageOf(r.parentName)} artSize={84} owned={r.spare > 0 && v !== "Keep"} ownedNote={v === "Ducats" ? `${r.spare} spare for Baro` : v === "Set" ? `${r.spare} spare, best sold in its set` : v === "Save" ? `${r.spare} spare, saved for its set` : `${r.spare} spare to sell`} onopen={open}>
     <span class="verdict v-{v}" title={VERDICT_TITLE[v]}>{#if v === "Sell"}<GameIcon name="platinum" size={14} />{:else if v === "Ducats"}<GameIcon name="ducats" size={14} />{:else if v === "Keep"}<Icon name="lock" size={13} />{:else}<Icon name="sets" size={13} />{/if}{LABEL[v]}</span>
     <div class="have">
       <Thumb file={model.imageOf(r.name)} name={r.name} size={26} />
@@ -153,7 +161,7 @@
       <Avail v={r.availability} />
       {#if parent === "all" && !r.parentMastered}<span class="tag warn">{r.parentOwned ? "built" : "need"}</span>{/if}
       <span class="grow"></span>
-      <button class="link" use:info={{ name: r.parentName, unique: r.parentUnique }} onclick={() => details.open(r.parentUnique)}>{r.parentName.replace(/ Prime$/, "")} ›</button>
+      <button class="link" title="Open {r.parentName}'s set" aria-label="Open {r.parentName}'s set" onclick={() => details.open(r.parentUnique)}>Set ›</button>
       {@render listCell(r, true)}
     {/snippet}
   </ItemCard>
@@ -167,14 +175,14 @@
     <span title="Daily median on warframe.market"><span class="register">Price</span><P v={r.price} /></span>
     <span title="What Baro Ki'Teer gives for one"><span class="register">Ducats</span><P v={r.ducats} d /></span>
     <span title="Copies that turned up in your inventory in the last 30 days, from relics or anything else; trades left out"><span class="register">Got (30d)</span><b>{drops.recent.get(r.name) ?? 0}</b></span>
-    {#if r.tradesPerDay != null}<span title="How many sell on warframe.market in a day, on average"><span class="register">Sells</span><b>{Math.round(r.tradesPerDay * 10) / 10}<small class="dim">/day</small></b></span>{/if}
+    {#if r.tradesPerDay != null}<span title="How many sell on warframe.market in a day, on average"><span class="register">Sold/day</span><b>{Math.round(r.tradesPerDay * 10) / 10}</b></span>{/if}
     <span title={VERDICT_TITLE[v]}><span class="register">Best as</span><b class="v-{v}">{LABEL[v]}</b></span>
   </div>
   <p class="small dim">
     {built(r) ? `${built(r)} kept to build ${r.parentName}${r.keptFor === r.parentName ? "" : ` for ${r.keptFor}`}` : r.parentMastered ? `${r.parentName} is mastered: every copy is spare` : `${r.parentName} is built: every copy is spare`}{r.inSets ? ` · ${r.inSets} go into ${setsFor.get(r.parentName) ?? 0} complete set${setsFor.get(r.parentName) === 1 ? "" : "s"}` : ""}{r.spare - r.inSets > 0 ? ` · ${r.spare - r.inSets} loose ${v === "Ducats" ? "for ducats" : "to sell"}` : ""}
   </p>
   {#if r.saving}<p class="small saving">{savedLine(r.forSet, r.saving)}. Still to get: {r.saving.missing.map((x) => `${x.count > 1 ? `${x.count}× ` : ""}${x.name.replace(`${r.parentName} `, "")}`).join(", ")}.</p>{/if}
-  {#if (r.tradesPerDay ?? 1) > 0}<div class="hist"><PriceHistory name={r.name} height={130} /></div>{/if}
+  {#if (r.tradesPerDay ?? 1) > 0}<div class="hist"><PriceHistory name={r.name} height={130} known={r.price != null || r.tradesPerDay != null} /></div>{/if}
   {#if src.length}
     <div class="odds">
       <span class="register">Drops from (intact → radiant)</span>
@@ -191,7 +199,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Prime parts" blurb="Every prime part you hold and its best use: keep, save for its set, sell, sell as a set, or trade to Baro.">
+  <PageHead title="Prime parts" brief="Each prime part's best use." blurb="Every prime part you hold and its best use: keep, save for its set, sell, sell as a set, or trade to Baro.">
     {#snippet band()}
       <Stat label="Worth selling" note={`${plural(selling.reduce((n, x) => n + x.copies, 0), "part")} · daily median, no more of each than sells in a month`} title="Worth selling: your spare parts best sold for platinum (Best as Sell), at the daily median, no more of each than the market sells in a month. Parts that go out inside a whole set are left out (sell the set, on Sets), as are the ones better traded to Baro for ducats or not worth a trade. Counted the same way on Mods, Arcanes and Home"><P v={asPlat} big /></Stat>
       <Stat label="Spares for ducats" tone="gold" note={`${plural(spares.filter((r) => verdict(r) === "Ducats").reduce((n, r) => n + r.spare, 0), "part")}, better traded in`}><P v={asDucats} d big /></Stat>
@@ -216,23 +224,25 @@
       />
       <Seg label="Relics" bind:value={avail} options={[{ v: "all", label: "All", title: "Farmable and vaulted alike" }, { v: "vaulted", label: "Vaulted", title: "Only vaulted relics drop it: no new copies, so prices tend to rise" }, { v: "farmable", label: "Farmable", title: "A relic that drops it can still be farmed: its price may drop" }]} />
     </Fold>
-    <span class="grow"></span>
-    <!-- Not filters: how Best as weighs platinum against ducats (Put my spares on sale uses them too). -->
-    <Fold label="Your rates" title="What a ducat is worth to you and the smallest sale worth a trade: how Best as weighs platinum against ducats (Put my spares on sale uses the same)">
-      <select bind:value={advice.platPerDucat} aria-label="What a ducat is worth to you" title="What a ducat is worth to you, from what you'd buy with them at Baro">
-        {#each [...new Set([...RATES, advice.platPerDucat])].sort((a, b) => a - b) as r (r)}<option value={r}>1 ducat ≈ {r}p ({Math.round(1 / r)}:1)</option>{/each}
-      </select>
-      {#if advice.baroRate && advice.baroRate.rate !== advice.platPerDucat}
-        {@const b = advice.baroRate}
-        <button class="baro" title="On Baro's visit of {new Date(b.visit).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, the best he had that sells daily was {b.item}: {b.ducats} ducats for something that sells for {b.price}p. Click to use {b.rate}p a ducat." onclick={() => (advice.platPerDucat = b.rate)}><GameIcon name="ducats" size={13} />Baro: {b.rate}p</button>
-      {/if}
-      <select bind:value={advice.minPlat} aria-label="Smallest sale worth a trade" title="Judged on the whole trade: up to 6 copies go in one, so five barrels at 3p are a 15p trade">
-        {#each [0, 3, 5, 8, 10, 15] as n (n)}<option value={n}>{n ? `Not worth a trade under ${n}p a trade` : "Any price is worth a trade"}</option>{/each}
-      </select>
-    </Fold>
   </div>
 
-  <Browse id="parts" {rows} {columns} key={(r) => r.name} bind:sort {detail} {card} title={(r) => r.name} min="18rem" />
+  <Browse id="parts" {rows} {columns} key={(r) => r.name} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty="No prime parts of mastered items.">
+    {#snippet tools()}
+      <!-- Not filters: how Best as weighs platinum against ducats (Put my spares on sale uses them too), so they sit at the end of the sort row rather than wrapping alone under the filters. -->
+      <Fold label="Your rates" title="What a ducat is worth to you and the smallest sale worth a trade: how Best as weighs platinum against ducats (Put my spares on sale uses the same)">
+        <select bind:value={advice.platPerDucat} aria-label="What a ducat is worth to you" title="What a ducat is worth to you, from what you'd buy with them at Baro">
+          {#each [...new Set([...RATES, advice.platPerDucat])].sort((a, b) => a - b) as r (r)}<option value={r}>1 ducat ≈ {r}p ({Math.round(1 / r)}:1)</option>{/each}
+        </select>
+        {#if advice.baroRate && advice.baroRate.rate !== advice.platPerDucat}
+          {@const b = advice.baroRate}
+          <button class="baro" title="On Baro's visit of {new Date(b.visit).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, the best he had that sells daily was {b.item}: {b.ducats} ducats for something that sells for {b.price}p. Click to use {b.rate}p a ducat." onclick={() => (advice.platPerDucat = b.rate)}><GameIcon name="ducats" size={13} />Baro: {b.rate}p</button>
+        {/if}
+        <select bind:value={advice.minPlat} aria-label="Smallest sale worth a trade" title="Judged on the whole trade: up to 6 copies go in one, so five barrels at 3p are a 15p trade">
+          {#each [0, 3, 5, 8, 10, 15] as n (n)}<option value={n}>{n ? `Not worth a trade under ${n}p a trade` : "Any price is worth a trade"}</option>{/each}
+        </select>
+      </Fold>
+    {/snippet}
+  </Browse>
 
   <!-- Baro week: parts that turn platinum into ducats cheapest, beyond the ones you hold. -->
   <section class="dbuy" id="ducat-buys">
@@ -241,7 +251,7 @@
       <span class="dim small">{baro ? (baroHere ? `Baro is here: leaves in ${until(baro.expiry)}` : `Baro arrives in ${until(baro.activation)}`) : ""}{baro ? " · " : ""}parts that sell daily, most ducats per platinum at the daily median. Gold: at least {Math.round(1 / advice.platPerDucat)} ducats a platinum, your rate (above).</span>
     </header>
     <table class="dt">
-      <thead><tr><th>Part</th><th class="r">Ducats</th><th class="r">Price</th><th class="r" title="Ducats per platinum at the daily median">Per plat</th><th class="r">Sells/day</th><th></th></tr></thead>
+      <thead><tr><th>Part</th><th class="r">Ducats</th><th class="r">Price</th><th class="r" title="Ducats per platinum at the daily median">Per plat</th><th class="r" title="How many sell a day on warframe.market">Sold/day</th><th></th></tr></thead>
       <tbody>
         {#each buys as b (b.name)}
           <tr>
@@ -250,7 +260,7 @@
             <td class="r"><P v={b.price} /></td>
             <td class="r"><b class:good={b.rate >= 1 / advice.platPerDucat}>{Math.round(b.rate * 10) / 10}</b></td>
             <td class="r dim">{b.tradesPerDay == null ? "–" : Math.round(b.tradesPerDay * 10) / 10}</td>
-            <td class="r"><button class="link" title="Post a buy order on warframe.market for {b.name}: sellers whisper you" onclick={() => mkt.startBuy(b.name, { quantity: 5 })}>Buy order</button></td>
+            <td class="r"><button class="link" title="Post a buy order on warframe.market for {b.name}: sellers whisper you" onclick={() => mkt.startBuy(b.name, { quantity: 5, known: b.price })}>Buy order</button></td>
           </tr>
         {/each}
       </tbody>

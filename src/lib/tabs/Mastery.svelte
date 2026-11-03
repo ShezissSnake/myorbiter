@@ -60,6 +60,16 @@
   /** Easiest first, or what platinum buys, cheapest first. */
   let view = $state<"effort" | "plat">("effort");
 
+  // Show unavailable only adds, so on its own it hides nothing.
+  const filtered = $derived(!!query.trim() || category !== "all" || kind !== "all" || effort !== "all");
+  function clear() {
+    query = "";
+    category = "all";
+    kind = "all";
+    effort = "all";
+    showUnavailable = false;
+  }
+
   const all = $derived(masteryRows(model));
   const categories = $derived([...new Set(all.map((r) => r.category))].sort());
   const rows = $derived(
@@ -118,7 +128,7 @@
 {#snippet card(r: MasteryRow, open: () => void)}
   {@const item = model.catalogByUnique.get(r.unique)}
   {@const parts = item && r.status !== "level" ? collectionItem(model, item).parts.filter((p) => !p.resource) : []}
-  <ItemCard hover={r.name} title={r.name} sub={r.category} fallback={kindIcon(r.category, r.name)} image={item?.imageName ?? model.imageOf(r.name)} owned={r.status === "level"} ownedNote="You own it: level it to master it" markPrime onopen={open} fav={wished.has(r.unique)} onfav={item ? () => toggleWish(r.unique) : undefined}>
+  <ItemCard hover={r.name} title={r.name} sub={r.category} fallback={kindIcon(r.category, r.name)} image={item?.imageName ?? model.imageOf(r.name)} markPrime onopen={open} fav={wished.has(r.unique)} onfav={item ? () => toggleWish(r.unique) : undefined}>
     {#if r.acq.difficulty > 0}<Effort acq={r.acq} />{:else}<p class="chow">{stageText(r)}</p>{/if}
     {#if parts.length}<div class="chips">{#each parts as p, i (i)}<PartChip part={p} size={32} />{/each}</div>{/if}
     {#if r.acq.difficulty > 0}<p class="chow" title={r.acq.players ? `${r.acq.how}\n\n${r.acq.players}` : r.acq.how}>{r.acq.how}</p>{/if}
@@ -165,7 +175,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Mastery" blurb={view === "plat" ? "What platinum gets you that you haven’t mastered, cheapest first." : "Everything you haven’t mastered, easiest first."}>
+  <PageHead title="Mastery" brief={view === "plat" ? "What platinum buys toward mastery." : "What's left to master, easiest first."} blurb={view === "plat" ? "What platinum gets you that you haven’t mastered, cheapest first." : "Everything you haven’t mastered, easiest first."}>
     {#snippet band()}
       {#if masteryRank != null}
         <Stat label="Your rank" tone="gold" note={`${rankLabel(masteryRank)} from ${rankThreshold(masteryRank).toLocaleString("en")} · ${rankLabel(masteryRank + 1)} at ${rankThreshold(masteryRank + 1).toLocaleString("en")} total mastery`} title={`${rankLabel(masteryRank + 1)} takes ${(rankThreshold(masteryRank + 1) - rankThreshold(masteryRank)).toLocaleString("en")} mastery more than ${rankLabel(masteryRank)}. The game doesn't say how far into the rank you are, so the figures below are what's left to earn, not what's left to the next rank.`}>{rankLabel(masteryRank)}</Stat>
@@ -192,9 +202,9 @@
   </div>
 
   {#if view === "plat"}
-    <PlatMastery {model} {rows} {wished} onwish={toggleWish} />
+    <PlatMastery {model} {rows} {wished} onwish={toggleWish} clear={filtered ? clear : null} />
   {:else}
-  <Browse id="mastery" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} empty="Nothing left to master here." />
+  <Browse id="mastery" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} clear={filtered ? clear : null} empty="Nothing left to master here." />
   {/if}
 </div></div>
 

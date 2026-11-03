@@ -94,7 +94,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Wishlist" blurb="What you've starred, and the quickest way to each missing part: a relic you hold, where to farm one, or what it costs." band={items.length ? band : undefined} />
+  <PageHead title="Wishlist" brief="What you starred, and how to get each part." blurb="What you've starred, and the quickest way to each missing part: a relic you hold, where to farm one, or what it costs." band={items.length ? band : undefined} />
 
   <div class="bar">
     <input list="wish-names" placeholder="Add something to your wishlist…" bind:value={adding} onkeydown={(e) => e.key === "Enter" && add()} aria-label="Item to add" />
@@ -179,7 +179,7 @@
                       {:else if p.vaulted}<span class="dim small">Vaulted</span>
                       {:else}<span class="dim small">–</span>{/if}
                     </td>
-                    <td class="r"><span class="buycell"><P v={p.price == null ? null : Math.round(p.price)} /><button class="link buyo" title="Post a buy order on warframe.market for {p.name}: sellers whisper you" onclick={() => mkt.startBuy(p.name, { quantity: Math.max(1, p.required - p.have) })}>Buy order</button></span></td>
+                    <td class="r"><span class="buycell"><P v={p.price == null ? null : Math.round(p.price)} /><button class="link buyo" title="Post a buy order on warframe.market for {p.name}: sellers whisper you" onclick={() => mkt.startBuy(p.name, { quantity: Math.max(1, p.required - p.have), known: p.price })}>Buy order</button></span></td>
                   </tr>
                 {/each}
               </tbody>
