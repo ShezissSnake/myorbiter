@@ -56,11 +56,18 @@ test("overframeFor: the listing rule by default, 5 most voted updated within two
 });
 
 test("overframeFor: equal votes go to the most recently updated; limit and age can be set", () => {
-  const r = overframeFor(FILE, MESA, { now: NOW, limit: 10 });
+  const r = overframeFor(FILE, MESA, { now: NOW, limit: 10, minVotes: 0 });
   assert.deepEqual(r.builds.map((b) => b.id), [12, 13, 15, 17, 14, 16]);
-  assert.deepEqual(overframeFor(FILE, MESA, { now: NOW, maxAgeDays: 0, limit: 1 }).builds.map((b) => b.id), [11]);
-  assert.deepEqual(overframeFor(FILE, MESA, { now: NOW, maxAgeDays: 30 }).builds.map((b) => b.id), [15, 17, 14, 16]);
+  assert.deepEqual(overframeFor(FILE, MESA, { now: NOW, maxAgeDays: 0, limit: 1, minVotes: 0 }).builds.map((b) => b.id), [11]);
+  assert.deepEqual(overframeFor(FILE, MESA, { now: NOW, maxAgeDays: 30, minVotes: 0 }).builds.map((b) => b.id), [15, 17, 14, 16]);
   assert.equal(overframeFor(FILE, MESA, { now: NOW, limit: 0 }).builds.length, 0);
+});
+
+test("overframeFor: only popular builds, 10 votes or more by default", () => {
+  const all = overframeFor(FILE, MESA, { now: NOW, limit: 10, minVotes: 0 }).builds;
+  const shown = overframeFor(FILE, MESA, { now: NOW, limit: 10 }).builds;
+  assert.deepEqual(shown.map((b) => b.id), all.filter((b) => b.score >= 10).map((b) => b.id));
+  assert.ok(shown.every((b) => b.score >= 10));
 });
 
 test("overframeFor: an unmatched build is found by the item's name; nothing for other items or no file", () => {

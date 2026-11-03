@@ -120,11 +120,16 @@ export function overframeWithinAge(b: Pick<OverframeListed, "updated">, maxAgeDa
   return Number.isFinite(at) && now - at <= (maxAgeDays + 1) * DAY;
 }
 
+/** Fewest votes for a build to show as popular. */
+export const OVERFRAME_MIN_VOTES = 10;
+
 export interface OverframeOptions {
   /** Default 730 (two years); 0: no limit. */
   maxAgeDays?: number;
   /** Default 5. */
   limit?: number;
+  /** Fewest votes to count as popular. Default 10. */
+  minVotes?: number;
   /** The item's name: also takes the builds whose item matched no catalog path, by name. */
   name?: string;
   now?: number;
@@ -148,7 +153,9 @@ export function overframeFor(file: OverframeFile | null, itemPath: string, opts:
   const byName = opts.name ? normName(opts.name) : null;
   const mine = file.builds.filter((b) => b.uniqueName === itemPath || (!b.uniqueName && byName != null && normName(b.item) === byName));
   const fresh = mine.filter((b) => overframeWithinAge(b, maxAgeDays, now));
-  const builds = [...fresh].sort((a, b) => b.score - a.score || updatedAt(b) - updatedAt(a) || a.id - b.id).slice(0, limit);
+  // Only popular ones: a build with hardly any votes isn't one, however recent.
+  const minVotes = Math.max(0, opts.minVotes ?? OVERFRAME_MIN_VOTES);
+  const builds = [...fresh].filter((b) => b.score >= minVotes).sort((a, b) => b.score - a.score || updatedAt(b) - updatedAt(a) || a.id - b.id).slice(0, limit);
   return { builds, total: mine.length, older: mine.length - fresh.length };
 }
 
