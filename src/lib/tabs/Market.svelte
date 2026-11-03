@@ -17,6 +17,7 @@
   import GameIcon, { kindIcon } from "../ui/GameIcon.svelte";
   import PriceHistory from "../ui/PriceHistory.svelte";
   import { matches, type Column } from "../ui/table";
+  import { takeIntent } from "../intent.svelte";
 
   let { model }: { model: Model } = $props();
 
@@ -29,6 +30,14 @@
   let weekly = $state(true);
   let query = $state("");
   let sort = $state({ key: "price", desc: true });
+  // Ctrl+K asked for one item: every category, slow sellers too, searched for its name.
+  $effect(() => {
+    const want = takeIntent("browse");
+    if (!want?.q) return;
+    clear();
+    weekly = false;
+    query = want.q;
+  });
 
   // warframe.market's item list: loaded once, shared with Orders and the buy order form.
   let loadError = $state<string | null>(null);
