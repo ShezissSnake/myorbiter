@@ -108,6 +108,8 @@ export interface Build {
   gameUpdate?: string;
   favourite?: boolean;
   note?: string;
+  /** What it's for, in a word or two each ("Steel Path", "Shield gating", "Support"). */
+  tags?: string[];
 }
 
 /** A fresh id for a build. */
@@ -200,6 +202,10 @@ export function sanitizeBuild(v: unknown): Build | null {
   if (o.favourite === true) b.favourite = true;
   const note = str(o.note, MAX_TEXT);
   if (note) b.note = note;
+  if (Array.isArray(o.tags)) {
+    const tags = [...new Set(o.tags.map((t) => str(t, 40)?.trim()).filter((t): t is string => !!t))].slice(0, 12);
+    if (tags.length) b.tags = tags;
+  }
   return b;
 }
 

@@ -18,6 +18,7 @@
  *                                                       // Veteran), limits, reasons, formaPlan, slots;
  *                                                       // capacityTier: what capacity alone needs
  *   availabilityOf(catalogItem);                        // a mod's or arcane's: new | intermediate | veteran
+ *   tagsInText(text, title);                            // build tags a paste names; TAG_FAMILY for chips (tags.ts)
  *   const r = missing(build, m);                        // lines: item, parts, mods, arcanes, shards,
  *                                                       // catalyst, adapters, forma, helminth
  *
@@ -39,6 +40,7 @@ export { normName, nameIndex, matchName, suggest, type NameIndex, type Matched, 
 export { parsePaste, type PasteResult, type PasteOptions, type ReadName, type SlotRole } from "./parse";
 export { tierOf, capacityOf, tierAllows, tierOfAvailability, drainIn, bonusIn, matches, TIERS, TIER_LABEL, CAPACITY_LABEL, TIER_AVAILABILITY, type Tier, type TierResult, type TierLimit, type CapacityResult, type FormaStep, type SlotDrain, type SlotRef } from "./capacity";
 export { availability, availabilityOf, availableAt, availabilityRank, laterOf, sourceLevel, dropsLevel, hardDonorOf, AVAILABILITIES, AVAILABILITY_LABEL, AVAILABILITY_SOURCES, type Availability, type AvailabilityInfo, type AvailabilityRule } from "./availability";
+export { TAGS, NOX_TAGS, TAG_FAMILY, TAG_FAMILIES, familyOfTag, byFamily, canonicalTag, tagsInText, onlyTags, type TagFamily } from "./tags";
 export { missing, bestCopy, endoCost, ENDO_BASE, PATHS, SHARD_PATH, shardPath, type MissingReport, type MissingLine, type MissingKind, type Have } from "./missing";
 export { buildDate, buildAgeDays, withinAge, filterByAge, buildsFor, toggleFavourite, saveBuild, removeBuild } from "./store";
 export { registerSource, unregisterSource, buildSources, sourceBuilds, BLOCKED_HOSTS, type BuildSource, type SourceContext, type SourcePermission } from "./source";
