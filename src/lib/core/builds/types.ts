@@ -107,6 +107,8 @@ export interface Build {
   /** The game update it was made for ("39.1"), if known. */
   gameUpdate?: string;
   favourite?: boolean;
+  /** What it's for, as its source labels it ("Steel Path", "Farming"), or as the user tags it. */
+  tags?: string[];
   note?: string;
 }
 
@@ -198,6 +200,10 @@ export function sanitizeBuild(v: unknown): Build | null {
   const gameUpdate = str(o.gameUpdate, 20);
   if (gameUpdate) b.gameUpdate = gameUpdate;
   if (o.favourite === true) b.favourite = true;
+  if (Array.isArray(o.tags)) {
+    const tags = [...new Set(o.tags.map((t) => str(t, 40)?.trim()).filter((t): t is string => !!t))].slice(0, 12);
+    if (tags.length) b.tags = tags;
+  }
   const note = str(o.note, MAX_TEXT);
   if (note) b.note = note;
   return b;
