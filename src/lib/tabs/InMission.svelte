@@ -17,6 +17,7 @@
   import { info } from "../hover.svelte";
   import { inFissure } from "../core/mission";
   import CopyButton from "../ui/CopyButton.svelte";
+  import Art from "../ui/Art.svelte";
 
   // The score weights are set in Settings → Fissures (something you set once, not look at in a
   // fissure): here they're only named, with the way there.
@@ -119,6 +120,10 @@
     h.started_at != null
       ? new Date(h.started_at * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
       : `+${Math.round(h.uptime / 60)} min`;
+  /** A reward's rarity, as the squad's relics give it (the card's bar along the bottom edge). */
+  const rarityOf = (name: string): string | null => pool.find((x) => x.name === name)?.rarity ?? model.sourcesByReward.get(name)?.[0]?.rarity ?? null;
+  /** The four places of the reward screen while there are no cards: the squad's relics, or four empty slots. */
+  const SLOT_ERAS = ["lith", "meso", "neo", "axi"];
   // The Held column only when you hold any of them.
   const anyHeld = $derived(ranked.some((x) => x.owned > 0));
 </script>
@@ -168,6 +173,66 @@
   </article>
 {/snippet}
 
+{#snippet rewardCard(c: PickCard, i: number)}
+  {@const rar = rarityOf(c.name)}
+  {@const best = i === pick}
+  <article class="rc rar-{rar}" class:best class:yours={yours.has(c.name)} aria-label="Choice {i + 1}: {c.name}{best ? ', take this' : ''}">
+    <div class="rc-top">{#if best}<span class="take" title="The best card for you: highest score of the four ({c.score})">Take this</span>{:else}<span class="register lot">Choice {i + 1}</span>{/if}</div>
+    <div class="rc-art" use:info={c.name}><Art file={model.imageOf(c.name)} size={136} fallback={/Blueprint$/.test(c.name) ? "foundry" : null} /></div>
+    <h3 class="rc-name" title={c.name}>{c.name}</h3>
+    <div class="rc-val">
+      {#if c.price != null}<span title={c.priceIsYours ? "What a Forma Blueprint is worth to you (Settings → Fissures)" : cards?.prices?.[c.name] != null ? "Its price on warframe.market, as TennoScope's overlay shows it" : "Its daily median on warframe.market"}><P v={c.price} /></span>{:else}<span class="dim small" title="Not traded on warframe.market">no price</span>{/if}
+      {#if c.ducats}<span title="Ducats at Baro's kiosks"><P v={c.ducats} d /></span>{/if}
+    </div>
+    <div class="rc-marks">
+      {#if yours.has(c.name)}<span class="tag" title="The game's log names this as your own relic's reward">your relic</span>{/if}
+      {#if c.needed}<span class="tag warn" title="A part for {c.neededFor}, which you haven't built or mastered, and you don't have enough of it">need · {c.neededFor}</span>{/if}
+      {#if c.set === 1}<span class="tag good" title="The last part you're missing for a {c.setName} set">completes set</span>{:else if c.set}<span class="tag good" title="Leaves your {c.setName} set one part short">set · one short</span>{/if}
+    </div>
+    <div class="rc-foot">
+      <span class="rar" title={rar ? `A ${rar.toLowerCase()} reward` : "Rarity unknown"}>{rar ?? "–"}</span>
+      <span class="rc-score" title={`Its score, 0–100, from plat, unmastered, ducats and sets: ${c.reasons.join(" · ") || "nothing it's worth to you"}`}>{@render bars(c)}<b>{c.score}</b></span>
+    </div>
+  </article>
+{/snippet}
+
+{#snippet screen()}
+  <section class="screen" aria-label={onScreen ? "The reward screen" : "The reward screen, before it opens"}>
+    {#if onScreen}
+      <div class="row" style:--n={onScreen.length}>{#each onScreen as c, i (i + c.name)}{@render rewardCard(c, i)}{/each}</div>
+      <div class="screen-foot">
+        <span class="dim small">Read by TennoScope at {readAt(cards!.at)} · the same pick is marked on its overlay</span>
+        <CopyButton text={chatLine} label="Copy for squad chat" title="Copy the four cards with their prices, to paste in squad chat: {chatLine}" />
+      </div>
+      {@render weightControls()}
+    {:else if relics.length}
+      <div class="row" style:--n={relics.length}>
+        {#each relics as r, i (r.path + i)}
+          {@const icon = refIcon(r.name.split(" ")[0] ?? "", r.refinement)}
+          <div class="rc slot relic-slot" style:--tint={eraTint(r.name)} use:info={r.known ? r.name : null}>
+            <div class="rc-top"><span class="register lot">Choice {i + 1}</span></div>
+            <div class="rc-art">{#if icon}<GameIcon name={icon} size={84} />{:else}<GameIcon name="void-tear" size={64} />{/if}</div>
+            <h3 class="rc-name">{r.name}</h3>
+            <span class="register ref-word">{r.refinement}</span>
+          </div>
+        {/each}
+      </div>
+      <p class="screen-foot dim small">{ms?.reward_screen_open ? "The reward screen is open." : live ? "Each relic cracks into one reward here when the reward screen opens: with the patched TennoScope, the cards stand here and the one to take is lit." : "The last fissure's relics. The next fissure's take their places as it loads."}</p>
+    {:else}
+      <div class="row" style:--n={4}>
+        {#each SLOT_ERAS as e, i (e)}
+          <div class="rc slot empty-slot">
+            <div class="rc-top"><span class="register lot">Choice {i + 1}</span></div>
+            <div class="rc-art"><GameIcon name={refIcon(e)!} size={64} /></div>
+            <span class="slot-word">A squad member's reward</span>
+          </div>
+        {/each}
+      </div>
+      <p class="screen-foot dim small">When a void fissure's reward screen opens, its four rewards stand here, the one to take lit.</p>
+    {/if}
+  </section>
+{/snippet}
+
 <div class="page"><div class="page-inner">
   {#snippet stats()}
       <Stat keep label="Status" tone={live ? "gold" : "dim"} note={error ?? (ms ? (ms.reward_screen_open ? "Reward screen open" : live ? `${relics.length} relic${relics.length === 1 ? "" : "s"} in the squad` : paths.length ? "Last fissure round" : "Waiting for a fissure") : "EE.log not found; set it in Settings")}>
@@ -182,30 +247,11 @@
     brief={ms?.mission && (live || ms.reward_screen_open) ? ms.mission : live || paths.length ? "The squad's relics and rewards." : "Not in a fissure right now."}
     blurb={ms?.mission && (live || ms.reward_screen_open) ? ms.mission : live || paths.length ? "The squad's relics and rewards." : "Not in a fissure. The squad's relics and rewards show here once a void fissure loads; other missions have nothing to pick."}
     band={onScreen ? undefined : stats}
+    hero={screen}
   />
 
   {#if noCardsWhy}<p class="why dim small">{noCardsWhy}</p>
   {:else if fullscreenBlocks}<p class="why dim small" title="Warframe's display mode, from its settings file">Warframe is in exclusive fullscreen, where TennoScope's overlay can't show: set Display Mode to Borderless in its options.</p>{/if}
-  {#if onScreen}
-    <section class="pick" aria-label="Which reward to take">
-      <div class="pick-head">
-        <h2 class="mark">Take {pick != null ? onScreen[pick].name : "—"}</h2>
-        <span class="dim small">Cards read by TennoScope at {readAt(cards!.at)} · the same pick is marked on its overlay</span>
-        <CopyButton text={chatLine} label="Copy for squad chat" title="Copy the four cards with their prices, to paste in squad chat: {chatLine}" />
-      </div>
-      <div class="slips">
-        {#each onScreen as c, i (i + c.name)}
-          <article class="slip" class:best={i === pick} class:yours={yours.has(c.name)}>
-            <div class="register lot">Choice {i + 1}{#if i === pick}<span class="take">Take this</span>{/if}{#if yours.has(c.name)}<span class="tag">your relic</span>{/if}</div>
-            <div class="slip-name" use:info={c.name}><Thumb file={model.imageOf(c.name)} size={34} /><span>{c.name}</span></div>
-            <div class="score"><strong>{c.score}</strong>{@render bars(c)}</div>
-            <div class="why small">{c.reasons.join(" · ") || "Nothing it's worth to you"}</div>
-          </article>
-        {/each}
-      </div>
-      {@render weightControls()}
-    </section>
-  {/if}
 
   {#if relics.length}
     {#if ranked.length}
@@ -325,22 +371,57 @@
   .pool td:first-child { padding-left: 0; }
   .pool tr.need .rw-name { color: var(--gold); font-weight: 600; }
   .right { text-align: right; }
-  .pick { margin-top: var(--step); border: 1px solid var(--rule-bright); background: var(--plate); padding: 1.1rem 1.3rem 1rem; display: grid; gap: .9rem; }
-  .pick-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem 1.2rem; }
-  .pick h2 { font-size: 2rem; margin: 0; color: var(--gold); }
-  /* Up to four cards: one row of four, or two by two, never three and a stray. */
-  .slips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .7rem; }
-  :global(html[data-room~="lt950"]) .slips { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .slip { border: 1px solid var(--rule); padding: .8rem .9rem; display: grid; gap: .5rem; align-content: start; background: rgb(11 12 15 / 60%); }
-  .slip.best { border-color: var(--gold); box-shadow: inset 0 3px 0 var(--gold); }
-  .slip.yours { outline: 1px dashed var(--rule-bright); outline-offset: -4px; }
-  .lot { display: flex; align-items: center; gap: .5rem; }
-  .take { background: var(--gold); color: var(--slab); padding: .1rem .45rem; letter-spacing: .12em; }
-  .slip-name { display: flex; align-items: center; gap: .55rem; font-family: var(--face-mark); font-weight: 700; font-size: 1.1rem; text-transform: uppercase; line-height: 1.05; }
-  .score { display: flex; align-items: center; gap: .7rem; }
-  .score strong { font-family: var(--face-mark); font-size: 2.2rem; line-height: 1; color: var(--platinum); }
-  .slip.best .score strong { color: var(--gold); }
   .why { color: var(--platinum-dim); }
+  /* The reward screen, as the game draws it: the cards side by side, each item's art large, its
+     rarity a bar along the bottom edge. The one to take glows with the Void. */
+  .screen { display: grid; gap: .7rem; }
+  .row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8rem; max-width: calc(var(--n, 4) * 17.5rem); }
+  :global(html[data-room~="lt640"]) .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rc {
+    --rar: var(--rule-bright);
+    position: relative; display: grid; grid-template-rows: auto auto auto auto 1fr auto; justify-items: center; text-align: center; gap: .45rem;
+    min-height: 19rem; padding: .7rem .8rem 0; border: 1px solid var(--rule); border-bottom: 0;
+    background: linear-gradient(180deg, rgb(11 12 15 / 40%), var(--well));
+    box-shadow: inset 0 -4px 0 var(--rar);
+  }
+  .rc.rar-Common { --rar: var(--rarity-common); }
+  .rc.rar-Uncommon { --rar: var(--rarity-uncommon); }
+  .rc.rar-Rare { --rar: var(--rarity-rare); }
+  .rc-top { min-height: 1.3rem; display: flex; align-items: center; justify-content: center; }
+  .lot { font-size: .58rem; color: var(--platinum-deep); }
+  .rc-art { display: flex; align-items: center; justify-content: center; width: 100%; height: 8.8rem; }
+  .rc-art :global(.art) { max-width: 100%; }
+  .rc-name {
+    margin: 0; font-family: var(--face-mark); font-weight: 700; font-size: 1.05rem; line-height: 1.08; text-transform: uppercase; letter-spacing: .005em;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.2em;
+  }
+  .rc-val { display: flex; align-items: center; justify-content: center; gap: .9rem; }
+  .rc-val :global(.amt b) { font-size: 1.15rem; }
+  .rc-marks { align-self: start; display: flex; flex-wrap: wrap; justify-content: center; align-content: start; gap: .3rem; min-height: 1.3rem; }
+  .rc-marks .tag { margin: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rc-foot { align-self: end; width: calc(100% + 1.6rem); display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .45rem .8rem .7rem; border-top: 1px solid var(--rule); }
+  .rar { font-family: var(--face-register); font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--rar); }
+  .rc-score { display: inline-flex; align-items: center; gap: .5rem; }
+  .rc-score b { font-family: var(--face-mark); font-size: 1.2rem; line-height: 1; color: var(--platinum-dim); font-variant-numeric: tabular-nums; }
+  .rc-score .bars { height: 1rem; grid-template-columns: repeat(4, .55rem); gap: 2px; }
+  /* The pick: lit by the Void, the frame in the section's violet, a glow that breathes. */
+  .rc.best { border-color: var(--sec); background: radial-gradient(ellipse 70% 45% at 50% 42%, color-mix(in srgb, var(--sec) 22%, transparent), transparent 70%), linear-gradient(180deg, rgb(11 12 15 / 40%), var(--well)); }
+  .rc.best::after { content: ""; position: absolute; inset: -1px -1px 0; pointer-events: none; box-shadow: 0 0 0 1px var(--sec), 0 0 34px -6px var(--sec); animation: void-breathe 3.2s ease-in-out infinite; }
+  @keyframes void-breathe { 50% { box-shadow: 0 0 0 1px var(--sec), 0 0 18px -8px var(--sec); } }
+  @media (prefers-reduced-motion: reduce) { .rc.best::after { animation: none; } }
+  .rc.best .rc-score b { color: var(--sec); }
+  .take { font-family: var(--face-register); font-size: .62rem; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--slab); background: var(--sec); padding: .18rem .6rem; }
+  .rc.yours { outline: 1px dashed var(--rule-bright); outline-offset: -5px; }
+  /* Before the cards: the squad's relics in their places, or four empty places. */
+  .slot { min-height: 0; padding-bottom: .9rem; grid-template-rows: auto 1fr auto auto; border-bottom: 1px solid var(--rule); box-shadow: none; }
+  .relic-slot { box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--tint, var(--sec)) 70%, transparent); }
+  .relic-slot .rc-name { min-height: 0; color: color-mix(in srgb, var(--tint, var(--platinum)) 75%, var(--platinum)); }
+  .ref-word { font-size: .58rem; color: var(--platinum-deep); }
+  .empty-slot { border-style: dashed; border-color: var(--rule-bright); background: none; }
+  .slot .rc-art { height: 6.5rem; }
+  .empty-slot .rc-art :global(.gi) { opacity: .3; filter: saturate(.4); }
+  .slot-word { font-size: .76rem; color: var(--platinum-deep); }
+  .screen-foot { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1.2rem; margin: 0; }
   .bars { display: inline-grid; grid-template-columns: repeat(4, 1.1rem); gap: 3px; align-items: end; height: 1.4rem; }
   .bars i { display: block; height: calc(max(var(--v), .04) * 100%); background: var(--platinum-deep); }
   .bars .b-plat { background: var(--platinum); }

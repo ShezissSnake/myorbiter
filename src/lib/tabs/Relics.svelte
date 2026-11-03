@@ -2,7 +2,6 @@
   import { info } from "../hover.svelte";
   import { takeIntent } from "../intent.svelte";
   import { dropSpots, wishlistRelics } from "../core/wishlist";
-  import { nearTraceCap, traceCap, voidTraces, TO_RADIANT } from "../core/traces";
   import { placeName } from "../core/describe";
   import { ERAS, type Model } from "../core/model";
   import { relicRows, unknownRelics, type RelicRow } from "../core/views";
@@ -26,14 +25,12 @@
   import GameIcon, { eraIcon, type GameIconName } from "../ui/GameIcon.svelte";
   import Foe from "../ui/Foe.svelte";
   import Mission from "../ui/Mission.svelte";
+  import RelicPlate from "../ui/RelicPlate.svelte";
 
   import type { AdviceSettings } from "../backend";
   // Solo or radshare is one setting, shared with the Planner.
   // wishlist: what you starred; relics that drop a part for it are marked.
   let { model, advice = $bindable(), wishlist = [], masteryRank = null }: { model: Model; advice: AdviceSettings; wishlist?: string[]; masteryRank?: number | null } = $props();
-  // Void Traces on hand and the cap, here where you decide what to refine.
-  const traces = $derived(voidTraces(model));
-  const cap = $derived(traceCap(masteryRank));
   const forWish = $derived(wishlistRelics(model, wishlist));
   const wishTitle = (base: string) => `For your wishlist: ${(forWish.get(base) ?? []).map((x) => x.part).join(", ")}`;
 
@@ -231,8 +228,8 @@
       </Stat>
       <Stat label="Vaulted kinds" tone="gold" note="No new copies drop">{rows.filter((r) => r.vaulted).length}</Stat>
       <Stat label="With parts you need" note="Worth cracking">{rows.filter((r) => r.neededCount).length}</Stat>
-      <Stat label="Void Traces" spot="traces" tone={nearTraceCap(traces, cap) ? "gold" : undefined} title="Refining a relic to Radiant costs 100 (Exceptional 25, Flawless 50). Past the cap, a crack's traces are lost: spend some first" note={`${cap != null ? `cap ${cap.toLocaleString("en")} · ` : ""}${Math.floor(traces / TO_RADIANT)} to Radiant${nearTraceCap(traces, cap) ? " · near the cap" : ""}`}><GameIcon name="void-traces" size={26} />{traces.toLocaleString("en")}</Stat>
     {/snippet}
+    {#snippet hero()}<RelicPlate {model} {masteryRank} {era} onera={(e) => (era = era === e ? "all" : e)} />{/snippet}
   </PageHead>
   <div class="era-head">
     <h2 class="register">Eras</h2>

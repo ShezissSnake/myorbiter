@@ -31,6 +31,9 @@ const GROUP_OF: Record<string, Group> = {
   Misc: "other",
 };
 
+/** The Codex category an item's catalog category falls in ("Arch-Gun" → archwing); null outside them. */
+export const groupOf = (category: string): Group | null => GROUP_OF[category] ?? null;
+
 export interface PartState {
   /** The component's own name: "Blueprint", "Chassis", "Orokin Cell". */
   label: string;
