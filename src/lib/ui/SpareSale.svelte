@@ -174,15 +174,6 @@
       {#if !folded}<h3 class="register">Put my spares on sale</h3>{/if}
       <p class="small dim">Lists what you can spare in the ticked categories at the cheapest in-game price, resizes listings you already have, and takes down the ones you have nothing left for. Listings you made yourself stay up while you hold them, unless warframe.market's {LISTING_LIMIT}-listing limit needs their place. Nothing else on your profile is touched.</p>
     </div>
-    <div class="danger-zone">
-      {#if confirmRemoveAll}
-        <span class="small warn">Take all {mkt.orders.length} listings off warframe.market?</span>
-        <button class="danger" disabled={!!mkt.busy} onclick={() => { confirmRemoveAll = false; removeAll(); }} onkeydown={keepOnEsc}>Remove all</button>
-        <button onclick={() => (confirmRemoveAll = false)} onkeydown={keepOnEsc} use:focusIt>Keep them</button>
-      {:else}
-        <ProgressButton variant="link" tone="danger" class="removeall" job={removeJob} label="Remove all my listings" working={count("Removing every listing", "Removing")} progress={fill("Removing every listing")} sizer={["Removing 000/000"]} title="Take every one of your sell listings off warframe.market" disabled={!!mkt.busy || !mkt.orders.length} onclick={() => (confirmRemoveAll = true)} />
-      {/if}
-    </div>
   </header>
 
   <div class="ticks">
@@ -244,7 +235,7 @@
             {@const refused = !!ap?.failed.has(a)}
             {@const now = ap?.now === a}
             <tr class={a.type} class:sent class:refused class:now use:current={now} out:fade={{ duration: calm ? 0 : 220 }} animate:flip={{ duration: calm ? 0 : 260 }}>
-              <td><span class="what">{#if sent}<span class="tickoff" aria-label="sent"><Icon name="check" size={12} /></span>{:else if refused}<span title="warframe.market refused it: the Activity log says why">Refused</span>{:else if now}<span class="sending">Sending…</span>{:else}{WORD[a.type]}{/if}</span></td>
+              <td><span class="what">{#if sent}<span class="tickoff" aria-label="sent"><Icon name="check" size={12} /></span>{:else if refused}<span title="warframe.market refused it: the Activity log says why">! Refused</span>{:else if now}<span class="sending">Sending…</span>{:else}{WORD[a.type]}{/if}</span></td>
               <td><Named file={image(nameOf(a))} name={nameOf(a)} size={26}>{#if rankOf(a) != null}<span class="tag">R{rankOf(a)}</span>{/if}{#if refinementOf(a)}<span class="tag" class:ok={refinementOf(a) === "Radiant"}>{refinementOf(a)}</span>{/if}</Named></td>
               <td class="dim small">{KIND_LABEL[a.kind]}</td>
               <td class="right">
@@ -269,6 +260,16 @@
       {/if}
     {/if}
   {/if}
+  <!-- Away from the buttons you press every day: it takes every listing down. -->
+  <div class="danger-zone">
+    {#if confirmRemoveAll}
+      <span class="small warn">Take all {mkt.orders.length} listings off warframe.market?</span>
+      <button class="danger" disabled={!!mkt.busy} onclick={() => { confirmRemoveAll = false; removeAll(); }} onkeydown={keepOnEsc}>Remove all</button>
+      <button onclick={() => (confirmRemoveAll = false)} onkeydown={keepOnEsc} use:focusIt>Keep them</button>
+    {:else}
+      <ProgressButton variant="link" tone="danger" class="removeall" job={removeJob} label="Remove all my listings" working={count("Removing every listing", "Removing")} progress={fill("Removing every listing")} sizer={["Removing 000/000"]} title="Take every one of your sell listings off warframe.market" disabled={!!mkt.busy || !mkt.orders.length} onclick={() => (confirmRemoveAll = true)} />
+    {/if}
+  </div>
 </section>
 
 <style>
@@ -277,7 +278,7 @@
   header { display: flex; justify-content: space-between; gap: 1.5rem; align-items: flex-start; }
   h3 { margin: 0 0 .35rem; color: var(--gold); }
   header p { margin: 0; max-width: 70ch; }
-  .danger-zone { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; justify-content: flex-end; }
+  .danger-zone { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; justify-content: flex-end; padding-top: .6rem; border-top: 1px solid var(--rule); }
   .danger-zone :global(.removeall:not(.done):not(.failed)) { color: var(--platinum-deep); white-space: nowrap; }
   .danger-zone :global(.removeall:not(.done):not(.failed):hover:not(:disabled)) { color: var(--oxblood); }
   .err { color: var(--oxblood); margin: 0; }
@@ -314,7 +315,7 @@
   .plan tr.sent td { color: var(--platinum-deep); }
   .plan tr.sent td:not(:first-child) { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--verdigris) 70%, transparent); }
   .tickoff { display: inline-grid; place-items: center; width: 1.1rem; height: 1.1rem; border: 1px solid var(--verdigris); background: color-mix(in srgb, var(--verdigris) 16%, transparent); color: var(--verdigris); }
-  .plan tr.refused td:first-child { color: var(--oxblood); }
+  .plan tr.refused td:first-child, .plan tr.refused .what { color: var(--oxblood); border-color: var(--oxblood); }
   .plan tr.sent .what, .plan tr.now .what { border-color: transparent; background: none; padding-left: 0; padding-right: 0; }
   .planbox th { position: sticky; top: 0; background: var(--plate); z-index: 1; }
   .minnote { white-space: nowrap; }

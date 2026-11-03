@@ -139,8 +139,8 @@
   <PageHead title="Foundry" brief="Everything you can master, part by part." blurb="Everything you can master, with the parts you hold (gold: in hand). Click one for its stats, drops and prices.">
     {#snippet band()}
       <Stat label="Mastered" note={`of ${inGroup.length} ${groupLabel}`}><GameIcon name="mastery" size={30} />{mastered}<span class="of">/{inGroup.length}</span></Stat>
-      <Stat label="Owned, not mastered" tone="gold" note="Level these">{ownedOnly}</Stat>
-      <Stat label="Ready to build" note={partsReady ? `Everything in hand · ${partsReady} more with resources to farm` : "Every part and resource in hand, not mastered yet"}>{buildable}</Stat>
+      <Stat label="Owned, not mastered" tone="gold" note={group === "all" ? "Level these" : `Level these · ${groupLabel}`}>{ownedOnly}</Stat>
+      <Stat label="Ready to build" note={`${partsReady ? `Everything in hand · ${partsReady} more with resources to farm` : "Every part and resource in hand, not mastered yet"}${group === "all" ? "" : ` · ${groupLabel}`}`}>{buildable}</Stat>
       <Stat label="In your foundry" tone={readyToClaim ? "gold" : "dim"} note={readyToClaim ? `${readyToClaim} ready to claim` : builds.length ? "Nothing ready yet" : "Nothing building"}>{builds.length}</Stat>
     {/snippet}
   </PageHead>

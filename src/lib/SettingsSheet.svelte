@@ -83,7 +83,7 @@
       </select>
     </label>
     <Switch bind:on={settings.details} label="Show details">
-      The sentence under every figure, each page's full description and every table column. Off, pages keep to the essentials and the rest is on hover. The Details button by each page's title is the same switch.
+      The sentence under every figure, each page's full description and every table column. Off, pages keep to the essentials and the rest is on hover. The Details button by each page's title (every page but Home, which has its own folds) is the same switch.
     </Switch>
     <p class="hint">The sidebar as it shows: untick a page to take it out (it still opens from links on other pages, and nothing on it is lost); the arrows move a page within its section, or a whole section. Ctrl+1…9 follow this order. Home stays first and the Guide stays by the gear. What Home itself shows is under the gear on Home.</p>
     {#each groups as g, gi (g.group)}

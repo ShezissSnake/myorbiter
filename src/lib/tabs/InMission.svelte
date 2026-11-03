@@ -266,7 +266,7 @@
             <td class="dim small">
               {#if h.relics.length}{h.relics.length} relic{h.relics.length === 1 ? "" : "s"}{h.rounds ? ` · ${h.rounds} round${h.rounds === 1 ? "" : "s"}` : ""}{/if}
             </td>
-            <td class="small">{#each h.rewardsNamed as x, j (j)}<span class="got" use:info={x.name}><Thumb file={model.imageOf(x.name)} size={20} />{x.name}{#if model.price(x.name) != null}<ListButton {model} name={x.name} hint="Put it on warframe.market" />{/if}</span>{/each}</td>
+            <td class="small">{#each h.rewardsNamed as x, j (j)}<span class="got" use:info={x.name}><Thumb file={model.imageOf(x.name)} size={20} />{x.name}{#if model.price(x.name) != null}<ListButton {model} name={x.name} labelled hint="Put it on warframe.market" />{/if}</span>{/each}</td>
             <td class="right">{#if h.value}<P v={h.value} />{/if}</td>
           </tr>
         {/each}

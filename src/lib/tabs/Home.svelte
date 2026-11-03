@@ -328,6 +328,7 @@
       day.steelPath ? { key: "teshin", resets: day.steelPath.ends } : null,
       ...day.archimedeas.map((a) => ({ key: `archimedea-${a.kind}`, resets: a.ends })),
       day.descendia ? { key: "descendia", resets: day.descendia.ends } : null,
+      day.calendar ? { key: "calendar", resets: day.calendar.ends } : null,
       day.sortie ? { key: "sortie", resets: day.sortie.ends } : null,
       day.archon ? { key: "archon", resets: day.archon.ends } : null,
       day.nightwave ? { key: "nightwave", resets: weekly } : null,
@@ -549,7 +550,7 @@
 
     <!-- Ready to list -->
     <section class="panel ready" class:off={off("ready")} class:half={orphan("ready")} class:lone={lone("ready")} style:--n={share("ready")} data-card="ready">
-      {@render head("platinum", null, "Ready to list", "market?spares=1#spares", "Put my spares on sale")}
+      {@render head("platinum", null, "Ready to list", "market?spares=1#spares", "List spares")}
       {#if !ticked}
         <p class="dim">Nothing ticked in <b>Put my spares on sale</b> on Orders.</p>
       {:else if !byKind.length}
@@ -698,7 +699,7 @@
             {#if day.calendar}
               {@const cal = day.calendar}
               {@const best = cal.prizes.filter((p) => p.notable)}
-              <div class="th"><GameIcon name="faction-techrot" size={18} /><b class="mark" title="The 1999 Calendar in Höllvania: each season lasts a week, with two prizes to choose between each month">1999 Calendar</b><span class="dim small">{cal.season ? `${cal.season} · ` : ""}{until(cal.ends, now)} left</span></div>
+              <div class="th" class:done={doneNow("calendar", cal.ends)}><GameIcon name="faction-techrot" size={18} /><b class="mark" title="The 1999 Calendar in Höllvania: each season lasts a week, with two prizes to choose between each month">1999 Calendar</b><span class="dim small">{cal.season ? `${cal.season} · ` : ""}{until(cal.ends, now)} left</span>{@render tick("calendar", cal.ends, "This week's 1999 Calendar")}</div>
               <p class="tline dim small" title="The prize days worth a look (hover for the lot). Every prize day this season, one of each pair to pick: {cal.prizes.map((p) => `${p.day}: ${p.choices.join(' or ')}`).join('; ')}">{#if best.length}{best.map((p) => `${p.day} ${p.pick}`).join(" · ")}{:else}{cal.prizes.length} prize day{cal.prizes.length === 1 ? "" : "s"}, nothing rare{/if}</p>
             {/if}
             {#if day.descendia}
