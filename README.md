@@ -45,6 +45,15 @@ One download, nothing else to install. The Linux and Windows downloads carry Ten
 
 On the first start orbiter walks you through what TennoScope needs, once: TennoScope asks in its own window what it may read (choose *Full* for your inventory; it reads the running game's memory for your session, which that window explains along with the account-policy risk), then it reads your account when you're in the game. Some Linux systems (Ubuntu among them) only let a program read another's memory if it started it; orbiter tells you if yours does, with the command that allows it until you restart.
 
+### Checking a download
+
+Every release lists the SHA-256 of each of its files in `SHA256SUMS`, beside them. To check yours, download `SHA256SUMS` into the same folder and:
+
+- **Linux, Steam Deck, macOS:** `sha256sum --check --ignore-missing SHA256SUMS` (on macOS, `shasum -a 256 --check --ignore-missing SHA256SUMS`). It should say `OK` beside your file.
+- **Windows (PowerShell):** `Get-FileHash .\orbiter_<version>_x64-setup.exe` and compare the hash with its line in `SHA256SUMS` (any case).
+
+Once the repository is public, each release also carries GitHub's record of where its files were built: `gh attestation verify <file> --repo ShezissSnake/orbiter` checks that a file came from this repository's release workflow, unchanged.
+
 ### Making the downloads
 
 `.github/workflows/release.yml` builds them on GitHub: push the project to a GitHub repository and run *Release builds* from the *Actions* tab (or push a tag like `v0.2.0`). A run started by hand builds Linux and Windows, with a tick box each for Windows and macOS: a private repository on GitHub Free gets 2,000 Actions minutes a month, Windows minutes count double and macOS ten times, so a Linux-only build costs about 15 and one with all three about 60. A tag builds all three. Each run attaches its downloads to a pre-release of its own (*Releases* on the repository's page): `build-<n>` for a run started by hand, the tag's name for a tag. Not as run artifacts: on GitHub Free, private repositories share 0.5 GB of artifact storage a month, less than one of these builds. It builds TennoScope from `tennoscope/` for Linux (on Ubuntu 22.04, so the AppImage runs on anything from the last few years, SteamOS included) and Windows, puts TennoScope's licence and a notice beside it, and attaches `orbiter-source.tar.gz`, the complete source of the commit it built, as the GPL-3.0 asks.
