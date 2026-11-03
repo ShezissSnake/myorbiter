@@ -68,7 +68,7 @@
     logLine,
   } from "./lib/backend";
   import { persistSettings } from "./lib/persist.svelte";
-  import { catchUp, setShownPage, whenIdle } from "./lib/pane.svelte";
+  import { catchUp, holdBackground, setShownPage, whenIdle } from "./lib/pane.svelte";
   import { inBackground } from "./lib/progress.svelte";
   import { afterPaint } from "./lib/ui/soon";
   import { backoff, handLoggedSale, keepSeen, thinHistory } from "./lib/core/upkeep";
@@ -395,11 +395,50 @@
         return;
       }
       shownModel = m;
-      t = setTimeout(() => (bgModel = m), 0);
+      t = setTimeout(() => {
+        bgModel = m;
+        settledOn(m);
+      }, 0);
     };
     t = setTimeout(next, 0);
     return () => clearTimeout(t);
   });
+  /**
+   * A sync holds background work back (lib/pane.svelte.ts) from the click until its read is on
+   * screen, so the hidden pages' catch-up and the lists filling in out of sight don't share the
+   * click's frame or the new read's first draw, and don't catch up with a collection the sync is
+   * about to replace. `syncHeld` is the release.
+   */
+  let syncHeld: (() => void) | null = null;
+  let syncDone = false;
+  let syncCap: ReturnType<typeof setTimeout> | undefined;
+  function holdForSync() {
+    // The new hold first, then the last one let go: nothing slips in between.
+    const last = syncHeld;
+    const release = holdBackground();
+    const mine = () => {
+      if (syncHeld === mine) {
+        clearTimeout(syncCap);
+        syncHeld = null;
+      }
+      release();
+    };
+    syncHeld = mine;
+    last?.();
+    syncDone = false;
+    // Never for long: a sync waiting on TennoScope, or one whose read never builds.
+    clearTimeout(syncCap);
+    syncCap = setTimeout(() => syncHeld?.(), 10_000);
+  }
+  /** The sync's read is in (or it brought none): background work goes on once it's on screen. */
+  function syncFinished() {
+    syncDone = true;
+    if (untrack(() => bgModel === model)) syncHeld?.();
+  }
+  /** A collection reached the page on screen and the bookkeeping: a finished sync lets go. */
+  function settledOn(m: Model) {
+    if (syncHeld && syncDone && m === untrack(() => model)) syncHeld();
+  }
   /** The rows of a new collection that most pages and Home ask for, as they ask for them. */
   function sharedRows(m: Model): (() => unknown)[] {
     const a = settings.advice;
@@ -1911,8 +1950,12 @@
       syncButton?.flash();
       return;
     }
+    holdForSync();
     void syncJob.run(async (j) => {
       try {
+        // The button answers on the frame it's pressed; the reading starts a frame after that one,
+        // so it's on screen first (its raster shares the processor with what follows).
+        await new Promise<void>((r) => afterPaint(() => afterPaint(r)));
         if (syncMode) {
           j.phase = "Asking…";
           syncStep = "Asking TennoScope to read your inventory";
@@ -1925,6 +1968,8 @@
           j.phase = "Waiting…";
           syncStep = "Waiting for TennoScope's new read";
           j.fraction = syncFill(0);
+          // TennoScope can take a while: background work goes on meanwhile, and waits again for the read.
+          syncHeld?.();
           // Any write to TennoScope's folder changes the stamp (a reward screen, the request
           // itself), so a change is only the new read once the inventory it holds was read after
           // the ask; until then, keep waiting for the next change (2 s for the two clocks).
@@ -1942,12 +1987,14 @@
             }
             j.phase = "Reading…";
             syncStep = "Reading the new inventory";
+            holdForSync();
             await reload();
             reloaded = true;
             if (error) throw new JobError("Not read", loadProblem(error));
             if ((bundle?.observed_at ?? 0) * 1000 >= asked - 2_000) break;
             j.phase = "Waiting…";
             syncStep = "Waiting for TennoScope's new read";
+            syncFinished();
           }
           j.fraction = 1;
           return "Synced";
@@ -1968,7 +2015,7 @@
       } finally {
         syncStep = null;
       }
-    });
+    }).finally(syncFinished);
   }
 
   // ---------------------------------------------------------------- keyboard, like a desktop app
