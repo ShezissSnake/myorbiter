@@ -111,7 +111,27 @@ export function arrive(node: Element, { y = 6, duration = QUICK, delay = 0, alwa
  */
 export function leave(node: Element, { y = -4, duration = QUICK, delay = 0 }: { y?: number; duration?: number; delay?: number } = {}): TransitionConfig {
   if (calm.current || !spend()) return NONE;
+  keepColumns(node);
   return { delay, duration, easing: out, css: (t, u) => `opacity:${t};transform:translateY(${(u * y).toFixed(2)}px)` };
+}
+
+/**
+ * A table row taken out of the flow while it leaves (flip's close-up) is laid out on its own, so
+ * its cells would shrink to their contents and the row squash as it fades. Keeps each cell at its
+ * column's width, read from a row still in the table with as many cells.
+ */
+function keepColumns(node: Element) {
+  if (typeof HTMLTableRowElement === "undefined" || !(node instanceof HTMLTableRowElement)) return;
+  const ref = [...(node.closest("table")?.rows ?? [])].find((r) => r !== node && r.cells.length === node.cells.length && r.parentElement?.tagName !== "THEAD" && getComputedStyle(r).position !== "absolute")
+    ?? node.closest("table")?.tHead?.rows[0];
+  if (!ref || ref.cells.length !== node.cells.length) return;
+  const widths = [...ref.cells].map((c) => c.getBoundingClientRect().width);
+  node.style.display = "table";
+  node.style.tableLayout = "fixed";
+  [...node.cells].forEach((c, i) => {
+    c.style.boxSizing = "border-box";
+    c.style.width = `${widths[i]}px`;
+  });
 }
 
 /**
