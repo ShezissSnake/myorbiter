@@ -12,7 +12,9 @@
 //  2. Arcanes: never "new". From their drop sources (see sourceLevel): the easiest source decides,
 //     Eidolons, Archimedea, Steel Path, Arbitrations and Railjack are veteran; open worlds, the
 //     Zariman, Duviri and the star chart intermediate. No drop listed: a vendor's, intermediate.
-//  3. Mods by family, from the catalog's own path and name:
+//  3. Mods by family, from the catalog's own path and name (Primed by name: the catalog also holds 78
+//     /Expert/ copies of ordinary mods, Antitoxin or Aviator, that aren't Primed, so the path alone
+//     doesn't decide; those copies fall through to their drops like the plain mod):
 //     Primed (Baro Ki'Teer), Umbral, Archon, Galvanized (the Arbitrations vendor), Amalgam,
 //     Sacrificial and Rivens are veteran; Corrupted (Orokin Derelict vaults), augments, Drift mods
 //     (Lua's Halls of Ascension), Nightwave and syndicate offerings and Conclave mods intermediate.
