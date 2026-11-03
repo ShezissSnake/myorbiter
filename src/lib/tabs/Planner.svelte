@@ -20,12 +20,13 @@
   import { openEras, wishlistRelics } from "../core/wishlist";
   import type { Fissure } from "../core/types";
   import RelicPlate from "../ui/RelicPlate.svelte";
+  import { whileShown } from "../pane.svelte";
 
   // The mode is kept in settings, so it survives a restart and the Guide can open either one.
   // fissures: the live ones, so a relic you can crack right now says so.
   // wishlist: what you starred; relics you hold for it are marked, and can be the only ones shown.
   let { model, settings = $bindable(), mode = $bindable("sets"), fissures = null, wishlist = [], masteryRank = null }: { model: Model; settings: AdviceSettings; mode?: "sets" | "radiant"; fissures?: Fissure[] | null; wishlist?: string[]; masteryRank?: number | null } = $props();
-  const forWish = $derived(wishlistRelics(model, wishlist));
+  const forWish = $derived.by(whileShown("planner", () => wishlistRelics(model, wishlist)));
   let wishOnly = $state(false);
   const wishTitle = (base: string) => `For your wishlist: ${(forWish.get(base) ?? []).map((x) => x.part).join(", ")}`;
   let openOnly = $state(false);
@@ -51,14 +52,14 @@
   const traces = $derived((model.inventoryByBase.get("/Lotus/Types/Items/MiscItems/VoidTearDrop") ?? []).reduce((n, r) => n + r.quantity, 0));
 
   // ------------------------------------------------ crack for sets
-  const plan = $derived(crackRows(model, settings.maxMissing, settings.squad));
+  const plan = $derived.by(whileShown("planner", () => crackRows(model, settings.maxMissing, settings.squad)));
   const crack = $derived(plan.relics.filter((r) => (!vaultedOnly || r.vaulted) && (!openOnly || isOpen(r.base)) && (!wishOnly || forWish.has(r.base)) && matches(query, r.base, ...r.hits.map((h) => h.reward))));
   /** The gap lists show a few at first: the table above them is the plan. */
   const GAPS_SHOWN = 10;
   let open = $state<Record<string, boolean>>({});
   // The stats and the lists below follow the table's filters.
   const filtered = $derived(vaultedOnly || !!query.trim());
-  const gaps = $derived(filterGaps(model, plan, vaultedOnly, (...fields) => matches(query, ...fields)));
+  const gaps = $derived.by(whileShown("planner", () => filterGaps(model, plan, vaultedOnly, (...fields) => matches(query, ...fields))));
   const lastParts = $derived(gaps.filter((g) => g.missingCount === 1));
   const uncovered = $derived(gaps.filter((g) => g.relicsOwned === 0));
   /** Any filter on, for the tables' empty line: Clear puts them all back. */
@@ -83,9 +84,11 @@
   ];
 
   // ------------------------------------------------ radiant
-  const radiant = $derived(
-    radiantRows(model, { squad: settings.squad, metric, platPerDucat: settings.platPerDucat }).filter(
-      (r) => r.refinable > 0 && (!vaultedOnly || r.vaulted) && (!openOnly || isOpen(r.base)) && (!wishOnly || forWish.has(r.base)) && matches(query, r.base, r.rare?.name),
+  const radiant = $derived.by(
+    whileShown("planner", () =>
+      radiantRows(model, { squad: settings.squad, metric, platPerDucat: settings.platPerDucat }).filter(
+        (r) => r.refinable > 0 && (!vaultedOnly || r.vaulted) && (!openOnly || isOpen(r.base)) && (!wishOnly || forWish.has(r.base)) && matches(query, r.base, r.rare?.name),
+      ),
     ),
   );
   /** Your traces spent where each one gains the most: how many relics that refines, and what it adds altogether. */
@@ -105,7 +108,8 @@
   });
   const unit = (v: number) => (metric === "need" ? `${Math.round(v * 1000) / 10}%` : null);
 
-  const radCols: Column<RadiantRow>[] = $derived([
+  // The squad and ducat rate are shared with Relics: while hidden, these wait for the next visit (lib/pane.svelte.ts).
+  const radCols: Column<RadiantRow>[] = $derived.by(whileShown("planner", () => [
     { key: "base", label: "Relic", value: (r) => r.base, defaultDesc: false, cell: radRelicCell },
     { key: "owned", label: "You have", value: (r) => r.refinable, cell: radOwnedCell, align: "right", title: "Copies you could still refine" },
     { key: "vault", label: "Vault", spare: true, value: (r) => (r.vaulted ? 1 : 0), cell: vaultCell, align: "center", title: "Vaulted: no new copies drop" },
@@ -113,7 +117,7 @@
     { key: "intact", label: `${metric === "need" ? "Need, intact" : "Avg intact"}${settings.squad > 1 ? " ×4" : ""}`, value: (r) => r.intact, cell: intactCell, align: "right" },
     { key: "radiant", label: `${metric === "need" ? "Need, radiant" : "Avg radiant"}${settings.squad > 1 ? " ×4" : ""}`, value: (r) => r.radiant, cell: radiantCell, align: "right" },
     { key: "gain", label: "Gain", value: (r) => r.gain, cell: gainCell, align: "right", title: settings.squad > 1 ? "What 100 Void Traces add: the best reward of a 4-person radshare, radiant vs intact" : "What 100 Void Traces add: one crack, radiant vs intact" },
-  ]);
+  ]));
 </script>
 
 {#snippet relicCell(r: { base: string })}<span class="rel"><Named file={model.imageOf(r.base)} name={r.base} tint={eraTint(r.base)} />{#if forWish.has(r.base)}<span class="tag ok" title={wishTitle(r.base)}>wishlist</span>{/if}{#if fissures && !isOpen(r.base)}<span class="closed" title="No {r.base.split(' ')[0]} fissure is open right now: an Omnia one takes it, or wait for the next">no fissure now</span>{/if}</span>{/snippet}

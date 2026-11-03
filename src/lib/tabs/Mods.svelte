@@ -22,6 +22,7 @@
   import ListButton from "../ui/ListButton.svelte";
   import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
   import { pickShowcase } from "../core/showcase";
+  import { whileShown } from "../pane.svelte";
 
   let { model, masteryRank = null, minPlat = 5 }: { model: Model; masteryRank?: number | null; minPlat?: number } = $props();
 
@@ -43,7 +44,7 @@
   let rarity = $state("all");
   let sort = $state({ key: "value", desc: true });
 
-  const all = $derived(modRows(model));
+  const all = $derived.by(whileShown("mods", () => modRows(model)));
   const rows = $derived(
     all.filter(
       (r) =>
@@ -76,11 +77,11 @@
    * Worth selling, counted as Prime parts, Arcanes and Home's Ready to list count it
    * (core/worthSelling.ts): every mod's spares, whatever the filters show.
    */
-  const value = $derived(worthTotal(modsWorthSelling(all, minPlat)));
+  const value = $derived.by(whileShown("mods", () => worthTotal(modsWorthSelling(all, minPlat))));
   // The showcase: the five mods worth most in Worth selling, as their cards; with none to sell, the
   // dearest mods you hold (at max rank where it's priced).
   let opened = $state<ModRow | null>(null);
-  const sellingBy = $derived(new Map(modsWorthSelling(all, minPlat).map((x) => [x.name, x])));
+  const sellingBy = $derived.by(whileShown("mods", () => new Map(modsWorthSelling(all, minPlat).map((x) => [x.name, x]))));
   const shelf = $derived(pickShowcase(all, { spare: (r) => sellingBy.get(r.name)?.plat, held: (r) => (r.total > 0 ? (r.priceMax ?? r.price) : null), name: (r) => r.name, key: (r) => r.unique }));
   const exhibits = $derived(
     shelf.items.map(({ row: r, value }): Exhibit => {

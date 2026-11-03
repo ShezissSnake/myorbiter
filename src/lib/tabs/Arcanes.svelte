@@ -24,6 +24,7 @@
   import { arcanesWorthSelling, worthTotal } from "../core/worthSelling";
   import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
   import { pickShowcase } from "../core/showcase";
+  import { whileShown } from "../pane.svelte";
 
   let { model, advice = $bindable() }: { model: Model; advice: AdviceSettings } = $props();
   /** Your copies of an arcane by rank. */
@@ -63,7 +64,7 @@
     collection === "all" || (collection === "none" ? !COLLECTIONS.some((c) => c.arcanes.has(name)) : !!COLLECTIONS.find((c) => c.name === collection)?.arcanes.has(name));
   let sort = $state({ key: "priceMax", desc: true });
 
-  const all = $derived(arcaneRows(model));
+  const all = $derived.by(whileShown("arcanes", () => arcaneRows(model)));
   const types = $derived([...new Set(all.map((r) => r.type))].sort());
   const rows = $derived(
     all.filter(
@@ -84,9 +85,9 @@
 
   // ---------------------------------------------------------------- sell or dissolve
   const lens = $derived(advice.vosforLens ?? "need");
-  const packs = $derived(packValues(model, all));
+  const packs = $derived.by(whileShown("arcanes", () => packValues(model, all)));
   const worth = $derived(vosforWorth(packs, lens));
-  const spares = $derived(spareArcanes(model, all, worth.perVosfor, { lens, minPrice: advice.minPlat }));
+  const spares = $derived.by(whileShown("arcanes", () => spareArcanes(model, all, worth.perVosfor, { lens, minPrice: advice.minPlat })));
   const spareRows = $derived(spares.filter((x) => matches(query, x.row.name, x.row.type) && (type === "all" || x.row.type === type) && inCollection(x.row.name)));
   const toSell = $derived(spares.filter((x) => x.verdict === "sell"));
   // Worth selling, counted as Prime parts, Mods and Home's Ready to list count it

@@ -26,12 +26,13 @@
   import Foe from "../ui/Foe.svelte";
   import Mission from "../ui/Mission.svelte";
   import RelicPlate from "../ui/RelicPlate.svelte";
+  import { whileShown } from "../pane.svelte";
 
   import type { AdviceSettings } from "../backend";
   // Solo or radshare is one setting, shared with the Planner.
   // wishlist: what you starred; relics that drop a part for it are marked.
   let { model, advice = $bindable(), wishlist = [], masteryRank = null }: { model: Model; advice: AdviceSettings; wishlist?: string[]; masteryRank?: number | null } = $props();
-  const forWish = $derived(wishlistRelics(model, wishlist));
+  const forWish = $derived.by(whileShown("relics", () => wishlistRelics(model, wishlist)));
   const wishTitle = (base: string) => `For your wishlist: ${(forWish.get(base) ?? []).map((x) => x.part).join(", ")}`;
 
   let era = $state<string>("all");
@@ -52,7 +53,8 @@
   let query = $state("");
   let sort = $state({ key: "evI", desc: true });
   /** Solo: one crack, your own reward. Radshare: four of the same relic, you pick the best of four. */
-  const squad = $derived(advice.squad > 1 ? 4 : 1);
+  // While hidden, these keep what they were (lib/pane.svelte.ts): the Planner's squad or the ducat rate redraws this page on its next visit.
+  const squad = $derived.by(whileShown("relics", () => (advice.squad > 1 ? 4 : 1)));
 
   const r1 = (x: number) => Math.round(x * 10) / 10;
   const evI = (r: RelicRow) => (r.evIntact == null ? null : squad === 1 ? r.evIntact : r1(expectedBest(r.outIntact, squad)));
@@ -64,7 +66,7 @@
   };
   const pctFmt = (x: number | undefined) => (x == null ? "—" : `${Math.round(x * 10) / 10}%`);
 
-  const all = $derived(relicRows(model, { platPerDucat: advice.platPerDucat }));
+  const all = $derived.by(whileShown("relics", () => relicRows(model, { platPerDucat: advice.platPerDucat })));
   const rows = $derived(
     all.filter(
       (r) =>

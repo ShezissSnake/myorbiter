@@ -29,6 +29,7 @@
   import CodexRings from "../ui/CodexRings.svelte";
   import { codexRings, rowGroup, someNames } from "../core/codex";
   import type { Group } from "../core/collection";
+  import { whileShown } from "../pane.svelte";
 
   let { model, masteryRank = null, wishlist = $bindable([]), foundryReady = [] }: { model: Model; masteryRank?: number | null; wishlist?: string[]; foundryReady?: [string, number][] } = $props();
   // Things you only have to level: in your arsenal, built and waiting in the Foundry, or building.
@@ -37,7 +38,7 @@
     const t = setInterval(() => (now = Date.now()), 60_000);
     return () => clearInterval(t);
   });
-  const readyAt = $derived(itemReadyTimes(model, foundryReady));
+  const readyAt = $derived.by(whileShown("mastery", () => itemReadyTimes(model, foundryReady)));
   const stageOf = (r: MasteryRow) => levelStage(model, r.unique, readyAt, now);
   const stageTag = (r: MasteryRow) => {
     const s = stageOf(r);
@@ -48,7 +49,7 @@
     const s = stageOf(r);
     return s.stage === "claim" ? `Built and waiting in your Foundry: claim it, then rank it to ${rankTo(r)} for the mastery.` : s.stage === "building" ? `Building in your Foundry${s.readyAt ? `, ready in ${until(new Date(s.readyAt).toISOString(), now)}` : ""}: then rank it to ${rankTo(r)}.` : `In your arsenal: rank it to ${rankTo(r)} for the mastery.`;
   };
-  const wished = $derived(new Set(wishlist));
+  const wished = $derived.by(whileShown("mastery", () => new Set(wishlist)));
   const toggleWish = (u: string) => (wishlist = wished.has(u) ? wishlist.filter((x) => x !== u) : [u, ...wishlist]);
   /** Chance of every missing part from the relics you hold (primes whose parts all come from relics). */
   const odds = (r: MasteryRow) => (r.isPrime && r.missingParts.length && r.missingParts.every((p) => p.sources.length) ? finishOdds(model, r.missingParts) : null);
@@ -76,7 +77,7 @@
     showUnavailable = false;
   }
 
-  const all = $derived(masteryRows(model));
+  const all = $derived.by(whileShown("mastery", () => masteryRows(model)));
   const categories = $derived([...new Set(all.map((r) => r.category))].sort());
   const rows = $derived(
     all.filter(
@@ -110,7 +111,7 @@
     { key: "star", label: "", value: () => null, cell: starCell, sortable: false, align: "right" },
   ];
   const things = (n: number, one = "thing", many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-  const rings = $derived(codexRings(model));
+  const rings = $derived.by(whileShown("mastery", () => codexRings(model)));
   /** A kind picked in the list lights its ring, when it falls in one. */
   const KIND_RING: Record<string, Group> = { Warframe: "warframes", Primary: "primary", Secondary: "secondary", Melee: "melee", Companion: "companions", Archwing: "archwing", "Arch-Gun": "archwing", "Arch-Melee": "archwing" };
   const lit = $derived(ring ?? KIND_RING[category] ?? null);

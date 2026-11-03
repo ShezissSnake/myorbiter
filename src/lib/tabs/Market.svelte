@@ -18,6 +18,7 @@
   import PriceHistory from "../ui/PriceHistory.svelte";
   import { matches, type Column } from "../ui/table";
   import { takeIntent } from "../intent.svelte";
+  import { whileShown } from "../pane.svelte";
 
   let { model }: { model: Model } = $props();
 
@@ -51,7 +52,7 @@
     if (!mkt.items.length) void load();
   });
 
-  const all = $derived(marketRows(model, mkt.items));
+  const all = $derived.by(whileShown("browse", () => marketRows(model, mkt.items)));
   const rows = $derived(filterRows(all, { category, min, max, minTrades, owned, weekly }).filter((r) => matches(query, r.name)));
   /** What "Sold weekly" is hiding from the rest of the filters. */
   const slowHidden = $derived(weekly ? filterRows(all, { category, min, max, minTrades, owned, weekly: false }).filter((r) => matches(query, r.name)).length - rows.length : 0);

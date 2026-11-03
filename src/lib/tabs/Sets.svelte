@@ -29,6 +29,7 @@
   import { info } from "../hover.svelte";
   import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
   import { pickShowcase } from "../core/showcase";
+  import { whileShown } from "../pane.svelte";
 
   let { model, advice, sell }: { model: Model; advice: DucatOptions; sell: SellChoices } = $props();
 
@@ -42,13 +43,13 @@
   });
 
   // Prime sets, and the others warframe.market trades whole (Mandonel, Lato Vandal…), once its item list is in.
-  const all = $derived(allSetRows(model, mkt.index.byId.size ? mkt.index : null));
+  const all = $derived.by(whileShown("sets", () => allSetRows(model, mkt.index.byId.size ? mkt.index : null)));
   /** Worth more to you traded to Baro than sold: why, or null. */
   const forDucats = (r: SetRow) => (r.prime ? ducatsWin(r.setPrice, r.ducats, advice) : null);
   const sellableOf = (r: SetRow) => (keepOne ? r.sellable : r.completeSets);
   // Sets your loose parts wait for (Settings → Selling): worth more whole, every missing part still to be had.
   const saveOn = $derived(saveForSets(sell, advice.platPerDucat, drops.recent));
-  const saves = $derived(saveOn ? allSetSaves(model, mkt.index.byId.size ? mkt.index : null, saveOn) : new Map<string, SetSave>());
+  const saves = $derived.by(whileShown("sets", () => saveOn ? allSetSaves(model, mkt.index.byId.size ? mkt.index : null, saveOn) : new Map<string, SetSave>()));
   // A row can outlive its save for a moment while the view changes: an empty one stands in.
   const NO_SAVE: SetSave = { set: "", unique: "", setPrice: 0, partsPrice: 0, held: [], missing: [], prime: true };
   const saveOf = (r: SetRow): SetSave => saves.get(r.unique) ?? NO_SAVE;

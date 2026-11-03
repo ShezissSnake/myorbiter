@@ -49,6 +49,7 @@
     pruneLive,
     restoreLive,
     saved,
+    saveSettings,
     discordPost,
     notify,
     openUrl,
@@ -66,6 +67,7 @@
     logLine,
   } from "./lib/backend";
   import { persistSettings } from "./lib/persist.svelte";
+  import { catchUp, setShownPage, whenIdle } from "./lib/pane.svelte";
   import { backoff, handLoggedSale, keepSeen, thinHistory } from "./lib/core/upkeep";
   import Parts from "./lib/tabs/Parts.svelte";
   // Pages opened now and then load when first opened, so the app starts on less: Home, Orders,
@@ -184,6 +186,7 @@
       const id = queue.shift();
       if (!id) return;
       if (!visited[id]) visited[id] = true;
+      if (model && !drawn[id]) drawn = { ...drawn, [id]: model };
       idle(next);
     };
     setTimeout(() => idle(next), 1500);
@@ -326,6 +329,35 @@
     }
   });
   const model = $derived(built.model);
+  // A hidden page keeps the collection it was drawn with: a sync redraws the page on screen at
+  // once and the others when the app is idle, one at a time, or when you open one (lib/pane.svelte.ts).
+  setShownPage(() => settings.tab);
+  let drawn = $state.raw<Record<string, Model>>({});
+  const modelFor = (id: string): Model => (settings.tab === id ? model : (drawn[id] ?? model))!;
+  $effect.pre(() => {
+    const id = settings.tab;
+    const m = model;
+    if (m) untrack(() => drawn[id] !== m && (drawn = { ...drawn, [id]: m }));
+  });
+  /** Hidden pages catch up with a change (a sync, a setting) in idle time, one a slice, once changes settle for a moment. */
+  let catching: (() => void) | null = null;
+  function catchUpHidden() {
+    catching?.();
+    const step = (queue: string[]) => {
+      const id = queue.shift();
+      if (!id) return void (catching = null);
+      if (id !== settings.tab) {
+        if (model && drawn[id] !== model) drawn = { ...drawn, [id]: model };
+        catchUp(id);
+      }
+      catching = whenIdle(() => step(queue));
+    };
+    const wait = setTimeout(() => (catching = whenIdle(() => step(Object.keys(visited)))), 1500);
+    catching = () => clearTimeout(wait);
+  }
+  $effect(() => {
+    if (model) untrack(catchUpHidden);
+  });
   /** A page that threw (its boundary shows "This page hit an error"): what went wrong goes to the log. */
   const pageError = (id: string, e: unknown) => console.error(`The ${id} page hit an error:`, e);
   /** TennoScope's item prices: days out of date, when a day or more (see pricesBehind). */
@@ -2173,6 +2205,10 @@
   persistSettings(
     () => settings,
     () => settingsReady,
+    (get) => {
+      saveSettings(get);
+      catchUpHidden();
+    },
   );
 
   const fmtTime = (d: Date | null) =>
@@ -2414,25 +2450,25 @@
       {#snippet pane(id: string, body: import("svelte").Snippet)}
         {#if visited[id] && available.some((p) => p.id === id)}<div class="pane" class:shown={settings.tab === id} data-section={pageById[id as PageId]?.group || undefined}><svelte:boundary failed={pageFailed} onerror={(e) => pageError(id, e)}>{@render body()}</svelte:boundary></div>{/if}
       {/snippet}
-      {#snippet pMission()}<InMission {model} masteryRank={settings.game.masteryRank} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} {windowMode} tennoscopeRunning={!!ts.status?.running} onsettings={() => (showSettings = true)} />{/snippet}
-      {#snippet pSets()}{#await loadSets(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("sets", e)}><Page {model} advice={settings.advice} sell={settings.market.sellable} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pParts()}<Parts {model} bind:advice={settings.advice} sell={settings.market.sellable} />{/snippet}
-      {#snippet pMastery()}{#await loadMastery(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mastery", e)}><Page {model} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pArcanes()}{#await loadArcanes(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("arcanes", e)}><Page {model} bind:advice={settings.advice} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pMods()}{#await loadMods(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mods", e)}><Page {model} masteryRank={settings.game.masteryRank} minPlat={settings.advice.minPlat} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pRelics()}<Relics {model} bind:advice={settings.advice} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} />{/snippet}
-      {#snippet pPlanner()}{#await loadPlanner(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("planner", e)}><Page {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pHome()}<Home {model} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => goTo(t)} {shortListings} {liveAt} {liveError} {liveRead} bountyTables={relicTables?.bounties ?? null} sortieRewards={relicTables?.sortie ?? null} />{/snippet}
-      {#snippet pSales()}{#await loadSales(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("sales", e)}><Page {model} bind:settings={settings} go={(t: string) => (settings.tab = t)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pMarket()}<Orders {model} console={onConsole} whispers={mission?.whispers ?? []} bind:settings={settings.market} advice={settings.advice} masteryRank={settings.game.masteryRank} credits={settings.game.credits} />{/snippet}
+      {#snippet pMission()}<InMission model={modelFor("mission")} masteryRank={settings.game.masteryRank} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} {windowMode} tennoscopeRunning={!!ts.status?.running} onsettings={() => (showSettings = true)} />{/snippet}
+      {#snippet pSets()}{#await loadSets(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("sets", e)}><Page model={modelFor("sets")} advice={settings.advice} sell={settings.market.sellable} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pParts()}<Parts model={modelFor("parts")} bind:advice={settings.advice} sell={settings.market.sellable} />{/snippet}
+      {#snippet pMastery()}{#await loadMastery(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mastery", e)}><Page model={modelFor("mastery")} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pArcanes()}{#await loadArcanes(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("arcanes", e)}><Page model={modelFor("arcanes")} bind:advice={settings.advice} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pMods()}{#await loadMods(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mods", e)}><Page model={modelFor("mods")} masteryRank={settings.game.masteryRank} minPlat={settings.advice.minPlat} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pRelics()}<Relics model={modelFor("relics")} bind:advice={settings.advice} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} />{/snippet}
+      {#snippet pPlanner()}{#await loadPlanner(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("planner", e)}><Page model={modelFor("planner")} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pHome()}<Home model={modelFor("home")} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => goTo(t)} {shortListings} {liveAt} {liveError} {liveRead} bountyTables={relicTables?.bounties ?? null} sortieRewards={relicTables?.sortie ?? null} />{/snippet}
+      {#snippet pSales()}{#await loadSales(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("sales", e)}><Page model={modelFor("sales")} bind:settings={settings} go={(t: string) => (settings.tab = t)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pMarket()}<Orders model={modelFor("market")} console={onConsole} whispers={mission?.whispers ?? []} bind:settings={settings.market} advice={settings.advice} masteryRank={settings.game.masteryRank} credits={settings.game.credits} />{/snippet}
       {#snippet pGuide()}{#await loadGuide(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("guide", e)}><Page console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} hidden={settings.pagesHidden} go={(t: string) => goTo(t)} bind:plannerMode={settings.plannerMode} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pFoundry()}<Foundry {model} bind:settings={settings} />{/snippet}
-      {#snippet pInventory()}<Inventory {model} sell={settings.market.sellable} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad} gear={settings.game.gear} bind:keepGear={settings.game.keepGear} />{/snippet}
-      {#snippet pBrowse()}{#await loadMarket(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("browse", e)}><Page {model} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pWishlist()}{#await loadWishlist(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("wishlist", e)}><Page {model} bind:settings={settings} go={(t: string) => goTo(t)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pFoundry()}<Foundry model={modelFor("foundry")} bind:settings={settings} />{/snippet}
+      {#snippet pInventory()}<Inventory model={modelFor("inventory")} sell={settings.market.sellable} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad} gear={settings.game.gear} bind:keepGear={settings.game.keepGear} />{/snippet}
+      {#snippet pBrowse()}{#await loadMarket(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("browse", e)}><Page model={modelFor("browse")} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pWishlist()}{#await loadWishlist(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("wishlist", e)}><Page model={modelFor("wishlist")} bind:settings={settings} go={(t: string) => goTo(t)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       <!-- Rivens is the slowest page to load the first time: its heading shows at once, not a bare Loading…. -->
-      {#snippet pRivens()}{#await loadRivens(lazyTry)}<div class="page"><div class="page-inner"><PageHead title="Rivens" brief={onConsole ? "Rivens for sale, graded, and alerts." : "Your rivens graded, and what they sell for."} /><p class="lazyload register" role="status">Loading your rivens…</p></div></div>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("rivens", e)}><Page {model} console={onConsole} bind:settings={settings} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pStats()}{#await loadStats(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("stats", e)}><Page {model} {settings} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pRivens()}{#await loadRivens(lazyTry)}<div class="page"><div class="page-inner"><PageHead title="Rivens" brief={onConsole ? "Rivens for sale, graded, and alerts." : "Your rivens graded, and what they sell for."} /><p class="lazyload register" role="status">Loading your rivens…</p></div></div>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("rivens", e)}><Page model={modelFor("rivens")} console={onConsole} bind:settings={settings} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pStats()}{#await loadStats(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("stats", e)}><Page model={modelFor("stats")} {settings} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {@render pane("mission", pMission)}
       {@render pane("sets", pSets)}
       {@render pane("parts", pParts)}

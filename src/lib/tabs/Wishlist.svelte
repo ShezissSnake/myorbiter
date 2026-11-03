@@ -23,6 +23,7 @@
   import CodexRings from "../ui/CodexRings.svelte";
   import { codexRings, starredBy } from "../core/codex";
   import type { Group } from "../core/collection";
+  import { whileShown } from "../pane.svelte";
 
   let { model, settings = $bindable(), go = null }: { model: Model; settings: Settings; go?: ((to: string) => void) | null } = $props();
 
@@ -32,9 +33,9 @@
     return () => clearInterval(t);
   });
 
-  const items = $derived(settings.favourites.map((u) => wishItem(model, u)).filter((w): w is WishItem => !!w));
+  const items = $derived.by(whileShown("wishlist", () => settings.favourites.map((u) => wishItem(model, u)).filter((w): w is WishItem => !!w)));
   const open = $derived(openEras(model.live.fissures, now));
-  const byEra = $derived(wishlistEras(model, settings.favourites));
+  const byEra = $derived.by(whileShown("wishlist", () => wishlistEras(model, settings.favourites)));
   // Every era with relics (Omnia fissures take any of them).
   // Eras with a fissure open now where a relic you hold drops something you want (Omnia takes any).
   const crackNow = $derived(
@@ -81,8 +82,8 @@
   // The rings: mastered of all in each category, as on Mastery and Foundry, each marked with how
   // many you starred in it. A click goes to the first of those, or, with none starred there, to
   // Foundry's not-mastered ones in that category, where you star them.
-  const rings = $derived(codexRings(model));
-  const marks = $derived(starredBy(model, settings.favourites));
+  const rings = $derived.by(whileShown("wishlist", () => codexRings(model)));
+  const marks = $derived.by(whileShown("wishlist", () => starredBy(model, settings.favourites)));
   const pickRing = (g: Group) => (marks[g] ? jump(g) : go?.(`foundry?group=${g}&show=todo`));
   /** A ring's click: to the first thing you starred in that category. */
   function jump(g: Group) {

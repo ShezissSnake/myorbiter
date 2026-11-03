@@ -29,11 +29,12 @@
   import { notNeeded, type GearCopy } from "../core/notNeeded";
   import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
   import { pickShowcase } from "../core/showcase";
+  import { whileShown } from "../pane.svelte";
 
   let { model, sell, platPerDucat = 0, squad = 1, gear = null, keepGear = $bindable([]) }: { model: Model; sell: SellChoices; platPerDucat?: number; squad?: number; gear?: GearCopy[] | null; keepGear?: string[] } = $props();
   // Gear you no longer need and can't trade (core/notNeeded.ts), shown above the list when asked.
   let letGo = $state(false);
-  const unneeded = $derived(notNeeded(model, gear, new Set(keepGear)));
+  const unneeded = $derived.by(whileShown("inventory", () => notNeeded(model, gear, new Set(keepGear))));
   const goCount = $derived(unneeded.go.length);
 
   let kind = $state<"all" | InventoryKind>("all");
@@ -50,7 +51,8 @@
   // anything unbuilt, your best copy of each mod and one to give away, one maxed arcane, the parts,
   // blueprints and resources your unbuilt things take, one of each Captura scene (core/spares.ts).
   // The market's item list names things the game knows by internal names ("Tn Concrete Archgun Barrel").
-  const ledger = $derived(new Map(spareRows(model, mkt.index, sell, platPerDucat, squad, drops.recent).map((x) => [x.key, x])));
+  // While hidden, kept as last drawn: the squad or ducat rate changed on another page waits for a visit (lib/pane.svelte.ts).
+  const ledger = $derived.by(whileShown("inventory", () => new Map(spareRows(model, mkt.index, sell, platPerDucat, squad, drops.recent).map((x) => [x.key, x]))));
   const spareOf = (r: InventoryItem): SpareRow | undefined => ledger.get(r.key);
   const spare = (r: InventoryItem) => spareOf(r)?.spare ?? 0;
   /** The market's name, where the game's own is an internal one. */
@@ -65,7 +67,7 @@
   const perDay = (r: InventoryItem) => spareOf(r)?.tradesPerDay ?? r.tradesPerDay;
   // Every row's share of the figures, worked out over everything held: an item's rows (a mod at two
   // ranks, a relic's refinements) share one month of sales, so the rows add up to the figures above.
-  const all = $derived(inventoryRows(model));
+  const all = $derived.by(whileShown("inventory", () => inventoryRows(model)));
   const full = $derived(inventoryValue(all, ledger));
   /** The row's spare copies' share of Spare value: no more of the item than the market sells in a month. */
   const sellable = (r: InventoryItem) => Math.round(full.rows.get(r.key)?.spare ?? 0) || null;
