@@ -6,8 +6,17 @@
   import { mkt } from "../marketStore.svelte";
   import Named from "./Named.svelte";
   import P from "./P.svelte";
+  import type { BuyAlert } from "../core/deals";
 
-  let { model, go }: { model: Model; go: (tab: string) => void } = $props();
+  let { model, go, onalert = null }: { model: Model; go: (tab: string) => void; onalert?: ((a: BuyAlert) => void) | null } = $props();
+  // Alert me: no order posted; Cheap buys tells you when someone lists it at or under the price.
+  let alerted = $state(false);
+  function alertMe() {
+    if (!d || !d.platinum || !onalert) return;
+    onalert({ name: d.name, rank: d.rank, maxPrice: Math.round(d.platinum), at: Date.now() });
+    alerted = true;
+    setTimeout(close, 900);
+  }
 
   const open = $derived(!!(mkt.buyDraft || mkt.buyError));
   const d = $derived(mkt.buyDraft);
@@ -22,6 +31,7 @@
   const close = () => {
     mkt.buyDraft = null;
     mkt.buyError = null;
+    alerted = false;
   };
   async function place() {
     if (ready) await mkt.placeBuy();
@@ -84,6 +94,7 @@
           {#if mkt.error && mkt.op == null}<p class="err small">{mkt.error}</p>{/if}
           <div class="row end">
             <button onclick={close}>Cancel</button>
+            {#if onalert}<button disabled={!d.platinum || d.loading || alerted} title="Don't post anything: orbiter watches warframe.market (Cheap buys, on Home) and tells you when someone lists it at {d.platinum ?? '…'}p or less" onclick={alertMe}>{alerted ? "Alert set" : `Alert me at ${d.platinum ?? "…"}p`}</button>{/if}
             <button class="stamp gold" disabled={!ready} onclick={place}>{mkt.op === "Posting a buy order" ? "Posting…" : `Buy ${d.quantity}${d.platinum ? ` at ${d.platinum}p` : ""}`}</button>
           </div>
           <p class="dim small foot">Sellers see it on warframe.market and whisper you in game. Your buy orders are on Orders, to change or take down.</p>

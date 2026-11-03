@@ -92,3 +92,9 @@ test("trades left today: your rank's worth, counted since 00:00 UTC", async () =
   assert.equal(tradeAllowance([], 1, now).limit, 0, "trading starts at rank 2");
   assert.equal(daysToTrade(4840, 24), 34);
 });
+
+test("a recruiting line for a relic share", async () => {
+  const { recruitLine } = await import("../src/lib/core/recruit");
+  assert.equal(recruitLine("Axi C12", "Radiant"), "H Axi C12 rad 1b4");
+  assert.equal(recruitLine("Lith O4", "Intact", 2), "H Lith O4 int 2b4");
+});

@@ -46,3 +46,16 @@ test("a new listing from the live feed is a deal by the same rule, the moment it
   assert.equal(dealFromOrder(m, index, order(20, "zz"), byslug, me), null, "an item nobody watches");
   assert.equal(dealFromOrder(m, index, { ...order(20), user: { id: "me", ingameName: "Me", status: "ingame" } }, byslug, me), null, "your own listing");
 });
+
+test("a price alert is news at or under your price, whatever the usual price says", async () => {
+  const { alertWatches, watchlist } = await import("../src/lib/core/deals");
+  const m = buildModel(bundle);
+  const alerts = [{ name: "Mesa Prime Neuroptics", rank: null, maxPrice: 34, at: 1 }, { name: "Lex Prime Barrel", rank: null, maxPrice: 2, at: 1 }];
+  const mine = alertWatches(alerts);
+  // 35p is 88% of the usual 40p: no deal by the 60% rule, but under an alert at 36p it would be.
+  assert.equal(findDeals(m, index, { mesa_prime_neuroptics: [sell(35)] }, mine, me).length, 0, "over your price");
+  const d = findDeals(m, index, { mesa_prime_neuroptics: [sell(33)], lex_prime_barrel: [sell(1)] }, mine, me);
+  assert.deepEqual(d.map((x) => [x.name, x.price]).sort(), [["Lex Prime Barrel", 1], ["Mesa Prime Neuroptics", 33]], "a 5p item counts when you asked for it");
+  // Alerts go first in the watchlist and don't count against its limit.
+  assert.deepEqual(watchlist(m, 0, alerts).map((w) => w.kind), ["alert", "alert"]);
+});

@@ -8,10 +8,30 @@ import { arcaneRows } from "./views";
 
 export interface Watch {
   name: string;
-  kind: "part" | "arcane";
+  kind: "part" | "arcane" | "alert";
   rank: number | null;
   /** Why it's on the list. */
   why: string;
+  /** A price alert you set: any listing at or under this is news, whatever its usual price. */
+  maxPrice?: number;
+}
+
+/** A price alert: tell me when someone lists this at or under my price (set from Post a buy order). */
+export interface BuyAlert {
+  name: string;
+  rank: number | null;
+  maxPrice: number;
+  /** When it was set (Unix ms). */
+  at: number;
+}
+
+/** Your price alerts as watchlist entries: they go first, and don't count against the list's limit. */
+export const alertWatches = (alerts: BuyAlert[]): Watch[] => alerts.map((a) => ({ name: a.name, kind: "alert", rank: a.rank, why: `your alert: ${a.maxPrice}p or less`, maxPrice: a.maxPrice }));
+
+/** A deal: at or under your alert's price, or at most DEAL_SHARE of the usual price. */
+function isDeal(price: number, usual: number | null, w: Watch): boolean {
+  if (w.maxPrice != null) return price <= w.maxPrice;
+  return usual != null && price <= usual * DEAL_SHARE;
 }
 
 /** A listing at most this share of the daily median counts as a deal. */
@@ -23,7 +43,9 @@ export const DEAL_MIN_REF = 6;
  * Missing parts of sets one or two parts from complete, and unranked copies of arcanes you've
  * started collecting but not finished: the most valuable first, at most `limit`.
  */
-export function watchlist(m: Model, limit = 20): Watch[] {
+export function watchlist(m: Model, limit = 20, alerts: BuyAlert[] = []): Watch[] {
+  const mine = alertWatches(alerts);
+  const taken = new Set(mine.map((w) => w.name));
   const out: Watch[] = [];
   for (const g of setGaps(m, 2)) {
     for (const x of g.missing) out.push({ name: x.name, kind: "part", rank: null, why: `${g.missingCount === 1 ? "the last part" : "a missing part"} of ${g.set}` });
@@ -34,7 +56,7 @@ export function watchlist(m: Model, limit = 20): Watch[] {
   }
   // An arcane's copy is worth its price times the copies still needed, up to buying it maxed.
   const value = (w: Watch) => (m.price(w.name) ?? 0);
-  return out.sort((a, b) => value(b) - value(a)).slice(0, limit);
+  return [...mine, ...out.filter((w) => !taken.has(w.name)).sort((a, b) => value(b) - value(a)).slice(0, limit)];
 }
 
 export interface Deal {
@@ -59,18 +81,18 @@ export function findDeals(m: Model, index: MarketIndex, books: Record<string, Bo
     if (!book) continue;
     const rank = it.maxRank != null ? (w.rank ?? 0) : null;
     const usual = referencePrice(m, it, rank, it.subtypes?.[0] ?? null);
-    if (usual == null || usual < DEAL_MIN_REF) continue;
+    if (w.maxPrice == null && (usual == null || usual < DEAL_MIN_REF)) continue;
     const c = competitor({ rank, subtype: null }, book, me, it.subtypes?.[0] ?? null);
     // The cheapest, odd or not: one seller far under the rest is exactly the deal.
     const low = c.lowest;
-    if (!low || low.platinum > usual * DEAL_SHARE) continue;
+    if (!low || !isDeal(low.platinum, usual, w)) continue;
     out.push({
       key: `${it.slug}|${low.platinum}|${low.name}`,
       name: it.name,
       slug: it.slug,
       rank,
       price: low.platinum,
-      usual: Math.round(usual),
+      usual: Math.round(usual ?? w.maxPrice ?? low.platinum),
       seller: low.name ?? "?",
       why: w.why,
       whisper: `/w ${low.name} Hi! I want to buy: "${it.name}${rank != null ? ` (rank ${rank})` : ""}" for ${low.platinum} platinum. (warframe.market)`,
@@ -109,14 +131,15 @@ export function dealFromOrder(m: Model, index: MarketIndex, o: FeedOrder, watch:
   const sub = it.subtypes?.[0] ?? null;
   if (sub && o.subtype && o.subtype !== sub) return null;
   const usual = referencePrice(m, it, rank, sub);
-  if (usual == null || usual < DEAL_MIN_REF || o.platinum > usual * DEAL_SHARE) return null;
+  if (w.maxPrice == null && (usual == null || usual < DEAL_MIN_REF)) return null;
+  if (!isDeal(o.platinum, usual, w)) return null;
   return {
     key: `${it.slug}|${o.platinum}|${seller}`,
     name: it.name,
     slug: it.slug,
     rank,
     price: o.platinum,
-    usual: Math.round(usual),
+    usual: Math.round(usual ?? w.maxPrice ?? o.platinum),
     seller,
     why: w.why,
     whisper: `/w ${seller} Hi! I want to buy: "${it.name}${rank != null ? ` (rank ${rank})` : ""}" for ${o.platinum} platinum. (warframe.market)`,

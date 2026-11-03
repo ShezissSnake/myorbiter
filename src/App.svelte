@@ -1248,7 +1248,7 @@
     if (!m) return;
     untrack(() => {
       if (!items) void mkt.ensureItems().catch(() => {});
-      else mkt.watchLive(m, watchlist(m, 300));
+      else mkt.watchLive(m, watchlist(m, 300, settings.market.buyAlerts));
     });
   });
   // Cheap buys: the watchlist's order books every ten minutes, while orbiter is open.
@@ -1258,7 +1258,7 @@
     if (!model || onConsole || now - lastDeals < 10 * 60_000) return;
     lastDeals = now;
     const m = model;
-    untrack(() => void mkt.scanDeals(m, watchlist(m)));
+    untrack(() => void mkt.scanDeals(m, watchlist(m, 20, settings.market.buyAlerts)));
   });
   $effect(() => {
     const deals = mkt.deals;
@@ -1992,7 +1992,7 @@
       {#snippet pArcanes()}{#await loadArcanes(lazyTry) then { default: Page }}<Page {model} bind:advice={settings.advice} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pMods()}{#await loadMods(lazyTry) then { default: Page }}<Page {model} masteryRank={settings.game.masteryRank} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pRelics()}<Relics {model} bind:advice={settings.advice} wishlist={settings.favourites} />{/snippet}
-      {#snippet pPlanner()}{#await loadPlanner(lazyTry) then { default: Page }}<Page {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} wishlist={settings.favourites} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pPlanner()}{#await loadPlanner(lazyTry) then { default: Page }}<Page {model} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pHome()}<Home {model} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => goTo(t)} {shortListings} {liveAt} {liveError} {liveRead} bountyTables={relicTables?.bounties ?? null} sortieRewards={relicTables?.sortie ?? null} />{/snippet}
       {#snippet pSales()}{#await loadSales(lazyTry) then { default: Page }}<Page {model} bind:settings={settings} go={(t: string) => (settings.tab = t)} />{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pMarket()}<Orders {model} console={onConsole} bind:settings={settings.market} advice={settings.advice} masteryRank={settings.game.masteryRank} />{/snippet}
@@ -2022,7 +2022,7 @@
       {@render pane("wishlist", pWishlist)}
       {@render pane("browse", pBrowse)}
       <ListDialog {model} market={settings.market} advice={onConsole ? null : settings.advice} go={(t: string) => (settings.tab = t)} />
-      <BuyDialog {model} go={(t: string) => (settings.tab = t)} />
+      <BuyDialog {model} go={(t: string) => (settings.tab = t)} onalert={(a) => { settings.market.buyAlerts = [a, ...settings.market.buyAlerts.filter((x) => x.name !== a.name || x.rank !== a.rank)].slice(0, 40); lastDeals = 0; }} />
       <ItemDetails {model} bind:settings={settings} />
       {#if !onConsole}<Lookup bind:open={showLookup} {model} go={(t: string) => (settings.tab = t)} />{/if}
       <HoverCard {model} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad > 1 ? 4 : 1} />

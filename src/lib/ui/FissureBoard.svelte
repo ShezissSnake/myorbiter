@@ -14,6 +14,7 @@
   import P from "./P.svelte";
   import { info } from "../hover.svelte";
   import { eraTint } from "./table";
+  import { recruitLine } from "../core/recruit";
 
   type Best = { name: string; refinement: string; held: string; plat: number } | null;
   let {
@@ -48,6 +49,17 @@
   /** "A, B and 3 more" */
   const some = (xs: string[], n = 4) => (xs.length <= n ? xs.join(", ") : `${xs.slice(0, n).join(", ")} and ${xs.length - n} more`);
   const left = (f: Fissure) => until(f.expiry, now).replace("under a minute", "<1 min");
+  // Recruit: the line for a squad sharing your best relic of the era, on the clipboard.
+  let copied = $state<string | null>(null);
+  async function copyLine(era: string, line: string) {
+    try {
+      await navigator.clipboard.writeText(line);
+      copied = era;
+      setTimeout(() => (copied === era ? (copied = null) : null), 2000);
+    } catch {
+      copied = null;
+    }
+  }
 </script>
 
 <div class="kinds">
@@ -79,7 +91,7 @@
           <span class="dim small">{e.list.length}</span>
           {#if sv}<span class="saving" title="Your {some(sv.relics)} drop{sv.relics.length === 1 ? 's' : ''} a part still missing from {some(sv.sets.map((x) => `the ${x} Set`), 6)}, which your loose parts are waiting for (Sets → Saving up)">parts for {sv.sets.length === 1 ? sv.sets[0] : `${sv.sets.length} sets`}</span>{/if}
           <span class="grow"></span>
-          {#if b}<span class="best" title="Your relic whose crack is worth most here ({b.held}), and the average platinum of the reward you'd take"><span class="dim small">Crack</span> <b use:info={b.name}>{b.name}</b> <span class="dim small">{b.refinement}</span> <P v={b.plat} /></span>{/if}
+          {#if b}<span class="best" title="Your relic whose crack is worth most here ({b.held}), and the average platinum of the reward you'd take"><span class="dim small">Crack</span> <b use:info={b.name}>{b.name}</b> <span class="dim small">{b.refinement}</span> <P v={b.plat} /></span><button class="copy" class:done={copied === e.era} title="Copy a recruiting line for a squad sharing it ({recruitLine(b.name, b.refinement)}): paste it in Recruiting chat" aria-label="Copy a recruiting line for {b.name}" onclick={() => copyLine(e.era, recruitLine(b.name, b.refinement))}>{copied === e.era ? "Copied" : "Recruit"}</button>{/if}
         </header>
         <ul>
           {#each e.list as f (f.id)}
@@ -124,4 +136,8 @@
   .kinds { align-items: center; }
   :global(html[data-room~="lt640"]) li { grid-template-columns: minmax(6rem, 1fr) minmax(0, 1.3fr) 4.4rem; }
   :global(html[data-room~="lt640"]) .foe { display: none; }
+  /* Recruit: a small struck button after the best relic. */
+  .copy { font-family: var(--face-register); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-dim); background: none; padding: .1rem .35rem; margin-left: .35rem; cursor: pointer; }
+  .copy:hover { border-color: var(--gold); }
+  .copy.done { color: var(--verdigris); border-color: var(--verdigris); }
 </style>

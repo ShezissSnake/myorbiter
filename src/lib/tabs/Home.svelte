@@ -309,7 +309,7 @@
     { key: "today", label: "Worth doing today", hint: "The Duviri Circuit, Darvo's deal, Teshin, the Sortie (its missions, modifiers and reward chances), the Archon Hunt and Nightwave" },
     { key: "foundry", label: "Foundry", hint: "What's building, and what you have every part for" },
     { key: "wishes", label: "Your wishlist", hint: "What you starred and still need, with relics to crack for it" },
-    { key: "deals", label: "Cheap buys", hint: "Parts and arcanes you're after, listed well under their usual price" },
+    { key: "deals", label: "Cheap buys", hint: "Parts and arcanes you're after, listed well under their usual price, and your price alerts" },
     { key: "mastery", label: "Easiest mastery next", hint: "What to level, and the easiest things you haven't mastered" },
     { key: "baro", label: "Baro Ki’Teer", hint: "When he comes, and what he brings that's new to you", consoleHint: "When he comes, and what he brings" },
     { key: "varzia", label: "Varzia", hint: "Prime Resurgence: the primes you still need from her rotation", consoleHint: "Prime Resurgence: what's in her rotation, and when it ends" },
@@ -669,6 +669,15 @@
       {:else}
         <p class="dim small">{mkt.dealsAt && !mkt.dealsChecked ? "Couldn't reach warframe.market; it tries again in 10 minutes." : mkt.dealsAt ? `Nothing under ${Math.round(0.6 * 100)}% of its usual price right now, among the parts you're missing for nearly complete sets and the arcanes you've started collecting.` : "Checking warframe.market…"}</p>
       {/if}
+      <!-- Price alerts you set from Post a buy order (Alert me): watched with the rest. -->
+      {#if settings.market.buyAlerts.length}
+        <div class="alertlist">
+          <span class="register" title="Set with Alert me in Post a buy order (the Buy order buttons on Wishlist, Mastery, Browse market…): orbiter tells you when someone lists one at your price or less">Your price alerts</span>
+          {#each settings.market.buyAlerts as a (a.name + (a.rank ?? ""))}
+            <span class="pa" use:info={a.name}>{a.name}{a.rank != null ? ` R${a.rank}` : ""} <span class="dim">≤</span><P v={a.maxPrice} /><IconButton icon="close" tone="quiet" size={10} label="Remove alert" title="Stop watching {a.name}" onclick={() => (settings.market.buyAlerts = settings.market.buyAlerts.filter((x) => x !== a))} /></span>
+          {/each}
+        </div>
+      {/if}
       <p class="live small" title={mkt.feed?.error ?? "Every new listing on warframe.market is checked as it goes up"}>
         {#if mkt.feed?.connected}<i class="dot" aria-hidden="true"></i>Watching new listings live{mkt.liveDeals ? ` · ${mkt.liveDeals} caught` : ""}{:else if mkt.feed?.running}Connecting to the live feed…{/if}
       </p>
@@ -867,6 +876,8 @@
   .more { margin: .5rem 0 0; }
   .foundry { grid-column: span 5; }
   .deals { grid-column: span 5; }
+  .alertlist { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .6rem; margin-top: .7rem; padding-top: .6rem; border-top: 1px solid var(--rule); }
+  .pa { display: inline-flex; align-items: center; gap: .3rem; padding: .05rem .1rem .05rem .45rem; border: 1px solid var(--gold-dim); font-size: .8rem; }
   .live { margin: .6rem 0 0; color: var(--platinum-deep); display: flex; align-items: center; gap: .45rem; }
   .live:empty { display: none; }
   .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--verdigris); box-shadow: 0 0 0 3px color-mix(in srgb, var(--verdigris) 25%, transparent); }

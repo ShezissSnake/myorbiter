@@ -11,6 +11,20 @@ export interface NewsEntry {
 
 export const NEWS: NewsEntry[] = [
   {
+    id: 9,
+    date: "2026-11-03",
+    items: [
+      "Fissures told apart by shape: a glyph for each mission type (Survival's hourglass, Defense's shield, Spy's eye…) and the era's relic on every card. Relic rewards show their rarity with a mark, not just the ring's colour.",
+      "Trades left today: your Mastery Rank's worth of trades, counted from the game's log, on Home and Orders. Put my spares on sale and Mods say how many days of trades selling it all would take.",
+      "Ctrl+K (or the magnifier by Sync) finds any item, prime part, relic, mod or arcane by name and opens it.",
+      "Price alerts: Alert me in Post a buy order, and Cheap buys tells you when someone lists it at your price or less.",
+      "One way of counting what you can spare, on Inventory, Stats and the selling pages; Inventory opens on what your spares would sell for. \"Not worth a trade under 5p\" is judged per trade, so five 3p barrels sell together.",
+      "Planner: odds averaged over the copies you hold (one radiant no longer stands for 18 intact), solo or radshare as set on Relics, a Finishes column, and your Void Trace cap. Recruit on the fissure board copies a squad line.",
+      "The sidebar: Orders leads Trade, with Mods, Arcanes and Rivens beside the other selling pages; Market is now Browse market.",
+      "Smaller things: Nightwave's dailies first, clearer Sold? questions on Orders, world clocks that keep their names on a laptop, shorter page headers, tooltips when you tab onto a button, and a fissure that went quiet 45 minutes ago no longer shows as live.",
+    ],
+  },
+  {
     id: 8,
     date: "2026-11-02",
     items: [
