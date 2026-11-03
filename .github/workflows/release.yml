@@ -33,21 +33,28 @@ on:
         type: boolean
         default: false
 
+# Read-only unless a job says otherwise: only the jobs that create the release or attach files to it
+# may write, and only their `gh release` steps get the token (GH_TOKEN). Every action is pinned to a
+# commit (Dependabot, .github/dependabot.yml, proposes updates), every checkout leaves no
+# credentials behind in .git, and every Cargo build uses its Cargo.lock as committed (--locked).
 permissions:
-  contents: write
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
   # Where this run's downloads go.
   RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('build-{0}', github.run_number) }}
-  GH_TOKEN: ${{ github.token }}
 
 jobs:
   release:
     name: Make the pre-release
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     steps:
       - name: Create it
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --prerelease --title "orbiter $RELEASE_TAG" \
@@ -58,6 +65,9 @@ jobs:
   linux:
     name: Linux / Steam Deck AppImage
     needs: release
+    # Writes only to attach its file to the release (the last step, the one with the token).
+    permissions:
+      contents: write
     # Ubuntu 22.04 like TennoScope's own AppImage: what's built here needs nothing newer than its
     # C library (2.35), so it runs on SteamOS and any Linux from the last few years.
     runs-on: ubuntu-22.04
@@ -66,7 +76,9 @@ jobs:
       - name: Free disk space
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       # TennoScope's own list (its release workflow), plus patchelf for the Tesseract below.
       - name: Install build dependencies
@@ -102,18 +114,18 @@ jobs:
           echo "PKG_CONFIG_PATH=$lib_dir/pkgconfig:${PKG_CONFIG_PATH:-}" >>"$GITHUB_ENV"
           echo "LD_LIBRARY_PATH=$lib_dir:${LD_LIBRARY_PATH:-}" >>"$GITHUB_ENV"
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: |
             tennoscope -> target
             . -> target
           shared-key: linux
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           package_json_file: tennoscope/app/package.json
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version-file: tennoscope/app/.node-version
           cache: pnpm
@@ -128,6 +140,13 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
         working-directory: tennoscope/app
+
+      # TennoScope's AppImage script runs `tauri build` itself, without --locked: this fails the
+      # job first if tennoscope/Cargo.lock doesn't match its Cargo.toml files, so that build can't
+      # resolve different versions than the ones committed.
+      - name: Check TennoScope's Cargo.lock is current
+        run: cargo metadata --locked --format-version 1 >/dev/null
+        working-directory: tennoscope
 
       # TennoScope's own AppImage build: it forces X11 for the reward overlay and repacks.
       - name: Build TennoScope
@@ -145,10 +164,12 @@ jobs:
       - name: Build orbiter
         run: |
           npm ci
-          npx tauri build --bundles appimage --config src-tauri/tauri.bundle.json
+          npx tauri build --bundles appimage --config src-tauri/tauri.bundle.json -- --locked
           scripts/repack-appimage.sh
 
       - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload "$RELEASE_TAG" target/release/bundle/appimage/*.AppImage --repo "$GITHUB_REPOSITORY" --clobber
 
   # ------------------------------------------------------------------ Windows
@@ -156,6 +177,9 @@ jobs:
   windows:
     name: Windows installer
     needs: release
+    # Writes only to attach its file to the release (the last step, the one with the token).
+    permissions:
+      contents: write
     if: github.event_name != 'workflow_dispatch' || inputs.windows
     runs-on: windows-latest
     defaults:
@@ -166,7 +190,9 @@ jobs:
       # (scripts/tennoscope-notice.sh) stop at a carriage return.
       - run: git config --global core.autocrlf false
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       # TennoScope's own script: downloads its pinned Tesseract and proves it runs.
       - name: Vendor Tesseract
@@ -174,18 +200,18 @@ jobs:
         shell: pwsh
         working-directory: tennoscope
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: |
             tennoscope -> target
             . -> target
           shared-key: windows
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           package_json_file: tennoscope/app/package.json
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version-file: tennoscope/app/.node-version
           cache: pnpm
@@ -196,7 +222,7 @@ jobs:
 
       # The program alone: orbiter's installer carries it, beside its Tesseract.
       - name: Build TennoScope
-        run: pnpm tauri build --no-bundle
+        run: pnpm tauri build --no-bundle -- --locked
         working-directory: tennoscope/app
 
       - name: Put TennoScope beside orbiter's sources
@@ -210,9 +236,11 @@ jobs:
       - name: Build orbiter
         run: |
           npm ci
-          npx tauri build --config src-tauri/tauri.bundle.json
+          npx tauri build --config src-tauri/tauri.bundle.json -- --locked
 
       - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload "$RELEASE_TAG" target/release/bundle/nsis/*-setup.exe --repo "$GITHUB_REPOSITORY" --clobber
 
   # ------------------------------------------------------------------ macOS
@@ -220,17 +248,22 @@ jobs:
   macos:
     name: macOS dmg
     needs: release
+    # Writes only to attach its file to the release (the last step, the one with the token).
+    permissions:
+      contents: write
     if: github.event_name != 'workflow_dispatch' || inputs.macos
     # Apple silicon, which is what Warframe on the Mac runs on.
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: macos
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           cache: npm
@@ -238,9 +271,11 @@ jobs:
       - name: Build orbiter
         run: |
           npm ci
-          npx tauri build
+          npx tauri build -- --locked
 
       - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload "$RELEASE_TAG" target/release/bundle/dmg/*.dmg --repo "$GITHUB_REPOSITORY" --clobber
 
   # ------------------------------------------------------------------ Source
@@ -250,10 +285,17 @@ jobs:
   source:
     name: Source
     needs: release
+    # Writes only to attach its file to the release (the last step, the one with the token).
+    permissions:
+      contents: write
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
       - name: Pack and attach it
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git archive --format=tar.gz --prefix="orbiter-$RELEASE_TAG/" --output orbiter-source.tar.gz "$GITHUB_SHA"
           gh release upload "$RELEASE_TAG" orbiter-source.tar.gz --repo "$GITHUB_REPOSITORY" --clobber
