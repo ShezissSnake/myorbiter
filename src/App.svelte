@@ -2068,7 +2068,7 @@
     <nav aria-label="Pages" data-card="sections" bind:this={navEl} onscroll={checkNav} class:more={navMore} class:above={navAbove}>
       {@render navItem(pages[0])}
       {#each sections as sec (sec)}
-        <div class="sec register" data-section={sec}>{sec}</div>
+        <div class="sec register" data-section={sec} title={compact ? sec : undefined}>{sec}</div>
         {#each pages.filter((p) => p.group === sec) as p (p.id)}{@render navItem(p)}{/each}
       {/each}
     </nav>
@@ -2372,8 +2372,10 @@
   /* ---- icons only: folded by hand, or a narrow window */
   .compact .brand { justify-content: center; padding-left: .5rem; padding-right: .5rem; flex-direction: column; gap: .4rem; }
   .compact .fold { margin-left: 0; }
-  .compact .brand-name, .compact .lbl, .compact .sec { display: none; }
-  .compact .sec + .nav { margin-top: .55rem; }
+  .compact .brand-name, .compact .lbl { display: none; }
+  /* Folded, a section keeps a short rule in its colour between the groups (its name on hover). */
+  .compact .sec { justify-content: center; padding: .6rem 0 .35rem; font-size: 0; letter-spacing: 0; gap: 0; }
+  .compact .sec::after { flex: none; width: 1.5rem; height: 2px; background: var(--sec); }
   .compact .nav { justify-content: center; padding: .48rem 0; }
   .compact .foot { padding: .7rem .6rem .8rem; gap: .45rem; }
   .compact .nav .badge, .compact .nav .live { position: absolute; top: .2rem; right: .35rem; margin: 0; }
@@ -2390,7 +2392,7 @@
   @media (max-height: 900px) {
     .compact .brand { padding-top: .6rem; padding-bottom: .5rem; gap: .2rem; }
     .compact nav { padding-top: .35rem; padding-bottom: .35rem; }
-    .compact .sec + .nav { margin-top: .4rem; }
+    .compact .sec { padding: .4rem 0 .25rem; }
     .compact .nav { padding: .2rem 0; }
     .compact .nav .ic { width: 1.35rem; height: 1.35rem; }
     .shell:not(.compact) .nav { padding-top: .32rem; padding-bottom: .32rem; }
