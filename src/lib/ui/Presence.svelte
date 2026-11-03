@@ -33,7 +33,10 @@
 
 <div class="row">
   <span class="seen">Seen as <strong class:live={visible} class:hidden={!visible && !connecting}>{seen}</strong></span>
+  <!-- Manual: by keyboard, arrows move along and Enter picks, so Offline → Online in game doesn't
+       send Invisible and Online on the way. -->
   <Seg
+    manual
     value={chosen}
     onchange={(v: Presence | "offline") => (v === "offline" ? offline() : pick(v))}
     {pending}
