@@ -13,7 +13,6 @@
   import { dealOf, estimateListed, estimateRiven, type Estimate } from "../core/rivenModel";
   import PageHead from "../ui/PageHead.svelte";
   import Stat from "../ui/Stat.svelte";
-  import CardGrid from "../ui/CardGrid.svelte";
   import Art from "../ui/Art.svelte";
   import P from "../ui/P.svelte";
   import GameIcon from "../ui/GameIcon.svelte";
@@ -25,7 +24,9 @@
   import UndoSlot from "../ui/UndoSlot.svelte";
   import { UndoSlots } from "../undo.svelte";
   import { Job, JobError } from "../job.svelte";
-  import { matches } from "../ui/table";
+  import { matches, sortRows, type Column } from "../ui/table";
+  import Browse from "../ui/Browse.svelte";
+  import Named from "../ui/Named.svelte";
 
   // console: you play on a console or phone, where orbiter can't read your rivens: the finder and
   // alerts only.
@@ -66,7 +67,7 @@
     }
     return out;
   });
-  let sort = $state<"grade" | "weapon" | "rank" | "traded" | "any" | "similar" | "estimate">("grade");
+  let sort = $state({ key: "grade", desc: true });
   // Filters: the riven's kind (Rifle, Melee…), spliced ones only, and a weapon or name.
   let kind = $state("all");
   let splicedOnly = $state(false);
@@ -78,18 +79,26 @@
   const companions = $derived(mine.filter((r) => r.companion).length);
   const splicedCount = $derived(mine.filter((r) => r.spliced).length);
   const best = $derived(mine.reduce<Riven | null>((b, r) => (r.quality != null && (b?.quality == null || r.quality > b.quality) ? r : b), null));
-  const shown = $derived(mine.filter((r) => (kind === "all" || (kind === "regular" ? !r.companion : kindOf(r) === kind)) && (!splicedOnly || r.spliced) && matches(query, r.weapon, r.name, ...r.stats.map((x) => x.label))));
-  const sorted = $derived(
-    [...shown].sort((a, b) =>
-      sort === "grade" ? (b.quality ?? -1) - (a.quality ?? -1)
-      : sort === "rank" ? b.rank - a.rank
-      : sort === "traded" ? (tradeValue(b) ?? -1) - (tradeValue(a) ?? -1) || a.weapon.localeCompare(b.weapon)
-      : sort === "any" ? (anyPrice(b) ?? -1) - (anyPrice(a) ?? -1) || a.weapon.localeCompare(b.weapon)
-      : sort === "similar" ? (similarPrice(b) ?? -1) - (similarPrice(a) ?? -1) || a.weapon.localeCompare(b.weapon)
-      : sort === "estimate" ? (estimateOf(b) ?? -1) - (estimateOf(a) ?? -1) || a.weapon.localeCompare(b.weapon)
-      : a.weapon.localeCompare(b.weapon),
-    ),
-  );
+  // By weapon first, so rivens that tie on the chosen sort stay in weapon order.
+  const shown = $derived(mine.filter((r) => (kind === "all" || (kind === "regular" ? !r.companion : kindOf(r) === kind)) && (!splicedOnly || r.spliced) && matches(query, r.weapon, r.name, ...r.stats.map((x) => x.label))).sort((a, b) => a.weapon.localeCompare(b.weapon)));
+  const filtered = $derived(kind !== "all" || splicedOnly || !!query.trim());
+  function clear() {
+    kind = "all";
+    splicedOnly = false;
+    query = "";
+  }
+  // The same sorts as cards or as a table; ones not price checked yet go last either way.
+  const columns: Column<Riven>[] = [
+    { key: "weapon", label: "Weapon", value: (r) => `${r.weapon} ${r.name}`, cell: nameCell, defaultDesc: false, width: "20rem", title: "By weapon, A to Z" },
+    { key: "grade", label: "Best rolls", value: (r) => r.grade, sortValue: (r) => r.quality, align: "center", cell: gradeCell, title: "The overall grade: how good the roll is within its range (S the top of it, B the middle, F the bottom)" },
+    { key: "rank", label: "Rank", value: (r) => r.rank, align: "right", muted: true, minor: true, title: "Its rank, out of 8" },
+    { key: "cycles", label: "Cycles", value: (r) => r.rerolls, align: "right", muted: true, minor: true, title: "How many times it's been cycled (0: unrolled)" },
+    { key: "traded", label: "Trade value", value: (r) => tradeValue(r), align: "right", cell: tradedCell, title: "What rivens for the weapon (cycled or not, like yours) traded for in game last week: the ones worth selling, whatever their stats" },
+    { key: "any", label: "Any price", value: (r) => anyPrice(r), align: "right", cell: anyCell, minor: true, title: "The cheapest riven listed for the weapon on warframe.market, whatever its stats. Not price checked yet: blank" },
+    { key: "similar", label: "Similar price", value: (r) => similarPrice(r), align: "right", cell: similarCell, title: "What rivens with the same two best stats are mostly listed for. Not price checked yet: blank" },
+    { key: "estimate", label: "Estimate", value: (r) => estimateOf(r), align: "right", cell: estimateCell, title: "orbiter's estimate of what a riven like it is listed for, from all its stats. Not price checked yet: blank" },
+  ];
+  const sorted = $derived(sortRows(shown, columns, sort));
 
   $effect(() => {
     void rivens.loadMeta();
@@ -441,6 +450,137 @@
 <!-- A curse gets a word, not a letter: whether it costs anything (a red C− on a harmless Ammo Maximum curse misleads). -->
 {#snippet curse(s: { tag: string; label: string; quality: number | null })}{@const w = curseWord(s.tag)}<span class="cw cw-{w}" title={w === "hurts" ? `A curse on ${s.label}, which players want on a riven: it costs you something. Rolled ${s.quality == null ? "?" : Math.round(s.quality * 100)}% of the way to the mildest curse` : `A curse on ${s.label}, which hardly matters on most builds: it costs next to nothing`}>{w}</span>{/snippet}
 
+{#snippet nameCell(r: Riven)}<Named file={r.image} name="{r.weapon} {r.name}" hover={false} kind="{r.kind} riven" />{/snippet}
+{#snippet gradeCell(r: Riven)}{#if r.grade}{@render grade(r.grade)}{/if}{/snippet}
+{#snippet tradedCell(r: Riven)}<P v={tradeValue(r)} />{/snippet}
+{#snippet anyCell(r: Riven)}<P v={anyPrice(r)} dim />{/snippet}
+{#snippet similarCell(r: Riven)}<P v={similarPrice(r)} />{/snippet}
+{#snippet estimateCell(r: Riven)}<P v={estimateOf(r)} />{/snippet}
+{#snippet card(r: Riven)}{@render rivenCard(r)}{/snippet}
+<!-- In the table, a row opens to the whole card. -->
+{#snippet rivenDetail(r: Riven)}<div class="indetail">{@render rivenCard(r)}</div>{/snippet}
+{#snippet rivenCard(r: Riven)}
+  {@const c = checks[r.id]}
+  {@const pc = c?.auctions ? priceCheck(c.auctions) : null}
+  <article class="riven">
+    <header>
+      <Art file={r.image} size={74} fallback="riven" />
+      <div class="t">
+        <span class="register">{r.kind} riven · {r.weapon}{r.companion ? " · companion" : ""}</span>
+        <h3 class="mark" title="{r.weapon} {r.name}">{r.weapon} {r.name}</h3>
+        <span class="meta dim small">
+          {#if r.polarity}<img src="/game/pol/{r.polarity}.png" alt={r.polarity} title={r.polarity} class="pol" />{/if}
+          Rank {r.rank}/8 · MR {r.mastery} · {r.rerolls ? `${r.rerolls} cycle${r.rerolls === 1 ? "" : "s"}` : "never cycled"}
+        </span>
+        {#if r.rerolls}<span class="meta dim small" title="Kuva its cycles have cost (counting any before it was yours), and what the next cycle costs"><GameIcon name="kuva" size={13} />{kuvaSpent(r.rerolls).toLocaleString("en")} in · next {cycleCost(r.rerolls).toLocaleString("en")}</span>{/if}
+      </div>
+      {@render grade(r.grade, true)}
+    </header>
+    <ul class="stats">
+      {#each r.stats as s, i (i)}
+        <li class:curse={!s.buff}>
+          <b class="val">{s.display}</b><span class="lbl">{s.label}{#if s.spliced}<span class="tag ok" title="From Riven Splicing: it stays locked through cycles">spliced</span>{/if}</span>
+          <span class="rbar" title="Roll {s.quality == null ? '?' : Math.round(s.quality * 100)}% of its range"><i style:width="{(s.quality ?? 0) * 100}%"></i></span>
+          {#if s.buff}{@render grade(s.grade)}{:else}{@render curse(s)}{/if}
+        </li>
+      {/each}
+    </ul>
+    {#if meta && c?.any}
+      {@const sm = statMarket(meta, r, c.any)}
+      {#if sm?.length}
+        <div class="sm" title="From the cheapest {r.weapon} rivens listed on warframe.market right now (up to 60, asking prices): how many carry each of this riven's stats, and the middle price of those with it against those without. A hint, not a valuation">
+          <span class="register">Its stats on the market</span>
+          <ul>
+            {#each sm as x (x.slug)}
+              {@const s = r.stats.find((y) => y.tag === x.tag)}
+              <li class:sought={x.sought}><span class="nm">{x.sought ? "★ " : ""}{s?.label ?? x.slug}</span><span class="dim small">on {Math.round(x.share * 100)}% of listings</span><span class="small">{x.withIt != null ? `~${x.withIt.toLocaleString("en")}p` : "–"} <span class="dim">vs {x.without != null ? `${x.without.toLocaleString("en")}p` : "–"} without</span></span></li>
+            {/each}
+          </ul>
+          {#if sm.some((x) => x.sought)}<span class="dim small">★ among the cheapest listed, those with it ask clearly more (half again, and 20p or more).</span>{/if}
+        </div>
+      {/if}
+    {/if}
+    {#if cycles[r.id]}
+      {@const ch = cycles[r.id]}
+      {#if ch.kept}
+        <p class="cycle dim small">You cycled it and kept this roll.</p>
+      {:else}
+        <div class="cycle">
+          <span class="register">Your previous roll</span>
+          <span class="was"><span class="dim">{ch.prev.name}</span>{@render grade(ch.prev.grade)}<span class="arrow" class:up={(r.quality ?? 0) > (ch.prev.quality ?? 0)} class:down={(r.quality ?? 0) < (ch.prev.quality ?? 0)}>{(r.quality ?? 0) > (ch.prev.quality ?? 0) ? "▲ better roll" : (r.quality ?? 0) < (ch.prev.quality ?? 0) ? "▼ worse roll" : "same quality"}</span></span>
+          <ul class="prev">{#each ch.prev.stats as s, i (i)}<li class:curse={!s.buff}><b>{s.display}</b> {s.label}</li>{/each}</ul>
+        </div>
+      {/if}
+    {/if}
+    {#if meta}
+      {@const listed = auctionOf(meta, r, rivens.mine)}
+      {@const f = sell[r.id]}
+      {#if listed}
+        {@const rp = reprice[listed.id]}
+        <div class="selling on">
+          <span class="register">On warframe.market</span>
+          {#if rp}
+            <span class="plat"><input type="number" min="1" bind:value={rp.buyout} aria-label="New buyout price" /><GameIcon name="platinum" size={14} /></span>
+            <IconButton icon="check" tone="gold" label={rp.busy ? "Saving…" : "Save the new price"} disabled={rp.busy || !rp.buyout} onclick={() => savePrice(listed)} />
+            <IconButton icon="close" tone="quiet" label="Cancel" onclick={() => delete reprice[listed.id]} />
+            {#if rp.error}<span class="err small">{rp.error}</span>{/if}
+          {:else}
+            <span>{#if listed.buyout != null}buyout <P v={listed.buyout} />{/if}{#if listed.starting < (listed.buyout ?? Infinity)}<span class="dim small">{" · "}bids from {listed.starting}p</span>{/if}{#if listed.topBid != null}<span class="small">{" · "}top bid <b>{listed.topBid}p</b></span>{/if}</span>
+            <span class="grow"></span>
+            <IconButton icon="pencil" tone="quiet" label="Change price" onclick={() => (reprice[listed.id] = { buyout: listed.buyout, busy: false, error: null })} />
+            <IconButton icon="stop" tone="danger quiet" label={closing === listed.id ? "Taking down…" : "Take down"} title="Take down: close the auction (it stays in your profile's closed auctions)" disabled={closing === listed.id} onclick={() => takeDown(listed)} />
+            {#if closeError[listed.id]}<span class="err small">{closeError[listed.id]}</span>{/if}
+          {/if}
+        </div>
+      {:else if f}
+        <form class="selling" onsubmit={(e) => { e.preventDefault(); void list(r); }}>
+          <label><span class="register">Buyout</span><span class="plat"><input type="number" min="1" bind:value={f.buyout} aria-label="Buyout price" /><GameIcon name="platinum" size={14} /></span></label>
+          <Chip bind:on={f.bids} label="Take bids from" title="Let buyers bid below the buyout, from a starting price" />
+          {#if f.bids}<span class="plat"><input type="number" min="1" bind:value={f.starting} aria-label="Starting bid" /><GameIcon name="platinum" size={14} /></span>{/if}
+          <button class="stamp gold" disabled={f.busy || !f.buyout}>{f.busy ? "Listing…" : "List it"}</button>
+          <IconButton icon="close" tone="quiet" label="Cancel" onclick={() => delete sell[r.id]} />
+          {#if estimates[r.id] || pc?.lowest != null}<span class="dim small hint">{#if estimates[r.id]}Estimate {estimates[r.id].mid}p (the middle half of listings like it ask {estimates[r.id].lo}–{estimates[r.id].hi}p){pc?.lowest != null ? "; " : ""}{/if}{#if pc?.lowest != null}cheapest similar {pc.lowest}p{pc.typical != null ? `, most around ${pc.typical}p` : ""}{/if}. To sell sooner, ask toward the lower end.</span>{/if}
+          {#if f.error}<span class="err small">{f.error}</span>{/if}
+        </form>
+      {/if}
+    {/if}
+    {#if rivens.trades}
+      {@const tr = traded(r)}
+      <p class="traded small">
+        {#if tr?.same}<span title={tradeTitle(r, tr.same)}><span class="dim">Traded in game {rivens.tradesWeek ?? "last week"}</span> <b>~{tr.same.median == null ? "?" : fmtP(tr.same.median)}</b> <span class="dim">· {fmtP(tr.same.min)}–{fmtP(tr.same.max)}</span></span>{#if tr.other?.median != null}<span class="dim" title={tradeTitle(r, tr.other)}>{" · "}{tr.other.rerolled ? "cycled" : "never cycled"} ~{fmtP(tr.other.median)}</span>{/if}
+        {:else if tr?.other}<span class="dim" title={tradeTitle(r, tr.other)}>No {r.rerolls ? "cycled" : "uncycled"} {r.weapon} rivens traded in game last week; {tr.other.rerolled ? "cycled" : "never cycled"} ones went for ~{tr.other.median == null ? "?" : fmtP(tr.other.median)}</span>
+        {:else}<span class="dim" title="Digital Extremes' weekly figures list no in-game trade of a riven for this weapon last week: little demand">No {r.weapon} rivens traded in game last week</span>{/if}
+      </p>
+    {/if}
+    {#if estimates[r.id]}
+      {@const e = estimates[r.id]}
+      <div class="est" title="orbiter's estimate of what a riven like this one is listed for on warframe.market (asking prices: what rivens sell for isn't published), from all its stats and how good each roll is, its cycles, mastery and rank, what its weapon's rivens traded for in game last week and what the cheapest listed for it ask now. Trained on {rivens.model?.listings.toLocaleString('en')} listings for {rivens.model?.weapons} weapons ({rivens.model?.trained}){rivens.model?.accuracy ? `; on listings from sellers it hadn't learned from, half its guesses were within ×${rivens.model.accuracy.typical.toFixed(1)} and ${Math.round(rivens.model.accuracy.within2 * 100)}% within ×2 (listings at both ends of the price range)` : ""}. A guide, not a promise">
+        <span class="register">Estimate</span>
+        <span class="v"><P v={e.mid} /> <span class="dim small">the middle half of listings like it ask {e.lo.toLocaleString("en")}–{e.hi.toLocaleString("en")}p</span></span>
+        {#if e.factors.length}<span class="small fx"><span class="dim">What moves it:</span>{" "}{#each [...e.factors].sort((x, y) => Math.abs(Math.log(y.ratio)) - Math.abs(Math.log(x.ratio))) as f, i (f.slug)}{i ? " · " : ""}<span class:up={f.ratio >= 1.15} class:down={f.ratio <= 1 / 1.15} title={f.positive ? `The estimate with this stat as rolled, against the same riven without it` : `The estimate with this curse, against the same riven without it`}>{factorLabel(r, f)} {fmtRatio(f.ratio)}</span>{/each}</span>{/if}
+      </div>
+    {/if}
+    <footer>
+      {#if pc}
+        {@const fl = c?.any ? priceCheck(c.any) : null}
+        <span class="pcs">
+          {#if fl}<span class="pc" title={fl.count ? `The cheapest ${r.weapon} riven listed right now, whatever its stats: what anyone can buy one for` : undefined}>{#if fl.count}<span class="dim small">Any {r.weapon} riven from</span><P v={fl.lowest} />{:else}<span class="dim small">No {r.weapon} rivens listed</span>{/if}</span>{/if}
+          <span class="pc" title={pc.count ? `${pc.count} rivens with the same two best stats listed${c?.saved ? ` when orbiter last checked (${checkedWhen(c.at!, Date.now())})` : ""}: the cheapest at ${pc.lowest}p, most around ${pc.typical}p. Asking prices: what they sell for isn't published` : undefined}>{#if pc.count}<span class="dim small">{pc.count} similar listed from</span><P v={pc.lowest} /><span class="dim small">· most around</span><P v={pc.typical} />{:else}<span class="dim small">None like it listed {c?.saved ? "then" : "right now"}</span>{/if}</span>
+          {#if c?.saved && (c.loading || Date.now() - c.at! >= DAY)}<span class="dim small when" title={c.loading ? "Checking it again now" : c.error ? `Kept from orbiter's last check; checking again failed: ${c.error}` : "Kept from orbiter's last check; checked again when you update prices"}>{c.loading ? "updating…" : `checked ${checkedWhen(c.at!, Date.now())}`}</span>{/if}
+        </span>
+      {:else if c?.error}<span class="dim small">{c.error}</span>
+      {:else if c?.loading}<span class="dim small">Checking prices…</span>
+      {:else}<span class="dim small">Not checked yet</span>{/if}
+      <span class="grow"></span>
+      <!-- The same three places on every card: check prices, sell, open on warframe.market. -->
+      <ProgressButton variant="icon" icon={pc || c?.error || c?.loading ? "refresh" : "search"} spin tone="quiet" state={c?.loading ? "working" : "idle"} label={pc ? "Check again" : c?.error ? "Try again" : "Price check"} working="Checking…" title={pc ? "Check again: find similar rivens for sale now" : "Price check: find similar rivens for sale"} disabled={!meta} onclick={() => check(r)} />
+      {#if meta && auctionOf(meta, r, rivens.mine)}<span class="slot"></span>
+      {:else}<IconButton icon="list" tone={sell[r.id] ? "gold" : "quiet"} label="Sell" title={!mkt.linked ? "Sign in to warframe.market on Orders first" : "Sell: put it up as an auction on warframe.market"} disabled={!meta || !mkt.linked || !!sell[r.id]} onclick={() => openSell(r, estimates[r.id]?.mid ?? pc?.typical ?? pc?.lowest ?? null)} />{/if}
+      <IconButton icon="external" tone="quiet" label="Similar rivens on warframe.market" onclick={() => openUrl(searchUrl(r))} />
+    </footer>
+  </article>
+{/snippet}
+
 <div class="page"><div class="page-inner">
   <PageHead title="Rivens" blurb={console ? "Find rivens for sale, each roll graded, what each weapon's rivens traded for last week, and alerts when one you want is listed at your price." : "Your rivens graded stat by stat, and what each weapon's rivens sold for last week."}>
     {#snippet band()}
@@ -503,154 +643,23 @@
         {#if companions}<option value="companion">Companion weapons ({companions})</option>{/if}
       </select>
       {#if splicedCount}<Chip bind:on={splicedOnly} label="Spliced ({splicedCount})" title="Only rivens with a stat from Riven Splicing (Gas, Corrosive, Weak Point Damage…), which can't roll by cycling" />{/if}
-      <label class="sortsel" title="How the rivens are ordered"><span class="register">Sort</span>
-        <select bind:value={sort} aria-label="Sort rivens">
-          <option value="grade" title="The best overall grade first">Best rolls</option>
-          <option value="weapon" title="By weapon, A to Z">Weapon</option>
-          <option value="rank" title="The highest rank first">Rank</option>
-          <option value="traded" title="What rivens for the weapon (cycled or not, like yours) traded for in game last week, highest first: the ones worth selling, whatever their stats">Trade value</option>
-          <option value="any" title="The cheapest riven listed for the weapon on warframe.market, whatever its stats (Any … riven from), highest first. Rivens not price checked yet go last">Any price</option>
-          <option value="similar" title="What rivens with the same two best stats are mostly listed for (most around), highest first. Rivens not price checked yet go last">Similar price</option>
-          <option value="estimate" title="orbiter's estimate of what a riven like it is listed for, from all its stats, highest first. Rivens not price checked yet go last">Estimate</option>
-        </select>
-      </label>
-      {#if checkingAll?.paused}
-        <span class="dim small">{checkingAll.retry ? "Some checks failed" : "warframe.market asked to slow down"}: waiting half a minute, then {checkingAll.retry ? "trying those again" : `${checkingAll.done + 1} of ${checkingAll.total}`}</span>
-      {:else if !checkingAll}
-        {#if stillFailed.length}
-          <span class="checking"><span class="dim small" title={checkedAll!.reason}>Checked {checkedAll!.ok}; {stillFailed.length} couldn't be ({checkedAll!.reason.replace(/(; |\. ).*$/, "")})</span><button class="link" title="Check the ones that failed again" onclick={() => checkAllPressed(stillFailed)}>Try those again</button></span>
-        {/if}
-        {#if keptCount && Date.now() - keptAt >= DAY}<span class="dim small kept" title="Some prices shown are from orbiter's last check, a day or more ago: riven prices move little from one day to the next. They're checked again by themselves while this page is open">Some prices from {checkedWhen(keptAt, Date.now())}</span>{/if}
-      {/if}
-      <ProgressButton job={allJob} busy={!!checkingAll} progress={checkingAll ? allFill : undefined} working={allWord} onstop={() => (stopAll = true)} sizer={["Checking 000/000", "Stopping…", "000 checked"]}
-        label={!unchecked ? "Check prices again" : keptCount === unchecked ? "Update prices" : unchecked === shown.length ? (shown.length === mine.length ? "Check prices" : `Check these ${unchecked}`) : `Check the other ${unchecked}`}
-        title={!meta ? "Waiting for warframe.market's riven list" : !unchecked ? "Check every riven's price again" : keptCount === unchecked ? "Check again the prices kept from earlier, one after another" : "Find similar rivens for sale for each of yours, one after another. Click again while it runs to stop"} disabled={!meta} onclick={() => checkAllPressed()} />
       <span class="dim small explain">Grades compare each roll with its range: S is the top of it, B the middle, F the bottom. A curse says whether it hurts (on a stat players want) or is harmless (ammo, zoom, recoil and the like). Dispositions are 1.2 for every weapon since the 22 October 2026 hotfix.</span>
     </div>
-    <CardGrid min="23rem">
-      {#each sorted as r (r.id)}
-        {@const c = checks[r.id]}
-        {@const pc = c?.auctions ? priceCheck(c.auctions) : null}
-        <article class="riven">
-          <header>
-            <Art file={r.image} size={74} fallback="riven" />
-            <div class="t">
-              <span class="register">{r.kind} riven · {r.weapon}{r.companion ? " · companion" : ""}</span>
-              <h3 class="mark" title="{r.weapon} {r.name}">{r.weapon} {r.name}</h3>
-              <span class="meta dim small">
-                {#if r.polarity}<img src="/game/pol/{r.polarity}.png" alt={r.polarity} title={r.polarity} class="pol" />{/if}
-                Rank {r.rank}/8 · MR {r.mastery} · {r.rerolls ? `${r.rerolls} cycle${r.rerolls === 1 ? "" : "s"}` : "never cycled"}
-              </span>
-              {#if r.rerolls}<span class="meta dim small" title="Kuva its cycles have cost (counting any before it was yours), and what the next cycle costs"><GameIcon name="kuva" size={13} />{kuvaSpent(r.rerolls).toLocaleString("en")} in · next {cycleCost(r.rerolls).toLocaleString("en")}</span>{/if}
-            </div>
-            {@render grade(r.grade, true)}
-          </header>
-          <ul class="stats">
-            {#each r.stats as s, i (i)}
-              <li class:curse={!s.buff}>
-                <b class="val">{s.display}</b><span class="lbl">{s.label}{#if s.spliced}<span class="tag ok" title="From Riven Splicing: it stays locked through cycles">spliced</span>{/if}</span>
-                <span class="rbar" title="Roll {s.quality == null ? '?' : Math.round(s.quality * 100)}% of its range"><i style:width="{(s.quality ?? 0) * 100}%"></i></span>
-                {#if s.buff}{@render grade(s.grade)}{:else}{@render curse(s)}{/if}
-              </li>
-            {/each}
-          </ul>
-          {#if meta && c?.any}
-            {@const sm = statMarket(meta, r, c.any)}
-            {#if sm?.length}
-              <div class="sm" title="From the cheapest {r.weapon} rivens listed on warframe.market right now (up to 60, asking prices): how many carry each of this riven's stats, and the middle price of those with it against those without. A hint, not a valuation">
-                <span class="register">Its stats on the market</span>
-                <ul>
-                  {#each sm as x (x.slug)}
-                    {@const s = r.stats.find((y) => y.tag === x.tag)}
-                    <li class:sought={x.sought}><span class="nm">{x.sought ? "★ " : ""}{s?.label ?? x.slug}</span><span class="dim small">on {Math.round(x.share * 100)}% of listings</span><span class="small">{x.withIt != null ? `~${x.withIt.toLocaleString("en")}p` : "–"} <span class="dim">vs {x.without != null ? `${x.without.toLocaleString("en")}p` : "–"} without</span></span></li>
-                  {/each}
-                </ul>
-                {#if sm.some((x) => x.sought)}<span class="dim small">★ among the cheapest listed, those with it ask clearly more (half again, and 20p or more).</span>{/if}
-              </div>
-            {/if}
+    <Browse id="rivens" rows={shown} {columns} key={(r) => r.id} bind:sort {card} detail={rivenDetail} title={(r) => `${r.weapon} ${r.name}`} min="23rem" cardLimit={36} clear={filtered ? clear : null} empty="No unveiled rivens in your inventory.">
+      {#snippet tools()}
+        {#if checkingAll?.paused}
+          <span class="dim small">{checkingAll.retry ? "Some checks failed" : "warframe.market asked to slow down"}: waiting half a minute, then {checkingAll.retry ? "trying those again" : `${checkingAll.done + 1} of ${checkingAll.total}`}</span>
+        {:else if !checkingAll}
+          {#if stillFailed.length}
+            <span class="checking"><span class="dim small" title={checkedAll!.reason}>Checked {checkedAll!.ok}; {stillFailed.length} couldn't be ({checkedAll!.reason.replace(/(; |\. ).*$/, "")})</span><button class="link" title="Check the ones that failed again" onclick={() => checkAllPressed(stillFailed)}>Try those again</button></span>
           {/if}
-          {#if cycles[r.id]}
-            {@const ch = cycles[r.id]}
-            {#if ch.kept}
-              <p class="cycle dim small">You cycled it and kept this roll.</p>
-            {:else}
-              <div class="cycle">
-                <span class="register">Your previous roll</span>
-                <span class="was"><span class="dim">{ch.prev.name}</span>{@render grade(ch.prev.grade)}<span class="arrow" class:up={(r.quality ?? 0) > (ch.prev.quality ?? 0)} class:down={(r.quality ?? 0) < (ch.prev.quality ?? 0)}>{(r.quality ?? 0) > (ch.prev.quality ?? 0) ? "▲ better roll" : (r.quality ?? 0) < (ch.prev.quality ?? 0) ? "▼ worse roll" : "same quality"}</span></span>
-                <ul class="prev">{#each ch.prev.stats as s, i (i)}<li class:curse={!s.buff}><b>{s.display}</b> {s.label}</li>{/each}</ul>
-              </div>
-            {/if}
-          {/if}
-          {#if meta}
-            {@const listed = auctionOf(meta, r, rivens.mine)}
-            {@const f = sell[r.id]}
-            {#if listed}
-              {@const rp = reprice[listed.id]}
-              <div class="selling on">
-                <span class="register">On warframe.market</span>
-                {#if rp}
-                  <span class="plat"><input type="number" min="1" bind:value={rp.buyout} aria-label="New buyout price" /><GameIcon name="platinum" size={14} /></span>
-                  <IconButton icon="check" tone="gold" label={rp.busy ? "Saving…" : "Save the new price"} disabled={rp.busy || !rp.buyout} onclick={() => savePrice(listed)} />
-                  <IconButton icon="close" tone="quiet" label="Cancel" onclick={() => delete reprice[listed.id]} />
-                  {#if rp.error}<span class="err small">{rp.error}</span>{/if}
-                {:else}
-                  <span>{#if listed.buyout != null}buyout <P v={listed.buyout} />{/if}{#if listed.starting < (listed.buyout ?? Infinity)}<span class="dim small">{" · "}bids from {listed.starting}p</span>{/if}{#if listed.topBid != null}<span class="small">{" · "}top bid <b>{listed.topBid}p</b></span>{/if}</span>
-                  <span class="grow"></span>
-                  <IconButton icon="pencil" tone="quiet" label="Change price" onclick={() => (reprice[listed.id] = { buyout: listed.buyout, busy: false, error: null })} />
-                  <IconButton icon="stop" tone="danger quiet" label={closing === listed.id ? "Taking down…" : "Take down"} title="Take down: close the auction (it stays in your profile's closed auctions)" disabled={closing === listed.id} onclick={() => takeDown(listed)} />
-                  {#if closeError[listed.id]}<span class="err small">{closeError[listed.id]}</span>{/if}
-                {/if}
-              </div>
-            {:else if f}
-              <form class="selling" onsubmit={(e) => { e.preventDefault(); void list(r); }}>
-                <label><span class="register">Buyout</span><span class="plat"><input type="number" min="1" bind:value={f.buyout} aria-label="Buyout price" /><GameIcon name="platinum" size={14} /></span></label>
-                <Chip bind:on={f.bids} label="Take bids from" title="Let buyers bid below the buyout, from a starting price" />
-                {#if f.bids}<span class="plat"><input type="number" min="1" bind:value={f.starting} aria-label="Starting bid" /><GameIcon name="platinum" size={14} /></span>{/if}
-                <button class="stamp gold" disabled={f.busy || !f.buyout}>{f.busy ? "Listing…" : "List it"}</button>
-                <IconButton icon="close" tone="quiet" label="Cancel" onclick={() => delete sell[r.id]} />
-                {#if estimates[r.id] || pc?.lowest != null}<span class="dim small hint">{#if estimates[r.id]}Estimate {estimates[r.id].mid}p (the middle half of listings like it ask {estimates[r.id].lo}–{estimates[r.id].hi}p){pc?.lowest != null ? "; " : ""}{/if}{#if pc?.lowest != null}cheapest similar {pc.lowest}p{pc.typical != null ? `, most around ${pc.typical}p` : ""}{/if}. To sell sooner, ask toward the lower end.</span>{/if}
-                {#if f.error}<span class="err small">{f.error}</span>{/if}
-              </form>
-            {/if}
-          {/if}
-          {#if rivens.trades}
-            {@const tr = traded(r)}
-            <p class="traded small">
-              {#if tr?.same}<span title={tradeTitle(r, tr.same)}><span class="dim">Traded in game {rivens.tradesWeek ?? "last week"}</span> <b>~{tr.same.median == null ? "?" : fmtP(tr.same.median)}</b> <span class="dim">· {fmtP(tr.same.min)}–{fmtP(tr.same.max)}</span></span>{#if tr.other?.median != null}<span class="dim" title={tradeTitle(r, tr.other)}>{" · "}{tr.other.rerolled ? "cycled" : "never cycled"} ~{fmtP(tr.other.median)}</span>{/if}
-              {:else if tr?.other}<span class="dim" title={tradeTitle(r, tr.other)}>No {r.rerolls ? "cycled" : "uncycled"} {r.weapon} rivens traded in game last week; {tr.other.rerolled ? "cycled" : "never cycled"} ones went for ~{tr.other.median == null ? "?" : fmtP(tr.other.median)}</span>
-              {:else}<span class="dim" title="Digital Extremes' weekly figures list no in-game trade of a riven for this weapon last week: little demand">No {r.weapon} rivens traded in game last week</span>{/if}
-            </p>
-          {/if}
-          {#if estimates[r.id]}
-            {@const e = estimates[r.id]}
-            <div class="est" title="orbiter's estimate of what a riven like this one is listed for on warframe.market (asking prices: what rivens sell for isn't published), from all its stats and how good each roll is, its cycles, mastery and rank, what its weapon's rivens traded for in game last week and what the cheapest listed for it ask now. Trained on {rivens.model?.listings.toLocaleString('en')} listings for {rivens.model?.weapons} weapons ({rivens.model?.trained}){rivens.model?.accuracy ? `; on listings from sellers it hadn't learned from, half its guesses were within ×${rivens.model.accuracy.typical.toFixed(1)} and ${Math.round(rivens.model.accuracy.within2 * 100)}% within ×2 (listings at both ends of the price range)` : ""}. A guide, not a promise">
-              <span class="register">Estimate</span>
-              <span class="v"><P v={e.mid} /> <span class="dim small">the middle half of listings like it ask {e.lo.toLocaleString("en")}–{e.hi.toLocaleString("en")}p</span></span>
-              {#if e.factors.length}<span class="small fx"><span class="dim">What moves it:</span>{" "}{#each [...e.factors].sort((x, y) => Math.abs(Math.log(y.ratio)) - Math.abs(Math.log(x.ratio))) as f, i (f.slug)}{i ? " · " : ""}<span class:up={f.ratio >= 1.15} class:down={f.ratio <= 1 / 1.15} title={f.positive ? `The estimate with this stat as rolled, against the same riven without it` : `The estimate with this curse, against the same riven without it`}>{factorLabel(r, f)} {fmtRatio(f.ratio)}</span>{/each}</span>{/if}
-            </div>
-          {/if}
-          <footer>
-            {#if pc}
-              {@const fl = c?.any ? priceCheck(c.any) : null}
-              <span class="pcs">
-                {#if fl}<span class="pc" title={fl.count ? `The cheapest ${r.weapon} riven listed right now, whatever its stats: what anyone can buy one for` : undefined}>{#if fl.count}<span class="dim small">Any {r.weapon} riven from</span><P v={fl.lowest} />{:else}<span class="dim small">No {r.weapon} rivens listed</span>{/if}</span>{/if}
-                <span class="pc" title={pc.count ? `${pc.count} rivens with the same two best stats listed${c?.saved ? ` when orbiter last checked (${checkedWhen(c.at!, Date.now())})` : ""}: the cheapest at ${pc.lowest}p, most around ${pc.typical}p. Asking prices: what they sell for isn't published` : undefined}>{#if pc.count}<span class="dim small">{pc.count} similar listed from</span><P v={pc.lowest} /><span class="dim small">· most around</span><P v={pc.typical} />{:else}<span class="dim small">None like it listed {c?.saved ? "then" : "right now"}</span>{/if}</span>
-                {#if c?.saved && (c.loading || Date.now() - c.at! >= DAY)}<span class="dim small when" title={c.loading ? "Checking it again now" : c.error ? `Kept from orbiter's last check; checking again failed: ${c.error}` : "Kept from orbiter's last check; checked again when you update prices"}>{c.loading ? "updating…" : `checked ${checkedWhen(c.at!, Date.now())}`}</span>{/if}
-              </span>
-            {:else if c?.error}<span class="dim small">{c.error}</span>
-            {:else if c?.loading}<span class="dim small">Checking prices…</span>
-            {:else}<span class="dim small">Not checked yet</span>{/if}
-            <span class="grow"></span>
-            <!-- The same three places on every card: check prices, sell, open on warframe.market. -->
-            <ProgressButton variant="icon" icon={pc || c?.error || c?.loading ? "refresh" : "search"} spin tone="quiet" state={c?.loading ? "working" : "idle"} label={pc ? "Check again" : c?.error ? "Try again" : "Price check"} working="Checking…" title={pc ? "Check again: find similar rivens for sale now" : "Price check: find similar rivens for sale"} disabled={!meta} onclick={() => check(r)} />
-            {#if meta && auctionOf(meta, r, rivens.mine)}<span class="slot"></span>
-            {:else}<IconButton icon="list" tone={sell[r.id] ? "gold" : "quiet"} label="Sell" title={!mkt.linked ? "Sign in to warframe.market on Orders first" : "Sell: put it up as an auction on warframe.market"} disabled={!meta || !mkt.linked || !!sell[r.id]} onclick={() => openSell(r, estimates[r.id]?.mid ?? pc?.typical ?? pc?.lowest ?? null)} />{/if}
-            <IconButton icon="external" tone="quiet" label="Similar rivens on warframe.market" onclick={() => openUrl(searchUrl(r))} />
-          </footer>
-        </article>
-      {/each}
-    </CardGrid>
-    {#if !sorted.length}<p class="dim">No rivens match these filters. <button class="link" onclick={() => { kind = "all"; splicedOnly = false; query = ""; }}>Clear them</button></p>{/if}
+          {#if keptCount && Date.now() - keptAt >= DAY}<span class="dim small kept" title="Some prices shown are from orbiter's last check, a day or more ago: riven prices move little from one day to the next. They're checked again by themselves while this page is open">Some prices from {checkedWhen(keptAt, Date.now())}</span>{/if}
+        {/if}
+        <ProgressButton job={allJob} busy={!!checkingAll} progress={checkingAll ? allFill : undefined} working={allWord} onstop={() => (stopAll = true)} sizer={["Checking 000/000", "Stopping…", "000 checked"]}
+          label={!unchecked ? "Check prices again" : keptCount === unchecked ? "Update prices" : unchecked === shown.length ? (shown.length === mine.length ? "Check prices" : `Check these ${unchecked}`) : `Check the other ${unchecked}`}
+          title={!meta ? "Waiting for warframe.market's riven list" : !unchecked ? "Check every riven's price again" : keptCount === unchecked ? "Check again the prices kept from earlier, one after another" : "Find similar rivens for sale for each of yours, one after another. Click again while it runs to stop"} disabled={!meta} onclick={() => checkAllPressed()} />
+      {/snippet}
+    </Browse>
   {/if}
 
   <section class="finder">
@@ -752,6 +761,7 @@
   .note { margin: var(--step) 0; }
   .riven { display: flex; flex-direction: column; border: 1px solid var(--rule); background: linear-gradient(180deg, #17141d, var(--plate) 45%); clip-path: var(--cut); padding: .8rem .9rem .6rem; gap: .6rem; }
   .explain { max-width: 75ch; }
+  .indetail { max-width: 36rem; padding: .4rem 0; }
   /* The grading key is for Details; the grades themselves carry it in their tooltips. */
   :global(html:not([data-details])) .explain { display: none; }
   .riven header { display: grid; grid-template-columns: auto 1fr auto; gap: .7rem; align-items: start; }
