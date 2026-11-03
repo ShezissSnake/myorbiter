@@ -27,6 +27,11 @@
 //       path, slotKind, owned, aura?, replaces?}], bonus, reason, cost, companion?, tier, source}.
 //       `slotKind` is where the piece goes: warframe (aura: true for the aura slot), primary,
 //       secondary, melee, companion (the companion itself) or companionWeapon (a beast's claws).
+//  - `riven` (primary, secondary, melee, arch-gun and companion weapons): {ideal, yours?}, from
+//    ./riven.ts. `ideal` = {positives: [{stat, why, basis}], negatives, disposition, basedOn:
+//    {auctions, since}, label}: `basis` is "rule" (orbiter's rule), "market" (what players pay
+//    most for on warframe.market) or "both". `yours`: the player's rivens for the weapon with
+//    {riven, fit: {wanted, of, negative, text: "2 of 3 wanted stats, harmless negative (−Zoom)"}}.
 //
 // Shapes: the minimal Build fields used here are declared locally below (the same names as
 // ./types's Build). `toBuild` is the one place that turns a Suggestion into a saved Build;
@@ -35,8 +40,10 @@
 
 import type { CatalogItem, InventoryRow } from "../types";
 import type { ShardColour } from "./types";
+import type { Riven } from "../rivens";
 import frameRoles from "../../data/frame-roles.json";
 import synergies from "../../data/loadout-synergies.json";
+import { idealRiven, rivenFit, rivensFor, type IdealRiven, type RivenFit, type RivenMarketData } from "./riven";
 
 // ---------------------------------------------------------------- local stand-ins for ./types
 
@@ -103,6 +110,20 @@ export interface Suggestion extends Build {
   note: string;
   /** Warframes only: what goes around the build (shards, Helminth, support weapons, arcanes, companion, Focus). */
   loadout?: Loadout;
+  /** Weapons that take a riven: the ideal one, and the player's against it (./riven.ts). */
+  riven?: WeaponRiven;
+}
+
+/** The ideal riven for a weapon, and the player's rivens for it with how close each comes. */
+export interface WeaponRiven {
+  ideal: IdealRiven;
+  yours?: { riven: Riven; fit: RivenFit }[];
+}
+
+/** What suggest() can use for rivens: the player's rivens (parsed) and what's listed for the weapon. */
+export interface RivenContext {
+  mine?: Riven[];
+  market?: RivenMarketData | null;
 }
 
 /**
@@ -989,10 +1010,12 @@ function weaponArcane(item: CatalogItem, cls: WeaponClass, focus: Focus): { chai
 /**
  * orbiter's suggestion for an item at a tier, built from the mods the player owns.
  * Warframes also get a `loadout` (shards, Helminth, support weapons, arcanes, companion, Focus);
- * pass `held` (heldFrom the inventory) so it can mark what you hold.
+ * pass `held` (heldFrom the inventory) so it can mark what you hold. Weapons that take a riven
+ * get `riven`: the ideal one, from `rivens.market` (what's listed for the weapon) and orbiter's
+ * rule, and `rivens.mine` (the player's parsed rivens) scored against it.
  * Throws if the item takes no build (check canSuggest first).
  */
-export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModIndex, now = 0, held: Held | null = null): Suggestion {
+export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModIndex, now = 0, held: Held | null = null, rivens: RivenContext | null = null): Suggestion {
   const kind = gearKindOf(item);
   if (!kind || !canSuggest(item)) throw new Error(`orbiter has no suggestion for ${item.name}`);
   const layout = layoutOf(kind);
@@ -1297,12 +1320,26 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
   s.note = noteFor(item, kind, tier, info, cls, wFocus, meleeClass, layout, s, capacityBound) + orderNote;
   const loadout = loadoutFor(item, tier, owned, index, held);
   if (loadout) s.loadout = loadout;
+  const riven = rivenFor(item, kind, rivens);
+  if (riven) s.riven = riven;
   return s;
 }
 
+/** The kinds of gear a riven goes on. */
+const TAKES_RIVEN = new Set<GearKind>(["primary", "secondary", "melee", "archgun", "companionWeapon"]);
+
+/** The ideal riven for a weapon and the player's rivens against it, or null for gear that takes none. */
+export function rivenFor(item: CatalogItem, kind: GearKind | null, rivens: RivenContext | null): WeaponRiven | null {
+  if (!kind || !TAKES_RIVEN.has(kind)) return null;
+  const ideal = idealRiven(item, rivens?.market ?? null);
+  const out: WeaponRiven = { ideal };
+  if (rivens?.mine) out.yours = rivensFor(item, rivens.mine).map((riven) => ({ riven, fit: rivenFit(riven, ideal) })).sort((a, b) => b.fit.score - a.fit.score);
+  return out;
+}
+
 /** The three tiers at once. */
-export function suggestAll(item: CatalogItem, owned: Owned, index: ModIndex, now = 0, held: Held | null = null): Record<Tier, Suggestion> {
-  return { low: suggest(item, "low", owned, index, now, held), medium: suggest(item, "medium", owned, index, now, held), high: suggest(item, "high", owned, index, now, held) };
+export function suggestAll(item: CatalogItem, owned: Owned, index: ModIndex, now = 0, held: Held | null = null, rivens: RivenContext | null = null): Record<Tier, Suggestion> {
+  return { low: suggest(item, "low", owned, index, now, held, rivens), medium: suggest(item, "medium", owned, index, now, held, rivens), high: suggest(item, "high", owned, index, now, held, rivens) };
 }
 
 function noteFor(item: CatalogItem, kind: GearKind, tier: Tier, info: FrameInfo | null, cls: WeaponClass | null, focus: Focus, meleeClass: string | null, layout: Layout, s: Suggestion, capacityBound: boolean): string {
