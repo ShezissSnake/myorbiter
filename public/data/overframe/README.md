@@ -28,7 +28,7 @@ access through Cloudflare could break. So:
   100: by rating, by rating for update 44, by rating for update 43, and most recently updated.
   Repeats are kept once.
 
-The page shows at most 5 builds per item: the most voted among those updated in the last two years
+The page shows at most 5 builds per item: the most voted among those updated in the last two years,
 so the list stays short and current.
 
 ## Refreshing it
