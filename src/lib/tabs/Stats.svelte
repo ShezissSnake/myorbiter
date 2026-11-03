@@ -20,6 +20,8 @@
   import RepButton from "../ui/RepButton.svelte";
   import GameIcon, { type GameIconName } from "../ui/GameIcon.svelte";
   import { dropTotals } from "../core/drops";
+  import Count from "../ui/Count.svelte";
+  import { reveal } from "../motion";
 
   let { model, settings }: { model: Model; settings: Settings } = $props();
   // Export: a tick on the button when saved, the reason in oxblood beside it when not.
@@ -153,10 +155,10 @@
   {#snippet ticker()}<Ticker id="stats" label="Your inventory's value, live" items={tape} />{/snippet}
   <PageHead hero={ticker} title="Stats" brief="Your trades, relic runs and account over time." blurb="Your account over time, what your relic runs come to, the parts you got, and every trade you've made in game.">
     {#snippet band()}
-      <Stat label="Revenue" note="Sales in this span, from the game's trade log" title="Revenue: platinum from sales in this span, from the game's trade log (the trade window orbiter read), plus sales logged on Sales that no logged trade covers"><P v={revenue} big /></Stat>
-      <Stat label="Spent" tone="dim" note="Platinum paid for items"><P v={spent} big /></Stat>
-      <Stat label="Profit" tone={revenue - spent >= 0 ? "gold" : "dim"} note="Revenue minus spent"><P v={revenue - spent} big /></Stat>
-      <Stat label="Trades" note={trades.length ? `with ${partners} player${partners === 1 ? "" : "s"}` : "No trades in this span"}>{trades.length}</Stat>
+      <Stat label="Revenue" note="Sales in this span, from the game's trade log" title="Revenue: platinum from sales in this span, from the game's trade log (the trade window orbiter read), plus sales logged on Sales that no logged trade covers"><P v={revenue} big tick /></Stat>
+      <Stat label="Spent" tone="dim" note="Platinum paid for items"><P v={spent} big tick /></Stat>
+      <Stat label="Profit" tone={revenue - spent >= 0 ? "gold" : "dim"} note="Revenue minus spent"><P v={revenue - spent} big tick /></Stat>
+      <Stat label="Trades" note={trades.length ? `with ${partners} player${partners === 1 ? "" : "s"}` : "No trades in this span"}><Count value={trades.length} /></Stat>
     {/snippet}
   </PageHead>
 
@@ -167,14 +169,17 @@
   </div>
 
   {#if hist.length === 1}<p class="dim small one" title="Each chart's line starts with the next read; the figures beside each title are from this one">One inventory read so far. The charts start with the next.</p>{/if}
-  <div class="charts">
-    {#each allCharts ? CHARTS : CHARTS.slice(0, 3) as c (c.key)}
-      <TimeChart single="" title={c.title} {at} series={[{ label: c.title, color: GOLD, values: hist.map(c.get) }]} empty={c.key === "credits" || c.key === "endo" || c.key === "platinum" ? "Needs the patched TennoScope; fills in from its next reads." : undefined}>
-        {#snippet icon()}<GameIcon name={c.icon} size={18} />{/snippet}
-      </TimeChart>
-    {/each}
+  {#snippet chart(c: (typeof CHARTS)[number])}
+    <TimeChart single="" title={c.title} {at} series={[{ label: c.title, color: GOLD, values: hist.map(c.get) }]} empty={c.key === "credits" || c.key === "endo" || c.key === "platinum" ? "Needs the patched TennoScope; fills in from its next reads." : undefined}>
+      {#snippet icon()}<GameIcon name={c.icon} size={18} />{/snippet}
+    </TimeChart>
+  {/snippet}
+  <!-- Platinum, credits and Endo; the rest unfold under them. -->
+  <div class="chartset">
+    <div class="charts">{#each CHARTS.slice(0, 3) as c (c.key)}{@render chart(c)}{/each}</div>
+    {#if allCharts}<div id="more-charts" transition:reveal><div class="charts rest">{#each CHARTS.slice(3) as c (c.key)}{@render chart(c)}{/each}</div></div>{/if}
   </div>
-  {#if CHARTS.length > 3}<button class="link more" onclick={() => (allCharts = !allCharts)} title="Ducats, Aya, Kuva, Void Traces, Vosfor and relics held over time">{allCharts ? "Fewer" : `${CHARTS.length - 3} more: ${CHARTS.slice(3).map((c) => c.title.toLowerCase()).join(", ")}`}</button>{/if}
+  {#if CHARTS.length > 3}<button class="link more" aria-expanded={allCharts} aria-controls="more-charts" onclick={() => (allCharts = !allCharts)} title="Ducats, Aya, Kuva, Void Traces, Vosfor and relics held over time">{allCharts ? "Fewer" : `${CHARTS.length - 3} more: ${CHARTS.slice(3).map((c) => c.title.toLowerCase()).join(", ")}`} <span class="chev" aria-hidden="true">▾</span></button>{/if}
 
   <RelicRuns {model} runs={settings.game.relicRuns} {since} platPerDucat={settings.advice.platPerDucat} />
 
@@ -247,7 +252,9 @@
   .gq { font-family: var(--face-mark); color: var(--gold); }
   .nm { color: var(--platinum-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 14rem; }
   .bar { padding-top: .2rem; }
-  .charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr)); gap: .8rem; margin: .8rem 0 var(--course); }
+  .chartset { margin: .8rem 0 var(--course); }
+  .charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr)); gap: .8rem; }
+  .charts.rest { padding-top: .8rem; }
   .split { display: grid; grid-template-columns: minmax(18rem, 2fr) minmax(0, 3fr); gap: 1.6rem; align-items: start; }
   /* Page area under 950 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt950"]) .split { grid-template-columns: 1fr; }
