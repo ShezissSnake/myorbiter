@@ -168,12 +168,12 @@
           <span class="nums"><b>{t.drain}</b><span class="dim">/{t.capacity}</span>{#if over}<span class="bad small"> {over} over</span>{/if}</span>
         </div>
         <ul class="reasons">
+          {#each after as r, i (i)}<li class="sum">{r}</li>{/each}
           {#each lead.slice(0, LEAD_SHOWN) as r, i (i)}<li>{r}</li>{/each}
           {#if lead.length > LEAD_SHOWN}
             {#if whyOpen}<div class="more" transition:reveal>{#each lead.slice(LEAD_SHOWN) as r, i (i)}<li>{r}</li>{/each}</div>{/if}
             <li class="fold"><button type="button" class="link" aria-expanded={whyOpen} title={whyOpen ? "Show fewer" : "Every mod and item that puts it in this tier"} onclick={() => (whyOpen = !whyOpen)}><span class="chev" class:open={whyOpen} aria-hidden="true">›</span> {whyOpen ? "Fewer" : `${lead.length - LEAD_SHOWN} more`}</button></li>
           {/if}
-          {#each after as r, i (i)}<li>{r}</li>{/each}
         </ul>
       </section>
 
@@ -296,6 +296,7 @@
   .nums b { color: var(--platinum); }
   .bad { color: var(--oxblood); }
   .reasons { margin: 0; padding-left: 1rem; display: grid; gap: .2rem; font-size: .8rem; color: var(--platinum-dim); line-height: 1.45; }
+  .reasons .sum { color: var(--platinum); }
   .reasons .more { display: grid; gap: .2rem; }
   .reasons .fold { list-style: none; margin-left: -1rem; }
   .reasons .fold .link { display: inline-flex; align-items: center; gap: .35rem; font-size: .78rem; }
