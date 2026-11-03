@@ -112,7 +112,11 @@ export function arrive(node: Element, { y = 6, duration = QUICK, delay = 0, alwa
 export function leave(node: Element, { y = -4, duration = QUICK, delay = 0 }: { y?: number; duration?: number; delay?: number } = {}): TransitionConfig {
   if (calm.current || !spend()) return NONE;
   keepColumns(node);
-  return { delay, duration, easing: out, css: (t, u) => `opacity:${t};transform:translateY(${(u * y).toFixed(2)}px)` };
+  // With animate:flip, Svelte takes the leaving row out of the flow (position: absolute) and holds
+  // it where it was with an inline translate: keep that, or the row jumps to the list's top.
+  const held = (node as HTMLElement).style?.transform || "";
+  const at = held && held !== "none" ? `${held} ` : "";
+  return { delay, duration, easing: out, css: (t, u) => `opacity:${t};transform:${at}translateY(${(u * y).toFixed(2)}px)` };
 }
 
 /**
