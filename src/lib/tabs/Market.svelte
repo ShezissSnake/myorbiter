@@ -44,13 +44,13 @@
 
   const all = $derived(marketRows(model, mkt.items));
   const rows = $derived(filterRows(all, { category, min, max, minTrades, owned, weekly }).filter((r) => matches(query, r.name)));
-  /** What "Sells weekly" is hiding from the rest of the filters. */
+  /** What "Sold weekly" is hiding from the rest of the filters. */
   const slowHidden = $derived(weekly ? filterRows(all, { category, min, max, minTrades, owned, weekly: false }).filter((r) => matches(query, r.name)).length - rows.length : 0);
   const count = (c: MarketCategory | "all") => (c === "all" ? all.length : all.filter((r) => r.category === c).length);
   const label = (c: MarketCategory) => CATEGORIES.find((x) => x.v === c)?.label ?? "";
   const daily = (t: number | null) => (t == null ? null : Math.round(t * 10) / 10);
-  /** How often it sells, in words, for the cards and the tooltips. */
-  const pace = (t: number | null) => (t == null ? "No recent sales" : t >= 1 ? (daily(t) === 1 ? "Sells once a day" : `Sells ${daily(t)} times a day`) : t >= 1 / 7 ? (Math.round(t * 7) === 1 ? "Sells about once a week" : `Sells about ${Math.round(t * 7)} times a week`) : "Sells rarely");
+  /** How often it sells, for the cards and the tooltips: sold/day as everywhere, by the week when it's under one a day. */
+  const pace = (t: number | null) => (t == null ? "No recent sales" : t >= 1 ? `${daily(t)} sold/day` : t >= 1 / 7 ? `~${Math.round(t * 7)} sold/week` : "Sold rarely");
   const sellsDaily = $derived(rows.filter((r) => (r.tradesPerDay ?? 0) >= 1).length);
   const filtered = $derived(category !== "all" || min != null || max != null || minTrades != null || owned || !weekly || !!query.trim());
   function clear() {
@@ -69,7 +69,7 @@
     { key: "name", label: "Item", value: (r) => r.name, cell: nameCell, defaultDesc: false, width: "24rem" },
     { key: "kind", label: "Category", value: (r) => label(r.category), muted: true, defaultDesc: false, minor: true },
     { key: "price", label: "Price", value: (r) => r.price, sortValue: (r) => topPrice(r), align: "right", cell: priceCell, title: "What it sold for lately on warframe.market (the daily median). Mods and arcanes: unranked, then maxed" },
-    { key: "trades", label: "Trades/day", value: (r) => daily(r.tradesPerDay), align: "right", muted: true, title: "How many sell a day on warframe.market (mods and arcanes: every rank together): below 1 sells slowly, blank hasn't sold lately" },
+    { key: "trades", label: "Sold/day", value: (r) => daily(r.tradesPerDay), align: "right", muted: true, title: "How many sold a day on warframe.market lately (mods and arcanes: every rank together): below 1 sells slowly, blank hasn't sold lately" },
     { key: "ducats", label: "Ducats", value: (r) => r.ducats, align: "right", cell: ducatCell, minor: true, title: "What Baro gives for it" },
     { key: "have", label: "You have", value: (r) => r.have || null, align: "right", muted: true, minor: true, title: "How many you hold (sets: complete sets)" },
     { key: "buy", label: "", value: () => null, cell: buyCell, sortable: false, align: "right" },
@@ -118,8 +118,7 @@
 <div class="page"><div class="page-inner">
   <PageHead title="Browse market" blurb="Everything warframe.market trades: what it sold for lately, how often it sells.">
     {#snippet band()}
-      <Stat label="Items shown" note={filtered ? `Of ${all.length.toLocaleString("en")} on warframe.market` : "Everything on warframe.market"}><b class="mark big">{rows.length.toLocaleString("en")}</b></Stat>
-      <Stat label="Sell daily" tone="dim" note="Of those shown, ones that sell at least once a day"><b class="mark big">{sellsDaily.toLocaleString("en")}</b></Stat>
+      <Stat label="Sold daily" note={filtered ? `Of the ${rows.length.toLocaleString("en")} shown, ones that sell at least once a day` : `Of the ${all.length.toLocaleString("en")} on warframe.market, ones that sell at least once a day`}><b class="mark big">{sellsDaily.toLocaleString("en")}</b></Stat>
     {/snippet}
   </PageHead>
 
@@ -129,7 +128,7 @@
       <option value="all">All kinds ({count("all").toLocaleString("en")})</option>
       {#each CATEGORIES as c (c.v)}<option value={c.v}>{c.label} ({count(c.v).toLocaleString("en")})</option>{/each}
     </select>
-    <Chip bind:on={weekly} label="Sells weekly" title="Only what sells at least once a week, on several different days. Off: everything, including prices from a sale or two, which can be jokes (a set &quot;sold&quot; for 80,000p)" />
+    <Chip bind:on={weekly} label="Sold weekly" title="Only what sells at least once a week, on several different days. Off: everything, including prices from a sale or two, which can be jokes (a set &quot;sold&quot; for 80,000p)" />
     <Chip bind:on={owned} label="You have" title="Only what you hold" />
     <Fold active={(min != null ? 1 : 0) + (max != null ? 1 : 0) + (minTrades != null ? 1 : 0)} reset={() => { min = null; max = null; minTrades = null; }}>
     <span class="pair">
@@ -145,8 +144,8 @@
       </label>
     </span>
     <label class="min" title="Only what sells at least this many times a day on warframe.market (1: it actually sells). Empty: any.">
-      <span class="register">Trades/day ≥</span>
-      <input type="number" min="0" step="any" placeholder="any" bind:value={minTrades} aria-label="Minimum trades a day" />
+      <span class="register">Sold/day ≥</span>
+      <input type="number" min="0" step="any" placeholder="any" bind:value={minTrades} aria-label="Minimum sold a day" />
     </label>
     </Fold>
   </div>

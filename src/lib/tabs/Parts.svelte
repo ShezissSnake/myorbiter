@@ -115,7 +115,7 @@
     { key: "ratio", minor: true, label: "Duc/plat", value: (r) => (r.ducatsPerPlat == null ? null : Math.round(r.ducatsPerPlat * 10) / 10), align: "right", muted: true, title: "Ducats you get per platinum of market value" },
     { key: "verdict", label: "Best as", value: verdict, cell: verdictCell, defaultDesc: false },
     { key: "got", minor: true, label: "Got (30d)", value: (r) => drops.recent.get(r.name) ?? 0, align: "right", muted: true, title: "Copies that turned up in your inventory in the last 30 days, from relics or anything else; trades left out" },
-    { key: "trades", minor: true, label: "Trades/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true },
+    { key: "trades", minor: true, label: "Sold/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true },
     { key: "avail", spare: true, label: "Vault", value: (r) => r.availability, cell: availCell, align: "center", defaultDesc: false },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
   ];
@@ -173,7 +173,7 @@
     <span title="Daily median on warframe.market"><span class="register">Price</span><P v={r.price} /></span>
     <span title="What Baro Ki'Teer gives for one"><span class="register">Ducats</span><P v={r.ducats} d /></span>
     <span title="Copies that turned up in your inventory in the last 30 days, from relics or anything else; trades left out"><span class="register">Got (30d)</span><b>{drops.recent.get(r.name) ?? 0}</b></span>
-    {#if r.tradesPerDay != null}<span title="How many sell on warframe.market in a day, on average"><span class="register">Sells</span><b>{Math.round(r.tradesPerDay * 10) / 10}<small class="dim">/day</small></b></span>{/if}
+    {#if r.tradesPerDay != null}<span title="How many sell on warframe.market in a day, on average"><span class="register">Sold/day</span><b>{Math.round(r.tradesPerDay * 10) / 10}</b></span>{/if}
     <span title={VERDICT_TITLE[v]}><span class="register">Best as</span><b class="v-{v}">{LABEL[v]}</b></span>
   </div>
   <p class="small dim">
@@ -247,7 +247,7 @@
       <span class="dim small">{baro ? (baroHere ? `Baro is here: leaves in ${until(baro.expiry)}` : `Baro arrives in ${until(baro.activation)}`) : ""}{baro ? " · " : ""}parts that sell daily, most ducats per platinum at the daily median. Gold: at least {Math.round(1 / advice.platPerDucat)} ducats a platinum, your rate (above).</span>
     </header>
     <table class="dt">
-      <thead><tr><th>Part</th><th class="r">Ducats</th><th class="r">Price</th><th class="r" title="Ducats per platinum at the daily median">Per plat</th><th class="r">Sells/day</th><th></th></tr></thead>
+      <thead><tr><th>Part</th><th class="r">Ducats</th><th class="r">Price</th><th class="r" title="Ducats per platinum at the daily median">Per plat</th><th class="r" title="How many sell a day on warframe.market">Sold/day</th><th></th></tr></thead>
       <tbody>
         {#each buys as b (b.name)}
           <tr>

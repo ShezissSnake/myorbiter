@@ -116,7 +116,7 @@
     { key: "worth", label: "Worth", value: (r) => worthOf(r), align: "right", cell: worthCell },
     { key: "sellable", label: "Spare sells for", value: (r) => sellable(r), align: "right", cell: sellableCell, title: "What your spare copies would bring: no more of them than the market sells in a month (the You can spare figure, item by item)" },
     { key: "ducats", label: "Ducats", value: (r) => (r.ducats == null ? null : r.ducats * r.quantity), align: "right", cell: ducatCell, minor: true },
-    { key: "trades", spare: true, label: "Trades/day", value: (r) => { const t = perDay(r); return t == null ? null : Math.round(t * 10) / 10; }, align: "right", muted: true, title: "How quickly it sells on warframe.market" },
+    { key: "trades", spare: true, label: "Sold/day", value: (r) => { const t = perDay(r); return t == null ? null : Math.round(t * 10) / 10; }, align: "right", muted: true, title: "How quickly it sells on warframe.market" },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
   ];
 </script>
@@ -232,8 +232,8 @@
     <Fold active={(tradableOnly ? 1 : 0) + (minTrades != null ? 1 : 0) + (minEach != null ? 1 : 0)} reset={() => { tradableOnly = false; minTrades = null; minEach = null; }}>
       <Chip bind:on={tradableOnly} label="Tradable" title="Only things warframe.market trades" />
       <label class="min" title="Only what trades at least this many times a day on warframe.market (1: it actually sells). Empty: any.">
-        <span class="register">Trades/day ≥</span>
-        <input type="number" min="0" step="any" placeholder="any" bind:value={minTrades} aria-label="Minimum trades a day" />
+        <span class="register">Sold/day ≥</span>
+        <input type="number" min="0" step="any" placeholder="any" bind:value={minTrades} aria-label="Minimum sold a day" />
       </label>
       <label class="min" title="Only what's worth at least this much a copy, at the daily median. Empty: any.">
         <span class="register">Each ≥</span>

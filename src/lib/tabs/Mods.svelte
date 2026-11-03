@@ -83,7 +83,7 @@
     { key: "price", label: "Price", value: (r) => r.price, align: "right", cell: priceCell },
     { key: "value", label: "Spares worth", value: (r) => (tradeWorthy(r) ? worth(r) : null), align: "right", cell: valueCell, title: "Your spare copies at the daily median, counting no more copies than warframe.market sells in a month" },
     { key: "priceMax", minor: true, label: "Maxed", value: (r) => r.priceMax, align: "right", cell: maxCell, title: "Price of a max-rank copy" },
-    { key: "trades", label: "Trades/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "How quickly it sells. Common mods at 2–5p rarely move." },
+    { key: "trades", label: "Sold/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "How quickly it sells. Common mods at 2–5p rarely move." },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
   ];
 </script>
@@ -140,9 +140,9 @@
     {#each ["Common", "Uncommon", "Rare", "Legendary"] as x (x)}<option value={x}>{x}</option>{/each}
   </select>
   <Chip bind:on={dupesOnly} label="Spare only" title="Three or more copies: more than your own and one to give away" />
-  <Fold on={[tradableOnly ? "tradable" : "", sellingOnly ? "sells daily" : ""].filter(Boolean).join(", ")} active={(tradableOnly ? 0 : 1) + (sellingOnly ? 0 : 1)} reset={() => { tradableOnly = true; sellingOnly = true; }}>
+  <Fold on={[tradableOnly ? "tradable" : "", sellingOnly ? "sold daily" : ""].filter(Boolean).join(", ")} active={(tradableOnly ? 0 : 1) + (sellingOnly ? 0 : 1)} reset={() => { tradableOnly = true; sellingOnly = true; }}>
     <Chip bind:on={tradableOnly} label="Tradable" title="Only mods you can sell or trade (not Flawed ones, and the like)" />
-    <Chip bind:on={sellingOnly} label="Sells daily" title="At least one trade a day on warframe.market" />
+    <Chip bind:on={sellingOnly} label="Sold daily" title="Only mods that sell at least once a day on warframe.market" />
   </Fold>
   </div>
 

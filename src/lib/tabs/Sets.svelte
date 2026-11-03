@@ -115,7 +115,7 @@
     { key: "more", label: "More as set", value: moreAsSet, align: "right", cell: moreCell, title: "What one set sells for over its parts sold one by one" },
     { key: "faster", minor: true, label: "Sells faster", value: faster, align: "right", cell: fasterCell, title: "How many times as often the set sells as its slowest part: selling the parts waits on that one" },
     { key: "ducats", label: "Ducats", value: (r) => r.ducats, align: "right", cell: ducatCell },
-    { key: "trades", minor: true, label: "Trades/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "How many of this set warframe.market completes per day" },
+    { key: "trades", minor: true, label: "Sold/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "How many of this set warframe.market completes per day" },
     { key: "vault", label: "Vault", value: (r) => (r.vaulted ? 1 : 0), cell: vaultCell, align: "center" },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
   ]);
