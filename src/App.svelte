@@ -92,6 +92,7 @@
   const loadStats = once(() => import("./lib/tabs/Stats.svelte"));
   const loadRivens = once(() => import("./lib/tabs/Rivens.svelte"));
   const loadWishlist = once(() => import("./lib/tabs/Wishlist.svelte"));
+  const loadBuilds = once(() => import("./lib/tabs/Builds.svelte"));
   import Relics from "./lib/tabs/Relics.svelte";
   import InMission from "./lib/tabs/InMission.svelte";
   import Orders from "./lib/tabs/Orders.svelte";
@@ -2515,6 +2516,7 @@
       {#snippet pMarket()}<Orders model={modelFor("market")} console={onConsole} whispers={mission?.whispers ?? []} bind:settings={settings.market} advice={settings.advice} masteryRank={settings.game.masteryRank} credits={settings.game.credits} />{/snippet}
       {#snippet pGuide()}{#await loadGuide(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("guide", e)}><Page console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} hidden={settings.pagesHidden} go={(t: string) => goTo(t)} bind:plannerMode={settings.plannerMode} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pFoundry()}<Foundry model={modelFor("foundry")} bind:settings={settings} />{/snippet}
+      {#snippet pBuilds()}{#await loadBuilds(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("builds", e)}><Page model={modelFor("builds")} bind:settings={settings} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pInventory()}<Inventory model={modelFor("inventory")} sell={settings.market.sellable} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad} gear={settings.game.gear} bind:keepGear={settings.game.keepGear} />{/snippet}
       {#snippet pBrowse()}{#await loadMarket(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("browse", e)}><Page model={modelFor("browse")} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pWishlist()}{#await loadWishlist(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("wishlist", e)}><Page model={modelFor("wishlist")} bind:settings={settings} go={(t: string) => goTo(t)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
@@ -2535,6 +2537,7 @@
       {@render pane("guide", pGuide)}
       {@render pane("inventory", pInventory)}
       {@render pane("foundry", pFoundry)}
+      {@render pane("builds", pBuilds)}
       {@render pane("stats", pStats)}
       {@render pane("rivens", pRivens)}
       {@render pane("wishlist", pWishlist)}
