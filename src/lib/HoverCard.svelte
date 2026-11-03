@@ -202,9 +202,9 @@
   .rw tr.done .nm span { color: var(--platinum-deep); }
   .rw em, .srcs em { font-style: normal; font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
   .rar { display: inline-block; width: 7px; height: 7px; transform: rotate(45deg); }
-  .rar-c { background: #8a6a4a; }
-  .rar-u { background: #a9b0ba; }
-  .rar-r { background: var(--gold); }
+  .rar-c { background: var(--rarity-common); }
+  .rar-u { background: var(--rarity-uncommon); }
+  .rar-r { background: var(--rarity-rare); }
   footer { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; padding-top: .45rem; border-top: 1px solid var(--rule); }
   footer > span { display: inline-flex; align-items: center; gap: .3rem; }
   .figs { display: flex; gap: 1rem; flex-wrap: wrap; }

@@ -248,7 +248,7 @@
   .sub li { display: list-item; list-style: square; counter-increment: none; grid-template-columns: none; }
   .sub li::before { content: none; }
   .rar { font-size: .8rem; }
-  .rar.r { color: var(--gold); }
-  .rar.u { color: #a9b0ba; }
+  .rar.r { color: var(--rarity-rare); }
+  .rar.u { color: var(--rarity-uncommon); }
   .gold { color: var(--gold); }
 </style>

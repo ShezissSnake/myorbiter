@@ -145,8 +145,9 @@
   .prices > span { display: grid; gap: .15rem; }
   .prices .register { font-size: .6rem; }
   .rar { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-dim); }
-  .rar-Common { color: #b08a63; }
-  .rar-Rare { color: var(--gold); }
-  .rar-Legendary { color: var(--platinum); }
+  .rar-Common { color: var(--rarity-common); }
+  .rar-Uncommon { color: var(--rarity-uncommon); }
+  .rar-Rare { color: var(--rarity-rare); }
+  .rar-Legendary { color: var(--rarity-legendary); }
   .grow { flex: 1; }
 </style>

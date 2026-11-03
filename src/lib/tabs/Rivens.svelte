@@ -706,7 +706,7 @@
   .explain { max-width: 75ch; }
   .riven header { display: grid; grid-template-columns: auto 1fr auto; gap: .7rem; align-items: start; }
   .t { display: grid; gap: .25rem; min-width: 0; }
-  .t .register { font-size: .6rem; color: #a78bd4; }
+  .t .register { font-size: .6rem; color: var(--rarity-riven); }
   .t h3 { font-size: 1.15rem; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .meta { display: inline-flex; align-items: center; gap: .35rem; }
   .pol { width: 14px; height: 14px; opacity: .85; }

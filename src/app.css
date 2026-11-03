@@ -27,22 +27,54 @@
   --platinum-dim: #9ba2ac;
   /* Secondary text: 4.5:1 or better on every surface. */
   --platinum-deep: #7e858f;
+  /* Gold is the Orokin metal: ducats, the Rare tier and Axi relics, nothing else. */
   --gold: #d6ae4a;
   --gold-dim: #a3843a;
   --oxblood: #d96b5c;
+  /* Good, done, mastered: and mastery still to earn. */
   --verdigris: #6fb7a3;
+  /* Something wants a look (can't deliver, stale): amber, always beside a "!". */
+  --alert: #e8a33d;
+  /* What you picked: a raised plate with a platinum edge, never gold. */
+  --select: var(--platinum);
+
+  /* Rarity, as the game draws it on a mod, a relic's reward and a reward screen: one set of
+     colours everywhere a rarity shows. */
+  --rarity-common: #b98a62;
+  --rarity-uncommon: #c3cad4;
+  --rarity-rare: var(--gold);
+  --rarity-legendary: #eef0ff;
+  --rarity-riven: #a78bd4;
+
+  /* The open worlds' cycles and Duviri's moods, warm or cold, as the game tints them. */
+  --cycle-warm: var(--gold);
+  --cycle-cold: #8fb3e0;
+  --mood-anger: #e07a6a;
+  --mood-envy: #7fc79a;
+  --mood-sorrow: #8fb3e0;
+  --mood-fear: #b49ae0;
+  /* Factions where a colour says whose ground it is (the Zariman, invasions). */
+  --faction-corpus: #6ea8dc;
+  --faction-grineer: #d0574a;
+  --faction-infested: #8fb35a;
+  /* A chart's second line: the ducat-gold of value you can realise, a shade darker. */
+  --chart-gold: #b5892e;
+  --chart-plat: #9ba2ac;
+  --chart-mine: #c9ccd1;
+  --chart-theirs: #6fa38a;
 
   --cartouche: polygon(0 0, 100% 0, 100% 70%, 50% 100%, 0 70%);
   /* The Orokin plate: two opposite corners cut. */
   --cut: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
 
-  /* Each relic era as its relic is cast in game: Lith copper, Meso green-tarnished steel, Neo
-     silver, Axi gold, Requiem's Kuva crimson; Omnia (any era) the Void's pale violet. */
+  /* Each relic era as its relic is cast in game: Lith copper, Meso olive bronze, Neo silver,
+     Axi gold, Requiem's Kuva crimson-violet; Omnia (any era) the Void's pale violet. Meso and
+     Requiem stay clear of verdigris (good) and oxblood (bad), so an era never reads as a state. */
   --era-lith: #c0804c;
-  --era-meso: #7fae9c;
+  --era-meso: #9aa37a;
   --era-neo: #c3cad4;
   --era-axi: #d6ae4a;
-  --era-requiem: #cf5a52;
+  --era-requiem: #b0435a;
   --era-omnia: #a2a8f0;
   --tab-point: polygon(0 0, 100% 0, 100% calc(100% - 9px), 50% 100%, 0 calc(100% - 9px));
   --struck: inset 0 1px 0 rgb(0 0 0 / 80%), inset 0 -1px 0 rgb(230 233 238 / 8%);
@@ -219,9 +251,12 @@ a.link { text-decoration: none; text-transform: uppercase; display: inline-flex;
 .tag:first-child { margin-left: 0; }
 .tag.ok { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 45%, transparent); }
 .tag.warn { color: var(--slab); background: var(--gold); border-color: var(--gold); }
+/* Something wrong that wants a look: amber, with its "!" (put it in the text: "! stale"). */
+.tag.alert { color: var(--alert); border-color: color-mix(in srgb, var(--alert) 55%, transparent); }
 .tag.good { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 45%, transparent); }
 .tag.bad { color: #e0a49a; border-color: color-mix(in srgb, var(--oxblood) 70%, transparent); }
 .warn-text { color: var(--gold); }
+.alert-text { color: var(--alert); }
 .plat-text { color: var(--platinum); font-weight: 600; }
 .ducat-text { color: var(--gold); font-weight: 600; }
 
