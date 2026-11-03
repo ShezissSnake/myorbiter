@@ -11,6 +11,7 @@
 <style>
   .chip { display: inline-flex; align-items: center; gap: .5rem; }
   .box { width: .62rem; height: .62rem; border: 1px solid var(--rule-control); flex: none; }
-  .chip.on { color: var(--platinum); border-color: var(--rule-control); }
+  /* On reads at a glance: the whole chip lit, not just its square. */
+  .chip.on { color: var(--platinum); border-color: var(--gold-dim); background: rgb(214 174 74 / 9%); }
   .chip.on .box { background: var(--gold); border-color: var(--gold); }
 </style>

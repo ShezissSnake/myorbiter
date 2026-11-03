@@ -374,4 +374,10 @@
   .ev > span { display: grid; gap: .15rem; }
   .ev .register { font-size: .6rem; }
   .grow { flex: 1; }
+  /* Details off: each era a compact tile, its name and what's open (counts and missions on hover). */
+  :global(html:not([data-details])) .era { padding: .45rem .75rem .5rem; }
+  :global(html:not([data-details])) .era > span:not(.counts) { display: none; }
+  :global(html:not([data-details])) .era .counts > :not(:first-child) { display: none; }
+  :global(html:not([data-details])) .era-head > .dim { display: none; }
+  :global(html:not([data-details])) .eras { grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); }
 </style>

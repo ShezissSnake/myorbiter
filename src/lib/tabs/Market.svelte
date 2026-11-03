@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Fold from "../ui/Fold.svelte";
   // Everything warframe.market trades, owned or not: browse by category, price and how often it
   // sells (the dearest Captura scenes, mods over 50p that sell daily…). Prices are what things sold
   // for lately; the buy order form shows the live order book.
@@ -115,7 +116,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Market" blurb="Everything warframe.market trades, yours or not: what it sold for lately and how often it sells.">
+  <PageHead title="Browse market" blurb="Everything warframe.market trades: what it sold for lately, how often it sells.">
     {#snippet band()}
       <Stat label="Items shown" note={filtered ? `Of ${all.length.toLocaleString("en")} on warframe.market` : "Everything on warframe.market"}><b class="mark big">{rows.length.toLocaleString("en")}</b></Stat>
       <Stat label="Sell daily" tone="dim" note="Of those shown, ones that sell at least once a day"><b class="mark big">{sellsDaily.toLocaleString("en")}</b></Stat>
@@ -123,10 +124,14 @@
   </PageHead>
 
   <div class="bar">
+    <input type="search" placeholder="Filter items…" bind:value={query} aria-label="Filter items by name" />
     <select bind:value={category} aria-label="Category" class="kinds" title="Only one kind of item, by warframe.market's own tags">
-      <option value="all">Everything ({count("all")})</option>
+      <option value="all">All kinds ({count("all")})</option>
       {#each CATEGORIES as c (c.v)}<option value={c.v}>{c.label} ({count(c.v)})</option>{/each}
     </select>
+    <Chip bind:on={weekly} label="Sells weekly" title="Only what sells at least once a week, on several different days. Off: everything, including prices from a sale or two, which can be jokes (a set &quot;sold&quot; for 80,000p)" />
+    <Chip bind:on={owned} label="You have" title="Only what you hold" />
+    <Fold active={(min != null ? 1 : 0) + (max != null ? 1 : 0) + (minTrades != null ? 1 : 0)} reset={() => { min = null; max = null; minTrades = null; }}>
     <span class="pair">
       <label class="min" title="Only what sold for at least this much lately (a mod or arcane counts at its maxed price). Empty: any.">
         <span class="register">Price ≥</span>
@@ -143,9 +148,7 @@
       <span class="register">Trades/day ≥</span>
       <input type="number" min="0" step="any" placeholder="any" bind:value={minTrades} aria-label="Minimum trades a day" />
     </label>
-    <Chip bind:on={weekly} label="Sells weekly" title="Only what sells at least once a week, on several different days. Off: everything, including prices from a sale or two, which can be jokes (a set &quot;sold&quot; for 80,000p)" />
-    <Chip bind:on={owned} label="You have" title="Only what you hold" />
-    <input type="search" placeholder="Filter items…" bind:value={query} aria-label="Filter items by name" />
+    </Fold>
   </div>
 
   {#if !mkt.items.length}

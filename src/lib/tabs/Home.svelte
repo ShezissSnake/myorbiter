@@ -301,7 +301,7 @@
   const CARDS: { key: string; label: string; hint: string; consoleHint?: string }[] = [
     { key: "alerts", label: "Needs you", hint: "Alerts and invasions worth a look, listings to fix, Varzia's rotation ending", consoleHint: "Alerts with rare rewards" },
     { key: "world", label: "World clocks", hint: "Day and night on the open worlds, Duviri's mood, and the daily and weekly resets" },
-    { key: "market", label: "Market", hint: "Your warframe.market status, what you have listed, and what sold" },
+    { key: "market", label: "Your orders", hint: "Your warframe.market status, what you have listed, and what sold" },
     { key: "ready", label: "Ready to sell", hint: "Your spares worth listing, in the kinds ticked on Orders" },
     { key: "fissures", label: "Fissures now", hint: "Every open fissure (normal, Steel Path or Void Storms), your best relic for each era, and your fissure alerts", consoleHint: "Every open fissure (normal, Steel Path or Void Storms), and your fissure alerts" },
     { key: "bounties", label: "Bounties", hint: "The bounties in Cetus, Fortuna, the Necralisk, the Zariman, Cavia and Höllvania, and what each pays" },
@@ -420,7 +420,7 @@
 
     <!-- Market -->
     <section class="panel market" data-card="market" class:off={off("market")} class:full={alone("market")} style:grid-row={rowSpan("market")}>
-      {@render head("market", null, "Market", "market", "Orders")}
+      {@render head("market", null, "Your orders", "market", "Orders")}
       {#if mkt.linked}
         <div class="presence"><Presence settings={settings.market} quiet /></div>
         <div class="figs">

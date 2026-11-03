@@ -402,11 +402,11 @@
       {#if !console}
       <Stat label="Unveiled" note="Read from your inventory">{mine.length}</Stat>
       <Stat label="Veiled" tone="dim" note="Challenges still to do">{veiled}</Stat>
-      <Stat label="Best roll" tone="gold" note={best ? `${best.weapon} ${best.name}` : "–"}>{best?.grade ?? "–"}</Stat>
+      <Stat keep label="Best roll" tone="gold" note={best ? `${best.weapon} ${best.name}` : "–"}>{best?.grade ?? "–"}</Stat>
       {#if tradedSum.n}<Stat label="Traded around" tone="gold" note={`Last week's in-game median for each weapon, ${tradedSum.n} of ${mine.length} rivens`}><P v={Math.round(tradedSum.total)} big /></Stat>{:else if priced.length}<Stat label="Listed around" tone="gold" note={`What similar ones are listed for (asking, not sold), ${priced.length} of ${mine.length} checked`}><P v={worth} big /></Stat>{/if}
       {#if estimated.length}<Stat label="Estimated" note={`orbiter's estimate of what each would be listed for, ${estimated.length} of ${mine.length} price checked`}><P v={estimatedSum} big /></Stat>{/if}
       {/if}
-      <Stat label="Alerts" note="Rivens you're watching for">{settings.rivenWatch.length}</Stat>
+      <Stat extra label="Alerts" note="Rivens you're watching for">{settings.rivenWatch.length}</Stat>
     {/snippet}
   </PageHead>
 

@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  // A page's struck title, a line of what it is, and an optional band of figures beneath.
+  // A page's struck title, a line of what it is, and an optional band of figures beneath. The
+  // Details switch shows or hides the detail every page keeps on hover (lib/view.svelte.ts).
+  import { view } from "../view.svelte";
   let { title, blurb, band }: { title: string; blurb?: string; band?: Snippet } = $props();
 </script>
 
@@ -9,7 +11,10 @@
     <span class="orn" aria-hidden="true"><i></i></span>
     <h1 class="mark">{title}</h1>
   </div>
-  {#if blurb}<p class="prose" title={blurb}>{blurb}</p>{/if}
+  <div class="side">
+    {#if blurb}<p class="prose" title={blurb}>{blurb}</p>{/if}
+    <button type="button" class="details" class:on={view.details} aria-pressed={view.details} title={view.details ? "Details are showing: the sentence under each figure, every column. Click to keep just the essentials (the rest stays on hover)" : "Show details: the sentence under each figure and every column, on every page. Off, they're on hover"} onclick={() => view.set(!view.details)}><span class="box"></span>Details</button>
+  </div>
 </header>
 {#if band}<section class="band">{@render band()}</section>{/if}
 
@@ -22,6 +27,14 @@
   h1 { font-size: clamp(2.3rem, 4.2vw, 3.7rem); }
   /* At most two lines, so a long one doesn't push the title down (the whole of it on hover). */
   .head .prose { margin: 0; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  /* Details off: one line, the rest on hover. */
+  :global(html:not([data-details])) .head .prose { -webkit-line-clamp: 1; line-clamp: 1; }
+  .side { display: grid; gap: .5rem; justify-items: end; min-width: 0; }
+  .side .prose { justify-self: stretch; }
+  .details { display: inline-flex; align-items: center; gap: .45rem; padding: .25rem .55rem; font-size: .62rem; color: var(--platinum-deep); }
+  .details .box { width: .55rem; height: .55rem; border: 1px solid var(--rule-control); }
+  .details.on { color: var(--platinum); }
+  .details.on .box { background: var(--gold); border-color: var(--gold); }
   /* The Orokin rule: a gold hairline struck from a small diamond, above every title. */
   .orn { display: flex; align-items: center; width: 4.5rem; margin-bottom: .6rem; }
   .orn i { width: .5rem; height: .5rem; flex: none; background: var(--gold); transform: rotate(45deg); }

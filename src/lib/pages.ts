@@ -51,9 +51,9 @@ export const PAGES: Page[] = [
   { id: "mods", label: "Mods", group: "Trade", icon: { game: "endo" }, hint: "Spare mod copies to sell, beyond your best one and one to give away" },
   { id: "arcanes", label: "Arcanes", group: "Trade", icon: { game: "vosfor" }, hint: "Arcanes by price, how close you are to maxing each, and spares to sell or dissolve for Vosfor" },
   { id: "rivens", label: "Rivens", group: "Trade", icon: { game: "riven" }, hint: "Your rivens graded, what similar ones sell for, and alerts for the ones you want", consoleHint: "Find rivens for sale, each roll graded, and alerts for the ones you want" },
-  { id: "browse", label: "Browse market", group: "Trade", icon: { line: "search" }, hint: "Everything warframe.market trades, yours or not: browse by category, price and how often it sells" },
+  { id: "browse", label: "Browse market", group: "Trade", icon: { line: "list" }, hint: "Everything warframe.market trades, yours or not: browse by category, price and how often it sells" },
   { id: "sales", label: "Sales", group: "Trade", icon: { game: "platinum" }, hint: "What you've sold and the platinum it made" },
-  { id: "stats", label: "Stats", group: "Trade", icon: { game: "credits" }, hint: "Your platinum, credits, Endo and more over time, and every trade you've made" },
+  { id: "stats", label: "Stats", group: "Trade", icon: { line: "chart" }, hint: "Your platinum, credits, Endo and more over time, and every trade you've made" },
   { id: "guide", label: "Guide", group: "", icon: { line: "guide" }, hint: "What each page is for and how to use it" },
 ];
 

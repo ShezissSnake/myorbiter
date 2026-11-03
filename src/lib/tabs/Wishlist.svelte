@@ -83,8 +83,8 @@
 {#snippet band()}
   <Stat label="Wished for" note="Star anything in Foundry, Mastery or its details">{items.length}</Stat>
   <Stat label="Parts missing" tone="dim" note="Across everything you starred">{missingCount}</Stat>
-  <Stat label="Relics you hold" note="That drop one of those parts">{relicsHeld}</Stat>
-  <Stat label="Crack now" tone="gold" note={crackNow.length ? crackNow.map((c) => c.era).join(", ") + " fissures open" : "No matching fissure open"}>{crackNow.length}</Stat>
+  <Stat extra label="Relics you hold" note="That drop one of those parts">{relicsHeld}</Stat>
+  <Stat keep label="Crack now" tone="gold" note={crackNow.length ? crackNow.map((c) => c.era).join(", ") + " fissures open" : "No matching fissure open"}>{crackNow.length}</Stat>
 {/snippet}
 
 <div class="page"><div class="page-inner">

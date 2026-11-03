@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Fold from "../ui/Fold.svelte";
   import { takeIntent } from "../intent.svelte";
   import { daysToTrade } from "../core/tradeLimit";
   import { sellableCopies } from "../core/spares";
@@ -122,14 +123,16 @@
   </PageHead>
 
   <div class="bar">
-  <Chip bind:on={dupesOnly} label="Spares only" title="Three or more copies: more than your own and one to give away" />
-  <Chip bind:on={tradableOnly} label="Tradable" title="Only mods you can sell or trade (not Flawed ones, and the like)" />
-  <Chip bind:on={sellingOnly} label="Actually sells" title="At least one trade a day on warframe.market" />
-  <select bind:value={rarity} aria-label="Rarity">
-    <option value="all">Any rarity</option>
+  <input type="search" placeholder="Filter mods…" bind:value={query} />
+  <select bind:value={rarity} aria-label="Rarity" title="Only one rarity">
+    <option value="all">All rarities</option>
     {#each ["Common", "Uncommon", "Rare", "Legendary"] as x (x)}<option value={x}>{x}</option>{/each}
   </select>
-  <input type="search" placeholder="Filter mods…" bind:value={query} />
+  <Chip bind:on={dupesOnly} label="Spare only" title="Three or more copies: more than your own and one to give away" />
+  <Fold active={(tradableOnly ? 0 : 1) + (sellingOnly ? 0 : 1)} reset={() => { tradableOnly = true; sellingOnly = true; }}>
+    <Chip bind:on={tradableOnly} label="Tradable" title="Only mods you can sell or trade (not Flawed ones, and the like)" />
+    <Chip bind:on={sellingOnly} label="Sells daily" title="At least one trade a day on warframe.market" />
+  </Fold>
   </div>
 
   <Browse id="mods" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" />

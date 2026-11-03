@@ -119,6 +119,7 @@
   import { mkt } from "./lib/marketStore.svelte";
   import { inFissure } from "./lib/core/mission";
   import Lookup from "./lib/ui/Lookup.svelte";
+  import { view } from "./lib/view.svelte";
   import { parseTarget, setIntent } from "./lib/intent.svelte";
   import { ts } from "./lib/tennoscopeStore.svelte";
 
@@ -145,7 +146,16 @@
   const compact = $derived.by(() => settings.folded ?? width < 1180);
   /** Room for the Watching column on the right (SideWatch) without squeezing the page. */
   const wideEnough = $derived(width >= 1640);
-  const sideShown = $derived.by(() => wideEnough && settings.side.on);
+  // Not beside Home: Home already shows the alerts, fissures, clocks and the rest it would repeat.
+  const sideShown = $derived.by(() => wideEnough && settings.side.on && settings.tab !== "home");
+
+  // Show details (Settings, and the switch by each page's title): marks <html> for the shared
+  // components' styles, and lets PageHead's switch change the setting.
+  view.set = (on: boolean) => (settings.details = on);
+  $effect(() => {
+    view.details = settings.details;
+    document.documentElement.toggleAttribute("data-details", settings.details);
+  });
 
   // Pages stay mounted once opened, so filters, sorting and scroll survive switching tabs.
   let visited = $state<Record<string, boolean>>({});
@@ -1796,7 +1806,7 @@
   const ago = (d: Date | null, now: number) => {
     if (!d) return "never";
     const m = Math.floor((now - d.getTime()) / 60000);
-    return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : fmtTime(d);
+    return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : m < 30 * 1440 ? `${Math.round(m / 1440)} d ago` : fmtTime(d);
   };
   /** One word for the TennoScope button: fine, something to look at, or not running. */
   const tsTone = $derived.by(() => {
@@ -1875,9 +1885,9 @@
     </nav>
 
     <div class="foot">
-      {#if !onConsole}<div class="game" title={[mission?.mission ?? (mission ? "Watching Warframe's log" : "No game log found"), model ? `Synced ${ago(model.observedAt, tick)}` : null].filter(Boolean).join(" · ")}>
+      {#if !onConsole}<div class="game" title={[mission?.mission ?? (mission ? "Watching Warframe's log" : "No game log found"), model ? `Inventory read ${model.observedAt ? fmtTime(model.observedAt) : "never"}` : null].filter(Boolean).join(" · ")}>
         <span class="pill" class:live={inFissure(mission, tick)} class:idle={!mission}><i></i></span>
-        <span class="lbl"><strong>{inFissure(mission, tick) ? "In a fissure" : mission ? "Watching" : "Idle"}</strong><small>{inFissure(mission, tick) ? (mission?.mission ?? "") : model ? `Synced ${ago(model.observedAt, tick)}` : "No data yet"}</small></span>
+        <span class="lbl"><strong>{inFissure(mission, tick) ? "In a fissure" : model ? `Synced ${ago(model.observedAt, tick)}` : mission ? "Reading the log" : "Idle"}</strong><small>{inFissure(mission, tick) ? (mission?.mission ?? "") : mission ? "Warframe's log: found" : "No game log found"}</small></span>
       </div>{/if}
       <div class="syncrow">
       <button class="stamp sync" onclick={refreshAll} disabled={loading || syncing}
@@ -1979,8 +1989,9 @@
         </div>
       {/if}
       {#if pricesOld != null && model.priceDate !== pricesOldDismissed}
-        <div class="stale" role="status" title="Item prices on every page (prime parts, sets, mods, relics…) come from warframe.market's daily figures, which TennoScope downloads when it starts">
-          <span>Item prices are from warframe.market's figures for {new Date(`${model.priceDate}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short" })}, {pricesOld === 1 ? "a day" : `${pricesOld} days`} out of date. TennoScope gets newer ones when it starts.</span>
+        <!-- Short: a warning on every page that reads like a paragraph teaches you to skip warnings. -->
+        <div class="stale slim" role="status" title="Item prices on every page (prime parts, sets, mods, relics…) come from warframe.market's daily figures for {new Date(`${model.priceDate}T12:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, which TennoScope downloads when it starts: starting TennoScope again gets newer ones">
+          <span><b>Prices {pricesOld === 1 ? "a day" : `${pricesOld} days`} old</b> <span class="dim">· TennoScope updates them when it starts</span></span>
           <IconButton icon="close" tone="quiet" label="Dismiss" onclick={() => (pricesOldDismissed = model?.priceDate ?? null)} />
         </div>
       {/if}
@@ -2046,7 +2057,7 @@
   </main>
   {#if sideShown && model}
     <SideWatch {model} {live} bind:settings console={onConsole} bountyTables={relicTables?.bounties ?? null} go={(t: string) => goTo(t)} {shortListings} {liveError} />
-  {:else if wideEnough && model}
+  {:else if wideEnough && model && !settings.side.on}
     <button class="sidetab" title="Show the Watching column: fissures, alerts, clocks and more beside every page" onclick={() => (settings.side.on = true)}>«</button>
   {/if}
 </div>
@@ -2191,6 +2202,8 @@
   /* A reload failed with data on screen: one slim line above the page, which stays as it was. */
   .stale { flex: none; display: flex; align-items: center; gap: .9rem; padding: .45rem 1.4rem; font-size: .8rem; color: var(--platinum-dim); background: rgb(214 174 74 / 8%); border-bottom: 1px solid var(--gold-dim); box-shadow: inset 3px 0 0 var(--gold); }
   .stale .link { font-size: .64rem; }
+  .stale.slim { padding-top: .3rem; padding-bottom: .3rem; font-size: .76rem; }
+  .stale.slim b { font-weight: 600; color: var(--platinum); }
   .repdue { background: rgb(111 183 163 / 7%); border-bottom-color: color-mix(in srgb, var(--verdigris) 45%, transparent); box-shadow: inset 3px 0 0 var(--verdigris); }
   .repdue b { color: var(--platinum); font-weight: 600; }
   .repdue .msg { color: var(--platinum); font-style: normal; }

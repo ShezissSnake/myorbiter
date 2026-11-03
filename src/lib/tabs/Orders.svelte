@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Fold from "../ui/Fold.svelte";
   import { tradeAllowance } from "../core/tradeLimit";
   import { until } from "../core/traders";
   import { untrack } from "svelte";
@@ -51,6 +52,8 @@
   const listed = $derived(orders.filter((o) => o.visible).reduce((n, o) => n + o.platinum * o.quantity, 0));
   const plans = $derived(new Map(orders.map((o) => [o.id, mkt.planFor(model, settings, o)])));
   const hiddenOrders = $derived(orders.filter((o) => !o.visible));
+  /** The folded repricer settings, in one line: "Auto: check every 5 min · floor 50% · min 10p". */
+  const autoLine = $derived(`Auto: ${settings.auto ? `apply every ${settings.every} min` : settings.autoCheck ? `check every ${settings.every} min` : "off"} · floor ${settings.minShare ? `${settings.minShare * 100}%` : "none"} · min ${settings.minPrice}p`);
   const pending = $derived(orders.filter((o) => o.visible && !settings.paused[listingKey(o)] && plans.get(o.id)?.change).length);
   const nextPass = $derived((settings.auto || settings.autoCheck) && mkt.lastPass ? new Date(mkt.lastPass + settings.every * 60_000) : null);
   /** Oldest order book behind what's on screen, so you know how fresh "Cheapest in game" is. */
@@ -369,10 +372,10 @@
 <div class="page"><div class="page-inner">
   <PageHead title="Orders" blurb="Your warframe.market listings, kept at the cheapest in-game price." band={mkt.linked ? band : undefined} />
   {#snippet band()}
-      <Stat label="Listed value" note="Visible listings, price × quantity"><P v={listed} big /></Stat>
+      <Stat extra label="Listed value" note="Visible listings, price × quantity"><P v={listed} big /></Stat>
       <Stat label="Listings" tone={mkt.room <= 0 ? "gold" : "platinum"} note={`${mkt.room <= 0 ? "At warframe.market's limit" : `${mkt.room} more allowed`} · ${orders.filter((o) => !o.visible).length} hidden`}>{orders.length}<span class="of">/{LISTING_LIMIT - mkt.otherOrders}</span></Stat>
       {#if !console}<Stat label="Can't deliver" tone={shortShown ? "gold" : "dim"} note={shortShown ? `Listing more than you hold${short.length > shortShown ? ` (+${short.length - shortShown} hidden)` : ""}` : short.length ? `Only in hidden listings (${short.length}), which nobody can buy` : "You hold everything you list"}>{shortShown}</Stat>{/if}
-      {#if !console && trades.limit != null}<Stat label="Trades left today" tone={trades.left != null && trades.left <= 3 ? "gold" : "platinum"} note={`${trades.used} made since 00:00 UTC · refreshes in ${until(new Date(trades.resets).toISOString(), minute)}`} title={`Trades a day are your Mastery Rank (${trades.limit}; Founders get 2 more), each counting once whatever it carried (up to 6 items each way). Counted from the game's log while orbiter was reading it.`}>{trades.left}<span class="of">/{trades.limit}</span></Stat>{/if}
+      {#if !console && trades.limit != null}<Stat keep label="Trades left today" tone={trades.left != null && trades.left <= 3 ? "gold" : "platinum"} note={`${trades.used} made since 00:00 UTC · refreshes in ${until(new Date(trades.resets).toISOString(), minute)}`} title={`Trades a day are your Mastery Rank (${trades.limit}; Founders get 2 more), each counting once whatever it carried (up to 6 items each way). Counted from the game's log while orbiter was reading it.`}>{trades.left}<span class="of">/{trades.limit}</span></Stat>{/if}
       <Stat label="To reprice" tone={pending ? "gold" : "dim"} note={checkedAt ? `${pending ? "Off the cheapest in-game price" : "All match"} · checked ${fmt(checkedAt)}` : "Press Check prices to compare"}>{pending}</Stat>
   {/snippet}
 
@@ -464,27 +467,30 @@
         <button class="stamp" disabled={!!mkt.busy} onclick={() => mkt.reprice(model, settings, false)} title="Read the order books and show, per listing below, what it would be repriced to">{mkt.pass === "Checking prices" ? "Checking…" : "Check prices"}</button>
         <button class="stamp gold" disabled={!!mkt.busy || !pending} title={pending ? `Send the new prices to warframe.market: the ${pending} listing${pending === 1 ? "" : "s"} with a Will set` : "Nothing to change: Check prices first, or every listing matches already"} onclick={() => mkt.reprice(model, settings, true)}>{mkt.pass === "Repricing" ? "Applying…" : pending ? `Reprice ${pending}` : "Reprice"}</button>
       </div>
+      <!-- The repricer's settings fold into one line that says how it's set: they're set once, not each visit. -->
+      <Fold label={autoLine} title="The repricer's settings: checking and applying on a timer, the floor under prices and the lowest price anything is listed at">
       <div class="grp">
-        <Chip bind:on={settings.autoCheck} label="Check automatically" title="Read the order books on a timer while orbiter is open, and show what each listing would change to" onchange={(on) => { if (!on) settings.auto = false; }} />
-        <Chip bind:on={settings.auto} label="Apply automatically" title="Also send the new prices to warframe.market on that timer, as Reprice would" onchange={(on) => { if (on) settings.autoCheck = true; }} />
-        <select bind:value={settings.every} aria-label="How often" title="How often the automatic check runs" disabled={!settings.autoCheck && !settings.auto}>
-          {#each [1, 2, 5, 10, 15, 30, 60] as m (m)}<option value={m}>every {m} min</option>{/each}
-        </select>
-      </div>
-      <div class="grp">
-        <span class="register">Floor</span>
-        <select bind:value={settings.minShare} aria-label="Floor" title="Never price a listing under this share of the item's daily market price (a per-listing floor in the table wins)">
-          {#each [0, 0.3, 0.5, 0.7, 0.85] as f (f)}<option value={f}>{f ? `${f * 100}% of market` : "none"}</option>{/each}
-        </select>
-        <span class="register" title="Nothing is listed or repriced below this, anywhere in orbiter (relics have their own minimum)">never under</span>
-        <input class="minp" type="number" min="1" inputmode="numeric" value={settings.minPrice} aria-label="Minimum price" onchange={(e) => (settings.minPrice = minFrom(e.currentTarget, settings.minPrice))} onwheel={(e) => e.currentTarget.blur()} />
-        <Metal kind="plat" size={14} />
-        <span class="register" title="Relics sell for a few platinum each and go in stacks: the lowest a relic is listed or repriced at">relics</span>
-        <input class="minp" type="number" min="1" inputmode="numeric" value={settings.minRelicPrice} aria-label="Minimum relic price" onchange={(e) => (settings.minRelicPrice = minFrom(e.currentTarget, settings.minRelicPrice))} onwheel={(e) => e.currentTarget.blur()} />
-        <Metal kind="plat" size={14} />
-      </div>
+          <Chip bind:on={settings.autoCheck} label="Check automatically" title="Read the order books on a timer while orbiter is open, and show what each listing would change to" onchange={(on) => { if (!on) settings.auto = false; }} />
+          <Chip bind:on={settings.auto} label="Apply automatically" title="Also send the new prices to warframe.market on that timer, as Reprice would" onchange={(on) => { if (on) settings.autoCheck = true; }} />
+          <select bind:value={settings.every} aria-label="How often" title="How often the automatic check runs" disabled={!settings.autoCheck && !settings.auto}>
+            {#each [1, 2, 5, 10, 15, 30, 60] as m (m)}<option value={m}>every {m} min</option>{/each}
+          </select>
+        </div>
+        <div class="grp">
+          <span class="register">Floor</span>
+          <select bind:value={settings.minShare} aria-label="Floor" title="Never price a listing under this share of the item's daily market price (a per-listing floor in the table wins)">
+            {#each [0, 0.3, 0.5, 0.7, 0.85] as f (f)}<option value={f}>{f ? `${f * 100}% of market` : "none"}</option>{/each}
+          </select>
+          <span class="register" title="Nothing is listed or repriced below this, anywhere in orbiter (relics have their own minimum)">never under</span>
+          <input class="minp" type="number" min="1" inputmode="numeric" value={settings.minPrice} aria-label="Minimum price" onchange={(e) => (settings.minPrice = minFrom(e.currentTarget, settings.minPrice))} onwheel={(e) => e.currentTarget.blur()} />
+          <Metal kind="plat" size={14} />
+          <span class="register" title="Relics sell for a few platinum each and go in stacks: the lowest a relic is listed or repriced at">relics</span>
+          <input class="minp" type="number" min="1" inputmode="numeric" value={settings.minRelicPrice} aria-label="Minimum relic price" onchange={(e) => (settings.minRelicPrice = minFrom(e.currentTarget, settings.minRelicPrice))} onwheel={(e) => e.currentTarget.blur()} />
+          <Metal kind="plat" size={14} />
+        </div>
+      </Fold>
       {#if nextPass}<span class="register next">Next check {fmt(+nextPass)}</span>{/if}
-      {#if hiddenOrders.length}<button class="link quiet" disabled={!!mkt.busy} title="Make every hidden listing visible to buyers again" onclick={() => mkt.setShown(hiddenOrders, true)}>Show all {hiddenOrders.length} hidden</button>{/if}
+      {#if hiddenOrders.length}<button class="showhidden" disabled={!!mkt.busy} title="Make every hidden listing visible to buyers again (changes them on warframe.market)" onclick={() => mkt.setShown(hiddenOrders, true)}>Show all {hiddenOrders.length} hidden</button>{/if}
       {#if !console}<a class="link quiet tospares" href="#spares" title="Down to Put my spares on sale: list everything you can spare in one go" onclick={(e) => { e.preventDefault(); document.getElementById("spares")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>Put my spares on sale ↓</a>{/if}
     </div>
 

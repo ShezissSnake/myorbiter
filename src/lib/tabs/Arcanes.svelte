@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Fold from "../ui/Fold.svelte";
+  import Tabs from "../ui/Tabs.svelte";
   import { takeIntent } from "../intent.svelte";
   import type { Model } from "../core/model";
   import { arcaneRows, type ArcaneRow } from "../core/views";
@@ -220,23 +222,26 @@
     {/snippet}
   </PageHead>
 
-  <div class="bar">
-  <Seg bind:value={show} options={[
+  <!-- The page's modes as tabs (they change the whole page), the filters under them. -->
+  <div class="modes"><Tabs bind:value={show} label="Arcanes view" options={[
     { v: "unfinished", label: "Still collecting", title: "Arcanes you haven't maxed (or got enough copies to max)" },
     { v: "spares", label: "Sell or dissolve", title: "Copies beyond the one you keep: sell them, or dissolve them for Vosfor" },
     { v: "all", label: "All arcanes", title: "Every arcane, held or not" },
-  ]} />
-  {#if show !== "spares"}<Seg bind:value={owned} options={[{ v: "all", label: "All", title: "Held or not" }, { v: "owned", label: "Started", title: "Arcanes you hold at least one copy of" }, { v: "unowned", label: "None yet", title: "Arcanes you don't have a copy of" }]} />{/if}
-  <select bind:value={type} aria-label="Slot">
+  ]} /></div>
+  <div class="bar">
+  <input type="search" placeholder="Filter arcanes…" bind:value={query} />
+  <select bind:value={type} aria-label="Slot" title="What it goes on">
     <option value="all">All slots</option>
     {#each types as t (t)}<option value={t}>{t}</option>{/each}
   </select>
+  <Fold active={(show !== "spares" && owned !== "all" ? 1 : 0) + (collection !== "all" ? 1 : 0)} reset={() => { owned = "all"; collection = "all"; }}>
+  {#if show !== "spares"}<Seg bind:value={owned} options={[{ v: "all", label: "All", title: "Held or not" }, { v: "owned", label: "Started", title: "Arcanes you hold at least one copy of" }, { v: "unowned", label: "None yet", title: "Arcanes you don't have a copy of" }]} />{/if}
   <select bind:value={collection} aria-label="Collection" title="The collection at Loid whose packs hold it">
     <option value="all">All collections</option>
     {#each COLLECTIONS as c (c.name)}<option value={c.name}>{c.name}</option>{/each}
     <option value="none">In no collection</option>
   </select>
-  <input type="search" placeholder="Filter arcanes…" bind:value={query} />
+  </Fold>
   </div>
 
   {#if show === "spares"}

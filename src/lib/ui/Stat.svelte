@@ -4,13 +4,16 @@
   // One figure in a page's band: the number struck large, its label in register type. `hover` names
   // the item the note is about, for its hover card. `title`: what the figure means, on hover (the
   // label and note by default, which the band may cut short).
-  let { label, note, tone = "platinum", hover = null, title = null, children }: { label: string; note?: string; tone?: "platinum" | "gold" | "dim"; hover?: string | null; title?: string | null; children: Snippet } = $props();
+  // With details off (lib/view.svelte.ts) the note goes to hover, unless `keep`: a note that is
+  // the point (what to crack now, when it refreshes).
+  // `extra`: a figure only Details shows (the page's main figures stay).
+  let { label, note, tone = "platinum", hover = null, title = null, keep = false, extra = false, children }: { label: string; note?: string; tone?: "platinum" | "gold" | "dim"; hover?: string | null; title?: string | null; keep?: boolean; extra?: boolean; children: Snippet } = $props();
 </script>
 
-<div class="cell" title={title ?? (note ? `${label}: ${note}` : label)}>
+<div class="cell" class:extra title={title ?? (note ? `${label}: ${note}` : label)}>
   <div class="v mark t-{tone}">{@render children()}</div>
   <div class="register l">{label}</div>
-  {#if note}<div class="note"><span use:info={hover}>{note}</span></div>{/if}
+  {#if note}<div class="note" class:keep><span use:info={hover}>{note}</span></div>{/if}
 </div>
 
 <style>
@@ -28,4 +31,6 @@
     .v { font-size: clamp(1.6rem, 2.4vw, 2.1rem); }
     .l { margin-top: .35rem; }
   }
+  :global(html:not([data-details])) .note:not(.keep) { display: none; }
+  :global(html:not([data-details])) .cell.extra { display: none; }
 </style>

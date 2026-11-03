@@ -30,7 +30,8 @@
   const known = $derived(sum.screens - sum.estimated - sum.unread);
 
   let open = $state<number | null>(null);
-  let limit = $state(40);
+  // The last few sessions first: older ones a click away.
+  let limit = $state(6);
   const toggle = (start: number) => (open = open === start ? null : start);
 
   const day = (t: number) => new Date(t).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });

@@ -279,3 +279,6 @@ tr.era-wash > td:first-child { box-shadow: inset 2px 0 0 color-mix(in srgb, var(
 
 /* A control's explanation when it's reached with the keyboard (lib/focusTip.ts). */
 .focus-tip { position: fixed; z-index: 1000; padding: .45rem .65rem; background: var(--slab); border: 1px solid var(--gold-dim); color: var(--platinum); font-size: .78rem; line-height: 1.4; pointer-events: none; box-shadow: 0 6px 18px rgb(0 0 0 / 45%); }
+
+/* A page's modes (Sets, Arcanes, Planner, Mastery): tabs on a row of their own above the filters. */
+.modes { margin-top: .2rem; }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Fold from "../ui/Fold.svelte";
   import { sellableCopies } from "../core/spares";
   import GameIcon from "../ui/GameIcon.svelte";
   import type { Model } from "../core/model";
@@ -190,38 +191,41 @@
     {#snippet band()}
       <Stat label="Spares to sell" note={`${plural(spares.filter((r) => verdict(r) !== "Ducats").reduce((n, r) => n + r.spare, 0), "part")} · daily median, no more of each than sells in a month`}><P v={asPlat} big /></Stat>
       <Stat label="Spares for ducats" tone="gold" note={`${plural(spares.filter((r) => verdict(r) === "Ducats").reduce((n, r) => n + r.spare, 0), "part")}, better traded in`}><P v={asDucats} d big /></Stat>
-      <Stat label="Ducats held" tone="gold" note={baro ? (baroHere ? `Baro is here · leaves in ${until(baro.expiry)}` : `Baro arrives in ${until(baro.activation)}`) : "Baro's schedule unavailable"}><P v={heldDucats} d big /></Stat>
+      <Stat keep label="Ducats held" tone="gold" note={baro ? (baroHere ? `Baro is here · leaves in ${until(baro.expiry)}` : `Baro arrives in ${until(baro.activation)}`) : "Baro's schedule unavailable"}><P v={heldDucats} d big /></Stat>
     {/snippet}
   </PageHead>
 
-  <div class="bar filters">
-    <Seg
-      label="Item"
-      bind:value={parent}
-      options={[
-        { v: "mastered", label: "Item mastered", title: "Parts of things you've already mastered: safe to sell or trade for ducats" },
-        { v: "unmastered", label: "Not mastered", title: "Parts of things you haven't mastered: orbiter keeps what building them takes" },
-        { v: "all", label: "All", title: "Every prime part you hold" },
-      ]}
-    />
-    <Seg label="Relics" bind:value={avail} options={[{ v: "all", label: "Any", title: "Farmable and vaulted alike" }, { v: "farmable", label: "Farmable", title: "A relic that drops it can still be farmed: its price may drop" }, { v: "vaulted", label: "Vaulted", title: "Only vaulted relics drop it: no new copies, so prices tend to rise" }]} />
-    <Seg label="Best as" bind:value={best} options={[{ v: "all", label: "Any", title: "Whatever is best for each part" }, { v: "Sell", label: "Sell", title: "Worth more sold on its own" }, { v: "Set", label: "Set", title: "Worth more sold in a complete set" }, { v: "Ducats", label: "Ducats", title: "Worth more traded to Baro, at your ducat rate" }, { v: "Save", label: "Save", title: "Waiting for its set, which sells for more than its parts and whose missing parts you can still get (Settings → Selling)" }, { v: "Keep", label: "Keep", title: "You need it to build something you haven't mastered" }]} />
-  </div>
-  <div class="bar second">
+  <!-- The filter box, what each part is best as, spares: what most visits need. The rest folds. -->
+  <div class="bar">
     <input type="search" placeholder="Filter parts…" bind:value={query} />
+    <Seg label="Best as" bind:value={best} options={[{ v: "all", label: "All", title: "Whatever is best for each part" }, { v: "Sell", label: "Sell", title: "Worth more sold on its own" }, { v: "Set", label: "Set", title: "Worth more sold in a complete set" }, { v: "Ducats", label: "Ducats", title: "Worth more traded to Baro, at your ducat rate" }, { v: "Save", label: "Save", title: "Waiting for its set, which sells for more than its parts and whose missing parts you can still get (Settings → Selling)" }, { v: "Keep", label: "Keep", title: "You need it to build something you haven't mastered" }]} />
     {#if spareMatters}<Chip bind:on={spareOnly} label="Spare only" title="Leave out the copies you need to build something you haven't mastered" />{/if}
+    <Fold active={(parent !== "mastered" ? 1 : 0) + (avail !== "all" ? 1 : 0)} reset={() => { parent = "mastered"; avail = "all"; }}>
+      <Seg
+        label="Item"
+        bind:value={parent}
+        options={[
+          { v: "all", label: "All", title: "Every prime part you hold" },
+          { v: "mastered", label: "Mastered", title: "Parts of things you've already mastered: safe to sell or trade for ducats" },
+          { v: "unmastered", label: "Not mastered", title: "Parts of things you haven't mastered: orbiter keeps what building them takes" },
+        ]}
+      />
+      <Seg label="Relics" bind:value={avail} options={[{ v: "all", label: "All", title: "Farmable and vaulted alike" }, { v: "vaulted", label: "Vaulted", title: "Only vaulted relics drop it: no new copies, so prices tend to rise" }, { v: "farmable", label: "Farmable", title: "A relic that drops it can still be farmed: its price may drop" }]} />
+    </Fold>
     <span class="grow"></span>
-    <span class="register" title="How Best as weighs platinum against ducats; Put my spares on sale uses the same rates">Your rates</span>
-    <select bind:value={advice.platPerDucat} aria-label="What a ducat is worth to you" title="What a ducat is worth to you, from what you'd buy with them at Baro">
-      {#each [...new Set([...RATES, advice.platPerDucat])].sort((a, b) => a - b) as r (r)}<option value={r}>1 ducat ≈ {r}p ({Math.round(1 / r)}:1)</option>{/each}
-    </select>
-    {#if advice.baroRate && advice.baroRate.rate !== advice.platPerDucat}
-      {@const b = advice.baroRate}
-      <button class="baro" title="On Baro's visit of {new Date(b.visit).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, the best he had that sells daily was {b.item}: {b.ducats} ducats for something that sells for {b.price}p. Click to use {b.rate}p a ducat." onclick={() => (advice.platPerDucat = b.rate)}><GameIcon name="ducats" size={13} />Baro: {b.rate}p</button>
-    {/if}
-    <select bind:value={advice.minPlat} aria-label="Smallest sale worth a trade" title="Judged on the whole trade: up to 6 copies go in one, so five barrels at 3p are a 15p trade">
-      {#each [0, 3, 5, 8, 10, 15] as n (n)}<option value={n}>{n ? `Not worth a trade under ${n}p a trade` : "Any price is worth a trade"}</option>{/each}
-    </select>
+    <!-- Not filters: how Best as weighs platinum against ducats (Put my spares on sale uses them too). -->
+    <Fold label="Your rates" title="What a ducat is worth to you and the smallest sale worth a trade: how Best as weighs platinum against ducats (Put my spares on sale uses the same)">
+      <select bind:value={advice.platPerDucat} aria-label="What a ducat is worth to you" title="What a ducat is worth to you, from what you'd buy with them at Baro">
+        {#each [...new Set([...RATES, advice.platPerDucat])].sort((a, b) => a - b) as r (r)}<option value={r}>1 ducat ≈ {r}p ({Math.round(1 / r)}:1)</option>{/each}
+      </select>
+      {#if advice.baroRate && advice.baroRate.rate !== advice.platPerDucat}
+        {@const b = advice.baroRate}
+        <button class="baro" title="On Baro's visit of {new Date(b.visit).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, the best he had that sells daily was {b.item}: {b.ducats} ducats for something that sells for {b.price}p. Click to use {b.rate}p a ducat." onclick={() => (advice.platPerDucat = b.rate)}><GameIcon name="ducats" size={13} />Baro: {b.rate}p</button>
+      {/if}
+      <select bind:value={advice.minPlat} aria-label="Smallest sale worth a trade" title="Judged on the whole trade: up to 6 copies go in one, so five barrels at 3p are a 15p trade">
+        {#each [0, 3, 5, 8, 10, 15] as n (n)}<option value={n}>{n ? `Not worth a trade under ${n}p a trade` : "Any price is worth a trade"}</option>{/each}
+      </select>
+    </Fold>
   </div>
 
   <Browse id="parts" {rows} {columns} key={(r) => r.name} bind:sort {detail} {card} title={(r) => r.name} min="18rem" />

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Fold from "../ui/Fold.svelte";
   // Everything you own, the way TennoScope's collection shows it: gear, parts, relics, mods,
   // arcanes, resources and blueprints, with what each is worth and a way to list it.
   import { splitRelicName, type Model } from "../core/model";
@@ -208,28 +209,32 @@
   <PageHead title="Inventory" blurb="Everything you own, with what it's worth on warframe.market.">
     {#snippet band()}
       <Stat label="You can spare" tone="gold" note="Beyond what you keep, no more of each than the market sells in a month" title={`You can spare: beyond what you keep, no more of each than the market sells in a month (slow sellers count only that).${spareSplit ? ` By kind: ${spareSplit}. Mods (with Actually sells off) counts its spares the same way; Prime parts leaves out the ones better traded to Baro for ducats.` : ""}`}><P v={value.spare} big /></Stat>
-      <Stat label="Easy to sell" note="Everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month"><P v={value.easy} big /></Stat>
-      <Stat label="Market value" tone="dim" note="Every copy at the daily median, slow sellers included"><P v={value.market} big /></Stat>
+      <Stat extra label="Easy to sell" note="Everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month"><P v={value.easy} big /></Stat>
+      <Stat extra label="Market value" tone="dim" note="Every copy at the daily median, slow sellers included"><P v={value.market} big /></Stat>
     {/snippet}
   </PageHead>
 
   <div class="bar">
+    <input type="search" placeholder="Filter items…" bind:value={query} />
     <select bind:value={kind} aria-label="Kind" class="kinds">
       {#each KINDS as k (k.v)}<option value={k.v}>{k.label} ({count(k.v)})</option>{/each}
     </select>
-    <Chip bind:on={tradableOnly} label="On warframe.market" title="Only things warframe.market trades" />
-    <label class="min" title="Only what trades at least this many times a day on warframe.market (1: it actually sells). Empty: any.">
-      <span class="register">Trades/day ≥</span>
-      <input type="number" min="0" step="any" placeholder="any" bind:value={minTrades} aria-label="Minimum trades a day" />
-    </label>
-    <label class="min" title="Only what's worth at least this much a copy, at the daily median. Empty: any.">
-      <span class="register">Each ≥</span>
-      <input type="number" min="0" step="1" placeholder="any" bind:value={minEach} aria-label="Minimum platinum each" />
-      <GameIcon name="platinum" size={14} />
-    </label>
     <Chip bind:on={spareOnly} label="Spare only" title="Only what you hold more of than you need: beyond what your unbuilt items take, two of each mod, one maxed arcane, one of each Captura scene" />
-    <Chip bind:on={letGo} label="Not needed · {goCount}" title="Gear you can't trade and no longer need: a weapon, frame or companion once you've mastered it and own a better version of it (the Dual Decurion once you have Prisma Dual Decurions), and extra copies of something mastered. Sell them for credits in game" />
-    <input type="search" placeholder="Filter items…" bind:value={query} />
+    <Fold active={(tradableOnly ? 1 : 0) + (minTrades != null ? 1 : 0) + (minEach != null ? 1 : 0)} reset={() => { tradableOnly = false; minTrades = null; minEach = null; }}>
+      <Chip bind:on={tradableOnly} label="Tradable" title="Only things warframe.market trades" />
+      <label class="min" title="Only what trades at least this many times a day on warframe.market (1: it actually sells). Empty: any.">
+        <span class="register">Trades/day ≥</span>
+        <input type="number" min="0" step="any" placeholder="any" bind:value={minTrades} aria-label="Minimum trades a day" />
+      </label>
+      <label class="min" title="Only what's worth at least this much a copy, at the daily median. Empty: any.">
+        <span class="register">Each ≥</span>
+        <input type="number" min="0" step="1" placeholder="any" bind:value={minEach} aria-label="Minimum platinum each" />
+        <GameIcon name="platinum" size={14} />
+      </label>
+    </Fold>
+    <span class="grow"></span>
+    <!-- Not a filter: it opens the list of gear you can sell to the game for credits. -->
+    <button type="button" class="letgo" class:on={letGo} aria-pressed={letGo} onclick={() => (letGo = !letGo)} title="Gear you can't trade and no longer need: a weapon, frame or companion once you've mastered it and own a better version of it (the Dual Decurion once you have Prisma Dual Decurions), and extra copies of something mastered. Sell them for credits in game">Gear to sell for credits · {goCount}</button>
   </div>
 
   {#if letGo}<NotNeeded {model} out={unneeded} incarnons={!!gear} bind:keep={keepGear} />{/if}
@@ -261,4 +266,5 @@
   .min { display: inline-flex; align-items: center; gap: .45rem; }
   .min .register { font-size: .6rem; white-space: nowrap; }
   .min input { width: 4.6rem; }
+  .letgo.on { border-color: var(--gold-dim); color: var(--platinum); }
 </style>

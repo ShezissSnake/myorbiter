@@ -132,6 +132,8 @@
   .nil { color: var(--rule-control); opacity: .7; }
   /* Page area under 1100 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt1100"]) .minor { display: none; }
+  /* Details off (Settings, or the switch by the page title): the minor columns go at any width. */
+  :global(html:not([data-details])) .minor { display: none; }
   :global(html[data-room~="lt760"]) .spare { display: none; }
   /* Little room (half a small screen): headings wrap onto two lines rather than widen their columns. */
   :global(html[data-room~="lt760"]) th { white-space: normal; line-height: 1.35; }

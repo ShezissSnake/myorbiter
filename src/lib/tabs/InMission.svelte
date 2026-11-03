@@ -83,6 +83,10 @@
   }
   /** "Meso C10 R" (a relic and its refinement's letter) → the relic, for its hover card. */
   const relicOf = (from: string) => from.replace(/ [IEFR]$/, "");
+  /** The pick order shows its top few; the rest, and each relic's own table, a click away. */
+  const TOP = 6;
+  let showAll = $state(false);
+  let showRelics = $state(false);
   /** "Meso C10 R" → the Meso relic as it looks at that refinement (radiant, or intact for the rest). */
   const relicIcon = (from: string): GameIconName | null => {
     const era = from.split(" ")[0]?.toLowerCase();
@@ -159,11 +163,11 @@
 
 <div class="page"><div class="page-inner">
   {#snippet stats()}
-      <Stat label="Status" tone={live ? "gold" : "dim"} note={error ?? (ms ? (ms.reward_screen_open ? "Reward screen open" : live ? `${relics.length} relic${relics.length === 1 ? "" : "s"} in the squad` : paths.length ? "Last fissure round" : "Waiting for a fissure") : "EE.log not found; set it in Settings")}>
+      <Stat keep label="Status" tone={live ? "gold" : "dim"} note={error ?? (ms ? (ms.reward_screen_open ? "Reward screen open" : live ? `${relics.length} relic${relics.length === 1 ? "" : "s"} in the squad` : paths.length ? "Last fissure round" : "Waiting for a fissure") : "EE.log not found; set it in Settings")}>
         {ms ? (live ? "Live" : "Ready") : "Idle"}
       </Stat>
       <Stat label="Most valuable" hover={best?.name ?? null} note={best?.name ?? "No fissure yet"}><P v={best?.price} big /></Stat>
-      <Stat label="You need" tone={needed.length ? "gold" : "dim"} note={needed.map((n) => n.name).join(", ") || "Nothing on the table"}>{needed.length}</Stat>
+      <Stat keep label="You need" tone={needed.length ? "gold" : "dim"} note={needed.map((n) => n.name).join(", ") || "Nothing on the table"}>{needed.length}</Stat>
       <Stat label="Earned this session" note={`Relic rewards you got · ${history.length} mission${history.length === 1 ? "" : "s"}${fissureCount ? ` · ${fissureCount} fissure${fissureCount === 1 ? "" : "s"}` : ""}`}><P v={sessionValue || null} big /></Stat>
   {/snippet}
   <PageHead
@@ -205,7 +209,7 @@
       <table class="pool">
         <thead><tr><th title="Its place in the pick order, best first">#</th>{#if !onScreen}<th class="right" title="0–100: the weighted average of the four bars">Score</th><th class="bc" title="The four marks behind the score: plat · unmastered · ducats · completes a set">Score split</th>{/if}<th>Reward</th><th title="The squad relics that can give it. The letter after each is its refinement: I intact, E exceptional, F flawless, R radiant">From</th>{#if anyHeld}<th class="right" title="Copies you already hold">Held</th>{/if}<th class="right">Plat</th><th class="right">Ducats</th></tr></thead>
         <tbody>
-          {#each ranked as x, i (x.name)}
+          {#each showAll ? ranked : ranked.slice(0, TOP) as x, i (x.name)}
             <tr class:need={x.needed} class:yours={yours.has(x.name)}>
               <td class="rank">{i + 1}</td>
               {#if !onScreen}
@@ -221,10 +225,12 @@
           {/each}
         </tbody>
       </table>
+      {#if ranked.length > TOP}<button class="link more" onclick={() => (showAll = !showAll)} title="Every reward the squad's relics can drop, in pick order">{showAll ? `Show the top ${TOP}` : `Show all ${ranked.length}`}</button>{/if}
     {/if}
 
-    <h2 class="register">The squad's relics <span class="legend">Gold: a part you still need · bright: worth a look · dimmed: you've mastered what it builds</span></h2>
-    <section class="cards">{#each relics as r, i (r.path + i)}{@render relicCard(r)}{/each}</section>
+    <!-- Each relic's own rewards, a click away: the list above already says what to take. -->
+    <h2 class="register relhead"><button class="link" aria-expanded={showRelics} onclick={() => (showRelics = !showRelics)} title="Each relic in the squad with its rewards and odds">{showRelics ? "▾" : "▸"} The squad's relics · {relics.length}</button>{#if showRelics}<span class="legend">Gold: a part you still need · bright: worth a look · dimmed: you've mastered what it builds</span>{/if}</h2>
+    {#if showRelics}<section class="cards">{#each relics as r, i (r.path + i)}{@render relicCard(r)}{/each}</section>{/if}
   {:else if !onScreen}
     <div class="empty" class:compact={history.length > 0}>
       <p>Start a void fissure and the squad's relics show up here as the mission loads. Warframe writes them to its log, and orbiter only reads that file.</p>
@@ -339,4 +345,9 @@
   .from .rl { display: inline-flex; align-items: center; gap: .25rem; }
   .empty { margin-top: var(--step); max-width: 46rem; padding: 1.4rem 1.6rem; border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); }
   .empty.compact p:last-child { display: none; }
+  /* Details off: the score's make-up and the weights go to hover (the Score keeps it in its title). */
+  :global(html:not([data-details])) .pool .bc, :global(html:not([data-details])) .weights { display: none; }
+  .more { display: block; margin: .5rem 0 0; }
+  .relhead .link { font: inherit; letter-spacing: inherit; text-transform: inherit; padding: 0; color: var(--platinum-dim); }
+  .relhead .link:hover { color: var(--gold); }
 </style>

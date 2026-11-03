@@ -36,6 +36,8 @@
   const at = $derived(hist.map((p) => p.at));
   const GOLD = "#b5892e";
 
+  /** Platinum, credits and Endo first; the other resources a click away. */
+  let allCharts = $state(false);
   const CHARTS: { key: string; title: string; icon: GameIconName; get: (p: (typeof hist)[number]) => number | null | undefined }[] = [
     { key: "platinum", title: "Platinum", icon: "platinum", get: (p) => p.platinum },
     { key: "credits", title: "Credits", icon: "credits", get: (p) => p.credits },
@@ -138,12 +140,13 @@
 
   {#if hist.length === 1}<p class="dim small one">One inventory read so far: each line below starts with the next one. The figures beside each title are from that read.</p>{/if}
   <div class="charts">
-    {#each CHARTS as c (c.key)}
+    {#each allCharts ? CHARTS : CHARTS.slice(0, 3) as c (c.key)}
       <TimeChart single="" title={c.title} {at} series={[{ label: c.title, color: GOLD, values: hist.map(c.get) }]} empty={c.key === "credits" || c.key === "endo" || c.key === "platinum" ? "Needs the patched TennoScope; fills in from its next reads." : undefined}>
         {#snippet icon()}<GameIcon name={c.icon} size={18} />{/snippet}
       </TimeChart>
     {/each}
   </div>
+  {#if CHARTS.length > 3}<button class="link more" onclick={() => (allCharts = !allCharts)} title="Ducats, Aya, Kuva, Void Traces, Vosfor and relics held over time">{allCharts ? "Fewer" : `${CHARTS.length - 3} more: ${CHARTS.slice(3).map((c) => c.title.toLowerCase()).join(", ")}`}</button>{/if}
 
   <RelicRuns {model} runs={settings.game.relicRuns} {since} platPerDucat={settings.advice.platPerDucat} />
 
@@ -243,4 +246,6 @@
   .kind { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; padding: .2rem .45rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
   .k-sale { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 45%, transparent); }
   .k-purchase { color: var(--gold); border-color: var(--gold-dim); }
+  :global(html:not([data-details])) .one { display: none; }
+  .more { display: block; margin: .4rem 0 0; }
 </style>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Fold from "../ui/Fold.svelte";
+  import Tabs from "../ui/Tabs.svelte";
   import { info } from "../hover.svelte";
   import type { Model } from "../core/model";
   import { masteryRows, type MasteryRow } from "../core/views";
@@ -174,16 +176,19 @@
     {/snippet}
   </PageHead>
 
-  <div class="views"><Seg bind:value={view} options={[{ v: "effort", label: "Easiest first", title: "Everything you haven't mastered, by how hard it is to get" }, { v: "plat", label: "Buy with plat", title: "What platinum gets you, cheapest first: the parts or items to buy, with a buy order a click away" }]} /></div>
+  <!-- The page's two modes as tabs, then the filters: the box first, the kind, the rest folded. -->
+  <div class="views"><Tabs bind:value={view} label="Mastery view" options={[{ v: "effort", label: "Easiest first", title: "Everything you haven't mastered, by how hard it is to get" }, { v: "plat", label: "Buy with plat", title: "What platinum gets you, cheapest first: the parts or items to buy, with a buy order a click away" }]} /></div>
   <div class="bar">
-  <select bind:value={category} aria-label="Type">
-    <option value="all">All types</option>
+  <input type="search" placeholder="Filter items…" bind:value={query} />
+  <select bind:value={category} aria-label="Kind" title="Which kind of item">
+    <option value="all">All kinds</option>
     {#each categories as c (c)}<option value={c}>{c}</option>{/each}
   </select>
-  <Seg label="Effort" bind:value={effort} options={[{ v: "2", label: "Easy", title: "Level it, buy and build, easy bosses" }, { v: "3", label: "Moderate", title: "Up to relics, quests, bounties and low syndicate ranks" }, { v: "4", label: "Hard", title: "Everything but Liches, Sisters, Coda and the nearly unobtainable" }, { v: "all", label: "All" }]} />
-  <Seg bind:value={kind} options={[{ v: "all", label: "All", title: "Everything you haven't mastered" }, { v: "prime", label: "Prime", title: "Primes only: parts from relics or other players" }, { v: "normal", label: "Non-prime", title: "Everything else: the Market, drops, syndicates, the dojo…" }]} />
-  <Chip bind:on={showUnavailable} label="Show unavailable" title="Founders items, past events and the like: things you can't get right now" />
-  <input type="search" placeholder="Filter items…" bind:value={query} />
+  <Seg label="Prime" bind:value={kind} options={[{ v: "all", label: "All", title: "Everything you haven't mastered" }, { v: "prime", label: "Prime", title: "Primes only: parts from relics or other players" }, { v: "normal", label: "Non-prime", title: "Everything else: the Market, drops, syndicates, the dojo…" }]} />
+  <Fold active={(effort !== "all" ? 1 : 0) + (showUnavailable ? 1 : 0)} reset={() => { effort = "all"; showUnavailable = false; }}>
+    <Seg label="Effort" bind:value={effort} options={[{ v: "all", label: "All" }, { v: "2", label: "Easy", title: "Level it, buy and build, easy bosses" }, { v: "3", label: "Moderate", title: "Up to relics, quests, bounties and low syndicate ranks" }, { v: "4", label: "Hard", title: "Everything but Liches, Sisters, Coda and the nearly unobtainable" }]} />
+    <Chip bind:on={showUnavailable} label="Show unavailable" title="Founders items, past events and the like: things you can't get right now" />
+  </Fold>
   </div>
 
   {#if view === "plat"}
