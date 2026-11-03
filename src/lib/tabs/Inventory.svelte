@@ -119,7 +119,7 @@
 {#snippet nameCell(r: InventoryItem)}
   <Named file={model.imageOf(r.name) ?? model.imageOf(shown(r))} name={shown(r)}>
     {#if r.rank && r.maxRank}<span class="tag" class:ok={r.rank >= r.maxRank}>{r.rank >= r.maxRank ? "maxed" : `R${r.rank}`}</span>{/if}
-    {#if r.kind === "gear"}{#if r.mastered}<span class="tag ok">✓ mastered</span>{:else}<span class="tag warn">level it</span>{/if}{/if}
+    {#if r.kind === "gear"}{#if r.mastered}<span class="tag good">✓ mastered</span>{:else}<span class="tag mastery" title="Not mastered: rank it up for its mastery">level it</span>{/if}{/if}
   </Named>
 {/snippet}
 {#snippet priceCell(r: InventoryItem)}<P v={priceOf(r)} dim />{/snippet}
@@ -139,7 +139,7 @@
 {#snippet card(r: InventoryItem, open: () => void)}
   <!-- No footer at all when there's nothing for it: a resource with no market data. -->
   {#snippet foot()}
-    {#if r.kind === "gear"}{#if r.mastered}<span class="tag ok flush">✓ mastered</span>{:else}<span class="tag warn flush">level it</span>{/if}{/if}
+    {#if r.kind === "gear"}{#if r.mastered}<span class="tag good flush">✓ mastered</span>{:else}<span class="tag mastery flush" title="Not mastered: rank it up for its mastery">level it</span>{/if}{/if}
     {#if perDay(r) != null}<span class="dim small" title="How many times a day it trades on warframe.market">{Math.round(perDay(r)! * 10) / 10} sold/day</span>{:else if r.kind !== "gear"}<span class="dim small" title="warframe.market's daily statistics have no trades of it">no recent sales</span>{/if}
     <span class="grow"></span>
     {@render listCell(r, true)}
@@ -150,7 +150,7 @@
         {@const c = model.catalogByUnique.get(r.unique)}
         <ModCard arcane={r.kind === "arcane"} name={r.name} image={model.imageOf(r.name)} rarity={c?.rarity ?? ""} polarity={c?.polarity ?? null} drain={c?.baseDrain ?? null} maxRank={r.maxRank ?? c?.maxRank ?? null} rank={r.rank ?? 0} label={c?.compatName ?? ""} width={84} />
       {:else}
-        <Art file={model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r))} size={64} alt="" />
+        <Art file={model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r))} size={64} alt="" fallback={kindIcon(r.kind === "relic" ? "relic" : (spareOf(r)?.type ?? r.type), r.name) ?? "foundry"} />
       {/if}
     {/snippet}
     <div class="have"><b class="mark qty">×{r.quantity.toLocaleString("en")}</b>{#if r.rank && r.maxRank}<span class="tag" class:ok={r.rank >= r.maxRank}>{r.rank >= r.maxRank ? "maxed" : `R${r.rank}`}</span>{/if}</div>
@@ -255,9 +255,10 @@
   .have .tag { margin-left: 0; }
   .qty { font-size: 1.3rem; }
   /* Each figure in a column of its own width, so cards side by side line up and wrap the same way. */
-  .vals { display: grid; grid-template-columns: repeat(auto-fill, minmax(3.6rem, 1fr)); gap: .4rem .8rem; }
+  /* Two columns, always: "Sells for" never wraps onto a line of its own. */
+  .vals { display: grid; grid-template-columns: repeat(2, minmax(0, max-content)); gap: .4rem 1.1rem; }
   .vals > span { display: grid; gap: .15rem; }
-  .vals .register { font-size: .6rem; }
+  .vals .register { font-size: .6rem; white-space: nowrap; }
   .grow { flex: 1; }
   .odds { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .45rem; margin: 0 0 .7rem; font-size: .8rem; }
   .odds .register { flex-basis: 100%; font-size: .6rem; }

@@ -49,7 +49,7 @@
   const current = $derived(`${name}|${unique}|${rank}|${subtype}`);
   const t = $derived(days?.length ? trend(days) : null);
   const words = $derived(t ? trendWords(t) : null);
-  const GOLD = "#b5892e";
+  const GOLD = "var(--chart-gold)";
   /** Cheap things to a tenth of a platinum, so 1.6p and 1.2p don't both read as 2p and 1p. */
   const p = (v: number) => (v < 10 ? Math.round(v * 10) / 10 : Math.round(v));
 </script>

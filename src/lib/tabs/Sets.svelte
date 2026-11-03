@@ -146,7 +146,7 @@
 
 {#snippet nameCell(r: SetRow)}
   <Named file={model.imageOf(r.name)} name={r.name}>
-    {#if r.mastered}<span class="tag ok">✓ mastered</span>{:else if r.ownedBuilt}<span class="tag" title="You own it built, not mastered yet">owned</span>{/if}
+    {#if r.mastered}<span class="tag good">✓ mastered</span>{:else if r.ownedBuilt}<span class="tag" title="You own it built, not mastered yet">owned</span>{/if}
   </Named>
 {/snippet}
 {#snippet sellCell(r: SetRow)}
@@ -178,7 +178,7 @@
   {@const item = model.catalogByUnique.get(r.unique)}
   <!-- The set's pieces: tradable prime parts, or for other sets the blueprint and parts (not resources). -->
   {@const parts = item ? collectionItem(model, item).parts.filter((p) => (r.prime ? p.tradable : !p.resource)) : []}
-  <ItemCard hover="{r.name} Set" title="{r.name} Set" sub={r.category} fallback={kindIcon(r.category, r.name)} image={item?.imageName ?? model.imageOf(r.name)} owned={mode === "sell" ? sellableOf(r) > 0 : false} onopen={open}>
+  <ItemCard hover="{r.name} Set" title="{r.name} Set" sub={r.category} fallback={kindIcon(r.category, r.name)} image={item?.imageName ?? model.imageOf(r.name)} owned={mode === "sell" ? sellableOf(r) > 0 : false} ownedNote="A complete set you can sell" markPrime onopen={open}>
     <div class="chips">{#each parts as p, i (i)}<PartChip part={p} size={32} />{/each}</div>
     {#if mode === "save"}
       <dl class="kv">
@@ -188,7 +188,8 @@
         <dt class="register" title="What the set sells for over its parts sold one by one">More</dt><dd><span class="gain pos">+{premium(r)}p</span> <span class="dim small">as a set</span></dd>
       </dl>
     {:else if mode === "sell"}
-      <div class="line"><b class="mark big">×{sellableOf(r)}</b><span class="dim small">to sell{#if r.keptForBuild && keepOne} · {r.completeSets - r.sellable} kept to build{/if}</span></div>
+      <div class="line sp" title="What a set sells for: daily median on warframe.market"><span class="pbig"><P v={r.setPrice} big /></span><span class="dim small">a set</span></div>
+      <div class="line"><b class="mark n">×{sellableOf(r)}</b><span class="dim small">to sell{#if r.keptForBuild && keepOne} · {r.completeSets - r.sellable} kept to build{/if}</span></div>
     {:else}
       {@const g = completeGain(r)}
       <dl class="kv">
@@ -198,12 +199,12 @@
       </dl>
     {/if}
     {#snippet foot()}
-      {#if r.mastered}<span class="tag good" title="You've mastered it: nothing to keep a set back for">✓ Mastered</span>{:else if r.ownedBuilt}<span class="tag ok" title="You have it built: not mastered yet">Owned</span>{/if}
+      {#if r.mastered}<span class="tag good" title="You've mastered it: nothing to keep a set back for">✓ Mastered</span>{:else if r.ownedBuilt}<span class="tag mastery" title="You have it built: not mastered yet">Owned</span>{/if}
       {#if r.vaulted}<Avail v="vaulted" />{/if}
       {#if forDucats(r)}<span class="tag ok" title="{forDucats(r)}: orbiter won't put it on sale">for ducats</span>{/if}
       <span class="grow"></span>
       {#if r.prime}<P v={r.ducats} d dim />{/if}
-      <P v={r.setPrice} />
+      {#if mode !== "sell"}<P v={r.setPrice} />{/if}
       {#if mode === "sell"}<ListButton {model} labelled name="{r.name} Set" req={{ quantity: sellableOf(r) }} />{/if}
     {/snippet}
   </ItemCard>
@@ -267,7 +268,10 @@
   .neg { color: var(--platinum-deep); }
   .chips { display: flex; flex-wrap: wrap; gap: .4rem; }
   .line { display: flex; align-items: baseline; gap: .45rem; flex-wrap: wrap; }
-  .big { font-size: 1.5rem; color: var(--gold); }
+  /* The set's price leads a card to sell: the number you're deciding on. */
+  .sp { align-items: center; }
+  .pbig { font-size: 1.6rem; line-height: 1; }
+  .n { font-size: 1.1rem; color: var(--platinum-dim); }
   .grow { flex: 1; }
   .kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .3rem .7rem; align-items: baseline; margin: 0; }
   .kv dt { font-size: .6rem; white-space: nowrap; }

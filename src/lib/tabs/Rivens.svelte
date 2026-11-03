@@ -402,7 +402,7 @@
       {#if !console}
       <Stat label="Unveiled" note="Read from your inventory">{mine.length}</Stat>
       <Stat label="Veiled" tone="dim" note="Challenges still to do">{veiled}</Stat>
-      <Stat keep label="Best roll" tone="gold" note={best ? `${best.weapon} ${best.name}` : "–"}>{best?.grade ?? "–"}</Stat>
+      <Stat keep label="Best roll" note={best ? `${best.weapon} ${best.name}` : "–"}>{#if best?.grade}<span class="g-{best.grade.replace('+', 'p').replace('−', 'm')}">{best.grade}</span>{:else}–{/if}</Stat>
       {#if tradedSum.n}<Stat label="Traded around" tone="gold" note={`Last week's in-game median for each weapon, ${tradedSum.n} of ${mine.length} rivens`}><P v={Math.round(tradedSum.total)} big /></Stat>{:else if priced.length}<Stat label="Listed around" tone="gold" note={`What similar ones are listed for (asking, not sold), ${priced.length} of ${mine.length} checked`}><P v={worth} big /></Stat>{/if}
       {#if estimated.length}<Stat label="Estimated" note={`orbiter's estimate of what each would be listed for, ${estimated.length} of ${mine.length} price checked`}><P v={estimatedSum} big /></Stat>{/if}
       {/if}
@@ -486,7 +486,7 @@
         {@const pc = c?.auctions ? priceCheck(c.auctions) : null}
         <article class="riven">
           <header>
-            <Art file={r.image} size={74} />
+            <Art file={r.image} size={74} fallback="riven" />
             <div class="t">
               <span class="register">{r.kind} riven · {r.weapon}{r.companion ? " · companion" : ""}</span>
               <h3 class="mark" title="{r.weapon} {r.name}">{r.weapon} {r.name}</h3>
@@ -706,7 +706,7 @@
   .explain { max-width: 75ch; }
   .riven header { display: grid; grid-template-columns: auto 1fr auto; gap: .7rem; align-items: start; }
   .t { display: grid; gap: .25rem; min-width: 0; }
-  .t .register { font-size: .6rem; color: #a78bd4; }
+  .t .register { font-size: .6rem; color: var(--rarity-riven); }
   .t h3 { font-size: 1.15rem; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .meta { display: inline-flex; align-items: center; gap: .35rem; }
   .pol { width: 14px; height: 14px; opacity: .85; }

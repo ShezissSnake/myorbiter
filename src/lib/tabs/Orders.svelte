@@ -514,8 +514,8 @@
                 {#if it}<button type="button" class="charted" class:on={charted === o.id} aria-label="Price history" aria-expanded={charted === o.id} title="What it sold for over the last 90 days, against your price" onclick={() => (charted = charted === o.id ? null : o.id)}><Icon name="chart" size={13} /></button>{/if}
                 {#if rankLabel(o)}<span class="tag">{rankLabel(o)}</span>{/if}
                 {#if it && collecting.has(it.name) && !o.rank}{@const c = collecting.get(it.name)!}<span class="tag ok" title="You're collecting copies to max it ({c.copies} of {c.needed}, on Arcanes): selling these sets you back">still collecting</span>{/if}
-                {#if held === 0}<span class="tag warn" title="As of TennoScope's last read of your inventory">you have none</span>
-                {:else if held != null && held < o.quantity}<span class="tag warn" title="As of TennoScope's last read of your inventory">you hold {held}</span>{/if}
+                {#if held === 0}<span class="tag alert" title="As of TennoScope's last read of your inventory">you have none</span>
+                {:else if held != null && held < o.quantity}<span class="tag alert" title="As of TennoScope's last read of your inventory">you hold {held}</span>{/if}
               </Named>
               {#if held != null && held < o.quantity}
                 <!-- Holding fewer than you list usually means some sold: say so, and orbiter closes them. -->
@@ -557,7 +557,7 @@
               {:else}<span class="dim small">Not checked yet</span>{/if}
             </td>
             <td class="right fade willset">
-              {#if p?.change && !paused && o.visible}<span class="target" class:down={p.target < o.platinum} class:up={p.target > o.platinum}><span class="dim">{o.platinum} →</span> <P v={p.target} /> <span class="delta">{p.target > o.platinum ? "+" : "−"}{Math.abs(p.target - o.platinum)}</span>{#if p.reason === "floor" && crackHeld(o, p) != null}<span class="tag ok" title="Worth more cracked: a crack of it is worth about {crackHeld(o, p)}p, so it isn't listed under {p.floor}p. Take it down to crack it instead.">crack</span>{:else if p.reason === "floor" && p.competitor.price != null && p.target > p.competitor.price}<span class="tag warn" title="Your floor ({p.floor}p) is over what the cheapest seller in game asks ({p.competitor.price}p): at this price it's unlikely to sell. Lower this listing's floor, or take it down.">over market</span>{:else if p.reason === "floor"}<span class="tag ok" title="Held up by the floor">floor</span>{:else if p.reason === "median"}<span class="tag" title="Everyone in game asks more than twice what it really goes for ({p.competitor.price}p and up): priced at that instead">sells for</span>{/if}</span>
+              {#if p?.change && !paused && o.visible}<span class="target" class:down={p.target < o.platinum} class:up={p.target > o.platinum}><span class="dim">{o.platinum} →</span> <P v={p.target} /> <span class="delta">{p.target > o.platinum ? "+" : "−"}{Math.abs(p.target - o.platinum)}</span>{#if p.reason === "floor" && crackHeld(o, p) != null}<span class="tag ok" title="Worth more cracked: a crack of it is worth about {crackHeld(o, p)}p, so it isn't listed under {p.floor}p. Take it down to crack it instead.">crack</span>{:else if p.reason === "floor" && p.competitor.price != null && p.target > p.competitor.price}<span class="tag alert" title="Your floor ({p.floor}p) is over what the cheapest seller in game asks ({p.competitor.price}p): at this price it's unlikely to sell. Lower this listing's floor, or take it down.">over market</span>{:else if p.reason === "floor"}<span class="tag ok" title="Held up by the floor">floor</span>{:else if p.reason === "median"}<span class="tag" title="Everyone in game asks more than twice what it really goes for ({p.competitor.price}p and up): priced at that instead">sells for</span>{/if}</span>
               {:else if !o.visible}<span class="register" title="Hidden listings aren't repriced">hidden</span>
               {:else if paused}<span class="register" title="Auto-price is off: orbiter leaves this price as you set it">left alone</span>
               {:else if p && goesFor(p) != null}<span class="register ok" title="At what it really goes for: in game they ask {p.competitor.price}p and up">at its value</span>
@@ -598,7 +598,7 @@
             <tr class="chartrow">
               <td colspan="9">
                 <PriceHistory name={it.name} rank={it.maxRank != null ? (o.rank ?? 0) : null} subtype={o.subtype ?? it.subtypes?.[0] ?? null} height={160}
-                  lines={[{ label: "Your price", value: o.platinum, color: "#c9ccd1" }, ...(p?.competitor.price != null ? [{ label: "Cheapest in game", value: p.competitor.price, color: "#6fa38a" }] : [])]} />
+                  lines={[{ label: "Your price", value: o.platinum, color: "var(--chart-mine)" }, ...(p?.competitor.price != null ? [{ label: "Cheapest in game", value: p.competitor.price, color: "var(--chart-theirs)" }] : [])]} />
               </td>
             </tr>
           {/if}
@@ -646,7 +646,7 @@
               {:else}
                 {@const e = auctionEst(a)}
                 <span class="dim small">{a.topBid != null ? `top bid ${a.topBid}p · ` : ""}{a.starting < (a.buyout ?? Infinity) ? `bids from ${a.starting}p` : "no bidding"}</span>
-                {#if e}<span class="dim small nowrap" title="orbiter's estimate of what a riven like it is listed for: the middle half of such listings ask {e.lo}–{e.hi}p">estimate ~{e.mid}p</span>{#if a.buyout != null && a.buyout > e.hi}<span class="tag warn" title="Your buyout is over what three in four rivens like it ask ({e.hi}p): it may sit unsold">over</span>{:else if a.buyout != null && a.buyout < e.lo}<span class="tag" title="Your buyout is under what three in four rivens like it ask ({e.lo}p): you may be leaving platinum behind">under</span>{/if}{/if}
+                {#if e}<span class="dim small nowrap" title="orbiter's estimate of what a riven like it is listed for: the middle half of such listings ask {e.lo}–{e.hi}p">estimate ~{e.mid}p</span>{#if a.buyout != null && a.buyout > e.hi}<span class="tag alert" title="Your buyout is over what three in four rivens like it ask ({e.hi}p): it may sit unsold">over</span>{:else if a.buyout != null && a.buyout < e.lo}<span class="tag" title="Your buyout is under what three in four rivens like it ask ({e.lo}p): you may be leaving platinum behind">under</span>{/if}{/if}
                 {#if a.buyout != null}<P v={a.buyout} />{:else}<span class="dim small">no buyout</span>{/if}
                 <IconButton icon="pencil" tone="quiet" label="Change price" title="Change its buyout price" onclick={() => (auctionPrice = { id: a.id, buyout: a.buyout, busy: false, error: null })} />
                 <IconButton icon="external" tone="quiet" label="Open on warframe.market" onclick={() => openUrl(`https://warframe.market/auction/${a.id}`)} />

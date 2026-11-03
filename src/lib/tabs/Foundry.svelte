@@ -110,6 +110,8 @@
           image={c.image}
           fallback={kindIcon(c.type, c.name)}
           owned={c.owned && !c.mastered}
+          ownedNote="You own it: level it to master it"
+          markPrime
           done={c.mastered}
           fav={favs.has(c.unique)}
           onfav={() => toggleFav(c.unique)}
@@ -123,7 +125,7 @@
           </div>
           {#snippet foot()}
             {#if c.mastered}<span class="tag good">✓ Mastered</span>
-            {:else if c.owned}<span class="tag ok">Owned · level it</span>
+            {:else if c.owned}<span class="tag mastery">Owned · level it</span>
             {:else if c.building}<span class="tag">Building</span>
             {:else if c.buildable && c.tier === "hard"}<span class="tag bad" title="Every part in hand, but building needs {c.short.join(', ')}: from an open world or an event. Open it for what each part takes">Parts ready · needs {c.short[0]}{c.short.length > 1 ? ` +${c.short.length - 1}` : ""}</span>
             {:else if c.buildable && c.short.length}<span class="tag warn" title="Every part in hand; still to farm: {c.short.join(', ')}. Open it for what each part takes">Parts ready · farm {c.short[0]}{c.short.length > 1 ? ` +${c.short.length - 1}` : ""}</span>

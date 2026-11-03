@@ -34,8 +34,11 @@ export interface InvasionNeed {
   points: number;
   have: number;
   needed: number;
-  /** How far the invasion is, 0–100. */
+  /** How far the invasion is, 0–100: the attackers' share of the tug of war. */
   completion: number | null;
+  /** Both sides, attacker first, for the tug-of-war bar ("Grineer", "Corpus"); null when unknown. */
+  attacker: string | null;
+  defender: string | null;
 }
 
 export function invasionNeeds(m: Model, invasions: Invasion[] | null | undefined): InvasionNeed[] {
@@ -71,6 +74,8 @@ export function invasionNeeds(m: Model, invasions: Invasion[] | null | undefined
           have,
           needed: part.needed,
           completion: typeof inv.completion === "number" ? inv.completion : null,
+          attacker: inv.attacker?.faction ?? null,
+          defender: inv.defender?.faction ?? null,
         });
       }
     }

@@ -26,7 +26,7 @@
   import Art from "./ui/Art.svelte";
   import P from "./ui/P.svelte";
   import PartChip from "./ui/PartChip.svelte";
-  import GameIcon, { eraIcon } from "./ui/GameIcon.svelte";
+  import GameIcon, { eraIcon, kindIcon } from "./ui/GameIcon.svelte";
   import Avail from "./ui/Avail.svelte";
 
   // squad: solo (1) or a radshare (4), as set on Relics: a crack's worth follows it, as the pages do.
@@ -124,11 +124,11 @@
       {@const it = d.item}
       {@const c = d.c}
       <header class="gear">
-        <Art file={c.image} size={78} />
+        <Art file={c.image} size={78} fallback={kindIcon(c.type, it.name) ?? "foundry"} />
         <div class="ht">
           <b class="mark">{it.name}</b>
           <span class="sub">{c.type}{c.masteryReq ? ` · MR ${c.masteryReq}` : ""}</span>
-          <span class="tags">{#if c.mastered}<span class="tag good">✓ Mastered</span>{:else if c.owned}<span class="tag ok">Owned</span>{:else if c.building}<span class="tag">Building</span>{:else if c.buildable}<span class="tag ok">Ready to build</span>{/if}{#if c.resurgence}<Avail v="resurgence" />{:else if c.vaulted}<Avail v="vaulted" />{/if}</span>
+          <span class="tags">{#if c.mastered}<span class="tag good">✓ Mastered</span>{:else if c.owned}<span class="tag mastery" title="Owned, not mastered yet">Owned</span>{:else if c.building}<span class="tag">Building</span>{:else if c.buildable}<span class="tag ok">Ready to build</span>{/if}{#if c.resurgence}<Avail v="resurgence" />{:else if c.vaulted}<Avail v="vaulted" />{/if}</span>
         </div>
       </header>
       {#if it.health != null}
@@ -201,10 +201,11 @@
   .rw tr.need .nm { color: var(--gold); }
   .rw tr.done .nm span { color: var(--platinum-deep); }
   .rw em, .srcs em { font-style: normal; font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
-  .rar { display: inline-block; width: 7px; height: 7px; transform: rotate(45deg); }
-  .rar-c { background: #8a6a4a; }
-  .rar-u { background: #a9b0ba; }
-  .rar-r { background: var(--gold); }
+  /* A reward's rarity as a small square card, as on the relic cards (the diamond is for ornaments). */
+  .rar { display: inline-block; width: 8px; height: 8px; border-radius: 2px; }
+  .rar-c { background: var(--rarity-common); }
+  .rar-u { background: var(--rarity-uncommon); }
+  .rar-r { background: var(--rarity-rare); }
   footer { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; padding-top: .45rem; border-top: 1px solid var(--rule); }
   footer > span { display: inline-flex; align-items: center; gap: .3rem; }
   .figs { display: flex; gap: 1rem; flex-wrap: wrap; }

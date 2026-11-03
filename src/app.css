@@ -27,22 +27,54 @@
   --platinum-dim: #9ba2ac;
   /* Secondary text: 4.5:1 or better on every surface. */
   --platinum-deep: #7e858f;
+  /* Gold is the Orokin metal: ducats, the Rare tier and Axi relics, nothing else. */
   --gold: #d6ae4a;
   --gold-dim: #a3843a;
   --oxblood: #d96b5c;
+  /* Good, done, mastered: and mastery still to earn. */
   --verdigris: #6fb7a3;
+  /* Something wants a look (can't deliver, stale): amber, always beside a "!". */
+  --alert: #e8a33d;
+  /* What you picked: a raised plate with a platinum edge, never gold. */
+  --select: var(--platinum);
+
+  /* Rarity, as the game draws it on a mod, a relic's reward and a reward screen: one set of
+     colours everywhere a rarity shows. */
+  --rarity-common: #b98a62;
+  --rarity-uncommon: #c3cad4;
+  --rarity-rare: var(--gold);
+  --rarity-legendary: #eef0ff;
+  --rarity-riven: #a78bd4;
+
+  /* The open worlds' cycles and Duviri's moods, warm or cold, as the game tints them. */
+  --cycle-warm: var(--gold);
+  --cycle-cold: #8fb3e0;
+  --mood-anger: #e07a6a;
+  --mood-envy: #7fc79a;
+  --mood-sorrow: #8fb3e0;
+  --mood-fear: #b49ae0;
+  /* Factions where a colour says whose ground it is (the Zariman, invasions). */
+  --faction-corpus: #6ea8dc;
+  --faction-grineer: #d0574a;
+  --faction-infested: #8fb35a;
+  /* A chart's second line: the ducat-gold of value you can realise, a shade darker. */
+  --chart-gold: #b5892e;
+  --chart-plat: #9ba2ac;
+  --chart-mine: #c9ccd1;
+  --chart-theirs: #6fa38a;
 
   --cartouche: polygon(0 0, 100% 0, 100% 70%, 50% 100%, 0 70%);
   /* The Orokin plate: two opposite corners cut. */
   --cut: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
 
-  /* Each relic era as its relic is cast in game: Lith copper, Meso green-tarnished steel, Neo
-     silver, Axi gold, Requiem's Kuva crimson; Omnia (any era) the Void's pale violet. */
+  /* Each relic era as its relic is cast in game: Lith copper, Meso olive bronze, Neo silver,
+     Axi gold, Requiem's Kuva crimson-violet; Omnia (any era) the Void's pale violet. Meso and
+     Requiem stay clear of verdigris (good) and oxblood (bad), so an era never reads as a state. */
   --era-lith: #c0804c;
-  --era-meso: #7fae9c;
+  --era-meso: #9aa37a;
   --era-neo: #c3cad4;
   --era-axi: #d6ae4a;
-  --era-requiem: #cf5a52;
+  --era-requiem: #b0435a;
   --era-omnia: #a2a8f0;
   --tab-point: polygon(0 0, 100% 0, 100% calc(100% - 9px), 50% 100%, 0 calc(100% - 9px));
   --struck: inset 0 1px 0 rgb(0 0 0 / 80%), inset 0 -1px 0 rgb(230 233 238 / 8%);
@@ -71,7 +103,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 #app { height: 100%; }
-::selection { background: var(--gold); color: var(--slab); }
+::selection { background: var(--platinum-dim); color: var(--slab); }
 
 /* ---------------------------------------------------------------- primitives */
 
@@ -132,9 +164,9 @@ button:hover:not(:disabled) { color: var(--platinum); border-color: var(--rule-c
 button:active:not(:disabled) { background: var(--well); transform: translateY(1px); }
 /* Disabled: flat and quiet, but still legible (a title says why, where it isn't obvious). */
 button:disabled { cursor: default; color: var(--platinum-deep); border-color: var(--rule); background: transparent; box-shadow: none; }
-button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px solid var(--select); outline-offset: 2px; }
 /* Cut-cornered shapes clip an outline away: ring them from the inside instead. */
-.stamp:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--gold), var(--struck); }
+.stamp:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--select), var(--struck); }
 
 /* The stamp: the one action that matters on a page. */
 .stamp {
@@ -184,12 +216,14 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   /* Text links stay small, but the place to click is a full 24 px tall. */
   background: none; border: 0; padding: 0; min-height: 24px;
   font-family: var(--face-register); font-size: .66rem; letter-spacing: .12em;
-  color: var(--gold);
+  /* Platinum with a hairline under it: gold is kept for ducats, the Rare tier and Axi. */
+  color: var(--platinum);
+  text-decoration: underline; text-decoration-color: var(--rule-control); text-underline-offset: 3px;
 }
-.link:hover:not(:disabled) { color: var(--platinum); border: 0; }
+.link:hover:not(:disabled) { color: var(--platinum); border: 0; text-decoration-color: var(--platinum); }
 .link:active:not(:disabled) { background: none; color: var(--platinum-dim); }
 .link:disabled { color: var(--platinum-deep); background: none; }
-.link.dim, .link.quiet { color: var(--platinum-deep); }
+.link.dim, .link.quiet { color: var(--platinum-deep); text-decoration: none; }
 .link.quiet:hover:not(:disabled) { color: var(--platinum); }
 /* A link that is an <a>: drawn like the button ones. */
 a.link { text-decoration: none; text-transform: uppercase; display: inline-flex; align-items: center; }
@@ -219,9 +253,16 @@ a.link { text-decoration: none; text-transform: uppercase; display: inline-flex;
 .tag:first-child { margin-left: 0; }
 .tag.ok { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 45%, transparent); }
 .tag.warn { color: var(--slab); background: var(--gold); border-color: var(--gold); }
+/* Something wrong that wants a look: amber, with its "!". */
+.tag.alert { color: var(--alert); border-color: color-mix(in srgb, var(--alert) 55%, transparent); }
+.tag.alert::before { content: "! "; font-weight: 700; }
 .tag.good { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 45%, transparent); }
+/* Mastery still to earn: verdigris, filled (an outline verdigris tag is done). */
+.tag.mastery { color: var(--slab); background: var(--verdigris); border-color: var(--verdigris); }
 .tag.bad { color: #e0a49a; border-color: color-mix(in srgb, var(--oxblood) 70%, transparent); }
-.warn-text { color: var(--gold); }
+.warn-text { color: var(--alert); }
+.warn-text::before { content: "! "; font-weight: 700; }
+.alert-text { color: var(--alert); }
 .plat-text { color: var(--platinum); font-weight: 600; }
 .ducat-text { color: var(--gold); font-weight: 600; }
 
@@ -278,7 +319,7 @@ tr.era-wash > td { background: color-mix(in srgb, var(--tint, transparent) 6%, t
 tr.era-wash > td:first-child { box-shadow: inset 2px 0 0 color-mix(in srgb, var(--tint, var(--rule)) 70%, transparent); }
 
 /* A control's explanation when it's reached with the keyboard (lib/focusTip.ts). */
-.focus-tip { position: fixed; z-index: 1000; padding: .45rem .65rem; background: var(--slab); border: 1px solid var(--gold-dim); color: var(--platinum); font-size: .78rem; line-height: 1.4; pointer-events: none; box-shadow: 0 6px 18px rgb(0 0 0 / 45%); }
+.focus-tip { position: fixed; z-index: 1000; padding: .45rem .65rem; background: var(--slab); border: 1px solid var(--rule-control); color: var(--platinum); font-size: .78rem; line-height: 1.4; pointer-events: none; box-shadow: 0 6px 18px rgb(0 0 0 / 45%); }
 
 /* A page's modes (Sets, Arcanes, Planner, Mastery): tabs on a row of their own above the filters. */
 .modes { margin-top: .2rem; }

@@ -2,6 +2,7 @@
   import Fold from "../ui/Fold.svelte";
   import { sellableCopies } from "../core/spares";
   import GameIcon from "../ui/GameIcon.svelte";
+  import Icon from "../ui/Icon.svelte";
   import type { Model } from "../core/model";
   import { partRows, saveForSets, savedLine, setRows, type PartRow } from "../core/views";
   import type { SellChoices } from "../core/spares";
@@ -138,13 +139,14 @@
   {@const v = verdict(r)}
   {@const parentItem = model.catalogByUnique.get(r.parentUnique)}
   <ItemCard hover={r.name} title={r.parentName} sub={r.name.replace(`${r.parentName} `, "")} image={parentItem?.imageName ?? model.imageOf(r.parentName)} artSize={84} owned={r.spare > 0 && v !== "Keep"} onopen={open}>
+    <span class="verdict v-{v}" title={VERDICT_TITLE[v]}>{#if v === "Sell"}<GameIcon name="platinum" size={14} />{:else if v === "Ducats"}<GameIcon name="ducats" size={14} />{:else if v === "Keep"}<Icon name="lock" size={13} />{:else}<Icon name="sets" size={13} />{/if}{LABEL[v]}</span>
     <div class="have">
-      <Thumb file={model.imageOf(r.name)} name={r.name} size={30} />
+      <Thumb file={model.imageOf(r.name)} name={r.name} size={26} />
       <b class="mark qty" title={spareOnly && spareMatters ? `${r.spare} spare (of ${r.quantity} held)` : `${r.quantity} held${r.keep ? `, ${r.spare} of them spare` : ""}`}>×{qty(r)}</b>
       {#if built(r)}<span class="dim small" title={r.keptFor === r.parentName ? `Held back to build ${r.parentName}, which you haven't mastered or built` : `Held back to build ${r.parentName} for ${r.keptFor}, which you haven't built`}>{built(r)} kept</span>{/if}
       {#if r.saving}<span class="dim small" title={savedLine(r.forSet, r.saving)}>{r.forSet} for the set</span>{/if}
     </div>
-    <div class="vline"><span class="v-{v}" title={VERDICT_TITLE[v]}>{LABEL[v]}</span><span class="grow"></span><P v={r.price} /><P v={r.ducats} d dim /></div>
+    <div class="vline"><P v={r.price} /><P v={r.ducats} d dim /></div>
     {#snippet foot()}
       <Avail v={r.availability} />
       {#if parent === "all" && !r.parentMastered}<span class="tag warn">{r.parentOwned ? "built" : "need"}</span>{/if}
@@ -259,8 +261,14 @@
   .baro:hover:not(:disabled) { background: var(--gold); border-color: var(--gold); color: var(--slab); }
   .v-Keep, .v-Save, .v-Set, .v-Sell, .v-Ducats { white-space: nowrap; }
   .have { display: flex; align-items: center; gap: .55rem; }
-  .qty { font-size: 1.45rem; }
-  .vline { display: flex; align-items: center; gap: .6rem; font-size: .84rem; }
+  .qty { font-size: 1.05rem; color: var(--platinum-dim); }
+  .vline { display: flex; align-items: center; gap: .9rem; font-size: .84rem; }
+  /* A card leads with what to do with the part: a struck badge, its colour as in the table. */
+  .verdict {
+    justify-self: start; display: inline-flex; align-items: center; gap: .4rem; padding: .22rem .55rem .22rem .45rem;
+    border: 1px solid color-mix(in srgb, currentColor 45%, transparent); background: color-mix(in srgb, currentColor 7%, transparent);
+    font-family: var(--face-register); font-size: .66rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+  }
   .grow { flex: 1; }
   .filters { padding-bottom: .6rem; }
   .second { padding-top: 0; }

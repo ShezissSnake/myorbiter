@@ -33,6 +33,8 @@
     settings: "M6.9 1.5h2.2l.4 1.9 1.4.8 1.8-.6 1.1 1.9-1.4 1.3v1.6l1.4 1.3-1.1 1.9-1.8-.6-1.4.8-.4 1.9H6.9l-.4-1.9-1.4-.8-1.8.6-1.1-1.9 1.4-1.3V7.2L2.2 5.9l1.1-1.9 1.8.6 1.4-.8zM8 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z",
     refresh: "M13 8a5 5 0 1 1-1.5-3.6M13 2v3h-3",
     close: "M3 3l10 10M13 3 3 13",
+    // An event: a pennant carrying the Orokin diamond.
+    event: "M3 14.5V1.5M3 2h10v7.5H3M8 3.6l2 2.1-2 2.1-2-2.1z",
     // A five-point star, for the wishlist.
     star: "M8 1.6l1.9 4.1 4.5.5-3.4 3 1 4.4L8 11.4l-4 2.2 1-4.4-3.4-3 4.5-.5z",
     // A bell, for alerts.

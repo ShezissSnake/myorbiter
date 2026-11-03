@@ -145,11 +145,13 @@
 {#snippet ducatCell(r: RelicRow)}<P v={r.evDucatsIntact || null} d dim />{/snippet}
 {#snippet relicPriceCell(r: RelicRow)}<P v={r.relicPrice} dim />{/snippet}
 {#snippet card(r: RelicRow, open: () => void)}
-  <ItemCard hover={r.base} title={r.base} sub={rareOf(r) ? `Rare · ${rareOf(r)}` : undefined} image={model.imageOf(r.base)} fallback={eraIcon(r.base.split(" ")[0])} artSize={78} owned={r.neededCount > 0} tint={eraTint(r.base)} onopen={open}>
+  <ItemCard hover={r.base} title={r.base} sub={rareOf(r) ? `Rare · ${rareOf(r)}` : undefined} image={model.imageOf(r.base)} fallback={eraIcon(r.base.split(" ")[0])} artSize={78} owned={r.neededCount > 0} ownedNote="Drops a part you still need" tint={eraTint(r.base)} onopen={open}>
     <div class="rw">
       {#each r.rewards as x, i (i)}
         <span class="rwc rar-{x.rarity}" class:need={x.needed} class:done={x.parentMastered && !x.needed} use:info={x.name}>
+          <span class="rwc-pic">
           {#if model.imageOf(x.name)}<img src={imageUrl(model.imageOf(x.name) ?? "")} alt="" loading="lazy" onerror={(e) => ((e.currentTarget as HTMLImageElement).style.visibility = "hidden")} />{/if}
+          </span>
           {#if x.needed}<i></i>{/if}
         </span>
       {/each}
@@ -241,7 +243,7 @@
       {@const list = [...(byEra.get(e) ?? []), ...(e === "Requiem" ? [] : omnia)]}
       <div class="era-cell">
         <button class="era" class:on={era === e} aria-pressed={era === e} style:--tint={eraTint(e)} onclick={() => (era = era === e ? "all" : e)}>
-          <strong><GameIcon name={eraIcon(e)} size={22} />{e}</strong>
+          <strong><GameIcon name={eraIcon(e)} size={22} /><span class="en">{e}</span></strong>
           <span class="dim small counts">
             {#if list.length}
               <!-- As Home counts them: this era's own fissures, normal + Steel Path; Omnia ones apart. -->
@@ -249,7 +251,7 @@
               {@const sp = own.filter((f) => f.isHard).length}
               {@const om = e === "Requiem" ? 0 : omnia.filter((f) => !f.isStorm).length}
               {#if own.length - sp}<span title="Normal fissures of this era open now">{own.length - sp} open</span>{/if}{#if sp}<span class="sp" title="Steel Path fissures of this era open now"><GameIcon name="steel-essence" size={11} />{sp} Steel Path</span>{/if}
-              {#if om}<span title="Omnia fissures take a Lith, Meso, Neo or Axi relic (not Requiem)">{om} Omnia</span>{/if}
+              {#if om}<span class="om" title="Omnia fissures take a Lith, Meso, Neo or Axi relic (not Requiem)"><GameIcon name="void-tear" size={11} />{om} Omnia</span>{/if}
             {:else}<span title={feed == null ? "The fissure list (api.warframestat.us) hasn't answered" : undefined}>{feed == null ? "fissures unknown" : "no fissure now"}</span>{/if}
           </span>
           <span class="small">you have {ownedEra(e).toLocaleString("en")}</span>
@@ -261,7 +263,7 @@
               <div class="fz-row">
                 <span class="fz-type"><Mission type={f.missionType} storm={f.isStorm} size={12} /> {f.missionType}</span>
                 <span class="fz-node">{f.node} <Foe enemy={f.enemy} size={12} name={false} /></span>
-                <span class="fz-kind">{#if f.isStorm}<span class="tag"><GameIcon name="railjack" size={11} /> Void Storm</span>{:else if f.isHard}<span class="tag ok"><GameIcon name="steel-essence" size={11} /> Steel Path</span>{/if}{#if f.tier === "Omnia"}<span class="tag" title="Takes a Lith, Meso, Neo or Axi relic">Omnia</span>{/if}</span>
+                <span class="fz-kind">{#if f.isStorm}<span class="tag"><GameIcon name="railjack" size={11} /> Void Storm</span>{:else if f.isHard}<span class="tag ok"><GameIcon name="steel-essence" size={11} /> Steel Path</span>{/if}{#if f.tier === "Omnia"}<span class="tag" title="Takes a Lith, Meso, Neo or Axi relic"><GameIcon name="void-tear" size={11} /> Omnia</span>{/if}</span>
                 <span class="fz-t">{left(f)}</span>
               </div>
             {/each}
@@ -307,8 +309,13 @@
   .era { display: grid; align-content: start; text-align: left; gap: .15rem; padding: .6rem .9rem .7rem; font-family: var(--face-text); font-weight: 400; letter-spacing: 0; text-transform: none; clip-path: var(--cut); background: var(--plate); box-shadow: inset 3px 0 0 var(--tint, var(--rule-control)); }
   .era strong { display: inline-flex; align-items: center; gap: .45rem; font-family: var(--face-mark); font-size: 1.15rem; letter-spacing: .01em; color: var(--platinum); }
   .era:hover:not(:disabled) { background: var(--raised); }
-  .era:focus-visible { outline: none; box-shadow: inset 3px 0 0 var(--tint, var(--rule-control)), inset 0 0 0 1px var(--gold); }
-  .era.on { border-color: var(--gold); background: var(--raised); box-shadow: inset 3px 0 0 var(--tint, var(--gold)), inset 0 2px 0 var(--gold); }
+  /* Each era's name in its relic's colour, so the row reads as the eras at a glance. */
+  .era .en { color: var(--tint, var(--platinum)); }
+  .era:focus-visible { outline: none; box-shadow: inset 3px 0 0 var(--tint, var(--rule-control)), inset 0 0 0 1px var(--select); }
+  /* Picked: raised, with a platinum edge (gold would read as Axi). */
+  .era.on { border-color: var(--select); background: var(--raised); box-shadow: inset 3px 0 0 var(--tint, var(--select)), inset 0 0 0 1px color-mix(in srgb, var(--select) 70%, transparent), 0 2px 0 rgb(0 0 0 / 50%); }
+  .era.on strong { text-shadow: 0 0 1px currentColor; }
+  .counts .om { display: inline-flex; align-items: center; gap: .25rem; }
   /* One fact a line: the era's own fissures, then the Omnia ones. */
   .counts { display: grid; }
   .counts .sp { display: inline-flex; align-items: center; gap: .25rem; }
@@ -340,9 +347,9 @@
   .rn .tag { margin-left: .5rem; vertical-align: 0; }
   .mastered { margin-left: .6rem; font-size: .6rem; color: var(--platinum-deep); }
   .rar { font-size: 0.75rem; }
-  .rar-Rare { color: var(--gold); }
-  .rar-Uncommon { color: var(--platinum); }
-  .rar-Common { color: var(--platinum-dim); }
+  .rar-Rare { color: var(--rarity-rare); }
+  .rar-Uncommon { color: var(--rarity-uncommon); }
+  .rar-Common { color: var(--rarity-common); }
   .right { text-align: right; }
   .unknown { margin-top: var(--step); padding: 1rem 1.2rem; border: 1px solid var(--rule); background: var(--well); box-shadow: inset 3px 0 0 var(--gold-dim); display: grid; gap: .45rem; }
   .unknown .register { color: var(--gold); }
@@ -353,20 +360,27 @@
   .unk { color: var(--platinum); }
   .rewards th { font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: 0 .8rem .3rem 0; text-align: left; }
   .rewards th.right { text-align: right; }
-  .r-chance { color: var(--gold); }
+  .r-chance { color: var(--platinum); }
   .gain { display: inline-flex; align-items: center; white-space: nowrap; color: var(--platinum-dim); }
   .gain.big { color: var(--gold); }
   .pct { margin-left: .45rem; font-size: .72rem; color: var(--platinum-deep); }
   .rw { display: grid; grid-template-columns: repeat(6, 30px); gap: .35rem; }
-  .rwc { position: relative; width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 35%, #1d2026, var(--well)); box-shadow: inset 0 0 0 1.5px var(--rule-bright); }
-  .rwc img { width: 76%; height: 76%; object-fit: contain; border-radius: 50%; }
-  .rwc.rar-Common { box-shadow: inset 0 0 0 1.5px #8a6a4a; }
-  .rwc.rar-Uncommon { box-shadow: inset 0 0 0 1.5px #a9b0ba; }
-  .rwc.rar-Rare { box-shadow: inset 0 0 0 1.5px var(--gold); }
-  /* Rarity by shape as well as by ring colour: a gold diamond on a rare, a silver dot on an uncommon. */
+  /* A reward as the game's reward screen draws it: a small square card, its rarity in the frame
+     and a bar along the bottom (not a round ring: round is a part chip, "enough in hand"). */
+  .rwc { --rar: var(--rule-bright); position: relative; width: 30px; height: 30px; display: inline-flex; }
+  .rwc-pic {
+    width: 100%; height: 100%; display: inline-flex; align-items: center; justify-content: center; overflow: hidden;
+    border-radius: 3px; background: linear-gradient(180deg, #1d2026, var(--well));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rar) 45%, transparent), inset 0 -3px 0 var(--rar);
+  }
+  .rwc img { width: 78%; height: 78%; margin-top: -2px; object-fit: contain; }
+  .rwc.rar-Common { --rar: var(--rarity-common); }
+  .rwc.rar-Uncommon { --rar: var(--rarity-uncommon); }
+  .rwc.rar-Rare { --rar: var(--rarity-rare); }
+  /* Rarity by shape as well as by colour: a gold diamond on top of a rare, a silver dot on an uncommon. */
   .rwc.rar-Rare::before, .rwc.rar-Uncommon::before { content: ""; position: absolute; top: -3px; left: 50%; z-index: 1; }
-  .rwc.rar-Rare::before { width: 7px; height: 7px; margin-left: -3.5px; background: var(--gold); transform: rotate(45deg); box-shadow: 0 0 0 1.5px var(--plate); }
-  .rwc.rar-Uncommon::before { width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: #a9b0ba; box-shadow: 0 0 0 1.5px var(--plate); }
+  .rwc.rar-Rare::before { width: 7px; height: 7px; margin-left: -3.5px; background: var(--rarity-rare); transform: rotate(45deg); box-shadow: 0 0 0 1.5px var(--plate); }
+  .rwc.rar-Uncommon::before { width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--rarity-uncommon); box-shadow: 0 0 0 1.5px var(--plate); }
   .rwc.done img { opacity: .45; }
   /* A part you still need: a gold disc at the bottom corner (the diamond on top is the rare reward). */
   .rwc i { position: absolute; right: -3px; bottom: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 2px var(--plate); }

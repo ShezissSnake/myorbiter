@@ -184,7 +184,8 @@
   .danger-zone { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; justify-content: flex-end; }
   .danger-zone .link.dim { color: var(--platinum-deep); white-space: nowrap; }
   .danger-zone .link.dim:hover:not(:disabled) { color: var(--oxblood); }
-  .warn { color: var(--gold); }
+  .warn { color: var(--alert); }
+  .warn::before { content: "! "; font-weight: 700; }
   .ticks { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; }
   .partrule { display: inline-flex; align-items: center; gap: .45rem; }
   .keepn { display: inline-flex; align-items: center; gap: .35rem; }

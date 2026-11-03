@@ -156,7 +156,7 @@
       <h3 class="register lead">Getting around</h3>
       <ul>
         <li><span class="ic"><Icon name="list" /></span> at the end of a row puts it on warframe.market without leaving the page: only the copies you can spare, priced at the cheapest seller in game. A padlock <span class="ic"><Icon name="lock" /></span> (or nothing) means you need what you have; the green <span class="ic good"><Icon name="listed" /></span> means it's on the market already (click to add more or change the price). Every icon says what it does when you hover it.</li>
-        <li><b>Cards or rows:</b> collection pages show cards by default; <span class="ic"><Icon name="rows" /></span> above the cards switches that page to a sortable table, <span class="ic"><Icon name="cards" /></span> back, and it's remembered. A gold edge on a card marks one to look at: spares you can sell, gear you own but haven't mastered, a relic with a part you need, an arcane you've maxed. On part icons, gold is enough in hand, dashed is building.</li>
+        <li><b>Cards or rows:</b> collection pages show cards by default; <span class="ic"><Icon name="rows" /></span> above the cards switches that page to a sortable table, <span class="ic"><Icon name="cards" /></span> back, and it's remembered. A gold notch in a card's top corner marks one to look at: spares you can sell, gear you own but haven't mastered, a relic with a part you need, an arcane you've maxed (hover the notch for which). On round part icons, a gold ring is enough in hand, dashed is building; a relic's rewards are square, like the game's reward screen.</li>
         <li><b>Hover</b> over anything with a name (a relic, a part, a mod, an arcane, a warframe or weapon) for what it is: a relic's rewards with their odds and prices, where a part drops and what it sells for, a mod's effect at max rank. Move off it, scroll or press <kbd>Esc</kbd> to close it.</li>
         <li><b>Click a card or row</b> to open it: a warframe, weapon or companion opens its full details (stats, parts, drops, prices); other things show relic odds, how many you keep, and warframe.market links.</li>
         <li><b>Details</b>, by each page's title, shows the sentence under every figure, the full page description and every table column; off (the start), pages keep to the essentials and the rest is on hover. <b>More filters ▾</b> holds the filters most visits don't need (a number on it says how many are set; Clear puts them back).</li>
@@ -177,10 +177,17 @@
         <li><span class="k"><Avail v="farmable" /></span><span>a relic for it is still in the drop tables</span></li>
         <li><span class="k"><Avail v="vaulted" /></span><span>only vaulted relics drop it: no new copies</span></li>
         <li><span class="k"><Avail v="resurgence" /></span><span>vaulted, but Varzia sells it right now</span></li>
-        <li><span class="k"><span class="tag ok">✓ mastered</span></span><span>you've mastered it, or the item the part builds</span></li>
+        <li><span class="k"><span class="tag good">✓ mastered</span></span><span>you've mastered it, or the item the part builds</span></li>
+        <li><span class="k"><span class="tag mastery">level it</span></span><span>you own it but haven't mastered it</span></li>
         <li><span class="k"><span class="tag warn">need</span></span><span>a part for something you haven't built or mastered</span></li>
-        <li><span class="k"><span class="rar r">◆</span> <span class="rar u">●</span></span><span>on a relic's reward ring: a gold diamond on top is its rare reward, a silver dot an uncommon one, none a common one; a gold disc at the bottom corner is a part you still need</span></li>
-        <li><span class="k"><span class="gold">◆</span></span><span>on Planner: the last part a set is missing; Finishes counts the sets a crack could complete</span></li>
+        <li><span class="k"><span class="notch-demo" aria-hidden="true"></span></span><span>a gold notch in a card's corner: one to look at (hover it for why)</span></li>
+        <li><span class="k"><span class="rwd r"><i></i></span><span class="rwd u"></span><span class="rwd c"><b></b></span></span><span>a relic's rewards, as on the reward screen: frame and bar in its rarity, a gold diamond on a rare, a silver dot on an uncommon; a gold disc at the corner is a part you still need</span></li>
+        <li><span class="k"><span class="sw" style:--c="var(--rarity-common)"></span><span class="sw" style:--c="var(--rarity-uncommon)"></span><span class="sw" style:--c="var(--rarity-rare)"></span></span><span>rarity, everywhere: bronze common, silver uncommon, gold rare (Rivens violet)</span></li>
+        <li><span class="k">{#each ["lith", "meso", "neo", "axi", "requiem"] as e (e)}<span class="sw" style:--c="var(--era-{e})"></span>{/each}</span><span>relic eras: Lith copper, Meso olive, Neo silver, Axi gold, Requiem crimson</span></li>
+        <li><span class="k"><span class="tag alert">stale</span></span><span>amber with a "!": wants a look (can't deliver, old prices, few trades left)</span></li>
+        <li><span class="k"><span class="gold-word">Prime</span></span><span>in Orokin gold: Ash Prime apart from Ash at a glance</span></li>
+        <li><span class="k"><span class="lastmark">last</span></span><span>on Planner: the last part a set is missing; Finishes counts the sets a crack could complete</span></li>
+        <li><span class="k"><span class="tug-demo" aria-hidden="true"><i></i><i></i></span></span><span>an invasion: each side's colour, its sigil at the end; whoever fills the bar wins</span></li>
         <li><span class="k"><Icon name="m-survival" /> <Icon name="m-defense" /> <Icon name="m-exterminate" /></span><span>a fissure's mission type (Survival, Defense, Exterminate…); the faction sigil beside it is whom you fight</span></li>
         <li><span class="k"><span class="tag">keep 1</span></span><span>copies held back so you can still build and master it</span></li>
         <li><span class="k"><Effort acq={{ method: "market-credits", difficulty: 1, how: "", icon: null, available: true, tradable: false, researched: false, wiki: null }} compact /> … <Effort acq={{ method: "lich-sister", difficulty: 5, how: "", icon: null, available: true, tradable: false, researched: false, wiki: null }} compact /></span><span>how hard something is to get, from buy-and-build to Liches</span></li>
@@ -258,10 +265,23 @@
   .sub { margin: .2rem 0 0; padding-left: 1.1rem; display: grid; gap: .2rem; }
   .sub li { display: list-item; list-style: square; counter-increment: none; grid-template-columns: none; }
   .sub li::before { content: none; }
-  .rar { font-size: .8rem; }
-  .rar.r { color: var(--gold); }
-  .rar.u { color: #a9b0ba; }
-  .gold { color: var(--gold); }
+  /* The marks drawn as they are on the pages. */
+  .rwd { position: relative; display: inline-block; width: 18px; height: 18px; border-radius: 3px; background: linear-gradient(180deg, #1d2026, var(--well)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent), inset 0 -3px 0 var(--c); margin-right: .15rem; }
+  .rwd.r { --c: var(--rarity-rare); }
+  .rwd.u { --c: var(--rarity-uncommon); }
+  .rwd.c { --c: var(--rarity-common); }
+  .rwd.r::before, .rwd.u::before { content: ""; position: absolute; top: -3px; left: 50%; }
+  .rwd.r::before { width: 6px; height: 6px; margin-left: -3px; background: var(--rarity-rare); transform: rotate(45deg); }
+  .rwd.u::before { width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--rarity-uncommon); }
+  .rwd b { position: absolute; right: -3px; bottom: -3px; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 1.5px var(--plate); }
+  .sw { display: inline-block; width: 10px; height: 10px; background: var(--c); }
+  .notch-demo { display: inline-block; width: 22px; height: 16px; border: 1px solid color-mix(in srgb, var(--gold) 30%, var(--rule)); background: linear-gradient(225deg, var(--gold) 0 7px, var(--plate) 7px); }
+  .gold-word { font-family: var(--face-mark); font-weight: 700; text-transform: uppercase; color: var(--gold); }
+  .lastmark { font-family: var(--face-register); font-size: .56rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
+  .tug-demo { display: inline-flex; width: 4.5rem; height: 4px; gap: 1px; }
+  .tug-demo i { display: block; height: 100%; }
+  .tug-demo i:first-child { width: 60%; background: var(--faction-grineer); }
+  .tug-demo i:last-child { flex: 1; background: var(--faction-corpus); }
   .more { border: 0; background: none; padding: 0 .2rem; font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; color: var(--gold-dim); cursor: pointer; }
   .more:hover { color: var(--gold); }
 </style>

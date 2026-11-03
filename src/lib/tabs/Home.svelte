@@ -14,7 +14,7 @@
   import { baroStock, varziaNeeds, until } from "../core/traders";
   import { invasionNeeds } from "../core/invasions";
   import { alertNeeds, describeHelp } from "../core/worldNeeds";
-  import GameIcon, { eraIcon, type GameIconName } from "../ui/GameIcon.svelte";
+  import GameIcon, { eraIcon, factionIcon, shardIcon, type GameIconName } from "../ui/GameIcon.svelte";
   import Foe from "../ui/Foe.svelte";
   import Mission from "../ui/Mission.svelte";
   import { tradeAllowance } from "../core/tradeLimit";
@@ -170,7 +170,10 @@
   const cycles = $derived(cycleTimers(live, now));
   const events = $derived(eventViews(live.events, now));
   const resets = $derived(resetTimers(live, now));
-  const CYCLE_ICON: Record<string, GameIconName> = { earth: "cycles", cetus: "ostron", vallis: "solaris-united", cambion: "entrati", zariman: "holdfasts", duviri: "mastery" };
+  const CYCLE_ICON: Record<string, GameIconName> = { earth: "cycles", cetus: "ostron", vallis: "solaris-united", cambion: "entrati", zariman: "holdfasts", duviri: "duviri" };
+  // The Zariman's clock shows whose ground it is: the faction's sigil, not the Holdfasts'.
+  const cycleIcon = (key: string, state: string): GameIconName => (key === "zariman" && factionIcon(state)) || CYCLE_ICON[key];
+  const RESET_ICON: Record<string, GameIconName> = { daily: "daily-reset", weekly: "archon-hunt" };
   // The clocks' own names, short enough to fit their column whole (the tooltip has the long one).
   const CYCLE_SHORT: Record<string, string> = { cetus: "Cetus", cambion: "Cambion", vallis: "Vallis" };
   const RESET_SHORT: Record<string, string> = { daily: "Standing caps", weekly: "Archon, Circuit" };
@@ -269,6 +272,8 @@
     side?: string;
     /** How far an invasion is, 0–100. */
     progress?: number | null;
+    /** An invasion's two sides, attacker first: the progress drawn as a tug of war between them. */
+    sides?: [string, string] | null;
     expiry?: string;
     act: string;
     to: string;
@@ -287,7 +292,7 @@
       out.push({ key: `alert|${a.key}`, tone: "gold", icon: "mastery", image: model?.imageOf(h.item) ?? null, title: a.reward, sub: `${h.whole ? "" : `toward ${h.item} · `}${h.points.toLocaleString("en")} mastery${h.needed > 1 ? ` · ${h.have} of ${h.needed}` : ""} · ${a.mission} on ${a.node}`, foe: a.faction, expiry: a.expiry, act: "", to: "", hint: `An alert with something you haven't mastered: ${describeHelp(a.reward, h)}. ${a.mission} on ${a.node}` });
     }
     for (const a of worldAlerts.rare) out.push({ key: `alert|${a.key}`, tone: "info", icon: "sortie", image: model?.imageOf(a.reward.replace(/^\d+ × /, "")) ?? null, title: a.reward, sub: `${a.mission} on ${a.node}`, foe: a.faction, expiry: a.expiry, act: "", to: "", hint: `An alert with a rare reward: ${a.reward}. ${a.mission} on ${a.node}` });
-    if (!console) for (const n of invasions) out.push({ key: `invasion|${n.key}`, tone: "gold", icon: "invasion", image: n.itemImage, title: n.reward, sub: `toward ${n.item}${n.needed > 1 ? ` · ${n.have} of ${n.needed}` : ""} · ${n.node}`, side: n.side, progress: n.completion, act: "Mastery", to: "mastery", hint: `An invasion at ${n.node} rewards ${n.reward} for ${n.item}, which you haven't mastered: side with the ${n.side}` });
+    if (!console) for (const n of invasions) out.push({ key: `invasion|${n.key}`, tone: "gold", icon: "invasion", image: n.itemImage, title: n.reward, sub: `toward ${n.item}${n.needed > 1 ? ` · ${n.have} of ${n.needed}` : ""} · ${n.node}`, side: n.side, progress: n.completion, sides: n.attacker && n.defender ? [n.attacker, n.defender] : null, act: "Mastery", to: "mastery", hint: `An invasion at ${n.node} rewards ${n.reward} for ${n.item}, which you haven't mastered: side with the ${n.side}` });
     if (shortListings.length) out.push({ key: null, tone: "gold", icon: "market", title: `${shortListings.length} listing${shortListings.length === 1 ? "" : "s"} for more than you hold`, sub: "Sold in game, or listed by mistake: fix them on Orders", act: "Open Orders", to: "market", hint: "warframe.market lists more than your inventory holds" });
     const statusError = mkt.statusError ?? mkt.status?.error;
     if (statusError) out.push({ key: null, tone: "red", icon: "market", title: "warframe.market status", sub: statusError, act: "Open Orders", to: "market", hint: `Your status on warframe.market couldn't be set: ${statusError}` });
@@ -380,7 +385,12 @@
           <span class="tx">
             <b>{a.title}</b>
             <span class="dim small where">{a.sub}{#if a.foe}&ensp;<Foe enemy={a.foe} size={13} />{/if}{#if a.side}&ensp;<span class="side">side with <Foe enemy={a.side} size={13} /></span>{/if}</span>
-            {#if a.progress != null}<span class="prog" title="{Math.round(a.progress)}% through"><i style:width="{Math.max(0, Math.min(100, a.progress))}%"></i></span>{/if}
+            {#if a.progress != null && a.sides}
+              {@const at = Math.max(0, Math.min(100, a.progress))}
+              <span class="tug" title="{a.sides[0]} {Math.round(at)}% · {a.sides[1]} {Math.round(100 - at)}%: whoever fills the bar wins">
+                <Foe enemy={a.sides[0]} size={12} name={false} /><span class="tb"><i class="f-{a.sides[0].toLowerCase()}" style:width="{at}%"></i><i class="f-{a.sides[1].toLowerCase()}" style:width="{100 - at}%"></i></span><Foe enemy={a.sides[1]} size={12} name={false} />
+              </span>
+            {:else if a.progress != null}<span class="prog" title="{Math.round(a.progress)}% through"><i style:width="{Math.max(0, Math.min(100, a.progress))}%"></i></span>{/if}
           </span>
           <span class="end">
             {#if a.expiry}<span class="small nowrap">{until(a.expiry, now)} left</span>{/if}
@@ -404,15 +414,15 @@
         {/if}
         {#each cycles as c (c.key)}
           <div class="clock" title="{c.key === 'duviri' ? `Duviri's mood: ${c.state}, which sets the Spiral's look and what its missions and enemies are like` : `${c.label}: ${c.state}`}{c.next ? `, ${c.next} in ${until(c.ends, now)}` : ''}">
-            <GameIcon name={CYCLE_ICON[c.key]} size={26} />
+            <GameIcon name={cycleIcon(c.key, c.state)} size={26} title={c.key === "zariman" ? `The Zariman is held by the ${c.state}` : undefined} />
             <div><span class="register clip1">{CYCLE_SHORT[c.key] ?? c.label}</span><b class="mark st st-{c.state}">{c.state}</b><span class="dim small nowrap">{until(c.ends, now).replace("under a minute", "<1 min")}<span class="lft">{" left"}</span></span></div>
           </div>
         {/each}
         {#each resets.filter((r) => r.key !== "sortie") as r (r.key)}
           <div class="clock reset" title={r.state}>
-            <span class="rk">{r.key === "sortie" ? "" : "↻"}</span>
+            <span class="rk">{#if RESET_ICON[r.key]}<GameIcon name={RESET_ICON[r.key]} size={22} title={r.label} />{/if}</span>
             {#if r.key === "sortie"}<GameIcon name="sortie" size={22} />{/if}
-            <div><span class="register">{r.label}</span><b class="mark">{until(r.ends, now)}</b><span class="dim small clip1">{RESET_SHORT[r.key] ?? r.state}</span></div>
+            <div><span class="register">{#if RESET_ICON[r.key]}<span class="rk-sm"><GameIcon name={RESET_ICON[r.key]} size={11} /></span>{/if}{r.label}</span><b class="mark">{until(r.ends, now)}</b><span class="dim small clip1">{RESET_SHORT[r.key] ?? r.state}</span></div>
           </div>
         {/each}
       </section>
@@ -425,16 +435,16 @@
         <div class="presence"><Presence settings={settings.market} quiet /></div>
         <div class="figs">
           <div title="Your visible listings on warframe.market: price × quantity, and how many{hiddenCount ? ` (${hiddenCount} hidden ones not counted)` : ''}"><P v={listed} /><span class="register">Listed · {orders.length - hiddenCount}</span></div>
-          {#if !console}<div title="Listings for more than you hold now: sold, or used in game. Fix them on Orders, or a buyer finds you can't deliver"><b class="mark" class:warn={shortListings.length}>{shortListings.length}</b><span class="register">Can't deliver</span></div>{/if}
+          {#if !console}<div title="Listings for more than you hold now: sold, or used in game. Fix them on Orders, or a buyer finds you can't deliver"><b class="mark" class:amber={shortListings.length}>{#if shortListings.length}<span class="bang" aria-hidden="true">!</span>{/if}{shortListings.length}</b><span class="register">Can't deliver</span></div>{/if}
           <div title="Platinum from what you sold today, from Sales"><P v={sold(dayStart)} /><span class="register">Sold today</span></div>
           <div title="Platinum from what you sold in the last 7 days"><P v={sold(now - 7 * DAY)} /><span class="register">Last 7 days</span></div>
-          {#if !console && trades.limit != null}<div title="Trades a day are your Mastery Rank ({trades.limit}; Founders get 2 more), each one counting whatever it carried (up to 6 items). {trades.used} since 00:00 UTC, from the game's log while orbiter was reading it. Refreshes in {until(new Date(trades.resets).toISOString(), now)}"><b class="mark" class:warn={trades.left != null && trades.left <= 3}>{trades.left}<small class="dim">/{trades.limit}</small></b><span class="register">Trades left</span></div>{/if}
+          {#if !console && trades.limit != null}<div title="Trades a day are your Mastery Rank ({trades.limit}; Founders get 2 more), each one counting whatever it carried (up to 6 items). {trades.used} since 00:00 UTC, from the game's log while orbiter was reading it. Refreshes in {until(new Date(trades.resets).toISOString(), now)}"><b class="mark" class:amber={trades.left != null && trades.left <= 3}>{#if trades.left != null && trades.left <= 3}<span class="bang" aria-hidden="true">!</span>{/if}{trades.left}<small class="dim">/{trades.limit}</small></b><span class="register">Trades left</span></div>{/if}
         </div>
         {#if shortListings.length}
           <ul class="mini">
             {#each shortListings.slice(0, 3) as o (o.id)}
               {@const it = mkt.item(o.itemId)}
-              <li><Thumb file={model.imageOf(it?.name ?? "")} name={it?.name ?? ""} size={22} /><span>{it?.name ?? "?"}</span><span class="warn small">listed {o.quantity}, sold some?</span></li>
+              <li><Thumb file={model.imageOf(it?.name ?? "")} name={it?.name ?? ""} size={22} /><span>{it?.name ?? "?"}</span><span class="amber small">! listed {o.quantity}, sold some?</span></li>
             {/each}
           </ul>
         {/if}
@@ -511,7 +521,7 @@
 
     <!-- Bounties -->
     <section class="panel bounties" data-card="bounties" class:off={off("bounties")}>
-      {@render head("ostron", null, "Bounties", null, "")}
+      {@render head("bounty", null, "Bounties", null, "")}
       {#if live.syndicates == null && !bountyTables}
         <p class="dim">{liveNote}</p>
       {:else}
@@ -522,7 +532,7 @@
     <!-- Events -->
     {#if events.length}
       <section class="panel events" data-card="events" class:off={off("events")}>
-        {@render head(null, "star", "Events", null, "")}
+        {@render head(null, "event", "Events", null, "")}
         <ul class="ev">
           {#each events as e (e.id)}
             <li>
@@ -542,30 +552,30 @@
       <div class="tgrid">
         {#if day.circuit}
           <div class="tblock">
-            <div class="th"><GameIcon name="mastery" size={18} /><b class="mark">Duviri Circuit</b><span class="dim small">{console ? "" : "◆ not mastered · "}new picks in {until(day.circuit.resets, now)}</span></div>
+            <div class="th"><GameIcon name="duviri" size={18} /><b class="mark">Duviri Circuit</b><span class="dim small">{#if !console}<GameIcon name="mastery" size={11} /> not mastered · {/if}new picks in {until(day.circuit.resets, now)}</span></div>
             <div class="chips">
-              {#each day.circuit.frames as c (c.name)}<span class="pick" class:want={c.wanted && !console} use:info={c.name}><Thumb file={c.image} size={22} />{c.name}{#if c.wanted && !console}<em aria-label="worth taking">◆</em>{/if}</span>{/each}
+              {#each day.circuit.frames as c (c.name)}<span class="pick" class:want={c.wanted && !console} use:info={c.name}><Thumb file={c.image} size={22} />{c.name}{#if c.wanted && !console}<em title="Not mastered: worth taking" aria-label="not mastered, worth taking"><GameIcon name="mastery" size={11} /></em>{/if}</span>{/each}
             </div>
-            <div class="th sub"><span class="register">Steel Path: Incarnon</span>{#if !console}<span class="dim small">◆ a weapon you have, with no adapter yet</span>{/if}</div>
+            <div class="th sub"><span class="register">Steel Path: Incarnon</span>{#if !console}<span class="dim small"><em class="want">+</em> a weapon you have, with no adapter yet</span>{/if}</div>
             <div class="chips">
-              {#each day.circuit.incarnons as c (c.name)}<span class="pick" class:want={c.wanted && !console} use:info={c.name}><Thumb file={c.image} size={22} />{c.name}{#if c.wanted && !console}<em aria-label="worth taking">◆</em>{/if}</span>{/each}
+              {#each day.circuit.incarnons as c (c.name)}<span class="pick" class:want={c.wanted && !console} use:info={c.name}><Thumb file={c.image} size={22} />{c.name}{#if c.wanted && !console}<em class="want" title="A weapon you have, with no adapter yet: worth taking" aria-label="worth taking">+</em>{/if}</span>{/each}
             </div>
           </div>
         {/if}
         {#if day.darvo}
           {@const dv = day.darvo}
           <div class="tblock">
-            <div class="th"><GameIcon name="platinum" size={18} /><b class="mark">Darvo's deal</b><span class="dim small">{dv.left != null ? `${dv.left} left · ` : ""}ends in {until(dv.ends, now)}</span></div>
+            <div class="th"><GameIcon name="market" size={18} /><b class="mark">Darvo's deal</b><span class="dim small">{dv.left != null ? `${dv.left} left · ` : ""}ends in {until(dv.ends, now)}</span></div>
             <p class="tline" title="Darvo's daily deal in the in-game Market (Market → Darvo's Deal), limited stock">
               <b use:info={dv.item}>{dv.item}</b> <span class="dim">for {dv.price}p ({dv.discount}% off {dv.was}p)</span>
-              {#if dv.note && !console}<span class="dim small">{" · "}{dv.note}</span>{#if dv.wanted}<em class="want" aria-label="worth taking">◆</em>{/if}{/if}
+              {#if dv.note && !console}<span class="dim small">{" · "}{dv.note}</span>{#if dv.wanted}<em class="want" title="Worth taking" aria-label="worth taking">+</em>{/if}{/if}
             </p>
           </div>
         {/if}
         {#if day.steelPath}
           <div class="tblock">
             <div class="th"><GameIcon name="steel-essence" size={18} /><b class="mark">Teshin's offer</b><span class="dim small">changes in {until(day.steelPath.ends, now)}</span></div>
-            <p class="tline"><b>{day.steelPath.reward}</b> <span class="dim">for {day.steelPath.cost} Steel Essence</span></p>
+            <p class="tline"><b>{day.steelPath.reward}</b> <span class="dim inl">for {day.steelPath.cost} <GameIcon name="steel-essence" size={13} title="Steel Essence" /> Steel Essence</span></p>
           </div>
         {/if}
         {#if day.sortie || day.archon}
@@ -574,7 +584,7 @@
               <div class="th"><GameIcon name="sortie" size={18} /><b class="mark">Sortie</b><span class="dim small">{day.sortie.boss}{day.sortie.faction ? ` (${day.sortie.faction})` : ""} · {until(day.sortie.ends, now)} left</span></div>
               <ol class="stages">
                 {#each day.sortie.stages as st, i (i)}
-                  <li title={st.desc || undefined}><span class="sn">{i + 1}</span><span class="nt"><span>{st.mission}<span class="dim">{" · "}{st.node}</span></span>{#if st.modifier}<span class="mod">{st.modifier}</span>{/if}</span></li>
+                  <li title={st.desc || undefined}><span class="sn">{i + 1}</span><Mission type={st.mission} size={13} /><span class="nt"><span>{st.mission}<span class="dim">{" · "}{st.node}</span></span>{#if st.modifier}<span class="mod">{st.modifier}</span>{/if}</span></li>
                 {/each}
               </ol>
               {#if sortieRewards?.length}
@@ -585,16 +595,16 @@
               {/if}
             {/if}
             {#if day.archon}
-              <div class="th"><GameIcon name="archon-shard" size={18} /><b class="mark">Archon Hunt</b><span class="dim small">{day.archon.boss}{day.archon.shard ? ` · ${day.archon.shard} shard` : ""} · {until(day.archon.ends, now)} left</span></div>
+              <div class="th"><GameIcon name="archon-hunt" size={18} /><b class="mark">Archon Hunt</b><span class="dim small inl">{day.archon.boss}{#if day.archon.shard}{" · "}<GameIcon name={shardIcon(day.archon.shard)} size={13} title="{day.archon.shard} Archon Shard" />{day.archon.shard} shard{/if} · {until(day.archon.ends, now)} left</span></div>
               <ol class="tline dim small archon">{#each day.archon.missions as m, i (i)}<li><Mission type={m.split(":")[0]} size={12} />{m}</li>{/each}</ol>
             {/if}
           </div>
         {/if}
         {#if day.nightwave}
           <div class="tblock">
-            <div class="th"><GameIcon name="nightwave" size={18} /><b class="mark">Nightwave</b><span class="dim small">{day.nightwave.standing.toLocaleString("en")} standing up for grabs</span></div>
+            <div class="th"><GameIcon name="nightwave" size={18} /><b class="mark">Nightwave</b><span class="dim small inl"><GameIcon name="nightwave" size={13} title="Nightwave standing" />{day.nightwave.standing.toLocaleString("en")} standing up for grabs</span></div>
             <ul class="nw">
-              {#each day.nightwave.challenges.slice(0, 6) as c (c.title)}<li title="{c.desc}{c.expiry ? ` · ${until(c.expiry, now)} left` : ''}"><span class="k k-{c.kind}">{c.kind}</span><span class="nt">{c.title}</span><span class="dim small">{c.reputation.toLocaleString("en")}</span></li>{/each}
+              {#each day.nightwave.challenges.slice(0, 6) as c (c.title)}<li title="{c.desc}{c.expiry ? ` · ${until(c.expiry, now)} left` : ''}"><span class="k k-{c.kind}">{c.kind}</span><span class="nt">{c.title}</span><span class="dim small inl"><GameIcon name="nightwave" size={11} title="Nightwave standing" />{c.reputation.toLocaleString("en")}</span></li>{/each}
             </ul>
             {#if day.nightwave.challenges.length > 6}{@const rest = day.nightwave.challenges.slice(6)}<p class="dim small more">+{rest.length} more, {rest.reduce((n, c) => n + c.reputation, 0).toLocaleString("en")} standing (soonest to go first above)</p>{/if}
           </div>
@@ -744,7 +754,7 @@
             <li>
               <Thumb file={model.imageOf(v.item)} size={26} name={v.item} />
               <span class="sn"><b class="mark" use:info={v.item}>{v.item.replace(/^M P V /, "")}</b><span class="dim small">{v.ducats} Regal Aya</span></span>
-              <GameIcon name="aya" size={16} />
+              <GameIcon name="regal-aya" size={16} title="Regal Aya" />
             </li>
           {/each}
         </ul>
@@ -757,7 +767,7 @@
               <Thumb file={v.image} size={26} name={v.name} />
               <span class="sn"><b class="mark" use:info={v.name}>{v.name}</b><span class="dim small">{v.regalAya != null ? `whole for ${v.regalAya} Regal Aya` : ""}{v.regalAya != null && v.relics.length ? " · " : ""}{v.relics.length ? `${v.relics.slice(0, 3).join(", ")}${v.relics.length > 3 ? "…" : ""} for ${v.missing === 1 ? "the last part" : `${v.missing} parts`}` : ""}</span></span>
               {#if v.onlyHere}<span class="tag gold" title="Missing parts that drop only from Varzia's relics right now">only here</span>{/if}
-              <GameIcon name="aya" size={16} />
+              <GameIcon name={v.regalAya != null ? "regal-aya" : "aya"} size={16} title={v.regalAya != null ? "Whole for Regal Aya" : "Her relics, for Aya"} />
             </li>
           {/each}
         </ul>
@@ -791,6 +801,13 @@
   .alert .side { display: inline-flex; align-items: center; gap: .3rem; color: var(--gold); }
   .alert .prog { display: block; height: 3px; background: var(--well); margin-top: .2rem; }
   .alert .prog i { display: block; height: 100%; background: var(--gold-dim); }
+  /* An invasion as a tug of war: the attackers' colour from the left, the defenders' from the right. */
+  .alert .tug { display: flex; align-items: center; gap: .35rem; margin-top: .25rem; max-width: 20rem; }
+  .alert .tb { flex: 1; display: flex; height: 4px; background: var(--well); gap: 1px; }
+  .alert .tb i { display: block; height: 100%; background: var(--platinum-deep); }
+  .alert .tb .f-grineer { background: var(--faction-grineer); }
+  .alert .tb .f-corpus { background: var(--faction-corpus); }
+  .alert .tb .f-infested, .alert .tb .f-infestation { background: var(--faction-infested); }
   .alert .end { display: grid; justify-items: end; gap: .15rem; flex: none; }
   .t-gold { box-shadow: inset 3px 0 0 var(--gold); }
   .t-red { box-shadow: inset 3px 0 0 var(--oxblood); }
@@ -823,6 +840,7 @@
   .stages { list-style: none; margin: .1rem 0 .2rem; padding: 0; display: grid; gap: .3rem; font-size: .85rem; }
   .stages li { display: flex; gap: .55rem; align-items: baseline; }
   .stages .sn { color: var(--gold); font-size: .75rem; }
+  .stages li > :global(.mi) { align-self: center; color: var(--platinum-dim); }
   .stages .nt { display: grid; }
   .stages .mod { font-size: .75rem; color: var(--platinum-dim); }
   .srl { list-style: none; margin: 0 0 .2rem; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: .15rem 1rem; font-size: .8rem; }
@@ -831,11 +849,11 @@
   .dt p { margin: 0; }
   .upd { font-size: .72rem; }
   .upd.old { color: var(--gold); }
-  .st-joy { color: var(--gold); }
-  .st-anger { color: #e07a6a; }
-  .st-envy { color: #7fc79a; }
-  .st-sorrow { color: #8fb3e0; }
-  .st-fear { color: #b49ae0; }
+  .st-joy { color: var(--cycle-warm); }
+  .st-anger { color: var(--mood-anger); }
+  .st-envy { color: var(--mood-envy); }
+  .st-sorrow { color: var(--mood-sorrow); }
+  .st-fear { color: var(--mood-fear); }
   .fromgame { margin: 0; }
   /* The same 7 + 5 split as the rows above, so the panel edges line up down the page. */
   .mastery { grid-column: span 7; grid-row: span 2; }
@@ -846,15 +864,19 @@
   .clock > div { display: grid; gap: .2rem; min-width: 0; }
   .clock .register { font-size: .6rem; }
   .clock b { font-size: 1.15rem; }
-  .st-day, .st-warm, .st-fass, .st-corpus { color: var(--gold); }
-  .st-night, .st-cold, .st-vome, .st-grineer { color: #8fb3e0; }
+  .st-day, .st-warm, .st-fass { color: var(--cycle-warm); }
+  .st-night, .st-cold, .st-vome { color: var(--cycle-cold); }
+  .st-corpus { color: var(--faction-corpus); }
+  .st-grineer { color: var(--faction-grineer); }
   .clock.reset b { color: var(--platinum); }
-  /* Eight clocks to a row: the resets' ↻ makes room for their names. */
-  .world:has(> .clock:nth-child(8)) .clock.reset > .rk { display: none; }
   /* …and slimmer columns, so all eight share a row where seven otherwise would, leaving one alone. */
   .world:has(> .clock:nth-child(8)) { grid-template-columns: repeat(auto-fit, minmax(7.4rem, 1fr)); }
+  /* Eight clocks to a row: a reset's icon moves up beside its name, leaving room for the time. */
+  .rk-sm { display: none; margin-right: .3rem; vertical-align: -1px; }
+  .world:has(> .clock:nth-child(8)) .clock.reset > .rk { display: none; }
+  .world:has(> .clock:nth-child(8)) .rk-sm { display: inline-flex; }
   .world:has(> .clock:nth-child(8)) .clock { padding-left: .7rem; padding-right: .6rem; gap: .5rem; }
-  .rk { font-size: 1.2rem; color: var(--gold-dim); width: 22px; text-align: center; }
+  .rk { display: inline-flex; width: 22px; justify-content: center; opacity: .85; }
   .rk:empty { display: none; }
   .clip1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .watch { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .7rem; margin-top: 1rem; padding-top: .9rem; border-top: 1px solid var(--rule); }
@@ -885,9 +907,9 @@
   /* Narrower: the clocks keep their icons and drop their names to stay on one row. */
   /* Page area under 1100 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt1100"]) .clock { padding: .7rem .75rem; }
-  /* The names stay (two "Night" clocks told apart only by their icons won't do), shortened; the resets lose their ↻. */
-  :global(html[data-room~="lt1100"]) .clock.reset > .rk { display: none; }
+  /* The names stay (two "Night" clocks told apart only by their icons won't do), shortened. */
   :global(html[data-room~="lt1100"]) .clock :global(.gi) { width: 22px; height: 22px; }
+  :global(html[data-room~="lt1100"]) .rk { width: auto; }
   :global(html[data-room~="lt1100"]) .clock .lft { display: none; }
   /* Page area under 930 px (App sets the flag, by the room pages actually have). */
   /* Under 1100 px, four to a row, two rows: never seven on one and the last alone on the next. */
@@ -915,11 +937,12 @@
   .chips { display: flex; flex-wrap: wrap; gap: .35rem; }
   .pick { display: inline-flex; align-items: center; gap: .4rem; padding: .2rem .55rem .2rem .25rem; border: 1px solid var(--rule); font-size: .82rem; color: var(--platinum-dim); }
   .pick.want { border-color: var(--gold-dim); color: var(--platinum); }
-  .pick em, em.want { font-style: normal; font-size: .6rem; color: var(--gold); margin-left: .25rem; }
+  .pick em, em.want { font-style: normal; display: inline-flex; font-size: .78rem; font-weight: 700; color: var(--verdigris); margin-left: .25rem; }
+  .inl { display: inline-flex; align-items: center; gap: .3rem; flex-wrap: wrap; }
   .nw { list-style: none; margin: 0; padding: 0; display: grid; gap: .25rem; }
   .nw li { display: grid; grid-template-columns: 4.2rem 1fr auto; gap: .5rem; align-items: center; font-size: .84rem; }
   .k { font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
-  .k-elite { color: var(--gold); }
+  .k-elite { color: var(--platinum); font-weight: 600; }
   .nt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fb, .dl { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
   .fb li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: .6rem; align-items: center; }
@@ -967,11 +990,12 @@
   .figs > div { display: grid; grid-template-rows: 1.75rem auto; gap: .3rem; align-content: start; align-items: center; }
   .figs > div :global(.amt b) { font-size: 1.5rem; }
   .figs b.mark { font-size: 1.5rem; line-height: 1; }
-  .figs b.warn { color: var(--gold); }
+  .figs b.amber { color: var(--alert); }
+  .bang { margin-right: .15rem; }
   .figs .register { font-size: .6rem; color: var(--platinum-deep); }
   .mini { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
   .mini li { display: flex; align-items: center; gap: .6rem; }
-  .warn { color: var(--gold); }
+  .amber { color: var(--alert); }
 
   .big { display: flex; align-items: baseline; gap: .8rem; font-size: 2.2rem; flex-wrap: wrap; }
   .kinds { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }

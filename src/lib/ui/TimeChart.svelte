@@ -111,11 +111,11 @@
         {/each}
         <text class="ax" x={PAD.l} y={H - 5}>{day(t0)}</text>
         <text class="ax" x={PAD.l + iw} y={H - 5} text-anchor="end">{day(t1)}</text>
-        {#each series as s (s.label)}<path d={path(s.values)} fill="none" stroke={s.color} stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />{/each}
+        {#each series as s (s.label)}<path d={path(s.values)} fill="none" style:stroke={s.color} stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />{/each}
         {#if many}{#each ends as e (e.label)}<text class="end" x={PAD.l + iw + 8} y={e.y + 4}>{fmt(e.v)} <tspan class="el">{e.label}</tspan></text>{/each}{/if}
         {#if hover != null}
           <line class="cross" x1={x(at[hover])} x2={x(at[hover])} y1={PAD.t} y2={PAD.t + ih} />
-          {#each series as s (s.label)}{#if s.values[hover] != null}<circle cx={x(at[hover])} cy={y(s.values[hover] as number)} r="4" fill={s.color} stroke="var(--plate)" stroke-width="2" />{/if}{/each}
+          {#each series as s (s.label)}{#if s.values[hover] != null}<circle cx={x(at[hover])} cy={y(s.values[hover] as number)} r="4" style:fill={s.color} stroke="var(--plate)" stroke-width="2" />{/if}{/each}
         {/if}
       </svg>
       {#if hover != null}

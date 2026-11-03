@@ -43,6 +43,8 @@
   const text = $derived(does.replace(/<[^>]+>/g, "").replace(/\|[A-Z_0-9]+\|/g, "").replace(/\s+/g, " ").trim());
   // Ten pips at most fit: arcanes' 5 and most mods' 3 to 10.
   const pips = $derived(Math.min(10, Math.max(0, maxRank ?? 0)));
+  // Under 100 px the pips and what it goes on are too small to read: the rank as text instead.
+  const tiny = $derived(width < 100);
 </script>
 
 <div class="mc t-{tone}" class:arcane style:--w="{width}px" title="{name}{rarity ? ` · ${rarity}` : ''}{text ? `\n${text}` : ''}">
@@ -55,25 +57,28 @@
   <div class="plate">
     <b class="nm">{name}</b>
     {#if text && width >= 110}<span class="fx">{text}</span>{/if}
-    {#if pips}<span class="pips" aria-label="Rank {rank} of {maxRank}">{#each Array.from({ length: pips }, (_, i) => i) as i (i)}<i class:on={i < rank}></i>{/each}</span>{/if}
-    {#if label}<span class="lb">{label}</span>{/if}
+    {#if tiny}{#if maxRank}<span class="rt" title="Your best copy: rank {rank} of {maxRank}">R{rank}/{maxRank}</span>{/if}
+    {:else}
+      {#if pips}<span class="pips" aria-label="Rank {rank} of {maxRank}">{#each Array.from({ length: pips }, (_, i) => i) as i (i)}<i class:on={i < rank}></i>{/each}</span>{/if}
+      {#if label}<span class="lb">{label}</span>{/if}
+    {/if}
   </div>
 </div>
 
 <style>
   .mc {
-    --edge: #b98a62;
-    --glow: rgb(185 138 98 / 22%);
+    --edge: var(--rarity-common);
+    --glow: color-mix(in srgb, var(--edge) 22%, transparent);
     width: var(--w); flex: none; display: grid; grid-template-rows: auto 1fr; position: relative;
     background: linear-gradient(180deg, #1b1e24, #0f1114);
     border: 1px solid var(--edge); border-radius: 3px 3px 10px 10px;
     box-shadow: 0 0 0 1px rgb(0 0 0 / 60%), 0 4px 14px var(--glow), inset 0 0 12px var(--glow);
     overflow: hidden; font-family: var(--face-text);
   }
-  .t-uncommon { --edge: #cfd6de; --glow: rgb(207 214 222 / 18%); }
-  .t-rare { --edge: #e9c76b; --glow: rgb(233 199 107 / 24%); }
-  .t-legendary { --edge: #eef0ff; --glow: rgb(185 170 255 / 30%); }
-  .t-riven { --edge: #b590ea; --glow: rgb(181 144 234 / 30%); }
+  .t-uncommon { --edge: var(--rarity-uncommon); --glow: color-mix(in srgb, var(--edge) 18%, transparent); }
+  .t-rare { --edge: var(--rarity-rare); --glow: color-mix(in srgb, var(--edge) 24%, transparent); }
+  .t-legendary { --edge: var(--rarity-legendary); --glow: rgb(185 170 255 / 30%); }
+  .t-riven { --edge: var(--rarity-riven); --glow: color-mix(in srgb, var(--edge) 30%, transparent); }
   .art { position: relative; height: calc(var(--w) * .72); display: grid; place-items: center; overflow: hidden; background: radial-gradient(circle at 50% 35%, #262a32, #0e1013 80%); }
   .in { position: absolute; inset: 0; display: grid; place-items: center; }
   .in > img { width: 100%; height: 100%; object-fit: cover; }
@@ -87,6 +92,7 @@
   .pips { display: flex; gap: calc(var(--w) * .022); justify-content: center; flex-wrap: wrap; margin-top: 1px; }
   .pips i { width: calc(var(--w) * .045); height: calc(var(--w) * .045); transform: rotate(45deg); border: 1px solid color-mix(in srgb, var(--edge) 60%, transparent); }
   .pips i.on { background: var(--edge); border-color: var(--edge); }
+  .rt { font-family: var(--face-register); font-size: .6rem; letter-spacing: .06em; color: var(--edge); }
   .lb { font-family: var(--face-register); font-size: calc(var(--w) * .062); letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
   /* Arcanes: the game's hexagon, art round in the middle. */
   .arcane { border-radius: 0; border: 0; box-shadow: none; background: none; overflow: visible; }
