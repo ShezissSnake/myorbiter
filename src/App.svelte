@@ -8,7 +8,7 @@
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
   import { watchlist } from "./lib/core/deals";
-  import { inventoryRows, masteryRows, relicRows, saveForSets, type SetSave } from "./lib/core/views";
+  import { arcaneRows, inventoryRows, masteryRows, modRows, partRows, relicRows, saveForSets, type SetSave } from "./lib/core/views";
   import { allSetRows, allSetSaves, inventoryValue, spareRows } from "./lib/core/spares";
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
   import { buildModel, ERAS, type Model } from "./lib/core/model";
@@ -344,12 +344,36 @@
       shownModel = bgModel = m;
       return;
     }
-    let t = setTimeout(() => {
+    // First the rows most pages share (core/memo.ts keeps them per model), one set a task, so the
+    // page's own redraw that follows finds them done.
+    const steps = untrack(() => sharedRows(m));
+    let t: ReturnType<typeof setTimeout>;
+    const next = () => {
+      const step = steps.shift();
+      if (step) {
+        step();
+        t = setTimeout(next, 0);
+        return;
+      }
       shownModel = m;
       t = setTimeout(() => (bgModel = m), 0);
-    }, 0);
+    };
+    t = setTimeout(next, 0);
     return () => clearTimeout(t);
   });
+  /** The rows of a new collection that most pages and Home ask for, as they ask for them. */
+  function sharedRows(m: Model): (() => unknown)[] {
+    const a = settings.advice;
+    const sell = settings.market.sellable;
+    return [
+      () => inventoryRows(m),
+      () => modRows(m),
+      () => arcaneRows(m),
+      () => relicRows(m, { platPerDucat: a.platPerDucat }),
+      () => partRows(m, saveForSets(sell, a.platPerDucat, drops.recent)),
+      () => spareRows(m, mkt.index, sell, a.platPerDucat, a.squad, drops.recent),
+    ];
+  }
   const modelFor = (id: string): Model => (settings.tab === id ? (shownModel ?? model) : (drawn[id] ?? shownModel ?? model))!;
   $effect.pre(() => {
     const id = settings.tab;
@@ -2554,6 +2578,12 @@
   .sidetab:hover { color: var(--gold); }
   .pane { display: none; flex: 1; min-height: 0; min-width: 0; flex-direction: column; }
   .pane.shown { display: flex; }
+  /* A page not on screen stays laid out but isn't drawn, out of the flow and the pointer's way:
+     going back to it is a repaint rather than a layout of the whole page (where content-visibility
+     isn't known, it's simply not there, as before). */
+  @supports (content-visibility: hidden) {
+    .pane:not(.shown) { display: flex; content-visibility: hidden; position: absolute; inset: 0; visibility: hidden; pointer-events: none; }
+  }
   /* The tour's bar on the page's bottom edge: room under the page to scroll past it. */
   main.touring :global(.page-inner) { padding-bottom: 7rem; }
   main { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; outline: none; }
