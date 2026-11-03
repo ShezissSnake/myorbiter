@@ -27,6 +27,29 @@
     if (cut > 20 && cut < 120) return s.slice(0, cut).trimEnd() + "…";
     return s.length > 110 ? s.slice(0, 110).replace(/\s\S*$/, "") + "…" : s;
   };
+  // Four evenings, step by step: what to open, in order, for the things players come to orbiter for.
+  const WALKS: { title: string; steps: [tab: string, page: string, what: string][] }[] = [
+    { title: "A relic evening", steps: [
+      ["home", "Home", "Fissures now: each era's best relic of yours (+2 for the next ones), Recruit for a squad line"],
+      ["relics", "Relics", "refine what's worth it; your Void Traces and the cap are at the top"],
+      ["mission", "Current fissure", "the squad's relics as the mission loads, the reward to take on the reward screen, and the session so far"],
+      ["parts", "Prime parts", "what you got: sell, keep for a set, or ducats"],
+    ] },
+    { title: "A selling day", steps: [
+      ["market", "Orders", "Put my spares on sale (top, folded): Plan, look it over, Apply; it ticks off as it goes"],
+      ["market", "Orders", "Check prices, then Reprice; sort the table by any column"],
+      ["market", "Orders", "a buyer whispers: Whispered you, Invite; mark it Sold. Out of trades? Go invisible until 00:00 UTC"],
+      ["sales", "Sales", "what it made"],
+    ] },
+    { title: "A mastery push", steps: [
+      ["mastery", "Mastery", "easiest first, or what to buy with plat"],
+      ["foundry", "Foundry", "what's building, what you can build, star what you're after"],
+      ["wishlist", "Wishlist", "the relics for each missing part, and what buying it costs"],
+    ] },
+    { title: "The weekly round", steps: [
+      ["home", "Home", "Worth doing today: tick each chore as you do it (they clear at the reset); Baro, Varzia, the Sortie, the Archon, Archimedea, Nightwave"],
+    ] },
+  ];
   const ROUTINES: { title: string; steps: Step[] }[] = [
     {
       title: "Each session",
@@ -125,6 +148,16 @@
   </section>
 {:else}
   <PageHead title="Guide" blurb="What each page is for. orbiter runs TennoScope for you in the background." />
+
+  <section class="walks" aria-label="Walkthroughs">
+    {#each WALKS as w (w.title)}
+      <article>
+        <h2 class="mark">{w.title}</h2>
+        <ol>{#each w.steps as [tab, page, what], i (i)}<li><button class="link" onclick={() => go(tab)} title="Open {page}">{page}</button> <span class="dim">{what}</span></li>{/each}</ol>
+      </article>
+    {/each}
+    <p class="dim small hidden-pages">Planner, Browse market and Stats start out of the sidebar, to keep it short: put them back in Settings → Pages. Links to them still work.</p>
+  </section>
 
   <section class="routines">
     {#each ROUTINES as r (r.title)}
@@ -237,6 +270,11 @@
 </div></div>
 
 <style>
+  .walks { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1rem 1.6rem; margin: 0 0 var(--course); }
+  .walks article { padding: .8rem 1rem; border: 1px solid var(--rule); background: var(--plate); }
+  .walks h2 { font-size: 1.05rem; margin: 0 0 .5rem; }
+  .walks ol { margin: 0; padding-left: 1.1rem; display: grid; gap: .35rem; font-size: .86rem; }
+  .walks .hidden-pages { grid-column: 1 / -1; margin: 0; }
   .news { margin-top: var(--course); display: grid; gap: .5rem; max-width: 80ch; }
   .news h4 { margin: .6rem 0 0; font-size: .6rem; color: var(--platinum-deep); }
   .news ul { margin: 0; padding-left: 1.1rem; display: grid; gap: .35rem; font-size: .86rem; color: var(--platinum-dim); line-height: 1.5; }

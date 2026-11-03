@@ -6,6 +6,7 @@
   import type { Model } from "../core/model";
   import type { Live, MissionState } from "../core/types";
   import type { Settings } from "../backend";
+  import { defaultAdvice } from "../backend";
   import { heldFor, type MyOrder } from "../core/market";
   import { mkt } from "../marketStore.svelte";
   import { masteryRows, relicRows, type RelicRow } from "../core/views";
@@ -358,6 +359,16 @@
     return out;
   };
 
+  // ---------------------------------------------------------------- start here
+  // The few things that make the rest of orbiter work, ticked as they're done.
+  const startSteps = $derived([
+    { label: "Sign in to warframe.market", why: "to list, reprice and see your orders", hint: "On Orders: orbiter keeps its own sign-in", done: mkt.linked, go: () => go("market") },
+    { label: "Set your rates", why: "what a ducat is worth to you, and the smallest sale worth a trade", hint: "Prime parts → Your rates", done: settings.advice.platPerDucat !== defaultAdvice().platPerDucat || settings.advice.minPlat !== defaultAdvice().minPlat, go: () => go("parts") },
+    { label: "Star what you're after", why: "Wishlist shows the relics for each missing part", hint: "The ☆ on any card in Foundry or Mastery", done: settings.favourites.length > 0, go: () => go("foundry") },
+    { label: "Add a fissure alert", why: "a notification when a fissure you want opens", hint: "Fissures now → Add alert", done: settings.fissureRules.length > 0, go: () => { setTimeout(() => document.querySelector<HTMLElement>('[data-card="fissures"]')?.scrollIntoView({ block: "center" }), 0); } },
+    { label: "Choose Home's cards", why: "hide what you don't use", hint: "The ⚙ by the date", done: settings.homeHidden.length > 0, go: () => (customising = true) },
+  ]);
+
   // ---------------------------------------------------------------- what Home shows (Customise)
   const CARDS: { key: string; label: string; hint: string; consoleHint?: string }[] = [
     { key: "alerts", label: "Needs you", hint: "Alerts and invasions worth a look, listings to fix, Varzia's rotation ending", consoleHint: "Alerts and invasions with rare rewards" },
@@ -427,6 +438,18 @@
       <IconButton icon="settings" tone="quiet" label="Customise Home" title="Choose what Home shows" aria-expanded={customising} onclick={() => (customising = !customising)} />
     </div>
   </header>
+
+  {#if startSteps.some((x) => !x.done) && !settings.startDone && !console}
+    <!-- First days with orbiter: the few things that make the rest of it work, each a click away. -->
+    <section class="start" aria-label="Start here">
+      <header><span class="register">Start here</span><span class="dim small">{startSteps.filter((x) => x.done).length} of {startSteps.length} done</span><button type="button" class="link quiet small" title="Put this card away (it goes on its own once every step is done)" onclick={() => (settings.startDone = true)}>Not now</button></header>
+      <ol>
+        {#each startSteps as x (x.label)}
+          <li class:done={x.done}><span class="box" aria-hidden="true">{#if x.done}<Icon name="check" size={11} />{/if}</span><button type="button" class="link" disabled={x.done} title={x.hint} onclick={x.go}>{x.label}</button><span class="dim small">{x.why}</span></li>
+        {/each}
+      </ol>
+    </section>
+  {/if}
 
   {#if customising}
     <section class="custom" aria-label="What Home shows">
@@ -1052,6 +1075,14 @@
   :global(html[data-room~="lt760"]) .clock:nth-child(n + 5) { border-top: 1px solid var(--rule); }
   .tgrid { display: grid; gap: .9rem; }
   .tblock { display: grid; gap: .35rem; }
+  .start { margin: 0 0 var(--step); padding: .8rem 1rem; border: 1px solid var(--rule-bright); border-left: 2px solid var(--gold); background: var(--plate); }
+  .start header { display: flex; align-items: baseline; gap: .8rem; margin-bottom: .5rem; }
+  .start header .link { margin-left: auto; }
+  .start ol { list-style: none; margin: 0; padding: 0; display: grid; gap: .35rem; }
+  .start li { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+  .start .box { flex: none; width: 1.05rem; height: 1.05rem; display: grid; place-items: center; border: 1px solid var(--rule-control); color: var(--verdigris); }
+  .start li.done .box { border-color: var(--verdigris); }
+  .start li.done .link { color: var(--platinum-deep); text-decoration: line-through; }
   .th { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
   /* The chore tick at the end of each heading: an empty box, a green tick once done. */
   .tick { all: unset; box-sizing: border-box; margin-left: auto; flex: none; width: 1.3rem; height: 1.3rem; display: grid; place-items: center; border: 1px solid var(--rule-control); color: transparent; cursor: pointer; }

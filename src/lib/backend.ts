@@ -165,6 +165,8 @@ export interface Settings {
    * columns. Off: the pages say the essentials and the rest is on hover (lib/view.svelte.ts).
    */
   details: boolean;
+  /** Home's Start here card put away (it also goes once every step is done). */
+  startDone: boolean;
   /** Home's chores ticked off by hand: chore → the reset the tick was for (core/chores.ts). */
   chores: Record<string, number>;
   /** The sidebar's order, when you changed it (Settings → Pages): page ids. */
@@ -387,6 +389,7 @@ export const defaultSettings = (): Settings => ({
   simplified: 1,
   details: false,
   chores: {},
+  startDone: false,
   pageOrder: [],
   startPage: "last",
   tab: "home",
@@ -728,6 +731,7 @@ export async function loadSettings(): Promise<Settings> {
     homeFissures: raw?.homeFissures === "steel" || raw?.homeFissures === "storm" ? raw.homeFissures : "normal",
     homeFissuresOnly: raw?.homeFissuresOnly === true,
     details: raw?.details === true,
+    startDone: raw?.startDone === true,
     chores: raw?.chores && typeof raw.chores === "object" && !Array.isArray(raw.chores) ? Object.fromEntries(Object.entries(raw.chores).filter(([, v]) => typeof v === "number" && v > Date.now())) as Record<string, number> : {},
     homeHidden: Array.isArray(raw?.homeHidden) ? raw.homeHidden.filter((k: unknown): k is string => typeof k === "string") : [],
     plannerMode: raw?.plannerMode === "radiant" ? "radiant" : "sets",
