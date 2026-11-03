@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildModel } from "../src/lib/core/model";
 import { masteryRows } from "../src/lib/core/views";
+import { collection } from "../src/lib/core/collection";
 import { masteryPoints } from "../src/lib/core/acquire";
 import { baroStock, until } from "../src/lib/core/traders";
 import type { Bundle, CatalogItem, InventoryRow } from "../src/lib/core/types";
@@ -139,6 +140,10 @@ test("a captured Infested companion is one revive away; a listed Plexus is yours
   assert.equal(r.get("Sly Vulpaphyla")!.status, "build");
   assert.match(r.get("Sly Vulpaphyla")!.acq.how, /revive it with Son/);
   assert.equal(r.get("Plexus")!.status, "level");
+  // Owned the same way everywhere: Foundry's collection counts it as Mastery and Home do.
+  const listed = buildModel({ observed_at: 1, inventory: held, catalog: cat, relics: [], prices: {} } as unknown as Bundle);
+  assert.equal(listed.owned(PLEXUS), 1);
+  assert.equal(collection(listed).find((x) => x.name === "Plexus")?.owned, true);
   // Not listed at all: still to get.
   const none = masteryRows(buildModel({ observed_at: 1, inventory: [], catalog: cat, relics: [], prices: {} } as unknown as Bundle)).find((x) => x.name === "Plexus")!;
   assert.equal(none.status, "missing");

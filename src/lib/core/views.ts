@@ -447,12 +447,8 @@ export function masteryRows(m: Model): MasteryRow[] {
   return rows;
 }
 
-/** The Railjack's Plexus. The game lists it (with its XP) once you have one, but with no count. */
-const PLEXUS = "/Lotus/Types/Game/CrewShip/RailJack/DefaultHarness";
-
 export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
-  // It can't be sold, so being listed at all means you have it.
-  const owned = m.owned(item.uniqueName) > 0 || (item.uniqueName === PLEXUS && m.inventoryByBase.has(PLEXUS));
+  const owned = m.owned(item.uniqueName) > 0;
   const parts = m.partsByParent.get(item.uniqueName) ?? [];
   const isPrime = parts.length > 0 || item.isPrime === true;
   let partsOwned = 0;

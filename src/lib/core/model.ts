@@ -262,6 +262,11 @@ export const EXTRA_MASTERABLE: CatalogItem[] = [
   {"uniqueName": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelBeam/InfModularBarrelBeamPart", "name": "Vermisplicer", "category": "Misc", "type": "Kitgun Component", "masterable": true, "tradable": false},
   {"uniqueName": "/Lotus/Types/Game/CrewShip/RailJack/DefaultHarness", "name": "Plexus", "category": "Misc", "type": "Plexus", "masterable": true, "tradable": false}
 ];
+/**
+ * The Railjack's Plexus. The game lists it (with its XP) once you have one, but with no count: being
+ * listed at all means you have one, on every page that asks what you own.
+ */
+const PLEXUS = "/Lotus/Types/Game/CrewShip/RailJack/DefaultHarness";
 /** Held as something else: the game gives the Mote Amp as a built training amp. */
 const HELD_AS: Record<string, string> = { "/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/SentAmpTrainingBarrel": "/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/OperatorTrainingAmpWeapon" };
 
@@ -334,7 +339,10 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
   /** Items being built in the foundry (filled in below, once the parts are known). */
   const building = new Map<string, number>();
   const held = (unique: string) => (inventoryByBase.get(unique) ?? []).reduce((n, r) => n + r.quantity, 0);
-  const owned = (unique: string) => held(unique) + (HELD_AS[unique] ? held(HELD_AS[unique]) : 0) + (building.get(unique) ?? 0);
+  const owned = (unique: string) => {
+    const n = held(unique) + (HELD_AS[unique] ? held(HELD_AS[unique]) : 0) + (building.get(unique) ?? 0);
+    return n === 0 && unique === PLEXUS && inventoryByBase.has(PLEXUS) ? 1 : n;
+  };
 
   const resurgence = new Set<string>(
     (live.resurgence ?? []).map((v) => normaliseStoreUnique(v.uniqueName)),
