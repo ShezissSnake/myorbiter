@@ -3,7 +3,7 @@
   // game shows its own. The update's date as a stamp, its biggest change struck large with Show me,
   // the rest of it as rows, earlier days folded under their dates; Take the tour steps through
   // every change since you last looked, each on its page. The Guide lists each day whole instead. "Got it", Esc or a click outside closes it, and it counts as seen.
-  import { fade } from "svelte/transition";
+  import { calm, shade } from "./motion";
   import { sinceSeen, type NewsItem } from "./whatsNew";
   import { pageById, type PageId } from "./pages";
   import { parseTarget } from "./intent.svelte";
@@ -15,7 +15,6 @@
 
   // go: opens a page (Show me, or a page named in the text), and closes this.
   let { open = $bindable(), seen, ondone, go = null }: { open: boolean; seen: string; ondone: () => void; go?: ((to: string) => void) | null } = $props();
-  const still = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
   // At most the last three entries: someone back after months doesn't need the whole history.
   const since = $derived(sinceSeen(seen));
@@ -47,12 +46,12 @@
 
 {#if open && latest}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="scrim" onclick={close} transition:fade={{ duration: still ? 0 : 150 }}></div>
+  <div class="scrim" onclick={close} in:shade out:shade></div>
   <!-- Modal while open; on its way out it lets go, so the tour's keys work at once. -->
-  <div class="update" role="dialog" aria-modal={open ? "true" : undefined} aria-labelledby="upd-title" tabindex="-1" use:trap={{ onescape: close }} transition:fade={{ duration: still ? 0 : 150 }}>
+  <div class="update" role="dialog" aria-modal={open ? "true" : undefined} aria-labelledby="upd-title" tabindex="-1" use:trap={{ onescape: close }} in:shade out:shade>
     <header class="top">
       <!-- The update's date, stamped on. -->
-      <div class="stamp-date" class:still title="This update came out on {date(latest.date).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}">
+      <div class="stamp-date" class:still={calm.current} title="This update came out on {date(latest.date).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}">
         <span class="register">Update</span>
         <b class="mark">{date(latest.date).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</b>
         <span class="register">{date(latest.date).getUTCFullYear()}</span>

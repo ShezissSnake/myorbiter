@@ -10,6 +10,7 @@
     title,
     tone = "",
     size = 14,
+    class: cls = "",
     ...rest
   }: {
     icon: string;
@@ -23,4 +24,4 @@
   } & Omit<HTMLButtonAttributes, "title"> = $props();
 </script>
 
-<button type="button" class="ib {tone}" aria-label={label} title={title ?? label} {...rest}><Icon name={icon} {size} /></button>
+<button type="button" class="ib {tone} {cls}" aria-label={label} title={title ?? label} {...rest}><Icon name={icon} {size} /></button>

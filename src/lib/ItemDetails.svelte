@@ -25,6 +25,7 @@
   import GameIcon, { eraIcon, kindIcon } from "./ui/GameIcon.svelte";
   import Metal from "./ui/Metal.svelte";
   import ListButton from "./ui/ListButton.svelte";
+  import { pop } from "./motion";
 
   let { model, settings = $bindable() }: { model: Model; settings: Settings } = $props();
 
@@ -153,7 +154,7 @@
         </div>
         <div class="detail-acts">
           {#if tradeName && setsHeld > 0 && bookState !== "missing"}<ListButton {model} labelled name={tradeName} req={{ quantity: setsHeld }} />{/if}
-          <button class="star" class:on={fav} title={fav ? "On your wishlist: click to take it off" : "Add it to your wishlist (Wishlist, and ★ on Foundry)"} onclick={toggleFav}>{fav ? "★ On your wishlist" : "☆ Add to wishlist"}</button>
+          <button class="star" class:on={fav} title={fav ? "On your wishlist: click to take it off" : "Add it to your wishlist (Wishlist, and ★ on Foundry)"} onclick={toggleFav}><span class="glyph" aria-hidden="true" use:pop={{ on: fav, of: item.uniqueName }}>{fav ? "★" : "☆"}</span> {fav ? "On your wishlist" : "Add to wishlist"}</button>
           <button title="Its page on the official wiki" onclick={() => openUrl(item.wikiaUrl ?? wikiUrl(item.name))}>Wiki</button>
           {#if tradeName && bookState !== "missing"}<button title="Its page on warframe.market: orders and price history" onclick={() => openUrl(marketUrl(tradeName ?? item.name))}>warframe.market</button>{/if}
         </div>
@@ -308,6 +309,8 @@
   .facts { display: flex; gap: 1.2rem; align-items: center; font-size: .86rem; }
   .facts span { display: inline-flex; align-items: center; gap: .35rem; }
   .star.on { color: var(--gold); border-color: var(--gold-dim); }
+  /* The ★ itself pops as it fills (motion.ts, pop). */
+  .star .glyph { display: inline-block; }
   .history { margin-top: .8rem; }
   .market { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); border: 1px solid var(--rule); background: var(--well); }
   .cell { display: grid; gap: .35rem; padding: .8rem 1rem; align-content: start; }

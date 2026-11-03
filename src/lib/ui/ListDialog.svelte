@@ -13,6 +13,7 @@
   import GameIcon from "./GameIcon.svelte";
   import ProgressButton from "./ProgressButton.svelte";
   import { trap } from "./trap";
+  import { opens, shade } from "../motion";
 
   // market: your Orders settings, so the form can say when a price is under the floor the
   // repricer holds listings at.
@@ -113,9 +114,9 @@
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="scrim" onclick={() => mkt.closeDraft()}>
+  <div class="scrim" in:shade|global out:shade|global onclick={() => mkt.closeDraft()}>
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <div class="dialog" role="dialog" tabindex="-1" aria-modal="true" aria-label="Sell on warframe.market" use:trap={{ onescape: () => mkt.closeDraft() }} onclick={(e) => e.stopPropagation()}>
+    <div class="dialog" role="dialog" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} tabindex="-1" aria-modal="true" aria-label="Sell on warframe.market" use:trap={{ onescape: () => mkt.closeDraft() }} onclick={(e) => e.stopPropagation()}>
       <div class="register head">Sell on warframe.market</div>
 
       {#if mkt.draftDone && !d}

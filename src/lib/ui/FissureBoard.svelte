@@ -16,6 +16,7 @@
   import { eraTint } from "./table";
   import { recruitLine } from "../core/recruit";
   import CopyButton from "./CopyButton.svelte";
+  import { reveal } from "../motion";
 
   type Pick = { name: string; refinement: string; held: string; plat: number; radiant: number };
   /** Your best relic for the era, and the next ones (`more`) behind a click. */
@@ -86,15 +87,15 @@
           {#if sv}<span class="saving" title="Your {some(sv.relics)} drop{sv.relics.length === 1 ? 's' : ''} a part still missing from {some(sv.sets.map((x) => `the ${x} Set`), 6)}, which your loose parts are waiting for (Sets → Saving up)">{sv.sets.length === 1 ? `for ${sv.sets[0]}` : `${sv.sets.length} sets`}</span>{/if}
           <span class="grow"></span>
           {#if b}<span class="best" title="Your relic whose crack is worth most here ({b.held}), and the average platinum of the reward you'd take"><span class="dim small crackw">Crack</span> <b use:info={b.name}>{b.name}</b> <span class="dim small refw">{b.refinement}</span> <span class="pv"><P v={b.plat} /></span></span><!-- Recruit: the line for a squad sharing your best relic of the era, on the clipboard. --><CopyButton look="chip" class="recruit" text={recruitLine(b.name, b.refinement)} label="Recruit" title="Copy a recruiting line for a squad sharing {b.name} ({recruitLine(b.name, b.refinement)}): paste it in Recruiting chat" />{/if}
-          {#if b?.more?.length}<button type="button" class="moreb" aria-expanded={opened === e.era} title="Your next best {e.era} relics to bring{opened === e.era ? '' : ` (${b.more.length} more)`}" onclick={() => (opened = opened === e.era ? null : e.era)}>{opened === e.era ? "▴" : `+${b.more.length} ▾`}</button>{/if}
+          {#if b?.more?.length}<button type="button" class="moreb" aria-expanded={opened === e.era} title="Your next best {e.era} relics to bring{opened === e.era ? '' : ` (${b.more.length} more)`}" onclick={() => (opened = opened === e.era ? null : e.era)}>{#if opened !== e.era}+{b.more.length} {/if}<span class="chev" aria-hidden="true">▾</span></button>{/if}
         </header>
         {#if b && opened === e.era}
           <!-- What else to bring: the next best relics you hold for this era, and how many radiant (to host a radshare). -->
-          <ol class="also">
+          <div class="reveal" transition:reveal><ol class="also">
             {#each [b, ...(b.more ?? [])] as x, k (x.name)}
               <li><span class="dim small">{k + 1}</span><b use:info={x.name}>{x.name}</b><span class="dim small">{x.refinement}</span><span class="pv"><P v={x.plat} /></span><span class="dim small" title="Radiant copies you hold: four of one relic, radiant, is a radshare">{x.radiant} radiant</span></li>
             {/each}
-          </ol>
+          </ol></div>
         {/if}
         <ul>
           {#each e.list as f (f.id)}

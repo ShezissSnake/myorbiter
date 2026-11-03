@@ -23,6 +23,7 @@
   import CodexRings from "../ui/CodexRings.svelte";
   import { codexRings, starredBy } from "../core/codex";
   import type { Group } from "../core/collection";
+  import { calm } from "../motion";
 
   let { model, settings = $bindable(), go = null }: { model: Model; settings: Settings; go?: ((to: string) => void) | null } = $props();
 
@@ -88,7 +89,7 @@
   function jump(g: Group) {
     const el = document.querySelector<HTMLElement>(`.wish[data-groups~="${g}"]`);
     if (!el) return;
-    el.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    el.scrollIntoView({ behavior: calm.current ? "auto" : "smooth", block: "start" });
     el.querySelector<HTMLElement>("button.nm")?.focus({ preventScroll: true });
   }
   // The next thing to do: what's ready to build, else what's closest (fewest parts missing).

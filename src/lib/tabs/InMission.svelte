@@ -18,6 +18,7 @@
   import { inFissure } from "../core/mission";
   import CopyButton from "../ui/CopyButton.svelte";
   import Art from "../ui/Art.svelte";
+  import { arrive, reveal } from "../motion";
 
   // The score weights are set in Settings → Fissures (something you set once, not look at in a
   // fissure): here they're only named, with the way there.
@@ -271,7 +272,7 @@
         <thead><tr><th title="Its place in the pick order, best first">#</th>{#if !onScreen}<th class="right" title="0–100: the weighted average of the four bars">Score</th><th class="bc" title="The four marks behind the score: plat · unmastered · ducats · completes a set">Score split</th>{/if}<th>Reward</th><th title="The squad relics that can give it. The letter after each is its refinement: I intact, E exceptional, F flawless, R radiant">From</th>{#if anyHeld}<th class="right" title="Copies you already hold">Held</th>{/if}<th class="right">Plat</th><th class="right">Ducats</th></tr></thead>
         <tbody>
           {#each showAll ? ranked : ranked.slice(0, TOP) as x, i (x.name)}
-            <tr class="rar-{x.rarity}" class:need={x.needed} class:yours={yours.has(x.name)}>
+            <tr class="rar-{x.rarity}" class:need={x.needed} class:yours={yours.has(x.name)} in:arrive>
               <td class="rank" title={x.rarity ? `${x.rarity} reward` : undefined}>{i + 1}</td>
               {#if !onScreen}
                 <td class="sc">{x.score}</td>
@@ -291,8 +292,8 @@
 
     {#if share}<p class="share small" class:off={!share.matched} title={share.matched ? "All four players brought the same relic at the same refinement: four rolls on one reward table" : `A 4b4 is four of one relic at one refinement. ${share.text.endsWith("different relics") ? "Each of the squad brought a different relic or refinement" : `Most of the squad brought ${share.main}; the odd ones out (${share.off.join(", ")}) roll on a different table`}`}>{share.text}</p>{/if}
     <!-- Each relic's own rewards, a click away: the list above already says what to take. -->
-    <h2 class="register relhead"><button class="link" aria-expanded={showRelics} onclick={() => (showRelics = !showRelics)} title="Each relic in the squad with its rewards and odds">{showRelics ? "▾" : "▸"} The squad's relics · {relics.length}</button>{#if showRelics}<span class="legend">Gold: a part you still need · dimmed: you've mastered what it builds · the edge: its rarity (bronze common, silver uncommon, gold rare)</span>{/if}</h2>
-    {#if showRelics}<section class="cards">{#each relics as r, i (r.path + i)}{@render relicCard(r)}{/each}</section>{/if}
+    <h2 class="register relhead"><button class="link" aria-expanded={showRelics} onclick={() => (showRelics = !showRelics)} title="Each relic in the squad with its rewards and odds"><span class="chev side" aria-hidden="true">▸</span> The squad's relics · {relics.length}</button>{#if showRelics}<span class="legend">Gold: a part you still need · dimmed: you've mastered what it builds · the edge: its rarity (bronze common, silver uncommon, gold rare)</span>{/if}</h2>
+    {#if showRelics}<div class="reveal" transition:reveal><section class="cards">{#each relics as r, i (r.path + i)}{@render relicCard(r)}{/each}</section></div>{/if}
   {:else if !onScreen}
     <div class="empty" class:compact={history.length > 0}>
       <p>Start a void fissure and the squad's relics show up here as the mission loads. Warframe writes them to its log, and orbiter only reads that file.</p>

@@ -130,6 +130,7 @@
   import { view } from "./lib/view.svelte";
   import { parseTarget, setIntent } from "./lib/intent.svelte";
   import { ts } from "./lib/tennoscopeStore.svelte";
+  import { calm as reducedMotion } from "./lib/motion";
 
   /** Your choice from the fold button (kept in settings); until you make one, it folds by itself in a narrow window. */
   let width = $state(typeof window === "undefined" ? 1600 : window.innerWidth);
@@ -644,7 +645,7 @@
    */
   function spotlight(el: HTMLElement, hold: boolean): { cancel(): void } {
     lit?.cancel();
-    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const still = reducedMotion.current;
     const behavior = still ? "auto" : "smooth";
     const page = el.closest<HTMLElement>(".page");
     const rail = el.closest<HTMLElement>(".rail");

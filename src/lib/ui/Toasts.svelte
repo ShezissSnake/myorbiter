@@ -1,7 +1,8 @@
 <script lang="ts">
   // Notifications that arrive while you're looking at orbiter: bottom left by the sidebar, newest on top, each
   // gone after a few seconds (hovering or focusing it holds it). Click one to open what it's about.
-  import { fly, fade } from "svelte/transition";
+  import { fly } from "svelte/transition";
+  import { calm, leave, ms, out, SETTLE } from "../motion";
   import { toasts } from "../toasts.svelte";
   import { noticeKind } from "../notices";
   import GameIcon from "./GameIcon.svelte";
@@ -13,13 +14,12 @@
   // that open on the right.
   // acts: a notification's own controls under its text (a sale's +rep), from App.
   let { open, left = "1rem", acts }: { open: (id: string) => void; left?: string; acts?: Snippet<[Notice]> } = $props();
-  const still = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 </script>
 
 <div class="toasts" style:left role="region" aria-label="Notifications" aria-live="polite">
   {#each toasts.list as n (n.id)}
     {@const k = noticeKind[n.kind]}
-    <div class="toast" role="status" in:fly={{ x: still ? 0 : -24, duration: still ? 0 : 220 }} out:fade={{ duration: still ? 0 : 160 }}
+    <div class="toast" role="status" in:fly={{ x: -24, duration: ms(SETTLE), easing: out }} out:leave
       onpointerenter={() => toasts.hold(n.id)} onpointerleave={() => toasts.arm(n.id)} onfocusin={() => toasts.hold(n.id)} onfocusout={() => toasts.arm(n.id)}>
       <button class="body" title="Open what it's about" onclick={() => open(n.id)}>
         <span class="ic"><GameIcon name={k?.icon ?? "market"} size={22} /></span>
@@ -27,7 +27,7 @@
       </button>
       <button class="x" aria-label="Dismiss" title="Dismiss (it stays under the bell)" onclick={() => toasts.dismiss(n.id)}><Icon name="close" size={11} /></button>
       {#if acts}<div class="nacts">{@render acts(n)}</div>{/if}
-      <i class="timer" class:still aria-hidden="true"></i>
+      <i class="timer" class:still={calm.current} aria-hidden="true"></i>
     </div>
   {/each}
 </div>

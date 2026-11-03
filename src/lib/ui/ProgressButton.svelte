@@ -181,7 +181,7 @@
   .bang { display: inline-grid; place-items: center; width: 1.05em; height: 1.05em; border: 1px solid currentColor; font-family: var(--face-register); font-size: .62rem; font-weight: 700; line-height: 1; }
 
   /* The fill: grows from the left behind the label, clipped by the button's own cut shape. */
-  .fill { position: absolute; inset: 0; transform-origin: left center; transform: scaleX(0); background: rgb(230 233 238 / 13%); opacity: 0; pointer-events: none; transition: transform .35s cubic-bezier(.2, .7, .3, 1), opacity .45s ease; }
+  .fill { position: absolute; inset: 0; transform-origin: left center; transform: scaleX(0); background: rgb(230 233 238 / 13%); opacity: 0; pointer-events: none; transition: transform var(--settle) var(--out), opacity var(--settle); }
   .fill.on { opacity: 1; }
   .gold > .fill, .ib.gold > .fill { background: rgb(214 174 74 / 22%); }
   /* No total yet: a band sweeps across instead. */
@@ -192,7 +192,7 @@
   .ib > .fill { inset: auto 0 0 0; height: 2px; background: var(--gold); }
   .ib > .fill.sweep { background: linear-gradient(90deg, transparent, var(--gold), transparent); background-size: 50% 100%; background-repeat: no-repeat; }
   /* A link: a hairline under the words. */
-  .hair { position: absolute; left: 0; right: 0; bottom: 2px; height: 1px; background: currentColor; transform-origin: left center; transform: scaleX(0); opacity: 0; transition: transform .35s ease, opacity .3s; }
+  .hair { position: absolute; left: 0; right: 0; bottom: 2px; height: 1px; background: currentColor; transform-origin: left center; transform: scaleX(0); opacity: 0; transition: transform var(--settle) var(--out), opacity var(--settle); }
   .hair.on { opacity: .8; }
   .hair.sweep { transform: none; background: linear-gradient(90deg, transparent, currentColor, transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: pb-sweep 1.2s ease-in-out infinite; }
   .link.pb { overflow: visible; }
@@ -223,7 +223,7 @@
   .pb.link.failed { border: 0; }
   .pb.ib.quiet.done, .pb.ib.quiet.failed { border-color: transparent; }
 
-  .flash { animation: pb-flash .7s ease-out; }
+  .flash { animation: pb-flash calc(var(--settle) * 3) ease-out; }
   @keyframes pb-flash { 0%, 40% { box-shadow: inset 0 0 0 1px var(--gold), var(--struck); } 100% { box-shadow: var(--struck); } }
 
   .pbw { display: inline-grid; gap: .25rem; justify-items: start; min-width: 0; }
