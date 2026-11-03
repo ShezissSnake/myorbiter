@@ -8,6 +8,7 @@
 //   (`catchUp`), so the next visit finds them current, and a visit catches up at once anyway.
 // What a page shows is always what the same rows would be worked out fresh: only *when* changes.
 import { untrack } from "svelte";
+import { sinceInput } from "./motion";
 
 let current: () => string = () => "";
 /** App: where to read the page on screen from (its tab, a reactive read). */
@@ -61,18 +62,56 @@ function held<T>(visible: () => boolean, f: () => T, tick: () => number): () => 
   return () => out;
 }
 
+/** No click or key for this long: the user is reading, not about to click again (ms). */
+export const QUIET_MS = 1000;
+
 /**
- * Runs `f` once the app is really idle: an idle period with room for a slice of work (`room` ms),
- * so a slice doesn't start just before the next frame or a click. Where there's no
- * requestIdleCallback (WebKitGTK), a little later instead.
+ * Whether background work may start now: an idle period with room for a slice (`room` ms), and no
+ * click or key in the last `quiet` ms (a click often comes in a burst, Radshare then Platinum; work
+ * started between them makes the second one wait). Past the idle callback's own timeout, at once.
+ */
+export function idleReady(left: number, since: number, room = 30, quiet = QUIET_MS, timedOut = false): boolean {
+  return timedOut || (left >= room && since >= quiet);
+}
+
+/**
+ * Runs `f` once the app is really idle: an idle period with room for a slice of work (`room` ms), so
+ * a slice doesn't start just before the next frame or a click, and a quiet moment after the last
+ * click or key (`idleReady`). Where there's no requestIdleCallback (WebKitGTK), a little later
+ * instead, once it's quiet.
  */
 export function whenIdle(f: () => void, room = 30): () => void {
+  let id = 0;
+  let wait: ReturnType<typeof setTimeout> | undefined;
+  let done = false;
+  const cancel = () => {
+    done = true;
+    clearTimeout(wait);
+    if (id && typeof window !== "undefined" && "cancelIdleCallback" in window) window.cancelIdleCallback(id);
+  };
+  /** Not quiet yet: look again once it could be. */
+  const later = (ask: () => void) => (wait = setTimeout(ask, Math.max(50, QUIET_MS - sinceInput())));
   if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-    let id = 0;
-    const ask = () => (id = window.requestIdleCallback((d) => (d.timeRemaining() >= room || d.didTimeout ? f() : ask()), { timeout: 10_000 }));
+    const ask = () => {
+      if (done) return;
+      id = window.requestIdleCallback(
+        (d) => {
+          if (done) return;
+          if (idleReady(d.timeRemaining(), sinceInput(), room, QUIET_MS, d.didTimeout)) f();
+          else if (sinceInput() < QUIET_MS) later(ask);
+          else ask();
+        },
+        { timeout: 10_000 },
+      );
+    };
     ask();
-    return () => window.cancelIdleCallback(id);
+    return cancel;
   }
-  const id = setTimeout(f, 300);
-  return () => clearTimeout(id);
+  const tick = () => {
+    if (done) return;
+    if (sinceInput() >= QUIET_MS) f();
+    else later(tick);
+  };
+  wait = setTimeout(tick, 300);
+  return cancel;
 }

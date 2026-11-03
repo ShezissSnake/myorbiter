@@ -68,6 +68,7 @@
   } from "./lib/backend";
   import { persistSettings } from "./lib/persist.svelte";
   import { catchUp, setShownPage, whenIdle } from "./lib/pane.svelte";
+  import { inBackground } from "./lib/progress.svelte";
   import { backoff, handLoggedSale, keepSeen, thinHistory } from "./lib/core/upkeep";
   import Parts from "./lib/tabs/Parts.svelte";
   // Pages opened now and then load when first opened, so the app starts on less: Home, Orders,
@@ -176,21 +177,34 @@
   // Once the app is idle after starting, open the other pages in the background one at a time, so
   // the first visit to each is as quick as switching back to it. Rivens waits for a visit: opening
   // it asks warframe.market for its riven list.
+  // Each page a slice of its own, in a quiet moment (no click for a second, lib/pane.svelte.ts): a
+  // page loaded on demand has its code fetched first and is drawn in a later slice, so its arrival
+  // doesn't land on top of another page's first draw.
   let warmed = false;
+  const lazyPages: Partial<Record<string, () => Promise<unknown>>> = {
+    sets: loadSets, mastery: loadMastery, arcanes: loadArcanes, mods: loadMods, planner: loadPlanner, sales: loadSales,
+    guide: loadGuide, browse: loadMarket, stats: loadStats, wishlist: loadWishlist,
+  };
   $effect(() => {
     if (!model || warmed) return;
     warmed = true;
     const queue = available.map((p) => p.id).filter((id) => id !== "rivens");
-    const idle = (f: () => void) =>
-      "requestIdleCallback" in window ? window.requestIdleCallback(f, { timeout: 3000 }) : setTimeout(f, 250);
     const next = () => {
       const id = queue.shift();
       if (!id) return;
-      if (!visited[id]) visited[id] = true;
-      if (model && !drawn[id]) drawn = { ...drawn, [id]: model };
-      idle(next);
+      if (visited[id]) return void whenIdle(next);
+      const load = lazyPages[id];
+      const draw = () => {
+        inBackground(() => {
+          if (!visited[id]) visited[id] = true;
+          if (model && !drawn[id]) drawn = { ...drawn, [id]: model };
+        });
+        whenIdle(next);
+      };
+      if (load) load().then(() => whenIdle(draw), () => whenIdle(next));
+      else draw();
     };
-    setTimeout(() => idle(next), 1500);
+    setTimeout(() => whenIdle(next), 1500);
   });
 
   let settings = $state<Settings>(defaultSettings());
@@ -397,8 +411,10 @@
     const id = stale.values().next().value;
     if (id == null) return;
     stale.delete(id);
-    if (model && drawn[id] !== model) drawn = { ...drawn, [id]: model };
-    catchUp(id);
+    inBackground(() => {
+      if (model && drawn[id] !== model) drawn = { ...drawn, [id]: model };
+      catchUp(id);
+    });
     if (stale.size) catching = whenIdle(catchUpOne);
   }
   $effect(() => {

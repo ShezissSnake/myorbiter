@@ -70,6 +70,8 @@ if (typeof window !== "undefined") {
   window.addEventListener("pointerdown", mark, { capture: true, passive: true });
   window.addEventListener("keydown", mark, { capture: true, passive: true });
 }
+/** How long since the last click or key (ms); Infinity before the first. */
+export const sinceInput = () => (typeof performance === "undefined" ? Infinity : performance.now() - lastInput);
 /** Whether a click or a key came in just now: arrivals move only in answer to one. */
 export const answering = () => typeof performance !== "undefined" && performance.now() - lastInput < 800;
 

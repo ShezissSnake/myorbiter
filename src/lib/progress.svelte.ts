@@ -18,6 +18,9 @@ export function inView(box: () => HTMLElement | null, { min = 8, guess = 44 }: {
     if (measured && !always) return;
     const el = box();
     if (!el || typeof window === "undefined") return;
+    // On a page or a view out of sight (kept drawn but not laid out): reading its layout would lay
+    // it out just for this, the slowest thing here. Measured once it's shown.
+    if (el.closest(".pane:not(.shown), .off")) return;
     const kids = el.children;
     if (!kids.length) return;
     const a = kids[0].getBoundingClientRect();
@@ -51,6 +54,24 @@ export function inView(box: () => HTMLElement | null, { min = 8, guess = 44 }: {
   return { count: () => count, measure, watch };
 }
 
+let quietly = false;
+/** Rows a list drawn in the background (a page or a view out of sight) draws at first. */
+const BACKGROUND_FIRST = 6;
+/**
+ * Runs `f` as background work: a list it draws or redraws in this task (a page opened out of sight,
+ * a hidden page catching up) draws only a few rows now and the rest a slice a frame, since nobody
+ * is looking at it yet. The page drawn in one slice of idle time then costs a fraction.
+ */
+export function inBackground(f: () => void) {
+  quietly = true;
+  try {
+    f();
+  } finally {
+    // The drawing itself happens in this task's microtasks (Svelte's flush, a page's module).
+    setTimeout(() => (quietly = false), 0);
+  }
+}
+
 /**
  * `target()` drawn a slice at a time: when it changes, its first `first()` items at once, then
  * `step` more each frame (each step after the last was drawn), until all are. `measure` runs just
@@ -63,7 +84,8 @@ export function progressive<T>(
   key: (r: T) => string,
   { first, step = 12, measure }: { first: () => number; step?: number; measure?: () => void },
 ): () => readonly T[] {
-  let drawn = $state.raw<readonly T[]>(untrack(() => target().slice(0, first())));
+  const now = () => (quietly ? Math.min(BACKGROUND_FIRST, first()) : first());
+  let drawn = $state.raw<readonly T[]>(untrack(() => target().slice(0, now())));
   let frame = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const stop = () => {
@@ -82,7 +104,7 @@ export function progressive<T>(
     const t = target();
     untrack(() => {
       stop();
-      let upto = first();
+      let upto = now();
       drawn = stepRows(t, drawn, key, upto);
       const next = () => {
         measure?.();

@@ -31,6 +31,7 @@
   import { codexRings, rowGroups, someNames } from "../core/codex";
   import type { Group } from "../core/collection";
   import { keepWhile, shownPage, whenIdle, whileShown } from "../pane.svelte";
+  import { inBackground } from "../progress.svelte";
 
   let { model, masteryRank = null, wishlist = $bindable([]), foundryReady = [] }: { model: Model; masteryRank?: number | null; wishlist?: string[]; foundryReady?: [string, number][] } = $props();
   // Things you only have to level: in your arsenal, built and waiting in the Foundry, or building.
@@ -104,7 +105,7 @@
     else drawnEffort = true;
   });
   $effect(() => {
-    if (shownPage("mastery") && !(drawnPlat && drawnEffort)) return whenIdle(() => (drawnPlat = drawnEffort = true));
+    if (shownPage("mastery") && !(drawnPlat && drawnEffort)) return whenIdle(() => inBackground(() => (drawnPlat = drawnEffort = true)));
   });
   const platRows = $derived.by(keepWhile(() => view === "plat", () => rows));
   const effortRows = $derived.by(keepWhile(() => view !== "plat", () => rows));
