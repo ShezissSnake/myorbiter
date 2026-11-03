@@ -1,12 +1,14 @@
 // What the Builds page works out, kept out of Svelte so it can be tested: which items take a build
 // (and what to call them), the item search, how a chosen item's builds sort into the three tiers,
 // a build's age and source in words, the links out to Overframe and Nox's Frame, the whisper to the
-// cheapest seller, and orbiter's suggestion's optional loadout as lines.
+// cheapest seller, and orbiter's suggestion's loadout and ideal riven as the card shows them.
 //
 // The builds core (./builds) does the real work: tiers, what you're missing, parsing, matching.
 
 import type { CatalogItem } from "./types";
-import { buildDate, gearKindOf, slotLayout, type Build, type BuildSourceRef, type GearKind, type Tier, type TierResult } from "./builds";
+import { buildDate, gearKindOf, slotLayout, type Build, type BuildSourceRef, type GearKind, type ShardColour, type Tier, type TierResult } from "./builds";
+import type { Element, Loadout, LoadoutPick, SlotKind } from "./builds/suggest";
+import type { IdealStat } from "./builds/riven";
 import { recipeItem, type RecipeFamily } from "./recipes";
 import { familyOf } from "./modular";
 import { competitor, type BookOrder, type Me } from "./market";
@@ -123,6 +125,28 @@ export function searchItems(items: readonly BuildableItem[], q: string, limit = 
     .sort((a, b) => a.s - b.s || Number(b.x.owned) - Number(a.x.owned) || a.x.name.length - b.x.name.length || a.x.name.localeCompare(b.x.name))
     .slice(0, limit)
     .map((v) => v.x);
+}
+
+/**
+ * Where to start when nothing is open yet: your own gear, the most built first (`invest`: Forma
+ * and a Catalyst or Reactor on your best copy), at most two of a kind, frames and the three weapon
+ * slots before companions. Without gear data every score is 0 and it goes by name.
+ */
+export function startingItems(items: readonly BuildableItem[], invest: (unique: string) => number, limit = 6): BuildableItem[] {
+  const order: GearKind[] = ["warframe", "primary", "secondary", "melee", "companion"];
+  const mine = items
+    .filter((x) => x.owned && !x.modular && order.includes(x.kind))
+    .map((x) => ({ x, n: invest(x.unique) }))
+    .sort((a, b) => b.n - a.n || order.indexOf(a.x.kind) - order.indexOf(b.x.kind) || a.x.name.localeCompare(b.x.name));
+  const out: BuildableItem[] = [];
+  const per = new Map<GearKind, number>();
+  for (const { x } of mine) {
+    if ((per.get(x.kind) ?? 0) >= 2) continue;
+    per.set(x.kind, (per.get(x.kind) ?? 0) + 1);
+    out.push(x);
+    if (out.length >= limit) break;
+  }
+  return out;
 }
 
 /** Recent items: the ones opened this session (newest first), then the ones with saved builds, newest first. */
@@ -319,36 +343,125 @@ export function placeIn(b: Build, path: string, arcane: boolean): Build {
 
 // ---------------------------------------------------------------- the suggestion's loadout
 
-/** A line of the loadout orbiter's suggestion may carry (shards, Helminth, support weapons…). */
-export interface LoadoutLine {
+/** An Archon shard in the grid: a build's own, or one of orbiter's suggestion (always Tauforged). */
+export interface ShardShow {
+  colour: ShardColour;
+  tauforged: boolean;
+  stat: string | null;
+  /** true: you hold one; false: you don't; null: not said (a build's own shards). */
+  owned: boolean | null;
+  /** Why it's there (orbiter's suggestion). */
+  reason?: string;
+  /** How to make it from the plain shards you hold (Ascent Fusion). */
+  fuse?: string;
+}
+
+/**
+ * The shard slots a build shows: a warframe's five, from its own shards, else from orbiter's
+ * suggestion's loadout (always Tauforged). Other gear: only the shards it has.
+ */
+export function shardSlots(b: Pick<Build, "kind" | "shards">, loadout: Pick<Loadout, "shards"> | null | undefined): (ShardShow | null)[] {
+  const own: ShardShow[] = b.shards.map((s) => ({ colour: s.colour, tauforged: s.tauforged, stat: s.stat ?? null, owned: null }));
+  const picked: ShardShow[] = own.length
+    ? own
+    : (loadout?.shards ?? []).filter((p) => p.colour).map((p) => ({ colour: p.colour!, tauforged: true, stat: p.stat ?? null, owned: p.owned, reason: p.reason, ...(p.fuse ? { fuse: p.fuse } : {}) }));
+  const n = b.kind === "warframe" ? 5 : picked.length;
+  return Array.from({ length: n }, (_, i) => picked[i] ?? null);
+}
+
+/** A build's Helminth ability: its own, else orbiter's suggestion's. */
+export function helminthShow(b: Pick<Build, "helminth">, loadout: Pick<Loadout, "helminth"> | null | undefined): { ability: string; replaces: string; reason: string | null; owned: boolean | null } | null {
+  if (b.helminth) return { ...b.helminth, reason: null, owned: null };
+  const h = loadout?.helminth;
+  return h?.ability && h.replaces ? { ability: h.ability, replaces: h.replaces, reason: h.reason, owned: h.owned } : null;
+}
+
+/** One line of "With it": what goes around the build, as picks with what you hold of each. */
+export interface WithItLine {
+  key: "element" | "companion" | "primer" | "support" | "arcanes" | "focus" | "set";
   label: string;
-  text: string;
+  picks: LoadoutPick[];
+  /** A few plain words after the picks ("Corrosive, from Spores"; a set's cost). */
+  text?: string;
+  /** The line's tooltip: why, and where it was read. */
+  title?: string;
+  /** The element's shard colour. */
+  colour?: ShardColour | null;
 }
 
-const LOADOUT_LABEL: Record<string, string> = { shards: "Archon shards", helminth: "Helminth", support: "Support weapons", weapons: "Weapons", arcanes: "Arcanes", companion: "Companion", focus: "Focus school", operator: "Operator", notes: "Notes" };
-const titleCase = (k: string) => (LOADOUT_LABEL[k] ?? k.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase()));
+const ELEMENT_NAME: Record<Element, string> = { electricity: "Electricity", corrosive: "Corrosive", toxin: "Toxin", radiation: "Radiation", heat: "Heat", cold: "Cold", blast: "Blast", viral: "Viral" };
+const SLOT_SHORT: Record<SlotKind, string> = { warframe: "frame", primary: "primary", secondary: "secondary", melee: "melee", companion: "companion", companionWeapon: "companion weapon" };
 
-/** One value of the loadout in words, whatever shape it has: a name, a list, an object with a name. */
-function said(v: unknown): string {
-  if (v == null || v === false) return "";
-  if (typeof v === "string" || typeof v === "number") return String(v);
-  if (Array.isArray(v)) return v.map(said).filter(Boolean).join(", ");
-  if (typeof v === "object") {
-    const o = v as Record<string, unknown>;
-    const head = said(o.name ?? o.ability ?? o.school ?? o.title ?? (o.colour ? `${o.tauforged ? "Tauforged " : ""}${String(o.colour).replace(/^./, (c) => c.toUpperCase())}` : null));
-    const tail = [o.stat, o.replaces ? `replaces ${said(o.replaces)}` : null, o.why ?? o.reason].map(said).filter(Boolean).join(", ");
-    return [head, tail].filter(Boolean).join(head && tail ? ": " : "");
+/**
+ * orbiter's suggestion's loadout as "With it" lines, shortest first: the kit's element, the
+ * companion (or a primer instead), support weapons, arcane swaps the grid doesn't show, the Focus
+ * school, then each mod set. Shards and the Helminth go in the grid, not here. `inBuild`: the
+ * arcanes the build already slots (left out of the swaps).
+ */
+export function withItLines(loadout: Loadout | null | undefined, inBuild: readonly string[] = []): WithItLine[] {
+  if (!loadout) return [];
+  const out: WithItLine[] = [];
+  const el = loadout.element;
+  if (el) {
+    const feeds = el.colour && el.stat ? `; a ${el.colour[0].toUpperCase()}${el.colour.slice(1)} shard feeds on it (${el.stat})` : el.note ? `; ${el.note}` : "";
+    out.push({ key: "element", label: "Element", picks: [], text: `${ELEMENT_NAME[el.element]}, from ${el.ability}`, title: `${el.ability} deals ${ELEMENT_NAME[el.element]}${feeds}. Read from ${el.source}.`, colour: el.colour });
   }
-  return "";
+  if (loadout.companion.length) out.push({ key: "companion", label: "Companion", picks: loadout.companion });
+  if (loadout.primer?.length) out.push({ key: "primer", label: "Or a primer", picks: loadout.primer, title: "You bring one companion: this one instead, when priming status matters more." });
+  if (loadout.weapons.length) out.push({ key: "support", label: "Support", picks: loadout.weapons });
+  const swaps = loadout.arcanes.filter((a) => !a.path || !inBuild.includes(a.path));
+  if (swaps.length) out.push({ key: "arcanes", label: "Arcane swap", picks: swaps });
+  if (loadout.focus) out.push({ key: "focus", label: "Focus", picks: [loadout.focus] });
+  for (const s of loadout.sets ?? []) {
+    const picks: LoadoutPick[] = s.pieces.map((p) => ({ name: p.name, path: p.path, owned: p.owned, reason: `${p.aura ? "Aura slot" : `On your ${SLOT_SHORT[p.slotKind]}`}${p.replaces ? `, instead of ${p.replaces}` : ""}.`, tier: s.tier, source: s.source, on: p.aura ? "aura" : SLOT_SHORT[p.slotKind] }));
+    if (s.companion) picks.push({ name: s.companion.name, path: s.companion.path, owned: s.companion.owned, reason: "The companion the set bonus needs.", tier: s.tier, source: s.source, on: "companion" });
+    out.push({ key: "set", label: `${s.name} set`, picks, text: s.cost.replace(/;.*$/, ""), title: `${s.bonus}\n${s.reason}\nIt takes ${s.cost}` });
+  }
+  return out;
 }
 
-/** orbiter's suggestion's `loadout` (when the engine gives one) as labelled lines; empty without one. */
-export function loadoutLines(loadout: unknown): LoadoutLine[] {
-  if (!loadout || typeof loadout !== "object" || Array.isArray(loadout)) return [];
-  return Object.entries(loadout as Record<string, unknown>)
-    .map(([k, v]) => ({ label: titleCase(k), text: said(v) }))
-    .filter((l) => l.text);
-}
+/** Riven stats as players write them ("CC · CD · MS"), by warframe.market slug. */
+const RIVEN_SHORT: Record<string, string> = {
+  critical_chance: "CC",
+  critical_damage: "CD",
+  multishot: "MS",
+  "base_damage_/_melee_damage": "Dmg",
+  status_chance: "SC",
+  status_duration: "SD",
+  "fire_rate_/_attack_speed": "FR",
+  toxin_damage: "Toxin",
+  heat_damage: "Heat",
+  cold_damage: "Cold",
+  electric_damage: "Elec",
+  range: "Range",
+  channeling_damage: "IC",
+  critical_chance_on_slide_attack: "Slide CC",
+  combo_duration: "Combo",
+  channeling_efficiency: "Heavy eff",
+  finisher_damage: "Finisher",
+  zoom: "Zoom",
+  ammo_maximum: "Ammo",
+  recoil: "Recoil",
+  magazine_capacity: "Mag",
+  reload_speed: "Reload",
+  projectile_speed: "Proj speed",
+  punch_through: "PT",
+  impact_damage: "Impact",
+  puncture_damage: "Puncture",
+  slash_damage: "Slash",
+  damage_vs_corpus: "Corpus",
+  damage_vs_grineer: "Grineer",
+  damage_vs_infested: "Infested",
+};
+/** A riven stat in a word or two; melee's fire rate is attack speed. */
+export const rivenShort = (s: Pick<IdealStat, "slug" | "stat">, melee = false): string => (s.slug === "fire_rate_/_attack_speed" && melee ? "AS" : (RIVEN_SHORT[s.slug] ?? s.stat));
+
+/** Where a riven stat's place comes from, in words. */
+export const BASIS_WORD: Record<IdealStat["basis"], string> = {
+  rule: "orbiter's rule",
+  market: "what players pay most for on warframe.market",
+  both: "orbiter's rule, and what players pay most for on warframe.market",
+};
 
 // ---------------------------------------------------------------- tags
 

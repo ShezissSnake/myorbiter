@@ -2,8 +2,8 @@
 
 `scripts/vendor-windows-tesseract.ps1` extracts Tesseract and the DLLs beside it from UB Mannheim's
 Windows installer (`tesseract-ocr-w64-setup-5.4.0.20240606.exe`, SHA-256 pinned in the script) and
-copies this folder into `licenses/` beside them, with Tesseract's own `LICENSE` and `AUTHORS` from
-the installer and `DLLS.txt`, the list of the DLLs actually copied.
+copies this folder into `licenses/` beside them (`SOURCES.md` included), with Tesseract's own
+`LICENSE` and `AUTHORS` from the installer and `DLLS.txt`, the list of the DLLs actually copied.
 
 UB Mannheim builds Tesseract with MSYS2's MinGW-w64 toolchain, and the DLLs are the libraries it
 links, as MSYS2 packages them. The installer carries no notices for them, so the table below names
@@ -58,4 +58,6 @@ UB Mannheim's build (https://github.com/UB-Mannheim/tesseract).
 
 The GPL and LGPL libraries among them (JBIG-KIT, the GCC runtime, GLib, Pango, cairo and the rest)
 come with a duty to make their corresponding source available to whoever receives the binaries.
-The links above are where that source is today; orbiter's release does not yet carry a copy.
+`SOURCES.md`, beside this file in a build, lists them with the version each DLL was built from and
+where its source is, and carries orbiter's written offer of that source for three years from the
+release.

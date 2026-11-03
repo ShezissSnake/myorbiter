@@ -35,8 +35,10 @@
     type Tier,
     type TierResult,
   } from "../core/builds";
-  import { canSuggest, modIndex, ownedFrom, suggestAll, toBuild, type Suggestion } from "../core/builds/suggest";
-  import { ageLine, arrange, buildableItems, isOverframe, buildKindOf, kindLabelOf, noxUrl, overframeUrl, recentItems, savedFrom, tagsIn, TIER_MEANS, TIER_NAME, TIER_TIP, TIERS, withTags, type Shown } from "../core/buildsPage";
+  import { canSuggest, heldFrom, modIndex, ownedFrom, suggest, toBuild, variantsFor, type RivenContext, type Suggestion } from "../core/builds/suggest";
+  import { parseRiven, rivenTables, unpackListed, weaponSlug, type Riven } from "../core/rivens";
+  import { rivens } from "../rivenStore.svelte";
+  import { ageLine, arrange, buildableItems, isOverframe, buildKindOf, kindLabelOf, noxUrl, overframeUrl, recentItems, savedFrom, startingItems, tagsIn, TIER_MEANS, TIER_NAME, TIER_TIP, TIERS, withTags, type Shown } from "../core/buildsPage";
   import { byFamily } from "../ui/builds/tags";
   import { recipeItem } from "../core/recipes";
   import { takeIntent } from "../intent.svelte";
@@ -70,6 +72,8 @@
   /** Items opened this session, newest first. */
   let opened = $state<string[]>([]);
   const recent = $derived(recentItems(opened, settings.builds).map((u) => byUnique.get(u)).filter((x) => !!x));
+  /** Nothing open yet: your most built gear, to start from (once TennoScope reads your gear: by name alone it says nothing). */
+  const starters = $derived(pick || !model.gear?.length ? [] : startingItems(items, (u) => { const c = bestCopy(model.gear, u); return c ? (c.p ?? 0) + (c.f & 1) : 0; }).filter((x) => !opened.includes(x.unique)));
   const item = $derived<CatalogItem | null>(pick ? (model.catalogByUnique.get(pick) ?? null) : null);
   const kind = $derived(item ? buildKindOf(item) : null);
   const label = $derived(item && kind ? kindLabelOf(item, kind) : "");
@@ -86,6 +90,7 @@
     opened = [u, ...opened.filter((x) => x !== u)].slice(0, 12);
     showOld = false;
     picked = [];
+    variantOf = { low: null, medium: null, high: null };
     const c = bestCopy(model.gear, u);
     tier = !c ? "low" : (c.f & 1) && (c.p ?? 0) > 0 ? "high" : c.f & 1 ? "medium" : "low";
   }
@@ -107,8 +112,29 @@
   const savedAll = $derived(pick ? buildsFor(settings.builds, pick).filter((b) => !isOverframe(b)) : []);
   const saved = $derived(showOld ? savedAll : filterByAge(savedAll, settings.buildsMaxAgeDays, now));
 
-  // orbiter's suggestions: from the mods you hold, for each tier.
-  const owns = $derived(ownedFrom([...model.inventoryByBase.values()].flat() as InventoryRow[]));
+  // orbiter's suggestions: from the mods you hold, for each tier, in the variant picked on its card.
+  const rows = $derived([...model.inventoryByBase.values()].flat() as InventoryRow[]);
+  const owns = $derived(ownedFrom(rows));
+  /** Everything held (shards, companions, the Grimoire…), so the loadout can mark what you have. */
+  const held = $derived(heldFrom(rows));
+  let variantOf = $state<Record<Tier, string | null>>({ low: null, medium: null, high: null });
+  const variants = $derived(item && canSuggest(item) ? variantsFor(item).map((v) => ({ id: v.id, label: v.label, tags: v.tags })) : []);
+  // A weapon's ideal riven: your rivens for it, and the listings the Rivens page last read for it.
+  const takesRiven = $derived(kind === "primary" || kind === "secondary" || kind === "melee" || kind === "archgun" || kind === "companionWeapon");
+  $effect(() => {
+    if (!takesRiven) return;
+    void rivens.loadSaved(settings.market.platform);
+    void rivens.loadMeta();
+  });
+  let tablesMemo: { cat: unknown; t: ReturnType<typeof rivenTables> } | null = null;
+  const rivenCtx = $derived.by((): RivenContext | null => {
+    if (!takesRiven || !item) return null;
+    const tables = tablesMemo?.cat === model.catalogByUnique ? tablesMemo.t : (tablesMemo = { cat: model.catalogByUnique, t: rivenTables(model.catalogByUnique.values()) }).t;
+    const mine = (settings.game.rivens ?? []).map((r) => parseRiven(model, tables, r)).filter((r): r is Riven => !!r);
+    const slug = rivens.meta ? weaponSlug(rivens.meta, item.uniqueName, item.name) : null;
+    const w = slug ? rivens.saved?.weapons[slug] : undefined;
+    return { mine, market: w ? { listed: unpackListed(w.listed), at: w.at } : null };
+  });
   let indexMemo: { cat: unknown; idx: ReturnType<typeof modIndex> } | null = null;
   const index = () => (indexMemo?.cat === model.catalogByUnique ? indexMemo.idx : (indexMemo = { cat: model.catalogByUnique, idx: modIndex([...model.catalogByUnique.values()]) }).idx);
   // Worked out when the app is idle after the page opens, so the first item picked answers at once.
@@ -123,7 +149,8 @@
   const suggestions = $derived.by((): Partial<Record<Tier, Suggestion>> => {
     if (!item || !canSuggest(item)) return {};
     try {
-      return suggestAll(item, owns, index(), now);
+      const idx = index();
+      return Object.fromEntries(TIERS.map((t) => [t, suggest(item, t, owns, idx, now, held, rivenCtx, variantOf[t])])) as Record<Tier, Suggestion>;
     } catch (e) {
       console.error("orbiter's suggestion failed:", e);
       return {};
@@ -215,8 +242,10 @@
   const ready = (t: Tier) => filtered[t].filter((s) => reportFor(s.build).todo === 0).length;
   const extrasOf = (s: Shown): Extras | null => {
     if (s.build.source !== "orbiter" || s.saved) return null;
-    const sug = Object.values(suggestions).find((x) => x?.id === s.build.id) as (Suggestion & { loadout?: unknown }) | undefined;
-    return sug ? { why: sug.reasons, upgrades: sug.upgrades, loadout: sug.loadout } : null;
+    const sug = Object.values(suggestions).find((x) => x?.id === s.build.id);
+    if (!sug) return null;
+    const t = sug.tier;
+    return { why: sug.reasons, upgrades: sug.upgrades, loadout: sug.loadout ?? null, riven: sug.riven ?? null, variants, variant: sug.variant.id, onvariant: (id: string) => (variantOf = { ...variantOf, [t]: id }) };
   };
 
   // ---------------------------------------------------------------- changes
@@ -332,6 +361,14 @@
       </div>
     {:else}
       <p class="lead dim">Pick anything that takes mods: a warframe or its exalted weapon, any weapon, a companion or its weapon, an archwing, arch-gun or arch-melee, a Necramech, a kitgun chamber, zaw strike or amp prism. Its builds, orbiter's suggestion and what you're missing for each show here.</p>
+      {#if starters.length}
+        <div class="starters" aria-label="Start with yours">
+          <span class="register">Your most built</span>
+          {#each starters as r (r.unique)}
+            <button type="button" class="st" title="Builds for your {r.name} ({r.label})" onclick={() => choose(r.unique)}><Thumb file={model.imageOf(r.name)} size={34} /><span><b>{r.name}</b><small>{r.label}</small></span></button>
+          {/each}
+        </div>
+      {/if}
     {/if}
   </div>
 {/snippet}
@@ -354,7 +391,7 @@
     </div>
 
     {#if tags.length}
-      <div class="tagbar" role="group" aria-label="Show builds tagged">
+      <div class="tagbar" data-card="tags" role="group" aria-label="Show builds tagged">
         {#each tagGroups as g (g.family)}
           <span class="tg"><span class="register">{g.family}</span>{#each g.tags as t (t)}<button type="button" class="tagchip" class:on={picked.includes(t)} aria-pressed={picked.includes(t)} title={picked.includes(t) ? `Showing builds tagged ${t}: click to drop it` : `Show only builds tagged ${t}${picked.length ? " (and the other tags picked)" : ""}`} onclick={() => toggleTag(t)}>{t}</button>{/each}</span>
         {/each}
@@ -370,7 +407,8 @@
 
     {#key `${pick}|${tier}`}
       <ul class="builds" in:arrive={{ y: 0 }}>
-        {#each shown as s (s.build.id)}
+        <!-- orbiter's suggestion keeps its place when its variant changes. -->
+        {#each shown as s (s.place === "orbiter" && !s.saved ? "orbiter" : s.build.id)}
           <li class:fresh={fresh === s.build.id} data-build={s.build.id} animate:flip out:leave>
             {#if undo.has(s.build.id)}<UndoSlot label="Deleted" what={s.build.title ?? "the build"} onundo={() => undo.undo(s.build.id)} />
             {:else}
@@ -445,6 +483,13 @@
   .rc { display: inline-flex; align-items: center; gap: .4rem; padding: .18rem .55rem .18rem .2rem; font-family: var(--face-text); font-size: .8rem; letter-spacing: 0; text-transform: none; color: var(--platinum-dim); }
   .rc:hover:not(:disabled) { color: var(--platinum); }
   .lead { margin: 0; max-width: 72ch; font-size: .88rem; line-height: 1.6; }
+  .starters { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; }
+  .starters .register { flex-basis: 100%; font-size: .56rem; }
+  .st { display: inline-flex; align-items: center; gap: .55rem; padding: .25rem .8rem .25rem .25rem; font-family: var(--face-text); letter-spacing: 0; text-transform: none; text-align: left; }
+  .st span { display: grid; line-height: 1.15; }
+  .st b { font-weight: 500; font-size: .86rem; color: var(--platinum); }
+  .st small { font-size: .7rem; color: var(--platinum-deep); }
+  .st:focus-visible { outline: 2px solid var(--sec); outline-offset: 2px; }
   .strip { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1.2rem; }
   .art { width: 132px; height: 132px; display: grid; place-items: center; border: 1px solid var(--rule); background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--sec) 10%, var(--plate)), var(--well) 75%); clip-path: var(--cut); }
   .who { display: grid; gap: .35rem; min-width: 0; }
