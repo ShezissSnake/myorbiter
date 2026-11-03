@@ -30,6 +30,13 @@ export interface NewsEntry {
 
 export const NEWS: NewsEntry[] = [
   {
+    id: 13,
+    date: "2026-11-03",
+    items: [
+      { title: "Told when you sell", icon: { game: "platinum" }, text: "Every sale in game gets a notification: what you sold, to whom, for how much platinum, and whether its listing was marked sold on warframe.market. No more checking the website. Signed in and giving +rep by hand? The notification has +rep for the buyer (Give +rep on the desktop one).", open: "sales#notices" },
+    ],
+  },
+  {
     id: 12,
     date: "2026-11-03",
     items: [
