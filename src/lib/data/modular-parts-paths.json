@@ -1,0 +1,643 @@
+{
+ "_source": {
+  "from": "WFCD warframe-items @wfcd/items 1.1276.47 (MIT), Misc/Melee/Pets/Primary/Secondary.json",
+  "fetched": "2026-11-03",
+  "what": "Each modular part's path (u) and its blueprint's path (bp), by the part's name in modular-parts.json"
+ },
+ "KitgunChamber": {
+  "Catchmoon": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelAPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelAPartBlueprint"
+  },
+  "Gaze": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelDPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelDPartBlueprint"
+  },
+  "Rattleguts": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelCPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelCPartBlueprint"
+  },
+  "Sporelacer": {
+   "u": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelEgg/InfModularBarrelEggPart",
+   "bp": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelEgg/InfModularBarrelEggBlueprint"
+  },
+  "Tombfinger": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelBPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelBPartBlueprint"
+  },
+  "Vermisplicer": {
+   "u": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelBeam/InfModularBarrelBeamPart",
+   "bp": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelBeam/InfModularBarrelBeamBlueprint"
+  }
+ },
+ "KitgunGrip": {
+  "Gibber": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Handle/SUModularSecondaryHandleDPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Handle/SUModularSecondaryHandleDPartBlueprint"
+  },
+  "Haymaker": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Handle/SUModularSecondaryHandleCPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Handle/SUModularSecondaryHandleCPartBlueprint"
+  },
+  "Lovetap": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Handle/SUModularSecondaryHandleBPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Handle/SUModularSecondaryHandleBPartBlueprint"
+  },
+  "Ramble": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Handle/SUModularSecondaryHandleAPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Handle/SUModularSecondaryHandleAPartBlueprint"
+  },
+  "Ulnaris": {
+   "u": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Handles/InfSecondaryHandle/InfModularSecondaryHandlePart",
+   "bp": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Handles/InfSecondaryHandle/InfModularSecondaryHandleBlueprint"
+  },
+  "Brash": {
+   "u": "/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleAPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleAPartBlueprint"
+  },
+  "Palmaris": {
+   "u": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Handles/InfPrimaryHandle/InfModularPrimaryHandlePart",
+   "bp": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Handles/InfPrimaryHandle/InfModularPrimaryHandleBlueprint"
+  },
+  "Shrewd": {
+   "u": "/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleBPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleBPartBlueprint"
+  },
+  "Steadyslam": {
+   "u": "/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleCPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleCPartBlueprint"
+  },
+  "Tremor": {
+   "u": "/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleDPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Primary/SUModularPrimarySet1/Handles/SUModularPrimaryHandleDPartBlueprint"
+  }
+ },
+ "KitgunLoader": {
+  "Arcroid": {
+   "u": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Clips/InfSmallClip/InfModularClipSmallCritStatPart",
+   "bp": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Clips/InfSmallClip/InfModularClipSmallCritStatBlueprint"
+  },
+  "Bashrack": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritICapIClipPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritICapIClipPartBlueprint"
+  },
+  "Bellows": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCapIIClipPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCapIIClipPartBlueprint"
+  },
+  "Deepbreath": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCapIClipPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCapIClipPartBlueprint"
+  },
+  "Flutterfire": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatIIReloadIClipPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatIIReloadIClipPartBlueprint"
+  },
+  "Killstream": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritIIReloadIClipPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritIIReloadIClipPartBlueprint"
+  },
+  "Macro Arcroid": {
+   "u": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Clips/InfClipBig/InfModularClipBigPart",
+   "bp": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Clips/InfClipBig/InfModularClipBigBlueprint"
+  },
+  "Macro Thymoid": {
+   "u": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Clips/InfClipBig/InfModularClipBigCritStatPart",
+   "bp": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Clips/InfClipBig/InfModularClipBigCritStatBlueprint"
+  },
+  "Ramflare": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatIICapIClipPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatIICapIClipPartBlueprint"
+  },
+  "Slap": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularReloadIClipPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularReloadIClipPartBlueprint"
+  },
+  "Slapneedle": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritIReloadIClipPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritIReloadIClipPartBlueprint"
+  },
+  "Sparkfire": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatICapIClipPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatICapIClipPartBlueprint"
+  },
+  "Splat": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritIICapIClipPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritIICapIClipPartBlueprint"
+  },
+  "Stitch": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritICapIIClipPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritICapIIClipPartBlueprint"
+  },
+  "Swiftfire": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatIReloadIClipPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatIReloadIClipPartBlueprint"
+  },
+  "Thunderdrum": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatICapIIClipPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatICapIIClipPartBlueprint"
+  },
+  "Thymoid": {
+   "u": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Clips/InfSmallClip/InfModularClipSmallPart",
+   "bp": "/Lotus/Weapons/Infested/Pistols/InfKitGun/Clips/InfSmallClip/InfModularClipSmallBlueprint"
+  },
+  "Zip": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularReloadIIClipPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularReloadIIClipPartBlueprint"
+  },
+  "Zipfire": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatIReloadIIClipPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularStatIReloadIIClipPartBlueprint"
+  },
+  "Zipneedle": {
+   "u": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritIReloadIIClipPart",
+   "bp": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Clip/SUModularCritIReloadIIClipPartBlueprint"
+  }
+ },
+ "ZawStrike": {
+  "Balla": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipOne",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipOneBlueprint"
+  },
+  "Cyath": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipFour",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipFourBlueprint"
+  },
+  "Dehtat": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipFive",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipFiveBlueprint"
+  },
+  "Dokrahm": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Tip/TipEleven",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Tip/TipElevenBlueprint"
+  },
+  "Kronsh": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipSix",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipSixBlueprint"
+  },
+  "Mewan": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipThree",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipThreeBlueprint"
+  },
+  "Ooltha": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipTwo",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipTwoBlueprint"
+  },
+  "Plague Keewar": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Tips/InfestedTipTwo",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Tips/InfestedTipTwoBlueprint"
+  },
+  "Plague Kripath": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Tips/InfestedTipOne",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Tips/InfestedTipOneBlueprint"
+  },
+  "Rabvee": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Tip/TipTen",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Tip/TipTenBlueprint"
+  },
+  "Sepfahn": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Tip/TipNine",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Tip/TipNineBlueprint"
+  }
+ },
+ "ZawGrip": {
+  "Jayap": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleFive",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleFiveBlueprint"
+  },
+  "Korb": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Handle/HandleNine",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Handle/HandleNineBlueprint"
+  },
+  "Kroostra": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleSix",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleSixBlueprint"
+  },
+  "Kwath": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleThree",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleThreeBlueprint"
+  },
+  "Laka": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleTwo",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleTwoBlueprint"
+  },
+  "Peye": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleOne",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleOneBlueprint"
+  },
+  "Plague Akwin": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Handles/InfestedHandleOne",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Handles/InfestedHandleOneBlueprint"
+  },
+  "Plague Bokwin": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Handles/InfestedHandleTwo",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Handles/InfestedHandleTwoBlueprint"
+  },
+  "Seekalla": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleFour",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handle/HandleFourBlueprint"
+  },
+  "Shtung": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Handle/HandleTen",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee02/Handle/HandleTenBlueprint"
+  }
+ },
+ "ZawLink": {
+  "Ekwana II Jai": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIStatusII",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIStatusIIBlueprint"
+  },
+  "Ekwana II Ruhang": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIStatusII",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIStatusIIBlueprint"
+  },
+  "Ekwana Jai": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIStatusI",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIStatusIBlueprint"
+  },
+  "Ekwana Jai II": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIIStatusI",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIIStatusIBlueprint"
+  },
+  "Ekwana Ruhang": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIStatusI",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIStatusIBlueprint"
+  },
+  "Ekwana Ruhang II": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIIStatusI",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIIStatusIBlueprint"
+  },
+  "Jai": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedI",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIBlueprint"
+  },
+  "Jai II": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedII",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIIBlueprint"
+  },
+  "Ruhang": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageI",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIBlueprint"
+  },
+  "Ruhang II": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageII",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIIBlueprint"
+  },
+  "Vargeet II Jai": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedICritII",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedICritIIBlueprint"
+  },
+  "Vargeet II Ruhang": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageICritII",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageICritIIBlueprint"
+  },
+  "Vargeet Jai": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedICritI",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedICritIBlueprint"
+  },
+  "Vargeet Jai II": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIICritI",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedIICritIBlueprint"
+  },
+  "Vargeet Ruhang": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageICritI",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageICritIBlueprint"
+  },
+  "Vargeet Ruhang II": {
+   "u": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIICritI",
+   "bp": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceDamageIICritIBlueprint"
+  }
+ },
+ "MoaModel": {
+  "Lambeo": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetHeadLambeo",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetHeadLambeoBlueprint"
+  },
+  "Nychus": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetHeadMelee",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetHeadMeleeBlueprint"
+  },
+  "Oloro": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetHeadOloro",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetHeadOloroBlueprint"
+  },
+  "Para": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetHeadPara",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetHeadParaBlueprint"
+  }
+ },
+ "MoaCore": {
+  "Alcrom": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetEngineArcotek",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetEngineArcotekBlueprint"
+  },
+  "Drex": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetEngineThricore",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetEngineThricoreBlueprint"
+  },
+  "Krisys": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetEngineKrisys",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetEngineKrisysBlueprint"
+  },
+  "Lehan": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MeleeMoaPetEngine",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetEngineMeleeBlueprint"
+  }
+ },
+ "MoaGyro": {
+  "Aegron": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetPayloadAegron",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadAegronBlueprint"
+  },
+  "Atheca": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetPayloadThermocor",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadThermocorBlueprint"
+  },
+  "Harpen": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetPayloadDarta",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadDartaBlueprint"
+  },
+  "Hextra": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetPayloadHextra",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadHextraBlueprint"
+  },
+  "Munit": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetPayloadMunitron",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadMunitronBlueprint"
+  },
+  "Phazor": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetPayloadTazron",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadTazronBlueprint"
+  },
+  "Trux": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetPayloadCryoxion",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadCryoxionBlueprint"
+  },
+  "Tyli": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MeleeMoaPetPayload",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetPayloadMeleeBlueprint"
+  }
+ },
+ "MoaBracket": {
+  "Drimper": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetLegA",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetLegABlueprint"
+  },
+  "Gauth": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetLegD",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetLegDBlueprint"
+  },
+  "Hona": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetLegMelee",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetLegMeleeBlueprint"
+  },
+  "Jonsin": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetLegC",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetLegCBlueprint"
+  },
+  "Tian": {
+   "u": "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetLegB",
+   "bp": "/Lotus/Types/Recipes/MoaPetParts/MoaPetLegBBlueprint"
+  }
+ },
+ "HoundModel": {
+  "Bhaira": {
+   "u": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartHeadB",
+   "bp": "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartHeadBBlueprint"
+  },
+  "Dorma": {
+   "u": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartHeadA",
+   "bp": "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartHeadABlueprint"
+  },
+  "Hec": {
+   "u": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartHeadC",
+   "bp": "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartHeadCBlueprint"
+  }
+ },
+ "HoundCore": {
+  "Adlet": {
+   "u": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartBodyA",
+   "bp": "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartBodyABlueprint"
+  },
+  "Garmr": {
+   "u": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartBodyB",
+   "bp": "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartBodyBBlueprint"
+  },
+  "Raiju": {
+   "u": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartBodyC",
+   "bp": "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartBodyCBlueprint"
+  }
+ },
+ "HoundBracket": {
+  "Cela": {
+   "u": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartLegsA",
+   "bp": "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartLegsABlueprint"
+  },
+  "Urga": {
+   "u": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartLegsB",
+   "bp": "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartLegsBBlueprint"
+  },
+  "Zubb": {
+   "u": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartLegsC",
+   "bp": "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartLegsCBlueprint"
+  }
+ },
+ "HoundStabilizer": {
+  "Frak": {
+   "u": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartTailC",
+   "bp": "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartTailCBlueprint"
+  },
+  "Hinta": {
+   "u": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartTailB",
+   "bp": "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartTailBBlueprint"
+  },
+  "Wanz": {
+   "u": "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartTailA",
+   "bp": "/Lotus/Types/Recipes/ZanukaPetParts/ZanukaPetPartTailABlueprint"
+  }
+ },
+ "AmpPrism": {
+  "Raplak": {
+   "u": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartA",
+   "bp": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartABlueprint"
+  },
+  "Shwaak": {
+   "u": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartB",
+   "bp": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartBBlueprint"
+  },
+  "Granmu": {
+   "u": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartC",
+   "bp": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartCBlueprint"
+  },
+  "Rahn": {
+   "u": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set2/Barrel/SentAmpSet2BarrelPartA",
+   "bp": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set2/Barrel/SentAmpSet2BarrelPartABlueprint"
+  },
+  "Cantic": {
+   "u": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartA",
+   "bp": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartABlueprint"
+  },
+  "Lega": {
+   "u": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartB",
+   "bp": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartBBlueprint"
+  },
+  "Klamora": {
+   "u": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartC",
+   "bp": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartCBlueprint"
+  }
+ },
+ "AmpScaffold": {
+  "Pencha": {
+   "u": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartA",
+   "bp": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartABlueprint"
+  },
+  "Shraksun": {
+   "u": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartB",
+   "bp": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartBBlueprint"
+  },
+  "Klebrik": {
+   "u": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartC",
+   "bp": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartCBlueprint"
+  },
+  "Phahd": {
+   "u": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set2/Chassis/SentAmpSet2ChassisPartA",
+   "bp": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set2/Chassis/SentAmpSet2ChassisPartABlueprint"
+  },
+  "Exard": {
+   "u": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Chassis/CorpAmpSet1ChassisPartA",
+   "bp": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Chassis/CorpAmpSet1ChassisPartABlueprint"
+  },
+  "Dissic": {
+   "u": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Chassis/CorpAmpSet1ChassisPartB",
+   "bp": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Chassis/CorpAmpSet1ChassisPartBBlueprint"
+  },
+  "Propa": {
+   "u": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Chassis/CorpAmpSet1ChassisPartC",
+   "bp": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Chassis/CorpAmpSet1ChassisPartCBlueprint"
+  }
+ },
+ "AmpBrace": {
+  "Clapkra": {
+   "u": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartA",
+   "bp": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartABlueprint"
+  },
+  "Juttni": {
+   "u": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartB",
+   "bp": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartBBlueprint"
+  },
+  "Lohrin": {
+   "u": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartC",
+   "bp": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartCBlueprint"
+  },
+  "Anspatha": {
+   "u": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set2/Grip/SentAmpSet2GripPartA",
+   "bp": "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set2/Grip/SentAmpSet2GripPartABlueprint"
+  },
+  "Suo": {
+   "u": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Grip/CorpAmpSet1GripPartA",
+   "bp": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Grip/CorpAmpSet1GripPartABlueprint"
+  },
+  "Plaga": {
+   "u": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Grip/CorpAmpSet1GripPartB",
+   "bp": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Grip/CorpAmpSet1GripPartBBlueprint"
+  },
+  "Certus": {
+   "u": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Grip/CorpAmpSet1GripPartC",
+   "bp": "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Grip/CorpAmpSet1GripPartCBlueprint"
+  }
+ },
+ "PredasiteSubspecies": {
+  "Vizier": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/VizierPredatorKubrowPetPowerSuit"
+  },
+  "Medjay": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/MedjayPredatorKubrowPetPowerSuit"
+  },
+  "Pharaoh": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/PharaohPredatorKubrowPetPowerSuit"
+  }
+ },
+ "PredasiteMutagen": {
+  "Leptosam": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedPredatorMutagenA",
+   "bp": "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorMutagenABlueprint"
+  },
+  "Chiten": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedPredatorMutagenB",
+   "bp": "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorMutagenBBlueprint"
+  },
+  "Arioli": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedPredatorMutagenC",
+   "bp": "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorMutagenCBlueprint"
+  },
+  "Monachod": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedPredatorMutagenD",
+   "bp": "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorMutagenDBlueprint"
+  }
+ },
+ "PredasiteAntigen": {
+  "Iranon": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedPredatorAntigenB",
+   "bp": "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorAntigenBBlueprint"
+  },
+  "Elasmun": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedPredatorAntigenA",
+   "bp": "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorAntigenABlueprint"
+  },
+  "Ibexan": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedPredatorAntigenC",
+   "bp": "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorAntigenCBlueprint"
+  },
+  "Tethron": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedPredatorAntigenD",
+   "bp": "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedPredatorAntigenDBlueprint"
+  }
+ },
+ "VulpaphylaSubspecies": {
+  "Crescent": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/HornedInfestedCatbrowPetPowerSuit"
+  },
+  "Panzer": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/ArmoredInfestedCatbrowPetPowerSuit"
+  },
+  "Sly": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/VulpineInfestedCatbrowPetPowerSuit"
+  }
+ },
+ "VulpaphylaMutagen": {
+  "Adra": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedCritterMutagenA",
+   "bp": "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterMutagenABlueprint"
+  },
+  "Elsa": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedCritterMutagenB",
+   "bp": "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterMutagenBBlueprint"
+  },
+  "Zarim": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedCritterMutagenC",
+   "bp": "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterMutagenCBlueprint"
+  },
+  "Phijar": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedCritterMutagenD",
+   "bp": "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterMutagenDBlueprint"
+  }
+ },
+ "VulpaphylaAntigen": {
+  "Desus": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedCritterAntigenB",
+   "bp": "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterAntigenBBlueprint"
+  },
+  "Virox": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedCritterAntigenA",
+   "bp": "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterAntigenABlueprint"
+  },
+  "Plagen": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedCritterAntigenC",
+   "bp": "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterAntigenCBlueprint"
+  },
+  "Poxi": {
+   "u": "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedCritterAntigenD",
+   "bp": "/Lotus/Types/Recipes/DeimosRecipes/Pets/InfestedCritterAntigenDBlueprint"
+  }
+ }
+}
