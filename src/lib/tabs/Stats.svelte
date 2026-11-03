@@ -166,7 +166,7 @@
     <TimeChart single={hist.length === 1 ? "" : undefined} title={lastRead ? `Inventory value · at last read, ${new Date(lastRead).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : "Inventory value"} {at} series={[{ label: "Market value", color: "var(--chart-plat)", values: hist.map((p) => p.worth) }, { label: "Quick-sale value", color: GOLD, values: hist.map((p) => p.liquid) }]} height={190} />
   </div>
 
-  {#if hist.length === 1}<p class="dim small one" title="Each line starts with the next read; the figures beside each title are from this one">One inventory read so far: the lines start with the next.</p>{/if}
+  {#if hist.length === 1}<p class="dim small one" title="Each chart's line starts with the next read; the figures beside each title are from this one">One inventory read so far. The charts start with the next.</p>{/if}
   <div class="charts">
     {#each allCharts ? CHARTS : CHARTS.slice(0, 3) as c (c.key)}
       <TimeChart single="" title={c.title} {at} series={[{ label: c.title, color: GOLD, values: hist.map(c.get) }]} empty={c.key === "credits" || c.key === "endo" || c.key === "platinum" ? "Needs the patched TennoScope; fills in from its next reads." : undefined}>
