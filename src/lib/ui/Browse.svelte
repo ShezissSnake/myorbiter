@@ -10,6 +10,7 @@
   import Seg from "./Seg.svelte";
   import IconButton from "./IconButton.svelte";
   import Sheet from "./Sheet.svelte";
+  import NoMatch from "./NoMatch.svelte";
   import { nearEnd } from "./nearEnd";
 
   let {
@@ -27,6 +28,8 @@
     limit = 50,
     cardLimit = 24,
     tint,
+    clear = null,
+    tools,
   }: {
     /** Remembers the layout under this name. */
     id: string;
@@ -47,6 +50,10 @@
     empty?: string;
     limit?: number;
     cardLimit?: number;
+    /** Set while a search or filter is on: an empty list then says so, with a Clear that calls this, rather than `empty`. */
+    clear?: (() => void) | null;
+    /** The page's own buttons, at the right end of the sort row (Rivens' Check prices). */
+    tools?: Snippet;
   } = $props();
 
   const key_ = () => `orbiter-layout-${id}`;
@@ -151,8 +158,9 @@
     </label>
   {/if}
   <span class="grow"></span>
-  <span class="dim small">{view.length} {view.length === 1 ? "item" : "items"}</span>
-  <Seg bind:value={layout} onchange={remember} options={[{ v: "cards", label: "Cards", icon: "cards" }, { v: "list", label: "Table", icon: "rows" }]} />
+  <span class="dim small nowrap">{view.length.toLocaleString("en")} {view.length === 1 ? "item" : "items"}</span>
+  <Seg bind:value={layout} onchange={remember} options={[{ v: "cards", label: "Cards", icon: "cards", title: "Show them as cards" }, { v: "list", label: "Table", icon: "rows", title: "Show them as a table you can sort by any column" }]} />
+  {#if tools}{@render tools()}{/if}
 </div>
 
 {#snippet firstCell(r: T)}
@@ -161,14 +169,14 @@
 {/snippet}
 
 {#if layout === "list"}
-  <div class="list" use:rowOpener><Table rows={view} columns={listColumns} {key} bind:sort {detail} {empty} {limit} {tint} /></div>
+  <div class="list" use:rowOpener><Table rows={view} columns={listColumns} {key} bind:sort {detail} {empty} {clear} {limit} {tint} /></div>
 {:else if sorted.length}
   <CardGrid {min}>
     {#each sorted.slice(0, shown) as r (key(r))}{@render card(r, () => open(r))}{/each}
   </CardGrid>
   {#if sorted.length > shown}<div class="more dim small" use:nearEnd={() => (shown += 48)}>{sorted.length - shown} more below</div>{/if}
 {:else}
-  <p class="nothing">{empty}</p>
+  <p class="nothing">{#if clear}<NoMatch {clear} />{:else}{empty}{/if}</p>
 {/if}
 
 {#if detail && opened != null}

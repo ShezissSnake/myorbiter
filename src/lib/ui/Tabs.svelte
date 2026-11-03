@@ -33,7 +33,7 @@
   .on em { color: var(--gold); }
   /* Less room (half a wide screen, a Steam Deck): tighter, so a row of tabs stays one row. */
   :global(html[data-room~="lt1100"]) button { padding-left: .5rem; padding-right: .5rem; gap: .35rem; }
-  /* Less still: the icons stay (they're what you look for) and the words go, but for the chosen tab's;
-     each tab's name and count stay in its tooltip. */
-  :global(html[data-room~="lt950"]) button:not(.on) .lbl, :global(html[data-room~="lt950"]) button:not(.on):has(.lbl) em { display: none; }
+  /* Less still: the icons and counts stay (they're what you look for) and the words go, but for the
+     chosen tab's; each tab's name stays in its tooltip. */
+  :global(html[data-room~="lt950"]) button:not(.on) .lbl { display: none; }
 </style>
