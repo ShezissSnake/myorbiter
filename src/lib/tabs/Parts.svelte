@@ -2,7 +2,7 @@
   import PTick from "../ui/PTick.svelte";
   import Fold from "../ui/Fold.svelte";
   import { partsWorthSelling, worthTotal } from "../core/worthSelling";
-  import GameIcon from "../ui/GameIcon.svelte";
+  import GameIcon, { kindIcon } from "../ui/GameIcon.svelte";
   import Icon from "../ui/Icon.svelte";
   import type { Model } from "../core/model";
   import { partRows, saveForSets, savedLine, setRows, type PartRow } from "../core/views";
@@ -181,7 +181,7 @@
 {#snippet card(r: PartRow, open: () => void)}
   {@const v = verdict(r)}
   {@const parentItem = model.catalogByUnique.get(r.parentUnique)}
-  <ItemCard hover={r.name} title={r.parentName} sub={r.name.replace(`${r.parentName} `, "")} image={parentItem?.imageName ?? model.imageOf(r.parentName)} artSize={84} owned={r.spare > 0 && v !== "Keep"} ownedNote={v === "Ducats" ? `${r.spare} spare for Baro` : v === "Set" ? `${r.spare} spare, best sold in its set` : v === "Save" ? `${r.spare} spare, saved for its set` : `${r.spare} spare to sell`} onopen={open}>
+  <ItemCard hover={r.name} title={r.parentName} sub={r.name.replace(`${r.parentName} `, "")} kind={kindIcon(parentItem?.category ?? null, r.parentName)} image={parentItem?.imageName ?? model.imageOf(r.parentName)} artSize={84} owned={r.spare > 0 && v !== "Keep"} ownedNote={v === "Ducats" ? `${r.spare} spare for Baro` : v === "Set" ? `${r.spare} spare, best sold in its set` : v === "Save" ? `${r.spare} spare, saved for its set` : `${r.spare} spare to sell`} onopen={open}>
     <span class="verdict v-{v}" title={VERDICT_TITLE[v]}>{#if v === "Sell"}<GameIcon name="platinum" size={14} />{:else if v === "Ducats"}<GameIcon name="ducats" size={14} />{:else if v === "Keep"}<Icon name="lock" size={13} />{:else}<Icon name="sets" size={13} />{/if}{LABEL[v]}</span>
     <div class="have">
       <Thumb file={model.imageOf(r.name)} name={r.name} size={26} />

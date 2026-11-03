@@ -25,6 +25,7 @@
     art,
     fallback = null,
     tint = null,
+    kind = undefined,
   }: {
     title: string;
     sub?: string;
@@ -52,12 +53,14 @@
     fallback?: GameIconName | null;
     /** A relic's era colour (table.ts, eraTint): a faint wash of it over the card. */
     tint?: string | null;
+    /** The icon on the kind line when `sub` doesn't name a kind (a prime part: its gear's kind). */
+    kind?: GameIconName | null;
   } = $props();
 
   // A kind the Arsenal has a tab for ("Warframe", "Primary Mod", "Companion") gets that tab's icon.
   // Only the kind before any " · " ("Warframe · MR 5"; not "Rare · Okina Prime Blueprint").
   const subKind = $derived(sub?.split(" · ")[0] ?? "");
-  const subIcon = $derived(subKind ? kindIcon(subKind) : null);
+  const subIcon = $derived(kind !== undefined ? kind : subKind ? kindIcon(subKind) : null);
   const subText = $derived(sub ? kindLabel(subKind) + sub.slice(subKind.length) : "");
   // A Prime's name carries the word in Orokin gold, so Ash Prime stands apart from Ash at a glance.
   const titleParts = $derived(markPrime ? title.split(/\b(Prime)\b/) : [title]);
@@ -93,7 +96,8 @@
     <span class="pic" use:info={hover ?? null}>{#if art}{@render art()}{:else}<Art file={image} size={artSize} dim={dimArt} alt="" name={hover ?? title} fallback={fallback ?? subIcon ?? "foundry"} />{/if}</span>
     {#if children}<div class="side">{@render children()}</div>{/if}
   </div>
-  {#if owned}<span class="notch" title={ownedNote} aria-label={ownedNote}></span>{/if}
+  <!-- The notch's tooltip says what the gold corner means here; it's hovered on a bigger square than it draws. -->
+  {#if owned}<span class="notch" title="Gold corner: {ownedNote}" aria-label={ownedNote}></span>{/if}
   {#if foot}<footer>{@render foot()}</footer>{/if}
 </article>
 
@@ -115,7 +119,8 @@
   /* One to look at: a gold notch folded into the top corner (a shape, so it can't be mistaken
      for an Axi relic's gold wash), and a warmer edge. */
   .card.owned { border-color: color-mix(in srgb, var(--gold) 30%, var(--rule)); }
-  .notch { position: absolute; top: 0; right: 0; width: 13px; height: 13px; background: var(--gold); clip-path: polygon(0 0, 100% 0, 100% 100%); }
+  .notch { position: absolute; top: 0; right: 0; width: 22px; height: 22px; cursor: help; }
+  .notch::before { content: ""; position: absolute; top: 0; right: 0; width: 13px; height: 13px; background: var(--gold); clip-path: polygon(0 0, 100% 0, 100% 100%); }
   /* A relic's era: its colour washes in from the top (the notch still marks one to look at). */
   .card.tinted { background: linear-gradient(180deg, color-mix(in srgb, var(--tint) 11%, #14161a), var(--plate) 60%); border-color: color-mix(in srgb, var(--tint) 22%, var(--rule)); }
   .card.done { opacity: .78; }
