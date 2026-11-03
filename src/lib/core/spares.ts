@@ -57,7 +57,8 @@ export interface SpareRow {
  * mastered and don't own (built, or building in the foundry). The parts of a recipe only, not the
  * parts' own recipes (WFCD's catalog lists a warframe's Neuroptics, not what the Neuroptics take).
  */
-export function needsByUnique(m: Model): Map<string, Need[]> {
+export const needsByUnique = perModel(needsByUniqueFresh, () => "");
+function needsByUniqueFresh(m: Model): Map<string, Need[]> {
   const out = new Map<string, Need[]>();
   for (const item of m.catalogByUnique.values()) {
     if (!item.masterable || !(item.category in MASTERY_CATEGORIES)) continue;
@@ -80,7 +81,8 @@ const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
  * you keep to build something unbuilt. It takes warframe.market's item list to know which sets
  * exist, so without it there are none.
  */
-export function gearSetRows(m: Model, index: MarketIndex | null, needs: Map<string, Need[]> = needsByUnique(m)): SetRow[] {
+export const gearSetRows = perModel(gearSetRowsFresh, (index = null, needs = undefined) => `${idOf(index)}|${idOf(needs)}`);
+function gearSetRowsFresh(m: Model, index: MarketIndex | null, needs: Map<string, Need[]> = needsByUnique(m)): SetRow[] {
   if (!index) return [];
   const rows: SetRow[] = [];
   const seen = new Set<string>();
@@ -160,7 +162,8 @@ export function allSetRows(m: Model, index: MarketIndex | null): SetRow[] {
 }
 
 /** Display names for recipe parts the game knows by internal names ("Tn Concrete Archgun Barrel" is the Mandonel Barrel). */
-function partNames(m: Model): Map<string, string> {
+const partNames = perModel(partNamesFresh, () => "");
+function partNamesFresh(m: Model): Map<string, string> {
   const out = new Map<string, string>();
   for (const item of m.catalogByUnique.values()) {
     for (const c of item.components ?? []) {
@@ -230,7 +233,8 @@ const FAMILIES: { name: string; plural: string; part: RegExp; gear: RegExp }[] =
 ];
 
 /** For each family, how many of its masterable pieces you haven't mastered. */
-function unmasteredByFamily(m: Model): Map<string, number> {
+const unmasteredByFamily = perModel(unmasteredByFamilyFresh, () => "");
+function unmasteredByFamilyFresh(m: Model): Map<string, number> {
   const out = new Map<string, number>();
   for (const item of m.catalogByUnique.values()) {
     if (!item.masterable || m.isMastered(item.uniqueName)) continue;
@@ -515,7 +519,8 @@ function merge(rows: SpareRow[]): SpareRow[] {
 }
 
 /** Relics (by base, "Axi A1") that drop a part you still need for something unbuilt, with those parts. */
-export function relicsYouNeed(m: Model): Map<string, string[]> {
+export const relicsYouNeed = perModel(relicsYouNeedFresh, () => "");
+function relicsYouNeedFresh(m: Model): Map<string, string[]> {
   const out = new Map<string, string[]>();
   for (const [parent, parts] of m.partsByParent) {
     if (m.isMastered(parent) || m.owned(parent) > 0) continue;
@@ -639,7 +644,8 @@ const KEYS: { test: RegExp; mission: string; label: string }[] = [
 ];
 
 /** Parts you still need (for something you haven't mastered or built) that drop in a mission. */
-export function partsStillNeededFrom(m: Model, mission: string): string[] {
+export const partsStillNeededFrom = perModel(partsStillNeededFromFresh, (mission) => mission);
+function partsStillNeededFromFresh(m: Model, mission: string): string[] {
   const out: string[] = [];
   for (const item of m.catalogByUnique.values()) {
     if (!item.masterable || m.isMastered(item.uniqueName) || m.owned(item.uniqueName) > 0) continue;
@@ -665,7 +671,8 @@ const damagedSlot = (unique: string) => unique.replace(/^.*\/DamagedMech(Weapon)
  * you haven't mastered or built, each component you don't hold. The catalog lists these
  * components but not what they're made from, so the slot names tie the two together.
  */
-export function damagedPartNeeds(m: Model): Map<string, string[]> {
+export const damagedPartNeeds = perModel(damagedPartNeedsFresh, () => "");
+function damagedPartNeedsFresh(m: Model): Map<string, string[]> {
   const out = new Map<string, string[]>();
   for (const item of m.catalogByUnique.values()) {
     if (!item.masterable || m.isMastered(item.uniqueName) || m.owned(item.uniqueName) > 0) continue;
