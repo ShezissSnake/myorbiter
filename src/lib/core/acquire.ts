@@ -92,6 +92,18 @@ const RESEARCH = research as Record<string, Researched>;
 /** Items whose blueprints come from clan dojo research, by lab (from the wiki's Research pages). */
 const DOJO = dojoLabs as Record<string, string>;
 
+/**
+ * The first step of an item's researched how-to-get, for a part with no drops of its own (a vendor's
+ * blueprint): "Buy the board blueprint at Roky (Ventkids, Neutral, 5,000), in Fortuna (needs the
+ * Vox Solaris quest), and build it". Null when the item isn't researched.
+ */
+export function researchedStep(name: string): string | null {
+  const how = RESEARCH[name]?.how;
+  if (!how) return null;
+  const cut = how.search(/; |\. /);
+  return cut < 0 ? how.replace(/\.$/, "") : how.slice(0, cut);
+}
+
 // ---------------------------------------------------------------- mastery points
 
 /** Mastery points for taking it to max rank: 200 a rank for frames, companions, archwings and

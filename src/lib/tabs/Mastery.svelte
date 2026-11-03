@@ -158,7 +158,7 @@
 
 {#snippet card(r: MasteryRow, open: () => void)}
   {@const item = model.catalogByUnique.get(r.unique)}
-  {@const parts = item && r.status !== "level" ? collectionItem(model, item).parts.filter((p) => !p.resource) : []}
+  {@const parts = item && r.status !== "level" && !r.step ? collectionItem(model, item).parts.filter((p) => !p.resource) : []}
   <ItemCard hover={r.name} title={r.name} sub={r.category} fallback={kindIcon(r.category, r.name)} image={item?.imageName ?? model.imageOf(r.name)} markPrime onopen={open} fav={wished.has(r.unique)} onfav={item ? () => toggleWish(r.unique) : undefined}>
     {#if r.acq.difficulty > 0}<Effort acq={r.acq} />{:else}<p class="chow">{stageText(r)}</p>{/if}
     {#if parts.length}<div class="chips">{#each parts as p, i (i)}<PartChip part={p} size={32} />{/each}</div>{/if}

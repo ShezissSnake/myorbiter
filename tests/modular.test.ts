@@ -222,3 +222,9 @@ test("the next step, worded per family", () => {
   assert.equal(modularNext({ family: f, loose: 0, built: 0, gilded: 0, known: true, sections: [] }, false), null, "nothing in hand: how to get it is the researched entry");
   assert.equal(modularNext({ family: f, loose: 0, built: 1, gilded: 0, known: true, sections: [] }, true), null, "mastered");
 });
+
+test("Wishlist: a vendor's blueprint says where to buy it", () => {
+  const w = wishItem(buildModel(bundle()), BAD_BABY)!;
+  assert.deepEqual(w.missing.map((p) => p.label), ["Blueprint"]);
+  assert.equal(w.missing[0].how, "Buy the board blueprint at Roky (Ventkids, Neutral, 5,000), in Fortuna (needs the Vox Solaris quest), and build it");
+});

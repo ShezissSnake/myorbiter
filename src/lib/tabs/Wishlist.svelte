@@ -205,6 +205,7 @@
                         {#each farmByRelic(p.farm) as g (g.relic)}<div class="farm"><b use:info={g.relic}>{g.relic}</b>{#each g.spots as f, i (i)}<span class="dim small">{placeName(f.location)} · {Math.round(f.chance * 10) / 10}%</span>{/each}</div>{/each}
                       {:else if p.drops.length}
                         <div class="farm">{#each p.drops as d, i (i)}<span class="small">{placeName(d.location)} <span class="dim">· {Math.round(d.chance * 100) / 100}%</span></span>{/each}</div>
+                      {:else if p.how}<span class="small" title={p.how}>{p.how}</span>
                       {:else if p.resurgence}<span class="tag ok">Varzia has it</span>
                       {:else if p.vaulted}<span class="dim small">Vaulted</span>
                       {:else}<span class="dim small">–</span>{/if}
