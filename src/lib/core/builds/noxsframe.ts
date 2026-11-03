@@ -344,8 +344,8 @@ export interface Nox {
 
 const OFF = "Reading builds from Nox's Frame is off (Settings)";
 
-/** Whether a card passes the age filter by its date (no date: kept). */
-const listingWithinAge = (l: NoxListing, maxAgeDays: number, now: number): boolean => {
+/** Whether a listed build passes the age filter (settings.buildsMaxAgeDays, 0: no limit) by its card's date (no date: kept). */
+export const noxListedWithinAge = (l: Pick<NoxListing, "date">, maxAgeDays: number, now: number): boolean => {
   if (!(maxAgeDays > 0) || !l.date) return true;
   const at = Date.parse(`${l.date}T00:00:00Z`);
   return !Number.isFinite(at) || now - at <= (maxAgeDays + 1) * DAY;
@@ -364,7 +364,7 @@ export function makeNox(fetcher: NoxFetcher, enabled: () => boolean): Nox {
     if (!gearKindOf(item)) return [{ entries: [], hiddenByAge: 0, fetchedAt: ctx.now, fromCache: true, stale: false }, kept];
     const answer = await fetcher.list(item.uniqueName, refresh);
     const all = (Array.isArray(answer.data) ? answer.data : []).slice(0, NOX_LISTED);
-    const shown = all.filter((l) => listingWithinAge(l, ctx.maxAgeDays, ctx.now));
+    const shown = all.filter((l) => noxListedWithinAge(l, ctx.maxAgeDays, ctx.now));
     const entries: NoxListed[] = [];
     for (const l of shown) {
       const page = await fetcher.build(l.path, { cachedOnly: true });
