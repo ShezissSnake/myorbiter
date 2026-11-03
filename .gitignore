@@ -19,3 +19,5 @@ scripts/riven-model/rw.json
 # Generated at build time (scripts/tennoscope-notice.sh, repack-appimage.sh): never committed.
 /THIRD-PARTY-NOTICES/SOURCES.md
 /THIRD-PARTY-NOTICES/linux/
+# Local-only notes and data (real trade records, scrub notes): never committed.
+.local/
