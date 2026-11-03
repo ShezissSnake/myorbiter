@@ -20,7 +20,7 @@
   import { openEras, wishlistRelics } from "../core/wishlist";
   import type { Fissure } from "../core/types";
   import RelicPlate from "../ui/RelicPlate.svelte";
-  import { whileShown } from "../pane.svelte";
+  import { keepWhile, shownPage, whenIdle, whileShown } from "../pane.svelte";
 
   // The mode is kept in settings, so it survives a restart and the Guide can open either one.
   // fissures: the live ones, so a relic you can crack right now says so.
@@ -107,6 +107,25 @@
     return { total, copies };
   });
   const unit = (v: number) => (metric === "need" ? `${Math.round(v * 1000) / 10}%` : null);
+
+  // Both tabs stay drawn once drawn (the other one too, once the page is on screen and idle), the
+  // one not chosen hidden: switching is then only showing it. The hidden one keeps its rows until
+  // it's shown again, so a search typed in one doesn't redraw the other meanwhile.
+  let drawnSets = $state(false);
+  let drawnRadiant = $state(false);
+  $effect.pre(() => {
+    if (mode === "sets") drawnSets = true;
+    else drawnRadiant = true;
+  });
+  $effect(() => {
+    if (shownPage("planner") && !(drawnSets && drawnRadiant)) return whenIdle(() => (drawnSets = drawnRadiant = true));
+  });
+  const setsRows = $derived.by(keepWhile(() => mode === "sets", () => crack));
+  const setsLast = $derived.by(keepWhile(() => mode === "sets", () => lastCovered));
+  const setsUncovered = $derived.by(keepWhile(() => mode === "sets", () => uncovered));
+  const radRows = $derived.by(keepWhile(() => mode === "radiant", () => radiant));
+  const setsAnyFilter = $derived.by(keepWhile(() => mode === "sets", () => anyFilter));
+  const radAnyFilter = $derived.by(keepWhile(() => mode === "radiant", () => anyFilter));
 
   // The squad and ducat rate are shared with Relics: while hidden, these wait for the next visit (lib/pane.svelte.ts).
   const radCols: Column<RadiantRow>[] = $derived.by(whileShown("planner", () => [
@@ -210,18 +229,23 @@
     </Fold>
   </div>
 
-  {#if mode === "sets"}
-    <div class="sets-table"><Table rows={crack} columns={crackCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortSets} clear={anyFilter ? clear : null} empty="None of your relics drop a missing part." /></div>
-    {#if lastCovered.length}
-      <h2 class="register">One part from a complete set, and your relics drop it</h2>
-      {@render gapList(lastCovered, "last")}
-    {/if}
-    {#if uncovered.length}
-      <h2 class="register">Close, but none of your relics drop the missing part</h2>
-      {@render gapList(uncovered, "uncovered")}
-    {/if}
-  {:else}
-    <Table rows={radiant} columns={radCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortRad} clear={anyFilter ? clear : null} empty="No relics left to refine." />
+  {#if drawnSets}
+    <div hidden={mode !== "sets"}>
+      <div class="sets-table"><Table rows={setsRows} columns={crackCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortSets} clear={setsAnyFilter ? clear : null} empty="None of your relics drop a missing part." /></div>
+      {#if setsLast.length}
+        <h2 class="register">One part from a complete set, and your relics drop it</h2>
+        {@render gapList(setsLast, "last")}
+      {/if}
+      {#if setsUncovered.length}
+        <h2 class="register">Close, but none of your relics drop the missing part</h2>
+        {@render gapList(setsUncovered, "uncovered")}
+      {/if}
+    </div>
+  {/if}
+  {#if drawnRadiant}
+    <div hidden={mode !== "radiant"}>
+      <Table rows={radRows} columns={radCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortRad} clear={radAnyFilter ? clear : null} empty="No relics left to refine." />
+    </div>
   {/if}
 </div></div>
 

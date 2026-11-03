@@ -32,21 +32,33 @@ export function catchUp(id: string) {
  * Call while a component initializes (it creates deriveds that live as long as it).
  */
 export function whileShown<T>(id: string, f: () => T): () => T {
+  return held(() => shownPage(id), f, () => ticks[id] ?? 0);
+}
+
+/**
+ * The same for a part of a page that's kept drawn while out of sight (a tab, the table under the
+ * cards): `f` while `visible()`, else what it was. Switching back is then only a matter of showing it.
+ */
+export function keepWhile<T>(visible: () => boolean, f: () => T): () => T {
+  return held(visible, f, () => 0);
+}
+
+function held<T>(visible: () => boolean, f: () => T, tick: () => number): () => T {
   const live = $derived.by(f);
   let kept: T;
   let have = false;
   let seen = 0;
-  const held = $derived.by(() => {
-    const t = ticks[id] ?? 0;
-    // On screen: tracked, so a change shows at once. Hidden: read untracked, so `live` isn't a
-    // dependency and a change to what it reads doesn't wake this page.
-    if (shownPage(id)) kept = live;
+  const out = $derived.by(() => {
+    const t = tick();
+    // In sight: tracked, so a change shows at once. Out of sight: read untracked, so `live` isn't
+    // a dependency and a change to what it reads doesn't wake this part.
+    if (visible()) kept = live;
     else if (!have || t !== seen) kept = untrack(() => live);
     seen = t;
     have = true;
     return kept;
   });
-  return () => held;
+  return () => out;
 }
 
 /** Runs `f` when the app is idle (or soon, where there's no requestIdleCallback: WebKitGTK). */

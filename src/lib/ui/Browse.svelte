@@ -12,6 +12,7 @@
   import Sheet from "./Sheet.svelte";
   import NoMatch from "./NoMatch.svelte";
   import { nearEnd } from "./nearEnd";
+  import { keepWhile } from "../pane.svelte";
 
   let {
     id,
@@ -153,6 +154,19 @@
     };
   }
   const sheet = { get v() { return opened != null; }, set v(x: boolean) { if (!x) opened = null; } };
+
+  // Cards and table: once you've seen both, both stay drawn and the one not chosen is hidden, as it
+  // was, so switching back only shows it. While hidden it keeps its rows and sort; it catches up
+  // with filters and sorting done meanwhile when it's shown again.
+  let drawnList = $state(untrack(() => layout === "list"));
+  let drawnCards = $state(untrack(() => layout === "cards"));
+  $effect.pre(() => {
+    if (layout === "list") drawnList = true;
+    else drawnCards = true;
+  });
+  const listRows = $derived.by(keepWhile(() => layout === "list", () => view));
+  const listSort = $derived.by(keepWhile(() => layout === "list", () => sort));
+  const cardRows = $derived.by(keepWhile(() => layout === "cards", () => sorted));
 </script>
 
 <div class="tools">
@@ -176,15 +190,20 @@
   <span class="rowkey" data-row-key={key(r)} hidden></span>{#if c.cell}{@render c.cell(r)}{:else}{@const v = c.value(r)}{#if v == null}<span class="nil" aria-label="none">–</span>{:else}{v}{/if}{/if}
 {/snippet}
 
-{#if layout === "list"}
-  <div class="list" use:rowOpener><Table rows={view} columns={listColumns} {key} bind:sort {detail} {empty} {clear} {limit} {tint} /></div>
-{:else if sorted.length}
-  <CardGrid {min}>
-    {#each sorted.slice(0, shown) as r (key(r))}{@render card(r, () => open(r))}{/each}
-  </CardGrid>
-  {#if sorted.length > shown}<div class="more dim small" use:nearEnd={() => (shown += 48)}>{sorted.length - shown} more below</div>{/if}
-{:else}
-  <p class="nothing">{#if clear}<NoMatch {clear} />{:else}{empty}{/if}</p>
+{#if drawnList}
+  <div class="list" hidden={layout !== "list"} use:rowOpener><Table rows={listRows} columns={listColumns} {key} bind:sort={() => listSort, (v) => (sort = v)} {detail} {empty} {clear} {limit} {tint} /></div>
+{/if}
+{#if drawnCards}
+  <div class="cards" hidden={layout !== "cards"}>
+    {#if cardRows.length}
+      <CardGrid {min}>
+        {#each cardRows.slice(0, shown) as r (key(r))}{@render card(r, () => open(r))}{/each}
+      </CardGrid>
+      {#if cardRows.length > shown}<div class="more dim small" use:nearEnd={() => (shown += 48)}>{cardRows.length - shown} more below</div>{/if}
+    {:else}
+      <p class="nothing">{#if clear}<NoMatch {clear} />{:else}{empty}{/if}</p>
+    {/if}
+  </div>
 {/if}
 
 {#if detail && opened != null}

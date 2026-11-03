@@ -29,7 +29,7 @@
   import CodexRings from "../ui/CodexRings.svelte";
   import { codexRings, rowGroup, someNames } from "../core/codex";
   import type { Group } from "../core/collection";
-  import { whileShown } from "../pane.svelte";
+  import { keepWhile, shownPage, whenIdle, whileShown } from "../pane.svelte";
 
   let { model, masteryRank = null, wishlist = $bindable([]), foundryReady = [] }: { model: Model; masteryRank?: number | null; wishlist?: string[]; foundryReady?: [string, number][] } = $props();
   // Things you only have to level: in your arsenal, built and waiting in the Foundry, or building.
@@ -90,6 +90,20 @@
         matches(query, r.name, r.type, METHOD_LABEL[r.acq.method]),
     ),
   );
+  // The two views (tabs): both stay drawn once drawn (the other too, once the page is on screen and
+  // idle), the one not chosen hidden and keeping its rows until it's shown again; switching is then
+  // only showing it.
+  let drawnPlat = $state(false);
+  let drawnEffort = $state(false);
+  $effect.pre(() => {
+    if (view === "plat") drawnPlat = true;
+    else drawnEffort = true;
+  });
+  $effect(() => {
+    if (shownPage("mastery") && !(drawnPlat && drawnEffort)) return whenIdle(() => (drawnPlat = drawnEffort = true));
+  });
+  const platRows = $derived.by(keepWhile(() => view === "plat", () => rows));
+  const effortRows = $derived.by(keepWhile(() => view !== "plat", () => rows));
   const open = $derived(all.filter((r) => r.acq.available));
   const pts = (rs: MasteryRow[]) => rs.reduce((n, r) => n + r.points, 0);
   const levelRows = $derived(open.filter((r) => r.acq.difficulty === 0));
@@ -230,10 +244,12 @@
   </Fold>
   </div>
 
-  {#if view === "plat"}
-    <PlatMastery {model} {rows} {wished} onwish={toggleWish} clear={filtered ? clear : null} />
-  {:else}
-  <Browse id="mastery" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} clear={filtered ? clear : null} empty="Nothing left to master here." />
+  <!-- Both views stay drawn once drawn, the other hidden (see the script). -->
+  {#if drawnPlat}
+    <div hidden={view !== "plat"}><PlatMastery {model} rows={platRows} {wished} onwish={toggleWish} clear={filtered ? clear : null} /></div>
+  {/if}
+  {#if drawnEffort}
+    <div hidden={view === "plat"}><Browse id="mastery" rows={effortRows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} clear={filtered ? clear : null} empty="Nothing left to master here." /></div>
   {/if}
 </div></div>
 
