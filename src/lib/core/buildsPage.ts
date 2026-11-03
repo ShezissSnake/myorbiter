@@ -19,7 +19,7 @@ export const TIERS: Tier[] = ["low", "medium", "high"];
  */
 export const TIER_NAME: Record<Tier, string> = { low: "New player", medium: "Intermediate", high: "Veteran" };
 /** A few words under the tab. */
-export const TIER_MEANS: Record<Tier, string> = { low: "Basic mods", medium: "Catalyst, Forma, easy arcanes", high: "Everything" };
+export const TIER_MEANS: Record<Tier, string> = { low: "Basic mods", medium: "Catalyst and Forma", high: "Everything" };
 /** The tab's tooltip: what the tier allows. */
 export const TIER_TIP: Record<Tier, string> = {
   low: "New player: basic mods only. No Orokin Catalyst or Reactor, no Forma, no Archon shards, no arcanes.",

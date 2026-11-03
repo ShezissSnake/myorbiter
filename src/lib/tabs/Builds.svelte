@@ -399,7 +399,7 @@
   .out { display: flex; gap: 1.1rem; }
   .out .link { display: inline-flex; align-items: center; gap: .3rem; font-size: .82rem; }
 
-  .tiers { display: grid; grid-template-columns: repeat(3, 10.5rem); gap: .4rem; }
+  .tiers { display: grid; grid-template-columns: repeat(3, 12.2rem); gap: .4rem; }
   .plate {
     all: unset; box-sizing: border-box; position: relative; cursor: pointer;
     display: grid; gap: .15rem; align-content: start; padding: .6rem .75rem .65rem;
