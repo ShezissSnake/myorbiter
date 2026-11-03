@@ -10,7 +10,7 @@
   import Stat from "../ui/Stat.svelte";
   import Avail from "../ui/Avail.svelte";
   import ListButton from "../ui/ListButton.svelte";
-  import { bestCard, resolveName, scoreCards, type PickCard, type PickWeights } from "../core/pick";
+  import { bestCard, resolveName, scoreCards, type PickCard, type PickWeights, type WeightKey } from "../core/pick";
   import { onWindows, type ScreenCards } from "../backend";
   import { info } from "../hover.svelte";
   import { inFissure } from "../core/mission";
@@ -63,7 +63,7 @@
   const ranked = $derived(scoreCards(model, pool.map((x) => x.name), weights).map((c, i) => ({ ...c, from: pool[i].from, owned: pool[i].owned })).sort((a, b) => b.score - a.score || (b.price ?? 0) - (a.price ?? 0)));
   /** Your own relic's reward, which the log names as soon as the screen opens. */
   const yours = $derived(new Set((ms?.reward_screen_open ? ms.rewards_given : []).map((p) => resolveName(model, model.nameOf(p)))));
-  const WEIGHTS: { k: keyof PickWeights; label: string; title: string; bar: string }[] = [
+  const WEIGHTS: { k: WeightKey; label: string; title: string; bar: string }[] = [
     { k: "plat", bar: "b-plat", label: "Plat", title: "Market price, as a share of the best card on the screen" },
     { k: "needed", bar: "b-need", label: "Unmastered", title: "A part for something you haven't mastered or built, that you don't have yet" },
     { k: "ducats", bar: "b-ducat", label: "Ducats", title: "Ducat value, out of 100" },

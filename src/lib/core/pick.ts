@@ -7,6 +7,8 @@
 //   ducats    its ducat value, out of 100 (the most a part is worth at Baro)
 //   set       it finishes a set (1), or brings one to a single part away (0.5)
 // The weights follow your priorities: plat, then unmastered, then ducats, then completing a set.
+// A Forma Blueprint can't be traded, so it has no price: it counts as what you say it's worth to
+// you (`forma`, 3p by default; twice that for a 2X Forma Blueprint).
 
 import type { Model } from "./model";
 import { partAvailability, setRows } from "./views";
@@ -16,15 +18,29 @@ export interface PickWeights {
   needed: number;
   ducats: number;
   set: number;
+  /** Not a weight: what a Forma Blueprint is worth to you in platinum (doubled for 2X). */
+  forma: number;
 }
 
+/** The four weights the score averages (`forma` is a price, not one of them). */
+export const WEIGHT_KEYS = ["plat", "needed", "ducats", "set"] as const;
+export type WeightKey = (typeof WEIGHT_KEYS)[number];
+
 /** Each priority counts double the next: plat, then unmastered, then ducats, then completing a set. */
-export const defaultPickWeights = (): PickWeights => ({ plat: 8, needed: 4, ducats: 2, set: 1 });
+export const defaultPickWeights = (): PickWeights => ({ plat: 8, needed: 4, ducats: 2, set: 1, forma: 3 });
+
+/** "Forma Blueprint" → 1, "2X Forma Blueprint" → 2; 0 for anything else. */
+export function formaCount(name: string): number {
+  const m = /^(?:(\d+)\s*[xX×]\s+)?Forma(?: Blueprint)?$/.exec(name.trim());
+  return m ? Number(m[1] ?? 1) : 0;
+}
 
 export interface PickCard {
   name: string;
   /** Where the name came from: TennoScope's reading of the screen, or the squad's relics. */
   price: number | null;
+  /** The price is your own value for a Forma Blueprint (Settings → Fissures), not a market one. */
+  priceIsYours?: boolean;
   ducats: number;
   needed: boolean;
   /** For what, when needed: "Kompressa Prime". */
@@ -82,7 +98,10 @@ export function scoreCards(m: Model, names: string[], w: PickWeights = defaultPi
   const base = names.map((raw) => {
     const name = resolveName(m, raw);
     const part = m.partByName.get(name)?.[0];
-    const price = live[raw] ?? live[name] ?? m.price(name);
+    const market = live[raw] ?? live[name] ?? m.price(name);
+    const forma = market == null ? formaCount(name) : 0;
+    const formaValue = Number.isFinite(w.forma) && w.forma > 0 ? w.forma : 0;
+    const price = forma && formaValue ? forma * formaValue : market;
     const ducats = part?.ducats ?? 0;
     let needed = false;
     if (part) {
@@ -91,7 +110,7 @@ export function scoreCards(m: Model, names: string[], w: PickWeights = defaultPi
     }
     const gap = gaps.get(name);
     const set = gap ? (gap.missing === 1 ? 1 : 0.5) : 0;
-    return { name, price, ducats, needed, neededFor: needed && part ? part.parentName : null, set, setName: gap?.set ?? null };
+    return { name, price, ...(forma && formaValue ? { priceIsYours: true } : {}), ducats, needed, neededFor: needed && part ? part.parentName : null, set, setName: gap?.set ?? null };
   });
   const best = Math.max(0, ...base.map((c) => c.price ?? 0));
   const total = w.plat + w.needed + w.ducats + w.set || 1;
@@ -104,7 +123,7 @@ export function scoreCards(m: Model, names: string[], w: PickWeights = defaultPi
     };
     const score = Math.round((100 * (w.plat * marks.plat + w.needed * marks.needed + w.ducats * marks.ducats + w.set * marks.set)) / total);
     const reasons: string[] = [];
-    if (c.price) reasons.push(`${Math.round(c.price)}p`);
+    if (c.price) reasons.push(c.priceIsYours ? `Forma, worth ${Math.round(c.price)}p to you` : `${Math.round(c.price)}p`);
     if (c.needed) reasons.push(`needed for ${c.neededFor}`);
     if (c.ducats) reasons.push(`${c.ducats} ducats`);
     if (c.set === 1) reasons.push(`completes ${c.setName}`);

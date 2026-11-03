@@ -292,3 +292,12 @@ test("the week's Archimedeas, Calendar and Descendia are kept between reads and 
   const later = pruneLive(m as never, Date.parse("2026-11-09T00:00:01Z")) as unknown as Record<string, unknown>;
   assert.deepEqual([later.archimedeas, later.calendar, later.descendia], [[], null, null]);
 });
+
+test("settings saved before the Forma value get 3p; a bad value falls back to it", async () => {
+  const { loadSettings } = await import("../src/lib/backend");
+  for (const [pick, want] of [[{ plat: 5, needed: 4, ducats: 2, set: 1 }, 3], [{ plat: 5, forma: 7 }, 7], [{ forma: "x" }, 3], [{ forma: -1 }, 3]] as const) {
+    (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({ pick }) };
+    const s = await loadSettings();
+    assert.equal(s.pick.forma, want);
+  }
+});
