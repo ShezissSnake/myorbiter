@@ -5,6 +5,7 @@
   import type { CanGo, KeptBack } from "../core/notNeeded";
   import { info } from "../hover.svelte";
   import Thumb from "./Thumb.svelte";
+  import { arrive, flip, leave, reveal } from "../motion";
 
   // `out`: the list worked out once by the page (it shows the count too); `incarnons`: whether
   // TennoScope passed each copy's Incarnon, so the lead says what's checked.
@@ -18,8 +19,9 @@
   </p>
   {#if out.go.length}
     <ul class="go">
+      <!-- Keep: it leaves and the rest close up; Undo (under Kept back) brings it back in. -->
       {#each out.go as g (g.unique)}
-        <li>
+        <li in:arrive out:leave animate:flip>
           <Thumb file={model.imageOf(g.name)} size={34} />
           <div class="t">
             <span class="nm"><b class="mark" use:info={g.name}>{g.name}</b>{#if g.of > 1}<span class="dim small">{g.copies} of your {g.of}</span>{/if}</span>
@@ -35,13 +37,13 @@
     <p class="dim">Nothing to let go: everything you hold is the best version you have of it, or still needed.</p>
   {/if}
   {#if out.kept.length}
-    <button class="link" aria-expanded={showKept} onclick={() => (showKept = !showKept)}>{showKept ? "Hide" : "Show"} what's kept back ({out.kept.length})</button>
+    <button class="link" aria-expanded={showKept} onclick={() => (showKept = !showKept)}>{showKept ? "Hide" : "Show"} what's kept back ({out.kept.length}) <span class="chev" aria-hidden="true">▾</span></button>
     {#if showKept}
-      <ul class="kept">
+      <div class="reveal" transition:reveal><ul class="kept">
         {#each out.kept as k (k.unique)}
-          <li><b use:info={k.name}>{k.name}</b><span class="dim small">{k.why}</span>{#if k.yours}<button class="link" title="Put it back on the list" onclick={() => (keep = keep.filter((u) => u !== k.unique))}>Undo</button>{/if}</li>
+          <li in:arrive out:leave animate:flip><b use:info={k.name}>{k.name}</b><span class="dim small">{k.why}</span>{#if k.yours}<button class="link" title="Put it back on the list" onclick={() => (keep = keep.filter((u) => u !== k.unique))}>Undo</button>{/if}</li>
         {/each}
-      </ul>
+      </ul></div>
     {/if}
   {/if}
 </section>
@@ -49,11 +51,14 @@
 <style>
   .nn { display: grid; gap: .7rem; margin: 0 0 1rem; padding: .9rem 1.1rem; border: 1px solid var(--rule); background: rgb(17 19 23 / 72%); justify-items: start; }
   .lead { margin: 0; max-width: 90ch; }
-  .go { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); gap: .8rem 1.6rem; width: 100%; }
-  .go li { display: flex; gap: .7rem; align-items: flex-start; min-width: 0; }
+  /* Down each column, then the next: a Keep closes the gap upward, rather than every row after it
+     changing column. */
+  .go { list-style: none; margin: 0; padding: 0; columns: 22rem; column-gap: 1.6rem; width: 100%; }
+  .go li { display: flex; gap: .7rem; align-items: flex-start; min-width: 0; break-inside: avoid; padding-bottom: .8rem; }
   .t { display: grid; gap: .15rem; flex: 1; min-width: 0; }
   .nm { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .6rem; }
   .check { color: var(--gold); }
+  .reveal { width: 100%; }
   .kept { list-style: none; margin: 0; padding: 0; display: grid; gap: .35rem; }
   .kept li { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .7rem; font-size: .85rem; }
 </style>

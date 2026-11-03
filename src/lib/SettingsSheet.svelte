@@ -6,6 +6,7 @@
   import Chip from "./ui/Chip.svelte";
   import { grouped, movePage, moveSection, orderPages, pagesFor } from "./pages";
   import Icon from "./ui/Icon.svelte";
+  import { flip } from "./motion";
   import WeightSliders from "./ui/WeightSliders.svelte";
 
   let {
@@ -86,7 +87,9 @@
       The sentence under every figure, each page's full description and every table column. Off, pages keep to the essentials and the rest is on hover. The Details button by each page's title (every page but Home, which has its own folds) is the same switch.
     </Switch>
     <p class="hint">The sidebar as it shows: untick a page to take it out (it still opens from links on other pages, and nothing on it is lost); the arrows move a page within its section, or a whole section. Ctrl+1…9 follow this order. Home stays first and the Guide stays by the gear. What Home itself shows is under the gear on Home.</p>
+    <!-- A page or section moved: the others slide into their new places (flip). -->
     {#each groups as g, gi (g.group)}
+      <div class="sec" animate:flip>
       <div class="secrow">
         <span class="register">{g.group}</span>
         {#if groups.length > 1}
@@ -96,13 +99,14 @@
       </div>
       <ol class="pagelist">
         {#each g.pages as p, i (p.id)}
-          <li class:out={settings.pagesHidden.includes(p.id)}>
+          <li class:out={settings.pagesHidden.includes(p.id)} animate:flip>
             <Chip on={!settings.pagesHidden.includes(p.id)} label={p.label} title={`${p.hint}. Click to ${settings.pagesHidden.includes(p.id) ? "put it back in" : "take it out of"} the sidebar.`} onchange={(on: boolean) => togglePage(p.id, on)} />
             <button class="mv" aria-label="Move {p.label} up" title="Move up within {g.group}" disabled={i === 0} onclick={() => move(p.id, -1)}><Icon name="arrow-right" size={11} /></button>
             <button class="mv down" aria-label="Move {p.label} down" title="Move down within {g.group}" disabled={i === g.pages.length - 1} onclick={() => move(p.id, 1)}><Icon name="arrow-right" size={11} /></button>
           </li>
         {/each}
       </ol>
+      </div>
     {/each}
     {#if settings.pagesHidden.length || settings.pageOrder.length}<div class="row">{#if settings.pagesHidden.length}<button class="link" onclick={() => (settings.pagesHidden = [])}>Show every page</button>{/if}{#if settings.pageOrder.length}<button class="link" onclick={() => (settings.pageOrder = [])}>Back to the usual order</button>{/if}</div>{/if}
   </section>
@@ -249,6 +253,7 @@
 <style>
   section { display: grid; gap: 1rem; padding-bottom: 1.4rem; border-bottom: 1px solid var(--rule); }
   section:last-child { border-bottom: 0; }
+  .sec { display: grid; gap: 1rem; }
   h3 { margin: 0; color: var(--gold); }
   .sub { margin: .4rem 0 0; font-size: .88rem; font-weight: 600; color: var(--platinum); }
   .minutes input { width: 5rem; }
