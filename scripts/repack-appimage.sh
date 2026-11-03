@@ -23,6 +23,15 @@ built=$(ls "$bundle"/*.AppImage)
 [ "$(echo "$built" | wc -l)" -eq 1 ] || { echo "expected one AppImage in $bundle" >&2; exit 1; }
 
 install -m 755 "$pristine" "$nested"
+# orbiter installs its own launcher entry (scripts/install-desktop.sh, orbiter.desktop: the window's
+# app id, so the taskbar icon and notifications find it). AppImageLauncher and appimaged would add a
+# second one (appimagekit_…-orbiter.desktop) whenever the AppImage runs, so the menu shows orbiter
+# twice. This key asks them not to (libappimage's appimage_shall_not_be_integrated).
+for entry in "$appdir"/*.desktop "$appdir"/usr/share/applications/*.desktop; do
+  [ -e "$entry" ] || continue
+  real=$(readlink -f "$entry")
+  grep -q '^X-AppImage-Integrate=' "$real" || sed -i '/^\[Desktop Entry\]/a X-AppImage-Integrate=false' "$real"
+done
 log=$(mktemp)
 (cd "$bundle" && APPIMAGE_EXTRACT_AND_RUN=1 LDAI_OUTPUT="$built" OUTPUT="$built" "$packer" --appdir "$appdir" >"$log" 2>&1) || { cat "$log" >&2; exit 1; }
 rm -f "$log"
@@ -33,4 +42,7 @@ trap 'rm -rf "$check"' EXIT
 (cd "$check" && APPIMAGE_EXTRACT_AND_RUN=1 "$built" --appimage-extract usr/lib/orbiter/tennoscope/TennoScope.AppImage >/dev/null)
 cmp "$check/squashfs-root/usr/lib/orbiter/tennoscope/TennoScope.AppImage" "$pristine"
 "$check/squashfs-root/usr/lib/orbiter/tennoscope/TennoScope.AppImage" --appimage-offset >/dev/null
+# And its launcher entry asks AppImageLauncher not to add a second one.
+(cd "$check" && APPIMAGE_EXTRACT_AND_RUN=1 "$built" --appimage-extract 'usr/share/applications/*' >/dev/null)
+grep -q '^X-AppImage-Integrate=false' "$check"/squashfs-root/usr/share/applications/orbiter.desktop
 echo "repacked $(basename "$built") ($(du -h "$built" | cut -f1)) with TennoScope intact"
