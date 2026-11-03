@@ -59,3 +59,14 @@ test("a row leaving a flipped list stays where Svelte holds it while it fades", 
   const node = { style: { transform: "translate(0px, 96px)" } } as unknown as Element;
   assert.match(leave(node).css!(0.5, 0.5), /transform:translate\(0px, 96px\) translateY\(-2\.00px\)/);
 });
+
+test("rows sliding to their new places only slide: none is squashed on the way", async () => {
+  await new Promise((r) => setTimeout(r, 20)); // a new frame's budget
+  const { flip } = await import("../src/lib/motion");
+  const rect = (left: number, top: number, w: number, h: number) => ({ left, top, width: w, height: h, right: left + w, bottom: top + h }) as DOMRect;
+  const node = { getBoundingClientRect: () => rect(0, 0, 100, 40) } as unknown as Element;
+  (globalThis as { getComputedStyle?: unknown }).getComputedStyle ??= () => ({ transform: "none", transformOrigin: "0px 0px" });
+  const c = flip(node, { from: rect(200, 100, 100, 60), to: rect(0, 0, 100, 40) });
+  assert.equal(c.css!(0, 1), "transform:translate(200.00px,100.00px)");
+  assert.doesNotMatch(c.css!(0.5, 0.5), /scale/);
+});

@@ -14,7 +14,6 @@
 // and arrivals only move in answer to a click or key, never on load or a background refresh.
 
 import { MediaQuery } from "svelte/reactivity";
-import { flip as svelteFlip } from "svelte/animate";
 import type { AnimationConfig, FlipParams } from "svelte/animate";
 import type { TransitionConfig } from "svelte/transition";
 
@@ -150,7 +149,7 @@ export function shade(node: Element, { duration = 120 }: { duration?: number } =
 }
 
 /**
- * Rows closing up or reordering: Svelte's flip over SETTLE with --out. Rows off screen before and
+ * Rows closing up or reordering: they slide to their new places over SETTLE with --out. Rows off screen before and
  * after don't move, and no more than ~40 move in a frame (a big grid snaps rather than crawls).
  *   import { flip } from "../motion";   {#each rows as r (r.id)}<li animate:flip>…</li>{/each}
  */
@@ -158,7 +157,15 @@ export function flip(node: Element, rects: { from: DOMRect; to: DOMRect }, param
   const vh = typeof innerHeight === "number" ? innerHeight : 1e9;
   const off = (r: DOMRect) => r.bottom < 0 || r.top > vh;
   if (calm.current || (off(rects.from) && off(rects.to)) || !spend()) return { duration: 0 };
-  return svelteFlip(node, rects, { duration: SETTLE, easing: out, ...params });
+  // Slide only, from where it was. (Svelte's own flip also scales an item whose size changed on
+  // the way, a card moving to a grid row of another height, which squashes its text; here it takes
+  // its new size at once.)
+  const dx = rects.from.left - rects.to.left;
+  const dy = rects.from.top - rects.to.top;
+  const now = typeof getComputedStyle === "function" ? getComputedStyle(node).transform : "none";
+  const base = now && now !== "none" ? `${now} ` : "";
+  const duration = typeof params.duration === "number" ? params.duration : SETTLE;
+  return { delay: params.delay ?? 0, duration, easing: params.easing ?? out, css: (_t, u) => `transform:${base}translate(${(u * dx).toFixed(2)}px,${(u * dy).toFixed(2)}px)` };
 }
 
 // ---------------------------------------------------------------- actions
