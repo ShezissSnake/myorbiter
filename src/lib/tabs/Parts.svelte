@@ -31,18 +31,23 @@
   import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
   import { pickShowcase } from "../core/showcase";
   import { whileShown } from "../pane.svelte";
+  import { typed } from "../typed.svelte";
 
   // The ducat rate and smallest sale worth a trade are yours to set here; the bulk sale uses them too.
   // Settings → Selling: whether loose parts wait for a set worth more whole.
   let { model, advice = $bindable(), sell }: { model: Model; advice: AdviceSettings; sell: SellChoices } = $props();
 
   let query = $state("");
+
+  /** What the list is filtered on: the box, a moment later while you type (typed.svelte.ts). */
+
+  const q = $derived.by(typed(() => query));
   let parent = $state<"all" | "mastered" | "unmastered">("mastered");
   let spareOnly = $state(false);
   let avail = $state<"all" | "farmable" | "vaulted">("all");
   let best = $state<"all" | Verdict>("all");
   let sort = $state({ key: "value", desc: true });
-  const filtered = $derived(!!query.trim() || best !== "all" || spareOnly || parent !== "mastered" || avail !== "all");
+  const filtered = $derived(!!q.trim() || best !== "all" || spareOnly || parent !== "mastered" || avail !== "all");
   function clear() {
     query = "";
     best = "all";
@@ -69,7 +74,7 @@
         (!spareOnly || !spareMatters || r.spare > 0) &&
         (best === "all" || verdict(r) === best) &&
         (avail === "all" || (avail === "farmable" ? r.availability === "farmable" : r.availability === "vaulted" || r.availability === "resurgence")) &&
-        matches(query, r.name, r.parentName),
+        matches(q, r.name, r.parentName),
     ),
   ));
   // Parts of mastered items are all spare: "Spare" and "Spare only" only mean something otherwise.

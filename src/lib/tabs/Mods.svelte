@@ -23,10 +23,15 @@
   import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
   import { pickShowcase } from "../core/showcase";
   import { whileShown } from "../pane.svelte";
+  import { typed } from "../typed.svelte";
 
   let { model, masteryRank = null, minPlat = 5 }: { model: Model; masteryRank?: number | null; minPlat?: number } = $props();
 
   let query = $state("");
+
+  /** What the list is filtered on: the box, a moment later while you type (typed.svelte.ts). */
+
+  const q = $derived.by(typed(() => query));
   let dupesOnly = $state(true);
   let tradableOnly = $state(true);
   // Common mods at 2–5p rarely move: by default only the ones that trade at least daily.
@@ -52,10 +57,10 @@
         (!tradableOnly || r.tradable) &&
         (!sellingOnly || (r.tradesPerDay ?? 0) >= 1) &&
         (rarity === "all" || r.rarity === rarity) &&
-        matches(query, r.name, r.type),
+        matches(q, r.name, r.type),
     ),
   );
-  const filtered = $derived(!!query.trim() || rarity !== "all" || !dupesOnly || !tradableOnly || !sellingOnly);
+  const filtered = $derived(!!q.trim() || rarity !== "all" || !dupesOnly || !tradableOnly || !sellingOnly);
   function clear() {
     query = "";
     rarity = "all";

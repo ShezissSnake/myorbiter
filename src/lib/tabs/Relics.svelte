@@ -29,6 +29,7 @@
   import { whileShown } from "../pane.svelte";
 
   import type { AdviceSettings } from "../backend";
+  import { typed } from "../typed.svelte";
   // Solo or radshare is one setting, shared with the Planner.
   // wishlist: what you starred; relics that drop a part for it are marked.
   let { model, advice = $bindable(), wishlist = [], masteryRank = null }: { model: Model; advice: AdviceSettings; wishlist?: string[]; masteryRank?: number | null } = $props();
@@ -51,6 +52,8 @@
   let neededOnly = $state(false);
   let exactBase = $state<string | null>(null);
   let query = $state("");
+  /** What the list is filtered on: the box, a moment later while you type (typed.svelte.ts). */
+  const q = $derived.by(typed(() => query));
   let sort = $state({ key: "evI", desc: true });
   /** Solo: one crack, your own reward. Radshare: four of the same relic, you pick the best of four. */
   // While hidden, these keep what they were (lib/pane.svelte.ts): the Planner's squad or the ducat rate redraws this page on its next visit.
@@ -73,7 +76,7 @@
         (era === "all" || r.era === era) &&
         (vault === "all" || (vault === "resurgence" ? r.resurgence : vault === "vaulted" ? r.vaulted : !r.vaulted)) &&
         (!neededOnly || r.neededCount > 0) &&
-        (exactBase && query === exactBase ? r.base === exactBase : matches(query, r.base, ...r.rewards.map((x) => x.name))),
+        (exactBase && q === exactBase ? r.base === exactBase : matches(q, r.base, ...r.rewards.map((x) => x.name))),
     ),
   );
 
@@ -101,8 +104,8 @@
     return out;
   });
   /** Relics TennoScope's relic data doesn't know yet: counted, but with no rewards to show. */
-  const unknown = $derived(unknownRelics(model).filter((u) => matches(query, u.base)));
-  const filtering = $derived(era !== "all" || vault !== "all" || neededOnly || !!query.trim());
+  const unknown = $derived(unknownRelics(model).filter((u) => matches(q, u.base)));
+  const filtering = $derived(era !== "all" || vault !== "all" || neededOnly || !!q.trim());
   function clearFilters() {
     era = "all";
     vault = "all";

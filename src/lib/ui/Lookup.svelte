@@ -12,6 +12,7 @@
   import { MASTERY_CATEGORIES, masteryCategory } from "../core/views";
   import { trap } from "./trap";
   import { mkt } from "../marketStore.svelte";
+  import { typed } from "../typed.svelte";
 
   let { open = $bindable(false), model, go }: { open: boolean; model: Model; go: (tab: string) => void } = $props();
 
@@ -25,6 +26,8 @@
   }
 
   let query = $state("");
+  /** The matches follow the box a moment later while you type (typed.svelte.ts); Enter uses the box as it is. */
+  const typedQuery = $derived.by(typed(() => query, (v) => !v.trim()));
   let at = $state(0);
   let field = $state<HTMLInputElement | null>(null);
   $effect(() => {
@@ -75,8 +78,9 @@
     return out;
   });
 
-  const hits = $derived.by(() => {
-    const q = query.trim().toLowerCase();
+  const hits = $derived(hitsFor(typedQuery));
+  function hitsFor(text: string): Hit[] {
+    const q = text.trim().toLowerCase();
     if (!q) return [];
     const rank = (n: string) => {
       const l = n.toLowerCase();
@@ -90,7 +94,7 @@
       .sort((a, b) => a.r - b.r || a.h.name.length - b.h.name.length || a.h.name.localeCompare(b.h.name))
       .slice(0, 12)
       .map((x) => x.h);
-  });
+  }
   $effect(() => {
     hits;
     at = 0;
@@ -108,7 +112,8 @@
       if (hits.length) at = (at + (e.key === "ArrowDown" ? 1 : -1) + hits.length) % hits.length;
     } else if (e.key === "Enter") {
       e.preventDefault();
-      pick(hits[at]);
+      // Typed and Enter before the list caught up: the best match for what's in the box.
+      pick(typedQuery === query ? hits[at] : hitsFor(query)[0]);
     }
   }
 </script>
@@ -130,7 +135,7 @@
             </li>
           {/each}
         </ul>
-      {:else if query.trim()}
+      {:else if typedQuery.trim()}
         <p class="dim small">{mkt.items.length ? "Nothing by that name." : "Nothing by that name. warframe.market's item list hasn't loaded yet: anything it trades is on Browse market."}</p>
       {:else}
         <p class="dim small">Gear opens its details, a prime part its item's, a relic, mod or arcane its page, anything else on warframe.market Browse market. ↑↓ to pick, Enter to open, Esc to close.</p>

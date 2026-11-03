@@ -21,6 +21,7 @@
   import type { Fissure } from "../core/types";
   import RelicPlate from "../ui/RelicPlate.svelte";
   import { keepWhile, shownPage, whenIdle, whileShown } from "../pane.svelte";
+  import { typed } from "../typed.svelte";
 
   // The mode is kept in settings, so it survives a restart and the Guide can open either one.
   // fissures: the live ones, so a relic you can crack right now says so.
@@ -44,6 +45,8 @@
   let metric = $state<RadiantMetric>("plat");
   let vaultedOnly = $state(false);
   let query = $state("");
+  /** What the list is filtered on: the box, a moment later while you type (typed.svelte.ts). */
+  const q = $derived.by(typed(() => query));
   let sortSets = $state({ key: "value", desc: true });
   let sortRad = $state({ key: "gain", desc: true });
 
@@ -53,17 +56,17 @@
 
   // ------------------------------------------------ crack for sets
   const plan = $derived.by(whileShown("planner", () => crackRows(model, settings.maxMissing, settings.squad)));
-  const crack = $derived(plan.relics.filter((r) => (!vaultedOnly || r.vaulted) && (!openOnly || isOpen(r.base)) && (!wishOnly || forWish.has(r.base)) && matches(query, r.base, ...r.hits.map((h) => h.reward))));
+  const crack = $derived(plan.relics.filter((r) => (!vaultedOnly || r.vaulted) && (!openOnly || isOpen(r.base)) && (!wishOnly || forWish.has(r.base)) && matches(q, r.base, ...r.hits.map((h) => h.reward))));
   /** The gap lists show a few at first: the table above them is the plan. */
   const GAPS_SHOWN = 10;
   let open = $state<Record<string, boolean>>({});
   // The stats and the lists below follow the table's filters.
-  const filtered = $derived(vaultedOnly || !!query.trim());
-  const gaps = $derived.by(whileShown("planner", () => filterGaps(model, plan, vaultedOnly, (...fields) => matches(query, ...fields))));
+  const filtered = $derived(vaultedOnly || !!q.trim());
+  const gaps = $derived.by(whileShown("planner", () => filterGaps(model, plan, vaultedOnly, (...fields) => matches(q, ...fields))));
   const lastParts = $derived(gaps.filter((g) => g.missingCount === 1));
   const uncovered = $derived(gaps.filter((g) => g.relicsOwned === 0));
   /** Any filter on, for the tables' empty line: Clear puts them all back. */
-  const anyFilter = $derived(!!query.trim() || vaultedOnly || wishOnly || openOnly);
+  const anyFilter = $derived(!!q.trim() || vaultedOnly || wishOnly || openOnly);
   function clear() {
     query = "";
     vaultedOnly = wishOnly = openOnly = false;
@@ -87,7 +90,7 @@
   const radiant = $derived.by(
     whileShown("planner", () =>
       radiantRows(model, { squad: settings.squad, metric, platPerDucat: settings.platPerDucat }).filter(
-        (r) => r.refinable > 0 && (!vaultedOnly || r.vaulted) && (!openOnly || isOpen(r.base)) && (!wishOnly || forWish.has(r.base)) && matches(query, r.base, r.rare?.name),
+        (r) => r.refinable > 0 && (!vaultedOnly || r.vaulted) && (!openOnly || isOpen(r.base)) && (!wishOnly || forWish.has(r.base)) && matches(q, r.base, r.rare?.name),
       ),
     ),
   );

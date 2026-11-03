@@ -30,6 +30,7 @@
   import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
   import { pickShowcase } from "../core/showcase";
   import { whileShown } from "../pane.svelte";
+  import { typed } from "../typed.svelte";
 
   let { model, sell, platPerDucat = 0, squad = 1, gear = null, keepGear = $bindable([]) }: { model: Model; sell: SellChoices; platPerDucat?: number; squad?: number; gear?: GearCopy[] | null; keepGear?: string[] } = $props();
   // Gear you no longer need and can't trade (core/notNeeded.ts), shown above the list when asked.
@@ -44,6 +45,8 @@
   let minEach = $state<number | null>(null);
   let spareOnly = $state(false);
   let query = $state("");
+  /** What the list is filtered on: the box, a moment later while you type (typed.svelte.ts). */
+  const q = $derived.by(typed(() => query));
   // What selling would bring first: 532 Thumpers at 4p each aren't where to start.
   let sort = $state({ key: "sellable", desc: true });
 
@@ -87,7 +90,7 @@
   };
 
   // Spare only and the folded filters, the kind and a search: what Clear puts back.
-  const filtered = $derived(!!query.trim() || kind !== "all" || tradableOnly || minTrades != null || minEach != null || spareOnly);
+  const filtered = $derived(!!q.trim() || kind !== "all" || tradableOnly || minTrades != null || minEach != null || spareOnly);
   function clear() {
     query = "";
     kind = "all";
@@ -95,7 +98,7 @@
     minTrades = minEach = null;
   }
 
-  const rows = $derived(all.filter((r) => (kind === "all" || r.kind === kind) && (!tradableOnly || spareOf(r)) && (minTrades == null || (perDay(r) ?? 0) >= minTrades) && (minEach == null || (priceOf(r) ?? 0) >= minEach) && (!spareOnly || spare(r) > 0) && matches(query, r.name, r.type, shown(r), spareOf(r)?.type ?? "")));
+  const rows = $derived(all.filter((r) => (kind === "all" || r.kind === kind) && (!tradableOnly || spareOf(r)) && (minTrades == null || (perDay(r) ?? 0) >= minTrades) && (minEach == null || (priceOf(r) ?? 0) >= minEach) && (!spareOnly || spare(r) > 0) && matches(q, r.name, r.type, shown(r), spareOf(r)?.type ?? "")));
   const pctOf = (x: number | null | undefined) => (x == null ? "–" : `${Math.round(x * 10) / 10}%`);
   const why = (r: InventoryItem) => spareOf(r)?.why ?? "Nothing to spare";
 

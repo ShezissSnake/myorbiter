@@ -153,6 +153,16 @@
   // The delete confirm sticks to its sale, not its row: a sale logged meanwhile shifts the rows.
   const keyOf = (s: Sale) => `${s.at}|${s.item}|${s.rank ?? ""}|${s.quantity}|${s.platinum}|${s.trade ?? ""}`;
   let removing = $state<string | null>(null);
+  /** The log's rows keyed by their sale (a repeat of an identical one numbered), not their place: a sale logged or deleted moves the rows rather than redrawing each. */
+  const logRows = $derived.by(() => {
+    const seen = new Map<string, number>();
+    return sales.slice(0, 200).map((s) => {
+      const k = keyOf(s);
+      const n = seen.get(k) ?? 0;
+      seen.set(k, n + 1);
+      return { s, key: n ? `${k}#${n}` : k };
+    });
+  });
   function drop(key: string) {
     const i = sales.findIndex((x) => keyOf(x) === key);
     if (i >= 0) settings.market.sales = sales.filter((_, j) => j !== i);
@@ -263,7 +273,7 @@
     <table class="log">
       <thead><tr><th>When</th><th>Item</th><th class="right">Qty</th><th class="right">Each</th><th class="right" title="The sale price next to the item's daily median on warframe.market when it sold (today's, for sales from before orbiter recorded it)">Vs market</th><th class="right">Total</th><th></th></tr></thead>
       <tbody>
-        {#each sales.slice(0, 200) as s, i (s.at + s.item + i)}
+        {#each logRows as { s, key } (key)}
           <tr>
             <td class="dim when">{when(s.at)}</td>
             <td><Named file={image(s.item)} name={s.item}>{#if s.rank != null}<span class="tag">R{s.rank}</span>{/if}</Named></td>

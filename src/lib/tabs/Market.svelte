@@ -19,6 +19,7 @@
   import { matches, type Column } from "../ui/table";
   import { takeIntent } from "../intent.svelte";
   import { whileShown } from "../pane.svelte";
+  import { typed } from "../typed.svelte";
 
   let { model }: { model: Model } = $props();
 
@@ -30,6 +31,8 @@
   // On by default: the dearest things that "sold" once or twice lead with joke prices otherwise.
   let weekly = $state(true);
   let query = $state("");
+  /** What the list is filtered on: the box, a moment later while you type (typed.svelte.ts). */
+  const q = $derived.by(typed(() => query));
   let sort = $state({ key: "price", desc: true });
   // Ctrl+K asked for one item: every category, slow sellers too, searched for its name.
   $effect(() => {
@@ -53,16 +56,16 @@
   });
 
   const all = $derived.by(whileShown("browse", () => marketRows(model, mkt.items)));
-  const rows = $derived(filterRows(all, { category, min, max, minTrades, owned, weekly }).filter((r) => matches(query, r.name)));
+  const rows = $derived(filterRows(all, { category, min, max, minTrades, owned, weekly }).filter((r) => matches(q, r.name)));
   /** What "Sold weekly" is hiding from the rest of the filters. */
-  const slowHidden = $derived(weekly ? filterRows(all, { category, min, max, minTrades, owned, weekly: false }).filter((r) => matches(query, r.name)).length - rows.length : 0);
+  const slowHidden = $derived(weekly ? filterRows(all, { category, min, max, minTrades, owned, weekly: false }).filter((r) => matches(q, r.name)).length - rows.length : 0);
   const count = (c: MarketCategory | "all") => (c === "all" ? all.length : all.filter((r) => r.category === c).length);
   const label = (c: MarketCategory) => CATEGORIES.find((x) => x.v === c)?.label ?? "";
   const daily = (t: number | null) => (t == null ? null : Math.round(t * 10) / 10);
   /** How often it sells, for the cards and the tooltips: sold/day as everywhere, by the week when it's under one a day. */
   const pace = (t: number | null) => (t == null ? "No recent sales" : t >= 1 ? `${daily(t)} sold/day` : t >= 1 / 7 ? `~${Math.round(t * 7)} sold/week` : "Sold rarely");
   const sellsDaily = $derived(rows.filter((r) => (r.tradesPerDay ?? 0) >= 1).length);
-  const filtered = $derived(category !== "all" || min != null || max != null || minTrades != null || owned || !weekly || !!query.trim());
+  const filtered = $derived(category !== "all" || min != null || max != null || minTrades != null || owned || !weekly || !!q.trim());
   // The ticker tape under the title: what's listed, what sells daily and what you hold of it, for
   // the items the filters show (it replaces the band's one figure).
   const heldCount = $derived(rows.filter((r) => (r.have ?? 0) > 0).length);
