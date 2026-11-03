@@ -25,13 +25,19 @@
   .v :global(.of) { color: var(--platinum-deep); font-size: .55em; align-self: flex-end; margin-bottom: .2em; }
   .t-dim { color: var(--platinum-dim); }
   .l { margin-top: .55rem; color: var(--platinum-dim); }
-  .note { margin-top: .2rem; font-size: .74rem; color: var(--platinum-deep); }
+  /* The note folds on its grid row when Details turns off or on (QUICK), so the page under the
+     band slides rather than jumping; hidden for good (visibility) once folded. */
+  .note {
+    display: grid; grid-template-rows: 1fr; font-size: .74rem; color: var(--platinum-deep);
+    transition: grid-template-rows var(--quick) var(--out), opacity var(--quick) var(--out), visibility 0s;
+  }
+  .note > span { display: block; min-height: 0; overflow: hidden; padding-top: .2rem; }
   /* A short window: the same figures, tighter. */
   @media (max-height: 860px) {
     .cell { padding-top: .65rem; padding-bottom: .7rem; }
     .v { font-size: clamp(1.6rem, 2.4vw, 2.1rem); }
     .l { margin-top: .35rem; }
   }
-  :global(html:not([data-details])) .note:not(.keep) { display: none; }
+  :global(html:not([data-details])) .note:not(.keep) { grid-template-rows: 0fr; opacity: 0; visibility: hidden; transition-delay: 0s, 0s, var(--quick); }
   :global(html:not([data-details])) .cell.extra { display: none; }
 </style>
