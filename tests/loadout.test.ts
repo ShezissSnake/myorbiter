@@ -3,19 +3,23 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import {
   FRAME_NAMES,
+  frameInfo,
   heldFrom,
+  kitElements,
   loadoutFor,
   loadoutItems,
   loadoutModNames,
   modIndex,
   ownedFrom,
   SHARD_PATHS,
+  shardElement,
   suggest,
   TIERS,
   type Held,
   type Loadout,
   type LoadoutPick,
   type Owned,
+  type SetPick,
   type Tier,
 } from "../src/lib/core/builds/suggest";
 import { SHARD_PATH } from "../src/lib/core/builds/missing";
@@ -40,7 +44,7 @@ const ownedOnly = (...names: string[]): Owned => new Map(names.map((n) => [path(
 const heldOnly = (entries: [string, number][]): Held => new Map(entries);
 const MYTHIC = (c: keyof typeof SHARD_PATHS) => SHARD_PATHS[c] + "Mythic";
 
-const all = (l: Loadout): LoadoutPick[] => [...l.shards, ...(l.helminth ? [l.helminth] : []), ...l.weapons, ...l.arcanes, ...l.companion, ...(l.focus ? [l.focus] : [])];
+const all = (l: Loadout): LoadoutPick[] => [...l.shards, ...(l.helminth ? [l.helminth] : []), ...l.weapons, ...l.arcanes, ...l.companion, ...(l.focus ? [l.focus] : []), ...(l.primer ?? [])];
 const names = (ps: LoadoutPick[]) => ps.map((p) => p.name);
 const stats = (l: Loadout) => l.shards.map((s) => `${s.colour}:${s.stat}`);
 
@@ -79,7 +83,7 @@ test("a tank (Rhino Prime): armour and health shards, Parasitic Armor over Rhino
   const rhino = item("Rhino Prime");
   const l = loadoutFor(rhino, "medium", everyMod, index, everyItem)!;
   assert.deepEqual(stats(l), ["azure:Armor", "azure:Armor", "azure:Health", "crimson:Ability Strength", "amber:Casting Speed"]);
-  assert.ok(l.shards.every((s) => !s.tauforged), "medium: plain shards");
+  assert.ok(l.shards.every((s) => s.tauforged && s.path!.endsWith("Mythic")), "medium: Tauforged too");
   assert.deepEqual([l.helminth?.ability, l.helminth?.replaces], ["Parasitic Armor", "Rhino Stomp"]);
   assert.equal(l.helminth?.owned, null, "a Helminth ability: orbiter can't see the Helminth");
   assert.equal(l.focus?.name, "Vazarin");
@@ -112,18 +116,23 @@ test("the kit's element picks the shard (Electricity for Volt); a shield tank ge
   assert.ok(!hil.weapons.some((w) => w.name === "Xata Invocation" || w.name === "Netra Invocation"), "no energy for a frame that doesn't use it");
 });
 
-test("shards the player holds are marked, one pick per shard held", () => {
+test("shards the player holds are marked, Tauforged only; plain ones held get the fusion note", () => {
   const saryn = item("Saryn Prime");
   const held = heldOnly([[SHARD_PATHS.crimson, 1], [MYTHIC("amber"), 2]]);
-  const med = loadoutFor(saryn, "medium", everyMod, index, held)!.shards;
-  assert.deepEqual(med.filter((s) => s.colour === "crimson").map((s) => s.owned), [true, false]);
-  assert.ok(med.filter((s) => s.colour === "amber").every((s) => s.owned === false), "plain amber not held: the Tauforged ones don't count");
-  const high = loadoutFor(saryn, "high", everyMod, index, held)!.shards;
-  assert.deepEqual(high.filter((s) => s.colour === "amber").map((s) => s.owned), [true, true]);
-  assert.ok(high.filter((s) => s.colour === "crimson").every((s) => s.owned === false), "the plain crimson doesn't count as Tauforged");
-  for (const s of high) assert.equal(s.path, SHARD_PATHS[s.colour!] + "Mythic");
+  for (const tier of ["medium", "high"] as const) {
+    const sh = loadoutFor(saryn, tier, everyMod, index, held)!.shards;
+    assert.ok(sh.every((s) => s.tauforged && s.name.startsWith("Tauforged ") && s.path === SHARD_PATHS[s.colour!] + "Mythic"), `${tier}: Tauforged only`);
+    assert.deepEqual(sh.filter((s) => s.colour === "amber").map((s) => s.owned), [true, true], `${tier}: both Tauforged amber held`);
+    const crimson = sh.filter((s) => s.colour === "crimson");
+    assert.ok(crimson.every((s) => s.owned === false), "the plain crimson doesn't count as Tauforged");
+    assert.match(crimson[0].fuse!, /You hold 1 plain Crimson shard: Ascent Fusion .*3 for 1, 100 Stela.*Update 35\.5.*You need 2 more for one\./);
+    assert.ok(crimson.slice(1).every((s) => !s.fuse), "the note once per colour");
+    assert.ok(sh.filter((s) => s.colour === "amber").every((s) => !s.fuse), "held: no note");
+  }
+  const four = loadoutFor(saryn, "high", everyMod, index, heldOnly([[SHARD_PATHS.crimson, 4]]))!.shards.find((s) => s.colour === "crimson")!;
+  assert.match(four.fuse!, /You hold 4 plain Crimson shards: .*Yours make 1\./);
   // Without the inventory orbiter can't tell.
-  assert.ok(loadoutFor(saryn, "medium", everyMod, index)!.shards.every((s) => s.owned === null));
+  assert.ok(loadoutFor(saryn, "medium", everyMod, index)!.shards.every((s) => s.owned === null && !s.fuse));
 });
 
 test("heldFrom sums every row by path, any category", () => {
@@ -143,11 +152,18 @@ function checkBudget(l: Loadout, tier: Tier, what: string) {
     assert.equal(l.arcanes.length, 0, `${what}: no arcanes at low`);
     for (const p of [...l.weapons, ...l.companion]) assert.equal(p.owned, true, `${what}: low only asks for what you hold (${p.name})`);
   }
-  if (tier === "medium") {
-    assert.ok(l.shards.every((s) => !s.tauforged), `${what}: Tauforged only at high`);
-    for (const p of [...l.weapons, ...l.companion, ...l.arcanes]) assert.equal(p.owned, true, `${what}: medium gets nothing to buy or farm (${p.name})`);
+  if (tier === "low") {
+    assert.equal(l.sets?.length ?? 0, 0, `${what}: no sets at low`);
+    for (const p of l.primer ?? []) assert.equal(p.owned, true, `${what}: low only asks for what you hold (${p.name})`);
   }
-  if (tier === "high") assert.ok(l.shards.every((s) => s.tauforged), `${what}: high is Tauforged`);
+  if (tier === "medium") {
+    for (const p of [...l.weapons, ...l.companion, ...l.arcanes, ...(l.primer ?? [])]) assert.equal(p.owned, true, `${what}: medium gets nothing to buy or farm (${p.name})`);
+    for (const st of l.sets ?? []) assert.ok(st.pieces.every((x) => x.owned) && (!st.companion || st.companion.owned === true), `${what}: medium sets are all held (${st.name})`);
+  }
+  // Never a plain shard, at any tier.
+  assert.ok(l.shards.every((s) => s.tauforged === true && s.name.startsWith("Tauforged ") && s.path?.endsWith("Mythic")), `${what}: Tauforged only`);
+  for (const st of l.sets ?? []) assert.ok(TIERS.indexOf(st.tier) <= TIERS.indexOf(tier), `${what}: set ${st.name} (${st.tier}) within ${tier}`);
+  assert.ok((l.sets?.length ?? 0) <= 2, `${what}: two sets at most`);
   for (const p of all(l)) assert.ok(TIERS.indexOf(p.tier) <= TIERS.indexOf(tier), `${what}: ${p.name} (${p.tier}) within ${tier}`);
   assert.ok(l.shards.length <= 5);
   assert.ok(l.weapons.filter((w) => / Invocation$/.test(w.name)).length <= 1, "one Invocation at a time");
@@ -182,6 +198,143 @@ test("every loadout name is in the fixture catalog, exactly, and every item path
   const data = synergies as unknown as { shards: { stats: { colour: string }[] }; helminth: { frames: Record<string, { source: string }> } };
   for (const s of data.shards.stats) assert.ok((SHARD_COLOURS as string[]).includes(s.colour));
   for (const n of Object.keys(data.helminth.frames)) assert.ok(FRAME_NAMES.includes(n), `${n} is a curated frame`);
+});
+
+// ---------------------------------------------------------------- elements, primers, sets
+
+type Syn = {
+  shards: { stats: { colour: string; stat: string }[]; elements: Record<string, { colour: string | null; stat: string | null }> };
+  shieldGating: { frames: string[] };
+  sets: Record<string, { pieces: { name: string; slot: string; aura?: boolean; replaces?: string }[]; fit: string | null; source: string }>;
+  primers: Record<string, { items: { name: string; path: string }[]; mod: string; source: string }>;
+};
+const SYN = synergies as unknown as Syn;
+const setNames = (l: Loadout) => (l.sets ?? []).map((x) => x.name);
+
+test("the element-to-shard mapping: Violet Electricity, Emerald Corrosion and Toxin, Topaz Radiation; Heat, Cold, Blast and Viral feed none", () => {
+  const e = SYN.shards.elements;
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(e).map(([k, v]) => [k, v.colour])),
+    { electricity: "violet", corrosive: "emerald", toxin: "emerald", radiation: "topaz", heat: null, blast: null, cold: null, viral: null },
+  );
+  // Each mapped stat is one of that colour's stats.
+  for (const [el, v] of Object.entries(e)) if (v.stat) assert.ok(SYN.shards.stats.some((x) => x.colour === v.colour && x.stat === v.stat), `${el}: ${v.stat} is a ${v.colour} stat`);
+});
+
+test("kit elements come from the ability tags, and the curated list fills the gaps (Ember, Gyre)", () => {
+  assert.deepEqual(kitElements(item("Saryn Prime")).map((x) => [x.element, x.ability]), [["corrosive", "Spores"], ["toxin", "Toxic Lash"], ["viral", "Miasma"]]);
+  assert.deepEqual([shardElement(item("Saryn Prime"))?.colour, shardElement(item("Volt"))?.colour, shardElement(item("Hildryn"))?.colour], ["emerald", "violet", "topaz"]);
+  const ember = kitElements(item("Ember"));
+  assert.deepEqual(ember.map((x) => [x.element, x.colour]), [["heat", null]], "Ember: Heat, which no shard feeds");
+  assert.match(ember[0].source, /^https:\/\/wiki\.warframe\.com\//);
+  assert.equal(shardElement(item("Ember")), null);
+  assert.ok(!stats(loadoutFor(item("Ember"), "high", everyMod, index, everyItem)!).some((x) => /affected|Toxin/.test(x)), "no element shard for Ember");
+  assert.equal(shardElement(item("Gyre"))?.colour, "violet");
+  assert.ok(stats(loadoutFor(item("Gyre"), "high", everyMod, index, everyItem)!).includes("violet:Ability Damage on Electricity-affected enemies"), "Gyre's Electricity, from the curated list");
+  assert.equal(loadoutFor(item("Gyre"), "high", everyMod, index, everyItem)!.element?.element, "electricity");
+  // A tagged frame never reads the curated list: tags win.
+  assert.equal(kitElements(item("Volt"))[0].source, "the catalog's ability text");
+});
+
+test("primers: the companion that applies the kit's own element, else Viral; none for tanks and support", () => {
+  const pick = (name: string, tier: Tier = "high", held: Held = everyItem) => loadoutFor(item(name), tier, everyMod, index, held)!.primer ?? [];
+  const volt = pick("Volt");
+  assert.deepEqual(names(volt), ["Diriga", "Arc Coil", "Manifold Bond", "Verglas Prime", "Contagious Bond"]);
+  assert.match(volt[0].reason, /Discharge|Electricity|electricity/);
+  assert.match(volt[0].reason, /Violet shard/);
+  assert.ok(volt.slice(1).every((p) => p.on === "Diriga"));
+  assert.deepEqual(names(pick("Saryn Prime")).slice(0, 2), ["Helminth Charger", "Strain Eruption"]);
+  assert.match(pick("Saryn Prime")[0].reason, /Corrosion and Toxin .*Emerald shard/);
+  assert.deepEqual(names(pick("Ember")).slice(0, 2), ["Panzer Vulpaphyla", "Viral Quills"], "Heat: no Heat primer, so Viral");
+  assert.equal(pick("Gyre")[0].name, "Diriga");
+  assert.deepEqual(pick("Rhino Prime"), [], "a tank keeps its companion");
+  assert.deepEqual(pick("Wisp"), [], "support keeps its companion");
+  // Low tier: the primer the player holds, with a pointer to the better one.
+  const onlyDiriga = heldOnly([[path("Diriga"), 1]]);
+  const low = loadoutFor(item("Saryn Prime"), "low", ownedOnly("Arc Coil"), index, onlyDiriga)!.primer!;
+  assert.deepEqual(names(low), ["Diriga", "Arc Coil"]);
+  assert.match(low[0].reason, /Helminth Charger suits it better/);
+  for (const p of [...volt, ...low]) assert.match(p.source, /^https:\/\//);
+});
+
+test("sets: only when the frame's role fits, with the slots they cost and the pieces held", () => {
+  const sets = (name: string, owned: Owned = everyMod, held: Held = everyItem) => loadoutFor(item(name), "high", owned, index, held)!.sets ?? [];
+  // Shield-gaters get Augur; Hildryn shield-gates but spends no energy, so not her.
+  for (const f of ["Mag", "Harrow"]) assert.ok(setNames({ sets: sets(f) } as Loadout).includes("Augur"), `${f}: Augur`);
+  const hil = loadoutFor(item("Hildryn"), "high", everyMod, index, everyItem)!;
+  assert.ok(!setNames(hil).includes("Augur"));
+  assert.match(hil.note, /Hildryn shield-gates, but spends no energy/);
+  const augur = sets("Harrow").find((x) => x.name === "Augur")!;
+  assert.match(augur.bonus, /40% of the energy you spend .* 240% with all six/);
+  assert.equal(augur.cost, "4 Warframe slots, 2 secondary slots; on the frame, Augur Secrets for Intensify, Augur Reach for Stretch, Augur Message for Continuity, Augur Accord for Redirection, Augur Pact for Hornet Strike, a weaker copy of each.");
+  // A kit that applies status gets Mecha, which needs a Kubrow: the player's, if they have one.
+  const mecha = sets("Volt").find((x) => x.name === "Mecha")!;
+  assert.deepEqual(mecha.pieces.map((p) => [p.name, p.slotKind, !!p.aura]), [["Mecha Empowered", "warframe", true], ["Mecha Pulse", "warframe", false], ["Mecha Overdrive", "companionWeapon", false], ["Mecha Recharge", "companion", false]]);
+  assert.equal(mecha.cost, "the aura slot, 1 Warframe slot, 1 companion weapon slot, 1 companion slot.");
+  assert.deepEqual([mecha.companion?.name, mecha.companion?.owned], ["Sunika Kubrow", true]);
+  assert.equal(sets("Volt", everyMod, new Map()).find((x) => x.name === "Mecha")?.companion?.owned, false);
+  // Health tanks: Strain (with the Helminth Charger) and Carnis; a tank that spams: Hunter.
+  assert.deepEqual(setNames({ sets: sets("Rhino Prime") } as Loadout), ["Strain", "Carnis"]);
+  assert.deepEqual(setNames({ sets: sets("Valkyr") } as Loadout), ["Strain", "Hunter"]);
+  assert.deepEqual(sets("Wisp"), [], "support: none");
+  // Pieces held are marked; medium only with every piece and the companion.
+  const some = ownedOnly("Augur Secrets", "Augur Reach");
+  const marked = sets("Mag", some).find((x) => x.name === "Augur")!;
+  assert.deepEqual(marked.pieces.filter((p) => p.owned).map((p) => p.name), ["Augur Secrets", "Augur Reach"]);
+  assert.equal(marked.tier, "high");
+  assert.deepEqual(loadoutFor(item("Mag"), "medium", some, index, everyItem)!.sets, [], "medium: not all held");
+  assert.equal(loadoutFor(item("Mag"), "medium", everyMod, index, everyItem)!.sets!.find((x) => x.name === "Augur")?.tier, "medium");
+});
+
+test("sets only for frames whose role fits, for every curated frame; never a set with no rule", () => {
+  const fakes = FRAME_NAMES.map((n) => ({ ...item("Saryn Prime"), name: n, uniqueName: `/fake/${n}` }) as CatalogItem);
+  for (const f of fakes) {
+    const info = frameInfo(f.name)!;
+    const roles = new Set(info.roles);
+    for (const st of loadoutFor(f, "high", everyMod, index, everyItem)!.sets ?? []) {
+      const fit = SYN.sets[st.name].fit;
+      assert.ok(fit, `${f.name}: ${st.name} has a rule`);
+      if (fit === "shieldGate") assert.ok(SYN.shieldGating.frames.includes(f.name) && !info.noEnergy, `${f.name}: Augur`);
+      if (fit === "statusKit") assert.ok(info.roles[0] !== "tank" && (roles.has("strength") || roles.has("range")) && kitElements(f).length > 0, `${f.name}: Mecha`);
+      if (fit === "healthTank") assert.ok(info.roles[0] === "tank" && !info.shields, `${f.name}: ${st.name}`);
+      if (fit === "spamTank") assert.ok(roles.has("tank") && !info.shields && info.spam && !info.noEnergy, `${f.name}: Hunter`);
+      assert.ok(st.reason.length > 20 && st.bonus.length > 20, `${f.name}: ${st.name} says why`);
+      assert.match(st.source, /^https:\/\//);
+    }
+  }
+});
+
+/** Where a catalog mod goes, from its own type and compatName. */
+function slotOf(m: CatalogItem): { slot: string; aura: boolean } {
+  const t = m.type ?? "";
+  const compat = (m as { compatName?: string }).compatName ?? "";
+  if (t === "Warframe Mod") return { slot: "warframe", aura: compat === "AURA" };
+  if (t === "Primary Mod") return { slot: "primary", aura: false };
+  if (t === "Secondary Mod") return { slot: "secondary", aura: false };
+  if (t === "Melee Mod") return { slot: "melee", aura: false };
+  if (t === "Companion Mod") return { slot: /Claws/.test(compat) ? "companionWeapon" : "companion", aura: false };
+  return { slot: `?${t}`, aura: false };
+}
+
+test("every set piece goes where the catalog says it goes, and every piece and primer is in the catalog by its exact name", () => {
+  for (const [name, d] of Object.entries(SYN.sets)) {
+    if (name.startsWith("_")) continue;
+    assert.ok(d.pieces.length >= 3, `${name}: pieces`);
+    for (const p of d.pieces) {
+      const m = index.byName.get(p.name);
+      assert.ok(m, `${p.name} in the catalog`);
+      assert.match(m.uniqueName, /\/Sets\//, `${p.name} is a set mod`);
+      assert.deepEqual(slotOf(m), { slot: p.slot, aura: !!p.aura }, `${p.name}'s slot`);
+      if (p.replaces) assert.equal(slotOf(index.byName.get(p.replaces)!).slot, p.slot, `${p.replaces} goes where ${p.name} goes`);
+    }
+    assert.match(d.source, /^https:\/\//);
+  }
+  for (const [name, p] of Object.entries(SYN.primers)) {
+    if (name.startsWith("_")) continue;
+    assert.equal(p.items[0].name, name);
+    assert.ok(index.byName.has(p.mod), `${p.mod} in the catalog`);
+  }
+  for (const f of SYN.shieldGating.frames) assert.ok(FRAME_NAMES.includes(f), `${f} is a curated frame`);
 });
 
 // ---------------------------------------------------------------- against the real catalog and inventory (when present)
