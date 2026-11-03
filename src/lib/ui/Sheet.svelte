@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { scrim } from "./scrim";
   // A panel that slides over the right side of the window: Settings, TennoScope, an item's details.
   // Esc or a click outside closes it. While it's open, Tab stays inside it; closed, the keyboard
   // goes back to what opened it.
@@ -15,7 +16,7 @@
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="scrim" onclick={() => (open = false)} in:shade|global={{ duration: SETTLE }} out:shade|global></div>
+  <div class="scrim" use:scrim onclick={() => (open = false)} in:shade|global={{ duration: SETTLE }} out:shade|global></div>
   <div class="sheet" class:wide role="dialog" in:fly|global={{ x: 40, opacity: 0, duration: ms(SETTLE), easing: out }} out:fly|global={{ x: 32, opacity: 0, duration: ms(100), easing: out }} aria-modal="true" aria-label={title} tabindex="-1" use:trap={{ onescape: () => (open = false) }}>
     <header>
       <div>
