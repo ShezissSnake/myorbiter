@@ -1,5 +1,8 @@
 <script lang="ts">
   import { daysToTrade } from "../core/tradeLimit";
+  import { planTax } from "../core/tradeTax";
+  import { shortCredits } from "../core/traders";
+  import GameIcon from "./GameIcon.svelte";
   // "Put my spares on sale": tick what to sell, look over the changes, apply them in one go.
   // Only the ticked categories are touched; listings you set to be left alone, or hid, never are.
   import { tick } from "svelte";
@@ -13,7 +16,7 @@
   import Named from "./Named.svelte";
   import { info } from "../hover.svelte";
 
-  let { model, settings, advice, masteryRank = null }: { model: Model; settings: MarketSettings; advice: AdviceSettings; masteryRank?: number | null } = $props();
+  let { model, settings, advice, masteryRank = null, credits = null }: { model: Model; settings: MarketSettings; advice: AdviceSettings; masteryRank?: number | null; credits?: number | null } = $props();
 
   const r = $derived(settings.bulk);
   const anyTicked = $derived(r.sets || r.arcanes || r.mods || r.parts || r.imprints || r.other);
@@ -56,6 +59,8 @@
     changes.reduce((n, a) => n + (a.type === "create" ? a.quantity * a.platinum : a.type === "update" ? a.quantity * a.platinum - a.order.quantity * a.order.platinum : a.type === "remove" ? -a.order.quantity * a.order.platinum : 0), 0),
   );
   let showSkipped = $state(false);
+  /** The trading tax for selling every copy in the plan's new and resized listings (the seller pays it, in credits). */
+  const tax = $derived(planTax(model, actions));
 
   let confirmRemoveAll = $state(false);
   // The confirm takes the focus on its safe choice, so Esc (or Enter) keeps your listings.
@@ -142,6 +147,10 @@
         {@const copies = changes.reduce((n, a) => n + (a.type === "remove" ? 0 : a.quantity), 0)}
         {@const days = daysToTrade(copies, masteryRank)}
         {#if days != null && days > 1}<p class="dim small" title="Trades a day are your Mastery Rank ({masteryRank}), each carrying up to 6 items; buyers often take just one, so it's usually longer">{copies.toLocaleString("en")} copies in new or changed listings: at {masteryRank} trades a day, 6 items each at best, selling them all takes {days} days or more.</p>{/if}
+      {/if}
+      {#if tax.credits > 0}
+        {@const short = credits != null && tax.credits > credits}
+        <p class="small" class:warn={short} class:dim={!short} title="Warframe charges the one handing an item over a credit tax for it: by kind and rarity (2,000 a prime part, a set per part, mods 2,000–1,000,000 by rarity, arcanes by rarity and rank, relics 2,000 or 4,000 by era). This is the base tax for selling every copy listed; Maroo's Bazaar adds 10%, a clan dojo up to 100%{tax.unknown.length ? `. Not counted, tax unknown: ${tax.unknown.join(', ')}` : ''}"><GameIcon name="credits" size={12} /> Selling all of it costs about {shortCredits(tax.credits)} credits in trade tax ({shortCredits(tax.maroo)} in Maroo's Bazaar){#if short}: more than the {shortCredits(credits!)} you have, so some trades won't go through until you farm credits{:else if credits != null}; you have {shortCredits(credits)}{/if}{tax.unknown.length ? `, plus ${tax.unknown.length} item${tax.unknown.length === 1 ? "" : "s"} orbiter can't price the tax of` : ""}.</p>
       {/if}
       <div class="planbox">
       <table class="plan">
