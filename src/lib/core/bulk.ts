@@ -199,6 +199,24 @@ export function sellTargets(m: Model, rules: BulkRules, advice: DucatOptions, in
  * When something's ducats are worth more to you than what it sells for, at your own ducat rate
  * (Prime parts, Your rates): why, in words. Null when platinum wins, or it has no ducats.
  */
+/**
+ * What a prime part, or a prime set (every part in it), is worth to you as ducats, in platinum at
+ * your rate; null for anything else. A listing at or under it is better traded to Baro.
+ */
+export function ducatWorth(m: Model, it: MarketItem, platPerDucat: number): number | null {
+  if (!(platPerDucat > 0)) return null;
+  const part = m.partByName.get(it.name)?.[0];
+  if (part?.ducats) return part.ducats * platPerDucat;
+  if (it.tags?.includes("set") && it.gameRef) {
+    const parts = m.partsByParent.get(it.gameRef);
+    const ducats = parts?.reduce((n, p) => n + p.ducats * p.required, 0) ?? 0;
+    return ducats > 0 ? ducats * platPerDucat : null;
+  }
+  return null;
+}
+/** Just over what its ducats are worth: the least a prime part or set is listed at. */
+export const aboveDucats = (worth: number | null) => (worth == null ? null : Math.floor(worth) + 1);
+
 export function ducatsWin(plat: number | null, ducats: number, advice: DucatOptions): string | null {
   if (!ducats || plat == null) return null;
   const worth = ducats * advice.platPerDucat;
@@ -361,7 +379,17 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
       actions.push({ type: "skip", kind: t.kind, name: it.name, rank: t.rank, subtype, why: "Couldn't load its prices" });
       continue;
     }
-    const { price, why: priceWhy, value } = priceFor(c, it, t.rank, subtype, book, existing, t.crack != null ? aboveCrack(t.crack) : null);
+    // Prime parts and sets: what the price you'd list at would fetch against its ducats, at the
+    // cheapest in-game price (it can be well under the daily median the targets were judged by).
+    const duc = (t.kind === "part" || t.kind === "set") && c.advice ? ducatWorth(c.model, it, c.advice.platPerDucat) : null;
+    const asked = priceFor(c, it, t.rank, subtype, book, existing, t.crack != null ? aboveCrack(t.crack) : null);
+    if (duc != null && asked.price != null && asked.price <= duc) {
+      const why = `At ${asked.price}p (${asked.why}) it's worth more as ducats: ~${Math.round(duc * 10) / 10}p to you`;
+      if (existing) actions.push({ type: "remove", kind: t.kind, item: it, order: existing, why });
+      else actions.push({ type: "skip", kind: t.kind, name: it.name, rank: t.rank, subtype, why });
+      continue;
+    }
+    const { price, why: priceWhy, value } = asked;
     // A relic that sells for no more than a crack of it is worth: crack it instead. What it
     // sells for is what sellers you could trade with ask, not a few lucky sales.
     const worth = value == null ? price : price == null ? value : Math.min(price, value);

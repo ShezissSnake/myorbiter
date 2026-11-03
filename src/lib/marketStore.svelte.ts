@@ -21,7 +21,7 @@ import { dealFromOrder, findDeals, type Deal, type FeedOrder, type Watch } from 
 import { recentPrice, type PricePoint } from "./core/priceTrend";
 import type { RelicMarket } from "./core/model";
 import { aboveCrack, relicCrackFor } from "./core/spares";
-import { LISTING_LIMIT, bulkPlan, cheapByMedian, planSignature, resolve, sellTargets, type BulkAction } from "./core/bulk";
+import { LISTING_LIMIT, aboveDucats, bulkPlan, cheapByMedian, ducatWorth, planSignature, resolve, sellTargets, type BulkAction } from "./core/bulk";
 import type { DucatOptions } from "./core/advice";
 import { backoff } from "./core/upkeep";
 import { drops } from "./drops.svelte";
@@ -429,8 +429,11 @@ class MarketStore {
     if (!it || !book || !this.me) return null;
     const own = s.floors[listingKey(o)] ?? null;
     const crack = this.crackFloor(m, it.name, o.subtype ?? it.subtypes?.[0] ?? null);
+    // A prime part or set is never repriced down to (or under) what its ducats are worth to you.
+    const ducats = this.advice ? aboveDucats(ducatWorth(m, it, this.advice.platPerDucat)) : null;
+    const floors = [own, crack, ducats].filter((x): x is number => x != null);
     return plan(o, book, this.me, {
-      floor: crack != null ? Math.max(own ?? 0, crack) : own,
+      floor: floors.length ? Math.max(...floors) : null,
       minShare: s.minShare,
       // The daily price is for an empty sculpture: one with stars in has none.
       reference: hasStars(o) ? null : referencePrice(m, it, o.rank, o.subtype ?? it.subtypes?.[0] ?? null),

@@ -275,6 +275,23 @@ test("ducats: a set or part worth more to you as ducats isn't sold, and your lis
   assert.ok(!sellTargets(m, rules, defaultAdvice()).find((t) => t.name === "Rhino Prime Set")?.hold);
 });
 
+test("ducats at the price it would list at: under the cheapest in-game price, a set worth more as ducats isn't listed", () => {
+  const m = buildModel(bundle([...rhino(2), inv(RHINO, "Rhino Prime", "warframe", 1, { mastered: true })]));
+  // 145 ducats at 0.4p are ~58p: under the set's 60p median, so the set is a target…
+  const advice = { ...defaultAdvice(), platPerDucat: 0.4 };
+  const rules = only({ sets: true });
+  const targets = sellTargets(m, rules, advice);
+  assert.ok(!targets.find((t) => t.name === "Rhino Prime Set")?.hold);
+  // …but the cheapest seller in game asks 50p: listing it there would sell it for less than its ducats.
+  const plan = bulkPlan(ctx(m, [], { rhino_prime_set: [seller(50)] }, { advice }), rules, targets);
+  assert.ok(!plan.some((a) => a.type === "create"));
+  const skip = plan.find((a) => a.type === "skip");
+  assert.match(skip && skip.type === "skip" ? skip.why : "", /At 50p .* worth more as ducats: ~58p to you/);
+  // In game at 65p, over its ducats: it goes up.
+  const up = bulkPlan(ctx(m, [], { rhino_prime_set: [seller(65)] }, { advice }), rules, targets);
+  assert.ok(up.some((a) => a.type === "create" && a.platinum === 65));
+});
+
 test("relics have their own minimum: a 5p relic goes up under a 10p minimum for everything else", () => {
   const m = buildModel(bundle([]));
   const relicItem: MarketItem = { id: "rel", slug: "lith_k1_relic", gameRef: "/Relic/K1", name: "Lith K1 Relic", maxRank: null, subtypes: ["intact", "exceptional", "flawless", "radiant"], tags: ["relic"] };
