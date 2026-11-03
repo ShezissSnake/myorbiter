@@ -2,6 +2,7 @@
   import Fold from "../ui/Fold.svelte";
   import GameIcon from "../ui/GameIcon.svelte";
   import { takeIntent } from "../intent.svelte";
+  import { MAX_PLAT } from "../core/amounts";
   import { tradeAllowance } from "../core/tradeLimit";
   import { until } from "../core/traders";
   import { untrack } from "svelte";
@@ -195,7 +196,8 @@
   let edits = $state<Record<string, { quantity?: string; platinum?: string }>>({});
   const whole = (v: string | undefined) => {
     const n = Math.round(Number(v));
-    return v != null && v.trim() !== "" && Number.isFinite(n) && n > 0 ? n : null;
+    // Rounded to a whole number; nothing over what a listing can ask (core/amounts).
+    return v != null && v.trim() !== "" && Number.isFinite(n) && n > 0 && n <= MAX_PLAT ? n : null;
   };
   function changeOf(o: MyOrder): { quantity?: number; platinum?: number } | null {
     const e = edits[o.id];
