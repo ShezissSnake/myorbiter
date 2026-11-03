@@ -1,0 +1,743 @@
+mod common;
+
+use common::recipes::*;
+use warframe_acquisition::{
+    CatalogIndex, ComponentKind, InventoryJsonDecoder, PriceTable, SnapshotDecoder,
+    reward_name_matches,
+};
+use warframe_domain::Category;
+
+fn wfcd_fixture() -> Vec<u8> {
+    br#"[
+      {
+        "uniqueName":"/Lotus/Weapons/Tenno/Bows/PrimeHuntingBow",
+        "name":"Paris Prime","type":"Bow","category":"Primary","masterable":true,"imageName":"ParisPrime.png",
+        "components":[
+          {"uniqueName":"/Lotus/Types/Recipes/Weapons/WeaponParts/PrimeBowString","name":"String","tradable":true,"ducats":15,"primeSellingPrice":15,"imageName":"PrimeBowString.png"},
+          {"uniqueName":"/Lotus/Types/Items/MiscItems/Ferrite","name":"Ferrite","tradable":false}
+        ]
+      },
+      {
+        "uniqueName":"/Lotus/Types/Recipes/Kubrow/Collars/PrimeKubrowCollarA","name":"Kavasa Prime Kubrow Collar","type":"Companion","category":"Companions","masterable":false,
+        "components":[
+          {"uniqueName":"/Lotus/Types/Recipes/Kubrow/Collars/PrimeKubrowCollarABlueprint","name":"Blueprint","tradable":true,"ducats":45,"primeSellingPrice":45},
+          {"uniqueName":"/Lotus/Types/Recipes/Kubrow/Collars/PrimeKubrowCollarABandComponent","name":"Kavasa Prime Band","tradable":true,"ducats":45,"primeSellingPrice":45}
+        ]
+      },
+      {"uniqueName":"/Lotus/Types/Items/MiscItems/ArgonCrystal","name":"Argon Crystal","type":"Resource","category":"Resources","masterable":false,"components":[]},
+      {"uniqueName":"/Lotus/Types/Items/MiscItems/Alertium","name":"Nitain Extract","type":"Misc","category":"Misc","masterable":false,"imageName":"Alertium.png","components":[]},
+      {"uniqueName":"/Lotus/Types/Friendly/Pets/CatbrowPetPowerSuit","name":"Smeeta Kavat","type":"Kavat","category":"Companions","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Types/Game/CatbrowPet/MirrorCatbrowPetPowerSuit","name":"Adarza Kavat","type":"Pets","category":"Pets","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Tenno/Archwing/Primary/NokkoArchGun/NokkoArchGun","name":"Arbucep","type":"Arch-Gun","category":"Arch-Gun","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Tenno/Archwing/Melee/ArchSwordHook/ArchHookSwordWeapon","name":"Agkuza","type":"Arch-Melee","category":"Arch-Melee","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelAPart","name":"Catchmoon","type":"Kitgun Component","category":"Misc","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipOne","name":"Balla","type":"Zaw Component","category":"Melee","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardSolarisA/HoverboardSolarisADeck","name":"Bad Baby","type":"K-Drive Component","category":"Misc","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Tenno/Rifle/Braton","name":"Braton","type":"Rifle","category":"Primary","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Orokin/BallasSword/BallasSwordWeapon","name":"Paracesis","type":"Rifle","category":"Melee","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Grineer/KuvaLich/LongGuns/KuvaChakkhurr","name":"Kuva Chakkhurr","type":"Rifle","category":"Primary","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Upgrades/Mods/Rifle/WeaponDamageAmountMod","name":"Serration","type":"Rifle Mod","category":"Mods","masterable":false,"components":[]},
+      {"uniqueName":"/Lotus/Powersuits/Trinity/LinkAugmentCard","name":"Abating Link","type":"Warframe Mod","category":"Mods","masterable":false,"components":[]},
+      {"uniqueName":"/Lotus/Types/Friendly/Pets/CatbrowPetPowerSuits/ChargeAugmentCard","name":"Charm","type":"Kavat Mod","category":"Mods","masterable":false,"components":[]},
+      {"uniqueName":"/Lotus/Upgrades/CosmeticEnhancers/Offensive/AmmoEfficiencyOnSliding","name":"Akimbo Slip Shot","type":"Secondary Arcane","category":"Arcanes","masterable":false,"components":[]}
+    ]"#.to_vec()
+}
+
+#[test]
+fn parses_canonical_items_and_prime_parent_components() {
+    let catalog = CatalogIndex::from_wfcd_json(&wfcd_fixture()).unwrap();
+
+    let prime = catalog
+        .resolve("/Lotus/Types/Recipes/Weapons/WeaponParts/PrimeBowString")
+        .unwrap();
+    assert_eq!(prime.name(), "Paris Prime String");
+    assert_eq!(prime.category(), Some(Category::PrimePart));
+    assert!(!prime.masterable());
+    assert_eq!(prime.image_name(), Some("PrimeBowString.png"));
+    assert_eq!(prime.ducats(), 15);
+    assert!(
+        catalog
+            .reward_entries()
+            .iter()
+            .any(|entry| entry.name == "Paris Prime String" && entry.ducats == 15)
+    );
+
+    let parent = catalog
+        .resolve("/Lotus/Weapons/Tenno/Bows/PrimeHuntingBow")
+        .unwrap();
+    assert_eq!(parent.image_name(), Some("ParisPrime.png"));
+
+    let qualified = catalog
+        .resolve("/Lotus/Types/Recipes/Kubrow/Collars/PrimeKubrowCollarABandComponent")
+        .unwrap();
+    assert_eq!(qualified.name(), "Kavasa Prime Band");
+    let generic = catalog
+        .resolve("/Lotus/Types/Recipes/Kubrow/Collars/PrimeKubrowCollarABlueprint")
+        .unwrap();
+    assert_eq!(generic.name(), "Kavasa Prime Kubrow Collar Blueprint");
+
+    let resource = catalog
+        .resolve("/Lotus/Types/Items/MiscItems/ArgonCrystal")
+        .unwrap();
+    assert_eq!(resource.name(), "Argon Crystal");
+    assert_eq!(resource.category(), Some(Category::Resource));
+
+    let alertium = catalog
+        .resolve("/Lotus/Types/Items/MiscItems/Alertium")
+        .unwrap();
+    assert_eq!(alertium.name(), "Nitain Extract");
+    assert_eq!(alertium.category(), None);
+    assert_eq!(alertium.image_name(), Some("Alertium.png"));
+
+    let companion = catalog
+        .resolve("/Lotus/Types/Friendly/Pets/CatbrowPetPowerSuit")
+        .unwrap();
+    assert_eq!(companion.name(), "Smeeta Kavat");
+    assert_eq!(companion.category(), Some(Category::Companion));
+    assert_eq!(companion.max_rank(), 30);
+
+    for path in [
+        "/Lotus/Types/Game/CatbrowPet/MirrorCatbrowPetPowerSuit",
+        "/Lotus/Types/Friendly/Pets/CatbrowPetPowerSuit",
+    ] {
+        assert_eq!(
+            catalog.resolve(path).unwrap().category(),
+            Some(Category::Companion)
+        );
+    }
+    for path in [
+        "/Lotus/Weapons/Tenno/Archwing/Primary/NokkoArchGun/NokkoArchGun",
+        "/Lotus/Weapons/Tenno/Archwing/Melee/ArchSwordHook/ArchHookSwordWeapon",
+        "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelAPart",
+        "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/TipOne",
+    ] {
+        let metadata = catalog.resolve(path).unwrap();
+        assert_eq!(metadata.category(), Some(Category::Weapon));
+        assert!(metadata.masterable());
+    }
+    let kdrive = catalog
+        .resolve("/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardSolarisA/HoverboardSolarisADeck")
+        .unwrap();
+    assert_eq!(kdrive.category(), Some(Category::Vehicle));
+    assert!(kdrive.masterable());
+
+    // A mod is named after what it fits and filed with it. Both of these paths are read by a
+    // branch below the mod one (the augment as a Powersuit, the precept as a pet), so the only
+    // thing keeping them out of Frame and Companion is that "Mods" is tested first.
+    for path in [
+        "/Lotus/Upgrades/Mods/Rifle/WeaponDamageAmountMod",
+        "/Lotus/Powersuits/Trinity/LinkAugmentCard",
+        "/Lotus/Types/Friendly/Pets/CatbrowPetPowerSuits/ChargeAugmentCard",
+    ] {
+        let metadata = catalog.resolve(path).unwrap();
+        assert_eq!(metadata.category(), Some(Category::Mod), "{path}");
+        assert!(!metadata.masterable(), "{path}");
+    }
+    assert_eq!(
+        catalog
+            .resolve("/Lotus/Upgrades/CosmeticEnhancers/Offensive/AmmoEfficiencyOnSliding")
+            .unwrap()
+            .category(),
+        Some(Category::Arcane)
+    );
+
+    assert_eq!(
+        catalog
+            .resolve("/Lotus/Weapons/Tenno/Rifle/Braton")
+            .unwrap()
+            .max_rank(),
+        30
+    );
+    for path in [
+        "/Lotus/Weapons/Orokin/BallasSword/BallasSwordWeapon",
+        "/Lotus/Weapons/Grineer/KuvaLich/LongGuns/KuvaChakkhurr",
+    ] {
+        assert_eq!(catalog.resolve(path).unwrap().max_rank(), 40);
+    }
+}
+
+#[test]
+fn catalog_decoder_classifies_sold_xp_items_and_uses_catalog_rank() {
+    let catalog = CatalogIndex::from_wfcd_json(&wfcd_fixture()).unwrap();
+    let payload = br#"{
+      "LastInventorySync":{"$date":{"$numberLong":"1753392000000"}},
+      "Suits":[],"LongGuns":[],"Pistols":[],"Melee":[],"Sentinels":[],
+      "MiscItems":[{"ItemType":"/Lotus/Types/Recipes/Weapons/WeaponParts/PrimeBowString","ItemCount":1}],
+      "Recipes":[],"PendingRecipes":[],"SpaceSuits":[],"SpaceMelee":[],"SpaceGuns":[],
+      "SentinelWeapons":[],"KubrowPets":[],"OperatorAmps":[],"MechSuits":[],
+      "XPInfo":[
+        {"ItemType":"/Lotus/Types/Friendly/Pets/CatbrowPetPowerSuit","XP":900000},
+        {"ItemType":"/Lotus/Weapons/Orokin/BallasSword/BallasSwordWeapon","XP":799999},
+        {"ItemType":"/Lotus/Unknown/SoldItem","XP":999999999}
+      ]
+    }"#;
+    let snapshot = InventoryJsonDecoder::with_catalog(&catalog)
+        .decode(payload)
+        .unwrap();
+    let by_id = |id: &str| {
+        snapshot
+            .entries()
+            .iter()
+            .find(|entry| entry.item.id.as_str() == id)
+            .unwrap()
+    };
+
+    let catbrow = by_id("/Lotus/Types/Friendly/Pets/CatbrowPetPowerSuit");
+    assert_eq!(catbrow.item.name, "Smeeta Kavat");
+    assert_eq!(catbrow.item.category, Category::Companion);
+    assert!(catbrow.mastered);
+
+    let paracesis = by_id("/Lotus/Weapons/Orokin/BallasSword/BallasSwordWeapon");
+    assert_eq!(paracesis.item.name, "Paracesis");
+    assert!(!paracesis.mastered);
+
+    let unknown = by_id("/Lotus/Unknown/SoldItem");
+    assert!(!unknown.mastered);
+
+    let prime = by_id("/Lotus/Types/Recipes/Weapons/WeaponParts/PrimeBowString");
+    assert_eq!(prime.item.name, "Paris Prime String");
+    assert_eq!(prime.item.category, Category::PrimePart);
+}
+
+#[test]
+fn unclassified_catalog_items_keep_artwork_and_the_inventory_section_category() {
+    let catalog = CatalogIndex::from_wfcd_json(&wfcd_fixture()).unwrap();
+    let payload = br#"{
+      "LastInventorySync":{"$date":{"$numberLong":"1753392000000"}},
+      "Suits":[],"LongGuns":[],"Pistols":[],"Melee":[],"Sentinels":[],
+      "MiscItems":[{"ItemType":"/Lotus/Types/Items/MiscItems/Alertium","ItemCount":3}],
+      "Recipes":[],"PendingRecipes":[],"SpaceSuits":[],"SpaceMelee":[],"SpaceGuns":[],
+      "SentinelWeapons":[],"KubrowPets":[],"OperatorAmps":[],"MechSuits":[],"XPInfo":[]
+    }"#;
+    let snapshot = InventoryJsonDecoder::with_catalog(&catalog)
+        .decode(payload)
+        .unwrap();
+    let alertium = &snapshot.entries()[0];
+    assert_eq!(alertium.item.name, "Nitain Extract");
+    assert_eq!(alertium.item.category, Category::Resource);
+    assert_eq!(alertium.item.image_name.as_deref(), Some("Alertium.png"));
+}
+
+#[test]
+fn non_inventory_records_do_not_invalidate_the_aggregate_catalog() {
+    let catalog = CatalogIndex::from_wfcd_json(
+        br#"[
+          {"uniqueName":"SolNode203","name":"Abaddon","type":"Node","category":"Missions"},
+          {"uniqueName":"/Lotus/Types/Items/MiscItems/Alertium","name":"Nitain Extract","type":"Misc","category":"Misc","imageName":"Alertium.png"}
+        ]"#,
+    )
+    .unwrap();
+
+    assert!(catalog.resolve("SolNode203").is_none());
+    assert_eq!(
+        catalog
+            .resolve("/Lotus/Types/Items/MiscItems/Alertium")
+            .unwrap()
+            .image_name(),
+        Some("Alertium.png")
+    );
+}
+
+#[test]
+fn unsafe_artwork_names_are_omitted_without_discarding_the_catalog() {
+    let catalog = CatalogIndex::from_wfcd_json(
+        br#"[{"uniqueName":"/Lotus/Types/Items/MiscItems/Retreat","name":"Retreat","type":"Misc","category":"Misc","imageName":"NewLokaAmaryn'sRetreat.png"}]"#,
+    )
+    .unwrap();
+
+    assert_eq!(
+        catalog
+            .resolve("/Lotus/Types/Items/MiscItems/Retreat")
+            .unwrap()
+            .image_name(),
+        None
+    );
+}
+
+/// The game stores owned Prime Neuroptics blueprints under an internal `HelmetBlueprint` recipe
+/// path, while WFCD publishes their trade metadata on the matching `HelmetComponent`. Treating the
+/// recipe as an ordinary blueprint exposes "Helmet" to the collection and loses both market and
+/// ducat prices.
+#[test]
+fn prime_helmet_recipes_resolve_as_neuroptics_blueprints_with_prices() {
+    const RECIPE: &str = "/Lotus/Types/Recipes/WarframeRecipes/XakuPrimeHelmetBlueprint";
+    let catalog = CatalogIndex::from_wfcd_json(
+        br#"[{
+          "uniqueName":"/Lotus/Powersuits/BrokenFrame/XakuPrime","name":"Xaku Prime",
+          "type":"Warframe","category":"Warframes","masterable":true,
+          "components":[{
+            "uniqueName":"/Lotus/Types/Recipes/WarframeRecipes/XakuPrimeHelmetComponent",
+            "name":"Neuroptics","tradable":true,"ducats":15,"primeSellingPrice":15,
+            "imageName":"GenericWarframePrimeHelmet.png"
+          }]
+        }]"#,
+    )
+    .unwrap();
+    let payload = format!(
+        r#"{{
+          "LastInventorySync":1,
+          "Suits":[],"LongGuns":[],"Pistols":[],"Melee":[],"Sentinels":[],"MiscItems":[],
+          "Recipes":[{{"ItemType":"{RECIPE}","ItemCount":2}}],"PendingRecipes":[],
+          "SpaceSuits":[],"SpaceMelee":[],"SpaceGuns":[],"SentinelWeapons":[],
+          "KubrowPets":[],"OperatorAmps":[],"MechSuits":[],"XPInfo":[]
+        }}"#
+    );
+    let snapshot = InventoryJsonDecoder::with_catalog(&catalog)
+        .decode(payload.as_bytes())
+        .unwrap();
+    let neuroptics = &snapshot.entries()[0];
+
+    assert_eq!(neuroptics.item.name, "Xaku Prime Neuroptics Blueprint");
+    assert_eq!(neuroptics.item.category, Category::PrimePart);
+    assert_eq!(
+        neuroptics.item.image_name.as_deref(),
+        Some("GenericWarframePrimeHelmet.png")
+    );
+    assert_eq!(catalog.ducat_table().get(RECIPE), Some(15));
+
+    let prices = PriceTable::from_dump_json(
+        br#"{"Xaku Prime Neuroptics Blueprint":[{"order_type":"sell","median":12.0,"volume":8}]}"#,
+        "2026-09-05",
+    )
+    .unwrap();
+    assert_eq!(prices.price_for(&neuroptics.item.name), Some(12));
+
+    let component = catalog
+        .resolve("/Lotus/Types/Recipes/WarframeRecipes/XakuPrimeHelmetComponent")
+        .unwrap();
+    assert_eq!(component.name(), "Xaku Prime Neuroptics");
+    assert_eq!(component.category(), Some(Category::PrimePart));
+}
+
+#[test]
+fn prime_warframe_component_records_resolve_inventory_blueprint_paths() {
+    let catalog = CatalogIndex::from_wfcd_json(
+        br#"[{
+          "uniqueName":"/Lotus/Powersuits/Lavos/LavosPrime","name":"Lavos Prime",
+          "type":"Warframe","category":"Warframes","masterable":true,
+          "components":[
+            {"uniqueName":"/Lotus/Types/Recipes/Warframes/LavosPrimeChassisComponent","name":"Chassis","tradable":true,"ducats":15,"primeSellingPrice":15,"imageName":"LavosPrimeChassis.png"},
+            {"uniqueName":"/Lotus/Types/Recipes/Warframes/LavosPrimeSystemsComponent","name":"Systems","tradable":true,"ducats":45,"primeSellingPrice":45,"imageName":"LavosPrimeSystems.png"}
+          ]
+        }]"#,
+    )
+    .unwrap();
+
+    for (path, name, ducats, image) in [
+        (
+            "/Lotus/Types/Recipes/Warframes/LavosPrimeChassisBlueprint",
+            "Lavos Prime Chassis Blueprint",
+            15,
+            "LavosPrimeChassis.png",
+        ),
+        (
+            "/Lotus/Types/Recipes/Warframes/LavosPrimeSystemsBlueprint",
+            "Lavos Prime Systems Blueprint",
+            45,
+            "LavosPrimeSystems.png",
+        ),
+    ] {
+        let recipe = catalog.resolve(path).expect("inventory recipe alias");
+        assert_eq!(recipe.name(), name);
+        assert_eq!(recipe.category(), Some(Category::PrimePart));
+        assert_eq!(recipe.ducats(), ducats);
+        assert_eq!(recipe.image_name(), Some(image));
+    }
+}
+
+/// The reward screen offers "Lavos Prime Chassis Blueprint"; the catalog names the component that
+/// blueprint builds. Comparing the two spellings with `==` priced every Warframe part on the reward
+/// screen at zero ducats and reported it as not owned, while weapon parts, which are spelled the
+/// same either way, were right, which is what made it look like a market problem rather than a
+/// naming one.
+#[test]
+fn warframe_part_blueprints_find_their_ducat_value() {
+    let catalog = CatalogIndex::from_wfcd_json(
+        br#"[{
+          "uniqueName":"/Lotus/Powersuits/Lavos/LavosPrime","name":"Lavos Prime",
+          "type":"Warframe","category":"Warframes","masterable":true,
+          "components":[
+            {"uniqueName":"/Lotus/Types/Recipes/Warframes/LavosPrimeChassisBlueprint","name":"Chassis","tradable":true,"ducats":15,"primeSellingPrice":15},
+            {"uniqueName":"/Lotus/Types/Recipes/Warframes/LavosPrimeBlueprint","name":"Blueprint","tradable":true,"ducats":45,"primeSellingPrice":45}
+          ]
+        }]"#,
+    )
+    .unwrap();
+    let entries = catalog.reward_entries();
+    let ducats = |reward: &str| {
+        entries
+            .iter()
+            .find(|entry| reward_name_matches(&entry.name, reward))
+            .map(|entry| entry.ducats)
+    };
+
+    assert_eq!(ducats("Lavos Prime Chassis Blueprint"), Some(15));
+    // The frame's own blueprint is spelled the same in both vocabularies: the exact match has to
+    // win before the suffix is ever trimmed, or it would look for a "Lavos Prime" part.
+    assert_eq!(ducats("Lavos Prime Blueprint"), Some(45));
+    assert_eq!(ducats("Ayatan Amber Star"), None);
+}
+
+/// A relic table names a stacked reward with its count, "2X Forma Blueprint", and the collection
+/// holds the blueprint as "Forma Blueprint". Comparing the spellings as given made the reward slip
+/// read "Not owned" over a stack of held Forma blueprints (2026-10-01).
+#[test]
+fn a_stacked_reward_matches_the_item_it_stacks() {
+    assert!(reward_name_matches("Forma Blueprint", "2X Forma Blueprint"));
+    // A count is digits then X; a first word that only ends in X is part of the name.
+    assert!(!reward_name_matches("Forma Blueprint", "X Forma Blueprint"));
+}
+
+/// The kiosk reads the game's own labels and joins prices against warframe.market's, and both
+/// spell a prime Frame's tradable part by its blueprint: "Styanax Prime Neuroptics Blueprint".
+/// The component loop named it after the part the blueprint builds, so the kiosk's closed-set
+/// match landed on the nearest shorter name ("Styanax Prime Neuroptics", a different item) and
+/// the price join, keyed by the market spelling, found nothing: the tile went unpriced while its
+/// basket row showed a dash (2026-08-24). Weapon parts are built items in both vocabularies and
+/// keep their bare names.
+#[test]
+fn a_prime_frames_components_are_named_by_their_blueprint() {
+    let catalog = CatalogIndex::from_wfcd_json(
+        br#"[{
+          "uniqueName":"/Lotus/Powersuits/Lavos/LavosPrime","name":"Lavos Prime",
+          "type":"Warframe","category":"Warframes","masterable":true,
+          "components":[
+            {"uniqueName":"/Lotus/Types/Recipes/Warframes/LavosPrimeChassisBlueprint","name":"Chassis","tradable":true,"ducats":15,"primeSellingPrice":15},
+            {"uniqueName":"/Lotus/Types/Recipes/Warframes/LavosPrimeNeuropticsBlueprint","name":"Neuroptics","tradable":true,"ducats":15,"primeSellingPrice":15},
+            {"uniqueName":"/Lotus/Types/Recipes/Warframes/LavosPrimeBlueprint","name":"Blueprint","tradable":true,"ducats":45,"primeSellingPrice":45}
+          ]
+        }]"#,
+    )
+    .unwrap();
+    let names: Vec<_> = catalog
+        .reward_entries()
+        .into_iter()
+        .map(|entry| entry.name)
+        .collect();
+    assert!(names.contains(&"Lavos Prime Chassis Blueprint".to_owned()));
+    assert!(names.contains(&"Lavos Prime Neuroptics Blueprint".to_owned()));
+    // The frame's own blueprint component already ends in "Blueprint"; it must not grow a second.
+    assert!(names.contains(&"Lavos Prime Blueprint".to_owned()));
+    assert!(!names.iter().any(|name| name == "Lavos Prime Chassis"));
+}
+
+/// The kiosk reads an Archwing's Wings tile by its blueprint name. Without that name in the closed
+/// set, a clean read lands on the Harness Blueprint and the tile shows the Harness price.
+#[test]
+fn an_archwings_wings_are_named_by_their_blueprint() {
+    const WINGS_BP: &str =
+        "/Lotus/Types/Recipes/ArchwingRecipes/PrimeArchwing/PrimeArchwingWingsBlueprint";
+    let catalog = CatalogIndex::from_wfcd_json(
+        br#"[{
+          "uniqueName":"/Lotus/Powersuits/Archwing/PrimeJetPack/PrimeJetPack","name":"Odonata Prime",
+          "type":"Archwing","category":"Archwing","masterable":true,
+          "components":[
+            {"uniqueName":"/Lotus/Types/Recipes/ArchwingRecipes/PrimeArchwing/PrimeArchwingBlueprint","name":"Blueprint","itemCount":1,"tradable":true,"ducats":45,"primeSellingPrice":45,"imageName":"blueprint.png"},
+            {"uniqueName":"/Lotus/Types/Recipes/ArchwingRecipes/PrimeArchwing/PrimeArchwingChassisComponent","name":"Harness","itemCount":1,"tradable":true,"ducats":15,"primeSellingPrice":15,"imageName":"GenericArchwingHarnessPrime.png"},
+            {"uniqueName":"/Lotus/Types/Recipes/ArchwingRecipes/PrimeArchwing/PrimeArchwingSystemsComponent","name":"Systems","itemCount":1,"tradable":true,"ducats":15,"primeSellingPrice":15,"imageName":"GenericArchwingSystemsPrime.png"},
+            {"uniqueName":"/Lotus/Types/Recipes/ArchwingRecipes/PrimeArchwing/PrimeArchwingWingsComponent","name":"Wings","itemCount":1,"tradable":true,"ducats":65,"primeSellingPrice":65,"imageName":"GenericArchwingWingsPrime.png"}
+          ]
+        }]"#,
+    )
+    .unwrap();
+    let names: Vec<_> = catalog
+        .reward_entries()
+        .into_iter()
+        .map(|entry| entry.name)
+        .collect();
+    assert!(names.contains(&"Odonata Prime Wings Blueprint".to_owned()));
+    assert_eq!(
+        catalog.part_path_for_reward("Odonata Prime Wings Blueprint"),
+        Some(WINGS_BP)
+    );
+}
+
+/// The collection joins ducats onto its rows by catalog path, the same route enrichment already
+/// takes, so the index hands over a table keyed that way. Prime parents and plain equipment
+/// resolve in the index but hold no ducats of their own: only the components do.
+#[test]
+fn builds_a_ducat_table_keyed_by_catalog_path() {
+    let catalog = CatalogIndex::from_wfcd_json(&wfcd_fixture()).unwrap();
+    let table = catalog.ducat_table();
+
+    assert_eq!(
+        table.get("/Lotus/Types/Recipes/Weapons/WeaponParts/PrimeBowString"),
+        Some(15)
+    );
+    assert_eq!(
+        table.get("/Lotus/Types/Recipes/Kubrow/Collars/PrimeKubrowCollarABlueprint"),
+        Some(45)
+    );
+    assert_eq!(
+        table.get("/Lotus/Weapons/Tenno/Bows/PrimeHuntingBow"),
+        None,
+        "the parent bow is not a ducat holding"
+    );
+    assert_eq!(
+        table.get("/Lotus/Weapons/Tenno/Rifle/Braton"),
+        None,
+        "plain equipment never was"
+    );
+    assert_eq!(table.get("/Lotus/Nothing/At/All"), None);
+}
+
+/// Zero ducats is a published value, not an absence. Forma Blueprint carries it. But a card that
+/// reads ⛁ 0 says nothing its silence does not, and the collection's ducat total must not grow a
+/// column of zeroes, so zero stays out of the table and absence is the only reading it gets.
+#[test]
+fn a_zero_ducat_entry_is_absent_from_the_table() {
+    let catalog = CatalogIndex::from_wfcd_json(
+        br#"[{"uniqueName":"/Lotus/Types/Items/MiscItems/FormaBlueprint","name":"Forma Blueprint","type":"Blueprint","category":"Misc","components":[]}]"#,
+    )
+    .unwrap();
+
+    assert_eq!(
+        catalog
+            .ducat_table()
+            .get("/Lotus/Types/Items/MiscItems/FormaBlueprint"),
+        None
+    );
+}
+
+/// WFCD names an Archon shard with the game's inline icon tag and gives a Tauforged shard only the
+/// glow layer of its art, which renders alone as a coloured smudge.
+#[test]
+fn archon_shards_lose_the_icon_tag_and_keep_the_crystal_in_view() {
+    let catalog = CatalogIndex::from_wfcd_json(
+        br#"[
+          {"uniqueName":"/Lotus/Types/Gameplay/NarmerSorties/ArchonCrystalAmar","name":"<Shard_red_simple> Crimson Archon Shard","type":"Misc","category":"Misc","imageName":"ArchonShardAmar.png"},
+          {"uniqueName":"/Lotus/Types/Gameplay/NarmerSorties/ArchonCrystalAmarMythic","name":"<Shard_red_simple> Tauforged Crimson Archon Shard","type":"Misc","category":"Misc","imageName":"ArchonShardAmarMythicGlow.png"},
+          {"uniqueName":"/Lotus/Types/Gameplay/NarmerSorties/ArchonCrystalGreenMythic","name":"<Shard_green_simple> Tauforged Emerald Archon Shard","type":"Misc","category":"Misc","imageName":"ArchonShardMythicGreenGlow.png"}
+        ]"#,
+    )
+    .unwrap();
+
+    let plain = catalog
+        .resolve("/Lotus/Types/Gameplay/NarmerSorties/ArchonCrystalAmar")
+        .unwrap();
+    assert_eq!(plain.name(), "Crimson Archon Shard");
+    assert_eq!(plain.image_name(), Some("ArchonShardAmar.png"));
+
+    let tauforged = catalog
+        .resolve("/Lotus/Types/Gameplay/NarmerSorties/ArchonCrystalAmarMythic")
+        .unwrap();
+    assert_eq!(tauforged.name(), "Tauforged Crimson Archon Shard");
+    assert_eq!(tauforged.image_name(), Some("ArchonShardAmar.png"));
+
+    assert_eq!(
+        catalog
+            .resolve("/Lotus/Types/Gameplay/NarmerSorties/ArchonCrystalGreenMythic")
+            .unwrap()
+            .image_name(),
+        Some("ArchonShardGreen.png")
+    );
+}
+
+#[test]
+fn a_recipe_keeps_per_build_counts_in_canonical_order() {
+    let catalog = catalog();
+    let recipe = catalog.recipe(GUANDAO).expect("Guandao Prime has a recipe");
+    let slots: Vec<_> = recipe
+        .components
+        .iter()
+        .map(|c| (c.name.as_str(), c.per_build, c.kind))
+        .collect();
+    assert_eq!(
+        slots,
+        vec![
+            ("Blueprint", 1, ComponentKind::Blueprint),
+            ("Blade", 2, ComponentKind::Part),
+            ("Handle", 1, ComponentKind::Part),
+        ],
+        "resources are not slots, and the blueprint always leads"
+    );
+    assert_eq!(recipe.parent_name, "Guandao Prime");
+}
+
+#[test]
+fn a_warframe_part_resolves_from_its_component_and_its_blueprint() {
+    let catalog = catalog();
+    let (recipe, chassis) = catalog.part_parent(REVENANT_CHASSIS).expect("component");
+    assert_eq!(
+        (recipe.parent.as_str(), chassis.name.as_str()),
+        (REVENANT, "Chassis")
+    );
+    let (same, slot) = catalog
+        .part_parent(REVENANT_CHASSIS_BP)
+        .expect("blueprint sibling");
+    assert_eq!(
+        (same.parent.as_str(), slot.path.as_str()),
+        (REVENANT, REVENANT_CHASSIS)
+    );
+    let order: Vec<_> = recipe.components.iter().map(|c| c.name.as_str()).collect();
+    assert_eq!(order, vec!["Blueprint", "Neuroptics", "Chassis", "Systems"]);
+}
+
+#[test]
+fn a_duplicated_ingredient_sums_into_one_slot_and_indexes_its_consumer() {
+    let catalog = catalog();
+    let recipe = catalog
+        .recipe(AKBRONCO)
+        .expect("Akbronco Prime has a recipe");
+    let slots: Vec<_> = recipe
+        .components
+        .iter()
+        .map(|c| (c.name.as_str(), c.per_build, c.kind))
+        .collect();
+    assert_eq!(
+        slots,
+        vec![
+            ("Blueprint", 1, ComponentKind::Blueprint),
+            ("Link", 1, ComponentKind::Part),
+            ("Bronco Prime", 2, ComponentKind::Ingredient),
+        ],
+        "ingredients come last"
+    );
+    assert_eq!(catalog.consumers_of(BRONCO), &[(AKBRONCO.to_owned(), 2)]);
+    assert!(catalog.consumers_of(AKBRONCO).is_empty());
+}
+
+#[test]
+fn resources_and_non_prime_items_have_no_recipe_relation() {
+    let catalog = catalog();
+    assert!(catalog.part_parent(OROKIN_CELL).is_none());
+    assert!(catalog.part_parent(FORMA_BP).is_none());
+    assert!(
+        catalog.part_parent(BRONCO).is_none(),
+        "an ingredient is not a part of its consumer"
+    );
+}
+
+#[test]
+fn reward_names_resolve_to_parts_with_a_recipe_relation() {
+    let catalog = catalog();
+    assert_eq!(
+        catalog.part_path_for_reward("Guandao Prime Blade"),
+        Some(GUANDAO_BLADE)
+    );
+    let chassis = catalog
+        .part_path_for_reward("Revenant Prime Chassis Blueprint")
+        .expect("the relic names the blueprint");
+    assert_eq!(
+        catalog.part_parent(chassis).map(|(r, _)| r.parent.as_str()),
+        Some(REVENANT)
+    );
+    assert_eq!(catalog.part_path_for_reward("Forma Blueprint"), None);
+    assert_eq!(catalog.part_path_for_reward("Not An Item"), None);
+}
+
+/// Padding is a difference, not a list: what the catalogue calls masterable minus what the
+/// account has on record, at any quantity. A held path at quantity 0 is a mastered-and-sold
+/// item, and that is the account's own row, not something to double up.
+#[test]
+fn unowned_masterables_are_the_equipment_the_account_has_never_ranked() {
+    let catalog = CatalogIndex::from_wfcd_json(&wfcd_fixture()).unwrap();
+
+    let padding = catalog
+        .unowned_masterables(["/Lotus/Weapons/Tenno/Rifle/Braton"])
+        .unwrap();
+
+    let names: Vec<&str> = padding
+        .iter()
+        .map(|entry| entry.item.name.as_str())
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "Smeeta Kavat",
+            "Adarza Kavat",
+            "Bad Baby",
+            "Kuva Chakkhurr",
+            "Paracesis",
+            "Balla",
+            "Catchmoon",
+            "Agkuza",
+            "Arbucep",
+            "Paris Prime",
+        ],
+        "every masterable item but the held Braton, in catalog-path order; mods, arcanes, \
+         resources and the unmasterable Kavasa collar are not equipment to master"
+    );
+    for entry in &padding {
+        assert_eq!(entry.quantity, 0, "{} is not owned", entry.item.name);
+        assert!(!entry.mastered, "{} has never been ranked", entry.item.name);
+        assert_eq!(entry.rank, None, "equipment carries no fusion rank");
+    }
+
+    let by_name = |name: &str| {
+        padding
+            .iter()
+            .find(|entry| entry.item.name == name)
+            .unwrap_or_else(|| panic!("{name} is padded in"))
+    };
+    assert_eq!(by_name("Smeeta Kavat").item.category, Category::Companion);
+    assert_eq!(by_name("Bad Baby").item.category, Category::Vehicle);
+    assert_eq!(by_name("Balla").item.category, Category::Weapon);
+    assert_eq!(
+        by_name("Paris Prime").item.id.as_str(),
+        "/Lotus/Weapons/Tenno/Bows/PrimeHuntingBow",
+        "the entry's id is the catalog path, which is what the inventory decoder uses too"
+    );
+    assert_eq!(
+        by_name("Paris Prime").item.image_name.as_deref(),
+        Some("ParisPrime.png"),
+        "artwork travels with the entry the same way enrichment carries it"
+    );
+}
+
+/// WFCD flags an Amp masterable, and the game does rank Amps, but the index gates the flag on an
+/// equipment category it can classify, so an Amp is not padded in. Holding everything else
+/// leaves nothing: the method is a difference against the account, not a catalogue listing.
+#[test]
+fn everything_held_or_unmasterable_leaves_nothing_to_pad() {
+    let catalog = CatalogIndex::from_wfcd_json(br#"[
+      {"uniqueName":"/Lotus/Weapons/Tenno/Rifle/Braton","name":"Braton","type":"Rifle","category":"Primary","masterable":true},
+      {"uniqueName":"/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/SentAmpTrainingWeapon","name":"Mote Amp","type":"Amp","category":"Misc","masterable":true},
+      {"uniqueName":"/Lotus/Upgrades/Mods/Rifle/WeaponDamageAmountMod","name":"Serration","type":"Rifle Mod","category":"Mods","masterable":false}
+    ]"#).unwrap();
+
+    let padding = catalog
+        .unowned_masterables(["/Lotus/Weapons/Tenno/Rifle/Braton"])
+        .unwrap();
+
+    assert!(
+        padding.is_empty(),
+        "Braton is held, Serration earns no mastery, and the Amp is not equipment the index \
+         can classify: {padding:?}"
+    );
+}
+
+#[test]
+fn amp_prisms_and_infested_chambers_are_masterable_though_wfcd_says_not() {
+    // WFCD files an amp's prism as a Misc "Amp" and the Infested chambers as Misc "Pistol", none
+    // masterable; the game gives mastery by them once the amp or kitgun is gilded.
+    let catalog = CatalogIndex::from_wfcd_json(
+        br#"[
+      {"uniqueName":"/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartA","name":"Raplak Prism","type":"Amp","category":"Misc","masterable":false,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartC","name":"Klamora Prism","type":"Amp","category":"Misc","masterable":false,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/SentAmpTrainingBarrel","name":"Mote Prism","type":"Amp","category":"Misc","masterable":false,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelEgg/InfModularBarrelEggPart","name":"Sporelacer","type":"Pistol","category":"Misc","masterable":false,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartA","name":"Pencha Scaffold","type":"Amp","category":"Misc","masterable":false,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartA","name":"Clapkra Brace","type":"Amp","category":"Misc","masterable":false,"components":[]}
+    ]"#,
+    )
+    .unwrap();
+    for path in [
+        "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartA",
+        "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartC",
+        "/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/SentAmpTrainingBarrel",
+        "/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelEgg/InfModularBarrelEggPart",
+    ] {
+        let metadata = catalog.resolve(path).unwrap();
+        assert_eq!(metadata.category(), Some(Category::Weapon), "{path}");
+        assert!(metadata.masterable(), "{path}");
+        assert_eq!(metadata.max_rank(), 30, "{path}");
+    }
+    // A scaffold or a brace gives none.
+    for path in [
+        "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartA",
+        "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartA",
+    ] {
+        assert!(!catalog.resolve(path).unwrap().masterable(), "{path}");
+    }
+}

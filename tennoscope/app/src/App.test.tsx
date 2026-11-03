@@ -1,0 +1,1667 @@
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const backend = vi.hoisted(() => ({
+  getSetupStatus: vi.fn(), setAccessMode: vi.fn(), authorizeScreenCapture: vi.fn(), getView: vi.fn(), refreshInventory: vi.fn(), refreshPrices: vi.fn(),
+  marketStatus: vi.fn(), marketSignIn: vi.fn(), marketLinkToken: vi.fn(), marketSignOut: vi.fn(),
+  refreshOrders: vi.fn(), removeOrder: vi.fn(), setOrderQuantity: vi.fn(),
+  setMarketPresence: vi.fn(), createOrder: vi.fn(), updateOrder: vi.fn(),
+  getVersionInfo: vi.fn(), updateCheck: vi.fn(), updateDownloadAndInstall: vi.fn(),
+  getPreferences: vi.fn(), setMasteryMarks: vi.fn(),
+}))
+const overlay = vi.hoisted(() => ({ showRewardOverlay: vi.fn(), hideRewardOverlay: vi.fn() }))
+const windowApi = vi.hoisted(() => ({
+  minimizeWindow: vi.fn(),
+  toggleMaximizeWindow: vi.fn(),
+  closeWindow: vi.fn(),
+  readWindowMaximized: vi.fn(),
+  watchWindowResized: vi.fn(),
+}))
+vi.mock('./backend', () => backend)
+vi.mock('./overlay', () => overlay)
+vi.mock('./window', () => windowApi)
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(() => Promise.resolve(() => {})) }))
+vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn(() => Promise.resolve()) }))
+vi.mock('@tauri-apps/plugin-clipboard-manager', () => ({ writeText: vi.fn(() => Promise.resolve()) }))
+vi.mock('@tauri-apps/plugin-process', () => ({ relaunch: vi.fn(() => Promise.resolve()) }))
+
+import App from './App'
+import { resetUpdateStoreForTests } from './updateStore'
+import type { AppView, CollectionItem } from './backend'
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
+
+const view: AppView = {
+  collection: {
+    items: [
+      { id: 'rhino', name: 'Rhino', category: 'frame', quantity: 1, mastered: true, live: false, priceable: true },
+      { id: 'braton', name: 'Braton', category: 'weapon', quantity: 3, mastered: true, live: false, priceable: true },
+      { id: 'carrier', name: 'Carrier', category: 'companion', quantity: 1, mastered: false, live: false, priceable: true },
+      { id: 'lex-prime-receiver', name: 'Lex Prime Receiver', category: 'prime_part', quantity: 1, mastered: false, platinum: 19, ducats: 15, live: false, priceable: true, monthly_trades: 4 },
+      { id: 'lith-a1', name: 'Lith A1 Relic', category: 'relic', quantity: 7, mastered: false, platinum: 20, live: true, priceable: true, monthly_trades: 3 },
+      { id: 'argon-crystal', name: 'Argon Crystal', category: 'resource', quantity: 4, mastered: false, live: false, priceable: true },
+      { id: 'forma-blueprint', name: 'Forma Blueprint', category: 'blueprint', quantity: 0, mastered: false, live: false, priceable: false },
+      // Owned, and no name rule reaches a warframe.market listing for it. The page control must
+      // leave it out: counting it promised a price for an item no request is ever made about.
+      { id: 'bad-baby', name: 'Bad Baby', category: 'vehicle', quantity: 1, mastered: false, live: false, priceable: false },
+      // Priced at exactly 0, a real tradeable price, distinct from an item with no listing at
+      // all. Exercises the `?? -1` sentinel in the value sort: a `?? 0` bug would tie this with
+      // every unpriced item instead of ranking it above all of them.
+      { id: 'zenith-prime-receiver', name: 'Zenith Prime Receiver', category: 'prime_part', quantity: 1, mastered: false, platinum: 0, live: false, priceable: true },
+    ],
+    total_entries: 8,
+  },
+  mastery: {
+    available: true,
+    items: [
+      { id: 'excalibur', name: 'Excalibur', category: 'frame', quantity: 0, mastered: false, live: false, priceable: false },
+      { id: 'skana', name: 'Skana', category: 'weapon', quantity: 1, mastered: false, live: false, priceable: false },
+      { id: 'furis', name: 'Furis', category: 'weapon', quantity: 0, mastered: false, live: false, priceable: false },
+    ],
+    totals: [
+      { category: 'frame', mastered: 0, total: 1 },
+      { category: 'weapon', mastered: 2, total: 4 },
+      { category: 'companion', mastered: 0, total: 0 },
+      { category: 'vehicle', mastered: 0, total: 0 },
+    ],
+  },
+  reward: {
+    cards: [
+      { name: 'Forma Blueprint', platinum: 12, ducats: 25, owned: 0, confidence: 1 },
+      { name: 'Lex Prime Receiver', platinum: 8, ducats: 15, owned: 1, confidence: 1 },
+      { name: 'Rare Prime Set', platinum: 30, ducats: 100, owned: 0, confidence: 0.79 },
+      {
+        name: 'Paris Prime String', platinum: 6, ducats: 45, owned: 1, confidence: 1,
+        mastery: {
+          state: 'unmastered', subject: null, missing: true, completes: false,
+          parts: [
+            { name: 'Blueprint', image: 'blueprint.png', uses: 1, held: 1, this: false },
+            { name: 'String', image: 'GenericGunPrimeReceiver.png', uses: 1, held: 0, this: true },
+            { name: 'Barrel', image: 'GenericGunPrimeBarrel.png', uses: 1, held: 1, this: false },
+          ],
+        },
+      },
+    ],
+    best_value_index: 0,
+    best_ducat_index: 3,
+  },
+  market_account: {
+    link: 'unlinked',
+    orders: [],
+    listed_platinum: 0,
+    listable: [],
+    presence: { status: null, wanted: null, auto: false },
+    flagged: 0,
+  },
+  health: {
+    game_reader: { state: 'degraded', message: 'Warframe is not running', last_success: null },
+    log_monitor: { state: 'ready', message: 'EE.log monitor ready', last_success: null },
+    capture: { state: 'degraded', message: 'Capture waiting', last_success: null },
+    catalog: { state: 'ready', message: 'Catalog ready', last_success: '1785492000' },
+    market: { state: 'degraded', message: 'Market offline', last_success: null },
+    collection_prices: { state: 'ready', message: 'Priced from the 2026-07-27 price dump (3 items)', last_success: '2026-07-27' },
+    database: { state: 'ready', message: 'SQLite database available', last_success: null },
+    market_account: { state: 'idle', message: 'Not linked', last_success: null },
+    acquisition_stages: [
+      { stage: 'process_discovery', state: 'ready', message: 'Game process found' },
+      { stage: 'memory_read', state: 'ready', message: 'Readable regions found' },
+      { stage: 'authorization_scan', state: 'ready', message: 'Authorization discovered' },
+      { stage: 'inventory_fetch', state: 'ready', message: 'Inventory fetched' },
+      { stage: 'schema_validation', state: 'failed', message: 'Inventory snapshot was invalid' },
+    ],
+  },
+}
+
+const redirection: CollectionItem = { id: 'redirection', name: 'Redirection', category: 'mod', quantity: 175, mastered: false, equipped: 1, platinum: 4, live: false, priceable: true }
+const vitality: CollectionItem = { id: 'vitality', name: 'Vitality', category: 'mod', quantity: 2, mastered: false, equipped: 0, platinum: 6, live: false, priceable: true }
+const vigor: CollectionItem = { id: 'vigor', name: 'Vigor', category: 'mod', quantity: 2, mastered: false, equipped: 2, platinum: 5, live: false, priceable: true }
+const serration10: CollectionItem = { id: 'serration#10', name: 'Serration', category: 'mod', quantity: 1, mastered: false, equipped: 1, rank: 10, max_rank: 10, platinum: 48, live: false, priceable: true }
+// Sixty-four rows, so a narrowed result still spans two pages: a filter that forgot to return to
+// page one would leave page two on screen.
+const equipView: AppView = {
+  ...view,
+  collection: {
+    ...view.collection,
+    total_entries: 64,
+    items: [
+      ...Array.from({ length: 60 }, (_, index): CollectionItem => ({
+        id: `mod-${index.toString().padStart(2, '0')}`,
+        name: `Mod ${index.toString().padStart(2, '0')}`,
+        category: 'mod',
+        quantity: 2,
+        mastered: false,
+        equipped: index === 0 ? 1 : 0,
+        live: false,
+        priceable: true,
+      })),
+      redirection, vitality, vigor, serration10,
+    ],
+  },
+}
+
+describe('MVP desktop interface', () => {
+  afterEach(() => { cleanup(); vi.useRealTimers() })
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()  // The price floor outlives a render, which is the point of it.
+    resetUpdateStoreForTests()
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.setAccessMode.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.getView.mockResolvedValue(view)
+    backend.getVersionInfo.mockResolvedValue({ version: '0.11.0', channel: 'stable', kind: 'unknown', writable: false, updatable: false, manager: null, manager_command: null })
+    backend.updateCheck.mockResolvedValue({ kind: 'unknown', updatable: false, update: null })
+    backend.updateDownloadAndInstall.mockResolvedValue({ version: '0.12.0', current_version: '0.11.0', notes: null, date: null, feed: 'stable' })
+    backend.refreshInventory.mockResolvedValue(view)
+    backend.refreshPrices.mockResolvedValue(view)
+    backend.marketStatus.mockResolvedValue(view)
+    backend.marketSignIn.mockResolvedValue(view)
+    backend.marketLinkToken.mockResolvedValue(view)
+    backend.marketSignOut.mockResolvedValue(view)
+    backend.refreshOrders.mockResolvedValue(view)
+    backend.removeOrder.mockResolvedValue(view)
+    backend.setOrderQuantity.mockResolvedValue(view)
+    backend.setMarketPresence.mockResolvedValue(view)
+    backend.createOrder.mockResolvedValue(view)
+    overlay.showRewardOverlay.mockResolvedValue(undefined)
+    backend.authorizeScreenCapture.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    // The mastery preference lives on the backend, so every Settings mount reads it once even in
+    // the tests that never touch the switch.
+    backend.getPreferences.mockResolvedValue({ mastery_marks: true })
+    backend.setMasteryMarks.mockResolvedValue({ mastery_marks: true })
+    overlay.hideRewardOverlay.mockResolvedValue(undefined)
+    // Every mount reads the window's state once and subscribes for more; tests that never touch
+    // the controls still need those promises to resolve.
+    windowApi.minimizeWindow.mockResolvedValue(undefined)
+    windowApi.toggleMaximizeWindow.mockResolvedValue(undefined)
+    windowApi.closeWindow.mockResolvedValue(undefined)
+    windowApi.readWindowMaximized.mockResolvedValue(false)
+    windowApi.watchWindowResized.mockResolvedValue(() => {})
+  })
+
+  it('preselects Full on first run but waits for affirmative confirmation', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: false, access_mode: null, desktop_capture_action_available: false })
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Choose Warframe access' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'What may TennoScope observe?' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /Full/ })).toBeChecked()
+    expect(backend.setAccessMode).not.toHaveBeenCalled()
+    expect(screen.getByText('Each level includes the previous level. Nothing starts until you confirm.')).toBeInTheDocument()
+    expect(screen.queryByText(/Effective mode:/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Pending:/)).not.toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /Companion/ }).closest('label')).toHaveTextContent('No Warframe reads')
+    expect(screen.getByRole('radio', { name: /Overlay/ }).closest('label')).toHaveTextContent('Adds EE.log')
+    expect(screen.getByRole('radio', { name: /Full/ }).closest('label')).toHaveTextContent('Adds read-only memory')
+    expect(screen.getByRole('region', { name: 'What Full adds' })).toHaveTextContent(/Read-only process memory.*Inventory acquisition/i)
+    expect(screen.getByRole('region', { name: 'Always prohibited' })).toHaveTextContent(/memory writes.*game-file writes.*automated input.*traffic redirection.*telemetry/i)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm Full' }))
+    expect(backend.setAccessMode).toHaveBeenCalledWith('full')
+    expect(await screen.findByRole('heading', { name: 'Your collection' })).toBeInTheDocument()
+  })
+
+  it('shows selected access as a cumulative level', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: false, access_mode: null, desktop_capture_action_available: false })
+    render(<App />)
+
+    const full = await screen.findByRole('radio', { name: /Full/ })
+    expect(document.querySelectorAll('.access-node.included')).toHaveLength(3)
+    expect(screen.getByRole('region', { name: 'What Full adds' })).toBeInTheDocument()
+
+    full.focus()
+    await userEvent.keyboard('{Home}')
+    expect(document.querySelectorAll('.access-node.included')).toHaveLength(1)
+  })
+
+  it('selects a stop when its track diamond is clicked', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: false, access_mode: null, desktop_capture_action_available: false })
+    render(<App />)
+    await screen.findByRole('radio', { name: /Full/ })
+
+    fireEvent.click(document.querySelectorAll('.access-node')[0]!)
+
+    expect(screen.getByRole('radio', { name: /Companion/ })).toBeChecked()
+    expect(backend.setAccessMode).not.toHaveBeenCalled()
+  })
+
+  it('shows only the selected stop’s additions and swaps them on selection', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: false, access_mode: null, desktop_capture_action_available: false })
+    render(<App />)
+    expect(await screen.findByRole('region', { name: 'What Full adds' })).toHaveTextContent(/Read-only process memory.*Inventory acquisition/i)
+    expect(screen.queryByText(/Visible-pixel OCR/i)).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('radio', { name: /Overlay/ }))
+    expect(await screen.findByRole('region', { name: 'What Overlay adds' })).toHaveTextContent(/Warframe process presence.*EE.log.*Visible-pixel OCR.*Click-through overlay/i)
+    expect(screen.queryByText(/Inventory acquisition/i)).not.toBeInTheDocument()
+  })
+
+  it('supports wrapping arrow keys and boundary keys across the three named access modes', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: false, access_mode: null, desktop_capture_action_available: false })
+    render(<App />)
+    const full = await screen.findByRole('radio', { name: /Full/ })
+    full.focus()
+    await userEvent.keyboard('{ArrowRight}')
+    expect(screen.getByRole('radio', { name: /Companion/ })).toBeChecked()
+    await userEvent.keyboard('{ArrowLeft}')
+    expect(full).toBeChecked()
+    await userEvent.keyboard('{Home}')
+    expect(screen.getByRole('radio', { name: /Companion/ })).toBeChecked()
+    await userEvent.keyboard('{End}')
+    expect(full).toBeChecked()
+  })
+
+  it('requires confirmation for every Settings access change', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.setAccessMode
+      .mockResolvedValueOnce({ setup_complete: true, access_mode: 'companion', desktop_capture_action_available: false })
+      .mockResolvedValueOnce({ setup_complete: true, access_mode: 'overlay', desktop_capture_action_available: true })
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+    expect(screen.getByText('Effective mode: Full')).toBeInTheDocument()
+    expect(screen.queryByText(/Pending:/)).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('radio', { name: /Companion/ }))
+    expect(backend.setAccessMode).not.toHaveBeenCalled()
+    expect(screen.getByText('Pending: Companion')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Observation to retire' })).toHaveTextContent(/Warframe process presence.*inventory acquisition/i)
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm Companion' }))
+    await waitFor(() => expect(backend.setAccessMode).toHaveBeenCalledWith('companion'))
+    expect(await screen.findByText('Effective mode: Companion')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('radio', { name: /Overlay/ }))
+    expect(screen.getByText('Pending: Overlay')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /Overlay/ }).closest('label')).toHaveTextContent('Adds EE.log')
+    expect(screen.getByRole('region', { name: 'New observation to grant' })).toHaveTextContent(/Warframe process presence.*EE\.log.*visible-pixel OCR.*click-through overlay/i)
+    expect(backend.setAccessMode).toHaveBeenCalledTimes(1)
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm Overlay' }))
+    expect(backend.setAccessMode).toHaveBeenLastCalledWith('overlay')
+  })
+
+  it('reviews every cumulative grant in a Companion-to-Full upgrade', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'companion', desktop_capture_action_available: false })
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+
+    await userEvent.click(screen.getByRole('radio', { name: /Full/ }))
+
+    expect(screen.getByText('Pending: Full')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'New observation to grant' })).toHaveTextContent(/Warframe process presence.*EE\.log.*visible-pixel OCR.*click-through overlay.*read-only process memory.*inventory acquisition/i)
+    expect(screen.getByRole('button', { name: 'Confirm Full' })).toBeEnabled()
+  })
+
+  it('announces a confirmed downgrade while it is applying', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    const transition = deferred<{ setup_complete: boolean; access_mode: 'companion'; desktop_capture_action_available: boolean }>()
+    backend.setAccessMode.mockReturnValueOnce(transition.promise)
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+
+    await userEvent.click(screen.getByRole('radio', { name: /Companion/ }))
+    expect(backend.setAccessMode).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm Companion' }))
+
+    expect(screen.getByRole('status', { name: 'Applying Companion' })).toHaveTextContent('Applying Companion…')
+    expect(screen.getByText('Every change needs confirmation. Nothing applies until you confirm.')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'What may TennoScope observe?' })).toBeDisabled()
+    await act(async () => { transition.resolve({ setup_complete: true, access_mode: 'companion', desktop_capture_action_available: false }) })
+  })
+
+  it('refreshes backend data immediately after a successful mode change', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.setAccessMode.mockResolvedValue({ setup_complete: true, access_mode: 'companion', desktop_capture_action_available: false })
+    backend.getView
+      .mockResolvedValueOnce(view)
+      .mockResolvedValueOnce({ ...view, collection: { items: [view.collection.items[2]], total_entries: 1 } })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    expect(screen.getByRole('article', { name: 'Rhino' })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    await userEvent.click(screen.getByRole('radio', { name: /Companion/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm Companion' }))
+
+    await waitFor(() => expect(backend.getView).toHaveBeenCalledTimes(2))
+    // Reconciliation is mode-dependent: the downgrade must re-resolve market ownership too,
+    // or Full-era verified flags linger after revocation. Startup already fetched once.
+    await waitFor(() => expect(backend.marketStatus).toHaveBeenCalledTimes(2))
+    await userEvent.click(screen.getByRole('button', { name: 'Collection' }))
+    expect(await screen.findByRole('article', { name: 'Carrier' })).toBeInTheDocument()
+    expect(screen.queryByRole('article', { name: 'Rhino' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the effective mode and permits retry after a transition failure', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'companion', desktop_capture_action_available: false })
+    backend.setAccessMode.mockRejectedValueOnce(new Error('runtime refused'))
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+    await userEvent.click(screen.getByRole('radio', { name: /Overlay/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm Overlay' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not change Warframe access. Companion remains active. Review the mode and try again.')
+    expect(screen.getByText('Effective mode: Companion')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Confirm Overlay' })).toBeEnabled()
+  })
+
+  it('keeps the pending selection when a confirmed downgrade fails, like an upgrade', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.setAccessMode.mockRejectedValueOnce(new Error('runtime refused'))
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+    await userEvent.click(screen.getByRole('radio', { name: /Companion/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm Companion' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not change Warframe access. Full remains active. Review the mode and try again.')
+    expect(screen.getByRole('radio', { name: /Companion/ })).toBeChecked()
+    expect(screen.getByText('Effective mode: Full')).toBeInTheDocument()
+    expect(screen.getByText('Pending: Companion')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Confirm Companion' })).toBeEnabled()
+  })
+
+  it('does not tell Companion users to start Warframe when a saved snapshot is empty', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'companion', desktop_capture_action_available: false })
+    backend.getView.mockResolvedValue({ ...view, collection: { items: [], total_entries: 0 } })
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Saved snapshot' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'No saved inventory snapshot yet' })).toBeInTheDocument()
+    expect(screen.getByText('Full access can acquire one; Companion remains useful for reference, prices, and planning.')).toBeInTheDocument()
+    expect(screen.queryByText(/Start Warframe and refresh/i)).not.toBeInTheDocument()
+  })
+
+  it('prevents duplicate mode transitions while one is in flight', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'companion', desktop_capture_action_available: false })
+    const transition = deferred<{ setup_complete: boolean; access_mode: 'overlay'; desktop_capture_action_available: boolean }>()
+    backend.setAccessMode.mockReturnValueOnce(transition.promise)
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+    await userEvent.click(screen.getByRole('radio', { name: /Overlay/ }))
+    const confirm = screen.getByRole('button', { name: 'Confirm Overlay' })
+
+    fireEvent.click(confirm)
+    fireEvent.click(confirm)
+    expect(backend.setAccessMode).toHaveBeenCalledOnce()
+    expect(confirm).toBeDisabled()
+    expect(confirm).toHaveAttribute('aria-busy', 'true')
+
+    await act(async () => {
+      transition.resolve({ setup_complete: true, access_mode: 'overlay', desktop_capture_action_available: true })
+    })
+    expect(await screen.findByText('Effective mode: Overlay')).toBeInTheDocument()
+  })
+
+  it('keeps Companion useful while disabling prohibited machine actions', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'companion', desktop_capture_action_available: true })
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Saved snapshot' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Refresh inventory' })).toBeDisabled()
+    expect(screen.getByText(/Full access is required to acquire inventory/i)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    expect(screen.getByRole('button', { name: 'Allow desktop capture' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Preview reward overlay' })).toBeDisabled()
+    expect(screen.getAllByText(/Overlay or Full access is required/i).length).toBeGreaterThan(0)
+    expect(screen.getByRole('region', { name: 'What Companion adds' })).toHaveTextContent(/Nothing read from Warframe.*saved data.*prices.*trading/i)
+    expect(screen.getByText('Using saved and reference data')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'About' }))
+    expect(screen.getByText(/Companion does not observe the running game process or EE\.log/i)).toBeInTheDocument()
+    expect(screen.getByText(/Inventory synchronization is available only in Full access/i)).toBeInTheDocument()
+  })
+
+  it('keeps live pricing available in Companion while inventory refresh stays gated', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'companion', desktop_capture_action_available: false })
+    render(<App />)
+    // Prices come from the dump and explicit checks, not the game: no ownership to verify.
+    const priceButton = await screen.findByRole('button', { name: /Price these/ })
+    expect(priceButton).toBeEnabled()
+    await userEvent.click(priceButton)
+    expect(backend.refreshPrices).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: 'Refresh inventory' })).toBeDisabled()
+  })
+
+  it('reports a preview refused mid-transition instead of desyncing the toggle', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    overlay.showRewardOverlay.mockRejectedValueOnce(new Error('access mode is already changing'))
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Preview reward overlay' }))
+    expect(await screen.findByText(/unavailable while access is changing/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Preview reward overlay' })).toBeInTheDocument()
+  })
+
+  it('states unverifiable ownership once in the shell, not on every collection row', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'companion', desktop_capture_action_available: false })
+    render(<App />)
+    const card = await screen.findByRole('article', { name: 'Rhino' })
+    expect(card).not.toHaveTextContent('Unverifiable')
+    expect(card).not.toHaveTextContent(/Owned|Missing/)
+    expect(screen.getByRole('heading', { name: 'Saved snapshot' })).toBeInTheDocument()
+    expect(screen.getByText('Companion mode')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Rewards' }))
+    expect(screen.getByText(/Live reward observation is inactive in Companion/i)).toBeInTheDocument()
+    expect(screen.getByRole('article', { name: 'Lex Prime Receiver' })).toHaveTextContent('Unverifiable')
+    expect(screen.getByRole('article', { name: 'Lex Prime Receiver' })).not.toHaveTextContent(/Owned|Not owned/)
+  })
+
+  it('shows only diagnostics authorized by Companion access', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'companion', desktop_capture_action_available: false })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Saved snapshot' })
+    await userEvent.click(screen.getByRole('button', { name: 'Diagnostics' }))
+    const panel = screen.getByRole('region', { name: 'Diagnostics' })
+
+    for (const label of ['Catalog', 'Market data', 'Collection prices', 'Database', 'Market account']) {
+      expect(within(panel).getByText(label)).toBeInTheDocument()
+    }
+    for (const label of ['Game reader', 'EE.log', 'Reward observer', 'Process discovery', 'Memory read', 'Authorization scan', 'Inventory fetch', 'Schema validation']) {
+      expect(within(panel).queryByText(label)).not.toBeInTheDocument()
+    }
+    expect(panel).toHaveTextContent(/Live Warframe diagnostics are inactive in Companion/i)
+    expect(panel).not.toHaveTextContent(/Start Warframe/i)
+  })
+  it('shows useful collection summary and responsive navigation semantics', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Your collection' })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Primary' })).toBeInTheDocument()
+    expect(screen.getByText('8', { selector: '[data-summary="items"] *' })).toBeInTheDocument()
+    expect(screen.getByText('2', { selector: '[data-summary="mastered"] *' })).toBeInTheDocument()
+    expect(screen.getByText('50% of mastery-eligible items')).toBeInTheDocument()
+    expect(screen.getByRole('list', { name: 'Collection items' })).toHaveClass('collection-grid')
+    expect(screen.getByRole('article', { name: 'Rhino' })).toHaveTextContent('Mastered')
+  })
+
+  // Three copies of a mod at three ranks are three holdings at three prices. The cards must be
+  // tellable apart by name alone, and the one nobody quotes must read as bracketed rather than
+  // borrow either end.
+  it('draws a rank per card and brackets the rank the market does not quote', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.getView.mockResolvedValue({
+      ...view,
+      collection: {
+        total_entries: 3,
+        items: [
+          { id: 'serration', name: 'Serration', category: 'mod', quantity: 3, mastered: false, platinum: 3, live: false, priceable: true },
+          { id: 'serration#7', name: 'Serration', category: 'mod', quantity: 1, mastered: false, platinum: 3, platinum_ceiling: 48, rank: 7, max_rank: 10, live: false, priceable: true },
+          { id: 'serration#10', name: 'Serration', category: 'mod', quantity: 1, mastered: false, platinum: 48, rank: 10, max_rank: 10, live: false, priceable: true },
+        ],
+      },
+    })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+
+    expect(screen.getByRole('article', { name: 'Serration' })).toHaveTextContent('Owned ×3')
+    expect(screen.getByRole('article', { name: 'Serration, Rank 7/10' })).toHaveTextContent('3–48')
+    const maxed = screen.getByRole('article', { name: 'Serration, Rank 10/10' })
+    expect(maxed).toHaveTextContent('48')
+    expect(within(maxed).getByText('Rank 10/10')).toHaveClass('maxed')
+  })
+
+  it('filters by search, category, and ownership without losing canonical names', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    const search = screen.getByRole('searchbox', { name: 'Search collection' })
+    await userEvent.type(search, 'lex prime')
+    expect(screen.getByRole('article', { name: 'Lex Prime Receiver' })).toBeInTheDocument()
+    expect(screen.queryByRole('article', { name: 'Rhino' })).not.toBeInTheDocument()
+    await userEvent.clear(search)
+    await userEvent.click(screen.getByRole('button', { name: 'Prime Parts' }))
+    expect(screen.getByRole('article', { name: 'Lex Prime Receiver' })).toBeInTheDocument()
+    expect(screen.queryByRole('article', { name: 'Braton' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'All categories' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Missing' }))
+    expect(screen.getByRole('article', { name: 'Forma Blueprint' })).toHaveTextContent('Missing')
+  })
+
+  it('supports every stable category and sortable collection results', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    for (const label of ['Frame', 'Weapon', 'Companion', 'Prime Parts', 'Relic', 'Resource', 'Blueprint', 'Vehicle', 'Mod', 'Arcane']) {
+      expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
+    }
+    await userEvent.click(within(screen.getByRole('group', { name: 'Sort collection' })).getByRole('button', { name: 'Quantity' }))
+    const cards = screen.getAllByRole('article').filter(node => node.closest('[aria-label="Collection items"]'))
+    expect(cards[0]).toHaveAccessibleName('Lith A1 Relic')
+  })
+
+  it('renders honest loading, empty, and error states', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    let resolveView: ((value: AppView) => void) | undefined
+    backend.getView.mockImplementationOnce(() => new Promise(resolve => { resolveView = resolve }))
+    render(<App />)
+    expect(await screen.findByText('Loading your local collection…')).toBeInTheDocument()
+    await act(async () => resolveView?.({ ...view, collection: { items: [], total_entries: 0 }, reward: { cards: [], best_value_index: null, best_ducat_index: null } }))
+    expect(screen.getByText(/No inventory items yet/i)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Rewards' }))
+    expect(screen.getByText(/No reward choices detected/i)).toBeInTheDocument()
+    backend.refreshInventory.mockRejectedValueOnce(new Error('synthetic'))
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh inventory' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Inventory refresh failed')
+  })
+
+  it('omits collection controls when there is no inventory to operate on', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.getView.mockResolvedValue({ ...view, collection: { items: [], total_entries: 0 } })
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'No inventory items yet' })).toBeInTheDocument()
+    expect(screen.queryByRole('searchbox', { name: 'Search collection' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Sort collection' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Item categories' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Copy filters' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Minimum price' })).not.toBeInTheDocument()
+  })
+
+  it('combinable copy filters narrow the collection and return to page one', async () => {
+    backend.getView.mockResolvedValue(equipView)
+    const user = userEvent.setup()
+    render(<App/>)
+    await user.click(await screen.findByRole('button', { name: 'Go to page 2' }))
+    expect(screen.getByText('49–64 of 64')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '2+ copies' }))
+    expect(screen.getByText('1–48 of 63'), 'the single ranked Serration is not a spare').toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Go to page 2' }))
+    expect(screen.getByText('49–63 of 63')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Unequipped' }))
+    expect(screen.getByText('1–48 of 62'), 'both Vigor copies are in use').toBeInTheDocument()
+
+    expect(screen.getByRole('button', { name: '2+ copies' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Unequipped' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  // A snapshot stored before the app counted installed copies says nothing about them. A toggle
+  // reading that count would pass every row or none, so it is absent until the count exists.
+  it('hides the unequipped filter until the snapshot knows what is equipped', async () => {
+    render(<App/>)
+    const copies = await screen.findByRole('group', { name: 'Copy filters' })
+    expect(within(copies).getByRole('button', { name: '2+ copies' })).toBeInTheDocument()
+    expect(within(copies).queryByRole('button', { name: 'Unequipped' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Equipped ×/)).not.toBeInTheDocument()
+  })
+
+  it('marks equipped copies on the card', async () => {
+    backend.getView.mockResolvedValue({ ...view, collection: { ...view.collection, items: [...view.collection.items, redirection, vitality] } })
+    render(<App/>)
+    expect(within(await screen.findByRole('article', { name: 'Redirection' })).getByText('Equipped ×1')).toBeInTheDocument()
+    expect(screen.getByRole('article', { name: 'Vitality' }), 'none in use is no mark').not.toHaveTextContent('Equipped')
+    expect(screen.getByRole('article', { name: 'Braton' }), 'gear is never counted').not.toHaveTextContent('Equipped')
+  })
+
+  // The copy count is on the card only under Full, so a filter on it below Full would act on a
+  // number nobody can see. Rank and price are on every card, so their filters stay.
+  it('drops the copy filters and their marks when access falls below Full, and keeps the rest', async () => {
+    vi.useFakeTimers()
+    backend.getSetupStatus
+      .mockResolvedValueOnce({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+      .mockResolvedValueOnce({ setup_complete: true, access_mode: 'companion', desktop_capture_action_available: false })
+    backend.getView.mockResolvedValue(equipView)
+    render(<App/>)
+    await act(async () => {})
+    expect(screen.getByRole('article', { name: 'Mod 00' })).toHaveTextContent('Equipped ×1')
+    fireEvent.click(screen.getByRole('button', { name: '2+ copies' }))
+    expect(screen.getByText('1–48 of 63')).toBeInTheDocument()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500) })
+
+    expect(screen.queryByRole('button', { name: '2+ copies' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Unequipped' })).not.toBeInTheDocument()
+    expect(screen.getByText('1–48 of 64'), 'a hidden toggle no longer filters').toBeInTheDocument()
+    expect(screen.queryByText(/Equipped ×/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Unranked' }))
+    expect(screen.getByText('1–48 of 63')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Minimum price' })).toBeInTheDocument()
+  })
+
+  // Each step contains the ones above it, so two pressed at once could only mean the higher.
+  it('minimum price is one choice at a time and drops unpriced items', async () => {
+    const user = userEvent.setup()
+    render(<App/>)
+    await user.click(await screen.findByRole('button', { name: 'platinum 5+' }))
+    const steps = within(screen.getByRole('group', { name: 'Minimum price' })).getAllByRole('button')
+    expect(steps.filter(step => step.getAttribute('aria-pressed') === 'true').map(step => step.textContent)).toEqual(['5+'])
+    expect(screen.queryByRole('article', { name: 'Argon Crystal' }), 'an unpriced row').not.toBeInTheDocument()
+    expect(screen.queryByRole('article', { name: 'Zenith Prime Receiver' }), 'priced at 0').not.toBeInTheDocument()
+    expect(screen.getByRole('article', { name: 'Lex Prime Receiver' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Any' }))
+    expect(screen.getByRole('article', { name: 'Argon Crystal' })).toBeInTheDocument()
+  })
+
+  it('shows all diagnostics and acquisition stages without credential labels', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    await userEvent.click(screen.getByRole('button', { name: 'Diagnostics' }))
+    const panel = screen.getByRole('region', { name: 'Diagnostics' })
+    for (const label of ['Game reader', 'EE.log', 'Reward observer', 'Catalog', 'Market data', 'Database', 'Process discovery', 'Memory read', 'Authorization scan', 'Inventory fetch', 'Schema validation']) {
+      expect(within(panel).getByText(label)).toBeInTheDocument()
+    }
+    // Rows keep their success time in their own source's format: most write Unix seconds, the
+    // price dump a calendar date. So the row resolves both to something a reader can act on
+    // rather than printing the stamp it was handed.
+    expect(within(panel).getAllByText(/Last success: .*\d{4}/).length).toBeGreaterThan(0)
+    expect(within(panel).queryByText('Last success: 1785492000')).not.toBeInTheDocument()
+    expect(panel).not.toHaveTextContent(/accountId|nonce|authorization token/i)
+    // Diagnostics reports live health; the overlay preview is a setup affordance and lives in Settings.
+    expect(within(panel).queryByRole('button', { name: /reward overlay/i })).not.toBeInTheDocument()
+  })
+
+  it('renders zero to four reward decisions with value, ownership, and mastery indicators', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    await userEvent.click(screen.getByRole('button', { name: 'Rewards' }))
+    const advisor = screen.getByRole('region', { name: 'Reward advisor' })
+    expect(within(advisor).getAllByRole('article')).toHaveLength(4)
+    expect(within(advisor).getByRole('article', { name: 'Forma Blueprint' })).toHaveTextContent('Top plat')
+    expect(within(advisor).getByRole('article', { name: 'Lex Prime Receiver' })).toHaveTextContent('Owned ×1')
+    // A slip that carries a mark states it in the ledger and drops the ownership line, because the
+    // set row already says how much of the part is held. The line stays for a card with no mark.
+    const paris = within(advisor).getByRole('article', { name: 'Paris Prime String' })
+    expect(within(paris).getByRole('img', { name: 'Not mastered' })).toBeInTheDocument()
+    expect(paris).toHaveClass('ruled')
+    expect(within(paris).getByRole('list', { name: 'Set' })).toBeInTheDocument()
+    expect(paris).not.toHaveTextContent('Owned ×1')
+    // Paris Prime String carries the most ducats while Forma Blueprint is worth the most platinum:
+    // both have to be callable, because the player picks between them for reasons we cannot see.
+    expect(within(advisor).getByRole('article', { name: 'Paris Prime String' })).toHaveTextContent('Top ducats')
+    expect(within(advisor).getByRole('article', { name: 'Rare Prime Set' })).toHaveTextContent('Uncertain ·')
+    expect(within(advisor).getByRole('article', { name: 'Rare Prime Set' })).not.toHaveTextContent('Top plat')
+
+    // Each reading carries the game's own currency icon beside it, so the two columns are told
+    // apart by the shape the player already knows and not only by a hue and a 9px word.
+    const card = within(advisor).getByRole('article', { name: 'Forma Blueprint' })
+    expect(card.querySelectorAll('[data-metal="plat"]')).toHaveLength(1)
+    expect(card.querySelectorAll('[data-metal="ducat"]')).toHaveLength(1)
+  })
+
+  it('separates the controls from the notices, and keeps both reachable', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Preview reward overlay' }))
+    expect(overlay.showRewardOverlay).toHaveBeenCalledOnce()
+    await userEvent.click(screen.getByRole('button', { name: 'Hide reward overlay' }))
+    expect(overlay.hideRewardOverlay).toHaveBeenCalledOnce()
+
+    await userEvent.click(screen.getByRole('button', { name: 'About' }))
+    expect(screen.getByText(/stored on this device/i)).toBeInTheDocument()
+  })
+
+  it('explains automatic capture without portal controls', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
+
+    expect(screen.getByText('Screen capture is automatic. Desktop sharing is only needed when Warframe is launched with PROTON_ENABLE_WAYLAND=1 and this compositor has no direct capture API.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Captured screens|Set up screen capture|Change captured screens|Allow desktop capture/i })).not.toBeInTheDocument()
+    expect(backend.authorizeScreenCapture).not.toHaveBeenCalled()
+  })
+
+  it('explains portal consequences before offering the explicit desktop capture action', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: true })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
+
+    const action = screen.getByRole('button', { name: 'Allow desktop capture' })
+    const chooser = screen.getByText(/desktop opens its own screen chooser/i)
+    expect(screen.getByText(/select every display where Warframe may run/i)).toBeInTheDocument()
+    expect(screen.getByText(/KDE\/GNOME may show an active screen-sharing indicator/i)).toBeInTheDocument()
+    expect(screen.getByText(/TennoScope releases the session when the game exits/i)).toBeInTheDocument()
+    expect(chooser.compareDocumentPosition(action) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(backend.authorizeScreenCapture).not.toHaveBeenCalled()
+
+    await userEvent.click(action)
+    expect(backend.authorizeScreenCapture).toHaveBeenCalledOnce()
+  })
+
+  it('keeps an empty desktop capture live region mounted before status changes', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: true })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
+
+    expect(document.querySelector('.capture-status')).toBeEmptyDOMElement()
+  })
+
+  it('does not restart portal authorization after leaving and returning to Settings', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: true })
+    const authorization = deferred<{ setup_complete: boolean; access_mode: 'full'; desktop_capture_action_available: boolean }>()
+    backend.authorizeScreenCapture.mockReturnValueOnce(authorization.promise)
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Allow desktop capture' }))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Collection' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    const action = screen.getByRole('button', { name: 'Allowing desktop capture…' })
+    expect(action).toBeDisabled()
+    expect(action).toHaveAttribute('aria-busy', 'true')
+    fireEvent.click(action)
+    expect(backend.authorizeScreenCapture).toHaveBeenCalledOnce()
+    await act(async () => { authorization.resolve({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false }) })
+  })
+
+  it('shows and hides the portal action from setup status refreshed by the existing poll', async () => {
+    vi.useFakeTimers()
+    backend.getSetupStatus
+      .mockResolvedValueOnce({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+      .mockResolvedValueOnce({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: true })
+      .mockResolvedValueOnce({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    render(<App />)
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    expect(screen.queryByRole('button', { name: 'Allow desktop capture' })).not.toBeInTheDocument()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500) })
+    expect(screen.getByRole('button', { name: 'Allow desktop capture' })).toBeInTheDocument()
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500) })
+    expect(screen.queryByRole('button', { name: 'Allow desktop capture' })).not.toBeInTheDocument()
+  })
+
+  it('adopts an access mode changed outside the current Settings view', async () => {
+    vi.useFakeTimers()
+    backend.getSetupStatus
+      .mockResolvedValueOnce({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+      .mockResolvedValueOnce({ setup_complete: true, access_mode: 'companion', desktop_capture_action_available: false })
+    render(<App />)
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    expect(screen.getByRole('radio', { name: /Full/ })).toBeChecked()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500) })
+
+    expect(screen.getByRole('radio', { name: /Companion/ })).toBeChecked()
+    expect(screen.getByText('Effective mode: Companion')).toBeInTheDocument()
+  })
+
+  it('keeps primary navigation distinct from runtime operations', async () => {
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+
+    const navigation = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(navigation).getAllByRole('button')).toHaveLength(7)
+    expect(within(navigation).queryByRole('button', { name: 'Refresh inventory' })).not.toBeInTheDocument()
+    const operations = screen.getByRole('region', { name: 'Runtime operations' })
+    expect(within(operations).getByRole('button', { name: 'Refresh inventory' })).toBeInTheDocument()
+    expect(within(operations).getAllByRole('status').find(node => node.textContent)).toBeInTheDocument()
+  })
+
+  it('keeps live view polling while desktop authorization is pending', async () => {
+    vi.useFakeTimers()
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: true })
+    const authorization = deferred<{ setup_complete: boolean; access_mode: 'full'; desktop_capture_action_available: boolean }>()
+    backend.authorizeScreenCapture.mockReturnValueOnce(authorization.promise)
+    render(<App />)
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Allow desktop capture' }))
+
+    const before = backend.getView.mock.calls.length
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500) })
+
+    expect(backend.getView.mock.calls.length).toBeGreaterThan(before)
+    await act(async () => { authorization.resolve({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false }) })
+  })
+
+  it('does not apply the startup retry loop to periodic setup polls', async () => {
+    vi.useFakeTimers()
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: true })
+    render(<App />)
+    await act(async () => {})
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500) })
+
+    expect(backend.getSetupStatus).toHaveBeenLastCalledWith(1)
+  })
+
+  it('keeps authorization status when an older setup poll resolves later', async () => {
+    vi.useFakeTimers()
+    const poll = deferred<{ setup_complete: boolean; access_mode: 'full'; desktop_capture_action_available: boolean }>()
+    backend.getSetupStatus
+      .mockResolvedValueOnce({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: true })
+      .mockReturnValueOnce(poll.promise)
+    render(<App />)
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500) })
+    fireEvent.click(screen.getByRole('button', { name: 'Allow desktop capture' }))
+    await act(async () => {})
+    expect(screen.queryByRole('button', { name: 'Allow desktop capture' })).not.toBeInTheDocument()
+    expect(screen.getByText('Desktop capture allowed.')).toBeInTheDocument()
+
+    await act(async () => { poll.resolve({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: true }) })
+    expect(screen.queryByRole('button', { name: 'Allow desktop capture' })).not.toBeInTheDocument()
+    expect(screen.getByText('Desktop capture allowed.')).toBeInTheDocument()
+  })
+
+  it('preserves capture authorization status while navigating away and back', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: true })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Allow desktop capture' }))
+    expect(screen.getByText('Desktop capture allowed.')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Collection' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
+
+    expect(screen.getByText('Desktop capture allowed.')).toBeInTheDocument()
+  })
+
+  it('announces when desktop capture needs permission again', async () => {
+    vi.useFakeTimers()
+    backend.getSetupStatus
+      .mockResolvedValueOnce({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: true })
+      .mockResolvedValueOnce({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: true })
+    render(<App />)
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Allow desktop capture' }))
+    await act(async () => {})
+    expect(screen.getByText('Desktop capture allowed.')).toBeInTheDocument()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500) })
+    expect(screen.getByRole('button', { name: 'Allow desktop capture' })).toBeInTheDocument()
+    expect(screen.getByText('Desktop capture needs permission again.')).toBeInTheDocument()
+    expect(screen.queryByText('Desktop capture allowed.')).not.toBeInTheDocument()
+  })
+
+  it('keeps collection and navigation usable when desktop capture authorization is rejected', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: true })
+    backend.authorizeScreenCapture.mockRejectedValueOnce(new Error('permission denied'))
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Allow desktop capture' }))
+
+    expect(await screen.findByText(/desktop capture was denied or is unavailable.*try again/i)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Collection' }))
+    expect(screen.getByRole('heading', { name: 'Your collection' })).toBeInTheDocument()
+    expect(screen.getByRole('list', { name: 'Collection items' })).toBeInTheDocument()
+  })
+
+  it('announces portal authorization progress and reports unavailable capture accurately', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: true })
+    const authorization = deferred<{ setup_complete: boolean; access_mode: 'full'; desktop_capture_action_available: boolean }>()
+    backend.authorizeScreenCapture.mockReturnValueOnce(authorization.promise)
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    await userEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    const action = screen.getByRole('button', { name: 'Allow desktop capture' })
+
+    await userEvent.click(action)
+    expect(action).toHaveAttribute('aria-busy', 'true')
+
+    authorization.reject(new Error('portal unavailable'))
+    expect(await screen.findByText(
+      'Desktop capture was denied or is unavailable. Check that desktop screen sharing works, then try again.',
+    )).toBeInTheDocument()
+  })
+
+
+  it('refreshes inventory and announces live state', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh inventory' }))
+    expect(backend.refreshInventory).toHaveBeenCalledOnce()
+    // The reader's own state is announced in the masthead; the sheet below carries its own status
+    // regions, so this is scoped to the one that speaks for the reader.
+    expect(within(screen.getByRole('banner')).getAllByRole('status').find(node => node.textContent)).toHaveTextContent(/Watching|Attention/)
+  })
+
+  it('does not let an older poll overwrite a newer manual refresh', async () => {
+    vi.useFakeTimers()
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    let releasePoll: ((value: AppView) => void) | undefined
+    backend.getView.mockResolvedValueOnce(view).mockImplementationOnce(() => new Promise(resolve => { releasePoll = resolve }))
+    backend.refreshInventory.mockResolvedValue({ ...view, collection: { items: [], total_entries: 9 } })
+    render(<App />)
+    await act(async () => {})
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500) })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Refresh inventory' })) })
+    expect(screen.getByText('9', { selector: '[data-summary="items"] *' })).toBeInTheDocument()
+    await act(async () => { releasePoll?.({ ...view, collection: { items: [], total_entries: 1 } }) })
+    expect(screen.getByText('9', { selector: '[data-summary="items"] *' })).toBeInTheDocument()
+  })
+
+  it('does not start a scheduled poll while manual refresh is in flight and resumes after rejection', async () => {
+    vi.useFakeTimers()
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.getView.mockResolvedValue(view)
+    let rejectManual: ((reason: Error) => void) | undefined
+    backend.refreshInventory.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectManual = reject }))
+    render(<App />)
+    await act(async () => {})
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Refresh inventory' })) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(backend.getView).toHaveBeenCalledTimes(1)
+    await act(async () => { rejectManual?.(new Error('synthetic')) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500) })
+    expect(backend.getView).toHaveBeenCalledTimes(2)
+  })
+
+  // A page refresh is on the wire for about sixteen seconds, and it is only bearable because the
+  // prices appear as they land. That is the poll's doing, so the poll has to keep running, unlike
+  // an inventory refresh, which replaces the whole collection and does pause it.
+  it('keeps polling while a live price refresh is in flight, so prices appear as they land', async () => {
+    vi.useFakeTimers()
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.getView.mockResolvedValue(view)
+    backend.refreshPrices.mockImplementationOnce(() => new Promise(() => {}))
+    render(<App />)
+    await act(async () => {})
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Price these/ })) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(backend.getView).toHaveBeenCalledTimes(3)
+  })
+
+  // The readout belongs to the backend, which is the only party that knows a pass's total.
+  it('reports a live pricing pass from the backend, whoever asked for it', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.getView.mockResolvedValue({ ...view, collection: { ...view.collection, pricing: { done: 12, total: 65 } } })
+    render(<App/>)
+
+    expect(await screen.findByText(/Checking live prices · 12 of 65/)).toBeInTheDocument()
+  })
+
+  // Every pass comes out of one three-requests-a-second budget, so letting a click overlap one
+  // already running only makes each slower and leaves the one readout describing two queues.
+  it('refuses a page refresh while a background pass is already spending requests', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.getView.mockResolvedValue({ ...view, collection: { ...view.collection, pricing: { done: 3, total: 65 } } })
+    render(<App/>)
+
+    expect(await screen.findByRole('button', { name: /Pricing/ })).toBeDisabled()
+  })
+
+  it('stops scheduled polling after unmount', async () => {
+    vi.useFakeTimers()
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    let release: ((value: AppView) => void) | undefined
+    backend.getView.mockResolvedValueOnce(view).mockImplementationOnce(() => new Promise(resolve => { release = resolve }))
+    const rendered = render(<App />)
+    await act(async () => {})
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500) })
+    expect(backend.getView).toHaveBeenCalledTimes(2)
+    rendered.unmount()
+    await act(async () => { release?.(view); await vi.advanceTimersByTimeAsync(10_000) })
+    expect(backend.getView).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not let delayed startup overwrite a newer poll', async () => {
+    vi.useFakeTimers()
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    let releaseStartup: ((value: AppView) => void) | undefined
+    backend.getView
+      .mockImplementationOnce(() => new Promise(resolve => { releaseStartup = resolve }))
+      .mockResolvedValueOnce({ ...view, collection: { items: [], total_entries: 5 } })
+    render(<App />)
+    await act(async () => {})
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500) })
+    expect(screen.getByText('5', { selector: '[data-summary="items"] *' })).toBeInTheDocument()
+    await act(async () => { releaseStartup?.({ ...view, collection: { items: [], total_entries: 1 } }) })
+    expect(screen.getByText('5', { selector: '[data-summary="items"] *' })).toBeInTheDocument()
+  })
+
+  it('counts mastery only across mastery-eligible categories', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.getView.mockResolvedValue({
+      ...view,
+      collection: {
+        total_entries: 8,
+        items: [
+          { id: 'frame', name: 'Frame', category: 'frame', quantity: 1, mastered: true, live: false },
+          { id: 'weapon', name: 'Weapon', category: 'weapon', quantity: 1, mastered: false, live: false },
+          { id: 'companion', name: 'Companion', category: 'companion', quantity: 1, mastered: false, live: false },
+          { id: 'vehicle', name: 'Vehicle', category: 'vehicle', quantity: 1, mastered: true, live: false },
+          { id: 'part', name: 'Part', category: 'prime_part', quantity: 1, mastered: false, live: false },
+          { id: 'resource', name: 'Resource', category: 'resource', quantity: 1, mastered: false, live: false },
+          { id: 'mod', name: 'Mod', category: 'mod', quantity: 12, mastered: false, live: false },
+          { id: 'arcane', name: 'Arcane', category: 'arcane', quantity: 3, mastered: false, live: false },
+        ],
+      },
+    })
+    render(<App />)
+    expect(await screen.findByText('50% of mastery-eligible items')).toBeInTheDocument()
+  })
+
+  it('orders unmastered equipment first, then mastered, then what earns no mastery', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.getView.mockResolvedValue({
+      ...view,
+      collection: {
+        total_entries: 4,
+        items: [
+          { id: 'zenith', name: 'Zenith', category: 'weapon', quantity: 1, mastered: true, live: false },
+          { id: 'braton', name: 'Braton', category: 'weapon', quantity: 0, mastered: false, live: false },
+          { id: 'akbronco', name: 'Akbronco', category: 'weapon', quantity: 1, mastered: false, live: false },
+          { id: 'serration', name: 'Serration', category: 'mod', quantity: 12, mastered: false, live: false },
+        ],
+      },
+    })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    await userEvent.click(within(screen.getByRole('group', { name: 'Sort collection' })).getByRole('button', { name: 'Unmastered first' }))
+    const names = screen.getAllByRole('article')
+      .filter(node => node.closest('[aria-label="Collection items"]'))
+      .map(node => node.getAttribute('aria-label'))
+    expect(names).toEqual(['Akbronco', 'Braton', 'Zenith', 'Serration'])
+  })
+
+  it('marks a card the account does not hold so it can be drawn dimmed', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    expect(screen.getByRole('article', { name: 'Forma Blueprint' })).toHaveAttribute('data-held', 'false')
+    expect(screen.getByRole('article', { name: 'Rhino' })).toHaveAttribute('data-held', 'true')
+  })
+
+  it('opens the mastery tab with the checklist in arsenal-first order and the progress strip', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    await userEvent.click(screen.getByRole('button', { name: 'Mastery' }))
+    expect(screen.getByRole('heading', { name: 'Mastery' })).toBeInTheDocument()
+    const names = screen.getAllByRole('article')
+      .filter(node => node.closest('[aria-label="Mastery items"]'))
+      .map(node => node.getAttribute('aria-label'))
+    expect(names).toEqual(['Skana', 'Excalibur', 'Furis'])
+    expect(screen.getByText('2', { selector: '[data-summary="mastered"] *' })).toBeInTheDocument()
+    expect(screen.getByText('40% of 5 masterable items')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Weapon 2/4' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Frame 0/1' }))
+    expect(screen.queryByRole('article', { name: 'Skana' })).not.toBeInTheDocument()
+    expect(screen.getByRole('article', { name: 'Excalibur' })).toHaveAttribute('data-held', 'false')
+  })
+
+  it('the mastery page says what it needs when the backend has no checklist', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'overlay', desktop_capture_action_available: false })
+    backend.getView.mockResolvedValue({ ...view, mastery: { available: false, items: [], totals: [] } })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Saved snapshot' })
+    await userEvent.click(screen.getByRole('button', { name: 'Mastery' }))
+    expect(await screen.findByText('Mastery needs an inventory read under Full access')).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Mastery items' })).not.toBeInTheDocument()
+  })
+
+  it('renders canonical artwork, sync freshness, and only one 48-item page', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.getView.mockResolvedValue({
+      ...view,
+      collection: {
+        total_entries: 60,
+        snapshot: { observed_at: 1_784_980_560, game_build: 'build-42', source: 'warframe-memory' },
+        items: Array.from({ length: 60 }, (_, index) => ({
+          id: `item-${index.toString().padStart(2, '0')}`,
+          name: `Item ${index.toString().padStart(2, '0')}`,
+          category: 'weapon' as const,
+          quantity: 1,
+          mastered: false,
+          live: false,
+          image_url: index === 0 ? 'https://cdn.warframestat.us/img/Braton.png' : undefined,
+        })),
+      },
+    })
+    render(<App />)
+
+    expect(await screen.findByText(/Synced/)).toHaveAttribute('title', expect.stringContaining('warframe-memory'))
+    expect(screen.getByRole('img', { name: 'Item 00' })).toHaveAttribute('src', 'https://cdn.warframestat.us/img/Braton.png')
+    expect(screen.getAllByRole('article').filter(node => node.closest('[aria-label="Collection items"]'))).toHaveLength(48)
+    expect(screen.getByText('1–48 of 60')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Go to page 2' }))
+    expect(screen.getByRole('article', { name: 'Item 59' })).toBeInTheDocument()
+    expect(screen.queryByRole('article', { name: 'Item 00' })).not.toBeInTheDocument()
+  })
+
+  it('shows the unit price, and the stack total only when more than one is owned', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    render(<App/>)
+    const single = await screen.findByRole('article', { name: 'Lex Prime Receiver' })
+    expect(within(single).getByText('19')).toBeInTheDocument()
+    // The currency is the game's own icon rather than a trailing letter, so it has to still say
+    // "platinum" to a reader who cannot see it.
+    expect(within(single).getByAltText(/platinum/i)).toBeInTheDocument()
+    expect(within(single).queryByText(/total/)).not.toBeInTheDocument()
+
+    const stack = await screen.findByRole('article', { name: 'Lith A1 Relic' })
+    expect(within(stack).getByText('20')).toBeInTheDocument()
+    expect(within(stack).getByText('140 total')).toBeInTheDocument()
+    // One mark leads the pair: the unit price and the stack total are the same currency.
+    expect(within(stack).getAllByAltText(/platinum/i)).toHaveLength(1)
+  })
+
+  // Ducats are the other price a prime part carries: set by Baro rather than the market, and
+  // useful in bulk, so they get the stack total platinum gets and a band figure over the whole
+  // collection. They are a fact of the item rather than of a holding, so a missing part keeps its
+  // reading where it keeps no platinum, and the whole display is the player's choice to hide.
+  it('shows ducats beside platinum, totals the stack, and banks a collection figure', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.getView.mockResolvedValue({
+      ...view,
+      collection: {
+        ...view.collection,
+        total_entries: 3,
+        items: [
+          { id: 'paris-prime-string', name: 'Paris Prime String', category: 'prime_part', quantity: 3, mastered: false, platinum: 6, ducats: 15, live: false, priceable: true },
+          { id: 'ash-prime-systems', name: 'Ash Prime Systems', category: 'prime_part', quantity: 0, mastered: false, ducats: 100, live: false, priceable: false },
+          { id: 'caliban-prime-chassis-blueprint', name: 'Caliban Prime Chassis Blueprint', category: 'prime_part', quantity: 1, mastered: false, live: false, priceable: true },
+        ],
+      },
+    })
+    const user = userEvent.setup()
+    render(<App/>)
+
+    const stack = await screen.findByRole('article', { name: 'Paris Prime String' })
+    expect(within(stack).getByText('15')).toBeInTheDocument()
+    expect(within(stack).getByText('45 total')).toBeInTheDocument()
+    // One mark leads the pair: unit value and stack total are the same currency, so they share it.
+    expect(within(stack).getAllByAltText(/ducat/i)).toHaveLength(1)
+
+    const missing = screen.getByRole('article', { name: 'Ash Prime Systems' })
+    expect(within(missing).getByText('100')).toBeInTheDocument()
+    expect(within(missing).queryByText(/total/), 'nothing is banked from a part that is not held').not.toBeInTheDocument()
+
+    const unavailable = screen.getByRole('article', { name: 'Caliban Prime Chassis Blueprint' })
+    expect(within(unavailable).getByText('Ducat value unavailable')).toBeInTheDocument()
+    expect(unavailable).toHaveTextContent('Prime Parts')
+
+    const band = screen.getByTestId('band-ducats')
+    expect(within(band).getByText('45')).toBeInTheDocument()
+    expect(within(band).getByText('Ducats at stake')).toBeInTheDocument()
+
+    // The switch is the layer's valve, a two-state control, not a mode among the sorts and
+    // filters beside it. Off, every reading above goes, card and band alike.
+    const ducatsSwitch = screen.getByRole('switch', { name: 'Ducat values' })
+    expect(ducatsSwitch).toHaveAttribute('aria-checked', 'true')
+    await user.click(ducatsSwitch)
+    expect(screen.queryByTestId('band-ducats')).not.toBeInTheDocument()
+    expect(screen.queryByAltText(/ducat/i)).not.toBeInTheDocument()
+    expect(ducatsSwitch).toHaveAttribute('aria-checked', 'false')
+  })
+
+  // The two value sorts are named and marked by their own metal: "Value" stopped answering once
+  // one card could carry two prices. Ducats orders by the unit reading like Platinum does, sinks
+  // what carries no such reading rather than interleaving zeros, and breaks ties on the name.
+  it('sorts by ducat value while the values are shown', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.getView.mockResolvedValue({
+      ...view,
+      collection: {
+        ...view.collection,
+        total_entries: 5,
+        items: [
+          { id: 'braton', name: 'Braton', category: 'weapon', quantity: 1, mastered: false, live: false, priceable: true },
+          { id: 'lex-prime-receiver', name: 'Lex Prime Receiver', category: 'prime_part', quantity: 1, mastered: false, live: false, priceable: true, ducats: 15 },
+          { id: 'paris-prime-string', name: 'Paris Prime String', category: 'prime_part', quantity: 2, mastered: false, live: false, priceable: true, ducats: 45 },
+          { id: 'ash-prime-systems', name: 'Ash Prime Systems', category: 'prime_part', quantity: 1, mastered: false, live: false, priceable: true, ducats: 100 },
+          { id: 'forma-blueprint', name: 'Forma Blueprint', category: 'blueprint', quantity: 3, mastered: false, live: false, priceable: false },
+        ],
+      },
+    })
+    const user = userEvent.setup()
+    render(<App/>)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    await user.click(screen.getByRole('button', { name: 'Ducats' }))
+
+    const names = screen.getAllByRole('article').map(article => article.getAttribute('aria-label'))
+    expect(names).toEqual([
+      'Ash Prime Systems',      // 100
+      'Paris Prime String',     // 45
+      'Lex Prime Receiver',     // 15
+      'Braton',                 // no ducats, sunk below every reading
+      'Forma Blueprint',        // ordinary recipes do not carry Ducat metadata
+    ])
+  })
+
+  // A sort over numbers the screen is not showing would reorder the register invisibly, so the
+  // ducat sort belongs to the layer the switch governs. Off, the chip retires with the badges,
+  // and the pressed chip moves to platinum in plain sight rather than silently.
+  it('retires the ducat sort with the values, handing the sort to platinum', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    const user = userEvent.setup()
+    render(<App/>)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    await user.click(screen.getByRole('button', { name: 'Ducats' }))
+    expect(screen.getByRole('button', { name: 'Ducats' })).toHaveAttribute('aria-pressed', 'true')
+
+    await user.click(screen.getByRole('switch', { name: 'Ducat values' }))
+
+    expect(screen.queryByRole('button', { name: 'Ducats' }), 'no sorting by an invisible reading').not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Platinum' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('says nothing rather than zero for an item with no price', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    render(<App/>)
+    const unpriced = await screen.findByRole('article', { name: 'Rhino' })
+    expect(within(unpriced).queryByText(/p$/)).not.toBeInTheDocument()
+  })
+
+  // The badge said "LIVE" with nothing on screen to explain it. A date explains itself.
+  it('states where the daily prices came from', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    render(<App/>)
+    expect(await screen.findByText(/27 Jul/)).toBeInTheDocument()
+  })
+
+  it('marks a card checked live with its freshness, not a badge', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    render(<App/>)
+    const live = await screen.findByRole('article', { name: 'Lith A1 Relic' })
+    const daily = await screen.findByRole('article', { name: 'Lex Prime Receiver' })
+
+    expect(within(live).getByText(/checked/i)).toBeInTheDocument()
+    expect(within(live).queryByText('Live')).not.toBeInTheDocument()
+    expect(within(daily).queryByText(/checked/i)).not.toBeInTheDocument()
+  })
+
+  // Someone who clicks it should not have to guess whether it prices the page or the collection,
+  // or find that two of the items it counted were never going to be asked about. The fixture's
+  // visible page carries eight owned items; the quantity-0 Forma Blueprint and the unresolvable
+  // Bad Baby are both left out, leaving seven the backend will actually send.
+  it('names how many items the refresh will price, and counts only ones it can price', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    render(<App/>)
+    expect(await screen.findByRole('button', { name: /Price these 7/ })).toBeInTheDocument()
+  })
+
+  // A relic no dump in the last month saw trade is unpriced, and an unpriced item is precisely
+  // the one a manual refresh exists for. Sending only already-priced items would close the recovery
+  // path against the items that need it.
+  it('offers to price an owned item that has no price yet, and never an unowned one', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    const user = userEvent.setup()
+    render(<App/>)
+    await user.click(await screen.findByRole('button', { name: /Price these/ }))
+
+    const requested = backend.refreshPrices.mock.calls[0][0]
+    expect(requested).toContain('rhino')             // owned, no price yet
+    expect(requested).not.toContain('forma-blueprint') // quantity 0, not owned
+    expect(requested).not.toContain('bad-baby')        // owned, but no listing to ask about
+  })
+
+  // Sorting by stack value answers "where is my platinum"; sorting by unit price answers "what is
+  // worth the most". The sort is for the second question, and the card still shows the first.
+  it('sorts by unit price, not by what the stack is worth', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.getView.mockResolvedValue({
+      ...view,
+      collection: {
+        ...view.collection,
+        items: [
+          ...view.collection.items,
+          { id: 'ash-prime-blueprint', name: 'Ash Prime Blueprint', category: 'blueprint', quantity: 1, mastered: false, platinum: 45, live: false },
+        ],
+      },
+    })
+    const user = userEvent.setup()
+    render(<App/>)
+    await user.click(await screen.findByRole('button', { name: 'Platinum' }))
+
+    const names = screen.getAllByRole('article').map(article => article.getAttribute('aria-label'))
+    expect(names[0]).toBe('Ash Prime Blueprint')  // 45p × 1
+    expect(names[1]).toBe('Lith A1 Relic')        // 20p × 7 = 140 total, but 20p each
+    expect(names[2]).toBe('Lex Prime Receiver')   // 19p, below the relic it outranks by stack value
+    // Zenith is priced at 0. It must rank above every unpriced item, not tie with them.
+    expect(names[3]).toBe('Zenith Prime Receiver')
+    expect(names.at(-1)).toBe('Rhino')
+  })
+
+  it('narrows to items that have a price', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    const user = userEvent.setup()
+    render(<App/>)
+    await user.click(await screen.findByRole('button', { name: 'Tradeable' }))
+
+    const names = screen.getAllByRole('article').map(article => article.getAttribute('aria-label'))
+    expect(names).toEqual(['Lex Prime Receiver', 'Lith A1 Relic', 'Zenith Prime Receiver'])
+  })
+
+  // The market rate is the plain reading of what is owned; what the market would actually take is
+  // the qualification on it, so it is under the figure at the size of one. The fixture caps in both
+  // directions: the market takes all 1 Lex Prime Receiver at 19p, and 3 of the 7 Lith A1 at 20p, so
+  // 159p at market rate is 79p anybody could actually sell.
+  it('leads with the market rate and puts what is sellable under it', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    render(<App/>)
+    const worth = await screen.findByTestId('band-worth')
+    expect(within(worth).getByText('159'), 'the worth is a figure, in a row of plain counts').toBeInTheDocument()
+    // Both figures carry the game's own icon. Without it the second one reads as another item count,
+    // which is exactly what the three cells beside it hold.
+    expect(within(worth).getAllByAltText(/platinum/i)).toHaveLength(2)
+    expect(worth.querySelector('.band-aside')?.textContent, 'the achievable total, the size of a footnote').toBe('79 sellable')
+    expect(within(worth).getByText(/only the copies the market buys in a month/i), 'the cap, on the figure it applies to').toBeInTheDocument()
+  })
+
+  // A slider whose effect is invisible until you navigate away is a knob, not a control.
+  it('leaves out stacks under the price floor, and says so where it is set', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    const user = userEvent.setup()
+    render(<App/>)
+    await user.click(await screen.findByRole('button', { name: 'Settings' }))
+
+    const slider = screen.getByRole('slider', { name: /minimum platinum/i })
+    fireEvent.change(slider, { target: { value: '20' } })
+    // Only the 20p Lith A1 clears a 20p floor; the 19p Lex Prime Receiver no longer counts.
+    expect(screen.getByText(/1 stacks counted · 60 platinum sellable/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Collection' }))
+    const worth = await screen.findByTestId('band-worth')
+    expect(within(worth).getByText('159'), 'the market rate never moves with the floor').toBeInTheDocument()
+    expect(worth.querySelector('.band-aside')?.textContent).toBe('60 sellable')
+    expect(within(worth).getByText(/at 20 platinum and over/)).toBeInTheDocument()
+  })
+
+  // The page refresh asks about exactly what is on screen, so a filtered view costs only the
+  // requests that view is worth. The fixture is padded past one page of tradeable items so the
+  // visible page and the full filtered set are provably different arrays.
+  it('prices the items currently on screen, and only those', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    const filler = Array.from({ length: 50 }, (_, index) => ({
+      id: `filler-${index.toString().padStart(2, '0')}`,
+      name: `Filler ${index.toString().padStart(2, '0')}`,
+      category: 'weapon' as const,
+      quantity: 1,
+      mastered: false,
+      live: false,
+      priceable: true,
+      platinum: 5,
+    }))
+    backend.getView.mockResolvedValue({ ...view, collection: { ...view.collection, items: [...view.collection.items, ...filler] } })
+    const user = userEvent.setup()
+    render(<App/>)
+    await user.click(await screen.findByRole('button', { name: 'Tradeable' }))
+    await user.click(await screen.findByRole('button', { name: 'Go to page 2' }))
+    await user.click(screen.getByRole('button', { name: /Price these/ }))
+
+    // Page 2 of 53 tradeable items (50 filler + 3 named) holds only the last 5, alphabetically.
+    expect(backend.refreshPrices).toHaveBeenCalledWith(['filler-48', 'filler-49', 'lex-prime-receiver', 'lith-a1', 'zenith-prime-receiver'])
+  })
+
+  it('routes to the Orders section and counts flagged listings on the nav entry', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.marketStatus.mockResolvedValue({ ...view, market_account: { ...view.market_account, link: 'linked', flagged: 2 } })
+    render(<App/>)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    expect(await screen.findByText('2', { selector: '.punch-count' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Orders' }))
+    expect(await screen.findByRole('heading', { name: 'Market orders' })).toBeInTheDocument()
+  })
+
+  // The production shape of an order: warframe.market's opaque item id, joined to the row by the
+  // backend. The badge used to compare the market id against the row id directly (two namespaces
+  // that share nothing) and never matched, which is how a sell left the card looking untouched.
+  it('shows a listed-order badge on a collection item with a live sell order', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.marketStatus.mockResolvedValue({
+      ...view,
+      market_account: {
+        ...view.market_account,
+        link: 'linked',
+        orders: [{
+          order: { id: 'o1', item_id: '54a73e65e779893a797fff33', kind: 'sell', platinum: 30, quantity: 1, per_trade: 1, visible: true },
+          name: 'Rhino',
+          row_id: 'rhino',
+          status: { state: 'ok' },
+        }],
+      },
+    })
+    render(<App/>)
+    await screen.findByRole('heading', { name: 'Your collection' })
+    expect(await screen.findByText(/listed 1 @ 30p/i)).toBeInTheDocument()
+  })
+
+  /** A listing that covers part of the holding is not the end of selling that row: the remainder is
+   * exactly what the control beside the badge still offers, as an edit of the one order the market
+   * allows per item rather than a second listing it would refuse. */
+  it('offers to sell the remainder of a partly listed holding, as an edit of the listing', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.marketStatus.mockResolvedValue({
+      ...view,
+      market_account: {
+        ...view.market_account,
+        link: 'linked',
+        listable: ['lith-a1'],
+        orders: [{
+          order: { id: 'o1', item_id: '6054dd685221e30057500f63', kind: 'sell', platinum: 20, quantity: 3, per_trade: 1, visible: true },
+          name: 'Lith A1 Relic',
+          row_id: 'lith-a1',
+          status: { state: 'ok' },
+        }],
+      },
+    })
+    backend.updateOrder.mockResolvedValue(view)
+    const user = userEvent.setup()
+    render(<App/>)
+    const card = await screen.findByRole('article', { name: 'Lith A1 Relic' })
+
+    expect(await within(card).findByText(/listed 3 of 7 @ 20p/i)).toBeInTheDocument()
+    await user.click(await within(card).findByRole('button', { name: /sell more/i }))
+    expect(screen.getByLabelText('Platinum')).toHaveValue(20)
+    await user.clear(screen.getByLabelText('Quantity'))
+    await user.type(screen.getByLabelText('Quantity'), '5')
+    await user.click(screen.getByRole('button', { name: /save listing/i }))
+
+    expect(backend.updateOrder).toHaveBeenCalledWith('o1', 20, 5)
+    expect(backend.createOrder).not.toHaveBeenCalled()
+  })
+
+  /** The whole holding already listed is the state the old rule guarded: no second listing, and
+   * nothing left to sell. The badge says the row is fully listed; the control says nothing. */
+  it('offers nothing more on a card whose whole holding is listed', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.marketStatus.mockResolvedValue({
+      ...view,
+      market_account: {
+        ...view.market_account,
+        link: 'linked',
+        listable: ['lith-a1'],
+        orders: [{
+          order: { id: 'o1', item_id: '6054dd685221e30057500f63', kind: 'sell', platinum: 20, quantity: 7, per_trade: 1, visible: true },
+          name: 'Lith A1 Relic',
+          row_id: 'lith-a1',
+          status: { state: 'ok' },
+        }],
+      },
+    })
+    render(<App/>)
+    const card = await screen.findByRole('article', { name: 'Lith A1 Relic' })
+
+    expect(await within(card).findByText(/listed 7 @ 20p/i)).toBeInTheDocument()
+    expect(within(card).queryByRole('button', { name: /sell/i })).toBeNull()
+  })
+
+  /** The press that succeeded is spoken once, where it was made. The badge appearing is the sighted
+   * player's confirmation; this is the same confirmation for anyone not looking at it. */
+  it('announces a listing published from a card', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.marketStatus.mockResolvedValue({
+      ...view,
+      market_account: { ...view.market_account, link: 'linked', listable: ['lex-prime-receiver'] },
+    })
+    backend.createOrder.mockResolvedValue(view)
+    render(<App/>)
+    await screen.findByRole('heading', { name: 'Your collection' })
+
+    const card = await screen.findByRole('article', { name: 'Lex Prime Receiver' })
+    await userEvent.click(await within(card).findByRole('button', { name: 'Sell' }))
+    await userEvent.click(within(card).getByRole('button', { name: /list for sale/i }))
+
+    expect(await screen.findByText(/listed Lex Prime Receiver at 19 platinum/i)).toBeInTheDocument()
+  })
+
+  /**
+   * A sell started from a card is answered on the card's own screen. The failure state lived only
+   * on the orders screen, so a refused listing from the collection told the player nothing at all:
+   * the form simply closed and the item was not listed.
+   */
+  it('says so on the collection screen when a sell from a card is refused', async () => {
+    backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    backend.marketStatus.mockResolvedValue({
+      ...view,
+      market_account: { ...view.market_account, link: 'linked', listable: ['lex-prime-receiver'] },
+    })
+    backend.createOrder.mockRejectedValue(new Error('refused'))
+    render(<App/>)
+    await screen.findByRole('heading', { name: 'Your collection' })
+
+    const card = await screen.findByRole('article', { name: 'Lex Prime Receiver' })
+    await userEvent.click(await within(card).findByRole('button', { name: 'Sell' }))
+    await userEvent.click(within(card).getByRole('button', { name: /list for sale/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not publish that listing/i)
+  })
+
+  /**
+   * The window ships with the compositor's own decorations off, so on KDE there is no titlebar to
+   * take hold of and nothing to press for minimize, maximize or close. The masthead is the
+   * titlebar: it carries the drag region and the three controls, so day-to-day window management
+   * needs no keybinding knowledge at all.
+   */
+  describe('masthead window management', () => {
+    beforeEach(() => {
+      backend.getSetupStatus.mockResolvedValue({ setup_complete: true, access_mode: 'full', desktop_capture_action_available: false })
+    })
+
+    /**
+     * `deep` makes every part of the bar a grab handle except the controls standing on it,
+     * including the brand text, whose own drag attribute would otherwise answer first and
+     * refuse clicks that are meant to fall through to the bar behind it.
+     */
+    it('offers a way to move the window without compositor keybindings', async () => {
+      render(<App/>)
+      const masthead = await screen.findByRole('banner')
+      expect(masthead.querySelector('.masthead-top')).toHaveAttribute('data-tauri-drag-region', 'deep')
+      expect(masthead.querySelector('.office')).not.toHaveAttribute('data-tauri-drag-region')
+      expect(document.querySelector('.titlebar-spring')).toBeNull()
+    })
+
+    it('minimizes the window from the masthead', async () => {
+      render(<App/>)
+      await userEvent.click(await screen.findByRole('button', { name: 'Minimize window' }))
+      expect(windowApi.minimizeWindow).toHaveBeenCalledOnce()
+    })
+
+    it('tracks external maximize changes and stops listening on unmount', async () => {
+      let onResize: (() => void) | undefined
+      const unlisten = vi.fn()
+      windowApi.watchWindowResized.mockImplementation(async callback => {
+        onResize = callback
+        return unlisten
+      })
+      const rendered = render(<App/>)
+      const maximize = await screen.findByRole('button', { name: 'Maximize window' })
+      await userEvent.click(maximize)
+      expect(windowApi.toggleMaximizeWindow).toHaveBeenCalledOnce()
+      await waitFor(() => expect(windowApi.watchWindowResized).toHaveBeenCalled())
+
+      windowApi.readWindowMaximized.mockResolvedValue(true)
+      await act(async () => { onResize?.() })
+      expect(maximize).toHaveAccessibleName('Restore window')
+
+      rendered.unmount()
+      expect(unlisten).toHaveBeenCalledOnce()
+    })
+
+    it('closes the window from the masthead', async () => {
+      render(<App/>)
+      await userEvent.click(await screen.findByRole('button', { name: 'Close window' }))
+      expect(windowApi.closeWindow).toHaveBeenCalledOnce()
+    })
+  })
+
+  it('sends the masthead update mark to the Settings updates section', async () => {
+    backend.getVersionInfo.mockResolvedValue({ version: '0.11.0', channel: 'stable', kind: 'appimage', writable: true, updatable: true, manager: null, manager_command: null })
+    backend.updateCheck.mockResolvedValue({ kind: 'appimage', updatable: true, update: { version: '0.12.0', current_version: '0.11.0', notes: null, date: '2026-09-22T00:00:00Z', feed: 'stable' } })
+    const originalScroll = window.HTMLElement.prototype.scrollIntoView
+    const scrollSpy = vi.fn()
+    window.HTMLElement.prototype.scrollIntoView = scrollSpy as unknown as typeof window.HTMLElement.prototype.scrollIntoView
+    try {
+      render(<App />)
+      const mark = await screen.findByRole('button', { name: /Update available.*Open Settings updates/ })
+      await userEvent.click(mark)
+      await waitFor(() => expect(document.getElementById('updates-setting')).not.toBeNull())
+      await waitFor(() => expect(scrollSpy).toHaveBeenCalled())
+      await waitFor(() => expect(document.getElementById('updates-title')).toHaveFocus())
+    } finally {
+      window.HTMLElement.prototype.scrollIntoView = originalScroll
+    }
+  })
+
+  // The preference is read when the Settings page mounts, so the tests open the page the way a
+  // player does and then wait for the switch to answer.
+  async function openSettings() {
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+  }
+
+  // Screen capture keeps its own status line on this page, so the mastery note is read from the
+  // row that owns it rather than from whichever status region the page happens to render first.
+  function masterySetting() {
+    return screen.getByRole('heading', { name: 'Mastery marks on overlays' }).closest('.setting') as HTMLElement
+  }
+
+  it('switches mastery marks off and on from Settings', async () => {
+    backend.getPreferences.mockResolvedValue({ mastery_marks: true })
+    // The command answers with the stored preference rather than the request, so the switch is
+    // asserted against what the backend now holds.
+    backend.setMasteryMarks.mockImplementation(async (enabled: boolean) => ({ mastery_marks: enabled }))
+    await openSettings()
+
+    const toggle = await screen.findByRole('switch', { name: 'Mastery marks' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+
+    await userEvent.click(toggle)
+    expect(backend.setMasteryMarks).toHaveBeenCalledWith(false)
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Mastery marks' })).toHaveAttribute('aria-checked', 'false'))
+
+    await userEvent.click(screen.getByRole('switch', { name: 'Mastery marks' }))
+    expect(backend.setMasteryMarks).toHaveBeenLastCalledWith(true)
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Mastery marks' })).toHaveAttribute('aria-checked', 'true'))
+  })
+
+  it('keeps the old value and says so when saving fails', async () => {
+    backend.getPreferences.mockResolvedValue({ mastery_marks: true })
+    backend.setMasteryMarks.mockRejectedValue('disk full')
+    await openSettings()
+
+    const toggle = await screen.findByRole('switch', { name: 'Mastery marks' })
+    await userEvent.click(toggle)
+
+    expect(await within(masterySetting()).findByRole('status')).toHaveTextContent('Could not save this setting.')
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('keeps the switch usable and says so when the setting cannot be read', async () => {
+    backend.getPreferences.mockRejectedValue('unreadable')
+    await openSettings()
+
+    const toggle = await screen.findByRole('switch', { name: 'Mastery marks' })
+    await waitFor(() => expect(toggle).toBeEnabled())
+    // On is what the backend itself falls back to, so the switch shows it rather than a guess of its own.
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    expect(within(masterySetting()).getByRole('status')).toHaveTextContent('Could not read this setting.')
+  })
+})

@@ -1,0 +1,37 @@
+# Build output
+target/
+node_modules/
+app/dist/
+
+# Local databases
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+
+# Local tooling state
+.repo-git/
+.superpowers/
+.worktrees/
+.claude/
+.impeccable/
+.zcode/
+__pycache__/
+
+# Third-party tool output
+Extracted/
+
+# `--appimage-extract` always unpacks into ./squashfs-root next to the invoking shell, so a
+# manual AppImage inspection leaves this behind in the repo root.
+squashfs-root/
+
+# The Windows bundle's vendored Tesseract, fetched by scripts/vendor-windows-tesseract.ps1. The
+# directory itself is tracked because tauri.windows.conf.json globs it and a glob that matches
+# nothing is a build error, not an empty resource set.
+app/src-tauri/vendor/tesseract/*
+!app/src-tauri/vendor/tesseract/.gitkeep
+
+# Implementation plans are working notes, not part of the published history.
+docs/superpowers/plans/
+
+# Staged CI artifact downloads for tester handover; never committed.
+artifacts/

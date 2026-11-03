@@ -1,0 +1,115 @@
+name: Bug report
+description: Something in TennoScope does not work
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, please check **Diagnostics** in the app — it names which stage failed, which
+        is usually most of the answer.
+
+        If Diagnostics shows a **Report block**, click **Copy diagnostics** and paste the whole output
+        into the **Diagnostics output** field below — it carries the fault summary, the row states and
+        the recent warnings. The full log record (the rotated logs) lives in the **Save logs** folder.
+
+        **EE.log** is sanitized (IPs and email addresses are redacted) and included in the report
+        folder as `EE.log (sanitized)`. You can safely attach it to this issue — it helps us
+        reproduce acquisition and log-monitor problems much faster.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      placeholder: |
+        1. Start Warframe through Proton
+        2. Crack a relic in a public fissure
+        3. ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part
+      options:
+        - Inventory acquisition (collection is empty, stale, or wrong)
+        - Reward overlay (does not appear, wrong place, wrong cards)
+        - Pricing (missing, wrong, or never arrives)
+        - Catalog / artwork
+        - Log monitor / health reporting
+        - Build or packaging
+        - Something else
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Linux
+        - Windows
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics output
+      description: >
+        Paste the **Copy diagnostics** output here (from the Report block). It reports subsystem
+        health without any account data.
+      render: text
+
+  - type: textarea
+    id: ee-log
+    attributes:
+      label: EE.log (sanitized)
+      description: >
+        If the report folder contains `EE.log (sanitized)`, drag it here or paste its contents.
+        IPs and emails are already redacted — it is safe to share publicly.
+      render: text
+
+  - type: input
+    id: environment
+    attributes:
+      label: Distribution, compositor and session
+      description: >
+        Overlay placement is compositor-specific and only sway is exercised, so this matters more
+        than usual.
+      placeholder: Gentoo, sway 1.11, Wayland
+    validations:
+      required: true
+
+  - type: input
+    id: launcher
+    attributes:
+      label: How Warframe is launched
+      placeholder: Steam + Proton Experimental
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: TennoScope version
+      description: Or the commit you built from.
+    validations:
+      required: true
+
+  - type: textarea
+    id: tools
+    attributes:
+      label: External tool versions
+      description: Only if the reward overlay is involved. Windows bundles their own tesseract.
+      value: |
+        $ tesseract --version | head -1
+      render: shell

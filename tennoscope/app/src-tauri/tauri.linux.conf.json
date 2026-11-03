@@ -1,0 +1,12 @@
+{
+  "bundle": {
+    "createUpdaterArtifacts": false,
+    "resources": {
+      "../../LICENSE": "LICENSE",
+      "../../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
+      "vendor/tesseract/tesseract": "tesseract/tesseract",
+      "vendor/tesseract/eng.traineddata": "tesseract/eng.traineddata",
+      "vendor/tesseract/lib/*": "tesseract/lib/"
+    }
+  }
+}

@@ -1,0 +1,840 @@
+# Changelog
+
+All notable changes to this project are documented here.
+
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
+adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
+
+While the major version is `0`, per semver §4 anything may change, but bumps mean:
+patch for backwards-compatible bug fixes (including corrections to existing behaviour),
+minor for new backwards-compatible functionality or incompatible changes until `1.0.0`
+declares stability. Releases through `0.11.0` treated any user-visible behaviour change as
+minor; from here on a fix that restores intended behaviour is a patch even when the user can
+see the difference.
+
+## [Unreleased]
+
+## [0.14.0] - 2026-10-30
+
+### Added
+
+- **A Mastery tab lists every masterable item the account has yet to master.** Under Full
+  access, once an inventory has been read and the item catalog has loaded, the tab shows
+  mastery-eligible equipment the account has never mastered. What it holds but has not ranked,
+  and what it has never held (the WFCD catalog flagged 803 items masterable on 2026-10-10, of
+  which the app keeps those it can classify as frame, weapon, companion or vehicle). Progress
+  reads across the top, overall and per category, counting mastered items the account has since
+  sold the way the game's profile does; category chips filter, and the default order puts what
+  is in the arsenal first. The Collection tab still lists only what the account holds, and gains
+  an **Unmastered first** sort for the gear it does hold; on both tabs a card the account does
+  not hold is drawn dimmed. Operator Amps are absent, because the catalog flags none of them
+  masterable; a modular item built but never ranked (a Zaw, Kitgun, K-Drive, MOA or Hound) is
+  listed until it earns affinity; Founders items are listed like any other. Suggested and
+  implemented by [@NekoRem](https://github.com/NekoRem).
+
+- **The Collection tab filters to copies worth selling.** Four filters combine with search,
+  category and the ownership filters. **2+ copies** keeps a row holding at least two copies,
+  counted per rank, because the market prices each rank on its own. **Unequipped** keeps a row
+  with a copy installed in no build, and an **Equipped ×N** mark on the card counts the copies
+  that are. **Unranked** keeps the unranked mods and arcanes, which also hold every rank-0 copy.
+  **Min price** keeps copies priced at 3, 5, 10 or 20 platinum or more, and above Any it drops
+  rows with no price, as Tradeable does. The steps follow one account's held mods, where 328
+  sat at 3-4p and 41 at 20p or more. 2+ copies and Unequipped need Full access, like the
+  quantities they read. Unequipped and the mark appear after the next inventory read, because
+  copies stored before this release were never counted.
+
+### Fixed
+
+- **The full test suite passes on every tesseract build.** The 16:10 reward-geometry test
+  asserted every card read at >= 0.9, which the combined legacy+LSTM `tessdata` that Arch and
+  Fedora ship misses by one character on `2X Forma Blueprint` (0.875), so those packages had to
+  skip the test. The floor is now 0.85, the same traineddata-independent value the three-card
+  geometry test already uses: deep enough in the gap between a true crop and a misplaced one
+  (0.90 at +-32px, 0.71-0.80 at +-48px) to still catch a fifth-of-a-card drift, while absorbing
+  the ~0.06 a one-character OCR difference costs. The Arch and COPR recipes run the whole suite
+  again.
+
+- **The item catalog loads again.** The WFCD items catalog that `api.warframestat.us/items`
+  serves is now larger than the 64 MiB the app allowed (68,640,011 bytes on 2026-10-10), so
+  every download was refused as too large: a fresh install reported "No valid WFCD catalog is
+  available" and never populated the collection, and an existing install kept serving its
+  last cached catalog as stale. The limit is now 256 MiB. Reported and fixed by
+  [@NekoRem](https://github.com/NekoRem).
+
+- **The reward overlay appears on HiDPI Linux desktops.** On a session with a GDK scale
+  factor above 1 (for example Xft.dpi 192 on KDE Plasma) the strip was created and shown
+  but placed at twice its intended offset and size, which on a 2880x1800 panel below a 4K
+  monitor put it entirely off-screen. The X11 game rectangle is physical pixels and GTK
+  positions windows in logical ones; the rect is now divided by the window's scale factor
+  before it is handed to GTK. Scale 1 is unchanged. Reported and fixed by
+  [@NekoRem](https://github.com/NekoRem).
+
+## [0.13.0] - 2026-10-02
+
+### Added
+
+- **Reward slips show whether you have mastered the Prime each part builds.** Each
+  Prime part's slip on the reward overlay and the Rewards page ends in a mastery mark:
+  mastered, built and at what rank, in the foundry, or unmastered, and a dash where the
+  app cannot tell. An unmastered slip draws the Prime's set as part silhouettes, held
+  copies solid and missing ones dimmed, and rules its edge when you are short of the
+  part, twice when it is the last part the set needs. Akbronco, Aklex, Akmagnus and
+  Akvasto Prime each take two of their single Prime, so once you have mastered or
+  built a Lex Prime, its parts still count while you hold fewer than two and have
+  neither mastered nor built the Aklex: their slips read "Unmastered Aklex", draw the
+  Aklex's set and never rule twice. Mastery is permanent but held, built and pending
+  parts are not, so the marks are read from this run's inventory: on Overlay access,
+  or before the first Full sync of a session, only "mastered" can appear and every
+  other mark is a dash.
+- **Kiosk tiles mark parts of items you have not mastered.** A tile for a part of an
+  item you have not mastered, built or started building gives its price chip over to
+  one strip that says the item is unmastered and what the part sells for, adding how
+  many of the part you hold against how many you need when you need it more than once
+  and the strip has room for it. The strip keeps clear of the game's own owned badge,
+  gives up a further 12px for a held count of ten or more, and drops its detail until
+  the word and the price both fit. With no live inventory no strip is drawn at all and
+  one line over the grid reads "Mastery: no live inventory".
+- **A switch for the mastery marks.** Settings > Preferences carries "Mastery marks
+  on overlays", on by default. Turning it off stops both overlays drawing marks from
+  their next update, without a restart.
+
+### Changed
+
+- **The reward overlay is 24px taller.** Its window was 156 of 1080 design pixels and
+  is now 180, which is what the set row at the foot of a slip needs. The window still
+  hangs directly below the game's reward cards, so the extra height never covers them.
+
+### Fixed
+
+- **Odonata Prime Wings Blueprint is named correctly.** The Ducat Kiosk
+  recognises a tile against the names it expects to find, and the Wings
+  blueprint was missing from them while the Harness and Systems blueprints were
+  there, so a read of that tile could match the Harness and show its price.
+  The collection listed a held Wings blueprint as Prime Archwing Wings
+  Blueprint with no ducat value; it now carries its own name and its ducats.
+- **The Ducat values switch keeps its label under keyboard focus.** Focus
+  turns a switch light with a dark label, but a switch that was on kept its
+  light label, so tabbing to Ducat values while it was on showed a blank light
+  block. The label now turns dark whether the switch is on or off.
+- **A blueprint reward counts the blueprints you hold.** The relic tables name a
+  stacked Forma reward "2X Forma Blueprint", which matched nothing in the
+  collection, so its slip read "Not owned" however many Forma blueprints you
+  held. A slip's owned count also took what a blueprint builds for the
+  blueprint, so a Forma Blueprint slip counted your built Forma instead, and
+  with mastery marks off a Prime's blueprint could count the Prime you built.
+- **A reward from a relic with no known drop table gets its own name.** The
+  item data lists the current Prime Resurgence relics with no rewards, so a
+  squadmate's card from one was matched only against the other relics' rewards
+  and took the closest of their names: a Baza Prime Blueprint read cleanly and
+  showed as a Burston Prime Blueprint, with a mastery mark for the wrong item. A
+  card read near-exactly is now named even when no known relic lists it, and a
+  squad whose relics are all unknown is read the same way instead of getting no
+  overlay at all.
+- **A doubtful card read says so.** Every card read off the screen reached its
+  slip as certain, so the slip's "Uncertain" mark, which also withholds the Top
+  plat and Top ducats marks and the mastery rule and set, never appeared for
+  one. A card matched below 80% now carries it.
+- **A misread of your own reward is read again instead of shown.** The game
+  logs which reward is yours, and a read of the screen that leaves it out is
+  dropped and taken again. That check never ran when your reward was a
+  blueprint, about half of what relics drop, or came from a relic with no
+  known drop table. It now runs for both. A Forma blueprint is still not
+  checked.
+- **Game text no longer shows through the reward overlay.** Its slips let 7%
+  of the game through, and the blur meant to hide it cannot sample the game
+  window underneath, so the text under the reward cards, including squadmates'
+  names, showed faintly through them. The slips are opaque now.
+- **An update offer survives a restart.** The daily check throttle skipped the
+  network on reopen, so the masthead button vanished on the next launch and
+  stayed gone until the next check ran. The offered version is now stored and
+  the mark comes back on startup, where it waits until you dismiss it, install
+  it, or a newer build replaces it. Clicking it opens Settings, and the
+  AppImage mount check reads your temporary directory instead of assuming
+  `/tmp`.
+- **An update offer survives a check that cannot run.** With no network the
+  automatic check restored the previous phase in silence, so the app went on
+  reporting a last-checked time for a check that never ran, and pressing Check
+  by hand threw away an offer that was already standing along with the button
+  that acts on it. A standing offer now keeps the note.
+- **The sell form says which bound you crossed.** A bad price or quantity
+  disabled the button with nothing naming the field or its range. Each now
+  reports itself, and the reason is attached to the input rather than to a
+  control you cannot focus.
+- **Hidden status text is still announced.** Two strings were removed from the
+  accessibility tree rather than merely hidden, so a reader arriving before the
+  text had nothing to say and the verdict disappeared entirely below a narrow
+  window. Both are clipped now, and the control borders meet the contrast
+  target the stylesheet sets for them.
+- **A clipped label gives its whole text on hover.** The reader's verdict, the
+  game-reader line and each order's line-claim could only be read in full by
+  widening the window.
+- **The Linux packages recommend `xwininfo`.** Wine's virtual-desktop mode
+  hides the game from the ordinary window search, so the X11 path walks an
+  `xwininfo` tree to find it. The deb, rpm and COPR now recommend it beside
+  tesseract, and the Gentoo overlay names it at install time.
+- **The AppImage starts outside the account that built it.** Its
+  `AppRun.wrapped` shipped at 770, so a sandbox running as neither owner nor
+  group could not execute it and the app quit on launch, which the catalog's
+  firejail test caught. World permission bits are normalized across the AppDir
+  before the repack, and the extracted result is checked for the same.
+
+## [0.12.1-rc1] - 2026-09-29
+
+### Fixed
+
+- **Ducat kiosk prices agree with each other and hold still.** Grid tiles and
+  basket rows share one price join, so the same part can never show two
+  numbers, and prices come from the median of completed trades instead of the
+  lowest live ask, which a single listing could swing to absurd heights.
+  Built-part labels price at their blueprint twin.
+- **The kiosk overlay keeps its prices while scrolling and on dim pipelines.**
+  The chip mask rides streamed scroll offsets, the brightness gate follows the
+  strip instead of a fixed white, and captured frames mask out
+  already-published chips before recognition, so scrolled grids keep their
+  prices instead of blanking or misattaching them. Sparse panes re-phase
+  instead of staying blank.
+- **Proton sessions no longer fail as "multiple inventory authorizations".**
+  A lone credential is confirmed with a wider scan instead of refused, and a
+  truncated partial scan reports a retryable state rather than an error.
+
+## [0.12.0] - 2026-09-24
+
+### Added
+
+- **Download-and-prompt self-update for portable installs.** Portable
+  AppImages and per-user Windows installs now check for new versions daily,
+  download only when asked, and restart to finish. Nothing installs itself.
+  A masthead mark announces offered and downloaded updates, and the About
+  page names the installed version with its installer identity. System
+  installs (deb/rpm/Gentoo/Arch) check too but get a package-manager nudge
+  with a copyable command instead of an install button that could never work.
+- **Signed APT repository.** Release `.deb`s feed a multiversion signed APT
+  pool on first publish; Debian/Ubuntu install with
+  `sudo apt install tenno-scope`. Fedora gains a COPR (`deftera/tennoscope`),
+  and Windows gains a Winget package.
+
+### Fixed
+
+- **Ducat kiosk overlay rides out slower sale-confirm rebuilds.** The close grace
+  window is 3s instead of 1.5s: a measured 1.67s rebuild on a live session tore
+  the overlay down just past the old window, blanking prices after every sale.
+
+## [0.11.0] - 2026-09-20
+
+### Fixed
+- **Reward recognition runs on a background reader and no longer blocks the monitor.**
+  Log events update shared relic context while a single worker performs capture and retries,
+  so slow OCR cannot delay overlay show/hide, game-exit handling, or poller delivery. Results
+  from a closed or replaced screen are retired instead of published, and delayed market prices
+  stay gated by the monitor generation.
+- **Windows reward and kiosk recognition works in the installed app again.** The bundled
+  Tesseract received its data directory in verbatim `\\?\` form, which rejects the forward
+  slash Tesseract appends to the filename, so `eng.traineddata` failed to open on every
+  read (issue #12). The directory is unprefixed before Tesseract ever sees it.
+- **Ducat kiosk overlay stays up while picking items.** Confirming a sale rebuilds the kiosk
+  screen, and its close markers no longer end the visit: a close waits out a 1.5s grace
+  window and a rebuild inside it continues the same session. The quantity dialog no longer
+  blanks the chips either: an unreadable moment fades them and the next settled read
+  restores them.
+
+## [0.10.0] - 2026-09-18
+
+### Added
+
+- **Warframe access is now an explicit backend-enforced mode.** Companion keeps the catalog,
+  relic reference, saved collection, prices and ducats, preferences, and optional warframe.market
+  workflows useful without observing Warframe. Overlay adds process presence, `EE.log`, local
+  visible-pixel recognition, and click-through overlays without process-memory or inventory
+  access. Full adds read-only process memory and automatic or manual inventory synchronization.
+  First run starts no Warframe access until a mode is confirmed; legacy accepted installations
+  migrate to Full.
+
+### Changed
+
+- **Mode downgrades finish cleanup before becoming effective.** Prohibited monitor, capture,
+  overlay, memory, scanner, and inventory work is stopped and joined before success is reported,
+  while late work from an older runtime generation is discarded. Saved inventory remains visible
+  as a timestamped snapshot outside Full, and ownership-dependent order state is marked
+  unverifiable.
+
+### Fixed
+
+- **Windows OCR no longer opens a console window for each crop.** Reward and kiosk recognition
+  launch Tesseract with `CREATE_NO_WINDOW`, preventing the recurring console flashes that can
+  interrupt a borderless game.
+- **Windows reward and kiosk capture now use DXGI Desktop Duplication instead of WGC.** This
+  avoids WGC's yellow capture border without disabling recognition. Concurrent readers share a
+  persistent session, release it when observation stops, and recover from display/device changes
+  with bounded frame waits and a retry cooldown. Capture supports secondary and rotated displays.
+- **Game exit now stops reward polling even before any reward cards were recognized.** The
+  worker is joined so a crashed or closed game cannot leave a capture session alive until the
+  reward poller's lifetime expires.
+
+## [0.9.1] - 2026-09-14
+
+### Changed
+
+- **Capture and game-monitor workers now shut down as owned runtime trees.** Application exit and
+  game process transitions cancel and join their background work deterministically instead of
+  leaving detached tasks behind; visible capture behaviour is unchanged.
+
+### Fixed
+
+- **Local Tauri builds now discover `libclang` in versioned LLVM installations.** This covers
+  distributions such as Gentoo where `libclang.so` lives outside the dynamic loader's default
+  search path.
+- **Release preflight checks now stay portable across packaging hosts.** Platform-specific tools
+  run only on their target OS, and unavailable optional package inspectors are reported without
+  aborting artifact builds.
+
+## [0.9.0] - 2026-09-13
+
+### Added
+
+- **The Ducat Kiosk now shows each Prime part's live platinum value before you sell it.** A
+  click-through overlay follows the kiosk grid while it scrolls, mirrors checked items and stack
+  quantities in a basket, and keeps a running platinum total. Recognition stays local and
+  fail-closed: unreadable frames fade the prices instead of attaching them to the wrong items.
+
+### Fixed
+
+- **TennoScope now starts reliably on proprietary NVIDIA Linux drivers.** When the primary GPU
+  needs WebKitGTK's safer non-DMABUF renderer, startup applies it automatically without overriding
+  an explicit user setting. This fixes the blank window and GBM buffer allocation failure reported
+  in issue #9 while leaving AMD, Intel and Nouveau systems unchanged.
+
+## [0.8.0] - 2026-09-10
+
+### Added
+
+- **Native-Wayland Warframe now has automatic, prompt-free capture where the compositor supports
+  it.** Linux still takes an X11/XWayland game window first; when Warframe runs with
+  `PROTON_ENABLE_WAYLAND=1`, capture tries wlroots screencopy, then KWin ScreenShot2, then an
+  already-authorized portal ScreenCast session. Gameplay never opens a desktop chooser. In that
+  release, first run recorded only the read-only access disclosure; portal permission was granted
+  separately from Settings when that fallback was needed. Installed deb, rpm, Arch and Gentoo
+  packages can use KDE's silent ScreenShot2 path. AppImages cannot receive that KWin authorization
+  and use the portal fallback instead.
+
+- **The masthead is the window's titlebar.** The main window runs with the compositor's own
+  decorations off, so on a desktop where nobody knows the window-management keys (KDE most of
+  all) there was nothing to grab to move it and no buttons to minimize, maximize or close it.
+  The masthead now carries Tauri's deep drag region, making the whole bar a grab handle while
+  every control standing on it stays clickable, and a quiet group of three square marks
+  (minimize, maximize/restore, close) takes its right edge, drawn in the page-mark grammar and
+  taking the caution colour only under the pointer of close. The maximize control names itself
+  by its next action and follows the real window state, so snapping from the keyboard keeps it
+  honest.
+
+### Changed
+
+- **Prime items now live in Prime Parts instead of being split across Prime Parts and
+  Blueprints.** Prime recipe holdings resolve to their canonical catalog identity, so component
+  names, artwork, categories, market prices and ducat values stay together. Ordinary crafting
+  recipes remain under Blueprints, and a Prime item whose catalog data genuinely has no ducat
+  value now says it is unavailable instead of leaving a blank price.
+
+### Fixed
+
+- **Wayland sessions no longer dim the desktop when a fissure starts.** Reward polling could replay
+  a ScreenCast restore token after the game opened; desktop portals may ignore a stale token and
+  launch their interactive monitor picker, which dims the desktop and starts `slurp` on wlroots.
+  Gameplay capture can no longer negotiate with the portal. It uses an already-live session only
+  after X11/XWayland, wlroots screencopy and KWin ScreenShot2 are unavailable; otherwise polling
+  reports a capture error without opening a chooser.
+
+- **XWayland reward capture no longer reads blank or unrelated pixels on Wayland desktops.** The
+  game window is still discovered through X11, but its own drawable now supplies the frame instead
+  of sending monitor capture through a desktop portal whose coordinates may not match that window.
+  This restores reward OCR on Sway/XWayland and addresses the same coordinate mismatch reported on
+  KDE Plasma in issue #7.
+
+- **The AppImage launches its bundled TennoScope binary again.** The native-package desktop
+  template names `/usr/bin/tennoscope` so KDE can authorize installed packages for ScreenShot2,
+  but that path was copied into the portable image too. On systems without another TennoScope
+  installation, AppRun exited immediately with “No such file or directory.” AppImage
+  post-processing now restores its PATH-resolved `tennoscope` command while leaving deb, rpm,
+  Arch and Gentoo launch identity unchanged.
+
+- **Windows CI and installer builds accept the native-Wayland capture changes.** Linux-only X11
+  imports, retry tests and drawable-selection helpers no longer reach Windows builds, so all
+  release artifacts can be produced from the same commit.
+
+## [0.7.0] - 2026-08-22
+
+### Added
+
+- **Prime parts carry their ducat value in the collection, beside their platinum.** The
+  catalogue already knew the number, the same WFCD data the reward overlay reads, so the
+  collection joins it onto every card by catalog path: a gold ducat reading next to the
+  market's, a stack total when more than one copy is held, and a "Ducats at stake" figure in
+  the summary band totaling every owned prime part at Baro Ki'Teer's posted prices. Ducats
+  describe the item rather than a sale, so a missing part keeps its reading where it keeps no
+  platinum: the number is what tells the player which relic reward to take. The display is on
+  by default, and a switch in the collection toolbar (labeled "Ducat values", its thumb
+  crossing the track in ducat gold when on) puts it away, remembered in local storage like
+  the price floor. With two prices on one card the old "Value" sort stopped answering, so the
+  value sorts are now named and marked by their metal, "Platinum" and "Ducats", and the
+  ducat sort exists only while its values are shown, falling back to platinum when they are
+  hidden: nothing orders the register by a number it is not showing.
+
+- **A listing can be edited from either screen it is visible on.** Every order row on the Orders
+  screen offers an edit that opens in place, prefilled with the listing's own price and count, and
+  a collection card whose listing covers only part of the holding offers "Sell more" beside the
+  badge, an edit of the existing listing, because warframe.market allows one sell order per item
+  and a second create would be refused by the market after the request. The edit sends price and
+  count together in one patch, and offers no visibility choice because it sends none. It is
+  offered only where the order names one held row of this device's collection: a set, a sculpture
+  or a buy order has no holding to bound the count against, and the backend refuses the write on
+  the same grounds before any request is sent.
+
+### Fixed
+
+- **A stale EE.log replayed as a live session produced a reward report for a game that was not
+  running.** Resolving the log path under a freshly discovered process can settle on a different
+  Wine prefix's EE.log a moment after attaching, and the identity change reset the read offset to
+  zero, so a morning fissure replayed within a second as if it were happening now: relic loads
+  from hours before armed the reward poller, the pipeline ran against a screen that did not exist,
+  and capture health ended the day degraded with "Structured reward records were incomplete", the
+  state the Report block then shows until a real reward screen reads clean. A replacement log is
+  now placed in time before any of it is replayed: by the session start from the `[UTC: ...]`
+  clock the game writes at the top of every log (EE.log lines themselves carry only engine
+  uptime), or by the file's own creation time when no clock line is readable. Lines older than
+  the moment the monitor attached to the process, less a minute's grace for the flush delay,
+  are dropped, a log that is entirely older is skipped outright, and a log that cannot be placed
+  in time at all is skipped too: a missed reward is quieter than a false report.
+
+- **The "listed" badge on a collection card never appeared.** It matched the order's `item_id`
+  against the collection row's id (warframe.market's opaque identifier against a `/Lotus/`
+  path, two namespaces that share nothing), so no card ever said it was listed. A successful sell
+  left the card it was pressed on looking untouched, and the same row could be offered for sale
+  again with nothing to say it already was.
+  The reconciliation now names the row each order belongs to
+  (the reverse of the listing resolution: rank 0 is the unranked stack's row, a card's ceiling its
+  ranked row, a relic subtype its tier-suffixed refinement), and the badge, the sell-more offer
+  and the edit all read that join. The badge counts the holding ("listed 3 of 7 @ 20p"), and a
+  listing published or edited is now spoken once, as the confirmation of the press that made it.
+
+- **Mods, arcanes and relics can be listed for sale.** The Sell button now appears for every
+  collection row warframe.market can actually trade: an unranked stack and a maxed copy of a mod
+  or arcane (the two ranks the market quotes: a part-ranked copy between them is still not
+  offered, because there is no rank the API would accept for it), and each of a relic's four
+  refinements. The row itself carries what the listing needs (the rank in its key, the
+  refinement in its path), so the form still asks for only a price and a quantity, and the
+  backend derives the rest. A bulk-tradable's per-trade size is sent as one; batch sizes remain
+  an edit on the market site. Still not offered, on purpose: sets (the market entry names the
+  built item, not the parts held), Ayatan sculptures (socketed star counts no collection row
+  knows), and rivens and the 19 mods shared between `regular`/`atragraph` variants (one market
+  entry, and the path cannot say which variant is held).
+
+- **The reward overlay no longer names rewards from an earlier fissure.** The relic pool a card is
+  matched against was only replaced when the new one held more names, so a squad carrying fewer
+  relics than a previous run inherited that run's pool, and the closed-set match cannot report
+  "not in the pool", only the nearest name it was given. On 2026-08-20 that published `Forma
+  Blueprint` as `2X Forma Blueprint`, `Lavos Prime Chassis Blueprint` as `Yareli Prime Chassis
+  Blueprint` and `Daikyu Prime Blueprint` as `Xaku Prime Blueprint`, all comfortably above the
+  match floor, with nothing in the log to say so. The pool now belongs to the fissure whose relics
+  built it.
+- **A published reward read says which relics it was matched against.** The pool was only ever
+  named at Debug, which stable builds filter out of the log file, so a report of wrong cards
+  carried no evidence of the pool behind them.
+
+## [0.6.1] - 2026-08-20
+
+### Fixed
+
+- **The reward overlay works again on a multi-monitor desktop.** When the game sat on any monitor
+  but the first, the card reader was given the first monitor's pixels, nothing matched the relic
+  pool, and no overlay appeared. The capture now reads the monitor the game actually sits on.
+- **The saved-report note matches the log it ships.** The EE.log copy in the report folder is
+  scrubbed of IP and email addresses and safe to attach to a public issue; the toast used to call
+  it sensitive and direct it to Discord instead.
+- **Reward diagnostics reach the report bundle again.** The debug records the reward reader
+  keeps (which monitor was captured, what each card read) were filtered out of the log file, so
+  a failed reward screen produced no evidence to fix it.
+
+## [0.6.0] - 2026-08-19
+
+### Added
+
+- **A Support section on the Settings page.** The report actions Diagnostics shows only when it
+  detects a failure (*Open an issue*, *Copy diagnostics*, *Save logs*) are now always available
+  in Settings, so a problem that automatic detection misses can still be reported.
+
+### Changed
+
+- **Save logs now includes the game's own log.** The report folder carries a copy of EE.log
+  whenever the game is running (or was; the last known location is remembered), not just after a
+  failed acquisition stage. The copy is scrubbed of IP and email addresses so it is safe to attach
+  to a public issue.
+
+### Fixed
+
+- **A fresh launch no longer looks broken.** The game reader, log monitor and catalog reported
+  Degraded before Warframe had even started, which lit up the failure banner on an idle app. They
+  now say Idle until something actually goes wrong.
+- **Relaunching the game on Linux reconnects to the new process.** After a restart the app used to
+  attach to whichever game process it found first, which could be the stale one; it now picks the
+  newest.
+
+## [0.5.7] - 2026-08-17
+
+### Fixed
+
+- **Acquisition health no longer misreports idle states.** "Not logged in yet" is now Degraded
+  rather than Failed, so the Diagnostics screen stops showing the problem banner on a perfectly
+  healthy idle app. Detecting the Warframe launcher on Linux now shows "waiting for the game to
+  launch" instead of a bare "not running", and a brief game-not-found blip during startup no longer
+  sticks around after the game connects.
+
+## [0.5.6] - 2026-08-12
+
+### Fixed
+
+- **The log file stops flooding when the game is closed.** Every poll of the game process used to
+  write "game process gone" and "EE.log not found" warnings to the new log file several times a
+  second for as long as the app sat idle. Monitor health now records transitions; the steady
+  state is silent.
+- **Open an issue actually opens the issue page.** The opener plugin allowed the command but no
+  URL, so every open was rejected with "Not allowed to open url". The issue form and the saved
+  report folder are now the only two places the app may open.
+- **The report block describes faults, not the booth.** It used to appear whenever any system was
+  merely waiting at boot; it now appears when something failed, or degraded after having worked.
+- **The saved report stops hoarding.** Report folders are pruned to the newest five, and the
+  ebuild-scale EE.log is copied only when an acquisition stage actually failed, not on any
+  degraded stage.
+- **Windows reports do not leak the user name.** The sanitizer read only the Unix home
+  variables; on Windows the real user name could reach a pasted report.
+
+### Changed
+
+- **The report reads as a report.** "Copy report" is now "Copy diagnostics", the pasted text is
+  rows rather than a JSON dump, and it carries the deduplicated WARN/ERROR tail of the session
+  log instead of a raw excerpt. EE.log content still never enters report text.
+
+## [0.5.5] - 2026-08-12
+
+### Added
+
+- **A report you can hand over.** Diagnostics now has *Open an issue*, *Copy report* and
+  *Save logs*. The report carries the version, the health of every system and the tail of the log,
+  with your home directory and username scrubbed out. Nothing is sent anywhere. It leaves the
+  machine only when you paste or attach it.
+- **A stable build now keeps a log.** The reward-reading diagnostics used to exist only in a
+  debug build, which is not the build anyone plays. They are written to the platform log
+  directory, capped at four files of 5 MiB.
+
+### Fixed
+
+- **Reward cards are read on a scaled display.** A capture that came back larger than the window
+  it was asked for was cropped rather than scaled, leaving a magnified top-left corner in which
+  no card is where the reader looks. Every read failed, and from outside that is
+  indistinguishable from OCR simply not working.
+
+## [0.5.4] - 2026-08-10
+
+### Fixed
+
+- **Reward cards are read where the game draws them on non-16:9 screens.** Card positions
+  were fractions of the window's width; Warframe scales its HUD with height. On a 16:10 screen
+  (a Steam Deck's 1280x800) the reader looked a fifth of a card away from the real slots, clipped
+  titles read as confident wrong letters, both outer cards fell under the match floor, and every
+  poll failed for the whole life of the screen. The overlay strip was drawn in the wrong place on
+  the same screens; both are right now.
+
+## [0.5.3] - 2026-08-08
+
+### Fixed
+
+- **One unreadable item no longer fails your whole collection.** The inventory response can
+  contain a row the game's own client refuses (it logs `Inventory has NULL item` and carries
+  on) and TennoScope turned that single row into "Inventory snapshot was invalid" for the
+  entire account. Unreadable rows are now skipped the way the game skips them; a response with
+  no readable holdings at all is still refused.
+- **A credential the first pass misses is now searched for.** Warframe's memory is sampled
+  within a budget, and on a smaller machine the credential can sit outside what the budget
+  reached. The same session read fine once and reported "inventory authorization was not
+  found" on the retry. Finding nothing now widens the search to the rest of the process rather
+  than reporting an answer it had not earned.
+
+### Changed
+
+- Debug builds record what a read had to throw away, so a failed read can be explained: how
+  many rows were skipped and which item path was first, how many bytes of memory were sampled,
+  and how many candidates were seen. Counts and item paths only; no account data.
+
+## [0.5.2] - 2026-08-07
+
+### Fixed
+
+- **Presence switches no longer hang on "Asking warframe.market…".** The first status change
+  on a connection went through and every later one waited on the ask, even though the site had
+  applied it. The site confirms a change twice, in its reply to the change itself and, once
+  per connection, as the status it last recorded. TennoScope was reading only the second,
+  announcing at the start of a connection. It now reads the reply too, and a change that gets
+  no reply at all asks again, reconnecting after a quiet connection instead of waiting forever.
+
+## [0.5.1] - 2026-08-05
+
+### Fixed
+
+- **Your collection reads on an account that does not own everything yet.** If you had no
+  Necramech, no Amp, or nothing at all in any one category, the read failed outright ("reader
+  failed", and a collection of zeroes) even though everything else about it had worked. Warframe
+  leaves a category out of its reply when you own nothing in it, and TennoScope was treating that
+  as a broken reply rather than an empty shelf.
+
+## [0.5.0] - 2026-08-04
+
+### Added
+
+- **Windows support.** TennoScope runs on Windows 10 and 11 against the native client, with the
+  same collection browser, reward overlay and local-only storage. The installer is a per-user NSIS
+  package with no admin prompt, no prerequisites and its own Tesseract, but it is unsigned, so
+  SmartScreen warns on first run. Support is best-effort: it is run before a release, but Linux is
+  the first-class platform and nothing is guaranteed.
+- **Warframe's display mode is checked.** Exclusive fullscreen owns the display on Windows, so the
+  diagnostics panel asks for Borderless when it cannot find the game window instead of reporting a
+  generic capture failure.
+- **Optional warframe.market account link.** Off by default. Sign in or paste a token and see your
+  orders beside the collection (total listed value, fetch age, and any order that no longer
+  matches what you own), fixable in one action. The credential is kept in your OS keyring (the
+  local database where there is no keyring); unlinking removes it. Nothing else about the account
+  is uploaded.
+- **Publish a sell listing**, from a collection card or the orders screen. Price and quantity are
+  yours to set; quantity cannot exceed what this device says you hold. Items needing more than a
+  price and a quantity (relics, sets, anything with a rank) are not offered.
+- **Take down any listing**, not only ones flagged as wrong. A listing nothing is wrong with asks
+  once before it goes.
+- **Set what warframe.market shows you as**, online, in game, invisible or offline, while
+  TennoScope runs. "Follow the game" reports in game while Warframe is running and online
+  otherwise.
+- **Where to find your token**, on the screen that asks for one, and what it is worth to anyone
+  holding it.
+
+### Changed
+
+- **The reward reader no longer shells out to anything but Tesseract.** Capture, cropping, contrast
+  and thresholding are in-process Rust now. `xwininfo` and ImageMagick drop off the Linux
+  recommended dependencies, and every read is one process spawn instead of four.
+
+### Fixed
+
+- **A mistyped password no longer locks acquisition out for the session.** Failed and successful
+  logins both leave credentials in memory, so two existed and the reader refused to choose (
+  "multiple inventory authorizations were found"), cleared only by a restart. It now takes the
+  newest, which is the live session. Two *different* accounts still refuse, because that case has
+  no right answer.
+- **Pre-release builds no longer open a console window beside the app.** They keep debug
+  assertions on so tracing survives; the console was suppressed by the absence of a flag rather
+  than the build profile it should have followed.
+- **A slow first start no longer reports the backend as unavailable.** The window opens before the
+  backend finishes with its database, and the first status call could arrive in that gap; it now
+  waits.
+
+## [0.4.1] - 2026-07-31
+
+### Fixed
+
+- **The AppImage opens to a window you can see.** It carried its build machine's copy of a Wayland
+  library, and the graphics driver on a newer distribution refuses to load against it, so the
+  browser view gave up before drawing anything. That library now comes from your system, which is
+  where every other package was already getting it. The `.deb`, `.rpm` and Gentoo packages were
+  never affected.
+
+## [0.4.0] - 2026-07-31
+
+### Added
+
+- **Mods, arcanes and rivens are in the collection**, as two new categories. They were never read
+  at all, so for most players this is the largest thing in the collection finally showing up.
+- **Each rank is its own row.** warframe.market only quotes a card at rank 0 and at its ceiling,
+  and Serration is a few platinum unranked and a good deal more maxed, so a part-ranked copy shows
+  both ends rather than picking one. Rivens are ranked but never maxed; their published ceiling is
+  a placeholder, not a rank.
+- **Ayatan sculptures and stars, and built Railjack armaments**, are tracked too. Kubrow imprints
+  are not: the snapshot has no section for them.
+- **What the market would actually take**, beside the collection's worth. Trades happen one at a
+  time between two players, and nobody is buying your two hundredth spare mod, so a stack now
+  counts at no more copies than the game trades in a month.
+- **A price floor in Settings**, 0 to 20 platinum. A lot of any collection is 1–5p items that do
+  trade, an evening of haggling at a time; whether they count is your call. It only moves the
+  sellable figure, never the market rate.
+
+### Changed
+
+- **The worth cell is two figures and a clause** instead of five numbers.
+- **Settings and About are separate pages.** Settings has the price floor and the overlay preview;
+  About has the licence and the disclosures, including what the overlay does to read your screen.
+- **Relics are no longer priced live at every launch.** Keeping each day's relic prices for a month
+  instead of discarding them covers nearly all of them for no extra request, and takes twenty-odd
+  seconds off startup. Live pricing is the refresh button now.
+
+### Fixed
+
+- **Prices come from completed trades, not asking prices.** An asking price covers a bulk seller's
+  whole lot, so anything sold in stacks read high: a Lith relic at 30p against the 4.5p it
+  actually traded at, and the same for gems, fish and fragments. Thin trade data has the opposite
+  problem, so the lower of the two wins and anything with fewer than three sales is ignored. Most
+  of the collection moved, and relics that never had a price now have one.
+- **A stale price cache is re-downloaded rather than trusted.** This is why 0.3.1's relic fix
+  reached the code but not the file already on your disk. Costs 3.9 MB, once.
+- **A mod is filed as a mod**, not as the thing it fits. Warframe stores an augment under its
+  Warframe and a precept under the pet, so mods were turning up under companions.
+- **An unranked card is no longer priced from a maxed one's quote.** Some listings are only ever
+  quoted at their ceiling, which had unranked copies valued at what a maxed one sells for. Those
+  show no price until you ask for one, which is the honest answer.
+- **Development builds link again.** `opt-level = 2` and incremental compilation together produced
+  a binary that couldn't be linked.
+
+## [0.3.1] - 2026-07-30
+
+### Fixed
+
+- Relics are priced for the refinement tier the player holds. warframe.market quotes the four tiers
+  as four subtypes of one listing, and all four resolved to the bare listing name, so a Radiant was
+  priced at whatever an Intact was going for, a median 1.46x understatement across the 80 relics
+  measured and 1p against 17p on Requiem I-IV. Refined tiers are thinly traded, so a tier nobody is
+  selling still falls back to the Intact listing, which is what every tier fell back to before.
+- An item the daily dump quotes more than once is priced at the lowest of them rather than whichever
+  record the file happened to list first. Thirty-nine of the sixty are fish, whose subtype is a size
+  the inventory does not record. A Tromyzon is a Tromyzon whether it is the 2p basic or the
+  10p magnificent, so an unknown was being valued at its best case.
+- Archon shards are listed under their own names and drawn as the shard. The catalogue publishes the
+  twelve with the game's inline icon tag, `<Shard_red_simple> Crimson Archon Shard`, which only
+  Warframe's text renderer draws, and publishes the six Tauforged as the glow layer alone, a
+  coloured smudge with no crystal in it. Neither needs a re-download; the cached catalogue is
+  parsed again at launch.
+
+## [0.3.0] - 2026-07-30
+
+### Added
+
+- Platinum and ducat figures carry the game's own icon, on the reward slips and throughout the
+  collection. The two currencies were told apart by hue and a tracked 8px word, over a bright
+  moving game, under a countdown.
+- Live pricing reports the pass that is running, sweep or page refresh alike, since both spend
+  one budget, as a count beside the provenance line and a rule that fills as it advances.
+
+### Changed
+
+- Closing the main window quits the application. The reward overlay is a hidden window that is
+  never destroyed, so the process used to survive the only window a person can close, and went on
+  tailing the log and drawing the overlay with nothing left to close it by.
+- A second launch raises the window already open instead of starting a rival process. Two instances
+  place an override-redirect overlay at the same coordinates over the game and write the same
+  database. A development build shares the bundle identifier, so `tauri dev` now stands down for an
+  installed copy rather than running beside it.
+
+### Fixed
+
+- Warframe parts are priced in ducats and counted as owned. The reward screen names a part by the
+  blueprint the player picks up, "Voruna Prime Chassis Blueprint", where the item catalogue names
+  the component it builds, so 153 of the 596 names a relic can drop read as 0 ducats and as not
+  owned. Weapon parts, whose two spellings agree, were always right. Platinum was never affected.
+- A relic nobody is selling no longer costs a request on every inventory sync. The absence of an
+  order book is now recorded as an answer and carried across a refresh, while an outage still
+  retries.
+
+## [0.2.0] - 2026-07-29
+
+### Added
+
+- Collection items show a platinum price and stack total, seeded from the daily warframe.market
+  price dump, one request a day for the whole collection rather than one per item.
+- Live pricing on request for the current page, marked apart from the daily figures with an inline
+  "checked live" line rather than a badge. A live price now updates the stored prices, so it
+  outlives its cache entry instead of expiring back to the daily figure.
+- Owned relics are priced by a bounded live sweep at startup, and again after an inventory refresh
+  picks up new ones.
+- Collection sorting by unit value, a tradeable filter, and a collection worth summary that carries
+  the count it was computed from.
+- Collection pricing reports its own diagnostics row, separate from the reward overlay's.
+
+### Changed
+
+- Prices are quoted per unit rather than per trade. A warframe.market listing's platinum is the
+  price of a whole trade, and relics are routinely listed six at a time, so comparing a six-pack's
+  total against a single item's price ranked two different quantities as one.
+- Relics are priced live rather than from the daily dump. The dump is pre-aggregated with no
+  per-trade count to divide out, which overstated relic medians by up to half.
+- Only items the player actually owns are priced. Mastered-but-unowned equipment no longer carries
+  a platinum figure, appears under the tradeable filter, or inflates the collection worth.
+- The per-item price-check button is gone. Pricing is a single page-level control naming how many
+  items it will price, with real progress while it runs.
+- The reward overlay's price lookup uses warframe.market's top-orders endpoint, which returns the
+  same answer in a fraction of the bytes, and paces every caller behind one shared 3-requests-per-
+  second floor.
+
+### Fixed
+
+- An oversize price response is reported as its own outcome instead of being indistinguishable from
+  an item nobody is selling, an unreachable endpoint, and an untradeable item.
+- A cache write failure is no longer reported as an unreadable price dump.
+
+## [0.1.0] - 2026-07-28
+
+First release.
+
+### Added
+
+- Native Linux discovery of a Warframe process running under Wine or Proton, including the
+  truncated `Warframe.x64.ex` process name.
+- Read-only inventory acquisition through `/proc/<pid>/maps` and `/proc/<pid>/mem`, with strict
+  bounded parsing that rejects an incomplete snapshot rather than partially replacing a collection.
+- Local SQLite snapshots with authoritative replacement semantics, and persisted snapshot metadata
+  behind a human-readable freshness indicator.
+- A cached, integrity-checked WFCD item catalog with offline fallback to the last complete
+  generation, and canonical item artwork.
+- A paginated visual collection index with search, category and ownership filters, mastery state,
+  and pipeline diagnostics.
+- Automatic refresh when Warframe starts and when `EE.log` reports a completed inventory sync, plus
+  a manual refresh, both under a cooldown.
+- Relic reward recognition by reading the reward screen through X11 capture and Tesseract, matched
+  against the squad's own relic pool rather than the whole catalog, with consecutive-frame debounce.
+  Squads of two, three or four are all read: the game centres the card block on however many cards
+  it drew, so the layout is identified from the pixels rather than assumed.
+- Live warframe.market platinum prices for recognised rewards, quoted from in-game sellers only,
+  alongside ducat values, with the best card by each measure called separately.
+- A non-focusable, click-through reward strip aligned below the in-game reward row, hidden
+  automatically when recognition ends. It is an override-redirect X11 window placed against the
+  game's own window, so it behaves the same under every window manager and compositor.
+- A one-time first-run disclosure of the read-only process inspection and its account-policy
+  uncertainty. Nothing runs until it is accepted.
+- AppImage, Debian and RPM bundles, attached to the release. Gentoo packages in the `deftera`
+  overlay, as `games-util/tennoscope-bin` and `games-util/tennoscope`; an Arch `PKGBUILD` in the
+  repository. All of them install a `tennoscope` command and a desktop entry.
+
+### Security
+
+- Raw inventory responses are validated in memory and are not persisted.
+- No telemetry, no analytics, no remote account, no secret persistence.
+
+[Unreleased]: https://github.com/Deftera186/tennoscope/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/Deftera186/tennoscope/compare/v0.13.1...v0.14.0
+[0.13.1]: https://github.com/Deftera186/tennoscope/compare/v0.13.0...v0.13.1
+[0.13.0]: https://github.com/Deftera186/tennoscope/compare/v0.12.1-rc1...v0.13.0
+[0.12.1-rc1]: https://github.com/Deftera186/tennoscope/compare/v0.12.0...v0.12.1-rc1
+[0.12.0]: https://github.com/Deftera186/tennoscope/compare/v0.11.0...v0.12.0
+[0.11.0]: https://github.com/Deftera186/tennoscope/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/Deftera186/tennoscope/compare/v0.9.1...v0.10.0
+[0.9.1]: https://github.com/Deftera186/tennoscope/compare/v0.9.0...v0.9.1
+[0.9.0]: https://github.com/Deftera186/tennoscope/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/Deftera186/tennoscope/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/Deftera186/tennoscope/compare/v0.6.1...v0.7.0
+[0.6.1]: https://github.com/Deftera186/tennoscope/compare/v0.6.0...v0.6.1
+[0.6.0]: https://github.com/Deftera186/tennoscope/compare/v0.5.7...v0.6.0
+[0.5.7]: https://github.com/Deftera186/tennoscope/compare/v0.5.6...v0.5.7
+[0.5.6]: https://github.com/Deftera186/tennoscope/compare/v0.5.5...v0.5.6
+[0.5.5]: https://github.com/Deftera186/tennoscope/compare/v0.5.4...v0.5.5
+[0.5.4]: https://github.com/Deftera186/tennoscope/compare/v0.5.3...v0.5.4
+[0.5.3]: https://github.com/Deftera186/tennoscope/compare/v0.5.2...v0.5.3
+[0.5.2]: https://github.com/Deftera186/tennoscope/compare/v0.5.1...v0.5.2
+[0.5.1]: https://github.com/Deftera186/tennoscope/compare/v0.5.0...v0.5.1
+[0.5.0]: https://github.com/Deftera186/tennoscope/compare/v0.4.1...v0.5.0
+[0.4.1]: https://github.com/Deftera186/tennoscope/compare/v0.4.0...v0.4.1
+[0.4.0]: https://github.com/Deftera186/tennoscope/compare/v0.3.1...v0.4.0
+[0.3.1]: https://github.com/Deftera186/tennoscope/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/Deftera186/tennoscope/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/Deftera186/tennoscope/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/Deftera186/tennoscope/releases/tag/v0.1.0

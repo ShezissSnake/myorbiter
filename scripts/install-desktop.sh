@@ -70,21 +70,19 @@ refresh
 echo "Installed: $bin"
 echo "orbiter is in your app menu now. Start it from there (or run: $bin)."
 
-# This build carries no TennoScope: it starts your own patched build in ~/dev/projects/tennoscope.
-# One older than the TennoScope orbiter is made for can't open data a newer one has upgraded (it
-# stops as it starts), so say so. The commit is the one releases build (scripts/tennoscope-notice.sh).
-ts="$HOME/dev/projects/tennoscope"
-pinned=$(sed -n 's/^commit=${TENNOSCOPE_COMMIT:-\(.*\)}$/\1/p' scripts/tennoscope-notice.sh)
-if [[ -d "$ts/.git" && -n "$pinned" ]]; then
-  if ! git -C "$ts" cat-file -e "$pinned^{commit}" 2>/dev/null || ! git -C "$ts" merge-base --is-ancestor "$pinned" HEAD; then
-    cat <<NOTE
+# This build carries no TennoScope: it starts the one you build from tennoscope/ in this folder
+# (tennoscope/ORBITER.md), once Settings → TennoScope points at it. A TennoScope older than the
+# one orbiter is made for can't open data a newer one has upgraded (it stops as it starts), so say
+# when that build is missing or older than the last change to tennoscope/.
+ts_bin="$PWD/tennoscope/target/release/tennoscope"
+changed=$(git log -1 --format=%ct -- tennoscope 2>/dev/null || true)
+if [[ ! -x "$ts_bin" ]] || [[ -n "$changed" && $(stat -c %Y "$ts_bin") -lt $changed ]]; then
+  cat <<NOTE
 
-Your TennoScope in $ts is older than the one orbiter is made for ($pinned).
-Update it (patches/README.md, "Updating an existing patched copy"):
-  cd $ts; git fetch --quiet origin; git reset --hard $pinned; git clean -fd
-  git apply $PWD/patches/tennoscope-orbiter.patch
-  $PWD/scripts/vendor-linux-tesseract.sh app/src-tauri/vendor/tesseract
+TennoScope in $PWD/tennoscope isn't built, or is older than its source.
+Build it (tennoscope/ORBITER.md, "Build it on your PC"):
+  cd $PWD/tennoscope; $PWD/scripts/vendor-linux-tesseract.sh app/src-tauri/vendor/tesseract
   cd app; pnpm install --frozen-lockfile; pnpm tauri build --no-bundle
+and point orbiter's Settings → TennoScope at $ts_bin
 NOTE
-  fi
 fi
