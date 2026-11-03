@@ -2,7 +2,7 @@
 // you hold (and whether its era has a fissure open right now), farm a relic that still drops, buy
 // the part, or Varzia. Also the odds of finishing an item from the relics you already hold.
 import { collectionItem, type CollectionItem } from "./collection";
-import { researchedStep } from "./acquire";
+import { researchedStep, vendorBlueprint } from "./acquire";
 import { REFINEMENTS, splitRelicName, type Model, type Refinement } from "./model";
 import type { Fissure } from "./types";
 
@@ -207,7 +207,9 @@ export function wishItem(m: Model, unique: string): WishItem | null {
   const c = collectionItem(m, item);
   const missing: WantedPart[] = [];
   // A modular part in hand or built: nothing left to collect, only to assemble, gild or level.
-  if (!c.owned && !c.mastered && !c.building && !c.step) {
+  if (!c.owned && !c.mastered && !c.building && !c.step && !c.partBuilt) {
+    // A vendor's blueprint (a zaw strike's at Hok) says where to buy it, never Conclave's twin's drops.
+    const vendor = vendorBlueprint(item.name, unique);
     for (const p of c.parts) {
       if (p.resource || p.have >= p.required || p.building) continue;
       const sources = m.sourcesByReward.get(p.name) ?? [];
@@ -224,11 +226,11 @@ export function wishItem(m: Model, unique: string): WishItem | null {
         vaulted: sources.length > 0 && sources.every((s) => s.vaulted),
         resurgence: sources.some((s) => s.resurgence) || m.inResurgence(unique),
         odds: partOdds(m, p.name, p.required - p.have),
-        drops: sources.length ? [] : dropSpots(item.components?.find((x) => x.name === p.label)?.drops ?? []),
+        drops: sources.length || (vendor && p.label === "Blueprint") ? [] : dropSpots(item.components?.find((x) => x.name === p.label)?.drops ?? []),
         how: null,
       });
       const last = missing[missing.length - 1];
-      if (!sources.length && !last.drops.length && p.label === "Blueprint") last.how = researchedStep(item.name);
+      if (!sources.length && !last.drops.length && p.label === "Blueprint") last.how = vendor?.step ?? researchedStep(item.name);
     }
   }
   const relicParts = missing.filter((p) => (m.sourcesByReward.get(p.name) ?? []).length);

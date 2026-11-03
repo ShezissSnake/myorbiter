@@ -6,7 +6,7 @@ import { buildPlan, shortLine, type BuildTier } from "./buildPlan";
 import { REFINEMENTS, UNOBTAINABLE, baseId, relicRewardRarity, splitRelicName, type Model, type PrimePart, type Refinement, type RelicSource } from "./model";
 export { relicRewardRarity };
 import type { CatalogItem, InventoryRow } from "./types";
-import { acquisition, masteryPoints, type Acquisition } from "./acquire";
+import { acquisition, masteryPoints, vendorBlueprint, type Acquisition } from "./acquire";
 import { idOf, perModel } from "./memo";
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
@@ -381,6 +381,8 @@ export interface MasteryRow {
   step?: ModularStep;
   /** That step in a few words, for a card's tag ("Built · gild it"). */
   stepTag?: string;
+  /** That step in a short sentence naming only who to see, for a card (the full one is acq.how). */
+  stepBrief?: string;
 }
 
 export const MASTERY_CATEGORIES: Record<string, string> = {
@@ -410,7 +412,7 @@ export function masteryCategory(item: { category: string; type?: string | null; 
   if (/^Kitgun/i.test(type)) return "Kitgun";
   if (/^K-Drive/i.test(type)) return "K-Drive";
   if (/^Zaw/i.test(type)) return "Zaw";
-  if (type === "Plexus") return "Plexus";
+  if (type === "Plexus") return "Railjack Plexus";
   return MASTERY_CATEGORIES[item.category];
 }
 
@@ -492,7 +494,10 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
 
   // Non-prime: blueprint/parts drop locations and whether the market sells it.
   const sources: string[] = [];
-  if (!isPrime) {
+  // A vendor's blueprint (a zaw strike's at Hok): the vendor, not Conclave's twin's drops.
+  const vendor = isPrime ? null : vendorBlueprint(item.name, item.uniqueName);
+  if (vendor) sources.push(vendor.who);
+  else if (!isPrime) {
     const locs = new Map<string, number>();
     for (const c of item.components ?? []) {
       for (const d of c.drops ?? []) {
@@ -533,7 +538,7 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
   // Each missing copy is bought: two Blades still to get cost two Blades.
   const buyFor = missingParts.length && partPrices.every((x) => x != null) ? Math.round(missingParts.reduce((a, p, i) => a + (partPrices[i] as number) * p.need, 0)) : null;
   const acq: Acquisition = captured
-    ? { method: "build", difficulty: 1, how: "You've captured one: revive it with Son in the Necralisk (Revivification, with a Mutagen and an Antigen).", icon: "mastery", available: true, tradable: false, researched: true, wiki: item.wikiaUrl ?? null }
+    ? { method: "revive", difficulty: 1, how: "You've captured one: revive it with Son in the Necralisk (Revivification, with a Mutagen and an Antigen).", icon: "mastery", available: true, tradable: false, researched: true, wiki: item.wikiaUrl ?? null }
     : acquisition(m, item, {
     isPrime,
     owned,
@@ -580,7 +585,7 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
 function modularRow(m: Model, item: CatalogItem, next: NonNullable<ReturnType<typeof modularNext>>): MasteryRow {
   const level = next.step === "level";
   const acq: Acquisition = {
-    method: level ? "level" : next.step === "assemble" ? "build" : "syndicate",
+    method: level ? "level" : next.step === "assemble" ? "assemble" : "gild",
     // Levelling is only levelling; a part in hand is a vendor visit; gilding takes the build to 30
     // first, and a syndicate rank.
     difficulty: level ? 0 : next.step === "assemble" ? 1 : 2,
@@ -615,6 +620,7 @@ function modularRow(m: Model, item: CatalogItem, next: NonNullable<ReturnType<ty
     buildShort: "",
     step: next.step,
     stepTag: next.tag,
+    stepBrief: next.brief,
   };
 }
 

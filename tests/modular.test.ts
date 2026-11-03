@@ -9,6 +9,7 @@ import { masteryRows } from "../src/lib/core/views";
 import { wishItem } from "../src/lib/core/wishlist";
 import { needsByUnique } from "../src/lib/core/spares";
 import { familyOf, modularNext } from "../src/lib/core/modular";
+import { vendorBlueprint } from "../src/lib/core/acquire";
 import type { GearCopy } from "../src/lib/core/notNeeded";
 import type { Bundle, CatalogItem, InventoryRow } from "../src/lib/core/types";
 
@@ -55,7 +56,7 @@ test("each family's part is known by its path; Conclave's twin strikes and the b
   assert.equal(familyOf(BALLA)?.id, "zaw");
   assert.equal(familyOf("/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Tips/InfestedTipOne")?.id, "zaw");
   assert.equal(familyOf("/Lotus/Weapons/Ostron/Melee/ModularMelee01/Tip/PvPVariantTipOne"), null);
-  assert.equal(familyOf("/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartC")?.gildAt, "Little Duck");
+  assert.equal(familyOf("/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartC")?.gildAt, "Little Duck or Onkko");
   assert.equal(familyOf(MOTE)?.id, "amp");
   assert.equal(familyOf("/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartA"), null, "a scaffold");
   assert.equal(familyOf(PARA)?.id, "moa");
@@ -121,7 +122,8 @@ test("a built kitgun is read from each copy's parts, a primary build or a second
     assert.deepEqual(ungilded.modular(CATCHMOON), { family: ungilded.modular(CATCHMOON)!.family, loose: 0, built: 1, gilded: 0, known: true, sections: [s] });
     const r = row(ungilded, "Catchmoon")!;
     assert.equal(r.status, "gild", s);
-    assert.match(r.acq.how, /^Gild it at Rude Zuud in Fortuna \(Solaris United, Doer: 10 Shelter Debt-Bonds and 5,000 standing\), once it's rank 30/);
+    assert.match(r.acq.how, /^Gild it at Rude Zuud in Fortuna \(Solaris United, Doer: 10 Shelter Debt-Bonds and 5,000 standing\) or Father in the Necralisk \(25 Father Tokens and 5,000 Entrati standing\), once it's rank 30/);
+    assert.equal(r.stepBrief, "Rank it to 30, gild it at Rude Zuud or Father, then level it to 30 again.");
     assert.equal(r.stepTag, "Built · gild it");
     const c = collectionItem(ungilded, ungilded.catalogByUnique.get(CATCHMOON)!);
     assert.equal(c.owned, true);
@@ -151,6 +153,7 @@ test("a MOA model you hold is assembled at Legs; a built one is gilded, then lev
   assert.match(r.acq.how, /^Assemble it at Legs in Fortuna, with a core, a gyro and a bracket \(4,000 credits\); then rank it to 30 and gild it at Legs/);
   assert.equal(r.stepTag, "Model in hand · assemble");
   assert.equal(r.acq.difficulty, 1);
+  assert.equal(r.acq.method, "assemble", "labelled Assemble it, as it says");
   const c = collectionItem(loose, loose.catalogByUnique.get(PARA)!);
   assert.deepEqual([c.owned, c.step], [false, "assemble"], "a part in hand isn't the MOA");
   assert.deepEqual(wishItem(loose, PARA)!.missing, [], "nothing left to collect");
@@ -159,6 +162,7 @@ test("a MOA model you hold is assembled at Legs; a built one is gilded, then lev
 
   const built = buildModel(bundle(), undefined, null, null, null, null, [copy("/Lotus/Types/Friendly/Pets/MoaPets/MoaPetPowerSuit", "MoaPets", [PARA, "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetEngineArmor"])]);
   assert.equal(row(built, "Para Moa")!.status, "gild");
+  assert.equal(row(built, "Para Moa")!.acq.method, "gild");
   assert.match(row(built, "Para Moa")!.acq.how, /Legs in Fortuna \(Solaris United, Doer: 10 Training Debt-Bonds/);
   const gilded = buildModel(bundle(), undefined, null, null, null, null, [copy("/Lotus/Types/Friendly/Pets/MoaPets/MoaPetPowerSuit", "MoaPets", [PARA], 8)]);
   assert.equal(row(gilded, "Para Moa")!.stepTag, "Gilded · level it");
@@ -182,7 +186,10 @@ test("an ungilded amp: gild it with Onkko or Little Duck; the Mote Amp is held a
   const gilded = buildModel(bundle(held), undefined, null, null, null, null, [copy(TRAINING_AMP, "OperatorAmps", undefined, 8)]);
   assert.equal(row(gilded, "Mote Amp")!.stepTag, "Gilded · level it");
   // Without each copy read (TennoScope unpatched), it's in the arsenal, gilded or not.
-  assert.equal(row(buildModel(bundle(held)), "Mote Amp")!.stepTag, "Owned · gild, then level");
+  const unread = row(buildModel(bundle(held)), "Mote Amp")!;
+  assert.equal(unread.stepTag, "Owned · gild, then level");
+  assert.equal(unread.acq.how, "In your arsenal. If it isn't gilded yet, rank it to 30 and gild it at Onkko in Cetus (The Quills, Adherent) or Little Duck in Fortuna (Vox Solaris, Hand), for 5,000 standing. Then level it to 30: only the ranks after gilding give mastery.");
+  assert.equal(unread.stepBrief, "Not gilded yet? Rank it to 30, gild it at Onkko or Little Duck, then level it to 30 again.");
 });
 
 test("a revived Predasite is held whole: gild it with Son", () => {
@@ -231,4 +238,53 @@ test("Wishlist: a vendor's blueprint says where to buy it", () => {
   const w = wishItem(buildModel(bundle()), BAD_BABY)!;
   assert.deepEqual(w.missing.map((p) => p.label), ["Blueprint"]);
   assert.equal(w.missing[0].how, "Buy the board blueprint at Roky (Ventkids, Neutral, 5,000), in Fortuna (needs the Vox Solaris quest), and build it");
+});
+
+test("a chamber or model in hand is built: no blueprint or resources left to get, only assembling", () => {
+  // Sporelacer's chamber in hand: its blueprint is spent, so nothing says Missing or Parts to get.
+  const loose = buildModel(bundle([inv(CATCHMOON, "Catchmoon", "weapon", 1)]));
+  const c = collectionItem(loose, loose.catalogByUnique.get(CATCHMOON)!);
+  assert.deepEqual([c.partBuilt, c.owned, c.buildable, c.short, c.step], [true, false, false, [], "assemble"]);
+  assert.deepEqual(wishItem(loose, CATCHMOON)!.missing, []);
+  // Either kitgun vendor, named for assembling and for gilding.
+  assert.equal(c.stepBrief, "Assemble it at Rude Zuud or Father, then rank it to 30 and gild it at Rude Zuud or Father.");
+  assert.match(c.stepHow!, /^Assemble it at Rude Zuud in Fortuna or Father in the Necralisk, with a grip and a loader \(4,000 credits\); then rank it to 30 and gild it at Rude Zuud or Father/);
+  // Built into a kitgun: the same, and the gear is owned.
+  const built = buildModel(bundle(), undefined, null, null, null, null, [copy("/Lotus/Weapons/SolarisUnited/Secondary/LotusModularSecondary", "Pistols", [CATCHMOON])]);
+  const b = collectionItem(built, built.catalogByUnique.get(CATCHMOON)!);
+  assert.deepEqual([b.partBuilt, b.owned, b.short], [true, true, []]);
+  // Nothing held: still to get, blueprint and resources.
+  const none = collectionItem(buildModel(bundle()), buildModel(bundle()).catalogByUnique.get(CATCHMOON)!);
+  assert.deepEqual([none.partBuilt, none.short], [false, ["Mytocardia Spore"]]);
+  // Not modular: never partBuilt.
+  const m = buildModel(bundle());
+  assert.equal(collectionItem(m, m.catalogByUnique.get(VIZIER)!).partBuilt, false);
+});
+
+test("a vendor's blueprint goes by the vendor: Conclave's twin's drops never show for it", () => {
+  // The catalog files the PvP twin's Conclave drop under Balla's own blueprint.
+  const conclave = { uniqueName: `${BALLA}Blueprint`, name: "Blueprint", itemCount: 1, drops: [{ location: "Variant Team Annihilation, Saturn (Conclave), Rotation C", chance: 5, rarity: "Rare" }] };
+  const balla = { ...CATALOG.find((i) => i.uniqueName === BALLA)!, components: [conclave] } as CatalogItem;
+  const m = buildModel({ ...bundle(), catalog: CATALOG.map((i) => (i.uniqueName === BALLA ? balla : i)) } as Bundle);
+  const r = row(m, "Balla")!;
+  assert.deepEqual(r.sources, ["Hok"]);
+  assert.match(r.acq.how, /^Buy the strike blueprint at Hok/);
+  const w = wishItem(m, BALLA)!;
+  assert.deepEqual(w.missing[0].drops, []);
+  assert.match(w.missing[0].how!, /^Buy the strike blueprint at Hok \(Ostron, Neutral, 1,000\)/);
+  assert.deepEqual(vendorBlueprint("Balla", BALLA), { who: "Hok", step: w.missing[0].how });
+  assert.equal(vendorBlueprint("Bad Baby", BAD_BABY)!.who, "Roky");
+  assert.equal(vendorBlueprint("Plague Kripath", "/Lotus/Weapons/Ostron/Melee/ModularMeleeInfested/Tips/InfestedTipOne")!.who, "Nakak");
+  // Not modular, or not from a vendor: the drop tables stand.
+  assert.equal(vendorBlueprint("Mote Amp", MOTE), null);
+  assert.equal(vendorBlueprint("Akbronco", "/Lotus/Weapons/Tenno/Pistols/AkBronco"), null);
+});
+
+test("a captured Infested companion is revived, not built", () => {
+  const sly = "/Lotus/Types/Friendly/Pets/CreaturePets/HornedInfestedCatbrowPetPowerSuit";
+  const item = { uniqueName: sly, name: "Crescent Vulpaphyla", category: "Pets", type: "Pets", masterable: true, productCategory: "KubrowPets" } as CatalogItem;
+  const m = buildModel({ ...bundle([inv("/Lotus/Types/Game/Deimos/WoundedInfestedCatbrowHorned", "Crescent Vulpaphyla", "companion", 1)]), catalog: [...CATALOG, item] } as Bundle);
+  const r = row(m, "Crescent Vulpaphyla")!;
+  assert.equal(r.revive, true);
+  assert.equal(r.acq.method, "revive");
 });
