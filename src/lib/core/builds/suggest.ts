@@ -21,7 +21,9 @@
 // `import type { Build, BuildMod, GearKind, Polarity } from "./types"` and deleting it.
 
 import type { CatalogItem, InventoryRow } from "../types";
+import type { ShardColour } from "./types";
 import frameRoles from "../../data/frame-roles.json";
+import synergies from "../../data/loadout-synergies.json";
 
 // ---------------------------------------------------------------- local stand-ins for ./types
 
@@ -86,7 +88,51 @@ export interface Suggestion extends Build {
   names: { aura?: string; exilus?: string; stance?: string; mods: (string | null)[]; arcanes: string[] };
   upgrades: Upgrade[];
   note: string;
+  /** Warframes only: what goes around the build (shards, Helminth, support weapons, arcanes, companion, Focus). */
+  loadout?: Loadout;
 }
+
+/**
+ * One piece of a warframe's loadout, from orbiter's curated facts (src/lib/data/loadout-synergies.json).
+ * Shards carry ./types's BuildShard fields (colour, tauforged, stat); the Helminth pick its
+ * BuildHelminth fields (ability, replaces), so a page can save them into a Build as they are.
+ */
+export interface LoadoutPick {
+  name: string;
+  path?: string;
+  /** true: you hold it; false: you don't; null: orbiter can't see it yet (Focus schools, the Helminth). */
+  owned: boolean | null;
+  reason: string;
+  /** The lowest tier whose loadout has this pick. */
+  tier: Tier;
+  /** The page the fact was read on, by hand (orbiter never fetches it). */
+  source: string;
+  /** A mod or arcane: what it goes on ("Grimoire", "Nautilus Prime", "a gilded kitgun"). */
+  on?: string;
+  colour?: ShardColour;
+  tauforged?: boolean;
+  stat?: string;
+  ability?: string;
+  replaces?: string;
+}
+
+/**
+ * What goes around a warframe build, by tier. Low: only what costs nothing extra (a Focus school,
+ * a companion and support weapon you already hold). Medium: also Archon Shards, the Helminth and
+ * the arcanes you hold. High: also Tauforged shards and what you'd still have to get.
+ */
+export interface Loadout {
+  shards: LoadoutPick[];
+  helminth: LoadoutPick | null;
+  weapons: LoadoutPick[];
+  arcanes: LoadoutPick[];
+  companion: LoadoutPick[];
+  focus: LoadoutPick | null;
+  note: string;
+}
+
+/** Everything the inventory holds, by path (no "#rank"): quantities summed over ranks. */
+export type Held = Map<string, number>;
 
 /** Mods and arcanes by name, the canonical copy of each (see modIndex). */
 export interface ModIndex {
@@ -140,6 +186,17 @@ export function ownedFrom(inventory: InventoryRow[]): Owned {
     const [path, tail] = r.item_id.split("#");
     const rank = r.rank ?? (tail ? Number(tail) || 0 : 0);
     out.set(path, Math.max(out.get(path) ?? -1, rank));
+  }
+  return out;
+}
+
+/** What the inventory holds, any category (Archon Shards, companions, weapons): path → quantity. */
+export function heldFrom(inventory: InventoryRow[]): Held {
+  const out: Held = new Map();
+  for (const r of inventory) {
+    if (r.quantity <= 0) continue;
+    const path = r.item_id.split("#")[0];
+    out.set(path, (out.get(path) ?? 0) + r.quantity);
   }
   return out;
 }
@@ -866,9 +923,11 @@ function weaponArcane(item: CatalogItem, cls: WeaponClass, focus: Focus): { chai
 
 /**
  * orbiter's suggestion for an item at a tier, built from the mods the player owns.
+ * Warframes also get a `loadout` (shards, Helminth, support weapons, arcanes, companion, Focus);
+ * pass `held` (heldFrom the inventory) so it can mark what you hold.
  * Throws if the item takes no build (check canSuggest first).
  */
-export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModIndex, now = 0): Suggestion {
+export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModIndex, now = 0, held: Held | null = null): Suggestion {
   const kind = gearKindOf(item);
   if (!kind || !canSuggest(item)) throw new Error(`orbiter has no suggestion for ${item.name}`);
   const layout = layoutOf(kind);
@@ -1171,12 +1230,14 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
     s.names.exilus = exilus.mod.name;
   }
   s.note = noteFor(item, kind, tier, info, cls, wFocus, meleeClass, layout, s, capacityBound) + orderNote;
+  const loadout = loadoutFor(item, tier, owned, index, held);
+  if (loadout) s.loadout = loadout;
   return s;
 }
 
 /** The three tiers at once. */
-export function suggestAll(item: CatalogItem, owned: Owned, index: ModIndex, now = 0): Record<Tier, Suggestion> {
-  return { low: suggest(item, "low", owned, index, now), medium: suggest(item, "medium", owned, index, now), high: suggest(item, "high", owned, index, now) };
+export function suggestAll(item: CatalogItem, owned: Owned, index: ModIndex, now = 0, held: Held | null = null): Record<Tier, Suggestion> {
+  return { low: suggest(item, "low", owned, index, now, held), medium: suggest(item, "medium", owned, index, now, held), high: suggest(item, "high", owned, index, now, held) };
 }
 
 function noteFor(item: CatalogItem, kind: GearKind, tier: Tier, info: FrameInfo | null, cls: WeaponClass | null, focus: Focus, meleeClass: string | null, layout: Layout, s: Suggestion, capacityBound: boolean): string {
@@ -1210,6 +1271,270 @@ function noteFor(item: CatalogItem, kind: GearKind, tier: Tier, info: FrameInfo 
   const empty = s.mods.filter((m) => !m).length;
   if (empty) parts.push(capacityBound ? `${empty} of ${layout.mods} slots left empty: ${s.capacity.max} capacity runs out first.` : `${empty} of ${layout.mods} slots left empty: you don't hold a mod orbiter would put there; see the upgrades.`);
   return parts.join(" ");
+}
+
+// ---------------------------------------------------------------- the loadout around a warframe build
+
+// The facts (stats, effects, the page each was read on) live in loadout-synergies.json; the rules
+// for which of them suit a frame are here, from the same curated roles and flags the mods use.
+
+interface ShardStat {
+  colour: ShardColour;
+  stat: string;
+  value: string;
+  tauforged: string;
+}
+interface Named {
+  name: string;
+  path: string;
+}
+type Need = "strength" | "energy" | "efficiency" | "duration";
+type School = "Zenurik" | "Vazarin" | "Madurai";
+interface Synergies {
+  shards: { source: string; slots: number; tauforgedNote: string; stats: ShardStat[] };
+  helminth: { frames: Record<string, { ability: string; replaces: string; from: string | null; fromPath: string | null; alt: string; why: string; source: string }> };
+  grimoire: { name: string; path: string; note: string; source: string; invocations: Record<Need, { name: string; effect: string; source: string }> };
+  kitgun: { name: string; on: string; effect: string; note: string; source: string };
+  arcanes: { source: string; effects: Record<string, string> };
+  companions: Record<string, { items: Named[]; mod: string; effect: string; source: string }>;
+  focus: Record<School, { effect: string; source: string }>;
+}
+const SYN = synergies as unknown as Synergies;
+
+/** Archon Shard paths by colour; the Tauforged one adds "Mythic" (the same as missing.ts's SHARD_PATH). */
+export const SHARD_PATHS: Record<ShardColour, string> = {
+  crimson: "/Lotus/Types/Gameplay/NarmerSorties/ArchonCrystalAmar",
+  azure: "/Lotus/Types/Gameplay/NarmerSorties/ArchonCrystalBoreal",
+  amber: "/Lotus/Types/Gameplay/NarmerSorties/ArchonCrystalNira",
+  violet: "/Lotus/Types/Gameplay/NarmerSorties/ArchonCrystalViolet",
+  topaz: "/Lotus/Types/Gameplay/NarmerSorties/ArchonCrystalOrange",
+  emerald: "/Lotus/Types/Gameplay/NarmerSorties/ArchonCrystalGreen",
+};
+const SHARD_NAME: Record<ShardColour, string> = { crimson: "Crimson", azure: "Azure", amber: "Amber", violet: "Violet", topaz: "Topaz", emerald: "Emerald" };
+
+const TIER_RANK: Record<Tier, number> = { low: 0, medium: 1, high: 2 };
+const atLeast = (tier: Tier, from: Tier) => TIER_RANK[tier] >= TIER_RANK[from];
+
+/** The element the kit applies, from the catalog's ability text, for the shard that feeds on it. */
+function kitElement(item: CatalogItem): { stat: string; why: string } | null {
+  const abilities = ((item as { abilities?: { name?: string; description?: string }[] }).abilities ?? []).filter((a) => a.description);
+  const rules: [string, string, string][] = [
+    ["DT_CORROSIVE_COLOR", "Ability Damage on Corrosion-affected enemies", "Corrosive"],
+    ["DT_ELECTRICITY_COLOR", "Ability Damage on Electricity-affected enemies", "Electricity"],
+    ["DT_RADIATION_COLOR", "Ability Damage on Radiation-affected enemies", "Radiation"],
+    ["DT_POISON_COLOR", "Toxin Status Damage", "Toxin"],
+  ];
+  for (const [tag, stat, element] of rules) {
+    const by = abilities.find((a) => a.description!.includes(`<${tag}>`));
+    if (by) return { stat, why: `${by.name} deals ${element}, so this one feeds on the kit's own hits.` };
+  }
+  return null;
+}
+
+/** The five shard stats for a frame, from its roles and flags. */
+function shardPlan(item: CatalogItem, info: FrameInfo): { stat: string; why: string }[] {
+  const roles = new Set(info.roles);
+  const first = info.roles[0];
+  const plan: { stat: string; why: string }[] = [];
+  const add = (stat: string, why: string, n = 1) => {
+    for (let k = 0; k < n; k++) plan.push({ stat, why });
+  };
+  if (first === "tank") {
+    if (info.shields) add("Shield Capacity", "flat shields, which this frame lives on.", 3);
+    else {
+      add("Armor", "flat armour on top of the frame's own, the base of a tank.", 2);
+      add("Health", "flat health for the armour to multiply.");
+    }
+    if (roles.has("strength")) add("Ability Strength", "its defensive abilities scale with strength.");
+  } else if (first === "strength") {
+    add("Ability Strength", "strength is this frame's main multiplier.", 2);
+  } else {
+    add("Ability Duration", "this kit's effects are timers, and duration keeps them up.", 2);
+    if (roles.has("strength")) add("Ability Strength", "its buffs and damage scale with strength.");
+  }
+  add("Casting Speed", "faster casts, less time standing still.");
+  if (info.spam && !info.noEnergy) add("Energy Orb Effectiveness", "each energy orb gives more, for a frame that casts all the time.");
+  const el = roles.has("strength") ? kitElement(item) : null;
+  if (el) add(el.stat, el.why);
+  if (info.duration && !plan.some((p) => p.stat === "Ability Duration")) add("Ability Duration", "its key abilities are timers.");
+  while (plan.length < SYN.shards.slots) {
+    if (first === "tank") add(info.shields ? "Shield Capacity" : "Health", "more survival in the last free slot.");
+    else if (roles.has("strength")) add("Ability Strength", "more strength in the last free slot.");
+    else add("Ability Duration", "more duration in the last free slot.");
+  }
+  return plan.slice(0, SYN.shards.slots);
+}
+
+function shardPicks(item: CatalogItem, info: FrameInfo, tier: Tier, held: Held | null): LoadoutPick[] {
+  if (!atLeast(tier, "medium")) return [];
+  const tauforged = tier === "high";
+  // Each shard you hold marks one pick: three picks of a colour with two held marks two.
+  const left = new Map<string, number>();
+  return shardPlan(item, info).map(({ stat, why }) => {
+    const s = SYN.shards.stats.find((x) => x.stat === stat)!;
+    const path = SHARD_PATHS[s.colour] + (tauforged ? "Mythic" : "");
+    const have = left.get(path) ?? held?.get(path) ?? 0;
+    left.set(path, have - 1);
+    return {
+      name: `${tauforged ? "Tauforged " : ""}${SHARD_NAME[s.colour]} Archon Shard`,
+      path,
+      owned: held ? have > 0 : null,
+      reason: `${s.stat} ${tauforged ? s.tauforged : s.value}: ${why}${tauforged ? "" : ` Tauforged gives ${s.tauforged} (high tier).`}`,
+      tier: tauforged ? "high" : "medium",
+      source: SYN.shards.source,
+      colour: s.colour,
+      tauforged,
+      stat: s.stat,
+    };
+  });
+}
+
+function helminthPick(item: CatalogItem, tier: Tier, held: Held | null): LoadoutPick | null {
+  if (!atLeast(tier, "medium")) return null;
+  const h = SYN.helminth.frames[item.name.replace(/\s+(Prime|Umbra)$/, "")];
+  if (!h) return null;
+  // The base frame (never a Prime) is what gets subsumed. Held: you can do it now. Not held: you
+  // may have already, and orbiter can't see the Helminth until TennoScope reads it.
+  const canFeed = !!(held && h.fromPath && (held.get(h.fromPath) ?? 0) > 0);
+  const donor = h.from ? ` It comes from a base ${h.from} (not a Prime) fed to the Helminth${canFeed ? ", and you hold one" : ""}.` : " It's one of the Helminth's own abilities.";
+  return { name: h.ability, owned: canFeed ? true : null, reason: `${h.ability} over ${h.replaces}: ${h.why}${donor} ${h.alt}`, tier: "medium", source: h.source, ability: h.ability, replaces: h.replaces };
+}
+
+/** What the frame's one Grimoire Invocation should give it. */
+function grimoireNeed(info: FrameInfo): Need {
+  const roles = new Set(info.roles);
+  const energy = info.spam && !info.noEnergy;
+  const first = info.roles[0];
+  if (first === "strength" || (first === "tank" && roles.has("strength"))) return "strength";
+  if (first === "efficiency") return energy ? "energy" : info.duration || info.noEnergy ? "duration" : "efficiency";
+  if (first === "range") return info.duration ? "duration" : energy ? "energy" : roles.has("strength") ? "strength" : "duration";
+  return "duration";
+}
+
+function supportWeaponPicks(info: FrameInfo, tier: Tier, owned: Owned, held: Held | null, index: ModIndex): LoadoutPick[] {
+  const out: LoadoutPick[] = [];
+  const g = SYN.grimoire;
+  const need = grimoireNeed(info);
+  const inv = g.invocations[need];
+  const mod = index.byName.get(inv.name);
+  const haveBook = held ? (held.get(g.path) ?? 0) > 0 : null;
+  const haveMod = !!mod && owned.has(mod.uniqueName);
+  // Below the high tier only when you hold both: nothing to get.
+  const both = haveBook === true && haveMod;
+  if (both || tier === "high") {
+    const t: Tier = both ? "low" : "high";
+    const swap = need === "strength" && info.spam && !info.noEnergy ? ` Short on energy? ${g.invocations.energy.name} instead: ${g.invocations.energy.effect}.` : "";
+    out.push({ name: g.name, path: g.path, owned: haveBook, reason: `A secondary that feeds this frame's ${need}. ${g.note}`, tier: t, source: g.source });
+    out.push({ name: inv.name, path: mod?.uniqueName, owned: haveMod, reason: `On the Grimoire: ${inv.effect}.${swap}`, tier: t, source: inv.source, on: g.name });
+  }
+  const k = SYN.kitgun;
+  if (tier === "high" && (info.roles.includes("strength") || (info.spam && !info.noEnergy))) {
+    const pax = index.byName.get(k.name);
+    out.push({ name: k.name, path: pax?.uniqueName, owned: !!pax && owned.has(pax.uniqueName), reason: `On ${k.on}: ${k.effect}. ${k.note}`, tier: "high", source: k.source, on: k.on });
+  }
+  return out;
+}
+
+function arcanePicks(info: FrameInfo, tier: Tier, owned: Owned, index: ModIndex): LoadoutPick[] {
+  if (!atLeast(tier, "medium")) return [];
+  const plan = [...frameArcanes(info).chain];
+  // A frame whose key abilities are timers gets the duration arcane as a third choice.
+  const swap = info.duration && !plan.includes("Molt Efficiency") ? "Molt Efficiency" : null;
+  if (swap) plan.push(swap);
+  const out: LoadoutPick[] = [];
+  for (const name of plan) {
+    const m = index.byName.get(name);
+    const has = !!m && owned.has(m.uniqueName);
+    if (!has && tier !== "high") continue;
+    out.push({
+      name,
+      path: m?.uniqueName,
+      owned: has,
+      reason: `${SYN.arcanes.effects[name] ?? ""}${name === swap ? " A swap for one of the two above when your key abilities need to last." : ""}`,
+      tier: has ? "medium" : "high",
+      source: name === "Molt Efficiency" ? "https://wiki.warframe.com/w/Molt_Efficiency" : SYN.arcanes.source,
+    });
+  }
+  return out;
+}
+
+const COMPANION_WHY: Record<string, string> = {
+  Nautilus: "It gathers enemies into your area abilities.",
+  "Smeeta Kavat": "Free casts now and then, for a frame that spends energy.",
+  "Panzer Vulpaphyla": "It keeps fighting beside a frame that stands in the fire.",
+};
+
+/** The companions a frame wants, best first. */
+function companionOrder(info: FrameInfo): string[] {
+  const roles = new Set(info.roles);
+  if (info.roles[0] === "tank" || (roles.has("tank") && info.knockdown)) return ["Panzer Vulpaphyla", "Smeeta Kavat", "Nautilus"];
+  if (roles.has("range") || info.roles[0] === "efficiency") return ["Nautilus", "Smeeta Kavat", "Panzer Vulpaphyla"];
+  return ["Smeeta Kavat", "Nautilus", "Panzer Vulpaphyla"];
+}
+
+function companionLoadout(info: FrameInfo, tier: Tier, owned: Owned, held: Held | null, index: ModIndex): LoadoutPick[] {
+  const order = companionOrder(info);
+  const heldItem = (c: string) => SYN.companions[c].items.find((x) => (held?.get(x.path) ?? 0) > 0) ?? null;
+  // Below the high tier, the best one you hold; at the high tier, the best one.
+  const pick = tier === "high" ? order[0] : order.find((c) => heldItem(c)) ?? null;
+  if (!pick) return [];
+  const c = SYN.companions[pick];
+  const have = heldItem(pick);
+  const it = have ?? c.items[0];
+  const t: Tier = have ? "low" : "high";
+  const mod = index.byName.get(c.mod);
+  const haveMod = !!mod && owned.has(mod.uniqueName);
+  const out: LoadoutPick[] = [
+    { name: it.name, path: it.path, owned: held ? !!have : null, reason: `${COMPANION_WHY[pick]}${pick === order[0] ? "" : ` ${order[0]} suits it better (high tier).`}`, tier: t, source: c.source },
+  ];
+  if ((have && haveMod) || tier === "high") out.push({ name: c.mod, path: mod?.uniqueName, owned: haveMod, reason: c.effect, tier: have && haveMod ? "low" : "high", source: c.source, on: it.name });
+  return out;
+}
+
+function focusPick(info: FrameInfo): LoadoutPick {
+  const school: School =
+    info.spam && !info.noEnergy ? "Zenurik"
+    : info.roles[0] === "tank" || info.roles[0] === "efficiency" ? "Vazarin"
+    : info.roles.includes("strength") ? "Madurai"
+    : "Zenurik";
+  const why = { Zenurik: "Energy for a frame that casts a lot.", Vazarin: "Keeps you and the squad standing.", Madurai: "More strength between casts." }[school];
+  const f = SYN.focus[school];
+  return { name: school, owned: null, reason: `${why} ${f.effect}`, tier: "low", source: f.source };
+}
+
+/**
+ * The loadout around a warframe suggestion at a tier, or null for anything else. `held` is the
+ * whole inventory (heldFrom); without it, what orbiter can't check is `owned: null`.
+ */
+export function loadoutFor(item: CatalogItem, tier: Tier, owned: Owned, index: ModIndex, held: Held | null = null): Loadout | null {
+  if (gearKindOf(item) !== "warframe") return null;
+  const info = frameInfo(item.name) ?? DEFAULT_FRAME;
+  return {
+    shards: shardPicks(item, info, tier, held),
+    helminth: helminthPick(item, tier, held),
+    weapons: supportWeaponPicks(info, tier, owned, held, index),
+    arcanes: arcanePicks(info, tier, owned, index),
+    companion: companionLoadout(info, tier, owned, held, index),
+    focus: focusPick(info),
+    note: "orbiter's suggestion around the build: facts read by hand on the page each pick names (orbiter doesn't fetch them); which pick suits which frame is orbiter's own rule.",
+  };
+}
+
+/** Every loadout name that should be a catalog mod or arcane, for the tests. */
+export function loadoutModNames(): string[] {
+  const out = new Set<string>(Object.keys(SYN.arcanes.effects));
+  for (const i of Object.values(SYN.grimoire.invocations)) out.add(i.name);
+  out.add(SYN.kitgun.name);
+  for (const c of Object.values(SYN.companions)) out.add(c.mod);
+  return [...out].sort();
+}
+
+/** Every item the loadout names by path (Grimoire, companions, Helminth donors), with its catalog name. */
+export function loadoutItems(): Named[] {
+  const out: Named[] = [{ name: SYN.grimoire.name, path: SYN.grimoire.path }];
+  for (const c of Object.values(SYN.companions)) out.push(...c.items);
+  for (const h of Object.values(SYN.helminth.frames)) if (h.from && h.fromPath) out.push({ name: h.from, path: h.fromPath });
+  return out.filter((x, k) => out.findIndex((y) => y.path === x.path) === k);
 }
 
 // ---------------------------------------------------------------- the switch to ./types's Build
