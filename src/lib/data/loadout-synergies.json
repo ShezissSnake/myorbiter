@@ -1,0 +1,82 @@
+{
+  "_about": "orbiter's curated loadout facts for warframe suggestions (src/lib/core/builds/suggest.ts, loadoutFor): Archon Shards, Helminth, support weapons, frame arcanes, companions and Focus. Every fact was read by hand on the page named in its `source` (3 Nov 2026); orbiter never fetches these pages. Effects are at max rank. Which pick goes with which frame role is orbiter's own rule in suggest.ts, not the sources'.",
+  "shards": {
+    "source": "https://wiki.warframe.com/w/Archon_Shard",
+    "slots": 5,
+    "tauforgedNote": "Tauforged shards give 1.5× the base bonus (from Archon Hunts, Netracells, Deep and Temporal Archimedea, or fusing three of a colour).",
+    "stats": [
+      { "colour": "crimson", "stat": "Ability Strength", "value": "+10%", "tauforged": "+15%" },
+      { "colour": "crimson", "stat": "Ability Duration", "value": "+10%", "tauforged": "+15%" },
+      { "colour": "amber", "stat": "Casting Speed", "value": "+25%", "tauforged": "+37.5%" },
+      { "colour": "amber", "stat": "Energy Orb Effectiveness", "value": "+50%", "tauforged": "+75%" },
+      { "colour": "azure", "stat": "Health", "value": "+150", "tauforged": "+225" },
+      { "colour": "azure", "stat": "Armor", "value": "+150", "tauforged": "+225" },
+      { "colour": "azure", "stat": "Shield Capacity", "value": "+150", "tauforged": "+225" },
+      { "colour": "azure", "stat": "Energy Max", "value": "+50", "tauforged": "+75" },
+      { "colour": "violet", "stat": "Ability Damage on Electricity-affected enemies", "value": "+10%", "tauforged": "+15%" },
+      { "colour": "emerald", "stat": "Ability Damage on Corrosion-affected enemies", "value": "+10%", "tauforged": "+15%" },
+      { "colour": "emerald", "stat": "Toxin Status Damage", "value": "+30%", "tauforged": "+45%" },
+      { "colour": "topaz", "stat": "Ability Damage on Radiation-affected enemies", "value": "+10%", "tauforged": "+15%" }
+    ]
+  },
+  "helminth": {
+    "_about": "Iconic cases only: a frame is here when the pages read by hand point the same way; `alt` says where they differ. Prime and Umbra frames can't be subsumed; the base frame is fed to the Helminth (https://www.highgroundgaming.com/warframe-helminth/).",
+    "frames": {
+      "Saryn": { "ability": "Nourish", "replaces": "Molt", "from": "Grendel", "fromPath": "/Lotus/Powersuits/Devourer/Devourer", "alt": "The second page replaces Miasma instead, or Molt.", "why": "The usual Helminth pick on the Saryn builds read; Molt is the slot they give up.", "source": "https://overframe.gg/build/1010501/saryn-prime/saryn-prime-nourish-steel-path-level-cap/ ; https://www.sportskeeda.com/mmo/warframe-saryn-build-guide-mod-setup-helminth-synergies" },
+      "Rhino": { "ability": "Parasitic Armor", "replaces": "Rhino Stomp", "from": null, "fromPath": null, "alt": "Nourish builds are common too, and only the first page names Rhino Stomp as the slot.", "why": "Turns Rhino's shields into armour.", "source": "https://www.highgroundgaming.com/warframe-rhino-prime-build/ ; https://overframe.gg/build/839405/rhino-prime/rhino-at-its-best-with-nourish-full-dps-arsenal-and-companions-damage-increase/" },
+      "Mesa": { "ability": "Nourish", "replaces": "Ballistic Battery", "from": "Grendel", "fromPath": "/Lotus/Powersuits/Devourer/Devourer", "alt": "Eclipse in the same slot is the other common pick.", "why": "Ballistic Battery is the slot the Mesa builds read give up.", "source": "https://overframe.gg/build/421023/mesa-prime/high-noon-mesa-op-critical-build-guide/ ; https://overframe.gg/build/735708/mesa-prime/ecliptic-totality-mesa-eclipse-combat-discipline-mesa-prime/" },
+      "Wisp": { "ability": "Nourish", "replaces": "Sol Gate", "from": "Grendel", "fromPath": "/Lotus/Powersuits/Devourer/Devourer", "alt": "Roar over Sol Gate for a weapon-platform Wisp.", "why": "Sol Gate is the slot the Wisp builds read give up.", "source": "https://overframe.gg/build/511102/wisp-prime/ravenous-wraith-nourish-wisp-sp-general-use-and-endurance-levelcap/ ; https://overframe.gg/build/1008864/wisp-prime/wisp-prime-roar-weapon-platform-fused-reservoir-steel-path-level-cap/" }
+    }
+  },
+  "grimoire": {
+    "name": "Grimoire",
+    "path": "/Lotus/Weapons/Tenno/Grimoire/TnGrimoire",
+    "note": "It came in Update 35.0 (Whispers in the Walls, 2023-12-13) and takes Tome mods on top of normal secondary mods; only one Invocation at a time. Its alternate fire throws a voltaic orb (guaranteed Electricity) and needs a full meter: 45 s, shortened by hits and ammo pickups.",
+    "source": "https://wiki.warframe.com/w/Grimoire",
+    "invocations": {
+      "strength": { "name": "Vome Invocation", "effect": "each enemy the alternate fire hits gives +4% Ability Strength for 20 s, up to 15 stacks (+60%)", "source": "https://wiki.warframe.com/w/Vome_Invocation" },
+      "energy": { "name": "Xata Invocation", "effect": "each enemy the alternate fire hits gives 1 Energy/s for 20 s, up to 10 stacks", "source": "https://primagames.com/tips/warframe-all-tome-mods-and-how-to-get-them ; https://dotesports.com/warframe/news/all-warframe-tome-mods-and-how-to-get-them" },
+      "efficiency": { "name": "Netra Invocation", "effect": "each enemy the alternate fire hits gives +4% Ability Efficiency for 20 s, up to 15 stacks", "source": "https://primagames.com/tips/warframe-all-tome-mods-and-how-to-get-them ; https://dotesports.com/warframe/news/all-warframe-tome-mods-and-how-to-get-them" },
+      "duration": { "name": "Ris Invocation", "effect": "each enemy the alternate fire hits gives +4% Ability Duration for 20 s, up to 15 stacks", "source": "https://primagames.com/tips/warframe-all-tome-mods-and-how-to-get-them ; https://dotesports.com/warframe/news/all-warframe-tome-mods-and-how-to-get-them" }
+    }
+  },
+  "kitgun": {
+    "name": "Pax Bolt",
+    "on": "a gilded kitgun",
+    "effect": "a headshot kill gives +30% Ability Strength and Ability Efficiency to your next ability (within 4 s)",
+    "note": "Kitgun arcanes go only on gilded kitguns, beside the normal weapon arcane; Rude Zuud sells them from Old Mate with Solaris United.",
+    "source": "https://wiki.warframe.com/w/Magus_Arcane ; https://itemlevel.net/warframe-arcanes-list-guide-2022/ ; https://wiki.warframe.com/w/Kitgun"
+  },
+  "arcanes": {
+    "source": "https://wiki.warframe.com/w/Magus_Arcane",
+    "effects": {
+      "Molt Augmented": "+0.24% Ability Strength per kill, up to 250 stacks (+60%).",
+      "Arcane Energize": "Energy pickups also give you and nearby allies up to 150 energy.",
+      "Molt Reconstruct": "You and allies in range heal 6 health for each point of energy you spend.",
+      "Arcane Grace": "6% health regenerated per second for 9 s.",
+      "Molt Vigor": "An Operator ability gives +45% Ability Strength to your next Warframe ability.",
+      "Molt Efficiency": "+6% Ability Duration each second while your shields are up, to +36%; lost when shields break. Despite the name, it's duration, not efficiency (https://wiki.warframe.com/w/Molt_Efficiency)."
+    }
+  },
+  "companions": {
+    "Nautilus": { "items": [{ "name": "Nautilus Prime", "path": "/Lotus/Types/Sentinels/SentinelPowersuits/NautilusPrimeSentinelPowerSuit" }, { "name": "Nautilus", "path": "/Lotus/Types/Sentinels/SentinelPowersuits/EmpyreanSentinelPowerSuit" }], "mod": "Cordon", "effect": "Cordon pulls enemies within 30 m 15 m toward one point, every 15 s: they bunch up inside your abilities.", "source": "https://wiki.warframe.com/w/Cordon" },
+    "Smeeta Kavat": { "items": [{ "name": "Smeeta Kavat", "path": "/Lotus/Types/Game/CatbrowPet/CheshireCatbrowPetPowerSuit" }], "mod": "Charm", "effect": "Charm has a 40% chance every 27 s to give a buff; one in five of those is free ability casts (since Update 37.0 it no longer doubles resources).", "source": "https://wiki.warframe.com/w/Charm" },
+    "Panzer Vulpaphyla": { "items": [{ "name": "Panzer Vulpaphyla", "path": "/Lotus/Types/Friendly/Pets/CreaturePets/ArmoredInfestedCatbrowPetPowerSuit" }], "mod": "Panzer Devolution", "effect": "When it goes down it turns into a larva that keeps shooting Viral quills, and comes back after 30 s: it stays with you in the thick of it.", "source": "https://wiki.warframe.com/w/Panzer_Devolution ; https://wiki.warframe.com/w/Vulpaphyla" }
+  },
+  "focus": {
+    "_about": "The five schools: Madurai, Vazarin, Naramon, Unairu, Zenurik (reworked in Update 31.5). The passives named here work while that school is the active one.",
+    "Zenurik": { "effect": "Energy Pulse: energy pickups give 50% more energy over 5 s. Inner Might: one ability cast every 60 s costs no energy.", "source": "https://wiki.warframe.com/w/Zenurik" },
+    "Vazarin": { "effect": "Mending Soul: your first revives are instant. Protective Sling: allies your Void Sling touches are immune to damage for 5 s and heal.", "source": "https://wiki.warframe.com/w/Vazarin" },
+    "Madurai": { "effect": "Sling Strength: switching back to the Warframe after a Chained Sling gives +40% Ability Strength for 20 s.", "source": "https://wiki.warframe.com/w/Madurai" }
+  },
+  "checkedAndLeftOut": {
+    "Pax Charge": "Kitgun reload: makes the magazine recharge. Nothing for abilities (https://wiki.warframe.com/w/Pax_Charge).",
+    "Pax Seeker": "Homing projectiles on headshot kills. Weapon damage only (https://wiki.warframe.com/w/Magus_Arcane).",
+    "Pax Soar": "Accuracy, less recoil and aim glide in the air. Weapon handling only (https://wiki.warframe.com/w/Magus_Arcane).",
+    "Secondary Outburst": "Secondary crit chance and damage per melee combo. Nothing for abilities (https://wiki.warframe.com/w/Magus_Arcane).",
+    "Secondary Encumber": "A chance to add a second status effect. A primer's arcane, not strength or energy (https://wiki.warframe.com/w/Magus_Arcane).",
+    "Laetum": "No Incarnon perk touches abilities, strength or energy (https://wiki.warframe.com/w/Laetum).",
+    "Epitaph": "Not an Incarnon weapon on the wiki's Incarnon page (https://wiki.warframe.com/w/Incarnon); some builds use it as a status primer.",
+    "Energy Generator": "Dethcube drops an Energy Orb after 10 kill assists; real but slow, so not suggested (https://wiki.warframe.com/w/Energy_Generator)."
+  }
+}
