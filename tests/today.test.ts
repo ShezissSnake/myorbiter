@@ -124,7 +124,7 @@ test("the week's Archimedeas, 1999 Calendar prizes and Descendia, from warframes
   const live: Live = {
     fissures: [], resurgence: [], resurgenceExpiry: null,
     archimedeas: [
-      { expiry: ends, type: "C T_ L A B", typeKey: "C T_ L A B", missions: [{ missionType: "Extermination", deviation: { name: "Sealed Armor" } }, { missionType: "Survival" }, { missionType: "Alchemy" }] },
+      { expiry: ends, type: "C T_ L A B", typeKey: "C T_ L A B", missions: [{ missionType: "Extermination", deviation: { name: "Sealed Armor", description: "Armor can't be stripped" }, risks: [{ name: "Fortified Foes", description: "More armor", isHard: true }, { name: "Energy Starved" }, { description: "no name" }] }, { missionType: "Survival" }, { missionType: "Alchemy" }] },
       { expiry: ends, typeKey: "C T_ H E X", missions: [{ missionType: "Defense" }] },
       { expiry: "2026-10-01T00:00:00Z", typeKey: "C T_ L A B", missions: [{ missionType: "Old" }] },
       { expiry: ends, typeKey: "C T_ S O M E T H I N G", missions: [{ missionType: "Odd" }] },
@@ -139,6 +139,8 @@ test("the week's Archimedeas, 1999 Calendar prizes and Descendia, from warframes
   const t = today(m, live, NOW);
   assert.deepEqual(t.archimedeas.map((a) => [a.kind, a.missions.map((x) => x.type)]), [["Deep", ["Extermination", "Survival", "Alchemy"]], ["Temporal", ["Defense"]]]);
   assert.equal(t.archimedeas[0].missions[0].deviation, "Sealed Armor");
+  assert.equal(t.archimedeas[0].missions[0].deviationDesc, "Armor can't be stripped");
+  assert.deepEqual(t.archimedeas[0].missions[0].risks, [{ name: "Fortified Foes", desc: "More armor", hard: true }, { name: "Energy Starved", desc: "", hard: false }], "risks with a name, the hard ones marked");
   assert.equal(t.calendar!.season, "Summer");
   assert.deepEqual(t.calendar!.prizes, [
     { day: "11 Jul", choices: ["Vosfor Cache", "Arcane Enhancements: Double Pack"], notable: false, pick: "Vosfor Cache" },

@@ -1,10 +1,12 @@
 <script lang="ts">
   import Fold from "../ui/Fold.svelte";
+  import GameIcon from "../ui/GameIcon.svelte";
+  import { takeIntent } from "../intent.svelte";
   import { tradeAllowance } from "../core/tradeLimit";
   import { until } from "../core/traders";
   import { untrack } from "svelte";
   import type { Model } from "../core/model";
-  import type { AdviceSettings, MarketSettings } from "../backend";
+  import type { AdviceSettings, MarketSettings, OrderSortKey } from "../backend";
   import { heldFor, holdings, listingKey, overAsked, wtsLines, type MyOrder, type Plan } from "../core/market";
   import { LISTING_LIMIT } from "../core/bulk";
   import { arcaneRows, saveForSets, spareOf } from "../core/views";
@@ -51,7 +53,39 @@
   let how = $state<"password" | "token">("password");
   let search = $state("");
 
+  // A link here asked for Put my spares on sale (Home's Ready to list): open it.
+  $effect(() => {
+    if (takeIntent("market")?.spares) settings.sparesOpen = true;
+  });
   const orders = $derived([...mkt.orders].sort((a, b) => (mkt.item(a.itemId)?.name ?? "").localeCompare(mkt.item(b.itemId)?.name ?? "")));
+  // The table's order: by name until you click a column (kept). Ties stay in name order.
+  const sortBy = $derived(settings.ordersSort ?? { key: "name" as OrderSortKey, desc: false });
+  function sortOn(key: OrderSortKey) {
+    // A number column starts high-first; the name column A to Z.
+    settings.ordersSort = sortBy.key === key ? { key, desc: !sortBy.desc } : { key, desc: key !== "name" };
+  }
+  const sortValue = (o: MyOrder): number | string | null => {
+    switch (sortBy.key) {
+      case "name": return mkt.item(o.itemId)?.name ?? "";
+      case "qty": return o.quantity;
+      case "price": return o.platinum;
+      case "total": return o.platinum * o.quantity;
+      case "cheapest": return plans.get(o.id)?.competitor.price ?? null;
+      case "change": { const p = plans.get(o.id); return p?.change ? p.target - o.platinum : null; }
+    }
+  };
+  const sortedOrders = $derived.by(() => {
+    const dir = sortBy.desc ? -1 : 1;
+    return orders
+      .map((o, i) => ({ o, i, v: sortValue(o) }))
+      .sort((a, b) => {
+        // Nothing to sort by (not checked yet) goes last either way.
+        if (a.v == null || b.v == null) return a.v == null && b.v == null ? a.i - b.i : a.v == null ? 1 : -1;
+        const c = typeof a.v === "string" ? a.v.localeCompare(b.v as string) : a.v - (b.v as number);
+        return c * dir || a.i - b.i;
+      })
+      .map((x) => x.o);
+  });
   const listed = $derived(orders.filter((o) => o.visible).reduce((n, o) => n + o.platinum * o.quantity, 0));
   const plans = $derived(new Map(orders.map((o) => [o.id, mkt.planFor(model, settings, o)])));
   const hiddenOrders = $derived(orders.filter((o) => !o.visible));
@@ -463,7 +497,7 @@
   const ghosts = $derived(Object.values(sending).filter((o) => !mkt.orders.some((x) => x.id === o.id) && rowBusy.get(o.id).state !== "idle"));
   const ghostIds = $derived(new Set(ghosts.map((o) => o.id)));
   /** The table's rows: your listings, and any sold-out one still sending, in its place by name. */
-  const rows = $derived(ghosts.length ? [...orders, ...ghosts].sort((a, b) => (mkt.item(a.itemId)?.name ?? "").localeCompare(mkt.item(b.itemId)?.name ?? "")) : orders);
+  const rows = $derived(ghosts.length ? [...sortedOrders, ...ghosts] : sortedOrders);
   // Leaving the page (or quitting) doesn't lose a sale that was waiting.
   $effect(() => () => {
     for (const id of soldTimers.keys()) void commitSale(id);
@@ -497,7 +531,7 @@
   <section class="status">
     {#if mkt.linked}
       <span class="register">Your status</span>
-      <div class="presence"><Presence {settings} /></div>
+      <div class="presence"><Presence {settings} tradesLeft={trades.left} resets={trades.resets} /></div>
     {/if}
     <div class="grow"></div>
     {#if mkt.linked}
@@ -519,6 +553,11 @@
         <IconButton icon="sign-out" tone="quiet" label="Sign out" title="Sign out: forget orbiter's warframe.market sign-in" onclick={() => (signingOut = true)} />
       {/if}
     </span>
+  {/snippet}
+
+  <!-- A sortable column heading: click or Enter, again for the other way. -->
+  {#snippet sh(key: OrderSortKey, label: string, cls: string, title: string)}
+    <th class="sortable {cls}" {title} tabindex="0" aria-sort={sortBy.key === key ? (sortBy.desc ? "descending" : "ascending") : undefined} onclick={() => sortOn(key)} onkeydown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), sortOn(key))}>{label}{#if sortBy.key === key}<span class="arrow" aria-hidden="true">{sortBy.desc ? "▾" : "▴"}</span>{/if}</th>
   {/snippet}
 
   <!-- A row's own work: what it's doing, then done, or why it failed with Try again. -->
@@ -567,6 +606,20 @@
       {/if}
     </section>
   {:else}
+
+    <!-- Put my spares on sale up top, folded: one click away for those who use it, a line for those
+         who don't. Folded, it stays alive (hidden, not removed), so a plan being applied carries on. -->
+    {#if !console}
+      <section class="sparesfold" id="spares" class:open={settings.sparesOpen}>
+        <button type="button" class="foldhead" aria-expanded={!!settings.sparesOpen} aria-controls="spares-body" title={settings.sparesOpen ? "Fold Put my spares on sale away" : "Put my spares on sale: list everything you can spare in one go, after a look at the plan"} onclick={() => (settings.sparesOpen = !settings.sparesOpen)}>
+          <GameIcon name="platinum" size={18} />
+          <span class="register">Put my spares on sale</span>
+          <span class="dim small sub">{#if mkt.applying && mkt.progress}Applying the plan: {mkt.progress.done} of {mkt.progress.total}{:else if mkt.bulk}A plan of {mkt.bulk.actions.filter((a) => a.type !== "skip").length} changes, ready to look over{:else}List everything you can spare in one go, after a look at the plan{/if}</span>
+          <span class="chev" aria-hidden="true">{settings.sparesOpen ? "▴" : "▾"}</span>
+        </button>
+        <div id="spares-body" hidden={!settings.sparesOpen}><SpareSale {model} {settings} {advice} {masteryRank} {credits} folded /></div>
+      </section>
+    {/if}
 
     <!-- Your listings first, with where to add one right beside the heading. -->
     <div class="listhead">
@@ -624,14 +677,13 @@
       </Fold>
       {#if nextPass}<span class="register next" title={mkt.passFailures ? `warframe.market didn't answer the last ${mkt.passFailures === 1 ? "pass" : `${mkt.passFailures} passes`}, so the timer waits longer (${Math.round(passWait / 60_000)} min) before the next` : `The timer checks every ${settings.every} min`}>{mkt.pass && !mkt.passManual ? "Checking now" : `Next check ${fmt(+nextPass)}`}</span>{/if}
       {#if hiddenOrders.length || showJob.state !== "idle"}<ProgressButton variant="link" tone="quiet" job={showJob} label="Show all {hiddenOrders.length} hidden" working="Showing {showJob.done}/{showJob.total ?? '…'}" sizer={[`Showing ${hiddenOrders.length}/${hiddenOrders.length}`]} title="Make every hidden listing visible to buyers again" disabled={!!mkt.op} onclick={showAll} />{/if}
-      {#if !console}<a class="link quiet tospares" href="#spares" title="Down to Put my spares on sale: list everything you can spare in one go" onclick={(e) => { e.preventDefault(); document.getElementById("spares")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>Put my spares on sale ↓</a>{/if}
     </div>
 
     <table class="orders" class:ownfloors={rows.some((o) => settings.floors[listingKey(o)] != null)}>
       <thead>
         <tr>
-          <th>Item</th><th class="right">Qty</th><th class="right">Your price</th><th title="The cheapest seller who is in game right now (and how many are), from the last check">Cheapest in game</th>
-          <th class="right willset" title="What the repricer would change the price to, and why">Will set</th><th class="right floorcol" title="Never go below this">Floor</th><th class="center" title="Auto-price on: when you check prices, this listing is moved to the cheapest in-game seller's price (never under its floor). Off: orbiter leaves its price as you set it">Auto-price</th><th class="center" title="Whether buyers see the listing on warframe.market (hidden ones keep their place)">Shown</th><th></th>
+          {@render sh("name", "Item", "", "Sort by name")}{@render sh("qty", "Qty", "right", "Sort by how many you list")}{@render sh("price", "Your price", "right", "Sort by your price (click again for the other way)")}{@render sh("cheapest", "Cheapest in game", "", "The cheapest seller who is in game right now (and how many are), from the last check. Sort by it")}
+          {@render sh("change", "Will set", "right willset", "What the repricer would change the price to, and why. Sort by the change (the biggest rises first, falls last)")}<th class="right floorcol" title="Never go below this">Floor</th><th class="center" title="Auto-price on: when you check prices, this listing is moved to the cheapest in-game seller's price (never under its floor). Off: orbiter leaves its price as you set it">Auto-price</th><th class="center" title="Whether buyers see the listing on warframe.market (hidden ones keep their place)">Shown</th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -816,7 +868,6 @@
       </section>
     {/if}
 
-    {#if !console}<div id="spares"><SpareSale {model} {settings} {advice} {masteryRank} {credits} /></div>{/if}
 
   {/if}
 </div></div>
@@ -921,6 +972,18 @@
   table.orders { width: 100%; border-collapse: collapse; margin-top: var(--step); border-top: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
   .orders th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .15em; text-transform: uppercase; color: var(--platinum-deep); padding: .7rem .6rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
   .orders th.right { text-align: right; }
+  .sparesfold { margin: var(--step) 0 .4rem; border: 1px solid var(--rule); background: var(--plate); }
+  .sparesfold.open { border-color: var(--rule-bright); }
+  .foldhead { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: .6rem; padding: .7rem .9rem; cursor: pointer; }
+  .foldhead:hover .register, .foldhead:focus-visible .register { color: var(--platinum); }
+  .foldhead:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+  .foldhead .sub { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .foldhead .chev { color: var(--platinum-deep); font-size: .75rem; }
+  #spares-body { padding: 0 .9rem .9rem; }
+  .orders th.sortable { cursor: pointer; user-select: none; }
+  .orders th.sortable:hover, .orders th[aria-sort] { color: var(--platinum); }
+  .orders th.sortable:focus-visible { outline: none; box-shadow: inset 0 -2px 0 var(--gold); color: var(--platinum); }
+  .orders .arrow { margin-left: .3rem; color: var(--gold); }
   .orders th.center { text-align: center; }
   .orders td { padding: .5rem .6rem; border-bottom: 1px solid var(--rule); vertical-align: middle; }
   .orders tbody tr:hover td { background: rgb(255 255 255 / 1.5%); }

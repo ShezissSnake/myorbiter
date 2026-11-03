@@ -1070,6 +1070,11 @@ class MarketStore {
   bulk = $state.raw<{ actions: BulkAction[]; at: number; books: Record<string, BookOrder[] | undefined> } | null>(null);
   /** A long run's progress (planning, applying, removing everything). */
   progress = $state<{ done: number; total: number } | null>(null);
+  /**
+   * Applying the spares plan, change by change, for its table to tick off as it goes: the one
+   * being sent now, the ones sent, the ones refused. Null when no plan is being applied.
+   */
+  applying = $state.raw<{ now: BulkAction | null; sent: ReadonlySet<BulkAction>; failed: ReadonlySet<BulkAction> } | null>(null);
 
   /** False when it didn't run (signed out, or a change you asked for is under way). */
   async planBulk(m: Model, s: MarketSettings, advice: DucatOptions): Promise<boolean> {
@@ -1158,7 +1163,10 @@ class MarketStore {
         return;
       }
       this.progress = { done: 0, total: todo.length };
+      this.applying = { now: null, sent: new Set(), failed: new Set() };
+      const refused = new Set<BulkAction>();
       for (const a of todo) {
+        this.applying = { now: a, sent: new Set(sent), failed: new Set(refused) };
         const tag = (name: string, rank: number | null) => `${name}${rank != null ? ` R${rank}` : ""}`;
         try {
           if (a.type === "create") {
@@ -1176,6 +1184,7 @@ class MarketStore {
         } catch (e) {
           if (isAuthError(e)) throw e;
           failed++;
+          refused.add(a);
           this.note(`${a.item.name}: couldn't ${a.type} (${clean(e)})`, "warn");
           if (++writeFailing >= WRITE_FAILS) {
             this.note(`warframe.market refused ${WRITE_FAILS} changes in a row, so orbiter stopped: apply again in a minute`, "warn");
@@ -1184,7 +1193,11 @@ class MarketStore {
         }
         this.progress = { done: sent.size + failed, total: todo.length };
       }
+      this.applying = { now: null, sent: new Set(sent), failed: new Set(refused) };
+      // The last tick stays a moment before the plan goes, so it's seen.
+      if (sent.size) await new Promise((r) => setTimeout(r, 900));
     });
+    this.applying = null;
     this.progress = null;
     if (changed) return { sent: 0, failed: 0, outcome: "changed" };
     await this.refresh().catch(() => {});
@@ -1308,3 +1321,6 @@ export interface BuyDraft {
 }
 
 export const mkt = new MarketStore();
+// The dev build (npm run dev, never a release) hands the store to the page, for screenshots of states
+// warframe.market can't be asked for from a plain browser.
+if (import.meta.env?.DEV && typeof window !== "undefined") (window as unknown as { __mkt: MarketStore }).__mkt = mkt;

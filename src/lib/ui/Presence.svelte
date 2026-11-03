@@ -6,7 +6,8 @@
   import Seg from "./Seg.svelte";
 
   // quiet: no explanatory line under it (Home); errors and warnings still show.
-  let { settings, quiet = false }: { settings: MarketSettings; quiet?: boolean } = $props();
+  // tradesLeft / resets: today's trades (core/tradeLimit), for the out-of-trades offer.
+  let { settings, quiet = false, tradesLeft = null, resets = null }: { settings: MarketSettings; quiet?: boolean; tradesLeft?: number | null; resets?: number | null } = $props();
 
   const WORD: Record<Presence, string> = { invisible: "Invisible", online: "Online", ingame: "Online in game" };
   const s = $derived(mkt.status);
@@ -27,8 +28,32 @@
   }
   function offline() {
     settings.presence = null;
+    settings.presenceBack = null;
     mkt.setStatus("offline");
   }
+
+  // Out of trades while buyers can see you: they'd whisper for trades you can't make until the
+  // reset. Going invisible until then remembers what you had, and puts it back at 00:00 UTC.
+  const outOfTrades = $derived(tradesLeft === 0 && visible && resets != null);
+  function invisibleUntilReset() {
+    if (!settings.presence || settings.presence === "invisible" || resets == null) return;
+    const back = { p: settings.presence, until: resets };
+    pick("invisible");
+    settings.presenceBack = back;
+  }
+  // Back at the reset (checked every minute while orbiter runs, and on start).
+  let clock = $state(Date.now());
+  $effect(() => {
+    const t = setInterval(() => (clock = Date.now()), 60_000);
+    return () => clearInterval(t);
+  });
+  $effect(() => {
+    const b = settings.presenceBack;
+    if (!b || clock < b.until) return;
+    settings.presenceBack = null;
+    // Only if you're still on the invisible orbiter set: a status you chose since stands.
+    if (settings.presence === "invisible") pick(b.p);
+  });
 </script>
 
 <div class="row">
@@ -45,7 +70,11 @@
     ]}
   />
 </div>
-{#if mkt.statusError || s?.error}
+{#if outOfTrades}
+  <p class="note warn out">No trades left today: buyers who whisper can't be served until 00:00 UTC. <button type="button" class="link" title="Invisible until the daily trade reset (00:00 UTC), then back to {WORD[settings.presence ?? 'online']}" onclick={invisibleUntilReset}>Go invisible until then</button></p>
+{:else if settings.presenceBack && s?.committed === "invisible"}
+  <p class="note">Invisible until 00:00 UTC (your trades ran out), then back to {WORD[settings.presenceBack.p]}. <button type="button" class="link" title="Stay as you are: don't change back at the reset" onclick={() => (settings.presenceBack = null)}>Stay invisible</button></p>
+{:else if mkt.statusError || s?.error}
   <p class="note warn">{mkt.statusError ?? s?.error}</p>
 {:else if !s?.wanted && !quiet}
   <p class="note" title="Pick a status and orbiter holds it while it's open; closing orbiter takes you offline">Buyers can't see your listings while you're offline.</p>

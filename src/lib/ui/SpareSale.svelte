@@ -6,6 +6,9 @@
   // "Put my spares on sale": tick what to sell, look over the changes, apply them in one go.
   // Only the ticked categories are touched; listings you set to be left alone, or hid, never are.
   import { tick } from "svelte";
+  import { fade } from "svelte/transition";
+  import { flip } from "svelte/animate";
+  import Icon from "./Icon.svelte";
   import type { Model } from "../core/model";
   import type { AdviceSettings, MarketSettings } from "../backend";
   import { AS_LISTED, KIND_LABEL, LIMIT_WHY, LIMIT_WHY_TRADES, LISTING_LIMIT, type BulkAction } from "../core/bulk";
@@ -18,7 +21,8 @@
   import ProgressButton from "./ProgressButton.svelte";
   import { Job, JobError } from "../job.svelte";
 
-  let { model, settings, advice, masteryRank = null, credits = null }: { model: Model; settings: MarketSettings; advice: AdviceSettings; masteryRank?: number | null; credits?: number | null } = $props();
+  // folded: inside Orders' fold, which has the title and the frame already.
+  let { model, settings, advice, masteryRank = null, credits = null, folded = false }: { model: Model; settings: MarketSettings; advice: AdviceSettings; masteryRank?: number | null; credits?: number | null; folded?: boolean } = $props();
 
   const r = $derived(settings.bulk);
   const anyTicked = $derived(r.sets || r.arcanes || r.mods || r.parts || r.imprints || r.other);
@@ -86,7 +90,31 @@
   }
 
   const actions = $derived(mkt.bulk?.actions ?? []);
-  const changes = $derived(actions.filter((a) => a.type !== "skip"));
+  // In the order Apply sends them: removals first (room under the 100-listing limit), then changes, then new listings.
+  const APPLY_ORDER = { remove: 0, update: 1, create: 2, skip: 3 } as const;
+  const changes = $derived(actions.filter((a) => a.type !== "skip").sort((a, b) => APPLY_ORDER[a.type] - APPLY_ORDER[b.type]));
+  // While applying, each row ticks off as it's sent and then leaves the list, which shrinks as
+  // it goes (the one being sent is marked). `gone`: sent rows whose tick has been seen.
+  let gone = $state.raw<ReadonlySet<BulkAction>>(new Set());
+  $effect(() => {
+    const ap = mkt.applying;
+    if (!ap) {
+      gone = new Set();
+      return;
+    }
+    const fresh = [...ap.sent].filter((a) => !gone.has(a));
+    if (!fresh.length) return;
+    const t = setTimeout(() => (gone = new Set([...gone, ...fresh])), 650);
+    return () => clearTimeout(t);
+  });
+  const rows = $derived(changes.filter((a) => !gone.has(a)));
+  const calm = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  /** Keeps the row being sent in view inside the plan's scrolling box. */
+  function current(node: HTMLElement, on: boolean) {
+    const look = (v: boolean) => v && node.scrollIntoView({ block: "nearest", behavior: calm ? "auto" : "smooth" });
+    look(on);
+    return { update: look };
+  }
   // warframe.market's 100-listing cap: what the plan left out, or took down, to stay under it.
   const overLimit = $derived(actions.filter((a) => a.type === "skip" && (a.why === LIMIT_WHY || a.why === LIMIT_WHY_TRADES)).length);
   const madeRoom = $derived(actions.filter((a) => a.type === "remove" && a.why.startsWith("Makes room")).length);
@@ -125,10 +153,10 @@
   const whole = (v: string, min: number) => Math.max(min, Math.round(Number(v)) || min);
 </script>
 
-<section class="spares">
+<section class="spares" class:folded>
   <header>
     <div>
-      <h3 class="register">Put my spares on sale</h3>
+      {#if !folded}<h3 class="register">Put my spares on sale</h3>{/if}
       <p class="small dim">Lists what you can spare in the ticked categories at the cheapest in-game price, resizes listings you already have, and takes down the ones you have nothing left for. Listings you made yourself stay up while you hold them, unless warframe.market's {LISTING_LIMIT}-listing limit needs their place. Nothing else on your profile is touched.</p>
     </div>
     <div class="danger-zone">
@@ -195,9 +223,13 @@
       <table class="plan">
         <thead><tr><th></th><th>Item</th><th>Kind</th><th class="right">Quantity</th><th class="right">Price</th><th class="why">Why</th></tr></thead>
         <tbody>
-          {#each changes as a, i (i)}
-            <tr class={a.type}>
-              <td><span class="what">{WORD[a.type]}</span></td>
+          {#each rows as a (a)}
+            {@const ap = mkt.applying}
+            {@const sent = !!ap?.sent.has(a)}
+            {@const refused = !!ap?.failed.has(a)}
+            {@const now = ap?.now === a}
+            <tr class={a.type} class:sent class:refused class:now use:current={now} out:fade={{ duration: calm ? 0 : 220 }} animate:flip={{ duration: calm ? 0 : 260 }}>
+              <td><span class="what">{#if sent}<span class="tickoff" aria-label="sent"><Icon name="check" size={12} /></span>{:else if refused}<span title="warframe.market refused it: the Activity log says why">Refused</span>{:else if now}<span class="sending">Sending…</span>{:else}{WORD[a.type]}{/if}</span></td>
               <td><Named file={image(nameOf(a))} name={nameOf(a)} size={26}>{#if rankOf(a) != null}<span class="tag">R{rankOf(a)}</span>{/if}{#if refinementOf(a)}<span class="tag" class:ok={refinementOf(a) === "Radiant"}>{refinementOf(a)}</span>{/if}</Named></td>
               <td class="dim small">{KIND_LABEL[a.kind]}</td>
               <td class="right">
@@ -226,6 +258,7 @@
 
 <style>
   .spares { border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); padding: 1.1rem 1.3rem; margin: var(--step) 0; display: grid; gap: .9rem; box-shadow: inset 3px 0 0 var(--gold-dim); }
+  .spares.folded { border: 0; background: none; padding: 0; margin: 0; box-shadow: none; }
   header { display: flex; justify-content: space-between; gap: 1.5rem; align-items: flex-start; }
   h3 { margin: 0 0 .35rem; color: var(--gold); }
   header p { margin: 0; max-width: 70ch; }
@@ -259,6 +292,15 @@
   tr.remove :global(.name-mark) { color: var(--platinum-dim); }
   .more { justify-self: start; }
   .planbox { max-height: 60vh; overflow: auto; border-bottom: 1px solid var(--rule); }
+  /* Applying: the row being sent lit, each sent one ticked and struck through before it leaves. */
+  .plan tr.now td { background: color-mix(in srgb, var(--gold) 9%, transparent); }
+  .plan tr.now td:first-child { box-shadow: inset 2px 0 0 var(--gold); }
+  .sending { color: var(--gold); }
+  .plan tr.sent td { color: var(--platinum-deep); }
+  .plan tr.sent td:not(:first-child) { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--verdigris) 70%, transparent); }
+  .tickoff { display: inline-grid; place-items: center; width: 1.1rem; height: 1.1rem; border: 1px solid var(--verdigris); background: color-mix(in srgb, var(--verdigris) 16%, transparent); color: var(--verdigris); }
+  .plan tr.refused td:first-child { color: var(--oxblood); }
+  .plan tr.sent .what, .plan tr.now .what { border-color: transparent; background: none; padding-left: 0; padding-right: 0; }
   .planbox th { position: sticky; top: 0; background: var(--plate); z-index: 1; }
   .minnote { white-space: nowrap; }
   .skipped { max-height: 40vh; overflow: auto; margin: 0; padding: 0; list-style: none; display: grid; gap: .3rem; font-size: .84rem; }

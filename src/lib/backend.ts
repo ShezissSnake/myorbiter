@@ -44,6 +44,15 @@ export interface MarketSettings {
   paused: Record<string, boolean>;
   /** The warframe.market status you last chose; orbiter holds it again when it starts. Null: none. */
   presence: Presence | null;
+  /**
+   * Gone invisible for the rest of the day because your trades ran out: the status to go back to,
+   * and when (the daily trade reset, 00:00 UTC). Null: nothing to go back to.
+   */
+  presenceBack?: { p: Presence; until: number } | null;
+  /** How Orders' table is sorted (by name until you click a column). */
+  ordersSort?: { key: OrderSortKey; desc: boolean };
+  /** Put my spares on sale, folded open on Orders. */
+  sparesOpen?: boolean;
   /** Nothing is listed or repriced below this many platinum. */
   minPrice: number;
   /**
@@ -81,6 +90,8 @@ export interface MarketSettings {
   /** optIn, not the first version's `on`: that one was on for everyone, and hid nearly every listing on any whisper. */
   lastCopy: { optIn: boolean; minutes: number; hidden: HiddenForWhisper[] };
 }
+
+export type OrderSortKey = "name" | "qty" | "price" | "total" | "cheapest" | "change";
 
 export const defaultMarketSettings = (): MarketSettings => ({ platform: "pc", auto: false, autoCheck: false, every: 5, minShare: 0.5, floors: {}, paused: {}, presence: null, minPrice: 10, minRelicPrice: 3, relicPrices: {}, bulk: defaultBulkRules(), sellable: defaultSellChoices(), sales: [], autoTrades: true, tradesSeen: [], trades: [], buyAlerts: [], rep: {}, repText: ":)", autoRep: true, lastCopy: { optIn: false, minutes: DEFAULT_HIDE_MINUTES, hidden: [] } });
 
@@ -154,6 +165,8 @@ export interface Settings {
    * columns. Off: the pages say the essentials and the rest is on hover (lib/view.svelte.ts).
    */
   details: boolean;
+  /** Home's chores ticked off by hand: chore → the reset the tick was for (core/chores.ts). */
+  chores: Record<string, number>;
   /** The sidebar's order, when you changed it (Settings → Pages): page ids. */
   pageOrder: string[];
   /** The page orbiter opens on: "last" is where you left it. */
@@ -368,6 +381,7 @@ export const defaultSettings = (): Settings => ({
   newsSeen: NEWEST,
   simplified: 1,
   details: false,
+  chores: {},
   pageOrder: [],
   startPage: "last",
   tab: "home",
@@ -709,6 +723,7 @@ export async function loadSettings(): Promise<Settings> {
     homeFissures: raw?.homeFissures === "steel" || raw?.homeFissures === "storm" ? raw.homeFissures : "normal",
     homeFissuresOnly: raw?.homeFissuresOnly === true,
     details: raw?.details === true,
+    chores: raw?.chores && typeof raw.chores === "object" && !Array.isArray(raw.chores) ? Object.fromEntries(Object.entries(raw.chores).filter(([, v]) => typeof v === "number" && v > Date.now())) as Record<string, number> : {},
     homeHidden: Array.isArray(raw?.homeHidden) ? raw.homeHidden.filter((k: unknown): k is string => typeof k === "string") : [],
     plannerMode: raw?.plannerMode === "radiant" ? "radiant" : "sets",
     market: { ...base.market, ...(raw?.market ?? {}), bulk: { ...base.market.bulk, ...(raw?.market?.bulk ?? {}) }, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: raw?.market?.sellable?.relicsWorthSelling ?? base.market.sellable.relicsWorthSelling, saveForSets: raw?.market?.sellable?.saveForSets !== false }, sales: Array.isArray(raw?.market?.sales) ? raw.market.sales : [], tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], trades: Array.isArray(raw?.market?.trades) ? raw.market.trades : [], buyAlerts: Array.isArray(raw?.market?.buyAlerts) ? raw.market.buyAlerts.filter((a: unknown): a is BuyAlert => !!a && typeof (a as BuyAlert).name === "string" && typeof (a as BuyAlert).maxPrice === "number") : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: raw?.market?.platform && raw.market.platform in PLATFORM_LABEL ? raw.market.platform : "pc", autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, every: typeof raw?.market?.every === "number" && raw.market.every >= 1 ? raw.market.every : base.market.every, minRelicPrice: typeof raw?.market?.minRelicPrice === "number" && raw.market.minRelicPrice >= 1 ? Math.round(raw.market.minRelicPrice) : base.market.minRelicPrice, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)", lastCopy: { optIn: raw?.market?.lastCopy?.optIn === true, minutes: typeof raw?.market?.lastCopy?.minutes === "number" && raw.market.lastCopy.minutes >= 1 ? Math.round(raw.market.lastCopy.minutes) : DEFAULT_HIDE_MINUTES, hidden: Array.isArray(raw?.market?.lastCopy?.hidden) ? raw.market.lastCopy.hidden.filter((h: unknown): h is HiddenForWhisper => !!h && typeof (h as HiddenForWhisper).id === "string" && typeof (h as HiddenForWhisper).at === "number") : [] } },

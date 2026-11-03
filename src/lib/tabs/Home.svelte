@@ -19,6 +19,8 @@
   import Mission from "../ui/Mission.svelte";
   import { tradeAllowance } from "../core/tradeLimit";
   import Icon from "../ui/Icon.svelte";
+  import { isDone, setDone } from "../core/chores";
+  import { nextMondayUtc } from "../core/today";
   import IconButton from "../ui/IconButton.svelte";
   import Chip from "../ui/Chip.svelte";
   import Effort from "../ui/Effort.svelte";
@@ -289,6 +291,26 @@
   // Bounties and Worth doing today start as a line each; the whole of them a click away.
   let openBounties = $state(false);
   let openToday = $state(false);
+  // Chores ticked off by hand (the inventory doesn't say what's done): each clears at its own reset.
+  const weekly = $derived(nextMondayUtc(now));
+  const chores = $derived(
+    [
+      day.circuit ? { key: "circuit", resets: day.circuit.resets } : null,
+      day.steelPath ? { key: "teshin", resets: day.steelPath.ends } : null,
+      ...day.archimedeas.map((a) => ({ key: `archimedea-${a.kind}`, resets: a.ends })),
+      day.descendia ? { key: "descendia", resets: day.descendia.ends } : null,
+      day.sortie ? { key: "sortie", resets: day.sortie.ends } : null,
+      day.archon ? { key: "archon", resets: day.archon.ends } : null,
+      day.nightwave ? { key: "nightwave", resets: weekly } : null,
+      { key: "kahl", resets: weekly },
+      { key: "netracells", resets: weekly },
+    ].filter((c): c is { key: string; resets: string } => !!c),
+  );
+  const choresDone = $derived(chores.filter((c) => isDone(settings.chores, c.key, c.resets, now)).length);
+  const doneNow = (key: string, resets: string) => isDone(settings.chores, key, resets, now);
+  function toggleChore(key: string, resets: string) {
+    settings.chores = setDone(settings.chores, key, resets, !doneNow(key, resets));
+  }
   const all = () => {
     const out: Alert[] = [];
     // Alerts and invasions rewarding a part for something you haven't mastered: they don't come back on demand.
@@ -352,6 +374,11 @@
     return Math.round(12 / Math.max(1, shownBeside(lead)));
   };
 </script>
+
+{#snippet tick(key: string, resets: string, what: string)}
+  {@const on = doneNow(key, resets)}
+  <button type="button" class="tick" class:on aria-pressed={on} aria-label="{what} done" title={on ? `${what}: done. Click to untick` : `Tick off ${what} once it's done; it clears itself at the reset, in ${until(resets, now)}`} onclick={() => toggleChore(key, resets)}><Icon name="check" size={12} /></button>
+{/snippet}
 
 {#snippet head(icon: GameIconName | null, line: string | null, title: string, to: string | null, action: string)}
   <header class="ph">
@@ -442,7 +469,7 @@
     <section class="panel market" data-card="market" class:off={off("market")} class:full={alone("market")} style:grid-row={rowSpan("market")}>
       {@render head("market", null, "Your orders", "market", "Orders")}
       {#if mkt.linked}
-        <div class="presence"><Presence settings={settings.market} quiet /></div>
+        <div class="presence"><Presence settings={settings.market} quiet tradesLeft={trades.left} resets={trades.resets} /></div>
         <div class="figs">
           <div title="Your visible listings on warframe.market: price × quantity, and how many{hiddenCount ? ` (${hiddenCount} hidden ones not counted)` : ''}"><P v={listed} /><span class="register">Listed · {orders.length - hiddenCount}</span></div>
           {#if !console}<div title="Listings for more than you hold now: sold, or used in game. Fix them on Orders, or a buyer finds you can't deliver"><b class="mark" class:amber={shortListings.length}>{#if shortListings.length}<span class="bang" aria-hidden="true">!</span>{/if}{shortListings.length}</b><span class="register">Can't deliver</span></div>{/if}
@@ -470,7 +497,7 @@
 
     <!-- Ready to sell -->
     <section class="panel ready" class:off={off("ready")} class:half={orphan("ready")} class:lone={lone("ready")} style:--n={share("ready")} data-card="ready">
-      {@render head("platinum", null, "Ready to sell", "market#spares", "Put my spares on sale")}
+      {@render head("platinum", null, "Ready to sell", "market?spares=1#spares", "Put my spares on sale")}
       {#if !ticked}
         <p class="dim">Nothing ticked in <b>Put my spares on sale</b> on Orders.</p>
       {:else if !byKind.length}
@@ -570,10 +597,11 @@
     <!-- Folded, each task is its heading line (what and how long); open, its missions, offers and challenges. -->
     <section class="panel today" class:open={openToday} data-card="today" class:off={off("today")} class:full={alone("today")} style:grid-row={rowSpan("today")}>
       {@render head("nightwave", null, "Worth doing today", null, "")}
+      <p class="dim small chorecount" title="Tick each one once it's done: the game doesn't say. Every tick clears itself at that chore's own reset (daily for the Sortie, Monday 00:00 UTC for the weeklies)">{choresDone} of {chores.length} done · tick each when it's done</p>
       <div class="tgrid">
         {#if day.circuit}
           <div class="tblock">
-            <div class="th"><GameIcon name="duviri" size={18} /><b class="mark">Duviri Circuit</b><span class="dim small">{#if !console}<GameIcon name="mastery" size={11} /> not mastered · {/if}new picks in {until(day.circuit.resets, now)}</span></div>
+            <div class="th" class:done={doneNow("circuit", day.circuit.resets)}><GameIcon name="duviri" size={18} /><b class="mark">Duviri Circuit</b><span class="dim small">{#if !console}<GameIcon name="mastery" size={11} /> not mastered · {/if}new picks in {until(day.circuit.resets, now)}</span>{@render tick("circuit", day.circuit.resets, "This week's Circuit picks")}</div>
             <div class="chips">
               {#each day.circuit.frames as c (c.name)}<span class="pick" class:want={c.wanted && !console} use:info={c.name}><Thumb file={c.image} size={22} />{c.name}{#if c.wanted && !console}<em title="Not mastered: worth taking" aria-label="not mastered, worth taking"><GameIcon name="mastery" size={11} /></em>{/if}</span>{/each}
             </div>
@@ -595,7 +623,7 @@
         {/if}
         {#if day.steelPath}
           <div class="tblock">
-            <div class="th"><GameIcon name="steel-essence" size={18} /><b class="mark">Teshin's offer</b><span class="dim small">changes in {until(day.steelPath.ends, now)}</span></div>
+            <div class="th" class:done={doneNow("teshin", day.steelPath.ends)}><GameIcon name="steel-essence" size={18} /><b class="mark">Teshin's offer</b><span class="dim small">changes in {until(day.steelPath.ends, now)}</span>{@render tick("teshin", day.steelPath.ends, "Teshin's offer")}</div>
             <p class="tline"><b>{day.steelPath.reward}</b> <span class="dim inl">for {day.steelPath.cost} <GameIcon name="steel-essence" size={13} title="Steel Essence" /> Steel Essence</span></p>
             {#if day.steelPath.umbraIn != null && day.steelPath.umbraIn > 0}{@const w = day.steelPath.umbraIn}<p class="tline dim small" title="Teshin's weekly offer runs through an 8-week rotation; Umbra Forma (150 Steel Essence) is its rarest. It changes on Mondays, 00:00 UTC">Umbra Forma in {w} week{w === 1 ? "" : "s"}</p>{/if}
           </div>
@@ -603,8 +631,16 @@
         {#if day.archimedeas.length || day.calendar || day.descendia}
           <div class="tblock">
             {#each day.archimedeas as a (a.kind)}
-              <div class="th"><GameIcon name={a.kind === "Deep" ? "cavia" : "faction-scaldra"} size={18} /><b class="mark" title={a.kind === "Deep" ? "Deep Archimedea, in the Sanctum Anatomica (rank 5 with Cavia): three hard missions, each with its risks and a deviation, new each Monday" : "Temporal Archimedea, in Höllvania: three hard missions, each with its risks and a deviation, new each Monday"}>{a.kind} Archimedea</b><span class="dim small">{until(a.ends, now)} left</span></div>
+              <div class="th" class:done={doneNow(`archimedea-${a.kind}`, a.ends)}><GameIcon name={a.kind === "Deep" ? "cavia" : "faction-scaldra"} size={18} /><b class="mark" title={a.kind === "Deep" ? "Deep Archimedea, in the Sanctum Anatomica (rank 5 with Cavia): three hard missions, each with its risks and a deviation, new each Monday" : "Temporal Archimedea, in Höllvania: three hard missions, each with its risks and a deviation, new each Monday"}>{a.kind} Archimedea</b><span class="dim small">{until(a.ends, now)} left</span>{@render tick(`archimedea-${a.kind}`, a.ends, `${a.kind} Archimedea`)}</div>
               <p class="tline dim small arch">{#each a.missions as x, i (i)}{#if i}{" · "}{/if}<span title={x.deviation ? `Deviation: ${x.deviation}` : x.type}><Mission type={x.type} size={12} />{x.type}</span>{/each}</p>
+              <!-- What decides whether to run it: each mission's deviation and risks (the hard ones marked). -->
+              <ol class="tline small archx">
+                {#each a.missions as x, i (i)}
+                  {#if x.deviation || x.risks.length}
+                    <li><span class="dim">{i + 1}. {x.type}</span>{#if x.deviation}{" · "}<b title={x.deviationDesc || undefined}>{x.deviation}</b>{/if}{#if x.risks.length}<span class="dim">{" · "}{#each x.risks as rk, j (j)}{#if j}{", "}{/if}<span class:hard={rk.hard} title={`${rk.desc}${rk.hard ? " (one of the harder risks)" : ""}` || undefined}>{rk.name}{#if rk.hard}<sup aria-label="hard">!</sup>{/if}</span>{/each}</span>{/if}</li>
+                  {/if}
+                {/each}
+              </ol>
             {/each}
             {#if day.calendar}
               {@const cal = day.calendar}
@@ -613,14 +649,14 @@
               <p class="tline dim small" title="The prize days worth a look (hover for the lot). Every prize day this season, one of each pair to pick: {cal.prizes.map((p) => `${p.day}: ${p.choices.join(' or ')}`).join('; ')}">{#if best.length}{best.map((p) => `${p.day} ${p.pick}`).join(" · ")}{:else}{cal.prizes.length} prize day{cal.prizes.length === 1 ? "" : "s"}, nothing rare{/if}</p>
             {/if}
             {#if day.descendia}
-              <div class="th"><GameIcon name="faction-orokin" size={18} /><b class="mark" title="The Descendia: a tower of {day.descendia.floors} floors (Infernums), new challenges each Monday; each floor's reward comes once a week, and Infernum 21 always drops an Uriel or Vinquibus part">Descendia</b><span class="dim small">{day.descendia.floors} Infernums · {until(day.descendia.ends, now)} left</span></div>
+              <div class="th" class:done={doneNow("descendia", day.descendia.ends)}><GameIcon name="faction-orokin" size={18} /><b class="mark" title="The Descendia: a tower of {day.descendia.floors} floors (Infernums), new challenges each Monday; each floor's reward comes once a week, and Infernum 21 always drops an Uriel or Vinquibus part">Descendia</b><span class="dim small">{day.descendia.floors} Infernums · {until(day.descendia.ends, now)} left</span>{@render tick("descendia", day.descendia.ends, "The Descendia")}</div>
             {/if}
           </div>
         {/if}
         {#if day.sortie || day.archon}
           <div class="tblock">
             {#if day.sortie}
-              <div class="th"><GameIcon name="sortie" size={18} /><b class="mark">Sortie</b><span class="dim small">{day.sortie.boss}{day.sortie.faction ? ` (${day.sortie.faction})` : ""} · {until(day.sortie.ends, now)} left</span></div>
+              <div class="th" class:done={doneNow("sortie", day.sortie.ends)}><GameIcon name="sortie" size={18} /><b class="mark">Sortie</b><span class="dim small">{day.sortie.boss}{day.sortie.faction ? ` (${day.sortie.faction})` : ""} · {until(day.sortie.ends, now)} left</span>{@render tick("sortie", day.sortie.ends, "Today's Sortie")}</div>
               <ol class="stages">
                 {#each day.sortie.stages as st, i (i)}
                   <li title={st.desc || undefined}><span class="sn">{i + 1}</span><Mission type={st.mission} size={13} /><span class="nt"><span>{st.mission}<span class="dim">{" · "}{st.node}</span></span>{#if st.modifier}<span class="mod">{st.modifier}</span>{/if}</span></li>
@@ -634,16 +670,21 @@
               {/if}
             {/if}
             {#if day.archon}
-              <div class="th"><GameIcon name="archon-hunt" size={18} /><b class="mark">Archon Hunt</b><span class="dim small inl">{day.archon.boss}{#if day.archon.shard}{" · "}<GameIcon name={shardIcon(day.archon.shard)} size={13} title="{day.archon.shard} Archon Shard" />{day.archon.shard} shard{/if} · {until(day.archon.ends, now)} left</span></div>
+              <div class="th" class:done={doneNow("archon", day.archon.ends)}><GameIcon name="archon-hunt" size={18} /><b class="mark">Archon Hunt</b><span class="dim small inl">{day.archon.boss}{#if day.archon.shard}{" · "}<GameIcon name={shardIcon(day.archon.shard)} size={13} title="{day.archon.shard} Archon Shard" />{day.archon.shard} shard{/if} · {until(day.archon.ends, now)} left</span>{@render tick("archon", day.archon.ends, "This week's Archon Hunt")}</div>
               <ol class="tline dim small archon">{#each day.archon.missions as m, i (i)}<li><Mission type={m.split(":")[0]} size={12} />{m}</li>{/each}</ol>
             {/if}
           </div>
         {/if}
+        <!-- Weekly, with nothing in the worldstate to show: there to tick off. -->
+        <div class="tblock">
+          <div class="th" class:done={doneNow("kahl", weekly)}><GameIcon name="kahl" size={18} /><b class="mark" title="Kahl's weekly mission at Drifter's Camp in Duviri: it raises your Kahl's Garrison rank (Shelter, Encampment, Fort, Settlement, Home) and pays Stock">Kahl's Garrison</b><span class="dim small">Break Narmer · {until(weekly, now)} left</span>{@render tick("kahl", weekly, "Kahl's weekly mission")}</div>
+          <div class="th" class:done={doneNow("netracells", weekly)}><GameIcon name="cavia" size={18} /><b class="mark" title="Netracells in Sanctum Anatomica (from Tagfer): five a week, each with a chance at an Archon Shard">Netracells</b><span class="dim small">5 a week · {until(weekly, now)} left</span>{@render tick("netracells", weekly, "This week's Netracells")}</div>
+        </div>
         {#if day.nightwave}
           <div class="tblock">
-            <div class="th"><GameIcon name="nightwave" size={18} /><b class="mark">Nightwave</b><span class="dim small inl" title="What the challenges still open give, all of them done">up to <GameIcon name="nightwave" size={13} title="Nightwave standing" />{day.nightwave.standing.toLocaleString("en")} standing</span></div>
+            <div class="th" class:done={doneNow("nightwave", weekly)}><GameIcon name="nightwave" size={18} /><b class="mark">Nightwave</b><span class="dim small inl" title="What the challenges still open give, all of them done">up to <GameIcon name="nightwave" size={13} title="Nightwave standing" />{day.nightwave.standing.toLocaleString("en")} standing</span>{@render tick("nightwave", weekly, "This week's Nightwave challenges")}</div>
             <ul class="nw">
-              {#each day.nightwave.challenges.slice(0, 6) as c (c.title)}<li title="{c.desc}{c.expiry ? ` · ${until(c.expiry, now)} left` : ''}"><span class="k k-{c.kind}">{c.kind}</span><span class="nt">{c.title}</span><span class="dim small inl"><GameIcon name="nightwave" size={11} title="Nightwave standing" />{c.reputation.toLocaleString("en")}</span></li>{/each}
+              {#each day.nightwave.challenges.slice(0, 6) as c (c.title)}<li><span class="k k-{c.kind}">{c.kind}</span><span class="nt">{c.title}{#if c.desc && !c.desc.startsWith("[PH]")}<small class="dim nwd">{c.desc}{c.expiry ? ` · ${until(c.expiry, now)} left` : ""}</small>{/if}</span><span class="dim small inl"><GameIcon name="nightwave" size={11} title="Nightwave standing" />{c.reputation.toLocaleString("en")}</span></li>{/each}
             </ul>
             {#if day.nightwave.challenges.length > 6}{@const rest = day.nightwave.challenges.slice(6)}<p class="dim small more">+{rest.length} more, {rest.reduce((n, c) => n + c.reputation, 0).toLocaleString("en")} standing (soonest to go first above)</p>{/if}
           </div>
@@ -982,6 +1023,18 @@
   .tgrid { display: grid; gap: .9rem; }
   .tblock { display: grid; gap: .35rem; }
   .th { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+  /* The chore tick at the end of each heading: an empty box, a green tick once done. */
+  .tick { all: unset; box-sizing: border-box; margin-left: auto; flex: none; width: 1.3rem; height: 1.3rem; display: grid; place-items: center; border: 1px solid var(--rule-control); color: transparent; cursor: pointer; }
+  .tick:hover { border-color: var(--gold-dim); color: var(--platinum-deep); }
+  .tick:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .tick.on { border-color: var(--verdigris); background: color-mix(in srgb, var(--verdigris) 16%, transparent); color: var(--verdigris); }
+  .th.done .mark { color: var(--platinum-deep); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--verdigris) 70%, transparent); }
+  .chorecount { margin: -.2rem 0 .6rem; }
+  .archx { list-style: none; margin: .25rem 0 0; padding: 0; display: grid; gap: .2rem; }
+  .archx .hard { color: var(--alert); }
+  .archx sup { font-size: .6rem; margin-left: .05rem; }
+  .nwd { display: block; font-size: .74rem; line-height: 1.3; white-space: normal; }
+  .nw li .nt { white-space: normal; }
   .th b { font-size: 1rem; }
   .th.sub { margin-top: .2rem; }
   .tline { margin: 0; }

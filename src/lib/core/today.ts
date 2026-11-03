@@ -23,8 +23,8 @@ export interface Today {
   archon: { boss: string; shard: string; missions: string[]; ends: string } | null;
   /** Darvo's daily deal; `wanted` when it's something masterable you haven't mastered or built. */
   darvo: { item: string; price: number; was: number; discount: number; left: number | null; ends: string; wanted: boolean; note: string | null } | null;
-  /** The week's Deep and Temporal Archimedea: their missions, and each one's deviation for the tooltip. */
-  archimedeas: { kind: "Deep" | "Temporal"; missions: { type: string; deviation: string }[]; ends: string }[];
+  /** The week's Deep and Temporal Archimedea: their missions, each with its deviation and risks (`hard`: one of the harder ones). */
+  archimedeas: { kind: "Deep" | "Temporal"; missions: { type: string; deviation: string; deviationDesc: string; risks: { name: string; desc: string; hard: boolean }[] }[]; ends: string }[];
   /** The 1999 Calendar's season (a week): its prize days, the ones with a reward worth picking first. */
   calendar: { season: string; prizes: { day: string; choices: string[]; notable: boolean; pick: string }[]; ends: string } | null;
   /** The week's Descendia: how many Infernums (floors). */
@@ -161,7 +161,12 @@ export function today(m: Model, live: Live, now = Date.now(), gear: GearCopy[] |
     const key = (a.typeKey ?? a.type ?? "").replace(/\s+/g, "");
     const kind = key === "CT_LAB" ? ("Deep" as const) : key === "CT_HEX" ? ("Temporal" as const) : null;
     if (!kind) return [];
-    const missions = (a.missions ?? []).filter((x) => typeof x?.missionType === "string").map((x) => ({ type: x.missionType!, deviation: x.deviation?.name ?? "" }));
+    const missions = (a.missions ?? []).filter((x) => typeof x?.missionType === "string").map((x) => ({
+      type: x.missionType!,
+      deviation: x.deviation?.name ?? "",
+      deviationDesc: x.deviation?.description ?? "",
+      risks: (x.risks ?? []).filter((r) => typeof r?.name === "string").map((r) => ({ name: r.name!, desc: r.description ?? "", hard: r.isHard === true })),
+    }));
     return missions.length ? [{ kind, missions, ends: a.expiry }] : [];
   });
   const cal = open(live.calendar) ? live.calendar! : null;
