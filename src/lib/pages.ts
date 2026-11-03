@@ -2,7 +2,7 @@
 // this order) and the Guide read this list; adding a page is one entry here plus its component in
 // App.svelte. Each section answers one question, so a new page has one place to go:
 //   Fissures    What should I crack? The fissure you're in, your relics, what to crack next.
-//   Progress    What's left to get? Mastery, the Foundry, your wishlist.
+//   Progress    What's left to get? Mastery, the Foundry, builds, your wishlist.
 //   Collection  What do I hold, and what do I keep or sell? Everything you own, then by kind.
 //   Trade       My activity on warframe.market: listings (and the spares plan), prices, sales, stats.
 import type { GameIconName } from "./ui/GameIcon.svelte";
@@ -13,6 +13,7 @@ export type PageId =
   | "relics"
   | "planner"
   | "foundry"
+  | "builds"
   | "wishlist"
   | "inventory"
   | "mastery"
@@ -46,6 +47,7 @@ export const PAGES: Page[] = [
   { id: "planner", label: "Planner", group: "Fissures", icon: { game: "void-traces" }, hint: "Which relics to crack to complete sets, and which to make radiant" },
   { id: "mastery", label: "Mastery", group: "Progress", icon: { game: "mastery" }, hint: "Everything you haven't mastered, easiest first, and how to get it" },
   { id: "foundry", label: "Foundry", group: "Progress", icon: { game: "foundry" }, hint: "Every warframe, weapon and companion with its parts: what you own, what you've mastered, what you can build" },
+  { id: "builds", label: "Builds", group: "Progress", icon: { line: "mods" }, hint: "Mod and arcane builds for anything that takes them, in three tiers, and what you're missing for each" },
   { id: "wishlist", label: "Wishlist", group: "Progress", icon: { line: "star" }, hint: "The things you starred, and the quickest way to each missing part: a relic you hold, where to farm one, or what it costs" },
   { id: "inventory", label: "Inventory", group: "Collection", icon: { line: "inventory" }, hint: "Everything you own, with what it's worth" },
   { id: "parts", label: "Prime parts", group: "Collection", icon: { game: "ducats" }, hint: "Every prime part: keep it, sell it, or trade it to Baro for ducats" },
