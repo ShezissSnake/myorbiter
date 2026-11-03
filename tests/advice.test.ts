@@ -207,3 +207,13 @@ test("ducat buys: most ducats per platinum first, only parts that sell daily", a
   assert.deepEqual(b.map((x) => x.name), ["Rhino Prime Neuroptics Blueprint", "Rhino Prime Blueprint", "Rhino Prime Chassis Blueprint"], "9 a plat, then 5 a plat (more ducats first); Systems sells under once a day");
   assert.equal(b[0].rate, 9);
 });
+
+test("worth a trade: judged on one trade of up to six copies against 'Not worth a trade under Np'", async () => {
+  const { worthATrade } = await import("../src/lib/core/advice");
+  assert.equal(worthATrade(4, 1, 5), false, "one 4p mod isn't worth a trade");
+  assert.equal(worthATrade(4, 2, 5), true, "two go in one 8p trade");
+  assert.equal(worthATrade(0.5, 20, 5), false, "at most six a trade: 3p");
+  assert.equal(worthATrade(1, 6, 5), true);
+  assert.equal(worthATrade(null, 3, 5), false);
+  assert.equal(worthATrade(5, 0, 5), true, "no count: one copy");
+});

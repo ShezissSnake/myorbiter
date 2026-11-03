@@ -10,7 +10,7 @@
   import { mkt } from "../marketStore.svelte";
   import { masteryRows, relicRows, type RelicRow } from "../core/views";
   import { sellTargets, KIND_LABEL, BULK_KINDS, RULE_OF, type BulkKind } from "../core/bulk";
-  import { expectedBest } from "../core/advice";
+  import { expectedBest, worthATrade } from "../core/advice";
   import { baroFlips, baroStock, shortCredits, varziaNeeds, until } from "../core/traders";
   import { invasionNeeds, invasionRares } from "../core/invasions";
   import { alertNeeds, describeHelp } from "../core/worldNeeds";
@@ -75,7 +75,9 @@
   // What would go on sale: not what's held back for ducats.
   const targets = $derived(sellTargets(model, settings.market.bulk, settings.advice, mkt.index, settings.market.sellable, drops.recent).filter((t) => !t.hold));
   const valueOf = (kind: BulkKind, name: string) => (kind === "arcane" ? (model.priceMax(name) ?? model.price(name)) : model.price(name));
-  const worthy = $derived(targets.map((t) => ({ ...t, each: t.each !== undefined ? t.each : valueOf(t.kind, t.name) })).filter((t) => t.each != null && t.each >= minFor(t.name)));
+  // At least your minimum price each, and worth a trade: "Not worth a trade under Np" (Prime parts),
+  // judged on one trade of up to six copies, as for prime parts.
+  const worthy = $derived(targets.map((t) => ({ ...t, each: t.each !== undefined ? t.each : valueOf(t.kind, t.name) })).filter((t) => t.each != null && t.each >= minFor(t.name) && worthATrade(t.each, t.quantity, settings.advice.minPlat)));
   // Relics have their own minimum, as Put my spares on sale uses (they go in stacks).
   const minFor = (name: string) => (/ Relic$/.test(name) ? settings.market.minRelicPrice : settings.market.minPrice);
   const byKind = $derived(
@@ -460,7 +462,7 @@
       {:else if !byKind.length}
         <p class="dim">Nothing spare worth {settings.market.minPrice}p or more in what you ticked.</p>
       {:else}
-        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Only the kinds ticked under Put my spares on sale, on Orders, and only what's worth at least your minimum price there (relics: your relic minimum). Everything you could spare, of every kind, is on Inventory (You can spare)">at daily median prices: what Put my spares on sale would list (the kinds ticked there), {settings.market.minPrice}p and up{settings.market.bulk.other ? ` (relics ${settings.market.minRelicPrice}p)` : ""}{unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
+        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Only the kinds ticked under Put my spares on sale, on Orders, and only what's worth at least your minimum price there (relics: your relic minimum) and worth a trade: at least {settings.advice.minPlat}p in one trade of up to six copies (Not worth a trade under, set on Prime parts). Everything you could spare, of every kind, is on Inventory (You can spare)">at daily median prices: what Put my spares on sale would list (the kinds ticked there), {settings.market.minPrice}p and up{settings.market.bulk.other ? ` (relics ${settings.market.minRelicPrice}p)` : ""}{unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
         <ul class="kinds">
           {#each byKind as k (k.kind)}
             <li>
