@@ -282,6 +282,6 @@ export function missing(build: Build, m: Model, opts: { tier?: TierResult } = {}
   // The Helminth: not read yet.
   if (build.helminth) lines.push({ kind: "helminth", name: build.helminth.ability, have: "unknown", text: `orbiter can't check the Helminth yet: ${build.helminth.ability} replaces ${build.helminth.replaces}.` });
 
-  const fallback: TierResult = { tier: "low", fits: true, rank: 30, capacity: 30, drain: 0, catalyst: false, forma: 0, umbraForma: 0, formaPlan: [], exilusAdapter: false, arcaneAdapter: false, slots: [], reasons: ["orbiter doesn't know this item."], unknown: [] };
+  const fallback: TierResult = { tier: "low", capacityTier: "low", limits: [], fits: true, rank: 30, capacity: 30, drain: 0, catalyst: false, forma: 0, umbraForma: 0, formaPlan: [], exilusAdapter: false, arcaneAdapter: false, slots: [], reasons: ["orbiter doesn't know this item."], unknown: [] };
   return { tier: tier ?? fallback, lines, todo: lines.filter((l) => l.have === "short" || l.have === "missing").length, endo, copy };
 }
