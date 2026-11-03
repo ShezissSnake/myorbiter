@@ -1072,7 +1072,8 @@ class MarketStore {
   progress = $state<{ done: number; total: number } | null>(null);
 
   async planBulk(m: Model, s: MarketSettings, advice: DucatOptions) {
-    if (!this.linked || this.busy) return;
+    // A timed price check doesn't hold a plan back (it only reads); a change you asked for does.
+    if (!this.linked || this.op) return;
     this.bulk = null;
     await this.guard("Working out what to list", async () => {
       await this.ensureItems();
@@ -1127,14 +1128,14 @@ class MarketStore {
    * works the plan out again from your current inventory and listings (no network: the prices it
    * fetched are reused); if anything changed since you looked, it shows the new plan instead.
    */
-  async applyBulk(m: Model, s: MarketSettings, advice: DucatOptions) {
+  async applyBulk(m: Model, s: MarketSettings, advice: DucatOptions): Promise<BulkResult | null> {
     const shown = this.bulk;
-    if (!shown || this.busy || !this.me) return;
+    if (!shown || this.busy || !this.me) return null;
     // Prices move: a plan looked at a while ago is worked out again from fresh order books first.
     if (Date.now() - shown.at > PLAN_FRESH_MS) {
       await this.planBulk(m, s, advice);
       if (this.bulk) this.note("That plan was over 10 minutes old, so its prices were read again: look it over and apply again.", "warn");
-      return;
+      return { sent: 0, failed: 0, outcome: "replanned" };
     }
     // Busy from here, before the first wait: a second click mustn't start a second run.
     let changed = false;
@@ -1183,7 +1184,7 @@ class MarketStore {
       }
     });
     this.progress = null;
-    if (changed) return;
+    if (changed) return { sent: 0, failed: 0, outcome: "changed" };
     await this.refresh().catch(() => {});
     if (this.error) {
       // Stopped part way (the sign-in expired): keep only what wasn't sent, so a second Apply
@@ -1191,15 +1192,16 @@ class MarketStore {
       const left = shown.actions.filter((a) => !sent.has(a));
       this.bulk = left.some((a) => a.type !== "skip") ? { actions: left, at: Date.now(), books: shown.books } : null;
       this.note(`Stopped after ${sent.size} of ${todo.length} changes: ${this.error}`, "warn");
-      return;
+      return { sent: sent.size, failed, outcome: "stopped" };
     }
     this.bulk = null;
     this.note(`Your spares are on sale: ${sent.size} change${sent.size === 1 ? "" : "s"} made${failed ? `, ${failed} failed (see above)` : ""}`, failed ? "warn" : "ok");
+    return { sent: sent.size, failed, outcome: "done" };
   }
 
   /** Takes every one of your sell listings off warframe.market. */
-  async removeAll() {
-    if (this.busy) return;
+  async removeAll(): Promise<{ done: number; failed: number } | null> {
+    if (this.busy) return null;
     let done = 0;
     let failed = 0;
     let writeFailing = 0;
@@ -1225,6 +1227,7 @@ class MarketStore {
     });
     this.progress = null;
     this.note(`Removed ${done} listing${done === 1 ? "" : "s"} from warframe.market${failed ? `; ${failed} couldn't be removed` : ""}`, failed ? "warn" : "info");
+    return { done, failed };
   }
 
   /** Runs a change you asked for, showing it as in progress; false (and the error shown) when it failed. */
@@ -1249,6 +1252,16 @@ class MarketStore {
 
 const clean = (e: unknown) => String(e).replace(/^Error: /, "");
 const isAuthError = (e: unknown) => /refused the sign-in|Not signed in/i.test(String(e));
+
+/**
+ * How applying the spares plan went: done (sent, some may have failed), stopped part way (the
+ * error says why), the plan changed under it (look again), or it was too old and was replanned.
+ */
+export interface BulkResult {
+  sent: number;
+  failed: number;
+  outcome: "done" | "stopped" | "changed" | "replanned";
+}
 
 /** How a repricing pass went, for the button that started it. */
 export interface PassSummary {
