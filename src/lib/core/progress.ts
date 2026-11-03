@@ -45,3 +45,13 @@ export function rowsInView(top: number, rowHeight: number, viewport: number, min
   if (!laidOut || !(rowHeight > 0) || top >= viewport) return min;
   return Math.max(min, Math.ceil((viewport - top) / rowHeight) + 2);
 }
+
+/**
+ * Rows the next slice of a list drawn out of sight should draw: as many as fit `budget` ms at the
+ * pace the last slice went (`rows` rows in `ms`), from 2 up to `most`. No rows, or no time
+ * measured, says nothing: `last` again.
+ */
+export function rowsFor(ms: number, rows: number, budget: number, most: number, last = most): number {
+  if (!(rows > 0) || !(ms > 0)) return last;
+  return Math.max(2, Math.min(most, Math.floor((budget * rows) / ms)));
+}
