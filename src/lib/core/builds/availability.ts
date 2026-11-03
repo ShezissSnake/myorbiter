@@ -108,7 +108,7 @@ const INTERMEDIATE_SOURCE =
 // Enemies a new player doesn't meet: open-world, Deimos, Duviri and Zariman fauna, Sentients, the
 // Stalker, Amalgams, the Kuva, Narmer and Drekar Grineer, Höllvania's Techrot and Scaldra, late bosses.
 const SPECIAL_ENEMY =
-  /^(Deimos |Amalgam|Thrax|Void Angel|Ravenous Void|Kuva |Corrupted |Narmer|Techrot|Scaldra|Archimedean|Zealoid|Stalker|Shadow Stalker|Protector Stalker|Hunhow|Erra|Conculyst|Battalyst|Ortholyst|Summulyst|Symbilyst|Decaying |Tyro |Mimic|Commandeered|Ropalolyst|Jordas|J3 |Wolf Of Saturn|Lephantis|Vay Hek|Raptor|Profit|Exploiter|Hemocyte|Ghoul|Tusk|Terra |Scrofa |Syzygy |Necramech|H-09|Mocking|Scathing|The Fragmented|\w+ Specter$|Drekar|\w* ?Raknoid|Coildrive|\w+ Commander$|\w* ?Diploid|\w* ?Thrasher|Undying|Orb |Ghoul|Vapos|Kavor|Osprey Commander)/;
+  /^(Deimos |Amalgam|Thrax|Void Angel|Ravenous Void|Kuva |Corrupted |Narmer|Techrot|Scaldra|Archimedean|Zealoid|Stalker|Shadow Stalker|Protector Stalker|Hunhow|Erra|Conculyst|Battalyst|Ortholyst|Summulyst|Symbilyst|Decaying |Tyro |Mimic|Commandeered|Ropalolyst|Jordas|J3 |Wolf Of Saturn|Lephantis|Vay Hek|Raptor|Profit|Exploiter|Hemocyte|Ghoul|Tusk|Terra |Scrofa |Syzygy |Necramech|H-09|Mocking|Scathing|The Fragmented|\w+ Specter$|Drekar|\w* ?Raknoid|Coildrive|\w+ Commander$|\w* ?Diploid|\w* ?Thrasher|Undying|Orb |Ghoul|Vapos|Kavor|Osprey Commander|The Hollow Vein|.* Target$)/;
 
 /** How far in a player is before they reach one drop source. */
 export function sourceLevel(location: string): Availability {
