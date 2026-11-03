@@ -124,4 +124,5 @@ test("background work starts only in an idle period with room, a second after th
   assert.equal(idleReady(40, 200), false, "just clicked: wait, another click may follow");
   assert.equal(idleReady(10, QUIET_MS + 1), false, "no room left in this idle period");
   assert.equal(idleReady(0, 0, 30, QUIET_MS, true), true, "the idle callback's own deadline passed");
+  assert.equal(idleReady(40, QUIET_MS + 1, 30, QUIET_MS, false, true), false, "a row still closing up on screen: after it");
 });

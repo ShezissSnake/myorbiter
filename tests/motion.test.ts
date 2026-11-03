@@ -70,3 +70,10 @@ test("rows sliding to their new places only slide: none is squashed on the way",
   assert.equal(c.css!(0, 1), "transform:translate(200.00px,100.00px)");
   assert.doesNotMatch(c.css!(0.5, 0.5), /scale/);
 });
+
+test("every motion says how long it moves for, so background work can wait for it", async () => {
+  const { moving, stillMoving } = await import("../src/lib/motion");
+  assert.equal(moving(0), 0);
+  assert.equal(moving(120), 120);
+  assert.equal(stillMoving(), true);
+});

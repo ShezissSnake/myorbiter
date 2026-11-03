@@ -8,7 +8,7 @@
 //   (`catchUp`), so the next visit finds them current, and a visit catches up at once anyway.
 // What a page shows is always what the same rows would be worked out fresh: only *when* changes.
 import { untrack } from "svelte";
-import { sinceInput } from "./motion";
+import { sinceInput, stillMoving } from "./motion";
 
 let current: () => string = () => "";
 /** App: where to read the page on screen from (its tab, a reactive read). */
@@ -68,10 +68,11 @@ export const QUIET_MS = 1000;
 /**
  * Whether background work may start now: an idle period with room for a slice (`room` ms), and no
  * click or key in the last `quiet` ms (a click often comes in a burst, Radshare then Platinum; work
- * started between them makes the second one wait). Past the idle callback's own timeout, at once.
+ * started between them makes the second one wait), and nothing on screen still moving (motion.ts,
+ * `moving`: a row closing up shouldn't stutter for it). Past the idle callback's own timeout, at once.
  */
-export function idleReady(left: number, since: number, room = 30, quiet = QUIET_MS, timedOut = false): boolean {
-  return timedOut || (left >= room && since >= quiet);
+export function idleReady(left: number, since: number, room = 30, quiet = QUIET_MS, timedOut = false, moving = false): boolean {
+  return timedOut || (left >= room && since >= quiet && !moving);
 }
 
 /**
@@ -97,7 +98,7 @@ export function whenIdle(f: () => void, room = 30): () => void {
       id = window.requestIdleCallback(
         (d) => {
           if (done) return;
-          if (idleReady(d.timeRemaining(), sinceInput(), room, QUIET_MS, d.didTimeout)) f();
+          if (idleReady(d.timeRemaining(), sinceInput(), room, QUIET_MS, d.didTimeout, stillMoving())) f();
           else if (sinceInput() < QUIET_MS) later(ask);
           else ask();
         },
@@ -109,7 +110,7 @@ export function whenIdle(f: () => void, room = 30): () => void {
   }
   const tick = () => {
     if (done) return;
-    if (sinceInput() >= QUIET_MS) f();
+    if (sinceInput() >= QUIET_MS && !stillMoving()) f();
     else later(tick);
   };
   wait = setTimeout(tick, 300);

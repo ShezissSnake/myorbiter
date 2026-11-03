@@ -4,6 +4,7 @@
 import { untrack } from "svelte";
 import { rowsInView, settled, stepRows } from "./core/progress";
 import { whenIdle } from "./pane.svelte";
+import { stillMoving } from "./motion";
 
 /**
  * How many of a list's items fill the window, kept up to date as the page scrolls and as the list
@@ -160,7 +161,7 @@ export function progressive<T>(
         (idle = window.requestIdleCallback(
           (d) => {
             idle = 0;
-            if (d.didTimeout || d.timeRemaining() >= 8 || performance.now() >= due) f();
+            if (d.didTimeout || (d.timeRemaining() >= 8 && !stillMoving()) || performance.now() >= due) f();
             else ask();
           },
           { timeout: Math.max(1, due - performance.now()) },

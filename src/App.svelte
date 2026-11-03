@@ -191,10 +191,10 @@
   });
   // Once the app is idle after starting, open the other pages in the background one at a time, so
   // the first visit to each is as quick as switching back to it. Rivens waits for a visit: opening
-  // it asks warframe.market for its riven list.
-  // Each page a slice of its own, in a quiet moment (no click for a second, lib/pane.svelte.ts): a
-  // page loaded on demand has its code fetched first and is drawn in a later slice, so its arrival
-  // doesn't land on top of another page's first draw.
+  // it asks warframe.market for its riven list. Each page is a slice of its own, in a quiet moment
+  // (no click for a second, lib/pane.svelte.ts), its lists drawn a few rows at first
+  // (lib/progress.svelte.ts); a page loaded on demand has its code fetched first and is drawn in a
+  // later slice, so its arrival doesn't land on top of another page's first draw.
   let warmed = false;
   const lazyPages: Partial<Record<string, () => Promise<unknown>>> = {
     sets: loadSets, mastery: loadMastery, arcanes: loadArcanes, mods: loadMods, planner: loadPlanner, sales: loadSales,
