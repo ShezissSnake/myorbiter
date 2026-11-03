@@ -130,19 +130,14 @@ pub fn check_custom(path: &str) -> Result<PathBuf, String> {
 }
 
 /// Where to find TennoScope: the path from Settings, then the one inside orbiter, then (in a
-/// development build) one built in this checkout's `tennoscope/` folder, then whatever a
-/// separate clone at `~/dev/projects/tennoscope` (where TennoScope was built before its source
-/// moved into this repository), then whatever `tennoscope` is on PATH.
+/// development build) one built in this checkout's `tennoscope/` folder, then whatever
+/// `tennoscope` is on PATH.
 pub fn find_binary(custom: Option<&str>, bundled: Option<&Path>) -> Option<PathBuf> {
     if let Some(c) = custom.map(str::trim).filter(|c| !c.is_empty()) {
         return check_custom(c).ok();
     }
-    let home = std::env::var_os("HOME").map(PathBuf::from);
     let mut candidates: Vec<PathBuf> = bundled.map(Path::to_path_buf).into_iter().collect();
     candidates.extend(checkout_build());
-    if let Some(h) = &home {
-        candidates.push(h.join("dev/projects/tennoscope/target/release").join(PROCESS));
-    }
     if let Some(path) = std::env::var_os("PATH") {
         candidates.extend(std::env::split_paths(&path).map(|d| d.join(PROCESS)));
     }
