@@ -3,16 +3,16 @@
 // and which of its parts you hold.
 //
 // The numbers are the Warframe Wiki's (Module:Modular/data and the Amp, Predasite and Vulpaphyla
-// pages), bundled once as src/lib/data/modular-parts*.json under their own licence (CC BY-NC-SA 3.0,
-// see modular-parts.LICENSE.md); orbiter never fetches the wiki. The ranking is orbiter's own, from
+// pages), shipped beside the app as public/data/wiki/modular-parts*.json under their own licence
+// (CC BY-NC-SA 3.0, see LICENSE.md there) and read at start (wikiData.ts), never compiled in;
+// orbiter never fetches the wiki. The ranking is orbiter's own, from
 // those part stats, with the simple formulas written out below. It isn't "the meta", and the UI
 // says so (RANKING_LABEL).
 //
 // Not covered: the Mote Amp and Sirocco (they come whole), K-Drives (no stats), and amp damage
 // (the Amp page has none per part: amps rank by what their scaffold and brace do).
-import partsData from "../data/modular-parts.json";
-import extraData from "../data/modular-parts-extra.json";
 import pathsData from "../data/modular-parts-paths.json";
+import { wikiData, wikiGeneration } from "./wikiData";
 import research from "../data/acquisition.json";
 import { heldCount, type Model } from "./model";
 import type { GearCopy } from "./notNeeded";
@@ -66,8 +66,17 @@ interface Extra {
 }
 type Paths = Record<string, Record<string, { u: string; bp?: string }>>;
 
-const DATA = partsData as unknown as Modular;
-const EXTRA = extraData as unknown as Extra;
+/** The wiki's tables, once loaded (loadWikiData, at start). */
+function modular(): Modular {
+  const d = wikiData();
+  if (!d) throw new Error("the modular part data isn't loaded yet (loadWikiData)");
+  return d.modularParts as Modular;
+}
+function extra(): Extra {
+  const d = wikiData();
+  if (!d) throw new Error("the modular part data isn't loaded yet (loadWikiData)");
+  return d.modularExtra as Extra;
+}
 const PATHS = pathsData as unknown as Paths;
 const HOW = research as unknown as Record<string, { how?: string } | undefined>;
 
@@ -187,25 +196,31 @@ function path(group: string, name: string): { u: string; bp?: string } | null {
   return PATHS[group]?.[name] ?? null;
 }
 
-const ITEMS: RecipeItem[] = [
-  ...Object.keys(DATA.KitgunSecondary.Chamber).map((k) => ({ family: "kitgun" as const, key: k, name: k, unique: path("KitgunChamber", k)!.u })),
-  ...Object.keys(DATA.Zaw.Strike).map((k) => ({ family: "zaw" as const, key: k, name: k, unique: path("ZawStrike", k)!.u })),
-  ...Object.keys(EXTRA.Amp.Prism).map((k) => ({ family: "amp" as const, key: k, name: `${k} Prism`, unique: path("AmpPrism", k)!.u })),
-  ...Object.keys(DATA.MOA.Model).map((k) => ({ family: "moa" as const, key: k, name: `${k} Moa`, unique: path("MoaModel", k)!.u })),
-  ...Object.keys(DATA.Hound.Model).map((k) => ({ family: "hound" as const, key: k, name: `${k} Hound`, unique: path("HoundModel", k)!.u })),
-  ...Object.keys(EXTRA.Predasite.Subspecies).map((k) => ({ family: "predasite" as const, key: k, name: `${k} Predasite`, unique: path("PredasiteSubspecies", k)!.u })),
-  ...Object.keys(EXTRA.Vulpaphyla.Subspecies).map((k) => ({ family: "vulpaphyla" as const, key: k, name: `${k} Vulpaphyla`, unique: path("VulpaphylaSubspecies", k)!.u })),
+let itemsMemo: { gen: number; items: RecipeItem[] } | null = null;
+const ITEMS_OF = (): RecipeItem[] => [
+  ...Object.keys(modular().KitgunSecondary.Chamber).map((k) => ({ family: "kitgun" as const, key: k, name: k, unique: path("KitgunChamber", k)!.u })),
+  ...Object.keys(modular().Zaw.Strike).map((k) => ({ family: "zaw" as const, key: k, name: k, unique: path("ZawStrike", k)!.u })),
+  ...Object.keys(extra().Amp.Prism).map((k) => ({ family: "amp" as const, key: k, name: `${k} Prism`, unique: path("AmpPrism", k)!.u })),
+  ...Object.keys(modular().MOA.Model).map((k) => ({ family: "moa" as const, key: k, name: `${k} Moa`, unique: path("MoaModel", k)!.u })),
+  ...Object.keys(modular().Hound.Model).map((k) => ({ family: "hound" as const, key: k, name: `${k} Hound`, unique: path("HoundModel", k)!.u })),
+  ...Object.keys(extra().Predasite.Subspecies).map((k) => ({ family: "predasite" as const, key: k, name: `${k} Predasite`, unique: path("PredasiteSubspecies", k)!.u })),
+  ...Object.keys(extra().Vulpaphyla.Subspecies).map((k) => ({ family: "vulpaphyla" as const, key: k, name: `${k} Vulpaphyla`, unique: path("VulpaphylaSubspecies", k)!.u })),
 ];
+
+function items(): RecipeItem[] {
+  if (itemsMemo?.gen !== wikiGeneration()) itemsMemo = { gen: wikiGeneration(), items: ITEMS_OF() };
+  return itemsMemo.items;
+}
 
 /** Every item orbiter has recipes for. */
 export function recipeItems(): RecipeItem[] {
-  return ITEMS;
+  return items();
 }
 
 /** The recipe item for a path or a name ("Catchmoon", "raplak prism", "Raplak", "Para Moa"); null otherwise. */
 export function recipeItem(itemPathOrName: string): RecipeItem | null {
   const q = itemPathOrName.trim().toLowerCase();
-  return ITEMS.find((i) => i.unique === itemPathOrName || i.name.toLowerCase() === q || i.key.toLowerCase() === q) ?? null;
+  return items().find((i) => i.unique === itemPathOrName || i.name.toLowerCase() === q || i.key.toLowerCase() === q) ?? null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -256,7 +271,7 @@ export function goalsFor(itemPathOrName: string): GoalInfo[] {
     case "moa": return [...DURABLE_GOALS, ...polarityGoals("bracket", ["Madurai", "Naramon", "Vazarin"])];
     case "hound": {
       // A Hound's bracket and stabilizer each bring a precept: rank for one of them.
-      const precepts = [...Object.values(DATA.Hound.Bracket), ...Object.values(DATA.Hound.Stabilizer)].flatMap((p) => p.Precepts ?? []);
+      const precepts = [...Object.values(modular().Hound.Bracket), ...Object.values(modular().Hound.Stabilizer)].flatMap((p) => p.Precepts ?? []);
       return [
         ...DURABLE_GOALS,
         ...precepts.map((p) => ({ id: `precept:${p}`, label: p, explain: `Combos with ${p} first, then the most health.` })),
@@ -281,7 +296,7 @@ function zawWhere(role: PartRole, name: string): string {
 }
 function ampWhere(p: AmpPart, role: PartRole): string {
   const quills = p.syndicate === "The Quills";
-  const cost = quills ? EXTRA.Amp.standing["The Quills"][String(p.series)] : role === "prism" ? 3000 : null;
+  const cost = quills ? extra().Amp.standing["The Quills"][String(p.series)] : role === "prism" ? 3000 : null;
   const at = quills ? "Onkko in Cetus" : "Little Duck in Fortuna";
   return `${at} (${p.syndicate}, ${p.rank}${cost ? `, ${cost.toLocaleString("en-US")} standing` : ""})`;
 }
@@ -358,7 +373,7 @@ export interface KitgunStats {
  * No mods, no falloff, no status damage: a comparison of parts, not a DPS calculator.
  */
 export function kitgunStats(slot: KitgunSlot, chamber: string, grip: string, loader: string): KitgunStats | null {
-  const s = slot === "primary" ? DATA.KitgunPrimary : DATA.KitgunSecondary;
+  const s = slot === "primary" ? modular().KitgunPrimary : modular().KitgunSecondary;
   const c = s.Chamber[chamber];
   const l = s.Loader[loader];
   const types = c?.Damage[grip];
@@ -436,9 +451,9 @@ export interface ZawStats {
  * multipliers (slide, wall, leap) aren't applied.
  */
 export function zawStats(strike: string, grip: string, link: string): ZawStats | null {
-  const s = DATA.Zaw.Strike[strike];
-  const g = DATA.Zaw.Grip[grip];
-  const l = DATA.Zaw.Link[link];
+  const s = modular().Zaw.Strike[strike];
+  const g = modular().Zaw.Grip[grip];
+  const l = modular().Zaw.Link[link];
   if (!s || !g || !l) return null;
   const base = sum(s.Damage);
   const damage = r2(base + g.Damage + l.Damage);
@@ -487,15 +502,15 @@ const SCAFFOLD_AREA: Record<string, boolean> = { Pencha: false, Klebrik: false, 
 const PRISM_AREA: Record<string, boolean> = { Raplak: false, Rahn: false, Cantic: false, Shwaak: true, Granmu: true, Lega: true, Klamora: true };
 
 function ampScored(prism: string, scaffold: string, brace: string, goal: string): Scored {
-  const sc = EXTRA.Amp.Scaffold[scaffold];
-  const b = EXTRA.Amp.Brace[brace];
+  const sc = extra().Amp.Scaffold[scaffold];
+  const b = extra().Amp.Brace[brace];
   const crit = b.critChance ?? 0;
   const status = b.statusChance ?? 0;
   const stats: Stat[] = [
-    { id: "prism", label: "Primary fire", value: EXTRA.Amp.Prism[prism].fire ?? "" },
+    { id: "prism", label: "Primary fire", value: extra().Amp.Prism[prism].fire ?? "" },
     { id: "scaffold", label: "Alt fire", value: sc.fire ?? "" },
     { id: "brace", label: "Brace", value: b.effect ?? "" },
-    { id: "series", label: "Series", value: `${EXTRA.Amp.Prism[prism].series}${sc.series}${b.series}` },
+    { id: "series", label: "Series", value: `${extra().Amp.Prism[prism].series}${sc.series}${b.series}` },
   ];
   switch (goal) {
     case "crowds": return { stats, keys: [SCAFFOLD_AREA[scaffold] ? 1 : 0, crit + status], scoreLabel: SCAFFOLD_AREA[scaffold] ? "Area alt fire" : "Single-target alt fire" };
@@ -549,7 +564,7 @@ interface Raw { slot?: KitgunSlot; parts: RecipePart[]; scored: Scored }
 function kitgunCombos(item: RecipeItem, goal: string, h: Holdings, slots: KitgunSlot[]): Raw[] {
   const out: Raw[] = [];
   for (const slot of slots) {
-    const s = slot === "primary" ? DATA.KitgunPrimary : DATA.KitgunSecondary;
+    const s = slot === "primary" ? modular().KitgunPrimary : modular().KitgunSecondary;
     const chamber = part(h, "chamber", item.key, "KitgunChamber", kitgunWhere("chamber", item.unique), true);
     for (const grip of Object.keys(s.Grip)) {
       for (const loader of Object.keys(s.Loader)) {
@@ -567,8 +582,8 @@ function kitgunCombos(item: RecipeItem, goal: string, h: Holdings, slots: Kitgun
 function zawCombos(item: RecipeItem, goal: string, h: Holdings): Raw[] {
   const out: Raw[] = [];
   const strike = part(h, "strike", item.key, "ZawStrike", zawWhere("strike", item.key), true);
-  for (const grip of Object.keys(DATA.Zaw.Grip)) {
-    for (const link of Object.keys(DATA.Zaw.Link)) {
+  for (const grip of Object.keys(modular().Zaw.Grip)) {
+    for (const link of Object.keys(modular().Zaw.Link)) {
       const z = zawStats(item.key, grip, link)!;
       out.push({ parts: [strike, part(h, "grip", grip, "ZawGrip", zawWhere("grip", grip)), part(h, "link", link, "ZawLink", zawWhere("link", link))], scored: zawScored(z, goal) });
     }
@@ -578,9 +593,9 @@ function zawCombos(item: RecipeItem, goal: string, h: Holdings): Raw[] {
 
 function ampCombos(item: RecipeItem, goal: string, h: Holdings): Raw[] {
   const out: Raw[] = [];
-  const prism = part(h, "prism", item.key, "AmpPrism", ampWhere(EXTRA.Amp.Prism[item.key], "prism"), true);
-  for (const [sn, sc] of Object.entries(EXTRA.Amp.Scaffold)) {
-    for (const [bn, b] of Object.entries(EXTRA.Amp.Brace)) {
+  const prism = part(h, "prism", item.key, "AmpPrism", ampWhere(extra().Amp.Prism[item.key], "prism"), true);
+  for (const [sn, sc] of Object.entries(extra().Amp.Scaffold)) {
+    for (const [bn, b] of Object.entries(extra().Amp.Brace)) {
       out.push({
         parts: [prism, part(h, "scaffold", sn, "AmpScaffold", ampWhere(sc, "scaffold")), part(h, "brace", bn, "AmpBrace", ampWhere(b, "brace"))],
         scored: ampScored(item.key, sn, bn, goal),
@@ -596,9 +611,9 @@ function moaCombos(item: RecipeItem, goal: string, h: Holdings): Raw[] {
   const out: Raw[] = [];
   const model = part(h, "model", item.key, "MoaModel", MOA_MODEL_WHERE[item.key] ?? "Legs in Fortuna (Solaris United)", true);
   const legs = "Legs in Fortuna (Solaris United)";
-  for (const [cn, c] of Object.entries(DATA.MOA.Core)) {
-    for (const [gn, g] of Object.entries(DATA.MOA.Gyro)) {
-      for (const [bn, b] of Object.entries(DATA.MOA.Bracket)) {
+  for (const [cn, c] of Object.entries(modular().MOA.Core)) {
+    for (const [gn, g] of Object.entries(modular().MOA.Gyro)) {
+      for (const [bn, b] of Object.entries(modular().MOA.Bracket)) {
         // The core's and gyro's bonuses add up (fractions of the MOA's base stats).
         const hp = r4((c.Health ?? 0) + (g.Health ?? 0));
         const sh = r4((c.Shield ?? 0) + (g.Shield ?? 0));
@@ -615,15 +630,15 @@ function houndCombos(item: RecipeItem, goal: string, h: Holdings): Raw[] {
   const out: Raw[] = [];
   const model = part(h, "model", item.key, "HoundModel", HOUND_WHERE, true);
   const want = goal.startsWith("precept:") ? goal.slice("precept:".length) : null;
-  for (const [cn, c] of Object.entries(DATA.Hound.Core)) {
-    for (const [bn, b] of Object.entries(DATA.Hound.Bracket)) {
-      for (const [sn, s] of Object.entries(DATA.Hound.Stabilizer)) {
+  for (const [cn, c] of Object.entries(modular().Hound.Core)) {
+    for (const [bn, b] of Object.entries(modular().Hound.Bracket)) {
+      for (const [sn, s] of Object.entries(modular().Hound.Stabilizer)) {
         // The core gives flat health, shields and armor; orbiter's estimate applies the bracket's
         // percentages to them.
         const hp = (c.Health ?? 0) * (1 + (b.Health ?? 0));
         const sh = (c.Shield ?? 0) * (1 + (b.Shield ?? 0));
         const ar = (c.Armor ?? 0) * (1 + (b.Armor ?? 0));
-        const precepts = [...(DATA.Hound.Model[item.key].Precepts ?? []), ...(b.Precepts ?? []), ...(s.Precepts ?? [])];
+        const precepts = [...(modular().Hound.Model[item.key].Precepts ?? []), ...(b.Precepts ?? []), ...(s.Precepts ?? [])];
         const scored = durableScored(hp, sh, ar, want ? "health" : goal, [
           { id: "precepts", label: "Precepts", value: precepts.join(", ") },
           { id: "polarity", label: "Stabilizer polarity", value: polarity(s) },
@@ -642,7 +657,7 @@ function houndCombos(item: RecipeItem, goal: string, h: Holdings): Raw[] {
 
 function creatureCombos(item: RecipeItem, goal: string, h: Holdings): Raw[] {
   const kind = item.family === "predasite" ? "Predasite" : "Vulpaphyla";
-  const data = EXTRA[kind];
+  const data = extra()[kind];
   const out: Raw[] = [];
   // The subspecies is caught (Conservation), not held as a part: orbiter can't see a Weakened one.
   const sub: RecipePart = {
@@ -687,15 +702,15 @@ export interface RecipeOptions {
   limit?: number;
 }
 
-const GAPS: Record<RecipeFamily, string[]> = {
+const GAPS = (): Record<RecipeFamily, string[]> => ({
   kitgun: ["Mods, falloff and status damage aren't counted: the numbers compare parts, not a finished build."],
   zaw: ["Slide, wall and leap attack multipliers aren't applied; grip and link damage is shared across the strike's damage types in proportion."],
-  amp: [EXTRA.Amp._gaps, "Scaffolds are read as area or single-target from the page's words; that reading is orbiter's."],
+  amp: [extra().Amp._gaps, "Scaffolds are read as area or single-target from the page's words; that reading is orbiter's."],
   moa: ["Core and gyro bonuses are fractions of the MOA's base stats, which the data doesn't give."],
   hound: ["Health, shields and armor apply the bracket's percentages to the core's values: orbiter's estimate.", "Precept effects aren't in the data."],
-  predasite: [EXTRA.Predasite._gaps, "orbiter can't see a caught Weakened subspecies in your inventory."],
-  vulpaphyla: [EXTRA.Vulpaphyla._gaps, "orbiter can't see a caught Weakened subspecies in your inventory."],
-};
+  predasite: [extra().Predasite._gaps, "orbiter can't see a caught Weakened subspecies in your inventory."],
+  vulpaphyla: [extra().Vulpaphyla._gaps, "orbiter can't see a caught Weakened subspecies in your inventory."],
+});
 
 /**
  * Every combination of parts for a modular item, with its stats, ranked for a goal, and what you
@@ -755,18 +770,18 @@ export function recipesFor(itemPathOrName: string, goal?: string | null, invento
     label: RANKING_LABEL,
     how: HOW[item.name]?.how ?? null,
     combos: ranked,
-    gaps: GAPS[item.family],
+    gaps: GAPS()[item.family],
   };
-  if (item.family === "moa") result.precepts = DATA.MOA.Model[item.key].Precepts ?? [];
-  if (item.family === "hound") result.precepts = DATA.Hound.Model[item.key].Precepts ?? [];
+  if (item.family === "moa") result.precepts = modular().MOA.Model[item.key].Precepts ?? [];
+  if (item.family === "hound") result.precepts = modular().Hound.Model[item.key].Precepts ?? [];
   if (item.family === "predasite" || item.family === "vulpaphyla") {
     const kind = item.family === "predasite" ? "Predasite" : "Vulpaphyla";
-    result.precepts = EXTRA[kind].Subspecies[item.key].precepts;
+    result.precepts = extra()[kind].Subspecies[item.key].precepts;
     result.role = CREATURE_ROLE[item.key];
   }
   if (item.family === "amp") {
     const area = PRISM_AREA[item.key];
-    const fire = EXTRA.Amp.Prism[item.key].fire ?? "";
+    const fire = extra().Amp.Prism[item.key].fire ?? "";
     result.fit = g.id === "crowds" ? `${item.name}: ${fire} ${area ? "Suits crowds." : "Better on single targets."}`
       : g.id === "single" ? `${item.name}: ${fire} ${area ? "Better on crowds." : "Suits single targets."}`
       : `${item.name}: ${fire}`;

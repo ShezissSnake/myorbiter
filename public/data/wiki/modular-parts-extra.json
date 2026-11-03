@@ -4,7 +4,7 @@
   { "page": "Predasite", "url": "https://wiki.warframe.com/w/Predasite", "revision": 2822723, "lastEdited": "2026-11-02", "fetched": "2026-11-03" },
   { "page": "Vulpaphyla", "url": "https://wiki.warframe.com/w/Vulpaphyla", "revision": 2822724, "lastEdited": "2026-11-02", "fetched": "2026-11-03" }
  ],
- "_how": "Hand-copied from each page's tables, read once each. License: CC BY-NC-SA 3.0 (see modular-parts.LICENSE.md).",
+ "_how": "Hand-copied from each page's tables, read once each. License: CC BY-NC-SA 3.0 (see LICENSE.md in this folder).",
  "Amp": {
   "_gaps": "The Amp page gives each prism and scaffold's fire mode in words, not its damage, crit, status or fire rate; only the braces have numbers. No per-part damage is recorded here.",
   "Prism": {

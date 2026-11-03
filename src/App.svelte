@@ -111,6 +111,7 @@
   import ListDialog from "./lib/ui/ListDialog.svelte";
   import SettingsSheet from "./lib/SettingsSheet.svelte";
   import TennoscopeSheet from "./lib/TennoscopeSheet.svelte";
+  import { loadWikiData } from "./lib/core/wikiData";
   import Icon from "./lib/ui/Icon.svelte";
   import IconButton from "./lib/ui/IconButton.svelte";
   import ProgressButton from "./lib/ui/ProgressButton.svelte";
@@ -2143,7 +2144,11 @@
       }
     });
     (async () => {
+      // The wiki's data (Arcane Dissolution, modular parts) ships beside the app under its own
+      // licence: read before anything uses it. Without it there's simply nothing to dissolve into.
+      const wiki = loadWikiData().catch((e) => logLine("warn", "app", `couldn't read the wiki data files: ${e}`));
       settings = await loadSettings();
+      await wiki;
       if (stopped) return;
       settings.tab = migrateTab(settings.startPage !== "last" ? settings.startPage : settings.tab);
       settingsReady = true;

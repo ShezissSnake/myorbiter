@@ -6,7 +6,7 @@
   "lastEdited": "2026-06-22",
   "fetched": "2026-11-03",
   "how": "One manual read of the rendered page; the Lua table converted to JSON as is.",
-  "license": "CC BY-NC-SA 3.0 (see modular-parts.LICENSE.md)"
+  "license": "CC BY-NC-SA 3.0 (see LICENSE.md in this folder)"
  },
  "KitgunSecondary": {
   "Chamber": {

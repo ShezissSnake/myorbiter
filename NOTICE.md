@@ -23,9 +23,12 @@ carry a TennoScope built from that folder, with Tesseract (Apache-2.0).
 
 These are bundled with orbiter but are not covered by its licence:
 
-- `src/lib/data/modular-parts.json` and `src/lib/data/modular-parts-extra.json`: from the Warframe
-  Wiki, under Creative Commons Attribution-NonCommercial-ShareAlike 3.0 (CC BY-NC-SA 3.0); source,
-  attribution and changes in `src/lib/data/modular-parts.LICENSE.md`.
+- `public/data/wiki/` (`modular-parts.json`, `modular-parts-extra.json`, `vosfor.json`): data from
+  the Warframe Wiki, under Creative Commons Attribution-NonCommercial-ShareAlike 3.0 (CC BY-NC-SA
+  3.0); source, attribution and changes in `public/data/wiki/LICENSE.md`. These are separate data
+  files shipped beside orbiter (in every download, as `data/wiki/` among its web files), not
+  compiled into its program: orbiter reads them when it starts. Their licence is theirs alone (mere
+  aggregation): it doesn't extend to orbiter, and orbiter's doesn't extend to them.
 - `src/lib/data/modular-parts-paths.json`: from WFCD's warframe-items data (MIT).
 - `public/game/`: Warframe's own icons, taken from the official wiki and WFCD
   (`public/game/SOURCES.json` records where each came from), and TennoScope's part, pistol and
