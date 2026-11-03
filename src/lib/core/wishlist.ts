@@ -103,6 +103,9 @@ export function relicsFor(m: Model, part: string): RelicChance[] {
   return out.sort((a, b) => b.best - a.best || b.total - a.total);
 }
 
+/** The most copies of one relic at one refinement finishOdds counts. */
+export const ODDS_COPIES = 200;
+
 /**
  * Chance that cracking every relic you hold for these parts, each copy once, gives every copy you
  * need. Worked out exactly: one crack gives one reward, so a relic that drops two of the parts can
@@ -121,7 +124,9 @@ export function finishOdds(m: Model, parts: { name: string; need: number }[]): n
     for (const ref of REFINEMENTS) {
       const n = o[ref] ?? 0;
       const odds = want.map((p) => chanceAt(m, base, ref, p.name) / 100);
-      if (n && odds.some((x) => x > 0)) for (let i = 0; i < n; i++) copies.push(odds);
+      // Past a couple of hundred copies of one relic the chance has levelled off, and a count
+      // that big (a bad read) would otherwise build an array too long to make.
+      if (n && odds.some((x) => x > 0)) for (let i = 0; i < Math.min(n, ODDS_COPIES); i++) copies.push(odds);
     }
   }
   // Probability of each "copies still needed" state, crack by crack.
