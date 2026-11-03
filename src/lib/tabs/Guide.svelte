@@ -284,7 +284,7 @@
         <li>Stats, abilities and build costs: the item catalog TennoScope keeps (WFCD). Rivens: each one's stats from your inventory, with the game's own base values; asking prices from warframe.market's riven auctions; last week's in-game trades from Digital Extremes' weekly figures (read again every six hours while orbiter is open); the Estimate from orbiter's own price model, trained on about 80,000 listings (<code>scripts/riven-model/README.md</code>).</li>
         <li>Relics in a mission: Warframe's own <code>EE.log</code>, read only.</li>
         <li>Finish odds on Wishlist and Mastery: each relic's drop chance at the refinement you hold, assuming you crack every copy once. Squadmates' relics aren't counted.</li>
-        <li>The four reward cards: Warframe only logs your own, so orbiter gets them from a TennoScope patched to share them (<code>patches/README.md</code>). That patch also puts orbiter's score and <b>Pick</b> on TennoScope's overlay. Without it, Current fissure ranks everything the squad's relics can drop.</li>
+        <li>The four reward cards: Warframe only logs your own, so orbiter gets them from a TennoScope changed to share them (orbiter's own, built from <code>tennoscope/</code>: <code>tennoscope/ORBITER.md</code>). That change also puts orbiter's score and <b>Pick</b> on TennoScope's overlay. Without it, Current fissure ranks everything the squad's relics can drop.</li>
       </ul>
     </article>
   </section>

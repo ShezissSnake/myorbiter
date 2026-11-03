@@ -688,7 +688,7 @@
       <h2 class="mark">Your rivens show up after TennoScope's next read</h2>
       <p class="prose">orbiter gets your rivens' stats through TennoScope, which needs three things:</p>
       <ol class="prose steps">
-        <li>TennoScope rebuilt with orbiter's current patch (<code>patches/README.md</code> has the commands).</li>
+        <li>TennoScope rebuilt from orbiter's current <code>tennoscope/</code> folder (<code>tennoscope/ORBITER.md</code> has the commands).</li>
         <li>Full access, chosen in TennoScope's own window.</li>
         <li>A read of your inventory: press <b>Sync</b> while Warframe is running.</li>
       </ol>
