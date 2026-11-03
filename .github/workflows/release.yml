@@ -2,8 +2,10 @@ name: Release builds
 
 # Builds orbiter for Linux and the Steam Deck (one AppImage), Windows (an installer) and macOS
 # (a .dmg), each a single download with nothing else to install. The Linux and Windows builds carry
-# a patched TennoScope inside them (patches/tennoscope-orbiter.patch on TennoScope's pinned commit),
-# with its Tesseract; TennoScope doesn't run on macOS, so the Mac build goes without it.
+# TennoScope inside them, built from tennoscope/ in this repository (TennoScope with orbiter's
+# changes, see tennoscope/ORBITER.md), with its Tesseract; TennoScope doesn't run on macOS, so the
+# Mac build goes without it. orbiter and TennoScope are GPL-3.0-only, so every run also attaches
+# orbiter-source.tar.gz, the complete source of the commit it built.
 #
 # Run it from the Actions tab (Run workflow), or push a tag like `v0.2.0`. Every run puts its
 # downloads on a pre-release of its own (Releases, on the repository's page): `build-<n>` for a
@@ -36,9 +38,6 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # The TennoScope commit the patch is written against (see patches/README.md).
-  TENNOSCOPE_REPO: https://github.com/Deftera186/tennoscope.git
-  TENNOSCOPE_COMMIT: e5755f8
   # Where this run's downloads go.
   RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('build-{0}', github.run_number) }}
   GH_TOKEN: ${{ github.token }}
@@ -52,7 +51,7 @@ jobs:
         run: |
           gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --prerelease --title "orbiter $RELEASE_TAG" \
-            --notes "Built from ${GITHUB_SHA::7}. The AppImage is for Linux and the Steam Deck, the setup.exe for Windows, the .dmg for macOS (Apple silicon), whichever this run built. tennoscope-orbiter-source.tar.gz is the source of the TennoScope inside them (GPL-3.0)."
+            --notes "Built from ${GITHUB_SHA::7}. The AppImage is for Linux and the Steam Deck, the setup.exe for Windows, the .dmg for macOS (Apple silicon), whichever this run built. orbiter and the TennoScope inside it are GPL-3.0-only: orbiter-source.tar.gz is the complete source of this build."
 
   # ------------------------------------------------------------------ Linux and the Steam Deck
 
@@ -68,12 +67,6 @@ jobs:
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
 
       - uses: actions/checkout@v5
-
-      - name: Get TennoScope and apply orbiter's patch
-        run: |
-          git clone --quiet "$TENNOSCOPE_REPO" tennoscope
-          git -C tennoscope checkout --quiet "$TENNOSCOPE_COMMIT"
-          git -C tennoscope apply "$GITHUB_WORKSPACE/patches/tennoscope-orbiter.patch"
 
       # TennoScope's own list (its release workflow), plus patchelf for the Tesseract below.
       - name: Install build dependencies
@@ -127,25 +120,11 @@ jobs:
           cache-dependency-path: tennoscope/app/pnpm-lock.yaml
 
       # A Tesseract that needs nothing from the system, inside TennoScope's AppImage, where
-      # TennoScope looks first (`tesseract/` in its resources). No updater files: the copy inside
-      # orbiter never updates itself.
+      # TennoScope looks first (`tesseract/` in its resources, as
+      # tennoscope/app/src-tauri/tauri.linux.conf.json lists them, with no updater files: the copy
+      # inside orbiter never updates itself).
       - name: Put Tesseract inside TennoScope
-        run: |
-          scripts/vendor-linux-tesseract.sh tennoscope/app/src-tauri/vendor/tesseract
-          cat > tennoscope/app/src-tauri/tauri.linux.conf.json <<'JSON'
-          {
-            "bundle": {
-              "createUpdaterArtifacts": false,
-              "resources": {
-                "../../LICENSE": "LICENSE",
-                "../../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
-                "vendor/tesseract/tesseract": "tesseract/tesseract",
-                "vendor/tesseract/eng.traineddata": "tesseract/eng.traineddata",
-                "vendor/tesseract/lib/*": "tesseract/lib/"
-              }
-            }
-          }
-          JSON
+        run: scripts/vendor-linux-tesseract.sh tennoscope/app/src-tauri/vendor/tesseract
 
       - run: pnpm install --frozen-lockfile
         working-directory: tennoscope/app
@@ -183,16 +162,11 @@ jobs:
       run:
         shell: bash
     steps:
-      # The patch has Unix line endings: keep every checkout's the same, or it won't apply.
+      # Check files out as committed, with Unix line endings: the bash scripts this job runs
+      # (scripts/tennoscope-notice.sh) stop at a carriage return.
       - run: git config --global core.autocrlf false
 
       - uses: actions/checkout@v5
-
-      - name: Get TennoScope and apply orbiter's patch
-        run: |
-          git clone --quiet "$TENNOSCOPE_REPO" tennoscope
-          git -C tennoscope checkout --quiet "$TENNOSCOPE_COMMIT"
-          git -C tennoscope apply "$GITHUB_WORKSPACE/patches/tennoscope-orbiter.patch"
 
       # TennoScope's own script: downloads its pinned Tesseract and proves it runs.
       - name: Vendor Tesseract
@@ -269,20 +243,17 @@ jobs:
       - name: Attach to the release
         run: gh release upload "$RELEASE_TAG" target/release/bundle/dmg/*.dmg --repo "$GITHUB_REPOSITORY" --clobber
 
-  # ------------------------------------------------------------------ TennoScope's source
+  # ------------------------------------------------------------------ Source
 
-  # The source of what's shipped (TennoScope is GPL-3.0): its pinned commit with the patch applied.
+  # The complete source of what's shipped (orbiter and TennoScope are GPL-3.0-only): the commit this
+  # run built, orbiter and tennoscope/ both, with the workflow and scripts that build them.
   source:
-    name: TennoScope source
+    name: Source
     needs: release
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - name: Pack and attach it
         run: |
-          git clone --quiet "$TENNOSCOPE_REPO" tennoscope
-          git -C tennoscope checkout --quiet "$TENNOSCOPE_COMMIT"
-          git -C tennoscope apply "$GITHUB_WORKSPACE/patches/tennoscope-orbiter.patch"
-          rm -rf tennoscope/.git
-          tar czf tennoscope-orbiter-source.tar.gz tennoscope
-          gh release upload "$RELEASE_TAG" tennoscope-orbiter-source.tar.gz --repo "$GITHUB_REPOSITORY" --clobber
+          git archive --format=tar.gz --prefix="orbiter-$RELEASE_TAG/" --output orbiter-source.tar.gz "$GITHUB_SHA"
+          gh release upload "$RELEASE_TAG" orbiter-source.tar.gz --repo "$GITHUB_REPOSITORY" --clobber

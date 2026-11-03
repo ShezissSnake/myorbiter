@@ -2,7 +2,7 @@
 name = "orbiter-data"
 version = "0.1.0"
 edition = "2021"
-license = "MIT"
+license = "GPL-3.0-only"
 description = "Reads TennoScope's local collection data (read-only) and trims the item catalog for orbiter."
 
 [dependencies]

@@ -2,7 +2,9 @@
   "$schema": "https://schema.tauri.app/config/2",
   "bundle": {
     "resources": {
-      "../vendor/tennoscope/": "tennoscope/"
+      "../vendor/tennoscope/": "tennoscope/",
+      "../LICENSE": "LICENSE",
+      "../NOTICE.md": "NOTICE.md"
     }
   }
 }

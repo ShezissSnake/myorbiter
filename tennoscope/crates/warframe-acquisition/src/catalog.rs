@@ -1,0 +1,731 @@
+use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
+
+use serde::Deserialize;
+use thiserror::Error;
+use warframe_domain::{CatalogItem, Category, DomainError, InventoryEntry, ItemId};
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CatalogMetadata {
+    name: String,
+    category: Option<Category>,
+    masterable: bool,
+    max_rank: u32,
+    fusion_limit: Option<u32>,
+    image_name: Option<String>,
+    ducats: u32,
+}
+
+impl CatalogMetadata {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub const fn category(&self) -> Option<Category> {
+        self.category
+    }
+
+    pub const fn masterable(&self) -> bool {
+        self.masterable
+    }
+
+    pub const fn max_rank(&self) -> u32 {
+        self.max_rank
+    }
+
+    /// The highest rank a mod or arcane of this kind can be fused to, where the catalogue publishes
+    /// a believable one. Unrelated to `max_rank`, which is the level cap equipment earns mastery
+    /// against.
+    pub const fn fusion_limit(&self) -> Option<u32> {
+        self.fusion_limit
+    }
+
+    pub fn image_name(&self) -> Option<&str> {
+        self.image_name.as_deref()
+    }
+
+    pub const fn ducats(&self) -> u32 {
+        self.ducats
+    }
+}
+
+#[derive(Debug, Error, Eq, PartialEq)]
+pub enum CatalogError {
+    #[error("catalog JSON was invalid")]
+    InvalidJson,
+    #[error("catalog contained invalid or conflicting metadata")]
+    InvalidMetadata,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct CatalogIndex {
+    items: BTreeMap<String, CatalogMetadata>,
+    recipes: BTreeMap<String, Recipe>,
+    part_parents: BTreeMap<String, (String, usize)>,
+    consumers: BTreeMap<String, Vec<(String, u32)>>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RewardCatalogEntry {
+    pub name: String,
+    pub ducats: u32,
+}
+
+/// Every ducat holding in the catalogue, keyed by catalog path, held apart from the index the way
+/// the daily price table is held apart from the inventory: a collection view joins against it by
+/// path without carrying the whole catalogue, and a table that has not loaded yet says nothing
+/// rather than zero.
+#[derive(Clone, Debug, Default)]
+pub struct DucatTable {
+    entries: BTreeMap<String, u32>,
+}
+
+impl DucatTable {
+    /// The ducats WFCD publishes for the item at that path, or `None` when the item holds none.
+    pub fn get(&self, catalog_path: &str) -> Option<u32> {
+        self.entries.get(catalog_path).copied()
+    }
+}
+
+/// What a Prime item is built from, so mastery marks know which parts a reward belongs to.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Recipe {
+    /// The parent item's uniqueName.
+    pub parent: String,
+    /// The parent item's display name: "Akbronco Prime".
+    pub parent_name: String,
+    /// Blueprint first, then parts in foundry order, then whole-item ingredients last.
+    pub components: Vec<RecipeComponent>,
+}
+
+/// One slot of a Prime recipe: a blueprint, a tradable part, or a whole item another Prime
+/// consumes.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecipeComponent {
+    /// The component's uniqueName.
+    pub path: String,
+    /// WFCD's component name: "Blueprint", "Chassis", "Blade", "Bronco Prime".
+    pub name: String,
+    /// WFCD's imageName, e.g. "GenericWeaponPrimeBlade.png".
+    pub image_name: Option<String>,
+    /// Guandao Prime takes two Blades. Missing and complete counts depend on this, so it is
+    /// never assumed to be 1.
+    pub per_build: u32,
+    pub kind: ComponentKind,
+}
+
+/// Whether a recipe slot is the build's blueprint, one of its tradable parts, or a whole
+/// masterable item consumed by the build.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ComponentKind {
+    Blueprint,
+    Part,
+    Ingredient,
+}
+
+/// The order the game's foundry lists parts in. A part this list does not know sorts after
+/// the known ones, by name.
+const COMPONENT_ORDER: &[&str] = &[
+    "Blueprint",
+    "Neuroptics",
+    "Cerebrum",
+    "Chassis",
+    "Carapace",
+    "Systems",
+    "Harness",
+    "Wings",
+    "Barrel",
+    "Receiver",
+    "Stock",
+    "Grip",
+    "Upper Limb",
+    "Lower Limb",
+    "String",
+    "Blade",
+    "Blades",
+    "Head",
+    "Handle",
+    "Hilt",
+    "Guard",
+    "Disc",
+    "Chain",
+    "Gauntlet",
+    "Boot",
+    "Ornament",
+    "Pouch",
+    "Stars",
+    "Link",
+];
+
+/// Does this catalog entry name the item the reward screen is offering?
+///
+/// The reward screen, the relic drop tables and warframe.market all name a Warframe part by the
+/// blueprint the player picks up: "Lavos Prime Chassis Blueprint". WFCD's item catalog names the
+/// component that blueprint builds, "Lavos Prime Chassis", because the suffix lives in the parent's
+/// component list rather than in the component's own name. Nothing else separates the two spellings.
+///
+/// Matching on the exact string priced 153 of the 596 names a relic can drop (every Warframe
+/// part) at zero ducats and reported them as not owned, while weapon parts, whose two spellings
+/// agree, were right. The trim also accepts what a blueprint builds, Forma for "Forma Blueprint",
+/// so a held count, which must not count the built item, uses [`holding_matches_reward`].
+///
+/// A relic table also puts a stack's count in front of the name: it drops "2X Forma Blueprint",
+/// which the collection holds as "Forma Blueprint". The count is dropped only after both spellings
+/// fail as given.
+pub fn reward_name_matches(catalog_name: &str, reward_name: &str) -> bool {
+    let names = |reward: &str| {
+        catalog_name == reward || reward.strip_suffix(" Blueprint") == Some(catalog_name)
+    };
+    names(reward_name) || without_quantity(reward_name).is_some_and(names)
+}
+
+/// The item a relic table's stacked reward names, "Forma Blueprint" for "2X Forma Blueprint". None
+/// when the first word is not a count: digits, then X.
+pub(crate) fn without_quantity(reward_name: &str) -> Option<&str> {
+    let (quantity, item) = reward_name.split_once(' ')?;
+    quantity
+        .strip_suffix('X')
+        .filter(|count| !count.is_empty() && count.bytes().all(|byte| byte.is_ascii_digit()))
+        .map(|_| item)
+}
+
+/// Does this held item's name spell the reward itself? The collection spells a held blueprint as
+/// the reward screen does, so only a stack's count is set aside. The blueprint trim in
+/// [`reward_name_matches`] would let what a blueprint builds answer for it: built Forma for a
+/// Forma Blueprint, a built Ash Prime for an Ash Prime Blueprint.
+pub fn holding_matches_reward(held_name: &str, reward_name: &str) -> bool {
+    held_name == reward_name || without_quantity(reward_name) == Some(held_name)
+}
+
+impl CatalogIndex {
+    pub fn from_wfcd_json(bytes: &[u8]) -> Result<Self, CatalogError> {
+        let raw: Vec<WfcdItem> =
+            serde_json::from_slice(bytes).map_err(|_| CatalogError::InvalidJson)?;
+        let mut index = Self::default();
+
+        for item in &raw {
+            // WFCD's aggregate also contains star-chart node records whose IDs are not
+            // inventory paths. They are useful to other consumers, but not to this index.
+            if !valid_unique_name(&item.unique_name) {
+                continue;
+            }
+            let mastered_part = masterable_part(&item.unique_name);
+            let category = if mastered_part {
+                Some(Category::Weapon)
+            } else {
+                classify_item(item)
+            };
+            index.insert(
+                &item.unique_name,
+                CatalogMetadata {
+                    name: validated_name(&item.name)?,
+                    category,
+                    masterable: (item.masterable || mastered_part)
+                        && category.is_some_and(is_equipment),
+                    max_rank: catalog_max_rank(&item.name),
+                    fusion_limit: believable_fusion_limit(item.fusion_limit),
+                    image_name: validated_image_name(item.image_name.as_deref())?,
+                    ducats: item.ducats.unwrap_or(0),
+                },
+                false,
+            )?;
+        }
+
+        for parent in &raw {
+            if !is_prime_parent(&parent.name) {
+                continue;
+            }
+            // A prime Frame's tradable parts are their blueprints: the game's kiosk labels one
+            // "Styanax Prime Neuroptics Blueprint" and warframe.market sells it under that name,
+            // while WFCD's component list names the part the blueprint builds. Spell it the way
+            // the two vocabularies that price and read it do, or the kiosk's closed-set match
+            // lands on the shorter built-part name (a different item) and the price join, keyed
+            // by the market spelling, finds nothing. Weapon parts drop as built items whose two
+            // spellings already agree.
+            let frame = classify_item(parent) == Some(Category::Frame);
+            for component in &parent.components {
+                if !component.tradable
+                    || (component.ducats.is_none() && component.prime_selling_price.is_none())
+                {
+                    continue;
+                }
+                let component_name = validated_name(&component.name)?;
+                let parent_name = validated_name(&parent.name)?;
+                let name = if component_name.contains("Prime") {
+                    component_name
+                } else if frame && !component_name.ends_with("Blueprint") {
+                    let component_name = format!("{parent_name} {component_name}");
+                    if component.unique_name.ends_with("Component") {
+                        component_name
+                    } else {
+                        format!("{component_name} Blueprint")
+                    }
+                } else {
+                    format!("{parent_name} {component_name}")
+                };
+                let metadata = CatalogMetadata {
+                    name,
+                    category: Some(Category::PrimePart),
+                    masterable: false,
+                    max_rank: 0,
+                    fusion_limit: None,
+                    image_name: validated_image_name(component.image_name.as_deref())?,
+                    ducats: component.ducats.unwrap_or(0),
+                };
+                index.insert(&component.unique_name, metadata.clone(), true)?;
+
+                // Inventory stores a part's recipe as `…Blueprint`; WFCD lists the `…Component`.
+                // The paths spell Neuroptics as Helmet and an Archwing's Harness as Chassis.
+                for (component_suffix, recipe_suffix) in [
+                    ("ChassisComponent", "ChassisBlueprint"),
+                    ("SystemsComponent", "SystemsBlueprint"),
+                    ("HelmetComponent", "HelmetBlueprint"),
+                    ("WingsComponent", "WingsBlueprint"),
+                ] {
+                    if let Some(stem) = component.unique_name.strip_suffix(component_suffix) {
+                        let mut recipe = metadata.clone();
+                        if !recipe.name.ends_with(" Blueprint") {
+                            recipe.name.push_str(" Blueprint");
+                        }
+                        index.insert(&format!("{stem}{recipe_suffix}"), recipe, true)?;
+                        break;
+                    }
+                }
+            }
+            index.index_recipe(parent)?;
+        }
+        Ok(index)
+    }
+
+    /// The recipe behind one Prime parent: its blueprint, tradable parts and consumed whole
+    /// items. Resources such as Orokin Cells are skipped, since no mastery mark needs them.
+    fn index_recipe(&mut self, parent: &WfcdItem) -> Result<(), CatalogError> {
+        let mut grouped: BTreeMap<&str, (u32, &WfcdComponent)> = BTreeMap::new();
+        for component in &parent.components {
+            grouped
+                .entry(component.unique_name.as_str())
+                .and_modify(|(count, _)| *count += component.item_count.unwrap_or(1))
+                .or_insert((component.item_count.unwrap_or(1), component));
+        }
+        let mut slots = Vec::with_capacity(grouped.len());
+        for (path, (per_build, first)) in &grouped {
+            let name = validated_name(&first.name)?;
+            let kind = if name == "Blueprint" {
+                ComponentKind::Blueprint
+            } else if self
+                .items
+                .get(*path)
+                .is_some_and(CatalogMetadata::masterable)
+            {
+                ComponentKind::Ingredient
+            } else if first.tradable
+                && (first.ducats.is_some() || first.prime_selling_price.is_some())
+            {
+                ComponentKind::Part
+            } else {
+                continue;
+            };
+            slots.push(RecipeComponent {
+                path: (*path).to_owned(),
+                name,
+                image_name: first.image_name.clone(),
+                per_build: (*per_build).max(1),
+                kind,
+            });
+        }
+        slots.sort_by(|a, b| {
+            (
+                a.kind == ComponentKind::Ingredient,
+                component_order(&a.name),
+                &a.name,
+            )
+                .cmp(&(
+                    b.kind == ComponentKind::Ingredient,
+                    component_order(&b.name),
+                    &b.name,
+                ))
+        });
+        if !slots
+            .iter()
+            .any(|slot| slot.kind != ComponentKind::Ingredient)
+        {
+            return Ok(());
+        }
+        let parent_path = parent.unique_name.clone();
+        for (slot_index, slot) in slots.iter().enumerate() {
+            match slot.kind {
+                ComponentKind::Blueprint | ComponentKind::Part => {
+                    self.part_parents
+                        .insert(slot.path.clone(), (parent_path.clone(), slot_index));
+                    // Relics drop the blueprint, and the player may hold either spelling. Key
+                    // both at the same slot.
+                    if let Some(stem) = slot.path.strip_suffix("Component") {
+                        self.part_parents.insert(
+                            format!("{stem}Blueprint"),
+                            (parent_path.clone(), slot_index),
+                        );
+                    }
+                }
+                ComponentKind::Ingredient => {
+                    self.consumers
+                        .entry(slot.path.clone())
+                        .or_default()
+                        .push((parent_path.clone(), slot.per_build));
+                }
+            }
+        }
+        let recipe = Recipe {
+            parent: parent_path.clone(),
+            parent_name: validated_name(&parent.name)?,
+            components: slots,
+        };
+        self.recipes.insert(parent_path, recipe);
+        Ok(())
+    }
+
+    pub fn resolve(&self, unique_name: &str) -> Option<&CatalogMetadata> {
+        self.items.get(unique_name)
+    }
+
+    pub fn reward_entries(&self) -> Vec<RewardCatalogEntry> {
+        self.items
+            .values()
+            .filter(|metadata| {
+                metadata.category == Some(Category::PrimePart) || metadata.name == "Forma Blueprint"
+            })
+            .map(|metadata| RewardCatalogEntry {
+                name: metadata.name.clone(),
+                ducats: metadata.ducats,
+            })
+            .collect()
+    }
+
+    pub fn paths_for_name(&self, name: &str) -> Vec<String> {
+        self.items
+            .iter()
+            .filter(|(_, metadata)| metadata.name == name)
+            .map(|(path, _)| path.clone())
+            .collect()
+    }
+
+    /// The Prime recipe for a parent item's path, if the catalogue knows one.
+    pub fn recipe(&self, parent: &str) -> Option<&Recipe> {
+        self.recipes.get(parent)
+    }
+
+    /// The recipe a tradable part or blueprint fills, and its slot there. A part's `…Blueprint`
+    /// sibling gets the same slot: relics drop the blueprint, and the player may hold either.
+    pub fn part_parent(&self, part: &str) -> Option<(&Recipe, &RecipeComponent)> {
+        let (parent, slot_index) = self.part_parents.get(part)?;
+        let recipe = self.recipes.get(parent)?;
+        recipe
+            .components
+            .get(*slot_index)
+            .map(|slot| (recipe, slot))
+    }
+
+    /// The recipes that consume an item whole, with how many copies each build takes. Empty
+    /// when nothing consumes it.
+    pub fn consumers_of(&self, item: &str) -> &[(String, u32)] {
+        self.consumers.get(item).map_or(&[], Vec::as_slice)
+    }
+
+    /// The path a reward name refers to, among paths with a recipe. An exact name beats the
+    /// blueprint-suffix trim, and the first exact spelling in catalogue order beats a later one.
+    pub fn part_path_for_reward(&self, reward_name: &str) -> Option<&str> {
+        let mut suffix_match = None;
+        for path in self.part_parents.keys() {
+            let name = match self.items.get(path.as_str()) {
+                Some(metadata) => metadata.name(),
+                None => continue,
+            };
+            if name == reward_name {
+                return Some(path);
+            }
+            if suffix_match.is_none() && reward_name_matches(name, reward_name) {
+                suffix_match = Some(path);
+            }
+        }
+        suffix_match.map(String::as_str)
+    }
+
+    /// The catalogue's ducat values as a join table. Only entries with ducats to their name: zero
+    /// is a published value (Forma Blueprint carries it), but a reading of zero ducats says
+    /// nothing the absence of a reading doesn't, and a total must not grow a column of zeroes.
+    pub fn ducat_table(&self) -> DucatTable {
+        DucatTable {
+            entries: self
+                .items
+                .iter()
+                .filter(|(_, metadata)| metadata.ducats > 0)
+                .map(|(path, metadata)| (path.clone(), metadata.ducats))
+                .collect(),
+        }
+    }
+
+    /// The masterable equipment `held` does not account for, as the unowned, unmastered rows a
+    /// collection pads itself with so it reads as a checklist and not only as a ledger.
+    ///
+    /// `held` is catalog paths at any quantity: a mastered-and-sold item is on the account's
+    /// record at zero, and that row is the account's own. A ranked row's id carries its rank, so
+    /// callers reduce ids with `ItemId::catalog_path` first. Equipment only, by construction:
+    /// `masterable` was set at parse time from WFCD's flag gated on a classified equipment
+    /// category, which is what keeps mods, arcanes and Amps out. The category is read through
+    /// the same gate rather than unwrapped, so the two cannot drift apart. Every path here passed
+    /// `valid_unique_name` at insert and every name passed `validated_name`, so the `?`s surface
+    /// a corrupt index rather than a case to handle.
+    pub fn unowned_masterables<'a>(
+        &self,
+        held: impl IntoIterator<Item = &'a str>,
+    ) -> Result<Vec<InventoryEntry>, DomainError> {
+        let held: BTreeSet<&str> = held.into_iter().collect();
+        self.items
+            .iter()
+            // Masterable first: it keeps 803 of 17,672 entries, so the set lookup runs for those
+            // alone. Against the 2026-10-10 catalog with 2,415 held paths, best of 20: 3.2 ms
+            // with the lookup first, 0.33 ms this way round. The view is rebuilt every 2.5 s.
+            .filter_map(|(path, metadata)| {
+                let category = metadata.category.filter(|_| metadata.masterable)?;
+                Some((path, metadata, category))
+            })
+            .filter(|(path, _, _)| !held.contains(path.as_str()))
+            .map(|(path, metadata, category)| {
+                let item = CatalogItem::new(ItemId::new(path.as_str())?, &metadata.name, category)?;
+                let item = match &metadata.image_name {
+                    Some(image_name) => item.with_image_name(image_name)?,
+                    None => item,
+                };
+                Ok(InventoryEntry::new(item, 0))
+            })
+            .collect()
+    }
+
+    fn insert(
+        &mut self,
+        unique_name: &str,
+        metadata: CatalogMetadata,
+        richer_component_context: bool,
+    ) -> Result<(), CatalogError> {
+        if !valid_unique_name(unique_name) {
+            return Err(CatalogError::InvalidMetadata);
+        }
+        match self.items.entry(unique_name.to_owned()) {
+            Entry::Vacant(entry) => {
+                entry.insert(metadata);
+            }
+            Entry::Occupied(entry) if entry.get() == &metadata => {}
+            Entry::Occupied(mut entry)
+                if richer_component_context
+                    && entry.get().category != Some(Category::PrimePart) =>
+            {
+                entry.insert(metadata);
+            }
+            Entry::Occupied(_) => return Err(CatalogError::InvalidMetadata),
+        }
+        Ok(())
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WfcdItem {
+    unique_name: String,
+    name: String,
+    #[serde(rename = "type", default)]
+    item_type: String,
+    #[serde(default)]
+    category: String,
+    #[serde(default)]
+    masterable: bool,
+    #[serde(default)]
+    components: Vec<WfcdComponent>,
+    #[serde(default)]
+    image_name: Option<String>,
+    #[serde(default)]
+    ducats: Option<u32>,
+    /// The mod's own rank ceiling. Not `masterable` equipment's level cap.
+    #[serde(default)]
+    fusion_limit: Option<u32>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WfcdComponent {
+    unique_name: String,
+    name: String,
+    #[serde(default)]
+    tradable: bool,
+    #[serde(default)]
+    ducats: Option<u32>,
+    #[serde(default)]
+    prime_selling_price: Option<u32>,
+    #[serde(default)]
+    image_name: Option<String>,
+    /// How many copies one build takes. WFCD repeats the entry instead for some ingredients
+    /// (Akbronco lists Bronco Prime twice), so this is summed per path, never read raw.
+    #[serde(default)]
+    item_count: Option<u32>,
+}
+
+/// Parts the game gives mastery by although WFCD marks them not masterable: an amp's prism (the
+/// Mote Amp's included) and the Infested kitgun chambers. As with the Solaris chambers WFCD
+/// already marks, the mastery goes by this part once the amp or kitgun built from it is gilded,
+/// and the inventory's XP for it is keyed by its path. Their blueprints are not.
+fn masterable_part(path: &str) -> bool {
+    if path.ends_with("Blueprint") {
+        return false;
+    }
+    (path.contains("/OperatorAmplifiers/")
+        && (path.contains("/Barrel/") || path.ends_with("/SentAmpTrainingBarrel")))
+        || path.contains("/InfKitGun/Barrels/")
+}
+
+fn classify_item(item: &WfcdItem) -> Option<Category> {
+    let category = item.category.to_ascii_lowercase();
+    let item_type = item.item_type.to_ascii_lowercase();
+    let path = item.unique_name.as_str();
+    // Before anything that reads the path. A mod is named after what it fits, and lives with it:
+    // Trinity's Abating Link is `/Lotus/Powersuits/Trinity/LinkAugmentCard` and a companion precept
+    // sits under `/Types/Friendly/Pets/`. Classified by path first, 21 of this account's 674 mod
+    // stacks came out as Companion and the augments as Frame.
+    if category == "mods" {
+        Some(Category::Mod)
+    } else if category == "arcanes" {
+        Some(Category::Arcane)
+    } else if item_type == "k-drive component" {
+        Some(Category::Vehicle)
+    } else if category.contains("warframe")
+        || matches!(item_type.as_str(), "warframe" | "archwing" | "necramech")
+    {
+        Some(Category::Frame)
+    } else if category.contains("companion")
+        || category == "pets"
+        || matches!(
+            item_type.as_str(),
+            "sentinel" | "kubrow" | "kavat" | "moa" | "pets"
+        )
+        || path.contains("/Types/Game/CatbrowPet/")
+        || path.contains("/Types/Friendly/Catbrow")
+        || path.contains("/Types/Friendly/Pets/")
+    {
+        Some(Category::Companion)
+    } else if matches!(
+        category.as_str(),
+        "primary" | "secondary" | "melee" | "archwing" | "arch-gun" | "arch-melee"
+    ) || matches!(
+        item_type.as_str(),
+        "rifle"
+            | "shotgun"
+            | "bow"
+            | "pistol"
+            | "melee"
+            | "archgun"
+            | "archmelee"
+            | "arch-gun"
+            | "arch-melee"
+            | "kitgun component"
+            | "zaw component"
+    ) {
+        Some(Category::Weapon)
+    } else if category.contains("relic") || item_type == "relic" {
+        Some(Category::Relic)
+    } else if category.contains("resource") || item_type == "resource" {
+        Some(Category::Resource)
+    } else if category.contains("blueprint") || item_type == "blueprint" {
+        Some(Category::Blueprint)
+    } else {
+        None
+    }
+}
+
+fn is_equipment(category: Category) -> bool {
+    matches!(
+        category,
+        Category::Frame | Category::Weapon | Category::Companion | Category::Vehicle
+    )
+}
+
+/// The highest rank a mod actually has is 10, the game's own ceiling, and the only ranks
+/// warframe.market quotes are 0 and one of 3, 5 or 10.
+const HIGHEST_REAL_FUSION_LIMIT: u32 = 10;
+
+/// A published fusion limit, or nothing when the catalogue's number cannot be a rank.
+///
+/// Every riven placeholder carries `fusionLimit: 515`. Taken at face value a rank-3 riven, which
+/// is a maxed riven, reads as barely started, and it can never reach its own ceiling, so it would
+/// sit forever in the "partially ranked, no market quote" bucket. Dropping the value says the
+/// ceiling is unknown, which is the truth and is what the pricing rule needs to hear.
+fn believable_fusion_limit(published: Option<u32>) -> Option<u32> {
+    published.filter(|limit| *limit <= HIGHEST_REAL_FUSION_LIMIT)
+}
+
+fn catalog_max_rank(name: &str) -> u32 {
+    if name == "Paracesis"
+        || matches!(name, "Voidrig" | "Bonewidow")
+        || name.starts_with("Kuva ")
+        || name.starts_with("Tenet ")
+        || name.starts_with("Coda ")
+    {
+        40
+    } else {
+        30
+    }
+}
+
+fn component_order(name: &str) -> usize {
+    COMPONENT_ORDER
+        .iter()
+        .position(|known| *known == name)
+        .unwrap_or(COMPONENT_ORDER.len())
+}
+
+fn is_prime_parent(name: &str) -> bool {
+    name.ends_with(" Prime") || name.contains(" Prime ")
+}
+
+fn validated_name(name: &str) -> Result<String, CatalogError> {
+    // The Archon shards carry the game's own inline icon tag in their name:
+    // "<Shard_red_simple> Crimson Archon Shard". Only the game's own text renderer draws that tag;
+    // everywhere else it survives as literal angle brackets.
+    let trimmed = name
+        .strip_prefix('<')
+        .and_then(|rest| rest.split_once('>'))
+        .map_or(name, |(_, rest)| rest)
+        .trim();
+    if trimmed.is_empty() || trimmed.len() > 256 {
+        return Err(CatalogError::InvalidMetadata);
+    }
+    Ok(trimmed.to_owned())
+}
+
+fn validated_image_name(image_name: Option<&str>) -> Result<Option<String>, CatalogError> {
+    Ok(image_name.and_then(|value| {
+        let value = value.trim();
+        (!value.is_empty()
+            && value.len() <= 256
+            && !value.contains('/')
+            && !value.contains('\\')
+            && value.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b' ')
+            }))
+        .then(|| base_shard_art(value))
+    }))
+}
+
+/// WFCD publishes a Tauforged shard's art as the glow layer alone (the halo the game composites
+/// over the plain crystal), so on its own it renders as a coloured smudge. Dropping the `Mythic`
+/// and `Glow` tokens names the base shard art, the same crystal without the halo, which every
+/// colour ships. The two spellings WFCD uses, `ArchonShardBorealMythicGlow` and
+/// `ArchonShardMythicGreenGlow`, both reduce correctly.
+fn base_shard_art(image_name: &str) -> String {
+    if image_name.starts_with("ArchonShard")
+        && image_name.ends_with("Glow.png")
+        && image_name.contains("Mythic")
+    {
+        return image_name.replace("Mythic", "").replace("Glow", "");
+    }
+    image_name.to_owned()
+}
+
+fn valid_unique_name(path: &str) -> bool {
+    path.starts_with("/Lotus/") && path.len() <= 512 && !path.ends_with('/')
+}

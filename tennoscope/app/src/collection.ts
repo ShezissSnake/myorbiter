@@ -1,0 +1,183 @@
+export const COLLECTION_PAGE_SIZE = 48
+
+/** What the pile is worth, or null when the item has no price. */
+export function stackValue(item: { quantity: number; platinum?: number }): number | null {
+  return item.platinum === undefined ? null : item.platinum * item.quantity
+}
+
+/**
+ * What the pile is worth to a seller: the same unit price, over only as many copies as
+ * warframe.market completes in a month, and only if one copy clears `floor`.
+ *
+ * A correct unit price is half of what a holding is worth, and the collection total was reading as
+ * if it were all of it. This account owns 182 Quickdraw at a true 2p; the entire game traded two of
+ * them in twenty-eight days, so 364p of that total is 4p. An item nobody bought is worth nothing in
+ * bulk however dear one copy is: `Scan Matter` is 240p and has traded zero times, so a missing
+ * count means zero rather than "no limit".
+ *
+ * The floor is the player's own, and defaults to counting everything. What the market completes is
+ * measured; whether a 3p mod is worth an evening of arranging the trade by hand is not something
+ * this app can measure for somebody else, and 62% of a real account's sellable total sits at 1–5p.
+ */
+export function sellableValue(
+  item: { quantity: number; platinum?: number; monthly_trades?: number },
+  floor = 0,
+): number | null {
+  if (item.platinum === undefined) return null
+  if (item.platinum < floor) return 0
+  return item.platinum * Math.min(item.quantity, item.monthly_trades ?? 0)
+}
+
+type CollectionItem = {
+  category: string
+  quantity: number
+  mastered: boolean
+  platinum?: number
+  ducats?: number
+  monthly_trades?: number
+}
+
+type CollectionTotals = {
+  masteryEligible: number
+  mastered: number
+  owned: number
+  missing: number
+  priced: number
+  worth: number
+  sellable: number
+  sellableCount: number
+  ducatsAtStake: number
+}
+
+const MASTERY_ELIGIBLE_CATEGORIES = new Set(['frame', 'weapon', 'companion', 'vehicle'])
+
+/**
+ * Where a card sits when the collection is read as a to-do: unmastered equipment first, mastered
+ * equipment next, and last everything that earns no mastery, whatever its flag says. The same
+ * category rule the mastery band counts by, so the sort and the percentage agree on what counts.
+ */
+export function masteryOrder(item: { category: string; mastered: boolean }): 0 | 1 | 2 {
+  if (!MASTERY_ELIGIBLE_CATEGORIES.has(item.category)) return 2
+  return item.mastered ? 1 : 0
+}
+
+/** The collection's ownership, mastery and exchange-value bands. */
+export function collectionTotals(items: readonly CollectionItem[], priceFloor: number): CollectionTotals {
+  const totals: CollectionTotals = {
+    masteryEligible: 0,
+    mastered: 0,
+    owned: 0,
+    missing: 0,
+    priced: 0,
+    worth: 0,
+    sellable: 0,
+    sellableCount: 0,
+    ducatsAtStake: 0,
+  }
+
+  for (const item of items) {
+    if (MASTERY_ELIGIBLE_CATEGORIES.has(item.category)) {
+      totals.masteryEligible += 1
+      if (item.mastered) totals.mastered += 1
+    }
+    if (item.quantity > 0) totals.owned += 1
+    if (item.quantity === 0) totals.missing += 1
+    if (item.platinum !== undefined) totals.priced += 1
+    totals.worth += stackValue(item) ?? 0
+    // The second, smaller figure. A unit price is only half of what a stack is worth: this
+    // collection's largest single holding is 182 Quickdraw at a true 2p, and the whole game trades
+    // two Quickdraw a month. Market rate leads because it is the plain reading of what is owned;
+    // what the market would actually take sits under it, at the size of a qualification.
+    const sellable = sellableValue(item, priceFloor) ?? 0
+    totals.sellable += sellable
+    if (sellable > 0) totals.sellableCount += 1
+    // What the whole ducat holding would bank at Baro's. Unlike platinum this is not a market
+    // opinion but a posted price, so the only qualification worth a note is that it counts prime
+    // parts actually held. A missing part's reading is on its card, not in this figure.
+    if (item.quantity > 0 && item.ducats !== undefined) {
+      totals.ducatsAtStake += item.ducats * item.quantity
+    }
+  }
+
+  return totals
+}
+
+/**
+ * Whether these copies are fully ranked, or null when the ceiling is unknown, which is not the
+ * same answer as "no". A riven publishes a sentinel instead of a rank limit, and a card that might
+ * be maxed must not be drawn as one that certainly is not.
+ */
+export function atMaxRank(item: { rank?: number; max_rank?: number }): boolean | null {
+  if (item.max_rank === undefined) return null
+  return (item.rank ?? 0) >= item.max_rank
+}
+
+/**
+ * How the rank reads on the card, or null for the unranked stack, which is every mod's default
+ * state and most of the collection. Labelling 674 cards "Rank 0/10" would bury the 268 that say
+ * something.
+ */
+export function rankLabel(item: { rank?: number; max_rank?: number }): string | null {
+  if (item.rank === undefined) return null
+  return item.max_rank === undefined ? `Rank ${item.rank}` : `Rank ${item.rank}/${item.max_rank}`
+}
+
+/**
+ * The minimum-price steps, per copy. Each cuts off a band of a real account's held mods: 47 sit
+ * under 3p, 328 at 3-4p, 299 at 5-9p, 104 at 10-19p and 41 at 20p or more. The last step is where
+ * the Settings price floor stops, and for the same reason.
+ */
+export const MIN_PRICE_STEPS = [0, 3, 5, 10, 20] as const
+
+/** Whether the last inventory read counted installed copies. A read counts every row it can or none, so one count settles it. */
+export function hasEquipData(items: readonly { equipped?: number }[]): boolean {
+  return items.some(item => item.equipped !== undefined)
+}
+
+/**
+ * Whether some copy on this row sits in no build. An unknown count never passes: a row stored
+ * before the app counted, or gear, whose use is a loadout rather than a slot, must not be offered
+ * as spare.
+ */
+export function hasUnequippedCopy(item: { quantity: number; equipped?: number }): boolean {
+  return item.equipped !== undefined && item.equipped < item.quantity
+}
+
+/** The unranked stack of a mod or arcane, which also holds every rank-0 copy. Nothing else is ranked, so nothing else is unranked. */
+export function isUnrankedUpgrade(item: { category: string; rank?: number }): boolean {
+  return item.rank === undefined && (item.category === 'mod' || item.category === 'arcane')
+}
+
+/**
+ * Whether one copy is priced at `minPrice` or more. A part-ranked copy is held to the low end of
+ * its range, the figure the sellable total counts. Above zero an unpriced row fails, as Tradeable
+ * does: 653 of a real account's 731 held resources and blueprints have no price, and keeping them
+ * would bury the copies the step is set to find.
+ */
+export function meetsMinPrice(item: { platinum?: number }, minPrice: number): boolean {
+  return minPrice === 0 || (item.platinum !== undefined && item.platinum >= minPrice)
+}
+
+export function pageCount(itemCount: number): number {
+  return Math.max(1, Math.ceil(itemCount / COLLECTION_PAGE_SIZE))
+}
+
+export function clampPage(page: number, itemCount: number): number {
+  return Math.min(Math.max(1, Math.trunc(page) || 1), pageCount(itemCount))
+}
+
+export function pageItems<T>(items: readonly T[], page: number): T[] {
+  const current = clampPage(page, items.length)
+  const start = (current - 1) * COLLECTION_PAGE_SIZE
+  return items.slice(start, start + COLLECTION_PAGE_SIZE)
+}
+
+export function pageNumbers(currentPage: number, totalPages: number): number[] {
+  const total = Math.max(1, totalPages)
+  const current = Math.min(Math.max(1, currentPage), total)
+  if (total <= 7) return Array.from({ length: total }, (_, index) => index + 1)
+  const edge = current <= 3 || current >= total - 2
+  const start = current <= 3 ? 2 : current >= total - 2 ? total - 4 : current - 2
+  const middle = Array.from({ length: edge ? 4 : 5 }, (_, index) => start + index)
+  return [...new Set([1, ...middle, total])].sort((left, right) => left - right)
+}
