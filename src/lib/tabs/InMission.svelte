@@ -5,7 +5,7 @@
   import { squadPool, squadRelics, type SquadRelic } from "../core/views";
   import P from "../ui/P.svelte";
   import Thumb from "../ui/Thumb.svelte";
-  import GameIcon, { type GameIconName } from "../ui/GameIcon.svelte";
+  import GameIcon, { relicIcon as refIcon, type GameIconName } from "../ui/GameIcon.svelte";
   import PageHead from "../ui/PageHead.svelte";
   import Stat from "../ui/Stat.svelte";
   import Avail from "../ui/Avail.svelte";
@@ -60,7 +60,7 @@
   // order. Without it: everything the squad's relics can drop, best first, to find yours in.
   const onScreen = $derived(cards ? scoreCards(model, cards.cards, weights, cards.prices) : null);
   const pick = $derived(onScreen ? bestCard(onScreen) : null);
-  const ranked = $derived(scoreCards(model, pool.map((x) => x.name), weights).map((c, i) => ({ ...c, from: pool[i].from, owned: pool[i].owned })).sort((a, b) => b.score - a.score || (b.price ?? 0) - (a.price ?? 0)));
+  const ranked = $derived(scoreCards(model, pool.map((x) => x.name), weights).map((c, i) => ({ ...c, from: pool[i].from, owned: pool[i].owned, rarity: pool[i].rarity })).sort((a, b) => b.score - a.score || (b.price ?? 0) - (a.price ?? 0)));
   /** Your own relic's reward, which the log names as soon as the screen opens. */
   const yours = $derived(new Set((ms?.reward_screen_open ? ms.rewards_given : []).map((p) => resolveName(model, model.nameOf(p)))));
   const WEIGHTS: { k: keyof PickWeights; label: string; title: string; bar: string }[] = [
@@ -83,11 +83,9 @@
   }
   /** "Meso C10 R" (a relic and its refinement's letter) → the relic, for its hover card. */
   const relicOf = (from: string) => from.replace(/ [IEFR]$/, "");
-  /** "Meso C10 R" → the Meso relic as it looks at that refinement (radiant, or intact for the rest). */
-  const relicIcon = (from: string): GameIconName | null => {
-    const era = from.split(" ")[0]?.toLowerCase();
-    return ["lith", "meso", "neo", "axi", "requiem"].includes(era) ? (`relic-${era}-${/ R$/.test(from) ? "radiant" : "intact"}` as GameIconName) : null;
-  };
+  /** "Meso C10 R" → the Meso relic as it looks at that refinement. */
+  const REF_OF: Record<string, string> = { I: "intact", E: "exceptional", F: "flawless", R: "radiant" };
+  const relicIcon = (from: string): GameIconName | null => refIcon(from.split(" ")[0] ?? "", REF_OF[from.slice(-1)] ?? "intact");
   /** When TennoScope read the cards: a time of day, which can't go stale the way "n s ago" would. */
   const readAt = (at: number) => new Date(at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
@@ -143,11 +141,11 @@
     {#if r.known}
       <ul>
         {#each r.rewards as x (x.name)}
-          <li class:need={x.needed} use:info={x.name}>
+          <li class="rar-{x.rarity}" class:need={x.needed} use:info={x.name}>
             <Thumb file={model.imageOf(x.name)} size={22} />
             <span class="nmw"><span class="nm" class:done={!x.needed && x.parentMastered}>{x.name}</span>{#if x.needed}<span class="tag warn">need</span>{/if}</span>
             <span class="pc"><P v={x.price} /></span>
-            <span class="pc"><P v={x.ducats} d dim /></span>
+            <span class="pc dc" title="{x.rarity ? `${x.rarity}: ` : ''}ducats at Baro's kiosks"><P v={x.ducats} d dim /></span>
           </li>
         {/each}
       </ul>
@@ -206,24 +204,24 @@
         <thead><tr><th title="Its place in the pick order, best first">#</th>{#if !onScreen}<th class="right" title="0–100: the weighted average of the four bars">Score</th><th class="bc" title="The four marks behind the score: plat · unmastered · ducats · completes a set">Score split</th>{/if}<th>Reward</th><th title="The squad relics that can give it. The letter after each is its refinement: I intact, E exceptional, F flawless, R radiant">From</th>{#if anyHeld}<th class="right" title="Copies you already hold">Held</th>{/if}<th class="right">Plat</th><th class="right">Ducats</th></tr></thead>
         <tbody>
           {#each ranked as x, i (x.name)}
-            <tr class:need={x.needed} class:yours={yours.has(x.name)}>
-              <td class="rank">{i + 1}</td>
+            <tr class="rar-{x.rarity}" class:need={x.needed} class:yours={yours.has(x.name)}>
+              <td class="rank" title={x.rarity ? `${x.rarity} reward` : undefined}>{i + 1}</td>
               {#if !onScreen}
                 <td class="sc">{x.score}</td>
                 <td class="bc">{@render bars(x)}</td>
               {/if}
-              <td><div class="rw"><span class="rw-name" use:info={x.name}><Thumb file={model.imageOf(x.name)} size={24} /><span>{x.name}</span></span>{#if yours.has(x.name)}<span class="tag">your relic gave this</span>{/if}{#if x.needed}<span class="tag warn">need</span>{/if}{#if x.set === 1}<span class="tag ok">completes set</span>{/if}</div></td>
-              <td class="dim small from">{#each x.from as f, j (j)}{j ? ", " : ""}<span class="rl" use:info={relicOf(f)}>{#if relicIcon(f)}<GameIcon name={relicIcon(f)!} size={14} />{/if}{f}</span>{/each}</td>
+              <td><div class="rw"><span class="rw-name" use:info={x.name}><Thumb file={model.imageOf(x.name)} size={24} /><span>{x.name}</span></span>{#if yours.has(x.name)}<span class="tag">your relic gave this</span>{/if}{#if x.needed}<span class="tag warn">need</span>{/if}{#if x.set === 1}<span class="tag good">completes set</span>{/if}</div></td>
+              <td class="dim small from">{#each x.from as f, j (j)}{j ? ", " : ""}<span class="rl" style:--tint={eraTint(f)} use:info={relicOf(f)}>{#if relicIcon(f)}<GameIcon name={relicIcon(f)!} size={14} />{/if}{f}</span>{/each}</td>
               {#if anyHeld}<td class="dim right">{x.owned || ""}</td>{/if}
               <td class="right"><P v={x.price} /></td>
-              <td class="right"><P v={x.ducats || null} d dim /></td>
+              <td class="right dc" title={x.rarity && x.ducats ? `${x.rarity}: ducats at Baro's kiosks` : undefined}><P v={x.ducats || null} d dim /></td>
             </tr>
           {/each}
         </tbody>
       </table>
     {/if}
 
-    <h2 class="register">The squad's relics <span class="legend">Gold: a part you still need · bright: worth a look · dimmed: you've mastered what it builds</span></h2>
+    <h2 class="register">The squad's relics <span class="legend">Gold: a part you still need · dimmed: you've mastered what it builds · the edge: its rarity (bronze common, silver uncommon, gold rare)</span></h2>
     <section class="cards">{#each relics as r, i (r.path + i)}{@render relicCard(r)}{/each}</section>
   {:else if !onScreen}
     <div class="empty" class:compact={history.length > 0}>
@@ -275,9 +273,14 @@
   .sub > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   h3 { margin: 0; font-family: var(--face-mark); font-weight: 700; font-size: 1.45rem; text-transform: uppercase; letter-spacing: -.01em; line-height: 1; }
   .ref { font-family: var(--face-register); font-size: .6rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; padding: .1rem .4rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); vertical-align: 4px; margin-left: .3rem; }
-  .ref-Radiant { color: var(--gold); border-color: var(--gold-dim); }
+  .ref-Radiant { color: var(--platinum); border-color: var(--platinum-dim); }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
-  li { display: grid; grid-template-columns: 22px 1fr 3.6rem 3.6rem; align-items: center; gap: .6rem; font-size: .84rem; }
+  li { display: grid; grid-template-columns: 22px 1fr 3.6rem 3.6rem; align-items: center; gap: .6rem; font-size: .84rem; padding-left: .45rem; box-shadow: inset 2px 0 0 var(--rar, var(--rule)); }
+  /* A reward's rarity: the edge on its row, and its ducats in the same metal. */
+  .rar-Common { --rar: var(--rarity-common); }
+  .rar-Uncommon { --rar: var(--rarity-uncommon); }
+  .rar-Rare { --rar: var(--rarity-rare); }
+  .dc :global(.amt b) { color: color-mix(in srgb, var(--rar, var(--gold-dim)) 85%, var(--slab)); }
   li.need .nm { color: var(--gold); font-weight: 600; }
   .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .nmw { display: flex; align-items: center; min-width: 0; }
@@ -287,7 +290,7 @@
   .legend { margin-left: .8rem; font-family: var(--face-body, inherit); letter-spacing: normal; text-transform: none; font-size: .74rem; color: var(--platinum-deep); }
   .pool { font-variant-numeric: tabular-nums; }
   .pool th { position: sticky; top: 0; z-index: 1; background: var(--slab); text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .15em; text-transform: uppercase; color: var(--platinum-deep); padding: .55rem .6rem; border-bottom: 1px solid var(--rule); }
-  .pool th:first-child { padding-left: 0; }
+  .pool th:first-child { padding-left: .5rem; }
   .pool th.right { text-align: right; }
   .pool td { padding: .45rem .6rem; border-bottom: 1px solid var(--rule); font-size: .84rem; }
   .pool td:first-child { padding-left: 0; }
@@ -312,19 +315,21 @@
   .bars { display: inline-grid; grid-template-columns: repeat(4, 1.1rem); gap: 3px; align-items: end; height: 1.4rem; }
   .bars i { display: block; height: calc(max(var(--v), .04) * 100%); background: var(--platinum-deep); }
   .bars .b-plat { background: var(--platinum); }
-  .bars .b-need { background: var(--gold); }
+  .bars .b-need { background: var(--verdigris); }
   .bars .b-ducat { background: repeating-linear-gradient(135deg, var(--gold-dim) 0 2px, transparent 2px 4px); box-shadow: inset 0 0 0 1px var(--gold-dim); }
-  .bars .b-set { background: var(--verdigris); }
+  /* A set: hollow verdigris, so it reads apart from the solid unmastered bar. */
+  .bars .b-set { background: color-mix(in srgb, var(--verdigris) 22%, transparent); box-shadow: inset 0 0 0 1px var(--verdigris); }
   .weights { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem 1rem; margin: 0; }
   .sw { display: inline-block; width: .55rem; height: .55rem; margin-right: .3rem; }
   .lg { white-space: nowrap; }
   .sw.b-plat { background: var(--platinum); }
-  .sw.b-need { background: var(--gold); }
+  .sw.b-need { background: var(--verdigris); }
   .sw.b-ducat { background: repeating-linear-gradient(135deg, var(--gold-dim) 0 2px, transparent 2px 4px); box-shadow: inset 0 0 0 1px var(--gold-dim); }
-  .sw.b-set { background: var(--verdigris); }
+  .sw.b-set { background: color-mix(in srgb, var(--verdigris) 22%, transparent); box-shadow: inset 0 0 0 1px var(--verdigris); }
   .pool-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem 1rem; margin: var(--course) 0 .6rem; }
   .pool-head h2 { margin: 0; }
   .pool .rank { width: 2rem; color: var(--platinum-deep); font-family: var(--face-register); font-size: .66rem; }
+  .pool:not(.history) .rank { padding-left: .5rem; box-shadow: inset 3px 0 0 var(--rar, transparent); }
   .pool .sc { width: 2.6rem; text-align: right; font-family: var(--face-mark); font-size: 1.15rem; }
   .pool .bc { width: 5.6rem; }
   .pool tr.yours td { background: var(--plate); }
@@ -336,7 +341,8 @@
   .from span:hover { color: var(--platinum); }
   /* A relic's name stays whole ("Meso C10 R"); two relics may wrap between them. */
   .from span { white-space: nowrap; }
-  .from .rl { display: inline-flex; align-items: center; gap: .25rem; }
+  /* Each relic in its era's colour, as on the fissure board. */
+  .from .rl { display: inline-flex; align-items: center; gap: .25rem; color: color-mix(in srgb, var(--tint, var(--platinum-dim)) 80%, var(--platinum)); }
   .empty { margin-top: var(--step); max-width: 46rem; padding: 1.4rem 1.6rem; border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); }
   .empty.compact p:last-child { display: none; }
 </style>
