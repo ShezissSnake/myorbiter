@@ -14,6 +14,7 @@
   import { nearEnd } from "./nearEnd";
   import Count from "./Count.svelte";
   import { keepWhile } from "../pane.svelte";
+  import { arrive, fresh } from "../motion";
 
   let {
     id,
@@ -192,10 +193,10 @@
 {/snippet}
 
 {#if drawnList}
-  <div class="list" class:off={layout !== "list"} use:rowOpener><Table rows={listRows} columns={listColumns} {key} bind:sort={() => listSort, (v) => (sort = v)} {detail} {empty} {clear} {limit} {tint} /></div>
+  <div class="list swap" class:off={layout !== "list"} use:rowOpener use:fresh={layout === "list"} in:arrive={{ y: 0 }}><Table rows={listRows} columns={listColumns} {key} bind:sort={() => listSort, (v) => (sort = v)} {detail} {empty} {clear} {limit} {tint} /></div>
 {/if}
 {#if drawnCards}
-  <div class="cards" class:off={layout !== "cards"}>
+  <div class="cards swap" class:off={layout !== "cards"} use:fresh={layout === "cards"} in:arrive={{ y: 0 }}>
     {#if cardRows.length}
       <CardGrid {min}>
         {#each cardRows.slice(0, shown) as r (key(r))}{@render card(r, () => open(r))}{/each}

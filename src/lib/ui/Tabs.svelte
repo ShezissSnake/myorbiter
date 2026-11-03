@@ -9,6 +9,16 @@
   }: { value: V; options: { v: V; label: string; icon?: GameIconName; count?: number; title?: string }[]; label?: string } = $props();
 
   let row = $state<HTMLElement | null>(null);
+  // One tab stop for the row; ←/→ pick the tab before or after (round), Home and End the first and last.
+  function key(e: KeyboardEvent) {
+    const i = options.findIndex((o) => o.v === value);
+    const to = e.key === "ArrowRight" ? i + 1 : e.key === "ArrowLeft" ? i - 1 : e.key === "Home" ? 0 : e.key === "End" ? options.length - 1 : null;
+    if (to == null || !options.length) return;
+    e.preventDefault();
+    value = options[(to + options.length) % options.length].v;
+    queueMicrotask(() => row?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus());
+  }
+  const stop = (i: number) => options[i].v === value || (i === 0 && !options.some((x) => x.v === value));
   let line = $state<HTMLElement | null>(null);
   // The line goes under the chosen tab (its left, foot and width), measured once it's drawn.
   function place(moving: boolean) {
@@ -44,9 +54,9 @@
   });
 </script>
 
-<div class="tabs" role="tablist" aria-label={label} bind:this={row}>
-  {#each options as o (o.v)}
-    <button role="tab" aria-selected={value === o.v} class:on={value === o.v} title={o.title ?? `${o.label}${o.count != null ? ` · ${o.count}` : ""}`} aria-label={o.count != null ? `${o.label}, ${o.count}` : o.label} onclick={() => (value = o.v)}>
+<div class="tabs" role="tablist" aria-label={label} tabindex="-1" bind:this={row} onkeydown={key}>
+  {#each options as o, i (o.v)}
+    <button role="tab" aria-selected={value === o.v} tabindex={stop(i) ? 0 : -1} class:on={value === o.v} title={o.title ?? `${o.label}${o.count != null ? ` · ${o.count}` : ""}`} aria-label={o.count != null ? `${o.label}, ${o.count}` : o.label} onclick={() => (value = o.v)}>
       {#if o.icon}<GameIcon name={o.icon} size={18} />{/if}
       <span class:lbl={!!o.icon}>{o.label}</span>
       {#if o.count != null}<em>{o.count.toLocaleString("en")}</em>{/if}

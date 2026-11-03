@@ -23,7 +23,7 @@
   import CodexRings from "../ui/CodexRings.svelte";
   import { codexRings, starredBy } from "../core/codex";
   import type { Group } from "../core/collection";
-  import { arrive, calm, flip, leave, pulse } from "../motion";
+  import { arrive, calm, flip, leave, pulse, reveal } from "../motion";
   import Count from "../ui/Count.svelte";
   import { whileShown } from "../pane.svelte";
 
@@ -98,9 +98,10 @@
   /**
    * A ring's click: to the first thing you starred in that category, which flashes gold (motion.ts,
    * pulse) so you see which it is: at once when it's already on screen, else once the scroll lands.
+   * The All ring (g null): the first thing on the list.
    */
-  function jump(g: Group) {
-    const el = document.querySelector<HTMLElement>(`.wish[data-groups~="${g}"]`);
+  function jump(g: Group | null) {
+    const el = document.querySelector<HTMLElement>(g ? `.wish[data-groups~="${g}"]` : ".wish[data-unique]");
     if (!el) return;
     el.querySelector<HTMLElement>("button.nm")?.focus({ preventScroll: true });
     const r = el.getBoundingClientRect();
@@ -152,7 +153,7 @@
   <Stat keep label="Crack now" tone="gold" note={crackNow.length ? crackNow.map((c) => c.era).join(", ") + " fissures open" : "No matching fissure open"}><Count value={crackNow.length} /></Stat>
 {/snippet}
 
-{#snippet codex()}<CodexRings {rings} {marks} onpick={pickRing} action={(r) => (marks[r.group] ? `Click to go to the first one you starred` : `Nothing starred here: click to pick from the ${r.label.toLowerCase()} you haven't mastered, on Foundry`)} line={items.length ? nextLine : "Click a category to pick from what you haven't mastered in it, on Foundry"} />{/snippet}
+{#snippet codex()}<CodexRings {rings} {marks} onpick={pickRing} all={{ onpick: () => (items.length ? jump(null) : go?.("foundry?show=todo")), action: items.length ? "Click to go to the first thing you starred" : "Nothing starred yet: click to pick from everything you haven't mastered, on Foundry" }} action={(r) => (marks[r.group] ? `Click to go to the first one you starred` : `Nothing starred here: click to pick from the ${r.label.toLowerCase()} you haven't mastered, on Foundry`)} line={items.length ? nextLine : "Click a category to pick from what you haven't mastered in it, on Foundry"} />{/snippet}
 
 <div class="page"><div class="page-inner">
   <PageHead title="Wishlist" brief="What you starred, and how to get each part." blurb="What you've starred, and the quickest way to each missing part: a relic you hold, where to farm one, or what it costs." band={items.length ? band : undefined} hero={codex} />
@@ -187,13 +188,15 @@
   {:else}
     <div class="list">
       <!-- Each card in a slot that arrives when you add it and, once its Undo runs out, leaves while
-           the cards below close up (motion.ts). Undo brings the card back in. -->
+           the cards below close up (motion.ts). Removing it folds the card down to its Undo line
+           and Undo unfolds it again (reveal), so the cards below slide rather than jump. -->
       {#each items as w (w.c.unique)}
         <div class="wslot" in:arrive out:leave animate:flip>
         {#if undo.has(w.c.unique)}
-          <article class="wish ghost"><UndoSlot label="Removed from your wishlist" what={w.c.name} onundo={() => undo.undo(w.c.unique)} /></article>
+          <div class="reveal" transition:reveal><div><article class="wish ghost"><UndoSlot label="Removed from your wishlist" what={w.c.name} onundo={() => undo.undo(w.c.unique)} /></article></div></div>
         {:else}
-        <article class="wish" class:done={!w.missing.length} class:new={added === w.c.unique} data-unique={w.c.unique} data-groups={w.c.groups.join(" ")} in:arrive={{ y: 3 }}>
+        <div class="reveal" transition:reveal><div>
+        <article class="wish" class:done={!w.missing.length} class:new={added === w.c.unique} data-unique={w.c.unique} data-groups={w.c.groups.join(" ")}>
           <div class="who">
             <button class="art" onclick={() => details.open(w.c.unique)} aria-label="{w.c.name}: details" use:info={w.c.name}><Art file={w.c.image} size={96} fallback="foundry" /></button>
             <div class="wt">
@@ -253,6 +256,7 @@
             </table>
           {/if}
         </article>
+        </div></div>
         {/if}
         </div>
       {/each}

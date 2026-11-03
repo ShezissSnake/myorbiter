@@ -29,9 +29,19 @@
   const date = (d: string) => new Date(`${d}T12:00:00Z`);
   const day = (d: string) => date(d).toLocaleDateString(undefined, { day: "numeric", month: "long" });
   const close = () => (open = false);
+  // The page changes once the dialog has faded (its out, 100 ms), so the two never show at once.
+  // (A timer too, in case the fade never reports its end.)
+  let pending: string | null = null;
+  function flush() {
+    if (pending == null) return;
+    const to = pending;
+    pending = null;
+    go?.(to);
+  }
   const visit = (to: string) => {
     open = false;
-    go?.(to);
+    pending = to;
+    setTimeout(flush, calm.current ? 0 : 1000);
   };
   function tour() {
     open = false;
@@ -48,7 +58,7 @@
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="scrim" onclick={close} in:shade out:shade></div>
   <!-- Modal while open; on its way out it lets go, so the tour's keys work at once. -->
-  <div class="update" role="dialog" aria-modal={open ? "true" : undefined} aria-labelledby="upd-title" tabindex="-1" use:trap={{ onescape: close }} in:shade out:shade>
+  <div class="update" role="dialog" aria-modal={open ? "true" : undefined} aria-labelledby="upd-title" tabindex="-1" use:trap={{ onescape: close }} in:shade out:shade onoutroend={flush}>
     <header class="top">
       <!-- The update's date, stamped on. -->
       <div class="stamp-date" class:still={calm.current} title="This update came out on {date(latest.date).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}">
@@ -103,11 +113,12 @@
 
 <style>
   .scrim { position: fixed; inset: 0; z-index: 40; background: rgb(6 7 9 / 72%); }
-  /* A screen of its own, the window's full height: not a side sheet. */
+  /* A screen of its own in the middle of the window, not a side sheet: as tall as what's new
+     (a short update leaves no empty slab), scrolling inside once it would pass the window. */
   .update {
-    position: fixed; z-index: 41; top: 0; bottom: 0; left: 50%; transform: translateX(-50%);
-    width: min(62rem, 100vw - 2rem); display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
-    background: var(--slab); border-inline: 1px solid var(--rule-bright); outline: none;
+    position: fixed; z-index: 41; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: min(62rem, 100vw - 2rem); max-height: calc(100vh - 3rem); display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+    background: var(--slab); border: 1px solid var(--rule-bright); border-top: 0; outline: none;
     box-shadow: 0 0 6rem rgb(0 0 0 / 70%);
   }
   .update::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; background: var(--gold); }

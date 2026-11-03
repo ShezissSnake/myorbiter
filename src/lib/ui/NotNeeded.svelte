@@ -5,12 +5,20 @@
   import type { CanGo, KeptBack } from "../core/notNeeded";
   import { info } from "../hover.svelte";
   import Thumb from "./Thumb.svelte";
-  import { arrive, flip, leave, reveal } from "../motion";
+  import { arrive, flip, leave, ms, out as easeOut, QUICK, reveal } from "../motion";
 
   // `out`: the list worked out once by the page (it shows the count too); `incarnons`: whether
   // TennoScope passed each copy's Incarnon, so the lead says what's checked.
   let { model, out, incarnons, keep = $bindable() }: { model: Model; out: { go: CanGo[]; kept: KeptBack[] }; incarnons: boolean; keep: string[] } = $props();
   let showKept = $state(false);
+
+  // The list runs down each column, then the next: after a Keep, a row moving up within its column
+  // slides (flip), and one wrapping to the foot of the column before fades in where it lands,
+  // rather than flying diagonally across the text between.
+  function closeUp(node: Element, rects: { from: DOMRect; to: DOMRect }) {
+    if (Math.abs(rects.from.left - rects.to.left) < 1) return flip(node, rects);
+    return { duration: ms(QUICK), easing: easeOut, css: (t: number) => `opacity:${t}` };
+  }
 </script>
 
 <section class="nn" aria-label="Not needed anymore">
@@ -21,7 +29,7 @@
     <ul class="go">
       <!-- Keep: it leaves and the rest close up; Undo (under Kept back) brings it back in. -->
       {#each out.go as g (g.unique)}
-        <li in:arrive out:leave animate:flip>
+        <li in:arrive out:leave animate:closeUp>
           <Thumb file={model.imageOf(g.name)} size={34} />
           <div class="t">
             <span class="nm"><b class="mark" use:info={g.name}>{g.name}</b>{#if g.of > 1}<span class="dim small">{g.copies} of your {g.of}</span>{/if}</span>

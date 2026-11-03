@@ -590,7 +590,7 @@
           {/if}
         </div>
       {:else if f}
-        <div transition:reveal>
+        <div class="reveal" transition:reveal><div>
         <form class="selling" onsubmit={(e) => { e.preventDefault(); void list(r); }}>
           <label><span class="register">Buyout</span><span class="plat"><input type="number" min="1" bind:value={f.buyout} aria-label="Buyout price" /><GameIcon name="platinum" size={14} /></span></label>
           <Chip bind:on={f.bids} label="Take bids from" title="Let buyers bid below the buyout, from a starting price" />
@@ -600,7 +600,7 @@
           {#if estimates[r.id] || pc?.lowest != null}<span class="dim small hint">{#if estimates[r.id]}Estimate {estimates[r.id].mid}p (the middle half of listings like it ask {estimates[r.id].lo}–{estimates[r.id].hi}p){pc?.lowest != null ? "; " : ""}{/if}{#if pc?.lowest != null}cheapest similar {pc.lowest}p{pc.typical != null ? `, most around ${pc.typical}p` : ""}{/if}. To sell sooner, ask toward the lower end.</span>{/if}
           {#if f.error}<span class="err small">{f.error}</span>{/if}
         </form>
-        </div>
+        </div></div>
       {/if}
     {/if}
     {#if rivens.trades}

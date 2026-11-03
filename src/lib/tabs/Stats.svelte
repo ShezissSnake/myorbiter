@@ -177,7 +177,7 @@
   <!-- Platinum, credits and Endo; the rest unfold under them. -->
   <div class="chartset">
     <div class="charts">{#each CHARTS.slice(0, 3) as c (c.key)}{@render chart(c)}{/each}</div>
-    {#if allCharts}<div id="more-charts" transition:reveal><div class="charts rest">{#each CHARTS.slice(3) as c (c.key)}{@render chart(c)}{/each}</div></div>{/if}
+    {#if allCharts}<div id="more-charts" transition:reveal><div><div class="charts rest">{#each CHARTS.slice(3) as c (c.key)}{@render chart(c)}{/each}</div></div></div>{/if}
   </div>
   {#if CHARTS.length > 3}<button class="link more" aria-expanded={allCharts} aria-controls="more-charts" onclick={() => (allCharts = !allCharts)} title="Ducats, Aya, Kuva, Void Traces, Vosfor and relics held over time">{allCharts ? "Fewer" : `${CHARTS.length - 3} more: ${CHARTS.slice(3).map((c) => c.title.toLowerCase()).join(", ")}`} <span class="chev" aria-hidden="true">▾</span></button>{/if}
 

@@ -14,6 +14,8 @@
     of?: string;
     /** After that, smallest: "resets in 13 h". */
     sub?: string;
+    /** A count before the sub that rolls with the figure (Count): subN 2, sub "sold" reads "2 sold". */
+    subN?: number;
     /** On hover: what the figure is. */
     title: string;
     /** Gold: it wants doing (trades nearly gone, listings to reprice). */
@@ -86,7 +88,7 @@
       <span class="lb">{x.label}</span>
       <b class="v">{#if x.text != null}{x.text}{:else if x.value != null}<Count value={x.value} format={fmt} />{:else}–{/if}{#if x.plat && x.value != null}<Metal kind="plat" size={14} />{/if}{#if x.of}<span class="of">{x.of}</span>{/if}</b>
       {#if m}{@const d = (x.value ?? 0) - (was(x.key) ?? 0)}<i class="tick" aria-label="{m === 'up' ? 'up' : 'down'} {fmt(Math.abs(d))} since you last looked">{m === "up" ? "▲" : "▼"}{fmt(Math.abs(d))}</i>{/if}
-      {#if x.sub}<span class="sub">{x.sub}</span>{/if}
+      {#if x.sub}<span class="sub">{#if x.subN != null}<Count value={x.subN} />{" "}{/if}{x.sub}</span>{/if}
     </span>
   {/each}
   </div>

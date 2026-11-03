@@ -13,7 +13,8 @@
   // left: just past the sidebar, so they come out of the bell's side and don't cover the panels
   // that open on the right.
   // acts: a notification's own controls under its text (a sale's +rep), from App.
-  let { open, left = "1rem", acts }: { open: (id: string) => void; left?: string; acts?: Snippet<[Notice]> } = $props();
+  // all: opens the bell's list, for the "N more" line a burst folds into (toasts.svelte.ts).
+  let { open, all, left = "1rem", acts }: { open: (id: string) => void; all?: () => void; left?: string; acts?: Snippet<[Notice]> } = $props();
 </script>
 
 <div class="toasts" style:left role="region" aria-label="Notifications" aria-live="polite">
@@ -30,6 +31,15 @@
       <i class="timer" class:still={calm.current} aria-hidden="true"></i>
     </div>
   {/each}
+  {#if toasts.more}
+    <div class="toast more" role="status" in:fly={{ x: -24, duration: ms(SETTLE), easing: out }} out:leave>
+      <button class="body" title="Open the notifications under the bell" onclick={() => { toasts.dropMore(); all?.(); }}>
+        <span class="ic"><Icon name="bell" size={14} /></span>
+        <span class="txt"><b>{toasts.more} more {toasts.more === 1 ? "notification" : "notifications"}</b></span>
+      </button>
+      <button class="x" aria-label="Dismiss" title="Dismiss (they stay under the bell)" onclick={() => toasts.dropMore()}><Icon name="close" size={11} /></button>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -51,5 +61,10 @@
   .timer { position: absolute; left: 0; right: 0; bottom: 0; display: block; height: 2px; padding: 0; background: var(--gold-dim); transform-origin: left; animation: run 7s linear forwards; pointer-events: none; }
   .toast:hover .timer, .toast:focus-within .timer { animation-play-state: paused; }
   .timer.still { display: none; }
+  /* The rest of a burst: one slim line under the others. */
+  .more .body { padding-top: .45rem; padding-bottom: .5rem; align-items: center; }
+  .more .ic { display: grid; place-items: center; color: var(--platinum-deep); }
+  .more .txt b { font-size: .8rem; font-weight: 500; color: var(--platinum-dim); }
+  .more .x { align-self: center; margin-top: 0; }
   @keyframes run { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 </style>

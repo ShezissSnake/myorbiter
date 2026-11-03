@@ -22,7 +22,7 @@
   import ProgressButton from "../ui/ProgressButton.svelte";
   import { Job } from "../job.svelte";
   import Count from "../ui/Count.svelte";
-  import { arrive, flip, leave } from "../motion";
+  import { arrive, flip, leave, reveal } from "../motion";
 
   let { model, settings = $bindable(), go }: { model: Model; settings: Settings; go: (t: string) => void } = $props();
 
@@ -96,8 +96,8 @@
   // The ticker tape under the title: today, the week and your best sale (the band keeps the month and after).
   const best = $derived(sales.reduce<Sale | null>((b, s) => (!b || s.quantity * s.platinum > b.quantity * b.platinum ? s : b), null));
   const tape = $derived<Tick[]>([
-    { key: "today", label: "Today", value: plat(today), plat: true, sub: `${trades(today)} sold`, title: `Today: ${trades(today)} sold since your local midnight (Trades left, on Home and Orders, counts from 00:00 UTC)` },
-    { key: "week", label: "7 days", value: plat(week), plat: true, sub: `${trades(week)} sold`, title: `Last 7 days: ${trades(week)} sold` },
+    { key: "today", label: "Today", value: plat(today), plat: true, subN: trades(today), sub: "sold", title: `Today: ${trades(today)} sold since your local midnight (Trades left, on Home and Orders, counts from 00:00 UTC)` },
+    { key: "week", label: "7 days", value: plat(week), plat: true, subN: trades(week), sub: "sold", title: `Last 7 days: ${trades(week)} sold` },
     best
       ? { key: "best", label: "Best sale", value: best.quantity * best.platinum, plat: true, sub: `${best.quantity > 1 ? `${best.quantity}× ` : ""}${best.item} · ${new Date(best.at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`, title: `Best sale: the most platinum one sale brought, of everything logged: ${best.quantity > 1 ? `${best.quantity} × ${best.platinum}p for ` : ""}${best.item}` }
       : { key: "best", label: "Best sale", value: null, tone: "dim", title: "Best sale: the most platinum one sale brought, once you've logged some" },
@@ -227,7 +227,10 @@
       <Stat label="All logged" note={sales.length ? `since ${new Date(Math.min(...sales.map((s) => s.at))).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}` : "Nothing yet"}><P v={plat(sales)} big tick /></Stat>
     {/snippet}
 
+  <!-- The first sale logged, or the last one deleted: the empty card and the chart fold into each
+       other (reveal), and the log folds away or in, rather than the page snapping. -->
   {#if !sales.length}
+    <div class="reveal" transition:reveal><div>
     <section class="panel empty">
       <h2 class="mark">No sales logged yet</h2>
       {#if settings.market.platform !== "pc"}
@@ -237,7 +240,9 @@
       {/if}
       {#if maybeSold}<p><button class="link" title="Listings for more than you hold now: on Orders, answer Sold? and a Yes logs the sale here" onclick={() => go("market")}>{maybeSold} possible sale{maybeSold === 1 ? "" : "s"} waiting on Orders →</button></p>{/if}
     </section>
+    </div></div>
   {:else}
+    <div class="reveal" transition:reveal><div>
     <div class="grid">
       <section class="chart">
         <div class="head"><span class="register">Platinum per day</span>{#if days.some((d) => d.plat > 0)}<span class="dim small">best day <P v={peak} tick /></span>{/if}<span class="grow"></span><Seg bind:value={span} onchange={() => picks++} options={[{ v: "7", label: "7 days" }, { v: "30", label: "30 days" }, { v: "all", label: "All", title: "Best sellers over everything logged; the chart shows 30 days" }]} /></div>
@@ -262,6 +267,7 @@
         {/each}
       </section>
     </div>
+    </div></div>
   {/if}
 
 
@@ -286,6 +292,7 @@
   </div>
 
   {#if sales.length}
+    <div class="reveal" transition:reveal><div>
     <table class="log">
       <thead><tr><th>When</th><th>Item</th><th class="right">Qty</th><th class="right">Each</th><th class="right" title="The sale price next to the item's daily median on warframe.market when it sold (today's, for sales from before orbiter recorded it)">Vs market</th><th class="right">Total</th><th></th></tr></thead>
       <tbody>
@@ -306,6 +313,7 @@
       </tbody>
     </table>
     {#if sales.length > 200}<p class="dim small more">Showing the latest 200 of {sales.length}.</p>{/if}
+    </div></div>
   {/if}
 </div></div>
 

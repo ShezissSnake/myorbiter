@@ -314,7 +314,7 @@
     <button type="button" class="letgo" class:on={letGo} aria-pressed={letGo} onclick={() => (letGo = !letGo)} title="Gear you can't trade and no longer need: a weapon, frame or companion once you've mastered it and own a better version of it (the Dual Decurion once you have Prisma Dual Decurions), and extra copies of something mastered. Sell them for credits in game">Gear to sell for credits · <Count value={goCount} /></button>
   </div>
 
-  {#if letGo}<div class="reveal" transition:reveal><NotNeeded {model} out={unneeded} incarnons={!!gear} bind:keep={keepGear} /></div>{/if}
+  {#if letGo}<div class="reveal" transition:reveal><div><NotNeeded {model} out={unneeded} incarnons={!!gear} bind:keep={keepGear} /></div></div>{/if}
 
   <Browse id="inventory" bind:opened {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => shown(r)} kicker={(r) => spareOf(r)?.type ?? r.type} onopen={(r) => (r.kind === "gear" && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" clear={filtered ? clear : null} empty="Nothing in your inventory yet." />
 </div></div>

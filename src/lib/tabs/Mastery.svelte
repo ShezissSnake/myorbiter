@@ -31,6 +31,7 @@
   import { codexRings, rowGroups, someNames } from "../core/codex";
   import type { Group } from "../core/collection";
   import { keepWhile, shownPage, whenIdle, whileShown } from "../pane.svelte";
+  import { arrive, fresh } from "../motion";
 
   let { model, masteryRank = null, wishlist = $bindable([]), foundryReady = [] }: { model: Model; masteryRank?: number | null; wishlist?: string[]; foundryReady?: [string, number][] } = $props();
   // Things you only have to level: in your arsenal, built and waiting in the Foundry, or building.
@@ -251,10 +252,10 @@
 
   <!-- Both views stay drawn once drawn, the other hidden (see the script). -->
   {#if drawnPlat}
-    <div class="view" class:off={view !== "plat"}><PlatMastery {model} rows={platRows} {wished} onwish={toggleWish} clear={filtered ? clear : null} /></div>
+    <div class="view swap" class:off={view !== "plat"} use:fresh={view === "plat"} in:arrive={{ y: 0 }}><PlatMastery {model} rows={platRows} {wished} onwish={toggleWish} clear={filtered ? clear : null} /></div>
   {/if}
   {#if drawnEffort}
-    <div class="view" class:off={view === "plat"}><Browse id="mastery" rows={effortRows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} clear={filtered ? clear : null} empty="Nothing left to master here." /></div>
+    <div class="view swap" class:off={view === "plat"} use:fresh={view !== "plat"} in:arrive={{ y: 0 }}><Browse id="mastery" rows={effortRows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} clear={filtered ? clear : null} empty="Nothing left to master here." /></div>
   {/if}
 </div></div>
 

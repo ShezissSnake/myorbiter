@@ -630,6 +630,7 @@
   function openNotices(view: "recent" | "choose" = "recent") {
     noticesView = view;
     showNotices = true;
+    toasts.dropMore();
   }
   /** Notifications don't pop up now: paused, for good or for a while. */
   const pausedNow = $derived(settings.notifyOptions.paused || (settings.notifyOptions.pausedUntil != null && settings.notifyOptions.pausedUntil > tick));
@@ -2474,24 +2475,25 @@
       {#if pricesOld != null && model.priceDate !== pricesOldDismissed}
         <!-- Short: a warning on every page that reads like a paragraph teaches you to skip warnings. -->
         <!-- Dismissed: it folds away (motion.ts), so the page slides up rather than jumping. -->
-        <div class="bannerfold reveal" out:unfold><div class="stale slim" role="status" title="Item prices on every page (prime parts, sets, mods, relics…) come from warframe.market's daily figures for {new Date(`${model.priceDate}T12:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, which TennoScope downloads when it starts: starting TennoScope again gets newer ones">
+        <div class="bannerfold reveal" out:unfold><div><div class="stale slim" role="status" title="Item prices on every page (prime parts, sets, mods, relics…) come from warframe.market's daily figures for {new Date(`${model.priceDate}T12:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, which TennoScope downloads when it starts: starting TennoScope again gets newer ones">
           <span><b>Prices {pricesOld === 1 ? "a day" : `${pricesOld} days`} old</b> <span class="dim">· TennoScope updates them when it starts</span></span>
           <IconButton icon="close" tone="quiet" label="Dismiss" onclick={() => (pricesOldDismissed = model?.priceDate ?? null)} />
-        </div></div>
+        </div></div></div>
       {/if}
       {#if chatsDue.length}
-        <div class="bannerfold reveal" out:unfold><div class="stale repdue" role="status">
+        <div class="bannerfold reveal" out:unfold><div><div class="stale repdue" role="status">
           <span>{chatsDue.length === 1 ? `${chatsDue[0].with} messaged you on warframe.market` : `${chatsDue.length} unread chats on warframe.market`}{#if chatsDue.length === 1 && chatsDue[0].lastMessage}: <i class="msg">“{chatsDue[0].lastMessage.slice(0, 120)}”</i>{/if}</span>
           <IconButton icon="external" tone="quiet" label="Open warframe.market" onclick={() => openUrl("https://warframe.market/")} />
           <IconButton icon="close" tone="quiet" label="Dismiss" onclick={chatsRead} />
-        </div></div>
+        </div></div></div>
       {/if}
-      {#if repDue}
-        <div class="bannerfold reveal" out:unfold><div class="stale repdue" role="status">
+      <!-- Not while the sale's own notification is up with the same +rep: one place at a time. -->
+      {#if repDue && !toasts.list.some((n) => n.rep?.key === repDue.t.key)}
+        <div class="bannerfold reveal" out:unfold><div><div class="stale repdue" role="status">
           <span>Traded with <b>{repDue.t.partner}</b>, who's on warframe.market ({repDue.u.reputation} reputation).</span>
           <RepButton partner={repDue.t.partner} text={settings.market.repText} ongiven={() => markRep(repDue.t.key, "given")} />
           <IconButton icon="close" tone="quiet" label="Not now" title="Not now: no +rep for this trade" onclick={() => markRep(repDue.t.key, "skipped")} />
-        </div></div>
+        </div></div></div>
       {/if}
       <!-- A page that throws says so, with Try again, instead of staying blank or loading for good.
            Pages loaded on first visit get their own boundary inside {:then}: one around the
@@ -2558,12 +2560,12 @@
 {#snippet noticeActs(n: Notice)}
   {@const r = repShown(n)}
   {#if r}
-    <RepButton partner={r.partner} text={settings.market.repText} label="+rep {r.partner}" given={r.given} ongiven={() => markRep(r.key, "given")} />
+    <RepButton partner={r.partner} text={settings.market.repText} named given={r.given} ongiven={() => markRep(r.key, "given")} />
     {#if !r.given}<button class="link quiet" title="No +rep for this trade (the reminder at the top goes too)" onclick={() => markRep(r.key, "skipped")}>Not now</button>{/if}
   {/if}
 {/snippet}
 <NoticesSheet bind:open={showNotices} bind:view={noticesView} bind:settings console={onConsole} open_={openNotice} test={testNotice} acts={noticeActs} />
-<Toasts open={openNotice} left={compact ? "5.2rem" : "15.3rem"} acts={noticeActs} />
+<Toasts open={openNotice} all={() => openNotices("recent")} left={compact ? "5.2rem" : "15.3rem"} acts={noticeActs} />
 <WhatsNew bind:open={showNews} seen={settings.newsSeen} ondone={() => (settings.newsSeen = NEWEST)} go={(t: string) => goTo(t)} />
 <SettingsSheet bind:open={showSettings} bind:settings {rivenKeyError} onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
 <TennoscopeSheet bind:open={showTennoscope} synced={model ? ago(model.observedAt, tick) : "not yet"} job={syncJob} onsync={refreshAll} {windowMode} bind:opaqueOverlay={settings.tennoscope.opaqueOverlay} />

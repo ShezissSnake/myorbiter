@@ -153,7 +153,10 @@
     {#if !settings.game.notices.length}
       <p class="dim empty">Nothing yet. What orbiter tells you shows up here, newest first, so you can catch up on what you missed. <button class="link" onclick={() => (view = "choose")}>Choose what it tells you about →</button></p>
     {:else}
+      <!-- One block for the days, so the sheet's gap sits once above them, not around every heading. -->
+      <div class="days">
       {#each days as d (d.label)}
+        <section class="dayblock" aria-label={d.label}>
         <h3 class="register day">{d.label}</h3>
         <ul class="list">
           {#each d.items as n (n.id)}
@@ -171,7 +174,9 @@
             </li>
           {/each}
         </ul>
+        </section>
       {/each}
+      </div>
     {/if}
   {:else}
     <section class="how">
@@ -232,11 +237,13 @@
 </Sheet>
 
 <style>
-  .top { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .8rem; margin-bottom: .4rem; }
+  .top { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .8rem; }
   .pausedtag { font-family: var(--face-register); font-size: .62rem; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-dim); padding: .15rem .45rem; }
   .empty { line-height: 1.6; }
   .acts { display: flex; justify-content: flex-end; align-items: center; gap: .6rem; margin-left: auto; order: 2; }
-  .day { margin: 1rem 0 .4rem; font-size: .62rem; color: var(--gold-dim); letter-spacing: .18em; }
+  .days { display: grid; gap: 1.2rem; margin-top: -.6rem; }
+  .dayblock { display: grid; gap: .45rem; }
+  .day { margin: 0; font-size: .62rem; color: var(--gold-dim); letter-spacing: .18em; }
   .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
   .notice { display: grid; grid-template-columns: 1.8rem 1fr; gap: .7rem; width: 100%; text-align: left; padding: .6rem .7rem; border: 1px solid transparent; background: transparent; color: var(--platinum-dim); font-family: var(--face-text); font-size: .85rem; font-weight: 400; letter-spacing: 0; text-transform: none; transition: background .12s, border-color .12s; }
   .notice:hover { background: rgb(230 233 238 / 4%); border-color: var(--rule); }
@@ -256,7 +263,7 @@
   .how { display: grid; gap: 1rem; padding-bottom: 1.2rem; border-bottom: 1px solid var(--rule); }
   .pause { display: grid; gap: .45rem; }
   .pausebtns { display: flex; flex-wrap: wrap; gap: 0; }
-  .pausebtns button { margin-left: -1px; padding: .35rem .7rem; font-size: .66rem; }
+  .pausebtns button { margin-left: -1px; padding: .35rem .7rem; font-size: .66rem; transition: border-color var(--quick); }
   .pausebtns button.on { color: var(--slab); background: var(--platinum); border-color: var(--platinum); }
   .kind { display: grid; gap: .4rem; }
   .kind :global(.chip) { justify-self: start; font-size: .62rem; padding: .2rem .5rem; }
