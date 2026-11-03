@@ -100,7 +100,7 @@
 
 <style>
   .kinds { display: flex; flex-wrap: wrap; gap: .5rem; }
-  .eras { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(25rem, 100%), 1fr)); gap: .9rem 1.4rem; }
+  .eras { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(29rem, 100%), 1fr)); gap: .9rem 1.4rem; }
   /* Each era a plate washed in its relic's colour (app.css, .era-wash), its name in that colour. */
   .era { padding: .55rem .75rem .45rem .85rem; border: 1px solid color-mix(in srgb, var(--tint) 18%, var(--rule)); clip-path: var(--cut); }
   .era header { display: flex; align-items: center; gap: .5rem; padding-bottom: .3rem; border-bottom: 1px solid color-mix(in srgb, var(--tint) 22%, var(--rule)); min-width: 0; }

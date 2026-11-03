@@ -134,7 +134,7 @@
     {#each ["Common", "Uncommon", "Rare", "Legendary"] as x (x)}<option value={x}>{x}</option>{/each}
   </select>
   <Chip bind:on={dupesOnly} label="Spare only" title="Three or more copies: more than your own and one to give away" />
-  <Fold active={(tradableOnly ? 0 : 1) + (sellingOnly ? 0 : 1)} reset={() => { tradableOnly = true; sellingOnly = true; }}>
+  <Fold on={[tradableOnly ? "tradable" : "", sellingOnly ? "sells daily" : ""].filter(Boolean).join(", ")} active={(tradableOnly ? 0 : 1) + (sellingOnly ? 0 : 1)} reset={() => { tradableOnly = true; sellingOnly = true; }}>
     <Chip bind:on={tradableOnly} label="Tradable" title="Only mods you can sell or trade (not Flawed ones, and the like)" />
     <Chip bind:on={sellingOnly} label="Sells daily" title="At least one trade a day on warframe.market" />
   </Fold>

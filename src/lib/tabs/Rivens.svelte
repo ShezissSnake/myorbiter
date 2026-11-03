@@ -202,9 +202,9 @@
   let pauseNow = $state(0);
   const allJob = new Job();
   /** Price check all, pressed: the button fills as it goes and ends on how many were checked. */
-  function checkAllPressed() {
+  function checkAllPressed(only?: Riven[]) {
     void allJob.run(async () => {
-      await checkAll();
+      await checkAll(only);
       if (stopAll) return "Stopped";
       if (!checkedAll) return null;
       const n = checkedAll.failed.length;
@@ -230,8 +230,8 @@
     const again = !only && !fresh.length;
     const todo = again ? listed : fresh;
     checkedAll = null;
-    if (!meta || !todo.length) return;
     stopAll = false;
+    if (!meta || !todo.length) return;
     checkingAll = { done: 0, total: todo.length };
     const wait = async () => {
       checkingAll = { ...checkingAll!, paused: true };
@@ -518,13 +518,13 @@
         <span class="dim small">{checkingAll.retry ? "Some checks failed" : "warframe.market asked to slow down"}: waiting half a minute, then {checkingAll.retry ? "trying those again" : `${checkingAll.done + 1} of ${checkingAll.total}`}</span>
       {:else if !checkingAll}
         {#if stillFailed.length}
-          <span class="checking"><span class="dim small" title={checkedAll!.reason}>Checked {checkedAll!.ok}; {stillFailed.length} couldn't be ({checkedAll!.reason.replace(/(; |\. ).*$/, "")})</span><button class="link" title="Check the ones that failed again" onclick={() => checkAll(stillFailed)}>Try those again</button></span>
+          <span class="checking"><span class="dim small" title={checkedAll!.reason}>Checked {checkedAll!.ok}; {stillFailed.length} couldn't be ({checkedAll!.reason.replace(/(; |\. ).*$/, "")})</span><button class="link" title="Check the ones that failed again" onclick={() => checkAllPressed(stillFailed)}>Try those again</button></span>
         {/if}
         {#if keptCount && Date.now() - keptAt >= DAY}<span class="dim small kept" title="Some prices shown are from orbiter's last check, a day or more ago: riven prices move little from one day to the next. They're checked again by themselves while this page is open">Some prices from {checkedWhen(keptAt, Date.now())}</span>{/if}
       {/if}
       <ProgressButton job={allJob} busy={!!checkingAll} progress={checkingAll ? allFill : undefined} working={allWord} onstop={() => (stopAll = true)} sizer={["Checking 000/000", "Stopping…", "000 checked"]}
-        label={!unchecked ? "Check prices again" : keptCount === unchecked ? "Update prices" : unchecked === shown.length ? (shown.length === mine.length ? "Price check all" : `Price check these ${unchecked}`) : `Price check the other ${unchecked}`}
-        title={!meta ? "Waiting for warframe.market's riven list" : !unchecked ? "Check every riven's price again" : keptCount === unchecked ? "Check again the prices kept from earlier, one after another" : "Find similar rivens for sale for each of yours, one after another. Click again while it runs to stop"} disabled={!meta} onclick={checkAllPressed} />
+        label={!unchecked ? "Check prices again" : keptCount === unchecked ? "Update prices" : unchecked === shown.length ? (shown.length === mine.length ? "Check prices" : `Check these ${unchecked}`) : `Check the other ${unchecked}`}
+        title={!meta ? "Waiting for warframe.market's riven list" : !unchecked ? "Check every riven's price again" : keptCount === unchecked ? "Check again the prices kept from earlier, one after another" : "Find similar rivens for sale for each of yours, one after another. Click again while it runs to stop"} disabled={!meta} onclick={() => checkAllPressed()} />
       <span class="dim small explain">Grades compare each roll with its range: S is the top of it, B the middle, F the bottom. A curse says whether it hurts (on a stat players want) or is harmless (ammo, zoom, recoil and the like). Dispositions are 1.2 for every weapon since the 22 October 2026 hotfix.</span>
     </div>
     <CardGrid min="23rem">
@@ -639,7 +639,7 @@
               </span>
             {:else if c?.error}<span class="dim small">{c.error}</span>
             {:else if c?.loading}<span class="dim small">Checking prices…</span>
-            {:else}<span class="dim small">Not price checked yet</span>{/if}
+            {:else}<span class="dim small">Not checked yet</span>{/if}
             <span class="grow"></span>
             <!-- The same three places on every card: check prices, sell, open on warframe.market. -->
             <ProgressButton variant="icon" icon={pc || c?.error || c?.loading ? "refresh" : "search"} spin tone="quiet" state={c?.loading ? "working" : "idle"} label={pc ? "Check again" : c?.error ? "Try again" : "Price check"} working="Checking…" title={pc ? "Check again: find similar rivens for sale now" : "Price check: find similar rivens for sale"} disabled={!meta} onclick={() => check(r)} />

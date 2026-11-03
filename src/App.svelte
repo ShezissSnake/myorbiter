@@ -108,7 +108,7 @@
   import IconButton from "./lib/ui/IconButton.svelte";
   import ProgressButton from "./lib/ui/ProgressButton.svelte";
   import { Job, JobError } from "./lib/job.svelte";
-  import { syncFill, waitForNewRead } from "./lib/core/syncWait";
+  import { SYNC_LIMIT_MS, syncFill, waitForNewRead } from "./lib/core/syncWait";
   import RepButton from "./lib/ui/RepButton.svelte";
   import GameIcon from "./lib/ui/GameIcon.svelte";
   import { drawnOrder, orderPages, pagesFor, migrateTab, sectionsOf, type Page } from "./lib/pages";
@@ -1520,18 +1520,39 @@
           j.phase = "Waiting…";
           syncStep = "Waiting for TennoScope's new read";
           j.fraction = syncFill(0);
-          await waitForNewRead(() => dataStamp(settings.dataDir), before, { abort: () => ts.error, onTick: (ms) => (j.fraction = syncFill(ms)) });
-          j.phase = "Reading…";
-          syncStep = "Reading the new inventory";
-          j.fraction = 0.9;
-          await reload();
-          if (error) throw new JobError("Not read", loadProblem(error));
+          // Any write to TennoScope's folder changes the stamp (a reward screen, the request
+          // itself), so a change is only the new read once the inventory it holds was read after
+          // the ask; until then, keep waiting for the next change (2 s for the two clocks).
+          const asked = Date.now();
+          const deadline = asked + SYNC_LIMIT_MS;
+          let seen: number | null = before;
+          let reloaded = false;
+          for (;;) {
+            try {
+              seen = await waitForNewRead(() => dataStamp(settings.dataDir), seen, { limit: Math.max(1_000, deadline - Date.now()), abort: () => ts.error, onTick: () => (j.fraction = syncFill(Date.now() - asked)) });
+            } catch (e) {
+              // Data did change but no read newer than the ask came: say what's there, not "Synced".
+              if (reloaded && !ts.error) return bundle?.observed_at ? `Read ${fmtTime(new Date(bundle.observed_at * 1000))}` : "No new read";
+              throw e;
+            }
+            j.phase = "Reading…";
+            syncStep = "Reading the new inventory";
+            await reload();
+            reloaded = true;
+            if (error) throw new JobError("Not read", loadProblem(error));
+            if ((bundle?.observed_at ?? 0) * 1000 >= asked - 2_000) break;
+            j.phase = "Waiting…";
+            syncStep = "Waiting for TennoScope's new read";
+          }
           j.fraction = 1;
           return "Synced";
         }
         j.phase = "Reading…";
         syncStep = "Reloading TennoScope's saved data and the live worldstate";
-        await Promise.all([reload(), refreshLive(), onConsole && mkt.linked ? mkt.reload() : null]);
+        // The worldstate comes on its own (21 requests, a slow site can take a while): the button
+        // is about your data, and the world's cards update as it lands.
+        void refreshLive();
+        await Promise.all([reload(), onConsole && mkt.linked ? mkt.reload() : null]);
         if (error) throw new JobError("Not read", loadProblem(error));
         return "Up to date";
       } finally {

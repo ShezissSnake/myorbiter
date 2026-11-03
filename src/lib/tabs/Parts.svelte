@@ -202,7 +202,7 @@
     <input type="search" placeholder="Filter parts…" bind:value={query} />
     <Seg label="Best as" bind:value={best} options={[{ v: "all", label: "All", title: "Whatever is best for each part" }, { v: "Sell", label: "Sell", title: "Worth more sold on its own" }, { v: "Set", label: "Set", title: "Worth more sold in a complete set" }, { v: "Ducats", label: "Ducats", title: "Worth more traded to Baro, at your ducat rate" }, { v: "Save", label: "Save", title: "Waiting for its set, which sells for more than its parts and whose missing parts you can still get (Settings → Selling)" }, { v: "Keep", label: "Keep", title: "You need it to build something you haven't mastered" }]} />
     {#if spareMatters}<Chip bind:on={spareOnly} label="Spare only" title="Leave out the copies you need to build something you haven't mastered" />{/if}
-    <Fold active={(parent !== "mastered" ? 1 : 0) + (avail !== "all" ? 1 : 0)} reset={() => { parent = "mastered"; avail = "all"; }}>
+    <Fold on={[parent === "mastered" ? "mastered items" : parent === "unmastered" ? "not mastered" : "", avail !== "all" ? avail : ""].filter(Boolean).join(", ")} active={(parent !== "mastered" ? 1 : 0) + (avail !== "all" ? 1 : 0)} reset={() => { parent = "mastered"; avail = "all"; }}>
       <Seg
         label="Item"
         bind:value={parent}
@@ -263,10 +263,11 @@
   .have { display: flex; align-items: center; gap: .55rem; }
   .qty { font-size: 1.05rem; color: var(--platinum-dim); }
   .vline { display: flex; align-items: center; gap: .9rem; font-size: .84rem; }
-  /* A card leads with what to do with the part: a struck badge, its colour as in the table. */
+  /* A card leads with what to do with the part: a word and its icon, its colour as in the table.
+     No border: the card's Sell button is the only thing on it that looks pressable. */
   .verdict {
-    justify-self: start; display: inline-flex; align-items: center; gap: .4rem; padding: .22rem .55rem .22rem .45rem;
-    border: 1px solid color-mix(in srgb, currentColor 45%, transparent); background: color-mix(in srgb, currentColor 7%, transparent);
+    justify-self: start; display: inline-flex; align-items: center; gap: .4rem; padding: .1rem 0 .1rem .5rem;
+    border-left: 2px solid currentColor;
     font-family: var(--face-register); font-size: .66rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
   }
   .grow { flex: 1; }

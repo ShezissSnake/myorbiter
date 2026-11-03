@@ -42,7 +42,8 @@
   const relics = $derived(squadRelics(model, paths));
   const pool = $derived(squadPool(relics));
   /** With four relics: whether they're a 4b4 (one relic, one refinement), and which are off if not. */
-  const share = $derived(shareCheck(relics));
+  // A relic orbiter can't name gets a placeholder ("Meso relic"): four of those aren't known to match.
+  const share = $derived(relics.every((r) => r.known) ? shareCheck(relics) : null);
   const best = $derived(pool.reduce<(typeof pool)[number] | null>((b, r) => (r.price != null && (b == null || r.price > (b.price ?? 0)) ? r : b), null));
   const needed = $derived(pool.filter((r) => r.needed));
   /** On Windows nothing draws over exclusive fullscreen: TennoScope's overlay can't show. */
@@ -74,7 +75,7 @@
     { k: "set", bar: "b-set", label: "Complete set", title: "Finishes a set (half for leaving it one part short)" },
   ];
   // The cards with their prices, for squad chat ("Saryn Prime Systems 15p | Forma Blueprint | …").
-  const chatLine = $derived((onScreen ?? []).map((c) => `${c.name}${c.price != null ? ` ${Math.round(c.price)}p` : ""}${c.ducats ? ` (${c.ducats} ducats)` : ""}`).join(" | "));
+  const chatLine = $derived((onScreen ?? []).map((c) => `${c.name}${c.price != null && !c.priceIsYours ? ` ${Math.round(c.price)}p` : ""}${c.ducats ? ` (${c.ducats} ducats)` : ""}`).join(" | "));
   /** "Meso C10 R" (a relic and its refinement's letter) → the relic, for its hover card. */
   const relicOf = (from: string) => from.replace(/ [IEFR]$/, "");
   /** The pick order shows its top few; the rest, and each relic's own table, a click away. */

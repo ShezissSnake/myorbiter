@@ -37,15 +37,12 @@
   const fill = (op: string) => (mkt.op === op && mkt.progress?.total ? mkt.progress.done / mkt.progress.total : null);
   const count = (op: string, verb: string) => (mkt.op === op && mkt.progress ? `${verb} ${mkt.progress.done}/${mkt.progress.total}` : `${verb}…`);
   /** The store's error from this run: said on the button, so not at the top of the page as well. */
-  const failure = () => {
-    const e = mkt.error;
-    mkt.error = null;
-    return e;
-  };
+  // This panel's own failures (by the store's label for the work), not whatever else last failed.
+  const failure = (label: string) => mkt.errorOf(label);
   function plan() {
     void planJob.run(async () => {
-      await makePlan();
-      const e = failure();
+      if (!(await makePlan())) return null;
+      const e = failure("Working out what to list");
       if (e) throw new JobError("Couldn't plan", e);
       const n = (mkt.bulk?.actions ?? []).filter((a) => a.type !== "skip").length;
       return n ? `${n} to change` : "Nothing to change";
@@ -57,7 +54,7 @@
       if (!r) return null;
       if (r.outcome === "changed") throw new JobError("Plan changed", "Your inventory or listings changed since the plan: look over the updated plan and apply again");
       if (r.outcome === "replanned") throw new JobError("Plan refreshed", "That plan was over 10 minutes old, so its prices were read again: look it over and apply again");
-      if (r.outcome === "stopped") throw new JobError("Stopped", failure() ?? `Stopped after ${r.sent} changes`);
+      if (r.outcome === "stopped") throw new JobError("Stopped", failure("Updating your listings") ?? `Stopped after ${r.sent} changes`);
       if (r.failed) throw new JobError(`${r.failed} failed`, `${r.sent} change${r.sent === 1 ? "" : "s"} made, ${r.failed} refused: the Activity log above says why`);
       return `${r.sent} done`;
     });
@@ -66,7 +63,7 @@
     void removeJob.run(async () => {
       const r = await mkt.removeAll();
       if (!r) return null;
-      const e = failure();
+      const e = failure("Removing every listing");
       if (e) throw new JobError("Stopped", e);
       if (r.failed) throw new JobError(`${r.failed} failed`, `${r.done} removed, ${r.failed} couldn't be: the Activity log above says why`);
       return `${r.done} removed`;
@@ -85,7 +82,7 @@
         waiting = false;
       }
     }
-    await mkt.planBulk(model, settings, advice);
+    return mkt.planBulk(model, settings, advice);
   }
 
   const actions = $derived(mkt.bulk?.actions ?? []);
@@ -140,7 +137,7 @@
         <button class="danger" disabled={!!mkt.busy} onclick={() => { confirmRemoveAll = false; removeAll(); }} onkeydown={keepOnEsc}>Remove all</button>
         <button onclick={() => (confirmRemoveAll = false)} onkeydown={keepOnEsc} use:focusIt>Keep them</button>
       {:else}
-        <ProgressButton variant="link" tone="dim" class="removeall" job={removeJob} label="Remove all my listings" working={count("Removing every listing", "Removing")} progress={fill("Removing every listing")} sizer={["Removing 000/000"]} title="Take every one of your sell listings off warframe.market" disabled={!!mkt.busy || !mkt.orders.length} onclick={() => (confirmRemoveAll = true)} />
+        <ProgressButton variant="link" tone="danger" class="removeall" job={removeJob} label="Remove all my listings" working={count("Removing every listing", "Removing")} progress={fill("Removing every listing")} sizer={["Removing 000/000"]} title="Take every one of your sell listings off warframe.market" disabled={!!mkt.busy || !mkt.orders.length} onclick={() => (confirmRemoveAll = true)} />
       {/if}
     </div>
   </header>

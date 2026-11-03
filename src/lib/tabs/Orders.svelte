@@ -238,22 +238,31 @@
   const showJob = new Job();
   const retryJob = new Job();
   const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+  // Why the last Check prices or Reprice went wrong, kept under the buttons (with Try again) until
+  // the next press: the button's own word only lasts a moment.
+  let lastFail = $state<{ why: string; again: () => void } | null>(null);
+  function failed(short: string, why: string, again: () => void) {
+    lastFail = { why, again };
+    return new JobError(short, why);
+  }
   function checkPrices() {
+    lastFail = null;
     void checkJob.run(async () => {
       const r = await mkt.reprice(model, settings, false);
       if (!r) return null;
-      if (r.error) throw new JobError("Failed", r.error);
-      if (r.stopped) throw new JobError("Stopped", "warframe.market stopped answering part way: the rest are checked on the next pass");
-      if (r.failed) throw new JobError(`${r.failed} unread`, `${plural(r.failed, "order book")} couldn't be read${r.off ? `; ${r.off} to reprice among the rest` : ""}. Check again in a minute.`);
+      if (r.error) throw failed("Failed", r.error, checkPrices);
+      if (r.stopped) throw failed("Stopped", "warframe.market stopped answering part way through: try again in a minute", checkPrices);
+      if (r.failed) throw failed(`${r.failed} unread`, `${plural(r.failed, "order book")} couldn't be read${r.off ? `; ${r.off} to reprice among the rest` : ""}. Check again in a minute.`, checkPrices);
       return r.off ? `${r.off} to reprice` : "All match";
     });
   }
   function repriceNow() {
+    lastFail = null;
     void repriceJob.run(async () => {
       const r = await mkt.reprice(model, settings, true);
       if (!r) return null;
-      if (r.error) throw new JobError("Failed", r.error);
-      if (r.failed) throw new JobError(`${r.failed} failed`, `${plural(r.failed, "listing")} couldn't be repriced${r.changed ? `; ${r.changed} ${r.changed === 1 ? "was" : "were"}` : ""}. The Activity log below says why.`);
+      if (r.error) throw failed("Failed", r.error, repriceNow);
+      if (r.failed) throw failed(`${r.failed} failed`, `${plural(r.failed, "listing")} couldn't be repriced${r.changed ? `; ${r.changed} ${r.changed === 1 ? "was" : "were"}` : ""}. The Activity log below says why.`, repriceNow);
       return r.changed ? `${r.changed} repriced` : "All match";
     });
   }
@@ -588,6 +597,7 @@
         <ProgressButton tone="gold" job={repriceJob} busy={mkt.pass === "Repricing"} progress={mkt.pass === "Repricing" ? passFill : undefined} label={pending ? `Reprice ${pending}` : "Reprice"} working={passCount ? `Repricing ${passCount}` : "Repricing…"} sizer={["Repricing 00/00", "00 repriced"]}
           title={mkt.pass === "Repricing" && !mkt.passManual ? "Apply automatically is sending new prices now" : pending ? `Send the new prices to warframe.market: the ${pending} listing${pending === 1 ? "" : "s"} with a Will set` : "Nothing to change: Check prices first, or every listing matches already"} disabled={!!mkt.busy || !pending} onclick={repriceNow} />
       </div>
+      {#if lastFail && !mkt.pass}<p class="err small lastfail" role="status">{lastFail.why} <button type="button" class="link" onclick={lastFail.again}>Try again</button> <button type="button" class="link quiet" onclick={() => (lastFail = null)}>Dismiss</button></p>{/if}
       <!-- The repricer's settings fold into one line that says how it's set: they're set once, not each visit. -->
       <Fold label={autoLine} title="The repricer's settings: checking and applying on a timer, the floor under prices and the lowest price anything is listed at">
         <div class="grp autos">
@@ -617,7 +627,7 @@
       {#if !console}<a class="link quiet tospares" href="#spares" title="Down to Put my spares on sale: list everything you can spare in one go" onclick={(e) => { e.preventDefault(); document.getElementById("spares")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>Put my spares on sale ↓</a>{/if}
     </div>
 
-    <table class="orders">
+    <table class="orders" class:ownfloors={rows.some((o) => settings.floors[listingKey(o)] != null)}>
       <thead>
         <tr>
           <th>Item</th><th class="right">Qty</th><th class="right">Your price</th><th title="The cheapest seller who is in game right now (and how many are), from the last check">Cheapest in game</th>
@@ -643,19 +653,7 @@
                 {#if it}<button type="button" class="charted" class:on={charted === o.id} aria-label="Price history" aria-expanded={charted === o.id} title="What it sold for over the last 90 days, against your price" onclick={() => (charted = charted === o.id ? null : o.id)}><Icon name="chart" size={13} /></button>{/if}
                 {#if rankLabel(o)}<span class="tag">{rankLabel(o)}</span>{/if}
                 {#if it && collecting.has(it.name) && !o.rank}{@const c = collecting.get(it.name)!}<span class="tag ok" title="You're collecting copies to max it ({c.copies} of {c.needed}, on Arcanes): selling these sets you back">still collecting</span>{/if}
-                {#if held === 0}<span class="tag alert" title="As of TennoScope's last read of your inventory">you have none</span>
-                {:else if held != null && held < o.quantity}<span class="tag alert" title="As of TennoScope's last read of your inventory">you hold {held}</span>{/if}
               </Named>
-              {#if held != null && held < o.quantity}
-                <!-- Holding fewer than you list usually means some sold: say so, and orbiter closes them. -->
-                <!-- A question with two answers: both buttons change the listing on warframe.market. -->
-                <div class="fix">
-                  <span class="dim small q">{o.quantity - held} gone since you listed. Sold?</span>
-                  <button class="stamp gold" disabled={rowBusy.busy(o.id)} onclick={() => recordSale(o, o.quantity - held)} title="Log the sale on Sales and {held === 0 ? 'close the listing' : `lower the listing to ${held}`} on warframe.market">Yes: log {o.quantity - held} sold</button>
-                  {#if held === 0}<button class="stamp" onclick={() => (removing = o.id)} title="You didn't sell it (used it in game, say): just take the listing down on warframe.market">No: remove listing</button>
-                  {:else}<button class="stamp" disabled={!rowFree(o.id)} onclick={() => lowerTo(o, held)} title="You didn't sell them (used in game, say): just lower the listing to {held} on warframe.market">No: list {held}</button>{/if}
-                </div>
-              {/if}
               {@render rowStatus(o.id)}
             </td>
             <td class="right c-qty" data-label="Qty">
@@ -724,6 +722,19 @@
               </span>
             </td>
           </tr>
+          {#if held != null && held < o.quantity}
+            <!-- Its own row under the listing, so the listing keeps to one line. -->
+            <tr class="fixrow"><td colspan="9">
+                <!-- Holding fewer than you list usually means some sold: say so, and orbiter closes them. -->
+                <!-- A question with two answers: both buttons change the listing on warframe.market. -->
+                <div class="fix">
+                  <span class="small q"><b class="held" title="As of TennoScope's last read of your inventory">! You {held === 0 ? "have none" : `hold ${held}`}</b> <span class="dim">· {o.quantity - held} gone since you listed. Sold?</span></span>
+                  <button class="stamp gold" disabled={rowBusy.busy(o.id)} onclick={() => recordSale(o, o.quantity - held)} title="Log the sale on Sales and {held === 0 ? 'close the listing' : `lower the listing to ${held}`} on warframe.market">Yes: log {o.quantity - held} sold</button>
+                  {#if held === 0}<button class="stamp" onclick={() => (removing = o.id)} title="You didn't sell it (used it in game, say): just take the listing down on warframe.market">No: remove listing</button>
+                  {:else}<button class="stamp" disabled={!rowFree(o.id)} onclick={() => lowerTo(o, held)} title="You didn't sell them (used in game, say): just lower the listing to {held} on warframe.market">No: list {held}</button>{/if}
+                </div>
+            </td></tr>
+          {/if}
           {#if charted === o.id && it}
             <tr class="chartrow">
               <td colspan="9">
@@ -855,7 +866,15 @@
   @keyframes wait { from { transform: scaleX(1); } to { transform: scaleX(0); } }
   @media (prefers-reduced-motion: reduce) { .pending i { animation: none; } }
   .undo { font-size: .64rem; }
-  .fix { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .9rem; margin-top: .35rem; padding-left: calc(34px + .75rem); }
+  .fix { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .9rem; padding-left: calc(34px + .75rem); }
+  /* The sold question sits in a row of its own under its listing, joined to it (no rule between). */
+  .orders tr.fixrow > td { padding-top: 0; }
+  .orders tr.order:has(+ tr.fixrow) > td { border-bottom-color: transparent; }
+  :global(html[data-room~="lt760"]) .orders tr.order:has(+ tr.fixrow) { border-bottom: 0; padding-bottom: .3rem; }
+  :global(html[data-room~="lt760"]) .orders tr.fixrow { display: block; padding: 0 0 .7rem; border-bottom: 1px solid var(--rule); }
+  :global(html[data-room~="lt760"]) .orders tr.fixrow > td { display: block; border: 0; padding: 0; }
+  .lastfail { flex-basis: 100%; margin: 0; }
+  .fix .held { color: var(--alert); font-weight: 600; }
   .fix .stamp { padding: .35rem .7rem; }
   /* Each button on one line; in a narrow window they sit under the name rather than squeezed beside it. */
   .fix button { white-space: nowrap; }
@@ -919,8 +938,9 @@
   /* The per-listing floor box goes next (your floors still apply, and the overall floor is above
      the table): half a 1080p screen leaves the page about 800 px, where it no longer fits. */
   :global(html[data-room~="lt900"]) .floorcol { display: none; }
-  /* Details off: the per-listing floor goes (the automatic one still applies; Details shows it). */
-  :global(html:not([data-details])) .orders .floorcol { display: none; }
+  /* Details off: the per-listing floor goes (the automatic one still applies; Details shows it),
+     unless a listing has a floor of your own. */
+  :global(html:not([data-details])) .orders:not(.ownfloors) .floorcol { display: none; }
   /* Less still: the headings wrap onto two lines rather than set the column widths. */
   :global(html[data-room~="lt760"]) .orders th { white-space: normal; line-height: 1.35; }
   /* A narrow window: each listing a card. The item across the top, the rest in a row under it, each with its name. */

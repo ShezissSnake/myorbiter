@@ -479,9 +479,9 @@ class MarketStore {
       await this.ensureItems();
       if (!this.items.length) throw new Error("Couldn't load warframe.market's item list; nothing was checked");
       await this.refresh();
-      // What the pass goes through, for its progress: Reprice by hand counts the listings it was
-      // shown a change for; a check (or the timer) every listing it reads.
-      const looked = this.orders.filter((o) => o.visible && !s.paused[listingKey(o)] && (timed || !apply || shown.has(o.id)));
+      // What the pass goes through, for its progress: every listing whose order book it reads
+      // (Reprice by hand reads them all too, so the button doesn't sit full while it does).
+      const looked = this.orders.filter((o) => o.visible && !s.paused[listingKey(o)]);
       const counted = new Set(looked.map((o) => o.id));
       let gone = 0;
       this.passProgress = { done: 0, total: looked.length };
@@ -1071,9 +1071,10 @@ class MarketStore {
   /** A long run's progress (planning, applying, removing everything). */
   progress = $state<{ done: number; total: number } | null>(null);
 
-  async planBulk(m: Model, s: MarketSettings, advice: DucatOptions) {
+  /** False when it didn't run (signed out, or a change you asked for is under way). */
+  async planBulk(m: Model, s: MarketSettings, advice: DucatOptions): Promise<boolean> {
     // A timed price check doesn't hold a plan back (it only reads); a change you asked for does.
-    if (!this.linked || this.op) return;
+    if (!this.linked || this.op) return false;
     this.bulk = null;
     await this.guard("Working out what to list", async () => {
       await this.ensureItems();
@@ -1121,6 +1122,7 @@ class MarketStore {
       };
     });
     this.progress = null;
+    return true;
   }
 
   /**
@@ -1237,17 +1239,27 @@ class MarketStore {
     this.running++;
     this.op = label;
     this.error = null;
+    this.errs.delete(label);
     try {
       await f();
       return true;
     } catch (e) {
       this.error = clean(e);
+      this.errs.set(label, clean(e));
       return false;
     } finally {
       if (--this.running === 0) this.op = null;
     }
   }
   private running = 0;
+  /**
+   * Why the last run of one kind of change failed (by its label), apart from the shared `error`
+   * a timed pass also sets and clears: a button asks about its own work, not whatever ran last.
+   */
+  private errs = new Map<string, string>();
+  errorOf(label: string): string | null {
+    return this.errs.get(label) ?? null;
+  }
 }
 
 const clean = (e: unknown) => String(e).replace(/^Error: /, "");

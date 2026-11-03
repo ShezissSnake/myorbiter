@@ -65,3 +65,12 @@ test("one job per row, made when first asked for", () => {
   assert.equal(rows.get("a"), rows.get("a"));
   assert.notEqual(rows.get("a"), rows.get("b"));
 });
+
+test("null from the work means nothing ran: back to the label, not Done", async () => {
+  const j = new Job(10, 10);
+  const ran = await j.run(async () => null);
+  assert.equal(ran, false);
+  assert.equal(j.state, "idle");
+  await j.run(async () => {});
+  assert.equal(j.state, "done", "no word is still done");
+});

@@ -50,7 +50,7 @@
   const label = (c: MarketCategory) => CATEGORIES.find((x) => x.v === c)?.label ?? "";
   const daily = (t: number | null) => (t == null ? null : Math.round(t * 10) / 10);
   /** How often it sells, in words, for the cards and the tooltips. */
-  const pace = (t: number | null) => (t == null ? "No recent sales" : t >= 1 ? (daily(t) === 1 ? "Sells once a day" : `Sells ${daily(t)} times a day`) : t >= 1 / 7 ? `Sells about ${Math.round(t * 7)} times a week` : "Sells rarely");
+  const pace = (t: number | null) => (t == null ? "No recent sales" : t >= 1 ? (daily(t) === 1 ? "Sells once a day" : `Sells ${daily(t)} times a day`) : t >= 1 / 7 ? (Math.round(t * 7) === 1 ? "Sells about once a week" : `Sells about ${Math.round(t * 7)} times a week`) : "Sells rarely");
   const sellsDaily = $derived(rows.filter((r) => (r.tradesPerDay ?? 0) >= 1).length);
   const filtered = $derived(category !== "all" || min != null || max != null || minTrades != null || owned || !weekly || !!query.trim());
   function clear() {

@@ -250,7 +250,7 @@
               {@const own = (byEra.get(e) ?? []).filter((f) => !f.isStorm)}
               {@const sp = own.filter((f) => f.isHard).length}
               {@const om = e === "Requiem" ? 0 : omnia.filter((f) => !f.isStorm).length}
-              {#if own.length - sp}<span title="Normal fissures of this era open now">{own.length - sp} open</span>{/if}{#if sp}<span class="sp" title="Steel Path fissures of this era open now"><GameIcon name="steel-essence" size={11} />{sp} Steel Path</span>{/if}
+              {#if own.length - sp}<span title="Normal fissures of this era open now">{own.length - sp} now</span>{/if}{#if sp}<span class="sp" title="Steel Path fissures of this era open now"><GameIcon name="steel-essence" size={11} />{sp} Steel Path</span>{/if}
               {#if om}<span class="om" title="Omnia fissures take a Lith, Meso, Neo or Axi relic (not Requiem)"><GameIcon name="void-tear" size={11} />{om} Omnia</span>{/if}
             {:else}<span title={feed == null ? "The fissure list (api.warframestat.us) hasn't answered" : undefined}>{feed == null ? "fissures unknown" : "no fissure now"}</span>{/if}
           </span>

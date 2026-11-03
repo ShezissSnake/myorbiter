@@ -282,7 +282,7 @@
   // Dismissing an alert or removing a price alert waits a few seconds, with Undo, before it's done.
   const undo = new UndoSlots();
   $effect(() => () => undo.flush());
-  const alertKey = (a: { name: string; rank: number | null }) => `price:${a.name}|${a.rank ?? ""}`;
+  const alertKey = (a: { name: string; rank: number | null; subtype?: string | null }) => `price:${a.name}|${a.rank ?? ""}|${a.subtype ?? ""}`;
   function removePriceAlert(a: (typeof settings.market.buyAlerts)[number]) {
     undo.hold(alertKey(a), () => (settings.market.buyAlerts = settings.market.buyAlerts.filter((x) => alertKey(x) !== alertKey(a))));
   }
@@ -368,7 +368,7 @@
     </div>
     <div class="hr">
       <div class="dt"><p class="dim">{new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</p>
-      {#if liveAt != null}<p class="dim small upd" class:old={!!liveError || !liveRead} title={`Fissures, the clocks, bounties, Baro, Varzia, the Sortie, events and the rest come from ${live.fromGame ? "the game's own worldstate (api.warframestat.us isn't answering)" : "api.warframestat.us"}, read every 5 minutes.${!liveRead && !liveError ? " This is the read kept from last time, until the first read since start comes in; each thing in it goes when it ends." : ""}${liveError ? " The last read failed, so this is what was read before; each thing in it goes when it ends." : ""}`}>{liveError || !liveRead ? `World from ${checkedWhen(liveAt, now)}` : `World read ${new Date(liveAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`}</p>{/if}</div>
+      {#if liveAt != null}<p class="dim small upd" class:old={!!liveError || !liveRead} title={`Fissures, the clocks, bounties, Baro, Varzia, the Sortie, events and the rest come from ${live.fromGame ? "the game's own worldstate (api.warframestat.us isn't answering)" : "api.warframestat.us"}, read every 5 minutes.${!liveRead && !liveError ? " This is the read kept from last time, until the first read since start comes in; each thing in it goes when it ends." : ""}${liveError ? " The last read failed, so this is what was read before; each thing in it goes when it ends." : ""}`}>{liveError || !liveRead ? `Updated ${checkedWhen(liveAt, now)}` : `Updated ${new Date(liveAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`}</p>{/if}</div>
       <IconButton icon="settings" tone="quiet" label="Customise Home" title="Choose what Home shows" aria-expanded={customising} onclick={() => (customising = !customising)} />
     </div>
   </header>
@@ -536,7 +536,7 @@
         <p class="dim">{liveNote}</p>
       {:else if openBounties}
         <BountyBoard {boards} {now} imageOf={(n) => model.imageOf(n)} {need} opens={rewardOpens} />
-        <button class="link fold" onclick={() => (openBounties = false)}>Fewer</button>
+        <button class="link fold" aria-expanded="true" onclick={() => (openBounties = false)}>Fewer</button>
       {:else}
         <!-- One line a place: its best (or wanted) reward; the boards a click away. -->
         <ul class="bsum">
@@ -545,7 +545,7 @@
             <li><b>{b.label}</b><span class:gold={j?.wanted} use:info={j?.headline?.name ?? null}>{j?.headline?.name ?? "—"}</span>{#if j?.headline?.chance != null}<span class="dim small" title={j.wanted ? "A reward you need, and its chance per run" : "Its rarest reward, and its chance per run"}>{Math.round(j.headline.chance * 10) / 10}%</span>{/if}</li>
           {/each}
         </ul>
-        <button class="link fold" onclick={() => (openBounties = true)} title="Every bounty in each place: levels, rewards and standing">Every bounty →</button>
+        <button class="link fold" aria-expanded="false" onclick={() => (openBounties = true)} title="Every bounty in each place: levels, rewards and standing">Every bounty →</button>
       {/if}
     </section>
 
@@ -722,7 +722,7 @@
       {#if settings.market.buyAlerts.length}
         <div class="alertlist">
           <span class="register" title="Set with Alert me in Post a buy order (the Buy order buttons on Wishlist, Mastery, Browse market…): orbiter tells you when someone lists one at your price or less">Your price alerts</span>
-          {#each settings.market.buyAlerts as a (a.name + (a.rank ?? ""))}
+          {#each settings.market.buyAlerts as a (alertKey(a))}
             {#if undo.has(alertKey(a))}<UndoSlot label="Removed" what={a.name} onundo={() => undo.undo(alertKey(a))} />
             {:else}<span class="pa" use:info={a.name}>{a.name}{a.rank != null ? ` R${a.rank}` : ""} <span class="dim">≤</span><P v={a.maxPrice} /><IconButton icon="close" tone="quiet" size={10} label="Remove alert" title="Stop watching {a.name} (you get a few seconds to undo)" onclick={() => removePriceAlert(a)} /></span>{/if}
           {/each}

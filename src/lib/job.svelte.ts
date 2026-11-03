@@ -61,6 +61,8 @@ export class Job {
   /**
    * Runs `f` unless this job is already working (then nothing happens and it returns false).
    * What `f` returns is the done word; what it throws, the failure. True when it finished.
+   * `null` from `f` means nothing ran (the store refused: busy, signed out): back to the label,
+   * not a "Done" for work that never happened.
    */
   async run(f: (job: Job) => Promise<string | null | void>): Promise<boolean> {
     if (this.state === "working") return false;
@@ -75,6 +77,10 @@ export class Job {
     this.short = null;
     try {
       const note = await f(this);
+      if (note === null) {
+        this.reset();
+        return false;
+      }
       this.finish(note ?? null);
       return true;
     } catch (e) {

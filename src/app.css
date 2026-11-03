@@ -228,6 +228,9 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 /* A link that is an <a>: drawn like the button ones. */
 a.link { text-decoration: none; text-transform: uppercase; display: inline-flex; align-items: center; }
 .link.dim:hover:not(:disabled) { color: var(--platinum); }
+/* A link that takes something away (Remove all my listings): the error colour, quiet until hovered. */
+.link.danger { color: color-mix(in srgb, var(--oxblood) 70%, var(--platinum-deep)); text-decoration: none; }
+.link.danger:hover:not(:disabled) { color: var(--oxblood); text-decoration: underline; }
 
 /* An icon on its own as a button: square, the same size as a row's fields. */
 .ib { display: inline-grid; place-items: center; width: var(--ib, 30px); height: var(--ib, 30px); padding: 0; flex: none; }

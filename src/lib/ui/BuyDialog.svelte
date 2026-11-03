@@ -18,7 +18,7 @@
     onalert({ name: d.name, rank: d.rank, subtype: d.subtype, maxPrice: Math.round(d.platinum), at: Date.now() });
     alerted = true;
     // A tick for a moment, so you see it was set, then the form goes.
-    setTimeout(close, 1500);
+    later(1500);
   }
 
   const open = $derived(!!(mkt.buyDraft || mkt.buyError));
@@ -31,7 +31,17 @@
   $effect(() => {
     if (open) void tick().then(() => dialog?.querySelector<HTMLInputElement>("input.price")?.focus());
   });
+  // The form closing itself after Posted or Alert me: one timer, cleared on close, so it can't
+  // shut a draft opened in the meantime.
+  let closing: ReturnType<typeof setTimeout> | null = null;
+  function later(ms: number) {
+    if (closing) clearTimeout(closing);
+    closing = setTimeout(close, ms);
+  }
   const close = () => {
+    if (closing) clearTimeout(closing);
+    closing = null;
+    buyJob.reset();
     mkt.buyDraft = null;
     mkt.buyError = null;
     alerted = false;
@@ -39,10 +49,11 @@
   // Buy: working while it posts, "Posted" with a tick for a moment, then the form closes.
   const buyJob = new Job();
   function place() {
-    if (!ready || buyJob.state !== "idle") return;
+    // Not while it posts or just posted; after a failure, pressing again tries again.
+    if (!ready || buyJob.working || buyJob.state === "done") return;
     void buyJob.run(async () => {
       if (!(await mkt.placeBuy(true))) throw new Error(mkt.error ?? "warframe.market didn't take it");
-      setTimeout(close, 1200);
+      later(1200);
       return "Posted";
     });
   }
