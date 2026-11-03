@@ -94,12 +94,13 @@ export const QUIET_MS = 1000;
  * Whether background work may start now: an idle period with room for a slice (`room` ms), and no
  * click or key in the last `quiet` ms (a click often comes in a burst, Radshare then Platinum; work
  * started between them makes the second one wait), and nothing on screen still moving (motion.ts,
- * `moving`: a row closing up shouldn't stutter for it). Past the idle callback's own timeout, at once;
- * while something holds background work back (`held`, see `holdBackground`), not even then.
+ * `moving`: a row closing up shouldn't stutter for it). Past the idle callback's own timeout, as soon
+ * as it's quiet, room or not (a click still never lands on it); while something holds background work
+ * back (`held`, see `holdBackground`), not even then.
  */
 export function idleReady(left: number, since: number, room = 30, quiet = QUIET_MS, timedOut = false, moving = false, held = false): boolean {
-  if (held) return false;
-  return timedOut || (left >= room && since >= quiet && !moving);
+  if (held || since < quiet) return false;
+  return timedOut || (left >= room && !moving);
 }
 
 /**
