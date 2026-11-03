@@ -14,7 +14,8 @@
   import { BUILD } from "../build";
 
   // console: the short guide, for the pages a console or phone player has. platform: where they play.
-  let { go, plannerMode = $bindable(), console = false, platform = "PC" }: { go: (tab: string) => void; plannerMode: "sets" | "radiant"; console?: boolean; platform?: string } = $props();
+  // hidden: the pages Settings → Pages keeps out of the sidebar.
+  let { go, plannerMode = $bindable(), console = false, platform = "PC", hidden = [] }: { go: (tab: string) => void; plannerMode: "sets" | "radiant"; console?: boolean; platform?: string; hidden?: string[] } = $props();
 
   const CONSOLE_STEPS: Step[] = [
     ["home", "Home", "alerts with rare rewards (catalysts, reactors, Forma…), your market at a glance, the open worlds' cycles, Duviri's mood and the resets (and when the world was last read), every fissure open now (normal, Steel Path or Void Storms, with alerts for the ones you want), the bounties in each open world and hub (hover one for everything it can pay), events running in game and what they pay, what's worth doing today (Darvo's deal, the Sortie's missions, modifiers and reward chances among it), and when Baro comes and what he brings."],
@@ -24,9 +25,14 @@
   ];
 
   type Step = [tab: string, label: string, text: string | string[], planner?: "sets" | "radiant"];
-  // What's new, one update a day; the latest one's tour.
-  const updates = batches(NEWS);
-  const latestStops = tourStops(updates[0]?.items ?? []);
+  // What's new, one update a day, each with a tour of that day's changes.
+  const updates = batches(NEWS).map((u) => ({ ...u, stops: tourStops(u.items) }));
+  const longDay = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+  const shortDay = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "long" });
+  // The walks' pages kept out of the sidebar, named in the note under them.
+  const OUT: [id: string, label: string][] = [["planner", "Planner"], ["browse", "Browse market"], ["stats", "Stats"]];
+  const out = $derived(OUT.filter(([id]) => hidden.includes(id)).map(([, l]) => l));
+  const listed = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : xs[0]);
   // Each page in a line: its first clause, the rest on "more".
   let openSteps = $state<Record<string, boolean>>({});
   const brief = (t: string | string[]) => {
@@ -141,7 +147,7 @@
       <ul>
         <li><b>Hover</b> over any button or number for what it does.</li>
         <li data-card="sections"><b>Each section its own colour:</b> the sidebar's four groups, and every page in them, carry one colour and sigil (over the title, on the label, along the open page's edge): Fissures Void violet, Progress mastery teal, Collection steel blue, Trade market gold. Under each title sits that section's own strip: the reward screen or relic plate, the Codex rings, the showcase of your best spares, the market ticker.</li>
-        <li data-card="showme"><b>Show me</b>, on a change in What's New, opens its page and lights the very thing that changed. <b>Take the tour</b> steps through every change of the latest update, page by page, with a bar at the bottom of the window: <kbd>→</kbd> or <kbd>Enter</kbd> for the next, <kbd>←</kbd> back, <kbd>Esc</kbd> to stop.</li>
+        <li data-card="showme"><b>Show me</b>, on a change in What's New, opens its page and lights up what changed. <b>Take the tour</b> steps through every change since you last opened orbiter, page by page (at the end of this Guide, each day's update has a tour of its own), with a bar at the bottom of the window: <kbd>→</kbd> or <kbd>Enter</kbd> for the next, <kbd>←</kbd> back, <kbd>Esc</kbd> to stop.</li>
         <li><b>Sync</b>, at the bottom of the sidebar, reloads your listings, the fissures and Baro; it fills as it goes and ticks when done.</li>
         <li><b>Keyboard:</b> <kbd>Ctrl</kbd>+<kbd>1</kbd>…<kbd>4</kbd> pages in sidebar order, <kbd>Ctrl</kbd>+<kbd>R</kbd> or <kbd>F5</kbd> sync, <kbd>Ctrl</kbd>+<kbd>,</kbd> settings, <kbd>F1</kbd> this guide, <kbd>Esc</kbd> closes a panel, <kbd>Ctrl</kbd>+<kbd>Q</kbd> quits.</li>
         <li><span class="ic"><Icon name="bell" /></span> <b>Notifications</b>: what orbiter told you lately (click one to open it), and under <b>Choose</b> which kinds you get, with a pause for all of them. Choose can also send the kinds you pick to a Discord channel (paste its webhook address), to get them on your phone while you're away.</li>
@@ -168,7 +174,7 @@
         <ol>{#each w.steps as [tab, page, what], i (i)}<li><button class="link" onclick={() => go(tab)} title="Open {page}">{page}</button> <span class="dim"><Rich text={what} {go} /></span></li>{/each}</ol>
       </article>
     {/each}
-    <p class="dim small hidden-pages"><Rich text="Planner, Browse market and Stats start out of the sidebar, to keep it short: put them back in Settings → Pages. Links to them still work, like these." {go} /></p>
+    {#if out.length}<p class="dim small hidden-pages"><Rich text={`${listed(out)} ${out.length === 1 ? "is" : "are"} out of your sidebar: put ${out.length === 1 ? "it" : "them"} back in Settings → Pages. Links to ${out.length === 1 ? "it" : "them"} still work, like these.`} {go} /></p>{/if}
   </section>
 
   <section class="routines">
@@ -203,7 +209,7 @@
         <li><span class="ic"><Icon name="list" /></span> at the end of a row puts it on warframe.market without leaving the page: only the copies you can spare, priced at the cheapest seller in game. A padlock <span class="ic"><Icon name="lock" /></span> (or nothing) means you need what you have; the green <span class="ic good"><Icon name="listed" /></span> means it's on the market already (click to add more or change the price). Every icon says what it does when you hover it.</li>
         <li><b>Cards or rows:</b> collection pages show cards by default; <span class="ic"><Icon name="rows" /></span> above the cards switches that page to a sortable table, <span class="ic"><Icon name="cards" /></span> back, and it's remembered. A gold notch in a card's top corner marks one to look at: spares you can sell, gear you own but haven't mastered, a relic with a part you need, an arcane you've maxed (hover the notch for that card's reason). On round part icons, a gold ring is enough in hand, dashed is building; a relic's rewards are square, like the game's reward screen.</li>
         <li data-card="sections"><b>Each section its own colour:</b> the sidebar's four groups, and every page in them, carry one colour and sigil (over the title, on the label, along the open page's edge): Fissures Void violet, Progress mastery teal, Collection steel blue, Trade market gold. Under each title sits that section's own strip: the reward screen or relic plate, the Codex rings, the showcase of your best spares, the market ticker.</li>
-        <li data-card="showme"><b>Show me</b>, on a change in What's New, opens its page and lights the very thing that changed. <b>Take the tour</b> steps through every change of the latest update, page by page, with a bar at the bottom of the window: <kbd>→</kbd> or <kbd>Enter</kbd> for the next, <kbd>←</kbd> back, <kbd>Esc</kbd> to stop.</li>
+        <li data-card="showme"><b>Show me</b>, on a change in What's New, opens its page and lights up what changed. <b>Take the tour</b> steps through every change since you last opened orbiter, page by page (at the end of this Guide, each day's update has a tour of its own), with a bar at the bottom of the window: <kbd>→</kbd> or <kbd>Enter</kbd> for the next, <kbd>←</kbd> back, <kbd>Esc</kbd> to stop.</li>
         <li><b>Hover</b> over anything with a name (a relic, a part, a mod, an arcane, a warframe or weapon) for what it is: a relic's rewards with their odds and prices, where a part drops and what it sells for, a mod's effect at max rank. Move off it, scroll or press <kbd>Esc</kbd> to close it.</li>
         <li><b>Click a card or row</b> to open it: a warframe, weapon or companion opens its full details (stats, parts, drops, prices); other things show relic odds, how many you keep, and warframe.market links.</li>
         <li><b>Details</b>, by each page's title, shows the sentence under every figure, the full page description and every table column; off (the start), pages keep to the essentials and the rest is on hover. <b>More filters ▾</b> holds the filters most visits don't need (a number on it says how many are set; Clear puts them back).</li>
@@ -217,7 +223,7 @@
         <li><b>TennoScope</b> under it opens its panel: whether it's healthy, screen-capture permission for the reward overlay, and inventory sync. Its light is green when all is well, gold when something wants a look, red when it isn't running or something failed.</li>
         <li>The sidebar folds to icons on narrow windows; the arrow next to the name folds or unfolds it, and orbiter remembers your choice.</li>
         <li><span class="ic"><Icon name="bell" /></span> <b>Notifications</b>: what orbiter told you lately, newest first (click one to open what it's about; the number on the bell is how many are new), and under <b>Choose</b> a switch for each kind, with a pause for all of them. Besides your listings and fissures, it can tell you when an alert or invasion rewards something you haven't mastered or something rare (a Catalyst or Reactor blueprint, Forma), when Baro brings something new to you, when Varzia's rotation has primes you need, and the Duviri Circuit's picks. While you're looking at orbiter they pop up in its corner; otherwise on your desktop, where clicking one (on Linux and Windows) brings orbiter up on what it's about. Choose can also send the kinds you pick to a Discord channel (paste its webhook address), to get them on your phone while you're away.</li>
-        <li>On a wide window (1640 px and up), the <b>Watching</b> column on the right keeps what you choose in view on every page but Home (which shows it all already): your alerts, every open fissure, the open worlds' clocks, your Foundry, the best bounty rewards and your market. Its gear picks what it shows; » folds it away and the tab on the right edge brings it back. Planner, Browse market and Stats start out of the sidebar; Settings → Pages puts them back.</li>
+        <li>On a wide window (1640 px and up), the <b>Watching</b> column on the right keeps what you choose in view on every page but Home (which shows it all already): your alerts, every open fissure, the open worlds' clocks, your Foundry, the best bounty rewards and your market. Its gear picks what it shows; » folds it away and the tab on the right edge brings it back.</li>
         <li>The gear opens Settings: your platform; which pages the sidebar shows, in what order, and which one orbiter opens on; starting TennoScope with orbiter and where it, its data and Warframe's log are; switching to Current fissure on the reward screen and how the pick is scored; what TennoScope's overlays show, and the riven key; +rep after trades, marking sales sold from the game, and hiding last copies while someone whispers you; and whether veiled rivens and relics count as spare.</li>
       </ul>
     </article>
@@ -283,10 +289,13 @@
   <section class="news" aria-label="What's new" data-card="news">
     <div class="newshead">
       <h3 class="register lead">What's new</h3>
-      {#if latestStops.length > 1}<button class="stamp" title="Step through each change of the latest update on its page, with a bar at the bottom of the window: arrow keys or Enter for the next, Esc to stop" onclick={() => startTour(latestStops)}>Take the tour <span class="dim">{latestStops.length}</span></button>{/if}
+      <span class="dim small">Every update, newest first. Each day's changes count as one update.</span>
     </div>
     {#each updates as u (u.ids[0])}
-      <h4 class="register">{new Date(`${u.date}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}</h4>
+      <div class="day">
+        <h4 class="register">{longDay(u.date)} <span class="n">· {u.items.length} {u.items.length === 1 ? "change" : "changes"}</span></h4>
+        {#if u.stops.length > 1}<button class="stamp" title="Step through the {u.stops.length} changes of {shortDay(u.date)} that have a place to show, each on its page, with a bar at the bottom of the window: arrow keys or Enter for the next, Esc to stop" onclick={() => startTour(u.stops)}>Tour {shortDay(u.date)} <span class="dim">{u.stops.length} stops</span></button>{/if}
+      </div>
       <NewsItems items={u.items} {go} />
     {/each}
     <p class="dim small">This build: {BUILD.commit}{BUILD.date ? `, ${BUILD.date}` : ""}. Say it when you report a problem.</p>
@@ -300,8 +309,11 @@
   .walks ol { margin: 0; padding-left: 1.1rem; display: grid; gap: .35rem; font-size: .86rem; }
   .walks .hidden-pages { grid-column: 1 / -1; margin: 0; }
   .news { margin-top: var(--course); display: grid; gap: .5rem; max-width: 72rem; }
-  .news h4 { margin: .9rem 0 0; font-size: .6rem; color: var(--platinum-deep); }
-  .newshead { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .news h4 { margin: 0; font-size: .6rem; color: var(--platinum-deep); }
+  .news h4 .n { letter-spacing: .1em; }
+  .newshead { display: flex; align-items: baseline; gap: 1rem; }
+  /* A day's heading, its tour at the right. */
+  .day { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: .9rem; min-height: 2.4rem; }
   .newshead .lead { margin: 0; }
   /* An icon named in the text, drawn as it is on the page. */
   .ic { display: inline-grid; place-items: center; width: 1.3rem; height: 1.3rem; vertical-align: -.3rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
