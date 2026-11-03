@@ -162,7 +162,7 @@
       <select value={sort.key} onchange={(e) => { const c = columns.find((x) => x.key === e.currentTarget.value); if (c) sort = { key: c.key, desc: c.defaultDesc ?? true }; }} aria-label="Sort by">
         {#each sortable as c (c.key)}<option value={c.key}>{c.label}</option>{/each}
       </select>
-      <IconButton icon={sort.desc ? "sort-desc" : "sort-asc"} label={sort.desc ? "Highest first" : "Lowest first"} title={`${sort.desc ? "Highest first" : "Lowest first"}: click to reverse`} onclick={() => (sort = { ...sort, desc: !sort.desc })} />
+      <IconButton icon="sort-desc" class={sort.desc ? "sortdir" : "sortdir asc"} label={sort.desc ? "Highest first" : "Lowest first"} title={`${sort.desc ? "Highest first" : "Lowest first"}: click to reverse`} onclick={() => (sort = { ...sort, desc: !sort.desc })} />
     </label>
   {/if}
   <span class="grow"></span>
@@ -196,6 +196,9 @@
 <style>
   .tools { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .8rem; margin: 0 0 .8rem; }
   .sort { display: inline-flex; align-items: center; gap: .5rem; }
+  /* Highest or lowest first: one icon that turns over (QUICK) rather than swapping for another. */
+  .sort :global(.sortdir svg) { transition: transform var(--quick) var(--out); }
+  .sort :global(.sortdir.asc svg) { transform: rotateX(180deg); }
   .more { display: flex; justify-content: center; padding: 1.2rem 0; min-height: 3rem; }
   /* Nothing here: quiet, but still readable (about 5:1). */
   .nil { color: var(--platinum-deep); }

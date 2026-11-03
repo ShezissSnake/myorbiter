@@ -62,7 +62,7 @@
             onclick={() => setSort(c)}
             onkeydown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setSort(c))}
           >
-            {c.label}{#if sort.key === c.key}<span class="arrow">{sort.desc ? "▾" : "▴"}</span>{/if}
+            {c.label}{#if sort.key === c.key}<span class="arrow" class:up={!sort.desc} aria-hidden="true">▾</span>{/if}
           </th>
         {/each}
         {#if detail}<th class="chev" aria-label="Details"></th>{/if}
@@ -117,7 +117,9 @@
   th.sortable:focus-visible { outline: none; box-shadow: inset 0 -2px 0 var(--gold); color: var(--platinum); }
   th.sortable:hover { color: var(--platinum); }
   th[aria-sort] { color: var(--platinum); }
-  .arrow { margin-left: .3rem; color: var(--gold); }
+  /* The sort's arrow turns over when the order flips (QUICK); a header sinks as it's pressed (app.css). */
+  .arrow { display: inline-block; margin-left: .3rem; color: var(--gold); transition: transform var(--quick) var(--out); }
+  .arrow.up { transform: rotate(180deg); }
   td { padding: .5rem .75rem; border-bottom: 1px solid var(--rule); vertical-align: middle; font-size: .84rem; }
   td:first-child, th:first-child { padding-left: 0; }
   .right { text-align: right; }
@@ -143,7 +145,7 @@
   /* Little room (half a small screen): headings wrap onto two lines rather than widen their columns. */
   :global(html[data-room~="lt760"]) th { white-space: normal; line-height: 1.35; }
   .chev { width: 1.6rem; padding-right: 0; text-align: center; color: var(--platinum-deep); }
-  .chev span { display: inline-block; font-size: 1.1rem; transition: transform .12s; }
+  .chev span { display: inline-block; font-size: 1.1rem; transition: transform var(--quick) var(--out); }
   tr.open .chev span { transform: rotate(90deg); color: var(--gold); }
   tr.clickable:hover .chev span { color: var(--platinum); }
   tr.clickable:focus-visible { outline: 1px solid var(--gold); outline-offset: -1px; }
