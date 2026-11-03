@@ -185,7 +185,7 @@
   <!-- Nothing logged: no row of zeros, just how sales get here. -->
   <PageHead title="Sales" blurb="What you've sold, and the platinum it made." band={sales.length ? band : undefined} />
     {#snippet band()}
-      <Stat label="Today" note={`${trades(today)} sold`}><P v={plat(today)} big /></Stat>
+      <Stat label="Today" note={`${trades(today)} sold`} title={`Today: ${trades(today)} sold since your local midnight (Trades left, on Home and Orders, counts from 00:00 UTC)`}><P v={plat(today)} big /></Stat>
       <Stat label="Last 7 days" note={`${trades(week)} sold`}><P v={plat(week)} big /></Stat>
       <Stat label="Last 30 days" note={`${trades(month)} sold`}><P v={plat(month)} big /></Stat>
       {#if vsMonth != null}<Stat label="Vs market, 30 days" tone={vsMonth < UNDER ? "gold" : "platinum"} note={underCount ? `${underCount} sale${underCount === 1 ? "" : "s"} under ${Math.round(UNDER * 100)}% of the median` : "Every sale near the daily median or better"}>{Math.round(vsMonth * 100)}%</Stat>{/if}
