@@ -91,14 +91,17 @@
   .words { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: baseline; gap: .2rem .8rem; min-width: 0; }
   .count { color: var(--gold); white-space: nowrap; }
   .t { color: var(--platinum); font-size: .92rem; white-space: nowrap; }
-  /* The line on one row; the whole of it on hover, or two rows in a narrow window. */
+  /* The line on one row, or up to three in a narrow window; the whole of it while you point at
+     the bar or tab into its links (the bar grows upward). */
   .x { font-size: .82rem; color: var(--platinum-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .tour:hover .x, .x:focus-within { white-space: normal; display: block; -webkit-line-clamp: none; line-clamp: none; overflow: visible; }
   .ctl { display: flex; align-items: center; gap: .5rem; }
   .ctl .stamp { min-width: 5.5rem; }
   .ctl .end { white-space: nowrap; }
   .ctl .end.gone { visibility: hidden; }
   @media (max-width: 1400px) {
     .words { grid-template-columns: auto minmax(0, 1fr); }
-    .x { grid-column: 1 / -1; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+    .x { grid-column: 1 / -1; white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; }
+    .tour:hover .x, .x:focus-within { display: block; }
   }
 </style>
