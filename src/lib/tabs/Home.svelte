@@ -49,7 +49,8 @@
   import FissureBoard from "../ui/FissureBoard.svelte";
   import BountyBoard from "../ui/BountyBoard.svelte";
   import { describe } from "../core/describe";
-  import { arrive, fresh } from "../motion";
+  import { tick as nextTick } from "svelte";
+  import { arrive, calm, flip, fresh, leave, opens, OUT_CSS, QUICK, reveal as unfold } from "../motion";
   import Tick from "../ui/Tick.svelte";
 
   // console: you play on a console or phone, so there's no inventory: Home is the market, the
@@ -369,7 +370,7 @@
     { label: "Sign in to warframe.market", why: "to list, reprice and see your orders", hint: "On Orders: orbiter keeps its own sign-in", done: mkt.linked, go: () => go("market") },
     { label: "Set your rates", why: "what a ducat is worth to you, and the smallest sale worth a trade", hint: "Prime parts → Your rates", done: settings.advice.platPerDucat !== defaultAdvice().platPerDucat || settings.advice.minPlat !== defaultAdvice().minPlat, go: () => go("parts") },
     { label: "Star what you're after", why: "Wishlist shows the relics for each missing part", hint: "The ☆ on any card in Foundry or Mastery", done: settings.favourites.length > 0, go: () => go("foundry") },
-    { label: "Add a fissure alert", why: "a notification when a fissure you want opens", hint: "Fissures now → Add alert", done: settings.fissureRules.length > 0, go: () => { setTimeout(() => document.querySelector<HTMLElement>('[data-card="fissures"]')?.scrollIntoView({ block: "center" }), 0); } },
+    { label: "Add a fissure alert", why: "a notification when a fissure you want opens", hint: "Fissures now → Add alert", done: settings.fissureRules.length > 0, go: () => go("home#addalert") },
     { label: "Choose Home's cards", why: "hide what you don't use", hint: "The ⚙ by the date", done: settings.homeHidden.length > 0, go: () => (customising = true) },
   ]);
 
@@ -397,8 +398,32 @@
   const hidden = $derived(new Set(settings.homeHidden));
   // A card a notification opened shows even if you hid it, until you leave Home.
   const off = (key: string) => key !== reveal && (hidden.has(key) || (console && NEEDS_INVENTORY.has(key)));
+  // A card you hide fades out before it goes, and one you show fades in where it lands (QUICK);
+  // the chip itself turns at once. Under reduced motion, or a card off screen, it's just done.
+  const fading = new Map<string, Animation>();
   function toggleCard(key: string, on: boolean) {
-    settings.homeHidden = on ? settings.homeHidden.filter((k) => k !== key) : [...settings.homeHidden, key];
+    const set = () => (settings.homeHidden = on ? settings.homeHidden.filter((k) => k !== key) : [...settings.homeHidden, key]);
+    fading.get(key)?.cancel();
+    fading.delete(key);
+    const card = () => document.querySelector<HTMLElement>(`.home [data-card="${key}"]`);
+    const el = card();
+    if (calm.current || !el || typeof el.animate !== "function") return set();
+    if (on) {
+      set();
+      nextTick().then(() => {
+        const shown = card();
+        if (!shown?.getClientRects().length) return;
+        fading.set(key, shown.animate([{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], { duration: QUICK, easing: OUT_CSS }));
+      });
+      return;
+    }
+    if (!el.getClientRects().length) return set();
+    const a = el.animate([{ opacity: 1 }, { opacity: 0, transform: "scale(.98)" }], { duration: QUICK, easing: OUT_CSS, fill: "forwards" });
+    fading.set(key, a);
+    a.onfinish = () => {
+      set();
+      nextTick().then(() => a.cancel());
+    };
   }
   // The wide card on the left of each row and the narrow ones beside it. With all of one side
   // off, the other takes the whole width, so no row is left half empty.
@@ -445,33 +470,35 @@
 
   {#if startSteps.some((x) => !x.done) && !settings.startDone && !console}
     <!-- First days with orbiter: the few things that make the rest of it work, each a click away. -->
-    <section class="start" aria-label="Start here">
+    <div class="startfold reveal" out:unfold><div><section class="start" aria-label="Start here">
       <header><span class="register">Start here</span><span class="dim small">{startSteps.filter((x) => x.done).length} of {startSteps.length} done</span><button type="button" class="link quiet small" title="Put this card away (it goes on its own once every step is done)" onclick={() => (settings.startDone = true)}>Not now</button></header>
       <ol>
         {#each startSteps as x (x.label)}
           <li class:done={x.done}><Tick on={x.done} size={1.05} /><button type="button" class="link" disabled={x.done} title={x.hint} onclick={x.go}>{x.label}</button><span class="dim small">{x.why}</span></li>
         {/each}
       </ol>
-    </section>
+    </section></div></div>
   {/if}
 
   {#if customising}
-    <section class="custom" aria-label="What Home shows">
+    <div class="reveal" transition:unfold><div><section class="custom" aria-label="What Home shows">
       <span class="register">Show on Home</span>
       <div class="cards">
         {#each cards as c (c.key)}<Chip on={!hidden.has(c.key)} label={c.label} title={`${c.hint}. Click to ${hidden.has(c.key) ? "show" : "hide"} it.`} onchange={(on: boolean) => toggleCard(c.key, on)} />{/each}
       </div>
       {#if cards.some((c) => hidden.has(c.key))}<button class="link" onclick={() => (settings.homeHidden = [])}>Show everything</button>{/if}
-    </section>
+    </section></div></div>
   {/if}
 
   {#if alerts.length}
     <section class="alerts" data-card="alerts" aria-label="Needs you" class:off={off("alerts")}>
+      <!-- Dismissed: the Undo line, then (once its time is up) it leaves and the rest close up. -->
       {#each alerts as a (a.key ?? a.title)}
+        <div class="aslot" out:leave animate:flip>
         {#if a.key && undo.has(a.key)}
           <div class="alert ghost"><UndoSlot label="Dismissed" what={a.title} onundo={() => undo.undo(a.key!)} /></div>
         {:else}
-        <div class="alert t-{a.tone}" title={a.hint}>
+        <div class="alert t-{a.tone}" title={a.hint} in:arrive={{ y: 3 }}>
           {#if a.image}<span class="art"><Thumb file={a.image} name={a.title} size={38} /><span class="badge"><GameIcon name={a.icon} size={16} /></span></span>{:else}<span class="art"><GameIcon name={a.icon} size={30} /></span>{/if}
           <span class="tx">
             <b>{a.title}</b>
@@ -490,6 +517,7 @@
           {#if a.key}<IconButton icon="close" tone="quiet" size={12} label="Dismiss" title="Dismiss: it doesn't come back for this alert (you get a few seconds to undo)" onclick={() => undo.hold(a.key!, () => dismiss(a.key!))} />{/if}
         </div>
         {/if}
+        </div>
       {/each}
     </section>
   {/if}
@@ -497,7 +525,7 @@
   <div class="grid">
     <!-- World clocks -->
     {#if cycles.length || resets.length}
-      <section class="panel world" class:off={off("world")} aria-label="World clocks">
+      <section class="panel world" data-card="world" class:off={off("world")} aria-label="World clocks">
         <!-- Still asking for the world: the five clocks' places, so nothing jumps when they arrive. -->
         {#if liveWaiting && !cycles.length}
           {#each ["earth", "cetus", "vallis", "cambion", "zariman", "duviri"] as k (k)}
@@ -586,10 +614,10 @@
       <div class="watch">
         <span class="register"><Icon name="bell" size={12} /> Fissure alerts</span>
         {#each settings.fissureRules as r (r.id)}
-          <span class="rule" class:editing={editing === r.id}><button class="rl" title="Change this alert" onclick={() => editRule(r)}>{ruleLabel(r)}</button><IconButton icon="close" tone="quiet" size={12} label="Remove this alert" onclick={() => removeRule(r.id)} /></span>
+          <span class="rule" class:editing={editing === r.id} in:opens={{ scale: 0.8 }} out:leave animate:flip><button class="rl" title="Change this alert" onclick={() => editRule(r)}>{ruleLabel(r)}</button><IconButton icon="close" tone="quiet" size={12} label="Remove this alert" onclick={() => removeRule(r.id)} /></span>
         {/each}
         {#if adding}
-          <span class="addrule">
+          <span class="addfold" in:unfold><span class="addrule">
             <PickMany bind:value={draft.kinds} label="Kind" any="Normal or SP" noun="kinds" options={(["normal", "steel", "storm"] as const).map((k) => ({ v: k, label: FISSURE_KIND[k] }))} />
             <PickMany bind:value={draft.tiers} label="Era" any="Any era" noun="eras" options={TIERS.map((t) => ({ v: t, label: t }))} />
             <PickMany bind:value={draft.missions} label="Mission" any="Any mission" noun="missions" options={missionTypes.map((m) => ({ v: m, label: m }))} />
@@ -597,9 +625,9 @@
             <IconButton icon={editing ? "check" : "plus"} tone="gold" label={editing ? "Save this alert" : "Add this alert"} disabled={duplicate} onclick={saveRule} />
             <IconButton icon="close" tone="quiet" label="Cancel" onclick={closeRule} />
             {#if duplicate}<span class="dim small">You already have that alert.</span>{/if}
-          </span>
+          </span></span>
         {:else}
-          <button class="link add" onclick={() => (adding = true)}><Icon name="plus" size={11} />Add alert</button>
+          <button class="link add" data-card="addalert" onclick={() => (adding = true)}><Icon name="plus" size={11} />Add alert</button>
         {/if}
       </div>
       {#if watched.length && !(settings.homeFissuresOnly && settings.fissureRules.length)}
@@ -821,8 +849,10 @@
         <div class="alertlist">
           <span class="register" title="Set with Alert me in Post a buy order (the Buy order buttons on Wishlist, Mastery, Browse market…): orbiter tells you when someone lists one at your price or less">Your price alerts</span>
           {#each settings.market.buyAlerts as a (alertKey(a))}
+            <span class="paslot" out:leave animate:flip>
             {#if undo.has(alertKey(a))}<UndoSlot label="Removed" what={a.name} onundo={() => undo.undo(alertKey(a))} />
-            {:else}<span class="pa" use:info={a.name}>{a.name}{a.rank != null ? ` R${a.rank}` : ""} <span class="dim">≤</span><P v={a.maxPrice} /><IconButton icon="close" tone="quiet" size={10} label="Remove alert" title="Stop watching {a.name} (you get a few seconds to undo)" onclick={() => removePriceAlert(a)} /></span>{/if}
+            {:else}<span class="pa" use:info={a.name} in:arrive={{ y: 3 }}>{a.name}{a.rank != null ? ` R${a.rank}` : ""} <span class="dim">≤</span><P v={a.maxPrice} /><IconButton icon="close" tone="quiet" size={10} label="Remove alert" title="Stop watching {a.name} (you get a few seconds to undo)" onclick={() => removePriceAlert(a)} /></span>{/if}
+            </span>
           {/each}
         </div>
       {/if}
@@ -946,6 +976,7 @@
   .alerts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(24rem, 100%), 1fr)); gap: .5rem; margin-bottom: var(--step); }
   .alert { display: flex; align-items: center; gap: .75rem; padding: .55rem .6rem .55rem .85rem; border: 1px solid var(--rule); background: var(--plate); box-shadow: inset 3px 0 0 var(--platinum-deep); min-width: 0; clip-path: var(--cut); }
   /* Dismissed, waiting out its Undo: just the collapsed line. */
+  .aslot { display: grid; min-width: 0; }
   .alert.ghost { background: none; border-color: transparent; box-shadow: none; clip-path: none; padding: .3rem 0; }
   .alert .art { position: relative; flex: none; display: inline-flex; width: 38px; justify-content: center; }
   .alert .badge { position: absolute; right: -6px; bottom: -5px; display: inline-flex; padding: 1px; background: var(--plate); border: 1px solid var(--rule); }
@@ -1041,6 +1072,8 @@
   .rl { padding: 0; border: 0; background: none; font: inherit; letter-spacing: normal; text-transform: none; color: var(--platinum); }
   .rl:hover:not(:disabled) { color: var(--gold); background: none; }
   .rule.editing { border-color: var(--gold); }
+  .paslot { display: inline-flex; min-width: 0; }
+  .addfold { min-width: 0; }
   .addrule { display: inline-flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
   .hits { list-style: none; margin: .7rem 0 0; padding: 0; display: grid; gap: .35rem; }
   .hits li { display: flex; align-items: center; gap: .55rem; }
