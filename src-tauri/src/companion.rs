@@ -130,8 +130,9 @@ pub fn check_custom(path: &str) -> Result<PathBuf, String> {
 }
 
 /// Where to find TennoScope: the path from Settings, then the one inside orbiter, then (in a
-/// development build) one built in this checkout's `tennoscope/` folder, then whatever
-/// `~/dev/projects/tennoscope` (an older setup's separate clone), then whatever `tennoscope` is on PATH.
+/// development build) one built in this checkout's `tennoscope/` folder, then whatever a
+/// separate clone at `~/dev/projects/tennoscope` (where TennoScope was built before its source
+/// moved into this repository), then whatever `tennoscope` is on PATH.
 pub fn find_binary(custom: Option<&str>, bundled: Option<&Path>) -> Option<PathBuf> {
     if let Some(c) = custom.map(str::trim).filter(|c| !c.is_empty()) {
         return check_custom(c).ok();
