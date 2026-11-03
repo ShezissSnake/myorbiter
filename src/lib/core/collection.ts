@@ -204,8 +204,10 @@ export function collectionItem(m: Model, item: CatalogItem): CollectionItem {
   parts.sort((a, b) => Number(a.resource) - Number(b.resource) || Number(b.label === "Blueprint") - Number(a.label === "Blueprint"));
   const isPrime = item.isPrime === true || / Prime$/.test(item.name);
   const building = m.building(item.uniqueName) > 0;
-  // Held built, not counting the one in the foundry: that one shows as Building.
-  const owned = m.owned(item.uniqueName) - m.building(item.uniqueName) > 0;
+  // Held built, not counting the one in the foundry: that one shows as Building. A modular part
+  // you hold (a chamber, a MOA's model) isn't the gear until it's put together.
+  const mod = m.modular(item.uniqueName);
+  const owned = mod && mod.family.assemble != null ? mod.built > 0 : m.owned(item.uniqueName) - m.building(item.uniqueName) > 0;
   const pieces = parts.filter((p) => !p.resource);
   const buildable = !owned && !building && pieces.length > 0 && pieces.every((p) => p.have >= p.required || p.building);
   const plan = buildable && m.recipes ? buildPlan(m, item, m.recipes) : null;

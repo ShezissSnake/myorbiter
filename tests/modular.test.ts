@@ -7,6 +7,7 @@ import { collection, collectionItem, groupsOf } from "../src/lib/core/collection
 import { codexRings, ringTotal, ringsFor } from "../src/lib/core/codex";
 import { masteryRows } from "../src/lib/core/views";
 import { wishItem } from "../src/lib/core/wishlist";
+import { needsByUnique } from "../src/lib/core/spares";
 import { familyOf, modularNext } from "../src/lib/core/modular";
 import type { GearCopy } from "../src/lib/core/notNeeded";
 import type { Bundle, CatalogItem, InventoryRow } from "../src/lib/core/types";
@@ -63,6 +64,7 @@ test("each family's part is known by its path; Conclave's twin strikes and the b
   assert.equal(familyOf(VIZIER)?.id, "creature");
   assert.equal(familyOf(BAD_BABY)?.id, "kdrive");
   assert.equal(familyOf(`${BAD_BABY}Blueprint`), null);
+  for (const bp of ["/Lotus/Types/Recipes/MoaPetParts/MoaPetHeadParaBlueprint", `${BALLA}Blueprint`, `${RAPLAK}Blueprint`, `${CATCHMOON}Blueprint`]) assert.equal(familyOf(bp), null, bp);
 });
 
 test("Codex categories: kitgun chambers in Primary and Secondary, amps and K-Drives their own, companion weapons and the Plexus with Companions", () => {
@@ -152,6 +154,8 @@ test("a MOA model you hold is assembled at Legs; a built one is gilded, then lev
   const c = collectionItem(loose, loose.catalogByUnique.get(PARA)!);
   assert.deepEqual([c.owned, c.step], [false, "assemble"], "a part in hand isn't the MOA");
   assert.deepEqual(wishItem(loose, PARA)!.missing, [], "nothing left to collect");
+  assert.equal(needsByUnique(loose).get("/Lotus/Types/Recipes/MoaPetParts/MoaPetHeadParaBlueprint"), undefined, "its blueprint isn't kept for it");
+  assert.equal(needsByUnique(buildModel(bundle())).get("/Lotus/Types/Recipes/MoaPetParts/MoaPetHeadParaBlueprint")?.[0].item, "Para Moa");
 
   const built = buildModel(bundle(), undefined, null, null, null, null, [copy("/Lotus/Types/Friendly/Pets/MoaPets/MoaPetPowerSuit", "MoaPets", [PARA, "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetEngineArmor"])]);
   assert.equal(row(built, "Para Moa")!.status, "gild");

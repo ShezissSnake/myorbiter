@@ -58,7 +58,8 @@ const familyMemo = new Map<string, Family | null>();
 /** The family of the part a modular item's mastery goes by; null for anything else (a grip, a Braton). */
 export function familyOf(unique: string): Family | null {
   let f = familyMemo.get(unique);
-  if (f === undefined) familyMemo.set(unique, (f = FAMILIES.find((x) => x.match.test(unique)) ?? null));
+  // A part's blueprint ("…MoaPetHeadParaBlueprint") is a blueprint, not the part.
+  if (f === undefined) familyMemo.set(unique, (f = /Blueprint$/.test(unique) ? null : (FAMILIES.find((x) => x.match.test(unique)) ?? null)));
   return f;
 }
 

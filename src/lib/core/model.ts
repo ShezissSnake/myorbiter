@@ -397,9 +397,12 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
     };
   };
   const owned = (unique: string) => {
-    // A modular part you hold isn't the gear: it's owned once put together.
+    // A kitgun chamber, zaw strike, amp prism, MOA or hound model or K-Drive board: the part you
+    // hold and the builds made from it (the inventory only has the part). Either way you have it,
+    // for everything that asks whether there's more to collect; Foundry and Mastery tell the two
+    // apart (modular()).
     const family = familyOf(unique);
-    if (family && family.assemble != null) return builds.get(unique)?.built ?? 0;
+    if (family && family.assemble != null) return held(unique) + (builds.get(unique)?.built ?? 0) + (building.get(unique) ?? 0);
     const n = held(unique) + (HELD_AS[unique] ? held(HELD_AS[unique]) : 0) + (building.get(unique) ?? 0);
     return n === 0 && unique === PLEXUS && inventoryByBase.has(PLEXUS) ? 1 : n;
   };
