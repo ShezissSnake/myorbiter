@@ -10,6 +10,7 @@
   import Stat from "../ui/Stat.svelte";
   import Avail from "../ui/Avail.svelte";
   import ListButton from "../ui/ListButton.svelte";
+  import { shareCheck } from "../core/radshare";
   import { bestCard, resolveName, scoreCards, type PickCard, type PickWeights, type WeightKey } from "../core/pick";
   import { onWindows, type ScreenCards } from "../backend";
   import { info } from "../hover.svelte";
@@ -39,6 +40,8 @@
   const paths = $derived(ms ? (ms.relics.length ? ms.relics : ms.last_relics) : []);
   const relics = $derived(squadRelics(model, paths));
   const pool = $derived(squadPool(relics));
+  /** With four relics: whether they're a 4b4 (one relic, one refinement), and which are off if not. */
+  const share = $derived(shareCheck(relics));
   const best = $derived(pool.reduce<(typeof pool)[number] | null>((b, r) => (r.price != null && (b == null || r.price > (b.price ?? 0)) ? r : b), null));
   const needed = $derived(pool.filter((r) => r.needed));
   /** On Windows nothing draws over exclusive fullscreen: TennoScope's overlay can't show. */
@@ -223,6 +226,7 @@
       </table>
     {/if}
 
+    {#if share}<p class="share small" class:off={!share.matched} title={share.matched ? "All four players brought the same relic at the same refinement: four rolls on one reward table" : `A 4b4 is four of one relic at one refinement. Most of the squad brought ${share.main}; the odd ones out (${share.off.join(", ")}) roll on a different table`}>{share.text}</p>{/if}
     <h2 class="register">The squad's relics <span class="legend">Gold: a part you still need · bright: worth a look · dimmed: you've mastered what it builds</span></h2>
     <section class="cards">{#each relics as r, i (r.path + i)}{@render relicCard(r)}{/each}</section>
   {:else if !onScreen}
@@ -322,6 +326,8 @@
   .sw.b-need { background: var(--gold); }
   .sw.b-ducat { background: repeating-linear-gradient(135deg, var(--gold-dim) 0 2px, transparent 2px 4px); box-shadow: inset 0 0 0 1px var(--gold-dim); }
   .sw.b-set { background: var(--verdigris); }
+  .share { margin: var(--course, 1rem) 0 -.4rem; color: var(--platinum-dim); }
+  .share.off { color: var(--gold); }
   .pool-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem 1rem; margin: var(--course) 0 .6rem; }
   .pool-head h2 { margin: 0; }
   .pool .rank { width: 2rem; color: var(--platinum-deep); font-family: var(--face-register); font-size: .66rem; }
