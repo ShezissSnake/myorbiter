@@ -20,6 +20,8 @@
   import PageHead from "../ui/PageHead.svelte";
   import { matches, type Column } from "../ui/table";
   import ListButton from "../ui/ListButton.svelte";
+  import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
+  import { pickShowcase } from "../core/showcase";
 
   let { model, masteryRank = null, minPlat = 5 }: { model: Model; masteryRank?: number | null; minPlat?: number } = $props();
 
@@ -75,6 +77,28 @@
    * (core/worthSelling.ts): every mod's spares, whatever the filters show.
    */
   const value = $derived(worthTotal(modsWorthSelling(all, minPlat)));
+  // The showcase: the five mods worth most in Worth selling, as their cards; with none to sell, the
+  // dearest mods you hold (at max rank where it's priced).
+  let opened = $state<ModRow | null>(null);
+  const sellingBy = $derived(new Map(modsWorthSelling(all, minPlat).map((x) => [x.name, x])));
+  const shelf = $derived(pickShowcase(all, { spare: (r) => sellingBy.get(r.name)?.plat, held: (r) => (r.total > 0 ? (r.priceMax ?? r.price) : null), name: (r) => r.name, key: (r) => r.unique }));
+  const exhibits = $derived(
+    shelf.items.map(({ row: r, value }): Exhibit => {
+      const c = model.catalogByUnique.get(r.unique);
+      const w = sellingBy.get(r.name);
+      return {
+        key: r.unique,
+        name: r.name,
+        sub: w ? `×${w.copies.toLocaleString("en")} spare` : `×${r.total} held · ${r.priceMax != null ? "maxed, each" : "each"}`,
+        value: Math.round(value),
+        title: w ? `${r.name}: ${w.copies} spare at about ${Math.round(w.each)}p, ${Math.round(value).toLocaleString("en")}p in all (no more than the market sells in a month: its part of Worth selling). Click for its details` : `${r.name}: ${Math.round(value)}p each${r.priceMax != null ? " maxed" : ""}, ${r.total} held. Click for its details`,
+        open: () => (opened = r),
+        image: model.imageOf(r.name),
+        look: "mod",
+        card: { rarity: r.rarity, polarity: c?.polarity ?? null, drain: c?.baseDrain ?? null, maxRank: r.maxRank, rank: r.ranks[0]?.rank ?? 0, label: c?.compatName ?? "", does: c?.maxStats?.[0] ?? "" },
+      };
+    }),
+  );
   /** Days of trades every spare copy takes at your rank (core/tradeLimit.ts). */
   const tradeDays = $derived(masteryRank != null && masteryRank >= 2 ? daysToTrade(extras, masteryRank) : null);
 
@@ -132,6 +156,9 @@
 
 <div class="page"><div class="page-inner">
   <PageHead title="Mods" brief="Spare mod copies to sell." blurb="Mods you have spare copies of. Your best copy and one to give away are always kept.">
+    {#snippet hero()}
+      <Showcase items={exhibits} caption={shelf.mode === "held" ? "Nothing worth selling: your dearest mods" : "Your most valuable spare mods"} note={shelf.mode === "held" ? "Each, at the daily median · click one for its details" : "By Worth selling · click one for its details"} empty="No mods read yet: press Sync while Warframe is running, and your spares go on display here." />
+    {/snippet}
     {#snippet band()}
       <Stat label="Spare copies" note={tradeDays != null && tradeDays > 1 ? `Beyond your best copy and one to give away · ${tradeDays} days of trades to sell them all` : "Beyond your best copy and one to give away"} title={tradeDays != null ? `Beyond your best copy and one to give away. Trades a day are your Mastery Rank (${masteryRank}), up to 6 items each: selling every spare copy would take ${tradeDays} days of trading, at best` : null}>{extras.toLocaleString("en")}</Stat>
       <Stat label="Worth selling" tone="dim" note={`Mods that sell daily, no more of each than the market sells in a month; only what's worth ${minPlat}p a trade`} title={`Worth selling: the spare copies of tradable mods that sell at least daily (as Put my spares on sale lists them), at the daily median, no more of each than the market sells in a month, and only what's worth ${minPlat}p a trade. The filters don't change it. Counted the same way on Prime parts, Arcanes and Home; Inventory's Spare value adds slow sellers and small change`}><P v={value} big /></Stat>
@@ -151,7 +178,7 @@
   </Fold>
   </div>
 
-  <Browse id="mods" {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty="No spare mod copies: your best copy and one to give away are kept." />
+  <Browse id="mods" bind:opened {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty="No spare mod copies: your best copy and one to give away are kept." />
 </div></div>
 
 <style>

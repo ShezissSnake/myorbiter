@@ -32,6 +32,7 @@
     clear = null,
     tools,
     count,
+    opened = $bindable(null),
   }: {
     /** Remembers the layout under this name. */
     id: string;
@@ -60,6 +61,8 @@
     tools?: Snippet;
     /** The count's words, when "N items" would mislead (Sets: copies against kinds of set). */
     count?: (n: number) => string;
+    /** The row whose details panel is open: the page can open one itself (the showcase above it). */
+    opened?: T | null;
   } = $props();
 
   const key_ = () => `orbiter-layout-${id}`;
@@ -111,7 +114,6 @@
     shown = cardLimit;
   });
 
-  let opened = $state<T | null>(null);
   /** Whether `onopen` took the row. */
   function took(r: T) {
     if (!onopen) return false;

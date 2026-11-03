@@ -5,6 +5,7 @@
   import type { Model } from "../core/model";
   import type { Sale, Settings } from "../backend";
   import PageHead from "../ui/PageHead.svelte";
+  import Ticker, { type Tick } from "../ui/Ticker.svelte";
   import Stat from "../ui/Stat.svelte";
   import P from "../ui/P.svelte";
   import Named from "../ui/Named.svelte";
@@ -90,6 +91,15 @@
   const week = $derived(since(now - 7 * DAY));
   const month = $derived(since(now - 30 * DAY));
 
+  // The ticker tape under the title: today, the week and your best sale (the band keeps the month and after).
+  const best = $derived(sales.reduce<Sale | null>((b, s) => (!b || s.quantity * s.platinum > b.quantity * b.platinum ? s : b), null));
+  const tape = $derived<Tick[]>([
+    { key: "today", label: "Today", value: plat(today), plat: true, sub: `${trades(today)} sold`, title: `Today: ${trades(today)} sold since your local midnight (Trades left, on Home and Orders, counts from 00:00 UTC)` },
+    { key: "week", label: "7 days", value: plat(week), plat: true, sub: `${trades(week)} sold`, title: `Last 7 days: ${trades(week)} sold` },
+    best
+      ? { key: "best", label: "Best sale", value: best.quantity * best.platinum, plat: true, sub: `${best.quantity > 1 ? `${best.quantity}× ` : ""}${best.item} · ${new Date(best.at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`, title: `Best sale: the most platinum one sale brought, of everything logged: ${best.quantity > 1 ? `${best.quantity} × ${best.platinum}p for ` : ""}${best.item}` }
+      : { key: "best", label: "Best sale", value: null, tone: "dim", title: "Best sale: the most platinum one sale brought, once you've logged some" },
+  ]);
   let span = $state<"7" | "30" | "all">("30");
   const inSpan = $derived(span === "all" ? sales : since(now - Number(span) * DAY));
   const top = $derived(
@@ -185,10 +195,9 @@
 
 <div class="page"><div class="page-inner">
   <!-- Nothing logged: no row of zeros, just how sales get here. -->
-  <PageHead title="Sales" brief="What you've sold, and the platinum it made." blurb="What you've sold, and the platinum it made." band={sales.length ? band : undefined} />
+  <PageHead title="Sales" brief="What you've sold, and the platinum it made." blurb="What you've sold, and the platinum it made." band={sales.length ? band : undefined} hero={ticker} />
+    {#snippet ticker()}<Ticker id="sales" label="Your sales, live" items={tape} />{/snippet}
     {#snippet band()}
-      <Stat label="Today" note={`${trades(today)} sold`} title={`Today: ${trades(today)} sold since your local midnight (Trades left, on Home and Orders, counts from 00:00 UTC)`}><P v={plat(today)} big /></Stat>
-      <Stat label="Last 7 days" note={`${trades(week)} sold`}><P v={plat(week)} big /></Stat>
       <Stat label="Last 30 days" note={`${trades(month)} sold`}><P v={plat(month)} big /></Stat>
       {#if vsMonth != null}<Stat label="Vs market, 30 days" tone={vsMonth < UNDER ? "gold" : "platinum"} note={underCount ? `${underCount} sale${underCount === 1 ? "" : "s"} under ${Math.round(UNDER * 100)}% of the median` : "Every sale near the daily median or better"}>{Math.round(vsMonth * 100)}%</Stat>{/if}
       <Stat label="All logged" note={sales.length ? `since ${new Date(Math.min(...sales.map((s) => s.at))).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}` : "Nothing yet"}><P v={plat(sales)} big /></Stat>
