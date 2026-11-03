@@ -202,6 +202,8 @@ export const NAME_BY_PATH: Record<string, string> = {
 };
 
 export function splitRelicName(name: string): { base: string; refinement: Refinement } | null {
+  // A read with a nameless row: no relic to split (withKnownNames may still name it by its path).
+  if (typeof name !== "string") return null;
   const parts = name.trim().split(/\s+/);
   const last = parts[parts.length - 1];
   if (parts.length < 3) return null;
@@ -279,7 +281,10 @@ const DUCATS_NOW: Record<string, number> = { "Bronco Prime Barrel": 25, "Nami Sk
 export const NO_MASTERY = new Set(["/Lotus/Powersuits/SiriusOrion/OrionSuit", "/Lotus/Weapons/Tenno/Grimoire/TnDoppelgangerGrimoire"]);
 
 export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurgence: null, resurgenceExpiry: null }, foundry: Record<string, number> | null = null, relicMarket: RelicMarket | null = null, imprints: ImprintRaw[] | null = null, recipes: RecipeData | null = null): Model {
-  bundle = withKnownNames(bundle);
+  // A row without a path, or still without a name once the known ones are filled in (a damaged
+  // read), is left out rather than breaking every page.
+  const whole = (ok: (r: InventoryRow) => boolean) => (b: Bundle): Bundle => (b.inventory.every(ok) ? b : { ...b, inventory: b.inventory.filter(ok) });
+  bundle = whole((r) => typeof r.name === "string")(withKnownNames(whole((r) => !!r && typeof r.item_id === "string")(bundle)));
   // Some relic entries list a reward twice ("2X Forma Blueprint" in Meso D1); merge them so every
   // reward name appears once per relic, with the chances added up.
   // Some items list the same component twice (Akbronco Prime: two Bronco Prime, one each); merge

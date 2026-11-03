@@ -19,6 +19,7 @@ import type { SyndicateMission } from "./core/board";
 import type { RecipeData } from "./core/buildPlan";
 import type { WorldAlert } from "./core/worldNeeds";
 import type { RelicData } from "./core/relicData";
+import { marketItemsOf, recipeDataOf, relicDataOf, rivenMetaOf } from "./core/shapes";
 import type { Archimedea, Bundle, Calendar1999, CatalogPart, CollectionPart, DarvoDeal, Descendia, DuviriCycle, Fissure, Live, MissionState, Nightwave, SortieLike, SteelPath, VaultTraderItem, WorldEvent } from "./core/types";
 import { defaultPickWeights, type PickWeights } from "./core/pick";
 import type { Notice } from "./notices";
@@ -646,9 +647,9 @@ export async function exportFile(what: string, text: string): Promise<string> {
 /** Every Foundry recipe, parts' own blueprints included (recipes.rs). Null when it can't be read. */
 export async function recipeData(): Promise<RecipeData | null> {
   try {
-    if (inTauri) return await invoke<RecipeData>("recipe_data");
+    if (inTauri) return recipeDataOf(await invoke<unknown>("recipe_data"));
     const res = await fetch("/dev-recipe-data.json");
-    return res.ok ? ((await res.json()) as RecipeData) : null;
+    return res.ok ? recipeDataOf(await res.json()) : null;
   } catch {
     return null;
   }
@@ -660,9 +661,9 @@ export async function recipeData(): Promise<RecipeData | null> {
  */
 export async function relicData(force = false): Promise<RelicData | null> {
   try {
-    if (inTauri) return await invoke<RelicData>("relic_data", { force });
+    if (inTauri) return relicDataOf(await invoke<unknown>("relic_data", { force }));
     const res = await fetch("/dev-relic-data.json");
-    return res.ok ? ((await res.json()) as RelicData) : null;
+    return res.ok ? relicDataOf(await res.json()) : null;
   } catch {
     return null;
   }
@@ -1189,13 +1190,13 @@ export const market = {
   useToken: (token: string): Promise<Me> => (inTauri ? invoke("market_use_token", { token }) : needApp()),
   signOut: (): Promise<void> => (inTauri ? invoke("market_sign_out") : Promise.resolve()),
   items: async (): Promise<MarketItem[]> => {
-    if (inTauri) return invoke("market_items");
+    if (inTauri) return marketItemsOf(await invoke<unknown>("market_items"));
     const res = await fetch("/dev-market-items.json").catch(() => null);
-    return res?.ok && res.headers.get("content-type")?.includes("json") ? res.json() : [];
+    return res?.ok && res.headers.get("content-type")?.includes("json") ? marketItemsOf(await res.json()) : [];
   },
   myOrders: async (): Promise<MyOrder[]> => (inTauri ? invoke("market_my_orders") : ((await devMarket())?.orders ?? needApp())),
   rivenMeta: async (): Promise<RivenMeta> =>
-    inTauri ? invoke<RivenMeta>("market_riven_meta") : fetch("/dev-rivens.json").then((r) => (r.ok ? r.json() : Promise.reject(new Error("no riven data in the browser")))),
+    rivenMetaOf(await (inTauri ? invoke<unknown>("market_riven_meta") : fetch("/dev-rivens.json").then((r) => (r.ok ? r.json() : Promise.reject(new Error("no riven data in the browser")))))),
   rivenAuctions: async (weapon: string, positive: string[], negative: string | null): Promise<RivenAuction[]> =>
     inTauri
       ? invoke<RivenAuction[]>("market_riven_auctions", { weapon, positive, negative })
