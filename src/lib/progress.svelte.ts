@@ -74,7 +74,7 @@ export function inBackground(f: () => void) {
 
 /**
  * `target()` drawn a slice at a time: when it changes, its first `first()` items at once, then
- * `step` more each frame (each step after the last was drawn), until all are. `measure` runs just
+ * `step` more a slice (each once the last was drawn, see `later`), until all are. `measure` runs just
  * before each later step, while the layout is fresh. Use as
  *   const drawn = $derived.by(progressive(() => sorted.slice(0, shown), key, { first: view.count, measure: view.measure }));
  * Call while a component initializes.
@@ -87,14 +87,35 @@ export function progressive<T>(
   const now = () => (quietly ? Math.min(BACKGROUND_FIRST, first()) : first());
   let drawn = $state.raw<readonly T[]>(untrack(() => target().slice(0, now())));
   let frame = 0;
+  let idle = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const stop = () => {
     if (frame) cancelAnimationFrame(frame);
+    if (idle) window.cancelIdleCallback(idle);
     clearTimeout(timer);
-    frame = 0;
+    frame = idle = 0;
   };
-  /** `f` once the step before has been drawn: the next frame, then a task. */
+  /**
+   * `f` once the step before has been drawn: in the next idle moment with a little room, so the
+   * rows below the screen give way to what's moving on it (a figure rolling, a row closing up),
+   * or within 150 ms anyway. Where there's no requestIdleCallback (WebKitGTK): the next frame,
+   * then a task.
+   */
   const later = (f: () => void) => {
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      const due = performance.now() + 150;
+      const ask = () =>
+        (idle = window.requestIdleCallback(
+          (d) => {
+            idle = 0;
+            if (d.didTimeout || d.timeRemaining() >= 8 || performance.now() >= due) f();
+            else ask();
+          },
+          { timeout: Math.max(1, due - performance.now()) },
+        ));
+      ask();
+      return;
+    }
     frame = requestAnimationFrame(() => {
       frame = 0;
       timer = setTimeout(f, 0);

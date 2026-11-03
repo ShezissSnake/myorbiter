@@ -109,7 +109,9 @@
 </div>
 
 <style>
-  .wrap { border-top: 1px solid var(--rule); }
+  /* Painted on its own: a fold opening above it, a row hovered or a figure rolling elsewhere on the
+     page doesn't repaint the whole table, nor a row changing the rest of the page. */
+  .wrap { border-top: 1px solid var(--rule); contain: paint; }
   /* A narrow page: a table wider than it scrolls sideways rather than running off the window. */
   :global(html[data-room~="lt1100"]) .wrap { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
