@@ -128,7 +128,7 @@
         {#if site}<button type="button" class="link out" title="Open it on {site.site}, in your browser" onclick={() => openUrl(site.url)}>{site.site}<Icon name="external" size={11} /></button>{/if}
       </span>
       {#if variants.length > 1 && extras?.onvariant}
-        <div class="vars" role="radiogroup" aria-label="orbiter's variants">
+        <div class="vars" data-card="variants" role="radiogroup" aria-label="orbiter's variants">
           <span class="register">Variant</span>
           {#each variants as v (v.id)}
             {@const on = (extras.variant ?? variants[0].id) === v.id}
@@ -186,7 +186,7 @@
       </section>
 
       {#if withIt.length || riven}
-        <section class="withit" aria-label="With it">
+        <section class="withit" data-card="withit" aria-label="With it">
           <h4 class="register">With it</h4>
           <ul class="wl">
             {#if riven}
