@@ -9,7 +9,7 @@
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
   import { watchlist } from "./lib/core/deals";
   import { arcaneRows, inventoryRows, masteryRows, modRows, partRows, relicRows, saveForSets, type SetSave } from "./lib/core/views";
-  import { allSetRows, allSetSaves, inventoryValue, spareRows } from "./lib/core/spares";
+  import { allSetRows, allSetSaves, damagedPartNeeds, gearSetRows, inventoryValue, needsByUnique, relicsYouNeed, spareRows } from "./lib/core/spares";
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
   import { buildModel, ERAS, type Model } from "./lib/core/model";
   import { mergeRelics, type RelicData } from "./lib/core/relicData";
@@ -404,7 +404,11 @@
       () => arcaneRows(m),
       () => relicRows(m, { platPerDucat: a.platPerDucat }),
       () => partRows(m, saveForSets(sell, a.platPerDucat, drops.recent)),
+      // What spares are worked out from, a part at a time: then the spares themselves.
+      () => (relicsYouNeed(m), damagedPartNeeds(m)),
+      () => gearSetRows(m, mkt.index, needsByUnique(m)),
       () => spareRows(m, mkt.index, sell, a.platPerDucat, a.squad, drops.recent),
+      () => masteryRows(m),
     ];
   }
   const modelFor = (id: string): Model => (settings.tab === id ? (shownModel ?? model) : (drawn[id] ?? shownModel ?? model))!;

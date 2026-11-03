@@ -426,7 +426,9 @@ const BUILT_MODULAR = /\/LotusModular\w*$|\/OperatorAmplifiers\/OperatorAmpWeapo
 
 const INVENTORY_KIND: Record<string, string> = { frame: "Warframe", weapon: "Weapon", companion: "Companion" };
 
-export function masteryRows(m: Model): MasteryRow[] {
+/** Everything left to master, a row each: worked out once per model (Home, Mastery and Varzia's notice all ask). */
+export const masteryRows = perModel(masteryRowsFresh, () => "");
+function masteryRowsFresh(m: Model): MasteryRow[] {
   const rows: MasteryRow[] = [];
   const seen = new Set<string>();
   for (const item of m.catalogByUnique.values()) {
