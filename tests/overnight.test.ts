@@ -95,6 +95,6 @@ test("trades left today: your rank's worth, counted since 00:00 UTC", async () =
 
 test("a recruiting line for a relic share", async () => {
   const { recruitLine } = await import("../src/lib/core/recruit");
-  assert.equal(recruitLine("Axi C12", "Radiant"), "H Axi C12 rad 1b4");
-  assert.equal(recruitLine("Lith O4", "Intact", 2), "H Lith O4 int 2b4");
+  assert.equal(recruitLine("Axi C12", "Radiant"), "H Axi C12 rad 4b4", "4b4: four of the same relic");
+  assert.equal(recruitLine("Lith O4", "Intact", 2), "H Lith O4 int 4b4 2/4", "and the head count");
 });

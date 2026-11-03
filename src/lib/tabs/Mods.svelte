@@ -32,6 +32,8 @@
     query = want.q;
     dupesOnly = false;
     sellingOnly = false;
+    tradableOnly = false;
+    rarity = "all";
   });
   let rarity = $state("all");
   let sort = $state({ key: "value", desc: true });

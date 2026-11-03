@@ -14,19 +14,23 @@ export interface Watch {
   why: string;
   /** A price alert you set: any listing at or under this is news, whatever its usual price. */
   maxPrice?: number;
+  /** The refinement or variant it's for ("radiant"), when the item has them. */
+  subtype?: string | null;
 }
 
 /** A price alert: tell me when someone lists this at or under my price (set from Post a buy order). */
 export interface BuyAlert {
   name: string;
   rank: number | null;
+  /** The refinement or variant ("radiant", "blueprint"), when the item has them; the first one otherwise. */
+  subtype?: string | null;
   maxPrice: number;
   /** When it was set (Unix ms). */
   at: number;
 }
 
 /** Your price alerts as watchlist entries: they go first, and don't count against the list's limit. */
-export const alertWatches = (alerts: BuyAlert[]): Watch[] => alerts.map((a) => ({ name: a.name, kind: "alert", rank: a.rank, why: `your alert: ${a.maxPrice}p or less`, maxPrice: a.maxPrice }));
+export const alertWatches = (alerts: BuyAlert[]): Watch[] => alerts.map((a) => ({ name: a.name, kind: "alert", rank: a.rank, subtype: a.subtype ?? null, why: `your alert: ${a.maxPrice}p or less${a.subtype ? ` (${a.subtype})` : ""}`, maxPrice: a.maxPrice }));
 
 /** A deal: at or under your alert's price, or at most DEAL_SHARE of the usual price. */
 function isDeal(price: number, usual: number | null, w: Watch): boolean {
@@ -80,9 +84,10 @@ export function findDeals(m: Model, index: MarketIndex, books: Record<string, Bo
     const book = books[it.slug];
     if (!book) continue;
     const rank = it.maxRank != null ? (w.rank ?? 0) : null;
-    const usual = referencePrice(m, it, rank, it.subtypes?.[0] ?? null);
+    const sub = w.subtype ?? it.subtypes?.[0] ?? null;
+    const usual = referencePrice(m, it, rank, sub);
     if (w.maxPrice == null && (usual == null || usual < DEAL_MIN_REF)) continue;
-    const c = competitor({ rank, subtype: null }, book, me, it.subtypes?.[0] ?? null);
+    const c = competitor({ rank, subtype: sub }, book, me, it.subtypes?.[0] ?? null);
     // The cheapest, odd or not: one seller far under the rest is exactly the deal.
     const low = c.lowest;
     if (!low || !isDeal(low.platinum, usual, w)) continue;
@@ -95,7 +100,7 @@ export function findDeals(m: Model, index: MarketIndex, books: Record<string, Bo
       usual: Math.round(usual ?? w.maxPrice ?? low.platinum),
       seller: low.name ?? "?",
       why: w.why,
-      whisper: `/w ${low.name} Hi! I want to buy: "${it.name}${rank != null ? ` (rank ${rank})` : ""}" for ${low.platinum} platinum. (warframe.market)`,
+      whisper: `/w ${low.name} Hi! I want to buy: "${it.name}${rank != null ? ` (rank ${rank})` : ""}${w.subtype ? ` (${w.subtype})` : ""}" for ${low.platinum} platinum. (warframe.market)`,
     });
   }
   return out.sort((a, b) => b.usual - b.price - (a.usual - a.price));
@@ -128,8 +133,8 @@ export function dealFromOrder(m: Model, index: MarketIndex, o: FeedOrder, watch:
   if (!seller || (me && (o.user.id === me.id || seller === me.ingameName))) return null;
   const rank = it.maxRank != null ? (w.rank ?? 0) : null;
   if (rank != null && (o.rank ?? 0) !== rank) return null;
-  const sub = it.subtypes?.[0] ?? null;
-  if (sub && o.subtype && o.subtype !== sub) return null;
+  const sub = w.subtype ?? it.subtypes?.[0] ?? null;
+  if (sub && (o.subtype ?? it.subtypes?.[0] ?? null) !== sub) return null;
   const usual = referencePrice(m, it, rank, sub);
   if (w.maxPrice == null && (usual == null || usual < DEAL_MIN_REF)) return null;
   if (!isDeal(o.platinum, usual, w)) return null;
@@ -142,6 +147,6 @@ export function dealFromOrder(m: Model, index: MarketIndex, o: FeedOrder, watch:
     usual: Math.round(usual ?? w.maxPrice ?? o.platinum),
     seller,
     why: w.why,
-    whisper: `/w ${seller} Hi! I want to buy: "${it.name}${rank != null ? ` (rank ${rank})` : ""}" for ${o.platinum} platinum. (warframe.market)`,
+    whisper: `/w ${seller} Hi! I want to buy: "${it.name}${rank != null ? ` (rank ${rank})` : ""}${w.subtype ? ` (${w.subtype})` : ""}" for ${o.platinum} platinum. (warframe.market)`,
   };
 }

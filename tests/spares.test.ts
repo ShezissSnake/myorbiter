@@ -173,8 +173,8 @@ test("a pile of spares counts for no more than the market sells in a month", asy
   const { sellableCopies } = await import("../src/lib/core/spares");
   assert.equal(sellableCopies(232, 1.9), 57, "232 Lasting Stings at 1.9 a day: 57 sell in a month");
   assert.equal(sellableCopies(5, 10), 5);
-  assert.equal(sellableCopies(40, null), 30, "no pace known (relics): about one a day, a month's worth, never every copy");
-  assert.equal(sellableCopies(12, null), 12);
+  assert.equal(sellableCopies(40, null), 0, "no pace known: nothing says it sells");
+  assert.equal(sellableCopies(40, 1), 30, "relics are passed about one a day");
 });
 
 test("Inventory's figures: market, easy and spare one way, spare traced by kind", async () => {

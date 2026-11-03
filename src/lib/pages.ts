@@ -1,7 +1,7 @@
 // Every page orbiter has, in sidebar order. The sidebar, the keyboard shortcuts (Ctrl+1…9 follow
 // this order) and the Guide read this list; adding a page is one entry here plus its component in
 // App.svelte. Collection: what you have and what's left to get. Trade: everything about selling,
-// your listings first (Ctrl+9), then what to sell by kind, then the market, sales and stats.
+// your listings first, then what to sell by kind, then the market, sales and stats.
 import type { GameIconName } from "./ui/GameIcon.svelte";
 
 export type PageId =

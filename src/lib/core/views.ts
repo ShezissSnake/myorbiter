@@ -719,7 +719,8 @@ export function modRows(m: Model): ModRow[] {
       maxRank: inv.find((r) => r.max_rank != null)?.max_rank ?? item?.maxRank ?? null,
       rarity: item?.rarity ?? "",
       type: item?.type ?? "",
-      tradable: item?.tradable !== false && !STICKER.test(unique),
+      // warframe.market pricing it settles it: the catalog marks some it lists as untradable (Turbo Protect).
+      tradable: (item?.tradable !== false || price != null) && !STICKER.test(unique),
       price,
       priceMax: m.priceMax(name),
       // Extras are the lowest-ranked copies; price them unranked.

@@ -519,16 +519,16 @@ export function relicsYouNeed(m: Model): Map<string, string[]> {
 
 /** How long a pile of copies may take to sell and still count: a month of the whole market's sales. */
 export const SELL_WITHIN_DAYS = 30;
-/** The pace assumed where warframe.market has no figure for an item (relics, a few odd ones): about one a day. */
+/** The pace assumed for relics, whose sales warframe.market's figures never give: about one a day. */
 export const UNKNOWN_TRADES_PER_DAY = 1;
 /**
  * Of `count` copies, how many the market could take in SELL_WITHIN_DAYS at its pace (trades a
- * day): 232 copies of a mod that trades twice a day are 60 that count, not 232. Where the pace
- * isn't known, about one a day (a month's worth), never every copy.
+ * day): 232 copies of a mod that trades twice a day are 60 that count, not 232. No pace known:
+ * none (nothing says it sells); relics pass UNKNOWN_TRADES_PER_DAY instead.
  */
 export function sellableCopies(count: number, tradesPerDay: number | null | undefined, days = SELL_WITHIN_DAYS): number {
-  const pace = tradesPerDay ?? UNKNOWN_TRADES_PER_DAY;
-  return Math.min(count, Math.max(0, Math.ceil(pace * days)));
+  if (tradesPerDay == null) return 0;
+  return Math.min(count, Math.max(0, Math.ceil(tradesPerDay * days)));
 }
 
 /**
@@ -539,25 +539,36 @@ export function sellableCopies(count: number, tradesPerDay: number | null | unde
  * - spare: the copies beyond what you keep, slow sellers too, no more of each than the market sells
  *   in a month (a part that sells twice a week counts its 8 or 9, not all 40);
  * - byKind: spare by kind (mods, prime parts…), so the pages' own totals can be traced back to it.
- * Built gear has no price unless some copies trade (an unranked one): those are in the ledger.
+ * Built gear has no price here: it can't be traded. Items warframe.market reports no sales for
+ * count toward market but not toward easy or spare; relics, whose sales it never reports, count
+ * about one a day.
  */
 export function inventoryValue(rows: InventoryItem[], ledger: Map<string, SpareRow>) {
   let market = 0;
   let easy = 0;
   let spare = 0;
   const byKind = new Map<InventoryKind, number>();
+  const items = new Map<string, { kind: InventoryKind; copies: number; plat: number; pace: number | null }>();
   for (const r of rows) {
     const s = ledger.get(r.key);
     const price = r.kind === "gear" && !s ? null : (s?.price ?? r.price);
     if (price == null) continue;
-    const pace = s?.tradesPerDay ?? r.tradesPerDay;
+    const pace = s?.tradesPerDay ?? r.tradesPerDay ?? (r.kind === "relic" ? UNKNOWN_TRADES_PER_DAY : null);
     market += price * r.quantity;
-    if ((pace ?? (r.kind === "relic" ? UNKNOWN_TRADES_PER_DAY : 0)) >= 1) easy += price * sellableCopies(r.quantity, pace);
+    if ((pace ?? 0) >= 1) easy += price * sellableCopies(r.quantity, pace);
     if (s && s.spare > 0 && s.price != null) {
-      const v = s.price * sellableCopies(s.spare, pace);
-      spare += v;
-      byKind.set(r.kind, (byKind.get(r.kind) ?? 0) + v);
+      // One item's rows (a mod at two ranks, a relic's refinements) share one month of sales.
+      const k = `${r.kind}|${s.name ?? r.name}`;
+      const g = items.get(k) ?? { kind: r.kind, copies: 0, plat: 0, pace };
+      g.copies += s.spare;
+      g.plat += s.price * s.spare;
+      items.set(k, g);
     }
+  }
+  for (const g of items.values()) {
+    const v = (g.plat / g.copies) * sellableCopies(g.copies, g.pace);
+    spare += v;
+    byKind.set(g.kind, (byKind.get(g.kind) ?? 0) + v);
   }
   return { market: Math.round(market), easy: Math.round(easy), spare: Math.round(spare), byKind };
 }

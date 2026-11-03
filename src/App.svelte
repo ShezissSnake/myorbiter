@@ -1245,10 +1245,26 @@
   $effect(() => {
     const m = model;
     const items = mkt.items.length;
+    // Your price alerts: a new one is watched at once, a removed one stops.
+    const alerts = $state.snapshot(settings.market.buyAlerts);
     if (!m) return;
     untrack(() => {
       if (!items) void mkt.ensureItems().catch(() => {});
-      else mkt.watchLive(m, watchlist(m, 300, settings.market.buyAlerts));
+      else mkt.watchLive(m, watchlist(m, 300, alerts));
+    });
+  });
+  // An alert added or removed: scan again soon, and a removed alert's finds go now.
+  let alertKey = "";
+  $effect(() => {
+    const key = settings.market.buyAlerts.map((a) => `${a.name}|${a.rank ?? ""}|${a.subtype ?? ""}|${a.maxPrice}`).join(",");
+    untrack(() => {
+      if (key === alertKey) return;
+      const first = !alertKey && !key;
+      alertKey = key;
+      if (first) return;
+      lastDeals = 0;
+      const still = new Set(settings.market.buyAlerts.map((a) => a.name));
+      mkt.deals = mkt.deals.filter((d) => !d.why.startsWith("your alert") || still.has(d.name));
     });
   });
   // Cheap buys: the watchlist's order books every ten minutes, while orbiter is open.
@@ -2022,7 +2038,7 @@
       {@render pane("wishlist", pWishlist)}
       {@render pane("browse", pBrowse)}
       <ListDialog {model} market={settings.market} advice={onConsole ? null : settings.advice} go={(t: string) => (settings.tab = t)} />
-      <BuyDialog {model} go={(t: string) => (settings.tab = t)} onalert={(a) => { settings.market.buyAlerts = [a, ...settings.market.buyAlerts.filter((x) => x.name !== a.name || x.rank !== a.rank)].slice(0, 40); lastDeals = 0; }} />
+      <BuyDialog {model} go={(t: string) => (settings.tab = t)} onalert={(a) => { settings.market.buyAlerts = [a, ...settings.market.buyAlerts.filter((x) => x.name !== a.name || x.rank !== a.rank || (x.subtype ?? null) !== (a.subtype ?? null))].slice(0, 40); lastDeals = 0; }} />
       <ItemDetails {model} bind:settings={settings} />
       {#if !onConsole}<Lookup bind:open={showLookup} {model} go={(t: string) => (settings.tab = t)} />{/if}
       <HoverCard {model} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad > 1 ? 4 : 1} />

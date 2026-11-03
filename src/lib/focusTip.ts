@@ -42,6 +42,7 @@ export function installFocusTips(): void {
   });
   document.addEventListener("focusout", hide);
   window.addEventListener("scroll", hide, true);
+  window.addEventListener("resize", hide);
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") hide();
   });

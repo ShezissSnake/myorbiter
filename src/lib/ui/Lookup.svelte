@@ -3,7 +3,7 @@
   // details; a relic, mod or arcane opens its page searched for it. The best matches first: names
   // that start with what you typed, then names with a word that does, then the rest.
   import { tick } from "svelte";
-  import type { Model } from "../core/model";
+  import { splitRelicName, type Model } from "../core/model";
   import { details } from "../details.svelte";
   import { setIntent } from "../intent.svelte";
   import Thumb from "./Thumb.svelte";
@@ -49,7 +49,10 @@
       if (!p) continue;
       out.push({ key: `part|${name}`, name, kind: `Part of ${p.parentName}`, image: model.imageOf(name), act: () => details.open(p.parentUnique) });
     }
-    for (const base of model.relicGroups.keys()) out.push({ key: `relic|${base}`, name: `${base} Relic`, kind: "Relic", image: null, era: base.split(" ")[0], act: page("relics", { q: base }) });
+    // Relics you hold: Relics lists only those (one you don't hold is in its rewards' details).
+    const held = new Set<string>();
+    for (const rows of model.inventoryByBase.values()) for (const r of rows) if (r.category === "relic" && r.quantity > 0) { const b = splitRelicName(r.name)?.base; if (b) held.add(b); }
+    for (const base of model.relicGroups.keys()) if (held.has(base)) out.push({ key: `relic|${base}`, name: `${base} Relic`, kind: "Relic you hold", image: null, era: base.split(" ")[0], act: page("relics", { q: base }) });
     const seen = new Set<string>();
     for (const rows of model.inventoryByBase.values()) {
       for (const r of rows) {

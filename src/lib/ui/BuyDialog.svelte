@@ -13,7 +13,7 @@
   let alerted = $state(false);
   function alertMe() {
     if (!d || !d.platinum || !onalert) return;
-    onalert({ name: d.name, rank: d.rank, maxPrice: Math.round(d.platinum), at: Date.now() });
+    onalert({ name: d.name, rank: d.rank, subtype: d.subtype, maxPrice: Math.round(d.platinum), at: Date.now() });
     alerted = true;
     setTimeout(close, 900);
   }
@@ -61,13 +61,7 @@
         <div class="row end"><button onclick={close}>Close</button></div>
       {:else}
         <Named file={model.imageOf(d.name.replace(/ Set$/, "")) ?? mkt.index.byName.get(d.name.toLowerCase())?.thumb} name={d.name} size={44} />
-        {#if !mkt.linked}
-          <p class="prose">Sign in to warframe.market first. orbiter keeps its own sign-in; you only do it once.</p>
-          <div class="row end">
-            <button onclick={close}>Cancel</button>
-            <button class="stamp gold" onclick={() => { close(); go("market"); }}>Sign in on Orders</button>
-          </div>
-        {:else}
+        <!-- Signed in or not, the price can be set: an alert only reads the public order book. -->
           <div class="fields">
             {#if d.maxRank != null}
               <label><span class="register">Rank</span>
@@ -92,6 +86,14 @@
           </div>
           {#if overSeller}<p class="warn small">That's the cheapest seller's price or more: whisper them and buy it now instead, or lower your price.</p>{/if}
           {#if mkt.error && mkt.op == null}<p class="err small">{mkt.error}</p>{/if}
+          {#if !mkt.linked}
+          <p class="prose small">To post a buy order, sign in to warframe.market first (orbiter keeps its own sign-in; you only do it once). An alert needs no sign-in.</p>
+          <div class="row end">
+            <button onclick={close}>Cancel</button>
+            {#if onalert}<button disabled={!d.platinum || d.loading || alerted} title="Don't post anything: orbiter watches warframe.market (Cheap buys, on Home) and tells you when someone lists it at {d.platinum ?? '…'}p or less" onclick={alertMe}>{alerted ? "Alert set" : `Alert me at ${d.platinum ?? "…"}p`}</button>{/if}
+            <button class="stamp gold" onclick={() => { close(); go("market"); }}>Sign in on Orders</button>
+          </div>
+          {:else}
           <div class="row end">
             <button onclick={close}>Cancel</button>
             {#if onalert}<button disabled={!d.platinum || d.loading || alerted} title="Don't post anything: orbiter watches warframe.market (Cheap buys, on Home) and tells you when someone lists it at {d.platinum ?? '…'}p or less" onclick={alertMe}>{alerted ? "Alert set" : `Alert me at ${d.platinum ?? "…"}p`}</button>{/if}

@@ -586,7 +586,7 @@
             {/if}
             {#if day.archon}
               <div class="th"><GameIcon name="archon-shard" size={18} /><b class="mark">Archon Hunt</b><span class="dim small">{day.archon.boss}{day.archon.shard ? ` · ${day.archon.shard} shard` : ""} · {until(day.archon.ends, now)} left</span></div>
-              <ol class="tline dim small archon">{#each day.archon.missions as m, i (i)}<li><Mission type={m.replace(/ \(.*$/, "")} size={12} />{m}</li>{/each}</ol>
+              <ol class="tline dim small archon">{#each day.archon.missions as m, i (i)}<li><Mission type={m.split(":")[0]} size={12} />{m}</li>{/each}</ol>
             {/if}
           </div>
         {/if}
@@ -963,7 +963,7 @@
   .levelrow > span:nth-child(2) { display: grid; min-width: 0; }
   .levelrow .small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pts.big { font-family: var(--face-mark); font-size: 1.3rem; color: var(--platinum); }
-  .figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr)); gap: 1rem; }
+  .figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(5.2rem, 1fr)); gap: .8rem; }
   .figs > div { display: grid; grid-template-rows: 1.75rem auto; gap: .3rem; align-content: start; align-items: center; }
   .figs > div :global(.amt b) { font-size: 1.5rem; }
   .figs b.mark { font-size: 1.5rem; line-height: 1; }

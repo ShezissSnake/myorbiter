@@ -4,8 +4,8 @@
 
 const SHORT: Record<string, string> = { Radiant: "rad", Flawless: "flaw", Exceptional: "exc", Intact: "int" };
 
-/** `have`: players already in (you count as one); the line asks for the rest. */
-export function recruitLine(base: string, refinement: string, have = 1): string {
+/** The line, and with `have` (players already in, you counting as one) the head count after it ("2/4"). */
+export function recruitLine(base: string, refinement: string, have?: number): string {
   const r = SHORT[refinement] ?? refinement.toLowerCase();
-  return `H ${base} ${r} ${Math.min(4, Math.max(1, have))}b4`;
+  return `H ${base} ${r} 4b4${have != null ? ` ${Math.min(4, Math.max(1, have))}/4` : ""}`;
 }

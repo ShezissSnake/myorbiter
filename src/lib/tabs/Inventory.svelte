@@ -4,7 +4,7 @@
   import { splitRelicName, type Model } from "../core/model";
   import { info } from "../hover.svelte";
   import { inventoryRows, type InventoryItem, type InventoryKind } from "../core/views";
-  import { inventoryValue, sellableCopies, spareRows, type SellChoices, type SpareRow } from "../core/spares";
+  import { inventoryValue, sellableCopies, spareRows, UNKNOWN_TRADES_PER_DAY, type SellChoices, type SpareRow } from "../core/spares";
   import { drops } from "../drops.svelte";
   import { mkt } from "../marketStore.svelte";
   import { marketUrl, openUrl, wikiUrl } from "../backend";
@@ -63,7 +63,7 @@
   /** The spare copies at their price, no more than the market sells in a month (as You can spare counts them). */
   const sellable = (r: InventoryItem) => {
     const s = spareOf(r);
-    return s && s.spare > 0 && s.price != null ? Math.round(s.price * sellableCopies(s.spare, perDay(r))) : null;
+    return s && s.spare > 0 && s.price != null ? Math.round(s.price * sellableCopies(s.spare, perDay(r) ?? (r.kind === "relic" ? UNKNOWN_TRADES_PER_DAY : null))) || null : null;
   };
   /** The item's page, by the market's own slug when its item list is loaded ("…_(veiled)"). */
   const itemUrl = (name: string) => {
@@ -158,6 +158,7 @@
         {#if priceOf(r) != null}<span><span class="register">Each</span><P v={priceOf(r)} dim /></span>{/if}
         {#if r.quantity > 1 && worthOf(r) != null}<span><span class="register">All</span><P v={worthOf(r)} /></span>{/if}
         {#if spareOf(r) && spare(r) > 0}<span title={why(r)}><span class="register">Spare</span><b class="sp">{spare(r) === r.quantity ? "all" : `×${spare(r).toLocaleString("en")}`}</b></span>{/if}
+        {#if sellable(r) != null}<span title="What your spare copies would bring: no more of them than the market sells in a month (the order the cards are in)"><span class="register">Sells for</span><P v={sellable(r)} /></span>{/if}
         {#if r.ducats}<span><span class="register">Ducats</span><P v={r.ducats * r.quantity} d dim /></span>{/if}
       </div>
     {/if}
@@ -206,7 +207,7 @@
 <div class="page"><div class="page-inner">
   <PageHead title="Inventory" blurb="Everything you own, with what it's worth on warframe.market.">
     {#snippet band()}
-      <Stat label="You can spare" tone="gold" note="Beyond what you keep, no more of each than the market sells in a month" title={`You can spare: beyond what you keep, no more of each than the market sells in a month (slow sellers count only that).${spareSplit ? ` By kind: ${spareSplit}. Mods (with Actually sells off) and Prime parts count their spares the same way.` : ""}`}><P v={value.spare} big /></Stat>
+      <Stat label="You can spare" tone="gold" note="Beyond what you keep, no more of each than the market sells in a month" title={`You can spare: beyond what you keep, no more of each than the market sells in a month (slow sellers count only that).${spareSplit ? ` By kind: ${spareSplit}. Mods (with Actually sells off) counts its spares the same way; Prime parts leaves out the ones better traded to Baro for ducats.` : ""}`}><P v={value.spare} big /></Stat>
       <Stat label="Easy to sell" note="Everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month"><P v={value.easy} big /></Stat>
       <Stat label="Market value" tone="dim" note="Every copy at the daily median, slow sellers included"><P v={value.market} big /></Stat>
     {/snippet}

@@ -51,17 +51,22 @@
   const left = (f: Fissure) => until(f.expiry, now).replace("under a minute", "<1 min");
   // Recruit: the line for a squad sharing your best relic of the era, on the clipboard.
   let copied = $state<string | null>(null);
+  /** The clipboard refused: the line to copy by hand. */
+  let failedLine = $state<string | null>(null);
   async function copyLine(era: string, line: string) {
     try {
       await navigator.clipboard.writeText(line);
+      failedLine = null;
       copied = era;
       setTimeout(() => (copied === era ? (copied = null) : null), 2000);
     } catch {
       copied = null;
+      failedLine = line;
     }
   }
 </script>
 
+{#if failedLine}<p class="small warn">Couldn't copy: <input class="by-hand" readonly value={failedLine} aria-label="Recruiting line to copy by hand" onfocus={(e) => e.currentTarget.select()} /></p>{/if}
 <div class="kinds">
   {#if !mine}<Seg
     bind:value={mode}
@@ -91,12 +96,12 @@
           <span class="dim small">{e.list.length}</span>
           {#if sv}<span class="saving" title="Your {some(sv.relics)} drop{sv.relics.length === 1 ? 's' : ''} a part still missing from {some(sv.sets.map((x) => `the ${x} Set`), 6)}, which your loose parts are waiting for (Sets → Saving up)">parts for {sv.sets.length === 1 ? sv.sets[0] : `${sv.sets.length} sets`}</span>{/if}
           <span class="grow"></span>
-          {#if b}<span class="best" title="Your relic whose crack is worth most here ({b.held}), and the average platinum of the reward you'd take"><span class="dim small">Crack</span> <b use:info={b.name}>{b.name}</b> <span class="dim small">{b.refinement}</span> <P v={b.plat} /></span><button class="copy" class:done={copied === e.era} title="Copy a recruiting line for a squad sharing it ({recruitLine(b.name, b.refinement)}): paste it in Recruiting chat" aria-label="Copy a recruiting line for {b.name}" onclick={() => copyLine(e.era, recruitLine(b.name, b.refinement))}>{copied === e.era ? "Copied" : "Recruit"}</button>{/if}
+          {#if b}<span class="best" title="Your relic whose crack is worth most here ({b.held}), and the average platinum of the reward you'd take"><span class="dim small crackw">Crack</span> <b use:info={b.name}>{b.name}</b> <span class="dim small refw">{b.refinement}</span> <span class="pv"><P v={b.plat} /></span></span><button class="copy" class:done={copied === e.era} title="Copy a recruiting line for a squad sharing it ({recruitLine(b.name, b.refinement)}): paste it in Recruiting chat" aria-label="Copy a recruiting line for {b.name}" onclick={() => copyLine(e.era, recruitLine(b.name, b.refinement))}>{copied === e.era ? "Copied" : "Recruit"}</button>{/if}
         </header>
         <ul>
           {#each e.list as f (f.id)}
             <li class:hit={watched.has(f.id) && !mine}>
-              <span class="mt">{#if watched.has(f.id) && !mine}<Icon name="bell" size={11} />{/if}{#if mine && (f.isHard || f.isStorm)}<span class="kind" title={f.isStorm ? "Void Storm" : "Steel Path"}><GameIcon name={f.isStorm ? "railjack" : "steel-essence"} size={10} />{f.isStorm ? "Storm" : "SP"}</span>{/if}<span class="mg"><Mission type={f.missionType} storm={f.isStorm} size={13} /></span>{f.missionType}</span>
+              <span class="mt">{#if watched.has(f.id) && !mine}<Icon name="bell" size={11} />{/if}{#if mine && (f.isHard || f.isStorm)}<span class="kind" title={f.isStorm ? "Void Storm" : "Steel Path"}><GameIcon name={f.isStorm ? "railjack" : "steel-essence"} size={10} />{f.isStorm ? "Storm" : "SP"}</span>{/if}<span class="mg"><Mission type={f.missionType} storm={f.isStorm} size={13} /></span><span class="mtn" title={f.missionType}>{f.missionType}</span></span>
               <span class="node dim small" title="{f.node} · {f.enemy}">{f.node}</span>
               <span class="foe dim small"><Foe enemy={f.enemy} size={13} /></span>
               <span class="left small" class:soon={Date.parse(f.expiry) - now < 10 * 60_000}>{left(f)}</span>
@@ -121,8 +126,13 @@
   button.go:hover b { color: var(--gold); }
   button.go:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
   .grow { flex: 1; }
-  .best { display: inline-flex; align-items: baseline; gap: .3rem; min-width: 0; white-space: nowrap; overflow: hidden; }
-  .best b { font-weight: 600; color: var(--platinum); font-size: .86rem; }
+  .best { display: inline-flex; align-items: baseline; gap: .3rem; min-width: 0; white-space: nowrap; }
+  /* The relic's name gives way first; its value and the Recruit button never do. */
+  .best b { font-weight: 600; color: var(--platinum); font-size: .86rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .pv { flex: none; }
+  .copy { flex: none; }
+  .by-hand { width: 16rem; }
+  :global(html[data-room~="lt1100"]) .best .crackw, :global(html[data-room~="lt1100"]) .best .refw { display: none; }
   ul { list-style: none; margin: .3rem 0 0; padding: 0; display: grid; gap: .15rem; }
   li { display: grid; grid-template-columns: minmax(6.5rem, 1fr) minmax(0, 1.3fr) 4.2rem 4.6rem; gap: .5rem; align-items: baseline; padding: .12rem 0; }
   .mt { display: inline-flex; align-items: center; gap: .3rem; color: var(--platinum); font-size: .88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -130,6 +140,7 @@
   .left { text-align: right; font-variant-numeric: tabular-nums; color: var(--platinum-dim); white-space: nowrap; }
   .left.soon { color: var(--platinum-deep); }
   li.hit .mt { color: var(--gold); }
+  .mtn { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .mg { display: inline-flex; color: color-mix(in srgb, var(--tint) 65%, var(--platinum-dim)); }
   .saving { font-size: .7rem; color: var(--verdigris); border: 1px solid color-mix(in srgb, var(--verdigris) 45%, transparent); padding: 0 .3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: default; }
   .kind { display: inline-flex; align-items: center; gap: .18rem; font-family: var(--face-register); font-size: .58rem; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold-dim); padding: 0 .25rem; }

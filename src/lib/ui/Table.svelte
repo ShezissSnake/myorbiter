@@ -100,6 +100,8 @@
 
 <style>
   .wrap { border-top: 1px solid var(--rule); }
+  /* A narrow page: a table wider than it scrolls sideways rather than running off the window. */
+  :global(html[data-room~="lt1100"]) .wrap { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
   th {
     position: sticky; top: 0; z-index: 1; background: var(--slab); text-align: left;

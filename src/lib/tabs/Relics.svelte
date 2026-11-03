@@ -40,11 +40,14 @@
     const want = takeIntent("relics");
     if (!want) return;
     query = want.q ?? "";
+    // Ctrl+K asked for one relic: that one, not Lith A10 with Lith A1. Typing in the field searches as usual.
+    exactBase = want.q ?? null;
     neededOnly = false;
     era = want.era ?? "all";
     vault = want.vault === "resurgence" || want.vault === "vaulted" || want.vault === "farmable" ? want.vault : "all";
   });
   let neededOnly = $state(false);
+  let exactBase = $state<string | null>(null);
   let query = $state("");
   let sort = $state({ key: "evI", desc: true });
   /** Solo: one crack, your own reward. Radshare: four of the same relic, you pick the best of four. */
@@ -67,7 +70,7 @@
         (era === "all" || r.era === era) &&
         (vault === "all" || (vault === "resurgence" ? r.resurgence : vault === "vaulted" ? r.vaulted : !r.vaulted)) &&
         (!neededOnly || r.neededCount > 0) &&
-        matches(query, r.base, ...r.rewards.map((x) => x.name)),
+        (exactBase && query === exactBase ? r.base === exactBase : matches(query, r.base, ...r.rewards.map((x) => x.name))),
     ),
   );
 
@@ -365,7 +368,8 @@
   .rwc.rar-Rare::before { width: 7px; height: 7px; margin-left: -3.5px; background: var(--gold); transform: rotate(45deg); box-shadow: 0 0 0 1.5px var(--plate); }
   .rwc.rar-Uncommon::before { width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: #a9b0ba; box-shadow: 0 0 0 1.5px var(--plate); }
   .rwc.done img { opacity: .45; }
-  .rwc i { position: absolute; right: -2px; top: -2px; width: 8px; height: 8px; background: var(--gold); transform: rotate(45deg); box-shadow: 0 0 0 2px var(--plate); }
+  /* A part you still need: a gold disc at the bottom corner (the diamond on top is the rare reward). */
+  .rwc i { position: absolute; right: -3px; bottom: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 2px var(--plate); }
   .ev { display: flex; gap: 1.1rem; }
   .ev > span { display: grid; gap: .15rem; }
   .ev .register { font-size: .6rem; }
