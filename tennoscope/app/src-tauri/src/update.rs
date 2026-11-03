@@ -17,6 +17,11 @@ pub const CHANNEL: &str = match option_env!("TENNOSCOPE_CHANNEL") {
     None => "stable",
 };
 
+/// orbiter's TennoScope: every build of it comes with orbiter, which brings the next one
+/// (tennoscope/ORBITER.md). It never replaces itself with upstream's release, and never asks
+/// upstream's feed about one, however it was started (not only when orbiter says it started it).
+const UPDATES_COME_WITH_ORBITER: bool = true;
+
 const STABLE_FEED: &str =
     "https://github.com/Deftera186/tennoscope/releases/latest/download/latest.json";
 const BETA_FEED: &str =
@@ -137,7 +142,7 @@ pub fn file_writable(path: &std::path::Path) -> bool {
 fn current_classification() -> (InstallKind, bool) {
     // Shipped inside orbiter: orbiter brings new versions. TennoScope's own updater would swap in a
     // build without orbiter's patch (or fail on a read-only mount), so it stands down.
-    if crate::orbiter_bridge::bundled_in_orbiter() {
+    if UPDATES_COME_WITH_ORBITER || crate::orbiter_bridge::bundled_in_orbiter() {
         return (InstallKind::Unknown, false);
     }
     let exe = std::env::current_exe().unwrap_or_default();
@@ -248,6 +253,13 @@ pub async fn update_check(app: AppHandle, feed: String) -> Result<CheckResult, S
     // is where non-portable kinds are refused.
     let (kind, writable) = current_classification();
     let updatable = updatable(kind, writable);
+    if UPDATES_COME_WITH_ORBITER {
+        return Ok(CheckResult {
+            kind,
+            updatable,
+            update: None,
+        });
+    }
     let urls = feed_urls(&feed)?;
     let mut builder = app.updater_builder();
     builder = builder

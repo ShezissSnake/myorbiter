@@ -52,6 +52,16 @@ Its checks, run here: `cargo clippy --workspace --all-targets -- -D warnings`,
 `cargo test --workspace` (as root, the AppImage-update test and two memory-permission tests fail,
 as they do upstream), and `pnpm test` in `app`.
 
+## What's left out
+
+- Upstream's `.github/` (its CI, release, APT and issue-labeler workflows, issue templates and
+  `FUNDING.yml`) was removed: orbiter's own workflows in the repository's `.github/` build and check
+  this copy, and the funding link was upstream's to give. The packaging notes in `packaging/` still
+  describe upstream's release process, for reference.
+- This TennoScope never updates itself: its updater stands down whether or not orbiter started it,
+  and it never asks upstream's release feed about a newer version (`UPDATES_COME_WITH_ORBITER` in
+  `app/src-tauri/src/update.rs`). orbiter brings the next one.
+
 ## Looking at upstream changes
 
 Nothing follows upstream automatically. When you choose to look:
