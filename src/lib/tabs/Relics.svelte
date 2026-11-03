@@ -133,7 +133,7 @@
 </script>
 
 {#snippet baseCell(r: RelicRow)}<Named file={model.imageOf(r.base)} name={r.base} tint={eraTint(r.base)}>{#if forWish.has(r.base)}<span class="tag ok" title={wishTitle(r.base)}>wishlist</span>{/if}</Named>{/snippet}
-{#snippet ownedCell(r: RelicRow)}<Owned owned={r.owned} />{/snippet}
+{#snippet ownedCell(r: RelicRow)}<Owned owned={r.owned} base={r.base} />{/snippet}
 {#snippet vaultCell(r: RelicRow)}<Avail v={r.resurgence ? "resurgence" : r.vaulted ? "vaulted" : "farmable"} />{/snippet}
 {#snippet evICell(r: RelicRow)}<P v={evI(r)} />{/snippet}
 {#snippet evRCell(r: RelicRow)}<P v={evR(r)} />{/snippet}
@@ -157,7 +157,7 @@
     </div>
     {#snippet foot()}
       <Avail v={r.resurgence ? "resurgence" : r.vaulted ? "vaulted" : "farmable"} />
-      <Owned owned={r.owned} />
+      <Owned owned={r.owned} base={r.base} compact />
       <span class="grow"></span>
       {#if forWish.has(r.base)}<span class="tag ok" title={wishTitle(r.base)}>wishlist</span>{:else if r.neededCount}<span class="tag warn" title="Rewards you still need">{r.neededCount} you need</span>{/if}
       <ListButton {model} name="{r.base} Relic" />

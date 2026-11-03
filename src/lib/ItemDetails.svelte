@@ -22,7 +22,7 @@
   import P from "./ui/P.svelte";
   import Effort from "./ui/Effort.svelte";
   import Avail from "./ui/Avail.svelte";
-  import GameIcon from "./ui/GameIcon.svelte";
+  import GameIcon, { eraIcon } from "./ui/GameIcon.svelte";
   import Metal from "./ui/Metal.svelte";
 
   let { model, settings = $bindable() }: { model: Model; settings: Settings } = $props();
@@ -199,7 +199,7 @@
                   <Avail v={w.availability} />
                   {#each w.relics.slice(0, 4) as r, j (j)}
                     <span class="relic" class:held={r.owned > 0} class:vaulted={r.vaulted} use:info={r.base}>
-                      <GameIcon name={`relic-${r.base.split(" ")[0].toLowerCase() as "lith"}-intact`} size={15} />{r.base}{#if r.owned}<em>×{r.owned}</em>{/if}
+                      <GameIcon name={eraIcon(r.base.split(" ")[0])} size={15} />{r.base}{#if r.owned}<em>×{r.owned}</em>{/if}
                     </span>
                   {/each}
                   {#if w.relics.length > 4}<span class="dim small">+{w.relics.length - 4}</span>{/if}

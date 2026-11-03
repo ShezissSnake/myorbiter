@@ -26,7 +26,7 @@
   import Art from "./ui/Art.svelte";
   import P from "./ui/P.svelte";
   import PartChip from "./ui/PartChip.svelte";
-  import GameIcon from "./ui/GameIcon.svelte";
+  import GameIcon, { eraIcon } from "./ui/GameIcon.svelte";
   import Avail from "./ui/Avail.svelte";
 
   // squad: solo (1) or a radshare (4), as set on Relics: a crack's worth follows it, as the pages do.
@@ -106,7 +106,7 @@
         <div class="register lbl">Drops from</div>
         <ul class="srcs">
           {#each d.relics.slice(0, 6) as s, i (i)}
-            <li class:held={s.owned > 0} class:vaulted={s.vaulted}><GameIcon name={`relic-${s.base.split(" ")[0].toLowerCase() as "lith"}-intact`} size={16} /><b>{s.base}</b><span class="dim">{s.rarity}</span><span class="grow"></span><span class="dim">{pct(s.chanceIntact)} → {pct(s.chanceRadiant)}</span><span class="tail">{#if s.owned}<em>×{s.owned}</em>{:else if s.vaulted}<span class="vt">vaulted</span>{/if}</span></li>
+            <li class:held={s.owned > 0} class:vaulted={s.vaulted}><GameIcon name={eraIcon(s.base.split(" ")[0])} size={16} /><b>{s.base}</b><span class="dim">{s.rarity}</span><span class="grow"></span><span class="dim">{pct(s.chanceIntact)} → {pct(s.chanceRadiant)}</span><span class="tail">{#if s.owned}<em>×{s.owned}</em>{:else if s.vaulted}<span class="vt">vaulted</span>{/if}</span></li>
           {/each}
         </ul>
         {#if d.relics.length > 6}<p class="more dim">+{d.relics.length - 6} more relics</p>{/if}

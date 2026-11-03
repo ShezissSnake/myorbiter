@@ -173,7 +173,25 @@ test("a pile of spares counts for no more than the market sells in a month", asy
   const { sellableCopies } = await import("../src/lib/core/spares");
   assert.equal(sellableCopies(232, 1.9), 57, "232 Lasting Stings at 1.9 a day: 57 sell in a month");
   assert.equal(sellableCopies(5, 10), 5);
-  assert.equal(sellableCopies(40, null), 40, "no pace known (relics): all of them");
+  assert.equal(sellableCopies(40, null), 30, "no pace known (relics): about one a day, a month's worth, never every copy");
+  assert.equal(sellableCopies(12, null), 12);
+});
+
+test("Inventory's figures: market, easy and spare one way, spare traced by kind", async () => {
+  const { inventoryValue } = await import("../src/lib/core/spares");
+  const row = (key: string, kind: string, quantity: number, price: number | null, tradesPerDay: number | null) =>
+    ({ key, name: key, unique: key, kind, type: kind, quantity, rank: null, maxRank: null, mastered: false, price, ducats: null, worth: price == null ? null : price * quantity, tradesPerDay, marketName: key, subtype: null }) as never;
+  const spare = (key: string, n: number, price: number | null, tradesPerDay: number | null) => [key, { key, spare: n, price, tradesPerDay }] as const;
+  const rows = [row("mod", "mod", 100, 3, 2), row("slow", "part", 40, 10, 0.25), row("relic", "relic", 50, 5, null), row("frame", "gear", 1, 300, 1)];
+  const ledger = new Map([spare("mod", 98, 3, 2), spare("slow", 40, 10, 0.25), spare("relic", 50, 5, null)]) as never;
+  const v = inventoryValue(rows, ledger);
+  // Built gear has no price unless it's in the ledger.
+  assert.equal(v.market, 100 * 3 + 40 * 10 + 50 * 5);
+  // Easy: what trades daily (relics count), a month's sales of each: 60 mods, 30 relics.
+  assert.equal(v.easy, 60 * 3 + 30 * 5);
+  // Spare: slow sellers too, capped: 60 mods, 8 slow parts, 30 relics.
+  assert.equal(v.spare, 60 * 3 + 8 * 10 + 30 * 5);
+  assert.equal(v.byKind.get("part"), 80);
 });
 
 test("a boss key is kept while the fight still drops a part you need, and spare once it doesn't", () => {

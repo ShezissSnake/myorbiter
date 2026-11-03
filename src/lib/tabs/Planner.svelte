@@ -43,10 +43,12 @@
   let sortSets = $state({ key: "value", desc: true });
   let sortRad = $state({ key: "gain", desc: true });
 
+  /** "Intact ×18: 38.0%, 4.3p · Radiant ×1: 70.0%, 7.9p (solo)" */
+  const refinementLine = (r: CrackRow) => `${r.perRefinement.map((x) => `${x.refinement} ×${x.copies}: ${(x.chance * 100).toFixed(1)}%, ${Math.round(x.value * 10) / 10}p`).join(" · ")} (${settings.squad > 1 ? "radshare, best of four" : "solo"}; the figure is the average over your copies)`;
   const traces = $derived((model.inventoryByBase.get("/Lotus/Types/Items/MiscItems/VoidTearDrop") ?? []).reduce((n, r) => n + r.quantity, 0));
 
   // ------------------------------------------------ crack for sets
-  const plan = $derived(crackRows(model, settings.maxMissing));
+  const plan = $derived(crackRows(model, settings.maxMissing, settings.squad));
   const crack = $derived(plan.relics.filter((r) => (!vaultedOnly || r.vaulted) && (!openOnly || isOpen(r.base)) && (!wishOnly || forWish.has(r.base)) && matches(query, r.base, ...r.hits.map((h) => h.reward))));
   /** The gap lists show a few at first: the table above them is the plan. */
   const GAPS_SHOWN = 10;
@@ -65,7 +67,7 @@
     { key: "base", label: "Relic", value: (r) => r.base, defaultDesc: false, cell: relicCell },
     { key: "owned", label: "You have", value: (r) => Object.values(r.owned).reduce((a, b) => a + b, 0), cell: ownedCell, align: "right" },
     { key: "vault", label: "Vault", spare: true, value: (r) => (r.vaulted ? 1 : 0), cell: vaultCell, align: "center", title: "Vaulted: no new copies drop" },
-    { key: "chance", label: "Part chance", value: (r) => r.chance, cell: chanceCell, align: "right", title: "Chance one crack, at your best refinement, gives a part a near-complete set is missing" },
+    { key: "chance", label: "Part chance", value: (r) => r.chance, cell: chanceCell, align: "right", title: "Chance one crack gives a part a near-complete set is missing: the average over the copies you hold (hover a figure for each refinement), solo or radshare as set on Relics" },
     { key: "value", label: "Per crack", value: (r) => r.value, cell: valueCell, align: "right", title: "Platinum per crack toward sets: each missing part at what it adds to its set (the set's price over what your other parts already sell for loose), never less than the part's own price" },
     { key: "hits", label: "Parts it can give", value: (r) => r.hits.length, cell: hitsCell, sortable: false, width: "40%" },
   ];
@@ -106,10 +108,10 @@
 </script>
 
 {#snippet relicCell(r: { base: string })}<span class="rel"><Named file={model.imageOf(r.base)} name={r.base} tint={eraTint(r.base)} />{#if forWish.has(r.base)}<span class="tag ok" title={wishTitle(r.base)}>wishlist</span>{/if}{#if fissures && !isOpen(r.base)}<span class="closed" title="No {r.base.split(' ')[0]} fissure is open right now: an Omnia one takes it, or wait for the next">no fissure now</span>{/if}</span>{/snippet}
-{#snippet ownedCell(r: CrackRow)}<Owned owned={r.owned} />{/snippet}
+{#snippet ownedCell(r: CrackRow)}<Owned owned={r.owned} base={r.base} />{/snippet}
 {#snippet vaultCell(r: { vaulted: boolean })}<Avail v={r.vaulted ? "vaulted" : "farmable"} />{/snippet}
-{#snippet chanceCell(r: CrackRow)}<span class="pct">{(r.chance * 100).toFixed(1)}%</span>{/snippet}
-{#snippet valueCell(r: CrackRow)}<P v={Math.round(r.value * 10) / 10} />{/snippet}
+{#snippet chanceCell(r: CrackRow)}<span class="pct" title={refinementLine(r)}>{(r.chance * 100).toFixed(1)}%</span>{/snippet}
+{#snippet valueCell(r: CrackRow)}<span title={refinementLine(r)}><P v={Math.round(r.value * 10) / 10} /></span>{/snippet}
 {#snippet hitsCell(r: CrackRow)}
   <span class="hits">
     {#each r.hits as h (h.reward + h.set)}
@@ -121,7 +123,7 @@
 {/snippet}
 
 {#snippet radRelicCell(r: RadiantRow)}{@render relicCell(r)}{/snippet}
-{#snippet radOwnedCell(r: RadiantRow)}<Owned owned={r.owned} />{/snippet}
+{#snippet radOwnedCell(r: RadiantRow)}<Owned owned={r.owned} base={r.base} />{/snippet}
 {#snippet rareCell(r: RadiantRow)}
   {#if r.rare}<span class="rr"><span class="rr-name" use:info={r.rare.name}><Thumb file={model.imageOf(r.rare.name)} size={22} />{r.rare.name}</span><P v={r.rare.price} dim /></span>{/if}
 {/snippet}

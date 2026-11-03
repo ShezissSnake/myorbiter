@@ -7,7 +7,7 @@
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
   import { watchlist } from "./lib/core/deals";
   import { inventoryRows, masteryRows, relicRows, saveForSets, type SetSave } from "./lib/core/views";
-  import { allSetRows, allSetSaves } from "./lib/core/spares";
+  import { allSetRows, allSetSaves, inventoryValue, spareRows } from "./lib/core/spares";
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
   import { buildModel, ERAS } from "./lib/core/model";
   import { mergeRelics, type RelicData } from "./lib/core/relicData";
@@ -117,6 +117,7 @@
   import BuyDialog from "./lib/ui/BuyDialog.svelte";
   import SideWatch from "./lib/ui/SideWatch.svelte";
   import { mkt } from "./lib/marketStore.svelte";
+  import { inFissure } from "./lib/core/mission";
   import { parseTarget, setIntent } from "./lib/intent.svelte";
   import { ts } from "./lib/tennoscopeStore.svelte";
 
@@ -487,7 +488,7 @@
     if (o.paused || (o.pausedUntil != null && Date.now() < o.pausedUntil)) return true;
     if (o.quiet.includes(kind)) return true;
     // In a fissure: only the reward to take, which is what you'd want then.
-    return o.quietInFissure && !!mission?.relics.length && kind !== "reward";
+    return o.quietInFissure && inFissure(mission) && kind !== "reward";
   }
   /** Settings' test: shows how a notification looks, whatever is switched off, and keeps nothing. */
   function testNotice() {
@@ -1386,9 +1387,10 @@
     untrack(() => {
       const h = settings.game.valueHistory;
       if (h.length && h[h.length - 1].at >= at) return;
+      // Worked out as Inventory does (core/spares.ts, inventoryValue), so the chart and its figures agree.
       const rows = inventoryRows(m);
-      const worth = Math.round(rows.reduce((n, r) => n + (r.worth ?? 0), 0));
-      const liquid = Math.round(rows.filter((r) => r.marketName && (r.tradesPerDay ?? 0) >= 1).reduce((n, r) => n + (r.worth ?? 0), 0));
+      const ledger = new Map(spareRows(m, mkt.index, settings.market.sellable, settings.advice.platPerDucat, settings.advice.squad, drops.recent).map((x) => [x.key, x]));
+      const { market: worth, easy: liquid } = inventoryValue(rows, ledger);
       const held = (u: string) => (m.inventoryByBase.get(u) ?? []).reduce((n, r) => n + r.quantity, 0);
       const relics = [...m.inventoryByBase.values()].flat().filter((r) => r.category === "relic").reduce((n, r) => n + r.quantity, 0);
       const M = "/Lotus/Types/Items/MiscItems/";
@@ -1834,7 +1836,7 @@
       <button class="nav" class:on={settings.tab === p.id} title={shortcutOf(p.id) ? `${p.label}: ${p.hint} (${shortcutOf(p.id)})` : `${p.label}: ${p.hint}`} aria-current={settings.tab === p.id ? "page" : undefined} onclick={() => (settings.tab = p.id)}>
         <span class="ic">{#if "game" in p.icon}<GameIcon name={p.icon.game} size={20} />{:else}<Icon name={p.icon.line} size={18} stroke={1.5} />{/if}</span>
         <span class="lbl">{p.label}</span>
-        {#if p.id === "mission" && mission?.relics.length}<span class="live" title="Fissure in progress"></span>{/if}
+        {#if p.id === "mission" && inFissure(mission, tick)}<span class="live" title="Fissure in progress"></span>{/if}
         {#if p.id === "market" && shortListings.length}<span class="badge" title="Listings for more than you hold: sold, or used in game">{shortListings.length}</span>{/if}
         {#if p.id === "market" && settings.market.auto && mkt.linked && !shortListings.length}<span class="live dim" title="Apply automatically is on: your listings follow the cheapest in-game price"></span>{/if}
       </button>
@@ -1850,8 +1852,8 @@
 
     <div class="foot">
       {#if !onConsole}<div class="game" title={[mission?.mission ?? (mission ? "Watching Warframe's log" : "No game log found"), model ? `Synced ${ago(model.observedAt, tick)}` : null].filter(Boolean).join(" · ")}>
-        <span class="pill" class:live={!!mission?.relics.length} class:idle={!mission}><i></i></span>
-        <span class="lbl"><strong>{mission?.relics.length ? "In a fissure" : mission ? "Watching" : "Idle"}</strong><small>{mission?.relics.length ? (mission.mission ?? "") : model ? `Synced ${ago(model.observedAt, tick)}` : "No data yet"}</small></span>
+        <span class="pill" class:live={inFissure(mission, tick)} class:idle={!mission}><i></i></span>
+        <span class="lbl"><strong>{inFissure(mission, tick) ? "In a fissure" : mission ? "Watching" : "Idle"}</strong><small>{inFissure(mission, tick) ? (mission?.mission ?? "") : model ? `Synced ${ago(model.observedAt, tick)}` : "No data yet"}</small></span>
       </div>{/if}
       <div class="syncrow">
       <button class="stamp sync" onclick={refreshAll} disabled={loading || syncing}

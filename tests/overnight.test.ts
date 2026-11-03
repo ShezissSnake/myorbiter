@@ -68,3 +68,14 @@ test("the Orders search counts sets that aren't prime by what you hold", () => {
   assert.equal(spareOf(m, "Mandonel Set", ["weapon", "set"]), null);
   assert.deepEqual(spareOf(m, "Rhino Prime Set", ["warframe", "set", "prime"]), { rank: null, quantity: 0 });
 });
+
+test("a fissure the log hasn't mentioned in 45 minutes is over", async () => {
+  const { inFissure } = await import("../src/lib/core/mission");
+  const start = 1_793_600_000;
+  const ms = (relics: string[], last: number | null) => ({ relics, last_event: last, session_start: start }) as never;
+  const now = (start + 3600) * 1000;
+  assert.equal(inFissure(ms(["/a"], 3500), now), true, "100 s ago");
+  assert.equal(inFissure(ms(["/a"], 600), now), false, "50 min ago");
+  assert.equal(inFissure(ms([], 3500), now), false, "no relics loaded");
+  assert.equal(inFissure({ relics: ["/a"], last_event: 10, session_start: null } as never, now), true, "no clock: can't tell, so live");
+});

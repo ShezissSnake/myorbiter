@@ -13,6 +13,7 @@
   import { bestCard, resolveName, scoreCards, type PickCard, type PickWeights } from "../core/pick";
   import { onWindows, type ScreenCards } from "../backend";
   import { info } from "../hover.svelte";
+  import { inFissure } from "../core/mission";
 
   // The score weights are set in Settings → Fissures (something you set once, not look at in a
   // fissure): here they're only named, with the way there.
@@ -28,7 +29,13 @@
     onsettings = null,
   }: { model: Model; state: MissionState | null; error: string | null; cards?: ScreenCards | null; weights: PickWeights; windowMode?: string | null; tennoscopeRunning?: boolean; onsettings?: (() => void) | null } = $props();
 
-  const live = $derived(!!ms && ms.relics.length > 0);
+  // Relics loaded, and the log heard from lately: a squad from hours ago is the last fissure, not this one.
+  let liveNow = $state(Date.now());
+  $effect(() => {
+    const t = setInterval(() => (liveNow = Date.now()), 60_000);
+    return () => clearInterval(t);
+  });
+  const live = $derived(inFissure(ms, liveNow));
   const paths = $derived(ms ? (ms.relics.length ? ms.relics : ms.last_relics) : []);
   const relics = $derived(squadRelics(model, paths));
   const pool = $derived(squadPool(relics));

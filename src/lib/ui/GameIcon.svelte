@@ -14,8 +14,9 @@
 
   type Faction = "grineer" | "corpus" | "infested" | "orokin" | "sentient" | "murmur" | "scaldra" | "techrot";
 
-  /** A fissure's era as its relic (Omnia, which takes any, as the Void tear). */
-  export const eraIcon = (era: string): GameIconName => (era === "Omnia" ? "void-tear" : (`relic-${era.toLowerCase()}-intact` as GameIconName));
+  const RELIC_ERAS = ["lith", "meso", "neo", "axi", "requiem"];
+  /** A fissure's or relic's era as its relic; Omnia (which takes any) and eras without a picture here (Vanguard) as the Void tear. */
+  export const eraIcon = (era: string): GameIconName => (RELIC_ERAS.includes(era.toLowerCase()) ? (`relic-${era.toLowerCase()}-intact` as GameIconName) : "void-tear");
 
   /**
    * An item kind as the Arsenal's tab for it shows ("Warframe", "Primary", "Arch-Gun", "Companion"…):

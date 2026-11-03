@@ -143,7 +143,7 @@
           </div>
           {#if w.missing.length}
             <table>
-              <colgroup><col style="width: 24%" /><col style="width: 36%" /><col style="width: 31%" /><col style="width: 9%" /></colgroup>
+              <colgroup><col style="width: 26%" /><col style="width: 39%" /><col style="width: 35%" /><col style="width: 6.8rem" /></colgroup>
               <thead><tr><th>Missing</th><th>Your relics</th><th>Farm</th><th class="r">Buy</th></tr></thead>
               <tbody>
                 {#each w.missing as p (p.name)}
@@ -170,7 +170,7 @@
                       {:else if p.vaulted}<span class="dim small">Vaulted</span>
                       {:else}<span class="dim small">–</span>{/if}
                     </td>
-                    <td class="r"><span class="buy"><P v={p.price == null ? null : Math.round(p.price)} /><button class="link buyo" title="Post a buy order on warframe.market for {p.name}: sellers whisper you" onclick={() => mkt.startBuy(p.name, { quantity: Math.max(1, p.required - p.have) })}>Buy order</button></span></td>
+                    <td class="r"><span class="buycell"><P v={p.price == null ? null : Math.round(p.price)} /><button class="link buyo" title="Post a buy order on warframe.market for {p.name}: sellers whisper you" onclick={() => mkt.startBuy(p.name, { quantity: Math.max(1, p.required - p.have) })}>Buy order</button></span></td>
                   </tr>
                 {/each}
               </tbody>
@@ -183,8 +183,9 @@
 </div></div>
 
 <style>
-  .buy { display: inline-grid; justify-items: end; gap: .15rem; }
-  .buyo { font-size: .58rem; }
+  /* A part's price over its Buy order button, right-aligned in its cell: the button may wrap, never cut. */
+  .buycell { display: inline-grid; justify-items: end; gap: .15rem; max-width: 100%; }
+  .buyo { font-size: .58rem; white-space: nowrap; padding: 0; }
   .bar input[list] { min-width: 22rem; }
   .now { align-items: start; display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: .8rem; margin: 0 0 var(--step); }
   .era { border: 1px solid var(--gold-dim); background: linear-gradient(180deg, #1a1810, var(--plate) 55%); padding: .7rem .9rem; display: grid; gap: .5rem; clip-path: var(--cut); }

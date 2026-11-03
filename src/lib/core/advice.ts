@@ -20,7 +20,12 @@ export interface Outcome {
  * and each player picks the best reward on the screen, so a radshare of 4 is "best of 4".
  */
 export function expectedBest(outcomes: Outcome[], n: number): number {
-  const sorted = [...outcomes].sort((a, b) => a.value - b.value);
+  // Chances as fractions that don't reach 1 (a relic whose listed rewards come to 76%, the rest
+  // something with no price): the rest is a reward worth nothing, as the solo figure counts it,
+  // not spread over the listed ones.
+  const listed = outcomes.reduce((s, o) => s + o.chance, 0);
+  const all = listed > 0 && listed < 1 - 1e-6 ? [{ chance: 1 - listed, value: 0 }, ...outcomes] : outcomes;
+  const sorted = [...all].sort((a, b) => a.value - b.value);
   const total = sorted.reduce((s, o) => s + o.chance, 0) || 1;
   let cdf = 0;
   let prev = 0;
@@ -175,12 +180,21 @@ export interface DucatRow {
   vaulted: boolean;
 }
 
-export function decide(plat: number | null, ducats: number, trades: number | null, o: DucatOptions): { verdict: Verdict; reason: string; slow: boolean } {
+/** The most items one trade can carry. */
+export const ITEMS_PER_TRADE = 6;
+
+/**
+ * Plat or ducats for a part (or set) at `plat` each. `copies`: how many you have to sell. The
+ * smallest sale worth a trade is judged on the trade, not the copy: five barrels at 3p go in one
+ * 15p trade.
+ */
+export function decide(plat: number | null, ducats: number, trades: number | null, o: DucatOptions, copies = 1): { verdict: Verdict; reason: string; slow: boolean } {
   const slow = trades != null && trades < o.slowBelow;
   if (plat == null) return { verdict: "ducats", reason: "No market price", slow };
   const baroWorth = ducats * o.platPerDucat;
   if (baroWorth >= plat) return { verdict: "ducats", reason: `${ducats}d is worth ~${Math.round(baroWorth * 10) / 10}p to you`, slow };
-  if (plat < o.minPlat) return { verdict: "ducats", reason: `Under ${o.minPlat}p: not worth a trade`, slow };
+  const perTrade = Math.min(Math.max(1, copies), ITEMS_PER_TRADE);
+  if (plat * perTrade < o.minPlat) return { verdict: "ducats", reason: perTrade > 1 ? `Under ${o.minPlat}p a trade, even ${perTrade} at once: not worth one` : `Under ${o.minPlat}p: not worth a trade`, slow };
   if (slow && baroWorth >= plat * 0.6) return { verdict: "ducats", reason: "Sells slowly and ducats come close", slow };
   return { verdict: "plat", reason: slow ? "Worth more as plat, but sells slowly" : `Sells for more than its ducats are worth`, slow };
 }
@@ -192,7 +206,7 @@ export function ducatRows(m: Model, o: DucatOptions, includeSets: boolean): Duca
   for (const row of partRows(m)) {
     const p = { ...row, spare: row.spare - (includeSets ? row.inSets : 0) };
     if (p.spare <= 0) continue;
-    const d = decide(p.price, p.ducats, p.tradesPerDay, o);
+    const d = decide(p.price, p.ducats, p.tradesPerDay, o, p.spare);
     rows.push({
       kind: "part",
       name: p.name,
@@ -211,7 +225,7 @@ export function ducatRows(m: Model, o: DucatOptions, includeSets: boolean): Duca
   if (includeSets) {
     // A complete set sells as one trade; compare it with trading every part in for ducats.
     for (const s of sets) {
-      const d = decide(s.setPrice, s.ducats, s.tradesPerDay, o);
+      const d = decide(s.setPrice, s.ducats, s.tradesPerDay, o, s.sellable);
       rows.push({
         kind: "set",
         name: `${s.name} Set`,
@@ -248,12 +262,17 @@ export interface CrackRow {
   era: string;
   vaulted: boolean;
   owned: Record<string, number>;
-  /** The refinement used for the odds: your best copy. */
+  /** The refinement you hold most of (the reward list's odds are its). */
   refinement: string;
+  /** Each refinement you hold, its copies and what one crack of it gives toward sets. */
+  perRefinement: { refinement: string; copies: number; chance: number; value: number }[];
   hits: SetHit[];
-  /** Chance one crack gives you a part a near-complete set is missing. */
+  /**
+   * Chance one crack gives you a part a near-complete set is missing: the average over the copies
+   * you hold (one radiant among 18 intact barely moves it), solo or in a radshare (best of the squad's).
+   */
   chance: number;
-  /** Expected platinum one crack adds toward sets: each missing part at what it adds to its set (SetGap.partValue). */
+  /** Expected platinum one crack adds toward sets, on the same footing: each missing part at what it adds to its set (SetGap.partValue). */
   value: number;
   sets: string[];
 }
@@ -296,7 +315,7 @@ export function setGaps(m: Model, maxMissing: number): SetGap[] {
     .filter((g) => g.missingCount > 0 && g.missingCount <= maxMissing);
 }
 
-export function crackRows(m: Model, maxMissing: number): { relics: CrackRow[]; gaps: SetGap[] } {
+export function crackRows(m: Model, maxMissing: number, squad = 1): { relics: CrackRow[]; gaps: SetGap[] } {
   const gaps = setGaps(m, maxMissing);
   const wanted = new Map<string, { gap: SetGap }[]>();
   for (const g of gaps) for (const x of g.missing) wanted.set(x.name, [...(wanted.get(x.name) ?? []), { gap: g }]);
@@ -315,37 +334,56 @@ export function crackRows(m: Model, maxMissing: number): { relics: CrackRow[]; g
 
   const relics: CrackRow[] = [];
   const counted = new Map<string, Set<string>>(); // set -> relic bases that help
+  const k = Math.max(1, squad);
   for (const [base, owned] of ownedByBase) {
     const group = m.relicGroups.get(base);
     if (!group) continue;
-    const refinement = REF_RANK.find((r) => owned[r] && group.byRefinement[r]) ?? "Intact";
-    const entry = group.byRefinement[refinement] ?? group.byRefinement.Intact;
-    if (!entry) continue;
-    const hits: SetHit[] = [];
-    let value = 0;
-    for (const rw of entry.rewards) {
-      for (const { gap } of wanted.get(rw.name) ?? []) {
-        const chance = (rw.chance ?? 0) / 100;
-        hits.push({ reward: rw.name, set: gap.set, last: gap.missingCount === 1, chance });
-        value += chance * (gap.partValue.get(rw.name) ?? 0);
-        const c = counted.get(gap.set) ?? new Set<string>();
-        c.add(base);
-        counted.set(gap.set, c);
+    const per: CrackRow["perRefinement"] = [];
+    let mostHits: SetHit[] = [];
+    let most = -1;
+    for (const refinement of REF_RANK) {
+      const copies = owned[refinement] ?? 0;
+      const entry = copies ? group.byRefinement[refinement] : undefined;
+      if (!entry) continue;
+      const hits: SetHit[] = [];
+      let value = 0;
+      for (const rw of entry.rewards) {
+        for (const { gap } of wanted.get(rw.name) ?? []) {
+          const chance = (rw.chance ?? 0) / 100;
+          hits.push({ reward: rw.name, set: gap.set, last: gap.missingCount === 1, chance });
+          value += chance * (gap.partValue.get(rw.name) ?? 0);
+        }
+      }
+      if (!hits.length) continue;
+      // One crack gives exactly one reward, so the chances of the wanted rewards add up. In a
+      // radshare you take the best of the squad's: a wanted part comes if any of them gives one.
+      const one = Math.min(1, [...new Set(hits.map((h) => h.reward))].reduce((p, name) => p + hits.find((h) => h.reward === name)!.chance, 0));
+      const chance = 1 - (1 - one) ** k;
+      per.push({ refinement, copies, chance, value: one > 0 ? (value * chance) / one : 0 });
+      if (copies > most) {
+        most = copies;
+        mostHits = hits;
       }
     }
-    if (!hits.length) continue;
-    // One crack gives exactly one reward, so the chances of the wanted rewards add up.
-    const chance = Math.min(1, [...new Set(hits.map((h) => h.reward))].reduce((p, name) => p + hits.find((h) => h.reward === name)!.chance, 0));
+    if (!per.length) continue;
+    for (const h of mostHits) {
+      const c = counted.get(h.set) ?? new Set<string>();
+      c.add(base);
+      counted.set(h.set, c);
+    }
+    const total = per.reduce((n, x) => n + x.copies, 0);
+    const best = per.find((x) => x.copies === most)!;
     relics.push({
       base,
       era: group.era,
       vaulted: group.vaulted,
       owned,
-      refinement,
-      hits,
-      chance,
-      value,
-      sets: [...new Set(hits.map((h) => h.set))],
+      refinement: best.refinement,
+      perRefinement: per,
+      hits: mostHits,
+      chance: per.reduce((n, x) => n + x.chance * x.copies, 0) / total,
+      value: per.reduce((n, x) => n + x.value * x.copies, 0) / total,
+      sets: [...new Set(mostHits.map((h) => h.set))],
     });
   }
   for (const g of gaps) g.relicsOwned = counted.get(g.set)?.size ?? 0;

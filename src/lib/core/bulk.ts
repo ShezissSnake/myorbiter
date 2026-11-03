@@ -152,7 +152,7 @@ export function sellTargets(m: Model, rules: BulkRules, advice: DucatOptions, in
       // Better traded to Baro: kept for ducats, and a listing of yours for it comes down. Not worth a
       // trade, or slow and close to its ducats: not listed, but a listing you made stays.
       const asDucats = ducatsWin(p.price, p.ducats, advice);
-      const d = decide(p.price, p.ducats, p.tradesPerDay, advice);
+      const d = decide(p.price, p.ducats, p.tradesPerDay, advice, n);
       if (asDucats) part.hold = { why: asDucats, takeDown: true };
       else if (d.verdict === "ducats") part.hold = { why: `Better as ducats: ${d.reason.charAt(0).toLowerCase()}${d.reason.slice(1)}`, takeDown: false };
       out.push(part);

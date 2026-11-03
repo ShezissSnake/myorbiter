@@ -103,7 +103,7 @@
   <PageHead title="Mods" blurb="Mods you have spare copies of. Your best copy and one to give away are always kept.">
     {#snippet band()}
       <Stat label="Spare copies" note="Beyond your best copy and one to give away">{extras.toLocaleString("en")}</Stat>
-      <Stat label="Spares worth" tone="dim" note={sellingOnly ? "Mods that sell daily, no more than the market takes in a month" : "Slow sellers included, no more than the market takes in a month"}><P v={value} big /></Stat>
+      <Stat label="Spares worth" tone="dim" note={sellingOnly ? "Mods that sell daily, no more of each than the market sells in a month" : "Slow sellers too, no more of each than the market sells in a month (as Inventory counts)"}><P v={value} big /></Stat>
     {/snippet}
   </PageHead>
 

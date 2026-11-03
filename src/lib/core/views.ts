@@ -368,6 +368,8 @@ export interface MasteryRow {
   buyFor: number | null;
   /** Every part in hand: how easy building is now (null when not that far, or the recipes aren't read yet). */
   buildTier: BuildTier | null;
+  /** A captured infested companion: revived with Son in the Necralisk, not built in the Foundry. */
+  revive?: boolean;
   /** What's short to build it, in a line. */
   buildShort: string;
 }
@@ -384,6 +386,20 @@ export const MASTERY_CATEGORIES: Record<string, string> = {
   Pets: "Companion",
   Misc: "Other",
 };
+
+/**
+ * The kind an item is shown as: its catalog category, made plainer where the catalog lumps things
+ * together (a MOA's or sentinel's gun filed as Primary, kitgun and K-Drive parts as Misc).
+ */
+export function masteryCategory(item: { category: string; type?: string | null; productCategory?: string | null }): string | undefined {
+  const type = item.type ?? "";
+  if (item.productCategory === "SentinelWeapons" || type === "Companion Weapon") return "Companion weapon";
+  if (item.productCategory === "OperatorAmps") return "Amp";
+  if (/^Kitgun/i.test(type)) return "Kitgun";
+  if (/^K-Drive/i.test(type)) return "K-Drive";
+  if (/^Zaw/i.test(type)) return "Zaw";
+  return MASTERY_CATEGORIES[item.category];
+}
 
 /** Inventory rows filed as weapons/companions that are really consumables or tools. */
 const NOT_GEAR = /Genetic Code|Heartcell|Arcane Adapter|Training Amp|Pulsar Mk/i;
@@ -518,7 +534,7 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
   return {
     name: item.name,
     unique: item.uniqueName,
-    category: MASTERY_CATEGORIES[item.category],
+    category: masteryCategory(item) ?? "Other",
     type: item.type ?? item.category,
     masteryReq: item.masteryReq ?? 0,
     isPrime,
@@ -537,6 +553,7 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
     buyFor: isPrime ? buyFor : null,
     buildTier: plan?.tier ?? null,
     buildShort: plan ? shortLine(plan.short) : "",
+    revive: captured,
   };
 }
 
@@ -940,7 +957,7 @@ export function inventoryRows(m: Model): InventoryItem[] {
         name,
         unique,
         kind,
-        type: built ? "Built part" : kind === "gear" ? (item?.category ? (MASTERY_CATEGORIES[item.category] ?? TYPE_NAME[r.category]) : TYPE_NAME[r.category]) : TYPE_NAME[r.category],
+        type: built ? "Built part" : kind === "gear" ? (item?.category ? (masteryCategory(item) ?? TYPE_NAME[r.category]) : TYPE_NAME[r.category]) : TYPE_NAME[r.category],
         quantity: r.quantity,
         rank,
         maxRank,

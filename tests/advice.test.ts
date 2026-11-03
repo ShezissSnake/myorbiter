@@ -17,8 +17,14 @@ test("best of four favours the rare reward", () => {
   assert.ok(expectedBest(radiant, 4) > expectedBest(radiant, 1));
 });
 
-test("chances that don't add up to 100% are normalised", () => {
-  assert.equal(expectedBest([{ chance: 0.25, value: 8 }, { chance: 0.25, value: 0 }], 1), 4);
+test("chances that don't add up to 100%: the rest is a reward worth nothing, as solo counts it", () => {
+  // Requiem Eterna lists 8 rewards at 9.5%: 76%. The other 24% isn't spread over them.
+  assert.equal(expectedBest([{ chance: 0.25, value: 8 }, { chance: 0.25, value: 0 }], 1), 2);
+  const eterna = Array.from({ length: 8 }, (_, i) => ({ chance: 0.095, value: i }));
+  const solo = eterna.reduce((n, o) => n + o.chance * o.value, 0);
+  assert.ok(Math.abs(expectedBest(eterna, 1) - solo) < 1e-9);
+  // Over 100% (percentages, or rounding): still normalised.
+  assert.equal(expectedBest([{ chance: 50, value: 8 }, { chance: 50, value: 0 }], 1), 4);
 });
 
 const opts = { platPerDucat: 0.1, minPlat: 5, slowBelow: 1 };
@@ -69,7 +75,7 @@ test("crack planner finds relics that finish a set", async () => {
   assert.equal(gaps.length, 1);
   assert.equal(gaps[0].relicsOwned, 1);
   assert.equal(relics[0].base, "Axi R1");
-  assert.equal(relics[0].refinement, "Radiant"); // odds from your best copy
+  assert.equal(relics[0].refinement, "Radiant"); // the only refinement held
   assert.ok(Math.abs(relics[0].chance - 0.1) < 1e-9);
   assert.ok(Math.abs(relics[0].value - 6) < 1e-9); // 10% × 60p for the last part (no part prices to subtract)
   assert.equal(relics[0].hits[0].last, true);
@@ -87,6 +93,32 @@ test("crack planner finds relics that finish a set", async () => {
   } as never);
   const r2 = crackRows(priced, 2).relics[0];
   assert.ok(Math.abs(r2.value - 1.5) < 1e-9, `${r2.value}`);
+
+  // 18 intact and 1 radiant: the odds are the average over the copies, not the radiant's.
+  const mixed = buildModel({
+    observed_at: null,
+    inventory: [
+      inv("/R/Bp", "Rhino Prime Blueprint", "prime_part", 1), inv("/R/Chassis", "Rhino Prime Chassis Blueprint", "prime_part", 1),
+      inv("/R/Helmet", "Rhino Prime Neuroptics Blueprint", "prime_part", 1),
+      inv("/Relic/R1Bronze", "Axi R1 Intact", "relic", 18), inv("/Relic/R1Platinum", "Axi R1 Radiant", "relic", 1),
+    ],
+    catalog: [{ uniqueName: "/Rhino", name: "Rhino Prime", category: "Warframes", components: [
+      { uniqueName: "/R/Bp", name: "Blueprint", ducats: 100 }, { uniqueName: "/R/Chassis", name: "Chassis", ducats: 15 },
+      { uniqueName: "/R/Helmet", name: "Neuroptics", ducats: 45 }, { uniqueName: "/R/Systems", name: "Systems", ducats: 45 }] }],
+    relics: [
+      { uniqueName: "/Relic/R1Bronze", name: "Axi R1 Intact", rewards: [{ name: "Rhino Prime Systems Blueprint", rarity: "Rare", chance: 2 }, { name: "Forma Blueprint", rarity: "Common", chance: 98 }] },
+      { uniqueName: "/Relic/R1Platinum", name: "Axi R1 Radiant", rewards: [{ name: "Rhino Prime Systems Blueprint", rarity: "Rare", chance: 10 }, { name: "Forma Blueprint", rarity: "Common", chance: 90 }] },
+    ],
+    prices: { prices: { "Rhino Prime Set": 60 } },
+  });
+  const solo = crackRows(mixed, 2).relics[0];
+  assert.equal(solo.refinement, "Intact", "the one held most");
+  assert.ok(Math.abs(solo.chance - (18 * 0.02 + 0.1) / 19) < 1e-9, `${solo.chance}`);
+  assert.deepEqual(solo.perRefinement.map((x) => [x.refinement, x.copies]), [["Radiant", 1], ["Intact", 18]]);
+  // In a radshare a wanted part comes if any of the four gives one.
+  const rad = crackRows(mixed, 2, 4).relics[0];
+  const four = (c: number) => 1 - (1 - c) ** 4;
+  assert.ok(Math.abs(rad.chance - (18 * four(0.02) + four(0.1)) / 19) < 1e-9, `${rad.chance}`);
 });
 
 // ---------------------------------------------------------------- regressions

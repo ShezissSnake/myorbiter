@@ -205,3 +205,12 @@ test("relics by refinement: each sold only for more than a crack at its own odds
   const fair = bulkPlan({ ...ctx(40), model: lucky, books: { lith_k1_relic: [book(40)[0], on(6, "a"), on(6, "b"), on(6, "c")] as never } }, rules, lt);
   assert.equal(fair[0].type === "create" && fair[0].platinum, 6, "in game 40p is far above the 6p it goes for");
 });
+
+test("the smallest sale worth a trade is judged per trade: five barrels at 3p go in one", async () => {
+  const { decide } = await import("../src/lib/core/advice");
+  const o = { platPerDucat: 0.1, minPlat: 5, slowBelow: 1 } as never;
+  assert.equal(decide(3, 15, 5, o, 1).verdict, "ducats", "one at 3p: not worth a trade");
+  assert.equal(decide(3, 15, 5, o, 5).verdict, "plat", "five at 3p: a 15p trade");
+  assert.equal(decide(1, 2, 5, o, 20).verdict, "plat", "six to a trade: 6p");
+  assert.equal(decide(0.5, 2, 5, o, 20).verdict, "ducats", "six at 0.5p: 3p");
+});

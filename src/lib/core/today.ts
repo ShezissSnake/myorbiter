@@ -15,7 +15,7 @@ export interface CircuitChoice {
 export interface Today {
   circuit: { frames: CircuitChoice[]; incarnons: CircuitChoice[]; resets: string } | null;
   steelPath: { reward: string; cost: number; ends: string } | null;
-  nightwave: { standing: number; challenges: { title: string; desc: string; reputation: number; kind: "daily" | "weekly" | "elite" }[]; ends: string } | null;
+  nightwave: { standing: number; challenges: { title: string; desc: string; reputation: number; kind: "daily" | "weekly" | "elite"; expiry?: string }[]; ends: string } | null;
   sortie: { boss: string; faction: string; stages: { mission: string; node: string; modifier: string; desc: string }[]; ends: string } | null;
   archon: { boss: string; shard: string; missions: string[]; ends: string } | null;
   /** Darvo's daily deal; `wanted` when it's something masterable you haven't mastered or built. */
@@ -82,10 +82,12 @@ export function today(m: Model, live: Live, now = Date.now()): Today {
   const nw = live.nightwave;
   const nightwave = nw
     ? {
-        standing: nw.activeChallenges.reduce((n, c) => n + c.reputation, 0),
+        standing: nw.activeChallenges.filter((c) => !c.expiry || Date.parse(c.expiry) > now).reduce((n, c) => n + c.reputation, 0),
+        // The ones that go soonest first (today's dailies), then the most standing.
         challenges: [...nw.activeChallenges]
-          .sort((a, b) => b.reputation - a.reputation)
-          .map((c) => ({ title: c.title, desc: c.desc, reputation: c.reputation, kind: (c.isElite ? "elite" : c.isDaily ? "daily" : "weekly") as "daily" | "weekly" | "elite" })),
+          .filter((c) => !c.expiry || Date.parse(c.expiry) > now)
+          .sort((a, b) => (Date.parse(a.expiry) || Infinity) - (Date.parse(b.expiry) || Infinity) || b.reputation - a.reputation)
+          .map((c) => ({ title: c.title, desc: c.desc, reputation: c.reputation, kind: (c.isElite ? "elite" : c.isDaily ? "daily" : "weekly") as "daily" | "weekly" | "elite", expiry: c.expiry })),
         ends: nw.expiry,
       }
     : null;

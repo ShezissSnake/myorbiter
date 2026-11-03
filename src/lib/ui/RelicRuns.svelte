@@ -59,7 +59,7 @@
       <Stat label="Per hour" tone="gold" note={`${sum.screens} screen${sum.screens === 1 ? "" : "s"} over ${duration(sum.hours * 60)}`}><P v={round(sum.perHour)} big /></Stat>
       <Stat label="Per screen" note="What each reward came to"><P v={Math.round(sum.perScreen * 10) / 10} big /></Stat>
       <Stat label="Screens an hour" note={`About one every ${Math.round(sum.typical / 60_000)} min`}>{Math.round(sum.screensPerHour * 10) / 10}</Stat>
-      <Stat label="Best card every time" tone="dim" note={`${round(sum.bestPerHour - sum.perHour)} an hour more than you got`}><P v={round(sum.bestPerHour)} big dim /></Stat>
+      <Stat label="Best card every time" tone="dim" note={known ? `${round(sum.bestPerHour - sum.perHour)} an hour more than ${known === sum.screens ? "you got" : "your picks and the average card"}` : `${round(sum.bestPerHour - sum.perHour)} an hour over an average card (which you took isn't known yet)`}><P v={round(sum.bestPerHour)} big dim /></Stat>
     </div>
     {#if sum.estimated || sum.unread}
       <p class="dim small basis">
@@ -76,11 +76,12 @@
       <tbody>
         {#each sum.sessions.slice(0, limit) as s (s.start)}
           <tr class="session" class:open={open === s.start} tabindex="0" aria-expanded={open === s.start} onclick={() => toggle(s.start)} onkeydown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), toggle(s.start))}>
-            <td><span class="when"><span class="chev" aria-hidden="true">{open === s.start ? "▾" : "▸"}</span>{day(s.start)}<span class="dim">{hm(s.start)}–{hm(s.end)}</span></span></td>
+            <td><span class="when"><span class="chev" aria-hidden="true">{open === s.start ? "▾" : "▸"}</span>{day(s.start)}<span class="dim">{s.runs.length === 1 ? hm(s.start) : `${hm(s.start)}–${hm(s.end)}`}</span></span></td>
             <td class="right">{s.runs.length}</td>
-            <td class="right">{duration(s.minutes)}</td>
+            <!-- One screen has no length of its own: it counts as a typical round, and a rate from one card says little. -->
+            <td class="right" title={s.runs.length === 1 ? "One screen: counted as one typical round" : undefined}>{s.runs.length === 1 ? "1 round" : duration(s.minutes)}</td>
             <td class="right"><P v={round(s.plat)} /></td>
-            <td class="right"><b class="ph">{round(s.perHour)}</b></td>
+            <td class="right">{#if s.runs.length === 1}<span class="dim" title="One screen: too short for a rate (it still counts in the totals above)">–</span>{:else}<b class="ph">{round(s.perHour)}</b>{/if}</td>
             <td class="right"><P v={round(s.best)} dim /></td>
           </tr>
           {#if open === s.start}

@@ -233,7 +233,7 @@
   }
   // Ducats your spare parts would fetch, counting only the ones better traded in than sold.
   // As Prime parts counts them: parts that go into a complete set you can sell are sold as the set.
-  const spareDucats = $derived(partRows(model, saveForSets(settings.market.sellable, settings.advice.platPerDucat, drops.recent)).filter((p) => p.spare > 0 && p.inSets <= 0 && decide(p.price, p.ducats, p.tradesPerDay, settings.advice).verdict === "ducats").reduce((n, p) => n + p.ducats * p.spare, 0));
+  const spareDucats = $derived(partRows(model, saveForSets(settings.market.sellable, settings.advice.platPerDucat, drops.recent)).filter((p) => p.spare > 0 && p.inSets <= 0 && decide(p.price, p.ducats, p.tradesPerDay, settings.advice, p.spare).verdict === "ducats").reduce((n, p) => n + p.ducats * p.spare, 0));
   const varzia = $derived(console ? [] : varziaNeeds(model, rows));
   // On a console, her stock as it is: the primes she sells whole, and how many relics.
   const varziaWhole = $derived((live.resurgence ?? []).filter((v) => v.ducats != null && !/ Relic$/.test(v.item)).sort((a, b) => (b.ducats ?? 0) - (a.ducats ?? 0)));
@@ -452,7 +452,7 @@
       {:else if !byKind.length}
         <p class="dim">Nothing spare worth {settings.market.minPrice}p or more in what you ticked.</p>
       {:else}
-        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Only the kinds ticked under Put my spares on sale, on Orders, and only what's worth at least your minimum price there (relics: your relic minimum)">at daily median prices: what Put my spares on sale covers, {settings.market.minPrice}p and up{settings.market.bulk.other ? ` (relics ${settings.market.minRelicPrice}p)` : ""}{unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
+        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Only the kinds ticked under Put my spares on sale, on Orders, and only what's worth at least your minimum price there (relics: your relic minimum). Everything you could spare, of every kind, is on Inventory (You can spare)">at daily median prices: what Put my spares on sale would list (the kinds ticked there), {settings.market.minPrice}p and up{settings.market.bulk.other ? ` (relics ${settings.market.minRelicPrice}p)` : ""}{unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
         <ul class="kinds">
           {#each byKind as k (k.kind)}
             <li>
@@ -590,8 +590,9 @@
           <div class="tblock">
             <div class="th"><GameIcon name="nightwave" size={18} /><b class="mark">Nightwave</b><span class="dim small">{day.nightwave.standing.toLocaleString("en")} standing up for grabs</span></div>
             <ul class="nw">
-              {#each day.nightwave.challenges.slice(0, 6) as c (c.title)}<li title={c.desc}><span class="k k-{c.kind}">{c.kind}</span><span class="nt">{c.title}</span><span class="dim small">{c.reputation.toLocaleString("en")}</span></li>{/each}
+              {#each day.nightwave.challenges.slice(0, 6) as c (c.title)}<li title="{c.desc}{c.expiry ? ` · ${until(c.expiry, now)} left` : ''}"><span class="k k-{c.kind}">{c.kind}</span><span class="nt">{c.title}</span><span class="dim small">{c.reputation.toLocaleString("en")}</span></li>{/each}
             </ul>
+            {#if day.nightwave.challenges.length > 6}{@const rest = day.nightwave.challenges.slice(6)}<p class="dim small more">+{rest.length} more, {rest.reduce((n, c) => n + c.reputation, 0).toLocaleString("en")} standing (soonest to go first above)</p>{/if}
           </div>
         {/if}
         {#if !day.circuit && !day.steelPath && !day.nightwave && !day.sortie && !day.darvo}<p class="dim">{liveNote}</p>{/if}
@@ -617,10 +618,10 @@
         <p class="dim small">{settings.game.masteryRank != null ? "Nothing building." : "Shows once the patched TennoScope reads your inventory."}</p>
       {/if}
       {#if buildable.length}
-        <div class="register sub">Every part in hand</div>
+        <div class="register sub" title="Everything you can make now, or nearly: built in the Foundry, or revived with Son for a captured infested companion">Every part in hand</div>
         <ul class="fb">
           {#each buildable.slice(0, 4) as r (r.unique)}
-            <li><button class="row" data-opens aria-label="{r.name}: details" onclick={() => details.open(r.unique)}><Thumb file={model.imageOf(r.name)} name={r.name} size={26} /><span class="fn"><b class="mark">{r.name}</b><span class="small" class:dim={r.buildTier !== "now"} class:good={r.buildTier === "now"} title={r.buildShort ? `Still to get before building: ${r.buildShort}` : undefined}>{r.buildTier === "now" ? "Build now: everything in hand" : r.buildTier === "hard" ? `Needs ${r.buildShort}` : r.buildTier === "farm" ? `Farm ${r.buildShort}` : "every part in hand"}</span></span><span class="pts"><GameIcon name="mastery" size={13} />{r.points.toLocaleString("en")}</span></button></li>
+            <li><button class="row" data-opens aria-label="{r.name}: details" onclick={() => details.open(r.unique)}><Thumb file={model.imageOf(r.name)} name={r.name} size={26} /><span class="fn"><b class="mark">{r.name}</b><span class="small" class:dim={r.buildTier !== "now"} class:good={r.buildTier === "now"} title={r.buildShort ? `Still to get before building: ${r.buildShort}` : undefined}>{r.revive ? "Captured: revive it with Son, in the Necralisk" : r.buildTier === "now" ? "Build now: everything in hand" : r.buildTier === "hard" ? `Needs ${r.buildShort}` : r.buildTier === "farm" ? `Farm ${r.buildShort}` : "every part in hand"}</span></span><span class="pts"><GameIcon name="mastery" size={13} />{r.points.toLocaleString("en")}</span></button></li>
           {/each}
         </ul>
       {/if}

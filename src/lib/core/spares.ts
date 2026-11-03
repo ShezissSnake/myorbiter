@@ -519,14 +519,47 @@ export function relicsYouNeed(m: Model): Map<string, string[]> {
 
 /** How long a pile of copies may take to sell and still count: a month of the whole market's sales. */
 export const SELL_WITHIN_DAYS = 30;
+/** The pace assumed where warframe.market has no figure for an item (relics, a few odd ones): about one a day. */
+export const UNKNOWN_TRADES_PER_DAY = 1;
 /**
  * Of `count` copies, how many the market could take in SELL_WITHIN_DAYS at its pace (trades a
- * day): 232 copies of a mod that trades twice a day are 60 that count, not 232. All of them when
- * the pace isn't known (relics).
+ * day): 232 copies of a mod that trades twice a day are 60 that count, not 232. Where the pace
+ * isn't known, about one a day (a month's worth), never every copy.
  */
 export function sellableCopies(count: number, tradesPerDay: number | null | undefined, days = SELL_WITHIN_DAYS): number {
-  if (tradesPerDay == null) return count;
-  return Math.min(count, Math.max(0, Math.ceil(tradesPerDay * days)));
+  const pace = tradesPerDay ?? UNKNOWN_TRADES_PER_DAY;
+  return Math.min(count, Math.max(0, Math.ceil(pace * days)));
+}
+
+/**
+ * What your inventory comes to on warframe.market, worked out one way for every page that shows it
+ * (Inventory's figures, the value chart on Stats, each selling page's share of "spare"):
+ * - market: every tradable copy at the daily median, slow sellers included;
+ * - easy: copies of what trades at least daily, no more of each than the market sells in a month;
+ * - spare: the copies beyond what you keep, slow sellers too, no more of each than the market sells
+ *   in a month (a part that sells twice a week counts its 8 or 9, not all 40);
+ * - byKind: spare by kind (mods, prime parts…), so the pages' own totals can be traced back to it.
+ * Built gear has no price unless some copies trade (an unranked one): those are in the ledger.
+ */
+export function inventoryValue(rows: InventoryItem[], ledger: Map<string, SpareRow>) {
+  let market = 0;
+  let easy = 0;
+  let spare = 0;
+  const byKind = new Map<InventoryKind, number>();
+  for (const r of rows) {
+    const s = ledger.get(r.key);
+    const price = r.kind === "gear" && !s ? null : (s?.price ?? r.price);
+    if (price == null) continue;
+    const pace = s?.tradesPerDay ?? r.tradesPerDay;
+    market += price * r.quantity;
+    if ((pace ?? (r.kind === "relic" ? UNKNOWN_TRADES_PER_DAY : 0)) >= 1) easy += price * sellableCopies(r.quantity, pace);
+    if (s && s.spare > 0 && s.price != null) {
+      const v = s.price * sellableCopies(s.spare, pace);
+      spare += v;
+      byKind.set(r.kind, (byKind.get(r.kind) ?? 0) + v);
+    }
+  }
+  return { market: Math.round(market), easy: Math.round(easy), spare: Math.round(spare), byKind };
 }
 
 /**

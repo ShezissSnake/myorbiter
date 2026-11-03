@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { sellableCopies } from "../core/spares";
   import GameIcon from "../ui/GameIcon.svelte";
   import type { Model } from "../core/model";
   import { partRows, saveForSets, savedLine, setRows, type PartRow } from "../core/views";
@@ -64,7 +65,8 @@
 
   // What every spare is worth the way it's best sold: plat on warframe.market, or ducats at Baro.
   const spares = $derived(all.filter((r) => r.spare > 0));
-  const asPlat = $derived(spares.filter((r) => verdict(r) !== "Ducats").reduce((n, r) => n + (r.price ?? 0) * r.spare, 0));
+  // As Inventory counts spares (core/spares.ts, inventoryValue): no more of each than the market sells in a month.
+  const asPlat = $derived(Math.round(spares.filter((r) => verdict(r) !== "Ducats").reduce((n, r) => n + (r.price ?? 0) * sellableCopies(r.spare, r.tradesPerDay), 0)));
   const asDucats = $derived(spares.filter((r) => verdict(r) === "Ducats").reduce((n, r) => n + r.ducats * r.spare, 0));
   const heldDucats = $derived((model.inventoryByBase.get("/Lotus/Types/Items/MiscItems/PrimeBucks") ?? []).reduce((n, r) => n + r.quantity, 0));
   const baro = $derived(model.live.baro ?? null);
@@ -82,7 +84,7 @@
   const verdict = (r: PartRow): Verdict => {
     if (r.spare <= 0) return r.forSet > 0 && built(r) <= 0 ? "Save" : "Keep";
     if (r.inSets > 0) return "Set";
-    return decide(r.price, r.ducats, r.tradesPerDay, advice).verdict === "ducats" ? "Ducats" : "Sell";
+    return decide(r.price, r.ducats, r.tradesPerDay, advice, r.spare).verdict === "ducats" ? "Ducats" : "Sell";
   };
   const VERDICT_TITLE: Record<Verdict, string> = {
     Keep: "You need these to build and master the item",
@@ -186,7 +188,7 @@
 <div class="page"><div class="page-inner">
   <PageHead title="Prime parts" blurb="Every prime part you hold and its best use: keep, save for its set, sell, sell as a set, or trade to Baro.">
     {#snippet band()}
-      <Stat label="Spares to sell" note={`${plural(spares.filter((r) => verdict(r) !== "Ducats").reduce((n, r) => n + r.spare, 0), "part")} · daily median`}><P v={asPlat} big /></Stat>
+      <Stat label="Spares to sell" note={`${plural(spares.filter((r) => verdict(r) !== "Ducats").reduce((n, r) => n + r.spare, 0), "part")} · daily median, no more of each than sells in a month`}><P v={asPlat} big /></Stat>
       <Stat label="Spares for ducats" tone="gold" note={`${plural(spares.filter((r) => verdict(r) === "Ducats").reduce((n, r) => n + r.spare, 0), "part")}, better traded in`}><P v={asDucats} d big /></Stat>
       <Stat label="Ducats held" tone="gold" note={baro ? (baroHere ? `Baro is here · leaves in ${until(baro.expiry)}` : `Baro arrives in ${until(baro.activation)}`) : "Baro's schedule unavailable"}><P v={heldDucats} d big /></Stat>
     {/snippet}
@@ -217,8 +219,8 @@
       {@const b = advice.baroRate}
       <button class="baro" title="On Baro's visit of {new Date(b.visit).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, the best he had that sells daily was {b.item}: {b.ducats} ducats for something that sells for {b.price}p. Click to use {b.rate}p a ducat." onclick={() => (advice.platPerDucat = b.rate)}><GameIcon name="ducats" size={13} />Baro: {b.rate}p</button>
     {/if}
-    <select bind:value={advice.minPlat} aria-label="Smallest sale worth a trade">
-      {#each [0, 3, 5, 8, 10, 15] as n (n)}<option value={n}>{n ? `Not worth a trade under ${n}p` : "Any price is worth a trade"}</option>{/each}
+    <select bind:value={advice.minPlat} aria-label="Smallest sale worth a trade" title="Judged on the whole trade: up to 6 copies go in one, so five barrels at 3p are a 15p trade">
+      {#each [0, 3, 5, 8, 10, 15] as n (n)}<option value={n}>{n ? `Not worth a trade under ${n}p a trade` : "Any price is worth a trade"}</option>{/each}
     </select>
   </div>
 

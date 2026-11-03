@@ -4,7 +4,7 @@
   import { splitRelicName, type Model } from "../core/model";
   import { info } from "../hover.svelte";
   import { inventoryRows, type InventoryItem, type InventoryKind } from "../core/views";
-  import { sellableCopies, spareRows, type SellChoices, type SpareRow } from "../core/spares";
+  import { inventoryValue, spareRows, type SellChoices, type SpareRow } from "../core/spares";
   import { drops } from "../drops.svelte";
   import { mkt } from "../marketStore.svelte";
   import { marketUrl, openUrl, wikiUrl } from "../backend";
@@ -69,9 +69,6 @@
   const rows = $derived(all.filter((r) => (kind === "all" || r.kind === kind) && (!tradableOnly || spareOf(r)) && (minTrades == null || (perDay(r) ?? 0) >= minTrades) && (minEach == null || (priceOf(r) ?? 0) >= minEach) && (!spareOnly || spare(r) > 0) && matches(query, r.name, r.type, shown(r), spareOf(r)?.type ?? "")));
   const pctOf = (x: number | null | undefined) => (x == null ? "–" : `${Math.round(x * 10) / 10}%`);
   const why = (r: InventoryItem) => spareOf(r)?.why ?? "Nothing to spare";
-  /** Of the spare copies of what's shown, what sells at least once a day (relics have no count: they do). */
-  // At most what the whole market sells in a month: 232 spare Lasting Stings don't all sell.
-  const spareLiquid = $derived(rows.filter((r) => (spareOf(r)?.tradesPerDay ?? (r.kind === "relic" ? 1 : 0)) >= 1).reduce((n, r) => { const s = spareOf(r); return n + (s?.price ?? 0) * sellableCopies(s?.spare ?? 0, s?.tradesPerDay); }, 0));
 
   const KINDS: { v: "all" | InventoryKind; label: string }[] = [
     { v: "all", label: "All" },
@@ -86,9 +83,12 @@
   ];
   const count = (k: "all" | InventoryKind) => (k === "all" ? all.length : all.filter((r) => r.kind === k).length);
 
-  const worth = $derived(rows.reduce((n, r) => n + (worthOf(r) ?? 0), 0));
-  /** What would realistically sell: things that trade at least once a day. 240 Thumpers don't. */
-  const liquid = $derived(rows.filter((r) => spareOf(r) && (perDay(r) ?? 0) >= 1).reduce((n, r) => n + (priceOf(r) ?? 0) * sellableCopies(r.quantity, perDay(r)), 0));
+  // The three figures, worked out as Stats and the selling pages do (core/spares.ts, inventoryValue).
+  // Of what's shown: the kind and filters above narrow them too.
+  const value = $derived(inventoryValue(rows, ledger));
+  const KIND_WORD: Record<string, string> = { gear: "gear", part: "prime parts", relic: "relics", mod: "mods", arcane: "arcanes", resource: "resources", blueprint: "blueprints", imprint: "imprints", other: "other" };
+  /** "mods 9,033 · prime parts 1,210 · …": where the spare figure comes from, biggest first. */
+  const spareSplit = $derived([...value.byKind].filter(([, v]) => v >= 1).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${KIND_WORD[k] ?? k} ${Math.round(v).toLocaleString("en")}p`).join(" · "));
 
 
   const columns: Column<InventoryItem>[] = [
@@ -198,9 +198,9 @@
 <div class="page"><div class="page-inner">
   <PageHead title="Inventory" blurb="Everything you own, with what it's worth on warframe.market.">
     {#snippet band()}
-      <Stat label="You can spare" tone="gold" note="Beyond what you keep, sells daily, no more than the market takes in a month"><P v={spareLiquid} big /></Stat>
-      <Stat label="Easy to sell" note="What trades daily, no more than the market takes in a month"><P v={liquid} big /></Stat>
-      <Stat label="Market value" tone="dim" note="Every copy at the daily median, slow sellers included"><P v={worth} big /></Stat>
+      <Stat label="You can spare" tone="gold" note="Beyond what you keep, no more of each than the market sells in a month" title={`You can spare: beyond what you keep, no more of each than the market sells in a month (slow sellers count only that).${spareSplit ? ` By kind: ${spareSplit}. Mods (with Actually sells off) and Prime parts count their spares the same way.` : ""}`}><P v={value.spare} big /></Stat>
+      <Stat label="Easy to sell" note="Everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month"><P v={value.easy} big /></Stat>
+      <Stat label="Market value" tone="dim" note="Every copy at the daily median, slow sellers included"><P v={value.market} big /></Stat>
     {/snippet}
   </PageHead>
 
