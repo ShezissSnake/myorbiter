@@ -42,7 +42,7 @@
     {#if note}<span class="note">{note}</span>{/if}
   </header>
   {#if items.length}
-    <ol class="stage">
+    <ol class="stage" style:--n={items.length}>
       {#each items as x, i (x.key)}
         {@const lead = i === 0}
         <li class="piece" class:lead data-place={i + 1}>
@@ -67,10 +67,6 @@
           </button>
         </li>
       {/each}
-      <!-- The places left over stay on the floor, unlit, so the pieces keep their size and line up. -->
-      {#each Array.from({ length: Math.max(0, 5 - items.length) }, (_, i) => items.length + i + 1) as place (place)}
-        <li class="piece open" data-place={place} aria-hidden="true"><span class="light"></span></li>
-      {/each}
     </ol>
   {:else}
     <p class="empty">{empty}</p>
@@ -88,15 +84,17 @@
   .cap { display: flex; align-items: baseline; gap: .9rem; flex-wrap: wrap; }
   .cap .register { color: var(--sec); }
   .note { font-size: .74rem; color: var(--platinum-deep); }
+  /* Only the pieces there are, each the size it has with five, centred: the floor runs under them
+     alone. --cap: how many places the room has (five, then four, then three). */
   .stage {
-    list-style: none; margin: 0; padding: .4rem 0 0;
-    display: grid; grid-template-columns: minmax(0, 1.45fr) repeat(4, minmax(0, 1fr)); align-items: end; gap: 0 clamp(.4rem, 1.5vw, 1.4rem);
+    --cap: 5;
+    list-style: none; margin: 0 auto; padding: .4rem 0 0;
+    width: calc((min(var(--n), var(--cap)) + .45) / (var(--cap) + .45) * 100%);
+    display: grid; grid-template-columns: minmax(0, 1.45fr); grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-items: end; gap: 0 clamp(.4rem, 1.5vw, 1.4rem);
     /* The floor: one faint line the lights sit on. */
     background: linear-gradient(var(--sec-dim), var(--sec-dim)) 0 calc(100% - 4.35rem) / 100% 1px no-repeat;
   }
   .piece { min-width: 0; }
-  .open { display: grid; justify-items: center; padding-bottom: 4.35rem; }
-  .open .light { background: var(--rule-bright); box-shadow: none; }
   .hit {
     display: grid; justify-items: center; width: 100%; padding: .2rem .3rem 0; border: 0; background: none; color: inherit;
     font: inherit; text-transform: none; letter-spacing: normal; cursor: pointer; clip-path: none;
@@ -138,18 +136,18 @@
   .empty { margin: 0; padding: 1.4rem 0 1.6rem; color: var(--platinum-dim); font-size: .86rem; }
 
   /* Less room: four pieces, then three. */
-  :global(html[data-room~="lt900"]) .stage { grid-template-columns: minmax(0, 1.45fr) repeat(3, minmax(0, 1fr)); }
+  :global(html[data-room~="lt900"]) .stage { --cap: 4; }
   :global(html[data-room~="lt900"]) .piece[data-place="5"] { display: none; }
-  :global(html[data-room~="lt760"]) .stage { grid-template-columns: minmax(0, 1.45fr) repeat(2, minmax(0, 1fr)); }
+  :global(html[data-room~="lt760"]) .stage { --cap: 3; }
   :global(html[data-room~="lt760"]) .piece[data-place="4"] { display: none; }
   /* Very little room: a slim strip, each piece small beside its name. */
-  :global(html[data-room~="lt640"]) .stage { grid-template-columns: repeat(3, minmax(0, 1fr)); background: none; }
+  :global(html[data-room~="lt640"]) .stage { width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-flow: row; background: none; }
   :global(html[data-room~="lt640"]) .hit { grid-template-columns: auto minmax(0, 1fr); justify-items: start; align-items: center; gap: 0 .5rem; padding-bottom: .5rem; }
   :global(html[data-room~="lt640"]) .gear { min-height: 0; }
   :global(html[data-room~="lt640"]) .gear :global(.art) { width: 44px !important; height: 44px !important; }
   :global(html[data-room~="lt640"]) .gear :global(.mc) { --w: 44px !important; }
   :global(html[data-room~="lt640"]) .gear :global(.mc .plate) { display: none; }
-  :global(html[data-room~="lt640"]) .badge, :global(html[data-room~="lt640"]) .light, :global(html[data-room~="lt640"]) .open { display: none; }
+  :global(html[data-room~="lt640"]) .badge, :global(html[data-room~="lt640"]) .light { display: none; }
   :global(html[data-room~="lt640"]) .plaque { height: auto; justify-items: start; text-align: left; padding: 0; }
   :global(html[data-room~="lt640"]) .lead .nm { font-size: .95rem; }
   @media (prefers-reduced-motion: reduce) {
