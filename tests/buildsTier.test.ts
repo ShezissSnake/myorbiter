@@ -1,4 +1,4 @@
-// Builds: mod capacity and the investment tier a build needs (capacity.ts), rule by rule.
+// Builds: mod capacity (capacityOf) and the progression tier a build needs (tierOf), rule by rule.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -7,6 +7,7 @@ import {
   matches,
   rankWith,
   slotLayout,
+  capacityOf,
   tierOf,
 } from "../src/lib/core/builds";
 import { CAT, item, P, build } from "./support/buildsCatalog";
@@ -49,10 +50,10 @@ test("rank: 30; Kuva, Tenet, Coda and Paracesis two more a Forma to 40; Necramec
   assert.equal(slotLayout("melee").stance, true);
 });
 
-// ---------------------------------------------------------------- tiers
+// ---------------------------------------------------------------- capacity (capacityOf: what capacity alone needs)
 
-test("low: fits in 30 without a Catalyst", () => {
-  const t = tierOf(build(P.braton, [{ path: P.serration, rank: 3 }, P.pointStrike]), item(P.braton), CAT);
+test("capacity low: fits in 30 without a Catalyst", () => {
+  const t = capacityOf(build(P.braton, [{ path: P.serration, rank: 3 }, P.pointStrike]), item(P.braton), CAT);
   assert.equal(t.tier, "low");
   assert.equal(t.drain, 16);
   assert.equal(t.capacity, 30);
@@ -60,8 +61,8 @@ test("low: fits in 30 without a Catalyst", () => {
   assert.match(t.reasons[0], /^Fits in 30: drain 16 of 30/);
 });
 
-test("medium: needs the Catalyst, no Forma", () => {
-  const t = tierOf(build(P.braton, [P.serration, P.splitChamber, P.vitalSense, P.pointStrike]), item(P.braton), CAT);
+test("capacity medium: needs the Catalyst, no Forma", () => {
+  const t = capacityOf(build(P.braton, [P.serration, P.splitChamber, P.vitalSense, P.pointStrike]), item(P.braton), CAT);
   assert.equal(t.tier, "medium");
   assert.equal(t.drain, 42);
   assert.equal(t.capacity, 60);
@@ -69,8 +70,8 @@ test("medium: needs the Catalyst, no Forma", () => {
   assert.match(t.reasons[0], /Needs an Orokin Catalyst/);
 });
 
-test("high: the fewest Forma, greedily where they free the most, named by polarity and slot", () => {
-  const t = tierOf(build(P.braton, [P.serration, P.splitChamber, P.vitalSense, P.pointStrike, P.hellfire, P.infectedClip, P.stormbringer, P.vigilante]), item(P.braton), CAT);
+test("capacity high: the fewest Forma, greedily where they free the most, named by polarity and slot", () => {
+  const t = capacityOf(build(P.braton, [P.serration, P.splitChamber, P.vitalSense, P.pointStrike, P.hellfire, P.infectedClip, P.stormbringer, P.vigilante]), item(P.braton), CAT);
   // 14 + 10 + 9 + 9 + 11 + 11 + 11 + 9 = 84 against 60: Serration frees 7, the 11s and Split Chamber 5 each.
   assert.equal(t.tier, "high");
   assert.equal(t.fits, true);
@@ -84,10 +85,10 @@ test("high: the fewest Forma, greedily where they free the most, named by polari
 
 test("innate polarities are used first: matching mods go on them", () => {
   // Hek: one Madurai slot. Hell's Chamber (11) on it drains 6.
-  const t = tierOf(build(P.hek, [P.hellsChamber, P.pointBlank]), item(P.hek), CAT);
+  const t = capacityOf(build(P.hek, [P.hellsChamber, P.pointBlank]), item(P.hek), CAT);
   assert.equal(t.drain, 6 + 9);
   // A mismatched mod goes in a blank slot before a polarized one.
-  const v = tierOf(build(P.rhino, [P.primedContinuity]), item(P.rhino), CAT);
+  const v = capacityOf(build(P.rhino, [P.primedContinuity]), item(P.rhino), CAT);
   assert.equal(v.slots[0].polarity, null);
   assert.equal(v.drain, 14);
 });
@@ -95,21 +96,21 @@ test("innate polarities are used first: matching mods go on them", () => {
 test("the aura adds capacity, twice on its polarity, and the reason says so", () => {
   // Rhino Prime: V aura slot; Vitality on a D slot (6), Streamline on the — slot (5), Primed Continuity (14) and Intensify (9) blank.
   const mods = [P.vitality, P.streamline, P.primedContinuity, P.intensify];
-  const t = tierOf(build(P.rhino, mods, { aura: { path: P.steelCharge } }), item(P.rhino), CAT);
+  const t = capacityOf(build(P.rhino, mods, { aura: { path: P.steelCharge } }), item(P.rhino), CAT);
   assert.equal(t.tier, "low");
   assert.equal(t.drain, 34);
   assert.equal(t.capacity, 48);
   assert.equal(t.reasons[0], "Fits in 30 with the Steel Charge aura on its Madurai slot: drain 34 of 48.");
   assert.deepEqual(t.slots[0], { slot: "aura", path: P.steelCharge, name: "Steel Charge", polarity: "madurai", drain: -18 });
   // Corrosive Projection (7) on the V slot gives 5; a Forma on the aura slot is worth 9.
-  const cp = tierOf(build(P.rhino, [...mods, P.umbralVitality, P.umbralFiber], { aura: { path: P.corrosiveProjection } }), item(P.rhino), CAT);
+  const cp = capacityOf(build(P.rhino, [...mods, P.umbralVitality, P.umbralFiber], { aura: { path: P.corrosiveProjection } }), item(P.rhino), CAT);
   assert.equal(cp.tier, "high");
   assert.equal(cp.formaPlan[0].slot, "aura");
   assert.equal(cp.formaPlan[0].polarity, "naramon");
 });
 
 test("Umbral mods take Umbra Forma on warframes, counted apart", () => {
-  const t = tierOf(build(P.rhino, [P.umbralVitality, P.umbralFiber, P.umbralIntensify, P.primedContinuity]), item(P.rhino), CAT);
+  const t = capacityOf(build(P.rhino, [P.umbralVitality, P.umbralFiber, P.umbralIntensify, P.primedContinuity]), item(P.rhino), CAT);
   // 16 × 3 + 14 = 62 against 60: one Umbra Forma frees 8.
   assert.equal(t.forma, 1);
   assert.equal(t.umbraForma, 1);
@@ -118,7 +119,7 @@ test("Umbral mods take Umbra Forma on warframes, counted apart", () => {
 });
 
 test("an exilus mod needs an adapter, which makes it high even when it fits in 30", () => {
-  const t = tierOf(build(P.braton, [P.serration], { exilus: { path: P.vigilante } }), item(P.braton), CAT);
+  const t = capacityOf(build(P.braton, [P.serration], { exilus: { path: P.vigilante } }), item(P.braton), CAT);
   assert.equal(t.tier, "high");
   assert.equal(t.exilusAdapter, true);
   assert.equal(t.catalyst, false);
@@ -127,11 +128,11 @@ test("an exilus mod needs an adapter, which makes it high even when it fits in 3
 });
 
 test("an arcane on a primary needs an Arcane Adapter; on a warframe it doesn't", () => {
-  const t = tierOf(build(P.braton, [P.serration], { arcanes: [{ path: P.merciless }] }), item(P.braton), CAT);
+  const t = capacityOf(build(P.braton, [P.serration], { arcanes: [{ path: P.merciless }] }), item(P.braton), CAT);
   assert.equal(t.arcaneAdapter, true);
   assert.equal(t.tier, "high");
   assert.match(t.reasons[0], /Arcane Adapter \(Primary\)/);
-  const f = tierOf(build(P.rhino, [P.vitality], { arcanes: [{ path: P.energize }] }), item(P.rhino), CAT);
+  const f = capacityOf(build(P.rhino, [P.vitality], { arcanes: [{ path: P.energize }] }), item(P.rhino), CAT);
   assert.equal(f.arcaneAdapter, false);
   assert.equal(f.tier, "low");
 });
@@ -139,7 +140,7 @@ test("an arcane on a primary needs an Arcane Adapter; on a warframe it doesn't",
 test("Kuva weapons: Forma also add capacity, two ranks each, to five", () => {
   // Kuva Bramma: one Madurai slot. Eight 14-drain Madurai mods: 14 × 7 + 7 = 105.
   const mods = Array.from({ length: 8 }, (_, i) => ({ path: i % 2 ? P.serration : P.splitChamber, rank: i % 2 ? 10 : 5 }));
-  const t = tierOf(build(P.bramma, mods), item(P.bramma), CAT);
+  const t = capacityOf(build(P.bramma, mods), item(P.bramma), CAT);
   assert.equal(t.tier, "high");
   assert.ok(t.rank > 30, `rank counted ${t.rank}`);
   assert.ok(t.fits);
@@ -148,17 +149,17 @@ test("Kuva weapons: Forma also add capacity, two ranks each, to five", () => {
 
 test("Necramechs count all twelve slots at rank 40", () => {
   const mods = Array.from({ length: 12 }, () => P.necramechVitality);
-  const t = tierOf(build(P.voidrig, mods), item(P.voidrig), CAT);
+  const t = capacityOf(build(P.voidrig, mods), item(P.voidrig), CAT);
   // 14 each: one on the Vazarin slot (7), eleven blank (154): 161 > 80.
   assert.equal(t.rank, 40);
   assert.equal(t.slots.length, 12);
   assert.equal(t.tier, "high");
-  assert.equal(tierOf(build(P.voidrig, [P.necramechVitality, P.necramechVitality]), item(P.voidrig), CAT).tier, "low");
+  assert.equal(capacityOf(build(P.voidrig, [P.necramechVitality, P.necramechVitality]), item(P.voidrig), CAT).tier, "low");
 });
 
 test("a build that can't fit says by how much; unknown mods are left out and said", () => {
   const big = Array.from({ length: 8 }, () => P.umbralVitality);
-  const t = tierOf(build(P.braton, [...big.slice(0, 7), "/Lotus/Upgrades/Mods/Nope"]), item(P.braton), CAT);
+  const t = capacityOf(build(P.braton, [...big.slice(0, 7), "/Lotus/Upgrades/Mods/Nope"]), item(P.braton), CAT);
   assert.equal(t.unknown.length, 1);
   assert.ok(t.reasons.some((r) => /1 mod orbiter doesn't know/.test(r)));
   // Umbral mods on a rifle: no Umbra Forma, so nothing frees enough.

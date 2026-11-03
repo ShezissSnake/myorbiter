@@ -1,5 +1,19 @@
-// orbiter's own build suggestions: a rule-based starting point for an item, at three investment
-// tiers, from the mods the player owns. Pure: no I/O, no Svelte.
+// orbiter's own build suggestions: a rule-based starting point for an item, at three tiers of
+// player progression (New player, Intermediate, Veteran: see capacity.ts and availability.ts),
+// from the mods the player owns. Pure: no I/O, no Svelte.
+//
+// Tiers: each suggestion uses only what its tier allows. New player: no Catalyst/Reactor, Forma,
+// exilus, arcanes, shards or Helminth, and only "new" mods. Intermediate: a Catalyst/Reactor,
+// regular Forma, an exilus mod, the Helminth, "intermediate" mods and arcanes. Veteran: all of it,
+// Umbra Forma and Tauforged shards included. Within the tier, owned mods first; better mods of
+// the tier the player doesn't own are the upgrades.
+//
+// Variants (variantsFor): 1–3 per warframe where they differ meaningfully, each tagged (tags.ts):
+// a tank's "Tank / Steel Path" and "Caster / Star Chart", a caster's "Star Chart" and "Steel Path"
+// (a "Steel Path nuke" for strength-and-range frames), a shield-gating build for the frames that
+// gate. The variant decides the mods: survival up front for the Steel Path, efficiency and range
+// for a nuke, Brief Respite and Catalyzing Shields for gating. Weapons get one build, tagged by
+// what they're built around (Crit, Status, Hybrid).
 //
 // What it does, in order:
 //  1. Works out what the item is (gearKindOf) and, for weapons, what it's built around from its
@@ -17,7 +31,7 @@
 //
 // Optional fields a page can render (all backwards compatible; absent means "nothing to show"):
 //  - `loadout` (warframes): shards, helminth, weapons, arcanes, companion, focus, note, and
-//     - `loadout.shards`: always Tauforged, at every tier so the list stays short and current. A pick's `fuse` says how
+//     - `loadout.shards`: Veteran only, always Tauforged (a plain shard is worth less). A pick's `fuse` says how
 //       to turn the plain shards the player holds of that colour into Tauforged ones (Ascent Fusion).
 //     - `loadout.element`: the element the frame's kit deals and the shard colour that feeds on it.
 //     - `loadout.primer`: a companion that primes enemies with status, picked by the kit's element,
@@ -44,6 +58,7 @@ import type { Riven } from "../rivens";
 import frameRoles from "../../data/frame-roles.json";
 import synergies from "../../data/loadout-synergies.json";
 import { idealRiven, rivenFit, rivensFor, type IdealRiven, type RivenFit, type RivenMarketData } from "./riven";
+import { availabilityOf, availabilityRank, hardDonorOf, type Availability } from "./availability";
 
 // ---------------------------------------------------------------- local stand-ins for ./types
 
@@ -73,12 +88,33 @@ export interface Build {
   source: "orbiter";
   importedAt: number;
   note?: string;
+  tags?: string[];
 }
 
 // ---------------------------------------------------------------- public shapes
 
 export type Tier = "low" | "medium" | "high";
 export const TIERS: Tier[] = ["low", "medium", "high"];
+/** The tiers named as player progression (the same as capacity.ts's TIER_LABEL). */
+export const TIER_NAME: Record<Tier, string> = { low: "New player", medium: "Intermediate", high: "Veteran" };
+/** The availability level each tier allows (availability.ts). */
+const TIER_LEVEL: Record<Tier, Availability> = { low: "new", medium: "intermediate", high: "veteran" };
+/** Whether a mod or arcane is within a tier. */
+export const allowedAt = (m: CatalogItem, tier: Tier): boolean => availabilityRank(availabilityOf(m)) <= availabilityRank(TIER_LEVEL[tier]);
+
+/**
+ * A build variant: what the build is for, which decides its mods. `survival` puts survival mods up
+ * front (health and armour, or shield gating); `nuke` puts efficiency and range up front; `roles`
+ * reorders the frame's curated roles.
+ */
+export interface Variant {
+  id: string;
+  label: string;
+  tags: string[];
+  roles?: Role[];
+  survival?: "health" | "shieldGate" | null;
+  nuke?: boolean;
+}
 
 /** What a weapon is built around. */
 export type Focus = "crit" | "status" | "hybrid" | "base";
@@ -112,6 +148,10 @@ export interface Suggestion extends Build {
   loadout?: Loadout;
   /** Weapons that take a riven: the ideal one, and the player's against it (./riven.ts). */
   riven?: WeaponRiven;
+  /** What it's for (tags.ts's words), from its variant. */
+  tags: string[];
+  /** The variant it was built as. */
+  variant: { id: string; label: string };
 }
 
 /** The ideal riven for a weapon, and the player's rivens for it with how close each comes. */
@@ -196,10 +236,11 @@ export interface KitElement {
 export type Element = "electricity" | "corrosive" | "toxin" | "radiation" | "heat" | "cold" | "blast" | "viral";
 
 /**
- * What goes around a warframe build, by tier. Low: only what costs nothing extra (a Focus school,
- * a companion, primer and support weapon you already hold). Medium: also Tauforged Archon Shards,
- * the Helminth, the arcanes you hold and sets you hold every piece of. High: also what you'd still
- * have to get. Shards are always Tauforged, never plain.
+ * What goes around a warframe build, by tier. Low (New player): only what costs nothing extra (a
+ * Focus school, a companion, primer and support weapon you already hold). Medium (Intermediate):
+ * also the Helminth, the arcanes you hold that the tier allows and sets you hold every piece of.
+ * High (Veteran): also Tauforged Archon Shards, a hard donor's Helminth ability (Grendel's Nourish)
+ * and what you'd still have to get. Shards are always Tauforged, never plain.
  */
 export interface Loadout {
   shards: LoadoutPick[];
@@ -688,7 +729,53 @@ export const FRAME_NAMES = Object.keys(FRAMES);
 
 const DEFAULT_FRAME: FrameInfo = { roles: ["strength", "efficiency"], why: "orbiter has no line for this frame yet: a balanced caster default." };
 
-function framePicks(info: FrameInfo, tier: Tier): ModPick[] {
+const ROLE_TAG: Record<Role, string> = { tank: "Tank", strength: "Caster", range: "Crowd control", efficiency: "Support" };
+const FOCUS_TAG: Record<Focus, string | null> = { crit: "Crit", status: "Status", hybrid: "Hybrid", base: null };
+
+/**
+ * The builds orbiter suggests for an item, first the default. Warframes, from the curated roles:
+ *  - a tank (tank first): "Tank / Steel Path" (survival up front), and "Caster / Star Chart" when
+ *    its abilities scale with strength;
+ *  - a caster (strength or range first): "Star Chart", and "Steel Path" with survival up front, a
+ *    "Steel Path nuke" (efficiency and range too) when strength and range are its two roles;
+ *  - support (efficiency first): "Support / Star Chart" and "Support / Steel Path";
+ *  - frames that shield-gate (loadout-synergies.json's list) gate in their Steel Path variant
+ *    instead of stacking health, unless they spend no energy (Hildryn's shields are her tank).
+ * Other gear: one build, tagged by what a weapon is built around.
+ */
+export function variantsFor(item: CatalogItem): Variant[] {
+  const kind = gearKindOf(item);
+  if (kind !== "warframe") {
+    const cls = kind ? weaponClassOf(item, kind) : null;
+    const tag = cls ? FOCUS_TAG[focusOf(item, cls)] : null;
+    return [{ id: "default", label: cls ? "All-round" : "Default", tags: cls ? ["All-round", ...(tag ? [tag] : [])] : [] }];
+  }
+  const info = frameInfo(item.name) ?? DEFAULT_FRAME;
+  const roles = info.roles;
+  const gates = SYN.shieldGating.frames.includes(baseName(item.name));
+  const survival: Variant["survival"] = gates && !info.noEnergy ? "shieldGate" : "health";
+  const survivalTag = gates ? "Shield gating" : info.shields ? "Shield gating" : "Health tank";
+  if (roles[0] === "tank") {
+    const out: Variant[] = [{ id: "tank", label: "Tank / Steel Path", tags: ["Tank", "Steel Path", survivalTag], roles, survival: info.shields || !gates ? "health" : survival }];
+    // Its abilities on strength, with efficiency to cast them (range instead for a frame that spends no energy).
+    if (roles.includes("strength")) out.push({ id: "caster", label: "Caster / Star Chart", tags: ["Caster", "Star Chart"], roles: ["strength", info.noEnergy ? "range" : "efficiency"] });
+    return out;
+  }
+  const role = ROLE_TAG[roles[0]];
+  if (roles[0] === "efficiency") {
+    return [
+      { id: "starChart", label: "Support / Star Chart", tags: ["Support", "Star Chart"], roles },
+      { id: "steelPath", label: survival === "shieldGate" ? "Support / Shield gating" : "Support / Steel Path", tags: ["Support", "Steel Path", survival === "shieldGate" ? "Shield gating" : "Health tank"], roles, survival },
+    ];
+  }
+  const nuke = roles[0] === "strength" && roles[1] === "range";
+  const sp: Variant = nuke
+    ? { id: "steelPath", label: survival === "shieldGate" ? "Steel Path nuke, shield gating" : "Steel Path nuke", tags: [role, "Steel Path", "Nuke", survival === "shieldGate" ? "Shield gating" : "Health tank"], roles, survival, nuke: true }
+    : { id: "steelPath", label: survival === "shieldGate" ? "Steel Path, shield gating" : "Steel Path", tags: [role, "Steel Path", survival === "shieldGate" ? "Shield gating" : "Health tank"], roles, survival };
+  return [{ id: "starChart", label: "Star Chart", tags: [role, "Star Chart", ...(nuke ? ["Nuke"] : [])], roles }, sp];
+}
+
+function framePicks(info: FrameInfo, tier: Tier, variant: Variant | null = null): ModPick[] {
   const high = tier === "high";
   // Umbral mods only pay off with Umbra Forma, and Archon ones drain more than the plain ones for
   // the same stat: below the high tier the plain ones come first.
@@ -711,6 +798,7 @@ function framePicks(info: FrameInfo, tier: Tier): ModPick[] {
   const FIBER = P("fiber", ["Umbral Fiber", "Steel Fiber"], "Armour on top of the health.");
   const ADAPT = P("adapt", ["Adaptation"], "Stacking resistance to whatever is hitting you; standard on tanks.");
   const ROLL = P("roll", ["Rolling Guard"], "A dodge clears status effects and gives a moment of invulnerability.");
+  const GATE = P("gate", ["Catalyzing Shields"], "Shield gating: a much longer moment of invulnerability when your shields break, for far less shield capacity.");
 
   const roleList: Record<Role, ModPick[]> = {
     strength: [STR, TF, RANGE, DUR, BR],
@@ -718,7 +806,8 @@ function framePicks(info: FrameInfo, tier: Tier): ModPick[] {
     efficiency: [EFF, FLEET, FLOW, DUR, STR],
     tank: [info.shields ? SHIELD : VIT, FIBER, ADAPT, STR, ROLL],
   };
-  const [first, second] = info.roles;
+  const roles0 = variant?.roles ?? info.roles;
+  const [first, second] = roles0;
   const a = roleList[first] ?? [];
   const b = second ? roleList[second] ?? [] : [];
   // Two of the main role's picks for each of the second role's.
@@ -743,11 +832,24 @@ function framePicks(info: FrameInfo, tier: Tier): ModPick[] {
     put(FLOW, 4);
   }
   if (info.augment) put(P("augment", [info.augment], "The augment most builds for this frame carry."), 4);
+  // The variant's rules: a nuke wants efficiency and range early; the Steel Path survival early.
+  if (variant?.nuke) {
+    if (!info.noEnergy) put(EFF, 1);
+    put(RANGE, 2);
+  }
+  if (variant?.survival === "shieldGate") {
+    put(GATE, 2);
+    if (!info.noEnergy) put(FLOW, 3);
+  } else if (variant?.survival === "health") {
+    put(info.shields ? SHIELD : VIT, 2);
+    put(ADAPT, 3);
+    if (!info.shields) put(FIBER, 4);
+  }
   // Survival everyone runs some of, at the end.
   for (const p of [info.shields ? SHIELD : VIT, ADAPT, ROLL, FIBER]) if (!list.some((x) => x.key === p.key)) list.push(p);
 
   // Mods that undo what the frame needs.
-  const roles = new Set(info.roles);
+  const roles = new Set(roles0);
   list = list.filter((p) => {
     if (p.key === "over" && roles.has("strength")) return false;
     if (p.key === "narrow" && roles.has("range")) return false;
@@ -762,17 +864,18 @@ function framePicks(info: FrameInfo, tier: Tier): ModPick[] {
   return list;
 }
 
-function frameAura(info: FrameInfo): { chain: string[]; why: string } {
-  const r = info.roles[0];
+function frameAura(info: FrameInfo, variant: Variant | null = null): { chain: string[]; why: string } {
+  if (variant?.survival === "shieldGate" && !info.noEnergy) return { chain: ["Brief Respite", "Energy Siphon", "Corrosive Projection"], why: "Brief Respite: energy you spend refills the squad's shields, so a broken shield gate comes straight back." };
+  const r = (variant?.roles ?? info.roles)[0];
   if (r === "strength" && !info.spam) return { chain: ["Growing Power", "Corrosive Projection", "Energy Siphon"], why: "Growing Power: more ability strength whenever your weapons proc status." };
   if (r === "tank" || (r === "strength" && info.noEnergy)) return { chain: ["Corrosive Projection", "Growing Power", "Energy Siphon"], why: "Corrosive Projection: strips armour from enemies, which the whole squad's damage feels." };
   if (info.noEnergy) return { chain: ["Corrosive Projection", "Growing Power"], why: "Corrosive Projection: armour strip for the squad; this frame doesn't need energy." };
   return { chain: ["Energy Siphon", "Corrosive Projection", "Growing Power"], why: "Energy Siphon: steady energy for a frame that casts a lot." };
 }
 
-function frameExilus(info: FrameInfo): { chain: string[]; why: string } {
+function frameExilus(info: FrameInfo, variant: Variant | null = null): { chain: string[]; why: string } {
   if (info.knockdown) return { chain: ["Primed Sure Footed", "Sure Footed"], why: "Knockdown immunity: this frame fights up close and loses its channel or combo when knocked down." };
-  const r = info.roles[0];
+  const r = (variant?.roles ?? info.roles)[0];
   if (r === "range") return { chain: ["Cunning Drift"], why: "A little more range in the exilus slot." };
   if (r === "efficiency") return { chain: ["Coaction Drift"], why: "Makes the aura stronger for you and the squad." };
   return { chain: ["Power Drift"], why: "A little more strength and some knockdown resistance in the exilus slot." };
@@ -942,8 +1045,9 @@ interface Resolved {
   better: CatalogItem | null;
 }
 
-function resolve(pick: ModPick, owned: Owned, index: ModIndex): Resolved {
-  const chain = pick.chain.map((n) => index.byName.get(n)).filter((m): m is CatalogItem => !!m);
+function resolve(pick: ModPick, owned: Owned, index: ModIndex, tier: Tier): Resolved {
+  // Only what the tier allows: a Primed mod is no upgrade for a new player.
+  const chain = pick.chain.map((n) => index.byName.get(n)).filter((m): m is CatalogItem => !!m && allowedAt(m, tier));
   const mod = chain.find((m) => owned.has(m.uniqueName)) ?? null;
   const best = chain[0] ?? null;
   return { pick, mod, better: best && best !== mod ? best : null };
@@ -1015,13 +1119,16 @@ function weaponArcane(item: CatalogItem, cls: WeaponClass, focus: Focus): { chai
  * rule, and `rivens.mine` (the player's parsed rivens) scored against it.
  * Throws if the item takes no build (check canSuggest first).
  */
-export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModIndex, now = 0, held: Held | null = null, rivens: RivenContext | null = null): Suggestion {
+export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModIndex, now = 0, held: Held | null = null, rivens: RivenContext | null = null, variantId: string | null = null): Suggestion {
   const kind = gearKindOf(item);
   if (!kind || !canSuggest(item)) throw new Error(`orbiter has no suggestion for ${item.name}`);
   const layout = layoutOf(kind);
   const high = tier === "high";
+  // A Catalyst/Reactor, Forma and the exilus slot from Intermediate on.
   const doubled = tier !== "low";
-  const forty = kind === "necramech" || (high && FORTY_BY_FORMA(item.name));
+  const variants = variantsFor(item);
+  const variant = variants.find((v) => v.id === variantId) ?? variants[0];
+  const forty = kind === "necramech" || (doubled && FORTY_BY_FORMA(item.name));
   const capacity = (forty ? 40 : 30) * (doubled ? 2 : 1);
 
   // What to put in, best first.
@@ -1033,7 +1140,7 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
   let meleeClass: string | null = null;
   if (kind === "warframe") {
     info = frameInfo(item.name) ?? DEFAULT_FRAME;
-    picks = framePicks(info, tier);
+    picks = framePicks(info, tier, variant);
     focus = info.roles.join(" + ");
   } else if (kind === "companion") {
     picks = companionPicks(item);
@@ -1054,7 +1161,7 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
 
   // Two picks can land on the same mod (a chain's fallback): the first keeps it.
   const seen = new Set<string>();
-  const resolved = picks.map((p) => resolve(p, owned, index)).filter((r) => {
+  const resolved = picks.map((p) => resolve(p, owned, index, tier)).filter((r) => {
     const path = (r.mod ?? r.better)?.uniqueName;
     if (!path || seen.has(path)) return false;
     seen.add(path);
@@ -1071,10 +1178,11 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
   const auraPols: (Polarity | null)[] = Array.isArray(rawAura) ? rawAura.map(polarityOf) : [polarityOf(rawAura)];
   const auras: { mod: CatalogItem; why: string; pol: Polarity | null }[] = [];
   if (layout.aura && info) {
-    const a = frameAura(info);
+    const a = frameAura(info, variant);
     const chain = [...a.chain, "Corrosive Projection", "Energy Siphon", "Growing Power", "Steel Charge"].filter((n, k, all) => all.indexOf(n) === k);
-    const ownedAuras = chain.map((n) => index.byName.get(n)).filter((m): m is CatalogItem => !!m && owned.has(m.uniqueName));
-    const best = index.byName.get(a.chain[0]);
+    const ownedAuras = chain.map((n) => index.byName.get(n)).filter((m): m is CatalogItem => !!m && owned.has(m.uniqueName) && allowedAt(m, tier));
+    const want = index.byName.get(a.chain[0]);
+    const best = want && allowedAt(want, tier) ? want : undefined;
     for (let k = 0; k < layout.aura && k < ownedAuras.length; k++) {
       const m = ownedAuras[k];
       auras.push({ mod: m, why: k === 0 && m === best ? a.why : k === 0 ? `${m.name}: the aura you have closest to ${a.chain[0]}; any aura adds capacity.` : `${m.name}: a second aura, for its capacity and effect.`, pol: auraPols[k] ?? null });
@@ -1084,15 +1192,15 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
   let stance: { mod: CatalogItem; why: string } | null = null;
   if (layout.stance && meleeClass) {
     const all = index.stances.get(meleeClass) ?? [];
-    const mine = all.filter((m) => owned.has(m.uniqueName));
+    const mine = all.filter((m) => owned.has(m.uniqueName) && allowedAt(m, tier));
     if (mine.length) stance = { mod: mine[0], why: `A ${meleeClass} stance: pick whichever you like to play; it mostly adds capacity.` };
     else if (all[0]) addUpgrade(all[0], null, `Any ${meleeClass} stance: it adds capacity and combos.`);
   }
   let exilus: { mod: CatalogItem; why: string } | null = null;
-  if (high && layout.exilus) {
-    const e = info ? frameExilus(info) : cls ? weaponExilus(item, cls, kind) : null;
+  if (doubled && layout.exilus) {
+    const e = info ? frameExilus(info, variant) : cls ? weaponExilus(item, cls, kind) : null;
     if (e) {
-      const r = resolve({ key: "exilus", chain: e.chain, why: e.why }, owned, index);
+      const r = resolve({ key: "exilus", chain: e.chain, why: e.why }, owned, index, tier);
       if (r.mod) exilus = { mod: r.mod, why: r.mod.name === e.chain[0] ? e.why : `${e.why} (${r.mod.name} until you have ${e.chain[0]})` };
       if (r.better) addUpgrade(r.better, r.mod?.name ?? null, e.why);
     }
@@ -1123,7 +1231,7 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
   };
   const used = () => assign(placed, pols).drain - fixedBonus();
 
-  if (high) {
+  if (doubled) {
     // The aura, stance and exilus slots first: a matching aura doubles what it gives.
     auras.forEach((a, k) => {
       const mp = modPolarity(a.mod);
@@ -1173,7 +1281,7 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
     }
   }
   const formaSlots = forma;
-  if (high && FORTY_BY_FORMA(item.name)) forma = Math.max(forma, 5);
+  if (doubled && FORTY_BY_FORMA(item.name)) forma = Math.max(forma, 5);
 
   // Still over: keep the first k mods for the k that's worth most, lowering the least valuable
   // ones a rank at a time (down to a third of their ranks) until they fit. A mod's worth is its
@@ -1262,7 +1370,7 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
         ? [weaponArcane(item, cls, wFocus)].filter((x): x is { chain: string[]; why: string } => !!x)
         : [];
     for (const a of plan.slice(0, layout.arcanes)) {
-      const r = resolve({ key: "arcane", chain: a.chain, why: a.why }, owned, index);
+      const r = resolve({ key: "arcane", chain: a.chain, why: a.why }, owned, index, tier);
       if (r.mod) {
         arcanes.push({ path: r.mod.uniqueName });
         arcaneNames.push(r.mod.name);
@@ -1274,10 +1382,10 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
   }
 
   const s: Suggestion = {
-    id: `orbiter-${tier}-${item.uniqueName}`,
+    id: variant === variants[0] ? `orbiter-${tier}-${item.uniqueName}` : `orbiter-${tier}-${variant.id}-${item.uniqueName}`,
     item: item.uniqueName,
     kind,
-    title: `orbiter's suggestion (${tier})`,
+    title: `orbiter's suggestion (${TIER_NAME[tier]}${variants.length > 1 ? `, ${variant.label}` : ""})`,
     mods,
     polarities: {
       mods: pols,
@@ -1301,6 +1409,8 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
     names: { mods: modNames, arcanes: arcaneNames },
     upgrades,
     note: "",
+    tags: [...variant.tags],
+    variant: { id: variant.id, label: variant.label },
   };
   if (auras[0]) {
     s.aura = { path: auras[0].mod.uniqueName };
@@ -1317,7 +1427,7 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
     s.reasons.exilus = exilus.why;
     s.names.exilus = exilus.mod.name;
   }
-  s.note = noteFor(item, kind, tier, info, cls, wFocus, meleeClass, layout, s, capacityBound) + orderNote;
+  s.note = noteFor(item, kind, tier, info, cls, wFocus, meleeClass, layout, s, capacityBound) + orderNote + variantNote(variant, variants);
   const loadout = loadoutFor(item, tier, owned, index, held);
   if (loadout) s.loadout = loadout;
   const riven = rivenFor(item, kind, rivens);
@@ -1337,7 +1447,22 @@ export function rivenFor(item: CatalogItem, kind: GearKind | null, rivens: Riven
   return out;
 }
 
-/** The three tiers at once. */
+/** Every variant of an item at a tier (variantsFor), the default first. */
+export function suggestVariants(item: CatalogItem, tier: Tier, owned: Owned, index: ModIndex, now = 0, held: Held | null = null, rivens: RivenContext | null = null): Suggestion[] {
+  return variantsFor(item).map((v) => suggest(item, tier, owned, index, now, held, rivens, v.id));
+}
+
+function variantNote(v: Variant, all: Variant[]): string {
+  if (all.length < 2) return "";
+  const what =
+    v.survival === "shieldGate" ? "shield gating up front (Catalyzing Shields, Brief Respite), for content that hits hard"
+    : v.survival === "health" ? "survival up front, for the Steel Path and longer runs"
+    : v.nuke ? "efficiency and range up front"
+    : "damage and utility first, for the normal star chart";
+  return ` This is the ${v.label} variant: ${what}${v.nuke && v.survival ? ", with efficiency and range for clearing rooms" : ""}. Other variants: ${all.filter((x) => x !== v).map((x) => x.label).join(", ")}.`;
+}
+
+/** The three tiers at once (each tier's default variant). */
 export function suggestAll(item: CatalogItem, owned: Owned, index: ModIndex, now = 0, held: Held | null = null, rivens: RivenContext | null = null): Record<Tier, Suggestion> {
   return { low: suggest(item, "low", owned, index, now, held, rivens), medium: suggest(item, "medium", owned, index, now, held, rivens), high: suggest(item, "high", owned, index, now, held, rivens) };
 }
@@ -1346,9 +1471,8 @@ function noteFor(item: CatalogItem, kind: GearKind, tier: Tier, info: FrameInfo 
   const parts: string[] = [];
   const doubler = usesReactor(kind) ? "Orokin Reactor" : "Orokin Catalyst";
   const invest =
-    tier === "low" ? `No ${doubler}, no Forma: ${s.capacity.max} capacity.`
-    : tier === "medium" ? `With an ${doubler}, no Forma: ${s.capacity.max} capacity.`
-    : `With an ${doubler}${s.forma ? `, ${s.forma} Forma${s.umbraForma ? ` (${s.umbraForma} Umbra)` : ""}` : ""}${s.adapters?.exilus ? ", an Exilus Adapter" : ""}${s.adapters?.arcane ? " and an Arcane Adapter" : ""}: ${s.capacity.max} capacity.`;
+    tier === "low" ? `New player: basic mods only, no ${doubler}, no Forma: ${s.capacity.max} capacity.`
+    : `${TIER_NAME[tier]}${tier === "medium" ? " (no Primed, Archon or Umbral mods, no shards)" : ""}: with an ${doubler}${s.forma ? `, ${s.forma} Forma${s.umbraForma ? ` (${s.umbraForma} Umbra)` : ""}` : ""}${s.adapters?.exilus ? ", an Exilus Adapter" : ""}${s.adapters?.arcane ? " and an Arcane Adapter" : ""}: ${s.capacity.max} capacity.`;
   if (kind === "warframe" && info) {
     parts.push(`orbiter's suggestion: a starting point from ${item.name}'s usual role (${info.roles.join(" and ")}) in orbiter's curated table, not from a player's build.${info.guess ? " orbiter knows this frame only from its ability text, so treat the role as a guess." : ""}`);
     parts.push("Not everything is numbers: how often you cast decides the energy mods, and where you fight decides knockdown protection.");
@@ -1534,7 +1658,8 @@ function shardPlan(item: CatalogItem, info: FrameInfo): { stat: string; why: str
 }
 
 function shardPicks(item: CatalogItem, info: FrameInfo, tier: Tier, held: Held | null): LoadoutPick[] {
-  if (!atLeast(tier, "medium")) return [];
+  // Archon shards are Veteran: Archon hunts come late.
+  if (!atLeast(tier, "high")) return [];
   // Tauforged only, at every tier: a plain shard is the same stat at two thirds of the value.
   // Each Tauforged shard you hold marks one pick: three picks of a colour with two held marks two.
   const left = new Map<string, number>();
@@ -1552,7 +1677,7 @@ function shardPicks(item: CatalogItem, info: FrameInfo, tier: Tier, held: Held |
       path,
       owned: held ? have > 0 : null,
       reason: `${s.stat} ${s.tauforged}: ${why}`,
-      tier: "medium",
+      tier: "high",
       source: SYN.shards.source,
       colour: s.colour,
       tauforged: true,
@@ -1571,11 +1696,15 @@ function helminthPick(item: CatalogItem, tier: Tier, held: Held | null): Loadout
   if (!atLeast(tier, "medium")) return null;
   const h = SYN.helminth.frames[item.name.replace(/\s+(Prime|Umbra)$/, "")];
   if (!h) return null;
+  // The Helminth is Intermediate; an ability from a hard frame to get (Grendel's Nourish) Veteran.
+  const hard = hardDonorOf(h.ability);
+  if (hard && tier !== "high") return null;
   // The base frame (never a Prime) is what gets subsumed. Held: you can do it now. Not held: you
   // may have already, and orbiter can't see the Helminth until TennoScope reads it.
   const canFeed = !!(held && h.fromPath && (held.get(h.fromPath) ?? 0) > 0);
   const donor = h.from ? ` It comes from a base ${h.from} (not a Prime) fed to the Helminth${canFeed ? ", and you hold one" : ""}.` : " It's one of the Helminth's own abilities.";
-  return { name: h.ability, owned: canFeed ? true : null, reason: `${h.ability} over ${h.replaces}: ${h.why}${donor} ${h.alt}`, tier: "medium", source: h.source, ability: h.ability, replaces: h.replaces };
+  const hardNote = hard ? ` Veteran: ${hard.why}.` : "";
+  return { name: h.ability, owned: canFeed ? true : null, reason: `${h.ability} over ${h.replaces}: ${h.why}${donor} ${h.alt}${hardNote}`, tier: hard ? "high" : "medium", source: hard ? `${h.source} ; ${hard.source}` : h.source, ability: h.ability, replaces: h.replaces };
 }
 
 /** What the frame's one Grimoire Invocation should give it. */
@@ -1622,6 +1751,8 @@ function arcanePicks(info: FrameInfo, tier: Tier, owned: Owned, index: ModIndex)
   const out: LoadoutPick[] = [];
   for (const name of plan) {
     const m = index.byName.get(name);
+    // Only arcanes the tier allows (Arcane Energize is an Eidolon one: Veteran).
+    if (m && !allowedAt(m, tier)) continue;
     const has = !!m && owned.has(m.uniqueName);
     if (!has && tier !== "high") continue;
     out.push({
@@ -1796,6 +1927,12 @@ function setPicks(item: CatalogItem, info: FrameInfo, tier: Tier, owned: Owned, 
     }
     const all = pieces.every((p) => p.owned) && (!companion || companion.owned === true);
     if (!all && tier !== "high") continue;
+    // Every piece within the tier (the Umbral set is Veteran).
+    const inTier = pieces.every((p) => {
+      const m = p.path ? index.byPath.get(p.path) : undefined;
+      return !m || allowedAt(m, tier);
+    });
+    if (!inTier) continue;
     const counts = new Map<string, number>();
     for (const p of pieces) {
       const k = p.aura ? "the aura slot" : SLOT_WORD[p.slotKind];
@@ -1885,6 +2022,7 @@ export function toBuild(s: Suggestion, now = Date.now()): Build {
     importedAt: now,
     note: s.note,
   };
+  if (s.tags.length) b.tags = [...s.tags];
   if (s.aura) b.aura = s.aura;
   if (s.exilus) b.exilus = s.exilus;
   if (s.stance) b.stance = s.stance;
@@ -1899,9 +2037,10 @@ export function suggestionNames(): string[] {
   for (const chain of Object.values(MELEE)) add(chain);
   for (const chain of Object.values(ARCH_MELEE)) add(chain);
   const tiers: Tier[] = ["low", "high"];
+  const shapes: (Variant | null)[] = [null, { id: "g", label: "", tags: [], survival: "shieldGate" }, { id: "h", label: "", tags: [], survival: "health", nuke: true }];
   for (const frame of [...Object.values(FRAMES), DEFAULT_FRAME]) {
-    for (const t of tiers) framePicks(frame, t).forEach((p) => add(p.chain));
-    add(frameAura(frame).chain);
+    for (const t of tiers) for (const v of shapes) framePicks(frame, t, v).forEach((p) => add(p.chain));
+    for (const v of shapes) add(frameAura(frame, v).chain);
     add(frameExilus(frame).chain);
     add(frameArcanes(frame).chain);
   }
