@@ -220,7 +220,9 @@
   td { padding: .5rem; border-bottom: 1px solid var(--rule); vertical-align: middle; }
   tr:last-child td { border-bottom: 0; }
   .r { text-align: right; }
-  .part { display: inline-flex; align-items: center; gap: .55rem; }
+  .part { display: inline-flex; align-items: center; gap: .55rem; max-width: 100%; min-width: 0; }
+  /* A long part name ("Neuroptics Blueprint") ends in … rather than running into the next column. */
+  .part b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .relics { display: flex; gap: .35rem; flex-wrap: wrap; margin-bottom: .2rem; }
   .relic { display: inline-flex; align-items: center; gap: .3rem; padding: .12rem .45rem .12rem .25rem; border: 1px solid var(--rule-bright); font-size: .78rem; }
   .relic em { font-style: normal; color: var(--gold); font-weight: 600; }
