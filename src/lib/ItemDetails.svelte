@@ -26,6 +26,8 @@
   import Metal from "./ui/Metal.svelte";
   import ListButton from "./ui/ListButton.svelte";
   import { pop } from "./motion";
+  import { gearKindOf } from "./core/builds/gear";
+  import { setIntent } from "./intent.svelte";
 
   let { model, settings = $bindable() }: { model: Model; settings: Settings } = $props();
 
@@ -47,6 +49,14 @@
   const wish = $derived(item ? wishItem(model, item.uniqueName) : null);
   const row = $derived(item && !model.isMastered(item.uniqueName) && item.masterable ? masteryRow(model, item) : null);
   const fav = $derived(!!item && settings.favourites.includes(item.uniqueName));
+  // Anything that takes mods has builds: the Builds page, opened on it.
+  const buildable = $derived(!!item && (item.type === "Exalted Weapon" || (gearKindOf(item) ?? "kdrive") !== "kdrive"));
+  function openBuilds() {
+    if (!item) return;
+    setIntent("builds", { item: item.uniqueName });
+    settings.tab = "builds";
+    details.close();
+  }
   function toggleFav() {
     if (!item) return;
     settings.favourites = fav ? settings.favourites.filter((u) => u !== item.uniqueName) : [item.uniqueName, ...settings.favourites];
@@ -155,6 +165,7 @@
         <div class="detail-acts">
           {#if tradeName && setsHeld > 0 && bookState !== "missing"}<ListButton {model} labelled name={tradeName} req={{ quantity: setsHeld }} />{/if}
           <button class="star" class:on={fav} title={fav ? "On your wishlist: click to take it off" : "Add it to your wishlist (Wishlist, and ★ on Foundry)"} onclick={toggleFav}><span class="glyph" aria-hidden="true" use:pop={{ on: fav, of: item.uniqueName }}>{fav ? "★" : "☆"}</span> {fav ? "On your wishlist" : "Add to wishlist"}</button>
+          {#if buildable}<button title="Builds for {item.name}: yours, orbiter's suggestion, and what you're missing for each" onclick={openBuilds}>Builds</button>{/if}
           <button title="Its page on the official wiki" onclick={() => openUrl(item.wikiaUrl ?? wikiUrl(item.name))}>Wiki</button>
           {#if tradeName && bookState !== "missing"}<button title="Its page on warframe.market: orders and price history" onclick={() => openUrl(marketUrl(tradeName ?? item.name))}>warframe.market</button>{/if}
         </div>
