@@ -43,7 +43,7 @@ time = { version = "0.3", features = ["formatting"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
-xcb = "=1.7.0"
+xcb = "=1.7.1"
 # Direct native-Wayland capture for wlroots compositors. Exact pins keep the protocol probe and
 # capture implementation on the versions audited together here.
 libwayshot-xcap = "=0.3.3"

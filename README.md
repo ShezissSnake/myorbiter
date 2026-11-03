@@ -1,5 +1,11 @@
 # orbiter
 
+> **Unofficial.** orbiter is a fan-made tool, not affiliated with or endorsed by Digital Extremes. Warframe and its artwork are © and ™ Digital Extremes Ltd.
+>
+> **Full mode is your call.** With Full mode on (it's off unless you turn it on), TennoScope reads the game's memory to fetch your inventory. That may violate Warframe's EULA, which forbids unauthorised third-party programs: you choose whether to turn it on, at your own risk. It only reads, and only sends your login session to Digital Extremes.
+>
+> **It acts on your warframe.market account.** Once you sign in, what you press and the automatic features you turn on (repricing, marking sales sold, +rep, hiding your last copies, holding your online status) list, change and close orders and post reviews as you.
+
 A local desktop companion for Warframe that reads what [TennoScope](https://github.com/Deftera186/tennoscope) already stores on your PC and answers the questions TennoScope's collection view doesn't:
 
 - **Home.** Today at a glance (the gear by the date chooses which cards it shows). The world's clocks along the top (day and night on Earth, the Plains, Orb Vallis, the Cambion Drift and the Zariman, and the daily and weekly resets), what needs you first (alerts and invasions with something you haven't mastered, rare alert rewards, listings to fix, Varzia's rotation ending with primes you need), then your market (your warframe.market status with a switch, listed value, what you sold today and this week), what's ready to sell in the categories ticked under *Put my spares on sale*, the open fissures per era with your best relic for each and what a crack of it is worth (with *fissure alerts* under them: any number of kinds (normal, Steel Path, Void Storm), eras, mission types and planets, and a notification when a matching fissure opens; *Only my alerts* narrows the board to the fissures they match), what's worth doing today (the Duviri Circuit's warframes and Incarnon adapters marked against what you've mastered and own, Teshin's Steel Path offer, the Sortie, the Archon Hunt and its shard, Nightwave challenges by standing), your Foundry (each build with its countdown, and things you have every part for), *Cheap buys* (see below), the easiest mastery to go for next, Baro Ki'Teer's countdown and, while he's here, his stock marked against your collection (mastery you lack, mods new to you), the ducats you hold and what your spare parts would add, and Varzia's rotation with the primes you still need from it.
@@ -37,7 +43,16 @@ One download, nothing else to install. The Linux and Windows downloads carry Ten
 
 **Xbox, PlayStation, Switch or mobile players:** use the same download on a PC or Mac and pick your platform in Settings → *Platform* (signing in to warframe.market sets it from your account). orbiter then reads and lists on that platform's market. orbiter can't read a game running on a console, so it shows only what works without it: Home (your market, fissures, the world's clocks, what's worth doing today, Baro), Orders (list anything, keep your listings at the cheapest in-game price, Sold when you sell one), Sales and the riven finder. It doesn't know what you own or when a trade goes through, so it can't list things or mark them sold by itself. The collection pages are PC only, and orbiter doesn't start TennoScope.
 
-On the first start orbiter walks you through what TennoScope needs, once: TennoScope asks in its own window what it may read (choose *Full* for your inventory; it reads the running game's memory for your session, which that window explains along with the account-policy risk), then it reads your account when you're in the game. Some Linux systems (Ubuntu among them) only let a program read another's memory if it started it; orbiter tells you if yours does, with the command that allows it until you restart.
+On the first start orbiter walks you through what TennoScope needs, once, and asks whether TennoScope should read your inventory: **Full mode**, off unless you turn it on (*Read my inventory (Full mode)* there, in the TennoScope panel or in Settings). Full mode reads Warframe's memory to fetch your inventory. Warframe's EULA forbids unauthorised third-party programs, so using it could put your account at risk: orbiter only reads, and only sends your login session to Digital Extremes. Without it, TennoScope reads only the game's log and the reward screen (Overlay mode), and orbiter shows everything that doesn't need your inventory. With it, TennoScope reads your account when you're in the game. Some Linux systems (Ubuntu among them) only let a program read another's memory if it started it; orbiter tells you if yours does, with the command that allows it until you restart.
+
+### Checking a download
+
+Every release lists the SHA-256 of each of its files in `SHA256SUMS`, beside them. To check yours, download `SHA256SUMS` into the same folder and:
+
+- **Linux, Steam Deck, macOS:** `sha256sum --check --ignore-missing SHA256SUMS` (on macOS, `shasum -a 256 --check --ignore-missing SHA256SUMS`). It should say `OK` beside your file.
+- **Windows (PowerShell):** `Get-FileHash .\orbiter_<version>_x64-setup.exe` and compare the hash with its line in `SHA256SUMS` (any case).
+
+Once the repository is public, each release also carries GitHub's record of where its files were built: `gh attestation verify <file> --repo ShezissSnake/orbiter` checks that a file came from this repository's release workflow, unchanged.
 
 ### Making the downloads
 
@@ -134,6 +149,8 @@ The interface follows TennoScope's lead, a Warframe-style ledger: a dark slab wi
 
 ## Licence
 
-orbiter © 2026 Sheziss, licensed under the GNU General Public License v3.0 only (GPL-3.0-only, `LICENSE`). Every release carries its complete source as `orbiter-source.tar.gz`.
+orbiter © 2026 Sheziss. orbiter is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, version 3 only (GPL-3.0-only; the full text is in `LICENSE`). It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details. Every release carries its complete source as `orbiter-source.tar.gz`.
 
-It includes TennoScope (`tennoscope/`) © Deftera186 and the TennoScope contributors, also GPL-3.0-only (`tennoscope/LICENSE`), with orbiter's changes; `tennoscope/ORBITER.md` says how it came into this repository with its history. Some bundled files are under other licences: the modular part data from the Warframe Wiki is CC BY-NC-SA 3.0 (`src/lib/data/modular-parts.LICENSE.md`), and Warframe's icons in `public/game` belong to Digital Extremes. `NOTICE.md` lists them all.
+It includes TennoScope (`tennoscope/`) © Deftera186 and the TennoScope contributors, also GPL-3.0-only (`tennoscope/LICENSE`), with orbiter's changes; `tennoscope/ORBITER.md` says how it came into this repository with its history.
+
+Not everything here is covered by the GPL. Warframe's artwork belongs to Digital Extremes and is excluded from it: the icons in `public/game/` and TennoScope's part and currency icons (`tennoscope/app/src/assets/`) are © Digital Extremes, used to identify what they depict. The data from the Warframe Wiki (modular parts, Arcane Dissolution) is CC BY-NC-SA 3.0 and ships as separate files beside the program, not compiled into it (`public/data/wiki/`, with its `LICENSE.md`). The downloads also carry third-party libraries and fonts under their own licences (`THIRD-PARTY-NOTICES/`). `NOTICE.md` lists them all.

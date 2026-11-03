@@ -112,6 +112,8 @@
   import ListDialog from "./lib/ui/ListDialog.svelte";
   import SettingsSheet from "./lib/SettingsSheet.svelte";
   import TennoscopeSheet from "./lib/TennoscopeSheet.svelte";
+  import FullMode from "./lib/FullMode.svelte";
+  import { loadWikiData } from "./lib/core/wikiData";
   import Icon from "./lib/ui/Icon.svelte";
   import IconButton from "./lib/ui/IconButton.svelte";
   import ProgressButton from "./lib/ui/ProgressButton.svelte";
@@ -1832,7 +1834,6 @@
   // TennoScope runs in the background (orbiter starts it); its settings live in orbiter's. Not
   // for a console player: it only reads Warframe on a PC.
   $effect(() => {
-    ts.path = settings.tennoscope.path;
     ts.dataDir = settings.dataDir;
     ts.launch = settings.tennoscope.launch && !onConsole;
   });
@@ -2145,13 +2146,16 @@
       }
     });
     (async () => {
+      // The wiki's data (Arcane Dissolution, modular parts) ships beside the app under its own
+      // licence: read before anything uses it. Without it there's simply nothing to dissolve into.
+      const wiki = loadWikiData().catch((e) => logLine("warn", "app", `couldn't read the wiki data files: ${e}`));
       settings = await loadSettings();
+      await wiki;
       if (stopped) return;
       settings.tab = migrateTab(settings.startPage !== "last" ? settings.startPage : settings.tab);
       settingsReady = true;
       logLine("info", "app", `build ${BUILD.commit}${BUILD.date ? ` (${BUILD.date})` : ""}, ${settings.market.platform}${onConsole ? " (console)" : ""}`);
       // Before reading its data: a fresh TennoScope re-reads the inventory once the game is up.
-      ts.path = settings.tennoscope.path;
       ts.dataDir = settings.dataDir;
       ts.launch = settings.tennoscope.launch && settings.market.platform === "pc";
       // Before it starts: how TennoScope draws its overlay is set when it launches.
@@ -2409,10 +2413,11 @@
               {#if ts.error}<span class="err small">{ts.error}</span>{/if}
             </li>
             <li class:done={setupStep > 2} class:now={setupStep === 2}>
-              <strong>Let it read your account</strong>
-              <span class="prose">Its window asks once what it may read. Choose <b>Full</b>: it then reads your inventory from the running game. Its window explains how, and the small risk that carries for your account.</span>
-              {#if setupStep === 2}<div><button class="stamp gold" onclick={() => ts.show()}>Open TennoScope</button></div>{/if}
-              {#if ts.report?.setup.access_mode && ts.report.setup.access_mode !== "full"}<span class="dim small">You chose {ts.report.setup.access_mode === "overlay" ? "Overlay" : "Companion"}: it won't read your inventory. Open TennoScope again to change it.</span>{/if}
+              <strong>Choose whether it reads your inventory</strong>
+              <span class="prose">Off unless you turn it on. Without it, orbiter still has the reward overlay, your warframe.market listings and sales, fissures and the world's clocks; with it, your collection too.</span>
+              {#if setupStep >= 2}<FullMode />{/if}
+              {#if setupStep === 2}<div class="row"><button onclick={() => { void ts.ask("--access=overlay"); withoutInventory(); }} disabled={!ts.running}>Not now: overlay only</button></div>{/if}
+              {#if ts.report?.setup.access_mode && ts.report.setup.access_mode !== "full"}<span class="dim small">Full mode is off ({ts.report.setup.access_mode === "overlay" ? "Overlay" : "Companion"}): TennoScope won't read your inventory. Turn it on above, or later in Settings.</span>{/if}
             </li>
             <li class:now={setupStep === 3}>
               <strong>Start Warframe and log in</strong>

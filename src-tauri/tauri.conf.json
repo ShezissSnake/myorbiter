@@ -22,7 +22,33 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' img: http://img.localhost data:",
+        "font-src": "'self'",
+        "connect-src": "'self' ipc: http://ipc.localhost https://www-static.warframe.com https://noxsframe.com",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "form-action": "'none'",
+        "frame-src": "'none'"
+      },
+      "devCsp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' img: http://img.localhost data:",
+        "font-src": "'self'",
+        "connect-src": "'self' ipc: http://ipc.localhost https://www-static.warframe.com https://noxsframe.com ws://localhost:1421",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "form-action": "'none'",
+        "frame-src": "'none'"
+      },
+      "dangerousDisableAssetCspModification": [
+        "style-src"
+      ]
     }
   },
   "bundle": {
@@ -55,6 +81,11 @@
         "depends": []
       }
     },
-    "license": "GPL-3.0-only"
+    "license": "GPL-3.0-only",
+    "resources": {
+      "../LICENSE": "LICENSE",
+      "../NOTICE.md": "NOTICE.md",
+      "../THIRD-PARTY-NOTICES/": "THIRD-PARTY-NOTICES/"
+    }
   }
 }

@@ -21,7 +21,7 @@
   import GameIcon from "../ui/GameIcon.svelte";
   import Thumb from "../ui/Thumb.svelte";
   import type { AdviceSettings } from "../backend";
-  import { COLLECTIONS, packValues, spareArcanes, vosforHeld, vosforWorth, type SpareArcane } from "../core/vosfor";
+  import { collections, packValues, spareArcanes, vosforHeld, vosforWorth, type SpareArcane } from "../core/vosfor";
   import { info } from "../hover.svelte";
   import { arcanesWorthSelling, worthTotal } from "../core/worthSelling";
   import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
@@ -70,7 +70,7 @@
     collection = "all";
   });
   const inCollection = (name: string) =>
-    collection === "all" || (collection === "none" ? !COLLECTIONS.some((c) => c.arcanes.has(name)) : !!COLLECTIONS.find((c) => c.name === collection)?.arcanes.has(name));
+    collection === "all" || (collection === "none" ? !collections().some((c) => c.arcanes.has(name)) : !!collections().find((c) => c.name === collection)?.arcanes.has(name));
   let sort = $state({ key: "priceMax", desc: true });
 
   const all = $derived.by(whileShown("arcanes", () => arcaneRows(model)));
@@ -331,7 +331,7 @@
   {#if show !== "spares"}<Seg bind:value={owned} options={[{ v: "all", label: "All", title: "Held or not" }, { v: "owned", label: "Started", title: "Arcanes you hold at least one copy of" }, { v: "unowned", label: "None yet", title: "Arcanes you don't have a copy of" }]} />{/if}
   <select bind:value={collection} aria-label="Collection" title="The collection at Loid whose packs hold it">
     <option value="all">All collections</option>
-    {#each COLLECTIONS as c (c.name)}<option value={c.name}>{c.name}</option>{/each}
+    {#each collections() as c (c.name)}<option value={c.name}>{c.name}</option>{/each}
     <option value="none">In no collection</option>
   </select>
   </Fold>

@@ -21,13 +21,36 @@ use std::time::{Duration, Instant, UNIX_EPOCH};
 use tauri::{Emitter, Manager};
 
 const WORLDSTATE: &str = "https://api.warframestat.us/pc";
-const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"));
+/// Who's asking, and where to find out more (the APIs orbiter reads like to know).
+pub(crate) const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"), " (+https://github.com/ShezissSnake/orbiter)");
 
+/// TennoScope's data folder: the one from Settings, or where TennoScope keeps it. A folder from
+/// Settings must be a full path without `..` (orbiter only reads TennoScope's own files in it).
 fn data_dir(dir: Option<String>) -> Result<PathBuf, String> {
-    dir.filter(|d| !d.trim().is_empty())
-        .map(PathBuf::from)
-        .or_else(orbiter_data::default_tennoscope_dir)
-        .ok_or_else(|| "HOME is not set, so TennoScope's folder cannot be found".to_string())
+    match dir.filter(|d| !d.trim().is_empty()) {
+        Some(d) => checked_path(&d),
+        None => orbiter_data::default_tennoscope_dir().ok_or_else(|| "HOME is not set, so TennoScope's folder cannot be found".to_string()),
+    }
+}
+
+/// A path the page sent: full, and without `..`.
+fn checked_path(p: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(p.trim());
+    if !path.is_absolute() || path.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+        return Err(format!("{}: give a full path", path.display()));
+    }
+    Ok(path)
+}
+
+/// Warframe's log from Settings: a full path to a file named EE.log (any case), which is all orbiter
+/// reads there (and EE.cfg beside it). None: find it in the Steam libraries.
+fn ee_log_from(path: Option<String>) -> Result<Option<PathBuf>, String> {
+    let Some(p) = path.filter(|p| !p.trim().is_empty()) else { return Ok(None) };
+    let path = checked_path(&p)?;
+    if !path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.eq_ignore_ascii_case("EE.log")) {
+        return Err(format!("{}: Warframe's log is a file named EE.log", path.display()));
+    }
+    Ok(Some(path))
 }
 
 /// Linux's Yama setting for one program reading another's memory (`/proc/sys/kernel/yama/ptrace_scope`):
@@ -146,9 +169,11 @@ enum Unavailable {
     Unreachable,
 }
 
+/// One part of the worldstate ("fissures"), or all of it (an empty path).
 fn get_json(path: &str) -> Result<Value, Unavailable> {
+    let url = if path.is_empty() { WORLDSTATE.to_string() } else { format!("{WORLDSTATE}/{path}") };
     match http_agent()
-        .get(&format!("{WORLDSTATE}/{path}"))
+        .get(&url)
         .set("User-Agent", USER_AGENT)
         .query("language", "en")
         .timeout(Duration::from_secs(10))
@@ -174,10 +199,19 @@ async fn worldstate(app: tauri::AppHandle) -> Value {
     let dir = app.path().app_config_dir().ok();
     tauri::async_runtime::spawn_blocking(move || {
         let mut out = serde_json::Map::new();
+        // The whole worldstate in one request (the same parts as asking for each); one at a time
+        // only if that's refused.
+        let whole = get_json("");
+        if let Ok(Value::Object(all)) = &whole {
+            for part in WORLDSTATE_PARTS {
+                out.insert((*part).to_string(), all.get(*part).cloned().unwrap_or(Value::Null));
+            }
+        }
         // Once the API can't be reached at all, the other parts won't fare better: don't wait
         // out a timeout for each of them.
-        let mut reachable = true;
-        for part in WORLDSTATE_PARTS {
+        let mut reachable = !matches!(whole, Err(Unavailable::Unreachable));
+        let one_by_one = out.is_empty();
+        for part in WORLDSTATE_PARTS.iter().filter(|_| one_by_one) {
             let value = if reachable {
                 match get_json(part) {
                     Ok(v) => Some(v),
@@ -360,7 +394,7 @@ fn ee_log_path() -> Option<PathBuf> {
 /// "MODE_WINDOWED"). On Windows an overlay can't draw over exclusive fullscreen, so orbiter says so.
 #[tauri::command(async)]
 fn warframe_window_mode(path: Option<String>) -> Option<String> {
-    let log = path.filter(|p| !p.trim().is_empty()).map(PathBuf::from).or_else(ee_log_path)?;
+    let log = ee_log_from(path).ok()?.or_else(ee_log_path)?;
     let text = fs::read_to_string(log.parent()?.join("EE.cfg")).ok()?;
     window_mode(&text)
 }
@@ -378,11 +412,7 @@ fn window_mode(cfg: &str) -> Option<String> {
 async fn mission_state(app: tauri::AppHandle, path: Option<String>) -> Result<Option<MissionState>, String> {
     // The first read of a long session's log can be large; keep it off the async workers.
     tauri::async_runtime::spawn_blocking(move || {
-        let path = path
-            .filter(|p| !p.trim().is_empty())
-            .map(PathBuf::from)
-            .or_else(ee_log_path);
-        let Some(path) = path else { return Ok(None) };
+        let Some(path) = ee_log_from(path)?.or_else(ee_log_path) else { return Ok(None) };
         let follower = app.state::<Mutex<LogFollower>>();
         // A panic mid-read leaves the follower at a line boundary at worst; keep going.
         let mut follower = follower.lock().unwrap_or_else(|e| e.into_inner());
@@ -675,20 +705,29 @@ fn load_settings(app: tauri::AppHandle) -> Result<Value, String> {
 }
 
 #[tauri::command(async)]
-fn tennoscope_status(companion: tauri::State<'_, companion::Companion>, path: Option<String>) -> companion::Status {
-    companion.status(path.as_deref())
+fn tennoscope_status(companion: tauri::State<'_, companion::Companion>) -> companion::Status {
+    companion.status()
+}
+
+/// Settings → TennoScope → Program: the program orbiter starts as TennoScope (None or empty: it
+/// finds it). Only an existing file named like TennoScope (see `companion::check_custom`); kept in
+/// orbiter's config folder, so no other request can name a program to start.
+#[tauri::command(async)]
+fn tennoscope_set_path(companion: tauri::State<'_, companion::Companion>, path: Option<String>) -> Result<companion::Status, String> {
+    companion.set_custom(path.as_deref())?;
+    Ok(companion.status())
 }
 
 /// Starts TennoScope in the background, unless one is running already.
 #[tauri::command(async)]
-fn tennoscope_start(companion: tauri::State<'_, companion::Companion>, path: Option<String>) -> Result<companion::Status, String> {
-    companion.start(path.as_deref())
+fn tennoscope_start(companion: tauri::State<'_, companion::Companion>) -> Result<companion::Status, String> {
+    companion.start()
 }
 
 /// Passes a request (sync, screen-capture permission) to the running TennoScope.
 #[tauri::command(async)]
-fn tennoscope_ask(companion: tauri::State<'_, companion::Companion>, path: Option<String>, ask: String) -> Result<(), String> {
-    companion.ask(path.as_deref(), &ask)
+fn tennoscope_ask(companion: tauri::State<'_, companion::Companion>, ask: String) -> Result<(), String> {
+    companion.ask(&ask)
 }
 
 /// Whether the TennoScope orbiter starts draws its overlay on a solid background (Windows: a
@@ -700,8 +739,8 @@ fn tennoscope_opaque_overlay(on: bool) {
 
 /// Brings up TennoScope's own window.
 #[tauri::command(async)]
-fn tennoscope_show(companion: tauri::State<'_, companion::Companion>, path: Option<String>) -> Result<(), String> {
-    companion.show(path.as_deref())
+fn tennoscope_show(companion: tauri::State<'_, companion::Companion>) -> Result<(), String> {
+    companion.show()
 }
 
 /// Your warframe.market status as orbiter holds it.
@@ -1030,6 +1069,13 @@ pub fn run() {
             // The TennoScope this build carries, if it carries one (release builds do).
             let bundled = app.path().resource_dir().ok().map(|d| d.join(companion::BUNDLED));
             app.state::<companion::Companion>().set_bundled(bundled);
+            // The program chosen in Settings, kept beside the settings; older orbiters kept it in
+            // the page's settings (`tennoscope.path`), taken over once.
+            let legacy = fs::read(config.join("settings.json"))
+                .ok()
+                .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+                .and_then(|v| v["tennoscope"]["path"].as_str().map(str::to_owned));
+            app.state::<companion::Companion>().load_custom(config.join("tennoscope-program"), legacy);
             fit_first_window(app);
             Ok(())
         })
@@ -1053,6 +1099,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             tennoscope_status,
+            tennoscope_set_path,
             tennoscope_start,
             tennoscope_show,
             tennoscope_ask,
@@ -1160,6 +1207,22 @@ mod tests {
         assert_eq!(civil_day(19_782), "2024-02-29");
         assert!(is_day("2026-11-02"));
         assert!(!is_day("2026-11-2") && !is_day("../../x.csv") && !is_day("2026/11/02"));
+    }
+
+    #[test]
+    fn page_paths_are_checked() {
+        let abs = if cfg!(windows) { "C:\\Users\\me\\data" } else { "/home/me/data" };
+        assert!(data_dir(Some(abs.into())).is_ok());
+        assert!(data_dir(Some("relative/dir".into())).is_err());
+        assert!(data_dir(Some(format!("{abs}/../../etc"))).is_err());
+        assert!(data_dir(Some("  ".into())).is_ok() || std::env::var_os("HOME").is_none(), "empty: TennoScope's own folder");
+        let log = if cfg!(windows) { "C:\\Users\\me\\AppData\\Local\\Warframe\\EE.log" } else { "/home/me/.steam/Warframe/EE.log" };
+        assert_eq!(ee_log_from(Some(log.into())), Ok(Some(PathBuf::from(log))));
+        assert_eq!(ee_log_from(Some(log.replace("EE.log", "ee.LOG"))).map(|p| p.is_some()), Ok(true));
+        assert!(ee_log_from(Some(log.replace("EE.log", "id_rsa"))).is_err(), "only a file named EE.log");
+        assert!(ee_log_from(Some("EE.log".into())).is_err());
+        assert_eq!(ee_log_from(None), Ok(None));
+        assert_eq!(ee_log_from(Some(String::new())), Ok(None));
     }
 
     #[test]

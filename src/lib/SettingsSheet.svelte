@@ -9,6 +9,7 @@
   import { flip } from "./motion";
   import WeightSliders from "./ui/WeightSliders.svelte";
   import { NOX_SETTING } from "./core/builds";
+  import FullMode from "./FullMode.svelte";
 
   let {
     open = $bindable(),
@@ -27,16 +28,32 @@
   let tsPath = $state("");
   // Follow the saved values (when settings load or are applied). Closing the panel keeps an
   // unsaved edit, so it's still there, with Apply, when the panel opens again.
+  // The program is kept by orbiter itself (not in these settings), which only takes a file named
+  // like TennoScope: what it holds is what shows here.
+  const savedTs = $derived(ts.status?.custom ?? "");
+  let tsError = $state<string | null>(null);
   $effect(() => {
     dataDir = settings.dataDir;
     eeLog = settings.eeLog;
-    tsPath = settings.tennoscope.path;
   });
-  const dirty = $derived(dataDir.trim() !== settings.dataDir || eeLog.trim() !== settings.eeLog || tsPath.trim() !== settings.tennoscope.path);
-  function apply() {
+  $effect(() => {
+    tsPath = savedTs;
+  });
+  const tsChanged = $derived(tsPath.trim() !== savedTs);
+  const dirty = $derived(dataDir.trim() !== settings.dataDir || eeLog.trim() !== settings.eeLog || tsChanged);
+  async function apply() {
+    if (tsChanged) {
+      try {
+        await ts.setPath(tsPath);
+        tsError = null;
+        settings.tennoscope.path = tsPath.trim();
+      } catch (e) {
+        tsError = String(e).replace(/^Error: /, "");
+        return;
+      }
+    }
     settings.dataDir = dataDir.trim();
     settings.eeLog = eeLog.trim();
-    settings.tennoscope.path = tsPath.trim();
     onpaths();
   }
   /** A console or phone: only the settings for what works there (no TennoScope, no game log). */
@@ -59,7 +76,8 @@
   function revert() {
     dataDir = settings.dataDir;
     eeLog = settings.eeLog;
-    tsPath = settings.tennoscope.path;
+    tsPath = savedTs;
+    tsError = null;
   }
 </script>
 
@@ -118,10 +136,13 @@
     <Switch bind:on={settings.tennoscope.launch} label="Start TennoScope with orbiter">
       In the background, with no window of its own, and closed again when you close orbiter. A TennoScope you start yourself is left alone.
     </Switch>
+    <FullMode kind="switch" />
     <label class="field">
       <span class="register">Program</span>
       <input class="path" bind:value={tsPath} title={tsPath || undefined} placeholder={ts.status?.binary ? `Found: ${ts.status.binary}` : "Not found"} spellcheck="false" />
-      <span class="hint">Empty finds it: your patched build in ~/dev/projects/tennoscope, then the copy inside orbiter, then an installed one.</span>
+      <span class="hint">Empty finds it: the copy inside orbiter, then (in a development build) one built in orbiter's tennoscope/ folder or an older checkout in your home folder, then an installed one. A path here must be the full path to a program named tennoscope or tennoscope.exe, or a TennoScope AppImage.</span>
+      {#if tsChanged && tsPath.trim()}<span class="hint warn">orbiter will run this program as TennoScope from now on, each time it starts. Use only a TennoScope you built or downloaded yourself. Apply to confirm.</span>{/if}
+      {#if tsError}<span class="hint err">Not changed: {tsError}</span>{/if}
     </label>
   </section>
 
@@ -173,7 +194,7 @@
         <span class="register">Riven key</span>
         <input type="text" placeholder="None (e.g. Ctrl+Shift+R or F9)" value={settings.overlay.rivenKey} onchange={(e) => (settings.overlay.rivenKey = e.currentTarget.value.trim())} aria-label="Riven key" />
       </label>
-      <p class="dim small">Pressed in game at the cycle screen, TennoScope reads your inventory (it needs Full access) and the two rolls show over the game a few seconds later, no switching windows. On Linux it works while the game has focus; a key another app holds can't be had.{#if rivenKeyError}{" "}<span class="err">Couldn't set it: {rivenKeyError}</span>{/if}</p>
+      <p class="dim small">Pressed in game at the cycle screen, TennoScope reads your inventory (it needs Full mode) and the two rolls show over the game a few seconds later, no switching windows. On Linux it works while the game has focus; a key another app holds can't be had.{#if rivenKeyError}{" "}<span class="err">Couldn't set it: {rivenKeyError}</span>{/if}</p>
     {/if}
     <Switch bind:on={settings.overlay.kiosk} label="Baro's Ducat Kiosk">
       On each Prime part in the kiosk: its plat, or how many more you need while its item isn't mastered.
@@ -273,6 +294,7 @@
   .hint { font-size: .76rem; color: var(--platinum-deep); }
   .path-note { word-break: break-all; margin: .3rem 0 0; }
   .hint.err { color: var(--oxblood); }
+  .hint.warn { color: var(--gold); }
   .row { display: flex; align-items: center; gap: .6rem; }
   .pagelist { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
   .pagelist li { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: .5rem; }

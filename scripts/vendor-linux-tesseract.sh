@@ -11,6 +11,7 @@
 # different copies).
 #
 # Needs tesseract-ocr, tesseract-ocr-eng and patchelf installed where it runs (the build machine).
+# The notices of everything copied go in `licenses/` (scripts/collect-linux-notices.sh).
 set -euo pipefail
 
 out=${1:?usage: vendor-linux-tesseract.sh <folder>}
@@ -38,6 +39,13 @@ ldd "$src" | awk '/=> \// { print $1, $3 }' | while read -r name path; do
   if [[ $name =~ $skip ]]; then continue; fi
   install -m 644 "$path" "$out/lib/$name"
 done
+
+# Their notices: the copyright and licence file of every package the program, its model and its
+# libraries came from, in licenses/ beside them (PACKAGES.txt there says which file is whose).
+mapfile -t libs < <(ldd "$src" | awk '/=> \// { print $1, $3 }' | while read -r name path; do
+  [[ ${name##*/} =~ $skip ]] || echo "$path"
+done)
+"$(dirname "$0")/collect-linux-notices.sh" "$out/licenses" "$src" "$model" "${libs[@]}"
 
 # The program finds them beside it; each library finds its siblings in the same folder.
 patchelf --force-rpath --set-rpath '$ORIGIN/lib' "$out/tesseract"

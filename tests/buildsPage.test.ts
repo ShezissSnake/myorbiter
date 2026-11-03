@@ -2,6 +2,7 @@
 // search, the tiers' order, ages and sources in words, the links out, the whisper, the paste's fixes
 // and orbiter's suggestion's loadout.
 import { test } from "node:test";
+import "./wikiFiles";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { ago, ageLine, arrange, buildableItems, buildKindOf, cheapestSeller, kindLabelOf, loadoutLines, noxUrl, overframeUrl, placeIn, recentItems, searchItems, slugOf, sourceName, whisperLine, type BuildableItem } from "../src/lib/core/buildsPage";
