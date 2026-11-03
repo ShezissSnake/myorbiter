@@ -11,7 +11,9 @@ export interface MasteryCategoryTotal { category: ItemCategory; mastered: number
 export interface MasteryChecklist { available: boolean; items: CollectionItem[]; totals: MasteryCategoryTotal[] }
 /** How far the live pricing pass the player asked for has got. */
 export interface PricingProgress { done: number; total: number }
-export interface RewardCard { name: string; platinum: number; ducats: number; owned: number; mastery?: MasteryMark; confidence: number }
+export interface RewardCard { name: string; platinum: number; ducats: number; owned: number; mastery?: MasteryMark; confidence: number; vaulted?: boolean; set?: SetView }
+/** Every slot of the set a Prime part belongs to, toward the next whole set, and whether this reward finishes one (a first or an extra). */
+export interface SetView { parts: SetPart[]; completes: boolean }
 /** One slot of the set a Prime item is built from: the copies the recipe takes, the copies held, and whether this reward is the one that fills it. */
 export interface SetPart { name: string; image: string | null; uses: number; held: number; this: boolean }
 /** Absent for items mastery never touches or while marks are off; `unknown` still replaces the
@@ -87,6 +89,18 @@ export interface KioskView {
 }
 
 export const getView = () => invoke<AppView>('get_view')
+/** orbiter (a companion app) scores the cards on screen by the player's own priorities. */
+/** Where a reward can still be had, as orbiter knows it (Prime Resurgence included). */
+export type VaultState = 'vaulted' | 'resurgence' | 'farmable'
+export interface OrbiterPick { at: number; cards: string[]; scores: number[]; best: number | null; reasons: string[][]; vault?: (VaultState | null)[] }
+/** What orbiter's settings show on the reward overlay (see orbiterOverlay.ts). */
+export interface OverlayShow { mastered: boolean; vault: boolean; set: boolean; plat: boolean; ducats: boolean; pick: boolean }
+export const getOrbiterPick = () => invoke<OrbiterPick | null>('orbiter_pick')
+/** A riven being cycled, as orbiter compares the two rolls: shown over the game while it's fresh. */
+export interface RivenStatLine { label: string; display: string; grade: string; buff: boolean }
+export interface RivenRoll { name: string; grade: string; stats: RivenStatLine[]; price?: number | null }
+export interface OrbiterRiven { key: string; at: number; until: number; weapon: string; verdict: 'take' | 'keep' | 'close'; why: string; current: RivenRoll; next: RivenRoll }
+export const getOrbiterRiven = () => invoke<OrbiterRiven | null>('orbiter_riven')
 export const getKioskView = () => invoke<KioskView | null>('get_kiosk_view')
 export const refreshInventory = () => invoke<AppView>('refresh_inventory')
 export const refreshPrices = (ids: string[]) => invoke<AppView>('refresh_prices', { itemIds: ids })

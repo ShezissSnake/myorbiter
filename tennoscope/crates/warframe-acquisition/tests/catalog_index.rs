@@ -706,3 +706,38 @@ fn everything_held_or_unmasterable_leaves_nothing_to_pad() {
          can classify: {padding:?}"
     );
 }
+
+#[test]
+fn amp_prisms_and_infested_chambers_are_masterable_though_wfcd_says_not() {
+    // WFCD files an amp's prism as a Misc "Amp" and the Infested chambers as Misc "Pistol", none
+    // masterable; the game gives mastery by them once the amp or kitgun is gilded.
+    let catalog = CatalogIndex::from_wfcd_json(
+        br#"[
+      {"uniqueName":"/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartA","name":"Raplak Prism","type":"Amp","category":"Misc","masterable":false,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartC","name":"Klamora Prism","type":"Amp","category":"Misc","masterable":false,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/SentAmpTrainingBarrel","name":"Mote Prism","type":"Amp","category":"Misc","masterable":false,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelEgg/InfModularBarrelEggPart","name":"Sporelacer","type":"Pistol","category":"Misc","masterable":false,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartA","name":"Pencha Scaffold","type":"Amp","category":"Misc","masterable":false,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartA","name":"Clapkra Brace","type":"Amp","category":"Misc","masterable":false,"components":[]}
+    ]"#,
+    )
+    .unwrap();
+    for path in [
+        "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartA",
+        "/Lotus/Weapons/Corpus/OperatorAmplifiers/Set1/Barrel/CorpAmpSet1BarrelPartC",
+        "/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/SentAmpTrainingBarrel",
+        "/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelEgg/InfModularBarrelEggPart",
+    ] {
+        let metadata = catalog.resolve(path).unwrap();
+        assert_eq!(metadata.category(), Some(Category::Weapon), "{path}");
+        assert!(metadata.masterable(), "{path}");
+        assert_eq!(metadata.max_rank(), 30, "{path}");
+    }
+    // A scaffold or a brace gives none.
+    for path in [
+        "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Chassis/SentAmpSet1ChassisPartA",
+        "/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Grip/SentAmpSet1GripPartA",
+    ] {
+        assert!(!catalog.resolve(path).unwrap().masterable(), "{path}");
+    }
+}

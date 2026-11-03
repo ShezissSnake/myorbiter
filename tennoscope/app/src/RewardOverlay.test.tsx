@@ -123,9 +123,10 @@ describe('reward overlay route', () => {
     expect(lex).not.toHaveClass('ruled')
     expect(within(lex).getByRole('list', { name: 'Set' })).toBeInTheDocument()
     expect(within(lex).queryByText('Not owned')).not.toBeInTheDocument()
-    // A mark that answers nothing loud carries its word and no rule.
+    // Mastered or not is the seal by the name: green and ticked, or an empty ring.
+    expect(within(lex).getByRole('img', { name: 'Not mastered' })).toBeInTheDocument()
     const paris = within(advisor).getByRole('article', { name: 'Paris Prime String' })
-    expect(within(paris).getByText('Mastered')).toBeInTheDocument()
+    expect(within(paris).getByRole('img', { name: 'Mastered' })).toBeInTheDocument()
     expect(paris).not.toHaveClass('ruled')
     expect(paris).not.toHaveClass('ruled-double')
     expect(within(paris).queryByRole('list', { name: 'Set' })).not.toBeInTheDocument()
@@ -133,7 +134,7 @@ describe('reward overlay route', () => {
     // An item mastery never touches keeps today's ownership line and says nothing about mastery.
     const forma = within(advisor).getByRole('article', { name: 'Forma Blueprint' })
     expect(within(forma).getByText('Not owned')).toBeInTheDocument()
-    expect(within(forma).queryByText(/Mastered|Unmastered/)).not.toBeInTheDocument()
+    expect(within(forma).queryByRole('img', { name: /mastered/i })).not.toBeInTheDocument()
     expect(forma).not.toHaveClass('ruled')
     expect(forma).not.toHaveClass('ruled-double')
   })
@@ -143,7 +144,7 @@ describe('reward overlay route', () => {
       slip('Bronco Prime', { mastery: { state: 'unmastered', subject: 'Akbronco', parts: set, missing: true, completes: false } }),
     ])
     const bronco = within(advisor).getByRole('article', { name: 'Bronco Prime' })
-    expect(within(bronco).getByText('Unmastered Akbronco')).toBeInTheDocument()
+    expect(within(bronco).getByText('For Akbronco')).toBeInTheDocument()
     expect(bronco).toHaveClass('ruled')
     expect(within(bronco).getByRole('list', { name: 'Set' })).toBeInTheDocument()
   })
@@ -153,7 +154,7 @@ describe('reward overlay route', () => {
       slip('Lex Prime Barrel', { mastery: { state: 'unmastered', subject: null, parts: set, missing: false, completes: false } }),
     ])
     const lex = within(advisor).getByRole('article', { name: 'Lex Prime Barrel' })
-    expect(within(lex).getByText('Unmastered')).toBeInTheDocument()
+    expect(within(lex).getByRole('img', { name: 'Not mastered' })).toBeInTheDocument()
     expect(lex.querySelector('.ledger')).toHaveAttribute('data-tone', 'quiet')
     expect(lex).not.toHaveClass('ruled')
     expect(lex).not.toHaveClass('ruled-double')
@@ -177,12 +178,12 @@ describe('reward overlay route', () => {
     // states the word without the contour, the inverted chip, or the shapes the game owns.
     const lex = within(advisor).getByRole('article', { name: 'Lex Prime Barrel' })
     expect(within(lex).getByText(/Uncertain/)).toBeInTheDocument()
-    expect(within(lex).getByText('Completes set')).not.toHaveClass('inverted')
+    expect(within(lex).queryByText('Completes set')).not.toBeInTheDocument()
     expect(lex).not.toHaveClass('ruled')
     expect(lex).not.toHaveClass('ruled-double')
     expect(within(lex).queryByRole('list', { name: 'Set' })).not.toBeInTheDocument()
     const paris = within(advisor).getByRole('article', { name: 'Paris Prime String' })
-    expect(within(paris).getByText('Unmastered')).toBeInTheDocument()
+    expect(within(paris).getByRole('img', { name: 'Not mastered' })).toBeInTheDocument()
     expect(paris).not.toHaveClass('ruled')
     expect(paris).not.toHaveClass('ruled-double')
     expect(within(paris).queryByRole('list', { name: 'Set' })).not.toBeInTheDocument()
@@ -194,5 +195,34 @@ describe('reward overlay route', () => {
     // The dash is for the eye; a screen reader hears the spoken name rather than the glyph.
     const ledger = advisor.querySelector('.ledger') as HTMLElement
     expect(within(ledger).getByText('—')).toHaveAttribute('aria-hidden', 'true')
+  })
+  it('draws the set for every Prime part and rules one that finishes an extra set', async () => {
+    const extra = { parts: [
+      { name: 'Blueprint', image: 'blueprint.png', uses: 1, held: 1, this: false },
+      { name: 'Barrel', image: null, uses: 1, held: 0, this: true },
+    ], completes: true }
+    const advisor = await renderOverlay([
+      slip('Lex Prime Barrel', { mastery: { state: 'mastered' }, set: extra }),
+      slip('Paris Prime String', { mastery: { state: 'mastered' }, set: { ...extra, completes: false } }),
+    ])
+    const lex = within(advisor).getByRole('article', { name: 'Lex Prime Barrel' })
+    expect(within(lex).getByRole('img', { name: 'Mastered' })).toBeInTheDocument()
+    expect(within(lex).getByRole('list', { name: 'Set' })).toBeInTheDocument()
+    expect(within(lex).getByText('Completes set')).toHaveClass('inverted')
+    expect(lex).toHaveClass('ruled-double')
+    const paris = within(advisor).getByRole('article', { name: 'Paris Prime String' })
+    expect(within(paris).getByRole('list', { name: 'Set' })).toBeInTheDocument()
+    expect(paris).not.toHaveClass('ruled-double')
+  })
+
+  it('says where a Prime part can still be had', async () => {
+    const advisor = await renderOverlay([
+      slip('Lex Prime Barrel', { mastery: { state: 'mastered' }, vaulted: true }),
+      slip('Paris Prime String', { mastery: { state: 'mastered' } }),
+      slip('Forma Blueprint'),
+    ])
+    expect(within(within(advisor).getByRole('article', { name: 'Lex Prime Barrel' })).getByText('Vaulted')).toBeInTheDocument()
+    expect(within(within(advisor).getByRole('article', { name: 'Paris Prime String' })).getByText('Farmable')).toBeInTheDocument()
+    expect(within(within(advisor).getByRole('article', { name: 'Forma Blueprint' })).queryByText(/Vaulted|Farmable|Resurgence/)).not.toBeInTheDocument()
   })
 })

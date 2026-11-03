@@ -5,7 +5,8 @@
   "windows": [
     "main",
     "reward-overlay",
-    "kiosk-overlay"
+    "kiosk-overlay",
+    "riven-overlay"
   ],
   "permissions": [
     "process:allow-restart",

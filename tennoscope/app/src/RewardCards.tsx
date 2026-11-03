@@ -1,59 +1,56 @@
-import type { MasteryMark, RewardCard, SetPart } from './backend'
+import type { MasteryMark, OrbiterPick, OverlayShow, RewardCard, SetPart, VaultState } from './backend'
+import { SHOW_ALL } from './orbiterOverlay'
+import { MasteryGlyph } from './MasteryGlyph'
 import { MetalMark } from './MetalMark'
 import { SetRow } from './SetRow'
 
-/**
- * The words the ledger states, written as the player reads them and uppercased by the stylesheet.
- * The space before a `·` never breaks, so a narrow slip wraps after the separator, not before it.
- */
-function ledgerWord(mark: Exclude<MasteryMark, { state: 'unknown' }>): string {
+/** Mastered, not mastered, or nothing to say: Forma and the like build nothing to master, and a
+ * mark the evidence cannot support draws no seal rather than a guess. */
+function masteredOf(mark: MasteryMark | undefined): boolean | null {
+  if (!mark || mark.state === 'unknown') return null
+  return mark.state === 'mastered'
+}
+
+/** The few words the seal can't say: a part still wanted by something else (Lex parts for an
+ * Aklex, whose set the row then shows), and a built item still to level. */
+function ledgerWord(mark: MasteryMark | undefined, completes: boolean): string | null {
+  if (completes || !mark) return null
   switch (mark.state) {
-    case 'mastered': return 'Mastered'
+    case 'unmastered': return mark.subject ? `For ${mark.subject}` : null
     case 'built': return `Built\u00a0· R${mark.rank}/${mark.max_rank}`
     case 'in_foundry': return 'In foundry'
-    // A chain mark names the Ak that still wants this part's item, read as one phrase: "Unmastered
-    // Aklex" on a Lex part, which is why the part still matters when the Lex is mastered or built.
-    case 'unmastered': return mark.completes
-      ? 'Completes set'
-      : mark.subject ? `Unmastered ${mark.subject}` : 'Unmastered'
+    default: return null
   }
 }
 
-/** What a mark asks of the slip around it: the rule the article carries, the tone its word is drawn in, and the set the line may show. */
-type LedgerState = { rule: '' | 'ruled' | 'ruled-double'; tone: 'loud' | 'quiet'; inverted: boolean; parts: SetPart[] | null }
-
-/** Resolved once per card so the slip's rule and its ledger never disagree. A read we are unsure
- * of may name the wrong item, so it earns neither rule nor set row and keeps its doubt mark. */
-function ledgerState(mark: MasteryMark, uncertain: boolean): LedgerState {
-  const unmastered = mark.state === 'unmastered' ? mark : null
-  const trusted = !uncertain
-  const missing = trusted && !!unmastered?.missing
-  const completes = missing && !!unmastered?.completes
-  return {
-    rule: completes ? 'ruled-double' : missing ? 'ruled' : '',
-    tone: missing ? 'loud' : 'quiet',
-    inverted: completes,
-    parts: trusted && unmastered ? unmastered.parts : null,
-  }
+/** orbiter's word when it has one (it knows Prime Resurgence); otherwise the relic tables'. Only
+ * for rewards that are Prime parts, which are the ones a vault can close. */
+function vaultOf(card: RewardCard, fromOrbiter: VaultState | null | undefined): VaultState | null {
+  if (fromOrbiter) return fromOrbiter
+  if (card.vaulted) return 'vaulted'
+  return card.set || card.mastery ? 'farmable' : null
 }
 
-/** The doubt mark, the word that states the mark, and the set row at the far end of the line. An
- * unanswerable mark is the app's struck dash, and a screen reader hears what it means. */
-function Ledger({ mark, state, uncertain, confidence }: { mark: MasteryMark; state: LedgerState; uncertain: boolean; confidence: number }) {
-  return <div className="ledger" data-tone={state.tone}>
-    {uncertain && <span className="hallmark doubt">Uncertain · {Math.round(confidence * 100)}%</span>}
-    {mark.state === 'unknown'
-      ? <span className="ledger-word"><span aria-hidden="true">—</span><span className="sr-only">Mastery unknown</span></span>
-      : <span className={`ledger-word${state.inverted ? ' inverted' : ''}`}>{ledgerWord(mark)}</span>}
-    {state.parts && <SetRow parts={state.parts}/>}
-  </div>
+const VAULT_WORD: Record<VaultState, string> = { vaulted: 'Vaulted', resurgence: 'Resurgence', farmable: 'Farmable' }
+const VAULT_TITLE: Record<VaultState, string> = {
+  vaulted: 'Every relic that drops it is vaulted: no new copies until it returns',
+  resurgence: 'Vaulted, but back in Prime Resurgence (Varzia) right now',
+  farmable: 'Relics that drop it are still in the drop tables',
+}
+
+/** The set row's slots: the reward's own set when TennoScope sent it, else the unmastered mark's. */
+function setOf(card: RewardCard): { parts: SetPart[]; completes: boolean } | null {
+  if (card.set) return card.set
+  const mark = card.mastery
+  return mark?.state === 'unmastered' ? { parts: mark.parts, completes: mark.completes } : null
 }
 
 /**
  * Platinum and ducats are two different answers to "which one do I take", and the player picks
- * between them for reasons this program cannot see: saving for Baro, or just not wanting to sit
- * in trade chat. So both are shown at the same weight, in their own metal, with the leader marked
- * inside the column it won, rather than one headline number and a footnote.
+ * between them for reasons this program cannot see, so both are shown at the same weight. Under
+ * them, always in the same order: whether the item is mastered (the seal by the name), where the
+ * reward can still be had, and the set it belongs to, with the slot this reward fills underlined
+ * and the whole slip double-ruled when it finishes a set, a first one or an extra to sell.
  *
  * A reading we do not trust is never crowned on either metal. A price we do not have is struck as
  * a dash: untradeable items (Forma among them) have no listing and never will.
@@ -64,45 +61,81 @@ export function RewardCards({
   bestDucatIndex,
   ownershipVerified = true,
   className = 'reward-grid',
+  pick = null,
+  show = SHOW_ALL,
 }: {
   cards: RewardCard[]
   bestValueIndex: number | null
   bestDucatIndex: number | null
   ownershipVerified?: boolean
   className?: string
+  /** orbiter's score for each card, the one to take, and where each can still be had. */
+  pick?: OrbiterPick | null
+  /** What orbiter's settings show; everything without orbiter. */
+  show?: OverlayShow
 }) {
   return <div className={className}>{cards.slice(0, 4).map((card, index) => {
     const uncertain = card.confidence < 0.8
     const topPlat = !uncertain && bestValueIndex === index
     const topDucat = !uncertain && bestDucatIndex === index
-    const marked = card.mastery ? { mark: card.mastery, state: ledgerState(card.mastery, uncertain) } : null
+    const score = show.pick ? pick?.scores[index] : undefined
+    const picked = show.pick && pick?.best === index
+    const mastered = show.mastered ? masteredOf(card.mastery) : null
+    const vault = show.vault ? vaultOf(card, pick?.vault?.[index]) : null
+    // A read we are unsure of may name the wrong item, so it claims no set.
+    const set = show.set && !uncertain ? setOf(card) : null
+    const completes = !!set?.completes
+    const mark = card.mastery
+    // A part an unmastered, unbuilt item still lacks rules the slip; one that finishes a set
+    // double-rules it. Never on a read we are unsure of.
+    const missing = !uncertain && mark?.state === 'unmastered' && mark.missing
+    const word = ledgerWord(mark, completes)
+    const unknown = show.mastered && mark?.state === 'unknown'
+    const metals = show.plat || show.ducats
     return <article
       key={`${card.name}-${index}`}
-      className={['slip', topPlat ? 'top-plat' : '', topDucat ? 'top-ducat' : '', marked?.state.rule].filter(Boolean).join(' ')}
+      className={['slip', topPlat ? 'top-plat' : '', topDucat ? 'top-ducat' : '', completes ? 'ruled-double' : missing ? 'ruled' : '', picked ? 'orbiter-pick' : '', metals ? '' : 'no-metals'].filter(Boolean).join(' ')}
       aria-label={card.name}
     >
       <span className="slip-lot">Choice {index + 1}</span>
-      <h2 className="slip-name">{card.name}</h2>
+      <h2 className="slip-name">
+        {score != null && <span className="slip-corner">
+          <span className={`orbiter-score${picked ? ' picked' : ''}`} title={pick?.reasons[index]?.join(' · ') || 'Score from orbiter'}>
+            {picked ? 'Pick · ' : ''}{score}
+          </span>
+        </span>}
+        {mastered != null && <MasteryGlyph mastered={mastered}/>}
+        {card.name}
+      </h2>
 
-      <div className="metals">
-        <span className="metal plat">
+      {metals && <div className={`metals${show.plat && show.ducats ? '' : ' single'}`}>
+        {show.plat && <span className="metal plat">
           {card.platinum > 0
             ? <span className="metal-figure">{card.platinum}</span>
             : <span className="metal-figure market-pending"><span aria-hidden="true">—</span><span className="sr-only">No platinum price</span></span>}
           <span className="metal-label"><MetalMark metal="plat"/>plat</span>
           {topPlat && <span className="metal-hallmark">Top plat</span>}
-        </span>
-        <span className="metal ducat">
+        </span>}
+        {show.ducats && <span className="metal ducat">
           <span className="metal-figure">{card.ducats}</span>
           <span className="metal-label"><MetalMark metal="ducat"/>ducats</span>
           {topDucat && <span className="metal-hallmark">Top ducats</span>}
-        </span>
-      </div>
+        </span>}
+      </div>}
 
-      {marked
-        // A mark replaces the ownership line: the set row already says how much is held, and two
-        // lines do not fit the overlay's width. A card with no mark keeps the line.
-        ? <Ledger mark={marked.mark} state={marked.state} uncertain={uncertain} confidence={card.confidence}/>
+      {set || vault || word || unknown
+        ? <div className="ledger" data-tone={completes || missing ? 'loud' : 'quiet'}>
+            {uncertain && <span className="hallmark doubt">Uncertain · {Math.round(card.confidence * 100)}%</span>}
+            {/* The words stack in one column so the set row keeps the rest of the width. */}
+            <span className="ledger-words">
+              {vault && <span className={`hallmark vault-${vault}`} title={VAULT_TITLE[vault]}>{VAULT_WORD[vault]}</span>}
+              {completes
+                ? <span className="ledger-word inverted" title="Taking it finishes a whole set: one to build, or an extra one to sell">Completes set</span>
+                : word && <span className="ledger-word">{word}</span>}
+              {unknown && <span className="ledger-word"><span aria-hidden="true">—</span><span className="sr-only">Mastery unknown</span></span>}
+            </span>
+            {set && <SetRow parts={set.parts}/>}
+          </div>
         : <div className="marks">
             {ownershipVerified
               ? card.owned > 0

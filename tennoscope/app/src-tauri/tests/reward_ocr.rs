@@ -249,6 +249,89 @@ fn the_calibrated_geometry_reads_a_real_reward_screen() {
     );
 }
 
+/// `fixtures/reward-screen-blue-theme.png` is a real 1920x1080 Windows capture under a UI theme
+/// that draws card titles blue rather than near-white, blanked outside the card titles. Graded by
+/// luma, the blue title fell below the cutoff wherever the art behind it was brighter (the silver
+/// handle in the first slot read as blank), so the reader fell back to the middle two cards.
+#[test]
+fn a_blue_ui_theme_reads_every_card() {
+    common::isolate_debug_log();
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/reward-screen-blue-theme.png");
+    let pool = entries(&[
+        "Dual Zoren Prime Handle",
+        "2X Forma Blueprint",
+        "Burston Prime Blueprint",
+        "Braton Prime Blueprint",
+    ]);
+    assert_eq!(
+        names(app_lib::read_cards(&fixture, pool_only(&pool)).unwrap()),
+        vec![
+            "Dual Zoren Prime Handle",
+            "2X Forma Blueprint",
+            "2X Forma Blueprint",
+            "Burston Prime Blueprint",
+        ]
+    );
+}
+
+/// The calibrated screen with its titles repainted in `colour`, the way a UI theme paints them:
+/// each title pixel moves toward the colour by how white it was (its anti-aliasing kept).
+fn retitled(colour: [u8; 3]) -> image::DynamicImage {
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/reward-screen-1920x1080.png");
+    let mut screen = image::open(fixture).unwrap().to_rgb8();
+    for y in 425..462 {
+        for x in 478..1445 {
+            let pixel = screen.get_pixel_mut(x, y);
+            let white = *pixel.0.iter().min().unwrap() as f32;
+            let alpha = ((white - 110.0) / 120.0).clamp(0.0, 1.0);
+            for (channel, target) in pixel.0.iter_mut().zip(colour) {
+                *channel = (*channel as f32 * (1.0 - alpha) + target as f32 * alpha) as u8;
+            }
+        }
+    }
+    image::DynamicImage::ImageRgb8(screen)
+}
+
+/// UI themes colour the titles, and a custom theme can make them dim: twelve hues at full, 60% and
+/// 45% brightness all read. Bright ones by their brightest channel; dim ones, which that cannot
+/// tell from the art, by the title colour learned from the screen.
+#[test]
+fn any_title_colour_reads() {
+    common::isolate_debug_log();
+    let expected = [
+        "Braton Prime Blueprint",
+        "2X Forma Blueprint",
+        "Burston Prime Stock",
+        "Trumna Prime Blueprint",
+    ];
+    let mut failed = Vec::new();
+    for hue in (0..360).step_by(30) {
+        for value in [1.0_f32, 0.6, 0.45] {
+            // HSV at 75% saturation, as a theme's title colour.
+            let h = hue as f32 / 60.0;
+            let c = value * 0.75;
+            let x = c * (1.0 - (h % 2.0 - 1.0).abs());
+            let (r, g, b) = match h as u32 {
+                0 => (c, x, 0.0),
+                1 => (x, c, 0.0),
+                2 => (0.0, c, x),
+                3 => (0.0, x, c),
+                4 => (x, 0.0, c),
+                _ => (c, 0.0, x),
+            };
+            let m = value - c;
+            let colour = [r, g, b].map(|v| ((v + m) * 255.0).round() as u8);
+            let read = app_lib::read_cards_in(&retitled(colour), pool_only(&pool()));
+            if read.map(names).ok() != Some(expected.iter().map(|n| n.to_string()).collect()) {
+                failed.push((hue, value, colour));
+            }
+        }
+    }
+    assert!(failed.is_empty(), "unread title colours: {failed:?}");
+}
+
 /// The same screen at 16:10, which is a Steam Deck's native 1280x800.
 ///
 /// Warframe scales its HUD with window *height* and centres it horizontally, but the card geometry

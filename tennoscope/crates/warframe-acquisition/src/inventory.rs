@@ -110,11 +110,136 @@ impl<'a> InventoryJsonDecoder<'a> {
 pub struct MasteryFacts {
     xp: BTreeMap<String, u64>,
     pending: BTreeMap<String, u32>,
+    /// What only orbiter reads, boxed so the facts (and every result carrying them) stay small.
+    orbiter: Box<OrbiterFacts>,
+}
+
+/// The inventory facts orbiter reads beyond TennoScope's own.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct OrbiterFacts {
+    /// When each foundry build finishes (recipe path, unix milliseconds), for orbiter.
+    ready: Vec<(String, i64)>,
+    /// The account's mastery rank, for orbiter.
+    player_level: Option<u32>,
+    /// Platinum on the account, for orbiter's value-over-time chart.
+    platinum: Option<u64>,
+    /// Credits and Endo on the account, for orbiter's stats over time.
+    credits: Option<u64>,
+    endo: Option<u64>,
+    /// Unveiled rivens as the inventory gives them: type, item id and the parsed fingerprint
+    /// (weapon, buffs, curses, rank, rerolls, polarity), passed through whole for orbiter.
+    rivens: Vec<serde_json::Value>,
+    /// Kubrow and Kavat imprints as the inventory gives them, passed through whole for orbiter.
+    imprints: Vec<serde_json::Value>,
+    /// One row per copy of a warframe, weapon or companion: `{type, f, p, s}`, its path, the game's
+    /// feature bits (Orokin Catalyst/Reactor, Exilus, gilded, Incarnon Genesis installed…), its
+    /// Forma and its inventory section; `m`, a modular build's parts, and `x`, its affinity. Also,
+    /// when the copy has them: `pol`, its slots' polarities, `[slot, "AP_…"]`; `shards`, its archon
+    /// shards, `[slot, colour, upgrade path]`; `ab`, a Helminth ability per config,
+    /// `[config, ability path, ability slot]`.
+    gear: Vec<serde_json::Value>,
+    /// The warframes fed to the Helminth (`InfestedFoundry.ConsumedSuits`), by path: whose
+    /// abilities are subsumed. Empty when the account has no Helminth.
+    consumed_suits: Vec<String>,
 }
 
 impl MasteryFacts {
     pub fn from_parts(xp: BTreeMap<String, u64>, pending: BTreeMap<String, u32>) -> Self {
-        Self { xp, pending }
+        Self {
+            xp,
+            pending,
+            ..Default::default()
+        }
+    }
+
+    /// Adds when each foundry build finishes and the account's mastery rank.
+    pub fn with_extras(
+        mut self,
+        ready: Vec<(String, i64)>,
+        player_level: Option<u32>,
+        platinum: Option<u64>,
+    ) -> Self {
+        self.orbiter.ready = ready;
+        self.orbiter.player_level = player_level;
+        self.orbiter.platinum = platinum;
+        self
+    }
+
+    /// Adds the account's credits and Endo.
+    pub fn with_wallet(mut self, credits: Option<u64>, endo: Option<u64>) -> Self {
+        self.orbiter.credits = credits;
+        self.orbiter.endo = endo;
+        self
+    }
+
+    /// Adds the unveiled rivens.
+    pub fn with_rivens(mut self, rivens: Vec<serde_json::Value>) -> Self {
+        self.orbiter.rivens = rivens;
+        self
+    }
+
+    /// Credits on the account, when the inventory said (shared with orbiter).
+    pub fn credits(&self) -> Option<u64> {
+        self.orbiter.credits
+    }
+
+    /// Endo on the account, when the inventory said (shared with orbiter).
+    pub fn endo(&self) -> Option<u64> {
+        self.orbiter.endo
+    }
+
+    /// Unveiled rivens, each `{type, id, fp}` (shared with orbiter).
+    pub fn rivens(&self) -> &[serde_json::Value] {
+        &self.orbiter.rivens
+    }
+
+    /// Adds the Kubrow and Kavat imprints.
+    pub fn with_imprints(mut self, imprints: Vec<serde_json::Value>) -> Self {
+        self.orbiter.imprints = imprints;
+        self
+    }
+
+    /// Kubrow and Kavat imprints, each the inventory's own row (shared with orbiter).
+    pub fn imprints(&self) -> &[serde_json::Value] {
+        &self.orbiter.imprints
+    }
+
+    /// Adds each copy of a warframe, weapon or companion, `{type, f, p, s}` (and `m`, `x`).
+    pub fn with_gear(mut self, gear: Vec<serde_json::Value>) -> Self {
+        self.orbiter.gear = gear;
+        self
+    }
+
+    /// Each copy of a warframe, weapon or companion, `{type, f, p, s}` (and `m`, `x`, `pol`,
+    /// `shards`, `ab`; shared with orbiter).
+    pub fn gear(&self) -> &[serde_json::Value] {
+        &self.orbiter.gear
+    }
+
+    /// Adds the warframes fed to the Helminth.
+    pub fn with_consumed_suits(mut self, suits: Vec<String>) -> Self {
+        self.orbiter.consumed_suits = suits;
+        self
+    }
+
+    /// The warframes fed to the Helminth, by path (shared with orbiter).
+    pub fn consumed_suits(&self) -> &[String] {
+        &self.orbiter.consumed_suits
+    }
+
+    /// Platinum on the account, when the inventory said (shared with orbiter).
+    pub fn platinum(&self) -> Option<u64> {
+        self.orbiter.platinum
+    }
+
+    /// When each foundry build finishes: recipe path and unix milliseconds (shared with orbiter).
+    pub fn foundry_ready(&self) -> &[(String, i64)] {
+        &self.orbiter.ready
+    }
+
+    /// The account's mastery rank, when the inventory said (shared with orbiter).
+    pub fn player_level(&self) -> Option<u32> {
+        self.orbiter.player_level
     }
 
     /// The affinity the inventory reports for an item, or 0 when it reports none.
@@ -125,6 +250,11 @@ impl MasteryFacts {
     /// How many builds of a recipe are waiting in the foundry, or 0 when none are.
     pub fn pending(&self, recipe: &str) -> u32 {
         self.pending.get(recipe).copied().unwrap_or(0)
+    }
+
+    /// Every build waiting in the foundry, by recipe path (shared with orbiter).
+    pub fn pending_builds(&self) -> &BTreeMap<String, u32> {
+        &self.pending
     }
 }
 
@@ -170,6 +300,14 @@ struct RawXpEntry {
 #[serde(rename_all = "PascalCase")]
 struct RawInventory {
     last_inventory_sync: serde_json::Value,
+    #[serde(rename = "PlayerLevel", default)]
+    player_level: Option<u32>,
+    #[serde(rename = "PremiumCredits", default)]
+    premium_credits: Option<serde_json::Value>,
+    #[serde(rename = "RegularCredits", default)]
+    regular_credits: Option<serde_json::Value>,
+    #[serde(rename = "FusionPoints", default)]
+    fusion_points: Option<serde_json::Value>,
     #[serde(default, deserialize_with = "rows")]
     suits: Vec<serde_json::Value>,
     #[serde(default, deserialize_with = "rows")]
@@ -251,6 +389,14 @@ struct RawInventory {
     adult_operator_load_outs: Vec<serde_json::Value>,
     #[serde(default, deserialize_with = "rows")]
     kahl_load_outs: Vec<serde_json::Value>,
+    /// Kubrow and Kavat imprints, one row per imprint. Not part of the collection; passed to
+    /// orbiter, which lists them for sale.
+    #[serde(default, deserialize_with = "rows")]
+    kubrow_pet_prints: Vec<serde_json::Value>,
+    /// The Helminth: only `ConsumedSuits` is read, for orbiter. Any shape is accepted here and
+    /// whatever isn't understood reads as nothing fed.
+    #[serde(default)]
+    infested_foundry: Option<serde_json::Value>,
 }
 
 /// A section, tolerating the two shapes that are not a list of rows.
@@ -379,6 +525,67 @@ impl InventoryJsonDecoder<'_> {
         }
         // Before the `add_*` calls below take the sections.
         let installed = installed_copies(&raw);
+        // Each copy of a warframe, weapon or companion: its path, the game's feature bits (512:
+        // an Incarnon Genesis installed, 8: gilded) and its Forma, so orbiter can tell which copies
+        // matter. Also the section it sits in, the parts a modular build (kitgun, zaw, amp, MOA,
+        // hound, K-Drive) was made from, and its affinity: orbiter reads what each is and whether
+        // it's gilded, since mastery goes by the chamber, strike, prism, model or board. And what a
+        // build needs from the copy: its slots' polarities, its archon shards and the Helminth
+        // ability each config puts in, for orbiter's Builds. Necramechs and exalted weapons too.
+        let gear = [
+            ("Suits", &raw.suits),
+            ("LongGuns", &raw.long_guns),
+            ("Pistols", &raw.pistols),
+            ("Melee", &raw.melee),
+            ("Sentinels", &raw.sentinels),
+            ("SentinelWeapons", &raw.sentinel_weapons),
+            ("SpaceSuits", &raw.space_suits),
+            ("SpaceGuns", &raw.space_guns),
+            ("SpaceMelee", &raw.space_melee),
+            ("OperatorAmps", &raw.operator_amps),
+            ("MoaPets", &raw.moa_pets),
+            ("KubrowPets", &raw.kubrow_pets),
+            ("Hoverboards", &raw.hoverboards),
+            ("CrewShipHarnesses", &raw.crew_ship_harnesses),
+            ("MechSuits", &raw.mech_suits),
+            ("SpecialItems", &raw.special_items),
+        ]
+        .into_iter()
+        .flat_map(|(section, rows)| rows.iter().map(move |row| (section, row)))
+        .filter_map(|(section, v)| {
+            let kind = v.get("ItemType")?.as_str()?;
+            let count = |k: &str| v.get(k).and_then(|n| n.as_u64()).unwrap_or(0);
+            let mut row = serde_json::json!({
+                "type": kind,
+                "f": count("Features"),
+                "p": count("Polarized"),
+                "s": section,
+            });
+            let parts = v
+                .get("ModularParts")
+                .and_then(|m| m.as_array())
+                .map(|m| m.iter().filter_map(|p| p.as_str()).collect::<Vec<_>>())
+                .unwrap_or_default();
+            if !parts.is_empty() {
+                row["m"] = serde_json::json!(parts);
+            }
+            let xp = count("XP");
+            if xp > 0 {
+                row["x"] = serde_json::json!(xp);
+            }
+            for (key, list) in [
+                ("pol", slot_polarities(v)),
+                ("shards", archon_shards(v)),
+                ("ab", ability_overrides(v)),
+            ] {
+                if !list.is_empty() {
+                    row[key] = serde_json::Value::Array(list);
+                }
+            }
+            Some(row)
+        })
+        .collect::<Vec<_>>();
+        let consumed_suits = consumed_suits(raw.infested_foundry.as_ref());
         let mut entries = BTreeMap::<String, AccumulatedEntry>::new();
         let report = &mut DecodeReport::default();
 
@@ -437,6 +644,69 @@ impl InventoryJsonDecoder<'_> {
             None,
             &mut DecodeReport::default(),
         );
+        // When each build finishes, for orbiter's foundry alerts: `CompletionDate` is a Mongo date,
+        // `{"$date": {"$numberLong": "…"}}` or `{"$date": …}`.
+        let ready = raw
+            .pending_recipes
+            .iter()
+            .filter_map(|v| {
+                let path = v.get("ItemType")?.as_str()?.to_owned();
+                let date = v.get("CompletionDate")?.get("$date")?;
+                let ms = match date.get("$numberLong") {
+                    Some(n) => n
+                        .as_str()
+                        .and_then(|s| s.parse::<i64>().ok())
+                        .or_else(|| n.as_i64()),
+                    None => date.as_i64(),
+                }?;
+                Some((path, ms))
+            })
+            .collect::<Vec<_>>();
+        let player_level = raw.player_level;
+        // A plain number, or a Mongo `{"$numberLong": "…"}`.
+        let number = |v: &serde_json::Value| {
+            v.as_u64().or_else(|| {
+                v.get("$numberLong")
+                    .and_then(|n| n.as_str())
+                    .and_then(|s| s.parse().ok())
+            })
+        };
+        let platinum = raw.premium_credits.as_ref().and_then(number);
+        let credits = raw.regular_credits.as_ref().and_then(number);
+        let endo = raw.fusion_points.as_ref().and_then(number);
+        // Unveiled rivens: `Upgrades` rows of a `/Randomized/` type whose fingerprint has stats.
+        // Veiled ones (a challenge, no buffs) are left out. Never logged.
+        let rivens = raw
+            .upgrades
+            .iter()
+            .filter_map(|v| {
+                let kind = v.get("ItemType")?.as_str()?;
+                if !kind.contains("/Upgrades/Mods/Randomized/") {
+                    return None;
+                }
+                let fp: serde_json::Value =
+                    serde_json::from_str(v.get("UpgradeFingerprint")?.as_str()?).ok()?;
+                fp.get("buffs")?;
+                let id = v
+                    .get("ItemId")
+                    .and_then(|i| i.get("$oid").or(Some(i)))
+                    .and_then(|i| i.as_str())
+                    .unwrap_or_default();
+                // Mid-cycle: the new roll waiting for keep-or-take, for orbiter to compare.
+                let pending = v
+                    .get("PendingRerollFingerprint")
+                    .and_then(|p| p.as_str())
+                    .and_then(|p| serde_json::from_str::<serde_json::Value>(p).ok())
+                    .filter(|p| p.get("buffs").is_some());
+                let mut row = serde_json::json!({ "type": kind, "id": id, "fp": fp });
+                if let Some(p) = pending {
+                    row["pending"] = p;
+                }
+                Some(row)
+            })
+            .collect::<Vec<_>>();
+        // Imprints carry no secrets, but their rows are the player's own pets: never logged.
+        let imprints = raw.kubrow_pet_prints;
         let pending = pending_holdings
             .into_iter()
             .map(|(path, accumulated)| (path, accumulated.quantity.max(0) as u32))
@@ -605,8 +875,78 @@ impl InventoryJsonDecoder<'_> {
         }
         let snapshot = InventorySnapshot::coherent(domain_entries)
             .map_err(|_| AcquisitionError::SnapshotInvalid)?;
-        Ok((snapshot, MasteryFacts::from_parts(affinity, pending)))
+        Ok((
+            snapshot,
+            MasteryFacts::from_parts(affinity, pending)
+                .with_extras(ready, player_level, platinum)
+                .with_wallet(credits, endo)
+                .with_rivens(rivens)
+                .with_imprints(imprints)
+                .with_gear(gear)
+                .with_consumed_suits(consumed_suits),
+        ))
     }
+}
+
+/// A copy's polarised slots, `Polarity: [{Slot, Value}]`, as `[slot, "AP_…"]`. The code is passed
+/// as the game writes it (`AP_ATTACK`, `AP_UNIVERSAL`, `AP_ANY`…); orbiter names it. An entry
+/// missing either half is dropped.
+fn slot_polarities(row: &serde_json::Value) -> Vec<serde_json::Value> {
+    row.get("Polarity")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|p| {
+            let slot = p.get("Slot")?.as_u64()?;
+            let value = p.get("Value")?.as_str()?;
+            Some(serde_json::json!([slot, value]))
+        })
+        .collect()
+}
+
+/// A warframe's archon shards, `ArchonCrystalUpgrades: [{UpgradeType, Color}]`, as
+/// `[slot, colour, upgrade path]`, the slot being the entry's place in the list. An empty slot (`{}`,
+/// or a shard taken out) has no `UpgradeType` and is dropped; a missing colour passes as null.
+fn archon_shards(row: &serde_json::Value) -> Vec<serde_json::Value> {
+    row.get("ArchonCrystalUpgrades")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .enumerate()
+        .filter_map(|(slot, shard)| {
+            let upgrade = shard.get("UpgradeType")?.as_str()?;
+            let colour = shard.get("Color").and_then(serde_json::Value::as_str);
+            Some(serde_json::json!([slot, colour, upgrade]))
+        })
+        .collect()
+}
+
+/// The Helminth ability each config of a warframe puts in, `Configs[i].AbilityOverride: {Ability,
+/// Index}`, as `[config, ability path, ability slot]`.
+fn ability_overrides(row: &serde_json::Value) -> Vec<serde_json::Value> {
+    row.get("Configs")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .enumerate()
+        .filter_map(|(config, c)| {
+            let ability = c.get("AbilityOverride")?;
+            let path = ability.get("Ability")?.as_str()?;
+            let index = ability.get("Index")?.as_u64()?;
+            Some(serde_json::json!([config, path, index]))
+        })
+        .collect()
+}
+
+/// The warframes fed to the Helminth, `InfestedFoundry.ConsumedSuits: [{s, c}]`, by path.
+fn consumed_suits(foundry: Option<&serde_json::Value>) -> Vec<String> {
+    foundry
+        .and_then(|f| f.get("ConsumedSuits"))
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|suit| suit.get("s")?.as_str().map(str::to_owned))
+        .collect()
 }
 
 /// One accumulated holding as a domain entry, or nothing if it cannot become one.

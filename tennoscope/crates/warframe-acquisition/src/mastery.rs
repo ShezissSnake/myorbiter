@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use warframe_domain::{InventoryEntry, KioskMastery, MasteryMark, SetPart};
+use warframe_domain::{InventoryEntry, KioskMastery, MasteryMark, SetPart, SetView};
 
 use crate::{CatalogIndex, ComponentKind, MasteryFacts, Recipe, RecipeComponent, mastery_rank};
 
@@ -130,6 +130,48 @@ impl<'a> MasteryLedger<'a> {
             }
             _ => None,
         }
+    }
+
+    /// The set row for a reward that is a part of a masterable item, mastered or not: each slot
+    /// with its progress toward the next whole set, and whether this reward finishes one. Holding
+    /// three of every part but two of one, that one finishes a third set. Nothing without
+    /// holdings to count, or for a reward that is no part.
+    pub fn set_view(&self, reward_name: &str) -> Option<SetView> {
+        if self.evidence() == MasteryEvidence::None {
+            return None;
+        }
+        let (recipe, this_index) = self.resolve(reward_name)?;
+        let slots = recipe
+            .components
+            .iter()
+            .map(|slot| (slot, slot.per_build.max(1), self.held_of(slot)))
+            .collect::<Vec<_>>();
+        let sets = |extra: u32| {
+            slots
+                .iter()
+                .enumerate()
+                .map(|(index, (_, uses, held))| {
+                    (held + if index == this_index { extra } else { 0 }) / uses
+                })
+                .min()
+                .unwrap_or(0)
+        };
+        let whole = sets(0);
+        let parts = slots
+            .iter()
+            .enumerate()
+            .map(|(index, (slot, uses, held))| SetPart {
+                name: slot.name.clone(),
+                image: slot.image_name.clone(),
+                uses: *uses,
+                held: held.saturating_sub(whole.saturating_mul(*uses)).min(*uses),
+                this: index == this_index,
+            })
+            .collect();
+        Some(SetView {
+            parts,
+            completes: sets(1) > whole,
+        })
     }
 
     /// A reward name to its parent recipe and the slot it fills there. Nothing when the name
@@ -315,8 +357,33 @@ impl<'a> MasteryLedger<'a> {
                         .map(|path| self.pending_path(path))
                         .unwrap_or(0)
             }
-            ComponentKind::Ingredient => self.have(&slot.path),
+            // A whole item another one is built from (two Bronco Prime for an Akbronco): held when
+            // built or building, and also when every part to build it is in hand.
+            ComponentKind::Ingredient => self.have(&slot.path) + self.buildable(&slot.path),
         }
+    }
+
+    /// Whole copies of an item the parts in hand would build, its own ingredients aside (one level
+    /// is all the game has: an Ak's pistol is built from parts, not from other weapons).
+    fn buildable(&self, item: &str) -> u32 {
+        let Some(recipe) = self.catalog.recipe(item) else {
+            return 0;
+        };
+        recipe
+            .components
+            .iter()
+            .filter(|slot| slot.kind != ComponentKind::Ingredient)
+            .map(|slot| {
+                let held = match slot.kind {
+                    ComponentKind::Blueprint => {
+                        self.holdings.quantity(&slot.path) + self.pending_path(&slot.path)
+                    }
+                    _ => self.held_of(slot),
+                };
+                held / slot.per_build.max(1)
+            })
+            .min()
+            .unwrap_or(0)
     }
 
     fn pending_path(&self, path: &str) -> u32 {

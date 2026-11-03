@@ -208,13 +208,19 @@ impl CatalogIndex {
             if !valid_unique_name(&item.unique_name) {
                 continue;
             }
-            let category = classify_item(item);
+            let mastered_part = masterable_part(&item.unique_name);
+            let category = if mastered_part {
+                Some(Category::Weapon)
+            } else {
+                classify_item(item)
+            };
             index.insert(
                 &item.unique_name,
                 CatalogMetadata {
                     name: validated_name(&item.name)?,
                     category,
-                    masterable: item.masterable && category.is_some_and(is_equipment),
+                    masterable: (item.masterable || mastered_part)
+                        && category.is_some_and(is_equipment),
                     max_rank: catalog_max_rank(&item.name),
                     fusion_limit: believable_fusion_limit(item.fusion_limit),
                     image_name: validated_image_name(item.image_name.as_deref())?,
@@ -558,6 +564,19 @@ struct WfcdComponent {
     /// (Akbronco lists Bronco Prime twice), so this is summed per path, never read raw.
     #[serde(default)]
     item_count: Option<u32>,
+}
+
+/// Parts the game gives mastery by although WFCD marks them not masterable: an amp's prism (the
+/// Mote Amp's included) and the Infested kitgun chambers. As with the Solaris chambers WFCD
+/// already marks, the mastery goes by this part once the amp or kitgun built from it is gilded,
+/// and the inventory's XP for it is keyed by its path. Their blueprints are not.
+fn masterable_part(path: &str) -> bool {
+    if path.ends_with("Blueprint") {
+        return false;
+    }
+    (path.contains("/OperatorAmplifiers/")
+        && (path.contains("/Barrel/") || path.ends_with("/SentAmpTrainingBarrel")))
+        || path.contains("/InfKitGun/Barrels/")
 }
 
 fn classify_item(item: &WfcdItem) -> Option<Category> {

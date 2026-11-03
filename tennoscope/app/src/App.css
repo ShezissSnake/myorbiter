@@ -443,6 +443,7 @@
 .hallmark.owned { color: var(--platinum); }
 .hallmark.absent { color: var(--platinum-deep); background: var(--plate); }
 .hallmark.mastered { color: var(--gold); }
+.slip-lot .hallmark.vaulted { margin-left: 0.5em; color: var(--gold); }
 /* A rank is a qualifier on the mark beside it, so it sits back from the ownership figure. Fully
    ranked is the state worth platinum, and it earns the struck lip rather than a new colour: the
    text reads 10/10 either way, and gold already means mastered. */
@@ -951,6 +952,20 @@ svg.set-glyph { background: none; fill: currentColor; padding: .125rem; }
   .overlay-rewards .ledger:has(.set-slot:nth-child(5)) .set-glyph + .set-glyph { margin-left: -1rem; }
 }
 
+/* orbiter's pick (a companion app): the score in the slip's corner and the card to take outlined in gold. */
+.slip-corner { float: right; display: none; gap: .25rem; align-items: center; margin: 0 0 .15rem .4rem; line-height: 1; }
+.overlay-rewards .slip-corner, .slip-corner:has(.orbiter-score) { display: inline-flex; }
+.slip-corner .hallmark.vaulted { display: none; }
+.overlay-rewards .slip-corner .hallmark.vaulted { display: inline-block; }
+.orbiter-score {
+  font-family: var(--face-register); font-size: .54rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+  padding: .16rem .38rem .3rem; color: var(--platinum); box-shadow: inset 0 0 0 1px rgb(232 235 239 / 30%);
+}
+/* Badges take room on the name line: a long name may need a third line rather than be cut. */
+.overlay-rewards .slip-name:has(.slip-corner) { max-height: 3.12em; }
+.orbiter-score.picked { background: var(--gold); color: var(--touchstone); box-shadow: none; }
+.slip.orbiter-pick { outline: 2px solid var(--gold); outline-offset: -2px; }
+
 .overlay-empty {
   display: grid; place-content: center; justify-items: center; gap: .3rem; height: 100vh;
   background: var(--touchstone); box-shadow: inset 0 0 0 1px rgb(232 235 239 / 16%);
@@ -958,6 +973,28 @@ svg.set-glyph { background: none; fill: currentColor; padding: .125rem; }
   text-transform: uppercase; color: var(--platinum-deep); text-align: center;
 }
 .overlay-empty strong { font-size: .68rem; font-weight: 700; color: var(--platinum-dim); }
+
+/* orbiter's riven cycle (a companion app): the roll a riven has and the one on offer, side by
+   side, and which to keep. Read at a glance over the game: an opaque touchstone, figures first. */
+.riven-overlay { display: grid; align-items: start; }
+.riven-panel { display: grid; gap: .45rem; padding: .6rem .75rem .7rem; background: var(--touchstone); box-shadow: inset 0 0 0 1px rgb(232 235 239 / 16%); }
+.riven-panel header { display: flex; align-items: baseline; justify-content: space-between; gap: .8rem; }
+.riven-weapon { font-family: var(--face-register); font-size: .56rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); }
+.riven-verdict { font-size: .95rem; color: var(--platinum); }
+.verdict-take .riven-verdict, .verdict-keep .riven-verdict { color: var(--gold); }
+.riven-rolls { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.riven-roll { display: grid; gap: .2rem; align-content: start; padding: .45rem .55rem; box-shadow: inset 0 0 0 1px rgb(232 235 239 / 14%); }
+.riven-roll.chosen { outline: 2px solid var(--gold); outline-offset: -2px; }
+.riven-roll-head { display: flex; justify-content: space-between; align-items: baseline; }
+.riven-roll-title { font-family: var(--face-register); font-size: .5rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); }
+.riven-grade { font-size: 1.1rem; font-weight: 700; color: var(--platinum); }
+.riven-name { font-size: .78rem; font-weight: 600; color: var(--platinum); }
+.riven-roll ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .1rem; font-size: .66rem; color: var(--platinum-dim); }
+.riven-roll li b { color: var(--platinum); font-variant-numeric: tabular-nums; }
+.riven-roll li.curse b { color: #e07a6a; }
+.riven-roll li em { font-style: normal; float: right; color: var(--platinum-deep); }
+.riven-price { font-size: .6rem; color: var(--platinum-deep); }
+.riven-why { margin: 0; font-size: .62rem; line-height: 1.35; color: var(--platinum-dim); }
 
 /* responsive */
 
@@ -1503,3 +1540,28 @@ svg.set-glyph { background: none; fill: currentColor; padding: .125rem; }
 .update-channel summary { cursor: pointer; padding: .3em 0; min-height: 24px; }
 .update-channel .check-row { margin-top: .4em; }
 .capture-status:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+/* The mastery seal before the name: green and ticked when the item is mastered, an empty grey ring
+   when not. The one hue on the slip that is not a metal, because it mirrors the game's own cue. */
+.mastery-glyph { width: 1.25em; height: 1.25em; vertical-align: -.24em; margin-right: .3em; flex: none; }
+.mastery-glyph .seal { fill: none; stroke: var(--platinum-deep); stroke-width: 1.4; }
+.mastery-glyph.on .seal { fill: #3fcf7c; stroke: #3fcf7c; }
+.mastery-glyph .tick { fill: none; stroke: #082414; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+/* Where it can still be had: three words, told apart by ink as well as by the word. */
+.hallmark.vault-vaulted { color: var(--gold); }
+.hallmark.vault-resurgence { color: #c9b2ff; }
+.hallmark.vault-farmable { color: var(--platinum-deep); }
+.overlay-rewards .ledger { flex-wrap: nowrap; align-items: center; gap: .3rem; overflow: hidden; }
+.overlay-rewards .ledger .set-row { margin-left: auto; }
+.metals.single { grid-template-columns: 1fr; }
+.overlay-rewards .slip.no-metals { grid-template-rows: auto 1fr; }
+
+.ledger-words { display: inline-flex; flex-wrap: wrap; align-items: flex-end; gap: var(--hair); }
+.overlay-rewards .ledger-words { flex-direction: column; flex-wrap: nowrap; align-items: flex-start; gap: .2rem; flex: none; }
+.overlay-rewards .ledger .set-row { flex-wrap: nowrap; }
+.overlay-rewards .ledger-words .hallmark { padding: .14rem .34rem .3rem; }
+.overlay-rewards .ledger-words .ledger-word.inverted { padding: .14rem .3rem; white-space: nowrap; }
+/* Five parts beside the stacked words: smaller shapes so the last one isn't cut at the slip's edge. */
+.overlay-rewards .ledger:has(.set-slot:nth-child(5)) .set-glyph { width: 1.4rem; height: 1.4rem; }
+.overlay-rewards .ledger:has(.set-slot:nth-child(5)) .set-glyph + .set-glyph { margin-left: -.85rem; }
+.overlay-rewards .ledger:has(.set-slot:nth-child(5)) .set-row { gap: .1rem; }

@@ -13,6 +13,11 @@ mod windows;
 
 #[cfg(windows)]
 pub use windows::{Capture, CaptureError};
+#[cfg(windows)]
+#[allow(unsafe_code)]
+mod layered;
+#[cfg(windows)]
+pub use layered::make_layered_visible;
 
 /// A window in physical desktop coordinates, including negative monitor origins.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

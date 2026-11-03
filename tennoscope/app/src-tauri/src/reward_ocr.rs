@@ -168,8 +168,11 @@ impl VisualRewardSource for ScreenRewardSource {
         candidates: CardCandidates<'_>,
     ) -> Result<Vec<(String, f32)>, &'static str> {
         let frames = self.capture.capture_candidates()?;
+        // Once per poll, not per frame: with a frame per monitor, the first monitor would take
+        // the learning slot every time and the one with the game would never learn its colour.
+        let learn = learn_due();
         read_capture_candidates(&frames, &LATEST_MATCHED_RECT, |frame| {
-            read_cards_in(frame, candidates)
+            read_cards_learning(frame, candidates, learn)
         })
     }
 }
@@ -225,14 +228,174 @@ pub fn read_cards_in(
     image: &DynamicImage,
     candidates: CardCandidates<'_>,
 ) -> Result<Vec<(String, f32)>, &'static str> {
+    read_cards_learning(image, candidates, true)
+}
+
+/// Whether the live poll may search for the title colour now. The search costs several OCR
+/// passes, and every poll before the cards are painted fails into it: on a slow machine that kept
+/// the poll that would find the cards waiting until the screen had closed. So it runs at most once
+/// every [`LEARN_EVERY`]; the remembered colour, a single guess, is still tried on every poll.
+fn learn_due() -> bool {
+    let mut last = LAST_LEARN
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    let due = last.is_none_or(|at| at.elapsed() >= LEARN_EVERY);
+    if due {
+        *last = Some(std::time::Instant::now());
+    }
+    due
+}
+
+/// [`read_cards_in`], searching for the title colour only when `learn` says so.
+fn read_cards_learning(
+    image: &DynamicImage,
+    candidates: CardCandidates<'_>,
+    learn: bool,
+) -> Result<Vec<(String, f32)>, &'static str> {
     if candidates.pool.is_empty() && candidates.catalog.is_empty() {
         return Err("no reward candidates");
     }
+    let first = read_cards_graded(image, candidates, Grade::Brightest);
+    if first.is_ok() {
+        return first;
+    }
+    // Bright titles cover every built-in theme. A custom theme can colour them dim, which the
+    // brightest-channel grade cannot separate from the art, so the title colour is learned from the
+    // screen instead: every card's title is the same colour while the art behind each differs, so
+    // the colour all the title strips share is the text (or the card panel, which then simply fails
+    // to read). Each guess is still checked against the pool like any read, so a wrong one fails
+    // rather than naming cards. Only after a failed read, so a default theme pays nothing, and the
+    // colour that worked is tried first next time, so a dim theme pays the search once.
+    let remembered = *LEARNED_TITLE_COLOUR
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    let learned = if learn {
+        title_colours(image)
+    } else {
+        Vec::new()
+    };
+    for key in remembered
+        .into_iter()
+        .chain(learned.into_iter().filter(|key| Some(*key) != remembered))
+    {
+        if let Ok(read) = read_cards_graded(image, candidates, Grade::Near(key)) {
+            if Some(key) != remembered {
+                log::info!("reward: card titles read by their colour {key:?}");
+                *LEARNED_TITLE_COLOUR
+                    .lock()
+                    .unwrap_or_else(|poison| poison.into_inner()) = Some(key);
+            }
+            return Ok(read);
+        }
+    }
+    first
+}
+
+/// The title colour a dim UI theme was last read by, tried first on the next screen.
+static LEARNED_TITLE_COLOUR: std::sync::Mutex<Option<[u8; 3]>> = std::sync::Mutex::new(None);
+
+/// When the title colour was last searched for, and how often it may be.
+static LAST_LEARN: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+const LEARN_EVERY: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// How many shared colours [`title_colours`] offers: the text and the card panel are the usual two.
+const TITLE_COLOUR_GUESSES: usize = 3;
+
+/// The colours the four title strips have in common, most widely shared first.
+///
+/// Each strip's pixels are binned coarsely (8 levels a channel) so anti-aliasing and capture noise
+/// land in the text's bin. A bin counts for a strip when it covers at least 2% of it; the bins
+/// present in the most strips win, the larger ones first, and each is offered as the mean colour
+/// of its pixels. On a two- or three-card screen the outer strips are background, so a colour in
+/// only two strips still counts.
+pub fn title_colours(image: &DynamicImage) -> Vec<[u8; 3]> {
+    let (width, height) = image.dimensions();
+    let left = card_block_left(MAX_CARDS, width, height);
+    let (crop_w, crop_h) = (
+        (CARD_WIDTH * height as f32) as u32,
+        (TITLE_HEIGHT * height as f32) as u32,
+    );
+    let top = (TITLE_TOP * height as f32) as u32;
+    // Per bin: strips it covers, total pixels and the colour sums for its mean.
+    let mut bins = vec![(0_u32, 0_u64, [0_u64; 3]); 512];
+    for slot in 0..MAX_CARDS {
+        let x = (left + CARD_PITCH * slot as f32 * height as f32) as u32;
+        if x + crop_w > width || top + crop_h > height {
+            continue;
+        }
+        let mut counts = vec![(0_u64, [0_u64; 3]); 512];
+        for pixel in image.view(x, top, crop_w, crop_h).to_image().pixels() {
+            let [r, g, b] = [pixel[0], pixel[1], pixel[2]];
+            let bin = ((r >> 5) as usize) << 6 | ((g >> 5) as usize) << 3 | (b >> 5) as usize;
+            counts[bin].0 += 1;
+            for (sum, value) in counts[bin].1.iter_mut().zip([r, g, b]) {
+                *sum += value as u64;
+            }
+        }
+        let floor = (crop_w * crop_h) as u64 / 50;
+        for (bin, (count, sums)) in counts.into_iter().enumerate() {
+            if count >= floor {
+                bins[bin].0 += 1;
+                bins[bin].1 += count;
+                for (total, sum) in bins[bin].2.iter_mut().zip(sums) {
+                    *total += sum;
+                }
+            }
+        }
+    }
+    let mut shared = bins
+        .into_iter()
+        .filter(|(strips, _, _)| *strips >= 2)
+        .collect::<Vec<_>>();
+    shared.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.cmp(&a.1)));
+    shared
+        .into_iter()
+        .take(TITLE_COLOUR_GUESSES)
+        .map(|(_, count, sums)| sums.map(|sum| (sum / count) as u8))
+        .collect()
+}
+
+/// How a title pixel is graded before the threshold.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Grade {
+    /// By its brightest channel: any bright title, whatever its hue.
+    Brightest,
+    /// By how close it is to a known title colour: a dim or dark one too.
+    Near([u8; 3]),
+}
+
+impl Grade {
+    fn of(self, red: u8, green: u8, blue: u8) -> u8 {
+        match self {
+            Self::Brightest => title_brightness(red, green, blue),
+            Self::Near(key) => title_closeness([red, green, blue], key),
+        }
+    }
+}
+
+/// How close a pixel is to the title colour, as a brightness: the colour itself is white, and
+/// anything a quarter of the way across the colour cube or further is black.
+pub fn title_closeness(pixel: [u8; 3], key: [u8; 3]) -> u8 {
+    let distance = pixel
+        .iter()
+        .zip(key)
+        .map(|(a, b)| (*a as f32 - b as f32).powi(2))
+        .sum::<f32>()
+        .sqrt();
+    (255.0 - distance * 2.0).clamp(0.0, 255.0) as u8
+}
+
+/// [`read_cards_in`] with one grade: the layouts, widest first.
+fn read_cards_graded(
+    image: &DynamicImage,
+    candidates: CardCandidates<'_>,
+    grade: Grade,
+) -> Result<Vec<(String, f32)>, &'static str> {
     let (width, height) = image.dimensions();
     // Up to three layouts per poll rather than one, so a poll off the reward screen costs
     // three crops instead of one, about 200ms every two seconds. Narrow it by asking the log for
     // the squad size if that ever shows up in a profile.
-    let widest = read_cards_at(image, width, height, MAX_CARDS, candidates);
+    let widest = read_cards_at(image, width, height, MAX_CARDS, candidates, grade);
     if widest.is_ok() {
         return widest.map_err(|(_, reason)| reason);
     }
@@ -251,7 +414,7 @@ pub fn read_cards_in(
         if shares_slots_with_the_widest && !outside_the_block_is_empty {
             break;
         }
-        if let Ok(read) = read_cards_at(image, width, height, cards, candidates) {
+        if let Ok(read) = read_cards_at(image, width, height, cards, candidates, grade) {
             return Ok(read);
         }
     }
@@ -269,16 +432,17 @@ fn read_cards_at(
     height: u32,
     cards: usize,
     candidates: CardCandidates<'_>,
+    grade: Grade,
 ) -> Result<Vec<(String, f32)>, (usize, &'static str)> {
     let left = card_block_left(cards, width, height);
-    let mut read = Vec::with_capacity(cards);
-    for slot in 0..cards {
+    let read_slot = |slot: usize| -> Result<(String, f32), (usize, &'static str)> {
         let (text, crop) = read_region(
             image,
             (left + CARD_PITCH * slot as f32 * height as f32) as u32,
             (TITLE_TOP * height as f32) as u32,
             (CARD_WIDTH * height as f32) as u32,
             (TITLE_HEIGHT * height as f32) as u32,
+            grade,
         )
         .map_err(|reason| (slot, reason))?;
         let matched = best_card_match(&text, candidates);
@@ -310,10 +474,33 @@ fn read_cards_at(
         if normalise(&text).is_empty() {
             return Err((slot, BLANK_CARD));
         }
-        let Some(card) = matched.filter(|(_, score)| *score >= MATCH_FLOOR) else {
-            return Err((slot, "reward card text did not match the relic pool"));
-        };
-        read.push(card);
+        matched
+            .filter(|(_, score)| *score >= MATCH_FLOOR)
+            .ok_or((slot, "reward card text did not match the relic pool"))
+    };
+    // The first card alone, so a wrong layout or a screen that is not painted yet still costs a
+    // single tesseract run. Once it matches, the layout is right and the rest are read side by
+    // side: one spawn per card in a row cost a second or more on Windows, long enough for the
+    // overlay to land after the player had already picked.
+    let first = read_slot(0)?;
+    let rest = std::thread::scope(|scope| {
+        let reads = (1..cards)
+            .map(|slot| scope.spawn(move || read_slot(slot)))
+            .collect::<Vec<_>>();
+        reads
+            .into_iter()
+            .zip(1..)
+            .map(|(read, slot)| {
+                read.join()
+                    .unwrap_or(Err((slot, "reward card read panicked")))
+            })
+            .collect::<Vec<_>>()
+    });
+    let mut read = Vec::with_capacity(cards);
+    read.push(first);
+    // In slot order, so the error reported is the leftmost card's, as when they were read in turn.
+    for card in rest {
+        read.push(card?);
     }
     Ok(read)
 }
@@ -321,7 +508,7 @@ fn read_cards_at(
 /// Crop one region and OCR it. Returns the text and the crop, which the caller deletes. It is
 /// kept only when the read was poor enough to be worth looking at.
 ///
-/// The card title is near-white text laid over arbitrary card art, and handing tesseract that
+/// The card title is near-white (or, under a coloured UI theme, bright coloured) text laid over arbitrary card art, and handing tesseract that
 /// greyscale crop directly makes it read the art: a dark helmet behind a word garbles it, and card
 /// borders at the edge of the crop come back as leading `|`, `Fr` or `pA UY`. Isolating the text
 /// from the art is what fixes both, and it is a two-step job. `-normalize` first, so the cutoff is
@@ -341,24 +528,37 @@ fn read_region(
     y: u32,
     width: u32,
     height: u32,
+    grade: Grade,
 ) -> Result<(String, PathBuf), &'static str> {
     let crop = scratch_file("reward-crop", "png");
-    prepare_crop(image, x, y, width, height)
+    prepare_graded(image, x, y, width, height, grade)
         .save(&crop)
         .map_err(|_| "could not write the reward card crop")?;
     let text = ocr_crop(&crop)?;
     Ok((text, crop))
 }
 
-/// Crop, greyscale, normalize, threshold, invert and upscale one card title.
+/// Crop, take each pixel's brightest channel, normalize, threshold, invert and upscale one card
+/// title.
 ///
 /// Split from the file handling so the pipeline can be driven from pixels in a test rather than
 /// only through a temp file.
 pub fn prepare_crop(source: &DynamicImage, x: u32, y: u32, width: u32, height: u32) -> GrayImage {
+    prepare_graded(source, x, y, width, height, Grade::Brightest)
+}
+
+fn prepare_graded(
+    source: &DynamicImage,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    grade: Grade,
+) -> GrayImage {
     let cropped = source.view(x, y, width, height).to_image();
     let grey = cropped
         .pixels()
-        .map(|pixel| luma(pixel[0], pixel[1], pixel[2]))
+        .map(|pixel| grade.of(pixel[0], pixel[1], pixel[2]))
         .collect::<Vec<_>>();
     let prepared = threshold_inverted(&normalize_contrast(&grey));
     let prepared = GrayImage::from_raw(width, height, prepared)
@@ -375,6 +575,18 @@ pub fn prepare_crop(source: &DynamicImage, x: u32, y: u32, width: u32, height: u
         height * 3,
         image::imageops::FilterType::CatmullRom,
     )
+}
+
+/// How bright a title pixel is, for the threshold: its brightest channel.
+///
+/// The title is near-white in the default UI theme, but other themes colour it, and a luma
+/// weighting (blue counts 7%) turns a blue title darker than the card art behind it: under a blue
+/// theme a silver weapon became the brightest thing in the crop, the stretch pinned to it and the
+/// title fell below the cutoff, so the card read as blank. The brightest channel keeps a coloured
+/// title as bright as it looks, and leaves near-white text, where all three channels agree, where
+/// it was: every labelled fixture card reads exactly as it did with luma.
+pub fn title_brightness(red: u8, green: u8, blue: u8) -> u8 {
+    red.max(green).max(blue)
 }
 
 /// ImageMagick 7's `-colorspace gray`: a Rec.709 weighted sum of the *gamma-encoded* bytes.

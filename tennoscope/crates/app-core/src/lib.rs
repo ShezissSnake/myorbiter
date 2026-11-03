@@ -74,6 +74,12 @@ impl MasteryView {
         MasteryLedger::new(catalog, &self.holdings, self.facts.as_ref()).reward_mark(reward_name)
     }
 
+    /// The set row a reward carries: every slot of its item's set, toward the next whole set.
+    pub fn set_view(&self, reward_name: &str) -> Option<warframe_domain::SetView> {
+        let catalog = self.catalog.as_deref()?;
+        MasteryLedger::new(catalog, &self.holdings, self.facts.as_ref()).set_view(reward_name)
+    }
+
     /// The strip a kiosk tile carries, or nothing without live facts or for mastered parts.
     pub fn kiosk_mastery(&self, part_name: &str) -> Option<KioskMastery> {
         let catalog = self.catalog.as_deref()?;
@@ -165,6 +171,70 @@ impl AppCore {
     /// downgrade withdraws the catalogue padding as it retires the facts.
     pub fn set_reads_inventory(&mut self, reads_inventory: bool) {
         self.reads_inventory = reads_inventory;
+    }
+
+    /// When each foundry build finishes (recipe path, unix ms), for orbiter.
+    pub fn foundry_ready(&self) -> Option<Vec<(String, i64)>> {
+        self.mastery_facts
+            .as_ref()
+            .map(|facts| facts.foundry_ready().to_vec())
+    }
+
+    /// The account's mastery rank from the last inventory read, for orbiter.
+    pub fn player_level(&self) -> Option<u32> {
+        self.mastery_facts
+            .as_ref()
+            .and_then(|facts| facts.player_level())
+    }
+
+    /// Platinum on the account from the last inventory read, for orbiter.
+    pub fn platinum(&self) -> Option<u64> {
+        self.mastery_facts
+            .as_ref()
+            .and_then(|facts| facts.platinum())
+    }
+
+    /// Credits and Endo on the account from the last inventory read, for orbiter.
+    pub fn wallet(&self) -> (Option<u64>, Option<u64>) {
+        self.mastery_facts
+            .as_ref()
+            .map_or((None, None), |facts| (facts.credits(), facts.endo()))
+    }
+
+    /// Unveiled rivens from the last inventory read, for orbiter.
+    pub fn rivens(&self) -> Option<Vec<serde_json::Value>> {
+        self.mastery_facts
+            .as_ref()
+            .map(|facts| facts.rivens().to_vec())
+    }
+
+    /// Kubrow and Kavat imprints from the last inventory read, for orbiter.
+    pub fn imprints(&self) -> Option<Vec<serde_json::Value>> {
+        self.mastery_facts
+            .as_ref()
+            .map(|facts| facts.imprints().to_vec())
+    }
+
+    /// Each copy of a warframe, weapon or companion from the last inventory read, for orbiter.
+    pub fn gear(&self) -> Option<Vec<serde_json::Value>> {
+        self.mastery_facts
+            .as_ref()
+            .map(|facts| facts.gear().to_vec())
+    }
+
+    /// The warframes fed to the Helminth from the last inventory read, by path, for orbiter.
+    pub fn consumed_suits(&self) -> Option<Vec<String>> {
+        self.mastery_facts
+            .as_ref()
+            .map(|facts| facts.consumed_suits().to_vec())
+    }
+
+    /// Builds waiting in the foundry, by recipe path, once an inventory read this run has seen
+    /// them; `None` before that (for orbiter, which counts a part being crafted as held).
+    pub fn foundry_builds(&self) -> Option<std::collections::BTreeMap<String, u32>> {
+        self.mastery_facts
+            .as_ref()
+            .map(|facts| facts.pending_builds().clone())
     }
 
     /// A snapshot of what mastery marks may say, taken once per overlay publish. The
