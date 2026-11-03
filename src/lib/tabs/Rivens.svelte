@@ -21,6 +21,8 @@
   import IconButton from "../ui/IconButton.svelte";
   import Icon from "../ui/Icon.svelte";
   import Thumb from "../ui/Thumb.svelte";
+  import ProgressButton from "../ui/ProgressButton.svelte";
+  import { Job, JobError } from "../job.svelte";
   import { matches } from "../ui/table";
 
   // console: you play on a console or phone, where orbiter can't read your rivens: the finder and
@@ -191,7 +193,29 @@
   // away, timed out) are tried once more at the end, after a pause; what still fails is said.
   let checkingAll = $state<{ done: number; total: number; paused?: boolean; retry?: boolean } | null>(null);
   let checkedAll = $state<{ ok: number; failed: Riven[]; reason: string } | null>(null);
-  let stopAll = false;
+  let stopAll = $state(false);
+  // The half-minute pause after warframe.market asks to slow down: the button's fill drains over it.
+  const PAUSE_MS = 30_000;
+  let pausedAt = $state<number | null>(null);
+  let pauseNow = $state(0);
+  const allJob = new Job();
+  /** Price check all, pressed: the button fills as it goes and ends on how many were checked. */
+  function checkAllPressed() {
+    void allJob.run(async () => {
+      await checkAll();
+      if (stopAll) return "Stopped";
+      if (!checkedAll) return null;
+      const n = checkedAll.failed.length;
+      if (n) throw new JobError(`${n} failed`, `${checkedAll.ok} checked; ${n} couldn't be: ${checkedAll.reason}`);
+      return `${checkedAll.ok} checked`;
+    });
+  }
+  const allFill = $derived(
+    !checkingAll ? null : checkingAll.paused && pausedAt != null ? Math.max(0, 1 - (pauseNow - pausedAt) / PAUSE_MS) : checkingAll.total ? checkingAll.done / checkingAll.total : null,
+  );
+  const allWord = $derived(
+    !checkingAll ? "" : stopAll ? "Stopping…" : checkingAll.paused ? `Waiting ${Math.max(0, Math.ceil((PAUSE_MS - (pauseNow - (pausedAt ?? pauseNow))) / 1000))}s` : `${checkingAll.retry ? "Retrying" : "Checking"} ${checkingAll.done}/${checkingAll.total}`,
+  );
   const failedCheck = (r: Riven) => !!checks[r.id]?.error;
   /** Not checked this run: never, or only kept from an earlier one. */
   const toCheck = (r: Riven) => !checks[r.id]?.auctions || !!checks[r.id]?.saved;
@@ -209,7 +233,11 @@
     checkingAll = { done: 0, total: todo.length };
     const wait = async () => {
       checkingAll = { ...checkingAll!, paused: true };
-      await new Promise((res) => setTimeout(res, 30_000));
+      pausedAt = pauseNow = Date.now();
+      const t = setInterval(() => (pauseNow = Date.now()), 250);
+      await new Promise((res) => setTimeout(res, PAUSE_MS));
+      clearInterval(t);
+      pausedAt = null;
       checkingAll = { ...checkingAll!, paused: false };
     };
     for (const r of todo) {
@@ -339,6 +367,16 @@
   let found = $state<{ key: string; weapon: { slug: string; name: string }; auctions?: RivenAuction[]; any?: RivenAuction[]; error?: string; loading: boolean } | null>(null);
   /** Results by price as listed, or the best deal against the estimate first. */
   let foundSort = $state<"price" | "deal">("price");
+  // Search: working while it reads, then how many it found (at your price, when you set one).
+  const findJob = new Job();
+  function search() {
+    void findJob.run(async () => {
+      await find();
+      if (found?.error) throw new JobError("Failed", found.error);
+      const n = (found?.auctions ?? []).filter((a) => !maxPrice || (a.price ?? Infinity) <= maxPrice).length;
+      return `${n} found`;
+    });
+  }
   async function find() {
     if (!weapon) return;
     const positive = pos.filter(Boolean);
@@ -469,15 +507,17 @@
           <option value="estimate" title="orbiter's estimate of what a riven like it is listed for, from all its stats, highest first. Rivens not price checked yet go last">Estimate</option>
         </select>
       </label>
-      {#if checkingAll}
-        <span class="checking"><span class="dim small">{checkingAll.paused ? `${checkingAll.retry ? "Some checks failed" : "warframe.market asked to slow down"}: waiting half a minute, then ${checkingAll.retry ? "trying those again" : `${checkingAll.done + 1} of ${checkingAll.total}`}…` : `${checkingAll.retry ? "Trying again" : "Checking"} ${checkingAll.done + 1} of ${checkingAll.total}…`}</span><button class="link" onclick={() => (stopAll = true)}>Stop</button></span>
-      {:else}
+      {#if checkingAll?.paused}
+        <span class="dim small">{checkingAll.retry ? "Some checks failed" : "warframe.market asked to slow down"}: waiting half a minute, then {checkingAll.retry ? "trying those again" : `${checkingAll.done + 1} of ${checkingAll.total}`}</span>
+      {:else if !checkingAll}
         {#if stillFailed.length}
           <span class="checking"><span class="dim small" title={checkedAll!.reason}>Checked {checkedAll!.ok}; {stillFailed.length} couldn't be ({checkedAll!.reason.replace(/(; |\. ).*$/, "")})</span><button class="link" title="Check the ones that failed again" onclick={() => checkAll(stillFailed)}>Try those again</button></span>
         {/if}
         {#if keptCount && Date.now() - keptAt >= DAY}<span class="dim small kept" title="Some prices shown are from orbiter's last check, a day or more ago: riven prices move little from one day to the next. They're checked again by themselves while this page is open">Some prices from {checkedWhen(keptAt, Date.now())}</span>{/if}
-        <button class="stamp" disabled={!meta} title={!meta ? "Waiting for warframe.market's riven list" : !unchecked ? "Check every riven's price again" : keptCount === unchecked ? "Check again the prices kept from earlier, one after another" : "Find similar rivens for sale for each of yours, one after another"} onclick={() => checkAll()}>{!unchecked ? "Check prices again" : keptCount === unchecked ? "Update prices" : unchecked === shown.length ? (shown.length === mine.length ? "Price check all" : `Price check these ${unchecked}`) : `Price check the other ${unchecked}`}</button>
       {/if}
+      <ProgressButton job={allJob} busy={!!checkingAll} progress={checkingAll ? allFill : undefined} working={allWord} onstop={() => (stopAll = true)} sizer={["Checking 000/000", "Stopping…", "000 checked"]}
+        label={!unchecked ? "Check prices again" : keptCount === unchecked ? "Update prices" : unchecked === shown.length ? (shown.length === mine.length ? "Price check all" : `Price check these ${unchecked}`) : `Price check the other ${unchecked}`}
+        title={!meta ? "Waiting for warframe.market's riven list" : !unchecked ? "Check every riven's price again" : keptCount === unchecked ? "Check again the prices kept from earlier, one after another" : "Find similar rivens for sale for each of yours, one after another. Click again while it runs to stop"} disabled={!meta} onclick={checkAllPressed} />
       <span class="dim small explain">Grades compare each roll with its range: S is the top of it, B the middle, F the bottom. A smaller curse grades higher. Dispositions are 1.2 for every weapon since the 22 October 2026 hotfix.</span>
     </div>
     <CardGrid min="23rem">
@@ -595,7 +635,7 @@
             {:else}<span class="dim small">Not price checked yet</span>{/if}
             <span class="grow"></span>
             <!-- The same three places on every card: check prices, sell, open on warframe.market. -->
-            <IconButton icon={pc || c?.error ? "refresh" : "search"} tone="quiet" label={c?.loading ? "Checking…" : pc ? "Check again" : c?.error ? "Try again" : "Price check"} title={pc ? "Check again: find similar rivens for sale now" : "Price check: find similar rivens for sale"} disabled={!meta || c?.loading} onclick={() => check(r)} />
+            <ProgressButton variant="icon" icon={pc || c?.error || c?.loading ? "refresh" : "search"} spin tone="quiet" state={c?.loading ? "working" : "idle"} label={pc ? "Check again" : c?.error ? "Try again" : "Price check"} working="Checking…" title={pc ? "Check again: find similar rivens for sale now" : "Price check: find similar rivens for sale"} disabled={!meta} onclick={() => check(r)} />
             {#if meta && auctionOf(meta, r, rivens.mine)}<span class="slot"></span>
             {:else}<IconButton icon="list" tone={sell[r.id] ? "gold" : "quiet"} label="Sell" title={!mkt.linked ? "Sign in to warframe.market on Orders first" : "Sell: put it up as an auction on warframe.market"} disabled={!meta || !mkt.linked || !!sell[r.id]} onclick={() => openSell(r, estimates[r.id]?.mid ?? pc?.typical ?? pc?.lowest ?? null)} />{/if}
             <IconButton icon="external" tone="quiet" label="Similar rivens on warframe.market" onclick={() => openUrl(searchUrl(r))} />
@@ -621,7 +661,7 @@
         <select bind:value={neg} aria-label="Curse"><option value="">Any curse or none</option>{#each attrsFor.filter((a) => !a.positiveOnly && !takenBut(neg).has(a.slug)) as a (a.slug)}<option value={a.slug}>−{a.name}</option>{/each}</select>
         <span class="plat"><input type="number" min="1" placeholder="Max price" bind:value={maxPrice} aria-label="Most you'd pay" /><GameIcon name="platinum" size={14} /></span>
         <span class="go">
-          <button class="stamp" disabled={!weapon} onclick={find}><Icon name="search" />Search</button>
+          <ProgressButton icon="search" job={findJob} label="Search" working="Searching…" sizer={["000 found"]} title={weapon ? "Find rivens for sale with these stats" : "Pick a weapon first"} disabled={!weapon} onclick={search} />
           <button class="stamp gold" disabled={!weapon || !maxPrice} title={!weapon || !maxPrice ? "Pick a weapon and the most you'd pay first" : "Get a notification when one is listed at or under your price (checked every 5 minutes)"} onclick={watch}><Icon name="bell" />Alert me</button>
         </span>
       </div>
@@ -749,7 +789,7 @@
   .form .plat input { flex: 1; min-width: 0; width: auto; min-height: 36px; padding-right: 2rem; }
   .form .plat > :global(:last-child) { position: absolute; right: .7rem; pointer-events: none; }
   .form .go { grid-column: span 2; display: flex; gap: .5rem; justify-content: flex-end; }
-  .form .go .stamp { display: inline-flex; align-items: center; gap: .5rem; height: 36px; }
+  .form .go :global(.stamp) { display: inline-flex; align-items: center; gap: .5rem; height: 36px; }
   /* Page area under 760 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt760"]) .form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .plat { display: inline-flex; align-items: center; gap: .35rem; }
