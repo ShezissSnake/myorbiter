@@ -157,7 +157,7 @@
       {#each r.rewards as x, i (i)}
         <span class="rwc rar-{x.rarity}" class:need={x.needed} class:done={x.parentMastered && !x.needed} use:info={x.name}>
           <span class="rwc-pic">
-          {#if model.imageOf(x.name)}<img src={imageUrl(model.imageOf(x.name) ?? "")} alt="" loading="lazy" onerror={(e) => ((e.currentTarget as HTMLImageElement).style.visibility = "hidden")} />{/if}
+          {#if model.imageOf(x.name)}<img src={imageUrl(model.imageOf(x.name) ?? "")} alt="" loading="lazy" decoding="async" onerror={(e) => ((e.currentTarget as HTMLImageElement).style.visibility = "hidden")} />{/if}
           </span>
           {#if x.needed}<i></i>{/if}
         </span>
@@ -374,12 +374,14 @@
   /* A reward as the game's reward screen draws it: a small square card, its rarity in the frame
      and a bar along the bottom (not a round ring: round is a part chip, "enough in hand"). */
   .rwc { --rar: var(--rule-bright); position: relative; width: 30px; height: 30px; display: inline-flex; }
+  /* The frame and the bar are borders: inset shadows on six squares a card cost more to draw than
+     the rest of the card, on every scrolled frame. */
   .rwc-pic {
     width: 100%; height: 100%; display: inline-flex; align-items: center; justify-content: center; overflow: hidden;
-    border-radius: 3px; background: linear-gradient(180deg, #1d2026, var(--well));
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rar) 45%, transparent), inset 0 -3px 0 var(--rar);
+    background: linear-gradient(180deg, #1d2026, var(--well));
+    border: 1px solid color-mix(in srgb, var(--rar) 45%, transparent); border-bottom: 3px solid var(--rar);
   }
-  .rwc img { width: 78%; height: 78%; margin-top: -2px; object-fit: contain; }
+  .rwc img { width: 84%; height: 84%; object-fit: contain; }
   .rwc.rar-Common { --rar: var(--rarity-common); }
   .rwc.rar-Uncommon { --rar: var(--rarity-uncommon); }
   .rwc.rar-Rare { --rar: var(--rarity-rare); }

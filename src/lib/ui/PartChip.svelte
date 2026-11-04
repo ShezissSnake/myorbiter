@@ -22,7 +22,7 @@
 </script>
 
 <span class="chip" class:enough class:some class:building={part.building && !enough} class:res={part.resource} class:bp={part.blueprint} style:width="{size}px" style:height="{size}px" aria-label={title} use:info={part.name}>
-  {#if part.image && !failed}<img src={imageUrl(part.image)} alt="" loading="lazy" onerror={() => (failed = true)} />{:else}<i class="none"></i>{/if}
+  {#if part.image && !failed}<img src={imageUrl(part.image)} alt="" loading="lazy" decoding="async" onerror={() => (failed = true)} />{:else}<i class="none"></i>{/if}
   {#if part.have > 0 || part.required > 1}<b class="n" class:short={!enough} title={part.required > 1 || part.resource ? `Held: ${part.have.toLocaleString("en")} of ${part.required.toLocaleString("en")} needed` : `Held: ${part.have}`}>{part.resource || part.have >= 1000 ? count(part.have) : part.required > 1 && part.have < part.required ? `${part.have}/${part.required}` : part.have}</b>{/if}
 </span>
 
@@ -37,7 +37,7 @@
   /* The main blueprint shows the item itself, washed blue like the game's blueprint art. */
   .bp img { filter: grayscale(1) sepia(1) hue-rotate(175deg) saturate(3) brightness(.75); opacity: .55; }
   .bp.enough img, .bp.some img, .bp.building img { filter: grayscale(1) sepia(1) hue-rotate(175deg) saturate(3.2) brightness(1); opacity: 1; }
-  .enough { box-shadow: inset 0 0 0 1.5px var(--gold), 0 0 10px -3px rgb(214 174 74 / 55%); }
+  .enough { box-shadow: inset 0 0 0 1.5px var(--gold); }
   .some { box-shadow: inset 0 0 0 1.5px var(--gold-dim); }
   .building { box-shadow: none; outline: 1.5px dashed var(--platinum-dim); outline-offset: -1.5px; }
   .res.enough { box-shadow: inset 0 0 0 1.5px var(--platinum-deep); }
