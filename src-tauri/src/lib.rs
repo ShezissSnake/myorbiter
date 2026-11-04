@@ -12,6 +12,7 @@ mod fissures;
 mod noxsframe;
 mod recipes;
 mod relicdata;
+mod updates;
 
 use orbiter_data::ee_log::{find_ee_log, LogFollower, MissionState};
 use std::path::{Path, PathBuf};
@@ -1018,6 +1019,9 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
+        // Updates (updates.rs), and the restart that follows one.
+        .plugin(updates::plugin())
+        .plugin(tauri_plugin_process::init())
         // The riven key (see `set_riven_key`): pressed in game, the page asks TennoScope to read the inventory.
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -1031,6 +1035,7 @@ pub fn run() {
         .manage(Mutex::new(LogFollower::default()))
         .manage(presence::Presence::default())
         .manage(feed::Feed::default())
+        .manage(updates::Pending::default())
         .manage({
             let c = companion::Companion::default();
             c.adopt();
@@ -1040,7 +1045,7 @@ pub fn run() {
             if let Ok(dir) = app.path().app_log_dir() {
                 applog::init(&dir);
             }
-            log::info!(target: "orbiter::app", "orbiter {} started on {} {}", env!("CARGO_PKG_VERSION"), std::env::consts::OS, std::env::consts::ARCH);
+            log::info!(target: "orbiter::app", "orbiter {} started on {} {}", app.package_info().version, std::env::consts::OS, std::env::consts::ARCH);
             // Ctrl+C in a terminal, logout, `kill`: close the TennoScope orbiter started, then exit
             // (Ctrl+Q and the window's X go through `quit` and RunEvent::Exit below instead).
             #[cfg(unix)]
@@ -1162,9 +1167,12 @@ pub fn run() {
             market_create,
             market_update,
             market_close,
-            market_delete
+            market_delete,
+            updates::updates_info,
+            updates::updates_check,
+            updates::updates_install
         ])
-        .build(tauri::generate_context!())
+        .build(updates::context(tauri::generate_context!()))
         .expect("error while starting orbiter")
         .run(|app, event| {
             // Closing orbiter closes the TennoScope it started (never one you started yourself).

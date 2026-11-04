@@ -6,10 +6,15 @@
   import Chip from "./ui/Chip.svelte";
   import { grouped, movePage, moveSection, orderPages, pagesFor } from "./pages";
   import Icon from "./ui/Icon.svelte";
-  import { flip } from "./motion";
+  import { flip, pulse, reveal } from "./motion";
   import WeightSliders from "./ui/WeightSliders.svelte";
   import { NOX_SETTING } from "./core/builds";
   import FullMode from "./FullMode.svelte";
+  import Seg from "./ui/Seg.svelte";
+  import ProgressButton from "./ui/ProgressButton.svelte";
+  import { openUrl } from "./backend";
+  import { updates } from "./updates.svelte";
+  import { CHANNELS, CHANNEL_LABEL, checkedAgo, installChecks, installInstalls, installNote, noteLines, releasePage, versionLine } from "./core/updates";
 
   let {
     open = $bindable(),
@@ -19,7 +24,36 @@
     onpaths,
     onnotices,
     rivenKeyError = null,
-  }: { open: boolean; settings: Settings; defaultDir: string; eeFound: string | null; onpaths: () => void; onnotices: () => void; rivenKeyError?: string | null } = $props();
+    focus = $bindable(null),
+  }: { open: boolean; settings: Settings; defaultDir: string; eeFound: string | null; onpaths: () => void; onnotices: () => void; rivenKeyError?: string | null; focus?: string | null } = $props();
+
+  // Show me (What's New) opens the panel at a section: scrolled to and ringed briefly.
+  $effect(() => {
+    if (!open || !focus) return;
+    const id = focus;
+    focus = null;
+    const t = setTimeout(() => {
+      const el = document.getElementById(`settings-${id}`);
+      if (!el) return;
+      el.scrollIntoView({ block: "start", behavior: "smooth" });
+      pulse(el);
+    }, 260);
+    return () => clearTimeout(t);
+  });
+
+  // Updates: this copy's version and channel, and what the chosen channel offers.
+  const info = $derived(updates.info);
+  const checks = $derived(!!info && installChecks(info.install));
+  const installs = $derived(!!info && installInstalls(info.install));
+  const offer = $derived(updates.offer);
+  /** Ages "Last checked" while the panel is open. */
+  let now = $state(Date.now());
+  $effect(() => {
+    if (!open) return;
+    now = Date.now();
+    const t = setInterval(() => (now = Date.now()), 30_000);
+    return () => clearInterval(t);
+  });
 
   let logError = $state<string | null>(null);
   // Paths are edited as drafts and applied together, because changing them reloads everything.
@@ -254,6 +288,34 @@
     <div class="row"><button class="stamp" onclick={() => { open = false; onnotices(); }}>Open notifications</button></div>
   </section>
 
+  <section id="settings-updates" data-card="updates">
+    <h3 class="register">Updates</h3>
+    <p class="ver"><span class="register">This is orbiter</span> <b class="mono" title="The version, and the channel it came from">{info ? versionLine(info.version, settings.updates) : "…"}</b></p>
+    {#if info && installNote(info.install)}<p class="hint">{installNote(info.install)}</p>{/if}
+    <Seg label="Channel" value={settings.updates.channel} options={CHANNELS.map((c) => ({ ...c }))} onchange={(c) => updates.setChannel(c)} />
+    <p class="hint">{CHANNELS.find((c) => c.v === settings.updates.channel)?.title}. Switching to a more stable channel never steps back by itself: if its build is older than this one, orbiter offers it here and installs it only when you click.</p>
+    <div class="row">
+      <ProgressButton job={updates.checkJob} label="Check now" disabled={!checks} sizer={["Up to date · 0.1.9999", "Experimental has 0.1.9999", "Couldn't check"]} title={checks ? `Look for a newer build on ${CHANNEL_LABEL[settings.updates.channel]} now. orbiter also looks when it starts and every 6 hours; nothing installs without your click.` : (info ? (installNote(info.install) ?? "") : "")} status />
+      <button type="button" class="link out" title="Open this build's release page on GitHub, in your browser: what changed, and its downloads" onclick={() => openUrl(releasePage(info?.version ?? "0.1.0"))}>Release notes<Icon name="external" size={11} /></button>
+    </div>
+    {#if checks}<p class="hint">Last checked {checkedAgo(settings.updates.lastCheck, now)}{#if updates.error}{" "}· <span title={updates.error}>couldn't check for updates</span>{/if}.</p>{/if}
+    {#if offer}
+      <div class="offer" transition:reveal>
+        <div class="offer-in">
+          {#if offer.older}
+            <p class="small">{CHANNEL_LABEL[offer.channel]}'s build is <b class="mono">{offer.version}</b>, older than this one ({info?.version}). Switching installs it: a step back, so only when you click.</p>
+          {:else}
+            <p class="small"><b class="mono">{offer.version}</b> is out on {CHANNEL_LABEL[offer.channel]}.</p>
+          {/if}
+          {#if noteLines(offer.notes).length}<ul class="notes">{#each noteLines(offer.notes) as line, i (i)}<li>{line}</li>{/each}</ul>{/if}
+          <div class="row">
+            <ProgressButton job={updates.installJob} tone="gold" label={offer.older ? `Switch to ${CHANNEL_LABEL[offer.channel]}'s ${offer.version}` : "Update and restart"} disabled={!installs} sizer={["Downloading 100%", "Restarting", "Not installed"]} title={installs ? `Download ${offer.version}, check its signature, install it and restart orbiter into it` : (info ? (installNote(info.install) ?? "") : "")} onclick={() => updates.install()} status />
+          </div>
+        </div>
+      </div>
+    {/if}
+  </section>
+
   <section>
     <h3 class="register">Logs</h3>
     <p class="hint">What orbiter did and what went wrong, one line each, for when something misbehaves: TennoScope starting or failing, every change it made to your listings and every request warframe.market turned down, and errors in this window. Never your warframe.market sign-in. TennoScope keeps its own. Send both when you report a problem.</p>
@@ -305,5 +367,12 @@
   .mv :global(svg) { transform: rotate(-90deg); }
   .mv.down :global(svg) { transform: rotate(90deg); }
   /* Unsaved paths: pinned to the bottom of the panel, so it can't be missed whichever field changed. */
+  .ver { margin: 0; display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
+  .ver b { color: var(--platinum); font-weight: 600; }
+  .mono { font-family: var(--face-register); font-variant-numeric: tabular-nums; }
+  .link.out { display: inline-flex; align-items: center; gap: .35rem; }
+  .offer-in { display: grid; gap: .7rem; padding: .9rem 1rem; background: var(--raised); border: 1px solid var(--gold-dim); box-shadow: inset 3px 0 0 var(--gold); }
+  .offer-in p { margin: 0; }
+  .notes { margin: 0; padding-left: 1.1rem; display: grid; gap: .2rem; font-size: .8rem; color: var(--platinum-dim); }
   .unsaved { position: sticky; bottom: -2rem; display: grid; gap: .7rem; padding: 1rem 1.1rem; background: var(--raised); border: 1px solid var(--gold-dim); box-shadow: inset 3px 0 0 var(--gold); }
 </style>

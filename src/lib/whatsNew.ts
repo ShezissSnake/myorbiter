@@ -30,6 +30,14 @@ export interface NewsEntry {
 
 export const NEWS: NewsEntry[] = [
   {
+    id: 16,
+    date: "2026-11-04",
+    items: [
+      { title: "orbiter updates itself", icon: { line: "refresh" }, text: "A new build shows in the corner with what changed and Update and restart: it downloads, checks its signature and restarts into it, never without your click (Later hides it until the next one). Pick your channel in Settings, Updates: Stable (tested builds), Beta (the next Stable, a few days early) or Experimental (every change as soon as it's built, may break). There too: Check now, the version you're on and where it came from, and the release notes. The Linux AppImage and the Windows installer update this way; a .deb or .rpm goes through your package manager.", open: "settings#updates" },
+      { title: "Which build you're on", icon: { line: "guide" }, text: "The Guide's last line, this screen and Settings say your version and the channel it came from (0.1.52 · Beta), beside the commit it was built from. Say it when you report a problem.", open: "guide#build" },
+    ],
+  },
+  {
     id: 15,
     date: "2026-11-03",
     items: [
@@ -197,6 +205,17 @@ export const NEWS: NewsEntry[] = [
 ];
 
 export const NEWEST = String(NEWS[0].id);
+
+/**
+ * Where a change's Show me goes, by name: a page, or Settings (its panel opens at the section,
+ * "settings#updates"). Null for anything else.
+ */
+export function showMeTarget(to: string, pageLabel: (page: string) => string | null): { label: string } | null {
+  const page = to.split("#")[0].split("?")[0];
+  if (page === "settings") return { label: "Settings" };
+  const label = pageLabel(page);
+  return label ? { label } : null;
+}
 
 /** One update as the update screen shows it: the entries out the same day, newest first. */
 export interface NewsBatch {

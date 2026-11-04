@@ -6,6 +6,12 @@ edition = "2021"
 license = "GPL-3.0-only"
 rust-version = "1.77.2"
 
+[features]
+# For the end-to-end test of updating only: lets ORBITER_UPDATER_E2E_ENDPOINT point update checks at
+# a local http server (updates.rs, `e2e`). Never enabled in a release: release.yml fails any build
+# whose binary carries that name.
+e2e-updater = []
+
 [lib]
 name = "orbiter_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
@@ -47,6 +53,14 @@ flate2 = "1"
 base64 = "0.22"
 # orbiter's own log file (applog.rs): the standard logging front end, already in the build through Tauri.
 log = "0.4"
+# In-app updates from orbiter's GitHub releases (updates.rs): checks a channel's manifest, verifies
+# the download's signature, replaces the AppImage or runs the Windows installer. 2.14.1 at least:
+# it extracts with zip 9 (earlier 2.x pull in zip 4, which has open advisories).
+tauri-plugin-updater = "2.14.1"
+# Restarts orbiter once an update is in place (the page calls its `restart`).
+tauri-plugin-process = "2.4.0"
+# Comparing versions (0.1.52 against 0.1.9 by number), already in the build through Tauri.
+semver = "1"
 [target.'cfg(unix)'.dependencies]
 # Ctrl+C / logout: close the TennoScope orbiter started before exiting.
 signal-hook = "0.3"
