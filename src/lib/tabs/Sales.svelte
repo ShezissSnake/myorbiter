@@ -136,6 +136,11 @@
   let price = $state<number | null>(null);
   // Mods and arcanes sell at very different prices maxed and unranked: say which it was.
   let maxed = $state(false);
+  /**
+   * The item field's suggestions (every tradable name, two thousand or so), drawn the first time
+   * it's focused rather than with the page: most visits never open the list.
+   */
+  let namesWanted = $state(false);
   const names = $derived([...new Set([...model.partByName.keys(), ...model.primeParents.map((p) => `${p.name} Set`), ...[...model.catalogByUnique.values()].filter((c) => c.tradable).map((c) => c.name)])].sort());
   // What you typed, in any case, as orbiter spells it; something it doesn't know can still be logged.
   const known = $derived(knownName(names, item));
@@ -279,8 +284,8 @@
       {#if importing}<span class="small dim" role="status">Reading warframe.market…</span>{:else if imported}<span class="small" class:dim={!importFailed} class:bad={importFailed} role="status">{imported}</span>{/if}
     </div>
     <form class="addsale" onsubmit={(e) => { e.preventDefault(); add(); }}>
-      <input class="it" list="sale-names" placeholder="Add a sale by hand: item" bind:value={item} aria-label="Item sold" />
-      <datalist id="sale-names">{#each names as n (n)}<option value={n}></option>{/each}</datalist>
+      <input class="it" list="sale-names" placeholder="Add a sale by hand: item" bind:value={item} onfocus={() => (namesWanted = true)} aria-label="Item sold" />
+      {#if namesWanted}<datalist id="sale-names">{#each names as n (n)}<option value={n}></option>{/each}</datalist>{/if}
       {#if ranked}<Chip bind:on={maxed} label="Maxed" title="Sold at max rank (R{ranked.maxRank}), compared with the maxed price" />{/if}
       <input type="number" min="1" placeholder="Qty 1" bind:value={qty} aria-label="How many" />
       <span class="dim">×</span>
