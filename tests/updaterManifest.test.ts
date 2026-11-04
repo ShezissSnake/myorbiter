@@ -129,6 +129,31 @@ test("checking a manifest: its version, https downloads and signatures for that 
   assert.throws(() => checkManifest(null), /not a manifest/);
 });
 
+test("promotion checks every download is the build's own file on this repository's build-<n>", () => {
+  const k = signer();
+  const sig = k.sign(Buffer.from("x"), "0.1.52");
+  const at = (url: string, platform = "linux-x86_64") => ({ version: "0.1.52", notes: "", pub_date: rfc3339(0), platforms: { [platform]: { url, signature: sig } } });
+  const where = { version: "0.1.52", repo: "ShezissSnake/orbiter", tag: "build-52" };
+  const base = "https://github.com/ShezissSnake/orbiter/releases/download/build-52/";
+  assert.deepEqual(checkManifest(at(base + APPIMAGE), where), ["linux-x86_64"]);
+  assert.deepEqual(checkManifest(at(base + SETUP, "windows-x86_64"), where), ["windows-x86_64"]);
+  // Another repository, another release, another host, another system's file.
+  assert.throws(() => checkManifest(at(`https://github.com/Someone/orbiter/releases/download/build-52/${APPIMAGE}`), where), /isn't on ShezissSnake\/orbiter's release build-52/);
+  assert.throws(() => checkManifest(at(`https://github.com/ShezissSnake/orbiter/releases/download/build-51/${APPIMAGE}`), where), /isn't on/);
+  assert.throws(() => checkManifest(at(`https://github.com/ShezissSnake/orbiter/releases/download/channel-stable/${APPIMAGE}`), where), /isn't on/);
+  assert.throws(() => checkManifest(at(`https://example.com/ShezissSnake/orbiter/releases/download/build-52/${APPIMAGE}`), where), /isn't on/);
+  assert.throws(() => checkManifest(at(base + SETUP), where), /isn't linux-x86_64's download/);
+  // Paths out of the release, encoded or not, and a query on the end.
+  assert.throws(() => checkManifest(at(`${base}..%2F..%2Fbuild-1%2F${APPIMAGE}`), where), /isn't linux-x86_64's download/);
+  assert.throws(() => checkManifest(at(`${base}x/${APPIMAGE}`), where), /isn't linux-x86_64's download/);
+  assert.throws(() => checkManifest(at(`${base}${APPIMAGE}?x=1`), where), /isn't linux-x86_64's download/);
+  assert.throws(() => checkManifest(at(`${base}%E0%A4%A`), where), /isn't a file name/);
+  // A system the updater doesn't serve.
+  assert.throws(() => checkManifest(at(base + APPIMAGE, "darwin-aarch64"), where), /not a system the updater serves/);
+  assert.throws(() => checkManifest(at(base + APPIMAGE), { ...where, tag: null }), /both a repository and a tag/);
+  assert.throws(() => checkManifest(at(base + APPIMAGE), { ...where, repo: "x/y z" }), /not a repository/);
+});
+
 test("release notes: Merge prefixes stripped, Git's merge lines dropped, duplicates once, capped", () => {
   assert.equal(
     formatNotes(["Merge: Sync answers on its frame", "Merge branch 'main' of github.com:x/y", "Merge pull request #4 from a/b", "Sync answers on its frame", "  Fissures   read faster ", "", "sync answers on its frame"]),
