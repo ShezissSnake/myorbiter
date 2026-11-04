@@ -63,7 +63,7 @@ tauri-plugin-process = "2.4.0"
 semver = "1"
 [target.'cfg(unix)'.dependencies]
 # Ctrl+C / logout: close the TennoScope orbiter started before exiting.
-signal-hook = "0.3"
+signal-hook = "0.4"
 # Stopping that TennoScope, and the user id for the private bridge folder.
 libc = "0.2"
 
