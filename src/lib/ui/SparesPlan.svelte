@@ -16,6 +16,7 @@
   import Seg from "./Seg.svelte";
   import Switch from "./Switch.svelte";
   import P from "./P.svelte";
+  import Count from "./Count.svelte";
   import type { GameIconName } from "./GameIcon.svelte";
   import {
     CATEGORY_LABEL,
@@ -90,8 +91,10 @@
     {#if !page}<p class="small dim lead">Tick what to sell, open a row to choose how. Nothing is sent until you've looked over the plan.</p>{/if}
     <div class="totals" title={estimate ? "From the daily prices: the plan reads the cheapest in-game price for each" : "From the last plan"}>
       <span class="register">{ticked.length} of {SPARE_CATEGORIES.length} kinds</span>
-      <span><b>{total.listings}</b> listings</span>
-      <span class="pl">{estimate ? "~" : ""}<P v={total.plat} /></span>
+      {#if ticked.every((c) => preview[c])}
+        <span><b><Count value={total.listings} /></b> listings</span>
+        <span class="pl">{estimate ? "~" : ""}<P v={Math.round(total.plat)} /></span>
+      {:else}<span title="Working out what each kind would list">…</span>{/if}
       {#if !usual}<button type="button" class="link quiet" title="Every choice back to orbiter's usual one (what you never sell stays as it is)" onclick={() => (rules = usualKeeping(rules))}>Back to the usual rules</button>{/if}
     </div>
   </header>
