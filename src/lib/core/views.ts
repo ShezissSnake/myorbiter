@@ -778,7 +778,9 @@ export const LICH_KEEP_ALL = Number.MAX_SAFE_INTEGER;
 /**
  * Copies installed in a build can't be traded: they are never spare, and count toward what's kept
  * (an installed copy is the one you use). A mod outside the lich rule still keeps one loose copy to
- * give away besides.
+ * give away besides. `keep` (MOD_KEEP when absent) is the copies kept in all, installed ones
+ * counted: the best loose one first when none is installed, then the lowest-ranked one (to give
+ * away), then the best of the rest.
  */
 export function modSpares(mod: { ranks: { rank: number; count: number; installed?: number }[]; keptFor?: string | null; keep?: number }): { rank: number; count: number }[] {
   const installed = mod.ranks.reduce((n, r) => n + Math.min(r.count, Math.max(0, r.installed ?? 0)), 0);
@@ -795,19 +797,24 @@ export function modSpares(mod: { ranks: { rank: number; count: number; installed
       .filter((r) => r.count > 0);
   }
   const left = loose.map((r) => ({ ...r }));
+  // Loose copies kept: what's left of the keep after the installed ones, and always one to give away.
+  let n = Math.max(1, Math.max(1, mod.keep ?? MOD_KEEP) - installed);
+  const take = (r: { count: number } | undefined) => {
+    if (n > 0 && r && r.count > 0) {
+      r.count--;
+      n--;
+    }
+  };
   // Your best copy: an installed one when there is one.
-  if (!installed) {
-    const best = left.find((r) => r.count > 0);
-    if (best) best.count--;
-  }
-  const lowest = [...left].reverse().find((r) => r.count > 0);
-  if (lowest) lowest.count--; // one to give away
+  if (!installed) take(left.find((r) => r.count > 0));
+  take([...left].reverse().find((r) => r.count > 0)); // one to give away
+  for (const r of left) while (n > 0 && r.count > 0) take(r);
   return left.filter((r) => r.count > 0);
 }
 
 /** Requiem mods (the eight and Oull) and the Coda's Antivirus mods, by their paths. */
-const REQUIEM_MOD = /^\/Lotus\/Upgrades\/Mods\/Immortal\/Immortal[A-Za-z]+Mod$/;
-const ANTIVIRUS_MOD = /^\/Lotus\/Upgrades\/Mods\/Immortal\/Antivirus[A-Za-z]+Mod$/;
+export const REQUIEM_MOD = /^\/Lotus\/Upgrades\/Mods\/Immortal\/Immortal[A-Za-z]+Mod$/;
+export const ANTIVIRUS_MOD = /^\/Lotus\/Upgrades\/Mods\/Immortal\/Antivirus[A-Za-z]+Mod$/;
 
 /**
  * The weapons a lich or sister still has to give you: Kuva and Tenet ones (Requiem mods kill those)

@@ -1,11 +1,11 @@
-// "Put my spares on sale", the choices: what each category sells and keeps, as one settings
-// object (settings.market.spares, version 2), with its sanitising and the migration from the six
-// switches it replaces (settings.market.bulk, BulkRules in bulk.ts). Pure: the panel binds to it,
-// the plan reads it.
+// Sell spares, the choices: what each category sells and keeps, as one settings object
+// (settings.market.spares, version 2), with its sanitising and the migration from the six switches
+// it replaces (settings.market.bulk, BulkRules in bulk.ts). Pure: the page binds to it, the plan
+// (bulk.ts) and the last check before a listing (listGuard.ts) read it.
 //
-// The plan logic (bulk.ts) still reads the old switches; `legacyRules` turns these choices into
-// them, so the panel can ship before the plan honours every new choice. See
-// docs/design/spares-plan.md for the design and what each choice does.
+// `legacyRules` turns these choices back into the old switches, saved beside them for an older
+// build reading the same settings file. See docs/design/spares-plan.md for the design and what each
+// choice does.
 import type { BulkRules } from "./bulk";
 
 /** The categories the panel shows, one row each, in this order. */
@@ -246,6 +246,15 @@ export function sparesRulesOf(raw: unknown): SparesRules {
   return raw.version === 2 ? fromV2(raw) : fromV1(raw);
 }
 
+/** The plan reads either: version 2 as it is, the old switches migrated (tests, an old caller). */
+export type PlanRules = BulkRules | SparesRules;
+export const rulesV2 = (r: PlanRules): SparesRules => ("version" in r && r.version === 2 ? r : sparesRulesOf(r));
+
+/** The same choices with every category ticked: what each row would list, for its numbers while it's off. */
+export function allOn(r: SparesRules): SparesRules {
+  return { ...r, prime: { ...r.prime, on: true }, mods: { ...r.mods, on: true }, arcanes: { ...r.arcanes, on: true }, relics: { ...r.relics, on: true }, gear: { ...r.gear, on: true }, resources: { ...r.resources, on: true }, imprints: { ...r.imprints, on: true } };
+}
+
 // ---------------------------------------------------------------- for the plan as it is now
 
 /**
@@ -274,12 +283,24 @@ export function legacyRules(r: SparesRules): BulkRules {
  * one) would read `mods: { on: false }` as ticked. This way an older build reads the player's
  * choices as closely as the old switches can say them.
  */
-export function sparesSettingsOf(market: { spares?: unknown; bulk?: unknown } | null | undefined): SparesRules {
+export function sparesSettingsOf(market: { spares?: unknown; bulk?: unknown; sellable?: unknown } | null | undefined): SparesRules {
   const v2 = market?.spares;
-  return isObj(v2) && v2.version === 2 ? fromV2(v2) : sparesRulesOf(market?.bulk);
+  if (isObj(v2) && v2.version === 2) return fromV2(v2);
+  const r = sparesRulesOf(market?.bulk);
+  // Settings, Selling's "Sell relics worth more sold than cracked" is the Relics row now: off, it
+  // kept every relic, so the row starts off.
+  const sell = market?.sellable;
+  if (isObj(sell) && sell.relicsWorthSelling === false) r.relics.on = false;
+  return r;
 }
 /** What to save: both keys (see sparesSettingsOf). */
 export const toStored = (r: SparesRules): { spares: SparesRules; bulk: BulkRules } => ({ spares: r, bulk: legacyRules(r) });
+/**
+ * For an older build: its "Sell relics worth more sold than cracked" (Settings, Selling), which
+ * this build moved into the Relics row. Saved as the row's box, so an older build lists no relic
+ * the row keeps.
+ */
+export const relicsForOlderBuilds = (r: SparesRules) => r.relics.on;
 
 // ---------------------------------------------------------------- in words
 
@@ -329,7 +350,8 @@ export function summaryOf(cat: SpareCategory, r: SparesRules, left: LichLeft = {
     case "resources": {
       const on = RESOURCE_FAMILIES.filter((k) => r.resources.families[k]);
       const names = on.length === RESOURCE_FAMILIES.length ? ["Every kind"] : on.length ? [join(on.map((k, i) => (i ? lower(RESOURCE_FAMILY_LABEL[k]) : RESOURCE_FAMILY_LABEL[k])))] : ["Nothing picked"];
-      if (r.resources.families.ayatan) names.push(`sculptures ${r.resources.ayatan}`);
+      // Filled sculptures aren't offered yet (which ones hold stars isn't read): empty ones only.
+      if (r.resources.families.ayatan) names.push("sculptures empty");
       names.push(r.resources.margin ? `keep what builds need + ${r.resources.margin}` : "keep what builds need");
       return names.join(" · ");
     }

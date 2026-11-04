@@ -3,9 +3,10 @@
 // and sends the changes (marketStore.planBulk / applyBulk).
 import { decide, type DucatOptions } from "./advice";
 import { competitor, findItem, heldFor, marketValue, overAsked, type BookOrder, type FloorRule, type Me, type MarketIndex, type MarketItem, type MyOrder, listingKey, referencePrice } from "./market";
-import { aboveCrack, allSetRows, spareRows, type SellChoices, type SpareRow } from "./spares";
+import { aboveCrack, allSetRows, gearSetRows, spareRows, type SellChoices, type SpareRow } from "./spares";
 import type { Model } from "./model";
-import { arcaneRows, inventoryRows, LICH_KEEP_ALL, modRows, modSpares, partRows, saveForSets, savedLine } from "./views";
+import { ANTIVIRUS_MOD, arcaneRows, inventoryRows, LICH_KEEP_ALL, MOD_KEEP, modRows, modSpares, partRows, REQUIEM_MOD, saveForSets, savedLine, setRows, type ArcaneRow, type ModRow } from "./views";
+import { allOn, LICH_FAMILIES, neverSells, rulesV2, SPARE_CATEGORIES, type ModFamily, type PlanRules, type ResourceFamily, type SpareCategory, type SparesRules } from "./sparesRules";
 import { gearSetParts } from "./model";
 import { packValues, spareArcanes, vosforWorth } from "./vosfor";
 
@@ -54,6 +55,9 @@ export const KIND_LABEL: Record<BulkKind, string> = { set: "Set", arcane: "Arcan
 export const RULE_OF: Record<BulkKind, "sets" | "arcanes" | "mods" | "parts" | "imprints" | "other"> = { set: "sets", arcane: "arcanes", mod: "mods", part: "parts", imprint: "imprints", other: "other" };
 export const BULK_KINDS: BulkKind[] = ["set", "arcane", "mod", "part", "imprint", "other"];
 
+/** Where a thing goes on Sell spares, below its category: a mod family, a kind of resource, or neither. */
+export type SpareFamily = ModFamily | ResourceFamily | "ordinary" | "veiled";
+
 /** One thing you'd want listed: an item, at a rank, and how many. */
 export interface SellTarget {
   kind: BulkKind;
@@ -74,124 +78,375 @@ export interface SellTarget {
   hold?: { why: string; takeDown: boolean };
   /** Relics: what one crack at this refinement is worth. A price at or under it isn't worth selling for. */
   crack?: number | null;
+  /** Its row on Sell spares (worked out from `kind` when absent) and, for mods and resources, its family. */
+  cat?: SpareCategory;
+  family?: SpareFamily;
+  /** The rule that put it in or held it back: an id ("mods.keep") and its words for the plan ("Keep 2"). */
+  rule?: string;
+  ruleText?: string;
 }
 
-/** Spare-rows that go under "Everything else": not prime parts, sets, arcanes or (non-riven) mods. */
+/** Spare-rows that go under weapon parts, relics or resources: not prime parts, sets, arcanes or (non-riven) mods. */
 export function otherSpare(r: SpareRow): boolean {
   return r.kind === "resource" || r.kind === "blueprint" || r.kind === "relic" || r.type === "Veiled riven";
 }
 
-/** What your collection says should be on sale, for the ticked categories. */
-/** `drops`: what you got of each part lately (core/drops.ts), for which parts wait for a set. */
-export function sellTargets(m: Model, rules: BulkRules, advice: DucatOptions, index: MarketIndex | null = null, sell?: SellChoices, drops: ReadonlyMap<string, number> = new Map()): SellTarget[] {
+/** The row a kind of target belongs to when it doesn't say (an older caller's target). */
+const CAT_OF_KIND: Record<BulkKind, SpareCategory> = { set: "prime", part: "prime", mod: "mods", arcane: "arcanes", imprint: "imprints", other: "resources" };
+export const catOfTarget = (t: Pick<SellTarget, "kind" | "cat">): SpareCategory => t.cat ?? CAT_OF_KIND[t.kind];
+
+/** Keys to boss fights and what they're made from: kept as "Keys and the rest" (spares.ts keeps them while needed). */
+const KEY_LIKE = /InfestedAlad|Mutalist (Alad V )?Nav Coordinate|Jordas Precept|GolemKey/i;
+
+/**
+ * Which row a spare thing other than a prime part, mod or arcane goes under: weapon parts and
+ * blueprints (and Necramech parts) under weapon parts and sets, relics under relics, the rest under
+ * resources by kind.
+ */
+export function spareCategoryOf(r: SpareRow): { cat: SpareCategory; family?: SpareFamily } {
+  if (r.kind === "relic") return { cat: "relics" };
+  switch (r.type) {
+    case "Veiled riven": return { cat: "resources", family: "veiled" };
+    case "Gem": return { cat: "resources", family: "gems" };
+    case "Fish": return { cat: "resources", family: "fish" };
+    case "Ayatan sculpture": return { cat: "resources", family: "ayatan" };
+    case "Ayatan star": return { cat: "resources", family: "stars" };
+    case "Captura scene":
+    case "Simulacrum": return { cat: "resources", family: "captura" };
+    case "Focus lens": return { cat: "resources", family: "lenses" };
+    case "Ship part blueprint":
+    case "Resource": return { cat: "resources", family: "other" };
+  }
+  if (KEY_LIKE.test(r.unique) || KEY_LIKE.test(r.name)) return { cat: "resources", family: "other" };
+  // Weapon parts, their blueprints, Necramech parts, and other gear blueprints.
+  return { cat: "gear" };
+}
+
+/** A mod's family on Sell spares, or null for an ordinary mod. Augments by path: the catalog marks every warframe mod as one. */
+export function modFamilyOf(mod: { unique: string; name: string; type?: string }): ModFamily | null {
+  if (REQUIEM_MOD.test(mod.unique)) return "requiem";
+  if (ANTIVIRUS_MOD.test(mod.unique)) return "antivirus";
+  if (/^Primed /.test(mod.name)) return "primed";
+  if (/^(Galvanized|Archon) /.test(mod.name)) return "galvanized";
+  if (mod.type === "Stance Mod") return "stance";
+  if (/\/Powersuits\/.*AugmentCard$/.test(mod.unique)) return "augment";
+  return null;
+}
+
+/**
+ * Copies of a mod kept, installed ones counted: its family's number, or every other mod's. Requiem
+ * and Antivirus mods keep theirs while a weapon they're for is left to master (every copy while
+ * that isn't known), then the ordinary number.
+ */
+export function modKeepOf(r: SparesRules, mod: ModRow): number {
+  const fam = modFamilyOf(mod);
+  if (mod.keptFor) return mod.keep === LICH_KEEP_ALL ? LICH_KEEP_ALL : r.mods.families[fam === "antivirus" ? "antivirus" : "requiem"].keep;
+  if (fam && !(LICH_FAMILIES as readonly string[]).includes(fam)) return r.mods.families[fam].keep;
+  return r.mods.keep;
+}
+
+/** A mod's spare copies by rank under these rules (views.modSpares with the keep number). */
+export const modSparesUnder = (r: SparesRules, mod: ModRow) => modSpares({ ...mod, keep: modKeepOf(r, mod) });
+
+/** Copies of a spare row kept on top of its own rule: a relic's keep number, resources' margin. */
+export function extraKeepOf(r: SparesRules, row: SpareRow): number {
+  const { cat } = spareCategoryOf(row);
+  return cat === "relics" ? r.relics.keep : cat === "resources" ? r.resources.margin : 0;
+}
+/** A spare row's spare copies under these rules. */
+export const rowSpareUnder = (r: SparesRules, row: SpareRow) => Math.max(0, Math.min(row.spare, row.quantity - row.keep - extraKeepOf(r, row)));
+
+/** Unranked copies of an arcane beyond what the maxed ones kept (and any listed) take. */
+export const arcaneUnrankedSpare = (a: ArcaneRow, keepMaxed: number) => Math.min(a.unranked, Math.max(0, a.copies - Math.max(keepMaxed, a.maxedCopies) * a.needed));
+
+/** Every part of a prime set drops from a relic you hold: once sold, another can be cracked. */
+export function setFromYourRelics(m: Model, unique: string): boolean {
+  const parts = m.partsByParent.get(unique) ?? [];
+  return parts.length > 0 && parts.every((p) => (m.sourcesByReward.get(p.fullName) ?? []).some((s) => (m.ownedRelicCount.get(s.base) ?? 0) > 0));
+}
+
+/** A mod family in a plan line's rule, short: "Requiem 5", "Primed 2". */
+const FAMILY_WORD: Record<ModFamily, string> = { primed: "Primed", galvanized: "Galvanized", augment: "Augments", stance: "Stances", requiem: "Requiem", antivirus: "Antivirus" };
+export const NEVER_WHY = "On your never-sell list (Sell spares): Sell again puts it back";
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * What your collection says should be on sale, under the choices on Sell spares (settings.market.
+ * spares; the old switches are read as their migration). Every category keeps what its rules
+ * keep; a thing on the never-sell list is held back (with warframe.market's item list to know it
+ * by). `drops`: what you got of each part lately (core/drops.ts), for which parts wait for a set.
+ */
+export function sellTargets(m: Model, rules: PlanRules, advice: DucatOptions, index: MarketIndex | null = null, sell?: SellChoices, drops: ReadonlyMap<string, number> = new Map()): SellTarget[] {
+  const r = rulesV2(rules);
   const out: SellTarget[] = [];
-  if (rules.sets) {
-    for (const s of allSetRows(m, index)) {
+  const rate = advice.platPerDucat;
+
+  // Prime sets and parts.
+  if (r.prime.on) {
+    if (r.prime.sellAs !== "parts") {
+      for (const s of setRows(m)) {
+        if (s.sellable <= 0) continue;
+        const set: SellTarget = {
+          kind: "set",
+          cat: "prime",
+          name: `${s.name} Set`,
+          unique: null,
+          rank: null,
+          quantity: s.sellable,
+          why: s.mastered || s.ownedBuilt ? `${s.mastered ? "Mastered" : "Built"}: every complete set can go` : "A spare set: one is kept to build and master",
+          rule: "prime.set",
+          ruleText: "Spare set",
+        };
+        // Worth more traded to Baro, part by part, than sold for platinum (or close to it): kept for
+        // ducats. The whole set's price against every part's ducats, at your rate.
+        const asDucats = s.ducatsKnown === false ? "A part's ducat value isn't known: kept until it can be weighed against its ducats" : ducatsWin(s.setPrice, s.ducats, advice);
+        if (asDucats) Object.assign(set, { hold: { why: asDucats, takeDown: true }, rule: "prime.ducats", ruleText: s.ducatsKnown === false ? "Ducats unknown" : "Ducats" });
+        else if (r.prime.onlyRelicsHeld && !setFromYourRelics(m, s.unique)) Object.assign(set, { hold: { why: "Not every part drops from a relic you hold: kept whole (Only sets my relics drop)", takeDown: false }, rule: "prime.relics", ruleText: "Not your relics" });
+        out.push(set);
+      }
+    }
+    if (r.prime.sellAs !== "sets") {
+      const keepN = r.prime.keep;
+      const inSets = r.prime.sellAs === "setsFirst";
+      for (const p of partRows(m, saveForSets(sell, rate, drops))) {
+        // Parts going out inside a set aren't listed again on their own.
+        const taken = inSets ? p.inSets : 0;
+        const n = Math.min(p.spare - taken, p.quantity - taken - keepN);
+        if (n <= 0) {
+          // Every copy you don't need to build waits for a set (Settings → Selling): a listing of yours
+          // for it comes down. With copies kept to build or inside complete sets too, it's left as listed.
+          if (p.saving && p.spare <= 0) out.push({ kind: "part", cat: "prime", name: p.name, unique: null, rank: null, quantity: p.forSet, why: `${p.quantity} held`, hold: { why: savedLine(p.forSet, p.saving), takeDown: p.keep === p.forSet }, rule: "prime.saving", ruleText: "Saving for a set" });
+          continue;
+        }
+        const build = p.keep - p.forSet;
+        let why = build ? `${p.quantity} held, ${build} kept to build ${p.parentName}` : `${p.quantity} held, ${p.parentName} ${p.parentMastered ? "mastered" : "built"}`;
+        if (p.saving) why = `${why}, ${savedLine(p.forSet, p.saving)}`;
+        const part: SellTarget = { kind: "part", cat: "prime", name: p.name, unique: null, rank: null, quantity: n, why: keepN > p.keep ? `${why}, ${keepN} kept in all` : why, rule: keepN ? "prime.keep" : "prime.part", ruleText: keepN ? `Keep ${keepN}` : "Spare part" };
+        // Better traded to Baro: kept for ducats, and a listing of yours for it comes down. Not worth a
+        // trade, or slow and close to its ducats: not listed, but a listing you made stays.
+        const asDucats = ducatsWin(p.price, p.ducats, advice);
+        const d = decide(p.price, p.ducats, p.tradesPerDay, advice, n);
+        if (asDucats) Object.assign(part, { hold: { why: asDucats, takeDown: true }, rule: "prime.ducats", ruleText: "Ducats" });
+        else if (d.verdict === "ducats") Object.assign(part, { hold: { why: `Better as ducats: ${d.reason.charAt(0).toLowerCase()}${d.reason.slice(1)}`, takeDown: false }, rule: "prime.ducats", ruleText: "Ducats" });
+        out.push(part);
+      }
+    }
+  }
+
+  // Weapon sets warframe.market trades whole (Mandonel, Lato Vandal, Necramechs).
+  if (r.gear.on && r.gear.sellAs !== "parts") {
+    for (const s of gearSetRows(m, index)) {
       if (s.sellable <= 0) continue;
-      const set: SellTarget = {
+      out.push({
         kind: "set",
+        cat: "gear",
         name: `${s.name} Set`,
         unique: null,
         rank: null,
         quantity: s.sellable,
         why: s.mastered || s.ownedBuilt ? `${s.mastered ? "Mastered" : "Built"}: every complete set can go` : "A spare set: one is kept to build and master",
-      };
-      // Worth more traded to Baro, part by part, than sold for platinum (or close to it): kept for
-      // ducats. The whole set's price against every part's ducats, at your rate.
-      const asDucats = s.prime && s.ducatsKnown === false ? "A part's ducat value isn't known: kept until it can be weighed against its ducats" : ducatsWin(s.setPrice, s.ducats, advice);
-      if (asDucats) set.hold = { why: asDucats, takeDown: true };
-      out.push(set);
+        rule: "gear.set",
+        ruleText: "Spare set",
+      });
     }
   }
-  if (rules.arcanes) {
+
+  if (r.arcanes.on) {
     // Arcanes worth more dissolved for Vosfor stay off the market, like parts worth more as ducats.
     const rows = arcaneRows(m);
     const lens = advice.vosforLens ?? "need";
     const { perVosfor } = vosforWorth(packValues(m, rows), lens);
     const dissolve = new Set(spareArcanes(m, rows, perVosfor, { lens, minPrice: advice.minPlat }).filter((s) => s.verdict === "dissolve").map((s) => s.row.name));
+    const k = r.arcanes.keepMaxed;
     for (const a of rows) {
-      if (a.extraMaxed <= 0 || !a.tradable || dissolve.has(a.name)) continue;
-      out.push({ kind: "arcane", name: a.name, unique: a.unique, rank: a.maxRank, quantity: a.extraMaxed, why: `${a.maxedCopies} maxed, one kept` });
+      if (!a.tradable || dissolve.has(a.name)) continue;
+      if (!r.arcanes.legendary && a.rarity === "Legendary") continue;
+      const extra = Math.max(0, a.maxedCopies - k);
+      if (extra > 0) out.push({ kind: "arcane", cat: "arcanes", name: a.name, unique: a.unique, rank: a.maxRank, quantity: extra, why: `${a.maxedCopies} maxed, ${k === 1 ? "one" : k} kept`, rule: "arcanes.maxed", ruleText: `Keep ${k} maxed` });
+      const unranked = r.arcanes.which === "any" ? arcaneUnrankedSpare(a, k) : 0;
+      if (unranked > 0) out.push({ kind: "arcane", cat: "arcanes", name: a.name, unique: a.unique, rank: 0, quantity: unranked, why: `${a.unranked} unranked, ${a.copies} copies in all: ${k * a.needed} kept for ${plural(k, "maxed one")}`, rule: "arcanes.any", ruleText: "Spare copies" });
     }
   }
-  if (rules.mods) {
+
+  if (r.mods.on) {
     for (const mod of modRows(m)) {
-      // Rivens aren't kept two to a name: veiled ones go under everything else, unveiled ones by auction.
-      if (!mod.tradable || mod.extras <= 0 || / Riven Mod/.test(mod.name)) continue;
-      // Common mods at a few platinum hardly ever move: only the ones that trade daily.
-      if ((mod.tradesPerDay ?? 0) < 1) continue;
+      // Rivens aren't kept two to a name: veiled ones go under resources, unveiled ones by auction.
+      if (!mod.tradable || / Riven Mod/.test(mod.name)) continue;
+      const fam = modFamilyOf(mod);
+      if (fam && !r.mods.families[fam].on) continue;
+      // Common mods at a few platinum hardly ever move: by default, only the ones that trade daily.
+      if (r.mods.dailyOnly && (mod.tradesPerDay ?? 0) < 1) continue;
+      const k = modKeepOf(r, mod);
+      const spares = modSpares({ ...mod, keep: k });
+      if (!spares.length) continue;
       const best = mod.ranks[0];
-      for (const r of modSpares(mod)) {
-        if (r.count <= 0) continue;
+      const installed = mod.ranks.reduce((n, x) => n + (x.installed ?? 0), 0);
+      const lich = !!mod.keptFor;
+      const why = lich
+        ? `${mod.total} copies: ${mod.keptFor!.split(":")[0].replace(/^\d+ kept/, `${k} kept`)}`
+        : k === 2 && !installed
+          ? `${mod.total} copies: your best (R${best?.rank ?? 0}) and one to give away kept`
+          : `${mod.total} copies: ${k} kept${installed ? `, ${installed} of them installed in a build` : `, your best (R${best?.rank ?? 0}) counted`}`;
+      const label = fam ? (fam === "galvanized" && /^Archon /.test(mod.name) ? "Archon" : FAMILY_WORD[fam]) : null;
+      for (const x of spares) {
         out.push({
           kind: "mod",
+          cat: "mods",
+          family: fam ?? "ordinary",
           name: mod.name,
           unique: mod.unique,
-          rank: mod.maxRank != null ? r.rank : null,
-          quantity: r.count,
-          why: mod.keptFor ? `${mod.total} copies: ${mod.keptFor.split(":")[0]}` : `${mod.total} copies: your best (R${best?.rank ?? 0}) and one to give away kept`,
+          rank: mod.maxRank != null ? x.rank : null,
+          quantity: x.count,
+          why,
+          rule: fam ? `mods.${fam}` : "mods.keep",
+          ruleText: label ? `${label} ${k}` : `Keep ${k}`,
         });
       }
     }
   }
-  if (rules.parts) {
-    for (const p of partRows(m, saveForSets(sell, advice.platPerDucat, drops))) {
-      // Parts going out inside a set aren't listed again on their own.
-      const loose = p.spare - (rules.sets ? p.inSets : 0);
-      const over = p.quantity - (rules.sets ? p.inSets : 0) - rules.partsKeep;
-      const n = Math.min(loose, over);
-      if (n <= 0) {
-        // Every copy you don't need to build waits for a set (Settings → Selling): a listing of yours
-        // for it comes down. With copies kept to build or inside complete sets too, it's left as listed.
-        if (p.saving && p.spare <= 0) out.push({ kind: "part", name: p.name, unique: null, rank: null, quantity: p.forSet, why: `${p.quantity} held`, hold: { why: savedLine(p.forSet, p.saving), takeDown: p.keep === p.forSet } });
-        continue;
-      }
-      const build = p.keep - p.forSet;
-      let why = build ? `${p.quantity} held, ${build} kept to build ${p.parentName}` : `${p.quantity} held, ${p.parentName} ${p.parentMastered ? "mastered" : "built"}`;
-      if (p.saving) why = `${why}, ${savedLine(p.forSet, p.saving)}`;
-      const part: SellTarget = { kind: "part", name: p.name, unique: null, rank: null, quantity: n, why: rules.partsKeep > p.keep ? `${why}, ${rules.partsKeep} kept in all` : why };
-      // Better traded to Baro: kept for ducats, and a listing of yours for it comes down. Not worth a
-      // trade, or slow and close to its ducats: not listed, but a listing you made stays.
-      const asDucats = ducatsWin(p.price, p.ducats, advice);
-      const d = decide(p.price, p.ducats, p.tradesPerDay, advice, n);
-      if (asDucats) part.hold = { why: asDucats, takeDown: true };
-      else if (d.verdict === "ducats") part.hold = { why: `Better as ducats: ${d.reason.charAt(0).toLowerCase()}${d.reason.slice(1)}`, takeDown: false };
-      out.push(part);
+
+  if (r.imprints.on) {
+    // Every imprint you hold, by breed, less the ones kept: warframe.market lists them under the companion's path.
+    const k = r.imprints.keep;
+    for (const row of inventoryRows(m)) {
+      if (row.kind !== "imprint" || !row.marketName || row.quantity - k <= 0) continue;
+      out.push({ kind: "imprint", cat: "imprints", name: row.marketName, unique: row.unique, rank: null, quantity: row.quantity - k, why: k ? `${row.quantity} held, ${k} kept to breed` : `${row.quantity} held: an imprint only hatches a companion`, rule: k ? "imprints.keep" : "imprints.all", ruleText: k ? `Keep ${k}` : "Breeding only" });
     }
   }
-  if (rules.imprints) {
-    // Every imprint you hold, by breed: warframe.market lists them under the companion's path.
-    for (const r of inventoryRows(m)) {
-      if (r.kind !== "imprint" || !r.marketName || r.quantity <= 0) continue;
-      out.push({ kind: "imprint", name: r.marketName, unique: r.unique, rank: null, quantity: r.quantity, why: `${r.quantity} held: an imprint only hatches a companion` });
-    }
-  }
-  if (rules.other) {
-    for (const r of spareRows(m, index, sell, advice.platPerDucat, advice.squad ?? 1, drops)) {
-      if (!otherSpare(r)) continue;
-      if (r.spare <= 0) {
+
+  const looseGear = r.gear.on && r.gear.sellAs !== "sets";
+  if (looseGear || r.relics.on || r.resources.on) {
+    for (const row of spareRows(m, index, sell, rate, advice.squad ?? 1, drops)) {
+      if (!otherSpare(row)) continue;
+      const { cat, family } = spareCategoryOf(row);
+      if (cat === "gear" ? !looseGear : cat === "relics" ? !r.relics.on : !r.resources.on || (family !== "veiled" && !r.resources.families[family as ResourceFamily])) continue;
+      const kind: BulkKind = "other";
+      const extra = extraKeepOf(r, row);
+      const spare = rowSpareUnder(r, row);
+      if (spare <= 0) {
         // Every copy waits for a set (a Lato Vandal part): a listing of yours for it comes down.
-        if (r.forSet > 0 && r.keep === r.forSet) out.push({ kind: "other", name: r.name, unique: r.unique, rank: null, subtype: r.subtype, quantity: r.forSet, why: `${r.quantity} held`, hold: { why: r.why, takeDown: true } });
+        if (row.spare <= 0 && row.forSet > 0 && row.keep === row.forSet) out.push({ kind, cat, family, name: row.name, unique: row.unique, rank: null, subtype: row.subtype, quantity: row.forSet, why: `${row.quantity} held`, hold: { why: row.why, takeDown: true }, rule: `${cat}.saving`, ruleText: "Saving for a set" });
         continue;
       }
       // Relics have no trade count of their own: what they sell for decides, and cracking may beat it.
-      if (r.kind === "relic" ? r.crack != null && r.price != null && r.crack >= r.price : (r.tradesPerDay ?? 0) < 1) continue;
-      // Copies that go out inside a whole set (Sets I don't need) aren't listed again on their own.
-      const loose = r.spare - (rules.sets ? r.inSets : 0);
+      if (row.kind === "relic" ? row.crack != null && row.price != null && row.crack >= row.price : (row.tradesPerDay ?? 0) < 1) continue;
+      // Copies that go out inside a whole set (weapon sets, then parts) aren't listed again on their own.
+      const loose = spare - (cat === "gear" && r.gear.sellAs === "setsFirst" ? row.inSets : 0);
       if (loose <= 0) continue;
+      const kept = row.keep + extra;
+      const builds = cat === "gear" || family === "gems" || family === "other" || family === "lenses";
+      const ruleText =
+        cat === "relics" ? (extra ? `Keep ${extra}` : "Beats a crack")
+        : family === "veiled" ? "Veiled riven"
+        : extra ? (builds ? `Builds + ${extra}` : `Keep ${extra}`)
+        : family === "captura" ? "One kept"
+        : row.keep ? "Beyond builds"
+        : builds ? "Builds don't need it" : "Not needed";
       out.push({
-        kind: "other",
-        name: r.name,
+        kind,
+        cat,
+        family,
+        name: row.name,
         // The game's path finds internally named parts; relics and veiled rivens go by name.
-        unique: r.kind === "relic" || r.type === "Veiled riven" ? null : r.unique,
+        unique: row.kind === "relic" || row.type === "Veiled riven" ? null : row.unique,
         rank: null,
-        subtype: r.subtype,
+        subtype: row.subtype,
         quantity: loose,
-        crack: r.kind === "relic" ? r.crack : undefined,
-        why: r.keep ? `${r.quantity} held, ${r.keep} kept: ${r.why}` : `${r.quantity} held: ${r.why.charAt(0).toLowerCase()}${r.why.slice(1)}`,
-        each: r.price,
+        crack: row.kind === "relic" ? row.crack : undefined,
+        why: kept ? `${row.quantity} held, ${kept} kept: ${row.why}${extra ? ` (${extra} more on Sell spares)` : ""}` : `${row.quantity} held: ${row.why.charAt(0).toLowerCase()}${row.why.slice(1)}`,
+        each: row.price,
+        rule: cat === "relics" ? (extra ? "relics.keep" : "relics.crack") : `${cat}.${family ?? "spare"}`,
+        ruleText,
       });
     }
+  }
+
+  // Never sold: held back in every category, a listing of yours for it left as you listed it.
+  if (index && r.neverSell.length) {
+    const never = new Set(r.neverSell.map((n) => n.id));
+    for (const t of out) {
+      if (t.hold && t.rule === "prime.ducats") continue;
+      const it = resolve(index, t);
+      if (it && never.has(it.id)) Object.assign(t, { hold: { why: NEVER_WHY, takeDown: false }, rule: "never", ruleText: "Never sold" });
+    }
+  }
+  return out;
+}
+
+/** A count and its platinum: what a row, or one family in it, would put up. */
+export interface Tally {
+  listings: number;
+  plat: number;
+}
+/** What a row of Sell spares would put up, what its price minimum leaves out, and by family. */
+export interface CategoryTally extends Tally {
+  /** Listings left out because they sell for under your minimum. */
+  under: number;
+  families: Partial<Record<SpareFamily, Tally>>;
+}
+export type SparesTally = Record<SpareCategory, CategoryTally>;
+
+const emptyTally = (): SparesTally => Object.fromEntries(SPARE_CATEGORIES.map((c) => [c, { listings: 0, plat: 0, under: 0, families: {} }])) as unknown as SparesTally;
+const addTo = (t: CategoryTally, family: SpareFamily | undefined, plat: number) => {
+  t.listings++;
+  t.plat += plat;
+  if (!family) return;
+  const f = (t.families[family] ??= { listings: 0, plat: 0 });
+  f.listings++;
+  f.plat += plat;
+};
+
+export interface PreviewContext extends SpareContext {
+  advice: DucatOptions;
+  minPrice: number;
+  minRelicPrice: number;
+}
+
+/**
+ * What each row of Sell spares would list before a plan is made: every row as if ticked (an
+ * unticked row shows what ticking it would add), under its own options, at the daily medians. The
+ * same targets the plan starts from; what the plan then leaves out at the cheapest price in game
+ * (or the 100-listing limit) it says itself.
+ */
+export function sparesPreview(c: PreviewContext, rules: SparesRules): SparesTally {
+  const out = emptyTally();
+  const m = c.model;
+  const seen = new Set<string>();
+  for (const t of sellTargets(m, allOn(rules), c.advice, c.index, c.sell, c.drops)) {
+    if (t.hold) continue;
+    const cat = catOfTarget(t);
+    const it = c.index ? resolve(c.index, t) : null;
+    if (c.index && !it) continue;
+    const rank = it ? (it.maxRank != null ? (t.rank ?? 0) : null) : t.rank;
+    const subtype = t.subtype ?? it?.subtypes?.[0] ?? null;
+    // Counted once, as the plan counts it.
+    const key = `${it?.id ?? t.name}|${rank ?? ""}|${subtype ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const each = t.each ?? (it ? referencePrice(m, it, rank, subtype) : m.price(t.name));
+    if (each == null) continue;
+    if (it && (t.kind === "part" || t.kind === "set")) {
+      const duc = ducatWorth(m, it, c.advice.platPerDucat);
+      if (duc != null && ducatsBeat(each, duc)) continue;
+    }
+    if (t.crack != null && each <= t.crack) continue;
+    const relic = it ? !!it.tags?.includes("relic") : / Relic$/.test(t.name);
+    if (each < (relic ? c.minRelicPrice : c.minPrice)) {
+      out[cat].under++;
+      continue;
+    }
+    addTo(out[cat], t.family, each * t.quantity);
+  }
+  return out;
+}
+
+/** The same, from a plan: its new and changed listings by row, and what its minimum left out. */
+export function planTally(actions: BulkAction[]): SparesTally {
+  const out = emptyTally();
+  for (const a of actions) {
+    if (!a.cat) continue;
+    if (a.type === "create" || a.type === "update") addTo(out[a.cat], a.family, a.quantity * a.platinum);
+    else if (a.type === "skip" && a.rule === "plan.min") out[a.cat].under++;
   }
   return out;
 }
@@ -256,11 +511,78 @@ export function kindOfItem(m: Model, it: MarketItem): BulkKind | null {
   return null;
 }
 
-export type BulkAction =
-  | { type: "create"; kind: BulkKind; item: MarketItem; rank: number | null; subtype: string | null; quantity: number; platinum: number; why: string; priceWhy: string }
-  | { type: "update"; kind: BulkKind; item: MarketItem; order: MyOrder; quantity: number; platinum: number; why: string; priceWhy: string }
-  | { type: "remove"; kind: BulkKind; item: MarketItem; order: MyOrder; why: string }
-  | { type: "skip"; kind: BulkKind; name: string; rank: number | null; why: string; subtype?: string | null };
+/**
+ * Which row of Sell spares a listing's item belongs to, by its kind and tags: prime sets and parts,
+ * weapon sets and parts (anything else built from parts), relics, resources. Null when orbiter
+ * doesn't count it.
+ */
+export function catOfItem(m: Model, it: MarketItem, kind: BulkKind | null = kindOfItem(m, it)): SpareCategory | null {
+  if (!kind) return null;
+  if (kind === "set") return it.gameRef && m.partsByParent.has(it.gameRef) ? "prime" : "gear";
+  if (kind !== "other") return CAT_OF_KIND[kind];
+  const tags = it.tags ?? [];
+  if (tags.includes("relic")) return "relics";
+  if (/ \(Veiled\)$/.test(it.name) || ["gem", "fish", "scene", "simulacrum", "ayatan_sculpture", "ayatan_star", "lens"].some((t) => tags.includes(t))) return "resources";
+  return tags.includes("component") || tags.includes("blueprint") ? "gear" : "resources";
+}
+
+/**
+ * Whether the plan looks after your listings of an item: its row is ticked, and for sets and parts
+ * the row sells that way (Whole sets leaves part listings be; Parts only, set listings). Listings
+ * you set to be left alone or hid are left alone whatever this says.
+ */
+export function managedBy(r: SparesRules, m: Model, it: MarketItem): boolean {
+  const kind = kindOfItem(m, it);
+  const cat = catOfItem(m, it, kind);
+  if (!cat || !r[cat].on) return false;
+  if (cat === "prime") return kind === "set" ? r.prime.sellAs !== "parts" : r.prime.sellAs !== "sets";
+  if (cat === "gear") return kind === "set" ? r.gear.sellAs !== "parts" : r.gear.sellAs !== "sets";
+  return true;
+}
+
+/**
+ * Where a line of the plan belongs and the rule that decided it, for the review list: its row on
+ * Sell spares (null for a listing orbiter doesn't count), the family inside it, a rule id
+ * ("mods.keep", "plan.min") and the rule in a few words ("Keep 2", "Under 10p").
+ */
+export interface Ruled {
+  cat?: SpareCategory | null;
+  family?: SpareFamily;
+  rule?: string;
+  ruleText?: string;
+}
+
+export type BulkAction = Ruled &
+  (
+    | { type: "create"; kind: BulkKind; item: MarketItem; rank: number | null; subtype: string | null; quantity: number; platinum: number; why: string; priceWhy: string }
+    | { type: "update"; kind: BulkKind; item: MarketItem; order: MyOrder; quantity: number; platinum: number; why: string; priceWhy: string }
+    | { type: "remove"; kind: BulkKind; item: MarketItem; order: MyOrder; why: string }
+    | {
+        type: "skip";
+        kind: BulkKind;
+        name: string;
+        rank: number | null;
+        why: string;
+        subtype?: string | null;
+        /** warframe.market's item, when it's known: what Never sell and Sell again go by. */
+        itemId?: string;
+        /** Copies that would have gone, and each at the price that decided it, when known. */
+        quantity?: number;
+        each?: number | null;
+      }
+  );
+
+/**
+ * One line of the plan, the same from one plan to the next: a new listing by its item, rank and
+ * variant, a change or removal by the listing. What Skip this time remembers.
+ */
+export function actionKey(a: BulkAction): string {
+  if (a.type === "create") return `c|${a.item.id}|${a.rank ?? ""}|${a.subtype ?? ""}`;
+  if (a.type === "skip") return `s|${a.itemId ?? a.name}|${a.rank ?? ""}|${a.subtype ?? ""}`;
+  return `${a.type === "update" ? "u" : "r"}|${a.order.id}`;
+}
+/** The item a line lists or changes, when known. */
+export const actionItemId = (a: BulkAction): string | null => (a.type === "skip" ? (a.itemId ?? null) : a.item.id);
 
 /** warframe.market's cap on how many orders one account can have up at once. */
 export const LISTING_LIMIT = 100;
@@ -330,6 +652,14 @@ export function priceFor(c: BulkContext, it: MarketItem, rank: number | null, su
   return { price: null, why: "no price to go by", value };
 }
 
+/**
+ * The plan as Apply sends it: without the lines skipped this time (by actionKey), and without a
+ * new or changed listing of anything on the never-sell list (put there while looking it over).
+ */
+export function toApply(actions: BulkAction[], skipped: ReadonlySet<string>, never: ReadonlySet<string>): BulkAction[] {
+  return actions.filter((a) => !skipped.has(actionKey(a)) && !((a.type === "create" || a.type === "update") && never.has(a.item.id)));
+}
+
 /** One line per change, to tell whether two plans would do the same thing. */
 export function planSignature(actions: BulkAction[]): string {
   return actions
@@ -339,29 +669,57 @@ export function planSignature(actions: BulkAction[]): string {
     .join("\n");
 }
 
-/** The changes, for the ticked categories only. Listings you set to be left alone, or hid, are never touched. */
-export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]): BulkAction[] {
-  const ticked = new Set<BulkKind>(BULK_KINDS.filter((k) => rules[RULE_OF[k]]));
+/** A line's rule when the plan decided it, not the category's keep rule. */
+const PLAN_RULE = {
+  market: { rule: "plan.market", ruleText: "Not on the market" },
+  twice: { rule: "plan.twice", ruleText: "Counted once" },
+  alone: { rule: "plan.alone", ruleText: "Left alone" },
+  hidden: { rule: "plan.hidden", ruleText: "Hidden" },
+  unread: { rule: "plan.unread", ruleText: "No prices" },
+  noPrice: { rule: "plan.noprice", ruleText: "No price" },
+  held: { rule: "plan.held", ruleText: "What you hold" },
+  ducats: { rule: "prime.ducats", ruleText: "Ducats" },
+  crack: { rule: "relics.crack", ruleText: "Worth cracking" },
+  hard: { rule: "plan.hard", ruleText: "Always kept" },
+  listed: { rule: "plan.listed", ruleText: "As you listed" },
+  never: { rule: "never", ruleText: "Never sold" },
+} as const;
+const minRule = (min: number) => ({ rule: "plan.min", ruleText: `Under ${min}p` });
+
+/**
+ * The changes, for the ticked categories only, each with its row and the rule that decided it.
+ * Listings you set to be left alone, or hid, are never touched; nor is one for something you never
+ * sell, beyond lowering it to what you hold.
+ */
+export function bulkPlan(c: BulkContext, rules: PlanRules, targets: SellTarget[]): BulkAction[] {
+  const r = rulesV2(rules);
+  const never = new Set(r.neverSell.map((n) => n.id));
+  // Never sold: a listing of yours for it is left as you listed it, even past the listing limit.
+  const managed = (it: MarketItem) => managedBy(r, c.model, it) && !never.has(it.id);
   const actions: BulkAction[] = [];
   const claimed = new Set<string>();
   const planned = new Map<string, BulkKind>();
   const keyOf = (it: MarketItem, rank: number | null, subtype: string | null) => `${it.id}|${it.maxRank != null ? (rank ?? 0) : ""}|${subtype ?? it.subtypes?.[0] ?? ""}`;
   const orderKey = (o: MyOrder, it: MarketItem) => keyOf(it, o.rank, o.subtype);
+  const spareCtx: SpareContext = { ...c, rules: r };
   /**
    * A listing of yours that a rule (your minimum, the copies orbiter keeps) wouldn't have made:
    * it stays up as you listed it, only lowered to what you hold, and the plan says why.
    */
-  const leaveListed = (kind: BulkKind, it: MarketItem, o: MyOrder, why: string) => {
+  const leaveListed = (kind: BulkKind, it: MarketItem, o: MyOrder, why: string, tag: Ruled) => {
     const held = heldFor(c.model, it, o);
-    if (held != null && held <= 0) actions.push({ type: "remove", kind, item: it, order: o, why: "You don't hold any now" });
-    else if (held != null && held < o.quantity) actions.push({ type: "update", kind, item: it, order: o, quantity: held, platinum: o.platinum, why: `You hold ${held} now`, priceWhy: "price kept" });
-    else actions.push({ type: "skip", kind, name: it.name, rank: it.maxRank != null ? (o.rank ?? 0) : null, why: `${why}: ${AS_LISTED}` });
+    if (held != null && held <= 0) actions.push({ type: "remove", kind, item: it, order: o, why: "You don't hold any now", ...tag, ...PLAN_RULE.held });
+    else if (held != null && held < o.quantity) actions.push({ type: "update", kind, item: it, order: o, quantity: held, platinum: o.platinum, why: `You hold ${held} now`, priceWhy: "price kept", ...tag, ...PLAN_RULE.held });
+    else actions.push({ type: "skip", kind, name: it.name, itemId: it.id, rank: it.maxRank != null ? (o.rank ?? 0) : null, subtype: o.subtype, quantity: o.quantity, each: o.platinum, why: `${why}: ${AS_LISTED}`, ...tag });
   };
 
   for (const target of targets) {
+    const cat = catOfTarget(target);
+    const where: Ruled = { cat, family: target.family };
+    const own: Ruled = { ...where, rule: target.rule ?? `${cat}.spare`, ruleText: target.ruleText ?? "Spare" };
     const it = resolve(c.index, target);
     if (!it) {
-      actions.push({ type: "skip", kind: target.kind, name: target.name, rank: target.rank, why: "Not on warframe.market" });
+      actions.push({ type: "skip", kind: target.kind, name: target.name, rank: target.rank, quantity: target.quantity, why: "Not on warframe.market", ...where, ...PLAN_RULE.market });
       continue;
     }
     // Ranked on warframe.market: a rank always (unranked is 0), even when orbiter's catalog
@@ -369,24 +727,28 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
     const t = { ...target, rank: it.maxRank != null ? (target.rank ?? 0) : null };
     const subtype = t.subtype ?? it.subtypes?.[0] ?? null;
     const key = keyOf(it, t.rank, subtype);
+    const skip = (why: string, tag: Ruled, each: number | null = t.each ?? null): BulkAction => ({ type: "skip", kind: t.kind, name: it.name, itemId: it.id, rank: t.rank, subtype, quantity: t.quantity, each, why, ...where, ...tag });
     // One thing is counted under one category only: a second target for it (a mod turning up under
-    // everything else too) would list the same copies twice.
+    // resources too) would list the same copies twice.
     const first = planned.get(key);
     if (first) {
-      actions.push({ type: "skip", kind: t.kind, name: it.name, rank: t.rank, subtype, why: `Already counted under ${KIND_LABEL[first]}` });
+      actions.push(skip(`Already counted under ${KIND_LABEL[first]}`, PLAN_RULE.twice));
       continue;
     }
     planned.set(key, t.kind);
     const existing = c.orders.find((o) => o.itemId === it.id && orderKey(o, it) === key) ?? null;
     if (existing) claimed.add(existing.id);
     if (existing && (c.paused[listingKey(existing)] || !existing.visible)) {
-      actions.push({ type: "skip", kind: t.kind, name: it.name, rank: t.rank, subtype, why: existing.visible ? "Your listing is set to be left alone" : "Your listing is hidden: left as it is" });
+      actions.push(existing.visible ? skip("Your listing is set to be left alone", PLAN_RULE.alone) : skip("Your listing is hidden: left as it is", PLAN_RULE.hidden));
       continue;
     }
-    if (t.hold) {
-      if (existing && t.hold.takeDown) actions.push({ type: "remove", kind: t.kind, item: it, order: existing, why: t.hold.why });
-      else if (existing) leaveListed(t.kind, it, existing, t.hold.why);
-      else actions.push({ type: "skip", kind: t.kind, name: it.name, rank: t.rank, subtype, why: t.hold.why });
+    // Never sold, whatever the category's rules say: a listing of yours for it stays as listed.
+    const hold = never.has(it.id) && !(t.hold && t.rule === "never") ? { why: NEVER_WHY, takeDown: false } : t.hold;
+    const holdTag = hold && never.has(it.id) ? { ...where, ...PLAN_RULE.never } : own;
+    if (hold) {
+      if (existing && hold.takeDown) actions.push({ type: "remove", kind: t.kind, item: it, order: existing, why: hold.why, ...holdTag });
+      else if (existing) leaveListed(t.kind, it, existing, hold.why, holdTag);
+      else actions.push(skip(hold.why, holdTag));
       continue;
     }
     const min = it.tags?.includes("relic") ? (c.minRelicPrice ?? c.minPrice) : c.minPrice;
@@ -394,13 +756,13 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
     const cheap = cheapByMedian(c.model, it, t.rank, min, subtype);
     if (cheap != null) {
       const why = `Sells for about ${Math.round(cheap)}p, under your ${minWords}`;
-      if (existing) leaveListed(t.kind, it, existing, why);
-      else actions.push({ type: "skip", kind: t.kind, name: it.name, rank: t.rank, subtype, why });
+      if (existing) leaveListed(t.kind, it, existing, why, { ...where, ...minRule(min) });
+      else actions.push(skip(why, minRule(min), cheap));
       continue;
     }
     const book = c.books[it.slug];
     if (!book) {
-      actions.push({ type: "skip", kind: t.kind, name: it.name, rank: t.rank, subtype, why: "Couldn't load its prices" });
+      actions.push(skip("Couldn't load its prices", PLAN_RULE.unread));
       continue;
     }
     // Prime parts and sets: what the price you'd list at would fetch against its ducats, at the
@@ -409,8 +771,8 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
     const asked = priceFor(c, it, t.rank, subtype, book, existing, t.crack != null ? aboveCrack(t.crack) : null);
     if (duc != null && asked.price != null && ducatsBeat(asked.price, duc)) {
       const why = `At ${asked.price}p (${asked.why}) it's ${asked.price <= duc ? "worth more as ducats" : "too close to its ducats to sell"}: ~${Math.round(duc * 10) / 10}p to you`;
-      if (existing) actions.push({ type: "remove", kind: t.kind, item: it, order: existing, why });
-      else actions.push({ type: "skip", kind: t.kind, name: it.name, rank: t.rank, subtype, why });
+      if (existing) actions.push({ type: "remove", kind: t.kind, item: it, order: existing, why, ...where, ...PLAN_RULE.ducats });
+      else actions.push(skip(why, PLAN_RULE.ducats, asked.price));
       continue;
     }
     const { price, why: priceWhy, value } = asked;
@@ -420,20 +782,21 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
     if (worth != null && t.crack != null && worth <= t.crack) {
       const ref = subtype ?? "intact";
       const why = `Goes for about ${Math.round(worth * 10) / 10}p, no more than ${/^[aeiou]/.test(ref) ? "an" : "a"} ${ref} crack is worth (about ${t.crack}p): kept to crack`;
-      if (existing) leaveListed(t.kind, it, existing, why);
-      else actions.push({ type: "skip", kind: t.kind, name: it.name, rank: t.rank, subtype, why });
+      if (existing) leaveListed(t.kind, it, existing, why, { ...where, ...PLAN_RULE.crack });
+      else actions.push(skip(why, PLAN_RULE.crack, worth));
       continue;
     }
     if (price == null || price < min) {
       const why = price == null ? "No price to go by" : `Sells for ${price}p, under your ${minWords}`;
-      if (existing) leaveListed(t.kind, it, existing, why);
-      else actions.push({ type: "skip", kind: t.kind, name: it.name, rank: t.rank, subtype, why });
+      const tag = price == null ? PLAN_RULE.noPrice : minRule(min);
+      if (existing) leaveListed(t.kind, it, existing, why, { ...where, ...tag });
+      else actions.push(skip(why, tag, price));
       continue;
     }
     if (!existing) {
-      actions.push({ type: "create", kind: t.kind, item: it, rank: it.maxRank != null ? t.rank : null, subtype, quantity: t.quantity, platinum: price, why: t.why, priceWhy });
+      actions.push({ type: "create", kind: t.kind, item: it, rank: it.maxRank != null ? t.rank : null, subtype, quantity: t.quantity, platinum: price, why: t.why, priceWhy, ...own });
     } else if (existing.quantity !== t.quantity || existing.platinum !== price) {
-      actions.push({ type: "update", kind: t.kind, item: it, order: existing, quantity: t.quantity, platinum: price, why: t.why, priceWhy });
+      actions.push({ type: "update", kind: t.kind, item: it, order: existing, quantity: t.quantity, platinum: price, why: t.why, priceWhy, ...own });
     }
   }
 
@@ -443,41 +806,41 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
   for (const o of c.orders) {
     if (claimed.has(o.id) || !o.visible || c.paused[listingKey(o)]) continue;
     const it = c.index.byId.get(o.itemId);
-    if (!it) continue;
-    const kind = kindOfItem(c.model, it);
-    if (!kind || !ticked.has(kind)) continue;
+    if (!it || !managed(it)) continue;
+    const kind = kindOfItem(c.model, it)!;
+    const where: Ruled = { cat: catOfItem(c.model, it, kind) };
     const held = heldFor(c.model, it, o);
     // null: orbiter can't count it (a set it doesn't know the parts of, a renamed mod): leave it.
     if (held == null) continue;
     if (held <= 0) {
-      actions.push({ type: "remove", kind, item: it, order: o, why: "You don't hold any now" });
+      actions.push({ type: "remove", kind, item: it, order: o, why: "You don't hold any now", ...where, ...PLAN_RULE.held });
       continue;
     }
     if (held < o.quantity) {
-      actions.push({ type: "update", kind, item: it, order: o, quantity: held, platinum: o.platinum, why: `You hold ${held} now`, priceWhy: "price kept" });
+      actions.push({ type: "update", kind, item: it, order: o, quantity: held, platinum: o.platinum, why: `You hold ${held} now`, priceWhy: "price kept", ...where, ...PLAN_RULE.held });
       continue;
     }
     // A prime part or set now worth more to you as ducats than it sells for (at the price it's
     // listed at, or what it sells for if that's less): it comes down.
     const asDucats = c.advice && (kind === "part" || kind === "set") ? ducatsFor(c, kind, it, o) : null;
     if (asDucats) {
-      actions.push({ type: "remove", kind, item: it, order: o, why: asDucats });
+      actions.push({ type: "remove", kind, item: it, order: o, why: asDucats, ...where, ...PLAN_RULE.ducats });
       continue;
     }
-    const rule = provenSpare(c, kind, it, o.rank, o.subtype);
+    const rule = provenSpare(spareCtx, kind, it, o.rank, o.subtype);
     // Copies a hard rule holds back (Requiem mods while lich weapons are left, copies installed in a
     // build): a listing for them comes down to what can go, whoever made it. An earlier orbiter
     // listed Requiem mods two to a name.
     if (rule?.cap != null && rule.cap < o.quantity) {
-      if (rule.cap <= 0) actions.push({ type: "remove", kind, item: it, order: o, why: upper(rule.short) });
-      else actions.push({ type: "update", kind, item: it, order: o, quantity: rule.cap, platinum: o.platinum, why: `${upper(rule.short)}: lowered to the ${rule.cap} spare`, priceWhy: "price kept" });
+      if (rule.cap <= 0) actions.push({ type: "remove", kind, item: it, order: o, why: upper(rule.short), ...where, ...PLAN_RULE.hard });
+      else actions.push({ type: "update", kind, item: it, order: o, quantity: rule.cap, platinum: o.platinum, why: `${upper(rule.short)}: lowered to the ${rule.cap} spare`, priceWhy: "price kept", ...where, ...PLAN_RULE.hard });
       continue;
     }
     if (rule && rule.spare < o.quantity) {
-      actions.push({ type: "skip", kind, name: it.name, rank: it.maxRank != null ? (o.rank ?? 0) : null, why: `${upper(rule.kept)} would be kept: ${AS_LISTED}` });
+      actions.push({ type: "skip", kind, name: it.name, itemId: it.id, rank: it.maxRank != null ? (o.rank ?? 0) : null, subtype: o.subtype, quantity: o.quantity, each: o.platinum, why: `${upper(rule.kept)} would be kept: ${AS_LISTED}`, ...where, ...PLAN_RULE.listed });
     }
   }
-  return fitLimit(c, ticked, actions, rules.priority ?? "plat");
+  return fitLimit(c, managed, actions, r.priority ?? "plat");
 }
 
 const upper = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -507,6 +870,8 @@ export interface SpareContext {
   sell?: SellChoices;
   advice?: DucatOptions;
   drops?: ReadonlyMap<string, number>;
+  /** The choices on Sell spares: their keep numbers, and what's never sold. Absent: the usual numbers. */
+  rules?: SparesRules;
 }
 
 export interface ProvenSpare {
@@ -535,18 +900,21 @@ export function provenSpare(c: SpareContext, kind: BulkKind, it: MarketItem, ran
     const mod = modRows(m).find((r) => r.unique === it.gameRef) ?? modRows(m).find((r) => r.name === it.name);
     if (!mod) return null;
     const at = (r: { rank: number }) => it.maxRank == null || r.rank === (rank ?? 0);
-    const spare = modSpares(mod).filter(at).reduce((n, r) => n + r.count, 0);
+    const keep = c.rules ? modKeepOf(c.rules, mod) : (mod.keep ?? MOD_KEEP);
+    const spare = modSpares({ ...mod, keep }).filter(at).reduce((n, r) => n + r.count, 0);
     const installed = mod.ranks.filter(at).reduce((n, r) => n + (r.installed ?? 0), 0);
     const lich = /\/Immortal\/Antivirus/.test(mod.unique) ? "Antivirus mods are kept while Coda weapons are left to master" : "Requiem mods are kept while Kuva and Tenet weapons are left to master";
+    const usual = keep === MOD_KEEP;
     const short = mod.keptFor
-      ? mod.keep === LICH_KEEP_ALL
+      ? keep === LICH_KEEP_ALL
         ? `${lich.split(" are kept")[0]} are all kept: which lich weapons you have left isn't known`
-        : `${lich} (${mod.keep} kept)`
+        : `${lich} (${keep} kept)`
       : installed
-        ? `${installed} installed in a build; your best copy and one to give away are kept`
-        : "your best copy and one to give away are kept";
+        ? `${installed} installed in a build; ${usual ? "your best copy and one to give away are kept" : `${keep} kept in all (Sell spares), one loose to give away`}`
+        : usual ? "your best copy and one to give away are kept" : `${keep} of each are kept (Sell spares), your best counted`;
     // Installed copies: the count a listing was made from likely took them for loose ones.
-    return { spare, kept: mod.keptFor ? mod.keptFor.split(":")[0] : installed ? `the ${installed} installed and one to give away` : "your own copy and one to give away", short, cap: mod.keptFor || installed ? spare : null };
+    const kept = mod.keptFor ? mod.keptFor.split(":")[0].replace(/^\d+ kept/, `${keep} kept`) : installed ? `the ${installed} installed and one to give away` : usual ? "your own copy and one to give away" : `${keep} copies, your best counted`;
+    return { spare, kept, short, cap: mod.keptFor || installed ? spare : null };
   }
   if (kind === "set") {
     const set = it.gameRef ? allSetRows(m, c.index).find((r) => r.unique === it.gameRef) : undefined;
@@ -556,26 +924,37 @@ export function provenSpare(c: SpareContext, kind: BulkKind, it: MarketItem, ran
     const part = partRows(m, saveForSets(c.sell, c.advice?.platPerDucat ?? 0, c.drops)).find((r) => r.name === it.name);
     if (!part) return null;
     const build = part.keep - part.forSet;
-    const kept = [build ? `the ${build > 1 ? "copies" : "copy"} to build ${part.parentName}` : "", part.forSet ? `${part.forSet} saved for the ${part.parentName} Set` : ""].filter(Boolean).join(" and ");
-    return { spare: part.spare, kept: kept || "nothing", short: kept ? `${kept} ${part.keep === 1 ? "is" : "are"} kept` : "nothing is kept", cap: null };
+    const keepN = c.rules?.prime.keep ?? 0;
+    const spare = Math.max(0, Math.min(part.spare, part.quantity - keepN));
+    const kept = [build ? `the ${build > 1 ? "copies" : "copy"} to build ${part.parentName}` : "", part.forSet ? `${part.forSet} saved for the ${part.parentName} Set` : "", keepN > part.keep ? `${keepN} in all (Sell spares)` : ""].filter(Boolean).join(" and ");
+    return { spare, kept: kept || "nothing", short: kept ? `${kept} ${part.keep === 1 && keepN <= 1 ? "is" : "are"} kept` : "nothing is kept", cap: null };
   }
   if (kind === "imprint") {
     const held = it.gameRef ? (m.imprints?.get(it.gameRef) ?? 0) : 0;
-    return m.imprints ? { spare: held, kept: "nothing", short: "imprints are all spare", cap: null } : null;
+    const keepN = c.rules?.imprints.keep ?? 0;
+    if (!m.imprints) return null;
+    return keepN ? { spare: Math.max(0, held - keepN), kept: `${keepN} of the breed`, short: `${keepN} of each breed are kept (Sell spares)`, cap: null } : { spare: held, kept: "nothing", short: "imprints are all spare", cap: null };
   }
   if (kind === "other") {
     const rows = spareRows(m, c.index, c.sell, c.advice?.platPerDucat ?? 0, c.advice?.squad ?? 1, c.drops).filter(otherSpare);
     const r = rows.find((x) => x.name === it.name && (x.subtype ?? "") === (subtype ?? it.subtypes?.[0] ?? "")) ?? rows.find((x) => x.name === it.name && !x.subtype);
-    return r ? { spare: r.spare, kept: r.keep ? `${r.keep} (${r.why.charAt(0).toLowerCase()}${r.why.slice(1)})` : "nothing", short: r.keep ? `${r.keep} kept: ${r.why.charAt(0).toLowerCase()}${r.why.slice(1)}` : "nothing is kept", cap: null } : null;
+    if (!r) return null;
+    const extra = c.rules ? extraKeepOf(c.rules, r) : 0;
+    const spare = c.rules ? rowSpareUnder(c.rules, r) : r.spare;
+    const kept = r.keep + extra;
+    const why = `${r.why.charAt(0).toLowerCase()}${r.why.slice(1)}${extra ? `, and ${extra} more (Sell spares)` : ""}`;
+    return { spare, kept: kept ? `${kept} (${why})` : "nothing", short: kept ? `${kept} kept: ${why}` : "nothing is kept", cap: null };
   }
   const a = arcaneRows(m).find((r) => r.name === it.name);
   if (!a) return null;
   const r = rank ?? 0;
+  const k = c.rules?.arcanes.keepMaxed ?? 1;
+  const yours = k === 1 ? "your maxed copy" : `your ${k} maxed copies`;
   // Whole maxed ones still to fuse count too: a listing made for them (Arcanes' List button) stays.
-  if (r >= a.maxRank) return { spare: a.extraSets, kept: "your maxed copy", short: "your maxed copy is kept", cap: null };
+  if (r >= a.maxRank) return { spare: Math.max(0, Math.floor(a.copies / a.needed) - k), kept: yours, short: `${yours} ${k === 1 ? "is" : "are"} kept`, cap: null };
   if (r === 0) {
-    const kept = a.complete ? "the copies your maxed one needs" : `the copies toward a maxed one (${a.copies}/${a.needed})`;
-    return { spare: Math.min(a.unranked, a.spare), kept, short: `${kept} are kept`, cap: null };
+    const kept = a.complete ? (k === 1 ? "the copies your maxed one needs" : `the copies your ${k} maxed ones need`) : `the copies toward a maxed one (${a.copies}/${a.needed})`;
+    return { spare: a.complete ? Math.min(a.unranked, Math.max(0, a.copies - k * a.needed)) : 0, kept, short: `${kept} are kept`, cap: null };
   }
   return null;
 }
@@ -587,7 +966,7 @@ export function provenSpare(c: SpareContext, kind: BulkKind, it: MarketItem, ran
  * rest of your existing ones in the ticked categories make way. Listings you set to be left
  * alone, hidden ones and ones outside the ticked categories are never moved: they just take a slot.
  */
-export function fitLimit(c: BulkContext, ticked: Set<BulkKind>, actions: BulkAction[], priority: BulkRules["priority"] = "plat"): BulkAction[] {
+export function fitLimit(c: BulkContext, managed: (it: MarketItem) => boolean, actions: BulkAction[], priority: BulkRules["priority"] = "plat"): BulkAction[] {
   const limit = c.limit ?? LISTING_LIMIT;
   const removed = new Set(actions.flatMap((a) => (a.type === "remove" ? [a.order.id] : [])));
   const updates = new Map(actions.flatMap((a) => (a.type === "update" ? [[a.order.id, a] as const] : [])));
@@ -600,7 +979,7 @@ export function fitLimit(c: BulkContext, ticked: Set<BulkKind>, actions: BulkAct
     if (removed.has(o.id)) continue;
     const it = c.index.byId.get(o.itemId);
     const kind = it ? kindOfItem(c.model, it) : null;
-    if (!it || !kind || !ticked.has(kind) || !o.visible || c.paused[listingKey(o)]) {
+    if (!it || !kind || !managed(it) || !o.visible || c.paused[listingKey(o)]) {
       fixed++;
       continue;
     }
@@ -619,12 +998,12 @@ export function fitLimit(c: BulkContext, ticked: Set<BulkKind>, actions: BulkAct
 
   const out: BulkAction[] = [];
   for (const a of actions) {
-    if (a.type === "create" && dropCreates.has(a)) out.push({ type: "skip", kind: a.kind, name: a.item.name, rank: a.rank, why: byTrades ? LIMIT_WHY_TRADES : LIMIT_WHY });
+    if (a.type === "create" && dropCreates.has(a)) out.push({ type: "skip", kind: a.kind, name: a.item.name, itemId: a.item.id, rank: a.rank, subtype: a.subtype, quantity: a.quantity, each: a.platinum, why: byTrades ? LIMIT_WHY_TRADES : LIMIT_WHY, cat: a.cat, family: a.family, rule: "plan.limit", ruleText: `Over ${limit} listings` });
     else if (a.type === "update" && dropOrders.has(a.order.id)) continue; // replaced by the removal below
     else out.push(a);
   }
   for (const f of dropOrders.values()) {
-    out.push({ type: "remove", kind: f.kind!, item: f.item!, order: f.order!, why: `Makes room for listings ${byTrades ? "that sell more often" : "worth more"} (warframe.market allows ${limit})` });
+    out.push({ type: "remove", kind: f.kind!, item: f.item!, order: f.order!, why: `Makes room for listings ${byTrades ? "that sell more often" : "worth more"} (warframe.market allows ${limit})`, cat: catOfItem(c.model, f.item!, f.kind!), rule: "plan.room", ruleText: "Makes room" });
   }
   return out;
 }
