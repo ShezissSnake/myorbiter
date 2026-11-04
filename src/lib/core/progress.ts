@@ -15,8 +15,7 @@ export function stepRows<T>(target: readonly T[], drawn: readonly T[], key: (r: 
   if (upto >= target.length) return same(target, drawn) ? drawn : target;
   const head = target.slice(0, Math.max(0, upto));
   const inHead = new Set(head.map(key));
-  const wanted = new Set<string>();
-  for (const r of target) wanted.add(key(r));
+  const wanted = keysOf(target, key);
   const out = head;
   for (const r of drawn) {
     if (out.length >= target.length) break;
@@ -24,6 +23,21 @@ export function stepRows<T>(target: readonly T[], drawn: readonly T[], key: (r: 
     if (!inHead.has(k) && wanted.has(k)) out.push(r);
   }
   return same(out, drawn) ? drawn : out;
+}
+
+/**
+ * The keys of a list's rows, worked out once per list: a list moving to new rows takes a step a
+ * frame with the same target each time, and keying every row of it again on each step was most of
+ * what a step cost on a long list.
+ */
+const keyCache = new WeakMap<readonly unknown[], { key: (r: never) => string; keys: Set<string> }>();
+function keysOf<T>(target: readonly T[], key: (r: T) => string): Set<string> {
+  const hit = keyCache.get(target);
+  if (hit && hit.key === key) return hit.keys;
+  const keys = new Set<string>();
+  for (const r of target) keys.add(key(r));
+  keyCache.set(target, { key, keys });
+  return keys;
 }
 
 /** Whether a step drew everything: what's drawn is the target, row for row. */

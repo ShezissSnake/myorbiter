@@ -298,9 +298,12 @@
   .wish { border: 1px solid var(--rule); background: linear-gradient(180deg, #14161a, var(--plate) 40%); clip-path: var(--cut); padding: .9rem 1rem; display: grid; grid-template-columns: minmax(18rem, 24rem) 1fr; gap: 1.2rem; align-items: start; }
   .wslot { min-width: 0; }
   /* Just added: a gold edge that fades over a second. A colour, so it shows with reduced motion too. */
-  .wish.new { animation: wish-new 1s ease-out; }
-  @keyframes wish-new { 0%, 45% { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold), inset 0 0 24px rgb(214 174 74 / 14%); } 100% { border-color: var(--rule); box-shadow: inset 0 0 0 1px transparent, inset 0 0 24px transparent; } }
-  @media (prefers-reduced-motion: reduce) { .wish.new { animation-duration: 1s !important; } }
+  /* The edge is drawn once on a layer of its own that fades by opacity, which the compositor runs
+     without redrawing the card (fading the shadow itself repainted it every frame). */
+  .wish.new { position: relative; }
+  .wish.new::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 2px var(--gold), inset 0 0 24px rgb(214 174 74 / 14%); opacity: 0; animation: wish-new 1s ease-out; }
+  @keyframes wish-new { 0%, 45% { opacity: 1; } 100% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .wish.new::after { animation-duration: 1s !important; } }
   .wish.ghost { display: block; padding: .4rem 0; border-color: transparent; background: none; clip-path: none; }
   .wish.done { grid-template-columns: 1fr; }
   /* Page area under 950 px (App sets the flag, by the room pages actually have). */

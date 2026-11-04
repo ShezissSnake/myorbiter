@@ -2658,14 +2658,14 @@
       {/if}
       {#if pricesOld != null && model.priceDate !== pricesOldDismissed}
         <!-- Short: a warning on every page that reads like a paragraph teaches you to skip warnings. -->
-        <!-- Dismissed: it folds away (motion.ts), so the page slides up rather than jumping. -->
-        <div class="bannerfold reveal" out:unfold><div><div class="stale slim" role="status" title="Item prices on every page (prime parts, sets, mods, relics…) come from warframe.market's daily figures for {new Date(`${model.priceDate}T12:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, which TennoScope downloads when it starts: starting TennoScope again gets newer ones">
+        <!-- Dismissed, or gone by itself (a +rep window running out, a chat read elsewhere): it folds away (motion.ts), so the page slides up rather than jumping. -->
+        <div class="bannerfold reveal" out:unfold={{ always: true }}><div><div class="stale slim" role="status" title="Item prices on every page (prime parts, sets, mods, relics…) come from warframe.market's daily figures for {new Date(`${model.priceDate}T12:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, which TennoScope downloads when it starts: starting TennoScope again gets newer ones">
           <span><b>Prices {pricesOld === 1 ? "a day" : `${pricesOld} days`} old</b> <span class="dim">· TennoScope updates them when it starts</span></span>
           <IconButton icon="close" tone="quiet" label="Dismiss" onclick={() => (pricesOldDismissed = model?.priceDate ?? null)} />
         </div></div></div>
       {/if}
       {#if chatsDue.length}
-        <div class="bannerfold reveal" out:unfold><div><div class="stale repdue" role="status">
+        <div class="bannerfold reveal" out:unfold={{ always: true }}><div><div class="stale repdue" role="status">
           <span>{chatsDue.length === 1 ? `${chatsDue[0].with} messaged you on warframe.market` : `${chatsDue.length} unread chats on warframe.market`}{#if chatsDue.length === 1 && chatsDue[0].lastMessage}: <i class="msg">“{chatsDue[0].lastMessage.slice(0, 120)}”</i>{/if}</span>
           <IconButton icon="external" tone="quiet" label="Open warframe.market" onclick={() => openUrl("https://warframe.market/")} />
           <IconButton icon="close" tone="quiet" label="Dismiss" onclick={chatsRead} />
@@ -2673,7 +2673,7 @@
       {/if}
       <!-- Not while the sale's own notification is up with the same +rep: one place at a time. -->
       {#if repDue && !toasts.list.some((n) => n.rep?.key === repDue.t.key)}
-        <div class="bannerfold reveal" out:unfold><div><div class="stale repdue" role="status">
+        <div class="bannerfold reveal" out:unfold={{ always: true }}><div><div class="stale repdue" role="status">
           <span>Traded with <b>{repDue.t.partner}</b>, who's on warframe.market ({repDue.u.reputation} reputation).</span>
           <RepButton partner={repDue.t.partner} text={settings.market.repText} ongiven={() => markRep(repDue.t.key, "given")} />
           <IconButton icon="close" tone="quiet" label="Not now" title="Not now: no +rep for this trade" onclick={() => markRep(repDue.t.key, "skipped")} />
