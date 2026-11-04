@@ -2160,6 +2160,12 @@
     mkt.rules = settings.market;
     mkt.advice = settings.advice;
   });
+  // What the last check before a listing counts from (listGuard.ts): your collection as now read,
+  // and whether TennoScope reads it at all.
+  $effect(() => {
+    mkt.model = model;
+    mkt.fullMode = ts.report ? ts.report.setup.access_mode === "full" : null;
+  });
 
   $effect(() => {
     const open = !!mission?.reward_screen_open || !!freshCards;
