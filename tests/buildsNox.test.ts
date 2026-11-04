@@ -8,6 +8,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { inflateSync } from "node:zlib";
 import {
+  cleanNoxListing,
+  cleanNoxPage,
+  isNoxBuildUrl,
+  noxBuildUrl,
   BLOCKED_HOSTS,
   NOX_MODES,
   NOX_PERMISSION,
@@ -269,4 +273,43 @@ test("the list's age filter goes by the card's date; no date or no limit keeps i
   assert.equal(noxListedWithinAge({ date: "2025-01-01" }, 30, NOW), false);
   assert.equal(noxListedWithinAge({ date: "2025-01-01" }, 0, NOW), true);
   assert.equal(noxListedWithinAge({ date: null }, 30, NOW), true);
+});
+
+// ---------------------------------------------------------------- what comes back is checked
+
+test("listings: a plain path, a link rebuilt as the build's page, text cleaned and capped", () => {
+  const good = cleanNoxListing({ ...READ.list[3], url: "https://evil.example/phish", title: "Mirage\u202E \u200Bbuild\u2066", author: "a".repeat(200), tags: ["Steel Path", "Steel Path", "\u200B", 3] });
+  assert.ok(good);
+  assert.equal(good.url, `https://noxsframe.com/builds/${READ.list[3].path}`, "the link is the build's page, whatever the card said");
+  assert.equal(good.title, "Mirage build");
+  assert.equal(good.author.length, 80);
+  assert.deepEqual(good.tags, ["Steel Path"]);
+  for (const path of ["../x", "a/b", "x?y=1", "", "a b", "x".repeat(161), 7]) assert.equal(cleanNoxListing({ ...READ.list[3], path }), null, String(path));
+  assert.equal(cleanNoxListing({ ...READ.list[3], title: "\u200B" }), null, "no title");
+  assert.equal(cleanNoxListing("nope"), null);
+});
+
+test("pages: the link is always noxsframe.com/builds/<path>, the text cleaned", () => {
+  const page = cleanNoxPage({ ...READ.mirage, url: "https://noxsframe.com.evil.example/builds/x", title: "T\u202Eitle", description: "line one\u200B\n\n\n\n\nline two", modes: ["steelpath", "<b>x</b>"] }, READ.mirage.path);
+  assert.equal(page.url, `https://noxsframe.com/builds/${READ.mirage.path}`);
+  assert.ok(isNoxBuildUrl(page.url));
+  assert.equal(page.title, "Title");
+  assert.equal(page.description, "line one\n\n\nline two");
+  assert.deepEqual(page.modes, ["steelpath"]);
+  for (const url of ["https://noxsframe.com/", "https://noxsframe.com/builds/a/b", "http://noxsframe.com/builds/a", "https://noxsframe.com/builds/a?x=1", "https://evil.example/builds/a"]) assert.ok(!isNoxBuildUrl(url), url);
+  assert.equal(noxBuildUrl("abc-def"), "https://noxsframe.com/builds/abc-def");
+});
+
+test("a list from the Rust side with a bad card: the card is dropped, the rest read", async () => {
+  const { fetcher } = fakeFetcher();
+  const list = fetcher.list.bind(fetcher);
+  fetcher.list = async (item, refresh) => {
+    const a = await list(item, refresh);
+    return { ...a, data: [{ ...READ.list[3], path: "../../evil" }, ...a.data] };
+  };
+  const nox = makeNox(fetcher, () => true);
+  const r = await nox.listing(CAT.get(MIRAGE)!, ctx());
+  assert.ok(r.entries.length > 0);
+  for (const e of r.entries) assert.ok(isNoxBuildUrl(e.url), e.url);
+  await assert.rejects(nox.open(CAT.get(MIRAGE)!, "../evil", ctx()), /isn't a Nox's Frame build/);
 });

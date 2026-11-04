@@ -421,7 +421,9 @@ pub fn read_build(html: &str, segment: &str) -> Result<Value, String> {
     Ok(json!({
         "id": id,
         "path": segment,
-        "url": s(&meta["url"]).filter(|u| u.starts_with("https://noxsframe.com/")).unwrap_or_else(|| build_url(segment)),
+        // Always the page that was read, never the address the page names for itself: a link
+        // orbiter opens is a build page on noxsframe.com and nothing else.
+        "url": build_url(segment),
         "title": s(&meta["name"]).or_else(|| s(&decoded["name"])),
         "description": s(&meta["description"]),
         "author": s(&meta["author"]["name"]),
@@ -597,6 +599,17 @@ mod tests {
         assert_eq!(b["build"]["warframe"]["itemId"], "/Lotus/Powersuits/Harlequin/MiragePrime");
         assert_eq!(b["build"]["melee"]["itemId"], "/Lotus/Weapons/Tenno/Melee/Glaives/PrimeGlaive/PrimeGlaiveWeapon");
         assert!(b["code"].as_str().unwrap().starts_with("NFB1:eNr"));
+    }
+
+    #[test]
+    fn a_page_naming_another_address_still_links_to_itself() {
+        let page = MIRAGE.replace(
+            "\"url\":\"https://noxsframe.com/builds/02OZ99LT_8kP-mirage-prime-glaive-prime-build\"",
+            "\"url\":\"https://noxsframe.com.evil.example/login\"",
+        );
+        assert_ne!(page, MIRAGE, "the fixture names its own address");
+        let b = read_build(&page, "02OZ99LT_8kP-mirage-prime-glaive-prime-build").unwrap();
+        assert_eq!(b["url"], "https://noxsframe.com/builds/02OZ99LT_8kP-mirage-prime-glaive-prime-build");
     }
 
     #[test]
