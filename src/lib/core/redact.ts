@@ -51,6 +51,8 @@ const RULES: [RegExp, string | ((...m: string[]) => string)][] = [
   [/(?<![\w:])(?:[0-9a-f]{1,4}:){3,7}[0-9a-f]{1,4}(?![\w:])|(?<![\w:])(?:[0-9a-f]{1,4}:){1,6}:(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,5})?(?![\w:])/gi, "[ip]"],
   // Home folders: the user name in the path.
   [/(\/(?:home|Users|var\/home|run\/media|media)\/)(?!\[user\])[^/\s"':]+/g, (_m, p) => `${p}[user]`],
+  // The same under Wine's Z: drive, which maps / (Z:\home\<name>\…).
+  [/(\b[A-Za-z]:\\+home\\+)(?!\[user\])[^\\\s"':]+/gi, (_m, p) => `${p}[user]`],
   // Wine's own users folder: Proton's is always "steamuser"; another Wine prefix uses the real name.
   [/(drive_c[\\/]+users[\\/]+)(?!steamuser\b|Public\b|\[user\])[^\\/\s"':]+/gi, (_m, p) => `${p}[user]`],
   // A Windows user name may have spaces in it: up to the next separator.
@@ -65,9 +67,14 @@ const STOP = "the|a|an|your|you|yours|me|my|it|its|that|this|these|those|them|th
 
 /** Names in lines about whispers, trades and profiles, by their shape. */
 const NAME_LINES: [RegExp, (...m: string[]) => string][] = [
-  // "Name whispered you", "3 people whispered you: A, B, C"
-  [new RegExp(`\\b(?!people\\b)${NAME}(?=\\s+whispered you)`, "g"), () => "[player]"],
+  // A warframe.market chat: its partner and what they wrote ("siteChat: Name messaged you on
+  // warframe.market (Name: the message)"), a stranger's words, so all of it in brackets goes.
+  [/(\bsiteChat:[^\n]*?\()[^\n]*\)/g, (_m, lead) => `${lead}[chat hidden])`],
+  // "Name whispered you", "Name messaged you", "3 people whispered you: A, B, C"
+  [new RegExp(`\\b(?!people\\b)${NAME}(?=\\s+(?:whispered|messaged) you)`, "g"), () => "[player]"],
   [new RegExp(`(people whispered you[^\\n]*?(?:\\(|:|\\s·\\s|—)\\s*)((?:${NAME}\\s*,\\s*)*${NAME})`, "gi"), (_m, lead) => `${lead}[players]`],
+  // A seller, after a price: "Ash Prime Set: 20p from Name", "Rubico Vexi-critacan: 300p from Name"
+  [new RegExp(`(\\b\\d+\\s*(?:p|plat|platinum)\\s+from\\s+)(?!\\[)${NAME}`, "gi"), (_m, lead) => `${lead}[player]`],
   // "sold … to Name", "bought … from Name", "traded with Name", "trade with Name", "for Name"
   [new RegExp(`(\\b(?:sold|gave|give|giving|traded?|trading|bought|invited?|whisper(?:ed|ing)?|message(?:d)?|chat(?:ted)? with|\\+rep)\\b[^\\n]{0,80}?\\b(?:to|from|with|for)\\s+)(?!\\[|\\d|(?:${STOP})\\b)${NAME}`, "gi"), (_m, lead) => `${lead}[player]`],
   // "give Name +rep", "Couldn't give Name +rep"
