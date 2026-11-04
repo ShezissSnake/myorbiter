@@ -96,6 +96,7 @@
   const loadRivens = once(() => import("./lib/tabs/Rivens.svelte"));
   const loadWishlist = once(() => import("./lib/tabs/Wishlist.svelte"));
   const loadBuilds = once(() => import("./lib/tabs/Builds.svelte"));
+  const loadSpares = once(() => import("./lib/tabs/Spares.svelte"));
   import Relics from "./lib/tabs/Relics.svelte";
   import InMission from "./lib/tabs/InMission.svelte";
   import Orders from "./lib/tabs/Orders.svelte";
@@ -208,7 +209,7 @@
   let warmed = false;
   const lazyPages: Partial<Record<string, () => Promise<unknown>>> = {
     sets: loadSets, mastery: loadMastery, arcanes: loadArcanes, mods: loadMods, planner: loadPlanner, sales: loadSales,
-    guide: loadGuide, browse: loadMarket, stats: loadStats, wishlist: loadWishlist,
+    guide: loadGuide, browse: loadMarket, stats: loadStats, wishlist: loadWishlist, spares: loadSpares,
   };
   $effect(() => {
     if (!model || warmed) return;
@@ -757,6 +758,12 @@
    */
   function goTo(target: string, spot: string | null = null, hold = false) {
     const t = parseTarget(target);
+    // Put my spares on sale was a fold on Orders: older links to it (What's New) open Sell spares.
+    if (t.page === "market" && t.want.spares) {
+      t.page = "spares";
+      t.want = {};
+      if (t.spot === "spares") t.spot = null;
+    }
     const page = t.page;
     const card = spot ?? t.spot;
     // Settings isn't a page: its panel opens, at the section named.
@@ -1695,14 +1702,13 @@
   }
 
   // What your relics sell for at each refinement (TennoScope's prices are mostly intact only),
-  // read once a day while relic selling is on: whether one is worth more sold than cracked
-  // depends on it. Checked hourly; only relics not read in the last day are fetched.
+  // read once a day: whether one is worth more sold than cracked depends on it (Inventory's spare
+  // relics, Sell spares' Relics row). Checked hourly; only relics not read in the last day are fetched.
   let relicPricesChecked = 0;
   $effect(() => {
     const m = bgModel;
-    const on = settings.market.sellable.relicsWorthSelling;
     const items = mkt.items.length;
-    if (!m || !on || !items || !settingsReady) return;
+    if (!m || !items || !settingsReady) return;
     untrack(() => {
       if (Date.now() - relicPricesChecked < 3_600_000) return;
       relicPricesChecked = Date.now();
@@ -2714,7 +2720,8 @@
       {#snippet pPlanner()}{#await loadPlanner(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("planner", e)}><Page model={modelFor("planner")} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pHome()}<Home model={modelFor("home")} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => goTo(t)} {shortListings} {liveAt} {liveError} {liveRead} bountyTables={relicTables?.bounties ?? null} sortieRewards={relicTables?.sortie ?? null} />{/snippet}
       {#snippet pSales()}{#await loadSales(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("sales", e)}><Page model={modelFor("sales")} bind:settings={settings} go={(t: string) => (settings.tab = t)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pMarket()}<Orders model={modelFor("market")} console={onConsole} whispers={mission?.whispers ?? []} bind:settings={settings.market} advice={settings.advice} masteryRank={settings.game.masteryRank} credits={settings.game.credits} />{/snippet}
+      {#snippet pSpares()}{#await loadSpares(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("spares", e)}><Page model={modelFor("spares")} bind:settings={settings.market} advice={settings.advice} masteryRank={settings.game.masteryRank} credits={settings.game.credits} go={(t: string) => goTo(t)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pMarket()}<Orders model={modelFor("market")} console={onConsole} whispers={mission?.whispers ?? []} bind:settings={settings.market} advice={settings.advice} masteryRank={settings.game.masteryRank} go={(t: string) => goTo(t)} />{/snippet}
       {#snippet pGuide()}{#await loadGuide(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("guide", e)}><Page console={onConsole} platform={PLATFORM_LABEL[settings.market.platform]} hidden={settings.pagesHidden} go={(t: string) => goTo(t)} bind:plannerMode={settings.plannerMode} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pFoundry()}<Foundry model={modelFor("foundry")} bind:settings={settings} />{/snippet}
       {#snippet pBuilds()}{#await loadBuilds(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("builds", e)}><Page model={modelFor("builds")} bind:settings={settings} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
@@ -2735,6 +2742,7 @@
       {@render pane("home", pHome)}
       {@render pane("sales", pSales)}
       {@render pane("market", pMarket)}
+      {@render pane("spares", pSpares)}
       {@render pane("guide", pGuide)}
       {@render pane("inventory", pInventory)}
       {@render pane("foundry", pFoundry)}
@@ -2772,7 +2780,7 @@
 <Toasts open={openNotice} all={() => openNotices("recent")} left={compact ? "5.2rem" : "15.3rem"} acts={noticeActs} />
 <WhatsNew bind:open={showNews} seen={settings.newsSeen} ondone={() => (settings.newsSeen = NEWEST)} go={(t: string) => goTo(t)} />
 <UpdateNotice onsettings={() => goTo("settings#updates")} />
-<SettingsSheet bind:open={showSettings} bind:focus={settingsFocus} bind:settings {rivenKeyError} onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
+<SettingsSheet bind:open={showSettings} bind:focus={settingsFocus} bind:settings {rivenKeyError} ongo={(t) => goTo(t)} onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
 {#if bugReport.open}<BugReport page={pageById[settings.tab as PageId]?.label ?? settings.tab} tennoscope={reportTennoscope} fullMode={reportFullMode} names={reportNames} />{/if}
 <TennoscopeSheet bind:open={showTennoscope} synced={model ? ago(model.observedAt, tick) : "not yet"} job={syncJob} onsync={refreshAll} {windowMode} bind:opaqueOverlay={settings.tennoscope.opaqueOverlay} />
 

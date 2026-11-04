@@ -19,7 +19,10 @@
     estimate = true,
     extra,
     fixed = false,
+    disabled = false,
   }: {
+    /** Its category is off: shown greyed out, kept as it is. */
+    disabled?: boolean;
     on: boolean;
     /** Always in while its category is: no box of its own (the category's box turns it off). */
     fixed?: boolean;
@@ -36,11 +39,11 @@
   } = $props();
 </script>
 
-<div class="line" class:off={!on}>
-  {#if fixed}<span aria-hidden="true"></span>{:else}<button type="button" class="box" class:on aria-pressed={on} aria-label="Sell {label}" title={on ? `${label}: sold. Click to keep them all` : `${label}: all kept. Click to sell the spare ones`} onclick={() => (on = !on)}><i></i></button>{/if}
-  <span class="name" {title}>{label}</span>
+<div class="line" class:off={!on} class:disabled>
+  {#if fixed}<span aria-hidden="true"></span>{:else}<button type="button" class="box" class:on aria-pressed={on} aria-label="Sell {label}" {disabled} title={on ? `${label}: sold. Click to keep them all` : `${label}: all kept. Click to sell the spare ones`} onclick={() => (on = !on)}><i></i></button>{/if}
+  <span class="name" title={title ?? label}>{label}</span>
   <span class="ctl">
-    {#if keep !== undefined}<span class="kw">keep</span><Stepper bind:value={keep} min={keepMin} label="{label}: copies to keep" title="Copies of each kept, your best one counted" />{/if}
+    {#if keep !== undefined}<span class="kw">keep</span><Stepper bind:value={keep} min={keepMin} {disabled} label="{label}: copies to keep" title="{label}: copies of each kept, your best one counted" />{/if}
     {#if extra}{@render extra()}{/if}
     {#if note}<span class="note">{note}</span>{/if}
   </span>
@@ -68,5 +71,6 @@
   .tally .n::after { content: " ·"; color: var(--rule-control); }
   .pl { display: inline-flex; align-items: center; color: var(--platinum-deep); font-size: .8rem; }
   .off .tally { opacity: .5; }
+  .disabled .name, .disabled .box { opacity: .55; }
   .none { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--rule-control); }
 </style>

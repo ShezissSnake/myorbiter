@@ -1,11 +1,12 @@
 <script lang="ts">
-  // One category of "Put my spares on sale": its box (sell these or not), its name, its choices in
+  // One category of Sell spares: its box (sell these or not), its name, its choices in
   // a line of plain words, and what it would put up. The rest of the row opens its options below
   // it (one row open at a time: the panel says which). Closed, a row is one line.
   import type { Snippet } from "svelte";
   import GameIcon, { type GameIconName } from "../GameIcon.svelte";
   import Icon from "../Icon.svelte";
   import P from "../P.svelte";
+  import Count from "../Count.svelte";
   import { reveal } from "../../motion";
   import type { CategoryPreview } from "./types";
 
@@ -36,17 +37,17 @@
   const est = $derived(preview?.estimate ? "~" : "");
 </script>
 
-<section class="cat" class:on class:open data-cat={id}>
+<section class="cat" class:on class:open {id} data-cat={id}>
   <div class="head">
     <button type="button" class="box" class:on aria-pressed={on} aria-label="Sell {label}" title={on ? `${label}: in the plan. Click to leave every one alone` : `${label}: not in the plan. Click to sell the spare ones`} onclick={() => (on = !on)}><i></i></button>
-    <button type="button" class="rowbtn" aria-expanded={open} aria-controls="{id}-opts" title={open ? `Close ${label}'s options` : `${label}: choose what goes and what's kept`} onclick={ontoggle}>
+    <button type="button" class="rowbtn" aria-expanded={open} aria-controls="{id}-opts" title={open ? `Close ${label}'s options` : `${label}: ${on ? summary : "not sold"}. Click to choose what goes and what's kept`} onclick={ontoggle}>
       <span class="nm"><GameIcon name={icon} size={16} />{label}</span>
       <span class="sum">{on ? summary : "Not sold"}</span>
-      <span class="fig" class:dim={!on}>
+      <span class="fig" class:dim={!on} class:stale={preview?.stale} title={!preview ? "Working out what it would list" : preview.estimate ? "What it would list at the daily prices; the plan reads the cheapest in-game price for each" : "From the plan: its new and changed listings"}>
         {#if preview && preview.listings}
-          <span class="n"><b>{preview.listings}</b> listing{preview.listings === 1 ? "" : "s"}</span>
-          <span class="pl">{est}<P v={preview.plat} dim={!on} /></span>
-        {:else if preview}<span class="n none">nothing to list</span>{/if}
+          <span class="n"><b><Count value={preview.listings} /></b> listing{preview.listings === 1 ? "" : "s"}</span>
+          <span class="pl">{est}<P v={Math.round(preview.plat)} dim={!on} /></span>
+        {:else if preview}<span class="n none">nothing to list</span>{:else}<span class="n none">…</span>{/if}
       </span>
       <span class="chev" aria-hidden="true">▾</span>
     </button>
@@ -54,7 +55,7 @@
   {#if open}
     <div class="reveal" transition:reveal id="{id}-opts"><div>
       <div class="body">
-        {#if !on}<p class="offnote small">Not in the plan: tick the box to sell these. The choices below are kept either way.</p>{/if}
+        {#if !on}<p class="offnote small">Off: none of these is sold, and the choices below wait as they are. Tick the box to sell them.</p>{/if}
         {#if preview?.note}<p class="small warn">{preview.note}</p>{/if}
         {@render children()}
         {#if always}<p class="always"><Icon name="lock" size={12} /><span>{always}</span></p>{/if}
@@ -90,7 +91,12 @@
   .fig.dim .n b { color: var(--platinum-deep); }
   .fig .none { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; }
   .pl { display: inline-flex; align-items: center; min-width: 4.2rem; justify-content: flex-end; color: var(--platinum-deep); font-size: .8rem; }
-  .chev { color: var(--platinum-deep); font-size: .72rem; justify-self: end; }
+  .chev { color: var(--platinum-deep); font-size: .72rem; justify-self: end; transition: transform var(--quick) var(--out); }
+  .open .chev { transform: rotate(180deg); }
+  .fig.stale { opacity: .55; }
+  /* A narrow page: the choices in words go on a line of their own under the name and figures. */
+  :global(html[data-room~="lt900"]) .rowbtn { grid-template-columns: minmax(0, 1fr) auto 1rem; row-gap: .15rem; }
+  :global(html[data-room~="lt900"]) .sum { grid-column: 1 / -1; grid-row: 2; }
   .body { display: grid; gap: .8rem; padding: .2rem .9rem 1rem 2.1rem; }
   .offnote { margin: 0; color: var(--platinum-deep); }
   .warn { margin: 0; color: var(--alert); }
