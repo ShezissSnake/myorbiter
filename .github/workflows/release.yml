@@ -4,24 +4,50 @@ name: Release builds
 # (a .dmg), each a single download with nothing else to install. The Linux and Windows builds carry
 # TennoScope inside them, built from tennoscope/ in this repository (TennoScope with orbiter's
 # changes, see tennoscope/ORBITER.md), with its Tesseract; TennoScope doesn't run on macOS, so the
-# Mac build goes without it. orbiter and TennoScope are GPL-3.0-only, so every run also attaches
+# Mac build goes without it. orbiter and TennoScope are GPL-3.0-only, so every release also carries
 # orbiter-source.tar.gz, the complete source of the commit it built.
 #
 # Every push to main builds, and so does Run workflow on the Actions tab. Each run is build <n>
 # (the run number): version 0.1.<n>, its downloads on a pre-release of its own, `build-<n>`
-# (Releases, on the repository's page). Release files don't count against the Actions storage
-# limit, which a free account's private repository fills with one of these builds, so nothing is
-# passed between jobs as an artifact: each system builds TennoScope and orbiter in one job and
-# attaches its own file.
+# (Releases, on the repository's page). Only a run on main publishes; a run started by hand on any
+# other branch builds the same files and leaves them as the run's artifacts, for 3 days.
 #
-# Updates (src-tauri/src/updates.rs): with the signing key in the repository's secrets
-# (TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD), the AppImage and the Windows
-# installer are signed, each signature is checked against the public key in tauri.conf.json, and
-# `latest.json` (scripts/updater-manifest.mjs) goes on the build's release. A build with both the
-# Linux and Windows downloads then becomes the Experimental channel's: its latest.json is copied to
-# the `channel-experimental` release, where installed copies on Experimental look. Beta and Stable
-# get a build by hand, the same files (promote.yml). Without the secret the build still succeeds,
-# with no updater files, and says so in its summary.
+# The jobs, and what each one may do:
+#
+#   audit ─┬─ linux ───┐   build jobs: read-only token, no secrets; each uploads its unsigned
+#          ├─ windows ─┤   download as an artifact
+#          └─ macos ───┘
+#                      └─ sign       the release-signing environment's signing key, read-only token;
+#                           │        installs and builds nothing (scripts/updater-sign.mjs, plain
+#                           │        Node), signs the AppImage and the setup.exe, checks each
+#                           │        signature against tauri.conf.json's public key
+#                           └─ assemble   read-only: the source tarball, the release notes,
+#                                │        latest.json (every signature checked again) and SHA256SUMS
+#                                ├─ attest     once public: GitHub's build provenance for SHA256SUMS
+#                                └─ publish    the only job that writes: checks every file against
+#                                     │        SHA256SUMS, makes the build-<n> pre-release with all of
+#                                     │        them, and moves channel-experimental to it
+#                                     └─ cleanup   deletes this run's artifacts, now on the release
+#
+# The build jobs run npm, pnpm and Cargo build code, third-party actions and caches; anything that
+# runs there can read whatever the job holds, so they hold nothing worth taking. The signing key is
+# read only by `sign`, and only by its signing step's environment; the write token only by
+# `publish`, which checks out no code and runs only gh and coreutils.
+#
+# Updates (src-tauri/src/updates.rs): with the signing key in the release-signing environment's
+# secrets (TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD; docs/maintaining.md), the
+# AppImage and the Windows installer are signed and `latest.json` (scripts/updater-manifest.mjs)
+# goes on the build's release. A build with both the Linux and Windows downloads then becomes the
+# Experimental channel's: its latest.json is copied to the `channel-experimental` release, where
+# installed copies on Experimental look. Beta and Stable get a build by hand, the same files
+# (promote.yml). Without the secret the build is still published, with no updater files, and says
+# so in its summary.
+#
+# The builds don't make Tauri's own updater files (`createUpdaterArtifacts`): with it on, `tauri
+# build` signs as it bundles and stops without the key ("A public key has been found, but no private
+# key"). Off, it makes the same AppImage and setup.exe, unsigned; Tauri v2's updater takes those two
+# files as they are (an AppImage replaces itself; on Windows a setup.exe is run as the installer),
+# so the sign job only adds their .sig files.
 #
 # Actions minutes: a private repository on the free plan gets 2,000 a month, and Windows minutes
 # count double and macOS ten times. While the repository is private, pushes build nothing (each
@@ -44,15 +70,15 @@ on:
         type: boolean
         default: false
 
-# Read-only unless a job says otherwise: only the jobs that create the release or attach files to it
-# may write, and only their `gh release` steps get the token (GH_TOKEN). Every action is pinned to a
-# commit (Dependabot, .github/dependabot.yml, proposes updates), every checkout leaves no
+# No token permissions unless a job asks: the build jobs and most others read, `publish` alone writes
+# contents, `cleanup` alone deletes artifacts, `attest` alone makes attestations. Every action is
+# pinned to a commit (Dependabot, .github/dependabot.yml, proposes updates), every checkout leaves no
 # credentials behind in .git, and every Cargo build uses its Cargo.lock as committed (--locked).
-permissions:
-  contents: read
+permissions: {}
 
-# A newer push cancels a push build still running (its build-<n> pre-release stays, unfinished, and
-# never reaches a channel). Runs started by hand are a group of their own and are never cancelled.
+# A newer push cancels a push build still running; nothing of a build is published before its last
+# jobs, so a cancelled one leaves at most unpublished artifacts. Runs started by hand are a group of
+# their own and are never cancelled.
 concurrency:
   group: release-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'push' }}
@@ -71,35 +97,19 @@ jobs:
   audit:
     name: Dependency audit
     if: github.event_name == 'workflow_dispatch' || !github.event.repository.private
-    uses: ./.github/workflows/audit.yml
-
-  release:
-    name: Make the pre-release
-    needs: audit
-    if: github.event_name == 'workflow_dispatch' || !github.event.repository.private
-    runs-on: ubuntu-24.04
     permissions:
-      contents: write
-    steps:
-      - name: Create it
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --prerelease --title "orbiter $VERSION ($RELEASE_TAG)" \
-            --notes "orbiter $VERSION, built from ${GITHUB_SHA::7}. The AppImage is for Linux and the Steam Deck, the setup.exe for Windows, the .dmg for macOS (Apple silicon), whichever this run built. orbiter and the TennoScope inside it are GPL-3.0-only: orbiter-source.tar.gz is the complete source of this build."
+      contents: read
+    # `./` in a job's `uses` already resolves at the commit that's running, as `$/` does.
+    uses: ./.github/workflows/audit.yml # zizmor: ignore[self-repository]
 
   # ------------------------------------------------------------------ Linux and the Steam Deck
 
   linux:
     name: Linux / Steam Deck AppImage
-    needs: release
+    needs: audit
     if: github.event_name == 'workflow_dispatch' || !github.event.repository.private
-    # Writes only to attach its file to the release (the last step, the one with the token).
     permissions:
-      contents: write
-    outputs:
-      signed: ${{ steps.signing.outputs.signed }}
+      contents: read
     # Ubuntu 22.04 like TennoScope's own AppImage: what's built here needs nothing newer than its
     # C library (2.35), so it runs on SteamOS and any Linux from the last few years.
     runs-on: ubuntu-22.04
@@ -146,6 +156,10 @@ jobs:
           echo "PKG_CONFIG_PATH=$lib_dir/pkgconfig:${PKG_CONFIG_PATH:-}" >>"$GITHUB_ENV"
           echo "LD_LIBRARY_PATH=$lib_dir:${LD_LIBRARY_PATH:-}" >>"$GITHUB_ENV"
 
+      # The build caches (Cargo's, pnpm's, npm's) stay in the build jobs, which hold no secret and no
+      # write token. A run on main restores only caches saved by runs on main (GitHub scopes caches by
+      # branch, and no workflow here runs for pull requests), so what it restores came from this same
+      # workflow on main. None of the jobs after the builds use a cache.
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: |
@@ -193,31 +207,12 @@ jobs:
           # Its licence, its notices and its Tesseract's, and NOTICE.md (where its source is).
           scripts/tennoscope-notice.sh vendor/tennoscope
 
-      # Whether the updater key is in the secrets: without it the build goes on, unsigned.
-      - name: Check for the signing key
-        id: signing
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        run: |
-          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-            echo "signed=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "signed=false" >>"$GITHUB_OUTPUT"
-            echo "**No updater files:** the TAURI_SIGNING_PRIVATE_KEY secret isn't set, so this AppImage is unsigned and no channel will offer it (README, Release channels)." >>"$GITHUB_STEP_SUMMARY"
-          fi
-
-      # The version goes into this build only (tauri.conf.json keeps 0.1.0 for local builds); with
-      # the key, Tauri also signs the AppImage, though the repack below changes it and it's signed again.
+      # The version goes into this build only (tauri.conf.json keeps 0.1.0 for local builds). No
+      # updater files and no key here: the sign job signs the final AppImage, after the repack.
       - name: Build orbiter
-        env:
-          SIGNED: ${{ steps.signing.outputs.signed }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           npm ci
-          configs=(--config src-tauri/tauri.bundle.json --config "{\"version\":\"$VERSION\"}")
-          if [ "$SIGNED" = true ]; then configs+=(--config '{"bundle":{"createUpdaterArtifacts":true}}'); fi
-          npx tauri build --bundles appimage "${configs[@]}" -- --locked
+          npx tauri build --bundles appimage --config src-tauri/tauri.bundle.json --config "{\"version\":\"$VERSION\"}" -- --locked
           scripts/repack-appimage.sh
 
       # The update check's address is fixed in the code; a build made for the end-to-end test of
@@ -228,41 +223,30 @@ jobs:
             echo "::error::this binary was built with the e2e-updater feature"; exit 1
           fi
 
-      # repack-appimage.sh rewrote the AppImage Tauri signed: the signature is made again for the
-      # final file, bound to this version, and checked against the public key in tauri.conf.json
-      # (the one installed copies check with) before anything is attached.
-      - name: Sign the AppImage for the updater
-        if: steps.signing.outputs.signed == 'true'
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          appimage=$(ls target/release/bundle/appimage/*.AppImage)
-          rm -f "$appimage.sig"
-          npx tauri signer sign --app-version "$VERSION" "$appimage" >/dev/null
-          node scripts/updater-manifest.mjs verify --file "$appimage" --sig "$appimage.sig" --version "$VERSION"
+      # Kept for 3 days: long enough to re-run a failed sign or publish, short enough not to fill a
+      # private repository's artifact storage (cleanup deletes them once they're on the release).
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-linux
+          path: target/release/bundle/appimage/orbiter_${{ env.VERSION }}_amd64.AppImage
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
 
-      - name: Attach to the release
+      - name: Say where the files are
+        if: github.ref != 'refs/heads/main'
         env:
-          GH_TOKEN: ${{ github.token }}
-          SIGNED: ${{ steps.signing.outputs.signed }}
-        run: |
-          files=(target/release/bundle/appimage/*.AppImage)
-          if [ "$SIGNED" = true ]; then files+=(target/release/bundle/appimage/*.AppImage.sig); fi
-          gh release upload "$RELEASE_TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          REF: ${{ github.ref_name }}
+        run: echo "**Not published:** built from \`$REF\`, not main. The downloads are this run's artifacts, for 3 days." >>"$GITHUB_STEP_SUMMARY"
 
   # ------------------------------------------------------------------ Windows
 
   windows:
     name: Windows installer
-    needs: release
-    # Writes only to attach its file to the release (the last step, the one with the token).
-    permissions:
-      contents: write
+    needs: audit
     if: (github.event_name == 'workflow_dispatch' && inputs.windows) || (github.event_name == 'push' && !github.event.repository.private)
-    outputs:
-      signed: ${{ steps.signing.outputs.signed }}
+    permissions:
+      contents: read
     runs-on: windows-latest
     defaults:
       run:
@@ -315,29 +299,11 @@ jobs:
           # Its licence, its notices and its Tesseract's, and NOTICE.md (where its source is).
           scripts/tennoscope-notice.sh vendor/tennoscope
 
-      - name: Check for the signing key
-        id: signing
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        run: |
-          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-            echo "signed=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "signed=false" >>"$GITHUB_OUTPUT"
-            echo "**No updater files:** the TAURI_SIGNING_PRIVATE_KEY secret isn't set, so this installer is unsigned and no channel will offer it (README, Release channels)." >>"$GITHUB_STEP_SUMMARY"
-          fi
-
-      # With the key, Tauri signs the installer itself (setup.exe.sig, bound to this version).
+      # No updater files and no key here: the sign job signs the installer.
       - name: Build orbiter
-        env:
-          SIGNED: ${{ steps.signing.outputs.signed }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           npm ci
-          configs=(--config src-tauri/tauri.bundle.json --config "{\"version\":\"$VERSION\"}")
-          if [ "$SIGNED" = true ]; then configs+=(--config '{"bundle":{"createUpdaterArtifacts":true}}'); fi
-          npx tauri build "${configs[@]}" -- --locked
+          npx tauri build --config src-tauri/tauri.bundle.json --config "{\"version\":\"$VERSION\"}" -- --locked
 
       - name: Check the updater can't be redirected
         run: |
@@ -345,32 +311,23 @@ jobs:
             echo "::error::this binary was built with the e2e-updater feature"; exit 1
           fi
 
-      - name: Check the installer's signature
-        if: steps.signing.outputs.signed == 'true'
-        run: |
-          set -euo pipefail
-          setup=$(ls target/release/bundle/nsis/*-setup.exe)
-          node scripts/updater-manifest.mjs verify --file "$setup" --sig "$setup.sig" --version "$VERSION"
-
-      - name: Attach to the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SIGNED: ${{ steps.signing.outputs.signed }}
-        run: |
-          files=(target/release/bundle/nsis/*-setup.exe)
-          if [ "$SIGNED" = true ]; then files+=(target/release/bundle/nsis/*-setup.exe.sig); fi
-          gh release upload "$RELEASE_TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-windows
+          path: target/release/bundle/nsis/orbiter_${{ env.VERSION }}_x64-setup.exe
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
 
   # ------------------------------------------------------------------ macOS
 
   macos:
     name: macOS dmg
-    needs: release
-    # Writes only to attach its file to the release (the last step, the one with the token).
-    permissions:
-      contents: write
+    needs: audit
     # Only when asked for: no updater files (the manifest leaves macOS out, Macs update by hand).
     if: github.event_name == 'workflow_dispatch' && inputs.macos
+    permissions:
+      contents: read
     # Apple silicon, which is what Warframe on the Mac runs on.
     runs-on: macos-latest
     steps:
@@ -392,47 +349,113 @@ jobs:
           npm ci
           npx tauri build --config "{\"version\":\"$VERSION\"}" -- --locked
 
-      - name: Attach to the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$RELEASE_TAG" target/release/bundle/dmg/*.dmg --repo "$GITHUB_REPOSITORY" --clobber
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-macos
+          path: target/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
 
-  # ------------------------------------------------------------------ Source
+  # ------------------------------------------------------------------ Signing
 
-  # The complete source of what's shipped (orbiter and TennoScope are GPL-3.0-only): the commit this
-  # run built, orbiter and tennoscope/ both, with the workflow and scripts that build them.
-  source:
-    name: Source
-    needs: release
-    if: github.event_name == 'workflow_dispatch' || !github.event.repository.private
-    # Writes only to attach its file to the release (the last step, the one with the token).
-    permissions:
-      contents: write
+  # Signs the AppImage and the setup.exe for the updater. Runs only on main, once every build that
+  # was asked for has succeeded. The key comes from the release-signing environment, where protection
+  # rules (required reviewers, main only) can hold this job until approved (docs/maintaining.md).
+  #
+  # This job runs two GitHub actions (checkout, download-artifact) and the repository's own
+  # dependency-free scripts with the runner's preinstalled Node: no package manager, no build, no
+  # cache. The key is in the environment of the signing step alone, and scripts/updater-sign.mjs
+  # never prints it.
+  sign:
+    name: Sign the updater downloads
+    needs: [linux, windows, macos]
+    if: >-
+      ${{ !cancelled() && github.ref == 'refs/heads/main'
+      && needs.linux.result == 'success'
+      && (needs.windows.result == 'success' || needs.windows.result == 'skipped')
+      && (needs.macos.result == 'success' || needs.macos.result == 'skipped') }}
     runs-on: ubuntu-24.04
+    environment: release-signing
+    permissions:
+      contents: read
+    env:
+      # Whether the key is there, as true or false: the key itself goes only to the signing step.
+      HAS_SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+    outputs:
+      signed: ${{ steps.key.outputs.signed }}
     steps:
+      # The signer, the manifest script (its signature check) and the public key, at this commit.
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
-      - name: Pack and attach it
-        env:
-          GH_TOKEN: ${{ github.token }}
+          sparse-checkout: |
+            scripts/updater-sign.mjs
+            scripts/updater-manifest.mjs
+            src-tauri/tauri.conf.json
+          sparse-checkout-cone-mode: false
+
+      # Every build's download (the dmg too, unused here): only the two named below are signed.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: build-*
+          path: signed
+          merge-multiple: true
+
+      - name: Check for the signing key
+        id: key
         run: |
-          git archive --format=tar.gz --prefix="orbiter-$RELEASE_TAG/" --output orbiter-source.tar.gz "$GITHUB_SHA"
-          gh release upload "$RELEASE_TAG" orbiter-source.tar.gz --repo "$GITHUB_REPOSITORY" --clobber
+          if [ "$HAS_SIGNING_KEY" = true ]; then
+            echo "signed=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >>"$GITHUB_OUTPUT"
+            echo "**No updater files:** the TAURI_SIGNING_PRIVATE_KEY secret isn't set for the release-signing environment, so this build is unsigned and no channel will offer it (README, Release channels)." >>"$GITHUB_STEP_SUMMARY"
+          fi
 
-  # ------------------------------------------------------------------ Updater manifest
+      # Exactly this build's two downloads, by name; each signature is bound to this version and
+      # checked against tauri.conf.json's public key before it's written.
+      - name: Sign them
+        if: steps.key.outputs.signed == 'true'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          files=("signed/orbiter_${VERSION}_amd64.AppImage")
+          if [ -f "signed/orbiter_${VERSION}_x64-setup.exe" ]; then files+=("signed/orbiter_${VERSION}_x64-setup.exe"); fi
+          node scripts/updater-sign.mjs --version "$VERSION" "${files[@]}"
 
-  # latest.json for this build: its version, its notes (the commit subjects since the build on
-  # Experimental), and each signed download at this build's release, every signature checked again
-  # against tauri.conf.json's public key (scripts/updater-manifest.mjs). Only when Linux was built
-  # and signed; Windows is in it when it was built too.
-  updater:
-    name: Updater manifest
-    needs: [release, linux, windows]
-    if: ${{ !cancelled() && needs.linux.result == 'success' && needs.linux.outputs.signed == 'true' && needs.windows.result != 'failure' && needs.windows.result != 'cancelled' }}
+      # Once more, in a step without the key, with the manifest script's check (the app's).
+      - name: Check the signatures
+        if: steps.key.outputs.signed == 'true'
+        run: |
+          set -euo pipefail
+          for sig in signed/*.sig; do
+            node scripts/updater-manifest.mjs verify --file "${sig%.sig}" --sig "$sig" --version "$VERSION"
+          done
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.key.outputs.signed == 'true'
+        with:
+          name: signatures
+          path: signed/*.sig
+          if-no-files-found: error
+          retention-days: 3
+
+  # ------------------------------------------------------------------ Release files
+
+  # Everything else the release carries, read-only: orbiter-source.tar.gz, latest.json and
+  # SHA256SUMS. latest.json holds this build's version, its notes (the commit subjects since the build
+  # on Experimental), and each signed download at this build's release, every signature checked again
+  # against tauri.conf.json's public key (scripts/updater-manifest.mjs). Windows is in it when it
+  # was built.
+  assemble:
+    name: Release files
+    needs: [sign]
+    if: ${{ !cancelled() && needs.sign.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: read
     outputs:
       complete: ${{ steps.manifest.outputs.complete }}
     steps:
@@ -442,7 +465,25 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: build-*
+          path: release-files
+          merge-multiple: true
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.sign.outputs.signed == 'true'
+        with:
+          name: signatures
+          path: release-files
+
+      # The complete source of what's shipped (orbiter and TennoScope are GPL-3.0-only): the commit
+      # this run built, orbiter and tennoscope/ both, with the workflow and scripts that build them.
+      - name: Source
+        run: git archive --format=tar.gz --prefix="orbiter-$RELEASE_TAG/" --output release-files/orbiter-source.tar.gz "$GITHUB_SHA"
+
       - name: Release notes
+        if: needs.sign.outputs.signed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -460,91 +501,176 @@ jobs:
 
       - name: Make latest.json
         id: manifest
-        env:
-          GH_TOKEN: ${{ github.token }}
+        if: needs.sign.outputs.signed == 'true'
         run: |
           set -euo pipefail
-          mkdir assets
-          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir assets \
-            --pattern '*.AppImage' --pattern '*.AppImage.sig' --pattern '*-setup.exe' --pattern '*-setup.exe.sig'
-          node scripts/updater-manifest.mjs manifest --dir assets --version "$VERSION" --tag "$RELEASE_TAG" \
-            --repo "$GITHUB_REPOSITORY" --commit "$GITHUB_SHA" --notes-file "$RUNNER_TEMP/notes.txt" --out latest.json
-          if node scripts/updater-manifest.mjs check --manifest latest.json --version "$VERSION" --require linux-x86_64,windows-x86_64; then
+          node scripts/updater-manifest.mjs manifest --dir release-files --version "$VERSION" --tag "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" --commit "$GITHUB_SHA" --notes-file "$RUNNER_TEMP/notes.txt" --out release-files/latest.json
+          if node scripts/updater-manifest.mjs check --manifest release-files/latest.json --version "$VERSION" \
+              --require linux-x86_64,windows-x86_64 --repo "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG"; then
             echo "complete=true" >>"$GITHUB_OUTPUT"
           else
             echo "complete=false" >>"$GITHUB_OUTPUT"
             echo "**Not for a channel:** this build has no Windows installer, so it stays off Experimental (and can't be promoted)." >>"$GITHUB_STEP_SUMMARY"
           fi
-          gh release upload "$RELEASE_TAG" latest.json --repo "$GITHUB_REPOSITORY" --clobber
           {
             echo "### Updater manifest for $VERSION"
             echo '```json'
-            cat latest.json
+            cat release-files/latest.json
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
 
-  # ------------------------------------------------------------------ Checksums
-
-  # SHA256SUMS for every file this run attached (whichever builds ran), attached beside them, so a
-  # download can be checked (README, Checking a download). Once the repository is public, GitHub
-  # also records where they were built (build provenance: `gh attestation verify`); private
-  # repositories on the free plan can't, so that step waits until then.
-  checksums:
-    name: Checksums
-    needs: [release, linux, windows, macos, source, updater]
-    if: ${{ !cancelled() && needs.release.result == 'success' }}
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-      id-token: write
-      attestations: write
-    steps:
-      - name: Sum the release's files
-        env:
-          GH_TOKEN: ${{ github.token }}
+      # SHA256SUMS for every file the release carries, beside them, so a download can be checked
+      # (README, Checking a download); publish attaches exactly the files it lists.
+      - name: Checksums
+        working-directory: release-files
         run: |
           set -euo pipefail
-          mkdir release-files
-          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir release-files
-          cd release-files
-          rm -f SHA256SUMS
-          sha256sum -- * > SHA256SUMS
+          sha256sum -- * >"$RUNNER_TEMP/SHA256SUMS"
+          mv "$RUNNER_TEMP/SHA256SUMS" SHA256SUMS
           cat SHA256SUMS
 
-      - name: Record where they were built
-        if: ${{ !github.event.repository.private }}
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-meta
+          path: |
+            release-files/SHA256SUMS
+            release-files/latest.json
+            release-files/orbiter-source.tar.gz
+          if-no-files-found: error
+          retention-days: 3
+
+  # ------------------------------------------------------------------ Provenance
+
+  # Once the repository is public, GitHub also records where the files were built (build
+  # provenance: `gh attestation verify`); private repositories on the free plan can't, so this job
+  # waits until then.
+  attest:
+    name: Record where they were built
+    needs: [assemble]
+    if: ${{ !cancelled() && needs.assemble.result == 'success' && !github.event.repository.private }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write # the OIDC token Sigstore signs the attestation with
+      attestations: write # to store the attestation
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-meta
+          path: release-files
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-checksums: release-files/SHA256SUMS
 
-      - name: Attach the checksums
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$RELEASE_TAG" release-files/SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber
+  # ------------------------------------------------------------------ Publish
 
-  # ------------------------------------------------------------------ Experimental
-
-  # The build becomes Experimental's: its latest.json goes on the `channel-experimental` release
-  # (made the first time), which installed copies on Experimental read. Last, so a build only
-  # reaches a channel once everything before it worked.
-  experimental:
-    name: Publish to Experimental
-    needs: [release, updater, checksums]
-    if: ${{ !cancelled() && needs.updater.outputs.complete == 'true' && needs.checksums.result == 'success' }}
+  # The build-<n> pre-release with every file, then Experimental. The only job with a write token: it
+  # checks out nothing and runs only gh and coreutils on the artifacts the jobs above made, and
+  # attaches a file only if SHA256SUMS lists it with that checksum. Last, so a build only reaches a
+  # channel once everything before it worked.
+  publish:
+    name: Publish
+    needs: [sign, assemble, attest]
+    if: >-
+      ${{ !cancelled() && github.ref == 'refs/heads/main'
+      && needs.assemble.result == 'success'
+      && (needs.attest.result == 'success' || needs.attest.result == 'skipped') }}
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: write # to make the build-<n> release and update channel-experimental
+    env:
+      SIGNED: ${{ needs.sign.outputs.signed }}
+      COMPLETE: ${{ needs.assemble.outputs.complete }}
     steps:
-      - name: Copy latest.json to channel-experimental
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: build-*
+          path: release-files
+          merge-multiple: true
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.sign.outputs.signed == 'true'
+        with:
+          name: signatures
+          path: release-files
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-meta
+          path: release-files
+
+      # The files here are exactly the ones SHA256SUMS lists, each with its checksum.
+      - name: Check the files
+        working-directory: release-files
+        run: |
+          set -euo pipefail
+          sha256sum --check --strict SHA256SUMS
+          diff <(find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\n' | sort) <(cut -c67- SHA256SUMS | sort)
+
+      - name: Make the pre-release
+        working-directory: release-files
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern latest.json --dir manifest
+          files=(*)
+          # A re-run finds the release made by the first attempt and replaces its files.
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$RELEASE_TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --prerelease --title "orbiter $VERSION ($RELEASE_TAG)" \
+              --notes "orbiter $VERSION, built from ${GITHUB_SHA::7}. The AppImage is for Linux and the Steam Deck, the setup.exe for Windows, the .dmg for macOS (Apple silicon), whichever this run built. orbiter and the TennoScope inside it are GPL-3.0-only: orbiter-source.tar.gz is the complete source of this build."
+          fi
+          if [ "$SIGNED" != true ]; then
+            echo "**Published without updater files:** no signing key, so no channel offers $VERSION." >>"$GITHUB_STEP_SUMMARY"
+          fi
+
+      # The build becomes Experimental's: its latest.json goes on the `channel-experimental` release
+      # (made the first time), which installed copies on Experimental read. Never backwards: a run
+      # that finishes after a newer one leaves the channel on the newer build.
+      - name: Publish to Experimental
+        if: env.COMPLETE == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current=""
+          if gh release download channel-experimental --repo "$GITHUB_REPOSITORY" --pattern latest.json --output "$RUNNER_TEMP/current.json" 2>/dev/null; then
+            current=$(jq -r '.version // empty' "$RUNNER_TEMP/current.json")
+          fi
+          if [ -n "$current" ] && [ "$(printf '%s\n%s\n' "$current" "$VERSION" | sort -V | tail -n1)" != "$VERSION" ]; then
+            echo "Experimental stays on $current, newer than $VERSION." >>"$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           if ! gh release view channel-experimental --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create channel-experimental --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
               --prerelease --title "Experimental channel" \
               --notes "An update channel, not a build: orbiter copies on Experimental read latest.json here to find their next update. It names the newest build on the channel; the downloads are on that build's own release (build-<n>)."
           fi
-          gh release upload channel-experimental manifest/latest.json --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload channel-experimental release-files/latest.json --repo "$GITHUB_REPOSITORY" --clobber
           echo "**$VERSION is now Experimental's build.** Promote it with Actions → Promote a build (build $GITHUB_RUN_NUMBER)." >>"$GITHUB_STEP_SUMMARY"
+
+  # ------------------------------------------------------------------ Cleanup
+
+  # Everything is on the release now: this run's artifacts are deleted rather than left to expire,
+  # so they hold a private repository's artifact storage for as short a time as possible.
+  cleanup:
+    name: Delete the artifacts
+    needs: [publish]
+    if: ${{ !cancelled() && needs.publish.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write # to delete this run's artifacts
+    steps:
+      - name: Delete them
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --jq '.artifacts[].id' |
+            while read -r id; do
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id"
+            done
