@@ -27,9 +27,36 @@ settings. Each line says where it is.
 - [ ] Same place: leave **Allow GitHub Actions to create and approve pull requests** unticked.
 - [ ] **Pinned actions only:** Settings → Actions → General → Actions permissions → tick **Require
       actions to be pinned to a full-length commit SHA** (every workflow here already pins them).
-- [ ] Keep the release secrets (the updater's signing key and its password) as repository secrets
-      only the release workflows read. Never add a workflow triggered by `pull_request_target`,
-      `issue_comment`, `issues` or `workflow_run` that can see them.
+- [ ] Never add a workflow triggered by `pull_request_target`, `issue_comment`, `issues` or
+      `workflow_run`, and never give a job that runs for one of them the release secrets.
+
+## The signing key's environment
+
+The updater's signing key and its password (`TAURI_SIGNING_PRIVATE_KEY`,
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`) are read by one job only: `sign` in `release.yml`, which runs
+on `main`, builds and installs nothing, and names the `release-signing` environment. Kept as
+environment secrets, no other job in any workflow can read them, and GitHub can hold the sign job
+until it's approved. GitHub Free offers environments to public repositories only, so while the
+repository is private the two stay repository secrets (a job reads a repository secret when its
+environment has none of that name), and they move once it's public:
+
+- [ ] **Create the environment:** Settings → Environments → New environment, named exactly
+      `release-signing`. (The first release run after it's public may have made it already, empty:
+      then open that one.)
+- [ ] **Main only:** in the environment, Deployment branches and tags → **Selected branches and
+      tags** → add the rule `main`. A run on any other branch can then never get the key, even if a
+      workflow there asks for it.
+- [ ] **Move the two secrets:** in the environment, Environment secrets → Add secret, once for
+      `TAURI_SIGNING_PRIVATE_KEY` (the whole text of `~/.tauri/orbiter.key`, from the offline backup)
+      and once for `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Then delete both from Settings → Secrets and
+      variables → Actions → Repository secrets: while a repository copy exists, any job could read it.
+- [ ] **Optionally, approval:** in the environment, **Required reviewers** → the maintainer. Every
+      build on `main` then stops at "Sign the updater downloads" until it's approved on the run's
+      page (Review deployments). Approve within 3 days, while the run's build artifacts still exist,
+      or start a new run. Leave "Prevent self-review" off while there's one maintainer, or no run
+      could ever be approved.
+- [ ] **Check it:** the next release run's sign job shows the environment, its summary has no "No
+      updater files" line, and the release carries the `.sig` files and `latest.json`.
 
 ## Branches and tags
 
