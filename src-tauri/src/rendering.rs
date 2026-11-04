@@ -219,7 +219,9 @@ pub fn started() {
         (Some(_), Some(e)) => log::warn!(target: "orbiter::rendering", "saving the rendering flag failed: {e}"),
         _ => {}
     }
-    if matches!(c.mode, Mode::Accelerated | Mode::SharedMemory) {
+    // Not in a development build: `tauri dev` kills the app to restart it after every rebuild,
+    // which would read as a crash.
+    if matches!(c.mode, Mode::Accelerated | Mode::SharedMemory) && !cfg!(debug_assertions) {
         // Left here, not before the window: a second orbiter started while one runs exits before
         // this point (single-instance), and must not leave a marker behind.
         if let Some(dir) = config_dir() {
