@@ -50,7 +50,7 @@ notify-rust = "4"
 # Nox's Frame build codes (noxsframe.rs): zlib-packed, base64url. Both already in the build
 # through ureq; named here to use them directly.
 flate2 = "1"
-base64 = "0.22"
+base64 = "0.23"
 # orbiter's own log file (applog.rs): the standard logging front end, already in the build through Tauri.
 log = "0.4"
 # In-app updates from orbiter's GitHub releases (updates.rs): checks a channel's manifest, verifies
