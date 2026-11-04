@@ -1,6 +1,6 @@
 //! In-app updates, from the GitHub releases of orbiter's repository.
 //!
-//! Every build CI makes is published as a release of its own (`build-<n>`, version `0.1.<n>`) with
+//! Every build CI makes is published as a release of its own (`build-<n>`, version `0.2.<n>`) with
 //! an updater manifest, `latest.json`. Three fixed releases act as channels: `channel-experimental`,
 //! `channel-beta` and `channel-stable` each carry one `latest.json`, replaced when a build reaches
 //! that channel (every push lands on Experimental; Beta and Stable get a build promoted by hand,

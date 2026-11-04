@@ -74,7 +74,7 @@ orbiter updates itself from this repository's releases (Settings → *Updates*).
 - **Beta**: the next Stable, a few days early.
 - **Experimental**: every change, as soon as it's built. It may break.
 
-A build keeps its version (`0.1.<n>`) on every channel: moving it up a channel moves the same files, never a rebuild.
+A build keeps its version (`0.2.<n>`) on every channel: moving it up a channel moves the same files, never a rebuild.
 
 - **A push becomes Experimental.** With the signing key in the secrets, the release workflow's sign job signs the final AppImage (after `scripts/repack-appimage.sh`) and the Windows installer with `scripts/updater-sign.mjs` (plain Node, no dependencies, signatures of the form `tauri signer sign --app-version` writes), checks each signature against the public key in `src-tauri/tauri.conf.json`, and the next job writes `latest.json` (`scripts/updater-manifest.mjs`): the version, release notes made from the commit subjects since the previous Experimental build, and each download's address and signature on the build's own release. When the build has both the Linux and Windows downloads, its `latest.json` is copied to the `channel-experimental` release, where copies on Experimental look. Without the key, the build still succeeds, unsigned and on no channel, and its summary says so.
 - **Promoting.** *Actions* → *Promote a build* → *Run workflow*, with the build's number and *beta* or *stable*. It checks the build (its release, its `latest.json`, both downloads and their signatures) and copies its `latest.json` to `channel-beta` or `channel-stable`. Promoting to Stable also makes the build a full release and the repository's *Latest*, and moves Beta up to it if Beta's build is older.

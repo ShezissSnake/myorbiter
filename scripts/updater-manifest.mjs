@@ -3,10 +3,10 @@
 // promote.yml run it; tests/updaterManifest.test.ts covers it.
 //
 //   git log --format=%s A..B | node scripts/updater-manifest.mjs notes      the release notes, on stdout
-//   node scripts/updater-manifest.mjs verify --file F --sig F.sig --version 0.1.52 [--config src-tauri/tauri.conf.json]
-//   node scripts/updater-manifest.mjs manifest --dir DIR --version 0.1.52 --tag build-52 --repo OWNER/NAME
+//   node scripts/updater-manifest.mjs verify --file F --sig F.sig --version 0.2.52 [--config src-tauri/tauri.conf.json]
+//   node scripts/updater-manifest.mjs manifest --dir DIR --version 0.2.52 --tag build-52 --repo OWNER/NAME
 //        [--commit SHA] [--notes-file notes.txt] [--config src-tauri/tauri.conf.json] [--out latest.json]
-//   node scripts/updater-manifest.mjs check --manifest latest.json --version 0.1.52 [--require linux-x86_64,windows-x86_64]
+//   node scripts/updater-manifest.mjs check --manifest latest.json --version 0.2.52 [--require linux-x86_64,windows-x86_64]
 //        [--repo OWNER/NAME --tag build-52]
 //
 // The manifest is what tauri-plugin-updater reads: a version, notes, a date and, for each system,

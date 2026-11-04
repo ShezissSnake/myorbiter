@@ -40,13 +40,14 @@ test("versions compare by number, and a CI build's number is its release", () =>
   assert.equal(compareVersions("0.1.52", "0.1.40"), 1);
   assert.equal(compareVersions("v0.1.52", "0.1.52"), 0);
   assert.equal(compareVersions("1.0.0", "0.9.99"), 1);
-  assert.equal(buildNumber("0.1.52"), 52);
+  assert.equal(buildNumber("0.2.52"), 52);
+  assert.equal(buildNumber("0.1.48"), null, "builds from before the move have no release here");
   assert.equal(buildNumber("0.1.0"), null);
-  assert.equal(buildNumber("0.2.5"), null);
-  assert.equal(releasePage("0.1.52"), "https://github.com/ShezissSnake/orbiter/releases/tag/build-52");
+  assert.equal(buildNumber("0.3.5"), null);
+  assert.equal(releasePage("0.2.52"), "https://github.com/ShezissSnake/orbiter/releases/tag/build-52");
   assert.equal(releasePage("0.1.0"), "https://github.com/ShezissSnake/orbiter/releases");
   // Release notes open through the opener's allowed links.
-  assert.ok(openable(releasePage("0.1.52")));
+  assert.ok(openable(releasePage("0.2.52")));
   assert.ok(openable(releasePage("0.1.0")));
 });
 
@@ -61,10 +62,10 @@ test("the version line says where the build came from", () => {
   const u = { ...defaultUpdates(), channel: "beta" as const };
   assert.equal(cameFrom("0.1.0", u), "local");
   assert.equal(versionLine("0.1.0", u), "0.1.0 · local build");
-  assert.equal(versionLine("0.1.52", u), "0.1.52 · Beta");
-  assert.equal(versionLine("0.1.52", { ...u, from: { version: "0.1.52", channel: "experimental" } }), "0.1.52 · Experimental");
+  assert.equal(versionLine("0.2.52", u), "0.2.52 · Beta");
+  assert.equal(versionLine("0.2.52", { ...u, from: { version: "0.2.52", channel: "experimental" } }), "0.2.52 · Experimental");
   // Installed from Experimental, since switched and moved on by hand: the record is for another version.
-  assert.equal(versionLine("0.1.53", { ...u, from: { version: "0.1.52", channel: "experimental" } }), "0.1.53 · Beta");
+  assert.equal(versionLine("0.2.53", { ...u, from: { version: "0.2.52", channel: "experimental" } }), "0.2.53 · Beta");
 });
 
 test("which installs check, which install, and what the others say", () => {

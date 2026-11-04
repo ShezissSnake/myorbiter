@@ -8,7 +8,7 @@ name: Release builds
 # orbiter-source.tar.gz, the complete source of the commit it built.
 #
 # Every push to main builds, and so does Run workflow on the Actions tab. Each run is build <n>
-# (the run number): version 0.1.<n>, its downloads on a pre-release of its own, `build-<n>`
+# (the run number): version 0.2.<n>, its downloads on a pre-release of its own, `build-<n>`
 # (Releases, on the repository's page). Only a run on main publishes; a run started by hand on any
 # other branch builds the same files and leaves them as the run's artifacts, for 3 days.
 #
@@ -88,7 +88,9 @@ env:
   # Where this run's downloads go, and the version they carry: the same build number, kept when the
   # build moves to another channel. Local builds stay 0.1.0 (tauri.conf.json).
   RELEASE_TAG: build-${{ github.run_number }}
-  VERSION: 0.1.${{ github.run_number }}
+  # 0.2: the run numbers started again when the repository moved, and every build has to be
+  # newer than the 0.1.<n> builds already installed, or the updater would never offer it.
+  VERSION: 0.2.${{ github.run_number }}
 
 jobs:
   # A known vulnerability in either Cargo.lock stops the run before anything is built.
