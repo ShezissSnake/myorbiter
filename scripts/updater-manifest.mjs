@@ -7,6 +7,7 @@
 //   node scripts/updater-manifest.mjs manifest --dir DIR --version 0.1.52 --tag build-52 --repo OWNER/NAME
 //        [--commit SHA] [--notes-file notes.txt] [--config src-tauri/tauri.conf.json] [--out latest.json]
 //   node scripts/updater-manifest.mjs check --manifest latest.json --version 0.1.52 [--require linux-x86_64,windows-x86_64]
+//        [--repo OWNER/NAME --tag build-52]
 //
 // The manifest is what tauri-plugin-updater reads: a version, notes, a date and, for each system,
 // the download's address and its signature. Signatures are minisign signatures made by
@@ -182,16 +183,33 @@ export function buildManifest({ dir, version, tag, repo, commit = null, notes = 
 
 /**
  * Checks a manifest before it goes on a channel: its version, each platform's signature present
- * (and well formed, naming the version), and the systems `require`d all there. Returns its platforms.
+ * (and well formed, naming the version), and the systems `require`d all there. With `repo` and
+ * `tag`, every download must also be that system's file on that repository's release `tag`, in the
+ * exact form buildManifest writes, and every system one the updater serves. Returns its platforms.
  */
-export function checkManifest(manifest, { version = null, require = [] } = {}) {
+export function checkManifest(manifest, { version = null, require = [], repo = null, tag = null } = {}) {
   if (!manifest || typeof manifest !== "object") throw new Error("not a manifest");
   if (version != null && manifest.version !== version) throw new Error(`the manifest is for ${manifest.version}, not ${version}`);
+  if ((repo == null) !== (tag == null)) throw new Error("check the downloads' release with both a repository and a tag");
+  if (repo != null && !/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error(`not a repository: ${repo}`);
+  if (tag != null && !/^[\w.-]+$/.test(tag)) throw new Error(`not a release tag: ${tag}`);
   const platforms = Object.keys(manifest.platforms ?? {});
   for (const p of require) if (!platforms.includes(p)) throw new Error(`no ${p} build in it`);
   for (const p of platforms) {
     const { signature, url } = manifest.platforms[p];
     if (typeof url !== "string" || !url.startsWith("https://")) throw new Error(`${p}: no https download`);
+    if (repo != null) {
+      const prefix = `https://github.com/${repo}/releases/download/${tag}/`;
+      if (!url.startsWith(prefix)) throw new Error(`${p}: ${url} isn't on ${repo}'s release ${tag}`);
+      let name;
+      try {
+        name = decodeURIComponent(url.slice(prefix.length));
+      } catch {
+        throw new Error(`${p}: ${url} isn't a file name`);
+      }
+      if (!Object.hasOwn(PLATFORMS, p)) throw new Error(`${p}: not a system the updater serves`);
+      if (!PLATFORMS[p].test(name) || name.includes("/") || url !== prefix + encodeURIComponent(name)) throw new Error(`${p}: ${url} isn't ${p}'s download`);
+    }
     if (typeof signature !== "string" || !signature) throw new Error(`${p}: no signature`);
     const signed = signedVersion(parseSignature(signature).trusted);
     if (signed !== manifest.version) throw new Error(`${p}: signed for ${signed}, not ${manifest.version}`);
@@ -242,7 +260,7 @@ function main(argv) {
       if (!a.manifest) throw new Error("check needs --manifest");
       const manifest = JSON.parse(readFileSync(a.manifest, "utf8"));
       const require = a.require ? a.require.split(",").filter(Boolean) : [];
-      console.log(checkManifest(manifest, { version: a.version ?? null, require }).join(","));
+      console.log(checkManifest(manifest, { version: a.version ?? null, require, repo: a.repo ?? null, tag: a.tag ?? null }).join(","));
       return;
     }
     default:
