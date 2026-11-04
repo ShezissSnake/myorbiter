@@ -1,4 +1,6 @@
 <script lang="ts">
+  import NeverSoldTag from "./spares/NeverSoldTag.svelte";
+  import type { SparesRules } from "../core/sparesRules";
   import { scrim } from "./scrim";
   // Ctrl+K: find anything by name from any page. Gear opens its details; a prime part its item's
   // details; a relic, mod or arcane opens its page searched for it; anything else warframe.market
@@ -16,7 +18,15 @@
   import { mkt } from "../marketStore.svelte";
   import { typed } from "../typed.svelte";
 
-  let { open = $bindable(false), model, go }: { open: boolean; model: Model; go: (tab: string) => void } = $props();
+  // spares: Sell spares' choices, for a match that's on the never-sell list ("Never sold · Sell again").
+  let { open = $bindable(false), model, go, spares = null, onsellagain = () => {} }: { open: boolean; model: Model; go: (tab: string) => void; spares?: SparesRules | null; onsellagain?: (ids: string[]) => void } = $props();
+  const never = $derived(new Set(spares?.neverSell.map((n) => n.id) ?? []));
+  /** The warframe.market item a match trades as (gear as its set), when it's never sold. */
+  const neverOf = (name: string) => {
+    if (!never.size || !mkt.index) return null;
+    const it = mkt.index.byName.get(name.toLowerCase()) ?? mkt.index.byName.get(`${name} set`.toLowerCase());
+    return it && never.has(it.id) ? it : null;
+  };
 
   interface Hit {
     key: string;
@@ -128,12 +138,14 @@
       {#if hits.length}
         <ul id="lookup-hits" role="listbox" aria-label="Matches">
           {#each hits as h, i (h.key)}
+            {@const ns = neverOf(h.name)}
             <li id="lk-{i}" role="option" aria-selected={i === at}>
-              <button class:on={i === at} onmouseenter={() => (at = i)} onfocus={() => (at = i)} onclick={() => pick(h)}>
+              <button class="hit" class:on={i === at} onmouseenter={() => (at = i)} onfocus={() => (at = i)} onclick={() => pick(h)}>
                 {#if h.era}<GameIcon name={eraIcon(h.era)} size={24} />{:else}<Thumb file={h.image} size={24} />{/if}
                 <span class="n">{h.name}</span>
                 <span class="k">{#if kindIcon(h.kind, h.name)}<GameIcon name={kindIcon(h.kind, h.name)!} size={12} />{/if}{h.kind}</span>
               </button>
+              {#if ns && spares}<span class="ns"><NeverSoldTag name={ns.name} onsellagain={() => onsellagain([ns.id])} /></span>{/if}
             </li>
           {/each}
         </ul>
@@ -151,10 +163,12 @@
   .dialog { clip-path: var(--cut); width: min(36rem, 100%); background: var(--plate); border: 1px solid var(--rule-bright); padding: .9rem; display: grid; gap: .6rem; box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 50%); }
   input { width: 100%; font-size: 1rem; }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; max-height: 60vh; overflow: auto; }
-  button { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: .65rem; padding: .4rem .55rem; cursor: pointer; }
+  li { display: flex; align-items: center; gap: .5rem; }
+  .hit { all: unset; box-sizing: border-box; flex: 1; min-width: 0; display: flex; align-items: center; gap: .65rem; padding: .4rem .55rem; cursor: pointer; }
+  .ns { flex: none; padding-right: .4rem; font-size: .74rem; }
   button.on { background: color-mix(in srgb, var(--gold) 12%, var(--well)); box-shadow: inset 2px 0 0 var(--gold); }
   /* all: unset took the focus ring away: Tab onto a match shows where you are. */
-  button:focus-visible { outline: 1px solid var(--select); outline-offset: -1px; }
+  .hit:focus-visible { outline: 1px solid var(--select); outline-offset: -1px; }
   .n { flex: 1; min-width: 0; color: var(--platinum); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .k { display: inline-flex; align-items: center; gap: .3rem; font-size: .74rem; color: var(--platinum-deep); white-space: nowrap; }
   p { margin: .2rem .3rem; }
