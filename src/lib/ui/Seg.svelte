@@ -85,7 +85,7 @@
   .seg button:focus-visible { position: relative; z-index: 1; }
   /* Chosen, not confirmed yet: a gold line runs along its foot until it is. */
   .seg button.pending { position: relative; overflow: hidden; }
-  .seg button.pending::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--gold), transparent); background-size: 50% 100%; background-repeat: no-repeat; animation: seg-wait 1.1s ease-in-out infinite; }
-  @keyframes seg-wait { from { background-position: -60% 0; } to { background-position: 160% 0; } }
-  @media (prefers-reduced-motion: reduce) { .seg button.pending::after { animation: none; background: var(--gold-dim); } }
+  /* The band runs by transform (app.css, sweep-band); the button clips it. */
+  .seg button.pending::after { content: ""; position: absolute; left: 0; bottom: 0; width: 50%; height: 2px; background: linear-gradient(90deg, transparent, var(--gold), transparent); animation: sweep-band 1.1s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .seg button.pending::after { animation: none; width: 100%; transform: none; background: var(--gold-dim); } }
 </style>

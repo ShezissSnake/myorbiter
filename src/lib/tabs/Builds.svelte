@@ -548,9 +548,10 @@
   .tagchip:focus-visible { outline: 2px solid var(--sec); outline-offset: 2px; }
   .netline { display: flex; align-items: center; gap: .6rem; margin: 0 0 .7rem; font-size: .82rem; color: var(--platinum-dim); }
   .netline.bad { color: var(--alert); }
-  .run { width: 2.4rem; height: 2px; background: linear-gradient(90deg, transparent, var(--sec), transparent); background-size: 200% 100%; animation: run 900ms linear infinite; }
-  @keyframes run { from { background-position: 100% 0; } to { background-position: -100% 0; } }
-  @media (prefers-reduced-motion: reduce) { .run { animation: none; background: var(--sec-dim); } }
+  /* The band runs by transform (app.css, sweep-band), clipped to the bar. */
+  .run { position: relative; overflow: hidden; width: 2.4rem; height: 2px; }
+  .run::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 40%; background: linear-gradient(90deg, transparent, var(--sec), transparent); animation: sweep-band 900ms linear infinite; }
+  @media (prefers-reduced-motion: reduce) { .run { background: var(--sec-dim); } .run::before { display: none; } }
 
   .ofr { margin-top: var(--course); padding-top: var(--step); border-top: 1px solid var(--rule); }
   .ofr h2 { margin: 0 0 .3rem; color: var(--sec); font-size: .7rem; }

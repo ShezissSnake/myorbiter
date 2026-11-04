@@ -185,16 +185,17 @@
   .fill.on { opacity: 1; }
   .gold > .fill, .ib.gold > .fill { background: rgb(214 174 74 / 22%); }
   /* No total yet: a band sweeps across instead. */
-  .fill.sweep { transform: none; background: linear-gradient(90deg, transparent, rgb(230 233 238 / 16%), transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: pb-sweep 1.2s ease-in-out infinite; }
-  .gold > .fill.sweep { background-image: linear-gradient(90deg, transparent, rgb(214 174 74 / 28%), transparent); }
-  @keyframes pb-sweep { from { background-position: -60% 0; } to { background-position: 160% 0; } }
+  .fill.sweep, .hair.sweep { transform: none; background: none; overflow: hidden; }
+  .fill.sweep::before, .hair.sweep::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; background: linear-gradient(90deg, transparent, rgb(230 233 238 / 16%), transparent); animation: sweep-band 1.2s ease-in-out infinite; }
+  .gold > .fill.sweep::before { background: linear-gradient(90deg, transparent, rgb(214 174 74 / 28%), transparent); }
   /* An icon button fills along its foot instead, so the icon stays clear. */
   .ib > .fill { inset: auto 0 0 0; height: 2px; background: var(--gold); }
-  .ib > .fill.sweep { background: linear-gradient(90deg, transparent, var(--gold), transparent); background-size: 50% 100%; background-repeat: no-repeat; }
+  .ib > .fill.sweep { background: none; }
+  .ib > .fill.sweep::before { width: 50%; background: linear-gradient(90deg, transparent, var(--gold), transparent); }
   /* A link: a hairline under the words. */
   .hair { position: absolute; left: 0; right: 0; bottom: 2px; height: 1px; background: currentColor; transform-origin: left center; transform: scaleX(0); opacity: 0; transition: transform var(--settle) var(--out), opacity var(--settle); }
   .hair.on { opacity: .8; }
-  .hair.sweep { transform: none; background: linear-gradient(90deg, transparent, currentColor, transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: pb-sweep 1.2s ease-in-out infinite; }
+  .hair.sweep::before { background: linear-gradient(90deg, transparent, currentColor, transparent); }
   .link.pb { overflow: visible; }
 
   .turn { animation: pb-turn 1s linear infinite; }
@@ -233,7 +234,8 @@
 
   @media (prefers-reduced-motion: reduce) {
     /* No sweep or turning: a still half-tone fill says "working" instead. */
-    .fill.sweep, .hair.sweep { animation: none; background: rgb(230 233 238 / 9%); }
+    .fill.sweep, .hair.sweep { background: rgb(230 233 238 / 9%); }
+    .fill.sweep::before, .hair.sweep::before { display: none; }
     .gold > .fill.sweep { background: rgb(214 174 74 / 14%); }
     .ib > .fill.sweep { background: var(--gold-dim); }
     .turn { animation: none; }

@@ -1068,9 +1068,10 @@
   .rowst.failed { color: var(--oxblood); text-transform: none; letter-spacing: 0; font-family: var(--face-text); font-size: .78rem; }
   .rowst .link { font-size: .62rem; }
   .busyword { position: relative; padding-bottom: 3px; }
-  .busyword i { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: rowsweep 1.2s ease-in-out infinite; }
-  @keyframes rowsweep { from { background-position: -60% 0; } to { background-position: 160% 0; } }
-  @media (prefers-reduced-motion: reduce) { .busyword i { animation: none; background: var(--gold-dim); } }
+  /* The band runs by transform (app.css, sweep-band), clipped to the word's width. */
+  .busyword i { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; overflow: hidden; }
+  .busyword i::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 40%; background: linear-gradient(90deg, transparent, var(--gold), transparent); animation: sweep-band 1.2s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .busyword i { background: var(--gold-dim); } .busyword i::before { display: none; } }
   .bang { display: inline-grid; place-items: center; width: 1.05em; height: 1.05em; border: 1px solid currentColor; font-family: var(--face-register); font-size: .6rem; font-weight: 700; line-height: 1; }
   /* Sold out, on its way off: dimmed by colour, not opacity, so its words stay readable (about 5:1). */
   tr.ghost td { color: var(--platinum-deep); --platinum: var(--platinum-deep); --platinum-dim: var(--platinum-deep); }

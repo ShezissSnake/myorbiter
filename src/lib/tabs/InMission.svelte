@@ -417,8 +417,13 @@
   .rc-score .bars { height: 1rem; grid-template-columns: repeat(4, .55rem); gap: 2px; }
   /* The pick: lit by the Void, the frame in the section's violet, a glow that breathes. */
   .rc.best { border-color: var(--sec); background: radial-gradient(ellipse 70% 45% at 50% 42%, color-mix(in srgb, var(--sec) 22%, transparent), transparent 70%), linear-gradient(180deg, rgb(11 12 15 / 40%), var(--well)); }
-  .rc.best::after { content: ""; position: absolute; inset: -1px -1px 0; pointer-events: none; box-shadow: 0 0 0 1px var(--sec), 0 0 34px -6px var(--sec); animation: void-breathe 3.2s ease-in-out infinite; }
-  @keyframes void-breathe { 50% { box-shadow: 0 0 0 1px var(--sec), 0 0 18px -8px var(--sec); } }
+  /* The frame and a tight glow stay; the wide glow over it breathes by its opacity alone, which the
+     compositor runs without redrawing the card (a breathing box-shadow repainted it every frame
+     for as long as the page was open). */
+  .rc.best::before, .rc.best::after { content: ""; position: absolute; inset: -1px -1px 0; pointer-events: none; }
+  .rc.best::before { box-shadow: 0 0 0 1px var(--sec), 0 0 18px -8px var(--sec); }
+  .rc.best::after { box-shadow: 0 0 34px -6px var(--sec); animation: void-breathe 3.2s ease-in-out infinite; }
+  @keyframes void-breathe { 50% { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .rc.best::after { animation: none; } }
   .rc.best .rc-score b { color: var(--sec); }
   .take { font-family: var(--face-register); font-size: .62rem; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--slab); background: var(--sec); padding: .18rem .6rem; }

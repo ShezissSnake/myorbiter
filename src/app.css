@@ -365,6 +365,12 @@ span.chev { display: inline-block; transition: transform var(--quick) var(--out)
 @keyframes swap-a { from { opacity: 0; } }
 @keyframes swap-b { from { opacity: 0; } }
 
+/* Waiting, with no total yet: a band of light runs along a fill or a hairline (ProgressButton, Seg,
+   Orders, Builds). The band is its own element, 40% wide, moved by transform: the compositor keeps
+   it running while the page is busy with the work it waits for, where a moving background-position
+   is redrawn by the page on every frame and stalls with it. */
+@keyframes sweep-band { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+
 /* A check drawn in (Tick, with drawn). */
 @keyframes tick-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 
