@@ -11,7 +11,8 @@
 # THIRD-PARTY-NOTICES/SOURCES.md in it lists every bundled library's package, version and source.
 set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
-bundle="$here/target/release/bundle/appimage"
+# The build's target folder: the workspace's own, or CARGO_TARGET_DIR when the build used another.
+bundle="${CARGO_TARGET_DIR:-$here/target}/release/bundle/appimage"
 appdir="$bundle/orbiter.AppDir"
 nested="$appdir/usr/lib/orbiter/tennoscope/TennoScope.AppImage"
 pristine="$here/vendor/tennoscope/TennoScope.AppImage"
