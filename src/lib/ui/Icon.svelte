@@ -40,6 +40,8 @@
     // A bell, for alerts.
     bell: "M4 11.5V7a4 4 0 0 1 8 0v4.5l1.3 1.3H2.7zM6.6 14h2.8",
     external: "M9.5 2.5h4v4M13.5 2.5 7.5 8.5M11.5 9.5v4h-9v-9h4",
+    // A bug to report: a hexagonal shell split down the back, with its legs.
+    bug: "M8 4.4 10.7 6.1v4.8L8 12.8 5.3 10.9V6.1zM8 4.4V12.8M6.6 4.6 8 2.8l1.4 1.8M5.3 7.6H2.5M10.7 7.6h2.8M5.3 10l-2.2 1.8M10.7 10l2.2 1.8M5.3 6.1 3.6 4.4M10.7 6.1l1.7-1.7",
     // Actions. Same pen as the pages above: 16 px, square ends, nothing filled.
     check: "M2.5 8.5 6.2 12.2 13.5 4",
     plus: "M8 2.5v11M2.5 8h11",
