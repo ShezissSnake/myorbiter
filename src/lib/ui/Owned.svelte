@@ -18,7 +18,7 @@
 </script>
 
 <span class="owned" class:compact title={parts.map((p) => `${p.n} ${p.r}`).join(", ") || "None"}>
-  {#each parts as p, i (p.r)}{#if i}<span class="sep">·</span>{/if}<span class="o o-{p.r}">{#if p.pic}<img src={p.pic} alt="" width="15" height="15" loading="lazy" onerror={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")} />{/if}<b>{p.n}</b><span class="w">{SHORT[p.r]}</span></span>{:else}<span class="none">none</span>{/each}
+  {#each parts as p, i (p.r)}{#if i}<span class="sep">·</span>{/if}<span class="o o-{p.r}">{#if p.pic}<img src={p.pic} alt="" width="15" height="15" loading="lazy" decoding="async" onerror={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")} />{/if}<b>{p.n}</b><span class="w">{SHORT[p.r]}</span></span>{:else}<span class="none">none</span>{/each}
 </span>
 
 <style>
