@@ -30,6 +30,14 @@ export interface NewsEntry {
 
 export const NEWS: NewsEntry[] = [
   {
+    id: 16,
+    date: "2026-11-04",
+    items: [
+      { title: "Report a bug from the app", icon: { line: "bug" }, text: "Something not working? Report a bug (Settings, the Guide, or Shift+F1) opens a short form: what happened, and how to make it happen again if you know. Open on GitHub fills in a new issue for you to check and submit in your browser; orbiter never sends anything itself. It can add technical details you read first (version, system, the log's last lines, with sign-ins and every player's name hidden), and Copy report puts it all on the clipboard if you don't have a GitHub account.", open: "guide#report-bug" },
+      { title: "Build links go where they say", icon: { line: "external" }, text: "Overframe's and Nox's Frame's build names show as their authors wrote them, minus invisible characters that could disguise them, and every one opens only its own build page on overframe.gg or noxsframe.com.", open: "builds?item=Saryn Prime#popular" },
+    ],
+  },
+  {
     id: 15,
     date: "2026-11-03",
     items: [

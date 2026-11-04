@@ -138,6 +138,9 @@
   import { view } from "./lib/view.svelte";
   import { parseTarget, setIntent } from "./lib/intent.svelte";
   import { ts } from "./lib/tennoscopeStore.svelte";
+  import BugReport from "./lib/ui/BugReport.svelte";
+  import { bugReport } from "./lib/bugReport.svelte";
+  import type { RedactOptions } from "./lib/core/redact";
   import { calm as reducedMotion, reveal as unfold } from "./lib/motion";
 
   /** Your choice from the fold button (kept in settings); until you make one, it folds by itself in a narrow window. */
@@ -2020,13 +2023,26 @@
 
   // ---------------------------------------------------------------- keyboard, like a desktop app
   // Ctrl+1…9 pages · Ctrl+PgUp/PgDn (or Ctrl+Shift+Tab/Ctrl+Tab) the previous/next page · Ctrl+F or / filter ·
-  // Ctrl+R or F5 sync · Ctrl+, settings · F1 guide · Ctrl+Q quit. Esc closes panels (they handle it).
+  // Ctrl+R or F5 sync · Ctrl+, settings · F1 guide · Shift+F1 report a bug · Ctrl+Q quit. Esc closes
+  // panels (they handle it).
   // As the sidebar draws them, section by section.
   const ORDER: string[] = $derived(drawnOrder(pages).filter((p) => p.id !== "guide").map((p) => p.id));
   const shortcutOf = (id: string) => {
     const i = ORDER.indexOf(id);
     return i >= 0 && i < 9 ? `Ctrl+${i + 1}` : null;
   };
+  // ---------------------------------------------------------------- Report a bug
+  // What the report's technical details say about TennoScope, and the names it hides: the
+  // player's own, and every other player orbiter knows of (trade partners, whispers, chats).
+  const reportTennoscope = $derived(noTennoScope ? "not used here" : ts.running ? (ts.report ? "connected" : "running, not reporting") : "not running");
+  const reportFullMode = $derived(ts.report ? (ts.report.setup.access_mode === "full" ? "on" : "off") : "unknown");
+  function reportNames(): RedactOptions {
+    const whispered = settings.game.whispersSeen.map((k) => k.slice(k.lastIndexOf("|") + 1));
+    return {
+      self: [mkt.me?.ingameName],
+      others: [...settings.market.trades.map((t) => t.partner), ...whispered, ...(mission?.whispers ?? []).map((w) => w.name), ...mkt.chats.map((c) => c.with)],
+    };
+  }
   function typing(el: EventTarget | null) {
     return el instanceof HTMLElement && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
   }
@@ -2039,6 +2055,14 @@
     }
     // From Settings, Notifications or TennoScope's panel, F1 and Ctrl+, still go where they say.
     const sheetOpen = showSettings || showNotices || showTennoscope || showNews;
+    // Shift+F1: Report a bug, from a page or over a panel (which closes), not over another dialog.
+    if (e.key === "F1" && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      if (bugReport.open || (!sheetOpen && document.querySelector('[aria-modal="true"]'))) return;
+      showSettings = showNotices = showTennoscope = showNews = false;
+      bugReport.show();
+      return;
+    }
     if (sheetOpen && (e.key === "F1" || (ctrl && e.key === ","))) {
       e.preventDefault();
       showNotices = showTennoscope = showNews = false;
@@ -2518,6 +2542,10 @@
           </button>
         {/if}
         <button class="tool" class:on={settings.tab === "guide"} aria-label="Guide" title="How to use orbiter (F1)" onclick={() => (settings.tab = "guide")}><Icon name="guide" size={14} /></button>
+        <!-- Report a bug, beside the Guide where the row has room: the folded sidebar, or no TennoScope
+             button. Unfolded with TennoScope the row is full (and the sidebar has no height to
+             spare at 800 px), so there it's in Settings, the Guide and Shift+F1. -->
+        {#if compact || !(ts.status && !noTennoScope)}<button class="tool" data-card="report-bug-rail" aria-label="Report a bug" aria-expanded={bugReport.open} title="Report a bug: say what went wrong, then open it as an issue on GitHub or copy it. orbiter sends nothing itself (Shift+F1)" onclick={() => bugReport.show()}><Icon name="bug" size={14} /></button>{/if}
         <button class="tool" aria-label="Settings" aria-expanded={showSettings} title="Settings (Ctrl+,)" onclick={() => (showSettings = true)}><Icon name="settings" size={14} /></button>
       </div>
     </div>
@@ -2712,6 +2740,7 @@
 <Toasts open={openNotice} all={() => openNotices("recent")} left={compact ? "5.2rem" : "15.3rem"} acts={noticeActs} />
 <WhatsNew bind:open={showNews} seen={settings.newsSeen} ondone={() => (settings.newsSeen = NEWEST)} go={(t: string) => goTo(t)} />
 <SettingsSheet bind:open={showSettings} bind:settings {rivenKeyError} onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
+{#if bugReport.open}<BugReport page={pageById[settings.tab as PageId]?.label ?? settings.tab} tennoscope={reportTennoscope} fullMode={reportFullMode} names={reportNames} />{/if}
 <TennoscopeSheet bind:open={showTennoscope} synced={model ? ago(model.observedAt, tick) : "not yet"} job={syncJob} onsync={refreshAll} {windowMode} bind:opaqueOverlay={settings.tennoscope.opaqueOverlay} />
 
 <style>

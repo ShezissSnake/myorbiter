@@ -1047,6 +1047,21 @@ export async function openLogFolder(which: "orbiter" | "tennoscope", dataDir: st
   if (inTauri) await invoke("open_log_folder", { which, dir: dataDir || null });
 }
 
+// ---------------------------------------------------------------- bug reports
+
+/** The last `lines` lines of orbiter's log, redacted by applog.rs (none in a browser). */
+export async function logTail(lines: number): Promise<string[]> {
+  return inTauri ? invoke<string[]>("log_tail", { lines }) : [];
+}
+
+/** This copy's version and the system it runs on, for a bug report. */
+export async function reportEnv(): Promise<{ version: string; os: string; arch: string }> {
+  if (inTauri) return invoke("report_env");
+  const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
+  const os = /Windows/i.test(ua) ? "windows" : /Mac OS/i.test(ua) ? "macos" : /Linux/i.test(ua) ? "linux" : "unknown";
+  return { version: "dev (browser)", os, arch: "" };
+}
+
 /**
  * A desktop notification (App's `tell` decides when). `id`: its entry in the history, so clicking
  * it opens what it's about (see onNoticeOpen). `actions`: buttons beside Open, as [action, label]
