@@ -352,6 +352,9 @@ async fn install(app: &AppHandle, pending: &Pending, channel: Channel, version: 
     match result {
         Ok(()) => {
             log::info!(target: "orbiter::updates", "installed {remote}; restarting");
+            // The restart that follows skips the usual exit: this start ended on purpose, not by
+            // crashing, so the next one keeps the accelerated rendering (rendering.rs).
+            crate::rendering::stood_up();
             Ok(())
         }
         Err(e) => {
