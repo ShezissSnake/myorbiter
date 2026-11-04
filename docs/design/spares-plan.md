@@ -1,9 +1,9 @@
 # Put my spares on sale: finer choices
 
-A design for the spares panel with options per category, and the prototype that shows it
-(`spares-preview.html` in the dev server; `src/lib/ui/SparesPlan.svelte` and `src/lib/ui/spares/`;
-the settings in `src/lib/core/sparesRules.ts`). The prototype draws the choices and the numbers it
-is given; it is not wired to the plan logic (`bulk.ts`, `spares.ts`, `views.ts`).
+A design for the spares panel with options per category. Built as the Sell spares page
+(`src/lib/tabs/Spares.svelte`, with `src/lib/ui/SparesPlan.svelte` and `src/lib/ui/spares/`; the
+settings in `src/lib/core/sparesRules.ts`, the plan in `bulk.ts`). The decisions taken on the open
+questions (section 8) are at the end; where the build differs from the text below, it says so there.
 
 The request: if orbiter lists things automatically, the player should be able to say how, per kind
 of thing (prime sets or parts, mod families and how many to keep, Ayatan full or empty, arcanes by
@@ -284,11 +284,10 @@ settings.market.spares: SparesRules = {
 
 ## 7. The prototype
 
-- `npm run dev`, then `/spares-preview.html`. `?layout=inline|page|orders`, `&open=<category>`,
-  `&review=1`. Never part of a build (Vite builds `index.html` only).
-- Files: `src/lib/ui/SparesPlan.svelte` (the panel), `src/lib/ui/spares/` (`CategoryRow`,
-  `FamilyLine`, `Stepper`, `NeverSoldLine`, `PlanReview`, `RowMenu`, `NeverSoldTag`, `types.ts`),
-  `src/dev/` (the preview and its made-up numbers, sized like a long-played account).
+The dev-server preview (`spares-preview.html`, `src/dev/`) was removed once the page was built.
+Files: `src/lib/ui/SparesPlan.svelte` (the rows), `src/lib/ui/spares/` (`CategoryRow`,
+`FamilyLine`, `Stepper`, `NeverSoldLine`, `PlanReview`, `RowMenu`, `NeverSoldTag`, `types.ts`),
+`src/lib/tabs/Spares.svelte` (the page).
 
 ## 8. Open questions
 
@@ -301,3 +300,22 @@ settings.market.spares: SparesRules = {
 5. Relics as their own row means Settings, Selling's "relics worth selling" and the row's box both
    gate it. Fold the setting into the row?
 6. Should a category's options be editable while it's off (as now, with a note), or greyed out?
+
+### Decided
+
+1. Sets whose every part drops from a relic the player holds.
+2. Its own page, Sell spares, in Trade after Orders; Orders keeps one line with a link. Old links
+   (`market?spares=1`) open the page.
+3. Never sell, plain, keyed by warframe.market's item id; the last check before a listing
+   (`listGuard.ts`) refuses it too, the listing form included, with Sell again beside the refusal.
+4. Empty Ayatan sculptures only for now: Filled isn't offered.
+5. Settings, Selling's relic switch is the Relics row: off there before, the row starts off. Every
+   relic worth more sold than cracked counts as spare on Inventory, as the switch's default did.
+6. An unticked row's options are greyed out (disabled); its line says "Not sold".
+
+Differences from the text above:
+- Prime "keep n of each part" counts loose parts, as the old `partsKeep` did: parts that go out in a
+  whole set still go as the set (so the old settings plan the same).
+- Resources' margin and relics' keep apply to each row; Captura keeps its one on top.
+- An older build reading the same settings gets the six switches only; the old relic switch isn't
+  written back (it can't tell relics from the rest of Everything else anyway).

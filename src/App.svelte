@@ -754,7 +754,7 @@
   });
   /**
    * Opens a page, from a link like "parts?best=Ducats#top": the filters go to the page (intent),
-   * and a spot ("home#baro", "market#spares") is scrolled to and lit up briefly. `hold`: the spot
+   * and a spot ("home#baro", "spares#cat-mods") is scrolled to and lit up briefly. `hold`: the spot
    * stays outlined until the next goTo (the tour, one change at a time).
    */
   /** Off the never-sell list (Sell spares): from the listing form or Find anything. */
