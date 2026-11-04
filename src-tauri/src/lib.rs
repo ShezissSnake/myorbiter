@@ -279,8 +279,9 @@ async fn relic_data(app: tauri::AppHandle, force: Option<bool>) -> Result<Value,
 }
 
 /// Saves an export (CSV) in your Downloads folder as `orbiter-<what>-<date>.csv`, never over an
-/// existing file. Returns where it went.
-#[tauri::command]
+/// existing file. Returns where it went. Off the main thread, as file writes here all are: the
+/// window's event loop runs there, and a slow disk would hold up its painting.
+#[tauri::command(async)]
 fn export_file(app: tauri::AppHandle, what: String, text: String, day: Option<String>) -> Result<String, String> {
     if what.is_empty() || !what.bytes().all(|b| b.is_ascii_lowercase() || b == b'-') {
         return Err("bad export name".into());
@@ -685,7 +686,7 @@ fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("settings.json"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn load_settings(app: tauri::AppHandle) -> Result<Value, String> {
     let path = settings_path(&app)?;
     // No file yet: a first run. Any other failure (a file held by an antivirus or a backup, no
