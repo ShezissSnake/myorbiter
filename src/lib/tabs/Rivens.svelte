@@ -394,6 +394,8 @@
 
   // ---------------------------------------------------------------- finder and alerts
   let weaponName = $state("");
+  /** The weapon field's suggestions, drawn the first time it's focused rather than with the page. */
+  let weaponsWanted = $state(false);
   let pos = $state<string[]>(["", "", ""]);
   let neg = $state("");
   let maxPrice = $state<number | null>(null);
@@ -731,8 +733,8 @@
       <p class="dim small">{#if rivens.metaError}Couldn't load warframe.market's riven list ({rivens.metaError}); orbiter tries again each minute. <button class="link" onclick={() => void rivens.loadMeta()}>Try now</button>{:else}Loading warframe.market's riven list…{/if}</p>
     {:else}
       <div class="form">
-        <input list="riven-weapons" placeholder="Weapon" bind:value={weaponName} aria-label="Weapon" />
-        <datalist id="riven-weapons">{#each meta.weapons as w (w.slug)}<option value={w.name}></option>{/each}</datalist>
+        <input list="riven-weapons" placeholder="Weapon" bind:value={weaponName} onfocus={() => (weaponsWanted = true)} aria-label="Weapon" />
+        {#if weaponsWanted}<datalist id="riven-weapons">{#each meta.weapons as w (w.slug)}<option value={w.name}></option>{/each}</datalist>{/if}
         {#each [0, 1, 2] as i (i)}
           {@const taken = takenBut(pos[i])}
           <select bind:value={pos[i]} aria-label="Wanted stat {i + 1}"><option value="">{i === 0 ? "Stat you want" : i === 1 ? "2nd stat (any)" : "3rd stat (any)"}</option>{#each attrsFor.filter((a) => !a.negativeOnly && !taken.has(a.slug)) as a (a.slug)}<option value={a.slug}>{a.name}</option>{/each}</select>
