@@ -6,7 +6,7 @@ license = "GPL-3.0-only"
 description = "Reads TennoScope's local collection data (read-only) and trims the item catalog for orbiter."
 
 [dependencies]
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["raw_value"] }
 thiserror = "2"
