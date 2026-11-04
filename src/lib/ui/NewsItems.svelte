@@ -2,14 +2,13 @@
   // What's New changes as a list of rows, as on the update screen and the Guide: each change's
   // icon, a few words, a line on it (page names and game words in their icons) and Show me, to the
   // spot on its page. An older entry's plain sentences are rows of their own, without an icon.
-  import type { NewsItem } from "../whatsNew";
+  import { showMeTarget, type NewsItem } from "../whatsNew";
   import { pageById, type PageId } from "../pages";
-  import { parseTarget } from "../intent.svelte";
   import NewsIcon from "./NewsIcon.svelte";
   import Rich from "./Rich.svelte";
 
   let { items, go = null }: { items: (string | NewsItem)[]; go?: ((to: string) => void) | null } = $props();
-  const pageOf = (to: string) => pageById[parseTarget(to).page as PageId] ?? null;
+  const pageOf = (to: string) => showMeTarget(to, (page) => pageById[page as PageId]?.label ?? null);
 </script>
 
 <ul class="rows">

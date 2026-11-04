@@ -25,6 +25,7 @@ import { openable } from "./core/links";
 import { defaultPickWeights, type PickWeights } from "./core/pick";
 import type { Notice } from "./notices";
 import { DEFAULT_BUILDS_MAX_AGE_DAYS, sanitizeBuilds, sanitizeMaxAgeDays, type Build } from "./core/builds/types";
+import { defaultUpdates, sanitizeUpdates, type Channel, type Install, type UpdateSettings } from "./core/updates";
 import type { NoxAnswer, NoxFetcher, NoxListing, NoxPage } from "./core/builds/noxsframe";
 
 
@@ -216,6 +217,8 @@ export interface Settings {
   buildsMaxAgeDays: number;
   /** Read an item's builds from Nox's Frame when its builds are opened (core/builds/noxsframe.ts). */
   buildsFromNox: boolean;
+  /** Updates: the release channel, a version put off with Later, the last check (core/updates.ts). */
+  updates: UpdateSettings;
 }
 
 export interface RivenWatch {
@@ -432,6 +435,7 @@ export const defaultSettings = (): Settings => ({
   builds: [],
   buildsMaxAgeDays: DEFAULT_BUILDS_MAX_AGE_DAYS,
   buildsFromNox: true,
+  updates: defaultUpdates(),
 });
 
 const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -809,6 +813,8 @@ export async function loadSettings(): Promise<Settings> {
     buildsMaxAgeDays: sanitizeMaxAgeDays(raw?.buildsMaxAgeDays),
     // On unless turned off.
     buildsFromNox: raw?.buildsFromNox !== false,
+    // Settings from before updates: Stable, never checked.
+    updates: sanitizeUpdates(raw?.updates),
   };
 }
 
@@ -1013,6 +1019,37 @@ const devTennoscope = async (): Promise<TennoscopeStatus | null> => {
 };
 
 /** TennoScope, started and stopped by orbiter. Only the desktop app does this. */
+/** This copy of orbiter: its version, and how it was installed (so how it updates). */
+export interface UpdateInfo {
+  version: string;
+  install: Install;
+}
+
+/** What a channel's manifest offered (src-tauri/src/updates.rs `Check`). */
+export type UpdateCheck =
+  | { state: "current"; version: string }
+  | { state: "newer" | "older"; version: string; notes: string | null; date: string | null }
+  | { state: "off" };
+
+/**
+ * Updates (src-tauri/src/updates.rs): what this copy is, a channel's offer, installing it, and the
+ * restart after. In the browser (development) nothing updates.
+ */
+export const updater = {
+  info: (): Promise<UpdateInfo> => (inTauri ? invoke("updates_info") : Promise.resolve({ version: "0.1.0", install: { how: "dev" } })),
+  check: (channel: Channel): Promise<UpdateCheck> => (inTauri ? invoke("updates_check", { channel }) : Promise.resolve({ state: "off" })),
+  /** Downloads and installs `version` from `channel`; `older` only for an explicit switch to an older build. */
+  async install(channel: Channel, version: string, older: boolean, onProgress: (done: number, total: number | null) => void): Promise<void> {
+    if (!inTauri) throw new Error("updates aren't available in dev builds");
+    const { Channel: Ipc } = await import("@tauri-apps/api/core");
+    const progress = new Ipc<{ done: number; total: number | null }>();
+    progress.onmessage = (p) => onProgress(p.done, p.total);
+    await invoke("updates_install", { channel, version, older, progress });
+  },
+  /** Starts the new build (the process plugin's restart). */
+  restart: (): Promise<void> => (inTauri ? invoke("plugin:process|restart") : Promise.resolve(location.reload())),
+};
+
 export const tennoscope = {
   /** Linux's Yama ptrace_scope: above 0, TennoScope can't read the game's memory. Null: no such limit. */
   ptraceScope: (): Promise<number | null> => (inTauri ? invoke<number | null>("ptrace_scope") : Promise.resolve(null)),

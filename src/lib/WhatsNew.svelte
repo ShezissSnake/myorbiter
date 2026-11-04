@@ -5,9 +5,9 @@
   // the rest of it as rows, earlier days folded under their dates; Take the tour steps through
   // every change since you last looked, each on its page. The Guide lists each day whole instead. "Got it", Esc or a click outside closes it, and it counts as seen.
   import { calm, shade } from "./motion";
-  import { sinceSeen, type NewsItem } from "./whatsNew";
+  import { showMeTarget, sinceSeen, type NewsItem } from "./whatsNew";
+  import { updates as updateState } from "./updates.svelte";
   import { pageById, type PageId } from "./pages";
-  import { parseTarget } from "./intent.svelte";
   import { startTour } from "./tour.svelte";
   import { trap } from "./ui/trap";
   import NewsItems from "./ui/NewsItems.svelte";
@@ -25,7 +25,7 @@
   const head = $derived(latest && typeof latest.items[0] !== "string" ? (latest.items[0] as NewsItem) : null);
   const rest = $derived(latest ? (head ? latest.items.slice(1) : latest.items) : []);
   const stops = $derived(since.stops);
-  const pageOf = (to: string) => pageById[parseTarget(to).page as PageId] ?? null;
+  const pageOf = (to: string) => showMeTarget(to, (page) => pageById[page as PageId]?.label ?? null);
 
   const date = (d: string) => new Date(`${d}T12:00:00Z`);
   const day = (d: string) => date(d).toLocaleDateString(undefined, { day: "numeric", month: "long" });
@@ -69,7 +69,7 @@
       </div>
       <div class="kick">
         <h2 id="upd-title" class="register">What's new in orbiter</h2>
-        <p class="dim small">{since.count} {since.count === 1 ? "change" : "changes"} since you last opened orbiter</p>
+        <p class="dim small">{since.count} {since.count === 1 ? "change" : "changes"} since you last opened orbiter{#if updateState.line}<span class="ver" title="The version you're on, and the channel it came from (Settings, Updates)"> · orbiter {updateState.line}</span>{/if}</p>
       </div>
       <button class="close" aria-label="Close" title="Close (Esc)" onclick={close}>
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="1.5" /></svg>
@@ -113,6 +113,7 @@
 {/if}
 
 <style>
+  .ver { font-variant-numeric: tabular-nums; white-space: nowrap; }
   .scrim { position: fixed; inset: 0; z-index: 40; background: rgb(6 7 9 / 72%); }
   /* A screen of its own in the middle of the window, not a side sheet: as tall as what's new
      (a short update leaves no empty slab), scrolling inside once it would pass the window. */

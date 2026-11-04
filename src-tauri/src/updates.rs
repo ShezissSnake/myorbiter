@@ -1,0 +1,493 @@
+//! In-app updates, from the GitHub releases of orbiter's repository.
+//!
+//! Every build CI makes is published as a release of its own (`build-<n>`, version `0.1.<n>`) with
+//! an updater manifest, `latest.json`. Three fixed releases act as channels: `channel-experimental`,
+//! `channel-beta` and `channel-stable` each carry one `latest.json`, replaced when a build reaches
+//! that channel (every push lands on Experimental; Beta and Stable get a build promoted by hand,
+//! the same files, never rebuilt). The channel is a setting in the page; this module turns it into
+//! the manifest's address, asks tauri-plugin-updater whether that manifest offers another version,
+//! and installs it only when the page asks, after the plugin has checked its signature against the
+//! public key in tauri.conf.json.
+//!
+//! Where an update can go depends on how orbiter was installed (`Install`): an AppImage replaces
+//! its own file, the Windows installer runs in passive mode, while a .deb or .rpm, a development
+//! build and the macOS build leave updating to the package manager or to a download by hand.
+
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+use tauri::utils::config::BundleType;
+use tauri::{AppHandle, Manager, Runtime, State};
+use tauri_plugin_updater::{Update, UpdaterExt};
+
+/// The repository whose releases carry the builds and the channel manifests.
+pub const REPO: &str = "ShezissSnake/orbiter";
+
+/// How long a check may take before it counts as failed.
+const CHECK_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// A release channel, as the page names it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Channel {
+    Stable,
+    Beta,
+    Experimental,
+}
+
+impl Channel {
+    pub fn name(self) -> &'static str {
+        match self {
+            Channel::Stable => "stable",
+            Channel::Beta => "beta",
+            Channel::Experimental => "experimental",
+        }
+    }
+}
+
+/// The manifest a channel's builds are announced in: the `latest.json` of its channel release.
+pub fn endpoint(channel: Channel) -> String {
+    format!("https://github.com/{REPO}/releases/download/channel-{}/latest.json", channel.name())
+}
+
+/// Where the check goes. A normal build only ever asks `endpoint(channel)`; a build made with the
+/// `e2e-updater` feature (never one CI ships, see release.yml's check) may be pointed at a local
+/// server by `ORBITER_UPDATER_E2E_ENDPOINT` (and given the test's key, `e2e::apply`), for the
+/// end-to-end test of the update itself.
+fn check_url(channel: Channel) -> String {
+    #[cfg(feature = "e2e-updater")]
+    if let Some(url) = e2e::endpoint() {
+        return url;
+    }
+    endpoint(channel)
+}
+
+/// How a newer or older build compares with the one running.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Offer {
+    /// The channel's build is this one.
+    Same,
+    /// Newer: offered as an update.
+    Newer,
+    /// Older: a more stable channel that hasn't caught up. Only installed on an explicit click
+    /// that names it ("Switch to Stable's 0.1.40"), never by an update check.
+    Older,
+}
+
+/// Compares versions as semver (0.1.52 against 0.1.9 by number, not by text).
+pub fn offer(current: &semver::Version, remote: &semver::Version) -> Offer {
+    match remote.cmp(current) {
+        std::cmp::Ordering::Greater => Offer::Newer,
+        std::cmp::Ordering::Less => Offer::Older,
+        std::cmp::Ordering::Equal => Offer::Same,
+    }
+}
+
+/// Whether an install of `remote` may go ahead: a newer build always, an older one only when the
+/// click asked for that older build (`older`).
+pub fn may_install(current: &semver::Version, remote: &semver::Version, older: bool) -> bool {
+    match offer(current, remote) {
+        Offer::Newer => true,
+        Offer::Older => older,
+        Offer::Same => false,
+    }
+}
+
+/// How this copy of orbiter was installed, and so whether it can update itself.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "how", rename_all = "camelCase")]
+pub enum Install {
+    /// An AppImage in a folder orbiter may write to: the update replaces the file.
+    AppImage { path: String },
+    /// An AppImage in a folder orbiter can't write to: updates are checked, not installed.
+    ReadOnly { folder: String },
+    /// Installed with the Windows installer: the update runs the new installer (passive mode).
+    Windows,
+    /// A .deb or .rpm: the package manager updates it.
+    Package,
+    /// A development build (`tauri dev`, a debug build).
+    Dev,
+    /// A release build run straight from its folder (no installer, no AppImage).
+    Manual,
+    /// The macOS build: no updater manifest carries it, a new .dmg is downloaded by hand.
+    Mac,
+}
+
+impl Install {
+    /// Whether update checks make sense here (an AppImage in a read-only folder still checks, to
+    /// say an update exists).
+    pub fn checks(&self) -> bool {
+        matches!(self, Install::AppImage { .. } | Install::ReadOnly { .. } | Install::Windows)
+    }
+    /// Whether an update can be installed here.
+    pub fn installs(&self) -> bool {
+        matches!(self, Install::AppImage { .. } | Install::Windows)
+    }
+}
+
+/// Works out `Install` from the facts: a debug build, the system, the bundle the binary was
+/// patched for, the AppImage it runs from (`$APPIMAGE`), and whether a folder can be written to.
+pub fn install_kind(debug: bool, os: &str, bundle: Option<BundleType>, appimage: Option<&Path>, writable: impl Fn(&Path) -> bool) -> Install {
+    if debug {
+        return Install::Dev;
+    }
+    match os {
+        "macos" => Install::Mac,
+        "windows" => match bundle {
+            Some(BundleType::Nsis) => Install::Windows,
+            _ => Install::Manual,
+        },
+        "linux" => match (bundle, appimage) {
+            (Some(BundleType::Deb) | Some(BundleType::Rpm), _) => Install::Package,
+            (_, Some(path)) => {
+                let folder = path.parent().unwrap_or(Path::new("/"));
+                if writable(folder) {
+                    Install::AppImage { path: path.display().to_string() }
+                } else {
+                    Install::ReadOnly { folder: folder.display().to_string() }
+                }
+            }
+            _ => Install::Manual,
+        },
+        _ => Install::Manual,
+    }
+}
+
+/// Whether a file can be made in `folder` (and removed again): what replacing the AppImage takes.
+fn folder_writable(folder: &Path) -> bool {
+    let probe = folder.join(format!(".orbiter-update-check-{}", std::process::id()));
+    match std::fs::OpenOptions::new().write(true).create_new(true).open(&probe) {
+        Ok(_) => {
+            let _ = std::fs::remove_file(&probe);
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+fn this_install<R: Runtime>(app: &AppHandle<R>) -> Install {
+    #[cfg(target_os = "linux")]
+    let appimage: Option<PathBuf> = app.env().appimage.map(PathBuf::from);
+    #[cfg(not(target_os = "linux"))]
+    let appimage: Option<PathBuf> = {
+        let _ = app;
+        None
+    };
+    install_kind(cfg!(debug_assertions), std::env::consts::OS, tauri::utils::platform::bundle_type(), appimage.as_deref(), folder_writable)
+}
+
+/// What the page shows about this copy: its version and how it updates.
+#[derive(Serialize)]
+pub struct Info {
+    version: String,
+    install: Install,
+}
+
+/// The result of a check, for the page.
+#[derive(Serialize, Debug)]
+#[serde(tag = "state", rename_all = "camelCase")]
+pub enum Check {
+    /// The channel's build is the one running.
+    Current { version: String },
+    /// The channel has a newer build.
+    Newer { version: String, notes: Option<String>, date: Option<String> },
+    /// The channel's build is older than this one (a more stable channel).
+    Older { version: String, notes: Option<String>, date: Option<String> },
+    /// Nothing to check here (a dev build, a package, macOS): `Info.install` says why.
+    Off,
+}
+
+/// The update the last check found, kept so a click installs exactly what was shown.
+#[derive(Default)]
+pub struct Pending(Mutex<Option<(Channel, Update)>>);
+
+/// Download progress, as the button shows it.
+#[derive(Clone, Serialize)]
+pub struct Progress {
+    done: u64,
+    total: Option<u64>,
+}
+
+/// A failed check or install in a short sentence; the plugin's own wording goes to the log.
+fn calm(what: &str, e: &tauri_plugin_updater::Error) -> String {
+    use tauri_plugin_updater::Error as E;
+    match e {
+        E::Minisign(_) | E::SignatureUtf8(_) | E::Base64(_) | E::SignedVersionMismatch { .. } | E::MissingSignedVersion => {
+            "the download didn't match its signature, so it wasn't installed".into()
+        }
+        E::TargetNotFound(_) | E::TargetsNotFound(_) => "this channel has no build for this system yet".into(),
+        E::ReleaseNotFound => "GitHub had no update file for this channel".into(),
+        E::Reqwest(_) | E::Network(_) => format!("couldn't reach GitHub to {what}"),
+        E::Io(io) if io.kind() == std::io::ErrorKind::PermissionDenied => "orbiter's file can't be replaced: its folder isn't writable".into(),
+        E::TempDirNotOnSameMountPoint => "orbiter couldn't make room to swap its file (no writable folder on the same drive)".into(),
+        _ => format!("couldn't {what}"),
+    }
+}
+
+#[tauri::command]
+pub fn updates_info(app: AppHandle) -> Info {
+    Info { version: app.package_info().version.to_string(), install: this_install(&app) }
+}
+
+/// Asks the channel's manifest for its build. Every version other than this one comes back (the
+/// comparator lets older ones through), so the page can offer a downgrade explicitly; whether one
+/// installs is decided again at the click (`updates_install`).
+#[tauri::command]
+pub async fn updates_check(app: AppHandle, pending: State<'_, Pending>, channel: Channel) -> Result<Check, String> {
+    let install = this_install(&app);
+    if !install.checks() {
+        return Ok(Check::Off);
+    }
+    let url = check_url(channel);
+    let started = Instant::now();
+    // On Windows the installer replaces files TennoScope runs from, and exits orbiter itself:
+    // TennoScope and the warframe.market status are closed first.
+    let handle = app.clone();
+    let updater = app
+        .updater_builder()
+        .on_before_exit(move || {
+            handle.state::<crate::presence::Presence>().close();
+            handle.state::<crate::companion::Companion>().stop();
+            handle.cleanup_before_exit();
+        })
+        .endpoints(vec![url.parse().map_err(|_| "the update address is invalid".to_string())?])
+        .map_err(|e| calm("check for updates", &e))?
+        .timeout(CHECK_TIMEOUT)
+        .version_comparator(|current, release| release.version != current)
+        .build()
+        .map_err(|e| calm("check for updates", &e))?;
+    let current = app.package_info().version.clone();
+    match updater.check().await {
+        Ok(Some(update)) => {
+            let Ok(remote) = semver::Version::parse(update.version.trim_start_matches('v')) else {
+                return Err(format!("the channel announced an unreadable version ({})", update.version));
+            };
+            let date = update.raw_json.get("pub_date").and_then(|d| d.as_str()).map(str::to_owned);
+            let notes = update.body.clone();
+            let version = remote.to_string();
+            log::info!(target: "orbiter::updates", "{}: {version} on offer (this is {current})", channel.name());
+            let check = match offer(&current, &remote) {
+                Offer::Newer => Check::Newer { version, notes, date },
+                Offer::Older => Check::Older { version, notes, date },
+                Offer::Same => Check::Current { version },
+            };
+            *pending.0.lock().unwrap_or_else(|e| e.into_inner()) = Some((channel, update));
+            Ok(check)
+        }
+        Ok(None) => {
+            *pending.0.lock().unwrap_or_else(|e| e.into_inner()) = None;
+            Ok(Check::Current { version: current.to_string() })
+        }
+        Err(e) => {
+            // One calm line: while the repository is private, or offline, every check ends here.
+            log::info!(target: "orbiter::updates", "{} check failed after {} ms: {e}", channel.name(), started.elapsed().as_millis());
+            Err(calm("check for updates", &e))
+        }
+    }
+}
+
+/// Downloads and installs the build the last check found on `channel`, if it is `version`.
+/// `older`: the click named an older build (switching to a more stable channel). Progress goes
+/// to `progress`. On Linux the AppImage is replaced and the page then restarts orbiter (the
+/// process plugin); on Windows the installer takes over and orbiter exits.
+#[tauri::command]
+pub async fn updates_install(
+    app: AppHandle,
+    pending: State<'_, Pending>,
+    channel: Channel,
+    version: String,
+    older: bool,
+    progress: tauri::ipc::Channel<Progress>,
+) -> Result<(), String> {
+    let install = this_install(&app);
+    if !install.installs() {
+        return Err(match install {
+            Install::ReadOnly { folder } => format!("orbiter can't replace its own file: {folder} isn't writable. Move the AppImage to a folder you own, or download the new one by hand"),
+            Install::Package => "updates come from your package manager".into(),
+            Install::Dev => "updates aren't available in dev builds".into(),
+            _ => "this copy of orbiter can't update itself".into(),
+        });
+    }
+    let update = {
+        let guard = pending.0.lock().unwrap_or_else(|e| e.into_inner());
+        match guard.as_ref() {
+            Some((c, u)) if *c == channel && u.version.trim_start_matches('v') == version => u.clone(),
+            _ => return Err("check again first: the update shown is no longer the one on offer".into()),
+        }
+    };
+    let current = app.package_info().version.clone();
+    let remote = semver::Version::parse(update.version.trim_start_matches('v')).map_err(|_| "unreadable version".to_string())?;
+    if !may_install(&current, &remote, older) {
+        return Err(format!("{remote} is older than this build ({current}): only a switch that names it installs it"));
+    }
+    log::info!(target: "orbiter::updates", "installing {remote} from {} (was {current})", channel.name());
+    let mut done = 0u64;
+    let mut last_sent = 0u64;
+    let result = update
+        .download_and_install(
+            |chunk, total| {
+                done += chunk as u64;
+                // About every 1% (or 256 KB without a size), so the page isn't flooded.
+                let step = total.map_or(256 * 1024, |t| (t / 100).max(64 * 1024));
+                if done - last_sent >= step || total == Some(done) {
+                    last_sent = done;
+                    let _ = progress.send(Progress { done, total });
+                }
+            },
+            || {},
+        )
+        .await;
+    match result {
+        Ok(()) => {
+            log::info!(target: "orbiter::updates", "installed {remote}; restarting");
+            Ok(())
+        }
+        Err(e) => {
+            log::warn!(target: "orbiter::updates", "installing {remote} failed: {e}");
+            Err(calm("install the update", &e))
+        }
+    }
+}
+
+/// The update plugin, set up for orbiter.
+pub fn plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R, tauri_plugin_updater::Config> {
+    tauri_plugin_updater::Builder::new().build()
+}
+
+/// The app's configuration, as built, with the updater's part passed through `updater_config`.
+pub fn context<R: Runtime>(mut context: tauri::Context<R>) -> tauri::Context<R> {
+    if let Some(updater) = context.config_mut().plugins.0.get_mut("updater") {
+        *updater = updater_config(std::mem::take(updater));
+    }
+    context
+}
+
+/// The updater's configuration (`plugins.updater`). A normal build leaves it exactly as compiled
+/// in; one with the `e2e-updater` feature takes the end-to-end test's settings (`e2e::apply`).
+fn updater_config(config: serde_json::Value) -> serde_json::Value {
+    #[cfg(feature = "e2e-updater")]
+    let config = e2e::apply(config);
+    config
+}
+
+/// The end-to-end test's hooks. Compiled only with the `e2e-updater` feature, which no release
+/// build enables: release.yml fails a build whose binary contains `ORBITER_UPDATER_E2E`.
+#[cfg(feature = "e2e-updater")]
+mod e2e {
+    /// The test server's manifest (only a local plain-http address is taken).
+    pub fn endpoint() -> Option<String> {
+        std::env::var("ORBITER_UPDATER_E2E_ENDPOINT").ok().filter(|u| u.starts_with("http://127.0.0.1:"))
+    }
+
+    /// With the test server set: plain http allowed for it, and, when `ORBITER_UPDATER_E2E_PUBKEY`
+    /// is set, the test's own signing key in place of the release key (the test signs its builds
+    /// with a throwaway key; the real key's private half never leaves the developer's machine and CI).
+    pub fn apply(mut config: serde_json::Value) -> serde_json::Value {
+        if endpoint().is_none() {
+            return config;
+        }
+        if let Some(updater) = config.as_object_mut() {
+            updater.insert("dangerousInsecureTransportProtocol".into(), true.into());
+            if let Some(key) = std::env::var("ORBITER_UPDATER_E2E_PUBKEY").ok().filter(|k| !k.trim().is_empty()) {
+                updater.insert("pubkey".into(), key.trim().into());
+            }
+        }
+        config
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn v(s: &str) -> semver::Version {
+        semver::Version::parse(s).unwrap()
+    }
+
+    #[test]
+    fn each_channel_has_its_own_manifest() {
+        assert_eq!(endpoint(Channel::Stable), "https://github.com/ShezissSnake/orbiter/releases/download/channel-stable/latest.json");
+        assert_eq!(endpoint(Channel::Beta), "https://github.com/ShezissSnake/orbiter/releases/download/channel-beta/latest.json");
+        assert_eq!(endpoint(Channel::Experimental), "https://github.com/ShezissSnake/orbiter/releases/download/channel-experimental/latest.json");
+        for c in [Channel::Stable, Channel::Beta, Channel::Experimental] {
+            assert!(endpoint(c).parse::<tauri::Url>().is_ok());
+        }
+    }
+
+    #[test]
+    fn channels_read_as_the_page_writes_them() {
+        assert_eq!(serde_json::from_str::<Channel>("\"beta\"").unwrap(), Channel::Beta);
+        assert!(serde_json::from_str::<Channel>("\"nightly\"").is_err());
+        assert!(serde_json::from_str::<Channel>("\"Stable\"").is_err());
+    }
+
+    /// Without the test feature the check goes to the channel's address, and the configuration
+    /// keeps its key and https, whatever the environment says.
+    #[test]
+    #[cfg(not(feature = "e2e-updater"))]
+    fn a_release_build_cannot_be_pointed_elsewhere() {
+        std::env::set_var("ORBITER_UPDATER_E2E_ENDPOINT", "http://127.0.0.1:9/latest.json");
+        std::env::set_var("ORBITER_UPDATER_E2E_PUBKEY", "dGVzdA==");
+        assert_eq!(check_url(Channel::Beta), endpoint(Channel::Beta));
+        let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let built = &config["plugins"]["updater"];
+        assert_eq!(&updater_config(built.clone()), built);
+        std::env::remove_var("ORBITER_UPDATER_E2E_ENDPOINT");
+        std::env::remove_var("ORBITER_UPDATER_E2E_PUBKEY");
+    }
+
+    /// The committed key is the release key (id E8C1BC6BE2D5CFB9), not a test key.
+    #[test]
+    fn the_release_key_is_configured() {
+        let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let key = config["plugins"]["updater"]["pubkey"].as_str().unwrap();
+        use base64::Engine;
+        let text = String::from_utf8(base64::engine::general_purpose::STANDARD.decode(key).unwrap()).unwrap();
+        assert!(text.starts_with("untrusted comment: minisign public key: E8C1BC6BE2D5CFB9\n"), "{text}");
+        assert_eq!(config["plugins"]["updater"]["requireSignedVersion"], true);
+    }
+
+    #[test]
+    fn versions_compare_by_number() {
+        assert_eq!(offer(&v("0.1.9"), &v("0.1.52")), Offer::Newer);
+        assert_eq!(offer(&v("0.1.52"), &v("0.1.40")), Offer::Older);
+        assert_eq!(offer(&v("0.1.52"), &v("0.1.52")), Offer::Same);
+        assert_eq!(offer(&v("0.1.0"), &v("0.1.1")), Offer::Newer);
+    }
+
+    #[test]
+    fn an_older_build_installs_only_when_asked_for() {
+        assert!(may_install(&v("0.1.40"), &v("0.1.52"), false));
+        assert!(may_install(&v("0.1.40"), &v("0.1.52"), true));
+        assert!(!may_install(&v("0.1.52"), &v("0.1.40"), false));
+        assert!(may_install(&v("0.1.52"), &v("0.1.40"), true));
+        assert!(!may_install(&v("0.1.52"), &v("0.1.52"), true));
+    }
+
+    #[test]
+    fn how_each_install_updates() {
+        let yes = |_: &Path| true;
+        let no = |_: &Path| false;
+        let img = Path::new("/home/me/Apps/orbiter.AppImage");
+        assert_eq!(install_kind(true, "linux", Some(BundleType::AppImage), Some(img), yes), Install::Dev);
+        assert_eq!(install_kind(false, "linux", Some(BundleType::AppImage), Some(img), yes), Install::AppImage { path: img.display().to_string() });
+        assert_eq!(install_kind(false, "linux", Some(BundleType::AppImage), Some(img), no), Install::ReadOnly { folder: "/home/me/Apps".into() });
+        assert_eq!(install_kind(false, "linux", Some(BundleType::Deb), None, yes), Install::Package);
+        assert_eq!(install_kind(false, "linux", Some(BundleType::Rpm), None, yes), Install::Package);
+        assert_eq!(install_kind(false, "linux", None, None, yes), Install::Manual);
+        assert_eq!(install_kind(false, "windows", Some(BundleType::Nsis), None, yes), Install::Windows);
+        assert_eq!(install_kind(false, "windows", None, None, yes), Install::Manual);
+        assert_eq!(install_kind(false, "macos", Some(BundleType::App), None, yes), Install::Mac);
+        assert!(Install::ReadOnly { folder: "/opt".into() }.checks());
+        assert!(!Install::ReadOnly { folder: "/opt".into() }.installs());
+        assert!(!Install::Package.checks() && !Install::Dev.checks() && !Install::Mac.checks() && !Install::Manual.checks());
+    }
+
+    #[test]
+    fn a_folder_is_writable_or_not() {
+        let dir = std::env::temp_dir();
+        assert!(folder_writable(&dir));
+        assert!(!folder_writable(Path::new("/proc/definitely-not-here")));
+    }
+}

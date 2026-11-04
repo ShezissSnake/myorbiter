@@ -82,8 +82,13 @@ fn open(path: &Path) -> Option<Sink> {
 }
 
 impl log::Log for Logger {
-    /// orbiter's own lines from Info up; the libraries' (the web view, HTTP, TLS) only warnings and errors.
+    /// orbiter's own lines from Info up; the libraries' (the web view, HTTP, TLS) only warnings and
+    /// errors. The update plugin's are left out: it logs an error for every check that can't reach
+    /// its manifest, and updates.rs already writes one line per check and per install.
     fn enabled(&self, m: &log::Metadata) -> bool {
+        if m.target().starts_with("tauri_plugin_updater") {
+            return false;
+        }
         m.level() <= if m.target().starts_with("orbiter") { log::Level::Info } else { log::Level::Warn }
     }
 

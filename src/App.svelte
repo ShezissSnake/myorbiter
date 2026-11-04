@@ -102,6 +102,8 @@
   import Home from "./lib/tabs/Home.svelte";
   import Inventory from "./lib/tabs/Inventory.svelte";
   import WhatsNew from "./lib/WhatsNew.svelte";
+  import UpdateNotice from "./lib/UpdateNotice.svelte";
+  import { updates } from "./lib/updates.svelte";
   import TourBar from "./lib/ui/TourBar.svelte";
   import { tourGate, tourStop } from "./lib/tour.svelte";
   import { NEWEST, newsSince } from "./lib/whatsNew";
@@ -289,6 +291,8 @@
   let loadedAt = $state<number | null>(null);
   let loading = $state(true);
   let showSettings = $state(false);
+  /** A section of Settings to open at (Show me: "settings#updates"). */
+  let settingsFocus = $state<string | null>(null);
   let showTennoscope = $state(false);
   // What's new: once after an update, when there's something you haven't seen.
   let showNews = $state(false);
@@ -744,6 +748,12 @@
     const t = parseTarget(target);
     const page = t.page;
     const card = spot ?? t.spot;
+    // Settings isn't a page: its panel opens, at the section named.
+    if (page === "settings") {
+      settingsFocus = card;
+      showSettings = true;
+      return;
+    }
     setIntent(page, t.want);
     settings.tab = page;
     held?.cancel();
@@ -2290,6 +2300,8 @@
       if (stopped) return;
       settings.tab = migrateTab(settings.startPage !== "last" ? settings.startPage : settings.tab);
       settingsReady = true;
+      // Updates: checked once the window has drawn and things are quiet, then every 6 hours.
+      updates.start(() => settings.updates);
       logLine("info", "app", `build ${BUILD.commit}${BUILD.date ? ` (${BUILD.date})` : ""}, ${settings.market.platform}${onConsole ? " (console)" : ""}`);
       // Before reading its data: a fresh TennoScope re-reads the inventory once the game is up.
       ts.dataDir = settings.dataDir;
@@ -2387,6 +2399,7 @@
       clearInterval(cardsPoll);
       clearInterval(tsPoll);
       clearInterval(statusPoll);
+      updates.stop();
     };
   });
 
@@ -2711,7 +2724,8 @@
 <NoticesSheet bind:open={showNotices} bind:view={noticesView} bind:settings console={onConsole} open_={openNotice} test={testNotice} acts={noticeActs} />
 <Toasts open={openNotice} all={() => openNotices("recent")} left={compact ? "5.2rem" : "15.3rem"} acts={noticeActs} />
 <WhatsNew bind:open={showNews} seen={settings.newsSeen} ondone={() => (settings.newsSeen = NEWEST)} go={(t: string) => goTo(t)} />
-<SettingsSheet bind:open={showSettings} bind:settings {rivenKeyError} onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
+<UpdateNotice onsettings={() => goTo("settings#updates")} />
+<SettingsSheet bind:open={showSettings} bind:focus={settingsFocus} bind:settings {rivenKeyError} onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
 <TennoscopeSheet bind:open={showTennoscope} synced={model ? ago(model.observedAt, tick) : "not yet"} job={syncJob} onsync={refreshAll} {windowMode} bind:opaqueOverlay={settings.tennoscope.opaqueOverlay} />
 
 <style>

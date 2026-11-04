@@ -53,6 +53,11 @@ test("every Show me opens a real page, at a spot that page (or the sidebar) has"
     for (const x of n.items) {
       if (typeof x === "string" || !x.open) continue;
       const t = parseTarget(x.open);
+      // Settings isn't a page: its panel opens at a section marked id="settings-<spot>".
+      if (t.page === "settings") {
+        assert.ok(t.spot && readFileSync("src/lib/SettingsSheet.svelte", "utf8").includes(`id="settings-${t.spot}"`), `${x.title}: Settings has no section "${t.spot}"`);
+        continue;
+      }
       assert.ok(ids.has(t.page), `${x.title}: no page ${t.page}`);
       if (!t.spot) continue;
       // data-card="spot", id="spot", Stat's spot="spot", or a spot chosen in code ("spot" : …).
