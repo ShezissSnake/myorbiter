@@ -38,6 +38,14 @@ A local desktop companion for Warframe that reads what [TennoScope](https://gith
 One download, nothing else to install. The Linux and Windows downloads carry TennoScope inside them, built from `tennoscope/` in this repository (TennoScope with orbiter's changes, see `tennoscope/ORBITER.md`), with the OCR engine its reward overlay uses.
 
 - **Linux and Steam Deck:** `orbiter_<version>_amd64.AppImage`. Make it executable and open it: in Dolphin (the Deck's Desktop Mode) right-click → *Properties* → *Permissions* → *Is executable*, then double-click it; in a terminal, `chmod +x orbiter_*.AppImage` and run it. On a Deck, play in Desktop Mode to have orbiter beside the game. To start it from Game Mode, add it in Steam with *Games → Add a Non-Steam Game*; Game Mode shows one app at a time, so you switch with the Steam button.
+
+  orbiter draws its window on the graphics card. If the window stays blank, flickers or closes as it opens, start it once with `--compat-rendering` (for a Non-Steam Game in Steam, put it in the shortcut's *Launch Options*); from then on it draws without the graphics card, slower but everywhere, until you turn off *Compatibility rendering* in Settings → *Display* (or start once with `--no-compat-rendering`). In fish, with the AppImage installed as `~/.local/bin/orbiter`:
+
+  ```fish
+  ~/.local/bin/orbiter --compat-rendering
+  ```
+
+  If an accelerated start closes within its first minute, the next start switches to compatibility rendering by itself. WebKit's own variables (`WEBKIT_DISABLE_COMPOSITING_MODE`, `WEBKIT_DISABLE_DMABUF_RENDERER`, `WEBKIT_DMABUF_RENDERER_FORCE_SHM`, `WEBKIT_FORCE_DMABUF_RENDERER`), when you set them yourself, override all of this. orbiter's log (Settings → *Logs*) says which way each start drew.
 - **Windows:** `orbiter_<version>_x64-setup.exe`. It installs for your user only, no administrator needed. It isn't signed, so SmartScreen warns the first time: *More info → Run anyway*.
 - **macOS (Apple silicon):** `orbiter_<version>_aarch64.dmg`. Drag orbiter to Applications. It isn't notarised, so the first time macOS refuses to open it: open *System Settings → Privacy & Security* and choose *Open Anyway*. TennoScope doesn't run on macOS, so a Mac has no inventory: your warframe.market listings and sales, fissures, Baro and Varzia, the world's clocks and the riven finder work; the collection pages stay empty.
 

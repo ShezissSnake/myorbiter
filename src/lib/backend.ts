@@ -1099,6 +1099,21 @@ export async function reportEnv(): Promise<{ version: string; os: string; arch: 
   return { version: "dev (browser)", os, arch: "" };
 }
 
+/** How the window is drawn on Linux (src-tauri/src/rendering.rs): this start's mode, and the saved choice. */
+export interface RenderingState {
+  linux: boolean;
+  now: { mode: "accelerated" | "sharedMemory" | "compat" | "yours"; why: "none" | "chosen" | "afterCrash"; nvidia: boolean; wayland: boolean; set: string[]; yours: string[] } | null;
+  /** Compatibility rendering saved for the next start. */
+  next: boolean;
+}
+export async function renderingState(): Promise<RenderingState> {
+  return inTauri ? invoke<RenderingState>("rendering_state") : { linux: false, now: null, next: false };
+}
+/** Compatibility rendering on or off, from the next start. */
+export async function setCompatRendering(on: boolean): Promise<void> {
+  if (inTauri) await invoke("set_compat_rendering", { on });
+}
+
 /**
  * A desktop notification (App's `tell` decides when). `id`: its entry in the history, so clicking
  * it opens what it's about (see onNoticeOpen). `actions`: buttons beside Open, as [action, label]
