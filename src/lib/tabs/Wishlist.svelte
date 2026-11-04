@@ -26,6 +26,8 @@
   import { arrive, calm, flip, leave, pulse, reveal } from "../motion";
   import Count from "../ui/Count.svelte";
   import { whileShown } from "../pane.svelte";
+  import { inView, progressive } from "../progress.svelte";
+  import { untrack } from "svelte";
 
   let { model, settings = $bindable(), go = null }: { model: Model; settings: Settings; go?: ((to: string) => void) | null } = $props();
 
@@ -36,6 +38,23 @@
   });
 
   const items = $derived.by(whileShown("wishlist", () => settings.favourites.map((u) => wishItem(model, u)).filter((w): w is WishItem => !!w)));
+  // A card that comes in a later slice (below) was on the list already, and comes in as it is: only
+  // one new to the list arrives (motion.ts, arrive). Worked out before the slices are.
+  let listed = new Set(untrack(() => items.map((w) => w.c.unique)));
+  let fresh = new Set<string>();
+  $effect.pre(() => {
+    const keys = items.map((w) => w.c.unique);
+    untrack(() => {
+      fresh = new Set(keys.filter((k) => !listed.has(k)));
+      listed = new Set(keys);
+    });
+  });
+  const arriveNew = (node: Element, unique: string) => (fresh.has(unique) ? arrive(node) : { duration: 0 });
+  // The cards in sight drawn at once, the rest a few at a time after (lib/progress.svelte.ts): each
+  // card is a table of parts, relics and drops, and thirty of them at once held up the page's opening.
+  let listBox = $state<HTMLElement | null>(null);
+  const listView = inView(() => listBox, { min: 3, guess: 240 });
+  const drawn = $derived.by(progressive(() => items, (w) => w.c.unique, { first: listView.count, step: 3, measure: listView.measure, hidden: listView.hidden, onShow: listView.onShow }));
   const open = $derived(openEras(model.live.fissures, now));
   const byEra = $derived.by(whileShown("wishlist", () => wishlistEras(model, settings.favourites)));
   // Every era with relics (Omnia fissures take any of them).
@@ -51,6 +70,11 @@
   const names = $derived(
     [...model.catalogByUnique.values()].filter((c) => c.masterable && !c.excludeFromCodex && ["Warframes", "Primary", "Secondary", "Melee", "Sentinels", "Pets", "Archwing", "Arch-Gun", "Arch-Melee", "Misc"].includes(c.category)),
   );
+  /**
+   * The field's suggestions, drawn the first time it's focused: hundreds of options drawn with the
+   * page made its first open slower, for a list most visits never open.
+   */
+  let namesWanted = $state(false);
   /** Each name once for the list (a few items share one). */
   const listNames = $derived([...new Set(names.map((c) => c.name))].sort((a, b) => a.localeCompare(b)));
   // Of items that share a name, the one already starred.
@@ -168,8 +192,8 @@
   <PageHead title="Wishlist" brief="What you starred, and how to get each part." blurb="What you've starred, and the quickest way to each missing part: a relic you hold, where to farm one, or what it costs." band={items.length ? band : undefined} hero={codex} />
 
   <div class="bar">
-    <input list="wish-names" placeholder="Add something to your wishlist…" bind:value={adding} onkeydown={(e) => e.key === "Enter" && add()} aria-label="Item to add" />
-    <datalist id="wish-names">{#each listNames as n (n)}<option value={n}></option>{/each}</datalist>
+    <input list="wish-names" placeholder="Add something to your wishlist…" bind:value={adding} onfocus={() => (namesWanted = true)} onkeydown={(e) => e.key === "Enter" && add()} aria-label="Item to add" />
+    {#if namesWanted}<datalist id="wish-names">{#each listNames as n (n)}<option value={n}></option>{/each}</datalist>{/if}
     <IconButton icon="plus" tone="gold" label="Add to your wishlist" disabled={!pick || already} onclick={add} />
     {#if adding && !pick}<span class="dim small">Pick a warframe, weapon or companion from the list.</span>
     {:else if already}<span class="dim small">Already on your wishlist.</span>{/if}
@@ -195,12 +219,12 @@
       <p class="prose">Star an item with ☆ on Foundry, Mastery or its details to track it here, or add it above. You'll see the relics for each missing part, and what buying them costs.</p>
     </section>
   {:else}
-    <div class="list">
+    <div class="list" bind:this={listBox} use:listView.watch>
       <!-- Each card in a slot that arrives when you add it and, once its Undo runs out, leaves while
            the cards below close up (motion.ts). Removing it folds the card down to its Undo line
            and Undo unfolds it again (reveal), so the cards below slide rather than jump. -->
-      {#each items as w (w.c.unique)}
-        <div class="wslot" in:arrive out:leave animate:flip>
+      {#each drawn as w (w.c.unique)}
+        <div class="wslot" in:arriveNew={w.c.unique} out:leave animate:flip>
         {#if undo.has(w.c.unique)}
           <div class="reveal" transition:reveal><div><article class="wish ghost"><UndoSlot label="Removed from your wishlist" what={w.c.name} onundo={() => undo.undo(w.c.unique)} /></article></div></div>
         {:else}
