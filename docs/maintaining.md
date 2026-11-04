@@ -64,9 +64,9 @@ environment has none of that name), and they move once it's public:
       branch: **Restrict deletions** and **Block force pushes** on. Optionally **Require a pull
       request before merging** with **Require review from Code Owners** (`.github/CODEOWNERS`), once
       there's a second person who can review.
-- [ ] **A ruleset for release tags:** a tag ruleset for `v*` with **Restrict creations**, **Restrict
-      updates** and **Restrict deletions**, bypassed only by the maintainer: a `v*` tag starts a
-      release build.
+- [ ] **A ruleset for release tags:** a tag ruleset for `build-*` and `channel-*` with **Restrict
+      updates** and **Restrict deletions**, bypassed only by the maintainer, so a published build or
+      a channel can't be moved by hand. (Builds start from pushes to `main`, not from tags.)
 
 ## Features not in use
 
