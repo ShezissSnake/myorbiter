@@ -13,6 +13,7 @@ mod noxsframe;
 mod recipes;
 mod relicdata;
 mod updates;
+mod rendering;
 
 use orbiter_data::ee_log::{find_ee_log, LogFollower, MissionState};
 use std::path::{Path, PathBuf};
@@ -967,7 +968,7 @@ async fn save_settings(app: tauri::AppHandle, settings: Value, rev: Option<u64>)
     .map_err(|e| e.to_string())?
 }
 
-/// The variables orbiter set for its own window at start (see `tune_webkit_for_this_machine`),
+/// The variables orbiter set for its own window at start (see `rendering::apply`),
 /// which a TennoScope it starts must not inherit.
 static ENV_SET_BY_ORBITER: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
 
@@ -975,31 +976,10 @@ pub(crate) fn env_set_by_orbiter() -> &'static [&'static str] {
     ENV_SET_BY_ORBITER.get().map(Vec::as_slice).unwrap_or(&[])
 }
 
-/// A WebKitGTK workaround. Its DMA-BUF renderer crashes on the NVIDIA driver under
-/// Wayland ("Error 71 (Protocol error) dispatching to Wayland display") or paints a blank window,
-/// so it is switched off there. Anything already set in the environment wins.
+/// How WebKitGTK draws the window (rendering.rs): set before anything else starts.
 #[cfg(target_os = "linux")]
 fn tune_webkit_for_this_machine() {
-    use std::path::Path;
-    let mut set = Vec::new();
-    let mut set_default = |key: &'static str, value: &str| {
-        if std::env::var_os(key).is_none() {
-            std::env::set_var(key, value);
-            set.push(key);
-        }
-    };
-    let wayland = std::env::var_os("WAYLAND_DISPLAY").is_some();
-    let nvidia = Path::new("/proc/driver/nvidia/version").exists() || Path::new("/sys/module/nvidia").exists();
-    if wayland {
-        set_default("GDK_BACKEND", "wayland,x11");
-    }
-    if nvidia {
-        set_default("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-        set_default("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
-    } else if !wayland {
-        set_default("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
-    }
-    let _ = ENV_SET_BY_ORBITER.set(set);
+    let _ = ENV_SET_BY_ORBITER.set(rendering::apply());
 }
 
 /// On a screen smaller than the window's first size (a Steam Deck's 1280×800, a small laptop),
@@ -1068,6 +1048,7 @@ pub fn run() {
                 applog::init(&dir);
             }
             log::info!(target: "orbiter::app", "orbiter {} started on {} {}", app.package_info().version, std::env::consts::OS, std::env::consts::ARCH);
+            rendering::started();
             // Ctrl+C in a terminal, logout, `kill`: close the TennoScope orbiter started, then exit
             // (Ctrl+Q and the window's X go through `quit` and RunEvent::Exit below instead).
             #[cfg(unix)]
@@ -1077,6 +1058,7 @@ pub fn run() {
                     let handle = app.handle().clone();
                     std::thread::spawn(move || {
                         if signals.forever().next().is_some() {
+                            rendering::stood_up();
                             handle.state::<presence::Presence>().close();
                             handle.state::<companion::Companion>().stop();
                             std::process::exit(0);
@@ -1195,13 +1177,16 @@ pub fn run() {
             market_delete,
             updates::updates_info,
             updates::updates_check,
-            updates::updates_install
+            updates::updates_install,
+            rendering::rendering_state,
+            rendering::set_compat_rendering
         ])
         .build(updates::context(tauri::generate_context!()))
         .expect("error while starting orbiter")
         .run(|app, event| {
             // Closing orbiter closes the TennoScope it started (never one you started yourself).
             if let tauri::RunEvent::Exit = event {
+                rendering::stood_up();
                 // Quitting closes the status connection: warframe.market then shows you offline.
                 app.state::<presence::Presence>().close();
                 app.state::<companion::Companion>().stop();

@@ -16,6 +16,7 @@
   import { openUrl } from "./backend";
   import { updates } from "./updates.svelte";
   import { CHANNELS, CHANNEL_LABEL, checkedAgo, installChecks, installInstalls, installNote, noteLines, releasePage, versionLine } from "./core/updates";
+  import RenderingSetting from "./ui/RenderingSetting.svelte";
 
   let {
     open = $bindable(),
@@ -316,6 +317,8 @@
       </div>
     {/if}
   </section>
+
+  <RenderingSetting />
 
   <section>
     <h3 class="register">Logs</h3>
