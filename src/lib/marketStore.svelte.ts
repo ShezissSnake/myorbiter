@@ -93,6 +93,9 @@ export function minFor(s: Pick<MarketSettings, "minPrice" | "minRelicPrice">, it
   return it.tags?.includes("relic") ? (s.minRelicPrice ?? s.minPrice) : s.minPrice;
 }
 
+/** Two plain values (rows read from warframe.market) alike field for field. */
+const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
 class MarketStore {
   account = $state<MarketAccount | null>(null);
   items = $state.raw<MarketItem[]>([]);
@@ -264,7 +267,10 @@ class MarketStore {
 
   async pollStatus() {
     try {
-      this.status = await presence.state();
+      // Read every 3 s and the same nearly every time: a new object only when something changed,
+      // so what reads the status (Home's alerts, the presence switch) doesn't work itself out again.
+      const next = await presence.state();
+      if (!this.status || JSON.stringify(next) !== JSON.stringify(this.status)) this.status = next;
       // A choice still settling hasn't been sent yet: the switch keeps showing it.
       if (this.statusTimer) return;
       const a = this.statusAsked;
@@ -334,8 +340,12 @@ class MarketStore {
     // A sale was marked on the spot while this read was on its way: the read may predate it, and
     // would bring the sold listing back. The next read has it.
     if (edits !== this.localEdits) return;
-    this.orders = all.filter((o) => o.type === "sell");
-    this.buys = all.filter((o) => o.type === "buy");
+    // Read every 30 s, and most often the same: the lists stay the objects they were unless a listing
+    // changed, so nothing that reads them (the sidebar's badge, Home, Orders) redoes its work.
+    const sell = all.filter((o) => o.type === "sell");
+    const buy = all.filter((o) => o.type === "buy");
+    if (!sameJson(this.orders, sell)) this.orders = sell;
+    if (!sameJson(this.buys, buy)) this.buys = buy;
     this.otherOrders = all.length - this.orders.length;
     this.ordersAt = Date.now();
   }
