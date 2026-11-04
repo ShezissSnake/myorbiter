@@ -72,9 +72,9 @@
     <td class="item"><Named file={r.image ?? image(r.name)} name={r.name} size={24}>{#if r.rank != null}<span class="tag">R{r.rank}</span>{/if}{#if r.variant}<span class="tag" class:ok={r.variant === "Radiant"}>{r.variant}</span>{/if}</Named><span class="why">{r.why}</span></td>
     <td class="rule"><span class="rl" class:mine={!!r.out} title={r.cat ? "Its row on this page, then the rule that decided it" : "The rule that decided it"}>{#if catOf(r)}<span class="c">{catOf(r)}</span>{/if}{ruleOf(r)}</span></td>
     <td class="right num">
-      {#if r.type === "update" && r.was && r.was.quantity !== r.quantity}<span class="dim">{r.was.quantity} →</span> {/if}{#if r.type === "remove" && r.was}<s class="dim">{r.was.quantity}</s>{:else if r.type !== "skip"}{r.quantity}{:else if r.quantity}<span class="dim">{r.quantity}</span>{/if}
+      {#if r.type === "update" && r.was && r.was.quantity !== r.quantity}<span class="dim">{r.was.quantity} →</span>{" "}{/if}{#if r.type === "remove" && r.was}<s class="dim">{r.was.quantity}</s>{:else if r.type !== "skip"}{r.quantity}{:else if r.quantity}<span class="dim">{r.quantity}</span>{/if}
     </td>
-    <td class="right num">{#if r.type === "remove" && r.was}<s class="dim"><P v={r.was.platinum} dim /></s>{:else}{#if r.type === "update" && r.was && r.was.platinum !== r.platinum}<span class="dim">{r.was.platinum} →</span> {/if}<P v={r.platinum} dim={r.type === "skip" || !!r.out} />{/if}</td>
+    <td class="right num">{#if r.type === "remove" && r.was}<s class="dim"><P v={r.was.platinum} dim /></s>{:else}{#if r.type === "update" && r.was && r.was.platinum !== r.platinum}<span class="dim">{r.was.platinum} →</span>{" "}{/if}<P v={r.platinum} dim={r.type === "skip" || !!r.out} />{/if}</td>
     <td class="act">{#if menu(r)}<RowMenu label={r.name} choices={choicesFor(r)} bind:open={() => menuOpen === r.key, (v) => (menuOpen = v ? r.key : menuOpen === r.key ? null : menuOpen)} onpick={(c) => onpick(r, c as "skip" | "never" | "back" | "sellAgain")} />{/if}</td>
   {/if}
 {/snippet}
