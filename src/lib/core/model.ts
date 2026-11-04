@@ -295,8 +295,12 @@ const PLEXUS_MASTERED_XP = 900_000;
 /** Categories the catalog TennoScope carries has wrong (WFCD and the wiki agree on these). */
 const CATEGORY_NOW: Record<string, string> = { "/Lotus/Weapons/Tenno/Archwing/Melee/PrimeCorufell/PrimeCorufellScytheWeapon": "Melee" };
 
-/** Ducat values the game changed since the catalog TennoScope carries was made (wiki, WFCD). */
-const DUCATS_NOW: Record<string, number> = { "Bronco Prime Barrel": 25, "Nami Skyla Prime Blade": 65 };
+/**
+ * Ducat values the game changed since the catalog TennoScope carries was made (wiki, WFCD). Not the
+ * Bronco Prime Barrel: it is an uncommon reward and 45 ducats (the wiki's Ducats/Prices table), as
+ * the catalog says; an override of 25 here once had the Bronco Prime Set's 75 ducats count as 55.
+ */
+const DUCATS_NOW: Record<string, number> = { "Nami Skyla Prime Blade": 65 };
 
 /**
  * Catalog entries marked masterable that give no mastery of their own: Sirius & Orion's second son

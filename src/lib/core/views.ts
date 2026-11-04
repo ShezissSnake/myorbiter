@@ -57,6 +57,8 @@ export interface SetRow {
   setPrice: number | null;
   partsPrice: number | null;
   ducats: number;
+  /** Every part of the set has a ducat value (prime sets): without one, `ducats` falls short. */
+  ducatsKnown?: boolean;
   vaulted: boolean;
   tradesPerDay: number | null;
   /** Parts still missing for one more set, after the complete ones. */
@@ -128,6 +130,7 @@ function computeSetRows(m: Model): SetRow[] {
         ? sum(parts.map((p, i) => (partPrices[i] as number) * p.required))
         : null,
       ducats: sum(parts.map((p) => p.ducats * p.required)),
+      ducatsKnown: parts.every((p) => p.ducats > 0),
       vaulted: primeVaulted(m, parent),
       tradesPerDay: m.tradesPerDay(`${parent.name} Set`),
       missing: parts
@@ -741,12 +744,16 @@ export interface ModRow {
   unique: string;
   total: number;
   extras: number;
-  ranks: { rank: number; count: number }[];
+  /** Copies by rank, best first; `installed`: how many of them sit in a build (and can't be traded). */
+  ranks: { rank: number; count: number; installed?: number }[];
   /**
    * Kept five deep (LICH_MOD_KEEP), and why: Requiem mods while a Kuva or Tenet weapon is left to
    * master (Kuva Liches and Sisters take them), Antivirus mods while a Coda weapon is (the Technocyte Coda).
+   * When which of those weapons are left can't be told (no catalog, no mastery read), every copy is kept.
    */
   keptFor: string | null;
+  /** Copies the keep rule holds back in all: MOD_KEEP, LICH_MOD_KEEP, or every copy (LICH_KEEP_ALL). */
+  keep?: number;
   maxRank: number | null;
   rarity: string;
   type: string;
@@ -766,10 +773,20 @@ export interface ModRow {
 export const MOD_KEEP = 2;
 /** Requiem and Antivirus mods while lich weapons are left: five of each, the best ranks first; the rest are spare. */
 export const LICH_MOD_KEEP = 5;
-export function modSpares(mod: { ranks: { rank: number; count: number }[]; keptFor?: string | null }): { rank: number; count: number }[] {
+/** Requiem and Antivirus mods when which lich weapons are left can't be told: every copy is kept. */
+export const LICH_KEEP_ALL = Number.MAX_SAFE_INTEGER;
+/**
+ * Copies installed in a build can't be traded: they are never spare, and count toward what's kept
+ * (an installed copy is the one you use). A mod outside the lich rule still keeps one loose copy to
+ * give away besides.
+ */
+export function modSpares(mod: { ranks: { rank: number; count: number; installed?: number }[]; keptFor?: string | null; keep?: number }): { rank: number; count: number }[] {
+  const installed = mod.ranks.reduce((n, r) => n + Math.min(r.count, Math.max(0, r.installed ?? 0)), 0);
+  // What can leave the inventory at all, by rank, best first.
+  const loose = mod.ranks.map((r) => ({ rank: r.rank, count: Math.max(0, r.count - Math.max(0, r.installed ?? 0)) }));
   if (mod.keptFor) {
-    let keep = LICH_MOD_KEEP;
-    return mod.ranks
+    let keep = Math.max(0, (mod.keep ?? LICH_MOD_KEEP) - installed);
+    return loose
       .map((r) => {
         const k = Math.min(keep, r.count);
         keep -= k;
@@ -777,8 +794,12 @@ export function modSpares(mod: { ranks: { rank: number; count: number }[]; keptF
       })
       .filter((r) => r.count > 0);
   }
-  const left = mod.ranks.map((r) => ({ ...r }));
-  if (left.length) left[0].count--; // your best copy
+  const left = loose.map((r) => ({ ...r }));
+  // Your best copy: an installed one when there is one.
+  if (!installed) {
+    const best = left.find((r) => r.count > 0);
+    if (best) best.count--;
+  }
   const lowest = [...left].reverse().find((r) => r.count > 0);
   if (lowest) lowest.count--; // one to give away
   return left.filter((r) => r.count > 0);
@@ -793,16 +814,24 @@ const ANTIVIRUS_MOD = /^\/Lotus\/Upgrades\/Mods\/Immortal\/Antivirus[A-Za-z]+Mod
  * and Coda ones (Antivirus mods), not mastered yet. A Tenet weapon Ergo Glast sells counts too:
  * sisters are how most of them come.
  */
-export function lichWeaponsLeft(m: Model): { requiem: string[]; antivirus: string[] } {
+export function lichWeaponsLeft(m: Model): { requiem: string[]; antivirus: string[]; known: { requiem: boolean; antivirus: boolean } } {
   const requiem: string[] = [];
   const antivirus: string[] = [];
+  const known = { requiem: false, antivirus: false };
   for (const i of m.catalogByUnique.values()) {
-    if (!i.masterable || m.isMastered(i.uniqueName)) continue;
-    if (!/^(Primary|Secondary|Melee|Arch-Gun|Arch-Melee)$/.test(i.category)) continue;
-    if (/^(Kuva|Tenet) /.test(i.name)) requiem.push(i.name);
-    else if (/^(Dual )?Coda /.test(i.name)) antivirus.push(i.name);
+    if (!i.masterable || !/^(Primary|Secondary|Melee|Arch-Gun|Arch-Melee)$/.test(i.category)) continue;
+    const kuva = /^(Kuva|Tenet) /.test(i.name);
+    const coda = /^(Dual )?Coda /.test(i.name);
+    if (kuva) known.requiem = true;
+    if (coda) known.antivirus = true;
+    if (m.isMastered(i.uniqueName)) continue;
+    if (kuva) requiem.push(i.name);
+    else if (coda) antivirus.push(i.name);
   }
-  return { requiem, antivirus };
+  // A family is known only when the catalog has its weapons: without them (no catalog read yet, an
+  // older one), "none left to master" would let every Requiem or Antivirus mod go. A weapon with
+  // no mastery read counts as left, so a missing mastery read keeps them too.
+  return { requiem, antivirus, known };
 }
 const some = (names: string[]) => (names.length <= 3 ? names.join(", ") : `${names.slice(0, 3).join(", ")} and ${names.length - 3} more`);
 
@@ -816,23 +845,39 @@ function modRowsFresh(m: Model): ModRow[] {
     if (total <= 0) continue;
     const item = m.catalogByUnique.get(unique);
     const name = item?.name ?? inv[0].name;
-    const byRank = new Map<number, number>();
-    for (const r of inv) byRank.set(r.rank ?? 0, (byRank.get(r.rank ?? 0) ?? 0) + r.quantity);
+    const byRank = new Map<number, { count: number; installed: number }>();
+    for (const r of inv) {
+      const at = byRank.get(r.rank ?? 0) ?? { count: 0, installed: 0 };
+      at.count += r.quantity;
+      at.installed += Math.max(0, Math.min(r.quantity, r.equipped ?? 0));
+      byRank.set(r.rank ?? 0, at);
+    }
     const price = m.price(name);
+    const requiem = REQUIEM_MOD.test(unique);
+    const antivirus = ANTIVIRUS_MOD.test(unique);
+    const unknown = (requiem && !left.known.requiem) || (antivirus && !left.known.antivirus);
     const keptFor =
-      REQUIEM_MOD.test(unique) && left.requiem.length
-        ? `${LICH_MOD_KEEP} kept for the ${left.requiem.length} Kuva and Tenet weapon${left.requiem.length === 1 ? "" : "s"} you haven't mastered (${some(left.requiem)}): Kuva Liches and Sisters of Parvos take Requiem mods`
-        : ANTIVIRUS_MOD.test(unique) && left.antivirus.length
-          ? `${LICH_MOD_KEEP} kept for the ${left.antivirus.length} Coda weapon${left.antivirus.length === 1 ? "" : "s"} you haven't mastered (${some(left.antivirus)}): the Technocyte Coda take Antivirus mods`
-          : null;
-    const extras = Math.max(0, total - (keptFor ? LICH_MOD_KEEP : MOD_KEEP));
+      unknown
+        ? `Every copy kept: which ${requiem ? "Kuva and Tenet" : "Coda"} weapons you have left to master isn't known (the item catalog doesn't list them yet)`
+        : requiem && left.requiem.length
+          ? `${LICH_MOD_KEEP} kept for the ${left.requiem.length} Kuva and Tenet weapon${left.requiem.length === 1 ? "" : "s"} you haven't mastered (${some(left.requiem)}): Kuva Liches and Sisters of Parvos take Requiem mods`
+          : antivirus && left.antivirus.length
+            ? `${LICH_MOD_KEEP} kept for the ${left.antivirus.length} Coda weapon${left.antivirus.length === 1 ? "" : "s"} you haven't mastered (${some(left.antivirus)}): the Technocyte Coda take Antivirus mods`
+            : null;
+    const keep = keptFor ? (unknown ? LICH_KEEP_ALL : LICH_MOD_KEEP) : MOD_KEEP;
+    const ranks = [...byRank.entries()]
+      .filter(([, c]) => c.count > 0)
+      .sort((a, b) => b[0] - a[0])
+      .map(([rank, c]) => (c.installed ? { rank, count: c.count, installed: c.installed } : { rank, count: c.count }));
+    const extras = sum(modSpares({ ranks, keptFor, keep }).map((r) => r.count));
     rows.push({
       name,
       unique,
       total,
       extras,
       keptFor,
-      ranks: [...byRank.entries()].filter(([, c]) => c > 0).sort((a, b) => b[0] - a[0]).map(([rank, count]) => ({ rank, count })),
+      keep,
+      ranks,
       // The game's own number (TennoScope reads it) beats the catalog's.
       maxRank: inv.find((r) => r.max_rank != null)?.max_rank ?? item?.maxRank ?? null,
       rarity: item?.rarity ?? "",
