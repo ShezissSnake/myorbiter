@@ -6,6 +6,10 @@
 import { KIND_LABEL, ducatWorth, ducatsBeat, kindOfItem, platToBeat, provenSpare, type SpareContext } from "./bulk";
 import { heldFor, type MarketItem } from "./market";
 import type { Model } from "./model";
+import { neverSells } from "./sparesRules";
+
+/** The refusal for something on the never-sell list, after "Didn't list Khra R0: ". */
+export const NEVER_SOLD_REFUSAL = "it's on your never-sell list (Sell spares). Sell again takes it off the list, then it can be listed";
 
 /**
  * An inventory read older than this proves nothing for a listing orbiter makes by itself: copies
@@ -96,6 +100,8 @@ export function guardListing(c: GuardContext, r: GuardRequest): GuardResult {
   const refuse = (why: string): GuardResult => ({ ok: false, why: `Didn't list ${tag}: ${upper(why)}` });
   const elsewhere = Math.max(0, r.listedElsewhere ?? 0);
   if (!(r.quantity > 0)) return refuse("nothing to list");
+  // Never sold, whoever asks (the plan, the listing form, Orders): Sell again takes it off the list.
+  if (c.rules && neverSells(c.rules, r.item.id)) return refuse(NEVER_SOLD_REFUSAL);
   const m = c.model;
   const noInventory = !m.observedAt && m.inventoryByBase.size === 0;
   if (r.manual && noInventory) return { ok: true, audit: `${tag}: ${r.quantity} at ${r.platinum ?? "?"}p, as asked (no inventory read to check against)` };

@@ -1,7 +1,6 @@
 <script lang="ts">
   import Fold from "../ui/Fold.svelte";
   import GameIcon from "../ui/GameIcon.svelte";
-  import { takeIntent } from "../intent.svelte";
   import { MAX_PLAT, MAX_QTY, wholeIn } from "../core/amounts";
   import { tradeAllowance } from "../core/tradeLimit";
   import { until } from "../core/traders";
@@ -23,8 +22,8 @@
   import Seg from "../ui/Seg.svelte";
   import Presence from "../ui/Presence.svelte";
   import Toggle from "../ui/Toggle.svelte";
-  import SpareSale from "../ui/SpareSale.svelte";
-  import { flip, fold, leave, OUT_CSS, calm, SETTLE } from "../motion";
+  import { sparesSummary } from "../sparesSummary.svelte";
+  import { flip, leave, opens, OUT_CSS, calm, SETTLE } from "../motion";
   import Check from "../ui/Tick.svelte";
   import Metal from "../ui/Metal.svelte";
   import Icon from "../ui/Icon.svelte";
@@ -40,7 +39,29 @@
 
   // console: you play on a console or phone, so orbiter can't see what you hold. New listing then
   // finds anything warframe.market trades, and what needs your inventory (spares, "Listed more than you hold") is left out.
-  let { model, settings = $bindable(), advice, console = false, masteryRank = null, credits = null, whispers = [] }: { model: Model; settings: MarketSettings; advice: AdviceSettings; console?: boolean; masteryRank?: number | null; credits?: number | null; whispers?: { name: string; uptime: number; at: number | null }[] } = $props();
+  let { model, settings = $bindable(), advice, console = false, masteryRank = null, whispers = [], go = () => {} }: { model: Model; settings: MarketSettings; advice: AdviceSettings; console?: boolean; masteryRank?: number | null; whispers?: { name: string; uptime: number; at: number | null }[]; go?: (to: string) => void } = $props();
+
+  // Remove all my listings, kept away from the buttons pressed every day: it asks first, with the
+  // safe choice focused, so Esc or Enter keeps them.
+  const removeJob = new Job();
+  let confirmRemoveAll = $state(false);
+  const removeFill = () => (mkt.op === "Removing every listing" && mkt.progress?.total ? mkt.progress.done / mkt.progress.total : null);
+  const removeCount = () => (mkt.op === "Removing every listing" && mkt.progress ? `Removing ${mkt.progress.done}/${mkt.progress.total}` : "Removing…");
+  function removeAll() {
+    void removeJob.run(async () => {
+      const r = await mkt.removeAll();
+      if (!r) return null;
+      const e = mkt.errorOf("Removing every listing");
+      if (e) throw new JobError("Stopped", e);
+      if (r.failed) throw new JobError(`${r.failed} failed`, `${r.done} removed, ${r.failed} couldn't be: Activity below says why`);
+      return `${r.done} removed`;
+    });
+  }
+  const keepOnEsc = (e: KeyboardEvent) => {
+    if (e.key !== "Escape") return;
+    e.stopPropagation();
+    confirmRemoveAll = false;
+  };
   // Who whispered you this game session (from EE.log; the message itself isn't logged), newest first.
   const whisperers = $derived(
     [...new Map([...whispers].sort((a, b) => (a.at ?? a.uptime) - (b.at ?? b.uptime)).map((w) => [w.name, w])).values()].reverse().slice(0, 8),
@@ -62,10 +83,6 @@
   let how = $state<"password" | "token">("password");
   let search = $state("");
 
-  // A link here asked for Put my spares on sale (Home's Ready to list): open it.
-  $effect(() => {
-    if (takeIntent("market")?.spares) settings.sparesOpen = true;
-  });
   const orders = $derived([...mkt.orders].sort((a, b) => (mkt.item(a.itemId)?.name ?? "").localeCompare(mkt.item(b.itemId)?.name ?? "")));
   // The table's order: by name until you click a column (kept). Ties stay in name order.
   const sortBy = $derived(settings.ordersSort ?? { key: "name" as OrderSortKey, desc: false });
@@ -558,11 +575,11 @@
   /**
    * Rows gone from your listings (sold out, or removed), still showing how it went: "Sending…" or
    * "Removing…", then ticked off ("✓ Sold 2", "✓ Removed"). Once the tick has been seen the row
-   * leaves and the rows below close up, as Put my spares on sale's rows do.
+   * leaves and the rows below close up, as Sell spares' plan lines do.
    */
   const ghosts = $derived([...new Map([...Object.values(sending), ...Object.values(removed)].map((o) => [o.id, o])).values()].filter((o) => !mkt.orders.some((x) => x.id === o.id) && rowBusy.get(o.id).state !== "idle"));
   const ghostIds = $derived(new Set(ghosts.map((o) => o.id)));
-  /** How long a ticked-off row stays before it leaves (as Put my spares on sale's). */
+  /** How long a ticked-off row stays before it leaves (as Sell spares' plan lines). */
   const SEEN_MS = 650;
   const seeing = new Map<string, ReturnType<typeof setTimeout>>();
   $effect(() => {
@@ -709,22 +726,20 @@
             <button type="button" class="link quiet small" title="Their warframe.market profile: reputation and reviews" onclick={() => openUrl(`https://warframe.market/profile/${encodeURIComponent(w.name)}`)}>profile ↗</button>
           </span>
         {/each}
-        {#if settings.lastCopy.hidden.length}<span class="dim small" title="Put my spares on sale's last-copy rule (Settings, Selling): your last copies are hidden while a buyer whispers, so a second buyer doesn't come for the same one">{settings.lastCopy.hidden.length} last cop{settings.lastCopy.hidden.length === 1 ? "y" : "ies"} hidden for now</span>{/if}
+        {#if settings.lastCopy.hidden.length}<span class="dim small" title="The last-copy rule (Settings, Trades): your last copies are hidden while a buyer whispers, so a second buyer doesn't come for the same one">{settings.lastCopy.hidden.length} last cop{settings.lastCopy.hidden.length === 1 ? "y" : "ies"} hidden for now</span>{/if}
       </section>
     {/if}
 
-    <!-- Put my spares on sale up top, folded: one click away for those who use it, a line for those
-         who don't. Folded, it stays alive (hidden, not removed), so a plan being applied carries on. -->
+    <!-- Sell spares has a page of its own: one line here says what it would list, and a plan being
+         applied stays in sight. -->
     {#if !console}
-      <section class="sparesfold" id="spares" class:open={settings.sparesOpen}>
-        <button type="button" class="foldhead" aria-expanded={!!settings.sparesOpen} aria-controls="spares-body" title={settings.sparesOpen ? "Fold Put my spares on sale away" : "Put my spares on sale: list everything you can spare in one go, after a look at the plan"} onclick={() => (settings.sparesOpen = !settings.sparesOpen)}>
-          <GameIcon name="platinum" size={18} />
-          <span class="register">Put my spares on sale</span>
-          <span class="dim small sub">{#if mkt.applying && mkt.progress}Applying the plan: {mkt.progress.done} of {mkt.progress.total}{:else if mkt.bulk}A plan of {mkt.bulk.actions.filter((a) => a.type !== "skip").length} changes, ready to look over{:else}List everything you can spare in one go, after a look at the plan{/if}</span>
-          <span class="chev" aria-hidden="true">▾</span>
-        </button>
-        <div id="spares-body" use:fold={!!settings.sparesOpen}><div><div class="spares-in"><SpareSale {model} {settings} {advice} {masteryRank} {credits} folded /></div></div></div>
-      </section>
+      {@const plan = mkt.bulk ? sparesSummary.changes : 0}
+      <button type="button" class="sparesline" id="spares" title="Sell spares: choose what to sell and how, look over the plan, list it in one go" onclick={() => go("spares")}>
+        <GameIcon name="platinum" size={18} />
+        <span class="register">Sell spares</span>
+        <span class="small dim sub">{#if mkt.applying && mkt.progress}Applying the plan: {mkt.progress.done} of {mkt.progress.total}{:else}{#if sparesSummary.at != null}{sparesSummary.listings} listing{sparesSummary.listings === 1 ? "" : "s"} ready from {sparesSummary.kinds} kind{sparesSummary.kinds === 1 ? "" : "s"} · {sparesSummary.estimate ? "~" : ""}<P v={Math.round(sparesSummary.plat)} dim />{:else}Choose what to sell and how{/if}{#if plan} · a plan of {plan} change{plan === 1 ? "" : "s"} to look over{/if}{/if}</span>
+        <span class="go register">Open <Icon name="arrow-right" size={12} /></span>
+      </button>
     {/if}
 
     <!-- Your listings: the heading and the trade-chat line on one row, where to add one under it. -->
@@ -912,6 +927,19 @@
         <tbody><tr><td colspan="9" class="nothing">No sell listings yet</td></tr></tbody>
       {/each}
     </table>
+    {#if mkt.orders.length}
+      <!-- Away from the buttons you press every day: it takes every listing down. -->
+      <div class="danger-zone">
+        {#if confirmRemoveAll}
+          <span class="small warn" in:opens>Take all {mkt.orders.length} listings off warframe.market?</span>
+          <button class="danger" in:opens disabled={!!mkt.busy} title="Take every one of your sell listings down now" onclick={() => { confirmRemoveAll = false; removeAll(); }} onkeydown={keepOnEsc}>Remove all</button>
+          <button in:opens title="Keep your listings as they are" onclick={() => (confirmRemoveAll = false)} onkeydown={keepOnEsc} use:focusIt>Keep them</button>
+        {:else}
+          <ProgressButton variant="link" tone="danger" class="removeall" job={removeJob} label="Remove all my listings" working={removeCount()} progress={removeFill()} sizer={["Removing 000/000"]} title="Take every one of your sell listings off warframe.market (it asks first)" disabled={!!mkt.busy} onclick={() => (confirmRemoveAll = true)} />
+        {/if}
+      </div>
+      {#if removeJob.state === "failed" && removeJob.error}<p class="small err" role="status">{removeJob.error}</p>{/if}
+    {/if}
     {#if mkt.buys.length}
       <!-- Buy orders you posted (from Wishlist, or on the website): what you're paying, and a way to take one down. -->
       <section class="buys" aria-label="Your buy orders">
@@ -1079,7 +1107,7 @@
   /* Its name and how it went on one line, so the row keeps about a listing's height. */
   .ghostline { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem 1.2rem; min-height: 36px; }
   .ghostline .rowst { margin-top: 0; padding-left: 0; }
-  /* Ticked off: the name struck through, as Put my spares on sale strikes a sent row. */
+  /* Ticked off: the name struck through, as Sell spares strikes a sent line. */
   tr.ghost.done :global(.name-mark) { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--verdigris) 70%, transparent); }
   .tickoff { display: inline-grid; line-height: 0; }
   /* The Shown switch's own box, for the shake when warframe.market refuses. */
@@ -1097,15 +1125,18 @@
   .orders th.right { text-align: right; }
   .whispers { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1.2rem; margin: var(--step) 0 0; padding: .55rem .8rem; border: 1px solid var(--rule); border-left: 2px solid var(--gold-dim); }
   .wh { display: inline-flex; align-items: center; gap: .45rem; }
-  .sparesfold { margin: var(--step) 0 .4rem; border: 1px solid var(--rule); background: var(--plate); }
-  .sparesfold.open { border-color: var(--rule-bright); }
-  .foldhead { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: .6rem; padding: .7rem .9rem; cursor: pointer; }
-  .foldhead:hover .register, .foldhead:focus-visible .register { color: var(--platinum); }
-  .foldhead:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
-  .foldhead .sub { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .foldhead .chev { color: var(--platinum-deep); font-size: .75rem; }
-  /* Unfolds on the grid row (motion.ts, fold); the padding goes inside, so folded there's none. */
-  .spares-in { padding: 0 .9rem .9rem; }
+  /* Sell spares in one line: the whole line opens the page. */
+  .sparesline { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: .7rem; margin: var(--step) 0 .4rem; padding: .7rem .9rem; border: 1px solid var(--rule); background: var(--plate); cursor: pointer; transition: border-color var(--quick) var(--out); }
+  .sparesline:hover, .sparesline:focus-visible { border-color: var(--rule-bright); }
+  .sparesline:hover .register, .sparesline:focus-visible .register { color: var(--platinum); }
+  .sparesline:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+  .sparesline:active .go { transform: translateX(1px); }
+  .sparesline .sub { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: .25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sparesline .go { display: inline-flex; align-items: center; gap: .35rem; color: var(--platinum-dim); transition: transform var(--snap) var(--out); }
+  .danger-zone .warn { color: var(--alert); }
+  .danger-zone { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; justify-content: flex-end; margin-top: .7rem; }
+  .danger-zone :global(.removeall:not(.done):not(.failed)) { color: var(--platinum-deep); white-space: nowrap; }
+  .danger-zone :global(.removeall:not(.done):not(.failed):hover:not(:disabled)) { color: var(--oxblood); }
   .orders th.sortable { cursor: pointer; user-select: none; }
   .orders th.sortable:hover, .orders th[aria-sort] { color: var(--platinum); }
   .orders th.sortable:focus-visible { outline: none; box-shadow: inset 0 -2px 0 var(--gold); color: var(--platinum); }

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PAGES, pagesFor } from "../src/lib/pages";
+import { withPage } from "../src/lib/backend";
 
 test("a PC player gets every page", () => {
   assert.equal(pagesFor(false), PAGES);
@@ -30,4 +31,13 @@ test("your page order: pages move within their section, sections move whole, Ctr
   order = movePage(grouped(pages), "sets", -1);
   order = movePage(grouped(orderPages(PAGES, order)), "sets", -1);
   assert.deepEqual(drawnOrder(orderPages(PAGES, order)).map((p) => p.id).slice(0, 3), ["home", "sets", "inventory"]);
+});
+
+test("Sell spares joins a saved sidebar order right after Orders", () => {
+  assert.deepEqual(withPage(["inventory", "market", "sales", "stats"], "spares", "market"), ["inventory", "market", "spares", "sales", "stats"]);
+  assert.deepEqual(withPage(["market", "spares", "sales"], "spares", "market"), ["market", "spares", "sales"], "already placed: left where it is");
+  assert.deepEqual(withPage([], "spares", "market"), [], "no order saved: the usual order has it");
+  assert.deepEqual(withPage(["sales", "home"], "spares", "market"), ["sales", "home", "spares"], "Orders not placed: at the end of what was placed");
+  const trade = PAGES.filter((p) => p.group === "Trade").map((p) => p.id);
+  assert.deepEqual(trade.slice(0, 2), ["market", "spares"]);
 });

@@ -137,7 +137,7 @@ export interface CollectionItem {
 // Necramech parts (Capsule, Casing, Engine, Weapon Pod) live under Resources but are parts you
 // build or find, counted and shown like any other part. Anything that's a blueprint is a part too,
 // wherever it lives (a K-Drive board's, under Vehicles).
-const isResource = (c: Component) => !/\/Recipes\//.test(c.uniqueName) && !/\/Weapons\//.test(c.uniqueName) && !/\/Resources\/Mechs\//.test(c.uniqueName) && !/Blueprint$/.test(c.uniqueName);
+export const isResource = (c: Component) => !/\/Recipes\//.test(c.uniqueName) && !/\/Weapons\//.test(c.uniqueName) && !/\/Resources\/Mechs\//.test(c.uniqueName) && !/Blueprint$/.test(c.uniqueName);
 
 /** The blueprint and built-part paths a component goes by: …ChassisBlueprint and …ChassisComponent. */
 function paths(unique: string): string[] {

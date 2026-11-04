@@ -7,6 +7,7 @@ import type { LoggedScreen, RelicRun } from "./core/relicRuns";
 import { emptyDropLog, type DropLog } from "./core/drops";
 import { defaultSellChoices, type SellChoices } from "./core/spares";
 import { defaultBulkRules, type BulkRules } from "./core/bulk";
+import { defaultSparesRules, sparesSettingsOf, toStored, type SparesRules } from "./core/sparesRules";
 import type { BuyAlert } from "./core/deals";
 import { normalizeRule, type FissureRule } from "./core/timers";
 import type { RivenAuction, RivenMeta, RivenRaw, RivenSnap } from "./core/rivens";
@@ -56,8 +57,6 @@ export interface MarketSettings {
   presenceBack?: { p: Presence; until: number } | null;
   /** How Orders' table is sorted (by name until you click a column). */
   ordersSort?: { key: OrderSortKey; desc: boolean };
-  /** Put my spares on sale, folded open on Orders. */
-  sparesOpen?: boolean;
   /** Nothing is listed or repriced below this many platinum. */
   minPrice: number;
   /**
@@ -67,9 +66,18 @@ export interface MarketSettings {
   minRelicPrice: number;
   /** Relic prices by refinement from warframe.market's sales, refreshed daily (see RelicMarket). */
   relicPrices: RelicMarket;
-  /** What "Put my spares on sale" covers. */
-  bulk: BulkRules;
-  /** Veiled rivens: spare only when on. Relics: spare only when on and they sell for more than a crack is worth, and never one that drops a part you still need. */
+  /** What Sell spares lists and keeps, row by row (core/sparesRules.ts). */
+  spares: SparesRules;
+  /**
+   * The six switches Sell spares replaced, for an older build reading the same settings file:
+   * written from `spares` on every save (lightSettings), never read by this build.
+   */
+  bulk?: BulkRules;
+  /**
+   * Veiled rivens: spare only when on. Relics: spare when they sell for more than a crack is worth,
+   * and never one that drops a part you still need (`relicsWorthSelling` is always on: whether
+   * relics are listed is the Relics row on Sell spares now).
+   */
   sellable: SellChoices;
   /** Things you sold, newest first (the last 2,000). */
   sales: Sale[];
@@ -111,7 +119,7 @@ function presenceBackOf(v: unknown): { p: Presence; until: number } | null {
   return o && typeof o === "object" && (o.p === "invisible" || o.p === "online" || o.p === "ingame") && typeof o.until === "number" && Number.isFinite(o.until) ? { p: o.p, until: o.until } : null;
 }
 
-export const defaultMarketSettings = (): MarketSettings => ({ platform: "pc", auto: false, autoCheck: false, every: 5, minShare: 0.5, floors: {}, paused: {}, presence: null, minPrice: 10, minRelicPrice: 3, relicPrices: {}, bulk: defaultBulkRules(), sellable: defaultSellChoices(), sales: [], autoTrades: true, tradesSeen: [], tradesTold: [], trades: [], buyAlerts: [], rep: {}, repText: ":)", autoRep: true, lastCopy: { optIn: false, minutes: DEFAULT_HIDE_MINUTES, hidden: [] } });
+export const defaultMarketSettings = (): MarketSettings => ({ platform: "pc", auto: false, autoCheck: false, every: 5, minShare: 0.5, floors: {}, paused: {}, presence: null, minPrice: 10, minRelicPrice: 3, relicPrices: {}, spares: defaultSparesRules(), bulk: defaultBulkRules(), sellable: defaultSellChoices(), sales: [], autoTrades: true, tradesSeen: [], tradesTold: [], trades: [], buyAlerts: [], rep: {}, repText: ":)", autoRep: true, lastCopy: { optIn: false, minutes: DEFAULT_HIDE_MINUTES, hidden: [] } });
 
 export interface AdviceSettings {
   platPerDucat: number;
@@ -779,7 +787,8 @@ export async function loadSettings(): Promise<Settings> {
     chores: raw?.chores && typeof raw.chores === "object" && !Array.isArray(raw.chores) ? Object.fromEntries(Object.entries(raw.chores).filter(([, v]) => typeof v === "number" && v > Date.now())) as Record<string, number> : {},
     homeHidden: Array.isArray(raw?.homeHidden) ? raw.homeHidden.filter((k: unknown): k is string => typeof k === "string") : [],
     plannerMode: raw?.plannerMode === "radiant" ? "radiant" : "sets",
-    market: { ...base.market, ...(raw?.market ?? {}), bulk: { ...base.market.bulk, ...(raw?.market?.bulk ?? {}) }, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: raw?.market?.sellable?.relicsWorthSelling ?? base.market.sellable.relicsWorthSelling, saveForSets: raw?.market?.sellable?.saveForSets !== false }, sales: Array.isArray(raw?.market?.sales) ? raw.market.sales : [], tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], tradesTold: Array.isArray(raw?.market?.tradesTold) ? raw.market.tradesTold.filter((k: unknown): k is string => typeof k === "string") : [], trades: Array.isArray(raw?.market?.trades) ? raw.market.trades : [], buyAlerts: Array.isArray(raw?.market?.buyAlerts) ? raw.market.buyAlerts.filter((a: unknown): a is BuyAlert => !!a && typeof (a as BuyAlert).name === "string" && typeof (a as BuyAlert).maxPrice === "number") : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: raw?.market?.platform && raw.market.platform in PLATFORM_LABEL ? raw.market.platform : "pc", autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, every: typeof raw?.market?.every === "number" && raw.market.every >= 1 ? raw.market.every : base.market.every, minRelicPrice: typeof raw?.market?.minRelicPrice === "number" && raw.market.minRelicPrice >= 1 ? Math.round(raw.market.minRelicPrice) : base.market.minRelicPrice, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)", lastCopy: { optIn: raw?.market?.lastCopy?.optIn === true, minutes: typeof raw?.market?.lastCopy?.minutes === "number" && raw.market.lastCopy.minutes >= 1 ? Math.round(raw.market.lastCopy.minutes) : DEFAULT_HIDE_MINUTES, hidden: Array.isArray(raw?.market?.lastCopy?.hidden) ? raw.market.lastCopy.hidden.filter((h: unknown): h is HiddenForWhisper => !!h && typeof (h as HiddenForWhisper).id === "string" && typeof (h as HiddenForWhisper).at === "number") : [] } , presenceBack: presenceBackOf(raw?.market?.presenceBack), ordersSort: ordersSortOf(raw?.market?.ordersSort), sparesOpen: raw?.market?.sparesOpen === true },
+    // Sell spares' choices: version 2, or the old switches (and the old relic setting) migrated.
+    market: { ...base.market, ...(raw?.market ?? {}), spares: sparesSettingsOf(raw?.market), bulk: undefined, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: true, saveForSets: raw?.market?.sellable?.saveForSets !== false }, sales: Array.isArray(raw?.market?.sales) ? raw.market.sales : [], tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], tradesTold: Array.isArray(raw?.market?.tradesTold) ? raw.market.tradesTold.filter((k: unknown): k is string => typeof k === "string") : [], trades: Array.isArray(raw?.market?.trades) ? raw.market.trades : [], buyAlerts: Array.isArray(raw?.market?.buyAlerts) ? raw.market.buyAlerts.filter((a: unknown): a is BuyAlert => !!a && typeof (a as BuyAlert).name === "string" && typeof (a as BuyAlert).maxPrice === "number") : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: raw?.market?.platform && raw.market.platform in PLATFORM_LABEL ? raw.market.platform : "pc", autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, every: typeof raw?.market?.every === "number" && raw.market.every >= 1 ? raw.market.every : base.market.every, minRelicPrice: typeof raw?.market?.minRelicPrice === "number" && raw.market.minRelicPrice >= 1 ? Math.round(raw.market.minRelicPrice) : base.market.minRelicPrice, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)", lastCopy: { optIn: raw?.market?.lastCopy?.optIn === true, minutes: typeof raw?.market?.lastCopy?.minutes === "number" && raw.market.lastCopy.minutes >= 1 ? Math.round(raw.market.lastCopy.minutes) : DEFAULT_HIDE_MINUTES, hidden: Array.isArray(raw?.market?.lastCopy?.hidden) ? raw.market.lastCopy.hidden.filter((h: unknown): h is HiddenForWhisper => !!h && typeof (h as HiddenForWhisper).id === "string" && typeof (h as HiddenForWhisper).at === "number") : [] } , presenceBack: presenceBackOf(raw?.market?.presenceBack), ordersSort: ordersSortOf(raw?.market?.ordersSort) },
     advice: { ...base.advice, ...(raw?.advice ?? {}) },
     // `forma` came later: settings saved before it get the default (3p).
     pick: { ...base.pick, ...(raw?.pick ?? {}), forma: typeof raw?.pick?.forma === "number" && Number.isFinite(raw.pick.forma) && raw.pick.forma >= 0 ? raw.pick.forma : base.pick.forma },
@@ -809,7 +818,7 @@ export async function loadSettings(): Promise<Settings> {
     })(),
     simplified: 2,
     // An order saved for the old sections would scatter the new ones: once, the sidebar starts fresh.
-    pageOrder: raw && (raw.simplified ?? 0) < 2 ? [] : Array.isArray(raw?.pageOrder) ? raw.pageOrder.filter((k: unknown): k is string => typeof k === "string") : [],
+    pageOrder: raw && (raw.simplified ?? 0) < 2 ? [] : withPage(Array.isArray(raw?.pageOrder) ? raw.pageOrder.filter((k: unknown): k is string => typeof k === "string") : [], "spares", "market"),
     startPage: typeof raw?.startPage === "string" && raw.startPage ? raw.startPage : "last",
     schema: base.schema,
     notifiedInvasions: Array.isArray(raw?.notifiedInvasions) ? raw.notifiedInvasions : [],
@@ -843,11 +852,22 @@ export const HEAVY_SETTINGS = [
 ] as const;
 export type HeavyKey = `${(typeof HEAVY_SETTINGS)[number][0]}.${(typeof HEAVY_SETTINGS)[number][1]}`;
 
+/**
+ * A page added since the sidebar order was saved goes in right after its neighbour (Sell spares
+ * after Orders), where the usual order has it; with no order saved, the usual order has it anyway.
+ */
+export function withPage(order: string[], page: string, after: string): string[] {
+  if (!order.length || order.includes(page)) return order;
+  const i = order.indexOf(after);
+  return i < 0 ? [...order, page] : [...order.slice(0, i + 1), page, ...order.slice(i + 1)];
+}
+
 /** The settings without the heavy parts (shallow copies; nothing is deep-read). */
 export function lightSettings(s: Settings) {
   return {
     ...s,
-    market: { ...s.market, sales: undefined, trades: undefined, relicPrices: undefined },
+    // The old switches beside Sell spares' choices, for an older build (sparesRules.ts, toStored).
+    market: { ...s.market, ...(s.market.spares ? toStored(s.market.spares) : {}), sales: undefined, trades: undefined, relicPrices: undefined },
     game: { ...s.game, valueHistory: undefined, rivenHistory: undefined, relicRuns: undefined, drops: undefined, notices: undefined },
   };
 }

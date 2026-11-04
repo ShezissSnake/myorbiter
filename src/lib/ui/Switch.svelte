@@ -2,15 +2,16 @@
   // A setting that is on or off: what it does on the left, the switch on the right.
   import type { Snippet } from "svelte";
 
-  let { on = $bindable(), label, children }: { on: boolean; label: string; children?: Snippet } = $props();
+  // `title`: a tooltip for the whole line; `disabled`: shown, not changeable (its section is off).
+  let { on = $bindable(), label, title, disabled = false, children }: { on: boolean; label: string; title?: string; disabled?: boolean; children?: Snippet } = $props();
 </script>
 
-<label class="row">
+<label class="row" class:disabled {title}>
   <span class="text">
     <span class="label">{label}</span>
     {#if children}<span class="note">{@render children()}</span>{/if}
   </span>
-  <input type="checkbox" role="switch" bind:checked={on} />
+  <input type="checkbox" role="switch" bind:checked={on} {disabled} />
   <span class="track" aria-hidden="true"><span class="knob"></span></span>
 </label>
 
@@ -27,4 +28,5 @@
   input:checked + .track { background: color-mix(in srgb, var(--gold) 18%, var(--well)); border-color: var(--gold-dim); }
   input:checked + .track .knob { transform: translateX(1.15rem); background: var(--gold); }
   input:focus-visible + .track { outline: 1px solid var(--gold); outline-offset: 2px; }
+  .disabled { cursor: default; opacity: .55; }
 </style>

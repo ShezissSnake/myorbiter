@@ -336,3 +336,31 @@ test("sets that aren't prime: a loose part waits for the set when you keep getti
   assert.equal(barrel.spare, 0);
   assert.match(barrel.why, /1 saved for a Mandonel Set \(15p, 10p as parts\): 1 part to go/);
 });
+
+test("a part not built yet keeps what its own recipe takes: the Neuroptics' gems, not only the frame's", () => {
+  const NEURO = "/Lotus/Types/Recipes/WarframeRecipes/StyanaxHelmetComponent";
+  const DAGONIC = "/Lotus/Types/Items/Gems/Deimos/DeimosCommonGemBCutItem";
+  const styanax = {
+    uniqueName: "/Lotus/Powersuits/Styanax/Styanax", name: "Styanax", category: "Warframes", masterable: true,
+    components: [
+      { uniqueName: "/Lotus/Types/Recipes/WarframeRecipes/StyanaxBlueprint", name: "Blueprint", itemCount: 1 },
+      { uniqueName: NEURO, name: "Neuroptics", itemCount: 1 },
+      { uniqueName: "/Lotus/Types/Items/MiscItems/OrokinCell", name: "Orokin Cell", itemCount: 1 },
+    ],
+  };
+  const b = (held: InventoryRow[]) => ({ ...bundle(held), catalog: [styanax], prices: { prices: { "Purged Dagonic": 3 }, max_rank_prices: {}, trade_rate: { "Purged Dagonic": [12, 0, ""] } } }) as unknown as Bundle;
+  const recipes = { checkedAt: 0, names: {}, recipes: { [NEURO]: { c: 15000, i: [[DAGONIC, 40], ["/Lotus/Types/Items/MiscItems/Alertium", 2]] as [string, number][] } } };
+  const gems = [inv(DAGONIC, "Purged Dagonic", "resource", 200)];
+  // Without the Foundry recipes, only what the catalog lists for Styanax itself.
+  assert.equal(needsByUnique(buildModel(b(gems))).get(DAGONIC), undefined);
+  const m = buildModel(b(gems), undefined, null, null, null, recipes);
+  assert.deepEqual(needsByUnique(m).get(DAGONIC), [{ item: "Styanax Neuroptics", count: 40 }]);
+  const row = spareRows(m).find((r) => r.unique === DAGONIC)!;
+  assert.deepEqual([row.keep, row.spare], [40, 160]);
+  // The Neuroptics built: nothing more to keep for them.
+  const built = buildModel(b([...gems, inv(NEURO, "Styanax Neuroptics", "resource", 1)]), undefined, null, null, null, recipes);
+  assert.equal(needsByUnique(built).get(DAGONIC), undefined);
+  // Styanax mastered: none of it.
+  const done = buildModel(b([...gems, inv("/Lotus/Powersuits/Styanax/Styanax", "Styanax", "warframe", 0, { mastered: true })]), undefined, null, null, null, recipes);
+  assert.equal(needsByUnique(done).get(DAGONIC), undefined);
+});
