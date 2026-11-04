@@ -5,7 +5,7 @@ import { decide, type DucatOptions } from "./advice";
 import { competitor, findItem, heldFor, marketValue, overAsked, type BookOrder, type FloorRule, type Me, type MarketIndex, type MarketItem, type MyOrder, listingKey, referencePrice } from "./market";
 import { aboveCrack, allSetRows, spareRows, type SellChoices, type SpareRow } from "./spares";
 import type { Model } from "./model";
-import { arcaneRows, inventoryRows, modRows, modSpares, partRows, saveForSets, savedLine } from "./views";
+import { arcaneRows, inventoryRows, LICH_KEEP_ALL, modRows, modSpares, partRows, saveForSets, savedLine } from "./views";
 import { gearSetParts } from "./model";
 import { packValues, spareArcanes, vosforWorth } from "./vosfor";
 
@@ -96,8 +96,9 @@ export function sellTargets(m: Model, rules: BulkRules, advice: DucatOptions, in
         quantity: s.sellable,
         why: s.mastered || s.ownedBuilt ? `${s.mastered ? "Mastered" : "Built"}: every complete set can go` : "A spare set: one is kept to build and master",
       };
-      // Worth more traded to Baro, part by part, than sold for platinum: kept for ducats.
-      const asDucats = ducatsWin(s.setPrice, s.ducats, advice);
+      // Worth more traded to Baro, part by part, than sold for platinum (or close to it): kept for
+      // ducats. The whole set's price against every part's ducats, at your rate.
+      const asDucats = s.prime && s.ducatsKnown === false ? "A part's ducat value isn't known: kept until it can be weighed against its ducats" : ducatsWin(s.setPrice, s.ducats, advice);
       if (asDucats) set.hold = { why: asDucats, takeDown: true };
       out.push(set);
     }
@@ -214,13 +215,27 @@ export function ducatWorth(m: Model, it: MarketItem, platPerDucat: number): numb
   }
   return null;
 }
-/** Just over what its ducats are worth: the least a prime part or set is listed at. */
-export const aboveDucats = (worth: number | null) => (worth == null ? null : Math.floor(worth) + 1);
+
+/**
+ * Platinum has to beat a prime part's or set's ducats clearly to be worth a trade: by a fifth of
+ * their worth and at least 2p. Close to its ducats, it goes to Baro (no buyer to wait for, no
+ * trade to spend).
+ */
+export const DUCAT_EDGE = 0.2;
+export const DUCAT_EDGE_MIN = 2;
+/** The least platinum that beats ducats worth `worth` to you, by the edge above. */
+export const platToBeat = (worth: number) => worth + Math.max(DUCAT_EDGE_MIN, worth * DUCAT_EDGE);
+/** Ducats worth `worth` to you win over selling at `plat`: worth more, or too close to call. */
+export const ducatsBeat = (plat: number, worth: number) => plat < platToBeat(worth);
+/** The least a prime part or set is listed or repriced at: the first whole price that beats its ducats. */
+export const aboveDucats = (worth: number | null) => (worth == null ? null : Math.ceil(platToBeat(worth) - 1e-9));
 
 export function ducatsWin(plat: number | null, ducats: number, advice: DucatOptions): string | null {
-  if (!ducats || plat == null) return null;
+  if (!ducats || plat == null || !(advice.platPerDucat > 0)) return null;
   const worth = ducats * advice.platPerDucat;
-  return worth >= plat ? `Worth more as ducats: ${ducats} ducats are ~${Math.round(worth * 10) / 10}p to you, it sells for ${Math.round(plat)}p` : null;
+  const words = `${ducats} ducats are ~${Math.round(worth * 10) / 10}p to you, it sells for ${Math.round(plat * 10) / 10}p`;
+  if (worth >= plat) return `Worth more as ducats: ${words}`;
+  return ducatsBeat(plat, worth) ? `Close to its ducats, so kept for them: ${words}` : null;
 }
 
 const OTHER_TAGS = ["relic", "gem", "fish", "scene", "simulacrum", "ayatan_sculpture", "ayatan_star", "blueprint", "component", "lens"];
@@ -329,6 +344,7 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
   const ticked = new Set<BulkKind>(BULK_KINDS.filter((k) => rules[RULE_OF[k]]));
   const actions: BulkAction[] = [];
   const claimed = new Set<string>();
+  const planned = new Map<string, BulkKind>();
   const keyOf = (it: MarketItem, rank: number | null, subtype: string | null) => `${it.id}|${it.maxRank != null ? (rank ?? 0) : ""}|${subtype ?? it.subtypes?.[0] ?? ""}`;
   const orderKey = (o: MyOrder, it: MarketItem) => keyOf(it, o.rank, o.subtype);
   /**
@@ -353,6 +369,14 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
     const t = { ...target, rank: it.maxRank != null ? (target.rank ?? 0) : null };
     const subtype = t.subtype ?? it.subtypes?.[0] ?? null;
     const key = keyOf(it, t.rank, subtype);
+    // One thing is counted under one category only: a second target for it (a mod turning up under
+    // everything else too) would list the same copies twice.
+    const first = planned.get(key);
+    if (first) {
+      actions.push({ type: "skip", kind: t.kind, name: it.name, rank: t.rank, subtype, why: `Already counted under ${KIND_LABEL[first]}` });
+      continue;
+    }
+    planned.set(key, t.kind);
     const existing = c.orders.find((o) => o.itemId === it.id && orderKey(o, it) === key) ?? null;
     if (existing) claimed.add(existing.id);
     if (existing && (c.paused[listingKey(existing)] || !existing.visible)) {
@@ -383,8 +407,8 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
     // cheapest in-game price (it can be well under the daily median the targets were judged by).
     const duc = (t.kind === "part" || t.kind === "set") && c.advice ? ducatWorth(c.model, it, c.advice.platPerDucat) : null;
     const asked = priceFor(c, it, t.rank, subtype, book, existing, t.crack != null ? aboveCrack(t.crack) : null);
-    if (duc != null && asked.price != null && asked.price <= duc) {
-      const why = `At ${asked.price}p (${asked.why}) it's worth more as ducats: ~${Math.round(duc * 10) / 10}p to you`;
+    if (duc != null && asked.price != null && ducatsBeat(asked.price, duc)) {
+      const why = `At ${asked.price}p (${asked.why}) it's ${asked.price <= duc ? "worth more as ducats" : "too close to its ducats to sell"}: ~${Math.round(duc * 10) / 10}p to you`;
       if (existing) actions.push({ type: "remove", kind: t.kind, item: it, order: existing, why });
       else actions.push({ type: "skip", kind: t.kind, name: it.name, rank: t.rank, subtype, why });
       continue;
@@ -413,55 +437,6 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
     }
   }
 
-  let modIndex: Map<string, ReturnType<typeof modRows>[number]> | null = null;
-  const mods = () => (modIndex ??= new Map(modRows(c.model).map((r) => [r.name, r])));
-  let setIndex: Map<string, ReturnType<typeof allSetRows>[number]> | null = null;
-  const setsByUnique = () => (setIndex ??= new Map(allSetRows(c.model, c.index).map((r) => [r.unique, r])));
-  let partIndex: Map<string, ReturnType<typeof partRows>[number]> | null = null;
-  const parts = () => (partIndex ??= new Map(partRows(c.model, saveForSets(c.sell, c.advice?.platPerDucat ?? 0, c.drops)).map((r) => [r.name, r])));
-  let otherIndex: Map<string, SpareRow> | null = null;
-  const others = () => (otherIndex ??= new Map(spareRows(c.model, c.index, c.sell, c.advice?.platPerDucat ?? 0, c.advice?.squad ?? 1, c.drops).filter(otherSpare).map((r) => [`${r.name}|${r.subtype ?? ""}`, r])));
-  let arcaneIndex: Map<string, ReturnType<typeof arcaneRows>[number]> | null = null;
-  const arcanes = () => (arcaneIndex ??= new Map(arcaneRows(c.model).map((r) => [r.name, r])));
-  /**
-   * What the keep rules leave you to sell of a listing, or null when no rule applies: a set and the
-   * parts to build anything unbuilt, two copies of each mod, and the copies of your one maxed arcane.
-   * Only said in the plan: a listing you made for more stays up.
-   */
-  const spareFor = (kind: BulkKind, it: MarketItem, o: MyOrder): { spare: number; kept: string } | null => {
-    if (kind === "mod") {
-      const mod = mods().get(it.name);
-      if (!mod) return null;
-      const spare = modSpares(mod).filter((r) => it.maxRank == null || r.rank === (o.rank ?? 0)).reduce((n, r) => n + r.count, 0);
-      return { spare, kept: mod.keptFor ? mod.keptFor.split(":")[0] : "your own copy and one to give away" };
-    }
-    if (kind === "set") {
-      const set = it.gameRef ? setsByUnique().get(it.gameRef) : undefined;
-      return set ? { spare: set.sellable, kept: "one set to build and master" } : null;
-    }
-    if (kind === "part") {
-      const part = parts().get(it.name);
-      if (!part) return null;
-      const build = part.keep - part.forSet;
-      const kept = [build ? `the ${build > 1 ? "copies" : "copy"} to build ${part.parentName}` : "", part.forSet ? `${part.forSet} saved for the ${part.parentName} Set` : ""].filter(Boolean).join(" and ");
-      return { spare: part.spare, kept: kept || "nothing" };
-    }
-    if (kind === "imprint") {
-      const held = it.gameRef ? (c.model.imprints?.get(it.gameRef) ?? 0) : 0;
-      return { spare: held, kept: "nothing" };
-    }
-    if (kind === "other") {
-      const r = others().get(`${it.name}|${o.subtype ?? it.subtypes?.[0] ?? ""}`) ?? others().get(`${it.name}|`);
-      return r ? { spare: r.spare, kept: r.keep ? `${r.keep} (${r.why.charAt(0).toLowerCase()}${r.why.slice(1)})` : "nothing" } : null;
-    }
-    const a = arcanes().get(it.name);
-    if (!a) return null;
-    const rank = o.rank ?? 0;
-    // Whole maxed ones still to fuse count too: a listing made for them (Arcanes' List button) stays.
-    if (rank >= a.maxRank) return { spare: a.extraSets, kept: "your maxed copy" };
-    if (rank === 0) return { spare: Math.min(a.unranked, a.spare), kept: a.complete ? "the copies your maxed one needs" : `the copies toward a maxed one (${a.copies}/${a.needed})` };
-    return null;
-  };
   // Other listings in a ticked category (ones you made yourself, or for spares that are gone):
   // never more than you hold. Removed when you hold none, lowered when you hold fewer, else kept.
   // One that lists copies the keep rules would hold back is your call: it stays, and the plan says so.
@@ -482,13 +457,22 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
       actions.push({ type: "update", kind, item: it, order: o, quantity: held, platinum: o.platinum, why: `You hold ${held} now`, priceWhy: "price kept" });
       continue;
     }
-    // A prime part or set now worth more to you as ducats than it sells for: it comes down.
-    const asDucats = c.advice && (kind === "part" || kind === "set") ? ducatsFor(c, kind, it) : null;
+    // A prime part or set now worth more to you as ducats than it sells for (at the price it's
+    // listed at, or what it sells for if that's less): it comes down.
+    const asDucats = c.advice && (kind === "part" || kind === "set") ? ducatsFor(c, kind, it, o) : null;
     if (asDucats) {
       actions.push({ type: "remove", kind, item: it, order: o, why: asDucats });
       continue;
     }
-    const rule = spareFor(kind, it, o);
+    const rule = provenSpare(c, kind, it, o.rank, o.subtype);
+    // Copies a hard rule holds back (Requiem mods while lich weapons are left, copies installed in a
+    // build): a listing for them comes down to what can go, whoever made it. An earlier orbiter
+    // listed Requiem mods two to a name.
+    if (rule?.cap != null && rule.cap < o.quantity) {
+      if (rule.cap <= 0) actions.push({ type: "remove", kind, item: it, order: o, why: upper(rule.short) });
+      else actions.push({ type: "update", kind, item: it, order: o, quantity: rule.cap, platinum: o.platinum, why: `${upper(rule.short)}: lowered to the ${rule.cap} spare`, priceWhy: "price kept" });
+      continue;
+    }
     if (rule && rule.spare < o.quantity) {
       actions.push({ type: "skip", kind, name: it.name, rank: it.maxRank != null ? (o.rank ?? 0) : null, why: `${upper(rule.kept)} would be kept: ${AS_LISTED}` });
     }
@@ -498,16 +482,102 @@ export function bulkPlan(c: BulkContext, rules: BulkRules, targets: SellTarget[]
 
 const upper = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** A prime part's or set's ducats against what it sells for, at your rate: why it's better as ducats, or null. */
-function ducatsFor(c: BulkContext, kind: BulkKind, it: MarketItem): string | null {
+/**
+ * A prime part's or set's ducats against what it sells for, at your rate: why it's better as
+ * ducats, or null. A listing is judged at its own price when that's under the daily median (a set
+ * listed at 5p sells for 5p, whatever the median says); a set by all its parts' ducats together.
+ */
+function ducatsFor(c: BulkContext, kind: BulkKind, it: MarketItem, o: MyOrder | null = null): string | null {
   if (!c.advice) return null;
+  const median = c.model.price(it.name);
+  const plat = o ? (median == null ? o.platinum : Math.min(o.platinum, median)) : median;
   if (kind === "part") {
     const part = c.model.partByName.get(it.name)?.[0];
-    return part ? ducatsWin(c.model.price(it.name), part.ducats, c.advice) : null;
+    return part ? ducatsWin(plat, part.ducats, c.advice) : null;
   }
   const parts = it.gameRef ? c.model.partsByParent.get(it.gameRef) : undefined;
   if (!parts?.length) return null;
-  return ducatsWin(c.model.price(it.name), parts.reduce((n, p) => n + p.ducats * p.required, 0), c.advice);
+  return ducatsWin(plat, parts.reduce((n, p) => n + p.ducats * p.required, 0), c.advice);
+}
+
+/** What the keep rules are worked out from, for a plan or for one listing about to be made. */
+export interface SpareContext {
+  model: Model;
+  index: MarketIndex | null;
+  sell?: SellChoices;
+  advice?: DucatOptions;
+  drops?: ReadonlyMap<string, number>;
+}
+
+export interface ProvenSpare {
+  /** Copies the keep rules leave you to sell, at this rank and variant. */
+  spare: number;
+  /** What's kept, in words ("your own copy and one to give away"). */
+  kept: string;
+  /** The rule, in a short sentence, for a notice ("Requiem mods are kept while Kuva and Tenet weapons are left"). */
+  short: string;
+  /**
+   * The most a listing may keep up whoever made it, when a hard rule applies: Requiem and Antivirus
+   * mods while lich weapons are left, copies installed in a build. Null: no hard rule.
+   */
+  cap: number | null;
+}
+
+/**
+ * What the keep rules leave you to sell of an item at a rank and variant, or null when no rule
+ * applies (orbiter can't count it): a set and the parts to build anything unbuilt, two copies of
+ * each mod (five of a Requiem or Antivirus mod while lich weapons are left, every one while that
+ * isn't known), copies installed in a build never, the copies of your one maxed arcane.
+ */
+export function provenSpare(c: SpareContext, kind: BulkKind, it: MarketItem, rank: number | null, subtype: string | null): ProvenSpare | null {
+  const m = c.model;
+  if (kind === "mod") {
+    const mod = modRows(m).find((r) => r.unique === it.gameRef) ?? modRows(m).find((r) => r.name === it.name);
+    if (!mod) return null;
+    const at = (r: { rank: number }) => it.maxRank == null || r.rank === (rank ?? 0);
+    const spare = modSpares(mod).filter(at).reduce((n, r) => n + r.count, 0);
+    const installed = mod.ranks.filter(at).reduce((n, r) => n + (r.installed ?? 0), 0);
+    const lich = /\/Immortal\/Antivirus/.test(mod.unique) ? "Antivirus mods are kept while Coda weapons are left to master" : "Requiem mods are kept while Kuva and Tenet weapons are left to master";
+    const short = mod.keptFor
+      ? mod.keep === LICH_KEEP_ALL
+        ? `${lich.split(" are kept")[0]} are all kept: which lich weapons you have left isn't known`
+        : `${lich} (${mod.keep} kept)`
+      : installed
+        ? `${installed} installed in a build; your best copy and one to give away are kept`
+        : "your best copy and one to give away are kept";
+    // Installed copies: the count a listing was made from likely took them for loose ones.
+    return { spare, kept: mod.keptFor ? mod.keptFor.split(":")[0] : installed ? `the ${installed} installed and one to give away` : "your own copy and one to give away", short, cap: mod.keptFor || installed ? spare : null };
+  }
+  if (kind === "set") {
+    const set = it.gameRef ? allSetRows(m, c.index).find((r) => r.unique === it.gameRef) : undefined;
+    return set ? { spare: set.sellable, kept: "one set to build and master", short: "a set is kept while you still have it to build or master", cap: null } : null;
+  }
+  if (kind === "part") {
+    const part = partRows(m, saveForSets(c.sell, c.advice?.platPerDucat ?? 0, c.drops)).find((r) => r.name === it.name);
+    if (!part) return null;
+    const build = part.keep - part.forSet;
+    const kept = [build ? `the ${build > 1 ? "copies" : "copy"} to build ${part.parentName}` : "", part.forSet ? `${part.forSet} saved for the ${part.parentName} Set` : ""].filter(Boolean).join(" and ");
+    return { spare: part.spare, kept: kept || "nothing", short: kept ? `${kept} ${part.keep === 1 ? "is" : "are"} kept` : "nothing is kept", cap: null };
+  }
+  if (kind === "imprint") {
+    const held = it.gameRef ? (m.imprints?.get(it.gameRef) ?? 0) : 0;
+    return m.imprints ? { spare: held, kept: "nothing", short: "imprints are all spare", cap: null } : null;
+  }
+  if (kind === "other") {
+    const rows = spareRows(m, c.index, c.sell, c.advice?.platPerDucat ?? 0, c.advice?.squad ?? 1, c.drops).filter(otherSpare);
+    const r = rows.find((x) => x.name === it.name && (x.subtype ?? "") === (subtype ?? it.subtypes?.[0] ?? "")) ?? rows.find((x) => x.name === it.name && !x.subtype);
+    return r ? { spare: r.spare, kept: r.keep ? `${r.keep} (${r.why.charAt(0).toLowerCase()}${r.why.slice(1)})` : "nothing", short: r.keep ? `${r.keep} kept: ${r.why.charAt(0).toLowerCase()}${r.why.slice(1)}` : "nothing is kept", cap: null } : null;
+  }
+  const a = arcaneRows(m).find((r) => r.name === it.name);
+  if (!a) return null;
+  const r = rank ?? 0;
+  // Whole maxed ones still to fuse count too: a listing made for them (Arcanes' List button) stays.
+  if (r >= a.maxRank) return { spare: a.extraSets, kept: "your maxed copy", short: "your maxed copy is kept", cap: null };
+  if (r === 0) {
+    const kept = a.complete ? "the copies your maxed one needs" : `the copies toward a maxed one (${a.copies}/${a.needed})`;
+    return { spare: Math.min(a.unranked, a.spare), kept, short: `${kept} are kept`, cap: null };
+  }
+  return null;
 }
 
 /**

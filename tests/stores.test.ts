@@ -254,8 +254,32 @@ test("a sale warframe.market refuses comes back, and the reason is handed to who
   assert.deepEqual(mkt.orders.map((o) => o.quantity), [2], "the listing is back as it was");
 });
 
+/** A recent read holding five unranked Serration (three spare) and a Requiem mod with a Kuva weapon left. */
+async function spareModel(): Promise<Model> {
+  const { buildModel } = await import("../src/lib/core/model");
+  const row = (item_id: string, name: string, category: string, quantity: number, mastered = false) => ({ item_id, name, category, quantity, mastered, image_name: null, rank: null, max_rank: null });
+  return buildModel({
+    observed_at: Math.floor(Date.now() / 1000) - 60,
+    inventory: [row("/M/Serration", "Serration", "mod", 5), row("/Lotus/Upgrades/Mods/Immortal/ImmortalEightMod", "Khra", "mod", 4), row("/W/Braton", "Braton", "weapon", 1, true)],
+    catalog: [
+      { uniqueName: "/M/Serration", name: "Serration", category: "Mods", maxRank: 10 },
+      { uniqueName: "/Lotus/Upgrades/Mods/Immortal/ImmortalEightMod", name: "Khra", category: "Mods", maxRank: 3 },
+      { uniqueName: "/W/Braton", name: "Braton", category: "Primary", masterable: true },
+      { uniqueName: "/W/KuvaBramma", name: "Kuva Bramma", category: "Primary", masterable: true },
+    ],
+    relics: [],
+    prices: { prices: { Serration: 12, Khra: 9 }, trade_rate: { Serration: [5, 0, ""], Khra: [40, 0, ""] } },
+  } as never);
+}
+const spareItems = [
+  { id: "it", slug: "serration", gameRef: "/M/Serration", name: "Serration", maxRank: 10, subtypes: null, tags: ["mod"] },
+  { id: "khra", slug: "khra", gameRef: "/Lotus/Upgrades/Mods/Immortal/ImmortalEightMod", name: "Khra", maxRank: 3, subtypes: null, tags: ["mod"] },
+];
+
 test("Show all hidden goes one by one, says how far it got, and returns how many were shown", async () => {
-  mkt.orders = [{ ...order("a"), visible: false }, { ...order("b"), visible: false }];
+  mkt.items = spareItems;
+  mkt.model = await spareModel();
+  mkt.orders = [{ ...order("a"), rank: 0, visible: false }, { ...order("b"), rank: 0, visible: false }];
   market.update = async (id: string) => {
     if (id === "b") throw new Error("refused");
   };
@@ -265,4 +289,40 @@ test("Show all hidden goes one by one, says how far it got, and returns how many
   assert.equal(n, 1);
   assert.deepEqual(steps, ["1/2", "2/2"]);
   assert.equal(mkt.op, null);
+  mkt.model = null;
+});
+
+test("a hidden listing of copies the keep rules hold back isn't shown again, and says why", async () => {
+  mkt.items = spareItems;
+  mkt.model = await spareModel();
+  mkt.orders = [{ ...order("k", 2), itemId: "khra", rank: 0, visible: false }];
+  const sent: string[] = [];
+  market.update = async (id: string) => {
+    sent.push(id);
+  };
+  market.myOrders = async () => mkt.orders;
+  assert.equal(await mkt.showHidden(mkt.orders), 0);
+  assert.deepEqual(sent, [], "nothing sent to warframe.market");
+  assert.match(mkt.log.find((l) => l.tone === "warn")?.text ?? "", /^Didn't list Khra R0: Requiem mods are kept while Kuva and Tenet weapons are left to master/);
+  // Without a collection loaded nothing is shown either.
+  mkt.model = null;
+  mkt.orders = [{ ...order("s"), rank: 0, visible: false }];
+  assert.equal(await mkt.showHidden(mkt.orders), 0);
+  assert.deepEqual(sent, []);
+});
+
+test("raising a listing past what's spare is refused before it's sent", async () => {
+  mkt.items = spareItems;
+  mkt.model = await spareModel();
+  mkt.orders = [{ ...order("s", 2), rank: 0 }];
+  const sent: unknown[] = [];
+  market.update = async (_id: string, change: unknown) => {
+    sent.push(change);
+  };
+  market.myOrders = async () => mkt.orders;
+  assert.equal(await mkt.update(mkt.orders[0], { quantity: 4 }), false);
+  assert.match(mkt.error ?? "", /^Didn't list Serration R0: Only 3 can go/);
+  assert.equal(await mkt.update(mkt.orders[0], { quantity: 3 }), true);
+  assert.deepEqual(sent, [{ quantity: 3 }]);
+  mkt.model = null;
 });
