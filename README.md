@@ -80,7 +80,7 @@ What updates how: the Linux AppImage replaces its own file (it needs a folder yo
 
 **The first install of a public build** is by hand, like any first install (see *Install* above): download the AppImage or the setup.exe of a build on the channel you want from *Releases*, then pick the channel in Settings → *Updates*. From then on it updates itself.
 
-**Testing the updater locally.** The `e2e-updater` Cargo feature (never used for a release: release.yml fails a build whose binary carries it) lets a local build take `ORBITER_UPDATER_E2E_ENDPOINT` (a `http://127.0.0.1:…` manifest) and `ORBITER_UPDATER_E2E_PUBKEY` (a test key's public key), so two local builds signed with a throwaway key can update one into the other against a local server.
+**Testing the updater locally.** The `e2e-updater` Cargo feature (never used for a release: release.yml fails a build whose binary carries it) lets a local build take `ORBITER_UPDATER_E2E_ENDPOINT` (a `http://127.0.0.1:…` manifest) and `ORBITER_UPDATER_E2E_PUBKEY` (a test key's public key), so two local builds signed with a throwaway key can update one into the other against a local server; `ORBITER_UPDATER_E2E_AUTO=1` makes it check, install and restart by itself, printing each step, for a run with no window to click in.
 
 ## Using it
 
