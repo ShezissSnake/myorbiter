@@ -5,6 +5,8 @@
 // Every build CI makes is version 0.1.<build number>, the number of its `build-<n>` release, and
 // keeps that version when it moves from Experimental to Beta to Stable. A local build is 0.1.0.
 
+import { cleanLine } from "./untrusted";
+
 export type Channel = "stable" | "beta" | "experimental";
 
 /** The channels, most stable first, with what each means (the segmented control's tooltips). */
@@ -95,12 +97,15 @@ export function versionLine(version: string, u: UpdateSettings): string {
   return `${version} · ${c === "local" ? "local build" : CHANNEL_LABEL[c]}`;
 }
 
-/** Release notes as lines to show: blank ones dropped, at most `max`. */
+/**
+ * Release notes as lines to show: blank ones dropped, at most `max`. They're commit subjects, some
+ * written by contributors: hidden and bidi characters go, and each line is capped (core/untrusted.ts).
+ */
 export const noteLines = (notes: string | null | undefined, max = 6) =>
   (notes ?? "")
     .split("\n")
-    .map((l) => l.replace(/^[-*•]\s*/, "").trim())
-    .filter(Boolean)
+    .map((l) => cleanLine(l.replace(/^[-*•]\s*/, ""), 200))
+    .filter((l): l is string => !!l)
     .slice(0, max);
 
 /** How a copy of orbiter was installed (updates.rs `Install`), as the app reports it. */

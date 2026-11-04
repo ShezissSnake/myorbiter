@@ -104,6 +104,7 @@
   import WhatsNew from "./lib/WhatsNew.svelte";
   import UpdateNotice from "./lib/UpdateNotice.svelte";
   import { updates } from "./lib/updates.svelte";
+  import { cameFrom, CHANNEL_LABEL } from "./lib/core/updates";
   import TourBar from "./lib/ui/TourBar.svelte";
   import { tourGate, tourStop } from "./lib/tour.svelte";
   import { NEWEST, newsSince } from "./lib/whatsNew";
@@ -2333,7 +2334,11 @@
       settingsReady = true;
       // Updates: checked once the window has drawn and things are quiet, then every 6 hours.
       updates.start(() => settings.updates);
-      setReportChannel(() => settings.updates.channel);
+      // The channel this build came from, as Settings names it ("local build" for one made here).
+      setReportChannel(() => {
+        const c = updates.info ? cameFrom(updates.info.version, settings.updates) : settings.updates.channel;
+        return c === "local" ? "local build" : CHANNEL_LABEL[c];
+      });
       logLine("info", "app", `build ${BUILD.commit}${BUILD.date ? ` (${BUILD.date})` : ""}, ${settings.market.platform}${onConsole ? " (console)" : ""}`);
       // Before reading its data: a fresh TennoScope re-reads the inventory once the game is up.
       ts.dataDir = settings.dataDir;

@@ -70,9 +70,13 @@ export const FLAGS = [
   ["workflow", /\b(pull_request_target|workflow_run|github\.event|\$\{\{|ACTIONS_\w+)\b/i],
 ];
 
-/** Text with nothing hidden in it: control, zero-width and bidi characters removed. `removed`: how many. */
+/**
+ * Text with nothing hidden in it: control, zero-width and bidi characters removed. `removed`: how many.
+ * Unicode's line and paragraph separators (U+2028, U+2029) become newlines, like a carriage return:
+ * a reader may break the line there, so each must start a "| " line of its own.
+ */
 export function stripHiddenChars(s) {
-  const folded = String(s ?? "").replace(/\r\n?/g, "\n");
+  const folded = String(s ?? "").replace(/\r\n?|[\u2028\u2029]/g, "\n");
   let removed = 0;
   const out = folded.replace(HIDDEN_CHARS, () => (removed++, "")).replace(CONTROL_CHARS, () => (removed++, ""));
   return { text: out, removed };

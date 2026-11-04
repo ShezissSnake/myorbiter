@@ -20,6 +20,8 @@
 //! An accelerated start leaves a marker once it gets going, removed when the window has run for a
 //! minute, or on a clean exit. If the next start finds it (the window crashed early, as a renderer the driver
 //! can't take does), that start and the ones after use compatibility rendering, and the log says so.
+//! The marker names the process that left it: a second start while that orbiter still runs (which
+//! single-instance closes at once) isn't taken for an early close.
 
 use std::path::PathBuf;
 use std::sync::OnceLock;
@@ -175,7 +177,9 @@ pub fn apply() -> Vec<&'static str> {
     }
     let yours: Vec<String> = WEBKIT_VARS.iter().filter_map(|k| std::env::var(k).ok().map(|v| format!("{k}={v}"))).collect();
     let saved = dir.as_deref().map(read_saved).unwrap_or(Why::None);
-    let trial_left = dir.as_deref().is_some_and(|d| d.join(TRIAL).exists());
+    // A marker left by an orbiter that is still running (a second start while the first is in its
+    // first minute, which single-instance then closes) isn't an early close.
+    let trial_left = dir.as_deref().is_some_and(|d| trial_is_crash(std::fs::read_to_string(d.join(TRIAL)).ok().as_deref(), running_orbiter));
     let (mode, why) = decide(!yours.is_empty(), saved, trial_left, nvidia);
     if let Some(dir) = dir.as_deref() {
         if why == Why::AfterCrash && saved == Why::None {
@@ -225,13 +229,31 @@ pub fn started() {
         // Left here, not before the window: a second orbiter started while one runs exits before
         // this point (single-instance), and must not leave a marker behind.
         if let Some(dir) = config_dir() {
-            let _ = std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(dir.join(TRIAL), "started\n"));
+            let _ = std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(dir.join(TRIAL), format!("started {}\n", std::process::id())));
         }
         std::thread::spawn(|| {
             std::thread::sleep(std::time::Duration::from_secs(60));
             stood_up();
         });
     }
+}
+
+/// Whether a start marker (`started <pid>`, or `started` from an older build) means the start
+/// that wrote it closed early: not when that orbiter is still running (`running`).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn trial_is_crash(marker: Option<&str>, running: impl Fn(u32) -> bool) -> bool {
+    let Some(marker) = marker else { return false };
+    match marker.trim().strip_prefix("started").map(str::trim).and_then(|p| p.parse::<u32>().ok()) {
+        Some(pid) => !running(pid),
+        None => true,
+    }
+}
+
+/// Whether `pid` is another orbiter, running now: the same program name as this one's.
+#[cfg(target_os = "linux")]
+fn running_orbiter(pid: u32) -> bool {
+    let comm = |p: &str| std::fs::read_to_string(format!("/proc/{p}/comm")).ok().map(|s| s.trim().to_owned());
+    pid != std::process::id() && comm(&pid.to_string()).is_some_and(|c| Some(c) == comm("self"))
 }
 
 /// The window ran long enough, or orbiter is closing normally: this start didn't crash.
@@ -301,6 +323,26 @@ mod tests {
         let vars = vars_for(Mode::Compat);
         assert!(vars.contains(&("WEBKIT_DISABLE_COMPOSITING_MODE", "1")));
         assert!(vars.contains(&("WEBKIT_DISABLE_DMABUF_RENDERER", "1")));
+    }
+
+    /// A second start while the first is still in its first minute finds the first one's marker:
+    /// that orbiter is running, so nothing closed early.
+    #[test]
+    fn a_marker_of_a_running_orbiter_is_not_a_crash() {
+        assert!(!trial_is_crash(None, |_| false));
+        assert!(!trial_is_crash(Some("started 4242\n"), |p| p == 4242));
+        assert!(trial_is_crash(Some("started 4242\n"), |_| false));
+        assert!(trial_is_crash(Some("started\n"), |_| true), "an older build's marker");
+        assert!(trial_is_crash(Some("garbage"), |_| true));
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn only_another_running_orbiter_counts_as_running() {
+        assert!(!running_orbiter(std::process::id()), "this process is the one starting");
+        assert!(!running_orbiter(u32::MAX), "no such process");
+        // A process with another name (the shell running the tests' parent, or init) isn't orbiter.
+        assert!(!running_orbiter(1));
     }
 
     #[test]
