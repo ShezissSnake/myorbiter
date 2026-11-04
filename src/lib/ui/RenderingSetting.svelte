@@ -30,7 +30,7 @@
 </script>
 
 {#if rs?.linux}
-  <section id="settings-display">
+  <section>
     <h3 class="register">Display</h3>
     <div title="Draws the window without the graphics card: for a window that stays blank, flickers or crashes on this computer. Scrolling and animations are slower with it on. Applies the next time orbiter starts.">
       <Switch bind:on={() => rs?.next ?? false, (v) => set(v)} label="Compatibility rendering (if the window is blank or flickers)">
