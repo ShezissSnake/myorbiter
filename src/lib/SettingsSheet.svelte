@@ -318,7 +318,7 @@
     {/if}
   </section>
 
-  <RenderingSetting />
+  <div id="settings-display"><RenderingSetting /></div>
 
   <section>
     <h3 class="register">Logs</h3>
