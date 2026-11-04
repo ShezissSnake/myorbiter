@@ -1,0 +1,33 @@
+[
+ {
+  "number": 7,
+  "title": "Relics page: vaulted tag wrong for Nyx Prime",
+  "state": "OPEN",
+  "author": {
+   "login": "ExamplePlayer",
+   "is_bot": false
+  },
+  "authorAssociation": "NONE",
+  "createdAt": "2026-11-04T10:00:00Z",
+  "url": "https://github.com/ShezissSnake/orbiter/issues/7",
+  "labels": [
+   {
+    "name": "bug"
+   },
+   {
+    "name": "needs-triage"
+   }
+  ],
+  "body": "### What happened\n\nNyx Prime shows as farmable but its relics are vaulted.\n\nSee [the wiki page](https://wiki.warframe.com/w/Nyx_Prime) and this screenshot:\n\n![screenshot](https://user-images.githubusercontent.com/1/abc.png)\n\n### Technical details\n\n```text\norbiter 0.1.0 (a1b2c3d) on linux x86_64\n[2026-11-04][10:00:00][app][INFO] build a1b2c3d\n```\n",
+  "comments": [
+   {
+    "author": {
+     "login": "ShezissSnake"
+    },
+    "authorAssociation": "OWNER",
+    "createdAt": "2026-11-04T11:00:00Z",
+    "body": "Thanks, reproduced. Commit 3c86ba0e1d2f4a5b6c7d8e9f0a1b2c3d4e5f6a7b touched this."
+   }
+  ]
+ }
+]
