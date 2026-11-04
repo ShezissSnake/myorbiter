@@ -123,6 +123,8 @@ test("Requiem and Antivirus mods: five of each kept while a lich weapon is left 
     observed_at: 1, relics: [], prices: { prices: {}, max_rank_prices: {} },
     catalog: [
       cat("/Lotus/Weapons/Grineer/KuvaLich/LongGuns/KuvaBramma", "Kuva Bramma", "Primary", { masterable: true }),
+      // A Coda weapon, mastered: none left, which the catalog has to list to be known.
+      cat("/Lotus/Weapons/Infested/LongGuns/CodaSynapse", "Coda Synapse", "Primary", { masterable: true }),
       cat("/Lotus/Upgrades/Mods/Immortal/ImmortalOneMod", "Lohk", "Mods", { rarity: "Rare" }),
       cat("/Lotus/Upgrades/Mods/Immortal/AntivirusOneMod", "Byteryte", "Mods", { rarity: "Rare" }),
       cat("/Lotus/Upgrades/Mods/Rifle/Serration", "Serration", "Mods", { rarity: "Rare" }),
@@ -131,11 +133,12 @@ test("Requiem and Antivirus mods: five of each kept while a lich weapon is left 
       { item_id: "/Lotus/Upgrades/Mods/Immortal/ImmortalOneMod", name: "Lohk", category: "mod", quantity: 5, mastered: false, image_name: null, rank: null, max_rank: 3 },
       { item_id: "/Lotus/Upgrades/Mods/Immortal/AntivirusOneMod", name: "Byteryte", category: "mod", quantity: 5, mastered: false, image_name: null, rank: null, max_rank: 3 },
       { item_id: "/Lotus/Upgrades/Mods/Rifle/Serration", name: "Serration", category: "mod", quantity: 5, mastered: false, image_name: null, rank: null, max_rank: 10 },
+      { item_id: "/Lotus/Weapons/Infested/LongGuns/CodaSynapse", name: "Coda Synapse", category: "weapon", quantity: 0, mastered: true, image_name: null, rank: null, max_rank: null },
       ...(kuvaMastered ? [{ item_id: "/Lotus/Weapons/Grineer/KuvaLich/LongGuns/KuvaBramma", name: "Kuva Bramma", category: "weapon", quantity: 1, mastered: true, image_name: null, rank: null, max_rank: null }] : []),
     ],
   });
   const m = buildModel(bundle(false) as never);
-  assert.deepEqual(lichWeaponsLeft(m), { requiem: ["Kuva Bramma"], antivirus: [] });
+  assert.deepEqual(lichWeaponsLeft(m), { requiem: ["Kuva Bramma"], antivirus: [], known: { requiem: true, antivirus: true } });
   const rows = new Map(modRows(m).map((r) => [r.name, r]));
   assert.equal(rows.get("Lohk")!.extras, 0, "a Kuva weapon left: five of each Requiem mod kept");
   assert.deepEqual(modSpares(rows.get("Lohk")!), []);
