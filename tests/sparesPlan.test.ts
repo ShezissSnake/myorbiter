@@ -25,7 +25,7 @@ import {
 import { guardListing } from "../src/lib/core/listGuard";
 import { indexItems, type MarketIndex, type MarketItem } from "../src/lib/core/market";
 import { defaultSellChoices } from "../src/lib/core/spares";
-import { defaultAdvice } from "../src/lib/backend";
+import { defaultAdvice, defaultSettings, lightSettings } from "../src/lib/backend";
 import { arcaneRows } from "../src/lib/core/views";
 import { defaultSparesRules, legacyRules, SPARE_CATEGORIES, sparesSettingsOf, withNeverSell, withoutNeverSell, type SpareCategory, type SparesRules } from "../src/lib/core/sparesRules";
 import type { Bundle } from "../src/lib/core/types";
@@ -296,4 +296,15 @@ test("the developer's old settings: every box ticked, keep 10 parts, sells most 
   const m = dev().m;
   const key = (t: SellTarget) => `${t.kind}|${t.name}|${t.rank}|${t.subtype ?? ""}|${t.quantity}|${t.hold?.why ?? ""}`;
   assert.deepEqual(sellTargets(m, old, advice, dev().index, sell).map(key), sellTargets(m, r, advice, dev().index, sell).map(key));
+});
+
+test("saved: Sell spares' choices, and the old switches beside them for an older build", () => {
+  const s = defaultSettings();
+  s.market.spares.mods.on = false;
+  s.market.spares.prime.sellAs = "parts";
+  s.market.spares.prime.keep = 3;
+  const saved = JSON.parse(JSON.stringify(lightSettings(s))).market;
+  assert.deepEqual(saved.spares, JSON.parse(JSON.stringify(s.market.spares)));
+  assert.deepEqual(saved.bulk, { sets: true, parts: true, partsKeep: 3, arcanes: true, mods: false, imprints: true, other: false, priority: "plat" }, "weapon sets still sold whole: an older build ticks Sets");
+  assert.deepEqual(sparesSettingsOf(saved), s.market.spares, "read back as saved");
 });
