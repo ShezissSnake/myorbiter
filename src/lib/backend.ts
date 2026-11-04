@@ -496,12 +496,21 @@ export const NO_INVENTORY_YET = "No inventory read yet";
  */
 export const nothingYet = (e: string) => /not found at|No dev bundle|HOME is not set|os error [23]\b|No inventory read yet/i.test(e);
 
+/** Browser dev mode: the catalogs of the last read and the file version they came from. */
+let devCatalogs: { tag: string; catalog: Bundle["catalog"]; relics: Bundle["relics"] } | null = null;
+
 export async function loadBundle(dataDir: string): Promise<Bundle> {
   if (inTauri) return tauriBundle(dataDir);
-  // The browser dev mode reads the whole bundle from one file.
+  // The browser dev mode reads the whole bundle from one file. While the file is the same, its
+  // catalogs stay the objects read last, as the desktop app keeps them across syncs (bundleLoader):
+  // what's worked out from them alone is then kept too (model.ts), here as there.
   const res = await fetch("/dev-bundle.json");
   if (!res.ok) throw new Error("No dev bundle. Run `npm run dev-bundle` first.");
-  return res.json();
+  const read: Bundle = await res.json();
+  const tag = res.headers.get("etag");
+  if (tag && devCatalogs?.tag === tag) return { ...read, catalog: devCatalogs.catalog, relics: devCatalogs.relics };
+  devCatalogs = tag ? { tag, catalog: read.catalog, relics: read.relics } : null;
+  return read;
 }
 
 export async function defaultDataDir(): Promise<string> {
@@ -843,12 +852,24 @@ export function lightSettings(s: Settings) {
   };
 }
 
-/** Puts the settings back together from their serialized parts. */
-export function joinSettings(light: string, heavy: Partial<Record<HeavyKey, string>>): Settings {
+/**
+ * Puts the settings back together from their serialized parts. `kept`: each long log as last read
+ * back from its text, read back again only once its text changed. A save follows every change (a
+ * page switch saves the page), and reading every log back each time made thousands of objects
+ * per switch for the garbage collector. What's read back is only serialized, never changed.
+ */
+export function joinSettings(light: string, heavy: Partial<Record<HeavyKey, string>>, kept?: Map<HeavyKey, { text: string; value: unknown }>): Settings {
   const s = JSON.parse(light) as Record<string, Record<string, unknown>>;
   for (const [a, b] of HEAVY_SETTINGS) {
-    const text = heavy[`${a}.${b}`];
-    if (text !== undefined) s[a][b] = JSON.parse(text);
+    const key: HeavyKey = `${a}.${b}`;
+    const text = heavy[key];
+    if (text === undefined) continue;
+    let hit = kept?.get(key);
+    if (!hit || hit.text !== text) {
+      hit = { text, value: JSON.parse(text) };
+      kept?.set(key, hit);
+    }
+    s[a][b] = hit.value;
   }
   return s as unknown as Settings;
 }

@@ -7,10 +7,12 @@ import { HEAVY_SETTINGS, joinSettings, lightSettings, saveSettings, type HeavyKe
 /** Call while a component initializes (or inside an effect root). `ready` says loading is done. */
 export function persistSettings(get: () => Settings, ready: () => boolean, save: (s: () => Settings) => void = saveSettings) {
   const heavy: Partial<Record<HeavyKey, string>> = {};
+  /** Each long log read back from its text, until the text changes (joinSettings). */
+  const kept = new Map<HeavyKey, { text: string; value: unknown }>();
   let light = "";
   const queue = () => {
     // Put together only when the save happens: once per burst of changes.
-    if (ready()) save(() => joinSettings(light, heavy));
+    if (ready()) save(() => joinSettings(light, heavy, kept));
   };
   $effect(() => {
     light = JSON.stringify(lightSettings(get()));

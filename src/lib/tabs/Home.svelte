@@ -326,7 +326,9 @@
   function dismiss(key: string) {
     settings.homeDismissed = [key, ...settings.homeDismissed.filter((k) => k !== key)].slice(0, 200);
   }
-  const alerts = $derived.by(() => all().filter((a) => !a.key || !dismissed.has(a.key)));
+  // Kept as they were while Home is hidden (pane.svelte.ts): the list moves its cards (animate:flip),
+  // and redrawing it out of sight would lay the hidden page out just to measure them.
+  const alerts = $derived.by(whileShown("home", () => all().filter((a) => !a.key || !dismissed.has(a.key))));
   // Dismissing an alert or removing a price alert waits a few seconds, with Undo, before it's done.
   const undo = new UndoSlots();
   $effect(() => () => undo.flush());

@@ -1,8 +1,13 @@
-<script lang="ts">
-  import Count from "./Count.svelte";
+<script lang="ts" module>
   import { numberFormat } from "./table";
+  // Made once for every figure: a table shows hundreds of these, and a formatter each was a
+  // noticeable part of drawing one (WebKitGTK builds them slowly).
   const one = numberFormat(1);
   const tenth = new Intl.NumberFormat("en", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+</script>
+
+<script lang="ts">
+  import Count from "./Count.svelte";
   // An amount in one of the two metals. A price nobody knows is a struck dash, never a guess.
   // Tenths only where they matter: 2.5p a part, not 75,883.2p of inventory. `tenths`: always one
   // decimal under 100, for a column of them (4.0 beside 5.2, not 4). `tick`: a total that rolls to
