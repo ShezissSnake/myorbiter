@@ -13,9 +13,9 @@ class BugReportStore {
 export const bugReport = new BugReportStore();
 
 /**
- * The release channel this copy follows (Stable, Beta, Experimental), for a report's technical
- * details. A hook for in-app updates: until they're in this build it returns null, and a report
- * carries the version only. Updates set it with `setReportChannel(() => settings.updates.channel)`.
+ * The release channel this copy came from (Stable, Beta, Experimental, or "local build"), for a
+ * report's technical details. App.svelte sets it once the settings are read; until then it's null
+ * and a report carries the version only.
  */
 let channelOf: () => string | null = () => null;
 export const reportChannel = (): string | null => channelOf();

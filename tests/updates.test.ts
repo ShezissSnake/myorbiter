@@ -81,6 +81,8 @@ test("release notes as lines, and when the last check was", () => {
   assert.deepEqual(noteLines("- Faster sync\n\n* Fissures\n• Relics\nPlain"), ["Faster sync", "Fissures", "Relics", "Plain"]);
   assert.deepEqual(noteLines(null), []);
   assert.equal(noteLines("a\nb\nc", 2).length, 2);
+  // Commit subjects from contributors: nothing hidden or reordered reaches the notice.
+  assert.deepEqual(noteLines("Fix \u202Eslaer\u202C list\n\u200B\nx".concat("y".repeat(300))), ["Fix slaer list", "x".concat("y".repeat(199))]);
   const now = 10_000_000_000;
   assert.equal(checkedAgo(null, now), "not yet");
   assert.equal(checkedAgo(now - 10_000, now), "just now");

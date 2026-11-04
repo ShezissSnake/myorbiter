@@ -93,6 +93,12 @@ test("hostile text: tokens, cookies, e-mails, webhooks, ids and IPs in any shape
     ["/invite SomeFriend and /w OtherOne hi", /^\/invite \[player\] and \/w \[player\] hi$/],
     [".../pfx/drive_c/users/steamuser/AppData and /prefix/drive_c/users/alice/AppData", /^\.\.\.\/pfx\/drive_c\/users\/steamuser\/AppData and \/prefix\/drive_c\/users\/\[user\]\/AppData$/],
     ["posting to https://discord.com/api/webhooks/1/AbC-Token failed", /^posting to \[redacted webhook\] failed$/],
+    // Wine's Z: drive is the Linux root: the home folder's name shows there too.
+    ["Z:\\home\\alice\\Games\\Warframe", /^Z:\\home\\\[user\]\\Games\\Warframe$/],
+    // Notifications as the log keeps them: sellers of deals and rivens, chat partners and what they wrote.
+    ["deals: Cheap: Ash Prime Set for 20p (Ash Prime Set: 20p from SellerName (usually 40p))", /^deals: Cheap: Ash Prime Set for 20p \(Ash Prime Set: 20p from \[player\] \(usually 40p\)\)$/],
+    ["rivens: A riven you want is listed (Rubico Vexi-critacan: 300p from Seller_X)", /^rivens: A riven you want is listed \(Rubico Vexi-critacan: 300p from \[player\]\)$/],
+    ["siteChat: Chatty messaged you on warframe.market (Chatty: add me, my name elsewhere is RealName)", /^siteChat: \[player\] messaged you on warframe\.market \(\[chat hidden\]\)$/],
   ];
   for (const [input, want] of cases) assert.match(redact(input), want, input);
   // Words that only look like names after "to", "for", "with" stay.

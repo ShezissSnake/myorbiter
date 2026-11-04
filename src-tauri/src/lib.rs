@@ -836,14 +836,16 @@ fn log_tail(lines: usize) -> Vec<String> {
 /// What a bug report says about this copy: its version and the system it runs on.
 #[derive(serde::Serialize)]
 struct ReportEnv {
-    version: &'static str,
+    version: String,
     os: &'static str,
     arch: &'static str,
 }
 
+/// The version is the app's (0.1.<build> in a CI build, set through tauri.conf.json), not the
+/// crate's, which stays 0.1.0.
 #[tauri::command]
-fn report_env() -> ReportEnv {
-    ReportEnv { version: env!("CARGO_PKG_VERSION"), os: std::env::consts::OS, arch: std::env::consts::ARCH }
+fn report_env(app: tauri::AppHandle) -> ReportEnv {
+    ReportEnv { version: app.package_info().version.to_string(), os: std::env::consts::OS, arch: std::env::consts::ARCH }
 }
 
 /// Sent to the page when the window's X is clicked: it saves what is waiting to be saved (the last
