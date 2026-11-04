@@ -235,7 +235,11 @@ pub fn updates_info(app: AppHandle) -> Info {
 /// installs is decided again at the click (`updates_install`).
 #[tauri::command]
 pub async fn updates_check(app: AppHandle, pending: State<'_, Pending>, channel: Channel) -> Result<Check, String> {
-    let install = this_install(&app);
+    check(&app, &pending, channel).await
+}
+
+async fn check(app: &AppHandle, pending: &Pending, channel: Channel) -> Result<Check, String> {
+    let install = this_install(app);
     if !install.checks() {
         return Ok(Check::Off);
     }
@@ -300,7 +304,14 @@ pub async fn updates_install(
     older: bool,
     progress: tauri::ipc::Channel<Progress>,
 ) -> Result<(), String> {
-    let install = this_install(&app);
+    install(&app, &pending, channel, &version, older, |p| {
+        let _ = progress.send(p);
+    })
+    .await
+}
+
+async fn install(app: &AppHandle, pending: &Pending, channel: Channel, version: &str, older: bool, mut progress: impl FnMut(Progress)) -> Result<(), String> {
+    let install = this_install(app);
     if !install.installs() {
         return Err(match install {
             Install::ReadOnly { folder } => format!("orbiter can't replace its own file: {folder} isn't writable. Move the AppImage to a folder you own, or download the new one by hand"),
@@ -332,7 +343,7 @@ pub async fn updates_install(
                 let step = total.map_or(256 * 1024, |t| (t / 100).max(64 * 1024));
                 if done - last_sent >= step || total == Some(done) {
                     last_sent = done;
-                    let _ = progress.send(Progress { done, total });
+                    progress(Progress { done, total });
                 }
             },
             || {},
@@ -348,6 +359,14 @@ pub async fn updates_install(
             Err(calm("install the update", &e))
         }
     }
+}
+
+/// Once the app is up: in an end-to-end test build, the test's own drive of the update (`e2e::auto`).
+pub fn setup(app: &AppHandle) {
+    #[cfg(feature = "e2e-updater")]
+    e2e::auto(app);
+    #[cfg(not(feature = "e2e-updater"))]
+    let _ = app;
 }
 
 /// The update plugin, set up for orbiter.
@@ -383,6 +402,45 @@ mod e2e {
     /// With the test server set: plain http allowed for it, and, when `ORBITER_UPDATER_E2E_PUBKEY`
     /// is set, the test's own signing key in place of the release key (the test signs its builds
     /// with a throwaway key; the real key's private half never leaves the developer's machine and CI).
+    /// With `ORBITER_UPDATER_E2E_AUTO=1`, the test drives the update with no window to click in:
+    /// one check on Experimental, the install if it found a newer build, then the restart, each
+    /// step printed for the test script to read (and an exit once it's up to date or failed).
+    pub fn auto(app: &tauri::AppHandle) {
+        if std::env::var("ORBITER_UPDATER_E2E_AUTO").as_deref() != Ok("1") || endpoint().is_none() {
+            return;
+        }
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            use tauri::Manager;
+            let pending = app.state::<super::Pending>();
+            let version = app.package_info().version.to_string();
+            println!("e2e: running {version}, install {:?}", super::this_install(&app));
+            match super::check(&app, &pending, super::Channel::Experimental).await {
+                Ok(super::Check::Newer { version: next, .. }) => {
+                    println!("e2e: {next} on offer, installing");
+                    match super::install(&app, &pending, super::Channel::Experimental, &next, false, |_| {}).await {
+                        Ok(()) => {
+                            println!("e2e: installed {next}, restarting");
+                            app.request_restart();
+                        }
+                        Err(e) => {
+                            println!("e2e: install refused: {e}");
+                            app.exit(3);
+                        }
+                    }
+                }
+                Ok(other) => {
+                    println!("e2e: no update ({other:?})");
+                    app.exit(0);
+                }
+                Err(e) => {
+                    println!("e2e: check failed: {e}");
+                    app.exit(4);
+                }
+            }
+        });
+    }
+
     pub fn apply(mut config: serde_json::Value) -> serde_json::Value {
         if endpoint().is_none() {
             return config;

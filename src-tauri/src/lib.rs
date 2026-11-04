@@ -1082,6 +1082,7 @@ pub fn run() {
                 .and_then(|v| v["tennoscope"]["path"].as_str().map(str::to_owned));
             app.state::<companion::Companion>().load_custom(config.join("tennoscope-program"), legacy);
             fit_first_window(app);
+            updates::setup(app.handle());
             Ok(())
         })
         // Item artwork, cached locally (see images.rs). Fetches run off the main thread.
