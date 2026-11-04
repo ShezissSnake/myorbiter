@@ -141,6 +141,7 @@
   import Lookup from "./lib/ui/Lookup.svelte";
   import { view } from "./lib/view.svelte";
   import { parseTarget, setIntent } from "./lib/intent.svelte";
+  import { withoutNeverSell } from "./lib/core/sparesRules";
   import { ts } from "./lib/tennoscopeStore.svelte";
   import BugReport from "./lib/ui/BugReport.svelte";
   import { bugReport, setReportChannel } from "./lib/bugReport.svelte";
@@ -756,6 +757,8 @@
    * and a spot ("home#baro", "market#spares") is scrolled to and lit up briefly. `hold`: the spot
    * stays outlined until the next goTo (the tour, one change at a time).
    */
+  /** Off the never-sell list (Sell spares): from the listing form or Find anything. */
+  const sellAgain = (ids: string[]) => (settings.market.spares.neverSell = withoutNeverSell(settings.market.spares, ids).neverSell);
   function goTo(target: string, spot: string | null = null, hold = false) {
     const t = parseTarget(target);
     // Put my spares on sale was a fold on Orders: older links to it (What's New) open Sell spares.
@@ -2751,10 +2754,10 @@
       {@render pane("rivens", pRivens)}
       {@render pane("wishlist", pWishlist)}
       {@render pane("browse", pBrowse)}
-      <ListDialog {model} market={settings.market} advice={onConsole ? null : settings.advice} go={(t: string) => (settings.tab = t)} />
+      <ListDialog {model} market={settings.market} advice={onConsole ? null : settings.advice} go={(t: string) => (settings.tab = t)} onsellagain={sellAgain} />
       <BuyDialog {model} go={(t: string) => (settings.tab = t)} onalert={(a) => { settings.market.buyAlerts = [a, ...settings.market.buyAlerts.filter((x) => x.name !== a.name || x.rank !== a.rank || (x.subtype ?? null) !== (a.subtype ?? null))].slice(0, 40); lastDeals = 0; }} />
       <ItemDetails {model} bind:settings={settings} />
-      {#if !onConsole}<Lookup bind:open={showLookup} {model} go={(t: string) => (settings.tab = t)} />{/if}
+      {#if !onConsole}<Lookup bind:open={showLookup} {model} go={(t: string) => (settings.tab = t)} spares={settings.market.spares} onsellagain={sellAgain} />{/if}
       <HoverCard {model} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad > 1 ? 4 : 1} />
     {/if}
     <TourBar go={(t: string) => goTo(t)} />
