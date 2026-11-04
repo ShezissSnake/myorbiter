@@ -14,11 +14,12 @@
   import GameIcon from "./GameIcon.svelte";
   import ProgressButton from "./ProgressButton.svelte";
   import { trap } from "./trap";
-  import { opens, shade } from "../motion";
+  import { opens, pulse, shade } from "../motion";
+  import { neverSells } from "../core/sparesRules";
 
   // market: your Orders settings, so the form can say when a price is under the floor the
   // repricer holds listings at.
-  let { model, go, market = null, advice = null }: { model: Model; go: (tab: string) => void; market?: MarketSettings | null; advice?: DucatOptions | null } = $props();
+  let { model, go, market = null, advice = null, onsellagain = () => {} }: { model: Model; go: (tab: string) => void; market?: MarketSettings | null; advice?: DucatOptions | null; onsellagain?: (ids: string[]) => void } = $props();
 
   const open = $derived(!!(mkt.draft || mkt.draftError || mkt.drafting || mkt.draftDone));
   const d = $derived(mkt.draft);
@@ -96,6 +97,13 @@
 
   // Whole numbers only: warframe.market takes whole platinum and copies, and an empty box isn't 0.
   const badNumber = $derived(d ? amountProblem(d.quantity, d.platinum, merging ? 0 : 1) : null);
+  // On the never-sell list (Sell spares): refused by the last check too; Sell again takes it off.
+  const neverSold = $derived(!!d && !!market?.spares && neverSells(market.spares, d.itemId));
+  function sellAgain() {
+    if (!d || !market?.spares) return;
+    onsellagain([d.itemId]);
+    mkt.draftError = null;
+  }
   const ready = $derived(
     !!d && wholeIn(d.platinum, 1, MAX_PLAT) && wholeIn(d.quantity, merging ? 0 : 1, MAX_QTY) && !oversell && !(repriceOnly && existing?.platinum === d.platinum) && !mkt.busy,
   );
@@ -194,7 +202,8 @@
           {#if underFloor && market}<p class="warn small">Under your {floor}p floor{market.auto ? `: Apply automatically lifts it to at least ${floor}p while anyone in game sells it` : " (Floor and Never under, on Orders)"}.</p>
           {:else if low}<p class="warn small">Under half the daily median. Check the price before listing.</p>{/if}
           {#if crackBeats != null}<p class="warn small">{anRefinement} crack of it is worth about {crackBeats}p{(advice?.squad ?? 1) > 1 ? " in a radshare" : ""}: cracking beats selling at {d.platinum}p.</p>{/if}
-          {#if ducats}<p class="warn small">Worth more as ducats: {ducats.n} ducats are about {ducats.worth}p to you (your rate, on Prime parts). "Put my spares on sale" keeps it off the market.</p>{/if}
+          {#if ducats}<p class="warn small">Worth more as ducats: {ducats.n} ducats are about {ducats.worth}p to you (your rate, on Prime parts). Sell spares keeps it off the market.</p>{/if}
+          {#if neverSold && !repriceOnly}<p class="warn small never">On your never-sell list (Sell spares), so orbiter won't list it. <button type="button" class="link" title="Take it off the never-sell list: it can be listed here, and Sell spares lists it again when it's spare" onclick={(e) => { pulse(e.currentTarget.parentElement!); sellAgain(); }}>Sell again</button></p>{/if}
 
           {#if existing}
             <label class="merge small">

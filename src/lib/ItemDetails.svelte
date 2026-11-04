@@ -27,6 +27,8 @@
   import GameIcon, { eraIcon, kindIcon } from "./ui/GameIcon.svelte";
   import Metal from "./ui/Metal.svelte";
   import ListButton from "./ui/ListButton.svelte";
+  import NeverSoldTag from "./ui/spares/NeverSoldTag.svelte";
+  import { neverSells, withoutNeverSell } from "./core/sparesRules";
   import { pop } from "./motion";
   import { gearKindOf } from "./core/builds/gear";
   import { setIntent } from "./intent.svelte";
@@ -146,6 +148,11 @@
     const parts = c?.isPrime ? c.parts.filter((p) => p.tradable) : [];
     return parts.length ? Math.min(...parts.map((p) => Math.floor(p.have / Math.max(1, p.required)))) : 0;
   });
+  /** The set (or the item) on the never-sell list, if it is: "Never sold · Sell again" among the actions. */
+  const neverItem = $derived.by(() => {
+    const it = tradeName && mkt.index ? findItem(mkt.index, tradeName, null) : null;
+    return it && neverSells(settings.market.spares, it.id) ? it : null;
+  });
   const bookNote = $derived(bookState === "failed" ? "warframe.market didn't answer" : bookState === "missing" ? "not listed on warframe.market" : "Checking…");
 
   const open = { get v() { return !!details.unique; }, set v(x: boolean) { if (!x) details.close(); } };
@@ -171,7 +178,8 @@
           {#if item.releaseDate}<span class="dim">Released {new Date(item.releaseDate).getFullYear()}</span>{/if}
         </div>
         <div class="detail-acts">
-          {#if tradeName && setsHeld > 0 && bookState !== "missing"}<ListButton {model} labelled name={tradeName} req={{ quantity: setsHeld }} />{/if}
+          {#if neverItem}<NeverSoldTag name={neverItem.name} onsellagain={() => (settings.market.spares.neverSell = withoutNeverSell(settings.market.spares, [neverItem!.id]).neverSell)} />
+          {:else if tradeName && setsHeld > 0 && bookState !== "missing"}<ListButton {model} labelled name={tradeName} req={{ quantity: setsHeld }} />{/if}
           <button class="star" class:on={fav} title={fav ? "On your wishlist: click to take it off" : "Add it to your wishlist (Wishlist, and ★ on Foundry)"} onclick={toggleFav}><span class="glyph" aria-hidden="true" use:pop={{ on: fav, of: item.uniqueName }}>{fav ? "★" : "☆"}</span> {fav ? "On your wishlist" : "Add to wishlist"}</button>
           {#if buildable}<button title="Builds for {item.name}: yours, orbiter's suggestion, and what you're missing for each" onclick={openBuilds}>Builds</button>{/if}
           <button title="Its page on the official wiki" onclick={() => openUrl(item.wikiaUrl ?? wikiUrl(item.name))}>Wiki</button>

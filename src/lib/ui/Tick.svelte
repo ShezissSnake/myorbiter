@@ -3,7 +3,7 @@
   // box pops; unticking clears it at once. Reduced motion: the check is simply there.
   // With `onclick` it's a toggle button (Home's weekly chores); without, a mark that only shows a
   // state (Start here's steps). `drawn`: draw the check as it first appears (a row that turns up
-  // already done, as a sent change in Put my spares on sale); otherwise nothing moves on mount.
+  // already done, as a sent change on Sell spares); otherwise nothing moves on mount.
   //   <Tick on={done} label="Netracells done" title="…" onclick={toggle} />
   //   <Tick on={x.done} size={1.05} />
   import { pop } from "../motion";

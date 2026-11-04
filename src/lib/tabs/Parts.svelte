@@ -264,8 +264,8 @@
 
   <Browse id="parts" bind:opened {rows} {columns} key={(r) => r.name} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty="No prime parts of mastered items.">
     {#snippet tools()}
-      <!-- Not filters: how Best as weighs platinum against ducats (Put my spares on sale uses them too), so they sit at the end of the sort row rather than wrapping alone under the filters. -->
-      <Fold label="Your rates" title="What a ducat is worth to you and the smallest sale worth a trade: how Best as weighs platinum against ducats (Put my spares on sale uses the same)">
+      <!-- Not filters: how Best as weighs platinum against ducats (Sell spares uses them too), so they sit at the end of the sort row rather than wrapping alone under the filters. -->
+      <Fold label="Your rates" title="What a ducat is worth to you and the smallest sale worth a trade: how Best as weighs platinum against ducats (Sell spares uses the same)">
         <select bind:value={advice.platPerDucat} aria-label="What a ducat is worth to you" title="What a ducat is worth to you, from what you'd buy with them at Baro">
           {#each [...new Set([...RATES, advice.platPerDucat])].sort((a, b) => a - b) as r (r)}<option value={r}>1 ducat ≈ {r}p ({Math.round(1 / r)}:1)</option>{/each}
         </select>

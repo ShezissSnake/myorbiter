@@ -21,7 +21,7 @@ import { dealFromOrder, findDeals, type Deal, type FeedOrder, type Watch } from 
 import { recentPrice, type PricePoint } from "./core/priceTrend";
 import type { RelicMarket } from "./core/model";
 import { aboveCrack, relicCrackFor } from "./core/spares";
-import { KIND_LABEL, LISTING_LIMIT, aboveDucats, bulkPlan, cheapByMedian, ducatWorth, planSignature, resolve, sellTargets, type BulkAction } from "./core/bulk";
+import { KIND_LABEL, LISTING_LIMIT, aboveDucats, bulkPlan, cheapByMedian, ducatWorth, planSignature, resolve, sellTargets, toApply, type BulkAction } from "./core/bulk";
 import type { DucatOptions } from "./core/advice";
 import { backoff } from "./core/upkeep";
 import { drops } from "./drops.svelte";
@@ -459,7 +459,7 @@ class MarketStore {
       logLine("warn", "listing", why);
       return false;
     }
-    const r = guardListing({ model: m, index: this.index, sell: this.rules?.sellable, advice: this.advice ?? undefined, drops: drops.recent, fullMode: this.fullMode }, req);
+    const r = guardListing({ model: m, index: this.index, sell: this.rules?.sellable, advice: this.advice ?? undefined, drops: drops.recent, fullMode: this.fullMode, rules: this.rules?.spares }, req);
     if (!r.ok) {
       this.note(r.why, "warn");
       logLine("warn", "listing", r.why);
@@ -1147,11 +1147,24 @@ class MarketStore {
     }
   }
 
-  // ------------------------------------------------------------ put my spares on sale
+  // ------------------------------------------------------------ sell spares
 
-  /** The changes "Put my spares on sale" would make, for you to look over before applying. */
-  /** The plan, when it was worked out, and the order books it priced from (Apply prices from those, never an older copy). */
-  bulk = $state.raw<{ actions: BulkAction[]; at: number; books: Record<string, BookOrder[] | undefined> } | null>(null);
+  /**
+   * The changes Sell spares would make, for you to look over before applying: the plan, when it
+   * was worked out, the order books it priced from (Apply prices from those, never an older copy),
+   * and the lines you skipped this time (by actionKey; a plan you make again starts without them).
+   */
+  bulk = $state.raw<{ actions: BulkAction[]; at: number; books: Record<string, BookOrder[] | undefined>; skipped: ReadonlySet<string> } | null>(null);
+
+  /** Skip this time, or put it back: one line of the plan, for this plan only. */
+  skipLine(key: string, skip: boolean) {
+    const b = this.bulk;
+    if (!b || this.applying) return;
+    const skipped = new Set(b.skipped);
+    if (skip) skipped.add(key);
+    else skipped.delete(key);
+    this.bulk = { ...b, skipped };
+  }
   /** A long run's progress (planning, applying, removing everything). */
   progress = $state<{ done: number; total: number } | null>(null);
   /**
@@ -1161,7 +1174,7 @@ class MarketStore {
   applying = $state.raw<{ now: BulkAction | null; sent: ReadonlySet<BulkAction>; failed: ReadonlySet<BulkAction> } | null>(null);
 
   /** False when it didn't run (signed out, or a change you asked for is under way). */
-  async planBulk(m: Model, s: MarketSettings, advice: DucatOptions): Promise<boolean> {
+  async planBulk(m: Model, s: MarketSettings, advice: DucatOptions, skipped: ReadonlySet<string> = new Set()): Promise<boolean> {
     // A timed price check doesn't hold a plan back (it only reads); a change you asked for does.
     if (!this.linked || this.op) return false;
     this.bulk = null;
@@ -1174,7 +1187,7 @@ class MarketStore {
       // Spares are worked out from your inventory: without a recent, whole read nothing is planned.
       const trust = inventoryTrust(m, Date.now(), this.fullMode);
       if (!trust.ok) throw new Error(`Nothing planned: ${trust.why}`);
-      const targets = sellTargets(m, s.bulk, advice, this.index, s.sellable, drops.recent);
+      const targets = sellTargets(m, s.spares, advice, this.index, s.sellable, drops.recent);
       // Fresh order books for everything that might be listed, one at a time (warframe.market
       // allows a few requests a second; the app paces them).
       // Things clearly under your minimum by their daily median are settled without a fetch.
@@ -1208,9 +1221,10 @@ class MarketStore {
       }
       const books = Object.fromEntries(slugs.map((sl) => [sl, got.has(sl) ? this.books[sl]?.orders : undefined]));
       this.bulk = {
-        actions: bulkPlan({ model: m, index: this.index, orders: this.orders, me, books, minPrice: s.minPrice, minRelicPrice: s.minRelicPrice, minShare: s.minShare, floors: s.floors, paused: s.paused, otherOrders: this.otherOrders, sell: s.sellable, advice, drops: drops.recent }, s.bulk, targets),
+        actions: bulkPlan({ model: m, index: this.index, orders: this.orders, me, books, minPrice: s.minPrice, minRelicPrice: s.minRelicPrice, minShare: s.minShare, floors: s.floors, paused: s.paused, otherOrders: this.otherOrders, sell: s.sellable, advice, drops: drops.recent }, s.spares, targets),
         at: Date.now(),
         books,
+        skipped,
       };
     });
     this.progress = null;
@@ -1225,9 +1239,10 @@ class MarketStore {
   async applyBulk(m: Model, s: MarketSettings, advice: DucatOptions): Promise<BulkResult | null> {
     const shown = this.bulk;
     if (!shown || this.busy || !this.me) return null;
-    // Prices move: a plan looked at a while ago is worked out again from fresh order books first.
+    // Prices move: a plan looked at a while ago is worked out again from fresh order books first,
+    // the lines skipped this time still skipped.
     if (Date.now() - shown.at > PLAN_FRESH_MS) {
-      await this.planBulk(m, s, advice);
+      await this.planBulk(m, s, advice, shown.skipped);
       if (this.bulk) this.note("That plan was over 10 minutes old, so its prices were read again: look it over and apply again.", "warn");
       return { sent: 0, failed: 0, outcome: "replanned" };
     }
@@ -1235,7 +1250,9 @@ class MarketStore {
     let changed = false;
     // Removals first, so new listings have room under the 100-listing limit.
     const ORDER = { remove: 0, update: 1, create: 2, skip: 3 } as const;
-    const todo = shown.actions.filter((a) => a.type !== "skip").sort((a, b) => ORDER[a.type] - ORDER[b.type]);
+    // Without the lines skipped this time, or put on the never-sell list while looking it over.
+    const never = new Set(s.spares.neverSell.map((n) => n.id));
+    const todo = toApply(shown.actions, shown.skipped, never).filter((a) => a.type !== "skip").sort((a, b) => ORDER[a.type] - ORDER[b.type]);
     const sent = new Set<BulkAction>();
     let failed = 0;
     // Held back by the last check (listGuard.ts): told one by one, counted apart from refusals.
@@ -1244,9 +1261,9 @@ class MarketStore {
     await this.guard("Updating your listings", async () => {
       await this.refresh().catch(() => {});
       // Priced from the books the plan was priced from: one that failed then isn't priced from an older copy now.
-      const fresh = bulkPlan({ model: m, index: this.index, orders: this.orders, me: this.me!, books: shown.books, minPrice: s.minPrice, minRelicPrice: s.minRelicPrice, minShare: s.minShare, floors: s.floors, paused: s.paused, otherOrders: this.otherOrders, sell: s.sellable, advice, drops: drops.recent }, s.bulk, sellTargets(m, s.bulk, advice, this.index, s.sellable, drops.recent));
-      if (planSignature(fresh) !== planSignature(shown.actions)) {
-        this.bulk = { actions: fresh, at: shown.at, books: shown.books };
+      const fresh = bulkPlan({ model: m, index: this.index, orders: this.orders, me: this.me!, books: shown.books, minPrice: s.minPrice, minRelicPrice: s.minRelicPrice, minShare: s.minShare, floors: s.floors, paused: s.paused, otherOrders: this.otherOrders, sell: s.sellable, advice, drops: drops.recent }, s.spares, sellTargets(m, s.spares, advice, this.index, s.sellable, drops.recent));
+      if (planSignature(toApply(fresh, shown.skipped, never)) !== planSignature(toApply(shown.actions, shown.skipped, never))) {
+        this.bulk = { actions: fresh, at: shown.at, books: shown.books, skipped: shown.skipped };
         this.note("Your inventory or listings changed since the plan: here is the updated plan. Look it over and apply again.", "warn");
         changed = true;
         return;
@@ -1277,7 +1294,7 @@ class MarketStore {
           }
           listedNow.set(k, (listedNow.get(k) ?? 0) + a.quantity);
         } else if (a.type === "update" && a.platinum !== a.order.platinum) {
-          const under = ducatRefusal({ model: m, index: this.index, sell: s.sellable, advice, drops: drops.recent }, a.item, a.platinum);
+          const under = ducatRefusal({ model: m, index: this.index, sell: s.sellable, advice, drops: drops.recent, rules: s.spares }, a.item, a.platinum);
           if (under) {
             const line = `Didn't reprice ${tag(a.item.name, a.order.rank)}: ${under.charAt(0).toUpperCase()}${under.slice(1)}`;
             this.note(line, "warn");
@@ -1330,7 +1347,7 @@ class MarketStore {
       // Stopped part way (the sign-in expired): keep only what wasn't sent, so a second Apply
       // doesn't list things twice.
       const left = shown.actions.filter((a) => !sent.has(a));
-      this.bulk = left.some((a) => a.type !== "skip") ? { actions: left, at: Date.now(), books: shown.books } : null;
+      this.bulk = left.some((a) => a.type !== "skip") ? { actions: left, at: Date.now(), books: shown.books, skipped: shown.skipped } : null;
       this.note(`Stopped after ${sent.size} of ${todo.length} changes: ${this.error}`, "warn");
       this.applying = null;
       return { sent: sent.size, failed, outcome: "stopped" };

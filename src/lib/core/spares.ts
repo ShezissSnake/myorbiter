@@ -8,6 +8,7 @@ import { copyValue } from "./vosfor";
 import { idOf, perModel } from "./memo";
 import { arcaneRows, inventoryRows, MASTERY_CATEGORIES, modRows, modSpares, partRows, relicRows, saveForSets, savedLine, saveSource, setRows, setSaves, worthSaving, type SaveForSets, type SetSave, type InventoryItem, type InventoryKind, type RelicRow, type SetRow } from "./views";
 import { expectedBest } from "./advice";
+import { isResource } from "./collection";
 
 /** Something unbuilt that a held item goes into, and how many of it the recipe takes. */
 export interface Need {
@@ -54,20 +55,35 @@ export interface SpareRow {
 
 /**
  * For each item path, the unbuilt things whose recipes take it: everything masterable you haven't
- * mastered and don't own (built, or building in the foundry). The parts of a recipe only, not the
- * parts' own recipes (WFCD's catalog lists a warframe's Neuroptics, not what the Neuroptics take).
+ * mastered and don't own (built, or building in the foundry). The recipe's own parts and resources,
+ * and one level down, what each part not built yet takes to build: WFCD's catalog lists a
+ * warframe's Neuroptics, not the 40 Purged Dagonic the Neuroptics take, so those come from the
+ * Foundry recipes (Model.recipes, the data buildPlan reads), for every copy of the part still to
+ * build. A part held as a blueprint or not held at all counts the same: either way it's still to build.
  */
 export const needsByUnique = perModel(needsByUniqueFresh, () => "");
 function needsByUniqueFresh(m: Model): Map<string, Need[]> {
   const out = new Map<string, Need[]>();
+  const add = (u: string, need: Need) => {
+    const list = out.get(u) ?? [];
+    list.push(need);
+    out.set(u, list);
+  };
+  const recipes = m.recipes?.recipes;
   for (const item of m.catalogByUnique.values()) {
     if (!item.masterable || !(item.category in MASTERY_CATEGORIES)) continue;
     if (UNOBTAINABLE.has(item.name) || m.isMastered(item.uniqueName) || m.owned(item.uniqueName) > 0) continue;
     for (const c of item.components ?? []) {
-      const u = baseId(c.uniqueName);
-      const list = out.get(u) ?? [];
-      list.push({ item: item.name, count: c.itemCount ?? 1 });
-      out.set(u, list);
+      const count = c.itemCount ?? 1;
+      add(baseId(c.uniqueName), { item: item.name, count });
+      // The part's own recipe (not the item's blueprint, whose recipe is this list; not a resource).
+      const recipe = recipes?.[c.uniqueName];
+      if (!recipe || c.name === "Blueprint" || isResource(c)) continue;
+      // Built copies, one building in the foundry counted (Model.owned).
+      const left = count - m.owned(c.uniqueName);
+      if (left <= 0) continue;
+      const what = c.name.startsWith(item.name) ? c.name : `${item.name} ${c.name}`;
+      for (const [path, n] of recipe.i) add(baseId(path), { item: what, count: n * left });
     }
   }
   return out;
