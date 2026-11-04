@@ -63,7 +63,8 @@
   /* Pending: the label dims and a hairline runs under it, on the control itself. */
   .find { position: relative; }
   .find.reading { color: var(--platinum-dim); }
-  .find.reading::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent); background-size: 200% 100%; animation: run 900ms linear infinite; }
-  @keyframes run { from { background-position: 100% 0; } to { background-position: -100% 0; } }
-  @media (prefers-reduced-motion: reduce) { .find.reading::after { animation: none; background: var(--gold-dim); } }
+  /* The band runs by transform (app.css, sweep-band); the clip keeps it to the button's width. */
+  .find.reading { clip-path: inset(0 0 -3px 0); }
+  .find.reading::after { content: ""; position: absolute; left: 0; bottom: -2px; width: 40%; height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent); animation: sweep-band 900ms linear infinite; }
+  @media (prefers-reduced-motion: reduce) { .find.reading::after { animation: none; width: 100%; transform: none; background: var(--gold-dim); } }
 </style>

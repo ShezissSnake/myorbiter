@@ -196,9 +196,10 @@
   .state { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .6rem; margin: .7rem 0 0; font-size: .82rem; color: var(--platinum-dim); }
   .state.bad { color: var(--alert); }
   .state.warn { color: var(--alert); font-size: .78rem; }
-  .run { width: 2.4rem; height: 2px; background: linear-gradient(90deg, transparent, var(--sec), transparent); background-size: 200% 100%; animation: run 900ms linear infinite; }
-  @keyframes run { from { background-position: 100% 0; } to { background-position: -100% 0; } }
-  @media (prefers-reduced-motion: reduce) { .run { animation: none; background: var(--sec-dim); } }
+  /* The band runs by transform (app.css, sweep-band), clipped to the bar. */
+  .run { position: relative; overflow: hidden; width: 2.4rem; height: 2px; }
+  .run::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 40%; background: linear-gradient(90deg, transparent, var(--sec), transparent); animation: sweep-band 900ms linear infinite; }
+  @media (prefers-reduced-motion: reduce) { .run { background: var(--sec-dim); } .run::before { display: none; } }
 
   .rows { list-style: none; margin: .7rem 0 0; padding: 0; display: grid; border-top: 1px solid var(--rule); }
   .row { display: grid; grid-template-columns: 4.2rem minmax(0, 1fr) auto; align-items: center; gap: .3rem 1rem; padding: .6rem .2rem .6rem 0; border-bottom: 1px solid var(--rule); }

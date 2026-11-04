@@ -4,7 +4,6 @@
   // the count and the category's name under it. Each is a button (a filter, or a jump), the page's
   // category lit. `all`: an "All" tile first, every category added up, lit when none is picked.
   // `marks`: a gold ★ count on a tile (what you starred in it). `line`: the next thing to do.
-  import { onMount } from "svelte";
   import { ringTotal, type CodexRing } from "../core/codex";
   import type { Group } from "../core/collection";
   import GameIcon, { type GameIconName } from "./GameIcon.svelte";
@@ -33,12 +32,8 @@
   const ICON: Record<Group, GameIconName> = { warframes: "warframes", primary: "primary", secondary: "secondary", melee: "melee", companions: "companions", archwing: "archwing", amps: "amp", kdrives: "ventkids", other: "foundry" };
   const R = 20;
   const C = 2 * Math.PI * R;
-  // The rings fill once, as the page opens (at once with reduced motion: see the style).
-  let shown = $state(false);
-  onMount(() => {
-    const f = requestAnimationFrame(() => (shown = true));
-    return () => cancelAnimationFrame(f);
-  });
+  // The rings are drawn full as the page opens (a page opening is busy drawing its grid, and motion
+  // answers a click, not a load); a ring that changes after a sync runs to its new length.
   const n = (x: number) => x.toLocaleString("en");
   const pct = (m: number, t: number) => (t ? Math.floor((m / t) * 100) : 0);
   const starred = (g: Group) => marks[g] ?? 0;
@@ -90,7 +85,7 @@
   <span class="dial" class:full>
     <svg viewBox="0 0 48 48" width="48" height="48" aria-hidden="true">
       <circle class="track" cx="24" cy="24" r={R} />
-      <circle class="arc" cx="24" cy="24" r={R} stroke-dasharray="{shown ? frac * C : 0} {C}" />
+      <circle class="arc" cx="24" cy="24" r={R} stroke-dasharray="{frac * C} {C}" />
     </svg>
     <span class="gi-wrap"><GameIcon name={icon ?? "mastery"} size={icon ? 22 : 20} /></span>
   </span>
