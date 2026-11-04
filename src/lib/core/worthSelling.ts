@@ -47,7 +47,7 @@ export function partsWorthSelling(rows: PartRow[], advice: DucatOptions): WorthI
 
 /**
  * Mods: the spare copies (beyond your best and one to give away) of tradable mods that sell at least
- * once a day, as Put my spares on sale lists them, and only where they're worth a trade. Rivens go
+ * once a day, as Sell spares lists them, and only where they're worth a trade. Rivens go
  * under everything else on Inventory.
  */
 export function modsWorthSelling(rows: ModRow[], minPlat: number): WorthItem[] {

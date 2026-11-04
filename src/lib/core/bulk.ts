@@ -1,6 +1,7 @@
-// "Put my spares on sale": what you'd want listed under the categories you tick, and the changes
-// that bring your warframe.market listings in line with it. Pure: the store fetches order books
-// and sends the changes (marketStore.planBulk / applyBulk).
+// Sell spares: what you'd want listed under the rows you tick and their choices (sparesRules.ts),
+// and the changes that bring your warframe.market listings in line with it, each with the rule that
+// decided it. Pure: the store fetches order books and sends the changes (marketStore.planBulk /
+// applyBulk); the page shows each row's numbers (sparesPreview) and the plan.
 import { decide, type DucatOptions } from "./advice";
 import { competitor, findItem, heldFor, marketValue, overAsked, type BookOrder, type FloorRule, type Me, type MarketIndex, type MarketItem, type MyOrder, listingKey, referencePrice } from "./market";
 import { aboveCrack, allSetRows, gearSetRows, spareRows, type SellChoices, type SpareRow } from "./spares";

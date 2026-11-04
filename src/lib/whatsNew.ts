@@ -15,7 +15,7 @@ export interface NewsItem {
   icon: { game: string } | { line: string } | { page: string } | { sections: true };
   /**
    * Where to see it, as App's links put it: a page, filters, and a spot on it that Show me lights
-   * ("market?spares=1#spares", "home#today": a `data-card` or an id on the page, or in the sidebar).
+   * ("spares?open=mods#cat-mods", "home#today": a `data-card` or an id on the page, or in the sidebar).
    */
   open?: string;
 }
@@ -29,6 +29,16 @@ export interface NewsEntry {
 }
 
 export const NEWS: NewsEntry[] = [
+  {
+    id: 17,
+    date: "2026-11-04",
+    items: [
+      { title: "Sell spares, your way", icon: { page: "spares" }, text: "Putting your spares on sale has a page of its own in Trade, after Orders. One row per kind (prime sets and parts, mods, arcanes, relics, weapon parts and sets, resources, imprints) says in a line how it sells and what it would list; click one for its options: whole sets or loose parts, how many of each mod to keep (Primed, stances, Requiem and the rest each their own), maxed arcanes or every spare copy, relics and imprints to keep, resources by kind. The plan says which rule put each line in or left it out.", open: "spares?open=mods#cat-mods" },
+      { title: "Never sell, or skip it this time", icon: { line: "lock" }, text: "The ⋯ on a line of the plan leaves it out of this plan only, or for good. Something you never sell isn't listed by any path, the listing form included, until Sell again: in its row's options, its details and Find anything.", open: "spares?open=mods#cat-mods" },
+      { title: "Relics to sell, on the Relics row", icon: { game: "relic-axi-intact" }, text: "Settings' Sell relics worth more sold than cracked is the Relics row on Sell spares now, with how many of each to keep. Off there before, the row starts off.", open: "spares?open=relics#cat-relics" },
+      { title: "Gems a part still takes are kept", icon: { game: "foundry" }, text: "What a part you haven't built takes is kept too, not only what the item itself lists: the 40 Purged Dagonic the Styanax Neuroptics take stay out of your spares while Styanax is unbuilt.", open: "inventory" },
+    ],
+  },
   {
     id: 16,
     date: "2026-11-04",
