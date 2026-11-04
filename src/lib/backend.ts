@@ -852,12 +852,24 @@ export function lightSettings(s: Settings) {
   };
 }
 
-/** Puts the settings back together from their serialized parts. */
-export function joinSettings(light: string, heavy: Partial<Record<HeavyKey, string>>): Settings {
+/**
+ * Puts the settings back together from their serialized parts. `kept`: each long log as last read
+ * back from its text, read back again only once its text changed. A save follows every change (a
+ * page switch saves the page), and reading every log back each time made thousands of objects
+ * per switch for the garbage collector. What's read back is only serialized, never changed.
+ */
+export function joinSettings(light: string, heavy: Partial<Record<HeavyKey, string>>, kept?: Map<HeavyKey, { text: string; value: unknown }>): Settings {
   const s = JSON.parse(light) as Record<string, Record<string, unknown>>;
   for (const [a, b] of HEAVY_SETTINGS) {
-    const text = heavy[`${a}.${b}`];
-    if (text !== undefined) s[a][b] = JSON.parse(text);
+    const key: HeavyKey = `${a}.${b}`;
+    const text = heavy[key];
+    if (text === undefined) continue;
+    let hit = kept?.get(key);
+    if (!hit || hit.text !== text) {
+      hit = { text, value: JSON.parse(text) };
+      kept?.set(key, hit);
+    }
+    s[a][b] = hit.value;
   }
   return s as unknown as Settings;
 }
