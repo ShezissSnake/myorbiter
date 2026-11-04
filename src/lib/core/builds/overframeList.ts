@@ -13,6 +13,7 @@
 // last two years. Fixed, not the age setting: Overframe's list has no "older hidden: show".
 
 import { normName } from "./match";
+import { cleanLine } from "../untrusted";
 
 export const OVERFRAME_SITE = "Overframe";
 export const OVERFRAME_ORIGIN = "https://overframe.gg";
@@ -62,11 +63,29 @@ export interface OverframeFile {
 
 const DAY = 86_400_000;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const str = (v: unknown, max: number): string | null => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
+// The file is third-party text shipped with the app: every string is cleaned of hidden characters
+// and capped (core/untrusted.ts), and every link must be a build page on overframe.gg.
+const str = (v: unknown, max: number): string | null => cleanLine(v, max);
 const count = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.round(v) : null);
+/** A catalog path, as the game writes them. */
+const UNIQUE = /^\/Lotus(\/[A-Za-z0-9_]+){1,12}$/;
 
-/** A path on overframe.gg that is a build's page (the only links orbiter makes to it). */
-export const isBuildPath = (p: string): boolean => /^\/build\/\d+\/[^?#\s]*$/.test(p);
+/**
+ * A path on overframe.gg that is a build's page (the only links orbiter makes to it):
+ * `/build/<id>/` and slug segments, nothing that could leave the page once the browser reads it
+ * (no empty, `.` or `..` segments, backslashes, `%`, query, fragment, spaces or hidden characters), and the
+ * URL it makes stays on overframe.gg under /build/.
+ */
+export function isBuildPath(p: string): boolean {
+  if (typeof p !== "string" || p.length > 400 || !/^\/build\/\d{1,10}\/[^?#%\\\s]*$/.test(p) || cleanLine(p, 400) !== p) return false;
+  if (p.includes("//") || p.split("/").some((seg) => seg === "." || seg === "..")) return false;
+  try {
+    const u = new URL(overframeBuildUrl(p));
+    return u.origin === OVERFRAME_ORIGIN && u.pathname.startsWith("/build/") && !u.search && !u.hash;
+  } catch {
+    return false;
+  }
+}
 /** The build's page on overframe.gg, opened in the browser. */
 export const overframeBuildUrl = (path: string): string => `${OVERFRAME_ORIGIN}${path}`;
 
@@ -83,7 +102,7 @@ export function parseOverframeFile(raw: unknown): OverframeFile | null {
     if (!v || typeof v !== "object") continue;
     const b = v as Record<string, unknown>;
     const id = count(b.id);
-    const path = str(b.path, 400);
+    const path = typeof b.path === "string" ? b.path : null;
     const title = str(b.title, 200);
     const item = str(b.item, 80);
     const created = str(b.created, 10);
@@ -91,7 +110,7 @@ export function parseOverframeFile(raw: unknown): OverframeFile | null {
     const category = str(b.category, 30);
     if (id == null || seen.has(id) || !path || !isBuildPath(path) || !title || !item || !created || !DATE.test(created) || !updated || !DATE.test(updated) || !category || !cats.has(category)) continue;
     seen.add(id);
-    const unique = str(b.uniqueName, 300);
+    const unique = typeof b.uniqueName === "string" && UNIQUE.test(b.uniqueName) ? b.uniqueName : null;
     builds.push({
       id,
       path,

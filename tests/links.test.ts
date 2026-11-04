@@ -42,3 +42,24 @@ test("the opener permission allows exactly the same sites", () => {
   const urls = opener.allow.map((a: { url: string }) => a.url).sort();
   assert.deepEqual(urls, LINK_SITES.map((s) => `https://${s.host}${s.path}*`).sort());
 });
+
+test("tricks that read like an allowed site are refused", () => {
+  for (const url of [
+    "https://warframe.market@evil.example/",
+    "https:\\\\evil.example\\warframe.market",
+    "https://evil.example\\@warframe.market/",
+    "https://github.com/ShezissSnake/../someone-else/repo",
+    "https://github.com/ShezissSnake/%2e%2e/someone-else/repo",
+    "https://github.com/shezisssnake/orbiter",
+    "https://w\u0430rframe.market/", // a Cyrillic a
+    "https://warframe.market./items/x",
+    "https://overframe.gg:443@evil.example/",
+    "HTTPS://evil.example/",
+    "https://evil.example/?u=https://warframe.market/",
+    " javascript:alert(1)",
+    "data:text/html,<script>alert(1)</script>",
+  ])
+    assert.equal(openable(url), null, url);
+  // The address is opened as normalised, so what was checked is what opens.
+  assert.equal(openable("https://WARFRAME.MARKET/items/x"), "https://warframe.market/items/x");
+});

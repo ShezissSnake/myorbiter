@@ -14,6 +14,7 @@
   import { BUILD } from "../build";
   import { updates as updateState } from "../updates.svelte";
   import { arrive } from "../motion";
+  import { bugReport } from "../bugReport.svelte";
 
   // console: the short guide, for the pages a console or phone player has. platform: where they play.
   // hidden: the pages Settings → Pages keeps out of the sidebar.
@@ -225,6 +226,7 @@
         <li><b>Show</b> (Relics, Foundry) picks which ones the list shows; <b>Squad</b> on Relics values a crack solo or in a radshare.</li>
         <li>Filters and sorting stay as you left them while orbiter is open.</li>
         <li>A page that hits an error says so, with <b>Try again</b> to draw it afresh; the rest of orbiter keeps working, and the log (Settings) has what went wrong.</li>
+        <li data-card="report-bug"><span class="ic"><Icon name="bug" /></span> <b>Report a bug</b> (here, in Settings, with <kbd>Shift</kbd>+<kbd>F1</kbd>, or the bug by the gear when the sidebar is folded): say what happened, and orbiter fills in a new issue on GitHub for you to check and submit there, or copies the report to send another way if you don't have a GitHub account. It can add technical details (orbiter's version, your system, the page, TennoScope's state and the log's last lines) with sign-ins, addresses, ids and every player's name hidden, and you can read all of it before sending. orbiter itself never sends anything. <button type="button" class="link" title="Open Report a bug: nothing is sent until you press Submit on GitHub" onclick={() => bugReport.show()}>Report a bug</button></li>
         <li><b>Sync</b> (bottom of the sidebar) asks TennoScope to read your inventory from the game, fills while it waits for that new read (up to half a minute), and ticks once it's loaded; if no read comes, it says why under the button. When Warframe isn't running or TennoScope can't read the game, it re-reads what TennoScope last saved instead. Buttons that start longer work (Check prices on Orders and Rivens, Reprice, the spares plan) fill the same way and say how it went.</li>
         <li><b>TennoScope</b> under it opens its panel: whether it's healthy, screen-capture permission for the reward overlay, and inventory sync. Its light is green when all is well, gold when something wants a look, red when it isn't running or something failed.</li>
         <li>The sidebar folds to icons on narrow windows; the arrow next to the name folds or unfolds it, and orbiter remembers your choice.</li>
