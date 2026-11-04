@@ -10,7 +10,7 @@
   const src = $derived([file, marketThumb(name)].find((f): f is string => !!f && !failed.includes(f)) ?? null);
 </script>
 
-<span class="art" class:dim style:width="{size}px" style:height="{size}px">
+<span class="art" class:dim style:width="{size}px">
   {#if src}
     <!-- A market thumbnail has no large copy. -->
     <img src={imageUrl(src, !src.startsWith("wfm."))} {alt} loading="lazy" decoding="async" onerror={() => src && (failed = [...failed, src])} />
@@ -26,7 +26,9 @@
      a drop-shadow filter on the picture: a blurred filter is redrawn with every card on every
      scrolled frame, and on a long grid that was most of the cost of scrolling. */
   .art {
-    position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none;
+    /* Square at any width: a box narrowed by its container keeps its shape (and its pool of light)
+       instead of being squeezed into a tall strip. */
+    position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none; aspect-ratio: 1; max-width: 100%;
     background: radial-gradient(ellipse 40% 9% at 50% 89%, rgb(0 0 0 / 55%), transparent 75%),
       radial-gradient(ellipse 60% 22% at 50% 92%, rgb(214 174 74 / 13%), transparent 70%),
       radial-gradient(circle at 50% 45%, rgb(230 233 238 / 5%), transparent 62%);

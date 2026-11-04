@@ -207,7 +207,7 @@
 {#snippet screen()}
   <section class="screen" aria-label={onScreen ? "The reward screen" : "The reward screen, before it opens"}>
     {#if onScreen}
-      <div class="row">{#each onScreen as c, i (i + c.name)}{@render rewardCard(c, i)}{/each}</div>
+      <div class="row" class:few={onScreen.length < 4} style:--n={onScreen.length}>{#each onScreen as c, i (i + c.name)}{@render rewardCard(c, i)}{/each}</div>
       <div class="screen-foot">
         <span class="dim small">Read by TennoScope at {readAt(cards!.at)} · the same pick is marked on its overlay</span>
         <CopyButton text={chatLine} label="Copy for squad chat" title="Copy the four cards with their prices, to paste in squad chat: {chatLine}" />
@@ -387,6 +387,9 @@
   /* Always in quarters across the page, as the figures below are: a solo screen's one card keeps its place. */
   .row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8rem; }
   :global(html[data-room~="lt640"]) .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* On a narrow window, fewer than four cards share the width rather than each keeping a quarter. */
+  :global(html[data-room~="lt1100"]) .row.few { grid-template-columns: repeat(var(--n), minmax(0, 1fr)); }
+  :global(html[data-room~="lt640"]) .row.few { grid-template-columns: repeat(min(var(--n), 2), minmax(0, 1fr)); }
   .rc {
     --rar: var(--rule-bright);
     position: relative; display: grid; grid-template-rows: auto auto auto auto 1fr auto; justify-items: center; text-align: center; gap: .45rem;
@@ -410,7 +413,9 @@
   .rc-val :global(.amt b) { font-size: 1.15rem; }
   .rc-marks { align-self: start; display: flex; flex-wrap: wrap; justify-content: center; align-content: start; gap: .3rem; min-height: 1.3rem; }
   .rc-marks .tag { margin: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .rc-foot { align-self: end; width: calc(100% + 1.6rem); display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .45rem .8rem .7rem; border-top: 1px solid var(--rule); }
+  /* Out to the card's edges through its padding: negative margins on a stretched item, which every
+     engine places the same way (a wider centred item overflows to one side in WebKitGTK). */
+  .rc-foot { align-self: end; justify-self: stretch; margin-inline: -.8rem; display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .45rem .8rem .7rem; border-top: 1px solid var(--rule); }
   .rar { font-family: var(--face-register); font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--rar); }
   .rc-score { display: inline-flex; align-items: center; gap: .5rem; }
   .rc-score b { font-family: var(--face-mark); font-size: 1.2rem; line-height: 1; color: var(--platinum-dim); font-variant-numeric: tabular-nums; }
