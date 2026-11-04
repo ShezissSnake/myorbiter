@@ -35,7 +35,7 @@
 {/if}
 
 <style>
-  .update { position: fixed; right: 1rem; bottom: 1rem; z-index: 60; width: min(22rem, calc(100vw - 2rem)); display: grid; gap: .65rem; padding: .8rem .9rem .9rem; border: 1px solid var(--rule-bright); background: var(--plate); box-shadow: 0 10px 30px rgb(0 0 0 / 55%), inset 3px 0 0 var(--gold); clip-path: var(--cut); }
+  .update { position: fixed; right: 1rem; bottom: 1rem; z-index: 60; width: min(24rem, calc(100vw - 2rem)); display: grid; gap: .65rem; padding: .8rem .9rem .9rem; border: 1px solid var(--rule-bright); background: var(--plate); box-shadow: 0 10px 30px rgb(0 0 0 / 55%), inset 3px 0 0 var(--gold); clip-path: var(--cut); }
   /* A side panel open: behind its shade, as the notifications go. */
   :global(html[data-scrim]) .update { z-index: 39; }
   .head { display: grid; grid-template-columns: 1.4rem 1fr auto; gap: .6rem; align-items: start; }
@@ -44,7 +44,7 @@
   .txt b { color: var(--platinum); font-weight: 600; font-size: .88rem; font-variant-numeric: tabular-nums; }
   .notes { margin: 0; padding-left: 2.9rem; display: grid; gap: .2rem; font-size: .78rem; color: var(--platinum-dim); line-height: 1.4; }
   .notes li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .acts { display: flex; align-items: center; gap: .9rem; padding-left: 2rem; flex-wrap: wrap; }
+  .acts { display: flex; align-items: center; gap: .8rem; padding-left: 2rem; flex-wrap: wrap; }
   .x { padding: .3rem; line-height: 0; border-color: transparent; background: transparent; color: var(--platinum-deep); }
   .x:hover:not(:disabled) { color: var(--platinum); }
 </style>

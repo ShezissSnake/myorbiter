@@ -399,7 +399,7 @@ fn updater_config(config: serde_json::Value) -> serde_json::Value {
 mod e2e {
     /// The test server's manifest (only a local plain-http address is taken).
     pub fn endpoint() -> Option<String> {
-        std::env::var("ORBITER_UPDATER_E2E_ENDPOINT").ok().filter(|u| u.starts_with("http://127.0.0.1:"))
+        std::env::var("ORBITER_UPDATER_E2E_ENDPOINT").ok().filter(|u| u.parse::<tauri::Url>().is_ok_and(|p| p.scheme() == "http" && p.host_str() == Some("127.0.0.1") && p.username().is_empty() && p.password().is_none()))
     }
 
     /// With the test server set: plain http allowed for it, and, when `ORBITER_UPDATER_E2E_PUBKEY`

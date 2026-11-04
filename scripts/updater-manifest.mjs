@@ -44,7 +44,9 @@ export function formatNotes(subjects) {
   const seen = new Set();
   const lines = [];
   for (const raw of subjects) {
-    let s = String(raw).replace(/\s+/g, " ").trim();
+    // Commit subjects can come from contributors: hidden and bidi characters go, and backticks
+    // become quotes so a subject can't close a code block in the job summary.
+    let s = String(raw).replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\u{E0000}-\u{E007F}]/gu, "").replace(/`/g, "'").replace(/\s+/g, " ").trim();
     if (/^Merge (branch|pull request|remote-tracking branch|tag) /.test(s)) continue;
     s = s.replace(/^(Merge:\s*)+/i, "").trim();
     if (!s) continue;
