@@ -9,7 +9,7 @@
   import Icon from "./ui/Icon.svelte";
   import { flip, pulse, reveal } from "./motion";
   import WeightSliders from "./ui/WeightSliders.svelte";
-  import { NOX_SETTING } from "./core/builds";
+  import { NOX_SETTING } from "./core/builds/noxsframe";
   import FullMode from "./FullMode.svelte";
   import Seg from "./ui/Seg.svelte";
   import ProgressButton from "./ui/ProgressButton.svelte";

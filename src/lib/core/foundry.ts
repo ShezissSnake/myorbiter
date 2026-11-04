@@ -15,15 +15,29 @@ export interface FoundryBuild {
   image: string | null;
 }
 
-export function foundryBuilds(m: Model, ready: [string, number][], now = Date.now()): FoundryBuild[] {
-  // Each blueprint, by path: the item it builds (its own "Blueprint") or the part it makes.
-  const product = new Map<string, { name: string; unique: string | null; parent: string }>();
+type Product = { name: string; unique: string | null; parent: string };
+/**
+ * Each blueprint, by path: the item it builds (its own "Blueprint") or the part it makes. Worked
+ * out once per catalog: the Foundry list is asked for on every clock tick, by several pages.
+ */
+const products = new WeakMap<Model["catalogByUnique"], Map<string, Product>>();
+function productsOf(m: Model): Map<string, Product> {
+  let product = products.get(m.catalogByUnique);
+  if (product) return product;
+  product = new Map<string, Product>();
   for (const item of m.catalogByUnique.values()) {
     for (const c of item.components ?? []) {
       if (!/\/Recipes\//.test(c.uniqueName)) continue;
       product.set(c.uniqueName, c.name === "Blueprint" ? { name: item.name, unique: item.uniqueName, parent: item.name } : { name: `${item.name} ${c.name.replace(/ Blueprint$/, "")}`, unique: null, parent: item.name });
     }
   }
+  products.set(m.catalogByUnique, product);
+  return product;
+}
+
+export function foundryBuilds(m: Model, ready: [string, number][], now = Date.now()): FoundryBuild[] {
+  if (!ready.length) return [];
+  const product = productsOf(m);
   return ready
     .map(([path, at]) => {
       const p = product.get(path);

@@ -77,6 +77,20 @@ test("each change is saved, and switching pages doesn't re-read the sales and tr
   }
 });
 
+test("a save after a page switch doesn't read the long logs back again", () => {
+  const s = bigSettings();
+  const heavy = Object.fromEntries(HEAVY_SETTINGS.map(([a, b]) => [`${a}.${b}`, JSON.stringify((s[a] as unknown as Record<string, unknown>)[b])]));
+  const kept = new Map();
+  const first = joinSettings(JSON.stringify(lightSettings(s)), heavy, kept);
+  const next = joinSettings(JSON.stringify(lightSettings({ ...s, tab: "market" })), heavy, kept);
+  assert.equal(next.tab, "market");
+  assert.equal(next.market.trades, first.market.trades, "the trade log is the one read before");
+  const sold = { ...heavy, "market.sales": JSON.stringify([{ at: 1, item: "Forma Blueprint", rank: null, quantity: 1, platinum: 5 }]) };
+  const after = joinSettings(JSON.stringify(lightSettings(s)), sold, kept);
+  assert.equal(after.market.sales[0].item, "Forma Blueprint", "a changed log is read again");
+  assert.equal(after.market.trades, first.market.trades);
+});
+
 test("nothing is saved before the settings are loaded", () => {
   const settings = proxy(defaultSettings());
   let saves = 0;
