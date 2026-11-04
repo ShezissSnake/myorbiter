@@ -295,12 +295,7 @@ export function sparesSettingsOf(market: { spares?: unknown; bulk?: unknown; sel
 }
 /** What to save: both keys (see sparesSettingsOf). */
 export const toStored = (r: SparesRules): { spares: SparesRules; bulk: BulkRules } => ({ spares: r, bulk: legacyRules(r) });
-/**
- * For an older build: its "Sell relics worth more sold than cracked" (Settings, Selling), which
- * this build moved into the Relics row. Saved as the row's box, so an older build lists no relic
- * the row keeps.
- */
-export const relicsForOlderBuilds = (r: SparesRules) => r.relics.on;
+
 
 // ---------------------------------------------------------------- in words
 

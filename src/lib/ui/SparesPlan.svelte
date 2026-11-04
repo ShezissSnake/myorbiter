@@ -1,12 +1,13 @@
 <script lang="ts">
-  // "Put my spares on sale", the choices: one compact row per category (its box, its choices in a
-  // line of words, what it would list), and the row you click opens its options beneath it, one
-  // at a time. Every option says what it does; what a category always keeps whatever the options
-  // say is written at the foot of its options. The listing limit and the price minimum, which
-  // apply to everything, stay at the bottom with the button that makes the plan.
+  // Sell spares, the choices: one compact row per category (its box, its choices in a line of
+  // words, what it would list), and the row you click opens its options beneath it, one at a time.
+  // Every option says what it does; what a category always keeps whatever the options say is
+  // written at the foot of its options. The listing limit and the price minimum, which apply to
+  // everything, stay at the bottom with the button that makes the plan. A category that's off
+  // keeps its options as they are, greyed out.
   //
-  // A prototype: it draws the choices (settings.market.spares, version 2: core/sparesRules.ts) and
-  // the counts it's given. The plan logic fills `preview` (docs/design/spares-plan.md).
+  // It draws the choices (settings.market.spares, version 2: core/sparesRules.ts) and the counts
+  // the page gives it (core/bulk.ts: sparesPreview, planTally).
   import type { Snippet } from "svelte";
   import CategoryRow from "./spares/CategoryRow.svelte";
   import FamilyLine from "./spares/FamilyLine.svelte";
@@ -36,7 +37,6 @@
   let {
     rules = $bindable(),
     veiledRivens = $bindable(false),
-    relicsWorthSelling = true,
     preview,
     facts,
     open = $bindable(null),
@@ -47,8 +47,6 @@
     rules: SparesRules;
     /** Settings, Selling: veiled rivens count as spare (and so can be listed). Shown under Resources. */
     veiledRivens?: boolean;
-    /** Settings, Selling: relics worth more sold than cracked count as spare. Off keeps every relic. */
-    relicsWorthSelling?: boolean;
     preview: SparesPreview;
     facts: SparesFacts;
     /** The category whose options are open: one at a time. */
@@ -74,6 +72,7 @@
     return n ? `${n} more spare ${what} sell for under your ${min}p minimum: left out` : "";
   };
 
+  const off = (c: SpareCategory) => !rules[c].on;
   const SELL_AS_OPTIONS = (whole: string): { v: SellAs; label: string; title: string }[] => [
     { v: "sets", label: "Whole sets", title: `Only complete ${whole} sets; loose parts stay in your inventory` },
     { v: "setsFirst", label: "Sets, then parts", title: "Complete sets first, then every spare part left over on its own" },
@@ -101,19 +100,19 @@
     <!-- Prime -->
     <CategoryRow id="cat-prime" bind:on={rules.prime.on} open={open === "prime"} ontoggle={() => toggle("prime")} label={CATEGORY_LABEL.prime} icon={ICON.prime} summary={summaryOf("prime", rules, facts.lichLeft)} preview={preview.prime}
       always="Always kept: the parts and sets you need to build and master anything unbuilt; anything its ducats beat at your rate ({rate}p a ducat, set on Prime parts); loose parts waiting for a set worth more whole (Settings, Selling).">
-      <div class="opts">
+      <fieldset class="opts" disabled={off("prime")}>
         <div class="opt wide">
           <Seg label="Sell" bind:value={rules.prime.sellAs} options={SELL_AS_OPTIONS("prime")} />
           <p class="note">{SELL_AS_NOTE[rules.prime.sellAs]}</p>
         </div>
-        <div class="opt">
-          <span class="ol"><span class="register">Keep</span><Stepper bind:value={rules.prime.keep} min={KEEP_MIN.prime} label="Copies of each prime part to keep" /><span class="register">of each part</span></span>
-          <p class="note">On top of what you build and master. 0 sells every spare.</p>
+        <div class="opt" class:quiet={rules.prime.sellAs === "sets"}>
+          <span class="ol"><span class="register">Keep</span><Stepper bind:value={rules.prime.keep} min={KEEP_MIN.prime} disabled={off("prime")} label="Loose copies of each prime part to keep" title="Loose copies of each prime part kept, on top of what you build and master" /><span class="register">of each part</span></span>
+          <p class="note">Loose ones, on top of what you build and master; parts in a whole set still go as the set. 0 sells every spare.{#if rules.prime.sellAs === "sets"} No loose parts are sold now.{/if}</p>
         </div>
         <div class="opt" class:quiet={rules.prime.sellAs === "parts"}>
-          <Switch bind:on={rules.prime.onlyRelicsHeld} label="Only sets my relics drop">A set goes only when a relic you hold drops each of its parts, so you can crack another.{#if rules.prime.sellAs === "parts"} No sets are sold now.{/if}</Switch>
+          <Switch bind:on={rules.prime.onlyRelicsHeld} disabled={off("prime")} label="Only sets my relics drop" title="Sell a prime set only when a relic you hold drops every one of its parts">A set goes only when a relic you hold drops each of its parts, so you can crack another.{#if rules.prime.sellAs === "parts"} No sets are sold now.{/if}</Switch>
         </div>
-      </div>
+      </fieldset>
       {#if under("prime", "parts")}<p class="note">{under("prime", "parts")}.</p>{/if}
       <NeverSoldLine entries={neverSoldIn(rules, "prime")} one="part or set" many="parts and sets" {onsellagain} />
     </CategoryRow>
@@ -121,20 +120,20 @@
     <!-- Mods -->
     <CategoryRow id="cat-mods" bind:on={rules.mods.on} open={open === "mods"} ontoggle={() => toggle("mods")} label={CATEGORY_LABEL.mods} icon={ICON.mods} summary={summaryOf("mods", rules, facts.lichLeft)} preview={preview.mods}
       always="Always kept: copies installed in a build, and at least one of every mod. Rivens aren't here: veiled ones are under Resources, unveiled ones go by auction on Rivens.">
-      <div class="opts">
+      <fieldset class="opts" disabled={off("mods")}>
         <div class="opt">
-          <Switch bind:on={rules.mods.dailyOnly} label="Only mods that sell every day">Common mods at a few platinum can sit for weeks. Off lists slow sellers too.</Switch>
+          <Switch bind:on={rules.mods.dailyOnly} disabled={off("mods")} label="Only mods that sell every day" title="Leave out mods that sell less than once a day on warframe.market">Common mods at a few platinum can sit for weeks. Off lists slow sellers too.</Switch>
         </div>
-      </div>
-      <div class="families" role="group" aria-label="Kinds of mods">
-        <FamilyLine fixed on={true} bind:keep={rules.mods.keep} keepMin={KEEP_MIN.mods} label="Every other mod" note={rules.mods.keep === 2 ? "your best copy and one to give a new player" : ""} tally={fam("mods", "ordinary")} estimate={preview.mods?.estimate} />
+      </fieldset>
+      <fieldset class="families" disabled={off("mods")} aria-label="Kinds of mods">
+        <FamilyLine fixed on={true} disabled={off("mods")} bind:keep={rules.mods.keep} keepMin={KEEP_MIN.mods} label="Every other mod" title="Every mod outside the kinds below" note={rules.mods.keep === 2 ? "your best copy and one to give a new player" : ""} tally={fam("mods", "ordinary")} estimate={preview.mods?.estimate} />
         {#each MOD_FAMILIES as f (f)}
           {@const lich = f === "requiem" ? facts.lichLeft.requiem : f === "antivirus" ? facts.lichLeft.antivirus : null}
-          <FamilyLine bind:on={rules.mods.families[f].on} bind:keep={rules.mods.families[f].keep} keepMin={KEEP_MIN.family} label={MOD_FAMILY_LABEL[f]} tally={fam("mods", f)} estimate={preview.mods?.estimate}
+          <FamilyLine disabled={off("mods")} bind:on={rules.mods.families[f].on} bind:keep={rules.mods.families[f].keep} keepMin={KEEP_MIN.family} label={MOD_FAMILY_LABEL[f]} tally={fam("mods", f)} estimate={preview.mods?.estimate}
             note={lich == null ? "" : lich ? `while ${lich} ${f === "requiem" ? "Kuva or Tenet" : "Coda"} weapon${lich === 1 ? " is" : "s are"} left to master, then ${rules.mods.keep}` : `all mastered: ${rules.mods.keep}, as other mods`}
-            title={f === "requiem" ? "Requiem mods (Khra, Lohk and the rest, and Oull): Kuva Liches and Sisters of Parvos take them" : f === "antivirus" ? "Antivirus mods: the Technocyte Coda take them" : f === "galvanized" ? "Galvanized and Archon mods" : f === "augment" ? "Warframe augment mods" : undefined} />
+            title={f === "requiem" ? "Requiem mods (Khra, Lohk and the rest, and Oull): Kuva Liches and Sisters of Parvos take them" : f === "antivirus" ? "Antivirus mods: the Technocyte Coda take them" : f === "galvanized" ? "Galvanized and Archon mods" : f === "augment" ? "Warframe augment mods (an ability's augment)" : f === "primed" ? "Primed mods" : "Stance mods"} />
         {/each}
-      </div>
+      </fieldset>
       {#if under("mods", "mods")}<p class="note">{under("mods", "mods")}.</p>{/if}
       <NeverSoldLine entries={neverSoldIn(rules, "mods")} one="mod" many="mods" {onsellagain} />
     </CategoryRow>
@@ -142,7 +141,7 @@
     <!-- Arcanes -->
     <CategoryRow id="cat-arcanes" bind:on={rules.arcanes.on} open={open === "arcanes"} ontoggle={() => toggle("arcanes")} label={CATEGORY_LABEL.arcanes} icon={ICON.arcanes} summary={summaryOf("arcanes", rules, facts.lichLeft)} preview={preview.arcanes}
       always="Always kept: the copies toward your own maxed one, and arcanes worth more dissolved for Vosfor (Arcanes, Sell or dissolve).">
-      <div class="opts">
+      <fieldset class="opts" disabled={off("arcanes")}>
         <div class="opt wide">
           <Seg label="Sell" bind:value={rules.arcanes.which} options={[
             { v: "maxed", label: "Maxed copies", title: "Only arcanes at their top rank (5, or 3 for older ones), beyond the ones you keep" },
@@ -151,26 +150,26 @@
           <p class="note">{rules.arcanes.which === "maxed" ? "Fuse spare copies in game first: a maxed arcane sells for its 21 copies' worth at once." : "Unranked copies go up as they are. Quicker, but a pile of them rarely fetches the unranked price."}</p>
         </div>
         <div class="opt">
-          <span class="ol"><span class="register">Keep</span><Stepper bind:value={rules.arcanes.keepMaxed} min={KEEP_MIN.arcanes} label="Maxed copies of each arcane to keep" /><span class="register">maxed</span></span>
+          <span class="ol"><span class="register">Keep</span><Stepper bind:value={rules.arcanes.keepMaxed} min={KEEP_MIN.arcanes} disabled={off("arcanes")} label="Maxed copies of each arcane to keep" /><span class="register">maxed</span></span>
           <p class="note">Of each arcane. Two if you run it on two builds at once.</p>
         </div>
         <div class="opt">
-          <Switch bind:on={rules.arcanes.legendary} label="Legendary ones too">The rarest arcanes, slowest to farm again. Off keeps every copy.</Switch>
+          <Switch bind:on={rules.arcanes.legendary} disabled={off("arcanes")} label="Legendary ones too" title="Sell spare Legendary arcanes as well">The rarest arcanes, slowest to farm again. Off keeps every copy.</Switch>
         </div>
-      </div>
+      </fieldset>
       {#if under("arcanes", "arcanes")}<p class="note">{under("arcanes", "arcanes")}.</p>{/if}
       <NeverSoldLine entries={neverSoldIn(rules, "arcanes")} one="arcane" many="arcanes" {onsellagain} />
     </CategoryRow>
 
     <!-- Relics -->
-    <CategoryRow id="cat-relics" bind:on={rules.relics.on} open={open === "relics"} ontoggle={() => toggle("relics")} label={CATEGORY_LABEL.relics} icon={ICON.relics} summary={summaryOf("relics", rules, facts.lichLeft)} preview={relicsWorthSelling ? preview.relics : { listings: 0, plat: 0, estimate: true, note: "Settings, Selling keeps every relic: turn on Relics worth more sold there to list any." }}
+    <CategoryRow id="cat-relics" bind:on={rules.relics.on} open={open === "relics"} ontoggle={() => toggle("relics")} label={CATEGORY_LABEL.relics} icon={ICON.relics} summary={summaryOf("relics", rules, facts.lichLeft)} preview={preview.relics}
       always="Always kept: relics that drop a part you still need, and any relic that sells for no more than a crack of it is worth ({facts.squad > 1 ? 'in a radshare' : 'cracked solo'}, as chosen on Relics). Each refinement is weighed on its own.">
-      <div class="opts">
+      <fieldset class="opts" disabled={off("relics")}>
         <div class="opt">
-          <span class="ol"><span class="register">Keep</span><Stepper bind:value={rules.relics.keep} min={KEEP_MIN.relics} label="Copies of each relic to keep" /><span class="register">of each</span></span>
+          <span class="ol"><span class="register">Keep</span><Stepper bind:value={rules.relics.keep} min={KEEP_MIN.relics} disabled={off("relics")} label="Copies of each relic to keep" /><span class="register">of each</span></span>
           <p class="note">To crack yourself, of each relic and refinement. 0 sells every one worth selling.</p>
         </div>
-      </div>
+      </fieldset>
       {#if under("relics", "relics", facts.minRelicPrice)}<p class="note">{under("relics", "relics", facts.minRelicPrice)}.</p>{/if}
       <NeverSoldLine entries={neverSoldIn(rules, "relics")} one="relic" many="relics" {onsellagain} />
     </CategoryRow>
@@ -178,12 +177,12 @@
     <!-- Gear -->
     <CategoryRow id="cat-gear" bind:on={rules.gear.on} open={open === "gear"} ontoggle={() => toggle("gear")} label={CATEGORY_LABEL.gear} icon={ICON.gear} summary={summaryOf("gear", rules, facts.lichLeft)} preview={preview.gear}
       always="Always kept: the parts and blueprints your unbuilt weapons take; hound, MOA, kitgun, zaw and amp parts while anything in that family is unmastered; damaged Necramech parts you'll build with.">
-      <div class="opts">
+      <fieldset class="opts" disabled={off("gear")}>
         <div class="opt wide">
           <Seg label="Sell" bind:value={rules.gear.sellAs} options={SELL_AS_OPTIONS("weapon")} />
           <p class="note">Weapon parts, their blueprints, Necramech parts and the sets warframe.market trades whole (Mandonel, Lato Vandal, Necramechs). {SELL_AS_NOTE[rules.gear.sellAs]}</p>
         </div>
-      </div>
+      </fieldset>
       {#if under("gear", "parts")}<p class="note">{under("gear", "parts")}.</p>{/if}
       <NeverSoldLine entries={neverSoldIn(rules, "gear")} one="part" many="parts" {onsellagain} />
     </CategoryRow>
@@ -191,30 +190,22 @@
     <!-- Resources -->
     <CategoryRow id="cat-resources" bind:on={rules.resources.on} open={open === "resources"} ontoggle={() => toggle("resources")} label={CATEGORY_LABEL.resources} icon={ICON.resources} summary={summaryOf("resources", rules, facts.lichLeft)} preview={preview.resources}
       always="Never listed: Archon and Eidolon shards, fish parts, raw ores and gems and most other resources. warframe.market doesn't trade them.">
-      <div class="opts">
+      <fieldset class="opts" disabled={off("resources")}>
         <div class="opt wide">
-          <span class="ol"><span class="register">Keep what builds need, plus</span><Stepper bind:value={rules.resources.margin} min={KEEP_MIN.margin} label="Copies kept beyond what builds need" /><span class="register">of each</span></span>
-          <p class="note">What everything you haven't mastered still takes to build, its parts' own blueprints included (a Rahn Prism's 20 Tear Azurite). The rest is spare.</p>
+          <span class="ol"><span class="register">Keep what builds need, plus</span><Stepper bind:value={rules.resources.margin} min={KEEP_MIN.margin} disabled={off("resources")} label="Copies kept beyond what builds need" /><span class="register">of each</span></span>
+          <p class="note">What everything you haven't mastered still takes to build, its parts' own recipes included (a Rahn Prism's 20 Tear Azurite, the Styanax Neuroptics' 40 Purged Dagonic). The rest is spare.</p>
         </div>
-      </div>
-      <div class="families" role="group" aria-label="Kinds of resources">
-        <FamilyLine bind:on={rules.resources.families.gems} label={RESOURCE_FAMILY_LABEL.gems} note="Cut and refined ones (Tear Azurite, Heart Noctrul)" tally={fam("resources", "gems")} estimate={preview.resources?.estimate} />
-        <FamilyLine bind:on={rules.resources.families.fish} label={RESOURCE_FAMILY_LABEL.fish} note="Caught whole, each size its own listing" tally={fam("resources", "fish")} estimate={preview.resources?.estimate} />
-        <FamilyLine bind:on={rules.resources.families.ayatan} label={RESOURCE_FAMILY_LABEL.ayatan} tally={fam("resources", "ayatan")} estimate={preview.resources?.estimate}>
-          {#snippet extra()}
-            <Seg bind:value={rules.resources.ayatan} options={[
-              { v: "empty", label: "Empty", title: "Listed as they are, with no stars in" },
-              { v: "filled", label: "Filled", title: "Listed with every slot filled from your spare stars. orbiter can't see which sculptures you've filled: socket the stars in game before you trade" },
-            ]} />
-            <span class="note">{rules.resources.ayatan === "filled" ? "socket your spare stars first" : "as they are"}</span>
-          {/snippet}
-        </FamilyLine>
-        <FamilyLine bind:on={rules.resources.families.stars} label={RESOURCE_FAMILY_LABEL.stars} note={rules.resources.families.ayatan && rules.resources.ayatan === "filled" ? "the ones filled sculptures don't take" : "Amber and Cyan"} tally={fam("resources", "stars")} estimate={preview.resources?.estimate} />
-        <FamilyLine bind:on={rules.resources.families.captura} label={RESOURCE_FAMILY_LABEL.captura} note="One of each kept to use" tally={fam("resources", "captura")} estimate={preview.resources?.estimate} />
-        <FamilyLine bind:on={rules.resources.families.lenses} label={RESOURCE_FAMILY_LABEL.lenses} note="And their blueprints" tally={fam("resources", "lenses")} estimate={preview.resources?.estimate} />
-        <FamilyLine bind:on={rules.resources.families.other} label={RESOURCE_FAMILY_LABEL.other} note="Keys you don't need, Proof Fragments, ship part blueprints" tally={fam("resources", "other")} estimate={preview.resources?.estimate} />
-        <FamilyLine bind:on={veiledRivens} label="Veiled rivens" note="Settings, Selling: also counts them as spare on Inventory" tally={fam("resources", "veiled")} estimate={preview.resources?.estimate} />
-      </div>
+      </fieldset>
+      <fieldset class="families" disabled={off("resources")} aria-label="Kinds of resources">
+        <FamilyLine disabled={off("resources")} bind:on={rules.resources.families.gems} label={RESOURCE_FAMILY_LABEL.gems} note="Cut and refined ones (Tear Azurite, Heart Noctrul)" tally={fam("resources", "gems")} estimate={preview.resources?.estimate} />
+        <FamilyLine disabled={off("resources")} bind:on={rules.resources.families.fish} label={RESOURCE_FAMILY_LABEL.fish} note="Caught whole, each size its own listing" tally={fam("resources", "fish")} estimate={preview.resources?.estimate} />
+        <FamilyLine disabled={off("resources")} bind:on={rules.resources.families.ayatan} label={RESOURCE_FAMILY_LABEL.ayatan} note="Empty ones, as they are (orbiter can't see which hold stars, so filled ones aren't offered)" tally={fam("resources", "ayatan")} estimate={preview.resources?.estimate} />
+        <FamilyLine disabled={off("resources")} bind:on={rules.resources.families.stars} label={RESOURCE_FAMILY_LABEL.stars} note="Amber and Cyan" tally={fam("resources", "stars")} estimate={preview.resources?.estimate} />
+        <FamilyLine disabled={off("resources")} bind:on={rules.resources.families.captura} label={RESOURCE_FAMILY_LABEL.captura} note="One of each kept to use" tally={fam("resources", "captura")} estimate={preview.resources?.estimate} />
+        <FamilyLine disabled={off("resources")} bind:on={rules.resources.families.lenses} label={RESOURCE_FAMILY_LABEL.lenses} note="And their blueprints" tally={fam("resources", "lenses")} estimate={preview.resources?.estimate} />
+        <FamilyLine disabled={off("resources")} bind:on={rules.resources.families.other} label={RESOURCE_FAMILY_LABEL.other} note="Keys you don't need, Proof Fragments, ship part blueprints" tally={fam("resources", "other")} estimate={preview.resources?.estimate} />
+        <FamilyLine disabled={off("resources")} bind:on={veiledRivens} label="Veiled rivens" title="Settings, Selling's Sell veiled rivens: one setting, shown in both places" note="Settings, Selling: also counts them as spare on Inventory" tally={fam("resources", "veiled")} estimate={preview.resources?.estimate} />
+      </fieldset>
       {#if under("resources", "things")}<p class="note">{under("resources", "things")}.</p>{/if}
       <NeverSoldLine entries={neverSoldIn(rules, "resources")} one="thing" many="things" {onsellagain} />
     </CategoryRow>
@@ -222,12 +213,12 @@
     <!-- Imprints -->
     <CategoryRow id="cat-imprints" bind:on={rules.imprints.on} open={open === "imprints"} ontoggle={() => toggle("imprints")} label={CATEGORY_LABEL.imprints} icon={ICON.imprints} summary={summaryOf("imprints", rules, facts.lichLeft)} preview={preview.imprints}
       always="An imprint only hatches a companion: keep the ones you'll breed.">
-      <div class="opts">
+      <fieldset class="opts" disabled={off("imprints")}>
         <div class="opt">
-          <span class="ol"><span class="register">Keep</span><Stepper bind:value={rules.imprints.keep} min={KEEP_MIN.imprints} label="Imprints of each breed to keep" /><span class="register">of each breed</span></span>
+          <span class="ol"><span class="register">Keep</span><Stepper bind:value={rules.imprints.keep} min={KEEP_MIN.imprints} disabled={off("imprints")} label="Imprints of each breed to keep" /><span class="register">of each breed</span></span>
           <p class="note">Kubrow, Kavat, Vulpaphyla, Predasite and Helminth Charger imprints, by breed.</p>
         </div>
-      </div>
+      </fieldset>
       <NeverSoldLine entries={neverSoldIn(rules, "imprints")} one="imprint" many="imprints" {onsellagain} />
     </CategoryRow>
   </div>
@@ -253,7 +244,9 @@
   .totals b { font-family: var(--face-mark); font-size: 1.15rem; color: var(--platinum); margin-right: .15rem; }
   .totals .pl { display: inline-flex; align-items: center; }
   .cats { border-top: 1px solid var(--rule-bright); }
-  .opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: .9rem 1.6rem; align-items: start; }
+  fieldset { margin: 0; min-width: 0; }
+  .opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: .9rem 1.6rem; align-items: start; border: 0; padding: 0; }
+  .opts:disabled .note, .opts:disabled .register { opacity: .7; }
   .opt { display: grid; gap: .35rem; min-width: 0; }
   .opt.wide { grid-column: 1 / -1; }
   .opt.quiet { opacity: .55; }
@@ -262,6 +255,8 @@
   .families { display: grid; padding: .1rem .7rem; border: 1px solid var(--rule); background: var(--well); }
   .families :global(.seg button) { height: 26px; padding: 0 .55rem; }
   .foot { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1.2rem; padding-top: .3rem; }
+  /* The plan button keeps to the right, wrapped onto its own line or not. */
+  .foot :global(.planbtn) { margin-left: auto; }
   .minnote { white-space: nowrap; }
   .grow { flex: 1; }
 </style>

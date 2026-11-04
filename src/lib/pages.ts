@@ -4,7 +4,7 @@
 //   Fissures    What should I crack? The fissure you're in, your relics, what to crack next.
 //   Progress    What's left to get? Mastery, the Foundry, builds, your wishlist.
 //   Collection  What do I hold, and what do I keep or sell? Everything you own, then by kind.
-//   Trade       My activity on warframe.market: listings (and the spares plan), prices, sales, stats.
+//   Trade       My activity on warframe.market: listings, the spares plan, prices, sales, stats.
 import type { GameIconName } from "./ui/GameIcon.svelte";
 
 export type PageId =
@@ -24,6 +24,7 @@ export type PageId =
   | "parts"
   | "browse"
   | "market"
+  | "spares"
   | "sales"
   | "stats"
   | "guide";
@@ -56,6 +57,7 @@ export const PAGES: Page[] = [
   { id: "arcanes", label: "Arcanes", group: "Collection", icon: { game: "vosfor" }, hint: "Arcanes by price, how close you are to maxing each, and spares to sell or dissolve for Vosfor" },
   { id: "rivens", label: "Rivens", group: "Collection", icon: { game: "riven" }, hint: "Your rivens graded, what similar ones sell for, and alerts for the ones you want", consoleHint: "Find rivens for sale, each roll graded, and alerts for the ones you want" },
   { id: "market", label: "Orders", group: "Trade", icon: { game: "market" }, hint: "Your warframe.market listings, kept at the cheapest in-game price" },
+  { id: "spares", label: "Sell spares", group: "Trade", icon: { game: "platinum" }, hint: "Choose what to sell and how, look over the plan, list it in one go" },
   { id: "browse", label: "Browse market", group: "Trade", icon: { line: "list" }, hint: "Everything warframe.market trades, yours or not: browse by category, price and how often it sells" },
   { id: "sales", label: "Sales", group: "Trade", icon: { game: "platinum" }, hint: "What you've sold and the platinum it made" },
   { id: "stats", label: "Stats", group: "Trade", icon: { line: "chart" }, hint: "Your platinum, credits, Endo and more over time, and every trade you've made" },
