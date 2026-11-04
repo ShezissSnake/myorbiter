@@ -388,11 +388,13 @@
   .row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8rem; }
   :global(html[data-room~="lt640"]) .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* On a narrow window, fewer than four cards share the width rather than each keeping a quarter. */
-  :global(html[data-room~="lt1100"]) .row.few { grid-template-columns: repeat(var(--n), minmax(0, 1fr)); }
-  :global(html[data-room~="lt640"]) .row.few { grid-template-columns: repeat(min(var(--n), 2), minmax(0, 1fr)); }
+  :global(html[data-room~="lt1100"]) .row.few { grid-template-columns: repeat(var(--n), minmax(0, 15rem)); }
+  :global(html[data-room~="lt640"]) .row.few { grid-template-columns: repeat(min(var(--n), 2), minmax(0, 15rem)); }
   .rc {
     --rar: var(--rule-bright);
-    position: relative; display: grid; grid-template-rows: auto auto auto auto 1fr auto; justify-items: center; text-align: center; gap: .45rem;
+    /* One column that may be narrower than its art: the art and the bar shrink to it instead of
+       pushing the card wider than its quarter. */
+    position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto auto 1fr auto; justify-items: center; text-align: center; gap: .45rem;
     min-height: 19rem; padding: .7rem .8rem 0; border: 1px solid var(--rule); border-bottom: 0;
     background: linear-gradient(180deg, rgb(11 12 15 / 40%), var(--well));
     box-shadow: inset 0 -4px 0 var(--rar);
@@ -415,8 +417,8 @@
   .rc-marks .tag { margin: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* Out to the card's edges through its padding: negative margins on a stretched item, which every
      engine places the same way (a wider centred item overflows to one side in WebKitGTK). */
-  .rc-foot { align-self: end; justify-self: stretch; margin-inline: -.8rem; display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .45rem .8rem .7rem; border-top: 1px solid var(--rule); }
-  .rar { font-family: var(--face-register); font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--rar); }
+  .rc-foot { align-self: end; justify-self: stretch; margin-inline: -.8rem; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: .4rem; padding: .45rem .8rem .7rem; border-top: 1px solid var(--rule); }
+  .rar { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--face-register); font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--rar); }
   .rc-score { display: inline-flex; align-items: center; gap: .5rem; }
   .rc-score b { font-family: var(--face-mark); font-size: 1.2rem; line-height: 1; color: var(--platinum-dim); font-variant-numeric: tabular-nums; }
   .rc-score .bars { height: 1rem; grid-template-columns: repeat(4, .55rem); gap: 2px; }
