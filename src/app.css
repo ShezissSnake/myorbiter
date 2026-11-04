@@ -312,7 +312,10 @@ a.link { text-decoration: none; text-transform: uppercase; display: inline-flex;
 
 /* ---------------------------------------------------------------- page layout */
 
-.page { flex: 1; min-height: 0; overflow: auto; }
+/* The scrollbar's room is kept whether or not the page is long enough to scroll: a filter that
+   shortens a page, or a list drawing its rest, doesn't widen everything by a scrollbar and reflow
+   the grid into new columns. */
+.page { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; }
 .page-inner { max-width: 1840px; margin: 0 auto; padding: 0 clamp(var(--step), 3vw, var(--field)) var(--field); }
 .bar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .8rem; padding: var(--step) 0; }
 /* The filter box leads the row and takes the room that's left, so it never wraps onto a line alone. */

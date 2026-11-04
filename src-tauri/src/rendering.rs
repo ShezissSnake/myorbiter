@@ -249,14 +249,14 @@ pub struct State {
     next: bool,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn rendering_state() -> State {
     let next = config_dir().map(|d| read_saved(&d) != Why::None).unwrap_or(false);
     State { linux: cfg!(target_os = "linux"), now: CHOICE.get().cloned(), next }
 }
 
 /// The Settings switch: compatibility rendering from the next start on, or off again.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_compat_rendering(on: bool) -> Result<(), String> {
     let dir = config_dir().ok_or("Only on Linux")?;
     write_saved(&dir, if on { Why::Chosen } else { Why::None }).map_err(|e| e.to_string())?;
