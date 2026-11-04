@@ -43,6 +43,48 @@ test("build paths: only overframe.gg build pages are linked", () => {
   assert.ok(!isBuildPath("/user/2890/ninjase/"));
   assert.ok(!isBuildPath("/build/1/x/?ref=orbiter"));
   assert.equal(overframeBuildUrl("/build/12/mesa-prime/gunslinger/"), "https://overframe.gg/build/12/mesa-prime/gunslinger/");
+  // Slugs in other scripts are real (Overframe keeps them), and stay on the build page.
+  assert.ok(isBuildPath("/build/807531/quatz/квтц/"));
+  assert.ok(isBuildPath("/build/288950/wisp/one-true-goddess-700~900-strength/"));
+});
+
+test("build paths: nothing that could leave overframe.gg/build/ once the browser reads it", () => {
+  for (const p of [
+    "/build/1/../../user/2890/",
+    "/build/1/./x/",
+    "/build/1/..\\..\\evil/",
+    "/build/1/%2e%2e/%2e%2e/evil/",
+    "/build/1/x#frag",
+    "/build/1//evil.example/x",
+    "/build//x/",
+    "/build/1/x\u202e/",
+    "/build/1/x\u200b/",
+    "/build/1/a b/",
+    "//evil.example/build/1/",
+    "/build/12345678901/x/",
+  ])
+    assert.ok(!isBuildPath(p), JSON.stringify(p));
+});
+
+test("the file's text: hidden characters out, lengths capped, odd catalog paths dropped", () => {
+  const row = { id: 99, path: "/build/99/mesa-prime/x/", item: "Mesa Prime", created: "2026-01-01", updated: "2026-10-01", category: "warframes" };
+  const file = parseOverframeFile({
+    collected: "2026-11-03T19:22:13Z",
+    builds: [
+      { ...row, title: "Gun\u202eslinger\u200b \u2066mesa\u2069 ❤\ufe0f", author: "a\u0000uthor\u{e0041}", patch: "Update 44.0\u200d", uniqueName: "/Lotus/Powersuits/Cowgirl/MesaPrime" },
+      { ...row, id: 100, title: "x".repeat(500), author: "y".repeat(200), uniqueName: "https://evil.example/" },
+      { ...row, id: 101, title: "\u200b\u202e" },
+    ],
+  });
+  assert.ok(file);
+  assert.deepEqual(file.builds.map((b) => b.id), [99, 100], "a title of nothing but hidden characters is no title");
+  assert.equal(file.builds[0].title, "Gunslinger mesa ❤\ufe0f");
+  assert.equal(file.builds[0].author, "author");
+  assert.equal(file.builds[0].patch, "Update 44.0");
+  assert.equal(file.builds[0].uniqueName, "/Lotus/Powersuits/Cowgirl/MesaPrime");
+  assert.equal(file.builds[1].title.length, 200);
+  assert.equal(file.builds[1].author.length, 80);
+  assert.equal(file.builds[1].uniqueName, undefined);
 });
 
 test("overframeFor: the listing rule by default, 5 most voted updated within two years", () => {
@@ -111,6 +153,8 @@ test("the shipped file: list fields only, every link a build page, dated", () =>
   for (const b of raw.builds) {
     for (const k of Object.keys(b)) assert.ok(allowed.has(k), `unexpected field ${k}`);
     assert.ok(isBuildPath(b.path), b.path);
+    assert.equal(new URL(overframeBuildUrl(b.path)).host, "overframe.gg");
+    for (const k of ["title", "item", "author", "patch"]) assert.doesNotMatch(String(b[k] ?? ""), /[\u0000-\u001f\u007f-\u009f\u200b\u200c\u200e\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/u, `${k} of ${b.id} has a hidden character`);
   }
   assert.ok(matchRate(file) > 0.9);
 });
