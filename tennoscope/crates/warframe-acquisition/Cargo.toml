@@ -37,7 +37,7 @@ nix = { version = "0.30", features = ["process", "uio"] }
 # yanked, so a caret range is an invitation to break on an unattended `cargo update`.
 [target.'cfg(windows)'.dependencies]
 proc-maps = "0.5"
-read-process-memory = "=0.2.0"
+read-process-memory = "=0.3.0"
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 
 [dev-dependencies]
