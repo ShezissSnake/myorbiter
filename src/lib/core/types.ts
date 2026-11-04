@@ -12,6 +12,11 @@ export interface InventoryRow {
   image_name: string | null;
   rank: number | null;
   max_rank: number | null;
+  /**
+   * Copies installed in a build (a stance on a weapon, a Requiem mod on the Parazon): they can't be
+   * traded. Absent or null when TennoScope didn't say (an older store, or a read that couldn't tell).
+   */
+  equipped?: number | null;
 }
 
 export interface Drop {

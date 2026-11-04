@@ -1,6 +1,6 @@
 // Shared warframe.market state: account, your orders, cached order books, and the repricer.
 
-import { market, presence, type ChatSummary, type FeedState, type MarketAccount, type MarketSettings, type MarketUser, type Platform, type Sale, type Presence, type PresenceState } from "./backend";
+import { logLine, market, presence, type ChatSummary, type FeedState, type MarketAccount, type MarketSettings, type MarketUser, type Platform, type Sale, type Presence, type PresenceState } from "./backend";
 import {
   canTrade,
   findItem,
@@ -21,11 +21,12 @@ import { dealFromOrder, findDeals, type Deal, type FeedOrder, type Watch } from 
 import { recentPrice, type PricePoint } from "./core/priceTrend";
 import type { RelicMarket } from "./core/model";
 import { aboveCrack, relicCrackFor } from "./core/spares";
-import { LISTING_LIMIT, aboveDucats, bulkPlan, cheapByMedian, ducatWorth, planSignature, resolve, sellTargets, type BulkAction } from "./core/bulk";
+import { KIND_LABEL, LISTING_LIMIT, aboveDucats, bulkPlan, cheapByMedian, ducatWorth, planSignature, resolve, sellTargets, type BulkAction } from "./core/bulk";
 import type { DucatOptions } from "./core/advice";
 import { backoff } from "./core/upkeep";
 import { drops } from "./drops.svelte";
 import { MAX_PLAT, MAX_QTY, wholeIn } from "./core/amounts";
+import { ducatRefusal, guardListing, inventoryTrust, listingTag, type GuardRequest } from "./core/listGuard";
 
 export interface Draft {
   itemId: string;
@@ -433,6 +434,46 @@ class MarketStore {
     return aboveCrack(relicCrackFor(m, name, subtype, this.advice?.platPerDucat ?? 0, this.advice?.squad ?? 1));
   }
 
+  /** The model the app shows now (set by the app): what the last check before a listing counts from. */
+  model: Model | null = null;
+  /** Whether TennoScope reads your inventory (Full mode), as it last said; null when unknown (set by the app). */
+  fullMode: boolean | null = null;
+
+  /** Copies of the same item, rank and variant in your listings, but for `except`. */
+  private listedOf(it: MarketItem, rank: number | null, subtype: string | null, except: string | null = null): number {
+    const def = it.subtypes?.[0] ?? null;
+    return this.orders
+      .filter((o) => o.id !== except && o.itemId === it.id && (it.maxRank == null || (o.rank ?? 0) === (rank ?? 0)) && (o.subtype ?? def) === (subtype ?? def))
+      .reduce((n, o) => n + o.quantity, 0);
+  }
+
+  /**
+   * The last check before copies go up (listGuard.ts): true when they may. A refusal is told (the
+   * Activity log, a notification, orbiter.log) and nothing is sent. `audit` gets the line saying
+   * why they were spare, for the log once warframe.market has taken them.
+   */
+  private allowed(m: Model | null, req: GuardRequest, audit: (line: string) => void): boolean {
+    if (!m) {
+      const why = `Didn't list ${listingTag(req.item, req.rank, req.subtype)}: Your collection isn't loaded yet`;
+      this.note(why, "warn");
+      logLine("warn", "listing", why);
+      return false;
+    }
+    const r = guardListing({ model: m, index: this.index, sell: this.rules?.sellable, advice: this.advice ?? undefined, drops: drops.recent, fullMode: this.fullMode }, req);
+    if (!r.ok) {
+      this.note(r.why, "warn");
+      logLine("warn", "listing", r.why);
+      return false;
+    }
+    audit(r.audit);
+    return true;
+  }
+
+  /** A listing orbiter made or changed, and why, in orbiter.log: a wrong one can be explained from it. */
+  private audit(how: string, line: string) {
+    logLine("info", "listing", `${how}: ${line}`);
+  }
+
   planFor(m: Model, s: MarketSettings, o: MyOrder): Plan | null {
     const it = this.item(o.itemId);
     const book = it ? this.books[it.slug]?.orders : undefined;
@@ -747,10 +788,18 @@ class MarketStore {
     const existing = d?.addToExisting ? this.existingFor(d) : null;
     // Whole numbers in range only (the form checks too): warframe.market refuses anything else.
     if (!d || !wholeIn(d.platinum, 1, MAX_PLAT) || !wholeIn(d.quantity, existing ? 0 : 1, MAX_QTY)) return;
+    const it = this.item(d.itemId);
+    let why = "";
+    // The keep rules, checked again: what the form offers can be more than you can spare.
+    if (it && d.quantity > 0 && !this.allowed(this.draftModel ?? this.model, { item: it, rank: d.rank, subtype: d.subtype, quantity: d.quantity, platinum: d.platinum, listedElsewhere: this.listedOf(it, d.rank, d.subtype), manual: true }, (l) => (why = l))) {
+      this.draftError = this.log[0]?.text ?? "Not listed";
+      return;
+    }
     await this.guard("Listing", async () => {
       const tag = `${d.name}${d.rank != null ? ` R${d.rank}` : ""}${d.subtype ? ` (${d.subtype})` : ""}`;
       if (existing) {
         await market.update(existing.id, { platinum: d.platinum!, quantity: existing.quantity + d.quantity, visible: true });
+        if (why) this.audit(`Listing form, added to ${existing.id}`, why);
         this.note(
           d.quantity ? `Added ${d.quantity}× ${tag} to your listing: now ${existing.quantity + d.quantity} at ${d.platinum}p` : `${tag}: listing set to ${d.platinum}p`,
           "ok",
@@ -765,6 +814,7 @@ class MarketStore {
           await this.refresh().catch(() => {});
           if (!before || !this.orders.some((o) => !before.has(o.id) && o.itemId === d.itemId)) throw e;
         }
+        this.audit("Listing form", why || tag);
         this.note(`Listed ${d.quantity}× ${tag} at ${d.platinum}p`, "ok");
       }
       this.draftDone = this.log[0]?.text ?? null;
@@ -788,8 +838,15 @@ class MarketStore {
   async setShown(orders: MyOrder[], visible: boolean, reread = true): Promise<MyOrder[]> {
     const done: MyOrder[] = [];
     for (const o of orders) {
+      // Shown again (after a whisper, Show all hidden): only while it's still all spare.
+      const it = this.item(o.itemId);
+      let why = "";
+      if (visible && !o.visible) {
+        if (!it || !this.allowed(this.model, { item: it, rank: o.rank, subtype: o.subtype, quantity: o.quantity, platinum: o.platinum, listedElsewhere: this.listedOf(it, o.rank, o.subtype, o.id) }, (l) => (why = l))) continue;
+      }
       try {
         await market.update(o.id, { visible });
+        if (why) this.audit(`Shown again (${o.id})`, why);
         done.push(o);
         // Kept here at once: the read below can fail or be skipped, and what's hidden must still be known.
         this.orders = this.orders.map((x) => (x.id === o.id ? { ...x, visible } : x));
@@ -822,8 +879,20 @@ class MarketStore {
 
   /** True when warframe.market took the change. */
   async update(o: MyOrder, change: { platinum?: number; quantity?: number; visible?: boolean }): Promise<boolean> {
+    // More copies, or shown again: the keep rules first (your own change, so an old read doesn't stop it).
+    const it = this.item(o.itemId);
+    const raising = (change.quantity != null && change.quantity > o.quantity) || (change.visible === true && !o.visible);
+    let why = "";
+    if (raising && it) {
+      const req = { item: it, rank: o.rank, subtype: o.subtype, quantity: change.quantity ?? o.quantity, platinum: change.platinum ?? o.platinum, listedElsewhere: this.listedOf(it, o.rank, o.subtype, o.id), manual: true };
+      if (!this.allowed(this.model, req, (l) => (why = l))) {
+        this.error = this.log[0]?.text ?? "Not listed";
+        return false;
+      }
+    }
     return this.guard("Saving", async () => {
       await market.update(o.id, change);
+      if (why) this.audit(`Orders, ${o.id} changed`, why);
       await this.refresh();
     });
   }
@@ -1102,6 +1171,9 @@ class MarketStore {
       await this.refresh();
       const me = this.me;
       if (!me) throw new Error("Not signed in to warframe.market");
+      // Spares are worked out from your inventory: without a recent, whole read nothing is planned.
+      const trust = inventoryTrust(m, Date.now(), this.fullMode);
+      if (!trust.ok) throw new Error(`Nothing planned: ${trust.why}`);
       const targets = sellTargets(m, s.bulk, advice, this.index, s.sellable, drops.recent);
       // Fresh order books for everything that might be listed, one at a time (warframe.market
       // allows a few requests a second; the app paces them).
@@ -1166,6 +1238,8 @@ class MarketStore {
     const todo = shown.actions.filter((a) => a.type !== "skip").sort((a, b) => ORDER[a.type] - ORDER[b.type]);
     const sent = new Set<BulkAction>();
     let failed = 0;
+    // Held back by the last check (listGuard.ts): told one by one, counted apart from refusals.
+    let blocked = 0;
     let writeFailing = 0;
     await this.guard("Updating your listings", async () => {
       await this.refresh().catch(() => {});
@@ -1180,19 +1254,53 @@ class MarketStore {
       this.progress = { done: 0, total: todo.length };
       this.applying = { now: null, sent: new Set(), failed: new Set() };
       const refused = new Set<BulkAction>();
+      // Copies this run has put up, by item, rank and variant: a second listing of the same thing
+      // counts them as already listed.
+      const listedNow = new Map<string, number>();
+      const keyOf = (it: MarketItem, rank: number | null, subtype: string | null) => `${it.id}|${it.maxRank != null ? (rank ?? 0) : ""}|${subtype ?? it.subtypes?.[0] ?? ""}`;
       for (const a of todo) {
         this.applying = { now: a, sent: new Set(sent), failed: new Set(refused) };
         const tag = (name: string, rank: number | null) => `${name}${rank != null ? ` R${rank}` : ""}`;
+        // The last check, per change: more copies than the keep rules prove spare, or a prime part
+        // or set under its ducats, never goes. Refused ones are told and left out.
+        let why = "";
+        if (a.type === "create" || (a.type === "update" && a.quantity > a.order.quantity)) {
+          const rank = a.type === "create" ? a.rank : a.order.rank;
+          const subtype = a.type === "create" ? a.subtype : a.order.subtype;
+          const k = keyOf(a.item, rank, subtype);
+          const elsewhere = this.listedOf(a.item, rank, subtype, a.type === "update" ? a.order.id : null) + (listedNow.get(k) ?? 0);
+          if (!this.allowed(m, { item: a.item, rank, subtype, quantity: a.quantity, platinum: a.platinum, listedElsewhere: elsewhere }, (l) => (why = l))) {
+            refused.add(a);
+            blocked++;
+            this.progress = { done: sent.size + failed + blocked, total: todo.length };
+            continue;
+          }
+          listedNow.set(k, (listedNow.get(k) ?? 0) + a.quantity);
+        } else if (a.type === "update" && a.platinum !== a.order.platinum) {
+          const under = ducatRefusal({ model: m, index: this.index, sell: s.sellable, advice, drops: drops.recent }, a.item, a.platinum);
+          if (under) {
+            const line = `Didn't reprice ${tag(a.item.name, a.order.rank)}: ${under.charAt(0).toUpperCase()}${under.slice(1)}`;
+            this.note(line, "warn");
+            logLine("warn", "listing", line);
+            refused.add(a);
+            blocked++;
+            this.progress = { done: sent.size + failed + blocked, total: todo.length };
+            continue;
+          }
+        }
         try {
           if (a.type === "create") {
             await market.create({ itemId: a.item.id, platinum: a.platinum, quantity: a.quantity, rank: a.rank, subtype: a.subtype, visible: true });
             this.note(`Listed ${a.quantity}× ${tag(a.item.name, a.rank)} at ${a.platinum}p`, "ok");
+            this.audit(`Spares plan, ${KIND_LABEL[a.kind].toLowerCase()} (${a.why}; ${a.priceWhy})`, why);
           } else if (a.type === "update") {
             await market.update(a.order.id, { quantity: a.quantity, platinum: a.platinum });
             this.note(`${tag(a.item.name, a.order.rank)}: ${a.order.quantity}× ${a.order.platinum}p → ${a.quantity}× ${a.platinum}p`, "info");
+            this.audit(`Spares plan changed ${a.order.id} (${a.why}; ${a.priceWhy})`, why || `${listingTag(a.item, a.order.rank, a.order.subtype)}: ${a.order.quantity}× ${a.order.platinum}p → ${a.quantity}× ${a.platinum}p`);
           } else if (a.type === "remove") {
             await market.remove(a.order.id);
             this.note(`Removed ${tag(a.item.name, a.order.rank)} (${a.why.toLowerCase()})`, "info");
+            this.audit(`Spares plan removed ${a.order.id}`, `${listingTag(a.item, a.order.rank, a.order.subtype)}: ${a.why}`);
           }
           sent.add(a);
           writeFailing = 0;
@@ -1206,7 +1314,7 @@ class MarketStore {
             break;
           }
         }
-        this.progress = { done: sent.size + failed, total: todo.length };
+        this.progress = { done: sent.size + failed + blocked, total: todo.length };
       }
       this.applying = { now: null, sent: new Set(sent), failed: new Set(refused) };
       // Your listings as they now are, still busy (Apply can't be pressed again meanwhile); the last
@@ -1230,8 +1338,8 @@ class MarketStore {
     // The plan goes before the ticks are cleared, so its rows don't come back for a moment.
     this.bulk = null;
     this.applying = null;
-    this.note(`Your spares are on sale: ${sent.size} change${sent.size === 1 ? "" : "s"} made${failed ? `, ${failed} failed (see above)` : ""}`, failed ? "warn" : "ok");
-    return { sent: sent.size, failed, outcome: "done" };
+    this.note(`Your spares are on sale: ${sent.size} change${sent.size === 1 ? "" : "s"} made${failed ? `, ${failed} failed (see above)` : ""}${blocked ? `, ${blocked} held back by the keep rules (see above)` : ""}`, failed || blocked ? "warn" : "ok");
+    return { sent: sent.size, failed: failed + blocked, outcome: "done" };
   }
 
   /** Takes every one of your sell listings off warframe.market. */

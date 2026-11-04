@@ -52,6 +52,10 @@ pub struct InventoryRow {
     pub image_name: Option<String>,
     pub rank: Option<i64>,
     pub max_rank: Option<i64>,
+    /// Copies installed in a build (a stance on a weapon, a Requiem mod on the Parazon), which
+    /// can't be traded. Left out when TennoScope's store has no such column or didn't say.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub equipped: Option<i64>,
 }
 
 /// Everything orbiter reads, in one piece: what `orbiter-dump` prints for the browser dev mode.
@@ -220,9 +224,16 @@ fn read_inventory(path: &Path) -> Result<(Vec<InventoryRow>, Option<i64>), DataE
     // The window reloads right after TennoScope writes; wait out a write still in progress
     // instead of failing with "database is locked".
     conn.busy_timeout(Duration::from_secs(5))?;
-    let mut stmt = conn.prepare(
-        "SELECT item_id, name, category, quantity, mastered, image_name, rank, max_rank FROM inventory",
-    )?;
+    // Installed copies are a newer column: an older store hasn't got it, and is read without.
+    let has_equipped = conn
+        .prepare("SELECT 1 FROM pragma_table_info('inventory') WHERE name = 'equipped'")
+        .and_then(|mut s| s.exists([]))
+        .unwrap_or(false);
+    let mut stmt = conn.prepare(if has_equipped {
+        "SELECT item_id, name, category, quantity, mastered, image_name, rank, max_rank, equipped FROM inventory"
+    } else {
+        "SELECT item_id, name, category, quantity, mastered, image_name, rank, max_rank, NULL FROM inventory"
+    })?;
     let rows = stmt
         .query_map([], |r| {
             Ok(InventoryRow {
@@ -234,6 +245,7 @@ fn read_inventory(path: &Path) -> Result<(Vec<InventoryRow>, Option<i64>), DataE
                 image_name: r.get(5)?,
                 rank: r.get(6)?,
                 max_rank: r.get(7)?,
+                equipped: r.get(8)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -546,6 +558,32 @@ mod tests {
              INSERT INTO snapshot_audit (observed_at, game_build, source, item_count) VALUES ('1792945000', 'x', 'y', 1);",
         )
         .unwrap();
+    }
+
+    #[test]
+    fn installed_copies_are_read_when_the_store_has_them() {
+        let old = temp_dir("no-equipped");
+        write_db(&old);
+        let (rows, _) = read_inventory(&old.join("tennoscope.sqlite3")).unwrap();
+        assert_eq!(rows[0].equipped, None, "an older store: unknown, and left out of the JSON");
+        assert!(serde_json::to_value(&rows[0]).unwrap().get("equipped").is_none());
+        fs::remove_dir_all(&old).ok();
+
+        let dir = temp_dir("equipped");
+        let db = Connection::open(dir.join("tennoscope.sqlite3")).unwrap();
+        db.execute_batch(
+            "CREATE TABLE inventory (item_id TEXT, name TEXT, category TEXT, quantity INTEGER, mastered INTEGER, image_name TEXT, rank INTEGER, max_rank INTEGER, equipped INTEGER);
+             INSERT INTO inventory VALUES ('/Lotus/Weapons/Tenno/Melee/MeleeTrees/PolearmCmbTwoMeleeTree', 'Bleeding Willow', 'mod', 6, 0, NULL, NULL, NULL, 5);
+             INSERT INTO inventory VALUES ('/Lotus/A', 'A', 'mod', 2, 0, NULL, NULL, NULL, NULL);",
+        )
+        .unwrap();
+        drop(db);
+        let (rows, _) = read_inventory(&dir.join("tennoscope.sqlite3")).unwrap();
+        let willow = rows.iter().find(|r| r.name == "Bleeding Willow").unwrap();
+        assert_eq!((willow.quantity, willow.equipped), (6, Some(5)));
+        assert_eq!(serde_json::to_value(willow).unwrap()["equipped"], 5);
+        assert_eq!(rows.iter().find(|r| r.name == "A").unwrap().equipped, None);
+        fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

@@ -566,7 +566,10 @@ impl Client {
                 other => break other?,
             }
         };
-        serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unreachable(e.to_string()))
+        let order: Order = serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unreachable(e.to_string()))?;
+        // What went up, beside the request line: the window logs why ("[listing]" lines).
+        log::info!(target: "orbiter::market", "{}", created_line(&order.id, new, kind));
+        Ok(order)
     }
 
     pub fn update(&self, id: &str, change: &OrderChange) -> Result<(), MarketError> {
@@ -587,7 +590,9 @@ impl Client {
         if let Some(v) = change.visible {
             body.insert("visible".into(), v.into());
         }
-        self.call("PATCH", &format!("{V2}/order/{id}"), Some(&Value::Object(body)), true).map(|_| ())
+        self.call("PATCH", &format!("{V2}/order/{id}"), Some(&Value::Object(body)), true)?;
+        log::info!(target: "orbiter::market", "{}", changed_line(id, change));
+        Ok(())
     }
 
     /// Marks `quantity` of an order sold: warframe.market's own "Sold", which records the sale
@@ -605,6 +610,34 @@ impl Client {
         valid_id(id)?;
         self.call("DELETE", &format!("{V2}/order/{id}"), None, true).map(|_| ())
     }
+}
+
+/// "order abc created: sell item 5dbe… rank 0, 2 at 7p, shown".
+fn created_line(id: &str, new: &NewOrder, kind: &str) -> String {
+    let rank = new.rank.map_or(String::new(), |r| format!(" rank {r}"));
+    let subtype = new.subtype.as_deref().map_or(String::new(), |s| format!(" ({s})"));
+    format!(
+        "order {id} created: {kind} item {}{rank}{subtype}, {} at {}p, {}",
+        new.item_id,
+        new.quantity,
+        new.platinum,
+        if new.visible { "shown" } else { "hidden" }
+    )
+}
+
+/// "order abc changed: quantity 3, shown".
+fn changed_line(id: &str, change: &OrderChange) -> String {
+    let mut parts = Vec::new();
+    if let Some(p) = change.platinum {
+        parts.push(format!("{p}p"));
+    }
+    if let Some(q) = change.quantity {
+        parts.push(format!("quantity {q}"));
+    }
+    if let Some(v) = change.visible {
+        parts.push(if v { "shown".to_string() } else { "hidden".to_string() });
+    }
+    format!("order {id} changed: {}", parts.join(", "))
 }
 
 fn profile_of(v: Value) -> Result<Profile, MarketError> {
@@ -1065,6 +1098,14 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_listing_made_or_changed_is_logged_with_what_went_up() {
+        let new = super::NewOrder { item_id: "5dbe9b097ea27b0ffe3ca26c".into(), platinum: 7, quantity: 2, rank: Some(0), subtype: None, visible: true, kind: None };
+        assert_eq!(super::created_line("abc", &new, "sell"), "order abc created: sell item 5dbe9b097ea27b0ffe3ca26c rank 0, 2 at 7p, shown");
+        let change = super::OrderChange { platinum: None, quantity: Some(3), visible: Some(true) };
+        assert_eq!(super::changed_line("abc", &change), "order abc changed: quantity 3, shown");
+    }
+
     #[test]
     fn a_403_is_a_sign_out_only_when_it_says_so() {
         assert!(forbidden_means_signed_out(""));
