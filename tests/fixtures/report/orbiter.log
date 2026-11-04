@@ -1,0 +1,16 @@
+[2026-11-04][09:58:01][app][INFO] orbiter 0.1.0 started on linux x86_64
+[2026-11-04][09:58:01][app][INFO] build a1b2c3d (2026-11-03), pc
+[2026-11-04][09:58:02][ee_log][INFO] found at /home/examplename/.local/share/Steam/steamapps/compatdata/230410/pfx/drive_c/users/steamuser/AppData/Local/Warframe/EE.log
+[2026-11-04][09:58:03][tennoscope][INFO] started /home/examplename/Applications/orbiter.AppImage/tennoscope, the one inside orbiter (pid 41234)
+[2026-11-04][09:58:05][relics][INFO] drop tables 9f8e7d6c5b4a39281706f5e4d3c2b1a0 (812 relics) written for TennoScope
+[2026-11-04][09:59:10][market][INFO] PATCH /v2/order/65f0c1d2e3f4a5b6c7d8e9f0: ok
+[2026-11-04][09:59:11][market][WARN] GET /v1/profile/SellerExample/reviews: 429, slowing down
+[2026-11-04][10:00:00][notice][INFO] sold: You sold Mesa Prime Set to BuyerExample for 120 platinum (Marked sold on warframe.market and logged.)
+[2026-11-04][10:00:01][notice][INFO] whispers: WhisperExample whispered you (12 reputation on warframe.market · You have 3 listings up on warframe.market)
+[2026-11-04][10:00:02][notice][INFO] whispers: 3 people whispered you (Alpha_1, Beta-2, Gamma.3 · You have 3 listings up on warframe.market)
+[2026-11-04][10:00:03][notice][WARN] sold: Couldn't give RepExample +rep (429. Stats has a +rep button for that trade.)
+[2026-11-04][10:00:04][ui][ERROR] TypeError: x is undefined (Orders.svelte:120)
+[2026-11-04][10:00:05][notify][WARN] notification not shown: org.freedesktop.DBus.Error.ServiceUnknown
+[2026-11-04][10:00:06][notice][INFO] discord: posting to https://discord.com/api/webhooks/123456789012345678/AbCdEf_secret-Token failed
+[2026-11-04][10:00:07][presence][WARN] connection from 203.0.113.7 dropped; retry with JWT eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2lnbmF0dXJl
+[2026-11-04][10:00:08][app][INFO] MeExample listed 3 items

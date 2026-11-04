@@ -11,6 +11,7 @@
   import { ageLine, BASIS_WORD, helminthShow, rivenShort, shardSlots, sourceName, withItLines, TIER_NAME, TIER_TIP, type Shown, type WithItLine } from "../../core/buildsPage";
   import { familyOfTag } from "./tags";
   import { openUrl } from "../../backend";
+  import { openable } from "../../core/links";
   import { info } from "../../hover.svelte";
   import { pop, reveal } from "../../motion";
   import ModGrid, { HAVE_MARK } from "./ModGrid.svelte";
@@ -129,7 +130,7 @@
         {#if b.source !== "orbiter" || shown.saved}<span title={b.updatedAt != null ? `Its source last changed it on ${new Date(b.updatedAt).toLocaleDateString()}` : `Added to orbiter on ${new Date(b.importedAt).toLocaleDateString()}`}>{ageLine(b, now)}</span>{/if}
         {#if b.gameUpdate}<span title="The game update it was made for">Update {b.gameUpdate}</span>{/if}
         {#if b.tags?.length}<span class="tags">{#each b.tags as tg (tg)}<span class="tagc" title="{familyOfTag(tg)}: {tg}">{tg}</span>{/each}</span>{/if}
-        {#if site}<button type="button" class="link out" title="Open it on {site.site}, in your browser" onclick={() => openUrl(site.url)}>{site.site}<Icon name="external" size={11} /></button>{/if}
+        {#if site && openable(site.url)}<button type="button" class="link out" title="Open it on {site.site}, in your browser" onclick={() => openUrl(site.url)}>{site.site}<Icon name="external" size={11} /></button>{:else if site}<span class="dim" title="orbiter opens links only to the sites it knows (warframe.market, the wiki, Overframe, Nox's Frame), so this one stays as text">{site.site}</span>{/if}
       </span>
       {#if variants.length > 1 && extras?.onvariant}
         <div class="vars" data-card="variants" role="radiogroup" aria-label="orbiter's variants">

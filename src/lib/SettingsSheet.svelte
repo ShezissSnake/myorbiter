@@ -1,6 +1,7 @@
 <script lang="ts">
   import { PLATFORM_LABEL, logFolders, onWindows, openLogFolder, type Platform, type Settings } from "./backend";
   import { ts } from "./tennoscopeStore.svelte";
+  import { bugReport } from "./bugReport.svelte";
   import Sheet from "./ui/Sheet.svelte";
   import Switch from "./ui/Switch.svelte";
   import Chip from "./ui/Chip.svelte";
@@ -327,6 +328,12 @@
       {#if f.orbiter}<p class="hint path-note">{f.orbiter}</p>{/if}
     {/await}
     {#if logError}<p class="hint err">{logError}</p>{/if}
+  </section>
+
+  <section id="settings-report">
+    <h3 class="register">Report a bug</h3>
+    <p class="hint">Something not working? Say what happened, and orbiter fills in an issue on GitHub for you to check and submit, or copies the report if you'd rather send it another way. The technical details it can add (version, system, the log's last lines, with sign-ins and players' names hidden) are yours to read first. orbiter never sends anything itself.</p>
+    <div class="row"><button class="stamp" title="Open Report a bug (Shift+F1): nothing is sent until you press Submit on GitHub" onclick={() => { open = false; bugReport.show(); }}>Report a bug</button></div>
   </section>
 
 

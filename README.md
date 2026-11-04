@@ -151,7 +151,7 @@ This puts the program in `~/.local/bin`, its icon in your icon theme folder and 
 Desktop touches:
 
 - **Notifications** through your desktop's own notification service (Plasma, GNOME Shell, or mako, dunst or swaync on Hyprland) while orbiter isn't the window you're looking at, tagged with its launcher entry so they carry its name and icon; clicking one brings orbiter up on what it's about. What they're about, and the switches: the bell in the sidebar (see *Notifications* above).
-- **Keyboard:** Ctrl+1…9 opens the pages in sidebar order, Ctrl+PgUp/PgDn (or Ctrl+Tab) the previous or next one, Ctrl+F or / jumps to the page's filter, Ctrl+R or F5 syncs, Ctrl+, opens Settings, F1 the guide, Esc closes a panel or form, Ctrl+Q quits.
+- **Keyboard:** Ctrl+1…9 opens the pages in sidebar order, Ctrl+PgUp/PgDn (or Ctrl+Tab) the previous or next one, Ctrl+F or / jumps to the page's filter, Ctrl+R or F5 syncs, Ctrl+, opens Settings, F1 the guide, Shift+F1 Report a bug, Esc closes a panel or form, Ctrl+Q quits.
 - **A dark window:** GNOME draws the title bar dark to match; KDE and Hyprland use your own window theme. Right-click only offers a menu where it's useful (text fields and selected text), not a web page's Back and Reload.
 
 ## Look

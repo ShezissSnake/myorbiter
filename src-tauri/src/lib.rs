@@ -822,6 +822,28 @@ fn open_log_folder(app: tauri::AppHandle, which: String, dir: Option<String>) ->
     app.opener().open_path(path, None::<&str>).map_err(|e| e.to_string())
 }
 
+// ---------------------------------------------------------------- bug reports
+
+/// The last lines of orbiter's log for a bug report, redacted (applog::tail). Read only when the
+/// player opens Report a bug; the page shows them before anything is sent.
+#[tauri::command(async)]
+fn log_tail(lines: usize) -> Vec<String> {
+    applog::tail(lines)
+}
+
+/// What a bug report says about this copy: its version and the system it runs on.
+#[derive(serde::Serialize)]
+struct ReportEnv {
+    version: &'static str,
+    os: &'static str,
+    arch: &'static str,
+}
+
+#[tauri::command]
+fn report_env() -> ReportEnv {
+    ReportEnv { version: env!("CARGO_PKG_VERSION"), os: std::env::consts::OS, arch: std::env::consts::ARCH }
+}
+
 /// Sent to the page when the window's X is clicked: it saves what is waiting to be saved (the last
 /// 300 ms of changes) and calls `quit`, as Ctrl+Q does.
 const QUIT_REQUESTED: &str = "quit-requested";
@@ -1112,6 +1134,8 @@ pub fn run() {
             log_line,
             log_folders,
             open_log_folder,
+            log_tail,
+            report_env,
             tennoscope_failure,
             reward_cards,
             notify,

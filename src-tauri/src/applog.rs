@@ -203,15 +203,49 @@ pub fn redact(s: &str) -> String {
             hide_next = false;
             continue;
         }
-        if let Some((k, v)) = word.split_once('=').filter(|(k, _)| k.to_ascii_lowercase().contains("token")) {
+        if let Some((k, v)) = word.split_once('=').filter(|(k, _)| secret_key(k)) {
             out.push_str(k);
             out.push_str(if v.is_empty() { "=" } else { "=[redacted]" });
             continue;
         }
-        hide_next = matches!(bare.to_ascii_lowercase().as_str(), "bearer" | "jwt" | "token" | "token:");
+        hide_next = matches!(bare.to_ascii_lowercase().as_str(), "bearer" | "jwt" | "token" | "token:" | "cookie" | "set-cookie");
         out.push_str(word);
     }
     out
+}
+
+/// A key in `key=value` whose value is a sign-in or a session: a token, password, secret, cookie,
+/// session id, nonce or JWT.
+fn secret_key(k: &str) -> bool {
+    let k = k.to_ascii_lowercase();
+    ["token", "password", "passwd", "secret", "cookie", "session", "nonce", "jwt"].iter().any(|s| k.contains(s))
+}
+
+// ---------------------------------------------------------------- for a bug report
+
+/// The last `lines` lines of orbiter's log, oldest first, each passed through `redact` again (a
+/// line written before a rule was added is covered too). When the current file holds fewer, the
+/// rest come from the end of the one before it. The page redacts them further before showing them
+/// in a report (src/lib/core/redact.ts), and nothing leaves the computer unless the player sends it.
+pub fn tail(lines: usize) -> Vec<String> {
+    dir().map(|d| tail_in(&d, lines)).unwrap_or_default()
+}
+
+fn tail_in(dir: &Path, lines: usize) -> Vec<String> {
+    let lines = lines.min(500);
+    let read = |name: &str| -> Vec<String> {
+        fs::read(dir.join(name)).map(|b| String::from_utf8_lossy(&b).lines().map(str::to_string).collect()).unwrap_or_default()
+    };
+    let mut out = read(FILE);
+    if out.len() < lines {
+        let mut older = read(OLD_FILE);
+        let keep = older.len().saturating_sub(lines - out.len());
+        older.drain(..keep);
+        older.append(&mut out);
+        out = older;
+    }
+    let skip = out.len().saturating_sub(lines);
+    out.into_iter().skip(skip).map(|l| redact(&l.chars().take(2000).collect::<String>())).collect()
 }
 
 #[cfg(test)]
@@ -234,6 +268,23 @@ mod tests {
         assert_eq!(redact("(https://discordapp.com/api/webhooks/1/x)"), "([redacted webhook]");
         assert_eq!(redact("see https://example.com/api/webhooks/1/x"), "see https://example.com/api/webhooks/1/x", "only Discord's");
         assert_eq!(redact("POST /v2/order: 429"), "POST /v2/order: 429");
+        assert_eq!(redact("Cookie: JWT=abc; other"), "Cookie: [redacted] other");
+        assert_eq!(redact("got password=hunter2 and sessionid=xyz and nonce=12"), "got password=[redacted] and sessionid=[redacted] and nonce=[redacted]");
+        assert_eq!(redact("drop tables 3f2a (812 relics)"), "drop tables 3f2a (812 relics)");
+    }
+
+    #[test]
+    fn a_report_takes_the_last_lines_across_both_files() {
+        let dir = std::env::temp_dir().join(format!("orbiter-log-tail-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        assert!(tail_in(&dir, 50).is_empty(), "no log yet");
+        fs::write(dir.join(OLD_FILE), "old 1\nold 2\nold 3\n").unwrap();
+        fs::write(dir.join(FILE), "new 1\nnew 2 token=abc\n").unwrap();
+        assert_eq!(tail_in(&dir, 3), ["old 3", "new 1", "new 2 token=[redacted]"]);
+        assert_eq!(tail_in(&dir, 1), ["new 2 token=[redacted]"]);
+        assert_eq!(tail_in(&dir, 50).len(), 5);
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[cfg(unix)]

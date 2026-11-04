@@ -17,6 +17,7 @@ import { normName } from "./match";
 import type { BuildSource, SourceContext, SourcePermission } from "./source";
 import { withinAge } from "./store";
 import { newBuildId, polarityOf, SHARD_COLOURS, type Build, type BuildMod, type BuildShard, type BuildSourceRef, type GearKind, type Polarity, type ShardColour } from "./types";
+import { cleanBlock, cleanLine } from "../untrusted";
 
 export const NOX_SITE = "Nox's Frame";
 export const NOX_HOST = "noxsframe.com";
@@ -101,6 +102,61 @@ export interface NoxFetcher {
   build(path: string, opts?: { refresh?: boolean; cachedOnly?: boolean }): Promise<NoxAnswer<NoxPage> | null>;
   /** A pasted build code's JSON (no network). */
   decode(code: string): Promise<unknown>;
+}
+
+// ---------------------------------------------------------------- checking what comes back
+
+// What the Rust side returns is read from noxsframe.com's pages: third-party text. Each listing and
+// page is checked here before anything shows it: a build's path is a plain segment, its link is
+// always the build's page on noxsframe.com (built from the segment, whatever the page claimed),
+// and every string is cleaned of hidden characters and capped (core/untrusted.ts).
+
+/** A build's path segment (`<id>-<slug>`): letters, digits, `_` and `-` only, as the Rust side checks. */
+export const isNoxSegment = (s: unknown): s is string => typeof s === "string" && /^[A-Za-z0-9_-]{1,160}$/.test(s);
+/** A build's page on Nox's Frame: the only Nox's Frame links orbiter makes. */
+export const noxBuildUrl = (segment: string): string => `https://${NOX_HOST}/builds/${segment}`;
+/** Whether a URL is exactly a build's page on Nox's Frame. */
+export const isNoxBuildUrl = (url: unknown): boolean => {
+  if (typeof url !== "string") return false;
+  const m = /^https:\/\/noxsframe\.com\/builds\/([^/?#]+)$/.exec(url);
+  return !!m && isNoxSegment(m[1]);
+};
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const day = (v: unknown): string | null => (typeof v === "string" && DAY_RE.test(v) ? v : null);
+const stamp = (v: unknown): string | null => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}([T ][\d:.]+(Z|[+-]\d{2}:?\d{2})?)?$/.test(v) ? v : null);
+const count = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? Math.round(v) : null);
+const labels = (v: unknown, max = 12): string[] => (Array.isArray(v) ? [...new Set(v.map((t) => cleanLine(t, 40)).filter((t): t is string => !!t))].slice(0, max) : []);
+
+/** One card of an item's list, checked; null when its path isn't a plain build segment. */
+export function cleanNoxListing(v: unknown): NoxListing | null {
+  const o = v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+  if (!o || !isNoxSegment(o.path)) return null;
+  const title = cleanLine(o.title, 200);
+  if (!title) return null;
+  return { path: o.path, url: noxBuildUrl(o.path), title, item: cleanLine(o.item, 80) ?? "", author: cleanLine(o.author, 80) ?? "", votes: count(o.votes), date: day(o.date), tags: labels(o.tags) };
+}
+
+/** A build's page, checked: its link rebuilt from `path`, its text cleaned and capped. */
+export function cleanNoxPage(p: NoxPage, path: string): NoxPage {
+  const segment = isNoxSegment(path) ? path : isNoxSegment(p.path) ? p.path : "";
+  return {
+    ...p,
+    id: cleanLine(p.id, 40)?.replace(/[^A-Za-z0-9_-]/g, "") || segment.slice(0, 12),
+    path: segment,
+    url: segment ? noxBuildUrl(segment) : `https://${NOX_HOST}/builds`,
+    title: cleanLine(p.title, 200),
+    description: cleanBlock(p.description, 4000),
+    author: cleanLine(p.author, 80),
+    item: cleanLine(p.item, 80),
+    published: stamp(p.published),
+    modified: stamp(p.modified),
+    votes: count(p.votes),
+    up: count(p.up),
+    down: count(p.down),
+    modes: labels(p.modes).filter((m) => m in NOX_MODES),
+    tags: labels(p.tags),
+    code: typeof p.code === "string" ? p.code.slice(0, 20_000) : "",
+  };
 }
 
 // ---------------------------------------------------------------- mapping
@@ -363,13 +419,13 @@ export function makeNox(fetcher: NoxFetcher, enabled: () => boolean): Nox {
     const kept = new Map<string, NoxAnswer<NoxPage>>();
     if (!gearKindOf(item)) return [{ entries: [], hiddenByAge: 0, fetchedAt: ctx.now, fromCache: true, stale: false }, kept];
     const answer = await fetcher.list(item.uniqueName, refresh);
-    const all = Array.isArray(answer.data) ? answer.data : [];
+    const all = (Array.isArray(answer.data) ? answer.data : []).map(cleanNoxListing).filter((l): l is NoxListing => !!l);
     const fresh = all.filter((l) => noxListedWithinAge(l, ctx.maxAgeDays, ctx.now));
     const shown = [...fresh].sort((a, b) => (b.votes ?? 0) - (a.votes ?? 0)).slice(0, NOX_LISTED);
     const entries: NoxListed[] = [];
     for (const l of shown) {
       const page = await fetcher.build(l.path, { cachedOnly: true });
-      if (page) kept.set(l.path, page);
+      if (page) kept.set(l.path, { ...page, data: cleanNoxPage(page.data, l.path) });
       entries.push({ ...l, opened: !!page });
     }
     return [{ entries, hiddenByAge: all.length - fresh.length, fetchedAt: answer.fetchedAt, fromCache: answer.fromCache, stale: answer.stale, ...(answer.error ? { error: answer.error } : {}) }, kept];
@@ -382,9 +438,11 @@ export function makeNox(fetcher: NoxFetcher, enabled: () => boolean): Nox {
 
   async function open(item: CatalogItem, path: string, ctx: SourceContext, opts: { refresh?: boolean } = {}): Promise<NoxOpened> {
     if (!enabled()) throw new Error(OFF);
+    if (!isNoxSegment(path)) throw new Error("That isn't a Nox's Frame build");
     const answer = await fetcher.build(path, { refresh: opts.refresh === true });
     if (!answer) throw new Error("Nox's Frame didn't return the build");
-    const mapped = noxToBuild(answer.data.build, item, ctx.catalog, { page: answer.data, now: ctx.now });
+    const page = cleanNoxPage(answer.data, path);
+    const mapped = noxToBuild(page.build, item, ctx.catalog, { page, now: ctx.now });
     if (!mapped) throw new Error(`This build on Nox's Frame doesn't include ${item.name}`);
     return { ...mapped, fetchedAt: answer.fetchedAt, fromCache: answer.fromCache, stale: answer.stale, ...(answer.error ? { error: answer.error } : {}) };
   }
