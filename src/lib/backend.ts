@@ -496,12 +496,21 @@ export const NO_INVENTORY_YET = "No inventory read yet";
  */
 export const nothingYet = (e: string) => /not found at|No dev bundle|HOME is not set|os error [23]\b|No inventory read yet/i.test(e);
 
+/** Browser dev mode: the catalogs of the last read and the file version they came from. */
+let devCatalogs: { tag: string; catalog: Bundle["catalog"]; relics: Bundle["relics"] } | null = null;
+
 export async function loadBundle(dataDir: string): Promise<Bundle> {
   if (inTauri) return tauriBundle(dataDir);
-  // The browser dev mode reads the whole bundle from one file.
+  // The browser dev mode reads the whole bundle from one file. While the file is the same, its
+  // catalogs stay the objects read last, as the desktop app keeps them across syncs (bundleLoader):
+  // what's worked out from them alone is then kept too (model.ts), here as there.
   const res = await fetch("/dev-bundle.json");
   if (!res.ok) throw new Error("No dev bundle. Run `npm run dev-bundle` first.");
-  return res.json();
+  const read: Bundle = await res.json();
+  const tag = res.headers.get("etag");
+  if (tag && devCatalogs?.tag === tag) return { ...read, catalog: devCatalogs.catalog, relics: devCatalogs.relics };
+  devCatalogs = tag ? { tag, catalog: read.catalog, relics: read.relics } : null;
+  return read;
 }
 
 export async function defaultDataDir(): Promise<string> {

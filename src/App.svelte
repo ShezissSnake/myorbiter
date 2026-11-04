@@ -360,7 +360,14 @@
   const modelLive = $derived.by(() => (modelLiveKept = keepModelLive(modelLiveKept, live)));
   /** The official drop tables' relics, over TennoScope's (see relicData.ts): current relics and vaulting. */
   let relicTables = $state.raw<RelicData | null>(null);
-  const withTables = $derived(bundle && relicTables ? { ...bundle, relics: mergeRelics(bundle.relics, relicTables) } : bundle);
+  // The merged list kept while both lists are the same objects: a sync brings a new inventory but the
+  // same relic list (backend.ts, bundleLoader), so the model's relic part is kept too (model.ts).
+  let merged: { relics: Bundle["relics"]; tables: RelicData; out: Bundle["relics"] } | null = null;
+  const mergedRelics = (relics: Bundle["relics"], tables: RelicData) => {
+    if (merged?.relics !== relics || merged.tables !== tables) merged = { relics, tables, out: mergeRelics(relics, tables) };
+    return merged.out;
+  };
+  const withTables = $derived(bundle && relicTables ? { ...bundle, relics: mergedRelics(bundle.relics, relicTables) } : bundle);
   /** Every Foundry recipe, parts' own included: what building something still takes. */
   let recipes = $state.raw<RecipeData | null>(null);
   // A read the model can't be built from says so (with Try again) rather than leaving the app on

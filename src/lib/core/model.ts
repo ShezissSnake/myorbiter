@@ -305,57 +305,224 @@ const DUCATS_NOW: Record<string, number> = { "Bronco Prime Barrel": 25, "Nami Sk
  */
 export const NO_MASTERY = new Set(["/Lotus/Powersuits/SiriusOrion/OrionSuit", "/Lotus/Weapons/Tenno/Grimoire/TnDoppelgangerGrimoire"]);
 
+interface CatalogPart {
+  /** The catalog as the views read it: the extra masterables added, known mistakes fixed. */
+  catalog: CatalogItem[];
+  catalogByUnique: Map<string, CatalogItem>;
+  primeParents: CatalogItem[];
+  partsByParent: Map<string, PrimePart[]>;
+  partByName: Map<string, PrimePart[]>;
+  partByComponentUnique: Map<string, string>;
+  /** Every item's own blueprint, primes and non-primes alike: blueprint path to the item's. */
+  mainBlueprint: Map<string, string>;
+  /** Each path's name: the items', then their prime parts' trade names. */
+  nameByUnique: Map<string, string>;
+  catalogNames: Set<string>;
+  /** Image file names by name: each item's, then its parts' (the first of a name wins). */
+  imageByName: Map<string, string>;
+}
+
+/**
+ * The parts of a model worked out from a catalog alone, kept per catalog (a model never changes
+ * what it's given). The length guards against a catalog grown in place.
+ */
+const catalogParts = new WeakMap<readonly CatalogItem[], { length: number; part: CatalogPart }>();
+function catalogPart(raw: CatalogItem[]): CatalogPart {
+  const hit = catalogParts.get(raw);
+  if (hit && hit.length === raw.length) return hit.part;
+  // Some items list the same component twice (Akbronco Prime: two Bronco Prime, one each); merge
+  // them so it reads as one component needed twice.
+  const known = new Set(raw.map((c) => c.uniqueName));
+  const extra = new Map(EXTRA_MASTERABLE.map((x) => [x.uniqueName, x]));
+  const catalog = [...raw, ...EXTRA_MASTERABLE.filter((x) => !known.has(x.uniqueName))].map((item) => {
+    if (item.masterable && NO_MASTERY.has(item.uniqueName)) item = { ...item, masterable: false };
+    // The catalog has it (orbiter-data keeps the prisms and Infested chambers now), but calls it
+    // not masterable in an older read, and the Mote Amp "Mote Prism": the game's word wins.
+    const x = extra.get(item.uniqueName);
+    if (x && (!item.masterable || item.name !== x.name)) item = { ...item, masterable: true, name: x.name };
+    const fixed = CATEGORY_NOW[item.uniqueName];
+    if (fixed && item.category !== fixed) item = { ...item, category: fixed, type: fixed };
+    // A few melee weapons come typed as rifles in the catalog (Venato, Prova, Ruvox…).
+    if (item.category === "Melee" && /^(Rifle|Pistol|Shotgun)$/.test(item.type ?? "")) item = { ...item, type: "Melee" };
+    // Ducat values that changed since the catalog was made.
+    if (item.components?.some((c) => DUCATS_NOW[partFullName(item, c)] != null)) {
+      item = { ...item, components: item.components.map((c) => (DUCATS_NOW[partFullName(item, c)] != null ? { ...c, ducats: DUCATS_NOW[partFullName(item, c)] } : c)) };
+    }
+    const comps = item.components;
+    if (!comps || new Set(comps.map((c) => c.uniqueName)).size === comps.length) return item;
+    const merged = new Map<string, Component>();
+    for (const c of comps) {
+      const prev = merged.get(c.uniqueName);
+      merged.set(c.uniqueName, prev ? { ...prev, itemCount: (prev.itemCount ?? 1) + (c.itemCount ?? 1) } : { ...c });
+    }
+    return { ...item, components: [...merged.values()] };
+  });
+
+  const catalogByUnique = new Map<string, CatalogItem>();
+  for (const item of catalog) catalogByUnique.set(item.uniqueName, item);
+
+  // Prime parts: components that carry a ducat value.
+  const primeParents: CatalogItem[] = [];
+  const partsByParent = new Map<string, PrimePart[]>();
+  const partByName = new Map<string, PrimePart[]>();
+  const partByComponentUnique = new Map<string, string>();
+  for (const item of catalog) {
+    const parts: PrimePart[] = [];
+    for (const comp of item.components ?? []) {
+      if (comp.ducats == null || comp.tradable === false) continue;
+      const part: PrimePart = {
+        fullName: partFullName(item, comp),
+        componentUnique: comp.uniqueName,
+        parentUnique: item.uniqueName,
+        parentName: item.name,
+        required: comp.itemCount ?? 1,
+        ducats: comp.ducats,
+      };
+      part.ducats = DUCATS_NOW[part.fullName] ?? part.ducats;
+      parts.push(part);
+      const same = partByName.get(part.fullName);
+      if (same) same.push(part);
+      else partByName.set(part.fullName, [part]);
+      partByComponentUnique.set(comp.uniqueName, part.fullName);
+    }
+    if (parts.length) {
+      primeParents.push(item);
+      partsByParent.set(item.uniqueName, parts);
+    }
+  }
+
+  const mainBlueprint = new Map<string, string>();
+  for (const item of catalog) {
+    for (const c of item.components ?? []) if (c.name === "Blueprint") mainBlueprint.set(c.uniqueName, item.uniqueName);
+  }
+
+  const nameByUnique = new Map<string, string>();
+  for (const item of catalog) nameByUnique.set(item.uniqueName, item.name);
+  for (const [u, name] of partByComponentUnique) nameByUnique.set(u, name);
+
+  const imageByName = new Map<string, string>();
+  for (const item of catalog) {
+    if (item.imageName && !imageByName.has(item.name)) imageByName.set(item.name, item.imageName);
+    for (const comp of item.components ?? []) {
+      if (!comp.imageName) continue;
+      const full = partFullName(item, comp);
+      if (!imageByName.has(full)) imageByName.set(full, comp.imageName);
+    }
+  }
+
+  const part: CatalogPart = { catalog, catalogByUnique, primeParents, partsByParent, partByName, partByComponentUnique, mainBlueprint, nameByUnique, catalogNames: new Set(catalog.map((c) => c.name)), imageByName };
+  catalogParts.set(raw, { length: raw.length, part });
+  return part;
+}
+
+interface RelicPart {
+  /** The relic list with each reward once per relic. */
+  relics: RelicEntry[];
+  relicByUnique: Map<string, RelicEntry>;
+  /** A relic's picture by its "Era Code" (the first relic of a code wins). */
+  imageByBase: Map<string, string>;
+  /** Groups and rewards' relics, by Varzia's stock they were worked out with (relicGroupsOf). */
+  groups: WeakMap<object, { relicGroups: Map<string, RelicGroup>; sourcesByReward: Map<string, RelicSource[]> }>;
+}
+
+/** The parts of a model worked out from the relic list alone, kept per list (as catalogPart). */
+const relicParts = new WeakMap<readonly RelicEntry[], { length: number; part: RelicPart }>();
+function relicPart(raw: RelicEntry[]): RelicPart {
+  const hit = relicParts.get(raw);
+  if (hit && hit.length === raw.length) return hit.part;
+  // Some relic entries list a reward twice ("2X Forma Blueprint" in Meso D1); merge them so every
+  // reward name appears once per relic, with the chances added up.
+  const relics = raw.map((r) => {
+    const merged = new Map<string, RelicReward>();
+    for (const rw of r.rewards) {
+      const prev = merged.get(rw.name);
+      merged.set(rw.name, prev ? { ...prev, chance: (prev.chance ?? 0) + (rw.chance ?? 0) } : { ...rw });
+    }
+    return merged.size === r.rewards.length ? r : { ...r, rewards: [...merged.values()] };
+  });
+  const relicByUnique = new Map<string, RelicEntry>();
+  for (const relic of relics) relicByUnique.set(relic.uniqueName, relic);
+  const imageByBase = new Map<string, string>();
+  for (const relic of relics) {
+    const split = splitRelicName(relic.name);
+    if (split && relic.imageName && !imageByBase.has(split.base)) imageByBase.set(split.base, relic.imageName);
+  }
+  const part: RelicPart = { relics, relicByUnique, imageByBase, groups: new WeakMap() };
+  relicParts.set(raw, { length: raw.length, part });
+  return part;
+}
+
+/** No Varzia stock read: the key relicGroupsOf keeps that case under. */
+const NO_RESURGENCE = {};
+/**
+ * Relics grouped by "Era Code" (vaulted, and in Varzia's stock), and each reward's relics. Kept
+ * per relic list and stock: the worldstate keeps her stock as one object until it changes
+ * (modelLive.ts).
+ */
+function relicGroupsOf(rel: RelicPart, resurgence: object | null, inResurgence: (unique: string) => boolean) {
+  const key = resurgence ?? NO_RESURGENCE;
+  const hit = rel.groups.get(key);
+  if (hit) return hit;
+  const relicGroups = new Map<string, RelicGroup>();
+  for (const relic of rel.relics) {
+    const split = splitRelicName(relic.name);
+    if (!split) continue;
+    let group = relicGroups.get(split.base);
+    if (!group) {
+      group = {
+        base: split.base,
+        era: split.base.split(" ")[0],
+        vaulted: false,
+        resurgence: false,
+        byRefinement: {},
+      };
+      relicGroups.set(split.base, group);
+    }
+    group.byRefinement[split.refinement] = relic;
+    if (split.refinement === "Intact") {
+      group.vaulted = relic.vaulted === true;
+      group.resurgence = inResurgence(relic.uniqueName);
+    }
+  }
+
+  const sourcesByReward = new Map<string, RelicSource[]>();
+  for (const group of relicGroups.values()) {
+    const intact = group.byRefinement.Intact;
+    if (!intact) continue;
+    const radiant = group.byRefinement.Radiant;
+    for (const reward of intact.rewards) {
+      const rad = radiant?.rewards.find((r) => r.name === reward.name);
+      const src: RelicSource = {
+        base: group.base,
+        rarity: relicRewardRarity("Intact", reward.chance, reward.rarity),
+        chanceIntact: reward.chance ?? 0,
+        chanceRadiant: rad?.chance ?? reward.chance ?? 0,
+        vaulted: group.vaulted,
+        resurgence: group.resurgence,
+      };
+      const list = sourcesByReward.get(reward.name);
+      if (list) list.push(src);
+      else sourcesByReward.set(reward.name, [src]);
+    }
+  }
+  const out = { relicGroups, sourcesByReward };
+  rel.groups.set(key, out);
+  return out;
+}
+
 export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurgence: null, resurgenceExpiry: null }, foundry: Record<string, number> | null = null, relicMarket: RelicMarket | null = null, imprints: ImprintRaw[] | null = null, recipes: RecipeData | null = null, gear: GearCopy[] | null = null, consumedSuits: string[] | null = null): Model {
   // A row without a path, or still without a name once the known ones are filled in (a damaged
   // read), is left out rather than breaking every page.
   const whole = (ok: (r: InventoryRow) => boolean) => (b: Bundle): Bundle => (b.inventory.every(ok) ? b : { ...b, inventory: b.inventory.filter(ok) });
   bundle = whole((r) => typeof r.name === "string")(withKnownNames(whole((r) => !!r && typeof r.item_id === "string")(bundle)));
-  // Some relic entries list a reward twice ("2X Forma Blueprint" in Meso D1); merge them so every
-  // reward name appears once per relic, with the chances added up.
-  // Some items list the same component twice (Akbronco Prime: two Bronco Prime, one each); merge
-  // them so it reads as one component needed twice.
-  const known = new Set(bundle.catalog.map((c) => c.uniqueName));
-  const extra = new Map(EXTRA_MASTERABLE.map((x) => [x.uniqueName, x]));
-  bundle = {
-    ...bundle,
-    catalog: [...bundle.catalog, ...EXTRA_MASTERABLE.filter((x) => !known.has(x.uniqueName))].map((item) => {
-      if (item.masterable && NO_MASTERY.has(item.uniqueName)) item = { ...item, masterable: false };
-      // The catalog has it (orbiter-data keeps the prisms and Infested chambers now), but calls it
-      // not masterable in an older read, and the Mote Amp "Mote Prism": the game's word wins.
-      const x = extra.get(item.uniqueName);
-      if (x && (!item.masterable || item.name !== x.name)) item = { ...item, masterable: true, name: x.name };
-      const fixed = CATEGORY_NOW[item.uniqueName];
-      if (fixed && item.category !== fixed) item = { ...item, category: fixed, type: fixed };
-      // A few melee weapons come typed as rifles in the catalog (Venato, Prova, Ruvox…).
-      if (item.category === "Melee" && /^(Rifle|Pistol|Shotgun)$/.test(item.type ?? "")) item = { ...item, type: "Melee" };
-      // Ducat values that changed since the catalog was made.
-      if (item.components?.some((c) => DUCATS_NOW[partFullName(item, c)] != null)) {
-        item = { ...item, components: item.components.map((c) => (DUCATS_NOW[partFullName(item, c)] != null ? { ...c, ducats: DUCATS_NOW[partFullName(item, c)] } : c)) };
-      }
-      const comps = item.components;
-      if (!comps || new Set(comps.map((c) => c.uniqueName)).size === comps.length) return item;
-      const merged = new Map<string, Component>();
-      for (const c of comps) {
-        const prev = merged.get(c.uniqueName);
-        merged.set(c.uniqueName, prev ? { ...prev, itemCount: (prev.itemCount ?? 1) + (c.itemCount ?? 1) } : { ...c });
-      }
-      return { ...item, components: [...merged.values()] };
-    }),
-  };
-  bundle = {
-    ...bundle,
-    relics: bundle.relics.map((r) => {
-      const merged = new Map<string, RelicReward>();
-      for (const rw of r.rewards) {
-        const prev = merged.get(rw.name);
-        merged.set(rw.name, prev ? { ...prev, chance: (prev.chance ?? 0) + (rw.chance ?? 0) } : { ...rw });
-      }
-      return merged.size === r.rewards.length ? r : { ...r, rewards: [...merged.values()] };
-    }),
-  };
+  // The catalog and the relic list are most of the data and change only with a new game update:
+  // the desktop app keeps them across syncs (backend.ts, bundleLoader), so what's worked out from
+  // them alone is kept per list (catalogPart, relicPart) and a sync redoes only the inventory's part.
+  const cat = catalogPart(bundle.catalog);
+  const rel = relicPart(bundle.relics);
+  bundle = { ...bundle, catalog: cat.catalog, relics: rel.relics };
 
-  const catalogByUnique = new Map<string, CatalogItem>();
-  for (const item of bundle.catalog) catalogByUnique.set(item.uniqueName, item);
+  const { catalogByUnique, primeParents, partsByParent, partByName, partByComponentUnique, mainBlueprint } = cat;
 
   const inventoryByBase = new Map<string, InventoryRow[]>();
   const mastered = new Set<string>();
@@ -426,36 +593,6 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
   );
   const inResurgence = (unique: string) => resurgence.has(normaliseStoreUnique(unique));
 
-  // Prime parts: components that carry a ducat value.
-  const primeParents: CatalogItem[] = [];
-  const partsByParent = new Map<string, PrimePart[]>();
-  const partByName = new Map<string, PrimePart[]>();
-  const partByComponentUnique = new Map<string, string>();
-  for (const item of bundle.catalog) {
-    const parts: PrimePart[] = [];
-    for (const comp of item.components ?? []) {
-      if (comp.ducats == null || comp.tradable === false) continue;
-      const part: PrimePart = {
-        fullName: partFullName(item, comp),
-        componentUnique: comp.uniqueName,
-        parentUnique: item.uniqueName,
-        parentName: item.name,
-        required: comp.itemCount ?? 1,
-        ducats: comp.ducats,
-      };
-      part.ducats = DUCATS_NOW[part.fullName] ?? part.ducats;
-      parts.push(part);
-      const same = partByName.get(part.fullName);
-      if (same) same.push(part);
-      else partByName.set(part.fullName, [part]);
-      partByComponentUnique.set(comp.uniqueName, part.fullName);
-    }
-    if (parts.length) {
-      primeParents.push(item);
-      partsByParent.set(item.uniqueName, parts);
-    }
-  }
-
   // Owned parts. TennoScope stores warframe part blueprints under a different path than the
   // catalog's component, so fall back to the name when the path does not match.
   const ownedPartQty = new Map<string, number>();
@@ -476,11 +613,6 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
   // The foundry. Building the item itself (its main blueprint) means you'll own it: its parts are
   // no longer needed. Crafting a part from its blueprint (…ChassisBlueprint → …ChassisComponent)
   // means you'll hold that part.
-  // Every item's own blueprint, primes and non-primes alike.
-  const mainBlueprint = new Map<string, string>();
-  for (const item of bundle.catalog) {
-    for (const c of item.components ?? []) if (c.name === "Blueprint") mainBlueprint.set(c.uniqueName, item.uniqueName);
-  }
   const foundryRecipes = new Map<string, number>();
   const craftingPartQty = new Map<string, number>();
   for (const [path, count] of Object.entries(foundry ?? {})) {
@@ -496,43 +628,26 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
     if (part) craftingPartQty.set(part, (craftingPartQty.get(part) ?? 0) + count);
   }
 
-  // Relics, grouped by "Era Code".
-  const relicGroups = new Map<string, RelicGroup>();
-  for (const relic of bundle.relics) {
-    const split = splitRelicName(relic.name);
-    if (!split) continue;
-    let group = relicGroups.get(split.base);
-    if (!group) {
-      group = {
-        base: split.base,
-        era: split.base.split(" ")[0],
-        vaulted: false,
-        resurgence: false,
-        byRefinement: {},
-      };
-      relicGroups.set(split.base, group);
-    }
-    group.byRefinement[split.refinement] = relic;
-    if (split.refinement === "Intact") {
-      group.vaulted = relic.vaulted === true;
-      group.resurgence = inResurgence(relic.uniqueName);
-    }
-  }
+  // Relics, grouped by "Era Code", and each reward's relics: kept with the relic list while Varzia's
+  // stock is the same.
+  const { relicGroups, sourcesByReward } = relicGroupsOf(rel, live.resurgence ?? null, inResurgence);
 
-  const nameByUnique = new Map<string, string>();
-  for (const item of bundle.catalog) nameByUnique.set(item.uniqueName, item.name);
-  for (const [u, name] of partByComponentUnique) nameByUnique.set(u, name);
-  for (const row of bundle.inventory) if (!nameByUnique.has(baseId(row.item_id))) nameByUnique.set(baseId(row.item_id), row.name);
+  // Names by path: the catalog's (its parts by their trade names), then the inventory's for the rest.
+  const heldName = new Map<string, string>();
+  for (const row of bundle.inventory) {
+    const b = baseId(row.item_id);
+    if (!cat.nameByUnique.has(b) && !heldName.has(b)) heldName.set(b, row.name);
+  }
   const nameOf = (path: string) => {
     const u = path.replace("/Lotus/StoreItems/", "/Lotus/");
-    const known = nameByUnique.get(u);
+    const known = cat.nameByUnique.get(u) ?? heldName.get(u);
     if (known) return known;
     // Not in the trimmed catalog (Forma, resources): make the last path segment readable.
     const last = u.split("/").pop() ?? u;
     return last.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2");
   };
 
-  // Image file names by display name. Inventory names win: they are what the game shows.
+  // Rows you hold, by name.
   const inventoryByName = new Map<string, InventoryRow[]>();
   for (const row of bundle.inventory) {
     if (row.quantity <= 0) continue;
@@ -540,26 +655,16 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
     if (list) list.push(row);
     else inventoryByName.set(row.name, [row]);
   }
-  const catalogNames = new Set(bundle.catalog.map((c) => c.name));
+  const catalogNames = cat.catalogNames;
 
-  const imageByName = new Map<string, string>();
-  for (const item of bundle.catalog) {
-    if (item.imageName && !imageByName.has(item.name)) imageByName.set(item.name, item.imageName);
-    for (const comp of item.components ?? []) {
-      if (!comp.imageName) continue;
-      const full = partFullName(item, comp);
-      if (!imageByName.has(full)) imageByName.set(full, comp.imageName);
-    }
-  }
-  for (const row of bundle.inventory) if (row.image_name) imageByName.set(row.name, row.image_name);
-  for (const relic of bundle.relics) {
-    const split = splitRelicName(relic.name);
-    if (split && relic.imageName && !imageByName.has(split.base)) imageByName.set(split.base, relic.imageName);
-  }
+  // Image file names by display name. Inventory names win: they are what the game shows. Then the
+  // catalog's (items, then their parts), then a relic's by its "Era Code".
+  const heldImage = new Map<string, string>();
+  for (const row of bundle.inventory) if (row.image_name) heldImage.set(row.name, row.image_name);
   // A prime's main blueprint is filed under the generic blueprint picture, which the image set
   // doesn't have: show the item it builds instead.
   const own = (name: string) => {
-    const f = imageByName.get(name);
+    const f = heldImage.get(name) ?? cat.imageByName.get(name) ?? rel.imageByBase.get(name);
     return f && f !== "blueprint.png" ? f : undefined;
   };
   const imageOf = (name: string): string | null => {
@@ -568,29 +673,7 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
     return own(one) ?? own(one.replace(/ Blueprint$/, "")) ?? relicImage(one);
   };
 
-  const relicByUnique = new Map<string, RelicEntry>();
-  for (const relic of bundle.relics) relicByUnique.set(relic.uniqueName, relic);
-
-  const sourcesByReward = new Map<string, RelicSource[]>();
-  for (const group of relicGroups.values()) {
-    const intact = group.byRefinement.Intact;
-    if (!intact) continue;
-    const radiant = group.byRefinement.Radiant;
-    for (const reward of intact.rewards) {
-      const rad = radiant?.rewards.find((r) => r.name === reward.name);
-      const src: RelicSource = {
-        base: group.base,
-        rarity: relicRewardRarity("Intact", reward.chance, reward.rarity),
-        chanceIntact: reward.chance ?? 0,
-        chanceRadiant: rad?.chance ?? reward.chance ?? 0,
-        vaulted: group.vaulted,
-        resurgence: group.resurgence,
-      };
-      const list = sourcesByReward.get(reward.name);
-      if (list) list.push(src);
-      else sourcesByReward.set(reward.name, [src]);
-    }
-  }
+  const relicByUnique = rel.relicByUnique;
 
   const ownedRelicCount = new Map<string, number>();
   for (const row of bundle.inventory) {
