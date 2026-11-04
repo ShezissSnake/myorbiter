@@ -841,7 +841,7 @@ struct ReportEnv {
     arch: &'static str,
 }
 
-/// The version is the app's (0.1.<build> in a CI build, set through tauri.conf.json), not the
+/// The version is the app's (0.2.<build> in a CI build, set through tauri.conf.json), not the
 /// crate's, which stays 0.1.0.
 #[tauri::command]
 fn report_env(app: tauri::AppHandle) -> ReportEnv {

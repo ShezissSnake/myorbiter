@@ -2,7 +2,7 @@
 // versions compare, what the settings may hold, and where a build's release page is. The app side
 // (asking for and installing updates) is lib/updates.svelte.ts and src-tauri/src/updates.rs.
 //
-// Every build CI makes is version 0.1.<build number>, the number of its `build-<n>` release, and
+// Every build CI makes is version 0.2.<build number>, the number of its `build-<n>` release, and
 // keeps that version when it moves from Experimental to Beta to Stable. A local build is 0.1.0.
 
 import { cleanLine } from "./untrusted";
@@ -64,9 +64,9 @@ export function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-/** The build number of a CI build ("0.1.52" → 52); null for a local build (0.1.0) or anything else. */
+/** The build number of a CI build ("0.2.52" → 52); null for a local build (0.1.0) or anything else. */
 export function buildNumber(version: string): number | null {
-  const m = /^0\.1\.(\d+)$/.exec(version);
+  const m = /^0\.2\.(\d+)$/.exec(version);
   const n = m ? Number(m[1]) : 0;
   return n > 0 ? n : null;
 }
@@ -91,7 +91,7 @@ export function cameFrom(version: string, u: UpdateSettings): Channel | "local" 
   return u.channel;
 }
 
-/** "0.1.52 · Experimental", "0.1.0 · local build". */
+/** "0.2.52 · Experimental", "0.1.0 · local build". */
 export function versionLine(version: string, u: UpdateSettings): string {
   const c = cameFrom(version, u);
   return `${version} · ${c === "local" ? "local build" : CHANNEL_LABEL[c]}`;
