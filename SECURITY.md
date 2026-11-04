@@ -34,8 +34,8 @@ is possible. There is no bounty.
 ## The signing key
 
 In-app updates are signed. Each release's update files carry a minisign signature made with the
-project's private updater key, which lives only in the repository's Actions secrets and is used by
-the release workflow. The app carries the matching public key (`plugins.updater.pubkey` in
+project's private updater key, which lives only in GitHub Actions secrets (the `release-signing`
+environment once the repository is public) and is used only by the release workflow's signing job. The app carries the matching public key (`plugins.updater.pubkey` in
 `src-tauri/tauri.conf.json`) and installs an update only when its signature checks out against it.
 A leaked private key, or a change that loosens that check, is a vulnerability: report it as above.
 The downloads on the Releases page also come with `SHA256SUMS` (README, Checking a download).
