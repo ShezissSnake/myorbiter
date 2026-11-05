@@ -55,7 +55,8 @@ function shiftTimes(v: unknown, shift: number, key = ""): unknown {
  * demo/ hasn't got is a 404, never public/'s copy.
  */
 function demoData(): Plugin {
-  const dir = join(process.cwd(), "demo");
+  // ORBITER_DEMO_DIR: another invented account in the same shape (a scaled-up one for timing).
+  const dir = process.env.ORBITER_DEMO_DIR || join(process.cwd(), "demo");
   return {
     name: "orbiter-demo-data",
     apply: "serve",
