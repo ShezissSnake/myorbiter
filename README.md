@@ -149,7 +149,7 @@ Tests: `npm test` covers the analysis core, and `npm run check` type-checks the 
 `scripts/build-local.sh` builds the Linux AppImage the way the release workflow's Linux job does: Tesseract put inside TennoScope, TennoScope's own AppImage, orbiter's with TennoScope inside it, and the same repack step (`scripts/repack-appimage.sh`). Use it to try a build without spending Actions minutes. Made for Arch Linux and CachyOS; install what it needs once:
 
 ```fish
-sudo pacman -S --needed base-devel rust clang pnpm nodejs npm libpipewire webkit2gtk-4.1 tesseract tesseract-data-eng patchelf
+sudo pacman -S --needed base-devel rust clang pnpm nodejs npm libpipewire webkit2gtk-4.1 tesseract tesseract-data-eng patchelf xdg-utils
 ```
 
 Then, from orbiter's folder:
