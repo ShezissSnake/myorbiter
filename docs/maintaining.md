@@ -15,7 +15,17 @@ settings. Each line says where it is.
       Dependabot security updates → Enable. (Version updates are already set up in
       `.github/dependabot.yml`.)
 - [ ] **Read the history once more** for anything personal or secret (real names, home paths, trade
-      records, other players' names, tokens). Making a repository public publishes every commit.
+      records, other players' names, tokens). Making a repository public publishes every commit,
+      every tag and every branch, Dependabot's included, not only `main`.
+- [ ] **Commit e-mail stays private:** account Settings → Emails → tick **Keep my email addresses
+      private** and **Block command line pushes that expose my email**. Commits made on github.com
+      then carry the `users.noreply.github.com` address, and a push with any other address is
+      refused.
+- [ ] **No leftover tags from before this repository:** every `build-<n>` tag must point at the
+      commit run `<n>` of `release.yml` built. Release runs are numbered from 1 in this repository;
+      `gh release create --target` reuses a tag that already exists, so an older `build-<n>` tag
+      would put run `<n>`'s release on the older commit. List them with
+      `git ls-remote --tags origin 'build-*'` and compare each with its release's commit.
 
 ## Actions
 
