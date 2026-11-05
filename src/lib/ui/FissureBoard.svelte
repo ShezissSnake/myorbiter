@@ -130,19 +130,23 @@
   button.go:active b { color: var(--gold); }
   button.go:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
   .grow { flex: 1; }
-  .best { display: inline-flex; align-items: baseline; gap: .3rem; min-width: 0; white-space: nowrap; }
+  /* The relic to crack never shrinks: a card is always wide enough for it (26rem at least; under
+     1100 px of room "Crack" and the refinement go), and a share of a pixel would end its name in
+     an ellipsis. The "for …" chip gives way instead. */
+  .best { flex: none; display: inline-flex; align-items: baseline; gap: .3rem; white-space: nowrap; }
   .moreb { all: unset; box-sizing: border-box; flex: none; min-width: 1.6rem; padding: .05rem .3rem; text-align: center; font-size: .7rem; color: #8a919b; border: 1px solid var(--rule-control); cursor: pointer; }
   .moreb:hover, .moreb[aria-expanded="true"] { color: var(--platinum); border-color: var(--gold-dim); }
   .moreb:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   .also { list-style: none; margin: 0 0 .5rem; padding: .4rem .5rem; display: grid; gap: .25rem; background: rgb(0 0 0 / 18%); }
   .also li { display: grid; grid-template-columns: 1rem minmax(0, 1fr) auto auto auto; gap: .5rem; align-items: baseline; font-size: .82rem; }
   .also b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* The relic's name gives way first; its value and the Recruit button never do. */
+  /* Within its part, the relic's name gives way first; its value and the Recruit button never do. */
   .best b { font-weight: 600; color: var(--platinum); font-size: .86rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .pv { flex: none; }
   :global(html[data-room~="lt1100"]) .best .crackw, :global(html[data-room~="lt1100"]) .best .refw { display: none; }
   ul { list-style: none; margin: .3rem 0 0; padding: 0; display: grid; gap: .15rem; }
-  li { display: grid; grid-template-columns: minmax(6.5rem, 1.2fr) minmax(0, 1fr) 4.2rem 4.6rem; gap: .5rem; align-items: baseline; padding: .12rem 0; }
+  /* The enemy column as wide as its longest name needs (Corrupted), up to 6.5rem; the node gives way. */
+  li { display: grid; grid-template-columns: minmax(6.5rem, 1.2fr) minmax(0, 1fr) fit-content(6.5rem) 4.6rem; gap: .5rem; align-items: baseline; padding: .12rem 0; }
   .mt { display: inline-flex; align-items: center; gap: .3rem; color: var(--platinum); font-size: .88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .node, .foe { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .left { text-align: right; font-variant-numeric: tabular-nums; color: var(--platinum-dim); white-space: nowrap; }
@@ -151,7 +155,8 @@
   li.hit .mt { color: var(--gold); }
   .mtn { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .mg { display: inline-flex; color: color-mix(in srgb, var(--tint) 65%, var(--platinum-dim)); }
-  .saving { font-size: .7rem; color: var(--verdigris); border: 1px solid color-mix(in srgb, var(--verdigris) 45%, transparent); padding: 0 .3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: default; }
+  /* "for Kompressa Prime" gives way long before the relic to crack does (flex-shrink 1000 to 1). */
+  .saving { flex: 0 1000 auto; font-size: .7rem; color: var(--verdigris); border: 1px solid color-mix(in srgb, var(--verdigris) 45%, transparent); padding: 0 .3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: default; }
   /* Set like the other small chips (SP, Storm): capitals in a hairline box, in verdigris. */
   .quick { flex: none; font-family: var(--face-register); font-size: .52rem; letter-spacing: .06em; text-transform: uppercase; color: var(--verdigris); border: 1px solid color-mix(in srgb, var(--verdigris) 45%, transparent); padding: 0 .2rem; line-height: 1.4; }
   .kind { display: inline-flex; align-items: center; gap: .18rem; font-family: var(--face-register); font-size: .58rem; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold-dim); padding: 0 .25rem; }

@@ -10,6 +10,7 @@
 <span class="foe" title={enemy}>{#if icon}<GameIcon name={icon} {size} />{/if}{#if name || !icon}<span class="n">{enemy.replace(/^The /, "")}</span>{/if}</span>
 
 <style>
-  .foe { display: inline-flex; align-items: center; gap: .28rem; min-width: 0; vertical-align: middle; }
+  /* No wider than its cell, so a long name ends in an ellipsis rather than being cut. */
+  .foe { display: inline-flex; align-items: center; gap: .28rem; min-width: 0; max-width: 100%; vertical-align: middle; }
   .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

@@ -854,7 +854,7 @@
             </td>
             <td class="fade c-comp" data-label="Cheapest in game">
               {#if p && p.competitor.price != null}
-                <span class="comp"><P v={p.competitor.price} /> <span class="dim small">{p.competitor.cheapest?.name} · {p.competitor.sellers} in game{#if p.competitor.lowest && p.competitor.lowest.platinum !== p.competitor.price}<span title="{p.competitor.lowest.name ?? 'One seller'} asks {p.competitor.lowest.platinum}p, far under everyone else: likely a forgotten or mistyped listing, so it isn't matched. Buy it if it's real."> · {p.competitor.lowest.platinum}p left out</span>{/if}</span></span>
+                <span class="comp"><P v={p.competitor.price} /> <span class="dim small">{p.competitor.cheapest?.name} · <span class="nowrap">{p.competitor.sellers} in game</span>{#if p.competitor.lowest && p.competitor.lowest.platinum !== p.competitor.price}<span title="{p.competitor.lowest.name ?? 'One seller'} asks {p.competitor.lowest.platinum}p, far under everyone else: likely a forgotten or mistyped listing, so it isn't matched. Buy it if it's real."> · {p.competitor.lowest.platinum}p left out</span>{/if}</span></span>
                 {@const goes = goesFor(p)}
                 {#if goes != null}<div class="register goes" title="Everyone in game asks more than twice what it really goes for: what it sold for lately, or what sellers on the site ask if that's lower ({p.competitor.askLevel ?? '–'}p, in game or not). Priced at that, so it sells.">goes for ~{goes}p</div>
                 {:else if p.competitor.ladder.length > 1}<div class="register ladder" title="The next cheapest in-game prices">{p.competitor.ladder.join(" · ")}</div>{/if}
@@ -1147,12 +1147,13 @@
   .orders th:first-child, .orders td:first-child { padding-left: 0; }
   .orders th:last-child, .orders td:last-child { padding-right: 0; }
   .orders input[type="number"] { width: 4.6rem; padding: .35rem .45rem; text-align: right; }
-  /* Less room: the "Will set" column goes first. */
-  /* Page area under 900 px (App sets the flag, by the room pages actually have). */
-  :global(html[data-room~="lt900"]) .willset { display: none; }
+  /* Less room: the "Will set" column goes first, its note under the price instead. Page area under
+     950 px (App sets the flag, by the room pages actually have): a 1000 px window with the sidebar
+     folded, where the row's actions otherwise ran past the right edge. */
+  :global(html[data-room~="lt950"]) .willset { display: none; }
   .willnote { display: none; margin-top: .2rem; font-family: var(--face-register); font-size: .62rem; letter-spacing: .06em; color: var(--oxblood); white-space: nowrap; }
   .willnote.up { color: var(--verdigris); }
-  :global(html[data-room~="lt900"]) .willnote { display: block; }
+  :global(html[data-room~="lt950"]) .willnote { display: block; }
   /* "auto 10" whole: the floor's placeholder without the wide capitals (and the box set wide enough, inline). */
   .floorcol input::placeholder { text-transform: none; letter-spacing: 0; font-size: .74rem; }
   /* The per-listing floor box goes next (your floors still apply, and the overall floor is above
@@ -1196,6 +1197,8 @@
   .right { text-align: right; }
   .center { text-align: center; }
   .comp { display: inline-flex; align-items: center; gap: .45rem; }
+  /* "3 in game" stays on one line when the seller's name wraps. */
+  .nowrap { white-space: nowrap; }
   .ladder { margin-top: .15rem; font-size: .6rem; }
   .goes { margin-top: .15rem; font-size: .6rem; color: var(--gold); }
   .none { color: var(--platinum-deep); }
