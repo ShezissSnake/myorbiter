@@ -316,3 +316,15 @@ test("never sell: refused whoever asks, the listing form and a console included"
     assert.match(!g.ok ? g.why : "", /never-sell list/);
   }
 });
+
+test("ducats: the floor a listing is held at always passes the ducat check, whatever the float error", async () => {
+  const { aboveDucats, ducatsBeat, platToBeat } = await import("../src/lib/core/bulk");
+  // 25 ducats at 1.1p is 27.500000000000004p; with the edge, 33.00000000000001p: the floor is 33.
+  for (const [ducats, rate] of [[25, 1.1], [50, 0.55], [100, 1.1], [45, 0.1], [75, 0.1], [15, 0.3]]) {
+    const worth = ducats * rate;
+    const floor = aboveDucats(worth)!;
+    assert.equal(ducatsBeat(floor, worth), false, `${ducats} ducats at ${rate}p: ${floor}p must be allowed`);
+    assert.equal(ducatsBeat(floor - 1, worth), true, `${ducats} ducats at ${rate}p: ${floor - 1}p is too close`);
+    assert.ok(floor >= platToBeat(worth) - 1e-6);
+  }
+});

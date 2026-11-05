@@ -1103,10 +1103,13 @@
   // warframe.market and you haven't given it or said Not now.
   const REP_WINDOW = 30 * 60_000;
   const repDue = $derived.by(() => {
+    // Automatic +rep gives it by itself: no offer to give it by hand as well.
+    if (settings.market.autoRep) return null;
     const t = settings.market.trades[0];
     if (!t || clock - t.at > REP_WINDOW || settings.market.rep[t.key]) return null;
-    // One +rep per player: already given on an earlier trade.
-    if (settings.market.trades.some((x) => x.partner === t.partner && settings.market.rep[x.key] === "given")) return null;
+    // One +rep per player: already given on an earlier trade (names in any case).
+    const partner = t.partner.toLowerCase();
+    if (settings.market.trades.some((x) => x.partner.toLowerCase() === partner && settings.market.rep[x.key] === "given")) return null;
     const u = mkt.users[t.partner.toLowerCase()];
     return u ? { t, u } : null;
   });
@@ -1142,37 +1145,62 @@
     });
   });
   let repRunning = false;
-  const repFailed = new Set<string>();
+  /** A trade came in while a run was going: one more run once it ends. */
+  let repAgain = false;
+  /** When +rep for a trade last failed: it's tried again on a later run, after REP_RETRY. */
+  const repFailed = new Map<string, number>();
+  const REP_RETRY = 15 * 60_000;
+  let repRetry: ReturnType<typeof setTimeout> | null = null;
   async function runAutoRep() {
-    if (repRunning || !settings.market.autoRep || !mkt.linked) return;
+    if (!settings.market.autoRep || !mkt.linked) return;
+    if (repRunning) {
+      repAgain = true;
+      return;
+    }
     repRunning = true;
     try {
-      for (const t of repCandidates(settings.market.trades, settings.market.rep, Date.now())) {
-        if (repFailed.has(t.key)) continue;
-        // Turned off, or signed out, part way through: stop there.
-        if (!settings.market.autoRep || !mkt.linked) break;
-        let u: Awaited<ReturnType<typeof mkt.user>>;
-        try {
-          u = await mkt.user(t.partner);
-        } catch {
-          continue; // warframe.market didn't answer: next run
-        }
-        if (u === null) {
-          markRep(t.key, "skipped"); // not on warframe.market: nothing to rate
-          continue;
-        }
-        try {
-          const r = await mkt.giveRep(t.partner, settings.market.repText);
-          markRep(t.key, r === "reported" ? "skipped" : "given");
-        } catch (e) {
-          repFailed.add(t.key);
-          tell("sold", `Couldn't give ${t.partner} +rep`, `${String(e).replace(/^Error:\s*/, "")}. Stats has a +rep button for that trade.`);
-        }
-        // warframe.market asks for some room between requests.
-        await new Promise((r) => setTimeout(r, 1500));
-      }
+      do {
+        repAgain = false;
+        await autoRepOnce();
+      } while (repAgain && settings.market.autoRep && mkt.linked);
     } finally {
       repRunning = false;
+    }
+  }
+  async function autoRepOnce() {
+    for (const t of repCandidates(settings.market.trades, settings.market.rep, Date.now())) {
+      const failedAt = repFailed.get(t.key);
+      if (failedAt != null && Date.now() - failedAt < REP_RETRY) continue;
+      // Turned off, or signed out, part way through: stop there.
+      if (!settings.market.autoRep || !mkt.linked) break;
+      let u: Awaited<ReturnType<typeof mkt.user>>;
+      try {
+        u = await mkt.user(t.partner);
+      } catch {
+        continue; // warframe.market didn't answer: next run
+      }
+      if (u === null) {
+        markRep(t.key, "skipped"); // not on warframe.market: nothing to rate
+        continue;
+      }
+      try {
+        const r = await mkt.giveRep(t.partner, settings.market.repText);
+        markRep(t.key, r === "reported" ? "skipped" : "given");
+      } catch (e) {
+        const why = String(e).replace(/^Error:\s*/, "");
+        // Said once per trade, however many times it's tried again.
+        if (failedAt == null) tell("sold", `Couldn't give ${t.partner} +rep`, `${why}. orbiter tries again later; Stats has a +rep button for that trade.`);
+        repFailed.set(t.key, Date.now());
+        // One timer for every failure: the retry doesn't wait for the next trade.
+        repRetry ??= setTimeout(() => {
+          repRetry = null;
+          void runAutoRep();
+        }, REP_RETRY + 1_000);
+        // Asked to slow down: the rest wait for a later run too, rather than be refused in turn.
+        if (/slow down/.test(why)) break;
+      }
+      // warframe.market asks for some room between requests.
+      await new Promise((r) => setTimeout(r, 1500));
     }
   }
   // On start and on signing in: trades read while signed out, or while orbiter was closed.
@@ -1289,9 +1317,12 @@
             lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: "hand" });
             continue;
           }
-          const marked = s.order ? await mkt.sold(s.order, Math.min(s.count, s.order.quantity), { quiet: true }) : null;
+          // Matched against the listings as they were when the trade was read: one an earlier sale
+          // in this trade (or a Sold click) closed meanwhile isn't listed any more.
+          const order = s.order && mkt.orders.some((o) => o.id === s.order!.id) ? s.order : null;
+          const marked = order ? await mkt.sold(order, s.count, { quiet: true }) : null;
           settings.market.sales = [{ at, item: s.name, rank: s.rank, quantity: s.count, platinum: s.platinumEach, trade: key }, ...settings.market.sales].slice(0, 2000);
-          lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: s.order ? (marked ? "marked" : "still listed") : "not listed" });
+          lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: order ? (marked ? "marked" : "still listed") : "not listed" });
           done++;
         }
         saleOutcome(key, lines);

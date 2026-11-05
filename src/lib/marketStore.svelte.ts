@@ -397,6 +397,18 @@ class MarketStore {
    * is a report (left as it is). Throws with a reason in words.
    */
   async giveRep(name: string, text: string): Promise<"given" | "already" | "reported"> {
+    // One at a time per player: a button pressed while the automatic +rep for the same trade is
+    // on its way waits for that one, rather than both reading "not given yet" and both sending.
+    const key = name.toLowerCase();
+    const going = this.repsGoing.get(key);
+    if (going) return going.then((r) => (r === "given" ? "already" : r));
+    const p = this.giveRepNow(name, text).finally(() => this.repsGoing.delete(key));
+    this.repsGoing.set(key, p);
+    return p;
+  }
+  private repsGoing = new Map<string, Promise<"given" | "already" | "reported">>();
+
+  private async giveRepNow(name: string, text: string): Promise<"given" | "already" | "reported"> {
     if (!this.linked) throw new Error("Sign in to warframe.market on Orders first");
     try {
       const mine = await market.myReview(name);
@@ -763,8 +775,11 @@ class MarketStore {
           const existing = this.existingFor(d);
           const own = s && existing ? (s.floors[listingKey(existing)] ?? null) : null;
           const crack = it && this.draftModel ? this.crackFloor(this.draftModel, it.name, d.subtype ?? d.subtypes?.[0] ?? null) : null;
+          // A prime part or set: never proposed at (or under) what its ducats are worth to you.
+          const ducats = it && this.draftModel && this.advice ? aboveDucats(ducatWorth(this.draftModel, it, this.advice.platPerDucat)) : null;
+          const floors = [own, crack, ducats].filter((x): x is number => x != null);
           return {
-            floor: crack != null ? Math.max(own ?? 0, crack) : own,
+            floor: floors.length ? Math.max(...floors) : null,
             minShare: s?.minShare ?? 0,
             reference: s && it && this.draftModel ? referencePrice(this.draftModel, it, d.rank, d.subtype ?? d.subtypes?.[0] ?? null) : null,
             defaultSubtype: d.subtypes?.[0] ?? null,
@@ -906,17 +921,29 @@ class MarketStore {
    */
   async sold(o: MyOrder, n: number, { quiet = false, failed }: { quiet?: boolean; failed?: (reason: string) => void } = {}): Promise<Sale | null> {
     const name = this.item(o.itemId)?.name ?? "order";
-    n = Math.max(1, Math.min(o.quantity, Math.round(n)));
-    const before = this.orders;
+    // The listing as it is now, not the copy the caller had: a sale marked meanwhile (a trade with
+    // several items, a Sold click on Orders) may have lowered or closed it already.
+    const cur = this.orders.find((x) => x.id === o.id);
+    if (!cur) {
+      const why = "it's no longer listed (already sold or removed)";
+      this.note(`${name}: not marked sold again: ${why}`, "info", quiet);
+      failed?.(why);
+      return null;
+    }
+    n = Math.max(1, Math.min(cur.quantity, Math.round(n)));
+    const all = n >= cur.quantity;
+    const at = this.orders.indexOf(cur);
     this.localEdits++;
-    this.orders = n >= o.quantity ? before.filter((x) => x.id !== o.id) : before.map((x) => (x.id === o.id ? { ...x, quantity: x.quantity - n } : x));
+    this.orders = all ? this.orders.filter((x) => x.id !== cur.id) : this.orders.map((x) => (x.id === cur.id ? { ...x, quantity: x.quantity - n } : x));
     try {
-      await market.close(o.id, n);
-      this.note(`Sold ${n} × ${name}${o.rank != null ? ` R${o.rank}` : ""} for ${o.platinum}p${n >= o.quantity ? ": listing closed" : `: ${o.quantity - n} left listed`}`, "ok");
-      return { at: Date.now(), item: name, rank: o.rank, quantity: n, platinum: o.platinum };
+      await market.close(cur.id, n);
+      this.note(`Sold ${n} × ${name}${cur.rank != null ? ` R${cur.rank}` : ""} for ${cur.platinum}p${all ? ": listing closed" : `: ${cur.quantity - n} left listed`}`, "ok");
+      return { at: Date.now(), item: name, rank: cur.rank, quantity: n, platinum: cur.platinum };
     } catch (e) {
-      // Put it back unless something else changed the list meanwhile.
-      if (this.orders.every((x) => before.some((b) => b.id === x.id))) this.orders = before;
+      // Only this sale is undone: the copies it took go back, whatever else changed meanwhile.
+      const still = this.orders.find((x) => x.id === cur.id);
+      if (still) this.orders = this.orders.map((x) => (x === still ? { ...x, quantity: x.quantity + n } : x));
+      else if (all) this.orders = [...this.orders.slice(0, at), cur, ...this.orders.slice(at)];
       this.note(`${name}: couldn't mark it sold (${clean(e)})`, "warn", quiet);
       failed?.(clean(e));
       if (isAuthError(e) && this.account) {

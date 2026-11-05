@@ -481,10 +481,15 @@ export const DUCAT_EDGE = 0.2;
 export const DUCAT_EDGE_MIN = 2;
 /** The least platinum that beats ducats worth `worth` to you, by the edge above. */
 export const platToBeat = (worth: number) => worth + Math.max(DUCAT_EDGE_MIN, worth * DUCAT_EDGE);
-/** Ducats worth `worth` to you win over selling at `plat`: worth more, or too close to call. */
-export const ducatsBeat = (plat: number, worth: number) => plat < platToBeat(worth);
+/** The first whole price that beats ducats worth `worth` (a hair of float error forgiven: 33.000…01 is 33). */
+const firstWholeAbove = (worth: number) => Math.ceil(platToBeat(worth) - 1e-9);
+/**
+ * Ducats worth `worth` to you win over selling at `plat`: worth more, or too close to call. Judged
+ * by the same whole price aboveDucats gives, so the floor a listing is held at always passes.
+ */
+export const ducatsBeat = (plat: number, worth: number) => plat < firstWholeAbove(worth);
 /** The least a prime part or set is listed or repriced at: the first whole price that beats its ducats. */
-export const aboveDucats = (worth: number | null) => (worth == null ? null : Math.ceil(platToBeat(worth) - 1e-9));
+export const aboveDucats = (worth: number | null) => (worth == null ? null : firstWholeAbove(worth));
 
 export function ducatsWin(plat: number | null, ducats: number, advice: DucatOptions): string | null {
   if (!ducats || plat == null || !(advice.platPerDucat > 0)) return null;

@@ -350,3 +350,63 @@ test("Sell spares: nothing is sent when your listings can't be read first, so th
   assert.match(mkt.errorOf("Updating your listings") ?? "", /^Nothing changed: your listings couldn't be read first/);
   mkt.bulk = null;
 });
+
+test("Sold twice from the same copy of a listing closes no more than is listed", async () => {
+  mkt.orders = [order("a", 2)];
+  const closes: number[] = [];
+  market.close = async (_id: string, n: number) => {
+    closes.push(n);
+  };
+  const stale = mkt.orders[0];
+  assert.ok(await mkt.sold(stale, 1));
+  // The second sale is clamped to the one copy still listed, from the listing as it is now.
+  const second = await mkt.sold(stale, 2);
+  assert.equal(second?.quantity, 1);
+  assert.deepEqual(closes, [1, 1]);
+  assert.deepEqual(mkt.orders, []);
+  // A third finds nothing listed and sends nothing.
+  let why = "";
+  assert.equal(await mkt.sold(stale, 1, { failed: (r) => (why = r) }), null);
+  assert.deepEqual(closes, [1, 1]);
+  assert.match(why, /no longer listed/);
+});
+
+test("a sale that fails puts back only its own copies, not a listing another sale closed meanwhile", async () => {
+  mkt.orders = [order("a", 3), order("b")];
+  let failA!: (e: Error) => void;
+  market.close = ((id: string) => (id === "a" ? new Promise((_, rej) => (failA = rej)) : Promise.resolve())) as never;
+  const pending = mkt.sold(mkt.orders[0], 2);
+  assert.ok(await mkt.sold(mkt.orders.find((x) => x.id === "b")!, 1));
+  failA(new Error("timed out"));
+  assert.equal(await pending, null);
+  assert.deepEqual(mkt.orders.map((o) => [o.id, o.quantity]), [["a", 3]], "b stays sold, a has its 3 again");
+  // A whole listing that failed to close comes back where it was.
+  mkt.orders = [order("x"), order("y"), order("z")];
+  market.close = async () => {
+    throw new Error("timed out");
+  };
+  await mkt.sold(mkt.orders[1], 1);
+  assert.deepEqual(mkt.orders.map((o) => o.id), ["x", "y", "z"]);
+});
+
+test("+rep: a second request for the same player waits for the first and sends nothing more", async () => {
+  let posts = 0;
+  let reviewed = false;
+  market.myReview = async () => (reviewed ? 1 : 0);
+  let release!: () => void;
+  market.giveRep = (() =>
+    new Promise<void>((r) => {
+      posts++;
+      release = () => {
+        reviewed = true;
+        r();
+      };
+    })) as never;
+  const first = mkt.giveRep("Tenno_Alpha", "Thanks");
+  await new Promise((r) => setTimeout(r, 0));
+  const second = mkt.giveRep("tenno_alpha", "Thanks");
+  release();
+  assert.equal(await first, "given");
+  assert.equal(await second, "already");
+  assert.equal(posts, 1);
+});
