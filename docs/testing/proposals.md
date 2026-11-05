@@ -24,10 +24,12 @@ that needs a newer compiler would go unnoticed.
 
 **Options** (each a lockfile or toolchain change, so not made here):
 
-1. Pin the dependency back to an edition-2021 release, if Tauri allows it:
+1. Pin the dependency back to a release that still declares edition 2021, if Tauri's `dlopen2`
+   allows it (which release that is hasn't been checked here: look at each version's
+   `Cargo.toml` on crates.io first):
 
    ```bash
-   cargo update -p dlopen2_derive --precise 0.4.1
+   cargo update -p dlopen2_derive --precise <version>
    ```
 
    then check the result builds on both toolchains. Dependabot will propose it again, so this
