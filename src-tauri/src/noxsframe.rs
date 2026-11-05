@@ -86,7 +86,11 @@ pub fn is_turned_away(status: u16, body: &str) -> bool {
     if matches!(status, 401 | 403 | 429 | 503) {
         return true;
     }
-    let head = &body[..body.len().min(20_000)];
+    let mut cut = body.len().min(20_000);
+    while !body.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    let head = &body[..cut];
     let lower = head.to_ascii_lowercase();
     lower.contains("just a moment...") || lower.contains("cf-chl") || lower.contains("captcha") || lower.contains("challenge-platform")
 }
@@ -287,7 +291,13 @@ pub fn read_list(html: &str) -> Vec<Value> {
             let open = format!("<div hidden id=\"S:{id}\">");
             if let Some(k) = html.find(&open) {
                 let body = &html[k..];
-                let body = &body[..body.find("</div><script").unwrap_or(body.len().min(20_000))];
+                // Up to the part's end, or 20,000 bytes when it has none: stepped back to a
+                // character boundary, since slicing inside one panics (and panics abort).
+                let mut end = body.find("</div><script").unwrap_or(body.len().min(20_000));
+                while !body.is_char_boundary(end) {
+                    end -= 1;
+                }
+                let body = &body[..end];
                 let (p, d) = points_and_date(body);
                 points = points.or(p);
                 date = date.or(d);
@@ -389,7 +399,9 @@ pub fn read_build(html: &str, segment: &str) -> Result<Value, String> {
         rest = &rest[i..];
         let Some(start) = rest.find('>') else { break };
         let Some(end) = rest.find("</script>") else { break };
-        if let Ok(v) = serde_json::from_str::<Value>(&rest[start + 1..end]) {
+        // A tag whose first '>' is the one closing </script> has nothing between: get(), not a
+        // slice that would panic.
+        if let Some(Ok(v)) = rest.get(start + 1..end).map(serde_json::from_str::<Value>) {
             if v["@type"] == "CreativeWork" {
                 meta = v;
                 break;
@@ -688,5 +700,108 @@ mod tests {
         assert_eq!(unescape_html("Xata&#x27;s &amp; &lt;b&gt; &bogus; &"), "Xata's & <b> &bogus; &");
         assert_eq!(us_date("11/1/2026").as_deref(), Some("2026-11-01"));
         assert_eq!(us_date("13/1/2026"), None);
+    }
+}
+
+/// Fuzzing Nox's Frame pages: the saved pages cut short, spliced with junk and odd Unicode, and
+/// streamed parts with no end. Never a panic, and every build link stays on Nox's Frame.
+#[cfg(test)]
+mod fuzz {
+    use super::*;
+
+    const PAGES: [&str; 3] = [
+        include_str!("../../tests/fixtures/noxsframe/list.html"),
+        include_str!("../../tests/fixtures/noxsframe/build-mirage.html"),
+        include_str!("../../tests/fixtures/noxsframe/build-nukor.html"),
+    ];
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 >> 12;
+            self.0 ^= self.0 << 25;
+            self.0 ^= self.0 >> 27;
+            self.0.wrapping_mul(0x2545_F491_4F6C_DD1D)
+        }
+        fn below(&mut self, n: usize) -> usize {
+            (self.next() % n.max(1) as u64) as usize
+        }
+    }
+
+    fn boundary(s: &str, mut at: usize) -> usize {
+        at = at.min(s.len());
+        while !s.is_char_boundary(at) {
+            at -= 1;
+        }
+        at
+    }
+
+    fn mutate(r: &mut Rng, page: &str) -> String {
+        let mut s = page.to_string();
+        for _ in 0..r.below(6) {
+            let junk = ["\u{00E9}", "\u{1F600}", "\u{202E}", "<", ">", "\"", "</a>", "<h3>", "href=\"/builds/x\"", "<template id=\"P:1f\">", "<div hidden id=\"S:1f\">", "NFB1:", "&amp;", "&#x", "\u{0000}", "</div><script"][r.below(16)];
+            match r.below(3) {
+                0 => {
+                    let at = boundary(&s, r.below(s.len() + 1));
+                    s.insert_str(at, junk);
+                }
+                1 => {
+                    let at = boundary(&s, r.below(s.len() + 1));
+                    s.truncate(at);
+                }
+                _ => {
+                    let (a, b) = (boundary(&s, r.below(s.len() + 1)), boundary(&s, r.below(s.len() + 1)));
+                    let (a, b) = (a.min(b), a.max(b));
+                    s.replace_range(a..b, "");
+                }
+            }
+        }
+        s
+    }
+
+    fn check(html: &str, label: &str) {
+        for b in read_list(html) {
+            let url = b["url"].as_str().unwrap_or("");
+            assert!(url.starts_with("https://www.noxsframe.com/builds/") || url.starts_with(&build_url("")), "{label}: {url}");
+        }
+        let f = flight(html);
+        if let Some(code) = code_in(&f) {
+            let _ = decode_code(&code);
+        }
+        let _ = read_build(html, "x");
+        let _ = game_modes(html);
+        let _ = text_of(html);
+        let _ = unescape_html(html);
+        let _ = points_and_date(html);
+        for w in html.split_whitespace().take(200) {
+            let _ = us_date(w);
+        }
+    }
+
+    #[test]
+    fn mutated_pages_never_panic_and_links_stay_on_the_site() {
+        for seed in 0..1500u64 {
+            let mut r = Rng(0x5EED_0000 + seed * 7919);
+            let page = PAGES[r.below(PAGES.len())];
+            check(&mutate(&mut r, page), &format!("seed {seed}"));
+        }
+    }
+
+    #[test]
+    fn a_streamed_part_with_no_end_and_wide_characters_never_panics() {
+        // A card whose points arrive in a streamed part that never closes, with characters of
+        // every width around the 20,000-byte mark where the reader stops looking.
+        for pad in 0..8usize {
+            // `pad` ASCII bytes first, so the 20,000th byte falls at every offset inside a
+            // two- and a four-byte character.
+            let filler: String = "x".repeat(pad) + &"é😀a".chars().cycle().take(20_000).collect::<String>();
+            let html = format!(
+                "<a href=\"/builds/abc-def\"><h3>Build</h3><template id=\"P:1f\"></template></a><div hidden id=\"S:1f\">{filler}"
+            );
+            check(&html, &format!("pad {pad}"));
+            let _ = is_turned_away(200, &html);
+        }
+        // A script tag closed by its own </script>, with no '>' before it.
+        check("<script type=\"application/ld+json\"</script>", "ld+json without a body");
     }
 }
