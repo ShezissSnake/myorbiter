@@ -1,0 +1,37 @@
+# Demo account
+
+An invented account for screenshots and UI work: nothing here comes from a real account. The
+player is `ExamplePlayer`, the other players (`Tenno_Alpha`, `VoidTrader42`…) are made up, and so
+are the inventory, the mastery, the listings, the order books, the prices and the trades. Game data
+(item names, paths, ducats, relic rewards, drop chances) is public and comes from the
+[@wfcd/items](https://www.npmjs.com/package/@wfcd/items) package.
+
+```sh
+npm run dev:demo        # ORBITER_DEMO=1 vite: the browser dev mode on this account
+```
+
+With `ORBITER_DEMO=1` the dev server answers every `/dev-*.json` from this folder instead of
+`public/` (see `demoData` in `vite.config.ts`). A file this folder hasn't got is a 404, never
+`public/`'s copy. `/dev-history-<slug>.json` is one entry of `dev-history.json`.
+
+The files are written as of the moment in `meta.json` (`now`, Unix ms). The dev server moves every
+time in them up to the real time when it serves them, in whole minutes, so the inventory always reads
+as synced a few minutes ago and the fissure's reward screen is on (read again once a minute).
+
+What the account is: mastery rank 22, about 390 items mastered, spare prime sets and parts, a few
+dozen relics, mods with duplicates, arcanes, twelve listings on warframe.market (some above the
+cheapest seller, so Check prices has something to reprice), a fissure with four relics and its
+reward screen, and two builds in the foundry.
+
+## Regenerating
+
+The files are built by `scripts/demo-data.mjs` (plain Node, no dependencies, no network) from a copy
+of @wfcd/items outside the repository. The same package gives the same files.
+
+```sh
+mkdir -p /tmp/wfcd && cd /tmp/wfcd && npm pack @wfcd/items && tar xzf wfcd-items-*.tgz
+cd - && node scripts/demo-data.mjs /tmp/wfcd/package
+```
+
+Still read from the network in the browser dev mode: the worldstate (api.warframestat.us) and item
+pictures (raw.githubusercontent.com).
