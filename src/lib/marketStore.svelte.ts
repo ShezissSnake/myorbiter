@@ -988,10 +988,11 @@ class MarketStore {
       this.note(`Sold ${n} × ${name}${cur.rank != null ? ` R${cur.rank}` : ""} for ${cur.platinum}p${all ? ": listing closed" : `: ${cur.quantity - n} left listed`}`, "ok");
       return { at: Date.now(), item: name, rank: cur.rank, quantity: n, platinum: cur.platinum };
     } catch (e) {
-      // Only this sale is undone: the copies it took go back, whatever else changed meanwhile.
+      // Only this sale is undone: the copies it took go back, whatever else changed meanwhile (a
+      // later sale may have closed the rest on screen: then the listing comes back with these).
       const still = this.orders.find((x) => x.id === cur.id);
       if (still) this.orders = this.orders.map((x) => (x === still ? { ...x, quantity: x.quantity + n } : x));
-      else if (all) this.orders = [...this.orders.slice(0, at), cur, ...this.orders.slice(at)];
+      else this.orders = [...this.orders.slice(0, at), { ...cur, quantity: n }, ...this.orders.slice(at)];
       this.note(`${name}: couldn't mark it sold (${clean(e)})`, "warn", quiet);
       failed?.(clean(e));
       if (isAuthError(e) && this.account) {
