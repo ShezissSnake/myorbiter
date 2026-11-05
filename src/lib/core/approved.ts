@@ -1,0 +1,35 @@
+// The price you last set or approved for a listing, and how far an automatic repricing pass may
+// take it from there. You set or approve a price by listing it (the listing form, a Sell spares
+// plan you apply), by editing it on Orders, or by pressing Reprice; a pass on the timer never
+// does. Unattended, a listing never goes under AUTO_FLOOR_SHARE of that price: it stops there and
+// orbiter says so, for you to decide.
+
+/** The share of your last approved price an unattended pass may lower a listing to. */
+export const AUTO_FLOOR_SHARE = 0.7;
+
+/** The least an unattended pass may set: 70% of `approved`, rounded up to a whole platinum. */
+export const autoFloor = (approved: number) => Math.ceil(approved * AUTO_FLOOR_SHARE - 1e-9);
+
+export type Unattended =
+  /** Go ahead at `target`. */
+  | { go: true; target: number; atFloor: boolean }
+  /** Leave it: the listing is already at (or under) the floor, and the market is lower still. */
+  | { go: false; floor: number };
+
+/**
+ * What an unattended pass may do with a listing at `current` that the market would take to
+ * `target`, given the price you last approved. Above the floor it goes as planned; under it, down
+ * to the floor and no further (`atFloor`), or not at all once it's there.
+ */
+export function unattendedMove(target: number, current: number, approved: number): Unattended {
+  const floor = autoFloor(approved);
+  if (target >= floor) return { go: true, target, atFloor: false };
+  if (current <= floor) return { go: false, floor };
+  return { go: true, target: floor, atFloor: true };
+}
+
+/** Saved approvals, kept only where they're whole positive prices (a damaged settings file). */
+export function approvedOf(raw: unknown): Record<string, number> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return Object.fromEntries(Object.entries(raw).filter(([k, v]) => typeof k === "string" && Number.isInteger(v) && (v as number) >= 1)) as Record<string, number>;
+}

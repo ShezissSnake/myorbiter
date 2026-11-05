@@ -10,7 +10,7 @@ import type { Model } from "../src/lib/core/model";
 const { mkt } = await import("../src/lib/marketStore.svelte");
 const { rivens } = await import("../src/lib/rivenStore.svelte");
 
-const order = (id: string, quantity = 1): MyOrder => ({ id, itemId: "it", type: "sell", platinum: 20, quantity, rank: null, subtype: null, visible: true, updatedAt: null });
+const order = (id: string, quantity = 1, platinum = 20): MyOrder => ({ id, itemId: "it", type: "sell", platinum, quantity, rank: null, subtype: null, visible: true, updatedAt: null });
 const me = { id: "me", ingameName: "Me", platform: "pc", crossplay: true } as never;
 const real = { ...market };
 const model = {} as Model;
@@ -409,4 +409,75 @@ test("+rep: a second request for the same player waits for the first and sends n
   assert.equal(await first, "given");
   assert.equal(await second, "already");
   assert.equal(posts, 1);
+});
+
+// ------------------------------------------------------------------ the 70% floor
+
+const it = { id: "it", slug: "it", gameRef: "/it", name: "It", maxRank: null, subtypes: null, tags: [] };
+const noPrices = { price: () => null, priceMax: () => null, relicPrice: () => null } as unknown as Model;
+const undercut = (platinum: number) => [{ id: `r${platinum}`, type: "sell", platinum, quantity: 1, rank: null, subtype: null, visible: true, user: { id: "x", ingameName: "Undercutter", status: "ingame", platform: "pc", crossplay: true } }];
+
+/** A listing at `start`, a seller who always asks a little over half of it, and timed passes. */
+async function walk(start: number, passes: number, s = { ...defaultMarketSettings(), auto: true, minShare: 0.5, minPrice: 10 }) {
+  market.items = async () => [it];
+  let mine = order("a", 1, start);
+  market.myOrders = async () => [mine];
+  let rival = start;
+  market.book = async () => undercut(rival) as never;
+  market.update = (async (_id: string, c: { platinum?: number }) => {
+    mine = { ...mine, platinum: c.platinum! };
+    return {} as never;
+  }) as never;
+  const path = [mine.platinum];
+  for (let i = 0; i < passes; i++) {
+    rival = Math.floor(mine.platinum / 2) + 1;
+    mkt.books = {};
+    await mkt.reprice(noPrices, s, true, true);
+    path.push(mine.platinum);
+  }
+  return { path, s, mine: () => mine };
+}
+
+test("Apply automatically: an undercutter walks a listing down to 70% of the price you set, and no further", async () => {
+  const s = { ...defaultMarketSettings(), auto: true, minShare: 0.5, minPrice: 10, approved: { "it||": 100 } };
+  const { path } = await walk(100, 5, s);
+  assert.deepEqual(path, [100, 70, 70, 70, 70, 70], "51p was asked for: 70p, then it stays");
+  const told = mkt.log.filter((l) => /70% of the 100p you last set/.test(l.text));
+  assert.equal(told.length, 1, "told once, not on every pass");
+  assert.equal(told[0].tone, "warn");
+  assert.equal(s.approved["it||"], 100, "a timed pass approves nothing");
+});
+
+test("Apply automatically: a listing orbiter hasn't seen priced starts from its current price", async () => {
+  const { path, s } = await walk(40, 3);
+  assert.equal(s.approved["it||"], 40);
+  assert.deepEqual(path, [40, 28, 28, 28]);
+});
+
+test("Apply automatically: the minimum price still holds under the 70% floor", async () => {
+  const { path } = await walk(12, 3, { ...defaultMarketSettings(), auto: true, minShare: 0.5, minPrice: 10, approved: { "it||": 12 } });
+  assert.ok(path.every((p) => p >= 10), path.join(" → "));
+});
+
+test("Reprice pressed by hand goes under the floor, and its price becomes the one you approved", async () => {
+  const s = { ...defaultMarketSettings(), auto: true, minShare: 0.5, minPrice: 10, approved: { "it||": 100 } };
+  await walk(100, 1, s);
+  // You look (Check prices), then press Reprice: 36p is what you saw.
+  market.book = async () => undercut(36) as never;
+  mkt.books = {};
+  await mkt.reprice(noPrices, s, false);
+  await mkt.reprice(noPrices, s, true);
+  assert.equal(s.approved["it||"], 36);
+});
+
+test("A price typed on Orders is the price you approved", async () => {
+  const s = { ...defaultMarketSettings(), approved: {} as Record<string, number> };
+  mkt.rules = s;
+  market.items = async () => [it];
+  await mkt.ensureItems();
+  market.update = (async () => ({}) as never) as never;
+  market.myOrders = async () => [order("a", 1, 55)];
+  assert.ok(await mkt.update(order("a", 1, 40), { platinum: 55 }));
+  assert.equal(s.approved["it||"], 55);
+  mkt.rules = null;
 });
