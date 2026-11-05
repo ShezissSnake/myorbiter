@@ -30,6 +30,11 @@ These are bundled with orbiter but are not covered by its licence:
   compiled into its program: orbiter reads them when it starts. Their licence is theirs alone (mere
   aggregation): it doesn't extend to orbiter, and orbiter's doesn't extend to them.
 - `src/lib/data/modular-parts-paths.json`: from WFCD's warframe-items data (MIT).
+- `demo/`: an invented account for screenshots and UI work, whose game data (item names, paths,
+  ducats, components, relic rewards, drop chances) comes from WFCD's
+  [@wfcd/items](https://www.npmjs.com/package/@wfcd/items) package (MIT, © 2017 Kaptard; the
+  licence text is in `demo/README.md`). It is in the repository and in `orbiter-source.tar.gz`, not
+  in the downloads.
 - `public/game/`: Warframe's own icons, taken from the official wiki and WFCD
   (`public/game/SOURCES.json` records where each came from), and TennoScope's part, pistol and
   currency icons (`tennoscope/app/src/assets/`, see `tennoscope/THIRD_PARTY_NOTICES.md`): © Digital

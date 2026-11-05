@@ -23,6 +23,13 @@ on:
 permissions:
   contents: read
 
+# One audit per branch at a time; a newer push supersedes a running one. Called from release.yml,
+# github.workflow is the caller's ("Release builds"), so a release build's audit has a group of
+# its own and an audit run on the same push never cancels it.
+concurrency:
+  group: audit-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
 jobs:
   cargo-audit:
     name: cargo audit
