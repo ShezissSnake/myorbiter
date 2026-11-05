@@ -5,6 +5,9 @@
 /** The most items one side of a trade can carry. */
 export const ITEMS_PER_TRADE = 6;
 
+/** How far past now a trade's time may be and still count (see tradeAllowance). */
+export const TRADE_CLOCK_LEEWAY_MS = 5 * 60_000;
+
 /** 00:00 UTC of the day `now` falls in (Unix ms). */
 export function utcDayStart(now = Date.now()): number {
   const d = new Date(now);
@@ -24,7 +27,9 @@ export interface TradeAllowance {
 
 export function tradeAllowance(trades: { at: number }[], masteryRank: number | null | undefined, now = Date.now()): TradeAllowance {
   const start = utcDayStart(now);
-  const used = trades.filter((t) => t.at >= start && t.at <= now).length;
+  // A few minutes' leeway past now: a trade's time comes from the game's log, rounded, and a
+  // clock a little ahead mustn't make today's trades vanish from the count.
+  const used = trades.filter((t) => t.at >= start && t.at <= now + TRADE_CLOCK_LEEWAY_MS).length;
   const limit = masteryRank == null || masteryRank < 2 ? (masteryRank == null ? null : 0) : masteryRank;
   return { limit, used, left: limit == null ? null : Math.max(0, limit - used), resets: start + 86_400_000 };
 }
