@@ -585,8 +585,10 @@ export interface MyAuction {
 export function parseMyAuctions(raw: unknown): MyAuction[] {
   if (!Array.isArray(raw)) return [];
   const out: MyAuction[] = [];
-  for (const a of raw as Record<string, unknown>[]) {
-    const item = (a.item ?? {}) as Record<string, unknown>;
+  for (const a of raw as (Record<string, unknown> | null)[]) {
+    // Anything but an auction object (null, a number) in warframe.market's answer is skipped.
+    if (!a || typeof a !== "object") continue;
+    const item = (a.item && typeof a.item === "object" ? a.item : {}) as Record<string, unknown>;
     if (item.type !== "riven" || typeof a.id !== "string") continue;
     out.push({
       id: a.id,

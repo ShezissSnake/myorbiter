@@ -748,6 +748,46 @@ export async function relicData(force = false): Promise<RelicData | null> {
   }
 }
 
+/** A finite number in [lo, hi], or `fallback` (a damaged settings file: a string, NaN, a huge number). */
+const numIn = (v: unknown, lo: number, hi: number, fallback: number) => (typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi ? v : fallback);
+
+/**
+ * The settings that decide what's listed and repriced by itself, and how low, read from a saved
+ * file strictly: anything but `true` leaves automatic repricing, checking and hiding off, and a
+ * value that isn't a number in range is the usual one, never a missing floor.
+ */
+function marketSafetyOf(raw: unknown, base: MarketSettings): Pick<MarketSettings, "auto" | "minPrice" | "minRelicPrice" | "minShare" | "every" | "floors" | "paused" | "autoTrades" | "autoRep" | "presence"> {
+  const r = (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
+  const record = (v: unknown) => (v && typeof v === "object" && !Array.isArray(v) ? Object.entries(v as Record<string, unknown>) : []);
+  return {
+    auto: r.auto === true,
+    minPrice: Math.round(numIn(r.minPrice, 1, 100_000, base.minPrice)),
+    minRelicPrice: Math.round(numIn(r.minRelicPrice, 1, 100_000, base.minRelicPrice)),
+    minShare: numIn(r.minShare, 0, 1, base.minShare),
+    every: numIn(r.every, 1, 24 * 60, base.every),
+    floors: Object.fromEntries(record(r.floors).filter(([, v]) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 100_000)) as Record<string, number>,
+    paused: Object.fromEntries(record(r.paused).filter(([, v]) => v === true)) as Record<string, boolean>,
+    autoTrades: typeof r.autoTrades === "boolean" ? r.autoTrades : base.autoTrades,
+    autoRep: typeof r.autoRep === "boolean" ? r.autoRep : base.autoRep,
+    presence: r.presence === "invisible" || r.presence === "online" || r.presence === "ingame" ? r.presence : null,
+  };
+}
+
+/** Ducat and selling advice from a saved file: each number in range, or the usual one. */
+function adviceOf(raw: unknown, base: AdviceSettings): AdviceSettings {
+  const r = (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
+  return {
+    ...base,
+    ...r,
+    platPerDucat: numIn(r.platPerDucat, 0, 100, base.platPerDucat),
+    minPlat: numIn(r.minPlat, 0, 100_000, base.minPlat),
+    slowBelow: numIn(r.slowBelow, 0, 10_000, base.slowBelow),
+    squad: Math.round(numIn(r.squad, 1, 4, base.squad)),
+    maxMissing: Math.round(numIn(r.maxMissing, 0, 50, base.maxMissing)),
+    vosforLens: r.vosforLens === "market" ? "market" : "need",
+  } as AdviceSettings;
+}
+
 export async function loadSettings(): Promise<Settings> {
   let raw: Partial<Settings> | null = null;
   if (inTauri) {
@@ -773,8 +813,10 @@ export async function loadSettings(): Promise<Settings> {
     }
   }
   const base = defaultSettings();
+  // A file that isn't a settings object at all (a number, a list, text): the usual settings.
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) raw = null;
   // Schema 2: cracking alone became the default for Relics and Planner alike.
-  if (raw && (raw.schema ?? 1) < 2 && raw.advice) raw.advice.squad = 1;
+  if (raw && (raw.schema ?? 1) < 2 && raw.advice && typeof raw.advice === "object") raw.advice.squad = 1;
   // `view` was never used; settings saved before it went still carry it.
   if (raw) delete (raw as { view?: unknown }).view;
   // Arcane tiers were taken out: settings saved with them drop them.
@@ -794,8 +836,8 @@ export async function loadSettings(): Promise<Settings> {
     homeHidden: Array.isArray(raw?.homeHidden) ? raw.homeHidden.filter((k: unknown): k is string => typeof k === "string") : [],
     plannerMode: raw?.plannerMode === "radiant" ? "radiant" : "sets",
     // Sell spares' choices: version 2, or the old switches (and the old relic setting) migrated.
-    market: { ...base.market, ...(raw?.market ?? {}), spares: sparesSettingsOf(raw?.market), bulk: undefined, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: true, saveForSets: raw?.market?.sellable?.saveForSets !== false }, sales: Array.isArray(raw?.market?.sales) ? raw.market.sales : [], tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], tradesTold: Array.isArray(raw?.market?.tradesTold) ? raw.market.tradesTold.filter((k: unknown): k is string => typeof k === "string") : [], trades: Array.isArray(raw?.market?.trades) ? raw.market.trades : [], buyAlerts: Array.isArray(raw?.market?.buyAlerts) ? raw.market.buyAlerts.filter((a: unknown): a is BuyAlert => !!a && typeof (a as BuyAlert).name === "string" && typeof (a as BuyAlert).maxPrice === "number") : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: raw?.market?.platform && raw.market.platform in PLATFORM_LABEL ? raw.market.platform : "pc", autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, every: typeof raw?.market?.every === "number" && raw.market.every >= 1 ? raw.market.every : base.market.every, minRelicPrice: typeof raw?.market?.minRelicPrice === "number" && raw.market.minRelicPrice >= 1 ? Math.round(raw.market.minRelicPrice) : base.market.minRelicPrice, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)", lastCopy: { optIn: raw?.market?.lastCopy?.optIn === true, minutes: typeof raw?.market?.lastCopy?.minutes === "number" && raw.market.lastCopy.minutes >= 1 ? Math.round(raw.market.lastCopy.minutes) : DEFAULT_HIDE_MINUTES, hidden: Array.isArray(raw?.market?.lastCopy?.hidden) ? raw.market.lastCopy.hidden.filter((h: unknown): h is HiddenForWhisper => !!h && typeof (h as HiddenForWhisper).id === "string" && typeof (h as HiddenForWhisper).at === "number") : [] } , presenceBack: presenceBackOf(raw?.market?.presenceBack), ordersSort: ordersSortOf(raw?.market?.ordersSort), approved: approvedOf(raw?.market?.approved) },
-    advice: { ...base.advice, ...(raw?.advice ?? {}) },
+    market: { ...base.market, ...(raw?.market ?? {}), spares: sparesSettingsOf(raw?.market), bulk: undefined, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: true, saveForSets: raw?.market?.sellable?.saveForSets !== false }, sales: Array.isArray(raw?.market?.sales) ? raw.market.sales : [], tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], tradesTold: Array.isArray(raw?.market?.tradesTold) ? raw.market.tradesTold.filter((k: unknown): k is string => typeof k === "string") : [], trades: Array.isArray(raw?.market?.trades) ? raw.market.trades : [], buyAlerts: Array.isArray(raw?.market?.buyAlerts) ? raw.market.buyAlerts.filter((a: unknown): a is BuyAlert => !!a && typeof (a as BuyAlert).name === "string" && typeof (a as BuyAlert).maxPrice === "number") : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: raw?.market?.platform && raw.market.platform in PLATFORM_LABEL ? raw.market.platform : "pc", autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)", lastCopy: { optIn: raw?.market?.lastCopy?.optIn === true, minutes: typeof raw?.market?.lastCopy?.minutes === "number" && raw.market.lastCopy.minutes >= 1 ? Math.round(raw.market.lastCopy.minutes) : DEFAULT_HIDE_MINUTES, hidden: Array.isArray(raw?.market?.lastCopy?.hidden) ? raw.market.lastCopy.hidden.filter((h: unknown): h is HiddenForWhisper => !!h && typeof (h as HiddenForWhisper).id === "string" && typeof (h as HiddenForWhisper).at === "number") : [] } , presenceBack: presenceBackOf(raw?.market?.presenceBack), ordersSort: ordersSortOf(raw?.market?.ordersSort), approved: approvedOf(raw?.market?.approved), ...marketSafetyOf(raw?.market, base.market) },
+    advice: adviceOf(raw?.advice, base.advice),
     // `forma` came later: settings saved before it get the default (3p).
     pick: { ...base.pick, ...(raw?.pick ?? {}), forma: typeof raw?.pick?.forma === "number" && Number.isFinite(raw.pick.forma) && raw.pick.forma >= 0 ? raw.pick.forma : base.pick.forma },
     overlay: { reward: raw?.overlay?.reward !== false, kiosk: raw?.overlay?.kiosk !== false, riven: raw?.overlay?.riven !== false, rivenKey: typeof raw?.overlay?.rivenKey === "string" ? raw.overlay.rivenKey.slice(0, 40) : "", show: { ...base.overlay.show, ...(raw?.overlay?.show ?? {}) } },
