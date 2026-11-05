@@ -326,3 +326,27 @@ test("raising a listing past what's spare is refused before it's sent", async ()
   assert.deepEqual(sent, [{ quantity: 3 }]);
   mkt.model = null;
 });
+
+test("Sell spares: nothing is sent when your listings can't be read first, so the cap isn't counted from an old list", async () => {
+  const s = defaultMarketSettings();
+  const it = { id: "it", slug: "it", gameRef: "/it", name: "It", maxRank: null, subtypes: null, tags: [] };
+  mkt.bulk = {
+    actions: [{ type: "create", kind: "other", item: it, rank: null, subtype: null, quantity: 1, platinum: 20, why: "spare", priceWhy: "median" }],
+    at: Date.now(),
+    books: {},
+    skipped: new Set(),
+  } as never;
+  let sent = 0;
+  market.create = async () => {
+    sent++;
+    return order("new");
+  };
+  market.myOrders = async () => {
+    throw new Error("Couldn't reach warframe.market (timed out)");
+  };
+  const { defaultAdvice } = await import("../src/lib/backend");
+  await mkt.applyBulk(model, s, defaultAdvice());
+  assert.equal(sent, 0);
+  assert.match(mkt.errorOf("Updating your listings") ?? "", /^Nothing changed: your listings couldn't be read first/);
+  mkt.bulk = null;
+});

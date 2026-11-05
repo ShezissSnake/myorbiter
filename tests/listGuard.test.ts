@@ -258,3 +258,61 @@ test("one thing, one category: a second target for the same listing isn't planne
   assert.deepEqual(created(actions), ["Khra|0|2@7"]);
   assert.ok(actions.some((a) => a.type === "skip" && /Already counted under Mod/.test(a.why)));
 });
+
+// ------------------------------------------------------------------ what reaches the guard
+
+test("price and count: no price, a fraction or nothing positive never goes up by itself, so the ducat check can't be skipped", () => {
+  const m = buildModel(account(bronco()));
+  for (const p of [null, NaN, 0, -5, 10.5] as (number | null)[]) {
+    const g = guard(m, "bronco", 1, p as number);
+    assert.equal(g.ok, false, `${p}p`);
+  }
+  assert.match((guard(m, "bronco", 1, null as unknown as number) as { why: string }).why, /: It has no price$/);
+  assert.match((guard(m, "bronco", 1, 10.5) as { why: string }).why, /10\.5p isn't a price warframe\.market takes/);
+  for (const q of [0.5, 1.5, Infinity]) assert.equal(guard(m, "bronco", q, 12).ok, false, `${q} copies`);
+  // The edge itself: 10p is the first whole price that beats 75 ducats at 0.1p (7.5p + 2p).
+  assert.equal(guard(m, "bronco", 1, 10).ok, true);
+  assert.equal(guard(m, "bronco", 1, 9).ok, false);
+  // The listing form may leave the price to warframe.market's own check.
+  const khraModel = buildModel(account(khra(6, 1)));
+  assert.equal(guard(khraModel, "khra", 1, null as unknown as number, 0, { manual: true }).ok, true);
+});
+
+test("trust: a read time ahead of the clock (a wrong unit, a wrong clock) or unreadable proves nothing", () => {
+  const ahead = buildModel(account(khra(6, 1), { observedAt: Math.floor(NOW / 1000) + 30 * 86_400 }));
+  assert.match((inventoryTrust(ahead, NOW) as { why: string }).why, /ahead of this PC's clock/);
+  // Milliseconds where seconds belong: a read 56 000 years from now.
+  const ms = buildModel(account(khra(6, 1), { observedAt: NOW }));
+  assert.equal(guard(ms, "khra", 1, 7, 0).ok, false);
+  // A few minutes ahead is a clock drifting, not a fault.
+  const drift = buildModel(account(khra(6, 1), { observedAt: Math.floor(NOW / 1000) + 120 }));
+  assert.deepEqual(inventoryTrust(drift, NOW), { ok: true });
+  const nan = buildModel(account(khra(6, 1), { observedAt: NaN }));
+  assert.equal(inventoryTrust(nan, NOW).ok, false);
+});
+
+test("trust: the 3-hour rule, at the edge", () => {
+  const at = (ago: number) => buildModel(account(khra(6, 1), { observedAt: (NOW - ago) / 1000 }));
+  assert.equal(inventoryTrust(at(MAX_INVENTORY_AGE_MS), NOW).ok, true, "exactly three hours is still fresh");
+  assert.equal(inventoryTrust(at(MAX_INVENTORY_AGE_MS + 1000), NOW).ok, false);
+  assert.equal(guard(at(MAX_INVENTORY_AGE_MS + 1000), "khra", 1, 7, 0, { manual: true }).ok, true, "the listing form isn't stopped by age");
+});
+
+test("already listed: a count that isn't a number refuses rather than lifting the cap", () => {
+  const m = buildModel(account(khra(6, 1)));
+  const g = guard(m, "khra", 2, 7, 0, { listedElsewhere: NaN });
+  assert.match(!g.ok ? g.why : "", /couldn't be counted/);
+  assert.equal(guard(m, "khra", 2, 7, 0, { listedElsewhere: 1 }).ok, false);
+  assert.equal(guard(m, "khra", 1, 7, 0, { listedElsewhere: 1 }).ok, true);
+});
+
+test("never sell: refused whoever asks, the listing form and a console included", async () => {
+  const { defaultSparesRules, withNeverSell } = await import("../src/lib/core/sparesRules");
+  const rules = withNeverSell(defaultSparesRules(), { id: "khra", name: "Khra", cat: "mods" });
+  const m = buildModel(account(khra(6, 1)));
+  const consoleModel = buildModel({ observed_at: null, inventory: [], catalog: catalog(), relics: [], prices: null });
+  for (const [model, manual] of [[m, false], [m, true], [consoleModel, true]] as const) {
+    const g = guardListing({ model, index, sell: defaultSellChoices(), advice, now: NOW, rules }, { item: byId("khra"), rank: 0, subtype: null, quantity: 1, platinum: 7, manual });
+    assert.match(!g.ok ? g.why : "", /never-sell list/);
+  }
+});
