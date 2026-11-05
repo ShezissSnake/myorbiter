@@ -27,7 +27,9 @@ name: Release builds
 #                                └─ publish    the only job that writes: checks every file against
 #                                     │        SHA256SUMS, makes the build-<n> pre-release with all of
 #                                     │        them, and moves channel-experimental to it
-#                                     └─ cleanup   deletes this run's artifacts, now on the release
+#                                     ├─ cleanup   deletes this run's artifacts, now on the release
+#                                     └─ prune     deletes Experimental pre-releases beyond the newest
+#                                                  10, never one a channel names
 #
 # The build jobs run npm, pnpm and Cargo build code, third-party actions and caches; anything that
 # runs there can read whatever the job holds, so they hold nothing worth taking. The signing key is
@@ -676,3 +678,67 @@ jobs:
             while read -r id; do
               gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id"
             done
+
+  # ------------------------------------------------------------------ Old Experimental builds
+
+  # Keeps the Releases page to the newest 10 Experimental builds. An older build-<n> pre-release
+  # goes unless a channel names it: the build in channel-stable's, channel-beta's or
+  # channel-experimental's latest.json stays, as does every full release (a build once promoted to
+  # Stable). Only the release goes; its build-<n> tag stays, so the commit it was built from is
+  # still named. If a channel's latest.json can't be read, nothing is deleted. Each build's
+  # channels are read again just before it goes, so a promotion that lands meanwhile keeps it.
+  # Like publish, it checks out nothing and runs only gh and jq.
+  prune:
+    name: Prune old Experimental builds
+    needs: [publish]
+    if: ${{ !cancelled() && needs.publish.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # to delete older build-<n> pre-releases
+    env:
+      KEEP: 10
+    steps:
+      - name: Delete the older ones
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # The build numbers the channels name now, one per line; fails if a channel can't be read.
+          on_channels() {
+            local channel file
+            for channel in stable beta experimental; do
+              file="$RUNNER_TEMP/channel-$channel.json"
+              rm -f "$file"
+              if ! gh release view "channel-$channel" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+                continue
+              fi
+              gh release download "channel-$channel" --repo "$GITHUB_REPOSITORY" --pattern latest.json --output "$file" || return 1
+              # By version (0.2.<n>) and by where its downloads are (…/download/build-<n>/…).
+              jq -r '(.version // "" | capture("^0\\.2\\.(?<n>[0-9]+)$").n),
+                     (.platforms[]?.url // "" | capture("/releases/download/build-(?<n>[0-9]+)/").n)' "$file" || return 1
+            done | sort -un
+          }
+          protected=$(on_channels)
+          echo "On a channel: $(tr '\n' ' ' <<<"$protected")" >>"$GITHUB_STEP_SUMMARY"
+          # Every build-<n> pre-release, newest first.
+          builds=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select(.prerelease and (.tag_name | test("^build-[0-9]+$"))) | .tag_name | ltrimstr("build-")' |
+            sort -rn)
+          deleted=()
+          for n in $(echo "$builds" | tail -n +$((KEEP + 1))); do
+            [[ "$n" =~ ^[0-9]+$ ]] || continue
+            # Read again right before: on its own line, so a failed read stops the job (set -e)
+            # instead of reading as "no channel names it".
+            now=$(on_channels)
+            if grep -qx "$n" <<<"$now"; then
+              echo "build-$n stays: a channel names it."
+              continue
+            fi
+            gh release delete "build-$n" --repo "$GITHUB_REPOSITORY" --yes
+            deleted+=("build-$n")
+          done
+          if [ ${#deleted[@]} -gt 0 ]; then
+            echo "**Deleted ${#deleted[@]} older Experimental build(s):** ${deleted[*]} (their tags stay)." >>"$GITHUB_STEP_SUMMARY"
+          else
+            echo "No older Experimental builds to delete." >>"$GITHUB_STEP_SUMMARY"
+          fi
