@@ -11,7 +11,7 @@
 // goes into the form's `render: text` field, so GitHub shows it as text, never as Markdown or HTML.
 
 import { redact, type RedactOptions } from "./redact";
-import { cleanBlock, cleanLine, stripHtmlComments } from "./untrusted";
+import { cleanBlock, cleanLine, stripHidden, stripHtmlComments } from "./untrusted";
 
 /** The repository's new-issue page. Its host and path are in the opener's allowed sites (core/links.ts). */
 export const NEW_ISSUE = "https://github.com/ShezissSnake/orbiter/issues/new";
@@ -63,7 +63,8 @@ export interface Report {
 
 /** The player's text, cleaned: no hidden characters, no HTML comments, nothing private, capped. */
 export function cleanUserText(s: string, max: number, names: RedactOptions = {}): string {
-  const c = cleanBlock(stripHtmlComments(s ?? ""), max);
+  // Hidden characters first: one inside "<!--" would otherwise hide a comment from the check.
+  const c = cleanBlock(stripHtmlComments(stripHidden(s ?? "")), max);
   return c ? redact(c, names) : "";
 }
 

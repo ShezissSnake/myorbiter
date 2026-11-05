@@ -35,8 +35,9 @@ const KEY_VALUE = new RegExp(`(["']?\\b${SECRET_KEY}["']?\\s*[=:]\\s*)(?!\\[reda
 const RULES: [RegExp, string | ((...m: string[]) => string)][] = [
   // Headers that carry a sign-in: everything after them on the line.
   [/\b((?:set-)?cookie|authorization|proxy-authorization|x-api-key|x-auth-token)\s*:\s*[^\n]+/gi, (_m, h) => `${h}: [redacted]`],
-  // JWTs anywhere (three base64url runs, the first starting eyJ).
-  [/\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/g, "[redacted]"],
+  // JWTs anywhere (three base64url runs, the first starting eyJ), and one cut short after its
+  // second (a log line cut at its length limit): the second part names the account.
+  [/\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}(?:\.[A-Za-z0-9_-]*)?/g, "[redacted]"],
   // Webhooks: Discord's, Slack's, and any URL with /webhooks/ or /hooks/ in it.
   [/\bhttps?:\/\/[^\s"'<>]*(?:\/api\/webhooks\/|hooks\.slack\.com\/|\/webhooks?\/|\/hooks\/)[^\s"'<>)]*/gi, "[redacted webhook]"],
   // Bearer / JWT / token followed by a value.

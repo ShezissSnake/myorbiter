@@ -43,6 +43,7 @@ export const BLOB_HEX = 65;
 // operators, BOM, soft hyphen, Mongolian vowel separator, combining grapheme joiner, Hangul fillers,
 // and the Unicode "tag" block and supplementary variation selectors (both can carry whole hidden
 // sentences).
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
 const HIDDEN_CHARS = /[\u00AD\u034F\u115F\u1160\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\u3164\uFEFF\uFFA0\u{E0000}-\u{E007F}\u{E0100}-\u{E01EF}]/gu;
 // C0 and C1 control characters but tab and newline (a carriage return is folded into a newline first).
 const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g;
@@ -76,9 +77,15 @@ export const FLAGS = [
  * a reader may break the line there, so each must start a "| " line of its own.
  */
 export function stripHiddenChars(s) {
-  const folded = String(s ?? "").replace(/\r\n?|[\u2028\u2029]/g, "\n");
+  let out = String(s ?? "").replace(/\r\n?|[\u2028\u2029]/g, "\n");
   let removed = 0;
-  const out = folded.replace(HIDDEN_CHARS, () => (removed++, "")).replace(CONTROL_CHARS, () => (removed++, ""));
+  // Lone surrogate halves first, and until nothing changes: a zero-width character between the
+  // two halves of a hidden one would otherwise join them back into it as it's taken out.
+  for (let guard = 0; guard < 50; guard++) {
+    const next = out.replace(LONE_SURROGATE, () => (removed++, "")).replace(HIDDEN_CHARS, () => (removed++, "")).replace(CONTROL_CHARS, () => (removed++, ""));
+    if (next === out) break;
+    out = next;
+  }
   return { text: out, removed };
 }
 
@@ -105,8 +112,13 @@ export function stripHiddenMarkup(s) {
   const notes = [];
   let text = s;
   let n = 0;
-  // An unterminated comment hides everything after it.
-  text = text.replace(/<!--[\s\S]*?(-->|$)/g, () => (n++, ""));
+  // An unterminated comment hides everything after it. Until none is left: taking one out can
+  // join the text around it into another ("<!<!-- x -->-- y -->").
+  for (let guard = 0; guard < 50; guard++) {
+    const before = text;
+    text = text.replace(/<!--[\s\S]*?(-->|$)/g, () => (n++, ""));
+    if (text === before) break;
+  }
   if (n) notes.push(`${n} HTML comment${n === 1 ? "" : "s"}`);
   n = 0;
   let chars = 0;

@@ -185,17 +185,38 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
 pub fn redact(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut hide_next = false;
-    for (i, word) in s.split(' ').enumerate() {
-        if i > 0 {
-            out.push(' ');
+    // Words between any whitespace (a tab or a line break hides nothing), the whitespace kept.
+    let mut rest = s;
+    while !rest.is_empty() {
+        let gap = rest.len() - rest.trim_start().len();
+        out.push_str(&rest[..gap]);
+        rest = &rest[gap..];
+        let end = rest.find(char::is_whitespace).unwrap_or(rest.len());
+        let (word, after) = rest.split_at(end);
+        rest = after;
+        if word.is_empty() {
+            continue;
         }
         let bare = word.trim_matches(|c: char| !c.is_ascii_alphanumeric());
-        let jwt = word.contains("eyJ") && word.matches('.').count() >= 2;
+        let lower = bare.to_ascii_lowercase();
+        // A JWT, whole or cut short after its second part (a line cut at its length limit).
+        let jwt = word.find("eyJ").is_some_and(|i| word[i..].contains('.'));
         if let Some(at) = word.find("/api/webhooks/").filter(|_| word.contains("discord")) {
             let start = word[..at].rfind("http").unwrap_or(0);
             out.push_str(&word[..start]);
             out.push_str("[redacted webhook]");
             hide_next = false;
+            continue;
+        }
+        // Punctuation on its own ("token : x") hides nothing and passes the hiding on.
+        if bare.is_empty() {
+            out.push_str(word);
+            continue;
+        }
+        // "Authorization: Bearer x": the scheme stays readable, the token after it goes.
+        let scheme = matches!(lower.as_str(), "bearer" | "jwt" | "token" | "basic");
+        if hide_next && scheme {
+            out.push_str(word);
             continue;
         }
         if hide_next || jwt {
@@ -208,7 +229,9 @@ pub fn redact(s: &str) -> String {
             out.push_str(if v.is_empty() { "=" } else { "=[redacted]" });
             continue;
         }
-        hide_next = matches!(bare.to_ascii_lowercase().as_str(), "bearer" | "jwt" | "token" | "token:" | "cookie" | "set-cookie");
+        // The word before a secret: a scheme, a header naming one ("Authorization:Bearer" too).
+        let last = lower.rsplit(':').next().unwrap_or("");
+        hide_next = scheme || matches!(last, "bearer" | "jwt" | "token") || matches!(lower.as_str(), "cookie" | "set-cookie" | "authorization" | "proxy-authorization");
         out.push_str(word);
     }
     out
@@ -318,5 +341,64 @@ mod tests {
         assert!(dir.join(OLD_FILE).is_file());
         assert!(fs::read_to_string(dir.join(FILE)).unwrap().ends_with("[test][INFO] hello\n"));
         let _ = fs::remove_dir_all(&dir);
+    }
+}
+
+/// Fuzzing the log's own redaction: sign-ins planted in random text, separated by any whitespace
+/// and punctuation. None may reach the log file.
+#[cfg(test)]
+mod fuzz {
+    use super::*;
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 >> 12;
+            self.0 ^= self.0 << 25;
+            self.0 ^= self.0 >> 27;
+            self.0.wrapping_mul(0x2545_F491_4F6C_DD1D)
+        }
+        fn below(&mut self, n: usize) -> usize {
+            (self.next() % n.max(1) as u64) as usize
+        }
+        fn pick<'a>(&mut self, xs: &[&'a str]) -> &'a str {
+            xs[self.below(xs.len())]
+        }
+        fn word(&mut self, n: usize) -> String {
+            (0..n).map(|_| b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJ0123456789_-"[self.below(48)] as char).collect()
+        }
+    }
+
+    #[test]
+    fn planted_sign_ins_never_reach_the_log() {
+        for seed in 0..3000u64 {
+            let mut r = Rng(0x5EED_0000 + seed * 7919);
+            let secret = format!("S3cr{}", r.word(16));
+            let jwt = format!("eyJ{}.{}.{}", r.word(10), r.word(20), r.word(12));
+            let half_jwt = format!("eyJ{}.{}", r.word(10), secret);
+            let gap = |r: &mut Rng| r.pick(&[" ", "  ", "\t", " \t ", "\n", ": ", " : "]).to_string();
+            let planted = [
+                format!("Bearer{}{secret}", gap(&mut r)),
+                format!("Authorization:{}Bearer{}{secret}", gap(&mut r), gap(&mut r)),
+                format!("token{}{secret}", gap(&mut r)),
+                format!("token={secret}"),
+                format!("\"session={secret}\""),
+                jwt.clone(),
+                half_jwt.clone(),
+                format!("https://discord.com/api/webhooks/123/{secret}"),
+            ];
+            let mut text = String::new();
+            for _ in 0..r.below(4) {
+                text.push_str(r.pick(&["listed Khra", "ok", "(", "):", "sold to", "x"]));
+                text.push_str(&gap(&mut r));
+            }
+            let which = r.below(planted.len());
+            text.push_str(&planted[which]);
+            text.push_str(r.pick(&["", " ", ".", ")", "\n tail"]));
+            let out = redact(&text);
+            for must in [secret.as_str(), &jwt[..20]] {
+                assert!(!out.contains(must), "seed {seed}: {must:?} survived in {out:?} (from {text:?})");
+            }
+        }
     }
 }
