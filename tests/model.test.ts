@@ -97,3 +97,22 @@ test("a sync with the same catalogs keeps what's worked out from them, and reads
   catalog.push({ uniqueName: "/Lotus/Weapons/Other", name: "Other", category: "Primary", masterable: true } as Bundle["catalog"][number]);
   assert.ok(read(1).catalogByUnique.has("/Lotus/Weapons/Other"));
 });
+
+test("a catalog component without a name or path is left out, not the whole collection", () => {
+  const m = buildModel({
+    observed_at: 1_790_000_000,
+    inventory: [{ item_id: "/Lotus/Weapons/Tenno/Pistol/LatoPrime", name: "Lato Prime", category: "weapon", quantity: 1, mastered: true, image_name: null, rank: null, max_rank: null }],
+    catalog: [{
+      uniqueName: "/Lotus/Weapons/Tenno/Pistol/LatoPrime", name: "Lato Prime", category: "Secondary", masterable: true, isPrime: true,
+      components: [
+        { uniqueName: "/Lotus/Types/Recipes/Weapons/LatoPrimeBlueprint", name: "Blueprint", ducats: 15, itemCount: 1 },
+        { uniqueName: "/Lotus/Types/Recipes/Weapons/WeaponParts/LatoPrimeBarrel", ducats: 45, itemCount: 1 },
+        { name: "Receiver", ducats: 15, itemCount: 1 },
+      ],
+    }] as never,
+    relics: [],
+    prices: null,
+  });
+  assert.ok(m.partByName.has("Lato Prime Blueprint"));
+  assert.equal(m.partByName.size, 1);
+});

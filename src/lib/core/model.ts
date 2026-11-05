@@ -339,6 +339,11 @@ function catalogPart(raw: CatalogItem[]): CatalogPart {
   const known = new Set(raw.map((c) => c.uniqueName));
   const extra = new Map(EXTRA_MASTERABLE.map((x) => [x.uniqueName, x]));
   const catalog = [...raw, ...EXTRA_MASTERABLE.filter((x) => !known.has(x.uniqueName))].map((item) => {
+    // A component without a name or path (a damaged catalog) can't be counted or named: left out,
+    // rather than failing the whole collection.
+    if (item.components?.some((c) => typeof c?.name !== "string" || typeof c?.uniqueName !== "string")) {
+      item = { ...item, components: item.components.filter((c) => typeof c?.name === "string" && typeof c?.uniqueName === "string") };
+    }
     if (item.masterable && NO_MASTERY.has(item.uniqueName)) item = { ...item, masterable: false };
     // The catalog has it (orbiter-data keeps the prisms and Infested chambers now), but calls it
     // not masterable in an older read, and the Mote Amp "Mote Prism": the game's word wins.
