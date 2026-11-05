@@ -30,6 +30,17 @@ export interface NewsEntry {
 
 export const NEWS: NewsEntry[] = [
   {
+    id: 18,
+    date: "2026-11-05",
+    items: [
+      { title: "Repricing stops at 70%", icon: { page: "market" }, text: "Apply automatically never takes a listing under 70% of the price you last set or approved (listing it, typing it on Orders, pressing Reprice, applying a Sell spares plan). It stops there and says so, so a seller undercutting every few minutes can't walk a listing down to your minimum while you're away.", open: "market" },
+      { title: "Sold, once", icon: { line: "check" }, text: "Marking a sale sold goes by the listing as it is now, so a trade with several items or a Sold click can't close more than you listed or log a sale twice; a sale warframe.market refuses puts back only its own copies.", open: "market" },
+      { title: "One +rep per player", icon: { line: "star" }, text: "The +rep button and automatic +rep can't both send one; a +rep that failed is tried again later instead of never, and none is offered by hand while it's automatic.", open: "stats" },
+      { title: "The listing form keeps the ducat floor", icon: { game: "ducats" }, text: "A prime part or set is never proposed at or under what its ducats are worth to you, so the next repricing pass doesn't raise it again.", open: "parts" },
+      "A damaged settings file can no longer turn automatic repricing on or take a floor away: anything that isn't a proper value reads as the usual one.",
+    ],
+  },
+  {
     id: 17,
     date: "2026-11-04",
     items: [
