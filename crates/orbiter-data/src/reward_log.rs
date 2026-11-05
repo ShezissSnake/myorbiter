@@ -317,3 +317,68 @@ Failed to setup app: error encountered during setup hook: local store operation 
         assert!(screens[0].at < screens[1].at);
     }
 }
+
+/// Fuzzing TennoScope's log as orbiter reads it: random, cut-short and garbled lines around real
+/// ones. Never a panic, never a screen without a real time, never a relic that isn't one.
+#[cfg(test)]
+mod fuzz {
+    use super::*;
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 >> 12;
+            self.0 ^= self.0 << 25;
+            self.0 ^= self.0 >> 27;
+            self.0.wrapping_mul(0x2545_F491_4F6C_DD1D)
+        }
+        fn below(&mut self, n: usize) -> usize {
+            (self.next() % n.max(1) as u64) as usize
+        }
+    }
+
+    const LINES: &[&str] = &[
+        r#"[2026-10-13][12:12:29][app_lib::reward_recognition][INFO] reward: published cards=["Bronco Prime Blueprint" 0.95, "Vadarya Prime Barrel" 1.00] pool=22 relics=["T3VoidProjectionYareliPrimeABronze", "/Lotus/Types/Game/Projections/T2VoidProjectionStyanaxPrimeDPlatinum", "NotARelic"]"#,
+        "[2026-10-13][12:12:31][app_lib::reward_recognition][WARN] [DEBUG-recognition] read failed",
+        "[2026-10-13][12:12:40][app][ERROR] Failed to setup app: error encountered during setup hook: no display",
+        r#"[2026-10-13][12:12:29][app_lib::reward_recognition][INFO] reward: published cards=["Unclosed \"quote] pool=1"#,
+        r#"[9999-99-99][99:99:99][app_lib::reward_recognition][INFO] reward: published cards=["X"] pool=1"#,
+        r#"[2026-1X-13][12:12:29][app_lib::reward_recognition][INFO] reward: published cards=["X"] pool=1"#,
+        r#"[2026-10-13][12:12:29]][app_lib::reward_recognition][INFO] reward: published cards=["\\"] pool=1 relics=["#,
+        "[ü026-10-13][12:12:29][app_lib::reward_recognition][WARN] [DEBUG-recognition] read failed",
+        "\u{202E}[2026-10-13][12:12:29]",
+        "",
+    ];
+
+    #[test]
+    fn random_logs_never_panic_or_invent_screens() {
+        for seed in 0..2000u64 {
+            let mut r = Rng(0x5EED_0000 + seed * 7919);
+            let mut text = String::new();
+            for _ in 0..r.below(30) {
+                let mut l = LINES[r.below(LINES.len())].to_string();
+                if r.below(5) == 0 && !l.is_empty() {
+                    let mut at = r.below(l.len());
+                    while !l.is_char_boundary(at) {
+                        at -= 1;
+                    }
+                    l.truncate(at);
+                }
+                if r.below(10) == 0 {
+                    l = (0..r.below(60)).map(|_| ['[', ']', '"', '\\', '1', '-', ':', 'é', '\u{E000}', ' '][r.below(10)]).collect();
+                }
+                text.push_str(&l);
+                text.push_str(["\n", "\r\n", "\r"][r.below(3)]);
+            }
+            let screens = merge_repeats(parse_reward_log(&text));
+            for s in &screens {
+                assert!(s.at > 0 && s.at < 253_402_300_800_000, "seed {seed}: time {}", s.at);
+                assert!(s.cards.iter().all(|c| !c.trim().is_empty()), "seed {seed}: {:?}", s.cards);
+                assert!(s.relics.iter().all(|x| x.starts_with(PROJECTION_PREFIX) && x.contains("VoidProjection")), "seed {seed}: {:?}", s.relics);
+            }
+            if let Some(f) = start_failure_in(&text) {
+                assert!(f.at > 0, "seed {seed}");
+            }
+        }
+    }
+}

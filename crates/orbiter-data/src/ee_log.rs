@@ -28,6 +28,9 @@ const TRADE_DIVIDER: &str = "and will receive from ";
 const TRADE_DIVIDER_END: &str = " the following:";
 const TRADE_DONE: &str = "The trade was successful!";
 const TRADE_FAILED: [&str; 3] = ["The trade failed", "The trade was cancelled", "OnTradeAccepted failed"];
+/// A trade dialog is a few hundred bytes. One that keeps going past this without closing isn't a
+/// trade: it's dropped (no sale) rather than held and grown for the rest of the session.
+const MAX_DIALOG_BYTES: usize = 64 * 1024;
 
 /// One thing on one side of a trade: `Condition Overload (RARE RANK 0)`, `Vitus Essence x 2`.
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
@@ -219,6 +222,9 @@ impl MissionState {
                     let (at, text) = (*at, std::mem::take(text));
                     self.trade_text = None;
                     self.trade_pending = Some(parse_trade(at, &text, self.session_start));
+                } else if text.len() + line.len() >= MAX_DIALOG_BYTES {
+                    self.trade_text = None;
+                    self.trade_pending = None;
                 } else {
                     text.push('\n');
                     text.push_str(line);
@@ -814,5 +820,194 @@ and will receive from Buyer1\u{E000} the following:\n\
         assert_eq!(parse_utc_clock("x [UTC: Tue Oct 13 39:08:47 2026]"), None);
         // ctime pads one-digit days with a second space.
         assert_eq!(parse_utc_clock("x [UTC: Fri Oct  2 00:00:00 2026]"), Some(1_790_899_200));
+    }
+}
+
+/// Fuzzing the log reader: random mixes of real log lines, cut short, joined with CR, CRLF or
+/// bare CR, with odd Unicode, very long lines and garbled times. It must never panic, never invent
+/// a sale, and read the same however the file arrives in pieces. A small seeded generator, so a
+/// failure names the seed that replays it.
+#[cfg(test)]
+mod fuzz {
+    use super::*;
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            // xorshift64*
+            self.0 ^= self.0 >> 12;
+            self.0 ^= self.0 << 25;
+            self.0 ^= self.0 >> 27;
+            self.0.wrapping_mul(0x2545_F491_4F6C_DD1D)
+        }
+        fn below(&mut self, n: usize) -> usize {
+            (self.next() % n.max(1) as u64) as usize
+        }
+        fn chance(&mut self, p: f64) -> bool {
+            (self.next() >> 11) as f64 / (1u64 << 53) as f64 <= p
+        }
+        fn pick<'a>(&mut self, xs: &[&'a str]) -> &'a str {
+            xs[self.below(xs.len())]
+        }
+    }
+
+    const PIECES: &[&str] = &[
+        "0.107 Sys [Diag]: Current time: Tue Oct 13 21:08:47 2026 [UTC: Tue Oct 13 19:08:47 2026]",
+        "2530.100 Script [Info]: ThemedSquadOverlay.lua: Mission name: Ukko (Void)",
+        "2535.221 Sys [Info]: ResourceLoader 0x1 (/Lotus/Types/Game/Projections/T2VoidProjectionGyrePrimeABronze) Found 19 items to load (0ms)",
+        "2660.508 Sys [Info]: VoidProjections: OpenVoidProjectionRewardScreenRMI",
+        "2660.858 Sys [Info]: VoidProjections: de1e7ed00000000000000011 gets reward /Lotus/StoreItems/Types/Recipes/Components/FormaBlueprint",
+        "3127.384 Script [Info]: Dialog.lua: Dialog::CreateOkCancel(description=Are you sure you want to accept this trade? You are offering:",
+        "Condition Overload (RARE RANK 0)",
+        "Arcane Energize \u{E0B9}\u{E0B9}\u{E0B9}",
+        "Vitus Essence x 2",
+        "and will receive from Buyer1\u{E000} the following:",
+        "Platinum x 17, title= leftItem=/Menu/Confirm_Item_Ok, rightItem=/Menu/Confirm_Item_Cancel)",
+        "Platinum x 1,500, leftItem=/Menu/Confirm_Item_Ok)",
+        "3131.276 Script [Info]: Dialog.lua: Dialog::CreateOk(description=The trade was successful!, title= leftItem=/Menu/Confirm_Item_Ok)",
+        "3131.276 Script [Info]: Dialog.lua: Dialog::CreateOk(description=The trade failed., leftItem=/Menu/Confirm_Item_Ok)",
+        "300.5 Script [Info]: ChatRedux.lua: ChatRedux::AddTab: Adding tab with channel name: FBuyer1\u{E000} to index 6",
+        // Garbled and hostile.
+        "1e300 Script [Info]: ThemedSquadOverlay.lua: Mission name: Ukko (Void)",
+        "inf Sys [Info]: nothing",
+        "NaN Script [Info]: Dialog.lua: Dialog::CreateOk(description=The trade was successful!)",
+        "-5.0 Sys [Diag]: Current time: x [UTC: Tue Oct 13 99:08:47 99999999999]",
+        "12.5 Sys [Info]: \u{202E}evil\u{200B}\u{0000}\u{FFFD}",
+        "Platinum x 99999999999999999999",
+        "Platinum x 4294967295",
+        "and will receive from \u{E000}\u{E001} the following:",
+        "x",
+        "",
+    ];
+
+    fn line(r: &mut Rng) -> String {
+        let mut s = match r.below(10) {
+            0 => {
+                // Random characters, odd Unicode among them.
+                let alphabet = ['a', ' ', '.', ':', '(', ')', ',', 'x', '1', '\u{E0B9}', '\u{202E}', '\u{0301}', '\u{1F600}', '\u{FFFD}', '\u{00A0}', 'ß', '\t'];
+                (0..r.below(80)).map(|_| alphabet[r.below(alphabet.len())]).collect()
+            }
+            1 if r.chance(0.05) => "A".repeat(r.below(3) * 300_000 + 1),
+            1 => "A".repeat(r.below(2000)),
+            _ => r.pick(PIECES).to_string(),
+        };
+        // Cut short, at a character boundary.
+        if r.chance(0.15) && !s.is_empty() {
+            let mut at = r.below(s.len());
+            while !s.is_char_boundary(at) {
+                at -= 1;
+            }
+            s.truncate(at);
+        }
+        s
+    }
+
+    /// A log: lines joined with LF, CRLF or a bare CR (as the game does inside a dialog).
+    fn log(r: &mut Rng) -> String {
+        let mut out = String::new();
+        for _ in 0..r.below(40) {
+            out.push_str(&line(r));
+            out.push_str(r.pick(&["\n", "\r\n", "\r", "\n", "\n"]));
+        }
+        out
+    }
+
+    fn seeds() -> impl Iterator<Item = u64> {
+        let n: u64 = std::env::var("FUZZ_RUNS").ok().and_then(|v| v.parse().ok()).unwrap_or(400);
+        let one: Option<u64> = std::env::var("FUZZ_SEED").ok().and_then(|v| v.parse().ok());
+        let all: Vec<u64> = match one {
+            Some(s) => vec![s],
+            None => (0..n).map(|i| 0x5EED_0000 + i * 7919).collect(),
+        };
+        all.into_iter()
+    }
+
+    #[test]
+    fn random_logs_never_panic_or_invent_a_sale() {
+        for seed in seeds() {
+            let mut r = Rng(seed | 1);
+            let text = log(&mut r);
+            let mut s = MissionState::default();
+            for l in text.split('\n') {
+                s.observe(l);
+            }
+            let asks = text.matches(TRADE_ASK).count();
+            let done = text.matches(TRADE_DONE).count();
+            assert!(s.trades.len() <= asks && s.trades.len() <= done, "FUZZ_SEED={seed}: {} trades from {asks} asks, {done} confirmations", s.trades.len());
+            for t in &s.trades {
+                assert!(!t.partner.chars().any(|c| ('\u{E000}'..='\u{F8FF}').contains(&c)), "FUZZ_SEED={seed}: glyph in {:?}", t.partner);
+                for i in t.offered.iter().chain(t.received.iter()) {
+                    assert!(i.count >= 1 && !i.name.is_empty() && !i.name.eq_ignore_ascii_case("platinum"), "FUZZ_SEED={seed}: {i:?}");
+                }
+                if let Some(at) = t.at {
+                    assert!(at >= 0 && at < 253_402_300_800, "FUZZ_SEED={seed}: time {at}");
+                }
+            }
+            assert!(s.whispers.iter().all(|w| !w.name.is_empty()), "FUZZ_SEED={seed}");
+        }
+    }
+
+    #[test]
+    fn a_dialog_cut_off_before_the_trade_went_through_is_no_sale() {
+        let sale = "3127.384 Script [Info]: Dialog.lua: Dialog::CreateOkCancel(description=Are you sure you want to accept this trade? You are offering:\rCondition Overload (RARE RANK 0)\rand will receive from Buyer1 the following:\rPlatinum x 17, leftItem=/Menu/Confirm_Item_Ok)\n3131.276 Script [Info]: Dialog.lua: Dialog::CreateOk(description=The trade was successful!, leftItem=/Menu/Confirm_Item_Ok)\n";
+        let done_at = sale.find(TRADE_DONE).unwrap();
+        for seed in seeds() {
+            let mut r = Rng(seed | 1);
+            let cut = r.below(done_at + TRADE_DONE.len() - 1);
+            let mut at = cut;
+            while !sale.is_char_boundary(at) {
+                at -= 1;
+            }
+            let mut s = MissionState::default();
+            for l in sale[..at].split('\n') {
+                s.observe(l);
+            }
+            // Then anything but a confirmation.
+            for _ in 0..r.below(6) {
+                let l = line(&mut r);
+                if !l.contains(TRADE_DONE) {
+                    s.observe(&l);
+                }
+            }
+            assert!(s.trades.is_empty(), "FUZZ_SEED={seed}: a sale from a dialog cut at byte {at}");
+        }
+    }
+
+    #[test]
+    fn the_same_log_reads_the_same_however_it_arrives() {
+        for seed in seeds().take(400) {
+            let mut r = Rng(seed | 1);
+            let text = log(&mut r);
+            let bytes = text.as_bytes();
+            let mut whole = LogFollower::default();
+            whole.carry.extend_from_slice(bytes);
+            whole.take_lines();
+            let mut pieces = LogFollower::default();
+            let mut i = 0;
+            while i < bytes.len() {
+                let most = if r.chance(0.5) { 8 } else { 4096 };
+                let n = 1 + r.below(most);
+                let end = (i + n).min(bytes.len());
+                pieces.carry.extend_from_slice(&bytes[i..end]);
+                pieces.take_lines();
+                i = end;
+            }
+            assert_eq!(whole.state, pieces.state, "FUZZ_SEED={seed}");
+        }
+    }
+
+    #[test]
+    fn a_dialog_that_never_closes_does_not_grow_forever() {
+        let mut s = MissionState::default();
+        s.observe("10.0 Script [Info]: Dialog.lua: Dialog::CreateOkCancel(description=Are you sure you want to accept this trade? You are offering:");
+        for _ in 0..20_000 {
+            s.observe("Condition Overload (RARE RANK 0) and some more text to make the line longer");
+        }
+        let held = s.trade_text.as_ref().map(|(_, t)| t.len()).unwrap_or(0);
+        assert!(held < MAX_DIALOG_BYTES, "{held} bytes held for one trade dialog");
+        // And it's no sale, whatever follows.
+        s.observe("Platinum x 17, leftItem=/Menu/Confirm_Item_Ok)");
+        s.observe("20.0 Script [Info]: Dialog.lua: Dialog::CreateOk(description=The trade was successful!, leftItem=/Menu/Confirm_Item_Ok)");
+        assert!(s.trades.is_empty());
     }
 }

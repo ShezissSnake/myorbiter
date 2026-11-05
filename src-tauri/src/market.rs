@@ -754,9 +754,14 @@ fn parse_closed_orders(v: &Value) -> Vec<ClosedOrder> {
                 kind: o["order_type"].as_str().unwrap_or("sell").to_owned(),
                 slug: item["url_name"].as_str()?.to_owned(),
                 name: item["en"]["item_name"].as_str().unwrap_or_default().to_owned(),
-                rank: o["mod_rank"].as_u64().map(|r| r as u32),
-                quantity: o["quantity"].as_u64().unwrap_or(1) as u32,
-                platinum: o["platinum"].as_f64()?,
+                // A rank or quantity that doesn't fit, or a price that isn't one, is no sale: the
+                // order is left out rather than imported as a wrong one.
+                rank: match o["mod_rank"].as_u64() {
+                    Some(r) => Some(u32::try_from(r).ok().filter(|r| *r <= 30)?),
+                    None => None,
+                },
+                quantity: u32::try_from(o["quantity"].as_u64().unwrap_or(1)).ok().filter(|q| (1..=10_000).contains(q))?,
+                platinum: o["platinum"].as_f64().filter(|p| p.is_finite() && *p > 0.0 && *p <= 10_000_000.0)?,
                 closed_at: o["closed_date"].as_str().or_else(|| o["updated_at"].as_str())?.to_owned(),
             })
         })
@@ -1315,5 +1320,96 @@ mod tests {
         let c = Client::offline();
         let book = c.order_book("serration").expect("book");
         assert!(book.iter().any(|o| o.kind == "sell"));
+    }
+}
+
+/// Fuzzing warframe.market's answers: random JSON, and real shapes with fields swapped for
+/// junk, through every parser. Never a panic; a closed order (a sale orbiter would import) only
+/// with a real id, item, quantity and price.
+#[cfg(test)]
+mod fuzz {
+    use super::*;
+    use serde_json::json;
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 >> 12;
+            self.0 ^= self.0 << 25;
+            self.0 ^= self.0 >> 27;
+            self.0.wrapping_mul(0x2545_F491_4F6C_DD1D)
+        }
+        fn below(&mut self, n: usize) -> usize {
+            (self.next() % n.max(1) as u64) as usize
+        }
+    }
+
+    fn junk(r: &mut Rng, depth: u32) -> Value {
+        match r.below(if depth > 2 { 6 } else { 9 }) {
+            0 => Value::Null,
+            1 => json!(r.below(2) == 0),
+            2 => json!([-1i64, 0, 1, 7, i64::MAX, i64::MIN][r.below(6)]),
+            3 => json!([u64::MAX, 4_294_967_297u64, 1u64 << 40][r.below(3)]),
+            4 => json!([0.5, -3.5, 1e308, -1e308, 1e-300][r.below(5)]),
+            5 => json!(["", "x", "2026-10-27T09:00:00+00:00", "aaaaaaaaaaaaaaaaaaaaaaaa", "\u{202E}", "1e9", "-1"][r.below(7)]),
+            6 => Value::Array((0..r.below(4)).map(|_| junk(r, depth + 1)).collect()),
+            _ => {
+                let keys = ["payload", "data", "closed_orders", "statistics_closed", "90days", "chats", "own_review", "item", "id", "quantity", "platinum", "messages"];
+                Value::Object((0..r.below(5)).map(|_| (keys[r.below(keys.len())].to_string(), junk(r, depth + 1))).collect())
+            }
+        }
+    }
+
+    /// A real-looking answer with some of its fields swapped for junk.
+    fn shaped(r: &mut Rng) -> Value {
+        let mut v = json!({"payload": {
+            "closed_orders": [{"id": "c1", "order_type": "sell", "quantity": 2, "platinum": 15, "mod_rank": 0, "closed_date": "2026-10-27T09:00:00+00:00", "item": {"url_name": "khra", "en": {"item_name": "Khra"}}}],
+            "statistics_closed": {"90days": [{"datetime": "2026-10-27T00:00:00+00:00", "median": 9, "volume": 30, "min_price": 5, "max_price": 12, "mod_rank": 0}]},
+            "chats": [{"id": "c1", "chat_name": "Tenno_Alpha", "unread_count": 1, "last_update": "2026-10-27T09:00:00+00:00", "messages": [{"send_date": "x", "raw_message": "hi"}]}],
+            "own_review": {"review_type": 1}
+        }, "data": {"id": "u1", "ingame_name": "ExamplePlayer", "slug": "exampleplayer"}});
+        let spots = [
+            "/payload/closed_orders/0/quantity",
+            "/payload/closed_orders/0/platinum",
+            "/payload/closed_orders/0/mod_rank",
+            "/payload/statistics_closed/90days/0/volume",
+            "/payload/chats/0/messages",
+            "/data",
+        ];
+        for _ in 0..r.below(6) {
+            let at = spots[r.below(spots.len())];
+            let j = junk(r, 0);
+            if let Some(spot) = v.pointer_mut(at) {
+                *spot = j;
+            }
+        }
+        v
+    }
+
+    #[test]
+    fn random_answers_never_panic_and_never_make_a_wrong_sale() {
+        for seed in 0..3000u64 {
+            let mut r = Rng(0x5EED_0000 + seed * 7919);
+            let v = if r.below(2) == 0 { junk(&mut r, 0) } else { shaped(&mut r) };
+            for o in parse_closed_orders(&v) {
+                assert!(!o.id.is_empty() && !o.slug.is_empty(), "seed {seed}: {o:?}");
+                assert!((1..=10_000).contains(&o.quantity), "seed {seed}: quantity {}", o.quantity);
+                assert!(o.platinum.is_finite() && o.platinum > 0.0, "seed {seed}: platinum {}", o.platinum);
+                assert!(o.rank.map_or(true, |x| x <= 30), "seed {seed}: rank {:?}", o.rank);
+            }
+            let _ = parse_history(&v);
+            let _ = parse_chats(&v);
+            let _ = own_review_type(&v);
+            let _ = profile_of(v.clone());
+            let _ = check_auction(&v);
+            let text = v.to_string();
+            let _ = forbidden_means_signed_out(&text);
+            let _ = needs_per_trade(&text);
+            let _ = needs_stars(&text);
+            let _ = token_from_header(&text);
+            if let Some(s) = user_slug(&text) {
+                assert!(s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '_' | '-' | '.')), "seed {seed}: slug {s}");
+            }
+        }
     }
 }
