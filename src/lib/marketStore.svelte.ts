@@ -1259,7 +1259,12 @@ class MarketStore {
     let blocked = 0;
     let writeFailing = 0;
     await this.guard("Updating your listings", async () => {
-      await this.refresh().catch(() => {});
+      // The copies already listed cap what may go up (listGuard.ts): counted from an older read of
+      // your listings, the cap could be too high, so nothing is sent without a fresh one.
+      await this.refresh().catch((e) => {
+        if (isAuthError(e)) throw e;
+        throw new Error(`Nothing changed: your listings couldn't be read first (${clean(e)}). Try again in a minute.`);
+      });
       // Priced from the books the plan was priced from: one that failed then isn't priced from an older copy now.
       const fresh = bulkPlan({ model: m, index: this.index, orders: this.orders, me: this.me!, books: shown.books, minPrice: s.minPrice, minRelicPrice: s.minRelicPrice, minShare: s.minShare, floors: s.floors, paused: s.paused, otherOrders: this.otherOrders, sell: s.sellable, advice, drops: drops.recent }, s.spares, sellTargets(m, s.spares, advice, this.index, s.sellable, drops.recent));
       if (planSignature(toApply(fresh, shown.skipped, never)) !== planSignature(toApply(shown.actions, shown.skipped, never))) {

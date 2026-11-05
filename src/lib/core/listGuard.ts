@@ -17,6 +17,12 @@ export const NEVER_SOLD_REFUSAL = "it's on your never-sell list (Sell spares). S
  */
 export const MAX_INVENTORY_AGE_MS = 3 * 60 * 60_000;
 
+/**
+ * A read time this far ahead of the clock proves nothing either: a time in the wrong unit or a
+ * clock set wrong would otherwise count as fresh for as long as it stays ahead.
+ */
+export const MAX_CLOCK_AHEAD_MS = 10 * 60_000;
+
 export type Trust = { ok: true } | { ok: false; why: string };
 
 /**
@@ -40,6 +46,8 @@ export function inventoryTrust(m: Model, now = Date.now(), fullMode: boolean | n
   if (m.mastered.size === 0) return { ok: false, why: "the inventory read has no mastery in it (a partial read)" };
   if (!m.observedAt) return { ok: false, why: "when your inventory was read isn't known" };
   const age = now - +m.observedAt;
+  if (!Number.isFinite(age)) return { ok: false, why: "when your inventory was read isn't known" };
+  if (age < -MAX_CLOCK_AHEAD_MS) return { ok: false, why: "your inventory's read time is ahead of this PC's clock, so how recent it is can't be told" };
   if (age > maxAge) {
     const h = age / 3_600_000;
     const ago = h >= 48 ? `${Math.round(h / 24)} days` : h >= 1.5 ? `${Math.round(h)} hours` : `${Math.round(age / 60_000)} minutes`;
@@ -98,8 +106,13 @@ export function ducatRefusal(c: SpareContext, it: MarketItem, platinum: number |
 export function guardListing(c: GuardContext, r: GuardRequest): GuardResult {
   const tag = listingTag(r.item, r.rank, r.subtype);
   const refuse = (why: string): GuardResult => ({ ok: false, why: `Didn't list ${tag}: ${upper(why)}` });
-  const elsewhere = Math.max(0, r.listedElsewhere ?? 0);
   if (!(r.quantity > 0)) return refuse("nothing to list");
+  // warframe.market takes whole copies and whole platinum; anything else is a fault upstream, and a
+  // missing price would also skip the ducat check below.
+  if (!Number.isInteger(r.quantity)) return refuse(`${r.quantity} isn't a whole number of copies`);
+  if (r.platinum == null ? !r.manual : !(Number.isInteger(r.platinum) && r.platinum >= 1)) return refuse(r.platinum == null ? "it has no price" : `${r.platinum}p isn't a price warframe.market takes`);
+  if (r.listedElsewhere != null && !Number.isFinite(r.listedElsewhere)) return refuse("your other listings of it couldn't be counted");
+  const elsewhere = Math.max(0, r.listedElsewhere ?? 0);
   // Never sold, whoever asks (the plan, the listing form, Orders): Sell again takes it off the list.
   if (c.rules && neverSells(c.rules, r.item.id)) return refuse(NEVER_SOLD_REFUSAL);
   const m = c.model;
