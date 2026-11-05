@@ -16,8 +16,23 @@ const LONE_ZWJ = /(?<!\p{Extended_Pictographic}\uFE0F?)\u200D|\u200D(?!\p{Extend
 /** C0 and C1 controls but tab and newline. */
 const CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g;
 
-/** The text with every hidden and control character taken out (newlines and tabs stay). */
-export const stripHidden = (s: string): string => s.replace(/\r\n?/g, "\n").replace(HIDDEN_CHARS, "").replace(LONE_ZWJ, "").replace(CONTROL, "");
+/** Half of a surrogate pair on its own: no character at all. */
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
+/**
+ * The text with every hidden and control character taken out (newlines and tabs stay). Lone
+ * surrogate halves go first, and it repeats until nothing changes: otherwise a zero-width
+ * character between the two halves of a hidden one (U+E0041 as \uDB40 \u200B \uDC41) would
+ * join them back into it as it's taken out.
+ */
+export function stripHidden(s: string): string {
+  let out = s.replace(/\r\n?/g, "\n");
+  for (;;) {
+    const next = out.replace(LONE_SURROGATE, "").replace(HIDDEN_CHARS, "").replace(LONE_ZWJ, "").replace(CONTROL, "");
+    if (next === out) return out;
+    out = next;
+  }
+}
 
 /** Whether the text holds a character `stripHidden` would take out. */
 export const hasHidden = (s: string): boolean => stripHidden(s) !== s.replace(/\r\n?/g, "\n");
@@ -44,5 +59,15 @@ export function cleanBlock(v: unknown, max: number): string | null {
   return chars.length > max ? chars.slice(0, max).join("").trimEnd() : s;
 }
 
-/** HTML comments, which a page that renders Markdown hides (an unfinished one hides the rest). */
-export const stripHtmlComments = (s: string): string => s.replace(/<!--[\s\S]*?(-->|$)/g, "");
+/**
+ * HTML comments, which a page that renders Markdown hides (an unfinished one hides the rest).
+ * Taken out until none is left: removing one can join the text around it into another
+ * ("<!<!-- x -->-- y -->"). Hidden characters inside "<!--" have to go first (stripHidden).
+ */
+export function stripHtmlComments(s: string): string {
+  for (;;) {
+    const next = s.replace(/<!--[\s\S]*?(-->|$)/g, "");
+    if (next === s) return s;
+    s = next;
+  }
+}

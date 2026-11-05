@@ -129,3 +129,16 @@ test("the command line reads a file or stdin and refuses what isn't JSON", () =>
   assert.equal(viaFile, viaStdin);
   assert.throws(() => execFileSync("node", ["scripts/issues-digest.mjs"], { input: "not json", stdio: "pipe" }), /not JSON/);
 });
+
+test("a comment rebuilt by taking another out is taken out too", () => {
+  const { text } = cleanBody("<!<!-- x -->-- injected -->visible");
+  assert.equal(text.includes("injected"), false);
+  assert.equal(text.includes("<!--"), false);
+  assert.match(text, /visible/);
+});
+
+test("a hidden character split by a zero-width one doesn't come back when that one goes", () => {
+  // U+E0041 (a "tag" character, invisible) as its two halves with U+200B between them.
+  const { text } = stripHiddenChars("a\uDB40\u200B\uDC41b");
+  assert.equal(text, "ab");
+});
