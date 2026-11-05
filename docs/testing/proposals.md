@@ -60,3 +60,62 @@ that needs a newer compiler would go unnoticed.
 
 The code written in this round uses only long-stable APIs (`str::is_char_boundary`, `get()` on
 slices, `u32::try_from`), so it builds wherever the rest does.
+
+## 2. Audit results (report only; nothing changed)
+
+Run on 2026-11-05 against `main`.
+
+### npm audit
+
+- **orbiter** (`package-lock.json`): 2 low, 0 moderate or worse. Both are one advisory,
+  `deepmerge` (mergeObject() allows prototype poisoning of returned objects), reached through
+  `@sveltejs/vite-plugin-svelte`, a development dependency: it runs in the build, not in the app,
+  and merges the build's own configuration. Worth taking when the plugin's next release drops it
+  (Dependabot proposes it); no action needed before.
+- **TennoScope** (`tennoscope/app`, pnpm): 0.
+
+### cargo audit
+
+- **orbiter** (`Cargo.lock`): 0 vulnerabilities. Warnings, all through Tauri and its Linux stack:
+  unmaintained `proc-macro-error 1.0.4`, `rustls-pemfile 2.2.0`, `zbus_names` (3.0.0, 4.3.5),
+  `zvariant` (4.2.0, 5.15.1), `zvariant_derive` (4.2.0, 5.15.1); unsound `glib 0.18.5`
+  (RUSTSEC-2024-0429, its `VariantStrIter`, which orbiter doesn't call); yanked
+  `async-executor 1.14.0`. They go when Tauri moves its own dependencies; the yanked one can be
+  bumped on its own with `cargo update -p async-executor` (a lockfile change, so not made here).
+- **TennoScope** (`tennoscope/Cargo.lock`): 4 vulnerabilities, all `zip 4.6.1`
+  (RUSTSEC-2026-0367, -0368, -0369, -0429: extracting a hostile archive). These are the four
+  `audit.yml` already ignores, with its reason: only `tauri-plugin-updater`'s Windows path extracts
+  an archive, after its signature checks out, and the TennoScope inside orbiter never runs its
+  updater; they go when TennoScope moves to `tauri-plugin-updater` 2.14 (zip 9). Warnings:
+  unmaintained `paste`, `proc-macro-error`, the `unic-*` crates, `zbus_names`, `zvariant`,
+  `zvariant_derive`; unsound `glib 0.18.5`; yanked `async-executor 1.14.0`, `clipboard-win 5.4.1`.
+
+### Unused code
+
+No `TODO`, `FIXME`, `XXX` or `HACK` is left in orbiter's own code (`src/`, `src-tauri/src/`,
+`crates/`, `scripts/`, `tests/`).
+
+Exported from `src/` and used nowhere, not even in its own file (safe to delete, but nothing was
+deleted in this round):
+
+| File | Export |
+| --- | --- |
+| `src/lib/core/advice.ts` | `TRACE_COST` |
+| `src/lib/core/bulk.ts` | `RULE_OF`, `modSparesUnder` |
+| `src/lib/core/redact.ts` | `redactLines` |
+| `src/lib/core/relicData.ts` | `relicDataNews` |
+| `src/lib/core/sparesRules.ts` | `sellAsWords` |
+| `src/lib/core/untrusted.ts` | `hasHidden` |
+
+Used only by the tests, never by the app (each has tests; either the app lost its use for it, or
+it's kept for tests on purpose; worth a look before deleting):
+
+| File | Export |
+| --- | --- |
+| `src/lib/core/advice.ts` | `ducatRows` |
+| `src/lib/core/builds/suggest.ts` | `FRAME_NAMES`, `suggestVariants`, `suggestAll`, `loadoutModNames`, `loadoutItems`, `suggestionNames` |
+| `src/lib/core/notNeeded.ts` | `installedShards`, `helminthAbilities` |
+| `src/lib/core/recipes.ts` | `recipeItems` |
+
+About 200 more exports are used only inside their own file; the `export` could go, at no gain
+but a tidier surface, so they're not listed.
