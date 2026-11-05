@@ -64,7 +64,7 @@ Once the repository is public, each release also carries GitHub's record of wher
 
 ### Making the downloads
 
-`.github/workflows/release.yml` builds them on GitHub: every push to `main` builds, and so does *Release builds* → *Run workflow* on the *Actions* tab. While the repository is private, pushes build nothing (each job checks), so only runs started by hand spend Actions minutes; once it's public, every push builds by itself, with nothing to change. A run started by hand builds Linux and Windows, with a tick box each for Windows and macOS: a private repository on GitHub Free gets 2,000 Actions minutes a month, Windows minutes count double and macOS ten times, so a Linux-only build costs about 15 and one with all three about 60. A newer push cancels a push build still running. Each run is build *n* (the run number), version `0.1.n`, and puts its downloads on a pre-release of its own (*Releases* on the repository's page), `build-<n>`. Only a run on `main` publishes; a run started by hand on another branch builds the same files and leaves them as the run's artifacts (on its page in the *Actions* tab) for 3 days. Between jobs the files travel as run artifacts, kept 3 days at most and deleted as soon as they're on the release, so they hold a private repository's small artifact storage only while a run lasts. The jobs that build (and so run npm, pnpm and Cargo code) can read the repository and nothing else: no secret, no write access. Signing and publishing are separate jobs that build and install nothing, and only the last one can write to the repository (the job graph is at the top of `release.yml`). It builds TennoScope from `tennoscope/` for Linux (on Ubuntu 22.04, so the AppImage runs on anything from the last few years, SteamOS included) and Windows, puts TennoScope's licence and a notice beside it, and attaches `orbiter-source.tar.gz`, the complete source of the commit it built, as the GPL-3.0 asks. A build made on your own computer is version 0.1.0 and never updates itself.
+`.github/workflows/release.yml` builds them on GitHub: every push to `main` builds, and so does *Release builds* → *Run workflow* on the *Actions* tab. While the repository is private, pushes build nothing (each job checks), so only runs started by hand spend Actions minutes; once it's public, every push builds by itself, with nothing to change. A run started by hand builds Linux and Windows, with a tick box each for Windows and macOS: a private repository on GitHub Free gets 2,000 Actions minutes a month, Windows minutes count double and macOS ten times, so a Linux-only build costs about 15 and one with all three about 60. A newer push cancels a push build still running. Each run is build *n* (the run number), version `0.2.n`, and puts its downloads on a pre-release of its own (*Releases* on the repository's page), `build-<n>`. Only a run on `main` publishes; a run started by hand on another branch builds the same files and leaves them as the run's artifacts (on its page in the *Actions* tab) for 3 days. Between jobs the files travel as run artifacts, kept 3 days at most and deleted as soon as they're on the release, so they hold a private repository's small artifact storage only while a run lasts. The jobs that build (and so run npm, pnpm and Cargo code) can read the repository and nothing else: no secret, no write access. Signing and publishing are separate jobs that build and install nothing, and only the last one can write to the repository (the job graph is at the top of `release.yml`). It builds TennoScope from `tennoscope/` for Linux (on Ubuntu 22.04, so the AppImage runs on anything from the last few years, SteamOS included) and Windows, puts TennoScope's licence and a notice beside it, and attaches `orbiter-source.tar.gz`, the complete source of the commit it built, as the GPL-3.0 asks. A build made on your own computer is version 0.1.0 and never updates itself.
 
 ### Release channels
 
@@ -143,6 +143,25 @@ npm run dev              # http://localhost:1421
 ```
 
 Tests: `npm test` covers the analysis core, and `npm run check` type-checks the project.
+
+### A release-style AppImage on your own PC
+
+`scripts/build-local.sh` builds the Linux AppImage the way the release workflow's Linux job does: Tesseract put inside TennoScope, TennoScope's own AppImage, orbiter's with TennoScope inside it, and the same repack step (`scripts/repack-appimage.sh`). Use it to try a build without spending Actions minutes. Made for Arch Linux and CachyOS; install what it needs once:
+
+```fish
+sudo pacman -S --needed base-devel rust clang pnpm nodejs npm libpipewire webkit2gtk-4.1 tesseract tesseract-data-eng patchelf
+```
+
+Then, from orbiter's folder:
+
+```fish
+scripts/build-local.sh --check                  # only check the tools are there
+scripts/build-local.sh                          # the whole build (TennoScope first; a long first run)
+scripts/build-local.sh --skip-tennoscope        # orbiter only, reusing the last TennoScope
+scripts/build-local.sh --version 0.2.900        # carry a version of your choice
+```
+
+The AppImage lands in `target/release/bundle/appimage/`. It differs from a release build in three ways: it isn't signed (so it never offers itself as an update), it links against your system's newer libraries (so it may not start on an older distribution or SteamOS), and its bundled libraries' notices are matched with pacman, without the list of their sources. Fine for testing; share the release builds.
 
 TennoScope is in `tennoscope/`, its own Cargo workspace and pnpm project: build it as `tennoscope/ORBITER.md` says and point Settings → TennoScope at the program, so a development orbiter starts it.
 
