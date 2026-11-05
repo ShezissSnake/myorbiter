@@ -27,6 +27,7 @@ import { backoff } from "./core/upkeep";
 import { drops } from "./drops.svelte";
 import { MAX_PLAT, MAX_QTY, wholeIn } from "./core/amounts";
 import { ducatRefusal, guardListing, inventoryTrust, listingTag, type GuardRequest } from "./core/listGuard";
+import { autoFloor, unattendedMove } from "./core/approved";
 
 export interface Draft {
   itemId: string;
@@ -486,6 +487,23 @@ class MarketStore {
     logLine("info", "listing", `${how}: ${line}`);
   }
 
+  /**
+   * You set or approved `platinum` for this listing (core/approved.ts): automatic repricing never
+   * takes it under 70% of that. Kept in your settings, by item, rank and variant.
+   */
+  approve(o: Pick<MyOrder, "itemId" | "rank" | "subtype">, platinum: number, s: MarketSettings | null = this.rules) {
+    if (!s || !Number.isInteger(platinum) || platinum < 1) return;
+    const key = this.approvalKey(o);
+    if (s.approved?.[key] === platinum) return;
+    s.approved = { ...(s.approved ?? {}), [key]: platinum };
+  }
+  /** The listing's key with its variant filled in (an intact relic made without one is "intact"). */
+  approvalKey(o: Pick<MyOrder, "itemId" | "rank" | "subtype">): string {
+    return listingKey({ ...o, subtype: o.subtype ?? this.item(o.itemId)?.subtypes?.[0] ?? null });
+  }
+  /** Listings whose 70% floor was told, with the price it was 70% of: told once, not every pass. */
+  private floorTold = new Set<string>();
+
   planFor(m: Model, s: MarketSettings, o: MyOrder): Plan | null {
     const it = this.item(o.itemId);
     const book = it ? this.books[it.slug]?.orders : undefined;
@@ -606,18 +624,45 @@ class MarketStore {
               moved++;
               continue;
             }
-          } else if (p.target < o.platinum / 2) {
-            // More than halving a price is never done unattended: it waits for you to press Reprice.
-            held++;
-            this.note(`${it.name}${o.rank != null ? ` R${o.rank}` : ""}: would go from ${o.platinum}p to ${p.target}p; left for you to check (Reprice)`, "warn");
-            continue;
+          }
+          let target = p.target;
+          let atFloor = false;
+          if (timed) {
+            const tag = `${it.name}${o.rank != null ? ` R${o.rank}` : ""}`;
+            // Never under 70% of the price you last set or approved (one orbiter hasn't seen you
+            // price yet starts from what it's listed at now).
+            const key = this.approvalKey(o);
+            const approved = s.approved?.[key] ?? o.platinum;
+            if (s.approved?.[key] == null) this.approve(o, o.platinum, s);
+            const move = unattendedMove(p.target, o.platinum, approved);
+            if (!move.go) {
+              held++;
+              if (!this.floorTold.has(`${key}|${approved}`)) {
+                this.floorTold.add(`${key}|${approved}`);
+                this.note(`${tag}: stays at ${o.platinum}p, 70% of the ${approved}p you last set; the cheapest in game is ${p.target}p. Press Reprice to go lower, or set a new price`, "warn");
+              }
+              continue;
+            }
+            target = move.target;
+            atFloor = move.atFloor;
+            if (target < o.platinum / 2) {
+              // More than halving a price is never done unattended: it waits for you to press Reprice.
+              held++;
+              this.note(`${tag}: would go from ${o.platinum}p to ${target}p; left for you to check (Reprice)`, "warn");
+              continue;
+            }
           }
           try {
-            await market.update(o.id, { platinum: p.target });
+            await market.update(o.id, { platinum: target });
             writeFailing = 0;
             changed++;
-            const why = p.reason === "floor" ? `held at your floor (${p.floor}p)` : `cheapest in game: ${p.competitor.cheapest?.name ?? "?"}`;
-            this.note(`${it.name}${o.rank != null ? ` R${o.rank}` : ""}: ${o.platinum}p → ${p.target}p, ${why}`, "ok");
+            // Pressed Reprice: the price you approved.
+            if (!timed) this.approve(o, target, s);
+            const why = atFloor
+              ? `70% of the ${s.approved?.[this.approvalKey(o)] ?? "?"}p you last set; it goes no lower by itself (the cheapest in game is ${p.target}p)`
+              : p.reason === "floor" ? `held at your floor (${p.floor}p)` : `cheapest in game: ${p.competitor.cheapest?.name ?? "?"}`;
+            if (atFloor) this.floorTold.add(`${this.approvalKey(o)}|${s.approved?.[this.approvalKey(o)]}`);
+            this.note(`${it.name}${o.rank != null ? ` R${o.rank}` : ""}: ${o.platinum}p → ${target}p, ${why}`, atFloor ? "warn" : "ok");
           } catch (e) {
             if (isAuthError(e)) throw e;
             failed++;
@@ -832,6 +877,7 @@ class MarketStore {
         this.audit("Listing form", why || tag);
         this.note(`Listed ${d.quantity}× ${tag} at ${d.platinum}p`, "ok");
       }
+      this.approve(d, d.platinum!);
       this.draftDone = this.log[0]?.text ?? null;
       this.draft = null;
       await this.refresh();
@@ -907,6 +953,8 @@ class MarketStore {
     }
     return this.guard("Saving", async () => {
       await market.update(o.id, change);
+      // A price you typed is the price you approved.
+      if (change.platinum != null) this.approve(o, change.platinum);
       if (why) this.audit(`Orders, ${o.id} changed`, why);
       await this.refresh();
     });
@@ -1340,10 +1388,12 @@ class MarketStore {
         try {
           if (a.type === "create") {
             await market.create({ itemId: a.item.id, platinum: a.platinum, quantity: a.quantity, rank: a.rank, subtype: a.subtype, visible: true });
+            this.approve({ itemId: a.item.id, rank: a.rank, subtype: a.subtype }, a.platinum, s);
             this.note(`Listed ${a.quantity}× ${tag(a.item.name, a.rank)} at ${a.platinum}p`, "ok");
             this.audit(`Spares plan, ${KIND_LABEL[a.kind].toLowerCase()} (${a.why}; ${a.priceWhy})`, why);
           } else if (a.type === "update") {
             await market.update(a.order.id, { quantity: a.quantity, platinum: a.platinum });
+            this.approve(a.order, a.platinum, s);
             this.note(`${tag(a.item.name, a.order.rank)}: ${a.order.quantity}× ${a.order.platinum}p → ${a.quantity}× ${a.platinum}p`, "info");
             this.audit(`Spares plan changed ${a.order.id} (${a.why}; ${a.priceWhy})`, why || `${listingTag(a.item, a.order.rank, a.order.subtype)}: ${a.order.quantity}× ${a.order.platinum}p → ${a.quantity}× ${a.platinum}p`);
           } else if (a.type === "remove") {
