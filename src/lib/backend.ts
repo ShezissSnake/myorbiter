@@ -1304,6 +1304,12 @@ const devMarket = async (): Promise<{ account: MarketAccount; orders: MyOrder[] 
   const res = await fetch("/dev-market.json").catch(() => null);
   return res?.ok && res.headers.get("content-type")?.includes("json") ? res.json() : null;
 };
+/** Browser dev mode only: /dev-books.json, order books by item slug, read once; null without one. */
+let devBooksRead: Promise<Record<string, BookOrder[]> | null> | null = null;
+const devBooks = () =>
+  (devBooksRead ??= fetch("/dev-books.json")
+    .then((r) => (r.ok && r.headers.get("content-type")?.includes("json") ? (r.json() as Promise<Record<string, BookOrder[]>>) : null))
+    .catch(() => null));
 /** In the browser dev mode, changes to listings are pretended: nothing reaches warframe.market. */
 const devNoop = () => new Promise<void>((done) => setTimeout(done, 40));
 
@@ -1408,6 +1414,10 @@ export const market = {
   },
   book: async (slug: string): Promise<BookOrder[]> => {
     if (inTauri) return invoke("market_order_book", { slug });
+    // Browser dev mode with /dev-books.json (the demo account has one): its books stand in for
+    // the whole market, and an item it hasn't got has nobody selling.
+    const kept = await devBooks();
+    if (kept) return kept[slug] ?? [];
     const res = await fetch(`https://api.warframe.market/v2/orders/item/${slug}`, { headers: { Platform: devPlatform, Crossplay: "true" } });
     return (await res.json()).data;
   },
