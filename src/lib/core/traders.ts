@@ -149,6 +149,8 @@ export function varziaNeeds(m: Model, rows: MasteryRow[]): VarziaNeed[] {
 export function until(iso: string | null | undefined, now = Date.now()): string {
   if (!iso) return "—";
   const ms = Date.parse(iso) - now;
+  // An expiry that isn't a time (a damaged worldstate): no countdown rather than "under a minute".
+  if (!Number.isFinite(ms)) return "—";
   if (ms <= 0) return "now";
   const min = Math.floor(ms / 60_000);
   const d = Math.floor(min / 1440);

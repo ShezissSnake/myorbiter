@@ -152,7 +152,11 @@ export function checkedWhen(at: number, now: number): string {
   const day = (ms: number) => new Date(ms).toDateString();
   const time = new Date(at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   if (day(at) === day(now)) return `today ${time}`;
-  if (day(at) === day(now - 86_400_000)) return `yesterday ${time}`;
+  // The calendar day before, not 24 hours before: after a 23-hour day (the clocks going forward)
+  // 24 hours back is two days back.
+  const before = new Date(now);
+  before.setDate(before.getDate() - 1);
+  if (day(at) === day(+before)) return `yesterday ${time}`;
   return `${Math.max(2, Math.round((now - at) / 86_400_000))} days ago`;
 }
 

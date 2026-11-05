@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { localDayStart, salesByDay } from "../core/salesDays";
   // What you've sold and what it made, and how each sale compares with the market. Sales log
   // themselves from trades in the game log, or when you press Sold on a listing in Orders, or are
   // added here by hand for trades made outside warframe.market.
@@ -80,11 +81,7 @@
     return () => clearInterval(t);
   });
   /** Local midnight: changes once a day, so what depends on it isn't redone every minute. */
-  const dayStart = $derived.by(() => {
-    const d = new Date(now);
-    d.setHours(0, 0, 0, 0);
-    return +d;
-  });
+  const dayStart = $derived(localDayStart(now));
   const since = (t: number) => sales.filter((s) => s.at >= t);
   const plat = (xs: Sale[]) => xs.reduce((n, s) => n + s.quantity * s.platinum, 0);
   const trades = (xs: Sale[]) => xs.reduce((n, s) => n + s.quantity, 0);
@@ -112,22 +109,7 @@
       .slice(0, 8),
   );
   // Platinum per day, for the bar chart. Days are calendar days (a clock change makes one 23 or 25 hours).
-  const days = $derived.by(() => {
-    const n = span === "7" ? 7 : 30;
-    const out = Array.from({ length: n }, (_, i) => {
-      const d = new Date(dayStart);
-      d.setHours(0, 0, 0, 0);
-      d.setDate(d.getDate() - (n - 1 - i));
-      return { at: +d, plat: 0 };
-    });
-    for (const s of sales) {
-      if (s.at < out[0].at) continue;
-      let i = n - 1;
-      while (i > 0 && s.at < out[i].at) i--;
-      out[i].plat += s.quantity * s.platinum;
-    }
-    return out;
-  });
+  const days = $derived(salesByDay(sales, dayStart, span === "7" ? 7 : 30));
   const peak = $derived(Math.max(1, ...days.map((d) => d.plat)));
 
   // Adding one by hand.
