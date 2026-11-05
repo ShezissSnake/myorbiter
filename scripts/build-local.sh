@@ -16,7 +16,7 @@
 # Made for Arch Linux and CachyOS; other distributions work with their own package names. Once:
 #
 #   sudo pacman -S --needed base-devel rust clang pnpm nodejs npm libpipewire webkit2gtk-4.1 \
-#     tesseract tesseract-data-eng patchelf
+#     tesseract tesseract-data-eng patchelf xdg-utils
 #
 # How it differs from the release build: it isn't signed (no updater files, so it never offers
 # itself as an update), it links against this system's libraries, which are newer than the
@@ -50,7 +50,8 @@ done
 # ------------------------------------------------------------------ what it needs
 
 missing=()
-for tool in cargo node npm npx pnpm clang tesseract patchelf pkg-config; do
+# xdg-open: Tauri bundles it into the AppImage (xdg-utils).
+for tool in cargo node npm npx pnpm clang tesseract patchelf pkg-config xdg-open; do
   command -v "$tool" >/dev/null || missing+=("$tool")
 done
 pkg-config --exists webkit2gtk-4.1 2>/dev/null || missing+=("webkit2gtk-4.1 (its development files)")
@@ -61,7 +62,7 @@ model=$(find /usr/share/tessdata /usr/share/tesseract-ocr -name eng.traineddata 
 if [ ${#missing[@]} -gt 0 ]; then
   echo "Missing: ${missing[*]}" >&2
   if command -v pacman >/dev/null; then
-    echo "Install them with: sudo pacman -S --needed base-devel rust clang pnpm nodejs npm libpipewire webkit2gtk-4.1 tesseract tesseract-data-eng patchelf" >&2
+    echo "Install them with: sudo pacman -S --needed base-devel rust clang pnpm nodejs npm libpipewire webkit2gtk-4.1 tesseract tesseract-data-eng patchelf xdg-utils" >&2
   fi
   exit 1
 fi
@@ -82,6 +83,9 @@ if $skip_tennoscope; then
 else
   step "Putting Tesseract inside TennoScope"
   scripts/vendor-linux-tesseract.sh tennoscope/app/src-tauri/vendor/tesseract
+  # It empties the folder first, the placeholder that keeps it in Git included: put that back, so
+  # a local build leaves the working tree as it was.
+  git checkout -q -- tennoscope/app/src-tauri/vendor/tesseract/.gitkeep 2>/dev/null || true
 
   step "TennoScope's packages"
   (cd tennoscope/app && pnpm install --frozen-lockfile)
