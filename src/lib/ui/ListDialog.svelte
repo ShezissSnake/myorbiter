@@ -7,6 +7,7 @@
   import type { MarketSettings } from "../backend";
   import type { DucatOptions } from "../core/advice";
   import { relicCrackFor } from "../core/spares";
+  import { aboveDucats, ducatWorth } from "../core/bulk";
   import { minFor, mkt } from "../marketStore.svelte";
   import { MAX_PLAT, MAX_QTY, amountProblem, shown, wholeIn } from "../core/amounts";
   import Named from "./Named.svelte";
@@ -31,7 +32,9 @@
   const floor = $derived.by(() => {
     if (!market || !d) return null;
     const own = existing ? market.floors[listingKey(existing)] : null;
-    return Math.max(1, item ? minFor(market, item) : market.minPrice, median != null ? Math.ceil(median * market.minShare) : 0, own ?? 0);
+    // A prime part or set is never repriced to (or under) what its ducats are worth to you.
+    const ducats = item && advice ? aboveDucats(ducatWorth(model, item, advice.platPerDucat)) : null;
+    return Math.max(1, item ? minFor(market, item) : market.minPrice, median != null ? Math.ceil(median * market.minShare) : 0, own ?? 0, ducats ?? 0);
   });
   const underFloor = $derived(d?.platinum != null && floor != null && d.platinum < floor);
   /** A relic: what one crack at this refinement is worth, when the price is no more than that. */
