@@ -16,47 +16,21 @@ repository whose `origin` is `ShezissSnake/orbiter`.
 **1. Before the switch** (the repository is still private)
 
 - [ ] **The signing key is backed up offline (maintainer).** `~/.tauri/orbiter.key` and its
-      password are kept somewhere off this computer; README, *Release channels*, says why.
-- [ ] **The pre-release pull requests are merged**, in the order their descriptions give (the
-      nightly-build change before the one that changes this list). Each is merged on its page:
-      *Ready for review* if it's still a draft, then **Merge pull request** → **Confirm merge**.
-- [ ] **Dependabot's leftovers are closed.** The TypeScript 7 pull request: open it, write the
-      comment `@dependabot ignore this major version` and send it (Dependabot closes it). The
-      actions pull request: once the nightly-build change is merged it has nothing left to do;
-      close it with **Close pull request**.
-- [ ] **Old releases are gone.** build-3, build-6 and build-8 are left from before the 0.2 builds;
-      their tags were deleted already, so each is deleted from its page: *Releases* →
-      `build-3` → the bin icon (*Delete*) → **Delete this release**; the same for `build-6` and
-      `build-8`. From a terminal with the GitHub CLI, the same, by release id; first check that
-      each id is the release it should be:
+      password are kept somewhere off this computer; `docs/releases/README.md`, *The signing key*,
+      says why.
+- [ ] **Every pull request meant for the first public build is merged**, and the branches that
+      only held finished work are deleted, so only `main` and the branches of open pull requests go
+      public: *Code* → *Branches* → the bin icon on each branch whose pull request is merged or
+      closed, Dependabot's included. Or, from a terminal, once per such branch (here one named
+      `work/example`):
 
       ```fish
-      gh api repos/ShezissSnake/orbiter/releases/434098785 --jq '.tag_name + " " + .name'
-      gh api repos/ShezissSnake/orbiter/releases/434185865 --jq '.tag_name + " " + .name'
-      gh api repos/ShezissSnake/orbiter/releases/434383838 --jq '.tag_name + " " + .name'
-      ```
-
-      (they say build-3, build-6 and build-8), then:
-
-      ```fish
-      gh api -X DELETE repos/ShezissSnake/orbiter/releases/434098785
-      gh api -X DELETE repos/ShezissSnake/orbiter/releases/434185865
-      gh api -X DELETE repos/ShezissSnake/orbiter/releases/434383838
-      ```
-
-      Then *Releases* lists only `build-<n>` pre-releases from the 0.2 builds, the
-      `channel-experimental` release, and nothing else.
-- [ ] **Branches that only held finished work are deleted**, so only `main` and the branches of
-      open pull requests go public: *Code* → *Branches* → the bin icon on each `claude/…` and `work/…`
-      branch whose pull request is merged or closed, and on Dependabot branches whose pull
-      request is merged or closed. Or, from a terminal, once per such branch (here one named
-      `claude/example-branch`):
-
-      ```fish
-      git push origin --delete claude/example-branch
+      git push origin --delete work/example
       ```
 
       Then `git ls-remote --heads origin` lists `main` and open pull requests' branches only.
+- [ ] **Releases hold only 0.2 builds:** *Releases* lists `build-<n>` pre-releases and the
+      `channel-…` releases, nothing older.
 - [ ] **Commit e-mail stays private (maintainer)** (*Before making it public*, below).
 - [ ] **The history is read once more** for anything personal or secret, and no leftover
       `build-<n>` tag points at a commit its run didn't build (*Before making it public*):
@@ -71,14 +45,16 @@ repository whose `origin` is `ShezissSnake/orbiter`.
       git switch main
       git pull
       npm ci
+      npm run dev-bundle
+      npm run dev-data
       npm test
       npm run check -- --threshold error
       cargo test --manifest-path src-tauri/Cargo.toml
       ```
 
-      `npm test`'s Sell spares tests that read `public/dev-*.json` run only on a computer that
-      has that data; they must pass there too. The last Experimental build installed and
-      updated (`docs/testing/log.md`).
+      `npm run dev-bundle` reads a TennoScope folder, so the tests that need it run only on a
+      computer that has one; they must pass there too.
+- [ ] **The newest Experimental build** installed, and updated itself once.
 
 **2. Make it public (maintainer)**
 
@@ -86,8 +62,8 @@ repository whose `origin` is `ShezissSnake/orbiter`.
       public** → read the warnings → type `ShezissSnake/orbiter` → **I want to make this
       repository public** (GitHub may ask for the password or a passkey).
 - [ ] From now on `nightly.yml` starts an Experimental build each night that `main` has
-      changed (03:17 UTC), and the weekly audit and MSRV checks run by themselves. Nothing is
-      built at the switch itself. Steps 2 to 5 are best done in one sitting: a nightly build
+      changed (03:17 UTC); the weekly audit and MSRV checks already run while it's private.
+      Nothing is built at the switch itself. Steps 2 to 5 are best done in one sitting: a nightly build
       that comes first is fine (it signs with the repository secrets while they're still
       there), and step 5 then builds once more by hand.
 
@@ -145,8 +121,8 @@ secrets, delete the repository copies, optionally require approval.
 - [ ] Release notes: in `docs/releases/first-public.md`, put the version (0.2.*n*) in place of
       each `<0.2.N>`, through a pull request like any change (the ruleset on `main` may ask for
       one; the next nightly build then picks it up), then open `build-<n>` → the pencil icon (*Edit*) → replace its
-      description with that file's text → **Update release**. (The commit list it had stays in
-      the update screen's notes, which come from `latest.json`.)
+      description with that file's text → **Update release**. (The update screen's notes come from
+      `latest.json`, not from this description, so they don't change.)
 - [ ] Actions → *Website* → **Run workflow**, so its download buttons point at this release
       (it also does it by itself once a day).
 
