@@ -14,6 +14,7 @@ import { normalizeRule, type FissureRule } from "./core/timers";
 import type { RivenAuction, RivenMeta, RivenRaw, RivenSnap } from "./core/rivens";
 import type { ImprintRaw } from "./core/imprints";
 import { salesOf, tradesOf } from "./core/saleLog";
+import { gearOf, noticesOf, relicRunsOf, rivensOf, valueHistoryOf } from "./core/savedGame";
 import type { GearCopy } from "./core/notNeeded";
 import { NEWEST } from "./whatsNew";
 import { DEFAULT_HIDE_MINUTES, type HiddenForWhisper } from "./core/lastCopy";
@@ -871,7 +872,7 @@ export async function loadSettings(): Promise<Settings> {
     startPage: typeof raw?.startPage === "string" && raw.startPage ? raw.startPage : "last",
     schema: base.schema,
     notifiedInvasions: Array.isArray(raw?.notifiedInvasions) ? raw.notifiedInvasions : [],
-    game: { ...defaultGame(), ...(raw?.game ?? {}), relicRuns: Array.isArray(raw?.game?.relicRuns) ? raw.game.relicRuns : [], drops: raw?.game?.drops && typeof raw.game.drops.at === "number" && raw.game.drops.counts && Array.isArray(raw.game.drops.windows) ? raw.game.drops : emptyDropLog(), savingFor: raw?.game?.savingFor && typeof raw.game.savingFor === "object" && !Array.isArray(raw.game.savingFor) ? raw.game.savingFor : {}, notices: Array.isArray(raw?.game?.notices) ? raw.game.notices : [], worldNotified: Array.isArray(raw?.game?.worldNotified) ? raw.game.worldNotified : [], keepGear: Array.isArray(raw?.game?.keepGear) ? raw.game.keepGear.filter((x: unknown) => typeof x === "string") : [], gear: Array.isArray(raw?.game?.gear) ? raw.game.gear : null, imprints: Array.isArray(raw?.game?.imprints) ? raw.game.imprints.filter((x: unknown) => !!x && typeof x === "object" && !Array.isArray(x)) : null, consumedSuits: Array.isArray(raw?.game?.consumedSuits) ? raw.game.consumedSuits.filter((x: unknown) => typeof x === "string") : null },
+    game: { ...defaultGame(), ...(raw?.game ?? {}), relicRuns: relicRunsOf(raw?.game?.relicRuns), drops: raw?.game?.drops && typeof raw.game.drops.at === "number" && raw.game.drops.counts && Array.isArray(raw.game.drops.windows) ? raw.game.drops : emptyDropLog(), savingFor: raw?.game?.savingFor && typeof raw.game.savingFor === "object" && !Array.isArray(raw.game.savingFor) ? raw.game.savingFor : {}, notices: noticesOf(raw?.game?.notices), worldNotified: Array.isArray(raw?.game?.worldNotified) ? raw.game.worldNotified : [], keepGear: Array.isArray(raw?.game?.keepGear) ? raw.game.keepGear.filter((x: unknown) => typeof x === "string") : [], gear: gearOf(raw?.game?.gear), rivens: rivensOf(raw?.game?.rivens), valueHistory: valueHistoryOf(raw?.game?.valueHistory), imprints: Array.isArray(raw?.game?.imprints) ? raw.game.imprints.filter((x: unknown) => !!x && typeof x === "object" && !Array.isArray(x)) : null, consumedSuits: Array.isArray(raw?.game?.consumedSuits) ? raw.game.consumedSuits.filter((x: unknown) => typeof x === "string") : null },
     favourites: Array.isArray(raw?.favourites) ? raw.favourites : [],
     fissureRules: Array.isArray(raw?.fissureRules) ? raw.fissureRules.map(normalizeRule).filter((r: FissureRule | null): r is FissureRule => !!r) : [],
     rivenWatch: Array.isArray(raw?.rivenWatch) ? raw.rivenWatch : [],
