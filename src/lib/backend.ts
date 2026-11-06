@@ -798,6 +798,9 @@ export async function loadSettings(): Promise<Settings> {
     for (let i = 0; ; i++) {
       try {
         const loaded = await invoke<{ settings: Partial<Settings> | null; page: number }>("load_settings");
+        // A reply without a page token can't be saved to: taken as unreadable, so nothing is
+        // saved over the file.
+        if (typeof loaded?.page !== "number" || !("settings" in loaded)) throw new Error("load_settings gave an unexpected reply");
         raw = loaded.settings;
         savePage = loaded.page;
         break;
