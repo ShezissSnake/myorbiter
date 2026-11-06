@@ -12,7 +12,7 @@
     "check": "svelte-check --tsconfig ./tsconfig.json --config ./svelte.config.js",
     "tauri": "tauri",
     "test": "tsx --test tests/*.test.ts",
-    "dev-bundle": "cargo run --release -q --manifest-path crates/orbiter-data/Cargo.toml --bin orbiter-dump > public/dev-bundle.json",
+    "dev-bundle": "cargo run --release -q --manifest-path crates/orbiter-data/Cargo.toml --bin orbiter-dump > public/dev-bundle.tmp.json && mv public/dev-bundle.tmp.json public/dev-bundle.json || { rm -f public/dev-bundle.tmp.json; exit 1; }",
     "dev-data": "node scripts/dev-data.mjs"
   },
   "dependencies": {

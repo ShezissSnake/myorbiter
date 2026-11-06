@@ -409,7 +409,7 @@ jobs:
             echo "signed=true" >>"$GITHUB_OUTPUT"
           else
             echo "signed=false" >>"$GITHUB_OUTPUT"
-            echo "**No updater files:** the TAURI_SIGNING_PRIVATE_KEY secret isn't set for the release-signing environment, so this build is unsigned and no channel will offer it (README, Release channels)." >>"$GITHUB_STEP_SUMMARY"
+            echo "**No updater files:** the TAURI_SIGNING_PRIVATE_KEY secret isn't set for the release-signing environment, so this build is unsigned and no channel will offer it (docs/releases/README.md, Channels)." >>"$GITHUB_STEP_SUMMARY"
           fi
 
       # Exactly this build's two downloads, by name; each signature is bound to this version and
