@@ -30,3 +30,20 @@ test("riven data in the wrong shape throws, so Rivens says it couldn't read it",
   assert.deepEqual(m.weapons.map((w) => [w.name, w.rivenType]), [["Braton", ""]]);
   assert.equal(m.attributes.length, 1);
 });
+
+test("odd but readable entries get their fallbacks: no game path, no rank, no time, no riven type", () => {
+  assert.deepEqual(marketItemsOf([{ id: "1", slug: "x", name: "X", gameRef: 5, maxRank: "10", subtypes: "a", tags: [1, "mod"] }]), [{ id: "1", slug: "x", name: "X", gameRef: null, maxRank: null, subtypes: null, tags: ["mod"] }]);
+  assert.equal(recipeDataOf({ recipes: {}, names: {}, checkedAt: "soon" })?.checkedAt, 0);
+  const meta = rivenMetaOf({ weapons: [{ slug: "braton", name: "Braton", gameRef: 1 }], attributes: [] });
+  assert.deepEqual([meta.weapons[0].gameRef, meta.weapons[0].group, meta.weapons[0].rivenType], ["", "", ""]);
+});
+
+test("relic data: a reward or drop place that isn't one is left out, the relic kept", () => {
+  const good = { name: "Forma Blueprint", rarity: "Common", chance: 25.33 };
+  const d = relicDataOf({ relics: [{ name: "Axi A1 Intact", rewards: [null, 5, { name: 3 }, good, { name: "X", chance: "1" }] }], drops: { "Axi A1": [null, { location: "Void/Mot", chance: 5, rarity: "Rare" }], "Lith B1": "x" }, paths: { "/a": "Axi A1 Intact", "/b": 5 } })!;
+  assert.deepEqual(d.relics, [{ name: "Axi A1 Intact", rewards: [good] }]);
+  assert.deepEqual(d.drops, { "Axi A1": [{ location: "Void/Mot", chance: 5, rarity: "Rare" }] });
+  assert.deepEqual(d.paths, { "/a": "Axi A1 Intact" });
+  const clean = { relics: [{ name: "Axi A1 Intact", rewards: [good] }], drops: {}, paths: {} };
+  assert.equal(relicDataOf(clean)!.relics[0], clean.relics[0], "a clean relic is the same object");
+});
