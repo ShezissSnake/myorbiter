@@ -139,3 +139,14 @@ export function filterRows(rows: MarketRow[], f: MarketFilter): MarketRow[] {
     return true;
   });
 }
+
+/**
+ * The category menu's counts: what each category would show under the rest of the filters (the
+ * category itself left out), and "all" for every category together.
+ */
+export function categoryCounts(rows: MarketRow[], f: MarketFilter): Map<MarketCategory | "all", number> {
+  const shown = filterRows(rows, { ...f, category: "all" });
+  const out = new Map<MarketCategory | "all", number>([["all", shown.length]]);
+  for (const r of shown) out.set(r.category, (out.get(r.category) ?? 0) + 1);
+  return out;
+}

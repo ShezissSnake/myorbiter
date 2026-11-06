@@ -81,8 +81,11 @@
       mode === "sell" ? sellableOf(r) > 0 && matches(q, r.name) : mode === "save" ? saves.has(r.unique) && matches(q, r.name, ...saveOf(r).missing.map((x) => x.name)) : r.completeSets === 0 && missingN(r) <= 2 && matches(q, r.name),
     ),
   );
-  /** Complete sets held back by "Keep one to build" (shown, or not shown because that was the only one). */
-  const keptBack = $derived(keepOne ? all.filter((r) => r.keptForBuild && matches(q, r.name)).length : 0);
+  /**
+   * Complete sets held back by "Keep one to build" (shown, or not shown because that was the only one),
+   * counting copies like Sets to sell beside it: two Vasto Prime sets kept for Akvasto Prime are two.
+   */
+  const keptBack = $derived(keepOne ? all.reduce((n, r) => n + (r.keptForBuild && matches(q, r.name) ? r.completeSets - r.sellable : 0), 0) : 0);
   const totalPlat = $derived(rows.reduce((n, r) => n + (mode === "sell" ? sellableOf(r) * (r.setPrice ?? 0) : 0), 0));
   const totalSets = $derived(rows.reduce((n, r) => n + sellableOf(r), 0));
   /** Sets to sell counts copies; the list has one card per set. */
@@ -275,7 +278,7 @@
   <div class="modes"><Tabs bind:value={mode} label="Sets view" options={[{ v: "sell", label: "Sets you can sell", title: "Complete sets in your inventory, and what each sells for" }, { v: "close", label: "Almost complete", title: "Sets one or two parts short: what the missing parts cost, and what finishing and selling gains" }, { v: "save", label: "Saving up", title: "Sets your loose parts wait for instead of being sold one by one: worth more whole, and you can still get every missing part" }]} /></div>
   <div class="bar">
   {#if mode === "sell"}
-    <Chip bind:on={keepOne} label="Keep one to build" title="Hold back one set of anything you have neither built nor mastered" />
+    <Chip bind:on={keepOne} label="Keep one to build" title="Hold back the sets still to build: one of anything you have neither built nor mastered, and as many as an unbuilt weapon made from it takes (Akvasto Prime takes two Vasto Primes)" />
   {/if}
   <input type="search" aria-label="Filter sets by name" title="Shows only what matches what you type" placeholder="Filter sets…" bind:value={query} />
   </div>
