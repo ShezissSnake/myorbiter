@@ -8,7 +8,9 @@ name: Nightly Experimental build
 #
 # While the repository is private this starts nothing (Actions minutes are limited there; it asks
 # the API, since a scheduled run's event doesn't say); runs started by hand on release.yml still
-# build. Promote (promote.yml) and the pruning of old
+# build. GitHub turns a schedule off after 60 days without activity in the repository: Actions →
+# Nightly Experimental build → Enable workflow turns it on again. A main that fails to build is
+# tried again each night until it builds. Promote (promote.yml) and the pruning of old
 # Experimental builds (release.yml, prune) are unchanged.
 #
 # This job checks out no code and runs only gh and jq. Its token can read the repository and start
