@@ -332,6 +332,11 @@ async fn install(app: &AppHandle, pending: &Pending, channel: Channel, version: 
     if !may_install(&current, &remote, older) {
         return Err(format!("{remote} is older than this build ({current}): only a switch that names it installs it"));
     }
+    // A step back: the page named it (`older`), and the player confirms it outside the page, in a
+    // native dialog that names both builds, so a page alone can't install an older build.
+    if remote < current && !confirm_older(app, &current, &remote).await {
+        return Err(format!("{remote} wasn't installed: the step back from {current} wasn't confirmed"));
+    }
     log::info!(target: "orbiter::updates", "installing {remote} from {} (was {current})", channel.name());
     let mut done = 0u64;
     let mut last_sent = 0u64;
@@ -362,6 +367,27 @@ async fn install(app: &AppHandle, pending: &Pending, channel: Channel, version: 
             Err(calm("install the update", &e))
         }
     }
+}
+
+/// Asks, in a native dialog over orbiter's window, whether to install `remote`, older than the
+/// `current` build. False if the dialog is closed or can't be shown.
+async fn confirm_older(app: &AppHandle, current: &semver::Version, remote: &semver::Version) -> bool {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+    let (app, text, yes, no) = (
+        app.clone(),
+        format!("Install orbiter {remote}? It's older than the build running now, {current}. orbiter restarts into {remote}, and {current} is offered again only once its channel moves on."),
+        format!("Install {remote}"),
+        format!("Keep {current}"),
+    );
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut dialog = app.dialog().message(text).title("Install an older orbiter").kind(MessageDialogKind::Warning).buttons(MessageDialogButtons::OkCancelCustom(yes, no));
+        if let Some(window) = app.get_webview_window("main") {
+            dialog = dialog.parent(&window);
+        }
+        dialog.blocking_show()
+    })
+    .await
+    .unwrap_or(false)
 }
 
 /// Once the app is up: in an end-to-end test build, the test's own drive of the update (`e2e::auto`).

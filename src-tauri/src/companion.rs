@@ -354,24 +354,17 @@ impl Companion {
         *lock(&self.bundled) = path.filter(|p| p.is_file());
     }
 
-    /// Reads the program chosen in Settings from `file` (orbiter's config folder). The first time
-    /// (no file yet), takes it from `legacy`, the path older orbiters kept in the page's settings,
-    /// if it's one orbiter may start, and writes the file.
-    pub fn load_custom(&self, file: PathBuf, legacy: Option<String>) {
-        let kept = match fs::read_to_string(&file) {
-            Ok(text) => Some(text.trim().to_owned()),
-            Err(_) => {
-                let migrated = legacy.filter(|l| check_custom(l).is_ok()).unwrap_or_default();
-                let _ = crate::write_atomic(&file, migrated.as_bytes(), true);
-                Some(migrated)
-            }
-        };
+    /// Reads the program chosen in Settings from `file` (orbiter's config folder), written only
+    /// after a choice in the native file dialog (`tennoscope_choose_program`). Nothing the page
+    /// saves names it: older orbiters' `tennoscope.path` in the page's settings isn't taken over.
+    pub fn load_custom(&self, file: PathBuf) {
+        let kept = fs::read_to_string(&file).ok().map(|text| text.trim().to_owned());
         *lock(&self.custom) = kept.filter(|k| !k.is_empty());
         *lock(&self.custom_file) = Some(file);
     }
 
-    /// Sets the program from Settings (None or empty: find it), once it passes `check_custom`, and
-    /// keeps it for the next start.
+    /// Sets the program (None or empty: find it), once it passes `check_custom`, and keeps it for
+    /// the next start. Called with a path only from the native file dialog.
     pub fn set_custom(&self, path: Option<&str>) -> Result<(), String> {
         let path = path.map(str::trim).filter(|p| !p.is_empty());
         let value = match path {
@@ -607,30 +600,26 @@ mod tests {
     }
 
     #[test]
-    fn the_chosen_program_is_kept_and_migrated_once() {
+    fn the_chosen_program_is_kept_and_the_page_s_old_setting_is_not_taken() {
         let dir = std::env::temp_dir().join(format!("orbiter-custom-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         let ts = dir.join(PROCESS);
         fs::write(&ts, b"").unwrap();
         let file = dir.join("tennoscope-program");
-        // First start of this orbiter: the old setting is taken over if it's a TennoScope.
+        // No file yet: found by orbiter, whatever the page's settings say.
         let c = Companion::default();
-        c.load_custom(file.clone(), Some(ts.display().to_string()));
-        assert_eq!(c.status().custom, Some(ts.display().to_string()));
-        // Later starts read the file, whatever the page's settings say.
+        c.load_custom(file.clone());
+        assert_eq!(c.status().custom, None);
+        // Chosen (in the dialog): kept, and read back at the next start.
+        c.set_custom(Some(&ts.display().to_string())).unwrap();
         let c = Companion::default();
-        c.load_custom(file.clone(), Some("/bin/sh".into()));
+        c.load_custom(file.clone());
         assert_eq!(c.status().custom, Some(ts.display().to_string()));
         // Something else is refused and changes nothing.
         assert!(c.set_custom(Some("/bin/sh")).is_err());
         assert_eq!(c.status().custom, Some(ts.display().to_string()));
         c.set_custom(None).unwrap();
         assert_eq!(fs::read_to_string(&file).unwrap(), "");
-        // An old setting that isn't a TennoScope isn't migrated.
-        fs::remove_file(&file).unwrap();
-        let c = Companion::default();
-        c.load_custom(file.clone(), Some("/bin/sh".into()));
-        assert_eq!(c.status().custom, None);
         fs::remove_dir_all(&dir).unwrap();
     }
 

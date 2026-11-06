@@ -96,9 +96,15 @@ class TennoscopeStore {
     }
   }
 
-  /** Sets the program to start (Settings → TennoScope → Program; empty finds it). Throws why it was refused. */
-  async setPath(path: string) {
-    this.status = await tennoscope.setPath(path.trim());
+  /** Settings → TennoScope → Program → Choose: the native file dialog. Throws why a pick was refused. */
+  async chooseProgram() {
+    const status = await tennoscope.chooseProgram();
+    if (status) this.status = status;
+  }
+
+  /** Settings → TennoScope → Program → Find it: orbiter finds TennoScope again. */
+  async forgetProgram() {
+    this.status = await tennoscope.forgetProgram();
   }
 
   async show() {

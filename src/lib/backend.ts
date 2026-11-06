@@ -1145,8 +1145,14 @@ export const tennoscope = {
   /** Linux's Yama ptrace_scope: above 0, TennoScope can't read the game's memory. Null: no such limit. */
   ptraceScope: (): Promise<number | null> => (inTauri ? invoke<number | null>("ptrace_scope") : Promise.resolve(null)),
   status: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_status") : devTennoscope()),
-  /** The program orbiter starts as TennoScope (Settings; empty finds it). Kept by orbiter's Rust side, which refuses anything not named like TennoScope. */
-  setPath: (path: string): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_set_path", { path: path || null }) : devTennoscope()),
+  /**
+   * The program orbiter starts as TennoScope, picked in a native file dialog that orbiter's Rust
+   * side opens: the page never names one. Null when the dialog was closed without a choice. Kept
+   * by the Rust side, which refuses anything not named like TennoScope.
+   */
+  chooseProgram: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_choose_program") : Promise.resolve(null)),
+  /** orbiter finds TennoScope again, forgetting the program chosen in the dialog. */
+  forgetProgram: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_forget_program") : devTennoscope()),
   start: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_start") : devTennoscope()),
   show: (): Promise<void> => (inTauri ? invoke("tennoscope_show") : Promise.resolve()),
   ask: (ask: TennoscopeAsk): Promise<void> => (inTauri ? invoke("tennoscope_ask", { ask }) : Promise.resolve()),
