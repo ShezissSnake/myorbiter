@@ -51,7 +51,7 @@ wayland-client = "=0.31.15"
 # KWin's ScreenShot2 path: a D-Bus call that hands back raw pixels over a pipe. `zbus` is already
 # in the tree via `ashpd`; pinning it here makes the direct dependency explicit. `wayland-protocols`
 # supplies xdg-output, which is the only source of per-output logical geometry and connector names.
-zbus = "=5.18.0"
+zbus = "=5.19.0"
 wayland-protocols = { version = "=0.32.13", features = ["client", "unstable"] }
 rustix = { version = "=1.1.6", features = ["event", "pipe"] }
 # The portal ScreenCast path. `ashpd` needs both `tokio` and `screencast`: without `screencast`
