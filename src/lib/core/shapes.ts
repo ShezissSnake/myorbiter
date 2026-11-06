@@ -42,8 +42,15 @@ export function recipeDataOf(raw: unknown): RecipeData | null {
 /** The official drop tables' relics, or null when they aren't in the shape the relic pages read. */
 export function relicDataOf(raw: unknown): RelicData | null {
   if (!isObject(raw) || !Array.isArray(raw.relics) || !isObject(raw.drops) || !isObject(raw.paths)) return null;
-  const relics = raw.relics.filter((r): r is RelicData["relics"][number] => isObject(r) && typeof r.name === "string" && Array.isArray(r.rewards));
-  return { ...(raw as unknown as RelicData), relics };
+  // Each reward and each drop place whole, or left out: the model reads every one's name and chance.
+  const reward = (w: unknown): w is RelicData["relics"][number]["rewards"][number] => isObject(w) && typeof w.name === "string" && (w.chance == null || Number.isFinite(w.chance));
+  const relics = raw.relics
+    .filter((r): r is RelicData["relics"][number] => isObject(r) && typeof r.name === "string" && Array.isArray(r.rewards))
+    .map((r) => (r.rewards.every(reward) ? r : { ...r, rewards: r.rewards.filter(reward) }));
+  const drops: RelicData["drops"] = {};
+  for (const [k, v] of Object.entries(raw.drops)) if (Array.isArray(v)) drops[k] = v.filter((d): d is RelicData["drops"][string][number] => isObject(d) && typeof d.location === "string" && Number.isFinite(d.chance));
+  const paths = Object.fromEntries(Object.entries(raw.paths).filter(([, n]) => typeof n === "string")) as RelicData["paths"];
+  return { ...(raw as unknown as RelicData), relics, drops, paths };
 }
 
 /** Riven weapons and stats; throws when they aren't there, so Rivens says it couldn't read them. */
