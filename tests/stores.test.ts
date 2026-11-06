@@ -590,3 +590,28 @@ test("a listing that timed out but was made isn't an error; one that wasn't made
   assert.match(mkt.draftError ?? "", /timed out/);
   formDone();
 });
+
+// ------------------------------------------------------------------ riven auctions
+
+test("a riven put up that timed out but was made isn't reported as failed, even before your auctions were read", async () => {
+  const auction = (id: string) => ({ id, item: { type: "riven", weapon_url_name: "braton", name: "visi-critatox" }, buyout_price: 50, starting_price: 50 });
+  rivens.mine = [];
+  rivens.mineAt = null;
+  let made = false;
+  market.myAuctions = async () => (made ? [auction("new")] : []) as never;
+  market.createAuction = async () => {
+    made = true;
+    throw new Error("Couldn't reach warframe.market (timed out)");
+  };
+  await rivens.sell({ type: "riven", weapon_url_name: "braton", name: "visi-critatox" } as never, 50, 50);
+  assert.deepEqual(rivens.mine.map((a) => a.id), ["new"]);
+  // One that wasn't made is an error, to send again.
+  made = false;
+  market.myAuctions = async () => [auction("new")] as never;
+  market.createAuction = async () => {
+    throw new Error("Couldn't reach warframe.market (timed out)");
+  };
+  await assert.rejects(rivens.sell({ type: "riven", weapon_url_name: "braton", name: "visi-critatox" } as never, 50, 50), /timed out/);
+  rivens.mine = [];
+  rivens.mineAt = null;
+});
