@@ -520,7 +520,7 @@ mod tests {
     #[test]
     fn tmpdir_mount_corroborates_appimage() {
         // Type2 runtime mounts at $TMPDIR/.mount_* when TMPDIR is set
-        // (proven: /home/deftera/.cache/tmp/.mount_TennoS.../usr/bin/tennoscope).
+        // (proven: /home/user/.cache/tmp/.mount_TennoS.../usr/bin/tennoscope).
         // Hardcoding /tmp/ misclassifies those runs as Unknown, hiding Download.
         let (kind, up) = classify(
             Path::new("/home/u/.cache/tmp/.mount_TennoSAopOHb/usr/bin/tennoscope"),
