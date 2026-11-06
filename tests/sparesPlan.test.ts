@@ -1,8 +1,9 @@
-// Sell spares, each choice's effect on the plan, on the dev data (public/dev-bundle.json, the
-// recipes and warframe.market's item list beside it: a long-played account's read). Skipped when
-// the dev data isn't there. Each test changes one choice from the usual ones and looks at what
-// the plan starts from (sellTargets), what it then does (bulkPlan), and the last check before a
-// listing (listGuard), so a choice can't hold something back in one and let it through another.
+// Sell spares, each choice's effect on the plan, on the invented demo account (demo/: its bundle,
+// recipes and warframe.market's item list, made by scripts/demo-data.mjs, which sets up each
+// situation these tests look at). Each test changes one choice from the usual ones and looks at
+// what the plan starts from (sellTargets), what it then does (bulkPlan), and the last check before
+// a listing (listGuard), so a choice can't hold something back in one and let it through another.
+// The last test runs the plan on the player's own dev data (public/dev-*.json), when it's there.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
@@ -30,11 +31,11 @@ import { arcaneRows } from "../src/lib/core/views";
 import { defaultSparesRules, legacyRules, SPARE_CATEGORIES, sparesSettingsOf, withNeverSell, withoutNeverSell, type SpareCategory, type SparesRules } from "../src/lib/core/sparesRules";
 import type { Bundle } from "../src/lib/core/types";
 
-const at = (f: string) => new URL(`../public/${f}`, import.meta.url);
-const have = ["dev-bundle.json", "dev-recipe-data.json", "dev-market-items.json"].every((f) => existsSync(at(f)));
-const skip = !have && "the dev data (public/dev-*.json) isn't here: run `npm run dev-bundle` and `npm run dev-data`";
-const read = (f: string) => JSON.parse(readFileSync(at(f), "utf8"));
+const demo = (f: string) => new URL(`../demo/${f}`, import.meta.url);
+const read = (f: string | URL) => JSON.parse(readFileSync(typeof f === "string" ? demo(f) : f, "utf8"));
 
+/** The demo account's spare prime sets, as the plan lists them (scripts/demo-data.mjs, SPARE_SETS). */
+const SPARE_SETS = ["Nova Prime Set", "Rhino Prime Set", "Boltor Prime Set", "Paris Prime Set", "Kronen Prime Set"];
 const SUNIKA = "/Lotus/Types/Game/KubrowPet/HunterKubrowPetPowerSuit";
 let cached: { bundle: Bundle; m: Model; index: MarketIndex; recipes: unknown } | null = null;
 function dev() {
@@ -69,7 +70,7 @@ const ctx = (m: Model, extra: Partial<BulkContext> = {}): BulkContext => ({
   minPrice: 10, minRelicPrice: 3, minShare: 0.5, floors: {}, paused: {}, sell, advice, ...extra,
 });
 
-test("mods: Requiem and Antivirus keep their own number while lich weapons are left", { skip }, () => {
+test("mods: Requiem and Antivirus keep their own number while lich weapons are left", () => {
   const usual = of(targets(rules()), "mods");
   // Five of each kept: the account holds at most four of any Requiem mod.
   assert.equal(usual.filter((t) => t.family === "requiem").length, 0);
@@ -87,7 +88,7 @@ test("mods: Requiem and Antivirus keep their own number while lich weapons are l
   assert.equal(provenSpare({ model: dev().m, index: dev().index, rules: rules((r) => (r.mods.families.requiem.keep = 1)) }, "mod", item("Khra"), 0, null)?.spare, 3);
 });
 
-test("mods: Primed off, stances by their own keep, every other mod by its own", { skip }, () => {
+test("mods: Primed off, stances by their own keep, every other mod by its own", () => {
   const daily = rules((r) => (r.mods.dailyOnly = false));
   const all = of(targets(daily), "mods");
   assert.ok(all.some((t) => t.family === "primed") || all.every((t) => !/^Primed /.test(t.name)), "Primed mods are their own family");
@@ -97,7 +98,7 @@ test("mods: Primed off, stances by their own keep, every other mod by its own", 
 
   const stances = (k: number) => of(targets(rules((r) => (r.mods.families.stance.keep = k))), "mods").filter((t) => t.family === "stance");
   assert.ok(stances(2).length > 0);
-  // Two more kept of each stance: of one held unranked only, two fewer go.
+  // Two more kept of each stance: of Cleaving Whirlwind (six held, unranked only), two fewer go.
   const cleaving = (k: number) => count(named(stances(k), "Cleaving Whirlwind"));
   assert.equal(cleaving(2) - cleaving(4), 2);
   assert.ok(count(stances(4)) < count(stances(2)));
@@ -111,7 +112,7 @@ test("mods: Primed off, stances by their own keep, every other mod by its own", 
   assert.ok(of(targets(rules()), "mods").every((t) => (dev().m.tradesPerDay(t.name) ?? 0) >= 1));
 });
 
-test("prime: whole sets, sets then parts, parts only", { skip }, () => {
+test("prime: whole sets, sets then parts, parts only", () => {
   const m = dev().m;
   const noDucats = { ...advice, platPerDucat: 0 };
   const by = (sellAs: SparesRules["prime"]["sellAs"]) => of(targets(rules((r) => (r.prime.sellAs = sellAs)), m, noDucats), "prime");
@@ -122,28 +123,30 @@ test("prime: whole sets, sets then parts, parts only", { skip }, () => {
   assert.ok(parts.length > 0 && parts.every((t) => t.kind === "part"), "parts only: no sets");
   assert.deepEqual(first.filter((t) => t.kind === "set").map((t) => [t.name, t.quantity]), sets.map((t) => [t.name, t.quantity]));
   // A part inside a set that goes whole isn't listed loose as well; with parts only, it is.
-  const yareli = (ts: SellTarget[]) => count(ts.filter((t) => t.kind === "part" && /^Yareli Prime /.test(t.name)));
-  assert.ok(yareli(parts) > yareli(first), `${yareli(parts)} > ${yareli(first)}`);
+  const paris = (ts: SellTarget[]) => count(ts.filter((t) => t.kind === "part" && /^Paris Prime /.test(t.name)));
+  assert.ok(paris(parts) > paris(first), `${paris(parts)} > ${paris(first)}`);
   // Keep n of each loose part.
   const kept = of(targets(rules((r) => ((r.prime.sellAs = "parts"), (r.prime.keep = 2))), m, noDucats), "prime");
   assert.ok(count(kept) < count(parts));
   assert.ok(going(kept).every((t) => t.ruleText === "Keep 2"));
 });
 
-test("prime: only sets your relics drop", { skip }, () => {
+test("prime: only sets your relics drop", () => {
   const { bundle, recipes } = dev();
   const noDucats = { ...advice, platPerDucat: 0 };
   const only = rules((r) => ((r.prime.sellAs = "sets"), (r.prime.onlyRelicsHeld = true)));
-  // The account holds relics for every part of its one spare set (Yareli Prime): it goes.
-  assert.deepEqual(going(of(targets(only, dev().m, noDucats), "prime")).map((t) => t.name), ["Yareli Prime Set"]);
-  // The same account with no relics held: it's kept whole, and the plan says why.
+  // Five spare sets; the account holds relics for every part of one of them (Paris Prime): it goes,
+  // the other four are kept whole, and the plan says why.
+  const sets = of(targets(only, dev().m, noDucats), "prime");
+  assert.deepEqual(sets.map((t) => [t.name, t.rule, !!t.hold]), SPARE_SETS.map((n) => [n, n === "Paris Prime Set" ? "prime.set" : "prime.relics", n !== "Paris Prime Set"]));
+  // The same account with no relics held: every one is kept whole.
   const noRelics = buildModel({ ...bundle, inventory: bundle.inventory.filter((r) => r.category !== "relic") }, undefined, null, null, null, recipes as never);
   const held = of(targets(only, noRelics, noDucats), "prime");
-  assert.deepEqual(held.map((t) => [t.name, t.rule, !!t.hold]), [["Yareli Prime Set", "prime.relics", true]]);
-  assert.deepEqual(going(of(targets(rules((r) => (r.prime.sellAs = "sets")), noRelics, noDucats), "prime")).map((t) => t.name), ["Yareli Prime Set"], "off: it goes");
+  assert.deepEqual(held.map((t) => [t.name, t.rule, !!t.hold]), SPARE_SETS.map((n) => [n, "prime.relics", true]));
+  assert.deepEqual(going(of(targets(rules((r) => (r.prime.sellAs = "sets")), noRelics, noDucats), "prime")).map((t) => t.name), SPARE_SETS, "off: they all go");
 });
 
-test("arcanes: maxed copies or every spare copy, Legendary ones, how many maxed kept", { skip }, () => {
+test("arcanes: maxed copies or every spare copy, Legendary ones, how many maxed kept", () => {
   const maxed = of(targets(rules()), "arcanes");
   assert.ok(maxed.length > 0 && maxed.every((t) => t.rank != null && t.rank > 0), "maxed copies only");
   const any = of(targets(rules((r) => (r.arcanes.which = "any"))), "arcanes");
@@ -156,13 +159,14 @@ test("arcanes: maxed copies or every spare copy, Legendary ones, how many maxed 
   const legendary = new Set(arcaneRows(dev().m).filter((a) => a.rarity === "Legendary").map((a) => a.name));
   assert.ok(any.some((t) => legendary.has(t.name)));
   assert.equal(noLegend.filter((t) => legendary.has(t.name)).length, 0);
-  // Two maxed kept: Virtuos Forge (two maxed) keeps both.
-  assert.deepEqual(named(maxed, "Virtuos Forge").map((t) => t.quantity), [1]);
+  // Two maxed kept: Virtuos Forge (two maxed, at rank 3) keeps both.
+  assert.deepEqual(named(maxed, "Virtuos Forge").map((t) => [t.quantity, t.rank]), [[1, 3]]);
   assert.deepEqual(named(of(targets(rules((r) => (r.arcanes.keepMaxed = 2))), "arcanes"), "Virtuos Forge"), []);
-  assert.equal(guard(rules((r) => (r.arcanes.keepMaxed = 2)), "Virtuos Forge", 5, 1).ok, false, "the last check keeps two too");
+  assert.equal(guard(rules((r) => (r.arcanes.keepMaxed = 2)), "Virtuos Forge", 3, 1).ok, false, "the last check keeps two too");
+  assert.equal(guard(rules(), "Virtuos Forge", 3, 1).ok, true, "and lets the one spare go at the usual one");
 });
 
-test("relics: a keep number on top of the crack rule", { skip }, () => {
+test("relics: a keep number on top of the crack rule", () => {
   const usual = of(targets(rules()), "relics");
   assert.ok(usual.length > 0 && usual.every((t) => t.ruleText === "Beats a crack" && t.crack != null));
   const two = of(targets(rules((r) => (r.relics.keep = 2))), "relics");
@@ -171,14 +175,14 @@ test("relics: a keep number on top of the crack rule", { skip }, () => {
   assert.equal(of(targets(rules((r) => (r.relics.on = false))), "relics").length, 0);
 });
 
-test("resources: by kind, empty Ayatan sculptures, the gems parts' recipes still take", { skip }, () => {
+test("resources: by kind, empty Ayatan sculptures, the gems parts' recipes still take", () => {
   const res = of(targets(rules()), "resources");
-  // Purged Dagonic: 200 held, 40 for the Styanax Neuroptics and 12 for the Keratinos blades kept.
+  // Purged Dagonic: 200 held, 12 kept for the two Keratinos blades (unbuilt, 6 each).
   const dagonic = named(res, "Purged Dagonic")[0];
-  assert.equal(dagonic.quantity, 148);
-  assert.match(dagonic.why, /Styanax Neuroptics \(40\)/);
-  assert.equal(named(res, "Star Crimzian")[0]?.quantity ?? 0, 66, "104 held, the Styanax Chassis' 20 and more kept");
-  assert.equal(named(res, "Radian Sentirum")[0]?.quantity ?? 0, 25);
+  assert.equal(dagonic.quantity, 188);
+  assert.match(dagonic.why, /Keratinos Blades \(12\)/);
+  assert.equal(named(res, "Stellated Necrathene")[0]?.quantity ?? 0, 30, "50 held, the two Keratinos gauntlets' 20 kept");
+  assert.equal(named(res, "Smooth Phasmin")[0]?.quantity ?? 0, 25, "nothing still to build takes it");
   // Ayatan sculptures go as they are: empty, no stars in (the listing's default).
   const ayatan = res.filter((t) => t.family === "ayatan");
   assert.ok(ayatan.length > 0 && ayatan.every((t) => /Sculpture$/.test(t.name) && !t.subtype));
@@ -190,17 +194,17 @@ test("resources: by kind, empty Ayatan sculptures, the gems parts' recipes still
   assert.equal(noGems.length, res.filter((t) => t.family !== "gems").length);
   // What builds need, plus 10.
   const margin = of(targets(rules((r) => (r.resources.margin = 10))), "resources");
-  assert.equal(named(margin, "Purged Dagonic")[0].quantity, 138);
+  assert.equal(named(margin, "Purged Dagonic")[0].quantity, 178);
   assert.equal(named(margin, "Purged Dagonic")[0].ruleText, "Builds + 10");
 });
 
-test("imprints: a keep number per breed", { skip }, () => {
+test("imprints: a keep number per breed", () => {
   assert.deepEqual(of(targets(rules()), "imprints").map((t) => [t.name, t.quantity]), [["Sunika Kubrow Imprint", 2]]);
   assert.deepEqual(of(targets(rules((r) => (r.imprints.keep = 1))), "imprints").map((t) => [t.name, t.quantity, t.ruleText]), [["Sunika Kubrow Imprint", 1, "Keep 1"]]);
   assert.deepEqual(of(targets(rules((r) => (r.imprints.keep = 2))), "imprints"), []);
 });
 
-test("never sell: held back in every category, and refused by the last check, until Sell again", { skip }, () => {
+test("never sell: held back in every category, and refused by the last check, until Sell again", () => {
   const all = targets(rules((r) => (r.arcanes.which = "any")));
   for (const cat of SPARE_CATEGORIES) {
     const t = going(of(all, cat))[0];
@@ -223,7 +227,7 @@ test("never sell: held back in every category, and refused by the last check, un
   }
 });
 
-test("skip this time and never sell, while looking the plan over: Apply leaves them out", { skip }, () => {
+test("skip this time and never sell, while looking the plan over: Apply leaves them out", () => {
   const r = rules();
   const ts = of(targets(r), "mods").slice(0, 3);
   const books = Object.fromEntries(ts.map((t) => [item(t.name).slug, []]));
@@ -239,7 +243,7 @@ test("skip this time and never sell, while looking the plan over: Apply leaves t
   assert.equal(planSignature(toApply(again, new Set([actionKey(a)]), new Set())), planSignature(toApply(plan, new Set([actionKey(a)]), new Set())));
 });
 
-test("every line has its row and its rule; nothing is planned twice", { skip }, () => {
+test("every line has its row and its rule; nothing is planned twice", () => {
   const r = rules((x) => ((x.arcanes.which = "any"), (x.mods.dailyOnly = false)));
   const ts = targets(r);
   const plan = bulkPlan(ctx(dev().m), r, ts);
@@ -258,7 +262,7 @@ test("every line has its row and its rule; nothing is planned twice", { skip }, 
   assert.ok([...listed.values()].every((n) => n === 1), "one target per listing");
 });
 
-test("the numbers on each row: from the daily prices before a plan, from the plan after", { skip }, () => {
+test("the numbers on each row: from the daily prices before a plan, from the plan after", () => {
   const r = defaultSparesRules();
   const c = { model: dev().m, index: dev().index, sell, advice, minPrice: 10, minRelicPrice: 3 };
   const p = sparesPreview(c, r);
@@ -291,8 +295,7 @@ test("the developer's old settings: every box ticked, keep 10 parts, sells most 
   assert.equal(sparesSettingsOf({ bulk: old, sellable: { relicsWorthSelling: false } }).relics.on, false);
   // Saved once as version 2, that's what's read, whatever the old switches say.
   assert.deepEqual(sparesSettingsOf({ spares: JSON.parse(JSON.stringify(r)), bulk: { ...old, mods: false } }), r);
-  if (!have) return;
-  // On the dev data: the old switches and their migration plan the same.
+  // On the demo account: the old switches and their migration plan the same.
   const m = dev().m;
   const key = (t: SellTarget) => `${t.kind}|${t.name}|${t.rank}|${t.subtype ?? ""}|${t.quantity}|${t.hold?.why ?? ""}`;
   assert.deepEqual(sellTargets(m, old, advice, dev().index, sell).map(key), sellTargets(m, r, advice, dev().index, sell).map(key));
@@ -307,4 +310,20 @@ test("saved: Sell spares' choices, and the old switches beside them for an older
   assert.deepEqual(saved.spares, JSON.parse(JSON.stringify(s.market.spares)));
   assert.deepEqual(saved.bulk, { sets: true, parts: true, partsKeep: 3, arcanes: true, mods: false, imprints: true, other: false, priority: "plat" }, "weapon sets still sold whole: an older build ticks Sets");
   assert.deepEqual(sparesSettingsOf(saved), s.market.spares, "read back as saved");
+});
+
+// The player's own dev data (public/dev-*.json, from `npm run dev-bundle` and `npm run dev-data`):
+// no counts, since an account moves on; only that the plan runs and says why for every line.
+const own = (f: string) => new URL(`../public/${f}`, import.meta.url);
+const OWN = ["dev-bundle.json", "dev-recipe-data.json", "dev-market-items.json"];
+test("on the player's own dev data: every target names its rule and a positive count", { skip: !OWN.every((f) => existsSync(own(f))) && "public/dev-*.json isn't here: run `npm run dev-bundle` and `npm run dev-data`" }, () => {
+  const m = buildModel(read(own("dev-bundle.json")) as Bundle, undefined, null, null, null, read(own("dev-recipe-data.json")));
+  const index = indexItems(read(own("dev-market-items.json")));
+  for (const r of [defaultSparesRules(), rules((x) => ((x.arcanes.which = "any"), (x.mods.dailyOnly = false), (x.prime.sellAs = "parts")))]) {
+    const ts = sellTargets(m, r, advice, index, sell);
+    for (const t of ts) assert.ok(t.rule && t.ruleText && Number.isInteger(t.quantity) && t.quantity > 0, JSON.stringify(t));
+    const plan = bulkPlan({ ...ctx(m), index }, r, ts);
+    for (const a of plan) assert.ok(a.cat && a.rule && a.ruleText, JSON.stringify({ type: a.type, rule: a.rule, why: a.why }));
+    sparesPreview({ model: m, index, sell, advice, minPrice: 10, minRelicPrice: 3 }, r);
+  }
 });
