@@ -219,19 +219,20 @@ fn proc_of(pid: u32) -> Option<Proc> {
     Some(Proc { pid, start: start_time_in(root, pid)? })
 }
 
-/// Elsewhere the process table comes from the system through `sysinfo`.
+/// Elsewhere the process table comes from the system through `sysinfo`. None when the system
+/// won't give one (`System::new` can fail), which reads as "no such process" to every caller.
 #[cfg(not(target_os = "linux"))]
-fn processes() -> sysinfo::System {
+fn processes() -> Option<sysinfo::System> {
     use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
-    let mut sys = System::new();
+    let mut sys = System::new().ok()?;
     sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing());
-    sys
+    Some(sys)
 }
 
 #[cfg(not(target_os = "linux"))]
 fn running() -> Vec<u32> {
-    processes()
-        .processes()
+    let Some(sys) = processes() else { return Vec::new() };
+    sys.processes()
         .values()
         .filter(|p| p.name().eq_ignore_ascii_case(PROCESS))
         .map(|p| p.pid().as_u32())
@@ -240,7 +241,7 @@ fn running() -> Vec<u32> {
 
 #[cfg(not(target_os = "linux"))]
 fn proc_of(pid: u32) -> Option<Proc> {
-    let sys = processes();
+    let sys = processes()?;
     let p = sys.process(sysinfo::Pid::from_u32(pid))?;
     if matches!(p.status(), sysinfo::ProcessStatus::Zombie | sysinfo::ProcessStatus::Dead) {
         return None;
@@ -286,7 +287,8 @@ fn terminate(pid: u32) {
 }
 #[cfg(not(unix))]
 fn terminate(pid: u32) {
-    if let Some(p) = processes().process(sysinfo::Pid::from_u32(pid)) {
+    let Some(sys) = processes() else { return };
+    if let Some(p) = sys.process(sysinfo::Pid::from_u32(pid)) {
         p.kill();
     }
 }
