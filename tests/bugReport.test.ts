@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { buildReport, cleanUserText, detailsText, FIELDS, issueLink, LOG_LINES, NEW_ISSUE, reportMarkdown, TEMPLATE, URL_MAX, type ReportDetails } from "../src/lib/core/bugReport";
+import { buildLine, buildReport, cleanUserText, detailsText, FIELDS, FORM_ONLY, issueLink, LOG_LINES, NEW_ISSUE, reportMarkdown, TEMPLATE, URL_MAX, type ReportDetails } from "../src/lib/core/bugReport";
 import { redact } from "../src/lib/core/redact";
 import { openable } from "../src/lib/core/links";
 
@@ -13,11 +13,15 @@ const NAMES = { self: ["MeExample"], others: ["BuyerExample"] };
 const details = (log: string[] = LOG): ReportDetails => ({ version: "0.1.0", commit: "a1b2c3d", buildDate: "2026-11-03", channel: null, os: "linux", arch: "x86_64", page: "Orders", tennoscope: "connected", fullMode: "off", log });
 const params = (url: string) => new URL(url).searchParams;
 
-test("the issue form's field ids are the ones the app fills, the details rendered as text", () => {
+test("the issue form's field ids are the ones the app fills, plus the screenshots box, the details rendered as text", () => {
   const form = readFileSync(".github/ISSUE_TEMPLATE/bug_report.yml", "utf8");
   const ids = [...form.matchAll(/^\s+id: (\S+)$/gm)].map((m) => m[1]);
-  assert.deepEqual(ids, Object.values(FIELDS));
+  assert.deepEqual(ids, ["what", "expected", "steps", "build", "screenshots", "details"]);
+  assert.deepEqual(ids.filter((id) => id !== FORM_ONLY.screenshots), Object.values(FIELDS), "the app's fields, in the form's order");
+  assert.match(form, /- type: input\n\s+id: build\n/, "the build is a one-line field");
+  assert.match(form, /- type: textarea\n\s+id: screenshots\n/, "screenshots go in a textarea, which takes images");
   assert.match(form, /id: details\n(?:.*\n)*?\s+render: text\n/);
+  assert.doesNotMatch(form, /id: (?:what|expected|steps|build|screenshots)\n(?:(?!\s+- type:).*\n)*?\s+render:/, "only the details are rendered as text");
   assert.match(form, /^labels: \["bug", "needs-triage"\]$/m);
   for (const id of ["what", "steps", "expected"]) assert.match(form, new RegExp(`id: ${id}\\n(?:.*\\n){2}\\s+description: Written by the person reporting`), `${id} says it's user-written`);
   assert.equal(TEMPLATE, "bug_report.yml");
@@ -37,6 +41,8 @@ test("the link fills each field by its id, and the opener allows it", () => {
   assert.equal(p.get(FIELDS.what), "Orders froze.\nAfter Reprice.");
   assert.equal(p.get(FIELDS.steps), "1. Open Orders\n2. Reprice");
   assert.equal(p.get(FIELDS.expected), "Prices change");
+  assert.equal(p.get(FIELDS.build), "orbiter 0.1.0 (channel not known) on linux x86_64");
+  assert.equal(p.get(FORM_ONLY.screenshots), null, "the screenshots box is the reporter's");
   assert.match(p.get(FIELDS.details)!, /^orbiter 0\.1\.0 \(a1b2c3d, 2026-11-03\)\nChannel: not known in this build\nSystem: linux x86_64\nPage: Orders\nTennoScope: connected\nFull mode: off\n/);
   assert.equal(dropped, 0);
   assert.equal(cut, false);
@@ -45,6 +51,11 @@ test("the link fills each field by its id, and the opener allows it", () => {
   assert.equal(params(tricky.url).get(FIELDS.what), "a&labels=security&assignees=x #1 100%");
   assert.equal(params(tricky.url).get("labels"), null);
   assert.equal(params(tricky.url).get(FIELDS.details), null, "no details when they're left out");
+  assert.equal(params(tricky.url).get(FIELDS.build), null, "nor the build line, which repeats them");
+  // A copy that knows its channel names it.
+  const beta = buildReport({ what: "x", steps: "", expected: "" }, { ...details(), version: "0.2.93", channel: "Beta", os: "windows", arch: "x86_64" });
+  assert.equal(params(issueLink(beta).url).get(FIELDS.build), "orbiter 0.2.93 (Beta) on windows x86_64");
+  assert.equal(buildLine(beta.details!), "orbiter 0.2.93 (Beta) on windows x86_64");
 });
 
 test("a long report: the oldest log lines go first, then the player's own text, always under the limit", () => {
@@ -126,10 +137,13 @@ test("the player's text: hidden characters and HTML comments go, the rest is kep
 
 test("Copy report: the form's sections in Markdown, the details in a text block", () => {
   const md = reportMarkdown(buildReport({ what: "Orders froze", steps: "Reprice", expected: "" }, details(["one ``` two", "three"])));
-  assert.match(md, /^## Orders froze\n\n### What happened\n\nOrders froze\n\n### Steps to reproduce\n\nReprice\n\n### Technical details\n\n```text\norbiter 0\.1\.0/);
+  assert.match(md, /^## Orders froze\n\n### What happened\n\nOrders froze\n\n### Steps to reproduce\n\nReprice\n\n### Build and system\n\norbiter 0\.1\.0 \(channel not known\) on linux x86_64\n\n### Technical details\n\n```text\norbiter 0\.1\.0/);
   assert.ok(!md.includes("### What you expected"), "an empty optional section is left out");
+  const all = reportMarkdown(buildReport({ what: "a", steps: "b", expected: "c" }, null));
+  assert.match(all, /### What happened\n\na\n\n### What you expected\n\nc\n\n### Steps to reproduce\n\nb\n/, "the form's order");
   assert.match(md, /one ''' two\nthree\n```\n\n_Made with orbiter's Report a bug\._\n$/);
   const none = reportMarkdown(buildReport({ what: "", steps: "", expected: "" }, null));
   assert.match(none, /^## Bug report\n\n### What happened\n\n_\(not filled in\)_\n/);
   assert.ok(!none.includes("Technical details"));
+  assert.ok(!none.includes("Build and system"), "no build line without the details");
 });

@@ -15,9 +15,14 @@ import { cleanBlock, cleanLine, stripHidden, stripHtmlComments } from "./untrust
 
 /** The repository's new-issue page. Its host and path are in the opener's allowed sites (core/links.ts). */
 export const NEW_ISSUE = "https://github.com/ShezissSnake/orbiter/issues/new";
-/** The issue form, and its fields' ids: the form and this list must agree (tests/bugReport.test.ts). */
+/**
+ * The issue form, and the ids of the fields the app fills, in the form's order. The form also has a
+ * Screenshots box (`FORM_ONLY`), left to the reporter: a link can't carry images. The form and these
+ * lists must agree (tests/bugReport.test.ts).
+ */
 export const TEMPLATE = "bug_report.yml";
-export const FIELDS = { what: "what", steps: "steps", expected: "expected", details: "details" } as const;
+export const FIELDS = { what: "what", expected: "expected", steps: "steps", build: "build", details: "details" } as const;
+export const FORM_ONLY = { screenshots: "screenshots" } as const;
 /** GitHub and browsers handle links up to about 8,000 characters; this leaves room. */
 export const URL_MAX = 7500;
 /** How many of the log's last lines a report offers. */
@@ -102,6 +107,14 @@ export function buildReport(input: ReportInput, details: ReportDetails | null, n
 }
 
 /**
+ * The form's "Build and system" line: version, channel and system, all of them also in the
+ * technical block (so it's filled only when that block goes in).
+ */
+export function buildLine(d: ReportDetails): string {
+  return `orbiter ${d.version} (${d.channel ?? "channel not known"}) on ${[d.os, d.arch].filter(Boolean).join(" ")}`;
+}
+
+/**
  * The technical block, as plain text. `dropped`: how many of the oldest log lines were left out
  * to keep the link short (said in the block, so a reader knows).
  */
@@ -156,8 +169,9 @@ export function issueLink(r: Report, max = URL_MAX): IssueLink {
   const make = (what: string, steps: string, expected: string, dropped: number) =>
     linkFor(r.title, [
       [FIELDS.what, what],
-      [FIELDS.steps, steps],
       [FIELDS.expected, expected],
+      [FIELDS.steps, steps],
+      [FIELDS.build, r.details ? buildLine(r.details) : ""],
       [FIELDS.details, r.details ? detailsText(r.details, dropped) : ""],
     ]);
   const lines = r.details?.log.length ?? 0;
@@ -193,11 +207,12 @@ export function issueLink(r: Report, max = URL_MAX): IssueLink {
 /** The longest run of backticks in some text. */
 const longestTicks = (s: string) => Math.max(0, ...[...s.matchAll(/`+/g)].map((m) => m[0].length));
 
-/** The report as Markdown, for Copy report: the form's sections, the details in a text code block. */
+/** The report as Markdown, for Copy report: the form's sections in its order, the details in a text code block. */
 export function reportMarkdown(r: Report): string {
   const out = [`## ${r.title}`, "", "### What happened", "", r.what || "_(not filled in)_"];
-  if (r.steps) out.push("", "### Steps to reproduce", "", r.steps);
   if (r.expected) out.push("", "### What you expected", "", r.expected);
+  if (r.steps) out.push("", "### Steps to reproduce", "", r.steps);
+  if (r.details) out.push("", "### Build and system", "", buildLine(r.details));
   if (r.details) {
     const text = detailsText(r.details);
     const fence = "`".repeat(Math.max(3, longestTicks(text) + 1));
