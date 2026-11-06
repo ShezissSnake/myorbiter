@@ -82,7 +82,8 @@ export function recordScreen(runs: RelicRun[], s: { at: number; cards: string[];
     // What you held when the screen first opened: a later reading could come after the reward landed.
     before: old.before ?? s.before,
     baseAt: old.baseAt ?? s.baseAt,
-    imported: false,
+    // Seen live now: one that came from TennoScope's log isn't any more (a live one has no mark).
+    ...(old.imported ? { imported: false } : {}),
   };
   if (JSON.stringify(run) === JSON.stringify(old)) return null;
   const next = [...runs];

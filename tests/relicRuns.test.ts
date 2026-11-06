@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mergeLogged, recordScreen, refinementOf, resolvePicks, scoreRun, summarize, SESSION_GAP_MS, type RelicRun } from "../src/lib/core/relicRuns";
+import { mergeLogged, recordScreen, refinementOf, resolvePicks, scoreRun, summarize, MAX_RUNS, SAME_SCREEN_MS, SESSION_GAP_MS, type RelicRun } from "../src/lib/core/relicRuns";
 
 const MIN = 60_000;
+const M = MIN;
 const T0 = 1_792_000_000_000;
 const R = (s: string) => `/Lotus/Types/Game/Projections/${s}`;
 const prices: Record<string, number> = { A: 10, B: 4, C: 2, D: 30 };
@@ -101,4 +102,52 @@ test("refinement from a projection path", () => {
   assert.equal(refinementOf(R("T3VoidProjectionGyrePrimeCPlatinum")), "Radiant");
   assert.equal(refinementOf(R("T1VoidProjectionXBronze")), "Intact");
   assert.equal(refinementOf("nonsense"), null);
+});
+
+test("a screen from before the newest (a clock change) goes in its place; a re-read that adds nothing changes nothing", () => {
+  const a = recordScreen([], { at: 10 * M, cards: ["A"], relics: ["r"] })!;
+  const b = recordScreen(a, { at: 30 * M, cards: ["B"], relics: ["r"] })!;
+  const mid = recordScreen(b, { at: 20 * M, cards: ["C"], relics: ["r"] })!;
+  assert.deepEqual(mid.map((r) => r.at), [10 * M, 20 * M, 30 * M]);
+  // Read again with nothing new (no cards this time): the run keeps what it had, and nothing changes.
+  assert.equal(recordScreen(mid, { at: 30 * M + 1000, cards: [], relics: [] }), null);
+  const again = recordScreen(mid, { at: 30 * M + 1000, cards: [], relics: [], own: "B" })!;
+  assert.deepEqual([again[2].cards, again[2].own], [["B"], "B"]);
+  // One from TennoScope's log, then seen live: it's a live one now.
+  const fromLog = recordScreen([{ at: 40 * M, cards: ["D"], relics: [], imported: true }], { at: 40 * M + 500, cards: ["D"], relics: [] })!;
+  assert.equal(fromLog[0].imported, false);
+});
+
+test("the run list keeps the newest MAX_RUNS screens, from the game and from TennoScope's log", () => {
+  const full = Array.from({ length: MAX_RUNS }, (_, i) => ({ at: i * 2 * SAME_SCREEN_MS, cards: ["A"], relics: [] }));
+  const last = full[full.length - 1].at;
+  const live = recordScreen(full, { at: last + 10 * M, cards: ["B"], relics: [] })!;
+  assert.equal(live.length, MAX_RUNS);
+  assert.equal(live[0].at, full[1].at, "the oldest went");
+  const logged = mergeLogged(full, [{ at: last + 10 * M, cards: ["B"], relics: [] }, { at: last + 10 * M + 1000, cards: ["B"], relics: [] }])!;
+  assert.equal(logged.length, MAX_RUNS, "one screen read twice in the log is one");
+  assert.equal(logged.at(-1)!.imported, true);
+});
+
+test("a pick settled earlier holds its copy; a read from before the screen settles nothing", () => {
+  const runs: RelicRun[] = [
+    { at: 10 * M, cards: ["A", "B"], relics: [], before: { A: 0, B: 0 }, baseAt: 5 * M, took: "A" },
+    { at: 20 * M, cards: ["A", "C"], relics: [], before: { A: 0, C: 0 }, baseAt: 5 * M },
+  ];
+  // One A arrived, already the first screen's: the second took nothing known.
+  assert.equal(resolvePicks(runs, (n) => (n === "A" ? 1 : 0), 30 * M), null);
+  // Two arrived: the second screen's is the other copy.
+  assert.equal(resolvePicks(runs, (n) => (n === "A" ? 2 : 0), 30 * M)![1].took, "A");
+  assert.equal(resolvePicks(runs, () => 5, 15 * M)?.[1].took, undefined, "an inventory read older than the screen");
+});
+
+test("a session of screens that couldn't be read counts the average read screen for each", () => {
+  const price = (n: string) => ({ A: 10, B: 30 })[n] ?? null;
+  const s = summarize([{ at: 0, cards: ["A", "B"], relics: [], took: "B" }, { at: 4 * M, cards: [], relics: [] }], price);
+  assert.equal(s.unread, 1);
+  assert.equal(s.plat, 60, "30 taken, and 30 for the unread one");
+  assert.equal(s.best, 60);
+  const none = summarize([{ at: 0, cards: [], relics: [] }], price);
+  assert.deepEqual([none.plat, none.perScreen, none.sessions.length], [0, 0, 1]);
+  assert.equal(summarize([], price).perHour, 0);
 });
