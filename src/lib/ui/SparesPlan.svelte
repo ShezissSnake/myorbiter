@@ -249,10 +249,11 @@
   .cats { border-top: 1px solid var(--rule-bright); }
   fieldset { margin: 0; min-width: 0; }
   .opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: .9rem 1.6rem; align-items: start; border: 0; padding: 0; }
-  .opts:disabled .note, .opts:disabled .register { opacity: .7; }
+  /* Greyed out by colour, not opacity, so the text stays above 4.5:1. */
+  .opts:disabled .note, .opts:disabled .register { color: var(--platinum-deep); }
   .opt { display: grid; gap: .35rem; min-width: 0; }
   .opt.wide { grid-column: 1 / -1; }
-  .opt.quiet { opacity: .55; }
+  .opt.quiet, .opt.quiet .note, .opt.quiet .register, .opt.quiet :global(.n) { color: var(--platinum-deep); }
   .ol { display: inline-flex; align-items: center; gap: .55rem; flex-wrap: wrap; }
   .note { margin: 0; font-size: .78rem; color: var(--platinum-deep); line-height: 1.5; max-width: 72ch; }
   .families { display: grid; padding: .1rem .7rem; border: 1px solid var(--rule); background: var(--well); }

@@ -698,16 +698,16 @@
     <section class="panel signin">
       <h2 class="mark">Sign in to warframe.market</h2>
       <p class="prose">{console ? "orbiter signs in to warframe.market itself." : "orbiter keeps its own sign-in, separate from TennoScope's."} The token goes into your system keyring; the password is sent to warframe.market once and never stored.</p>
-      <Seg bind:value={how} options={[{ v: "password", label: "Email & password" }, { v: "token", label: "Paste a token" }]} />
+      <Seg label="Sign in with" bind:value={how} options={[{ v: "password", label: "Email & password" }, { v: "token", label: "Paste a token" }]} />
       {#if how === "password"}
         <form class="row" onsubmit={(e) => { e.preventDefault(); mkt.signIn(email, password).then(() => (password = "")); }}>
-          <input type="email" placeholder="Email" bind:value={email} autocomplete="username" />
-          <input type="password" placeholder="Password" bind:value={password} autocomplete="current-password" />
+          <input type="email" placeholder="Email" aria-label="warframe.market email" bind:value={email} autocomplete="username" />
+          <input type="password" placeholder="Password" aria-label="warframe.market password" bind:value={password} autocomplete="current-password" />
           <button class="stamp" disabled={!email || !password || !!mkt.busy}>{mkt.busy ?? "Sign in"}</button>
         </form>
       {:else}
         <form class="row" onsubmit={(e) => { e.preventDefault(); mkt.useToken(token).then(() => (token = "")); }}>
-          <input class="wide" type="password" placeholder="JWT token from a signed-in browser" bind:value={token} />
+          <input class="wide" type="password" placeholder="JWT token from a signed-in browser" aria-label="warframe.market token" bind:value={token} />
           <button class="stamp" disabled={!token || !!mkt.busy}>{mkt.busy ?? "Use token"}</button>
         </form>
         <p class="dim small">In a browser signed in to warframe.market: developer tools → Storage → Cookies → copy the value of <code>JWT</code>.</p>

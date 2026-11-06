@@ -81,6 +81,12 @@ fn set_offline(yes: bool) {
 /// the Market page): named "wfm." and the file name.
 const WFM_THUMBS: &str = "https://warframe.market/static/assets/items/images/en/thumbs/";
 
+/// warframe.market's thumbnails go out at least `market::MIN_GAP` apart, as its API calls do. A
+/// queue of their own: a page of thumbnails mustn't hold up listing changes behind it. `fetch`
+/// runs on a blocking thread (lib.rs answers the image protocol in `spawn_blocking`), so the wait
+/// never holds the main thread or an async worker.
+static WFM_SPACER: crate::noxsframe::Spacer = crate::noxsframe::Spacer::new(crate::market::MIN_GAP);
+
 fn fetch(name: &str) -> Fetched {
     let mut all_404 = true;
     let mut reached = false;
@@ -90,6 +96,9 @@ fn fetch(name: &str) -> Fetched {
         None => SOURCES.iter().map(|b| (*b, name)).collect(),
     };
     for (base, name) in sources {
+        if wfm.is_some() {
+            WFM_SPACER.turn();
+        }
         match crate::http_agent()
             .get(&format!("{base}{name}"))
             .set("User-Agent", crate::USER_AGENT)

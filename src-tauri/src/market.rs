@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 
 const V1: &str = "https://api.warframe.market/v1";
 const V2: &str = "https://api.warframe.market/v2";
-const MIN_GAP: Duration = Duration::from_millis(400);
+pub(crate) const MIN_GAP: Duration = Duration::from_millis(400);
 const KEYRING_SERVICE: &str = "dev.orbiter.app";
 const KEYRING_USER: &str = "warframe.market";
 /// How orbiter introduces itself to warframe.market, on the API and on the status socket alike.
@@ -116,6 +116,16 @@ fn log_path(url: &str) -> &str {
     url.split_once("warframe.market").map_or(url, |(_, rest)| rest)
 }
 
+/// A reply's body as JSON. Read whole first: failing to read it (a connection reset or cut off on
+/// the way) is "unreachable"; a whole body that isn't JSON is "unexpected". ureq's own
+/// `into_json` reports both as invalid data, so it can't tell them apart.
+fn json_body(mut body: impl std::io::Read) -> Result<Value, MarketError> {
+    // Bytes, not text: a whole body that isn't UTF-8 is an unexpected reply, not the network.
+    let mut bytes = Vec::new();
+    body.read_to_end(&mut bytes).map_err(|e| MarketError::Unreachable(e.to_string()))?;
+    serde_json::from_slice(&bytes).map_err(|e| MarketError::Unexpected(e.to_string()))
+}
+
 /// A plain read with no sign-in (the item list, riven names), with the same care for rate limits.
 fn get_json(url: &str, timeout: u64) -> Result<Value, MarketError> {
     let result = get_json_once(url, timeout);
@@ -129,7 +139,7 @@ fn get_json_once(url: &str, timeout: u64) -> Result<Value, MarketError> {
     with_retries(|| {
         wait_turn();
         match crate::http_agent().get(url).set("User-Agent", USER_AGENT).set("Language", "en").timeout(Duration::from_secs(timeout)).call() {
-            Ok(r) => r.into_json::<Value>().map_err(|e| MarketError::Unreachable(e.to_string())),
+            Ok(r) => json_body(r.into_reader()),
             Err(ureq::Error::Status(429, resp)) => Err(rate_limited(&resp)),
             Err(e) => Err(MarketError::Unreachable(e.to_string())),
         }
@@ -222,6 +232,10 @@ pub enum MarketError {
     RateLimited,
     Rejected(String),
     Unreachable(String),
+    /// warframe.market answered, but not in a shape orbiter can read (a changed API, a block page
+    /// served as 200): not the same as the site being down. Like every variant here it reaches
+    /// the page as text (`blocking` in lib.rs); no code branches on Unreachable or Unexpected.
+    Unexpected(String),
     /// Signed in, but the token couldn't be kept (no keyring and the config folder not writable).
     Storage(String),
 }
@@ -234,6 +248,7 @@ impl std::fmt::Display for MarketError {
             MarketError::RateLimited => write!(f, "warframe.market asked to slow down; try again in a minute"),
             MarketError::Rejected(d) => write!(f, "warframe.market rejected the request: {d}"),
             MarketError::Unreachable(d) => write!(f, "warframe.market is unreachable: {d}"),
+            MarketError::Unexpected(d) => write!(f, "warframe.market answered with something orbiter couldn't read: {d}"),
             MarketError::Storage(d) => write!(f, "couldn't keep the warframe.market sign-in: {d}"),
         }
     }
@@ -356,7 +371,7 @@ impl Client {
                 if text.trim().is_empty() {
                     return Ok((Value::Null, renewed));
                 }
-                let value = serde_json::from_str(&text).map_err(|e| MarketError::Unreachable(e.to_string()))?;
+                let value = serde_json::from_str(&text).map_err(|e| MarketError::Unexpected(e.to_string()))?;
                 Ok((value, renewed))
             }
             Err(ureq::Error::Status(401, _)) => Err(MarketError::Unauthorized),
@@ -436,7 +451,7 @@ impl Client {
 
     pub fn my_orders(&self) -> Result<Vec<Order>, MarketError> {
         let v = self.call("GET", &format!("{V2}/orders/my"), None, true)?;
-        serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unreachable(e.to_string()))
+        serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unexpected(e.to_string()))
     }
 
     /// Every visible order on an item, both sides, with each seller's status.
@@ -445,7 +460,7 @@ impl Client {
             return Err(MarketError::Rejected("bad item".into()));
         }
         let v = self.call("GET", &format!("{V2}/orders/item/{slug}"), None, false)?;
-        serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unreachable(e.to_string()))
+        serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unexpected(e.to_string()))
     }
 
     /// A player's public warframe.market profile, by their in-game name (the market's names are
@@ -453,7 +468,7 @@ impl Client {
     pub fn user(&self, name: &str) -> Result<Option<MarketUser>, MarketError> {
         let slug = user_slug(name).ok_or_else(|| MarketError::Rejected("bad name".into()))?;
         match self.call("GET", &format!("{V2}/user/{slug}"), None, false) {
-            Ok(v) => serde_json::from_value(v["data"].clone()).map(Some).map_err(|e| MarketError::Unreachable(e.to_string())),
+            Ok(v) => serde_json::from_value(v["data"].clone()).map(Some).map_err(|e| MarketError::Unexpected(e.to_string())),
             Err(MarketError::Rejected(e)) if e.starts_with("404") => Ok(None),
             Err(e) => Err(e),
         }
@@ -566,7 +581,7 @@ impl Client {
                 other => break other?,
             }
         };
-        let order: Order = serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unreachable(e.to_string()))?;
+        let order: Order = serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unexpected(e.to_string()))?;
         // What went up, beside the request line: the window logs why ("[listing]" lines).
         log::info!(target: "orbiter::market", "{}", created_line(&order.id, new, kind));
         Ok(order)
@@ -641,7 +656,7 @@ fn changed_line(id: &str, change: &OrderChange) -> String {
 }
 
 fn profile_of(v: Value) -> Result<Profile, MarketError> {
-    serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unreachable(e.to_string()))
+    serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unexpected(e.to_string()))
 }
 
 fn valid_id(id: &str) -> Result<(), MarketError> {
@@ -1110,6 +1125,34 @@ mod tests {
         assert_eq!(super::created_line("abc", &new, "sell"), "order abc created: sell item 5dbe9b097ea27b0ffe3ca26c rank 0, 2 at 7p, shown");
         let change = super::OrderChange { platinum: None, quantity: Some(3), visible: Some(true) };
         assert_eq!(super::changed_line("abc", &change), "order abc changed: quantity 3, shown");
+    }
+
+    #[test]
+    fn a_reply_that_isnt_what_was_asked_for_is_unexpected_not_unreachable() {
+        // A whole reply that isn't JSON (a block page served as 200), read as get_json reads one.
+        let page = ureq::Response::new(200, "OK", "<html>checking your browser</html>").unwrap();
+        assert!(matches!(json_body(page.into_reader()), Err(MarketError::Unexpected(_))));
+        // A whole reply that stops halfway through its JSON: what was sent isn't JSON.
+        assert!(matches!(json_body(&b"{\"data\":["[..]), Err(MarketError::Unexpected(_))));
+        // A connection that drops while the body is read: the network, not the reply.
+        struct Drops(bool);
+        impl std::io::Read for Drops {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                if std::mem::replace(&mut self.0, true) {
+                    return Err(std::io::Error::new(std::io::ErrorKind::ConnectionReset, "reset"));
+                }
+                buf[..9].copy_from_slice(b"{\"data\":[");
+                Ok(9)
+            }
+        }
+        assert!(matches!(json_body(Drops(false)), Err(MarketError::Unreachable(_))));
+        assert!(matches!(json_body(&b"{\"data\":[]}"[..]), Ok(_)));
+        // A whole body that isn't UTF-8 (a page in another encoding): the reply, not the network.
+        assert!(matches!(json_body(&b"\xff\xfe<html>"[..]), Err(MarketError::Unexpected(_))));
+        // JSON, but not a profile.
+        let e = profile_of(serde_json::json!({ "data": { "nothing": "like a profile" } })).unwrap_err();
+        assert!(matches!(e, MarketError::Unexpected(_)));
+        assert!(e.to_string().starts_with("warframe.market answered with something orbiter couldn't read"));
     }
 
     #[test]
