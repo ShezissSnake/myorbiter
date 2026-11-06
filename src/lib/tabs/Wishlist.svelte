@@ -66,9 +66,13 @@
   const byEra = $derived.by(whileShown("wishlist", () => wishlistEras(model, starred)));
   // Every era with relics (Omnia fissures take any of them).
   // Eras with a fissure open now where a relic you hold drops something you want (Omnia takes any).
-  const crackNow = $derived(
-    ERAS.map((e) => ({ era: e, fissures: [...(open[e] ?? []), ...(open.Omnia ?? [])], relics: byEra.get(e) ?? [] })).filter((x) => x.relics.length && x.fissures.length),
-  );
+  const crackIn = (eras: Map<string, ReturnType<typeof byEra.get> & {}>) =>
+    ERAS.map((e) => ({ era: e, fissures: [...(open[e] ?? []), ...(open.Omnia ?? [])], relics: eras.get(e) ?? [] })).filter((x) => x.relics.length && x.fissures.length);
+  const crackNow = $derived(crackIn(byEra));
+  // The cards keep their place while an Undo runs, as the item cards do (the band's figures above
+  // leave the item out at once): from everything still starred, Undo pending or not.
+  const byEraShown = $derived.by(whileShown("wishlist", () => wishlistEras(model, settings.favourites)));
+  const crackCards = $derived(crackIn(byEraShown));
   const missingCount = $derived(staying.reduce((n, w) => n + w.missing.length, 0));
   const relicsHeld = $derived(new Set([...byEra.values()].flat().map((x) => x.relic)).size);
 
@@ -203,9 +207,9 @@
     {:else if already}<span class="dim small">Already on your wishlist.</span>{/if}
   </div>
 
-  {#if crackNow.length}
+  {#if crackCards.length}
     <section class="now" aria-label="Crack now">
-      {#each crackNow as c (c.era)}
+      {#each crackCards as c (c.era)}
         <div class="era era-wash" style:--tint={eraTint(c.era)}>
           <div class="eh"><GameIcon name={eraIcon(c.era)} size={26} /><b class="mark">{c.era}</b><span class="dim small">{fissureCount(c.era)} · next closes in {until([...c.fissures].sort((a, b) => Date.parse(a.expiry) - Date.parse(b.expiry))[0].expiry, now)}</span></div>
           <ul>
