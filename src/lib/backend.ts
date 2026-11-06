@@ -797,7 +797,9 @@ export async function loadSettings(): Promise<Settings> {
     // unreadable, orbiter runs on defaults but never saves over the file (see flushSettings).
     for (let i = 0; ; i++) {
       try {
-        raw = await invoke<Partial<Settings> | null>("load_settings");
+        const loaded = await invoke<{ settings: Partial<Settings> | null; page: number }>("load_settings");
+        raw = loaded.settings;
+        savePage = loaded.page;
         break;
       } catch (e) {
         if (i >= 4) {
@@ -947,6 +949,8 @@ export function joinSettings(light: string, heavy: Partial<Record<HeavyKey, stri
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 /** Each save's number, so the app writes them in the order they were made. */
 let saveRev = 0;
+/** The token load_settings gave this page: the app drops saves from a page that has since reloaded. */
+let savePage = 0;
 let pendingSave: (() => Settings) | null = null;
 /**
  * Saves the settings 300 ms after the last change. `s` can be a function, so the settings are
@@ -972,7 +976,7 @@ export async function flushSettings() {
   }
   try {
     const s = get();
-    if (inTauri) await invoke("save_settings", { settings: s, rev: ++saveRev });
+    if (inTauri) await invoke("save_settings", { settings: s, page: savePage, rev: ++saveRev });
     else localStorage.setItem("orbiter-settings", JSON.stringify(s));
     if (saveFailed) {
       saveFailed = false;
