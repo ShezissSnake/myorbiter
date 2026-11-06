@@ -114,3 +114,44 @@ Pages: Sales, Stats, Sets, Mods.
 Four rounds of coverage, code reads, page polish and longer fuzzing: 12 bugs fixed, each with a test that fails without it (one, the single read transaction for TennoScope's store, can't be made to fail deterministically).
 The fixes: the listing form's last check, closed-order matching, a riven put up twice after a timeout, live-feed deals you couldn't trade, and a damaged settings file breaking the collection, Sales, Stats, Rivens, Inventory or the bell.
 Every settings part and the saved game state were probed with junk on every page; all property and fuzz tests pass at ten times the runs with new seeds; Sales, Stats, Sets and Mods polished.
+
+## Speed pass (2026-11-06)
+
+Measured on the dev server with the demo account (`npm run dev:demo`), Chromium, CPU slowed 4×,
+1300 × 1000. "First open" is a page clicked before the background warm-up has drawn it, its code
+loaded beforehand, so only the drawing is timed: click to next paint, click to the page drawn
+(its list in and no "Loading…"), and the longest task in the 3 s after. Medians of three fresh
+loads (five for start-up).
+
+| What | Click → paint | Drawn | Longest task |
+| --- | --- | --- | --- |
+| Mods, first open | 32 ms | 600 ms | 148 ms |
+| Arcanes, first open | 48 ms | 564 ms | 152 ms |
+| Sets, first open | 40 ms | 565 ms | 167 ms |
+| Planner, first open | 32 ms | 788 ms | 243 ms |
+| Start (Home drawn; long tasks in the first 6 s) | | 2,258 ms | 585 ms (3,343 ms in all) |
+
+The common interactions (the interaction benchmark: filters, tabs, views, nav and Sync, 37 of
+them, three runs each) answer in 14–80 ms to the next paint at 4×, apart from Relics' era All
+(112 ms), Nav → Inventory (120 ms) and Sync (112 ms).
+
+Where the time goes:
+- **First opens:** drawing, not working out. Most of it is the cards and rows themselves
+  (`ItemCard`, `ModCard`, `Thumb`, Svelte creating their elements), then the page's own
+  figures (`modRows`, `masteryRows`, the showcase). Lists already draw only what fills the
+  window at first (Mods 8 cards for 6 in sight, Planner 19 rows for 10), so drawing fewer rows
+  at first has little left to give.
+- **Tabs' underline** reads the layout in the first frame (`Tabs.svelte`, `place`): about 100 ms
+  at 4× on Planner, Arcanes and Sets, but it's the frame's own layout, done early rather than
+  twice. Placing it after the first paint didn't change the times beyond run-to-run noise.
+- **Start:** the longest task is Home's first draw with the model built (`buildModel`,
+  `masteryRowsFresh`, Home's cards), about 40% each.
+- Tried and dropped as no better than noise (±15% between runs): the underline after the first
+  paint, the page-room flags without the synchronous layout read at start. Date formatting
+  isn't worth caching (about 50 calls in the first 20 s). Bundle: the riven model (380 kB) and
+  Builds (279 kB) already load on demand; large JSON goes through `JSON.parse`.
+
+No change came out of it. What would help next: cheaper cards (fewer components per card,
+`ItemCard`'s artwork and price blocks drawn on demand), and Home's mastery figures worked out in
+the background before its first draw. Both are larger changes than a speed pass, measured in
+WebKitGTK on Linux, where the gap is widest.
