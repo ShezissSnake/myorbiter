@@ -168,7 +168,7 @@ export interface Settings {
   overlay: OverlaySettings;
   /** Start TennoScope (in the background) with orbiter and close it with orbiter. */
   /** opaqueOverlay: TennoScope's overlay on a solid background (Windows, when a transparent one is invisible). */
-  tennoscope: { launch: boolean; path: string; opaqueOverlay: boolean };
+  tennoscope: { launch: boolean; opaqueOverlay: boolean };
   market: MarketSettings;
   dataDir: string;
   /** Custom EE.log location; empty finds it in the Steam libraries. */
@@ -420,7 +420,7 @@ export const defaultSettings = (): Settings => ({
   pick: defaultPickWeights(),
   jumpToPick: true,
   overlay: defaultOverlay(),
-  tennoscope: { launch: true, path: "", opaqueOverlay: false },
+  tennoscope: { launch: true, opaqueOverlay: false },
   dataDir: "",
   eeLog: "",
   withoutInventory: false,
@@ -823,6 +823,9 @@ export async function loadSettings(): Promise<Settings> {
   if (raw) delete (raw as { view?: unknown }).view;
   // Arcane tiers were taken out: settings saved with them drop them.
   if (raw) delete (raw as { tiers?: unknown }).tiers;
+  // TennoScope's program is chosen in a native dialog and kept by orbiter itself: an old path the
+  // page saved is dropped rather than carried along (into exports and bug reports).
+  if (raw?.tennoscope && typeof raw.tennoscope === "object") delete (raw.tennoscope as { path?: unknown }).path;
   return {
     ...base,
     ...(raw ?? {}),

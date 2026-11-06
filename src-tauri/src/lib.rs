@@ -396,19 +396,25 @@ async fn discord_post(app: tauri::AppHandle, url: String, content: String) -> Re
         return Err("not a Discord webhook address".into());
     }
     // Notifications come a few at a time: more than this in a minute isn't orbiter's own use, and
-    // a page gone wrong mustn't post the log or chats out by the hundred.
-    {
+    // a page gone wrong mustn't post the log or chats out by the hundred (nor ask about one new
+    // address after another).
+    let too_many = || {
         let mut sent = DISCORD_SENT.lock().unwrap_or_else(|e| e.into_inner());
         let now = Instant::now();
         sent.retain(|t| now.duration_since(*t) < Duration::from_secs(60));
-        if sent.len() >= DISCORD_PER_MINUTE {
-            return Err("too many Discord posts this minute".into());
-        }
-        sent.push(now);
+        sent.len() >= DISCORD_PER_MINUTE
+    };
+    if too_many() {
+        return Err("too many Discord posts this minute".into());
     }
     if !discord_confirmed(&app, &url).await? {
         return Err("not sent: that Discord address wasn't confirmed".into());
     }
+    // Counted when it goes out, so posts that waited on the confirmation don't all go at once.
+    if too_many() {
+        return Err("too many Discord posts this minute".into());
+    }
+    DISCORD_SENT.lock().unwrap_or_else(|e| e.into_inner()).push(Instant::now());
     let content: String = content.chars().take(1900).collect();
     tauri::async_runtime::spawn_blocking(move || {
         http_agent()
@@ -431,8 +437,10 @@ async fn discord_post(app: tauri::AppHandle, url: String, content: String) -> Re
 static DISCORD_SENT: Mutex<Vec<Instant>> = Mutex::new(Vec::new());
 const DISCORD_PER_MINUTE: usize = 20;
 
-/// Addresses the player said no to since orbiter started: not asked about again.
-static DISCORD_DECLINED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+/// Whether the player said no to a new address since orbiter started: then no new address is
+/// asked about again until a restart, so a page gone wrong can't wear the player down with one
+/// confirmation after another.
+static DISCORD_DECLINED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 /// One confirmation at a time.
 static DISCORD_ASKING: tauri::async_runtime::Mutex<()> = tauri::async_runtime::Mutex::const_new(());
 
@@ -440,20 +448,27 @@ static DISCORD_ASKING: tauri::async_runtime::Mutex<()> = tauri::async_runtime::M
 enum DiscordAddress {
     /// The one confirmed before.
     Kept,
-    /// Turned down since orbiter started.
+    /// New, but the player turned one down since orbiter started: not asked.
     Declined,
     /// New: ask.
     Ask,
 }
 
-fn discord_address(kept: Option<&str>, declined: &[String], url: &str) -> DiscordAddress {
+fn discord_address(kept: Option<&str>, declined_one: bool, url: &str) -> DiscordAddress {
     if kept == Some(url) {
         DiscordAddress::Kept
-    } else if declined.iter().any(|d| d == url) {
+    } else if declined_one {
         DiscordAddress::Declined
     } else {
         DiscordAddress::Ask
     }
+}
+
+/// The address confirmed before, from orbiter's config folder (`discord-webhook`).
+fn discord_kept(app: &tauri::AppHandle) -> Result<(PathBuf, Option<String>), String> {
+    let file = app.path().app_config_dir().map_err(|e| e.to_string())?.join("discord-webhook");
+    let kept = fs::read_to_string(&file).ok().map(|k| k.trim().to_owned());
+    Ok((file, kept))
 }
 
 /// Whether `url` is the Discord address the player confirmed. A new one is confirmed in a native
@@ -461,11 +476,14 @@ fn discord_address(kept: Option<&str>, declined: &[String], url: &str) -> Discor
 /// names the webhook (never its token); a yes keeps it in orbiter's config folder
 /// (`discord-webhook`), which the page can't write, in place of the one before.
 async fn discord_confirmed(app: &tauri::AppHandle, url: &str) -> Result<bool, String> {
+    // The confirmed address goes straight through, without waiting on a dialog that's open.
+    if discord_kept(app)?.1.as_deref() == Some(url) {
+        return Ok(true);
+    }
     let _one = DISCORD_ASKING.lock().await;
-    let file = app.path().app_config_dir().map_err(|e| e.to_string())?.join("discord-webhook");
-    let kept = fs::read_to_string(&file).ok().map(|k| k.trim().to_owned());
-    let declined = DISCORD_DECLINED.lock().unwrap_or_else(|e| e.into_inner()).clone();
-    match discord_address(kept.as_deref(), &declined, url) {
+    // Read again under the lock: the dialog this one waited on may have confirmed this address.
+    let (file, kept) = discord_kept(app)?;
+    match discord_address(kept.as_deref(), DISCORD_DECLINED.load(Ordering::SeqCst), url) {
         DiscordAddress::Kept => return Ok(true),
         DiscordAddress::Declined => return Ok(false),
         DiscordAddress::Ask => {}
@@ -491,8 +509,8 @@ async fn discord_confirmed(app: &tauri::AppHandle, url: &str) -> Result<bool, St
         write_atomic(&file, url.as_bytes(), true).map_err(|e| format!("couldn't keep the Discord address: {e}"))?;
         log::info!(target: "orbiter::notify", "Discord webhook {id} confirmed");
     } else {
-        DISCORD_DECLINED.lock().unwrap_or_else(|e| e.into_inner()).push(url.to_owned());
-        log::info!(target: "orbiter::notify", "Discord webhook {id} turned down");
+        DISCORD_DECLINED.store(true, Ordering::SeqCst);
+        log::info!(target: "orbiter::notify", "Discord webhook {id} turned down; no other new one is asked about until orbiter restarts");
     }
     Ok(yes)
 }
@@ -1392,17 +1410,21 @@ mod tests {
     }
 
     #[test]
-    fn only_a_confirmed_discord_address_is_posted_to_and_a_declined_one_isnt_asked_again() {
+    fn only_a_confirmed_discord_address_is_posted_to_and_after_a_no_nothing_new_is_asked() {
         let a = "https://discord.com/api/webhooks/1/aaa";
         let b = "https://discord.com/api/webhooks/2/bbb";
+        let c = "https://discord.com/api/webhooks/3/ccc";
         // Nothing confirmed yet: ask.
-        assert_eq!(discord_address(None, &[], a), DiscordAddress::Ask);
-        assert_eq!(discord_address(Some(""), &[], a), DiscordAddress::Ask);
+        assert_eq!(discord_address(None, false, a), DiscordAddress::Ask);
+        assert_eq!(discord_address(Some(""), false, a), DiscordAddress::Ask);
         // Confirmed: posted to without asking. Another address, even one a page saved: ask.
-        assert_eq!(discord_address(Some(a), &[], a), DiscordAddress::Kept);
-        assert_eq!(discord_address(Some(a), &[], b), DiscordAddress::Ask);
-        // Turned down: not asked about again until orbiter restarts.
-        assert_eq!(discord_address(Some(a), &[b.to_owned()], b), DiscordAddress::Declined);
+        assert_eq!(discord_address(Some(a), false, a), DiscordAddress::Kept);
+        assert_eq!(discord_address(Some(a), false, b), DiscordAddress::Ask);
+        // After a no, until orbiter restarts: no new address is asked about, whichever it is, and
+        // the confirmed one still goes through.
+        assert_eq!(discord_address(Some(a), true, b), DiscordAddress::Declined);
+        assert_eq!(discord_address(Some(a), true, c), DiscordAddress::Declined);
+        assert_eq!(discord_address(Some(a), true, a), DiscordAddress::Kept);
     }
 
     #[test]

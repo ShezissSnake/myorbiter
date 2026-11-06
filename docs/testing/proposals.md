@@ -151,7 +151,7 @@ TennoScope is asked only four fixed things; the updater needs a signature.
 - `log_line` turns control characters into spaces, so the page can't write lines that look like
   orbiter's own into the log (which goes into bug reports).
 
-**Done** (approved; `work/ipc-hardening`). One line each, in the order of the list below:
+**Done.** One line each, in the order of the list below:
 
 1. Done: Settings' Choose opens a native file dialog from Rust (`tennoscope_choose_program`); the
    page can only open it or have orbiter find TennoScope again, and the old `tennoscope.path` in
@@ -162,12 +162,13 @@ TennoScope is asked only four fixed things; the updater needs a signature.
 4. Done: warframe.market changes are capped at 120 in any minute in `market.rs` (a change past it
    waits); a plan of 100 at the usual 400 ms spacing stays under it.
 5. Done: `discord_post` sends only to an address confirmed in a native dialog the first time the
-   page posts to it, kept in orbiter's config folder (`discord-webhook`), not in the settings.
+   page posts to it, kept in orbiter's config folder (`discord-webhook`), not in the settings;
+   after one no, nothing new is asked about until orbiter restarts.
 
 The dialogs open from Rust (`tauri-plugin-dialog`, Cargo only), so the page has no dialog
 permission and no `@tauri-apps/plugin-dialog`.
 
-**Needed the maintainer** (a dependency, the capability, or the release flow):
+**The proposals as written** (each needed a dependency, the capability, or the release flow):
 
 1. **TennoScope's program chosen in a file dialog, not typed** (`tennoscope_set_path`). The page
    can still name any file called `tennoscope`/`tennoscope.exe`/`TennoScope….AppImage` on a local

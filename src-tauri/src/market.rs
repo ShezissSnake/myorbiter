@@ -66,8 +66,8 @@ const WRITE_WINDOW: Duration = Duration::from_secs(60);
 /// When the changes of the last minute went out, oldest first.
 static WRITES: Mutex<std::collections::VecDeque<Instant>> = Mutex::new(std::collections::VecDeque::new());
 
-/// How long a change at `now` waits, the last minute's changes having gone out at `sent`
-/// (oldest first, older ones already dropped).
+/// How long a change at `now` waits, the recent changes having gone out at `sent` (oldest first;
+/// it may still hold some older than a minute, which don't count).
 fn write_wait(sent: &std::collections::VecDeque<Instant>, now: Instant) -> Duration {
     if sent.len() < WRITES_PER_MINUTE {
         return Duration::ZERO;
