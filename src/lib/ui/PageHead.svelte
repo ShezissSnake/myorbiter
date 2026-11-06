@@ -38,7 +38,7 @@
   h1:focus { outline: none; }
   /* At most three lines, so a long one doesn't push the title down (the whole of it on hover). */
   .head .prose { margin: 0; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-  /* Details off: the brief, on one line (the whole blurb on hover). */
+  /* Details off: one short line (the whole blurb on hover). */
   :global(html:not([data-details])) .head .prose { -webkit-line-clamp: 1; line-clamp: 1; }
   .side { display: grid; gap: .5rem; justify-items: end; min-width: 0; }
   .side .prose { justify-self: stretch; }
