@@ -6,71 +6,155 @@ settings. Each line says where it is.
 
 ## Going public, step by step
 
-Every step in order, from a private repository to the first public Stable installed by hand. Each
-one links to its details further down; tick it here when it's done.
+Every step in order, from a private repository to the first public Stable installed by hand.
+Every step needs admin rights on the repository; the ones marked **(maintainer)** are the
+maintainer's own clicks, signed in to GitHub as `ShezissSnake` (the account's settings, the
+visibility switch, the signing key, the promotions). Each step links to its details further
+down; tick it here when it's done. The commands work in fish and in bash, from a clone of the
+repository whose `origin` is `ShezissSnake/orbiter`.
 
 **1. Before the switch** (the repository is still private)
 
-- [ ] The signing key and its password are backed up offline (`~/.tauri/orbiter.key`); README,
-      *Release channels*, says why.
-- [ ] Old releases from before the 0.2 builds are gone (build-3, build-6, build-8), with their tags.
-- [ ] Branches that only held finished work are deleted (`claude/…`), so only `main` and the
-      Dependabot branches go public.
-- [ ] Commit e-mail stays private (*Before making it public*, below).
-- [ ] The history is read once more for anything personal or secret, and no leftover `build-<n>`
-      tag points at a commit its run didn't build (*Before making it public*).
-- [ ] `npm test`, `npm run check -- --threshold error` and `cargo test` pass on `main`, and the last
-      Experimental build installed and updated (`docs/testing/log.md`).
+- [ ] **The signing key is backed up offline (maintainer).** `~/.tauri/orbiter.key` and its
+      password are kept somewhere off this computer; README, *Release channels*, says why.
+- [ ] **The pre-release pull requests are merged**, in the order their descriptions give (the
+      nightly-build change before the one that changes this list). Each is merged on its page:
+      *Ready for review* if it's still a draft, then **Merge pull request** → **Confirm merge**.
+- [ ] **Dependabot's leftovers are closed.** The TypeScript 7 pull request: open it, write the
+      comment `@dependabot ignore this major version` and send it (Dependabot closes it). The
+      actions pull request: once the nightly-build change is merged it has nothing left to do;
+      close it with **Close pull request**.
+- [ ] **Old releases are gone.** build-3, build-6 and build-8 are left from before the 0.2 builds;
+      their tags were deleted already, so each is deleted from its page: *Releases* →
+      `build-3` → the bin icon (*Delete*) → **Delete this release**; the same for `build-6` and
+      `build-8`. From a terminal with the GitHub CLI, the same, by release id; first check that
+      each id is the release it should be:
 
-**2. Make it public**
+      ```fish
+      gh api repos/ShezissSnake/orbiter/releases/434098785 --jq '.tag_name + " " + .name'
+      gh api repos/ShezissSnake/orbiter/releases/434185865 --jq '.tag_name + " " + .name'
+      gh api repos/ShezissSnake/orbiter/releases/434383838 --jq '.tag_name + " " + .name'
+      ```
 
-- [ ] Settings → General → Danger Zone → **Change repository visibility** → Public.
-- [ ] Every push to `main` now builds by itself (release.yml); the next one shows that the switch
-      worked. The weekly audit and MSRV checks run on their own too.
+      (they say build-3, build-6 and build-8), then:
+
+      ```fish
+      gh api -X DELETE repos/ShezissSnake/orbiter/releases/434098785
+      gh api -X DELETE repos/ShezissSnake/orbiter/releases/434185865
+      gh api -X DELETE repos/ShezissSnake/orbiter/releases/434383838
+      ```
+
+      Then *Releases* lists only `build-<n>` pre-releases from the 0.2 builds, the
+      `channel-experimental` release, and nothing else.
+- [ ] **Branches that only held finished work are deleted**, so only `main` and the branches of
+      open pull requests go public: *Code* → *Branches* → the bin icon on each `claude/…` and `work/…`
+      branch whose pull request is merged or closed, and on Dependabot branches whose pull
+      request is merged or closed. Or, from a terminal, once per such branch (here one named
+      `claude/example-branch`):
+
+      ```fish
+      git push origin --delete claude/example-branch
+      ```
+
+      Then `git ls-remote --heads origin` lists `main` and open pull requests' branches only.
+- [ ] **Commit e-mail stays private (maintainer)** (*Before making it public*, below).
+- [ ] **The history is read once more** for anything personal or secret, and no leftover
+      `build-<n>` tag points at a commit its run didn't build (*Before making it public*):
+
+      ```fish
+      git ls-remote --tags origin 'build-*'
+      ```
+
+- [ ] **Everything passes on `main`:**
+
+      ```fish
+      git switch main
+      git pull
+      npm ci
+      npm test
+      npm run check -- --threshold error
+      cargo test --manifest-path src-tauri/Cargo.toml
+      ```
+
+      `npm test`'s Sell spares tests that read `public/dev-*.json` run only on a computer that
+      has that data; they must pass there too. The last Experimental build installed and
+      updated (`docs/testing/log.md`).
+
+**2. Make it public (maintainer)**
+
+- [ ] Settings → General → *Danger Zone* → **Change repository visibility** → **Change to
+      public** → read the warnings → type `ShezissSnake/orbiter` → **I want to make this
+      repository public** (GitHub may ask for the password or a passkey).
+- [ ] From now on `nightly.yml` starts an Experimental build each night that `main` has
+      changed (03:17 UTC), and the weekly audit and MSRV checks run by themselves. Nothing is
+      built at the switch itself. Steps 2 to 5 are best done in one sitting: a nightly build
+      that comes first is fine (it signs with the repository secrets while they're still
+      there), and step 5 then builds once more by hand.
 
 **3. GitHub settings** (most of these exist on GitHub Free only for public repositories)
 
-- [ ] Private vulnerability reporting, secret scanning with push protection, Dependabot alerts and
-      security updates (*Before making it public*).
-- [ ] The Actions settings: fork pull requests wait for approval, a read-only token, pinned actions
-      only (*Actions*).
+- [ ] Private vulnerability reporting, secret scanning with push protection, Dependabot alerts
+      and security updates (*Before making it public*).
+- [ ] The Actions settings: fork pull requests wait for approval, a read-only token, pinned
+      actions only (*Actions*).
 - [ ] Rulesets for `main` and the release tags (*Branches and tags*).
 - [ ] Wiki, Discussions and Projects off unless used (*Features not in use*).
+- [ ] **The website (maintainer):** Settings → Pages → *Build and deployment* → *Source*:
+      **GitHub Actions**. Then Actions → *Website* → **Run workflow** → branch `main` → **Run
+      workflow**; when it's green, its *Publish on Pages* job links to the site
+      (`https://shezisssnake.github.io/orbiter/`). With no Stable release yet its download
+      buttons point at *Releases*; step 6 runs it again.
 
-**4. Move the signing secrets** into the `release-signing` environment (*The signing key's
-environment*): create it, limit it to `main`, add the two secrets, delete the repository copies,
-optionally require approval.
+**4. Move the signing secrets (maintainer)** into the `release-signing` environment (*The
+signing key's environment*, below, step by step): create it, limit it to `main`, add the two
+secrets, delete the repository copies, optionally require approval.
 
-- [ ] Done, and the repository secrets list no longer has `TAURI_SIGNING_PRIVATE_KEY` or
-      `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+- [ ] Done: Settings → Secrets and variables → Actions → *Repository secrets* no longer lists
+      `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and Settings →
+      Environments → `release-signing` → *Environment secrets* lists both.
 
 **5. A first public build**
 
-- [ ] Push to `main`, or Actions → *Release builds* → *Run workflow* with Windows ticked. Note the
-      run's number *n*.
-- [ ] The run is green; its sign job names the `release-signing` environment (approve it if
-      approval is on); its summary has no "No updater files" line.
+- [ ] Actions → *Release builds* → **Run workflow** → *Use workflow from*: `main`, *Windows
+      installer* ticked, *macOS dmg* as wanted → **Run workflow**. Note the run's number *n*
+      (shown as `#n` in the list).
+- [ ] The run is green; its *Sign the updater downloads* job names the `release-signing`
+      environment (if approval is on: **Review deployments** → tick `release-signing` →
+      **Approve and deploy**); its summary has no "No updater files" line.
 - [ ] Release `build-<n>` carries the AppImage, the setup.exe, both `.sig` files, `latest.json`,
       `SHA256SUMS` and `orbiter-source.tar.gz`; `channel-experimental` names 0.2.*n*.
-- [ ] `gh attestation verify <file> --repo ShezissSnake/orbiter` passes for the AppImage and the
-      setup.exe (attestations exist only for builds made while the repository is public).
+- [ ] Its files were built here (attestations exist only for builds made while the repository is
+      public), on any computer with the GitHub CLI, in an empty folder, with the build's number
+      in place of `N` (for build 31, `build-31` and `0.2.31`):
 
-**6. Promote it to Stable**
+      ```fish
+      gh release download build-N --repo ShezissSnake/orbiter --pattern '*.AppImage' --pattern '*-setup.exe'
+      gh attestation verify orbiter_0.2.N_amd64.AppImage --repo ShezissSnake/orbiter
+      gh attestation verify orbiter_0.2.N_x64-setup.exe --repo ShezissSnake/orbiter
+      ```
+
+**6. Promote it to Stable (maintainer)**
 
 - [ ] Install it from Experimental on Linux and on Windows, and use it for a while: start, sync,
-      a page of each section, Check for updates.
-- [ ] Actions → *Promote a build* → *Run workflow* on `main`, build *n*, channel **beta**; then
-      again with **stable**. (Stable alone also moves Beta up.)
+      a page of each section, Settings → Updates → *Check now*.
+- [ ] Actions → *Promote a build* → **Run workflow** → *Use workflow from*: `main`, *Build
+      number*: *n*, *Channel*: **beta** → **Run workflow**; when it's green, the same with
+      **stable**. (Stable alone also moves Beta up.)
 - [ ] `channel-stable` and `channel-beta` name 0.2.*n*, and `build-<n>` is a full release marked
       *Latest*.
-- [ ] Release notes: open `build-<n>` → *Edit* and replace its description with
-      `docs/releases/first-public.md` (the commit list it had stays in the update screen's notes,
-      which come from `latest.json`).
+- [ ] Release notes: in `docs/releases/first-public.md`, put the version (0.2.*n*) in place of
+      each `<0.2.N>`, through a pull request like any change (the ruleset on `main` may ask for
+      one; the next nightly build then picks it up), then open `build-<n>` → the pencil icon (*Edit*) → replace its
+      description with that file's text → **Update release**. (The commit list it had stays in
+      the update screen's notes, which come from `latest.json`.)
+- [ ] Actions → *Website* → **Run workflow**, so its download buttons point at this release
+      (it also does it by itself once a day).
 
 **7. The first manual install**, as a new player would do it
 
-- [ ] On a computer without orbiter, open the repository's *Releases*, take *Latest*'s AppImage
-      (or setup.exe) and `SHA256SUMS`, and check it (README, *Checking a download*).
+- [ ] On a computer without orbiter, open the website's *Download* or the repository's
+      *Releases*, take *Latest*'s AppImage (or setup.exe) and `SHA256SUMS`, and check it
+      (README, *Checking a download*).
 - [ ] Install and start it: the first-start walk-through appears, Full mode is off, and Settings →
       Updates says Stable and the version 0.2.*n*.
 - [ ] *Check now* says it's up to date. When the next build reaches Stable, that copy offers it and
@@ -120,7 +204,8 @@ on `main`, builds and installs nothing, and names the `release-signing` environm
 environment secrets, no other job in any workflow can read them, and GitHub can hold the sign job
 until it's approved. GitHub Free offers environments to public repositories only, so while the
 repository is private the two stay repository secrets (a job reads a repository secret when its
-environment has none of that name), and they move once it's public:
+environment has none of that name), and they move once it's public. Every step here is the
+maintainer's own (the key and its password are only on the maintainer's side):
 
 - [ ] **Create the environment:** Settings → Environments → New environment, named exactly
       `release-signing`. (The first release run after it's public may have made it already, empty:
@@ -148,7 +233,8 @@ environment has none of that name), and they move once it's public:
       there's a second person who can review.
 - [ ] **A ruleset for release tags:** a tag ruleset for `build-*` and `channel-*` with **Restrict
       updates** and **Restrict deletions**, bypassed only by the maintainer, so a published build or
-      a channel can't be moved by hand. (Builds start from pushes to `main`, not from tags.)
+      a channel can't be moved by hand. (Builds start from `nightly.yml` or Run workflow, not from
+      tags.)
 
 ## Features not in use
 
