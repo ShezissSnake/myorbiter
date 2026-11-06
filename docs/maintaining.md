@@ -7,8 +7,9 @@ settings. Each line says where it is.
 ## Going public, step by step
 
 Every step in order, from a private repository to the first public Stable installed by hand.
-Steps marked **(maintainer)** are clicks only the maintainer makes, signed in to GitHub as
-`ShezissSnake`; nothing else in this list needs them. Each step links to its details further
+Every step needs admin rights on the repository; the ones marked **(maintainer)** are the
+maintainer's own clicks, signed in to GitHub as `ShezissSnake` (the account's settings, the
+visibility switch, the signing key, the promotions). Each step links to its details further
 down; tick it here when it's done. The commands work in fish and in bash, from a clone of the
 repository whose `origin` is `ShezissSnake/orbiter`.
 
@@ -26,7 +27,16 @@ repository whose `origin` is `ShezissSnake/orbiter`.
 - [ ] **Old releases are gone.** build-3, build-6 and build-8 are left from before the 0.2 builds;
       their tags were deleted already, so each is deleted from its page: *Releases* →
       `build-3` → the bin icon (*Delete*) → **Delete this release**; the same for `build-6` and
-      `build-8`. From a terminal with the GitHub CLI, the same, by release id:
+      `build-8`. From a terminal with the GitHub CLI, the same, by release id; first check that
+      each id is the release it should be:
+
+      ```fish
+      gh api repos/ShezissSnake/orbiter/releases/434098785 --jq '.tag_name + " " + .name'
+      gh api repos/ShezissSnake/orbiter/releases/434185865 --jq '.tag_name + " " + .name'
+      gh api repos/ShezissSnake/orbiter/releases/434383838 --jq '.tag_name + " " + .name'
+      ```
+
+      (they say build-3, build-6 and build-8), then:
 
       ```fish
       gh api -X DELETE repos/ShezissSnake/orbiter/releases/434098785
@@ -36,13 +46,14 @@ repository whose `origin` is `ShezissSnake/orbiter`.
 
       Then *Releases* lists only `build-<n>` pre-releases from the 0.2 builds, the
       `channel-experimental` release, and nothing else.
-- [ ] **Branches that only held finished work are deleted**, so only `main` and Dependabot's
-      open branches go public: *Code* → *Branches* → the bin icon on each `claude/…` and `work/…`
+- [ ] **Branches that only held finished work are deleted**, so only `main` and the branches of
+      open pull requests go public: *Code* → *Branches* → the bin icon on each `claude/…` and `work/…`
       branch whose pull request is merged or closed, and on Dependabot branches whose pull
-      request is merged or closed. Or, for each such branch:
+      request is merged or closed. Or, from a terminal, once per such branch (here one named
+      `claude/example-branch`):
 
       ```fish
-      git push origin --delete claude/nice-cannon-hjl3fb
+      git push origin --delete claude/example-branch
       ```
 
       Then `git ls-remote --heads origin` lists `main` and open pull requests' branches only.
@@ -76,7 +87,9 @@ repository whose `origin` is `ShezissSnake/orbiter`.
       repository public** (GitHub may ask for the password or a passkey).
 - [ ] From now on `nightly.yml` starts an Experimental build each night that `main` has
       changed (03:17 UTC), and the weekly audit and MSRV checks run by themselves. Nothing is
-      built at the switch itself: step 5 starts the first build by hand.
+      built at the switch itself. Steps 2 to 5 are best done in one sitting: a nightly build
+      that comes first is fine (it signs with the repository secrets while they're still
+      there), and step 5 then builds once more by hand.
 
 **3. GitHub settings** (most of these exist on GitHub Free only for public repositories)
 
@@ -89,7 +102,8 @@ repository whose `origin` is `ShezissSnake/orbiter`.
 - [ ] **The website (maintainer):** Settings → Pages → *Build and deployment* → *Source*:
       **GitHub Actions**. Then Actions → *Website* → **Run workflow** → branch `main` → **Run
       workflow**; when it's green, its *Publish on Pages* job links to the site
-      (`https://shezisssnake.github.io/orbiter/`).
+      (`https://shezisssnake.github.io/orbiter/`). With no Stable release yet its download
+      buttons point at *Releases*; step 6 runs it again.
 
 **4. Move the signing secrets (maintainer)** into the `release-signing` environment (*The
 signing key's environment*, below, step by step): create it, limit it to `main`, add the two
@@ -110,14 +124,14 @@ secrets, delete the repository copies, optionally require approval.
 - [ ] Release `build-<n>` carries the AppImage, the setup.exe, both `.sig` files, `latest.json`,
       `SHA256SUMS` and `orbiter-source.tar.gz`; `channel-experimental` names 0.2.*n*.
 - [ ] Its files were built here (attestations exist only for builds made while the repository is
-      public), on any computer with the GitHub CLI, in the folder with the downloads:
+      public), on any computer with the GitHub CLI, in an empty folder, with the build's number
+      in place of `N` (for build 31, `build-31` and `0.2.31`):
 
       ```fish
+      gh release download build-N --repo ShezissSnake/orbiter --pattern '*.AppImage' --pattern '*-setup.exe'
       gh attestation verify orbiter_0.2.N_amd64.AppImage --repo ShezissSnake/orbiter
       gh attestation verify orbiter_0.2.N_x64-setup.exe --repo ShezissSnake/orbiter
       ```
-
-      (*N* being the build's number.)
 
 **6. Promote it to Stable (maintainer)**
 
@@ -129,7 +143,8 @@ secrets, delete the repository copies, optionally require approval.
 - [ ] `channel-stable` and `channel-beta` name 0.2.*n*, and `build-<n>` is a full release marked
       *Latest*.
 - [ ] Release notes: in `docs/releases/first-public.md`, put the version (0.2.*n*) in place of
-      each `<0.2.N>` (a commit to `main` of its own), then open `build-<n>` → the pencil icon (*Edit*) → replace its
+      each `<0.2.N>`, through a pull request like any change (the ruleset on `main` may ask for
+      one; the next nightly build then picks it up), then open `build-<n>` → the pencil icon (*Edit*) → replace its
       description with that file's text → **Update release**. (The commit list it had stays in
       the update screen's notes, which come from `latest.json`.)
 - [ ] Actions → *Website* → **Run workflow**, so its download buttons point at this release
