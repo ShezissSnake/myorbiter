@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 
 const V1: &str = "https://api.warframe.market/v1";
 const V2: &str = "https://api.warframe.market/v2";
-const MIN_GAP: Duration = Duration::from_millis(400);
+pub(crate) const MIN_GAP: Duration = Duration::from_millis(400);
 const KEYRING_SERVICE: &str = "dev.orbiter.app";
 const KEYRING_USER: &str = "warframe.market";
 /// How orbiter introduces itself to warframe.market, on the API and on the status socket alike.
@@ -116,14 +116,13 @@ fn log_path(url: &str) -> &str {
     url.split_once("warframe.market").map_or(url, |(_, rest)| rest)
 }
 
-/// A reply that couldn't be read: cut off on the way is "unreachable", a whole one that isn't the
-/// JSON asked for is "unexpected" (ureq reports that as invalid data).
-fn read_error(e: std::io::Error) -> MarketError {
-    if e.kind() == std::io::ErrorKind::InvalidData {
-        MarketError::Unexpected(e.to_string())
-    } else {
-        MarketError::Unreachable(e.to_string())
-    }
+/// A reply's body as JSON. Read whole first: failing to read it (a connection reset or cut off on
+/// the way) is "unreachable"; a whole body that isn't JSON is "unexpected". ureq's own
+/// `into_json` reports both as invalid data, so it can't tell them apart.
+fn json_body(body: impl std::io::Read) -> Result<Value, MarketError> {
+    let mut text = String::new();
+    std::io::Read::read_to_string(&mut { body }, &mut text).map_err(|e| MarketError::Unreachable(e.to_string()))?;
+    serde_json::from_str(&text).map_err(|e| MarketError::Unexpected(e.to_string()))
 }
 
 /// A plain read with no sign-in (the item list, riven names), with the same care for rate limits.
@@ -139,7 +138,7 @@ fn get_json_once(url: &str, timeout: u64) -> Result<Value, MarketError> {
     with_retries(|| {
         wait_turn();
         match crate::http_agent().get(url).set("User-Agent", USER_AGENT).set("Language", "en").timeout(Duration::from_secs(timeout)).call() {
-            Ok(r) => r.into_json::<Value>().map_err(read_error),
+            Ok(r) => json_body(r.into_reader()),
             Err(ureq::Error::Status(429, resp)) => Err(rate_limited(&resp)),
             Err(e) => Err(MarketError::Unreachable(e.to_string())),
         }
@@ -1128,12 +1127,24 @@ mod tests {
 
     #[test]
     fn a_reply_that_isnt_what_was_asked_for_is_unexpected_not_unreachable() {
-        // A whole reply that isn't JSON (a block page served as 200): ureq calls it invalid data.
+        // A whole reply that isn't JSON (a block page served as 200), read as get_json reads one.
         let page = ureq::Response::new(200, "OK", "<html>checking your browser</html>").unwrap();
-        assert!(matches!(page.into_json::<Value>().map_err(read_error), Err(MarketError::Unexpected(_))));
-        // A reply cut off on the way is still the network.
-        let cut = std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "cut off");
-        assert!(matches!(read_error(cut), MarketError::Unreachable(_)));
+        assert!(matches!(json_body(page.into_reader()), Err(MarketError::Unexpected(_))));
+        // A whole reply that stops halfway through its JSON: what was sent isn't JSON.
+        assert!(matches!(json_body(&b"{\"data\":["[..]), Err(MarketError::Unexpected(_))));
+        // A connection that drops while the body is read: the network, not the reply.
+        struct Drops(bool);
+        impl std::io::Read for Drops {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                if std::mem::replace(&mut self.0, true) {
+                    return Err(std::io::Error::new(std::io::ErrorKind::ConnectionReset, "reset"));
+                }
+                buf[..9].copy_from_slice(b"{\"data\":[");
+                Ok(9)
+            }
+        }
+        assert!(matches!(json_body(Drops(false)), Err(MarketError::Unreachable(_))));
+        assert!(matches!(json_body(&b"{\"data\":[]}"[..]), Ok(_)));
         // JSON, but not a profile.
         let e = profile_of(serde_json::json!({ "data": { "nothing": "like a profile" } })).unwrap_err();
         assert!(matches!(e, MarketError::Unexpected(_)));
