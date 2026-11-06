@@ -45,15 +45,15 @@ repository whose `origin` is `ShezissSnake/orbiter`.
       git switch main
       git pull
       npm ci
-      npm run dev-bundle
-      npm run dev-data
       npm test
       npm run check -- --threshold error
       cargo test --manifest-path src-tauri/Cargo.toml
       ```
 
-      `npm run dev-bundle` reads a TennoScope folder, so the tests that need it run only on a
-      computer that has one; they must pass there too.
+      The tests on the real catalogue (`public/dev-*.json`) skip without it. On a computer with a
+      TennoScope folder, run `npm run dev-bundle` and `npm run dev-data` before `npm test` so they
+      run too; they must pass there as well. Elsewhere skip both: `dev-bundle` without a TennoScope
+      folder leaves an empty `public/dev-bundle.json`, which makes those tests fail (delete it).
 - [ ] **The newest Experimental build** installed, and updated itself once.
 
 **2. Make it public (maintainer)**

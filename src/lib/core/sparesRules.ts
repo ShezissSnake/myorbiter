@@ -4,8 +4,8 @@
 // (bulk.ts) and the last check before a listing (listGuard.ts) read it.
 //
 // `legacyRules` turns these choices back into the old switches, saved beside them for an older
-// build reading the same settings file. See docs/design/spares-plan.md for the design and what each
-// choice does.
+// build reading the same settings file. What each choice does is in the in-app Guide; why the
+// page is built this way, and what warframe.market trades, is in docs/design/spares-plan.md.
 import type { BulkRules } from "./bulk";
 
 /** The categories the panel shows, one row each, in this order. */

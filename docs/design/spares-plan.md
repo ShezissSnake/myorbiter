@@ -36,8 +36,9 @@ Archon shards, fish parts and raw ores are named once, in the Resources row's "n
 so a player looking for them knows why they aren't there.
 
 What gear still to build takes is kept, including what its parts' own blueprints take (a
-warframe's Neuroptics take gems the catalog lists only under the Neuroptics). `needsByUnique` in
-`spares.ts` reads both from the Foundry recipes.
+warframe's Neuroptics blueprint takes gems the catalog doesn't list for the warframe).
+`needsByUnique` in `spares.ts` takes the item's own components from the catalog and what its parts
+take from the Foundry recipes.
 
 ## Decisions
 
