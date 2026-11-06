@@ -850,8 +850,9 @@ class MarketStore {
     if (!d || !wholeIn(d.platinum, 1, MAX_PLAT) || !wholeIn(d.quantity, existing ? 0 : 1, MAX_QTY)) return;
     const it = this.item(d.itemId);
     let why = "";
-    // The keep rules, checked again: what the form offers can be more than you can spare.
-    if (it && d.quantity > 0 && !this.allowed(this.draftModel ?? this.model, { item: it, rank: d.rank, subtype: d.subtype, quantity: d.quantity, platinum: d.platinum, listedElsewhere: this.listedOf(it, d.rank, d.subtype), manual: true }, (l) => (why = l))) {
+    // The keep rules, checked again: what the form offers can be more than you can spare. Against
+    // the newest inventory read, not the one the form opened with: copies traded away since are gone.
+    if (it && d.quantity > 0 && !this.allowed(this.model ?? this.draftModel, { item: it, rank: d.rank, subtype: d.subtype, quantity: d.quantity, platinum: d.platinum, listedElsewhere: this.listedOf(it, d.rank, d.subtype), manual: true }, (l) => (why = l))) {
       this.draftError = this.log[0]?.text ?? "Not listed";
       return;
     }
