@@ -17,8 +17,9 @@
   import { bugReport } from "../bugReport.svelte";
 
   // console: the short guide, for the pages a console or phone player has. platform: where they play.
-  // hidden: the pages Settings → Pages keeps out of the sidebar.
-  let { go, plannerMode = $bindable(), console = false, platform = "PC", hidden = [] }: { go: (tab: string) => void; plannerMode: "sets" | "radiant"; console?: boolean; platform?: string; hidden?: string[] } = $props();
+  // hidden: the pages Settings → Pages keeps out of the sidebar. expanded: every step written out
+  // whole, not its first clause (the website's copy of the Guide, scripts/site.mjs).
+  let { go, plannerMode = $bindable(), console = false, platform = "PC", hidden = [], expanded = false }: { go: (tab: string) => void; plannerMode: "sets" | "radiant"; console?: boolean; platform?: string; hidden?: string[]; expanded?: boolean } = $props();
 
   const CONSOLE_STEPS: Step[] = [
     ["home", "Home", "alerts with rare rewards (catalysts, reactors, Forma…), your market at a glance, the open worlds' cycles, Duviri's mood and the resets (and when the world was last read), every fissure open now (normal, Steel Path or Void Storms, with alerts for the ones you want), the bounties in each open world and hub (hover one for everything it can pay), events running in game and what they pay, what's worth doing today (Darvo's deal, the Sortie's missions, modifiers and reward chances among it), and when Baro comes and what he brings."],
@@ -201,7 +202,7 @@
           {#each r.steps as [tab, label, text, planner] (label)}
             {@const key = `${r.title}|${label}`}
             <!-- One line each, the page's name taking you there; the whole of it a click away. -->
-            <li><button class="link" onclick={() => { if (planner) plannerMode = planner; go(tab); }} title="Open {label}">{label}</button>{#if openSteps[key]}{#if Array.isArray(text)}<ul class="sub" in:arrive={{ y: 0 }}>{#each text as t (t)}<li><Rich text={t} {go} /></li>{/each}</ul>{:else}<span in:arrive={{ y: 0 }}><Rich {text} {go} /></span>{/if}{:else}<span><Rich text={brief(text)} {go} /></span>{/if} <button class="more" aria-expanded={!!openSteps[key]} title={openSteps[key] ? "Less" : "Everything about it"} onclick={() => (openSteps[key] = !openSteps[key])}>{openSteps[key] ? "less" : "more"}</button></li>
+            <li><button class="link" onclick={() => { if (planner) plannerMode = planner; go(tab); }} title="Open {label}">{label}</button>{#if expanded || openSteps[key]}{#if Array.isArray(text)}<ul class="sub" in:arrive={{ y: 0 }}>{#each text as t (t)}<li><Rich text={t} {go} /></li>{/each}</ul>{:else}<span in:arrive={{ y: 0 }}><Rich {text} {go} /></span>{/if}{:else}<span><Rich text={brief(text)} {go} /></span>{/if} <button class="more" aria-expanded={!!openSteps[key]} title={openSteps[key] ? "Less" : "Everything about it"} onclick={() => (openSteps[key] = !openSteps[key])}>{openSteps[key] ? "less" : "more"}</button></li>
           {/each}
         </ol>
       </article>

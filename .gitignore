@@ -21,3 +21,6 @@ scripts/riven-model/rw.json
 /THIRD-PARTY-NOTICES/linux/
 # Local-only notes and data (real trade records, scrub notes): never committed.
 .local/
+
+# The website as built (scripts/site.mjs): made again from site/ and the app each time.
+/site/_site/
