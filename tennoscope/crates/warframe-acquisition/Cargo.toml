@@ -38,7 +38,7 @@ nix = { version = "0.30", features = ["process", "uio"] }
 [target.'cfg(windows)'.dependencies]
 proc-maps = "0.5"
 read-process-memory = "=0.3.0"
-sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+sysinfo = { version = "0.40", default-features = false, features = ["system"] }
 
 [dev-dependencies]
 static_assertions = "1"
