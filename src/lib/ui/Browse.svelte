@@ -180,7 +180,7 @@
   {#if layout === "cards" && sortable.length}
     <label class="sort">
       <span class="register">Sort</span>
-      <select value={sort.key} onchange={(e) => { const c = columns.find((x) => x.key === e.currentTarget.value); if (c) sort = { key: c.key, desc: c.defaultDesc ?? true }; }} aria-label="Sort by">
+      <select value={sort.key} onchange={(e) => { const c = columns.find((x) => x.key === e.currentTarget.value); if (c) sort = { key: c.key, desc: c.defaultDesc ?? true }; }} aria-label="Sort by" title="What to put the cards in order by (the table sorts by any column)">
         {#each sortable as c (c.key)}<option value={c.key}>{c.label}</option>{/each}
       </select>
       <IconButton icon="sort-desc" class={sort.desc ? "sortdir" : "sortdir asc"} label={sort.desc ? "Highest first" : "Lowest first"} title={`${sort.desc ? "Highest first" : "Lowest first"}: click to reverse`} onclick={() => (sort = { ...sort, desc: !sort.desc })} />
