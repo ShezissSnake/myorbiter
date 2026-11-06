@@ -141,6 +141,14 @@ test("settings files: loading anything never throws, never turns on automatic re
     assert.ok(m.sales.every((x) => x && fine(x.at) && typeof x.item === "string" && x.item && Number.isInteger(x.quantity) && x.quantity >= 1 && fine(x.platinum) && x.platinum >= 0 && (x.rank === null || Number.isInteger(x.rank)) && (x.median === undefined || fine(x.median))), `sales: ${ctx}`);
     assert.ok(m.trades.every((t) => t && fine(t.at) && typeof t.key === "string" && typeof t.partner === "string" && fine(t.platIn) && fine(t.platOut) && [t.offered, t.received].every((xs) => Array.isArray(xs) && xs.every((x) => x && typeof x.name === "string" && Number.isInteger(x.count) && x.count >= 1))), `trades: ${ctx}`);
     assert.doesNotThrow(() => (salesCsv(m.sales), tradesCsv(m.trades), salesByDay(m.sales, Date.now(), 30)), `the logs: ${ctx}`);
+    // The saved game state's lists: whole entries only (core/savedGame.ts).
+    const g = s.game;
+    const objs = (xs: unknown) => Array.isArray(xs) && xs.every((x) => x && typeof x === "object" && !Array.isArray(x));
+    assert.ok(objs(g.valueHistory) && g.valueHistory.every((v) => fine(v.at) && fine(v.worth) && fine(v.liquid)), `valueHistory: ${ctx}`);
+    assert.ok(objs(g.relicRuns) && g.relicRuns.every((r) => fine(r.at) && Array.isArray(r.cards) && Array.isArray(r.relics)), `relicRuns: ${ctx}`);
+    assert.ok(objs(g.notices) && g.notices.every((n) => typeof n.id === "string" && typeof n.read === "boolean"), `notices: ${ctx}`);
+    assert.ok(g.gear === null || (objs(g.gear) && g.gear.every((x) => typeof x.type === "string" && fine(x.f))), `gear: ${ctx}`);
+    assert.ok(g.rivens === null || (objs(g.rivens) && g.rivens.every((x) => typeof x.id === "string" && x.fp && typeof x.fp === "object")), `rivens: ${ctx}`);
     // What the app builds the collection from (App.svelte): a damaged file mustn't stop it.
     const rawGame = parsed && typeof parsed === "object" ? (parsed as { game?: unknown }).game : undefined;
     assert.doesNotThrow(() => buildModel(EMPTY_BUNDLE, undefined, null, m.relicPrices, s.game.imprints, null, s.game.gear, s.game.consumedSuits), `the collection: PROPERTY_SEED=${seed}: ${JSON.stringify(rawGame ?? null)?.slice(0, 300)}`);
