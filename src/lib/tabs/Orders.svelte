@@ -891,7 +891,7 @@
                 {#if pendingSold[o.id]}
                   <span class="pendrow">
                     <span class="register pending" title="Sent to warframe.market in a moment: marked sold, the listing lowered, the sale logged">Sold {pendingSold[o.id]}<i aria-hidden="true"></i></span>
-                    <button type="button" class="link undo" title="Undo: nothing is sent" onclick={(e) => { const acts = e.currentTarget.closest(".acts"); refocus(e.currentTarget, () => named(acts, "Remove")); undoSale(o.id); }}>Undo</button>
+                    <button type="button" class="link undo" title="Undo: nothing is sent" onclick={(e) => { const acts = e.currentTarget.closest(".acts"); refocus(e.currentTarget, () => acts?.querySelector<HTMLElement>('[aria-label="Remove"]')); undoSale(o.id); }}>Undo</button>
                   </span>
                 {:else if selling?.id === o.id}
                   {@const n = selling.n}
