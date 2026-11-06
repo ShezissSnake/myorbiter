@@ -19,6 +19,8 @@ What can be settled without a Windows machine. Each line says how it was checked
       x86_64-pc-windows-gnu -p tennoscope` in `tennoscope/`). Its workspace still says
       `rust-version = "1.85"`, which `sysinfo` no longer builds with on Windows; only orbiter's
       crates are held to their MSRV in CI (`msrv.yml`).
+- [ ] Follow-up: TennoScope's `rust-version` raised to what it really needs (1.95, as orbiter),
+      or the reason it stays, decided with the `sysinfo` 0.40 update.
 - [x] **Where files go**:
       - TennoScope's folder: `%APPDATA%\io.github.deftera186.tennoscope`
         (`orbiter_data::default_tennoscope_dir`).
@@ -28,7 +30,8 @@ What can be settled without a Windows machine. Each line says how it was checked
       - Settings and caches: Tauri's `app_config_dir`, `%APPDATA%\dev.orbiter.app`.
       - CSV exports: the Downloads folder (`download_dir`), or the home folder without one.
 
-      All come from the platform's folders, not from HOME, and none is built with `/`.
+      All come from the platform's folders, not from the HOME variable, and none is built
+      with `/`.
 - [x] **Network paths are refused** wherever the page sends a path (`local_path`, `lib.rs`): it
       takes only a drive letter (`C:\…`, `\\?\C:\…`), so `\\host\share` and
       `\\?\UNC\…` are refused. A network share mapped to a drive letter (`Z:\`) still
