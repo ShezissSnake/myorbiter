@@ -59,3 +59,18 @@ test("a price alert is news at or under your price, whatever the usual price say
   // Alerts go first in the watchlist and don't count against its limit.
   assert.deepEqual(watchlist(m, 0, alerts).map((w) => w.kind), ["alert", "alert"]);
 });
+
+test("the live feed offers only sellers you can trade with, as the order-book scan does", () => {
+  const m = buildModel(bundle);
+  const byslug = new Map(watch.map((w) => [w.name.toLowerCase().replace(/ /g, "_"), w]));
+  const order = (platform: string, crossplay: boolean) => ({ id: "n2", type: "sell", platinum: 20, itemId: "a", user: { id: "u8", ingameName: "Faraway", status: "ingame", platform, crossplay } });
+  const noCross = { ...me, crossplay: false };
+  assert.equal(dealFromOrder(m, index, order("xbox", true), byslug, noCross), null, "crossplay off: another platform's seller can't trade with you");
+  assert.equal(dealFromOrder(m, index, order("switch", true), byslug, me), null, "Switch doesn't cross-trade");
+  assert.ok(dealFromOrder(m, index, order("xbox", true), byslug, me), "both on crossplay");
+  assert.ok(dealFromOrder(m, index, order("pc", false), byslug, noCross), "same platform");
+  // The scan says the same of the same sellers.
+  const book = (platform: string, crossplay: boolean) => [{ ...sell(20), user: { id: "u7", ingameName: "Faraway", status: "ingame", platform, crossplay } as BookOrder["user"] }];
+  assert.equal(findDeals(m, index, { mesa_prime_neuroptics: book("xbox", true) }, watch, noCross).length, 0);
+  assert.equal(findDeals(m, index, { mesa_prime_neuroptics: book("xbox", true) }, watch, me).length, 1);
+});
