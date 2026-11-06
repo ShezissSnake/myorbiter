@@ -59,3 +59,22 @@ advisories in a build-only dependency; seven exports used nowhere and ten used o
 | 3. IPC audit | All 73 commands the page can call (`generate_handler!`), read for input checks, file reach, URL and program reach, and abuse by a compromised page or crafted data (a first read by a helper, each finding then checked in the code); the capability in `src-tauri/capabilities/default.json`. | Fixed: network (UNC) paths on Windows passed the path check (folders, EE.log, and TennoScope's program, which could be started from a share); `discord_post` had no rate limit; `..` as a user name redirected a warframe.market request; `export_file` could write through a planted link and had no size cap; a log line from the page could forge more lines. Proposed (`proposals.md` §3): a file dialog for TennoScope's program (new dependency), narrowing `core:default`, no silent downgrade, a cap on market writes, binding the Discord webhook. | 6c72bd0 |
 | 4. Long-run stability | The demo account in Chromium with the page's clock and timers run 30–60× fast: 4 and 8 simulated hours of page switches (all 16 pages in turn), syncs, Check prices and Reprice on Orders, with Apply and Check automatically on every minute; then the same split into polling alone (Home only) and page switches alone. Sampled every 15 simulated minutes after a forced GC: JS heap, DOM nodes, listeners, documents, live timers (counted by the init script), page errors. | No leak. Over the 8-hour run, from hour 3 on: heap 67.0 → 66.9 MB, listeners 1,201 → 1,211, timers 24, documents 4; DOM 55,511 → 55,737 (+45 an hour, the capped activity log and notification lists filling). The early peak (94k nodes, 83 MB in hour 1, the hidden pages drawn in the background) is released by hour 3. No page error. | (no code change) |
 | 5. Windows code review | Every `cfg(windows)` path; the update flow on Windows (`updates.rs` `on_before_exit`, `companion::stop`, passive NSIS); file writes and renames (`write_atomic`, the status heartbeat, log rotation, exports); how paths are read (`var_os`/`PathBuf`, `to_str` only on file names). | Fixed: TennoScope wasn't waited for after being asked to stop, so the installer could hit its locked files; a save was lost when Windows refused the rename for a moment (a file held by a scanner). Already right: non-ASCII user names and spaces, the log rotation (Rust opens files with delete sharing). What needs a real Windows check is in `docs/testing/windows.md` (the network-path refusal, the update with TennoScope running, held files, user names with accents, install paths with spaces, SmartScreen, the overlay, notifications). | 2671b56 |
+| 6. Release notes | `docs/releases/first-public.md`: what orbiter does and what's new since 0.1.48 (What's New entries 13–18 and the fixes from these rounds that a player would notice), checked against the README and the app's own wording. | Ready to paste as the first Stable's release description. | 07ed497 |
+| 7. Go-public checklist | `docs/maintaining.md`, *Going public, step by step*: before the switch, the switch, GitHub settings, moving the signing secrets, a first public build, promoting it to Stable, the first manual install, each with a box, pointing at the existing detail sections. | Written. | 1398328 |
+
+### Round 3 summary
+
+All seven items were done in order, each committed and pushed with `npm test`, `npm run check --
+--threshold error` and, when Rust changed, `cargo test`. The MSRV is now Rust 1.95 (found by
+building every release target), checked weekly by `.github/workflows/msrv.yml`; seven unused exports
+are gone and four test-only helpers moved to `tests/support/builds.ts`.
+
+**Fixed:** a TennoScope program path on a network share is refused (Windows); Discord posts are
+capped at 20 a minute; an export never overwrites a file and is capped at 16 MB; a slug starting
+with punctuation is refused; control characters from the page are kept out of the log; before an
+update installs, orbiter waits for TennoScope to exit; saves retry while another program holds the
+file (Windows). No layout bugs in WebKitGTK at 800–1700 px; no leak over 8 simulated hours.
+
+**Waiting on the maintainer:** five IPC hardening items (`docs/testing/proposals.md` §3), the real
+Windows checks (`docs/testing/windows.md`), the go-public checklist itself, and the branch
+`claude/nice-cannon-hjl3fb`, whose deletion this session couldn't push.
