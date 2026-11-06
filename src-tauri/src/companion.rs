@@ -359,7 +359,8 @@ impl Companion {
     /// saves names it: older orbiters' `tennoscope.path` in the page's settings isn't taken over.
     pub fn load_custom(&self, file: PathBuf) {
         let kept = fs::read_to_string(&file).ok().map(|text| text.trim().to_owned());
-        *lock(&self.custom) = kept.filter(|k| !k.is_empty());
+        // Checked again as it's read: only a program named like TennoScope, whatever the file says.
+        *lock(&self.custom) = kept.filter(|k| !k.is_empty() && check_custom(k).is_ok());
         *lock(&self.custom_file) = Some(file);
     }
 
@@ -600,7 +601,7 @@ mod tests {
     }
 
     #[test]
-    fn the_chosen_program_is_kept_and_the_page_s_old_setting_is_not_taken() {
+    fn the_chosen_program_is_kept_and_read_back_only_if_it_s_still_a_tennoscope() {
         let dir = std::env::temp_dir().join(format!("orbiter-custom-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         let ts = dir.join(PROCESS);
@@ -620,6 +621,11 @@ mod tests {
         assert_eq!(c.status().custom, Some(ts.display().to_string()));
         c.set_custom(None).unwrap();
         assert_eq!(fs::read_to_string(&file).unwrap(), "");
+        // A file holding something else (written by anything but the dialog) isn't started.
+        fs::write(&file, "/bin/sh").unwrap();
+        let c = Companion::default();
+        c.load_custom(file.clone());
+        assert_eq!(c.status().custom, None);
         fs::remove_dir_all(&dir).unwrap();
     }
 

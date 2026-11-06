@@ -1,7 +1,7 @@
 <script lang="ts">
   // The bell in the sidebar: what orbiter told you lately (click one to open what it's about), and
   // what it tells you about, kind by kind, with a pause for all of them.
-  import { discordPost, isDiscordWebhook, type Settings } from "./backend";
+  import { discordConfirm, discordPost, isDiscordWebhook, type Settings } from "./backend";
   import { discordStatus, discordSent } from "./discordStatus.svelte";
   import { GROUP_NOTE, kindsFor, NOTICE_KINDS, noticeKind, splitTarget, type Notice, type NoticeKind, type NoticeKindInfo } from "./notices";
   import { pageById, type PageId } from "./pages";
@@ -119,7 +119,9 @@
   const discordJob = new Job(4000);
   function testDiscord() {
     void discordJob.run(async () => {
-      await discordPost(settings.notifyOptions.discord.url, "**orbiter**\nThis is how notifications will look here.");
+      const url = settings.notifyOptions.discord.url;
+      if (!(await discordConfirm(url))) throw new Error("not confirmed");
+      await discordPost(url, "**orbiter**\nThis is how notifications will look here.");
       discordSent(null);
       return "Sent";
     });
@@ -204,8 +206,8 @@
       <div class="row"><button class="stamp" onclick={test} title="Shows a notification now, the way they look. Nothing is saved.">Show a test notification</button></div>
       <div class="discord">
         <span class="register">Discord</span>
-        <p class="dim small">Also send some notifications to a Discord channel of yours, to see them on your phone while you're away: in Discord, a channel's Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL, and paste it here. The first time orbiter posts to an address, it asks in a window of its own whether to send there.</p>
-        <input type="url" placeholder="https://discord.com/api/webhooks/…" bind:value={settings.notifyOptions.discord.url} aria-label="Discord webhook address" class:bad={!!settings.notifyOptions.discord.url && !isDiscordWebhook(settings.notifyOptions.discord.url)} />
+        <p class="dim small">Also send some notifications to a Discord channel of yours, to see them on your phone while you're away: in Discord, a channel's Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL, and paste it here. orbiter asks once, in a window of its own, whether to send to a new address; until you say yes, nothing goes there.</p>
+        <input type="url" placeholder="https://discord.com/api/webhooks/…" bind:value={settings.notifyOptions.discord.url} onchange={() => isDiscordWebhook(settings.notifyOptions.discord.url) && void discordConfirm(settings.notifyOptions.discord.url).catch(() => {})} aria-label="Discord webhook address" class:bad={!!settings.notifyOptions.discord.url && !isDiscordWebhook(settings.notifyOptions.discord.url)} />
         {#if settings.notifyOptions.discord.url && !isDiscordWebhook(settings.notifyOptions.discord.url)}<span class="small warn-text">That isn't a Discord webhook address.</span>{/if}
         {#if isDiscordWebhook(settings.notifyOptions.discord.url)}
           <span class="small dim">Send these to Discord:</span>
