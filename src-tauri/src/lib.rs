@@ -390,7 +390,8 @@ fn discord_webhook(url: &str) -> bool {
 /// Posts a notification to your Discord webhook (Settings → notifications), for when you're away.
 /// Only to the address confirmed outside the page (`discord_confirm`): the page names the address
 /// it posts to, so a page gone wrong could otherwise send anything anywhere on Discord. Never asks
-/// itself: a notification may go out while you're away, and nothing should wait on a dialog then.
+/// itself: a notification may go out while the player is away, and nothing should wait on a
+/// dialog then.
 #[tauri::command]
 async fn discord_post(app: tauri::AppHandle, url: String, content: String) -> Result<(), String> {
     if !discord_webhook(&url) {
@@ -484,11 +485,11 @@ async fn discord_confirm(app: tauri::AppHandle, url: String) -> Result<bool, Str
     let Ok(_one) = DISCORD_ASKING.try_lock() else { return Ok(false) };
     let url = url.as_str();
     let app = &app;
-    // Read again under the lock: the dialog this one waited on may have confirmed this address.
+    // Read again under the lock: a dialog may have confirmed this address since the first read.
     let (file, kept) = discord_kept(app)?;
     match discord_address(kept.as_deref(), DISCORD_DECLINED.load(Ordering::SeqCst), url) {
         DiscordAddress::Kept => return Ok(true),
-        DiscordAddress::Declined => return Ok(false),
+        DiscordAddress::Declined => return Err("orbiter asks about one new Discord address at a time and stops after a no: restart orbiter to be asked again".into()),
         DiscordAddress::Ask => {}
     }
     use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
@@ -507,7 +508,8 @@ async fn discord_confirm(app: tauri::AppHandle, url: String) -> Result<bool, Str
         dialog.blocking_show()
     })
     .await
-    .unwrap_or(false);
+    // A dialog that couldn't be shown isn't a no: asked again next time.
+    .map_err(|e| format!("couldn't ask about the Discord address: {e}"))?;
     if yes {
         write_atomic(&file, url.as_bytes(), true).map_err(|e| format!("couldn't keep the Discord address: {e}"))?;
         log::info!(target: "orbiter::notify", "Discord webhook {id} confirmed");
