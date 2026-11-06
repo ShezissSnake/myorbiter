@@ -15,8 +15,9 @@ resolver = "2"
 version = "0.14.0"
 edition = "2024"
 license = "GPL-3.0-only"
-# The lowest Rust the workspace builds with (`cargo +1.95 check --workspace`): sysinfo 0.40 and
-# the let-chains in the code need 1.95. rust-toolchain.toml pins what releases are built with.
+# The lowest Rust the workspace builds with, as for orbiter (src-tauri/Cargo.toml): sysinfo 0.40
+# needs 1.95 on Windows. Checked with `cargo +1.95 check --workspace`; rust-toolchain.toml pins
+# what releases are built with.
 rust-version = "1.95"
 repository = "https://github.com/Deftera186/tennoscope"
 
