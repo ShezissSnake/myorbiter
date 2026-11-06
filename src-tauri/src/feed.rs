@@ -43,50 +43,82 @@ impl Feed {
     /// Starts the feed (once), or stops it.
     pub fn set(&self, app: tauri::AppHandle, on: bool) {
         if !on {
-            self.generation.fetch_add(1, Ordering::SeqCst);
-            self.started.store(false, Ordering::SeqCst);
-            if let Ok(mut s) = self.state.lock() {
-                *s = FeedState::default();
-            }
+            self.stop();
             return;
         }
         if self.started.swap(true, Ordering::SeqCst) {
             return;
         }
+        let s = self.state.lock();
         let gen = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
-        let generation = self.generation.clone();
-        let state = self.state.clone();
-        if let Ok(mut s) = state.lock() {
+        if let Ok(mut s) = s {
             s.running = true;
         }
+        let generation = self.generation.clone();
+        let state = self.state.clone();
         std::thread::spawn(move || {
+            let turn = Turn { state: &state, generation: &generation, gen };
             let mut pause = Duration::from_secs(5);
-            while generation.load(Ordering::SeqCst) == gen {
+            while turn.current() {
                 let began = Instant::now();
-                let why = run(&app, &state, &generation, gen);
-                if generation.load(Ordering::SeqCst) != gen {
-                    break;
-                }
-                if let Ok(mut s) = state.lock() {
+                let why = run(&app, &turn);
+                let reported = turn.report(|s| {
                     s.connected = false;
                     s.error = Some(why);
+                });
+                if reported.is_none() {
+                    break;
                 }
                 // A connection that lasted a while starts the waits over.
                 if began.elapsed() > Duration::from_secs(120) {
                     pause = Duration::from_secs(5);
                 }
                 let until = Instant::now() + pause;
-                while Instant::now() < until && generation.load(Ordering::SeqCst) == gen {
+                while Instant::now() < until && turn.current() {
                     std::thread::sleep(Duration::from_millis(250));
                 }
                 pause = (pause * 2).min(Duration::from_secs(300));
             }
         });
     }
+
+    fn stop(&self) {
+        // Bumped with the state held, so a loop that's about to report something either does so
+        // before this returns or not at all (see `Turn`).
+        let s = self.state.lock();
+        self.generation.fetch_add(1, Ordering::SeqCst);
+        self.started.store(false, Ordering::SeqCst);
+        if let Ok(mut s) = s {
+            *s = FeedState::default();
+        }
+    }
+}
+
+/// One start of the feed, as its loop sees it. Everything the loop tells the page (the state, an
+/// order) goes through `report`, which checks the generation with the state held: once the feed
+/// has been stopped or started again, an old loop that's still waiting on a read can't send
+/// anything more, even before it notices and ends.
+struct Turn<'a> {
+    state: &'a Mutex<FeedState>,
+    generation: &'a AtomicU64,
+    gen: u64,
+}
+
+impl Turn<'_> {
+    fn current(&self) -> bool {
+        self.generation.load(Ordering::SeqCst) == self.gen
+    }
+
+    /// Runs `f` on the state if this start is still the current one; `None` if it isn't.
+    fn report<R>(&self, f: impl FnOnce(&mut FeedState) -> R) -> Option<R> {
+        // A lock poisoned by a panic elsewhere doesn't end the feed: the state is still usable.
+        let mut s = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        self.current().then(|| f(&mut s))
+    }
 }
 
 /// One connection: until it drops (the reason) or the feed is stopped.
-fn run(app: &tauri::AppHandle, state: &Mutex<FeedState>, generation: &AtomicU64, gen: u64) -> String {
+fn run(app: &tauri::AppHandle, turn: &Turn) -> String {
     use tungstenite::{client::IntoClientRequest, Message};
     let _ = rustls::crypto::ring::default_provider().install_default();
     let mut request = match SOCKET.into_client_request() {
@@ -109,7 +141,7 @@ fn run(app: &tauri::AppHandle, state: &Mutex<FeedState>, generation: &AtomicU64,
     let mut heard = Instant::now();
     let mut pinged = Instant::now();
     loop {
-        if generation.load(Ordering::SeqCst) != gen {
+        if !turn.current() {
             let _ = ws.close(None);
             let _ = ws.flush();
             return "stopped".into();
@@ -139,18 +171,20 @@ fn run(app: &tauri::AppHandle, state: &Mutex<FeedState>, generation: &AtomicU64,
         let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else { continue };
         match v["route"].as_str() {
             Some("@wfm|cmd/subscribe/newOrders:ok") => {
-                if let Ok(mut s) = state.lock() {
+                turn.report(|s| {
                     s.connected = true;
                     s.error = None;
-                }
+                });
             }
             Some("@wfm|event/subscriptions/newOrder") => {
-                if let Ok(mut s) = state.lock() {
+                turn.report(|s| {
                     s.received += 1;
-                }
-                if worth_passing_on(&v["payload"]) {
-                    let _ = app.emit(ORDER_EVENT, &v["payload"]);
-                }
+                    if worth_passing_on(&v["payload"]) {
+                        // Under the state lock, so a stopped feed can't send: nothing in Rust listens
+                        // for ORDER_EVENT (only the page), so nothing can wait on that lock from here.
+                        let _ = app.emit(ORDER_EVENT, &v["payload"]);
+                    }
+                });
             }
             _ => {}
         }
@@ -176,5 +210,36 @@ mod tests {
         let mut away = o.clone();
         away["user"]["status"] = "offline".into();
         assert!(!worth_passing_on(&away));
+    }
+
+    #[test]
+    fn an_old_connection_sends_nothing_once_the_feed_is_stopped() {
+        let feed = Feed::default();
+        let gen = feed.generation.fetch_add(1, Ordering::SeqCst) + 1;
+        let sent = AtomicU64::new(0);
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                let turn = Turn { state: &feed.state, generation: &feed.generation, gen };
+                while turn
+                    .report(|s| {
+                        s.received += 1;
+                        sent.fetch_add(1, Ordering::SeqCst);
+                    })
+                    .is_some()
+                {}
+            });
+            while sent.load(Ordering::SeqCst) < 100 {
+                std::thread::yield_now();
+            }
+            feed.stop();
+            let at_stop = sent.load(Ordering::SeqCst);
+            std::thread::sleep(Duration::from_millis(50));
+            assert_eq!(sent.load(Ordering::SeqCst), at_stop, "nothing sent after the stop");
+            assert_eq!(feed.state().received, 0, "the state the stop cleared stays clear");
+        });
+        // A start after it: the old turn still can't report.
+        let turn = Turn { state: &feed.state, generation: &feed.generation, gen };
+        feed.generation.fetch_add(1, Ordering::SeqCst);
+        assert!(turn.report(|_| panic!("a stale turn reported")).is_none());
     }
 }

@@ -1,6 +1,6 @@
 <script lang="ts" generics="T extends string">
   // A menu you can tick several things in: looks like the app's other menus, opens a list of
-  // checkboxes. Nothing ticked is `any` ("Any era"). Esc or a click outside closes it.
+  // checkboxes. Nothing ticked is `any` ("Any era"). Esc, a click outside or tabbing out closes it.
   import Chip from "./Chip.svelte";
 
   let {
@@ -22,6 +22,7 @@
 
   let open = $state(false);
   let box = $state<HTMLElement>();
+  let opener = $state<HTMLButtonElement>();
   const name = (v: T) => options.find((o) => o.v === v)?.label ?? v;
   const shown = $derived(!value.length ? any : value.length <= 2 ? value.map(name).join(", ") : `${value.length} ${noun}`);
   const toggle = (v: T) => (value = value.includes(v) ? value.filter((x) => x !== v) : [...value, v]);
@@ -33,14 +34,24 @@
   }}
   onkeydown={(e) => {
     if (open && e.key === "Escape") {
+      // Focus on a tick would go with the list, to the page's body: hand it back to the button.
+      if (box?.contains(document.activeElement)) opener?.focus();
       open = false;
       e.stopPropagation();
     }
   }}
 />
 
-<span class="pm" bind:this={box}>
-  <button type="button" class="pmb" class:set={value.length > 0} aria-haspopup="true" aria-expanded={open} aria-label="{label}: {shown}" title="{label}: tick one or more; none ticked is {any.toLowerCase()}" onclick={() => (open = !open)}>{shown}</button>
+<!-- Focus that moves on outside the menu (Tab past its last tick) closes it. Focus going nowhere
+     (relatedTarget null: the window losing focus, or a click WebKit doesn't focus) leaves it be. -->
+<span
+  class="pm"
+  bind:this={box}
+  onfocusout={(e) => {
+    if (open && e.relatedTarget instanceof Node && !box?.contains(e.relatedTarget)) open = false;
+  }}
+>
+  <button type="button" bind:this={opener} class="pmb" class:set={value.length > 0} aria-haspopup="true" aria-expanded={open} aria-label="{label}: {shown}" title="{label}: tick one or more; none ticked is {any.toLowerCase()}" onclick={() => (open = !open)}>{shown}</button>
   {#if open}
     <div class="pop" role="group" aria-label={label}>
       <button type="button" class="link anyb" class:on={!value.length} onclick={() => (value = [])}>{any}</button>

@@ -10,7 +10,7 @@
 //! and every request that failed (the method and path, never the sign-in), the drop tables and
 //! EE.log being read, and errors from the window. Never a token: anything shaped like one is cut
 //! out before it's written. At 2 MB the file moves to `orbiter.1.log` (the one before that goes), so
-//! the two stay under 4 MB.
+//! the two stay under 4 MB; when it can't move, it starts over empty.
 
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
@@ -46,7 +46,7 @@ pub fn dir() -> Option<PathBuf> {
 /// Opens the log in `dir` and makes it the `log` crate's logger; a panic is logged too. Without a
 /// writable folder orbiter runs on, logging to the terminal only.
 pub fn init(dir: &Path) {
-    let opened = fs::create_dir_all(dir).ok().and_then(|_| open(&dir.join(FILE)));
+    let opened = fs::create_dir_all(dir).ok().and_then(|_| open(&dir.join(FILE), false));
     if opened.is_some() {
         let _ = DIR.set(dir.to_path_buf());
     }
@@ -62,10 +62,14 @@ pub fn init(dir: &Path) {
 }
 
 /// Only you can read it (0600 on Unix, an existing file made so too): it names your trades and
-/// partners.
-fn open(path: &Path) -> Option<Sink> {
+/// partners. `fresh` empties a file already there instead of adding to it.
+fn open(path: &Path, fresh: bool) -> Option<Sink> {
     let mut options = OpenOptions::new();
-    options.create(true).append(true);
+    if fresh {
+        options.create(true).write(true).truncate(true);
+    } else {
+        options.create(true).append(true);
+    }
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
@@ -104,9 +108,12 @@ impl log::Log for Logger {
         let mut guard = self.sink.lock().unwrap_or_else(|e| e.into_inner());
         let Some(sink) = guard.as_mut() else { return };
         if sink.size + line.len() as u64 > MAX_BYTES {
-            let old = sink.path.with_file_name(OLD_FILE);
-            let _ = fs::rename(&sink.path, old);
-            match open(&sink.path) {
+            // When the file can't move aside (on Windows, while another program holds
+            // `orbiter.1.log` open), it starts over empty instead: its lines go, but the cap holds.
+            let moved = fs::rename(&sink.path, sink.path.with_file_name(OLD_FILE)).is_ok();
+            // If it can't even be emptied (held without write sharing), it goes on as it was, past
+            // the cap, rather than the log stopping for the rest of the session.
+            match open(&sink.path, !moved).or_else(|| open(&sink.path, false)) {
                 Some(fresh) => *sink = fresh,
                 None => {
                     *guard = None;
@@ -322,10 +329,10 @@ mod tests {
         let path = dir.join(FILE);
         fs::write(&path, b"old\n").unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
-        let _sink = open(&path).unwrap();
+        let _sink = open(&path, false).unwrap();
         assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600, "an existing log is made private");
         fs::remove_file(&path).unwrap();
-        let _sink = open(&path).unwrap();
+        let _sink = open(&path, false).unwrap();
         assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600, "a new one starts private");
         fs::remove_dir_all(&dir).unwrap();
     }
@@ -335,13 +342,36 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("orbiter-log-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
-        let mut sink = open(&dir.join(FILE)).unwrap();
+        let mut sink = open(&dir.join(FILE), false).unwrap();
         sink.size = MAX_BYTES; // as if full
         let logger = Logger { sink: Mutex::new(Some(sink)), last_ui: Mutex::new((String::new(), 0, 0)) };
         let record = log::Record::builder().target("orbiter::test").level(log::Level::Info).args(format_args!("hello")).build();
         log::Log::log(&logger, &record);
         assert!(dir.join(OLD_FILE).is_file());
         assert!(fs::read_to_string(dir.join(FILE)).unwrap().ends_with("[test][INFO] hello\n"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_file_starts_over_when_it_cant_move_aside() {
+        let dir = std::env::temp_dir().join(format!("orbiter-log-held-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        // A folder under the old file's name: the rename fails, the way it does on Windows while
+        // another program holds `orbiter.1.log` open.
+        fs::create_dir_all(dir.join(OLD_FILE).join("held")).unwrap();
+        fs::write(dir.join(FILE), "an old line\n").unwrap();
+        let mut sink = open(&dir.join(FILE), false).unwrap();
+        sink.size = MAX_BYTES; // as if full
+        let logger = Logger { sink: Mutex::new(Some(sink)), last_ui: Mutex::new((String::new(), 0, 0)) };
+        let record = log::Record::builder().target("orbiter::test").level(log::Level::Info).args(format_args!("hello")).build();
+        log::Log::log(&logger, &record);
+        log::Log::log(&logger, &record);
+        let text = fs::read_to_string(dir.join(FILE)).unwrap();
+        assert!(!text.contains("an old line"), "emptied rather than grown past the cap: {text:?}");
+        assert_eq!(text.lines().count(), 2, "{text:?}");
+        assert!(text.ends_with("[test][INFO] hello\n"));
+        let size = logger.sink.lock().unwrap().as_ref().unwrap().size;
+        assert_eq!(size, text.len() as u64, "counted from empty");
         let _ = fs::remove_dir_all(&dir);
     }
 }

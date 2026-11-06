@@ -13,6 +13,7 @@
   import ProgressButton from "./ui/ProgressButton.svelte";
   import { Job } from "./job.svelte";
   import type { Snippet } from "svelte";
+  import { refocus, usable } from "./ui/refocus";
 
   let {
     open = $bindable(),
@@ -142,7 +143,7 @@
       {#if clearing}
         <span class="small">Clear all {settings.game.notices.length}?</span>
         <button class="danger" onclick={() => { settings.game.notices = []; clearing = false; }}>Clear</button>
-        <button class="link quiet" onclick={() => (clearing = false)}>Keep them</button>
+        <button class="link quiet" onclick={(e) => { const row = e.currentTarget.parentElement; refocus(e.currentTarget, () => [...(row?.querySelectorAll<HTMLElement>("button") ?? [])].find((b) => usable(b) && b.textContent?.trim() === "Clear all")); clearing = false; }}>Keep them</button>
       {:else}
         <button class="link quiet" title="Empty the list. Nothing else changes." onclick={() => (clearing = true)}>Clear all</button>
       {/if}

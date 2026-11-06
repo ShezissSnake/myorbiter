@@ -4,7 +4,7 @@
   // sells (the dearest Captura scenes, mods over 50p that sell daily…). Prices are what things sold
   // for lately; the buy order form shows the live order book.
   import type { Model } from "../core/model";
-  import { CATEGORIES, filterRows, marketRows, topPrice, type MarketCategory, type MarketRow } from "../core/browse";
+  import { CATEGORIES, categoryCounts, filterRows, marketRows, topPrice, type MarketCategory, type MarketRow } from "../core/browse";
   import { mkt } from "../marketStore.svelte";
   import { openUrl, wikiUrl } from "../backend";
   import Browse from "../ui/Browse.svelte";
@@ -61,7 +61,9 @@
   const rows = $derived(filterRows(all, { category: categoryNow, min, max, minTrades, owned, weekly }).filter((r) => matches(q, r.name)));
   /** What "Sold weekly" is hiding from the rest of the filters. */
   const slowHidden = $derived(weekly ? filterRows(all, { category: categoryNow, min, max, minTrades, owned, weekly: false }).filter((r) => matches(q, r.name)).length - rows.length : 0);
-  const count = (c: MarketCategory | "all") => (c === "all" ? all.length : all.filter((r) => r.category === c).length);
+  /** Beside each category in the menu: what picking it would show, under the other filters and the search. */
+  const counts = $derived(categoryCounts(all.filter((r) => matches(q, r.name)), { category: "all", min, max, minTrades, owned, weekly }));
+  const count = (c: MarketCategory | "all") => counts.get(c) ?? 0;
   const label = (c: MarketCategory) => CATEGORIES.find((x) => x.v === c)?.label ?? "";
   const daily = (t: number | null) => (t == null ? null : Math.round(t * 10) / 10);
   /** How often it sells, for the cards and the tooltips: sold/day as everywhere, by the week when it's under one a day. */

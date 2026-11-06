@@ -38,6 +38,13 @@
   });
 
   const items = $derived.by(whileShown("wishlist", () => settings.favourites.map((u) => wishItem(model, u)).filter((w): w is WishItem => !!w)));
+  // Taking something off the wishlist waits a few seconds, with Undo, before it's done.
+  const undo = new UndoSlots();
+  $effect(() => () => undo.flush());
+  // What stays on the list: something taken off is counted no more while its Undo runs (the band,
+  // the rings' stars, the relics to crack), though its card keeps its place until the time is up.
+  const starred = $derived(settings.favourites.filter((u) => !undo.has(u)));
+  const staying = $derived(items.filter((w) => !undo.has(w.c.unique)));
   // A card that comes in a later slice (below) was on the list already, and comes in as it is: only
   // one new to the list arrives (motion.ts, arrive). Worked out before the slices are.
   let listed = new Set(untrack(() => items.map((w) => w.c.unique)));
@@ -56,13 +63,17 @@
   const listView = inView(() => listBox, { min: 3, guess: 240 });
   const drawn = $derived.by(progressive(() => items, (w) => w.c.unique, { first: listView.count, step: 3, measure: listView.measure, hidden: listView.hidden, onShow: listView.onShow }));
   const open = $derived(openEras(model.live.fissures, now));
-  const byEra = $derived.by(whileShown("wishlist", () => wishlistEras(model, settings.favourites)));
+  const byEra = $derived.by(whileShown("wishlist", () => wishlistEras(model, starred)));
   // Every era with relics (Omnia fissures take any of them).
   // Eras with a fissure open now where a relic you hold drops something you want (Omnia takes any).
-  const crackNow = $derived(
-    ERAS.map((e) => ({ era: e, fissures: [...(open[e] ?? []), ...(open.Omnia ?? [])], relics: byEra.get(e) ?? [] })).filter((x) => x.relics.length && x.fissures.length),
-  );
-  const missingCount = $derived(items.reduce((n, w) => n + w.missing.length, 0));
+  const crackIn = (eras: Map<string, ReturnType<typeof byEra.get> & {}>) =>
+    ERAS.map((e) => ({ era: e, fissures: [...(open[e] ?? []), ...(open.Omnia ?? [])], relics: eras.get(e) ?? [] })).filter((x) => x.relics.length && x.fissures.length);
+  const crackNow = $derived(crackIn(byEra));
+  // The cards keep their place while an Undo runs, as the item cards do (the band's figures above
+  // leave the item out at once): from everything still starred, Undo pending or not.
+  const byEraShown = $derived.by(whileShown("wishlist", () => wishlistEras(model, settings.favourites)));
+  const crackCards = $derived(crackIn(byEraShown));
+  const missingCount = $derived(staying.reduce((n, w) => n + w.missing.length, 0));
   const relicsHeld = $derived(new Set([...byEra.values()].flat().map((x) => x.relic)).size);
 
   // Adding by name.
@@ -96,9 +107,6 @@
     addedTimer = setTimeout(() => added === u && (added = null), 1100);
     requestAnimationFrame(() => document.querySelector<HTMLElement>(`.wish[data-unique="${CSS.escape(u)}"]`)?.scrollIntoView({ block: "nearest", behavior: calm.current ? "auto" : "smooth" }));
   }
-  // Taking something off the wishlist waits a few seconds, with Undo, before it's done.
-  const undo = new UndoSlots();
-  $effect(() => () => undo.flush());
   const remove = (u: string) => undo.hold(u, () => (settings.favourites = settings.favourites.filter((x) => x !== u)));
   const pct = (x: number) => (x >= 0.995 ? "99%+" : x < 0.005 && x > 0 ? "<1%" : `${Math.round(x * 100)}%`);
   /** Missing parts that come from relics, but none you hold. */
@@ -117,7 +125,7 @@
   // many you starred in it. A click goes to the first of those, or, with none starred there, to
   // Foundry's not-mastered ones in that category, where you star them.
   const rings = $derived.by(whileShown("wishlist", () => codexRings(model)));
-  const marks = $derived.by(whileShown("wishlist", () => starredBy(model, settings.favourites)));
+  const marks = $derived.by(whileShown("wishlist", () => starredBy(model, starred)));
   const pickRing = (g: Group) => (marks[g] ? jump(g) : go?.(`foundry?group=${g}&show=todo`));
   /**
    * A ring's click: to the first thing you starred in that category, which flashes gold (motion.ts,
@@ -180,13 +188,13 @@
 
 <!-- The band only once something is starred: four zeros say nothing. -->
 {#snippet band()}
-  <Stat label="Wished for" note="Star anything in Foundry, Mastery or its details"><Count value={items.length} /></Stat>
+  <Stat label="Wished for" note="Star anything in Foundry, Mastery or its details"><Count value={staying.length} /></Stat>
   <Stat label="Parts missing" tone="dim" note="Across everything you starred"><Count value={missingCount} /></Stat>
   <Stat extra label="Relics you hold" note="That drop one of those parts"><Count value={relicsHeld} /></Stat>
   <Stat keep label="Crack now" tone="gold" note={crackNow.length ? crackNow.map((c) => c.era).join(", ") + " fissures open" : "No matching fissure open"}><Count value={crackNow.length} /></Stat>
 {/snippet}
 
-{#snippet codex()}<CodexRings {rings} {marks} onpick={pickRing} all={{ onpick: () => (items.length ? jump(null) : go?.("foundry?show=todo")), action: items.length ? "Click to go to the first thing you starred" : "Nothing starred yet: click to pick from everything you haven't mastered, on Foundry" }} action={(r) => (marks[r.group] ? `Click to go to the first one you starred` : `Nothing starred here: click to pick from the ${r.label.toLowerCase()} you haven't mastered, on Foundry`)} line={items.length ? nextLine : "Click a category to pick from what you haven't mastered in it, on Foundry"} />{/snippet}
+{#snippet codex()}<CodexRings {rings} {marks} jumps onpick={pickRing} all={{ onpick: () => (items.length ? jump(null) : go?.("foundry?show=todo")), action: items.length ? "Click to go to the first thing you starred" : "Nothing starred yet: click to pick from everything you haven't mastered, on Foundry" }} action={(r) => (marks[r.group] ? `Click to go to the first one you starred` : `Nothing starred here: click to pick from the ${r.label.toLowerCase()} you haven't mastered, on Foundry`)} line={items.length ? nextLine : "Click a category to pick from what you haven't mastered in it, on Foundry"} />{/snippet}
 
 <div class="page"><div class="page-inner">
   <PageHead title="Wishlist" brief="What you starred, and how to get each part." blurb="What you've starred, and the quickest way to each missing part: a relic you hold, where to farm one, or what it costs." band={items.length ? band : undefined} hero={codex} />
@@ -199,9 +207,9 @@
     {:else if already}<span class="dim small">Already on your wishlist.</span>{/if}
   </div>
 
-  {#if crackNow.length}
+  {#if crackCards.length}
     <section class="now" aria-label="Crack now">
-      {#each crackNow as c (c.era)}
+      {#each crackCards as c (c.era)}
         <div class="era era-wash" style:--tint={eraTint(c.era)}>
           <div class="eh"><GameIcon name={eraIcon(c.era)} size={26} /><b class="mark">{c.era}</b><span class="dim small">{fissureCount(c.era)} · next closes in {until([...c.fissures].sort((a, b) => Date.parse(a.expiry) - Date.parse(b.expiry))[0].expiry, now)}</span></div>
           <ul>

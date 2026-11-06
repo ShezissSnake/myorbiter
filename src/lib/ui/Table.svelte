@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
   import { sortRows, type Column } from "./table";
   import { nearEnd } from "./nearEnd";
+  import { sideways } from "./sideways";
   import NoMatch from "./NoMatch.svelte";
   import { inView, progressive } from "../progress.svelte";
 
@@ -30,6 +31,8 @@
   } = $props();
 
   let open = $state<string | null>(null);
+  /** The table is wider than the room it has: it scrolls sideways (sideways.ts). */
+  let wide = $state(false);
   // A first screenful of rows at once, then more as you scroll.
   let shown = $state(50);
   $effect(() => {
@@ -51,7 +54,7 @@
   }
 </script>
 
-<div class="wrap" use:view.watch>
+<div class="wrap" class:wide use:view.watch use:sideways={(w) => (wide = w)}>
   <table>
     <thead>
       <tr>
@@ -112,8 +115,9 @@
   /* Painted on its own: a fold opening above it, a row hovered or a figure rolling elsewhere on the
      page doesn't repaint the whole table, nor a row changing the rest of the page. */
   .wrap { border-top: 1px solid var(--rule); contain: paint; }
-  /* A narrow page: a table wider than it scrolls sideways rather than running off the window. */
-  :global(html[data-room~="lt1100"]) .wrap { overflow-x: auto; }
+  /* A table wider than the room scrolls sideways rather than running off the window; only then, so
+     the header sticks to the page's top otherwise (sideways.ts). */
+  .wrap.wide { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
   th {
     position: sticky; top: 0; z-index: 1; background: var(--slab); text-align: left;
