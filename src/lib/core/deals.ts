@@ -2,7 +2,7 @@
 // well under its usual price. The watchlist is short on purpose: every item is one order-book
 // request to warframe.market.
 import { setGaps } from "./advice";
-import { competitor, findItem, referencePrice, type BookOrder, type BookUser, type MarketIndex, type MarketItem, type Me } from "./market";
+import { canTrade, competitor, findItem, referencePrice, type BookOrder, type BookUser, type MarketIndex, type MarketItem, type Me } from "./market";
 import type { Model } from "./model";
 import { arcaneRows } from "./views";
 
@@ -131,6 +131,8 @@ export function dealFromOrder(m: Model, index: MarketIndex, o: FeedOrder, watch:
   if (!w) return null;
   const seller = o.user.ingameName ?? "";
   if (!seller || (me && (o.user.id === me.id || seller === me.ingameName))) return null;
+  // Only a seller you can trade with, as the order-book scan counts them (platform and crossplay).
+  if (me && !canTrade(me, { platform: o.user.platform, crossplay: o.user.crossplay } as BookUser)) return null;
   const rank = it.maxRank != null ? (w.rank ?? 0) : null;
   if (rank != null && (o.rank ?? 0) !== rank) return null;
   const sub = w.subtype ?? it.subtypes?.[0] ?? null;
