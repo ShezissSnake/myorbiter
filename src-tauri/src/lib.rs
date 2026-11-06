@@ -1049,9 +1049,14 @@ impl SaveGate {
         self.page
     }
 
-    /// Whether save `rev` from page `page` may be written.
-    fn may_write(&self, page: u64, rev: u64) -> bool {
-        page != 0 && page == self.page && (page > self.written.0 || rev >= self.written.1)
+    /// Whether save `rev` from page `page` may be written: Ok(false) for one that lost the race to
+    /// a newer save of the same page, an error for a page that isn't the one loaded last (a token
+    /// no load handed out, or a page that has since reloaded), so a page still open says so.
+    fn may_write(&self, page: u64, rev: u64) -> Result<bool, String> {
+        if page == 0 || page != self.page {
+            return Err("the settings were loaded again since this page loaded them; restart orbiter to save".into());
+        }
+        Ok(page > self.written.0 || rev >= self.written.1)
     }
 
     fn wrote(&mut self, page: u64, rev: u64) {
@@ -1071,7 +1076,7 @@ async fn save_settings(app: tauri::AppHandle, settings: Value, page: u64, rev: u
         let path = settings_path(&app)?;
         let text = serde_json::to_vec_pretty(&settings).map_err(|e| e.to_string())?;
         let mut gate = SETTINGS_GATE.lock().unwrap_or_else(|e| e.into_inner());
-        if !gate.may_write(page, rev) {
+        if !gate.may_write(page, rev)? {
             return Ok(());
         }
         // Only you need to read it.
@@ -1374,19 +1379,19 @@ mod tests {
         let mut gate = SaveGate::new();
         let old = gate.page_loaded();
         for rev in 1..=5 {
-            assert!(gate.may_write(old, rev));
+            assert_eq!(gate.may_write(old, rev), Ok(true));
             gate.wrote(old, rev);
         }
         // The page reloads: its saves start again at 1, below the old page's 5, and still go in.
         let new = gate.page_loaded();
         assert!(new > old);
         // A save the old page sent just before the reload, arriving after the new page loaded: the
-        // new page didn't read it, so it's dropped rather than written under the new page's feet.
-        assert!(!gate.may_write(old, 6));
-        assert!(gate.may_write(new, 1));
+        // new page didn't read it, so it's refused rather than written under the new page's feet.
+        assert!(gate.may_write(old, 6).is_err());
+        assert_eq!(gate.may_write(new, 1), Ok(true));
         gate.wrote(new, 1);
-        assert!(!gate.may_write(old, 7));
-        assert!(gate.may_write(new, 2));
+        assert!(gate.may_write(old, 7).is_err());
+        assert_eq!(gate.may_write(new, 2), Ok(true));
     }
 
     #[test]
@@ -1394,22 +1399,22 @@ mod tests {
         let mut gate = SaveGate::new();
         let page = gate.page_loaded();
         gate.wrote(page, 3);
-        assert!(!gate.may_write(page, 2));
+        assert_eq!(gate.may_write(page, 2), Ok(false));
         // The same number again (a save tried twice) still goes in.
-        assert!(gate.may_write(page, 3));
-        assert!(gate.may_write(page, 4));
+        assert_eq!(gate.may_write(page, 3), Ok(true));
+        assert_eq!(gate.may_write(page, 4), Ok(true));
     }
 
     #[test]
     fn a_save_without_a_page_that_loaded_is_refused() {
         let mut gate = SaveGate::new();
         // Nothing loaded yet: no token is good.
-        assert!(!gate.may_write(0, 1));
-        assert!(!gate.may_write(1, 1));
+        assert!(gate.may_write(0, 1).is_err());
+        assert!(gate.may_write(1, 1).is_err());
         let page = gate.page_loaded();
         // A token no load handed out.
-        assert!(!gate.may_write(page + 1, 1));
-        assert!(gate.may_write(page, 1));
+        assert!(gate.may_write(page + 1, 1).is_err());
+        assert_eq!(gate.may_write(page, 1), Ok(true));
     }
 }
 
