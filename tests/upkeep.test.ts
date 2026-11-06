@@ -1,6 +1,6 @@
 // Bookkeeping for long sessions: back-off, bounded seen-lists, value history thinning, and which
 // hand-logged sale a trade stands for.
-process.env.TZ = "Europe/Paris";
+process.env.TZ = "America/Los_Angeles";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { backoff, handLoggedSale, keepSeen, thinHistory } from "../src/lib/core/upkeep";
@@ -43,12 +43,12 @@ test("value history keeps every recent read and one a day before that", () => {
 });
 
 test("value history days are local days, across the clock change", () => {
-  // Paris: summer time ends 25 Oct 2026 at 03:00 local, a 25-hour day. Reads at 00:30 and 23:30
-  // local are the same day; 00:30 the next day is not.
-  const at = (d: number, h: number, m: number) => +new Date(2026, 9, d, h, m);
-  const pts = [at(25, 0, 30), at(25, 23, 30), at(26, 0, 30)].map(point);
+  // Los Angeles: summer time ends 1 Nov 2026 at 02:00 local, a 25-hour day. Reads at 00:30 and
+  // 23:30 local are the same day; 00:30 the next day is not.
+  const at = (d: number, h: number, m: number) => +new Date(2026, 10, d, h, m);
+  const pts = [at(1, 0, 30), at(1, 23, 30), at(2, 0, 30)].map(point);
   const out = thinHistory(pts, +new Date(2027, 0, 1));
-  assert.deepEqual(out.map((p) => p.at), [at(25, 23, 30), at(26, 0, 30)]);
+  assert.deepEqual(out.map((p) => p.at), [at(1, 23, 30), at(2, 0, 30)]);
 });
 
 const sale = (at: number, item: string, trade?: string): Sale => ({ at, item, rank: null, quantity: 1, platinum: 10, ...(trade ? { trade } : {}) });
