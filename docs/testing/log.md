@@ -85,9 +85,10 @@ Rounds of four steps: coverage, a code read, a page polish, longer fuzzing. Each
 covered once; the lists below say which.
 
 **Covered so far.** Coverage: `marketStore.svelte.ts` (the listing form). Code reads: `core/closedOrders.ts`, `core/saleNotice.ts`.
-Pages: none yet.
+Pages: Sales.
 
 | Step | Checked | Found | Commit |
 | --- | --- | --- | --- |
 | 1.1 Coverage | `node --test --experimental-test-coverage` over `src/`: 90% of lines, 89% of branches. Least covered of the money files: `marketStore.svelte.ts` (74% of branches); its listing form's submit had no test. Six tests added (what's spare, bad amounts, adding to a hidden listing, the 100-listing limit, a create that timed out but was made, the newest inventory), each checked to fail with its rule removed. | The form's last check counted copies from the inventory read the form opened with: copies traded away while it was open still counted as spare. Fixed. | e9492c2 |
 | 2.1 Code read | `core/closedOrders.ts` (importing sales from warframe.market's closed orders) and `core/saleNotice.ts` (the sale notification, which trades to tell, +rep offers). | A closed order was matched to the first logged sale of the item within six hours, whatever its quantity: a sale of 1 logged after a trade could be taken for 2 marked sold on the website, and those 2 never reached Sales. A closed order listed twice was imported twice. Both fixed (same quantity first, then the nearest; each id once), with tests that fail without them. `saleNotice.ts`: nothing wrong. | 77802f1 |
+| 3.1 Page polish | Sales, demo account with 40 invented sales (and without any, for the empty state), at 1000 and 1300 px in Chromium: every control's name and tooltip, the chart's spans, best sellers, the sale log, adding a sale by hand, import and export. | "67%UNDER": the word ran into the number (a leading space in generated content is dropped). 7 days, 30 days and the three add-a-sale fields had no tooltip. Fixed; before and after in `docs/testing/polish/sales-under-*.png`. Empty state, import failure and the add button's reasons read plainly. | 1ae8d73 |
