@@ -5,7 +5,7 @@
 // and the trades are made up. Game data (item names, paths, ducats, relic rewards) is public and
 // comes from the @wfcd/items package, read from a copy outside the repository:
 //
-//   mkdir -p /tmp/wfcd && cd /tmp/wfcd && npm pack @wfcd/items && tar xzf wfcd-items-*.tgz
+//   mkdir -p /tmp/wfcd && cd /tmp/wfcd && npm pack @wfcd/items@1.1276.48 && tar xzf wfcd-items-*.tgz
 //   node scripts/demo-data.mjs /tmp/wfcd/package
 //
 // The output is the same on every run for the same package: choices come from a seeded random
@@ -778,6 +778,18 @@ for (const [part, gem, n] of KERATINOS_PARTS) {
   const x = resourceByName.get(gem);
   recipes[part] = { c: 15_000, i: [[x.uniqueName, n]] };
   names[x.uniqueName] ??= { n: x.name, img: x.imageName ?? "", r: (x.rarity ?? "").toUpperCase(), k: "world" };
+}
+
+// A whole spare set of a weapon warframe.market trades as one (Braton Vandal, built and mastered):
+// its blueprint and three parts, one of each.
+{
+  const g = gearByName.get("Braton Vandal");
+  trade(`${g.name} Set`, g.uniqueName, ["set", "weapon"], {}, [20, 40]);
+  for (const c of g.components) {
+    const name = c.name === "Blueprint" ? `${g.name} Blueprint` : `${g.name} ${c.name}`;
+    hold(c.uniqueName, name, "blueprint", 1, { image_name: c.imageName ?? null });
+    trade(name, c.uniqueName, ["weapon", c.name === "Blueprint" ? "blueprint" : "component"], {}, [4, 10]);
+  }
 }
 
 // Kubrow imprints of one breed: warframe.market lists them under the companion's path. (TennoScope
