@@ -46,7 +46,7 @@ export function relicDataOf(raw: unknown): RelicData | null {
   const reward = (w: unknown): w is RelicData["relics"][number]["rewards"][number] => isObject(w) && typeof w.name === "string" && (w.chance == null || Number.isFinite(w.chance));
   const relics = raw.relics
     .filter((r): r is RelicData["relics"][number] => isObject(r) && typeof r.name === "string" && Array.isArray(r.rewards))
-    .map((r) => (r.rewards.every(reward) ? r : { ...r, rewards: r.rewards.filter(reward) }));
+    .map((r) => (r.rewards.every((w: unknown) => reward(w)) ? r : { ...r, rewards: (r.rewards as unknown[]).filter(reward) }));
   const drops: RelicData["drops"] = {};
   for (const [k, v] of Object.entries(raw.drops)) if (Array.isArray(v)) drops[k] = v.filter((d): d is RelicData["drops"][string][number] => isObject(d) && typeof d.location === "string" && Number.isFinite(d.chance));
   const paths = Object.fromEntries(Object.entries(raw.paths).filter(([, n]) => typeof n === "string")) as RelicData["paths"];
