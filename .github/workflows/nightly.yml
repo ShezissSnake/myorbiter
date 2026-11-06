@@ -6,8 +6,9 @@ name: Nightly Experimental build
 # queued or running counts as built. A build that failed before publishing left no tag, so the next
 # night tries again.
 #
-# While the repository is private this starts nothing (Actions minutes are limited there); runs
-# started by hand on release.yml still build. Promote (promote.yml) and the pruning of old
+# While the repository is private this starts nothing (Actions minutes are limited there; it asks
+# the API, since a scheduled run's event doesn't say); runs started by hand on release.yml still
+# build. Promote (promote.yml) and the pruning of old
 # Experimental builds (release.yml, prune) are unchanged.
 #
 # This job checks out no code and runs only gh and jq. Its token can read the repository and start
@@ -28,7 +29,6 @@ concurrency:
 jobs:
   start:
     name: Build main if it changed
-    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read # main's commit and the build-<n> tags
@@ -40,13 +40,19 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          # Asked of the API, not the event: a scheduled run's event says nothing about the repository.
+          if [ "$(gh api "repos/$REPO" --jq .private)" != false ]; then
+            echo "The repository is private: no nightly build (Actions minutes are limited there)." >>"$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           head=$(gh api "repos/$REPO/commits/main" --jq .sha)
 
           # The highest build-<n> tag and the commit it names (lightweight tags name the commit;
           # an annotated one is followed to it).
-          newest=$(gh api --paginate "repos/$REPO/git/matching-refs/tags/build-" \
-            --jq '.[] | "\(.ref | ltrimstr("refs/tags/build-")) \(.object.type) \(.object.sha)"' |
-            grep -E '^[0-9]+ ' | sort -n | tail -n1 || true)
+          # A failed call stops the job here (set -e), rather than reading as "no build yet".
+          refs=$(gh api --paginate "repos/$REPO/git/matching-refs/tags/build-" \
+            --jq '.[] | "\(.ref | ltrimstr("refs/tags/build-")) \(.object.type) \(.object.sha)"')
+          newest=$(printf '%s\n' "$refs" | { grep -E '^[0-9]+ ' || true; } | sort -n | tail -n1)
           built=""
           if [ -n "$newest" ]; then
             read -r n type sha <<<"$newest"

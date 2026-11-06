@@ -78,8 +78,9 @@ on:
 # credentials behind in .git, and every Cargo build uses its Cargo.lock as committed (--locked).
 permissions: {}
 
-# Runs of one branch queue one behind the other and are never cancelled: nothing of a build is
-# published before its last jobs, and the channel never moves backwards (publish).
+# A run that has started is never cancelled. One more of the same branch waits behind it; a newer
+# one replaces the one waiting (GitHub keeps one running and one pending per group). Nothing of a
+# build is published before its last jobs, and the channel never moves backwards (publish).
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
