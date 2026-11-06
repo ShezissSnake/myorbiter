@@ -308,9 +308,9 @@ fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state:
     // third time in ten minutes, orbiter stops putting it back for ten minutes rather than fight.
     let mut overrides: Vec<Instant> = Vec::new();
     let mut hold_until: Option<Instant> = None;
-    // The first heartbeat goes out at once. Not `now - HEARTBEAT`: on Windows an Instant counts from
-    // boot, and a subtraction that goes below it panics (and a panic closes the app).
-    let mut last_beat = Instant::now().checked_sub(HEARTBEAT).unwrap_or_else(Instant::now);
+    // None: the first heartbeat goes out at once. Not `now - HEARTBEAT`: on Windows an Instant counts
+    // from boot, and a subtraction that goes below it panics (and a panic closes the app).
+    let mut last_beat: Option<Instant> = None;
     loop {
         // Your choices first.
         loop {
@@ -335,9 +335,9 @@ fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state:
                 Err(std::sync::mpsc::TryRecvError::Empty) => break,
             }
         }
-        if signed_in && last_beat.elapsed() >= HEARTBEAT {
+        if signed_in && last_beat.is_none_or(|t| t.elapsed() >= HEARTBEAT) {
             write_heartbeat(id, *wanted);
-            last_beat = Instant::now();
+            last_beat = Some(Instant::now());
         }
         if heard.elapsed() > SILENT_FOR {
             return Ended::Dropped("No answer from warframe.market; reconnecting".into());
