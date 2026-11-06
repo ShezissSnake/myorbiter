@@ -19,7 +19,7 @@ One download, nothing else to install. TennoScope and its OCR engine are inside 
 - **Windows:** `orbiter_<0.2.N>_x64-setup.exe`. It installs for your user only. It isn't signed, so
   SmartScreen warns the first time: *More info → Run anyway*.
 
-Each release lists the SHA-256 of its files in `SHA256SUMS`. [The README](../../README.md#install)
+Each release lists the SHA-256 of its files in `SHA256SUMS`. [Installing orbiter](../install.md)
 has the details, including what to do if the window opens blank (Compatibility rendering).
 
 ## Updates
