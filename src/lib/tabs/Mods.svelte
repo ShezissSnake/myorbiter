@@ -63,6 +63,14 @@
     ),
   );
   const filtered = $derived(!!q.trim() || rarity !== "all" || !dupesOnly || !tradableOnly || !sellingOnly);
+  /** What the folded filters keep to, both on to start ("tradable", "sold daily"). */
+  const keepsTo = $derived([tradableOnly ? "tradable" : "", sellingOnly ? "sold daily" : ""].filter(Boolean));
+  /**
+   * The mods Tradable and Sold daily hide from what the other filters show. Being on to start, they
+   * don't count in `filtered` (Clear puts them back on), so the list says what they hide, as Browse
+   * market does for Sold weekly, and an empty list doesn't claim there are no spare copies at all.
+   */
+  const foldHidden = $derived(keepsTo.length ? all.filter((r) => (!dupesOnly || r.extras > 0) && (rarity === "all" || r.rarity === rarity) && matches(q, r.name, r.type)).length - rows.length : 0);
   function clear() {
     query = "";
     rarity = "all";
@@ -180,13 +188,14 @@
     {#each ["Common", "Uncommon", "Rare", "Legendary"] as x (x)}<option value={x}>{x}</option>{/each}
   </select>
   <Chip bind:on={dupesOnly} label="Spare only" title="Three or more copies: more than your own and one to give away" />
-  <Fold on={[tradableOnly ? "tradable" : "", sellingOnly ? "sold daily" : ""].filter(Boolean).join(", ")} active={(tradableOnly ? 0 : 1) + (sellingOnly ? 0 : 1)} reset={() => { tradableOnly = true; sellingOnly = true; }}>
+  <Fold on={keepsTo.join(", ")} active={(tradableOnly ? 0 : 1) + (sellingOnly ? 0 : 1)} reset={() => { tradableOnly = true; sellingOnly = true; }}>
     <Chip bind:on={tradableOnly} label="Tradable" title="Only mods you can sell or trade (not Flawed ones, and the like)" />
     <Chip bind:on={sellingOnly} label="Sold daily" title="Only mods that sell at least once a day on warframe.market" />
   </Fold>
   </div>
 
-  <Browse id="mods" bind:opened {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty="No spare mod copies: your best copy and one to give away are kept." />
+  <Browse id="mods" bind:opened {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty={foldHidden ? "No spare copies of tradable mods that sell daily." : "No spare mod copies: your best copy and one to give away are kept."} />
+  {#if foldHidden}<p class="dim small more">{foldHidden.toLocaleString("en")} more {foldHidden === 1 ? "mod isn't" : "mods aren't"} {keepsTo.join(" or ")} (More filters). <button class="link" onclick={() => { tradableOnly = false; sellingOnly = false; }}>Show them</button></p>{/if}
 </div></div>
 
 <style>
@@ -204,4 +213,5 @@
   .rar-Rare { color: var(--rarity-rare); }
   .rar-Legendary { color: var(--rarity-legendary); }
   .grow { flex: 1; }
+  .more { text-align: center; }
 </style>

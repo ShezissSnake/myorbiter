@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildModel } from "../src/lib/core/model";
-import { categoryOf, filterRows, marketRows, type MarketFilter } from "../src/lib/core/browse";
+import { categoryCounts, categoryOf, filterRows, marketRows, type MarketFilter } from "../src/lib/core/browse";
 import type { MarketItem } from "../src/lib/core/market";
 import type { Bundle } from "../src/lib/core/types";
 
@@ -53,6 +53,16 @@ test("filters: category, price either way, how often it sells, owned", () => {
   assert.deepEqual(names(filterRows(rows, { ...all, max: 10 })), ["Corpus Depository Scene", "Serration", "Arcane Energize", "Mandonel Barrel"]);
   assert.deepEqual(names(filterRows(rows, { ...all, category: "scene", minTrades: 1 })), ["Corpus Depository Scene"]);
   assert.deepEqual(names(filterRows(rows, { ...all, owned: true })), ["Mandonel Barrel"]);
+});
+
+test("the category menu counts what each category shows under the other filters", () => {
+  const rows = marketRows(buildModel(bundle), ITEMS);
+  const counts = (f: MarketFilter) => Object.fromEntries(categoryCounts(rows, f));
+  assert.deepEqual(counts(all), { all: 9, scene: 2, mod: 1, arcane: 1, prime: 1, set: 1, relic: 1, gear: 1, fish: 1 });
+  // At least 100p: two scenes become one, and the categories with nothing left drop out of the map.
+  assert.deepEqual(counts({ ...all, min: 100 }), { all: 2, scene: 1, arcane: 1 });
+  // The category picked doesn't narrow the others' counts: each says what picking it would show.
+  assert.deepEqual(counts({ ...all, category: "scene", owned: true }), { all: 1, gear: 1 });
 });
 
 test("sells weekly: prices from fewer than one sale a week can be left out", () => {

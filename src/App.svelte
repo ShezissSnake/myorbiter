@@ -173,6 +173,8 @@
   const wideEnough = $derived(width >= 1640);
   // Not beside Home: Home already shows the alerts, fissures, clocks and the rest it would repeat.
   const sideShown = $derived.by(() => wideEnough && settings.side.on && settings.tab !== "home");
+  /** The « tab that brings the column back, while it's off: a narrow column of its own, beside the page's scrollbar rather than over it. */
+  const sideTab = $derived.by(() => wideEnough && !!model && !settings.side.on);
 
   // Show details (Settings, and the switch by each page's title): marks <html> for the shared
   // components' styles, and lets PageHead's switch change the setting.
@@ -2561,7 +2563,7 @@
 
 <!-- Keyboard: the first Tab offers to jump past the sidebar to the page. -->
 <a class="skip" href="#main" title="Jump past the sidebar to this page's title" onclick={(e) => { e.preventDefault(); focusPage(document.activeElement, 0); }}>Skip to page</a>
-<div class="shell" class:compact class:withside={sideShown}>
+<div class="shell" class:compact class:withside={sideShown} class:withtab={sideTab}>
   <aside class="rail" aria-label="orbiter">
     <div class="brand">
       <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
@@ -2795,7 +2797,7 @@
   </main>
   {#if sideShown && model}
     <SideWatch {model} {live} bind:settings console={onConsole} bountyTables={relicTables?.bounties ?? null} go={(t: string) => goTo(t)} {shortListings} {liveError} />
-  {:else if wideEnough && model && !settings.side.on}
+  {:else if sideTab}
     <button class="sidetab" title="Show the Watching column: fissures, alerts, clocks and more beside every page" onclick={() => (settings.side.on = true)}>«</button>
   {/if}
 </div>
@@ -2827,7 +2829,11 @@
   .shell.compact { grid-template-columns: 4.4rem minmax(0, 1fr); }
   .shell.withside { grid-template-columns: 14.5rem minmax(0, 1fr) 17.5rem; }
   .shell.compact.withside { grid-template-columns: 4.4rem minmax(0, 1fr) 17.5rem; }
-  .sidetab { position: fixed; right: 0; top: 50%; z-index: 6; width: 18px; height: 64px; padding: 0; border: 1px solid var(--rule); border-right: 0; background: var(--plate); color: var(--platinum-deep); }
+  /* The « tab gets its own 18 px on the right edge: fixed over the page, it covered the end of the
+     page's scrollbar, and a click on the track there opened the column instead of scrolling. */
+  .shell.withtab { grid-template-columns: 14.5rem minmax(0, 1fr) 18px; }
+  .shell.compact.withtab { grid-template-columns: 4.4rem minmax(0, 1fr) 18px; }
+  .sidetab { align-self: center; width: 18px; height: 64px; padding: 0; border: 1px solid var(--rule); border-right: 0; background: var(--plate); color: var(--platinum-deep); }
   .sidetab:hover { color: var(--gold); }
   .pane { display: none; flex: 1; min-height: 0; min-width: 0; flex-direction: column; }
   .pane.shown { display: flex; }
