@@ -120,7 +120,7 @@
       </tbody>
     </table>
     {#if sum.sessions.length > limit}
-      <button class="link more" onclick={() => (limit += 40)}>Show older sessions ({sum.sessions.length - limit} more)</button>
+      <button class="link more" title="List 40 more of your older fissure sessions" onclick={() => (limit += 40)}>Show older sessions ({sum.sessions.length - limit} more)</button>
     {/if}
   {:else}
     <p class="dim small">
