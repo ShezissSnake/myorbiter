@@ -28,6 +28,7 @@
   import Metal from "../ui/Metal.svelte";
   import Icon from "../ui/Icon.svelte";
   import IconButton from "../ui/IconButton.svelte";
+  import { named, refocus } from "../ui/refocus";
   import PriceHistory from "../ui/PriceHistory.svelte";
   import ProgressButton from "../ui/ProgressButton.svelte";
   import CopyButton from "../ui/CopyButton.svelte";
@@ -519,8 +520,18 @@
   const onEsc = (undo: () => void) => (e: KeyboardEvent) => {
     if (e.key !== "Escape") return;
     e.stopPropagation();
+    keepRow(e);
     undo();
   };
+  /**
+   * A row's Remove? closing (Keep, or Esc) takes its buttons away, and the keyboard focus would fall
+   * to the top of the page: it goes back to the row's own Remove (or Take down) instead.
+   */
+  function keepRow(e: Event) {
+    const from = e.currentTarget as HTMLElement;
+    const row = from.closest(".acts, li");
+    refocus(from, () => row?.querySelector<HTMLElement>('[aria-label="Remove"], [aria-label="Take down"]'));
+  }
   // Sold waits a few seconds, with Undo, before it's sent: marking sold on warframe.market goes on
   // your profile and lowers or closes the listing, which a slip of the mouse shouldn't do.
   const SOLD_WAIT = 4000;
@@ -879,7 +890,7 @@
                 {#if pendingSold[o.id]}
                   <span class="pendrow">
                     <span class="register pending" title="Sent to warframe.market in a moment: marked sold, the listing lowered, the sale logged">Sold {pendingSold[o.id]}<i aria-hidden="true"></i></span>
-                    <button type="button" class="link undo" title="Undo: nothing is sent" onclick={() => undoSale(o.id)}>Undo</button>
+                    <button type="button" class="link undo" title="Undo: nothing is sent" onclick={(e) => { const acts = e.currentTarget.closest(".acts"); refocus(e.currentTarget, () => named(acts, null)); undoSale(o.id); }}>Undo</button>
                   </span>
                 {:else if selling?.id === o.id}
                   {@const n = selling.n}
@@ -890,7 +901,7 @@
                 {:else if removing === o.id}
                   <span class="ask register">Remove?</span>
                   <IconButton icon="trash" tone="danger" label="Remove it" title="Remove it: take {it?.name ?? 'this listing'} off warframe.market" disabled={!rowFree(o.id)} onclick={() => { removing = null; removeRow(o); }} onkeydown={onEsc(() => (removing = null))} />
-                  <button type="button" class="ib quiet" aria-label="Keep" title="Keep it" onclick={() => (removing = null)} onkeydown={onEsc(() => (removing = null))} use:focusIt><Icon name="close" /></button>
+                  <button type="button" class="ib quiet" aria-label="Keep" title="Keep it" onclick={(e) => { keepRow(e); removing = null; }} onkeydown={onEsc(() => (removing = null))} use:focusIt><Icon name="close" /></button>
                 {:else}
                   <IconButton icon="sold" tone="gold" disabled={rowBusy.busy(o.id)} label={o.quantity > 1 ? "Sold one" : "Sold"} title="Sold {o.quantity > 1 ? 'one' : 'it'} in game: marked sold on warframe.market (recorded on your profile), the listing goes down by one and the sale is logged. You get a few seconds to undo." onclick={() => recordSale(o, 1)} />
                   {#if o.quantity > 1}<IconButton icon="sold-many" tone="quiet" disabled={rowBusy.busy(o.id)} label="Sold several" title="Sold several at once: say how many" onclick={() => (selling = { id: o.id, n: 2 })} />{:else}<span class="slot"></span>{/if}
@@ -933,7 +944,7 @@
         {#if confirmRemoveAll}
           <span class="small warn" in:opens>Take all {mkt.orders.length} listings off warframe.market?</span>
           <button class="danger" in:opens disabled={!!mkt.busy} title="Take every one of your sell listings down now" onclick={() => { confirmRemoveAll = false; removeAll(); }} onkeydown={keepOnEsc}>Remove all</button>
-          <button in:opens title="Keep your listings as they are" onclick={() => (confirmRemoveAll = false)} onkeydown={keepOnEsc} use:focusIt>Keep them</button>
+          <button in:opens title="Keep your listings as they are" onclick={(e) => { const zone = e.currentTarget.closest(".danger-zone"); refocus(e.currentTarget, () => named(zone, null)); confirmRemoveAll = false; }} onkeydown={keepOnEsc} use:focusIt>Keep them</button>
         {:else}
           <ProgressButton variant="link" tone="danger" class="removeall" job={removeJob} label="Remove all my listings" working={removeCount()} progress={removeFill()} sizer={["Removing 000/000"]} title="Take every one of your sell listings off warframe.market (it asks first)" disabled={!!mkt.busy} onclick={() => (confirmRemoveAll = true)} />
         {/if}
@@ -954,7 +965,7 @@
               <P v={o.platinum} />
               {#if removing === o.id}
                 <IconButton icon="trash" tone="danger" label="Take it down" title="Take this buy order off warframe.market" disabled={!rowFree(o.id)} onclick={() => { removing = null; removeRow(o, true); }} onkeydown={onEsc(() => (removing = null))} />
-                <button type="button" class="ib quiet" aria-label="Keep" title="Keep it" onclick={() => (removing = null)} onkeydown={onEsc(() => (removing = null))} use:focusIt><Icon name="close" /></button>
+                <button type="button" class="ib quiet" aria-label="Keep" title="Keep it" onclick={(e) => { keepRow(e); removing = null; }} onkeydown={onEsc(() => (removing = null))} use:focusIt><Icon name="close" /></button>
               {:else}
                 <IconButton icon="trash" tone="danger quiet" label="Remove" title="Remove: take this buy order off warframe.market" disabled={rowBusy.busy(o.id)} onclick={() => (removing = o.id)} />
               {/if}
@@ -986,7 +997,7 @@
                 <IconButton icon="external" tone="quiet" label="Open on warframe.market" onclick={() => openUrl(`https://warframe.market/auction/${a.id}`)} />
                 {#if removing === `auction:${a.id}`}
                   <IconButton icon="trash" tone="danger" label="Take it down" title="Close this auction (it stays among your profile's closed auctions)" disabled={auctionBusy === a.id} onclick={() => { removing = null; void takeDownAuction(a); }} onkeydown={onEsc(() => (removing = null))} />
-                  <button type="button" class="ib quiet" aria-label="Keep" title="Keep it" onclick={() => (removing = null)} onkeydown={onEsc(() => (removing = null))} use:focusIt><Icon name="close" /></button>
+                  <button type="button" class="ib quiet" aria-label="Keep" title="Keep it" onclick={(e) => { keepRow(e); removing = null; }} onkeydown={onEsc(() => (removing = null))} use:focusIt><Icon name="close" /></button>
                 {:else}
                   <ProgressButton variant="icon" icon="trash" tone="danger quiet" state={auctionBusy === a.id ? "working" : "idle"} label="Take down" working="Taking down…" title="Take down: close this auction on warframe.market" onclick={() => (removing = `auction:${a.id}`)} />
                 {/if}
