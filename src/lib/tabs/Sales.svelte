@@ -232,7 +232,7 @@
     <div class="reveal" transition:reveal><div>
     <div class="grid">
       <section class="chart">
-        <div class="head"><span class="register">Platinum per day</span>{#if days.some((d) => d.plat > 0)}<span class="dim small">best day <P v={peak} tick /></span>{/if}<span class="grow"></span><Seg bind:value={span} onchange={() => picks++} options={[{ v: "7", label: "7 days" }, { v: "30", label: "30 days" }, { v: "all", label: "All", title: "Best sellers over everything logged; the chart shows 30 days" }]} /></div>
+        <div class="head"><span class="register">Platinum per day</span>{#if days.some((d) => d.plat > 0)}<span class="dim small">best day <P v={peak} tick /></span>{/if}<span class="grow"></span><Seg bind:value={span} onchange={() => picks++} options={[{ v: "7", label: "7 days", title: "The chart and best sellers over the last 7 days" }, { v: "30", label: "30 days", title: "The chart and best sellers over the last 30 days" }, { v: "all", label: "All", title: "Best sellers over everything logged; the chart shows 30 days" }]} /></div>
         <!-- A span picked redraws the bars growing up from the axis (scaleY, QUICK); a new sale just changes them. -->
         {#key picks}
         <div class="bars" class:grow={picks > 0} role="img" aria-label="Platinum made per day">
@@ -266,12 +266,12 @@
       {#if importing}<span class="small dim" role="status">Reading warframe.market…</span>{:else if imported}<span class="small" class:dim={!importFailed} class:bad={importFailed} role="status">{imported}</span>{/if}
     </div>
     <form class="addsale" onsubmit={(e) => { e.preventDefault(); add(); }}>
-      <input class="it" list="sale-names" placeholder="Add a sale by hand: item" bind:value={item} onfocus={() => (namesWanted = true)} aria-label="Item sold" />
+      <input class="it" list="sale-names" placeholder="Add a sale by hand: item" title="The item you sold, as warframe.market names it (pick from the list as you type)" bind:value={item} onfocus={() => (namesWanted = true)} aria-label="Item sold" />
       {#if namesWanted}<datalist id="sale-names">{#each names as n (n)}<option value={n}></option>{/each}</datalist>{/if}
       {#if ranked}<Chip bind:on={maxed} label="Maxed" title="Sold at max rank (R{ranked.maxRank}), compared with the maxed price" />{/if}
-      <input type="number" min="1" placeholder="Qty 1" bind:value={qty} aria-label="How many" />
+      <input type="number" min="1" placeholder="Qty 1" title="How many you sold (1 if left empty)" bind:value={qty} aria-label="How many" />
       <span class="dim">×</span>
-      <span class="plat"><input type="number" min="1" placeholder="Price" bind:value={price} aria-label="Platinum each" /><Metal kind="plat" size={14} /></span>
+      <span class="plat"><input type="number" min="1" placeholder="Price" title="The platinum you got for each one" bind:value={price} aria-label="Platinum each" /><Metal kind="plat" size={14} /></span>
       <IconButton icon="plus" tone="gold" type="submit" label="Add sale" title={blocked ?? "Add it to the log"} disabled={!!blocked} />
     </form>
     {#if unknown}<p class="small warn note">Not an item orbiter knows: it won't be compared with the market.</p>
@@ -353,8 +353,8 @@
   .vs { color: var(--platinum-dim); white-space: nowrap; }
   .vs.under { color: var(--oxblood); }
   /* "under" sits in its own fixed slot after the number, so the percentages stay in one column. */
-  .vs::after { content: ""; display: inline-block; width: 3.6em; text-align: left; font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; }
-  .vs.under::after { content: " under"; }
+  .vs::after { content: ""; display: inline-block; width: 3.6em; margin-left: .45em; text-align: left; font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; }
+  .vs.under::after { content: "under"; }
   .vs.over { color: var(--verdigris); }
   .fast { color: var(--verdigris); border-color: var(--verdigris); }
   .acts { display: inline-flex; align-items: center; gap: .35rem; }
