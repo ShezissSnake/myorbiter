@@ -761,6 +761,9 @@ struct LoadedSettings {
     page: u64,
 }
 
+/// One token per process: the window's page calls this once as it starts (`loadSettings` in
+/// backend.ts, from App.svelte), and each call makes saves with an older token fail. A second
+/// caller would stop the first page saving; tests/settingsToken.test.ts fails if one appears.
 #[tauri::command(async)]
 fn load_settings(app: tauri::AppHandle) -> Result<LoadedSettings, String> {
     let path = settings_path(&app)?;
@@ -1053,7 +1056,10 @@ impl SaveGate {
     /// a newer save of the same page, an error for a page that isn't the one loaded last (a token
     /// no load handed out, or a page that has since reloaded), so a page still open says so.
     fn may_write(&self, page: u64, rev: u64) -> Result<bool, String> {
-        if page == 0 || page != self.page {
+        if page == 0 {
+            return Err("the settings weren't loaded, so they aren't saved; restart orbiter".into());
+        }
+        if page != self.page {
             return Err("the settings were loaded again since this page loaded them; restart orbiter to save".into());
         }
         Ok(page > self.written.0 || rev >= self.written.1)
@@ -1409,7 +1415,7 @@ mod tests {
     fn a_save_without_a_page_that_loaded_is_refused() {
         let mut gate = SaveGate::new();
         // Nothing loaded yet: no token is good.
-        assert!(gate.may_write(0, 1).is_err());
+        assert_eq!(gate.may_write(0, 1), Err("the settings weren't loaded, so they aren't saved; restart orbiter".into()));
         assert!(gate.may_write(1, 1).is_err());
         let page = gate.page_loaded();
         // A token no load handed out.
