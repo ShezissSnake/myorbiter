@@ -15,3 +15,37 @@ Property tests replay with `PROPERTY_SEED=<n>` and run longer with `PROPERTY_RUN
 | 9. Docs consistency | README's feature list, sidebar and numbers (fold width, minimums, timers, hidden pages) against `pages.ts`, `sparesRules.ts`, `backend.ts` and the pages' own labels; the Guide's repricing text; What's New against tonight's changes. | README still described Sell spares as a fold on Orders with the old category names, listed three sidebar sections instead of four (Progress and Builds missing), called Browse market "Market", and had no Builds entry; README and the Guide didn't mention the 70% floor; What's New had nothing on this update. All fixed; the numbers checked were right. | 9637946 |
 | 10. Report-only audits | `npm audit` (orbiter and TennoScope's app), `cargo audit` on both lockfiles, unused exports across `src/` (scripted, every tracked file searched), leftover TODOs. | Written up in `docs/testing/proposals.md` §2: 2 low npm findings in a build-only dependency; 0 Rust vulnerabilities in orbiter's lockfile, TennoScope's 4 `zip` ones are those `audit.yml` already ignores with its reason; 7 exports used nowhere, 10 used only by tests; no TODOs. Nothing changed. | (report) |
 | 8. UI sweep | Every page (16) of the demo account at 800, 1000, 1300 and 1700 px in Chromium: anything past the window's edge or scrolling it sideways, text cut without an ellipsis, interactive controls overlapping, controls without a name or tooltip; Tab through every page at 1300 px checking each stop shows focus; Esc on every kind of dialog (Settings, Report a bug, notifications, TennoScope, Find anything, and the shared focus trap every dialog component uses). Empty states were covered in item 7. | No layout fault at any width (the 1000 px Orders overflow and fissure-card cut-offs found earlier tonight were already fixed). Every icon-only control has a name; every dialog closes on Esc and the panels give focus back to their button. Fixed: Home's rank-up row had no focus outline; the 11 search fields had no tooltip. Not changed: collection cards and text fields with a label but no tooltip (cards show a hover card with their details instead). | 9a02239 |
+
+## Summary
+
+All ten items were done, in order except that 9 and 10 were finished before 8; each one was
+committed and pushed with its test runs (`npm test`, `npm run check -- --threshold error`, and
+`cargo test` when Rust changed).
+
+**Bugs found and fixed: 16.**
+
+- Money: a failed partial sale whose listing another sale had closed on screen didn't come back
+  (1). Settings files: text "true" turned automatic repricing on; text, NaN or huge numbers took
+  away the minimum price, the market-share floor and per-listing floors; junk turned off the
+  ducat check; an old file could stop settings loading; one odd riven auction broke the list (6,
+  as one fix).
+- Panics that abort the app: Nox's Frame pages cut at byte 20,000 inside a character (twice) and
+  a script tag closed by its own `</script>` (3). Wrong sales from garbage: closed orders with
+  overflowing quantities or bad prices (1). An EE.log trade dialog that never closed grew forever
+  (1).
+- Privacy: HTML comments surviving into a bug report, a hidden tag character rejoining when a
+  zero-width one between its halves was removed (app and issues digest), a JWT cut after its
+  second part, tokens after a tab, line break, `Authorization:` or `token :` reaching the log (4).
+- Time: "yesterday" after a 23-hour day, unreadable countdowns, today's trades a moment ahead of
+  the clock (3, as one commit).
+- Interface: Home's rank-up row had no focus outline; search fields had no tooltip (as one commit).
+
+**Tests added:** property tests for the money logic and the market store, fuzzing of settings,
+redaction and time (TypeScript); fuzzing of EE.log, TennoScope's log, warframe.market's answers,
+Nox's Frame pages and the log's redaction (Rust); a scale test at ten times the demo account. 21
+money rules, every settings guard and every Rust fix were each removed once to check a test
+fails without it.
+
+**Waiting on the maintainer** (`docs/testing/proposals.md`): the workspace no longer builds on the
+MSRV, Rust 1.77.2, because the lockfile's `dlopen2_derive` needs edition 2024; two low npm
+advisories in a build-only dependency; seven exports used nowhere and ten used only by tests.
