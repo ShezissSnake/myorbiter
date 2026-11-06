@@ -3,7 +3,7 @@
 //! Every build CI makes is published as a release of its own (`build-<n>`, version `0.2.<n>`) with
 //! an updater manifest, `latest.json`. Three fixed releases act as channels: `channel-experimental`,
 //! `channel-beta` and `channel-stable` each carry one `latest.json`, replaced when a build reaches
-//! that channel (every push lands on Experimental; Beta and Stable get a build promoted by hand,
+//! that channel (each build lands on Experimental; Beta and Stable get a build promoted by hand,
 //! the same files, never rebuilt). The channel is a setting in the page; this module turns it into
 //! the manifest's address, asks tauri-plugin-updater whether that manifest offers another version,
 //! and installs it only when the page asks, after the plugin has checked its signature against the
