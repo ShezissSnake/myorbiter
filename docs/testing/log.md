@@ -85,7 +85,7 @@ Rounds of four steps: coverage, a code read, a page polish, longer fuzzing. Each
 covered once; the lists below say which.
 
 **Covered so far.** Coverage: `marketStore.svelte.ts` (the listing form), `core/worthSelling.ts`. Code reads: `core/closedOrders.ts`, `core/saleNotice.ts`, `core/lastCopy.ts`, `core/approved.ts`, `core/imprints.ts`, `rivenStore.svelte.ts`.
-Pages: Sales.
+Pages: Sales, Stats.
 
 | Step | Checked | Found | Commit |
 | --- | --- | --- | --- |
@@ -95,3 +95,4 @@ Pages: Sales.
 | 4.1 Longer fuzzing | Every property and fuzz test with new seeds and ten times the runs (not committed at that size): TypeScript's five files (30,000 cases where 3,000 ran, 15,000 settings files), and the Rust fuzzers in `ee_log.rs` (4,000 logs), `reward_log.rs`, `market.rs`, `applog.rs` and `noxsframe.rs`. The settings fuzz now also builds a model from each file it loads. | No break in the existing properties. The new check failed at PROPERTY_SEED=1061690: `game.imprints` of `132`, `{}` or `[null]` in a damaged settings file made building the collection throw (every collection page down until TennoScope's next imprint read). Fixed in `loadSettings` and the model; the seed is a fixed test. | 5fe9ca0 |
 | 2.2 Code read | `core/lastCopy.ts` and its wiring in `App.svelte` (hiding last copies on a whisper), `core/approved.ts` (the 70% floor), `core/imprints.ts`, `rivenStore.svelte.ts` (riven auctions, weekly trade figures). | Putting a riven up when your auctions hadn't been read yet: a create that timed out but went through was reported as failed, and sending again would put the riven up twice. It now reads them first. The rest reads correctly: a listing hidden on a whisper is shown again only through the keep-rules check, and one it refuses stays hidden. | 6236587 |
 | 1.2 Coverage | `core/worthSelling.ts` (76% of branches): parts, mods and arcanes worth selling, rule by rule (loose copies only, ducats, a trade's worth, daily sellers, rivens, untradable, the month's sales cap, Sell vs Dissolve, a missing maxed price). | No bug; every rule checked to fail with it removed. | bd783d9 |
+| 3.2 Page polish | Stats (shown with Settings → Pages; hidden by default), demo account plus 40 invented sales, at 1000 and 1300 px: the figures, the span and trade filters, the charts and "6 more", relic runs, parts you got, profit by type, trade history. | Profit by type printed "+2794" beside "2,794" revenue; the span buttons (30, 90 days, All), the trade filter (All, Sales, Purchases, Swaps) and Show older sessions had no tooltip; "6 more…" sat against the Relic runs heading; Revenue and Profit by type said "from the game's trade log" while they also count sales logged on Sales. All fixed; before and after in `docs/testing/polish/stats-*.png`. | dff1649 |
