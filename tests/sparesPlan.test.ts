@@ -159,11 +159,11 @@ test("arcanes: maxed copies or every spare copy, Legendary ones, how many maxed 
   const legendary = new Set(arcaneRows(dev().m).filter((a) => a.rarity === "Legendary").map((a) => a.name));
   assert.ok(any.some((t) => legendary.has(t.name)));
   assert.equal(noLegend.filter((t) => legendary.has(t.name)).length, 0);
-  // Two maxed kept: Virtuos Forge (two maxed, at rank 3) keeps both.
+  // Virtuos Forge, two maxed (rank 3): one goes at the usual one kept; with two kept, both stay.
   assert.deepEqual(named(maxed, "Virtuos Forge").map((t) => [t.quantity, t.rank]), [[1, 3]]);
   assert.deepEqual(named(of(targets(rules((r) => (r.arcanes.keepMaxed = 2))), "arcanes"), "Virtuos Forge"), []);
   assert.equal(guard(rules((r) => (r.arcanes.keepMaxed = 2)), "Virtuos Forge", 3, 1).ok, false, "the last check keeps two too");
-  assert.equal(guard(rules(), "Virtuos Forge", 3, 1).ok, true, "and lets the one spare go at the usual one");
+  assert.equal(guard(rules(), "Virtuos Forge", 3, 1).ok, true, "and lets the one spare go at one kept");
 });
 
 test("relics: a keep number on top of the crack rule", () => {
@@ -208,7 +208,7 @@ test("never sell: held back in every category, and refused by the last check, un
   const all = targets(rules((r) => (r.arcanes.which = "any")));
   for (const cat of SPARE_CATEGORIES) {
     const t = going(of(all, cat))[0];
-    if (!t) continue;
+    assert.ok(t, `${cat}: the demo account has something to sell here`);
     const it = item(t.name);
     const r = withNeverSell(rules((x) => (x.arcanes.which = "any")), { id: it.id, name: it.name, cat });
     const after = sellTargets(dev().m, r, advice, dev().index, sell).filter((x) => x.name === t.name && x.rank === t.rank && x.subtype === t.subtype);
