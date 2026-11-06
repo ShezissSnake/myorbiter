@@ -1,5 +1,6 @@
 <script lang="ts">
   import { exportFile } from "../backend";
+  import { numberFormat } from "../ui/table";
   import { tradesCsv } from "../core/exportCsv";
   import ProgressButton from "../ui/ProgressButton.svelte";
   import { Job } from "../job.svelte";
@@ -27,6 +28,7 @@
   // Export: a tick on the button when saved, the reason in oxblood beside it when not.
   let exported = $state<string | null>(null);
   const exportJob = new Job();
+  const whole = numberFormat(0);
   function exportTrades() {
     void exportJob.run(async () => {
       try {
@@ -155,14 +157,14 @@
   {#snippet ticker()}<Ticker id="stats" label="Your inventory's value, live" items={tape} />{/snippet}
   <PageHead hero={ticker} title="Stats" brief="Your trades, relic runs and account over time." blurb="Your account over time, what your relic runs come to, the parts you got, and every trade you've made in game.">
     {#snippet band()}
-      <Stat label="Revenue" note="Sales in this span, from the game's trade log" title="Revenue: platinum from sales in this span, from the game's trade log (the trade window orbiter read), plus sales logged on Sales that no logged trade covers"><P v={revenue} big tick /></Stat>
+      <Stat label="Revenue" note="Sales in this span: the game's trade log and Sales" title="Revenue: platinum from sales in this span, from the game's trade log (the trade window orbiter read), plus sales logged on Sales that no logged trade covers"><P v={revenue} big tick /></Stat>
       <Stat label="Spent" tone="dim" note="Platinum paid for items"><P v={spent} big tick /></Stat>
       <Stat label="Profit" tone={revenue - spent >= 0 ? "gold" : "dim"} note="Revenue minus spent"><P v={revenue - spent} big tick /></Stat>
       <Stat label="Trades" note={trades.length ? `with ${partners} player${partners === 1 ? "" : "s"}` : "No trades in this span"}><Count value={trades.length} /></Stat>
     {/snippet}
   </PageHead>
 
-  <div class="bar"><Seg bind:value={span} options={[{ v: "30", label: "30 days" }, { v: "90", label: "90 days" }, { v: "all", label: "All" }]} /></div>
+  <div class="bar"><Seg bind:value={span} options={[{ v: "30", label: "30 days", title: "Figures, charts and trades from the last 30 days" }, { v: "90", label: "90 days", title: "Figures, charts and trades from the last 90 days" }, { v: "all", label: "All", title: "Everything orbiter has logged" }]} /></div>
 
   <div title="Worked out as Inventory does, at each inventory read. Market value: every copy at the daily median. Quick-sale value: everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month. The figures by the title are from the last read">
     <TimeChart single={hist.length === 1 ? "" : undefined} title={lastRead ? `Inventory value · at last read, ${new Date(lastRead).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : "Inventory value"} {at} series={[{ label: "Market value", color: "var(--chart-plat)", values: hist.map((p) => p.worth) }, { label: "Quick-sale value", color: GOLD, values: hist.map((p) => p.liquid) }]} height={190} />
@@ -202,13 +204,13 @@
 
   <div class="split">
     <section class="types">
-      <div class="hh"><h2 class="register" title="Revenue and spent by what was traded, from the game's trade log (plus sales on Sales that no logged trade covers)">Profit by type</h2><span class="dim small">from the game's trade log</span></div>
+      <div class="hh"><h2 class="register" title="Revenue and spent by what was traded, from the game's trade log (plus sales on Sales that no logged trade covers)">Profit by type</h2><span class="dim small">from the game's trade log and Sales</span></div>
       {#if byType.length}
         <table>
           <thead><tr><th>Type</th><th class="right">Revenue</th><th class="right">Spent</th><th class="right">Profit</th></tr></thead>
           <tbody>
             {#each byType as r (r.group)}
-              <tr><td><span class="ty"><GameIcon name={ICON[r.group]} size={18} />{r.group}</span></td><td class="right"><P v={r.revenue || null} /></td><td class="right"><P v={r.spent || null} dim /></td><td class="right"><span class:pos={r.profit > 0} class:neg={r.profit < 0}>{r.profit > 0 ? "+" : ""}{r.profit}</span></td></tr>
+              <tr><td><span class="ty"><GameIcon name={ICON[r.group]} size={18} />{r.group}</span></td><td class="right"><P v={r.revenue || null} /></td><td class="right"><P v={r.spent || null} dim /></td><td class="right"><span class:pos={r.profit > 0} class:neg={r.profit < 0}>{r.profit > 0 ? "+" : ""}{whole.format(r.profit)}</span></td></tr>
             {/each}
           </tbody>
         </table>
@@ -220,7 +222,7 @@
         <h2 class="register">Trade history</h2>
         {#if settings.market.trades.length}<ProgressButton variant="icon" icon="export" tone="quiet" job={exportJob} label="Export trades as CSV" doneLabel="Saved" failLabel="Couldn't save" title="Save every trade orbiter read from the game as a CSV file in your Downloads folder, for a spreadsheet" onclick={exportTrades} />{/if}
         {#if exported}<span class="small" class:dim={exportJob.state !== "failed"} class:bad={exportJob.state === "failed"} role="status">{exported}</span>{/if}
-        <Seg bind:value={show} options={[{ v: "all", label: "All" }, { v: "sale", label: "Sales" }, { v: "purchase", label: "Purchases" }, { v: "trade", label: "Swaps" }]} />
+        <Seg bind:value={show} options={[{ v: "all", label: "All", title: "Every trade" }, { v: "sale", label: "Sales", title: "Trades where you gave items and got only platinum" }, { v: "purchase", label: "Purchases", title: "Trades where you gave only platinum for items" }, { v: "trade", label: "Swaps", title: "Everything else: items for items, items and platinum both ways, gifts" }]} />
       </div>
       {#if shown.length}
         <ul>
@@ -282,5 +284,5 @@
   .kind { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; padding: .2rem .45rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
   .k-sale { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 45%, transparent); }
   .k-purchase { color: var(--gold); border-color: var(--gold-dim); }
-  .more { display: block; margin: .4rem 0 0; }
+  .more { display: block; margin: .4rem 0 1.4rem; }
 </style>
