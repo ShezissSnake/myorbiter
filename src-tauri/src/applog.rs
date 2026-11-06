@@ -111,7 +111,9 @@ impl log::Log for Logger {
             // When the file can't move aside (on Windows, while another program holds
             // `orbiter.1.log` open), it starts over empty instead: its lines go, but the cap holds.
             let moved = fs::rename(&sink.path, sink.path.with_file_name(OLD_FILE)).is_ok();
-            match open(&sink.path, !moved) {
+            // If it can't even be emptied (held without write sharing), it goes on as it was, past
+            // the cap, rather than the log stopping for the rest of the session.
+            match open(&sink.path, !moved).or_else(|| open(&sink.path, false)) {
                 Some(fresh) => *sink = fresh,
                 None => {
                     *guard = None;
