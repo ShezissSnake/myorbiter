@@ -1,0 +1,63 @@
+name: Builds on the MSRV
+
+# orbiter's crates must build on the Rust version their `rust-version` names (src-tauri/Cargo.toml,
+# crates/orbiter-data/Cargo.toml): the lowest the lockfile builds with for every release target. This
+# checks it, on that exact toolchain, whenever Rust code or a manifest or lockfile changes on main,
+# once a week (a dependency update can raise what's needed), and by hand. It's a workflow of its
+# own, not part of audit.yml, so release builds (which wait for audit.yml) don't wait for it too.
+#
+# Linux only: Windows-only dependencies (sysinfo, the reason for the current version) are checked by
+# Cargo's own rust-version gate as soon as they're compiled, which a Linux check doesn't reach; the
+# release workflow's Windows build uses the current stable toolchain.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/Cargo.lock"
+      - "**/Cargo.toml"
+      - "src-tauri/**/*.rs"
+      - "crates/**/*.rs"
+      - ".github/workflows/msrv.yml"
+  schedule:
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: msrv-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: cargo check on rust-version
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev \
+            libxdo-dev libssl-dev
+
+      - name: The toolchain rust-version names
+        id: msrv
+        run: |
+          set -euo pipefail
+          v=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' src-tauri/Cargo.toml)
+          [[ "$v" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || { echo "::error::no rust-version in src-tauri/Cargo.toml"; exit 1; }
+          d=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' crates/orbiter-data/Cargo.toml)
+          [ "$d" = "$v" ] || { echo "::error::crates/orbiter-data says $d, src-tauri says $v"; exit 1; }
+          rustup toolchain install "$v" --profile minimal
+          echo "version=$v" >>"$GITHUB_OUTPUT"
+
+      - name: cargo check
+        env:
+          MSRV: ${{ steps.msrv.outputs.version }}
+        run: cargo "+$MSRV" check --workspace --tests --locked

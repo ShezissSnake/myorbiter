@@ -47,7 +47,7 @@ finds it there by itself; Settings → TennoScope can point any orbiter at it. A
 to `tennoscope/`, run the last two lines again.
 
 TennoScope is its own Cargo workspace and pnpm project, separate from orbiter's (it uses Rust
-edition 2024 and the toolchain in `rust-toolchain.toml`; orbiter's crates stay on Rust 1.77.2).
+edition 2024 and the toolchain in `rust-toolchain.toml`; orbiter's crates build on Rust 1.95, their `rust-version`).
 Its checks, run here: `cargo clippy --workspace --all-targets -- -D warnings`,
 `cargo test --workspace` (as root, the AppImage-update test and two memory-permission tests fail,
 as they do upstream), and `pnpm test` in `app`.
