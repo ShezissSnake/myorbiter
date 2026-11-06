@@ -143,9 +143,10 @@ Where the time goes:
   at first has little left to give.
 - **Tabs' underline** reads the layout in the first frame (`Tabs.svelte`, `place`): about 100 ms
   at 4× on Planner, Arcanes and Sets, but it's the frame's own layout, done early rather than
-  twice. Placing it after the first paint didn't change the times beyond run-to-run noise.
-- **Start:** the longest task is Home's first draw with the model built (`buildModel`,
-  `masteryRowsFresh`, Home's cards), about 40% each.
+  twice.
+- **Start:** the longest task is the model being built and Home drawn with it: about half of it
+  drawing Home (its cards, `masteryRowsFresh` for what needs you), most of the rest
+  `buildModel`.
 - Tried and dropped as no better than noise (±15% between runs): the underline after the first
   paint, the page-room flags without the synchronous layout read at start. Date formatting
   isn't worth caching (about 50 calls in the first 20 s). Bundle: the riven model (380 kB) and
@@ -153,5 +154,5 @@ Where the time goes:
 
 No change came out of it. What would help next: cheaper cards (fewer components per card,
 `ItemCard`'s artwork and price blocks drawn on demand), and Home's mastery figures worked out in
-the background before its first draw. Both are larger changes than a speed pass, measured in
-WebKitGTK on Linux, where the gap is widest.
+the background before its first draw. Both are larger changes than a speed pass, and should be
+measured in WebKitGTK on Linux, where the gap is widest.
