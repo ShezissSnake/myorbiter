@@ -13,6 +13,17 @@ Warframe and its artwork are © and ™ Digital Extremes Ltd.
 
 The screenshot shows an invented account (`demo/`), not a real one.
 
+## Full mode is your call
+
+With Full mode on (it's off unless you turn it on), TennoScope reads the game's memory to fetch
+your inventory. That may violate Warframe's EULA, which forbids unauthorised third-party programs:
+you choose whether to turn it on, at your own risk. It only reads, and only sends your login session
+to Digital Extremes.
+
+**It acts on your warframe.market account.** Once you sign in, what you press and the automatic
+features you turn on (repricing, marking sales sold, +rep, hiding your last copies, holding your
+online status) list, change and close orders and post reviews as you.
+
 ## Install
 
 Download the latest Stable build from
@@ -36,20 +47,9 @@ Download `SHA256SUMS` from the same release into the same folder, then:
 - **Windows (PowerShell):** `Get-FileHash .\orbiter_<version>_x64-setup.exe`, then compare the hash
   with its line in `SHA256SUMS`.
 
-## Full mode is your call
-
-With Full mode on (it's off unless you turn it on), TennoScope reads the game's memory to fetch
-your inventory. That may violate Warframe's EULA, which forbids unauthorised third-party programs:
-you choose whether to turn it on, at your own risk. It only reads, and only sends your login session
-to Digital Extremes.
-
-**It acts on your warframe.market account.** Once you sign in, what you press and the automatic
-features you turn on (repricing, marking sales sold, +rep, hiding your last copies, holding your
-online status) list, change and close orders and post reviews as you.
-
 ## Run it from source
 
-You need Rust 1.95, Node 20.19 or newer and webkit2gtk-4.1.
+You need Rust 1.95, Node 20.19+ or 22.12+, and webkit2gtk-4.1.
 [docs/development.md](docs/development.md) has the rest.
 
 ```fish
