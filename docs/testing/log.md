@@ -49,3 +49,9 @@ fails without it.
 **Waiting on the maintainer** (`docs/testing/proposals.md`): the workspace no longer builds on the
 MSRV, Rust 1.77.2, because the lockfile's `dlopen2_derive` needs edition 2024; two low npm
 advisories in a build-only dependency; seven exports used nowhere and ten used only by tests.
+
+## Round 3 (2026-11-06)
+
+| Item | Checked | Found | Commit |
+| --- | --- | --- | --- |
+| 2. WebKitGTK check | The real engine: WebKitGTK 2.52.6 (Ubuntu's `libwebkit2gtk-4.1`, the one Tauri uses on Linux), driven through `WebKitWebDriver` and MiniBrowser under Xvfb, with the proxy removed from its environment. Every page (16) of the demo account at 800, 1000, 1300 and 1700 px: past the window's edge, sideways scrolling, text cut without an ellipsis, overlapping controls, page errors. The reward screen with 1, 2, 3 and 4 cards at every width, and screenshots at 800 and 1700 px. | Nothing to fix. One difference from Chromium: WebKit gives the children of a `content-visibility: hidden` block (Mastery's hidden "Buy with plat" tab) real boxes, which first looked like overlapping controls; checked in WebKit that none of its 289 controls can take focus (by script or by Tab) or receive a click, so it's not visible to the player. The reward screen fits at every width and card count. | (no code change) |
