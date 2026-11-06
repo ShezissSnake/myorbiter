@@ -2,7 +2,6 @@
   // The bell in the sidebar: what orbiter told you lately (click one to open what it's about), and
   // what it tells you about, kind by kind, with a pause for all of them.
   import { discordPost, isDiscordWebhook, type Settings } from "./backend";
-  import { refocus, usable } from "./ui/refocus";
   import { discordStatus, discordSent } from "./discordStatus.svelte";
   import { GROUP_NOTE, kindsFor, NOTICE_KINDS, noticeKind, splitTarget, type Notice, type NoticeKind, type NoticeKindInfo } from "./notices";
   import { pageById, type PageId } from "./pages";
@@ -14,6 +13,7 @@
   import ProgressButton from "./ui/ProgressButton.svelte";
   import { Job } from "./job.svelte";
   import type { Snippet } from "svelte";
+  import { refocus, usable } from "./ui/refocus";
 
   let {
     open = $bindable(),
