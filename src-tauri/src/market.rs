@@ -58,6 +58,40 @@ fn wait_turn() {
     *last = Some(Instant::now());
 }
 
+/// At most this many changes (orders, auctions, +rep) in any minute: a page gone wrong can't
+/// rewrite every listing at once. Above it, a change waits for its turn rather than failing; at
+/// `MIN_GAP` apart a plan of 100 changes stays under it and finishes within the minute.
+const WRITES_PER_MINUTE: usize = 120;
+const WRITE_WINDOW: Duration = Duration::from_secs(60);
+/// When the changes of the last minute went out, oldest first.
+static WRITES: Mutex<std::collections::VecDeque<Instant>> = Mutex::new(std::collections::VecDeque::new());
+
+/// How long a change at `now` waits, the last minute's changes having gone out at `sent`
+/// (oldest first, older ones already dropped).
+fn write_wait(sent: &std::collections::VecDeque<Instant>, now: Instant) -> Duration {
+    if sent.len() < WRITES_PER_MINUTE {
+        return Duration::ZERO;
+    }
+    // The one that has to leave the window first: `len - (cap - 1)` from the front.
+    let oldest = sent[sent.len() - WRITES_PER_MINUTE];
+    (oldest + WRITE_WINDOW).saturating_duration_since(now)
+}
+
+/// Waits for a change's turn under the cap, then counts it.
+fn write_turn() {
+    let mut sent = WRITES.lock().unwrap_or_else(|e| e.into_inner());
+    let wait = write_wait(&sent, Instant::now());
+    if !wait.is_zero() {
+        log::info!(target: "orbiter::market", "{WRITES_PER_MINUTE} changes this minute: waiting {} s", wait.as_secs());
+        std::thread::sleep(wait);
+    }
+    let now = Instant::now();
+    while sent.front().is_some_and(|t| now.saturating_duration_since(*t) >= WRITE_WINDOW) {
+        sent.pop_front();
+    }
+    sent.push_back(now);
+}
+
 /// warframe.market asked to slow down: every call goes out further apart for a while.
 fn slow_down() {
     *SLOW_UNTIL.lock().unwrap_or_else(|e| e.into_inner()) = Some(Instant::now() + SLOW_FOR);
@@ -317,6 +351,7 @@ impl Client {
         let result = if method == "GET" {
             with_retries(|| self.send_once(method, url, body, token))
         } else {
+            write_turn();
             self.send_once(method, url, body, token)
         };
         // The log: every change, and every request that failed (method and path, never the sign-in).
@@ -1110,6 +1145,33 @@ mod tests {
         assert_eq!(super::created_line("abc", &new, "sell"), "order abc created: sell item 5dbe9b097ea27b0ffe3ca26c rank 0, 2 at 7p, shown");
         let change = super::OrderChange { platinum: None, quantity: Some(3), visible: Some(true) };
         assert_eq!(super::changed_line("abc", &change), "order abc changed: quantity 3, shown");
+    }
+
+    #[test]
+    fn changes_are_capped_at_120_a_minute_and_a_plan_of_100_still_finishes_within_it() {
+        use std::collections::VecDeque;
+        assert_eq!(WRITES_PER_MINUTE, 120);
+        // A plan of 100 changes, MIN_GAP apart as the queue sends them: none waits, all in 40 s.
+        let start = Instant::now();
+        let mut sent = VecDeque::new();
+        let mut at = start;
+        for _ in 0..100 {
+            assert_eq!(write_wait(&sent, at), Duration::ZERO);
+            sent.push_back(at);
+            at += MIN_GAP;
+        }
+        assert!(at - start < Duration::from_secs(60));
+        // A burst past the cap: the 121st waits until the first is a minute old, and the minute
+        // never holds more than 120.
+        let mut sent: VecDeque<Instant> = (0..120).map(|i| start + Duration::from_millis(100 * i)).collect();
+        let now = start + Duration::from_secs(13);
+        assert_eq!(write_wait(&sent, now), Duration::from_secs(47));
+        let next = now + write_wait(&sent, now);
+        sent.pop_front();
+        sent.push_back(next);
+        assert_eq!(sent.iter().filter(|t| next.saturating_duration_since(**t) < WRITE_WINDOW).count(), 120);
+        // A minute after the first, room again for one more: the second's turn.
+        assert_eq!(write_wait(&sent, next), Duration::from_millis(100));
     }
 
     #[test]

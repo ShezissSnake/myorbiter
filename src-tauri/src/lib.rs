@@ -388,8 +388,10 @@ fn discord_webhook(url: &str) -> bool {
 }
 
 /// Posts a notification to your Discord webhook (Settings → notifications), for when you're away.
+/// Only to the address confirmed outside the page (`discord_confirmed`): the page names the
+/// address it posts to, so a page gone wrong could otherwise send anything anywhere on Discord.
 #[tauri::command]
-async fn discord_post(url: String, content: String) -> Result<(), String> {
+async fn discord_post(app: tauri::AppHandle, url: String, content: String) -> Result<(), String> {
     if !discord_webhook(&url) {
         return Err("not a Discord webhook address".into());
     }
@@ -403,6 +405,9 @@ async fn discord_post(url: String, content: String) -> Result<(), String> {
             return Err("too many Discord posts this minute".into());
         }
         sent.push(now);
+    }
+    if !discord_confirmed(&app, &url).await? {
+        return Err("not sent: that Discord address wasn't confirmed".into());
     }
     let content: String = content.chars().take(1900).collect();
     tauri::async_runtime::spawn_blocking(move || {
@@ -425,6 +430,72 @@ async fn discord_post(url: String, content: String) -> Result<(), String> {
 /// Discord posts in the last minute, and the most there may be (see discord_post).
 static DISCORD_SENT: Mutex<Vec<Instant>> = Mutex::new(Vec::new());
 const DISCORD_PER_MINUTE: usize = 20;
+
+/// Addresses the player said no to since orbiter started: not asked about again.
+static DISCORD_DECLINED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+/// One confirmation at a time.
+static DISCORD_ASKING: tauri::async_runtime::Mutex<()> = tauri::async_runtime::Mutex::const_new(());
+
+#[derive(Debug, PartialEq)]
+enum DiscordAddress {
+    /// The one confirmed before.
+    Kept,
+    /// Turned down since orbiter started.
+    Declined,
+    /// New: ask.
+    Ask,
+}
+
+fn discord_address(kept: Option<&str>, declined: &[String], url: &str) -> DiscordAddress {
+    if kept == Some(url) {
+        DiscordAddress::Kept
+    } else if declined.iter().any(|d| d == url) {
+        DiscordAddress::Declined
+    } else {
+        DiscordAddress::Ask
+    }
+}
+
+/// Whether `url` is the Discord address the player confirmed. A new one is confirmed in a native
+/// dialog over orbiter's window (not in the page), the first time the page posts to it, which
+/// names the webhook (never its token); a yes keeps it in orbiter's config folder
+/// (`discord-webhook`), which the page can't write, in place of the one before.
+async fn discord_confirmed(app: &tauri::AppHandle, url: &str) -> Result<bool, String> {
+    let _one = DISCORD_ASKING.lock().await;
+    let file = app.path().app_config_dir().map_err(|e| e.to_string())?.join("discord-webhook");
+    let kept = fs::read_to_string(&file).ok().map(|k| k.trim().to_owned());
+    let declined = DISCORD_DECLINED.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    match discord_address(kept.as_deref(), &declined, url) {
+        DiscordAddress::Kept => return Ok(true),
+        DiscordAddress::Declined => return Ok(false),
+        DiscordAddress::Ask => {}
+    }
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+    let id = url.trim_end_matches('/').rsplit('/').nth(1).unwrap_or("").to_owned();
+    let host = url.split('/').nth(2).unwrap_or("discord.com").to_owned();
+    let text = format!(
+        "Send orbiter's notifications to Discord webhook {id} on {host}?\n\norbiter posts the kinds of notification you picked there.{} Say yes only if you pasted this address yourself.",
+        if kept.as_deref().is_some_and(|k| !k.is_empty()) { " It replaces the webhook orbiter posted to before." } else { "" }
+    );
+    let ask = app.clone();
+    let yes = tauri::async_runtime::spawn_blocking(move || {
+        let mut dialog = ask.dialog().message(text).title("A new Discord webhook").kind(MessageDialogKind::Info).buttons(MessageDialogButtons::OkCancelCustom("Send to this webhook".into(), "Don't send".into()));
+        if let Some(window) = ask.get_webview_window("main") {
+            dialog = dialog.parent(&window);
+        }
+        dialog.blocking_show()
+    })
+    .await
+    .unwrap_or(false);
+    if yes {
+        write_atomic(&file, url.as_bytes(), true).map_err(|e| format!("couldn't keep the Discord address: {e}"))?;
+        log::info!(target: "orbiter::notify", "Discord webhook {id} confirmed");
+    } else {
+        DISCORD_DECLINED.lock().unwrap_or_else(|e| e.into_inner()).push(url.to_owned());
+        log::info!(target: "orbiter::notify", "Discord webhook {id} turned down");
+    }
+    Ok(yes)
+}
 
 /// Every Foundry recipe, parts' own blueprints included (see recipes.rs): cached for a week.
 #[tauri::command]
@@ -783,12 +854,41 @@ fn tennoscope_status(companion: tauri::State<'_, companion::Companion>) -> compa
     companion.status()
 }
 
-/// Settings → TennoScope → Program: the program orbiter starts as TennoScope (None or empty: it
-/// finds it). Only an existing file named like TennoScope (see `companion::check_custom`); kept in
-/// orbiter's config folder, so no other request can name a program to start.
+/// Settings → TennoScope → Program → Choose: the program orbiter starts as TennoScope, picked in
+/// a native file dialog opened here. The page can't name a program: it can only open the dialog,
+/// or have orbiter find TennoScope again (`tennoscope_forget_program`). Only an existing file
+/// named like TennoScope is kept (`companion::check_custom`), in orbiter's config folder. None:
+/// the dialog was closed without a choice.
+#[tauri::command]
+async fn tennoscope_choose_program(app: tauri::AppHandle) -> Result<Option<companion::Status>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let picked = tauri::async_runtime::spawn_blocking({
+        let app = app.clone();
+        move || {
+            let mut dialog = app.dialog().file().set_title("The TennoScope program orbiter starts");
+            if let Some(window) = app.get_webview_window("main") {
+                dialog = dialog.set_parent(&window);
+            }
+            #[cfg(windows)]
+            let dialog = dialog.add_filter("TennoScope", &["exe"]);
+            // Blocks this thread, not the main one, until the dialog closes.
+            dialog.blocking_pick_file()
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let Some(picked) = picked else { return Ok(None) };
+    let path = picked.into_path().map_err(|e| e.to_string())?;
+    let companion = app.state::<companion::Companion>();
+    companion.set_custom(Some(&path.display().to_string()))?;
+    Ok(Some(companion.status()))
+}
+
+/// Settings → TennoScope → Program → Find it: orbiter finds TennoScope again (the copy inside
+/// orbiter, then an installed one), forgetting the program chosen in the dialog.
 #[tauri::command(async)]
-fn tennoscope_set_path(companion: tauri::State<'_, companion::Companion>, path: Option<String>) -> Result<companion::Status, String> {
-    companion.set_custom(path.as_deref())?;
+fn tennoscope_forget_program(companion: tauri::State<'_, companion::Companion>) -> Result<companion::Status, String> {
+    companion.set_custom(None)?;
     Ok(companion.status())
 }
 
@@ -1095,6 +1195,9 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
+        // Native file and message dialogs, opened only from Rust: the page has no dialog
+        // permission (capabilities/default.json).
+        .plugin(tauri_plugin_dialog::init())
         // Updates (updates.rs), and the restart that follows one.
         .plugin(updates::plugin())
         .plugin(tauri_plugin_process::init())
@@ -1152,13 +1255,8 @@ pub fn run() {
             // The TennoScope this build carries, if it carries one (release builds do).
             let bundled = app.path().resource_dir().ok().map(|d| d.join(companion::BUNDLED));
             app.state::<companion::Companion>().set_bundled(bundled);
-            // The program chosen in Settings, kept beside the settings; older orbiters kept it in
-            // the page's settings (`tennoscope.path`), taken over once.
-            let legacy = fs::read(config.join("settings.json"))
-                .ok()
-                .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
-                .and_then(|v| v["tennoscope"]["path"].as_str().map(str::to_owned));
-            app.state::<companion::Companion>().load_custom(config.join("tennoscope-program"), legacy);
+            // The program chosen in Settings' file dialog, kept beside the settings.
+            app.state::<companion::Companion>().load_custom(config.join("tennoscope-program"));
             fit_first_window(app);
             updates::setup(app.handle());
             Ok(())
@@ -1183,7 +1281,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             tennoscope_status,
-            tennoscope_set_path,
+            tennoscope_choose_program,
+            tennoscope_forget_program,
             tennoscope_start,
             tennoscope_show,
             tennoscope_ask,
@@ -1290,6 +1389,20 @@ mod tests {
         assert!(!discord_webhook("https://evil.example/api/webhooks/1/x"));
         assert!(!discord_webhook("https://discord.com/api/webhooks/12a/x"));
         assert!(!discord_webhook("https://discord.com.evil.example/api/webhooks/1/x"));
+    }
+
+    #[test]
+    fn only_a_confirmed_discord_address_is_posted_to_and_a_declined_one_isnt_asked_again() {
+        let a = "https://discord.com/api/webhooks/1/aaa";
+        let b = "https://discord.com/api/webhooks/2/bbb";
+        // Nothing confirmed yet: ask.
+        assert_eq!(discord_address(None, &[], a), DiscordAddress::Ask);
+        assert_eq!(discord_address(Some(""), &[], a), DiscordAddress::Ask);
+        // Confirmed: posted to without asking. Another address, even one a page saved: ask.
+        assert_eq!(discord_address(Some(a), &[], a), DiscordAddress::Kept);
+        assert_eq!(discord_address(Some(a), &[], b), DiscordAddress::Ask);
+        // Turned down: not asked about again until orbiter restarts.
+        assert_eq!(discord_address(Some(a), &[b.to_owned()], b), DiscordAddress::Declined);
     }
 
     #[test]

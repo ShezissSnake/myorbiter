@@ -61,6 +61,7 @@ tauri-plugin-updater = "2.14.1"
 tauri-plugin-process = "2.4.0"
 # Comparing versions (0.1.52 against 0.1.9 by number), already in the build through Tauri.
 semver = "1"
+tauri-plugin-dialog = "2"
 [target.'cfg(unix)'.dependencies]
 # Ctrl+C / logout: close the TennoScope orbiter started before exiting.
 signal-hook = "0.4"
