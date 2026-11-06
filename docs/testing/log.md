@@ -111,6 +111,6 @@ Pages: Sales, Stats, Sets, Mods.
 
 ### Loop summary (so far)
 
-Four rounds of coverage, code reads, page polish and longer fuzzing: 14 bugs fixed, each with a test that fails without it (one, the single read transaction for TennoScope's store, can't be made to fail deterministically).
+Four rounds of coverage, code reads, page polish and longer fuzzing: 12 bugs fixed, each with a test that fails without it (one, the single read transaction for TennoScope's store, can't be made to fail deterministically).
 The fixes: the listing form's last check, closed-order matching, a riven put up twice after a timeout, live-feed deals you couldn't trade, and a damaged settings file breaking the collection, Sales, Stats, Rivens, Inventory or the bell.
 Every settings part and the saved game state were probed with junk on every page; all property and fuzz tests pass at ten times the runs with new seeds; Sales, Stats, Sets and Mods polished.
