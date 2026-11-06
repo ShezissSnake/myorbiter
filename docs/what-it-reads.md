@@ -37,9 +37,10 @@ keeps in the same database.
   settings and the last open page), the drop tables, Foundry recipes, the worldstate's place names,
   the confirmed Discord address (`discord-webhook`) and, without a keyring, the warframe.market
   token (`market-token`).
-- `~/.cache/dev.orbiter.app/` (`%LOCALAPPDATA%\dev.orbiter.app` on Windows): the last worldstate, riven prices and trades, warframe.market's item
-  and riven lists, Nox's Frame pages (a week), and item artwork in `img/`. Each picture is
-  downloaded once and shrunk to a thumbnail, so after the first look it works offline.
+- `~/.cache/dev.orbiter.app/` (`%LOCALAPPDATA%\dev.orbiter.app` on Windows): the last worldstate,
+  riven prices and trades, warframe.market's item and riven lists, Nox's Frame pages (a week), and
+  item artwork in `img/`. Each picture is downloaded once and shrunk to a thumbnail, so after the
+  first look it works offline.
 
 ## Signing in to warframe.market
 
