@@ -178,10 +178,13 @@ Work on the UI in a normal browser without Tauri:
 
 ```fish
 npm run dev-bundle       # writes public/dev-bundle.json from your TennoScope folder
+npm run dev-data         # writes public/dev-market-items.json, dev-rivens.json and dev-recipe-data.json (read-only requests)
 npm run dev              # http://localhost:1421
 ```
 
 Or on the invented account in `demo/` (the one in the screenshots), without any data of your own: `npm run dev:demo`. `demo/README.md` says how it's made.
+
+`npm run dev-data` fetches the item list and riven names from warframe.market and the Foundry recipes from warframe-public-export-plus: the same sources and shape the app reads, requested one at a time at the app's pace. The two tests that need it (spares plan, riven stats) are skipped until `npm run dev-bundle` and `npm run dev-data` have run. All of `public/dev-*.json` stays out of git.
 
 Tests: `npm test` covers the analysis core, and `npm run check` type-checks the project.
 

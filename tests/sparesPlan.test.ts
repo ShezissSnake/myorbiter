@@ -32,7 +32,7 @@ import type { Bundle } from "../src/lib/core/types";
 
 const at = (f: string) => new URL(`../public/${f}`, import.meta.url);
 const have = ["dev-bundle.json", "dev-recipe-data.json", "dev-market-items.json"].every((f) => existsSync(at(f)));
-const skip = !have && "the dev data (public/dev-*.json) isn't here";
+const skip = !have && "the dev data (public/dev-*.json) isn't here: run `npm run dev-bundle` and `npm run dev-data`";
 const read = (f: string) => JSON.parse(readFileSync(at(f), "utf8"));
 
 const SUNIKA = "/Lotus/Types/Game/KubrowPet/HunterKubrowPetPowerSuit";
