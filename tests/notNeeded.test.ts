@@ -95,3 +95,29 @@ test("a spare Kuva copy is held back: fuse it, don't sell it", () => {
   assert.deepEqual(r.go, []);
   assert.match(r.kept[0].why, /Valence Fusion/);
 });
+
+test("what's in the copies that can go is said: Forma, a catalyst or reactor, and which copy to keep", () => {
+  const m = model([row(`${W}Lato`, 3), row(`/Lotus/Powersuits/Saryn`, 2), row(`/Lotus/Powersuits/SarynPrime`, 1)]);
+  const gear = [
+    { type: `${W}Lato`, f: 1, p: 2 },
+    { type: `${W}Lato`, f: 0, p: 1 },
+    { type: `${W}Lato`, f: 0, p: 0 },
+    { type: `/Lotus/Powersuits/Saryn`, f: 1, p: 0 },
+  ];
+  const r = notNeeded(m, gear);
+  const lato = r.go.find((g) => g.name === "Lato")!;
+  assert.deepEqual(lato.notes, ["3 Forma and an Orokin Catalyst in your copies", "Keep the copy with the most in it"]);
+  const saryn = r.go.find((g) => g.name === "Saryn")!;
+  assert.equal(`${saryn.copies}/${saryn.of}`, "2/2", "Saryn Prime does its job");
+  assert.deepEqual(saryn.notes, ["an Orokin Reactor in your copies", "Or feed it to the Helminth, if you haven't subsumed its ability"]);
+  assert.match(saryn.why, /^Saryn Prime does everything it does/);
+});
+
+test("copies past what an unmastered recipe takes can go, with how many to keep and for what", () => {
+  const m = model([row(`${W}Bronco`, 3), row(`${W}BroncoPrime`, 1, false)]);
+  const r = notNeeded(m, []);
+  // Bronco Prime does its job; the Akbronco, not mastered, still takes two.
+  const bronco = r.go.find((g) => g.name === "Bronco")!;
+  assert.equal(`${bronco.copies}/${bronco.of}`, "1/3");
+  assert.ok(bronco.notes.includes("Keep 2 copies for Akbronco"), JSON.stringify(bronco.notes));
+});
