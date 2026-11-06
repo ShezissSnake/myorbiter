@@ -111,7 +111,8 @@ impl Turn<'_> {
 
     /// Runs `f` on the state if this start is still the current one; `None` if it isn't.
     fn report<R>(&self, f: impl FnOnce(&mut FeedState) -> R) -> Option<R> {
-        let mut s = self.state.lock().ok()?;
+        // A lock poisoned by a panic elsewhere doesn't end the feed: the state is still usable.
+        let mut s = self.state.lock().unwrap_or_else(|e| e.into_inner());
         self.current().then(|| f(&mut s))
     }
 }
