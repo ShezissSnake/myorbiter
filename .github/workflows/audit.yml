@@ -51,16 +51,6 @@ jobs:
         if: ${{ !cancelled() }}
         run: cargo-audit audit --file Cargo.lock
 
-      # zip 4 (RUSTSEC-2026-0367, -0368, -0369, -0429: extraction of a hostile archive) is only in
-      # tauri-plugin-updater's Windows path, which extracts an update only after its minisign
-      # signature checks out, and TennoScope as orbiter builds it never runs its updater
-      # (tennoscope/ORBITER.md). zip 9 comes with tauri-plugin-updater 2.14, which needs Tauri 2.12
-      # and @tauri-apps/plugin-updater 2.14: drop these ignores when TennoScope moves to them.
       - name: TennoScope (tennoscope/Cargo.lock)
         if: ${{ !cancelled() }}
-        run: >-
-          cargo-audit audit --file tennoscope/Cargo.lock
-          --ignore RUSTSEC-2026-0367
-          --ignore RUSTSEC-2026-0368
-          --ignore RUSTSEC-2026-0369
-          --ignore RUSTSEC-2026-0429
+        run: cargo-audit audit --file tennoscope/Cargo.lock

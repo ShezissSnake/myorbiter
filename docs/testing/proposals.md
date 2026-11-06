@@ -23,10 +23,10 @@ Linux `muda` needs 1.90; on Windows `sysinfo` needs 1.95). `rust-version` says 1
   `async-executor 1.14.0`) and go when Tauri moves its own dependencies. The yanked one could be
   bumped on its own with `cargo update -p async-executor` (a lockfile change, so it waits for
   approval).
-- **cargo audit**, TennoScope (`tennoscope/Cargo.lock`): the four `zip 4.6.1` advisories
-  (RUSTSEC-2026-0367, -0368, -0369, -0429) are gone: TennoScope now has `tauri-plugin-updater` 2.14
-  and `zip 9.3.0`. `.github/workflows/audit.yml` still ignores the four; its comment says to drop
-  them at this point (a workflow change, so it waits for approval).
+- **cargo audit**, TennoScope (`tennoscope/Cargo.lock`): no vulnerabilities. The four `zip 4.6.1`
+  advisories (RUSTSEC-2026-0367, -0368, -0369, -0429) went with `tauri-plugin-updater` 2.14 and
+  `zip 9.3.0`, so `.github/workflows/audit.yml` no longer needs its ignores for them (#38 removes
+  them).
 - **Unused code:** no `TODO`, `FIXME`, `XXX` or `HACK` in orbiter's own code. Exports used nowhere
   were removed. Helpers used only by tests are in `tests/support/`, except `loadoutItems`,
   `suggestionNames` and `recipeItems`, which stay in `src/` because they list module-private
