@@ -41,7 +41,26 @@ fn checked_path(p: &str) -> Result<PathBuf, String> {
     if !path.is_absolute() || path.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
         return Err(format!("{}: give a full path", path.display()));
     }
+    if !local_path(&path) {
+        return Err(format!("{}: give a folder on this computer (a drive letter), not a network one", path.display()));
+    }
     Ok(path)
+}
+
+/// On this computer: on Windows, a path that starts with a drive letter (`C:\…`, `\\?\C:\…`).
+/// A network one (`\\host\share\…`) would have Windows connect to that host, sign-in and all,
+/// just to look at it; orbiter's folders, TennoScope's and the game's are all on a drive.
+pub(crate) fn local_path(path: &std::path::Path) -> bool {
+    #[cfg(windows)]
+    {
+        use std::path::{Component, Prefix};
+        return matches!(path.components().next(), Some(Component::Prefix(p)) if matches!(p.kind(), Prefix::Disk(_) | Prefix::VerbatimDisk(_)));
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = path;
+        true
+    }
 }
 
 /// Warframe's log from Settings: a full path to a file named EE.log (any case), which is all orbiter
@@ -290,15 +309,27 @@ fn export_file(app: tauri::AppHandle, what: String, text: String, day: Option<St
     // The page's own date (local time, so a file saved after midnight isn't named for yesterday);
     // today in UTC if it sent none or something that isn't a date.
     let day = day.filter(|d| is_day(d)).unwrap_or_else(chrono_day);
-    let mut path = dir.join(format!("orbiter-{what}-{day}.csv"));
-    let mut n = 2;
-    while path.exists() {
-        path = dir.join(format!("orbiter-{what}-{day}-{n}.csv"));
-        n += 1;
+    if text.len() > MAX_EXPORT_BYTES {
+        return Err("that export is too large".into());
     }
-    fs::write(&path, text.as_bytes()).map_err(|e| e.to_string())?;
-    Ok(path.display().to_string())
+    // Always a new file: `create_new` never writes through a link already lying there under the
+    // name, or over a file, and a name taken means the next number.
+    for n in 1..1000 {
+        let path = if n == 1 { dir.join(format!("orbiter-{what}-{day}.csv")) } else { dir.join(format!("orbiter-{what}-{day}-{n}.csv")) };
+        match fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(mut f) => {
+                std::io::Write::write_all(&mut f, text.as_bytes()).map_err(|e| e.to_string())?;
+                return Ok(path.display().to_string());
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e.to_string()),
+        }
+    }
+    Err("too many exports of that name today".into())
 }
+
+/// The largest CSV export: a year of sales or trades is well under a megabyte.
+const MAX_EXPORT_BYTES: usize = 16 << 20;
 
 /// "2026-11-02": four digits, two, two.
 fn is_day(d: &str) -> bool {
@@ -340,6 +371,17 @@ async fn discord_post(url: String, content: String) -> Result<(), String> {
     if !discord_webhook(&url) {
         return Err("not a Discord webhook address".into());
     }
+    // Notifications come a few at a time: more than this in a minute isn't orbiter's own use, and
+    // a page gone wrong mustn't post the log or chats out by the hundred.
+    {
+        let mut sent = DISCORD_SENT.lock().unwrap_or_else(|e| e.into_inner());
+        let now = Instant::now();
+        sent.retain(|t| now.duration_since(*t) < Duration::from_secs(60));
+        if sent.len() >= DISCORD_PER_MINUTE {
+            return Err("too many Discord posts this minute".into());
+        }
+        sent.push(now);
+    }
     let content: String = content.chars().take(1900).collect();
     tauri::async_runtime::spawn_blocking(move || {
         http_agent()
@@ -357,6 +399,10 @@ async fn discord_post(url: String, content: String) -> Result<(), String> {
     .await
     .map_err(|e| e.to_string())?
 }
+
+/// Discord posts in the last minute, and the most there may be (see discord_post).
+static DISCORD_SENT: Mutex<Vec<Instant>> = Mutex::new(Vec::new());
+const DISCORD_PER_MINUTE: usize = 20;
 
 /// Every Foundry recipe, parts' own blueprints included (see recipes.rs): cached for a week.
 #[tauri::command]
@@ -1252,5 +1298,21 @@ mod tests {
         assert_eq!(window_mode("Graphics.WindowMode=MODE_FULLSCREEN").as_deref(), Some("MODE_FULLSCREEN"));
         assert_eq!(window_mode("Graphics.WindowMode=<script>"), None);
         assert_eq!(window_mode("nothing here"), None);
+    }
+}
+
+#[cfg(all(test, windows))]
+mod local_path_tests {
+    use super::{checked_path, local_path};
+    use std::path::Path;
+
+    #[test]
+    fn network_paths_are_refused() {
+        assert!(local_path(Path::new(r"C:\Users\x\AppData")));
+        assert!(local_path(Path::new(r"\\?\C:\Users\x")));
+        for p in [r"\\host\share\x", r"\\?\UNC\host\share\x", r"\\.\pipe\x"] {
+            assert!(!local_path(Path::new(p)), "{p}");
+            assert!(checked_path(p).is_err(), "{p}");
+        }
     }
 }

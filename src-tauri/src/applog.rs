@@ -134,7 +134,9 @@ pub fn from_ui(level: &str, area: &str, message: &str) {
         "warn" => log::Level::Warn,
         _ => log::Level::Info,
     };
-    let message: String = message.chars().take(2000).collect();
+    // One line in the log, whatever the page sent: a line break or other control character would
+    // let it write lines that look like orbiter's own (and those go into bug reports).
+    let message: String = message.chars().take(2000).map(|c| if c.is_control() { ' ' } else { c }).collect();
     let now = now();
     let repeats = {
         let mut last = LOGGER.last_ui.lock().unwrap_or_else(|e| e.into_inner());

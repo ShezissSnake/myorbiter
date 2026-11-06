@@ -120,6 +120,9 @@ pub fn check_custom(path: &str) -> Result<PathBuf, String> {
     if !p.is_absolute() {
         return Err(format!("{}: give the program's full path", p.display()));
     }
+    if !crate::local_path(&p) {
+        return Err(format!("{}: orbiter only starts a TennoScope on this computer, not one on a network share", p.display()));
+    }
     if !program_allowed(&p) {
         return Err(format!("{}: orbiter only starts a program named tennoscope, tennoscope.exe or TennoScope….AppImage", p.display()));
     }
