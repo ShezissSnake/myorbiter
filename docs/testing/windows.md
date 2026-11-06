@@ -1,90 +1,72 @@
 # What needs a real Windows check
 
-The Windows-only code was read, and the fixes below were made, but none of it can run in a Linux
-container (cross-compiling stops at the C parts of `ring` and `rusqlite`). Each line is a check to
-do on Windows 10 or 11 with the setup.exe of a release build.
+orbiter's Windows-only code can be read and type-checked from Linux, but not run. Each unticked
+line below is a check to do on Windows 10 or 11 with the setup.exe of a release build.
 
-## Checked from Linux, by reading the code and compiling for Windows (2026-11-06)
+## Settled from Linux
 
-What can be settled without a Windows machine. Each line says how it was checked.
-
-- [x] **orbiter compiles for Windows on its MSRV, Rust 1.95**: `cargo +1.95 check --locked
-      --target x86_64-pc-windows-gnu` in `src-tauri/` (with `crates/orbiter-data`, and
-      `sysinfo` 0.39.6 as on `main`) finishes with no error. It only type-checks: the release
-      build is MSVC (`windows-latest`, current stable), and nothing is linked or run. Its five
+- [x] **orbiter type-checks for Windows on its MSRV:** `cargo +1.95 check --workspace --locked
+      --target x86_64-pc-windows-gnu` finishes with no error (with `sysinfo` 0.40). Its five
       warnings are `rendering.rs`'s Linux-only helpers (`WEBKIT_VARS`, `vars_for`, `decide`,
-      `flag_in`, `Mode`'s variants) that aren't behind `cfg(target_os = "linux")`: dead code on
-      Windows, harmless. Run again once the `sysinfo` 0.40 update is merged.
-- [x] **TennoScope's app compiles for Windows on 1.95** too (`cargo +1.95 check --locked --target
-      x86_64-pc-windows-gnu -p tennoscope` in `tennoscope/`). Its workspace still says
-      `rust-version = "1.85"`, which `sysinfo` no longer builds with on Windows; only orbiter's
-      crates are held to their MSRV in CI (`msrv.yml`).
-- [ ] Follow-up: TennoScope's `rust-version` raised to what it really needs (1.95, as orbiter),
-      or the reason it stays, decided with the `sysinfo` 0.40 update.
-- [x] **Where files go**:
+      `flag_in`, `Mode`'s variants), dead code on Windows. It only type-checks: the release build is
+      MSVC on `windows-latest` with current stable, and nothing is linked or run. The MSVC target
+      itself can't be checked from Linux: `ring`'s build script needs the MSVC compiler.
+- [x] **Where files go**, all from the platform's folders, none built with `/`:
       - TennoScope's folder: `%APPDATA%\io.github.deftera186.tennoscope`
-        (`orbiter_data::default_tennoscope_dir`).
-      - Warframe's log: `%LOCALAPPDATA%\Warframe\EE.log` (`ee_log.rs`).
-      - TennoScope's and orbiter's logs: `%LOCALAPPDATA%\<id>\logs`, as Tauri keeps them
-        (`reward_log.rs`, `applog.rs`).
-      - Settings and caches: Tauri's `app_config_dir`, `%APPDATA%\dev.orbiter.app`.
-      - CSV exports: the Downloads folder (`download_dir`), or the home folder without one.
+        (`orbiter_data::default_tennoscope_dir`);
+      - Warframe's log: `%LOCALAPPDATA%\Warframe\EE.log` (`ee_log.rs`);
+      - TennoScope's and orbiter's logs: `%LOCALAPPDATA%\<id>\logs` (`reward_log.rs`, `applog.rs`);
+      - settings and caches: `%APPDATA%\dev.orbiter.app` (Tauri's `app_config_dir`);
+      - CSV exports: the Downloads folder, or the home folder without one.
+- [x] **Network paths are refused** wherever a path comes from the page or the file dialog
+      (`local_path` in `lib.rs`): only a drive letter (`C:\…`, `\\?\C:\…`) passes, so
+      `\\host\share` and `\\?\UNC\…` are refused. A share mapped to a drive letter (`Z:\`) still
+      passes: it's a drive the player mapped. The tests (`local_path_tests`) are `#[cfg(windows)]`.
+- [x] **The installer** (`tauri.windows.conf.json`): NSIS, for the current user (no
+      administrator), English only. WebView2 is fetched silently by its bootstrapper if missing.
+      The updater runs the new setup.exe `passive` (a progress window, no questions). The setup.exe
+      isn't code-signed, so SmartScreen warns the first time.
 
-      All come from the platform's folders, not from the HOME variable, and none is built
-      with `/`.
-- [x] **Network paths are refused** wherever the page sends a path (`local_path`, `lib.rs`): it
-      takes only a drive letter (`C:\…`, `\\?\C:\…`), so `\\host\share` and
-      `\\?\UNC\…` are refused. A network share mapped to a drive letter (`Z:\`) still
-      passes: it's a drive the player mapped. The tests are `#[cfg(windows)]`, so they run only
-      on Windows.
-- [x] **The installer** (`tauri.windows.conf.json`):
-      - NSIS, for the current user (`installMode: currentUser`, no administrator), English only,
-        no language selector.
-      - WebView2 is fetched by its bootstrapper, silently, if it's missing. Windows 11 and
-        updated Windows 10 have it already, so a first install on an old Windows 10 needs the
-        internet.
-      - The updater runs the new setup.exe `passive` (`tauri.conf.json`, `plugins.updater`): a
-        progress window, no questions.
-      - The setup.exe isn't code-signed, so SmartScreen warns the first time (README).
-- [ ] `sysinfo`, `companion.rs` and `windows_proc.rs` (TennoScope started, found and stopped on
-      Windows) weren't read for this: the `sysinfo` 0.40 pull request changes them. Read them
-      once it's merged.
+## To check on Windows
 
-Everything below needs a Windows machine.
-
-## Changed in this round, never run on Windows (needs a Windows machine)
-
-- [ ] **Network paths are refused** (`local_path`, src-tauri/src/lib.rs): Settings → TennoScope's
-      folder set to `\\localhost\c$\Users\<you>\AppData\Roaming\io.github.deftera186.tennoscope`
-      says "give a folder on this computer"; the same folder as `C:\Users\…` works. Same for
-      Warframe's EE.log and TennoScope's program. `cargo test` on Windows also runs
-      `local_path_tests` (they are `#[cfg(windows)]`).
-- [ ] **An update with TennoScope running** (companion.rs `stop` now waits up to 3 s for TennoScope
-      to be gone): with TennoScope started by orbiter, *Update and restart* to a newer build; the
-      passive installer runs to the end without a "can't write tennoscope.exe" (Retry/Abort) box,
-      and orbiter comes back on the new version with TennoScope started again.
-- [ ] **Saves while something holds the file** (`rename_replacing`, lib.rs): open
+- [ ] **It starts with the narrowed permissions** (`src-tauri/capabilities/default.json`: of
+      Tauri's core, only listening for events): first start, every page opens, Settings saves.
+- [ ] **The three native dialogs** open from Rust and work: Settings → TennoScope → *Choose…*
+      (TennoScope's program), a step back to an older build (it names both builds; needs a real
+      older build), and a new Discord webhook address.
+- [ ] **A network path is refused:** TennoScope's folder set to
+      `\\localhost\c$\Users\<you>\AppData\Roaming\io.github.deftera186.tennoscope` says "give a
+      folder on this computer"; the same folder as `C:\Users\…` works. The same for Warframe's
+      EE.log, and for a TennoScope program picked on a network location in *Choose…*.
+      `cargo test` on Windows also runs `local_path_tests`.
+- [ ] **An update with TennoScope running** (`companion.rs` `stop` waits up to 3 s for TennoScope
+      to exit): *Update and restart* to a newer build; the passive installer runs to the end
+      without a "can't write tennoscope.exe" box, and orbiter comes back on the new version with
+      TennoScope started again.
+- [ ] **TennoScope started by hand first** (not by orbiter): orbiter leaves it running, and an
+      update still installs (the TennoScope inside orbiter is the only one whose files it replaces).
+- [ ] **Passive install over a running orbiter:** the installer closes orbiter itself, keeps the
+      settings, and the Start menu entry still opens it.
+- [ ] **Saves while something holds the file** (`rename_replacing` in `lib.rs`): open
       `%APPDATA%\dev.orbiter.app\settings.json` in a program that locks it (or let Defender scan it)
       and change a setting; the change is saved once the lock goes, and orbiter.log has no failed
       save.
-
-## Never checked on Windows from this repository (needs a Windows machine)
-
-- [ ] **A user name with spaces and accents** (`C:\Users\José María\…`): first start finds
+- [ ] **A user name with spaces and accents** (`C:\Users\José María\…`): the first start finds
       TennoScope's folder and Warframe's EE.log; Settings → Logs opens both log folders; a CSV
       export lands in Downloads; Report a bug shows `C:\Users\[user]\…`, never the name.
-- [ ] **orbiter installed under a path with spaces** (the installer's default is per user,
-      `%LOCALAPPDATA%\orbiter`; also try a custom folder with a space): the bundled TennoScope
-      starts, and its Tesseract reads a reward screen.
-- [ ] **Passive install over a running orbiter**: the installer closes orbiter itself, keeps the
-      settings, and the Start menu entry still opens it.
-- [ ] **TennoScope started by hand first** (not by orbiter): orbiter leaves it running, and an
-      update still installs (the TennoScope inside orbiter is the only one whose files it replaces).
-- [ ] **SmartScreen**: the first run of the unsigned setup.exe shows *More info → Run anyway*, as
-      the README says.
-- [ ] **The reward overlay over the game** in borderless and windowed mode (TennoScope's Windows
-      layer call), and with a second monitor.
-- [ ] **Notifications**: a desktop notification appears with orbiter's name and icon, and a click
+- [ ] **orbiter installed under a path with spaces** (the default is `%LOCALAPPDATA%\orbiter`;
+      also try a custom folder with a space): the bundled TennoScope starts, and its Tesseract reads
+      a reward screen.
+- [ ] **SmartScreen:** the first run of the unsigned setup.exe shows *More info → Run anyway*.
+- [ ] **The reward overlay over the game** in borderless and windowed mode, and with a second
+      monitor.
+- [ ] **Notifications:** a desktop notification appears with orbiter's name and icon, and a click
       on it brings orbiter up on the page it's about.
-- [ ] **File locking during a sync**: Sync while Warframe writes EE.log; the trade log and the
-      Current fissure page keep reading (orbiter opens EE.log read-only and shared).
+- [ ] **File locking during a sync:** Sync while Warframe writes EE.log; the trade log and Current
+      fissure keep reading (orbiter opens EE.log read-only and shared).
+
+## To read
+
+- [ ] `companion.rs` and TennoScope's
+      `tennoscope/crates/warframe-acquisition/src/windows_proc.rs` (starting, finding and stopping
+      TennoScope on Windows) as they are with `sysinfo` 0.40.
