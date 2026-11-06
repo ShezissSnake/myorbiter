@@ -119,10 +119,11 @@ fn log_path(url: &str) -> &str {
 /// A reply's body as JSON. Read whole first: failing to read it (a connection reset or cut off on
 /// the way) is "unreachable"; a whole body that isn't JSON is "unexpected". ureq's own
 /// `into_json` reports both as invalid data, so it can't tell them apart.
-fn json_body(body: impl std::io::Read) -> Result<Value, MarketError> {
-    let mut text = String::new();
-    std::io::Read::read_to_string(&mut { body }, &mut text).map_err(|e| MarketError::Unreachable(e.to_string()))?;
-    serde_json::from_str(&text).map_err(|e| MarketError::Unexpected(e.to_string()))
+fn json_body(mut body: impl std::io::Read) -> Result<Value, MarketError> {
+    // Bytes, not text: a whole body that isn't UTF-8 is an unexpected reply, not the network.
+    let mut bytes = Vec::new();
+    body.read_to_end(&mut bytes).map_err(|e| MarketError::Unreachable(e.to_string()))?;
+    serde_json::from_slice(&bytes).map_err(|e| MarketError::Unexpected(e.to_string()))
 }
 
 /// A plain read with no sign-in (the item list, riven names), with the same care for rate limits.
@@ -232,7 +233,8 @@ pub enum MarketError {
     Rejected(String),
     Unreachable(String),
     /// warframe.market answered, but not in a shape orbiter can read (a changed API, a block page
-    /// served as 200): not the same as the site being down.
+    /// served as 200): not the same as the site being down. Like every variant here it reaches
+    /// the page as text (`blocking` in lib.rs); no code branches on Unreachable or Unexpected.
     Unexpected(String),
     /// Signed in, but the token couldn't be kept (no keyring and the config folder not writable).
     Storage(String),
@@ -1145,6 +1147,8 @@ mod tests {
         }
         assert!(matches!(json_body(Drops(false)), Err(MarketError::Unreachable(_))));
         assert!(matches!(json_body(&b"{\"data\":[]}"[..]), Ok(_)));
+        // A whole body that isn't UTF-8 (a page in another encoding): the reply, not the network.
+        assert!(matches!(json_body(&b"\xff\xfe<html>"[..]), Err(MarketError::Unexpected(_))));
         // JSON, but not a profile.
         let e = profile_of(serde_json::json!({ "data": { "nothing": "like a profile" } })).unwrap_err();
         assert!(matches!(e, MarketError::Unexpected(_)));
