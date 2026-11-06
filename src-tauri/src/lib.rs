@@ -754,12 +754,30 @@ fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("settings.json"))
 }
 
+/// The settings as saved, and the page token the page sends back with each save (see `SaveGate`).
+#[derive(serde::Serialize)]
+struct LoadedSettings {
+    settings: Value,
+    page: u64,
+}
+
+/// One token per process: the window's page calls this once as it starts (`loadSettings` in
+/// backend.ts, from App.svelte), and each call makes saves with an older token fail. A second
+/// caller would stop the first page saving; tests/settingsToken.test.ts fails if one appears.
 #[tauri::command(async)]
-fn load_settings(app: tauri::AppHandle) -> Result<Value, String> {
+fn load_settings(app: tauri::AppHandle) -> Result<LoadedSettings, String> {
     let path = settings_path(&app)?;
+    // Read under the save lock: a save from the page before is either on disk by now or dropped.
+    let mut gate = SETTINGS_GATE.lock().unwrap_or_else(|e| e.into_inner());
+    let page = gate.page_loaded();
+    let settings = read_settings(&path)?;
+    Ok(LoadedSettings { settings, page })
+}
+
+fn read_settings(path: &Path) -> Result<Value, String> {
     // No file yet: a first run. Any other failure (a file held by an antivirus or a backup, no
     // permission) is an error, so the page doesn't start from defaults and save them over it.
-    let bytes = match fs::read(&path) {
+    let bytes = match fs::read(path) {
         Ok(b) => b,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Value::Null),
         Err(e) => return Err(format!("couldn't read {}: {e}", path.display())),
@@ -772,7 +790,7 @@ fn load_settings(app: tauri::AppHandle) -> Result<Value, String> {
             // the defaults would save them over the only copy.
             let stamp = std::time::SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
             let aside = path.with_extension(format!("json.broken-{stamp}"));
-            rename_replacing(&path, &aside).map_err(|e| format!("{} is damaged and couldn't be moved aside: {e}", path.display()))?;
+            rename_replacing(path, &aside).map_err(|e| format!("{} is damaged and couldn't be moved aside: {e}", path.display()))?;
             Value::Null
         }
     })
@@ -1011,23 +1029,60 @@ fn write_overlay_prefs(prefs: Value) -> Result<(), String> {
     bridge::write_overlay_in(&bridge::runtime_dir().ok_or("No private folder for the overlay settings")?, &prefs)
 }
 
-/// Saves in the order the page sent them: each save takes a number on arrival, and one that
-/// lost the race to a newer save is dropped instead of overwriting it.
-static SETTINGS_SENT: AtomicU64 = AtomicU64::new(0);
-static SETTINGS_WRITTEN: Mutex<u64> = Mutex::new(0);
+/// Which saves may be written. Each page load (the first, or a reload) gets a new page token from
+/// `load_settings`, and the page numbers its saves from 1 within it. A save from an older page is
+/// dropped: the page loaded since has the settings as they were on disk, and its own saves follow.
+/// Within a page, a save that lost the race to a newer one is dropped instead of overwriting it.
+#[derive(Debug, Default)]
+struct SaveGate {
+    /// The page that loaded last.
+    page: u64,
+    /// The newest save written: (page, number).
+    written: (u64, u64),
+}
+
+impl SaveGate {
+    const fn new() -> Self {
+        SaveGate { page: 0, written: (0, 0) }
+    }
+
+    /// A page loaded the settings: its token.
+    fn page_loaded(&mut self) -> u64 {
+        self.page += 1;
+        self.page
+    }
+
+    /// Whether save `rev` from page `page` may be written: Ok(false) for one that lost the race to
+    /// a newer save of the same page, an error for a page that isn't the one loaded last (a token
+    /// no load handed out, or a page that has since reloaded), so a page still open says so.
+    fn may_write(&self, page: u64, rev: u64) -> Result<bool, String> {
+        if page == 0 {
+            return Err("the settings weren't loaded, so they aren't saved; restart orbiter".into());
+        }
+        if page != self.page {
+            return Err("the settings were loaded again since this page loaded them; restart orbiter to save".into());
+        }
+        Ok(page > self.written.0 || rev >= self.written.1)
+    }
+
+    fn wrote(&mut self, page: u64, rev: u64) {
+        self.written = (page, rev);
+    }
+}
+
+static SETTINGS_GATE: Mutex<SaveGate> = Mutex::new(SaveGate::new());
 
 /// Written whole to a temp file, flushed to disk and renamed (see `write_atomic`), so a crash
 /// never leaves half a settings file. The flush waits on the disk, so not on the main thread.
+/// `page` is the token `load_settings` gave the page; `rev` numbers the page's saves, since async
+/// commands can start out of order.
 #[tauri::command]
-async fn save_settings(app: tauri::AppHandle, settings: Value, rev: Option<u64>) -> Result<(), String> {
-    // The page numbers its saves (`rev`): async commands can start out of order, so numbering
-    // them here could put an older save after a newer one. Without one, as they arrive.
-    let seq = rev.unwrap_or_else(|| SETTINGS_SENT.fetch_add(1, Ordering::SeqCst) + 1);
+async fn save_settings(app: tauri::AppHandle, settings: Value, page: u64, rev: u64) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let path = settings_path(&app)?;
         let text = serde_json::to_vec_pretty(&settings).map_err(|e| e.to_string())?;
-        let mut written = SETTINGS_WRITTEN.lock().unwrap_or_else(|e| e.into_inner());
-        if *written > seq {
+        let mut gate = SETTINGS_GATE.lock().unwrap_or_else(|e| e.into_inner());
+        if !gate.may_write(page, rev)? {
             return Ok(());
         }
         // Only you need to read it.
@@ -1035,7 +1090,7 @@ async fn save_settings(app: tauri::AppHandle, settings: Value, rev: Option<u64>)
             log::error!(target: "orbiter::settings", "saving settings to {} failed: {e}", path.display());
             e.to_string()
         })?;
-        *written = seq;
+        gate.wrote(page, rev);
         Ok(())
     })
     .await
@@ -1323,6 +1378,49 @@ mod tests {
         assert_eq!(window_mode("Graphics.WindowMode=MODE_FULLSCREEN").as_deref(), Some("MODE_FULLSCREEN"));
         assert_eq!(window_mode("Graphics.WindowMode=<script>"), None);
         assert_eq!(window_mode("nothing here"), None);
+    }
+
+    #[test]
+    fn a_reload_s_saves_are_written_and_the_old_page_s_late_save_is_dropped() {
+        let mut gate = SaveGate::new();
+        let old = gate.page_loaded();
+        for rev in 1..=5 {
+            assert_eq!(gate.may_write(old, rev), Ok(true));
+            gate.wrote(old, rev);
+        }
+        // The page reloads: its saves start again at 1, below the old page's 5, and still go in.
+        let new = gate.page_loaded();
+        assert!(new > old);
+        // A save the old page sent just before the reload, arriving after the new page loaded: the
+        // new page didn't read it, so it's refused rather than written under the new page's feet.
+        assert!(gate.may_write(old, 6).is_err());
+        assert_eq!(gate.may_write(new, 1), Ok(true));
+        gate.wrote(new, 1);
+        assert!(gate.may_write(old, 7).is_err());
+        assert_eq!(gate.may_write(new, 2), Ok(true));
+    }
+
+    #[test]
+    fn within_a_page_an_older_save_never_overwrites_a_newer_one() {
+        let mut gate = SaveGate::new();
+        let page = gate.page_loaded();
+        gate.wrote(page, 3);
+        assert_eq!(gate.may_write(page, 2), Ok(false));
+        // The same number again (a save tried twice) still goes in.
+        assert_eq!(gate.may_write(page, 3), Ok(true));
+        assert_eq!(gate.may_write(page, 4), Ok(true));
+    }
+
+    #[test]
+    fn a_save_without_a_page_that_loaded_is_refused() {
+        let mut gate = SaveGate::new();
+        // Nothing loaded yet: no token is good.
+        assert_eq!(gate.may_write(0, 1), Err("the settings weren't loaded, so they aren't saved; restart orbiter".into()));
+        assert!(gate.may_write(1, 1).is_err());
+        let page = gate.page_loaded();
+        // A token no load handed out.
+        assert!(gate.may_write(page + 1, 1).is_err());
+        assert_eq!(gate.may_write(page, 1), Ok(true));
     }
 }
 
