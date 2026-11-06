@@ -3,6 +3,7 @@
   // Secondary, Melee, Companions, Archwing, Amps, K-Drives), its sigil in a ring of mastered against all,
   // the count and the category's name under it. Each is a button (a filter, or a jump), the page's
   // category lit. `all`: an "All" tile first, every category added up, lit when none is picked.
+  // `jumps`: the tiles go somewhere (Wishlist) rather than filter the page, so none is pressed.
   // `marks`: a gold ★ count on a tile (what you starred in it). `line`: the next thing to do.
   import { ringTotal, type CodexRing } from "../core/codex";
   import type { Group } from "../core/collection";
@@ -16,6 +17,7 @@
     marks = {},
     line = null,
     action,
+    jumps = false,
   }: {
     rings: CodexRing[];
     lit?: Group | null;
@@ -26,6 +28,7 @@
     line?: string | null;
     /** What a click on a ring does, for its tooltip: "Click to show only primary", say. */
     action: (r: CodexRing) => string;
+    jumps?: boolean;
   } = $props();
 
   // K-Drives under the Ventkids' sigil: Roky sells every board.
@@ -63,14 +66,14 @@
   <div class="rings" role="toolbar" aria-label="Categories" tabindex="-1" bind:this={row} onkeydown={key} onfocusout={(e) => { if (!row?.contains(e.relatedTarget as Node | null)) at = null; }}>
     {#if all}
       {@const tipAll = `Every category: ${n(sum.mastered)} of ${n(sum.total)} mastered (${pct(sum.mastered, sum.total)}%). ${all.action}`}
-      <button type="button" class="ring" class:lit={lit == null} aria-pressed={lit == null} tabindex={stop(0) ? 0 : -1} aria-label={tipAll} title={tipAll} onclick={all.onpick}>
+      <button type="button" class="ring" class:lit={!jumps && lit == null} aria-pressed={jumps ? undefined : lit == null} tabindex={stop(0) ? 0 : -1} aria-label={tipAll} title={tipAll} onclick={all.onpick}>
         {@render dial(sum.total ? sum.mastered / sum.total : 0, sum.mastered === sum.total, null)}
         <span class="count"><b>{n(sum.mastered)}</b><span class="of">/{n(sum.total)}</span></span>
         <span class="name">All</span>
       </button>
     {/if}
     {#each rings as r, i (r.group)}
-      <button type="button" class="ring" class:lit={lit === r.group} aria-pressed={lit === r.group} tabindex={stop(all ? i + 1 : i) ? 0 : -1} aria-label={tip(r)} title={tip(r)} onclick={() => onpick(r.group)}>
+      <button type="button" class="ring" class:lit={!jumps && lit === r.group} aria-pressed={jumps ? undefined : lit === r.group} tabindex={stop(all ? i + 1 : i) ? 0 : -1} aria-label={tip(r)} title={tip(r)} onclick={() => onpick(r.group)}>
         {@render dial(r.total ? r.mastered / r.total : 0, r.mastered === r.total, ICON[r.group])}
         <span class="count"><b>{n(r.mastered)}</b><span class="of">/{n(r.total)}</span></span>
         <span class="name">{r.label}</span>
