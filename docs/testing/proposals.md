@@ -128,3 +128,51 @@ it's kept for tests on purpose; worth a look before deleting):
 
 About 200 more exports are used only inside their own file; the `export` could go, at no gain
 but a tidier surface, so they're not listed.
+
+## 3. IPC: what the page can ask the Rust side to do (2026-11-06)
+
+All 73 commands in `generate_handler!` (`src-tauri/src/lib.rs`) were read for input checks, file
+reach, URL and program reach, and what a compromised page or a crafted data file could make them
+do. Most hold: market calls go to warframe.market only, with ids and slugs checked; Nox's Frame
+is fetched by checked segment only, spaced and capped; caches and saved files have fixed names;
+TennoScope is asked only four fixed things; the updater needs a signature.
+
+**Fixed in Rust (no approval needed):**
+
+- On Windows, a path the page sends (TennoScope's folder, EE.log, TennoScope's program) must start
+  with a drive letter: a network path (`\\host\share\…`) made Windows connect to that host, and
+  hand it the user's sign-in, just to look, and the program path could start a program from a
+  share. (`local_path` in `lib.rs`, used by `checked_path` and `companion::check_custom`.)
+- `discord_post` posts at most 20 times a minute.
+- `user_slug` needs a name to start with a letter or digit: "." and ".." turned the profile URL
+  into another warframe.market path.
+- `export_file` always creates a new file (never through a link already there) and refuses more
+  than 16 MiB.
+- `log_line` turns control characters into spaces, so the page can't write lines that look like
+  orbiter's own into the log (which goes into bug reports).
+
+**Needs the maintainer** (a dependency, the capability, or the release flow):
+
+1. **TennoScope's program chosen in a file dialog, not typed** (`tennoscope_set_path`). The page
+   can still name any file called `tennoscope`/`tennoscope.exe`/`TennoScope….AppImage` on a local
+   drive (Downloads, say) and start it. The real fix is that only a native file dialog sets it:
+   `tauri-plugin-dialog` (a new dependency) and `dialog:allow-open` in
+   `src-tauri/capabilities/default.json`; `tennoscope_set_path` would then take no path from the
+   page at all. A smaller step without the plugin: refuse paths under the Downloads and temp folders
+   in `check_custom` (it would also refuse a TennoScope someone keeps in Downloads on purpose).
+2. **Narrow `core:default`** in `src-tauri/capabilities/default.json` to the core permissions the
+   page uses (window, event, app version, path resolution as needed). `core:default` also lets the
+   page create windows and webviews and read paths such as the home folder. It needs a list of what
+   `@tauri-apps/api` calls the page makes, then a trial run.
+3. **No silent downgrade** (`updates_install` with `older: true`): a page can install and restart
+   into an older signed build with no click. A floor compiled into each build (refuse versions
+   below the release it shipped from minus N), or a native confirmation for a step back, closes
+   it; both touch the release and channel flow.
+4. **A cap on warframe.market writes from the page** (for example 60 a minute across create,
+   update, close, delete, auctions and +rep), so a page gone wrong can't rewrite every listing at
+   once. Rust only, but it changes how Sell spares' Apply and the repricer pace themselves (a plan
+   of 100 changes would take two minutes), so it's a product decision.
+5. **The Discord webhook bound to settings**: `discord_post` could refuse any address but the one in
+   settings.json. It only narrows the leak (a compromised page can save a new address first); a
+   confirmation outside the page when the address changes would close it, which needs the dialog
+   plugin too.

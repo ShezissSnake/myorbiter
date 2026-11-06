@@ -856,7 +856,8 @@ fn own_review_type(v: &Value) -> Option<i64> {
 /// The market's profile slug for an in-game name: lower case. None for anything that isn't a name.
 pub fn user_slug(name: &str) -> Option<String> {
     let name = name.trim();
-    let ok = !name.is_empty() && name.len() <= 40 && name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'));
+    // Starting with a letter or digit: "." or ".." would turn the profile URL into another path.
+    let ok = !name.is_empty() && name.len() <= 40 && name.starts_with(|c: char| c.is_ascii_alphanumeric()) && name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'));
     ok.then(|| name.to_ascii_lowercase())
 }
 
@@ -1411,5 +1412,19 @@ mod fuzz {
                 assert!(s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '_' | '-' | '.')), "seed {seed}: slug {s}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod slug_tests {
+    use super::user_slug;
+
+    #[test]
+    fn a_name_of_dots_is_no_name() {
+        for bad in [".", "..", "...", ".hidden", "-x", "_x", "a/b", "a b", ""] {
+            assert_eq!(user_slug(bad), None, "{bad:?}");
+        }
+        assert_eq!(user_slug("Tenno_Alpha"), Some("tenno_alpha".into()));
+        assert_eq!(user_slug("x.y-z"), Some("x.y-z".into()));
     }
 }
