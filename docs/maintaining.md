@@ -50,7 +50,7 @@ repository whose `origin` is `ShezissSnake/orbiter`.
       cargo test --manifest-path src-tauri/Cargo.toml
       ```
 
-      The tests on the real catalogue (`public/dev-*.json`) skip without it. On a computer with a
+      The tests on the real catalogue (`public/dev-*.json`) skip without those files. On a computer with a
       TennoScope folder, run `npm run dev-bundle` and `npm run dev-data` before `npm test` so they
       run too; they must pass there as well. Elsewhere skip both: `dev-bundle` without a TennoScope
       folder leaves an empty `public/dev-bundle.json`, which makes those tests fail (delete it).
