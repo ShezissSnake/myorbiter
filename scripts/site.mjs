@@ -139,10 +139,10 @@ function downloads() {
   let rel = null;
   if (file) rel = JSON.parse(readFileSync(file, "utf8"));
   const assets = rel?.assets ?? [];
-  // macOS is built only when a run is started by hand with it ticked, so its button shows only when
-  // the release really carries a .dmg; Linux and Windows always show (Releases when not built).
-  const rows = PLATFORMS.filter((p) => p.key !== "macos" || assets.some((x) => p.re.test(x.name))).map((p) => {
-    const a = assets.find((x) => p.re.test(x.name));
+  // macOS builds are optional, so its button shows only when the release carries a .dmg; Linux and
+  // Windows always show (pointing at Releases when the file isn't there).
+  const found = PLATFORMS.map((p) => [p, assets.find((x) => p.re.test(x.name))]);
+  const rows = found.filter(([p, a]) => a || p.key !== "macos").map(([p, a]) => {
     const href = a ? `${REPO}/releases/download/${encodeURIComponent(rel.tagName)}/${encodeURIComponent(a.name)}` : `${REPO}/releases/latest`;
     const what = a ? esc(a.name) : rel ? "not built for this release: see Releases" : "on the latest Stable release";
     return `<li class="dl"><a class="stamp" href="${href}">${esc(p.label)}</a><span class="file register">${what}</span><span class="note">${esc(p.note)}</span></li>`;
