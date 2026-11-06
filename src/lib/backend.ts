@@ -168,7 +168,7 @@ export interface Settings {
   overlay: OverlaySettings;
   /** Start TennoScope (in the background) with orbiter and close it with orbiter. */
   /** opaqueOverlay: TennoScope's overlay on a solid background (Windows, when a transparent one is invisible). */
-  tennoscope: { launch: boolean; path: string; opaqueOverlay: boolean };
+  tennoscope: { launch: boolean; opaqueOverlay: boolean };
   market: MarketSettings;
   dataDir: string;
   /** Custom EE.log location; empty finds it in the Steam libraries. */
@@ -408,6 +408,16 @@ export const DISCORD_DEFAULT_KINDS = ["rivens", "deals", "fissures", "whispers",
 export const defaultNotifyOptions = (): NotifyOptions => ({ paused: false, pausedUntil: null, toasts: true, desktop: true, quietInFissure: false, quiet: [], discord: { url: "", kinds: DISCORD_DEFAULT_KINDS } });
 /** A Discord webhook address, and nothing else: orbiter only ever posts to one of these. */
 export const isDiscordWebhook = (url: string) => /^https:\/\/(?:(?:ptb\.|canary\.)?discord\.com|discordapp\.com)\/api\/webhooks\/\d+\/[\w-]+$/.test(url.trim());
+/**
+ * Whether orbiter may post to this Discord address: true once confirmed. A new one is asked about
+ * in a window of orbiter's own (not the page); false when the answer was no, or another question
+ * is open. Called while the player is there: when an address is pasted, and as orbiter starts.
+ */
+export async function discordConfirm(url: string): Promise<boolean> {
+  if (!isDiscordWebhook(url)) return false;
+  return inTauri ? invoke<boolean>("discord_confirm", { url: url.trim() }) : true;
+}
+
 /** Posts a notification to your Discord webhook. */
 export async function discordPost(url: string, content: string): Promise<void> {
   if (!isDiscordWebhook(url)) throw new Error("Not a Discord webhook address");
@@ -420,7 +430,7 @@ export const defaultSettings = (): Settings => ({
   pick: defaultPickWeights(),
   jumpToPick: true,
   overlay: defaultOverlay(),
-  tennoscope: { launch: true, path: "", opaqueOverlay: false },
+  tennoscope: { launch: true, opaqueOverlay: false },
   dataDir: "",
   eeLog: "",
   withoutInventory: false,
@@ -828,6 +838,9 @@ export async function loadSettings(): Promise<Settings> {
   if (raw) delete (raw as { view?: unknown }).view;
   // Arcane tiers were taken out: settings saved with them drop them.
   if (raw) delete (raw as { tiers?: unknown }).tiers;
+  // TennoScope's program is chosen in a native dialog and kept by orbiter itself: an old path the
+  // page saved is dropped rather than carried along (into exports and bug reports).
+  if (raw?.tennoscope && typeof raw.tennoscope === "object") delete (raw.tennoscope as { path?: unknown }).path;
   return {
     ...base,
     ...(raw ?? {}),
@@ -1152,8 +1165,14 @@ export const tennoscope = {
   /** Linux's Yama ptrace_scope: above 0, TennoScope can't read the game's memory. Null: no such limit. */
   ptraceScope: (): Promise<number | null> => (inTauri ? invoke<number | null>("ptrace_scope") : Promise.resolve(null)),
   status: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_status") : devTennoscope()),
-  /** The program orbiter starts as TennoScope (Settings; empty finds it). Kept by orbiter's Rust side, which refuses anything not named like TennoScope. */
-  setPath: (path: string): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_set_path", { path: path || null }) : devTennoscope()),
+  /**
+   * The program orbiter starts as TennoScope, picked in a native file dialog that orbiter's Rust
+   * side opens: the page never names one. Null when the dialog was closed without a choice. Kept
+   * by the Rust side, which refuses anything not named like TennoScope.
+   */
+  chooseProgram: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_choose_program") : Promise.resolve(null)),
+  /** orbiter finds TennoScope again, forgetting the program chosen in the dialog. */
+  forgetProgram: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_forget_program") : devTennoscope()),
   start: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_start") : devTennoscope()),
   show: (): Promise<void> => (inTauri ? invoke("tennoscope_show") : Promise.resolve()),
   ask: (ask: TennoscopeAsk): Promise<void> => (inTauri ? invoke("tennoscope_ask", { ask }) : Promise.resolve()),

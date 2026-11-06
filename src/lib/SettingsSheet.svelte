@@ -62,33 +62,39 @@
   // Paths are edited as drafts and applied together, because changing them reloads everything.
   let dataDir = $state("");
   let eeLog = $state("");
-  let tsPath = $state("");
   // Follow the saved values (when settings load or are applied). Closing the panel keeps an
   // unsaved edit, so it's still there, with Apply, when the panel opens again.
-  // The program is kept by orbiter itself (not in these settings), which only takes a file named
-  // like TennoScope: what it holds is what shows here.
-  const savedTs = $derived(ts.status?.custom ?? "");
+  // The program is kept by orbiter itself (not in these settings) and chosen only in the native
+  // file dialog it opens, which takes only a file named like TennoScope: the page can't name one.
   let tsError = $state<string | null>(null);
+  let choosing = $state(false);
+  async function chooseProgram() {
+    choosing = true;
+    try {
+      await ts.chooseProgram();
+      tsError = null;
+      void ts.check();
+    } catch (e) {
+      tsError = String(e).replace(/^Error: /, "");
+    } finally {
+      choosing = false;
+    }
+  }
+  async function forgetProgram() {
+    try {
+      await ts.forgetProgram();
+      tsError = null;
+      void ts.check();
+    } catch (e) {
+      tsError = String(e).replace(/^Error: /, "");
+    }
+  }
   $effect(() => {
     dataDir = settings.dataDir;
     eeLog = settings.eeLog;
   });
-  $effect(() => {
-    tsPath = savedTs;
-  });
-  const tsChanged = $derived(tsPath.trim() !== savedTs);
-  const dirty = $derived(dataDir.trim() !== settings.dataDir || eeLog.trim() !== settings.eeLog || tsChanged);
+  const dirty = $derived(dataDir.trim() !== settings.dataDir || eeLog.trim() !== settings.eeLog);
   async function apply() {
-    if (tsChanged) {
-      try {
-        await ts.setPath(tsPath);
-        tsError = null;
-        settings.tennoscope.path = tsPath.trim();
-      } catch (e) {
-        tsError = String(e).replace(/^Error: /, "");
-        return;
-      }
-    }
     settings.dataDir = dataDir.trim();
     settings.eeLog = eeLog.trim();
     onpaths();
@@ -113,7 +119,6 @@
   function revert() {
     dataDir = settings.dataDir;
     eeLog = settings.eeLog;
-    tsPath = savedTs;
     tsError = null;
   }
 </script>
@@ -174,13 +179,16 @@
       In the background, with no window of its own, and closed again when you close orbiter. A TennoScope you start yourself is left alone.
     </Switch>
     <FullMode kind="switch" />
-    <label class="field">
-      <span class="register">Program</span>
-      <input class="path" bind:value={tsPath} title={tsPath || undefined} placeholder={ts.status?.binary ? `Found: ${ts.status.binary}` : "Not found"} spellcheck="false" />
-      <span class="hint">Empty finds it: the copy inside orbiter, then (in a development build) one built in orbiter's tennoscope/ folder or an older checkout in your home folder, then an installed one. A path here must be the full path to a program named tennoscope or tennoscope.exe, or a TennoScope AppImage.</span>
-      {#if tsChanged && tsPath.trim()}<span class="hint warn">orbiter will run this program as TennoScope from now on, each time it starts. Use only a TennoScope you built or downloaded yourself. Apply to confirm.</span>{/if}
+    <div class="field" role="group" aria-labelledby="ts-program">
+      <span class="register" id="ts-program">Program</span>
+      <div class="row">
+        <span class="path program" title={ts.status?.custom ?? ts.status?.binary ?? undefined}>{#if ts.status?.custom}{ts.status.custom}{:else if ts.status?.binary}<span class="dim">Found:</span> {ts.status.binary}{:else}<span class="dim">Not found</span>{/if}</span>
+        <button type="button" class="stamp" disabled={choosing} title="Pick the TennoScope program in your system's file picker" onclick={chooseProgram}>{choosing ? "Choosing…" : "Choose…"}</button>
+        {#if ts.status?.custom}<button type="button" class="stamp" title="Forget the chosen program: orbiter finds TennoScope itself again" onclick={forgetProgram}>Find it</button>{/if}
+      </div>
+      <span class="hint">Unless you choose one, orbiter finds it: the copy inside orbiter, then (in a development build) one built in orbiter's tennoscope/ folder or an older checkout in your home folder, then an installed one. Choose opens your system's file picker and takes only a program named tennoscope or tennoscope.exe, or a TennoScope AppImage. orbiter runs the program you choose as TennoScope each time it starts: use only a TennoScope you built or downloaded yourself.</span>
       {#if tsError}<span class="hint err">Not changed: {tsError}</span>{/if}
-    </label>
+    </div>
   </section>
 
   <section>
@@ -363,8 +371,8 @@
   .path::placeholder { text-transform: none; letter-spacing: 0; font-size: .74rem; font-style: italic; color: var(--platinum-deep); opacity: .7; }
   .hint { font-size: .76rem; color: var(--platinum-deep); }
   .path-note { word-break: break-all; margin: .3rem 0 0; }
+  .program { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--platinum-dim); }
   .hint.err { color: var(--oxblood); }
-  .hint.warn { color: var(--gold); }
   .row { display: flex; align-items: center; gap: .6rem; }
   .pagelist { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
   .pagelist li { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: .5rem; }

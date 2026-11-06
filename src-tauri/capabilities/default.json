@@ -1,10 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window. The opener may open only these sites, over https (the page checks too: src/lib/core/links.ts); it can't open files or folders, or show them in the file manager (orbiter's log folders are opened from Rust). Of the process plugin, only restart (after an update is installed); updates themselves go through orbiter's own commands (updates.rs), so none of the updater plugin's commands are allowed.",
+  "description": "Main window. Of Tauri's core, only listening for orbiter's own events (and stopping); no windows, webviews, paths, menus or other core commands. No dialog permission: orbiter's native dialogs (TennoScope's program, a step back to an older build, a new Discord webhook) open from Rust. The opener may open only these sites, over https (the page checks too: src/lib/core/links.ts); it can't open files or folders, or show them in the file manager (orbiter's log folders are opened from Rust). Of the process plugin, only restart (after an update is installed); updates themselves go through orbiter's own commands (updates.rs), so none of the updater plugin's commands are allowed.",
   "windows": ["main"],
   "permissions": [
-    "core:default",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
     "window-state:default",
     "process:allow-restart",
     {
