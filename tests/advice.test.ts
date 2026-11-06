@@ -124,7 +124,7 @@ test("crack planner finds relics that finish a set", async () => {
 // ---------------------------------------------------------------- regressions
 
 import { buildModel as build } from "../src/lib/core/model";
-import { crackRows as crack, ducatRows as ducatsOf } from "../src/lib/core/advice";
+import { crackRows as crack } from "../src/lib/core/advice";
 import { relicRows as relicsOf } from "../src/lib/core/views";
 import { holdings } from "../src/lib/core/market";
 
@@ -150,14 +150,6 @@ test("crack odds add up the wanted rewards (one crack, one reward)", () => {
     relics: [{ uniqueName: "/Relic/R1Bronze", name: "Axi R1 Intact", rewards: [
       { name: "Rhino Prime Chassis Blueprint", rarity: "Uncommon", chance: 25 }, { name: "Rhino Prime Systems Blueprint", rarity: "Uncommon", chance: 25 }, { name: "Forma Blueprint", rarity: "Common", chance: 50 }] }] });
   assert.equal(crack(m, 2).relics[0].chance, 0.5);
-});
-
-test("plat-or-ducats doesn't count a set's parts twice", () => {
-  const m = build({ observed_at: null, catalog: rhinoCatalog, relics: [],
-    prices: { prices: { "Rhino Prime Set": 60, "Rhino Prime Blueprint": 20, "Rhino Prime Systems Blueprint": 30 } },
-    inventory: [row("/R/Bp", "Rhino Prime Blueprint", "prime_part", 1), row("/R/Systems", "Rhino Prime Systems Blueprint", "prime_part", 2), row("/Rhino", "Rhino Prime", "frame", 0)].map((r) => (r.item_id === "/Rhino" ? { ...r, mastered: true } : r)) });
-  const rows = ducatsOf(m, { platPerDucat: 0.1, minPlat: 5, slowBelow: 1 }, true);
-  assert.deepEqual(rows.map((r) => [r.kind, r.name, r.quantity]).sort(), [["part", "Rhino Prime Systems Blueprint", 1], ["set", "Rhino Prime Set", 1]]);
 });
 
 test("relic listings find your copies by refinement", () => {

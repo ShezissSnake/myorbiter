@@ -2,13 +2,10 @@
 // should be sold for platinum or traded in for ducats.
 
 import { splitRelicName, type Model } from "./model";
-import { partRows, rewardPlat, setRows } from "./views";
+import { rewardPlat, setRows } from "./views";
 import type { RelicEntry } from "./types";
 
 // ---------------------------------------------------------------- radiant
-
-/** Void Traces to refine an Intact relic up to each refinement. Refining further pays the difference. */
-export const TRACE_COST: Record<string, number> = { Intact: 0, Exceptional: 25, Flawless: 50, Radiant: 100 };
 
 export interface Outcome {
   chance: number; // 0..1
@@ -206,52 +203,6 @@ export function decide(plat: number | null, ducats: number, trades: number | nul
   if (!worthATrade(plat, copies, o.minPlat)) return { verdict: "ducats", reason: perTrade > 1 ? `Under ${o.minPlat}p a trade, even ${perTrade} at once: not worth one` : `Under ${o.minPlat}p: not worth a trade`, slow };
   if (slow && baroWorth >= plat * 0.6) return { verdict: "ducats", reason: "Sells slowly and ducats come close", slow };
   return { verdict: "plat", reason: slow ? "Worth more as plat, but sells slowly" : `Sells for more than its ducats are worth`, slow };
-}
-
-export function ducatRows(m: Model, o: DucatOptions, includeSets: boolean): DucatRow[] {
-  const rows: DucatRow[] = [];
-  // With sets shown, the parts inside a sellable set are counted with the set, not again on their own.
-  const sets = includeSets ? setRows(m).filter((s) => s.sellable > 0) : [];
-  for (const row of partRows(m)) {
-    const p = { ...row, spare: row.spare - (includeSets ? row.inSets : 0) };
-    if (p.spare <= 0) continue;
-    const d = decide(p.price, p.ducats, p.tradesPerDay, o, p.spare);
-    rows.push({
-      kind: "part",
-      name: p.name,
-      image: p.name,
-      quantity: p.spare,
-      plat: p.price,
-      ducats: p.ducats,
-      ducatsPerPlat: p.price ? p.ducats / p.price : null,
-      ...d,
-      tradesPerDay: p.tradesPerDay,
-      totalPlat: (p.price ?? 0) * p.spare,
-      totalDucats: p.ducats * p.spare,
-      vaulted: p.availability === "vaulted",
-    });
-  }
-  if (includeSets) {
-    // A complete set sells as one trade; compare it with trading every part in for ducats.
-    for (const s of sets) {
-      const d = decide(s.setPrice, s.ducats, s.tradesPerDay, o, s.sellable);
-      rows.push({
-        kind: "set",
-        name: `${s.name} Set`,
-        image: s.name,
-        quantity: s.sellable,
-        plat: s.setPrice,
-        ducats: s.ducats,
-        ducatsPerPlat: s.setPrice ? s.ducats / s.setPrice : null,
-        ...d,
-        tradesPerDay: s.tradesPerDay,
-        totalPlat: (s.setPrice ?? 0) * s.sellable,
-        totalDucats: s.ducats * s.sellable,
-        vaulted: s.vaulted,
-      });
-    }
-  }
-  return rows;
 }
 
 // ---------------------------------------------------------------- crack to complete sets

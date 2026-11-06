@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildModel } from "../src/lib/core/model";
-import { FEATURE, helminthAbilities, installedShards, polarityName, slotPolarities, type GearCopy } from "../src/lib/core/notNeeded";
+import { FEATURE, polarityName, slotPolarities, type GearCopy } from "../src/lib/core/notNeeded";
 import { defaultGame, loadSettings, type TennoscopeReport } from "../src/lib/backend";
 import type { Bundle } from "../src/lib/core/types";
 
@@ -38,7 +38,7 @@ test("polarity codes read as the catalog names them", () => {
   assert.equal(polarityName("AP_SOMETHING_NEW"), null);
 });
 
-test("gearOf gives each copy of an item, with its polarities, shards and Helminth ability", () => {
+test("gearOf gives each copy of an item, with its polarities", () => {
   const m = model(GEAR);
   const excal = m.gearOf(EXCAL);
   assert.equal(excal.length, 2, "both copies");
@@ -48,12 +48,7 @@ test("gearOf gives each copy of an item, with its polarities, shards and Helmint
     { slot: 2, polarity: "aura" },
     { slot: 5, polarity: "umbra" },
   ]);
-  assert.deepEqual(installedShards(built), [
-    { slot: 0, colour: "red", tauforged: false, upgrade: STRENGTH },
-    { slot: 2, colour: "green", tauforged: true, upgrade: HEALTH },
-  ]);
-  assert.deepEqual(helminthAbilities(built), [{ config: 1, ability: RAVENOUS, slot: 3 }]);
-  assert.deepEqual([slotPolarities(plain), installedShards(plain), helminthAbilities(plain)], [[], [], []], "a copy without any reads as none");
+  assert.deepEqual(slotPolarities(plain), [], "a copy without any reads as none");
   assert.deepEqual(m.gearOf("/Lotus/Powersuits/Saryn/Saryn"), [], "none held");
 });
 
@@ -80,16 +75,14 @@ test("an older TennoScope's rows, and odd entries, still read", () => {
   const old: GearCopy[] = [{ type: EXCAL, f: 1, p: 2 }, { type: EXCAL, f: 0, p: 0, s: "Suits" }];
   const m = model(old);
   assert.equal(m.gearOf(EXCAL).length, 2);
-  for (const c of m.gearOf(EXCAL)) assert.deepEqual([slotPolarities(c), installedShards(c), helminthAbilities(c)], [[], [], []]);
+  for (const c of m.gearOf(EXCAL)) assert.deepEqual(slotPolarities(c), []);
   assert.deepEqual(model(null).gearOf(EXCAL), [], "no gear passed at all");
   assert.equal(model(null).gear, null);
 
   const odd = { type: EXCAL, f: 0, p: 0, pol: [[1, "AP_NEW"], ["x", "AP_ATTACK"], null, [2]], shards: [[0, null, STRENGTH], [1, "ACC_RED"], "x"], ab: [[0, RAVENOUS]] } as unknown as GearCopy;
   assert.deepEqual(slotPolarities(odd), [{ slot: 1, polarity: "AP_NEW" }], "an unknown code keeps the game's own; malformed ones are dropped");
-  assert.deepEqual(installedShards(odd), [{ slot: 0, colour: null, tauforged: false, upgrade: STRENGTH }]);
-  assert.deepEqual(helminthAbilities(odd), []);
   const notList = { type: EXCAL, f: 0, p: 0, pol: "AP_ATTACK", shards: {}, ab: 3 } as unknown as GearCopy;
-  assert.deepEqual([slotPolarities(notList), installedShards(notList), helminthAbilities(notList)], [[], [], []]);
+  assert.deepEqual(slotPolarities(notList), []);
 });
 
 test("the report's new fields are optional, and the saved game state starts without them", () => {

@@ -78,17 +78,3 @@ export function mergeRelics(theirs: RelicEntry[], data: RelicData | null | undef
   return out;
 }
 
-/** What changed against TennoScope's list, for Relics' note: relics added, and ones whose vaulting changed. */
-export function relicDataNews(theirs: RelicEntry[], merged: RelicEntry[]): { added: number; vaultChanged: number } {
-  const before = new Map(theirs.map((r) => [keyOf(r.name), r]));
-  let added = 0;
-  let vaultChanged = 0;
-  for (const r of merged) {
-    const k = keyOf(r.name);
-    if (!k || !k.endsWith("|Intact")) continue;
-    const old = before.get(k);
-    if (!old) added++;
-    else if ((old.vaulted === true) !== (r.vaulted === true)) vaultChanged++;
-  }
-  return { added, vaultChanged };
-}

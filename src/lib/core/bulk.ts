@@ -7,7 +7,7 @@ import { competitor, findItem, heldFor, marketValue, overAsked, type BookOrder, 
 import { aboveCrack, allSetRows, gearSetRows, spareRows, type SellChoices, type SpareRow } from "./spares";
 import type { Model } from "./model";
 import { ANTIVIRUS_MOD, arcaneRows, inventoryRows, LICH_KEEP_ALL, MOD_KEEP, modRows, modSpares, partRows, REQUIEM_MOD, saveForSets, savedLine, setRows, type ArcaneRow, type ModRow } from "./views";
-import { allOn, LICH_FAMILIES, neverSells, rulesV2, SPARE_CATEGORIES, type ModFamily, type PlanRules, type ResourceFamily, type SpareCategory, type SparesRules } from "./sparesRules";
+import { allOn, LICH_FAMILIES, rulesV2, SPARE_CATEGORIES, type ModFamily, type PlanRules, type ResourceFamily, type SpareCategory, type SparesRules } from "./sparesRules";
 import { gearSetParts } from "./model";
 import { packValues, spareArcanes, vosforWorth } from "./vosfor";
 
@@ -52,8 +52,6 @@ export interface BulkRules {
 export const defaultBulkRules = (): BulkRules => ({ sets: true, arcanes: true, mods: true, parts: true, partsKeep: 0, other: false, imprints: true, priority: "plat" });
 
 export const KIND_LABEL: Record<BulkKind, string> = { set: "Set", arcane: "Arcane", mod: "Mod", part: "Prime part", imprint: "Imprint", other: "Other item" };
-/** Each kind's switch in BulkRules. */
-export const RULE_OF: Record<BulkKind, "sets" | "arcanes" | "mods" | "parts" | "imprints" | "other"> = { set: "sets", arcane: "arcanes", mod: "mods", part: "parts", imprint: "imprints", other: "other" };
 export const BULK_KINDS: BulkKind[] = ["set", "arcane", "mod", "part", "imprint", "other"];
 
 /** Where a thing goes on Sell spares, below its category: a mod family, a kind of resource, or neither. */
@@ -145,9 +143,6 @@ export function modKeepOf(r: SparesRules, mod: ModRow): number {
   if (fam && !(LICH_FAMILIES as readonly string[]).includes(fam)) return r.mods.families[fam].keep;
   return r.mods.keep;
 }
-
-/** A mod's spare copies by rank under these rules (views.modSpares with the keep number). */
-export const modSparesUnder = (r: SparesRules, mod: ModRow) => modSpares({ ...mod, keep: modKeepOf(r, mod) });
 
 /** Copies of a spare row kept on top of its own rule: a relic's keep number, resources' margin. */
 export function extraKeepOf(r: SparesRules, row: SpareRow): number {

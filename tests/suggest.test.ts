@@ -13,9 +13,7 @@ import {
   modIndex,
   ownedFrom,
   suggest,
-  suggestAll,
   suggestionNames,
-  suggestVariants,
   variantsFor,
   TIERS,
   toBuild,
@@ -24,6 +22,7 @@ import {
   type Polarity,
   type Suggestion,
 } from "../src/lib/core/builds/suggest";
+import { suggestAll, suggestVariants } from "./support/builds";
 import type { CatalogItem, InventoryRow } from "../src/lib/core/types";
 
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/builds-catalog.json", import.meta.url), "utf8")) as { catalog: CatalogItem[] };
