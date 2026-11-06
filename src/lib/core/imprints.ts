@@ -34,6 +34,8 @@ export function imprintBreed(raw: ImprintRaw, isBreed: (path: string) => boolean
 export function imprintCounts(raws: ImprintRaw[], isBreed: (path: string) => boolean): Map<string, number> {
   const out = new Map<string, number>();
   for (const raw of raws) {
+    // A row that isn't one (a damaged settings file keeps the last read) is no imprint.
+    if (!raw || typeof raw !== "object") continue;
     const breed = imprintBreed(raw, isBreed) ?? "";
     out.set(breed, (out.get(breed) ?? 0) + 1);
   }
