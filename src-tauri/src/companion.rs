@@ -58,6 +58,9 @@ pub struct Companion {
     starting: Mutex<()>,
 }
 
+/// How long `stop` waits for TennoScope to be gone after asking it to stop.
+const STOP_WAIT: std::time::Duration = std::time::Duration::from_secs(3);
+
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
@@ -503,6 +506,16 @@ impl Companion {
         log::info!(target: "orbiter::tennoscope", "stopping the TennoScope orbiter started");
         if alive(p) {
             terminate(p.pid);
+            // Asking isn't the same as it being gone: on Windows the process ends a moment after
+            // TerminateProcess returns, and until then its files are locked. The installer that
+            // runs right after this (updates.rs) would stop on "can't write tennoscope.exe".
+            let until = std::time::Instant::now() + STOP_WAIT;
+            while alive(p) && std::time::Instant::now() < until {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            if alive(p) {
+                log::warn!(target: "orbiter::tennoscope", "TennoScope was still running {} s after being asked to stop", STOP_WAIT.as_secs());
+            }
         }
         remember(None);
     }

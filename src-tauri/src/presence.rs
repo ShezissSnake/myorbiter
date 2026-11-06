@@ -151,7 +151,7 @@ fn write_heartbeat(id: u64, status: Status) {
     let body = serde_json::json!({ "at": now_ms(), "pid": std::process::id(), "status": status.wire() });
     let tmp = dir.join(format!(".{HELD_FILE}.{}", std::process::id()));
     if std::fs::write(&tmp, body.to_string()).is_ok() {
-        let _ = std::fs::rename(&tmp, dir.join(HELD_FILE));
+        let _ = crate::rename_replacing(&tmp, &dir.join(HELD_FILE));
     }
 }
 

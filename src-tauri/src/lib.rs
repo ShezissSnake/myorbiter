@@ -176,11 +176,33 @@ pub(crate) fn write_atomic(path: &Path, bytes: &[u8], private: bool) -> std::io:
         f.write_all(bytes)?;
         f.sync_all()
     });
-    let result = result.and_then(|()| fs::rename(&tmp, path));
+    let result = result.and_then(|()| rename_replacing(&tmp, path));
     if result.is_err() {
         let _ = fs::remove_file(&tmp);
     }
     result
+}
+
+/// `fs::rename` over a file that may exist. On Windows a scanner or a backup tool can hold the
+/// target open for a moment (access denied, or a sharing violation): tried again a few times over
+/// about a second before giving up, rather than losing the save.
+pub(crate) fn rename_replacing(from: &Path, to: &Path) -> std::io::Result<()> {
+    #[cfg(windows)]
+    {
+        let mut wait = Duration::from_millis(50);
+        for _ in 0..5 {
+            match fs::rename(from, to) {
+                Ok(()) => return Ok(()),
+                // 5: access denied; 32: in use by another process; 33: part of it locked.
+                Err(e) if matches!(e.raw_os_error(), Some(5 | 32 | 33)) => {
+                    std::thread::sleep(wait);
+                    wait *= 2;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    }
+    fs::rename(from, to)
 }
 
 enum Unavailable {
