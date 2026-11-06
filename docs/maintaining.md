@@ -4,6 +4,78 @@ GitHub settings that can't live in the repository: switch them on by hand once
 `ShezissSnake/orbiter` is public, and check them again after any change to the repository's
 settings. Each line says where it is.
 
+## Going public, step by step
+
+Every step in order, from a private repository to the first public Stable installed by hand. Each
+one links to its details further down; tick it here when it's done.
+
+**1. Before the switch** (the repository is still private)
+
+- [ ] The signing key and its password are backed up offline (`~/.tauri/orbiter.key`); README,
+      *Release channels*, says why.
+- [ ] Old releases from before the 0.2 builds are gone (build-3, build-6, build-8), with their tags.
+- [ ] Branches that only held finished work are deleted (`claude/…`), so only `main` and the
+      Dependabot branches go public.
+- [ ] Commit e-mail stays private (*Before making it public*, below).
+- [ ] The history is read once more for anything personal or secret, and no leftover `build-<n>`
+      tag points at a commit its run didn't build (*Before making it public*).
+- [ ] `npm test`, `npm run check -- --threshold error` and `cargo test` pass on `main`, and the last
+      Experimental build installed and updated (`docs/testing/log.md`).
+
+**2. Make it public**
+
+- [ ] Settings → General → Danger Zone → **Change repository visibility** → Public.
+- [ ] Every push to `main` now builds by itself (release.yml); the next one shows that the switch
+      worked. The weekly audit and MSRV checks run on their own too.
+
+**3. GitHub settings** (most of these exist on GitHub Free only for public repositories)
+
+- [ ] Private vulnerability reporting, secret scanning with push protection, Dependabot alerts and
+      security updates (*Before making it public*).
+- [ ] The Actions settings: fork pull requests wait for approval, a read-only token, pinned actions
+      only (*Actions*).
+- [ ] Rulesets for `main` and the release tags (*Branches and tags*).
+- [ ] Wiki, Discussions and Projects off unless used (*Features not in use*).
+
+**4. Move the signing secrets** into the `release-signing` environment (*The signing key's
+environment*): create it, limit it to `main`, add the two secrets, delete the repository copies,
+optionally require approval.
+
+- [ ] Done, and the repository secrets list no longer has `TAURI_SIGNING_PRIVATE_KEY` or
+      `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+
+**5. A first public build**
+
+- [ ] Push to `main`, or Actions → *Release builds* → *Run workflow* with Windows ticked. Note the
+      run's number *n*.
+- [ ] The run is green; its sign job names the `release-signing` environment (approve it if
+      approval is on); its summary has no "No updater files" line.
+- [ ] Release `build-<n>` carries the AppImage, the setup.exe, both `.sig` files, `latest.json`,
+      `SHA256SUMS` and `orbiter-source.tar.gz`; `channel-experimental` names 0.2.*n*.
+- [ ] `gh attestation verify <file> --repo ShezissSnake/orbiter` passes for the AppImage and the
+      setup.exe (attestations exist only for builds made while the repository is public).
+
+**6. Promote it to Stable**
+
+- [ ] Install it from Experimental on Linux and on Windows, and use it for a while: start, sync,
+      a page of each section, Check for updates.
+- [ ] Actions → *Promote a build* → *Run workflow* on `main`, build *n*, channel **beta**; then
+      again with **stable**. (Stable alone also moves Beta up.)
+- [ ] `channel-stable` and `channel-beta` name 0.2.*n*, and `build-<n>` is a full release marked
+      *Latest*.
+- [ ] Release notes: open `build-<n>` → *Edit* and replace its description with
+      `docs/releases/first-public.md` (the commit list it had stays in the update screen's notes,
+      which come from `latest.json`).
+
+**7. The first manual install**, as a new player would do it
+
+- [ ] On a computer without orbiter, open the repository's *Releases*, take *Latest*'s AppImage
+      (or setup.exe) and `SHA256SUMS`, and check it (README, *Checking a download*).
+- [ ] Install and start it: the first-start walk-through appears, Full mode is off, and Settings →
+      Updates says Stable and the version 0.2.*n*.
+- [ ] *Check now* says it's up to date. When the next build reaches Stable, that copy offers it and
+      updates with one click.
+
 ## Before making it public
 
 - [ ] **Private vulnerability reporting:** Settings → Code security → Private vulnerability
