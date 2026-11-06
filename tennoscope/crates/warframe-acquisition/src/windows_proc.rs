@@ -84,7 +84,14 @@ impl Default for WindowsProc {
 
 impl ProcessDiscovery for WindowsProc {
     fn discover(&self) -> Result<Option<GameProcess>, AcquisitionError> {
-        let mut system = System::new();
+        // A system that can't be initialised shows no processes: the game is simply not found.
+        let Ok(mut system) = System::new() else {
+            self.handles
+                .lock()
+                .map_err(|_| AcquisitionError::ProcessDiscoveryFailed)?
+                .clear();
+            return Ok(None);
+        };
         system.refresh_processes_specifics(
             ProcessesToUpdate::All,
             true,
