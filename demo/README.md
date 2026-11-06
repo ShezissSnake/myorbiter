@@ -23,13 +23,27 @@ dozen relics, mods with duplicates, arcanes, twelve listings on warframe.market 
 cheapest seller, so Check prices has something to reprice), a fissure with four relics and its
 reward screen, and two builds in the foundry.
 
+It also holds the situations `tests/sparesPlan.test.ts` checks Sell spares against (the last block
+of `scripts/demo-data.mjs`, with a random generator of its own so nothing else moves): Requiem mods
+two to four deep (Khra four) and fifteen Computer Cop while Kuva, Tenet and Coda weapons are left,
+Cleaving Whirlwind six times unranked, Arcane Energize one maxed and nine unranked, Virtuos Forge
+two maxed, a Requiem relic held twice, gems the unbuilt Keratinos' parts take, Ayatan sculptures, a
+whole spare Braton Vandal set, and Sunika Kubrow imprints on warframe.market's list. Paris Prime is
+the one spare set whose every part drops from a relic the account holds. Change any of these and the
+tests say which rule now reads differently.
+
+@wfcd/items doesn't carry a part's own recipe: the Keratinos parts' recipes are made up like the
+rest of the account. It lists Requiem and Antivirus mods as untradable, and the demo leaves them so:
+their prices on warframe.market are what make them tradable, as with a real catalog.
+
 ## Regenerating
 
 The files are built by `scripts/demo-data.mjs` (plain Node, no dependencies, no network) from a copy
-of @wfcd/items outside the repository. The same package gives the same files.
+of @wfcd/items outside the repository. The same package gives the same files; the ones here come
+from @wfcd/items 1.1276.48.
 
 ```sh
-mkdir -p /tmp/wfcd && cd /tmp/wfcd && npm pack @wfcd/items && tar xzf wfcd-items-*.tgz
+mkdir -p /tmp/wfcd && cd /tmp/wfcd && npm pack @wfcd/items@1.1276.48 && tar xzf wfcd-items-*.tgz
 cd - && node scripts/demo-data.mjs /tmp/wfcd/package
 ```
 
