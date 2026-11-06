@@ -153,7 +153,7 @@
   </PageHead>
 
   <div class="bar">
-    <input type="search" placeholder="Filter items…" bind:value={query} aria-label="Filter items by name" />
+    <input type="search" title="Shows only what matches what you type" placeholder="Filter items…" bind:value={query} aria-label="Filter items by name" />
     <select bind:value={category} aria-label="Category" class="kinds" title="Only one kind of item, by warframe.market's own tags">
       <option value="all">All kinds ({count("all").toLocaleString("en")})</option>
       {#each CATEGORIES as c (c.v)}<option value={c.v}>{c.label} ({count(c.v).toLocaleString("en")})</option>{/each}

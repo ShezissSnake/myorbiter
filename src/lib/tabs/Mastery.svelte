@@ -251,7 +251,7 @@
   <!-- The page's two modes as tabs, then the filters: the box first, the kind, the rest folded. -->
   <div class="views"><Tabs bind:value={view} label="Mastery view" options={[{ v: "effort", label: "Easiest first", title: "Everything you haven't mastered, by how hard it is to get" }, { v: "plat", label: "Buy with plat", title: "What platinum gets you, cheapest first: the parts or items to buy, with a buy order a click away" }]} /></div>
   <div class="bar">
-  <input type="search" placeholder="Filter items…" bind:value={query} />
+  <input type="search" title="Shows only what matches what you type" placeholder="Filter items…" bind:value={query} />
   <select bind:value={category} onchange={() => (ring = null)} aria-label="Kind" title="Which kind of item">
     <option value="all">All kinds</option>
     {#each categories as c (c)}<option value={c}>{c}</option>{/each}

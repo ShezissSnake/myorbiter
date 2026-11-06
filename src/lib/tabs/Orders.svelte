@@ -751,7 +751,7 @@
       </div>
       <section class="newlisting" aria-label="New listing">
         <span class="register">New listing</span>
-        <span class="searchbox" bind:this={searchBox}><input type="search" placeholder={console ? "Find anything to sell…" : "Find something you own…"} bind:value={search} aria-label={console ? "Find anything to sell" : "Find something you own"}
+        <span class="searchbox" bind:this={searchBox}><input type="search" title="Shows only what matches what you type" placeholder={console ? "Find anything to sell…" : "Find something you own…"} bind:value={search} aria-label={console ? "Find anything to sell" : "Find something you own"}
           oninput={() => { searchOpen = true; active = 0; }} onfocus={() => (searchOpen = true)} onkeydown={searchKey} />
         {#if matches.length && searchOpen}<div class="results">
             {#each matches as x, i (x.it.id)}

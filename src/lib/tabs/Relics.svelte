@@ -284,7 +284,7 @@
   <Seg label="Show" bind:value={vault} options={[{ v: "all", label: "All", title: "Every relic you hold" }, { v: "vaulted", label: "Vaulted", title: "Relics that drop nowhere now: no new copies, so they tend to sell for more" }, { v: "farmable", label: "Farmable", title: "Relics that still drop in missions" }, { v: "resurgence", label: "Varzia", title: "Relics Varzia sells this rotation (Prime Resurgence), for Aya or Regal Aya" }]} />
   <Chip bind:on={neededOnly} label="Has parts I need" title="Only relics that drop a part for something you haven't built or mastered" />
   <Seg label="Squad" bind:value={advice.squad} options={[{ v: 1, label: "Solo", title: "One crack, your own reward" }, { v: 4, label: "Radshare", title: "Four players crack the same relic and you pick the best of the four rewards" }]} />
-  <input type="search" placeholder="Relic or reward…" bind:value={query} />
+  <input type="search" title="Shows only what matches what you type" placeholder="Relic or reward…" bind:value={query} />
   </div>
 
   <Browse id="relics" {rows} {columns} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort {detail} {card} title={(r) => `${r.base} Relic`} min="21rem" clear={filtering ? clearFilters : null} empty="No relics yet." />
