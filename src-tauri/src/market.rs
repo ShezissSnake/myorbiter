@@ -1148,6 +1148,16 @@ mod tests {
     }
 
     #[test]
+    fn a_403_is_a_sign_out_only_when_it_says_so() {
+        assert!(forbidden_means_signed_out(""));
+        assert!(forbidden_means_signed_out(r#"{"error":"invalid token"}"#));
+        assert!(forbidden_means_signed_out(r#"{"error":{"request":["app.auth.required"]}}"#));
+        assert!(!forbidden_means_signed_out(r#"{"error":{"request":["app.order.notOwned"]}}"#));
+        assert!(!forbidden_means_signed_out(r#"{"error":{"inputs":{"author":"app.field.design"}}}"#));
+        assert!(!forbidden_means_signed_out("<html>Access denied: sign in to your network</html>"));
+    }
+
+    #[test]
     fn changes_are_capped_at_120_a_minute_and_a_plan_of_100_still_finishes_within_it() {
         use std::collections::VecDeque;
         assert_eq!(WRITES_PER_MINUTE, 120);
@@ -1172,16 +1182,6 @@ mod tests {
         assert_eq!(sent.iter().filter(|t| next.saturating_duration_since(**t) < WRITE_WINDOW).count(), 120);
         // A minute after the first, room again for one more: the second's turn.
         assert_eq!(write_wait(&sent, next), Duration::from_millis(100));
-    }
-
-    #[test]
-    fn a_403_is_a_sign_out_only_when_it_says_so() {
-        assert!(forbidden_means_signed_out(""));
-        assert!(forbidden_means_signed_out(r#"{"error":"invalid token"}"#));
-        assert!(forbidden_means_signed_out(r#"{"error":{"request":["app.auth.required"]}}"#));
-        assert!(!forbidden_means_signed_out(r#"{"error":{"request":["app.order.notOwned"]}}"#));
-        assert!(!forbidden_means_signed_out(r#"{"error":{"inputs":{"author":"app.field.design"}}}"#));
-        assert!(!forbidden_means_signed_out("<html>Access denied: sign in to your network</html>"));
     }
 
 
