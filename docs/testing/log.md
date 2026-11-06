@@ -117,7 +117,8 @@ Every settings part and the saved game state were probed with junk on every page
 
 ## Speed pass (2026-11-06)
 
-Measured on the dev server with the demo account (`npm run dev:demo`), Chromium, CPU slowed 4×,
+Measured on the dev server (a dev build: the figures compare with each other, not with a release)
+with the demo account (`npm run dev:demo`), Chromium, CPU slowed 4×,
 1300 × 1000. "First open" is a page clicked before the background warm-up has drawn it, its code
 loaded beforehand, so only the drawing is timed: click to next paint, click to the page drawn
 (its list in and no "Loading…"), and the longest task in the 3 s after. Medians of three fresh
@@ -139,13 +140,13 @@ Where the time goes:
 - **First opens:** drawing, not working out. Most of it is the cards and rows themselves
   (`ItemCard`, `ModCard`, `Thumb`, Svelte creating their elements), then the page's own
   figures (`modRows`, `masteryRows`, the showcase). Lists already draw only what fills the
-  window at first (Mods 8 cards for 6 in sight, Planner 19 rows for 10), so drawing fewer rows
+  window, plus a margin, at first (Mods 8 cards for 6 in sight, Planner 19 rows for 10), so drawing fewer rows
   at first has little left to give.
 - **Tabs' underline** reads the layout in the first frame (`Tabs.svelte`, `place`): about 100 ms
   at 4× on Planner, Arcanes and Sets, but it's the frame's own layout, done early rather than
   twice.
 - **Start:** the longest task is the model being built and Home drawn with it: about half of it
-  drawing Home (its cards, `masteryRowsFresh` for what needs you), most of the rest
+  drawing Home (its cards, and `masteryRowsFresh` for the mastery cards), most of the rest
   `buildModel`.
 - Tried and dropped as no better than noise (±15% between runs): the underline after the first
   paint, the page-room flags without the synchronous layout read at start. Date formatting
@@ -155,4 +156,4 @@ Where the time goes:
 No change came out of it. What would help next: cheaper cards (fewer components per card,
 `ItemCard`'s artwork and price blocks drawn on demand), and Home's mastery figures worked out in
 the background before its first draw. Both are larger changes than a speed pass, and should be
-measured in WebKitGTK on Linux, where the gap is widest.
+measured in WebKitGTK on Linux too, the webview the app ships on there.
