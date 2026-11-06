@@ -179,6 +179,8 @@ fn run(app: &tauri::AppHandle, turn: &Turn) -> String {
                 turn.report(|s| {
                     s.received += 1;
                     if worth_passing_on(&v["payload"]) {
+                        // Under the state lock, so a stopped feed can't send: nothing in Rust listens
+                        // for ORDER_EVENT (only the page), so nothing can wait on that lock from here.
                         let _ = app.emit(ORDER_EVENT, &v["payload"]);
                     }
                 });
