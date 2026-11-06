@@ -429,7 +429,7 @@ impl Companion {
         }
         let ours = lock(&self.started).is_some_and(alive);
         if running().is_empty() && !ours {
-            let (bin, bundled) = self.binary().ok_or("TennoScope wasn't found. Set its path in Settings.")?;
+            let (bin, bundled) = self.binary().ok_or("TennoScope wasn't found. Choose it in Settings, TennoScope, Program.")?;
             let mut child = launch(&bin, bundled).arg("--background").spawn().map_err(|e| {
                 log::error!(target: "orbiter::tennoscope", "couldn't start {}: {e}", bin.display());
                 format!("Couldn't start {}: {e}", bin.display())
@@ -446,7 +446,7 @@ impl Companion {
 
     /// Opens TennoScope's own window: a running TennoScope raises it, otherwise it starts normally.
     pub fn show(&self) -> Result<(), String> {
-        let (bin, bundled) = self.binary().ok_or("TennoScope wasn't found. Set its path in Settings.")?;
+        let (bin, bundled) = self.binary().ok_or("TennoScope wasn't found. Choose it in Settings, TennoScope, Program.")?;
         let mut child = launch(&bin, bundled)
             .spawn()
             .map_err(|e| format!("Couldn't start {}: {e}", bin.display()))?;
@@ -465,7 +465,7 @@ impl Companion {
         if running().is_empty() {
             return Err("TennoScope isn't running.".into());
         }
-        let (bin, bundled) = self.binary().ok_or("TennoScope wasn't found. Set its path in Settings.")?;
+        let (bin, bundled) = self.binary().ok_or("TennoScope wasn't found. Choose it in Settings, TennoScope, Program.")?;
         let mut child = launch(&bin, bundled)
             .arg(arg)
             .spawn()
