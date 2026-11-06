@@ -1,6 +1,7 @@
 <script lang="ts">
   import { PLATFORM_LABEL, logFolders, onWindows, openLogFolder, type Platform, type Settings } from "./backend";
   import { ts } from "./tennoscopeStore.svelte";
+  import { refocus } from "./ui/refocus";
   import { bugReport } from "./bugReport.svelte";
   import Sheet from "./ui/Sheet.svelte";
   import Switch from "./ui/Switch.svelte";
@@ -343,7 +344,7 @@
       <span class="small">The program or folder paths changed. They apply together, then everything reloads.</span>
       <div class="row">
         <button class="stamp gold" onclick={apply}>Apply and reload</button>
-        <button onclick={revert}>Undo</button>
+        <button onclick={(e) => { const sheet = e.currentTarget.closest("section, aside, [role=dialog]")?.parentElement ?? null; refocus(e.currentTarget, () => sheet?.querySelector<HTMLElement>("input.path")); revert(); }}>Undo</button>
       </div>
     </div>
   {/if}

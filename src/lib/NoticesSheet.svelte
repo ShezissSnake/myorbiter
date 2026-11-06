@@ -2,6 +2,7 @@
   // The bell in the sidebar: what orbiter told you lately (click one to open what it's about), and
   // what it tells you about, kind by kind, with a pause for all of them.
   import { discordPost, isDiscordWebhook, type Settings } from "./backend";
+  import { refocus, usable } from "./ui/refocus";
   import { discordStatus, discordSent } from "./discordStatus.svelte";
   import { GROUP_NOTE, kindsFor, NOTICE_KINDS, noticeKind, splitTarget, type Notice, type NoticeKind, type NoticeKindInfo } from "./notices";
   import { pageById, type PageId } from "./pages";
@@ -140,7 +141,7 @@
       {#if clearing}
         <span class="small">Clear all {settings.game.notices.length}?</span>
         <button class="danger" onclick={() => { settings.game.notices = []; clearing = false; }}>Clear</button>
-        <button class="link quiet" onclick={() => (clearing = false)}>Keep them</button>
+        <button class="link quiet" onclick={(e) => { const row = e.currentTarget.parentElement; refocus(e.currentTarget, () => [...(row?.querySelectorAll<HTMLElement>("button") ?? [])].find((b) => usable(b) && b.textContent?.trim() === "Clear all")); clearing = false; }}>Keep them</button>
       {:else}
         <button class="link quiet" title="Empty the list. Nothing else changes." onclick={() => (clearing = true)}>Clear all</button>
       {/if}
