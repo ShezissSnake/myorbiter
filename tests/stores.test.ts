@@ -255,12 +255,12 @@ test("a sale warframe.market refuses comes back, and the reason is handed to who
 });
 
 /** A recent read holding five unranked Serration (three spare) and a Requiem mod with a Kuva weapon left. */
-async function spareModel(): Promise<Model> {
+async function spareModel(serrations = 5): Promise<Model> {
   const { buildModel } = await import("../src/lib/core/model");
   const row = (item_id: string, name: string, category: string, quantity: number, mastered = false) => ({ item_id, name, category, quantity, mastered, image_name: null, rank: null, max_rank: null });
   return buildModel({
     observed_at: Math.floor(Date.now() / 1000) - 60,
-    inventory: [row("/M/Serration", "Serration", "mod", 5), row("/Lotus/Upgrades/Mods/Immortal/ImmortalEightMod", "Khra", "mod", 4), row("/W/Braton", "Braton", "weapon", 1, true)],
+    inventory: [row("/M/Serration", "Serration", "mod", serrations), row("/Lotus/Upgrades/Mods/Immortal/ImmortalEightMod", "Khra", "mod", 4), row("/W/Braton", "Braton", "weapon", 1, true)],
     catalog: [
       { uniqueName: "/M/Serration", name: "Serration", category: "Mods", maxRank: 10 },
       { uniqueName: "/Lotus/Upgrades/Mods/Immortal/ImmortalEightMod", name: "Khra", category: "Mods", maxRank: 3 },
@@ -480,4 +480,113 @@ test("A price typed on Orders is the price you approved", async () => {
   assert.ok(await mkt.update(order("a", 1, 40), { platinum: 55 }));
   assert.equal(s.approved["it||"], 55);
   mkt.rules = null;
+});
+
+// ------------------------------------------------------------------ the listing form
+
+const serrationBook = async () => [{ id: "b", type: "sell", platinum: 20, quantity: 1, rank: 0, subtype: null, visible: true, user: { id: "u", ingameName: "U", status: "ingame", platform: "pc", crossplay: true } }] as never;
+
+/** The listing form open on unranked Serration, with what was sent to warframe.market. */
+async function serrationForm(quantity: number, held = 5) {
+  mkt.items = spareItems;
+  mkt.model = await spareModel(held);
+  mkt.rules = { ...defaultMarketSettings(), approved: {} };
+  market.book = serrationBook;
+  const sent: { create: unknown[]; update: unknown[] } = { create: [], update: [] };
+  market.create = (async (o: unknown) => {
+    sent.create.push(o);
+    mkt.orders = [...mkt.orders, { ...order(`n${sent.create.length}`, quantity), rank: 0 }];
+    return {} as never;
+  }) as never;
+  market.update = (async (id: string, c: unknown) => {
+    sent.update.push([id, c]);
+  }) as never;
+  market.myOrders = async () => mkt.orders;
+  mkt.books = {};
+  await mkt.startListing(mkt.model, "Serration", { rank: 0, quantity });
+  return sent;
+}
+const formDone = () => {
+  mkt.closeDraft();
+  mkt.model = null;
+  mkt.rules = null;
+};
+
+test("the listing form lists what's spare, at the price shown, and approves that price", async () => {
+  const sent = await serrationForm(3);
+  assert.equal(mkt.draft?.platinum, 20);
+  await mkt.submitDraft();
+  assert.deepEqual(sent.create, [{ itemId: "it", platinum: 20, quantity: 3, rank: 0, subtype: null, visible: true }]);
+  assert.equal(mkt.draft, null);
+  assert.match(mkt.draftDone ?? "", /^Listed 3× Serration R0 at 20p/);
+  assert.equal(mkt.rules?.approved?.["it|0|"], 20);
+  formDone();
+});
+
+test("the listing form refuses more than is spare, and a price or quantity warframe.market wouldn't take", async () => {
+  const sent = await serrationForm(4);
+  await mkt.submitDraft();
+  assert.deepEqual(sent.create, []);
+  assert.match(mkt.draftError ?? "", /^Didn't list Serration R0: Only 3 can go/);
+  for (const [platinum, quantity] of [[0, 1], [1.5, 1], [NaN, 1], [20, 0], [20, 2.5], [1_000_000, 1]]) {
+    mkt.draft!.platinum = platinum;
+    mkt.draft!.quantity = quantity;
+    await mkt.submitDraft();
+  }
+  assert.deepEqual(sent.create, [], "nothing sent");
+  formDone();
+});
+
+test("the listing form checks against the newest inventory read, not the one it opened with", async () => {
+  const sent = await serrationForm(3);
+  // Two copies traded away in game while the form was open: none spare now.
+  mkt.model = await spareModel(2);
+  await mkt.submitDraft();
+  assert.deepEqual(sent.create, [], "the copies aren't there any more");
+  assert.match(mkt.draftError ?? "", /^Didn't list Serration R0/);
+  formDone();
+});
+
+test("adding to a listing counts the copies already listed, hidden ones too, and shows it", async () => {
+  mkt.orders = [{ ...order("old", 2, 25), rank: 0, visible: false }];
+  const sent = await serrationForm(2);
+  await mkt.submitDraft();
+  assert.deepEqual(sent.update, [], "2 listed and 2 more is past the 3 spare");
+  mkt.draft!.quantity = 1;
+  await mkt.submitDraft();
+  assert.deepEqual(sent.update, [["old", { platinum: 20, quantity: 3, visible: true }]]);
+  assert.deepEqual(sent.create, []);
+  assert.match(mkt.draftDone ?? "", /^Added 1× Serration R0 to your listing: now 3 at 20p/);
+  formDone();
+  mkt.orders = [];
+});
+
+test("a new listing past warframe.market's limit isn't sent", async () => {
+  const sent = await serrationForm(1);
+  mkt.orders = Array.from({ length: 100 }, (_, i) => ({ ...order(`o${i}`), itemId: `x${i}` }));
+  await mkt.submitDraft();
+  assert.deepEqual(sent.create, []);
+  assert.match(mkt.draftError ?? "", /allows 100 listings/);
+  formDone();
+  mkt.orders = [];
+});
+
+test("a listing that timed out but was made isn't an error; one that wasn't made is", async () => {
+  await serrationForm(1);
+  await mkt.refresh();
+  let made = true;
+  market.create = (async () => {
+    if (made) mkt.orders = [...mkt.orders, { ...order("late"), rank: 0 }];
+    throw new Error("Couldn't reach warframe.market (timed out)");
+  }) as never;
+  await mkt.submitDraft();
+  assert.equal(mkt.draft, null, "it went up: the form closes");
+  assert.match(mkt.draftDone ?? "", /^Listed 1× Serration R0/);
+  mkt.orders = [];
+  await mkt.startListing(mkt.model!, "Serration", { rank: 0, quantity: 1 });
+  made = false;
+  await mkt.submitDraft();
+  assert.ok(mkt.draft, "the form stays open to send again");
+  assert.match(mkt.draftError ?? "", /timed out/);
+  formDone();
 });
