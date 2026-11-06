@@ -224,12 +224,16 @@ fn read_inventory(path: &Path) -> Result<(Vec<InventoryRow>, Option<i64>), DataE
     // The window reloads right after TennoScope writes; wait out a write still in progress
     // instead of failing with "database is locked".
     conn.busy_timeout(Duration::from_secs(5))?;
+    // One read transaction for the rows and the read's time: TennoScope writes both in one
+    // transaction, and two separate reads could straddle it, pairing the old rows with the new
+    // read's time (the keep rules trust an inventory by that time).
+    let tx = conn.unchecked_transaction()?;
     // Installed copies are a newer column: an older store hasn't got it, and is read without.
-    let has_equipped = conn
+    let has_equipped = tx
         .prepare("SELECT 1 FROM pragma_table_info('inventory') WHERE name = 'equipped'")
         .and_then(|mut s| s.exists([]))
         .unwrap_or(false);
-    let mut stmt = conn.prepare(if has_equipped {
+    let mut stmt = tx.prepare(if has_equipped {
         "SELECT item_id, name, category, quantity, mastered, image_name, rank, max_rank, equipped FROM inventory"
     } else {
         "SELECT item_id, name, category, quantity, mastered, image_name, rank, max_rank, NULL FROM inventory"
@@ -249,9 +253,12 @@ fn read_inventory(path: &Path) -> Result<(Vec<InventoryRow>, Option<i64>), DataE
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
-    let observed_at: Option<String> = conn
+    drop(stmt);
+    let observed_at: Option<String> = tx
         .query_row("SELECT observed_at FROM snapshot_audit ORDER BY id DESC LIMIT 1", [], |r| r.get(0))
         .ok();
+    // Read only: nothing to keep, and a read-only connection can't commit a write anyway.
+    drop(tx);
     Ok((rows, observed_at.and_then(|s| s.trim().parse().ok())))
 }
 
