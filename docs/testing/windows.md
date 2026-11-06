@@ -11,12 +11,16 @@ line below is a check to do on Windows 10 or 11 with the setup.exe of a release 
       `flag_in`, `Mode`'s variants), dead code on Windows. It only type-checks: the release build is
       MSVC on `windows-latest` with current stable, and nothing is linked or run. The MSVC target
       itself can't be checked from Linux: `ring`'s build script needs the MSVC compiler.
+- [x] **TennoScope's app type-checks for Windows on 1.95** too, with `sysinfo` 0.40, with no
+      warnings (`cargo +1.95 check --locked --target x86_64-pc-windows-gnu -p tennoscope` in
+      `tennoscope/`).
 - [x] **Where files go**, all from the platform's folders, none built with `/`:
       - TennoScope's folder: `%APPDATA%\io.github.deftera186.tennoscope`
         (`orbiter_data::default_tennoscope_dir`);
       - Warframe's log: `%LOCALAPPDATA%\Warframe\EE.log` (`ee_log.rs`);
       - TennoScope's and orbiter's logs: `%LOCALAPPDATA%\<id>\logs` (`reward_log.rs`, `applog.rs`);
-      - settings and caches: `%APPDATA%\dev.orbiter.app` (Tauri's `app_config_dir`);
+      - settings: `%APPDATA%\dev.orbiter.app` (Tauri's `app_config_dir`); caches:
+        `%LOCALAPPDATA%\dev.orbiter.app` (`app_cache_dir`);
       - CSV exports: the Downloads folder, or the home folder without one.
 - [x] **Network paths are refused** wherever a path comes from the page or the file dialog
       (`local_path` in `lib.rs`): only a drive letter (`C:\…`, `\\?\C:\…`) passes, so

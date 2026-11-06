@@ -20,13 +20,17 @@ Linux `muda` needs 1.90; on Windows `sysinfo` needs 1.95). `rust-version` says 1
 - **cargo audit**, orbiter (`Cargo.lock`): no vulnerabilities. The warnings all come through Tauri
   and its Linux stack (unmaintained `proc-macro-error`, `rustls-pemfile`, `zbus_names`, `zvariant`,
   `zvariant_derive`; unsound `glib 0.18.5`, whose `VariantStrIter` orbiter doesn't call; yanked
-  `async-executor 1.14.0`) and go when Tauri moves its own dependencies.
+  `async-executor 1.14.0`) and go when Tauri moves its own dependencies. The yanked one could be
+  bumped on its own with `cargo update -p async-executor` (a lockfile change, so it waits for
+  approval).
 - **cargo audit**, TennoScope (`tennoscope/Cargo.lock`): the four `zip 4.6.1` advisories
   (RUSTSEC-2026-0367, -0368, -0369, -0429) are gone: TennoScope now has `tauri-plugin-updater` 2.14
   and `zip 9.3.0`. `.github/workflows/audit.yml` still ignores the four; its comment says to drop
   them at this point (a workflow change, so it waits for approval).
 - **Unused code:** no `TODO`, `FIXME`, `XXX` or `HACK` in orbiter's own code. Exports used nowhere
-  were removed; helpers used only by tests are in `tests/support/`.
+  were removed. Helpers used only by tests are in `tests/support/`, except `loadoutItems`,
+  `suggestionNames` and `recipeItems`, which stay in `src/` because they list module-private
+  tables.
 
 ## 3. IPC: what the page can ask the Rust side to do (2026-11-06)
 
