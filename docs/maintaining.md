@@ -54,7 +54,8 @@ repository whose `origin` is `ShezissSnake/orbiter`.
       with a TennoScope folder, run `npm run dev-bundle` and `npm run dev-data` before `npm test` so
       they run too; they must pass there as well. Elsewhere skip both: `dev-bundle` without a
       TennoScope folder leaves an empty `public/dev-bundle.json`, which makes those tests fail
-      (delete it). - [ ] **The newest Experimental build** installed, and updated itself once.
+      (delete it).
+- [ ] **The newest Experimental build** installed, and updated itself once.
 
 **2. Make it public (maintainer)**
 
