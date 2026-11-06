@@ -235,6 +235,29 @@ const WORLDSTATE_PARTS: &[&str] = &[
     "calendar", "descendia",
 ];
 
+/// Each worldstate part asked for on its own, `null` where it isn't given. Once the API can't be
+/// reached at all (or `reachable` is false: the whole worldstate couldn't be), the other parts
+/// won't fare better: they aren't asked, rather than waiting out a timeout for each of them.
+fn each_part(mut get: impl FnMut(&str) -> Result<Value, Unavailable>, mut reachable: bool) -> serde_json::Map<String, Value> {
+    let mut out = serde_json::Map::new();
+    for part in WORLDSTATE_PARTS {
+        let value = if reachable {
+            match get(part) {
+                Ok(v) => Some(v),
+                Err(Unavailable::Refused) => None,
+                Err(Unavailable::Unreachable) => {
+                    reachable = false;
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        out.insert((*part).to_string(), value.unwrap_or(Value::Null));
+    }
+    out
+}
+
 /// Active void fissures and Varzia's Prime Resurgence stock. Failures come back as `null` per
 /// field so the rest of the app keeps working offline.
 #[tauri::command]
@@ -250,24 +273,8 @@ async fn worldstate(app: tauri::AppHandle) -> Value {
                 out.insert((*part).to_string(), all.get(*part).cloned().unwrap_or(Value::Null));
             }
         }
-        // Once the API can't be reached at all, the other parts won't fare better: don't wait
-        // out a timeout for each of them.
-        let mut reachable = !matches!(whole, Err(Unavailable::Unreachable));
-        let one_by_one = out.is_empty();
-        for part in WORLDSTATE_PARTS.iter().filter(|_| one_by_one) {
-            let value = if reachable {
-                match get_json(part) {
-                    Ok(v) => Some(v),
-                    Err(Unavailable::Refused) => None,
-                    Err(Unavailable::Unreachable) => {
-                        reachable = false;
-                        None
-                    }
-                }
-            } else {
-                None
-            };
-            out.insert((*part).to_string(), value.unwrap_or(Value::Null));
+        if out.is_empty() {
+            out = each_part(get_json, !matches!(whole, Err(Unavailable::Unreachable)));
         }
         // api.warframestat.us down or behind the game: what it couldn't give, from the game's own file.
         const FROM_GAME: [&str; 10] = ["fissures", "voidTrader", "vaultTrader", "earthCycle", "cetusCycle", "vallisCycle", "cambionCycle", "sortie", "archonHunt", "syndicateMissions"];
@@ -339,8 +346,8 @@ fn export_file(app: tauri::AppHandle, what: String, text: String, day: Option<St
     for n in 1..1000 {
         let path = if n == 1 { dir.join(format!("orbiter-{what}-{day}.csv")) } else { dir.join(format!("orbiter-{what}-{day}-{n}.csv")) };
         match fs::OpenOptions::new().write(true).create_new(true).open(&path) {
-            Ok(mut f) => {
-                std::io::Write::write_all(&mut f, text.as_bytes()).map_err(|e| e.to_string())?;
+            Ok(f) => {
+                write_whole(&path, f, text.as_bytes()).map_err(|e| e.to_string())?;
                 return Ok(path.display().to_string());
             }
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
@@ -348,6 +355,18 @@ fn export_file(app: tauri::AppHandle, what: String, text: String, day: Option<St
         }
     }
     Err("too many exports of that name today".into())
+}
+
+/// Writes all of `bytes` to `out`, the file just made at `path`, or removes the file: a disk that
+/// fills up partway leaves no half a CSV behind.
+fn write_whole(path: &Path, mut out: impl std::io::Write, bytes: &[u8]) -> std::io::Result<()> {
+    let result = out.write_all(bytes).and_then(|()| out.flush());
+    // Closed before it's removed (Windows deletes an open file only once it's closed).
+    drop(out);
+    if result.is_err() {
+        let _ = fs::remove_file(path);
+    }
+    result
 }
 
 /// The largest CSV export: a year of sales or trades is well under a megabyte.
@@ -861,7 +880,8 @@ fn quit(app: tauri::AppHandle) {
 }
 
 /// A line for orbiter's log from the window: its errors, and what it tells you (see applog.rs).
-#[tauri::command]
+/// Off the main thread: it writes to the file (and may move it aside).
+#[tauri::command(async)]
 fn log_line(level: String, area: String, message: String) {
     applog::from_ui(&level, &area, &message);
 }
@@ -1006,7 +1026,9 @@ fn write_riven_cycle(cycle: Value) -> Result<(), String> {
 }
 
 /// Your overlay settings, for TennoScope: which overlays show and what the reward cards show.
-#[tauri::command]
+/// Off the main thread: the write waits on the disk (see `write_atomic`). The page sends one at a
+/// time (`writeOverlayPrefs` in backend.ts), so an older one can't land after a newer one.
+#[tauri::command(async)]
 fn write_overlay_prefs(prefs: Value) -> Result<(), String> {
     bridge::write_overlay_in(&bridge::runtime_dir().ok_or("No private folder for the overlay settings")?, &prefs)
 }
@@ -1301,6 +1323,46 @@ mod tests {
         assert!(!is_day("2026-11-2") && !is_day("../../x.csv") && !is_day("2026/11/02"));
     }
 
+    /// A file on a disk with room for `room` more bytes.
+    struct FillsUp {
+        file: fs::File,
+        room: usize,
+    }
+
+    impl std::io::Write for FillsUp {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if self.room == 0 {
+                return Err(std::io::Error::new(std::io::ErrorKind::StorageFull, "no space left on device"));
+            }
+            let n = self.file.write(&buf[..buf.len().min(self.room)])?;
+            self.room -= n;
+            Ok(n)
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            self.file.flush()
+        }
+    }
+
+    #[test]
+    fn an_export_that_fills_the_disk_leaves_no_half_file() {
+        let dir = std::env::temp_dir().join(format!("orbiter-export-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let text = "item,price\n".repeat(1000);
+
+        let path = dir.join("orbiter-sales-2026-11-02.csv");
+        let file = fs::OpenOptions::new().write(true).create_new(true).open(&path).unwrap();
+        let err = write_whole(&path, FillsUp { file, room: 4096 }, text.as_bytes()).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::StorageFull);
+        assert!(!path.exists(), "the half-written file is removed");
+
+        let path = dir.join("orbiter-sales-2026-11-02-2.csv");
+        let file = fs::OpenOptions::new().write(true).create_new(true).open(&path).unwrap();
+        write_whole(&path, file, text.as_bytes()).unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), text, "a whole one stays");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn page_paths_are_checked() {
         let abs = if cfg!(windows) { "C:\\Users\\me\\data" } else { "/home/me/data" };
@@ -1315,6 +1377,27 @@ mod tests {
         assert!(ee_log_from(Some("EE.log".into())).is_err());
         assert_eq!(ee_log_from(None), Ok(None));
         assert_eq!(ee_log_from(Some(String::new())), Ok(None));
+    }
+
+    #[test]
+    fn stops_asking_for_parts_once_the_api_cant_be_reached() {
+        let mut asked = Vec::new();
+        let out = each_part(|p| { asked.push(p.to_string()); Err(Unavailable::Unreachable) }, true);
+        assert_eq!(asked, ["fissures"], "the first unreachable part ends the asking");
+        assert_eq!(out.len(), WORLDSTATE_PARTS.len());
+        assert!(out.values().all(Value::is_null));
+
+        let mut asked = 0;
+        let out = each_part(|_| { asked += 1; Err(Unavailable::Unreachable) }, false);
+        assert_eq!(asked, 0, "the whole worldstate couldn't be reached: no part is asked");
+        assert!(out.len() == WORLDSTATE_PARTS.len() && out.values().all(Value::is_null));
+
+        // A part the API refuses (a 404) says nothing about the others.
+        let mut asked = 0;
+        let out = each_part(|p| { asked += 1; if p == "fissures" { Err(Unavailable::Refused) } else { Ok(Value::Bool(true)) } }, true);
+        assert_eq!(asked, WORLDSTATE_PARTS.len());
+        assert_eq!(out["fissures"], Value::Null);
+        assert_eq!(out["descendia"], Value::Bool(true));
     }
 
     #[test]

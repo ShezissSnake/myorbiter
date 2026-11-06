@@ -1289,9 +1289,18 @@ export interface RewardPickFile {
   vault: ("vaulted" | "resurgence" | "farmable" | null)[];
 }
 
-/** Your overlay settings, for TennoScope. Only the desktop app writes them. */
-export async function writeOverlayPrefs(prefs: OverlaySettings): Promise<void> {
-  if (inTauri) await invoke("write_overlay_prefs", { prefs });
+/** The overlay write under way, if one is: each waits for the one before. */
+let overlayWrite: Promise<unknown> = Promise.resolve();
+/**
+ * Your overlay settings, for TennoScope. Only the desktop app writes them. One at a time, in the
+ * order they're made: the Rust side writes off the main thread, where two at once could finish
+ * the wrong way round and leave TennoScope with settings already changed.
+ */
+export function writeOverlayPrefs(prefs: OverlaySettings): Promise<void> {
+  if (!inTauri) return Promise.resolve();
+  const next = overlayWrite.catch(() => {}).then(() => invoke<void>("write_overlay_prefs", { prefs }));
+  overlayWrite = next;
+  return next;
 }
 
 /** A riven cycle for TennoScope to show over the game (see core/rivens.ts, cycleOverlay). */
