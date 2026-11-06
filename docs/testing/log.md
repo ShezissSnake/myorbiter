@@ -85,7 +85,7 @@ Rounds of four steps: coverage, a code read, a page polish, longer fuzzing. Each
 covered once; the lists below say which.
 
 **Covered so far.** Coverage: `marketStore.svelte.ts` (the listing form), `core/worthSelling.ts`, `core/exportCsv.ts`, `core/relicRuns.ts`. Code reads: `core/closedOrders.ts`, `core/saleNotice.ts`, `core/lastCopy.ts`, `core/approved.ts`, `core/imprints.ts`, `rivenStore.svelte.ts`, `backend.ts` (`loadSettings`, the game state), `src-tauri/src/feed.rs`, `bridge.rs`, `relicdata.rs`, `images.rs`, `persist.svelte.ts`, `crates/orbiter-data/src/lib.rs` (reading TennoScope's store).
-Pages: Sales, Stats, Sets.
+Pages: Sales, Stats, Sets, Mods.
 
 | Step | Checked | Found | Commit |
 | --- | --- | --- | --- |
@@ -102,3 +102,4 @@ Pages: Sales, Stats, Sets.
 | 2.5 Code read | `crates/orbiter-data/src/lib.rs` (reading TennoScope's SQLite store and catalogs, the catalog cache), `persist.svelte.ts` (saving settings by parts). | The inventory rows and the read's time (`observed_at`) came from two separate queries; TennoScope writes both in one transaction, so a write between them could pair old rows with the new read's time, which the keep rules trust an inventory by. Both are now read in one read transaction (3d3db62). No deterministic test can interleave a write between the two queries; the existing store tests pass. `persist.svelte.ts`: nothing wrong. | 3d3db62 |
 | 3.3 Page polish | Sets at 1000 and 1300 px: the showcase, the three tabs, filter, Keep one to build, sort, cards and table. | The Sort menu (shared by every card page, `ui/Browse.svelte`) had no tooltip; fixed. Nothing cut off or misaligned; the showcase's kind ellipsizes at 1000 px with the whole line on hover. | 48f868a |
 | 1.4 Coverage | `core/relicRuns.ts` (82% of branches; what fissure runs came to, on Stats): a screen out of order after a clock change, the 20,000-run cap from the game and from TennoScope's log, a screen read twice in the log, a pick settled earlier, an inventory read older than the screen, sessions of unread screens. (`modelLive.ts` was lower but is neither money nor parsing.) | Every screen read again with nothing new was taken as a change: the update added `imported: false` to a live run that had no such mark, so the run list was saved again. Fixed; an imported run seen live still loses its mark (tested). | e129d50 |
+| 3.4 Page polish | Mods at 1000 and 1300 px: the showcase, figures, filter, rarity menu, Spare only, More filters, sort, cards (88) and table. | Nothing to fix: every control has a name and a tooltip, no text is cut without an ellipsis, the card grid holds its columns at both widths, and each card's spare count, price each and total agree with the figures above. | none |
