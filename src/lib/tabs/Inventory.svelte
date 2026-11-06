@@ -294,7 +294,7 @@
   </PageHead>
 
   <div class="bar">
-    <input type="search" placeholder="Filter items…" bind:value={query} />
+    <input type="search" title="Shows only what matches what you type" placeholder="Filter items…" bind:value={query} />
     <select bind:value={kind} aria-label="Kind" class="kinds" title="Only one kind of item">
       {#each KINDS as k (k.v)}<option value={k.v}>{k.label} ({count(k.v).toLocaleString("en")})</option>{/each}
     </select>

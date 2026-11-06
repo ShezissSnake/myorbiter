@@ -220,7 +220,7 @@
   <!-- The page's modes as tabs (they change the whole page), the filters under them. -->
   <div class="modes"><Tabs bind:value={mode} label="Planner view" options={[{ v: "sets", label: "Complete sets", title: "Which relics to crack to finish sets you're close to" }, { v: "radiant", label: "Make radiant", title: "Where your Void Traces gain the most, refining relics to radiant" }]} /></div>
   <div class="bar">
-    <input type="search" placeholder={mode === "sets" ? "Relic or part…" : "Relic or reward…"} bind:value={query} />
+    <input type="search" title="Shows only what matches what you type" placeholder={mode === "sets" ? "Relic or part…" : "Relic or reward…"} bind:value={query} />
     {#if mode === "sets"}
       <select bind:value={settings.maxMissing} aria-label="How close" title="How close a set must be to complete to count">
         {#each [1, 2, 3, 4] as n (n)}<option value={n}>{n === 1 ? "One part away" : `Up to ${n} parts away`}</option>{/each}

@@ -322,7 +322,7 @@
   </section>
   {/if}
   <div class="bar">
-  <input type="search" placeholder="Filter arcanes…" bind:value={query} />
+  <input type="search" title="Shows only what matches what you type" placeholder="Filter arcanes…" bind:value={query} />
   <select bind:value={type} aria-label="Slot" title="What it goes on">
     <option value="all">All slots</option>
     {#each types as t (t)}<option value={t}>{t}</option>{/each}

@@ -1203,7 +1203,8 @@
   .mk { min-width: 7.5rem; display: flex; justify-content: flex-end; }
   .levelrow { all: unset; cursor: pointer; display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: .7rem; align-items: center; padding: .55rem .7rem; border: 1px solid var(--rule-bright); background: var(--raised); }
   .levelrow:hover { border-color: var(--platinum-deep); }
-  .levelrow:focus-visible { border-color: var(--gold); }
+  /* all: unset drops the outline every other button has: put it back, beside the gold edge. */
+  .levelrow:focus-visible { border-color: var(--gold); outline: 1px solid var(--select); outline-offset: 2px; }
   .levelrow:active { background: var(--well); }
   .levelrow > span:nth-child(2) { display: grid; min-width: 0; }
   .levelrow .small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
