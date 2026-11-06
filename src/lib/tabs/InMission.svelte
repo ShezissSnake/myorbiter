@@ -317,7 +317,7 @@
         {#each history as h, i (h.uptime + "-" + i)}
           <tr class:current={i === 0}>
             <td class="dim time">{clock(h)}</td>
-            <td><span>{h.name}</span>{#if i === 0}<span class="tag ok">now</span>{/if}</td>
+            <td><span>{h.name}</span>{#if i === 0 && live}<span class="tag ok">now</span>{/if}</td>
             <td class="dim small">
               {#if h.relics.length}{h.relics.length} relic{h.relics.length === 1 ? "" : "s"}{h.rounds ? ` · ${h.rounds} round${h.rounds === 1 ? "" : "s"}` : ""}{/if}
             </td>
@@ -371,7 +371,7 @@
   .pc { text-align: right; }
   .pool { border-collapse: collapse; width: 100%; border-top: 1px solid var(--rule); }
   .nm.done { color: var(--platinum-deep); }
-  .legend { margin-left: .8rem; font-family: var(--face-body, inherit); letter-spacing: normal; text-transform: none; font-size: .74rem; color: var(--platinum-deep); }
+  .legend { margin-left: .8rem; font-family: var(--face-text); letter-spacing: normal; text-transform: none; font-size: .74rem; color: var(--platinum-deep); }
   .pool { font-variant-numeric: tabular-nums; }
   .pool th { position: sticky; top: 0; z-index: 1; background: var(--slab); text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .15em; text-transform: uppercase; color: var(--platinum-deep); padding: .55rem .6rem; border-bottom: 1px solid var(--rule); }
   .pool th:first-child { padding-left: .5rem; }

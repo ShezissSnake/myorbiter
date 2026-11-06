@@ -31,7 +31,7 @@ pub(crate) const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"
 fn data_dir(dir: Option<String>) -> Result<PathBuf, String> {
     match dir.filter(|d| !d.trim().is_empty()) {
         Some(d) => checked_path(&d),
-        None => orbiter_data::default_tennoscope_dir().ok_or_else(|| "HOME is not set, so TennoScope's folder cannot be found".to_string()),
+        None => orbiter_data::default_tennoscope_dir().ok_or_else(|| "The system doesn't say where programs keep their data (APPDATA, or HOME on Linux), so TennoScope's folder cannot be found".to_string()),
     }
 }
 
@@ -756,6 +756,7 @@ fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 
 #[tauri::command(async)]
 fn load_settings(app: tauri::AppHandle) -> Result<Value, String> {
+    settings_page_loaded();
     let path = settings_path(&app)?;
     // No file yet: a first run. Any other failure (a file held by an antivirus or a backup, no
     // permission) is an error, so the page doesn't start from defaults and save them over it.
@@ -768,8 +769,11 @@ fn load_settings(app: tauri::AppHandle) -> Result<Value, String> {
         Ok(v) => v,
         Err(_) => {
             // Keep a damaged file (floors, tiers...) instead of letting the defaults overwrite it.
+            // If it can't be moved aside (held by an antivirus or a backup), say so: starting from
+            // the defaults would save them over the only copy.
             let stamp = std::time::SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
-            let _ = fs::rename(&path, path.with_extension(format!("json.broken-{stamp}")));
+            let aside = path.with_extension(format!("json.broken-{stamp}"));
+            rename_replacing(&path, &aside).map_err(|e| format!("{} is damaged and couldn't be moved aside: {e}", path.display()))?;
             Value::Null
         }
     })
@@ -1013,6 +1017,18 @@ fn write_overlay_prefs(prefs: Value) -> Result<(), String> {
 static SETTINGS_SENT: AtomicU64 = AtomicU64::new(0);
 static SETTINGS_WRITTEN: Mutex<u64> = Mutex::new(0);
 
+/// Whether save `seq` may be written, `written` being the newest written since the page loaded
+/// (`load_settings` starts it at 0 again for each page, whose saves start again at 1).
+fn save_is_newest(written: u64, seq: u64) -> bool {
+    seq >= written
+}
+
+/// A new page (the first, or one reloaded) loads the settings once: its saves are numbered from 1
+/// again, so the count of the page before it mustn't make them look old.
+fn settings_page_loaded() {
+    *SETTINGS_WRITTEN.lock().unwrap_or_else(|e| e.into_inner()) = 0;
+}
+
 /// Written whole to a temp file, flushed to disk and renamed (see `write_atomic`), so a crash
 /// never leaves half a settings file. The flush waits on the disk, so not on the main thread.
 #[tauri::command]
@@ -1024,7 +1040,7 @@ async fn save_settings(app: tauri::AppHandle, settings: Value, rev: Option<u64>)
         let path = settings_path(&app)?;
         let text = serde_json::to_vec_pretty(&settings).map_err(|e| e.to_string())?;
         let mut written = SETTINGS_WRITTEN.lock().unwrap_or_else(|e| e.into_inner());
-        if *written > seq {
+        if !save_is_newest(*written, seq) {
             return Ok(());
         }
         // Only you need to read it.
@@ -1267,6 +1283,22 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_reloaded_page_saves_again() {
+        use super::{save_is_newest, settings_page_loaded, SETTINGS_WRITTEN};
+        let written = || *SETTINGS_WRITTEN.lock().unwrap();
+        settings_page_loaded();
+        assert!(save_is_newest(written(), 1));
+        // The first page saved 50 times; an older save arriving late is dropped.
+        *SETTINGS_WRITTEN.lock().unwrap() = 50;
+        assert!(!save_is_newest(written(), 49));
+        // Reloaded: its first save is number 1 again, and is written.
+        assert!(!save_is_newest(written(), 1), "without the reset, every save after a reload was dropped");
+        settings_page_loaded();
+        assert!(save_is_newest(written(), 1));
+        assert!(save_is_newest(written(), 2));
+    }
+
 
     #[test]
     fn the_riven_key_is_a_function_key_or_has_a_modifier() {

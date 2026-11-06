@@ -26,7 +26,7 @@ fn now() -> u64 {
 fn get(url: &str, timeout: u64) -> Result<Value, String> {
     crate::http_agent()
         .get(url)
-        .set("User-Agent", crate::market::USER_AGENT)
+        .set("User-Agent", crate::USER_AGENT)
         .timeout(Duration::from_secs(timeout))
         .call()
         .map_err(|e| format!("{url}: {e}"))?

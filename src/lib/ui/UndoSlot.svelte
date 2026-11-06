@@ -7,11 +7,28 @@
   // put out:leave and animate:flip (motion.ts) on the list's own item, not on this slot.
 
   let { label = "Dismissed", what = "", ms = UNDO_MS, onundo }: { label?: string; what?: string; ms?: number; onundo: () => void } = $props();
+  // The button that made this slot (Dismiss, the star, Remove) goes with what it was on, once its
+  // leaving motion ends, and the keyboard focus would fall to the page: it goes to Undo instead, so
+  // the next Tab carries on from here. Watched for a few frames; a focus moved on meanwhile stays.
+  let undoButton: HTMLButtonElement | undefined = $state();
+  $effect(() => {
+    const start = document.activeElement;
+    if (!undoButton || !start || start === document.body) return;
+    let frames = 0;
+    let id = 0;
+    const look = () => {
+      const at = document.activeElement;
+      if (!at || at === document.body) return void undoButton?.focus({ preventScroll: true });
+      if (at === start && ++frames < 45) id = requestAnimationFrame(look);
+    };
+    look();
+    return () => cancelAnimationFrame(id);
+  });
 </script>
 
 <span class="slot" role="status" in:arrive={{ y: 3 }}>
   <span class="word">{label}{#if what}<span class="what">: {what}</span>{/if}</span>
-  <button type="button" class="link" title="Undo: bring it back as it was" onclick={onundo}>Undo</button>
+  <button type="button" class="link" title="Undo: bring it back as it was" onclick={onundo} bind:this={undoButton}>Undo</button>
   <i style:animation-duration="{ms}ms" aria-hidden="true"></i>
 </span>
 

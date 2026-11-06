@@ -308,7 +308,9 @@ fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state:
     // third time in ten minutes, orbiter stops putting it back for ten minutes rather than fight.
     let mut overrides: Vec<Instant> = Vec::new();
     let mut hold_until: Option<Instant> = None;
-    let mut last_beat = Instant::now() - HEARTBEAT;
+    // The first heartbeat goes out at once. Not `now - HEARTBEAT`: on Windows an Instant counts from
+    // boot, and a subtraction that goes below it panics (and a panic closes the app).
+    let mut last_beat = Instant::now().checked_sub(HEARTBEAT).unwrap_or_else(Instant::now);
     loop {
         // Your choices first.
         loop {
@@ -421,7 +423,8 @@ fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state:
                         s.error = Some("Something else keeps changing your warframe.market status (the website or another app), so orbiter leaves it for 10 minutes. Pick a status to take it back now.".into());
                     }
                 } else {
-                    last_sent = Some(Instant::now() - REASSERT);
+                    // Due again at once (as if never sent; not `now - REASSERT`, see last_beat).
+                    last_sent = None;
                 }
             }
         }
