@@ -9,7 +9,7 @@
 //   node scripts/site.mjs --check               build, then check every link and that no
 //                                               dev-*.json (real account data) is in it
 //
-// Screenshots are of the demo account only (npm run dev:demo, site/shots/README.md).
+// Screenshots are of the demo account only (npm run dev:demo; site/README.md, Screenshots).
 import { createServer } from "vite";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -65,6 +65,7 @@ function sections(html) {
     tag.lastIndex = i;
     let t;
     while (depth && (t = tag.exec(html))) depth += t[1] ? -1 : 1;
+    if (depth) throw new Error("The Guide has a <section> that isn't closed");
     out.push([m[1].split(/\s+/)[0], html.slice(i, t.index)]);
     re.lastIndex = tag.lastIndex;
   }
@@ -195,8 +196,11 @@ if (args.includes("--check")) {
       if (/^https?:/.test(url)) { const h = new URL(url).hostname; if (!ALLOWED.has(h)) bad.push(`${rel}: link to ${h}`); continue; }
       if (url.startsWith("mailto:")) continue;
       if (url.startsWith("#")) { if (url.length > 1 && !text.includes(`id="${url.slice(1)}"`)) bad.push(`${rel}: ${url} has no target`); continue; }
+      // From the site's root ("/…") breaks under the project's address (/orbiter/): relative only.
+      if (url.startsWith("/")) { bad.push(`${rel}: ${url} is from the root, not relative`); continue; }
       const [path, hash] = url.split("#");
       const target = resolve(dirname(f), path || relative(dirname(f), f));
+      if (relative(OUT, target).startsWith("..")) { bad.push(`${rel}: ${url} leaves the site`); continue; }
       if (!existsSync(target)) { bad.push(`${rel}: ${url} doesn't exist`); continue; }
       if (hash && target.endsWith(".html") && !readFileSync(target, "utf8").includes(`id="${hash}"`)) bad.push(`${rel}: ${url} has no #${hash}`);
     }
