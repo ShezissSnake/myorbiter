@@ -2,13 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import {
-  FRAME_NAMES,
   frameInfo,
   heldFrom,
   kitElements,
   loadoutFor,
   loadoutItems,
-  loadoutModNames,
   modIndex,
   ownedFrom,
   SHARD_PATHS,
@@ -22,6 +20,7 @@ import {
   type SetPick,
   type Tier,
 } from "../src/lib/core/builds/suggest";
+import { FRAME_NAMES, loadoutModNames } from "./support/builds";
 import { SHARD_PATH } from "../src/lib/core/builds/missing";
 import { SHARD_COLOURS } from "../src/lib/core/builds/types";
 import synergies from "../src/lib/data/loadout-synergies.json";

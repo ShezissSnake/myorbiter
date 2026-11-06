@@ -726,7 +726,6 @@ const FRAMES = (frameRoles as { frames: Record<string, FrameInfo> }).frames;
 export function frameInfo(name: string): FrameInfo | null {
   return FRAMES[name] ?? FRAMES[name.replace(/\s+(Prime|Umbra)$/, "")] ?? null;
 }
-export const FRAME_NAMES = Object.keys(FRAMES);
 
 const DEFAULT_FRAME: FrameInfo = { roles: ["strength", "efficiency"], why: "orbiter has no line for this frame yet: a balanced caster default." };
 
@@ -1448,11 +1447,6 @@ export function rivenFor(item: CatalogItem, kind: GearKind | null, rivens: Riven
   return out;
 }
 
-/** Every variant of an item at a tier (variantsFor), the default first. */
-export function suggestVariants(item: CatalogItem, tier: Tier, owned: Owned, index: ModIndex, now = 0, held: Held | null = null, rivens: RivenContext | null = null): Suggestion[] {
-  return variantsFor(item).map((v) => suggest(item, tier, owned, index, now, held, rivens, v.id));
-}
-
 function variantNote(v: Variant, all: Variant[]): string {
   if (all.length < 2) return "";
   const what =
@@ -1461,11 +1455,6 @@ function variantNote(v: Variant, all: Variant[]): string {
     : v.nuke ? "efficiency and range up front"
     : "damage and utility first, for the normal star chart";
   return ` This is the ${v.label} variant: ${what}${v.nuke && v.survival ? ", with efficiency and range for clearing rooms" : ""}. Other variants: ${all.filter((x) => x !== v).map((x) => x.label).join(", ")}.`;
-}
-
-/** The three tiers at once (each tier's default variant). */
-export function suggestAll(item: CatalogItem, owned: Owned, index: ModIndex, now = 0, held: Held | null = null, rivens: RivenContext | null = null): Record<Tier, Suggestion> {
-  return { low: suggest(item, "low", owned, index, now, held, rivens), medium: suggest(item, "medium", owned, index, now, held, rivens), high: suggest(item, "high", owned, index, now, held, rivens) };
 }
 
 function noteFor(item: CatalogItem, kind: GearKind, tier: Tier, info: FrameInfo | null, cls: WeaponClass | null, focus: Focus, meleeClass: string | null, layout: Layout, s: Suggestion, capacityBound: boolean): string {
@@ -1974,22 +1963,6 @@ export function loadoutFor(item: CatalogItem, tier: Tier, owned: Owned, index: M
     primer: primerPicks(item, info, tier, owned, held, index),
     sets: setPicks(item, info, tier, owned, held, index),
   };
-}
-
-/** Every loadout name that should be a catalog mod or arcane, for the tests. */
-export function loadoutModNames(): string[] {
-  const out = new Set<string>(Object.keys(SYN.arcanes.effects));
-  for (const i of Object.values(SYN.grimoire.invocations)) out.add(i.name);
-  out.add(SYN.kitgun.name);
-  for (const c of Object.values(SYN.companions)) out.add(c.mod);
-  for (const [n, p] of Object.entries(SYN.primers)) {
-    if (n.startsWith("_")) continue;
-    out.add(p.mod);
-    if (p.bond) out.add(p.bond.name);
-    if (p.weapon) out.add(p.weapon.mod);
-  }
-  for (const [n, d] of Object.entries(SYN.sets)) if (!n.startsWith("_")) for (const p of d.pieces) out.add(p.name);
-  return [...out].sort();
 }
 
 /** Every item the loadout names by path (Grimoire, companions, Helminth donors), with its catalog name. */

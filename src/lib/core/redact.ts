@@ -103,5 +103,3 @@ export function redact(text: string, opts: RedactOptions = {}): string {
   return s;
 }
 
-/** Each line redacted. */
-export const redactLines = (lines: readonly string[], opts: RedactOptions = {}): string[] => lines.map((l) => redact(l, opts));

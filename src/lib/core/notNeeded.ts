@@ -96,29 +96,6 @@ export interface InstalledShard {
   upgrade: string;
 }
 
-const SHARD_COLOUR: Record<string, string> = { RED: "red", YELLOW: "yellow", BLUE: "blue", GREEN: "green", ORANGE: "orange", PURPLE: "violet" };
-
-/** A warframe's archon shards. Entries orbiter can't read are left out. */
-export function installedShards(c: GearCopy): InstalledShard[] {
-  if (!Array.isArray(c.shards)) return [];
-  const out: InstalledShard[] = [];
-  for (const e of c.shards) {
-    if (!Array.isArray(e) || typeof e[0] !== "number" || typeof e[2] !== "string") continue;
-    const code = typeof e[1] === "string" ? e[1] : null;
-    const tauforged = !!code?.endsWith("_MYTHIC");
-    const colour = code ? (SHARD_COLOUR[code.replace(/^ACC_/, "").replace(/_MYTHIC$/, "")] ?? null) : null;
-    out.push({ slot: e[0], colour, tauforged, upgrade: e[2] });
-  }
-  return out.sort((a, b) => a.slot - b.slot);
-}
-
-/** The Helminth ability each config puts in. Entries orbiter can't read are left out. */
-export function helminthAbilities(c: GearCopy): { config: number; ability: string; slot: number }[] {
-  if (!Array.isArray(c.ab)) return [];
-  return c.ab
-    .filter((e) => Array.isArray(e) && typeof e[0] === "number" && typeof e[1] === "string" && typeof e[2] === "number")
-    .map(([config, ability, slot]) => ({ config, ability, slot }));
-}
 
 export const INCARNON = 512;
 /**

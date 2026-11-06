@@ -296,7 +296,6 @@ export function sparesSettingsOf(market: { spares?: unknown; bulk?: unknown; sel
 /** What to save: both keys (see sparesSettingsOf). */
 export const toStored = (r: SparesRules): { spares: SparesRules; bulk: BulkRules } => ({ spares: r, bulk: legacyRules(r) });
 
-
 // ---------------------------------------------------------------- in words
 
 /** What the lich families wait on: weapons still to master. */
@@ -306,7 +305,6 @@ export interface LichLeft {
 }
 
 const SELL_AS_WORDS: Record<SellAs, string> = { sets: "Whole sets only", setsFirst: "Sets first, then loose parts", parts: "Loose parts only" };
-export const sellAsWords = (s: SellAs) => SELL_AS_WORDS[s];
 const join = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`);
 const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 

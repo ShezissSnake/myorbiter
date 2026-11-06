@@ -34,9 +34,6 @@ export function stripHidden(s: string): string {
   }
 }
 
-/** Whether the text holds a character `stripHidden` would take out. */
-export const hasHidden = (s: string): boolean => stripHidden(s) !== s.replace(/\r\n?/g, "\n");
-
 /**
  * A one-line field from outside: a string, cleaned of hidden characters, its whitespace folded to
  * single spaces, trimmed and cut to `max` characters (by code point, so an emoji is never split).

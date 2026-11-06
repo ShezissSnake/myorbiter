@@ -70,8 +70,8 @@ Run on 2026-11-05 against `main`.
 - **orbiter** (`package-lock.json`): 2 low, 0 moderate or worse. Both are one advisory,
   `deepmerge` (mergeObject() allows prototype poisoning of returned objects), reached through
   `@sveltejs/vite-plugin-svelte`, a development dependency: it runs in the build, not in the app,
-  and merges the build's own configuration. Worth taking when the plugin's next release drops it
-  (Dependabot proposes it); no action needed before.
+  and merges the build's own configuration. **Accepted (2026-11-06):** no action; taken whenever
+  Dependabot's update of the plugin drops it.
 - **TennoScope** (`tennoscope/app`, pnpm): 0.
 
 ### cargo audit
@@ -95,8 +95,15 @@ Run on 2026-11-05 against `main`.
 No `TODO`, `FIXME`, `XXX` or `HACK` is left in orbiter's own code (`src/`, `src-tauri/src/`,
 `crates/`, `scripts/`, `tests/`).
 
-Exported from `src/` and used nowhere, not even in its own file (safe to delete, but nothing was
-deleted in this round):
+**Done (2026-11-06):** the seven exports used nowhere were deleted; of the ten used only by
+tests, `ducatRows`, `installedShards` and `helminthAbilities` (app logic the app no longer used)
+were deleted with their tests, and `suggestAll`, `suggestVariants`, `FRAME_NAMES` and
+`loadoutModNames` (test helpers) moved to `tests/support/builds.ts`. `loadoutItems`,
+`suggestionNames` and `recipeItems` stay where they are: they list module-private tables
+(`SET_COMPANION`, `KUBROWS`, `FAMILIES`, `MELEE`, the wiki's recipe list) for the tests' catalog
+checks, so moving them would mean exporting those tables instead.
+
+Exported from `src/` and used nowhere, not even in its own file, as found:
 
 | File | Export |
 | --- | --- |
