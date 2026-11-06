@@ -43,7 +43,7 @@
   .fold.on { border-color: var(--gold-dim); color: var(--platinum); }
   .n { font-family: var(--face-mark); font-size: .8rem; color: var(--gold); }
   /* What the folded filters narrow to right now, so a short list never looks unexplained. */
-  .on-now { font-family: var(--face-body); font-size: .74rem; letter-spacing: 0; text-transform: none; color: var(--platinum-deep); }
+  .on-now { font-family: var(--face-text); font-size: .74rem; letter-spacing: 0; text-transform: none; color: var(--platinum-deep); }
   .chev { font-size: .7rem; color: var(--platinum-deep); }
   .clear { font-size: .62rem; }
   /* The folded controls take a row of their own under the bar, wrapping like it; they unfold on

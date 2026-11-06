@@ -232,7 +232,7 @@
     <div class="reveal" transition:reveal><div>
     <div class="grid">
       <section class="chart">
-        <div class="head"><span class="register">Platinum per day</span>{#if days.some((d) => d.plat > 0)}<span class="dim small">best day <P v={peak} tick /></span>{/if}<span class="grow"></span><Seg bind:value={span} onchange={() => picks++} options={[{ v: "7", label: "7 days", title: "The chart and best sellers over the last 7 days" }, { v: "30", label: "30 days", title: "The chart and best sellers over the last 30 days" }, { v: "all", label: "All", title: "Best sellers over everything logged; the chart shows 30 days" }]} /></div>
+        <div class="head"><span class="register">Platinum per day</span>{#if days.some((d) => d.plat > 0)}<span class="dim small">best day <P v={peak} tick /></span>{/if}<span class="grow"></span><Seg bind:value={span} label="Span" onchange={() => picks++} options={[{ v: "7", label: "7 days", title: "The chart and best sellers over the last 7 days" }, { v: "30", label: "30 days", title: "The chart and best sellers over the last 30 days" }, { v: "all", label: "All", title: "Best sellers over everything logged; the chart shows 30 days" }]} /></div>
         <!-- A span picked redraws the bars growing up from the axis (scaleY, QUICK); a new sale just changes them. -->
         {#key picks}
         <div class="bars" class:grow={picks > 0} role="img" aria-label="Platinum made per day">

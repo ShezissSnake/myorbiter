@@ -174,7 +174,7 @@
   </PageHead>
 
   <div class="bar">
-  <input type="search" title="Shows only what matches what you type" placeholder="Filter mods…" bind:value={query} />
+  <input type="search" aria-label="Filter mods by name" title="Shows only what matches what you type" placeholder="Filter mods…" bind:value={query} />
   <select bind:value={rarity} aria-label="Rarity" title="Only one rarity">
     <option value="all">All rarities</option>
     {#each ["Common", "Uncommon", "Rare", "Legendary"] as x (x)}<option value={x}>{x}</option>{/each}

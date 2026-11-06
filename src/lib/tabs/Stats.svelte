@@ -164,7 +164,7 @@
     {/snippet}
   </PageHead>
 
-  <div class="bar"><Seg bind:value={span} options={[{ v: "30", label: "30 days", title: "Figures, charts and trades from the last 30 days" }, { v: "90", label: "90 days", title: "Figures, charts and trades from the last 90 days" }, { v: "all", label: "All", title: "Everything orbiter has logged" }]} /></div>
+  <div class="bar"><Seg bind:value={span} label="Span" options={[{ v: "30", label: "30 days", title: "Figures, charts and trades from the last 30 days" }, { v: "90", label: "90 days", title: "Figures, charts and trades from the last 90 days" }, { v: "all", label: "All", title: "Everything orbiter has logged" }]} /></div>
 
   <div title="Worked out as Inventory does, at each inventory read. Market value: every copy at the daily median. Quick-sale value: everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month. The figures by the title are from the last read">
     <TimeChart single={hist.length === 1 ? "" : undefined} title={lastRead ? `Inventory value · at last read, ${new Date(lastRead).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : "Inventory value"} {at} series={[{ label: "Market value", color: "var(--chart-plat)", values: hist.map((p) => p.worth) }, { label: "Quick-sale value", color: GOLD, values: hist.map((p) => p.liquid) }]} height={190} />
@@ -222,7 +222,7 @@
         <h2 class="register">Trade history</h2>
         {#if settings.market.trades.length}<ProgressButton variant="icon" icon="export" tone="quiet" job={exportJob} label="Export trades as CSV" doneLabel="Saved" failLabel="Couldn't save" title="Save every trade orbiter read from the game as a CSV file in your Downloads folder, for a spreadsheet" onclick={exportTrades} />{/if}
         {#if exported}<span class="small" class:dim={exportJob.state !== "failed"} class:bad={exportJob.state === "failed"} role="status">{exported}</span>{/if}
-        <Seg bind:value={show} options={[{ v: "all", label: "All", title: "Every trade" }, { v: "sale", label: "Sales", title: "Trades where you gave items and got only platinum" }, { v: "purchase", label: "Purchases", title: "Trades where you gave only platinum for items" }, { v: "trade", label: "Swaps", title: "Everything else: items for items, items and platinum both ways, gifts" }]} />
+        <Seg bind:value={show} label="Which trades" options={[{ v: "all", label: "All", title: "Every trade" }, { v: "sale", label: "Sales", title: "Trades where you gave items and got only platinum" }, { v: "purchase", label: "Purchases", title: "Trades where you gave only platinum for items" }, { v: "trade", label: "Swaps", title: "Everything else: items for items, items and platinum both ways, gifts" }]} />
       </div>
       {#if shown.length}
         <ul>
@@ -237,6 +237,9 @@
           {/each}
         </ul>
         {#if shown.length > 150}<p class="dim small">Showing the latest 150 of {shown.length}.</p>{/if}
+      {:else if settings.market.trades.length}
+        <!-- Trades are logged, just none in this span or of this kind: say so, and how to see them. -->
+        <p class="dim small">No {show === "sale" ? "sales" : show === "purchase" ? "purchases" : show === "trade" ? "swaps" : "trades"} {span === "all" ? "logged yet" : `in the last ${span} days`}. <button type="button" class="link" title="Every trade orbiter has logged (the figures and charts above go to All too)" onclick={() => ((show = "all"), (span = "all"))}>Show all {settings.market.trades.length}</button></p>
       {:else}
         <p class="dim small">Trades show up here as you make them: orbiter reads each one from Warframe's log when the trade window closes.</p>
       {/if}

@@ -285,7 +285,7 @@
       />
     {/snippet}
     {#snippet band()}
-      <Stat label="Spare value" tone="gold" note="Beyond what you keep, no more of each than the market sells in a month" title={`Spare value: every copy beyond what you keep, of every kind, at the daily median, no more of each item than the market sells in a month (slow sellers count only that; unranked arcanes as their share of a maxed one).${spareSplit ? ` By kind: ${spareSplit}.` : ""} Worth selling, on Prime parts, Mods and Arcanes, is the narrower figure: it leaves out what's better as ducats or Vosfor, what isn't worth a trade and mods that don't sell daily.`}><PTick v={value.spare} /></Stat>
+      <Stat label="Spare value" tone="gold" note="Beyond what you keep, no more of each than the market sells in a month" title={`Spare value: every copy beyond what you keep, ${filtered ? "of what the filters show" : "of every kind"}, at the daily median, no more of each item than the market sells in a month (slow sellers count only that; unranked arcanes as their share of a maxed one).${spareSplit ? ` By kind: ${spareSplit}.` : ""} Worth selling, on Prime parts, Mods and Arcanes, is the narrower figure: it leaves out what's better as ducats or Vosfor, what isn't worth a trade and mods that don't sell daily.`}><PTick v={value.spare} /></Stat>
       <Stat label="Spare copies" note={`Of ${spareItems.size.toLocaleString("en")} items, beyond what you keep`} title="Every copy you hold beyond what you keep: what your unbuilt items take, two of each mod, one maxed arcane, one of each Captura scene"><Count value={spareCopies} /></Stat>
       <Stat label="Sell daily" note="Items with copies to spare that trade every day on warframe.market: where to start" title="Items you have copies to spare of that trade at least once a day on warframe.market (their daily statistics): the ones that sell quickly"><Count value={sellDaily} /></Stat>
       <Stat extra label="Quick-sale value" note="Everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month"><PTick v={value.easy} /></Stat>
@@ -294,7 +294,7 @@
   </PageHead>
 
   <div class="bar">
-    <input type="search" title="Shows only what matches what you type" placeholder="Filter items…" bind:value={query} />
+    <input type="search" aria-label="Filter your inventory by name" title="Shows only what matches what you type" placeholder="Filter items…" bind:value={query} />
     <select bind:value={kind} aria-label="Kind" class="kinds" title="Only one kind of item">
       {#each KINDS as k (k.v)}<option value={k.v}>{k.label} ({count(k.v).toLocaleString("en")})</option>{/each}
     </select>
@@ -318,7 +318,7 @@
 
   {#if letGo}<div class="reveal" transition:reveal><div><NotNeeded {model} out={unneeded} incarnons={!!gear} bind:keep={keepGear} /></div></div>{/if}
 
-  <Browse id="inventory" bind:opened {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => shown(r)} kicker={(r) => spareOf(r)?.type ?? r.type} onopen={(r) => (r.kind === "gear" && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" clear={filtered ? clear : null} empty="Nothing in your inventory yet." />
+  <Browse id="inventory" bind:opened {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => shown(r)} kicker={(r) => spareOf(r)?.type ?? r.type} onopen={(r) => (r.kind === "gear" && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" clear={filtered ? clear : null} empty="Nothing in your inventory yet: press Sync while Warframe is running, and everything you own goes on display here." />
 </div></div>
 
 <style>
