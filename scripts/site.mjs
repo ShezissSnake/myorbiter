@@ -90,7 +90,7 @@ const NAV = [["index.html", "orbiter"], ["guide/index.html", "Guide"], ["whats-n
 function page({ file, title, blurb, body, section }) {
   const base = "../".repeat(file.split("/").length - 1);
   const nav = NAV.map(([href, label]) => `<a href="${base}${href}"${href === file || (section && href.startsWith(section)) ? ' aria-current="page"' : ""}>${esc(label)}</a>`).join("");
-  const sub = section === "guide/" ? `<nav class="sub" aria-label="Guide">${GUIDE.map((g) => `<a href="${base}${g.file}"${g.file === file ? ' aria-current="page"' : ""}>${esc(g.title)}</a>`).join("")}</nav>` : "";
+  const sub = section === "guide/" ? `<nav class="guide-nav" aria-label="Guide">${GUIDE.map((g) => `<a href="${base}${g.file}"${g.file === file ? ' aria-current="page"' : ""}>${esc(g.title)}</a>`).join("")}</nav>` : "";
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -106,7 +106,7 @@ function page({ file, title, blurb, body, section }) {
 <main>
 <div class="head"><h1 class="mark">${esc(title)}</h1><p class="blurb">${esc(blurb)}</p></div>
 ${sub}
-${body().replaceAll("{{base}}", base)}
+${body().replaceAll("{{base}}", () => base)}
 </main>
 <footer class="foot">
 <p>orbiter is a fan-made tool, not affiliated with or endorsed by Digital Extremes. Warframe and its artwork are © and ™ Digital Extremes Ltd.; the game's icons shown here are theirs, used to identify what they depict, and are not covered by orbiter's licence.</p>
@@ -118,11 +118,12 @@ ${body().replaceAll("{{base}}", base)}
 }
 
 // What's New: one section per update, newest first, as the app's Guide lists them.
-const longDay = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+const longDay = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 function whatsNew() {
   return news.map((e) => {
     const items = e.items.map((it) => typeof it === "string" ? `<li>${esc(it)}</li>` : `<li><b>${esc(it.title)}.</b> ${esc(it.text)}</li>`).join("");
-    return `<section class="update" id="update-${e.id}"><h2 class="mark"><a href="#update-${e.id}">${esc(longDay(e.date))}</a></h2><ul>${items}</ul></section>`;
+    const id = `update-${esc(e.id)}`;
+    return `<section class="update" id="${id}"><h2 class="mark"><a href="#${id}">${esc(longDay(e.date))}</a></h2><ul>${items}</ul></section>`;
   }).join("\n");
 }
 
@@ -150,7 +151,8 @@ function downloads() {
 
 function landing() {
   const tpl = readFileSync(join(SRC, "landing.html"), "utf8");
-  return tpl.replace("{{downloads}}", downloads()).replace("{{fullModeWarning}}", esc(warning));
+  // Functions, not strings: a "$" in a release's name or the warning stays as it is.
+  return tpl.replace("{{downloads}}", () => downloads()).replace("{{fullModeWarning}}", () => esc(warning));
 }
 
 // ---- Write it out.
@@ -172,10 +174,10 @@ for (const [pkg, files] of [["archivo-narrow", ["latin-600-normal", "latin-700-n
   for (const f of files) cpSync(join(ROOT, "node_modules/@fontsource", pkg, "files", `${pkg}-${f}.woff2`), join(OUT, "fonts", `${pkg}-${f}.woff2`));
   cpSync(join(ROOT, "node_modules/@fontsource", pkg, "LICENSE"), join(OUT, "fonts", `${pkg}-LICENSE.txt`));
 }
-writeFileSync(join(OUT, ".nojekyll"), "");
 
-// ---- Checks: every local link and image resolves, external links go to known hosts, and nothing
-// from a real account (dev-*.json, their contents' tell-tales) is in the output.
+// ---- Checks: every local link, image and stylesheet url() resolves (same-page anchors included),
+// external links go only to github.com, and no dev-*.json file (a real account's data) is in the
+// output or named in it.
 if (args.includes("--check")) {
   const ALLOWED = new Set(["github.com"]);
   const all = (d) => readdirSync(d).flatMap((f) => (statSync(join(d, f)).isDirectory() ? all(join(d, f)) : [join(d, f)]));
@@ -187,10 +189,12 @@ if (args.includes("--check")) {
     if (!f.endsWith(".html") && !f.endsWith(".css")) continue;
     const text = readFileSync(f, "utf8");
     if (/dev-[\w-]+\.json/.test(text)) bad.push(`${rel}: names a dev-*.json file`);
-    for (const [, url] of text.matchAll(/(?:href|src)="([^"]+)"|url\(["']?([^"')]+)/g)) {
-      if (!url) continue;
+    for (const m of text.matchAll(/(?:href|src)="([^"]+)"|url\(["']?([^"')]+)/g)) {
+      const url = m[1] ?? m[2];
+      if (!url || url.startsWith("data:")) continue;
       if (/^https?:/.test(url)) { const h = new URL(url).hostname; if (!ALLOWED.has(h)) bad.push(`${rel}: link to ${h}`); continue; }
-      if (url.startsWith("#") || url.startsWith("mailto:")) continue;
+      if (url.startsWith("mailto:")) continue;
+      if (url.startsWith("#")) { if (url.length > 1 && !text.includes(`id="${url.slice(1)}"`)) bad.push(`${rel}: ${url} has no target`); continue; }
       const [path, hash] = url.split("#");
       const target = resolve(dirname(f), path || relative(dirname(f), f));
       if (!existsSync(target)) { bad.push(`${rel}: ${url} doesn't exist`); continue; }

@@ -22,7 +22,12 @@ on:
       - "src/lib/tabs/Guide.svelte"
       - "src/lib/whatsNew.ts"
       - "src/lib/FullMode.svelte"
+      - "src/lib/ui/**"
+      - "src/lib/core/**"
       - "public/game/**"
+      - "src-tauri/icons/64x64.png"
+      - "package-lock.json"
+      - "vite.config.ts"
       - ".github/workflows/pages.yml"
   schedule:
     - cron: "43 4 * * *"
@@ -39,6 +44,7 @@ jobs:
   build:
     name: Build and check the site
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     permissions:
       contents: read
     outputs:
@@ -94,6 +100,7 @@ jobs:
     needs: build
     if: needs.build.outputs.public == 'true' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       pages: write # to publish the site
       id-token: write # Pages checks where the upload came from

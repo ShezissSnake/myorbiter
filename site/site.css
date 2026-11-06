@@ -89,9 +89,9 @@ figcaption b { color: var(--platinum); font-weight: 500; }
 .licence p { color: var(--platinum-dim); }
 
 /* ---- Guide pages: the app's Guide, as it draws it, without its controls */
-.sub { display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; margin: -1rem 0 2rem; padding-bottom: .9rem; border-bottom: 1px solid var(--rule); }
-.sub a { font-family: var(--face-register); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; text-decoration: none; color: var(--platinum-dim); }
-.sub a[aria-current="page"], .sub a:hover { color: var(--gold); }
+.guide-nav { display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; margin: -1rem 0 2rem; padding-bottom: .9rem; border-bottom: 1px solid var(--rule); }
+.guide-nav a { font-family: var(--face-register); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; text-decoration: none; color: var(--platinum-dim); }
+.guide-nav a[aria-current="page"], .guide-nav a:hover { color: var(--gold); }
 main article { margin: 0 0 2.2rem; }
 main article h2.mark { font-size: 1.7rem; margin-bottom: .8rem; }
 main h3.register { margin: 0 0 .6rem; color: var(--gold); }
@@ -100,7 +100,8 @@ main li { margin: 0 0 .55rem; color: var(--platinum-dim); }
 main li::marker { color: var(--platinum-deep); }
 main li b, b.pg { color: var(--platinum); font-weight: 500; }
 b.pg { margin-right: .35rem; }
-main .sub li, main ul.sub { margin-top: .3rem; }
+/* A step written out in several parts (the Guide's own nested list). */
+main ul.sub { margin-top: .3rem; }
 .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr)); gap: 0 2rem; }
 .gi, .rw img, .pi img { display: inline-block; vertical-align: -2px; }
 .rw { white-space: nowrap; }
