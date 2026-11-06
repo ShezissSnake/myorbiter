@@ -120,7 +120,7 @@
   function testDiscord() {
     void discordJob.run(async () => {
       const url = settings.notifyOptions.discord.url;
-      if (!(await discordConfirm(url))) throw new Error("not confirmed");
+      if (!(await discordConfirm(url))) throw new Error("not confirmed: say yes in the window orbiter shows");
       await discordPost(url, "**orbiter**\nThis is how notifications will look here.");
       discordSent(null);
       return "Sent";

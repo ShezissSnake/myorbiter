@@ -408,7 +408,6 @@ export const DISCORD_DEFAULT_KINDS = ["rivens", "deals", "fissures", "whispers",
 export const defaultNotifyOptions = (): NotifyOptions => ({ paused: false, pausedUntil: null, toasts: true, desktop: true, quietInFissure: false, quiet: [], discord: { url: "", kinds: DISCORD_DEFAULT_KINDS } });
 /** A Discord webhook address, and nothing else: orbiter only ever posts to one of these. */
 export const isDiscordWebhook = (url: string) => /^https:\/\/(?:(?:ptb\.|canary\.)?discord\.com|discordapp\.com)\/api\/webhooks\/\d+\/[\w-]+$/.test(url.trim());
-/** Posts a notification to your Discord webhook. */
 /**
  * Whether orbiter may post to this Discord address: true once confirmed. A new one is asked about
  * in a window of orbiter's own (not the page); false when the answer was no, or another question
@@ -419,6 +418,7 @@ export async function discordConfirm(url: string): Promise<boolean> {
   return inTauri ? invoke<boolean>("discord_confirm", { url: url.trim() }) : true;
 }
 
+/** Posts a notification to your Discord webhook. */
 export async function discordPost(url: string, content: string): Promise<void> {
   if (!isDiscordWebhook(url)) throw new Error("Not a Discord webhook address");
   if (inTauri) await invoke("discord_post", { url: url.trim(), content });
