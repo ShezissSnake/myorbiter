@@ -51,6 +51,7 @@
     restoreLive,
     saved,
     saveSettings,
+    discordConfirm,
     discordPost,
     notify,
     openUrl,
@@ -2378,6 +2379,9 @@
       if (stopped) return;
       settings.tab = migrateTab(settings.startPage !== "last" ? settings.startPage : settings.tab);
       settingsReady = true;
+      // A Discord address saved before orbiter asked about them: asked now, while you're here,
+      // rather than at the first notification, which may come while you're away.
+      if (settings.notifyOptions.discord.url) void discordConfirm(settings.notifyOptions.discord.url).catch(() => {});
       // Updates: checked once the window has drawn and things are quiet, then every 6 hours.
       updates.start(() => settings.updates);
       // The channel this build came from, as Settings names it ("local build" for one made here).

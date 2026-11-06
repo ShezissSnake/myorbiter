@@ -388,33 +388,28 @@ fn discord_webhook(url: &str) -> bool {
 }
 
 /// Posts a notification to your Discord webhook (Settings → notifications), for when you're away.
-/// Only to the address confirmed outside the page (`discord_confirmed`): the page names the
-/// address it posts to, so a page gone wrong could otherwise send anything anywhere on Discord.
+/// Only to the address confirmed outside the page (`discord_confirm`): the page names the address
+/// it posts to, so a page gone wrong could otherwise send anything anywhere on Discord. Never asks
+/// itself: a notification may go out while you're away, and nothing should wait on a dialog then.
 #[tauri::command]
 async fn discord_post(app: tauri::AppHandle, url: String, content: String) -> Result<(), String> {
     if !discord_webhook(&url) {
         return Err("not a Discord webhook address".into());
     }
+    if discord_kept(&app)?.1.as_deref() != Some(url.as_str()) {
+        return Err("not sent: that Discord address isn't confirmed (Notifications, Choose, Discord)".into());
+    }
     // Notifications come a few at a time: more than this in a minute isn't orbiter's own use, and
-    // a page gone wrong mustn't post the log or chats out by the hundred (nor ask about one new
-    // address after another).
-    let too_many = || {
+    // a page gone wrong mustn't post the log or chats out by the hundred.
+    {
         let mut sent = DISCORD_SENT.lock().unwrap_or_else(|e| e.into_inner());
         let now = Instant::now();
         sent.retain(|t| now.duration_since(*t) < Duration::from_secs(60));
-        sent.len() >= DISCORD_PER_MINUTE
-    };
-    if too_many() {
-        return Err("too many Discord posts this minute".into());
+        if sent.len() >= DISCORD_PER_MINUTE {
+            return Err("too many Discord posts this minute".into());
+        }
+        sent.push(now);
     }
-    if !discord_confirmed(&app, &url).await? {
-        return Err("not sent: that Discord address wasn't confirmed".into());
-    }
-    // Counted when it goes out, so posts that waited on the confirmation don't all go at once.
-    if too_many() {
-        return Err("too many Discord posts this minute".into());
-    }
-    DISCORD_SENT.lock().unwrap_or_else(|e| e.into_inner()).push(Instant::now());
     let content: String = content.chars().take(1900).collect();
     tauri::async_runtime::spawn_blocking(move || {
         http_agent()
@@ -471,16 +466,24 @@ fn discord_kept(app: &tauri::AppHandle) -> Result<(PathBuf, Option<String>), Str
     Ok((file, kept))
 }
 
-/// Whether `url` is the Discord address the player confirmed. A new one is confirmed in a native
-/// dialog over orbiter's window (not in the page), the first time the page posts to it, which
-/// names the webhook (never its token); a yes keeps it in orbiter's config folder
-/// (`discord-webhook`), which the page can't write, in place of the one before.
-async fn discord_confirmed(app: &tauri::AppHandle, url: &str) -> Result<bool, String> {
-    // The confirmed address goes straight through, without waiting on a dialog that's open.
-    if discord_kept(app)?.1.as_deref() == Some(url) {
+/// Notifications → Choose → Discord: whether `url` is the address the player confirmed, asking
+/// when it's new. The page calls this while the player is there: when an address is pasted, and
+/// once as orbiter starts for one saved before (`discord_post` never asks). A new address is
+/// confirmed in a native dialog over orbiter's window (not in the page), which names the webhook
+/// (never its token); a yes keeps it in orbiter's config folder (`discord-webhook`), which the
+/// page can't write, in place of the one before. While a dialog is open, another new address is
+/// refused rather than queued.
+#[tauri::command]
+async fn discord_confirm(app: tauri::AppHandle, url: String) -> Result<bool, String> {
+    if !discord_webhook(&url) {
+        return Err("not a Discord webhook address".into());
+    }
+    if discord_kept(&app)?.1.as_deref() == Some(url.as_str()) {
         return Ok(true);
     }
-    let _one = DISCORD_ASKING.lock().await;
+    let Ok(_one) = DISCORD_ASKING.try_lock() else { return Ok(false) };
+    let url = url.as_str();
+    let app = &app;
     // Read again under the lock: the dialog this one waited on may have confirmed this address.
     let (file, kept) = discord_kept(app)?;
     match discord_address(kept.as_deref(), DISCORD_DECLINED.load(Ordering::SeqCst), url) {
@@ -880,6 +883,18 @@ fn tennoscope_status(companion: tauri::State<'_, companion::Companion>) -> compa
 #[tauri::command]
 async fn tennoscope_choose_program(app: tauri::AppHandle) -> Result<Option<companion::Status>, String> {
     use tauri_plugin_dialog::DialogExt;
+    // One dialog at a time, however often the page asks.
+    static OPEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if OPEN.swap(true, Ordering::SeqCst) {
+        return Ok(None);
+    }
+    struct Shut;
+    impl Drop for Shut {
+        fn drop(&mut self) {
+            OPEN.store(false, Ordering::SeqCst);
+        }
+    }
+    let _shut = Shut;
     let picked = tauri::async_runtime::spawn_blocking({
         let app = app.clone();
         move || {
@@ -1330,6 +1345,7 @@ pub fn run() {
             recipe_data,
             export_file,
             discord_post,
+            discord_confirm,
             load_settings,
             save_settings,
             mission_state,
