@@ -149,7 +149,7 @@ test("suggest() carries the riven for weapons that take one, the player's sorted
 });
 
 const metaPath = new URL("../public/dev-rivens.json", import.meta.url);
-test("every stat the rules name is a warframe.market slug with a game tag", { skip: !existsSync(metaPath) && "public/dev-rivens.json not present" }, () => {
+test("every stat the rules name is a warframe.market slug with a game tag", { skip: !existsSync(metaPath) && "public/dev-rivens.json not present: run `npm run dev-data`" }, () => {
   const meta = JSON.parse(readFileSync(metaPath, "utf8")) as { attributes: { slug: string; gameRef: string }[] };
   for (const [slug, d] of Object.entries(RIVEN_STATS)) {
     const a = meta.attributes.find((x) => x.slug === slug);
