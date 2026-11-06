@@ -81,6 +81,10 @@ fn set_offline(yes: bool) {
 /// the Market page): named "wfm." and the file name.
 const WFM_THUMBS: &str = "https://warframe.market/static/assets/items/images/en/thumbs/";
 
+/// warframe.market's thumbnails go out at least 400 ms apart, as its API calls do (market.rs's
+/// `MIN_GAP`). A queue of their own: a page of thumbnails mustn't hold up listing changes.
+static WFM_SPACER: crate::noxsframe::Spacer = crate::noxsframe::Spacer::new(Duration::from_millis(400));
+
 fn fetch(name: &str) -> Fetched {
     let mut all_404 = true;
     let mut reached = false;
@@ -90,6 +94,9 @@ fn fetch(name: &str) -> Fetched {
         None => SOURCES.iter().map(|b| (*b, name)).collect(),
     };
     for (base, name) in sources {
+        if wfm.is_some() {
+            WFM_SPACER.turn();
+        }
         match crate::http_agent()
             .get(&format!("{base}{name}"))
             .set("User-Agent", crate::USER_AGENT)

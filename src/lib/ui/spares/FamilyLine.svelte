@@ -65,12 +65,14 @@
   .ctl { display: flex; align-items: center; gap: .5rem; min-width: 0; flex-wrap: wrap; }
   .kw { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
   .note { flex: 1 1 12rem; min-width: 0; font-size: .76rem; color: var(--platinum-deep); line-height: 1.35; }
-  .off .ctl { opacity: .55; }
+  /* Off and greyed out by colour, not opacity, so the text stays above 4.5:1. */
+  .off .ctl, .off .ctl :global(.n) { color: var(--platinum-deep); }
   .tally { display: inline-flex; justify-content: flex-end; align-items: center; gap: .55rem; font-variant-numeric: tabular-nums; }
   .tally .n { font-family: var(--face-register); font-size: .74rem; color: var(--platinum-dim); }
-  .tally .n::after { content: " ·"; color: var(--rule-control); }
+  .tally .n::after { content: " ·"; color: var(--platinum-deep); }
   .pl { display: inline-flex; align-items: center; color: var(--platinum-deep); font-size: .8rem; }
-  .off .tally { opacity: .5; }
-  .disabled .name, .disabled .box { opacity: .55; }
-  .none { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--rule-control); }
+  .off .tally .n, .off .tally :global(b) { color: var(--platinum-deep); }
+  .disabled .name { color: var(--platinum-deep); }
+  .disabled .box { opacity: .55; }
+  .none { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
 </style>

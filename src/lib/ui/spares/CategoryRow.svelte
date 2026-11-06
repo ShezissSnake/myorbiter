@@ -93,7 +93,8 @@
   .pl { display: inline-flex; align-items: center; min-width: 4.2rem; justify-content: flex-end; color: var(--platinum-deep); font-size: .8rem; }
   .chev { color: var(--platinum-deep); font-size: .72rem; justify-self: end; transition: transform var(--quick) var(--out); }
   .open .chev { transform: rotate(180deg); }
-  .fig.stale { opacity: .55; }
+  /* Out of date: greyed by colour, not opacity, so it stays above 4.5:1. */
+  .fig.stale .n, .fig.stale .pl, .fig.stale :global(b) { color: var(--platinum-deep); }
   /* A narrow page: the choices in words go on a line of their own under the name and figures. */
   :global(html[data-room~="lt900"]) .rowbtn { grid-template-columns: minmax(0, 1fr) auto 1rem; row-gap: .15rem; }
   :global(html[data-room~="lt900"]) .sum { grid-column: 1 / -1; grid-row: 2; }

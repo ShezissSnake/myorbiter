@@ -42,7 +42,7 @@ class Updates {
       if (!installChecks(i.install)) return;
       // Not before the first frame, and not while the page is busy: the start stays as quick.
       this.cancelStart = afterPaint(() => (this.cancelStart = whenIdle(() => void this.quiet())));
-    });
+    }, (e) => console.error("update info", e));
   }
 
   stop() {

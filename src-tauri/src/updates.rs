@@ -225,9 +225,14 @@ fn calm(what: &str, e: &tauri_plugin_updater::Error) -> String {
     }
 }
 
-#[tauri::command]
-pub fn updates_info(app: AppHandle) -> Info {
-    Info { version: app.package_info().version.to_string(), install: this_install(&app) }
+/// This build and how it was installed. Telling an AppImage's folder writable makes and removes a
+/// file there (`folder_writable`), which waits on the disk, so it runs on a blocking thread: not
+/// the main thread, and not one of the async runtime's few workers.
+#[tauri::command(async)]
+pub async fn updates_info(app: AppHandle) -> Result<Info, String> {
+    tauri::async_runtime::spawn_blocking(move || Info { version: app.package_info().version.to_string(), install: this_install(&app) })
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Asks the channel's manifest for its build. Every version other than this one comes back (the
