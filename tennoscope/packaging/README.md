@@ -31,7 +31,7 @@ distributor vendors them and an offline workflow, which is what the COPR spec do
 ## Common preparation
 
 Three toolchains, three different pins. `rust-toolchain.toml` pins the Rust channel and
-rustup installs it on the first `cargo` call; `Cargo.toml` sets `rust-version = "1.85"`, which is
+rustup installs it on the first `cargo` call; `Cargo.toml` sets `rust-version = "1.95"`, which is
 the minimum the code supports rather than what a release is built with. Node has to satisfy
 `app/package.json`'s `^20.19.0 || >=22.12.0 <27` (CI reads `app/.node-version`), and Corepack
 installs the pnpm version its `packageManager` field pins. Then your distribution's

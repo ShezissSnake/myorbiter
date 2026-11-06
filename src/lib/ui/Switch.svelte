@@ -28,5 +28,8 @@
   input:checked + .track { background: color-mix(in srgb, var(--gold) 18%, var(--well)); border-color: var(--gold-dim); }
   input:checked + .track .knob { transform: translateX(1.15rem); background: var(--gold); }
   input:focus-visible + .track { outline: 1px solid var(--gold); outline-offset: 2px; }
-  .disabled { cursor: default; opacity: .55; }
+  /* Greyed out by colour, not opacity, so the text stays above 4.5:1; only the switch fades. */
+  .disabled { cursor: default; }
+  .disabled .label { color: var(--platinum-deep); }
+  .disabled .track { opacity: .55; }
 </style>
