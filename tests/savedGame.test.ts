@@ -19,3 +19,10 @@ test("the saved game state reads back as saved; entries a damaged file turned in
   assert.deepEqual(rivensOf([...JUNK, riven, { ...riven, pending: { buffs: [] } }, { ...riven, fp: "x" }]), [riven, { ...riven, pending: { buffs: [] } }]);
   assert.equal(rivensOf("x"), null);
 });
+
+test("riven alerts read back as saved; ones that aren't alerts are left out", async () => {
+  const { rivenWatchOf } = await import("../src/lib/core/savedGame");
+  const good = { id: "w1", weapon: "braton", weaponName: "Braton", positive: ["critical_chance"], negative: null, maxPrice: 50 };
+  assert.deepEqual(rivenWatchOf([...JUNK, good, { ...good, positive: "x" }, { ...good, maxPrice: "50" }, { ...good, negative: 3 }]), [good]);
+  assert.deepEqual(rivenWatchOf("x"), []);
+});
