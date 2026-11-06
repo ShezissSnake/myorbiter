@@ -78,3 +78,15 @@ file (Windows). No layout bugs in WebKitGTK at 800–1700 px; no leak over 8 sim
 **Waiting on the maintainer:** five IPC hardening items (`docs/testing/proposals.md` §3), the real
 Windows checks (`docs/testing/windows.md`), the go-public checklist itself, and the branch
 `claude/nice-cannon-hjl3fb`, whose deletion this session couldn't push.
+
+## Loop (2026-11-06 on)
+
+Rounds of four steps: coverage, a code read, a page polish, longer fuzzing. Each file and page is
+covered once; the lists below say which.
+
+**Covered so far.** Coverage: `marketStore.svelte.ts` (the listing form). Code reads: none yet.
+Pages: none yet.
+
+| Step | Checked | Found | Commit |
+| --- | --- | --- | --- |
+| 1.1 Coverage | `node --test --experimental-test-coverage` over `src/`: 90% of lines, 89% of branches. Least covered of the money files: `marketStore.svelte.ts` (74% of branches); its listing form's submit had no test. Six tests added (what's spare, bad amounts, adding to a hidden listing, the 100-listing limit, a create that timed out but was made, the newest inventory), each checked to fail with its rule removed. | The form's last check counted copies from the inventory read the form opened with: copies traded away while it was open still counted as spare. Fixed. | e9492c2 |
