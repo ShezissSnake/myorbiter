@@ -5,7 +5,7 @@
 // and the trades are made up. Game data (item names, paths, ducats, relic rewards) is public and
 // comes from the @wfcd/items package, read from a copy outside the repository:
 //
-//   mkdir -p /tmp/wfcd && cd /tmp/wfcd && npm pack @wfcd/items && tar xzf wfcd-items-*.tgz
+//   mkdir -p /tmp/wfcd && cd /tmp/wfcd && npm pack @wfcd/items@1.1276.48 && tar xzf wfcd-items-*.tgz
 //   node scripts/demo-data.mjs /tmp/wfcd/package
 //
 // The output is the same on every run for the same package: choices come from a seeded random
@@ -423,8 +423,8 @@ const PLAYERS = ["Tenno_Alpha", "VoidTrader42", "RelicRunner07", "Orokin_Echo", 
 const users = PLAYERS.map((n, i) => ({ id: hex(`user:${n}`), ingameName: n, status: ["ingame", "ingame", "online", "offline"][i % 4], platform: "pc", crossplay: true }));
 const me = { id: hex("user:ExamplePlayer"), ingameName: "ExamplePlayer", platform: "pc", crossplay: true, status: "ingame" };
 
-const rBook = seeded("books");
-function bookFor(item, ref, maxRank) {
+const rBookMain = seeded("books");
+function bookFor(item, ref, maxRank, rBook = rBookMain) {
   const out = [];
   const sellers = int(rBook, 3, 5);
   for (let i = 0; i < sellers; i++) {
@@ -666,9 +666,9 @@ const rivenMeta = {
 
 // Ten days of sales for each relic held (by refinement) and each thing listed: the relic prices
 // come from these, and the listings' price charts.
-const rHist = seeded("history");
+const rHistMain = seeded("history");
 const priceHistory = {};
-const pointsFor = (name, subtypes, ranks) => {
+const pointsFor = (name, subtypes, ranks, rHist = rHistMain) => {
   const out = [];
   for (let d = 10; d >= 1; d--) {
     const at = iso(Math.floor((DEMO_NOW - d * DAY) / DAY) * DAY);
@@ -690,6 +690,117 @@ for (const r of inventory) {
 for (const o of orders) {
   const it = marketItems.find((x) => x.id === o.itemId);
   if (it && !priceHistory[it.slug]) priceHistory[it.slug] = pointsFor(it.name, [null], it.maxRank != null ? [0, it.maxRank] : [null]);
+}
+
+// ------------------------------------------------------------------ Sell spares' situations
+//
+// What tests/sparesPlan.test.ts checks Sell spares' choices against, set here rather than left to
+// the seeded picks above. Applied last, with a generator of its own, so everything else (prices,
+// order books, listings, history) comes out as it would without them.
+
+const rSpares = seeded("spares");
+/** Holds exactly `quantity` of a row: the one already there, or a new one. */
+const hold = (item_id, name, category, quantity, extra = {}) => {
+  const r = inventory.find((x) => x.item_id === item_id);
+  if (r) r.quantity = quantity;
+  else row(item_id, name, category, quantity, extra);
+};
+/** Things held only from here: priced, on warframe.market's list, each with an order book. */
+const traded = new Set();
+const trade = (name, gameRef, tags, extra, [lo, hi], [mlo, mhi] = [0, 0]) => {
+  if (prices[name] == null) prices[name] = int(rSpares, lo, hi);
+  if (extra.maxRank && maxRankPrices[name] == null) maxRankPrices[name] = int(rSpares, mlo, mhi);
+  // Sells every day: Sell spares lists only what does, by default.
+  if ((tradeRate[name]?.[0] ?? 0) < 1) tradeRate[name] = [Math.round((1.5 + rSpares() * 8) * 10) / 10, int(rSpares, 6, 22), ""];
+  if (!itemByName.has(name)) {
+    addItem(name, gameRef, tags, extra);
+    itemByName.set(name, marketItems.at(-1));
+  }
+  traded.add(name);
+};
+
+// Requiem mods (Kuva Liches and Sisters of Parvos take them) and an Antivirus mod (the Technocyte
+// Coda), with Kuva, Tenet and Coda weapons still to master: two to four copies of each Requiem mod
+// (Khra four, one of them maxed), Computer Cop fifteen. @wfcd/items marks these mods untradable, as
+// the catalog the app reads does; warframe.market pricing them is what makes them tradable there.
+const LICH_MODS = [["Lohk", 2, true], ["Xata", 2, false], ["Jahu", 1, true], ["Vome", 3, false], ["Ris", 2, false], ["Fass", 4, false], ["Netra", 2, true], ["Khra", 3, true], ["Computer Cop", 15, false]];
+for (const [name, unranked, maxed] of LICH_MODS) {
+  const m = modByName.get(name);
+  if (!catalog.includes(m)) catalog.push(m);
+  hold(m.uniqueName, name, "mod", unranked, { image_name: m.imageName ?? null, rank: null, max_rank: m.maxRank });
+  if (maxed) hold(`${m.uniqueName}#${m.maxRank}`, name, "mod", 1, { image_name: m.imageName ?? null, rank: m.maxRank, max_rank: m.maxRank });
+  trade(name, m.uniqueName, ["mod", "rare"], { maxRank: m.maxRank ?? null }, [6, 18], [25, 60]);
+}
+// A stance held unranked only, six copies of it.
+{
+  const m = modByName.get("Cleaving Whirlwind");
+  hold(m.uniqueName, m.name, "mod", 6, { image_name: m.imageName ?? null, rank: null, max_rank: m.maxRank });
+  trade(m.name, m.uniqueName, ["mod", (m.rarity ?? "common").toLowerCase()], { maxRank: m.maxRank ?? null }, [3, 9], [10, 20]);
+}
+
+// Arcanes: Arcane Energize one maxed and nine unranked (30 copies, 21 to max one); Virtuos Forge
+// two maxed.
+{
+  const energize = arcaneByName.get("Arcane Energize");
+  hold(`${energize.uniqueName}#${energize.maxRank}`, energize.name, "arcane", 1, { image_name: energize.imageName ?? null, rank: energize.maxRank, max_rank: energize.maxRank });
+  hold(energize.uniqueName, energize.name, "arcane", 9, { image_name: energize.imageName ?? null, rank: null, max_rank: energize.maxRank });
+  const forge = arcaneByName.get("Virtuos Forge");
+  hold(`${forge.uniqueName}#${forge.maxRank}`, forge.name, "arcane", 2, { image_name: forge.imageName ?? null, rank: forge.maxRank, max_rank: forge.maxRank });
+  for (const a of [energize, forge]) trade(a.name, a.uniqueName, ["arcane_enhancement", (a.rarity ?? "common").toLowerCase()], { maxRank: a.maxRank ?? null }, [3, 12], [30, 80]);
+}
+
+// A relic held twice that sells for more than a crack, beside the Requiem relics held more often.
+{
+  const r = relicByName.get("Requiem I Intact");
+  hold(r.uniqueName, r.name, "relic", 2, { image_name: r.imageName ?? null });
+  const name = "Requiem I Relic";
+  trade(name, r.uniqueName, ["relic", "requiem"], { subtypes: ["intact", "exceptional", "flawless", "radiant"] }, [3, 7]);
+  const it = itemByName.get(name);
+  if (!priceHistory[it.slug]) priceHistory[it.slug] = pointsFor(name, ["intact", "radiant"], [null], rSpares);
+}
+
+// Gems and Ayatan sculptures. Purged Dagonic and Stellated Necrathene go into the Keratinos' blades
+// and gauntlets, which aren't built; Smooth Phasmin into nothing still to build. The parts' own
+// recipes aren't in @wfcd/items: these two are made up, like the rest of the account.
+const resourceByName = new Map(resourceFiles.filter((x) => x.tradable).map((x) => [x.name, x]));
+const RESOURCES_HELD = [["Purged Dagonic", 200, [1, 3]], ["Stellated Necrathene", 50, [2, 5]], ["Smooth Phasmin", 25, [1, 3]], ["Ayatan Anasa Sculpture", 3, [8, 14]], ["Ayatan Zambuka Sculpture", 1, [6, 12]]];
+for (const [name, n, band] of RESOURCES_HELD) {
+  const x = resourceByName.get(name);
+  hold(x.uniqueName, name, "resource", n, { image_name: x.imageName ?? null });
+  trade(name, x.uniqueName, /FusionTreasures/.test(x.uniqueName) ? ["ayatan_sculpture"] : ["gem"], {}, band);
+}
+const KERATINOS_PARTS = [
+  ["/Lotus/Types/Recipes/Weapons/WeaponParts/InfTransformClawsWeaponBlade", "Purged Dagonic", 6],
+  ["/Lotus/Types/Recipes/Weapons/WeaponParts/InfTransformClawsWeaponGlove", "Stellated Necrathene", 10],
+];
+for (const [part, gem, n] of KERATINOS_PARTS) {
+  const x = resourceByName.get(gem);
+  recipes[part] = { c: 15_000, i: [[x.uniqueName, n]] };
+  names[x.uniqueName] ??= { n: x.name, img: x.imageName ?? "", r: (x.rarity ?? "").toUpperCase(), k: "world" };
+}
+
+// A whole spare set of a weapon warframe.market trades as one (Braton Vandal, built and mastered):
+// its blueprint and three parts, one of each.
+{
+  const g = gearByName.get("Braton Vandal");
+  trade(`${g.name} Set`, g.uniqueName, ["set", "weapon"], {}, [20, 40]);
+  for (const c of g.components) {
+    const name = c.name === "Blueprint" ? `${g.name} Blueprint` : `${g.name} ${c.name}`;
+    hold(c.uniqueName, name, "blueprint", 1, { image_name: c.imageName ?? null });
+    trade(name, c.uniqueName, ["weapon", c.name === "Blueprint" ? "blueprint" : "component"], {}, [4, 10]);
+  }
+}
+
+// Kubrow imprints of one breed: warframe.market lists them under the companion's path. (TennoScope
+// passes the imprints themselves apart from the inventory; the tests hand the plan two Sunika ones.)
+{
+  const sunika = gearByName.get("Sunika Kubrow");
+  trade(`${sunika.name} Imprint`, sunika.uniqueName, ["imprint", "kubrow"], {}, [15, 30]);
+}
+
+for (const name of [...traded].sort()) {
+  const it = itemByName.get(name);
+  if (!books[it.slug]) books[it.slug] = bookFor(it, prices[name] ?? 5, it.maxRank, rSpares);
 }
 
 // ------------------------------------------------------------------ write
