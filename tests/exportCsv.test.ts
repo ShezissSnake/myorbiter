@@ -20,3 +20,16 @@ test("csv: sales and trades, oldest first", () => {
   const t = tradesCsv([{ key: "k", at: Date.UTC(2026, 9, 1), partner: "Tenno", offered: [{ name: "Mesa Prime Set", rank: null, count: 1 }], received: [], platIn: 60, platOut: 0 }]);
   assert.equal(t.trim().split("\n")[1], "2026-10-01T00:00:00Z,Tenno,Mesa Prime Set,,60,0");
 });
+
+test("csv: every source named, line breaks quoted, ranks and counts in a trade's items", () => {
+  assert.equal(field("a\rb"), '"a\rb"');
+  assert.equal(field("two\nlines"), '"two\nlines"');
+  assert.equal(field(0), "0");
+  const s = salesCsv([{ at: Date.UTC(2026, 9, 3), item: "Arcane Energize", rank: 5, quantity: 1, platinum: 150, wfm: "o1" }]);
+  assert.equal(s.trim().split("\n")[1], "2026-10-03T00:00:00Z,Arcane Energize,5,1,150,150,,warframe.market");
+  const t = tradesCsv([
+    { key: "b", at: Date.UTC(2026, 9, 2), partner: "ExamplePlayer", offered: [{ name: "Serration", rank: 10, count: 2 }, { name: "Mesa Prime Set", rank: null, count: 1 }], received: [{ name: "Vitality", rank: 0, count: 1 }], platOut: 5, platIn: 0 },
+  ]);
+  assert.equal(t.trim().split("\n")[1], "2026-10-02T00:00:00Z,ExamplePlayer,2× Serration R10; Mesa Prime Set,Vitality R0,0,5");
+  assert.equal(salesCsv([]), "date,item,rank,quantity,platinum_each,platinum_total,median_then,source\n");
+});

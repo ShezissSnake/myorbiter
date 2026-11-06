@@ -16,6 +16,8 @@ import { parseMyAuctions } from "../src/lib/core/rivens";
 import { noxItems } from "../src/lib/core/builds/noxsframe";
 import { parseOverframeFile } from "../src/lib/core/builds/overframeList";
 import { buildModel } from "../src/lib/core/model";
+import { salesCsv, tradesCsv } from "../src/lib/core/exportCsv";
+import { salesByDay } from "../src/lib/core/salesDays";
 import { forAll, type Rng } from "./support/prop";
 
 const RUNS = Number(process.env.PROPERTY_RUNS ?? 1500);
@@ -134,6 +136,11 @@ test("settings files: loading anything never throws, never turns on automatic re
       }
     }
     assert.ok(Array.isArray(m.spares.neverSell) && m.spares.neverSell.every((n) => typeof n.id === "string" && n.id), `neverSell: ${ctx}`);
+    // The sale and trade logs: whole entries only, so Sales, Stats and their exports can read them.
+    const fine = (n: unknown) => typeof n === "number" && Number.isFinite(n);
+    assert.ok(m.sales.every((x) => x && fine(x.at) && typeof x.item === "string" && x.item && Number.isInteger(x.quantity) && x.quantity >= 1 && fine(x.platinum) && x.platinum >= 0 && (x.rank === null || Number.isInteger(x.rank)) && (x.median === undefined || fine(x.median))), `sales: ${ctx}`);
+    assert.ok(m.trades.every((t) => t && fine(t.at) && typeof t.key === "string" && typeof t.partner === "string" && fine(t.platIn) && fine(t.platOut) && [t.offered, t.received].every((xs) => Array.isArray(xs) && xs.every((x) => x && typeof x.name === "string" && Number.isInteger(x.count) && x.count >= 1))), `trades: ${ctx}`);
+    assert.doesNotThrow(() => (salesCsv(m.sales), tradesCsv(m.trades), salesByDay(m.sales, Date.now(), 30)), `the logs: ${ctx}`);
     // What the app builds the collection from (App.svelte): a damaged file mustn't stop it.
     const rawGame = parsed && typeof parsed === "object" ? (parsed as { game?: unknown }).game : undefined;
     assert.doesNotThrow(() => buildModel(EMPTY_BUNDLE, undefined, null, m.relicPrices, s.game.imprints, null, s.game.gear, s.game.consumedSuits), `the collection: PROPERTY_SEED=${seed}: ${JSON.stringify(rawGame ?? null)?.slice(0, 300)}`);
