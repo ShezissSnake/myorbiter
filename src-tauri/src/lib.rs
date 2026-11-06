@@ -756,8 +756,6 @@ fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 
 #[tauri::command(async)]
 fn load_settings(app: tauri::AppHandle) -> Result<Value, String> {
-    // A new page: its saves, numbered from 1 again, count from here.
-    SETTINGS_PAGE.fetch_add(1, Ordering::SeqCst);
     let path = settings_path(&app)?;
     // No file yet: a first run. Any other failure (a file held by an antivirus or a backup, no
     // permission) is an error, so the page doesn't start from defaults and save them over it.
@@ -1016,18 +1014,7 @@ fn write_overlay_prefs(prefs: Value) -> Result<(), String> {
 /// Saves in the order the page sent them: each save takes a number on arrival, and one that
 /// lost the race to a newer save is dropped instead of overwriting it.
 static SETTINGS_SENT: AtomicU64 = AtomicU64::new(0);
-/// Which page is saving: one more each time a page loads the settings (the first, or one
-/// reloaded), whose saves are numbered from 1 again. A save keeps the page it arrived from.
-static SETTINGS_PAGE: AtomicU64 = AtomicU64::new(0);
-/// The newest save written: (page, number).
-static SETTINGS_WRITTEN: Mutex<(u64, u64)> = Mutex::new((0, 0));
-
-/// Whether a save, (page, number), may be written over the newest one written. A newer page's
-/// saves always may, whatever their numbers; a save from an older page never does: the page that
-/// loaded since has the settings as they are on disk, and its own saves follow.
-fn save_is_newest(written: (u64, u64), save: (u64, u64)) -> bool {
-    save.0 > written.0 || (save.0 == written.0 && save.1 >= written.1)
-}
+static SETTINGS_WRITTEN: Mutex<u64> = Mutex::new(0);
 
 /// Written whole to a temp file, flushed to disk and renamed (see `write_atomic`), so a crash
 /// never leaves half a settings file. The flush waits on the disk, so not on the main thread.
@@ -1036,12 +1023,11 @@ async fn save_settings(app: tauri::AppHandle, settings: Value, rev: Option<u64>)
     // The page numbers its saves (`rev`): async commands can start out of order, so numbering
     // them here could put an older save after a newer one. Without one, as they arrive.
     let seq = rev.unwrap_or_else(|| SETTINGS_SENT.fetch_add(1, Ordering::SeqCst) + 1);
-    let page = SETTINGS_PAGE.load(Ordering::SeqCst);
     tauri::async_runtime::spawn_blocking(move || {
         let path = settings_path(&app)?;
         let text = serde_json::to_vec_pretty(&settings).map_err(|e| e.to_string())?;
         let mut written = SETTINGS_WRITTEN.lock().unwrap_or_else(|e| e.into_inner());
-        if !save_is_newest(*written, (page, seq)) {
+        if *written > seq {
             return Ok(());
         }
         // Only you need to read it.
@@ -1049,7 +1035,7 @@ async fn save_settings(app: tauri::AppHandle, settings: Value, rev: Option<u64>)
             log::error!(target: "orbiter::settings", "saving settings to {} failed: {e}", path.display());
             e.to_string()
         })?;
-        *written = (page, seq);
+        *written = seq;
         Ok(())
     })
     .await
@@ -1284,20 +1270,6 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn a_reloaded_page_saves_again() {
-        use super::save_is_newest;
-        // Page 1 saved 50 times; one of its older saves arriving late is dropped.
-        assert!(save_is_newest((1, 49), (1, 50)));
-        assert!(!save_is_newest((1, 50), (1, 49)));
-        // Reloaded, page 2 numbers its saves from 1 again: written, not taken for old ones.
-        assert!(save_is_newest((1, 50), (2, 1)));
-        assert!(save_is_newest((2, 1), (2, 2)));
-        // Page 1's last save, still on its way when page 2 loaded, lands after page 2's first:
-        // dropped, so page 2's later saves aren't held back behind its number.
-        assert!(!save_is_newest((2, 1), (1, 51)));
-        assert!(save_is_newest((2, 1), (2, 2)));
-    }
 
     #[test]
     fn the_riven_key_is_a_function_key_or_has_a_modifier() {

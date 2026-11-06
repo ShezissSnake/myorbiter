@@ -239,7 +239,7 @@
         {#if shown.length > 150}<p class="dim small">Showing the latest 150 of {shown.length}.</p>{/if}
       {:else if settings.market.trades.length}
         <!-- Trades are logged, just none in this span or of this kind: say so, and how to see them. -->
-        <p class="dim small">No {show === "sale" ? "sales" : show === "purchase" ? "purchases" : show === "trade" ? "swaps" : "trades"} {span === "all" ? "logged yet" : `in the last ${span} days`}. <button class="link" title="Every trade orbiter has logged (the figures and charts above go to All too)" onclick={() => ((show = "all"), (span = "all"))}>Show all {settings.market.trades.length}</button></p>
+        <p class="dim small">No {show === "sale" ? "sales" : show === "purchase" ? "purchases" : show === "trade" ? "swaps" : "trades"} {span === "all" ? "logged yet" : `in the last ${span} days`}. <button type="button" class="link" title="Every trade orbiter has logged (the figures and charts above go to All too)" onclick={() => ((show = "all"), (span = "all"))}>Show all {settings.market.trades.length}</button></p>
       {:else}
         <p class="dim small">Trades show up here as you make them: orbiter reads each one from Warframe's log when the trade window closes.</p>
       {/if}
