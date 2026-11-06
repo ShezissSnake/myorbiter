@@ -14,7 +14,7 @@ const mine = (platinum: number, extra: Partial<MyOrder> = {}): MyOrder => ({
   id: "mine", itemId: "item", type: "sell", platinum, quantity: 1, rank: null, subtype: null, visible: true, updatedAt: null, ...extra,
 });
 
-// The README's example: the order should land on 20p.
+// The example in docs/features.md (Orders): the order should land on 20p.
 const book = [
   sell(15, "offline"), sell(16, "offline"), sell(17, "online"), sell(20, "ingame"),
   sell(21, "online"), sell(23, "offline"), sell(23, "ingame"),
