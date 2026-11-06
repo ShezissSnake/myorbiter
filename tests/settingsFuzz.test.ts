@@ -15,6 +15,7 @@ import { marketItemsOf, recipeDataOf, relicDataOf, rivenMetaOf } from "../src/li
 import { parseMyAuctions } from "../src/lib/core/rivens";
 import { noxItems } from "../src/lib/core/builds/noxsframe";
 import { parseOverframeFile } from "../src/lib/core/builds/overframeList";
+import { buildModel } from "../src/lib/core/model";
 import { forAll, type Rng } from "./support/prop";
 
 const RUNS = Number(process.env.PROPERTY_RUNS ?? 1500);
@@ -84,6 +85,8 @@ async function load(r: Rng, raw: unknown) {
 }
 
 const usual = defaultSparesRules();
+/** A collection read with nothing in it: the settings file's own parts are what's tested. */
+const EMPTY_BUNDLE = { observed_at: 1, inventory: [], catalog: [], relics: [], prices: { prices: {}, trade_rate: {} } } as never;
 /** Keep numbers: [path, least it may be]. */
 const KEEPS: [string[], number][] = [
   [["prime", "keep"], 0],
@@ -131,6 +134,9 @@ test("settings files: loading anything never throws, never turns on automatic re
       }
     }
     assert.ok(Array.isArray(m.spares.neverSell) && m.spares.neverSell.every((n) => typeof n.id === "string" && n.id), `neverSell: ${ctx}`);
+    // What the app builds the collection from (App.svelte): a damaged file mustn't stop it.
+    const rawGame = parsed && typeof parsed === "object" ? (parsed as { game?: unknown }).game : undefined;
+    assert.doesNotThrow(() => buildModel(EMPTY_BUNDLE, undefined, null, m.relicPrices, s.game.imprints, null, s.game.gear, s.game.consumedSuits), `the collection: PROPERTY_SEED=${seed}: ${JSON.stringify(rawGame ?? null)?.slice(0, 300)}`);
   }
 });
 
@@ -176,4 +182,14 @@ test("Sell spares rules: junk in a version 2 file never keeps fewer copies than 
     const given = get(raw, p);
     if (typeof given !== "number" || !Number.isFinite(given)) assert.ok(v >= (get(usual, p) as number), `${p.join(".")}: ${String(given)} → ${v}`);
   });
+});
+
+test("imprints kept in a damaged settings file don't stop the collection being built (PROPERTY_SEED=1061690)", async () => {
+  for (const imprints of [132, {}, [null], "x", [1, { DominantTraits: { a: "/x/PowerSuit" } }]]) {
+    (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({ game: { imprints } }), setItem: () => {} };
+    const s = await loadSettings();
+    assert.ok(s.game.imprints === null || (Array.isArray(s.game.imprints) && s.game.imprints.every((x) => x && typeof x === "object")), JSON.stringify(s.game.imprints));
+    assert.doesNotThrow(() => buildModel(EMPTY_BUNDLE, undefined, null, null, s.game.imprints));
+  }
+  assert.doesNotThrow(() => buildModel(EMPTY_BUNDLE, undefined, null, null, [null, 4] as never), "the model skips a row that isn't one");
 });
