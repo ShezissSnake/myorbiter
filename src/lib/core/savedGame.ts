@@ -1,7 +1,7 @@
 // Parts of the saved game state read back whole (loadSettings): an entry a damaged or hand-edited
 // settings file turned into something else is left out, so the page that draws it (Stats, Rivens,
 // Inventory, the notification bell) still opens. A good entry comes back as it was saved.
-import type { ValuePoint } from "../backend";
+import type { RivenWatch, ValuePoint } from "../backend";
 import type { Notice } from "../notices";
 import type { RelicRun } from "./relicRuns";
 import type { GearCopy } from "./notNeeded";
@@ -26,3 +26,7 @@ export const gearOf = (raw: unknown): GearCopy[] | null => (Array.isArray(raw) ?
 
 /** Rivens from the last read; null when there's no list. */
 export const rivensOf = (raw: unknown): RivenRaw[] | null => (Array.isArray(raw) ? keep<RivenRaw>(raw, (x) => typeof x.type === "string" && typeof x.id === "string" && obj(x.fp) && (x.pending === undefined || x.pending === null || obj(x.pending))) : null);
+
+/** Riven alerts: a weapon, its stats and your price. */
+export const rivenWatchOf = (raw: unknown) =>
+  keep<RivenWatch>(raw, (x) => typeof x.id === "string" && typeof x.weapon === "string" && typeof x.weaponName === "string" && strings(x.positive) && (x.negative === null || typeof x.negative === "string") && fine(x.maxPrice));
