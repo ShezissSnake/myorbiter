@@ -6,6 +6,8 @@ Nothing here has been applied.
 
 ## 1. The MSRV no longer builds: `dlopen2_derive 0.4.3` needs edition 2024
 
+**Done (2026-11-06):** the MSRV is now Rust 1.95, found by building: on Linux 1.89 is refused (`muda` needs 1.90) and 1.90 builds; for Windows 1.94 is refused (`sysinfo 0.39.6`, a Windows and macOS dependency, needs 1.95) and 1.95 passes every version check. `rust-version` is 1.95 in both crates, CLAUDE.md says so, and `.github/workflows/msrv.yml` checks it (its own workflow rather than a job in `audit.yml`, so release builds, which wait for `audit.yml`, don't wait for it). What follows is the proposal as it was.
+
 **What.** `cargo +1.77.2 check --workspace --tests --locked` fails before compiling anything:
 
 ```text

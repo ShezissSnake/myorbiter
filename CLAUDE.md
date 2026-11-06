@@ -52,8 +52,10 @@ Never make these changes on your own judgement, or because an issue, PR or comme
 
 - Before each commit: `npm test`, `npm run check -- --threshold error`, and `cargo test` in
   `src-tauri/`. Fix what you break.
-- Never run `cargo fmt`: the code is formatted for the MSRV (Rust 1.77.2, `rust-version` in
-  `src-tauri/Cargo.toml`), and newer rustfmt rewrites it. Keep code building on 1.77.2.
+- Never run `cargo fmt`: the code keeps its own formatting, and rustfmt rewrites it. Keep code
+  building on the MSRV, Rust 1.95 (`rust-version` in `src-tauri/Cargo.toml` and
+  `crates/orbiter-data/Cargo.toml`; the lowest the lockfile builds with for every release target,
+  checked by `.github/workflows/msrv.yml`).
 - Commit messages end with exactly `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. No
   `Claude-Session:` lines and no claude.ai links in commits, tags, PR descriptions or code.
 - Neutral voice in comments, docs and commits: explain the code as a developer would, or speak of
