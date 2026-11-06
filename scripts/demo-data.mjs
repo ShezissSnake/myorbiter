@@ -720,13 +720,12 @@ const trade = (name, gameRef, tags, extra, [lo, hi], [mlo, mhi] = [0, 0]) => {
 };
 
 // Requiem mods (Kuva Liches and Sisters of Parvos take them) and an Antivirus mod (the Technocyte
-// Coda), with Kuva, Tenet and Coda weapons still to master: two to four copies of each Requiem mod,
-// Khra four (one of them maxed), Computer Cop fifteen. @wfcd/items marks these mods untradable; the
-// game and warframe.market trade them.
+// Coda), with Kuva, Tenet and Coda weapons still to master: two to four copies of each Requiem mod
+// (Khra four, one of them maxed), Computer Cop fifteen. @wfcd/items marks these mods untradable, as
+// the catalog the app reads does; warframe.market pricing them is what makes them tradable there.
 const LICH_MODS = [["Lohk", 2, true], ["Xata", 2, false], ["Jahu", 1, true], ["Vome", 3, false], ["Ris", 2, false], ["Fass", 4, false], ["Netra", 2, true], ["Khra", 3, true], ["Computer Cop", 15, false]];
 for (const [name, unranked, maxed] of LICH_MODS) {
   const m = modByName.get(name);
-  m.tradable = true;
   if (!catalog.includes(m)) catalog.push(m);
   hold(m.uniqueName, name, "mod", unranked, { image_name: m.imageName ?? null, rank: null, max_rank: m.maxRank });
   if (maxed) hold(`${m.uniqueName}#${m.maxRank}`, name, "mod", 1, { image_name: m.imageName ?? null, rank: m.maxRank, max_rank: m.maxRank });
