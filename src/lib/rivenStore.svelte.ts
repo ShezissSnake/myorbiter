@@ -153,6 +153,9 @@ class Rivens {
    * (the same as the buyout: no bidding, it just sells at that price).
    */
   async sell(item: AuctionItem, buyout: number, starting: number, note = "", minRep = 0) {
+    // What you have up already, read first if it hasn't been: without it, one that timed out but
+    // was made can't be told from one that wasn't, and sending again would put the riven up twice.
+    if (this.mineAt == null) await this.loadMine();
     const before = this.mineAt != null ? new Set(this.mine.map((a) => a.id)) : null;
     try {
       await market.createAuction({ starting_price: starting, buyout_price: buyout, minimal_reputation: minRep, private: false, note, item });
