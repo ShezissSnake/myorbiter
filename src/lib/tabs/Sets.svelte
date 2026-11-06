@@ -277,7 +277,7 @@
   {#if mode === "sell"}
     <Chip bind:on={keepOne} label="Keep one to build" title="Hold back one set of anything you have neither built nor mastered" />
   {/if}
-  <input type="search" title="Shows only what matches what you type" placeholder="Filter sets…" bind:value={query} />
+  <input type="search" aria-label="Filter sets by name" title="Shows only what matches what you type" placeholder="Filter sets…" bind:value={query} />
   </div>
 
   <Browse

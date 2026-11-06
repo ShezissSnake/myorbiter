@@ -220,14 +220,14 @@
   <!-- The page's modes as tabs (they change the whole page), the filters under them. -->
   <div class="modes"><Tabs bind:value={mode} label="Planner view" options={[{ v: "sets", label: "Complete sets", title: "Which relics to crack to finish sets you're close to" }, { v: "radiant", label: "Make radiant", title: "Where your Void Traces gain the most, refining relics to radiant" }]} /></div>
   <div class="bar">
-    <input type="search" title="Shows only what matches what you type" placeholder={mode === "sets" ? "Relic or part…" : "Relic or reward…"} bind:value={query} />
+    <input type="search" aria-label="Filter relics by name, part or reward" title="Shows only what matches what you type" placeholder={mode === "sets" ? "Relic or part…" : "Relic or reward…"} bind:value={query} />
     {#if mode === "sets"}
       <select bind:value={settings.maxMissing} aria-label="How close" title="How close a set must be to complete to count">
         {#each [1, 2, 3, 4] as n (n)}<option value={n}>{n === 1 ? "One part away" : `Up to ${n} parts away`}</option>{/each}
       </select>
     {:else}
-      <Seg bind:value={settings.squad} options={[{ v: 1, label: "Solo", title: "One crack, your own reward" }, { v: 4, label: "Radshare", title: "Four players crack the same relic and you pick the best of the four rewards" }]} />
-      <Seg bind:value={metric} options={[{ v: "plat", label: "Platinum", title: "Rank by what a crack is worth in platinum" }, { v: "ducats", label: "Ducats", title: "Rank by the ducats a crack gives, for Baro" }, { v: "need", label: "Parts I need", title: "Chance of a part for something you haven't built or mastered" }]} />
+      <Seg bind:value={settings.squad} label="Squad" options={[{ v: 1, label: "Solo", title: "One crack, your own reward" }, { v: 4, label: "Radshare", title: "Four players crack the same relic and you pick the best of the four rewards" }]} />
+      <Seg bind:value={metric} label="Rank by" options={[{ v: "plat", label: "Platinum", title: "Rank by what a crack is worth in platinum" }, { v: "ducats", label: "Ducats", title: "Rank by the ducats a crack gives, for Baro" }, { v: "need", label: "Parts I need", title: "Chance of a part for something you haven't built or mastered" }]} />
     {/if}
     <Fold active={(vaultedOnly ? 1 : 0) + (wishOnly ? 1 : 0) + (openOnly ? 1 : 0)} reset={() => { vaultedOnly = false; wishOnly = false; openOnly = false; }}>
       <Chip bind:on={vaultedOnly} label="Vaulted only" title="Only relics that drop nowhere now" />
@@ -251,7 +251,7 @@
   {/if}
   {#if drawnRadiant}
     <div class="view swap" class:off={mode !== "radiant"} use:fresh={mode === "radiant"} in:arrive={{ y: 0 }}>
-      <Table rows={radRows} columns={radCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortRad} clear={radAnyFilter ? clear : null} empty="No relics left to refine." />
+      <Table rows={radRows} columns={radCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortRad} clear={radAnyFilter ? clear : null} empty="No relics left to refine: every relic you hold is radiant already, or none has been read yet (press Sync while Warframe is running)." />
     </div>
   {/if}
 </div></div>

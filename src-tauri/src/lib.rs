@@ -31,7 +31,7 @@ pub(crate) const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"
 fn data_dir(dir: Option<String>) -> Result<PathBuf, String> {
     match dir.filter(|d| !d.trim().is_empty()) {
         Some(d) => checked_path(&d),
-        None => orbiter_data::default_tennoscope_dir().ok_or_else(|| "HOME is not set, so TennoScope's folder cannot be found".to_string()),
+        None => orbiter_data::default_tennoscope_dir().ok_or_else(|| "The system doesn't say where programs keep their data (APPDATA, or HOME on Linux), so TennoScope's folder cannot be found".to_string()),
     }
 }
 
@@ -768,8 +768,11 @@ fn load_settings(app: tauri::AppHandle) -> Result<Value, String> {
         Ok(v) => v,
         Err(_) => {
             // Keep a damaged file (floors, tiers...) instead of letting the defaults overwrite it.
+            // If it can't be moved aside (held by an antivirus or a backup), say so: starting from
+            // the defaults would save them over the only copy.
             let stamp = std::time::SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
-            let _ = fs::rename(&path, path.with_extension(format!("json.broken-{stamp}")));
+            let aside = path.with_extension(format!("json.broken-{stamp}"));
+            rename_replacing(&path, &aside).map_err(|e| format!("{} is damaged and couldn't be moved aside: {e}", path.display()))?;
             Value::Null
         }
     })
