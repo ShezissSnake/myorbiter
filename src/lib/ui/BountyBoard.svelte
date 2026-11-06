@@ -56,7 +56,10 @@
   .sub { margin: 0; }
   .jobs { list-style: none; margin: 0; padding: 0; display: grid; gap: .2rem; }
   .job { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 7rem; gap: .7rem; align-items: center; padding: .35rem .4rem; border-top: 1px solid var(--rule); outline: none; }
-  .job:hover, .job:focus-visible { background: var(--raised); }
+  /* Keyboard focus on the row or anything in it (its reward, the pool's links), but not the focus a
+     click leaves behind. :focus-within rather than :has(:focus-visible): between one link and the
+     next nothing has focus, which would hide the pool and drop the focus on the way to its links. */
+  .job:hover, .job:focus-within:not(:focus:not(:focus-visible), :has(:focus:not(:focus-visible))) { background: var(--raised); }
   .job:focus-visible { box-shadow: inset 0 0 0 1px var(--gold-dim); }
   .jn { display: grid; min-width: 0; }
   .jn b { font-weight: 600; color: var(--platinum); font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -68,7 +71,7 @@
   .st { text-align: right; white-space: nowrap; }
   .st :global(.gi) { margin-right: .3rem; vertical-align: -2px; }
   .pool { display: none; position: absolute; z-index: 20; top: calc(100% - 2px); left: 30%; width: min(24rem, 70vw); padding: .7rem .8rem; background: var(--plate); border: 1px solid var(--rule-bright); box-shadow: 0 10px 28px rgb(0 0 0 / 55%); gap: .4rem; }
-  .job:hover .pool, .job:focus-visible .pool { display: grid; }
+  .job:hover .pool, .job:focus-within:not(:focus:not(:focus-visible), :has(:focus:not(:focus-visible))) .pool { display: grid; }
   .pool ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .2rem; }
   .pool li { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: .5rem; align-items: center; font-size: .84rem; }
   :global(html[data-room~="lt640"]) .job { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); }
