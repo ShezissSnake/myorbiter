@@ -1,6 +1,6 @@
 // Sales from warframe.market's side: every order you closed there (marked sold on the site, by
-// Auto-match, or by orbiter after a trade) is in your profile's statistics. Importing them fills
-// in sales from before orbiter logged them, and ones you marked sold on the website.
+// Auto-match, or by MyOrbiter after a trade) is in your profile's statistics. Importing them fills
+// in sales from before MyOrbiter logged them, and ones you marked sold on the website.
 import type { Sale } from "../backend";
 
 /** One closed order, as src-tauri/src/market.rs `ClosedOrder` reads it. */

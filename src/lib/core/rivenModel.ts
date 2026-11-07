@@ -1,4 +1,4 @@
-// orbiter's riven price model: what a riven like yours is listed for on warframe.market, worked
+// MyOrbiter's riven price model: what a riven like yours is listed for on warframe.market, worked
 // out from its stats and how good each roll is, its weapon's riven kind, cycles, mastery, rank
 // and polarity, what the weapon's rivens traded for in game last week and what the cheapest 60
 // listed for it ask now. Gradient-boosted trees on the log of the price, trained offline on
@@ -115,7 +115,7 @@ export function estimate(model: RivenModel, input: ModelInput): Estimate {
   return { mid: round(Math.exp(mid)), lo: round(Math.exp(lo)), hi: round(Math.exp(hi)), factors };
 }
 
-/** The middle asking price of the cheapest 60 listed (as orbiter's "any riven for this weapon" search returns them). */
+/** The middle asking price of the cheapest 60 listed (as MyOrbiter's "any riven for this weapon" search returns them). */
 export function cheap60(prices: (number | null)[]): number | null {
   const ps = prices.filter((p): p is number => p != null && p > 0).sort((a, b) => a - b).slice(0, 60);
   if (ps.length < 5) return null;

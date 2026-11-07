@@ -8,8 +8,8 @@ what's still open is said in each.
 
 Settled: the MSRV is Rust 1.95, the lowest the lockfile builds with for every release target (on
 Linux `muda` needs 1.90; on Windows `sysinfo` needs 1.95). `rust-version` says 1.95 in
-`src-tauri/Cargo.toml`, `crates/orbiter-data/Cargo.toml` and `tennoscope/Cargo.toml`, and
-the pipeline's `test` job (`.gitlab-ci.yml`) checks orbiter's crates on it (Linux only; the Windows
+`src-tauri/Cargo.toml`, `crates/myorbiter-data/Cargo.toml` and `tennoscope/Cargo.toml`, and
+the pipeline's `test` job (`.gitlab-ci.yml`) checks MyOrbiter's crates on it (Linux only; the Windows
 check is in `windows.md`).
 
 ## 2. Audit results
@@ -17,9 +17,9 @@ check is in `windows.md`).
 - **npm audit** (`package-lock.json`): 2 low, both the `deepmerge` advisory, reached only through
   `@sveltejs/vite-plugin-svelte`, a development dependency that runs in the build, not in the app.
   Accepted; it goes when the plugin's update drops it. TennoScope's app: 0.
-- **cargo audit**, orbiter (`Cargo.lock`): no vulnerabilities. The warnings all come through Tauri
+- **cargo audit**, MyOrbiter (`Cargo.lock`): no vulnerabilities. The warnings all come through Tauri
   and its Linux stack (unmaintained `proc-macro-error`, `rustls-pemfile`, `zbus_names`, `zvariant`,
-  `zvariant_derive`; unsound `glib 0.18.5`, whose `VariantStrIter` orbiter doesn't call; yanked
+  `zvariant_derive`; unsound `glib 0.18.5`, whose `VariantStrIter` MyOrbiter doesn't call; yanked
   `async-executor 1.14.0`) and go when Tauri moves its own dependencies. The yanked one could be
   bumped on its own with `cargo update -p async-executor` (a lockfile change, so it waits for
   approval).
@@ -27,7 +27,7 @@ check is in `windows.md`).
   advisories (RUSTSEC-2026-0367, -0368, -0369, -0429) went with `tauri-plugin-updater` 2.14 and
   `zip 9.3.0`, so the audit (now in the pipeline's `test` job) needs no ignores for them (GitHub
   pull request #38 removed them from the old workflow).
-- **Unused code:** no `TODO`, `FIXME`, `XXX` or `HACK` in orbiter's own code. Exports used nowhere
+- **Unused code:** no `TODO`, `FIXME`, `XXX` or `HACK` in MyOrbiter's own code. Exports used nowhere
   were removed. Helpers used only by tests are in `tests/support/`, except `loadoutItems`,
   `suggestionNames` and `recipeItems`, which stay in `src/` because they list module-private
   tables.
@@ -52,12 +52,12 @@ TennoScope is asked only four fixed things; the updater needs a signature.
 - `export_file` always creates a new file (never through a link already there) and refuses more
   than 16 MiB.
 - `log_line` turns control characters into spaces, so the page can't write lines that look like
-  orbiter's own into the log (which goes into bug reports).
+  MyOrbiter's own into the log (which goes into bug reports).
 
 **Done.** One line each, in the order of the list below:
 
 1. Done: Settings' Choose opens a native file dialog from Rust (`tennoscope_choose_program`); the
-   page can only open it or have orbiter find TennoScope again, and the old `tennoscope.path` in
+   page can only open it or have MyOrbiter find TennoScope again, and the old `tennoscope.path` in
    the page's settings is no longer taken over.
 2. Done: `core:default` is replaced by `core:event:allow-listen` and `core:event:allow-unlisten`;
    one start checked on Linux, starts on Windows and macOS still to check.
@@ -65,8 +65,8 @@ TennoScope is asked only four fixed things; the updater needs a signature.
 4. Done: warframe.market changes are capped at 120 in any minute in `market.rs` (a change past it
    waits); a plan of 100 at the usual 400 ms spacing stays under it.
 5. Done: `discord_post` sends only to an address confirmed in a native dialog the first time the
-   page posts to it, kept in orbiter's config folder (`discord-webhook`), not in the settings;
-   after one no, nothing new is asked about until orbiter restarts.
+   page posts to it, kept in MyOrbiter's config folder (`discord-webhook`), not in the settings;
+   after one no, nothing new is asked about until MyOrbiter restarts.
 
 The dialogs open from Rust (`tauri-plugin-dialog`, Cargo only), so the page has no dialog
 permission and no `@tauri-apps/plugin-dialog`.

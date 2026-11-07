@@ -1,13 +1,13 @@
 <script lang="ts">
   // Builds: mod and arcane loadouts for anything that takes them. Pick an item (yours first); its
   // builds come in three tiers by what they take (no Catalyst; a Catalyst; a Catalyst, Forma and
-  // adapters), favourites first, then yours, then a site's, then orbiter's own suggestion. Each shows
+  // adapters), favourites first, then yours, then a site's, then MyOrbiter's own suggestion. Each shows
   // the Arsenal's slot grid, why it's in its tier, and what you're missing of it, with the cheapest
   // seller's whisper for a mod or arcane you lack. Modular gear also gets its part recipes.
   //
-  // Sources: what you paste or make, orbiter's suggestions, and any network source registered with
+  // Sources: what you paste or make, MyOrbiter's suggestions, and any network source registered with
   // the builds core (source.ts: a site's, only with its permission on record): Nox's Frame, read on
-  // demand when the setting is on (nox.ts), its top builds listed under the tiers to open. orbiter
+  // demand when the setting is on (nox.ts), its top builds listed under the tiers to open. MyOrbiter
   // never reads Overframe: its popular builds come from a list bundled with the app (collected with
   // its permission, lists only), each a link to the build on overframe.gg, and its buttons open the
   // site in your browser.
@@ -113,7 +113,7 @@
   const savedAll = $derived(pick ? buildsFor(settings.builds, pick).filter((b) => !isOverframe(b)) : []);
   const saved = $derived(showOld ? savedAll : filterByAge(savedAll, settings.buildsMaxAgeDays, now));
 
-  // orbiter's suggestions: from the mods you hold, for each tier, in the variant picked on its card.
+  // MyOrbiter's suggestions: from the mods you hold, for each tier, in the variant picked on its card.
   const rows = $derived([...model.inventoryByBase.values()].flat() as InventoryRow[]);
   const owns = $derived(ownedFrom(rows));
   /** Everything held (shards, companions, the Grimoire…), so the loadout can mark what you have. */
@@ -155,7 +155,7 @@
       const idx = index();
       return Object.fromEntries(TIERS.map((t) => [t, suggest(item, t, owns, idx, now, held, rivenCtx, variantOf[t])])) as Record<Tier, Suggestion>;
     } catch (e) {
-      console.error("orbiter's suggestion failed:", e);
+      console.error("MyOrbiter's suggestion failed:", e);
       return {};
     }
   });
@@ -346,7 +346,7 @@
             {:else}<span class="dim">You don't have it yet.</span>{/if}
           </p>
           <div class="out">
-            <button type="button" class="link" title="Find {item.name}'s builds on Overframe, in your browser (orbiter never reads Overframe)" onclick={() => openUrl(overframeUrl(item!.name))}>Overframe <Icon name="external" size={11} /></button>
+            <button type="button" class="link" title="Find {item.name}'s builds on Overframe, in your browser (MyOrbiter never reads Overframe)" onclick={() => openUrl(overframeUrl(item!.name))}>Overframe <Icon name="external" size={11} /></button>
             <button type="button" class="link" title="Open {item.name}'s builds on Nox's Frame in your browser" onclick={() => openUrl(noxUrl(item!.name, kind!, !!recipeItem(item!.uniqueName)))}>Nox's Frame <Icon name="external" size={11} /></button>
           </div>
         </div>
@@ -363,7 +363,7 @@
         </div>
       </div>
     {:else}
-      <p class="lead dim">Pick anything that takes mods: a warframe or its exalted weapon, any weapon, a companion or its weapon, an archwing, arch-gun or arch-melee, a Necramech, a kitgun chamber, zaw strike or amp prism. Its builds, orbiter's suggestion and what you're missing for each show here.</p>
+      <p class="lead dim">Pick anything that takes mods: a warframe or its exalted weapon, any weapon, a companion or its weapon, an archwing, arch-gun or arch-melee, a Necramech, a kitgun chamber, zaw strike or amp prism. Its builds, MyOrbiter's suggestion and what you're missing for each show here.</p>
       {#if starters.length}
         <div class="starters" aria-label="Start with yours">
           <span class="register">Your most built</span>
@@ -377,15 +377,15 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Builds" brief="Mod builds for anything, and what you're missing." blurb="Mod and arcane builds for anything that takes them, in three tiers by what they take, with what you're missing of each against your inventory. Paste a build from anywhere, make your own, or start from orbiter's suggestion." {hero} />
+  <PageHead title="Builds" brief="Mod builds for anything, and what you're missing." blurb="Mod and arcane builds for anything that takes them, in three tiers by what they take, with what you're missing of each against your inventory. Paste a build from anywhere, make your own, or start from MyOrbiter's suggestion." {hero} />
 
   {#if item && kind}
     <div class="bar">
       <h2 class="register th"><span class="tn2">{TIER_NAME[tier]}</span> · {TIER_MEANS[tier]}</h2>
       <span class="grow"></span>
-      <button type="button" class="stamp" title="Paste a build from anywhere (Nox's Frame, a friend, Discord…), or a Nox's Frame build code: orbiter reads the names" onclick={() => (pasting = true)}><Icon name="import" size={12} /> Paste a build</button>
+      <button type="button" class="stamp" title="Paste a build from anywhere (Nox's Frame, a friend, Discord…), or a Nox's Frame build code: MyOrbiter reads the names" onclick={() => (pasting = true)}><Icon name="import" size={12} /> Paste a build</button>
       <button type="button" title="Make a build of your own, slot by slot" onclick={() => (editing = { build: blank(), copy: false })}><Icon name="plus" size={12} /> New</button>
-      <label class="age" title="Builds from other people older than this are hidden (by their site's date, else when you added them). 0: never hidden. Yours and orbiter's never are">
+      <label class="age" title="Builds from other people older than this are hidden (by their site's date, else when you added them). 0: never hidden. Yours and MyOrbiter's never are">
         <span class="register">Hide older than</span>
         <input type="number" min="0" step="30" bind:value={ageText} onchange={setAge} onkeydown={(e) => e.key === "Enter" && setAge()} aria-label="Hide builds older than this many days (0: never)" />
         <span class="register">days</span>
@@ -410,7 +410,7 @@
 
     {#key `${pick}|${tier}`}
       <ul class="builds" in:arrive={{ y: 0 }}>
-        <!-- orbiter's suggestion keeps its place when its variant changes. -->
+        <!-- MyOrbiter's suggestion keeps its place when its variant changes. -->
         {#each shown as s (s.place === "orbiter" && !s.saved ? "orbiter" : s.build.id)}
           <li class:fresh={fresh === s.build.id} data-build={s.build.id} animate:flip out:leave>
             {#if undo.has(s.build.id)}<UndoSlot label="Deleted" what={s.build.title ?? "the build"} onundo={() => undo.undo(s.build.id)} />
@@ -432,7 +432,7 @@
         </div>
       {:else if !shown.length}
         <div class="empty">
-          <p>No {TIER_NAME[tier].toLowerCase()} builds saved for {item.name} yet: paste one{noxShows && noxListed ? ", open one of Nox's Frame's below" : ""}{canSuggest(item) ? ", or start from orbiter's suggestion in another tier" : ", or make your own"}.</p>
+          <p>No {TIER_NAME[tier].toLowerCase()} builds saved for {item.name} yet: paste one{noxShows && noxListed ? ", open one of Nox's Frame's below" : ""}{canSuggest(item) ? ", or start from MyOrbiter's suggestion in another tier" : ", or make your own"}.</p>
           <p class="dim small">{TIER_TIP[tier]}{#if hiddenOld} {hiddenOld} older build{hiddenOld === 1 ? " is" : "s are"} hidden for their age.{/if}</p>
           <div class="eacts">
             <button type="button" class="stamp" title="Paste a build from anywhere (Nox's Frame, a friend, Discord…), or a Nox's Frame build code" onclick={() => (pasting = true)}><Icon name="import" size={12} /> Paste a build</button>
@@ -446,14 +446,14 @@
       <NoxList {nox} {item} catalog={model.catalogByUnique} maxAgeDays={settings.buildsMaxAgeDays} bind:showOld ready={net.item === pick && net.state !== "reading"} readError={noxError} saved={settings.builds} onopen={noxOpen} onshow={noxShow} bind:hidden={noxHidden} bind:count={noxListed} />
     {/if}
 
-    <!-- Overframe: its popular builds from orbiter's bundled copy of its lists (links only, opened
+    <!-- Overframe: its popular builds from MyOrbiter's bundled copy of its lists (links only, opened
          on overframe.gg), then the Overframe links you saved. -->
     <OverframeList {item} />
 
     {#if overframeLinks.length}
       <section class="ofr" data-card="overframe" aria-label="Saved from Overframe">
         <h2 class="register">Saved from Overframe</h2>
-        <p class="dim small">Overframe's builds open on overframe.gg: orbiter keeps the link only.</p>
+        <p class="dim small">Overframe's builds open on overframe.gg: MyOrbiter keeps the link only.</p>
         <ul>
           {#each overframeLinks as o (o.build.id)}
             {@const src = o.build.source as { url: string; site: string }}

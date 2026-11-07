@@ -1,17 +1,17 @@
 // The ideal riven for a weapon, and how close the player's own rivens come to it. Pure: no I/O.
 //
 // Two sources, always labelled apart:
-//  - "orbiter's rule": what a weapon of this kind and these stats wants, from its catalog numbers
+//  - "MyOrbiter's rule": what a weapon of this kind and these stats wants, from its catalog numbers
 //    (crit weapons want Critical Chance and Critical Damage; status weapons Multishot, Damage, an
 //    element and Status Chance; melee adds Range and Attack Speed), and which negatives cost it
 //    little (−Zoom, −Ammo, a physical damage type the weapon barely deals).
-//  - "what players pay most for on warframe.market": the rivens listed for the weapon that orbiter
+//  - "what players pay most for on warframe.market": the rivens listed for the weapon that MyOrbiter
 //    already read (the Rivens page's "Any … riven" search, kept in SavedRivenPrices): for each stat,
 //    the middle asking price of listings with it and without it. Asking prices only, and only what
 //    was listed; nothing is said with fewer than MIN_LISTED priced listings, and no price is made up.
 //
 // Dispositions: Hotfix 44.1.3 removed weapon-specific dispositions; every riven now rolls as a 1.2
-// disposition did (orbiter's rivens.ts, DISPOSITION). The catalog's 1–5 dots predate that.
+// disposition did (MyOrbiter's rivens.ts, DISPOSITION). The catalog's 1–5 dots predate that.
 
 import type { CatalogItem } from "../types";
 import { DISPOSITION, statWant, type Riven, type RivenAuction } from "../rivens";
@@ -23,7 +23,7 @@ interface StatDef {
 }
 const S = (label: string, ...tags: string[]): StatDef => ({ label, tags });
 
-/** The stats orbiter reasons about (slugs and tags as in warframe.market's /v2/riven/attributes). */
+/** The stats MyOrbiter reasons about (slugs and tags as in warframe.market's /v2/riven/attributes). */
 export const RIVEN_STATS: Record<string, StatDef> = {
   critical_chance: S("Critical Chance", "WeaponCritChanceMod"),
   critical_damage: S("Critical Damage", "WeaponCritDamageMod"),
@@ -57,7 +57,7 @@ export const RIVEN_STATS: Record<string, StatDef> = {
   damage_vs_infested: S("Damage to Infested", "WeaponFactionDamageInfested", "WeaponMeleeFactionDamageInfested"),
 };
 
-/** Fewer priced listings than this and orbiter says nothing about the market. */
+/** Fewer priced listings than this and MyOrbiter says nothing about the market. */
 export const MIN_LISTED = 8;
 
 export type RivenClass = "rifle" | "shotgun" | "pistol" | "melee" | "archgun";
@@ -88,7 +88,7 @@ export interface IdealStat {
   /** The game's tags for it, to match a riven's stats. */
   tags: string[];
   why: string;
-  /** "rule": orbiter's rule; "market": what players pay most for on warframe.market; "both". */
+  /** "rule": MyOrbiter's rule; "market": what players pay most for on warframe.market; "both". */
   basis: "rule" | "market" | "both";
   market?: StatMarketView;
 }
@@ -134,9 +134,9 @@ function physicalShare(w: CatalogItem): Record<"impact" | "puncture" | "slash", 
   return { impact: share("impact"), puncture: share("puncture"), slash: share("slash") };
 }
 
-// ---------------------------------------------------------------- orbiter's rule
+// ---------------------------------------------------------------- MyOrbiter's rule
 
-const ELEMENT_WHY = "an element on the riven frees a mod slot; orbiter names Toxin, which its builds start Viral and Corrosive from (swap for the element your build lacks).";
+const ELEMENT_WHY = "an element on the riven frees a mod slot; MyOrbiter names Toxin, which its builds start Viral and Corrosive from (swap for the element your build lacks).";
 
 /** The positives the rule wants for this weapon, with a weight each (3 = what it's built around). */
 function rulePositives(cls: RivenClass, focus: RivenFocus): [string, number, string][] {
@@ -277,7 +277,7 @@ const marketLine = (v: StatMarketView) => `On warframe.market, ${v.with} of ${v.
 /**
  * The ideal riven for a weapon: the three positives worth most, the negatives that cost it
  * least, its disposition, and what the market part is based on. `data`: the rivens listed for it
- * that orbiter already read (none: the rule alone).
+ * that MyOrbiter already read (none: the rule alone).
  */
 export function idealRiven(weapon: CatalogItem, data: RivenMarketData | null = null): IdealRiven {
   const cls = rivenClassOf(weapon);
@@ -306,7 +306,7 @@ export function idealRiven(weapon: CatalogItem, data: RivenMarketData | null = n
       const def = RIVEN_STATS[slug];
       const sought = s.lifted > 0.5;
       const basis: IdealStat["basis"] = s.ruleWhy && sought ? "both" : s.ruleWhy ? "rule" : "market";
-      const why = [s.ruleWhy ? `orbiter's rule: ${s.ruleWhy}` : null, s.market && sought ? `What players pay most for: ${marketLine(s.market)}` : null].filter(Boolean).join(" ");
+      const why = [s.ruleWhy ? `MyOrbiter's rule: ${s.ruleWhy}` : null, s.market && sought ? `What players pay most for: ${marketLine(s.market)}` : null].filter(Boolean).join(" ");
       return { stat: def.label, slug, tags: def.tags, why, basis, ...(s.market ? { market: s.market } : {}) };
     });
 
@@ -319,7 +319,7 @@ export function idealRiven(weapon: CatalogItem, data: RivenMarketData | null = n
       stat: def.label,
       slug,
       tags: def.tags,
-      why: `orbiter's rule: ${why}${backed ? ` On warframe.market, ${v!.with} listed rivens carry it and ask ${v!.withIt} platinum in the middle, no less than the rest (${v!.without}).` : ""}`,
+      why: `MyOrbiter's rule: ${why}${backed ? ` On warframe.market, ${v!.with} listed rivens carry it and ask ${v!.withIt} platinum in the middle, no less than the rest (${v!.without}).` : ""}`,
       basis: backed ? "both" : "rule",
       ...(v && v.with ? { market: v } : {}),
     };
@@ -340,8 +340,8 @@ export function idealRiven(weapon: CatalogItem, data: RivenMarketData | null = n
     },
     basedOn: { auctions: listed.length, since },
     label: enough
-      ? `orbiter's rule for a ${focus === "base" ? "" : `${focus} `}${cls}, checked against what players pay most for on warframe.market (${listed.length} listed rivens).`
-      : `orbiter's rule for a ${focus === "base" ? "" : `${focus} `}${cls}${listed.length ? ` (only ${listed.length} listed rivens read: too few to say what players pay most for)` : "; no listings read yet, so nothing from warframe.market"}.`,
+      ? `MyOrbiter's rule for a ${focus === "base" ? "" : `${focus} `}${cls}, checked against what players pay most for on warframe.market (${listed.length} listed rivens).`
+      : `MyOrbiter's rule for a ${focus === "base" ? "" : `${focus} `}${cls}${listed.length ? ` (only ${listed.length} listed rivens read: too few to say what players pay most for)` : "; no listings read yet, so nothing from warframe.market"}.`,
   };
 }
 

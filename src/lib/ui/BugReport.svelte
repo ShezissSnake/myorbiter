@@ -1,6 +1,6 @@
 <script lang="ts">
   // Report a bug: the player's words, and (unless they untick it) technical details they can read
-  // in full first. orbiter sends nothing itself: Open on GitLab opens a new issue with the fields
+  // in full first. MyOrbiter sends nothing itself: Open on GitLab opens a new issue with the fields
   // filled in, to check and submit in the browser; Copy report puts it on the clipboard as
   // Markdown. What it builds, cleans and redacts: core/bugReport.ts and core/redact.ts.
   import { tick, untrack } from "svelte";
@@ -27,7 +27,7 @@
     tennoscope: string;
     /** "on", "off" or "unknown". */
     fullMode: string;
-    /** The player's own name and the names orbiter knows, to hide wherever they appear. */
+    /** The player's own name and the names MyOrbiter knows, to hide wherever they appear. */
     names: () => RedactOptions;
   } = $props();
 
@@ -100,7 +100,7 @@
       <span class="glyph" aria-hidden="true"><Icon name="bug" size={18} /></span>
       <div>
         <h2 id="bug-title" class="mark">Report a bug</h2>
-        <p class="dim small">Goes to orbiter's issues on GitLab, where anyone can read it.</p>
+        <p class="dim small">Goes to MyOrbiter's issues on GitLab, where anyone can read it.</p>
       </div>
       <button class="close" aria-label="Close" title="Close (Esc). What you typed stays here for next time." onclick={close}>
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="1.5" /></svg>
@@ -124,7 +124,7 @@
 
     <section class="tech" class:off={!d.include}>
       <div class="techrow">
-        <label class="check" title="Adds orbiter's version, your system, this page, TennoScope's state, Full mode and the log's last {LOG_LINES} lines, with sign-ins, addresses, ids and players' names hidden. Untick to send only what you wrote.">
+        <label class="check" title="Adds MyOrbiter's version, your system, this page, TennoScope's state, Full mode and the log's last {LOG_LINES} lines, with sign-ins, addresses, ids and players' names hidden. Untick to send only what you wrote.">
           <input type="checkbox" bind:checked={d.include} />
           <span class="box" aria-hidden="true"><Icon name="check" size={10} /></span>
           Include technical details
@@ -139,11 +139,11 @@
         <div class="reveal" transition:reveal>
           <div>
             <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-            <pre id="bug-tech" class="techtext" tabindex="0" title="This is the whole of it: nothing else is added">{reading ? "Reading orbiter's log…" : preview}</pre>
+            <pre id="bug-tech" class="techtext" tabindex="0" title="This is the whole of it: nothing else is added">{reading ? "Reading MyOrbiter's log…" : preview}</pre>
           </div>
         </div>
       {/if}
-      <p class="hint">{#if !d.include}Only what you wrote goes in.{:else if failed}orbiter's log couldn't be read; the rest is included.{:else}Sign-ins, e-mail and IP addresses, account ids, your user name in folder paths and every player's name are hidden, here and in what you wrote.{/if}</p>
+      <p class="hint">{#if !d.include}Only what you wrote goes in.{:else if failed}MyOrbiter's log couldn't be read; the rest is included.{:else}Sign-ins, e-mail and IP addresses, account ids, your user name in folder paths and every player's name are hidden, here and in what you wrote.{/if}</p>
     </section>
 
     {#if link.dropped || link.cut}
@@ -151,10 +151,10 @@
     {/if}
 
     <footer class="row">
-      <p class="privacy small"><Icon name="lock" size={11} /> orbiter sends nothing: you check it and press Create issue on GitLab.</p>
+      <p class="privacy small"><Icon name="lock" size={11} /> MyOrbiter sends nothing: you check it and press Create issue on GitLab.</p>
       <div class="acts">
         <CopyButton text={() => reportMarkdown(report)} label="Copy report" copied="Copied" sizer={["Couldn't copy"]} title="Put the report on the clipboard as Markdown, to paste into an issue yourself, or send it another way if you don't have a GitLab account" />
-        <button bind:this={openButton} type="button" class="stamp gold go" class:done={opened} disabled={empty || reading} title={empty ? "Say what happened first" : reading ? "Reading orbiter's log…" : "Open a new issue on GitLab in your browser with all of this filled in. Nothing is posted until you press Create issue there."} onclick={openOnGitLab}>
+        <button bind:this={openButton} type="button" class="stamp gold go" class:done={opened} disabled={empty || reading} title={empty ? "Say what happened first" : reading ? "Reading MyOrbiter's log…" : "Open a new issue on GitLab in your browser with all of this filled in. Nothing is posted until you press Create issue there."} onclick={openOnGitLab}>
           <span class="lbls">
             <span class:on={!opened}>Open on GitLab<Icon name="external" size={11} /></span>
             <span class:on={opened}>Opened in your browser<Icon name="check" size={11} /></span>

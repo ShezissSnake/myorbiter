@@ -1,12 +1,12 @@
 // Helpers the build-suggestion tests share: every tier or variant of a suggestion at once, and
-// the names orbiter's curated data files hold, to check against the catalog. The app itself asks
+// the names MyOrbiter's curated data files hold, to check against the catalog. The app itself asks
 // for one tier and one variant at a time (core/builds/suggest.ts).
 import { suggest, variantsFor, type Held, type ModIndex, type Owned, type RivenContext, type Suggestion, type Tier } from "../../src/lib/core/builds/suggest";
 import type { CatalogItem } from "../../src/lib/core/types";
 import frameRoles from "../../src/lib/data/frame-roles.json";
 import synergies from "../../src/lib/data/loadout-synergies.json";
 
-/** Every warframe orbiter's frame table (frame-roles.json) has a line for. */
+/** Every warframe MyOrbiter's frame table (frame-roles.json) has a line for. */
 export const FRAME_NAMES: string[] = Object.keys((frameRoles as { frames: Record<string, unknown> }).frames);
 
 /** Each of an item's variants (Star Chart, Steel Path…) at one tier. */

@@ -95,7 +95,7 @@
         <span><b><Count value={total.listings} /></b> listings</span>
         <span class="pl">{estimate ? "~" : ""}<P v={Math.round(total.plat)} /></span>
       {:else}<span title="Working out what each kind would list">…</span>{/if}
-      {#if !usual}<button type="button" class="link quiet" title="Every choice back to orbiter's usual one (what you never sell stays as it is)" onclick={() => (rules = usualKeeping(rules))}>Back to the usual rules</button>{/if}
+      {#if !usual}<button type="button" class="link quiet" title="Every choice back to MyOrbiter's usual one (what you never sell stays as it is)" onclick={() => (rules = usualKeeping(rules))}>Back to the usual rules</button>{/if}
     </div>
   </header>
 
@@ -202,7 +202,7 @@
       <fieldset class="families" disabled={off("resources")} aria-label="Kinds of resources">
         <FamilyLine disabled={off("resources")} bind:on={rules.resources.families.gems} label={RESOURCE_FAMILY_LABEL.gems} note="Cut and refined ones (Tear Azurite, Heart Noctrul)" tally={fam("resources", "gems")} estimate={preview.resources?.estimate} />
         <FamilyLine disabled={off("resources")} bind:on={rules.resources.families.fish} label={RESOURCE_FAMILY_LABEL.fish} note="Caught whole, each size its own listing" tally={fam("resources", "fish")} estimate={preview.resources?.estimate} />
-        <FamilyLine disabled={off("resources")} bind:on={rules.resources.families.ayatan} label={RESOURCE_FAMILY_LABEL.ayatan} note="Empty ones, as they are (orbiter can't see which hold stars, so filled ones aren't offered)" tally={fam("resources", "ayatan")} estimate={preview.resources?.estimate} />
+        <FamilyLine disabled={off("resources")} bind:on={rules.resources.families.ayatan} label={RESOURCE_FAMILY_LABEL.ayatan} note="Empty ones, as they are (MyOrbiter can't see which hold stars, so filled ones aren't offered)" tally={fam("resources", "ayatan")} estimate={preview.resources?.estimate} />
         <FamilyLine disabled={off("resources")} bind:on={rules.resources.families.stars} label={RESOURCE_FAMILY_LABEL.stars} note="Amber and Cyan" tally={fam("resources", "stars")} estimate={preview.resources?.estimate} />
         <FamilyLine disabled={off("resources")} bind:on={rules.resources.families.captura} label={RESOURCE_FAMILY_LABEL.captura} note="One of each kept to use" tally={fam("resources", "captura")} estimate={preview.resources?.estimate} />
         <FamilyLine disabled={off("resources")} bind:on={rules.resources.families.lenses} label={RESOURCE_FAMILY_LABEL.lenses} note="And their blueprints" tally={fam("resources", "lenses")} estimate={preview.resources?.estimate} />

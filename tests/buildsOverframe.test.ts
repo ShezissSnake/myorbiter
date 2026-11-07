@@ -41,7 +41,7 @@ test("build paths: only overframe.gg build pages are linked", () => {
   assert.ok(isBuildPath("/build/374539/revenant-prime/the-lich-king/"));
   assert.ok(!isBuildPath("https://example.com/build/1/"));
   assert.ok(!isBuildPath("/user/2890/ninjase/"));
-  assert.ok(!isBuildPath("/build/1/x/?ref=orbiter"));
+  assert.ok(!isBuildPath("/build/1/x/?ref=myorbiter"));
   assert.equal(overframeBuildUrl("/build/12/mesa-prime/gunslinger/"), "https://overframe.gg/build/12/mesa-prime/gunslinger/");
   // Slugs in other scripts are real (Overframe keeps them), and stay on the build page.
   assert.ok(isBuildPath("/build/807531/quatz/квтц/"));

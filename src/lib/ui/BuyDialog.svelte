@@ -85,7 +85,7 @@
 
 {#snippet alertButton(d: NonNullable<typeof mkt.buyDraft>)}
   <ProgressButton stamp={false} state={alerted ? "done" : "idle"} label="Alert me at this price" doneLabel="Alert set" sizer={["Alert me at this price"]} disabled={!priceOk || d.loading}
-    title="Don't post anything: orbiter watches warframe.market (Cheap buys, on Home) and tells you when someone lists it at {shown(d.platinum)}p or less" onclick={alertMe} />
+    title="Don't post anything: MyOrbiter watches warframe.market (Cheap buys, on Home) and tells you when someone lists it at {shown(d.platinum)}p or less" onclick={alertMe} />
 {/snippet}
 
 {#if open}
@@ -129,7 +129,7 @@
           {:else if overSeller}<p class="warn small">That's the cheapest seller's price or more: whisper them and buy it now instead, or lower your price.</p>{/if}
           {#if mkt.error && mkt.op == null}<p class="err small" role="status">{mkt.error}</p>{/if}
           {#if !mkt.linked}
-          <p class="prose small">To post a buy order, sign in to warframe.market first (orbiter keeps its own sign-in; you only do it once). An alert needs no sign-in.</p>
+          <p class="prose small">To post a buy order, sign in to warframe.market first (MyOrbiter keeps its own sign-in; you only do it once). An alert needs no sign-in.</p>
           <div class="row end">
             <button onclick={close}>Cancel</button>
             {#if onalert}{@render alertButton(d)}{/if}

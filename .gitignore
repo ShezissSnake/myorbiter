@@ -6,7 +6,7 @@ src-tauri/gen/
 # Development data read from your own account and the market (it carries your inventory, trades and
 # other players' names): never committed, whatever its name.
 public/dev-*.json
-# The TennoScope release builds put inside orbiter (only at the top: tennoscope/ keeps its own vendor/).
+# The TennoScope release builds put inside MyOrbiter (only at the top: tennoscope/ keeps its own vendor/).
 /vendor/
 __pycache__/
 # The riven model's collected listings (they carry seller ids): never committed.

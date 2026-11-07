@@ -112,7 +112,7 @@ test("a network source needs the site's permission on record; Overframe and the 
   assert.throws(() => registerSource({ id: "overframe.gg", label: "Overframe", network: true, permission: { host: "example.com", grantedBy: "x", on: "2026-11-03" }, builds: none }), /overframe\.gg forbids/);
   registerSource({ id: "overframe.gg", label: "Overframe", network: true, permission: { host: "overframe.gg", grantedBy: "MOBA", on: "2027-01-01" }, builds: none });
   unregisterSource("overframe.gg");
-  registerSource({ id: "orbiter", label: "orbiter's suggestions", network: false, builds: async () => [build(P.braton, [P.serration])] });
+  registerSource({ id: "orbiter", label: "MyOrbiter's suggestions", network: false, builds: async () => [build(P.braton, [P.serration])] });
   registerSource({ id: "broken", label: "Broken", network: false, builds: async () => { throw new Error("nope"); } });
   const got = await sourceBuilds(item(P.braton), { catalog: CAT, maxAgeDays: 365, now: NOW });
   assert.equal(got.builds.length, 1);

@@ -18,7 +18,7 @@ function buildStamp(): { commit: string; date: string } {
 function dropDevData(): Plugin {
   let outDir = "dist";
   return {
-    name: "orbiter-drop-dev-data",
+    name: "myorbiter-drop-dev-data",
     apply: "build",
     configResolved(c) {
       outDir = c.build.outDir;
@@ -50,18 +50,18 @@ function shiftTimes(v: unknown, shift: number, key = ""): unknown {
 }
 
 /**
- * `ORBITER_DEMO=1` (npm run dev:demo): the dev server answers /dev-*.json from demo/, an invented
+ * `MYORBITER_DEMO=1` (npm run dev:demo): the dev server answers /dev-*.json from demo/, an invented
  * account (scripts/demo-data.mjs), instead of public/, with its times moved up to now. A file
  * demo/ hasn't got is a 404, never public/'s copy.
  */
 function demoData(): Plugin {
-  // ORBITER_DEMO_DIR: another invented account in the same shape (a scaled-up one for timing).
-  const dir = process.env.ORBITER_DEMO_DIR || join(process.cwd(), "demo");
+  // MYORBITER_DEMO_DIR: another invented account in the same shape (a scaled-up one for timing).
+  const dir = process.env.MYORBITER_DEMO_DIR || join(process.cwd(), "demo");
   return {
-    name: "orbiter-demo-data",
+    name: "myorbiter-demo-data",
     apply: "serve",
     configureServer(server) {
-      if (process.env.ORBITER_DEMO !== "1") return;
+      if (process.env.MYORBITER_DEMO !== "1") return;
       const meta = JSON.parse(readFileSync(join(dir, "meta.json"), "utf8")) as { now: number };
       server.middlewares.use((req, res, next) => {
         const name = /^\/(dev-[A-Za-z0-9_.-]+\.json)$/.exec((req.url ?? "").split("?")[0])?.[1];
@@ -93,7 +93,7 @@ function demoData(): Plugin {
 // Tauri expects a fixed port; 1421 so it never clashes with another Tauri app on the default 1420.
 export default defineConfig({
   plugins: [svelte(), dropDevData(), demoData()],
-  define: { __ORBITER_BUILD__: JSON.stringify(buildStamp()) },
+  define: { __MYORBITER_BUILD__: JSON.stringify(buildStamp()) },
   clearScreen: false,
   server: { port: 1421, strictPort: true, watch: { ignored: ["**/src-tauri/**", "**/target/**", "**/tennoscope/**"] } },
 });

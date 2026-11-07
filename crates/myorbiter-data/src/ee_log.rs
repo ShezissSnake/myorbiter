@@ -715,7 +715,7 @@ and will receive from Buyer1\u{E000} the following:\n\
 
     #[test]
     fn follows_appends_and_restarts() {
-        let dir = std::env::temp_dir().join(format!("orbiter-ee-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("myorbiter-ee-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("EE.log");
         let (head, tail) = LOG.split_at(LOG.find("2535.426").unwrap());
@@ -750,7 +750,7 @@ and will receive from Buyer1\u{E000} the following:\n\
 0.051 Sys [Diag]: Windows computer-name: test-machine\r\n";
 
     fn temp_log(tag: &str) -> (PathBuf, PathBuf) {
-        let dir = std::env::temp_dir().join(format!("orbiter-ee-{tag}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("myorbiter-ee-{tag}-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("EE.log");
         (dir, path)

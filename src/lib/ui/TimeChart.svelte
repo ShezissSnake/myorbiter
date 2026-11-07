@@ -10,7 +10,7 @@
     height = 170,
     fmt = (v: number) => (v >= 1_000_000 ? `${Math.round(v / 100_000) / 10}M` : v >= 10_000 ? `${Math.round(v / 1000)}k` : Math.abs(v) < 10 && Math.round(v * 10) % 10 !== 0 ? (Math.round(v * 10) / 10).toString() : Math.round(v).toLocaleString("en")),
     icon,
-    empty = "Fills in as orbiter sees your account change.",
+    empty = "Fills in as MyOrbiter sees your account change.",
     since = "since the first day shown",
     single = "One reading so far: the line starts with the next one.",
   }: {

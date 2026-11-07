@@ -60,7 +60,7 @@
     { key: "worth", label: "Inventory value", value: last ? Math.round(last.worth) : null, plat: true, title: "Inventory value: every copy you hold at the daily median (Market value), at the last inventory read" },
     { key: "change", label: "Change", value: last && prev ? Math.round(last.worth - prev.worth) : null, text: last && prev ? signed(last.worth - prev.worth) : "–", plat: !!(last && prev), sub: prev ? `since ${day(prev.at)}` : "shows after the next read", tone: last && prev && last.worth < prev.worth ? "dim" : undefined, title: last && prev ? `Change in inventory value between the read of ${day(prev.at)} and the last one, ${day(last.at)}` : "Change in inventory value: shows from the next inventory read" },
     { key: "liquid", label: "Quick-sale value", value: last ? Math.round(last.liquid) : null, plat: true, sub: last && prev ? signed(last.liquid - prev.liquid) : undefined, title: "Quick-sale value: everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month, at the last read (beside it, the change since the read before)" },
-    { key: "read", label: "Last read", value: last?.at ?? null, text: last ? day(last.at) : "none yet", still: true, tone: "dim", title: last ? `The last inventory read orbiter worked these out at: ${new Date(last.at).toLocaleString()}` : "No inventory read yet: press Sync while Warframe is running" },
+    { key: "read", label: "Last read", value: last?.at ?? null, text: last ? day(last.at) : "none yet", still: true, tone: "dim", title: last ? `The last inventory read MyOrbiter worked these out at: ${new Date(last.at).toLocaleString()}` : "No inventory read yet: press Sync while Warframe is running" },
   ]);
   // CSS colours (app.css tokens): the chart draws its lines with them as styles.
   const GOLD = "var(--chart-gold)";
@@ -157,14 +157,14 @@
   {#snippet ticker()}<Ticker id="stats" label="Your inventory's value, live" items={tape} />{/snippet}
   <PageHead hero={ticker} title="Stats" brief="Your trades, relic runs and account over time." blurb="Your account over time, what your relic runs come to, the parts you got, and every trade you've made in game.">
     {#snippet band()}
-      <Stat label="Revenue" note="Sales in this span: the game's trade log and Sales" title="Revenue: platinum from sales in this span, from the game's trade log (the trade window orbiter read), plus sales logged on Sales that no logged trade covers"><P v={revenue} big tick /></Stat>
+      <Stat label="Revenue" note="Sales in this span: the game's trade log and Sales" title="Revenue: platinum from sales in this span, from the game's trade log (the trade window MyOrbiter read), plus sales logged on Sales that no logged trade covers"><P v={revenue} big tick /></Stat>
       <Stat label="Spent" tone="dim" note="Platinum paid for items"><P v={spent} big tick /></Stat>
       <Stat label="Profit" tone={revenue - spent >= 0 ? "gold" : "dim"} note="Revenue minus spent"><P v={revenue - spent} big tick /></Stat>
       <Stat label="Trades" note={trades.length ? `with ${partners} player${partners === 1 ? "" : "s"}` : "No trades in this span"}><Count value={trades.length} /></Stat>
     {/snippet}
   </PageHead>
 
-  <div class="bar"><Seg bind:value={span} label="Span" options={[{ v: "30", label: "30 days", title: "Figures, charts and trades from the last 30 days" }, { v: "90", label: "90 days", title: "Figures, charts and trades from the last 90 days" }, { v: "all", label: "All", title: "Everything orbiter has logged" }]} /></div>
+  <div class="bar"><Seg bind:value={span} label="Span" options={[{ v: "30", label: "30 days", title: "Figures, charts and trades from the last 30 days" }, { v: "90", label: "90 days", title: "Figures, charts and trades from the last 90 days" }, { v: "all", label: "All", title: "Everything MyOrbiter has logged" }]} /></div>
 
   <div title="Worked out as Inventory does, at each inventory read. Market value: every copy at the daily median. Quick-sale value: everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month. The figures by the title are from the last read">
     <TimeChart single={hist.length === 1 ? "" : undefined} title={lastRead ? `Inventory value · at last read, ${new Date(lastRead).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : "Inventory value"} {at} series={[{ label: "Market value", color: "var(--chart-plat)", values: hist.map((p) => p.worth) }, { label: "Quick-sale value", color: GOLD, values: hist.map((p) => p.liquid) }]} height={190} />
@@ -220,7 +220,7 @@
     <section class="history">
       <div class="hh">
         <h2 class="register">Trade history</h2>
-        {#if settings.market.trades.length}<ProgressButton variant="icon" icon="export" tone="quiet" job={exportJob} label="Export trades as CSV" doneLabel="Saved" failLabel="Couldn't save" title="Save every trade orbiter read from the game as a CSV file in your Downloads folder, for a spreadsheet" onclick={exportTrades} />{/if}
+        {#if settings.market.trades.length}<ProgressButton variant="icon" icon="export" tone="quiet" job={exportJob} label="Export trades as CSV" doneLabel="Saved" failLabel="Couldn't save" title="Save every trade MyOrbiter read from the game as a CSV file in your Downloads folder, for a spreadsheet" onclick={exportTrades} />{/if}
         {#if exported}<span class="small" class:dim={exportJob.state !== "failed"} class:bad={exportJob.state === "failed"} role="status">{exported}</span>{/if}
         <Seg bind:value={show} label="Which trades" options={[{ v: "all", label: "All", title: "Every trade" }, { v: "sale", label: "Sales", title: "Trades where you gave items and got only platinum" }, { v: "purchase", label: "Purchases", title: "Trades where you gave only platinum for items" }, { v: "trade", label: "Swaps", title: "Everything else: items for items, items and platinum both ways, gifts" }]} />
       </div>
@@ -239,9 +239,9 @@
         {#if shown.length > 150}<p class="dim small">Showing the latest 150 of {shown.length}.</p>{/if}
       {:else if settings.market.trades.length}
         <!-- Trades are logged, just none in this span or of this kind: say so, and how to see them. -->
-        <p class="dim small">No {show === "sale" ? "sales" : show === "purchase" ? "purchases" : show === "trade" ? "swaps" : "trades"} {span === "all" ? "logged yet" : `in the last ${span} days`}. <button type="button" class="link" title="Every trade orbiter has logged (the figures and charts above go to All too)" onclick={() => ((show = "all"), (span = "all"))}>Show all {settings.market.trades.length}</button></p>
+        <p class="dim small">No {show === "sale" ? "sales" : show === "purchase" ? "purchases" : show === "trade" ? "swaps" : "trades"} {span === "all" ? "logged yet" : `in the last ${span} days`}. <button type="button" class="link" title="Every trade MyOrbiter has logged (the figures and charts above go to All too)" onclick={() => ((show = "all"), (span = "all"))}>Show all {settings.market.trades.length}</button></p>
       {:else}
-        <p class="dim small">Trades show up here as you make them: orbiter reads each one from Warframe's log when the trade window closes.</p>
+        <p class="dim small">Trades show up here as you make them: MyOrbiter reads each one from Warframe's log when the trade window closes.</p>
       {/if}
     </section>
   </div>

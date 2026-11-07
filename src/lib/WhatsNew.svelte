@@ -68,8 +68,8 @@
         <span class="register">{date(latest.date).getUTCFullYear()}</span>
       </div>
       <div class="kick">
-        <h2 id="upd-title" class="register">What's new in orbiter</h2>
-        <p class="dim small">{since.count} {since.count === 1 ? "change" : "changes"} since you last opened orbiter{#if updateState.line}<span class="ver" title="The version you're on, and the channel it came from (Settings, Updates)"> · orbiter {updateState.line}</span>{/if}</p>
+        <h2 id="upd-title" class="register">What's new in MyOrbiter</h2>
+        <p class="dim small">{since.count} {since.count === 1 ? "change" : "changes"} since you last opened MyOrbiter{#if updateState.line}<span class="ver" title="The version you're on, and the channel it came from (Settings, Updates)"> · MyOrbiter {updateState.line}</span>{/if}</p>
       </div>
       <button class="close" aria-label="Close" title="Close (Esc)" onclick={close}>
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="1.5" /></svg>

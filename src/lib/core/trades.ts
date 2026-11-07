@@ -1,5 +1,5 @@
 // Trades read from EE.log, turned into sales: you gave items and got only platinum back. Each item
-// is matched to your warframe.market listing for it, so orbiter can mark that listing sold.
+// is matched to your warframe.market listing for it, so MyOrbiter can mark that listing sold.
 import { findItem, type MarketIndex, type MarketItem, type MyOrder } from "./market";
 import { gearSetParts, type Model } from "./model";
 import type { Trade, TradeItem } from "./types";
@@ -145,7 +145,7 @@ function gearSetsOf(m: Model, index: MarketIndex) {
 }
 
 /**
- * Sales logged before orbiter knew a trade could be a whole set: every part of a set, sold in one
+ * Sales logged before MyOrbiter knew a trade could be a whole set: every part of a set, sold in one
  * trade and logged as one sale each, becomes one "X Prime Set" sale at the platinum they made
  * together. Null when there's nothing to fold.
  */

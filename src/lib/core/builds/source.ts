@@ -1,7 +1,7 @@
 // Where builds come from, behind one small interface.
 //
-// Text the user pastes (parse.ts), the user's own editor, orbiter's suggestions, and Nox's Frame
-// (noxsframe.ts). orbiter never fetches Overframe or the wiki: their terms forbid automated access.
+// Text the user pastes (parse.ts), the user's own editor, MyOrbiter's suggestions, and Nox's Frame
+// (noxsframe.ts). MyOrbiter never fetches Overframe or the wiki: their terms forbid automated access.
 // registerSource refuses a network source without a record of why it may read: the site's written
 // permission, or (for the hosts in TERMS_HOSTS only) its terms as checked by hand. The hosts in
 // BLOCKED_HOSTS need written permission naming the host.
@@ -24,7 +24,7 @@ export interface SourceContext {
  */
 export type SourcePermission =
   | { kind?: "granted"; host: string; grantedBy: string; /** ISO date. */ on: string; note?: string }
-  | { kind: "terms"; host: string; /** What the terms allow and what orbiter does about it. */ note: string; /** ISO date. */ checked: string };
+  | { kind: "terms"; host: string; /** What the terms allow and what MyOrbiter does about it. */ note: string; /** ISO date. */ checked: string };
 
 /**
  * Sites whose terms were read and allow reading public pages on demand, a few at a time:

@@ -233,7 +233,7 @@
     {#snippet foot()}
       {#if r.mastered}<span class="tag good" title="You've mastered it: nothing to keep a set back for">✓ Mastered</span>{:else if r.ownedBuilt}<span class="tag mastery" title="You have it built: not mastered yet">Owned</span>{/if}
       {#if r.vaulted}<Avail v="vaulted" />{/if}
-      {#if forDucats(r)}<span class="tag ok" title="{forDucats(r)}: orbiter won't put it on sale">for ducats</span>{/if}
+      {#if forDucats(r)}<span class="tag ok" title="{forDucats(r)}: MyOrbiter won't put it on sale">for ducats</span>{/if}
       <span class="grow"></span>
       {#if r.prime}<P v={r.ducats} d dim />{/if}
       {#if mode !== "sell"}<P v={r.setPrice} />{/if}

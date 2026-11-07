@@ -132,7 +132,7 @@ const modFamilies = (keep = MODS_KEEP): SparesRules["mods"]["families"] =>
   Object.fromEntries(MOD_FAMILIES.map((f) => [f, { on: true, keep: LICH_FAMILIES.includes(f) ? LICH_KEEP : keep }])) as SparesRules["mods"]["families"];
 const resourceFamilies = (on = true): Record<ResourceFamily, boolean> => Object.fromEntries(RESOURCE_FAMILIES.map((f) => [f, on])) as Record<ResourceFamily, boolean>;
 
-/** The usual rules: what orbiter did before the categories had options, for a new player. */
+/** The usual rules: what MyOrbiter did before the categories had options, for a new player. */
 export const defaultSparesRules = (): SparesRules => ({
   version: 2,
   prime: { on: true, sellAs: "setsFirst", onlyRelicsHeld: false, keep: 0 },
@@ -279,7 +279,7 @@ export function legacyRules(r: SparesRules): BulkRules {
 /**
  * Where the choices live: version 2 under settings.market.spares, and the old switches kept up to
  * date under settings.market.bulk. Not version 2 under `bulk` itself: it shares names with the old
- * switches (mods, arcanes, imprints), and an older orbiter (a Stable build behind an Experimental
+ * switches (mods, arcanes, imprints), and an older MyOrbiter (a Stable build behind an Experimental
  * one) would read `mods: { on: false }` as ticked. This way an older build reads the player's
  * choices as closely as the old switches can say them.
  */

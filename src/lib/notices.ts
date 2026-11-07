@@ -1,4 +1,4 @@
-// Every kind of notification orbiter sends, in the order the Notifications panel lists them: what
+// Every kind of notification MyOrbiter sends, in the order the Notifications panel lists them: what
 // it's for, the page it opens, and whether it needs the game read on a PC. The switches in the
 // panel, the history and the pop-ups all go by this list.
 import type { GameIconName } from "./ui/GameIcon.svelte";
@@ -46,7 +46,7 @@ export const NOTICE_KINDS: NoticeKindInfo[] = [
   { kind: "reward", group: "Fissures", label: "Which reward to take", hint: "When the reward screen opens: the card with the best score, and why. Sent even while you're in a fissure.", icon: "void-tear", to: "mission", pcOnly: true },
 
   { kind: "foundry", group: "Your account", label: "Foundry builds ready", hint: "Something you're building is ready to claim, with the mastery it gives if you haven't mastered it.", icon: "foundry", to: "home#foundry", pcOnly: true },
-  { kind: "tennoscope", group: "Your account", label: "TennoScope trouble", hint: "It couldn't be started, or something orbiter asked of it failed.", icon: "dojo", to: "home", pcOnly: true },
+  { kind: "tennoscope", group: "Your account", label: "TennoScope trouble", hint: "It couldn't be started, or something MyOrbiter asked of it failed.", icon: "dojo", to: "home", pcOnly: true },
 ];
 
 export const noticeKind = Object.fromEntries(NOTICE_KINDS.map((k) => [k.kind, k])) as Record<NoticeKind, NoticeKindInfo>;

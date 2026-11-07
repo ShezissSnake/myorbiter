@@ -253,7 +253,7 @@ export function collectionItem(m: Model, item: CatalogItem): CollectionItem {
   };
 }
 
-/** Every masterable item orbiter knows, by name. */
+/** Every masterable item MyOrbiter knows, by name. */
 export function collection(m: Model): CollectionItem[] {
   const out: CollectionItem[] = [];
   for (const item of m.catalogByUnique.values()) {

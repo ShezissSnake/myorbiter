@@ -1,5 +1,5 @@
 // Builds: reading a build from pasted text (parse.ts). Every sample is written for the test:
-// orbiter never fetches build pages.
+// MyOrbiter never fetches build pages.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {

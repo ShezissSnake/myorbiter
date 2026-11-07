@@ -1,5 +1,5 @@
-// TennoScope, as orbiter sees it: whether it runs, what a patched one reports about itself, and
-// the few things orbiter can ask of it (sync the inventory, set your warframe.market status,
+// TennoScope, as MyOrbiter sees it: whether it runs, what a patched one reports about itself, and
+// the few things MyOrbiter can ask of it (sync the inventory, set your warframe.market status,
 // allow screen capture, open its window).
 
 import { tennoscope, type TennoscopeAsk, type TennoscopeStatus } from "./backend";
@@ -102,7 +102,7 @@ class TennoscopeStore {
     if (status) this.status = status;
   }
 
-  /** Settings → TennoScope → Program → Find it: orbiter finds TennoScope again. */
+  /** Settings → TennoScope → Program → Find it: MyOrbiter finds TennoScope again. */
   async forgetProgram() {
     this.status = await tennoscope.forgetProgram();
   }

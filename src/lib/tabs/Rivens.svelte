@@ -31,14 +31,14 @@
   import { pickShowcase } from "../core/showcase";
   import { arrive, calm, confirm, flip, leave, reveal } from "../motion";
 
-  // console: you play on a console or phone, where orbiter can't read your rivens: the finder and
+  // console: you play on a console or phone, where MyOrbiter can't read your rivens: the finder and
   // alerts only.
   let { model, settings = $bindable(), console = false }: { model: Model; settings: Settings; console?: boolean } = $props();
 
   const tables = $derived(rivenTables(model.catalogByUnique.values()));
   const mine = $derived((settings.game.rivens ?? []).map((r) => parseRiven(model, tables, r)).filter((r): r is Riven => !!r));
   const veiled = $derived([...model.inventoryByBase.entries()].filter(([u]) => /\/Randomized\/Raw/.test(u)).reduce((n, [, rows]) => n + rows.reduce((k, r) => k + r.quantity, 0), 0));
-  // What the last cycle orbiter saw did to each riven.
+  // What the last cycle MyOrbiter saw did to each riven.
   // Rivens mid-cycle: the roll each has and the one on offer, and which to keep.
   const choices = $derived((settings.game.rivens ?? []).filter((raw) => raw.pending).map((raw) => ({ key: cycleKey(raw), c: rollChoice(model, tables, raw) })).filter((x): x is { key: string; c: RollChoice } => !!x.c));
   // What similar rivens are listed for, each roll, to settle a close call: per cycle, not per riven.
@@ -99,7 +99,7 @@
     { key: "traded", label: "Trade value", value: (r) => tradeValue(r), align: "right", cell: tradedCell, title: "What rivens for the weapon (cycled or not, like yours) traded for in game last week: the ones worth selling, whatever their stats" },
     { key: "any", label: "Any price", value: (r) => anyPrice(r), align: "right", cell: anyCell, minor: true, title: "The cheapest riven listed for the weapon on warframe.market, whatever its stats. Not price checked yet: blank" },
     { key: "similar", label: "Similar price", value: (r) => similarPrice(r), align: "right", cell: similarCell, title: "What rivens with the same two best stats are mostly listed for. Not price checked yet: blank" },
-    { key: "estimate", label: "Estimate", value: (r) => estimateOf(r), align: "right", cell: estimateCell, title: "orbiter's estimate of what a riven like it is listed for, from all its stats. Not price checked yet: blank" },
+    { key: "estimate", label: "Estimate", value: (r) => estimateOf(r), align: "right", cell: estimateCell, title: "MyOrbiter's estimate of what a riven like it is listed for, from all its stats. Not price checked yet: blank" },
   ];
   const sorted = $derived(sortRows(shown, columns, sort));
 
@@ -257,7 +257,7 @@
     for (const r of todo) {
       if (stopAll) break;
       await check(r, again);
-      // Still turned away after orbiter's own retries: a longer pause, then once more.
+      // Still turned away after MyOrbiter's own retries: a longer pause, then once more.
       if (SLOW.test(checks[r.id]?.error ?? "") && !stopAll) {
         await wait();
         if (!stopAll) await check(r, again);
@@ -350,7 +350,7 @@
     return { total, n };
   });
   // The showcase: your five best-graded rivens as their cards, with what each weapon's rivens go for
-  // (last week's trades, else what similar ones are listed for, else orbiter's estimate).
+  // (last week's trades, else what similar ones are listed for, else MyOrbiter's estimate).
   let opened = $state<Riven | null>(null);
   const shelf = $derived(pickShowcase(mine, { spare: () => null, held: (r) => r.quality, name: (r) => `${r.weapon} ${r.name}`, key: (r) => r.id }));
   const goingRate = (r: Riven): { v: number | null; how: string } => {
@@ -359,7 +359,7 @@
     const sp = similarPrice(r);
     if (sp != null) return { v: sp, how: "what similar ones are listed for (asking)" };
     const e = estimateOf(r);
-    return e != null ? { v: e, how: "orbiter's estimate" } : { v: null, how: "not priced yet: press Check prices" };
+    return e != null ? { v: e, how: "MyOrbiter's estimate" } : { v: null, how: "not priced yet: press Check prices" };
   };
   const exhibits = $derived(
     shelf.items.map(({ row: r }): Exhibit => {
@@ -615,7 +615,7 @@
     {/if}
     {#if estimates[r.id]}
       {@const e = estimates[r.id]}
-      <div class="est" title="orbiter's estimate of what a riven like this one is listed for on warframe.market (asking prices: what rivens sell for isn't published), from all its stats and how good each roll is, its cycles, mastery and rank, what its weapon's rivens traded for in game last week and what the cheapest listed for it ask now. Trained on {rivens.model?.listings.toLocaleString('en')} listings for {rivens.model?.weapons} weapons ({rivens.model?.trained}){rivens.model?.accuracy ? `; on listings from sellers it hadn't learned from, half its guesses were within ×${rivens.model.accuracy.typical.toFixed(1)} and ${Math.round(rivens.model.accuracy.within2 * 100)}% within ×2 (listings at both ends of the price range)` : ""}. A guide, not a promise">
+      <div class="est" title="MyOrbiter's estimate of what a riven like this one is listed for on warframe.market (asking prices: what rivens sell for isn't published), from all its stats and how good each roll is, its cycles, mastery and rank, what its weapon's rivens traded for in game last week and what the cheapest listed for it ask now. Trained on {rivens.model?.listings.toLocaleString('en')} listings for {rivens.model?.weapons} weapons ({rivens.model?.trained}){rivens.model?.accuracy ? `; on listings from sellers it hadn't learned from, half its guesses were within ×${rivens.model.accuracy.typical.toFixed(1)} and ${Math.round(rivens.model.accuracy.within2 * 100)}% within ×2 (listings at both ends of the price range)` : ""}. A guide, not a promise">
         <span class="register">Estimate</span>
         <span class="v"><P v={e.mid} /> <span class="dim small">the middle half of listings like it ask {e.lo.toLocaleString("en")}–{e.hi.toLocaleString("en")}p</span></span>
         {#if e.factors.length}<span class="small fx"><span class="dim">What moves it:</span>{" "}{#each [...e.factors].sort((x, y) => Math.abs(Math.log(y.ratio)) - Math.abs(Math.log(x.ratio))) as f, i (f.slug)}{i ? " · " : ""}<span class:up={f.ratio >= 1.15} class:down={f.ratio <= 1 / 1.15} title={f.positive ? `The estimate with this stat as rolled, against the same riven without it` : `The estimate with this curse, against the same riven without it`}>{factorLabel(r, f)} {fmtRatio(f.ratio)}</span>{/each}</span>{/if}
@@ -626,8 +626,8 @@
         {@const fl = c?.any ? priceCheck(c.any) : null}
         <span class="pcs">
           {#if fl}<span class="pc" title={fl.count ? `The cheapest ${r.weapon} riven listed right now, whatever its stats: what anyone can buy one for` : undefined}>{#if fl.count}<span class="dim small">Any {r.weapon} riven from</span><P v={fl.lowest} />{:else}<span class="dim small">No {r.weapon} rivens listed</span>{/if}</span>{/if}
-          <span class="pc" title={pc.count ? `${pc.count} rivens with the same two best stats listed${c?.saved ? ` when orbiter last checked (${checkedWhen(c.at!, Date.now())})` : ""}: the cheapest at ${pc.lowest}p, most around ${pc.typical}p. Asking prices: what they sell for isn't published` : undefined}>{#if pc.count}<span class="dim small">{pc.count} similar listed from</span><P v={pc.lowest} /><span class="dim small">· most around</span><P v={pc.typical} />{:else}<span class="dim small">None like it listed {c?.saved ? "then" : "right now"}</span>{/if}</span>
-          {#if c?.saved && (c.loading || Date.now() - c.at! >= DAY)}<span class="dim small when" title={c.loading ? "Checking it again now" : c.error ? `Kept from orbiter's last check; checking again failed: ${c.error}` : "Kept from orbiter's last check; checked again when you update prices"}>{c.loading ? "updating…" : `checked ${checkedWhen(c.at!, Date.now())}`}</span>{/if}
+          <span class="pc" title={pc.count ? `${pc.count} rivens with the same two best stats listed${c?.saved ? ` when MyOrbiter last checked (${checkedWhen(c.at!, Date.now())})` : ""}: the cheapest at ${pc.lowest}p, most around ${pc.typical}p. Asking prices: what they sell for isn't published` : undefined}>{#if pc.count}<span class="dim small">{pc.count} similar listed from</span><P v={pc.lowest} /><span class="dim small">· most around</span><P v={pc.typical} />{:else}<span class="dim small">None like it listed {c?.saved ? "then" : "right now"}</span>{/if}</span>
+          {#if c?.saved && (c.loading || Date.now() - c.at! >= DAY)}<span class="dim small when" title={c.loading ? "Checking it again now" : c.error ? `Kept from MyOrbiter's last check; checking again failed: ${c.error}` : "Kept from MyOrbiter's last check; checked again when you update prices"}>{c.loading ? "updating…" : `checked ${checkedWhen(c.at!, Date.now())}`}</span>{/if}
         </span>
       {:else if c?.error}<span class="dim small">{c.error}</span>
       {:else if c?.loading}<span class="dim small">Checking prices…</span>
@@ -654,7 +654,7 @@
       <Stat label="Veiled" tone="dim" note="Challenges still to do">{veiled}</Stat>
       <Stat keep label="Best roll" note={best ? `${best.weapon} ${best.name}` : "–"}>{#if best?.grade}<span class="g-{best.grade.replace('+', 'p').replace('−', 'm')}">{best.grade}</span>{:else}–{/if}</Stat>
       {#if tradedSum.n}<Stat label="Your rivens' going rate" tone="gold" note={`Last week's in-game median for each weapon, ${tradedSum.n} of ${mine.length} rivens`}><P v={Math.round(tradedSum.total)} big /></Stat>{:else if priced.length}<Stat label="Listed around" tone="gold" note={`What similar ones are listed for (asking, not sold), ${priced.length} of ${mine.length} checked`}><P v={worth} big /></Stat>{/if}
-      {#if estimated.length}<Stat label="Estimated" note={`orbiter's estimate of what each would be listed for, ${estimated.length} of ${mine.length} price checked`}><P v={estimatedSum} big /></Stat>{/if}
+      {#if estimated.length}<Stat label="Estimated" note={`MyOrbiter's estimate of what each would be listed for, ${estimated.length} of ${mine.length} price checked`}><P v={estimatedSum} big /></Stat>{/if}
       {/if}
       <Stat extra label="Alerts" note="Rivens you're watching for">{settings.rivenWatch.length}</Stat>
     {/snippet}
@@ -673,7 +673,7 @@
                 <span class="register">{x.label}</span>
                 <span class="rn"><b>{x.r.name}</b>{@render grade(x.r.grade)}</span>
                 <ul>{#each x.r.stats as s, i (i)}<li class:curse={!s.buff}><b>{s.display}</b> {s.label} {#if s.buff}{@render grade(s.grade)}{:else}{@render curse(s)}{/if}</li>{/each}</ul>
-                {#if estimateFor(x.r, pc?.any)}{@const e = estimateFor(x.r, pc?.any)!}<span class="small" title="orbiter's estimate of what a riven like this roll is listed for (see Estimate on the cards below)"><span class="dim">Estimate</span> <b>{e.mid.toLocaleString("en")}p</b> <span class="dim">({e.lo.toLocaleString("en")}–{e.hi.toLocaleString("en")}p)</span></span>{/if}
+                {#if estimateFor(x.r, pc?.any)}{@const e = estimateFor(x.r, pc?.any)!}<span class="small" title="MyOrbiter's estimate of what a riven like this roll is listed for (see Estimate on the cards below)"><span class="dim">Estimate</span> <b>{e.mid.toLocaleString("en")}p</b> <span class="dim">({e.lo.toLocaleString("en")}–{e.hi.toLocaleString("en")}p)</span></span>{/if}
               </div>
             {/each}
           </div>
@@ -688,9 +688,9 @@
   {:else if settings.game.rivens == null}
     <section class="panel note">
       <h2 class="mark">Your rivens show up after TennoScope's next read</h2>
-      <p class="prose">orbiter gets your rivens' stats through TennoScope, which needs three things:</p>
+      <p class="prose">MyOrbiter gets your rivens' stats through TennoScope, which needs three things:</p>
       <ol class="prose steps">
-        <li>TennoScope rebuilt from orbiter's current <code>tennoscope/</code> folder (<code>tennoscope/ORBITER.md</code> has the commands).</li>
+        <li>TennoScope rebuilt from MyOrbiter's current <code>tennoscope/</code> folder (<code>tennoscope/ORBITER.md</code> has the commands).</li>
         <li>Full mode on (Settings → TennoScope → <i>Read my inventory</i>).</li>
         <li>A read of your inventory: press <b>Sync</b> while Warframe is running.</li>
       </ol>
@@ -718,7 +718,7 @@
           {#if stillFailed.length}
             <span class="checking"><span class="dim small" title={checkedAll!.reason}>Checked {checkedAll!.ok}; {stillFailed.length} couldn't be ({checkedAll!.reason.replace(/(; |\. ).*$/, "")})</span><button class="link" title="Check the ones that failed again" onclick={() => checkAllPressed(stillFailed)}>Try those again</button></span>
           {/if}
-          {#if keptCount && Date.now() - keptAt >= DAY}<span class="dim small kept" title="Some prices shown are from orbiter's last check, a day or more ago: riven prices move little from one day to the next. They're checked again by themselves while this page is open">Some prices from {checkedWhen(keptAt, Date.now())}</span>{/if}
+          {#if keptCount && Date.now() - keptAt >= DAY}<span class="dim small kept" title="Some prices shown are from MyOrbiter's last check, a day or more ago: riven prices move little from one day to the next. They're checked again by themselves while this page is open">Some prices from {checkedWhen(keptAt, Date.now())}</span>{/if}
         {/if}
         <ProgressButton job={allJob} busy={!!checkingAll} progress={checkingAll ? allFill : undefined} working={allWord} onstop={() => (stopAll = true)} sizer={["Checking 000/000", "Stopping…", "000 checked"]}
           label={!unchecked ? "Check prices again" : keptCount === unchecked ? "Update prices" : unchecked === shown.length ? (shown.length === mine.length ? "Check prices" : `Check these ${unchecked}`) : `Check the other ${unchecked}`}
@@ -730,7 +730,7 @@
   <section class="finder">
     <h2 class="register lead">Find a riven</h2>
     {#if !meta}
-      <p class="dim small">{#if rivens.metaError}Couldn't load warframe.market's riven list ({rivens.metaError}); orbiter tries again each minute. <button class="link" onclick={() => void rivens.loadMeta()}>Try now</button>{:else}Loading warframe.market's riven list…{/if}</p>
+      <p class="dim small">{#if rivens.metaError}Couldn't load warframe.market's riven list ({rivens.metaError}); MyOrbiter tries again each minute. <button class="link" onclick={() => void rivens.loadMeta()}>Try now</button>{:else}Loading warframe.market's riven list…{/if}</p>
     {:else}
       <div class="form">
         <input list="riven-weapons" placeholder="Weapon" bind:value={weaponName} onfocus={() => (weaponsWanted = true)} aria-label="Weapon" />
@@ -780,7 +780,7 @@
             <label class="sortsel" title="By price as listed, or the best deal against the estimate first"><span class="register">Sort</span><select bind:value={foundSort} aria-label="Sort results"><option value="price">Price</option><option value="deal">Best deal</option></select></label>
           </div>
           <table class="results">
-            <thead><tr><th>Riven</th><th>Stats</th><th class="right">Roll</th><th class="right">Rank · rerolls</th><th>Seller</th><th class="right" title="orbiter's estimate of what a riven like this one is listed for (see Estimate on your rivens' cards)">Estimate</th><th class="right">Price</th></tr></thead>
+            <thead><tr><th>Riven</th><th>Stats</th><th class="right">Roll</th><th class="right">Rank · rerolls</th><th>Seller</th><th class="right" title="MyOrbiter's estimate of what a riven like this one is listed for (see Estimate on your rivens' cards)">Estimate</th><th class="right">Price</th></tr></thead>
             <tbody>
               {#each shownAuctions.slice(0, 30) as a (a.id)}
                 {@const g = gradeAuction(meta, tables, found.weapon.slug, a)}

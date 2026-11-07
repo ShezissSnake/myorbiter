@@ -1,12 +1,12 @@
 //! Fitting into the desktop: notifications through the system's own notification service. On Linux
-//! that's the desktop's (KDE, GNOME, or mako/dunst/swaync on Hyprland), tagged with orbiter's
+//! that's the desktop's (KDE, GNOME, or mako/dunst/swaync on Hyprland), tagged with MyOrbiter's
 //! launcher entry so they carry its name and icon and group under it; on Windows and macOS the
 //! system's notification centre.
 
-/// The launcher entry `scripts/install-desktop.sh` installs (`orbiter.desktop`), which is also the
+/// The launcher entry `scripts/install-desktop.sh` installs (`myorbiter.desktop`), which is also the
 /// window's Wayland app id, and the icon name it installs.
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-pub const DESKTOP_ENTRY: &str = "orbiter";
+pub const DESKTOP_ENTRY: &str = "myorbiter";
 
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -26,10 +26,10 @@ impl Drop for Waiting {
 }
 
 /// Shows a notification. Best effort: with no notification service running nothing happens.
-/// `id`: the notification in orbiter's history. Clicking the notification then brings orbiter's
+/// `id`: the notification in MyOrbiter's history. Clicking the notification then brings MyOrbiter's
 /// window up and tells the page (event `notice-open`), which opens what it's about. `actions`:
 /// buttons of its own beside that, as (action, label): pressing one tells the page (event
-/// `notice-action`, with the id and the action) and leaves orbiter where it is, so a sale's
+/// `notice-action`, with the id and the action) and leaves MyOrbiter where it is, so a sale's
 /// "Give +rep" doesn't take you out of the game. Linux and Windows (a button on the toast); macOS
 /// shows it without the click or the buttons.
 pub fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<String>, actions: Vec<(String, String)>) {
@@ -47,15 +47,15 @@ pub fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<S
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         let _waiting = id.is_some().then_some(Waiting);
         let mut n = notify_rust::Notification::new();
-        n.appname("orbiter").summary(&summary).body(&body);
+        n.appname("MyOrbiter").summary(&summary).body(&body);
         #[cfg(target_os = "linux")]
         n.icon(DESKTOP_ENTRY)
             .hint(notify_rust::Hint::DesktopEntry(DESKTOP_ENTRY.into()))
             .timeout(notify_rust::Timeout::Milliseconds(8000));
         #[cfg(target_os = "windows")]
         if installed() {
-            // The id the installer gives orbiter's Start menu shortcut: the toast then comes from
-            // orbiter, with its name and icon (not from PowerShell, notify-rust's stand-in).
+            // The id the installer gives MyOrbiter's Start menu shortcut: the toast then comes from
+            // MyOrbiter, with its name and icon (not from PowerShell, notify-rust's stand-in).
             n.app_id(&app.config().identifier);
         }
         // The page's own buttons, never one that stands for the click or the close.
@@ -84,7 +84,7 @@ pub fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<S
             Ok(_) => {
                 let _ = (&app, &id, &actions);
             }
-            Err(e) => log::warn!(target: "orbiter::notify", "notification not shown: {e}"),
+            Err(e) => log::warn!(target: "myorbiter::notify", "notification not shown: {e}"),
         }
     });
 }
@@ -101,7 +101,7 @@ fn bring_up(app: &tauri::AppHandle, id: &str) {
     }
 }
 
-/// One of notification `id`'s own buttons was pressed: the page does it, orbiter stays where it is.
+/// One of notification `id`'s own buttons was pressed: the page does it, MyOrbiter stays where it is.
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 fn tell_action(app: &tauri::AppHandle, id: &str, action: &str) {
     use tauri::{Emitter, Manager};

@@ -306,7 +306,7 @@ Failed to setup app: error encountered during setup hook: local store operation 
 
     #[test]
     fn reads_rotated_logs_oldest_first() {
-        let dir = std::env::temp_dir().join(format!("orbiter-reward-log-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("myorbiter-reward-log-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("tennoscope.log"), GOOD.replace("12:12:29", "13:00:00")).unwrap();
         fs::write(dir.join("tennoscope_2026-10-12.log"), GOOD).unwrap();
@@ -318,7 +318,7 @@ Failed to setup app: error encountered during setup hook: local store operation 
     }
 }
 
-/// Fuzzing TennoScope's log as orbiter reads it: random, cut-short and garbled lines around real
+/// Fuzzing TennoScope's log as MyOrbiter reads it: random, cut-short and garbled lines around real
 /// ones. Never a panic, never a screen without a real time, never a relic that isn't one.
 #[cfg(test)]
 mod fuzz {

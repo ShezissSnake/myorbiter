@@ -1,5 +1,6 @@
 <script lang="ts">
   import { PLATFORM_LABEL, logFolders, onWindows, openLogFolder, type Platform, type Settings } from "./backend";
+  import wordmark from "../../src-tauri/icons/wordmark.svg?url";
   import { ts } from "./tennoscopeStore.svelte";
   import { refocus } from "./ui/refocus";
   import { bugReport } from "./bugReport.svelte";
@@ -65,7 +66,7 @@
   let eeLog = $state("");
   // Follow the saved values (when settings load or are applied). Closing the panel keeps an
   // unsaved edit, so it's still there, with Apply, when the panel opens again.
-  // The program is kept by orbiter itself (not in these settings) and chosen only in the native
+  // The program is kept by MyOrbiter itself (not in these settings) and chosen only in the native
   // file dialog it opens, which takes only a file named like TennoScope: the page can't name one.
   let tsError = $state<string | null>(null);
   let choosing = $state(false);
@@ -124,7 +125,7 @@
   }
 </script>
 
-<Sheet bind:open title="Settings" kicker="orbiter">
+<Sheet bind:open title="Settings" kicker="MyOrbiter">
   <section>
     <h3 class="register">Platform</h3>
     <label class="field">
@@ -133,7 +134,7 @@
         {#each Object.entries(PLATFORM_LABEL) as [v, label] (v)}<option value={v}>{label}</option>{/each}
       </select>
     </label>
-    <p class="dim small">The warframe.market orbiter reads and lists on. Signing in sets it from your account. Prices count sellers on other platforms too when you and they have cross-play on, since Warframe trades across platforms. On a console orbiter can't read your game, so it keeps to what works without it: your listings and their prices, sales, the riven finder, fissures and Baro. Everything built on your inventory is PC only.</p>
+    <p class="dim small">The warframe.market MyOrbiter reads and lists on. Signing in sets it from your account. Prices count sellers on other platforms too when you and they have cross-play on, since Warframe trades across platforms. On a console MyOrbiter can't read your game, so it keeps to what works without it: your listings and their prices, sales, the riven finder, fissures and Baro. Everything built on your inventory is PC only.</p>
   </section>
 
   <section>
@@ -176,8 +177,8 @@
   {#if !onConsole}
   <section>
     <h3 class="register">TennoScope</h3>
-    <Switch bind:on={settings.tennoscope.launch} label="Start TennoScope with orbiter">
-      In the background, with no window of its own, and closed again when you close orbiter. A TennoScope you start yourself is left alone.
+    <Switch bind:on={settings.tennoscope.launch} label="Start TennoScope with MyOrbiter">
+      In the background, with no window of its own, and closed again when you close MyOrbiter. A TennoScope you start yourself is left alone.
     </Switch>
     <FullMode kind="switch" />
     <div class="field" role="group" aria-labelledby="ts-program">
@@ -185,9 +186,9 @@
       <div class="row">
         <span class="path program" title={ts.status?.custom ?? ts.status?.binary ?? undefined}>{#if ts.status?.custom}{ts.status.custom}{:else if ts.status?.binary}<span class="dim">Found:</span> {ts.status.binary}{:else}<span class="dim">Not found</span>{/if}</span>
         <button type="button" class="stamp" disabled={choosing} title="Pick the TennoScope program in your system's file picker" onclick={chooseProgram}>{choosing ? "Choosing…" : "Choose…"}</button>
-        {#if ts.status?.custom}<button type="button" class="stamp" title="Forget the chosen program: orbiter finds TennoScope itself again" onclick={forgetProgram}>Find it</button>{/if}
+        {#if ts.status?.custom}<button type="button" class="stamp" title="Forget the chosen program: MyOrbiter finds TennoScope itself again" onclick={forgetProgram}>Find it</button>{/if}
       </div>
-      <span class="hint">Unless you choose one, orbiter finds it: the copy inside orbiter, then (in a development build) one built in orbiter's tennoscope/ folder or an older checkout in your home folder, then an installed one. Choose opens your system's file picker and takes only a program named tennoscope or tennoscope.exe, or a TennoScope AppImage. orbiter runs the program you choose as TennoScope each time it starts: use only a TennoScope you built or downloaded yourself.</span>
+      <span class="hint">Unless you choose one, MyOrbiter finds it: the copy inside MyOrbiter, then (in a development build) one built in MyOrbiter's tennoscope/ folder or an older checkout in your home folder, then an installed one. Choose opens your system's file picker and takes only a program named tennoscope or tennoscope.exe, or a TennoScope AppImage. MyOrbiter runs the program you choose as TennoScope each time it starts: use only a TennoScope you built or downloaded yourself.</span>
       {#if tsError}<span class="hint err">Not changed: {tsError}</span>{/if}
     </div>
   </section>
@@ -209,16 +210,16 @@
   <section>
     <h3 class="register">Fissures</h3>
     <Switch bind:on={settings.jumpToPick} label="Show Current fissure when the reward screen opens">
-      orbiter switches to the reward pick by itself, so it's on screen when you need it.
+      MyOrbiter switches to the reward pick by itself, so it's on screen when you need it.
     </Switch>
-    <h4 class="sub">How orbiter picks a reward</h4>
+    <h4 class="sub">How MyOrbiter picks a reward</h4>
     <p class="hint">How much each counts in the score that picks the card to take (the share is its part of the score). Slide one to 0 to leave it out, say ducats while you farm platinum.</p>
     <WeightSliders bind:weights={settings.pick} />
   </section>
 
   <section>
     <h3 class="register">Overlays</h3>
-    <p class="hint">What TennoScope draws over the game. orbiter keeps reading the reward screen with an overlay off, so its pick still shows on Current fissure.</p>
+    <p class="hint">What TennoScope draws over the game. MyOrbiter keeps reading the reward screen with an overlay off, so its pick still shows on Current fissure.</p>
     <Switch bind:on={settings.overlay.reward} label="Fissure reward screen">
       Under each reward card: what it's worth and whether to take it.
     </Switch>
@@ -229,11 +230,11 @@
         <Chip bind:on={settings.overlay.show.set} label="Set parts" title="The parts of its set: the ones you hold solid, the rest faint, this card's underlined. A card that finishes a set (a first one, or an extra to sell) is double-framed" />
         <Chip bind:on={settings.overlay.show.plat} label="Plat" title="What it sells for on warframe.market" />
         <Chip bind:on={settings.overlay.show.ducats} label="Ducats" title="What Baro gives for it" />
-        <Chip bind:on={settings.overlay.show.pick} label="orbiter's pick" title="Each card's score, and the card to take outlined in gold" />
+        <Chip bind:on={settings.overlay.show.pick} label="MyOrbiter's pick" title="Each card's score, and the card to take outlined in gold" />
       </div>
     {/if}
     <Switch bind:on={settings.overlay.riven} label="Cycling a riven">
-      When orbiter reads a riven waiting for keep-or-take (Sync at the cycle screen, or the riven key below): both rolls graded side by side, and which to keep.
+      When MyOrbiter reads a riven waiting for keep-or-take (Sync at the cycle screen, or the riven key below): both rolls graded side by side, and which to keep.
     </Switch>
     {#if settings.overlay.riven}
       <label class="field">
@@ -257,13 +258,13 @@
       <span class="hint">What goes with +rep on a trade partner's warframe.market profile (reputation there is a positive review, one per player).</span>
     </label>
     {#if !onConsole}<Switch bind:on={settings.market.autoRep} label="Give +rep by itself after a trade">
-      Each player you trade with in game gets +rep on warframe.market with the message above, once per player, without you leaving the game. If orbiter was closed during the trade, it catches up when it opens, while the game is still running. Needs you signed in to warframe.market on Orders. Off: a +rep button shows after each trade instead.
+      Each player you trade with in game gets +rep on warframe.market with the message above, once per player, without you leaving the game. If MyOrbiter was closed during the trade, it catches up when it opens, while the game is still running. Needs you signed in to warframe.market on Orders. Off: a +rep button shows after each trade instead.
     </Switch>{/if}
     {#if !onConsole}<Switch bind:on={settings.market.autoTrades} label="Mark sales sold from the game">
-      When a trade goes through where you gave items and got platinum, orbiter reads it from Warframe's log, marks your listing sold on warframe.market (recorded on your profile) and logs the sale with the platinum you actually got. Usually within half a minute: the game writes its log in bursts.
+      When a trade goes through where you gave items and got platinum, MyOrbiter reads it from Warframe's log, marks your listing sold on warframe.market (recorded on your profile) and logs the sale with the platinum you actually got. Usually within half a minute: the game writes its log in bursts.
     </Switch>{/if}
     {#if !onConsole}<Switch bind:on={settings.market.lastCopy.optIn} label="Hide last copies while someone whispers you">
-      When anyone whispers you in game (a buyer, a friend, or you whispering a seller), orbiter hides every listing you have one copy of, so a second buyer doesn't message you for one that's already promised. The game's log says who whispered, not what about, so that's usually most of your listings. Each comes back after the time below unless it sold; a later whisper doesn't make the wait longer.
+      When anyone whispers you in game (a buyer, a friend, or you whispering a seller), MyOrbiter hides every listing you have one copy of, so a second buyer doesn't message you for one that's already promised. The game's log says who whispered, not what about, so that's usually most of your listings. Each comes back after the time below unless it sold; a later whisper doesn't make the wait longer.
     </Switch>
     {#if settings.market.lastCopy.optIn}<label class="field minutes">
       <span class="register">Hidden for</span>
@@ -293,18 +294,18 @@
 
   <section>
     <h3 class="register">Notifications</h3>
-    <p class="hint">They have their own panel: the bell at the bottom of the sidebar. What orbiter told you lately, and a switch for each kind ({onConsole ? "your listings, rivens, rare alerts, Baro, fissures" : "sales, listings, alerts and invasions with mastery you're missing, Baro, fissures"}…), with a pause for all of them.</p>
+    <p class="hint">They have their own panel: the bell at the bottom of the sidebar. What MyOrbiter told you lately, and a switch for each kind ({onConsole ? "your listings, rivens, rare alerts, Baro, fissures" : "sales, listings, alerts and invasions with mastery you're missing, Baro, fissures"}…), with a pause for all of them.</p>
     <div class="row"><button class="stamp" onclick={() => { open = false; onnotices(); }}>Open notifications</button></div>
   </section>
 
   <section id="settings-updates" data-card="updates">
     <h3 class="register">Updates</h3>
-    <p class="ver"><span class="register">This is orbiter</span> <b class="mono" title="The version, and the channel it came from">{info ? versionLine(info.version, settings.updates) : "…"}</b></p>
+    <p class="ver"><img class="wordmark" src={wordmark} alt="This is MyOrbiter" height="28" /> <b class="mono" title="The version, and the channel it came from">{info ? versionLine(info.version, settings.updates) : "…"}</b></p>
     {#if info && installNote(info.install)}<p class="hint">{installNote(info.install)}</p>{/if}
     <Seg label="Channel" value={settings.updates.channel} options={CHANNELS.map((c) => ({ ...c }))} onchange={(c) => updates.setChannel(c)} />
-    <p class="hint">{CHANNELS.find((c) => c.v === settings.updates.channel)?.title}. Switching to a more stable channel never steps back by itself: if its build is older than this one, orbiter offers it here and installs it only when you click.</p>
+    <p class="hint">{CHANNELS.find((c) => c.v === settings.updates.channel)?.title}. Switching to a more stable channel never steps back by itself: if its build is older than this one, MyOrbiter offers it here and installs it only when you click.</p>
     <div class="row">
-      <ProgressButton job={updates.checkJob} label="Check now" disabled={!checks} sizer={["Up to date · 0.1.9999", "Experimental has 0.1.9999", "Couldn't check"]} title={checks ? `Look for a newer build on ${CHANNEL_LABEL[settings.updates.channel]} now. orbiter also looks when it starts and every 6 hours; nothing installs without your click.` : (info ? (installNote(info.install) ?? "") : "")} status />
+      <ProgressButton job={updates.checkJob} label="Check now" disabled={!checks} sizer={["Up to date · 0.1.9999", "Experimental has 0.1.9999", "Couldn't check"]} title={checks ? `Look for a newer build on ${CHANNEL_LABEL[settings.updates.channel]} now. MyOrbiter also looks when it starts and every 6 hours; nothing installs without your click.` : (info ? (installNote(info.install) ?? "") : "")} status />
       <button type="button" class="link out" title="Open this build's release page on GitLab, in your browser: what changed, and its downloads" onclick={() => openUrl(releasePage(info?.version ?? "0.1.0"))}>Release notes<Icon name="external" size={11} /></button>
     </div>
     {#if checks}<p class="hint">Last checked {checkedAgo(settings.updates.lastCheck, now)}{#if updates.error}{" "}· <span title={updates.error}>couldn't check for updates</span>{/if}.</p>{/if}
@@ -318,7 +319,7 @@
           {/if}
           {#if noteLines(offer.notes).length}<ul class="notes">{#each noteLines(offer.notes) as line, i (i)}<li>{line}</li>{/each}</ul>{/if}
           <div class="row">
-            <ProgressButton job={updates.installJob} tone="gold" label={offer.older ? `Switch to ${CHANNEL_LABEL[offer.channel]}'s ${offer.version}` : "Update and restart"} disabled={!installs} sizer={["Downloading 100%", "Restarting", "Not installed"]} title={installs ? `Download ${offer.version}, check its signature, install it and restart orbiter into it` : (info ? (installNote(info.install) ?? "") : "")} onclick={() => updates.install()} status />
+            <ProgressButton job={updates.installJob} tone="gold" label={offer.older ? `Switch to ${CHANNEL_LABEL[offer.channel]}'s ${offer.version}` : "Update and restart"} disabled={!installs} sizer={["Downloading 100%", "Restarting", "Not installed"]} title={installs ? `Download ${offer.version}, check its signature, install it and restart MyOrbiter into it` : (info ? (installNote(info.install) ?? "") : "")} onclick={() => updates.install()} status />
           </div>
         </div>
       </div>
@@ -327,22 +328,22 @@
 
   <div id="settings-display"><RenderingSetting /></div>
 
-  <section>
+  <section id="settings-logs">
     <h3 class="register">Logs</h3>
-    <p class="hint">What orbiter did and what went wrong, one line each, for when something misbehaves: TennoScope starting or failing, every change it made to your listings and every request warframe.market turned down, and errors in this window. Never your warframe.market sign-in. TennoScope keeps its own. Send both when you report a problem.</p>
+    <p class="hint">What MyOrbiter did and what went wrong, one line each, for when something misbehaves: TennoScope starting or failing, every change it made to your listings and every request warframe.market turned down, and errors in this window. Never your warframe.market sign-in. TennoScope keeps its own. Send both when you report a problem.</p>
     {#await logFolders(settings.dataDir) then f}
       <div class="row">
-        <button class="stamp" disabled={!f.orbiter} title={f.orbiter ?? "Only in the desktop app"} onclick={() => openLogFolder("orbiter", settings.dataDir).catch((e) => (logError = String(e)))}>Open orbiter's log folder</button>
+        <button class="stamp" disabled={!f.myorbiter} title={f.myorbiter ?? "Only in the desktop app"} onclick={() => openLogFolder("myorbiter", settings.dataDir).catch((e) => (logError = String(e)))}>Open MyOrbiter's log folder</button>
         <button class="stamp" disabled={!f.tennoscope} title={f.tennoscope ?? "TennoScope hasn't written a log here yet"} onclick={() => openLogFolder("tennoscope", settings.dataDir).catch((e) => (logError = String(e)))}>Open TennoScope's log folder</button>
       </div>
-      {#if f.orbiter}<p class="hint path-note">{f.orbiter}</p>{/if}
+      {#if f.myorbiter}<p class="hint path-note">{f.myorbiter}</p>{/if}
     {/await}
     {#if logError}<p class="hint err">{logError}</p>{/if}
   </section>
 
   <section id="settings-report">
     <h3 class="register">Report a bug</h3>
-    <p class="hint">Something not working? Say what happened, and orbiter fills in an issue on GitLab for you to check and submit, or copies the report if you'd rather send it another way. The technical details it can add (version, system, the log's last lines, with sign-ins and players' names hidden) are yours to read first. orbiter never sends anything itself.</p>
+    <p class="hint">Something not working? Say what happened, and MyOrbiter fills in an issue on GitLab for you to check and submit, or copies the report if you'd rather send it another way. The technical details it can add (version, system, the log's last lines, with sign-ins and players' names hidden) are yours to read first. MyOrbiter never sends anything itself.</p>
     <div class="row"><button class="stamp" title="Open Report a bug (Shift+F1): nothing is posted until you press Create issue on GitLab" onclick={() => { open = false; bugReport.show(); }}>Report a bug</button></div>
   </section>
 
@@ -384,7 +385,9 @@
   .mv :global(svg) { transform: rotate(-90deg); }
   .mv.down :global(svg) { transform: rotate(90deg); }
   /* Unsaved paths: pinned to the bottom of the panel, so it can't be missed whichever field changed. */
-  .ver { margin: 0; display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
+  .ver { margin: 0; display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; }
+  /* The wordmark at its smallest with the craft as the O (about 20 px cap height; smaller, the plain-O variant). */
+  .wordmark { display: block; height: 28px; width: auto; }
   .ver b { color: var(--platinum); font-weight: 600; }
   .mono { font-family: var(--face-register); font-variant-numeric: tabular-nums; }
   .link.out { display: inline-flex; align-items: center; gap: .35rem; }

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/orbiter-data", "src-tauri"]
+members = ["crates/myorbiter-data", "src-tauri"]
 # TennoScope is its own workspace (edition 2024, its own Cargo.lock and toolchain): tennoscope/ORBITER.md.
 exclude = ["tennoscope"]
 resolver = "2"

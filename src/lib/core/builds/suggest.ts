@@ -1,4 +1,4 @@
-// orbiter's own build suggestions: a rule-based starting point for an item, at three tiers of
+// MyOrbiter's own build suggestions: a rule-based starting point for an item, at three tiers of
 // player progression (New player, Intermediate, Veteran: see capacity.ts and availability.ts),
 // from the mods the player owns. Pure: no I/O, no Svelte.
 //
@@ -20,13 +20,13 @@
 //     catalog stats (focusOf: crit, status, hybrid or base damage).
 //  2. Lays out a priority list of "picks", each a chain of mods best first (Primed Point Blank,
 //     then Point Blank). Weapons: the standard core players run. Warframes: role templates from
-//     orbiter's curated table (src/lib/data/frame-roles.json), with explicit rules for what isn't
+//     MyOrbiter's curated table (src/lib/data/frame-roles.json), with explicit rules for what isn't
 //     numbers: energy mods when a frame spams abilities, Primed Sure Footed where knockdowns
 //     matter, Adaptation and Rolling Guard for tanks.
 //  3. Takes the first owned mod of each pick, fits them into the tier's capacity (fit()), and
 //     lists the better mods the player doesn't own as upgrades.
 //
-// Every suggestion says it is orbiter's (`source: "orbiter"`), gives a one-line reason per slot,
+// Every suggestion says it is MyOrbiter's (`source: "orbiter"`), gives a one-line reason per slot,
 // and ends with an honest note.
 //
 // Optional fields a page can render (all backwards compatible; absent means "nothing to show"):
@@ -44,7 +44,7 @@
 //       secondary, melee, companion (the companion itself) or companionWeapon (a beast's claws).
 //  - `riven` (primary, secondary, melee, arch-gun and companion weapons): {ideal, yours?}, from
 //    ./riven.ts. `ideal` = {positives: [{stat, why, basis}], negatives, disposition, basedOn:
-//    {auctions, since}, label}: `basis` is "rule" (orbiter's rule), "market" (what players pay
+//    {auctions, since}, label}: `basis` is "rule" (MyOrbiter's rule), "market" (what players pay
 //    most for on warframe.market) or "both". `yours`: the player's rivens for the weapon with
 //    {riven, fit: {wanted, of, negative, text: "2 of 3 wanted stats, harmless negative (−Zoom)"}}.
 //
@@ -130,7 +130,7 @@ export interface Upgrade {
   reason: string;
 }
 
-/** orbiter's suggestion: a Build plus why each slot holds what it holds. */
+/** MyOrbiter's suggestion: a Build plus why each slot holds what it holds. */
 export interface Suggestion extends Build {
   source: "orbiter";
   tier: Tier;
@@ -168,19 +168,19 @@ export interface RivenContext {
 }
 
 /**
- * One piece of a warframe's loadout, from orbiter's curated facts (src/lib/data/loadout-synergies.json).
+ * One piece of a warframe's loadout, from MyOrbiter's curated facts (src/lib/data/loadout-synergies.json).
  * Shards carry ./types's BuildShard fields (colour, tauforged, stat); the Helminth pick its
  * BuildHelminth fields (ability, replaces), so a page can save them into a Build as they are.
  */
 export interface LoadoutPick {
   name: string;
   path?: string;
-  /** true: you hold it; false: you don't; null: orbiter can't see it yet (Focus schools, the Helminth). */
+  /** true: you hold it; false: you don't; null: MyOrbiter can't see it yet (Focus schools, the Helminth). */
   owned: boolean | null;
   reason: string;
   /** The lowest tier whose loadout has this pick. */
   tier: Tier;
-  /** The page the fact was read on, by hand (orbiter never fetches it). */
+  /** The page the fact was read on, by hand (MyOrbiter never fetches it). */
   source: string;
   /** A mod or arcane: what it goes on ("Grimoire", "Nautilus Prime", "a gilded kitgun"). */
   on?: string;
@@ -229,7 +229,7 @@ export interface KitElement {
   ability: string;
   colour: ShardColour | null;
   stat: string | null;
-  /** Where orbiter read it: the catalog's ability text, or the page for a curated frame. */
+  /** Where MyOrbiter read it: the catalog's ability text, or the page for a curated frame. */
   source: string;
   /** For an element no shard feeds. */
   note?: string;
@@ -401,7 +401,7 @@ function weaponClassOf(item: CatalogItem, kind: GearKind): WeaponClass | null {
   }
 }
 
-/** Whether orbiter can suggest a build for this item. */
+/** Whether MyOrbiter can suggest a build for this item. */
 export function canSuggest(item: CatalogItem): boolean {
   const kind = gearKindOf(item);
   if (!kind) return false;
@@ -697,7 +697,7 @@ const MELEE_NAME: Record<string, string> = {
 };
 const stem = (name: string) => name.replace(/\s+(Prime|Wraith|Vandal)$/, "").replace(/^Prisma\s+/, "");
 
-/** The melee class for stances ("Heavy Blade"), or null when orbiter can't tell. */
+/** The melee class for stances ("Heavy Blade"), or null when MyOrbiter can't tell. */
 export function meleeClassOf(item: CatalogItem): string | null {
   const byName = MELEE_NAME[item.name] ?? MELEE_NAME[stem(item.name)];
   if (byName) return byName;
@@ -722,18 +722,18 @@ interface FrameInfo {
 }
 const FRAMES = (frameRoles as { frames: Record<string, FrameInfo> }).frames;
 
-/** orbiter's curated line for a frame (Primes and Umbra use the base frame's). */
+/** MyOrbiter's curated line for a frame (Primes and Umbra use the base frame's). */
 export function frameInfo(name: string): FrameInfo | null {
   return FRAMES[name] ?? FRAMES[name.replace(/\s+(Prime|Umbra)$/, "")] ?? null;
 }
 
-const DEFAULT_FRAME: FrameInfo = { roles: ["strength", "efficiency"], why: "orbiter has no line for this frame yet: a balanced caster default." };
+const DEFAULT_FRAME: FrameInfo = { roles: ["strength", "efficiency"], why: "MyOrbiter has no line for this frame yet: a balanced caster default." };
 
 const ROLE_TAG: Record<Role, string> = { tank: "Tank", strength: "Caster", range: "Crowd control", efficiency: "Support" };
 const FOCUS_TAG: Record<Focus, string | null> = { crit: "Crit", status: "Status", hybrid: "Hybrid", base: null };
 
 /**
- * The builds orbiter suggests for an item, first the default. Warframes, from the curated roles:
+ * The builds MyOrbiter suggests for an item, first the default. Warframes, from the curated roles:
  *  - a tank (tank first): "Tank / Steel Path" (survival up front), and "Caster / Star Chart" when
  *    its abilities scale with strength;
  *  - a caster (strength or range first): "Star Chart", and "Steel Path" with survival up front, a
@@ -1112,16 +1112,16 @@ function weaponArcane(item: CatalogItem, cls: WeaponClass, focus: Focus): { chai
 }
 
 /**
- * orbiter's suggestion for an item at a tier, built from the mods the player owns.
+ * MyOrbiter's suggestion for an item at a tier, built from the mods the player owns.
  * Warframes also get a `loadout` (shards, Helminth, support weapons, arcanes, companion, Focus);
  * pass `held` (heldFrom the inventory) so it can mark what you hold. Weapons that take a riven
- * get `riven`: the ideal one, from `rivens.market` (what's listed for the weapon) and orbiter's
+ * get `riven`: the ideal one, from `rivens.market` (what's listed for the weapon) and MyOrbiter's
  * rule, and `rivens.mine` (the player's parsed rivens) scored against it.
  * Throws if the item takes no build (check canSuggest first).
  */
 export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModIndex, now = 0, held: Held | null = null, rivens: RivenContext | null = null, variantId: string | null = null): Suggestion {
   const kind = gearKindOf(item);
-  if (!kind || !canSuggest(item)) throw new Error(`orbiter has no suggestion for ${item.name}`);
+  if (!kind || !canSuggest(item)) throw new Error(`MyOrbiter has no suggestion for ${item.name}`);
   const layout = layoutOf(kind);
   const high = tier === "high";
   // A Catalyst/Reactor, Forma and the exilus slot from Intermediate on.
@@ -1385,7 +1385,7 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
     id: variant === variants[0] ? `orbiter-${tier}-${item.uniqueName}` : `orbiter-${tier}-${variant.id}-${item.uniqueName}`,
     item: item.uniqueName,
     kind,
-    title: `orbiter's suggestion (${TIER_NAME[tier]}${variants.length > 1 ? `, ${variant.label}` : ""})`,
+    title: `MyOrbiter's suggestion (${TIER_NAME[tier]}${variants.length > 1 ? `, ${variant.label}` : ""})`,
     mods,
     polarities: {
       mods: pols,
@@ -1464,28 +1464,28 @@ function noteFor(item: CatalogItem, kind: GearKind, tier: Tier, info: FrameInfo 
     tier === "low" ? `New player: basic mods only, no ${doubler}, no Forma: ${s.capacity.max} capacity.`
     : `${TIER_NAME[tier]}${tier === "medium" ? " (no Primed, Archon or Umbral mods, no shards)" : ""}: with an ${doubler}${s.forma ? `, ${s.forma} Forma${s.umbraForma ? ` (${s.umbraForma} Umbra)` : ""}` : ""}${s.adapters?.exilus ? ", an Exilus Adapter" : ""}${s.adapters?.arcane ? " and an Arcane Adapter" : ""}: ${s.capacity.max} capacity.`;
   if (kind === "warframe" && info) {
-    parts.push(`orbiter's suggestion: a starting point from ${item.name}'s usual role (${info.roles.join(" and ")}) in orbiter's curated table, not from a player's build.${info.guess ? " orbiter knows this frame only from its ability text, so treat the role as a guess." : ""}`);
+    parts.push(`MyOrbiter's suggestion: a starting point from ${item.name}'s usual role (${info.roles.join(" and ")}) in MyOrbiter's curated table, not from a player's build.${info.guess ? " MyOrbiter knows this frame only from its ability text, so treat the role as a guess." : ""}`);
     parts.push("Not everything is numbers: how often you cast decides the energy mods, and where you fight decides knockdown protection.");
-    if (Array.isArray(item.aura as unknown)) parts.push(`${item.name} has a second aura slot; orbiter's builds hold one aura for now, so put any other aura you hold there for more capacity.`);
+    if (Array.isArray(item.aura as unknown)) parts.push(`${item.name} has a second aura slot; MyOrbiter's builds hold one aura for now, so put any other aura you hold there for more capacity.`);
     if (info.roles.includes("strength")) parts.push("Players often swap a strength mod for range or duration once they know which ability they lean on.");
     else parts.push("Players often trade a utility mod for more survivability on harder missions.");
   } else if (cls) {
     const what = { crit: "crit-focused", status: "status-focused", hybrid: "a crit and status hybrid", base: "neither crit nor status heavy, so it leans on raw damage and elements" }[focus];
-    parts.push(`orbiter's suggestion: a starting point from ${item.name}'s stats (${statusLine(item)}: ${what}), with the core most players run.`);
+    parts.push(`MyOrbiter's suggestion: a starting point from ${item.name}'s stats (${statusLine(item)}: ${what}), with the core most players run.`);
     parts.push("Elements default to Viral and Heat for general use; against armoured Grineer, players often swap Heat for Electricity to make Corrosive with the Toxin, or run Corrosive outright.");
-    if (cls === "melee" && kind === "melee" && !meleeClass) parts.push("orbiter can't tell this weapon's class, so pick any stance you hold for it: it adds capacity.");
+    if (cls === "melee" && kind === "melee" && !meleeClass) parts.push("MyOrbiter can't tell this weapon's class, so pick any stance you hold for it: it adds capacity.");
     if (cls === "melee") parts.push("Heavy-attack players swap Blood Rush and Weeping Wounds for heavy-attack mods.");
-    if (kind === "companionWeapon") parts.push("Companion weapons take the mods of what they are; orbiter reads that from the weapon's game path.");
+    if (kind === "companionWeapon") parts.push("Companion weapons take the mods of what they are; MyOrbiter reads that from the weapon's game path.");
   } else if (kind === "necramech") {
-    parts.push(`orbiter's suggestion: a simple Necramech template (survival first, then abilities), not from a player's build.`);
+    parts.push(`MyOrbiter's suggestion: a simple Necramech template (survival first, then abilities), not from a player's build.`);
   } else if (kind === "companion") {
-    parts.push("orbiter's suggestion: a simple companion template (loot and survival); players often add the precepts their companion is known for.");
+    parts.push("MyOrbiter's suggestion: a simple companion template (loot and survival); players often add the precepts their companion is known for.");
   } else {
-    parts.push("orbiter's suggestion: a simple archwing template, flight speed and survival first.");
+    parts.push("MyOrbiter's suggestion: a simple archwing template, flight speed and survival first.");
   }
   parts.push(invest);
   const empty = s.mods.filter((m) => !m).length;
-  if (empty) parts.push(capacityBound ? `${empty} of ${layout.mods} slots left empty: ${s.capacity.max} capacity runs out first.` : `${empty} of ${layout.mods} slots left empty: you don't hold a mod orbiter would put there; see the upgrades.`);
+  if (empty) parts.push(capacityBound ? `${empty} of ${layout.mods} slots left empty: ${s.capacity.max} capacity runs out first.` : `${empty} of ${layout.mods} slots left empty: you don't hold a mod MyOrbiter would put there; see the upgrades.`);
   return parts.join(" ");
 }
 
@@ -1574,7 +1574,7 @@ const baseName = (name: string) => name.replace(/\s+(Prime|Umbra)$/, "");
 
 /**
  * The elements a frame's kit deals, in ability order: from the catalog's ability text tags
- * (<DT_*_COLOR>), else from orbiter's curated list for frames the text doesn't tag (Ember, Gyre).
+ * (<DT_*_COLOR>), else from MyOrbiter's curated list for frames the text doesn't tag (Ember, Gyre).
  */
 export function kitElements(item: CatalogItem): KitElement[] {
   const abilities = ((item as { abilities?: { name?: string; description?: string }[] }).abilities ?? []).filter((a) => a.description);
@@ -1690,7 +1690,7 @@ function helminthPick(item: CatalogItem, tier: Tier, held: Held | null): Loadout
   const hard = hardDonorOf(h.ability);
   if (hard && tier !== "high") return null;
   // The base frame (never a Prime) is what gets subsumed. Held: you can do it now. Not held: you
-  // may have already, and orbiter can't see the Helminth until TennoScope reads it.
+  // may have already, and MyOrbiter can't see the Helminth until TennoScope reads it.
   const canFeed = !!(held && h.fromPath && (held.get(h.fromPath) ?? 0) > 0);
   const donor = h.from ? ` It comes from a base ${h.from} (not a Prime) fed to the Helminth${canFeed ? ", and you hold one" : ""}.` : " It's one of the Helminth's own abilities.";
   const hardNote = hard ? ` Veteran: ${hard.why}.` : "";
@@ -1945,7 +1945,7 @@ function setNote(item: CatalogItem, info: FrameInfo): string {
 
 /**
  * The loadout around a warframe suggestion at a tier, or null for anything else. `held` is the
- * whole inventory (heldFrom); without it, what orbiter can't check is `owned: null`.
+ * whole inventory (heldFrom); without it, what MyOrbiter can't check is `owned: null`.
  */
 export function loadoutFor(item: CatalogItem, tier: Tier, owned: Owned, index: ModIndex, held: Held | null = null): Loadout | null {
   if (gearKindOf(item) !== "warframe") return null;
@@ -1958,7 +1958,7 @@ export function loadoutFor(item: CatalogItem, tier: Tier, owned: Owned, index: M
     arcanes: arcanePicks(info, tier, owned, index),
     companion: companionLoadout(info, tier, owned, held, index),
     focus: focusPick(info),
-    note: `orbiter's suggestion around the build: facts read by hand on the page each pick names (orbiter doesn't fetch them); which pick suits which frame is orbiter's own rule. Archon Shards are always Tauforged.${setNote(item, info)}`,
+    note: `MyOrbiter's suggestion around the build: facts read by hand on the page each pick names (MyOrbiter doesn't fetch them); which pick suits which frame is MyOrbiter's own rule. Archon Shards are always Tauforged.${setNote(item, info)}`,
     element: shardElement(item) ?? els[0] ?? null,
     primer: primerPicks(item, info, tier, owned, held, index),
     sets: setPicks(item, info, tier, owned, held, index),
@@ -1978,7 +1978,7 @@ export function loadoutItems(): Named[] {
 
 // ---------------------------------------------------------------- the switch to ./types's Build
 
-/** The suggestion as a plain Build for `settings.builds` (drops orbiter's own extra fields). */
+/** The suggestion as a plain Build for `settings.builds` (drops MyOrbiter's own extra fields). */
 export function toBuild(s: Suggestion, now = Date.now()): Build {
   const b: Build = {
     id: s.id,

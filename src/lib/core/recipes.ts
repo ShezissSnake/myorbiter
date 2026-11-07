@@ -5,7 +5,7 @@
 // The numbers are the Warframe Wiki's (Module:Modular/data and the Amp, Predasite and Vulpaphyla
 // pages), shipped beside the app as public/data/wiki/modular-parts*.json under their own licence
 // (CC BY-NC-SA 3.0, see LICENSE.md there) and read at start (wikiData.ts), never compiled in;
-// orbiter never fetches the wiki. The ranking is orbiter's own, from
+// MyOrbiter never fetches the wiki. The ranking is MyOrbiter's own, from
 // those part stats, with the simple formulas written out below. It isn't "the meta", and the UI
 // says so (RANKING_LABEL).
 //
@@ -17,7 +17,7 @@ import research from "../data/acquisition.json";
 import { heldCount, type Model } from "./model";
 import type { GearCopy } from "./notNeeded";
 
-export const RANKING_LABEL = "orbiter's ranking from part stats";
+export const RANKING_LABEL = "MyOrbiter's ranking from part stats";
 
 // ---------------------------------------------------------------------------------------------
 // The bundled data, typed.
@@ -153,7 +153,7 @@ export interface RecipeResult {
   label: typeof RANKING_LABEL;
   /** How the identifying part is got (acquisition.json), when researched. */
   how: string | null;
-  /** Companions: the precepts its model or subspecies brings, and orbiter's role for it. */
+  /** Companions: the precepts its model or subspecies brings, and MyOrbiter's role for it. */
   precepts?: string[];
   role?: string;
   /** Amps: whether the prism's fire mode suits the goal, in words. */
@@ -169,7 +169,7 @@ export interface Holdings {
   gear?: GearCopy[] | null;
 }
 
-/** Holdings from orbiter's model: inventory rows by path, plus what's building in the foundry. */
+/** Holdings from MyOrbiter's model: inventory rows by path, plus what's building in the foundry. */
 export function holdingsOf(m: Model): Holdings {
   return { held: (u) => heldCount(m, u) + m.building(u), gear: m.gear };
 }
@@ -212,7 +212,7 @@ function items(): RecipeItem[] {
   return itemsMemo.items;
 }
 
-/** Every item orbiter has recipes for. */
+/** Every item MyOrbiter has recipes for. */
 export function recipeItems(): RecipeItem[] {
   // The wiki's file didn't load (it's read at start): no recipes rather than a broken page.
   if (!wikiData()) return [];
@@ -500,7 +500,7 @@ function zawScored(z: ZawStats, goal: string): Scored {
   }
 }
 
-/** orbiter's reading of each scaffold's fire mode (from the Amp page's words): area, or one target. */
+/** MyOrbiter's reading of each scaffold's fire mode (from the Amp page's words): area, or one target. */
 const SCAFFOLD_AREA: Record<string, boolean> = { Pencha: false, Klebrik: false, Shraksun: true, Phahd: true, Exard: true, Dissic: true, Propa: true };
 /** And each prism's: precise long-range fire suits single targets, the rest crowds. */
 const PRISM_AREA: Record<string, boolean> = { Raplak: false, Rahn: false, Cantic: false, Shwaak: true, Granmu: true, Lega: true, Klamora: true };
@@ -550,7 +550,7 @@ function durableScored(health: number, shield: number, armor: number, goal: stri
   }
 }
 
-/** orbiter's role for each Predasite and Vulpaphyla, from what the pages say its precepts do. */
+/** MyOrbiter's role for each Predasite and Vulpaphyla, from what the pages say its precepts do. */
 const CREATURE_ROLE: Record<string, string> = {
   Vizier: "Support: heals you (Iatric Mycelium) and corrodes and blinds (Acidic Spittle)",
   Medjay: "Crowd control: slows and opens enemies to finishers (Paralytic Spores)",
@@ -637,7 +637,7 @@ function houndCombos(item: RecipeItem, goal: string, h: Holdings): Raw[] {
   for (const [cn, c] of Object.entries(modular().Hound.Core)) {
     for (const [bn, b] of Object.entries(modular().Hound.Bracket)) {
       for (const [sn, s] of Object.entries(modular().Hound.Stabilizer)) {
-        // The core gives flat health, shields and armor; orbiter's estimate applies the bracket's
+        // The core gives flat health, shields and armor; MyOrbiter's estimate applies the bracket's
         // percentages to them.
         const hp = (c.Health ?? 0) * (1 + (b.Health ?? 0));
         const sh = (c.Shield ?? 0) * (1 + (b.Shield ?? 0));
@@ -663,7 +663,7 @@ function creatureCombos(item: RecipeItem, goal: string, h: Holdings): Raw[] {
   const kind = item.family === "predasite" ? "Predasite" : "Vulpaphyla";
   const data = extra()[kind];
   const out: Raw[] = [];
-  // The subspecies is caught (Conservation), not held as a part: orbiter can't see a Weakened one.
+  // The subspecies is caught (Conservation), not held as a part: MyOrbiter can't see a Weakened one.
   const sub: RecipePart = {
     role: "subspecies", name: item.key, unique: null, blueprint: null, held: 0, blueprints: 0, status: "missing", identifying: true,
     where: `Catch a Weakened ${item.name} by Conservation in the Cambion Drift (Deimos), once Infested have weakened it`,
@@ -709,18 +709,18 @@ export interface RecipeOptions {
 const GAPS = (): Record<RecipeFamily, string[]> => ({
   kitgun: ["Mods, falloff and status damage aren't counted: the numbers compare parts, not a finished build."],
   zaw: ["Slide, wall and leap attack multipliers aren't applied; grip and link damage is shared across the strike's damage types in proportion."],
-  amp: [extra().Amp._gaps, "Scaffolds are read as area or single-target from the page's words; that reading is orbiter's."],
+  amp: [extra().Amp._gaps, "Scaffolds are read as area or single-target from the page's words; that reading is MyOrbiter's."],
   moa: ["Core and gyro bonuses are fractions of the MOA's base stats, which the data doesn't give."],
-  hound: ["Health, shields and armor apply the bracket's percentages to the core's values: orbiter's estimate.", "Precept effects aren't in the data."],
-  predasite: [extra().Predasite._gaps, "orbiter can't see a caught Weakened subspecies in your inventory."],
-  vulpaphyla: [extra().Vulpaphyla._gaps, "orbiter can't see a caught Weakened subspecies in your inventory."],
+  hound: ["Health, shields and armor apply the bracket's percentages to the core's values: MyOrbiter's estimate.", "Precept effects aren't in the data."],
+  predasite: [extra().Predasite._gaps, "MyOrbiter can't see a caught Weakened subspecies in your inventory."],
+  vulpaphyla: [extra().Vulpaphyla._gaps, "MyOrbiter can't see a caught Weakened subspecies in your inventory."],
 });
 
 /**
  * Every combination of parts for a modular item, with its stats, ranked for a goal, and what you
  * hold of each part. `itemPathOrName` is the identifying part: a kitgun chamber, zaw strike, amp
  * prism, MOA or Hound model, or Predasite or Vulpaphyla subspecies, by path or name. `goal` is one of
- * goalsFor(item) (the first when unknown or left out). `inventory` is orbiter's model, or any
+ * goalsFor(item) (the first when unknown or left out). `inventory` is MyOrbiter's model, or any
  * Holdings; null ranks without ownership.
  *
  * Sorted by the goal's keys (higher first), then by fewest parts still missing, then by name.

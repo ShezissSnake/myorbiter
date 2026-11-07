@@ -1,4 +1,4 @@
-// What orbiter offers to sell: keep rules, sets before loose parts, duplicate maxed arcanes,
+// What MyOrbiter offers to sell: keep rules, sets before loose parts, duplicate maxed arcanes,
 // relic value per crack.
 import { test } from "node:test";
 import assert from "node:assert/strict";

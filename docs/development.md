@@ -1,4 +1,4 @@
-# Running orbiter from source
+# Running MyOrbiter from source
 
 ## What you need
 
@@ -67,7 +67,7 @@ yet. `npm test` checks that every icon `tauri.conf.json` lists is there and squa
 ## A release-style AppImage on your own PC
 
 `scripts/build-local.sh` builds the Linux AppImage the way the release workflow's Linux job does:
-Tesseract put inside TennoScope, TennoScope's own AppImage, orbiter's with TennoScope inside it,
+Tesseract put inside TennoScope, TennoScope's own AppImage, MyOrbiter's with TennoScope inside it,
 and the same repack step (`scripts/repack-appimage.sh`). Use it to try a build without spending
 Actions minutes. It is made for Arch Linux and CachyOS; install what it needs once:
 
@@ -75,12 +75,12 @@ Actions minutes. It is made for Arch Linux and CachyOS; install what it needs on
 sudo pacman -S --needed base-devel rust clang pnpm nodejs npm libpipewire webkit2gtk-4.1 tesseract tesseract-data-eng patchelf xdg-utils
 ```
 
-Then, from orbiter's folder:
+Then, from MyOrbiter's folder:
 
 ```fish
 scripts/build-local.sh --check                  # only check the tools are there
 scripts/build-local.sh                          # the whole build (TennoScope first; a long first run)
-scripts/build-local.sh --skip-tennoscope        # orbiter only, reusing the last TennoScope
+scripts/build-local.sh --skip-tennoscope        # MyOrbiter only, reusing the last TennoScope
 scripts/build-local.sh --version 0.2.900        # carry a version of your choice
 ```
 
@@ -93,22 +93,22 @@ release builds.
 ## On your desktop (KDE, GNOME, Hyprland)
 
 ```fish
-scripts/install-desktop.sh               # build, then add orbiter to your app menu
+scripts/install-desktop.sh               # build, then add MyOrbiter to your app menu
 scripts/install-desktop.sh --no-build    # install the last build again
 scripts/install-desktop.sh --uninstall
 ```
 
-This puts the program in `~/.local/bin`, its icon in your icon theme folder and `orbiter.desktop` in
+This puts the program in `~/.local/bin`, its icon in your icon theme folder and `myorbiter.desktop` in
 `~/.local/share/applications`, all in your home folder. That entry is what gives the window its icon
 in the taskbar, dock or Waybar: on Wayland the desktop matches a window to its launcher entry by app
-id, and orbiter's is `orbiter`. A window from `npm run tauri dev` picks the icon up too once it's
+id, and MyOrbiter's is `myorbiter`. A window from `npm run tauri dev` picks the icon up too once it's
 installed. The installed program carries no TennoScope, so point Settings → TennoScope at one.
 
 ## Testing the updater locally
 
 The `e2e-updater` Cargo feature is never used for a release: the release workflow's Linux and
 Windows jobs fail a build whose binary carries it. It lets a local build take
-`ORBITER_UPDATER_E2E_ENDPOINT` (a `http://127.0.0.1:…` manifest) and `ORBITER_UPDATER_E2E_PUBKEY`
+`MYORBITER_UPDATER_E2E_ENDPOINT` (a `http://127.0.0.1:…` manifest) and `MYORBITER_UPDATER_E2E_PUBKEY`
 (a test key's public key). So two local builds signed with a throwaway key can update one into the
-other against a local server. `ORBITER_UPDATER_E2E_AUTO=1` makes it check, install and restart by
+other against a local server. `MYORBITER_UPDATER_E2E_AUTO=1` makes it check, install and restart by
 itself, printing each step, for a run with no window to click in.

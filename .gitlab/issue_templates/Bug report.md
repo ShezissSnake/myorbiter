@@ -14,7 +14,7 @@ _Written by the person reporting (optional)._
 
 ### Technical details
 
-_Filled in by orbiter's Report a bug on the reporter's computer, which they could read and edit before sending: version, system, page, TennoScope's state and the log's last lines, with sign-ins, addresses, ids and players' names hidden. Shown as plain text._
+_Filled in by MyOrbiter's Report a bug on the reporter's computer, which they could read and edit before sending: version, system, page, TennoScope's state and the log's last lines, with sign-ins, addresses, ids and players' names hidden. Shown as plain text._
 
 ```text
 ```

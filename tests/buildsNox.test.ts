@@ -1,4 +1,4 @@
-// Nox's Frame (src/lib/core/builds/noxsframe.ts): mapping its builds to orbiter's, reading only on
+// Nox's Frame (src/lib/core/builds/noxsframe.ts): mapping its builds to MyOrbiter's, reading only on
 // demand, the permission gate, pasted build codes, and the setting.
 //
 // tests/fixtures/noxsframe/read.json is what the Rust side reads from the saved pages beside it
@@ -69,7 +69,7 @@ const decode = async (code: string) => JSON.parse(inflateSync(Buffer.from(code.r
 
 // ---------------------------------------------------------------- mapping
 
-test("a Nox's Frame warframe build becomes orbiter's, with what it can't carry over in the note", () => {
+test("a Nox's Frame warframe build becomes MyOrbiter's, with what it can't carry over in the note", () => {
   const got = noxToBuild(READ.mirage.build, CAT.get(MIRAGE)!, CAT, { page: READ.mirage, now: NOW })!;
   const b = got.build;
   assert.equal(b.kind, "warframe");
@@ -86,7 +86,7 @@ test("a Nox's Frame warframe build becomes orbiter's, with what it can't carry o
   assert.equal(b.stance, undefined, "frames have no stance");
   assert.equal(b.mods.length, 8);
   assert.deepEqual(b.mods[0], { path: "/Lotus/Upgrades/Mods/Warframe/AvatarInvulnOnRollMod", rank: 10 });
-  assert.equal(b.mods[6], null, "a mod orbiter's catalog lacks is left empty…");
+  assert.equal(b.mods[6], null, "a mod MyOrbiter's catalog lacks is left empty…");
   assert.ok(got.notes.some((n) => n.includes("WarframeUmbraModC") && n.startsWith("Slot 7")), "…and said in the note");
   assert.equal(b.polarities?.aura, "madurai");
   assert.deepEqual(b.polarities?.mods, ["vazarin", "naramon", "naramon", "madurai", "madurai", "naramon", null, "vazarin"]);
@@ -94,7 +94,7 @@ test("a Nox's Frame warframe build becomes orbiter's, with what it can't carry o
   assert.equal(b.shards.length, 5);
   assert.deepEqual(b.shards[0], { colour: "violet", tauforged: false });
   assert.ok(got.notes.some((n) => n.includes("violet #2")), "shard stats are kept as Nox's numbers, not named");
-  assert.equal(b.helminth, undefined, "a Helminth ability orbiter can't name isn't guessed");
+  assert.equal(b.helminth, undefined, "a Helminth ability MyOrbiter can't name isn't guessed");
   assert.ok(got.notes.some((n) => n.includes('"BrokenRotAbility" replaces Sleight Of Hand')), "the slot it replaces is named from the catalog");
   assert.equal(b.catalyst, true);
   assert.ok(got.notes.some((n) => n.includes("Forma budget set on Nox's Frame: 5")));

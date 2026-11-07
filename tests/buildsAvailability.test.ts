@@ -121,7 +121,7 @@ test("the data file: corrupted mods and overrides name real mods, every override
     assert.ok(["new", "intermediate", "veteran"].includes(o.level), k);
     assert.ok(o.why && o.source, `${k}: why and source`);
   }
-  for (const [k, s] of Object.entries(d.sources)) assert.ok(/^https:\/\//.test(s) || /^orbiter's rule/.test(s), `${k}: ${s}`);
+  for (const [k, s] of Object.entries(d.sources)) assert.ok(/^https:\/\//.test(s) || /^MyOrbiter's rule/.test(s), `${k}: ${s}`);
 });
 
 const hasBundle = existsSync(new URL("../public/dev-bundle.json", import.meta.url));

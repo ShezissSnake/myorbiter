@@ -50,7 +50,7 @@ class Rivens {
 
   // ------------------------------------------------------------ the price model
 
-  /** orbiter's riven price model (core/rivenModel.ts), loaded when the Rivens page first wants it. */
+  /** MyOrbiter's riven price model (core/rivenModel.ts), loaded when the Rivens page first wants it. */
   model = $state.raw<RivenModel | null>(null);
   private modelLoad: Promise<void> | null = null;
   loadModel() {

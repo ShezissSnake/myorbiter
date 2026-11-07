@@ -1,6 +1,6 @@
 //! warframe.market account access: sign-in, your sell orders, order books.
 //!
-//! orbiter keeps its own sign-in and never reads the token TennoScope stores. The token lives in
+//! MyOrbiter keeps its own sign-in and never reads the token TennoScope stores. The token lives in
 //! the system keyring (KWallet / GNOME Keyring through the Secret Service) and is renewed from
 //! the `Authorization` header warframe.market sends back on use.
 //!
@@ -16,14 +16,16 @@ use std::time::{Duration, Instant};
 const V1: &str = "https://api.warframe.market/v1";
 const V2: &str = "https://api.warframe.market/v2";
 pub(crate) const MIN_GAP: Duration = Duration::from_millis(400);
-const KEYRING_SERVICE: &str = "dev.orbiter.app";
+// The bundle identifier before the rename (datamove.rs), kept here: a new name would lose the sign-in
+// the keyring already holds under this one.
+const KEYRING_SERVICE: &str = crate::datamove::OLD_ID;
 const KEYRING_USER: &str = "warframe.market";
-/// How orbiter introduces itself to warframe.market, on the API and on the status socket alike.
+/// How MyOrbiter introduces itself to warframe.market, on the API and on the status socket alike.
 pub const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"), " (personal order helper; +https://gitlab.com/sheziss-group/orbiter)");
 
 static LAST_CALL: Mutex<Option<Instant>> = Mutex::new(None);
 
-/// Which platform's market orbiter reads and lists on: "pc", "xbox", "ps4", "switch" or "mobile"
+/// Which platform's market MyOrbiter reads and lists on: "pc", "xbox", "ps4", "switch" or "mobile"
 /// (warframe.market's names). Set from Settings, or from your signed-in profile.
 static PLATFORM: std::sync::RwLock<&'static str> = std::sync::RwLock::new("pc");
 pub const PLATFORMS: [&str; 5] = ["pc", "xbox", "ps4", "switch", "mobile"];
@@ -82,7 +84,7 @@ fn write_turn() {
     let mut sent = WRITES.lock().unwrap_or_else(|e| e.into_inner());
     let wait = write_wait(&sent, Instant::now());
     if !wait.is_zero() {
-        log::info!(target: "orbiter::market", "{WRITES_PER_MINUTE} changes this minute: waiting {} s", wait.as_secs());
+        log::info!(target: "myorbiter::market", "{WRITES_PER_MINUTE} changes this minute: waiting {} s", wait.as_secs());
         std::thread::sleep(wait);
     }
     let now = Instant::now();
@@ -164,7 +166,7 @@ fn json_body(mut body: impl std::io::Read) -> Result<Value, MarketError> {
 fn get_json(url: &str, timeout: u64) -> Result<Value, MarketError> {
     let result = get_json_once(url, timeout);
     if let Err(e) = &result {
-        log::warn!(target: "orbiter::market", "GET {}: {e}", log_path(url));
+        log::warn!(target: "myorbiter::market", "GET {}: {e}", log_path(url));
     }
     result
 }
@@ -266,7 +268,7 @@ pub enum MarketError {
     RateLimited,
     Rejected(String),
     Unreachable(String),
-    /// warframe.market answered, but not in a shape orbiter can read (a changed API, a block page
+    /// warframe.market answered, but not in a shape MyOrbiter can read (a changed API, a block page
     /// served as 200): not the same as the site being down. Like every variant here it reaches
     /// the page as text (`blocking` in lib.rs); no code branches on Unreachable or Unexpected.
     Unexpected(String),
@@ -282,7 +284,7 @@ impl std::fmt::Display for MarketError {
             MarketError::RateLimited => write!(f, "warframe.market asked to slow down; try again in a minute"),
             MarketError::Rejected(d) => write!(f, "warframe.market rejected the request: {d}"),
             MarketError::Unreachable(d) => write!(f, "warframe.market is unreachable: {d}"),
-            MarketError::Unexpected(d) => write!(f, "warframe.market answered with something orbiter couldn't read: {d}"),
+            MarketError::Unexpected(d) => write!(f, "warframe.market answered with something MyOrbiter couldn't read: {d}"),
             MarketError::Storage(d) => write!(f, "couldn't keep the warframe.market sign-in: {d}"),
         }
     }
@@ -371,9 +373,9 @@ impl Client {
         };
         // The log: every change, and every request that failed (method and path, never the sign-in).
         match &result {
-            Ok(_) if method != "GET" => log::info!(target: "orbiter::market", "{method} {}: ok", log_path(url)),
+            Ok(_) if method != "GET" => log::info!(target: "myorbiter::market", "{method} {}: ok", log_path(url)),
             Ok(_) => {}
-            Err(e) => log::warn!(target: "orbiter::market", "{method} {}: {e}", log_path(url)),
+            Err(e) => log::warn!(target: "myorbiter::market", "{method} {}: {e}", log_path(url)),
         }
         result
     }
@@ -618,7 +620,7 @@ impl Client {
         };
         let order: Order = serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unexpected(e.to_string()))?;
         // What went up, beside the request line: the window logs why ("[listing]" lines).
-        log::info!(target: "orbiter::market", "{}", created_line(&order.id, new, kind));
+        log::info!(target: "myorbiter::market", "{}", created_line(&order.id, new, kind));
         Ok(order)
     }
 
@@ -641,7 +643,7 @@ impl Client {
             body.insert("visible".into(), v.into());
         }
         self.call("PATCH", &format!("{V2}/order/{id}"), Some(&Value::Object(body)), true)?;
-        log::info!(target: "orbiter::market", "{}", changed_line(id, change));
+        log::info!(target: "myorbiter::market", "{}", changed_line(id, change));
         Ok(())
     }
 
@@ -962,7 +964,7 @@ fn needs_stars(rejection: &str) -> bool {
 
 /**
  * Adds to a new listing the fields warframe.market's rejection asks for, with the answers
- * orbiter always gives: one per trade, so a buyer can take any number, and no stars, since
+ * MyOrbiter always gives: one per trade, so a buyer can take any number, and no stars, since
  * the sculptures you sell spare come from missions empty (stars are listed on their own).
  * False when there was nothing new to add, so the rejection stands.
  */
@@ -1009,7 +1011,7 @@ fn keep(path: &Path, value: &Value) {
     }
 }
 
-/// warframe.market's thumbnail for an item, as orbiter's image cache names it ("wfm." and the file
+/// warframe.market's thumbnail for an item, as MyOrbiter's image cache names it ("wfm." and the file
 /// name): only plain names under its thumbnail folder, else null.
 fn thumb_name(v: &Value) -> Value {
     v.as_str()
@@ -1018,7 +1020,7 @@ fn thumb_name(v: &Value) -> Value {
         .map_or(Value::Null, |f| Value::String(format!("wfm.{f}")))
 }
 
-/// `/v2/items`, trimmed to what orbiter needs and cached for a day.
+/// `/v2/items`, trimmed to what MyOrbiter needs and cached for a day.
 pub fn items(cache_dir: &Path) -> Result<Value, MarketError> {
     let path = cache_dir.join("market-items.json");
     let fresh = std::fs::metadata(&path)
@@ -1119,7 +1121,7 @@ pub fn riven_meta(cache_dir: &Path) -> Result<Value, MarketError> {
 
 impl Client {
     /// Rivens for sale for a weapon with these stats, cheapest buyout first (v1 auctions: there's
-    /// no v2 equivalent yet). Trimmed to what orbiter shows.
+    /// no v2 equivalent yet). Trimmed to what MyOrbiter shows.
     pub fn riven_auctions(&self, weapon: &str, positive: &[String], negative: Option<&str>) -> Result<Value, MarketError> {
         if !plain_slug(weapon) || positive.iter().any(|p| !plain_slug(p)) || negative.is_some_and(|n| !plain_slug(n)) {
             return Err(MarketError::Rejected("not a riven search".into()));
@@ -1187,7 +1189,7 @@ mod tests {
         // JSON, but not a profile.
         let e = profile_of(serde_json::json!({ "data": { "nothing": "like a profile" } })).unwrap_err();
         assert!(matches!(e, MarketError::Unexpected(_)));
-        assert!(e.to_string().starts_with("warframe.market answered with something orbiter couldn't read"));
+        assert!(e.to_string().starts_with("warframe.market answered with something MyOrbiter couldn't read"));
     }
 
     #[test]
@@ -1322,7 +1324,7 @@ mod tests {
 
     #[test]
     fn a_renewed_token_never_outlives_a_sign_out() {
-        let dir = std::env::temp_dir().join(format!("orbiter-renew-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("myorbiter-renew-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let c = Client::offline_in(&dir);
         c.store.save("old").unwrap();
@@ -1342,7 +1344,7 @@ mod tests {
     #[test]
     fn the_fallback_token_file_is_private_and_whole() {
         use std::os::unix::fs::PermissionsExt;
-        let dir = std::env::temp_dir().join(format!("orbiter-token-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("myorbiter-token-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("market-token");
@@ -1419,7 +1421,7 @@ mod tests {
         assert_eq!(v[0].user.status.as_deref(), Some("ingame"));
     }
 
-    /// Hits the network: `cargo test -p orbiter -- --ignored`.
+    /// Hits the network: `cargo test -p myorbiter -- --ignored`.
     #[test]
     #[ignore]
     fn fetches_a_live_order_book() {
@@ -1430,7 +1432,7 @@ mod tests {
 }
 
 /// Fuzzing warframe.market's answers: random JSON, and real shapes with fields swapped for
-/// junk, through every parser. Never a panic; a closed order (a sale orbiter would import) only
+/// junk, through every parser. Never a panic; a closed order (a sale MyOrbiter would import) only
 /// with a real id, item, quantity and price.
 #[cfg(test)]
 mod fuzz {

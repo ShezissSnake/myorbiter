@@ -1,4 +1,4 @@
-//! In-app updates, from the package registry of orbiter's repository on gitlab.com.
+//! In-app updates, from the package registry of MyOrbiter's repository on gitlab.com.
 //!
 //! Every build CI makes is published (.gitlab-ci.yml) with its files in the registry's
 //! `orbiter/0.2.<n>/` folder, an updater manifest (`latest.json`) among them, and a release
@@ -10,7 +10,7 @@
 //! the page asks, after the plugin has checked its signature against the public key in
 //! tauri.conf.json.
 //!
-//! Where an update can go depends on how orbiter was installed (`Install`): an AppImage replaces
+//! Where an update can go depends on how MyOrbiter was installed (`Install`): an AppImage replaces
 //! its own file, the Windows installer runs in passive mode, while a .deb or .rpm, a development
 //! build and the macOS build leave updating to the package manager or to a download by hand.
 
@@ -58,7 +58,7 @@ pub fn endpoints(channel: Channel) -> Vec<String> {
 
 /// Where the check goes. A normal build only ever asks `endpoints(channel)`; a build made with the
 /// `e2e-updater` feature (never one CI ships, see ci/build.sh's check) may be pointed at a local
-/// server by `ORBITER_UPDATER_E2E_ENDPOINT` (and given the test's key, `e2e::apply`), for the
+/// server by `MYORBITER_UPDATER_E2E_ENDPOINT` (and given the test's key, `e2e::apply`), for the
 /// end-to-end test of the update itself.
 fn check_urls(channel: Channel) -> Vec<String> {
     #[cfg(feature = "e2e-updater")]
@@ -99,13 +99,13 @@ pub fn may_install(current: &semver::Version, remote: &semver::Version, older: b
     }
 }
 
-/// How this copy of orbiter was installed, and so whether it can update itself.
+/// How this copy of MyOrbiter was installed, and so whether it can update itself.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "how", rename_all = "camelCase")]
 pub enum Install {
-    /// An AppImage in a folder orbiter may write to: the update replaces the file.
+    /// An AppImage in a folder MyOrbiter may write to: the update replaces the file.
     AppImage { path: String },
-    /// An AppImage in a folder orbiter can't write to: updates are checked, not installed.
+    /// An AppImage in a folder MyOrbiter can't write to: updates are checked, not installed.
     ReadOnly { folder: String },
     /// Installed with the Windows installer: the update runs the new installer (passive mode).
     Windows,
@@ -161,7 +161,7 @@ pub fn install_kind(debug: bool, os: &str, bundle: Option<BundleType>, appimage:
 
 /// Whether a file can be made in `folder` (and removed again): what replacing the AppImage takes.
 fn folder_writable(folder: &Path) -> bool {
-    let probe = folder.join(format!(".orbiter-update-check-{}", std::process::id()));
+    let probe = folder.join(format!(".myorbiter-update-check-{}", std::process::id()));
     match std::fs::OpenOptions::new().write(true).create_new(true).open(&probe) {
         Ok(_) => {
             let _ = std::fs::remove_file(&probe);
@@ -224,8 +224,8 @@ fn calm(what: &str, e: &tauri_plugin_updater::Error) -> String {
         E::TargetNotFound(_) | E::TargetsNotFound(_) => "this channel has no build for this system yet".into(),
         E::ReleaseNotFound => "GitLab had no update file for this channel".into(),
         E::Reqwest(_) | E::Network(_) => format!("couldn't reach GitLab to {what}"),
-        E::Io(io) if io.kind() == std::io::ErrorKind::PermissionDenied => "orbiter's file can't be replaced: its folder isn't writable".into(),
-        E::TempDirNotOnSameMountPoint => "orbiter couldn't make room to swap its file (no writable folder on the same drive)".into(),
+        E::Io(io) if io.kind() == std::io::ErrorKind::PermissionDenied => "MyOrbiter's file can't be replaced: its folder isn't writable".into(),
+        E::TempDirNotOnSameMountPoint => "MyOrbiter couldn't make room to swap its file (no writable folder on the same drive)".into(),
         _ => format!("couldn't {what}"),
     }
 }
@@ -259,7 +259,7 @@ async fn check(app: &AppHandle, pending: &Pending, channel: Channel) -> Result<C
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| "the update address is invalid".to_string())?;
     let started = Instant::now();
-    // On Windows the installer replaces files TennoScope runs from, and exits orbiter itself:
+    // On Windows the installer replaces files TennoScope runs from, and exits MyOrbiter itself:
     // TennoScope and the warframe.market status are closed first.
     let handle = app.clone();
     let updater = app
@@ -284,7 +284,7 @@ async fn check(app: &AppHandle, pending: &Pending, channel: Channel) -> Result<C
             let date = update.raw_json.get("pub_date").and_then(|d| d.as_str()).map(str::to_owned);
             let notes = update.body.clone();
             let version = remote.to_string();
-            log::info!(target: "orbiter::updates", "{}: {version} on offer (this is {current})", channel.name());
+            log::info!(target: "myorbiter::updates", "{}: {version} on offer (this is {current})", channel.name());
             let check = match offer(&current, &remote) {
                 Offer::Newer => Check::Newer { version, notes, date },
                 Offer::Older => Check::Older { version, notes, date },
@@ -299,7 +299,7 @@ async fn check(app: &AppHandle, pending: &Pending, channel: Channel) -> Result<C
         }
         Err(e) => {
             // One calm line: while the repository is private, or offline, every check ends here.
-            log::info!(target: "orbiter::updates", "{} check failed after {} ms: {e}", channel.name(), started.elapsed().as_millis());
+            log::info!(target: "myorbiter::updates", "{} check failed after {} ms: {e}", channel.name(), started.elapsed().as_millis());
             Err(calm("check for updates", &e))
         }
     }
@@ -307,8 +307,8 @@ async fn check(app: &AppHandle, pending: &Pending, channel: Channel) -> Result<C
 
 /// Downloads and installs the build the last check found on `channel`, if it is `version`.
 /// `older`: the click named an older build (switching to a more stable channel). Progress goes
-/// to `progress`. On Linux the AppImage is replaced and the page then restarts orbiter (the
-/// process plugin); on Windows the installer takes over and orbiter exits.
+/// to `progress`. On Linux the AppImage is replaced and the page then restarts MyOrbiter (the
+/// process plugin); on Windows the installer takes over and MyOrbiter exits.
 #[tauri::command]
 pub async fn updates_install(
     app: AppHandle,
@@ -328,10 +328,10 @@ async fn install(app: &AppHandle, pending: &Pending, channel: Channel, version: 
     let install = this_install(app);
     if !install.installs() {
         return Err(match install {
-            Install::ReadOnly { folder } => format!("orbiter can't replace its own file: {folder} isn't writable. Move the AppImage to a folder you own, or download the new one by hand"),
+            Install::ReadOnly { folder } => format!("MyOrbiter can't replace its own file: {folder} isn't writable. Move the AppImage to a folder you own, or download the new one by hand"),
             Install::Package => "updates come from your package manager".into(),
             Install::Dev => "updates aren't available in dev builds".into(),
-            _ => "this copy of orbiter can't update itself".into(),
+            _ => "this copy of MyOrbiter can't update itself".into(),
         });
     }
     let update = {
@@ -351,7 +351,7 @@ async fn install(app: &AppHandle, pending: &Pending, channel: Channel, version: 
     if remote < current && !confirm_older(app, &current, &remote).await {
         return Err(format!("{remote} wasn't installed: the step back from {current} wasn't confirmed"));
     }
-    log::info!(target: "orbiter::updates", "installing {remote} from {} (was {current})", channel.name());
+    log::info!(target: "myorbiter::updates", "installing {remote} from {} (was {current})", channel.name());
     let mut done = 0u64;
     let mut last_sent = 0u64;
     let result = update
@@ -370,31 +370,31 @@ async fn install(app: &AppHandle, pending: &Pending, channel: Channel, version: 
         .await;
     match result {
         Ok(()) => {
-            log::info!(target: "orbiter::updates", "installed {remote}; restarting");
+            log::info!(target: "myorbiter::updates", "installed {remote}; restarting");
             // The restart that follows skips the usual exit: this start ended on purpose, not by
             // crashing, so the next one keeps the accelerated rendering (rendering.rs).
             crate::rendering::stood_up();
             Ok(())
         }
         Err(e) => {
-            log::warn!(target: "orbiter::updates", "installing {remote} failed: {e}");
+            log::warn!(target: "myorbiter::updates", "installing {remote} failed: {e}");
             Err(calm("install the update", &e))
         }
     }
 }
 
-/// Asks, in a native dialog over orbiter's window, whether to install `remote`, older than the
+/// Asks, in a native dialog over MyOrbiter's window, whether to install `remote`, older than the
 /// `current` build. False if the dialog is closed or can't be shown.
 async fn confirm_older(app: &AppHandle, current: &semver::Version, remote: &semver::Version) -> bool {
     use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
     let (app, text, yes, no) = (
         app.clone(),
-        format!("Install orbiter {remote}? It's older than the build running now, {current}. orbiter restarts into {remote}, and {current} is offered again only once its channel moves on."),
+        format!("Install MyOrbiter {remote}? It's older than the build running now, {current}. MyOrbiter restarts into {remote}, and {current} is offered again only once its channel moves on."),
         format!("Install {remote}"),
         format!("Keep {current}"),
     );
     tauri::async_runtime::spawn_blocking(move || {
-        let mut dialog = app.dialog().message(text).title("Install an older orbiter").kind(MessageDialogKind::Warning).buttons(MessageDialogButtons::OkCancelCustom(yes, no));
+        let mut dialog = app.dialog().message(text).title("Install an older MyOrbiter").kind(MessageDialogKind::Warning).buttons(MessageDialogButtons::OkCancelCustom(yes, no));
         if let Some(window) = app.get_webview_window("main") {
             dialog = dialog.parent(&window);
         }
@@ -412,7 +412,7 @@ pub fn setup(app: &AppHandle) {
     let _ = app;
 }
 
-/// The update plugin, set up for orbiter.
+/// The update plugin, set up for MyOrbiter.
 pub fn plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R, tauri_plugin_updater::Config> {
     tauri_plugin_updater::Builder::new().build()
 }
@@ -434,22 +434,22 @@ fn updater_config(config: serde_json::Value) -> serde_json::Value {
 }
 
 /// The end-to-end test's hooks. Compiled only with the `e2e-updater` feature, which no release
-/// build enables: ci/build.sh fails a build whose binary contains `ORBITER_UPDATER_E2E`.
+/// build enables: ci/build.sh fails a build whose binary contains `MYORBITER_UPDATER_E2E`.
 #[cfg(feature = "e2e-updater")]
 mod e2e {
     /// The test server's manifest (only a local plain-http address is taken).
     pub fn endpoint() -> Option<String> {
-        std::env::var("ORBITER_UPDATER_E2E_ENDPOINT").ok().filter(|u| u.parse::<tauri::Url>().is_ok_and(|p| p.scheme() == "http" && p.host_str() == Some("127.0.0.1") && p.username().is_empty() && p.password().is_none()))
+        std::env::var("MYORBITER_UPDATER_E2E_ENDPOINT").ok().filter(|u| u.parse::<tauri::Url>().is_ok_and(|p| p.scheme() == "http" && p.host_str() == Some("127.0.0.1") && p.username().is_empty() && p.password().is_none()))
     }
 
-    /// With the test server set: plain http allowed for it, and, when `ORBITER_UPDATER_E2E_PUBKEY`
+    /// With the test server set: plain http allowed for it, and, when `MYORBITER_UPDATER_E2E_PUBKEY`
     /// is set, the test's own signing key in place of the release key (the test signs its builds
     /// with a throwaway key; the real key's private half never leaves the developer's machine and CI).
-    /// With `ORBITER_UPDATER_E2E_AUTO=1`, the test drives the update with no window to click in:
+    /// With `MYORBITER_UPDATER_E2E_AUTO=1`, the test drives the update with no window to click in:
     /// one check on Experimental, the install if it found a newer build, then the restart, each
     /// step printed for the test script to read (and an exit once it's up to date or failed).
     pub fn auto(app: &tauri::AppHandle) {
-        if std::env::var("ORBITER_UPDATER_E2E_AUTO").as_deref() != Ok("1") || endpoint().is_none() {
+        if std::env::var("MYORBITER_UPDATER_E2E_AUTO").as_deref() != Ok("1") || endpoint().is_none() {
             return;
         }
         let app = app.clone();
@@ -490,7 +490,7 @@ mod e2e {
         }
         if let Some(updater) = config.as_object_mut() {
             updater.insert("dangerousInsecureTransportProtocol".into(), true.into());
-            if let Some(key) = std::env::var("ORBITER_UPDATER_E2E_PUBKEY").ok().filter(|k| !k.trim().is_empty()) {
+            if let Some(key) = std::env::var("MYORBITER_UPDATER_E2E_PUBKEY").ok().filter(|k| !k.trim().is_empty()) {
                 updater.insert("pubkey".into(), key.trim().into());
             }
         }
@@ -534,14 +534,14 @@ mod tests {
     #[test]
     #[cfg(not(feature = "e2e-updater"))]
     fn a_release_build_cannot_be_pointed_elsewhere() {
-        std::env::set_var("ORBITER_UPDATER_E2E_ENDPOINT", "http://127.0.0.1:9/latest.json");
-        std::env::set_var("ORBITER_UPDATER_E2E_PUBKEY", "dGVzdA==");
+        std::env::set_var("MYORBITER_UPDATER_E2E_ENDPOINT", "http://127.0.0.1:9/latest.json");
+        std::env::set_var("MYORBITER_UPDATER_E2E_PUBKEY", "dGVzdA==");
         assert_eq!(check_urls(Channel::Beta), endpoints(Channel::Beta));
         let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
         let built = &config["plugins"]["updater"];
         assert_eq!(&updater_config(built.clone()), built);
-        std::env::remove_var("ORBITER_UPDATER_E2E_ENDPOINT");
-        std::env::remove_var("ORBITER_UPDATER_E2E_PUBKEY");
+        std::env::remove_var("MYORBITER_UPDATER_E2E_ENDPOINT");
+        std::env::remove_var("MYORBITER_UPDATER_E2E_PUBKEY");
     }
 
     /// The committed key is the release key (id E8C1BC6BE2D5CFB9), not a test key.
@@ -576,7 +576,7 @@ mod tests {
     fn how_each_install_updates() {
         let yes = |_: &Path| true;
         let no = |_: &Path| false;
-        let img = Path::new("/home/me/Apps/orbiter.AppImage");
+        let img = Path::new("/home/me/Apps/myorbiter.AppImage");
         assert_eq!(install_kind(true, "linux", Some(BundleType::AppImage), Some(img), yes), Install::Dev);
         assert_eq!(install_kind(false, "linux", Some(BundleType::AppImage), Some(img), yes), Install::AppImage { path: img.display().to_string() });
         assert_eq!(install_kind(false, "linux", Some(BundleType::AppImage), Some(img), no), Install::ReadOnly { folder: "/home/me/Apps".into() });

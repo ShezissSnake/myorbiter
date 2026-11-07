@@ -1,4 +1,4 @@
-// Text orbiter didn't write: build titles and authors from Overframe's list and Nox's Frame's
+// Text MyOrbiter didn't write: build titles and authors from Overframe's list and Nox's Frame's
 // pages, names from warframe.market, what a player types into a bug report. Svelte shows it as text
 // (never as HTML), so it can't run; these keep it from hiding anything either. Characters that
 // draw nothing (zero-width, the Unicode "tag" block) or reorder what's around them (bidi overrides

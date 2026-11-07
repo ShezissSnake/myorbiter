@@ -2,7 +2,7 @@
 //! serves the larger copy the item cards and details sheet show.
 //!
 //! Each image is fetched once from the WFCD repository (the same source TennoScope uses),
-//! shrunk to a thumbnail and kept in `~/.cache/dev.orbiter.app/img`, so browsing tables does not
+//! shrunk to a thumbnail and kept in `~/.cache/io.gitlab.sheziss-group.myorbiter/img`, so browsing tables does not
 //! hit the network again and works offline afterwards.
 
 use std::fs;
@@ -251,11 +251,11 @@ mod tests {
         assert!(!valid_name("script.js"));
     }
 
-    /// Hits the network: `cargo test -p orbiter -- --ignored`.
+    /// Hits the network: `cargo test -p myorbiter -- --ignored`.
     #[test]
     #[ignore]
     fn fetches_and_caches_a_real_image() {
-        let dir = std::env::temp_dir().join("orbiter-img-test");
+        let dir = std::env::temp_dir().join("myorbiter-img-test");
         let _ = fs::remove_dir_all(&dir);
         let path = cached(&dir, "RhinoPrime.png", false).expect("fetched");
         let img = image::open(&path).expect("decodes");
@@ -283,7 +283,7 @@ mod tests {
 
     #[test]
     fn the_protocol_serves_only_cached_plain_names() {
-        let dir = std::env::temp_dir().join(format!("orbiter-img-proto-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("myorbiter-img-proto-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         // A secret beside the cache, and a thumbnail in it.

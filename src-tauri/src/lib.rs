@@ -14,8 +14,9 @@ mod recipes;
 mod relicdata;
 mod updates;
 mod rendering;
+mod datamove;
 
-use orbiter_data::ee_log::{find_ee_log, LogFollower, MissionState};
+use myorbiter_data::ee_log::{find_ee_log, LogFollower, MissionState};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
@@ -23,15 +24,15 @@ use std::time::{Duration, Instant, UNIX_EPOCH};
 use tauri::{Emitter, Manager};
 
 const WORLDSTATE: &str = "https://api.warframestat.us/pc";
-/// Who's asking, and where to find out more (the APIs orbiter reads like to know).
+/// Who's asking, and where to find out more (the APIs MyOrbiter reads like to know).
 pub(crate) const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"), " (+https://gitlab.com/sheziss-group/orbiter)");
 
 /// TennoScope's data folder: the one from Settings, or where TennoScope keeps it. A folder from
-/// Settings must be a full path without `..` (orbiter only reads TennoScope's own files in it).
+/// Settings must be a full path without `..` (MyOrbiter only reads TennoScope's own files in it).
 fn data_dir(dir: Option<String>) -> Result<PathBuf, String> {
     match dir.filter(|d| !d.trim().is_empty()) {
         Some(d) => checked_path(&d),
-        None => orbiter_data::default_tennoscope_dir().ok_or_else(|| "The system doesn't say where programs keep their data (APPDATA, or HOME on Linux), so TennoScope's folder cannot be found".to_string()),
+        None => myorbiter_data::default_tennoscope_dir().ok_or_else(|| "The system doesn't say where programs keep their data (APPDATA, or HOME on Linux), so TennoScope's folder cannot be found".to_string()),
     }
 }
 
@@ -49,7 +50,7 @@ fn checked_path(p: &str) -> Result<PathBuf, String> {
 
 /// On this computer: on Windows, a path that starts with a drive letter (`C:\…`, `\\?\C:\…`).
 /// A network one (`\\host\share\…`) would have Windows connect to that host, sign-in and all,
-/// just to look at it; orbiter's folders, TennoScope's and the game's are all on a drive.
+/// just to look at it; MyOrbiter's folders, TennoScope's and the game's are all on a drive.
 pub(crate) fn local_path(path: &std::path::Path) -> bool {
     #[cfg(windows)]
     {
@@ -63,7 +64,7 @@ pub(crate) fn local_path(path: &std::path::Path) -> bool {
     }
 }
 
-/// Warframe's log from Settings: a full path to a file named EE.log (any case), which is all orbiter
+/// Warframe's log from Settings: a full path to a file named EE.log (any case), which is all MyOrbiter
 /// reads there (and EE.cfg beside it). None: find it in the Steam libraries.
 fn ee_log_from(path: Option<String>) -> Result<Option<PathBuf>, String> {
     let Some(p) = path.filter(|p| !p.trim().is_empty()) else { return Ok(None) };
@@ -97,15 +98,15 @@ fn market_platform(platform: String) -> Result<(), String> {
 
 #[tauri::command]
 fn default_data_dir() -> Option<String> {
-    orbiter_data::default_tennoscope_dir().map(|p| p.display().to_string())
+    myorbiter_data::default_tennoscope_dir().map(|p| p.display().to_string())
 }
 
 /// Reads TennoScope's database (read-only) and prices, with the revision of its catalog files: the
 /// part of the data that changes on every reload (about 1 MB of JSON). Off the UI thread.
 #[tauri::command]
-async fn load_collection(dir: Option<String>) -> Result<orbiter_data::Collection, String> {
+async fn load_collection(dir: Option<String>) -> Result<myorbiter_data::Collection, String> {
     let dir = data_dir(dir)?;
-    tauri::async_runtime::spawn_blocking(move || orbiter_data::load_collection(&dir))
+    tauri::async_runtime::spawn_blocking(move || myorbiter_data::load_collection(&dir))
         .await
         .map_err(|e| e.to_string())?
         .map_err(|e| e.to_string())
@@ -114,9 +115,9 @@ async fn load_collection(dir: Option<String>) -> Result<orbiter_data::Collection
 /// The slimmed item catalog and relic table (about 6 MB of JSON, from ~80 MB of files), which the
 /// page asks for only when `load_collection`'s `catalog_rev` differs from the one it holds.
 #[tauri::command]
-async fn load_catalogs(dir: Option<String>) -> Result<orbiter_data::Catalogs, String> {
+async fn load_catalogs(dir: Option<String>) -> Result<myorbiter_data::Catalogs, String> {
     let dir = data_dir(dir)?;
-    tauri::async_runtime::spawn_blocking(move || orbiter_data::load_catalogs(&dir))
+    tauri::async_runtime::spawn_blocking(move || myorbiter_data::load_catalogs(&dir))
         .await
         .map_err(|e| e.to_string())?
         .map_err(|e| e.to_string())
@@ -310,14 +311,14 @@ async fn relic_data(app: tauri::AppHandle, force: Option<bool>) -> Result<Value,
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     tauri::async_runtime::spawn_blocking(move || {
         let data = relicdata::relic_data(&dir, force.unwrap_or(false)).map_err(|e| {
-            log::warn!(target: "orbiter::relics", "drop tables couldn't be read: {e}");
+            log::warn!(target: "myorbiter::relics", "drop tables couldn't be read: {e}");
             e
         })?;
         // TennoScope's reward reader goes by these too (see bridge.rs, RELICS_FILE).
         if let Some(rt) = bridge::runtime_dir() {
             match bridge::write_relics_in(&rt, &data) {
-                Ok(()) => log::info!(target: "orbiter::relics", "drop tables {} ({} relics) written for TennoScope", data["hash"].as_str().unwrap_or("?"), data["relics"].as_array().map_or(0, Vec::len)),
-                Err(e) => log::warn!(target: "orbiter::relics", "writing the drop tables for TennoScope failed: {e}"),
+                Ok(()) => log::info!(target: "myorbiter::relics", "drop tables {} ({} relics) written for TennoScope", data["hash"].as_str().unwrap_or("?"), data["relics"].as_array().map_or(0, Vec::len)),
+                Err(e) => log::warn!(target: "myorbiter::relics", "writing the drop tables for TennoScope failed: {e}"),
             }
         }
         Ok(data)
@@ -326,7 +327,7 @@ async fn relic_data(app: tauri::AppHandle, force: Option<bool>) -> Result<Value,
     .map_err(|e| e.to_string())?
 }
 
-/// Saves an export (CSV) in your Downloads folder as `orbiter-<what>-<date>.csv`, never over an
+/// Saves an export (CSV) in your Downloads folder as `myorbiter-<what>-<date>.csv`, never over an
 /// existing file. Returns where it went. Off the main thread, as file writes here all are: the
 /// window's event loop runs there, and a slow disk would hold up its painting.
 #[tauri::command(async)]
@@ -344,7 +345,7 @@ fn export_file(app: tauri::AppHandle, what: String, text: String, day: Option<St
     // Always a new file: `create_new` never writes through a link already lying there under the
     // name, or over a file, and a name taken means the next number.
     for n in 1..1000 {
-        let path = if n == 1 { dir.join(format!("orbiter-{what}-{day}.csv")) } else { dir.join(format!("orbiter-{what}-{day}-{n}.csv")) };
+        let path = if n == 1 { dir.join(format!("myorbiter-{what}-{day}.csv")) } else { dir.join(format!("myorbiter-{what}-{day}-{n}.csv")) };
         match fs::OpenOptions::new().write(true).create_new(true).open(&path) {
             Ok(f) => {
                 write_whole(&path, f, text.as_bytes()).map_err(|e| e.to_string())?;
@@ -397,7 +398,7 @@ fn civil_day(days: i64) -> String {
     format!("{y:04}-{m:02}-{d:02}")
 }
 
-/// A Discord webhook address, nothing else (the page checks too): orbiter posts only to these.
+/// A Discord webhook address, nothing else (the page checks too): MyOrbiter posts only to these.
 fn discord_webhook(url: &str) -> bool {
     let rest = ["https://discord.com/api/webhooks/", "https://discordapp.com/api/webhooks/", "https://ptb.discord.com/api/webhooks/", "https://canary.discord.com/api/webhooks/"]
         .iter()
@@ -419,7 +420,7 @@ async fn discord_post(app: tauri::AppHandle, url: String, content: String) -> Re
     if discord_kept(&app)?.1.as_deref() != Some(url.as_str()) {
         return Err("not sent: that Discord address isn't confirmed (Notifications, Choose, Discord)".into());
     }
-    // Notifications come a few at a time: more than this in a minute isn't orbiter's own use, and
+    // Notifications come a few at a time: more than this in a minute isn't MyOrbiter's own use, and
     // a page gone wrong mustn't post the log or chats out by the hundred.
     {
         let mut sent = DISCORD_SENT.lock().unwrap_or_else(|e| e.into_inner());
@@ -452,7 +453,7 @@ async fn discord_post(app: tauri::AppHandle, url: String, content: String) -> Re
 static DISCORD_SENT: Mutex<Vec<Instant>> = Mutex::new(Vec::new());
 const DISCORD_PER_MINUTE: usize = 20;
 
-/// Whether the player said no to a new address since orbiter started: then no new address is
+/// Whether the player said no to a new address since MyOrbiter started: then no new address is
 /// asked about again until a restart, so a page gone wrong can't wear the player down with one
 /// confirmation after another.
 static DISCORD_DECLINED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -463,7 +464,7 @@ static DISCORD_ASKING: tauri::async_runtime::Mutex<()> = tauri::async_runtime::M
 enum DiscordAddress {
     /// The one confirmed before.
     Kept,
-    /// New, but the player turned one down since orbiter started: not asked.
+    /// New, but the player turned one down since MyOrbiter started: not asked.
     Declined,
     /// New: ask.
     Ask,
@@ -479,7 +480,7 @@ fn discord_address(kept: Option<&str>, declined_one: bool, url: &str) -> Discord
     }
 }
 
-/// The address confirmed before, from orbiter's config folder (`discord-webhook`).
+/// The address confirmed before, from MyOrbiter's config folder (`discord-webhook`).
 fn discord_kept(app: &tauri::AppHandle) -> Result<(PathBuf, Option<String>), String> {
     let file = app.path().app_config_dir().map_err(|e| e.to_string())?.join("discord-webhook");
     let kept = fs::read_to_string(&file).ok().map(|k| k.trim().to_owned());
@@ -488,9 +489,9 @@ fn discord_kept(app: &tauri::AppHandle) -> Result<(PathBuf, Option<String>), Str
 
 /// Notifications → Choose → Discord: whether `url` is the address the player confirmed, asking
 /// when it's new. The page calls this while the player is there: when an address is pasted, and
-/// once as orbiter starts for one saved before (`discord_post` never asks). A new address is
-/// confirmed in a native dialog over orbiter's window (not in the page), which names the webhook
-/// (never its token); a yes keeps it in orbiter's config folder (`discord-webhook`), which the
+/// once as MyOrbiter starts for one saved before (`discord_post` never asks). A new address is
+/// confirmed in a native dialog over MyOrbiter's window (not in the page), which names the webhook
+/// (never its token); a yes keeps it in MyOrbiter's config folder (`discord-webhook`), which the
 /// page can't write, in place of the one before. While a dialog is open, another new address is
 /// refused rather than queued.
 #[tauri::command]
@@ -508,15 +509,15 @@ async fn discord_confirm(app: tauri::AppHandle, url: String) -> Result<bool, Str
     let (file, kept) = discord_kept(app)?;
     match discord_address(kept.as_deref(), DISCORD_DECLINED.load(Ordering::SeqCst), url) {
         DiscordAddress::Kept => return Ok(true),
-        DiscordAddress::Declined => return Err("orbiter asks about one new Discord address at a time and stops after a no: restart orbiter to be asked again".into()),
+        DiscordAddress::Declined => return Err("MyOrbiter asks about one new Discord address at a time and stops after a no: restart MyOrbiter to be asked again".into()),
         DiscordAddress::Ask => {}
     }
     use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
     let id = url.trim_end_matches('/').rsplit('/').nth(1).unwrap_or("").to_owned();
     let host = url.split('/').nth(2).unwrap_or("discord.com").to_owned();
     let text = format!(
-        "Send orbiter's notifications to Discord webhook {id} on {host}?\n\norbiter posts the kinds of notification you picked there.{} Say yes only if you pasted this address yourself.",
-        if kept.as_deref().is_some_and(|k| !k.is_empty()) { " It replaces the webhook orbiter posted to before." } else { "" }
+        "Send MyOrbiter's notifications to Discord webhook {id} on {host}?\n\nMyOrbiter posts the kinds of notification you picked there.{} Say yes only if you pasted this address yourself.",
+        if kept.as_deref().is_some_and(|k| !k.is_empty()) { " It replaces the webhook MyOrbiter posted to before." } else { "" }
     );
     let ask = app.clone();
     let yes = tauri::async_runtime::spawn_blocking(move || {
@@ -531,10 +532,10 @@ async fn discord_confirm(app: tauri::AppHandle, url: String) -> Result<bool, Str
     .map_err(|e| format!("couldn't ask about the Discord address: {e}"))?;
     if yes {
         write_atomic(&file, url.as_bytes(), true).map_err(|e| format!("couldn't keep the Discord address: {e}"))?;
-        log::info!(target: "orbiter::notify", "Discord webhook {id} confirmed");
+        log::info!(target: "myorbiter::notify", "Discord webhook {id} confirmed");
     } else {
         DISCORD_DECLINED.store(true, Ordering::SeqCst);
-        log::info!(target: "orbiter::notify", "Discord webhook {id} turned down; no other new one is asked about until orbiter restarts");
+        log::info!(target: "myorbiter::notify", "Discord webhook {id} turned down; no other new one is asked about until MyOrbiter restarts");
     }
     Ok(yes)
 }
@@ -562,12 +563,12 @@ fn ee_log_path() -> Option<PathBuf> {
     }
     let path = find_ee_log();
     let before = found.as_ref().map(|(p, _)| p.clone());
-    // Said once when orbiter starts looking, then whenever it changes.
+    // Said once when MyOrbiter starts looking, then whenever it changes.
     static SAID: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     if path != before || !SAID.swap(true, std::sync::atomic::Ordering::Relaxed) {
         match &path {
-            Some(p) => log::info!(target: "orbiter::ee_log", "found at {}", p.display()),
-            None => log::warn!(target: "orbiter::ee_log", "not found in any Steam library (set its path in Settings)"),
+            Some(p) => log::info!(target: "myorbiter::ee_log", "found at {}", p.display()),
+            None => log::warn!(target: "myorbiter::ee_log", "not found in any Steam library (set its path in Settings)"),
         }
     }
     *found = path.clone().map(|p| (p, Instant::now()));
@@ -575,7 +576,7 @@ fn ee_log_path() -> Option<PathBuf> {
 }
 
 /// Warframe's display mode from its EE.cfg, beside the log ("MODE_BORDERLESS", "MODE_FULLSCREEN",
-/// "MODE_WINDOWED"). On Windows an overlay can't draw over exclusive fullscreen, so orbiter says so.
+/// "MODE_WINDOWED"). On Windows an overlay can't draw over exclusive fullscreen, so MyOrbiter says so.
 #[tauri::command(async)]
 fn warframe_window_mode(path: Option<String>) -> Option<String> {
     let log = ee_log_from(path).ok()?.or_else(ee_log_path)?;
@@ -613,21 +614,21 @@ async fn mission_state(app: tauri::AppHandle, path: Option<String>) -> Result<Op
 /// Every relic reward screen TennoScope has read, from its own log files (the current one and
 /// the ones it rotated out), oldest first: the history behind Stats' relic runs.
 #[tauri::command]
-async fn reward_screens(dir: Option<String>) -> Result<Vec<orbiter_data::reward_log::LoggedScreen>, String> {
+async fn reward_screens(dir: Option<String>) -> Result<Vec<myorbiter_data::reward_log::LoggedScreen>, String> {
     let dir = data_dir(dir)?;
     tauri::async_runtime::spawn_blocking(move || {
-        orbiter_data::reward_log::read_reward_logs(&orbiter_data::reward_log::reward_log_dirs(&dir))
+        myorbiter_data::reward_log::read_reward_logs(&myorbiter_data::reward_log::reward_log_dirs(&dir))
     })
     .await
     .map_err(|e| e.to_string())
 }
 
-/// The last time TennoScope's log says it failed to start, and why: orbiter says so when the
+/// The last time TennoScope's log says it failed to start, and why: MyOrbiter says so when the
 /// TennoScope it starts keeps stopping.
 #[tauri::command]
-async fn tennoscope_failure(dir: Option<String>) -> Result<Option<orbiter_data::reward_log::StartFailure>, String> {
+async fn tennoscope_failure(dir: Option<String>) -> Result<Option<myorbiter_data::reward_log::StartFailure>, String> {
     let dir = data_dir(dir)?;
-    tauri::async_runtime::spawn_blocking(move || orbiter_data::reward_log::last_start_failure(&orbiter_data::reward_log::reward_log_dirs(&dir)))
+    tauri::async_runtime::spawn_blocking(move || myorbiter_data::reward_log::last_start_failure(&myorbiter_data::reward_log::reward_log_dirs(&dir)))
         .await
         .map_err(|e| e.to_string())
 }
@@ -724,7 +725,7 @@ async fn market_riven_meta(app: tauri::AppHandle) -> Result<Value, String> {
     blocking(move || market::riven_meta(&cache)).await
 }
 
-/// What orbiter last read from the network and keeps for its next start, so pages show it at once
+/// What MyOrbiter last read from the network and keeps for its next start, so pages show it at once
 /// and update as new reads come in. Each is one JSON file in the cache folder; what's in it, and
 /// when it stops counting, is the page's business (see src/lib/saved.ts).
 const SAVED: [&str; 3] = ["riven-prices", "worldstate", "riven-trades"];
@@ -914,10 +915,10 @@ fn tennoscope_status(companion: tauri::State<'_, companion::Companion>) -> compa
     companion.status()
 }
 
-/// Settings → TennoScope → Program → Choose: the program orbiter starts as TennoScope, picked in
+/// Settings → TennoScope → Program → Choose: the program MyOrbiter starts as TennoScope, picked in
 /// a native file dialog opened here. The page can't name a program: it can only open the dialog,
-/// or have orbiter find TennoScope again (`tennoscope_forget_program`). Only an existing file
-/// named like TennoScope is kept (`companion::check_custom`), in orbiter's config folder. None:
+/// or have MyOrbiter find TennoScope again (`tennoscope_forget_program`). Only an existing file
+/// named like TennoScope is kept (`companion::check_custom`), in MyOrbiter's config folder. None:
 /// the dialog was closed without a choice.
 #[tauri::command]
 async fn tennoscope_choose_program(app: tauri::AppHandle) -> Result<Option<companion::Status>, String> {
@@ -937,7 +938,7 @@ async fn tennoscope_choose_program(app: tauri::AppHandle) -> Result<Option<compa
     let picked = tauri::async_runtime::spawn_blocking({
         let app = app.clone();
         move || {
-            let mut dialog = app.dialog().file().set_title("The TennoScope program orbiter starts");
+            let mut dialog = app.dialog().file().set_title("The TennoScope program MyOrbiter starts");
             if let Some(window) = app.get_webview_window("main") {
                 dialog = dialog.set_parent(&window);
             }
@@ -956,8 +957,8 @@ async fn tennoscope_choose_program(app: tauri::AppHandle) -> Result<Option<compa
     Ok(Some(companion.status()))
 }
 
-/// Settings → TennoScope → Program → Find it: orbiter finds TennoScope again (the copy inside
-/// orbiter, then an installed one), forgetting the program chosen in the dialog.
+/// Settings → TennoScope → Program → Find it: MyOrbiter finds TennoScope again (the copy inside
+/// MyOrbiter, then an installed one), forgetting the program chosen in the dialog.
 #[tauri::command(async)]
 fn tennoscope_forget_program(companion: tauri::State<'_, companion::Companion>) -> Result<companion::Status, String> {
     companion.set_custom(None)?;
@@ -976,7 +977,7 @@ fn tennoscope_ask(companion: tauri::State<'_, companion::Companion>, ask: String
     companion.ask(&ask)
 }
 
-/// Whether the TennoScope orbiter starts draws its overlay on a solid background (Windows: a
+/// Whether the TennoScope MyOrbiter starts draws its overlay on a solid background (Windows: a
 /// transparent one can come out invisible with some drivers). From its next start.
 #[tauri::command]
 fn tennoscope_opaque_overlay(on: bool) {
@@ -989,7 +990,7 @@ fn tennoscope_show(companion: tauri::State<'_, companion::Companion>) -> Result<
     companion.show()
 }
 
-/// Your warframe.market status as orbiter holds it.
+/// Your warframe.market status as MyOrbiter holds it.
 #[tauri::command]
 fn presence_state(status: tauri::State<'_, presence::Presence>) -> presence::State {
     status.state()
@@ -1016,7 +1017,7 @@ async fn presence_set(app: tauri::AppHandle, status: String) -> Result<presence:
     .map_err(|e| e.to_string())?
 }
 
-/// A desktop notification (the page only sends one while orbiter's window isn't focused). `id`:
+/// A desktop notification (the page only sends one while MyOrbiter's window isn't focused). `id`:
 /// its entry in the page's history, so a click on it opens what it's about. `actions`: buttons of
 /// its own, as [action, label] (a sale's "Give +rep"), told to the page as `notice-action`.
 #[tauri::command]
@@ -1024,25 +1025,25 @@ fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<Strin
     desktop::notify(app, summary, body, id, actions.unwrap_or_default());
 }
 
-/// Ctrl+Q, and the window's X once the page has saved: quit, stopping the TennoScope orbiter
+/// Ctrl+Q, and the window's X once the page has saved: quit, stopping the TennoScope MyOrbiter
 /// started (see `RunEvent::Exit` in `run`).
 #[tauri::command]
 fn quit(app: tauri::AppHandle) {
-    log::info!(target: "orbiter::app", "quitting");
+    log::info!(target: "myorbiter::app", "quitting");
     app.exit(0);
 }
 
-/// A line for orbiter's log from the window: its errors, and what it tells you (see applog.rs).
+/// A line for MyOrbiter's log from the window: its errors, and what it tells you (see applog.rs).
 /// Off the main thread: it writes to the file (and may move it aside).
 #[tauri::command(async)]
 fn log_line(level: String, area: String, message: String) {
     applog::from_ui(&level, &area, &message);
 }
 
-/// Where the logs are: orbiter's, and TennoScope's (the first of its log folders that exists).
+/// Where the logs are: MyOrbiter's, and TennoScope's (the first of its log folders that exists).
 #[derive(serde::Serialize)]
 struct LogFolders {
-    orbiter: Option<String>,
+    myorbiter: Option<String>,
     tennoscope: Option<String>,
 }
 
@@ -1050,17 +1051,17 @@ struct LogFolders {
 fn log_folders(dir: Option<String>) -> LogFolders {
     let tennoscope = data_dir(dir)
         .ok()
-        .and_then(|d| orbiter_data::reward_log::reward_log_dirs(&d).into_iter().find(|p| p.is_dir()));
-    LogFolders { orbiter: applog::dir().map(|p| p.display().to_string()), tennoscope: tennoscope.map(|p| p.display().to_string()) }
+        .and_then(|d| myorbiter_data::reward_log::reward_log_dirs(&d).into_iter().find(|p| p.is_dir()));
+    LogFolders { myorbiter: applog::dir().map(|p| p.display().to_string()), tennoscope: tennoscope.map(|p| p.display().to_string()) }
 }
 
-/// Opens a log folder in the file manager: `which` is "orbiter" or "tennoscope".
+/// Opens a log folder in the file manager: `which` is "myorbiter" or "tennoscope".
 #[tauri::command(async)]
 fn open_log_folder(app: tauri::AppHandle, which: String, dir: Option<String>) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
     let folders = log_folders(dir);
     let path = match which.as_str() {
-        "orbiter" => folders.orbiter,
+        "myorbiter" => folders.myorbiter,
         "tennoscope" => folders.tennoscope,
         _ => None,
     }
@@ -1070,7 +1071,7 @@ fn open_log_folder(app: tauri::AppHandle, which: String, dir: Option<String>) ->
 
 // ---------------------------------------------------------------- bug reports
 
-/// The last lines of orbiter's log for a bug report, redacted (applog::tail). Read only when the
+/// The last lines of MyOrbiter's log for a bug report, redacted (applog::tail). Read only when the
 /// player opens Report a bug; the page shows them before anything is sent.
 #[tauri::command(async)]
 fn log_tail(lines: usize) -> Vec<String> {
@@ -1126,7 +1127,7 @@ fn reward_cards() -> Option<bridge::ScreenCards> {
     bridge::read_cards_in(&bridge::runtime_dir()?)
 }
 
-/// orbiter's pick for those cards, for TennoScope's overlay to show.
+/// MyOrbiter's pick for those cards, for TennoScope's overlay to show.
 #[tauri::command(async)]
 fn write_reward_pick(pick: Value) -> Result<(), String> {
     bridge::write_pick_in(&bridge::runtime_dir().ok_or("No private folder for the reward pick")?, &pick)
@@ -1158,7 +1159,7 @@ fn set_riven_key(app: tauri::AppHandle, key: Option<String>) -> Result<(), Strin
     Ok(())
 }
 
-/// A key held for orbiter is taken from every app, the game too: never a bare letter the game
+/// A key held for MyOrbiter is taken from every app, the game too: never a bare letter the game
 /// uses (R reloads), only a function key or a key with Ctrl, Alt, Shift or Super.
 fn riven_key_allowed(key: &str) -> Result<(), String> {
     let parts: Vec<String> = key.split('+').map(|p| p.trim().to_ascii_lowercase()).collect();
@@ -1214,10 +1215,10 @@ impl SaveGate {
     /// no load handed out, or a page that has since reloaded), so a page still open says so.
     fn may_write(&self, page: u64, rev: u64) -> Result<bool, String> {
         if page == 0 {
-            return Err("the settings weren't loaded, so they aren't saved; restart orbiter".into());
+            return Err("the settings weren't loaded, so they aren't saved; restart MyOrbiter".into());
         }
         if page != self.page {
-            return Err("the settings were loaded again since this page loaded them; restart orbiter to save".into());
+            return Err("the settings were loaded again since this page loaded them; restart MyOrbiter to save".into());
         }
         Ok(page > self.written.0 || rev >= self.written.1)
     }
@@ -1244,7 +1245,7 @@ async fn save_settings(app: tauri::AppHandle, settings: Value, page: u64, rev: u
         }
         // Only you need to read it.
         write_atomic(&path, &text, true).map_err(|e| {
-            log::error!(target: "orbiter::settings", "saving settings to {} failed: {e}", path.display());
+            log::error!(target: "myorbiter::settings", "saving settings to {} failed: {e}", path.display());
             e.to_string()
         })?;
         gate.wrote(page, rev);
@@ -1254,18 +1255,18 @@ async fn save_settings(app: tauri::AppHandle, settings: Value, page: u64, rev: u
     .map_err(|e| e.to_string())?
 }
 
-/// The variables orbiter set for its own window at start (see `rendering::apply`),
+/// The variables MyOrbiter set for its own window at start (see `rendering::apply`),
 /// which a TennoScope it starts must not inherit.
-static ENV_SET_BY_ORBITER: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+static ENV_SET_BY_MYORBITER: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
 
-pub(crate) fn env_set_by_orbiter() -> &'static [&'static str] {
-    ENV_SET_BY_ORBITER.get().map(Vec::as_slice).unwrap_or(&[])
+pub(crate) fn env_set_by_myorbiter() -> &'static [&'static str] {
+    ENV_SET_BY_MYORBITER.get().map(Vec::as_slice).unwrap_or(&[])
 }
 
 /// How WebKitGTK draws the window (rendering.rs): set before anything else starts.
 #[cfg(target_os = "linux")]
 fn tune_webkit_for_this_machine() {
-    let _ = ENV_SET_BY_ORBITER.set(rendering::apply());
+    let _ = ENV_SET_BY_MYORBITER.set(rendering::apply());
 }
 
 /// On a screen smaller than the window's first size (a Steam Deck's 1280×800, a small laptop),
@@ -1293,6 +1294,8 @@ fn fit_first_window(app: &tauri::App) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Before anything opens the app's folders: the ones under the old identifier are copied over once.
+    datamove::run();
     #[cfg(target_os = "linux")]
     tune_webkit_for_this_machine();
 
@@ -1336,9 +1339,10 @@ pub fn run() {
             if let Ok(dir) = app.path().app_log_dir() {
                 applog::init(&dir);
             }
-            log::info!(target: "orbiter::app", "orbiter {} started on {} {}", app.package_info().version, std::env::consts::OS, std::env::consts::ARCH);
+            datamove::log_outcome();
+            log::info!(target: "myorbiter::app", "MyOrbiter {} started on {} {}", app.package_info().version, std::env::consts::OS, std::env::consts::ARCH);
             rendering::started();
-            // Ctrl+C in a terminal, logout, `kill`: close the TennoScope orbiter started, then exit
+            // Ctrl+C in a terminal, logout, `kill`: close the TennoScope MyOrbiter started, then exit
             // (Ctrl+Q and the window's X go through `quit` and RunEvent::Exit below instead).
             #[cfg(unix)]
             {
@@ -1360,7 +1364,7 @@ pub fn run() {
             // the last read (the page reads them again later and writes them anew if they changed).
             if let (Some(rt), Some(data)) = (bridge::runtime_dir(), relicdata::cached(&config)) {
                 if let Err(e) = bridge::write_relics_in(&rt, &data) {
-                    log::warn!(target: "orbiter::relics", "writing the cached drop tables for TennoScope failed: {e}");
+                    log::warn!(target: "myorbiter::relics", "writing the cached drop tables for TennoScope failed: {e}");
                 }
             }
             app.manage(market::Client::new(market::TokenStore::new(&config)));
@@ -1380,7 +1384,7 @@ pub fn run() {
                 .path()
                 .app_cache_dir()
                 .map(|d| d.join("img"))
-                .unwrap_or_else(|_| std::env::temp_dir().join("orbiter-img"));
+                .unwrap_or_else(|_| std::env::temp_dir().join("myorbiter-img"));
             let path = request.uri().path().to_string();
             // The blocking pool reuses its threads (and caps them), where a thread per image
             // would start hundreds at once for a long table.
@@ -1468,9 +1472,9 @@ pub fn run() {
             rendering::set_compat_rendering
         ])
         .build(updates::context(tauri::generate_context!()))
-        .expect("error while starting orbiter")
+        .expect("error while starting MyOrbiter")
         .run(|app, event| {
-            // Closing orbiter closes the TennoScope it started (never one you started yourself).
+            // Closing MyOrbiter closes the TennoScope it started (never one you started yourself).
             if let tauri::RunEvent::Exit = event {
                 rendering::stood_up();
                 // Quitting closes the status connection: warframe.market then shows you offline.
@@ -1515,7 +1519,7 @@ mod tests {
         // Confirmed: posted to without asking. Another address, even one a page saved: ask.
         assert_eq!(discord_address(Some(a), false, a), DiscordAddress::Kept);
         assert_eq!(discord_address(Some(a), false, b), DiscordAddress::Ask);
-        // After a no, until orbiter restarts: no new address is asked about, whichever it is, and
+        // After a no, until MyOrbiter restarts: no new address is asked about, whichever it is, and
         // the confirmed one still goes through.
         assert_eq!(discord_address(Some(a), true, b), DiscordAddress::Declined);
         assert_eq!(discord_address(Some(a), true, c), DiscordAddress::Declined);
@@ -1553,18 +1557,18 @@ mod tests {
 
     #[test]
     fn an_export_that_fills_the_disk_leaves_no_half_file() {
-        let dir = std::env::temp_dir().join(format!("orbiter-export-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("myorbiter-export-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let text = "item,price\n".repeat(1000);
 
-        let path = dir.join("orbiter-sales-2026-11-02.csv");
+        let path = dir.join("myorbiter-sales-2026-11-02.csv");
         let file = fs::OpenOptions::new().write(true).create_new(true).open(&path).unwrap();
         let err = write_whole(&path, FillsUp { file, room: 4096 }, text.as_bytes()).unwrap_err();
         assert_eq!(err.kind(), std::io::ErrorKind::StorageFull);
         assert!(!path.exists(), "the half-written file is removed");
 
-        let path = dir.join("orbiter-sales-2026-11-02-2.csv");
+        let path = dir.join("myorbiter-sales-2026-11-02-2.csv");
         let file = fs::OpenOptions::new().write(true).create_new(true).open(&path).unwrap();
         write_whole(&path, file, text.as_bytes()).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), text, "a whole one stays");
@@ -1651,7 +1655,7 @@ mod tests {
     fn a_save_without_a_page_that_loaded_is_refused() {
         let mut gate = SaveGate::new();
         // Nothing loaded yet: no token is good.
-        assert_eq!(gate.may_write(0, 1), Err("the settings weren't loaded, so they aren't saved; restart orbiter".into()));
+        assert_eq!(gate.may_write(0, 1), Err("the settings weren't loaded, so they aren't saved; restart MyOrbiter".into()));
         assert!(gate.may_write(1, 1).is_err());
         let page = gate.page_loaded();
         // A token no load handed out.

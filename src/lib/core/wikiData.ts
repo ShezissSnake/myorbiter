@@ -1,8 +1,8 @@
 // Data from the Warframe Wiki: the modular part tables (recipes.ts) and Arcane Dissolution's
-// yields and packs (vosfor.ts). It's under the wiki's licence (CC BY-NC-SA 3.0), not orbiter's
-// GPL, so it isn't compiled into orbiter's code: it ships beside it as plain files, with their
+// yields and packs (vosfor.ts). It's under the wiki's licence (CC BY-NC-SA 3.0), not MyOrbiter's
+// GPL, so it isn't compiled into MyOrbiter's code: it ships beside it as plain files, with their
 // licence, in public/data/wiki/ (the app's own files, /data/wiki/ in the window), and is read from
-// there once at start. orbiter never fetches the wiki itself.
+// there once at start. MyOrbiter never fetches the wiki itself.
 
 export interface WikiData {
   modularParts: unknown;

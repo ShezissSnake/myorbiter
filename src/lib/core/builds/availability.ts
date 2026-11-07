@@ -21,10 +21,10 @@
 //  4. Mods from their drop sources, the easiest one: a common enemy or an early star-chart planet
 //     (Mercury to Saturn) is "new"; spy vaults, the Derelict, open worlds, later planets and special
 //     enemies intermediate; Steel Path, Arbitrations, Archon hunts, Netracells and Eidolons veteran.
-//  5. Anything else (no drop listed, no family): intermediate. orbiter only calls a mod "new" when
+//  5. Anything else (no drop listed, no family): intermediate. MyOrbiter only calls a mod "new" when
 //     the drop tables show a common star-chart drop.
 //
-// Drops: orbiter's catalog keeps at most eight drop sources per item, best chance first, so a mod
+// Drops: MyOrbiter's catalog keeps at most eight drop sources per item, best chance first, so a mod
 // that drops everywhere at a low chance can look like a spy-vault exclusive (Serration). The data
 // file's `fullDrops` table holds the level worked out from the full drop tables (DE's, via the
 // WFCD catalog TennoScope downloads) for the items where the eight differ from the whole list;
@@ -182,7 +182,7 @@ export function availability(item: Classifiable): AvailabilityInfo {
     const spy = (item.drops ?? []).every((x) => /\(Spy\)/.test(x.location));
     return info("intermediate", "drops", spy ? "a spy-vault reward" : "drops past the early star chart (open worlds, later planets, special enemies)");
   }
-  return info("intermediate", "noDrops", "no drop table lists it, so orbiter can't call it a common drop");
+  return info("intermediate", "noDrops", "no drop table lists it, so MyOrbiter can't call it a common drop");
 }
 
 /** An item's level: "new", "intermediate" or "veteran". */

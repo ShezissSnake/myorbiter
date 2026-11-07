@@ -44,11 +44,11 @@ const riven = (weapon: string, weaponUnique: string | null, buffs: string[], cur
   };
 };
 
-test("Soma Prime, by orbiter's rule alone: a crit rifle wants Critical Chance, Critical Damage and Multishot; −Zoom, −Ammo and −Impact are harmless", () => {
+test("Soma Prime, by MyOrbiter's rule alone: a crit rifle wants Critical Chance, Critical Damage and Multishot; −Zoom, −Ammo and −Impact are harmless", () => {
   const r = idealRiven(soma);
   assert.deepEqual([r.cls, r.focus], ["rifle", "crit"]);
   assert.deepEqual(r.positives.map((p) => p.stat), ["Critical Chance", "Critical Damage", "Multishot"]);
-  assert.ok(r.positives.every((p) => p.basis === "rule" && /^orbiter's rule: /.test(p.why)));
+  assert.ok(r.positives.every((p) => p.basis === "rule" && /^MyOrbiter's rule: /.test(p.why)));
   const neg = r.negatives.map((x) => x.stat);
   for (const s of ["Zoom", "Ammo Maximum", "Impact"]) assert.ok(neg.includes(s), `${s} harmless`);
   assert.ok(!neg.includes("Slash") && !neg.includes("Puncture"), "Slash and Puncture are half its damage");
@@ -85,7 +85,7 @@ test("the market moves the ideal: what players pay most for comes up, labelled, 
   const tox = r.positives[2];
   assert.equal(tox.basis, "both");
   assert.deepEqual(tox.market, { with: 4, of: 12, withIt: 920, without: 300 });
-  assert.match(tox.why, /orbiter's rule: .*What players pay most for: On warframe\.market, 4 of 12 listed rivens have it, asking 920 platinum in the middle against 300 without it\./);
+  assert.match(tox.why, /MyOrbiter's rule: .*What players pay most for: On warframe\.market, 4 of 12 listed rivens have it, asking 920 platinum in the middle against 300 without it\./);
   // Every price it states is one of the listings' own.
   const prices = new Set(listed.map((a) => a.price));
   for (const p of r.positives) if (p.market) for (const v of [p.market.withIt, p.market.without]) assert.ok(v == null || prices.has(v), `${v} is a listed price`);

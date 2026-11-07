@@ -266,7 +266,7 @@
   const tsUnsupported = $derived(ts.status?.supported === false);
   /** You play on a console or phone (Settings → Platform): TennoScope only reads Warframe on a PC. */
   const onConsole = $derived(settings.market.platform !== "pc");
-  /** No TennoScope here: a Mac, or a console player. orbiter works without an inventory. */
+  /** No TennoScope here: a Mac, or a console player. MyOrbiter works without an inventory. */
   const noTennoScope = $derived(tsUnsupported || onConsole);
   /**
    * The sidebar's pages. On a console only what works without reading the game: Home, Orders,
@@ -637,7 +637,7 @@
   /**
    * Every notification goes through here: dropped when its kind is off (or needs a PC and you play
    * on a console), kept in the history (the bell), and shown unless notifications are paused, as
-   * a pop-up inside orbiter while you're looking at it, else on the desktop.
+   * a pop-up inside MyOrbiter while you're looking at it, else on the desktop.
    */
   function tell(kind: NoticeKind, title: string, body: string, to?: string, rep?: Notice["rep"]): string | null {
     if (!settings.notify[kind] || (onConsole && noticeKind[kind].pcOnly)) return null;
@@ -715,7 +715,7 @@
   function testNotice() {
     const o = settings.notifyOptions;
     const until = o.paused ? "until you set Pause back to Off" : o.pausedUntil ? `until ${new Date(o.pausedUntil).toLocaleString(undefined, { weekday: new Date(o.pausedUntil).toDateString() === new Date().toDateString() ? undefined : "short", hour: "2-digit", minute: "2-digit" })}` : "";
-    toasts.push({ id: `test-${Date.now()}`, at: Date.now(), kind: "repriced", title: "This is how notifications look", body: until ? `Paused ${until}: the real ones go to Recent without popping up. Click this to see Recent.` : "Click one to open what it's about; this one opens Recent. Your desktop gets them while orbiter is behind other windows.", read: true });
+    toasts.push({ id: `test-${Date.now()}`, at: Date.now(), kind: "repriced", title: "This is how notifications look", body: until ? `Paused ${until}: the real ones go to Recent without popping up. Click this to see Recent.` : "Click one to open what it's about; this one opens Recent. Your desktop gets them while MyOrbiter is behind other windows.", read: true });
   }
   // A pause for a while ends by itself.
   $effect(() => {
@@ -1018,7 +1018,7 @@
       : [],
   );
   // A listing for more than you now hold (you sold or used some in game): said once per listing and
-  // quantity listed, remembered across restarts. (A count orbiter can't make isn't short: see above.)
+  // quantity listed, remembered across restarts. (A count MyOrbiter can't make isn't short: see above.)
   $effect(() => {
     const short = shortListings;
     const m = bgModel;
@@ -1051,7 +1051,7 @@
     lastStatusError = e;
   });
   // An invasion rewarding a part you need: one notification per invasion and part, remembered
-  // across restarts so the same invasion doesn't announce itself every time orbiter opens.
+  // across restarts so the same invasion doesn't announce itself every time MyOrbiter opens.
   const invasionsNeeded = $derived(bgModel && !onConsole ? invasionNeeds(bgModel, live.invasions) : []);
   $effect(() => {
     const needs = invasionsNeeded;
@@ -1119,7 +1119,7 @@
     return u ? { t, u } : null;
   });
   // +rep by itself (Settings, Trades): each partner of the last day's trades, once per player,
-  // with your message. Also when orbiter opens after the trade (the game log still has it) and
+  // with your message. Also when MyOrbiter opens after the trade (the game log still has it) and
   // once you sign in to warframe.market. A partner not on warframe.market is let go; one that
   // fails waits for the next run, and says why once.
   // "Online in game" only while Warframe runs (as TennoScope sees it): buyers who pick it expect
@@ -1143,7 +1143,7 @@
     if (!b || tick < b.until || !mkt.linked) return;
     untrack(() => {
       settings.market.presenceBack = null;
-      // A status you chose since stands; only the invisible orbiter set goes back.
+      // A status you chose since stands; only the invisible MyOrbiter set goes back.
       if (settings.market.presence !== "invisible") return;
       settings.market.presence = b.p;
       void mkt.setStatus(mkt.presenceFor(b.p));
@@ -1194,7 +1194,7 @@
       } catch (e) {
         const why = String(e).replace(/^Error:\s*/, "");
         // Said once per trade, however many times it's tried again.
-        if (failedAt == null) tell("sold", `Couldn't give ${t.partner} +rep`, `${why}. orbiter tries again later; Stats has a +rep button for that trade.`);
+        if (failedAt == null) tell("sold", `Couldn't give ${t.partner} +rep`, `${why}. MyOrbiter tries again later; Stats has a +rep button for that trade.`);
         repFailed.set(t.key, Date.now());
         // One timer for every failure: the retry doesn't wait for the next trade.
         repRetry ??= setTimeout(() => {
@@ -1208,7 +1208,7 @@
       await new Promise((r) => setTimeout(r, 1500));
     }
   }
-  // On start and on signing in: trades read while signed out, or while orbiter was closed.
+  // On start and on signing in: trades read while signed out, or while MyOrbiter was closed.
   $effect(() => {
     if (mkt.linked && settings.market.autoRep) untrack(() => void runAutoRep());
   });
@@ -1222,7 +1222,7 @@
     settings.market.rep = rep;
   }
 
-  // Whole sets sold in one trade before orbiter logged them as sets: one sale per part becomes one
+  // Whole sets sold in one trade before MyOrbiter logged them as sets: one sale per part becomes one
   // set sale. Runs when the data loads; does nothing once they're folded.
   $effect(() => {
     const m = bgModel;
@@ -1233,7 +1233,7 @@
     });
   });
 
-  // Trades logged before orbiter read an arcane's rank (shown as pips in the trade window): once the
+  // Trades logged before MyOrbiter read an arcane's rank (shown as pips in the trade window): once the
   // game log still has the trade, fill the rank in, on the trade and on the sale it made, so the sale
   // is compared with the maxed price rather than the unranked one.
   function repairRanks(trades: NonNullable<MissionState["trades"]>, session: number | null) {
@@ -1266,11 +1266,11 @@
   $effect(() => {
     const trades = mission?.trades ?? [];
     const session = mission?.session_start ?? null;
-    // Not before your listings are read (orbiter starting, or back after an outage): matched
+    // Not before your listings are read (MyOrbiter starting, or back after an outage): matched
     // against none, every sale would log as "not listed" and its listing would stay up.
     if (!trades.length || !mkt.linked || mkt.ordersAt == null || !mkt.items.length) return;
     untrack(() => {
-      // A sale logged from one of these trades before orbiter could read its rank (an arcane's
+      // A sale logged from one of these trades before MyOrbiter could read its rank (an arcane's
       // pips): the rank is filled in now, so it's compared with the right price.
       for (const t of trades) {
         const key = tradeKey(session, t);
@@ -1286,7 +1286,7 @@
       // This session's keys stay however many there are: the log shows its trades on every read.
       settings.market.tradesSeen = keepSeen(fresh.map((t) => tradeKey(session, t)), settings.market.tradesSeen, 300, session == null ? "?" : String(session));
       if (!settings.market.autoTrades) return;
-      // Only trades from the last half hour are acted on. Older ones turn up when orbiter first
+      // Only trades from the last half hour are acted on. Older ones turn up when MyOrbiter first
       // reads a log (just installed, or settings reset) or was closed at the time: by now that
       // listing may have been put back up, and closing it again would be wrong.
       // A trade with no time (the log's session start wasn't seen) is acted on only once it turns
@@ -1418,7 +1418,7 @@
   async function tellSale(t: NonNullable<MissionState["trades"]>[number], key: string) {
     // The marking runs off the same read of the log: let it start first.
     await new Promise((r) => setTimeout(r, 0));
-    // It's marking this trade, or will once your listings are read (orbiter starting, back after
+    // It's marking this trade, or will once your listings are read (MyOrbiter starting, back after
     // an outage): wait for it. Else it isn't going to.
     const loading = mkt.ordersAt == null || !mkt.items.length;
     const wait = marking.has(key) || outcomes.has(key) ? 60_000 : mkt.linked && settings.market.autoTrades && loading ? 20_000 : 0;
@@ -1446,7 +1446,7 @@
     const ok = repOffered({ key: r.key, partner: r.partner, at, now: clock, autoRep: settings.market.autoRep, linked: mkt.linked, onMarket: !!mkt.users[r.partner.toLowerCase()], rep: settings.market.rep, trades: settings.market.trades });
     return ok ? { ...r, given: false } : null;
   }
-  /** The desktop notification's Give +rep: given from here, orbiter left where it is. */
+  /** The desktop notification's Give +rep: given from here, MyOrbiter left where it is. */
   async function repFromNotice(id: string) {
     const n = settings.game.notices.find((x) => x.id === id);
     const r = n ? repShown(n) : null;
@@ -1462,7 +1462,7 @@
   // The game restarted, or started after TennoScope: its read of your inventory is from before
   // this game session. TennoScope reads it when it sees the game start, which is often before you
   // log in (nothing to read yet), and doesn't try again by itself. So once you've had time to log
-  // in, orbiter asks it to read again; and once more a few minutes later if that read didn't land.
+  // in, MyOrbiter asks it to read again; and once more a few minutes later if that read didn't land.
   const syncAsked = new Map<number, number>();
   $effect(() => {
     const session = mission?.session_start ?? null;
@@ -1532,7 +1532,7 @@
       const seen = new Set(settings.game.foundryNotified);
       const fresh = ready.filter((b) => !seen.has(b.key));
       if (!fresh.length) return;
-      // Builds that were already done before orbiter first saw them don't need announcing.
+      // Builds that were already done before MyOrbiter first saw them don't need announcing.
       const old = fresh.filter((b) => now - b.readyAt > 6 * 3_600_000);
       const news = fresh.filter((b) => !old.includes(b));
       if (news.length && settings.notify.foundry) {
@@ -1557,7 +1557,7 @@
       const fresh = ws.filter((w) => !seen.has(`${session}|${w.name}`));
       if (!fresh.length) return;
       settings.game.whispersSeen = [...fresh.map((w) => `${session}|${w.name}`), ...settings.game.whispersSeen].slice(0, 300);
-      // Opening orbiter mid-session: chats from more than 15 minutes ago aren't news any more.
+      // Opening MyOrbiter mid-session: chats from more than 15 minutes ago aren't news any more.
       const recent = fresh.filter((w) => w.at == null || Date.now() / 1000 - w.at < 15 * 60);
       // A buyer is on the way: hide your last copies so a second one doesn't come for the same.
       if (recent.length) void hideLastCopies(recent.map((w) => w.name));
@@ -1687,7 +1687,7 @@
         if (first) settings.game.cyclesNotified = [key, ...(settings.game.cyclesNotified ?? [])].slice(0, 100);
         const c = rollChoice(m, tables, raw);
         if (!c) continue;
-        // Not one read while orbiter was closed and long since settled; one read after the key, yes.
+        // Not one read while MyOrbiter was closed and long since settled; one read after the key, yes.
         const fresh = Date.now() - readAt < 120_000;
         const asked = pressed > 0 && readAt >= pressed - 1000 && (overlayAt.get(key) ?? 0) < pressed;
         if (settings.overlay.riven && ((first && fresh) || asked)) showCycle(key, c);
@@ -1795,7 +1795,7 @@
       mkt.deals = mkt.deals.filter((d) => !d.why.startsWith("your alert") || still.has(d.name));
     });
   });
-  // Cheap buys: the watchlist's order books every ten minutes, while orbiter is open.
+  // Cheap buys: the watchlist's order books every ten minutes, while MyOrbiter is open.
   let lastDeals = 0;
   $effect(() => {
     const now = tick;
@@ -1915,7 +1915,7 @@
       if (done.length) tell("setDone", done.length === 1 ? `${done[0]} complete` : `${done.length} sets complete`, `${done.join(", ")}: the parts you were saving came in. Ready to sell on Sets.`, "sets");
     });
   });
-  /** Screens from TennoScope's own log that orbiter didn't see live: history, and while it was closed. */
+  /** Screens from TennoScope's own log that MyOrbiter didn't see live: history, and while it was closed. */
   async function importScreens() {
     try {
       const logged = await rewardScreens(settings.dataDir);
@@ -1971,13 +1971,13 @@
   $effect(() => {
     // The same trouble with a new countdown ("tries again in 4 min") isn't news.
     const e = ts.error;
-    const key = e?.replace(/ orbiter tries again in \d+ min\.$/, "") ?? null;
+    const key = e?.replace(/ MyOrbiter tries again in \d+ min\.$/, "") ?? null;
     if (key && key !== lastTsError) logLine("warn", "tennoscope", e!);
     // Not where TennoScope can't run at all (macOS): there's nothing to fix.
     if (key && key !== lastTsError && settings.notify.tennoscope && ts.status?.supported !== false) tell("tennoscope", "TennoScope", e!);
     lastTsError = key;
   });
-  // TennoScope runs in the background (orbiter starts it); its settings live in orbiter's. Not
+  // TennoScope runs in the background (MyOrbiter starts it); its settings live in MyOrbiter's. Not
   // for a console player: it only reads Warframe on a PC.
   $effect(() => {
     ts.dataDir = settings.dataDir;
@@ -2096,7 +2096,7 @@
   };
   // ---------------------------------------------------------------- Report a bug
   // What the report's technical details say about TennoScope, and the names it hides: the
-  // player's own, and every other player orbiter knows of (trade partners, whispers, chats).
+  // player's own, and every other player MyOrbiter knows of (trade partners, whispers, chats).
   const reportTennoscope = $derived(noTennoScope ? "not used here" : ts.running ? (ts.report ? "connected" : "running, not reporting") : "not running");
   const reportFullMode = $derived(ts.report ? (ts.report.setup.access_mode === "full" ? "on" : "off") : "unknown");
   function reportNames(): RedactOptions {
@@ -2260,10 +2260,10 @@
   }
   /** What went wrong reading TennoScope's data, in words (the error itself is under Details). */
   function loadProblem(e: string) {
-    if (/HOME is not set/.test(e)) return "orbiter can't tell where TennoScope keeps its data: set the folder in Settings.";
+    if (/HOME is not set/.test(e)) return "MyOrbiter can't tell where TennoScope keeps its data: set the folder in Settings.";
     if (/not found at|No dev bundle/i.test(e)) return `There's no TennoScope data in ${settings.dataDir || defaultDir || "its folder"} yet.`;
     if (/parse|database|could not read/i.test(e)) return "TennoScope's data is there but couldn't be read. TennoScope may have been writing it just then.";
-    return "orbiter couldn't read TennoScope's data.";
+    return "MyOrbiter couldn't read TennoScope's data.";
   }
   const hhmm = (at: number | null) => (at == null ? "?" : new Date(at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }));
 
@@ -2383,7 +2383,7 @@
       if (stopped) return;
       settings.tab = migrateTab(settings.startPage !== "last" ? settings.startPage : settings.tab);
       settingsReady = true;
-      // A Discord address saved before orbiter asked about them: asked now, while the player is
+      // A Discord address saved before MyOrbiter asked about them: asked now, while the player is
       // here, rather than at the first notification, which may come while they're away.
       if (settings.notifyOptions.discord.url) void discordConfirm(settings.notifyOptions.discord.url).catch(() => {});
       // Updates: checked once the window has drawn and things are quiet, then every 6 hours.
@@ -2426,7 +2426,7 @@
         void recipeData().then((r) => { if (r) recipes = r; });
       }, 3 * 3_600_000);
       void recipeData().then((r) => { if (r) recipes = r; });
-      // TennoScope's log, for screens orbiter missed (a reading it didn't pass on, or a restart).
+      // TennoScope's log, for screens MyOrbiter missed (a reading it didn't pass on, or a restart).
       screensPoll = setInterval(importScreens, 10 * 60_000);
       // EE.log is followed incrementally, so a short interval only reads what the game appended.
       pollMission();
@@ -2449,7 +2449,7 @@
       marketPoll = setInterval(() => {
         if (stopped) return;
         const s = settings.market;
-        // Your listings as warframe.market has them, every 30 s (every 2 minutes while orbiter's
+        // Your listings as warframe.market has them, every 30 s (every 2 minutes while MyOrbiter's
         // window is hidden): changes made on the website (or a sale marked there) show up here
         // without a reload. While warframe.market doesn't answer, each wait is twice the last.
         const every = backoff(document.hidden ? 120_000 : 30_000, orderFailures, 10 * 60_000);
@@ -2520,7 +2520,7 @@
     const r = ts.report;
     if (!r) return "warn";
     if (Object.values(r.health).some((h) => h.state === "failed")) return "bad";
-    // A request from orbiter (a sync, a status change) failed in the last minute: the panel says why.
+    // A request from MyOrbiter (a sync, a status change) failed in the last minute: the panel says why.
     if (r.last_error && Date.now() - r.last_error.at < 60_000) return "warn";
     if (r.setup.desktop_capture_action_available || !r.setup.access_mode) return "warn";
     return "ok";
@@ -2570,10 +2570,10 @@
 <!-- Keyboard: the first Tab offers to jump past the sidebar to the page. -->
 <a class="skip" href="#main" title="Jump past the sidebar to this page's title" onclick={(e) => { e.preventDefault(); focusPage(document.activeElement, 0); }}>Skip to page</a>
 <div class="shell" class:compact class:withside={sideShown} class:withtab={sideTab}>
-  <aside class="rail" aria-label="orbiter">
+  <aside class="rail" aria-label="MyOrbiter">
     <div class="brand">
       <img class="brand-mark" src={appMark} width="26" height="26" alt="" />
-      <span class="brand-name">Orbiter</span>
+      <span class="brand-name">MyOrbiter</span>
       <button class="fold" aria-label={compact ? "Show labels" : "Icons only"} title={compact ? "Show the page names" : "Icons only"} onclick={() => (settings.folded = !compact)}>
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d={compact ? "M6 3l5 5-5 5" : "M10 3 5 8l5 5"} fill="none" stroke="currentColor" stroke-width="1.5" /></svg>
       </button>
@@ -2607,7 +2607,7 @@
         title={`${syncStep ? `${syncStep}…\n\n` : ""}${onConsole ? "Reload your warframe.market listings, the fissures and Baro" : syncMode ? "Sync: ask TennoScope to read your inventory from the game now, and wait for the new read" : "Sync: reload TennoScope's last saved read and the live fissures. With Warframe running and TennoScope on Full access, it asks TennoScope for a fresh read from the game instead"} (Ctrl+R)`}
         onclick={refreshAll} />
         {#if model && !onConsole}<button class="tool" aria-label="Find anything" aria-expanded={showLookup} title="Find anything by name: an item, a prime part, a relic, a mod or arcane you hold (Ctrl+K)" onclick={() => (showLookup = true)}><Icon name="search" size={14} /></button>{/if}
-        <button class="tool bell" data-card="notices" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what orbiter told you, and what it tells you about` : unread ? `Notifications: ${unread} new` : "Notifications: what orbiter told you, and what it tells you about"} onclick={() => openNotices("recent")}><Icon name="bell" size={14} />{#if unread}<span class="count">{unread > 99 ? "99+" : unread}</span>{/if}</button>
+        <button class="tool bell" data-card="notices" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what MyOrbiter told you, and what it tells you about` : unread ? `Notifications: ${unread} new` : "Notifications: what MyOrbiter told you, and what it tells you about"} onclick={() => openNotices("recent")}><Icon name="bell" size={14} />{#if unread}<span class="count">{unread > 99 ? "99+" : unread}</span>{/if}</button>
       </div>
       {#if syncJob.state === "failed" && syncJob.error}<p class="syncerr" role="status">{syncJob.error}</p>{/if}
       <div class="tools">
@@ -2616,11 +2616,11 @@
             <i></i><span class="lbl">TennoScope</span>
           </button>
         {/if}
-        <button class="tool" class:on={settings.tab === "guide"} aria-label="Guide" title="How to use orbiter (F1)" onclick={() => (settings.tab = "guide")}><Icon name="guide" size={14} /></button>
+        <button class="tool" class:on={settings.tab === "guide"} aria-label="Guide" title="How to use MyOrbiter (F1)" onclick={() => (settings.tab = "guide")}><Icon name="guide" size={14} /></button>
         <!-- Report a bug, beside the Guide where the row has room: the folded sidebar, or no TennoScope
              button. Unfolded with TennoScope the row is full (and the sidebar has no height to
              spare at 800 px), so there it's in Settings, the Guide and Shift+F1. -->
-        {#if compact || !(ts.status && !noTennoScope)}<button class="tool" data-card="report-bug-rail" aria-label="Report a bug" aria-expanded={bugReport.open} title="Report a bug: say what went wrong, then open it as an issue on GitLab or copy it. orbiter sends nothing itself (Shift+F1)" onclick={() => bugReport.show()}><Icon name="bug" size={14} /></button>{/if}
+        {#if compact || !(ts.status && !noTennoScope)}<button class="tool" data-card="report-bug-rail" aria-label="Report a bug" aria-expanded={bugReport.open} title="Report a bug: say what went wrong, then open it as an issue on GitLab or copy it. MyOrbiter sends nothing itself (Shift+F1)" onclick={() => bugReport.show()}><Icon name="bug" size={14} /></button>{/if}
         <button class="tool" aria-label="Settings" aria-expanded={showSettings} title="Settings (Ctrl+,)" onclick={() => (showSettings = true)}><Icon name="settings" size={14} /></button>
       </div>
     </div>
@@ -2636,24 +2636,24 @@
       <div class="page-inner"><div class="notice">
         <h2 class="mark">Getting set up</h2>
         {#if noTennoScope}
-          <p class="prose">orbiter learns what you own from TennoScope, which reads it from the game. {onConsole ? `TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}` : "TennoScope doesn't run on macOS"}, so orbiter can't see your inventory here. Your warframe.market listings and sales, fissures, Baro and Varzia, the world's clocks and the riven finder all work without it.</p>
+          <p class="prose">MyOrbiter learns what you own from TennoScope, which reads it from the game. {onConsole ? `TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}` : "TennoScope doesn't run on macOS"}, so MyOrbiter can't see your inventory here. Your warframe.market listings and sales, fissures, Baro and Varzia, the world's clocks and the riven finder all work without it.</p>
           <div class="row"><button class="stamp gold" onclick={withoutInventory}>Continue without inventory</button></div>
         {:else}
-          <p class="prose">orbiter learns what you own from TennoScope, which {ts.status?.bundled ? "comes inside orbiter and " : ""}reads it from the game. Three steps, once:</p>
+          <p class="prose">MyOrbiter learns what you own from TennoScope, which {ts.status?.bundled ? "comes inside MyOrbiter and " : ""}reads it from the game. Three steps, once:</p>
           <ol class="steps">
             <li class:done={setupStep > 1} class:now={setupStep === 1}>
               <strong>TennoScope runs</strong>
               <span class="prose">
-                {#if ts.running && ts.unpatched}It's running, but it's a TennoScope that doesn't talk to orbiter. Close it, and orbiter starts its own.
-                {:else if ts.running}Running in the background{ts.status?.bundled ? ": the copy inside orbiter" : ""}. orbiter closes it when you close orbiter.
+                {#if ts.running && ts.unpatched}It's running, but it's a TennoScope that doesn't talk to MyOrbiter. Close it, and MyOrbiter starts its own.
+                {:else if ts.running}Running in the background{ts.status?.bundled ? ": the copy inside MyOrbiter" : ""}. MyOrbiter closes it when you close MyOrbiter.
                 {:else if ts.status?.binary}Starting it…
-                {:else}orbiter couldn't find TennoScope. Set its program in Settings.{/if}
+                {:else}MyOrbiter couldn't find TennoScope. Set its program in Settings.{/if}
               </span>
               {#if ts.error}<span class="err small">{ts.error}</span>{/if}
             </li>
             <li class:done={setupStep > 2} class:now={setupStep === 2}>
               <strong>Choose whether it reads your inventory</strong>
-              <span class="prose">Off unless you turn it on. Without it, orbiter still has the reward overlay, your warframe.market listings and sales, fissures and the world's clocks; with it, your collection too.</span>
+              <span class="prose">Off unless you turn it on. Without it, MyOrbiter still has the reward overlay, your warframe.market listings and sales, fissures and the world's clocks; with it, your collection too.</span>
               {#if setupStep >= 2}<FullMode />{/if}
               {#if setupStep === 2}<div class="row"><button onclick={() => { void ts.ask("--access=overlay"); withoutInventory(); }} disabled={!ts.running}>Not now: overlay only</button></div>{/if}
               {#if ts.report?.setup.access_mode && ts.report.setup.access_mode !== "full"}<span class="dim small">Full mode is off ({ts.report.setup.access_mode === "overlay" ? "Overlay" : "Companion"}): TennoScope won't read your inventory. Turn it on above, or later in Settings.</span>{/if}
@@ -2670,7 +2670,7 @@
             </li>
           </ol>
           <div class="row">
-            <button onclick={withoutInventory}>Use orbiter without inventory for now</button>
+            <button onclick={withoutInventory}>Use MyOrbiter without inventory for now</button>
             <button onclick={() => (showSettings = true)}>Settings</button>
           </div>
         {/if}
@@ -2678,7 +2678,7 @@
     {:else if !model && built.error}
       <div class="page-inner"><div class="notice" role="alert">
         <h2 class="mark">Can't make sense of TennoScope's data</h2>
-        <p class="prose">TennoScope's last read has something orbiter can't use. It may have been writing it just then: try again, or sync once Warframe is running. The log has the details.</p>
+        <p class="prose">TennoScope's last read has something MyOrbiter can't use. It may have been writing it just then: try again, or sync once Warframe is running. The log has the details.</p>
         <details class="why"><summary>Details</summary><code>{built.error}</code></details>
         <div class="row">
           <button class="stamp" onclick={() => (showTennoscope = true)}>TennoScope panel</button>
@@ -2689,7 +2689,7 @@
       <div class="page-inner"><div class="notice">
         <h2 class="mark">Can't read TennoScope's data</h2>
         <p class="prose">{loadProblem(error)}</p>
-        <p class="prose">TennoScope needs to have read your inventory at least once. orbiter starts it in the background; start Warframe and it reads your account when the game is up, and orbiter picks the data up by itself as soon as TennoScope writes it. If it doesn't, the TennoScope panel says why. If its data lives somewhere else, set the folder in Settings.</p>
+        <p class="prose">TennoScope needs to have read your inventory at least once. MyOrbiter starts it in the background; start Warframe and it reads your account when the game is up, and MyOrbiter picks the data up by itself as soon as TennoScope writes it. If it doesn't, the TennoScope panel says why. If its data lives somewhere else, set the folder in Settings.</p>
         <details class="why"><summary>Details</summary><code>{error}</code></details>
         <div class="row">
           <button class="stamp" onclick={() => (showTennoscope = true)}>TennoScope panel</button>
@@ -2708,7 +2708,7 @@
       {/if}
       {#if saveError}
         <div class="stale" role="alert" title={saveError}>
-          <span>Couldn't save your settings ({saveError}): what you change now may not be kept. orbiter keeps trying.</span>
+          <span>Couldn't save your settings ({saveError}): what you change now may not be kept. MyOrbiter keeps trying.</span>
         </div>
       {/if}
       {#if error}

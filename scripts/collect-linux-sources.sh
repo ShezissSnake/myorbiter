@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Where the source of every Debian/Ubuntu package a download carries files from can be had, and
-# orbiter's written offer for the GPL- and LGPL-licensed ones among them.
+# MyOrbiter's written offer for the GPL- and LGPL-licensed ones among them.
 #
 #   scripts/collect-linux-sources.sh <SOURCES.md> <file or folder>...
 #
@@ -12,7 +12,7 @@
 #   dpkg-query -W -f='${Package} ${Version} ${source:Package} ${source:Version}\n'
 #
 # says, with the Ubuntu page for that source (launchpad.net/ubuntu/+source/<srcpkg>/<version>),
-# the licences its copyright file names, and which are GPL or LGPL. Files no package owns (orbiter
+# the licences its copyright file names, and which are GPL or LGPL. Files no package owns (MyOrbiter
 # and TennoScope themselves, the AppImage runtime) are listed apart.
 #
 # With NOTICES_DIR set, each package's copyright file is also copied there (<package>.copyright),
@@ -34,7 +34,7 @@ For three years from the date of this release, the complete corresponding source
 and LGPL-licensed libraries bundled in this build is available on request: open an issue at
 https://gitlab.com/sheziss-group/orbiter or contact the maintainer.
 
-The source of orbiter and TennoScope (both GPL-3.0-only) is attached to every release as
+The source of MyOrbiter and TennoScope (both GPL-3.0-only) is attached to every release as
 orbiter-source.tar.gz.
 OFFER
 }
@@ -145,7 +145,7 @@ done
     echo
   fi
   if [ ${#unowned[@]} -gt 0 ]; then
-    echo "Not from a package (orbiter's and TennoScope's own programs, the AppImage runtime and the"
+    echo "Not from a package (MyOrbiter's and TennoScope's own programs, the AppImage runtime and the"
     echo "like): $(printf '%s\n' "${unowned[@]}" | sort -u | paste -sd ',' - | sed 's/,/, /g')."
     echo
   fi

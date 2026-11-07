@@ -1,4 +1,4 @@
-// The motion kit: how orbiter moves, one contract for every page.
+// The motion kit: how MyOrbiter moves, one contract for every page.
 //
 // - Motion answers a click; it never decorates. No hover motion on cards, nothing on page load:
 //   only something leaving, arriving, ticking off, opening or being confirmed.

@@ -1,4 +1,4 @@
-// Every page orbiter has, in sidebar order. The sidebar, the keyboard shortcuts (Ctrl+1…9 follow
+// Every page MyOrbiter has, in sidebar order. The sidebar, the keyboard shortcuts (Ctrl+1…9 follow
 // this order) and the Guide read this list; adding a page is one entry here plus its component in
 // App.svelte. Each section answers one question, so a new page has one place to go:
 //   Fissures    What should I crack? The fissure you're in, your relics, what to crack next.
@@ -34,7 +34,7 @@ export interface Page {
   label: string;
   /** Section in the sidebar; Home and Guide stand alone. */
   group: "" | "Fissures" | "Progress" | "Collection" | "Trade";
-  /** The game's own icon where there is a fitting one, else one of orbiter's line icons. */
+  /** The game's own icon where there is a fitting one, else one of MyOrbiter's line icons. */
   icon: { game: GameIconName } | { line: string };
   hint: string;
   /** The hint on a console, where the page does less. */
@@ -68,7 +68,7 @@ export const pageById = Object.fromEntries(PAGES.map((p) => [p.id, p])) as Recor
 
 /**
  * The pages for a console or phone player (Settings → Platform): only what works without reading
- * the game, which orbiter can only do on a PC: the riven finder under Collection, your listings
+ * the game, which MyOrbiter can only do on a PC: the riven finder under Collection, your listings
  * and sales under Trade; the world's clocks, fissures and Baro on Home.
  */
 const CONSOLE: PageId[] = ["home", "market", "sales", "rivens", "guide"];

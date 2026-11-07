@@ -1,4 +1,4 @@
-"""Trains orbiter's riven price model from listings collect.py read, and writes it for the app.
+"""Trains MyOrbiter's riven price model from listings collect.py read, and writes it for the app.
 
     python3 scripts/riven-model/train.py DATA_DIR src/lib/data/riven-model.json
 
@@ -7,10 +7,10 @@ https://www-static.warframe.com/repos/weeklyRivensPC.json) and rw.json (warframe
 /v2/riven/weapons). Needs numpy, pandas and scikit-learn.
 
 The model guesses what a riven is listed for on warframe.market (asking prices: the site keeps
-no record of what rivens sold for) from what orbiter can work out for one of yours at any time:
+no record of what rivens sold for) from what MyOrbiter can work out for one of yours at any time:
 its stats and how good each roll is, its weapon's riven kind, cycles, mastery, rank and polarity,
 what that weapon's rivens traded for in game last week (DE's figures) and what the cheapest 60
-listed for the weapon ask now (the "Any … riven from" search orbiter already makes). Gradient-
+listed for the weapon ask now (the "Any … riven from" search MyOrbiter already makes). Gradient-
 boosted trees on the log of the price: the middle guess (absolute error) and a lower and upper
 quartile. The app walks the trees itself (src/lib/core/rivenModel.ts); `parity` below checks
 the exported trees give scikit-learn's own numbers.

@@ -1,4 +1,4 @@
-/* orbiter's website in the app's own design, "The Ledger" (src/app.css): a dark slab, engraved
+/* MyOrbiter's website in the app's own design, "The Ledger" (src/app.css): a dark slab, engraved
    hairlines, square corners, struck condensed titles, small tracked monospace labels. Platinum and
    gold carry the values; nothing glows, nothing is rounded. The tokens are the app's. */
 
@@ -57,6 +57,7 @@ img { max-width: 100%; height: auto; display: block; }
 .main a { font-family: var(--face-register); font-size: .74rem; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; text-decoration: none; color: var(--platinum-dim); padding: .2rem 0; border-bottom: 1px solid transparent; }
 .main a:first-child { font-family: var(--face-mark); font-size: 1.15rem; font-weight: 700; letter-spacing: 0; color: var(--platinum); margin-right: auto; display: inline-flex; align-items: center; gap: .55rem; }
 .main a:first-child img { display: block; flex: none; }
+.main a:first-child img.wordmark { height: 26px; width: auto; }
 .main a:hover, .main a[aria-current="page"] { color: var(--platinum); border-bottom-color: var(--gold); }
 .main a:first-child[aria-current="page"] { border-bottom-color: transparent; }
 main { max-width: 72rem; margin: 0 auto; padding: 2.5rem 1.5rem 3rem; }

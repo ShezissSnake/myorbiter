@@ -67,7 +67,7 @@ export interface MarketRow {
   ducats: number | null;
   /** How many you hold (sets: complete sets; relics: every refinement); null when unknown. */
   have: number | null;
-  /** warframe.market's thumbnail, for items orbiter has no art for. */
+  /** warframe.market's thumbnail, for items MyOrbiter has no art for. */
   thumb: string | null;
 }
 

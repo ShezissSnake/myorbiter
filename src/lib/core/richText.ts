@@ -1,4 +1,4 @@
-// orbiter's own prose (What's New, the Guide) the way the wiki writes it: a page's name becomes a
+// MyOrbiter's own prose (What's New, the Guide) the way the wiki writes it: a page's name becomes a
 // link to it, with its sidebar icon, and the game's currencies and resources carry their icon.
 // Only the first mention of each in a block, so a paragraph doesn't turn into a row of icons.
 

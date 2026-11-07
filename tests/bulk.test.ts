@@ -166,9 +166,9 @@ test("plan: clearly cheap by the daily median is settled without fetching its pr
   assert.match(plan[0].type === "skip" ? plan[0].why : "", /about 3p, under your 10p minimum/);
 });
 
-test("plan: listings orbiter can't count are left alone, never removed as 'you hold none'", () => {
+test("plan: listings MyOrbiter can't count are left alone, never removed as 'you hold none'", () => {
   const extra: MarketItem[] = [
-    // A set whose parts orbiter doesn't know (newest Prime Access, a collar set).
+    // A set whose parts MyOrbiter doesn't know (newest Prime Access, a collar set).
     { id: "kav", slug: "kavasa_prime_kubrow_collar_set", gameRef: "/Skins/Collar", name: "Kavasa Prime Kubrow Collar Set", maxRank: null, subtypes: null, tags: ["prime", "set"] },
     // A mod under another path on the market than in the game (…SPMod vs …SPSubMod).
     { id: "gal", slug: "galvanized_reflex", gameRef: "/M/ReflexSPSubMod", name: "Galvanized Reflex", maxRank: 10, subtypes: null, tags: ["mod"] },
@@ -221,7 +221,7 @@ test("mods: your own copy and one to give away are always kept", () => {
   const rules = only({ mods: true });
   const two = buildModel(bundle([inv("/M/Serration", "Serration", "mod", 2)]));
   assert.deepEqual(sellTargets(two, rules, defaultAdvice()), [], "two unranked copies: one to use, one to give");
-  // A listing you made for a copy orbiter would keep is yours to make: it stays, and the plan says so.
+  // A listing you made for a copy MyOrbiter would keep is yours to make: it stays, and the plan says so.
   const own = bulkPlan(ctx(two, [order("kept", "ser", 1, 20, 0)], {}), rules, []);
   assert.equal(own.length, 1);
   assert.equal(own[0].type === "skip" && own[0].why, "Your own copy and one to give away would be kept: left as you listed it");
@@ -234,13 +234,13 @@ test("mods: your own copy and one to give away are always kept", () => {
   assert.equal(over[0].type === "update" && [over[0].quantity, over[0].why].join("|"), "3|You hold 3 now");
 });
 
-test("plan: your own set, part and arcane listings for copies orbiter would keep stay up, said in the plan", () => {
+test("plan: your own set, part and arcane listings for copies MyOrbiter would keep stay up, said in the plan", () => {
   const rules = only({ sets: true, parts: true, arcanes: true });
-  // One Rhino set, not built or mastered: it's the one orbiter keeps to build. Your listing stays.
+  // One Rhino set, not built or mastered: it's the one MyOrbiter keeps to build. Your listing stays.
   const one = buildModel(bundle(rhino(1)));
   const setPlan = bulkPlan(ctx(one, [order("s", "set", 1, 60)], {}), only({ sets: true }), sellTargets(one, only({ sets: true }), defaultAdvice()));
   assert.deepEqual(setPlan.map((a) => a.type === "skip" && a.why), ["One set to build and master would be kept: left as you listed it"]);
-  // Your only maxed Energize is the one orbiter keeps; your listing for it stays.
+  // Your only maxed Energize is the one MyOrbiter keeps; your listing for it stays.
   const maxed = buildModel(bundle([inv("/A/Energize", "Arcane Energize", "arcane", 1, { rank: 5 })]));
   const arc = bulkPlan(ctx(maxed, [order("a", "ene", 1, 150, 5)], {}), rules, []);
   assert.deepEqual(arc.map((a) => a.type === "skip" && [a.name, a.rank, a.why].join("|")), ["Arcane Energize|5|Your maxed copy would be kept: left as you listed it"]);

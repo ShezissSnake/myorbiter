@@ -1,5 +1,5 @@
 <script lang="ts">
-  // How much each thing counts when orbiter picks a reward card: one slider each, 0 to 10.
+  // How much each thing counts when MyOrbiter picks a reward card: one slider each, 0 to 10.
   // 0 leaves it out (no interest in ducats while farming platinum, say); at least one stays above 0.
   // Below them, what a Forma Blueprint is worth to you: it can't be traded, so it has no price.
   import { defaultPickWeights, type PickWeights, type WeightKey } from "../core/pick";
@@ -39,7 +39,7 @@
       <span class="val" title="Its share of the score">{weights[r.k] ? `${Math.round((100 * weights[r.k]) / total)}%` : "off"}</span>
     </label>
   {/each}
-  <label class="slider forma" title="A Forma Blueprint can't be sold, so it has no market price: orbiter counts it as this much platinum on the reward screen, twice that for a 2X Forma Blueprint. 0 leaves it at no price">
+  <label class="slider forma" title="A Forma Blueprint can't be sold, so it has no market price: MyOrbiter counts it as this much platinum on the reward screen, twice that for a 2X Forma Blueprint. 0 leaves it at no price">
     <span class="name">Forma blueprint</span>
     <span class="fx small">is worth <input type="number" min="0" max="100" step="1" value={weights.forma} onchange={(e) => setForma(e.currentTarget.value)} aria-label="What a Forma Blueprint is worth to you, in platinum" />p to you</span>
     <span class="val" title="A 2X Forma Blueprint counts double">2X {Math.round(weights.forma * 2 * 10) / 10}p</span>

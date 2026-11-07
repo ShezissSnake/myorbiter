@@ -1,7 +1,7 @@
 <script lang="ts">
   // A newer build is out on your channel: a calm card in the bottom right corner, there until you
   // answer it. Update and restart downloads it (the button fills as it comes in), installs it once
-  // its signature checks out and restarts orbiter; Later puts this version away until a newer one
+  // its signature checks out and restarts MyOrbiter; Later puts this version away until a newer one
   // is out. Nothing installs without the click.
   import { arrive, leave } from "./motion";
   import { CHANNEL_LABEL, noteLines } from "./core/updates";
@@ -20,14 +20,14 @@
     <div class="head">
       <span class="ic" aria-hidden="true"><Icon name="refresh" size={14} /></span>
       <span class="txt">
-        <b>orbiter {n.version} is out</b>
+        <b>MyOrbiter {n.version} is out</b>
         <span class="dim">on {CHANNEL_LABEL[n.channel]}</span>
       </span>
       <button class="x" aria-label="Later" title="Later: hide this until a newer version is out (Settings, Updates still has it)" disabled={updates.installJob.working} onclick={() => updates.later()}><Icon name="close" size={11} /></button>
     </div>
     {#if lines.length}<ul class="notes">{#each lines as line, i (i)}<li>{line}</li>{/each}</ul>{/if}
     <div class="acts">
-      <ProgressButton job={updates.installJob} tone="gold" label="Update and restart" sizer={["Downloading 100%", "Restarting", "Not installed"]} title="Download {n.version}, check its signature, install it and restart orbiter into it" onclick={() => updates.install()} status />
+      <ProgressButton job={updates.installJob} tone="gold" label="Update and restart" sizer={["Downloading 100%", "Restarting", "Not installed"]} title="Download {n.version}, check its signature, install it and restart MyOrbiter into it" onclick={() => updates.install()} status />
       <button type="button" class="link" title="Hide this until a newer version is out (Settings, Updates still has it)" disabled={updates.installJob.working} onclick={() => updates.later()}>Later</button>
       <button type="button" class="link" title="Settings, Updates: your channel, Check now and the release notes" onclick={onsettings}>Settings</button>
     </div>

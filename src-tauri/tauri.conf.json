@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "orbiter",
+  "productName": "myorbiter",
   "version": "0.1.0",
-  "identifier": "dev.orbiter.app",
+  "identifier": "io.gitlab.sheziss-group.myorbiter",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1421",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "orbiter",
+        "title": "MyOrbiter",
         "width": 1360,
         "height": 860,
         "minWidth": 900,
@@ -77,6 +77,7 @@
       "icons/icon.icns"
     ],
     "category": "Game",
+    "publisher": "MyOrbiter",
     "shortDescription": "Warframe companion",
     "longDescription": "Reads what TennoScope stores about your Warframe account to show sets you can sell, what you have not mastered, arcane collections, duplicate mods and vaulted relics, and keeps your warframe.market listings priced.",
     "linux": {
@@ -84,11 +85,13 @@
         "bundleMediaFramework": false
       },
       "deb": {
-        "depends": []
+        "depends": [],
+        "desktopTemplate": "linux/desktop.hbs"
       },
       "rpm": {
         "release": "1",
-        "depends": []
+        "depends": [],
+        "desktopTemplate": "linux/desktop.hbs"
       }
     },
     "license": "GPL-3.0-only",

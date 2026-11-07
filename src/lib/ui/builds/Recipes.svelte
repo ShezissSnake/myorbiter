@@ -1,6 +1,6 @@
 <script lang="ts">
   // Modular gear's recipes: every combination of the other parts for this chamber, strike, prism,
-  // model or subspecies, ranked for a goal from the bundled part stats (orbiter's own ranking, and
+  // model or subspecies, ranked for a goal from the bundled part stats (MyOrbiter's own ranking, and
   // labelled so), with each part held, as a blueprint, or missing, and where to get it.
   import type { Model } from "../../core/model";
   import { recipesFor, type KitgunSlot, type RecipePart, type Stat } from "../../core/recipes";

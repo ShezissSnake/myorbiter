@@ -31,13 +31,13 @@
  * The catalog has no stance-slot polarity: tierOf counts it as none and says so.
  *
  * Overframe's popular builds (overframeList.ts): a list bundled with the app, collected by hand in
- * a browser with Overframe's permission (lists only), never fetched by orbiter:
+ * a browser with Overframe's permission (lists only), never fetched by MyOrbiter:
  *
  *   const file = await loadOverframe();                     // public/data/overframe/popular.json
  *   const { builds } = overframeFor(file, item.uniqueName, { name: item.name });   // ≤ 5, ≤ 2 years
  *
- * Sources: orbiter never fetches Overframe or the wiki. registerSource takes a BuildSource
- * (orbiter's suggestions; a fetcher only with the site's permission, or its terms as checked, on record).
+ * Sources: MyOrbiter never fetches Overframe or the wiki. registerSource takes a BuildSource
+ * (MyOrbiter's suggestions; a fetcher only with the site's permission, or its terms as checked, on record).
  *
  * Nox's Frame (noxsframe.ts; Rust: src-tauri/src/noxsframe.rs), read on demand only:
  *

@@ -9,7 +9,7 @@ import { buildReport, cleanUserText, detailsText, issueLink, LABELS, LOG_LINES, 
 import { redact } from "../src/lib/core/redact";
 import { openable } from "../src/lib/core/links";
 
-const LOG = readFileSync(new URL("./fixtures/report/orbiter.log", import.meta.url), "utf8").trim().split("\n");
+const LOG = readFileSync(new URL("./fixtures/report/myorbiter.log", import.meta.url), "utf8").trim().split("\n");
 const NAMES = { self: ["MeExample"], others: ["BuyerExample"] };
 const details = (log: string[] = LOG): ReportDetails => ({ version: "0.1.0", commit: "a1b2c3d", buildDate: "2026-11-03", channel: null, os: "linux", arch: "x86_64", page: "Orders", tennoscope: "connected", fullMode: "off", log });
 const params = (url: string) => new URL(url).searchParams;
@@ -42,7 +42,7 @@ test("the link fills the title and the description, and the opener allows it", (
   assert.equal(section(md, SECTIONS.what), "Orders froze.\nAfter Reprice.");
   assert.equal(section(md, SECTIONS.steps), "1. Open Orders\n2. Reprice");
   assert.equal(section(md, SECTIONS.expected), "Prices change");
-  assert.match(section(md, SECTIONS.details)!, /^```text\norbiter 0\.1\.0 \(a1b2c3d, 2026-11-03\)\nChannel: not known in this build\nSystem: linux x86_64\nPage: Orders\nTennoScope: connected\nFull mode: off\n[\s\S]*\n```$/);
+  assert.match(section(md, SECTIONS.details)!, /^```text\nMyOrbiter 0\.1\.0 \(a1b2c3d, 2026-11-03\)\nChannel: not known in this build\nSystem: linux x86_64\nPage: Orders\nTennoScope: connected\nFull mode: off\n[\s\S]*\n```$/);
   assert.ok(md.endsWith(`\n\n${LABELS}\n`), "the labels last, as in the template");
   assert.equal(dropped, 0);
   assert.equal(cut, false);
@@ -145,9 +145,9 @@ test("the player's text: hidden characters and HTML comments go, the rest is kep
 
 test("Copy report: the form's sections in Markdown, the details in a text block", () => {
   const md = reportMarkdown(buildReport({ what: "Orders froze", steps: "Reprice", expected: "" }, details(["one ``` two", "three"])));
-  assert.match(md, /^## Orders froze\n\n### What happened\n\nOrders froze\n\n### Steps to reproduce\n\nReprice\n\n### Technical details\n\n```text\norbiter 0\.1\.0/);
+  assert.match(md, /^## Orders froze\n\n### What happened\n\nOrders froze\n\n### Steps to reproduce\n\nReprice\n\n### Technical details\n\n```text\nMyOrbiter 0\.1\.0/);
   assert.ok(!md.includes("### What you expected"), "an empty optional section is left out");
-  assert.match(md, /one ''' two\nthree\n```\n\n_Made with orbiter's Report a bug\._\n$/);
+  assert.match(md, /one ''' two\nthree\n```\n\n_Made with MyOrbiter's Report a bug\._\n$/);
   const none = reportMarkdown(buildReport({ what: "", steps: "", expected: "" }, null));
   assert.match(none, /^## Bug report\n\n### What happened\n\n_\(not filled in\)_\n/);
   assert.ok(!none.includes("Technical details"));

@@ -143,16 +143,16 @@
         <Named file={model.imageOf(d.name.replace(/ Set$/, ""))} name={d.name} size={44} />
 
         {#if mkt.signInRefused}
-          <p class="prose">warframe.market refused orbiter's sign-in (it expired, or was signed out elsewhere). Sign out on Orders, then sign in again.</p>
+          <p class="prose">warframe.market refused MyOrbiter's sign-in (it expired, or was signed out elsewhere). Sign out on Orders, then sign in again.</p>
           <div class="row end">
             <button onclick={() => mkt.closeDraft()}>Cancel</button>
             <button class="stamp gold" onclick={() => { mkt.closeDraft(); go("market"); }}>Open Orders</button>
           </div>
         {:else if mkt.accountError}
-          <p class="prose">You're signed in, but warframe.market can't be reached right now: {mkt.accountError}. orbiter tries again every minute; list it once it answers.</p>
+          <p class="prose">You're signed in, but warframe.market can't be reached right now: {mkt.accountError}. MyOrbiter tries again every minute; list it once it answers.</p>
           <div class="row end"><button onclick={() => mkt.closeDraft()}>Close</button></div>
         {:else if !mkt.linked}
-          <p class="prose">Sign in to warframe.market first. orbiter keeps its own sign-in; you only do it once.</p>
+          <p class="prose">Sign in to warframe.market first. MyOrbiter keeps its own sign-in; you only do it once.</p>
           <div class="row end">
             <button onclick={() => mkt.closeDraft()}>Cancel</button>
             <button class="stamp gold" onclick={() => { mkt.closeDraft(); go("market"); }}>Sign in on Orders</button>
@@ -200,13 +200,13 @@
           {#if badNumber}<p class="err small">{badNumber}</p>
           {:else if noneHere}<p class="err small">You hold none at this {d.maxRank != null ? "rank" : "variant"}: pick one you have.</p>
           {:else if oversell}<p class="err small">You hold {heldHere} at this {d.maxRank != null ? "rank" : "variant"}{merging && existing ? `, ${existing.quantity} listed already` : ""}: you can't list more than that.</p>
-          {:else if tooMany}<p class="warn small">{merging && existing ? `You can spare ${d.available} and ${existing.quantity} are listed already, so ${room} more at most.` : `That's more than the ${d.available} you can spare; the rest are copies orbiter keeps back for you.`}</p>{/if}
+          {:else if tooMany}<p class="warn small">{merging && existing ? `You can spare ${d.available} and ${existing.quantity} are listed already, so ${room} more at most.` : `That's more than the ${d.available} you can spare; the rest are copies MyOrbiter keeps back for you.`}</p>{/if}
           {#if repriceOnly && existing}<p class="small dim">All you can spare is listed already ({existing.quantity} at {existing.platinum}p). This only changes the price.</p>{/if}
           {#if underFloor && market}<p class="warn small">Under your {floor}p floor{market.auto ? `: Apply automatically lifts it to at least ${floor}p while anyone in game sells it` : " (Floor and Never under, on Orders)"}.</p>
           {:else if low}<p class="warn small">Under half the daily median. Check the price before listing.</p>{/if}
           {#if crackBeats != null}<p class="warn small">{anRefinement} crack of it is worth about {crackBeats}p{(advice?.squad ?? 1) > 1 ? " in a radshare" : ""}: cracking beats selling at {d.platinum}p.</p>{/if}
           {#if ducats}<p class="warn small">Worth more as ducats: {ducats.n} ducats are about {ducats.worth}p to you (your rate, on Prime parts). Sell spares keeps it off the market.</p>{/if}
-          {#if neverSold && !repriceOnly}<p class="warn small never">On your never-sell list (Sell spares), so orbiter won't list it. <button type="button" class="link" title="Take it off the never-sell list: it can be listed here, and Sell spares lists it again when it's spare" onclick={(e) => { pulse(e.currentTarget.parentElement!); sellAgain(); }}>Sell again</button></p>{/if}
+          {#if neverSold && !repriceOnly}<p class="warn small never">On your never-sell list (Sell spares), so MyOrbiter won't list it. <button type="button" class="link" title="Take it off the never-sell list: it can be listed here, and Sell spares lists it again when it's spare" onclick={(e) => { pulse(e.currentTarget.parentElement!); sellAgain(); }}>Sell again</button></p>{/if}
 
           {#if existing}
             <label class="merge small">

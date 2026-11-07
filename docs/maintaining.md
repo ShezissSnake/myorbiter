@@ -128,7 +128,7 @@ Stable build yet its download buttons point at *Releases*; step 5 runs it again.
 
 **6. The first manual install**, as a new player would do it
 
-- [ ] On a computer without orbiter, open the website's *Download*, take the AppImage (or
+- [ ] On a computer without MyOrbiter, open the website's *Download*, take the AppImage (or
       setup.exe) and `SHA256SUMS`, and check it (README, *Checking a download*).
 - [ ] Install and start it: the first-start walk-through appears, Full mode is off, and Settings →
       Updates says Stable and the version 0.2.*n*.

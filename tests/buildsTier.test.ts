@@ -161,7 +161,7 @@ test("a build that can't fit says by how much; unknown mods are left out and sai
   const big = Array.from({ length: 8 }, () => P.umbralVitality);
   const t = capacityOf(build(P.braton, [...big.slice(0, 7), "/Lotus/Upgrades/Mods/Nope"]), item(P.braton), CAT);
   assert.equal(t.unknown.length, 1);
-  assert.ok(t.reasons.some((r) => /1 mod orbiter doesn't know/.test(r)));
+  assert.ok(t.reasons.some((r) => /1 mod MyOrbiter doesn't know/.test(r)));
   // Umbral mods on a rifle: no Umbra Forma, so nothing frees enough.
   assert.equal(t.fits, false);
   assert.match(t.reasons[0], /^Doesn't fit even with an Orokin Catalyst: drain \d+ of 60, \d+ over\.$/);

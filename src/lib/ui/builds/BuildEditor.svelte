@@ -1,7 +1,7 @@
 <script lang="ts">
   // A simple slot editor: type a mod or arcane into each slot (the list offers what fits this item),
   // with its rank (empty: max). Names are matched as the paste reads them, the copy you hold
-  // preferred; a name orbiter can't place shows suggestions to pick. Archon shards and the Helminth
+  // preferred; a name MyOrbiter can't place shows suggestions to pick. Archon shards and the Helminth
   // for warframes.
   import { tick } from "svelte";
   import { scrim } from "../scrim";
@@ -213,7 +213,7 @@
     <div class="row end">
       {#if problems}<span class="warn small">{problems} name{problems === 1 ? "" : "s"} to fix</span>{/if}
       <button type="button" onclick={onclose} title="Close without saving">Cancel</button>
-      <button type="button" class="stamp gold" disabled={problems > 0} title={problems ? "Fix or clear the names orbiter couldn't match first" : copy ? "Save it as your own build" : "Save the changes"} onclick={save}>{copy ? "Save as mine" : "Save"}</button>
+      <button type="button" class="stamp gold" disabled={problems > 0} title={problems ? "Fix or clear the names MyOrbiter couldn't match first" : copy ? "Save it as your own build" : "Save the changes"} onclick={save}>{copy ? "Save as mine" : "Save"}</button>
     </div>
   </div>
 </div>

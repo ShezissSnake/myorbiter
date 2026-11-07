@@ -1,5 +1,5 @@
 {
-  "name": "orbiter",
+  "name": "myorbiter",
   "version": "0.1.0",
   "description": "Local-first Warframe collection helper that reads TennoScope's data: sets to sell, mastery to-do, arcane ranking, duplicate mods, vaulted relics.",
   "private": true,
@@ -7,12 +7,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:demo": "ORBITER_DEMO=1 vite",
+    "dev:demo": "MYORBITER_DEMO=1 vite",
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json --config ./svelte.config.js",
     "tauri": "tauri",
     "test": "tsx --test tests/*.test.ts",
-    "dev-bundle": "cargo run --release -q --manifest-path crates/orbiter-data/Cargo.toml --bin orbiter-dump > public/dev-bundle.tmp.json && mv public/dev-bundle.tmp.json public/dev-bundle.json || { rm -f public/dev-bundle.tmp.json; exit 1; }",
+    "dev-bundle": "cargo run --release -q --manifest-path crates/myorbiter-data/Cargo.toml --bin myorbiter-dump > public/dev-bundle.tmp.json && mv public/dev-bundle.tmp.json public/dev-bundle.json || { rm -f public/dev-bundle.tmp.json; exit 1; }",
     "dev-data": "node scripts/dev-data.mjs",
     "icons": "node scripts/icons.mjs"
   },

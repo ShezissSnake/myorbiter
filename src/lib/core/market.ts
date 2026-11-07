@@ -17,7 +17,7 @@ export interface MarketItem {
   maxRank: number | null;
   subtypes: string[] | null;
   tags: string[] | null;
-  /** warframe.market's thumbnail, as orbiter's image cache names it ("wfm." and its file name). */
+  /** warframe.market's thumbnail, as MyOrbiter's image cache names it ("wfm." and its file name). */
   thumb?: string | null;
 }
 
@@ -289,7 +289,7 @@ const REFINEMENT_SUBTYPE: Record<string, string> = { Bronze: "intact", Silver: "
 
 /**
  * How many of what a listing sells you hold: same rank (for ranked items) and same variant.
- * Null when orbiter can't tell (an item TennoScope doesn't track, a set whose parts it doesn't
+ * Null when MyOrbiter can't tell (an item TennoScope doesn't track, a set whose parts it doesn't
  * know): callers leave such a listing alone rather than treat it as "you hold none".
  */
 export function heldFor(m: Model, item: MarketItem, o: { rank: number | null; subtype: string | null } & Stars): number | null {
@@ -352,7 +352,7 @@ export function holdings(m: Model, item: MarketItem): Holding[] | null {
     return count ? [{ rank: null, subtype: null, count }] : [];
   }
   // Sets share the built item's path; what you can sell is complete sets of parts, not the item.
-  // A set whose parts orbiter doesn't know (newest Prime Access, cosmetics) can't be counted.
+  // A set whose parts MyOrbiter doesn't know (newest Prime Access, cosmetics) can't be counted.
   if (item.tags?.includes("set")) {
     const parts = item.gameRef ? m.partsByParent.get(item.gameRef) : undefined;
     // Sets that aren't prime (Mandonel, Lato Vandal…): their blueprint and parts, from the recipe.
@@ -403,14 +403,14 @@ export function holdings(m: Model, item: MarketItem): Holding[] | null {
     const parts = m.ownedPartQty.get(item.name) ?? 0;
     return parts ? [{ rank: null, subtype: null, count: parts }] : [];
   }
-  // Something the catalog knows and you don't hold: none. Anything else: orbiter can't tell.
+  // Something the catalog knows and you don't hold: none. Anything else: MyOrbiter can't tell.
   if ((item.gameRef && m.catalogByUnique.has(item.gameRef)) || m.catalogNames.has(item.name)) return [];
   return null;
 }
 
 // ------------------------------------------------------------ the sales log
 
-/** The item name you typed, spelled the way orbiter knows it (any case), or null when it doesn't know it. */
+/** The item name you typed, spelled the way MyOrbiter knows it (any case), or null when it doesn't know it. */
 export function knownName(names: readonly string[], typed: string): string | null {
   const t = typed.trim().toLowerCase();
   return t ? (names.find((n) => n.toLowerCase() === t) ?? null) : null;

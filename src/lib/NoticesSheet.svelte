@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The bell in the sidebar: what orbiter told you lately (click one to open what it's about), and
+  // The bell in the sidebar: what MyOrbiter told you lately (click one to open what it's about), and
   // what it tells you about, kind by kind, with a pause for all of them.
   import { discordConfirm, discordPost, isDiscordWebhook, type Settings } from "./backend";
   import { discordStatus, discordSent } from "./discordStatus.svelte";
@@ -121,17 +121,17 @@
   function testDiscord() {
     void discordJob.run(async () => {
       const url = settings.notifyOptions.discord.url;
-      if (!(await discordConfirm(url))) throw new Error("not confirmed: say yes in the window orbiter shows");
-      await discordPost(url, "**orbiter**\nThis is how notifications will look here.");
+      if (!(await discordConfirm(url))) throw new Error("not confirmed: say yes in the window MyOrbiter shows");
+      await discordPost(url, "**MyOrbiter**\nThis is how notifications will look here.");
       discordSent(null);
       return "Sent";
     });
   }
 </script>
 
-<Sheet bind:open title="Notifications" kicker="orbiter">
+<Sheet bind:open title="Notifications" kicker="MyOrbiter">
   <div class="top">
-    <Seg bind:value={view} options={[{ v: "recent", label: "Recent", title: "What orbiter told you, newest first" }, { v: "choose", label: "Choose", title: "What orbiter tells you about" }]} />
+    <Seg bind:value={view} options={[{ v: "recent", label: "Recent", title: "What MyOrbiter told you, newest first" }, { v: "choose", label: "Choose", title: "What MyOrbiter tells you about" }]} />
     {#if view === "recent" && settings.game.notices.length}
     <div class="acts">
       {#if kindsLogged.length > 1}
@@ -154,7 +154,7 @@
 
   {#if view === "recent"}
     {#if !settings.game.notices.length}
-      <p class="dim empty">Nothing yet. What orbiter tells you shows up here, newest first, so you can catch up on what you missed. <button class="link" onclick={() => (view = "choose")}>Choose what it tells you about →</button></p>
+      <p class="dim empty">Nothing yet. What MyOrbiter tells you shows up here, newest first, so you can catch up on what you missed. <button class="link" onclick={() => (view = "choose")}>Choose what it tells you about →</button></p>
     {:else}
       <!-- One block for the days, so the sheet's gap sits once above them, not around every heading. -->
       <div class="days">
@@ -193,11 +193,11 @@
         </div>
         <span class="dim small">{pauseChoice === "hour" || pauseChoice === "tomorrow" ? `Paused until ${hhmm(settings.notifyOptions.pausedUntil!)}. ` : pauseChoice === "on" ? "Paused. " : ""}While paused, notifications still go in Recent, so you can catch up.</span>
       </div>
-      <Switch bind:on={settings.notifyOptions.toasts} label="Pop-ups inside orbiter">
-        While you're looking at orbiter: a notification shows by the sidebar for a few seconds. Click it to open what it's about.
+      <Switch bind:on={settings.notifyOptions.toasts} label="Pop-ups inside MyOrbiter">
+        While you're looking at MyOrbiter: a notification shows by the sidebar for a few seconds. Click it to open what it's about.
       </Switch>
       <Switch bind:on={settings.notifyOptions.desktop} label="Desktop notifications">
-        While orbiter is behind other windows (or you're in the game): your desktop's notifications{console ? "" : ", where a click brings orbiter up on what it's about (Linux and Windows)"}. Off: only Recent.
+        While MyOrbiter is behind other windows (or you're in the game): your desktop's notifications{console ? "" : ", where a click brings MyOrbiter up on what it's about (Linux and Windows)"}. Off: only Recent.
       </Switch>
       {#if !console}
         <Switch bind:on={settings.notifyOptions.quietInFissure} label="Quiet while I'm in a fissure">
@@ -207,7 +207,7 @@
       <div class="row"><button class="stamp" onclick={test} title="Shows a notification now, the way they look. Nothing is saved.">Show a test notification</button></div>
       <div class="discord">
         <span class="register">Discord</span>
-        <p class="dim small">Also send some notifications to a Discord channel of yours, to see them on your phone while you're away: in Discord, a channel's Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL, and paste it here. orbiter asks once, in a window of its own, whether to send to a new address; until you say yes, nothing goes there.</p>
+        <p class="dim small">Also send some notifications to a Discord channel of yours, to see them on your phone while you're away: in Discord, a channel's Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL, and paste it here. MyOrbiter asks once, in a window of its own, whether to send to a new address; until you say yes, nothing goes there.</p>
         <input type="url" placeholder="https://discord.com/api/webhooks/…" bind:value={settings.notifyOptions.discord.url} onchange={() => isDiscordWebhook(settings.notifyOptions.discord.url) && void discordConfirm(settings.notifyOptions.discord.url).catch(() => {})} aria-label="Discord webhook address" class:bad={!!settings.notifyOptions.discord.url && !isDiscordWebhook(settings.notifyOptions.discord.url)} />
         {#if settings.notifyOptions.discord.url && !isDiscordWebhook(settings.notifyOptions.discord.url)}<span class="small warn-text">That isn't a Discord webhook address.</span>{/if}
         {#if isDiscordWebhook(settings.notifyOptions.discord.url)}

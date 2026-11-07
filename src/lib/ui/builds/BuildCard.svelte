@@ -2,7 +2,7 @@
   // One build: where it's from, the Arsenal's slot grid, the tier it needs and why (capacity, the
   // Forma plan), and what you're missing of it, each line with what's left to do, the Endo to rank
   // it, where to get it, and for a mod or arcane you lack its price and the cheapest seller's whisper.
-  // orbiter's suggestion also shows its variants, the shards and Helminth in the grid, and "With it":
+  // MyOrbiter's suggestion also shows its variants, the shards and Helminth in the grid, and "With it":
   // the element, companion or primer, support weapons, arcane swaps, Focus and mod sets around a
   // warframe, or a weapon's ideal riven.
   import type { Model } from "../../core/model";
@@ -21,7 +21,7 @@
   import GameIcon, { type GameIconName } from "../GameIcon.svelte";
   import Thumb from "../Thumb.svelte";
 
-  /** What orbiter's suggestion adds to a build: why each slot, better mods to get, a loadout, the ideal riven, its variants. */
+  /** What MyOrbiter's suggestion adds to a build: why each slot, better mods to get, a loadout, the ideal riven, its variants. */
   export interface Extras {
     why?: { aura?: string; exilus?: string; stance?: string; mods: (string | null)[]; arcanes: string[] } | null;
     upgrades?: { name: string; replaces: string | null; reason: string }[];
@@ -53,7 +53,7 @@
     onfav: () => void;
     /** Edit it (a saved one of yours) or a copy of it. */
     onedit: () => void;
-    /** Save a copy of a build that isn't saved (a site's, orbiter's). */
+    /** Save a copy of a build that isn't saved (a site's, MyOrbiter's). */
     onsave: (() => void) | null;
     ondelete: (() => void) | null;
   } = $props();
@@ -83,8 +83,8 @@
     return l === "Default" && variants.length < 2 ? null : l;
   });
   const site = $derived(typeof b.source === "object" ? b.source : null);
-  // orbiter's suggestion: the source line says whose it is; the title says which variant.
-  const title = $derived(b.source === "orbiter" && !shown.saved ? (variantLabel ?? "Suggested build") : b.source === "orbiter" ? (b.title?.replace(/^orbiter's suggestion \((.*)\)$/, "$1") ?? "orbiter's suggestion") : (b.title ?? (b.source === "mine" ? "Your build" : site ? `${site.site} build` : "Pasted build")));
+  // MyOrbiter's suggestion: the source line says whose it is; the title says which variant.
+  const title = $derived(b.source === "orbiter" && !shown.saved ? (variantLabel ?? "Suggested build") : b.source === "orbiter" ? (b.title?.replace(/^(?:MyO|o)rbiter's suggestion \((.*)\)$/, "$1") ?? "MyOrbiter's suggestion") : (b.title ?? (b.source === "mine" ? "Your build" : site ? `${site.site} build` : "Pasted build")));
   const fav = $derived(!!b.favourite);
   // Capacity: how full, and how far over when it doesn't fit.
   const fill = $derived(t.capacity > 0 ? Math.min(1, Math.max(0, t.drain) / t.capacity) : 0);
@@ -96,7 +96,7 @@
   const LINE_GLYPH: Partial<Record<WithItLine["key"], string>> = { arcanes: "arcanes", set: "sets" };
   const SHARD_TINT: Record<string, string> = { crimson: "#d0574a", azure: "#6ea8dc", amber: "#e2a94a", violet: "#a78bd4", topaz: "#d98b3a", emerald: "#6fb77a" };
   const hosts = (src: string) => [...new Set(src.split(/\s*;\s*/).map((u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } }).filter(Boolean))].join(", ");
-  const HELD_WORD = (o: boolean | null) => (o === true ? "You hold it." : o === false ? "You don't hold it." : "orbiter can't see this yet.");
+  const HELD_WORD = (o: boolean | null) => (o === true ? "You hold it." : o === false ? "You don't hold it." : "MyOrbiter can't see this yet.");
   const pickTip = (p: LoadoutPick) => `${p.name}${p.on ? ` (on ${p.on})` : ""}\n${p.reason}\n${HELD_WORD(p.owned)}${p.source ? `\nRead on ${hosts(p.source)}` : ""}`;
   const marketBacked = $derived(!!riven && riven.ideal.positives.some((x) => x.basis !== "rule"));
   const buyable = (l: MissingLine) => (l.kind === "mod" && l.have === "missing") || (l.kind === "arcane" && (l.have === "missing" || l.have === "short"));
@@ -122,22 +122,22 @@
 <article class="build" class:fav data-place={shown.place} aria-label="{title}{b.author ? ` by ${b.author}` : ''}">
   <header class="hd">
     <div class="who">
-      <span class="src" class:orbiter={b.source === "orbiter"} title={b.source === "orbiter" ? "orbiter's own starting point, from the mods you hold: not a player's build" : site ? `From ${site.site}` : b.source === "mine" ? "A build you made" : "A build you pasted"}>{sourceName(b.source)}</span>
+      <span class="src" class:myorbiter={b.source === "orbiter"} title={b.source === "orbiter" ? "MyOrbiter's own starting point, from the mods you hold: not a player's build" : site ? `From ${site.site}` : b.source === "mine" ? "A build you made" : "A build you pasted"}>{sourceName(b.source)}</span>
       <h3 class="name-mark">{title}</h3>
       <span class="meta">
         {#if b.author}<span>by {b.author}</span>{/if}
         {#if b.votes != null}<span title="Votes on {site?.site ?? 'its site'}">▲ {b.votes.toLocaleString("en")}</span>{/if}
-        {#if b.source !== "orbiter" || shown.saved}<span title={b.updatedAt != null ? `Its source last changed it on ${new Date(b.updatedAt).toLocaleDateString()}` : `Added to orbiter on ${new Date(b.importedAt).toLocaleDateString()}`}>{ageLine(b, now)}</span>{/if}
+        {#if b.source !== "orbiter" || shown.saved}<span title={b.updatedAt != null ? `Its source last changed it on ${new Date(b.updatedAt).toLocaleDateString()}` : `Added to MyOrbiter on ${new Date(b.importedAt).toLocaleDateString()}`}>{ageLine(b, now)}</span>{/if}
         {#if b.gameUpdate}<span title="The game update it was made for">Update {b.gameUpdate}</span>{/if}
         {#if b.tags?.length}<span class="tags">{#each b.tags as tg (tg)}<span class="tagc" title="{familyOfTag(tg)}: {tg}">{tg}</span>{/each}</span>{/if}
-        {#if site && openable(site.url)}<button type="button" class="link out" title="Open it on {site.site}, in your browser" onclick={() => openUrl(site.url)}>{site.site}<Icon name="external" size={11} /></button>{:else if site}<span class="dim" title="orbiter opens links only to the sites it knows (warframe.market, the wiki, Overframe, Nox's Frame), so this one stays as text">{site.site}</span>{/if}
+        {#if site && openable(site.url)}<button type="button" class="link out" title="Open it on {site.site}, in your browser" onclick={() => openUrl(site.url)}>{site.site}<Icon name="external" size={11} /></button>{:else if site}<span class="dim" title="MyOrbiter opens links only to the sites it knows (warframe.market, the wiki, Overframe, Nox's Frame), so this one stays as text">{site.site}</span>{/if}
       </span>
       {#if variants.length > 1 && extras?.onvariant}
-        <div class="vars" data-card="variants" role="radiogroup" aria-label="orbiter's variants">
+        <div class="vars" data-card="variants" role="radiogroup" aria-label="MyOrbiter's variants">
           <span class="register">Variant</span>
           {#each variants as v (v.id)}
             {@const on = (extras.variant ?? variants[0].id) === v.id}
-            <button type="button" role="radio" class="var" class:on aria-checked={on} title={on ? `Showing the ${v.label} variant (${v.tags.join(", ")})` : `Show orbiter's ${v.label} variant instead (${v.tags.join(", ")})`} onclick={() => extras.onvariant?.(v.id)}>{v.label}</button>
+            <button type="button" role="radio" class="var" class:on aria-checked={on} title={on ? `Showing the ${v.label} variant (${v.tags.join(", ")})` : `Show MyOrbiter's ${v.label} variant instead (${v.tags.join(", ")})`} onclick={() => extras.onvariant?.(v.id)}>{v.label}</button>
           {/each}
         </div>
       {/if}
@@ -204,7 +204,7 @@
                     {#if ideal.negatives.length}<span class="harm" title="Negatives that cost this weapon little:\n{ideal.negatives.map((n) => `−${n.stat}: ${n.why}`).join('\n')}">harmless: {ideal.negatives.slice(0, 3).map((n) => `−${rivenShort(n, melee)}`).join(" · ")}</span>{/if}
                   </span>
                   <span class="rvsrc">
-                    <span title={ideal.label}>orbiter's rule{#if marketBacked} <span class="mkey">· <i></i>what players pay most for on warframe.market ({ideal.basedOn.auctions} listed)</span>{:else if ideal.basedOn.auctions}, too few listings read to say what players pay most for on warframe.market{:else}; nothing read from warframe.market for it yet (the Rivens page reads it){/if}</span>
+                    <span title={ideal.label}>MyOrbiter's rule{#if marketBacked} <span class="mkey">· <i></i>what players pay most for on warframe.market ({ideal.basedOn.auctions} listed)</span>{:else if ideal.basedOn.auctions}, too few listings read to say what players pay most for on warframe.market{:else}; nothing read from warframe.market for it yet (the Rivens page reads it){/if}</span>
                     <span title="{ideal.disposition.note}\n{ideal.disposition.source}">Dispositions are flat since Hotfix 44.1.3</span>
                   </span>
                   {#if riven.yours?.length}
@@ -256,8 +256,8 @@
   .hd { display: flex; align-items: flex-start; gap: 1rem; padding: .75rem .9rem .6rem; border-bottom: 1px solid var(--rule); }
   .who { display: grid; gap: .25rem; min-width: 0; flex: 1; }
   .src { justify-self: start; font-family: var(--face-register); font-size: .58rem; letter-spacing: .14em; text-transform: uppercase; color: var(--sec); }
-  .src.orbiter { color: var(--platinum-dim); }
-  .src.orbiter::before { content: "◆ "; color: var(--sec); }
+  .src.myorbiter { color: var(--platinum-dim); }
+  .src.myorbiter::before { content: "◆ "; color: var(--sec); }
   .who h3 { margin: 0; font-size: 1.15rem; line-height: 1; }
   .meta { display: flex; flex-wrap: wrap; align-items: center; gap: .2rem .9rem; font-size: .78rem; color: var(--platinum-deep); }
   .out { display: inline-flex; align-items: center; gap: .25rem; font-size: .78rem; }

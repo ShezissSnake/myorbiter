@@ -1,10 +1,10 @@
 //! Foundry recipes: what every blueprint takes, parts' own blueprints included (a Systems
 //! blueprint takes Morphics, Plastids, Salvage…), which the item catalog doesn't carry. Without
-//! them orbiter only knew a warframe's own blueprint, so a frame whose part blueprints you held
+//! them MyOrbiter only knew a warframe's own blueprint, so a frame whose part blueprints you held
 //! read "build it" even when building those parts needed resources from an event.
 //!
 //! Read from warframe-public-export-plus (DE's public export with names and rarities filled in,
-//! MIT) on GitHub, at most once a week, and kept compact in orbiter's config folder:
+//! MIT) on GitHub, at most once a week, and kept compact in MyOrbiter's config folder:
 //! `{ checkedAt, recipes: { result: { c: credits, i: [[path, count]] } }, names: { path: { n, img, r, k } } }`
 //! where a name's `r` is the game's rarity (COMMON, UNCOMMON, RARE) and `k` is "chart" for the
 //! star chart's resources and "world" for anything else (open worlds, events, fishing, mining).

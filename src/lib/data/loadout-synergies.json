@@ -1,10 +1,10 @@
 {
-  "_about": "orbiter's curated loadout facts for warframe suggestions (src/lib/core/builds/suggest.ts, loadoutFor): Archon Shards, Helminth, support weapons, frame arcanes, companions and Focus. Every fact was read by hand on the page named in its `source` (3 Nov 2026); orbiter never fetches these pages. Effects are at max rank. Which pick goes with which frame role is orbiter's own rule in suggest.ts, not the sources'.",
+  "_about": "MyOrbiter's curated loadout facts for warframe suggestions (src/lib/core/builds/suggest.ts, loadoutFor): Archon Shards, Helminth, support weapons, frame arcanes, companions and Focus. Every fact was read by hand on the page named in its `source` (3 Nov 2026); MyOrbiter never fetches these pages. Effects are at max rank. Which pick goes with which frame role is MyOrbiter's own rule in suggest.ts, not the sources'.",
   "shards": {
     "source": "https://wiki.warframe.com/w/Archon_Shard",
     "slots": 5,
     "tauforgedNote": "Tauforged shards give 1.5× the base bonus (from Archon Hunts, Netracells, Deep and Temporal Archimedea, or fusing three of a colour).",
-    "_tauforgedOnly": "orbiter suggests only Tauforged shards, at every tier (orbiter's rule: a plain shard is the same stat at two thirds of the value).",
+    "_tauforgedOnly": "MyOrbiter suggests only Tauforged shards, at every tier (MyOrbiter's rule: a plain shard is the same stat at two thirds of the value).",
     "fusion": { "name": "Ascent Fusion", "ratio": 3, "cost": "100 Stela", "needs": "the Helminth's Coalescent Segment", "since": "Update 35.5 (2024-03-27)", "effect": "fuses three shards of the same colour into one Tauforged shard of that colour, in the Helminth", "source": "https://wiki.warframe.com/w/Archon_Shard" },
     "_elements": "Which element each colour feeds, from the same page. Only Violet (Electricity), Emerald (Corrosion, Toxin) and Topaz (Radiation) raise ability damage or status damage; Topaz's Heat and Blast stats are kill rewards for weapons (secondary crit per Heat-affected kill, health or shields per Blast kill), and no shard has a Cold or Viral stat.",
     "elements": {
@@ -94,7 +94,7 @@
     "note": "The same page pairs it with Brief Respite or the Augur set, which turn energy spent into shields."
   },
   "sets": {
-    "_about": "Mod sets whose pieces span the frame, its weapons and its companion. Pieces, where each goes and each piece's own effect are the catalog's (each mod's type, compatName and stats); set bonuses were read by hand on the page in `source`. `fit` names orbiter's rule for which frames get the set (suggest.ts, setPicks); null: checked and not suggested by frame role. `replaces`: the plain mod a frame piece stands in for.",
+    "_about": "Mod sets whose pieces span the frame, its weapons and its companion. Pieces, where each goes and each piece's own effect are the catalog's (each mod's type, compatName and stats); set bonuses were read by hand on the page in `source`. `fit` names MyOrbiter's rule for which frames get the set (suggest.ts, setPicks); null: checked and not suggested by frame role. `replaces`: the plain mod a frame piece stands in for.",
     "Augur": {
       "pieces": [
         { "name": "Augur Secrets", "slot": "warframe", "replaces": "Intensify" },
@@ -172,7 +172,7 @@
       ],
       "bonus": "+10% to +60% melee critical chance per combo multiplier, rising with the pieces worn.",
       "fit": null,
-      "why": "A melee build's choice, not a frame role: orbiter doesn't suggest it from the frame.",
+      "why": "A melee build's choice, not a frame role: MyOrbiter doesn't suggest it from the frame.",
       "source": "https://wiki.warframe.com/w/Gladiator_Set"
     },
     "Vigilante": {
@@ -231,19 +231,19 @@
       ],
       "bonus": "Each piece raises the others' main stat: by 25% of its value with two pieces, 75% with three.",
       "fit": null,
-      "why": "All three are Warframe mods: orbiter's high-tier builds already put them in when you hold them.",
+      "why": "All three are Warframe mods: MyOrbiter's high-tier builds already put them in when you hold them.",
       "source": "https://wiki.warframe.com/w/Umbral_Intensify"
     }
   },
   "primers": {
-    "_about": "Companions that put status effects on enemies on their own, and how (precept or set piece), read by hand on the pages named. Which frame gets which is orbiter's rule (suggest.ts, primerPicks): the element of the frame's own kit first, else Viral.",
+    "_about": "Companions that put status effects on enemies on their own, and how (precept or set piece), read by hand on the pages named. Which frame gets which is MyOrbiter's rule (suggest.ts, primerPicks): the element of the frame's own kit first, else Viral.",
     "Panzer Vulpaphyla": { "items": [{ "name": "Panzer Vulpaphyla", "path": "/Lotus/Types/Friendly/Pets/CreaturePets/ArmoredInfestedCatbrowPetPowerSuit" }], "mod": "Viral Quills", "element": "viral", "effect": "Viral Quills fires 6 quills at enemies within 20 m every 4 s, 60 Viral damage each at 40% status chance; it comes with the companion.", "source": "https://wiki.warframe.com/w/Viral_Quills" },
     "Diriga": { "items": [{ "name": "Diriga", "path": "/Lotus/Types/Sentinels/SentinelPowersuits/ArcDronePowerSuit" }], "mod": "Arc Coil", "element": "electricity", "effect": "Arc Coil zaps up to 7 enemies within 10 m with Electricity, about once a second.", "source": "https://wiki.warframe.com/w/Arc_Coil", "bond": { "name": "Manifold Bond", "effect": "the companion's abilities also inflict the status effects of your equipped weapon (robotic companions only)", "source": "https://wiki.warframe.com/w/Bond_Mods" }, "weapon": { "items": [{ "name": "Verglas Prime", "path": "/Lotus/Types/Sentinels/SentinelWeapons/SentinelFreezeRayPrimeRifle" }, { "name": "Verglas", "path": "/Lotus/Types/Sentinels/SentinelWeapons/SentinelFreezeRayRifle" }], "mod": "Contagious Bond", "effect": "Cold damage at 36% status chance (the catalog's numbers; Verglas: 34%); with Contagious Bond, enemies the companion kills spread part of their status effects to enemies nearby", "source": "https://cw-warframe-guides.github.io/guides/companion-mod/ ; https://wiki.warframe.com/w/Bond_Mods" } },
     "Helminth Charger": { "items": [{ "name": "Helminth Charger", "path": "/Lotus/Types/Game/KubrowPet/ChargerKubrowPetPowerSuit" }], "mod": "Strain Eruption", "element": "corrosive", "effect": "Its Maggots explode on death for 4% of an enemy's current health as Corrosive within 8 m, always applying Corrosive status (since Update 37.0); its claws add 50 Toxin at 25% status chance.", "source": "https://wiki.warframe.com/w/Helminth_Charger" }
   },
   "checkedAndLeftOut": {
-    "Tek set": "The Kavat marks a zone that deals damage; the page read (https://progametalk.com/warframe/tek-mods-guide/) doesn't say how the bonus grows with the pieces, so orbiter doesn't state it.",
-    "Amar, Boreal and Nira sets": "Their pieces are in the catalog (a Warframe mod, an exilus mod and a melee mod each), but their set bonuses weren't read on a page, so orbiter doesn't suggest them.",
+    "Tek set": "The Kavat marks a zone that deals damage; the page read (https://progametalk.com/warframe/tek-mods-guide/) doesn't say how the bonus grows with the pieces, so MyOrbiter doesn't state it.",
+    "Amar, Boreal and Nira sets": "Their pieces are in the catalog (a Warframe mod, an exilus mod and a melee mod each), but their set bonuses weren't read on a page, so MyOrbiter doesn't suggest them.",
     "Motus, Proton and Aero sets": "Parkour and aim-glide sets: weapon handling in the air, nothing a frame role asks for.",
     "Momentous Bond": "Eximus kills give the companion a random element for 30 s; the page doesn't give the values (https://wiki.warframe.com/w/Bond_Mods).",
     "Pax Charge": "Kitgun reload: makes the magazine recharge. Nothing for abilities (https://wiki.warframe.com/w/Pax_Charge).",

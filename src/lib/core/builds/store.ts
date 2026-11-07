@@ -5,7 +5,7 @@ import type { Build } from "./types";
 
 const DAY = 86_400_000;
 
-/** A build's date for the age filter: when its source last changed it, else when orbiter got it. */
+/** A build's date for the age filter: when its source last changed it, else when MyOrbiter got it. */
 export const buildDate = (b: Build): number => b.updatedAt ?? b.importedAt;
 
 /** Its age in whole days at `now`. */
@@ -13,7 +13,7 @@ export const buildAgeDays = (b: Build, now = Date.now()): number => Math.max(0, 
 
 /**
  * Whether a build passes the age filter (`settings.buildsMaxAgeDays`; 0: no limit). Your own builds
- * and orbiter's suggestions are never too old: the filter is for what other people posted.
+ * and MyOrbiter's suggestions are never too old: the filter is for what other people posted.
  */
 export function withinAge(b: Build, maxAgeDays: number, now = Date.now()): boolean {
   if (b.source === "mine" || b.source === "orbiter" || !(maxAgeDays > 0)) return true;

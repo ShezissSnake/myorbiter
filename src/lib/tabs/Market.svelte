@@ -91,8 +91,8 @@
     weekly = true;
     query = "";
   }
-  /** orbiter's own art where it has some, else warframe.market's thumbnail. */
-  // Relics: orbiter files their art under the relic ("Axi S17"); the market has none.
+  /** MyOrbiter's own art where it has some, else warframe.market's thumbnail. */
+  // Relics: MyOrbiter files their art under the relic ("Axi S17"); the market has none.
   const art = (r: MarketRow) => model.imageOf(r.name) ?? (r.category === "relic" ? model.imageOf(r.name.replace(/ Relic$/, "")) : null) ?? r.thumb;
   const buy = (r: MarketRow) => mkt.startBuy(r.name, { unique: r.gameRef, known: r.price });
 

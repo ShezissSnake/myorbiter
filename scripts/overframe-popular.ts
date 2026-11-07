@@ -1,6 +1,6 @@
 // Builds public/data/overframe/popular.json from Overframe's build lists, as collected in a
 // browser (see public/data/overframe/README.md), and matches each build's item name to
-// orbiter's catalog. Run with tsx:
+// MyOrbiter's catalog. Run with tsx:
 //
 //   npx tsx scripts/overframe-popular.ts <collected.json> <catalog-generation.json> [collected ISO date]
 //
@@ -36,7 +36,7 @@ const KINDS: Record<OverframeCategory, GearKind[]> = {
   sentinels: ["companion", "companionWeapon"],
 };
 
-/** Overframe's names that orbiter's catalog spells differently (checked by hand). */
+/** Overframe's names that MyOrbiter's catalog spells differently (checked by hand). */
 const ALIASES: Record<string, string> = {};
 /** Names the catalog holds twice for the same kind, and the one players build (checked by hand). */
 const CHOSEN: Record<string, string> = {

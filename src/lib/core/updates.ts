@@ -20,7 +20,7 @@ export const CHANNEL_LABEL: Record<Channel, string> = { stable: "Stable", beta: 
 
 export const isChannel = (x: unknown): x is Channel => x === "stable" || x === "beta" || x === "experimental";
 
-/** How often orbiter looks for an update while it runs. */
+/** How often MyOrbiter looks for an update while it runs. */
 export const CHECK_EVERY = 6 * 60 * 60 * 1000;
 
 export const REPO_URL = "https://gitlab.com/sheziss-group/orbiter";
@@ -86,7 +86,7 @@ export function releasePage(version: string): string {
 export const noticeShows = (version: string, later: string) => !later || compareVersions(version, later) > 0;
 
 /**
- * The channel the running build came from, as far as orbiter knows: the one it was installed from
+ * The channel the running build came from, as far as MyOrbiter knows: the one it was installed from
  * through the updater; "local" for a build made here (0.1.0); else the channel chosen in Settings
  * (a build downloaded by hand doesn't say which channel it was on).
  */
@@ -113,7 +113,7 @@ export const noteLines = (notes: string | null | undefined, max = 6) =>
     .filter((l): l is string => !!l)
     .slice(0, max);
 
-/** How a copy of orbiter was installed (updates.rs `Install`), as the app reports it. */
+/** How a copy of MyOrbiter was installed (updates.rs `Install`), as the app reports it. */
 export type Install =
   | { how: "appImage"; path: string }
   | { how: "readOnly"; folder: string }
@@ -134,7 +134,7 @@ export function installNote(i: Install): string | null {
     case "windows":
       return null;
     case "readOnly":
-      return `Updates are checked, but orbiter can't replace its own file: ${i.folder} isn't writable. Move the AppImage to a folder you own, or download new builds by hand.`;
+      return `Updates are checked, but MyOrbiter can't replace its own file: ${i.folder} isn't writable. Move the AppImage to a folder you own, or download new builds by hand.`;
     case "package":
       return "Updates come from your package manager.";
     case "dev":

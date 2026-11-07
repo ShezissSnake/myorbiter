@@ -1,7 +1,7 @@
 // What the Builds page works out, kept out of Svelte so it can be tested: which items take a build
 // (and what to call them), the item search, how a chosen item's builds sort into the three tiers,
 // a build's age and source in words, the links out to Overframe and Nox's Frame, the whisper to the
-// cheapest seller, and orbiter's suggestion's loadout and ideal riven as the card shows them.
+// cheapest seller, and MyOrbiter's suggestion's loadout and ideal riven as the card shows them.
 //
 // The builds core (./builds) does the real work: tiers, what you're missing, parsing, matching.
 
@@ -160,7 +160,7 @@ export function recentItems(opened: readonly string[], builds: readonly Build[],
 
 // ---------------------------------------------------------------- arranging the builds
 
-/** Where a shown build stands: starred, saved by you (pasted or your own), from a site, orbiter's. */
+/** Where a shown build stands: starred, saved by you (pasted or your own), from a site, MyOrbiter's. */
 export type Place = "favourite" | "saved" | "site" | "orbiter";
 
 export interface Shown {
@@ -176,8 +176,8 @@ const isSite = (s: BuildSourceRef): s is { url: string; site: string } => typeof
 /**
  * One item's builds sorted into the three tiers by what each needs (tierOf), each tier in this
  * order: favourites first, then the ones you pasted or made, then a site's (most votes first), then
- * orbiter's suggestion, labelled. `saved`: the item's saved builds, already filtered by age.
- * `site`: builds a network source gave (any already saved are skipped). `suggestions`: orbiter's,
+ * MyOrbiter's suggestion, labelled. `saved`: the item's saved builds, already filtered by age.
+ * `site`: builds a network source gave (any already saved are skipped). `suggestions`: MyOrbiter's,
  * by the tier it was made for (it stays in that tab; a saved copy goes by its own tier).
  */
 export function arrange(saved: readonly Build[], site: readonly Build[], suggestions: Partial<Record<Tier, Build>>, tierFor: (b: Build) => TierResult): Record<Tier, Shown[]> {
@@ -231,7 +231,7 @@ export function ageLine(b: Build, now = Date.now()): string {
 export function sourceName(s: BuildSourceRef): string {
   if (s === "pasted") return "Pasted";
   if (s === "mine") return "Yours";
-  if (s === "orbiter") return "orbiter's suggestion";
+  if (s === "orbiter") return "MyOrbiter's suggestion";
   return s.site;
 }
 
@@ -255,7 +255,7 @@ const NOX_SECTION: Partial<Record<GearKind, string>> = {
 /**
  * The item's page on Nox's Frame (noxsframe.com/<section>/<name>, as its sitemap has them), which
  * lists its builds; its builds index for what it has no page for (modular parts, companion weapons,
- * exalted weapons). Opened in your browser: orbiter never fetches it.
+ * exalted weapons). Opened in your browser: MyOrbiter never fetches it.
  */
 export function noxUrl(name: string, kind: GearKind, modular = false): string {
   const section = modular ? null : NOX_SECTION[kind];
@@ -263,9 +263,9 @@ export function noxUrl(name: string, kind: GearKind, modular = false): string {
 }
 
 /**
- * Overframe, for the item: its search, on overframe.gg, opened in your browser. orbiter never
+ * Overframe, for the item: its search, on overframe.gg, opened in your browser. MyOrbiter never
  * fetches Overframe. Its terms (and its reply by email, 3 Nov) allow linking to it; they don't
- * allow showing its builds' contents in orbiter. Unverified: the search path (/search/?q=).
+ * allow showing its builds' contents in MyOrbiter. Unverified: the search path (/search/?q=).
  */
 export function overframeUrl(name: string): string {
   return `https://overframe.gg/search/?q=${encodeURIComponent(name)}`;
@@ -288,7 +288,7 @@ export function onOverframe(url: string): boolean {
  */
 export const isOverframe = (b: Pick<Build, "source">): boolean => typeof b.source === "object" && b.source !== null && onOverframe(b.source.url);
 
-/** An Overframe build as orbiter may keep it: the link, title, author and dates, none of its contents. */
+/** An Overframe build as MyOrbiter may keep it: the link, title, author and dates, none of its contents. */
 export function linkOnly(b: Build): Build {
   const { aura: _a, exilus: _e, stance: _s, polarities: _p, helminth: _h, parts: _pa, forma: _f, catalyst: _c, adapters: _ad, note: _n, ...rest } = b;
   return { ...rest, mods: [], arcanes: [], shards: [] };
@@ -343,21 +343,21 @@ export function placeIn(b: Build, path: string, arcane: boolean): Build {
 
 // ---------------------------------------------------------------- the suggestion's loadout
 
-/** An Archon shard in the grid: a build's own, or one of orbiter's suggestion (always Tauforged). */
+/** An Archon shard in the grid: a build's own, or one of MyOrbiter's suggestion (always Tauforged). */
 export interface ShardShow {
   colour: ShardColour;
   tauforged: boolean;
   stat: string | null;
   /** true: you hold one; false: you don't; null: not said (a build's own shards). */
   owned: boolean | null;
-  /** Why it's there (orbiter's suggestion). */
+  /** Why it's there (MyOrbiter's suggestion). */
   reason?: string;
   /** How to make it from the plain shards you hold (Ascent Fusion). */
   fuse?: string;
 }
 
 /**
- * The shard slots a build shows: a warframe's five, from its own shards, else from orbiter's
+ * The shard slots a build shows: a warframe's five, from its own shards, else from MyOrbiter's
  * suggestion's loadout (always Tauforged). Other gear: only the shards it has.
  */
 export function shardSlots(b: Pick<Build, "kind" | "shards">, loadout: Pick<Loadout, "shards"> | null | undefined): (ShardShow | null)[] {
@@ -369,7 +369,7 @@ export function shardSlots(b: Pick<Build, "kind" | "shards">, loadout: Pick<Load
   return Array.from({ length: n }, (_, i) => picked[i] ?? null);
 }
 
-/** A build's Helminth ability: its own, else orbiter's suggestion's. */
+/** A build's Helminth ability: its own, else MyOrbiter's suggestion's. */
 export function helminthShow(b: Pick<Build, "helminth">, loadout: Pick<Loadout, "helminth"> | null | undefined): { ability: string; replaces: string; reason: string | null; owned: boolean | null } | null {
   if (b.helminth) return { ...b.helminth, reason: null, owned: null };
   const h = loadout?.helminth;
@@ -393,7 +393,7 @@ const ELEMENT_NAME: Record<Element, string> = { electricity: "Electricity", corr
 const SLOT_SHORT: Record<SlotKind, string> = { warframe: "frame", primary: "primary", secondary: "secondary", melee: "melee", companion: "companion", companionWeapon: "companion weapon" };
 
 /**
- * orbiter's suggestion's loadout as "With it" lines, shortest first: the kit's element, the
+ * MyOrbiter's suggestion's loadout as "With it" lines, shortest first: the kit's element, the
  * companion (or a primer instead), support weapons, arcane swaps the grid doesn't show, the Focus
  * school, then each mod set. Shards and the Helminth go in the grid, not here. `inBuild`: the
  * arcanes the build already slots (left out of the swaps).
@@ -458,9 +458,9 @@ export const rivenShort = (s: Pick<IdealStat, "slug" | "stat">, melee = false): 
 
 /** Where a riven stat's place comes from, in words. */
 export const BASIS_WORD: Record<IdealStat["basis"], string> = {
-  rule: "orbiter's rule",
+  rule: "MyOrbiter's rule",
   market: "what players pay most for on warframe.market",
-  both: "orbiter's rule, and what players pay most for on warframe.market",
+  both: "MyOrbiter's rule, and what players pay most for on warframe.market",
 };
 
 // ---------------------------------------------------------------- tags
