@@ -18,8 +18,10 @@ is published).
 The jobs run on the project's own runner (tag `pc`, with the Docker executor, so each job runs in
 a container of its own; never privileged, and protected, so only `main` and protected tags use
 it), or, with the *runner* field set to `cloud`, on gitlab.com's hosted Linux runners, which spend
-the namespace's compute minutes. The `image` task, and any pipeline on a branch other than `main`,
-always runs on the hosted runners.
+the namespace's compute minutes. The `image` task, the `sign` job and any pipeline on a branch
+other than `main` always run on the hosted runners (`sign` because on the pc runner jobs share the
+executor's build volume). A branch's pipeline runs in that branch's own builder image: run the
+`image` task on the branch first.
 
 A release pipeline is build *n*, version `0.2.n`, where *n* is the pipeline's number in the
 project plus 100 (builds made on GitHub before the move were numbered below 100; pipelines that
@@ -53,8 +55,10 @@ at the address installed copies check
   the final AppImage (after `scripts/repack-appimage.sh`) and the Windows installer with
   `scripts/updater-sign.mjs` (plain Node, no dependencies, signatures of the form
   `tauri signer sign --app-version` writes), and checks each signature against the public key in
-  `src-tauri/tauri.conf.json`. It runs the signer only if its files match `SIGNER_SHA256` in
-  `.gitlab-ci.yml` (`tests/ciSigner.test.ts` says when a change to the signer needs a new one). `publish` writes `latest.json` (`scripts/updater-manifest.mjs`):
+  `src-tauri/tauri.conf.json`. It refuses a checkout holding any link, copies the signer out of
+  the checkout and runs the copy only if it matches `SIGNER_SHA256` in `.gitlab-ci.yml`
+  (`tests/ciSigner.test.ts` says when a change to the signer needs a new one). `publish` writes
+  `latest.json` (`scripts/updater-manifest.mjs`):
   the version, release notes made from the commit subjects since the previous Experimental build,
   and each download's address in the registry and signature. When the build has both the Linux and
   Windows downloads, `experimental` copies its `latest.json` to `channel/experimental/`. Without
@@ -100,4 +104,4 @@ in the release notes that this one build has to be installed by hand.
 ## Release notes
 
 `first-public.md` is the description for the first public Stable release (`docs/maintaining.md`,
-step 6, says when to paste it).
+step 5, says when to paste it).
