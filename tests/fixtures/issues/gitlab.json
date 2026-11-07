@@ -1,0 +1,31 @@
+{
+ "project": {
+  "issues": {
+   "nodes": [
+    {
+     "iid": "12",
+     "title": "Orders froze after Reprice",
+     "description": "### What happened\n\nOrders froze after Reprice.\n\n### Technical details\n\n```text\norbiter 0.2.105 (a1b2c3d, 2026-11-07)\n```\n\n_Made with orbiter's Report a bug._\n\n/label ~bug ~needs-triage",
+     "state": "opened",
+     "createdAt": "2026-11-07T10:00:00Z",
+     "webUrl": "https://gitlab.com/sheziss-group/orbiter/-/issues/12",
+     "author": { "username": "ExamplePlayer" },
+     "labels": { "nodes": [{ "title": "bug" }, { "title": "needs-triage" }] },
+     "notes": {
+      "pageInfo": { "hasNextPage": true },
+      "nodes": [
+       { "body": "added ~bug label", "system": true, "createdAt": "2026-11-07T10:00:01Z", "author": { "username": "ExamplePlayer" } },
+       { "body": "Thanks, I can see it too.", "system": false, "createdAt": "2026-11-07T11:00:00Z", "author": { "username": "Example.Maintainer" } },
+       { "body": "Me too.\n/close\n/label ~security", "system": false, "createdAt": "2026-11-07T12:00:00Z", "author": { "username": "other_player-2" } }
+      ]
+     }
+    }
+   ]
+  },
+  "projectMembers": {
+   "nodes": [
+    { "user": { "username": "Example.Maintainer" }, "accessLevel": { "stringValue": "OWNER" } }
+   ]
+  }
+ }
+}

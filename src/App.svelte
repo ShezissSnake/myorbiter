@@ -2623,7 +2623,7 @@
         <!-- Report a bug, beside the Guide where the row has room: the folded sidebar, or no TennoScope
              button. Unfolded with TennoScope the row is full (and the sidebar has no height to
              spare at 800 px), so there it's in Settings, the Guide and Shift+F1. -->
-        {#if compact || !(ts.status && !noTennoScope)}<button class="tool" data-card="report-bug-rail" aria-label="Report a bug" aria-expanded={bugReport.open} title="Report a bug: say what went wrong, then open it as an issue on GitHub or copy it. orbiter sends nothing itself (Shift+F1)" onclick={() => bugReport.show()}><Icon name="bug" size={14} /></button>{/if}
+        {#if compact || !(ts.status && !noTennoScope)}<button class="tool" data-card="report-bug-rail" aria-label="Report a bug" aria-expanded={bugReport.open} title="Report a bug: say what went wrong, then open it as an issue on GitLab or copy it. orbiter sends nothing itself (Shift+F1)" onclick={() => bugReport.show()}><Icon name="bug" size={14} /></button>{/if}
         <button class="tool" aria-label="Settings" aria-expanded={showSettings} title="Settings (Ctrl+,)" onclick={() => (showSettings = true)}><Icon name="settings" size={14} /></button>
       </div>
     </div>
