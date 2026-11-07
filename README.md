@@ -1,3 +1,5 @@
+<img src="src-tauri/icons/128x128.png" alt="" width="64" height="64">
+
 # orbiter
 
 orbiter is a desktop companion for Warframe, for Linux, the Steam Deck and Windows. It reads what

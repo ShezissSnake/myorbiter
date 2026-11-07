@@ -46,6 +46,24 @@ The tests that need the dev data (the Sell spares plan, riven stats, the real ca
 skipped until `npm run dev-bundle` and `npm run dev-data` have run. Property tests replay with
 `PROPERTY_SEED=<n>` and run longer with `PROPERTY_RUNS=<n>`.
 
+## App icon
+
+`src-tauri/icons/icon.svg` is the master: a detailed drawing for 48 px and up and a bolder one for
+smaller sizes. The PNGs, `icon.ico`, `icon.icns` and `icon-small.svg` are rendered from it, never
+edited by hand:
+
+```fish
+npm run icons              # writes the PNGs, icon.ico, icon.icns and icon-small.svg
+npm run icons -- --check   # fails if any of them differs from what icon.svg renders
+```
+
+It needs `rsvg-convert` (librsvg); the same files come out byte for byte with the same
+`rsvg-convert` and the cairo and zlib under it, so `--check` may report differences after a system
+update. `icon-mono.svg`
+is drawn by hand: a one-colour hull for small monochrome places such as a tray, which nothing uses
+yet. `npm test` checks that every icon `tauri.conf.json` lists is there and square, and that
+`icon-small.svg` matches the master.
+
 ## A release-style AppImage on your own PC
 
 `scripts/build-local.sh` builds the Linux AppImage the way the release workflow's Linux job does:

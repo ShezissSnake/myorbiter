@@ -53,9 +53,10 @@ img { max-width: 100%; height: auto; display: block; }
 
 /* ---- Frame */
 .top { border-bottom: 1px solid var(--rule); background: var(--slab); }
-.main { max-width: 72rem; margin: 0 auto; padding: .9rem 1.5rem; display: flex; gap: 1.6rem; flex-wrap: wrap; align-items: baseline; }
+.main { max-width: 72rem; margin: 0 auto; padding: .9rem 1.5rem; display: flex; gap: 1.6rem; flex-wrap: wrap; align-items: center; }
 .main a { font-family: var(--face-register); font-size: .74rem; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; text-decoration: none; color: var(--platinum-dim); padding: .2rem 0; border-bottom: 1px solid transparent; }
-.main a:first-child { font-family: var(--face-mark); font-size: 1.15rem; font-weight: 700; letter-spacing: 0; color: var(--platinum); margin-right: auto; }
+.main a:first-child { font-family: var(--face-mark); font-size: 1.15rem; font-weight: 700; letter-spacing: 0; color: var(--platinum); margin-right: auto; display: inline-flex; align-items: center; gap: .55rem; }
+.main a:first-child img { display: block; flex: none; }
 .main a:hover, .main a[aria-current="page"] { color: var(--platinum); border-bottom-color: var(--gold); }
 .main a:first-child[aria-current="page"] { border-bottom-color: transparent; }
 main { max-width: 72rem; margin: 0 auto; padding: 2.5rem 1.5rem 3rem; }
