@@ -143,8 +143,15 @@ function downloads() {
   const file = flag("--release");
   let rel = null;
   if (file) rel = JSON.parse(readFileSync(file, "utf8"));
-  // Each file's address as the release links it, kept only when it's https on gitlab.com.
-  const assets = (rel?.assets ?? []).filter((x) => typeof x?.name === "string" && safeUrl(x.url));
+  if (rel && (typeof rel.tagName !== "string" || !/^build-[1-9][0-9]*$/.test(rel.tagName) || !Array.isArray(rel.assets)))
+    throw new Error(`${file}: not a release ({ tagName: "build-<n>", assets: [{ name, url }] })`);
+  // Each file's address as the release links it, which must be one of this project's on gitlab.com:
+  // a download or the checksums with any other address stops the build rather than showing as
+  // "not built".
+  const assets = (rel?.assets ?? []).filter((x) => typeof x?.name === "string");
+  for (const x of assets)
+    if ((x.name === "SHA256SUMS" || PLATFORMS.some((p) => p.re.test(x.name))) && !safeUrl(x.url))
+      throw new Error(`${file}: ${x.name} links to ${String(x.url)}, not to this project on ${HOST}`);
   // macOS builds are optional, so its button shows only when the release carries a .dmg; Linux and
   // Windows always show (pointing at Releases when the file isn't there).
   const found = PLATFORMS.map((p) => [p, assets.find((x) => p.re.test(x.name))]);
@@ -156,10 +163,15 @@ function downloads() {
   const sumsFile = assets.find((x) => x.name === "SHA256SUMS");
   const sums = sumsFile ? `<a href="${safeUrl(sumsFile.url)}">SHA256SUMS</a>` : "SHA256SUMS";
   const version = rel ? `<p class="register">Stable · ${esc(rel.tagName)}</p>` : `<p class="register">Stable</p>`;
-  return `${version}<ul class="dls">${rows}</ul><p class="small">Check a download against ${sums} on the same release (<a href="${REPO}#checking-a-download">how</a>). Every release also carries <span class="register">orbiter-source.tar.gz</span>, its complete source. Other builds (Beta, Experimental) are on <a href="${REPO}/-/releases">Releases</a>.</p>`;
+  return `${version}<ul class="dls">${rows}</ul><p class="small">Check a download against ${sums} on the same release (<a href="${REPO}/-/blob/main/README.md#checking-a-download">how</a>). Every release also carries <span class="register">orbiter-source.tar.gz</span>, its complete source. Other builds (Beta, Experimental) are on <a href="${REPO}/-/releases">Releases</a>.</p>`;
 }
 
-/** A download's address, escaped for an attribute, if it's https on the repository's host; else null. */
+/** Where this project's files are on gitlab.com: its package registry (as the release links to
+ *  them, the project named by its path) or its own pages. */
+const PROJECT_PATHS = ["/api/v4/projects/sheziss-group%2Forbiter/packages/generic/", "/sheziss-group/orbiter/"];
+
+/** A download's address, escaped for an attribute, if it's https to this project on gitlab.com;
+ *  else null. */
 function safeUrl(url) {
   let u;
   try {
@@ -167,7 +179,8 @@ function safeUrl(url) {
   } catch {
     return null;
   }
-  return u.protocol === "https:" && u.hostname === HOST && !u.username && !u.password && !u.port ? esc(u.href) : null;
+  const ours = u.protocol === "https:" && u.hostname === HOST && !u.username && !u.password && !u.port;
+  return ours && PROJECT_PATHS.some((p) => u.pathname.startsWith(p)) && !u.pathname.includes("/../") ? esc(u.href) : null;
 }
 
 function landing() {
