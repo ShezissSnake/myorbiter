@@ -66,9 +66,10 @@ tick it here when it's done. The commands work in fish and in bash, from a clone
 - [ ] **The builder image exists:** *Build* → *Pipelines* → **New pipeline** → branch `main`,
       *task* `image` → **New pipeline**. It runs on gitlab.com's hosted runners whatever *runner*
       says (a new account may have to verify its identity before they take jobs). Its log ends
-      with the digest of `builder:<BUILDER_TAG>-p<pipeline>`, a tag nothing pushes again: put it
+      with the digest of `builder:<BUILDER_TAG>.job<job id>`, a tag no other push writes: put it
       in `.gitlab-ci.yml` as `BUILDER_DIGEST` through a merge request that links that job's log,
-      so the digest can be checked against it. Never delete or push over a `…-p<pipeline>` tag.
+      so the digest can be checked against it. Never delete a `….job<id>` tag (the cleanup policy
+      under *Packages* keeps them).
       Until then, pipelines on `main` run in the image's tag and `sign` refuses, so nothing is
       published.
 - [ ] **A first build on `main`:** New pipeline → branch `main`, *task* `release`, *windows*
@@ -206,9 +207,13 @@ runner**, tag `pc`, *Run untagged jobs* off):
       key, never runs here: it always runs on gitlab.com's hosted runners, a fresh machine each
       time.
 - [ ] **Never privileged, no Docker socket:** `privileged = false` and no `/var/run/docker.sock` in
-      its `volumes`. Either would let a build job reach the sign job's container. The `image` task
-      runs on gitlab.com's hosted runners for that reason (Buildah's user namespace is refused by
-      Docker's default seccomp profile).
+      its `volumes`. Either would let a build job out of its container, onto this computer and
+      into the other jobs and caches. The `image` task runs on gitlab.com's hosted runners for
+      that reason (Buildah's user namespace is refused by Docker's default seccomp profile).
+- [ ] **Hosted runners stay enabled:** *Settings* → *CI/CD* → *Runners* → *Instance runners*:
+      **Enable instance runners for this project** on. `sign` and the image task run on them in
+      every release, and spend the namespace's compute minutes; with none left, nothing is
+      signed or published.
 - [ ] **Protected:** the runner's *Protected* box ticked, so only pipelines on `main` and protected
       tags run on it. A pipeline on any other branch runs on gitlab.com's hosted runners,
       whatever *runner* says, in that branch's own builder image: run the *task* `image` on the
@@ -223,6 +228,12 @@ runner**, tag `pc`, *Run untagged jobs* off):
       files unchangeable: a job token that can upload can also delete. What protects installed
       copies is the signature check.
 - [ ] Never delete the `channel` and `stable-builds` packages: every installed copy reads them.
+- [ ] **Container registry cleanup policy** (*Settings* → *Packages and registries* → *Cleanup
+      policies*): off, or set so it removes only branch images and keeps the builder images main
+      runs in. *Keep tags matching* `^\d{4}-\d{2}-\d{2}(\.job\d+)?$`; *Remove tags matching*
+      `^\d{4}-\d{2}-\d{2}-.+$`, older than 14 days. If it removed the `.job<id>` tag that
+      `BUILDER_DIGEST` names, the registry would delete that image and every pipeline on `main`
+      would stop until a new image is built and its digest merged.
 
 ## Issues
 
