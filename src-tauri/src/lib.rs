@@ -24,7 +24,7 @@ use tauri::{Emitter, Manager};
 
 const WORLDSTATE: &str = "https://api.warframestat.us/pc";
 /// Who's asking, and where to find out more (the APIs orbiter reads like to know).
-pub(crate) const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"), " (+https://github.com/ShezissSnake/orbiter)");
+pub(crate) const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"), " (+https://gitlab.com/sheziss-group/orbiter)");
 
 /// TennoScope's data folder: the one from Settings, or where TennoScope keeps it. A folder from
 /// Settings must be a full path without `..` (orbiter only reads TennoScope's own files in it).

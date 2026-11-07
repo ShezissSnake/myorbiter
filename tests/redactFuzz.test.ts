@@ -127,8 +127,8 @@ test("untrusted text: cleaned text holds no hidden or control character, is stab
 });
 
 test("links: only https, only the allowed sites and paths, whatever tricks the address uses", () => {
-  const hosts = ["warframe.market", "wiki.warframe.com", "github.com", "overframe.gg", "noxsframe.com", "evil.example", "warframe.market.evil.example", "evil-warframe.market", "WARFRAME.MARKET", "warframe.market.", "xn--warframe-market-xyz.example", "127.0.0.1", "localhost"];
-  const paths = ["/", "/items/khra", "/ShezissSnake/orbiter/issues/new", "/ShezissSnake/../someone/else", "/someone/else", "/%2e%2e/x", "//evil.example/x", "/x?next=https://evil.example"];
+  const hosts = ["warframe.market", "wiki.warframe.com", "github.com", "gitlab.com", "overframe.gg", "noxsframe.com", "evil.example", "warframe.market.evil.example", "evil-warframe.market", "WARFRAME.MARKET", "warframe.market.", "xn--warframe-market-xyz.example", "127.0.0.1", "localhost"];
+  const paths = ["/", "/items/khra", "/ShezissSnake/orbiter/issues/new", "/ShezissSnake/../someone/else", "/sheziss-group/orbiter/-/work_items/new", "/sheziss-group/orbiter/../../someone/else", "/someone/else", "/%2e%2e/x", "//evil.example/x", "/x?next=https://evil.example"];
   forAll("links", (r, seed) => {
     const scheme = r.pick(["https://", "http://", "javascript:", "file://", "HTTPS://", "https:/", "https:\\\\", "  https://"]);
     const userinfo = r.pick(["", "", "", "user@", "user:pass@", "warframe.market@"]);

@@ -11,7 +11,9 @@ export const LINK_SITES: readonly { host: string; path: string }[] = [
   { host: "warframe.fandom.com", path: "/" },
   { host: "overframe.gg", path: "/" },
   { host: "noxsframe.com", path: "/" },
-  // orbiter's own repository (issues, releases).
+  // orbiter's own repository (issues, releases), on gitlab.com; its old address on GitHub stays
+  // allowed for links in older notes and reports.
+  { host: "gitlab.com", path: "/sheziss-group/orbiter/" },
   { host: "github.com", path: "/ShezissSnake/" },
 ];
 

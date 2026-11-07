@@ -305,7 +305,7 @@
     <p class="hint">{CHANNELS.find((c) => c.v === settings.updates.channel)?.title}. Switching to a more stable channel never steps back by itself: if its build is older than this one, orbiter offers it here and installs it only when you click.</p>
     <div class="row">
       <ProgressButton job={updates.checkJob} label="Check now" disabled={!checks} sizer={["Up to date · 0.1.9999", "Experimental has 0.1.9999", "Couldn't check"]} title={checks ? `Look for a newer build on ${CHANNEL_LABEL[settings.updates.channel]} now. orbiter also looks when it starts and every 6 hours; nothing installs without your click.` : (info ? (installNote(info.install) ?? "") : "")} status />
-      <button type="button" class="link out" title="Open this build's release page on GitHub, in your browser: what changed, and its downloads" onclick={() => openUrl(releasePage(info?.version ?? "0.1.0"))}>Release notes<Icon name="external" size={11} /></button>
+      <button type="button" class="link out" title="Open this build's release page on GitLab, in your browser: what changed, and its downloads" onclick={() => openUrl(releasePage(info?.version ?? "0.1.0"))}>Release notes<Icon name="external" size={11} /></button>
     </div>
     {#if checks}<p class="hint">Last checked {checkedAgo(settings.updates.lastCheck, now)}{#if updates.error}{" "}· <span title={updates.error}>couldn't check for updates</span>{/if}.</p>{/if}
     {#if offer}
