@@ -32,8 +32,9 @@ It isn't signed, so SmartScreen warns the first time: *More info → Run anyway*
 ### macOS
 
 There is no macOS download: the release pipeline builds for Linux and Windows only. orbiter can be
-built on a Mac from source (`docs/development.md`); such a build isn't notarised: the first time,
-macOS refuses to open it, and *System Settings → Privacy & Security → Open Anyway* lets it run.
+built on a Mac from source (`docs/development.md`). Such a build isn't notarised: copied to another
+Mac, it's refused the first time it opens, and *System Settings → Privacy & Security → Open Anyway*
+lets it run.
 TennoScope doesn't run on macOS, so a Mac has no inventory. Your warframe.market listings and
 sales, fissures, Baro and Varzia, the world's clocks and the riven finder work; the collection pages
 stay empty. A macOS build never updates itself.
@@ -54,8 +55,7 @@ Every release lists the SHA-256 of each of its files in `SHA256SUMS`, beside the
 the check on Linux and Windows; on macOS it's `shasum -a 256 --check --ignore-missing SHA256SUMS`.
 
 The files are also in the project's package registry, at the addresses the release links to; the
-release's `SHA256SUMS` covers them all. (Builds made on GitHub before the move carried GitHub's
-attestations; builds on GitLab don't.)
+release's `SHA256SUMS` covers them all.
 
 ## If the window stays blank (Linux)
 
@@ -95,8 +95,8 @@ restart.
 
 ## Updates
 
-orbiter updates itself from this project's releases on GitLab (Settings → *Updates*). Each installed copy
-follows one channel:
+orbiter updates itself from this project's releases on GitLab (Settings → *Updates*). Each installed
+copy follows one channel:
 
 - **Stable** (the default): tested builds.
 - **Beta**: the next Stable, a few days early.
@@ -121,4 +121,5 @@ matches the key it was built with.
 The first install is by hand, like any first install: download the AppImage or the setup.exe of a
 build on the channel you want from *Releases*, then pick the channel in Settings → *Updates*. From
 then on it updates itself. A build made on your own computer is version 0.1.0 and never updates
-itself.
+itself. A copy of a build made before the project moved to GitLab (builds below 100) looks for
+updates at the old address and never finds one: install a current build by hand once.

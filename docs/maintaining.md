@@ -7,8 +7,8 @@ the group's settings. Each line says where it is. Everything here works on GitLa
 ## Going public, step by step
 
 Every step in order, from a private project to the first public Stable installed by hand. Every
-step needs the Owner or Maintainer role; the ones marked **(maintainer)** are the maintainer's own
-clicks (the visibility switch, the signing key, the runner, the promotions). Each step links to
+step needs the Maintainer role, and the group's settings (its visibility, its package settings)
+need the group's Owner role; the ones marked **(maintainer)** are the maintainer's own clicks (the visibility switch, the signing key, the runner, the promotions). Each step links to
 its details further down; tick it here when it's done. The commands work in fish and in bash,
 from a clone whose `origin` is `gitlab.com/sheziss-group/orbiter`.
 
@@ -27,11 +27,19 @@ from a clone whose `origin` is `gitlab.com/sheziss-group/orbiter`.
       ```
 
       Then `git ls-remote --heads origin` lists `main` and open merge requests' branches only.
+- [ ] **The account shows only the pseudonym (maintainer):** *User settings* → *Profile*: *Full
+      name* Sheziss, *Public email* "Do not show on profile", *Commit email* the private
+      `…@users.noreply.gitlab.com` address (the address of merges and edits made on the website);
+      *Private profile* optional. GitLab Free doesn't check the author address of pushed commits,
+      so a clone's `git config user.email` must already be a noreply address.
 - [ ] **The settings below are in place:** *Protected branches and tags*, *CI/CD*, *The signing
-      key*, *The runner*, *Packages*, *Issues*, *Features not in use*.
+      key*, *The runner*, *Packages*, *Issues*, *Features not in use*, *Dependency updates*.
 - [ ] **The history is read once more** for anything personal or secret (real names, home paths,
       trade records, other players' names, tokens). Making a project public publishes every
-      commit, every tag and every branch, not only `main`.
+      commit, every tag and every branch, not only `main`. GitLab Free has no secret push
+      protection (GitHub refused a push with a known token; GitLab's is Ultimate-only), so scan the
+      whole history for tokens once too, with a secret scanner such as gitleaks run from its
+      container image on the clone, and act only on what it finds after reading each hit.
 - [ ] **No tag points at a commit it shouldn't:** the `build-<n>` tags from GitHub (below 100) name
       the commits those builds came from; GitLab's builds start at 100.
 
@@ -55,11 +63,15 @@ from a clone whose `origin` is `gitlab.com/sheziss-group/orbiter`.
       they run too; they must pass there as well. Elsewhere skip both: `dev-bundle` needs that
       folder.
 - [ ] **The builder image exists:** *Build* → *Pipelines* → **New pipeline** → branch `main`,
-      *task* `image` → **New pipeline**. Its log ends with the image's digest; pin
-      `BUILDER_IMAGE` in `.gitlab-ci.yml` to it through a merge request.
+      *task* `image` → **New pipeline**. It runs on gitlab.com's hosted runners whatever *runner*
+      says (a new account may have to verify its identity before they take jobs). Its log ends
+      with the image's digest; pin `BUILDER_IMAGE` in `.gitlab-ci.yml` to it through a merge
+      request. Until it's pinned, `sign` signs nothing.
 - [ ] **A first build on `main`:** New pipeline → branch `main`, *task* `release`, *windows*
       ticked. While the project is private the build signs and publishes as usual; installed
       copies just can't reach it yet.
+- [ ] **Releases holds only GitLab builds:** *Deploy* → *Releases* lists `build-<n>` releases from
+      100 up and nothing brought over from GitHub (whose files are gone).
 
 **2. Make it public (maintainer)**
 
@@ -74,10 +86,10 @@ from a clone whose `origin` is `gitlab.com/sheziss-group/orbiter`.
       node scripts/issues-digest.mjs --fetch
       ```
 
-**3. The website (maintainer):** *Deploy* → *Pages*: untick **Use unique domain** (so the site is
-`https://sheziss-group.gitlab.io/orbiter/`, as the README links), Save. Then New pipeline →
-branch `main`, *task* `pages`. With no Stable build yet its download buttons point at
-*Releases*; step 5 runs it again.
+**3. The website (maintainer):** New pipeline → branch `main`, *task* `pages`. Then *Deploy* →
+*Pages* (the setting may only appear after that first deployment): untick **Use unique domain**
+(so the site is `https://sheziss-group.gitlab.io/orbiter/`, as the README links), Save. With no
+Stable build yet its download buttons point at *Releases*; step 5 runs it again.
 
 **4. A first public build**
 
@@ -96,6 +108,9 @@ branch `main`, *task* `pages`. With no Stable build yet its download buttons poi
 
 - [ ] Install it from Experimental on Linux and on Windows, and use it for a while: start, sync,
       a page of each section, Settings → Updates → *Check now*.
+- [ ] **It updates itself:** run one more release pipeline (step 4) for build *m*. The copies of
+      build *n* offer 0.2.*m* and install it with *Update and restart*, on Linux and on Windows.
+      Promote *m*, not *n*, below: it's the build that has been seen updating.
 - [ ] New pipeline → branch `main`, *task* `promote`, *build* *n*, *channel* **beta**; when it's
       green, the same with **stable**. (Stable alone also moves Beta up.)
 - [ ] `channel/stable/latest.json` and `channel/beta/latest.json` name 0.2.*n*.
@@ -135,10 +150,19 @@ branch `main`, *task* `pages`. With no Stable build yet its download buttons poi
 - [ ] **General pipelines** → untick **Public pipelines** (the jobs' logs and artifacts stay
       members-only; the releases and their files are public anyway). **Auto-cancel redundant
       pipelines** off.
-- [ ] **Job token permissions** → *Limit access to this project* on, with nothing in the allowlist.
+- [ ] **Job token permissions** → *Authorized groups and projects*: **Only this project and any
+      groups and projects in the allowlist**, with nothing in the allowlist.
 - [ ] **Auto DevOps** off.
 - [ ] Never add a pipeline that runs for merge requests from forks with the project's variables,
-      or one triggered by issues, comments or webhooks.
+      or one triggered by issues, comments or webhooks. **Never press *Run pipeline* on a merge
+      request from a fork:** it runs the fork's `.gitlab-ci.yml` and code in this project, with a
+      job token that carries the role of whoever pressed it and can write the packages and the
+      channels.
+- [ ] **No pipeline schedules** (*Build* → *Pipeline schedules* stays empty, but for Renovate's,
+      below): pipelines run only when started or for a release tag. The nightly build, the weekly
+      audit and the daily website refresh of the GitHub days are gone: each release's `test` job
+      audits both lockfiles and checks the MSRV, and the `pages` task refreshes the website when
+      it's started.
 
 What GitLab can't narrow: every job's `CI_JOB_TOKEN` can write this project's packages and
 releases with the role of whoever started the pipeline, the jobs that run build code included.
@@ -156,7 +180,10 @@ password are only on the maintainer's side):
       `TAURI_SIGNING_PRIVATE_KEY` (the whole text of `~/.tauri/orbiter.key`, from the offline
       backup) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Each: type **Variable** (not File),
       environment scope **release-signing**, **Protect variable** ticked (`main` and protected
-      tags only), visibility **Masked and hidden**, **Expand variable reference** unticked.
+      tags only), visibility **Masked and hidden**, **Expand variable reference** unticked. A masked
+      value must be one line of at least 8 characters from GitLab's allowed set. If the password
+      isn't, GitLab refuses to mask it: keep it **Visible**, still protected and scoped (the
+      `sign` job never prints it), rather than changing the key.
 - [ ] **Check it:** the next release pipeline's `sign` job has no "No updater files" line, and the
       release carries the `.sig` files and `latest.json`.
 
@@ -170,16 +197,21 @@ runner**, tag `pc`, *Run untagged jobs* off):
 
 - [ ] **The Docker executor**, never the shell executor: each job then runs in its own container,
       which is what keeps the signing key away from the jobs that build.
-- [ ] `privileged = false`. The `image` task needs Buildah's user namespace, which Docker's default
-      seccomp profile refuses: run that task with *runner* `cloud` (gitlab.com's hosted runners
-      allow it), or give the runner a second, separate entry for it.
-- [ ] Branch pipelines run that branch's code on this computer, as any build of it there would.
+- [ ] **Never privileged, no Docker socket:** `privileged = false` and no `/var/run/docker.sock` in
+      its `volumes`. Either would let a build job reach the sign job's container. The `image` task
+      runs on gitlab.com's hosted runners for that reason (Buildah's user namespace is refused by
+      Docker's default seccomp profile).
+- [ ] **Protected:** the runner's *Protected* box ticked, so only pipelines on `main` and protected
+      tags run on it. A branch's pipeline runs with *runner* `cloud`.
 
 ## Packages
 
 - [ ] **Duplicates allowed for generic packages:** the group's *Settings* → *Packages and
       registries* → *Duplicate packages* → Generic: **Allow duplicates** on (the default). Each
-      channel's `latest.json` is replaced by uploading it again.
+      file is replaced by uploading it again and then deleting the older copy (`ci/lib.sh`), so a
+      re-run job and each channel's `latest.json` need it. Turning it off wouldn't make a build's
+      files unchangeable: a job token that can upload can also delete. What protects installed
+      copies is the signature check.
 - [ ] Never delete the `channel` and `stable-builds` packages: every installed copy reads them.
 
 ## Issues
@@ -192,9 +224,20 @@ runner**, tag `pc`, *Run untagged jobs* off):
 ## Features not in use
 
 *Settings* → *General* → *Visibility, project features, permissions*: untick **Wiki**,
-**Snippets**, **Requirements**, **Model experiments**, **Monitor** and any other feature not in
-use. Keep **Issues**, **Repository**, **Merge requests**, **CI/CD**, **Container registry**,
+**Snippets**, **Model experiments**, **Monitor** and any other feature not in use. Keep **Issues**, **Repository**, **Merge requests**, **CI/CD**, **Container registry**,
 **Package registry**, **Releases**, **Environments** and **Pages**.
+
+## Dependency updates
+
+`renovate.json` is Renovate's settings: weekly merge requests, minor and patch updates grouped,
+majors alone, nothing merged by itself, and a merge request of its own for a dependency with a
+known vulnerability (OSV), in place of Dependabot's alerts. Nothing runs Renovate yet: gitlab.com
+Free has no built-in Renovate, and Mend's hosted Renovate for gitlab.com is a paid service, so it
+needs a pipeline running Renovate's own image once a week, with a personal access token of a bot
+account (project and group access tokens are paid features on gitlab.com): the one pipeline
+schedule this project would have. That is the maintainer's choice. Its `renovate/*` branches start no pipeline (`.gitlab-ci.yml` runs only when started or for
+a release tag), so nothing a new dependency version contains runs on the `pc` runner until a
+merge request is read and its branch tested by hand.
 
 ## AI and automation
 

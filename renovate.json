@@ -3,6 +3,7 @@
   "description": [
     "Renovate proposes dependency updates as merge requests, once a week; nothing is merged by itself.",
     "The ecosystems Dependabot covered: Cargo (orbiter's workspace at the root, TennoScope's in tennoscope/), npm (orbiter's window at the root, TennoScope's app in tennoscope/app, pnpm), and the CI (the images .gitlab-ci.yml and ci/Dockerfile use, in place of GitHub Actions).",
+    "With osvVulnerabilityAlerts, a dependency with a known vulnerability (OSV) gets its own merge request, in place of Dependabot's security updates.",
     "Minor and patch updates come grouped, one merge request per ecosystem and folder; a major version comes on its own, since it may need code changes.",
     "TypeScript 7 waits for orbiter (the root) until svelte-check supports it; TennoScope is on it already."
   ],
@@ -12,6 +13,7 @@
   "timezone": "Etc/UTC",
   "automerge": false,
   "dependencyDashboard": false,
+  "osvVulnerabilityAlerts": true,
   "prConcurrentLimit": 10,
   "rangeStrategy": "update-lockfile",
   "customManagers": [
@@ -52,6 +54,11 @@
       "matchManagers": ["gitlabci", "dockerfile", "custom.regex"],
       "groupName": "CI images",
       "pinDigests": true
+    },
+    {
+      "description": "The project's own builder image is pinned by hand to the digest the image task prints, never by a merge request from Renovate: anything with a job token can push to its tags.",
+      "matchDepNames": ["registry.gitlab.com/sheziss-group/**"],
+      "enabled": false
     },
     {
       "description": "TypeScript 7 waits for orbiter (the root) until svelte-check supports it.",
