@@ -30,3 +30,21 @@ test("the sign job checks the signer and the builder image's digest before signi
   assert.ok(check < run && pin < run, "the sign job runs the signer before checking it");
   assert.match(sign, /GIT_STRATEGY: clone/);
 });
+
+test("main and release tags run in the builder image by digest; the image task pushes a tag", () => {
+  const ci = readFileSync(".gitlab-ci.yml", "utf8");
+  const rules = ci.slice(ci.indexOf("\nworkflow:\n"), ci.indexOf("\ndefault:\n"));
+  // Every rule that sets the digest form checks BUILDER_DIGEST first, and only main or a release
+  // tag gets it.
+  const byDigest = rules.split("\n    - if: ").filter((r) => r.includes("builder@$BUILDER_DIGEST"));
+  assert.ok(byDigest.length >= 3, "no rule runs main in the image by digest");
+  for (const r of byDigest) {
+    assert.match(r, /\$BUILDER_DIGEST =~ \/\^sha256:\[0-9a-f\]\{64\}\$\//);
+    assert.match(r, /\$CI_COMMIT_TAG =~ \/\^release-\//);
+    assert.doesNotMatch(r, /BUILDER_SUFFIX/);
+  }
+  const image = ci.slice(ci.indexOf("\nbuilder-image:\n"));
+  assert.match(image, /--tag "\$BUILDER_PUSH"/);
+  assert.match(image, /buildah push --digestfile builder\.digest "\$BUILDER_PUSH"/);
+  assert.match(ci, /^ {2}BUILDER_DIGEST: "(sha256:[0-9a-f]{64})?"$/m);
+});

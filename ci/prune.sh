@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# The `prune` job (.gitlab-ci.yml): keeps the newest KEEP (10) Experimental builds, not counting
-# the ones a channel keeps. An older build's files (its orbiter/<version> package) and its
-# build-<n> release go, unless a channel names it: the build in channel/stable, channel/beta or channel/experimental's latest.json stays,
-# as does every build ever promoted to Stable (stable-builds/). Its build-<n> tag stays, so the
-# commit it was built from is still named. If a channel can't be read, nothing is deleted. Each
-# build's channels are read again just before it goes, so a promotion that lands meanwhile keeps it.
+# The `prune` job (.gitlab-ci.yml): keeps the newest KEEP (10) Experimental builds, not counting the
+# ones a channel keeps. An older build's files (its orbiter/<version> package) and its build-<n>
+# release go, unless a channel names it: the build in channel/stable, channel/beta or
+# channel/experimental's latest.json stays, as does every build ever promoted to Stable
+# (stable-builds/). Its build-<n> tag stays, so the commit it was built from is still named. If a
+# channel can't be read, nothing is deleted. Each build's channels are read again just before it
+# goes, so a promotion that lands meanwhile keeps it.
 #
 #   KEEP=10 ci/prune.sh
 here=$(cd "$(dirname "$0")/.." && pwd)
