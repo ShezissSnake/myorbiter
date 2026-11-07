@@ -35,6 +35,22 @@ not_e2e() {
   fi
 }
 
+# The glibc floor (ci/Dockerfile builds on Ubuntu 22.04 for it): nothing built or bundled for Linux
+# may ask for a newer glibc, or the AppImage stops starting on SteamOS and older systems. Raise it
+# only on purpose, with the base image.
+glibc_floor=2.35
+check_glibc_floor() {
+  local newest
+  newest=$( { find "$@" -type f -exec objdump -T {} + 2>/dev/null || true; } \
+    | grep -o 'GLIBC_[0-9][0-9.]*' | sed 's/^GLIBC_//' | sort -uV | tail -n 1 || true)
+  [ -n "$newest" ] || { echo "no glibc symbol versions found in $*" >&2; exit 1; }
+  if [ "$(printf '%s\n' "$glibc_floor" "$newest" | sort -V | tail -n 1)" != "$glibc_floor" ]; then
+    echo "the Linux build needs glibc $newest, newer than the $glibc_floor floor" >&2
+    exit 1
+  fi
+  echo "glibc: the newest version anything asks for is $newest (floor $glibc_floor)"
+}
+
 rm -rf "$out"
 mkdir -p "$out"
 
@@ -68,6 +84,8 @@ npx tauri build --bundles appimage,deb --config src-tauri/tauri.bundle.json --co
 # libraries' sources listed (scripts/repack-appimage.sh).
 scripts/repack-appimage.sh
 not_e2e "$target/release/orbiter"
+check_glibc_floor "$target/release/bundle/appimage/orbiter.AppDir" \
+  tennoscope/target/release/bundle/appimage/TennoScope.AppDir
 install -m 755 "$target/release/bundle/appimage/orbiter_${version}_amd64.AppImage" "$out/"
 install -m 644 "$target/release/bundle/deb/orbiter_${version}_amd64.deb" "$out/"
 

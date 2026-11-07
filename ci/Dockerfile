@@ -2,10 +2,9 @@
 # 22.04, for the Linux AppImage and .deb built natively and the Windows installer cross-compiled
 # with cargo-xwin. 22.04 on purpose: what's built here needs nothing newer than its C library (glibc
 # 2.35), so the AppImage runs on SteamOS, Debian 12 and any Linux from the last few years. A newer
-# base raises that floor for every player: check the built AppImage still asks for no more than
-# GLIBC_2.35 before moving it. The `image` job (.gitlab-ci.yml) builds it and pushes it to the
-# project's container registry as builder:<BUILDER_TAG>; change BUILDER_TAG there whenever this file
-# changes.
+# base raises that floor for every player, so ci/build.sh refuses a Linux build that asks for more
+# than GLIBC_2.35. The `image` job (.gitlab-ci.yml) builds it and pushes it to the project's
+# container registry as builder:<BUILDER_TAG>; change BUILDER_TAG there whenever this file changes.
 #
 # Nothing here is piped from the web into a shell: Node and rustup-init are downloaded as files and
 # checked against the SHA-256 pinned below before they run. Bumping a version means a new checksum,
@@ -48,6 +47,8 @@ ARG PIPEWIRE_SHA256=f91ef1d1161b37aae6e21b9671917d97097e2664c83d919ba3a0793d6fbc
 # bindgen, meson and ninja for PipeWire below, Tesseract and patchelf for the copy it carries), the
 # Windows cross-compile (NSIS for the installer; LLVM 14's clang-cl, lld-link, llvm-lib and llvm-rc
 # for cargo-xwin), 7-Zip for the Windows Tesseract installer, and jq and curl for the release jobs.
+# LLVM 14 is enough while nothing compiles C++ for Windows: the current MSVC STL headers cargo-xwin
+# fetches refuse a Clang that old, so a dependency that starts doing so needs a newer LLVM here.
 RUN apt-get update \
  && apt-get install --no-install-recommends -y \
       ca-certificates curl git file xz-utils unzip zstd jq build-essential pkg-config \

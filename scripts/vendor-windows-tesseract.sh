@@ -51,4 +51,12 @@ cp "$here"/tennoscope/packaging/windows-tesseract/* "$out/licenses/"
   echo tesseract.exe
   find "$out" -maxdepth 1 -name '*.dll' -printf '%f\n' | LC_ALL=C sort -f
 } > "$out/licenses/DLLS.txt"
-echo "Tesseract $version for Windows in $out ($(find "$out" -name '*.dll' | wc -l) DLLs)"
+# Every DLL kept needs its row in the table of projects and licences (a new installer can bring a
+# new one): stop rather than ship a library the notices don't name.
+table="$here/tennoscope/packaging/windows-tesseract/README.md"
+unlisted=()
+while IFS= read -r dll; do
+  grep -qF "$dll" "$table" || unlisted+=("$dll")
+done < <(find "$out" -maxdepth 1 -name '*.dll' -printf '%f\n')
+[ ${#unlisted[@]} -eq 0 ] || { echo "not in $table: ${unlisted[*]}" >&2; exit 1; }
+echo "Tesseract $version for Windows in $out ($(find "$out" -maxdepth 1 -name '*.dll' | wc -l) DLLs)"
