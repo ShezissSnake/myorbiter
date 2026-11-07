@@ -90,7 +90,7 @@ const NAV = [["index.html", "orbiter"], ["guide/index.html", "Guide"], ["whats-n
 
 function page({ file, title, blurb, body, section }) {
   const base = "../".repeat(file.split("/").length - 1);
-  const nav = NAV.map(([href, label]) => `<a href="${base}${href}"${href === file || (section && href.startsWith(section)) ? ' aria-current="page"' : ""}>${esc(label)}</a>`).join("");
+  const nav = NAV.map(([href, label], i) => `<a href="${base}${href}"${href === file || (section && href.startsWith(section)) ? ' aria-current="page"' : ""}>${i === 0 ? `<img src="${base}icon.svg" width="24" height="24" alt="">` : ""}${esc(label)}</a>`).join("");
   const sub = section === "guide/" ? `<nav class="guide-nav" aria-label="Guide">${GUIDE.map((g) => `<a href="${base}${g.file}"${g.file === file ? ' aria-current="page"' : ""}>${esc(g.title)}</a>`).join("")}</nav>` : "";
   return `<!doctype html>
 <html lang="en">
@@ -99,7 +99,8 @@ function page({ file, title, blurb, body, section }) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title === "orbiter" ? "orbiter: a Warframe companion" : `${title} · orbiter`)}</title>
 <meta name="description" content="${esc(blurb)}">
-<link rel="icon" href="${base}icon.png">
+<link rel="icon" href="${base}icon.svg" type="image/svg+xml">
+<link rel="icon" href="${base}icon.png" sizes="32x32">
 <link rel="stylesheet" href="${base}site.css">
 </head>
 <body>
@@ -168,7 +169,9 @@ write("whats-new.html", page({ file: "whats-new.html", title: "What's new", blur
 
 cpSync(join(SRC, "site.css"), join(OUT, "site.css"));
 cpSync(join(SRC, "shots"), join(OUT, "shots"), { recursive: true, filter: (f) => !f.endsWith(".md") });
-cpSync(join(ROOT, "src-tauri/icons/64x64.png"), join(OUT, "icon.png"));
+// The app icon's small drawing (npm run icons), as the favicon and the mark in the header.
+cpSync(join(ROOT, "src-tauri/icons/icon-small.svg"), join(OUT, "icon.svg"));
+cpSync(join(ROOT, "src-tauri/icons/32x32.png"), join(OUT, "icon.png"));
 mkdirSync(join(OUT, "game"));
 for (const f of icons) cpSync(join(ROOT, "public/game", f), join(OUT, "game", f));
 // The fonts the app uses (SIL Open Font License, its text beside them).
