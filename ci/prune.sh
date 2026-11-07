@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# The `prune` job (.gitlab-ci.yml): keeps the newest KEEP (10) Experimental builds. An older
-# build's files (its orbiter/<version> package) and its build-<n> release go, unless a channel
-# names it: the build in channel/stable, channel/beta or channel/experimental's latest.json stays,
+# The `prune` job (.gitlab-ci.yml): keeps the newest KEEP (10) Experimental builds, not counting
+# the ones a channel keeps. An older build's files (its orbiter/<version> package) and its
+# build-<n> release go, unless a channel names it: the build in channel/stable, channel/beta or channel/experimental's latest.json stays,
 # as does every build ever promoted to Stable (stable-builds/). Its build-<n> tag stays, so the
 # commit it was built from is still named. If a channel can't be read, nothing is deleted. Each
 # build's channels are read again just before it goes, so a promotion that lands meanwhile keeps it.
@@ -48,8 +48,10 @@ on_channels() {
 protected=$(on_channels)
 echo "On a channel or once Stable: $(tr '\n' ' ' <<<"$protected")"
 
-# Every build, newest first: "<n> <package id>".
-builds=$(packages orbiter | sed -n 's/^\([0-9][0-9]*\) 0\.2\.\([0-9][0-9]*\)$/\2 \1/p' | sort -rn)
+# Every build a channel doesn't keep, newest first: "<n> <package id>". The ones a channel keeps
+# don't count among the newest KEEP, so KEEP Experimental builds stay besides them.
+builds=$(packages orbiter | sed -n 's/^\([0-9][0-9]*\) 0\.2\.\([0-9][0-9]*\)$/\2 \1/p' | sort -rn |
+  awk 'NR == FNR { if ($1 != "") keep[$1] = 1; next } !($1 in keep)' <(printf '%s\n' "$protected") -)
 deleted=()
 while read -r n id; do
   [ -n "$n" ] || continue

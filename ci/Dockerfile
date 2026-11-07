@@ -7,6 +7,13 @@
 # checked against the SHA-256 pinned below before they run. Bumping a version means a new checksum,
 # taken from the project's own SHASUMS file (nodejs.org/dist/<version>/SHASUMS256.txt,
 # static.rust-lang.org/rustup/archive/<version>/x86_64-unknown-linux-gnu/rustup-init.sha256).
+#
+# Hosts the image build reaches: Docker Hub (the base image), Ubuntu's archive, nodejs.org,
+# static.rust-lang.org, crates.io (cargo-xwin, cargo-audit) and npm (pnpm). The builds themselves
+# reach crates.io, npm, digi.bib.uni-mannheim.de (Tesseract for Windows), github.com (the
+# linuxdeploy tools Tauri's bundler downloads) and, through cargo-xwin, Microsoft's servers for the
+# MSVC CRT and Windows SDK, whose licence cargo-xwin accepts on the project's behalf.
+#
 # ubuntu:24.04, pinned by digest: change both together.
 FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
 
