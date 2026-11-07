@@ -23,12 +23,29 @@ test("SIGNER_SHA256 in .gitlab-ci.yml names the signer as it is", () => {
 test("the sign job checks the signer and the builder image's digest before signing", () => {
   const ci = readFileSync(".gitlab-ci.yml", "utf8");
   const sign = ci.slice(ci.indexOf("\nsign:\n"), ci.indexOf("\npublish:\n"));
+  const links = sign.indexOf("-type l");
+  const copy = sign.indexOf('cp scripts/updater-sign.mjs scripts/updater-manifest.mjs src-tauri/tauri.conf.json "$signer/"');
   const check = sign.indexOf('= "$SIGNER_SHA256"');
   const pin = sign.indexOf("*@sha256:*)");
-  const run = sign.indexOf("node scripts/updater-sign.mjs");
-  assert.ok(check > 0 && pin > 0 && run > 0, "the sign job's checks are missing");
-  assert.ok(check < run && pin < run, "the sign job runs the signer before checking it");
+  const run = sign.indexOf('exec node "$signer/updater-sign.mjs" --config "$signer/tauri.conf.json"');
+  assert.ok(links > 0 && copy > 0 && check > 0 && pin > 0 && run > 0, "the sign job's checks are missing");
+  assert.ok(links < copy && copy < check && check < run && pin < run, "the sign job runs the signer before checking it");
+  assert.doesNotMatch(sign, /node scripts\//, "the sign job runs a script from the checkout");
   assert.match(sign, /GIT_STRATEGY: clone/);
+  assert.match(sign, /^ {2}tags: \[saas-linux-medium-amd64\]$/m);
+});
+
+test("a boolean input is never a variable's whole value", () => {
+  // GitLab keeps an input's type when it is the whole value, and a variable must be a string.
+  const ci = readFileSync(".gitlab-ci.yml", "utf8");
+  assert.doesNotMatch(ci, /^\s+[A-Z_]+: "?\$\[\[ inputs\.windows \]\]"?$/m);
+});
+
+test("release caches are kept apart from other refs' caches", () => {
+  const ci = readFileSync(".gitlab-ci.yml", "utf8");
+  const keys = [...ci.matchAll(/- key: (\S+)/g)].map((m) => m[1]);
+  assert.ok(keys.length >= 3);
+  for (const k of keys) assert.match(k, /-\$CI_COMMIT_REF_PROTECTED$/);
 });
 
 test("main and release tags run in the builder image by digest; the image task pushes a tag", () => {
