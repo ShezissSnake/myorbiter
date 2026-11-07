@@ -81,7 +81,7 @@ X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2
 DESKTOP
 ln -s usr/share/applications/TennoScope.desktop "$appdir/TennoScope.desktop"
 cat >"$appdir/apprun-hooks/linuxdeploy-plugin-gtk.sh" <<'HOOK'
-export GDK_BACKEND=x11 # required by the reward overlay
+# export GDK_BACKEND=x11 # Monitor this closely. AppImage used to crash on Wayland!
 HOOK
 : >"$appdir/usr/lib/libwayland-client.so.0"
 cat >"$appdir/AppRun.wrapped" <<'WRAPPED'
@@ -156,6 +156,12 @@ artifact_exec=$(awk '/^Exec=/ { matches++; value = $0 } END { if (matches != 1) 
 # stores, so a directory here would report a mode no sandboxed user ever sees; the builder
 # checks directories on the AppDir instead, where the filesystem reports them truthfully.
 artifact_root="$artifact_extract/squashfs-root"
+# The fixture's hook has the line commented out, as newer linuxdeploy-plugin-gtk releases ship it:
+# the artifact must force X11 for the reward overlay all the same.
+grep -q '^export GDK_BACKEND=x11 ' "$artifact_root/apprun-hooks/linuxdeploy-plugin-gtk.sh" || {
+  echo "repacked AppImage's GTK hook does not force X11" >&2
+  exit 1
+}
 unreadable=$(find "$artifact_root" -type f ! -perm -004 -print -quit)
 [ -z "$unreadable" ] || {
   echo "repacked AppImage payload is not world-readable at '$unreadable'" >&2
