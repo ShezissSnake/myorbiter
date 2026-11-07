@@ -14,11 +14,12 @@
 # pinned, and NSIS's against the SHA-256s below.
 #
 # Hosts the image build reaches: Docker Hub (the base image), Ubuntu's archive,
-# gitlab.freedesktop.org (PipeWire's source), downloads.sourceforge.net (NSIS), nodejs.org,
-# static.rust-lang.org, crates.io (cargo-xwin, cargo-audit) and npm (pnpm). The builds themselves
-# reach crates.io, npm, digi.bib.uni-mannheim.de (Tesseract for Windows), github.com (the
-# linuxdeploy tools Tauri's bundler downloads) and, through cargo-xwin, Microsoft's servers for the
-# MSVC CRT and Windows SDK, whose licence cargo-xwin accepts on the project's behalf.
+# gitlab.freedesktop.org (PipeWire's source), downloads.sourceforge.net and the SourceForge mirror
+# it redirects to (NSIS), nodejs.org, static.rust-lang.org, crates.io (cargo-xwin, cargo-audit) and
+# npm (pnpm). The builds themselves reach crates.io, npm, digi.bib.uni-mannheim.de (Tesseract for
+# Windows), github.com (the linuxdeploy tools Tauri's bundler downloads) and, through cargo-xwin,
+# Microsoft's servers for the MSVC CRT and Windows SDK, whose licence cargo-xwin accepts on the
+# project's behalf.
 #
 # ubuntu:22.04, pinned by digest: change both together.
 FROM ubuntu:22.04@sha256:076e7bf82319619f28dd0aa9c02ab34b055ad37100395b4f49a2ffba04fb5e11
@@ -88,11 +89,14 @@ ENV PKG_CONFIG_PATH=/opt/pipewire/lib/pkgconfig \
     LD_LIBRARY_PATH=/opt/pipewire/lib
 
 # NSIS in /opt/nsis, the way NSIS's own docs build it on Linux: the release zip (stubs, plugins,
-# headers, built by NSIS) with makensis compiled from the same release's source into its bin/.
-# Tauri's bundler runs the makensis on PATH and reads NSIS_PATH.
-RUN curl --fail --location --retry 3 --output /tmp/nsis.zip \
+# headers, built by NSIS) with makensis compiled from the same release's source into a new bin/
+# beside the zip's Windows Bin/ (it finds Stubs/, Plugins/ and Include/ one folder up). Tauri's
+# bundler runs the makensis on PATH (first on it, below) and reads NSIS_PATH. SourceForge redirects
+# to a mirror: only over https. The check at the end compiles a script with the header Tauri's
+# installer needs, so a makensis that can't find its stubs or headers fails the image build.
+RUN curl --fail --location --proto-redir =https --retry 3 --output /tmp/nsis.zip \
       "https://downloads.sourceforge.net/project/nsis/NSIS%203/${NSIS_VERSION}/nsis-${NSIS_VERSION}.zip" \
- && curl --fail --location --retry 3 --output /tmp/nsis-src.tar.bz2 \
+ && curl --fail --location --proto-redir =https --retry 3 --output /tmp/nsis-src.tar.bz2 \
       "https://downloads.sourceforge.net/project/nsis/NSIS%203/${NSIS_VERSION}/nsis-${NSIS_VERSION}-src.tar.bz2" \
  && echo "${NSIS_ZIP_SHA256}  /tmp/nsis.zip" | sha256sum --check --strict \
  && echo "${NSIS_SRC_SHA256}  /tmp/nsis-src.tar.bz2" | sha256sum --check --strict \
@@ -105,9 +109,12 @@ RUN curl --fail --location --retry 3 --output /tmp/nsis.zip \
  && mkdir -p /opt/nsis/bin \
  && mv /opt/nsis/makensis /opt/nsis/bin/makensis \
  && cd / && rm -rf /tmp/nsis.zip /tmp/nsis-zip /tmp/nsis-src.tar.bz2 "/tmp/nsis-${NSIS_VERSION}-src" \
- && /opt/nsis/bin/makensis -VERSION
-ENV NSIS_PATH=/opt/nsis \
-    PATH=/opt/nsis/bin:$PATH
+ && /opt/nsis/bin/makensis -VERSION \
+ && printf '%s\n' 'Unicode true' '!include "Win\RestartManager.nsh"' 'OutFile /tmp/nsis-check.exe' \
+      'Section' 'SectionEnd' > /tmp/nsis-check.nsi \
+ && /opt/nsis/bin/makensis -V2 /tmp/nsis-check.nsi \
+ && rm /tmp/nsis-check.nsi /tmp/nsis-check.exe
+ENV NSIS_PATH=/opt/nsis
 
 # Node, from nodejs.org's own build.
 RUN curl --fail --location --retry 3 --output /tmp/node.tar.xz \
@@ -122,7 +129,7 @@ RUN curl --fail --location --retry 3 --output /tmp/node.tar.xz \
 # Rust, through rustup, with the Windows MSVC target on both toolchains.
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:/usr/lib/llvm-14/bin:$PATH
+    PATH=/opt/nsis/bin:/usr/local/cargo/bin:/usr/lib/llvm-14/bin:$PATH
 RUN curl --fail --location --retry 3 --output /tmp/rustup-init \
       "https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/x86_64-unknown-linux-gnu/rustup-init" \
  && echo "${RUSTUP_SHA256}  /tmp/rustup-init" | sha256sum --check --strict \
