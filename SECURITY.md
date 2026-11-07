@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Please report it privately, as a confidential issue on GitLab:
-**[Report a vulnerability](https://gitlab.com/sheziss-group/orbiter/-/issues/new?issue%5Bconfidential%5D=true)**
+**[Report a vulnerability](https://gitlab.com/sheziss-group/orbiter/-/work_items/new?issue%5Bconfidential%5D=true)**
 (New issue, with *This issue is confidential* ticked). Only you and the project's members can see
 a confidential issue. Don't open a public issue, and don't put details in the app's Report a bug,
 which makes a public issue.

@@ -154,8 +154,9 @@ function sections(what: string, steps: string, expected: string, details: string
   return out;
 }
 
-/** The prefilled new-issue link: the template's name (it sets nothing once a description is
- *  given, but names where the report came from), the title and the whole description. */
+/** The prefilled new-issue link: the template's name, the title and the whole description.
+ *  GitLab's prefill puts issue[description] in place of the template's text (its docs, "Using a
+ *  URL with prefilled values"), so the template only names where the report came from. */
 function linkFor(title: string, description: string): string {
   const q = [
     `issuable_template=${enc(TEMPLATE)}`,

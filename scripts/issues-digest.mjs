@@ -4,12 +4,12 @@
 //
 //   node scripts/issues-digest.mjs --fetch > digest.txt              the open issues
 //   node scripts/issues-digest.mjs --fetch --state=all > digest.txt  open and closed
-//   node scripts/issues-digest.mjs --fetch --issue=12                one issue
+//   node scripts/issues-digest.mjs --fetch --issue=12                one issue, open or closed
 //   node scripts/issues-digest.mjs issues.json                       a file saved earlier
 //
 // --fetch reads them from GitLab's GraphQL API (https://gitlab.com/api/graphql), anonymously: no
-// token, no glab, and nothing is written. That works while the project is public; a private
-// project answers as if it had no issues. It asks for at most 20 issues a request, each with up to
+// token, no glab, and nothing is written. That works while the project is public; for a private
+// project it stops with a message. It asks for at most 20 issues a request, each with up to
 // 100 comments, and the project's members, to say who is one. A file can be what --fetch reads
 // (--save=FILE keeps it), an issue list from GitLab's REST API (/projects/:id/issues, which has no
 // comments), or an export from GitHub's `gh … --json` made before the move.
@@ -392,8 +392,9 @@ async function main(argv) {
   const opts = Number.isFinite(maxBody) && maxBody > 0 ? { maxBody } : {};
   let data;
   if (argv.includes("--fetch")) {
-    const state = opt("state") ?? "opened";
     const issue = opt("issue");
+    // One issue is read whatever its state, unless --state says otherwise.
+    const state = opt("state") ?? (issue !== undefined ? "all" : "opened");
     if (!["opened", "closed", "all"].includes(state) || (issue !== undefined && !/^[1-9]\d{0,8}$/.test(issue))) {
       process.stderr.write("issues-digest: --state=opened|closed|all, --issue=<number>\n");
       return 2;
@@ -405,7 +406,14 @@ async function main(argv) {
       return 1;
     }
     const save = opt("save");
-    if (save) writeFileSync(save, JSON.stringify(data, null, 1) + "\n");
+    if (save) {
+      try {
+        writeFileSync(save, JSON.stringify(data, null, 1) + "\n");
+      } catch (e) {
+        process.stderr.write(`issues-digest: can't write ${save}: ${e.message}\n`);
+        return 2;
+      }
+    }
     process.stdout.write(digest(data, opts));
     return 0;
   }
