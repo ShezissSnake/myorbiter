@@ -6,11 +6,12 @@ the group's settings. Each line says where it is. Everything here works on GitLa
 
 ## Going public, step by step
 
-Every step in order, from a private project to the first public Stable installed by hand. Every
-step needs the Maintainer role, and the group's settings (its visibility, its package settings)
-need the group's Owner role; the ones marked **(maintainer)** are the maintainer's own clicks (the visibility switch, the signing key, the runner, the promotions). Each step links to
-its details further down; tick it here when it's done. The commands work in fish and in bash,
-from a clone whose `origin` is `gitlab.com/sheziss-group/orbiter`.
+Every step in order, from a private project to the first public Stable installed by hand. Every step
+needs the Maintainer role, and the group's settings (its visibility, its package settings) need the
+group's Owner role; the ones marked **(maintainer)** are the maintainer's own clicks (the visibility
+switch, the signing key, the runner, the promotions). Each step links to its details further down;
+tick it here when it's done. The commands work in fish and in bash, from a clone whose `origin` is
+`gitlab.com/sheziss-group/orbiter`.
 
 **1. Before the switch** (the project is still private)
 
@@ -65,8 +66,9 @@ from a clone whose `origin` is `gitlab.com/sheziss-group/orbiter`.
 - [ ] **The builder image exists:** *Build* → *Pipelines* → **New pipeline** → branch `main`,
       *task* `image` → **New pipeline**. It runs on gitlab.com's hosted runners whatever *runner*
       says (a new account may have to verify its identity before they take jobs). Its log ends
-      with the image's digest; pin `BUILDER_IMAGE` in `.gitlab-ci.yml` to it through a merge
-      request. Until it's pinned, `sign` signs nothing.
+      with the image's digest: put it in `.gitlab-ci.yml` as `BUILDER_DIGEST` through a merge
+      request. Until then, pipelines on `main` run in the image's tag and `sign` refuses, so
+      nothing is published.
 - [ ] **A first build on `main`:** New pipeline → branch `main`, *task* `release`, *windows*
       ticked. While the project is private the build signs and publishes as usual; installed
       copies just can't reach it yet.
@@ -202,7 +204,8 @@ runner**, tag `pc`, *Run untagged jobs* off):
       runs on gitlab.com's hosted runners for that reason (Buildah's user namespace is refused by
       Docker's default seccomp profile).
 - [ ] **Protected:** the runner's *Protected* box ticked, so only pipelines on `main` and protected
-      tags run on it. A branch's pipeline runs with *runner* `cloud`.
+      tags run on it. A pipeline on any other branch runs on gitlab.com's hosted runners,
+      whatever *runner* says.
 
 ## Packages
 
@@ -223,27 +226,30 @@ runner**, tag `pc`, *Run untagged jobs* off):
 
 ## Features not in use
 
-*Settings* → *General* → *Visibility, project features, permissions*: untick **Wiki**,
-**Snippets**, **Model experiments**, **Monitor** and any other feature not in use. Keep **Issues**, **Repository**, **Merge requests**, **CI/CD**, **Container registry**,
-**Package registry**, **Releases**, **Environments** and **Pages**.
+*Settings* → *General* → *Visibility, project features, permissions*: untick **Wiki**, **Snippets**,
+**Model experiments**, **Monitor** and any other feature not in use. Keep **Issues**,
+**Repository**, **Merge requests**, **CI/CD**, **Container registry**, **Package registry**,
+**Releases**, **Environments** and **Pages**.
 
 ## Dependency updates
 
 `renovate.json` is Renovate's settings: weekly merge requests, minor and patch updates grouped,
 majors alone, nothing merged by itself, and a merge request of its own for a dependency with a
-known vulnerability (OSV), in place of Dependabot's alerts. Nothing runs Renovate yet: gitlab.com
-Free has no built-in Renovate, and Mend's hosted Renovate for gitlab.com is a paid service, so it
-needs a pipeline running Renovate's own image once a week, with a personal access token of a bot
-account (project and group access tokens are paid features on gitlab.com): the one pipeline
-schedule this project would have. That is the maintainer's choice. Its `renovate/*` branches start no pipeline (`.gitlab-ci.yml` runs only when started or for
-a release tag), so nothing a new dependency version contains runs on the `pc` runner until a
-merge request is read and its branch tested by hand.
+known vulnerability (OSV), in place of Dependabot's alerts. Nothing runs Renovate yet: GitLab has
+no built-in Renovate, and Mend's hosted Renovate app covers GitHub and Bitbucket, not gitlab.com.
+On gitlab.com Renovate runs self-hosted: a pipeline running Renovate's own image once a week, with
+a personal access token of a bot account (project access tokens need Premium on gitlab.com). That
+is the one pipeline schedule this project would have, and it needs a change to `.gitlab-ci.yml`
+first (a `renovate` task, and a rule for schedule pipelines, which today start nothing). Both are
+the maintainer's choice. Renovate's `renovate/*` branches start no pipeline (`.gitlab-ci.yml` runs
+only when started or for a release tag), so nothing a new dependency version contains runs on the
+`pc` runner until a merge request is read and its branch tested by hand.
 
 ## AI and automation
 
 - [ ] **Never install an AI bot or integration that acts on public comments** (answers, labels,
-      opens merge requests or runs anything because someone wrote an issue or comment). Anyone can write
-      one, and its text would become that bot's instructions.
+      opens merge requests or runs anything because someone wrote an issue or comment). Anyone can
+      write one, and its text would become that bot's instructions.
 - [ ] Read issues in a Claude session through `scripts/issues-digest.mjs` (see `CLAUDE.md`), never
       by pasting them raw.
 - [ ] Issues from the app's Report a bug come in with the `bug` and `needs-triage` labels (where
