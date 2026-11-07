@@ -29,11 +29,11 @@ publish the site use a number too, so build numbers have gaps). A job that has s
 cancelled. `test` runs the tests, checks the MSRV and audits both lockfiles; `build` (`ci/build.sh`)
 builds TennoScope from `tennoscope/` and orbiter for Linux (the AppImage and the .deb, on Ubuntu
 22.04: they need nothing newer than glibc 2.35, which `ci/build.sh` checks, and TennoScope uses the
-system's PipeWire, 0.3.48 or newer, so the AppImage runs on SteamOS and both run on Ubuntu 22.04,
-Debian 12 and newer) and, with the *windows* box ticked, the Windows installer, cross-compiled with
-cargo-xwin in the same job. Only a pipeline on `main` or a release tag goes further; on any other
-branch the downloads stay as the build job's artifacts for 3 days. Between jobs the files travel as
-job artifacts, kept 3 days.
+system's PipeWire, 0.3.48 or newer: the AppImage runs on SteamOS and any Linux from Ubuntu 22.04 and
+Debian 12 on, the .deb on Debian and Ubuntu from those releases on, not on SteamOS) and, with the
+*windows* box ticked, the Windows installer, cross-compiled with cargo-xwin in the same job. Only a
+pipeline on `main` or a release tag goes further; on any other branch the downloads stay as the
+build job's artifacts for 3 days. Between jobs the files travel as job artifacts, kept 3 days.
 
 The jobs that build (and so run npm, pnpm and Cargo code) never see the signing key. Unlike on
 GitHub, they can write the package registry and the releases: GitLab gives every job a token with
