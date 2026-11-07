@@ -6,25 +6,30 @@ This page is for whoever runs the releases. Players need only `docs/install.md`.
 
 `.gitlab-ci.yml` builds them on gitlab.com. A pipeline runs only when started: *Build* →
 *Pipelines* → *New pipeline* (or the pipelines API), or by pushing a tag named `release-<anything>`
-on a commit of `main`. A push to a branch and a merge request start nothing. The *task* field of
+on a commit of `main` (`release-*` is a protected tag: only a maintainer can make one, and only a
+protected tag's pipeline is given the signing key). A push to a branch and a merge request start nothing. The *task* field of
 New pipeline picks what it does: `release` (the default), `promote`, `pages` or `image` (the
 builder image, `ci/Dockerfile`, which every other job runs in; run it once before the first build
 and again after every change to the Dockerfile, with a new `BUILDER_TAG`).
 
-The jobs run on the project's own runner (tag `pc`), or, with the *runner* field set to `cloud`,
-on gitlab.com's hosted Linux runners, which spend the namespace's compute minutes.
+The jobs run on the project's own runner (tag `pc`, with the Docker executor, so each job runs in
+a container of its own), or, with the *runner* field set to `cloud`, on gitlab.com's hosted Linux
+runners, which spend the namespace's compute minutes.
 
 A release pipeline is build *n*, version `0.2.n`, where *n* is the pipeline's number in the
 project plus 100 (builds made on GitHub before the move were numbered below 100; pipelines that
 promote or publish the site use a number too, so build numbers have gaps). A job that has started
 is never cancelled. `test` runs the tests, checks the MSRV and audits both lockfiles; `build`
 (`ci/build.sh`) builds TennoScope from `tennoscope/` and orbiter for Linux (the AppImage and the
-.deb, on Ubuntu 24.04) and, with the *windows* box ticked, the Windows installer, cross-compiled
+.deb, on Ubuntu 24.04, so the AppImage needs glibc 2.39 or newer: a system from 2024 on) and,
+with the *windows* box ticked, the Windows installer, cross-compiled
 with cargo-xwin in the same job. Only a pipeline on `main` or a release tag goes further; on any
 other branch the downloads stay as the build job's artifacts for 3 days. Between jobs the files
 travel as job artifacts, kept 3 days.
 
-The jobs that build (and so run npm, pnpm and Cargo code) never see the signing key. `publish`
+The jobs that build (and so run npm, pnpm and Cargo code) never see the signing key. Unlike on
+GitHub, they can write the package registry and the releases: GitLab gives every job a token with
+the same reach. What keeps installed copies safe is the signature each one checks. `publish`
 (`ci/publish.sh`) adds `orbiter-source.tar.gz`, the complete source of the commit it built, as the
 GPL-3.0 asks, and `SHA256SUMS`, and puts every file in the project's generic package registry as
 `orbiter/0.2.n/<file>`; `release` makes the release `build-<n>` at that commit, linking to them.
@@ -62,6 +67,10 @@ at the address installed copies check
   can't reach them, and orbiter just says *Couldn't check for updates*.
 
 There are no macOS builds on GitLab.
+
+Copies installed from builds made on GitHub (below 100) look for updates at the old GitHub
+addresses, which no longer answer: install a GitLab build by hand once, and it updates itself
+from then on.
 
 ## The signing key
 

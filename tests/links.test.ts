@@ -32,6 +32,8 @@ test("anything else is refused", () => {
     "https://gitlab.com/sheziss-group",
     "https://gitlab.com/sheziss-group/other-project/-/issues",
     "https://gitlab.com/sheziss-group/orbiter",
+    "https://gitlab.com/sheziss-group/orbiter/uploads/0123456789abcdef/picture.png",
+    "https://github.com/ShezissSnake/other-repo",
     "https://gitlab.com/someone-else/orbiter/-/issues",
     "smb://warframe.market/share",
     "not a url",

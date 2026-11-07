@@ -49,8 +49,9 @@ impl Channel {
 }
 
 /// The addresses a channel's builds are announced at, in the order they're tried: the plugin asks
-/// the next one when an address can't be reached or has no manifest. Today one, the channel's
-/// `latest.json` in the package registry; a mirror would go after it.
+/// the next one when an address can't be reached or answers with an error (not when it answers
+/// with something that isn't a manifest). Today one, the channel's `latest.json` in the package
+/// registry; a mirror would go after it.
 pub fn endpoints(channel: Channel) -> Vec<String> {
     vec![format!("https://gitlab.com/api/v4/projects/{PROJECT}/packages/generic/channel/{}/latest.json", channel.name())]
 }

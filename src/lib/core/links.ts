@@ -11,10 +11,11 @@ export const LINK_SITES: readonly { host: string; path: string }[] = [
   { host: "warframe.fandom.com", path: "/" },
   { host: "overframe.gg", path: "/" },
   { host: "noxsframe.com", path: "/" },
-  // orbiter's own repository (issues, releases), on gitlab.com; its old address on GitHub stays
-  // allowed for links in older notes and reports.
-  { host: "gitlab.com", path: "/sheziss-group/orbiter/" },
-  { host: "github.com", path: "/ShezissSnake/" },
+  // orbiter's own project on gitlab.com: its pages under /-/ (releases, issues, a new issue), not
+  // what others can put under the project's address (uploads to issues). Its old repository on
+  // GitHub stays allowed for links in older notes and reports.
+  { host: "gitlab.com", path: "/sheziss-group/orbiter/-/" },
+  { host: "github.com", path: "/ShezissSnake/orbiter/" },
 ];
 
 /** The URL, normalised, if orbiter may open it: https, an allowed site, no user name or password. */
