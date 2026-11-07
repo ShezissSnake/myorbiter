@@ -56,12 +56,12 @@
 # `cloud`, gitlab.com's hosted Linux runners (saas-linux-medium-amd64, which spend the namespace's
 # compute minutes). A release tag push uses pc. A pipeline on a branch other than main, `sign` and
 # the image task always run on the hosted runners (`sign` because on the pc runner jobs share the
-# executor's build volume). The pc runner must use the Docker executor: with the shell executor
-# every job runs as one user on one machine, and nothing above keeps the key from the build jobs.
-# For the same reason it is never privileged and never mounts the Docker socket (either lets a build
-# job reach the sign job's container), and it is a protected runner, so only pipelines on main and
-# protected tags run on it. The image task always runs on the hosted runners, so the pc runner never
-# needs privileges for Buildah.
+# executor's build volume). The pc runner must use the Docker executor, is never privileged and
+# never mounts the Docker socket: each keeps build code inside its job's container, off the
+# runner's machine (and whatever else is on it) and away from the other jobs and caches. It is a
+# protected runner, so only pipelines on main and protected tags run on it. The image task always
+# runs on the hosted runners, so the pc runner never needs privileges for Buildah. Instance
+# (hosted) runners stay enabled for the project: every release signs on them.
 #
 # Anything that changes this file, ci/ or the signing variables: ask the maintainer first
 # (CLAUDE.md).
@@ -97,15 +97,17 @@ variables:
   RUNNER: $[[ inputs.runner ]]
   # The builder image (ci/Dockerfile). The image task pushes it as builder:<BUILDER_TAG> from main
   # and builder:<BUILDER_TAG>-<branch> from any other branch (BUILDER_PUSH), and prints its digest.
-  # A tag can be pushed over by any job's token, so a tag alone is trusted for nothing: pipelines
-  # on main and release tags run in the image by digest, BUILDER_DIGEST (sha256:…, the digest the
-  # image task on main printed, put here through a merge request; workflow:rules below). Until it
-  # is set they run in the tag, and `sign` refuses, so nothing is published. The image task on
-  # main also pushes builder:<BUILDER_TAG>-p<pipeline>, which keeps that digest tagged; never push
-  # it again or delete it. A branch's pipeline runs in that branch's own tag, so a change to
-  # ci/Dockerfile can be tried there first: run the image task on the branch before anything else
-  # there (it costs hosted compute minutes). Changing the Dockerfile: a new BUILDER_TAG, the image
-  # task on main once merged, then the new digest, in a merge request that links that job.
+  # A tag can be pushed over by any job's token, so a tag alone is trusted for nothing: pipelines on
+  # main and release tags run in the image by digest, BUILDER_DIGEST (sha256:…, the digest the image
+  # task on main printed, put here through a merge request; workflow:rules below). Until it is set
+  # they run in the tag, and `sign` refuses, so nothing is published. The image task on main also
+  # pushes builder:<BUILDER_TAG>.job<job id>, a tag no other push writes (a branch's tag never has a
+  # dot), which keeps that digest tagged as long as no one deletes it and the registry's cleanup
+  # policy keeps it (docs/maintaining.md). A branch's pipeline runs in that branch's own tag, so a
+  # change to ci/Dockerfile can be tried there first: run the image task on the branch before
+  # anything else there (it costs hosted compute minutes). Changing the Dockerfile: a new
+  # BUILDER_TAG, the image task on main once merged, then the new digest, in a merge request that
+  # links that job.
   BUILDER_TAG: "2026-11-07"
   BUILDER_DIGEST: ""
   BUILDER_SUFFIX: ""
@@ -470,12 +472,13 @@ builder-image:
   script:
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
     - buildah build --file ci/Dockerfile --tag "$BUILDER_PUSH" ci
-    # On main, the image is also pushed as builder:<BUILDER_TAG>-p<pipeline>, a tag nothing pushes
-    # again, so the digest BUILDER_DIGEST names always keeps a tag and the registry never deletes
-    # it as untagged. That digest is the one printed.
+    # On main, the image is also pushed as builder:<BUILDER_TAG>.job<job id>: the job id is new for
+    # every attempt and a branch's tag (a ref slug) never has a dot, so no other push writes it, the
+    # digest BUILDER_DIGEST names keeps a tag, and the registry doesn't delete it as untagged (as
+    # long as its cleanup policy keeps the tag). That digest is the one printed.
     - |
       if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
-        keep="$CI_REGISTRY_IMAGE/builder:$BUILDER_TAG-p$CI_PIPELINE_IID"
+        keep="$CI_REGISTRY_IMAGE/builder:$BUILDER_TAG.job$CI_JOB_ID"
         buildah push --digestfile builder.digest "$BUILDER_PUSH" "docker://$keep"
         buildah push "$BUILDER_PUSH"
         echo "Pushed $keep and $BUILDER_PUSH. Put the digest of $keep in .gitlab-ci.yml, through a merge request that links this job: BUILDER_DIGEST: \"$(cat builder.digest)\""
