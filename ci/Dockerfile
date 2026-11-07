@@ -11,14 +11,14 @@
 # taken from the project's own SHASUMS file (nodejs.org/dist/<version>/SHASUMS256.txt,
 # static.rust-lang.org/rustup/archive/<version>/x86_64-unknown-linux-gnu/rustup-init.sha256).
 # PipeWire's source archive is checked the same way, against the SHA-256 the GitHub release workflow
-# pinned.
+# pinned, and NSIS's against the SHA-256s below.
 #
 # Hosts the image build reaches: Docker Hub (the base image), Ubuntu's archive,
-# gitlab.freedesktop.org (PipeWire's source), nodejs.org, static.rust-lang.org, crates.io
-# (cargo-xwin, cargo-audit) and npm (pnpm). The builds themselves reach crates.io, npm,
-# digi.bib.uni-mannheim.de (Tesseract for Windows), github.com (the linuxdeploy tools Tauri's
-# bundler downloads) and, through cargo-xwin, Microsoft's servers for the MSVC CRT and Windows SDK,
-# whose licence cargo-xwin accepts on the project's behalf.
+# gitlab.freedesktop.org (PipeWire's source), downloads.sourceforge.net (NSIS), nodejs.org,
+# static.rust-lang.org, crates.io (cargo-xwin, cargo-audit) and npm (pnpm). The builds themselves
+# reach crates.io, npm, digi.bib.uni-mannheim.de (Tesseract for Windows), github.com (the
+# linuxdeploy tools Tauri's bundler downloads) and, through cargo-xwin, Microsoft's servers for the
+# MSVC CRT and Windows SDK, whose licence cargo-xwin accepts on the project's behalf.
 #
 # ubuntu:22.04, pinned by digest: change both together.
 FROM ubuntu:22.04@sha256:076e7bf82319619f28dd0aa9c02ab34b055ad37100395b4f49a2ffba04fb5e11
@@ -42,13 +42,23 @@ ARG CARGO_AUDIT_VERSION=0.22.2
 # compiles against, so the same pinned release the GitHub release workflow built is built here.
 ARG PIPEWIRE_VERSION=1.0.0
 ARG PIPEWIRE_SHA256=f91ef1d1161b37aae6e21b9671917d97097e2664c83d919ba3a0793d6fbc543d
+# NSIS for the Windows installer: 22.04's own is 3.08, older than the Win\RestartManager.nsh Tauri's
+# installer includes, and its uninstaller has CVE-2023-37378 (fixed in 3.09). SourceForge publishes
+# no checksums: the zip's SHA-256 is of the file that SourceForge and Tauri's own mirror
+# (github.com/tauri-apps/binary-releases, nsis-3.13) both served, whose SHA-1 is the one Tauri's
+# bundler pins; the source's is of the archive whose files match NSIS's v313 tag
+# (github.com/kichik/nsis) apart from line endings and the generated ChangeLog.
+ARG NSIS_VERSION=3.13
+ARG NSIS_ZIP_SHA256=ba63dffc4410ee89193e1cb5a41989991bd77c61068da17e3156d136b7b0b3d8
+ARG NSIS_SRC_SHA256=a8ffe024602d46b6d766f9e1ce30c324ad2a24daeacd3efc2642d436a0c157ac
 
-# Tauri's Linux build dependencies (WebKitGTK 4.1 and the rest), TennoScope's (libclang for
-# bindgen, meson and ninja for PipeWire below, Tesseract and patchelf for the copy it carries), the
-# Windows cross-compile (NSIS for the installer; LLVM 14's clang-cl, lld-link, llvm-lib and llvm-rc
-# for cargo-xwin), 7-Zip for the Windows Tesseract installer, and jq and curl for the release jobs.
-# LLVM 14 is enough while nothing compiles C++ for Windows: the current MSVC STL headers cargo-xwin
-# fetches refuse a Clang that old, so a dependency that starts doing so needs a newer LLVM here.
+# Tauri's Linux build dependencies (WebKitGTK 4.1 and the rest), TennoScope's (libclang for bindgen,
+# meson and ninja for PipeWire below, Tesseract and patchelf for the copy it carries), the Windows
+# cross-compile (SCons and zlib to build NSIS below; LLVM 14's lld-link, llvm-lib and llvm-rc for
+# cargo-xwin, which makes its own clang-cl from clang), 7-Zip for the Windows Tesseract installer,
+# and jq and curl for the release jobs. LLVM 14 is enough while nothing compiles C++ for Windows:
+# the current MSVC STL headers cargo-xwin fetches refuse a Clang that old, so a dependency that
+# starts doing so needs a newer LLVM here.
 RUN apt-get update \
  && apt-get install --no-install-recommends -y \
       ca-certificates curl git file xz-utils unzip zstd jq build-essential pkg-config \
@@ -56,7 +66,7 @@ RUN apt-get update \
       libssl-dev libclang-dev libgbm-dev libegl-dev libwayland-dev libxcb1-dev libdbus-1-dev \
       libarchive-tools meson ninja-build gettext xdg-utils \
       tesseract-ocr tesseract-ocr-eng patchelf \
-      nsis llvm clang lld p7zip-full \
+      scons zlib1g-dev llvm clang lld p7zip-full \
  && rm -rf /var/lib/apt/lists/*
 
 # PipeWire's client libraries, into /opt/pipewire (outside what dpkg owns, as on the GitHub
@@ -76,6 +86,28 @@ RUN curl --fail --location --retry 3 --output /tmp/pipewire.tar.gz \
  && cd / && rm -rf /tmp/pipewire.tar.gz "/tmp/pipewire-${PIPEWIRE_VERSION}"
 ENV PKG_CONFIG_PATH=/opt/pipewire/lib/pkgconfig \
     LD_LIBRARY_PATH=/opt/pipewire/lib
+
+# NSIS in /opt/nsis, the way NSIS's own docs build it on Linux: the release zip (stubs, plugins,
+# headers, built by NSIS) with makensis compiled from the same release's source into its bin/.
+# Tauri's bundler runs the makensis on PATH and reads NSIS_PATH.
+RUN curl --fail --location --retry 3 --output /tmp/nsis.zip \
+      "https://downloads.sourceforge.net/project/nsis/NSIS%203/${NSIS_VERSION}/nsis-${NSIS_VERSION}.zip" \
+ && curl --fail --location --retry 3 --output /tmp/nsis-src.tar.bz2 \
+      "https://downloads.sourceforge.net/project/nsis/NSIS%203/${NSIS_VERSION}/nsis-${NSIS_VERSION}-src.tar.bz2" \
+ && echo "${NSIS_ZIP_SHA256}  /tmp/nsis.zip" | sha256sum --check --strict \
+ && echo "${NSIS_SRC_SHA256}  /tmp/nsis-src.tar.bz2" | sha256sum --check --strict \
+ && unzip -q /tmp/nsis.zip -d /tmp/nsis-zip \
+ && mv "/tmp/nsis-zip/nsis-${NSIS_VERSION}" /opt/nsis \
+ && tar --extract --bzip2 --file /tmp/nsis-src.tar.bz2 --directory /tmp \
+ && cd "/tmp/nsis-${NSIS_VERSION}-src" \
+ && scons SKIPSTUBS=all SKIPPLUGINS=all SKIPUTILS=all SKIPMISC=all NSIS_CONFIG_CONST_DATA_PATH=no \
+      VERSION="${NSIS_VERSION}" PREFIX=/opt/nsis install-compiler \
+ && mkdir -p /opt/nsis/bin \
+ && mv /opt/nsis/makensis /opt/nsis/bin/makensis \
+ && cd / && rm -rf /tmp/nsis.zip /tmp/nsis-zip /tmp/nsis-src.tar.bz2 "/tmp/nsis-${NSIS_VERSION}-src" \
+ && /opt/nsis/bin/makensis -VERSION
+ENV NSIS_PATH=/opt/nsis \
+    PATH=/opt/nsis/bin:$PATH
 
 # Node, from nodejs.org's own build.
 RUN curl --fail --location --retry 3 --output /tmp/node.tar.xz \
