@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { cleanBody, cleanLogin, collapseBlobs, defangLinks, digest, flagsOf, issuesOf, stripHiddenChars, stripHiddenMarkup, MAX_BODY } from "../scripts/issues-digest.mjs";
+import { cleanBody, cleanLogin, collapseBlobs, defangLinks, digest, fetchIssues, flagsOf, issuesOf, stripHiddenChars, stripHiddenMarkup, MAX_BODY } from "../scripts/issues-digest.mjs";
 
 const fixture = (name: string): unknown => JSON.parse(readFileSync(`tests/fixtures/issues/${name}.json`, "utf8"));
 
@@ -68,9 +68,12 @@ test("bodies are cut to their cap, with a note", () => {
   assert.match(cleanBody("y ".repeat(500), 100).text, /^(y ){50}\n\[cut: 899 more chars not shown\]$/);
 });
 
-test("logins: GitHub's characters only", () => {
+test("user names: GitLab's and GitHub's characters only", () => {
   assert.equal(cleanLogin({ login: "ExamplePlayer" }), "ExamplePlayer");
+  assert.equal(cleanLogin({ username: "Example.Player_2-x" }), "Example.Player_2-x");
   assert.equal(cleanLogin("dependabot[bot]"), "dependabot[bot]");
+  assert.equal(cleanLogin({ username: ".hidden" }), "(unknown)");
+  assert.equal(cleanLogin({ username: "a b" }), "(unknown)");
   assert.equal(cleanLogin({ login: "<script>alert(1)</script>" }), "(unknown)");
   assert.equal(cleanLogin(null), "(unknown)");
 });
@@ -141,4 +144,46 @@ test("a hidden character split by a zero-width one doesn't come back when that o
   // U+E0041 (a "tag" character, invisible) as its two halves with U+200B between them.
   const { text } = stripHiddenChars("a\uDB40\u200B\uDC41b");
   assert.equal(text, "ab");
+});
+
+test("GitLab issues: comments without GitLab's own notes, each author's role, quick actions flagged", () => {
+  const out = digest(fixture("gitlab"));
+  assert.match(out, /## Issue #12 \(opened; labels: bug, needs-triage\)/);
+  assert.match(out, /Issue #12 by ExamplePlayer \(author_association: NONE\), 2026-11-07T10:00:00Z/);
+  assert.match(out, /Comment 1 of 2 on #12 by Example\.Maintainer \(author_association: OWNER\)/);
+  assert.match(out, /Comment 2 of 2 on #12 by other_player-2 \(author_association: NONE\)/);
+  assert.ok(!out.includes("added ~bug label"), "system notes are left out");
+  assert.match(out, /^\| !! FLAG\(quick action\) !! \/close$/m);
+  assert.match(out, /^\| !! FLAG\(quick action\) !! \/label ~security$/m);
+  assert.match(out, /\(#12 has more comments than the digest read: see it on GitLab\.\)/);
+  // GitLab's REST list (no comments) reads too.
+  const rest = issuesOf([{ iid: 3, title: "t", description: "d", state: "closed", author: { username: "ExamplePlayer" }, labels: ["bug"], web_url: "https://gitlab.com/x", created_at: "2026-11-07T10:00:00.000Z" }]);
+  assert.equal(rest[0].number, 3);
+  assert.deepEqual(rest[0].labels, ["bug"]);
+  assert.equal(rest[0].authorAssociation, "UNKNOWN", "the REST list doesn't say who's a member");
+});
+
+test("--fetch: anonymous GraphQL requests, page by page, and a private project is an error", async () => {
+  const calls: { url: string; init: RequestInit }[] = [];
+  const page = (n: number, next: boolean) => ({ data: { project: { issues: { pageInfo: { hasNextPage: next, endCursor: `c${n}` }, nodes: [{ iid: String(n), title: `t${n}`, state: "opened", author: { username: "ExamplePlayer" } }] }, projectMembers: n === 1 ? { nodes: [] } : null } } });
+  const answers = [page(1, true), page(2, false)];
+  const fake = async (url: string, init: RequestInit) => {
+    calls.push({ url, init });
+    return new Response(JSON.stringify(answers.shift()), { status: 200 });
+  };
+  const data = await fetchIssues({ fetchImpl: fake as typeof fetch });
+  assert.deepEqual(issuesOf(data).map((i) => i.number), [1, 2]);
+  assert.equal(calls.length, 2);
+  for (const c of calls) {
+    assert.equal(c.url, "https://gitlab.com/api/graphql");
+    const headers = c.init.headers as Record<string, string>;
+    assert.ok(!Object.keys(headers).some((h) => /authorization|private-token|cookie/i.test(h)), "no credentials");
+    assert.match(headers["user-agent"], /^orbiter-issues-digest/);
+  }
+  const vars = calls.map((c) => JSON.parse(String(c.init.body)).variables);
+  assert.deepEqual(vars.map((v) => [v.path, v.state, v.after, v.members]), [["sheziss-group/orbiter", "opened", null, true], ["sheziss-group/orbiter", "opened", "c1", false]]);
+  const none = async () => new Response(JSON.stringify({ data: { project: null } }), { status: 200 });
+  await assert.rejects(fetchIssues({ fetchImpl: none as unknown as typeof fetch }), /isn't readable without signing in/);
+  const down = async () => new Response("", { status: 503 });
+  await assert.rejects(fetchIssues({ fetchImpl: down as unknown as typeof fetch }), /GitLab answered 503/);
 });

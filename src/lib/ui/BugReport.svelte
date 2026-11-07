@@ -1,6 +1,6 @@
 <script lang="ts">
   // Report a bug: the player's words, and (unless they untick it) technical details they can read
-  // in full first. orbiter sends nothing itself: Open on GitHub opens a new issue with the fields
+  // in full first. orbiter sends nothing itself: Open on GitLab opens a new issue with the fields
   // filled in, to check and submit in the browser; Copy report puts it on the clipboard as
   // Markdown. What it builds, cleans and redacts: core/bugReport.ts and core/redact.ts.
   import { tick, untrack } from "svelte";
@@ -78,10 +78,10 @@
   const preview = $derived(report.details ? detailsText(report.details) : "");
 
   let showTech = $state(false);
-  /** Open on GitHub was pressed: its label says so for a moment. */
+  /** Open on GitLab was pressed: its label says so for a moment. */
   let opened = $state(false);
   let openedTimer: ReturnType<typeof setTimeout> | null = null;
-  function openOnGitHub() {
+  function openOnGitLab() {
     if (empty || reading) return;
     void openUrl(link.url);
     opened = true;
@@ -100,7 +100,7 @@
       <span class="glyph" aria-hidden="true"><Icon name="bug" size={18} /></span>
       <div>
         <h2 id="bug-title" class="mark">Report a bug</h2>
-        <p class="dim small">Goes to orbiter's issues on GitHub, where anyone can read it.</p>
+        <p class="dim small">Goes to orbiter's issues on GitLab, where anyone can read it.</p>
       </div>
       <button class="close" aria-label="Close" title="Close (Esc). What you typed stays here for next time." onclick={close}>
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="1.5" /></svg>
@@ -147,16 +147,16 @@
     </section>
 
     {#if link.dropped || link.cut}
-      <p class="note small" role="status">{#if link.cut}What you wrote is longer than a link can carry: Open on GitHub cuts the end. Copy report has it all, to paste in instead.{:else}To keep the link short enough, Open on GitHub leaves out the {link.dropped} oldest log line{link.dropped === 1 ? "" : "s"}; Copy report has them all.{/if}</p>
+      <p class="note small" role="status">{#if link.cut}What you wrote is longer than a link can carry: Open on GitLab cuts the end. Copy report has it all, to paste in instead.{:else}To keep the link short enough, Open on GitLab leaves out the {link.dropped} oldest log line{link.dropped === 1 ? "" : "s"}; Copy report has them all.{/if}</p>
     {/if}
 
     <footer class="row">
-      <p class="privacy small"><Icon name="lock" size={11} /> orbiter sends nothing: you check it and press Submit on GitHub.</p>
+      <p class="privacy small"><Icon name="lock" size={11} /> orbiter sends nothing: you check it and press Create issue on GitLab.</p>
       <div class="acts">
-        <CopyButton text={() => reportMarkdown(report)} label="Copy report" copied="Copied" sizer={["Couldn't copy"]} title="Put the report on the clipboard as Markdown, to paste into an issue yourself, or send it another way if you don't have a GitHub account" />
-        <button bind:this={openButton} type="button" class="stamp gold go" class:done={opened} disabled={empty || reading} title={empty ? "Say what happened first" : reading ? "Reading orbiter's log…" : "Open a new issue on GitHub in your browser with all of this filled in. Nothing is posted until you press Submit there."} onclick={openOnGitHub}>
+        <CopyButton text={() => reportMarkdown(report)} label="Copy report" copied="Copied" sizer={["Couldn't copy"]} title="Put the report on the clipboard as Markdown, to paste into an issue yourself, or send it another way if you don't have a GitLab account" />
+        <button bind:this={openButton} type="button" class="stamp gold go" class:done={opened} disabled={empty || reading} title={empty ? "Say what happened first" : reading ? "Reading orbiter's log…" : "Open a new issue on GitLab in your browser with all of this filled in. Nothing is posted until you press Create issue there."} onclick={openOnGitLab}>
           <span class="lbls">
-            <span class:on={!opened}>Open on GitHub<Icon name="external" size={11} /></span>
+            <span class:on={!opened}>Open on GitLab<Icon name="external" size={11} /></span>
             <span class:on={opened}>Opened in your browser<Icon name="check" size={11} /></span>
           </span>
         </button>

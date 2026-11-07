@@ -1,24 +1,30 @@
 // A bug report, made in the app and sent by the player. orbiter never posts it itself: there's no
-// token and no network write. The player either opens it on GitHub, prefilled through the issue
-// form's fields (.github/ISSUE_TEMPLATE/bug_report.yml), and presses Submit there, or copies it as
-// Markdown to send another way.
+// token and no network write. The player either opens it on GitLab, as a new issue with its title
+// and description filled in (the description has the sections of the issue template,
+// .gitlab/issue_templates/Bug report.md), and presses Create issue there, or copies it as Markdown
+// to send another way.
 //
 // What goes in is the player's own words (what happened, how to make it happen, what they
 // expected) and, if they leave "Include technical details" on, a plain-text block they can read in
 // full first: the version, the system, the page, TennoScope's state and the log's last lines.
 // Everything is cleaned on the way in (core/untrusted.ts: no hidden characters, no HTML comments)
 // and redacted (core/redact.ts: no sign-ins, addresses, ids or players' names). The technical block
-// goes into the form's `render: text` field, so GitHub shows it as text, never as Markdown or HTML.
+// goes in a `text` code block no line of it can close, so GitLab shows it as text, never as
+// Markdown or HTML; a line of the player's own that GitLab would run as a quick action (`/close`,
+// `/label …`) is escaped and shows as typed.
 
 import { redact, type RedactOptions } from "./redact";
 import { cleanBlock, cleanLine, stripHidden, stripHtmlComments } from "./untrusted";
 
-/** The repository's new-issue page. Its host and path are in the opener's allowed sites (core/links.ts). */
-export const NEW_ISSUE = "https://github.com/ShezissSnake/orbiter/issues/new";
-/** The issue form, and its fields' ids: the form and this list must agree (tests/bugReport.test.ts). */
-export const TEMPLATE = "bug_report.yml";
-export const FIELDS = { what: "what", steps: "steps", expected: "expected", details: "details" } as const;
-/** GitHub and browsers handle links up to about 8,000 characters; this leaves room. */
+/** The project's new-issue page. Its host and path are in the opener's allowed sites (core/links.ts). */
+export const NEW_ISSUE = "https://gitlab.com/sheziss-group/orbiter/-/work_items/new";
+/** The issue template (its file name without .md), and its section headings: the template and this
+ *  list must agree (tests/bugReport.test.ts). */
+export const TEMPLATE = "Bug report";
+export const SECTIONS = { what: "What happened", steps: "Steps to reproduce", expected: "What you expected", details: "Technical details" } as const;
+/** The labels a report gets, as the template's last line sets them (where the reporter may). */
+export const LABELS = "/label ~bug ~needs-triage";
+/** gitlab.com and browsers handle links up to about 8,000 characters; this leaves room. */
 export const URL_MAX = 7500;
 /** How many of the log's last lines a report offers. */
 export const LOG_LINES = 50;
@@ -127,9 +133,37 @@ export function detailsText(d: ReportDetails, dropped = 0): string {
 
 const enc = encodeURIComponent;
 
-/** The prefilled new-issue link, for the given text. */
-function linkFor(title: string, fields: [id: string, value: string][]): string {
-  const q = [`template=${enc(TEMPLATE)}`, `title=${enc(title)}`, ...fields.filter(([, v]) => v).map(([k, v]) => `${enc(k)}=${enc(v)}`)];
+/** The player's text, with any line GitLab would run as a quick action escaped ("\/close" shows as
+ *  "/close" and does nothing). */
+export const noQuickActions = (s: string) => s.replace(/^([ \t]*)\//gm, "$1\\/");
+
+/** The longest run of backticks in some text. */
+const longestTicks = (s: string) => Math.max(0, ...[...s.matchAll(/`+/g)].map((m) => m[0].length));
+
+/** The report's sections in Markdown, as the template has them: the player's words, then the
+ *  details (`details`: their text, "" when left out) in a text code block. */
+function sections(what: string, steps: string, expected: string, details: string): string[] {
+  const out = [`### ${SECTIONS.what}`, "", noQuickActions(what) || "_(not filled in)_"];
+  if (steps) out.push("", `### ${SECTIONS.steps}`, "", noQuickActions(steps));
+  if (expected) out.push("", `### ${SECTIONS.expected}`, "", noQuickActions(expected));
+  if (details) {
+    const fence = "`".repeat(Math.max(3, longestTicks(details) + 1));
+    out.push("", `### ${SECTIONS.details}`, "", `${fence}text`, details, fence);
+  }
+  out.push("", "_Made with orbiter's Report a bug._");
+  return out;
+}
+
+/** The prefilled new-issue link: the template's name, the title and the whole description.
+ *  GitLab's prefill puts issue[description] in place of the template's text (its docs, "Using a
+ *  URL with prefilled values"), so the template only names where the report came from. */
+function linkFor(title: string, description: string): string {
+  const q = [
+    `issuable_template=${enc(TEMPLATE)}`,
+    `${enc("issue[issue_type]")}=issue`,
+    `${enc("issue[title]")}=${enc(title)}`,
+    `${enc("issue[description]")}=${enc(description)}`,
+  ];
   return `${NEW_ISSUE}?${q.join("&")}`;
 }
 
@@ -148,18 +182,13 @@ export interface IssueLink {
 }
 
 /**
- * The link that opens the issue form on GitHub with everything filled in, at most `max`
+ * The link that opens a new issue on GitLab with everything filled in, at most `max`
  * characters: the oldest log lines go first, then (only if the player wrote a great deal) the
  * end of their longest field.
  */
 export function issueLink(r: Report, max = URL_MAX): IssueLink {
   const make = (what: string, steps: string, expected: string, dropped: number) =>
-    linkFor(r.title, [
-      [FIELDS.what, what],
-      [FIELDS.steps, steps],
-      [FIELDS.expected, expected],
-      [FIELDS.details, r.details ? detailsText(r.details, dropped) : ""],
-    ]);
+    linkFor(r.title, [...sections(what, steps, expected, r.details ? detailsText(r.details, dropped) : ""), "", LABELS].join("\n") + "\n");
   const lines = r.details?.log.length ?? 0;
   let dropped = 0;
   let url = make(r.what, r.steps, r.expected, 0);
@@ -186,23 +215,12 @@ export function issueLink(r: Report, max = URL_MAX): IssueLink {
     f = { ...f, [key]: cutTo(f[key], Math.max(0, chars - Math.ceil(over / 3) - 60)) };
   }
   url = make(f.what, f.steps, f.expected, dropped);
-  if (url.length > max) url = linkFor(r.title, [[FIELDS.what, "(too long for a link: use Copy report and paste it here)"]]);
+  if (url.length > max) url = linkFor(r.title, [...sections("(too long for a link: use Copy report and paste it here)", "", "", ""), "", LABELS].join("\n") + "\n");
   return { url, dropped, cut: true };
 }
 
-/** The longest run of backticks in some text. */
-const longestTicks = (s: string) => Math.max(0, ...[...s.matchAll(/`+/g)].map((m) => m[0].length));
-
-/** The report as Markdown, for Copy report: the form's sections, the details in a text code block. */
+/** The report as Markdown, for Copy report: the title, then the issue's sections, the details in a
+ *  text code block. */
 export function reportMarkdown(r: Report): string {
-  const out = [`## ${r.title}`, "", "### What happened", "", r.what || "_(not filled in)_"];
-  if (r.steps) out.push("", "### Steps to reproduce", "", r.steps);
-  if (r.expected) out.push("", "### What you expected", "", r.expected);
-  if (r.details) {
-    const text = detailsText(r.details);
-    const fence = "`".repeat(Math.max(3, longestTicks(text) + 1));
-    out.push("", "### Technical details", "", `${fence}text`, text, fence);
-  }
-  out.push("", "_Made with orbiter's Report a bug._");
-  return out.join("\n") + "\n";
+  return [`## ${r.title}`, "", ...sections(r.what, r.steps, r.expected, r.details ? detailsText(r.details) : "")].join("\n") + "\n";
 }
