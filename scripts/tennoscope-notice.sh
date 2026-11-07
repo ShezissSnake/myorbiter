@@ -2,7 +2,8 @@
 # What goes beside the TennoScope orbiter carries: TennoScope is GPL-3.0-only, so its licence and
 # where its complete source is (NOTICE.md), its own third-party notices, and the notices of the
 # Tesseract it carries (THIRD-PARTY-NOTICES/tesseract/, from licenses/ in the vendored Tesseract,
-# which scripts/vendor-linux-tesseract.sh and tennoscope/scripts/vendor-windows-tesseract.ps1 fill).
+# which scripts/vendor-linux-tesseract.sh and scripts/vendor-windows-tesseract.sh fill; on Windows,
+# tennoscope/scripts/vendor-windows-tesseract.ps1 does).
 #
 #   scripts/tennoscope-notice.sh <folder with TennoScope in it>
 set -euo pipefail

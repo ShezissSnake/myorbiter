@@ -8,7 +8,11 @@
 #
 # The installer (UB Mannheim's NSIS build) is checked against the pinned SHA-256 before anything is
 # extracted from it, and 7-Zip extracts its payload without running it. Kept: tesseract.exe, the
-# DLLs beside it, and the English and orientation models, as the PowerShell script keeps.
+# DLLs beside it, and the English and orientation models, as the PowerShell script keeps; and, as
+# it writes them, their notices in licenses/ (which scripts/tennoscope-notice.sh copies beside
+# TennoScope): Tesseract's licence and authors from the installer, everything in
+# tennoscope/packaging/windows-tesseract/ (Leptonica's licence, the table of every DLL's project
+# and licence, and SOURCES.md with the written offer), and DLLS.txt, the list of what was kept.
 #
 # What it can't do on Linux: run tesseract.exe once to prove every DLL is there (the PowerShell
 # script does). That check waits for a Windows machine (docs/testing/windows.md).
@@ -17,7 +21,7 @@ set -euo pipefail
 out=${1:?usage: vendor-windows-tesseract.sh <folder>}
 here=$(cd "$(dirname "$0")/.." && pwd)
 ps1="$here/tennoscope/scripts/vendor-windows-tesseract.ps1"
-command -v 7z >/dev/null || { echo "7z isn't installed (7zip)" >&2; exit 1; }
+command -v 7z >/dev/null || { echo "7z isn't installed (p7zip-full or 7zip)" >&2; exit 1; }
 
 version=$(sed -n "s/^\$version = '\([0-9.]*\)'\r\{0,1\}$/\1/p" "$ps1")
 sha256=$(sed -n "s/^\$sha256 = '\([0-9A-Fa-f]\{64\}\)'\r\{0,1\}$/\1/p" "$ps1")
@@ -37,4 +41,14 @@ mkdir -p "$out"
 cp "$work/extract/tesseract.exe" "$out/"
 cp "$work"/extract/*.dll "$out/"
 cp "$work/extract/tessdata/eng.traineddata" "$work/extract/tessdata/osd.traineddata" "$out/"
+
+mkdir -p "$out/licenses"
+cp "$work/extract/doc/LICENSE" "$out/licenses/tesseract-LICENSE.txt"
+cp "$work/extract/doc/AUTHORS" "$out/licenses/tesseract-AUTHORS.txt"
+cp "$here"/tennoscope/packaging/windows-tesseract/* "$out/licenses/"
+{
+  echo "From UB Mannheim's tesseract-ocr-w64-setup-${version}.exe (SHA-256 ${sha256^^}):"
+  echo tesseract.exe
+  find "$out" -maxdepth 1 -name '*.dll' -printf '%f\n' | LC_ALL=C sort -f
+} > "$out/licenses/DLLS.txt"
 echo "Tesseract $version for Windows in $out ($(find "$out" -name '*.dll' | wc -l) DLLs)"
