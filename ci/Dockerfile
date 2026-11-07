@@ -66,7 +66,8 @@ RUN curl --fail --location --retry 3 --output /tmp/pipewire.tar.gz \
  && echo "${PIPEWIRE_SHA256}  /tmp/pipewire.tar.gz" | sha256sum --check --strict \
  && tar --extract --gzip --file /tmp/pipewire.tar.gz --directory /tmp \
  && cd "/tmp/pipewire-${PIPEWIRE_VERSION}" \
- && meson setup build --prefix=/opt/pipewire --libdir=lib -Dauto_features=disabled -Ddbus=disabled \
+ && meson setup build --prefix=/opt/pipewire --libdir=lib --wrap-mode=nodownload \
+      -Dauto_features=disabled -Ddbus=disabled \
       -Dflatpak=disabled -Dpipewire-alsa=disabled -Dpipewire-jack=disabled \
       -Dpipewire-v4l2=disabled -Dexamples=disabled -Dtests=disabled -Dman=disabled \
       -Ddocs=disabled '-Dsession-managers=[]' \

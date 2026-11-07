@@ -39,16 +39,21 @@ not_e2e() {
 # may ask for a newer glibc, or the AppImage stops starting on SteamOS and older systems. Raise it
 # only on purpose, with the base image.
 glibc_floor=2.35
+# Each folder is checked on its own, so a missing one stops the build instead of going unchecked.
 check_glibc_floor() {
-  local newest
-  newest=$( { find "$@" -type f -exec objdump -T {} + 2>/dev/null || true; } \
-    | grep -o 'GLIBC_[0-9][0-9.]*' | sed 's/^GLIBC_//' | sort -uV | tail -n 1 || true)
-  [ -n "$newest" ] || { echo "no glibc symbol versions found in $*" >&2; exit 1; }
-  if [ "$(printf '%s\n' "$glibc_floor" "$newest" | sort -V | tail -n 1)" != "$glibc_floor" ]; then
-    echo "the Linux build needs glibc $newest, newer than the $glibc_floor floor" >&2
-    exit 1
-  fi
-  echo "glibc: the newest version anything asks for is $newest (floor $glibc_floor)"
+  local dir newest
+  for dir in "$@"; do
+    [ -d "$dir" ] || { echo "glibc check: $dir isn't there" >&2; exit 1; }
+    # objdump fails on the files that aren't ELF; only its output matters.
+    newest=$( { find "$dir" -type f -exec objdump -T {} + 2>/dev/null || true; } \
+      | grep -o 'GLIBC_[0-9][0-9.]*' | sed 's/^GLIBC_//' | sort -uV | tail -n 1 || true)
+    [ -n "$newest" ] || { echo "glibc check: no glibc symbol versions found in $dir" >&2; exit 1; }
+    if [ "$(printf '%s\n' "$glibc_floor" "$newest" | sort -V | tail -n 1)" != "$glibc_floor" ]; then
+      echo "$dir needs glibc $newest, newer than the $glibc_floor floor" >&2
+      exit 1
+    fi
+    echo "glibc: $dir asks for $newest at most (floor $glibc_floor)"
+  done
 }
 
 rm -rf "$out"

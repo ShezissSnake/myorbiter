@@ -56,7 +56,10 @@ cp "$here"/tennoscope/packaging/windows-tesseract/* "$out/licenses/"
 table="$here/tennoscope/packaging/windows-tesseract/README.md"
 unlisted=()
 while IFS= read -r dll; do
-  grep -qF "$dll" "$table" || unlisted+=("$dll")
+  # A cell of the table's first column, exactly (rows name one or more files, comma-separated).
+  awk -F'|' -v d="$dll" 'NF > 2 { n = split($2, c, ","); for (i = 1; i <= n; i++) {
+      gsub(/^[ `]+|[ `]+$/, "", c[i]); if (c[i] == d) found = 1 } }
+    END { exit found ? 0 : 1 }' "$table" || unlisted+=("$dll")
 done < <(find "$out" -maxdepth 1 -name '*.dll' -printf '%f\n')
 [ ${#unlisted[@]} -eq 0 ] || { echo "not in $table: ${unlisted[*]}" >&2; exit 1; }
 echo "Tesseract $version for Windows in $out ($(find "$out" -maxdepth 1 -name '*.dll' | wc -l) DLLs)"
