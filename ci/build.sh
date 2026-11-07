@@ -6,12 +6,12 @@
 #   docker run --rm -v "$PWD:/src" -w /src <builder image> ci/build.sh 0.2.900 [--no-windows]
 #
 # Each system carries TennoScope, built from tennoscope/ (see tennoscope/ORBITER.md) with its
-# Tesseract, beside orbiter's sources in vendor/tennoscope/ (src-tauri/tauri.bundle.json): first
+# Tesseract, beside MyOrbiter's sources in vendor/tennoscope/ (src-tauri/tauri.bundle.json): first
 # the Linux AppImage of it, then, for the Windows build, its .exe. No signing and no updater files
 # here (Tauri's createUpdaterArtifacts stays off): the sign job signs the final files.
 #
 # The downloads end up in release-files/:
-#   orbiter_<version>_amd64.AppImage   orbiter_<version>_amd64.deb   orbiter_<version>_x64-setup.exe
+#   myorbiter_<version>_amd64.AppImage   myorbiter_<version>_amd64.deb   myorbiter_<version>_x64-setup.exe
 set -euo pipefail
 
 version=${1:?usage: ci/build.sh <version> [--no-windows]}
@@ -29,7 +29,7 @@ step() { printf '\n==> %s\n' "$*"; }
 # The update check's address is fixed in the code; a build made for the end-to-end test of
 # updating (the e2e-updater feature) can be pointed elsewhere, and must never ship.
 not_e2e() {
-  if grep -q ORBITER_UPDATER_E2E "$1"; then
+  if grep -q MYORBITER_UPDATER_E2E "$1"; then
     echo "$1 was built with the e2e-updater feature" >&2
     exit 1
   fi
@@ -59,7 +59,7 @@ check_glibc_floor() {
 rm -rf "$out"
 mkdir -p "$out"
 
-step "orbiter's and TennoScope's packages"
+step "MyOrbiter's and TennoScope's packages"
 npm ci
 (cd tennoscope/app && pnpm install --frozen-lockfile)
 # TennoScope's builds run `tauri build` without --locked: stop first if tennoscope/Cargo.lock
@@ -82,17 +82,17 @@ install -m 755 "${built[0]}" vendor/tennoscope/TennoScope.AppImage
 # Its licence, its notices and its Tesseract's, and NOTICE.md (where its source is).
 scripts/tennoscope-notice.sh vendor/tennoscope
 
-step "orbiter's AppImage and .deb ($version)"
+step "MyOrbiter's AppImage and .deb ($version)"
 rm -f "$target"/release/bundle/appimage/*.AppImage "$target"/release/bundle/deb/*.deb
 npx tauri build --bundles appimage,deb --config src-tauri/tauri.bundle.json --config "{\"version\":\"$version\"}" -- --locked
 # TennoScope's AppImage back in as it was built (linuxdeploy rewrites it), with the bundled
 # libraries' sources listed (scripts/repack-appimage.sh).
 scripts/repack-appimage.sh
-not_e2e "$target/release/orbiter"
-check_glibc_floor "$target/release/bundle/appimage/orbiter.AppDir" \
+not_e2e "$target/release/myorbiter"
+check_glibc_floor "$target/release/bundle/appimage/myorbiter.AppDir" \
   tennoscope/target/release/bundle/appimage/TennoScope.AppDir
-install -m 755 "$target/release/bundle/appimage/orbiter_${version}_amd64.AppImage" "$out/"
-install -m 644 "$target/release/bundle/deb/orbiter_${version}_amd64.deb" "$out/"
+install -m 755 "$target/release/bundle/appimage/myorbiter_${version}_amd64.AppImage" "$out/"
+install -m 644 "$target/release/bundle/deb/myorbiter_${version}_amd64.deb" "$out/"
 
 # ------------------------------------------------------------------ Windows
 
@@ -101,7 +101,7 @@ if $windows; then
   scripts/vendor-windows-tesseract.sh tennoscope/app/src-tauri/vendor/tesseract
 
   step "TennoScope's program (Windows)"
-  # The program alone: orbiter's installer carries it, beside its Tesseract.
+  # The program alone: MyOrbiter's installer carries it, beside its Tesseract.
   (cd tennoscope/app && pnpm tauri build --no-bundle --runner cargo-xwin --target "$win" -- --locked)
   rm -rf vendor/tennoscope
   mkdir -p vendor/tennoscope/tesseract
@@ -109,14 +109,14 @@ if $windows; then
   cp -r tennoscope/app/src-tauri/vendor/tesseract/. vendor/tennoscope/tesseract/
   scripts/tennoscope-notice.sh vendor/tennoscope
 
-  step "orbiter's installer (Windows, $version)"
+  step "MyOrbiter's installer (Windows, $version)"
   rm -f "$target/$win"/release/bundle/nsis/*-setup.exe
   # tauri.windows.conf.json is named as well as merged by Tauri itself: when cross-compiling, the
   # installer's settings (NSIS only, per-user, the WebView2 bootstrapper) must apply either way.
   npx tauri build --runner cargo-xwin --target "$win" --config src-tauri/tauri.bundle.json \
     --config src-tauri/tauri.windows.conf.json --config "{\"version\":\"$version\"}" -- --locked
-  not_e2e "$target/$win/release/orbiter.exe"
-  install -m 644 "$target/$win/release/bundle/nsis/orbiter_${version}_x64-setup.exe" "$out/"
+  not_e2e "$target/$win/release/myorbiter.exe"
+  install -m 644 "$target/$win/release/bundle/nsis/myorbiter_${version}_x64-setup.exe" "$out/"
 fi
 
 # The Linux Tesseract folder is a build product; put back the placeholder that keeps it in Git.

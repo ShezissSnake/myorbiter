@@ -5,7 +5,7 @@ blank, console players, the first start and updates.
 
 ## Downloads
 
-Each build is on *Releases* (gitlab.com/sheziss-group/orbiter/-/releases): the Linux AppImage, a
+Each build is on *Releases* (gitlab.com/sheziss-group/myorbiter/-/releases): the Linux AppImage, a
 `.deb` for Debian and Ubuntu, and the Windows installer. They carry TennoScope inside them, built
 from `tennoscope/` in this repository (TennoScope with MyOrbiter's changes, see
 `tennoscope/ORBITER.md`), with the OCR engine its reward overlay uses. Nothing else needs

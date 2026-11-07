@@ -39,7 +39,7 @@ artifacts, kept 3 days.
 The jobs that build (and so run npm, pnpm and Cargo code) never see the signing key. Unlike on
 GitHub, they can write the package registry and the releases: GitLab gives every job a token with
 the same reach. What keeps installed copies safe is the signature each one checks. `publish`
-(`ci/publish.sh`) adds `orbiter-source.tar.gz`, the complete source of the commit it built, as the
+(`ci/publish.sh`) adds `myorbiter-source.tar.gz`, the complete source of the commit it built, as the
 GPL-3.0 asks, and `SHA256SUMS`, and puts every file in the project's generic package registry as
 `orbiter/0.2.n/<file>`; `release` makes the release `build-<n>` at that commit, linking to them.
 TennoScope's licence and a notice travel beside it.
@@ -50,7 +50,7 @@ Each installed copy follows one channel: Stable, Beta or Experimental (`docs/ins
 keeps its version on every channel: moving it up a channel moves the same files, never a rebuild.
 Each channel is one file in the package registry, `channel/<stable|beta|experimental>/latest.json`,
 at the address installed copies check
-(`https://gitlab.com/api/v4/projects/sheziss-group%2Forbiter/packages/generic/channel/<channel>/latest.json`,
+(`https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel/<channel>/latest.json`,
 `src-tauri/src/updates.rs`).
 
 - **A build on `main` becomes Experimental.** With the signing key available, the `sign` job signs

@@ -5,7 +5,7 @@
 #
 #   ci/publish.sh <build number>          with the downloads (and their .sig files) in release-files/
 #
-# What it adds: orbiter-source.tar.gz (the complete source of the commit, as the GPL-3.0 asks),
+# What it adds: myorbiter-source.tar.gz (the complete source of the commit, as the GPL-3.0 asks),
 # latest.json (scripts/updater-manifest.mjs: this build's version, notes from the commit subjects
 # since the build on Experimental, each signed download at its public address, every signature
 # checked again against tauri.conf.json's public key) when the build is signed, and SHA256SUMS of
@@ -34,14 +34,14 @@ if [ -n "${CI_COMMIT_TAG:-}" ]; then
     { echo "$CI_COMMIT_TAG isn't on $CI_DEFAULT_BRANCH: nothing is published" >&2; exit 1; }
 fi
 
-[ -f "$files/orbiter_${version}_amd64.AppImage" ] || { echo "no AppImage for $version in $files/" >&2; exit 1; }
+[ -f "$files/myorbiter_${version}_amd64.AppImage" ] || { echo "no AppImage for $version in $files/" >&2; exit 1; }
 signed=false
-[ -f "$files/orbiter_${version}_amd64.AppImage.sig" ] && signed=true
+[ -f "$files/myorbiter_${version}_amd64.AppImage.sig" ] && signed=true
 windows=false
-[ -f "$files/orbiter_${version}_x64-setup.exe" ] && windows=true
+[ -f "$files/myorbiter_${version}_x64-setup.exe" ] && windows=true
 
-# The source of exactly this commit, orbiter and tennoscope/ both, with the CI and scripts that build them.
-git archive --format=tar.gz --prefix="orbiter-$tag/" --output "$files/orbiter-source.tar.gz" "$CI_COMMIT_SHA"
+# The source of exactly this commit, MyOrbiter and tennoscope/ both, with the CI and scripts that build them.
+git archive --format=tar.gz --prefix="myorbiter-$tag/" --output "$files/myorbiter-source.tar.gz" "$CI_COMMIT_SHA"
 
 complete=false
 if $signed; then

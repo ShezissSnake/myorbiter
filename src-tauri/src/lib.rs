@@ -25,7 +25,7 @@ use tauri::{Emitter, Manager};
 
 const WORLDSTATE: &str = "https://api.warframestat.us/pc";
 /// Who's asking, and where to find out more (the APIs MyOrbiter reads like to know).
-pub(crate) const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"), " (+https://gitlab.com/sheziss-group/orbiter)");
+pub(crate) const USER_AGENT: &str = concat!("MyOrbiter/", env!("CARGO_PKG_VERSION"), " (+https://gitlab.com/sheziss-group/myorbiter)");
 
 /// TennoScope's data folder: the one from Settings, or where TennoScope keeps it. A folder from
 /// Settings must be a full path without `..` (MyOrbiter only reads TennoScope's own files in it).
@@ -437,7 +437,7 @@ async fn discord_post(app: tauri::AppHandle, url: String, content: String) -> Re
             .post(&url)
             .set("User-Agent", USER_AGENT)
             .timeout(Duration::from_secs(10))
-            .send_json(serde_json::json!({ "username": "orbiter", "content": content, "allowed_mentions": { "parse": [] } }))
+            .send_json(serde_json::json!({ "username": "MyOrbiter", "content": content, "allowed_mentions": { "parse": [] } }))
             .map(|_| ())
             // Never the error's own text: it carries the webhook address, token and all.
             .map_err(|e| match e {

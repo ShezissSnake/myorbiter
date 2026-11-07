@@ -34,7 +34,7 @@ https://repo.msys2.org/mingw/sources/, and its recipes are at https://github.com
 
 For three years from the date of this release, the complete corresponding source code of the GPL-
 and LGPL-licensed libraries bundled in this build is available on request: open an issue at
-https://gitlab.com/sheziss-group/orbiter or contact the maintainer.
+https://gitlab.com/sheziss-group/myorbiter or contact the maintainer.
 
-The source of orbiter and TennoScope (both GPL-3.0-only) is attached to every release as
-orbiter-source.tar.gz.
+The source of MyOrbiter and TennoScope (both GPL-3.0-only) is attached to every release as
+myorbiter-source.tar.gz.

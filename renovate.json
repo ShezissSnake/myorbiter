@@ -2,10 +2,10 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "description": [
     "Renovate proposes dependency updates as merge requests, once a week; nothing is merged by itself.",
-    "The ecosystems Dependabot covered: Cargo (orbiter's workspace at the root, TennoScope's in tennoscope/), npm (orbiter's window at the root, TennoScope's app in tennoscope/app, pnpm), and the CI (the images .gitlab-ci.yml and ci/Dockerfile use, in place of GitHub Actions).",
+    "The ecosystems Dependabot covered: Cargo (MyOrbiter's workspace at the root, TennoScope's in tennoscope/), npm (MyOrbiter's window at the root, TennoScope's app in tennoscope/app, pnpm), and the CI (the images .gitlab-ci.yml and ci/Dockerfile use, in place of GitHub Actions).",
     "With osvVulnerabilityAlerts, a dependency with a known vulnerability (OSV) gets its own merge request, in place of Dependabot's security updates.",
     "Minor and patch updates come grouped, one merge request per ecosystem and folder; a major version comes on its own, since it may need code changes.",
-    "TypeScript 7 waits for orbiter (the root) until svelte-check supports it; TennoScope is on it already."
+    "TypeScript 7 waits for MyOrbiter (the root) until svelte-check supports it; TennoScope is on it already."
   ],
   "extends": ["config:recommended"],
   "enabledManagers": ["cargo", "npm", "gitlabci", "dockerfile", "custom.regex"],
@@ -61,7 +61,7 @@
       "enabled": false
     },
     {
-      "description": "TypeScript 7 waits for orbiter (the root) until svelte-check supports it.",
+      "description": "TypeScript 7 waits for MyOrbiter (the root) until svelte-check supports it.",
       "matchFileNames": ["package.json"],
       "matchPackageNames": ["typescript"],
       "allowedVersions": "<7"

@@ -51,7 +51,7 @@ shown before you send, with your sign-in and players' names taken out.
 ## Licence
 
 MyOrbiter is free software under the GPL-3.0-only (`LICENSE`), with no warranty. Every release carries
-its complete source as `orbiter-source.tar.gz`. For the GPL and LGPL libraries bundled in the
+its complete source as `myorbiter-source.tar.gz`. For the GPL and LGPL libraries bundled in the
 downloads, each download lists them with their sources, and the complete corresponding source is
 available on request for three years from the release: the written offer is in
 [NOTICE.md](../../NOTICE.md). Digital Extremes' artwork is not covered by the GPL: the game icons

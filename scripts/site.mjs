@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(ROOT, "site");
 const OUT = join(SRC, "_site");
-const REPO = "https://gitlab.com/sheziss-group/orbiter";
+const REPO = "https://gitlab.com/sheziss-group/myorbiter";
 /** The only host the site links out to (the repository, its releases and the downloads). */
 const HOST = "gitlab.com";
 const args = process.argv.slice(2);
@@ -164,12 +164,16 @@ function downloads() {
   const sumsFile = assets.find((x) => x.name === "SHA256SUMS");
   const sums = sumsFile ? `<a href="${safeUrl(sumsFile.url)}">SHA256SUMS</a>` : "SHA256SUMS";
   const version = rel ? `<p class="register">Stable · ${esc(rel.tagName)}</p>` : `<p class="register">Stable</p>`;
-  return `${version}<ul class="dls">${rows}</ul><p class="small">Check a download against ${sums} on the same release (<a href="${REPO}/-/blob/main/README.md#checking-a-download">how</a>). Every release also carries <span class="register">orbiter-source.tar.gz</span>, its complete source. Other builds (Beta, Experimental) are on <a href="${REPO}/-/releases">Releases</a>.</p>`;
+  return `${version}<ul class="dls">${rows}</ul><p class="small">Check a download against ${sums} on the same release (<a href="${REPO}/-/blob/main/README.md#checking-a-download">how</a>). Every release also carries <span class="register">myorbiter-source.tar.gz</span>, its complete source. Other builds (Beta, Experimental) are on <a href="${REPO}/-/releases">Releases</a>.</p>`;
 }
 
 /** Where this project's files are on gitlab.com: its package registry (as the release links to
- *  them, the project named by its path) or its own pages. */
-const PROJECT_PATHS = ["/api/v4/projects/sheziss-group%2Forbiter/packages/generic/", "/sheziss-group/orbiter/"];
+ *  them, the project named by its path) or its own pages. Releases made before the project was
+ *  renamed to myorbiter link to its old path, which gitlab.com redirects. */
+const PROJECT_PATHS = [
+  "/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/", "/sheziss-group/myorbiter/",
+  "/api/v4/projects/sheziss-group%2Forbiter/packages/generic/", "/sheziss-group/orbiter/",
+];
 
 /** A download's address, escaped for an attribute, if it's https to this project on gitlab.com;
  *  else null. */
@@ -234,7 +238,7 @@ if (args.includes("--check")) {
       if (/^https?:/.test(url)) { const h = new URL(url).hostname; if (!ALLOWED.has(h)) bad.push(`${rel}: link to ${h}`); continue; }
       if (url.startsWith("mailto:")) continue;
       if (url.startsWith("#")) { if (url.length > 1 && !text.includes(`id="${url.slice(1)}"`)) bad.push(`${rel}: ${url} has no target`); continue; }
-      // From the site's root ("/…") breaks under the project's address (/orbiter/): relative only.
+      // From the site's root ("/…") breaks under the project's address (/myorbiter/): relative only.
       if (url.startsWith("/")) { bad.push(`${rel}: ${url} is from the root, not relative`); continue; }
       const [path, hash] = url.split("#");
       const target = resolve(dirname(f), path || relative(dirname(f), f));

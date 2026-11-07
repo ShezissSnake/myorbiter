@@ -25,7 +25,7 @@ shopt -s inherit_errexit
 project_api="$CI_API_V4_URL/projects/$CI_PROJECT_ID"
 packages_api="$project_api/packages/generic"
 # The same files' public addresses, as the app and the manifests name them: the project by its path
-# (sheziss-group%2Forbiter), which reads anonymously once the project is public.
+# (sheziss-group%2Fmyorbiter), which reads anonymously once the project is public.
 # shellcheck disable=SC2034 # used by the scripts that source this file
 public_packages="$CI_API_V4_URL/projects/${CI_PROJECT_PATH//\//%2F}/packages/generic"
 

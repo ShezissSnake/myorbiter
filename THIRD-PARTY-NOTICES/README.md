@@ -1,9 +1,9 @@
 # Third-party notices
 
-orbiter is GPL-3.0-only (`LICENSE`). Every download carries this folder, with the copyright and
-licence of what it bundles that isn't orbiter's own:
+MyOrbiter is GPL-3.0-only (`LICENSE`). Every download carries this folder, with the copyright and
+licence of what it bundles that isn't MyOrbiter's own:
 
-- `fonts/`: the fonts orbiter's window uses, Archivo Narrow (The Archivo Narrow Project Authors)
+- `fonts/`: the fonts MyOrbiter's window uses, Archivo Narrow (The Archivo Narrow Project Authors)
   and IBM Plex Sans and IBM Plex Mono (IBM Corp.), all under the SIL Open Font License 1.1, as
   the @fontsource packages ship them.
 
@@ -17,13 +17,13 @@ The Linux and Windows downloads also have `SOURCES.md` here, written when they'r
 library they carry from Ubuntu's packages (Linux) or UB Mannheim's Tesseract installer (Windows),
 with its exact version and where its source is, and a written offer: for three years from the date
 of the release, the complete corresponding source code of the GPL- and LGPL-licensed libraries
-bundled in it is available on request (an issue at https://gitlab.com/sheziss-group/orbiter, or the
+bundled in it is available on request (an issue at https://gitlab.com/sheziss-group/myorbiter, or the
 maintainer). On Linux, `linux/` holds the copyright file of each library the AppImage carries
-beside orbiter itself (GTK, WebKitGTK and the rest).
+beside MyOrbiter itself (GTK, WebKitGTK and the rest).
 
-orbiter's Rust crates and npm packages are under their own licences (MIT, Apache-2.0 and others
-compatible with the GPL): `Cargo.lock` and `package-lock.json` in orbiter's source
-(`orbiter-source.tar.gz`) list them, and each one's licence comes with its source.
+MyOrbiter's Rust crates and npm packages are under their own licences (MIT, Apache-2.0 and others
+compatible with the GPL): `Cargo.lock` and `package-lock.json` in MyOrbiter's source
+(`myorbiter-source.tar.gz`) list them, and each one's licence comes with its source.
 
 Files under other licences that aren't programs (Warframe's artwork, wiki data) are listed in
 `NOTICE.md`.

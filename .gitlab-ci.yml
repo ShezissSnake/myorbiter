@@ -1,4 +1,4 @@
-# orbiter's pipelines on gitlab.com. They run only when started: by hand (Build → Pipelines →
+# MyOrbiter's pipelines on gitlab.com. They run only when started: by hand (Build → Pipelines →
 # New pipeline, or the pipelines API), or by pushing a release tag (release-<anything>). Never on a
 # push to a branch or for a merge request: tests run on the developer's machine before merging.
 #
@@ -219,9 +219,9 @@ test:
     # workspace with its tests builds on it from the lockfile.
     - |
       v=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' src-tauri/Cargo.toml)
-      d=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' crates/orbiter-data/Cargo.toml)
+      d=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' crates/myorbiter-data/Cargo.toml)
       [[ "$v" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || { echo "no rust-version in src-tauri/Cargo.toml" >&2; exit 1; }
-      [ "$d" = "$v" ] || { echo "crates/orbiter-data says rust-version $d, src-tauri says $v" >&2; exit 1; }
+      [ "$d" = "$v" ] || { echo "crates/myorbiter-data says rust-version $d, src-tauri says $v" >&2; exit 1; }
       r=$(rustc --version | cut -d' ' -f2)
       [[ "$r" == "$v" || "$r" == "$v".* ]] || { echo "rust-version is $v but the image's toolchain is $r: change RUST_VERSION in ci/Dockerfile" >&2; exit 1; }
     - cargo check --workspace --tests --locked
@@ -306,8 +306,8 @@ sign:
         exit 0
       fi
     - version="0.2.$BUILD"
-    - files=("release-files/orbiter_${version}_amd64.AppImage")
-    - if [ -f "release-files/orbiter_${version}_x64-setup.exe" ]; then files+=("release-files/orbiter_${version}_x64-setup.exe"); fi
+    - files=("release-files/myorbiter_${version}_amd64.AppImage")
+    - if [ -f "release-files/myorbiter_${version}_x64-setup.exe" ]; then files+=("release-files/myorbiter_${version}_x64-setup.exe"); fi
     # Each signature is bound to this version and checked against tauri.conf.json's public key
     # before it's written. The signer runs with every other exported variable removed (no
     # NODE_OPTIONS, LD_PRELOAD or PATH from anywhere) and the key passed by name, never on a
@@ -367,8 +367,8 @@ release:
         echo "The release build-$BUILD is already there."
       else
         glab release create "build-$BUILD" -R "$CI_PROJECT_PATH" --ref "$CI_COMMIT_SHA" --no-update \
-          --name "orbiter $VERSION (build-$BUILD)" \
-          --notes "orbiter $VERSION, built from $CI_COMMIT_SHORT_SHA. The AppImage is for Linux and the Steam Deck, the .deb for Debian and Ubuntu, the setup.exe for Windows, whichever this pipeline built. orbiter and the TennoScope inside it are GPL-3.0-only: orbiter-source.tar.gz is the complete source of this build. SHA256SUMS lists every file's checksum." \
+          --name "MyOrbiter $VERSION (build-$BUILD)" \
+          --notes "MyOrbiter $VERSION, built from $CI_COMMIT_SHORT_SHA. The AppImage is for Linux and the Steam Deck, the .deb for Debian and Ubuntu, the setup.exe for Windows, whichever this pipeline built. MyOrbiter and the TennoScope inside it are GPL-3.0-only: myorbiter-source.tar.gz is the complete source of this build. SHA256SUMS lists every file's checksum." \
           --assets-links "$(cat release-links.json)"
       fi
 

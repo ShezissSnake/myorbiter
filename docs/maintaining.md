@@ -1,7 +1,7 @@
 # Maintaining the public repository
 
 GitLab settings that can't live in the repository: set them by hand once, before
-`sheziss-group/orbiter` goes public, and check them again after any change to the project's or
+`sheziss-group/myorbiter` goes public, and check them again after any change to the project's or
 the group's settings. Each line says where it is. Everything here works on GitLab Free.
 
 ## Going public, step by step
@@ -11,7 +11,7 @@ needs the Maintainer role, and the group's settings (its visibility, its package
 group's Owner role; the ones marked **(maintainer)** are the maintainer's own clicks (the visibility
 switch, the signing key, the runner, the promotions). Each step links to its details further down;
 tick it here when it's done. The commands work in fish and in bash, from a clone whose `origin` is
-`gitlab.com/sheziss-group/orbiter`.
+`gitlab.com/sheziss-group/myorbiter`.
 
 **1. Before the switch** (the project is still private)
 
@@ -87,13 +87,13 @@ tick it here when it's done. The commands work in fish and in bash, from a clone
 - [ ] Anonymous reads work: each prints the channel's manifest, not an error.
 
       ```fish
-      curl -fsS 'https://gitlab.com/api/v4/projects/sheziss-group%2Forbiter/packages/generic/channel/experimental/latest.json'
+      curl -fsS 'https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel/experimental/latest.json'
       node scripts/issues-digest.mjs --fetch
       ```
 
 **3. The website (maintainer):** New pipeline → branch `main`, *task* `pages`. Then *Deploy* →
 *Pages* (the setting may only appear after that first deployment): untick **Use unique domain**
-(so the site is `https://sheziss-group.gitlab.io/orbiter/`, as the README links), Save. With no
+(so the site is `https://sheziss-group.gitlab.io/myorbiter/`, as the README links), Save. With no
 Stable build yet its download buttons point at *Releases*; step 5 runs it again.
 
 **4. A first public build**
@@ -102,11 +102,11 @@ Stable build yet its download buttons point at *Releases*; step 5 runs it again.
       the build number: the `build` job's log says "Build *n*, version 0.2.*n*".
 - [ ] Every job is green; the `sign` log has no "No updater files" line.
 - [ ] Release `build-<n>` (*Deploy* → *Releases*) links to the AppImage, the .deb, the setup.exe,
-      both `.sig` files, `latest.json`, `SHA256SUMS` and `orbiter-source.tar.gz`, and
+      both `.sig` files, `latest.json`, `SHA256SUMS` and `myorbiter-source.tar.gz`, and
       `channel/experimental/latest.json` names 0.2.*n*:
 
       ```fish
-      curl -fsS 'https://gitlab.com/api/v4/projects/sheziss-group%2Forbiter/packages/generic/channel/experimental/latest.json'
+      curl -fsS 'https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel/experimental/latest.json'
       ```
 
 **5. Promote it to Stable (maintainer)**

@@ -178,10 +178,10 @@ test("--fetch: anonymous GraphQL requests, page by page, and a private project i
     assert.equal(c.url, "https://gitlab.com/api/graphql");
     const headers = c.init.headers as Record<string, string>;
     assert.ok(!Object.keys(headers).some((h) => /authorization|private-token|cookie/i.test(h)), "no credentials");
-    assert.match(headers["user-agent"], /^orbiter-issues-digest/);
+    assert.match(headers["user-agent"], /^myorbiter-issues-digest/);
   }
   const vars = calls.map((c) => JSON.parse(String(c.init.body)).variables);
-  assert.deepEqual(vars.map((v) => [v.path, v.state, v.after, v.members]), [["sheziss-group/orbiter", "opened", null, true], ["sheziss-group/orbiter", "opened", "c1", false]]);
+  assert.deepEqual(vars.map((v) => [v.path, v.state, v.after, v.members]), [["sheziss-group/myorbiter", "opened", null, true], ["sheziss-group/myorbiter", "opened", "c1", false]]);
   const none = async () => new Response(JSON.stringify({ data: { project: null } }), { status: 200 });
   await assert.rejects(fetchIssues({ fetchImpl: none as unknown as typeof fetch }), /isn't readable without signing in/);
   const down = async () => new Response("", { status: 503 });

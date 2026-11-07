@@ -24,7 +24,7 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 
 /// The project whose package registry carries the builds and the channel manifests, as the
 /// GitLab API names it (`group%2Fproject`).
-pub const PROJECT: &str = "sheziss-group%2Forbiter";
+pub const PROJECT: &str = "sheziss-group%2Fmyorbiter";
 
 /// How long a check may take before it counts as failed.
 const CHECK_TIMEOUT: Duration = Duration::from_secs(30);
@@ -508,7 +508,7 @@ mod tests {
 
     #[test]
     fn each_channel_has_its_own_manifest() {
-        let registry = "https://gitlab.com/api/v4/projects/sheziss-group%2Forbiter/packages/generic/channel";
+        let registry = "https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel";
         assert_eq!(endpoints(Channel::Stable), [format!("{registry}/stable/latest.json")]);
         assert_eq!(endpoints(Channel::Beta), [format!("{registry}/beta/latest.json")]);
         assert_eq!(endpoints(Channel::Experimental), [format!("{registry}/experimental/latest.json")]);
@@ -517,7 +517,7 @@ mod tests {
                 let url = u.parse::<tauri::Url>().unwrap();
                 assert_eq!(url.scheme(), "https");
                 // The encoded slash stays encoded: the API names the project by its full path.
-                assert!(url.path().starts_with("/api/v4/projects/sheziss-group%2Forbiter/"), "{url}");
+                assert!(url.path().starts_with("/api/v4/projects/sheziss-group%2Fmyorbiter/"), "{url}");
             }
         }
     }
