@@ -235,7 +235,10 @@ assert_appimage_runs_on_x11() {
   # The overlay has to run on X11 to sit above the game, so upstream's own
   # `GDK_BACKEND=x11` is what we want -- but the env var overrides the request
   # the app makes for itself, so a future plugin release that drops or changes
-  # it would silently take the overlay with it.
+  # it would silently take the overlay with it. Newer plugin releases ship the
+  # line commented out (`# export GDK_BACKEND=x11 # Monitor this closely...`):
+  # put exactly that line back, and let the check below catch anything else.
+  sed -i 's/^# export GDK_BACKEND=x11 /export GDK_BACKEND=x11 /' "$hook"
   awk '$0 ~ /^export GDK_BACKEND=x11 / { found = 1 } END { exit(found ? 0 : 1) }' "$hook" || {
     echo "the AppImage GTK hook no longer forces X11; the reward overlay needs it" >&2
     exit 1

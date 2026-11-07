@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Builds orbiter's Linux AppImage on this PC, the way the release workflow's Linux job does
-# (.github/workflows/release.yml): Tesseract put inside TennoScope, TennoScope's own AppImage
+# Builds orbiter's Linux AppImage on this PC, the way the release pipeline's build job does
+# (ci/build.sh, run by .gitlab-ci.yml): Tesseract put inside TennoScope, TennoScope's own AppImage
 # build, orbiter's AppImage with TennoScope inside it, and the same repack step
-# (scripts/repack-appimage.sh). For trying a build out locally without a release run.
+# (scripts/repack-appimage.sh). For trying a build out locally without a pipeline. To build
+# exactly as the pipeline does, run ci/build.sh in the builder image instead (ci/Dockerfile).
 #
 #   scripts/build-local.sh [--version X.Y.Z] [--skip-tennoscope] [--check]
 #

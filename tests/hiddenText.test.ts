@@ -12,7 +12,9 @@ const HIDDEN = /[\u00AD\u034F\u115F\u1160\u180E\u200B-\u200F\u202A-\u202E\u2060-
 
 function* files(dir: string): Generator<string> {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
-    if (e.name.startsWith(".") && e.name !== ".github") continue;
+    // Dot entries are skipped, except the CI and the issue templates (.gitlab-ci.yml, .gitlab/,
+    // and .github/ while it remains).
+    if (e.name.startsWith(".") && ![".github", ".gitlab", ".gitlab-ci.yml"].includes(e.name)) continue;
     const p = join(dir, e.name);
     if (e.isDirectory()) {
       if (!SKIP_DIRS.has(e.name)) yield* files(p);

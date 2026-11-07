@@ -132,10 +132,11 @@ document: substitute the version you are cutting.
 The bundles the workflow attaches are built by `scripts/build-linux-bundles.sh`. Run by hand it
 gates on the test suite, clippy and `pnpm check` first; the release workflow passes `--skip-gates`
 because it refuses to start until CI has passed on that very commit. Either way the script asserts
-the AppImage still forces `GDK_BACKEND=x11` before anything is uploaded. That check runs against
-the artifact itself and nothing else covers it. The source Arch `PKGBUILD` and the overlay ebuilds
-fetch the tag's own archive, so they only work once the tag is pushed; the `-bin` recipe fetches
-the release `.deb`, so it only works once the release workflow has attached it.
+the AppImage still forces `GDK_BACKEND=x11` before anything is uploaded (it uncomments the line
+newer linuxdeploy-plugin-gtk releases leave commented out). That check runs against the artifact
+itself and nothing else covers it. The source Arch `PKGBUILD` and the overlay ebuilds fetch the
+tag's own archive, so they only work once the tag is pushed; the `-bin` recipe fetches the release
+`.deb`, so it only works once the release workflow has attached it.
 
 Which runner builds which bundle is not interchangeable. `bundles` runs on 24.04 and produces the
 `.deb` and the `.rpm`; `appimage` runs on 22.04 and produces the AppImage, and the split exists

@@ -1,0 +1,488 @@
+# orbiter's pipelines on gitlab.com. They run only when started: by hand (Build → Pipelines →
+# New pipeline, or the pipelines API), or by pushing a release tag (release-<anything>). Never on a
+# push to a branch or for a merge request: tests run on the developer's machine before merging.
+#
+# What a pipeline does is its `task` input, chosen in the New pipeline form:
+#
+#   release (default)  test ─ build ─ sign ─ publish ─ release ─ experimental ─ prune
+#                      Builds the Linux AppImage and .deb and the Windows installer (cross-compiled
+#                      with cargo-xwin) as build <n>, version 0.2.<n>. On main or a release tag it
+#                      also signs, publishes and moves Experimental to the build; on any other branch
+#                      it stops after `build` and leaves the downloads as that job's artifacts, for 3
+#                      days.
+#   promote            promote-check ─ promote: moves build <n> to Beta or Stable (main only).
+#   pages              The website (scripts/site.mjs), on GitLab Pages (main only).
+#   image              The builder image (ci/Dockerfile) every other job runs in. Run it first, and
+#                      after every change to ci/Dockerfile (with a new BUILDER_TAG); on main, then
+#                      put the digest it prints in BUILDER_DIGEST.
+#
+# Build numbers: <n> is this pipeline's number in the project (CI_PIPELINE_IID, which only grows)
+# plus BUILD_OFFSET. The offset keeps the numbers above those of the builds made on GitHub before
+# the move (all below 100), so no version is ever made twice and versions only grow. Promoting,
+# pages and image pipelines use a number too, so build numbers have gaps.
+#
+# Where things live (ci/lib.sh): every file of build <n> in the project's generic package
+# registry as orbiter/0.2.<n>/<file>, beside a release build-<n> that links to them; each
+# channel's latest.json as channel/<stable|beta|experimental>/latest.json, the address installed
+# copies check (src-tauri/src/updates.rs). Promote moves the same signed files, never a rebuild.
+# Pruning keeps the newest 10 Experimental builds (not counting the builds a channel keeps) and
+# never deletes a build a channel names or one ever promoted to Stable; a deleted build's tag stays.
+#
+# Signing: TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD are CI/CD variables of
+# the project (Settings → CI/CD → Variables): protected (main and protected tags only), masked and
+# hidden, of type Variable, with the environment scope `release-signing`. GitLab gives them only to
+# jobs in that environment, and only `sign` is: it runs in its own upstream Node image pinned by
+# digest (never the builder image, which jobs that run build code could replace), takes nothing from
+# earlier jobs but their files (no variables), builds and installs nothing, runs the repository's
+# dependency-free signer (scripts/updater-sign.mjs, which never prints the key) with an emptied
+# environment, and keeps only the .sig files as artifacts. The build's artifacts are unpacked into
+# sign's checkout, and build code that turned hostile could make them hold more than release-files/:
+# sign refuses a checkout holding any link, copies the signer out to a folder of its own container
+# and runs it only if the copies match SIGNER_SHA256 below (this file is read by GitLab, not from
+# the job's folder; tests/ciSigner.test.ts keeps the checksums current). It also signs only builds
+# made in the builder image by digest (BUILDER_DIGEST), since a tag in the container registry can be
+# pushed over by any job's token. Either check failing stops the pipeline: nothing is published. The
+# jobs that run npm, pnpm and Cargo build code never see the key. Without the key the build is still
+# published, unsigned and on no channel. Release tags (release-*) must be protected tags, and
+# pipeline variables kept off (Settings → CI/CD → Variables → Minimum role to use pipeline
+# variables: No one allowed); the inputs below don't need them.
+#
+# What the key doesn't cover: every job's CI_JOB_TOKEN can write this project's packages and
+# releases (GitLab has no per-job scope), so build code that turned hostile could replace a
+# channel's latest.json or delete builds. Installed copies still install only a download whose
+# signature, bound to its version, checks out against the public key they carry.
+#
+# Runners: every job runs where the `runner` input says: `pc`, the project runner (tag pc), or
+# `cloud`, gitlab.com's hosted Linux runners (saas-linux-medium-amd64, which spend the namespace's
+# compute minutes). A release tag push uses pc. A pipeline on a branch other than main, `sign` and
+# the image task always run on the hosted runners (`sign` because on the pc runner jobs share the
+# executor's build volume). The pc runner must use the Docker executor, is never privileged and
+# never mounts the Docker socket: each keeps build code inside its job's container, off the
+# runner's machine (and whatever else is on it) and away from the other jobs and caches. It is a
+# protected runner, so only pipelines on main and protected tags run on it. The image task always
+# runs on the hosted runners, so the pc runner never needs privileges for Buildah. Instance
+# (hosted) runners stay enabled for the project: every release signs on them.
+#
+# Anything that changes this file, ci/ or the signing variables: ask the maintainer first
+# (CLAUDE.md).
+
+spec:
+  inputs:
+    task:
+      description: "What this pipeline does: release (build, and on main sign, publish and put on Experimental), promote (a build to Beta or Stable), pages (the website), image (the builder image)."
+      options: [release, promote, pages, image]
+      default: release
+    build:
+      description: "promote: the build's number, the n of build-<n> (version 0.2.<n>)."
+      default: "0"
+      regex: ^[0-9]{1,9}$
+    channel:
+      description: "promote: the channel the build moves to."
+      options: [beta, stable]
+      default: beta
+    windows:
+      description: "release: build the Windows installer too. A build without it is published but can't go on a channel."
+      type: boolean
+      default: true
+    runner:
+      description: "Where the jobs run in a pipeline started by hand on main or a release tag: pc (the project runner) or cloud (gitlab.com's hosted runners, which spend compute minutes). A release tag push uses pc; any other branch, sign and the image task always use the hosted runners."
+      options: [pc, cloud]
+      default: pc
+---
+
+variables:
+  TASK: $[[ inputs.task ]]
+  PROMOTE_BUILD: $[[ inputs.build ]]
+  PROMOTE_CHANNEL: $[[ inputs.channel ]]
+  RUNNER: $[[ inputs.runner ]]
+  # The builder image (ci/Dockerfile). The image task pushes it as builder:<BUILDER_TAG> from main
+  # and builder:<BUILDER_TAG>-<branch> from any other branch (BUILDER_PUSH), and prints its digest.
+  # A tag can be pushed over by any job's token, so a tag alone is trusted for nothing: pipelines on
+  # main and release tags run in the image by digest, BUILDER_DIGEST (sha256:…, the digest the image
+  # task on main printed, put here through a merge request; workflow:rules below). Until it is set
+  # they run in the tag, and `sign` refuses, so nothing is published. The image task on main also
+  # pushes builder:<BUILDER_TAG>.job<job id>, a tag no other push writes (a branch's tag never has a
+  # dot), which keeps that digest tagged as long as no one deletes it and the registry's cleanup
+  # policy keeps it (docs/maintaining.md). A branch's pipeline runs in that branch's own tag, so a
+  # change to ci/Dockerfile can be tried there first: run the image task on the branch before
+  # anything else there (it costs hosted compute minutes). Changing the Dockerfile: a new
+  # BUILDER_TAG, the image task on main once merged, then the new digest, in a merge request that
+  # links that job.
+  BUILDER_TAG: "2026-11-07"
+  BUILDER_DIGEST: ""
+  BUILDER_SUFFIX: ""
+  BUILDER_PUSH: $CI_REGISTRY_IMAGE/builder:$BUILDER_TAG$BUILDER_SUFFIX
+  BUILDER_IMAGE: $CI_REGISTRY_IMAGE/builder:$BUILDER_TAG$BUILDER_SUFFIX
+  # The sign job's image: upstream Node, pinned by digest (node:26.13.0-bookworm-slim).
+  SIGN_IMAGE: node:26.13.0-bookworm-slim@sha256:add5c17c14752c54d2f3d519ec46a3815684d41c33f198bcb09fb998f7dcbf68
+  # Build <n> is CI_PIPELINE_IID + BUILD_OFFSET. Every build made on GitHub before the move was
+  # below 100, so no version here repeats one of theirs.
+  BUILD_OFFSET: "100"
+  # Experimental builds kept by prune, besides the ones a channel keeps.
+  KEEP: "10"
+  GLAB_IMAGE: registry.gitlab.com/gitlab-org/cli:v1.128.0@sha256:00884510ffcbb6b03c0abc5dd058d7728a646cab2a419de4a7108d073ce90a03
+  BUILDAH_IMAGE: quay.io/buildah/stable:v1.43.5@sha256:a6f96bfffc47f36462985573d85e87f782bf2d8b37e02cb3dd307713bfa6cc13
+  # The SHA-256 of the signer's two files (`sha256sum scripts/updater-sign.mjs
+  # scripts/updater-manifest.mjs`); `sign` runs them only if they match. A change to either file
+  # changes these (tests/ciSigner.test.ts fails until they do).
+  SIGNER_SHA256: "221a0b8c17f6df5474bf1fd54d03308639c6af454f8c02e2e0f0efc68a9ef84b 6a8e934e0604761bc4b3de2d098ae74330e329e0e214ee4d60d52d988a41320e"
+
+workflow:
+  name: "$TASK: $CI_COMMIT_REF_NAME"
+  rules:
+    # A push starts a pipeline only for a release tag, and only to release. The build-<n> tags
+    # the release job makes, branch pushes and merge requests start nothing. On main and release
+    # tags, the builder image by digest once BUILDER_DIGEST is set.
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG =~ /^release-/ && $TASK == "release" && $BUILDER_DIGEST =~ /^sha256:[0-9a-f]{64}$/
+      variables:
+        RUNNER_TAG: pc
+        BUILDER_IMAGE: $CI_REGISTRY_IMAGE/builder@$BUILDER_DIGEST
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG =~ /^release-/ && $TASK == "release"
+      variables:
+        RUNNER_TAG: pc
+    - if: $CI_PIPELINE_SOURCE == "push"
+      when: never
+    # By hand (New pipeline, or the pipelines API) on main or a release tag: the runner the input
+    # names.
+    - if: ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && ($CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG =~ /^release-/) && $RUNNER == "cloud" && $BUILDER_DIGEST =~ /^sha256:[0-9a-f]{64}$/
+      variables:
+        RUNNER_TAG: saas-linux-medium-amd64
+        BUILDER_IMAGE: $CI_REGISTRY_IMAGE/builder@$BUILDER_DIGEST
+    - if: ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && ($CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG =~ /^release-/) && $RUNNER == "cloud"
+      variables:
+        RUNNER_TAG: saas-linux-medium-amd64
+    - if: ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && ($CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG =~ /^release-/) && $BUILDER_DIGEST =~ /^sha256:[0-9a-f]{64}$/
+      variables:
+        RUNNER_TAG: pc
+        BUILDER_IMAGE: $CI_REGISTRY_IMAGE/builder@$BUILDER_DIGEST
+    - if: ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && ($CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG =~ /^release-/)
+      variables:
+        RUNNER_TAG: pc
+    # By hand on any other branch: always gitlab.com's hosted runners (the pc runner is protected
+    # and takes no branch's jobs), and that branch's own builder image.
+    - if: $CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api"
+      variables:
+        RUNNER_TAG: saas-linux-medium-amd64
+        BUILDER_SUFFIX: -$CI_COMMIT_REF_SLUG
+    - when: never
+
+default:
+  image: $BUILDER_IMAGE
+  tags: [$RUNNER_TAG]
+  # A job that has started is never cancelled by a newer pipeline: nothing is half published.
+  interruptible: false
+
+stages: [test, build, sign, publish, release, channel, prune, promote, pages, image]
+
+# Rules shared by the jobs below.
+.release-task:
+  rules:
+    - if: $TASK == "release"
+# Signing and everything after it: a release on main, or on a release tag (which publish checks is
+# on main). Anywhere else the pipeline ends after `build`.
+.publishing:
+  rules:
+    - if: $TASK == "release" && ($CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG =~ /^release-/)
+# Cargo's download cache, per runner and kept apart for protected refs (main, release tags) and
+# everything else, so a branch's pipeline can't leave files a release build then uses: never the
+# target folders (each build starts clean). GitLab's own "Use separate caches for protected
+# branches" setting stays on as well (docs/maintaining.md).
+.cargo-cache:
+  variables:
+    CARGO_HOME: $CI_PROJECT_DIR/.cargo-home
+  cache:
+    - key: cargo-$RUNNER_TAG-$CI_COMMIT_REF_PROTECTED
+      paths: [.cargo-home/registry/index/, .cargo-home/registry/cache/, .cargo-home/git/db/]
+
+# ------------------------------------------------------------------ release
+
+# The tests the developer runs before merging, and a known vulnerability in either Cargo.lock
+# (RustSec, cargo-audit) stops the pipeline before anything is built. cargo test runs on the MSRV
+# (the image's default toolchain, Rust 1.95).
+test:
+  stage: test
+  extends: [.release-task, .cargo-cache]
+  script:
+    # A release tag builds only a commit on main (the same check publish makes; protecting the
+    # release-* tags is what keeps anyone else from making one).
+    - |
+      if [ -n "${CI_COMMIT_TAG:-}" ]; then
+        if [ -f .git/shallow ]; then git fetch --quiet --unshallow origin; fi
+        git fetch --quiet origin "+refs/heads/$CI_DEFAULT_BRANCH:refs/remotes/origin/$CI_DEFAULT_BRANCH"
+        git merge-base --is-ancestor "$CI_COMMIT_SHA" "origin/$CI_DEFAULT_BRANCH" ||
+          { echo "$CI_COMMIT_TAG isn't on $CI_DEFAULT_BRANCH: nothing is built" >&2; exit 1; }
+      fi
+    - npm ci
+    - npm test
+    - npm run check -- --threshold error
+    # The MSRV: both rust-version fields agree, name the image's default toolchain, and the whole
+    # workspace with its tests builds on it from the lockfile.
+    - |
+      v=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' src-tauri/Cargo.toml)
+      d=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' crates/orbiter-data/Cargo.toml)
+      [[ "$v" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || { echo "no rust-version in src-tauri/Cargo.toml" >&2; exit 1; }
+      [ "$d" = "$v" ] || { echo "crates/orbiter-data says rust-version $d, src-tauri says $v" >&2; exit 1; }
+      r=$(rustc --version | cut -d' ' -f2)
+      [[ "$r" == "$v" || "$r" == "$v".* ]] || { echo "rust-version is $v but the image's toolchain is $r: change RUST_VERSION in ci/Dockerfile" >&2; exit 1; }
+    - cargo check --workspace --tests --locked
+    - (cd src-tauri && cargo test --locked)
+    # Run as cargo-audit, not `cargo audit`, so rustup doesn't install TennoScope's toolchain only
+    # to read a lockfile.
+    - cargo-audit audit --file Cargo.lock
+    - cargo-audit audit --file tennoscope/Cargo.lock
+
+# Linux natively, then Windows cross-compiled, in one job (ci/build.sh). No key, no signing.
+build:
+  stage: build
+  extends: [.release-task, .cargo-cache]
+  needs: [test]
+  timeout: 3h
+  variables:
+    XWIN_CACHE_DIR: $CI_PROJECT_DIR/.xwin-cache
+    # Only the x86_64 Windows SDK and CRT (cargo-xwin otherwise fetches every architecture's).
+    XWIN_ARCH: x86_64
+  cache:
+    - key: cargo-$RUNNER_TAG-$CI_COMMIT_REF_PROTECTED
+      paths: [.cargo-home/registry/index/, .cargo-home/registry/cache/, .cargo-home/git/db/]
+    - key: xwin-$RUNNER_TAG-$CI_COMMIT_REF_PROTECTED
+      paths: [.xwin-cache/]
+  script:
+    - n=$((CI_PIPELINE_IID + BUILD_OFFSET))
+    - echo "Build $n, version 0.2.$n, from ${CI_COMMIT_SHORT_SHA}"
+    # The boolean input inside a longer string, so GitLab writes it as text (true or false).
+    - if [ "$[[ inputs.windows ]]" = true ]; then ci/build.sh "0.2.$n"; else ci/build.sh "0.2.$n" --no-windows; fi
+    - |
+      if [ "$CI_COMMIT_BRANCH" != "$CI_DEFAULT_BRANCH" ] && [[ ! "${CI_COMMIT_TAG:-}" =~ ^release- ]]; then
+        echo "Not published: built from $CI_COMMIT_REF_NAME, not $CI_DEFAULT_BRANCH. The downloads are this job's artifacts, for 3 days."
+      fi
+  # Files only: no dotenv report, so nothing this job writes becomes a variable of a later job.
+  artifacts:
+    expire_in: 3 days
+    paths: [release-files/]
+
+# Signs the AppImage and the setup.exe for the updater. The only job in the release-signing
+# environment, so the only one given the key (see the top of this file). `action: prepare` makes
+# no deployment. Always on gitlab.com's hosted runners, a fresh machine for each job: on the pc
+# runner, jobs share the executor's build volume, which build code could leave things in.
+sign:
+  stage: sign
+  extends: .publishing
+  image: $SIGN_IMAGE
+  tags: [saas-linux-medium-amd64]
+  needs:
+    - job: build
+      artifacts: true
+  environment:
+    name: release-signing
+    action: prepare
+  variables:
+    # A fresh clone, never a folder an earlier job on the runner left behind.
+    GIT_STRATEGY: clone
+    GIT_DEPTH: "1"
+  script:
+    - BUILD=$((CI_PIPELINE_IID + BUILD_OFFSET))
+    # Only a build made in the builder image by digest is signed (BUILDER_DIGEST above).
+    - |
+      case "$BUILDER_IMAGE" in
+        *@sha256:*) ;;
+        *) echo "Nothing is signed or published: build $BUILD was made in $BUILDER_IMAGE, a tag, not a digest. Put the digest the image task on main printed in BUILDER_DIGEST (.gitlab-ci.yml)." >&2; exit 1 ;;
+      esac
+    # The build's files were unpacked into this checkout. No link anywhere in it (one could send
+    # the signer, its import or a .sig somewhere else); then the signer and the public key are
+    # copied out to a folder of this container's own, and run from there only if the copies are
+    # the signer this file names (SIGNER_SHA256), before the key is anywhere near them.
+    - |
+      links=$(find . -path ./.git -prune -o -type l -print)
+      [ -z "$links" ] || { echo "Nothing is signed or published: the checkout holds links: $links" >&2; exit 1; }
+    - signer=$(mktemp -d)
+    - cp scripts/updater-sign.mjs scripts/updater-manifest.mjs src-tauri/tauri.conf.json "$signer/"
+    - |
+      [ "$(cd "$signer" && sha256sum updater-sign.mjs updater-manifest.mjs | cut -d' ' -f1 | tr '\n' ' ' | sed 's/ $//')" = "$SIGNER_SHA256" ] ||
+        { echo "Nothing is signed or published: scripts/updater-sign.mjs or scripts/updater-manifest.mjs isn't the signer SIGNER_SHA256 names" >&2; exit 1; }
+    # Tested without expanding it, so not even a debug trace could show it.
+    - |
+      if [ -z "${TAURI_SIGNING_PRIVATE_KEY:+set}" ]; then
+        echo "No updater files: TAURI_SIGNING_PRIVATE_KEY isn't given to this job (a protected variable in the release-signing environment), so build $BUILD is published unsigned and no channel will offer it."
+        exit 0
+      fi
+    - version="0.2.$BUILD"
+    - files=("release-files/orbiter_${version}_amd64.AppImage")
+    - if [ -f "release-files/orbiter_${version}_x64-setup.exe" ]; then files+=("release-files/orbiter_${version}_x64-setup.exe"); fi
+    # Each signature is bound to this version and checked against tauri.conf.json's public key
+    # before it's written. The signer runs with every other exported variable removed (no
+    # NODE_OPTIONS, LD_PRELOAD or PATH from anywhere) and the key passed by name, never on a
+    # command line.
+    - |
+      (
+        for v in $(compgen -e); do
+          case "$v" in TAURI_SIGNING_PRIVATE_KEY|TAURI_SIGNING_PRIVATE_KEY_PASSWORD) ;; *) unset "$v" 2>/dev/null || true ;; esac
+        done
+        export PATH=/usr/local/bin:/usr/bin:/bin
+        exec node "$signer/updater-sign.mjs" --config "$signer/tauri.conf.json" --version "$version" "${files[@]}"
+      )
+    - unset TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+    # Once more, with the manifest script's check (the app's), the key gone from the environment
+    # and nothing else in it either.
+    - for sig in release-files/*.sig; do env -i PATH=/usr/local/bin:/usr/bin:/bin node "$signer/updater-manifest.mjs" verify --config "$signer/tauri.conf.json" --file "${sig%.sig}" --sig "$sig" --version "$version"; done
+  artifacts:
+    expire_in: 3 days
+    paths: [release-files/*.sig]
+
+# The release's files: source, latest.json, SHA256SUMS, every file checked and put in the package
+# registry (ci/publish.sh).
+publish:
+  stage: publish
+  extends: .publishing
+  needs:
+    - job: build
+      artifacts: true
+    - job: sign
+      artifacts: true
+  variables:
+    # The whole history, for the release notes since the build on Experimental.
+    GIT_DEPTH: "0"
+  script:
+    - ci/publish.sh "$((CI_PIPELINE_IID + BUILD_OFFSET))"
+  artifacts:
+    expire_in: 3 days
+    paths: [release-links.json]
+    reports:
+      dotenv: publish.env
+
+# The build-<n> release, at this commit, linking to every file. Made with glab, which replaces
+# release-cli; a re-run finds the release already there and leaves it.
+release:
+  stage: release
+  extends: .publishing
+  image: $GLAB_IMAGE
+  needs:
+    - job: publish
+      artifacts: true
+  variables:
+    GIT_STRATEGY: none
+    GLAB_ENABLE_CI_AUTOLOGIN: "true"
+  script:
+    - |
+      if glab release view "build-$BUILD" -R "$CI_PROJECT_PATH" >/dev/null 2>&1; then
+        echo "The release build-$BUILD is already there."
+      else
+        glab release create "build-$BUILD" -R "$CI_PROJECT_PATH" --ref "$CI_COMMIT_SHA" --no-update \
+          --name "orbiter $VERSION (build-$BUILD)" \
+          --notes "orbiter $VERSION, built from $CI_COMMIT_SHORT_SHA. The AppImage is for Linux and the Steam Deck, the .deb for Debian and Ubuntu, the setup.exe for Windows, whichever this pipeline built. orbiter and the TennoScope inside it are GPL-3.0-only: orbiter-source.tar.gz is the complete source of this build. SHA256SUMS lists every file's checksum." \
+          --assets-links "$(cat release-links.json)"
+      fi
+
+# The build becomes Experimental's, never moving the channel backwards (ci/experimental.sh).
+experimental:
+  stage: channel
+  needs:
+    - job: publish
+      artifacts: true
+    - job: release
+  rules:
+    - if: $TASK == "release" && ($CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG =~ /^release-/)
+  resource_group: channels
+  variables:
+    GIT_DEPTH: "1"
+  script:
+    - |
+      if [ "$COMPLETE" != true ]; then
+        echo "Build $BUILD stays off Experimental: it isn't signed, or has no Windows installer."
+        exit 0
+      fi
+    - ci/experimental.sh "$VERSION"
+
+# Older Experimental builds go (ci/prune.sh).
+prune:
+  stage: prune
+  extends: .publishing
+  needs: [experimental]
+  resource_group: channels
+  variables:
+    GIT_DEPTH: "1"
+  script:
+    - ci/prune.sh
+
+# ------------------------------------------------------------------ promote
+
+# Checks build <n> (ci/promote.sh check); `promote` then copies exactly the latest.json it checked.
+promote-check:
+  stage: promote
+  rules:
+    - if: $TASK == "promote" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  variables:
+    GIT_DEPTH: "1"
+  script:
+    - ci/promote.sh check "$PROMOTE_BUILD"
+  artifacts:
+    reports:
+      dotenv: promote.env
+
+promote:
+  stage: promote
+  rules:
+    - if: $TASK == "promote" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - job: promote-check
+      artifacts: true
+  resource_group: channels
+  variables:
+    GIT_DEPTH: "1"
+  script:
+    - ci/promote.sh promote "$PROMOTE_BUILD" "$PROMOTE_CHANNEL"
+
+# ------------------------------------------------------------------ website
+
+# The site, built and checked (ci/pages.sh), published from public/ on GitLab Pages.
+pages:
+  stage: pages
+  rules:
+    - if: $TASK == "pages" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  variables:
+    GIT_DEPTH: "1"
+  script:
+    - ci/pages.sh
+  pages: true
+  artifacts:
+    paths: [public]
+
+# ------------------------------------------------------------------ builder image
+
+# Builds ci/Dockerfile and pushes it to this project's container registry as BUILDER_PUSH,
+# builder:$BUILDER_TAG (on main; on another branch builder:$BUILDER_TAG-<branch>), with the job's
+# own registry credentials (no personal token), and prints the digest for BUILDER_DIGEST. Buildah
+# needs no Docker daemon. Always on gitlab.com's hosted runners, whatever the `runner` input says: a
+# Docker executor's default seccomp profile refuses the user namespace Buildah asks for, and the pc
+# runner is never made privileged to allow it.
+builder-image:
+  stage: image
+  image: $BUILDAH_IMAGE
+  tags: [saas-linux-medium-amd64]
+  rules:
+    # Any branch, so a branch's image can be built and tried before it's merged: a branch's pipeline
+    # pushes its own tag (BUILDER_SUFFIX, set in workflow:rules), and main and release tags run in
+    # main's image by digest, whatever a tag holds. Never on a tag, whose pipeline would push
+    # main's tag.
+    - if: $TASK == "image" && $CI_COMMIT_BRANCH
+  variables:
+    GIT_DEPTH: "1"
+    STORAGE_DRIVER: vfs
+    BUILDAH_FORMAT: docker
+    BUILDAH_ISOLATION: chroot
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - buildah build --file ci/Dockerfile --tag "$BUILDER_PUSH" ci
+    # On main, the image is also pushed as builder:<BUILDER_TAG>.job<job id>: the job id is new for
+    # every attempt and a branch's tag (a ref slug) never has a dot, so no other push writes it, the
+    # digest BUILDER_DIGEST names keeps a tag, and the registry doesn't delete it as untagged (as
+    # long as its cleanup policy keeps the tag). That digest is the one printed.
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+        keep="$CI_REGISTRY_IMAGE/builder:$BUILDER_TAG.job$CI_JOB_ID"
+        buildah push --digestfile builder.digest "$BUILDER_PUSH" "docker://$keep"
+        buildah push "$BUILDER_PUSH"
+        echo "Pushed $keep and $BUILDER_PUSH. Put the digest of $keep in .gitlab-ci.yml, through a merge request that links this job: BUILDER_DIGEST: \"$(cat builder.digest)\""
+      else
+        buildah push --digestfile builder.digest "$BUILDER_PUSH"
+        echo "Pushed $BUILDER_PUSH as $(cat builder.digest), for this branch's pipelines."
+      fi
