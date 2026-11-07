@@ -60,5 +60,5 @@ Mannheim's Tesseract installer (`tennoscope/packaging/windows-tesseract/SOURCES.
 
 For three years from the date of each release, the complete corresponding source code of the GPL-
 and LGPL-licensed libraries bundled in it is available on request: open an issue at
-https://github.com/ShezissSnake/orbiter or contact the maintainer. The source of orbiter and TennoScope
+https://gitlab.com/sheziss-group/orbiter or contact the maintainer. The source of orbiter and TennoScope
 is attached to every release as `orbiter-source.tar.gz`.

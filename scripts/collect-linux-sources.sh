@@ -32,7 +32,7 @@ offer() {
 
 For three years from the date of this release, the complete corresponding source code of the GPL-
 and LGPL-licensed libraries bundled in this build is available on request: open an issue at
-https://github.com/ShezissSnake/orbiter or contact the maintainer.
+https://gitlab.com/sheziss-group/orbiter or contact the maintainer.
 
 The source of orbiter and TennoScope (both GPL-3.0-only) is attached to every release as
 orbiter-source.tar.gz.

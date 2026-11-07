@@ -17,7 +17,7 @@ The Linux and Windows downloads also have `SOURCES.md` here, written when they'r
 library they carry from Ubuntu's packages (Linux) or UB Mannheim's Tesseract installer (Windows),
 with its exact version and where its source is, and a written offer: for three years from the date
 of the release, the complete corresponding source code of the GPL- and LGPL-licensed libraries
-bundled in it is available on request (an issue at https://github.com/ShezissSnake/orbiter, or the
+bundled in it is available on request (an issue at https://gitlab.com/sheziss-group/orbiter, or the
 maintainer). On Linux, `linux/` holds the copyright file of each library the AppImage carries
 beside orbiter itself (GTK, WebKitGTK and the rest).
 

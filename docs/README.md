@@ -6,7 +6,7 @@
 | [features.md](features.md) | Every page and what it does, getting around, known limits. |
 | [what-it-reads.md](what-it-reads.md) | Every file orbiter reads or keeps, and every host it talks to. |
 | [development.md](development.md) | Running from source, the tests, local builds. |
-| [maintaining.md](maintaining.md) | Going public step by step, and the GitHub settings that live outside the repository. |
+| [maintaining.md](maintaining.md) | Going public step by step, and the GitLab settings that live outside the repository. |
 | [releases/README.md](releases/README.md) | How builds are made, the update channels, and the signing key. |
 | [releases/first-public.md](releases/first-public.md) | The description for the first public Stable release. |
 | [testing/windows.md](testing/windows.md) | What still needs checking on a real Windows machine. |

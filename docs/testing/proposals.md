@@ -9,8 +9,8 @@ what's still open is said in each.
 Settled: the MSRV is Rust 1.95, the lowest the lockfile builds with for every release target (on
 Linux `muda` needs 1.90; on Windows `sysinfo` needs 1.95). `rust-version` says 1.95 in
 `src-tauri/Cargo.toml`, `crates/orbiter-data/Cargo.toml` and `tennoscope/Cargo.toml`, and
-`.github/workflows/msrv.yml` checks orbiter's crates on it (Linux only; the Windows check is in
-`windows.md`).
+the pipeline's `test` job (`.gitlab-ci.yml`) checks orbiter's crates on it (Linux only; the Windows
+check is in `windows.md`).
 
 ## 2. Audit results
 
@@ -25,8 +25,8 @@ Linux `muda` needs 1.90; on Windows `sysinfo` needs 1.95). `rust-version` says 1
   approval).
 - **cargo audit**, TennoScope (`tennoscope/Cargo.lock`): no vulnerabilities. The four `zip 4.6.1`
   advisories (RUSTSEC-2026-0367, -0368, -0369, -0429) went with `tauri-plugin-updater` 2.14 and
-  `zip 9.3.0`, so `.github/workflows/audit.yml` no longer needs its ignores for them (#38 removes
-  them).
+  `zip 9.3.0`, so the audit (now in the pipeline's `test` job) needs no ignores for them (GitHub
+  pull request #38 removed them from the old workflow).
 - **Unused code:** no `TODO`, `FIXME`, `XXX` or `HACK` in orbiter's own code. Exports used nowhere
   were removed. Helpers used only by tests are in `tests/support/`, except `loadoutItems`,
   `suggestionNames` and `recipeItems`, which stay in `src/` because they list module-private
