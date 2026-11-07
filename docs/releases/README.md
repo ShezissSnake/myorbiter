@@ -23,16 +23,16 @@ other than `main` always run on the hosted runners (`sign` because on the pc run
 executor's build volume). A branch's pipeline runs in that branch's own builder image: run the
 `image` task on the branch first.
 
-A release pipeline is build *n*, version `0.2.n`, where *n* is the pipeline's number in the
-project plus 100 (builds made on GitHub before the move were numbered below 100; pipelines that
-promote or publish the site use a number too, so build numbers have gaps). A job that has started
-is never cancelled. `test` runs the tests, checks the MSRV and audits both lockfiles; `build`
-(`ci/build.sh`) builds TennoScope from `tennoscope/` and orbiter for Linux (the AppImage and the
-.deb, on Ubuntu 24.04, so the AppImage needs glibc 2.39 or newer: a system from 2024 on) and,
-with the *windows* box ticked, the Windows installer, cross-compiled
-with cargo-xwin in the same job. Only a pipeline on `main` or a release tag goes further; on any
-other branch the downloads stay as the build job's artifacts for 3 days. Between jobs the files
-travel as job artifacts, kept 3 days.
+A release pipeline is build *n*, version `0.2.n`, where *n* is the pipeline's number in the project
+plus 100 (builds made on GitHub before the move were numbered below 100; pipelines that promote or
+publish the site use a number too, so build numbers have gaps). A job that has started is never
+cancelled. `test` runs the tests, checks the MSRV and audits both lockfiles; `build` (`ci/build.sh`)
+builds TennoScope from `tennoscope/` and orbiter for Linux (the AppImage and the .deb, on Ubuntu
+22.04, so they need nothing newer than glibc 2.35 and run on SteamOS, Debian 12 and any Linux from
+the last few years) and, with the *windows* box ticked, the Windows installer, cross-compiled with
+cargo-xwin in the same job. Only a pipeline on `main` or a release tag goes further; on any other
+branch the downloads stay as the build job's artifacts for 3 days. Between jobs the files travel as
+job artifacts, kept 3 days.
 
 The jobs that build (and so run npm, pnpm and Cargo code) never see the signing key. Unlike on
 GitHub, they can write the package registry and the releases: GitLab gives every job a token with
