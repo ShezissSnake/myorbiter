@@ -28,8 +28,9 @@ plus 100 (builds made on GitHub before the move were numbered below 100; pipelin
 publish the site use a number too, so build numbers have gaps). A job that has started is never
 cancelled. `test` runs the tests, checks the MSRV and audits both lockfiles; `build` (`ci/build.sh`)
 builds TennoScope from `tennoscope/` and orbiter for Linux (the AppImage and the .deb, on Ubuntu
-22.04, so they need nothing newer than glibc 2.35 and run on SteamOS, Debian 12 and any Linux from
-the last few years) and, with the *windows* box ticked, the Windows installer, cross-compiled with
+22.04: they need nothing newer than glibc 2.35, which `ci/build.sh` checks, and TennoScope uses the
+system's PipeWire, 0.3.48 or newer, so the AppImage runs on SteamOS and both run on Ubuntu 22.04,
+Debian 12 and newer) and, with the *windows* box ticked, the Windows installer, cross-compiled with
 cargo-xwin in the same job. Only a pipeline on `main` or a release tag goes further; on any other
 branch the downloads stay as the build job's artifacts for 3 days. Between jobs the files travel as
 job artifacts, kept 3 days.
