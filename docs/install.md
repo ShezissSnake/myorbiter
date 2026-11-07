@@ -5,7 +5,8 @@ blank, console players, the first start and updates.
 
 ## Downloads
 
-Each build is on *Releases*. The Linux and Windows downloads carry TennoScope inside them, built
+Each build is on *Releases* (gitlab.com/sheziss-group/orbiter/-/releases): the Linux AppImage, a
+`.deb` for Debian and Ubuntu, and the Windows installer. They carry TennoScope inside them, built
 from `tennoscope/` in this repository (TennoScope with orbiter's changes, see
 `tennoscope/ORBITER.md`), with the OCR engine its reward overlay uses. Nothing else needs
 installing. On Windows the one exception is WebView2: Windows 11 and an updated Windows 10 already
@@ -30,12 +31,12 @@ It isn't signed, so SmartScreen warns the first time: *More info → Run anyway*
 
 ### macOS
 
-There is no macOS download on the usual builds. A release run can build an Apple silicon `.dmg`
-when one is asked for. Such a build isn't notarised: the first time, macOS refuses to open it, and
-*System Settings → Privacy & Security → Open Anyway* lets it run. TennoScope doesn't run on macOS,
-so a Mac has no inventory. Your warframe.market listings and sales, fissures, Baro and Varzia, the
-world's clocks and the riven finder work; the collection pages stay empty. No channel carries a
-macOS build, so it never updates itself.
+There is no macOS download: the release pipeline builds for Linux and Windows only. orbiter can be
+built on a Mac from source (`docs/development.md`); such a build isn't notarised: the first time,
+macOS refuses to open it, and *System Settings → Privacy & Security → Open Anyway* lets it run.
+TennoScope doesn't run on macOS, so a Mac has no inventory. Your warframe.market listings and
+sales, fissures, Baro and Varzia, the world's clocks and the riven finder work; the collection pages
+stay empty. A macOS build never updates itself.
 
 ### Xbox, PlayStation, Switch or mobile
 
@@ -52,9 +53,9 @@ sold by itself. The collection pages are PC only, and orbiter doesn't start Tenn
 Every release lists the SHA-256 of each of its files in `SHA256SUMS`, beside them. The README shows
 the check on Linux and Windows; on macOS it's `shasum -a 256 --check --ignore-missing SHA256SUMS`.
 
-Once the repository is public, each release also carries GitHub's record of where its files were
-built: `gh attestation verify <file> --repo ShezissSnake/orbiter` checks that a file came from this
-repository's release workflow, unchanged.
+The files are also in the project's package registry, at the addresses the release links to; the
+release's `SHA256SUMS` covers them all. (Builds made on GitHub before the move carried GitHub's
+attestations; builds on GitLab don't.)
 
 ## If the window stays blank (Linux)
 
@@ -94,7 +95,7 @@ restart.
 
 ## Updates
 
-orbiter updates itself from this repository's releases (Settings → *Updates*). Each installed copy
+orbiter updates itself from this project's releases on GitLab (Settings → *Updates*). Each installed copy
 follows one channel:
 
 - **Stable** (the default): tested builds.
@@ -109,7 +110,8 @@ How each kind updates:
 - The Linux AppImage replaces its own file. It needs a folder you can write to; orbiter says so if
   it can't.
 - The Windows installer runs by itself (passive mode) and restarts orbiter.
-- A `.deb` or `.rpm` (only from a build of your own) and a macOS build are not updated by orbiter.
+- The `.deb`, a `.rpm` (only from a build of your own) and a macOS build are not updated by
+  orbiter: install a newer one by hand.
 
 orbiter installs nothing without a click on *Update and restart*. A step back to an older build
 (switching to a more stable channel that's behind) happens only on a click that names it, and a

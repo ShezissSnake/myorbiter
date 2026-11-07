@@ -27,8 +27,9 @@ online status) list, change and close orders and post reviews as you.
 ## Install
 
 Download the latest Stable build from
-[Releases](https://github.com/ShezissSnake/orbiter/releases/latest). TennoScope is inside it; there
-is nothing else to install.
+[the website](https://sheziss-group.gitlab.io/orbiter/#download) (every build, Beta and
+Experimental too, is on [Releases](https://gitlab.com/sheziss-group/orbiter/-/releases)).
+TennoScope is inside it; there is nothing else to install.
 
 - **Linux and Steam Deck:** `orbiter_<version>_amd64.AppImage`. Make it executable
   (`chmod +x orbiter_*.AppImage`, or *Properties → Permissions → Is executable* in Dolphin), then
@@ -72,7 +73,7 @@ nothing by itself. Security problems go through [SECURITY.md](SECURITY.md).
 
 ## More
 
-- [The Guide](https://shezisssnake.github.io/orbiter/guide/) (also in the app: F1) and
-  [What's New](https://shezisssnake.github.io/orbiter/whats-new.html)
+- [The Guide](https://sheziss-group.gitlab.io/orbiter/guide/) (also in the app: F1) and
+  [What's New](https://sheziss-group.gitlab.io/orbiter/whats-new.html)
 - [docs/](docs/): what orbiter does, what it reads and sends, running it from source, releases
-- [The website](https://shezisssnake.github.io/orbiter/)
+- [The website](https://sheziss-group.gitlab.io/orbiter/)

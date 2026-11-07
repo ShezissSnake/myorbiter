@@ -1,42 +1,42 @@
 # Maintaining the public repository
 
-GitHub settings that can't live in the repository: switch them on by hand once
-`ShezissSnake/orbiter` is public, and check them again after any change to the repository's
-settings. Each line says where it is.
+GitLab settings that can't live in the repository: set them by hand once, before
+`sheziss-group/orbiter` goes public, and check them again after any change to the project's or
+the group's settings. Each line says where it is. Everything here works on GitLab Free.
 
 ## Going public, step by step
 
-Every step in order, from a private repository to the first public Stable installed by hand.
-Every step needs admin rights on the repository; the ones marked **(maintainer)** are the
-maintainer's own clicks, signed in to GitHub as `ShezissSnake` (the account's settings, the
-visibility switch, the signing key, the promotions). Each step links to its details further
-down; tick it here when it's done. The commands work in fish and in bash, from a clone of the
-repository whose `origin` is `ShezissSnake/orbiter`.
+Every step in order, from a private project to the first public Stable installed by hand. Every
+step needs the Owner or Maintainer role; the ones marked **(maintainer)** are the maintainer's own
+clicks (the visibility switch, the signing key, the runner, the promotions). Each step links to
+its details further down; tick it here when it's done. The commands work in fish and in bash,
+from a clone whose `origin` is `gitlab.com/sheziss-group/orbiter`.
 
-**1. Before the switch** (the repository is still private)
+**1. Before the switch** (the project is still private)
 
 - [ ] **The signing key is backed up offline (maintainer).** `~/.tauri/orbiter.key` and its
       password are kept somewhere off this computer; `docs/releases/README.md`, *The signing key*,
       says why.
-- [ ] **Every pull request meant for the first public build is merged**, and the branches that
-      only held finished work are deleted, so only `main` and the branches of open pull requests go
-      public: *Code* → *Branches* → the bin icon on each branch whose pull request is merged or
-      closed, Dependabot's included. Or, from a terminal, once per such branch (here one named
-      `work/example`):
+- [ ] **Every merge request meant for the first public build is merged**, and the branches that
+      only held finished work are deleted, so only `main` and the branches of open merge requests
+      go public: *Code* → *Branches* → the bin icon on each merged branch. Or, from a terminal,
+      once per such branch (here one named `work/example`):
 
       ```fish
       git push origin --delete work/example
       ```
 
-      Then `git ls-remote --heads origin` lists `main` and open pull requests' branches only.
-- [ ] **Releases hold only 0.2 builds:** *Releases* lists `build-<n>` pre-releases and the
-      `channel-…` releases, nothing older.
-- [ ] **Commit e-mail stays private (maintainer)** (*Before making it public*, below).
-- [ ] **The history is read once more** for anything personal or secret, and no leftover
-      `build-<n>` tag points at a commit its run didn't build (*Before making it public*):
+      Then `git ls-remote --heads origin` lists `main` and open merge requests' branches only.
+- [ ] **The settings below are in place:** *Protected branches and tags*, *CI/CD*, *The signing
+      key*, *The runner*, *Packages*, *Issues*, *Features not in use*.
+- [ ] **The history is read once more** for anything personal or secret (real names, home paths,
+      trade records, other players' names, tokens). Making a project public publishes every
+      commit, every tag and every branch, not only `main`.
+- [ ] **No tag points at a commit it shouldn't:** the `build-<n>` tags from GitHub (below 100) name
+      the commits those builds came from; GitLab's builds start at 100.
 
       ```fish
-      git ls-remote --tags origin 'build-*'
+      git ls-remote --tags origin
       ```
 
 - [ ] **Everything passes on `main`:**
@@ -54,176 +54,155 @@ repository whose `origin` is `ShezissSnake/orbiter`.
       with a TennoScope folder, run `npm run dev-bundle` and `npm run dev-data` before `npm test` so
       they run too; they must pass there as well. Elsewhere skip both: `dev-bundle` needs that
       folder.
-- [ ] **The newest Experimental build** installed, and updated itself once.
+- [ ] **The builder image exists:** *Build* → *Pipelines* → **New pipeline** → branch `main`,
+      *task* `image` → **New pipeline**. Its log ends with the image's digest; pin
+      `BUILDER_IMAGE` in `.gitlab-ci.yml` to it through a merge request.
+- [ ] **A first build on `main`:** New pipeline → branch `main`, *task* `release`, *windows*
+      ticked. While the project is private the build signs and publishes as usual; installed
+      copies just can't reach it yet.
 
 **2. Make it public (maintainer)**
 
-- [ ] Settings → General → *Danger Zone* → **Change repository visibility** → **Change to
-      public** → read the warnings → type `ShezissSnake/orbiter` → **I want to make this
-      repository public** (GitHub may ask for the password or a passkey).
-- [ ] From now on `nightly.yml` starts an Experimental build each night that `main` has
-      changed (03:17 UTC); the weekly audit and MSRV checks already run while it's private.
-      Nothing is built at the switch itself. Steps 2 to 5 are best done in one sitting: a nightly build
-      that comes first is fine (it signs with the repository secrets while they're still
-      there), and step 5 then builds once more by hand.
-
-**3. GitHub settings** (most of these exist on GitHub Free only for public repositories)
-
-- [ ] Private vulnerability reporting, secret scanning with push protection, Dependabot alerts
-      and security updates (*Before making it public*).
-- [ ] The Actions settings: fork pull requests wait for approval, a read-only token, pinned
-      actions only (*Actions*).
-- [ ] Rulesets for `main` and the release tags (*Branches and tags*).
-- [ ] Wiki, Discussions and Projects off unless used (*Features not in use*).
-- [ ] **The website (maintainer):** Settings → Pages → *Build and deployment* → *Source*:
-      **GitHub Actions**. Then Actions → *Website* → **Run workflow** → branch `main` → **Run
-      workflow**; when it's green, its *Publish on Pages* job links to the site
-      (`https://shezisssnake.github.io/orbiter/`). With no Stable release yet its download
-      buttons point at *Releases*; step 6 runs it again.
-
-**4. Move the signing secrets (maintainer)** into the `release-signing` environment (*The
-signing key's environment*, below, step by step): create it, limit it to `main`, add the two
-secrets, delete the repository copies, optionally require approval.
-
-- [ ] Done: Settings → Secrets and variables → Actions → *Repository secrets* no longer lists
-      `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and Settings →
-      Environments → `release-signing` → *Environment secrets* lists both.
-
-**5. A first public build**
-
-- [ ] Actions → *Release builds* → **Run workflow** → *Use workflow from*: `main`, *Windows
-      installer* ticked, *macOS dmg* as wanted → **Run workflow**. Note the run's number *n*
-      (shown as `#n` in the list).
-- [ ] The run is green; its *Sign the updater downloads* job names the `release-signing`
-      environment (if approval is on: **Review deployments** → tick `release-signing` →
-      **Approve and deploy**); its summary has no "No updater files" line.
-- [ ] Release `build-<n>` carries the AppImage, the setup.exe, both `.sig` files, `latest.json`,
-      `SHA256SUMS` and `orbiter-source.tar.gz`; `channel-experimental` names 0.2.*n*.
-- [ ] Its files were built here (attestations exist only for builds made while the repository is
-      public), on any computer with the GitHub CLI, in an empty folder, with the build's number
-      in place of `N` (for build 31, `build-31` and `0.2.31`):
+- [ ] The group first: the group's *Settings* → *General* → *Naming, visibility* → **Public** →
+      Save. (A project can't be more visible than its group.)
+- [ ] Then the project: *Settings* → *General* → *Visibility, project features, permissions* →
+      *Project visibility* **Public** → **Save changes**.
+- [ ] Anonymous reads work: each prints the channel's manifest, not an error.
 
       ```fish
-      gh release download build-N --repo ShezissSnake/orbiter --pattern '*.AppImage' --pattern '*-setup.exe'
-      gh attestation verify orbiter_0.2.N_amd64.AppImage --repo ShezissSnake/orbiter
-      gh attestation verify orbiter_0.2.N_x64-setup.exe --repo ShezissSnake/orbiter
+      curl -fsS 'https://gitlab.com/api/v4/projects/sheziss-group%2Forbiter/packages/generic/channel/experimental/latest.json'
+      node scripts/issues-digest.mjs --fetch
       ```
 
-**6. Promote it to Stable (maintainer)**
+**3. The website (maintainer):** *Deploy* → *Pages*: untick **Use unique domain** (so the site is
+`https://sheziss-group.gitlab.io/orbiter/`, as the README links), Save. Then New pipeline →
+branch `main`, *task* `pages`. With no Stable build yet its download buttons point at
+*Releases*; step 5 runs it again.
+
+**4. A first public build**
+
+- [ ] New pipeline → branch `main`, *task* `release`, *windows* ticked → **New pipeline**. Note
+      the build number: the `build` job's log says "Build *n*, version 0.2.*n*".
+- [ ] Every job is green; the `sign` log has no "No updater files" line.
+- [ ] Release `build-<n>` (*Deploy* → *Releases*) links to the AppImage, the .deb, the setup.exe,
+      both `.sig` files, `latest.json`, `SHA256SUMS` and `orbiter-source.tar.gz`, and
+      `channel/experimental/latest.json` names 0.2.*n*:
+
+      ```fish
+      curl -fsS 'https://gitlab.com/api/v4/projects/sheziss-group%2Forbiter/packages/generic/channel/experimental/latest.json'
+      ```
+
+**5. Promote it to Stable (maintainer)**
 
 - [ ] Install it from Experimental on Linux and on Windows, and use it for a while: start, sync,
       a page of each section, Settings → Updates → *Check now*.
-- [ ] Actions → *Promote a build* → **Run workflow** → *Use workflow from*: `main`, *Build
-      number*: *n*, *Channel*: **beta** → **Run workflow**; when it's green, the same with
-      **stable**. (Stable alone also moves Beta up.)
-- [ ] `channel-stable` and `channel-beta` name 0.2.*n*, and `build-<n>` is a full release marked
-      *Latest*.
+- [ ] New pipeline → branch `main`, *task* `promote`, *build* *n*, *channel* **beta**; when it's
+      green, the same with **stable**. (Stable alone also moves Beta up.)
+- [ ] `channel/stable/latest.json` and `channel/beta/latest.json` name 0.2.*n*.
 - [ ] Release notes: in `docs/releases/first-public.md`, put the version (0.2.*n*) in place of
-      each `<0.2.N>`, through a pull request like any change (the ruleset on `main` may ask for
-      one; the next nightly build then picks it up), then open `build-<n>` → the pencil icon (*Edit*) → replace its
-      description with that file's text → **Update release**. (The update screen's notes come from
-      `latest.json`, not from this description, so they don't change.)
-- [ ] Actions → *Website* → **Run workflow**, so its download buttons point at this release
-      (it also does it by itself once a day).
+      each `<0.2.N>`, through a merge request like any change, then open release `build-<n>` →
+      **Edit this release** → replace its description with that file's text → **Save changes**.
+      (The update screen's notes come from `latest.json`, not from this description, so they
+      don't change.)
+- [ ] New pipeline → branch `main`, *task* `pages`, so the download buttons point at this build.
 
-**7. The first manual install**, as a new player would do it
+**6. The first manual install**, as a new player would do it
 
-- [ ] On a computer without orbiter, open the website's *Download* or the repository's
-      *Releases*, take *Latest*'s AppImage (or setup.exe) and `SHA256SUMS`, and check it
-      (README, *Checking a download*).
+- [ ] On a computer without orbiter, open the website's *Download*, take the AppImage (or
+      setup.exe) and `SHA256SUMS`, and check it (README, *Checking a download*).
 - [ ] Install and start it: the first-start walk-through appears, Full mode is off, and Settings →
       Updates says Stable and the version 0.2.*n*.
 - [ ] *Check now* says it's up to date. When the next build reaches Stable, that copy offers it and
       updates with one click.
 
-## Before making it public
+## Protected branches and tags
 
-- [ ] **Private vulnerability reporting:** Settings → Code security → Private vulnerability
-      reporting → Enable. `SECURITY.md` and the issue form's "Report a security problem" link point
-      at it.
-- [ ] **Secret scanning and push protection:** Settings → Code security → Secret scanning → Enable,
-      and Push protection → Enable. Push protection refuses a push that carries a recognised token.
-- [ ] **Dependabot alerts and security updates:** Settings → Code security → Dependabot alerts and
-      Dependabot security updates → Enable. (Version updates are already set up in
-      `.github/dependabot.yml`.)
-- [ ] **Read the history once more** for anything personal or secret (real names, home paths, trade
-      records, other players' names, tokens). Making a repository public publishes every commit,
-      every tag and every branch, Dependabot's included, not only `main`.
-- [ ] **Commit e-mail stays private:** account Settings → Emails → tick **Keep my email addresses
-      private** and **Block command line pushes that expose my email**. Commits made on github.com
-      then carry the `users.noreply.github.com` address, and a push with any other address is
-      refused.
-- [ ] **No leftover tags from before this repository:** every `build-<n>` tag must point at the
-      commit run `<n>` of `release.yml` built. Release runs are numbered from 1 in this repository;
-      `gh release create --target` reuses a tag that already exists, so an older `build-<n>` tag
-      would put run `<n>`'s release on the older commit. List them with
-      `git ls-remote --tags origin 'build-*'` and compare each with its release's commit.
+- [ ] **`main`:** *Settings* → *Repository* → *Protected branches*: `main`, allowed to merge and to
+      push: Maintainers; *Allowed to force push* off.
+- [ ] **Release tags:** *Settings* → *Repository* → *Protected tags* → `release-*`, allowed to
+      create: Maintainers. Only a protected tag's pipeline gets the signing key, and a tag
+      pipeline builds whatever commit the tag names (the pipeline stops if it isn't on `main`).
+- [ ] **Build tags:** the same for `build-*`, so a published build's tag can't be moved by
+      someone else (the release job makes them, with the role of whoever started the pipeline).
 
-## Actions
+## CI/CD
 
-- [ ] **Fork pull requests wait for approval:** Settings → Actions → General → "Approval for running
-      fork pull request workflows from contributors" → **Require approval for all outside
-      collaborators**.
-- [ ] **Read-only token by default:** Settings → Actions → General → Workflow permissions → **Read
-      repository contents and packages permissions**. Each workflow asks for more itself, job by job.
-- [ ] Same place: leave **Allow GitHub Actions to create and approve pull requests** unticked.
-- [ ] **Pinned actions only:** Settings → Actions → General → Actions permissions → tick **Require
-      actions to be pinned to a full-length commit SHA** (every workflow here already pins them).
-- [ ] Never add a workflow triggered by `pull_request_target`, `issue_comment`, `issues` or
-      `workflow_run`, and never give a job that runs for one of them the release secrets.
+*Settings* → *CI/CD*:
 
-## The signing key's environment
+- [ ] **Variables** → *Minimum role to use pipeline variables*: **No one allowed**. The pipeline's
+      inputs (task, build, channel, windows, runner) are all it takes; a variable set by hand could
+      otherwise change what a job runs. Never set `CI_DEBUG_TRACE`.
+- [ ] **General pipelines** → untick **Public pipelines** (the jobs' logs and artifacts stay
+      members-only; the releases and their files are public anyway). **Auto-cancel redundant
+      pipelines** off.
+- [ ] **Job token permissions** → *Limit access to this project* on, with nothing in the allowlist.
+- [ ] **Auto DevOps** off.
+- [ ] Never add a pipeline that runs for merge requests from forks with the project's variables,
+      or one triggered by issues, comments or webhooks.
 
-The updater's signing key and its password (`TAURI_SIGNING_PRIVATE_KEY`,
-`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`) are read by one job only: `sign` in `release.yml`, which runs
-on `main`, builds and installs nothing, and names the `release-signing` environment. Kept as
-environment secrets, no other job in any workflow can read them, and GitHub can hold the sign job
-until it's approved. GitHub Free offers environments to public repositories only, so while the
-repository is private the two stay repository secrets (a job reads a repository secret when its
-environment has none of that name), and they move once it's public. Every step here is the
-maintainer's own (the key and its password are only on the maintainer's side):
+What GitLab can't narrow: every job's `CI_JOB_TOKEN` can write this project's packages and
+releases with the role of whoever started the pipeline, the jobs that run build code included.
+The signing key is what protects installed copies (`.gitlab-ci.yml`, at the top).
 
-- [ ] **Create the environment:** Settings → Environments → New environment, named exactly
-      `release-signing`. (The first release run after it's public may have made it already, empty:
-      then open that one.)
-- [ ] **Main only:** in the environment, Deployment branches and tags → **Selected branches and
-      tags** → add the rule `main`. A run on any other branch can then never get the key, even if a
-      workflow there asks for it.
-- [ ] **Move the two secrets:** in the environment, Environment secrets → Add secret, once for
-      `TAURI_SIGNING_PRIVATE_KEY` (the whole text of `~/.tauri/orbiter.key`, from the offline backup)
-      and once for `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Then delete both from Settings → Secrets and
-      variables → Actions → Repository secrets: while a repository copy exists, any job could read it.
-- [ ] **Optionally, approval:** in the environment, **Required reviewers** → the maintainer. Every
-      build on `main` then stops at "Sign the updater downloads" until it's approved on the run's
-      page (Review deployments). Approve within 3 days, while the run's build artifacts still exist,
-      or start a new run. Leave "Prevent self-review" off while there's one maintainer, or no run
-      could ever be approved.
-- [ ] **Check it:** the next release run's sign job shows the environment, its summary has no "No
-      updater files" line, and the release carries the `.sig` files and `latest.json`.
+## The signing key
 
-## Branches and tags
+The updater's signing key and its password are read by one job only: `sign` in `.gitlab-ci.yml`,
+which builds and installs nothing. Every step here is the maintainer's own (the key and its
+password are only on the maintainer's side):
 
-- [ ] **A ruleset for `main`:** Settings → Rules → Rulesets → New branch ruleset, target the default
-      branch: **Restrict deletions** and **Block force pushes** on. Optionally **Require a pull
-      request before merging** with **Require review from Code Owners** (`.github/CODEOWNERS`), once
-      there's a second person who can review.
-- [ ] **A ruleset for release tags:** a tag ruleset for `build-*` and `channel-*` with **Restrict
-      updates** and **Restrict deletions**, bypassed only by the maintainer, so a published build or
-      a channel can't be moved by hand. (Builds start from `nightly.yml` or Run workflow, not from
-      tags.)
+- [ ] **The environment:** *Operate* → *Environments* → **Create an environment** named exactly
+      `release-signing`. (The first release pipeline may have made it already: then it's there.)
+- [ ] **The two variables:** *Settings* → *CI/CD* → *Variables* → **Add variable**, twice:
+      `TAURI_SIGNING_PRIVATE_KEY` (the whole text of `~/.tauri/orbiter.key`, from the offline
+      backup) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Each: type **Variable** (not File),
+      environment scope **release-signing**, **Protect variable** ticked (`main` and protected
+      tags only), visibility **Masked and hidden**, **Expand variable reference** unticked.
+- [ ] **Check it:** the next release pipeline's `sign` job has no "No updater files" line, and the
+      release carries the `.sig` files and `latest.json`.
+
+GitLab Free has no approval step for an environment (protected environments are a paid feature):
+a pipeline on `main` or a protected tag signs as soon as `sign` runs.
+
+## The runner
+
+The `pc` jobs run on the project's own runner (*Settings* → *CI/CD* → *Runners* → **New project
+runner**, tag `pc`, *Run untagged jobs* off):
+
+- [ ] **The Docker executor**, never the shell executor: each job then runs in its own container,
+      which is what keeps the signing key away from the jobs that build.
+- [ ] `privileged = false`. The `image` task needs Buildah's user namespace, which Docker's default
+      seccomp profile refuses: run that task with *runner* `cloud` (gitlab.com's hosted runners
+      allow it), or give the runner a second, separate entry for it.
+- [ ] Branch pipelines run that branch's code on this computer, as any build of it there would.
+
+## Packages
+
+- [ ] **Duplicates allowed for generic packages:** the group's *Settings* → *Packages and
+      registries* → *Duplicate packages* → Generic: **Allow duplicates** on (the default). Each
+      channel's `latest.json` is replaced by uploading it again.
+- [ ] Never delete the `channel` and `stable-builds` packages: every installed copy reads them.
+
+## Issues
+
+- [ ] **The labels** `bug` and `needs-triage` exist (*Manage* → *Labels*).
+- [ ] **Confidential issues** stay available (they're how `SECURITY.md` asks for private reports);
+      only members can read one.
+- [ ] *Service Desk* off unless it will be read.
 
 ## Features not in use
 
-- [ ] **Wiki:** Settings → General → Features → untick Wikis (the README and `docs/` are the docs).
-- [ ] **Discussions:** leave off unless they'll be read; spam and injection attempts land there too.
-- [ ] **Projects:** untick if unused.
+*Settings* → *General* → *Visibility, project features, permissions*: untick **Wiki**,
+**Snippets**, **Requirements**, **Model experiments**, **Monitor** and any other feature not in
+use. Keep **Issues**, **Repository**, **Merge requests**, **CI/CD**, **Container registry**,
+**Package registry**, **Releases**, **Environments** and **Pages**.
 
 ## AI and automation
 
-- [ ] **Never install an AI bot or GitHub App that acts on public comments** (answers, labels, opens
-      pull requests or runs anything because someone wrote an issue or comment). Anyone can write
+- [ ] **Never install an AI bot or integration that acts on public comments** (answers, labels,
+      opens merge requests or runs anything because someone wrote an issue or comment). Anyone can write
       one, and its text would become that bot's instructions.
 - [ ] Read issues in a Claude session through `scripts/issues-digest.mjs` (see `CLAUDE.md`), never
       by pasting them raw.
-- [ ] Issues from the app's Report a bug come in with the `bug` and `needs-triage` labels; nothing
-      acts on them by itself. Keep it that way: no workflow should trigger on those labels.
+- [ ] Issues from the app's Report a bug come in with the `bug` and `needs-triage` labels (where
+      GitLab lets the reporter set them); nothing acts on them by itself. Keep it that way: no
+      pipeline, webhook or integration should trigger on issues, comments or those labels.
