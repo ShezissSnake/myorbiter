@@ -21,7 +21,7 @@
 #
 # How it differs from the release build: it isn't signed (no updater files, so it never offers
 # itself as an update), it links against this system's libraries, which are newer than the
-# Ubuntu 24.04 the release builds on (so it may not start on an older system or SteamOS), and
+# Ubuntu 22.04 the release builds on (so it may not start on an older system or SteamOS), and
 # the bundled libraries' notices are matched with pacman rather than dpkg, without the list of
 # their sources (THIRD-PARTY-NOTICES/SOURCES.md says so). Fine for testing; share release builds.
 #
