@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Builds orbiter's Linux AppImage on this PC, the way the release workflow's Linux job does
-# (.github/workflows/release.yml): Tesseract put inside TennoScope, TennoScope's own AppImage
+# Builds orbiter's Linux AppImage on this PC, the way the release pipeline's build job does
+# (ci/build.sh, run by .gitlab-ci.yml): Tesseract put inside TennoScope, TennoScope's own AppImage
 # build, orbiter's AppImage with TennoScope inside it, and the same repack step
-# (scripts/repack-appimage.sh). For trying a build out locally without a release run.
+# (scripts/repack-appimage.sh). For trying a build out locally without a pipeline. To build
+# exactly as the pipeline does, run ci/build.sh in the builder image instead (ci/Dockerfile).
 #
 #   scripts/build-local.sh [--version X.Y.Z] [--skip-tennoscope] [--check]
 #
@@ -20,7 +21,7 @@
 #
 # How it differs from the release build: it isn't signed (no updater files, so it never offers
 # itself as an update), it links against this system's libraries, which are newer than the
-# Ubuntu 22.04 the release builds on (so it may not start on an older system or SteamOS), and
+# Ubuntu 24.04 the release builds on (so it may not start on an older system or SteamOS), and
 # the bundled libraries' notices are matched with pacman rather than dpkg, without the list of
 # their sources (THIRD-PARTY-NOTICES/SOURCES.md says so). Fine for testing; share release builds.
 #

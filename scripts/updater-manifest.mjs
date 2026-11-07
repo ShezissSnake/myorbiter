@@ -1,13 +1,16 @@
 #!/usr/bin/env node
-// The updater manifest (latest.json) for one build, and the checks around it. release.yml and
-// promote.yml run it; tests/updaterManifest.test.ts covers it.
+// The updater manifest (latest.json) for one build, and the checks around it. The release and
+// promote jobs in .gitlab-ci.yml run it; tests/updaterManifest.test.ts covers it.
 //
 //   git log --format=%s A..B | node scripts/updater-manifest.mjs notes      the release notes, on stdout
 //   node scripts/updater-manifest.mjs verify --file F --sig F.sig --version 0.2.52 [--config src-tauri/tauri.conf.json]
-//   node scripts/updater-manifest.mjs manifest --dir DIR --version 0.2.52 --tag build-52 --repo OWNER/NAME
+//   node scripts/updater-manifest.mjs manifest --dir DIR --version 0.2.152 --base URL
 //        [--commit SHA] [--notes-file notes.txt] [--config src-tauri/tauri.conf.json] [--out latest.json]
-//   node scripts/updater-manifest.mjs check --manifest latest.json --version 0.2.52 [--require linux-x86_64,windows-x86_64]
-//        [--repo OWNER/NAME --tag build-52]
+//   node scripts/updater-manifest.mjs check --manifest latest.json --version 0.2.152 [--require linux-x86_64,windows-x86_64]
+//        [--base URL]
+//
+// URL (--base) is the folder the build's files are downloaded from, ending in its version: the
+// build's generic package, https://gitlab.com/api/v4/projects/<project>/packages/generic/orbiter/0.2.152.
 //
 // The manifest is what tauri-plugin-updater reads: a version, notes, a date and, for each system,
 // the download's address and its signature. Signatures are minisign signatures made by
@@ -158,13 +161,30 @@ export function findAssets(names) {
 export const rfc3339 = (d) => new Date(d).toISOString().replace(/\.\d{3}Z$/, "Z");
 
 /**
- * The manifest for one build, from the downloads in `dir`, each checked against `pubkey` for
- * `version` first. URLs point at the build's own release (`tag`).
+ * The folder a build's files are downloaded from, checked: https, no user name, query or fragment,
+ * and its last part the build's version (so a manifest can only point at that build's own files).
+ * Returned without a trailing slash.
  */
-export function buildManifest({ dir, version, tag, repo, commit = null, notes = "", pubkey, date = new Date() }) {
+export function checkBase(base, version) {
+  let u;
+  try {
+    u = new URL(base);
+  } catch {
+    throw new Error(`not a download folder: ${base}`);
+  }
+  const b = String(base).replace(/\/+$/, "");
+  if (u.protocol !== "https:" || u.username || u.password || u.search || u.hash || b.includes("?") || b.includes("#")) throw new Error(`not an https download folder: ${base}`);
+  if (version != null && !b.endsWith(`/${version}`)) throw new Error(`${base} isn't the folder of ${version}`);
+  return b;
+}
+
+/**
+ * The manifest for one build, from the downloads in `dir`, each checked against `pubkey` for
+ * `version` first. URLs point at the build's own folder (`base`, ending in the version).
+ */
+export function buildManifest({ dir, version, base, commit = null, notes = "", pubkey, date = new Date() }) {
   if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`not a version: ${version}`);
-  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error(`not a repository: ${repo}`);
-  if (!/^[\w.-]+$/.test(tag)) throw new Error(`not a release tag: ${tag}`);
+  const folder = checkBase(base, version);
   const assets = findAssets(readdirSync(dir));
   if (!Object.keys(assets).length) throw new Error(`no updater downloads in ${dir}`);
   const platforms = {};
@@ -175,7 +195,7 @@ export function buildManifest({ dir, version, tag, repo, commit = null, notes = 
     } catch (e) {
       throw new Error(`${file}: ${e.message}`);
     }
-    platforms[platform] = { signature, url: `https://github.com/${repo}/releases/download/${tag}/${encodeURIComponent(file)}` };
+    platforms[platform] = { signature, url: `${folder}/${encodeURIComponent(file)}` };
   }
   const manifest = { version, notes, pub_date: rfc3339(date), platforms };
   // Not read by the updater: where the next build's notes start from.
@@ -185,24 +205,23 @@ export function buildManifest({ dir, version, tag, repo, commit = null, notes = 
 
 /**
  * Checks a manifest before it goes on a channel: its version, each platform's signature present
- * (and well formed, naming the version), and the systems `require`d all there. With `repo` and
- * `tag`, every download must also be that system's file on that repository's release `tag`, in the
- * exact form buildManifest writes, and every system one the updater serves. Returns its platforms.
+ * (and well formed, naming the version), and the systems `require`d all there. With `base`, every
+ * download must also be that system's file in that folder (the build's own, ending in its
+ * version), in the exact form buildManifest writes, and every system one the updater serves.
+ * Returns its platforms.
  */
-export function checkManifest(manifest, { version = null, require = [], repo = null, tag = null } = {}) {
+export function checkManifest(manifest, { version = null, require = [], base = null } = {}) {
   if (!manifest || typeof manifest !== "object") throw new Error("not a manifest");
   if (version != null && manifest.version !== version) throw new Error(`the manifest is for ${manifest.version}, not ${version}`);
-  if ((repo == null) !== (tag == null)) throw new Error("check the downloads' release with both a repository and a tag");
-  if (repo != null && !/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error(`not a repository: ${repo}`);
-  if (tag != null && !/^[\w.-]+$/.test(tag)) throw new Error(`not a release tag: ${tag}`);
+  const folder = base == null ? null : checkBase(base, version ?? manifest.version);
   const platforms = Object.keys(manifest.platforms ?? {});
   for (const p of require) if (!platforms.includes(p)) throw new Error(`no ${p} build in it`);
   for (const p of platforms) {
     const { signature, url } = manifest.platforms[p];
     if (typeof url !== "string" || !url.startsWith("https://")) throw new Error(`${p}: no https download`);
-    if (repo != null) {
-      const prefix = `https://github.com/${repo}/releases/download/${tag}/`;
-      if (!url.startsWith(prefix)) throw new Error(`${p}: ${url} isn't on ${repo}'s release ${tag}`);
+    if (folder != null) {
+      const prefix = `${folder}/`;
+      if (!url.startsWith(prefix)) throw new Error(`${p}: ${url} isn't in ${folder}`);
       let name;
       try {
         name = decodeURIComponent(url.slice(prefix.length));
@@ -249,9 +268,9 @@ function main(argv) {
       return;
     }
     case "manifest": {
-      for (const k of ["dir", "version", "tag", "repo"]) if (!a[k]) throw new Error(`manifest needs --${k}`);
+      for (const k of ["dir", "version", "base"]) if (!a[k]) throw new Error(`manifest needs --${k}`);
       const notes = a["notes-file"] ? readFileSync(a["notes-file"], "utf8").trim() : "";
-      const manifest = buildManifest({ dir: a.dir, version: a.version, tag: a.tag, repo: a.repo, commit: a.commit ?? null, notes, pubkey: a.pubkey ?? pubkeyFromConfig(config) });
+      const manifest = buildManifest({ dir: a.dir, version: a.version, base: a.base, commit: a.commit ?? null, notes, pubkey: a.pubkey ?? pubkeyFromConfig(config) });
       const text = `${JSON.stringify(manifest, null, 2)}\n`;
       if (a.out) writeFileSync(a.out, text);
       else process.stdout.write(text);
@@ -262,7 +281,7 @@ function main(argv) {
       if (!a.manifest) throw new Error("check needs --manifest");
       const manifest = JSON.parse(readFileSync(a.manifest, "utf8"));
       const require = a.require ? a.require.split(",").filter(Boolean) : [];
-      console.log(checkManifest(manifest, { version: a.version ?? null, require, repo: a.repo ?? null, tag: a.tag ?? null }).join(","));
+      console.log(checkManifest(manifest, { version: a.version ?? null, require, base: a.base ?? null }).join(","));
       return;
     }
     default:

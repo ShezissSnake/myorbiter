@@ -1,0 +1,359 @@
+# orbiter's pipelines on gitlab.com. They run only when started: by hand (Build → Pipelines →
+# New pipeline, or the pipelines API), or by pushing a release tag (release-<anything>). Never on a
+# push to a branch or for a merge request: tests run on the developer's machine before merging.
+#
+# What a pipeline does is its `task` input, chosen in the New pipeline form:
+#
+#   release (default)  test ─ build ─ sign ─ publish ─ release ─ experimental ─ prune
+#                      Builds the Linux AppImage and .deb and the Windows installer (cross-compiled
+#                      with cargo-xwin) as build <n>, version 0.2.<n>. On main or a release tag it
+#                      also signs, publishes and moves Experimental to the build; on any other branch
+#                      it stops after `build` and leaves the downloads as that job's artifacts, for 3
+#                      days.
+#   promote            promote-check ─ promote: moves build <n> to Beta or Stable (main only).
+#   pages              The website (scripts/site.mjs), on GitLab Pages (main only).
+#   image              The builder image (ci/Dockerfile) every other job runs in. Run it first, and
+#                      after every change to ci/Dockerfile (with a new BUILDER_TAG).
+#
+# Build numbers: <n> is this pipeline's number in the project (CI_PIPELINE_IID, which only grows)
+# plus BUILD_OFFSET. The offset keeps every build newer than the 0.2.<n> builds made before the
+# move, or the updater would never offer it. Promoting, pages and image pipelines use a number
+# too, so build numbers have gaps.
+#
+# Where things live (ci/lib.sh): every file of build <n> in the project's generic package
+# registry as orbiter/0.2.<n>/<file>, beside a release build-<n> that links to them; each
+# channel's latest.json as channel/<stable|beta|experimental>/latest.json, the address installed
+# copies check (src-tauri/src/updates.rs). Promote moves the same signed files, never a rebuild.
+# Pruning keeps the newest 10 Experimental builds and never deletes a build a channel names or one
+# ever promoted to Stable; a deleted build's tag stays.
+#
+# Signing: TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD are CI/CD variables of
+# the project (Settings → CI/CD → Variables): protected (main and protected tags only), masked
+# and hidden, of type Variable, with the environment scope `release-signing`. GitLab gives them only
+# to jobs in that environment, and only `sign` is: it builds and installs nothing, runs the
+# repository's dependency-free signer (scripts/updater-sign.mjs, which never prints the key) and
+# keeps only the .sig files as artifacts. The jobs that run npm, pnpm and Cargo build code never
+# see the key. Without it the build is still published, unsigned and on no channel.
+#
+# Runners: every job runs where the `runner` input says: `pc`, the project runner (tag pc), or
+# `cloud`, gitlab.com's hosted Linux runners (saas-linux-medium-amd64, which spend the namespace's
+# compute minutes).
+#
+# Anything that changes this file, ci/ or the signing variables: ask the maintainer first
+# (CLAUDE.md).
+
+spec:
+  inputs:
+    task:
+      description: "What this pipeline does: release (build, and on main sign, publish and put on Experimental), promote (a build to Beta or Stable), pages (the website), image (the builder image)."
+      options: [release, promote, pages, image]
+      default: release
+    build:
+      description: "promote: the build's number, the n of build-<n> (version 0.2.<n>)."
+      default: "0"
+      regex: ^[0-9]{1,9}$
+    channel:
+      description: "promote: the channel the build moves to."
+      options: [beta, stable]
+      default: beta
+    windows:
+      description: "release: build the Windows installer too. A build without it is published but can't go on a channel."
+      type: boolean
+      default: true
+    runner:
+      description: "Where the jobs run: pc (the project runner) or cloud (gitlab.com's hosted runners, which spend compute minutes)."
+      options: [pc, cloud]
+      default: pc
+---
+
+variables:
+  TASK: $[[ inputs.task ]]
+  PROMOTE_BUILD: $[[ inputs.build ]]
+  PROMOTE_CHANNEL: $[[ inputs.channel ]]
+  WINDOWS: "$[[ inputs.windows ]]"
+  RUNNER: $[[ inputs.runner ]]
+  # The builder image (ci/Dockerfile): change the tag whenever the Dockerfile changes, then run the
+  # image task once before the next build.
+  BUILDER_TAG: "2026-11-07"
+  BUILDER_IMAGE: $CI_REGISTRY_IMAGE/builder:$BUILDER_TAG
+  # Build <n> is CI_PIPELINE_IID + BUILD_OFFSET. The highest build made before the move was below
+  # 100, so the first build here is newer than every one already installed.
+  BUILD_OFFSET: "100"
+  # Experimental builds kept by prune.
+  KEEP: "10"
+  GLAB_IMAGE: registry.gitlab.com/gitlab-org/cli:v1.128.0
+  BUILDAH_IMAGE: quay.io/buildah/stable:v1.43.5
+
+workflow:
+  name: "$TASK: $CI_COMMIT_REF_NAME"
+  rules:
+    # A push starts a pipeline only for a release tag, and only to release. The build-<n> tags
+    # the release job makes, branch pushes and merge requests start nothing.
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG =~ /^release-/ && $TASK == "release"
+      variables:
+        RUNNER_TAG: pc
+    - if: $CI_PIPELINE_SOURCE == "push"
+      when: never
+    # By hand: New pipeline (web) or the pipelines API (api).
+    - if: ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && $RUNNER == "cloud"
+      variables:
+        RUNNER_TAG: saas-linux-medium-amd64
+    - if: $CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api"
+      variables:
+        RUNNER_TAG: pc
+    - when: never
+
+default:
+  image: $BUILDER_IMAGE
+  tags: [$RUNNER_TAG]
+  # A job that has started is never cancelled by a newer pipeline: nothing is half published.
+  interruptible: false
+
+stages: [test, build, sign, publish, release, channel, prune, promote, pages, image]
+
+# Rules shared by the jobs below.
+.release-task:
+  rules:
+    - if: $TASK == "release"
+# Signing and everything after it: a release on main, or on a release tag (which publish checks is
+# on main). Anywhere else the pipeline ends after `build`.
+.publishing:
+  rules:
+    - if: $TASK == "release" && ($CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG =~ /^release-/)
+# Cargo's download cache, per runner: never the target folders (each build starts clean).
+.cargo-cache:
+  variables:
+    CARGO_HOME: $CI_PROJECT_DIR/.cargo-home
+  cache:
+    - key: cargo-$RUNNER_TAG
+      paths: [.cargo-home/registry/index/, .cargo-home/registry/cache/, .cargo-home/git/db/]
+
+# ------------------------------------------------------------------ release
+
+# The tests the developer runs before merging, and a known vulnerability in either Cargo.lock
+# (RustSec, cargo-audit) stops the pipeline before anything is built. cargo test runs on the MSRV
+# (the image's default toolchain, Rust 1.95).
+test:
+  stage: test
+  extends: [.release-task, .cargo-cache]
+  script:
+    - npm ci
+    - npm test
+    - npm run check -- --threshold error
+    # The MSRV: both rust-version fields agree, name the image's default toolchain, and the whole
+    # workspace with its tests builds on it from the lockfile.
+    - |
+      v=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' src-tauri/Cargo.toml)
+      d=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' crates/orbiter-data/Cargo.toml)
+      [[ "$v" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || { echo "no rust-version in src-tauri/Cargo.toml" >&2; exit 1; }
+      [ "$d" = "$v" ] || { echo "crates/orbiter-data says rust-version $d, src-tauri says $v" >&2; exit 1; }
+      r=$(rustc --version | cut -d' ' -f2)
+      [[ "$r" == "$v" || "$r" == "$v".* ]] || { echo "rust-version is $v but the image's toolchain is $r: change RUST_VERSION in ci/Dockerfile" >&2; exit 1; }
+    - cargo check --workspace --tests --locked
+    - (cd src-tauri && cargo test --locked)
+    # Run as cargo-audit, not `cargo audit`, so rustup doesn't install TennoScope's toolchain only
+    # to read a lockfile.
+    - cargo-audit audit --file Cargo.lock
+    - cargo-audit audit --file tennoscope/Cargo.lock
+
+# Linux natively, then Windows cross-compiled, in one job (ci/build.sh). No key, no signing.
+build:
+  stage: build
+  extends: [.release-task, .cargo-cache]
+  needs: [test]
+  timeout: 3h
+  variables:
+    XWIN_CACHE_DIR: $CI_PROJECT_DIR/.xwin-cache
+    # Only the x86_64 Windows SDK and CRT (cargo-xwin otherwise fetches every architecture's).
+    XWIN_ARCH: x86_64
+  cache:
+    - key: cargo-$RUNNER_TAG
+      paths: [.cargo-home/registry/index/, .cargo-home/registry/cache/, .cargo-home/git/db/]
+    - key: xwin-$RUNNER_TAG
+      paths: [.xwin-cache/]
+  script:
+    - n=$((CI_PIPELINE_IID + BUILD_OFFSET))
+    - echo "Build $n, version 0.2.$n, from ${CI_COMMIT_SHORT_SHA}"
+    - if [ "$WINDOWS" = true ]; then ci/build.sh "0.2.$n"; else ci/build.sh "0.2.$n" --no-windows; fi
+    - echo "BUILD=$n" >build.env
+    - |
+      if [ "$CI_COMMIT_BRANCH" != "$CI_DEFAULT_BRANCH" ] && [[ ! "${CI_COMMIT_TAG:-}" =~ ^release- ]]; then
+        echo "Not published: built from $CI_COMMIT_REF_NAME, not $CI_DEFAULT_BRANCH. The downloads are this job's artifacts, for 3 days."
+      fi
+  artifacts:
+    expire_in: 3 days
+    paths: [release-files/]
+    reports:
+      dotenv: build.env
+
+# Signs the AppImage and the setup.exe for the updater. The only job in the release-signing
+# environment, so the only one given the key (see the top of this file). `action: prepare` makes
+# no deployment.
+sign:
+  stage: sign
+  extends: .publishing
+  needs:
+    - job: build
+      artifacts: true
+  environment:
+    name: release-signing
+    action: prepare
+  variables:
+    GIT_DEPTH: "1"
+  script:
+    - |
+      if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+        echo "No updater files: TAURI_SIGNING_PRIVATE_KEY isn't given to this job (a protected variable in the release-signing environment), so build $BUILD is published unsigned and no channel will offer it."
+        exit 0
+      fi
+    - version="0.2.$BUILD"
+    - files=("release-files/orbiter_${version}_amd64.AppImage")
+    - if [ -f "release-files/orbiter_${version}_x64-setup.exe" ]; then files+=("release-files/orbiter_${version}_x64-setup.exe"); fi
+    # Each signature is bound to this version and checked against tauri.conf.json's public key
+    # before it's written.
+    - node scripts/updater-sign.mjs --version "$version" "${files[@]}"
+    - unset TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+    # Once more, with the manifest script's check (the app's), the key gone from the environment.
+    - for sig in release-files/*.sig; do node scripts/updater-manifest.mjs verify --file "${sig%.sig}" --sig "$sig" --version "$version"; done
+  artifacts:
+    expire_in: 3 days
+    paths: [release-files/*.sig]
+
+# The release's files: source, latest.json, SHA256SUMS, every file checked and put in the package
+# registry (ci/publish.sh).
+publish:
+  stage: publish
+  extends: .publishing
+  needs:
+    - job: build
+      artifacts: true
+    - job: sign
+      artifacts: true
+  variables:
+    # The whole history, for the release notes since the build on Experimental.
+    GIT_DEPTH: "0"
+  script:
+    - ci/publish.sh "$BUILD"
+  artifacts:
+    expire_in: 3 days
+    paths: [release-links.json]
+    reports:
+      dotenv: publish.env
+
+# The build-<n> release, at this commit, linking to every file. Made with glab, which replaces
+# release-cli; a re-run finds the release already there and leaves it.
+release:
+  stage: release
+  extends: .publishing
+  image: $GLAB_IMAGE
+  needs:
+    - job: publish
+      artifacts: true
+  variables:
+    GIT_STRATEGY: none
+    GLAB_ENABLE_CI_AUTOLOGIN: "true"
+  script:
+    - |
+      if glab release view "build-$BUILD" -R "$CI_PROJECT_PATH" >/dev/null 2>&1; then
+        echo "The release build-$BUILD is already there."
+      else
+        glab release create "build-$BUILD" -R "$CI_PROJECT_PATH" --ref "$CI_COMMIT_SHA" --no-update \
+          --name "orbiter $VERSION (build-$BUILD)" \
+          --notes "orbiter $VERSION, built from $CI_COMMIT_SHORT_SHA. The AppImage is for Linux and the Steam Deck, the .deb for Debian and Ubuntu, the setup.exe for Windows, whichever this pipeline built. orbiter and the TennoScope inside it are GPL-3.0-only: orbiter-source.tar.gz is the complete source of this build. SHA256SUMS lists every file's checksum." \
+          --assets-links "$(cat release-links.json)"
+      fi
+
+# The build becomes Experimental's, never moving the channel backwards (ci/experimental.sh).
+experimental:
+  stage: channel
+  needs:
+    - job: publish
+      artifacts: true
+    - job: release
+  rules:
+    - if: $TASK == "release" && ($CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG =~ /^release-/)
+  resource_group: channels
+  variables:
+    GIT_DEPTH: "1"
+  script:
+    - |
+      if [ "$COMPLETE" != true ]; then
+        echo "Build $BUILD stays off Experimental: it isn't signed, or has no Windows installer."
+        exit 0
+      fi
+    - ci/experimental.sh "$VERSION"
+
+# Older Experimental builds go (ci/prune.sh).
+prune:
+  stage: prune
+  extends: .publishing
+  needs: [experimental]
+  resource_group: channels
+  variables:
+    GIT_DEPTH: "1"
+  script:
+    - ci/prune.sh
+
+# ------------------------------------------------------------------ promote
+
+# Checks build <n> (ci/promote.sh check); `promote` then copies exactly the latest.json it checked.
+promote-check:
+  stage: promote
+  rules:
+    - if: $TASK == "promote" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  variables:
+    GIT_DEPTH: "1"
+  script:
+    - ci/promote.sh check "$PROMOTE_BUILD"
+  artifacts:
+    reports:
+      dotenv: promote.env
+
+promote:
+  stage: promote
+  rules:
+    - if: $TASK == "promote" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - job: promote-check
+      artifacts: true
+  resource_group: channels
+  variables:
+    GIT_DEPTH: "1"
+  script:
+    - ci/promote.sh promote "$PROMOTE_BUILD" "$PROMOTE_CHANNEL"
+
+# ------------------------------------------------------------------ website
+
+# The site, built and checked (ci/pages.sh), published from public/ on GitLab Pages.
+pages:
+  stage: pages
+  rules:
+    - if: $TASK == "pages" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  variables:
+    GIT_DEPTH: "1"
+  script:
+    - ci/pages.sh
+  pages: true
+
+# ------------------------------------------------------------------ builder image
+
+# Builds ci/Dockerfile and pushes it to this project's container registry as builder:$BUILDER_TAG,
+# with the job's own registry credentials (no personal token). Buildah needs no Docker daemon;
+# whether it runs depends on the runner (a Docker executor's default seccomp profile can refuse the
+# user namespace Buildah asks for; gitlab.com's hosted runners allow it).
+builder-image:
+  stage: image
+  image: $BUILDAH_IMAGE
+  rules:
+    # Any branch, so the image can be built from a branch before the CI that uses it is merged.
+    - if: $TASK == "image"
+  variables:
+    GIT_DEPTH: "1"
+    STORAGE_DRIVER: vfs
+    BUILDAH_FORMAT: docker
+    BUILDAH_ISOLATION: chroot
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - buildah build --file ci/Dockerfile --tag "$BUILDER_IMAGE" ci
+    - buildah push "$BUILDER_IMAGE"
+    - echo "Pushed $BUILDER_IMAGE"

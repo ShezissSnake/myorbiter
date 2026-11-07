@@ -8,8 +8,8 @@ rust-version = "1.95"
 
 [features]
 # For the end-to-end test of updating only: lets ORBITER_UPDATER_E2E_ENDPOINT point update checks at
-# a local http server (updates.rs, `e2e`). Never enabled in a release: release.yml fails any build
-# whose binary carries that name.
+# a local http server (updates.rs, `e2e`). Never enabled in a release: the release build
+# (ci/build.sh) fails any build whose binary carries that name.
 e2e-updater = []
 
 [lib]

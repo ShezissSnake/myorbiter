@@ -24,5 +24,6 @@ export interface Manifest {
   commit?: string;
   platforms: Record<string, { signature: string; url: string }>;
 }
-export function buildManifest(o: { dir: string; version: string; tag: string; repo: string; commit?: string | null; notes?: string; pubkey: string; date?: Date }): Manifest;
-export function checkManifest(manifest: unknown, o?: { version?: string | null; require?: string[]; repo?: string | null; tag?: string | null }): string[];
+export function checkBase(base: string, version: string | null): string;
+export function buildManifest(o: { dir: string; version: string; base: string; commit?: string | null; notes?: string; pubkey: string; date?: Date }): Manifest;
+export function checkManifest(manifest: unknown, o?: { version?: string | null; require?: string[]; base?: string | null }): string[];

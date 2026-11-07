@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Signs the updater downloads with the project's updater key, as `tauri signer sign --app-version`
-// does, in plain Node with no dependencies. release.yml's sign job runs it; that job installs nothing
-// and builds nothing, so the key never shares a job with npm, pnpm or Cargo code.
+// does, in plain Node with no dependencies. The release pipeline's sign job runs it (.gitlab-ci.yml);
+// that job installs nothing and builds nothing, so the key never shares a job with npm, pnpm or
+// Cargo code.
 // tests/updaterSign.test.ts covers it against a key and a signature the Tauri CLI made: the
 // signatures it writes have the CLI's exact form and check out the way the app's updater checks them.
 // (They aren't byte for byte the CLI's: the CLI's Ed25519 signatures carry random noise, so two of
