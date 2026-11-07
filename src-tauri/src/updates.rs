@@ -1,13 +1,14 @@
-//! In-app updates, from the GitHub releases of orbiter's repository.
+//! In-app updates, from the package registry of orbiter's repository on gitlab.com.
 //!
-//! Every build CI makes is published as a release of its own (`build-<n>`, version `0.2.<n>`) with
-//! an updater manifest, `latest.json`. Three fixed releases act as channels: `channel-experimental`,
-//! `channel-beta` and `channel-stable` each carry one `latest.json`, replaced when a build reaches
-//! that channel (each build lands on Experimental; Beta and Stable get a build promoted by hand,
-//! the same files, never rebuilt). The channel is a setting in the page; this module turns it into
-//! the manifest's address, asks tauri-plugin-updater whether that manifest offers another version,
-//! and installs it only when the page asks, after the plugin has checked its signature against the
-//! public key in tauri.conf.json.
+//! Every build CI makes is published (.gitlab-ci.yml) with its files in the registry's
+//! `orbiter/0.2.<n>/` folder, an updater manifest (`latest.json`) among them, and a release
+//! `build-<n>` that links to them. Each channel is one fixed file, `channel/<channel>/latest.json`
+//! (experimental, beta, stable), replaced when a build reaches that channel (each build lands on
+//! Experimental; Beta and Stable get a build promoted by hand, the same files, never rebuilt). The
+//! channel is a setting in the page; this module turns it into the manifest's addresses, asks
+//! tauri-plugin-updater whether that manifest offers another version, and installs it only when
+//! the page asks, after the plugin has checked its signature against the public key in
+//! tauri.conf.json.
 //!
 //! Where an update can go depends on how orbiter was installed (`Install`): an AppImage replaces
 //! its own file, the Windows installer runs in passive mode, while a .deb or .rpm, a development
@@ -21,8 +22,9 @@ use tauri::utils::config::BundleType;
 use tauri::{AppHandle, Manager, Runtime, State};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
-/// The repository whose releases carry the builds and the channel manifests.
-pub const REPO: &str = "ShezissSnake/orbiter";
+/// The project whose package registry carries the builds and the channel manifests, as the
+/// GitLab API names it (`group%2Fproject`).
+pub const PROJECT: &str = "sheziss-group%2Forbiter";
 
 /// How long a check may take before it counts as failed.
 const CHECK_TIMEOUT: Duration = Duration::from_secs(30);
@@ -46,21 +48,24 @@ impl Channel {
     }
 }
 
-/// The manifest a channel's builds are announced in: the `latest.json` of its channel release.
-pub fn endpoint(channel: Channel) -> String {
-    format!("https://github.com/{REPO}/releases/download/channel-{}/latest.json", channel.name())
+/// The addresses a channel's builds are announced at, in the order they're tried: the plugin asks
+/// the next one when an address can't be reached or answers with an error (not when it answers
+/// with something that isn't a manifest). Today one, the channel's `latest.json` in the package
+/// registry; a mirror would go after it.
+pub fn endpoints(channel: Channel) -> Vec<String> {
+    vec![format!("https://gitlab.com/api/v4/projects/{PROJECT}/packages/generic/channel/{}/latest.json", channel.name())]
 }
 
-/// Where the check goes. A normal build only ever asks `endpoint(channel)`; a build made with the
-/// `e2e-updater` feature (never one CI ships, see release.yml's check) may be pointed at a local
+/// Where the check goes. A normal build only ever asks `endpoints(channel)`; a build made with the
+/// `e2e-updater` feature (never one CI ships, see ci/build.sh's check) may be pointed at a local
 /// server by `ORBITER_UPDATER_E2E_ENDPOINT` (and given the test's key, `e2e::apply`), for the
 /// end-to-end test of the update itself.
-fn check_url(channel: Channel) -> String {
+fn check_urls(channel: Channel) -> Vec<String> {
     #[cfg(feature = "e2e-updater")]
     if let Some(url) = e2e::endpoint() {
-        return url;
+        return vec![url];
     }
-    endpoint(channel)
+    endpoints(channel)
 }
 
 /// How a newer or older build compares with the one running.
@@ -217,8 +222,8 @@ fn calm(what: &str, e: &tauri_plugin_updater::Error) -> String {
             "the download didn't match its signature, so it wasn't installed".into()
         }
         E::TargetNotFound(_) | E::TargetsNotFound(_) => "this channel has no build for this system yet".into(),
-        E::ReleaseNotFound => "GitHub had no update file for this channel".into(),
-        E::Reqwest(_) | E::Network(_) => format!("couldn't reach GitHub to {what}"),
+        E::ReleaseNotFound => "GitLab had no update file for this channel".into(),
+        E::Reqwest(_) | E::Network(_) => format!("couldn't reach GitLab to {what}"),
         E::Io(io) if io.kind() == std::io::ErrorKind::PermissionDenied => "orbiter's file can't be replaced: its folder isn't writable".into(),
         E::TempDirNotOnSameMountPoint => "orbiter couldn't make room to swap its file (no writable folder on the same drive)".into(),
         _ => format!("couldn't {what}"),
@@ -248,7 +253,11 @@ async fn check(app: &AppHandle, pending: &Pending, channel: Channel) -> Result<C
     if !install.checks() {
         return Ok(Check::Off);
     }
-    let url = check_url(channel);
+    let urls = check_urls(channel)
+        .iter()
+        .map(|u| u.parse())
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "the update address is invalid".to_string())?;
     let started = Instant::now();
     // On Windows the installer replaces files TennoScope runs from, and exits orbiter itself:
     // TennoScope and the warframe.market status are closed first.
@@ -260,7 +269,7 @@ async fn check(app: &AppHandle, pending: &Pending, channel: Channel) -> Result<C
             handle.state::<crate::companion::Companion>().stop();
             handle.cleanup_before_exit();
         })
-        .endpoints(vec![url.parse().map_err(|_| "the update address is invalid".to_string())?])
+        .endpoints(urls)
         .map_err(|e| calm("check for updates", &e))?
         .timeout(CHECK_TIMEOUT)
         .version_comparator(|current, release| release.version != current)
@@ -425,7 +434,7 @@ fn updater_config(config: serde_json::Value) -> serde_json::Value {
 }
 
 /// The end-to-end test's hooks. Compiled only with the `e2e-updater` feature, which no release
-/// build enables: release.yml fails a build whose binary contains `ORBITER_UPDATER_E2E`.
+/// build enables: ci/build.sh fails a build whose binary contains `ORBITER_UPDATER_E2E`.
 #[cfg(feature = "e2e-updater")]
 mod e2e {
     /// The test server's manifest (only a local plain-http address is taken).
@@ -499,11 +508,17 @@ mod tests {
 
     #[test]
     fn each_channel_has_its_own_manifest() {
-        assert_eq!(endpoint(Channel::Stable), "https://github.com/ShezissSnake/orbiter/releases/download/channel-stable/latest.json");
-        assert_eq!(endpoint(Channel::Beta), "https://github.com/ShezissSnake/orbiter/releases/download/channel-beta/latest.json");
-        assert_eq!(endpoint(Channel::Experimental), "https://github.com/ShezissSnake/orbiter/releases/download/channel-experimental/latest.json");
+        let registry = "https://gitlab.com/api/v4/projects/sheziss-group%2Forbiter/packages/generic/channel";
+        assert_eq!(endpoints(Channel::Stable), [format!("{registry}/stable/latest.json")]);
+        assert_eq!(endpoints(Channel::Beta), [format!("{registry}/beta/latest.json")]);
+        assert_eq!(endpoints(Channel::Experimental), [format!("{registry}/experimental/latest.json")]);
         for c in [Channel::Stable, Channel::Beta, Channel::Experimental] {
-            assert!(endpoint(c).parse::<tauri::Url>().is_ok());
+            for u in endpoints(c) {
+                let url = u.parse::<tauri::Url>().unwrap();
+                assert_eq!(url.scheme(), "https");
+                // The encoded slash stays encoded: the API names the project by its full path.
+                assert!(url.path().starts_with("/api/v4/projects/sheziss-group%2Forbiter/"), "{url}");
+            }
         }
     }
 
@@ -521,7 +536,7 @@ mod tests {
     fn a_release_build_cannot_be_pointed_elsewhere() {
         std::env::set_var("ORBITER_UPDATER_E2E_ENDPOINT", "http://127.0.0.1:9/latest.json");
         std::env::set_var("ORBITER_UPDATER_E2E_PUBKEY", "dGVzdA==");
-        assert_eq!(check_url(Channel::Beta), endpoint(Channel::Beta));
+        assert_eq!(check_urls(Channel::Beta), endpoints(Channel::Beta));
         let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
         let built = &config["plugins"]["updater"];
         assert_eq!(&updater_config(built.clone()), built);

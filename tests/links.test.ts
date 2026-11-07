@@ -11,6 +11,8 @@ test("links to the sites orbiter uses open", () => {
     "https://warframe.fandom.com/wiki/Mesa_Prime",
     "https://overframe.gg/build/1234/",
     "https://noxsframe.com/",
+    "https://gitlab.com/sheziss-group/orbiter/-/releases",
+    "https://gitlab.com/sheziss-group/orbiter/-/work_items/new?issuable_template=Bug%20report",
     "https://github.com/ShezissSnake/orbiter/releases",
   ])
     assert.equal(openable(url), url, url);
@@ -27,6 +29,12 @@ test("anything else is refused", () => {
     "https://warframe.market:8443/",
     "https://github.com/someone-else/repo",
     "https://github.com/ShezissSnake",
+    "https://gitlab.com/sheziss-group",
+    "https://gitlab.com/sheziss-group/other-project/-/issues",
+    "https://gitlab.com/sheziss-group/orbiter",
+    "https://gitlab.com/sheziss-group/orbiter/uploads/0123456789abcdef/picture.png",
+    "https://github.com/ShezissSnake/other-repo",
+    "https://gitlab.com/someone-else/orbiter/-/issues",
     "smb://warframe.market/share",
     "not a url",
     "",

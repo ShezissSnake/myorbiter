@@ -23,7 +23,11 @@ export const isChannel = (x: unknown): x is Channel => x === "stable" || x === "
 /** How often orbiter looks for an update while it runs. */
 export const CHECK_EVERY = 6 * 60 * 60 * 1000;
 
-export const REPO_URL = "https://github.com/ShezissSnake/orbiter";
+export const REPO_URL = "https://gitlab.com/sheziss-group/orbiter";
+
+/** Builds below this were made on GitHub, before the move (the pipeline's BUILD_OFFSET): no
+ *  release of theirs is on GitLab. */
+const FIRST_GITLAB_BUILD = 100;
 
 /** What the settings keep about updates. */
 export interface UpdateSettings {
@@ -71,10 +75,11 @@ export function buildNumber(version: string): number | null {
   return n > 0 ? n : null;
 }
 
-/** The release page of a build, or the list of releases for a local build. */
+/** The release page of a build, or the list of releases for a local build or one made before the
+ *  move to GitLab. */
 export function releasePage(version: string): string {
   const n = buildNumber(version);
-  return n ? `${REPO_URL}/releases/tag/build-${n}` : `${REPO_URL}/releases`;
+  return n && n >= FIRST_GITLAB_BUILD ? `${REPO_URL}/-/releases/build-${n}` : `${REPO_URL}/-/releases`;
 }
 
 /** Whether the notice for `version` shows: not when it (or something newer) was put off with Later. */

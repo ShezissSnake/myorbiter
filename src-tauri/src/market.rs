@@ -19,7 +19,7 @@ pub(crate) const MIN_GAP: Duration = Duration::from_millis(400);
 const KEYRING_SERVICE: &str = "dev.orbiter.app";
 const KEYRING_USER: &str = "warframe.market";
 /// How orbiter introduces itself to warframe.market, on the API and on the status socket alike.
-pub const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"), " (personal order helper; +https://github.com/ShezissSnake/orbiter)");
+pub const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"), " (personal order helper; +https://gitlab.com/sheziss-group/orbiter)");
 
 static LAST_CALL: Mutex<Option<Instant>> = Mutex::new(None);
 
