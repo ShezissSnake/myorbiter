@@ -57,10 +57,11 @@ case "$what" in
     # The manifest the check passed, and no other.
     fetch "$packages_api/orbiter/$version/latest.json" "$work/latest.json" || { echo "build $n's latest.json is gone" >&2; exit 1; }
     echo "$MANIFEST_SHA256  $work/latest.json" | sha256sum --check --strict
+    # Recorded as once-Stable before Stable names it, so pruning can never miss it.
+    if [ "$channel" = stable ]; then put_file stable-builds "$version" "$work/latest.json" latest.json; fi
     put_file channel "$channel" "$work/latest.json" latest.json
     echo "$version (build-$n) is now $label's build."
     if [ "$channel" = stable ]; then
-      put_file stable-builds "$version" "$work/latest.json" latest.json
       beta=""
       if fetch "$packages_api/channel/beta/latest.json" "$work/beta.json"; then
         beta=$(jq -r '.version // empty' "$work/beta.json")

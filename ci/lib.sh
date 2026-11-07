@@ -13,11 +13,15 @@
 # `put_file` deletes the older ones, so each path holds exactly one file.
 
 set -euo pipefail
+# A failure inside $(…) stops the job too (bash otherwise turns -e off there), so a failed read is
+# never taken for an empty answer.
+shopt -s inherit_errexit
 
-: "${CI_API_V4_URL:?}" "${CI_PROJECT_ID:?}" "${CI_PROJECT_PATH:?}" "${CI_JOB_TOKEN:?}"
+: "${CI_API_V4_URL:?}" "${CI_SERVER_URL:?}" "${CI_PROJECT_ID:?}" "${CI_PROJECT_PATH:?}" "${CI_JOB_TOKEN:?}"
 
 # Calls the API as this job (its token, never printed): the job token can read and write this
-# project's packages and releases with the role of whoever started the pipeline.
+# project's packages and releases with the role of whoever started the pipeline. No redirect is
+# followed: curl would send the token's header on to any host a redirect names.
 project_api="$CI_API_V4_URL/projects/$CI_PROJECT_ID"
 packages_api="$project_api/packages/generic"
 # The same files' public addresses, as the app and the manifests name them: the project by its path
@@ -26,21 +30,35 @@ packages_api="$project_api/packages/generic"
 public_packages="$CI_API_V4_URL/projects/${CI_PROJECT_PATH//\//%2F}/packages/generic"
 
 api() {
-  curl --fail-with-body --silent --show-error --location --retry 3 \
+  curl --fail-with-body --silent --show-error --retry 3 \
     --header "JOB-TOKEN: $CI_JOB_TOKEN" "$@"
 }
 
 # fetch <url> <file>: 0 when it was there (written to <file>), 1 when the registry has no such
 # file (404); any other answer stops the job, so a failed read never passes for "nothing there".
+# A download the registry answers with a redirect (to its object storage) is followed by hand: the
+# token goes to this GitLab only, never to the host the redirect names.
 fetch() {
-  local code
-  code=$(curl --silent --show-error --location --retry 3 --header "JOB-TOKEN: $CI_JOB_TOKEN" \
-    --output "$2" --write-out '%{http_code}' "$1") || { echo "couldn't read $1" >&2; exit 1; }
-  case "$code" in
-    200) return 0 ;;
-    404) rm -f "$2"; return 1 ;;
-    *) echo "reading $1 answered $code" >&2; rm -f "$2"; exit 1 ;;
-  esac
+  local url=$1 answer code auth _
+  for _ in 1 2 3 4 5; do
+    auth=()
+    [[ "$url" == "$CI_SERVER_URL"/* ]] && auth=(--header "JOB-TOKEN: $CI_JOB_TOKEN")
+    answer=$(curl --silent --show-error --retry 3 "${auth[@]}" \
+      --output "$2" --write-out '%{http_code} %{redirect_url}' "$url") || { echo "couldn't read $1" >&2; exit 1; }
+    code=${answer%% *}
+    case "$code" in
+      200) return 0 ;;
+      404) rm -f "$2"; return 1 ;;
+      301|302|303|307|308)
+        url=${answer#* }
+        [[ "$url" == https://* ]] || { echo "reading $1: a redirect to '$url'" >&2; rm -f "$2"; exit 1; }
+        ;;
+      *) echo "reading $1 answered $code" >&2; rm -f "$2"; exit 1 ;;
+    esac
+  done
+  echo "reading $1: too many redirects" >&2
+  rm -f "$2"
+  exit 1
 }
 
 # The id of the generic package <name> <version>, or nothing. The API's name filter is a fuzzy

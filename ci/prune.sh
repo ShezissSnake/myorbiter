@@ -21,9 +21,12 @@ trap 'rm -rf "$work"' EXIT
 packages() {
   local page=1 out
   while [ -n "$page" ]; do
-    out=$(api --dump-header "$work/headers" "$project_api/packages?package_type=generic&package_name=$1&per_page=100&page=$page")
-    jq -r --arg n "$1" '.[] | select(.name == $n) | "\(.id) \(.version)"' <<<"$out"
-    page=$(tr -d '\r' <"$work/headers" | sed -n 's/^x-next-page: *//Ip')
+    # Each step stops the job on a failure: a list cut short must never read as "nothing there".
+    rm -f "$work/headers"
+    out=$(api --dump-header "$work/headers" "$project_api/packages?package_type=generic&package_name=$1&per_page=100&page=$page") || exit 1
+    jq -e 'type == "array"' <<<"$out" >/dev/null || { echo "listing $1 answered something other than a list" >&2; exit 1; }
+    jq -r --arg n "$1" '.[] | select(.name == $n) | "\(.id) \(.version)"' <<<"$out" || exit 1
+    page=$(tr -d '\r' <"$work/headers" | sed -n 's/^x-next-page: *//Ip') || exit 1
   done
 }
 

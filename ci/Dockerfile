@@ -7,7 +7,8 @@
 # checked against the SHA-256 pinned below before they run. Bumping a version means a new checksum,
 # taken from the project's own SHASUMS file (nodejs.org/dist/<version>/SHASUMS256.txt,
 # static.rust-lang.org/rustup/archive/<version>/x86_64-unknown-linux-gnu/rustup-init.sha256).
-FROM ubuntu:24.04
+# ubuntu:24.04, pinned by digest: change both together.
+FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
 
 ARG DEBIAN_FRONTEND=noninteractive
 
