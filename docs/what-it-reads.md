@@ -41,6 +41,15 @@ keeps in the same database.
   riven prices and trades, warframe.market's item and riven lists, Nox's Frame pages (a week), and
   item artwork in `img/`. Each picture is downloaded once and shrunk to a thumbnail, so after the
   first look it works offline.
+- The same folders under `dev.orbiter.app`, their name before the rename to MyOrbiter: on its first
+  start MyOrbiter copies each one to its new place and puts a `.copied-from-dev.orbiter.app` file
+  in the copy. Until that file is there, every start checks again (a copy that failed is tried
+  again, and what that start wrote in between is kept beside it as
+  `io.gitlab.sheziss-group.myorbiter.before-copy-1`). The old folders are only read, never changed
+  or removed. Two empty lock files beside the config folder keep starts apart:
+  `io.gitlab.sheziss-group.myorbiter.copy.lock` while a start copies, and
+  `io.gitlab.sheziss-group.myorbiter.lock` for as long as MyOrbiter runs, so a second start leaves
+  the folders alone.
 
 ## Signing in to warframe.market
 
