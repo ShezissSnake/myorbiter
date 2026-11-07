@@ -66,9 +66,11 @@ tick it here when it's done. The commands work in fish and in bash, from a clone
 - [ ] **The builder image exists:** *Build* → *Pipelines* → **New pipeline** → branch `main`,
       *task* `image` → **New pipeline**. It runs on gitlab.com's hosted runners whatever *runner*
       says (a new account may have to verify its identity before they take jobs). Its log ends
-      with the image's digest: put it in `.gitlab-ci.yml` as `BUILDER_DIGEST` through a merge
-      request. Until then, pipelines on `main` run in the image's tag and `sign` refuses, so
-      nothing is published.
+      with the digest of `builder:<BUILDER_TAG>-p<pipeline>`, a tag nothing pushes again: put it
+      in `.gitlab-ci.yml` as `BUILDER_DIGEST` through a merge request that links that job's log,
+      so the digest can be checked against it. Never delete or push over a `…-p<pipeline>` tag.
+      Until then, pipelines on `main` run in the image's tag and `sign` refuses, so nothing is
+      published.
 - [ ] **A first build on `main`:** New pipeline → branch `main`, *task* `release`, *windows*
       ticked. While the project is private the build signs and publishes as usual; installed
       copies just can't reach it yet.
@@ -110,9 +112,9 @@ Stable build yet its download buttons point at *Releases*; step 5 runs it again.
 
 - [ ] Install it from Experimental on Linux and on Windows, and use it for a while: start, sync,
       a page of each section, Settings → Updates → *Check now*.
-- [ ] **It updates itself:** run one more release pipeline (step 4) for build *m*. The copies of
-      build *n* offer 0.2.*m* and install it with *Update and restart*, on Linux and on Windows.
-      Promote *m*, not *n*, below: it's the build that has been seen updating.
+- [ ] **It updates itself:** run step 4 once more. The copies installed from the first build offer
+      the new one and install it with *Update and restart*, on Linux and on Windows. From here on,
+      *n* is that newer build: it's the one that has been seen updating.
 - [ ] New pipeline → branch `main`, *task* `promote`, *build* *n*, *channel* **beta**; when it's
       green, the same with **stable**. (Stable alone also moves Beta up.)
 - [ ] `channel/stable/latest.json` and `channel/beta/latest.json` name 0.2.*n*.
@@ -151,7 +153,9 @@ Stable build yet its download buttons point at *Releases*; step 5 runs it again.
       otherwise change what a job runs. Never set `CI_DEBUG_TRACE`.
 - [ ] **General pipelines** → untick **Public pipelines** (the jobs' logs and artifacts stay
       members-only; the releases and their files are public anyway). **Auto-cancel redundant
-      pipelines** off.
+      pipelines** off. **Use separate caches for protected branches** on (GitLab's default), so a
+      branch's pipeline can't leave files in the caches a release build restores; the cache keys
+      in `.gitlab-ci.yml` keep them apart too.
 - [ ] **Job token permissions** → *Authorized groups and projects*: **Only this project and any
       groups and projects in the allowlist**, with nothing in the allowlist.
 - [ ] **Auto DevOps** off.
@@ -197,15 +201,18 @@ a pipeline on `main` or a protected tag signs as soon as `sign` runs.
 The `pc` jobs run on the project's own runner (*Settings* → *CI/CD* → *Runners* → **New project
 runner**, tag `pc`, *Run untagged jobs* off):
 
-- [ ] **The Docker executor**, never the shell executor: each job then runs in its own container,
-      which is what keeps the signing key away from the jobs that build.
+- [ ] **The Docker executor**, never the shell executor: each job then runs in its own container.
+      The jobs still share the executor's build volume, so `sign`, the one job with the signing
+      key, never runs here: it always runs on gitlab.com's hosted runners, a fresh machine each
+      time.
 - [ ] **Never privileged, no Docker socket:** `privileged = false` and no `/var/run/docker.sock` in
       its `volumes`. Either would let a build job reach the sign job's container. The `image` task
       runs on gitlab.com's hosted runners for that reason (Buildah's user namespace is refused by
       Docker's default seccomp profile).
 - [ ] **Protected:** the runner's *Protected* box ticked, so only pipelines on `main` and protected
       tags run on it. A pipeline on any other branch runs on gitlab.com's hosted runners,
-      whatever *runner* says.
+      whatever *runner* says, in that branch's own builder image: run the *task* `image` on the
+      branch first.
 
 ## Packages
 
