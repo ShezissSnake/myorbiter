@@ -1,11 +1,12 @@
 // Builds orbiter's website (site/ → site/_site/): the landing page, the in-app Guide as pages and
-// What's New, as plain HTML and CSS for GitHub Pages. The Guide and What's New come from the app's
+// What's New, as plain HTML and CSS for GitLab Pages. The Guide and What's New come from the app's
 // own source (src/lib/tabs/Guide.svelte, src/lib/whatsNew.ts), drawn once with Svelte's server
 // renderer through Vite, so the site says what the app says. Nothing here runs in the browser.
 //
 //   node scripts/site.mjs                       site/_site/, downloads pointing at Releases
-//   node scripts/site.mjs --release release.json   the same, with the latest Stable release's
-//                                               files (`gh release view --json tagName,assets`)
+//   node scripts/site.mjs --release release.json   the same, with the Stable build's files:
+//                                               { tagName, assets: [{ name, url }] } (ci/pages.sh
+//                                               makes it from the build-<n> release)
 //   node scripts/site.mjs --check               build, then check every link and that no
 //                                               dev-*.json (real account data) is in it
 //
@@ -18,7 +19,9 @@ import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(ROOT, "site");
 const OUT = join(SRC, "_site");
-const REPO = "https://github.com/ShezissSnake/orbiter";
+const REPO = "https://gitlab.com/sheziss-group/orbiter";
+/** The only host the site links out to (the repository, its releases and the downloads). */
+const HOST = "gitlab.com";
 const args = process.argv.slice(2);
 const flag = (name) => { const i = args.indexOf(name); return i < 0 ? null : (args[i + 1] ?? ""); };
 
@@ -111,7 +114,7 @@ ${body().replaceAll("{{base}}", () => base)}
 </main>
 <footer class="foot">
 <p>orbiter is a fan-made tool, not affiliated with or endorsed by Digital Extremes. Warframe and its artwork are © and ™ Digital Extremes Ltd.; the game's icons shown here are theirs, used to identify what they depict, and are not covered by orbiter's licence.</p>
-<p>orbiter is free software under the <a href="${REPO}/blob/main/LICENSE">GNU General Public License, version 3 only</a>, with no warranty. <a href="${REPO}">Source on GitHub</a> · <a href="${REPO}/blob/main/NOTICE.md">Notices</a></p>
+<p>orbiter is free software under the <a href="${REPO}/-/blob/main/LICENSE">GNU General Public License, version 3 only</a>, with no warranty. <a href="${REPO}">Source on GitLab</a> · <a href="${REPO}/-/blob/main/NOTICE.md">Notices</a></p>
 </footer>
 </body>
 </html>
@@ -128,7 +131,9 @@ function whatsNew() {
   }).join("\n");
 }
 
-// Downloads: the latest Stable release (the one GitHub marks Latest), when the build was given it.
+// Downloads: the Stable build's release (the one channel/stable/latest.json names), when the build
+// was given it. GitLab's "latest release" is the newest build of any channel, so without it the
+// buttons point at the list of releases.
 const PLATFORMS = [
   { key: "linux", label: "Linux and Steam Deck", re: /_amd64\.AppImage$/, note: "AppImage: make it executable and open it." },
   { key: "windows", label: "Windows 10 and 11", re: /_x64-setup\.exe$/, note: "Installs for your user; SmartScreen asks the first time: More info, Run anyway." },
@@ -138,18 +143,31 @@ function downloads() {
   const file = flag("--release");
   let rel = null;
   if (file) rel = JSON.parse(readFileSync(file, "utf8"));
-  const assets = rel?.assets ?? [];
+  // Each file's address as the release links it, kept only when it's https on gitlab.com.
+  const assets = (rel?.assets ?? []).filter((x) => typeof x?.name === "string" && safeUrl(x.url));
   // macOS builds are optional, so its button shows only when the release carries a .dmg; Linux and
   // Windows always show (pointing at Releases when the file isn't there).
   const found = PLATFORMS.map((p) => [p, assets.find((x) => p.re.test(x.name))]);
   const rows = found.filter(([p, a]) => a || p.key !== "macos").map(([p, a]) => {
-    const href = a ? `${REPO}/releases/download/${encodeURIComponent(rel.tagName)}/${encodeURIComponent(a.name)}` : `${REPO}/releases/latest`;
+    const href = a ? safeUrl(a.url) : `${REPO}/-/releases`;
     const what = a ? esc(a.name) : rel ? "not built for this release: see Releases" : "on the latest Stable release";
     return `<li class="dl"><a class="stamp" href="${href}">${esc(p.label)}</a><span class="file register">${what}</span><span class="note">${esc(p.note)}</span></li>`;
   }).join("");
-  const sums = assets.some((x) => x.name === "SHA256SUMS") ? `<a href="${REPO}/releases/download/${encodeURIComponent(rel.tagName)}/SHA256SUMS">SHA256SUMS</a>` : "SHA256SUMS";
+  const sumsFile = assets.find((x) => x.name === "SHA256SUMS");
+  const sums = sumsFile ? `<a href="${safeUrl(sumsFile.url)}">SHA256SUMS</a>` : "SHA256SUMS";
   const version = rel ? `<p class="register">Stable · ${esc(rel.tagName)}</p>` : `<p class="register">Stable</p>`;
-  return `${version}<ul class="dls">${rows}</ul><p class="small">Check a download against ${sums} on the same release (<a href="${REPO}#checking-a-download">how</a>). Every release also carries <span class="register">orbiter-source.tar.gz</span>, its complete source. Other builds (Beta, Experimental) are on <a href="${REPO}/releases">Releases</a>.</p>`;
+  return `${version}<ul class="dls">${rows}</ul><p class="small">Check a download against ${sums} on the same release (<a href="${REPO}#checking-a-download">how</a>). Every release also carries <span class="register">orbiter-source.tar.gz</span>, its complete source. Other builds (Beta, Experimental) are on <a href="${REPO}/-/releases">Releases</a>.</p>`;
+}
+
+/** A download's address, escaped for an attribute, if it's https on the repository's host; else null. */
+function safeUrl(url) {
+  let u;
+  try {
+    u = new URL(String(url));
+  } catch {
+    return null;
+  }
+  return u.protocol === "https:" && u.hostname === HOST && !u.username && !u.password && !u.port ? esc(u.href) : null;
 }
 
 function landing() {
@@ -179,10 +197,10 @@ for (const [pkg, files] of [["archivo-narrow", ["latin-600-normal", "latin-700-n
 }
 
 // ---- Checks: every local link, image and stylesheet url() resolves (same-page anchors included),
-// external links go only to github.com, and no dev-*.json file (a real account's data) is in the
+// external links go only to gitlab.com, and no dev-*.json file (a real account's data) is in the
 // output or named in it.
 if (args.includes("--check")) {
-  const ALLOWED = new Set(["github.com"]);
+  const ALLOWED = new Set([HOST]);
   const all = (d) => readdirSync(d).flatMap((f) => (statSync(join(d, f)).isDirectory() ? all(join(d, f)) : [join(d, f)]));
   const files = all(OUT);
   const bad = [];
