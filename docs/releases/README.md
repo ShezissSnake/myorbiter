@@ -11,13 +11,15 @@ protected tag's pipeline is given the signing key). A push to a branch and a mer
 nothing. The *task* field of New pipeline picks what it does: `release` (the default),
 `promote`, `pages` or `image` (the builder image, `ci/Dockerfile`, which every other job runs in;
 run it once before the first build and again after every change to the Dockerfile, with a new
-`BUILDER_TAG`, then pin `BUILDER_IMAGE` to the digest it prints: `sign` signs nothing built in an
-image that isn't pinned).
+`BUILDER_TAG`; on `main`, then put the digest it prints in `BUILDER_DIGEST`: pipelines on `main`
+and release tags run in the image by that digest, and until it's set `sign` refuses, so nothing
+is published).
 
 The jobs run on the project's own runner (tag `pc`, with the Docker executor, so each job runs in
 a container of its own; never privileged, and protected, so only `main` and protected tags use
 it), or, with the *runner* field set to `cloud`, on gitlab.com's hosted Linux runners, which spend
-the namespace's compute minutes. The `image` task always runs on the hosted runners.
+the namespace's compute minutes. The `image` task, and any pipeline on a branch other than `main`,
+always runs on the hosted runners.
 
 A release pipeline is build *n*, version `0.2.n`, where *n* is the pipeline's number in the
 project plus 100 (builds made on GitHub before the move were numbered below 100; pipelines that
