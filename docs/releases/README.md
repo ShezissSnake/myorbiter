@@ -7,14 +7,17 @@ This page is for whoever runs the releases. Players need only `docs/install.md`.
 `.gitlab-ci.yml` builds them on gitlab.com. A pipeline runs only when started: *Build* →
 *Pipelines* → *New pipeline* (or the pipelines API), or by pushing a tag named `release-<anything>`
 on a commit of `main` (`release-*` is a protected tag: only a maintainer can make one, and only a
-protected tag's pipeline is given the signing key). A push to a branch and a merge request start nothing. The *task* field of
-New pipeline picks what it does: `release` (the default), `promote`, `pages` or `image` (the
-builder image, `ci/Dockerfile`, which every other job runs in; run it once before the first build
-and again after every change to the Dockerfile, with a new `BUILDER_TAG`).
+protected tag's pipeline is given the signing key). A push to a branch and a merge request start
+nothing. The *task* field of New pipeline picks what it does: `release` (the default),
+`promote`, `pages` or `image` (the builder image, `ci/Dockerfile`, which every other job runs in;
+run it once before the first build and again after every change to the Dockerfile, with a new
+`BUILDER_TAG`, then pin `BUILDER_IMAGE` to the digest it prints: `sign` signs nothing built in an
+image that isn't pinned).
 
 The jobs run on the project's own runner (tag `pc`, with the Docker executor, so each job runs in
-a container of its own), or, with the *runner* field set to `cloud`, on gitlab.com's hosted Linux
-runners, which spend the namespace's compute minutes.
+a container of its own; never privileged, and protected, so only `main` and protected tags use
+it), or, with the *runner* field set to `cloud`, on gitlab.com's hosted Linux runners, which spend
+the namespace's compute minutes. The `image` task always runs on the hosted runners.
 
 A release pipeline is build *n*, version `0.2.n`, where *n* is the pipeline's number in the
 project plus 100 (builds made on GitHub before the move were numbered below 100; pipelines that
@@ -48,7 +51,8 @@ at the address installed copies check
   the final AppImage (after `scripts/repack-appimage.sh`) and the Windows installer with
   `scripts/updater-sign.mjs` (plain Node, no dependencies, signatures of the form
   `tauri signer sign --app-version` writes), and checks each signature against the public key in
-  `src-tauri/tauri.conf.json`. `publish` writes `latest.json` (`scripts/updater-manifest.mjs`):
+  `src-tauri/tauri.conf.json`. It runs the signer only if its files match `SIGNER_SHA256` in
+  `.gitlab-ci.yml` (`tests/ciSigner.test.ts` says when a change to the signer needs a new one). `publish` writes `latest.json` (`scripts/updater-manifest.mjs`):
   the version, release notes made from the commit subjects since the previous Experimental build,
   and each download's address in the registry and signature. When the build has both the Linux and
   Windows downloads, `experimental` copies its `latest.json` to `channel/experimental/`. Without
@@ -59,7 +63,7 @@ at the address installed copies check
   also records the build in `stable-builds/`, so it's never pruned, and moves Beta up to it if
   Beta's build is older.
 - **Older builds go.** After each publish, `prune` deletes the registry's Experimental builds
-  beyond the newest 10 and their `build-<n>` releases. It never deletes a build a channel's
+  beyond the newest 10 (not counting the ones a channel keeps) and their `build-<n>` releases. It never deletes a build a channel's
   `latest.json` names or one ever promoted to Stable, and it keeps each deleted build's tag. If a
   channel can't be read, it deletes nothing.
 - The `channel/…` and `stable-builds/…` packages hold only `latest.json` files: don't delete them,
@@ -77,12 +81,12 @@ from then on.
 Updates are signed: an installed copy installs a download only if its signature matches the public
 key it was built with (`plugins.updater.pubkey` in `src-tauri/tauri.conf.json`, key id
 `E8C1BC6BE2D5CFB9`) and names the version on offer. The key pair was made with
-`npx tauri signer generate -w ~/.tauri/orbiter.key`. Its private key and password are the CI/CD variables
-`TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (*Settings* → *CI/CD* →
+`npx tauri signer generate -w ~/.tauri/orbiter.key`. Its private key and password are the CI/CD
+variables `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (*Settings* → *CI/CD* →
 *Variables*): type Variable, protected, masked and hidden, with the environment scope
 `release-signing`. Only the `sign` job is in that environment, so only it is given them; it runs on
-`main` or a protected release tag only, and builds and installs nothing. The builds themselves never see the key: Tauri's own updater files
-(`createUpdaterArtifacts`) stay off, since `tauri build` would need the key to make them, and the
+`main` or a protected release tag only, and builds and installs nothing. The builds themselves
+never see the key: Tauri's own updater files (`createUpdaterArtifacts`) stay off, since `tauri build` would need the key to make them, and the
 updater takes the AppImage and the setup.exe as they are.
 
 **Back the key up** (`~/.tauri/orbiter.key` and its password, somewhere safe and offline). Losing it
