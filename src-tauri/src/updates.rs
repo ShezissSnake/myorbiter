@@ -287,8 +287,17 @@ async fn check(app: &AppHandle, pending: &Pending, channel: Channel) -> Result<C
         .iter()
         .map(|u| u.parse())
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| "The update address is invalid".to_string())?;
+        .map_err(|e| {
+            log::warn!(target: "myorbiter::updates", "{} check: invalid address: {e}", channel.name());
+            "The update address is invalid".to_string()
+        })?;
     let started = Instant::now();
+    // A failure before any request (the address refused, the updater not built): logged here, as
+    // the check's own failures are below.
+    let refused = |e: tauri_plugin_updater::Error| {
+        log::warn!(target: "myorbiter::updates", "{} check not sent: {e}", channel.name());
+        check_failure(channel, &e)
+    };
     // On Windows the installer replaces files TennoScope runs from, and exits MyOrbiter itself:
     // TennoScope and the warframe.market status are closed first.
     let handle = app.clone();
@@ -300,11 +309,11 @@ async fn check(app: &AppHandle, pending: &Pending, channel: Channel) -> Result<C
             handle.cleanup_before_exit();
         })
         .endpoints(urls)
-        .map_err(|e| check_failure(channel, &e))?
+        .map_err(refused)?
         .timeout(CHECK_TIMEOUT)
         .version_comparator(|current, release| release.version != current)
         .build()
-        .map_err(|e| check_failure(channel, &e))?;
+        .map_err(refused)?;
     let current = app.package_info().version.clone();
     match updater.check().await {
         Ok(Some(update)) => {

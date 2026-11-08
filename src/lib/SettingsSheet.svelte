@@ -317,7 +317,7 @@
       <ProgressButton job={updates.checkJob} busy={updates.checking} label="Check now" disabled={!checks} sizer={["Up to date · 0.1.9999", "Experimental has 0.1.9999", "Couldn't check"]} title={checks ? `Look for a newer build on ${CHANNEL_LABEL[settings.updates.channel]} now. MyOrbiter also looks when it starts and every 6 hours; nothing installs without your click.` : (info ? (installNote(info.install) ?? "") : "")} onclick={() => updates.checkNow()} />
       <button type="button" class="link out" title="Open this build's release page on GitLab, in your browser: what changed, and its downloads" onclick={() => openUrl(releasePage(info?.version ?? "0.1.0"))}>Release notes<Icon name="external" size={11} /></button>
     </div>
-    {#if checks}<p class="hint" class:err={updates.outcome?.kind === "failed" && !updates.checking} role="status" aria-live="polite">{updates.status(now)}</p>{/if}
+    {#if checks}<p class="hint" class:err={updates.outcome?.kind === "failed" && !updates.checking}>{updates.status(now)}<span class="sr" role="status">{updates.headline}</span></p>{/if}
     {#if offer}
       <div class="offer" transition:reveal>
         <div class="offer-in">
@@ -386,6 +386,7 @@
      its own length, so it ends in an ellipsis (the full path is its title) instead of widening the panel. */
   .program { flex: 1 1 0; width: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--platinum-dim); }
   .hint.err { color: var(--oxblood); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .row { display: flex; align-items: center; gap: .6rem; }
   .pagelist { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
   .pagelist li { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: .5rem; }

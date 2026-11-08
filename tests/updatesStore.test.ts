@@ -59,6 +59,7 @@ test("Check now is the button's click, and the line under it is the check's stat
   assert.match(button, /onclick=\{\(\) => updates\.checkNow\(\)\}/, "the click asks for a check");
   assert.match(button, /busy=\{updates\.checking\}/, "a check the schedule started shows on the button too");
   assert.match(sheet, /\{updates\.status\(now\)\}/, "the line shows the check's state");
+  assert.match(sheet, /<span class="sr" role="status">\{updates\.headline\}<\/span>/, "a screen reader hears what changed, not the age ticking");
 });
 
 test("a newer build: the line says so, and the offer has its notes and an install button", async (t) => {
@@ -186,6 +187,51 @@ test("a check already old at start, and one after a sleep, run as soon as they'r
   await micro();
   assert.equal(calls.length, 2, "the next tick finds it overdue");
   assert.equal(u.status(Date.now()), "Up to date (checked just now).");
+});
+
+/** A window to show and hide (Node has none): `show()` makes it visible again, as after a sleep. */
+function stubDocument(t: TestContext) {
+  const doc = Object.assign(new EventTarget(), { visibilityState: "visible" });
+  (globalThis as { document?: unknown }).document = doc;
+  t.after(() => delete (globalThis as { document?: unknown }).document);
+  return { show: () => doc.dispatchEvent(new Event("visibilitychange")) };
+}
+
+test("the window shown again after a sleep: an overdue check runs at once", async (t) => {
+  const win = stubDocument(t);
+  const { u, calls, begin } = await setup(t, [CURRENT, CURRENT]);
+  await begin();
+  await startCheck(t);
+  assert.equal(calls.length, 1);
+  win.show();
+  await micro();
+  assert.equal(calls.length, 1, "not due yet: nothing");
+  t.mock.timers.setTime(Date.now() + 7 * 3600_000);
+  win.show();
+  await micro();
+  assert.equal(calls.length, 2, "due: asked without waiting for the next tick");
+  assert.equal(u.status(Date.now()), "Up to date (checked just now).");
+  u.stop();
+  t.mock.timers.setTime(Date.now() + 7 * 3600_000);
+  win.show();
+  await micro();
+  assert.equal(calls.length, 2, "stopped: no more checks");
+});
+
+test("one start, one request: a check that ran while the start check waited replaces it", async (t) => {
+  const win = stubDocument(t);
+  const { u, calls, begin } = await setup(t, [CURRENT, CURRENT]);
+  const release = holdBackground();
+  t.after(release);
+  await begin();
+  t.mock.timers.tick(0);
+  win.show();
+  await micro();
+  assert.equal(calls.length, 1, "the window shown while the start check waits: checked then");
+  t.mock.timers.tick(30_000);
+  await micro();
+  assert.equal(calls.length, 1, "the start check doesn't ask again");
+  assert.equal(u.headline, "Up to date");
 });
 
 test("one check at a time: Check now during a scheduled check gets that check's answer", async (t) => {

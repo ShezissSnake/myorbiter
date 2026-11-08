@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildNumber, cameFrom, CHANNELS, CHECK_EVERY, checkDue, checkedAgo, checkLine, clockTime, compareVersions, defaultUpdates, installChecks, installInstalls, installNote, noteLines, noticeShows, releasePage, sanitizeUpdates, versionLine, type Install } from "../src/lib/core/updates";
+import { buildNumber, cameFrom, CHANNELS, CHECK_EVERY, checkDue, checkedAgo, checkHeadline, checkLine, clockTime, compareVersions, defaultUpdates, installChecks, installInstalls, installNote, noteLines, noticeShows, releasePage, sanitizeUpdates, versionLine, type Install } from "../src/lib/core/updates";
 import { openable } from "../src/lib/core/links";
 import { defaultSettings } from "../src/lib/backend";
 import { NEWS, showMeTarget } from "../src/lib/whatsNew";
@@ -114,6 +114,11 @@ test("the line under Check now: one state per check, with when", () => {
   assert.equal(checkLine({ kind: "older", channel: "stable", version: "0.2.103", at: now }, now, false, now), "Stable has 0.2.103, older than this build (checked just now).");
   assert.equal(checkLine({ kind: "failed", channel: "experimental", reason: "Couldn't reach gitlab.com", at: now }, now, false, now), `Couldn't reach gitlab.com (at ${clockTime(now)}, just now).`);
   assert.match(clockTime(now), /^\d\d:\d\d$/);
+  assert.equal(checkHeadline(null, false), "");
+  assert.equal(checkHeadline(null, true), "Checking for updates…");
+  assert.equal(checkHeadline({ kind: "newer", channel: "experimental", version: "0.2.106", at: now }, false), "0.2.106 is available on Experimental");
+  assert.equal(checkHeadline({ kind: "current", channel: "beta", version: "0.2.104", at: now - 5 * 60_000 }, false), "Up to date", "no age in what's announced");
+  assert.equal(checkHeadline({ kind: "failed", channel: "stable", reason: "Couldn't reach gitlab.com", at: now }, false), "Couldn't reach gitlab.com");
 });
 
 test("What's New announces updates, and its Show me opens Settings at Updates", () => {

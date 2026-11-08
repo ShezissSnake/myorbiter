@@ -8,7 +8,7 @@
 // and the app's log has the details (updates.rs).
 import { tick } from "svelte";
 import { flushSettings, logLine, updater, type UpdateCheck, type UpdateInfo } from "./backend";
-import { CHANNEL_LABEL, checkDue, checkLine, installChecks, installInstalls, noticeShows, SCHEDULE_TICK, START_WAIT, versionLine, type Channel, type CheckOutcome, type UpdateSettings } from "./core/updates";
+import { CHANNEL_LABEL, checkDue, checkHeadline, checkLine, installChecks, installInstalls, noticeShows, SCHEDULE_TICK, START_WAIT, versionLine, type Channel, type CheckOutcome, type UpdateSettings } from "./core/updates";
 import { Job, JobError } from "./job.svelte";
 import { whenIdle } from "./pane.svelte";
 import { afterPaint } from "./ui/soon";
@@ -102,6 +102,11 @@ export class Updates {
     return checkLine(this.outcome, this.get?.()?.lastCheck ?? null, this.checking, now);
   }
 
+  /** The same, without its age: what a screen reader announces. */
+  get headline(): string {
+    return checkHeadline(this.outcome, this.checking);
+  }
+
   /** The offer to show, if there is one for the channel chosen now. */
   get offer(): Offer | null {
     const r = this.result;
@@ -140,6 +145,9 @@ export class Updates {
    */
   private ask(): Promise<string> {
     if (!this.running) {
+      // Whichever check runs first is the start's: the one still waiting for a quiet moment goes.
+      this.cancelStart?.();
+      this.cancelStart = null;
       this.checking = true;
       this.running = this.askChosen().finally(() => {
         this.running = null;

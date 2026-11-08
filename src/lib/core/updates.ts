@@ -54,6 +54,27 @@ export function clockTime(at: number): string {
 }
 
 /**
+ * What the last check found, without when: what a screen reader announces as it changes (the
+ * line itself ages every minute, which would be read out again each time). "" before any check.
+ */
+export function checkHeadline(outcome: CheckOutcome | null, checking: boolean): string {
+  if (checking) return "Checking for updates…";
+  if (!outcome) return "";
+  switch (outcome.kind) {
+    case "newer":
+      return `${outcome.version} is available on ${CHANNEL_LABEL[outcome.channel]}`;
+    case "older":
+      return `${CHANNEL_LABEL[outcome.channel]} has ${outcome.version}, older than this build`;
+    case "current":
+      return "Up to date";
+    case "failed":
+      return outcome.reason;
+    case "off":
+      return "This copy of MyOrbiter doesn't check for updates";
+  }
+}
+
+/**
  * The line under Check now: what the last check found, and when. Before any check this session,
  * when the last one (maybe from an earlier start) answered; "Checking…" while one runs.
  */
