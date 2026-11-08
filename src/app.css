@@ -449,7 +449,7 @@ tr.era-wash > td:first-child { box-shadow: inset 2px 0 0 color-mix(in srgb, var(
    z-index), so a page's dialogs still rise above the toasts and the tour. All CSS; it stays put
    while the page scrolls. With less motion or less transparency asked for, only the tinted base is left. */
 .pane {
-  --sec-tint: color-mix(in srgb, var(--sec) 10%, transparent);
+  --sec-tint: color-mix(in srgb, var(--sec) 7%, transparent);
   --sec-line: color-mix(in srgb, var(--sec) 9%, transparent);
   --sec-fine: color-mix(in srgb, var(--sec) 5%, transparent);
   position: relative; overflow: hidden;

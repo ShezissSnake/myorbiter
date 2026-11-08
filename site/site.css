@@ -77,7 +77,7 @@ main { max-width: 76rem; margin: 0 auto; padding: 0 1.5rem 3rem; }
   margin: 0 0 2.4rem; padding: 3.2rem 0 2.6rem;
   border-bottom: 1px solid var(--rule);
   background:
-    radial-gradient(1100px 600px at 20% 0%, color-mix(in srgb, var(--sec) 10%, transparent), transparent 65%),
+    radial-gradient(1100px 600px at 20% 0%, color-mix(in srgb, var(--sec) 7%, transparent), transparent 65%),
     repeating-linear-gradient(0deg, var(--sec-line) 0 1px, transparent 1px 240px),
     repeating-linear-gradient(90deg, var(--sec-line) 0 1px, transparent 1px 240px),
     repeating-linear-gradient(0deg, var(--sec-fine) 0 1px, transparent 1px 48px),
