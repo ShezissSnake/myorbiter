@@ -1,7 +1,7 @@
 <script lang="ts" module>
   /** What Full mode does and what it risks, shown beside every switch that turns it on. */
   export const FULL_MODE_WARNING =
-    "Full mode reads Warframe's memory to fetch your inventory. Warframe's EULA forbids unauthorised third-party programs, so using it could put your account at risk. MyOrbiter only reads, and only sends your login session to Digital Extremes.";
+    "Full mode reads Warframe's memory to fetch your inventory. Digital Extremes publishes no list of allowed or forbidden third-party programs and leaves using them at your own risk: Full mode could put your account at risk. MyOrbiter only reads, and only sends your login session to Digital Extremes and the names of reward items read from memory to warframe.market, for their prices.";
 </script>
 
 <script lang="ts">

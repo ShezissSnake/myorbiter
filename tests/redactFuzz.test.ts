@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { redact } from "../src/lib/core/redact";
 import { cleanBlock, cleanLine, HIDDEN_CHARS, stripHidden } from "../src/lib/core/untrusted";
-import { buildReport, issueLink, NEW_ISSUE, reportMarkdown, type ReportDetails } from "../src/lib/core/bugReport";
+import { buildReport, issueText, reportMarkdown, type ReportDetails } from "../src/lib/core/bugReport";
 import { LINK_SITES, openable } from "../src/lib/core/links";
 import { forAll, type Rng } from "./support/prop";
 
@@ -67,7 +67,7 @@ function plant(r: Rng, parts: string[]): string {
 
 const leaks = (out: string, must: string[]) => must.filter((m) => m && out.toLowerCase().includes(m.toLowerCase()));
 
-test("bug reports: nothing private survives the report, its Markdown or its link, and nothing hidden gets through", () => {
+test("bug reports: nothing private survives the report or the text to paste, and nothing hidden gets through", () => {
   forAll("report", (r, seed) => {
     const self = randomName(r);
     const other = randomName(r);
@@ -82,18 +82,17 @@ test("bug reports: nothing private survives the report, its Markdown or its link
     };
     const report = buildReport({ what: text, steps: plant(r, [other]), expected: "ok" }, details, { self: [self], others: [other] });
     const md = reportMarkdown(report);
-    const link = issueLink(report);
-    const all = [report.title, report.what, report.steps, report.expected, md, decodeURIComponent(link.url)].join("\n");
+    const paste = issueText(report);
+    const all = [report.title, report.what, report.steps, report.expected, md, paste].join("\n");
     const must = pick.flatMap((p) => p.must).concat([self, other]);
     // A name split by a hidden character is the name once it's cleaned: the report cleans first.
     assert.deepEqual(leaks(all, must), [], `PROPERTY_SEED=${seed}: leaked ${JSON.stringify(leaks(all, must))} from ${JSON.stringify(text).slice(0, 300)}`);
     assert.ok(!/\b[0-9a-f]{16,}\b/i.test(all), `PROPERTY_SEED=${seed}: a long hex id survived`);
     HIDDEN_CHARS.lastIndex = 0;
-    const found = [...(report.what + report.steps + md).matchAll(HIDDEN_CHARS)].map((m) => `U+${m[0].codePointAt(0)!.toString(16)} at ${m.index}`);
+    const found = [...(report.what + report.steps + md + paste).matchAll(HIDDEN_CHARS)].map((m) => `U+${m[0].codePointAt(0)!.toString(16)} at ${m.index}`);
     assert.deepEqual(found, [], `PROPERTY_SEED=${seed}: hidden characters in ${JSON.stringify(md.slice(0, 600))}`);
     HIDDEN_CHARS.lastIndex = 0;
     assert.ok(!/<!--/.test(report.what + report.steps), `PROPERTY_SEED=${seed}: an HTML comment`);
-    assert.ok(link.url.startsWith(NEW_ISSUE + "?"), `PROPERTY_SEED=${seed}: ${link.url.slice(0, 80)}`);
   }, 1500);
 });
 

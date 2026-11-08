@@ -52,17 +52,18 @@ mode, without asking again. With Full mode on:
 - **Nothing is written into the game's memory or folder.** No keys, no clicks, no input of any
   kind. On Linux, memory is opened for reading only: `/proc/<pid>/mem` opened read-only, with
   `/proc/<pid>/pagemap` read to find the pages that changed. On Windows it reads through
-  `ReadProcessMemory` and `VirtualQueryEx`, with handles that two libraries open; MyOrbiter's code
-  doesn't set their access rights itself, and its comments call them read access
-  (`PROCESS_VM_READ`), which hasn't been checked against those libraries. Nothing in the code
-  writes to the game's memory on either system. The one thing TennoScope writes about the game's
+  `ReadProcessMemory` and `VirtualQueryEx`, with handles that two libraries open. What the code
+  shows: MyOrbiter's code doesn't set their access rights itself, and its comments call them read
+  access (`PROCESS_VM_READ`). What wasn't audited: the access those libraries actually ask Windows
+  for. Nothing in the code writes to the game's memory on either system. The one thing TennoScope writes about the game's
   process: on Linux, once
   when the log shows a reward screen opening, it writes `4` to `/proc/<pid>/clear_refs`. That resets
   the kernel's record of which of the game's memory pages have changed, so the next read only looks
   at those. It doesn't change the game's memory, though the game's next write to each page costs it
   a small kernel fault.
-- **The risk.** Warframe's EULA forbids unauthorised third-party programs, so using Full mode could
-  put your account at risk: that's your call. MyOrbiter never calls it safe.
+- **The risk.** Digital Extremes publishes no list of allowed or forbidden third-party programs;
+  [its forum post](https://forums.warframe.com/topic/1383123/) leaves using them at your own risk. Full
+  mode could put your account at risk: that's your call. MyOrbiter never calls it safe.
 
 ## Overlay mode: the game's window
 
@@ -167,7 +168,8 @@ Every request MyOrbiter makes to warframe.market says who it is, with the User-A
   repricing (off unless you turn it on; its limits are in Settings, Trades).
 - **How often, at most.** API calls go out one at a time, at least 0.4 seconds apart (1.5 seconds
   for a minute and a half after warframe.market says to slow down), which keeps them under 3 a
-  second, the limit the code works to; warframe.market's pictures keep their own 0.4-second spacing.
+  second, the limit the code's comments give for warframe.market (warframe.market's own published
+  limits weren't audited); warframe.market's pictures keep their own 0.4-second spacing.
   At most 120 changes (listings, auctions, +rep) go out in any minute; more wait their turn. A
   status sent on the status connection isn't counted among them.
 
@@ -247,19 +249,23 @@ press Check now and when you change the channel. They read the channel's `latest
 project's package registry on gitlab.com, with the updater's own User-Agent
 (`tauri-plugin-updater/<version>`); the address names only the channel you picked (stable, beta or
 experimental), with no version, system or id. An update downloads from gitlab.com's package
-registry (which may hand the download to its file storage) only when you click. Other installs
+registry only when you click; gitlab.com may hand the download to its file storage, a host of its
+choosing that wasn't audited. Other installs
 (.deb and .rpm, a build run straight from its folder, a development build) don't check.
 TennoScope's own updater is switched off in this build: it never asks GitHub for a new version, and
 MyOrbiter's update brings the next TennoScope.
 
-On Windows, the installer downloads Microsoft's WebView2 installer if WebView2 is missing.
+On Windows, the installer downloads Microsoft's WebView2 installer if WebView2 is missing (Tauri's
+usual setting, which the configuration doesn't change; the hosts that download uses weren't
+audited).
 
 ## Reporting a bug
 
-MyOrbiter itself sends nothing. Report a bug shows you the report first; *Open on GitLab* then opens
-gitlab.com's new-issue page in your browser with the report in the page's address, so gitlab.com
-receives it when the page loads, before you press Create issue (and it stays in your browser's
-history). *Copy report* only puts it on the clipboard. Technical details are included unless you
+MyOrbiter itself sends nothing, and gitlab.com gets nothing of a report until you press Create
+issue. Report a bug shows you the report first; *Open on GitLab* then puts it on the clipboard and
+opens a blank new-issue page on gitlab.com in your browser, with nothing of the report in its
+address, for you to paste it into, give it a title and submit. *Copy report* only puts it on the
+clipboard. Technical details are included unless you
 untick them, and you can read them in full first: the version, commit and build date, channel,
 system and architecture, the page open, TennoScope's state, whether Full mode is on, and the last 50
 lines of MyOrbiter's log, with sign-ins, e-mail and IP addresses, account ids, your user name in
@@ -269,7 +275,7 @@ paths and players' names hidden.
 
 Links open in your browser, which then visits that site. MyOrbiter opens only https links to
 warframe.market, wiki.warframe.com, warframe.fandom.com, overframe.gg, noxsframe.com, this project
-on gitlab.com and its old address on github.com. TennoScope opens its upstream project on github.com
+on gitlab.com. TennoScope opens its upstream project on github.com
 (its own bug report and release pages).
 
 ## Nothing else
@@ -280,8 +286,10 @@ Those are all the hosts MyOrbiter and its TennoScope contact themselves: `api.wa
 `www-static.warframe.com`, `mobile.warframe.com`, `relics.run`, `noxsframe.com`, `gitlab.com`, and
 the Discord webhook address you give it. Two more can be reached on the way: gitlab.com may hand an
 update download to its file storage, and the Windows installer fetches Microsoft's WebView2 installer
-when WebView2 is missing (the exact hosts are theirs to choose). If you set a proxy (`HTTPS_PROXY` and the like), requests
-go through it. This doesn't cover what the system's web view (WebView2, WebKitGTK) does on its own.
+when WebView2 is missing; those hosts are gitlab.com's and Microsoft's to choose and weren't
+audited. If you set a proxy (`HTTPS_PROXY` and the like), requests go through it. This page covers
+what MyOrbiter's and TennoScope's code does; what the system's web view (WebView2, WebKitGTK) does
+on its own wasn't audited.
 No telemetry, analytics or crash reporting is built in, and your records (sales, trades, value over
 time, settings) stay on this computer, in `settings.json` (below); single events reach
 warframe.market or Discord only as described above.
@@ -341,8 +349,8 @@ keyring).
   `myorbiter.log` (and `myorbiter.1.log`, 2 MB each; Settings, Logs opens the folder): what it did
   on warframe.market, your notifications (with other players' names), the game log's location and
   errors. Readable only by you on Linux. Anything shaped like a token, password or webhook address
-  is cut out before it's written. Its last lines leave your PC only in a bug report you open on
-  GitLab (or copy).
+  is cut out before it's written. Its last lines leave your PC only in a bug report you paste on
+  GitLab (or copy and send another way).
 - CSV exports go to your Downloads folder as `myorbiter-<what>-<date>.csv`, never over an existing
   file.
 - The window's own storage (kept by the system web view) remembers the cards or rows layout of each
@@ -373,3 +381,4 @@ from relics.run when it starts; when they're a day or more behind the newest, a 
 Orders and price checks use live order books. Without a network, what comes from TennoScope's
 files, the game's log and the saved copies (the last world state, riven prices, pictures already
 fetched) still shows; warframe.market, Nox's Frame, a fresh world state and update checks don't.
+That's what the code reads from disk; it wasn't tried page by page without a network.

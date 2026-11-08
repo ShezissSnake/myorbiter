@@ -1,8 +1,8 @@
 <script lang="ts">
   // Report a bug: the player's words, and (unless they untick it) technical details they can read
-  // in full first. MyOrbiter sends nothing itself: Open on GitLab opens a new issue with the fields
-  // filled in, to check and submit in the browser; Copy report puts it on the clipboard as
-  // Markdown. What it builds, cleans and redacts: core/bugReport.ts and core/redact.ts.
+  // in full first. MyOrbiter sends nothing itself: Open on GitLab puts the issue's text on the
+  // clipboard and opens a blank new issue in the browser, with nothing of the report in its address,
+  // for the player to paste, title and submit; Copy report puts it on the clipboard as Markdown. What it builds, cleans and redacts: core/bugReport.ts and core/redact.ts.
   import { tick, untrack } from "svelte";
   import { scrim } from "./scrim";
   import { trap } from "./trap";
@@ -12,7 +12,7 @@
   import { logTail, openUrl, reportEnv } from "../backend";
   import { BUILD } from "../build";
   import { bugReport, reportChannel } from "../bugReport.svelte";
-  import { buildReport, detailsText, issueLink, reportMarkdown, LOG_LINES, MAX, type ReportDetails } from "../core/bugReport";
+  import { buildReport, detailsText, issueText, reportMarkdown, LOG_LINES, MAX, NEW_ISSUE_PAGE, type ReportDetails } from "../core/bugReport";
   import type { RedactOptions } from "../core/redact";
 
   let {
@@ -72,7 +72,6 @@
     };
   });
   const report = $derived(buildReport({ what: d.what, steps: d.steps, expected: d.expected }, details, known));
-  const link = $derived(issueLink(report));
   const reading = $derived(d.include && log == null);
   const empty = $derived(!report.what);
   const preview = $derived(report.details ? detailsText(report.details) : "");
@@ -80,10 +79,23 @@
   let showTech = $state(false);
   /** Open on GitLab was pressed: its label says so for a moment. */
   let opened = $state(false);
+  /** What to do on GitLab, once the report is on the clipboard: "pasted" (the steps) or "refused"
+   *  (the clipboard refused it, so GitLab wasn't opened). */
+  let handed = $state<"pasted" | "refused" | null>(null);
   let openedTimer: ReturnType<typeof setTimeout> | null = null;
-  function openOnGitLab() {
+  // The report goes on the clipboard first, and the page opens blank: gitlab.com gets nothing of it
+  // until the player pastes it and presses Create issue there.
+  async function openOnGitLab() {
     if (empty || reading) return;
-    void openUrl(link.url);
+    try {
+      await navigator.clipboard.writeText(issueText(report));
+    } catch {
+      handed = "refused";
+      opened = false;
+      return;
+    }
+    handed = "pasted";
+    void openUrl(NEW_ISSUE_PAGE);
     opened = true;
     if (openButton) pulse(openButton);
     if (openedTimer) clearTimeout(openedTimer);
@@ -146,15 +158,17 @@
       <p class="hint">{#if !d.include}Only what you wrote goes in.{:else if failed}MyOrbiter's log couldn't be read; the rest is included.{:else}Sign-ins, e-mail and IP addresses, account ids, your user name in folder paths and every player's name are hidden, here and in what you wrote.{/if}</p>
     </section>
 
-    {#if link.dropped || link.cut}
-      <p class="note small" role="status">{#if link.cut}What you wrote is longer than a link can carry: Open on GitLab cuts the end. Copy report has it all, to paste in instead.{:else}To keep the link short enough, Open on GitLab leaves out the {link.dropped} oldest log line{link.dropped === 1 ? "" : "s"}; Copy report has them all.{/if}</p>
+    {#if handed === "pasted"}
+      <p class="note small" role="status">The report is on your clipboard. On GitLab, paste it into the description (<kbd>Ctrl</kbd>+<kbd>V</kbd>), give the issue a title (for example “{report.title}”) and press Create issue.</p>
+    {:else if handed === "refused"}
+      <p class="note small" role="status">The clipboard refused the report, so GitLab wasn't opened. Use Copy report to copy it by hand, then open a new issue on GitLab and paste it in.</p>
     {/if}
 
     <footer class="row">
-      <p class="privacy small"><Icon name="lock" size={11} /> MyOrbiter sends nothing: you check it and press Create issue on GitLab.</p>
+      <p class="privacy small"><Icon name="lock" size={11} /> MyOrbiter sends nothing, and the page it opens carries none of the report: you paste it in and press Create issue on GitLab.</p>
       <div class="acts">
         <CopyButton text={() => reportMarkdown(report)} label="Copy report" copied="Copied" sizer={["Couldn't copy"]} title="Put the report on the clipboard as Markdown, to paste into an issue yourself, or send it another way if you don't have a GitLab account" />
-        <button bind:this={openButton} type="button" class="stamp gold go" class:done={opened} disabled={empty || reading} title={empty ? "Say what happened first" : reading ? "Reading MyOrbiter's log…" : "Open a new issue on GitLab in your browser with all of this filled in. Nothing is posted until you press Create issue there."} onclick={openOnGitLab}>
+        <button bind:this={openButton} type="button" class="stamp gold go" class:done={opened} disabled={empty || reading} title={empty ? "Say what happened first" : reading ? "Reading MyOrbiter's log…" : "Put the report on the clipboard and open a blank new issue on GitLab in your browser, to paste it into. gitlab.com gets nothing of it until you press Create issue there."} onclick={openOnGitLab}>
           <span class="lbls">
             <span class:on={!opened}>Open on GitLab<Icon name="external" size={11} /></span>
             <span class:on={opened}>Opened in your browser<Icon name="check" size={11} /></span>

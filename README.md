@@ -18,9 +18,11 @@ The screenshot shows an invented account (`demo/`), not a real one.
 ## Full mode is your call
 
 With Full mode on (it's off unless you turn it on), TennoScope reads the game's memory to fetch
-your inventory. That may violate Warframe's EULA, which forbids unauthorised third-party programs:
-you choose whether to turn it on, at your own risk. It doesn't write to the game's memory, and only
-sends your login session to Digital Extremes. [What MyOrbiter reads and sends](docs/privacy.md) lists everything it reads,
+your inventory. Digital Extremes publishes no list of allowed or forbidden third-party programs and
+[leaves using them at your own risk](https://forums.warframe.com/topic/1383123/): Full mode could put your account
+at risk, so you choose whether to turn it on. It doesn't write to the game's memory, and only sends
+your login session to Digital Extremes and the names of reward items read from memory to
+warframe.market, for their prices. [What MyOrbiter reads and sends](docs/privacy.md) lists everything it reads,
 every host it talks to, and every file it keeps; there's no telemetry.
 
 **It acts on your warframe.market account.** Once you sign in, what you press and the automatic
@@ -71,8 +73,8 @@ offer for the GPL and LGPL libraries in the downloads, and every other licence, 
 
 ## Reporting a bug
 
-In MyOrbiter, Shift+F1 opens *Report a bug*: it fills in an issue for you to check and send, and posts
-nothing by itself. Security problems go through [SECURITY.md](SECURITY.md).
+In MyOrbiter, Shift+F1 opens *Report a bug*: it puts the report on your clipboard and opens a blank
+new issue for you to paste it into and send, and posts nothing by itself. Security problems go through [SECURITY.md](SECURITY.md).
 
 ## More
 

@@ -1,8 +1,9 @@
 // A bug report, made in the app and sent by the player. MyOrbiter never posts it itself: there's no
-// token and no network write. The player either opens it on GitLab, as a new issue with its title
-// and description filled in (the description has the sections of the issue template,
-// .gitlab/issue_templates/Bug report.md), and presses Create issue there, or copies it as Markdown
-// to send another way.
+// token and no network write. Open on GitLab puts the issue's text on the clipboard (the sections of
+// the issue template, .gitlab/issue_templates/Bug report.md, and its labels line) and opens a blank
+// new issue: nothing of the report is in the page's address, so gitlab.com receives it only once
+// the player pastes it, adds a title and presses Create issue. Copy report puts it on the clipboard
+// as Markdown, to send another way.
 //
 // What goes in is the player's own words (what happened, how to make it happen, what they
 // expected) and, if they leave "Include technical details" on, a plain-text block they can read in
@@ -24,8 +25,6 @@ export const TEMPLATE = "Bug report";
 export const SECTIONS = { what: "What happened", steps: "Steps to reproduce", expected: "What you expected", details: "Technical details" } as const;
 /** The labels a report gets, as the template's last line sets them (where the reporter may). */
 export const LABELS = "/label ~bug ~needs-triage";
-/** gitlab.com and browsers handle links up to about 8,000 characters; this leaves room. */
-export const URL_MAX = 7500;
 /** How many of the log's last lines a report offers. */
 export const LOG_LINES = 50;
 /** The most each field keeps. */
@@ -107,11 +106,8 @@ export function buildReport(input: ReportInput, details: ReportDetails | null, n
   };
 }
 
-/**
- * The technical block, as plain text. `dropped`: how many of the oldest log lines were left out
- * to keep the link short (said in the block, so a reader knows).
- */
-export function detailsText(d: ReportDetails, dropped = 0): string {
+/** The technical block, as plain text. */
+export function detailsText(d: ReportDetails): string {
   const lines = [
     `MyOrbiter ${d.version} (${d.commit}${d.buildDate ? `, ${d.buildDate}` : ""})`,
     `Channel: ${d.channel ?? "not known in this build"}`,
@@ -121,17 +117,13 @@ export function detailsText(d: ReportDetails, dropped = 0): string {
     `Full mode: ${d.fullMode}`,
     "",
   ];
-  const kept = d.log.slice(dropped);
   if (!d.log.length) lines.push("Log: no lines (MyOrbiter's log is only kept by the desktop app).");
   else {
-    lines.push(`Log, last ${kept.length} line${kept.length === 1 ? "" : "s"} (sign-ins, addresses, ids and players' names hidden):`);
-    if (dropped) lines.push(`(${dropped} earlier line${dropped === 1 ? "" : "s"} left out to keep the link short; Copy report has them all)`);
-    lines.push(...kept);
+    lines.push(`Log, last ${d.log.length} line${d.log.length === 1 ? "" : "s"} (sign-ins, addresses, ids and players' names hidden):`);
+    lines.push(...d.log);
   }
   return lines.join("\n");
 }
-
-const enc = encodeURIComponent;
 
 /** The player's text, with any line GitLab would run as a quick action escaped ("\/close" shows as
  *  "/close" and does nothing). */
@@ -154,69 +146,15 @@ function sections(what: string, steps: string, expected: string, details: string
   return out;
 }
 
-/** The prefilled new-issue link: the template's name, the title and the whole description.
- *  GitLab's prefill puts issue[description] in place of the template's text (its docs, "Using a
- *  URL with prefilled values"), so the template only names where the report came from. */
-function linkFor(title: string, description: string): string {
-  const q = [
-    `issuable_template=${enc(TEMPLATE)}`,
-    `${enc("issue[issue_type]")}=issue`,
-    `${enc("issue[title]")}=${enc(title)}`,
-    `${enc("issue[description]")}=${enc(description)}`,
-  ];
-  return `${NEW_ISSUE}?${q.join("&")}`;
-}
+/** The page Open on GitLab opens: a blank new issue. Nothing of the report is in its address, so
+ *  gitlab.com receives none of it until the player pastes it in and presses Create issue. */
+export const NEW_ISSUE_PAGE = `${NEW_ISSUE}?${encodeURIComponent("issue[issue_type]")}=issue`;
 
-/** Cuts a field to `n` characters (by code point), saying so. */
-const cutTo = (s: string, n: number) => {
-  const chars = [...s];
-  return chars.length <= n ? s : `${chars.slice(0, Math.max(0, n)).join("").trimEnd()}\n[cut to fit the link: Copy report has it all]`;
-};
-
-export interface IssueLink {
-  url: string;
-  /** Log lines left out to fit. */
-  dropped: number;
-  /** A field of the player's own was cut to fit. */
-  cut: boolean;
-}
-
-/**
- * The link that opens a new issue on GitLab with everything filled in, at most `max`
- * characters: the oldest log lines go first, then (only if the player wrote a great deal) the
- * end of their longest field.
- */
-export function issueLink(r: Report, max = URL_MAX): IssueLink {
-  const make = (what: string, steps: string, expected: string, dropped: number) =>
-    linkFor(r.title, [...sections(what, steps, expected, r.details ? detailsText(r.details, dropped) : ""), "", LABELS].join("\n") + "\n");
-  const lines = r.details?.log.length ?? 0;
-  let dropped = 0;
-  let url = make(r.what, r.steps, r.expected, 0);
-  // Drop log lines oldest first: a halving search for the fewest to drop.
-  if (url.length > max && lines) {
-    let lo = 1;
-    let hi = lines;
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1;
-      if (make(r.what, r.steps, r.expected, mid).length <= max) hi = mid;
-      else lo = mid + 1;
-    }
-    dropped = lo;
-    url = make(r.what, r.steps, r.expected, dropped);
-  }
-  if (url.length <= max) return { url, dropped, cut: false };
-  // Still too long: the player's own fields, longest first, cut down until it fits.
-  let f = { what: r.what, steps: r.steps, expected: r.expected };
-  for (let guard = 0; guard < 40 && make(f.what, f.steps, f.expected, dropped).length > max; guard++) {
-    const over = make(f.what, f.steps, f.expected, dropped).length - max;
-    const key = (["what", "steps", "expected"] as const).reduce((a, b) => (enc(f[b]).length > enc(f[a]).length ? b : a));
-    // Encoded text is up to ~9 characters per character: cut by enough to get under, with room.
-    const chars = [...f[key]].length;
-    f = { ...f, [key]: cutTo(f[key], Math.max(0, chars - Math.ceil(over / 3) - 60)) };
-  }
-  url = make(f.what, f.steps, f.expected, dropped);
-  if (url.length > max) url = linkFor(r.title, [...sections("(too long for a link: use Copy report and paste it here)", "", "", ""), "", LABELS].join("\n") + "\n");
-  return { url, dropped, cut: true };
+/** What Open on GitLab puts on the clipboard, to paste into the new issue's description: the
+ *  template's sections, then its labels line. The title is typed on GitLab (`Report.title`
+ *  suggests one). */
+export function issueText(r: Report): string {
+  return [...sections(r.what, r.steps, r.expected, r.details ? detailsText(r.details) : ""), "", LABELS].join("\n") + "\n";
 }
 
 /** The report as Markdown, for Copy report: the title, then the issue's sections, the details in a
