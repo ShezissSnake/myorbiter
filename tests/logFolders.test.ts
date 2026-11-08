@@ -16,15 +16,18 @@ test("both log folder buttons run a job that opens the folder, and say how it we
     assert.match(button, /failLabel="Couldn't open"/);
     assert.match(button, /\bstatus\b/, `${which}: the reason shows under the button`);
   }
-  assert.match(sheet, /logJobs\.get\(which\)\.run\(async \(\) => \{\s*await openLogFolder\(which, settings\.dataDir\);\s*return "Opened";/);
+  assert.match(sheet, /logJobs\.get\(which\)\.run\(async \(\) => \{\s*await openLogFolder\(which\);\s*return "Opened";/);
+  // The page names the folder and nothing else: no path goes with it.
+  const backend = src("src/lib/backend.ts");
+  assert.match(backend, /invoke\("open_log_folder", \{ which \}\)/);
   assert.doesNotMatch(sheet, /logError/, "no separate error line that a click could miss");
 });
 
 test("the app opens a log folder through folder.rs, not straight through the opener plugin", () => {
   const lib = src("src-tauri/src/lib.rs");
   const command = lib.slice(lib.indexOf("fn open_log_folder"), lib.indexOf("// ---------------------------------------------------------------- bug reports"));
-  assert.match(command, /spawn_blocking\(move \|\| open_log_folder_now/, "waits for the opener off the async runtime");
-  assert.match(command, /folder::open\(app, Path::new\(&path\)\)/);
+  assert.match(command, /^fn open_log_folder\(app: tauri::AppHandle, which: LogFolder\)/, "no folder from the page");
+  assert.match(command, /spawn_blocking\(move \|\| \{\s*let path = log_folder_path\(which, applog::dir\(\), \|\| saved_data_dir\(&app\)\)\?;\s*folder::open\(&app, &path\)/, "decided in Rust, opened off the async runtime");
   assert.doesNotMatch(command, /open_path/);
   const folder = src("src-tauri/src/folder.rs");
   assert.match(folder, /crate::companion::plain_command\(bin\)/, "each opener without the AppImage's environment");

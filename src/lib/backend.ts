@@ -1226,9 +1226,9 @@ export async function logFolders(dataDir: string): Promise<{ myorbiter: string |
   return inTauri ? invoke("log_folders", { dir: dataDir || null }) : { myorbiter: null, tennoscope: null };
 }
 
-/** Opens a log folder in the file manager. */
-export async function openLogFolder(which: "myorbiter" | "tennoscope", dataDir: string): Promise<void> {
-  if (inTauri) await invoke("open_log_folder", { which, dir: dataDir || null });
+/** Opens a log folder in the file manager. The app decides where it is (TennoScope's from the saved settings). */
+export async function openLogFolder(which: "myorbiter" | "tennoscope"): Promise<void> {
+  if (inTauri) await invoke("open_log_folder", { which });
 }
 
 // ---------------------------------------------------------------- bug reports

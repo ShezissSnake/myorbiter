@@ -67,7 +67,7 @@
   const logJobs = new Jobs();
   const openLogs = (which: "myorbiter" | "tennoscope") =>
     logJobs.get(which).run(async () => {
-      await openLogFolder(which, settings.dataDir);
+      await openLogFolder(which);
       return "Opened";
     });
   // Paths are edited as drafts and applied together, because changing them reloads everything.
