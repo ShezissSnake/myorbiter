@@ -103,10 +103,31 @@ test("while the question is open nothing starts or is asked; then the answer is 
     assert.equal(tsx.calls.filter((c) => c === "ask --access=full").length, 3);
     assert.equal(ts.wanted, null);
     assert.match(ts.error ?? "", /didn't switch to Full mode/);
+    // A newer choice wins: Full answered, then "Not now: overlay only" on the setup step before
+    // TennoScope switched. Full is never asked for again.
+    tsx.calls.length = 0;
+    tsx.set({ mode: null });
+    ts.answer("--access=full");
+    ts.pending = null;
+    await ts.check();
+    assert.deepEqual(tsx.calls, ["ask --access=full"]);
+    await ts.ask("--access=overlay");
+    assert.equal(ts.wanted, null, "the answer is dropped");
+    for (let i = 0; i < 5; i++) {
+      ts.pending = null;
+      await ts.check();
+    }
+    assert.deepEqual(tsx.calls, ["ask --access=full", "ask --access=overlay"], "Overlay stands");
+    // A sync while the answer waits doesn't drop it.
+    ts.answer("--access=overlay");
+    await ts.ask("--sync");
+    assert.equal(ts.wanted, "--access=overlay");
   } finally {
     tsx.restore();
     ts.asking = false;
     ts.wanted = null;
     ts.pending = null;
+    ts.error = null;
+    ts.status = null;
   }
 });

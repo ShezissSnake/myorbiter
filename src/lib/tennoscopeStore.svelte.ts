@@ -128,6 +128,12 @@ class TennoscopeStore {
   async ask(ask: TennoscopeAsk) {
     // Nothing goes to TennoScope while the first start's question is open (a sync from the riven key).
     if (this.asking) return;
+    // A mode chosen since (the setup step's "Not now", the Full mode switch) replaces the first
+    // start's answer: it's never asked for again over the newer choice.
+    if (this.wanted && ask.startsWith("--access=") && ask !== this.wanted) {
+      this.wanted = null;
+      this.follows = 0;
+    }
     try {
       this.pending = ask;
       await tennoscope.ask(ask);
