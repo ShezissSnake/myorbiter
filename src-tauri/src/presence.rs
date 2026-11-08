@@ -17,9 +17,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-const SOCKET: &str = "wss://ws.warframe.market/socket";
-/// The server refuses connections that don't ask for this subprotocol.
-const SUBPROTOCOL: &str = "wfm";
 /// The heartbeat TennoScope's patch reads (see the module docs).
 pub const HELD_FILE: &str = "orbiter-presence.json";
 const HEARTBEAT: Duration = Duration::from_secs(4);
@@ -272,16 +269,13 @@ pub(crate) fn connect(
 }
 
 fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state: &Mutex<State>) -> Ended {
-    use tungstenite::{client::IntoClientRequest, Message};
+    use tungstenite::Message;
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let mut request = match SOCKET.into_client_request() {
+    // The same name MyOrbiter gives on the API (market::socket_request).
+    let request = match crate::market::socket_request() {
         Ok(r) => r,
         Err(e) => return Ended::Dropped(e.to_string()),
     };
-    request.headers_mut().insert("Sec-WebSocket-Protocol", tungstenite::http::HeaderValue::from_static(SUBPROTOCOL));
-    // The same name MyOrbiter gives on the API: a connection that says nothing about itself is
-    // turned away (403) before it can sign in.
-    request.headers_mut().insert("User-Agent", tungstenite::http::HeaderValue::from_static(crate::market::USER_AGENT));
     let mut ws = match connect(request) {
         Ok(c) => c,
         Err(tungstenite::Error::Http(resp)) if resp.status().as_u16() == 403 => {
@@ -439,12 +433,8 @@ mod tests {
     #[test]
     #[ignore]
     fn connects_with_time_limits() {
-        use tungstenite::client::IntoClientRequest;
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let mut request = SOCKET.into_client_request().unwrap();
-        request.headers_mut().insert("Sec-WebSocket-Protocol", tungstenite::http::HeaderValue::from_static(SUBPROTOCOL));
-        request.headers_mut().insert("User-Agent", tungstenite::http::HeaderValue::from_static(crate::market::USER_AGENT));
-        let mut ws = connect(request).expect("connected");
+        let mut ws = connect(crate::market::socket_request().unwrap()).expect("connected");
         let _ = ws.close(None);
     }
 

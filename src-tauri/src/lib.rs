@@ -24,8 +24,31 @@ use std::time::{Duration, Instant, UNIX_EPOCH};
 use tauri::{Emitter, Manager};
 
 const WORLDSTATE: &str = "https://api.warframestat.us/pc";
-/// Who's asking, and where to find out more (the APIs MyOrbiter reads like to know).
-pub(crate) const USER_AGENT: &str = concat!("MyOrbiter/", env!("CARGO_PKG_VERSION"), " (+https://gitlab.com/sheziss-group/myorbiter)");
+/// MyOrbiter's home: named in every User-Agent, so the sites it reads know where to find out more.
+pub(crate) const REPO_URL: &str = "https://gitlab.com/sheziss-group/myorbiter";
+
+/// The version this build carries, set once at start from Tauri's package info. A release build
+/// gets its version (0.2.<n>) through Tauri's config at build time, which `CARGO_PKG_VERSION`
+/// (Cargo.toml's 0.1.0) never sees; that one is only the fallback, for tests.
+static VERSION: OnceLock<String> = OnceLock::new();
+
+pub(crate) fn set_version(version: String) {
+    let _ = VERSION.set(version);
+}
+
+pub(crate) fn version() -> &'static str {
+    VERSION.get().map_or(env!("CARGO_PKG_VERSION"), String::as_str)
+}
+
+/// Who's asking, and where to find out more: `MyOrbiter/<version> (+<REPO_URL>)`, on every
+/// request MyOrbiter makes (warframe.market's rules ask for exactly this).
+pub(crate) fn user_agent() -> String {
+    user_agent_for(version())
+}
+
+fn user_agent_for(version: &str) -> String {
+    format!("MyOrbiter/{version} (+{REPO_URL})")
+}
 
 /// TennoScope's data folder: the one from Settings, or where TennoScope keeps it. A folder from
 /// Settings must be a full path without `..` (MyOrbiter only reads TennoScope's own files in it).
@@ -146,10 +169,16 @@ fn data_stamp(dir: Option<String>) -> Result<u64, String> {
 
 /// One HTTP client for the whole app: connections (and TLS sessions) are kept and reused, and
 /// the system's certificates are loaded once instead of on every request. Honours HTTPS_PROXY /
-/// NO_PROXY as they were at startup.
-pub(crate) fn http_agent() -> ureq::Agent {
+/// NO_PROXY as they were at startup. Only `request` uses it, so no request leaves without the
+/// User-Agent.
+fn http_agent() -> ureq::Agent {
     static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
     AGENT.get_or_init(|| ureq::AgentBuilder::new().try_proxy_from_env(true).build()).clone()
+}
+
+/// Every HTTP request MyOrbiter makes starts here, already carrying `user_agent()`.
+pub(crate) fn request(method: &str, url: &str) -> ureq::Request {
+    http_agent().request(method, url).set("User-Agent", &user_agent())
 }
 
 /// Writes `bytes` to a temp file beside `path`, flushes it to disk and renames it into place, so
@@ -216,9 +245,7 @@ enum Unavailable {
 /// One part of the worldstate ("fissures"), or all of it (an empty path).
 fn get_json(path: &str) -> Result<Value, Unavailable> {
     let url = if path.is_empty() { WORLDSTATE.to_string() } else { format!("{WORLDSTATE}/{path}") };
-    match http_agent()
-        .get(&url)
-        .set("User-Agent", USER_AGENT)
+    match request("GET", &url)
         .query("language", "en")
         .timeout(Duration::from_secs(10))
         .call()
@@ -433,9 +460,7 @@ async fn discord_post(app: tauri::AppHandle, url: String, content: String) -> Re
     }
     let content: String = content.chars().take(1900).collect();
     tauri::async_runtime::spawn_blocking(move || {
-        http_agent()
-            .post(&url)
-            .set("User-Agent", USER_AGENT)
+        request("POST", &url)
             .timeout(Duration::from_secs(10))
             .send_json(serde_json::json!({ "username": "MyOrbiter", "content": content, "allowed_mentions": { "parse": [] } }))
             .map(|_| ())
@@ -1343,6 +1368,7 @@ pub fn run() {
                 applog::init(&dir);
             }
             datamove::log_outcome();
+            set_version(app.package_info().version.to_string());
             log::info!(target: "myorbiter::app", "MyOrbiter {} started on {} {}", app.package_info().version, std::env::consts::OS, std::env::consts::ARCH);
             rendering::started();
             // Ctrl+C in a terminal, logout, `kill`: close the TennoScope MyOrbiter started, then exit
@@ -1487,6 +1513,56 @@ pub fn run() {
         });
 }
 
+/// A server on 127.0.0.1 that answers one request, for tests that look at what MyOrbiter sends.
+/// Nothing leaves the machine.
+#[cfg(test)]
+pub(crate) mod test_http {
+    use std::io::{Read, Write};
+
+    /// Listens on a free port; `answer` is the JSON body of the reply. Gives the address
+    /// (`http://127.0.0.1:<port>`) and a handle that yields the request's head (request line and
+    /// headers) once it has been answered.
+    pub fn serve_once(answer: &'static str) -> (String, std::thread::JoinHandle<String>) {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a local port");
+        let addr = format!("http://{}", listener.local_addr().expect("its address"));
+        let handle = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("a request");
+            stream.set_read_timeout(Some(std::time::Duration::from_secs(10))).ok();
+            let mut seen = Vec::new();
+            let mut buf = [0u8; 4096];
+            while !seen.windows(4).any(|w| w == b"\r\n\r\n") {
+                match stream.read(&mut buf) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => seen.extend_from_slice(&buf[..n]),
+                }
+            }
+            let end = seen.windows(4).position(|w| w == b"\r\n\r\n").map_or(seen.len(), |i| i);
+            let head = String::from_utf8_lossy(&seen[..end]).into_owned();
+            // Whatever body came with it is read too, so the reply never meets a half-sent request.
+            let wanted = header(&head, "content-length").and_then(|v| v.parse::<usize>().ok()).unwrap_or(0);
+            let mut body = seen.len().saturating_sub(end + 4);
+            while body < wanted {
+                match stream.read(&mut buf) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => body += n,
+                }
+            }
+            let reply = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{answer}", answer.len());
+            let _ = stream.write_all(reply.as_bytes());
+            head
+        });
+        (addr, handle)
+    }
+
+    /// A header's value in a request head, its name in any case.
+    pub fn header(head: &str, name: &str) -> Option<String> {
+        head.lines().skip(1).find_map(|l| {
+            let (n, v) = l.split_once(':')?;
+            n.trim().eq_ignore_ascii_case(name).then(|| v.trim().to_string())
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -1501,6 +1577,84 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn the_user_agent_names_myorbiter_its_version_and_its_home() {
+        assert_eq!(user_agent_for("0.2.101"), "MyOrbiter/0.2.101 (+https://gitlab.com/sheziss-group/myorbiter)");
+        assert_eq!(user_agent(), format!("MyOrbiter/{} (+https://gitlab.com/sheziss-group/myorbiter)", version()));
+        // The updater's project is this same repository.
+        assert_eq!(REPO_URL, format!("https://gitlab.com/{}", crate::updates::PROJECT.replace("%2F", "/")));
+    }
+
+    #[test]
+    fn every_request_carries_the_user_agent() {
+        let (addr, served) = test_http::serve_once("{}");
+        request("GET", &format!("{addr}/x")).call().expect("answered");
+        let head = served.join().unwrap();
+        assert_eq!(test_http::header(&head, "user-agent"), Some(user_agent()), "{head}");
+    }
+
+    /// Every request goes through `request` (and every warframe.market socket through
+    /// `market::socket_request`), which set the User-Agent: a request built any other way fails
+    /// here, so none can go out without it.
+    #[test]
+    fn no_request_is_built_around_the_user_agent() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut files = Vec::new();
+        let mut todo = vec![dir.clone()];
+        while let Some(d) = todo.pop() {
+            for entry in fs::read_dir(&d).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    todo.push(path);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    files.push(path);
+                }
+            }
+        }
+        assert!(files.len() > 10, "found the sources in {}", dir.display());
+        let count = |text: &str, what: &str| text.matches(what).count();
+        for path in files {
+            let all = fs::read_to_string(&path).unwrap();
+            // The code, without its tests (each file keeps them at the end).
+            let code = all.split("#[cfg(test)]").next().unwrap_or("");
+            let name = path.strip_prefix(&dir).unwrap().to_string_lossy().replace('\\', "/");
+            let at = |what: &str, allowed: usize| {
+                assert_eq!(count(code, what), allowed, "{name}: `{what}` outside the request helpers");
+            };
+            match name.as_str() {
+                // `fn http_agent()` and its one use, in `request`; the one agent built.
+                "lib.rs" => {
+                    at("http_agent()", 2);
+                    at("AgentBuilder", 1);
+                    at("\"User-Agent\"", 1);
+                }
+                "market.rs" => {
+                    at("http_agent()", 0);
+                    at("into_client_request", 1);
+                    at("\"User-Agent\"", 1);
+                }
+                // Nox's Frame names MyOrbiter its own way (never warframe.market's address).
+                "noxsframe.rs" => {
+                    at("http_agent()", 0);
+                    at("into_client_request", 0);
+                    at("\"User-Agent\"", 1);
+                    at("warframe.market", 0);
+                }
+                _ => {
+                    at("http_agent()", 0);
+                    at("into_client_request", 0);
+                    at("\"User-Agent\"", 0);
+                }
+            }
+            for what in ["ureq::get", "ureq::post", "ureq::put", "ureq::delete", "ureq::request", "ureq::agent", "tungstenite::connect(", "reqwest"] {
+                at(what, 0);
+            }
+            if name != "lib.rs" {
+                at("AgentBuilder", 0);
+            }
+        }
+    }
 
     #[test]
     fn only_discord_webhooks() {

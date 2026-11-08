@@ -23,8 +23,29 @@ const KEYRING_USER: &str = "warframe.market";
 /// The sign-in's file in the config folder, where there is no keyring (written by `write_atomic`,
 /// by way of `.market-token.<pid>.<n>.tmp`).
 pub const TOKEN_FILE: &str = "market-token";
-/// How MyOrbiter introduces itself to warframe.market, on the API and on the status socket alike.
-pub const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"), " (personal order helper; +https://gitlab.com/sheziss-group/orbiter)");
+/// warframe.market's WebSocket: the live feed of new orders (feed.rs) and your status (presence.rs).
+const SOCKET: &str = "wss://ws.warframe.market/socket";
+/// The socket refuses connections that don't ask for this subprotocol.
+const SUBPROTOCOL: &str = "wfm";
+
+/// Every HTTP request to warframe.market starts here: `crate::request`, which names MyOrbiter in
+/// the User-Agent (`MyOrbiter/<version> (+<repository>)`), as warframe.market's rules ask.
+fn request(method: &str, url: &str) -> ureq::Request {
+    crate::request(method, url)
+}
+
+/// The request that opens warframe.market's socket, for the live feed and the status alike: its
+/// subprotocol and the same User-Agent as the API. A connection that says nothing about itself is
+/// turned away (403) before it can sign in.
+pub(crate) fn socket_request() -> Result<tungstenite::handshake::client::Request, tungstenite::Error> {
+    use tungstenite::client::IntoClientRequest;
+    use tungstenite::http::HeaderValue;
+    let mut request = SOCKET.into_client_request()?;
+    request.headers_mut().insert("Sec-WebSocket-Protocol", HeaderValue::from_static(SUBPROTOCOL));
+    let agent = HeaderValue::from_str(&crate::user_agent()).map_err(|e| tungstenite::Error::HttpFormat(e.into()))?;
+    request.headers_mut().insert("User-Agent", agent);
+    Ok(request)
+}
 
 static LAST_CALL: Mutex<Option<Instant>> = Mutex::new(None);
 
@@ -177,7 +198,7 @@ fn get_json(url: &str, timeout: u64) -> Result<Value, MarketError> {
 fn get_json_once(url: &str, timeout: u64) -> Result<Value, MarketError> {
     with_retries(|| {
         wait_turn();
-        match crate::http_agent().get(url).set("User-Agent", USER_AGENT).set("Language", "en").timeout(Duration::from_secs(timeout)).call() {
+        match request("GET", url).set("Language", "en").timeout(Duration::from_secs(timeout)).call() {
             Ok(r) => json_body(r.into_reader()),
             Err(ureq::Error::Status(429, resp)) => Err(rate_limited(&resp)),
             Err(e) => Err(MarketError::Unreachable(e.to_string())),
@@ -385,9 +406,7 @@ impl Client {
 
     fn send_once(&self, method: &str, url: &str, body: Option<&Value>, token: Option<&str>) -> Result<(Value, Option<String>), MarketError> {
         wait_turn();
-        let mut req = crate::http_agent()
-            .request(method, url)
-            .set("User-Agent", USER_AGENT)
+        let mut req = request(method, url)
             .set("Accept", "application/json")
             .set("Language", "en")
             .set("Platform", platform())
@@ -439,9 +458,7 @@ impl Client {
     /// v1 is the route that still hands tokens to third-party apps; the token works on v2.
     pub fn sign_in(&self, email: &str, password: &str) -> Result<Profile, MarketError> {
         wait_turn();
-        let resp = crate::http_agent()
-            .post(&format!("{V1}/auth/signin"))
-            .set("User-Agent", USER_AGENT)
+        let resp = request("POST", &format!("{V1}/auth/signin"))
             .set("Authorization", "JWT")
             .set("Content-Type", "application/json")
             .timeout(Duration::from_secs(20))
@@ -1308,6 +1325,35 @@ mod tests {
         assert_eq!(thumb_name(&serde_json::json!("items/images/en/thumbs/../../x.png")), Value::Null);
         assert_eq!(thumb_name(&serde_json::json!("items/images/en/serration.png")), Value::Null);
         assert_eq!(thumb_name(&Value::Null), Value::Null);
+    }
+
+    /// warframe.market's rules ask every client to name itself: each way MyOrbiter reaches it
+    /// (plain reads, signed-in calls and changes, the socket) carries the User-Agent. Against a
+    /// server on this machine; nothing is sent to warframe.market.
+    #[test]
+    fn every_warframe_market_request_names_myorbiter() {
+        let ua = Some(crate::user_agent());
+        assert!(crate::user_agent().starts_with("MyOrbiter/") && crate::user_agent().ends_with(" (+https://gitlab.com/sheziss-group/myorbiter)"));
+
+        let (addr, served) = crate::test_http::serve_once("{}");
+        get_json(&format!("{addr}/v2/items"), 10).expect("read");
+        let head = served.join().unwrap();
+        assert_eq!(crate::test_http::header(&head, "user-agent"), ua, "{head}");
+
+        let client = Client::offline();
+        for method in ["GET", "PATCH"] {
+            let (addr, served) = crate::test_http::serve_once("{}");
+            let body = (method != "GET").then(|| serde_json::json!({ "platinum": 7 }));
+            client.send(method, &format!("{addr}/v2/order/abc"), body.as_ref(), Some("token")).expect("answered");
+            let head = served.join().unwrap();
+            assert!(head.starts_with(&format!("{method} /v2/order/abc ")), "{head}");
+            assert_eq!(crate::test_http::header(&head, "user-agent"), ua, "{method}: {head}");
+        }
+
+        let socket = socket_request().unwrap();
+        assert_eq!(socket.uri().host(), Some("ws.warframe.market"));
+        assert_eq!(socket.headers().get("User-Agent").and_then(|v| v.to_str().ok()).map(str::to_string), ua);
+        assert_eq!(socket.headers().get("Sec-WebSocket-Protocol").and_then(|v| v.to_str().ok()), Some("wfm"));
     }
 
     impl Client {
