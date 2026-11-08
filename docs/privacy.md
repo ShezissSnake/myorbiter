@@ -243,8 +243,9 @@ At most 20 posts a minute. Test sends a sample post. Without a webhook, nothing 
 
 ## Updates
 
-The AppImage and the Windows installer check for a new build at start, every 6 hours, when you
-press Check now and when you change the channel. They read the channel's `latest.json` from this
+The AppImage and the Windows installer check for a new build at start, every 6 hours (counted from
+the last check, so a check missed while the computer slept runs when it wakes), when you press Check
+now and when you change the channel. They read the channel's `latest.json` from this
 project's package registry on gitlab.com, with the updater's own User-Agent
 (`tauri-plugin-updater/<version>`); the address names only the channel you picked (stable, beta or
 experimental), with no version, system or id. An update downloads from gitlab.com's package

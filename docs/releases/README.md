@@ -80,7 +80,8 @@ at the address installed copies check
   channel can't be read, it deletes nothing.
 - The `channel/…` and `stable-builds/…` packages hold only `latest.json` files: don't delete them,
   every installed copy on that channel reads them. While the project is private, update checks
-  can't reach them, and MyOrbiter just says *Couldn't check for updates*.
+  can't reach them, and MyOrbiter says so under Check now (*gitlab.com didn't serve the Stable
+  channel's manifest*).
 
 There are no macOS builds on GitLab.
 

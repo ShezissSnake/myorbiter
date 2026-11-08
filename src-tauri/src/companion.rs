@@ -294,12 +294,18 @@ fn terminate(pid: u32) {
 }
 
 /// Variables MyOrbiter's own AppImage sets for itself (its folder, and paths inside it), taken off
-/// a TennoScope it starts: TennoScope is an AppImage of its own and must find its own libraries,
-/// not MyOrbiter's.
+/// a program it starts: TennoScope is an AppImage of its own and must find its own libraries, not
+/// MyOrbiter's, and the system's programs (the file manager) must find the system's. The GTK hook
+/// also forces its own theme (`GTK_THEME`, set beside `GTK_DATA_PREFIX=$APPDIR`) and puts
+/// `$APPDIR/usr/share:/usr/share:` in front of the session's `XDG_DATA_DIRS`: both are undone, an
+/// `XDG_DATA_DIRS` the session didn't have going back to unset (the spec's default).
 #[cfg(target_os = "linux")]
 fn scrub_appimage_env(cmd: &mut Command) {
     let Some(appdir) = std::env::var_os("APPDIR").filter(|d| !d.is_empty()) else { return };
     let appdir = appdir.to_string_lossy().into_owned();
+    if std::env::var_os("GTK_DATA_PREFIX").is_some_and(|p| p.to_string_lossy() == appdir.as_str()) {
+        cmd.env_remove("GTK_THEME");
+    }
     for (key, value) in std::env::vars_os() {
         let Some(k) = key.to_str() else { continue };
         if matches!(k, "APPDIR" | "APPIMAGE" | "ARGV0" | "OWD") {
@@ -307,6 +313,15 @@ fn scrub_appimage_env(cmd: &mut Command) {
             continue;
         }
         let v = value.to_string_lossy();
+        if k == "XDG_DATA_DIRS" {
+            if let Some(session) = v.strip_prefix(&format!("{appdir}/usr/share:/usr/share:")) {
+                match session.split(':').filter(|p| !p.is_empty()).collect::<Vec<_>>() {
+                    kept if kept.is_empty() => cmd.env_remove(&key),
+                    kept => cmd.env(&key, kept.join(":")),
+                };
+                continue;
+            }
+        }
         if !v.contains(&appdir) {
             continue;
         }
@@ -319,10 +334,10 @@ fn scrub_appimage_env(cmd: &mut Command) {
     }
 }
 
-/// A TennoScope process, without MyOrbiter's own environment: the WebKit tuning MyOrbiter set for its
-/// window, and on Linux its AppImage's paths. The one inside MyOrbiter is told so
-/// (`ORBITER_BUNDLED`): its own updater then stands down, as MyOrbiter brings its updates.
-fn launch(bin: &Path, bundled: bool) -> Command {
+/// A program started without MyOrbiter's own environment: the WebKit tuning MyOrbiter set for its
+/// window, and on Linux its AppImage's paths (`scrub_appimage_env`). Its input and output go
+/// nowhere.
+pub(crate) fn plain_command(bin: impl AsRef<std::ffi::OsStr>) -> Command {
     let mut cmd = Command::new(bin);
     cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
     for key in crate::env_set_by_myorbiter() {
@@ -330,6 +345,13 @@ fn launch(bin: &Path, bundled: bool) -> Command {
     }
     #[cfg(target_os = "linux")]
     scrub_appimage_env(&mut cmd);
+    cmd
+}
+
+/// A TennoScope process (`plain_command`). The one inside MyOrbiter is told so (`ORBITER_BUNDLED`):
+/// its own updater then stands down, as MyOrbiter brings its updates.
+fn launch(bin: &Path, bundled: bool) -> Command {
+    let mut cmd = plain_command(bin);
     if bundled {
         cmd.env("ORBITER_BUNDLED", "1");
     }
@@ -634,16 +656,35 @@ mod tests {
     fn appimage_paths_stay_with_myorbiter() {
         // The variables are read from this process, so set them here (tests in this module don't
         // read them otherwise).
+        let _env = crate::TEST_ENV.lock().unwrap_or_else(|e| e.into_inner());
         std::env::set_var("APPDIR", "/tmp/.mount_myorbiterX");
         std::env::set_var("APPIMAGE", "/home/me/myorbiter.AppImage");
         std::env::set_var("MYORBITER_TEST_DIRS", "/tmp/.mount_myorbiterX/usr/share:/usr/share:/usr/local/share");
         std::env::set_var("MYORBITER_TEST_ONLY", "/tmp/.mount_myorbiterX/usr/lib/gio");
+        // The GTK hook's own: its theme, and its data folders before the session's.
+        let session = (std::env::var_os("GTK_DATA_PREFIX"), std::env::var_os("GTK_THEME"), std::env::var_os("XDG_DATA_DIRS"));
+        std::env::set_var("GTK_DATA_PREFIX", "/tmp/.mount_myorbiterX");
+        std::env::set_var("GTK_THEME", "Adwaita:dark");
+        std::env::set_var("XDG_DATA_DIRS", "/tmp/.mount_myorbiterX/usr/share:/usr/share:/usr/local/share:/usr/share");
         let cmd = launch(Path::new("/bin/true"), true);
-        let envs: std::collections::HashMap<_, _> = cmd.get_envs().map(|(k, v)| (k.to_string_lossy().into_owned(), v.map(|v| v.to_string_lossy().into_owned()))).collect();
+        // A session without XDG_DATA_DIRS: unset again, so the spec's default applies.
+        std::env::set_var("XDG_DATA_DIRS", "/tmp/.mount_myorbiterX/usr/share:/usr/share:");
+        let cmd2 = launch(Path::new("/bin/true"), true);
+        for (k, v) in [("GTK_DATA_PREFIX", session.0), ("GTK_THEME", session.1), ("XDG_DATA_DIRS", session.2)] {
+            match v {
+                Some(v) => std::env::set_var(k, v),
+                None => std::env::remove_var(k),
+            }
+        }
         std::env::remove_var("APPDIR");
         std::env::remove_var("APPIMAGE");
         std::env::remove_var("MYORBITER_TEST_DIRS");
         std::env::remove_var("MYORBITER_TEST_ONLY");
+        let envs: std::collections::HashMap<_, _> = cmd.get_envs().map(|(k, v)| (k.to_string_lossy().into_owned(), v.map(|v| v.to_string_lossy().into_owned()))).collect();
+        assert_eq!(envs.get("GTK_THEME"), Some(&None), "the system's theme, not the AppImage's");
+        assert_eq!(envs.get("GTK_DATA_PREFIX"), Some(&None));
+        assert_eq!(envs.get("XDG_DATA_DIRS"), Some(&Some("/usr/local/share:/usr/share".into())), "the session's own");
+        assert_eq!(cmd2.get_envs().find(|(k, _)| *k == "XDG_DATA_DIRS").map(|(_, v)| v.is_none()), Some(true));
         assert_eq!(envs.get("APPDIR"), Some(&None), "removed");
         assert_eq!(envs.get("APPIMAGE"), Some(&None));
         assert_eq!(envs.get("MYORBITER_TEST_DIRS"), Some(&Some("/usr/share:/usr/local/share".into())));

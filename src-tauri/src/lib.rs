@@ -5,6 +5,7 @@ mod bridge;
 mod companion;
 mod desktop;
 mod feed;
+mod folder;
 mod presence;
 mod images;
 mod market;
@@ -1078,24 +1079,65 @@ struct LogFolders {
 
 #[tauri::command(async)]
 fn log_folders(dir: Option<String>) -> LogFolders {
-    let tennoscope = data_dir(dir)
-        .ok()
-        .and_then(|d| myorbiter_data::reward_log::reward_log_dirs(&d).into_iter().find(|p| p.is_dir()));
+    let tennoscope = data_dir(dir).ok().and_then(|d| tennoscope_log_dir(&d));
     LogFolders { myorbiter: applog::dir().map(|p| p.display().to_string()), tennoscope: tennoscope.map(|p| p.display().to_string()) }
 }
 
-/// Opens a log folder in the file manager: `which` is "myorbiter" or "tennoscope".
-#[tauri::command(async)]
-fn open_log_folder(app: tauri::AppHandle, which: String, dir: Option<String>) -> Result<(), String> {
-    use tauri_plugin_opener::OpenerExt;
-    let folders = log_folders(dir);
-    let path = match which.as_str() {
-        "myorbiter" => folders.myorbiter,
-        "tennoscope" => folders.tennoscope,
-        _ => None,
+/// The first of TennoScope's log folders under its data folder `data` that exists.
+fn tennoscope_log_dir(data: &Path) -> Option<PathBuf> {
+    myorbiter_data::reward_log::reward_log_dirs(data).into_iter().find(|p| p.is_dir())
+}
+
+/// A log folder the page may ask to open: these two names and nothing else. Anything else the page
+/// sends (a path among them) fails as the command's arguments are read, before anything runs.
+#[derive(serde::Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+enum LogFolder {
+    Myorbiter,
+    Tennoscope,
+}
+
+/// Opens a log folder in the file manager (`folder::open`). The page names which one; where it is
+/// is decided here alone: MyOrbiter's log folder, or TennoScope's under the data folder the saved
+/// settings name (`saved_data_dir`). It waits for the opener's answer, so on a blocking thread,
+/// not one of the async runtime's few.
+#[tauri::command]
+async fn open_log_folder(app: tauri::AppHandle, which: LogFolder) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = log_folder_path(which, applog::dir(), || saved_data_dir(&app))?;
+        folder::open(&app, &path)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Where `which` is: MyOrbiter's log folder (`myorbiter`, once its log is open), or TennoScope's
+/// first existing log folder under the data folder `data` gives.
+fn log_folder_path(which: LogFolder, myorbiter: Option<PathBuf>, data: impl FnOnce() -> Result<PathBuf, String>) -> Result<PathBuf, String> {
+    match which {
+        LogFolder::Myorbiter => myorbiter.ok_or_else(|| "MyOrbiter's log isn't open, so it has no folder to show".to_string()),
+        LogFolder::Tennoscope => tennoscope_log_dir(&data()?).ok_or_else(|| "TennoScope hasn't written a log here yet".to_string()),
     }
-    .ok_or("That log folder doesn't exist yet")?;
-    app.opener().open_path(path, None::<&str>).map_err(|e| e.to_string())
+}
+
+/// TennoScope's data folder as the saved settings name it (`dataDir`; its default when they name
+/// none), checked as a path the page sent is (`data_dir`). Read only: a damaged settings file is an
+/// error here, not moved aside (`read_settings` does that, once, as the page starts).
+fn saved_data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let path = settings_path(app)?;
+    let bytes = match fs::read(&path) {
+        Ok(b) => Some(b),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => return Err(format!("couldn't read {}: {e}", path.display())),
+    };
+    data_dir(settings_data_dir(bytes.as_deref())?)
+}
+
+/// `dataDir` from the saved settings' bytes (none saved: None).
+fn settings_data_dir(bytes: Option<&[u8]>) -> Result<Option<String>, String> {
+    let Some(bytes) = bytes else { return Ok(None) };
+    let settings: Value = serde_json::from_slice(bytes).map_err(|_| "MyOrbiter's saved settings can't be read".to_string())?;
+    Ok(settings.get("dataDir").and_then(Value::as_str).map(str::to_owned))
 }
 
 // ---------------------------------------------------------------- bug reports
@@ -1287,6 +1329,10 @@ async fn save_settings(app: tauri::AppHandle, settings: Value, page: u64, rev: u
 /// The variables MyOrbiter set for its own window at start (see `rendering::apply`),
 /// which a TennoScope it starts must not inherit.
 static ENV_SET_BY_MYORBITER: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+
+/// Held by a test that sets this process's environment (`APPDIR`), so two such tests don't run at once.
+#[cfg(test)]
+pub(crate) static TEST_ENV: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 pub(crate) fn env_set_by_myorbiter() -> &'static [&'static str] {
     ENV_SET_BY_MYORBITER.get().map(Vec::as_slice).unwrap_or(&[])
@@ -1585,6 +1631,38 @@ mod tests {
     }
 
     use super::*;
+
+    /// The page names a log folder; it can't name a path. Only the two names pass, and TennoScope's
+    /// folder comes from the saved settings, never from the page.
+    #[test]
+    fn a_log_folder_is_named_never_given_as_a_path() {
+        assert_eq!(serde_json::from_str::<LogFolder>("\"myorbiter\"").unwrap(), LogFolder::Myorbiter);
+        assert_eq!(serde_json::from_str::<LogFolder>("\"tennoscope\"").unwrap(), LogFolder::Tennoscope);
+        for stray in ["\"/etc\"", "\"/home/user\"", "\"../../etc\"", "\"C:\\\\Windows\"", "\"MyOrbiter\"", "\"\"", "null", "{\"dir\":\"/etc\"}"] {
+            assert!(serde_json::from_str::<LogFolder>(stray).is_err(), "{stray} refused");
+        }
+        // The command's arguments are the window's handle and the name: no folder from the page.
+        let src = include_str!("lib.rs");
+        let sig = src.split("async fn open_log_folder(").nth(1).unwrap().split(')').next().unwrap();
+        assert_eq!(sig, "app: tauri::AppHandle, which: LogFolder");
+
+        let base = std::env::temp_dir().join(format!("myorbiter-logs-{}", std::process::id()));
+        let logs = myorbiter_data::reward_log::reward_log_dirs(&base).into_iter().next().unwrap();
+        fs::create_dir_all(&logs).unwrap();
+        let mine = base.join("myorbiter-log");
+        assert_eq!(log_folder_path(LogFolder::Myorbiter, Some(mine.clone()), || panic!("not read for MyOrbiter's")), Ok(mine));
+        assert_eq!(log_folder_path(LogFolder::Tennoscope, None, || Ok(base.clone())), Ok(logs));
+        assert!(log_folder_path(LogFolder::Myorbiter, None, || Ok(base.clone())).is_err());
+        assert_eq!(log_folder_path(LogFolder::Tennoscope, None, || Err("unreadable settings".into())), Err("unreadable settings".into()), "the settings' error is the answer");
+        fs::remove_dir_all(&base).unwrap();
+
+        // The saved settings' data folder, checked as any path is: a relative one is refused.
+        assert_eq!(settings_data_dir(None), Ok(None));
+        assert_eq!(settings_data_dir(Some(br#"{"dataDir":"/home/user/TennoScope"}"#)), Ok(Some("/home/user/TennoScope".into())));
+        assert_eq!(settings_data_dir(Some(br#"{"tab":"home"}"#)), Ok(None));
+        assert!(settings_data_dir(Some(b"{damaged")).is_err());
+        assert!(data_dir(settings_data_dir(Some(br#"{"dataDir":"../../etc"}"#)).unwrap()).is_err());
+    }
 
     #[test]
     fn the_user_agent_names_myorbiter_its_version_and_its_home() {

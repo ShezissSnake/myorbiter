@@ -17,9 +17,10 @@
   import FullMode from "./FullMode.svelte";
   import Seg from "./ui/Seg.svelte";
   import ProgressButton from "./ui/ProgressButton.svelte";
+  import { Jobs } from "./job.svelte";
   import { openUrl } from "./backend";
   import { updates } from "./updates.svelte";
-  import { CHANNELS, CHANNEL_LABEL, checkedAgo, installChecks, installInstalls, installNote, noteLines, releasePage, versionLine } from "./core/updates";
+  import { CHANNELS, CHANNEL_LABEL, installChecks, installInstalls, installNote, noteLines, releasePage, versionLine } from "./core/updates";
   import RenderingSetting from "./ui/RenderingSetting.svelte";
 
   let {
@@ -62,7 +63,13 @@
     return () => clearInterval(t);
   });
 
-  let logError = $state<string | null>(null);
+  /** Open a log folder: "Opened", or why not, on the button itself. */
+  const logJobs = new Jobs();
+  const openLogs = (which: "myorbiter" | "tennoscope") =>
+    logJobs.get(which).run(async () => {
+      await openLogFolder(which);
+      return "Opened";
+    });
   // Paths are edited as drafts and applied together, because changing them reloads everything.
   let dataDir = $state("");
   let eeLog = $state("");
@@ -314,10 +321,10 @@
     <Seg label="Channel" value={settings.updates.channel} options={CHANNELS.map((c) => ({ ...c }))} onchange={(c) => updates.setChannel(c)} />
     <p class="hint">{CHANNELS.find((c) => c.v === settings.updates.channel)?.title}. Switching to a more stable channel never steps back by itself: if its build is older than this one, MyOrbiter offers it here and installs it only when you click.</p>
     <div class="row">
-      <ProgressButton job={updates.checkJob} label="Check now" disabled={!checks} sizer={["Up to date · 0.1.9999", "Experimental has 0.1.9999", "Couldn't check"]} title={checks ? `Look for a newer build on ${CHANNEL_LABEL[settings.updates.channel]} now. MyOrbiter also looks when it starts and every 6 hours; nothing installs without your click.` : (info ? (installNote(info.install) ?? "") : "")} status />
+      <ProgressButton job={updates.checkJob} busy={updates.checking} label="Check now" disabled={!checks} sizer={["Up to date · 0.1.9999", "Experimental has 0.1.9999", "Couldn't check"]} title={checks ? `Look for a newer build on ${CHANNEL_LABEL[settings.updates.channel]} now. MyOrbiter also looks when it starts and every 6 hours; nothing installs without your click.` : (info ? (installNote(info.install) ?? "") : "")} onclick={() => updates.checkNow()} />
       <button type="button" class="link out" title="Open this build's release page on GitLab, in your browser: what changed, and its downloads" onclick={() => openUrl(releasePage(info?.version ?? "0.1.0"))}>Release notes<Icon name="external" size={11} /></button>
     </div>
-    {#if checks}<p class="hint">Last checked {checkedAgo(settings.updates.lastCheck, now)}{#if updates.error}{" "}· <span title={updates.error}>couldn't check for updates</span>{/if}.</p>{/if}
+    {#if checks}<p class="hint" class:err={updates.outcome?.kind === "failed" && !updates.checking}>{updates.status(now)}<span class="sr" role="status">{updates.headline}</span></p>{/if}
     {#if offer}
       <div class="offer" transition:reveal>
         <div class="offer-in">
@@ -342,12 +349,11 @@
     <p class="hint">What MyOrbiter did and what went wrong, one line each, for when something misbehaves: TennoScope starting or failing, every change it made to your listings and every request warframe.market turned down, and errors in this window. Never your warframe.market sign-in. TennoScope keeps its own. Send both when you report a problem.</p>
     {#await logFolders(settings.dataDir) then f}
       <div class="row">
-        <button class="stamp" disabled={!f.myorbiter} title={f.myorbiter ?? "Only in the desktop app"} onclick={() => openLogFolder("myorbiter", settings.dataDir).catch((e) => (logError = String(e)))}>Open MyOrbiter's log folder</button>
-        <button class="stamp" disabled={!f.tennoscope} title={f.tennoscope ?? "TennoScope hasn't written a log here yet"} onclick={() => openLogFolder("tennoscope", settings.dataDir).catch((e) => (logError = String(e)))}>Open TennoScope's log folder</button>
+        <ProgressButton job={logJobs.get("myorbiter")} label="Open MyOrbiter's log folder" failLabel="Couldn't open" sizer={["Opened", "Couldn't open"]} disabled={!f.myorbiter} title={f.myorbiter ?? "Only in the desktop app"} onclick={() => openLogs("myorbiter")} status />
+        <ProgressButton job={logJobs.get("tennoscope")} label="Open TennoScope's log folder" failLabel="Couldn't open" sizer={["Opened", "Couldn't open"]} disabled={!f.tennoscope} title={f.tennoscope ?? "TennoScope hasn't written a log here yet"} onclick={() => openLogs("tennoscope")} status />
       </div>
       {#if f.myorbiter}<p class="hint path-note">{f.myorbiter}</p>{/if}
     {/await}
-    {#if logError}<p class="hint err">{logError}</p>{/if}
   </section>
 
   <section id="settings-report">
@@ -386,6 +392,7 @@
      its own length, so it ends in an ellipsis (the full path is its title) instead of widening the panel. */
   .program { flex: 1 1 0; width: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--platinum-dim); }
   .hint.err { color: var(--oxblood); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .row { display: flex; align-items: center; gap: .6rem; }
   .pagelist { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
   .pagelist li { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: .5rem; }
