@@ -45,13 +45,14 @@ test("anything else is refused", () => {
     assert.equal(openable(url), null, url);
 });
 
-test("the opener permission allows exactly the same sites", () => {
+test("the app allows exactly the same sites, and the page has no opener permission", () => {
+  // link.rs checks each link again before it opens it; the page can't reach the opener plugin.
   const cap = JSON.parse(readFileSync(new URL("../src-tauri/capabilities/default.json", import.meta.url), "utf8"));
-  const opener = cap.permissions.find((p: { identifier?: string }) => typeof p === "object" && p.identifier === "opener:allow-open-url");
-  assert.ok(opener, "a scoped opener:allow-open-url");
-  assert.ok(!cap.permissions.includes("opener:default"), "not the default (any http, https, mailto, tel; reveal in folder)");
-  const urls = opener.allow.map((a: { url: string }) => a.url).sort();
-  assert.deepEqual(urls, LINK_SITES.map((s) => `https://${s.host}${s.path}*`).sort());
+  assert.deepEqual(cap.permissions.filter((p: string | { identifier: string }) => /^opener:/.test(typeof p === "string" ? p : p.identifier)), []);
+  const link = readFileSync(new URL("../src-tauri/src/link.rs", import.meta.url), "utf8");
+  const list = link.slice(link.indexOf("const SITES"), link.indexOf("];", link.indexOf("const SITES")));
+  const sites = [...list.matchAll(/\("([^"]+)", "([^"]+)"\)/g)].map((m) => `${m[1]}${m[2]}`).sort();
+  assert.deepEqual(sites, LINK_SITES.map((s) => `${s.host}${s.path}`).sort());
 });
 
 test("the page opens a checked link through the app (link.rs), not straight through the opener plugin", () => {

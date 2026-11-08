@@ -11,13 +11,12 @@
 //! a process group of their own (`folder::first_opener`). The answer is still the opener's, not the
 //! browser's. On the other systems the opener plugin opens it.
 //!
-//! The page checks a link before it asks (`openable` in src/lib/core/links.ts). This command isn't
-//! under the opener plugin's scope (src-tauri/capabilities/default.json), so the same check is made
-//! here before anything runs.
+//! The page checks a link before it asks (`openable` in src/lib/core/links.ts), and the same check is
+//! made here before anything runs: the page has no opener permission of its own
+//! (src-tauri/capabilities/default.json), so this is the one way a link opens.
 
 /// The sites MyOrbiter opens: each one's host, and the path its links must start with ("/" for
-/// any). The same as `LINK_SITES` in src/lib/core/links.ts and the opener's scope in the
-/// capability; a test ties the three.
+/// any). The same as `LINK_SITES` in src/lib/core/links.ts; a test ties the two.
 const SITES: &[(&str, &str)] = &[
     ("warframe.market", "/"),
     ("wiki.warframe.com", "/"),
@@ -131,9 +130,10 @@ mod tests {
         }
     }
 
-    /// One list of sites in three places: here, the page's `LINK_SITES` and the opener's scope.
+    /// One list of sites, here and in the page's `LINK_SITES`; and no opener permission for the page,
+    /// so a link can't open past this check.
     #[test]
-    fn the_page_the_capability_and_the_app_allow_the_same_sites() {
+    fn the_page_and_the_app_allow_the_same_sites() {
         let mut ours: Vec<String> = SITES.iter().map(|(h, p)| format!("https://{h}{p}*")).collect();
         ours.sort();
 
@@ -151,10 +151,8 @@ mod tests {
         assert_eq!(page, ours, "LINK_SITES in src/lib/core/links.ts");
 
         let cap: serde_json::Value = serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
-        let opener = cap["permissions"].as_array().unwrap().iter().find(|p| p["identifier"] == "opener:allow-open-url").unwrap();
-        let mut scope: Vec<String> = opener["allow"].as_array().unwrap().iter().map(|a| a["url"].as_str().unwrap().to_owned()).collect();
-        scope.sort();
-        assert_eq!(scope, ours, "the opener's scope in capabilities/default.json");
+        let opener = cap["permissions"].as_array().unwrap().iter().filter(|p| p.as_str().or(p["identifier"].as_str()).is_some_and(|id| id.starts_with("opener:"))).count();
+        assert_eq!(opener, 0, "no opener permission in capabilities/default.json");
     }
 
     /// An allowed link goes to the opener as one argument, in the shape the browser is to open.

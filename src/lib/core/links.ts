@@ -1,5 +1,5 @@
 // The sites MyOrbiter opens in your browser. Every link goes through `openable` first, and the
-// desktop app's opener permission (src-tauri/capabilities/default.json) allows the same sites and
+// desktop app's open_link command (src-tauri/src/link.rs) checks the same sites again and opens
 // nothing else, so a link built from data (an item's wiki page, a seller's profile) can never send
 // the browser, or the system, somewhere unexpected. Add a site in both places.
 
