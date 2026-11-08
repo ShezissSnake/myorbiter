@@ -2597,7 +2597,8 @@
   <aside class="rail" aria-label="MyOrbiter">
     <div class="brand">
       <img class="brand-mark" src={appMark} width="26" height="26" alt="" />
-      <span class="brand-name">MyOrbiter</span>
+      <!-- The running build under the name: the version the updater compares, small and muted. -->
+      <span class="brand-text"><span class="brand-name">MyOrbiter</span>{#if updates.info}<small class="brand-ver" title="This build of MyOrbiter">{updates.info.version}</small>{/if}</span>
       <button class="fold" aria-label={compact ? "Show labels" : "Icons only"} title={compact ? "Show the page names" : "Icons only"} onclick={() => (settings.folded = !compact)}>
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d={compact ? "M6 3l5 5-5 5" : "M10 3 5 8l5 5"} fill="none" stroke="currentColor" stroke-width="1.5" /></svg>
       </button>
@@ -2893,7 +2894,10 @@
   }
   .brand { display: flex; align-items: center; gap: .6rem; padding: .95rem 1rem .8rem 1.1rem; border-bottom: 1px solid var(--rule); }
   .brand-mark { display: block; flex: none; }
-  .brand-name { font-family: var(--face-mark); font-weight: 700; font-size: 1.3rem; letter-spacing: .03em; text-transform: uppercase; }
+  .brand-text { display: grid; min-width: 0; }
+  .brand-name { font-family: var(--face-mark); font-weight: 700; font-size: 1.3rem; letter-spacing: .03em; text-transform: uppercase; line-height: 1.1; }
+  /* One line, never wider than the space the name leaves: a long version ends in an ellipsis. */
+  .brand-ver { font-family: var(--face-register); font-size: .6rem; letter-spacing: .08em; line-height: 1.3; color: var(--platinum-deep); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .fold { margin-left: auto; padding: .35rem; line-height: 0; border-color: transparent; background: transparent; color: var(--platinum-deep); }
   .fold:hover { color: var(--platinum); }
   /* The page list scrolls on a short window; Sync, TennoScope and Settings stay pinned below it. */
@@ -2963,7 +2967,7 @@
   /* ---- icons only: folded by hand, or a narrow window */
   .compact .brand { justify-content: center; padding-left: .5rem; padding-right: .5rem; flex-direction: column; gap: .4rem; }
   .compact .fold { margin-left: 0; }
-  .compact .brand-name, .compact .lbl { display: none; }
+  .compact .brand-text, .compact .lbl { display: none; }
   /* Folded, a section keeps a short rule in its colour between the groups (its name on hover). */
   .compact .sec { justify-content: center; padding: .6rem 0 .35rem; font-size: 0; letter-spacing: 0; gap: 0; }
   .compact .sec::after { flex: none; width: 1.5rem; height: 2px; background: var(--sec); }
