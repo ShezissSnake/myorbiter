@@ -12,6 +12,17 @@ class TennoscopeStore {
   pending = $state<TennoscopeAsk | null>(null);
   /** Start it whenever it isn't running. */
   launch = true;
+  /**
+   * The first start's question is open (FirstRun.svelte): TennoScope isn't started and isn't asked
+   * anything until it's answered.
+   */
+  asking = $state(false);
+  /**
+   * The first start's answer, until TennoScope reports that mode: every start passes it on the
+   * command line, and a TennoScope running in another mode is asked to switch. So a start that
+   * failed, or a TennoScope found only later, still gets it.
+   */
+  wanted: TennoscopeAccess | null = null;
   /** TennoScope's data folder (Settings), where its log says why it wouldn't start; empty finds it. */
   dataDir = "";
   private busy = false;
@@ -56,14 +67,15 @@ class TennoscopeStore {
       const wasRunning = !!this.status?.running;
       // Not where TennoScope can't run (macOS); and a start that fails waits longer each time,
       // like one that crashes, rather than trying (and notifying) every 15 seconds.
-      const relaunch = start && (force || this.launch) && this.status?.supported !== false && !wasRunning && now >= this.nextLaunch;
+      const relaunch = start && !this.asking && (force || this.launch) && this.status?.supported !== false && !wasRunning && now >= this.nextLaunch;
       if (relaunch) {
         this.relaunches++;
         this.nextLaunch = now + Math.min(15_000 * 2 ** (this.relaunches - 1), 600_000);
       }
       // Only a relaunch starts it: a check while it seemed to run only looks, so one that stops as
       // soon as it starts waits out the longer gaps above instead of being started every 15 s.
-      this.status = relaunch ? await tennoscope.start() : await tennoscope.status();
+      this.status = relaunch ? await tennoscope.start(this.wanted ?? undefined) : await tennoscope.status();
+      this.follow();
       if (this.status?.running) {
         this.upSince ||= now;
         if (now - this.upSince > 120_000) this.relaunches = 0;
@@ -82,25 +94,23 @@ class TennoscopeStore {
     }
   }
 
-  /**
-   * The first start's answer: TennoScope started in that mode (on its command line), or the one
-   * already running switched to it. Nothing about TennoScope starts before this on a first start.
-   */
-  async startIn(access: TennoscopeAccess) {
-    this.pending = access;
-    try {
-      this.status = await tennoscope.start(access);
-      this.error = null;
-      for (const ms of [1200, 3500, 7000]) setTimeout(() => this.check(), ms);
-      setTimeout(() => this.pending === access && (this.pending = null), 8000);
-    } catch (e) {
-      this.pending = null;
-      this.error = clean(e);
-      this.status = await tennoscope.status().catch(() => null);
-    }
+  /** The first start's answer: kept until TennoScope reports that mode (see `wanted`). */
+  answer(access: TennoscopeAccess) {
+    this.wanted = access;
+    this.asking = false;
+  }
+  /** Done once TennoScope reports the mode asked for; a running one in another mode is asked to switch. */
+  private follow() {
+    const want = this.wanted;
+    const mode = this.report?.setup.access_mode;
+    if (!want || !this.report) return;
+    if (mode === want.slice("--access=".length)) this.wanted = null;
+    else if (this.pending !== want) void this.ask(want);
   }
 
   async ask(ask: TennoscopeAsk) {
+    // Nothing goes to TennoScope while the first start's question is open (a sync from the riven key).
+    if (this.asking) return;
     try {
       this.pending = ask;
       await tennoscope.ask(ask);

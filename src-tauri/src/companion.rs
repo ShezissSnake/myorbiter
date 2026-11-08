@@ -102,7 +102,8 @@ fn read_report_in(dir: &Path, live: &[u32], now: u64) -> Option<serde_json::Valu
 
 /// The requests MyOrbiter sends a patched TennoScope (see its `orbiter_bridge::asks`). Your
 /// warframe.market status isn't one: MyOrbiter holds that itself (see presence.rs). `--access=…`
-/// is the Full mode switch (Settings, setup), which shows its warning beside it.
+/// is the Full mode switch (Settings, setup) and the first start's answer, each shown with its
+/// warning.
 pub fn allowed_ask(arg: &str) -> bool {
     matches!(arg, "--sync" | "--authorize-capture") || allowed_access(arg)
 }
@@ -426,11 +427,6 @@ impl Companion {
             started_by_myorbiter: started.is_some(),
             report: read_report(&live),
         }
-    }
-
-    /// Starts TennoScope in the background unless one is already running.
-    pub fn start(&self) -> Result<Status, String> {
-        self.start_in(None)
     }
 
     /// Starts TennoScope in the background unless one is already running; with `access` (the first

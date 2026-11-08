@@ -11,6 +11,12 @@
   import type { TennoscopeAccess } from "./backend";
 
   let { onanswer }: { onanswer: (access: TennoscopeAccess) => void } = $props();
+  // It opens by itself during start-up: a click meant for the page behind doesn't answer it.
+  let ready = $state(false);
+  $effect(() => {
+    const t = setTimeout(() => (ready = true), 600);
+    return () => clearTimeout(t);
+  });
 </script>
 
 <div class="scrim" use:scrim in:shade|global out:shade|global>
@@ -27,8 +33,8 @@
     <p class="warn" id="first-run-warning">{FULL_MODE_WARNING}</p>
     <p class="dim small">Nothing starts until you choose. You can change it any time in Settings, TennoScope.</p>
     <footer>
-      <button class="stamp" onclick={() => onanswer("--access=overlay")}>Not now: overlay only</button>
-      <button class="stamp" onclick={() => onanswer("--access=full")}>Read my inventory (Full mode)</button>
+      <button class="stamp" disabled={!ready} onclick={() => onanswer("--access=overlay")}>Not now: overlay only</button>
+      <button class="stamp" disabled={!ready} onclick={() => onanswer("--access=full")}>Read my inventory (Full mode)</button>
     </footer>
   </div>
 </div>

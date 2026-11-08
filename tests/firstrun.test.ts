@@ -39,38 +39,70 @@ test("the Full mode question is asked on a first start only", async () => {
 
 test("nothing of TennoScope starts before the answer, and the answer is what it starts in", () => {
   const app = src("App.svelte");
+  const hold = app.indexOf("ts.asking = true;");
   const ask = app.indexOf("(answer) => (firstRun = answer)");
-  const startIn = app.indexOf("await ts.startIn(access)");
+  const answered = app.indexOf("ts.answer(access)");
   const firstStart = app.indexOf("await ts.check(true)");
   const poll = app.indexOf("tsPoll = setInterval(");
-  assert.ok(ask > 0 && startIn > ask, "asked, then started in the chosen mode");
-  assert.ok(firstStart > startIn && poll > firstStart, "TennoScope's first start and its 15 s check come after the question");
-  // Before the question, only a look at whether TennoScope runs here (no start).
-  assert.equal(app.slice(0, ask).match(/ts\.check\(true\)|ts\.startIn\(|tennoscope\.start\(/g), null);
-  assert.match(app.slice(app.lastIndexOf("if (ts.launch && !settings.fullModeAsked", ask), ask), /await ts\.check\(\);/);
+  assert.ok(hold > 0 && ask > hold && answered > ask, "held, asked, then answered");
+  assert.ok(firstStart > answered && poll > firstStart, "TennoScope's first start and its 15 s check come after the question");
+  // Before the hold, nothing looks at TennoScope at all; between hold and answer, only a look.
+  assert.equal(app.slice(0, hold).match(/ts\.check\(|tennoscope\.start\(/g), null);
+  assert.deepEqual(app.slice(hold, ask).match(/ts\.check\([^)]*\)/g), ["ts.check()"]);
 });
 
 test("the question shows Full mode's warning, word for word, and can't be closed without an answer", () => {
   const dialog = src("lib/FirstRun.svelte");
   assert.match(dialog, /import \{ FULL_MODE_WARNING \} from "\.\/FullMode\.svelte"/);
   assert.match(dialog, /\{FULL_MODE_WARNING\}/);
-  assert.doesNotMatch(dialog, /onescape|onclick=\{close|\$effect/, "no Esc, no click outside, no closing counted as an answer");
-  assert.deepEqual([...dialog.matchAll(/onanswer\("(--access=[a-z]+)"\)/g)].map((m) => m[1]).sort(), ["--access=full", "--access=overlay"]);
+  assert.doesNotMatch(dialog, /onescape|onkeydown|onsubmit|onclick=\{close/, "no Esc, no key or click outside answers it");
+  // The only calls of onanswer are the two buttons, each one mode.
+  assert.deepEqual([...dialog.matchAll(/onanswer\(([^)]*)\)/g)].map((m) => m[1]).sort(), ['"--access=full"', '"--access=overlay"']);
+  assert.match(dialog, /disabled=\{!ready\} onclick=\{\(\) => onanswer\("--access=overlay"\)\}/);
+  assert.match(dialog, /disabled=\{!ready\} onclick=\{\(\) => onanswer\("--access=full"\)\}/);
 });
 
-test("the answer goes to TennoScope's start: Overlay never asks for Full", async () => {
-  const { ts } = await import("../src/lib/tennoscopeStore.svelte");
-  const real = tennoscope.start;
-  const asked: (TennoscopeAccess | undefined)[] = [];
+// ------------------------------------------------------------------ the store's gate
+
+function stubTennoscope(report: { mode: string | null } | null, running = false) {
+  const calls: string[] = [];
+  const status = () => ({ running, supported: true, binary: "/home/user/tennoscope", custom: null, bundled: true, started_by_myorbiter: false, report: report && { setup: { setup_complete: !!report.mode, access_mode: report.mode, desktop_capture_action_available: false } } }) as never;
+  const real = { start: tennoscope.start, status: tennoscope.status, ask: tennoscope.ask };
   tennoscope.start = async (access?: TennoscopeAccess) => {
-    asked.push(access);
-    return null;
+    calls.push(`start ${access ?? "-"}`);
+    running = true;
+    return status();
   };
+  tennoscope.status = async () => status();
+  tennoscope.ask = async (a) => void calls.push(`ask ${a}`);
+  return { calls, restore: () => Object.assign(tennoscope, real), set: (r: { mode: string | null } | null) => (report = r) };
+}
+
+test("while the question is open nothing starts or is asked; the answer goes to the start", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const { ts } = await import("../src/lib/tennoscopeStore.svelte");
+  const tsx = stubTennoscope(null);
   try {
-    await ts.startIn("--access=overlay");
-    await ts.startIn("--access=full");
+    ts.status = null;
+    ts.asking = true;
+    await ts.check(true, true);
+    await ts.ask("--sync");
+    assert.deepEqual(tsx.calls, [], "held: no start, no sync");
+    ts.answer("--access=overlay");
+    await ts.check(true, true);
+    assert.deepEqual(tsx.calls, ["start --access=overlay"]);
+    // Until TennoScope reports that mode, the answer stays: a running one in another mode is asked.
+    tsx.set({ mode: "full" });
+    ts.pending = null;
+    await ts.check();
+    assert.deepEqual(tsx.calls, ["start --access=overlay", "ask --access=overlay"], "Overlay is asked for, never Full");
+    tsx.set({ mode: "overlay" });
+    await ts.check();
+    assert.equal(ts.wanted, null, "applied: nothing more to pass on");
   } finally {
-    tennoscope.start = real;
+    tsx.restore();
+    ts.asking = false;
+    ts.wanted = null;
+    ts.pending = null;
   }
-  assert.deepEqual(asked, ["--access=overlay", "--access=full"]);
 });

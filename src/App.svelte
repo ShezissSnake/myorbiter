@@ -2405,18 +2405,21 @@
       // Before it starts: how TennoScope draws its overlay is set when it launches.
       await tennoscopeOpaqueOverlay(settings.tennoscope.opaqueOverlay);
       // A first start asks whether TennoScope may read the game's memory before it starts at all
-      // (FirstRun.svelte), where TennoScope can run here. Not when the settings couldn't be read:
-      // the answer couldn't be kept.
+      // (FirstRun.svelte): the store starts nothing and asks nothing until then, and passes the
+      // answer to every start until TennoScope reports that mode. Not where TennoScope can't run
+      // (macOS), nor when the settings couldn't be read (the answer couldn't be kept).
       if (ts.launch && !settings.fullModeAsked && !settingsUnreadable()) {
+        ts.asking = true;
         await ts.check();
-        if (ts.status?.supported && ts.status.binary) {
+        if (ts.status?.supported === false) ts.asking = false;
+        else {
           const access = await new Promise<TennoscopeAccess>((answer) => (firstRun = answer));
           firstRun = null;
           if (stopped) return;
           settings.fullModeAsked = true;
           // Overlay only: carry on without an inventory, as the setup steps' "Not now" does.
           if (access === "--access=overlay") settings.withoutInventory = true;
-          await ts.startIn(access);
+          ts.answer(access);
         }
       }
       // Awaited: whether TennoScope runs here at all decides what an empty folder means.
