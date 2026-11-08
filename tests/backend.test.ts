@@ -301,3 +301,34 @@ test("settings saved before the Forma value get 3p; a bad value falls back to it
     assert.equal(s.pick.forma, want);
   }
 });
+
+test("minimum prices: an old file's relic minimum becomes the Relics one, its minimum the global one; bad values are dropped", async () => {
+  const load = async (market: unknown) => {
+    (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({ market }) };
+    return (await loadSettings()).market;
+  };
+  // Before categories had minimums: minPrice and minRelicPrice.
+  const old = await load({ minPrice: 15, minRelicPrice: 4 });
+  assert.equal(old.minPrice, 15);
+  assert.deepEqual(old.minByCategory, { relics: 4 });
+  // An old file that never changed the relic minimum, and a new install: the usual 3p for relics.
+  assert.deepEqual((await load({ minPrice: 15 })).minByCategory, { relics: 3 });
+  assert.deepEqual((await load(undefined)).minByCategory, { relics: 3 });
+  // Saved by this build: its own, the relic minimum written for an older build not read again.
+  assert.deepEqual((await load({ minPrice: 12, minByCategory: { mods: 20 }, minRelicPrice: 12 })).minByCategory, { mods: 20 });
+  // Unknown categories, negatives, zero, non-numbers and huge numbers are dropped; fractions rounded.
+  const bad = await load({ minPrice: -5, minByCategory: { mods: -1, relics: 0, arcanes: "9", prime: 7.6, gear: 1e9, resources: null, bogus: 5, imprints: Number.NaN } });
+  assert.equal(bad.minPrice, 10, "a negative global minimum is the usual 10p");
+  assert.deepEqual(bad.minByCategory, { prime: 8 });
+  assert.deepEqual((await load({ minByCategory: [5] })).minByCategory, { relics: 3 }, "not an object: as if not saved");
+});
+
+test("minimum prices: saved with the relic minimum an older build reads", async () => {
+  const { lightSettings } = await import("../src/lib/backend");
+  const s = defaultSettings();
+  s.market.minPrice = 12;
+  s.market.minByCategory = { mods: 20 };
+  assert.equal(JSON.parse(JSON.stringify(lightSettings(s))).market.minRelicPrice, 12, "no Relics minimum: the global one");
+  s.market.minByCategory = { relics: 5 };
+  assert.equal(JSON.parse(JSON.stringify(lightSettings(s))).market.minRelicPrice, 5);
+});

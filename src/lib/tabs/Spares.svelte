@@ -46,7 +46,7 @@
 
   /** What the numbers depend on, ticks aside: every row is counted as if ticked. */
   const shape = (r: SparesRules) => JSON.stringify([SPARE_CATEGORIES.map((c) => ({ ...r[c], on: null })), r.neverSell]);
-  const previewKey = $derived(JSON.stringify([shape(rules), settings.minPrice, settings.minRelicPrice, settings.sellable, advice.platPerDucat, advice.squad, advice.minPlat, advice.vosforLens]));
+  const previewKey = $derived(JSON.stringify([shape(rules), settings.minPrice, settings.minByCategory, settings.sellable, advice.platPerDucat, advice.squad, advice.minPlat, advice.vosforLens]));
   let estimate = $state.raw<{ key: string; model: Model; index: unknown; drops: unknown; tally: SparesTally } | null>(null);
   $effect(() => {
     const key = previewKey;
@@ -56,7 +56,7 @@
     if (estimate && estimate.key === key && estimate.model === m && estimate.index === index && estimate.drops === recent) return;
     // In a quiet moment, never on the click: the last numbers stay up, faded, meanwhile.
     return whenIdle(() => {
-      const ctx = { model: m, index, sell: $state.snapshot(settings.sellable), advice: $state.snapshot(advice), drops: recent, minPrice: settings.minPrice, minRelicPrice: settings.minRelicPrice };
+      const ctx = { model: m, index, sell: $state.snapshot(settings.sellable), advice: $state.snapshot(advice), drops: recent, minPrice: settings.minPrice, minByCategory: $state.snapshot(settings.minByCategory) };
       estimate = { key, model: m, index, drops: recent, tally: sparesPreview(ctx, $state.snapshot(settings.spares) as SparesRules) };
     });
   });
@@ -68,7 +68,7 @@
   // on screen, marked, until you plan again. Never sell and Sell again don't count: the plan already
   // leaves out what you put on the list while looking it over.
   let plannedWith = $state("");
-  const rulesKey = $derived(JSON.stringify([{ ...rules, neverSell: [] }, settings.minPrice, settings.minRelicPrice, settings.minShare, settings.sellable]));
+  const rulesKey = $derived(JSON.stringify([{ ...rules, neverSell: [] }, settings.minPrice, settings.minByCategory, settings.minShare, settings.sellable]));
   const stale = $derived(!!mkt.bulk && rulesKey !== plannedWith);
   const sendable = $derived(mkt.bulk ? toApply(mkt.bulk.actions, mkt.bulk.skipped, never) : []);
   const planned = $derived(mkt.bulk && !stale ? planTally(sendable) : null);
@@ -98,7 +98,7 @@
     sparesSummary.changes = changes.length;
   });
   const lich = $derived(lichWeaponsLeft(model));
-  const facts: SparesFacts = $derived({ lichLeft: { requiem: lich.known.requiem ? lich.requiem.length : 1, antivirus: lich.known.antivirus ? lich.antivirus.length : 1 }, platPerDucat: advice.platPerDucat, minPrice: settings.minPrice, minRelicPrice: settings.minRelicPrice, squad: advice.squad ?? 1 });
+  const facts: SparesFacts = $derived({ lichLeft: { requiem: lich.known.requiem ? lich.requiem.length : 1, antivirus: lich.known.antivirus ? lich.antivirus.length : 1 }, platPerDucat: advice.platPerDucat, minPrice: settings.minPrice, minByCategory: settings.minByCategory, squad: advice.squad ?? 1 });
 
   // Waiting for the relic prices MyOrbiter reads on start: the button says so, rather than nothing.
   let waiting = $state(false);
@@ -247,7 +247,7 @@
     <p class="signin small"><GameIcon name="market" size={14} /> Plans are made against your listings on warframe.market: <button type="button" class="link" title="Orders: sign in to warframe.market" onclick={() => go("market")}>sign in on Orders</button>. The choices below are kept either way.</p>
   {/if}
 
-  <SparesPlan bind:rules={settings.spares} bind:veiledRivens={settings.sellable.veiledRivens} {preview} {facts} bind:open page onsellagain={sellAgain} actions={planButton} />
+  <SparesPlan bind:rules={settings.spares} bind:veiledRivens={settings.sellable.veiledRivens} bind:minPrice={settings.minPrice} bind:minByCategory={settings.minByCategory} {preview} {facts} bind:open page onsellagain={sellAgain} actions={planButton} />
   <!-- Why the last plan or apply failed, here by its buttons rather than at the top of the page. -->
   {#each [planJob, applyJob].filter((j) => j.state === "failed" && j.error) as j (j)}<p class="small err" role="status">{j.error}</p>{/each}
 

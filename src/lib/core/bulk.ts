@@ -7,7 +7,7 @@ import { competitor, findItem, heldFor, marketValue, overAsked, type BookOrder, 
 import { aboveCrack, allSetRows, gearSetRows, spareRows, type SellChoices, type SpareRow } from "./spares";
 import type { Model } from "./model";
 import { ANTIVIRUS_MOD, arcaneRows, inventoryRows, LICH_KEEP_ALL, MOD_KEEP, modRows, modSpares, partRows, REQUIEM_MOD, saveForSets, savedLine, setRows, type ArcaneRow, type ModRow } from "./views";
-import { allOn, LICH_FAMILIES, rulesV2, SPARE_CATEGORIES, type ModFamily, type PlanRules, type ResourceFamily, type SpareCategory, type SparesRules } from "./sparesRules";
+import { allOn, CATEGORY_WORD, LICH_FAMILIES, minimumFor, rulesV2, SPARE_CATEGORIES, type MinByCategory, type ModFamily, type PlanRules, type ResourceFamily, type SpareCategory, type SparesRules } from "./sparesRules";
 import { gearSetParts } from "./model";
 import { packValues, spareArcanes, vosforWorth } from "./vosfor";
 
@@ -395,7 +395,8 @@ const addTo = (t: CategoryTally, family: SpareFamily | undefined, plat: number) 
 export interface PreviewContext extends SpareContext {
   advice: DucatOptions;
   minPrice: number;
-  minRelicPrice: number;
+  /** Category minimums, each replacing minPrice for its category (sparesRules.ts, minimumFor). */
+  minByCategory?: MinByCategory;
 }
 
 /**
@@ -426,8 +427,8 @@ export function sparesPreview(c: PreviewContext, rules: SparesRules): SparesTall
       if (duc != null && ducatsBeat(each, duc)) continue;
     }
     if (t.crack != null && each <= t.crack) continue;
-    const relic = it ? !!it.tags?.includes("relic") : / Relic$/.test(t.name);
-    if (each < (relic ? c.minRelicPrice : c.minPrice)) {
+    // The item's own category decides, as repricing and the listing form judge it (minimumForItem).
+    if (each < (it ? minimumForItem(c, m, it) : minimumFor(c, cat))) {
       out[cat].under++;
       continue;
     }
@@ -528,6 +529,23 @@ export function catOfItem(m: Model, it: MarketItem, kind: BulkKind | null = kind
 }
 
 /**
+ * The lowest price MyOrbiter lists or reprices an item at: its Sell spares category's minimum,
+ * or the global one (also for things outside every category).
+ */
+export function minimumForItem(s: { minPrice: number; minByCategory?: MinByCategory | null }, m: Model | null, it: MarketItem): number {
+  return minimumFor(s, m ? catOfItem(m, it) : catOfTags(it));
+}
+/** Without a collection read: the categories warframe.market's tags settle alone (anything else, the global minimum). */
+function catOfTags(it: MarketItem): SpareCategory | null {
+  const tags = it.tags ?? [];
+  if (tags.includes("relic")) return "relics";
+  if (tags.includes("imprint")) return "imprints";
+  if (tags.includes("arcane_enhancement")) return "arcanes";
+  if (tags.includes("mod") && !/ \(Veiled\)$/.test(it.name)) return "mods";
+  return null;
+}
+
+/**
  * Whether the plan looks after your listings of an item: its row is ticked, and for sets and parts
  * the row sells that way (Whole sets leaves part listings be; Parts only, set listings). Listings
  * you set to be left alone or hid are left alone whatever this says.
@@ -598,10 +616,10 @@ export interface BulkContext {
   orders: MyOrder[];
   me: Me;
   books: Record<string, BookOrder[] | undefined>;
-  /** Never list or keep a listing under this price. */
+  /** Never list or keep a listing under this price, unless its category has its own minimum. */
   minPrice: number;
-  /** The same for relics (they go in stacks); minPrice when not set. */
-  minRelicPrice?: number;
+  /** Category minimums, each replacing minPrice for its category (sparesRules.ts, minimumFor). */
+  minByCategory?: MinByCategory;
   minShare: number;
   floors: Record<string, number>;
   paused: Record<string, boolean>;
@@ -752,8 +770,10 @@ export function bulkPlan(c: BulkContext, rules: PlanRules, targets: SellTarget[]
       else actions.push(skip(hold.why, holdTag));
       continue;
     }
-    const min = it.tags?.includes("relic") ? (c.minRelicPrice ?? c.minPrice) : c.minPrice;
-    const minWords = it.tags?.includes("relic") && c.minRelicPrice != null ? `${min}p relic minimum` : `${min}p minimum`;
+    // The item's own category decides, as repricing, the listing form and the last check judge it.
+    const minCat = catOfItem(c.model, it);
+    const min = minimumForItem(c, c.model, it);
+    const minWords = minCat && c.minByCategory?.[minCat] != null ? `${min}p ${CATEGORY_WORD[minCat]} minimum` : `${min}p minimum`;
     const cheap = cheapByMedian(c.model, it, t.rank, min, subtype);
     if (cheap != null) {
       const why = `Sells for about ${Math.round(cheap)}p, under your ${minWords}`;

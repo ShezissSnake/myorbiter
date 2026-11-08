@@ -3,7 +3,7 @@
 // fills these from the plan logic (core/bulk.ts: sparesPreview before a plan, planTally after); the
 // components only draw them.
 import type { SpareFamily, Tally } from "../../core/bulk";
-import type { SpareCategory } from "../../core/sparesRules";
+import type { MinByCategory, SpareCategory } from "../../core/sparesRules";
 
 export type { Tally };
 
@@ -30,8 +30,9 @@ export interface SparesFacts {
   lichLeft: { requiem: number; antivirus: number };
   /** The player's ducat rate (Prime parts, Your rates). */
   platPerDucat: number;
+  /** The global minimum price, and each category's own (core/sparesRules.ts, minimumFor). */
   minPrice: number;
-  minRelicPrice: number;
+  minByCategory: MinByCategory;
   /** 1 solo, 4 radshares (Relics' choice): what a crack is worth depends on it. */
   squad: number;
 }

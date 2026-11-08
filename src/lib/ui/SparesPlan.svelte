@@ -2,8 +2,8 @@
   // Sell spares, the choices: one compact row per category (its box, its choices in a line of
   // words, what it would list), and the row you click opens its options beneath it, one at a time.
   // Every option says what it does; what a category always keeps whatever the options say is
-  // written at the foot of its options. The listing limit and the price minimum, which apply to
-  // everything, stay at the bottom with the button that makes the plan. A category that's off
+  // written at the foot of its options. The listing limit and the minimum prices (one for
+  // everything, then each category's own), stay at the bottom with the button that makes the plan. A category that's off
   // keeps its options as they are, greyed out.
   //
   // It draws the choices (settings.market.spares, version 2: core/sparesRules.ts) and the counts
@@ -13,6 +13,7 @@
   import FamilyLine from "./spares/FamilyLine.svelte";
   import NeverSoldLine from "./spares/NeverSoldLine.svelte";
   import Stepper from "./spares/Stepper.svelte";
+  import Minimums from "./spares/Minimums.svelte";
   import Seg from "./Seg.svelte";
   import Switch from "./Switch.svelte";
   import P from "./P.svelte";
@@ -26,11 +27,13 @@
     RESOURCE_FAMILY_LABEL,
     SPARE_CATEGORIES,
     isUsual,
+    minimumFor,
     neverSoldIn,
     summaryOf,
     usualKeeping,
     type SellAs,
     type SpareCategory,
+    type MinByCategory,
     type SparesRules,
   } from "../core/sparesRules";
   import type { SparesFacts, SparesPreview } from "./spares/types";
@@ -38,6 +41,8 @@
   let {
     rules = $bindable(),
     veiledRivens = $bindable(false),
+    minPrice = $bindable(),
+    minByCategory = $bindable(),
     preview,
     facts,
     open = $bindable(null),
@@ -48,6 +53,9 @@
     rules: SparesRules;
     /** Settings, Selling: veiled rivens count as spare (and so can be listed). Shown under Resources. */
     veiledRivens?: boolean;
+    /** The minimum price for everything (also Orders' Never under), and each category's own. */
+    minPrice: number;
+    minByCategory: MinByCategory;
     preview: SparesPreview;
     facts: SparesFacts;
     /** The category whose options are open: one at a time. */
@@ -68,9 +76,10 @@
   const usual = $derived(isUsual(rules));
   const rate = $derived(facts.platPerDucat.toFixed(2).replace(/0$/, ""));
   const fam = (c: SpareCategory, f: string) => preview[c]?.families?.[f as keyof NonNullable<SparesPreview[SpareCategory]>["families"]] ?? null;
-  const under = (c: SpareCategory, what: string, min = facts.minPrice) => {
+  const under = (c: SpareCategory, what: string) => {
     const n = preview[c]?.under ?? 0;
-    return n ? `${n} more spare ${what} sell for under your ${min}p minimum: left out` : "";
+    const min = minimumFor(facts, c);
+    return n ? `${n} more spare ${what} sell for under your ${min}p minimum${facts.minByCategory[c] != null ? " for them" : ""}: left out` : "";
   };
 
   const off = (c: SpareCategory) => !rules[c].on;
@@ -173,7 +182,7 @@
           <p class="note">To crack yourself, of each relic and refinement. 0 sells every one worth selling.</p>
         </div>
       </fieldset>
-      {#if under("relics", "relics", facts.minRelicPrice)}<p class="note">{under("relics", "relics", facts.minRelicPrice)}.</p>{/if}
+      {#if under("relics", "relics")}<p class="note">{under("relics", "relics")}.</p>{/if}
       <NeverSoldLine entries={neverSoldIn(rules, "relics")} one="relic" many="relics" {onsellagain} />
     </CategoryRow>
 
@@ -226,6 +235,11 @@
     </CategoryRow>
   </div>
 
+  <div class="minimums" id="minimums">
+    <Minimums bind:minPrice bind:minByCategory />
+    <p class="note">Nothing is listed or priced under its minimum (a spare that sells for less is left out), and repricing raises a listing under it to it. Your own floors on Orders, a prime's ducats and a relic's crack value still hold above it.</p>
+  </div>
+
   <footer class="foot">
     <span class="prio" title="Only matters when there's more to list than warframe.market's 100 listings allow: which ones get the slots">
       <Seg label="Over 100 listings? Keep" bind:value={rules.priority} options={[
@@ -233,7 +247,6 @@
         { v: "trades", label: "Sells most often", title: "The listings that sell most often, so your slots keep turning over" },
       ]} />
     </span>
-    <span class="dim small minnote" title="Your minimum price, set next to Floor above your listings: nothing cheaper is listed">Skips anything under {facts.minPrice}p, relics under {facts.minRelicPrice}p</span>
     <span class="grow"></span>
     {#if actions}{@render actions()}{/if}
   </footer>
@@ -261,6 +274,6 @@
   .foot { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1.2rem; padding-top: .3rem; }
   /* The plan button keeps to the right, wrapped onto its own line or not. */
   .foot :global(.planbtn) { margin-left: auto; }
-  .minnote { white-space: nowrap; }
+  .minimums { display: grid; gap: .35rem; padding: .55rem .7rem; border: 1px solid var(--rule); background: var(--well); }
   .grow { flex: 1; }
 </style>

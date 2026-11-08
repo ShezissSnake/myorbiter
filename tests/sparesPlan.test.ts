@@ -28,7 +28,7 @@ import { indexItems, type MarketIndex, type MarketItem } from "../src/lib/core/m
 import { defaultSellChoices } from "../src/lib/core/spares";
 import { defaultAdvice, defaultSettings, lightSettings } from "../src/lib/backend";
 import { arcaneRows } from "../src/lib/core/views";
-import { defaultSparesRules, legacyRules, SPARE_CATEGORIES, sparesSettingsOf, withNeverSell, withoutNeverSell, type SpareCategory, type SparesRules } from "../src/lib/core/sparesRules";
+import { defaultSparesRules, legacyRules, minimumFor, minimumsText, SPARE_CATEGORIES, sparesSettingsOf, withNeverSell, withoutNeverSell, type SpareCategory, type SparesRules } from "../src/lib/core/sparesRules";
 import type { Bundle } from "../src/lib/core/types";
 
 const demo = (f: string) => new URL(`../demo/${f}`, import.meta.url);
@@ -67,7 +67,7 @@ const guard = (r: SparesRules, name: string, rank: number | null, quantity: numb
   guardListing({ model: dev().m, index: dev().index, sell, advice, rules: r, now: nowOf(dev().m) }, { item: item(name), rank, subtype: null, quantity, platinum: 50, manual });
 const ctx = (m: Model, extra: Partial<BulkContext> = {}): BulkContext => ({
   model: m, index: dev().index, orders: [], me: { id: "me", ingameName: "ExamplePlayer", platform: "pc", crossplay: true }, books: {},
-  minPrice: 10, minRelicPrice: 3, minShare: 0.5, floors: {}, paused: {}, sell, advice, ...extra,
+  minPrice: 10, minByCategory: { relics: 3 }, minShare: 0.5, floors: {}, paused: {}, sell, advice, ...extra,
 });
 
 test("mods: Requiem and Antivirus keep their own number while lich weapons are left", () => {
@@ -264,7 +264,7 @@ test("every line has its row and its rule; nothing is planned twice", () => {
 
 test("the numbers on each row: from the daily prices before a plan, from the plan after", () => {
   const r = defaultSparesRules();
-  const c = { model: dev().m, index: dev().index, sell, advice, minPrice: 10, minRelicPrice: 3 };
+  const c = { model: dev().m, index: dev().index, sell, advice, minPrice: 10, minByCategory: { relics: 3 } };
   const p = sparesPreview(c, r);
   // Relics are off by default: their row still says what ticking it would add.
   assert.ok(p.relics.listings > 0);
@@ -324,6 +324,16 @@ test("on the player's own dev data: every target names its rule and a positive c
     for (const t of ts) assert.ok(t.rule && t.ruleText && Number.isInteger(t.quantity) && t.quantity > 0, JSON.stringify(t));
     const plan = bulkPlan({ ...ctx(m), index }, r, ts);
     for (const a of plan) assert.ok(a.cat && a.rule && a.ruleText, JSON.stringify({ type: a.type, rule: a.rule, why: a.why }));
-    sparesPreview({ model: m, index, sell, advice, minPrice: 10, minRelicPrice: 3 }, r);
+    sparesPreview({ model: m, index, sell, advice, minPrice: 10, minByCategory: { relics: 3 } }, r);
   }
+});
+
+test("minimums: an empty category uses the global one, its own replaces it, and the text says which", () => {
+  const s = { minPrice: 10, minByCategory: { relics: 3, mods: 25 } };
+  assert.equal(minimumFor(s, "relics"), 3);
+  assert.equal(minimumFor(s, "mods"), 25);
+  assert.equal(minimumFor(s, "prime"), 10);
+  assert.equal(minimumFor(s, null), 10, "outside every category: the global one");
+  assert.equal(minimumsText(s), "10p; mods 25p, relics 3p");
+  assert.equal(minimumsText({ minPrice: 7, minByCategory: {} }), "7p");
 });

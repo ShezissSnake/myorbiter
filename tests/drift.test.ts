@@ -123,7 +123,7 @@ test("the cooldown: once an hour, six a day, times kept a day", () => {
 // ------------------------------------------------------------------ the store, on a timer
 
 const it = { id: "it", slug: "it", gameRef: "/it", name: "It", maxRank: null, subtypes: null, tags: [] };
-const noPrices = { price: () => null, priceMax: () => null, relicPrice: () => null } as unknown as Model;
+const noPrices = { price: () => null, priceMax: () => null, relicPrice: () => null, partByName: new Map() } as unknown as Model;
 const real = { ...market };
 const realNow = Date.now;
 let now = T0;
@@ -287,6 +287,99 @@ test("a listing at its ducat floor produces no write", async () => {
   }
   assert.deepEqual(sent, []);
   assert.deepEqual(s.changes, {});
+});
+
+// ------------------------------------------------------------------ minimum prices by category
+
+/** The listing's item as a mod, so the Mods minimum (Sell spares) is its own. */
+async function asMod() {
+  market.items = async () => [{ ...it, tags: ["mod"] }];
+  mkt.items = [];
+  await mkt.ensureItems();
+}
+
+test("on a timer: at most six changes a day per listing, with a category minimum set", async () => {
+  await asMod();
+  // The Mods minimum (95p) binds: the market at 90p is held at 95p, at 100p it's followed.
+  const s = { ...settings(), minByCategory: { mods: 95, relics: 3 } };
+  for (let h = 0; h < 12; h++) {
+    now = T0 + h * HOUR;
+    book = [seller(h % 2 ? 110 : 90), seller(h % 2 ? 110 : 90)];
+    await timedPass(s);
+  }
+  assert.equal(sent.length, DRIFT.perDay);
+  assert.ok(sent.every(([, p]) => p >= 95), JSON.stringify(sent));
+  assert.ok(sent.some(([, p]) => p === 95), "held at the minimum, not at 90p");
+});
+
+test("a listing under its category minimum is raised to it, once the cooldown allows", async () => {
+  await asMod();
+  const s = { ...settings(), minPrice: 10, minByCategory: { mods: 40 }, approved: { "it||": 30 } };
+  mine = [order(30)];
+  book = [seller(20), seller(20)];
+  await timedPass(s);
+  assert.deepEqual(sent, [["a", 40]], "raised to the Mods minimum, whatever the gap");
+  // Without the Mods minimum the global one applies: 20p stays over 10p, and 70% of 30p is 21p.
+  sent = [];
+  mine = [order(30)];
+  now = T0 + 2 * HOUR;
+  await timedPass({ ...settings(), minPrice: 10, approved: { "it||": 30 } });
+  assert.deepEqual(sent, [["a", 21]]);
+});
+
+test("the highest floor wins: your own floor over a lower category minimum, the category minimum over a lower own floor", async () => {
+  await asMod();
+  mine = [order(30)];
+  book = [seller(5), seller(5)];
+  await timedPass({ ...settings(), minPrice: 10, minByCategory: { mods: 4 }, floors: { "it||": 25 }, approved: { "it||": 30 } });
+  assert.deepEqual(sent, [["a", 25]], "a 4p Mods minimum under the old 10p one doesn't take it under your 25p floor");
+  sent = [];
+  mine = [order(40)];
+  now = T0 + 2 * HOUR;
+  await timedPass({ ...settings(), minPrice: 10, minByCategory: { mods: 28 }, floors: { "it||": 25 }, approved: { "it||": 40 } });
+  assert.deepEqual(sent, [["a", 28]], "a 28p Mods minimum over your 25p floor");
+});
+
+test("a listing at its ducat floor still produces no write with a lower prime minimum, and a higher one raises it", async () => {
+  const read = (f: string) => JSON.parse(readFileSync(new URL(`../demo/${f}`, import.meta.url), "utf8"));
+  const model = buildModel(read("dev-bundle.json"), undefined, null, null, [], read("dev-recipe-data.json"));
+  const items = read("dev-market-items.json");
+  const paris = items.find((i: { slug: string }) => i.slug === "paris_prime_set");
+  const advice = { ...defaultAdvice(), platPerDucat: 0.5 };
+  const floor = aboveDucats(ducatWorth(model, paris, advice.platPerDucat))!;
+  market.items = async () => items;
+  mkt.items = [];
+  await mkt.ensureItems();
+  mkt.advice = advice;
+  mine = [{ ...order(floor), itemId: paris.id }];
+  book = [seller(1), seller(2), seller(3)];
+  const low = { ...settings(), minByCategory: { prime: 2 }, approved: { [`${paris.id}||`]: floor } };
+  await timedPass(low, model);
+  assert.deepEqual(sent, [], "the ducat floor holds over a lower prime minimum");
+  const high = { ...settings(), minByCategory: { prime: floor + 10 }, approved: { [`${paris.id}||`]: floor } };
+  now = T0 + HOUR;
+  await timedPass(high, model);
+  assert.deepEqual(sent, [[mine[0].id, floor + 10]], "the prime minimum over the ducat floor wins");
+});
+
+test("a price typed on Orders under the item's minimum isn't sent", async () => {
+  await asMod();
+  mkt.rules = { ...settings(), minByCategory: { mods: 40 } };
+  try {
+    market.update = (async (id: string, c: { platinum?: number }) => {
+      sent.push([id, c.platinum!]);
+      return {} as never;
+    }) as never;
+    assert.equal(await mkt.update(order(100), { platinum: 30 }), false);
+    assert.deepEqual(sent, []);
+    assert.match(mkt.log[0]?.text ?? "", /^Didn't change It: 30p is under your 40p minimum/);
+    assert.equal(await mkt.update(order(100), { platinum: 40 }), true);
+    assert.deepEqual(sent, [["a", 40]]);
+    // Only a new price is judged: a listing already under it can still change its quantity.
+    assert.equal(await mkt.update(order(30), { quantity: 1 }), true);
+  } finally {
+    mkt.rules = null;
+  }
 });
 
 // ------------------------------------------------------------------ off unless you turn it on
