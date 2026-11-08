@@ -18,7 +18,7 @@
   import { updates as updateState } from "../updates.svelte";
   import { arrive } from "../motion";
   import { bugReport } from "../bugReport.svelte";
-    import { REPO_URL } from "../core/updates";
+  import { REPO_URL } from "../core/updates";
 
   // console: the short guide, for the pages a console or phone player has. platform: where they play.
   // hidden: the pages Settings → Pages keeps out of the sidebar. expanded: every step written out

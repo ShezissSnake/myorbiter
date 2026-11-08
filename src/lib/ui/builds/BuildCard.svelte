@@ -12,7 +12,7 @@
   import type { Loadout, LoadoutPick, WeaponRiven } from "../../core/builds/suggest";
   import { ageLine, BASIS_WORD, helminthShow, rivenShort, shardSlots, sourceName, withItLines, TIER_NAME, TIER_TIP, type Shown, type WithItLine } from "../../core/buildsPage";
   import { familyOfTag } from "./tags";
-    import { openable } from "../../core/links";
+  import { openable } from "../../core/links";
   import { info } from "../../hover.svelte";
   import { pop, reveal } from "../../motion";
   import ModGrid, { HAVE_MARK } from "./ModGrid.svelte";

@@ -12,7 +12,8 @@
 <span class="opening"><span class:on={!busy}>{@render children()}</span><span class:on={busy}>Opening…</span></span>
 
 <style>
-  .opening { display: inline-grid; gap: inherit; }
-  .opening > span { grid-area: 1 / 1; visibility: hidden; display: inline-flex; align-items: center; gap: inherit; white-space: nowrap; }
+  /* Inline grids don't take the control's underline (a .link's), so they draw it themselves. */
+  .opening { display: inline-grid; gap: inherit; text-decoration: inherit; }
+  .opening > span { grid-area: 1 / 1; visibility: hidden; display: inline-flex; align-items: center; gap: inherit; white-space: nowrap; text-decoration: inherit; }
   .opening > span.on { visibility: visible; }
 </style>

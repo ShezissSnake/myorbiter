@@ -15,7 +15,7 @@
   import Opening from "../ui/Opening.svelte";
   import type { Model } from "../core/model";
   import type { Settings } from "../backend";
-    import type { CatalogItem, InventoryRow } from "../core/types";
+  import type { CatalogItem, InventoryRow } from "../core/types";
   import {
     bestCopy,
     buildSources,

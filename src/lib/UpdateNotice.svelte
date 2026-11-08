@@ -1,6 +1,6 @@
 <script lang="ts">
-  // A newer build is out on your channel: a calm card in the bottom right corner (App's), there until you
-  // answer it. Update and restart downloads it (the button fills as it comes in), installs it once
+  // A newer build is out on your channel: a calm card in the bottom right corner (App's), there
+  // until you answer it. Update and restart downloads it (the button fills as it comes in), installs it once
   // its signature checks out and restarts MyOrbiter; Later puts this version away until a newer one
   // is out. Nothing installs without the click.
   import { arrive, leave } from "./motion";

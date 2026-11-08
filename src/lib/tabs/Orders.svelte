@@ -39,7 +39,7 @@
   import CopyButton from "../ui/CopyButton.svelte";
   import { Job, JobError, Jobs } from "../job.svelte";
   import { rivens } from "../rivenStore.svelte";
-    import type { MyAuction, RivenAuction } from "../core/rivens";
+  import type { MyAuction, RivenAuction } from "../core/rivens";
   import { estimateListed } from "../core/rivenModel";
 
   // console: you play on a console or phone, so MyOrbiter can't see what you hold. New listing then

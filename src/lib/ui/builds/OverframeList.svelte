@@ -9,7 +9,7 @@
   import type { CatalogItem } from "../../core/types";
   import { loadOverframe, overframeBuildUrl, overframeFor, updatedAt, OVERFRAME_ORIGIN, OVERFRAME_SITE, type OverframeFile } from "../../core/builds";
   import { ago, dayOf, overframeUrl } from "../../core/buildsPage";
-    import { arrive } from "../../motion";
+  import { arrive } from "../../motion";
   import Icon from "../Icon.svelte";
 
   let { item }: { item: CatalogItem } = $props();
@@ -59,7 +59,7 @@
                 <span>{b.formas} Forma</span>
                 {#if b.patch}<span class="chip">{b.patch}</span>{/if}
                 {#if Number.isFinite(at)}<span>updated {ago(at, now)}</span>{/if}
-                {#if links.isOpening(overframeBuildUrl(b.path))}<span class="opening">Opening…</span>{/if}
+                {#if links.isOpening(overframeBuildUrl(b.path))}<span>Opening…</span>{/if}
               </span>
             </span>
             <span class="go" aria-hidden="true"><Icon name="external" size={12} /></span>

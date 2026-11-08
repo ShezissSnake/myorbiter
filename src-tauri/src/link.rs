@@ -6,10 +6,10 @@
 //! the system's libraries then stopped as it loaded (Chromium: `undefined symbol:
 //! BrotliDecoderAttachDictionary`), even with a window of it already open, while `kde-open` had
 //! already answered that the link was open. One that loads (Firefox) finds the AppImage's GTK
-//! first, with its theme and modules, and passes all of it on to every program it starts. On Linux a link now opens as a log
-//! folder does: `xdg-open`, then `gio open`, then `kde-open`, without the AppImage's entries and in
-//! a process group of their own (`folder::first_opener`). The answer is still the opener's, not the
-//! browser's. On the other systems the opener plugin opens it.
+//! first, with its theme and modules, and passes all of it on to every program it starts. On Linux
+//! a link now opens as a log folder does: `xdg-open`, then `gio open`, then `kde-open`, without the
+//! AppImage's entries and in a process group of their own (`folder::first_opener`). The answer is
+//! still the opener's, not the browser's. On the other systems the opener plugin opens it.
 //!
 //! The page checks a link before it asks (`openable` in src/lib/core/links.ts), and the same check is
 //! made here before anything runs: the page has no opener permission of its own
@@ -44,7 +44,10 @@ fn openable(url: &str) -> Option<tauri::Url> {
 /// thread.
 pub fn open(app: &tauri::AppHandle, url: &str) -> Result<(), String> {
     let Some(url) = openable(url) else {
-        log::warn!(target: "myorbiter::app", "refused to open a link outside MyOrbiter's sites: {}", url.chars().take(200).collect::<String>());
+        // As the page's own log lines (`log_line`): control characters become spaces, so what the
+        // page sent can't write lines that look like MyOrbiter's own.
+        let shown: String = url.chars().take(200).map(|c| if c.is_control() { ' ' } else { c }).collect();
+        log::warn!(target: "myorbiter::app", "refused to open a link outside MyOrbiter's sites: {shown}");
         return Err("MyOrbiter opens links to its own sites only".into());
     };
     #[cfg(target_os = "linux")]

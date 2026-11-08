@@ -10,7 +10,7 @@
   import type { CatalogItem } from "../../core/types";
   import { noxListedWithinAge, NOX_SITE, type Build, type Nox, type NoxListed, type NoxOpened } from "../../core/builds";
   import { ago, copyLine, dayOf, listedAt, savedFrom } from "../../core/buildsPage";
-    import { arrive } from "../../motion";
+  import { arrive } from "../../motion";
   import ProgressButton from "../ProgressButton.svelte";
   import Icon from "../Icon.svelte";
 
