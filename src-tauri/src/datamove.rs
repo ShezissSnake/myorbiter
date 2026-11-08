@@ -179,8 +179,8 @@ fn settle(r: io::Result<Moved>, aside: Option<PathBuf>) -> io::Result<Moved> {
 }
 
 /// Removes the temporary copies (`<new>.partial-<pid>`) a start that was stopped mid-copy left
-/// beside `new`, and takes the sign-in out of every `<new>.before-copy-<n>`: a start stopped
-/// between setting `new` aside and putting the copy in its place left one with it. Only called
+/// beside `new`, and takes the credentials out of every `<new>.before-copy-<n>`: a start stopped
+/// between setting `new` aside and putting the copy in its place left one holding them. Only called
 /// with both locks held, when no other start can be copying.
 pub fn clear_partials(new: &Path) {
     let (Some(parent), Some(name)) = (new.parent(), new.file_name()) else { return };
@@ -336,18 +336,41 @@ fn copy_once(old: &Path, new: &Path, may_set_aside: bool, aside_out: &mut Option
     Ok(Moved::Copied)
 }
 
-/// Takes the warframe.market sign-in out of a folder set aside for good: it is kept for what else it
-/// holds, never read again, and a stale copy of a credential is no use to anyone. Only once the
+/// The files in the config folder that hold a credential: the warframe.market sign-in (where there
+/// is no keyring) and the confirmed Discord webhook address, whose last part is its token.
+fn credential_files() -> [&'static str; 2] {
+    [crate::market::TOKEN_FILE, crate::DISCORD_FILE]
+}
+
+/// Takes every credential out of a folder set aside for good: it is kept for what else it holds,
+/// never read again, and a stale copy of a credential is no use to anyone. Removes the credential
+/// files and what `write_atomic` left of them (`.<name>.<pid>.<n>.tmp`, `settings.json`'s too), and
+/// empties the Discord address in `settings.json` (`notifyOptions.discord.url`). Only once the
 /// setting aside is final (a folder put back stays whole), and best effort.
 fn strip_credentials(aside: &Path) {
-    let _ = fs::remove_file(aside.join(crate::market::TOKEN_FILE));
-    let Ok(entries) = fs::read_dir(aside) else { return };
-    let tmp = format!(".{}.", crate::market::TOKEN_FILE);
-    for entry in entries.flatten() {
-        let name = entry.file_name().to_string_lossy().into_owned();
-        if name.starts_with(&tmp) && name.ends_with(".tmp") {
-            let _ = fs::remove_file(entry.path());
+    for name in credential_files() {
+        let _ = fs::remove_file(aside.join(name));
+    }
+    if let Ok(entries) = fs::read_dir(aside) {
+        let temps: Vec<String> = credential_files().iter().chain(&["settings.json"]).map(|n| format!(".{n}.")).collect();
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if name.ends_with(".tmp") && temps.iter().any(|t| name.starts_with(t.as_str())) {
+                let _ = fs::remove_file(entry.path());
+            }
         }
+    }
+    let settings = aside.join("settings.json");
+    let Ok(bytes) = fs::read(&settings) else { return };
+    let Ok(mut value) = serde_json::from_slice::<serde_json::Value>(&bytes) else { return };
+    let Some(url) = value.pointer_mut("/notifyOptions/discord/url") else { return };
+    if url.as_str().is_some_and(str::is_empty) {
+        return;
+    }
+    *url = serde_json::Value::String(String::new());
+    if let Ok(text) = serde_json::to_vec_pretty(&value) {
+        // Over the file in place, so it keeps its permissions.
+        let _ = fs::write(&settings, text);
     }
 }
 
@@ -523,21 +546,28 @@ mod tests {
     }
 
     #[test]
-    fn a_folder_set_aside_keeps_everything_but_the_sign_in() {
+    fn a_folder_set_aside_keeps_everything_but_the_credentials() {
         let t = Temp::new("strip");
         let old = fill_old(&t.0);
         fs::write(old.join(crate::market::TOKEN_FILE), "old token").unwrap();
         let new = t.0.join(ID);
         fs::create_dir_all(new.join("sub")).unwrap();
-        fs::write(new.join("settings.json"), r#"{"b":2}"#).unwrap();
-        fs::write(new.join(crate::market::TOKEN_FILE), "token").unwrap();
+                fs::write(new.join(crate::market::TOKEN_FILE), "token").unwrap();
         fs::write(new.join(".market-token.123.4.tmp"), "token").unwrap();
+        fs::write(new.join(crate::DISCORD_FILE), "https://discord.com/api/webhooks/1/x").unwrap();
+        fs::write(new.join(".discord-webhook.123.5.tmp"), "https://discord.com/api/webhooks/1/x").unwrap();
+        fs::write(new.join(".settings.json.123.6.tmp"), "{}").unwrap();
+        fs::write(new.join("other.json"), r#"{"b":2}"#).unwrap();
         fs::write(new.join("sub").join(crate::market::TOKEN_FILE), "not the sign-in").unwrap();
+        fs::write(new.join("settings.json"), r#"{"b":2,"notifyOptions":{"toasts":true,"discord":{"url":"https://discord.com/api/webhooks/1/x","kinds":["sold"]}}}"#).unwrap();
         let aside = t.0.join(format!("{ID}.before-copy-1"));
         assert_eq!(copy_if_needed(&old, &new, true).unwrap(), Moved::CopiedSettingAside(aside.clone()));
-        assert!(!aside.join(crate::market::TOKEN_FILE).exists());
-        assert!(!aside.join(".market-token.123.4.tmp").exists());
-        assert_eq!(fs::read_to_string(aside.join("settings.json")).unwrap(), r#"{"b":2}"#);
+        for gone in [crate::market::TOKEN_FILE, ".market-token.123.4.tmp", crate::DISCORD_FILE, ".discord-webhook.123.5.tmp", ".settings.json.123.6.tmp"] {
+            assert!(!aside.join(gone).exists(), "{gone}");
+        }
+        assert_eq!(fs::read_to_string(aside.join("other.json")).unwrap(), r#"{"b":2}"#);
+        let settings: serde_json::Value = serde_json::from_str(&fs::read_to_string(aside.join("settings.json")).unwrap()).unwrap();
+        assert_eq!(settings, serde_json::json!({"b": 2, "notifyOptions": {"toasts": true, "discord": {"url": "", "kinds": ["sold"]}}}));
         assert!(aside.join("sub").join(crate::market::TOKEN_FILE).is_file(), "only the config folder's own");
         // The copy in place keeps the old folder's sign-in file, and the old folder its own.
         assert_eq!(fs::read_to_string(new.join(crate::market::TOKEN_FILE)).unwrap(), "old token");
@@ -718,7 +748,7 @@ mod tests {
         fs::write(new.join(crate::market::TOKEN_FILE), "token").unwrap();
         clear_partials(&new);
         assert_eq!(t.names(), sorted(&[OLD_ID, ID, &format!("{ID}.before-copy-1")]));
-        // A folder set aside by a start stopped before the copy took its place loses the sign-in.
+        // A folder set aside by a start stopped before the copy took its place loses its credentials.
         assert!(!aside.join(crate::market::TOKEN_FILE).exists());
         assert!(aside.join("settings.json").exists());
         assert!(new.join(crate::market::TOKEN_FILE).exists());
