@@ -179,16 +179,21 @@ fn settle(r: io::Result<Moved>, aside: Option<PathBuf>) -> io::Result<Moved> {
 }
 
 /// Removes the temporary copies (`<new>.partial-<pid>`) a start that was stopped mid-copy left
-/// beside `new`. Only called with both locks held, when no other start can be copying.
+/// beside `new`, and takes the sign-in out of every `<new>.before-copy-<n>`: a start stopped
+/// between setting `new` aside and putting the copy in its place left one with it. Only called
+/// with both locks held, when no other start can be copying.
 pub fn clear_partials(new: &Path) {
     let (Some(parent), Some(name)) = (new.parent(), new.file_name()) else { return };
-    let mut prefix = name.to_os_string();
-    prefix.push(".partial-");
-    let prefix = prefix.to_string_lossy().into_owned();
+    let name = name.to_string_lossy();
+    let partial = format!("{name}.partial-");
+    let aside = format!("{name}.before-copy-");
     let Ok(entries) = fs::read_dir(parent) else { return };
     for entry in entries.flatten() {
-        if entry.file_name().to_string_lossy().starts_with(&prefix) {
+        let entry_name = entry.file_name().to_string_lossy().into_owned();
+        if entry_name.starts_with(&partial) {
             let _ = fs::remove_dir_all(entry.path());
+        } else if entry_name.starts_with(&aside) && entry.file_type().is_ok_and(|t| t.is_dir()) {
+            strip_credentials(&entry.path());
         }
     }
 }
@@ -704,11 +709,19 @@ mod tests {
         let t = Temp::new("partials");
         let new = t.0.join(ID);
         fs::create_dir_all(t.0.join(format!("{ID}.partial-12345/sub"))).unwrap();
-        fs::create_dir_all(t.0.join(format!("{ID}.before-copy-1"))).unwrap();
+        let aside = t.0.join(format!("{ID}.before-copy-1"));
+        fs::create_dir_all(&aside).unwrap();
+        fs::write(aside.join(crate::market::TOKEN_FILE), "token").unwrap();
+        fs::write(aside.join("settings.json"), "{}").unwrap();
         fs::create_dir_all(t.0.join(OLD_ID)).unwrap();
         fs::create_dir_all(&new).unwrap();
+        fs::write(new.join(crate::market::TOKEN_FILE), "token").unwrap();
         clear_partials(&new);
         assert_eq!(t.names(), sorted(&[OLD_ID, ID, &format!("{ID}.before-copy-1")]));
+        // A folder set aside by a start stopped before the copy took its place loses the sign-in.
+        assert!(!aside.join(crate::market::TOKEN_FILE).exists());
+        assert!(aside.join("settings.json").exists());
+        assert!(new.join(crate::market::TOKEN_FILE).exists());
     }
 
     #[cfg(unix)]
