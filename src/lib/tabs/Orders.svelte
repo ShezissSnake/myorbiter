@@ -9,6 +9,8 @@
   import type { AdviceSettings, MarketSettings, OrderSortKey } from "../backend";
   import { heldFor, holdings, listingKey, overAsked, overListed, wtsLines, type MyOrder, type Plan } from "../core/market";
   import { LISTING_LIMIT } from "../core/bulk";
+  import { DRIFT_RULES, GREY_AREA } from "../core/drift";
+  import { AUTO_FLOOR_SHARE } from "../core/approved";
   import { arcaneRows, saveForSets, spareOf } from "../core/views";
   import { drops } from "../drops.svelte";
   import { aboveCrack, relicCrackFor } from "../core/spares";
@@ -126,7 +128,7 @@
   // The timer waits longer while warframe.market isn't answering (passDelay): the next check is then, not at your interval.
   const passWait = $derived(mkt.passDelay(settings.every * 60_000));
   const nextPass = $derived((settings.auto || settings.autoCheck) && mkt.lastPass ? new Date(mkt.lastPass + passWait) : null);
-  /** Oldest order book behind what's on screen, so you know how fresh "Cheapest in game" is. */
+  /** Oldest order book behind what's on screen, so you know how fresh "Market price" is. */
   const checkedAt = $derived.by(() => {
     const times = orders.map((o) => mkt.books[mkt.item(o.itemId)?.slug ?? ""]?.at).filter((t): t is number => t != null);
     return times.length ? Math.min(...times) : null;
@@ -404,9 +406,13 @@
     });
   }
   /** A quantity over what you hold can't be delivered: refused, as the List form refuses it. */
-  /** What it really goes for, when every in-game seller asks more than twice that (the listing follows it instead). */
+  /**
+   * What it really goes for, when every seller online or in game asks more than twice that (the
+   * listing follows it instead): judged by the cheapest of them, as plan() judges it.
+   */
   function goesFor(p: Plan): number | null {
-    return p.competitor.price != null && p.value != null && overAsked(p.competitor.price, p.value) != null ? Math.round(p.value * 10) / 10 : null;
+    const cheapest = p.competitor.lowest?.platinum ?? p.competitor.price;
+    return cheapest != null && p.value != null && overAsked(cheapest, p.value) != null ? Math.round(p.value * 10) / 10 : null;
   }
 
   /** A relic held up by what a crack of it is worth: what that crack is worth. */
@@ -622,7 +628,7 @@
       ? [{ key: "left", label: "Trades left", value: trades.left, of: `/${trades.limit}`, sub: `resets in ${until(new Date(trades.resets).toISOString(), minute)}`, tone: trades.left != null && trades.left <= 3 ? ("gold" as const) : undefined, title: `Trades left today: ${trades.used} made since 00:00 UTC, refreshes in ${until(new Date(trades.resets).toISOString(), minute)}. Trades a day are your Mastery Rank (${trades.limit}; Founders get 2 more), each counting once whatever it carried (up to 6 items each way). Counted from the game's log while MyOrbiter was reading it` }]
       : []),
     { key: "listed", label: "Listed value", value: listed, plat: true, title: "Listed value: your visible listings, price × quantity" },
-    { key: "reprice", label: "To reprice", value: checkedAt ? pending : null, tone: checkedAt && pending ? "gold" : checkedAt ? "dim" : undefined, title: checkedAt ? (pending ? `To reprice: ${pending} listing${pending === 1 ? "" : "s"} off the cheapest in-game price` : "To reprice: none, all match the cheapest in-game price") : "To reprice: press Check prices to compare" },
+    { key: "reprice", label: "To reprice", value: checkedAt ? pending : null, tone: checkedAt && pending ? "gold" : checkedAt ? "dim" : undefined, title: checkedAt ? (pending ? `To reprice: ${pending} listing${pending === 1 ? "" : "s"} off the market price` : "To reprice: none, all match the market price") : "To reprice: press Check prices to compare" },
     { key: "check", label: "Last check", value: checkedAt, text: checkedAt ? fmt(checkedAt) : "not yet", still: true, tone: checkedAt ? undefined : "dim", title: checkedAt ? `Last check: the oldest order book behind what's on screen, read at ${fmt(checkedAt)}${nextPass ? `; next at ${fmt(+nextPass)}` : ""}` : "Last check: none yet. Press Check prices" },
   ]);
   /** The listing whose price history is open under its row. */
@@ -641,7 +647,7 @@
 <svelte:window onpointerdown={outside} />
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Orders" brief="Your listings, kept at the cheapest price." blurb="Your warframe.market listings, kept at the cheapest in-game price." band={mkt.linked ? band : undefined} hero={mkt.linked ? ticker : undefined} />
+  <PageHead title="Orders" brief="Your listings, kept at the market price." blurb="Your warframe.market listings, kept at the market price: the second-cheapest seller online or in game." band={mkt.linked ? band : undefined} hero={mkt.linked ? ticker : undefined} />
   {#snippet ticker()}<Ticker id="orders" label="Your trading, live" items={tape} />{/snippet}
   {#snippet band()}
       <Stat label="Listings" tone={mkt.room <= 0 ? "gold" : "platinum"} note={`${mkt.room <= 0 ? "At warframe.market's limit" : `${mkt.room} more allowed`} · ${orders.filter((o) => !o.visible).length} hidden`}>{orders.length}<span class="of">/{LISTING_LIMIT - mkt.otherOrders}</span></Stat>
@@ -792,14 +798,15 @@
           <!-- Time left to the next timed pass: a hairline that runs out (longer while warframe.market isn't answering). -->
           {#if nextPass && !mkt.pass}{#key `${mkt.lastPass}|${passWait}`}<i class="countdown" aria-hidden="true" style:animation-duration="{passWait}ms" style:animation-delay="-{Math.min(passWait, Math.max(0, Date.now() - (mkt.lastPass ?? 0)))}ms"></i>{/key}{/if}
           <Chip bind:on={settings.autoCheck} label="Check automatically" title="Read the order books on a timer while MyOrbiter is open, and show what each listing would change to" onchange={(on) => { if (!on) settings.auto = false; }} />
-          <Chip bind:on={settings.auto} label="Apply automatically" title="Also send the new prices to warframe.market on that timer, as Reprice would" onchange={(on) => { if (on) settings.autoCheck = true; }} />
+          <Chip bind:on={settings.auto} label="Apply automatically" title={`Automatic repricing: also send new prices to warframe.market on that timer, without asking. ${DRIFT_RULES}. ${GREY_AREA}.`} onchange={(on) => { if (on) settings.autoCheck = true; }} />
           <select bind:value={settings.every} aria-label="How often" title="How often the automatic check runs" disabled={!settings.autoCheck && !settings.auto}>
             {#each [1, 2, 5, 10, 15, 30, 60] as m (m)}<option value={m}>every {m} min</option>{/each}
           </select>
         </div>
+        <p class="dim small limits">Apply automatically changes your prices without asking. {DRIFT_RULES}; never under {Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you last set, nor under your floors. {GREY_AREA}.</p>
         <div class="grp">
           <span class="register">Floor</span>
-          <select bind:value={settings.minShare} aria-label="Floor" title="Never price a listing under this share of the item's daily market price (a per-listing floor in the table wins)">
+          <select bind:value={settings.minShare} aria-label="Floor" title="Never lower a listing under this share of the item's daily market price (a per-listing floor in the table wins)">
             {#each [0, 0.3, 0.5, 0.7, 0.85] as f (f)}<option value={f}>{f ? `${f * 100}% of market` : "none"}</option>{/each}
           </select>
           <span class="register" title="Nothing is listed or repriced below this, anywhere in MyOrbiter (relics have their own minimum)">never under</span>
@@ -817,8 +824,8 @@
     <table class="orders" class:ownfloors={rows.some((o) => settings.floors[listingKey(o)] != null)}>
       <thead data-card="sort">
         <tr>
-          {@render sh("name", "Item", "", "Sort by name")}{@render sh("qty", "Qty", "right", "Sort by how many you list")}{@render sh("price", "Your price", "right", "Sort by your price (click again for the other way)")}{@render sh("cheapest", "Cheapest in game", "", "The cheapest seller who is in game right now (and how many are), from the last check. Sort by it")}
-          {@render sh("change", "Will set", "right willset", "What the repricer would change the price to, and why. Sort by the change (the biggest rises first, falls last)")}<th class="right floorcol" title="Never go below this">Floor</th><th class="center" title="Auto-price on: when you check prices, this listing is moved to the cheapest in-game seller's price (never under its floor). Off: MyOrbiter leaves its price as you set it">Auto-price</th><th class="center" title="Whether buyers see the listing on warframe.market (hidden ones keep their place)">Shown</th><th></th>
+          {@render sh("name", "Item", "", "Sort by name")}{@render sh("qty", "Qty", "right", "Sort by how many you list")}{@render sh("price", "Your price", "right", "Sort by your price (click again for the other way)")}{@render sh("cheapest", "Market price", "", "The second-cheapest seller online or in game right now, one order each (the cheapest alone isn't followed: it may be bait), and how many sellers there are, from the last check. Sort by it")}
+          {@render sh("change", "Will set", "right willset", "What the repricer would change the price to, and why. Sort by the change (the biggest rises first, falls last)")}<th class="right floorcol" title="Never go below this">Floor</th><th class="center" title="Auto-price on: when you check prices, this listing is moved to the market price, the second-cheapest seller online or in game (never under its floor). Off: MyOrbiter leaves its price as you set it">Auto-price</th><th class="center" title="Whether buyers see the listing on warframe.market (hidden ones keep their place)">Shown</th><th></th>
         </tr>
       </thead>
       <!-- One body a listing (its row, and the rows under it), so it can leave and the rest close up. -->
@@ -864,25 +871,25 @@
                 </div>
               {/if}
             </td>
-            <td class="fade c-comp" data-label="Cheapest in game">
+            <td class="fade c-comp" data-label="Market price">
               {#if p && p.competitor.price != null}
-                <span class="comp"><P v={p.competitor.price} /> <span class="dim small">{p.competitor.cheapest?.name} · <span class="nowrap">{p.competitor.sellers} in game</span>{#if p.competitor.lowest && p.competitor.lowest.platinum !== p.competitor.price}<span title="{p.competitor.lowest.name ?? 'One seller'} asks {p.competitor.lowest.platinum}p, far under everyone else: likely a forgotten or mistyped listing, so it isn't matched. Buy it if it's real."> · {p.competitor.lowest.platinum}p left out</span>{/if}</span></span>
+                <span class="comp"><P v={p.competitor.price} /> <span class="dim small">{p.competitor.cheapest?.name} · <span class="nowrap" title="Sellers online or in game, one order each">{p.competitor.sellers} online</span>{#if p.competitor.lowest && p.competitor.lowest.platinum !== p.competitor.price}<span title="{p.competitor.lowest.name ?? 'One seller'} asks {p.competitor.lowest.platinum}p, the cheapest. The cheapest alone isn't followed, the second-cheapest is, so one listing (bait or a mistake) can't pull your price down. Buy it if it's a deal."> · cheapest {p.competitor.lowest.platinum}p</span>{/if}</span></span>
                 {@const goes = goesFor(p)}
-                {#if goes != null}<div class="register goes" title="Everyone in game asks more than twice what it really goes for: what it sold for lately, or what sellers on the site ask if that's lower ({p.competitor.askLevel ?? '–'}p, in game or not). Priced at that, so it sells.">goes for ~{goes}p</div>
-                {:else if p.competitor.ladder.length > 1}<div class="register ladder" title="The next cheapest in-game prices">{p.competitor.ladder.join(" · ")}</div>{/if}
-              {:else if p}<span class="dim small">Nobody in game</span>
+                {#if goes != null}<div class="register goes" title="Every seller online or in game asks more than twice what it really goes for: what it sold for lately, or what sellers on the site ask if that's lower ({p.competitor.askLevel ?? '–'}p, in game or not). Priced at that, so it sells.">goes for ~{goes}p</div>
+                {:else if p.competitor.ladder.length > 1}<div class="register ladder" title="The market price and the next ones up, sellers online or in game">{p.competitor.ladder.join(" · ")}</div>{/if}
+              {:else if p}<span class="dim small" title="The market price needs two sellers online or in game">{p.competitor.sellers ? "One seller online" : "Nobody online"}</span>
               {:else if !shown || paused}<span class="none" title="The order book isn't read for a listing that's {shown ? 'left alone' : 'hidden'}">–</span>
               {:else}<span class="dim small">Not checked yet</span>{/if}
             </td>
             <td class="right fade willset">
-              {#if p?.change && !paused && shown}<span class="target" class:down={p.target < o.platinum} class:up={p.target > o.platinum}><span class="dim">{o.platinum} →</span> <P v={p.target} /> <span class="delta">{p.target > o.platinum ? "+" : "−"}{Math.abs(p.target - o.platinum)}</span>{#if p.reason === "floor" && crackHeld(o, p) != null}<span class="tag ok" title="Worth more cracked: a crack of it is worth about {crackHeld(o, p)}p, so it isn't listed under {p.floor}p. Take it down to crack it instead.">crack</span>{:else if p.reason === "floor" && p.competitor.price != null && p.target > p.competitor.price}<span class="tag alert" title="Your floor ({p.floor}p) is over what the cheapest seller in game asks ({p.competitor.price}p): at this price it's unlikely to sell. Lower this listing's floor, or take it down.">over market</span>{:else if p.reason === "floor"}<span class="tag ok" title="Held up by the floor">floor</span>{:else if p.reason === "median"}<span class="tag" title="Everyone in game asks more than twice what it really goes for ({p.competitor.price}p and up): priced at that instead">sells for</span>{/if}</span>
+              {#if p?.change && !paused && shown}<span class="target" class:down={p.target < o.platinum} class:up={p.target > o.platinum}><span class="dim">{o.platinum} →</span> <P v={p.target} /> <span class="delta">{p.target > o.platinum ? "+" : "−"}{Math.abs(p.target - o.platinum)}</span>{#if p.reason === "floor" && crackHeld(o, p) != null}<span class="tag ok" title="Worth more cracked: a crack of it is worth about {crackHeld(o, p)}p, so it isn't listed under {p.floor}p. Take it down to crack it instead.">crack</span>{:else if p.reason === "floor" && p.competitor.price != null && p.target > p.competitor.price}<span class="tag alert" title="Your floor ({p.floor}p) is over the market price ({p.competitor.price}p): at this price it's unlikely to sell. Lower this listing's floor, or take it down.">over market</span>{:else if p.reason === "floor"}<span class="tag ok" title="Held up by the floor">floor</span>{:else if p.reason === "median"}<span class="tag" title="Every seller online or in game asks more than twice what it really goes for ({p.competitor.lowest?.platinum ?? p.competitor.price}p and up): priced at that instead">sells for</span>{/if}</span>
               {:else if !shown}<span class="register" title="Hidden listings aren't repriced">hidden</span>
               {:else if paused}<span class="register" title="Auto-price is off: MyOrbiter leaves this price as you set it">left alone</span>
-              {:else if p && goesFor(p) != null}<span class="register ok" title="At what it really goes for: in game they ask {p.competitor.price}p and up">at its value</span>
+              {:else if p && goesFor(p) != null}<span class="register ok" title="At what it really goes for: sellers online or in game ask {p.competitor.lowest?.platinum ?? p.competitor.price}p and up">at its value</span>
               {:else if p}<span class="register ok">matched</span>{/if}
             </td>
             <td class="right floorcol"><input type="number" min="1" style:width="4.8rem" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor for this listing" title="Your own floor for this listing; empty uses the automatic one" value={settings.floors[listingKey(o)] ?? ""} onchange={(e) => setFloor(o, e.currentTarget.value)} /></td>
-            <td class="center c-auto" data-label="Auto-price"><Toggle on={!paused && shown} disabled={!shown} label="Auto-price: match the cheapest in-game seller" title={!shown ? "Hidden listings aren't repriced" : paused ? "Auto-price off: the price stays as you set it" : "Auto-price on: kept at the cheapest in-game seller's price"} onchange={() => togglePause(o)} /></td>
+            <td class="center c-auto" data-label="Auto-price"><Toggle on={!paused && shown} disabled={!shown} label="Auto-price: follow the market price" title={!shown ? "Hidden listings aren't repriced" : paused ? "Auto-price off: the price stays as you set it" : "Auto-price on: kept at the market price, the second-cheapest seller online or in game"} onchange={() => togglePause(o)} /></td>
             <td class="center c-shown" data-label="Shown"><span class="shake" use:shake={refusedShown[o.id]}><Toggle on={shown} label="Shown to buyers" title={shown ? "Visible to buyers" : "Hidden from buyers"} disabled={!rowFree(o.id)} onchange={(v) => setVisible(o, v)} /></span></td>
             <td class="right c-acts">
               <!-- Three fixed places, the same on every row: sold one, sold several, remove. A
@@ -929,7 +936,7 @@
             <tr class="chartrow">
               <td colspan="9">
                 <PriceHistory name={it.name} rank={it.maxRank != null ? (o.rank ?? 0) : null} subtype={o.subtype ?? it.subtypes?.[0] ?? null} height={160}
-                  lines={[{ label: "Your price", value: o.platinum, color: "var(--chart-mine)" }, ...(p?.competitor.price != null ? [{ label: "Cheapest in game", value: p.competitor.price, color: "var(--chart-theirs)" }] : [])]} />
+                  lines={[{ label: "Your price", value: o.platinum, color: "var(--chart-mine)" }, ...(p?.competitor.price != null ? [{ label: "Market price", value: p.competitor.price, color: "var(--chart-theirs)" }] : [])]} />
               </td>
             </tr>
           {/if}
@@ -1096,6 +1103,8 @@
   .next { margin-left: auto; }
   /* Check / Apply automatically: a hairline under them runs out until the next timed pass. */
   .autos { position: relative; }
+  /* What Apply automatically may do, in a sentence, under its switch. */
+  .limits { flex-basis: 100%; max-width: 70ch; margin: 0; line-height: 1.5; }
   .countdown { position: absolute; left: 0; right: 0; bottom: -5px; height: 1px; background: var(--gold-dim); transform-origin: left center; animation: runout linear forwards; pointer-events: none; }
   @keyframes runout { from { transform: scaleX(1); } to { transform: scaleX(0); } }
   @media (prefers-reduced-motion: reduce) { .countdown { display: none; } }

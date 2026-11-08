@@ -5,6 +5,9 @@
 // would put it (page names and game words in it get their icons, core/richText.ts) and where to see
 // it, down to the spot on the page (Show me, and the tour). Older entries are a sentence each.
 
+import { AUTO_FLOOR_SHARE } from "./core/approved";
+import { BAND_WORDS, DRIFT, every } from "./core/drift";
+
 export interface NewsItem {
   title: string;
   text: string;
@@ -29,6 +32,14 @@ export interface NewsEntry {
 }
 
 export const NEWS: NewsEntry[] = [
+  {
+    id: 20,
+    date: "2026-11-08",
+    items: [
+      { title: "Repricing moves only on drift", icon: { page: "market" }, text: `Apply automatically now changes a listing only when its price has drifted more than ${BAND_WORDS} from the second-cheapest seller online or in game, so one bait listing at 1p is never followed; and at most once ${every(DRIFT.cooldownMs)} and ${DRIFT.perDay} times a day per listing, kept across restarts. The ${Math.round(AUTO_FLOOR_SHARE * 100)}% floor and your floors hold as before.`, open: "market" },
+      { title: "Automatic repricing, named", icon: { line: "list" }, text: "Settings, Trades has the switch too, called what it is, with its limits beside it. It stays off unless you turn it on: warframe.market calls automation like this a grey area.", open: "settings#trades" },
+    ],
+  },
   {
     id: 19,
     date: "2026-11-07",

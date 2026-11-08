@@ -6,7 +6,7 @@ MyOrbiter is a desktop companion for Warframe, for Linux, the Steam Deck and Win
 TennoScope stores on your PC (the game's log, the fissure reward screen and, if you allow it, your
 inventory) and answers what the game doesn't: which reward to take, what to sell and for how much,
 what's left to master, and which relics finish your sets. It can also keep your warframe.market
-listings at the cheapest price in game.
+listings at the market price (the second-cheapest seller online or in game).
 
 **Unofficial.** MyOrbiter is a fan-made tool, not affiliated with or endorsed by Digital Extremes.
 Warframe and its artwork are © and ™ Digital Extremes Ltd.

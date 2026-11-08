@@ -49,7 +49,7 @@ Use the same download on a PC and pick your platform in Settings → *Platform* 
 warframe.market sets it from your account). MyOrbiter then reads and lists on that platform's market.
 It can't read a game running on a console, so it shows only what works without it: Home (your
 market, fissures, the world's clocks, what's worth doing today, Baro), Orders (list anything, keep
-your listings at the cheapest in-game price, Sold when you sell one), Sales and the riven finder.
+your listings at the market price, Sold when you sell one), Sales and the riven finder.
 It doesn't know what you own or when a trade goes through, so it can't list things or mark them
 sold by itself. The collection pages are PC only, and MyOrbiter doesn't start TennoScope.
 

@@ -10,6 +10,7 @@ import { sanitizeUpdates } from "../src/lib/core/updates";
 import { sanitizeBuild, sanitizeBuilds, sanitizeMaxAgeDays } from "../src/lib/core/builds/types";
 import { normalizeRule } from "../src/lib/core/timers";
 import { approvedOf } from "../src/lib/core/approved";
+import { DRIFT } from "../src/lib/core/drift";
 import { migrateTab } from "../src/lib/pages";
 import { marketItemsOf, recipeDataOf, relicDataOf, rivenMetaOf } from "../src/lib/core/shapes";
 import { parseMyAuctions } from "../src/lib/core/rivens";
@@ -123,6 +124,9 @@ test("settings files: loading anything never throws, never turns on automatic re
     assert.ok(m.floors && typeof m.floors === "object" && Object.values(m.floors).every((v) => Number.isInteger(v) && v >= 1), `floors ${JSON.stringify(m.floors)}: ${ctx}`);
     assert.ok(m.paused && typeof m.paused === "object" && Object.values(m.paused).every((v) => typeof v === "boolean"), `paused: ${ctx}`);
     assert.deepEqual(approvedOf(m.approved), m.approved ?? {}, `approved: ${ctx}`);
+    // Repricing's cooldown: whole times of the last day (or later), per listing, never junk that could let a change through sooner.
+    assert.ok(m.changes && typeof m.changes === "object" && !Array.isArray(m.changes), `changes: ${ctx}`);
+    for (const times of Object.values(m.changes)) assert.ok(Array.isArray(times) && times.length >= 1 && times.length <= DRIFT.perDay && times.every((t) => Number.isInteger(t) && t > Date.now() - DRIFT.dayMs - 60_000), `changes ${JSON.stringify(times)}: ${ctx}`);
     // The ducat rate the ducat check depends on: a finite number, never junk.
     assert.ok(Number.isFinite(s.advice.platPerDucat) && s.advice.platPerDucat >= 0, `platPerDucat ${s.advice.platPerDucat}: ${ctx}`);
     // Keep rules: whole numbers in range; junk where a number belongs gives the usual number.

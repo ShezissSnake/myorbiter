@@ -28,6 +28,7 @@ import { drops } from "./drops.svelte";
 import { MAX_PLAT, MAX_QTY, wholeIn } from "./core/amounts";
 import { ducatRefusal, guardListing, inventoryTrust, listingTag, type GuardRequest } from "./core/listGuard";
 import { autoFloor, unattendedMove } from "./core/approved";
+import { DRIFT, cooldown, drifted, every, noteChange } from "./core/drift";
 
 export interface Draft {
   itemId: string;
@@ -497,6 +498,10 @@ class MarketStore {
     if (s.approved?.[key] === platinum) return;
     s.approved = { ...(s.approved ?? {}), [key]: platinum };
   }
+  /** A price change you made (a typed price, the listing form, a Sell spares plan): the cooldown counts it. */
+  noteChange(o: Pick<MyOrder, "itemId" | "rank" | "subtype">, s: MarketSettings | null = this.rules) {
+    if (s) s.changes = noteChange(s.changes, this.approvalKey(o), Date.now());
+  }
   /** The listing's key with its variant filled in (an intact relic made without one is "intact"). */
   approvalKey(o: Pick<MyOrder, "itemId" | "rank" | "subtype">): string {
     return listingKey({ ...o, subtype: o.subtype ?? this.item(o.itemId)?.subtypes?.[0] ?? null });
@@ -521,6 +526,8 @@ class MarketStore {
       defaultSubtype: it.subtypes?.[0] ?? null,
       min: minFor(s, it),
       capByAsks: !!it.tags?.includes("relic"),
+      // Repricing follows a target that ignores bait, past a dead band (core/drift.ts).
+      drift: true,
     });
   }
 
@@ -551,6 +558,7 @@ class MarketStore {
     let held = 0;
     let moved = 0;
     let unseen = 0;
+    let cooling = 0;
     let failed = 0;
     let read = 0;
     // Three reads failing in a row is warframe.market not answering (or turning MyOrbiter away):
@@ -639,7 +647,7 @@ class MarketStore {
               held++;
               if (!this.floorTold.has(`${key}|${approved}`)) {
                 this.floorTold.add(`${key}|${approved}`);
-                this.note(`${tag}: stays at ${o.platinum}p, 70% of the ${approved}p you last set; the cheapest in game is ${p.target}p. Press Reprice to go lower, or set a new price`, "warn");
+                this.note(`${tag}: stays at ${o.platinum}p, 70% of the ${approved}p you last set; the market says ${p.target}p. Press Reprice to go lower, or set a new price`, "warn");
               }
               continue;
             }
@@ -651,7 +659,27 @@ class MarketStore {
               this.note(`${tag}: would go from ${o.platinum}p to ${target}p; left for you to check (Reprice)`, "warn");
               continue;
             }
+            // The 70% floor can bring the move within the dead band: then it's no change either
+            // (a raise up to a floor the listing is under still goes), and held there, it says so.
+            if (target !== o.platinum && o.platinum >= p.hard && !drifted(o.platinum, target)) {
+              if (atFloor) {
+                held++;
+                if (!this.floorTold.has(`${key}|${approved}`)) {
+                  this.floorTold.add(`${key}|${approved}`);
+                  this.note(`${tag}: stays at ${o.platinum}p, near 70% of the ${approved}p you last set; the market says ${p.target}p. Press Reprice to go lower, or set a new price`, "warn");
+                }
+              }
+              continue;
+            }
+            // At most one change an hour and six a day per listing, by itself (core/drift.ts).
+            if (!cooldown(s.changes?.[key], Date.now()).ok) {
+              cooling++;
+              continue;
+            }
           }
+          // Counted for the cooldown before it's sent, by hand or not: a pass on the timer waits an
+          // hour after either, and a change warframe.market refused isn't tried again every pass.
+          s.changes = noteChange(s.changes, this.approvalKey(o), Date.now());
           try {
             await market.update(o.id, { platinum: target });
             writeFailing = 0;
@@ -659,8 +687,12 @@ class MarketStore {
             // Pressed Reprice: the price you approved.
             if (!timed) this.approve(o, target, s);
             const why = atFloor
-              ? `70% of the ${s.approved?.[this.approvalKey(o)] ?? "?"}p you last set; it goes no lower by itself (the cheapest in game is ${p.target}p)`
-              : p.reason === "floor" ? `held at your floor (${p.floor}p)` : `cheapest in game: ${p.competitor.cheapest?.name ?? "?"}`;
+              ? `70% of the ${s.approved?.[this.approvalKey(o)] ?? "?"}p you last set; it goes no lower by itself (the market says ${p.target}p)`
+              : p.reason === "floor" ? `held at your floor (${p.floor}p)`
+              : p.reason === "median" ? `what it sells for: every seller online or in game asks more than twice that`
+              // A raise stops at the cheapest seller (core/market.ts): then it's their price.
+              : p.competitor.lowest && target === p.competitor.lowest.platinum && p.competitor.lowest.platinum !== p.competitor.price ? `up to the cheapest seller, ${p.competitor.lowest.name ?? "?"}`
+              : `the market: ${p.competitor.sellers} seller${p.competitor.sellers === 1 ? "" : "s"} online or in game, the second-cheapest ${p.competitor.cheapest?.name ?? "?"}`;
             if (atFloor) this.floorTold.add(`${this.approvalKey(o)}|${s.approved?.[this.approvalKey(o)]}`);
             this.note(`${it.name}${o.rank != null ? ` R${o.rank}` : ""}: ${o.platinum}p → ${target}p, ${why}`, atFloor ? "warn" : "ok");
           } catch (e) {
@@ -680,10 +712,11 @@ class MarketStore {
       if (skipped) this.note(`${skipped} listing${skipped === 1 ? "" : "s"} skipped: item not in warframe.market's list`, "warn");
       if (unseen) this.note(`${unseen} listing${unseen === 1 ? "" : "s"} left as ${unseen === 1 ? "it was" : "they were"}: ${unseen === 1 ? "it" : "they"} needed no change when you checked, and do now; check again`, "info");
       if (moved) this.note(`${moved} listing${moved === 1 ? "" : "s"} left as ${moved === 1 ? "it was" : "they were"}: the price went lower since you checked; check again`, "info");
+      if (cooling) this.note(`${cooling} listing${cooling === 1 ? "" : "s"} left as ${cooling === 1 ? "it was" : "they were"} for now: changed ${every(DRIFT.cooldownMs) === "an hour" ? "within the hour" : `less than ${every(DRIFT.cooldownMs).replace(/^every /, "")} ago`}, or ${DRIFT.perDay} times today`, "info", true);
       if (deferred) this.note(`${deferred} listing${deferred === 1 ? "" : "s"} left for the next pass: you were editing`, "info");
       if (stopped) this.note("warframe.market stopped answering, so this pass stopped early; the rest are checked next pass", read ? "warn" : tone());
       else if (failed) this.note(`${failed} listing${failed === 1 ? "" : "s"} couldn't be checked; trying again next pass`, read ? "warn" : tone());
-      if (apply && !changed && !failed && !skipped && !deferred && !held && !moved && !unseen) this.note("Prices checked: everything already matches", "info");
+      if (apply && !changed && !failed && !skipped && !deferred && !held && !moved && !unseen && !cooling) this.note("Prices checked: everything already matches", "info");
       summary.changed = changed;
       summary.failed = failed;
       summary.stopped = stopped;
@@ -693,9 +726,9 @@ class MarketStore {
         const checked = this.orders.filter((o) => o.visible && this.planFor(m, s, o)).length;
         this.note(
           off
-            ? `Prices checked: ${off} listing${off === 1 ? "" : "s"} off the cheapest in-game price (press Reprice)`
+            ? `Prices checked: ${off} listing${off === 1 ? "" : "s"} off the market price (press Reprice)`
             : failed
-              ? `Prices checked for ${checked} listing${checked === 1 ? "" : "s"}: none off the cheapest in-game price`
+              ? `Prices checked for ${checked} listing${checked === 1 ? "" : "s"}: none off the market price`
               : "Prices checked: every listing matches",
           "info",
         );
@@ -860,6 +893,7 @@ class MarketStore {
       const tag = `${d.name}${d.rank != null ? ` R${d.rank}` : ""}${d.subtype ? ` (${d.subtype})` : ""}`;
       if (existing) {
         await market.update(existing.id, { platinum: d.platinum!, quantity: existing.quantity + d.quantity, visible: true });
+        if (d.platinum !== existing.platinum) this.noteChange(existing);
         if (why) this.audit(`Listing form, added to ${existing.id}`, why);
         this.note(
           d.quantity ? `Added ${d.quantity}× ${tag} to your listing: now ${existing.quantity + d.quantity} at ${d.platinum}p` : `${tag}: listing set to ${d.platinum}p`,
@@ -954,8 +988,9 @@ class MarketStore {
     }
     return this.guard("Saving", async () => {
       await market.update(o.id, change);
-      // A price you typed is the price you approved.
+      // A price you typed is the price you approved, and a change: a pass on the timer leaves it an hour.
       if (change.platinum != null) this.approve(o, change.platinum);
+      if (change.platinum != null && change.platinum !== o.platinum) this.noteChange(o);
       if (why) this.audit(`Orders, ${o.id} changed`, why);
       await this.refresh();
     });
@@ -1396,6 +1431,7 @@ class MarketStore {
           } else if (a.type === "update") {
             await market.update(a.order.id, { quantity: a.quantity, platinum: a.platinum });
             this.approve(a.order, a.platinum, s);
+            if (a.platinum !== a.order.platinum) this.noteChange(a.order, s);
             this.note(`${tag(a.item.name, a.order.rank)}: ${a.order.quantity}× ${a.order.platinum}p → ${a.quantity}× ${a.platinum}p`, "info");
             this.audit(`Spares plan changed ${a.order.id} (${a.why}; ${a.priceWhy})`, why || `${listingTag(a.item, a.order.rank, a.order.subtype)}: ${a.order.quantity}× ${a.order.platinum}p → ${a.quantity}× ${a.platinum}p`);
           } else if (a.type === "remove") {
@@ -1523,7 +1559,7 @@ export interface PassSummary {
   changed: number;
   /** Order books that couldn't be read, and prices warframe.market refused. */
   failed: number;
-  /** After a check: listings off the cheapest in-game price (Reprice would change them). */
+  /** After a check: listings off the market price (Reprice would change them). */
   off: number;
   /** warframe.market stopped answering part way. */
   stopped: boolean;

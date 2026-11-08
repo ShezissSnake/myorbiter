@@ -415,7 +415,9 @@ test("+rep: a second request for the same player waits for the first and sends n
 
 const it = { id: "it", slug: "it", gameRef: "/it", name: "It", maxRank: null, subtypes: null, tags: [] };
 const noPrices = { price: () => null, priceMax: () => null, relicPrice: () => null } as unknown as Model;
-const undercut = (platinum: number) => [{ id: `r${platinum}`, type: "sell", platinum, quantity: 1, rank: null, subtype: null, visible: true, user: { id: "x", ingameName: "Undercutter", status: "ingame", platform: "pc", crossplay: true } }];
+/** Two sellers in game at `platinum` (one seller alone is never followed: core/drift.ts). */
+const undercut = (platinum: number) =>
+  ["x", "y"].map((u) => ({ id: `r${platinum}${u}`, type: "sell", platinum, quantity: 1, rank: null, subtype: null, visible: true, user: { id: u, ingameName: `Undercutter_${u}`, status: "ingame", platform: "pc", crossplay: true } }));
 
 /** A listing at `start`, a seller who always asks a little over half of it, and timed passes. */
 async function walk(start: number, passes: number, s = { ...defaultMarketSettings(), auto: true, minShare: 0.5, minPrice: 10 }) {
