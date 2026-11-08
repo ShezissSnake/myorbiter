@@ -1,5 +1,5 @@
-//! MyOrbiter's own log, `myorbiter.log` in the app's log folder (Linux: `~/.local/share/io.gitlab.sheziss-group.myorbiter/logs`,
-//! Windows: `%LOCALAPPDATA%\io.gitlab.sheziss-group.myorbiter\logs`). One line per event, in UTC, the way TennoScope
+//! MyOrbiter's own log, `myorbiter.log` in the app's log folder (Linux: `~/.local/share/dev.myorbiter.app/logs`,
+//! Windows: `%LOCALAPPDATA%\dev.myorbiter.app\logs`). One line per event, in UTC, the way TennoScope
 //! writes its own so the two read side by side:
 //!
 //! ```text

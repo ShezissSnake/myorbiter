@@ -2,7 +2,7 @@
 //! serves the larger copy the item cards and details sheet show.
 //!
 //! Each image is fetched once from the WFCD repository (the same source TennoScope uses),
-//! shrunk to a thumbnail and kept in `~/.cache/io.gitlab.sheziss-group.myorbiter/img`, so browsing tables does not
+//! shrunk to a thumbnail and kept in `~/.cache/dev.myorbiter.app/img`, so browsing tables does not
 //! hit the network again and works offline afterwards.
 
 use std::fs;

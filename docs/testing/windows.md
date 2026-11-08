@@ -19,8 +19,8 @@ line below is a check to do on Windows 10 or 11 with the setup.exe of a release 
         (`myorbiter_data::default_tennoscope_dir`);
       - Warframe's log: `%LOCALAPPDATA%\Warframe\EE.log` (`ee_log.rs`);
       - TennoScope's and MyOrbiter's logs: `%LOCALAPPDATA%\<id>\logs` (`reward_log.rs`, `applog.rs`);
-      - settings: `%APPDATA%\io.gitlab.sheziss-group.myorbiter` (Tauri's `app_config_dir`); caches:
-        `%LOCALAPPDATA%\io.gitlab.sheziss-group.myorbiter` (`app_cache_dir`);
+      - settings: `%APPDATA%\dev.myorbiter.app` (Tauri's `app_config_dir`); caches:
+        `%LOCALAPPDATA%\dev.myorbiter.app` (`app_cache_dir`);
       - CSV exports: the Downloads folder, or the home folder without one.
 - [x] **Network paths are refused** wherever a path comes from the page or the file dialog
       (`local_path` in `lib.rs`): only a drive letter (`C:\…`, `\\?\C:\…`) passes, so
@@ -52,7 +52,7 @@ line below is a check to do on Windows 10 or 11 with the setup.exe of a release 
 - [ ] **Passive install over a running MyOrbiter:** the installer closes MyOrbiter itself, keeps the
       settings, and the Start menu entry still opens it.
 - [ ] **Saves while something holds the file** (`rename_replacing` in `lib.rs`): open
-      `%APPDATA%\io.gitlab.sheziss-group.myorbiter\settings.json` in a program that locks it (or let Defender scan it)
+      `%APPDATA%\dev.myorbiter.app\settings.json` in a program that locks it (or let Defender scan it)
       and change a setting; the change is saved once the lock goes, and myorbiter.log has no failed
       save.
 - [ ] **A user name with spaces and accents** (`C:\Users\José María\…`): the first start finds
