@@ -283,13 +283,13 @@
   .missing { display: grid; gap: .9rem; }
   .mp-head { display: flex; gap: .6rem; align-items: center; margin-bottom: .4rem; }
   .relics { display: flex; flex-wrap: wrap; gap: .3rem; padding-left: calc(24px + .6rem); }
-  .relic { font-family: var(--face-register); font-size: .64rem; letter-spacing: .06em; padding: .18rem .45rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
+  .relic { font-family: var(--face-register); font-size: .77rem; letter-spacing: .06em; padding: .18rem .45rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
   .relic small { margin-left: .3rem; color: var(--platinum-deep); }
   .legend { margin: 0 0 .5rem; }
   .relic em { font-style: normal; margin-left: .35rem; color: var(--gold); font-weight: 600; }
   .relic.have { border-color: var(--gold-dim); color: var(--platinum); }
   .relic.vaulted { opacity: .7; border-style: dashed; }
-  .relic i { font-style: normal; font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--gold-dim); margin-left: .4rem; }
+  .relic i { font-style: normal; font-family: var(--face-register); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--gold-dim); margin-left: .4rem; }
   .chips { display: flex; flex-wrap: wrap; gap: .4rem; }
   .chow { margin: 0; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-size: .78rem; line-height: 1.35; color: var(--platinum-dim); }
   .grow { flex: 1; }

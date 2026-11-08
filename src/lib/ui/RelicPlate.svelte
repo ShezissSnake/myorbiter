@@ -78,7 +78,7 @@
   .era.on { background: var(--raised); box-shadow: inset 0 -2px 0 var(--sec); }
   .era.none :global(.gi) { opacity: .35; filter: saturate(.3); }
   .txt { display: grid; line-height: 1.1; min-width: 0; }
-  .en { font-family: var(--face-register); font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: color-mix(in srgb, var(--tint, var(--platinum)) 75%, var(--platinum)); }
+  .en { font-family: var(--face-register); font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: color-mix(in srgb, var(--tint, var(--platinum)) 75%, var(--platinum)); }
   .txt b { font-family: var(--face-mark); font-size: 1.45rem; font-weight: 700; color: var(--platinum); font-variant-numeric: tabular-nums; }
   .era.none b { color: var(--platinum-deep); }
   .rad { font-size: .7rem; color: var(--platinum-dim); white-space: nowrap; }

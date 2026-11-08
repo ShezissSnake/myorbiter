@@ -1036,7 +1036,7 @@
   .hr { display: flex; align-items: center; gap: .8rem; }
   .custom { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem 1rem; padding: .8rem 1rem; margin-bottom: var(--step); border: 1px solid var(--rule); background: var(--plate); }
   .custom .cards { display: flex; flex-wrap: wrap; gap: .4rem; flex: 1; }
-  .panel { border: 1px solid var(--rule); background: rgb(17 19 23 / 72%); padding: 1rem 1.2rem 1.1rem; min-width: 0; display: flex; flex-direction: column; gap: .8rem; }
+  .panel { border: 1px solid var(--rule); background: rgb(20 23 27 / 72%); padding: 1rem 1.2rem 1.1rem; min-width: 0; display: flex; flex-direction: column; gap: .8rem; }
   .market { grid-column: span 7; }
   .ready { grid-column: span 5; }
   .fissures { grid-column: span 12; }
@@ -1172,7 +1172,7 @@
   .inl { display: inline-flex; align-items: center; gap: .3rem; flex-wrap: wrap; }
   .nw { list-style: none; margin: 0; padding: 0; display: grid; gap: .25rem; }
   .nw li { display: grid; grid-template-columns: 4.2rem 1fr auto; gap: .5rem; align-items: center; font-size: .84rem; }
-  .k { font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
+  .k { font-family: var(--face-register); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
   .k-elite { color: var(--platinum); font-weight: 600; }
   .nt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fb, .dl { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }

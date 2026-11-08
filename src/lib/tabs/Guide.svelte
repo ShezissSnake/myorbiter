@@ -352,13 +352,13 @@
   .ic { display: inline-grid; place-items: center; width: 1.3rem; height: 1.3rem; vertical-align: -.3rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
   .ic.good { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 50%, transparent); }
   .routines { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); border-top: 1px solid var(--rule); border-left: 1px solid var(--rule); }
-  .routines article { padding: 1.2rem 1.3rem 1.4rem; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); background: rgb(17 19 23 / 60%); }
+  .routines article { padding: 1.2rem 1.3rem 1.4rem; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); background: rgb(20 23 27 / 60%); }
   h2 { font-size: 1.6rem; margin-bottom: .9rem; }
   ol { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: .75rem; }
   ol li { counter-increment: s; display: grid; grid-template-columns: 1.6rem 1fr; column-gap: .2rem; font-size: .86rem; color: var(--platinum-dim); line-height: 1.5; }
   ol li::before { content: counter(s); grid-row: span 2; font-family: var(--face-mark); font-weight: 700; font-size: 1.2rem; color: var(--gold); line-height: 1.1; }
   ol .link { justify-self: start; font-size: .64rem; }
-  .trust { margin-top: var(--course); padding: 1.1rem 1.3rem; border: 1px solid var(--gold-dim); background: linear-gradient(180deg, #1a1810, rgb(17 19 23 / 60%) 60%); }
+  .trust { margin-top: var(--course); padding: 1.1rem 1.3rem; border: 1px solid var(--gold-dim); background: linear-gradient(180deg, #1a1810, rgb(20 23 27 / 60%) 60%); }
   .trust ul { grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); column-gap: 2rem; }
   .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: var(--course); margin-top: var(--course); }
   h3 { margin: 0 0 .7rem; color: var(--platinum); }
@@ -369,7 +369,7 @@
   ul.legend .k { display: inline-flex; align-items: center; gap: .3rem; white-space: nowrap; }
   ul.legend .tag { margin-left: 0; }
   b { color: var(--platinum); font-weight: 500; }
-  code, kbd { font-family: var(--face-register); font-size: .8em; color: var(--platinum); }
+  code, kbd { font-family: var(--face-figures); font-size: .8em; color: var(--platinum); }
   .sub { margin: .2rem 0 0; padding-left: 1.1rem; display: grid; gap: .2rem; }
   .sub li { display: list-item; list-style: square; counter-increment: none; grid-template-columns: none; }
   .sub li::before { content: none; }
@@ -383,10 +383,10 @@
   .rwd.u::before { width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--rarity-uncommon); }
   .rwd b { position: absolute; right: -3px; bottom: -3px; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 1.5px var(--plate); }
   .sw { display: inline-block; width: 10px; height: 10px; background: var(--c); }
-  .sell-demo { display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .45rem; border: 1px solid var(--rule-bright); font-family: var(--face-register); font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-dim); }
+  .sell-demo { display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .45rem; border: 1px solid var(--rule-bright); font-family: var(--face-register); font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-dim); }
   .notch-demo { display: inline-block; width: 22px; height: 16px; border: 1px solid color-mix(in srgb, var(--gold) 30%, var(--rule)); background: linear-gradient(225deg, var(--gold) 0 7px, var(--plate) 7px); }
   .gold-word { font-family: var(--face-mark); font-weight: 700; text-transform: uppercase; color: var(--gold); }
-  .lastmark { font-family: var(--face-register); font-size: .56rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
+  .lastmark { font-family: var(--face-register); font-size: .67rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
   .tug-demo { display: inline-flex; width: 4.5rem; height: 4px; gap: 1px; }
   .tug-demo i { display: block; height: 100%; }
   .tug-demo i:first-child { width: 60%; background: var(--faction-grineer); }

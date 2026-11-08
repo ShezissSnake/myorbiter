@@ -316,7 +316,7 @@
   .verdict {
     justify-self: start; display: inline-flex; align-items: center; gap: .4rem; padding: .1rem 0 .1rem .5rem;
     border-left: 2px solid currentColor;
-    font-family: var(--face-register); font-size: .66rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+    font-family: var(--face-register); font-size: .79rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
   }
   .grow { flex: 1; }
   .filters { padding-bottom: .6rem; }
@@ -340,7 +340,7 @@
   .dbuy { margin-top: var(--course); display: grid; gap: .6rem; }
   .dbuy header { display: grid; gap: .25rem; }
   .dt { width: 100%; max-width: 56rem; border-collapse: collapse; font-size: .84rem; }
-  .dt th { text-align: left; font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); font-weight: 500; padding: .3rem .5rem; border-bottom: 1px solid var(--rule); }
+  .dt th { text-align: left; font-family: var(--face-register); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); font-weight: 500; padding: .3rem .5rem; border-bottom: 1px solid var(--rule); }
   .dt td { padding: .3rem .5rem; border-bottom: 1px solid var(--rule); }
   .dt .r { text-align: right; }
   .dt b.good { color: var(--gold); }

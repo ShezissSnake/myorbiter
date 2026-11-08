@@ -63,7 +63,7 @@
   .name { font-size: .84rem; color: var(--platinum); }
   .off .name { color: var(--platinum-deep); }
   .ctl { display: flex; align-items: center; gap: .5rem; min-width: 0; flex-wrap: wrap; }
-  .kw { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
+  .kw { font-family: var(--face-register); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
   .note { flex: 1 1 12rem; min-width: 0; font-size: .76rem; color: var(--platinum-deep); line-height: 1.35; }
   /* Off and greyed out by colour, not opacity, so the text stays above 4.5:1. */
   .off .ctl, .off .ctl :global(.n) { color: var(--platinum-deep); }
@@ -74,5 +74,5 @@
   .off .tally .n, .off .tally :global(b) { color: var(--platinum-deep); }
   .disabled .name { color: var(--platinum-deep); }
   .disabled .box { opacity: .55; }
-  .none { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
+  .none { font-family: var(--face-register); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
 </style>

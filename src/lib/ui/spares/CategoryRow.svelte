@@ -89,7 +89,7 @@
   .fig .n { font-size: .78rem; color: var(--platinum-deep); }
   .fig .n b { font-family: var(--face-mark); font-size: 1rem; color: var(--platinum); margin-right: .1rem; }
   .fig.dim .n b { color: var(--platinum-deep); }
-  .fig .none { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; }
+  .fig .none { font-family: var(--face-register); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; }
   .pl { display: inline-flex; align-items: center; min-width: 4.2rem; justify-content: flex-end; color: var(--platinum-deep); font-size: .8rem; }
   .chev { color: var(--platinum-deep); font-size: .72rem; justify-self: end; transition: transform var(--quick) var(--out); }
   .open .chev { transform: rotate(180deg); }

@@ -1097,11 +1097,11 @@
   :global(html[data-room~="lt1100"]) .fix { padding-left: 0; }
 
   .alert { border: 1px solid var(--oxblood); color: var(--oxblood); padding: .7rem 1rem; margin: var(--step) 0; font-size: .84rem; }
-  .panel { border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); padding: 1.2rem 1.4rem; margin: var(--step) 0; display: grid; gap: .8rem; }
+  .panel { border: 1px solid var(--rule); background: rgb(20 23 27 / 70%); padding: 1.2rem 1.4rem; margin: var(--step) 0; display: grid; gap: .8rem; }
   .signin h2 { font-size: 1.9rem; }
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
   .wide { min-width: 28rem; }
-  code { font-family: var(--face-register); color: var(--platinum); }
+  code { font-family: var(--face-figures); color: var(--platinum); }
 
   /* Groups kept apart by space, not rules: a rule would start the second line when they wrap. */
   .tools { gap: .6rem 2.2rem; }
@@ -1116,7 +1116,7 @@
   @media (prefers-reduced-motion: reduce) { .countdown { display: none; } }
 
   /* A row's own work, under its name. */
-  .rowst { display: flex; flex-wrap: wrap; align-items: center; gap: .2rem .5rem; margin-top: .3rem; padding-left: calc(34px + .75rem); font-family: var(--face-register); font-size: .62rem; letter-spacing: .08em; text-transform: uppercase; color: var(--platinum-dim); white-space: normal; }
+  .rowst { display: flex; flex-wrap: wrap; align-items: center; gap: .2rem .5rem; margin-top: .3rem; padding-left: calc(34px + .75rem); font-family: var(--face-register); font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; color: var(--platinum-dim); white-space: normal; }
   .buys .rowst { margin-top: 0; padding-left: 0; }
   :global(html[data-room~="lt1100"]) .rowst { padding-left: 0; }
   .rowst.done { color: var(--verdigris); }
@@ -1127,7 +1127,7 @@
   .busyword i { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; overflow: hidden; }
   .busyword i::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 40%; background: linear-gradient(90deg, transparent, var(--gold), transparent); animation: sweep-band 1.2s ease-in-out infinite; }
   @media (prefers-reduced-motion: reduce) { .busyword i { background: var(--gold-dim); } .busyword i::before { display: none; } }
-  .bang { display: inline-grid; place-items: center; width: 1.05em; height: 1.05em; border: 1px solid currentColor; font-family: var(--face-register); font-size: .6rem; font-weight: 700; line-height: 1; }
+  .bang { display: inline-grid; place-items: center; width: 1.05em; height: 1.05em; border: 1px solid currentColor; font-family: var(--face-register); font-size: .72rem; font-weight: 700; line-height: 1; }
   /* Sold out, on its way off: dimmed by colour, not opacity, so its words stay readable (about 5:1). */
   tr.ghost td { color: var(--platinum-deep); --platinum: var(--platinum-deep); --platinum-dim: var(--platinum-deep); }
   tr.ghost td :global(img) { opacity: .6; }
@@ -1140,7 +1140,7 @@
   /* The Shown switch's own box, for the shake when warframe.market refuses. */
   .shake { display: inline-block; }
 
-  .log { margin-top: var(--step); max-height: 9.5rem; overflow: auto; display: grid; gap: .3rem; padding: .7rem 1rem; border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); }
+  .log { margin-top: var(--step); max-height: 9.5rem; overflow: auto; display: grid; gap: .3rem; padding: .7rem 1rem; border: 1px solid var(--rule); background: rgb(20 23 27 / 70%); }
   .line { font-size: .82rem; color: var(--platinum-dim); }
   .line.ok { color: var(--platinum); }
   .line.warn { color: var(--oxblood); }
@@ -1148,7 +1148,7 @@
 
   /* The listings table. */
   table.orders { width: 100%; border-collapse: collapse; margin-top: var(--step); border-top: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
-  .orders th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .15em; text-transform: uppercase; color: var(--platinum-deep); padding: .7rem .6rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  .orders th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .72rem; letter-spacing: .15em; text-transform: uppercase; color: var(--platinum-deep); padding: .7rem .6rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
   .orders th.right { text-align: right; }
   .whispers { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1.2rem; margin: var(--step) 0 0; padding: .55rem .8rem; border: 1px solid var(--rule); border-left: 2px solid var(--gold-dim); }
   .wh { display: inline-flex; align-items: center; gap: .45rem; }
@@ -1169,7 +1169,7 @@
   .orders th.sortable:focus-visible { outline: none; box-shadow: inset 0 -2px 0 var(--gold); color: var(--platinum); }
   .orders .arrow { margin-left: .3rem; color: var(--gold); }
   .orders th.center { text-align: center; }
-  .orders td { padding: .5rem .6rem; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+  .orders td { padding: var(--row-pad) .6rem; border-bottom: 1px solid var(--rule); vertical-align: middle; }
   .orders tbody tr:hover td { background: rgb(255 255 255 / 1.5%); }
   .orders th:first-child, .orders td:first-child { padding-left: 0; }
   .orders th:last-child, .orders td:last-child { padding-right: 0; }
@@ -1178,7 +1178,7 @@
      950 px (App sets the flag, by the room pages actually have): a 1000 px window with the sidebar
      folded, where the row's actions otherwise ran past the right edge. */
   :global(html[data-room~="lt950"]) .willset { display: none; }
-  .willnote { display: none; margin-top: .2rem; font-family: var(--face-register); font-size: .62rem; letter-spacing: .06em; color: var(--oxblood); white-space: nowrap; }
+  .willnote { display: none; margin-top: .2rem; font-family: var(--face-register); font-size: .74rem; letter-spacing: .06em; color: var(--oxblood); white-space: nowrap; }
   .willnote.up { color: var(--verdigris); }
   :global(html[data-room~="lt950"]) .willnote { display: block; }
   /* "auto 10" whole: the floor's placeholder without the wide capitals (and the box set wide enough, inline). */
@@ -1197,7 +1197,7 @@
   :global(html[data-room~="lt760"]) .orders tr.order { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto auto; grid-template-areas: "item item item item item item" "qty price comp auto shown acts"; column-gap: .6rem; row-gap: .45rem; align-items: end; padding: .7rem 0; border-bottom: 1px solid var(--rule); }
   :global(html[data-room~="lt760"]) .orders tr.order > td { display: block; border: 0; padding: 0 !important; }
   :global(html[data-room~="lt760"]) .orders tr.order > td:is(.willset, .floorcol) { display: none; }
-  :global(html[data-room~="lt760"]) .orders tr.order > td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .25rem; font-family: var(--face-register); font-size: .55rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); text-align: left; white-space: nowrap; }
+  :global(html[data-room~="lt760"]) .orders tr.order > td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .25rem; font-family: var(--face-register); font-size: .66rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); text-align: left; white-space: nowrap; }
   :global(html[data-room~="lt760"]) .orders .c-item { grid-area: item; }
   :global(html[data-room~="lt760"]) .orders .c-qty { grid-area: qty; }
   :global(html[data-room~="lt760"]) .orders .c-price { grid-area: price; }
@@ -1232,13 +1232,13 @@
   .target { display: inline-flex; align-items: center; justify-content: flex-end; white-space: nowrap; }
   .target.down .delta { color: var(--oxblood); }
   .target.up .delta { color: var(--verdigris); }
-  .delta { font-family: var(--face-register); font-size: .62rem; margin-left: .3rem; }
+  .delta { font-family: var(--face-register); font-size: .74rem; margin-left: .3rem; }
   .register.ok { color: var(--verdigris); }
   .charted { all: unset; cursor: pointer; display: inline-grid; place-items: center; width: 22px; height: 22px; color: var(--platinum-deep); border: 1px solid transparent; }
   .charted:hover, .charted:focus-visible { color: var(--platinum); border-color: var(--rule-control); }
   .charted:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
   .charted.on { color: var(--gold); border-color: var(--gold-dim); }
   /* The chart sits in from the table's edges, which its first and last cells otherwise touch. */
-  .orders tr.chartrow > td, :global(html[data-room~="lt1100"]) .orders tr.chartrow > td { padding: .6rem 1rem 1.1rem; background: rgb(17 19 23 / 55%); }
+  .orders tr.chartrow > td, :global(html[data-room~="lt1100"]) .orders tr.chartrow > td { padding: .6rem 1rem 1.1rem; background: rgb(20 23 27 / 55%); }
   .apart { display: inline-flex; margin-left: .55rem; padding-left: .55rem; border-left: 1px solid var(--rule); }
 </style>

@@ -205,8 +205,8 @@
   .row { display: grid; grid-template-columns: 4.2rem minmax(0, 1fr) auto; align-items: center; gap: .3rem 1rem; padding: .6rem .2rem .6rem 0; border-bottom: 1px solid var(--rule); }
   .row.old .tt { color: var(--platinum-dim); }
   .votes { display: grid; justify-items: center; line-height: 1.05; padding: .25rem 0; background: var(--well); border: 1px solid var(--rule); }
-  .votes b { font-family: var(--face-register); font-size: .95rem; font-weight: 600; color: var(--platinum); font-variant-numeric: tabular-nums; }
-  .vw { font-family: var(--face-register); font-size: .5rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
+  .votes b { font-family: var(--face-figures); font-size: .95rem; font-weight: 600; color: var(--platinum); font-variant-numeric: tabular-nums; }
+  .vw { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
   .main { display: grid; gap: .22rem; min-width: 0; }
   .tt { font-size: .92rem; font-weight: 500; color: var(--platinum); overflow-wrap: anywhere; }
   .meta { display: flex; flex-wrap: wrap; gap: .1rem .8rem; font-size: .76rem; color: var(--platinum-deep); }

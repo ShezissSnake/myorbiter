@@ -110,7 +110,7 @@
   .cap { flex: none; display: grid; place-items: center; width: 2.4rem; border-right: 1px solid var(--rule-bright); background: color-mix(in srgb, var(--sec) 9%, transparent); }
   .cap i { width: 1rem; height: 1rem; background: var(--sec); -webkit-mask: var(--sec-sigil) center / contain no-repeat; mask: var(--sec-sigil) center / contain no-repeat; }
   .fig { flex: none; display: inline-flex; align-items: baseline; gap: .6rem; padding: .55rem 1.25rem .5rem; white-space: nowrap; cursor: default; border-left: 1px solid var(--rule); border-top: 1px solid var(--rule); margin: -1px 0 0 -1px; }
-  .lb { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
+  .lb { font-family: var(--face-register); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
   /* The figures struck in the app's number face, as every page's band strikes them. */
   .v { display: inline-flex; align-items: center; gap: .25rem; font-family: var(--face-mark); font-weight: 700; font-size: 1.5rem; line-height: 1.1; color: var(--platinum); letter-spacing: 0; }
   .t-gold .v { color: var(--gold); }

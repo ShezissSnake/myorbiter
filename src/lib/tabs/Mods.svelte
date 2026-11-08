@@ -203,11 +203,11 @@
   .have { display: flex; align-items: baseline; gap: .5rem; }
   .qty { font-size: 1.45rem; }
   .ranks { display: flex; flex-wrap: wrap; gap: .3rem; min-height: 1.15rem; }
-  .rk { font-family: var(--face-register); font-size: .6rem; letter-spacing: .06em; padding: .1rem .35rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
+  .rk { font-family: var(--face-register); font-size: .72rem; letter-spacing: .06em; padding: .1rem .35rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
   .prices { display: flex; gap: 1rem; }
   .prices > span { display: grid; gap: .15rem; }
   .prices .register { font-size: .6rem; }
-  .rar { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-dim); }
+  .rar { font-family: var(--face-register); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-dim); }
   .rar-Common { color: var(--rarity-common); }
   .rar-Uncommon { color: var(--rarity-uncommon); }
   .rar-Rare { color: var(--rarity-rare); }

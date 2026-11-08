@@ -322,7 +322,7 @@
   .grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(18rem, 1fr); gap: 1.6rem; margin: var(--step) 0 var(--course); }
   /* Page area under 950 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt950"]) .grid { grid-template-columns: 1fr; }
-  .chart, .top { border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); padding: 1rem 1.2rem; }
+  .chart, .top { border: 1px solid var(--rule); background: rgb(20 23 27 / 70%); padding: 1rem 1.2rem; }
   .head { display: flex; align-items: center; margin-bottom: .8rem; gap: 1rem; }
   .head .small { display: inline-flex; align-items: center; gap: .4rem; }
   .bars { display: flex; align-items: flex-end; gap: 3px; height: 9rem; }
@@ -350,9 +350,9 @@
   .addsale :global(.ib) { --ib: 36px; }
   .plat { display: inline-flex; align-items: center; gap: .4rem; }
   .log { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; border-top: 1px solid var(--rule); }
-  .log th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: .6rem .6rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  .log th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: .6rem .6rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
   .log th.right { text-align: right; }
-  .log td { padding: .45rem .6rem; border-bottom: 1px solid var(--rule); }
+  .log td { padding: var(--row-pad) .6rem; border-bottom: 1px solid var(--rule); }
   .log th:first-child, .log td:first-child { padding-left: 0; }
   .log th:last-child, .log td:last-child { padding-right: 0; }
   .log tbody tr:hover td { background: rgb(255 255 255 / 1.5%); }
@@ -364,7 +364,7 @@
   .vs { color: var(--platinum-dim); white-space: nowrap; }
   .vs.under { color: var(--oxblood); }
   /* "under" sits in its own fixed slot after the number, so the percentages stay in one column. */
-  .vs::after { content: ""; display: inline-block; width: 3.6em; margin-left: .45em; text-align: left; font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; }
+  .vs::after { content: ""; display: inline-block; width: 3.6em; margin-left: .45em; text-align: left; font-family: var(--face-register); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; }
   .vs.under::after { content: "under"; }
   .vs.over { color: var(--verdigris); }
   .fast { color: var(--verdigris); border-color: var(--verdigris); }

@@ -53,5 +53,5 @@
   .hint { margin: 0; font-size: .76rem; color: var(--platinum-deep); }
   .hint.err { color: var(--oxblood); }
   .hint.warn { color: var(--gold); }
-  code { font-family: var(--face-register); font-size: .72rem; color: var(--platinum-dim); }
+  code { font-family: var(--face-figures); font-size: .72rem; color: var(--platinum-dim); }
 </style>

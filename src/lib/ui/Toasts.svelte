@@ -48,7 +48,7 @@
   :global(html[data-scrim]) .toasts { z-index: 39; }
   .toast { position: relative; pointer-events: auto; display: grid; grid-template-columns: 1fr auto; overflow: hidden; border: 1px solid var(--rule-bright); background: var(--plate); box-shadow: 0 10px 30px rgb(0 0 0 / 55%), inset 3px 0 0 var(--gold); clip-path: var(--cut); }
   .body { display: grid; grid-template-columns: 1.9rem 1fr; gap: .7rem; padding: .75rem .4rem .8rem .9rem; text-align: left; border: 0; background: transparent; color: var(--platinum-dim); font-family: var(--face-text); font-size: .82rem; letter-spacing: 0; text-transform: none; }
-  .body:hover { background: rgb(230 233 238 / 4%); }
+  .body:hover { background: rgb(241 243 246 / 4%); }
   .txt { display: grid; gap: .25rem; min-width: 0; }
   .txt b { color: var(--platinum); font-weight: 600; font-size: .88rem; }
   .txt span { font-weight: 400; white-space: pre-line; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }

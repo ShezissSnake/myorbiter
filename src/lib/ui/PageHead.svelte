@@ -33,7 +33,7 @@
     padding: clamp(18px, 3vh, 34px) 0 calc(var(--step) * .8);
   }
   /* Struck large, but not so large the page starts halfway down a laptop screen. */
-  h1 { font-size: clamp(2.3rem, 4.2vw, 3.7rem); }
+  h1 { font-size: clamp(2.2rem, 3.4vw, var(--title-size)); }
   /* Focused only to start the page there: no ring on a title you can't press. */
   h1:focus { outline: none; }
   /* At most three lines, so a long one doesn't push the title down (the whole of it on hover). */
@@ -67,7 +67,7 @@
   /* A short window (a Steam Deck's 800 px): a smaller title, so the page itself starts higher. */
   @media (max-height: 860px) {
     .head { padding: 18px 0 .6rem; }
-    h1 { font-size: clamp(2.2rem, 4vw, 3.2rem); }
+    h1 { font-size: clamp(2.1rem, 3.2vw, 40px); }
     .orn { margin-bottom: .5rem; }
   }
 </style>

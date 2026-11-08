@@ -82,11 +82,11 @@
   .cmain { display: grid; gap: .35rem; min-width: 0; }
   .cname { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem .7rem; }
   .cname .name-mark { font-size: 1rem; }
-  .score { margin-left: auto; font-family: var(--face-register); font-size: .74rem; color: var(--platinum); font-variant-numeric: tabular-nums; }
+  .score { margin-left: auto; font-family: var(--face-figures); font-size: .74rem; color: var(--platinum); font-variant-numeric: tabular-nums; }
   .parts { display: flex; flex-wrap: wrap; gap: .3rem; }
   .part { display: inline-flex; align-items: center; gap: .35rem; padding: .12rem .45rem; border: 1px solid var(--rule-bright); font-size: .8rem; }
-  .part .pr { font-family: var(--face-register); font-size: .52rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
-  .part .st { font-family: var(--face-register); font-size: .6rem; color: var(--platinum-deep); }
+  .part .pr { font-family: var(--face-register); font-size: .62rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
+  .part .st { font-family: var(--face-register); font-size: .72rem; color: var(--platinum-deep); }
   .part.held { border-color: color-mix(in srgb, var(--gold) 45%, transparent); }
   .part.held .st { color: var(--gold); }
   .part.blueprint .st { color: var(--platinum-dim); }

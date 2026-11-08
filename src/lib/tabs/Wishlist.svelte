@@ -356,8 +356,8 @@
   .unstar:hover { color: var(--oxblood); }
   .unstar:hover :global(svg path) { fill: none; }
   table { width: 100%; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: 0 .5rem .45rem; border-bottom: 1px solid var(--rule); }
-  td { padding: .5rem; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+  th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: 0 .5rem .45rem; border-bottom: 1px solid var(--rule); }
+  td { padding: var(--row-pad) .5rem; border-bottom: 1px solid var(--rule); vertical-align: middle; }
   tr:last-child td { border-bottom: 0; }
   .r { text-align: right; }
   .part { display: inline-flex; align-items: center; gap: .55rem; max-width: 100%; min-width: 0; }

@@ -46,7 +46,7 @@
     position: absolute; right: -5px; bottom: -4px; min-width: 15px; padding: 0 3px; height: 15px;
     display: inline-flex; align-items: center; justify-content: center;
     background: var(--slab); border: 1px solid var(--rule-bright);
-    font-family: var(--face-register); font-size: .55rem; font-weight: 600; line-height: 1; color: var(--platinum);
+    font-family: var(--face-register); font-size: .66rem; font-weight: 600; line-height: 1; color: var(--platinum);
   }
   /* Resource counts run long ("205k"): centred under the chip, so they don't run into the next one. */
   .res .n { right: auto; left: 50%; transform: translateX(-50%); bottom: -7px; }

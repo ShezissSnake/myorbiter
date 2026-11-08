@@ -101,13 +101,13 @@
   .review { position: relative; border-bottom: 1px solid var(--rule); }
   .review.scroll { max-height: 60vh; overflow: auto; }
   .plan { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  .plan th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: .4rem .6rem; border-bottom: 1px solid var(--rule); }
+  .plan th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: .4rem .6rem; border-bottom: 1px solid var(--rule); }
   thead th { position: sticky; top: 0; background: var(--plate); z-index: 2; }
   .plan td { padding: .38rem .6rem; border-bottom: 1px solid var(--rule); font-size: .84rem; vertical-align: middle; }
   .plan th:first-child, .plan td:first-child { padding-left: 0; width: 1%; }
   .plan .right { text-align: right; white-space: nowrap; }
   .plan .act { width: 1%; padding-right: 0; text-align: right; }
-  .what { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; padding: .15rem .4rem; border: 1px solid var(--rule-bright); white-space: nowrap; color: var(--platinum-deep); }
+  .what { font-family: var(--face-register); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; padding: .15rem .4rem; border: 1px solid var(--rule-bright); white-space: nowrap; color: var(--platinum-deep); }
   tr.create .what { color: var(--verdigris); border-color: var(--verdigris); }
   tr.update .what { color: var(--gold); border-color: var(--gold-dim); }
   tr.remove .what { color: var(--oxblood); border-color: var(--oxblood); }
@@ -123,7 +123,7 @@
   .tickoff { display: inline-grid; line-height: 0; }
   /* The rule: category in small caps, then the rule's words; the player's own (skipped, never) marked. */
   .rule { white-space: nowrap; }
-  .rl { display: inline-flex; align-items: baseline; gap: .45rem; font-family: var(--face-register); font-size: .62rem; letter-spacing: .08em; text-transform: uppercase; color: var(--platinum-dim); }
+  .rl { display: inline-flex; align-items: baseline; gap: .45rem; font-family: var(--face-register); font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; color: var(--platinum-dim); }
   .rl .c { color: var(--platinum-deep); }
   .rl .c::after { content: "·"; margin-left: .45rem; color: var(--rule-control); }
   .rl.mine { color: var(--platinum); padding: .1rem .35rem; border: 1px dashed var(--rule-control); }

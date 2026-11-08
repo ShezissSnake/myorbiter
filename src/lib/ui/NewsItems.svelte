@@ -37,7 +37,7 @@
   .art { align-self: start; width: 2.4rem; height: 1.35rem; display: grid; place-items: center; color: var(--platinum-dim); }
   .t { color: var(--platinum); font-size: .9rem; font-weight: 600; line-height: 1.35; }
   .x { font-size: .84rem; line-height: 1.5; color: var(--platinum-dim); }
-  .show { justify-self: end; padding: .2rem .55rem; font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); border-color: var(--gold-dim); background: transparent; white-space: nowrap; }
+  .show { justify-self: end; padding: .2rem .55rem; font-family: var(--face-register); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); border-color: var(--gold-dim); background: transparent; white-space: nowrap; }
   .show::after { content: " →"; }
   .show:hover:not(:disabled) { color: var(--slab); background: var(--gold); border-color: var(--gold); }
   .plain .x { grid-column: 2 / -1; }

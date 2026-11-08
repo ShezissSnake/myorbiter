@@ -117,7 +117,7 @@
     contain-intrinsic-size: auto 13rem;
   }
   .card.open { cursor: pointer; }
-  .card.open:hover { border-color: var(--rule-control); background: linear-gradient(180deg, #181a1f, #121418 50%); }
+  .card.open:hover { border-color: var(--rule-control); background: linear-gradient(180deg, #1a1e23, #15181c 50%); }
   .card:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--gold); }
   /* One to look at: a gold notch folded into the top corner (a shape, so it can't be mistaken
      for an Axi relic's gold wash), and a warmer edge. */

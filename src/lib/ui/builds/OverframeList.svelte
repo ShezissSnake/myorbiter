@@ -93,12 +93,12 @@
   .row:hover .go { color: var(--sec); }
   .row:focus-visible { outline: 2px solid var(--sec); outline-offset: -2px; }
   .votes { display: grid; justify-items: center; line-height: 1.05; padding: .25rem 0; background: var(--well); border: 1px solid var(--rule); }
-  .votes b { font-family: var(--face-register); font-size: .95rem; font-weight: 600; color: var(--platinum); font-variant-numeric: tabular-nums; }
-  .vw { font-family: var(--face-register); font-size: .5rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
+  .votes b { font-family: var(--face-figures); font-size: .95rem; font-weight: 600; color: var(--platinum); font-variant-numeric: tabular-nums; }
+  .vw { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
   .main { display: grid; gap: .22rem; min-width: 0; }
   .tt { font-size: .92rem; font-weight: 500; color: var(--platinum); overflow-wrap: anywhere; }
   .meta { display: flex; flex-wrap: wrap; align-items: center; gap: .1rem .8rem; font-size: .76rem; color: var(--platinum-deep); }
-  .chip { padding: .02rem .4rem; border: 1px solid color-mix(in srgb, var(--sec) 40%, var(--rule)); color: var(--platinum-dim); font-family: var(--face-register); font-size: .6rem; letter-spacing: .08em; text-transform: uppercase; }
+  .chip { padding: .02rem .4rem; border: 1px solid color-mix(in srgb, var(--sec) 40%, var(--rule)); color: var(--platinum-dim); font-family: var(--face-register); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; }
   .go { color: var(--platinum-deep); padding-right: .2rem; transition: color var(--snap) var(--out); }
   :global(html[data-room~="lt760"]) .row { grid-template-columns: 3.6rem minmax(0, 1fr) auto; gap: .3rem .7rem; }
 </style>

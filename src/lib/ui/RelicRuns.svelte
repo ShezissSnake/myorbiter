@@ -138,22 +138,22 @@
   :global(html[data-room~="lt760"]) .figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .basis { margin: 0 0 .8rem; max-width: 80ch; }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: .45rem .5rem; border-bottom: 1px solid var(--rule); }
-  td { padding: .5rem; border-bottom: 1px solid var(--rule); }
+  th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: .45rem .5rem; border-bottom: 1px solid var(--rule); }
+  td { padding: var(--row-pad) .5rem; border-bottom: 1px solid var(--rule); }
   .right { text-align: right; }
   .session { cursor: pointer; }
-  .session:hover td, .session.open td { background: rgb(24 26 31 / 70%); }
+  .session:hover td, .session.open td { background: rgb(26 30 35 / 70%); }
   .session:focus-visible { outline: 1px solid var(--gold); outline-offset: -1px; }
   .when { display: inline-flex; align-items: center; gap: .55rem; }
   .chev { color: var(--gold-dim); width: .8rem; }
   .ph { font-family: var(--face-mark); font-size: .98rem; color: var(--gold); }
-  .detail td { padding: .2rem .5rem .8rem 1.9rem; background: rgb(13 14 17 / 60%); }
+  .detail td { padding: .2rem .5rem .8rem 1.9rem; background: rgb(12 14 17 / 60%); }
   ol { list-style: none; margin: 0; padding: 0; display: grid; gap: .25rem; }
   li { display: grid; grid-template-columns: 3.4rem 5.2rem 1fr auto; gap: .7rem; align-items: center; padding: .3rem 0; border-bottom: 1px solid rgb(36 39 45 / 50%); }
   li:last-child { border-bottom: 0; }
-  .t { font-family: var(--face-register); font-size: .7rem; color: var(--platinum-deep); }
+  .t { font-family: var(--face-register); font-size: .84rem; color: var(--platinum-deep); }
   .sq { display: inline-flex; gap: 3px; }
-  .ref { font-style: normal; font-family: var(--face-register); font-size: .58rem; width: 1.05rem; height: 1.05rem; display: inline-grid; place-items: center; border: 1px solid var(--rule-bright); color: var(--platinum-deep); }
+  .ref { font-style: normal; font-family: var(--face-register); font-size: .7rem; width: 1.05rem; height: 1.05rem; display: inline-grid; place-items: center; border: 1px solid var(--rule-bright); color: var(--platinum-deep); }
   .r-R { color: var(--gold); border-color: var(--gold-dim); }
   .r-F, .r-E { color: var(--platinum-dim); }
   .cards { display: flex; flex-wrap: wrap; gap: .35rem .5rem; min-width: 0; }
@@ -162,7 +162,7 @@
   .card.top { border-style: dashed; border-color: var(--rule-control); }
   .cn { font-size: .78rem; color: var(--platinum-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 16rem; }
   .counted .cn { color: var(--platinum); }
-  .basis-tag { font-family: var(--face-register); font-size: .58rem; letter-spacing: .12em; text-transform: uppercase; padding: .15rem .4rem; border: 1px solid var(--rule-bright); color: var(--platinum-deep); white-space: nowrap; }
+  .basis-tag { font-family: var(--face-register); font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; padding: .15rem .4rem; border: 1px solid var(--rule-bright); color: var(--platinum-deep); white-space: nowrap; }
   .b-took { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 45%, transparent); }
   .b-own { color: var(--gold); border-color: var(--gold-dim); }
   .more { margin-top: .7rem; }

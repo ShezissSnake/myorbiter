@@ -98,7 +98,7 @@
   .pips { display: flex; gap: calc(var(--w) * .022); justify-content: center; flex-wrap: wrap; margin-top: 1px; }
   .pips i { width: calc(var(--w) * .045); height: calc(var(--w) * .045); transform: rotate(45deg); border: 1px solid color-mix(in srgb, var(--edge) 60%, transparent); }
   .pips i.on { background: var(--edge); border-color: var(--edge); }
-  .rt { font-family: var(--face-register); font-size: .6rem; letter-spacing: .06em; color: var(--edge); }
+  .rt { font-family: var(--face-register); font-size: .72rem; letter-spacing: .06em; color: var(--edge); }
   .lb { font-family: var(--face-register); font-size: calc(var(--w) * .062); letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
   /* Arcanes: the game's hexagon, art round in the middle. */
   .arcane { border-radius: 0; border: 0; box-shadow: none; background: none; overflow: visible; }

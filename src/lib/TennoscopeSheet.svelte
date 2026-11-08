@@ -198,11 +198,11 @@
   .health li:first-child { border-top: 1px solid var(--rule); }
   .health .dot { align-self: center; }
   .hl { color: var(--platinum); }
-  .hs { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
+  .hs { font-family: var(--face-register); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
   .hs.ready { color: var(--verdigris); }
   .hs.degraded { color: var(--gold); }
   .hs.failed { color: var(--oxblood); }
   .hm { color: var(--platinum-dim); font-size: .78rem; }
   .err { color: var(--oxblood); margin: 0; }
-  code { font-family: var(--face-register); font-size: .9em; color: var(--platinum); }
+  code { font-family: var(--face-figures); font-size: .9em; color: var(--platinum); }
 </style>

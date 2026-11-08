@@ -22,7 +22,7 @@
 </span>
 
 <style>
-  .owned { display: inline-flex; align-items: center; gap: .35rem; white-space: nowrap; font-family: var(--face-register); font-size: .62rem; letter-spacing: .08em; text-transform: uppercase; color: var(--platinum-deep); }
+  .owned { display: inline-flex; align-items: center; gap: .35rem; white-space: nowrap; font-family: var(--face-register); font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; color: var(--platinum-deep); }
   b { font-family: var(--face-mark); font-size: .95rem; letter-spacing: 0; color: var(--platinum); margin-right: .2rem; }
   img { flex: none; margin-right: .18rem; object-fit: contain; }
   .compact b { margin-right: .1rem; }

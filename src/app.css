@@ -1,8 +1,9 @@
 /* MYORBITER: THE LEDGER
-   A Tenno's ledger in the Orokin manner: a dark slab, engraved hairlines, square corners.
-   Names and titles are condensed capitals struck large; every label is small tracked monospace.
-   Two metals carry every value: platinum (cool white) and the ducat (gold). Badges are
-   house-shaped cartouches, never pills. No glow, no rounded cards. */
+   A Tenno's ledger in the Orokin manner: a cool dark slab, engraved hairlines, square corners.
+   Names and titles are condensed capitals struck large; every label is small tracked condensed
+   capitals, and figures that must line up (prices, times, code) are monospace. Two metals carry
+   every value: platinum (cool white) and the ducat (gold). Each section has its own hue, and the
+   page takes it. Badges are house-shaped cartouches, never pills. No glow, no rounded cards. */
 
 @import "@fontsource/archivo-narrow/500.css";
 @import "@fontsource/archivo-narrow/600.css";
@@ -15,21 +16,26 @@
 
 :root {
   color-scheme: dark;
-  --slab: #0a0b0d;
-  --plate: #111317;
-  --raised: #181a1f;
-  --well: #0d0e11;
-  --rule: #24272d;
-  --rule-bright: #363a42;
-  --rule-control: #5d626b;
+  /* Cool neutrals, no warm cast: the window, the slab a page's plates sit on, a raised plate,
+     the well a field is sunk into, and three hairlines (decorative, brighter, and a control's
+     edge, which is 3:1 against the slab and the well). */
+  --slab: #0f1114;
+  --plate: #14171b;
+  --raised: #1a1e23;
+  --well: #0c0e11;
+  --rule: #272c33;
+  --rule-bright: #363c45;
+  --rule-control: #5d6671;
 
-  --platinum: #e6e9ee;
-  --platinum-dim: #9ba2ac;
-  /* Secondary text: 4.5:1 or better on every surface. */
-  --platinum-deep: #7e858f;
-  /* Gold is the Orokin metal: ducats, the Rare tier and Axi relics, nothing else. */
+  --platinum: #f1f3f6;
+  --platinum-dim: #98a1ab;
+  /* Secondary text: 4.5:1 or better on every surface, a section pane's top light included. */
+  --platinum-deep: #88919c;
+  /* Gold is the Orokin metal: ducats, the Rare tier and Axi relics, and the Trade section. */
   --gold: #d6ae4a;
   --gold-dim: #a3843a;
+  /* Text on a gold fill. */
+  --gold-ink: #15120a;
   --oxblood: #d96b5c;
   /* Good, done, mastered: and mastery still to earn. */
   --verdigris: #6fb7a3;
@@ -59,7 +65,7 @@
   --faction-infested: #8fb35a;
   /* A chart's second line: the ducat-gold of value you can realise, a shade darker. */
   --chart-gold: #b5892e;
-  --chart-plat: #9ba2ac;
+  --chart-plat: #98a1ab;
   --chart-mine: #c9ccd1;
   --chart-theirs: #6fa38a;
 
@@ -79,19 +85,26 @@
   --era-requiem: #d46a8e;
   --era-omnia: #a2a8f0;
 
-  /* Each section's own colour, from where that part of the game lives: Fissures the Void's violet,
-     Progress mastery's teal, Collection the Arsenal's steel blue, Trade the market's gold. It marks
-     the title's sigil, the rule under the figures, and the sidebar; nothing else changes colour.
-     Pages outside a section (Home, the Guide) keep gold. */
-  --sec: var(--gold);
-  --sec-dim: var(--gold-dim);
+  /* Each section's own colour (the [data-section] rules at the end of this file): it tints the
+     page's slab, marks the title's sigil and rule, the rule under the figures, and the sidebar's
+     headers. Pages outside a section (Home, the Guide) are neutral. --sec-dim is the same hue
+     about half way to the slab, solid, for hairlines. */
+  --sec: var(--platinum-dim);
+  --sec-dim: #4f565f;
   --sec-sigil: none;
   --tab-point: polygon(0 0, 100% 0, 100% calc(100% - 9px), 50% 100%, 0 calc(100% - 9px));
-  --struck: inset 0 1px 0 rgb(0 0 0 / 80%), inset 0 -1px 0 rgb(230 233 238 / 8%);
+  --struck: inset 0 1px 0 rgb(0 0 0 / 80%), inset 0 -1px 0 rgb(241 243 246 / 8%);
 
   --face-mark: "Archivo Narrow", "Roboto Condensed", "DejaVu Sans Condensed", sans-serif;
   --face-text: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
-  --face-register: "IBM Plex Mono", ui-monospace, "DejaVu Sans Mono", monospace;
+  /* Labels: condensed tracked capitals. */
+  --face-register: "Archivo Narrow", "Roboto Condensed", "DejaVu Sans Condensed", sans-serif;
+  /* Figures that line up in a column (prices, times), version numbers and code. */
+  --face-figures: "IBM Plex Mono", ui-monospace, "DejaVu Sans Mono", monospace;
+  /* A page's struck title. */
+  --title-size: 44px;
+  /* A table row's padding above and below. */
+  --row-pad: 6px;
 
   /* Motion (src/lib/motion.ts has the same numbers): three durations and one easing. --snap for
      presses, ticks and pops; --quick for folds, chevrons, crossfades and counts; --settle for list
@@ -113,7 +126,7 @@ html, body { margin: 0; height: 100%; }
 body {
   background-color: var(--slab);
   /* Faint engraved orbits behind everything: overlapping rings, tiled. */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' fill='none' stroke='%23e6e9ee' stroke-opacity='.028'%3E%3Ccircle cx='120' cy='120' r='96'/%3E%3Ccircle cx='120' cy='120' r='70'/%3E%3Ccircle cx='0' cy='0' r='96'/%3E%3Ccircle cx='240' cy='0' r='96'/%3E%3Ccircle cx='0' cy='240' r='96'/%3E%3Ccircle cx='240' cy='240' r='96'/%3E%3Cpath d='M120 14v18M120 208v18M14 120h18M208 120h18'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' fill='none' stroke='%23f1f3f6' stroke-opacity='.028'%3E%3Ccircle cx='120' cy='120' r='96'/%3E%3Ccircle cx='120' cy='120' r='70'/%3E%3Ccircle cx='0' cy='0' r='96'/%3E%3Ccircle cx='240' cy='0' r='96'/%3E%3Ccircle cx='0' cy='240' r='96'/%3E%3Ccircle cx='240' cy='240' r='96'/%3E%3Cpath d='M120 14v18M120 208v18M14 120h18M208 120h18'/%3E%3C/svg%3E");
   color: var(--platinum);
   font-family: var(--face-text);
   font-size: 14px;
@@ -133,11 +146,11 @@ body {
   letter-spacing: -.02em;
   text-transform: uppercase;
   color: var(--platinum);
-  text-shadow: 0 -1px 0 rgb(0 0 0 / 90%), 0 1px 0 rgb(230 233 238 / 7%);
+  text-shadow: 0 -1px 0 rgb(0 0 0 / 90%), 0 1px 0 rgb(241 243 246 / 7%);
 }
 .register {
   font-family: var(--face-register);
-  font-size: .66rem;
+  font-size: 12px;
   font-weight: 500;
   letter-spacing: .14em;
   text-transform: uppercase;
@@ -170,7 +183,7 @@ button {
   background: var(--plate);
   padding: .45rem .8rem;
   font-family: var(--face-register);
-  font-size: .66rem;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: .12em;
   text-transform: uppercase;
@@ -226,12 +239,13 @@ input, select {
   color: var(--platinum);
   font-size: .82rem;
 }
-input::placeholder { font-family: var(--face-register); font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
+input::placeholder { font-family: var(--face-register); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
 input[type="search"] { min-width: 16rem; }
-input[type="number"] { width: 5.5rem; font-family: var(--face-register); }
+input[type="number"] { width: 5.5rem; font-family: var(--face-figures); }
+input[type="number"]::placeholder { font-family: var(--face-figures); font-size: inherit; letter-spacing: 0; }
 /* Our own chevron (a small gold diamond point) instead of the system's. */
 select {
-  font-family: var(--face-register); font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-dim);
+  font-family: var(--face-register); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-dim);
   appearance: none; -webkit-appearance: none; cursor: pointer;
   padding-right: 1.9rem;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23d6ae4a' stroke-width='1.3'/%3E%3C/svg%3E");
@@ -247,7 +261,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 .link {
   /* Text links stay small, but the place to click is a full 24 px tall. */
   background: none; border: 0; padding: 0; min-height: 24px;
-  font-family: var(--face-register); font-size: .66rem; letter-spacing: .12em;
+  font-family: var(--face-register); font-size: 12px; letter-spacing: .12em;
   /* Platinum with a hairline under it: gold is kept for ducats, the Rare tier and Axi. */
   color: var(--platinum);
   text-decoration: underline; text-decoration-color: var(--rule-control); text-underline-offset: 3px;
@@ -282,7 +296,7 @@ a.link { text-decoration: none; text-transform: uppercase; display: inline-flex;
 .tag {
   display: inline-block; margin-left: .45rem; padding: .08rem .38rem;
   border: 1px solid var(--rule-bright);
-  font-family: var(--face-register); font-size: .6rem; font-weight: 600; letter-spacing: .1em;
+  font-family: var(--face-register); font-size: 11px; font-weight: 600; letter-spacing: .1em;
   text-transform: uppercase; color: var(--platinum-dim); white-space: nowrap; vertical-align: 2px;
 }
 .tag:first-child { margin-left: 0; }
@@ -302,7 +316,7 @@ a.link { text-decoration: none; text-transform: uppercase; display: inline-flex;
 .ducat-text { color: var(--gold); font-weight: 600; }
 
 /* Nothing matches the filters: one quiet line, the same on every page and in every table. */
-.nothing { margin: 0; padding: 3rem 1rem; text-align: center; color: var(--platinum-deep); font-family: var(--face-register); font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; }
+.nothing { margin: 0; padding: 3rem 1rem; text-align: center; color: var(--platinum-deep); font-family: var(--face-register); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
 
 /* Section headings on a page carry a small gold diamond, like the game's menu headers. */
 .page h2.register::before, .page h3.register.lead::before {
@@ -396,7 +410,7 @@ span.chev { display: inline-block; transition: transform var(--quick) var(--out)
 
 
 /* A page with nothing in it yet: one look everywhere (Wishlist, Sales). */
-.panel.empty { margin: var(--step) 0; display: grid; gap: .6rem; border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); padding: 1.2rem 1.4rem; clip-path: var(--cut); }
+.panel.empty { margin: var(--step) 0; display: grid; gap: .6rem; border: 1px solid var(--rule); background: rgb(20 23 27 / 70%); padding: 1.2rem 1.4rem; clip-path: var(--cut); }
 .panel.empty h2 { margin: 0; }
 .panel.empty p { margin: 0; }
 .nowrap { white-space: nowrap; }
@@ -423,8 +437,9 @@ tr.era-wash > td:first-child { box-shadow: inset 2px 0 0 color-mix(in srgb, var(
 .modes { margin-top: .2rem; }
 
 /* The sections (pages.ts groups; App puts data-section on each page and sidebar entry). */
-/* Four hues far apart, each at least 7:1 on the slab: Void violet, mastery teal, Arsenal steel, market gold. */
-[data-section="Fissures"] { --sec: #b59cf2; --sec-dim: #7a62b8; --sec-sigil: url("/game/void-tear.png"); }
-[data-section="Progress"] { --sec: #6fb7a3; --sec-dim: #4a8677; --sec-sigil: url("/game/mastery.png"); }
-[data-section="Collection"] { --sec: #9ec2d0; --sec-dim: #5f8592; --sec-sigil: url("/game/warframes.png"); }
+/* Four hues far apart, each at least 6:1 on the slab: Fissures ice blue, Progress green, Collection
+   violet, Trade platinum gold. */
+[data-section="Fissures"] { --sec: #7fd1e0; --sec-dim: #4b7a83; --sec-sigil: url("/game/void-tear.png"); }
+[data-section="Progress"] { --sec: #6fbf95; --sec-dim: #437158; --sec-sigil: url("/game/mastery.png"); }
+[data-section="Collection"] { --sec: #a48be0; --sec-dim: #614f82; --sec-sigil: url("/game/warframes.png"); }
 [data-section="Trade"] { --sec: #d6ae4a; --sec-dim: #a3843a; --sec-sigil: url("/game/market.png"); }

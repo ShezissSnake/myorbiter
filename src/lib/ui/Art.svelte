@@ -31,7 +31,7 @@
     position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none; aspect-ratio: 1; max-width: 100%;
     background: radial-gradient(ellipse 40% 9% at 50% 89%, rgb(0 0 0 / 55%), transparent 75%),
       radial-gradient(ellipse 60% 22% at 50% 92%, rgb(214 174 74 / 13%), transparent 70%),
-      radial-gradient(circle at 50% 45%, rgb(230 233 238 / 5%), transparent 62%);
+      radial-gradient(circle at 50% 45%, rgb(241 243 246 / 5%), transparent 62%);
   }
   img { max-width: 100%; max-height: 100%; object-fit: contain; }
   /* Mastered or out of reach: greyed and darker (a colour filter, no blur). */

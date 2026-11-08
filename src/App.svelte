@@ -2897,7 +2897,7 @@
   .brand-text { display: grid; min-width: 0; }
   .brand-name { font-family: var(--face-mark); font-weight: 700; font-size: 1.3rem; letter-spacing: .03em; text-transform: uppercase; line-height: 1.1; }
   /* One line, never wider than the space the name leaves: a long version ends in an ellipsis. */
-  .brand-ver { font-family: var(--face-register); font-size: .6rem; letter-spacing: .08em; line-height: 1.3; color: var(--platinum-deep); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .brand-ver { font-family: var(--face-register); font-size: .72rem; letter-spacing: .08em; line-height: 1.3; color: var(--platinum-deep); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .fold { margin-left: auto; padding: .35rem; line-height: 0; border-color: transparent; background: transparent; color: var(--platinum-deep); }
   .fold:hover { color: var(--platinum); }
   /* The page list scrolls on a short window; Sync, TennoScope and Settings stay pinned below it. */
@@ -2914,12 +2914,12 @@
     font-family: var(--face-text); font-size: .9rem; font-weight: 500; letter-spacing: 0; text-transform: none;
   }
   .nav .ic { width: 1.5rem; height: 1.5rem; display: grid; place-items: center; flex: none; opacity: .78; transition: opacity .12s; }
-  .nav:hover:not(:disabled) { color: var(--platinum); background: rgb(230 233 238 / 4%); }
+  .nav:hover:not(:disabled) { color: var(--platinum); background: rgb(241 243 246 / 4%); }
   .nav:hover .ic, .nav.on .ic { opacity: 1; }
   .nav.on { color: var(--platinum); background: linear-gradient(90deg, color-mix(in srgb, var(--sec) 14%, transparent), color-mix(in srgb, var(--sec) 2%, transparent) 70%); box-shadow: inset 2px 0 0 var(--sec); }
   .nav.on .ic :global(svg) { color: var(--sec); }
   .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .badge { margin-left: auto; min-width: 1.35rem; padding: .05rem .35rem; text-align: center; font-family: var(--face-register); font-size: .62rem; font-weight: 700; color: var(--slab); background: var(--gold); clip-path: var(--cut); }
+  .badge { margin-left: auto; min-width: 1.35rem; padding: .05rem .35rem; text-align: center; font-family: var(--face-register); font-size: .74rem; font-weight: 700; color: var(--slab); background: var(--gold); clip-path: var(--cut); }
   .nav .live { margin-left: auto; width: .5rem; height: .5rem; background: var(--gold); transform: rotate(45deg); flex: none; box-shadow: 0 0 6px rgb(214 174 74 / 60%); }
   .nav .live.dim { background: var(--gold-dim); box-shadow: none; }
 
@@ -2928,7 +2928,7 @@
   .foot { flex: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: .5rem; padding: .75rem .8rem .8rem; border-top: 1px solid var(--rule); }
   .game { display: flex; align-items: center; gap: .65rem; min-width: 0; padding: 0 .2rem; }
   .game .lbl { display: grid; min-width: 0; }
-  .game strong { font-family: var(--face-register); font-size: .6rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+  .game strong { font-family: var(--face-register); font-size: .72rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
   .game small { font-size: .7rem; color: var(--platinum-deep); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pill i { width: .62rem; height: .74rem; background: var(--platinum); clip-path: var(--cartouche); display: block; }
   .pill.live i { background: var(--gold); }
@@ -2951,7 +2951,7 @@
   .tool.on { color: var(--platinum); background: rgb(214 174 74 / 12%); box-shadow: inset 2px 0 0 var(--gold); }
   .tsbtn { flex: 1 1 0; width: 0; min-width: 0; justify-content: flex-start; }
   .bell { position: relative; }
-  .bell .count { position: absolute; top: -.45rem; right: -.45rem; min-width: 1.1rem; padding: .05rem .25rem; font-family: var(--face-register); font-size: .55rem; font-weight: 700; line-height: 1.3; text-align: center; color: var(--slab); background: var(--gold); clip-path: var(--cut); animation: pop .25s ease-out; }
+  .bell .count { position: absolute; top: -.45rem; right: -.45rem; min-width: 1.1rem; padding: .05rem .25rem; font-family: var(--face-register); font-size: .66rem; font-weight: 700; line-height: 1.3; text-align: center; color: var(--slab); background: var(--gold); clip-path: var(--cut); animation: pop .25s ease-out; }
   .bell.paused :global(svg) { opacity: .45; }
   /* Paused: a slash through the bell, not just a dimmer one. */
   .bell.paused::after { content: ""; position: absolute; left: 50%; top: 50%; width: 1.1rem; height: 1px; background: var(--platinum-dim); transform: translate(-50%, -50%) rotate(-45deg); }
@@ -3011,14 +3011,14 @@
   /* Steps to come and done are turned down by colour, not opacity, so they stay readable (about 5:1 and 7:1). */
   .steps li { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: .25rem .8rem; align-items: start; }
   .steps li:not(.now, .done) { color: var(--platinum-deep); --platinum: var(--platinum-deep); --platinum-dim: var(--platinum-deep); }
-  .steps li::before { content: counter(step); grid-row: span 4; display: grid; place-items: center; width: 1.7rem; height: 1.7rem; border: 1px solid var(--rule-bright); font-family: var(--face-register); font-size: .8rem; color: var(--platinum-dim); }
+  .steps li::before { content: counter(step); grid-row: span 4; display: grid; place-items: center; width: 1.7rem; height: 1.7rem; border: 1px solid var(--rule-bright); font-family: var(--face-figures); font-size: .8rem; color: var(--platinum-dim); }
   .steps li > * { grid-column: 2; }
   .steps li.now::before { border-color: var(--gold); color: var(--gold); }
   .steps li.done { color: var(--platinum-dim); --platinum: var(--platinum-dim); }
   .steps li.done::before { content: "✓"; border-color: var(--verdigris); color: var(--verdigris); }
-  .steps .cmd { display: block; padding: .45rem .7rem; background: var(--well); border: 1px solid var(--rule); font-family: var(--face-register); font-size: .8rem; user-select: all; }
+  .steps .cmd { display: block; padding: .45rem .7rem; background: var(--well); border: 1px solid var(--rule); font-family: var(--face-figures); font-size: .8rem; user-select: all; }
   .steps strong { font-family: var(--face-mark); text-transform: uppercase; font-size: 1.05rem; letter-spacing: .01em; }
-  .notice .why code { display: block; margin-top: .4rem; font-family: var(--face-register); font-size: .9em; white-space: pre-wrap; word-break: break-word; }
+  .notice .why code { display: block; margin-top: .4rem; font-family: var(--face-figures); font-size: .9em; white-space: pre-wrap; word-break: break-word; }
   /* A reload failed with data on screen: one slim line above the page, which stays as it was. */
   /* A banner you can dismiss, in its fold (not .fold: that's the sidebar's collapse button). */
   .bannerfold { flex: none; }

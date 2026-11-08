@@ -849,7 +849,7 @@
   .cycle { margin: 0; padding: .5rem .6rem; border: 1px dashed var(--rule-bright); display: grid; gap: .3rem; }
   .cycle .register { font-size: .6rem; }
   .was { display: flex; align-items: center; gap: .45rem; font-size: .84rem; }
-  .arrow { margin-left: auto; font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
+  .arrow { margin-left: auto; font-family: var(--face-register); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
   .arrow.up { color: var(--verdigris); }
   .arrow.down { color: var(--oxblood); }
   .prev { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .15rem .8rem; font-size: .76rem; color: var(--platinum-dim); }
@@ -870,7 +870,7 @@
   .grow { flex: 1; }
   .grade { font-family: var(--face-mark); font-weight: 700; font-size: .9rem; text-align: center; min-width: 1.8rem; color: var(--platinum-dim); }
   .grade.big { font-size: 1.9rem; min-width: 2.6rem; }
-  .cw { font-family: var(--face-register); font-size: .68rem; text-align: center; min-width: 1.8rem; }
+  .cw { font-family: var(--face-register); font-size: .82rem; text-align: center; min-width: 1.8rem; }
   .stats li > .grade, .stats li > .cw { justify-self: end; }
   .cw-hurts { color: var(--oxblood); }
   .cw-harmless { color: var(--platinum-deep); }
@@ -900,14 +900,14 @@
   .rule { display: inline-flex; align-items: center; gap: .3rem; padding: .1rem .1rem .1rem .55rem; border: 1px solid var(--gold-dim); font-size: .8rem; }
   .rule :global(.ib) { --ib: 22px; }
   .results { width: 100%; border-collapse: collapse; margin-top: 1rem; font-variant-numeric: tabular-nums; }
-  .results th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: .45rem .5rem; border-bottom: 1px solid var(--rule); }
-  .results td { padding: .5rem; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+  .results th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: .45rem .5rem; border-bottom: 1px solid var(--rule); }
+  .results td { padding: var(--row-pad) .5rem; border-bottom: 1px solid var(--rule); vertical-align: middle; }
   .right { text-align: right; }
   .nowrap { white-space: nowrap; }
   .att { display: inline-flex; gap: .25rem; align-items: baseline; margin-right: .7rem; font-size: .8rem; color: var(--verdigris); white-space: nowrap; }
   .att.curse { color: var(--oxblood); }
-  .att em { font-style: normal; font-family: var(--face-register); font-size: .6rem; color: var(--platinum-deep); }
-  .st { font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
+  .att em { font-style: normal; font-family: var(--face-register); font-size: .72rem; color: var(--platinum-deep); }
+  .st { font-family: var(--face-register); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
   .st-ingame { color: var(--verdigris); }
   .st-online { color: var(--gold); }
   .checking { display: inline-flex; align-items: center; gap: .6rem; }
@@ -918,7 +918,7 @@
   .choice header { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
   .choice header b { font-size: 1.1rem; }
   .choice p { margin: 0; color: var(--platinum-dim); }
-  .verdict { margin-left: auto; padding: .2rem .55rem; font-family: var(--face-register); font-size: .62rem; letter-spacing: .12em; text-transform: uppercase; border: 1px solid var(--rule-bright); }
+  .verdict { margin-left: auto; padding: .2rem .55rem; font-family: var(--face-register); font-size: .74rem; letter-spacing: .12em; text-transform: uppercase; border: 1px solid var(--rule-bright); }
   .verdict.v-take { color: var(--slab); background: var(--gold); border-color: var(--gold); }
   .verdict.v-keep { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 55%, transparent); }
   .rolls { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: .8rem; }

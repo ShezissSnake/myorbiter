@@ -124,7 +124,7 @@
   .count b { font-family: var(--face-mark); font-weight: 700; font-size: 1.05rem; color: var(--platinum-dim); }
   .ring:hover .count b, .ring.lit .count b { color: var(--platinum); }
   .of { font-size: .7rem; color: var(--platinum-deep); }
-  .name { max-width: 100%; font-family: var(--face-register); font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .name { max-width: 100%; font-family: var(--face-register); font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ring.lit .name { color: var(--sec); }
   /* Wishlist: how many you starred in the category, in gold at the tile's corner. */
   .mark-star { position: absolute; top: .25rem; right: .3rem; font-size: .66rem; font-weight: 600; color: var(--gold); font-variant-numeric: tabular-nums; }

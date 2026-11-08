@@ -255,7 +255,7 @@
   .build.fav { border-color: color-mix(in srgb, var(--gold) 40%, var(--rule)); }
   .hd { display: flex; align-items: flex-start; gap: 1rem; padding: .75rem .9rem .6rem; border-bottom: 1px solid var(--rule); }
   .who { display: grid; gap: .25rem; min-width: 0; flex: 1; }
-  .src { justify-self: start; font-family: var(--face-register); font-size: .58rem; letter-spacing: .14em; text-transform: uppercase; color: var(--sec); }
+  .src { justify-self: start; font-family: var(--face-register); font-size: .7rem; letter-spacing: .14em; text-transform: uppercase; color: var(--sec); }
   .src.myorbiter { color: var(--platinum-dim); }
   .src.myorbiter::before { content: "◆ "; color: var(--sec); }
   .who h3 { margin: 0; font-size: 1.15rem; line-height: 1; }
@@ -293,7 +293,7 @@
   .fillbar.over { background: var(--oxblood); }
   /* Where the rank alone ends: the Catalyst or Reactor doubles past it. */
   .half { position: absolute; top: -1px; bottom: -1px; width: 1px; background: var(--platinum-dim); }
-  .nums { font-family: var(--face-register); font-size: .78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .nums { font-family: var(--face-figures); font-size: .78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .nums b { color: var(--platinum); }
   .bad { color: var(--oxblood); }
   .reasons { margin: 0; padding-left: 1rem; display: grid; gap: .2rem; font-size: .8rem; color: var(--platinum-dim); line-height: 1.45; }
@@ -316,7 +316,7 @@
   .nmline { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
   .nm { font-size: .86rem; font-weight: 500; color: var(--platinum); text-align: left; }
   .nm.plain { display: inline-flex; align-items: center; gap: .3rem; font-weight: 500; }
-  .endo { display: inline-flex; align-items: center; gap: .2rem; font-family: var(--face-register); font-size: .68rem; color: var(--platinum-dim); }
+  .endo { display: inline-flex; align-items: center; gap: .2rem; font-family: var(--face-register); font-size: .82rem; color: var(--platinum-dim); }
   .tx { font-size: .78rem; color: var(--platinum-dim); line-height: 1.4; }
   .how { display: block; color: var(--platinum-deep); }
   .buy { display: inline-flex; align-items: center; gap: .6rem; padding-top: .1rem; white-space: nowrap; }
@@ -333,7 +333,7 @@
   /* With it: one line each, a label on the left, the picks as small chips with what you hold. */
   .wl { list-style: none; margin: 0; padding: 0; display: grid; }
   .wrow { display: grid; grid-template-columns: 7.2rem minmax(0, 1fr); gap: .6rem; align-items: start; padding: .32rem 0; border-top: 1px solid var(--rule); }
-  .wlab { display: inline-flex; align-items: center; gap: .35rem; padding-top: .18rem; font-family: var(--face-register); font-size: .58rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
+  .wlab { display: inline-flex; align-items: center; gap: .35rem; padding-top: .18rem; font-family: var(--face-register); font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
   .wbody { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .35rem; min-width: 0; font-size: .8rem; color: var(--platinum-dim); }
   .gem { width: .7rem; height: .85rem; flex: none; background: var(--tint); clip-path: polygon(50% 0, 100% 30%, 100% 70%, 50% 100%, 0 70%, 0 30%); }
   .pk { display: inline-flex; align-items: center; gap: .3rem; max-width: 100%; padding: .08rem .4rem .08rem .1rem; background: var(--well); border: 1px solid var(--rule); }

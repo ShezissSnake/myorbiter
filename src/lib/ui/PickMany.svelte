@@ -67,7 +67,7 @@
   /* The same face as the app's <select>s (app.css), with its gold chevron. */
   .pmb {
     background: var(--well); border: 1px solid var(--rule-control); padding: .5rem 1.9rem .5rem .7rem;
-    font-family: var(--face-register); font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-dim);
+    font-family: var(--face-register); font-size: .79rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-dim);
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23d6ae4a' stroke-width='1.3'/%3E%3C/svg%3E");
     background-repeat: no-repeat; background-position: right .7rem center; background-size: .55rem auto;
     max-width: 16rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;

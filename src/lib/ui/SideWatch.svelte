@@ -181,7 +181,7 @@
   .card.soon { opacity: .72; }
   .card.soon .t { color: var(--oxblood); }
   .top { display: flex; align-items: center; gap: .35rem; }
-  .kind { display: inline-flex; align-items: center; gap: .18rem; font-family: var(--face-register); font-size: .55rem; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold-dim); padding: 0 .22rem; line-height: 1.35; }
+  .kind { display: inline-flex; align-items: center; gap: .18rem; font-family: var(--face-register); font-size: .66rem; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold-dim); padding: 0 .22rem; line-height: 1.35; }
   /* Where, then the faction's sigil and name: one line, the name giving way first. */
   .tx .where { display: flex; align-items: center; gap: .4rem; min-width: 0; }
   /* A long place ("Taveuni · Kuva Fortress") ends in … and the faction's sigil always shows. */

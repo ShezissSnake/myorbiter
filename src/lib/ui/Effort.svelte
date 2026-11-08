@@ -24,7 +24,7 @@
   .pips { display: inline-flex; gap: 3px; }
   .noicon { width: 16px; height: 16px; flex: none; }
   .pips i { width: 7px; height: 7px; transform: rotate(45deg); border: 1px solid var(--rule-bright); }
-  .what { display: inline-flex; align-items: center; gap: .35rem; font-family: var(--face-register); font-size: .6rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-dim); }
+  .what { display: inline-flex; align-items: center; gap: .35rem; font-family: var(--face-register); font-size: .72rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-dim); }
   .d0 .pips i { border-color: var(--platinum-deep); }
   .d0 .what { color: var(--platinum); }
   .d1 .on, .d2 .on { background: var(--verdigris); border-color: var(--verdigris); }
