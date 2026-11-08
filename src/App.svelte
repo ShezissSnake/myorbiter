@@ -68,6 +68,8 @@
     NO_INVENTORY_YET,
     tennoscope,
     onSaveTrouble,
+    settingsUnreadable,
+    type TennoscopeAccess,
     logLine,
   } from "./lib/backend";
   import { persistSettings } from "./lib/persist.svelte";
@@ -147,6 +149,7 @@
   import { withoutNeverSell } from "./lib/core/sparesRules";
   import { ts } from "./lib/tennoscopeStore.svelte";
   import BugReport from "./lib/ui/BugReport.svelte";
+  import FirstRun from "./lib/FirstRun.svelte";
   import { bugReport, setReportChannel } from "./lib/bugReport.svelte";
   import type { RedactOptions } from "./lib/core/redact";
   import { calm as reducedMotion, reveal as unfold } from "./lib/motion";
@@ -241,6 +244,8 @@
 
   let settings = $state<Settings>(defaultSettings());
   let settingsReady = false;
+  /** The first start's question while it waits for an answer (FirstRun.svelte): what answers it. */
+  let firstRun = $state<((access: TennoscopeAccess) => void) | null>(null);
   /** Now, to the half minute: clocks, "synced 3 min ago", pauses running out. */
   let tick = $state(Date.now());
   let bundle = $state.raw<Bundle | null>(null);
@@ -2399,6 +2404,21 @@
       ts.launch = settings.tennoscope.launch && settings.market.platform === "pc";
       // Before it starts: how TennoScope draws its overlay is set when it launches.
       await tennoscopeOpaqueOverlay(settings.tennoscope.opaqueOverlay);
+      // A first start asks whether TennoScope may read the game's memory before it starts at all
+      // (FirstRun.svelte), where TennoScope can run here. Not when the settings couldn't be read:
+      // the answer couldn't be kept.
+      if (ts.launch && !settings.fullModeAsked && !settingsUnreadable()) {
+        await ts.check();
+        if (ts.status?.supported && ts.status.binary) {
+          const access = await new Promise<TennoscopeAccess>((answer) => (firstRun = answer));
+          firstRun = null;
+          if (stopped) return;
+          settings.fullModeAsked = true;
+          // Overlay only: carry on without an inventory, as the setup steps' "Not now" does.
+          if (access === "--access=overlay") settings.withoutInventory = true;
+          await ts.startIn(access);
+        }
+      }
       // Awaited: whether TennoScope runs here at all decides what an empty folder means.
       await ts.check(true);
       // Every 15 s: if it stopped (crashed, or you quit it), start it again in the background.
@@ -2818,6 +2838,7 @@
 <WhatsNew bind:open={showNews} seen={settings.newsSeen} ondone={() => (settings.newsSeen = NEWEST)} go={(t: string) => goTo(t)} />
 <UpdateNotice onsettings={() => goTo("settings#updates")} />
 <SettingsSheet bind:open={showSettings} bind:focus={settingsFocus} bind:settings {rivenKeyError} ongo={(t) => goTo(t)} onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
+{#if firstRun}<FirstRun onanswer={firstRun} />{/if}
 {#if bugReport.open}<BugReport page={pageById[settings.tab as PageId]?.label ?? settings.tab} tennoscope={reportTennoscope} fullMode={reportFullMode} names={reportNames} />{/if}
 <TennoscopeSheet bind:open={showTennoscope} synced={model ? ago(model.observedAt, tick) : "not yet"} job={syncJob} onsync={refreshAll} {windowMode} bind:opaqueOverlay={settings.tennoscope.opaqueOverlay} />
 

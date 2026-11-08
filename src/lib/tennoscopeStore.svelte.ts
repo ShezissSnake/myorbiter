@@ -2,7 +2,7 @@
 // the few things MyOrbiter can ask of it (sync the inventory, set your warframe.market status,
 // allow screen capture, open its window).
 
-import { tennoscope, type TennoscopeAsk, type TennoscopeStatus } from "./backend";
+import { tennoscope, type TennoscopeAccess, type TennoscopeAsk, type TennoscopeStatus } from "./backend";
 import { failureWords } from "./core/upkeep";
 
 class TennoscopeStore {
@@ -79,6 +79,24 @@ class TennoscopeStore {
       this.status = await tennoscope.status().catch(() => null);
     } finally {
       this.busy = false;
+    }
+  }
+
+  /**
+   * The first start's answer: TennoScope started in that mode (on its command line), or the one
+   * already running switched to it. Nothing about TennoScope starts before this on a first start.
+   */
+  async startIn(access: TennoscopeAccess) {
+    this.pending = access;
+    try {
+      this.status = await tennoscope.start(access);
+      this.error = null;
+      for (const ms of [1200, 3500, 7000]) setTimeout(() => this.check(), ms);
+      setTimeout(() => this.pending === access && (this.pending = null), 8000);
+    } catch (e) {
+      this.pending = null;
+      this.error = clean(e);
+      this.status = await tennoscope.status().catch(() => null);
     }
   }
 

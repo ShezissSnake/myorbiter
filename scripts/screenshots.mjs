@@ -120,11 +120,12 @@ try {
     const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 2 });
     await p.route(/warframe\.market/, (r) => (r.request().method() === "GET" ? r.continue() : r.abort()));
     p.on("pageerror", (e) => console.error(`${kind}: ${e.message}`));
-    // What's New would open over the first page.
+    // What's New, and on a first start the Full mode question, would open over the first page.
     await p.addInitScript(() => {
       try {
         const s = JSON.parse(localStorage.getItem("orbiter-settings") ?? "{}");
         s.newsSeen = "9999";
+        s.fullModeAsked = true;
         localStorage.setItem("orbiter-settings", JSON.stringify(s));
       } catch {}
     });

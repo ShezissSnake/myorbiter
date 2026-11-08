@@ -994,10 +994,11 @@ fn tennoscope_forget_program(companion: tauri::State<'_, companion::Companion>) 
     Ok(companion.status())
 }
 
-/// Starts TennoScope in the background, unless one is running already.
+/// Starts TennoScope in the background, unless one is running already; with `access` (the first
+/// start's answer), in that mode.
 #[tauri::command(async)]
-fn tennoscope_start(companion: tauri::State<'_, companion::Companion>) -> Result<companion::Status, String> {
-    companion.start()
+fn tennoscope_start(companion: tauri::State<'_, companion::Companion>, access: Option<String>) -> Result<companion::Status, String> {
+    companion.start_in(access.as_deref())
 }
 
 /// Passes a request (sync, screen-capture permission) to the running TennoScope.

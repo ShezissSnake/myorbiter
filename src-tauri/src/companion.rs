@@ -104,7 +104,13 @@ fn read_report_in(dir: &Path, live: &[u32], now: u64) -> Option<serde_json::Valu
 /// warframe.market status isn't one: MyOrbiter holds that itself (see presence.rs). `--access=…`
 /// is the Full mode switch (Settings, setup), which shows its warning beside it.
 pub fn allowed_ask(arg: &str) -> bool {
-    matches!(arg, "--sync" | "--authorize-capture" | "--access=full" | "--access=overlay")
+    matches!(arg, "--sync" | "--authorize-capture") || allowed_access(arg)
+}
+
+/// The modes MyOrbiter may start TennoScope in or switch it to: Full, or Overlay. Never Companion,
+/// which would turn the reward screen off too.
+pub fn allowed_access(arg: &str) -> bool {
+    matches!(arg, "--access=full" | "--access=overlay")
 }
 
 /// A program MyOrbiter may start as TennoScope, by its file name: `tennoscope` (`tennoscope.exe` on
@@ -424,14 +430,30 @@ impl Companion {
 
     /// Starts TennoScope in the background unless one is already running.
     pub fn start(&self) -> Result<Status, String> {
+        self.start_in(None)
+    }
+
+    /// Starts TennoScope in the background unless one is already running; with `access` (the first
+    /// start's answer, `--access=full` or `--access=overlay`), in that mode: on the command line of
+    /// the one it starts, or handed to the one already running.
+    pub fn start_in(&self, access: Option<&str>) -> Result<Status, String> {
+        if let Some(a) = access.filter(|a| !allowed_access(a)) {
+            return Err(format!("Unknown request {a}"));
+        }
         let _one_at_a_time = lock(&self.starting);
         if !SUPPORTED {
             return Err("TennoScope doesn't run on macOS.".into());
         }
         let ours = lock(&self.started).is_some_and(alive);
-        if running().is_empty() && !ours {
+        if !running().is_empty() {
+            if let Some(a) = access {
+                self.ask(a)?;
+            }
+        } else if !ours {
             let (bin, bundled) = self.binary().ok_or("TennoScope wasn't found. Choose it in Settings, TennoScope, Program.")?;
-            let mut child = launch(&bin, bundled).arg("--background").spawn().map_err(|e| {
+            let mut command = launch(&bin, bundled);
+            command.arg("--background").args(access);
+            let mut child = command.spawn().map_err(|e| {
                 log::error!(target: "myorbiter::tennoscope", "couldn't start {}: {e}", bin.display());
                 format!("Couldn't start {}: {e}", bin.display())
             })?;
@@ -571,6 +593,17 @@ mod tests {
         assert!(!allowed_ask("--presence=ingame"), "MyOrbiter sets your status itself");
         assert!(!allowed_ask("--background"));
         assert!(!allowed_ask("; rm -rf ~"));
+    }
+
+    #[test]
+    fn a_first_start_asks_only_for_full_or_overlay() {
+        assert!(allowed_access("--access=full") && allowed_access("--access=overlay"));
+        for refused in ["--access=companion", "--sync", "--background", "--access=full --sync", ""] {
+            assert!(!allowed_access(refused), "{refused}");
+        }
+        // Refused before anything is looked at or started.
+        let companion = Companion::default();
+        assert_eq!(companion.start_in(Some("--access=companion")).unwrap_err(), "Unknown request --access=companion");
     }
 
     #[test]
