@@ -26,6 +26,7 @@
   import { isDone, setDone } from "../core/chores";
   import { nextMondayUtc } from "../core/today";
   import IconButton from "../ui/IconButton.svelte";
+  import StatusStrip from "../ui/StatusStrip.svelte";
   import Chip from "../ui/Chip.svelte";
   import Effort from "../ui/Effort.svelte";
   import Thumb from "../ui/Thumb.svelte";
@@ -494,6 +495,7 @@
       <IconButton icon="settings" tone="quiet" label="Customise Home" title="Choose what Home shows" aria-expanded={customising} onclick={() => (customising = !customising)} />
     </div>
   </header>
+  <StatusStrip />
 
   {#if startSteps.some((x) => !x.done) && !settings.startDone && !console}
     <!-- First days with MyOrbiter: the few things that make the rest of it work, each a click away. -->

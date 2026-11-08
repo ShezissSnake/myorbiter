@@ -107,8 +107,8 @@
 <style>
   .card {
     position: relative; display: grid; grid-template-rows: auto 1fr auto; min-width: 0;
-    background: linear-gradient(180deg, #14161a, var(--plate) 40%);
-    border: 1px solid var(--rule); clip-path: var(--cut);
+    background: var(--plate-sheen), var(--plate);
+    border: 1px solid var(--rule); clip-path: var(--cut); box-shadow: var(--plate-light);
     padding: .75rem .85rem .65rem; gap: .4rem;
     /* Hover only lights the edge (no motion on hover); pressing it gives a touch (app.css). */
     transition: border-color var(--quick), background var(--quick);
@@ -117,7 +117,7 @@
     contain-intrinsic-size: auto 13rem;
   }
   .card.open { cursor: pointer; }
-  .card.open:hover { border-color: var(--rule-control); background: linear-gradient(180deg, #1a1e23, #15181c 50%); }
+  .card.open:hover { border-color: var(--rule-control); background: var(--plate-sheen), var(--raised); }
   .card:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--gold); }
   /* One to look at: a gold notch folded into the top corner (a shape, so it can't be mistaken
      for an Axi relic's gold wash), and a warmer edge. */

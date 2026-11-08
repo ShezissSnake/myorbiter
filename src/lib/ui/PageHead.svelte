@@ -5,6 +5,7 @@
   // the page's short `brief`, which fits one line; on, the whole `blurb`.
   import { view } from "../view.svelte";
   import { reveal } from "../motion";
+  import StatusStrip from "./StatusStrip.svelte";
   // hero: the section's signature (the reward screen, the Codex rings, the showcase, the ticker),
   // between the title and the figures.
   let { title, blurb, brief, band, hero }: { title: string; blurb?: string; brief?: string; band?: Snippet; hero?: Snippet } = $props();
@@ -25,6 +26,7 @@
     <button type="button" class="details" class:on={view.details} aria-pressed={view.details} title={view.details ? "Details are showing: the sentence under each figure, every column. Click to keep just the essentials (the rest stays on hover)" : "Show details: the sentence under each figure and every column, on every page. Off, they're on hover"} onclick={() => view.set(!view.details)}><span class="box"></span>Details</button>
   </div>
 </header>
+<StatusStrip />
 <!-- data-card "hero": What's New's Show me lights a section's signature (page#hero). -->
 {#if hero}<div class="hero" data-card="hero">{@render hero()}</div>{/if}
 <!-- A band that comes or goes with the page's data (Sales' first or last sale) folds rather than snaps. -->

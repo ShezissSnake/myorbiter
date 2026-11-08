@@ -64,7 +64,7 @@
   /* One band: the eras' relics on a cut plate, the meter on the right, the section's violet at the edge. */
   .plate {
     display: flex; flex-wrap: wrap; align-items: stretch; gap: 0;
-    background: var(--plate); clip-path: var(--cut); box-shadow: inset 3px 0 0 var(--sec);
+    background: var(--plate-sheen), var(--plate); clip-path: var(--cut); box-shadow: inset 3px 0 0 var(--sec), var(--plate-light);
   }
   .eras { display: flex; flex: 1 1 34rem; min-width: 0; }
   .era {

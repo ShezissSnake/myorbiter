@@ -251,7 +251,7 @@
 </article>
 
 <style>
-  .build { border: 1px solid var(--rule); background: var(--plate); clip-path: var(--cut); }
+  .build { border: 1px solid var(--rule); background: var(--plate-sheen), var(--plate); box-shadow: var(--plate-light); clip-path: var(--cut); }
   .build.fav { border-color: color-mix(in srgb, var(--gold) 40%, var(--rule)); }
   .hd { display: flex; align-items: flex-start; gap: 1rem; padding: .75rem .9rem .6rem; border-bottom: 1px solid var(--rule); }
   .who { display: grid; gap: .25rem; min-width: 0; flex: 1; }

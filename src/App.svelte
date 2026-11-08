@@ -74,6 +74,7 @@
   } from "./lib/backend";
   import { persistSettings } from "./lib/persist.svelte";
   import { catchUp, holdBackground, setShownPage, whenIdle } from "./lib/pane.svelte";
+  import { setStatus, type StatusItem } from "./lib/statusStrip.svelte";
   import { inBackground } from "./lib/progress.svelte";
   import { afterPaint } from "./lib/ui/soon";
   import { backoff, handLoggedSale, keepSeen, thinHistory } from "./lib/core/upkeep";
@@ -2537,6 +2538,34 @@
     const m = Math.floor((now - d.getTime()) / 60000);
     return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : m < 30 * 1440 ? `${Math.round(m / 1440)} d ago` : fmtTime(d);
   };
+  /** The status strip under every page head (ui/StatusStrip.svelte), from what's held here: no
+   *  request of its own. Ages with `tick`, like the sidebar's "Synced n min ago". */
+  setStatus(() => {
+    const items: StatusItem[] = [];
+    const r = ts.report;
+    if (!onConsole) {
+      const full = r?.setup.access_mode === "full";
+      items.push(
+        r
+          ? { label: "Game", value: r.game_running ? `Running${full ? " · Full mode" : ""}` : "Not running", title: r.game_running ? `Warframe is running${full ? ", and TennoScope may read your inventory from it (Full mode)" : ""}` : "TennoScope doesn't see Warframe running" }
+          : { label: "Game", value: mission ? "Log found" : "No game log", title: mission ? "Watching Warframe's log" : "No game log found" },
+      );
+      if (inFissure(mission, tick)) items.push({ label: "Fissure", value: mission?.mission ?? "In progress", title: "A fissure mission is under way" });
+      else items.push({ label: "Inventory", value: model?.observedAt ? `Read ${ago(model.observedAt, tick)}` : "Not read yet", title: model ? `Inventory read ${model.observedAt ? fmtTime(model.observedAt) : "never"}` : "Nothing read from TennoScope yet" });
+    }
+    const n = mkt.orders.length;
+    items.push({
+      label: "Market",
+      value: !mkt.linked ? "Not signed in" : mkt.ordersAt == null ? "Signed in" : `${n} order${n === 1 ? "" : "s"}`,
+      title: !mkt.linked ? "Not signed in to warframe.market (Settings)" : "Your warframe.market orders, as last loaded",
+    });
+    const p = settings.game.platinum;
+    const plat = onConsole ? null : { label: "Plat", value: p == null ? "–" : p.toLocaleString(), title: p == null ? "Platinum: not read yet" : "Platinum, as of the last inventory read" };
+    const auto = settings.market.auto && mkt.linked;
+    const repricing = { label: "Repricing", value: !auto ? "Off" : mkt.pass ? "Running" : "On", title: auto ? "Apply automatically is on: your listings follow the market price" : "Apply automatically is off (Orders)" };
+    const times = [model?.observedAt ? +model.observedAt : null, mkt.ordersAt].filter((t): t is number => t != null);
+    return { items, plat, repricing, updated: times.length ? ago(new Date(Math.max(...times)), tick) : null };
+  });
   /** One word for the TennoScope button: fine, something to look at, or not running. */
   const tsTone = $derived.by(() => {
     if (!ts.status) return "off";

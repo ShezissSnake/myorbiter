@@ -94,6 +94,10 @@
   --sec-sigil: none;
   --tab-point: polygon(0 0, 100% 0, 100% calc(100% - 9px), 50% 100%, 0 calc(100% - 9px));
   --struck: inset 0 1px 0 rgb(0 0 0 / 80%), inset 0 -1px 0 rgb(241 243 246 / 8%);
+  /* A plate's light: a bright hairline along its top edge, and a faint sheen fading down from it
+     (a background layer, over the plate's own colour). */
+  --plate-light: inset 0 1px 0 rgb(255 255 255 / 5%);
+  --plate-sheen: linear-gradient(180deg, rgb(255 255 255 / 2.5%), transparent 40%);
 
   --face-mark: "Archivo Narrow", "Roboto Condensed", "DejaVu Sans Condensed", sans-serif;
   --face-text: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
@@ -410,7 +414,7 @@ span.chev { display: inline-block; transition: transform var(--quick) var(--out)
 
 
 /* A page with nothing in it yet: one look everywhere (Wishlist, Sales). */
-.panel.empty { margin: var(--step) 0; display: grid; gap: .6rem; border: 1px solid var(--rule); background: rgb(20 23 27 / 70%); padding: 1.2rem 1.4rem; clip-path: var(--cut); }
+.panel.empty { margin: var(--step) 0; display: grid; gap: .6rem; border: 1px solid var(--rule); background: var(--plate-sheen), rgb(20 23 27 / 70%); box-shadow: var(--plate-light); padding: 1.2rem 1.4rem; clip-path: var(--cut); }
 .panel.empty h2 { margin: 0; }
 .panel.empty p { margin: 0; }
 .nowrap { white-space: nowrap; }
