@@ -498,6 +498,10 @@ class MarketStore {
     if (s.approved?.[key] === platinum) return;
     s.approved = { ...(s.approved ?? {}), [key]: platinum };
   }
+  /** A price change you made (a typed price, the listing form, a Sell spares plan): the cooldown counts it. */
+  noteChange(o: Pick<MyOrder, "itemId" | "rank" | "subtype">, s: MarketSettings | null = this.rules) {
+    if (s) s.changes = noteChange(s.changes, this.approvalKey(o), Date.now());
+  }
   /** The listing's key with its variant filled in (an intact relic made without one is "intact"). */
   approvalKey(o: Pick<MyOrder, "itemId" | "rank" | "subtype">): string {
     return listingKey({ ...o, subtype: o.subtype ?? this.item(o.itemId)?.subtypes?.[0] ?? null });
@@ -643,7 +647,7 @@ class MarketStore {
               held++;
               if (!this.floorTold.has(`${key}|${approved}`)) {
                 this.floorTold.add(`${key}|${approved}`);
-                this.note(`${tag}: stays at ${o.platinum}p, 70% of the ${approved}p you last set; the cheapest in game is ${p.target}p. Press Reprice to go lower, or set a new price`, "warn");
+                this.note(`${tag}: stays at ${o.platinum}p, 70% of the ${approved}p you last set; the market says ${p.target}p. Press Reprice to go lower, or set a new price`, "warn");
               }
               continue;
             }
@@ -657,24 +661,29 @@ class MarketStore {
             }
             // The 70% floor can bring the move within the dead band: then it's no change either
             // (a raise up to a floor the listing is under still goes).
-            if (target !== o.platinum && o.platinum >= p.floor && !drifted(o.platinum, target)) continue;
+            if (target !== o.platinum && o.platinum >= p.hard && !drifted(o.platinum, target)) continue;
             // At most one change an hour and six a day per listing, by itself (core/drift.ts).
             if (!cooldown(s.changes?.[key], Date.now()).ok) {
               cooling++;
               continue;
             }
           }
+          // Counted for the cooldown before it's sent, by hand or not: a pass on the timer waits an
+          // hour after either, and a change warframe.market refused isn't tried again every pass.
+          s.changes = noteChange(s.changes, this.approvalKey(o), Date.now());
           try {
             await market.update(o.id, { platinum: target });
             writeFailing = 0;
             changed++;
-            // Counted for the cooldown, by hand or not: a pass on the timer waits an hour after either.
-            s.changes = noteChange(s.changes, this.approvalKey(o), Date.now());
             // Pressed Reprice: the price you approved.
             if (!timed) this.approve(o, target, s);
             const why = atFloor
-              ? `70% of the ${s.approved?.[this.approvalKey(o)] ?? "?"}p you last set; it goes no lower by itself (the cheapest in game is ${p.target}p)`
-              : p.reason === "floor" ? `held at your floor (${p.floor}p)` : `the market: ${p.competitor.sellers} seller${p.competitor.sellers === 1 ? "" : "s"} online or in game, the second-cheapest ${p.competitor.cheapest?.name ?? "?"}`;
+              ? `70% of the ${s.approved?.[this.approvalKey(o)] ?? "?"}p you last set; it goes no lower by itself (the market says ${p.target}p)`
+              : p.reason === "floor" ? `held at your floor (${p.floor}p)`
+              : p.reason === "median" ? `what it sells for: every seller online or in game asks more than twice that`
+              // A raise stops at the cheapest seller (core/market.ts): then it's their price.
+              : p.competitor.lowest && target === p.competitor.lowest.platinum && p.competitor.lowest.platinum !== p.competitor.price ? `up to the cheapest seller, ${p.competitor.lowest.name ?? "?"}`
+              : `the market: ${p.competitor.sellers} seller${p.competitor.sellers === 1 ? "" : "s"} online or in game, the second-cheapest ${p.competitor.cheapest?.name ?? "?"}`;
             if (atFloor) this.floorTold.add(`${this.approvalKey(o)}|${s.approved?.[this.approvalKey(o)]}`);
             this.note(`${it.name}${o.rank != null ? ` R${o.rank}` : ""}: ${o.platinum}p → ${target}p, ${why}`, atFloor ? "warn" : "ok");
           } catch (e) {
@@ -708,9 +717,9 @@ class MarketStore {
         const checked = this.orders.filter((o) => o.visible && this.planFor(m, s, o)).length;
         this.note(
           off
-            ? `Prices checked: ${off} listing${off === 1 ? "" : "s"} off the cheapest in-game price (press Reprice)`
+            ? `Prices checked: ${off} listing${off === 1 ? "" : "s"} off the market price (press Reprice)`
             : failed
-              ? `Prices checked for ${checked} listing${checked === 1 ? "" : "s"}: none off the cheapest in-game price`
+              ? `Prices checked for ${checked} listing${checked === 1 ? "" : "s"}: none off the market price`
               : "Prices checked: every listing matches",
           "info",
         );
@@ -875,6 +884,7 @@ class MarketStore {
       const tag = `${d.name}${d.rank != null ? ` R${d.rank}` : ""}${d.subtype ? ` (${d.subtype})` : ""}`;
       if (existing) {
         await market.update(existing.id, { platinum: d.platinum!, quantity: existing.quantity + d.quantity, visible: true });
+        if (d.platinum !== existing.platinum) this.noteChange(existing);
         if (why) this.audit(`Listing form, added to ${existing.id}`, why);
         this.note(
           d.quantity ? `Added ${d.quantity}× ${tag} to your listing: now ${existing.quantity + d.quantity} at ${d.platinum}p` : `${tag}: listing set to ${d.platinum}p`,
@@ -969,8 +979,9 @@ class MarketStore {
     }
     return this.guard("Saving", async () => {
       await market.update(o.id, change);
-      // A price you typed is the price you approved.
+      // A price you typed is the price you approved, and a change: a pass on the timer leaves it an hour.
       if (change.platinum != null) this.approve(o, change.platinum);
+      if (change.platinum != null && change.platinum !== o.platinum) this.noteChange(o);
       if (why) this.audit(`Orders, ${o.id} changed`, why);
       await this.refresh();
     });
@@ -1411,6 +1422,7 @@ class MarketStore {
           } else if (a.type === "update") {
             await market.update(a.order.id, { quantity: a.quantity, platinum: a.platinum });
             this.approve(a.order, a.platinum, s);
+            if (a.platinum !== a.order.platinum) this.noteChange(a.order, s);
             this.note(`${tag(a.item.name, a.order.rank)}: ${a.order.quantity}× ${a.order.platinum}p → ${a.quantity}× ${a.platinum}p`, "info");
             this.audit(`Spares plan changed ${a.order.id} (${a.why}; ${a.priceWhy})`, why || `${listingTag(a.item, a.order.rank, a.order.subtype)}: ${a.order.quantity}× ${a.order.platinum}p → ${a.quantity}× ${a.platinum}p`);
           } else if (a.type === "remove") {
@@ -1538,7 +1550,7 @@ export interface PassSummary {
   changed: number;
   /** Order books that couldn't be read, and prices warframe.market refused. */
   failed: number;
-  /** After a check: listings off the cheapest in-game price (Reprice would change them). */
+  /** After a check: listings off the market price (Reprice would change them). */
   off: number;
   /** warframe.market stopped answering part way. */
   stopped: boolean;

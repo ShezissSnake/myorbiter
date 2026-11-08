@@ -65,6 +65,19 @@ test("a raise goes no higher than the cheapest seller, and not at all past one u
   assert.equal(plan(order(10), [seller(1), seller(20)], me, rule).change, false);
 });
 
+test("everyone asking too much is judged by the cheapest seller, never the bait-proof target", () => {
+  // Sellers at 18 and 30 for something that goes for 10: 18 is under twice 10, so it isn't over-asked
+  // and nothing goes under every real seller. (By the second-cheapest, 30, it would go to 10p.)
+  const p = plan(order(25), [seller(18), seller(30)], me, { ...rule, reference: 10 });
+  assert.deepEqual([p.change, p.target, p.reason], [false, 25, "already"]);
+  // Everyone over twice what it goes for: priced at that, as before.
+  const q = plan(order(40), [seller(25), seller(30)], me, { ...rule, reference: 10 });
+  assert.deepEqual([q.change, q.target, q.reason], [true, 10, "median"]);
+  // A raise to what it goes for still stops at the cheapest seller.
+  const r = plan(order(5), [seller(8), seller(30)], me, { ...rule, reference: 20 });
+  assert.equal(r.target, 8);
+});
+
 // ------------------------------------------------------------------ after the floors
 
 test("a listing on its floor never moves; one under it is raised to it whatever the gap", () => {
@@ -74,6 +87,10 @@ test("a listing on its floor never moves; one under it is raised to it whatever 
   assert.deepEqual([under.change, under.target], [true, 30], "1p, inside the band, but a floor is never left broken");
   // A target clamped up to the floor is measured from there: 32 → 30 is within the band.
   assert.equal(plan(order(32), [seller(10), seller(10)], me, { ...rule, floor: 30 }).change, false);
+  // The share of the market value moves with the asks: a gap to it inside the band waits.
+  const share = plan(order(29), [seller(10), seller(10)], me, { ...rule, minShare: 1, reference: 30 });
+  assert.deepEqual([share.change, share.floor, share.hard], [false, 30, 1]);
+  assert.equal(plan(order(20), [seller(10), seller(10)], me, { ...rule, minShare: 1, reference: 30 }).target, 30, "past the band it's raised");
 });
 
 test("new listings still start at the cheapest in game (the rule is repricing's only)", () => {
@@ -98,6 +115,9 @@ test("the cooldown: once an hour, six a day, times kept a day", () => {
   assert.deepEqual(log.k, [T0, T0 + HOUR]);
   assert.deepEqual(changesOf({ k: [T0, "x", 1.5, null, T0 - DRIFT.dayMs], j: "junk", l: [] }, T0 + 1), { k: [T0] });
   assert.deepEqual(changesOf([1, 2], T0), {});
+  // Ahead of now, however far, counts as now: a clock set back never frees a listing sooner.
+  assert.deepEqual(changesOf({ k: [T0 + 5 * DRIFT.dayMs] }, T0), { k: [T0] });
+  assert.equal(cooldown(changesOf({ k: [T0 + 5 * DRIFT.dayMs] }, T0).k, T0 + HOUR - 1).ok, false);
 });
 
 // ------------------------------------------------------------------ the store, on a timer
@@ -213,6 +233,36 @@ test("Reprice by hand isn't held by the cooldown, and counts for it", async () =
   await mkt.reprice(noPrices, s, true);
   assert.deepEqual(sent, [["a", 90], ["a", 80]]);
   assert.deepEqual(s.changes["it||"], [T0, T0 + 60_000]);
+});
+
+test("a change warframe.market refuses still counts, so it isn't tried every pass", async () => {
+  const s = settings();
+  book = [seller(80), seller(80)];
+  market.update = (async () => {
+    throw new Error("429 Too Many Requests");
+  }) as never;
+  await timedPass(s);
+  now += 5 * 60_000;
+  await timedPass(s);
+  assert.deepEqual(s.changes["it||"], [T0]);
+});
+
+test("a price typed on Orders counts for the cooldown", async () => {
+  const s = settings();
+  mkt.rules = s;
+  try {
+    await mkt.refresh();
+    assert.ok(await mkt.update(mkt.orders[0], { platinum: 90 }));
+    book = [seller(70), seller(70)];
+    now += 10 * 60_000;
+    await timedPass(s);
+    assert.deepEqual(sent, [["a", 90]], "the pass waits an hour after the typed price");
+    now = T0 + HOUR;
+    await timedPass(s);
+    assert.deepEqual(sent, [["a", 90], ["a", 70]]);
+  } finally {
+    mkt.rules = null;
+  }
 });
 
 test("a listing at its ducat floor produces no write", async () => {

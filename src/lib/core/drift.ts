@@ -27,10 +27,20 @@ export const DRIFT = {
   dayMs: 24 * 60 * 60_000,
 } as const;
 
+/** "an hour", "every 2 hours", "every 30 minutes": how often a listing may change. */
+export function every(ms: number): string {
+  const min = Math.round(ms / 60_000);
+  if (min === 60) return "an hour";
+  return min % 60 === 0 ? `every ${min / 60} hours` : `every ${min} minutes`;
+}
+
+/** The dead band, in words: "2p or 5% (whichever is more)". */
+export const BAND_WORDS = `${DRIFT.bandPlat}p or ${Math.round(DRIFT.bandShare * 100)}% (whichever is more)`;
+
 /** The plain sentence Settings, Orders and the Guide show. */
 export const DRIFT_RULES =
-  `A price changes only when it has drifted more than ${DRIFT.bandPlat}p or ${Math.round(DRIFT.bandShare * 100)}% (whichever is more) from the second-cheapest seller online or in game, ` +
-  `at most once an hour and ${DRIFT.perDay} times a day per listing`;
+  `A price changes only when it has drifted more than ${BAND_WORDS} from the second-cheapest seller online or in game, ` +
+  `at most once ${every(DRIFT.cooldownMs)} and ${DRIFT.perDay} times a day per listing`;
 
 /** Said beside the switch, in Settings and on Orders. */
 export const GREY_AREA = "warframe.market calls automation like this a grey area and may limit apps that do it";
@@ -76,16 +86,16 @@ export function noteChange(log: ChangeLog | undefined, key: string, now: number)
 
 /**
  * Saved changes, from a settings file: per listing, the times of the last day only (whole
- * milliseconds, none in the future), oldest first, at most a day's worth. Anything else is
- * dropped, never read as permission to change sooner.
+ * milliseconds; one ahead of now, from a clock set back, counts as now), oldest first, at most a
+ * day's worth. Anything else is dropped, never read as permission to change sooner.
  */
 export function changesOf(raw: unknown, now: number): ChangeLog {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const out: ChangeLog = {};
   for (const [key, v] of Object.entries(raw as Record<string, unknown>)) {
     if (!Array.isArray(v)) continue;
-    // A time a little ahead of now (a clock set back) still counts: it holds the listing longer, never less.
-    const times = v.filter((t): t is number => Number.isInteger(t) && t > now - DRIFT.dayMs && t <= now + DRIFT.dayMs).sort((a, b) => a - b);
+    // A time ahead of now (a clock set back) counts as a change just now: it never frees the listing sooner.
+    const times = v.filter((t): t is number => Number.isInteger(t) && t > now - DRIFT.dayMs).map((t) => Math.min(t, now)).sort((a, b) => a - b);
     if (times.length) out[key] = times.slice(-DRIFT.perDay);
   }
   return out;

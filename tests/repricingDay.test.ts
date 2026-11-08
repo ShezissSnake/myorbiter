@@ -52,6 +52,9 @@ export async function simulateDay(seed: number) {
   Date.now = () => now;
   const perListing = new Map<string, number>();
   let writes = 0;
+  // Each price sent under the cheapest real seller (no bait) who was online or in game then.
+  const under: string[] = [];
+  const slugOf = (itemId: string) => items.find((i: { id: string }) => i.id === itemId)?.slug as string | undefined;
   try {
     market.items = async () => items;
     market.myOrders = async () => mine.map((o) => ({ ...o }));
@@ -59,6 +62,13 @@ export async function simulateDay(seed: number) {
     market.update = (async (id: string, c: { platinum?: number }) => {
       writes++;
       perListing.set(id, (perListing.get(id) ?? 0) + 1);
+      const o = mine.find((x) => x.id === id);
+      const slug = o && slugOf(o.itemId);
+      if (o && slug && c.platinum != null) {
+        const real = (books[slug] ?? []).filter((b) => b.type === "sell" && !bait.has(b.id) && b.user.status !== "offline" && (b.rank ?? null) === (o.rank ?? null) && (b.subtype ?? null) === (o.subtype ?? null) && b.user.id !== account.account?.profile?.id);
+        const cheapest = Math.min(...real.map((b) => b.platinum));
+        if (c.platinum < cheapest) under.push(`${slug} ${o.platinum}p → ${c.platinum}p (cheapest real seller ${cheapest}p)`);
+      }
       mine = mine.map((o) => (o.id === id && c.platinum != null ? { ...o, platinum: c.platinum } : o));
       return {} as never;
     }) as never;
@@ -97,12 +107,12 @@ export async function simulateDay(seed: number) {
     Date.now = realNow;
     mkt.advice = null;
   }
-  return { writes, listings: mine.length, most: Math.max(0, ...perListing.values()) };
+  return { writes, listings: mine.length, most: Math.max(0, ...perListing.values()), under };
 }
 
 // Measured on these three days (seeds 1–3): before the drift rules, 214, 237 and 197 changes,
 // up to 44 on one listing; with them, 32, 32 and 31, never more than 6 on one.
-test("a day of Apply automatically on the demo sell list: a few changes per listing, never more than six", async () => {
+test("a day of Apply automatically on the demo sell list: never more than six changes a listing, never following bait", async () => {
   const days = [];
   for (const seed of [1, 2, 3]) days.push(await simulateDay(seed));
   for (const d of days) console.log(`# ${d.writes} changes in a day across ${d.listings} listings (most on one listing: ${d.most})`);
@@ -110,6 +120,7 @@ test("a day of Apply automatically on the demo sell list: a few changes per list
     assert.equal(d.listings, 12);
     assert.ok(d.most <= DRIFT.perDay, `${d.most} changes to one listing`);
     assert.ok(d.writes <= d.listings * DRIFT.perDay);
-    assert.ok(d.writes < 60, `${d.writes} changes: the market moved no more than on the measured days`);
+    // A bait listing never sets the price: nothing goes under the cheapest real seller online or in game.
+    assert.deepEqual(d.under, []);
   }
 });

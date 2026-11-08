@@ -193,6 +193,8 @@ export interface Plan {
   reason: "match" | "floor" | "no-sellers" | "already" | "median" | "steady";
   competitor: Competitor;
   floor: number;
+  /** The part of `floor` that doesn't follow the market: yours (crack, ducats included) and the minimum. */
+  hard: number;
   /** What it's realistically worth, as the floor and the far-above check went by. */
   value: number | null;
 }
@@ -224,39 +226,45 @@ export interface FloorRule {
 export function plan(order: MyOrder, book: BookOrder[], me: Me, rule: FloorRule): Plan {
   const comp = competitor(order, book, me, rule.defaultSubtype ?? null, !!rule.drift);
   const value = rule.capByAsks ? marketValue(rule.reference, comp) : (rule.reference ?? null);
-  const floor = Math.max(1, rule.floor ?? 0, rule.min ?? 0, value != null ? Math.ceil(value * rule.minShare) : 0);
+  // The hard floors (yours, which includes a relic's crack value and a prime's ducats, and the
+  // minimum) stay put; the share of the market value moves with the asks, pass to pass.
+  const hard = Math.max(1, rule.floor ?? 0, rule.min ?? 0);
+  const floor = Math.max(hard, value != null ? Math.ceil(value * rule.minShare) : 0);
   // Nobody in game: the price stays, unless it's under the floor (you raised it since).
   if (comp.price == null) {
-    if (order.platinum < floor) return { target: floor, change: true, reason: "floor", competitor: comp, floor, value };
-    return { target: order.platinum, change: false, reason: "no-sellers", competitor: comp, floor, value };
+    if (order.platinum < floor) return { target: floor, change: true, reason: "floor", competitor: comp, floor, hard, value };
+    return { target: order.platinum, change: false, reason: "no-sellers", competitor: comp, floor, hard, value };
   }
   let target = comp.price;
-  if (rule.drift) {
-    // Ignoring the lowest seller keeps you from following bait down, never lifts you over them:
-    // a raise goes no higher than the cheapest seller (and not at all while they're under you).
-    if (comp.lowest && order.platinum > 0 && target > order.platinum && comp.lowest.platinum < target) target = Math.max(order.platinum, comp.lowest.platinum);
-  } else if (comp.lowest && comp.lowest.platinum !== comp.price && order.platinum > 0 && target > order.platinum) {
+  if (!rule.drift && comp.lowest && comp.lowest.platinum !== comp.price && order.platinum > 0 && target > order.platinum) {
     // Skipping an odd cheap seller is there to keep you from following it down, never to raise you.
     target = order.platinum;
   }
   let reason: Plan["reason"] = "match";
-  const sells = overAsked(comp.price, value);
+  // "Everyone asks too much" goes by the cheapest seller who can trade now, never the bait-proof
+  // target: a cheap seller under twice what it sells for means it isn't over-asked.
+  const sells = overAsked(rule.drift ? (comp.lowest?.platinum ?? comp.price) : comp.price, value);
   if (sells != null) {
     target = sells;
     reason = "median";
+  }
+  if (rule.drift && comp.lowest && order.platinum > 0 && target > order.platinum && comp.lowest.platinum < target) {
+    // Ignoring the lowest seller keeps you from following bait down, never lifts you over them:
+    // a raise goes no higher than the cheapest seller (and not at all while they're under you).
+    target = Math.max(order.platinum, comp.lowest.platinum);
   }
   if (target < floor) {
     target = floor;
     reason = "floor";
   }
   if (target === order.platinum) reason = reason === "floor" ? "floor" : "already";
-  // Checked after the floors: a listing on its floor never moves; one under it is raised to it
-  // whatever the gap (a floor is never left broken to save a change); anything else moves only
-  // past the dead band.
-  if (rule.drift && target !== order.platinum && order.platinum >= floor && !drifted(order.platinum, target)) {
-    return { target: order.platinum, change: false, reason: "steady", competitor: comp, floor, value };
+  // Checked after the floors: a listing on its floor never moves; one under a hard floor is raised
+  // to it whatever the gap (it's never left broken to save a change); anything else moves only
+  // past the dead band (a share floor that follows the asks would otherwise lift it 1p at a time).
+  if (rule.drift && target !== order.platinum && order.platinum >= hard && !drifted(order.platinum, target)) {
+    return { target: order.platinum, change: false, reason: "steady", competitor: comp, floor, hard, value };
   }
-  return { target, change: target !== order.platinum, reason, competitor: comp, floor, value };
+  return { target, change: target !== order.platinum, reason, competitor: comp, floor, hard, value };
 }
 
 /**

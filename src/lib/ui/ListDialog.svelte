@@ -216,7 +216,7 @@
           {/if}
           {#if mkt.draftError && !bookFailed}<p class="err small">{mkt.draftError}</p>{/if}
 
-          {#if !merging}<p class="dim small foot">It joins your Orders, where Reprice (or Apply automatically) keeps it at the cheapest in-game price.</p>{/if}
+          {#if !merging}<p class="dim small foot">It joins your Orders, where Reprice (or Apply automatically) keeps it at the market price: the second-cheapest seller online or in game.</p>{/if}
           <div class="row end">
             <button onclick={() => mkt.closeDraft()}>Cancel</button>
             <ProgressButton tone="gold" busy={mkt.op === "Listing"} label={repriceOnly ? (d.platinum ? `Set price to ${d.platinum}p` : "Set the price") : `${merging ? "Add" : "Sell"} ${shown(d.quantity)}${d.platinum ? ` at ${d.platinum}p` : ""}`} working={repriceOnly ? "Setting…" : merging ? "Adding…" : "Listing…"}

@@ -356,7 +356,7 @@ export interface NotifySettings {
   sold: boolean;
   /** A set your loose parts were saved for is complete and can be sold. */
   setDone: boolean;
-  /** Apply automatically moved listings to the cheapest price in game. */
+  /** Apply automatically moved listings to the market price. */
   repriced: boolean;
   /** TennoScope couldn't be started or a request to it failed. */
   tennoscope: boolean;
