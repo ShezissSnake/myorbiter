@@ -480,9 +480,12 @@ fn discord_address(kept: Option<&str>, declined_one: bool, url: &str) -> Discord
     }
 }
 
+/// The confirmed Discord address's file in the config folder (written by `write_atomic`).
+pub(crate) const DISCORD_FILE: &str = "discord-webhook";
+
 /// The address confirmed before, from MyOrbiter's config folder (`discord-webhook`).
 fn discord_kept(app: &tauri::AppHandle) -> Result<(PathBuf, Option<String>), String> {
-    let file = app.path().app_config_dir().map_err(|e| e.to_string())?.join("discord-webhook");
+    let file = app.path().app_config_dir().map_err(|e| e.to_string())?.join(DISCORD_FILE);
     let kept = fs::read_to_string(&file).ok().map(|k| k.trim().to_owned());
     Ok((file, kept))
 }
