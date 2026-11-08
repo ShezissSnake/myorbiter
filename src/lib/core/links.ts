@@ -12,10 +12,9 @@ export const LINK_SITES: readonly { host: string; path: string }[] = [
   { host: "overframe.gg", path: "/" },
   { host: "noxsframe.com", path: "/" },
   // MyOrbiter's own project on gitlab.com: its pages under /-/ (releases, issues, a new issue), not
-  // what others can put under the project's address (uploads to issues). Its old repository on
-  // GitHub stays allowed for links in older notes and reports.
+  // what others can put under the project's address (uploads to issues). Its old address on GitHub
+  // is gone, and anyone could take the name, so it isn't allowed.
   { host: "gitlab.com", path: "/sheziss-group/myorbiter/-/" },
-  { host: "github.com", path: "/ShezissSnake/orbiter/" },
 ];
 
 /** The URL, normalised, if MyOrbiter may open it: https, an allowed site, no user name or password. */

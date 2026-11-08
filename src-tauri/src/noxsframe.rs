@@ -23,8 +23,10 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const SITE: &str = "https://noxsframe.com";
-/// How MyOrbiter introduces itself to Nox's Frame.
-pub const USER_AGENT: &str = concat!("MyOrbiter/", env!("CARGO_PKG_VERSION"), " (Warframe companion; build lookup; contact via noxsframe Discord)");
+/// How MyOrbiter introduces itself to Nox's Frame (in place of `crate::user_agent()`).
+fn user_agent() -> String {
+    format!("MyOrbiter/{} (Warframe companion; build lookup; contact via noxsframe Discord)", crate::version())
+}
 /// At most one request this often, across MyOrbiter.
 pub const GAP: Duration = Duration::from_secs(3);
 /// How long an answer is kept before it's asked for again.
@@ -103,9 +105,8 @@ fn get_page(url: &str) -> Result<String, String> {
         return Err(format!("Nox's Frame asked MyOrbiter to wait; trying again in {} min", left.as_secs() / 60 + 1));
     }
     SPACER.turn();
-    let resp = crate::http_agent()
-        .get(url)
-        .set("User-Agent", USER_AGENT)
+    let resp = crate::request("GET", url)
+        .set("User-Agent", &user_agent())
         .set("Accept", "text/html")
         .set("Accept-Language", "en")
         .timeout(Duration::from_secs(20))

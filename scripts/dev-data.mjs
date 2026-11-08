@@ -18,9 +18,8 @@ import { readFileSync, writeFileSync, renameSync } from "node:fs";
 const V2 = "https://api.warframe.market/v2";
 const EXPORT = "https://raw.githubusercontent.com/calamity-inc/warframe-public-export-plus/senpai";
 const version = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
-// As USER_AGENT in src-tauri/src/market.rs and lib.rs: the requests name MyOrbiter honestly.
-const MARKET_UA = `orbiter/${version} (personal order helper; +https://gitlab.com/sheziss-group/orbiter)`;
-const EXPORT_UA = `MyOrbiter/${version} (+https://gitlab.com/sheziss-group/myorbiter)`;
+// As user_agent() in src-tauri/src/lib.rs: the requests name MyOrbiter honestly.
+const USER_AGENT = `MyOrbiter/${version} (+https://gitlab.com/sheziss-group/myorbiter)`;
 
 const MIN_GAP = 400;
 const SLOW_GAP = 1500;
@@ -40,7 +39,7 @@ async function waitTurn() {
 async function market(path) {
   for (let tries = 1; ; tries++) {
     await waitTurn();
-    const res = await fetch(`${V2}${path}`, { headers: { "User-Agent": MARKET_UA, Language: "en" }, signal: AbortSignal.timeout(30_000) });
+    const res = await fetch(`${V2}${path}`, { headers: { "User-Agent": USER_AGENT, Language: "en" }, signal: AbortSignal.timeout(30_000) });
     if (res.status === 429 && tries <= 2) {
       slowUntil = Date.now() + SLOW_FOR;
       const hint = Number.parseInt(res.headers.get("Retry-After") ?? "", 10);
@@ -53,7 +52,7 @@ async function market(path) {
 }
 
 async function github(file) {
-  const res = await fetch(`${EXPORT}/${file}`, { headers: { "User-Agent": EXPORT_UA }, signal: AbortSignal.timeout(90_000) });
+  const res = await fetch(`${EXPORT}/${file}`, { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(90_000) });
   if (!res.ok) throw new Error(`GET ${file}: ${res.status}`);
   return res.json();
 }

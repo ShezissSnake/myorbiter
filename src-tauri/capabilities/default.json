@@ -16,7 +16,6 @@
         { "url": "https://warframe.fandom.com/*" },
         { "url": "https://overframe.gg/*" },
         { "url": "https://noxsframe.com/*" },
-        { "url": "https://github.com/ShezissSnake/orbiter/*" },
         { "url": "https://gitlab.com/sheziss-group/myorbiter/-/*" }
       ]
     }

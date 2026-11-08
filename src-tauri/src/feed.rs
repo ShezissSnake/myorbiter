@@ -12,8 +12,6 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::Emitter;
 
-const SOCKET: &str = "wss://ws.warframe.market/socket";
-const SUBPROTOCOL: &str = "wfm";
 pub const ORDER_EVENT: &str = "market-order";
 /// No frame for this long (the feed sends one a second or so): the connection is gone.
 const SILENT_FOR: Duration = Duration::from_secs(90);
@@ -119,14 +117,12 @@ impl Turn<'_> {
 
 /// One connection: until it drops (the reason) or the feed is stopped.
 fn run(app: &tauri::AppHandle, turn: &Turn) -> String {
-    use tungstenite::{client::IntoClientRequest, Message};
+    use tungstenite::Message;
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let mut request = match SOCKET.into_client_request() {
+    let request = match crate::market::socket_request() {
         Ok(r) => r,
         Err(e) => return e.to_string(),
     };
-    request.headers_mut().insert("Sec-WebSocket-Protocol", tungstenite::http::HeaderValue::from_static(SUBPROTOCOL));
-    request.headers_mut().insert("User-Agent", tungstenite::http::HeaderValue::from_static(crate::market::USER_AGENT));
     let mut ws = match crate::presence::connect(request) {
         Ok(c) => c,
         Err(e) => return format!("Couldn't reach warframe.market's live feed ({e})"),

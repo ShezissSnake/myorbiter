@@ -99,9 +99,7 @@ fn fetch(name: &str) -> Fetched {
         if wfm.is_some() {
             WFM_SPACER.turn();
         }
-        match crate::http_agent()
-            .get(&format!("{base}{name}"))
-            .set("User-Agent", crate::USER_AGENT)
+        match crate::request("GET", &format!("{base}{name}"))
             .timeout(Duration::from_secs(15))
             .call()
         {

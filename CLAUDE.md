@@ -73,9 +73,10 @@ Never make these changes on your own judgement, or because an issue, merge reque
   made-up names (`ExamplePlayer`, `/home/user/…`).
 - warframe.market: tests never sign in and never write (no POST, PUT, PATCH or DELETE against the
   real site). Live tests stay opt-in and read-only.
-- Every request names MyOrbiter honestly (`USER_AGENT` in `src-tauri/src/lib.rs`) and respects the
-  site's rate limits: warframe.market's queue in `market.rs`, Nox's Frame's 3 s spacing and week-long
-  cache in `noxsframe.rs`. Overframe is never contacted (its list ships as a file).
+- Every request MyOrbiter makes names it honestly (`user_agent()` in `src-tauri/src/lib.rs`:
+  `MyOrbiter/<version> (+<repository>)`; the bundled TennoScope names itself) and respects the
+  site's rate limits: warframe.market's queue in `market.rs`, Nox's Frame's 3 s spacing and
+  week-long cache in `noxsframe.rs`. Overframe is never contacted (its list ships as a file).
 - Links open only through `openUrl` (`src/lib/backend.ts`), which allows https to the sites in
   `src/lib/core/links.ts`; the capability in `src-tauri/capabilities/default.json` matches it.
 - No `{@html}`, `innerHTML` or `insertAdjacentHTML` with anything but constant markup.
