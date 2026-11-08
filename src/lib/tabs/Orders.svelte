@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { links, openUrl } from "../links.svelte";
+  import Opening from "../ui/Opening.svelte";
   import Fold from "../ui/Fold.svelte";
   import GameIcon from "../ui/GameIcon.svelte";
   import { MAX_PLAT, MAX_QTY, wholeIn } from "../core/amounts";
@@ -37,8 +39,7 @@
   import CopyButton from "../ui/CopyButton.svelte";
   import { Job, JobError, Jobs } from "../job.svelte";
   import { rivens } from "../rivenStore.svelte";
-  import { openUrl } from "../backend";
-  import type { MyAuction, RivenAuction } from "../core/rivens";
+    import type { MyAuction, RivenAuction } from "../core/rivens";
   import { estimateListed } from "../core/rivenModel";
 
   // console: you play on a console or phone, so MyOrbiter can't see what you hold. New listing then
@@ -749,7 +750,7 @@
           <span class="wh">
             <b>{w.name}</b>{#if w.at != null}<span class="dim small">{agoWord(w.at)}</span>{/if}
             <CopyButton look="chip" text={`/invite ${w.name}`} label="Invite" title="Copy /invite {w.name}, to paste in game chat and invite them to your squad for the trade" />
-            <button type="button" class="link quiet small" title="Their warframe.market profile: reputation and reviews" onclick={() => openUrl(`https://warframe.market/profile/${encodeURIComponent(w.name)}`)}>profile ↗</button>
+            <button type="button" class="link quiet small" title="Their warframe.market profile: reputation and reviews" aria-busy={links.isOpening(`https://warframe.market/profile/${encodeURIComponent(w.name)}`)} onclick={() => openUrl(`https://warframe.market/profile/${encodeURIComponent(w.name)}`)}><Opening url={`https://warframe.market/profile/${encodeURIComponent(w.name)}`}>profile ↗</Opening></button>
           </span>
         {/each}
         {#if settings.lastCopy.hidden.length}<span class="dim small" title="The last-copy rule (Settings, Trades): your last copies are hidden while a buyer whispers, so a second buyer doesn't come for the same one">{settings.lastCopy.hidden.length} last cop{settings.lastCopy.hidden.length === 1 ? "y" : "ies"} hidden for now</span>{/if}
@@ -1008,7 +1009,7 @@
                 {#if e}<span class="dim small nowrap" title="MyOrbiter's estimate of what a riven like it is listed for: the middle half of such listings ask {e.lo}–{e.hi}p">estimate ~{e.mid}p</span>{#if a.buyout != null && a.buyout > e.hi}<span class="tag alert" title="Your buyout is over what three in four rivens like it ask ({e.hi}p): it may sit unsold">over</span>{:else if a.buyout != null && a.buyout < e.lo}<span class="tag" title="Your buyout is under what three in four rivens like it ask ({e.lo}p): you may be leaving platinum behind">under</span>{/if}{/if}
                 {#if a.buyout != null}<P v={a.buyout} />{:else}<span class="dim small">no buyout</span>{/if}
                 <IconButton icon="pencil" tone="quiet" label="Change price" title="Change its buyout price" onclick={() => (auctionPrice = { id: a.id, buyout: a.buyout, busy: false, error: null })} />
-                <IconButton icon="external" tone="quiet" label="Open on warframe.market" onclick={() => openUrl(`https://warframe.market/auction/${a.id}`)} />
+                <ProgressButton variant="icon" icon="external" tone="quiet" label="Open on warframe.market" working="Opening…" busy={links.isOpening(`https://warframe.market/auction/${a.id}`)} onclick={() => openUrl(`https://warframe.market/auction/${a.id}`)} />
                 {#if removing === `auction:${a.id}`}
                   <IconButton icon="trash" tone="danger" label="Take it down" title="Close this auction (it stays among your profile's closed auctions)" disabled={auctionBusy === a.id} onclick={() => { removing = null; void takeDownAuction(a); }} onkeydown={onEsc(() => (removing = null), true)} />
                   <button type="button" class="ib quiet" aria-label="Keep" title="Keep it" onclick={(e) => { keepRow(e); removing = null; }} onkeydown={onEsc(() => (removing = null), true)} use:focusIt><Icon name="close" /></button>

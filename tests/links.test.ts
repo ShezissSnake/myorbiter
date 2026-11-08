@@ -58,14 +58,48 @@ test("the app allows exactly the same sites, and the page has no opener permissi
 test("the page opens a checked link through the app (link.rs), not straight through the opener plugin", () => {
   // Through the plugin, a browser started from the Linux AppImage inherited the AppImage's libraries.
   const backend = readFileSync(new URL("../src/lib/backend.ts", import.meta.url), "utf8");
-  const open = backend.slice(backend.indexOf("export async function openUrl("), backend.indexOf("/** warframe.market URL slug"));
-  assert.match(open, /const safe = openable\(url\);[\s\S]*if \(inTauri\) return invoke<void>\("open_link", \{ url: safe \}\);/, "only a checked link goes to the app");
+  assert.match(backend, /if \(inTauri\) return invoke<void>\("open_link", \{ url: safe \}\);/);
+  assert.doesNotMatch(backend, /export (async function|const) openUrl\b/, "pages open links through links.svelte.ts");
+  const store = readFileSync(new URL("../src/lib/links.svelte.ts", import.meta.url), "utf8");
+  assert.match(store, /const safe = openable\(url\);\s*if \(!safe\) \{[\s\S]*?return;\s*\}[\s\S]*await linkOpener\.open\(safe\);/, "only a checked link goes to the app");
   const src = readdirSync("src", { recursive: true, encoding: "utf8" }).filter((f) => /\.(ts|svelte)$/.test(f));
-  assert.deepEqual(src.filter((f) => /plugin-opener/.test(readFileSync(join("src", f), "utf8"))), [], "no page imports the opener plugin");
+  const read = (f: string) => readFileSync(join("src", f), "utf8");
+  assert.deepEqual(src.filter((f) => /plugin-opener/.test(read(f))), [], "no page imports the opener plugin");
+  assert.deepEqual(src.filter((f) => /linkOpener/.test(read(f))).sort(), ["lib/backend.ts", "lib/links.svelte.ts"], "nothing opens a link past the store");
   const link = readFileSync(new URL("../src-tauri/src/link.rs", import.meta.url), "utf8");
   assert.match(link, /let Some\(url\) = openable\(url\) else \{/, "the app checks the link again");
   assert.match(link, /crate::folder::first_opener\(crate::folder::OPENERS, /, "on Linux, the openers without the AppImage's environment");
   assert.match(link, /#\[cfg\(not\(target_os = "linux"\)\)\]\s*\{\s*use tauri_plugin_opener::OpenerExt;/, "the opener plugin only off Linux");
+});
+
+test("every link control reads \"Opening…\" while its link is on its way", () => {
+  const src = readdirSync("src", { recursive: true, encoding: "utf8" }).filter((f) => f.endsWith(".svelte"));
+  let controls = 0;
+  for (const f of src) {
+    const text = readFileSync(join("src", f), "utf8");
+    // Each click that opens a link sits on a control that shows it's on its way: its label swaps
+    // (Opening), or it's a progress button (an icon) or the Overframe row, busy meanwhile.
+    for (const m of text.matchAll(/onclick=\{\(\) => openUrl\(/g)) {
+      const tag = text.slice(text.lastIndexOf("<", m.index), text.indexOf(">", m.index) + 1);
+      assert.match(tag, /aria-busy=\{links\.isOpening\(|busy=\{links\.isOpening\(/, `${f}: ${tag.slice(0, 120)}`);
+      controls++;
+    }
+  }
+  assert.ok(controls >= 25, `the controls were found (${controls})`);
+});
+
+test("a link that couldn't open says so in the corner, and its Logs opens Settings at Logs", () => {
+  const read = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
+  const notice = read("src/lib/LinkTrouble.svelte");
+  assert.match(notice, /\{#if links\.trouble\}/);
+  assert.match(notice, />Couldn't open your browser; see Logs</);
+  assert.match(read("src/App.svelte"), /<LinkTrouble onlogs=\{\(\) => goTo\("settings#logs"\)\} \/>/);
+  const sheet = read("src/lib/SettingsSheet.svelte");
+  assert.match(sheet, /<section id="settings-logs">/);
+  // Clearing `focus` runs the effect again: a cleanup that cleared the timer cancelled the scroll.
+  const effect = sheet.slice(sheet.indexOf("let focusTimer"), sheet.indexOf("});", sheet.indexOf("let focusTimer")));
+  assert.match(effect, /focusTimer = setTimeout\(/);
+  assert.doesNotMatch(effect, /return \(\) => clearTimeout/);
 });
 
 test("tricks that read like an allowed site are refused", () => {

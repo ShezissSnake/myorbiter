@@ -18,7 +18,8 @@
   import Seg from "./ui/Seg.svelte";
   import ProgressButton from "./ui/ProgressButton.svelte";
   import { Jobs } from "./job.svelte";
-  import { openUrl } from "./backend";
+  import { links, openUrl } from "./links.svelte";
+  import Opening from "./ui/Opening.svelte";
   import { updates } from "./updates.svelte";
   import { CHANNELS, CHANNEL_LABEL, installChecks, installInstalls, installNote, noteLines, releasePage, versionLine } from "./core/updates";
   import RenderingSetting from "./ui/RenderingSetting.svelte";
@@ -35,18 +36,21 @@
     ongo = () => {},
   }: { open: boolean; settings: Settings; defaultDir: string; eeFound: string | null; onpaths: () => void; onnotices: () => void; rivenKeyError?: string | null; focus?: string | null; ongo?: (to: string) => void } = $props();
 
-  // Show me (What's New) opens the panel at a section: scrolled to and ringed briefly.
+  // Show me (What's New), an update's Settings and a link notice's Logs open the panel at a
+  // section: scrolled to and ringed briefly. Clearing `focus` runs this effect again, so the timer
+  // isn't its cleanup (that would cancel the scroll at once); a newer section replaces it.
+  let focusTimer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
     if (!open || !focus) return;
     const id = focus;
     focus = null;
-    const t = setTimeout(() => {
+    clearTimeout(focusTimer);
+    focusTimer = setTimeout(() => {
       const el = document.getElementById(`settings-${id}`);
       if (!el) return;
       el.scrollIntoView({ block: "start", behavior: "smooth" });
       pulse(el);
     }, 260);
-    return () => clearTimeout(t);
   });
 
   // Updates: this copy's version and channel, and what the chosen channel offers.
@@ -322,7 +326,7 @@
     <p class="hint">{CHANNELS.find((c) => c.v === settings.updates.channel)?.title}. Switching to a more stable channel never steps back by itself: if its build is older than this one, MyOrbiter offers it here and installs it only when you click.</p>
     <div class="row">
       <ProgressButton job={updates.checkJob} busy={updates.checking} label="Check now" disabled={!checks} sizer={["Up to date · 0.1.9999", "Experimental has 0.1.9999", "Couldn't check"]} title={checks ? `Look for a newer build on ${CHANNEL_LABEL[settings.updates.channel]} now. MyOrbiter also looks when it starts and every 6 hours; nothing installs without your click.` : (info ? (installNote(info.install) ?? "") : "")} onclick={() => updates.checkNow()} />
-      <button type="button" class="link out" title="Open this build's release page on GitLab, in your browser: what changed, and its downloads" onclick={() => openUrl(releasePage(info?.version ?? "0.1.0"))}>Release notes<Icon name="external" size={11} /></button>
+      <button type="button" class="link out" title="Open this build's release page on GitLab, in your browser: what changed, and its downloads" aria-busy={links.isOpening(releasePage(info?.version ?? "0.1.0"))} onclick={() => openUrl(releasePage(info?.version ?? "0.1.0"))}><Opening url={releasePage(info?.version ?? "0.1.0")}>Release notes<Icon name="external" size={11} /></Opening></button>
     </div>
     {#if checks}<p class="hint" class:err={updates.outcome?.kind === "failed" && !updates.checking}>{updates.status(now)}<span class="sr" role="status">{updates.headline}</span></p>{/if}
     {#if offer}

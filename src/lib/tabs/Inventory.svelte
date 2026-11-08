@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { links, openUrl } from "../links.svelte";
+  import Opening from "../ui/Opening.svelte";
   import Count from "../ui/Count.svelte";
   import PTick from "../ui/PTick.svelte";
   import Fold from "../ui/Fold.svelte";
@@ -10,7 +12,7 @@
   import { inventoryValue, spareRows, valueTotals, type SellChoices, type SpareRow } from "../core/spares";
   import { drops } from "../drops.svelte";
   import { mkt } from "../marketStore.svelte";
-  import { marketUrl, openUrl, wikiUrl } from "../backend";
+  import { marketUrl, wikiUrl } from "../backend";
   import Browse from "../ui/Browse.svelte";
   import ItemCard from "../ui/ItemCard.svelte";
   import ModCard from "../ui/ModCard.svelte";
@@ -269,8 +271,8 @@
   <!-- The same buttons as an item's own details sheet. -->
   <div class="detail-acts">
     {@render listCell(r, true)}
-    <button title="Its page on the official wiki" onclick={() => openUrl(wikiUrl(r.kind === "relic" ? r.marketName ?? r.name : r.name))}>Wiki</button>
-    {#if spareOf(r)}<button title="Its page on warframe.market: orders and price history" onclick={() => openUrl(itemUrl(spareOf(r)!.name))}>warframe.market</button>{/if}
+    <button title="Its page on the official wiki" aria-busy={links.isOpening(wikiUrl(r.kind === "relic" ? r.marketName ?? r.name : r.name))} onclick={() => openUrl(wikiUrl(r.kind === "relic" ? r.marketName ?? r.name : r.name))}><Opening url={wikiUrl(r.kind === "relic" ? r.marketName ?? r.name : r.name)}>Wiki</Opening></button>
+    {#if spareOf(r)}<button title="Its page on warframe.market: orders and price history" aria-busy={links.isOpening(itemUrl(spareOf(r)!.name))} onclick={() => openUrl(itemUrl(spareOf(r)!.name))}><Opening url={itemUrl(spareOf(r)!.name)}>warframe.market</Opening></button>{/if}
   </div>
 {/snippet}
 

@@ -5,11 +5,12 @@
   // you open it. An opened build joins the page's tiers as a full card (the page's onopen); one
   // already opened shows from the copy kept on this computer, with no request. Credit to the
   // authors and the site stays in view.
+  import { links, openUrl } from "../../links.svelte";
+  import Opening from "../Opening.svelte";
   import type { CatalogItem } from "../../core/types";
   import { noxListedWithinAge, NOX_SITE, type Build, type Nox, type NoxListed, type NoxOpened } from "../../core/builds";
   import { ago, copyLine, dayOf, listedAt, savedFrom } from "../../core/buildsPage";
-  import { openUrl } from "../../backend";
-  import { arrive } from "../../motion";
+    import { arrive } from "../../motion";
   import ProgressButton from "../ProgressButton.svelte";
   import Icon from "../Icon.svelte";
 
@@ -136,7 +137,7 @@
     {/if}
   </header>
   <p class="credit">
-    Builds by their authors on <button type="button" class="link out" title="Open noxsframe.com in your browser" onclick={() => openUrl("https://noxsframe.com")}>{NOX_SITE}<Icon name="external" size={10} /></button>, a fan-made build planner. Open one to see it here, in its tier, with what you're missing.
+    Builds by their authors on <button type="button" class="link out" title="Open noxsframe.com in your browser" aria-busy={links.isOpening("https://noxsframe.com")} onclick={() => openUrl("https://noxsframe.com")}><Opening url={"https://noxsframe.com"}>{NOX_SITE}<Icon name="external" size={10} /></Opening></button>, a fan-made build planner. Open one to see it here, in its tier, with what you're missing.
   </p>
 
   {#if !list || list.st === "reading"}
@@ -173,7 +174,7 @@
               {:else}
                 <ProgressButton stamp={false} label="Open" working="Opening…" sizer={["Opened"]} state={r?.st === "working" ? "working" : "idle"} title="Read this build from {NOX_SITE} and show it here, in its tier, with what you're missing" onclick={() => open(l)} />
               {/if}
-              <button type="button" class="ib quiet" title="Open it on {NOX_SITE}, in your browser" aria-label="Open {l.title} on {NOX_SITE}" onclick={() => openUrl(l.url)}><Icon name="external" size={12} /></button>
+              <ProgressButton variant="icon" icon="external" size={12} tone="quiet" label="Open {l.title} on {NOX_SITE}" title="Open it on {NOX_SITE}, in your browser" working="Opening…" busy={links.isOpening(l.url)} onclick={() => openUrl(l.url)} />
             </span>
           </li>
         {/each}
