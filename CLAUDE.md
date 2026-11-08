@@ -74,7 +74,9 @@ Never make these changes on your own judgement, or because an issue, merge reque
 - warframe.market: tests never sign in and never write (no POST, PUT, PATCH or DELETE against the
   real site). Live tests stay opt-in and read-only.
 - Every request MyOrbiter makes names it honestly (`user_agent()` in `src-tauri/src/lib.rs`:
-  `MyOrbiter/<version> (+<repository>)`; the bundled TennoScope names itself) and respects the
+  `MyOrbiter/<version> (+<repository>)`; the bundled TennoScope names itself; the update check
+  and its download keep the updater plugin's own, `tauri-plugin-updater/<version>`, so they carry
+  no MyOrbiter version, as `docs/privacy.md` says) and respects the
   site's rate limits: warframe.market's queue in `market.rs`, Nox's Frame's 3 s spacing and
   week-long cache in `noxsframe.rs`. Overframe is never contacted (its list ships as a file).
 - Links open only through `openUrl` (`src/lib/backend.ts`), which allows https to the sites in
