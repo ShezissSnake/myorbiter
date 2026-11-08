@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { LINK_SITES, openable } from "../src/lib/core/links";
 
 test("links to the sites MyOrbiter uses open", () => {
@@ -84,4 +85,11 @@ test("the web view connects only to MyOrbiter itself and Digital Extremes' riven
   const cap = readFileSync(new URL("../src-tauri/capabilities/default.json", import.meta.url), "utf8");
   for (const text of [JSON.stringify(conf), cap, readFileSync(new URL("../src/lib/core/links.ts", import.meta.url), "utf8")])
     assert.ok(!/github\.com\/ShezissSnake/i.test(text), "the old GitHub address is allowed nowhere");
+});
+
+test("no page links to the old GitHub address, which no longer opens", () => {
+  const files = readdirSync("src", { recursive: true, encoding: "utf8" }).filter((f) => /\.(ts|svelte|json)$/.test(f));
+  assert.ok(files.length > 50, "the sources were found");
+  const found = files.filter((f) => /github\.com\/ShezissSnake/i.test(readFileSync(join("src", f), "utf8")));
+  assert.deepEqual(found, []);
 });
