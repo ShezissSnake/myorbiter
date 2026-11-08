@@ -39,7 +39,7 @@ export interface Draft {
   subtype: string | null;
   maxRank: number | null;
   subtypes: string[] | null;
-  /** How many orbiter thinks you can sell (spare copies), when the page knew. */
+  /** How many MyOrbiter thinks you can sell (spare copies), when the page knew. */
   available: number | null;
   /** The order book was read for the current rank / variant. */
   priced: boolean;
@@ -90,7 +90,7 @@ const WRITE_FAILS = 3;
 /** A bulk plan older than this has its prices read again before it's applied. */
 const PLAN_FRESH_MS = 10 * 60_000;
 
-/** The lowest price orbiter lists or reprices an item at: your relic minimum for relics, your minimum for the rest. */
+/** The lowest price MyOrbiter lists or reprices an item at: your relic minimum for relics, your minimum for the rest. */
 export function minFor(s: Pick<MarketSettings, "minPrice" | "minRelicPrice">, it: { tags?: string[] | null }): number {
   return it.tags?.includes("relic") ? (s.minRelicPrice ?? s.minPrice) : s.minPrice;
 }
@@ -126,7 +126,7 @@ class MarketStore {
     return isAuthError(this.accountError ?? "");
   }
   error = $state<string | null>(null);
-  /** Your warframe.market status, held on orbiter's own connection. */
+  /** Your warframe.market status, held on MyOrbiter's own connection. */
   status = $state<PresenceState | null>(null);
   /** Clicked and not confirmed yet. */
   statusAsked = $state<Presence | "offline" | null>(null);
@@ -462,7 +462,7 @@ class MarketStore {
 
   /**
    * The last check before copies go up (listGuard.ts): true when they may. A refusal is told (the
-   * Activity log, a notification, orbiter.log) and nothing is sent. `audit` gets the line saying
+   * Activity log, a notification, myorbiter.log) and nothing is sent. `audit` gets the line saying
    * why they were spare, for the log once warframe.market has taken them.
    */
   private allowed(m: Model | null, req: GuardRequest, audit: (line: string) => void): boolean {
@@ -482,7 +482,7 @@ class MarketStore {
     return true;
   }
 
-  /** A listing orbiter made or changed, and why, in orbiter.log: a wrong one can be explained from it. */
+  /** A listing MyOrbiter made or changed, and why, in myorbiter.log: a wrong one can be explained from it. */
   private audit(how: string, line: string) {
     logLine("info", "listing", `${how}: ${line}`);
   }
@@ -553,7 +553,7 @@ class MarketStore {
     let unseen = 0;
     let failed = 0;
     let read = 0;
-    // Three reads failing in a row is warframe.market not answering (or turning orbiter away):
+    // Three reads failing in a row is warframe.market not answering (or turning MyOrbiter away):
     // the pass stops there rather than holding your listings' buttons for every one left.
     let failing = 0;
     let writeFailing = 0;
@@ -629,7 +629,7 @@ class MarketStore {
           let atFloor = false;
           if (timed) {
             const tag = `${it.name}${o.rank != null ? ` R${o.rank}` : ""}`;
-            // Never under 70% of the price you last set or approved (one orbiter hasn't seen you
+            // Never under 70% of the price you last set or approved (one MyOrbiter hasn't seen you
             // price yet starts from what it's listed at now).
             const key = this.approvalKey(o);
             const approved = s.approved?.[key] ?? o.platinum;
@@ -1172,7 +1172,7 @@ class MarketStore {
 
   /** The live feed of new orders: how it's doing, and what it watches for (set by the app). */
   feed = $state<FeedState | null>(null);
-  /** Deals the live feed caught, since orbiter started. */
+  /** Deals the live feed caught, since MyOrbiter started. */
   liveDeals = $state(0);
   private liveWatch = new Map<string, Watch>();
   private liveModel: Model | null = null;
@@ -1291,7 +1291,7 @@ class MarketStore {
           failing = 0;
         } catch (e) {
           if (isAuthError(e)) throw e;
-          // Not answering, or turning orbiter away: no plan from half the prices.
+          // Not answering, or turning MyOrbiter away: no plan from half the prices.
           if (++failing >= 3) throw new Error(`warframe.market stopped answering after ${this.progress.done} of ${slugs.length} prices: try again in a minute`);
         }
         this.progress = { done: this.progress.done + 1, total: slugs.length };
@@ -1411,7 +1411,7 @@ class MarketStore {
           refused.add(a);
           this.note(`${a.item.name}: couldn't ${a.type} (${clean(e)})`, "warn");
           if (++writeFailing >= WRITE_FAILS) {
-            this.note(`warframe.market refused ${WRITE_FAILS} changes in a row, so orbiter stopped: apply again in a minute`, "warn");
+            this.note(`warframe.market refused ${WRITE_FAILS} changes in a row, so MyOrbiter stopped: apply again in a minute`, "warn");
             break;
           }
         }

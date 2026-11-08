@@ -82,7 +82,7 @@ test("items resolve by path or name; whole amps and other gear have no recipes",
   for (const link of Object.keys(parts.Zaw.Link)) assert.ok(p.ZawLink[link]?.u, link);
 });
 
-test("combos are ranked by the goal, labelled as orbiter's own", () => {
+test("combos are ranked by the goal, labelled as MyOrbiter's own", () => {
   const r = recipesFor("Catchmoon", "sustained", null, { slot: "secondary" })!;
   assert.equal(r.label, RANKING_LABEL);
   assert.equal(r.combos.length, 5 * 20, "five grips, twenty loaders");
@@ -162,7 +162,7 @@ test("a built copy of exactly the combo is marked, in its slot", () => {
   assert.deepEqual(built.map((c) => c.key), ["secondary:Catchmoon/Gibber/Killstream"]);
 });
 
-test("holdings come straight from orbiter's model", () => {
+test("holdings come straight from MyOrbiter's model", () => {
   const row = (item_id: string, name: string, quantity: number): InventoryRow => ({ item_id, name, category: "resource", quantity, mastered: false, image_name: null, rank: null, max_rank: null });
   const bundle = { observed_at: 1, inventory: [row(GIBBER, "Gibber", 1)], catalog: [], relics: [], prices: { prices: {}, max_rank_prices: {} } } as unknown as Bundle;
   const r = recipesFor("Catchmoon", "sustained", buildModel(bundle), { slot: "secondary" })!;
@@ -170,7 +170,7 @@ test("holdings come straight from orbiter's model", () => {
   assert.equal(gibber.status, "held");
 });
 
-test("the wiki snapshot ships beside the app with its licence, isn't compiled in, and orbiter never fetches the wiki for it", () => {
+test("the wiki snapshot ships beside the app with its licence, isn't compiled in, and MyOrbiter never fetches the wiki for it", () => {
   assert.ok(existsSync("public/data/wiki/LICENSE.md"));
   const licence = readFileSync("public/data/wiki/LICENSE.md", "utf8");
   assert.match(licence, /CC BY-NC-SA 3\.0/);

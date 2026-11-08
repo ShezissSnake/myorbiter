@@ -6,7 +6,7 @@
 
 import type { MyOrder } from "./market";
 
-/** A listing orbiter hid on a whisper, and when (unix ms). */
+/** A listing MyOrbiter hid on a whisper, and when (unix ms). */
 export interface HiddenForWhisper {
   id: string;
   at: number;
@@ -30,7 +30,7 @@ export function hideNow(hidden: HiddenForWhisper[], orders: MyOrder[], now: numb
 }
 
 /**
- * What to do with the listings orbiter hid: the ones whose wait is over and are still listed and
+ * What to do with the listings MyOrbiter hid: the ones whose wait is over and are still listed and
  * hidden, to show again; and the list to keep. A listing that's gone (sold, or taken down) or that
  * you showed yourself is dropped from the list, and never touched.
  */

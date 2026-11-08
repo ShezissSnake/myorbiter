@@ -1,6 +1,6 @@
 // The Builds page's own logic (src/lib/core/buildsPage.ts): which items take a build, the item
 // search, the tiers' order, ages and sources in words, the links out, the whisper, the paste's fixes
-// and orbiter's suggestion's loadout.
+// and MyOrbiter's suggestion's loadout.
 import { test } from "node:test";
 import "./wikiFiles";
 import assert from "node:assert/strict";
@@ -75,7 +75,7 @@ test("recent items: opened this session first, then those with builds, newest fi
   assert.equal(recentItems([], Array.from({ length: 20 }, (_, i) => b(`/${i}`, NOW - i)), 5).length, 5);
 });
 
-test("each tier: favourites, then yours, then a site's by votes, then orbiter's suggestion", () => {
+test("each tier: favourites, then yours, then a site's by votes, then MyOrbiter's suggestion", () => {
   const t = (tier: Tier) => ({ tier }) as TierResult;
   const tiers = new Map<string, Tier>();
   const at = (b: Build) => t(tiers.get(b.id) ?? "low");
@@ -107,7 +107,7 @@ test("ages and sources in words", () => {
   assert.equal(ageLine(build({ importedAt: NOW, updatedAt: NOW - 40 * DAY }), NOW), "updated 5 weeks ago");
   assert.equal(sourceName("pasted"), "Pasted");
   assert.equal(sourceName("mine"), "Yours");
-  assert.equal(sourceName("orbiter"), "orbiter's suggestion");
+  assert.equal(sourceName("orbiter"), "MyOrbiter's suggestion");
   assert.equal(sourceName({ url: "https://noxsframe.com/builds/x", site: "Nox's Frame" }), "Nox's Frame");
 });
 
@@ -147,7 +147,7 @@ test("a name picked for an unmatched one goes in the first free slot of its kind
   assert.equal(placeIn(full, P.intensify, false), full);
 });
 
-test("shard slots: a build's own shards, else orbiter's suggestion's, always five on a warframe", () => {
+test("shard slots: a build's own shards, else MyOrbiter's suggestion's, always five on a warframe", () => {
   const pick = (colour: "crimson" | "amber", owned: boolean | null, fuse?: string) => ({ name: `Tauforged ${colour}`, owned, reason: "why", tier: "high" as const, source: "wiki", colour, tauforged: true, stat: colour === "crimson" ? "Ability Strength" : "Casting Speed", ...(fuse ? { fuse } : {}) });
   const loadout = { shards: [pick("crimson", false, "fuse 3 for 1"), pick("crimson", false), pick("amber", true)] };
   const empty = shardSlots({ kind: "warframe", shards: [] }, loadout);

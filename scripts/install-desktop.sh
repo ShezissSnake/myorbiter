@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds orbiter and installs it for your user, so it's in your app menu (KDE, GNOME, or a
+# Builds MyOrbiter and installs it for your user, so it's in your app menu (KDE, GNOME, or a
 # launcher like wofi/rofi/fuzzel on Hyprland) with its icon, and the window shows that icon in
 # the taskbar or dock. Nothing outside your home folder is touched.
 #
@@ -8,13 +8,13 @@
 #   scripts/install-desktop.sh --uninstall
 #
 # On Wayland the compositor finds a window's icon through the launcher entry whose name matches
-# the window's app id. orbiter's window app id is "orbiter", so the entry is orbiter.desktop.
+# the window's app id. MyOrbiter's window app id is "myorbiter", so the entry is myorbiter.desktop.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 data="${XDG_DATA_HOME:-$HOME/.local/share}"
-bin="$HOME/.local/bin/orbiter"
-entry="$data/applications/orbiter.desktop"
+bin="$HOME/.local/bin/myorbiter"
+entry="$data/applications/myorbiter.desktop"
 icons="$data/icons/hicolor"
 
 refresh() {
@@ -29,10 +29,10 @@ refresh() {
 }
 
 if [[ "${1:-}" == "--uninstall" ]]; then
-  rm -f "$bin" "$entry" "$icons/scalable/apps/orbiter.svg"
-  for size in 32 64 128 256 512; do rm -f "$icons/${size}x${size}/apps/orbiter.png"; done
+  rm -f "$bin" "$entry" "$icons/scalable/apps/myorbiter.svg"
+  for size in 32 64 128 256 512; do rm -f "$icons/${size}x${size}/apps/myorbiter.png"; done
   refresh
-  echo "orbiter removed from your app menu. Its settings stay in ~/.config/dev.orbiter.app."
+  echo "MyOrbiter removed from your app menu. Its settings stay in ~/.config/dev.myorbiter.app."
   exit 0
 fi
 
@@ -40,39 +40,39 @@ if [[ "${1:-}" != "--no-build" ]]; then
   npm install --no-audit --no-fund
   npm run tauri build -- --no-bundle
 fi
-[[ -x target/release/orbiter ]] || { echo "No build at target/release/orbiter: run without --no-build." >&2; exit 1; }
+[[ -x target/release/myorbiter ]] || { echo "No build at target/release/myorbiter: run without --no-build." >&2; exit 1; }
 
-install -Dm755 target/release/orbiter "$bin"
-install -Dm644 src-tauri/icons/icon.svg "$icons/scalable/apps/orbiter.svg"
-install -Dm644 src-tauri/icons/32x32.png "$icons/32x32/apps/orbiter.png"
-install -Dm644 src-tauri/icons/64x64.png "$icons/64x64/apps/orbiter.png"
-install -Dm644 src-tauri/icons/128x128.png "$icons/128x128/apps/orbiter.png"
-install -Dm644 src-tauri/icons/128x128@2x.png "$icons/256x256/apps/orbiter.png"
-install -Dm644 src-tauri/icons/icon.png "$icons/512x512/apps/orbiter.png"
+install -Dm755 target/release/myorbiter "$bin"
+install -Dm644 src-tauri/icons/icon.svg "$icons/scalable/apps/myorbiter.svg"
+install -Dm644 src-tauri/icons/32x32.png "$icons/32x32/apps/myorbiter.png"
+install -Dm644 src-tauri/icons/64x64.png "$icons/64x64/apps/myorbiter.png"
+install -Dm644 src-tauri/icons/128x128.png "$icons/128x128/apps/myorbiter.png"
+install -Dm644 src-tauri/icons/128x128@2x.png "$icons/256x256/apps/myorbiter.png"
+install -Dm644 src-tauri/icons/icon.png "$icons/512x512/apps/myorbiter.png"
 
 mkdir -p "$(dirname "$entry")"
 cat > "$entry" <<DESKTOP
 [Desktop Entry]
 Type=Application
-Name=orbiter
+Name=MyOrbiter
 GenericName=Warframe companion
 Comment=What to sell, crack and master in Warframe, from TennoScope's data
 Exec=$bin
-Icon=orbiter
+Icon=myorbiter
 Terminal=false
 Categories=Game;
 Keywords=warframe;relics;prime;platinum;ducats;market;
-StartupWMClass=orbiter
+StartupWMClass=myorbiter
 StartupNotify=true
 DESKTOP
 
 refresh
 echo "Installed: $bin"
-echo "orbiter is in your app menu now. Start it from there (or run: $bin)."
+echo "MyOrbiter is in your app menu now. Start it from there (or run: $bin)."
 
 # This build carries no TennoScope: it starts the one you build from tennoscope/ in this folder
 # (tennoscope/ORBITER.md), once Settings → TennoScope points at it. A TennoScope older than the
-# one orbiter is made for can't open data a newer one has upgraded (it stops as it starts), so say
+# one MyOrbiter is made for can't open data a newer one has upgraded (it stops as it starts), so say
 # when that build is missing or older than the last change to tennoscope/.
 ts_bin="$PWD/tennoscope/target/release/tennoscope"
 changed=$(git log -1 --format=%ct -- tennoscope 2>/dev/null || true)
@@ -83,6 +83,6 @@ TennoScope in $PWD/tennoscope isn't built, or is older than its source.
 Build it (tennoscope/ORBITER.md, "Build it on your PC"):
   cd $PWD/tennoscope; $PWD/scripts/vendor-linux-tesseract.sh app/src-tauri/vendor/tesseract
   cd app; pnpm install --frozen-lockfile; pnpm tauri build --no-bundle
-and point orbiter's Settings → TennoScope at $ts_bin
+and point MyOrbiter's Settings → TennoScope at $ts_bin
 NOTE
 fi

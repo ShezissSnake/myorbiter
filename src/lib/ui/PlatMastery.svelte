@@ -36,7 +36,7 @@
 </div>
 
 {#if !list.length}
-  {#if clear}<p class="nothing"><NoMatch {clear} /></p>{:else}<p class="dim">Nothing you haven't mastered has a platinum price orbiter knows.</p>{/if}
+  {#if clear}<p class="nothing"><NoMatch {clear} /></p>{:else}<p class="dim">Nothing you haven't mastered has a platinum price MyOrbiter knows.</p>{/if}
 {:else}
   <div class="pmh register" aria-hidden="true"><span>Item</span><span>What to buy</span><span class="r">Cost · per 1,000 mastery</span><span class="r">Buying down to here</span><span></span></div>
   <ol class="pm">

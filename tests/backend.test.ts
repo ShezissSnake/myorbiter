@@ -265,7 +265,7 @@ test("the Circuit's picks last the week, not the two-hour mood its expiry gives;
   assert.equal(pruneLive(kept.live, at + 61 * 60_000).invasions, null);
 });
 
-test("What's new: everything for someone who had orbiter before, nothing on a first start", async () => {
+test("What's new: everything for someone who had MyOrbiter before, nothing on a first start", async () => {
   const { loadSettings } = await import("../src/lib/backend");
   const { NEWEST, newsSince, NEWS } = await import("../src/lib/whatsNew");
   (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({ market: {} }) };

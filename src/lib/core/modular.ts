@@ -73,7 +73,7 @@ export const GILDED = 8;
 
 /**
  * What you have of one modular item: parts you hold not yet put together, copies built, and of
- * those how many are gilded. `known`: orbiter has read each copy (a patched TennoScope); without it
+ * those how many are gilded. `known`: MyOrbiter has read each copy (a patched TennoScope); without it
  * built kitguns, zaws, amps, MOAs, hounds and K-Drives can't be seen, nor gilding.
  */
 export interface ModularHave {
@@ -111,7 +111,7 @@ export function modularNext(have: ModularHave | null, mastered: boolean): Modula
   if (have.built > 0) {
     if (!f.gild) return { step: "level", how: `Level it: rank your ${f.build} to 30 for the mastery.`, brief: "Rank it to 30 for the mastery.", tag: "Owned · level it", icon: "mastery" };
     if (have.gilded > 0) return { step: "level", how: "Level it (gilded): rank it to 30 for the mastery.", brief: "Gilded: rank it to 30 for the mastery.", tag: "Gilded · level it", icon: "mastery" };
-    // orbiter can't see gilding without each copy's read: say both.
+    // MyOrbiter can't see gilding without each copy's read: say both.
     if (!have.known) return { step: "level", how: `In your arsenal. If it isn't gilded yet, rank it to 30 and gild it at ${f.gild}. Then level it to 30: only the ranks after gilding give mastery.`, brief: `Not gilded yet? Rank it to 30, gild it at ${f.gildAt}, then level it to 30 again.`, tag: "Owned · gild, then level", icon: "mastery" };
     return { step: "gild", how: `Gild it at ${f.gild}, once it's rank 30; the ranks after gilding give its mastery.`, brief: `Rank it to 30, gild it at ${f.gildAt}, then level it to 30 again.`, tag: "Built · gild it", icon };
   }

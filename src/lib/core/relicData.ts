@@ -10,7 +10,7 @@ export interface RelicData {
   hash: string;
   /** When the tables were last changed (ms), as the site says. */
   modified: number;
-  /** When orbiter last checked (s). */
+  /** When MyOrbiter last checked (s). */
   checkedAt: number;
   relics: { name: string; rewards: RelicReward[] }[];
   /** Where each relic drops, by "Era Code" ("Lith A13"); a relic that drops nowhere is vaulted. */

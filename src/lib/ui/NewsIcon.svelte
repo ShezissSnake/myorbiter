@@ -1,5 +1,5 @@
 <script lang="ts">
-  // A What's New change's icon: the game's, one of orbiter's line icons, a page's own sidebar icon,
+  // A What's New change's icon: the game's, one of MyOrbiter's line icons, a page's own sidebar icon,
   // or the four sections' sigils, each in its colour (app.css, data-section).
   import type { NewsItem } from "../whatsNew";
   import { pageById, type PageId } from "../pages";

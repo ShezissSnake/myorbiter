@@ -72,7 +72,7 @@ test("the version line says where the build came from", () => {
 });
 
 test("which installs check, which install, and what the others say", () => {
-  const all: Install[] = [{ how: "appImage", path: "/a/orbiter.AppImage" }, { how: "readOnly", folder: "/opt" }, { how: "windows" }, { how: "package" }, { how: "dev" }, { how: "manual" }, { how: "mac" }];
+  const all: Install[] = [{ how: "appImage", path: "/a/myorbiter.AppImage" }, { how: "readOnly", folder: "/opt" }, { how: "windows" }, { how: "package" }, { how: "dev" }, { how: "manual" }, { how: "mac" }];
   assert.deepEqual(all.filter(installChecks).map((i) => i.how), ["appImage", "readOnly", "windows"]);
   assert.deepEqual(all.filter(installInstalls).map((i) => i.how), ["appImage", "windows"]);
   assert.equal(installNote({ how: "package" }), "Updates come from your package manager.");

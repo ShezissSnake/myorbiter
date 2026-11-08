@@ -53,13 +53,13 @@
   /** Which of the four is your own relic, when only one of them drops what you got. */
   const mine = $derived(yourRelicIndex(relics, gotReward));
   /** With four relics: whether they're a 4b4 (one relic, one refinement), and which are off if not. */
-  // A relic orbiter can't name gets a placeholder ("Meso relic"): four of those aren't known to match.
+  // A relic MyOrbiter can't name gets a placeholder ("Meso relic"): four of those aren't known to match.
   const share = $derived(relics.every((r) => r.known) ? shareCheck(relics) : null);
   const best = $derived(pool.reduce<(typeof pool)[number] | null>((b, r) => (r.price != null && (b == null || r.price > (b.price ?? 0)) ? r : b), null));
   const needed = $derived(pool.filter((r) => r.needed));
   /** On Windows nothing draws over exclusive fullscreen: TennoScope's overlay can't show. */
   const fullscreenBlocks = $derived(onWindows && windowMode === "MODE_FULLSCREEN");
-  /** The reward screen is up but no cards came: why, as far as orbiter can tell. */
+  /** The reward screen is up but no cards came: why, as far as MyOrbiter can tell. */
   const noCardsWhy = $derived(
     !ms?.reward_screen_open || cards
       ? null
@@ -267,7 +267,7 @@
     {#if ranked.length}
       <div class="pool-head">
         <h2 class="register">{onScreen ? "Everything the squad's relics can drop" : "Possible rewards, best pick first"}</h2>
-        {#if !onScreen}<span class="dim small" title="Plat is scored against the most valuable drop on this list; on the reward screen it's scored against the four cards, so close calls can change. With the patched TennoScope, orbiter reads your four cards and picks for you (see the Guide).">On the reward screen, your card highest here is the likely pick.</span>{/if}
+        {#if !onScreen}<span class="dim small" title="Plat is scored against the most valuable drop on this list; on the reward screen it's scored against the four cards, so close calls can change. With the patched TennoScope, MyOrbiter reads your four cards and picks for you (see the Guide).">On the reward screen, your card highest here is the likely pick.</span>{/if}
       </div>
       {#if !onScreen}{@render weightControls()}{/if}
       <table class="pool">
@@ -297,7 +297,7 @@
     {#if showRelics}<div class="reveal" transition:reveal><div><section class="cards">{#each relics as r, i (r.path + i)}{@render relicCard(r)}{/each}</section></div></div>{/if}
   {:else if !onScreen}
     <div class="empty" class:compact={history.length > 0}>
-      <p>Start a void fissure and the squad's relics show up here as the mission loads. Warframe writes them to its log, and orbiter only reads that file.</p>
+      <p>Start a void fissure and the squad's relics show up here as the mission loads. Warframe writes them to its log, and MyOrbiter only reads that file.</p>
       <p class="dim small">The relic picker before a mission isn't logged by the game, so the vaulted tags for choosing a relic are on <strong>Relics</strong>.</p>
     </div>
   {/if}

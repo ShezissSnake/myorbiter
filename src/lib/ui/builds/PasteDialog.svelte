@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Paste a build from anywhere: Nox's Frame, a friend, Discord. orbiter reads the mod and
+  // Paste a build from anywhere: Nox's Frame, a friend, Discord. MyOrbiter reads the mod and
   // arcane names in it (and ranks, shards, Helminth, Forma, the Catalyst), shows what it matched and
   // what it couldn't, with suggestions to pick for those, and the build as it would be. Save keeps it.
   // A Nox's Frame build code (NFB1:…, its "Copy build code") is unpacked here, with no network:
@@ -23,7 +23,7 @@
   let title = $state("");
   let author = $state("");
   let tagText = $state("");
-  /** Names picked for the ones orbiter couldn't match: the unmatched text → the path picked. */
+  /** Names picked for the ones MyOrbiter couldn't match: the unmatched text → the path picked. */
   let picks = $state<{ text: string; path: string; arcane: boolean }[]>([]);
   let read = $state.raw<PasteResult | null>(null);
   /** A Nox's Frame build code, unpacked. */
@@ -133,7 +133,7 @@
     <div class="row3">
       <label class="field"><span class="register">Title</span><input bind:value={title} placeholder="Optional" title="A name for it, as you'd like to find it again" /></label>
       <label class="field"><span class="register">Author</span><input bind:value={author} placeholder="Optional" title="Who made it" /></label>
-      <label class="field"><span class="register">Link</span><input bind:value={link} class:bad={!linkOk} placeholder="https://… (optional)" title="Where it came from, to open it again later (orbiter never reads it)" /></label>
+      <label class="field"><span class="register">Link</span><input bind:value={link} class:bad={!linkOk} placeholder="https://… (optional)" title="Where it came from, to open it again later (MyOrbiter never reads it)" /></label>
     </div>
     <label class="field"><span class="register">Tags</span><input bind:value={tagText} placeholder="Optional: Steel Path, Support, Shield gating…" title="What it's for, by commas: a role (DPS, Support, Tank), where (Star chart, Steel Path, Level cap), how it survives (Overguard, Shield gating)… The Builds page can show only builds with the tags you pick" /></label>
     {#if error}<p class="err small">{error}</p>{/if}
@@ -165,7 +165,7 @@
         <ModGrid {model} build={draft} {tier} />
       </div>
     {:else if linkOnlyNow}
-      <p class="note small">That's an Overframe link: orbiter keeps the link only, to open on overframe.gg. Overframe doesn't allow its builds to be shown here.</p>
+      <p class="note small">That's an Overframe link: MyOrbiter keeps the link only, to open on overframe.gg. Overframe doesn't allow its builds to be shown here.</p>
     {:else if read && draft && tier}
       <div class="preview">
         <div class="found">
@@ -203,12 +203,12 @@
         <ModGrid {model} build={draft} {tier} />
       </div>
     {:else if !text.trim()}
-      <p class="dim small">Mod and arcane names, or a Nox's Frame build code (its Copy build code). orbiter reads it here, on your computer: it never opens the page it came from.</p>
+      <p class="dim small">Mod and arcane names, or a Nox's Frame build code (its Copy build code). MyOrbiter reads it here, on your computer: it never opens the page it came from.</p>
     {/if}
 
     <div class="row end">
       <button type="button" onclick={onclose} title="Close without saving">Cancel</button>
-      <button type="button" class="stamp gold" disabled={linkOnlyNow ? false : !draft || !found || !linkOk} title={linkOnlyNow ? "Keep the link to it on Overframe" : !draft || !found ? "Paste a build first: orbiter needs at least one mod or arcane it knows" : !linkOk ? "The link isn't a web address" : `Save it to ${item.name}'s builds`} onclick={save}>{linkOnlyNow ? "Save link" : "Save build"}</button>
+      <button type="button" class="stamp gold" disabled={linkOnlyNow ? false : !draft || !found || !linkOk} title={linkOnlyNow ? "Keep the link to it on Overframe" : !draft || !found ? "Paste a build first: MyOrbiter needs at least one mod or arcane it knows" : !linkOk ? "The link isn't a web address" : `Save it to ${item.name}'s builds`} onclick={save}>{linkOnlyNow ? "Save link" : "Save build"}</button>
     </div>
   </div>
 </div>

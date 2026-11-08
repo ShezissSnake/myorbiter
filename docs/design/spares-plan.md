@@ -1,7 +1,7 @@
 # Sell spares: what can be sold, and why the page is built this way
 
 Sell spares (`src/lib/tabs/Spares.svelte`, `src/lib/ui/SparesPlan.svelte`, `src/lib/ui/spares/`)
-lets the player say, per kind of thing, what orbiter lists and what it keeps. What each row and
+lets the player say, per kind of thing, what MyOrbiter lists and what it keeps. What each row and
 option does is in the in-app Guide; the settings, their sanitising and the migration from the old
 switches are in `src/lib/core/sparesRules.ts`; the plan is `src/lib/core/bulk.ts`. This page keeps
 what neither says: what warframe.market trades, and the reasons behind the design.

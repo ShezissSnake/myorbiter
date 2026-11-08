@@ -79,14 +79,14 @@ class Updates {
     try {
       await this.ask();
     } catch {
-      // Said under Check now (`error`), and in orbiter's log by the app.
+      // Said under Check now (`error`), and in MyOrbiter's log by the app.
     }
   }
 
   /** Asks the chosen channel; the done word for Check now. */
   private async ask(): Promise<string> {
     const u = this.get?.();
-    if (!u || !this.info || !installChecks(this.info.install)) throw new JobError("Not here", "this copy of orbiter doesn't check for updates");
+    if (!u || !this.info || !installChecks(this.info.install)) throw new JobError("Not here", "this copy of MyOrbiter doesn't check for updates");
     const channel = u.channel;
     try {
       const r = await updater.check(channel);
@@ -132,7 +132,7 @@ class Updates {
 
   /**
    * Update and restart, or Switch to an older build: downloads it (the button fills), installs it
-   * once its signature checks out, and restarts orbiter into it. On Windows the installer takes
+   * once its signature checks out, and restarts MyOrbiter into it. On Windows the installer takes
    * over and restarts it.
    */
   install() {
@@ -141,7 +141,7 @@ class Updates {
     if (!o || !u) return Promise.resolve(false);
     return this.installJob.run(async (job) => {
       job.phase = "Downloading";
-      // Saved before installing: on Windows the installer closes orbiter itself.
+      // Saved before installing: on Windows the installer closes MyOrbiter itself.
       const before = u.from;
       u.from = { version: o.version, channel: o.channel };
       u.later = "";

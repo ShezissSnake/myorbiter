@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The Windows Tesseract TennoScope ships inside orbiter's Windows installer, fetched on Linux for the
+# The Windows Tesseract TennoScope ships inside MyOrbiter's Windows installer, fetched on Linux for the
 # cross-compiled build (.gitlab-ci.yml, build job). It does what TennoScope's own
 # tennoscope/scripts/vendor-windows-tesseract.ps1 does on Windows, with the same pinned installer:
 # the version and its SHA-256 are read from that script, so there is one place to bump them.

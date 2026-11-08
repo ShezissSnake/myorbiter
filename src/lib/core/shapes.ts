@@ -1,4 +1,4 @@
-// What orbiter reads from its own backend and from warframe.market, checked before the pages use
+// What MyOrbiter reads from its own backend and from warframe.market, checked before the pages use
 // it. A file that came back empty, cut short or in an older shape should leave a page saying it
 // has nothing, not throw halfway through drawing it.
 import type { MarketItem } from "./market";
@@ -55,7 +55,7 @@ export function relicDataOf(raw: unknown): RelicData | null {
 
 /** Riven weapons and stats; throws when they aren't there, so Rivens says it couldn't read them. */
 export function rivenMetaOf(raw: unknown): RivenMeta {
-  if (!isObject(raw) || !Array.isArray(raw.weapons) || !Array.isArray(raw.attributes)) throw new Error("warframe.market's riven list came back in a shape orbiter can't read");
+  if (!isObject(raw) || !Array.isArray(raw.weapons) || !Array.isArray(raw.attributes)) throw new Error("warframe.market's riven list came back in a shape MyOrbiter can't read");
   return {
     weapons: raw.weapons
       .filter((w): w is Record<string, unknown> => isObject(w) && typeof w.slug === "string" && typeof w.name === "string")

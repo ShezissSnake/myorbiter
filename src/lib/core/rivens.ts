@@ -296,7 +296,7 @@ export function rollChoice(m: Model, tables: Map<string, RivenStatDef[]>, raw: R
     : { current, next, verdict: "keep", why: `The one it has is better: ${best(current)} leads it${curseLine(current)}.` };
 }
 
-/** A riven's roll as orbiter saw it on one read. */
+/** A riven's roll as MyOrbiter saw it on one read. */
 export interface RivenSnap {
   at: number;
   rerolls: number;
@@ -346,7 +346,7 @@ export interface RivenChange {
   at: number;
 }
 
-/** What the last cycle orbiter saw did to a riven. */
+/** What the last cycle MyOrbiter saw did to a riven. */
 export function lastCycle(m: Model, tables: Map<string, RivenStatDef[]>, raw: RivenRaw, hist: Record<string, RivenSnap[]>): RivenChange | null {
   const list = hist[raw.id];
   if (!list || list.length < 2) return null;

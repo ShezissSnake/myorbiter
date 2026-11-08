@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Notifications that arrive while you're looking at orbiter: bottom left by the sidebar, newest on top, each
+  // Notifications that arrive while you're looking at MyOrbiter: bottom left by the sidebar, newest on top, each
   // gone after a few seconds (hovering or focusing it holds it). Click one to open what it's about.
   import { fly } from "svelte/transition";
   import { calm, leave, ms, out, SETTLE } from "../motion";

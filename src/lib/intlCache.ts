@@ -1,5 +1,5 @@
 // `n.toLocaleString("en")` builds a new Intl.NumberFormat on every call. V8 keeps one for the
-// common cases, but JavaScriptCore (WebKitGTK, orbiter's webview on Linux) doesn't: a call there
+// common cases, but JavaScriptCore (WebKitGTK, MyOrbiter's webview on Linux) doesn't: a call there
 // costs about 25 µs, against half a microsecond for a formatter made once. The pages format
 // hundreds of figures this way as they draw (counts, mastery points, quantities), so it was a few
 // milliseconds of every page's opening.

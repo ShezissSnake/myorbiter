@@ -1,5 +1,5 @@
 [package]
-name = "orbiter"
+name = "myorbiter"
 version = "0.1.0"
 description = "Local-first Warframe collection helper built on TennoScope's data."
 edition = "2021"
@@ -7,13 +7,13 @@ license = "GPL-3.0-only"
 rust-version = "1.95"
 
 [features]
-# For the end-to-end test of updating only: lets ORBITER_UPDATER_E2E_ENDPOINT point update checks at
+# For the end-to-end test of updating only: lets MYORBITER_UPDATER_E2E_ENDPOINT point update checks at
 # a local http server (updates.rs, `e2e`). Never enabled in a release: the release build
 # (ci/build.sh) fails any build whose binary carries that name.
 e2e-updater = []
 
 [lib]
-name = "orbiter_lib"
+name = "myorbiter_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -25,12 +25,12 @@ tauri = { version = "2", features = [] }
 tauri-plugin-window-state = "2"
 # Opens wiki and warframe.market links in the browser.
 tauri-plugin-opener = "2"
-# One orbiter at a time: two would each keep their own settings and log the same trades twice.
+# One MyOrbiter at a time: two would each keep their own settings and log the same trades twice.
 tauri-plugin-single-instance = "2"
 # The riven key: read the inventory from in game, for the riven cycle overlay. On Linux it works
 # while an X11 window has focus, which a game under Proton/Wine is.
 tauri-plugin-global-shortcut = "2"
-orbiter-data = { path = "../crates/orbiter-data" }
+myorbiter-data = { path = "../crates/myorbiter-data" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Fissures and Varzia's stock from api.warframestat.us. Blocking client, run off the main thread.
@@ -51,13 +51,13 @@ notify-rust = "4"
 # through ureq; named here to use them directly.
 flate2 = "1"
 base64 = "0.23"
-# orbiter's own log file (applog.rs): the standard logging front end, already in the build through Tauri.
+# MyOrbiter's own log file (applog.rs): the standard logging front end, already in the build through Tauri.
 log = "0.4"
-# In-app updates from orbiter's releases on GitLab (updates.rs): checks a channel's manifest, verifies
+# In-app updates from MyOrbiter's releases on GitLab (updates.rs): checks a channel's manifest, verifies
 # the download's signature, replaces the AppImage or runs the Windows installer. 2.14.1 at least:
 # it extracts with zip 9 (earlier 2.x pull in zip 4, which has open advisories).
 tauri-plugin-updater = "2.14.1"
-# Restarts orbiter once an update is in place (the page calls its `restart`).
+# Restarts MyOrbiter once an update is in place (the page calls its `restart`).
 tauri-plugin-process = "2.4.0"
 # Comparing versions (0.1.52 against 0.1.9 by number), already in the build through Tauri.
 semver = "1"
@@ -65,11 +65,11 @@ semver = "1"
 # opened only from Rust: the page has no dialog permission.
 tauri-plugin-dialog = "2.8.4"
 [target.'cfg(unix)'.dependencies]
-# Ctrl+C / logout: close the TennoScope orbiter started before exiting.
+# Ctrl+C / logout: close the TennoScope MyOrbiter started before exiting.
 signal-hook = "0.4"
 # Stopping that TennoScope, and the user id for the private bridge folder.
 libc = "0.2"
 
 [target.'cfg(not(target_os = "linux"))'.dependencies]
-# Finding, and stopping, the TennoScope orbiter started (Linux reads /proc itself).
+# Finding, and stopping, the TennoScope MyOrbiter started (Linux reads /proc itself).
 sysinfo = { version = "0.40", default-features = false, features = ["system"] }

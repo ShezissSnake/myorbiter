@@ -3,7 +3,7 @@
 
 class BugReportStore {
   open = $state(false);
-  /** What's typed so far: kept while orbiter runs, so closing the dialog loses nothing. */
+  /** What's typed so far: kept while MyOrbiter runs, so closing the dialog loses nothing. */
   draft = $state({ what: "", steps: "", expected: "", include: true });
   show() {
     this.open = true;

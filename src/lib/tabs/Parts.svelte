@@ -234,7 +234,7 @@
 <div class="page"><div class="page-inner">
   <PageHead title="Prime parts" brief="Each prime part's best use." blurb="Every prime part you hold and its best use: keep, save for its set, sell, sell as a set, or trade to Baro.">
     {#snippet hero()}
-      <Showcase items={exhibits} caption={shelf.mode === "held" ? "Nothing to sell: your dearest parts" : "Your most valuable parts to sell"} note={shelf.mode === "held" ? "Each, at the daily median · click one for its details" : "By Worth selling · click one for its details"} empty="No prime parts yet: they turn up here from your relics once orbiter has read your inventory (press Sync)." />
+      <Showcase items={exhibits} caption={shelf.mode === "held" ? "Nothing to sell: your dearest parts" : "Your most valuable parts to sell"} note={shelf.mode === "held" ? "Each, at the daily median · click one for its details" : "By Worth selling · click one for its details"} empty="No prime parts yet: they turn up here from your relics once MyOrbiter has read your inventory (press Sync)." />
     {/snippet}
     {#snippet band()}
       <Stat label="Worth selling" note={`${plural(selling.reduce((n, x) => n + x.copies, 0), "part")} · daily median, no more of each than sells in a month`} title="Worth selling: your spare parts best sold for platinum (Best as Sell), at the daily median, no more of each than the market sells in a month. Parts that go out inside a whole set are left out (sell the set, on Sets), as are the ones better traded to Baro for ducats or not worth a trade. Counted the same way on Mods, Arcanes and Home"><PTick v={asPlat} /></Stat>
@@ -255,7 +255,7 @@
         options={[
           { v: "all", label: "All", title: "Every prime part you hold" },
           { v: "mastered", label: "Mastered", title: "Parts of things you've already mastered: safe to sell or trade for ducats" },
-          { v: "unmastered", label: "Not mastered", title: "Parts of things you haven't mastered: orbiter keeps what building them takes" },
+          { v: "unmastered", label: "Not mastered", title: "Parts of things you haven't mastered: MyOrbiter keeps what building them takes" },
         ]}
       />
       <Seg label="Relics" bind:value={avail} options={[{ v: "all", label: "All", title: "Farmable and vaulted alike" }, { v: "vaulted", label: "Vaulted", title: "Only vaulted relics drop it: no new copies, so prices tend to rise" }, { v: "farmable", label: "Farmable", title: "A relic that drops it can still be farmed: its price may drop" }]} />

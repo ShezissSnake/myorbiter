@@ -130,9 +130,9 @@
     <h2 class="register">On {NOX_SITE}</h2>
     <span class="sub">Top-voted builds for {item.name}</span>
     <span class="grow"></span>
-    {#if list?.st === "done" && list.fetchedAt && !listCopy}<span class="when" title="Read {dayOf(list.fetchedAt)}; orbiter reads the list again after a week">Read {ago(list.fetchedAt, Date.now())}</span>{/if}
+    {#if list?.st === "done" && list.fetchedAt && !listCopy}<span class="when" title="Read {dayOf(list.fetchedAt)}; MyOrbiter reads the list again after a week">Read {ago(list.fetchedAt, Date.now())}</span>{/if}
     {#if list?.st === "done"}
-      <ProgressButton variant="link" label="Refresh" working="Reading…" state={refreshing ? "working" : "idle"} title="Read {item.name}'s list on {NOX_SITE} again now (orbiter waits 3 s between reads)" onclick={() => read(true)} />
+      <ProgressButton variant="link" label="Refresh" working="Reading…" state={refreshing ? "working" : "idle"} title="Read {item.name}'s list on {NOX_SITE} again now (MyOrbiter waits 3 s between reads)" onclick={() => read(true)} />
     {/if}
   </header>
   <p class="credit">

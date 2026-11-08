@@ -173,7 +173,7 @@ export function parsePaste(text: string, item: CatalogItem, catalog: ReadonlyMap
         if (kind !== "warframe") notes.push(`Helminth (${ability}) is only for warframes: left out.`);
         else {
           helminth = { ability, replaces: replaces.name };
-          if (!replaces.known && item.abilities?.length) notes.push(`${replaces.name} isn't one of ${item.name}'s abilities as orbiter knows them: check the Helminth line.`);
+          if (!replaces.known && item.abilities?.length) notes.push(`${replaces.name} isn't one of ${item.name}'s abilities as MyOrbiter knows them: check the Helminth line.`);
         }
         line = blank(line, h.index, h.index + h[0].length);
       } else if (label === "helminth" || label === "subsume" || label === "subsumed") {
@@ -192,7 +192,7 @@ export function parsePaste(text: string, item: CatalogItem, catalog: ReadonlyMap
         chunk = chunk.replace(/\(\s*exilus\s*\)|\bexilus\b/gi, (s) => " ".repeat(s.length));
       }
       if (/\briven\b/i.test(chunk)) {
-        if (!notes.includes("A riven was listed: orbiter doesn't check rivens.")) notes.push("A riven was listed: orbiter doesn't check rivens.");
+        if (!notes.includes("A riven was listed: MyOrbiter doesn't check rivens.")) notes.push("A riven was listed: MyOrbiter doesn't check rivens.");
         continue;
       }
       // Ranks, by where they sit, then blanked so they aren't read as names.

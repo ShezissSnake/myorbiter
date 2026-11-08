@@ -1,4 +1,4 @@
-// A bug report, made in the app and sent by the player. orbiter never posts it itself: there's no
+// A bug report, made in the app and sent by the player. MyOrbiter never posts it itself: there's no
 // token and no network write. The player either opens it on GitLab, as a new issue with its title
 // and description filled in (the description has the sections of the issue template,
 // .gitlab/issue_templates/Bug report.md), and presses Create issue there, or copies it as Markdown
@@ -53,7 +53,7 @@ export interface ReportDetails {
   tennoscope: string;
   /** "on", "off" or "unknown". */
   fullMode: string;
-  /** orbiter's log, last lines (already redacted once by applog.rs). */
+  /** MyOrbiter's log, last lines (already redacted once by applog.rs). */
   log: string[];
 }
 
@@ -113,7 +113,7 @@ export function buildReport(input: ReportInput, details: ReportDetails | null, n
  */
 export function detailsText(d: ReportDetails, dropped = 0): string {
   const lines = [
-    `orbiter ${d.version} (${d.commit}${d.buildDate ? `, ${d.buildDate}` : ""})`,
+    `MyOrbiter ${d.version} (${d.commit}${d.buildDate ? `, ${d.buildDate}` : ""})`,
     `Channel: ${d.channel ?? "not known in this build"}`,
     `System: ${[d.os, d.arch].filter(Boolean).join(" ")}`,
     `Page: ${d.page}`,
@@ -122,7 +122,7 @@ export function detailsText(d: ReportDetails, dropped = 0): string {
     "",
   ];
   const kept = d.log.slice(dropped);
-  if (!d.log.length) lines.push("Log: no lines (orbiter's log is only kept by the desktop app).");
+  if (!d.log.length) lines.push("Log: no lines (MyOrbiter's log is only kept by the desktop app).");
   else {
     lines.push(`Log, last ${kept.length} line${kept.length === 1 ? "" : "s"} (sign-ins, addresses, ids and players' names hidden):`);
     if (dropped) lines.push(`(${dropped} earlier line${dropped === 1 ? "" : "s"} left out to keep the link short; Copy report has them all)`);
@@ -150,7 +150,7 @@ function sections(what: string, steps: string, expected: string, details: string
     const fence = "`".repeat(Math.max(3, longestTicks(details) + 1));
     out.push("", `### ${SECTIONS.details}`, "", `${fence}text`, details, fence);
   }
-  out.push("", "_Made with orbiter's Report a bug._");
+  out.push("", "_Made with MyOrbiter's Report a bug._");
   return out;
 }
 

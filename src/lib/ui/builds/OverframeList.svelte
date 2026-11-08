@@ -1,9 +1,9 @@
 <script lang="ts">
-  // Overframe's popular builds for the item, from the list bundled with orbiter (overframeList.ts):
+  // Overframe's popular builds for the item, from the list bundled with MyOrbiter (overframeList.ts):
   // at most 5, the most voted updated in the last two years. Each row is what
   // Overframe's own list shows (title, author, votes, Forma, update, age) and opens the build on
   // overframe.gg in the browser, so its author gets the visit. No contents, no slot grid, no
-  // missing check: Overframe allows showing its lists, not its builds. orbiter never contacts it.
+  // missing check: Overframe allows showing its lists, not its builds. MyOrbiter never contacts it.
   import type { CatalogItem } from "../../core/types";
   import { loadOverframe, overframeBuildUrl, overframeFor, updatedAt, OVERFRAME_ORIGIN, OVERFRAME_SITE, type OverframeFile } from "../../core/builds";
   import { ago, dayOf, overframeUrl } from "../../core/buildsPage";
@@ -32,18 +32,18 @@
     <h2 class="register">Popular on {OVERFRAME_SITE}</h2>
     <span class="sub">Most voted builds for {item.name}, updated in the last two years</span>
     <span class="grow"></span>
-    {#if Number.isFinite(collected)}<span class="when" title="orbiter's copy of {OVERFRAME_SITE}'s build lists, read on {dayOf(collected)}. orbiter never contacts {OVERFRAME_SITE}: a newer copy comes with an update">Collected {dayOf(collected)}</span>{/if}
+    {#if Number.isFinite(collected)}<span class="when" title="MyOrbiter's copy of {OVERFRAME_SITE}'s build lists, read on {dayOf(collected)}. MyOrbiter never contacts {OVERFRAME_SITE}: a newer copy comes with an update">Collected {dayOf(collected)}</span>{/if}
   </header>
   <p class="credit">
     Builds by their authors on <button type="button" class="link out" title="Open overframe.gg in your browser" onclick={() => openUrl(OVERFRAME_ORIGIN)}>{OVERFRAME_SITE}<Icon name="external" size={10} /></button>. Each opens there, in your browser.
   </p>
 
   {#if file === undefined}
-    <p class="state" role="status">Looking up {item.name} in orbiter's copy of {OVERFRAME_SITE}'s lists…</p>
+    <p class="state" role="status">Looking up {item.name} in MyOrbiter's copy of {OVERFRAME_SITE}'s lists…</p>
   {:else if file === null}
-    <p class="state">orbiter's copy of {OVERFRAME_SITE}'s lists is missing from this install. <button type="button" class="link out" title="Search {OVERFRAME_SITE} for {item.name}'s builds, in your browser" onclick={() => openUrl(overframeUrl(item.name))}>Search {OVERFRAME_SITE}<Icon name="external" size={10} /></button></p>
+    <p class="state">MyOrbiter's copy of {OVERFRAME_SITE}'s lists is missing from this install. <button type="button" class="link out" title="Search {OVERFRAME_SITE} for {item.name}'s builds, in your browser" onclick={() => openUrl(overframeUrl(item.name))}>Search {OVERFRAME_SITE}<Icon name="external" size={10} /></button></p>
   {:else if !found.builds.length}
-    <p class="state">No popular {OVERFRAME_SITE} builds for this item in orbiter's list. <button type="button" class="link out" title="Search {OVERFRAME_SITE} for {item.name}'s builds, in your browser" onclick={() => openUrl(overframeUrl(item.name))}>Search {OVERFRAME_SITE}<Icon name="external" size={10} /></button></p>
+    <p class="state">No popular {OVERFRAME_SITE} builds for this item in MyOrbiter's list. <button type="button" class="link out" title="Search {OVERFRAME_SITE} for {item.name}'s builds, in your browser" onclick={() => openUrl(overframeUrl(item.name))}>Search {OVERFRAME_SITE}<Icon name="external" size={10} /></button></p>
   {:else}
     <ol class="rows" in:arrive={{ y: 0 }}>
       {#each found.builds as b (b.id)}

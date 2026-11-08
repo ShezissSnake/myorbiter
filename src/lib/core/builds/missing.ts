@@ -68,7 +68,7 @@ export const ENDO_BASE: Record<string, number> = { Common: 10, Uncommon: 20, Rar
 
 /**
  * Endo to take a mod from one rank to another: base × (2^to − 2^from), base 10 Common, 20
- * Uncommon, 30 Rare, 40 Legendary (a Common mod to rank 10 is 10,230). Null for a rarity orbiter
+ * Uncommon, 30 Rare, 40 Legendary (a Common mod to rank 10 is 10,230). Null for a rarity MyOrbiter
  * doesn't know.
  */
 export function endoCost(rarity: string | null | undefined, from: number, to: number): number | null {
@@ -80,7 +80,7 @@ export function endoCost(rarity: string | null | undefined, from: number, to: nu
 
 // ---------------------------------------------------------------- the report
 
-/** ok: in hand (or on your copy); short: some, or buildable; missing: none; unknown: orbiter can't see it. */
+/** ok: in hand (or on your copy); short: some, or buildable; missing: none; unknown: MyOrbiter can't see it. */
 export type Have = "ok" | "short" | "missing" | "unknown";
 
 export type MissingKind = "item" | "part" | "mod" | "arcane" | "shard" | "catalyst" | "exilus" | "arcaneAdapter" | "forma" | "umbraForma" | "helminth";
@@ -93,7 +93,7 @@ export interface MissingLine {
   have: Have;
   /** One sentence: what you hold against what's wanted, and what's left to do. */
   text: string;
-  /** How to get it, when it's missing and orbiter knows ("Drops from …", a vendor). */
+  /** How to get it, when it's missing and MyOrbiter knows ("Drops from …", a vendor). */
   how?: string | null;
   /** warframe.market's daily price for one (unranked), when known. */
   price?: number | null;
@@ -106,7 +106,7 @@ export interface MissingLine {
   held?: number;
   blueprints?: number;
   building?: number;
-  /** On your best copy: installed or not, Forma on it; null when orbiter can't see. */
+  /** On your best copy: installed or not, Forma on it; null when MyOrbiter can't see. */
   onCopy?: boolean | number | null;
 }
 
@@ -144,10 +144,10 @@ function consumable(m: Model, kind: MissingKind, name: string, path: string, blu
   const building = blueprint ? m.inFoundry(blueprint) : 0;
   const base = { kind, name, path, held, blueprints, building, onCopy };
   if (onCopy === true) return { ...base, have: "ok", text: `Already on your copy.` };
-  if (held > 0) return { ...base, have: "ok", text: `${plural(held, "in stock", "in stock")}${onCopy === null ? " (orbiter can't see whether your copy has one already)" : ""}.` };
+  if (held > 0) return { ...base, have: "ok", text: `${plural(held, "in stock", "in stock")}${onCopy === null ? " (MyOrbiter can't see whether your copy has one already)" : ""}.` };
   if (building > 0) return { ...base, have: "short", text: `One is building in the Foundry.` };
   if (blueprints > 0) return { ...base, have: "short", text: `None built: you hold ${plural(blueprints, "blueprint")}, build one in the Foundry.` };
-  if (onCopy === null) return { ...base, have: "unknown", text: `None in stock, and orbiter can't see whether your copy has one already.`, how };
+  if (onCopy === null) return { ...base, have: "unknown", text: `None in stock, and MyOrbiter can't see whether your copy has one already.`, how };
   return { ...base, have: "missing", text: `None in stock.`, how };
 }
 
@@ -164,7 +164,7 @@ export function missing(build: Build, m: Model, opts: { tier?: TierResult } = {}
   const gearKnown = m.gear != null;
 
   // The item.
-  if (!item) lines.push({ kind: "item", name: m.nameOf(build.item), path: build.item, have: "unknown", text: "orbiter doesn't know this item." });
+  if (!item) lines.push({ kind: "item", name: m.nameOf(build.item), path: build.item, have: "unknown", text: "MyOrbiter doesn't know this item." });
   else if (m.owned(item.uniqueName) > 0) lines.push({ kind: "item", name: item.name, path: item.uniqueName, have: "ok", text: "You have it." });
   else lines.push({ kind: "item", name: item.name, path: item.uniqueName, have: "missing", text: "You don't have it yet.", how: masteryRow(m, item).acq.how });
 
@@ -182,7 +182,7 @@ export function missing(build: Build, m: Model, opts: { tier?: TierResult } = {}
   for (const x of mods) {
     const c = m.catalogByUnique.get(x.path);
     if (!c) {
-      lines.push({ kind: "mod", name: m.nameOf(x.path), path: x.path, have: "unknown", text: "orbiter doesn't know this mod." });
+      lines.push({ kind: "mod", name: m.nameOf(x.path), path: x.path, have: "unknown", text: "MyOrbiter doesn't know this mod." });
       continue;
     }
     const max = c.maxRank ?? 0;
@@ -269,7 +269,7 @@ export function missing(build: Build, m: Model, opts: { tier?: TierResult } = {}
       const building = m.inFoundry(blueprint);
       const name = kind2 === "forma" ? "Forma" : "Umbra Forma";
       const base = { kind: kind2, name, path, need, held, blueprints, building, onCopy };
-      const copyText = typeof onCopy === "number" && onCopy > 0 ? ` Your copy has ${onCopy} already (counted as where this build wants them).` : onCopy === null && kind2 === "forma" ? " orbiter can't see the Forma already on your copy." : "";
+      const copyText = typeof onCopy === "number" && onCopy > 0 ? ` Your copy has ${onCopy} already (counted as where this build wants them).` : onCopy === null && kind2 === "forma" ? " MyOrbiter can't see the Forma already on your copy." : "";
       if (still === 0) return lines.push({ ...base, have: "ok", text: `${plural(need, "Forma", "Forma")} wanted.${copyText}` });
       const parts = [`${still} still to put in`, `${held} in stock`, blueprints ? `${plural(blueprints, "blueprint")}` : "", building ? `${building} building` : ""].filter(Boolean).join(", ");
       const have: Have = held >= still ? "ok" : held + building + blueprints > 0 ? "short" : "missing";
@@ -280,8 +280,8 @@ export function missing(build: Build, m: Model, opts: { tier?: TierResult } = {}
   }
 
   // The Helminth: not read yet.
-  if (build.helminth) lines.push({ kind: "helminth", name: build.helminth.ability, have: "unknown", text: `orbiter can't check the Helminth yet: ${build.helminth.ability} replaces ${build.helminth.replaces}.` });
+  if (build.helminth) lines.push({ kind: "helminth", name: build.helminth.ability, have: "unknown", text: `MyOrbiter can't check the Helminth yet: ${build.helminth.ability} replaces ${build.helminth.replaces}.` });
 
-  const fallback: TierResult = { tier: "low", capacityTier: "low", limits: [], fits: true, rank: 30, capacity: 30, drain: 0, catalyst: false, forma: 0, umbraForma: 0, formaPlan: [], exilusAdapter: false, arcaneAdapter: false, slots: [], reasons: ["orbiter doesn't know this item."], unknown: [] };
+  const fallback: TierResult = { tier: "low", capacityTier: "low", limits: [], fits: true, rank: 30, capacity: 30, drain: 0, catalyst: false, forma: 0, umbraForma: 0, formaPlan: [], exilusAdapter: false, arcaneAdapter: false, slots: [], reasons: ["MyOrbiter doesn't know this item."], unknown: [] };
   return { tier: tier ?? fallback, lines, todo: lines.filter((l) => l.have === "short" || l.have === "missing").length, endo, copy };
 }

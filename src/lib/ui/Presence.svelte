@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Your status on warframe.market, which decides whether buyers see your listings. orbiter holds
+  // Your status on warframe.market, which decides whether buyers see your listings. MyOrbiter holds
   // it on its own connection (see presence.rs); while it does, a patched TennoScope keeps out of it.
   import { mkt } from "../marketStore.svelte";
   import type { MarketSettings, Presence } from "../backend";
@@ -68,7 +68,7 @@
 {:else if mkt.statusError || s?.error}
   <p class="note warn">{mkt.statusError ?? s?.error}</p>
 {:else if !s?.wanted && !quiet}
-  <p class="note" title="Pick a status and orbiter holds it while it's open; closing orbiter takes you offline">Buyers can't see your listings while you're offline.</p>
+  <p class="note" title="Pick a status and MyOrbiter holds it while it's open; closing MyOrbiter takes you offline">Buyers can't see your listings while you're offline.</p>
 {:else if waiting}
   <p class="note">Online until TennoScope sees Warframe running, then Online in game: buyers who look for that expect an answer in game.</p>
 {:else if s?.committed === "invisible"}

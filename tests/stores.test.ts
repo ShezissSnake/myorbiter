@@ -448,7 +448,7 @@ test("Apply automatically: an undercutter walks a listing down to 70% of the pri
   assert.equal(s.approved["it||"], 100, "a timed pass approves nothing");
 });
 
-test("Apply automatically: a listing orbiter hasn't seen priced starts from its current price", async () => {
+test("Apply automatically: a listing MyOrbiter hasn't seen priced starts from its current price", async () => {
   const { path, s } = await walk(40, 3);
   assert.equal(s.approved["it||"], 40);
   assert.deepEqual(path, [40, 28, 28, 28]);

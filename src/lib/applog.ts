@@ -1,4 +1,4 @@
-// The window's side of orbiter's log (applog.rs): errors nobody would otherwise see (a page that
+// The window's side of MyOrbiter's log (applog.rs): errors nobody would otherwise see (a page that
 // failed, a promise that went wrong), and what console.error and console.warn report, go to the
 // log file too. Installed once, at start.
 import { logLine } from "./backend";

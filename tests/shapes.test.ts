@@ -1,4 +1,4 @@
-// What orbiter reads is checked before pages use it: a file in the wrong shape means nothing to
+// What MyOrbiter reads is checked before pages use it: a file in the wrong shape means nothing to
 // show, not a page that throws.
 import { test } from "node:test";
 import assert from "node:assert/strict";

@@ -165,7 +165,7 @@ export function matchName(text: string, idx: NameIndex, item: CatalogItem, kind:
   const pick = fitting[0];
   const best = penalty(pick.c, flawed);
   const notes: string[] = [];
-  if (pick.fit.fits === "maybe") notes.push(pick.c.type === "Stance Mod" ? "a stance: check it's for this weapon's class" : "orbiter can't tell whether it fits this one");
+  if (pick.fit.fits === "maybe") notes.push(pick.c.type === "Stance Mod" ? "a stance: check it's for this weapon's class" : "MyOrbiter can't tell whether it fits this one");
   if (/\/PvPMods\//.test(pick.c.uniqueName)) notes.push("a Conclave mod");
   return {
     ok: true,

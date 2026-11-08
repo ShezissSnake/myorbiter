@@ -1,7 +1,7 @@
 import type { Invasion } from "./invasions";
 import type { SyndicateMission } from "./board";
 import type { WorldAlert } from "./worldNeeds";
-// Shapes of the bundle the Rust side hands over (see crates/orbiter-data).
+// Shapes of the bundle the Rust side hands over (see crates/myorbiter-data).
 
 export interface InventoryRow {
   item_id: string;
@@ -132,7 +132,7 @@ export interface Bundle {
 }
 
 /**
- * The desktop app sends the Bundle in two parts (see crates/orbiter-data `Collection`, `Catalogs`):
+ * The desktop app sends the Bundle in two parts (see crates/myorbiter-data `Collection`, `Catalogs`):
  * this one on every reload, the catalogs only when `catalog_rev` changes.
  */
 export interface CollectionPart {
@@ -300,7 +300,7 @@ export interface DuviriCycle {
   choices: { category: string; choices: string[] }[];
 }
 
-/** What Warframe's EE.log says about the current fissure (see crates/orbiter-data/src/ee_log.rs). */
+/** What Warframe's EE.log says about the current fissure (see crates/myorbiter-data/src/ee_log.rs). */
 export interface MissionState {
   path: string | null;
   session: string | null;

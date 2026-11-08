@@ -499,22 +499,22 @@ const OTHER_TAGS = ["relic", "gem", "fish", "scene", "simulacrum", "ayatan_sculp
 /** Which category a listing of yours belongs to, if any of the four. */
 export function kindOfItem(m: Model, it: MarketItem): BulkKind | null {
   const tags = it.tags ?? [];
-  // Imprints share the companion's path; orbiter counts them apart from your companions.
+  // Imprints share the companion's path; MyOrbiter counts them apart from your companions.
   if (tags.includes("imprint")) return m.imprints ? "imprint" : null;
-  // Only sets orbiter knows the parts of: the rest it can't count, so it doesn't manage them.
+  // Only sets MyOrbiter knows the parts of: the rest it can't count, so it doesn't manage them.
   if (tags.includes("set")) return it.gameRef && (m.partsByParent.has(it.gameRef) || gearSetParts(m, it.gameRef)) ? "set" : null;
   if (tags.includes("arcane_enhancement")) return "arcane";
   if (/ \(Veiled\)$/.test(it.name)) return "other";
   if (tags.includes("mod")) return "mod";
   if (m.partByName.has(it.name)) return "part";
-  // Everything else orbiter counts: never built gear, which can't be traded once built.
+  // Everything else MyOrbiter counts: never built gear, which can't be traded once built.
   if (OTHER_TAGS.some((t) => tags.includes(t)) && !tags.includes("warframe") && !tags.includes("set")) return "other";
   return null;
 }
 
 /**
  * Which row of Sell spares a listing's item belongs to, by its kind and tags: prime sets and parts,
- * weapon sets and parts (anything else built from parts), relics, resources. Null when orbiter
+ * weapon sets and parts (anything else built from parts), relics, resources. Null when MyOrbiter
  * doesn't count it.
  */
 export function catOfItem(m: Model, it: MarketItem, kind: BulkKind | null = kindOfItem(m, it)): SpareCategory | null {
@@ -543,7 +543,7 @@ export function managedBy(r: SparesRules, m: Model, it: MarketItem): boolean {
 
 /**
  * Where a line of the plan belongs and the rule that decided it, for the review list: its row on
- * Sell spares (null for a listing orbiter doesn't count), the family inside it, a rule id
+ * Sell spares (null for a listing MyOrbiter doesn't count), the family inside it, a rule id
  * ("mods.keep", "plan.min") and the rule in a few words ("Keep 2", "Under 10p").
  */
 export interface Ruled {
@@ -704,7 +704,7 @@ export function bulkPlan(c: BulkContext, rules: PlanRules, targets: SellTarget[]
   const orderKey = (o: MyOrder, it: MarketItem) => keyOf(it, o.rank, o.subtype);
   const spareCtx: SpareContext = { ...c, rules: r };
   /**
-   * A listing of yours that a rule (your minimum, the copies orbiter keeps) wouldn't have made:
+   * A listing of yours that a rule (your minimum, the copies MyOrbiter keeps) wouldn't have made:
    * it stays up as you listed it, only lowered to what you hold, and the plan says why.
    */
   const leaveListed = (kind: BulkKind, it: MarketItem, o: MyOrder, why: string, tag: Ruled) => {
@@ -723,7 +723,7 @@ export function bulkPlan(c: BulkContext, rules: PlanRules, targets: SellTarget[]
       actions.push({ type: "skip", kind: target.kind, name: target.name, rank: target.rank, quantity: target.quantity, why: "Not on warframe.market", ...where, ...PLAN_RULE.market });
       continue;
     }
-    // Ranked on warframe.market: a rank always (unranked is 0), even when orbiter's catalog
+    // Ranked on warframe.market: a rank always (unranked is 0), even when MyOrbiter's catalog
     // doesn't know the item has ranks (Quick Thinking), so in-game rank-0 sellers count.
     const t = { ...target, rank: it.maxRank != null ? (target.rank ?? 0) : null };
     const subtype = t.subtype ?? it.subtypes?.[0] ?? null;
@@ -811,7 +811,7 @@ export function bulkPlan(c: BulkContext, rules: PlanRules, targets: SellTarget[]
     const kind = kindOfItem(c.model, it)!;
     const where: Ruled = { cat: catOfItem(c.model, it, kind) };
     const held = heldFor(c.model, it, o);
-    // null: orbiter can't count it (a set it doesn't know the parts of, a renamed mod): leave it.
+    // null: MyOrbiter can't count it (a set it doesn't know the parts of, a renamed mod): leave it.
     if (held == null) continue;
     if (held <= 0) {
       actions.push({ type: "remove", kind, item: it, order: o, why: "You don't hold any now", ...where, ...PLAN_RULE.held });
@@ -830,7 +830,7 @@ export function bulkPlan(c: BulkContext, rules: PlanRules, targets: SellTarget[]
     }
     const rule = provenSpare(spareCtx, kind, it, o.rank, o.subtype);
     // Copies a hard rule holds back (Requiem mods while lich weapons are left, copies installed in a
-    // build): a listing for them comes down to what can go, whoever made it. An earlier orbiter
+    // build): a listing for them comes down to what can go, whoever made it. An earlier MyOrbiter
     // listed Requiem mods two to a name.
     if (rule?.cap != null && rule.cap < o.quantity) {
       if (rule.cap <= 0) actions.push({ type: "remove", kind, item: it, order: o, why: upper(rule.short), ...where, ...PLAN_RULE.hard });
@@ -891,7 +891,7 @@ export interface ProvenSpare {
 
 /**
  * What the keep rules leave you to sell of an item at a rank and variant, or null when no rule
- * applies (orbiter can't count it): a set and the parts to build anything unbuilt, two copies of
+ * applies (MyOrbiter can't count it): a set and the parts to build anything unbuilt, two copies of
  * each mod (five of a Requiem or Antivirus mod while lich weapons are left, every one while that
  * isn't known), copies installed in a build never, the copies of your one maxed arcane.
  */

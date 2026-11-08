@@ -8,19 +8,19 @@ Please report it privately, as a confidential issue on GitLab:
 a confidential issue. Don't open a public issue, and don't put details in the app's Report a bug,
 which makes a public issue.
 
-orbiter is a hobby project with one maintainer: expect an answer within a week, and a fix when one
+MyOrbiter is a hobby project with one maintainer: expect an answer within a week, and a fix when one
 is possible. There is no bounty.
 
 ## In scope
 
-- **orbiter itself:** the desktop app (`src/`, `src-tauri/`, `crates/`) and the TennoScope build it
+- **MyOrbiter itself:** the desktop app (`src/`, `src-tauri/`, `crates/`) and the TennoScope build it
   carries (`tennoscope/`).
 - **Leaking what's private:** the warframe.market sign-in (kept in the system keyring), Discord
   webhook addresses, or other players' names getting into a log, a bug report, a crash, a file
   others can read, or the network.
 - **Reaching further than it should:** a link that opens anything other than https to the sites in
   `src/lib/core/links.ts`; a page that runs script or HTML from outside data (Overframe's or Nox's
-  Frame's build names, warframe.market, the wiki data, the game's log); a request to a host orbiter
+  Frame's build names, warframe.market, the wiki data, the game's log); a request to a host MyOrbiter
   doesn't name; writing to warframe.market without the player's action or setting.
 - **The release and update path:** the CI pipeline (`.gitlab-ci.yml`, `ci/`), what ends up in a
   download, and the update signature check (below).

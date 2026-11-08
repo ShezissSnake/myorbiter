@@ -26,7 +26,7 @@ test("a sale of the same item at another rank, or a day apart, isn't the same sa
 });
 
 test("a closed order is matched to the logged sale of the same quantity, nearest in time; the others are added", () => {
-  // orbiter logged a sale of 1 after a trade; 2 more were marked sold on the website an hour before.
+  // MyOrbiter logged a sale of 1 after a trade; 2 more were marked sold on the website an hour before.
   const sales: Sale[] = [{ at: T + H, item: "Serration", rank: 0, quantity: 1, platinum: 20, trade: "k1" }];
   const r = importClosed(sales, [closed("w2", "Serration", T, { rank: 0, quantity: 2, platinum: 19 }), closed("o1", "Serration", T + H, { rank: 0, platinum: 20 })]);
   assert.deepEqual([r.added, r.matched], [1, 1]);

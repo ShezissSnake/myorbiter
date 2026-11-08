@@ -53,7 +53,7 @@ const hex = (tag, n = 24) => createHash("sha256").update(`orbiter-demo-id:${tag}
 const slugOf = (name) => name.toLowerCase().replace(/&/g, "and").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
 const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, ".000Z");
 
-// ------------------------------------------------------------------ the catalog (as crates/orbiter-data slims it)
+// ------------------------------------------------------------------ the catalog (as crates/myorbiter-data slims it)
 
 const components = new Map(read("Components").map((c) => [c.uniqueName, c]));
 // A part that's a resource (Orokin Cell) or a whole item (Akbronco Prime takes Bronco Primes) is
@@ -512,7 +512,7 @@ const tennoscope = {
   bundled: true,
   supported: true,
   running: true,
-  started_by_orbiter: true,
+  started_by_myorbiter: true,
   report: {
     at: DEMO_NOW,
     pid: 4242,

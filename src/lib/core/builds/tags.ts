@@ -6,13 +6,13 @@
 //   TAG_FAMILY       lower-cased tag → family, for grouping chips: TAG_FAMILY["steel path"] === "Content".
 //   TAG_FAMILIES     the families in display order, "Other" last.
 //   familyOfTag(t)   a tag's family ("Other" when unknown); byFamily(tags) groups a list.
-//   canonicalTag(t)  a typed or pasted spelling as orbiter writes it ("sp" → "Steel Path"), or the
+//   canonicalTag(t)  a typed or pasted spelling as MyOrbiter writes it ("sp" → "Steel Path"), or the
 //                    trimmed text when it isn't a known one.
 //   tagsInText(text, title?) the known tags a pasted build names (parse.ts uses it).
 //
 // Vocabulary: noxsframe.com's build modes, verbatim where they overlap (read by hand on its
 // /builds page, 3 Nov: "All-round", "Star Chart", "Steel Path", "Endurance", "Archon Hunt",
-// "Farming"), then orbiter's own list (3 Nov) for roles, survivability and content Nox doesn't name.
+// "Farming"), then MyOrbiter's own list (3 Nov) for roles, survivability and content Nox doesn't name.
 // Pure: no I/O, no Svelte.
 
 export type TagFamily = "Survivability" | "Role" | "Content" | "Style" | "Weapon" | "Other";
@@ -87,7 +87,7 @@ const ALIASES: Record<string, string> = {
   critical: "Crit",
 };
 
-/** A tag as orbiter writes it: a known one in its own spelling, anything else trimmed. */
+/** A tag as MyOrbiter writes it: a known one in its own spelling, anything else trimmed. */
 export function canonicalTag(tag: string): string {
   const t = tag.trim().replace(/\s+/g, " ");
   const k = t.toLowerCase();

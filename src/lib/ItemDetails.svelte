@@ -181,7 +181,7 @@
           {#if neverItem}<NeverSoldTag name={neverItem.name} onsellagain={() => (settings.market.spares.neverSell = withoutNeverSell(settings.market.spares, [neverItem!.id]).neverSell)} />
           {:else if tradeName && setsHeld > 0 && bookState !== "missing"}<ListButton {model} labelled name={tradeName} req={{ quantity: setsHeld }} />{/if}
           <button class="star" class:on={fav} title={fav ? "On your wishlist: click to take it off" : "Add it to your wishlist (Wishlist, and ★ on Foundry)"} onclick={toggleFav}><span class="glyph" aria-hidden="true" use:pop={{ on: fav, of: item.uniqueName }}>{fav ? "★" : "☆"}</span> {fav ? "On your wishlist" : "Add to wishlist"}</button>
-          {#if buildable}<button title="Builds for {item.name}: yours, orbiter's suggestion, and what you're missing for each" onclick={openBuilds}>Builds</button>{/if}
+          {#if buildable}<button title="Builds for {item.name}: yours, MyOrbiter's suggestion, and what you're missing for each" onclick={openBuilds}>Builds</button>{/if}
           <button title="Its page on the official wiki" onclick={() => openUrl(item.wikiaUrl ?? wikiUrl(item.name))}>Wiki</button>
           {#if tradeName && bookState !== "missing"}<button title="Its page on warframe.market: orders and price history" onclick={() => openUrl(marketUrl(tradeName ?? item.name))}>warframe.market</button>{/if}
         </div>

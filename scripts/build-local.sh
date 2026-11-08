@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Builds orbiter's Linux AppImage on this PC, the way the release pipeline's build job does
+# Builds MyOrbiter's Linux AppImage on this PC, the way the release pipeline's build job does
 # (ci/build.sh, run by .gitlab-ci.yml): Tesseract put inside TennoScope, TennoScope's own AppImage
-# build, orbiter's AppImage with TennoScope inside it, and the same repack step
+# build, MyOrbiter's AppImage with TennoScope inside it, and the same repack step
 # (scripts/repack-appimage.sh). For trying a build out locally without a pipeline. To build
 # exactly as the pipeline does, run ci/build.sh in the builder image instead (ci/Dockerfile).
 #
@@ -11,7 +11,7 @@
 #                      build is 0.2.<run number>; an installed 0.1.0 is offered the channel's
 #                      update like any older build.
 #   --skip-tennoscope  reuse the TennoScope AppImage of the last run (vendor/tennoscope/), for when
-#                      only orbiter changed.
+#                      only MyOrbiter changed.
 #   --check            only check that the tools it needs are installed, and stop.
 #
 # Made for Arch Linux and CachyOS; other distributions work with their own package names. Once:
@@ -99,7 +99,7 @@ else
   step "Building TennoScope's AppImage"
   (cd tennoscope && ./scripts/build-linux-bundles.sh --skip-gates appimage)
 
-  step "Putting TennoScope beside orbiter's sources"
+  step "Putting TennoScope beside MyOrbiter's sources"
   rm -rf vendor/tennoscope
   mkdir -p vendor/tennoscope
   built=(tennoscope/target/release/bundle/appimage/*.AppImage)
@@ -109,15 +109,15 @@ else
   scripts/tennoscope-notice.sh vendor/tennoscope
 fi
 
-# ------------------------------------------------------------------ orbiter
+# ------------------------------------------------------------------ MyOrbiter
 
-step "orbiter's packages"
+step "MyOrbiter's packages"
 npm ci
 
 # An earlier build's AppImage would make the repack find two.
 rm -f "$target"/release/bundle/appimage/*.AppImage
 
-step "Building orbiter's AppImage${version:+ ($version)}"
+step "Building MyOrbiter's AppImage${version:+ ($version)}"
 config=(--config src-tauri/tauri.bundle.json)
 [ -n "$version" ] && config+=(--config "{\"version\":\"$version\"}")
 # linuxdeploy's own strip doesn't know the newer sections Arch's toolchain writes (TennoScope's
@@ -128,7 +128,7 @@ step "Repacking with TennoScope as it was built"
 scripts/repack-appimage.sh
 
 # As the release build checks: a build for the updater's end-to-end test must never be used.
-if grep -q ORBITER_UPDATER_E2E "$target/release/orbiter"; then
+if grep -q MYORBITER_UPDATER_E2E "$target/release/myorbiter"; then
   echo "this binary was built with the e2e-updater feature" >&2
   exit 1
 fi

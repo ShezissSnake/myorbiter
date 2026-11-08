@@ -1,10 +1,10 @@
-# orbiter's docs
+# MyOrbiter's docs
 
 | File | What it's for |
 | --- | --- |
 | [install.md](install.md) | Installing on each platform, a blank window, the first start, Full mode, updates. |
 | [features.md](features.md) | Every page and what it does, getting around, known limits. |
-| [what-it-reads.md](what-it-reads.md) | Every file orbiter reads or keeps, and every host it talks to. |
+| [what-it-reads.md](what-it-reads.md) | Every file MyOrbiter reads or keeps, and every host it talks to. |
 | [development.md](development.md) | Running from source, the tests, local builds. |
 | [maintaining.md](maintaining.md) | Going public step by step, and the GitLab settings that live outside the repository. |
 | [releases/README.md](releases/README.md) | How builds are made, the update channels, and the signing key. |

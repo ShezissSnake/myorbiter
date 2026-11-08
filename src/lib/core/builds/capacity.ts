@@ -20,7 +20,7 @@
 // - A mod drains its base drain plus its rank. In a slot of its polarity it drains half, rounded
 //   up; in a slot of another polarity 25% more, rounded up. No polarity on either: as listed.
 // - An aura (or stance) adds its drain's size plus its rank: twice that on its own polarity, 20%
-//   less on another (rounded down here: orbiter would rather say a build doesn't fit than that it
+//   less on another (rounded down here: MyOrbiter would rather say a build doesn't fit than that it
 //   does). Unverified: no source found gives the rounding for this one.
 // - Omni ("universal") matches every mod but Umbra ones. Umbra slots come only from Umbra Forma
 //   (warframes); a non-Umbra mod in one is counted as mismatched (unverified, the cautious reading).
@@ -107,7 +107,7 @@ export interface TierResult {
   slots: SlotDrain[];
   /** Why: the tier's reasons ("Uses Primed Flow (Primed, from Baro Ki'Teer), which is Veteran."), then capacity's. */
   reasons: string[];
-  /** Mods in the build orbiter doesn't know (left out of the count). */
+  /** Mods in the build MyOrbiter doesn't know (left out of the count). */
   unknown: string[];
 }
 
@@ -275,8 +275,8 @@ export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap
       if (r.umbraForma) out.push(r.umbraForma === 1 ? "One of them is an Umbra Forma." : `${r.umbraForma} of them are Umbra Forma.`);
     }
     if (fortyByForma) out.push(`Rank 40 needs five Forma (two ranks each): ${r.rank} counted.`);
-    if (layout.stance && pieces.stance) out.push("The stance slot's own polarity isn't in orbiter's data: counted as none.");
-    if (unknown.length) out.push(`${plural(unknown.length, "mod")} orbiter doesn't know left out of the count.`);
+    if (layout.stance && pieces.stance) out.push("The stance slot's own polarity isn't in MyOrbiter's data: counted as none.");
+    if (unknown.length) out.push(`${plural(unknown.length, "mod")} MyOrbiter doesn't know left out of the count.`);
     return out;
   };
 

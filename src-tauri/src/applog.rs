@@ -1,5 +1,5 @@
-//! orbiter's own log, `orbiter.log` in the app's log folder (Linux: `~/.local/share/dev.orbiter.app/logs`,
-//! Windows: `%LOCALAPPDATA%\dev.orbiter.app\logs`). One line per event, in UTC, the way TennoScope
+//! MyOrbiter's own log, `myorbiter.log` in the app's log folder (Linux: `~/.local/share/dev.myorbiter.app/logs`,
+//! Windows: `%LOCALAPPDATA%\dev.myorbiter.app\logs`). One line per event, in UTC, the way TennoScope
 //! writes its own so the two read side by side:
 //!
 //! ```text
@@ -9,7 +9,7 @@
 //! What goes in: starting up, TennoScope started, stopped or failing, every warframe.market change
 //! and every request that failed (the method and path, never the sign-in), the drop tables and
 //! EE.log being read, and errors from the window. Never a token: anything shaped like one is cut
-//! out before it's written. At 2 MB the file moves to `orbiter.1.log` (the one before that goes), so
+//! out before it's written. At 2 MB the file moves to `myorbiter.1.log` (the one before that goes), so
 //! the two stay under 4 MB; when it can't move, it starts over empty.
 
 use std::fs::{self, File, OpenOptions};
@@ -18,8 +18,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub const FILE: &str = "orbiter.log";
-pub const OLD_FILE: &str = "orbiter.1.log";
+pub const FILE: &str = "myorbiter.log";
+pub const OLD_FILE: &str = "myorbiter.1.log";
 const MAX_BYTES: u64 = 2 * 1024 * 1024;
 
 struct Sink {
@@ -44,7 +44,7 @@ pub fn dir() -> Option<PathBuf> {
 }
 
 /// Opens the log in `dir` and makes it the `log` crate's logger; a panic is logged too. Without a
-/// writable folder orbiter runs on, logging to the terminal only.
+/// writable folder MyOrbiter runs on, logging to the terminal only.
 pub fn init(dir: &Path) {
     let opened = fs::create_dir_all(dir).ok().and_then(|_| open(&dir.join(FILE), false));
     if opened.is_some() {
@@ -56,7 +56,7 @@ pub fn init(dir: &Path) {
     }
     let previous = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
-        log::error!(target: "orbiter::panic", "{info}");
+        log::error!(target: "myorbiter::panic", "{info}");
         previous(info);
     }));
 }
@@ -86,21 +86,21 @@ fn open(path: &Path, fresh: bool) -> Option<Sink> {
 }
 
 impl log::Log for Logger {
-    /// orbiter's own lines from Info up; the libraries' (the web view, HTTP, TLS) only warnings and
+    /// MyOrbiter's own lines from Info up; the libraries' (the web view, HTTP, TLS) only warnings and
     /// errors. The update plugin's are left out: it logs an error for every check that can't reach
     /// its manifest, and updates.rs already writes one line per check and per install.
     fn enabled(&self, m: &log::Metadata) -> bool {
         if m.target().starts_with("tauri_plugin_updater") {
             return false;
         }
-        m.level() <= if m.target().starts_with("orbiter") { log::Level::Info } else { log::Level::Warn }
+        m.level() <= if m.target().starts_with("myorbiter") { log::Level::Info } else { log::Level::Warn }
     }
 
     fn log(&self, record: &log::Record) {
         if !self.enabled(record.metadata()) {
             return;
         }
-        let area = record.target().strip_prefix("orbiter_lib::").or_else(|| record.target().strip_prefix("orbiter::")).unwrap_or(record.target());
+        let area = record.target().strip_prefix("myorbiter_lib::").or_else(|| record.target().strip_prefix("myorbiter::")).unwrap_or(record.target());
         let line = format!("{}[{area}][{}] {}\n", stamp(now()), record.level(), redact(&record.args().to_string()));
         if cfg!(debug_assertions) {
             eprint!("{line}");
@@ -109,7 +109,7 @@ impl log::Log for Logger {
         let Some(sink) = guard.as_mut() else { return };
         if sink.size + line.len() as u64 > MAX_BYTES {
             // When the file can't move aside (on Windows, while another program holds
-            // `orbiter.1.log` open), it starts over empty instead: its lines go, but the cap holds.
+            // `myorbiter.1.log` open), it starts over empty instead: its lines go, but the cap holds.
             let moved = fs::rename(&sink.path, sink.path.with_file_name(OLD_FILE)).is_ok();
             // If it can't even be emptied (held without write sharing), it goes on as it was, past
             // the cap, rather than the log stopping for the rest of the session.
@@ -142,7 +142,7 @@ pub fn from_ui(level: &str, area: &str, message: &str) {
         _ => log::Level::Info,
     };
     // One line in the log, whatever the page sent: a line break or other control character would
-    // let it write lines that look like orbiter's own (and those go into bug reports).
+    // let it write lines that look like MyOrbiter's own (and those go into bug reports).
     let message: String = message.chars().take(2000).map(|c| if c.is_control() { ' ' } else { c }).collect();
     let now = now();
     let repeats = {
@@ -157,10 +157,10 @@ pub fn from_ui(level: &str, area: &str, message: &str) {
         repeats
     };
     if repeats > 0 {
-        log::info!(target: "orbiter::ui", "(the line before came {repeats} more time{} within a minute)", if repeats == 1 { "" } else { "s" });
+        log::info!(target: "myorbiter::ui", "(the line before came {repeats} more time{} within a minute)", if repeats == 1 { "" } else { "s" });
     }
     let area: String = area.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').take(24).collect();
-    log::log!(target: &format!("orbiter::{}", if area.is_empty() { "ui" } else { &area }), level, "{message}");
+    log::log!(target: &format!("myorbiter::{}", if area.is_empty() { "ui" } else { &area }), level, "{message}");
 }
 
 fn now() -> u64 {
@@ -255,7 +255,7 @@ fn secret_key(k: &str) -> bool {
 
 // ---------------------------------------------------------------- for a bug report
 
-/// The last `lines` lines of orbiter's log, oldest first, each passed through `redact` again (a
+/// The last `lines` lines of MyOrbiter's log, oldest first, each passed through `redact` again (a
 /// line written before a rule was added is covered too). When the current file holds fewer, the
 /// rest come from the end of the one before it. The page redacts them further before showing them
 /// in a report (src/lib/core/redact.ts), and nothing leaves the computer unless the player sends it.
@@ -307,7 +307,7 @@ mod tests {
 
     #[test]
     fn a_report_takes_the_last_lines_across_both_files() {
-        let dir = std::env::temp_dir().join(format!("orbiter-log-tail-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("myorbiter-log-tail-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         assert!(tail_in(&dir, 50).is_empty(), "no log yet");
@@ -323,7 +323,7 @@ mod tests {
     #[test]
     fn only_you_can_read_the_log() {
         use std::os::unix::fs::PermissionsExt;
-        let dir = std::env::temp_dir().join(format!("orbiter-log-mode-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("myorbiter-log-mode-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join(FILE);
@@ -339,13 +339,13 @@ mod tests {
 
     #[test]
     fn the_file_moves_aside_at_its_limit() {
-        let dir = std::env::temp_dir().join(format!("orbiter-log-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("myorbiter-log-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let mut sink = open(&dir.join(FILE), false).unwrap();
         sink.size = MAX_BYTES; // as if full
         let logger = Logger { sink: Mutex::new(Some(sink)), last_ui: Mutex::new((String::new(), 0, 0)) };
-        let record = log::Record::builder().target("orbiter::test").level(log::Level::Info).args(format_args!("hello")).build();
+        let record = log::Record::builder().target("myorbiter::test").level(log::Level::Info).args(format_args!("hello")).build();
         log::Log::log(&logger, &record);
         assert!(dir.join(OLD_FILE).is_file());
         assert!(fs::read_to_string(dir.join(FILE)).unwrap().ends_with("[test][INFO] hello\n"));
@@ -354,16 +354,16 @@ mod tests {
 
     #[test]
     fn the_file_starts_over_when_it_cant_move_aside() {
-        let dir = std::env::temp_dir().join(format!("orbiter-log-held-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("myorbiter-log-held-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         // A folder under the old file's name: the rename fails, the way it does on Windows while
-        // another program holds `orbiter.1.log` open.
+        // another program holds `myorbiter.1.log` open.
         fs::create_dir_all(dir.join(OLD_FILE).join("held")).unwrap();
         fs::write(dir.join(FILE), "an old line\n").unwrap();
         let mut sink = open(&dir.join(FILE), false).unwrap();
         sink.size = MAX_BYTES; // as if full
         let logger = Logger { sink: Mutex::new(Some(sink)), last_ui: Mutex::new((String::new(), 0, 0)) };
-        let record = log::Record::builder().target("orbiter::test").level(log::Level::Info).args(format_args!("hello")).build();
+        let record = log::Record::builder().target("myorbiter::test").level(log::Level::Info).args(format_args!("hello")).build();
         log::Log::log(&logger, &record);
         log::Log::log(&logger, &record);
         let text = fs::read_to_string(dir.join(FILE)).unwrap();

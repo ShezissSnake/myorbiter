@@ -1,8 +1,8 @@
 //! Builds from Nox's Frame (noxsframe.com), a fan-made build planner by Senjunox.
 //!
 //! It has no API. Its terms (Nov 2026) forbid only automated mass requests, and its robots.txt
-//! allows the public pages orbiter reads (it disallows /api/, /builder, /account, /login and the
-//! admin pages, which orbiter never touches). So orbiter reads two kinds of public page, on demand
+//! allows the public pages MyOrbiter reads (it disallows /api/, /builder, /account, /login and the
+//! admin pages, which MyOrbiter never touches). So MyOrbiter reads two kinds of public page, on demand
 //! and as gently as a person would:
 //!
 //! - `/builds?item=<unique name>`: an item's builds, top-voted first (the site's default order);
@@ -10,10 +10,10 @@
 //!   base64url of zlib-packed JSON keyed by the game's unique names), with schema.org data for
 //!   the title, author and dates, and the vote counter.
 //!
-//! Only GET, with an honest User-Agent, at most one request every three seconds across orbiter,
+//! Only GET, with an honest User-Agent, at most one request every three seconds across MyOrbiter,
 //! with timeouts. Each answer is cached for seven days in `<cache>/noxsframe/`; "refresh" asks
 //! again under the same spacing. A "slow down", a refusal or a browser check stops all reads for
-//! a while: orbiter never works around a protection. Mapping to orbiter's builds is the page's
+//! a while: MyOrbiter never works around a protection. Mapping to MyOrbiter's builds is the page's
 //! business (src/lib/core/builds/noxsframe.ts).
 
 use serde_json::{json, Value};
@@ -23,9 +23,9 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const SITE: &str = "https://noxsframe.com";
-/// How orbiter introduces itself to Nox's Frame.
+/// How MyOrbiter introduces itself to Nox's Frame.
 pub const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"), " (Warframe companion; build lookup; contact via noxsframe Discord)");
-/// At most one request this often, across orbiter.
+/// At most one request this often, across MyOrbiter.
 pub const GAP: Duration = Duration::from_secs(3);
 /// How long an answer is kept before it's asked for again.
 pub const KEEP_MS: u64 = 7 * 86_400_000;
@@ -81,7 +81,7 @@ fn cool_off() {
 }
 
 /// A reply that says "not like this": too many requests, a refusal, the site busy, or a browser
-/// check (Cloudflare's "Just a moment", a captcha). orbiter stops asking for a while.
+/// check (Cloudflare's "Just a moment", a captcha). MyOrbiter stops asking for a while.
 pub fn is_turned_away(status: u16, body: &str) -> bool {
     if matches!(status, 401 | 403 | 429 | 503) {
         return true;
@@ -100,7 +100,7 @@ pub fn is_turned_away(status: u16, body: &str) -> bool {
 /// One public page, as text. GET only, spaced, with a timeout and a size cap.
 fn get_page(url: &str) -> Result<String, String> {
     if let Some(left) = cooling() {
-        return Err(format!("Nox's Frame asked orbiter to wait; trying again in {} min", left.as_secs() / 60 + 1));
+        return Err(format!("Nox's Frame asked MyOrbiter to wait; trying again in {} min", left.as_secs() / 60 + 1));
     }
     SPACER.turn();
     let resp = crate::http_agent()
@@ -117,28 +117,28 @@ fn get_page(url: &str) -> Result<String, String> {
             r.into_reader().take(MAX_PAGE).read_to_string(&mut body).map_err(|e| format!("Nox's Frame's page didn't arrive whole ({e})"))?;
             if is_turned_away(200, &body) {
                 cool_off();
-                log::warn!(target: "orbiter::noxsframe", "GET {path}: a browser check; not reading for a while");
-                return Err("Nox's Frame showed a browser check; orbiter doesn't get past those, so it stops asking for a while".into());
+                log::warn!(target: "myorbiter::noxsframe", "GET {path}: a browser check; not reading for a while");
+                return Err("Nox's Frame showed a browser check; MyOrbiter doesn't get past those, so it stops asking for a while".into());
             }
             Ok(body)
         }
         Err(ureq::Error::Status(code, r)) => {
             let body = r.into_string().unwrap_or_default();
-            log::warn!(target: "orbiter::noxsframe", "GET {path}: {code}");
+            log::warn!(target: "myorbiter::noxsframe", "GET {path}: {code}");
             if is_turned_away(code, &body) {
                 cool_off();
-                return Err(format!("Nox's Frame turned the request away ({code}); orbiter stops asking for a while"));
+                return Err(format!("Nox's Frame turned the request away ({code}); MyOrbiter stops asking for a while"));
             }
             Err(format!("Nox's Frame answered {code}"))
         }
         Err(e) => {
-            log::warn!(target: "orbiter::noxsframe", "GET {path}: {e}");
+            log::warn!(target: "myorbiter::noxsframe", "GET {path}: {e}");
             Err(format!("Couldn't reach Nox's Frame ({e})"))
         }
     }
 }
 
-/// A game unique name, as orbiter will put it in a URL: `/Lotus/…`, letters, digits, `_` and `/`.
+/// A game unique name, as MyOrbiter will put it in a URL: `/Lotus/…`, letters, digits, `_` and `/`.
 pub fn plain_unique_name(s: &str) -> bool {
     s.starts_with("/Lotus/") && s.len() < 200 && s.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'/' | b'_' | b'-'))
 }
@@ -357,7 +357,7 @@ pub fn decode_code(code: &str) -> Result<Value, String> {
     use base64::Engine;
     let code = code.trim();
     let Some(body) = code.strip_prefix("NFB1:") else {
-        return Err(if code.starts_with("NFB") { "a newer Nox's Frame build code than orbiter can read".into() } else { "not a Nox's Frame build code".into() });
+        return Err(if code.starts_with("NFB") { "a newer Nox's Frame build code than MyOrbiter can read".into() } else { "not a Nox's Frame build code".into() });
     };
     let packed = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(body.trim_end_matches('=')).map_err(|_| "the build code is cut short or changed".to_string())?;
     let mut raw = Vec::new();
@@ -410,7 +410,7 @@ pub fn read_build(html: &str, segment: &str) -> Result<Value, String> {
         rest = &rest[end..];
     }
     let f = flight(html);
-    let code = code_in(&f).ok_or("orbiter couldn't find the build on its page (the page may have changed)")?;
+    let code = code_in(&f).ok_or("MyOrbiter couldn't find the build on its page (the page may have changed)")?;
     let decoded = decode_code(&code)?;
     // The vote counter: {"id":"…","score":n,"up":n,"down":n,…}.
     let mut votes = Value::Null;
@@ -434,7 +434,7 @@ pub fn read_build(html: &str, segment: &str) -> Result<Value, String> {
         "id": id,
         "path": segment,
         // Always the page that was read, never the address the page names for itself: a link
-        // orbiter opens is a build page on noxsframe.com and nothing else.
+        // MyOrbiter opens is a build page on noxsframe.com and nothing else.
         "url": build_url(segment),
         "title": s(&meta["name"]).or_else(|| s(&decoded["name"])),
         "description": s(&meta["description"]),
@@ -476,7 +476,7 @@ fn read_cache(path: &Path) -> Option<(u64, Value)> {
 fn write_cache(path: &Path, at: u64, data: &Value) {
     let bytes = serde_json::to_vec(&json!({ "fetchedAt": at, "data": data })).unwrap_or_default();
     if let Err(e) = crate::write_atomic(path, &bytes, false) {
-        log::warn!(target: "orbiter::noxsframe", "keeping {}: {e}", path.display());
+        log::warn!(target: "myorbiter::noxsframe", "keeping {}: {e}", path.display());
     }
 }
 
@@ -510,7 +510,7 @@ pub fn cached_or_fetch(path: &Path, refresh: bool, cached_only: bool, fetch: imp
 /// An item's top builds on Nox's Frame (see `read_list`).
 pub fn item_builds(cache_dir: &Path, item: &str, refresh: bool) -> Result<Value, String> {
     if !plain_unique_name(item) {
-        return Err("not an item orbiter looks up".into());
+        return Err("not an item MyOrbiter looks up".into());
     }
     let path = cache_file(&cache_dir.join("noxsframe"), "list", item);
     cached_or_fetch(&path, refresh, false, || get_page(&list_url(item)).map(|html| Value::Array(read_list(&html))))
@@ -670,7 +670,7 @@ mod tests {
         assert!(!fresh(now - 8 * 86_400_000, now));
         assert!(!fresh(now + 3 * 86_400_000, now), "a date from the future doesn't count");
 
-        let dir = std::env::temp_dir().join(format!("orbiter-nox-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("myorbiter-nox-test-{}", std::process::id()));
         let path = cache_file(&dir, "list", "/Lotus/Powersuits/Harlequin/MiragePrime");
         assert!(path.file_name().unwrap().to_str().unwrap().starts_with("list-_Lotus_Powersuits"));
         let fetches = std::cell::Cell::new(0);

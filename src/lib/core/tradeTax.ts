@@ -36,7 +36,7 @@ function rarityOf(m: Model, it: MarketItem): Rarity | null {
 }
 
 /**
- * The base tax on one of this item (one set: every part in it), in credits; null when orbiter
+ * The base tax on one of this item (one set: every part in it), in credits; null when MyOrbiter
  * can't tell (an unknown rarity, a Requiem relic, a set whose parts it doesn't know).
  */
 export function taxEach(m: Model, kind: BulkKind, it: MarketItem, rank: number | null = null, withStars = false): number | null {
@@ -57,7 +57,7 @@ export function taxEach(m: Model, kind: BulkKind, it: MarketItem, rank: number |
     if (!r) return null;
     return ARCANE_TAX[r][r === "legendary" ? Math.max(0, Math.min(5, rank ?? 0)) : 0];
   }
-  // Everything else orbiter lists.
+  // Everything else MyOrbiter lists.
   if (tags.includes("relic") || / Relic$/.test(it.name)) {
     if (/^(Lith|Meso) /.test(it.name)) return TAX.common;
     if (/^(Neo|Axi) /.test(it.name)) return TAX.uncommon;
@@ -78,9 +78,9 @@ export interface PlanTax {
   items: number;
   /** The platinum they'd bring in. */
   platinum: number;
-  /** What the buyers pay between them for the items (their tax, not yours), where orbiter can tell. */
+  /** What the buyers pay between them for the items (their tax, not yours), where MyOrbiter can tell. */
   buyers: number;
-  /** Listings whose item tax orbiter can't tell (left out of `buyers`). */
+  /** Listings whose item tax MyOrbiter can't tell (left out of `buyers`). */
   unknown: string[];
 }
 

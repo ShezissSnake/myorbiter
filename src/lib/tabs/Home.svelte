@@ -61,7 +61,7 @@
   let sortieOpen = $state(false);
   // The worldstate: still being asked for the first time, or unreachable (api.warframestat.us).
   const liveWaiting = $derived(liveAt == null && !liveError);
-  const liveNote = $derived(liveWaiting ? "Asking api.warframestat.us…" : "api.warframestat.us didn't answer; orbiter asks again every few minutes.");
+  const liveNote = $derived(liveWaiting ? "Asking api.warframestat.us…" : "api.warframestat.us didn't answer; MyOrbiter asks again every few minutes.");
 
   // Countdowns tick once a minute.
   let now = $state(Date.now());
@@ -386,9 +386,9 @@
   };
 
   // ---------------------------------------------------------------- start here
-  // The few things that make the rest of orbiter work, ticked as they're done.
+  // The few things that make the rest of MyOrbiter work, ticked as they're done.
   const startSteps = $derived([
-    { label: "Sign in to warframe.market", why: "to list, reprice and see your orders", hint: "On Orders: orbiter keeps its own sign-in", done: mkt.linked, go: () => go("market") },
+    { label: "Sign in to warframe.market", why: "to list, reprice and see your orders", hint: "On Orders: MyOrbiter keeps its own sign-in", done: mkt.linked, go: () => go("market") },
     { label: "Set your rates", why: "what a ducat is worth to you, and the smallest sale worth a trade", hint: "Prime parts → Your rates", done: settings.advice.platPerDucat !== defaultAdvice().platPerDucat || settings.advice.minPlat !== defaultAdvice().minPlat, go: () => go("parts") },
     { label: "Star what you're after", why: "Wishlist shows the relics for each missing part", hint: "The ☆ on any card in Foundry or Mastery", done: settings.favourites.length > 0, go: () => go("foundry") },
     { label: "Add a fissure alert", why: "a notification when a fissure you want opens", hint: "Fissures now → Add alert", done: settings.fissureRules.length > 0, go: () => go("home#addalert") },
@@ -490,7 +490,7 @@
   </header>
 
   {#if startSteps.some((x) => !x.done) && !settings.startDone && !console}
-    <!-- First days with orbiter: the few things that make the rest of it work, each a click away. -->
+    <!-- First days with MyOrbiter: the few things that make the rest of it work, each a click away. -->
     <div class="startfold reveal" out:unfold><div><section class="start" aria-label="Start here">
       <header><span class="register">Start here</span><span class="dim small">{startSteps.filter((x) => x.done).length} of {startSteps.length} done</span><button type="button" class="link quiet small" title="Put this card away (it goes on its own once every step is done)" onclick={() => (settings.startDone = true)}>Not now</button></header>
       <ol>
@@ -579,7 +579,7 @@
           {#if !console}<div title="Listed more than you hold: visible listings for more copies than you hold now (sold, or used in game). Fix them on Orders, or a buyer finds you can't deliver{hiddenShort ? `. ${hiddenShort} hidden listing${hiddenShort === 1 ? '' : 's'} too, which nobody can buy` : ''}"><b class="mark" class:amber={shortListings.length}>{shortListings.length}</b><span class="register">Listed more than you hold</span></div>{/if}
           <div title="Platinum from what you sold today, from Sales: since your local midnight (Trades left counts from 00:00 UTC)"><P v={sold(dayStart)} /><span class="register">Sold today</span></div>
           <div title="Platinum from what you sold in the last 7 days"><P v={sold(now - 7 * DAY)} /><span class="register">Last 7 days</span></div>
-          {#if !console && trades.limit != null}<div title="Trades a day are your Mastery Rank ({trades.limit}; Founders get 2 more), each one counting whatever it carried (up to 6 items). {trades.used} since 00:00 UTC, from the game's log while orbiter was reading it. Refreshes in {until(new Date(trades.resets).toISOString(), now)}"><b class="mark" class:amber={trades.left != null && trades.left <= 3}>{trades.left}<small class="dim">/{trades.limit}</small></b><span class="register">Trades left</span></div>{/if}
+          {#if !console && trades.limit != null}<div title="Trades a day are your Mastery Rank ({trades.limit}; Founders get 2 more), each one counting whatever it carried (up to 6 items). {trades.used} since 00:00 UTC, from the game's log while MyOrbiter was reading it. Refreshes in {until(new Date(trades.resets).toISOString(), now)}"><b class="mark" class:amber={trades.left != null && trades.left <= 3}>{trades.left}<small class="dim">/{trades.limit}</small></b><span class="register">Trades left</span></div>{/if}
         </div>
         {#if shortListings.length || hiddenShort}
           <ul class="mini">
@@ -592,9 +592,9 @@
         {/if}
         <div class="foot"><button class="link" onclick={() => go("sales")}>Sales log →</button></div>
       {:else if mkt.signInRefused}
-        <p class="dim">warframe.market refused orbiter's sign-in. Sign out on <button class="link" onclick={() => go("market")}>Orders</button>, then sign in again.</p>
+        <p class="dim">warframe.market refused MyOrbiter's sign-in. Sign out on <button class="link" onclick={() => go("market")}>Orders</button>, then sign in again.</p>
       {:else if mkt.accountError}
-        <p class="dim">Signed in, but warframe.market can't be reached right now. orbiter tries again every minute; see <button class="link" onclick={() => go("market")}>Orders</button>.</p>
+        <p class="dim">Signed in, but warframe.market can't be reached right now. MyOrbiter tries again every minute; see <button class="link" onclick={() => go("market")}>Orders</button>.</p>
       {:else}
         <p class="dim">Not signed in to warframe.market. Sign in on <button class="link" onclick={() => go("market")}>Orders</button> to list, reprice and go online from here.</p>
       {/if}
@@ -628,7 +628,7 @@
       {#if live.fissures == null}
         <p class="dim" class:waiting={liveWaiting}>{liveWaiting ? "Loading fissures…" : liveNote}</p>
       {:else}
-        {#if liveError && liveAt != null}<p class="dim small fromgame">The worldstate can't be read right now: these are from the last read ({checkedWhen(liveAt, now)}), each gone once it ends. orbiter asks again every few minutes.</p>
+        {#if liveError && liveAt != null}<p class="dim small fromgame">The worldstate can't be read right now: these are from the last read ({checkedWhen(liveAt, now)}), each gone once it ends. MyOrbiter asks again every few minutes.</p>
         {:else if live.fromGame}<p class="dim small fromgame">Read from the game's own worldstate: api.warframestat.us isn't answering, so Nightwave and the Circuit may be out of date, and alerts, invasions and Darvo's deal can't be read.</p>{/if}
         <FissureBoard fissures={live.fissures} bind:mode={settings.homeFissures} bind:only={settings.homeFissuresOnly} alerts={settings.fissureRules.length} {now} best={eraBest} watched={new Set(watched.map((w) => w.fissure.id))} onera={console ? null : (era) => go(`relics?era=${era}`)} saving={(era) => savingByEra.get(era) ?? null} />
       {/if}
@@ -868,7 +868,7 @@
       <!-- Price alerts you set from Post a buy order (Alert me): watched with the rest. -->
       {#if settings.market.buyAlerts.length}
         <div class="alertlist">
-          <span class="register" title="Set with Alert me in Post a buy order (the Buy order buttons on Wishlist, Mastery, Browse market…): orbiter tells you when someone lists one at your price or less">Your price alerts</span>
+          <span class="register" title="Set with Alert me in Post a buy order (the Buy order buttons on Wishlist, Mastery, Browse market…): MyOrbiter tells you when someone lists one at your price or less">Your price alerts</span>
           {#each settings.market.buyAlerts as a (alertKey(a))}
             <span class="paslot" out:leave animate:flip>
             {#if undo.has(alertKey(a))}<UndoSlot label="Removed" what={a.name} onundo={() => undo.undo(alertKey(a))} />

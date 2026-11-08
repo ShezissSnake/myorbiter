@@ -1,4 +1,4 @@
-// A small catalog for the builds tests, shaped like the real one (orbiter-data's catalog.json):
+// A small catalog for the builds tests, shaped like the real one (myorbiter-data's catalog.json):
 // mods with their Flawed (Beginner), Intermediate, Expert and Conclave (PvPMods) twins, auras, a
 // stance, Umbral mods, arcanes, and a few frames and weapons with their innate polarities.
 import type { CatalogItem } from "../../src/lib/core/types";

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Puts the TennoScope AppImage back into orbiter's AppImage as it was built, and packs again.
+# Puts the TennoScope AppImage back into MyOrbiter's AppImage as it was built, and packs again.
 #
 #   scripts/repack-appimage.sh            (after `tauri build --bundles appimage --config src-tauri/tauri.bundle.json`)
 #
@@ -13,8 +13,8 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
 # The build's target folder: the workspace's own, or CARGO_TARGET_DIR when the build used another.
 bundle="${CARGO_TARGET_DIR:-$here/target}/release/bundle/appimage"
-appdir="$bundle/orbiter.AppDir"
-nested="$appdir/usr/lib/orbiter/tennoscope/TennoScope.AppImage"
+appdir="$bundle/myorbiter.AppDir"
+nested="$appdir/usr/lib/myorbiter/tennoscope/TennoScope.AppImage"
 pristine="$here/vendor/tennoscope/TennoScope.AppImage"
 packer="${XDG_CACHE_HOME:-$HOME/.cache}/tauri/linuxdeploy-plugin-appimage.AppImage"
 
@@ -25,9 +25,9 @@ built=$(ls "$bundle"/*.AppImage)
 [ "$(echo "$built" | wc -l)" -eq 1 ] || { echo "expected one AppImage in $bundle" >&2; exit 1; }
 
 install -m 755 "$pristine" "$nested"
-# orbiter installs its own launcher entry (scripts/install-desktop.sh, orbiter.desktop: the window's
+# MyOrbiter installs its own launcher entry (scripts/install-desktop.sh, myorbiter.desktop: the window's
 # app id, so the taskbar icon and notifications find it). AppImageLauncher and appimaged would add a
-# second one (appimagekit_…-orbiter.desktop) whenever the AppImage runs, so the menu shows orbiter
+# second one (appimagekit_…-myorbiter.desktop) whenever the AppImage runs, so the menu shows MyOrbiter
 # twice. This key asks them not to (libappimage's appimage_shall_not_be_integrated).
 for entry in "$appdir"/*.desktop "$appdir"/usr/share/applications/*.desktop; do
   [ -e "$entry" ] || continue
@@ -38,7 +38,7 @@ done
 # rest, in the AppDir), the TennoScope AppImage's own and its Tesseract's, each matched to the Ubuntu
 # package it came from on this build machine, with the written offer for the GPL and LGPL ones
 # (scripts/collect-linux-sources.sh). The copyright files of linuxdeploy's go beside them in linux/.
-notices="$appdir/usr/lib/orbiter/THIRD-PARTY-NOTICES"
+notices="$appdir/usr/lib/myorbiter/THIRD-PARTY-NOTICES"
 [ -d "$notices" ] || { echo "no THIRD-PARTY-NOTICES in the AppDir at $notices" >&2; exit 1; }
 inner=$(mktemp -d)
 (cd "$inner" && APPIMAGE_EXTRACT_AND_RUN=1 "$pristine" --appimage-extract >/dev/null)
@@ -52,13 +52,13 @@ rm -f "$log"
 # Proof: the TennoScope inside the final AppImage is byte for byte the one built, and runs.
 check=$(mktemp -d)
 trap 'rm -rf "$check"' EXIT
-(cd "$check" && APPIMAGE_EXTRACT_AND_RUN=1 "$built" --appimage-extract usr/lib/orbiter/tennoscope/TennoScope.AppImage >/dev/null)
-cmp "$check/squashfs-root/usr/lib/orbiter/tennoscope/TennoScope.AppImage" "$pristine"
-"$check/squashfs-root/usr/lib/orbiter/tennoscope/TennoScope.AppImage" --appimage-offset >/dev/null
+(cd "$check" && APPIMAGE_EXTRACT_AND_RUN=1 "$built" --appimage-extract usr/lib/myorbiter/tennoscope/TennoScope.AppImage >/dev/null)
+cmp "$check/squashfs-root/usr/lib/myorbiter/tennoscope/TennoScope.AppImage" "$pristine"
+"$check/squashfs-root/usr/lib/myorbiter/tennoscope/TennoScope.AppImage" --appimage-offset >/dev/null
 # And its launcher entry asks AppImageLauncher not to add a second one.
 (cd "$check" && APPIMAGE_EXTRACT_AND_RUN=1 "$built" --appimage-extract 'usr/share/applications/*' >/dev/null)
-grep -q '^X-AppImage-Integrate=false' "$check"/squashfs-root/usr/share/applications/orbiter.desktop
+grep -q '^X-AppImage-Integrate=false' "$check"/squashfs-root/usr/share/applications/myorbiter.desktop
 # And it says where the source of what it carries is.
-(cd "$check" && APPIMAGE_EXTRACT_AND_RUN=1 "$built" --appimage-extract usr/lib/orbiter/THIRD-PARTY-NOTICES/SOURCES.md >/dev/null)
-grep -q 'complete corresponding source code' "$check"/squashfs-root/usr/lib/orbiter/THIRD-PARTY-NOTICES/SOURCES.md
+(cd "$check" && APPIMAGE_EXTRACT_AND_RUN=1 "$built" --appimage-extract usr/lib/myorbiter/THIRD-PARTY-NOTICES/SOURCES.md >/dev/null)
+grep -q 'complete corresponding source code' "$check"/squashfs-root/usr/lib/myorbiter/THIRD-PARTY-NOTICES/SOURCES.md
 echo "repacked $(basename "$built") ($(du -h "$built" | cut -f1)) with TennoScope intact"

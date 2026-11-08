@@ -100,7 +100,7 @@
   const lich = $derived(lichWeaponsLeft(model));
   const facts: SparesFacts = $derived({ lichLeft: { requiem: lich.known.requiem ? lich.requiem.length : 1, antivirus: lich.known.antivirus ? lich.antivirus.length : 1 }, platPerDucat: advice.platPerDucat, minPrice: settings.minPrice, minRelicPrice: settings.minRelicPrice, squad: advice.squad ?? 1 });
 
-  // Waiting for the relic prices orbiter reads on start: the button says so, rather than nothing.
+  // Waiting for the relic prices MyOrbiter reads on start: the button says so, rather than nothing.
   let waiting = $state(false);
   // Plan and Apply fill as they go (mkt.progress) and say how they ended.
   const planJob = new Job();
@@ -120,7 +120,7 @@
   }
   async function makePlan() {
     plannedWith = rulesKey;
-    // Relic prices still being read (orbiter just started): plan with them, not before them.
+    // Relic prices still being read (MyOrbiter just started): plan with them, not before them.
     if (mkt.relicRead) {
       waiting = true;
       try {

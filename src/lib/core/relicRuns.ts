@@ -4,7 +4,7 @@
 // Screens come from two places. Live, from the cards a patched TennoScope reads off the screen
 // (with your own relic's reward from EE.log, and what you held of each card's item right then).
 // And from TennoScope's own log, which keeps every screen it read: that fills in history from
-// before orbiter recorded them, and anything it missed while closed.
+// before MyOrbiter recorded them, and anything it missed while closed.
 //
 // Which card you took isn't written anywhere. It shows up in your inventory: once the mission
 // ends, the next inventory read has one more of it than you held when the screen opened.

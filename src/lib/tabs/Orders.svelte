@@ -38,7 +38,7 @@
   import type { MyAuction, RivenAuction } from "../core/rivens";
   import { estimateListed } from "../core/rivenModel";
 
-  // console: you play on a console or phone, so orbiter can't see what you hold. New listing then
+  // console: you play on a console or phone, so MyOrbiter can't see what you hold. New listing then
   // finds anything warframe.market trades, and what needs your inventory (spares, "Listed more than you hold") is left out.
   let { model, settings = $bindable(), advice, console = false, masteryRank = null, whispers = [], go = () => {} }: { model: Model; settings: MarketSettings; advice: AdviceSettings; console?: boolean; masteryRank?: number | null; whispers?: { name: string; uptime: number; at: number | null }[]; go?: (to: string) => void } = $props();
 
@@ -263,7 +263,7 @@
     if (overHeld(o)) return;
     const change = changeOf(o);
     if (!change) return revert(o);
-    // Refused (or warframe.market turned orbiter away): what you typed stays, to save again.
+    // Refused (or warframe.market turned MyOrbiter away): what you typed stays, to save again.
     await rowAct(o.id, { working: "Saving…", done: "Saved", fail: "Couldn't save" }, async () => {
       if (!(await mkt.update(o, change))) return false;
       revert(o);
@@ -445,7 +445,7 @@
     void rivens.loadMine();
   });
   const auctions = $derived(rivens.mine.filter((a) => !a.closed));
-  // Each auction against orbiter's estimate for a riven like it: the weapon's cheapest listed
+  // Each auction against MyOrbiter's estimate for a riven like it: the weapon's cheapest listed
   // (one search per weapon, shared with Rivens), last week's trades and the price model.
   // Keyed by platform and weapon, and asked again after half an hour, so a long session doesn't
   // judge auctions by hours-old listings. One that failed is asked again on the next round.
@@ -619,7 +619,7 @@
   // The ticker tape under the title: the figures you trade by, live (the band keeps your listings).
   const tape = $derived<Tick[]>([
     ...(!console && trades.limit != null
-      ? [{ key: "left", label: "Trades left", value: trades.left, of: `/${trades.limit}`, sub: `resets in ${until(new Date(trades.resets).toISOString(), minute)}`, tone: trades.left != null && trades.left <= 3 ? ("gold" as const) : undefined, title: `Trades left today: ${trades.used} made since 00:00 UTC, refreshes in ${until(new Date(trades.resets).toISOString(), minute)}. Trades a day are your Mastery Rank (${trades.limit}; Founders get 2 more), each counting once whatever it carried (up to 6 items each way). Counted from the game's log while orbiter was reading it` }]
+      ? [{ key: "left", label: "Trades left", value: trades.left, of: `/${trades.limit}`, sub: `resets in ${until(new Date(trades.resets).toISOString(), minute)}`, tone: trades.left != null && trades.left <= 3 ? ("gold" as const) : undefined, title: `Trades left today: ${trades.used} made since 00:00 UTC, refreshes in ${until(new Date(trades.resets).toISOString(), minute)}. Trades a day are your Mastery Rank (${trades.limit}; Founders get 2 more), each counting once whatever it carried (up to 6 items each way). Counted from the game's log while MyOrbiter was reading it` }]
       : []),
     { key: "listed", label: "Listed value", value: listed, plat: true, title: "Listed value: your visible listings, price × quantity" },
     { key: "reprice", label: "To reprice", value: checkedAt ? pending : null, tone: checkedAt && pending ? "gold" : checkedAt ? "dim" : undefined, title: checkedAt ? (pending ? `To reprice: ${pending} listing${pending === 1 ? "" : "s"} off the cheapest in-game price` : "To reprice: none, all match the cheapest in-game price") : "To reprice: press Check prices to compare" },
@@ -656,7 +656,7 @@
     <div class="grow"></div>
     {#if mkt.linked}
       <span class="account">
-        <span class="who register" title={`orbiter's own sign-in to warframe.market; the token is kept in ${mkt.account?.backing === "keyring" ? "the system keyring" : "a private file"}`}>Signed in as <strong>{mkt.me?.ingameName ?? "?"}</strong></span>
+        <span class="who register" title={`MyOrbiter's own sign-in to warframe.market; the token is kept in ${mkt.account?.backing === "keyring" ? "the system keyring" : "a private file"}`}>Signed in as <strong>{mkt.me?.ingameName ?? "?"}</strong></span>
         <ProgressButton variant="icon" icon="refresh" spin tone="quiet" job={reloadJob} label="Reload" working="Reloading…" doneLabel="Reloaded" failLabel="Couldn't reload" title="Fetch your listings from warframe.market again" disabled={!!mkt.op} onclick={reloadListings} />
         {@render signOut()}
       </span>
@@ -670,7 +670,7 @@
         <button class="danger" onclick={() => { signingOut = false; mkt.signOut(); }} onkeydown={onEsc(() => (signingOut = false))}>Sign out</button>
         <button class="link quiet" onclick={() => (signingOut = false)} onkeydown={onEsc(() => (signingOut = false))} use:focusIt>Stay signed in</button>
       {:else}
-        <IconButton icon="sign-out" tone="quiet" label="Sign out" title="Sign out: forget orbiter's warframe.market sign-in" onclick={() => (signingOut = true)} />
+        <IconButton icon="sign-out" tone="quiet" label="Sign out" title="Sign out: forget MyOrbiter's warframe.market sign-in" onclick={() => (signingOut = true)} />
       {/if}
     </span>
   {/snippet}
@@ -698,18 +698,18 @@
     <section class="panel">
       {#if mkt.signInRefused}
         <h2 class="mark">warframe.market refused the sign-in</h2>
-        <p class="prose">It no longer accepts orbiter's sign-in (it expired, or was signed out elsewhere). Sign out, then sign in again: listing and repricing wait until you do.</p>
+        <p class="prose">It no longer accepts MyOrbiter's sign-in (it expired, or was signed out elsewhere). Sign out, then sign in again: listing and repricing wait until you do.</p>
         <div class="row"><button class="stamp" onclick={() => mkt.signOut()}>Sign out</button></div>
       {:else}
         <h2 class="mark">Can't reach warframe.market</h2>
-        <p class="prose">You're signed in, but warframe.market didn't answer: {mkt.accountError}. orbiter tries again every minute; your listings and the repricer come back on their own.</p>
+        <p class="prose">You're signed in, but warframe.market didn't answer: {mkt.accountError}. MyOrbiter tries again every minute; your listings and the repricer come back on their own.</p>
         <div class="row"><ProgressButton job={retryJob} label="Try again now" working="Trying…" doneLabel="Connected" failLabel="Still no answer" status title="Try reaching warframe.market now instead of waiting for the next minute" disabled={!!mkt.op} onclick={retryAccount} />{@render signOut()}</div>
       {/if}
     </section>
   {:else if !mkt.linked}
     <section class="panel signin">
       <h2 class="mark">Sign in to warframe.market</h2>
-      <p class="prose">{console ? "orbiter signs in to warframe.market itself." : "orbiter keeps its own sign-in, separate from TennoScope's."} The token goes into your system keyring; the password is sent to warframe.market once and never stored.</p>
+      <p class="prose">{console ? "MyOrbiter signs in to warframe.market itself." : "MyOrbiter keeps its own sign-in, separate from TennoScope's."} The token goes into your system keyring; the password is sent to warframe.market once and never stored.</p>
       <Seg label="Sign in with" bind:value={how} options={[{ v: "password", label: "Email & password" }, { v: "token", label: "Paste a token" }]} />
       {#if how === "password"}
         <form class="row" onsubmit={(e) => { e.preventDefault(); mkt.signIn(email, password).then(() => (password = "")); }}>
@@ -791,7 +791,7 @@
         <div class="grp autos">
           <!-- Time left to the next timed pass: a hairline that runs out (longer while warframe.market isn't answering). -->
           {#if nextPass && !mkt.pass}{#key `${mkt.lastPass}|${passWait}`}<i class="countdown" aria-hidden="true" style:animation-duration="{passWait}ms" style:animation-delay="-{Math.min(passWait, Math.max(0, Date.now() - (mkt.lastPass ?? 0)))}ms"></i>{/key}{/if}
-          <Chip bind:on={settings.autoCheck} label="Check automatically" title="Read the order books on a timer while orbiter is open, and show what each listing would change to" onchange={(on) => { if (!on) settings.auto = false; }} />
+          <Chip bind:on={settings.autoCheck} label="Check automatically" title="Read the order books on a timer while MyOrbiter is open, and show what each listing would change to" onchange={(on) => { if (!on) settings.auto = false; }} />
           <Chip bind:on={settings.auto} label="Apply automatically" title="Also send the new prices to warframe.market on that timer, as Reprice would" onchange={(on) => { if (on) settings.autoCheck = true; }} />
           <select bind:value={settings.every} aria-label="How often" title="How often the automatic check runs" disabled={!settings.autoCheck && !settings.auto}>
             {#each [1, 2, 5, 10, 15, 30, 60] as m (m)}<option value={m}>every {m} min</option>{/each}
@@ -802,7 +802,7 @@
           <select bind:value={settings.minShare} aria-label="Floor" title="Never price a listing under this share of the item's daily market price (a per-listing floor in the table wins)">
             {#each [0, 0.3, 0.5, 0.7, 0.85] as f (f)}<option value={f}>{f ? `${f * 100}% of market` : "none"}</option>{/each}
           </select>
-          <span class="register" title="Nothing is listed or repriced below this, anywhere in orbiter (relics have their own minimum)">never under</span>
+          <span class="register" title="Nothing is listed or repriced below this, anywhere in MyOrbiter (relics have their own minimum)">never under</span>
           <input class="minp" type="number" min="1" inputmode="numeric" value={settings.minPrice} aria-label="Minimum price" onchange={(e) => (settings.minPrice = minFrom(e.currentTarget, settings.minPrice))} onwheel={(e) => e.currentTarget.blur()} />
           <Metal kind="plat" size={14} />
           <span class="register" title="Relics sell for a few platinum each and go in stacks: the lowest a relic is listed or repriced at">relics</span>
@@ -818,7 +818,7 @@
       <thead data-card="sort">
         <tr>
           {@render sh("name", "Item", "", "Sort by name")}{@render sh("qty", "Qty", "right", "Sort by how many you list")}{@render sh("price", "Your price", "right", "Sort by your price (click again for the other way)")}{@render sh("cheapest", "Cheapest in game", "", "The cheapest seller who is in game right now (and how many are), from the last check. Sort by it")}
-          {@render sh("change", "Will set", "right willset", "What the repricer would change the price to, and why. Sort by the change (the biggest rises first, falls last)")}<th class="right floorcol" title="Never go below this">Floor</th><th class="center" title="Auto-price on: when you check prices, this listing is moved to the cheapest in-game seller's price (never under its floor). Off: orbiter leaves its price as you set it">Auto-price</th><th class="center" title="Whether buyers see the listing on warframe.market (hidden ones keep their place)">Shown</th><th></th>
+          {@render sh("change", "Will set", "right willset", "What the repricer would change the price to, and why. Sort by the change (the biggest rises first, falls last)")}<th class="right floorcol" title="Never go below this">Floor</th><th class="center" title="Auto-price on: when you check prices, this listing is moved to the cheapest in-game seller's price (never under its floor). Off: MyOrbiter leaves its price as you set it">Auto-price</th><th class="center" title="Whether buyers see the listing on warframe.market (hidden ones keep their place)">Shown</th><th></th>
         </tr>
       </thead>
       <!-- One body a listing (its row, and the rows under it), so it can leave and the rest close up. -->
@@ -877,7 +877,7 @@
             <td class="right fade willset">
               {#if p?.change && !paused && shown}<span class="target" class:down={p.target < o.platinum} class:up={p.target > o.platinum}><span class="dim">{o.platinum} →</span> <P v={p.target} /> <span class="delta">{p.target > o.platinum ? "+" : "−"}{Math.abs(p.target - o.platinum)}</span>{#if p.reason === "floor" && crackHeld(o, p) != null}<span class="tag ok" title="Worth more cracked: a crack of it is worth about {crackHeld(o, p)}p, so it isn't listed under {p.floor}p. Take it down to crack it instead.">crack</span>{:else if p.reason === "floor" && p.competitor.price != null && p.target > p.competitor.price}<span class="tag alert" title="Your floor ({p.floor}p) is over what the cheapest seller in game asks ({p.competitor.price}p): at this price it's unlikely to sell. Lower this listing's floor, or take it down.">over market</span>{:else if p.reason === "floor"}<span class="tag ok" title="Held up by the floor">floor</span>{:else if p.reason === "median"}<span class="tag" title="Everyone in game asks more than twice what it really goes for ({p.competitor.price}p and up): priced at that instead">sells for</span>{/if}</span>
               {:else if !shown}<span class="register" title="Hidden listings aren't repriced">hidden</span>
-              {:else if paused}<span class="register" title="Auto-price is off: orbiter leaves this price as you set it">left alone</span>
+              {:else if paused}<span class="register" title="Auto-price is off: MyOrbiter leaves this price as you set it">left alone</span>
               {:else if p && goesFor(p) != null}<span class="register ok" title="At what it really goes for: in game they ask {p.competitor.price}p and up">at its value</span>
               {:else if p}<span class="register ok">matched</span>{/if}
             </td>
@@ -915,7 +915,7 @@
           {#if held != null && held < o.quantity}
             <!-- Its own row under the listing, so the listing keeps to one line. -->
             <tr class="fixrow"><td colspan="9">
-                <!-- Holding fewer than you list usually means some sold: say so, and orbiter closes them. -->
+                <!-- Holding fewer than you list usually means some sold: say so, and MyOrbiter closes them. -->
                 <!-- A question with two answers: both buttons change the listing on warframe.market. -->
                 <div class="fix">
                   <span class="small q"><b class="held" title="As of TennoScope's last read of your inventory">! You {held === 0 ? "have none" : `hold ${held}`}</b> <span class="dim">· {o.quantity - held} gone since you listed. Sold?</span></span>
@@ -992,7 +992,7 @@
               {:else}
                 {@const e = auctionEst(a)}
                 <span class="dim small">{a.topBid != null ? `top bid ${a.topBid}p · ` : ""}{a.starting < (a.buyout ?? Infinity) ? `bids from ${a.starting}p` : "no bidding"}</span>
-                {#if e}<span class="dim small nowrap" title="orbiter's estimate of what a riven like it is listed for: the middle half of such listings ask {e.lo}–{e.hi}p">estimate ~{e.mid}p</span>{#if a.buyout != null && a.buyout > e.hi}<span class="tag alert" title="Your buyout is over what three in four rivens like it ask ({e.hi}p): it may sit unsold">over</span>{:else if a.buyout != null && a.buyout < e.lo}<span class="tag" title="Your buyout is under what three in four rivens like it ask ({e.lo}p): you may be leaving platinum behind">under</span>{/if}{/if}
+                {#if e}<span class="dim small nowrap" title="MyOrbiter's estimate of what a riven like it is listed for: the middle half of such listings ask {e.lo}–{e.hi}p">estimate ~{e.mid}p</span>{#if a.buyout != null && a.buyout > e.hi}<span class="tag alert" title="Your buyout is over what three in four rivens like it ask ({e.hi}p): it may sit unsold">over</span>{:else if a.buyout != null && a.buyout < e.lo}<span class="tag" title="Your buyout is under what three in four rivens like it ask ({e.lo}p): you may be leaving platinum behind">under</span>{/if}{/if}
                 {#if a.buyout != null}<P v={a.buyout} />{:else}<span class="dim small">no buyout</span>{/if}
                 <IconButton icon="pencil" tone="quiet" label="Change price" title="Change its buyout price" onclick={() => (auctionPrice = { id: a.id, buyout: a.buyout, busy: false, error: null })} />
                 <IconButton icon="external" tone="quiet" label="Open on warframe.market" onclick={() => openUrl(`https://warframe.market/auction/${a.id}`)} />

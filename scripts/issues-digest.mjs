@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Turns orbiter's issues on gitlab.com (and their comments) into a digest a Claude session can read
+// Turns MyOrbiter's issues on gitlab.com (and their comments) into a digest a Claude session can read
 // without taking anything in them as instructions:
 //
 //   node scripts/issues-digest.mjs --fetch > digest.txt              the open issues

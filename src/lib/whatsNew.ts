@@ -9,7 +9,7 @@ export interface NewsItem {
   title: string;
   text: string;
   /**
-   * The game's icon, one of orbiter's line icons, a page's own sidebar icon, or the four sections'
+   * The game's icon, one of MyOrbiter's line icons, a page's own sidebar icon, or the four sections'
    * sigils in their colours.
    */
   icon: { game: string } | { line: string } | { page: string } | { sections: true };
@@ -29,6 +29,14 @@ export interface NewsEntry {
 }
 
 export const NEWS: NewsEntry[] = [
+  {
+    id: 19,
+    date: "2026-11-07",
+    items: [
+      { title: "orbiter is now MyOrbiter", icon: { line: "refresh" }, text: "A new name, the same app: the game's own Orbiter made the old one hard to find. Your settings and logs come along: on its first start MyOrbiter copies them from the old folder (dev.orbiter.app), which stays as it was. A warframe.market sign-in kept in the system keyring stays under the old name: sign in once more. Keep it for now: a version from before the rename (on another channel, say) still uses it.", open: "settings#updates" },
+      { title: "Its log is myorbiter.log", icon: { line: "list" }, text: "The log has the new name too, in the new folder: Settings, Logs opens it. The lines from before the rename are in orbiter.log beside it.", open: "settings#logs" },
+    ],
+  },
   {
     id: 18,
     date: "2026-11-05",

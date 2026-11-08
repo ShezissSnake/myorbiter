@@ -1,4 +1,4 @@
-// Builds orbiter's website (site/ → site/_site/): the landing page, the in-app Guide as pages and
+// Builds MyOrbiter's website (site/ → site/_site/): the landing page, the in-app Guide as pages and
 // What's New, as plain HTML and CSS for GitLab Pages. The Guide and What's New come from the app's
 // own source (src/lib/tabs/Guide.svelte, src/lib/whatsNew.ts), drawn once with Svelte's server
 // renderer through Vite, so the site says what the app says. Nothing here runs in the browser.
@@ -83,24 +83,24 @@ const take = (cls, n = 0) => {
 
 // ---- Pages.
 const GUIDE = [
-  { file: "guide/index.html", title: "Walkthroughs", blurb: "What to open, in order, for the things players come to orbiter for.", body: () => `<section class="walks">${take("walks")}</section>` },
+  { file: "guide/index.html", title: "Walkthroughs", blurb: "What to open, in order, for the things players come to MyOrbiter for.", body: () => `<section class="walks">${take("walks")}</section>` },
   { file: "guide/pages.html", title: "Every page", blurb: "Each page, by when you'd use it.", body: () => `<section class="routines">${take("routines")}</section>` },
-  { file: "guide/your-game.html", title: "Your game and your data", blurb: "What orbiter reads, what it sends, and what Full mode means for your account.", body: () => `<section class="trust">${take("trust")}</section>` },
+  { file: "guide/your-game.html", title: "Your game and your data", blurb: "What MyOrbiter reads, what it sends, and what Full mode means for your account.", body: () => `<section class="trust">${take("trust")}</section>` },
   { file: "guide/getting-around.html", title: "Getting around", blurb: "The sidebar, the marks on cards and rows, and where every number comes from.", body: () => `<section class="cols">${take("cols")}</section>` },
 ];
 
-const NAV = [["index.html", "orbiter"], ["guide/index.html", "Guide"], ["whats-new.html", "What's new"], ["index.html#download", "Download"]];
+const NAV = [["index.html", "MyOrbiter"], ["guide/index.html", "Guide"], ["whats-new.html", "What's new"], ["index.html#download", "Download"]];
 
 function page({ file, title, blurb, body, section }) {
   const base = "../".repeat(file.split("/").length - 1);
-  const nav = NAV.map(([href, label], i) => `<a href="${base}${href}"${href === file || (section && href.startsWith(section)) ? ' aria-current="page"' : ""}>${i === 0 ? `<img src="${base}icon.svg" width="24" height="24" alt="">` : ""}${esc(label)}</a>`).join("");
+  const nav = NAV.map(([href, label], i) => `<a href="${base}${href}"${href === file || (section && href.startsWith(section)) ? ' aria-current="page"' : ""}>${i === 0 ? `<img class="wordmark" src="${base}wordmark.svg" height="26" alt="${esc(label)}">` : esc(label)}</a>`).join("");
   const sub = section === "guide/" ? `<nav class="guide-nav" aria-label="Guide">${GUIDE.map((g) => `<a href="${base}${g.file}"${g.file === file ? ' aria-current="page"' : ""}>${esc(g.title)}</a>`).join("")}</nav>` : "";
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(title === "orbiter" ? "orbiter: a Warframe companion" : `${title} · orbiter`)}</title>
+<title>${esc(title === "MyOrbiter" ? "MyOrbiter, the Warframe companion" : `${title} · MyOrbiter`)}</title>
 <meta name="description" content="${esc(blurb)}">
 <link rel="icon" href="${base}icon.svg" type="image/svg+xml">
 <link rel="icon" href="${base}icon.png" sizes="32x32">
@@ -114,8 +114,8 @@ ${sub}
 ${body().replaceAll("{{base}}", () => base)}
 </main>
 <footer class="foot">
-<p>orbiter is a fan-made tool, not affiliated with or endorsed by Digital Extremes. Warframe and its artwork are © and ™ Digital Extremes Ltd.; the game's icons shown here are theirs, used to identify what they depict, and are not covered by orbiter's licence.</p>
-<p>orbiter is free software under the <a href="${REPO}/-/blob/main/LICENSE">GNU General Public License, version 3 only</a>, with no warranty. <a href="${REPO}">Source on GitLab</a> · <a href="${REPO}/-/blob/main/NOTICE.md">Notices</a></p>
+<p>MyOrbiter is a fan-made tool, not affiliated with or endorsed by Digital Extremes. Warframe and its artwork are © and ™ Digital Extremes Ltd.; the game's icons shown here are theirs, used to identify what they depict, and are not covered by MyOrbiter's licence.</p>
+<p>MyOrbiter is free software under the <a href="${REPO}/-/blob/main/LICENSE">GNU General Public License, version 3 only</a>, with no warranty. <a href="${REPO}">Source on GitLab</a> · <a href="${REPO}/-/blob/main/NOTICE.md">Notices</a></p>
 </footer>
 </body>
 </html>
@@ -194,7 +194,7 @@ function landing() {
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(join(OUT, "guide"), { recursive: true });
 const write = (file, html) => writeFileSync(join(OUT, file), html);
-write("index.html", page({ file: "index.html", title: "orbiter", blurb: "A Warframe companion for your desktop: your relics, sets, mastery and spares, and your warframe.market listings, kept in one place.", body: landing }));
+write("index.html", page({ file: "index.html", title: "MyOrbiter", blurb: "A Warframe companion for your desktop: your relics, sets, mastery and spares, and your warframe.market listings, kept in one place.", body: landing }));
 for (const g of GUIDE) write(g.file, page({ ...g, section: "guide/" }));
 write("whats-new.html", page({ file: "whats-new.html", title: "What's new", blurb: "Every update, newest first, as the app's Guide lists them.", body: whatsNew }));
 
@@ -203,6 +203,8 @@ cpSync(join(SRC, "shots"), join(OUT, "shots"), { recursive: true, filter: (f) =>
 // The app icon's small drawing (npm run icons), as the favicon and the mark in the header.
 cpSync(join(ROOT, "src-tauri/icons/icon-small.svg"), join(OUT, "icon.svg"));
 cpSync(join(ROOT, "src-tauri/icons/32x32.png"), join(OUT, "icon.png"));
+// The wordmark (src-tauri/icons/wordmark.svg) as the first link in the header.
+cpSync(join(ROOT, "src-tauri/icons/wordmark.svg"), join(OUT, "wordmark.svg"));
 mkdirSync(join(OUT, "game"));
 for (const f of icons) cpSync(join(ROOT, "public/game", f), join(OUT, "game", f));
 // The fonts the app uses (SIL Open Font License, its text beside them).

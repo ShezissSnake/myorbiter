@@ -1,9 +1,9 @@
 // The notification for a sale in game: what you sold, to whom, for how much. Every trade where
 // you gave items and got only platinum back is told once, whether or not you're signed in to
-// warframe.market; when orbiter also marked the listing sold there, that goes on a second line.
+// warframe.market; when MyOrbiter also marked the listing sold there, that goes on a second line.
 import type { Trade, TradeItem } from "./types";
 
-/** What became of one item of a sale on warframe.market, when orbiter marked sales from the game. */
+/** What became of one item of a sale on warframe.market, when MyOrbiter marked sales from the game. */
 export type SaleOutcome = "marked" | "still listed" | "not listed" | "hand";
 
 /** One line of a sale: an item (a whole set when the trade was one), with what became of its listing. */
@@ -20,7 +20,7 @@ export const TELL_WINDOW = 30 * 60_000;
 /**
  * Whether a trade is recent enough to tell: from the last half hour. A trade with no time (the
  * log's session start wasn't seen) only once it turns up after this run's first read of its
- * session: the first read can be hours late, after orbiter was closed.
+ * session: the first read can be hours late, after MyOrbiter was closed.
  */
 export const recentTrade = (t: Trade, now: number, firstRead: boolean) => (t.at ? now - t.at * 1000 < TELL_WINDOW : !firstRead);
 
@@ -45,7 +45,7 @@ const OUTCOME_WORD: Record<SaleOutcome, string> = {
 };
 
 /**
- * The words of a sale's notification. `lines`: the items as orbiter logged them, with what became
+ * The words of a sale's notification. `lines`: the items as MyOrbiter logged them, with what became
  * of each listing, when it marked the sale on warframe.market; else the trade's own items.
  * One item: the title says it all. Several: the title has the count and the total, and the body
  * one line each. What became of the listings is the last line, or beside each item when they differ.

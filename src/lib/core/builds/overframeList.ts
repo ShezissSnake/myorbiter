@@ -1,10 +1,10 @@
 // Overframe's popular builds, as a bundled list: what Overframe's build list pages show (title,
 // item, author, votes, Forma count, game update, dates, link), collected by hand in a browser and
-// shipped with orbiter, dated. Never a build page's contents (mods, arcanes, shards).
+// shipped with MyOrbiter, dated. Never a build page's contents (mods, arcanes, shards).
 //
 // Permission: Overframe's team, by email (3 Nov 2026), allows taking its lists of
 // popular builds and showing that information, not the build pages themselves, and suggested a
-// browser-collected copy kept in orbiter's own data. So orbiter never contacts Overframe: the file
+// browser-collected copy kept in MyOrbiter's own data. So MyOrbiter never contacts Overframe: the file
 // is public/data/overframe/popular.json (how to refresh it: README.md beside it), loaded at run
 // time from the app's own assets. Every entry links to its build on overframe.gg, so the authors
 // get the visits.
@@ -38,7 +38,7 @@ export interface OverframeListed {
   title: string;
   /** The item's name, as the list shows it. */
   item: string;
-  /** orbiter's catalog path for the item, when its name matched one. */
+  /** MyOrbiter's catalog path for the item, when its name matched one. */
   uniqueName?: string;
   author: string;
   /** Votes. */
@@ -71,7 +71,7 @@ const count = (v: unknown): number | null => (typeof v === "number" && Number.is
 const UNIQUE = /^\/Lotus(\/[A-Za-z0-9_]+){1,12}$/;
 
 /**
- * A path on overframe.gg that is a build's page (the only links orbiter makes to it):
+ * A path on overframe.gg that is a build's page (the only links MyOrbiter makes to it):
  * `/build/<id>/` and slug segments, nothing that could leave the page once the browser reads it
  * (no empty, `.` or `..` segments, backslashes, `%`, query, fragment, spaces or hidden characters), and the
  * URL it makes stays on overframe.gg under /build/.

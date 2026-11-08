@@ -9,7 +9,7 @@ const { persistSettings } = await import("../src/lib/persist.svelte");
 // @ts-expect-error: Svelte's client internals have no type declarations
 const { proxy } = (await import("svelte/internal/client")) as { proxy: <T>(v: T) => T };
 
-/** Settings of someone who has used orbiter for a year. */
+/** Settings of someone who has used MyOrbiter for a year. */
 function bigSettings(): Settings {
   const s = defaultSettings();
   const item = (i: number) => ({ name: `Item ${i % 300} Prime Blueprint`, rank: i % 5 ? null : 5, count: 1 + (i % 3) });

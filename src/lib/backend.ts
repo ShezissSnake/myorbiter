@@ -33,7 +33,7 @@ import { defaultUpdates, sanitizeUpdates, type Channel, type Install, type Updat
 import type { NoxAnswer, NoxFetcher, NoxListing, NoxPage } from "./core/builds/noxsframe";
 
 
-/** warframe.market's platforms: whose market orbiter reads and lists on. */
+/** warframe.market's platforms: whose market MyOrbiter reads and lists on. */
 export type Platform = "pc" | "xbox" | "ps4" | "switch" | "mobile";
 export const PLATFORM_LABEL: Record<Platform, string> = { pc: "PC", xbox: "Xbox", ps4: "PlayStation", switch: "Nintendo Switch", mobile: "iOS / Android" };
 
@@ -56,7 +56,7 @@ export interface MarketSettings {
    * repricing never takes a listing under 70% of it.
    */
   approved: Record<string, number>;
-  /** The warframe.market status you last chose; orbiter holds it again when it starts. Null: none. */
+  /** The warframe.market status you last chose; MyOrbiter holds it again when it starts. Null: none. */
   presence: Presence | null;
   /**
    * Gone invisible for the rest of the day because your trades ran out: the status to go back to,
@@ -108,7 +108,7 @@ export interface MarketSettings {
   /**
    * While someone whispers you, hide listings down to their last copy so a second buyer doesn't
    * find one already promised; each comes back after `minutes` unless it sold. `hidden`: the ones
-   * orbiter hid, and when.
+   * MyOrbiter hid, and when.
    */
   /** optIn, not the first version's `on`: that one was on for everyone, and hid nearly every listing on any whisper. */
   lastCopy: { optIn: boolean; minutes: number; hidden: HiddenForWhisper[] };
@@ -121,7 +121,7 @@ function ordersSortOf(v: unknown): { key: OrderSortKey; desc: boolean } | undefi
   const o = v as { key?: unknown; desc?: unknown } | null;
   return o && typeof o === "object" && ORDER_SORT_KEYS.includes(o.key as OrderSortKey) && typeof o.desc === "boolean" ? { key: o.key as OrderSortKey, desc: o.desc } : undefined;
 }
-/** A saved "back to this status at the reset", if it's whole: a status orbiter knows and a time. */
+/** A saved "back to this status at the reset", if it's whole: a status MyOrbiter knows and a time. */
 function presenceBackOf(v: unknown): { p: Presence; until: number } | null {
   const o = v as { p?: unknown; until?: unknown } | null;
   return o && typeof o === "object" && (o.p === "invisible" || o.p === "online" || o.p === "ingame") && typeof o.until === "number" && Number.isFinite(o.until) ? { p: o.p, until: o.until } : null;
@@ -166,7 +166,7 @@ export interface Settings {
   jumpToPick: boolean;
   /** TennoScope's overlays: which show over the game, and what the reward cards show. */
   overlay: OverlaySettings;
-  /** Start TennoScope (in the background) with orbiter and close it with orbiter. */
+  /** Start TennoScope (in the background) with MyOrbiter and close it with MyOrbiter. */
   /** opaqueOverlay: TennoScope's overlay on a solid background (Windows, when a transparent one is invisible). */
   tennoscope: { launch: boolean; opaqueOverlay: boolean };
   market: MarketSettings;
@@ -208,7 +208,7 @@ export interface Settings {
   chores: Record<string, number>;
   /** The sidebar's order, when you changed it (Settings → Pages): page ids. */
   pageOrder: string[];
-  /** The page orbiter opens on: "last" is where you left it. */
+  /** The page MyOrbiter opens on: "last" is where you left it. */
   startPage: string;
   tab: string;
   /** The sidebar: true icons only, false with page names, null folds by itself in a narrow window. */
@@ -219,7 +219,7 @@ export interface Settings {
   schema: number;
   /** Invasion rewards already announced (invasion id | part), newest first. */
   notifiedInvasions: string[];
-  /** What orbiter last learned about your account and has already told you. */
+  /** What MyOrbiter last learned about your account and has already told you. */
   game: GameState;
   /** Items you starred, by unique name. */
   favourites: string[];
@@ -227,7 +227,7 @@ export interface Settings {
   fissureRules: FissureRule[];
   /** Rivens you want: a notification when one is listed at or under your price. */
   rivenWatch: RivenWatch[];
-  /** Mod and arcane loadouts: pasted, your own, orbiter's suggestions (core/builds). */
+  /** Mod and arcane loadouts: pasted, your own, MyOrbiter's suggestions (core/builds). */
   builds: Build[];
   /** Builds older than this many days are hidden (their source's date, else when added); 0: no limit. */
   buildsMaxAgeDays: number;
@@ -280,9 +280,9 @@ export interface GameState {
   gear: GearCopy[] | null;
   /** The warframes fed to the Helminth, by path, from the same read (null before a TennoScope that passes them has). */
   consumedSuits: string[] | null;
-  /** Gear you chose to keep though orbiter says you don't need it (item paths). */
+  /** Gear you chose to keep though MyOrbiter says you don't need it (item paths). */
   keepGear: string[];
-  /** Each riven's rolls as orbiter has seen them (by riven id, oldest first): for before-and-after on a cycle. */
+  /** Each riven's rolls as MyOrbiter has seen them (by riven id, oldest first): for before-and-after on a cycle. */
   rivenHistory: Record<string, RivenSnap[]>;
   /** Announced already (newest first, capped). */
   foundryNotified: string[];
@@ -393,7 +393,7 @@ export interface NotifyOptions {
   pausedUntil: number | null;
   /** Which of the two that was, so the panel lights its button. */
   pausedHow?: "hour" | "tomorrow" | null;
-  /** While you're looking at orbiter: a pop-up in its window. */
+  /** While you're looking at MyOrbiter: a pop-up in its window. */
   toasts: boolean;
   /** While you're not: your desktop's notifications. */
   desktop: boolean;
@@ -406,12 +406,12 @@ export interface NotifyOptions {
 }
 export const DISCORD_DEFAULT_KINDS = ["rivens", "deals", "fissures", "whispers", "sold"];
 export const defaultNotifyOptions = (): NotifyOptions => ({ paused: false, pausedUntil: null, toasts: true, desktop: true, quietInFissure: false, quiet: [], discord: { url: "", kinds: DISCORD_DEFAULT_KINDS } });
-/** A Discord webhook address, and nothing else: orbiter only ever posts to one of these. */
+/** A Discord webhook address, and nothing else: MyOrbiter only ever posts to one of these. */
 export const isDiscordWebhook = (url: string) => /^https:\/\/(?:(?:ptb\.|canary\.)?discord\.com|discordapp\.com)\/api\/webhooks\/\d+\/[\w-]+$/.test(url.trim());
 /**
- * Whether orbiter may post to this Discord address: true once confirmed. A new one is asked about
- * in a window of orbiter's own (not the page); false when the answer was no, or another question
- * is open. Called while the player is there: when an address is pasted, and as orbiter starts.
+ * Whether MyOrbiter may post to this Discord address: true once confirmed. A new one is asked about
+ * in a window of MyOrbiter's own (not the page); false when the answer was no, or another question
+ * is open. Called while the player is there: when an address is pasted, and as MyOrbiter starts.
  */
 export async function discordConfirm(url: string): Promise<boolean> {
   if (!isDiscordWebhook(url)) return false;
@@ -509,7 +509,7 @@ const tauriBundle = bundleLoader({
   catalogs: (dir) => invoke<CatalogPart>("load_catalogs", { dir: dir || null }),
 });
 
-/** No inventory and no item data: orbiter before TennoScope has read anything (or on a Mac). */
+/** No inventory and no item data: MyOrbiter before TennoScope has read anything (or on a Mac). */
 export const emptyBundle = (): Bundle => ({ observed_at: null, inventory: [], catalog: [], relics: [], prices: null });
 
 /** TennoScope runs but hasn't read an inventory yet. */
@@ -704,7 +704,7 @@ export async function loadLive(): Promise<Live> {
 }
 
 /**
- * What orbiter last read from the network, kept for its next start so pages show it at once and
+ * What MyOrbiter last read from the network, kept for its next start so pages show it at once and
  * update as new reads come in: your rivens' price checks, the worldstate, last week's riven trades.
  * Null when nothing was kept (or it can't be read). In the browser, kept in localStorage.
  */
@@ -730,7 +730,7 @@ export async function exportFile(what: string, text: string): Promise<string> {
   if (inTauri) return invoke<string>("export_file", { what, text, day });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([text], { type: "text/csv" }));
-  a.download = `orbiter-${what}.csv`;
+  a.download = `myorbiter-${what}.csv`;
   a.click();
   return a.download;
 }
@@ -804,7 +804,7 @@ export async function loadSettings(): Promise<Settings> {
   let raw: Partial<Settings> | null = null;
   if (inTauri) {
     // A file briefly held by something else (an antivirus, a backup): tried a few times. Still
-    // unreadable, orbiter runs on defaults but never saves over the file (see flushSettings).
+    // unreadable, MyOrbiter runs on defaults but never saves over the file (see flushSettings).
     for (let i = 0; ; i++) {
       try {
         const loaded = await invoke<{ settings: Partial<Settings> | null; page: number }>("load_settings");
@@ -838,7 +838,7 @@ export async function loadSettings(): Promise<Settings> {
   if (raw) delete (raw as { view?: unknown }).view;
   // Arcane tiers were taken out: settings saved with them drop them.
   if (raw) delete (raw as { tiers?: unknown }).tiers;
-  // TennoScope's program is chosen in a native dialog and kept by orbiter itself: an old path the
+  // TennoScope's program is chosen in a native dialog and kept by MyOrbiter itself: an old path the
   // page saved is dropped rather than carried along (into exports and bug reports).
   if (raw?.tennoscope && typeof raw.tennoscope === "object") delete (raw.tennoscope as { path?: unknown }).path;
   return {
@@ -878,7 +878,7 @@ export async function loadSettings(): Promise<Settings> {
       },
     },
     // Once: the pages most people rarely open leave the sidebar (Settings → Pages puts them back).
-    // Someone who had orbiter before this was kept: everything is new to them. A first start: nothing is.
+    // Someone who had MyOrbiter before this was kept: everything is new to them. A first start: nothing is.
     newsSeen: typeof raw?.newsSeen === "string" ? raw.newsSeen : raw ? "" : NEWEST,
     pagesHidden: (() => {
       const had: string[] = Array.isArray(raw?.pagesHidden) ? raw.pagesHidden.filter((k: unknown): k is string => typeof k === "string") : [];
@@ -987,7 +987,7 @@ export async function flushSettings() {
   // Your saved settings couldn't be read: saving now would replace them (sales, floors) with these.
   if (loadFailed) {
     saveFailed = true;
-    saveListener?.(`orbiter couldn't read your saved settings (${loadFailed}), so it won't save over them. Restart orbiter`);
+    saveListener?.(`MyOrbiter couldn't read your saved settings (${loadFailed}), so it won't save over them. Restart MyOrbiter`);
     return;
   }
   try {
@@ -1024,7 +1024,7 @@ export function onSaveTrouble(f: (error: string | null) => void) {
 export async function openUrl(url: string) {
   const safe = openable(url);
   if (!safe) {
-    logLine("warn", "app", `refused to open a link outside orbiter's sites: ${url.slice(0, 200)}`);
+    logLine("warn", "app", `refused to open a link outside MyOrbiter's sites: ${url.slice(0, 200)}`);
     return;
   }
   if (inTauri) {
@@ -1043,16 +1043,16 @@ export const wikiUrl = (name: string) => `https://wiki.warframe.com/w/${encodeUR
 /** The squad's relics from EE.log. `null` when the log isn't found. In the browser dev mode it
  * reads public/dev-mission.json if present. */
 export interface TennoscopeStatus {
-  /** The program orbiter would start, if found. */
+  /** The program MyOrbiter would start, if found. */
   binary: string | null;
   /** The program chosen in Settings, if one is. */
   custom?: string | null;
-  /** That program is the TennoScope that comes inside orbiter. */
+  /** That program is the TennoScope that comes inside MyOrbiter. */
   bundled?: boolean;
   /** TennoScope runs on this system (it doesn't on macOS). */
   supported?: boolean;
   running: boolean;
-  started_by_orbiter: boolean;
+  started_by_myorbiter: boolean;
   /** What a patched TennoScope last reported, while fresh. */
   report: TennoscopeReport | null;
 }
@@ -1101,7 +1101,7 @@ export interface TennoscopeReport {
 /** `--access=…`: the Full mode switch (FullMode.svelte), Full or back to Overlay. */
 export type TennoscopeAsk = "--sync" | "--authorize-capture" | "--access=full" | "--access=overlay";
 
-/** Your warframe.market status as orbiter holds it on its own connection (see presence.rs). */
+/** Your warframe.market status as MyOrbiter holds it on its own connection (see presence.rs). */
 export interface PresenceState {
   /** What you chose; null: no connection held, which warframe.market shows as offline. */
   wanted: Presence | null;
@@ -1129,8 +1129,8 @@ const devTennoscope = async (): Promise<TennoscopeStatus | null> => {
   return { ...s, report: s.report ? { ...s.report, at: Date.now() } : null };
 };
 
-/** TennoScope, started and stopped by orbiter. Only the desktop app does this. */
-/** This copy of orbiter: its version, and how it was installed (so how it updates). */
+/** TennoScope, started and stopped by MyOrbiter. Only the desktop app does this. */
+/** This copy of MyOrbiter: its version, and how it was installed (so how it updates). */
 export interface UpdateInfo {
   version: string;
   install: Install;
@@ -1166,12 +1166,12 @@ export const tennoscope = {
   ptraceScope: (): Promise<number | null> => (inTauri ? invoke<number | null>("ptrace_scope") : Promise.resolve(null)),
   status: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_status") : devTennoscope()),
   /**
-   * The program orbiter starts as TennoScope, picked in a native file dialog that orbiter's Rust
+   * The program MyOrbiter starts as TennoScope, picked in a native file dialog that MyOrbiter's Rust
    * side opens: the page never names one. Null when the dialog was closed without a choice. Kept
    * by the Rust side, which refuses anything not named like TennoScope.
    */
   chooseProgram: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_choose_program") : Promise.resolve(null)),
-  /** orbiter finds TennoScope again, forgetting the program chosen in the dialog. */
+  /** MyOrbiter finds TennoScope again, forgetting the program chosen in the dialog. */
   forgetProgram: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_forget_program") : devTennoscope()),
   start: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_start") : devTennoscope()),
   show: (): Promise<void> => (inTauri ? invoke("tennoscope_show") : Promise.resolve()),
@@ -1185,25 +1185,25 @@ export const tennoscope = {
 
 // ---------------------------------------------------------------- the log
 
-/** A line for orbiter's log (see applog.rs): the desktop app writes it; in a browser, the console. */
+/** A line for MyOrbiter's log (see applog.rs): the desktop app writes it; in a browser, the console. */
 export function logLine(level: "info" | "warn" | "error", area: string, message: string) {
   if (inTauri) void invoke("log_line", { level, area, message }).catch(() => {});
   else if (level !== "info") console[level === "error" ? "error" : "warn"](`[${area}] ${message}`);
 }
 
-/** Where orbiter's and TennoScope's logs are (null: none yet, or not the desktop app). */
-export async function logFolders(dataDir: string): Promise<{ orbiter: string | null; tennoscope: string | null }> {
-  return inTauri ? invoke("log_folders", { dir: dataDir || null }) : { orbiter: null, tennoscope: null };
+/** Where MyOrbiter's and TennoScope's logs are (null: none yet, or not the desktop app). */
+export async function logFolders(dataDir: string): Promise<{ myorbiter: string | null; tennoscope: string | null }> {
+  return inTauri ? invoke("log_folders", { dir: dataDir || null }) : { myorbiter: null, tennoscope: null };
 }
 
 /** Opens a log folder in the file manager. */
-export async function openLogFolder(which: "orbiter" | "tennoscope", dataDir: string): Promise<void> {
+export async function openLogFolder(which: "myorbiter" | "tennoscope", dataDir: string): Promise<void> {
   if (inTauri) await invoke("open_log_folder", { which, dir: dataDir || null });
 }
 
 // ---------------------------------------------------------------- bug reports
 
-/** The last `lines` lines of orbiter's log, redacted by applog.rs (none in a browser). */
+/** The last `lines` lines of MyOrbiter's log, redacted by applog.rs (none in a browser). */
 export async function logTail(lines: number): Promise<string[]> {
   return inTauri ? invoke<string[]>("log_tail", { lines }) : [];
 }
@@ -1234,7 +1234,7 @@ export async function setCompatRendering(on: boolean): Promise<void> {
 /**
  * A desktop notification (App's `tell` decides when). `id`: its entry in the history, so clicking
  * it opens what it's about (see onNoticeOpen). `actions`: buttons beside Open, as [action, label]
- * (a sale's "Give +rep"); pressing one tells the page (onNoticeAction) without bringing orbiter up.
+ * (a sale's "Give +rep"); pressing one tells the page (onNoticeAction) without bringing MyOrbiter up.
  * Linux and Windows. In the browser dev mode it's logged.
  */
 export function notify(summary: string, body: string, id?: string, actions: [string, string][] = []) {
@@ -1242,7 +1242,7 @@ export function notify(summary: string, body: string, id?: string, actions: [str
   else console.info(`[notification] ${summary}: ${body}${actions.length ? ` [${actions.map((a) => a[1]).join("] [")}]` : ""}`);
 }
 
-/** Quit orbiter (Ctrl+Q, or the window's X), closing the TennoScope it started. */
+/** Quit MyOrbiter (Ctrl+Q, or the window's X), closing the TennoScope it started. */
 export async function quit() {
   // A change from the last 300 ms would otherwise be lost.
   await flushSettings();
@@ -1263,7 +1263,7 @@ export async function quitOnWindowClose(): Promise<() => void> {
       quit().catch((e) => console.error("quitting failed", e));
     });
   } catch (e) {
-    // The X still closes orbiter, 2 s later and without the last changes.
+    // The X still closes MyOrbiter, 2 s later and without the last changes.
     console.error("can't hear the window close", e);
     return () => {};
   }
@@ -1291,7 +1291,7 @@ export async function rewardCards(): Promise<ScreenCards | null> {
   return res?.ok && res.headers.get("content-type")?.includes("json") ? res.json() : null;
 }
 
-/** orbiter's pick, for TennoScope's overlay. Only the desktop app writes it. */
+/** MyOrbiter's pick, for TennoScope's overlay. Only the desktop app writes it. */
 export async function writeRewardPick(pick: RewardPickFile): Promise<void> {
   if (inTauri) await invoke("write_reward_pick", { pick });
 }
@@ -1334,7 +1334,7 @@ export async function writeRivenCycle(cycle: unknown): Promise<void> {
   if (inTauri) await invoke("write_riven_cycle", { cycle });
 }
 
-/** Every relic reward screen in TennoScope's own logs, oldest first (see crates/orbiter-data/src/reward_log.rs). */
+/** Every relic reward screen in TennoScope's own logs, oldest first (see crates/myorbiter-data/src/reward_log.rs). */
 export async function rewardScreens(dataDir: string): Promise<LoggedScreen[]> {
   if (inTauri) return invoke<LoggedScreen[]>("reward_screens", { dir: dataDir || null });
   const res = await fetch("/dev-reward-screens.json").catch(() => null);
@@ -1357,7 +1357,7 @@ export async function missionState(eeLog: string): Promise<MissionState | null> 
   return res?.ok ? res.json() : null;
 }
 
-// Item artwork goes through orbiter's local cache, its own "img" protocol. Windows' webview
+// Item artwork goes through MyOrbiter's local cache, its own "img" protocol. Windows' webview
 // (WebView2) only reaches an app's protocol as http://img.localhost; Linux and macOS take
 // img://localhost. In the browser dev mode it comes straight from WFCD.
 export const onWindows = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
@@ -1527,7 +1527,7 @@ async function decodeNoxInBrowser(code: string): Promise<unknown> {
   return JSON.parse(await new Response(stream).text());
 }
 
-const needAppForNox = (): Promise<never> => Promise.reject(new Error("Reading Nox's Frame needs the orbiter app"));
+const needAppForNox = (): Promise<never> => Promise.reject(new Error("Reading Nox's Frame needs the MyOrbiter app"));
 
 /**
  * Nox's Frame through the Rust side (src-tauri/src/noxsframe.rs): spaced 3 s apart, kept a week.

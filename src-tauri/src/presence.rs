@@ -3,12 +3,12 @@
 //! warframe.market keeps status on a WebSocket, not as a setting: a client connects, signs in with
 //! the account's token and says which status it holds, and the status lasts as long as that
 //! connection. When the last connection closes, the account shows as offline (and its listings
-//! are hidden from buyers). So orbiter holds one connection open while you have a status chosen,
+//! are hidden from buyers). So MyOrbiter holds one connection open while you have a status chosen,
 //! reconnects when it drops, and closes it when you quit.
 //!
-//! TennoScope can hold its own connection for the same account. While orbiter holds yours it
+//! TennoScope can hold its own connection for the same account. While MyOrbiter holds yours it
 //! writes `orbiter-presence.json` to the shared runtime folder every few seconds; a TennoScope
-//! with orbiter's patch sees it, closes its own connection and refuses status changes, so the
+//! with MyOrbiter's patch sees it, closes its own connection and refuses status changes, so the
 //! two never fight over what buyers see.
 
 use serde::Serialize;
@@ -55,7 +55,7 @@ impl Status {
 /// What the page shows.
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct State {
-    /// What you chose; `None`: no connection held (offline, as far as orbiter is concerned).
+    /// What you chose; `None`: no connection held (offline, as far as MyOrbiter is concerned).
     pub wanted: Option<Status>,
     /// What warframe.market confirmed, which is what buyers see.
     pub committed: Option<Status>,
@@ -216,7 +216,7 @@ fn hold(id: u64, first: String, token: TokenSource, initial: Status, rx: Receive
         match session(id, &t, &mut wanted, &rx, &state) {
             Ended::Done => break,
             Ended::Dropped(why) => {
-                log::warn!(target: "orbiter::presence", "{why}");
+                log::warn!(target: "myorbiter::presence", "{why}");
                 // A connection that held for a while was a good one: start the waits over.
                 if began.elapsed() > Duration::from_secs(60) {
                     pause = Duration::from_secs(2);
@@ -279,7 +279,7 @@ fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state:
         Err(e) => return Ended::Dropped(e.to_string()),
     };
     request.headers_mut().insert("Sec-WebSocket-Protocol", tungstenite::http::HeaderValue::from_static(SUBPROTOCOL));
-    // The same name orbiter gives on the API: a connection that says nothing about itself is
+    // The same name MyOrbiter gives on the API: a connection that says nothing about itself is
     // turned away (403) before it can sign in.
     request.headers_mut().insert("User-Agent", tungstenite::http::HeaderValue::from_static(crate::market::USER_AGENT));
     let mut ws = match connect(request) {
@@ -305,7 +305,7 @@ fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state:
     let mut refused: Option<Status> = None;
     let mut last_sent: Option<Instant> = None;
     // Changed from elsewhere again and again (the website, another app holding it too): after the
-    // third time in ten minutes, orbiter stops putting it back for ten minutes rather than fight.
+    // third time in ten minutes, MyOrbiter stops putting it back for ten minutes rather than fight.
     let mut overrides: Vec<Instant> = Vec::new();
     let mut hold_until: Option<Instant> = None;
     // None: the first heartbeat goes out at once. Not `now - HEARTBEAT`: on Windows an Instant counts
@@ -419,8 +419,8 @@ fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state:
                     overrides.clear();
                     hold_until = Some(Instant::now() + Duration::from_secs(600));
                     if let Ok(mut s) = state.lock() {
-                        log::warn!(target: "orbiter::presence", "something else keeps changing the status: holding off for 10 minutes");
-                        s.error = Some("Something else keeps changing your warframe.market status (the website or another app), so orbiter leaves it for 10 minutes. Pick a status to take it back now.".into());
+                        log::warn!(target: "myorbiter::presence", "something else keeps changing the status: holding off for 10 minutes");
+                        s.error = Some("Something else keeps changing your warframe.market status (the website or another app), so MyOrbiter leaves it for 10 minutes. Pick a status to take it back now.".into());
                     }
                 } else {
                     // Due again at once (as if never sent; not `now - REASSERT`, see last_beat).
@@ -435,7 +435,7 @@ fn session(id: u64, token: &str, wanted: &mut Status, rx: &Receiver<Cmd>, state:
 mod tests {
     use super::*;
 
-    /// Hits the network: `cargo test -p orbiter -- --ignored`. Only the handshake, no sign-in.
+    /// Hits the network: `cargo test -p myorbiter -- --ignored`. Only the handshake, no sign-in.
     #[test]
     #[ignore]
     fn connects_with_time_limits() {

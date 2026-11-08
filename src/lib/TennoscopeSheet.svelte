@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Everything orbiter can see and do about TennoScope, so its own window is rarely needed.
+  // Everything MyOrbiter can see and do about TennoScope, so its own window is rarely needed.
   import { ts } from "./tennoscopeStore.svelte";
   import { onWindows, type Health, type HealthState } from "./backend";
   import Sheet from "./ui/Sheet.svelte";
@@ -8,7 +8,7 @@
   import { Job } from "./job.svelte";
   import FullMode from "./FullMode.svelte";
 
-  // `onsync` is the sidebar's Sync: TennoScope reads the inventory, then orbiter reloads it; `job`
+  // `onsync` is the sidebar's Sync: TennoScope reads the inventory, then MyOrbiter reloads it; `job`
   // is that sync's progress, shown here as on the sidebar's button.
   // `windowMode`: Warframe's display mode from its EE.cfg; `opaqueOverlay`: the Windows setting.
   let {
@@ -85,23 +85,23 @@
     });
 </script>
 
-<Sheet bind:open title="TennoScope" kicker="Runs alongside orbiter">
+<Sheet bind:open title="TennoScope" kicker="Runs alongside MyOrbiter">
   <section class="state">
     {#if !ts.status}
       <p class="prose">TennoScope's state is only available in the desktop app.</p>
     {:else if ts.status.supported === false}
-      <p class="prose">TennoScope doesn't run on macOS, so orbiter works without your inventory here.</p>
+      <p class="prose">TennoScope doesn't run on macOS, so MyOrbiter works without your inventory here.</p>
     {:else if !ts.running}
       <div class="line"><i class="dot failed"></i><strong>Not running</strong></div>
       <p class="prose">
-        {#if ts.status.binary}orbiter starts it in the background when it opens. Start it now, or check Settings if it keeps stopping.{:else}orbiter couldn't find TennoScope. Set its program in Settings.{/if}
+        {#if ts.status.binary}MyOrbiter starts it in the background when it opens. Start it now, or check Settings if it keeps stopping.{:else}MyOrbiter couldn't find TennoScope. Set its program in Settings.{/if}
       </p>
       {#if ts.status.binary}<div><ProgressButton job={startJob} label="Start TennoScope" working="Starting…" failLabel="Didn't start" status title="Start TennoScope in the background now" onclick={start} /></div>{/if}
     {:else}
       <div class="line">
         <i class="dot ready"></i>
-        <strong>Running{ts.status.started_by_orbiter ? " in the background" : ""}</strong>
-        <span class="dim small">{ts.status.started_by_orbiter ? `orbiter started ${ts.status.bundled ? "the copy inside it" : "it"} and closes it when you close orbiter` : "you started it; orbiter leaves it running"}</span>
+        <strong>Running{ts.status.started_by_myorbiter ? " in the background" : ""}</strong>
+        <span class="dim small">{ts.status.started_by_myorbiter ? `MyOrbiter started ${ts.status.bundled ? "the copy inside it" : "it"} and closes it when you close MyOrbiter` : "you started it; MyOrbiter leaves it running"}</span>
       </div>
       <div class="row">
         <ProgressButton job={openJob} stamp={false} label="Open its window" working="Opening…" failLabel="Couldn't open" status title="Bring TennoScope's own window up" onclick={openWindow} />
@@ -113,8 +113,8 @@
 
   {#if ts.unpatched}
     <section class="callout">
-      <h3 class="register">This TennoScope doesn't talk to orbiter</h3>
-      <p class="prose">It's an unpatched build, so orbiter can't show its state, read the reward cards or run it without a window. Build orbiter's TennoScope (see <code>tennoscope/ORBITER.md</code> in orbiter's folder) and point Settings at it.</p>
+      <h3 class="register">This TennoScope doesn't talk to MyOrbiter</h3>
+      <p class="prose">It's an unpatched build, so MyOrbiter can't show its state, read the reward cards or run it without a window. Build MyOrbiter's TennoScope (see <code>tennoscope/ORBITER.md</code> in MyOrbiter's folder) and point Settings at it.</p>
     </section>
   {/if}
 
@@ -122,7 +122,7 @@
     {#if r.setup.desktop_capture_action_available}
       <section class="callout gold">
         <h3 class="register">Allow screen capture</h3>
-        <p class="prose">TennoScope can't see the reward screen yet, so there's no overlay and orbiter gets no cards. Your desktop asks once which screen it may read.</p>
+        <p class="prose">TennoScope can't see the reward screen yet, so there's no overlay and MyOrbiter gets no cards. Your desktop asks once which screen it may read.</p>
         <div><ProgressButton job={allowJob} tone="gold" label="Allow screen capture" working="Asking…" failLabel="Couldn't ask" status title="Ask TennoScope to request screen capture: your desktop asks which screen it may read" onclick={allow} /></div>
       </section>
     {/if}
@@ -138,7 +138,7 @@
       <p class="dim small">It shows on a fissure's reward screen when there's a choice: two or more cards. Solo there's one card, so nothing shows. A screen TennoScope couldn't read, or the first one after it starts mid-mission, is missed too.</p>
       {#if onWindows}
         <Switch bind:on={opaqueOverlay} label="Solid overlay background">
-          <span class="dim small">If the overlay never appears even in Borderless: some drivers draw a see-through window invisibly. This draws it on a dark background instead. From TennoScope's next start (restart orbiter).</span>
+          <span class="dim small">If the overlay never appears even in Borderless: some drivers draw a see-through window invisibly. This draws it on a dark background instead. From TennoScope's next start (restart MyOrbiter).</span>
         </Switch>
       {/if}
     </section>

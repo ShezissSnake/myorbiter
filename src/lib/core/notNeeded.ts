@@ -69,13 +69,13 @@ const POLARITY: Record<string, string> = {
   AP_ANY: "aura",
 };
 
-/** A polarity code as the catalog names it ("AP_ATTACK" → "madurai"); null for a code orbiter doesn't know. */
+/** A polarity code as the catalog names it ("AP_ATTACK" → "madurai"); null for a code MyOrbiter doesn't know. */
 export function polarityName(code: string): string | null {
   return POLARITY[code] ?? null;
 }
 
 /**
- * A copy's polarised slots, by slot, named as the catalog does; a code orbiter doesn't know keeps
+ * A copy's polarised slots, by slot, named as the catalog does; a code MyOrbiter doesn't know keeps
  * the game's own ("AP_NEW"), so the slot still reads as polarised. Malformed entries are left out.
  */
 export function slotPolarities(c: GearCopy): { slot: number; polarity: string }[] {
@@ -100,7 +100,7 @@ export interface InstalledShard {
 export const INCARNON = 512;
 /**
  * Weapons an Incarnon Genesis fits (and so every version of them), as of November 2026: used only
- * to warn when orbiter can't see whether one is installed (a TennoScope without orbiter's patch).
+ * to warn when MyOrbiter can't see whether one is installed (a TennoScope without MyOrbiter's patch).
  */
 const GENESIS = new Set([
   "Ack & Brunt", "Angstrum", "Anku", "Atomos", "Ballistica", "Bo", "Boar", "Boltor", "Braton", "Bronco", "Burston", "Ceramic Dagger", "Cestra", "Dera", "Despair",
@@ -119,7 +119,7 @@ export interface CanGo {
   why: string;
   /** What's in it, and what to do instead (Helminth, which copy to keep). */
   notes: string[];
-  /** Something orbiter can't see that would keep it: check before selling. */
+  /** Something MyOrbiter can't see that would keep it: check before selling. */
   check: string | null;
   frame: boolean;
 }
@@ -233,7 +233,7 @@ export function notNeeded(m: Model, gear: GearCopy[] | null, keep: ReadonlySet<s
     if (!superseded && h.qty > 1 && mine.length > 1) notes.push("Keep the copy with the most in it");
     if (h.frame) notes.push("Or feed it to the Helminth, if you haven't subsumed its ability");
     if (need) notes.push(`Keep ${plural(need.qty, "copy", "copies")} for ${list(need.for)}`);
-    const check = superseded && !gear && genesisFor(fam.base) ? `orbiter can't see installed Incarnons yet: if you put its Incarnon Genesis in, keep it` : null;
+    const check = superseded && !gear && genesisFor(fam.base) ? `MyOrbiter can't see installed Incarnons yet: if you put its Incarnon Genesis in, keep it` : null;
     go.push({
       unique: u,
       name: h.name,

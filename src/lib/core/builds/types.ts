@@ -1,7 +1,7 @@
-// Builds: the shapes orbiter keeps in `settings.builds`, and their sanitiser.
+// Builds: the shapes MyOrbiter keeps in `settings.builds`, and their sanitiser.
 //
-// A build is orbiter's own JSON, whatever it came from: text the user pasted, the user's own
-// editor, orbiter's suggestions, or later a permitted fetcher (see source.ts). Paths are the
+// A build is MyOrbiter's own JSON, whatever it came from: text the user pasted, the user's own
+// editor, MyOrbiter's suggestions, or later a permitted fetcher (see source.ts). Paths are the
 // game's unique names, as the catalog has them.
 
 /**
@@ -15,7 +15,7 @@ export const POLARITIES: Polarity[] = ["madurai", "vazarin", "naramon", "zenurik
 export const POLARITY_SYMBOL: Record<Polarity, string> = { madurai: "V", vazarin: "D", naramon: "—", zenurik: "=", unairu: "Ψ", penjaga: "Y", umbra: "U", universal: "Omni" };
 export const POLARITY_LABEL: Record<Polarity, string> = { madurai: "Madurai", vazarin: "Vazarin", naramon: "Naramon", zenurik: "Zenurik", unairu: "Unairu", penjaga: "Penjaga", umbra: "Umbra", universal: "Omni" };
 
-/** A catalog or user polarity in orbiter's words; null for none or one it doesn't know. */
+/** A catalog or user polarity in MyOrbiter's words; null for none or one it doesn't know. */
 export function polarityOf(v: unknown): Polarity | null {
   if (typeof v !== "string") return null;
   const s = v.trim().toLowerCase();
@@ -65,7 +65,7 @@ export interface BuildHelminth {
 
 /**
  * Where a build came from. A url source is a page the user opened and copied from, or (later)
- * a permitted fetcher's: orbiter never fetches Overframe or the wiki by itself.
+ * a permitted fetcher's: MyOrbiter never fetches Overframe or the wiki by itself.
  */
 export type BuildSourceRef = "pasted" | "mine" | "orbiter" | { url: string; site: string };
 
@@ -102,7 +102,7 @@ export interface Build {
   votes?: number | null;
   /** When the source last changed it (ms), if it says. */
   updatedAt?: number | null;
-  /** When orbiter got it (ms). */
+  /** When MyOrbiter got it (ms). */
   importedAt: number;
   /** The game update it was made for ("39.1"), if known. */
   gameUpdate?: string;

@@ -1,6 +1,6 @@
 // The daily trade limit: as many trades a day as your Mastery Rank (Founders get two more), every
 // completed trade counting once whatever it carried, refreshed at 00:00 UTC. Up to 6 items go each
-// way in one trade. Counted from the trades orbiter read in the game's log.
+// way in one trade. Counted from the trades MyOrbiter read in the game's log.
 
 /** The most items one side of a trade can carry. */
 export const ITEMS_PER_TRADE = 6;
@@ -17,7 +17,7 @@ export function utcDayStart(now = Date.now()): number {
 export interface TradeAllowance {
   /** Trades a day at your rank; null when the rank isn't known yet. */
   limit: number | null;
-  /** Trades orbiter saw since 00:00 UTC. */
+  /** Trades MyOrbiter saw since 00:00 UTC. */
   used: number;
   /** Left today; null without a rank. */
   left: number | null;

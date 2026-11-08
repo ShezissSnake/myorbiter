@@ -125,7 +125,7 @@ test("requiem: fewer than five with Kuva weapons left, none is listed, by the pl
   assert.match(!g.ok ? g.why : "", /^Didn't list Khra R0: Requiem mods are kept while Kuva and Tenet weapons are left to master/);
 });
 
-test("requiem: an earlier orbiter's listing (two to a name, before the lich rule) comes down", () => {
+test("requiem: an earlier MyOrbiter's listing (two to a name, before the lich rule) comes down", () => {
   // Builds before the Requiem rule kept two of each mod, so Khra 4 → 2 listed, Jahu 3 → 1.
   const m = buildModel(account([...khra(), ...jahu]));
   const actions = plan(m, [order("old-khra", "khra", 2, 7, 0), order("old-jahu", "jahu", 1, 5, 0)]);
@@ -230,7 +230,7 @@ test("trust: no read, an empty read, no catalog, no mastery, or an old read prov
   const old = buildModel(account(khra(6, 1), { observedAt: Math.floor((NOW - MAX_INVENTORY_AGE_MS) / 1000) - 3600 }));
   assert.match((inventoryTrust(old, NOW) as { why: string }).why, /last read 4 hours ago: sync first/);
   const g = guard(old, "khra", 1, 7, 0);
-  assert.match(!g.ok ? g.why : "", /^Didn't list Khra R0: Orbiter can't prove it's spare: your inventory was last read 4 hours ago/);
+  assert.match(!g.ok ? g.why : "", /^Didn't list Khra R0: MyOrbiter can't prove it's spare: your inventory was last read 4 hours ago/);
 });
 
 test("manual: the listing form still keeps the keep rules, but an old read doesn't stop it, and a console lists what you typed", () => {

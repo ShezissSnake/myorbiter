@@ -50,7 +50,7 @@ export async function waitForNewRead(read: () => Promise<number | null>, before:
     if (stamp !== undefined && stamp !== before) return stamp;
     const waited = now() - start;
     o.onTick?.(waited);
-    if (waited >= limit) throw new Error(`No new read from TennoScope within ${Math.round(limit / 1000)} seconds. If it's still reading, orbiter picks the read up when it lands.`);
+    if (waited >= limit) throw new Error(`No new read from TennoScope within ${Math.round(limit / 1000)} seconds. If it's still reading, MyOrbiter picks the read up when it lands.`);
     await sleep(every);
   }
 }

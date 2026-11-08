@@ -1,4 +1,4 @@
-// The last check before orbiter puts copies up for sale on warframe.market: a new listing, a
+// The last check before MyOrbiter puts copies up for sale on warframe.market: a new listing, a
 // listing raised to more copies, or a hidden one shown again. It works the keep rules out again
 // from the inventory as it is now, whatever path asked (the spares plan, the listing form, Orders,
 // the last-copy timer), and refuses anything it can't prove is spare. Pure: the store sends or
@@ -12,7 +12,7 @@ import { neverSells } from "./sparesRules";
 export const NEVER_SOLD_REFUSAL = "it's on your never-sell list (Sell spares). Sell again takes it off the list, then it can be listed";
 
 /**
- * An inventory read older than this proves nothing for a listing orbiter makes by itself: copies
+ * An inventory read older than this proves nothing for a listing MyOrbiter makes by itself: copies
  * may have been sold, traded, used or installed since. Full mode reads again after each trade.
  */
 export const MAX_INVENTORY_AGE_MS = 3 * 60 * 60_000;
@@ -119,13 +119,13 @@ export function guardListing(c: GuardContext, r: GuardRequest): GuardResult {
   const noInventory = !m.observedAt && m.inventoryByBase.size === 0;
   if (r.manual && noInventory) return { ok: true, audit: `${tag}: ${r.quantity} at ${r.platinum ?? "?"}p, as asked (no inventory read to check against)` };
   const trust = inventoryTrust(m, c.now ?? Date.now(), c.fullMode ?? null);
-  if (!trust.ok && !r.manual) return refuse(`orbiter can't prove it's spare: ${trust.why}`);
+  if (!trust.ok && !r.manual) return refuse(`MyOrbiter can't prove it's spare: ${trust.why}`);
   const kind = kindOfItem(m, r.item);
   const held = heldFor(m, r.item, { rank: r.rank, subtype: r.subtype });
   const proven = kind ? provenSpare(c, kind, r.item, r.rank, r.subtype) : null;
   const stale = trust.ok ? "" : ` (${trust.why})`;
   if (!kind || !proven) {
-    if (!r.manual) return refuse("orbiter has no keep rule to count it by");
+    if (!r.manual) return refuse("MyOrbiter has no keep rule to count it by");
     if (held != null && r.quantity + elsewhere > held) return refuse(`you hold ${held}${elsewhere ? `, ${elsewhere} already listed` : ""}`);
     return { ok: true, audit: `${tag}: ${r.quantity} at ${r.platinum ?? "?"}p, as asked; ${held ?? "?"} held, no keep rule applies${stale}` };
   }

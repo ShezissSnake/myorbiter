@@ -1,7 +1,7 @@
 //! Two small files shared with a patched TennoScope during the void fissure reward screen.
 //!
 //! TennoScope reads the reward cards off the screen and writes their names to
-//! `tennoscope-reward-screen.json`; orbiter scores them and writes `orbiter-reward-pick.json`,
+//! `tennoscope-reward-screen.json`; MyOrbiter scores them and writes `orbiter-reward-pick.json`,
 //! which TennoScope's overlay shows over the game. Both live in the user's runtime directory
 //! (`$XDG_RUNTIME_DIR`, private to the user and cleared at logout). Without one they go in a
 //! folder of the temp dir that only this user can open (`tennoscope-orbiter-<uid>`), and if that
@@ -87,7 +87,7 @@ pub fn write_riven_in(dir: &Path, cycle: &Value) -> Result<(), String> {
 }
 
 /**
- * orbiter's relic data (relicdata.rs) the way TennoScope reads a relic list (WFCD's Relics.json):
+ * MyOrbiter's relic data (relicdata.rs) the way TennoScope reads a relic list (WFCD's Relics.json):
  * one record per relic and refinement, by its in-game path, with its rewards' names and whether
  * it's vaulted (in no drop table; Requiem relics never are). Relics with no known path are left
  * out: TennoScope finds relics by path.
@@ -125,7 +125,7 @@ pub fn relics_for_tennoscope(data: &Value) -> Value {
     Value::Array(out)
 }
 
-/// Written when orbiter starts (from its cached tables) and whenever the tables are read again.
+/// Written when MyOrbiter starts (from its cached tables) and whenever the tables are read again.
 pub fn write_relics_in(dir: &Path, data: &Value) -> Result<(), String> {
     let list = relics_for_tennoscope(data);
     if !list.as_array().is_some_and(|a| !a.is_empty()) {
@@ -173,7 +173,7 @@ mod tests {
 
     #[test]
     fn round_trip() {
-        let dir = std::env::temp_dir().join(format!("orbiter-bridge-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("myorbiter-bridge-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         assert_eq!(read_cards_in(&dir), None);
         fs::write(dir.join(CARDS_FILE), r#"{"at": 5, "cards": ["Rhino Prime Systems", "Forma Blueprint"]}"#).unwrap();
@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn private_dir_is_made_private_and_checked() {
         use std::os::unix::fs::PermissionsExt;
-        let tmp = std::env::temp_dir().join(format!("orbiter-private-{}", std::process::id()));
+        let tmp = std::env::temp_dir().join(format!("myorbiter-private-{}", std::process::id()));
         fs::create_dir_all(&tmp).unwrap();
         let me = uid();
         let dir = private_dir_in(&tmp, me).expect("made");

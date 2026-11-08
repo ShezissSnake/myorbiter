@@ -122,7 +122,7 @@ export interface Model {
   isMastered(unique: string): boolean;
   inResurgence(unique: string): boolean;
   live: Live;
-  /** Imprints you hold, by the breed's companion path ("" for a breed orbiter couldn't read); null before TennoScope has passed any. */
+  /** Imprints you hold, by the breed's companion path ("" for a breed MyOrbiter couldn't read); null before TennoScope has passed any. */
   imprints: Map<string, number> | null;
   /** Every Foundry recipe, parts' own included (recipes.rs); null until read. */
   recipes: RecipeData | null;
@@ -345,7 +345,7 @@ function catalogPart(raw: CatalogItem[]): CatalogPart {
       item = { ...item, components: item.components.filter((c) => typeof c?.name === "string" && typeof c?.uniqueName === "string") };
     }
     if (item.masterable && NO_MASTERY.has(item.uniqueName)) item = { ...item, masterable: false };
-    // The catalog has it (orbiter-data keeps the prisms and Infested chambers now), but calls it
+    // The catalog has it (myorbiter-data keeps the prisms and Infested chambers now), but calls it
     // not masterable in an older read, and the Mote Amp "Mote Prism": the game's word wins.
     const x = extra.get(item.uniqueName);
     if (x && (!item.masterable || item.name !== x.name)) item = { ...item, masterable: true, name: x.name };

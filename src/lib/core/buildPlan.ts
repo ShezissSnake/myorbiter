@@ -64,7 +64,7 @@ export interface BuildPlan {
   /** Credits for every build still to do. */
   credits: number;
   tier: BuildTier;
-  /** False when orbiter has no recipes for the parts (offline the first time): only the item's own blueprint counted. */
+  /** False when MyOrbiter has no recipes for the parts (offline the first time): only the item's own blueprint counted. */
   complete: boolean;
 }
 

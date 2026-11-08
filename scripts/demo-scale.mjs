@@ -3,7 +3,7 @@
 // warframe.market's cap of 100, each with an order book. Invented like the demo, deterministic.
 //
 //   node scripts/demo-scale.mjs <out folder>
-//   ORBITER_DEMO=1 ORBITER_DEMO_DIR=<out folder> npx vite     (the app on it, in a browser)
+//   MYORBITER_DEMO=1 MYORBITER_DEMO_DIR=<out folder> npx vite     (the app on it, in a browser)
 import { mkdirSync, readFileSync, writeFileSync, copyFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 

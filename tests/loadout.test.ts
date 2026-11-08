@@ -91,7 +91,7 @@ test("a tank (Rhino Prime): armour and health shards, Parasitic Armor over Rhino
   assert.equal(mid.helminth?.ability, "Parasitic Armor", "the Helminth is Intermediate");
   assert.ok(!names(mid.arcanes).includes("Arcane Grace"), "an Eidolon arcane: Veteran");
   assert.deepEqual([l.helminth?.ability, l.helminth?.replaces], ["Parasitic Armor", "Rhino Stomp"]);
-  assert.equal(l.helminth?.owned, null, "a Helminth ability: orbiter can't see the Helminth");
+  assert.equal(l.helminth?.owned, null, "a Helminth ability: MyOrbiter can't see the Helminth");
   assert.equal(l.focus?.name, "Vazarin");
   assert.deepEqual(names(l.companion), ["Panzer Vulpaphyla", "Panzer Devolution"]);
   assert.equal(names(l.weapons)[1], "Vome Invocation", "Iron Skin scales with strength");
@@ -138,7 +138,7 @@ test("shards the player holds are marked, Tauforged only; plain ones held get th
   }
   const four = loadoutFor(saryn, "high", everyMod, index, heldOnly([[SHARD_PATHS.crimson, 4]]))!.shards.find((s) => s.colour === "crimson")!;
   assert.match(four.fuse!, /You hold 4 plain Crimson shards: .*Yours make 1\./);
-  // Without the inventory orbiter can't tell.
+  // Without the inventory MyOrbiter can't tell.
   assert.ok(loadoutFor(saryn, "high", everyMod, index)!.shards.every((s) => s.owned === null && !s.fuse));
 });
 

@@ -1,8 +1,8 @@
-//! Reads what TennoScope already keeps on disk and hands orbiter one compact bundle.
+//! Reads what TennoScope already keeps on disk and hands MyOrbiter one compact bundle.
 //!
 //! Everything here is read-only. The SQLite file is opened with `SQLITE_OPEN_READ_ONLY` and only
 //! the `inventory` and `snapshot_audit` tables are queried: TennoScope also stores a
-//! warframe.market token in that file (`market_credential`), and orbiter never reads it.
+//! warframe.market token in that file (`market_credential`), and MyOrbiter never reads it.
 
 pub mod ee_log;
 pub mod reward_log;
@@ -58,7 +58,7 @@ pub struct InventoryRow {
     pub equipped: Option<i64>,
 }
 
-/// Everything orbiter reads, in one piece: what `orbiter-dump` prints for the browser dev mode.
+/// Everything MyOrbiter reads, in one piece: what `myorbiter-dump` prints for the browser dev mode.
 /// The window loads it in two parts instead, [`Collection`] on every reload and [`Catalogs`] only
 /// when [`Collection::catalog_rev`] changes.
 #[derive(Serialize)]
@@ -206,7 +206,7 @@ pub fn load_catalogs(dir: &Path) -> Result<Catalogs, DataError> {
     Ok(Catalogs { rev: catalog_rev(catalog_state, relics_state), catalog, relics })
 }
 
-/// Both parts in one: what `orbiter-dump` prints.
+/// Both parts in one: what `myorbiter-dump` prints.
 pub fn load_bundle(dir: &Path) -> Result<Bundle, DataError> {
     let Collection { observed_at, inventory, prices, .. } = load_collection(dir)?;
     let Catalogs { catalog, relics, .. } = load_catalogs(dir)?;
@@ -369,14 +369,14 @@ const READ_FIELDS: &[&str] = &[
     "compatName", "upgradeEntries",
 ];
 
-/// The item categories orbiter looks at: of Misc, only what counts for mastery (kitgun chambers,
+/// The item categories MyOrbiter looks at: of Misc, only what counts for mastery (kitgun chambers,
 /// amp prisms, K-Drive boards).
 fn kept_item(head: &Head) -> bool {
     let category = head.category.as_deref().unwrap_or("");
     KEPT_CATEGORIES.contains(&category) && (category != "Misc" || head.masterable())
 }
 
-/// Keeps the item categories orbiter looks at, and only the fields it reads. The full file is
+/// Keeps the item categories MyOrbiter looks at, and only the fields it reads. The full file is
 /// ~80 MB, mostly skins, glyphs and patch logs.
 fn read_catalog(path: &Path) -> Result<Vec<Value>, DataError> {
     let fields: Vec<&str> = [ITEM_FIELDS, DETAIL_FIELDS, READ_FIELDS].concat();
@@ -524,7 +524,7 @@ mod tests {
     /// system (Windows' own error for a missing folder is worded differently from Linux's).
     #[test]
     fn missing_files_are_reported_as_not_written_yet() {
-        let dir = std::env::temp_dir().join(format!("orbiter-fresh-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("myorbiter-fresh-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         let err = load_collection(&dir).err().expect("nothing to read").to_string();
         assert!(err.starts_with("not found at"), "{err}");
@@ -535,7 +535,7 @@ mod tests {
     use super::*;
 
     fn temp_dir(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("orbiter-data-{tag}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("myorbiter-data-{tag}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(dir.join("catalog")).unwrap();
         dir

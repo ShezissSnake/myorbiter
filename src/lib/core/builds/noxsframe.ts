@@ -1,13 +1,13 @@
 // Builds from Nox's Frame (noxsframe.com), a fan-made build planner by Senjunox.
 //
 // The Rust side (src-tauri/src/noxsframe.rs) reads its public pages: GET only, one request every
-// 3 s across orbiter, each answer kept 7 days. This file maps what it reads to orbiter's Build and
+// 3 s across MyOrbiter, each answer kept 7 days. This file maps what it reads to MyOrbiter's Build and
 // decides when to read: only when the user opens builds for an item (its list, top-voted first),
 // and one build's page only when the user opens that build. Never in the background, never for
 // other items. A build already opened shows from the cache with no request.
 //
 // A Nox's Frame build is a whole loadout (frame, weapons, companion…) keyed by the game's unique
-// names; orbiter keeps the part for the item asked about. Paths not in orbiter's catalog, Helminth
+// names; MyOrbiter keeps the part for the item asked about. Paths not in MyOrbiter's catalog, Helminth
 // abilities and shard stats it can't name, rivens and valence bonuses go into the build's note,
 // never guessed.
 
@@ -21,7 +21,7 @@ import { cleanBlock, cleanLine } from "../untrusted";
 
 export const NOX_SITE = "Nox's Frame";
 export const NOX_HOST = "noxsframe.com";
-/** The terms, as read by hand. Ask Senjunox before orbiter is distributed more widely. */
+/** The terms, as read by hand. Ask Senjunox before MyOrbiter is distributed more widely. */
 export const NOX_PERMISSION: Extract<SourcePermission, { kind: "terms" }> = {
   kind: "terms",
   host: NOX_HOST,
@@ -31,7 +31,7 @@ export const NOX_PERMISSION: Extract<SourcePermission, { kind: "terms" }> = {
 /** The setting (`settings.buildsFromNox`), for Settings and the Builds page. */
 export const NOX_SETTING = {
   label: "Read builds from Nox's Frame",
-  help: "When you open builds for an item, orbiter reads that item's top-voted builds from noxsframe.com, a fan-made build planner, and a build's loadout when you open it. Nothing is read in the background or for other items. Each page is kept for a week, and orbiter waits 3 seconds between reads.",
+  help: "When you open builds for an item, MyOrbiter reads that item's top-voted builds from noxsframe.com, a fan-made build planner, and a build's loadout when you open it. Nothing is read in the background or for other items. Each page is kept for a week, and MyOrbiter waits 3 seconds between reads.",
 };
 /** The site's game modes (its build tags), key → label, verbatim from its pages (Nov 2026). */
 export const NOX_MODES: Record<string, string> = {
@@ -113,7 +113,7 @@ export interface NoxFetcher {
 
 /** A build's path segment (`<id>-<slug>`): letters, digits, `_` and `-` only, as the Rust side checks. */
 export const isNoxSegment = (s: unknown): s is string => typeof s === "string" && /^[A-Za-z0-9_-]{1,160}$/.test(s);
-/** A build's page on Nox's Frame: the only Nox's Frame links orbiter makes. */
+/** A build's page on Nox's Frame: the only Nox's Frame links MyOrbiter makes. */
 export const noxBuildUrl = (segment: string): string => `https://${NOX_HOST}/builds/${segment}`;
 /** Whether a URL is exactly a build's page on Nox's Frame. */
 export const isNoxBuildUrl = (url: unknown): boolean => {
@@ -201,7 +201,7 @@ function excerpt(s: string | null, max = 300): string | null {
 
 export interface NoxMapped {
   build: Build;
-  /** What orbiter couldn't carry over or name (also in the build's note). */
+  /** What MyOrbiter couldn't carry over or name (also in the build's note). */
   notes: string[];
 }
 
@@ -212,7 +212,7 @@ export interface NoxMapOptions {
 }
 
 /**
- * The part of a decoded Nox's Frame build code for `item`, as an orbiter Build; null when the code
+ * The part of a decoded Nox's Frame build code for `item`, as a MyOrbiter Build; null when the code
  * has no section for it. Mods, arcanes and items are matched by path against the catalog;
  * anything not found goes into the note.
  */
@@ -241,7 +241,7 @@ export function noxToBuild(raw: unknown, item: CatalogItem, catalog: ReadonlyMap
     if (!path) return { mod: null, polarity };
     const c = catalog.get(path);
     if (!c || c.category !== "Mods") {
-      notes.push(`${where}: ${c ? `${c.name} isn't a mod` : `${tail(path)} isn't in orbiter's catalog`} (${path})`);
+      notes.push(`${where}: ${c ? `${c.name} isn't a mod` : `${tail(path)} isn't in MyOrbiter's catalog`} (${path})`);
       return { mod: null, polarity };
     }
     const rank = int(s?.rank);
@@ -253,7 +253,7 @@ export function noxToBuild(raw: unknown, item: CatalogItem, catalog: ReadonlyMap
     if (!path) return null;
     const c = catalog.get(path);
     if (!c || c.category !== "Arcanes") {
-      notes.push(`Arcane: ${c ? `${c.name} isn't an arcane` : `${tail(path)} isn't in orbiter's catalog`} (${path})`);
+      notes.push(`Arcane: ${c ? `${c.name} isn't an arcane` : `${tail(path)} isn't in MyOrbiter's catalog`} (${path})`);
       return null;
     }
     const rank = int(a?.rank);
@@ -288,17 +288,17 @@ export function noxToBuild(raw: unknown, item: CatalogItem, catalog: ReadonlyMap
   b.mods = Array.from({ length: layout.mods }, (_, i) => read[i]?.mod ?? null);
   polarities.mods = Array.from({ length: layout.mods }, (_, i) => read[i]?.polarity ?? null);
   const extra = read.slice(layout.mods).filter((s) => s.mod);
-  if (extra.length) notes.push(`${extra.length} more mod${extra.length > 1 ? "s" : ""} than orbiter has slots for here, left out`);
+  if (extra.length) notes.push(`${extra.length} more mod${extra.length > 1 ? "s" : ""} than MyOrbiter has slots for here, left out`);
   const anyPolarity = [polarities.aura, polarities.exilus, polarities.stance, ...polarities.mods].some((p) => p != null);
   if (anyPolarity) b.polarities = polarities;
-  if (unknownPolarities.size) notes.push(`Polarities orbiter doesn't know: ${[...unknownPolarities].join(", ")}`);
+  if (unknownPolarities.size) notes.push(`Polarities MyOrbiter doesn't know: ${[...unknownPolarities].join(", ")}`);
 
   const arcanes = Array.isArray(sec.arcanes) ? sec.arcanes : "arcane" in sec ? [sec.arcane] : [];
   const kept = arcanes.map(arcane).filter((a): a is BuildMod => !!a);
   b.arcanes = kept.slice(0, layout.arcanes);
-  if (kept.length > layout.arcanes) notes.push(`${kept.length - layout.arcanes} more arcane${kept.length - layout.arcanes > 1 ? "s" : ""} than orbiter has slots for here, left out`);
+  if (kept.length > layout.arcanes) notes.push(`${kept.length - layout.arcanes} more arcane${kept.length - layout.arcanes > 1 ? "s" : ""} than MyOrbiter has slots for here, left out`);
 
-  // Archon shards: colour and Tauforged. The stat is Nox's Frame's number for it, which orbiter can't name yet.
+  // Archon shards: colour and Tauforged. The stat is Nox's Frame's number for it, which MyOrbiter can't name yet.
   if (Array.isArray(sec.shards)) {
     const stats: string[] = [];
     for (const v of sec.shards) {
@@ -306,7 +306,7 @@ export function noxToBuild(raw: unknown, item: CatalogItem, catalog: ReadonlyMap
       const colour = text(s?.color)?.toLowerCase();
       if (!colour) continue;
       if (!SHARD_COLOURS.includes(colour as ShardColour)) {
-        notes.push(`Archon shard colour orbiter doesn't know: ${colour}`);
+        notes.push(`Archon shard colour MyOrbiter doesn't know: ${colour}`);
         continue;
       }
       const shard: BuildShard = { colour: colour as ShardColour, tauforged: s?.tauforged === true };
@@ -314,7 +314,7 @@ export function noxToBuild(raw: unknown, item: CatalogItem, catalog: ReadonlyMap
       if (int(s?.stat) != null) stats.push(`${colour}${shard.tauforged ? " (Tauforged)" : ""} #${int(s?.stat)}`);
     }
     b.shards = b.shards.slice(0, 5);
-    if (stats.length) notes.push(`Shard stats, as Nox's Frame numbers them (orbiter can't name them yet): ${stats.join(", ")}`);
+    if (stats.length) notes.push(`Shard stats, as Nox's Frame numbers them (MyOrbiter can't name them yet): ${stats.join(", ")}`);
   }
 
   // The Helminth: the ability it replaces is the frame's own (by slot); the subsumed ability is
@@ -334,7 +334,7 @@ export function noxToBuild(raw: unknown, item: CatalogItem, catalog: ReadonlyMap
       }
     }
     if (named && replaces) b.helminth = { ability: named, replaces };
-    else notes.push(`Helminth: ${named ?? `Nox's Frame's ability "${abilityId}"`} replaces ${replaces ?? `ability ${slotIndex != null ? slotIndex + 1 : "?"}`} (orbiter can't name the ability yet)`);
+    else notes.push(`Helminth: ${named ?? `Nox's Frame's ability "${abilityId}"`} replaces ${replaces ?? `ability ${slotIndex != null ? slotIndex + 1 : "?"}`} (MyOrbiter can't name the ability yet)`);
     if (helminth?.offense != null || helminth?.utility != null) notes.push("Helminth invigorations are set on Nox's Frame (not carried over)");
   }
 

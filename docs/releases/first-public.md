@@ -1,45 +1,45 @@
-# orbiter <0.2.N>: the first public Stable release
+# MyOrbiter <0.2.N>: the first public Stable release
 
-orbiter is a free desktop companion for Warframe. It reads what TennoScope stores on your PC (your
+MyOrbiter is a free desktop companion for Warframe. It reads what TennoScope stores on your PC (your
 inventory, the game's log, the fissure reward screen) and answers what the game doesn't: which
 reward to take, what you can sell and for how much, what's left to master and how to get it, which
 relics finish your sets. It also looks after your warframe.market listings, each automatic feature
 only if you turn it on. It runs on your PC and collects nothing about you.
 
-orbiter is a fan-made tool, not affiliated with or endorsed by Digital Extremes.
+MyOrbiter is a fan-made tool, not affiliated with or endorsed by Digital Extremes.
 
 ## Install
 
 One download, nothing else to install. TennoScope and its OCR engine are inside it.
 
-- **Linux and Steam Deck:** `orbiter_<0.2.N>_amd64.AppImage`. Make it executable and open it: in
+- **Linux and Steam Deck:** `myorbiter_<0.2.N>_amd64.AppImage`. Make it executable and open it: in
   Dolphin (the Deck's Desktop Mode) right-click → *Properties* → *Permissions* → *Is executable*,
-  then double-click; in a terminal, `chmod +x orbiter_*.AppImage` and run it. On a Deck, Desktop Mode
-  keeps orbiter beside the game.
-- **Windows:** `orbiter_<0.2.N>_x64-setup.exe`. It installs for your user only. It isn't signed, so
+  then double-click; in a terminal, `chmod +x myorbiter_*.AppImage` and run it. On a Deck, Desktop Mode
+  keeps MyOrbiter beside the game.
+- **Windows:** `myorbiter_<0.2.N>_x64-setup.exe`. It installs for your user only. It isn't signed, so
   SmartScreen warns the first time: *More info → Run anyway*.
 
-Each release lists the SHA-256 of its files in `SHA256SUMS`. [Installing orbiter](../install.md)
+Each release lists the SHA-256 of its files in `SHA256SUMS`. [Installing MyOrbiter](../install.md)
 has the details, including what to do if the window opens blank (Compatibility rendering).
 
 ## Updates
 
-orbiter updates itself from this repository's releases. Choose a channel in Settings → *Updates*:
+MyOrbiter updates itself from this repository's releases. Choose a channel in Settings → *Updates*:
 
 - **Stable** (the default): tested builds.
 - **Beta**: the next Stable, a few days early.
 - **Experimental**: every change, as soon as it's built. It may break.
 
 Nothing installs without your click on *Update and restart*, and going back to an older build only
-happens on a click that names it. Updates are signed; orbiter installs a download only if its
+happens on a click that names it. Updates are signed; MyOrbiter installs a download only if its
 signature matches.
 
 ## Full mode: your call
 
 Full mode reads Warframe's memory to fetch your inventory. It is **off** unless you turn it on, and
 the switch comes with a warning. Warframe's EULA forbids unauthorised third-party programs, so using
-it could put your account at risk. orbiter does not call it safe, and you turn it on at your own
-risk. It only reads, and only sends your login session to Digital Extremes. Without it, orbiter
+it could put your account at risk. MyOrbiter does not call it safe, and you turn it on at your own
+risk. It only reads, and only sends your login session to Digital Extremes. Without it, MyOrbiter
 still shows everything that doesn't need your inventory.
 
 ## Report a bug
@@ -50,7 +50,7 @@ shown before you send, with your sign-in and players' names taken out.
 
 ## Licence
 
-orbiter is free software under the GPL-3.0-only (`LICENSE`), with no warranty. Every release carries
+MyOrbiter is free software under the GPL-3.0-only (`LICENSE`), with no warranty. Every release carries
 its complete source as `orbiter-source.tar.gz`. For the GPL and LGPL libraries bundled in the
 downloads, each download lists them with their sources, and the complete corresponding source is
 available on request for three years from the release: the written offer is in
@@ -60,7 +60,7 @@ are © Digital Extremes, used to identify what they show.
 ## Credits
 
 - **TennoScope**, by Deftera186 and its contributors (GPL-3.0-only), is merged into this repository
-  with its history, and carries orbiter's changes; see
+  with its history, and carries MyOrbiter's changes; see
   [`tennoscope/ORBITER.md`](../../tennoscope/ORBITER.md).
 - **@wfcd/items** (MIT), whose game data fills the demo account behind the screenshots.
 - **[Overframe](https://overframe.gg/)**: its popular builds are shown as links to their pages.

@@ -12,7 +12,7 @@ const gauss = { name: "Gauss Prime Neuroptics Blueprint", rank: null, count: 1 }
 test("one item: the title says what, to whom and for how much", () => {
   const n = saleNotice(trade({ offered: [gauss], platinum_received: 14 }));
   assert.equal(n.title, "You sold Gauss Prime Neuroptics Blueprint to Bob for 14 platinum");
-  assert.equal(n.body, "", "nothing more to say when orbiter didn't mark it");
+  assert.equal(n.body, "", "nothing more to say when MyOrbiter didn't mark it");
   const three = saleNotice(trade({ offered: [{ ...gauss, count: 3 }], platinum_received: 42 }));
   assert.equal(three.title, "You sold 3 × Gauss Prime Neuroptics Blueprint to Bob for 42 platinum");
   const ranked = saleNotice(trade({ offered: [{ name: "Arcane Energize", rank: 5, count: 1 }], platinum_received: 60 }));
@@ -31,7 +31,7 @@ test("what became of the listings: one line when alike, beside each item when no
   assert.equal(saleNotice(t, [{ ...gauss, outcome: "marked" }]).body, "Marked sold on warframe.market and logged.");
   assert.match(saleNotice(t, [{ ...gauss, outcome: "still listed" }]).body, /still listed on warframe\.market: it couldn't/);
   assert.equal(saleNotice(t, [{ ...gauss, outcome: "not listed" }]).body, "Logged; it wasn't listed on warframe.market.");
-  // The lines orbiter logged (a whole set folded into one) stand for the trade's own items.
+  // The lines MyOrbiter logged (a whole set folded into one) stand for the trade's own items.
   const set = trade({ offered: [gauss, { name: "Gauss Prime Chassis Blueprint", rank: null, count: 1 }], platinum_received: 90 });
   assert.equal(saleNotice(set, [{ name: "Gauss Prime Set", rank: null, count: 1, outcome: "marked" }]).title, "You sold Gauss Prime Set to Bob for 90 platinum");
   const mixed = saleNotice(set, [

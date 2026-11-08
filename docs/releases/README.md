@@ -27,7 +27,7 @@ A release pipeline is build *n*, version `0.2.n`, where *n* is the pipeline's nu
 plus 100 (builds made on GitHub before the move were numbered below 100; pipelines that promote or
 publish the site use a number too, so build numbers have gaps). A job that has started is never
 cancelled. `test` runs the tests, checks the MSRV and audits both lockfiles; `build` (`ci/build.sh`)
-builds TennoScope from `tennoscope/` and orbiter for Linux (the AppImage and the .deb, on Ubuntu
+builds TennoScope from `tennoscope/` and MyOrbiter for Linux (the AppImage and the .deb, on Ubuntu
 22.04: they need nothing newer than glibc 2.35, which `ci/build.sh` checks, and TennoScope uses the
 system's PipeWire, 0.3.48 or newer: the AppImage runs on SteamOS and any x86-64 Linux with those
 (Ubuntu 22.04, Debian 12 and later), the .deb on Debian and Ubuntu from those releases on, not on
@@ -76,7 +76,7 @@ at the address installed copies check
   channel can't be read, it deletes nothing.
 - The `channel/…` and `stable-builds/…` packages hold only `latest.json` files: don't delete them,
   every installed copy on that channel reads them. While the project is private, update checks
-  can't reach them, and orbiter just says *Couldn't check for updates*.
+  can't reach them, and MyOrbiter just says *Couldn't check for updates*.
 
 There are no macOS builds on GitLab.
 

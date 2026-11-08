@@ -1,5 +1,5 @@
 {
-  "_about": "orbiter's mod and arcane availability (src/lib/core/builds/availability.ts): how far into the game a player is before they can have a mod or arcane, as orbiter defines the tiers (New player, Intermediate, Veteran). The rules live in availability.ts; this file holds the facts they lean on, each with the page it was read on (by hand; orbiter never fetches these pages). `overrides` win over every rule, by path or name. `fullDrops` is generated (scripts/mod-availability-drops.ts) and is the only part not written by hand.",
+  "_about": "MyOrbiter's mod and arcane availability (src/lib/core/builds/availability.ts): how far into the game a player is before they can have a mod or arcane, as MyOrbiter defines the tiers (New player, Intermediate, Veteran). The rules live in availability.ts; this file holds the facts they lean on, each with the page it was read on (by hand; MyOrbiter never fetches these pages). `overrides` win over every rule, by path or name. `fullDrops` is generated (scripts/mod-availability-drops.ts) and is the only part not written by hand.",
   "sources": {
     "primed": "https://wiki.warframe.com/w/Primed_Reach",
     "umbral": "https://wiki.warframe.com/w/Umbra_Mods",
@@ -7,14 +7,14 @@
     "galvanized": "https://wiki.warframe.com/w/Galvanized",
     "arbitrations": "https://wiki.warframe.com/w/Vitus_Essence",
     "steelPath": "https://wiki.warframe.com/w/The_Steel_Path",
-    "amalgam": "orbiter's rule: Amalgam mods are Veteran",
-    "sacrificial": "orbiter's rule: Sacrificial mods are Veteran",
-    "riven": "orbiter's rule: Rivens come from sorties, the Steel Path and endgame rewards, or the market",
+    "amalgam": "MyOrbiter's rule: Amalgam mods are Veteran",
+    "sacrificial": "MyOrbiter's rule: Sacrificial mods are Veteran",
+    "riven": "MyOrbiter's rule: Rivens come from sorties, the Steel Path and endgame rewards, or the market",
     "corrupted": "https://wiki.warframe.com/w/Corrupted_Mod",
-    "augment": "orbiter's rule: augments are Intermediate",
+    "augment": "MyOrbiter's rule: augments are Intermediate",
     "drift": "https://wiki.warframe.com/w/Lua",
     "nightwave": "https://wiki.warframe.com/w/Nightwave",
-    "conclave": "orbiter's rule: Conclave mods are bought from Teshin with Conclave standing",
+    "conclave": "MyOrbiter's rule: Conclave mods are bought from Teshin with Conclave standing",
     "spy": "https://wiki.warframe.com/w/Spy",
     "arcanes": "https://warframe.com/droptables (via the catalog's drop data)",
     "helminth": "https://www.highgroundgaming.com/warframe-helminth/",
@@ -103,7 +103,7 @@
     }
   },
   "fullDrops": {
-    "_about": "Generated: the level from each item's full drop table where it is earlier than what orbiter's catalog (eight drops per item) shows. By path.",
+    "_about": "Generated: the level from each item's full drop table where it is earlier than what MyOrbiter's catalog (eight drops per item) shows. By path.",
     "levels": {
       "/Lotus/Upgrades/CosmeticEnhancers/Utility/ExtraProcOnProc": "new",
       "/Lotus/Upgrades/Mods/Melee/Beginner/WeaponCritDamageModBeginner": "new",

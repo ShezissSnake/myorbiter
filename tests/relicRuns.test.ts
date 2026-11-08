@@ -22,7 +22,7 @@ test("a screen read again (its prices came in, or the log named your reward) upd
   assert.equal(runs.length, 2);
 });
 
-test("TennoScope's log fills in the screens orbiter didn't see, and nothing twice", () => {
+test("TennoScope's log fills in the screens MyOrbiter didn't see, and nothing twice", () => {
   const live = recordScreen([], { at: T0 + 10 * MIN, cards: ["A"], relics: [] })!;
   const logged = [
     { at: T0, cards: ["B"], relics: [] },

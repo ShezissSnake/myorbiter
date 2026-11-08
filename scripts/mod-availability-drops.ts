@@ -1,10 +1,10 @@
 // Regenerates `fullDrops` in src/lib/data/mod-availability.json.
 //
-// orbiter's catalog keeps eight drop sources per item (crates/orbiter-data, slim_drops), best
+// MyOrbiter's catalog keeps eight drop sources per item (crates/myorbiter-data, slim_drops), best
 // chance first, so a mod that drops everywhere at a low chance (Serration) can look like a
 // spy-vault exclusive. This reads the full catalog TennoScope downloads (WFCD's, with DE's drop
 // tables) and records, by path, the level from the full list wherever it is earlier than the
-// level from orbiter's eight.
+// level from MyOrbiter's eight.
 //
 //   npx tsx scripts/mod-availability-drops.ts <catalog-generation.json> <dev-bundle.json>
 //
@@ -37,4 +37,4 @@ const file = new URL("../src/lib/data/mod-availability.json", import.meta.url);
 const data = JSON.parse(readFileSync(file, "utf8"));
 data.fullDrops.levels = Object.fromEntries(Object.entries(levels).sort(([a], [b]) => a.localeCompare(b)));
 writeFileSync(file, JSON.stringify(data, null, 2) + "\n");
-console.log(`${Object.keys(levels).length} items whose full drop table is earlier than orbiter's eight`);
+console.log(`${Object.keys(levels).length} items whose full drop table is earlier than MyOrbiter's eight`);

@@ -1,4 +1,4 @@
-# orbiter's riven price model
+# MyOrbiter's riven price model
 
 `src/lib/data/riven-model.json` is what the Rivens page's **Estimate** walks: gradient-boosted
 trees that guess what a riven like yours is listed for on warframe.market, from
@@ -7,7 +7,7 @@ trees that guess what a riven like yours is listed for on warframe.market, from
   buff count and curse),
 - its curse, cycles, mastery, rank and polarity, and its weapon's riven kind,
 - what its weapon's rivens traded for in game last week (Digital Extremes' weekly figures), and
-- what the cheapest 60 rivens listed for its weapon ask now (orbiter's own "Any … riven from"
+- what the cheapest 60 rivens listed for its weapon ask now (MyOrbiter's own "Any … riven from"
   search, which a price check already makes).
 
 The last two are read live, so the estimate follows the market as it moves. The trees, which say

@@ -5,7 +5,7 @@
     ok: { mark: "✓", word: "You have it" },
     short: { mark: "!", word: "Not ranked enough, or too few copies" },
     missing: { mark: "✕", word: "You don't have it" },
-    unknown: { mark: "?", word: "orbiter can't tell" },
+    unknown: { mark: "?", word: "MyOrbiter can't tell" },
   };
 </script>
 
@@ -32,9 +32,9 @@
     build: Build;
     tier: TierResult;
     report?: MissingReport | null;
-    /** Why each slot holds what it holds (orbiter's suggestion), by slot. */
+    /** Why each slot holds what it holds (MyOrbiter's suggestion), by slot. */
     why?: { aura?: string; exilus?: string; stance?: string; mods: (string | null)[]; arcanes: string[] } | null;
-    /** The shard slots, when the card has them from orbiter's suggestion (else the build's own). */
+    /** The shard slots, when the card has them from MyOrbiter's suggestion (else the build's own). */
     shards?: (ShardShow | null)[] | null;
     /** The Helminth ability, likewise. */
     helminth?: { ability: string; replaces: string; reason: string | null; owned: boolean | null } | null;
@@ -190,7 +190,7 @@
         </div>
       {/if}
       {#if helminth}
-        <div class="group helm" title="Helminth: {helminth.ability} replaces {helminth.replaces}{helminth.reason ? `\n${helminth.reason}` : ''}{helminth.owned === null && helminth.reason ? `\norbiter can't see your Helminth yet` : ''}">
+        <div class="group helm" title="Helminth: {helminth.ability} replaces {helminth.replaces}{helminth.reason ? `\n${helminth.reason}` : ''}{helminth.owned === null && helminth.reason ? `\nMyOrbiter can't see your Helminth yet` : ''}">
           <span class="register cap">Helminth</span>
           <span class="hx"><b>{helminth.ability}</b> <span class="dim">for {helminth.replaces}</span></span>
         </div>

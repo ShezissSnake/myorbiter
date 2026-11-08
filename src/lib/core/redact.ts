@@ -1,5 +1,5 @@
 // What a bug report must never carry, taken out of every line that goes into one (the log's last
-// lines, and the player's own words too). orbiter's log is private to the player (applog.rs keeps
+// lines, and the player's own words too). MyOrbiter's log is private to the player (applog.rs keeps
 // it readable by them only) and names trades and partners; a report is public. The log's lines are
 // already passed through applog::redact when they're written (sign-ins); this goes further:
 //
@@ -10,9 +10,9 @@
 // - account and user ids: long hex runs (warframe.market's and the game's ids are 24 hex digits),
 //   and long opaque runs of letters and digits;
 // - the user name in home-folder paths (/home/<name>, /Users/<name>, C:\Users\<name>…);
-// - the player's in-game name and any other name orbiter knows (trade partners, people who
+// - the player's in-game name and any other name MyOrbiter knows (trade partners, people who
 //   whispered), wherever they appear;
-// - names in whisper, trade and profile lines, by their shape, for names orbiter doesn't know.
+// - names in whisper, trade and profile lines, by their shape, for names MyOrbiter doesn't know.
 //
 // It errs on the side of hiding: a report with "[player]" where an item name was is still useful;
 // one with a stranger's name or a sign-in in it is not.
@@ -20,7 +20,7 @@
 export interface RedactOptions {
   /** The player's own in-game name(s), if known: shown as "[you]". */
   self?: readonly (string | null | undefined)[];
-  /** Other players' names orbiter knows (trade partners, whispers): shown as "[player]". */
+  /** Other players' names MyOrbiter knows (trade partners, whispers): shown as "[player]". */
   others?: readonly (string | null | undefined)[];
 }
 
@@ -64,7 +64,7 @@ const RULES: [RegExp, string | ((...m: string[]) => string)][] = [
 ];
 
 /** Words that follow "to", "from", "with" or "for" without being a name. */
-const STOP = "the|a|an|your|you|yours|me|my|it|its|that|this|these|those|them|they|each|every|all|any|some|more|less|sale|sales|trade|trades|listing|listings|items?|platinum|plat|ducats|warframe|orbiter|tennoscope|now|later|again|free|sure";
+const STOP = "the|a|an|your|you|yours|me|my|it|its|that|this|these|those|them|they|each|every|all|any|some|more|less|sale|sales|trade|trades|listing|listings|items?|platinum|plat|ducats|warframe|myorbiter|orbiter|tennoscope|now|later|again|free|sure";
 
 /** Names in lines about whispers, trades and profiles, by their shape. */
 const NAME_LINES: [RegExp, (...m: string[]) => string][] = [

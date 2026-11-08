@@ -1,13 +1,13 @@
 <script lang="ts" module>
   /** What Full mode does and what it risks, shown beside every switch that turns it on. */
   export const FULL_MODE_WARNING =
-    "Full mode reads Warframe's memory to fetch your inventory. Warframe's EULA forbids unauthorised third-party programs, so using it could put your account at risk. orbiter only reads, and only sends your login session to Digital Extremes.";
+    "Full mode reads Warframe's memory to fetch your inventory. Warframe's EULA forbids unauthorised third-party programs, so using it could put your account at risk. MyOrbiter only reads, and only sends your login session to Digital Extremes.";
 </script>
 
 <script lang="ts">
   // Full mode: TennoScope reads your inventory from the running game. Off until you turn it on,
   // here (first-run setup, the TennoScope panel, Settings), with the warning beside the switch.
-  // Turning it off leaves the reward overlay (Overlay mode). orbiter passes the choice to the
+  // Turning it off leaves the reward overlay (Overlay mode). MyOrbiter passes the choice to the
   // TennoScope it runs (`--access=…`), which makes the same change as choosing in its own window.
   import { ts } from "./tennoscopeStore.svelte";
   import Switch from "./ui/Switch.svelte";

@@ -7,10 +7,10 @@ are the inventory, the mastery, the listings, the order books, the prices and th
 [@wfcd/items](https://www.npmjs.com/package/@wfcd/items) package.
 
 ```sh
-npm run dev:demo        # ORBITER_DEMO=1 vite: the browser dev mode on this account
+npm run dev:demo        # MYORBITER_DEMO=1 vite: the browser dev mode on this account
 ```
 
-With `ORBITER_DEMO=1` the dev server answers every `/dev-*.json` from this folder instead of
+With `MYORBITER_DEMO=1` the dev server answers every `/dev-*.json` from this folder instead of
 `public/` (see `demoData` in `vite.config.ts`). A file this folder hasn't got is a 404, never
 `public/`'s copy. `/dev-history-<slug>.json` is one entry of `dev-history.json`.
 

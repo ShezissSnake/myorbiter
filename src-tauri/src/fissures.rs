@@ -3,7 +3,7 @@
 //! Found"), and Home then showed no fissures at all. The game's file names nodes and mission types
 //! by their internal ids ("SolNode125", "MT_DEFENSE"); WFCD's node and mission-type tables turn
 //! those into what the API would have said, so the page can't tell the difference. The tables are
-//! kept a week in orbiter's config folder.
+//! kept a week in MyOrbiter's config folder.
 use serde_json::{json, Map, Value};
 use std::fs;
 use std::path::Path;
@@ -316,7 +316,7 @@ mod tests {
     #[test]
     #[ignore]
     fn live_from_the_game() {
-        let dir = std::env::temp_dir().join(format!("orbiter-ws-test-{}", now()));
+        let dir = std::env::temp_dir().join(format!("myorbiter-ws-test-{}", now()));
         let p = from_game(&dir).expect("read");
         println!("{}", serde_json::to_string_pretty(&p).unwrap());
         assert!(!p["fissures"].as_array().unwrap().is_empty(), "fissures");

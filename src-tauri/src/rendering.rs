@@ -1,4 +1,4 @@
-//! How WebKitGTK draws orbiter's window on Linux, chosen at start before the window exists (WebKit
+//! How WebKitGTK draws MyOrbiter's window on Linux, chosen at start before the window exists (WebKit
 //! reads its environment once, when the first web view is made).
 //!
 //! - **Accelerated** (the default): WebKit's own choice. Composited on the GPU: scrolling moves
@@ -14,19 +14,19 @@
 //!   and that variable is the patch's way past it.
 //! - **Compatibility** (the Settings switch, or `--compat-rendering` once): no compositing and no
 //!   DMA-BUF, every frame painted on the CPU. Slower, but it draws where nothing else does.
-//! - **Your own**: any of WebKit's variables already set in the environment wins; orbiter then sets
+//! - **Your own**: any of WebKit's variables already set in the environment wins; MyOrbiter then sets
 //!   none of them.
 //!
 //! An accelerated start leaves a marker once it gets going, removed when the window has run for a
 //! minute, or on a clean exit. If the next start finds it (the window crashed early, as a renderer the driver
 //! can't take does), that start and the ones after use compatibility rendering, and the log says so.
-//! The marker names the process that left it: a second start while that orbiter still runs (which
+//! The marker names the process that left it: a second start while that MyOrbiter still runs (which
 //! single-instance closes at once) isn't taken for an early close.
 
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
-/// WebKit's own variables for the renderer: one of these set by you means orbiter sets none.
+/// WebKit's own variables for the renderer: one of these set by you means MyOrbiter sets none.
 pub const WEBKIT_VARS: [&str; 5] = [
     "WEBKIT_DISABLE_DMABUF_RENDERER",
     "WEBKIT_DISABLE_COMPOSITING_MODE",
@@ -67,7 +67,7 @@ pub enum Why {
     None,
     /// Saved: the Settings switch or the start flag.
     Chosen,
-    /// Switched on by orbiter: the start before closed early in accelerated mode.
+    /// Switched on by MyOrbiter: the start before closed early in accelerated mode.
     AfterCrash,
 }
 
@@ -106,7 +106,7 @@ fn config_dir() -> Option<PathBuf> {
     #[cfg(target_os = "linux")]
     {
         let base = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).filter(|p| p.is_absolute()).or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
-        Some(base.join("dev.orbiter.app"))
+        Some(base.join(crate::datamove::ID))
     }
     #[cfg(not(target_os = "linux"))]
     {
@@ -142,7 +142,7 @@ pub struct Choice {
     pub why: Why,
     pub nvidia: bool,
     pub wayland: bool,
-    /// The variables orbiter set, as `NAME=value`.
+    /// The variables MyOrbiter set, as `NAME=value`.
     pub set: Vec<String>,
     /// Your own WebKit variables, when they decided it.
     pub yours: Vec<String>,
@@ -155,7 +155,7 @@ static CHOICE: OnceLock<Choice> = OnceLock::new();
 
 /// Sets the environment for this start's mode. Call first thing, before Tauri or GTK start (and
 /// before any thread does: setting the environment isn't safe once others read it). Returns the
-/// variables it set, which a TennoScope orbiter starts must not inherit.
+/// variables it set, which a TennoScope MyOrbiter starts must not inherit.
 #[cfg(target_os = "linux")]
 pub fn apply() -> Vec<&'static str> {
     use std::path::Path;
@@ -177,9 +177,9 @@ pub fn apply() -> Vec<&'static str> {
     }
     let yours: Vec<String> = WEBKIT_VARS.iter().filter_map(|k| std::env::var(k).ok().map(|v| format!("{k}={v}"))).collect();
     let saved = dir.as_deref().map(read_saved).unwrap_or(Why::None);
-    // A marker left by an orbiter that is still running (a second start while the first is in its
+    // A marker left by a MyOrbiter that is still running (a second start while the first is in its
     // first minute, which single-instance then closes) isn't an early close.
-    let trial_left = dir.as_deref().is_some_and(|d| trial_is_crash(std::fs::read_to_string(d.join(TRIAL)).ok().as_deref(), running_orbiter));
+    let trial_left = dir.as_deref().is_some_and(|d| trial_is_crash(std::fs::read_to_string(d.join(TRIAL)).ok().as_deref(), running_myorbiter));
     let (mode, why) = decide(!yours.is_empty(), saved, trial_left, nvidia);
     if let Some(dir) = dir.as_deref() {
         if why == Why::AfterCrash && saved == Why::None {
@@ -217,16 +217,16 @@ pub fn started() {
     };
     let session = if c.wayland { "Wayland" } else { "X11" };
     let vars = if c.mode == Mode::Yours { c.yours.join(" ") } else { c.set.join(" ") };
-    log::info!(target: "orbiter::rendering", "{what}{why} ({session}{}{}{})", if c.nvidia { ", NVIDIA driver" } else { "" }, if vars.is_empty() { "" } else { "; " }, vars);
+    log::info!(target: "myorbiter::rendering", "{what}{why} ({session}{}{}{})", if c.nvidia { ", NVIDIA driver" } else { "" }, if vars.is_empty() { "" } else { "; " }, vars);
     match (c.flag, &c.flag_error) {
-        (Some(on), None) => log::info!(target: "orbiter::rendering", "compatibility rendering {} for the starts after this one ({})", if on { "saved" } else { "cleared" }, if on { FLAG_ON } else { FLAG_OFF }),
-        (Some(_), Some(e)) => log::warn!(target: "orbiter::rendering", "saving the rendering flag failed: {e}"),
+        (Some(on), None) => log::info!(target: "myorbiter::rendering", "compatibility rendering {} for the starts after this one ({})", if on { "saved" } else { "cleared" }, if on { FLAG_ON } else { FLAG_OFF }),
+        (Some(_), Some(e)) => log::warn!(target: "myorbiter::rendering", "saving the rendering flag failed: {e}"),
         _ => {}
     }
     // Not in a development build: `tauri dev` kills the app to restart it after every rebuild,
     // which would read as a crash.
     if matches!(c.mode, Mode::Accelerated | Mode::SharedMemory) && !cfg!(debug_assertions) {
-        // Left here, not before the window: a second orbiter started while one runs exits before
+        // Left here, not before the window: a second MyOrbiter started while one runs exits before
         // this point (single-instance), and must not leave a marker behind.
         if let Some(dir) = config_dir() {
             let _ = std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(dir.join(TRIAL), format!("started {}\n", std::process::id())));
@@ -239,7 +239,7 @@ pub fn started() {
 }
 
 /// Whether a start marker (`started <pid>`, or `started` from an older build) means the start
-/// that wrote it closed early: not when that orbiter is still running (`running`).
+/// that wrote it closed early: not when that MyOrbiter is still running (`running`).
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 fn trial_is_crash(marker: Option<&str>, running: impl Fn(u32) -> bool) -> bool {
     let Some(marker) = marker else { return false };
@@ -249,14 +249,14 @@ fn trial_is_crash(marker: Option<&str>, running: impl Fn(u32) -> bool) -> bool {
     }
 }
 
-/// Whether `pid` is another orbiter, running now: the same program name as this one's.
+/// Whether `pid` is another MyOrbiter, running now: the same program name as this one's.
 #[cfg(target_os = "linux")]
-fn running_orbiter(pid: u32) -> bool {
+fn running_myorbiter(pid: u32) -> bool {
     let comm = |p: &str| std::fs::read_to_string(format!("/proc/{p}/comm")).ok().map(|s| s.trim().to_owned());
     pid != std::process::id() && comm(&pid.to_string()).is_some_and(|c| Some(c) == comm("self"))
 }
 
-/// The window ran long enough, or orbiter is closing normally: this start didn't crash.
+/// The window ran long enough, or MyOrbiter is closing normally: this start didn't crash.
 pub fn stood_up() {
     if let Some(dir) = config_dir() {
         let _ = std::fs::remove_file(dir.join(TRIAL));
@@ -285,7 +285,7 @@ pub fn set_compat_rendering(on: bool) -> Result<(), String> {
     let dir = config_dir().ok_or("Only on Linux")?;
     write_saved(&dir, if on { Why::Chosen } else { Why::None }).map_err(|e| e.to_string())?;
     let _ = std::fs::remove_file(dir.join(TRIAL));
-    log::info!(target: "orbiter::rendering", "compatibility rendering {} from the next start (Settings)", if on { "on" } else { "off" });
+    log::info!(target: "myorbiter::rendering", "compatibility rendering {} from the next start (Settings)", if on { "on" } else { "off" });
     Ok(())
 }
 
@@ -326,9 +326,9 @@ mod tests {
     }
 
     /// A second start while the first is still in its first minute finds the first one's marker:
-    /// that orbiter is running, so nothing closed early.
+    /// that MyOrbiter is running, so nothing closed early.
     #[test]
-    fn a_marker_of_a_running_orbiter_is_not_a_crash() {
+    fn a_marker_of_a_running_myorbiter_is_not_a_crash() {
         assert!(!trial_is_crash(None, |_| false));
         assert!(!trial_is_crash(Some("started 4242\n"), |p| p == 4242));
         assert!(trial_is_crash(Some("started 4242\n"), |_| false));
@@ -338,11 +338,11 @@ mod tests {
 
     #[test]
     #[cfg(target_os = "linux")]
-    fn only_another_running_orbiter_counts_as_running() {
-        assert!(!running_orbiter(std::process::id()), "this process is the one starting");
-        assert!(!running_orbiter(u32::MAX), "no such process");
-        // A process with another name (the shell running the tests' parent, or init) isn't orbiter.
-        assert!(!running_orbiter(1));
+    fn only_another_running_myorbiter_counts_as_running() {
+        assert!(!running_myorbiter(std::process::id()), "this process is the one starting");
+        assert!(!running_myorbiter(u32::MAX), "no such process");
+        // A process with another name (the shell running the tests' parent, or init) isn't MyOrbiter.
+        assert!(!running_myorbiter(1));
     }
 
     #[test]
@@ -356,7 +356,7 @@ mod tests {
 
     #[test]
     fn saved_choice_round_trips() {
-        let dir = std::env::temp_dir().join(format!("orbiter-rendering-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("myorbiter-rendering-{}", std::process::id()));
         write_saved(&dir, Why::Chosen).unwrap();
         assert_eq!(read_saved(&dir), Why::Chosen);
         write_saved(&dir, Why::AfterCrash).unwrap();

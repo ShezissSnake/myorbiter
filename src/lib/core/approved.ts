@@ -2,7 +2,7 @@
 // take it from there. You set or approve a price by listing it (the listing form, a Sell spares
 // plan you apply), by editing it on Orders, or by pressing Reprice; a pass on the timer never
 // does. Unattended, a listing never goes under AUTO_FLOOR_SHARE of that price: it stops there and
-// orbiter says so, for you to decide.
+// MyOrbiter says so, for you to decide.
 
 /** The share of your last approved price an unattended pass may lower a listing to. */
 export const AUTO_FLOOR_SHARE = 0.7;

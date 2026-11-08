@@ -1,4 +1,4 @@
-// Pop-ups inside orbiter's window: a notification that arrives while you're looking at orbiter
+// Pop-ups inside MyOrbiter's window: a notification that arrives while you're looking at MyOrbiter
 // shows here instead of on the desktop. Each goes by itself after a few seconds (hovering or
 // focusing it holds it, and it carries on from there); a click opens the page it's about.
 import type { Notice } from "./notices";

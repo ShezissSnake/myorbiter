@@ -1,11 +1,11 @@
 //! Relics as the game has them now: what each one holds at each refinement, and which ones drop
 //! somewhere (the rest are vaulted). TennoScope's relic list lags a new Prime Access by days or
-//! weeks, so orbiter reads the official drop tables itself, through drops.warframestat.us (which
+//! weeks, so MyOrbiter reads the official drop tables itself, through drops.warframestat.us (which
 //! republishes them within a day or two), and lays them over TennoScope's list (see relicData.ts).
 //!
 //! Checked at most twice a day: a tiny `info.json` says whether the tables changed, and only then
 //! are the two big files (about 7 MB) read again. WFCD's relic list gives each relic's in-game path
-//! (Varzia's stock and your inventory go by path). The result is kept in orbiter's config folder,
+//! (Varzia's stock and your inventory go by path). The result is kept in MyOrbiter's config folder,
 //! so it's there offline and on the next start.
 
 use serde_json::{json, Map, Value};
@@ -253,11 +253,11 @@ mod tests {
         assert_eq!(b[3]["rewards"].as_array().unwrap().len(), 1, "not the vault's Arcana table");
     }
 
-    /// Reads the real tables (network): `cargo test -p orbiter relicdata -- --ignored`.
+    /// Reads the real tables (network): `cargo test -p myorbiter relicdata -- --ignored`.
     #[test]
     #[ignore]
     fn live_tables() {
-        let dir = std::env::temp_dir().join(format!("orbiter-relic-test-{}", now()));
+        let dir = std::env::temp_dir().join(format!("myorbiter-relic-test-{}", now()));
         let v = relic_data(&dir, true).expect("read");
         let relics = v["relics"].as_array().unwrap();
         assert!(relics.len() > 3000, "{} relics", relics.len());

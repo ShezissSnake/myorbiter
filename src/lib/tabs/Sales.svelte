@@ -124,7 +124,7 @@
    */
   let namesWanted = $state(false);
   const names = $derived([...new Set([...model.partByName.keys(), ...model.primeParents.map((p) => `${p.name} Set`), ...[...model.catalogByUnique.values()].filter((c) => c.tradable).map((c) => c.name)])].sort());
-  // What you typed, in any case, as orbiter spells it; something it doesn't know can still be logged.
+  // What you typed, in any case, as MyOrbiter spells it; something it doesn't know can still be logged.
   const known = $derived(knownName(names, item));
   const unknown = $derived(!!item.trim() && !known);
   // Some names have several catalog entries (Serration): the highest max rank is the one that trades.
@@ -177,7 +177,7 @@
 
   // Against the market: what each sale made next to the daily median for that item (the max-rank
   // price for a ranked arcane or mod).
-  // The median when it sold, where orbiter recorded one; older sales go by today's.
+  // The median when it sold, where MyOrbiter recorded one; older sales go by today's.
   const market = (s: Sale) => s.median ?? (s.rank != null && s.rank > 0 ? (model.priceMax(s.item) ?? model.price(s.item)) : model.price(s.item));
   const UNDER = 0.8;
   const ratio = (s: Sale) => {
@@ -274,14 +274,14 @@
       <span class="plat"><input type="number" min="1" placeholder="Price" title="The platinum you got for each one" bind:value={price} aria-label="Platinum each" /><Metal kind="plat" size={14} /></span>
       <IconButton icon="plus" tone="gold" type="submit" label="Add sale" title={blocked ?? "Add it to the log"} disabled={!!blocked} />
     </form>
-    {#if unknown}<p class="small warn note">Not an item orbiter knows: it won't be compared with the market.</p>
+    {#if unknown}<p class="small warn note">Not an item MyOrbiter knows: it won't be compared with the market.</p>
     {:else if qty != null && Math.round(qty) < 1}<p class="small warn note">Quantity is at least 1.</p>{/if}
   </div>
 
   {#if sales.length}
     <div class="reveal" transition:reveal><div>
     <table class="log">
-      <thead><tr><th>When</th><th>Item</th><th class="right">Qty</th><th class="right">Each</th><th class="right" title="The sale price next to the item's daily median on warframe.market when it sold (today's, for sales from before orbiter recorded it)">Vs market</th><th class="right">Total</th><th></th></tr></thead>
+      <thead><tr><th>When</th><th>Item</th><th class="right">Qty</th><th class="right">Each</th><th class="right" title="The sale price next to the item's daily median on warframe.market when it sold (today's, for sales from before MyOrbiter recorded it)">Vs market</th><th class="right">Total</th><th></th></tr></thead>
       <tbody>
         {#each log as { s, key } (key)}
           <tr class:added={added === keyOf(s)} in:arrive out:leave animate:flip>

@@ -71,7 +71,7 @@
 </div>
 
 {#if outOfDate}
-  <p class="dim small">The fissure list is out of date: every fissure orbiter last read has closed, and the worldstate can't be read right now (api.warframestat.us and the game's own list). orbiter tries again every few minutes.</p>
+  <p class="dim small">The fissure list is out of date: every fissure MyOrbiter last read has closed, and the worldstate can't be read right now (api.warframestat.us and the game's own list). MyOrbiter tries again every few minutes.</p>
 {:else if !eras.length}
   <p class="dim small">{mine ? "None of the fissures open right now match your alerts." : `No ${mode === "steel" ? "Steel Path fissures" : mode === "storm" ? "Void Storms" : "fissures"} open right now.`}</p>
 {:else}

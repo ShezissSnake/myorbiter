@@ -72,7 +72,7 @@ function usedOf(s: Suggestion, idx: ModIndex): number {
 
 function checkWhole(s: Suggestion, owned: Owned, idx: ModIndex) {
   assert.equal(s.source, "orbiter");
-  assert.ok(s.note.startsWith("orbiter's suggestion"), "the note says whose it is");
+  assert.ok(s.note.startsWith("MyOrbiter's suggestion"), "the note says whose it is");
   assert.equal(usedOf(s, idx), s.capacity.used, `${s.item} ${s.tier}: capacity adds up`);
   assert.ok(s.capacity.used <= s.capacity.max, `${s.item} ${s.tier}: ${s.capacity.used} fits in ${s.capacity.max}`);
   const paths = [...s.mods.filter((m) => m).map((m) => m!.path), s.aura?.path, s.exilus?.path, s.stance?.path, ...s.arcanes.map((a) => a.path)].filter((p): p is string => !!p);
@@ -196,7 +196,7 @@ test("a melee (Gram Prime): Condition Overload, Blood Rush and Weeping Wounds by
   checkWhole(s, all, index);
 });
 
-test("a melee whose class orbiter can't tell gets no stance, and the note says so", () => {
+test("a melee whose class MyOrbiter can't tell gets no stance, and the note says so", () => {
   const odd = { ...item("Gram Prime"), name: "Mystery Blade", uniqueName: "/Lotus/Weapons/Tenno/Melee/Swords/Mystery/Mystery" };
   assert.equal(meleeClassOf(odd), null);
   const s = suggest(odd, "medium", all, index);
@@ -229,7 +229,7 @@ test("only owned mods go in the main build; the rest are listed as upgrades", ()
   assert.equal(modNames(none).length, 0);
   assert.equal(none.arcanes.length, 0);
   assert.ok(none.upgrades.length >= 8);
-  assert.match(none.note, /you don't hold a mod orbiter would put there/);
+  assert.match(none.note, /you don't hold a mod MyOrbiter would put there/);
 });
 
 test("ownedFrom reads TennoScope's rows: path or path#rank, the highest rank kept, mods and arcanes only", () => {
@@ -401,7 +401,7 @@ test("Forma stays within MAX_FORMA even when everything is owned", () => {
   for (const n of ["Carrier Prime", "Smeeta Kavat", "Rhino Prime", "Soma Prime"]) assert.ok(suggest(item(n), "high", all, index).formaSlots <= MAX_FORMA, n);
 });
 
-test("toBuild: the saved Build shape, source orbiter, no orbiter-only fields", () => {
+test("toBuild: the saved Build shape, source orbiter, no MyOrbiter-only fields", () => {
   const s = suggest(item("Saryn Prime"), "high", all, index);
   const b = toBuild(s, 123);
   assert.equal(b.source, "orbiter");

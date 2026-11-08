@@ -1,6 +1,6 @@
 # The website
 
-orbiter's site for GitLab Pages: a landing page (`landing.html`), the app's Guide as pages and
+MyOrbiter's site for GitLab Pages: a landing page (`landing.html`), the app's Guide as pages and
 What's New, in the app's own design (`site.css`, the tokens and type of `src/app.css`).
 `scripts/site.mjs` builds it into `site/_site/` (not committed): it draws the Guide and What's
 New from `src/lib/tabs/Guide.svelte` and `src/lib/whatsNew.ts` with Svelte's server renderer, so
