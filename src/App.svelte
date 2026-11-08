@@ -2052,8 +2052,9 @@
             try {
               seen = await waitForNewRead(() => dataStamp(settings.dataDir), seen, { limit: Math.max(1_000, deadline - Date.now()), abort: () => ts.error, onTick: () => (j.fraction = syncFill(Date.now() - asked)) });
             } catch (e) {
-              // Data did change but no read newer than the ask came: say what's there, not "Synced".
-              if (reloaded && !ts.error) return bundle?.observed_at ? `Read ${fmtTime(new Date(bundle.observed_at * 1000))}` : "No new read";
+              // Data did change but no read newer than the ask came: say so, not "Synced". Two words
+              // that fit the button; when the read there is from, the card above it says.
+              if (reloaded && !ts.error) return "No new read";
               throw e;
             }
             j.phase = "Reading…";
@@ -2626,7 +2627,7 @@
         <span class="lbl"><strong>{inFissure(mission, tick) ? "In a fissure" : model ? `Synced ${ago(model.observedAt, tick)}` : mission ? "Reading the log" : "Idle"}</strong><small>{inFissure(mission, tick) ? (mission?.mission ?? "") : mission ? "Warframe's log: found" : "No game log found"}</small></span>
       </div>{/if}
       <div class="syncrow">
-      <ProgressButton bind:this={syncButton} class="sync" job={syncJob} busy={loading && !bundle} icon="refresh" spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} sizer={["Waiting…", "Up to date", "Not synced"]}
+      <ProgressButton bind:this={syncButton} class="sync" job={syncJob} busy={loading && !bundle} icon="refresh" spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} sizer={["Waiting…", "Up to date", "Not synced", "No new read"]}
         title={`${syncStep ? `${syncStep}…\n\n` : ""}${onConsole ? "Reload your warframe.market listings, the fissures and Baro" : syncMode ? "Sync: ask TennoScope to read your inventory from the game now, and wait for the new read" : "Sync: reload TennoScope's last saved read and the live fissures. With Warframe running and TennoScope on Full access, it asks TennoScope for a fresh read from the game instead"} (Ctrl+R)`}
         onclick={refreshAll} />
         {#if model && !onConsole}<button class="tool" aria-label="Find anything" aria-expanded={showLookup} title="Find anything by name: an item, a prime part, a relic, a mod or arcane you hold (Ctrl+K)" onclick={() => (showLookup = true)}><Icon name="search" size={14} /></button>{/if}
@@ -2918,7 +2919,9 @@
   .nav .live { margin-left: auto; width: .5rem; height: .5rem; background: var(--gold); transform: rotate(45deg); flex: none; box-shadow: 0 0 6px rgb(214 174 74 / 60%); }
   .nav .live.dim { background: var(--gold-dim); box-shadow: none; }
 
-  .foot { flex: none; display: grid; gap: .5rem; padding: .75rem .8rem .8rem; border-top: 1px solid var(--rule); }
+  /* One column, never wider than the rail: a wide label (a sync's note) can't push the rows past the
+     rail's edge, where the search, the bell, the Guide and Settings would be cut off. */
+  .foot { flex: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: .5rem; padding: .75rem .8rem .8rem; border-top: 1px solid var(--rule); }
   .game { display: flex; align-items: center; gap: .65rem; min-width: 0; padding: 0 .2rem; }
   .game .lbl { display: grid; min-width: 0; }
   .game strong { font-family: var(--face-register); font-size: .6rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
@@ -2928,7 +2931,10 @@
   .pill.live + .lbl strong { color: var(--gold); }
   .pill.idle i { clip-path: none; background: var(--platinum-deep); }
   .syncrow { display: flex; gap: .4rem; }
-  .syncrow :global(.sync) { display: flex; justify-content: center; align-items: center; gap: .5rem; flex: 1; min-width: 0; }
+  /* Sync and TennoScope take what the row leaves (basis and width 0: their labels don't size the row).
+     A label longer than the button starts at its left edge and is clipped on the right, not centred
+     out past both edges. */
+  .syncrow :global(.sync) { display: flex; justify-content: safe center; align-items: center; gap: .5rem; flex: 1 1 0; width: 0; min-width: 0; padding-left: .75rem; padding-right: .75rem; }
   /* Every button down here is one height, folded or not. */
   .syncrow :global(.sync), .tool { height: 36px; padding-top: 0; padding-bottom: 0; }
   /* Why the last sync failed, under the button (it goes with the button's failed look). */
@@ -2938,7 +2944,7 @@
   .tool { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; padding-left: .6rem; padding-right: .6rem; }
   /* The page that's open (Guide): marked the way the sidebar marks its page, a gold edge, not a white block. */
   .tool.on { color: var(--platinum); background: rgb(214 174 74 / 12%); box-shadow: inset 2px 0 0 var(--gold); }
-  .tsbtn { flex: 1; min-width: 0; justify-content: flex-start; }
+  .tsbtn { flex: 1 1 0; width: 0; min-width: 0; justify-content: flex-start; }
   .bell { position: relative; }
   .bell .count { position: absolute; top: -.45rem; right: -.45rem; min-width: 1.1rem; padding: .05rem .25rem; font-family: var(--face-register); font-size: .55rem; font-weight: 700; line-height: 1.3; text-align: center; color: var(--slab); background: var(--gold); clip-path: var(--cut); animation: pop .25s ease-out; }
   .bell.paused :global(svg) { opacity: .45; }
@@ -2967,11 +2973,11 @@
   .compact .badge { min-width: 1.05rem; font-size: .52rem; padding: 0 .2rem; }
   .compact .game { justify-content: center; }
   /* Folded: under the game light, Sync across, then the bell, TennoScope, Guide and Settings two by two. */
-  .compact .foot { grid-template-columns: 1fr 1fr; gap: .35rem; padding: .6rem .5rem .7rem; }
+  .compact .foot { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem; padding: .6rem .5rem .7rem; }
   .compact .game, .compact :global(.sync) { grid-column: 1 / -1; }
   .compact :global(.sync .lbls) { display: none; }
   .compact .tools, .compact .syncrow { display: contents; }
-  .compact :global(.sync), .compact .tool { padding-left: 0; padding-right: 0; min-width: 0; }
+  .compact :global(.sync), .compact .tool { padding-left: 0; padding-right: 0; width: auto; min-width: 0; }
   .compact .tsbtn { justify-content: center; }
   /* A short window: tighter rows, so every page and the tools fit (all 16 folded at 700 px high). */
   @media (max-height: 900px) {
