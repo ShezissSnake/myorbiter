@@ -10,14 +10,17 @@
 
   /** A minimum typed in: a whole number of 1 or more, or null (the box goes back to what it was). */
   const typed = (box: HTMLInputElement) => (box.value.trim() === "" ? null : minimumOf(Number(box.value)));
+  /** Emptied on purpose: a half-typed number ("1e", "-") reads as empty too, but isn't. */
+  const emptied = (box: HTMLInputElement) => box.value.trim() === "" && !box.validity.badInput;
 
   function setGlobal(box: HTMLInputElement) {
     const v = typed(box);
-    if (v == null) box.value = String(minPrice);
-    else minPrice = v;
+    if (v != null) minPrice = v;
+    // Odd or emptied: what it was; rounded: what's kept.
+    box.value = String(minPrice);
   }
   function setCat(c: SpareCategory, box: HTMLInputElement) {
-    if (box.value.trim() === "") {
+    if (emptied(box)) {
       // Emptied: the category goes back to the minimum for everything.
       const rest = { ...minByCategory };
       delete rest[c];
@@ -25,8 +28,8 @@
       return;
     }
     const v = typed(box);
-    if (v == null) box.value = minByCategory[c] != null ? String(minByCategory[c]) : "";
-    else minByCategory = { ...minByCategory, [c]: v };
+    if (v != null) minByCategory = { ...minByCategory, [c]: v };
+    box.value = minByCategory[c] != null ? String(minByCategory[c]) : "";
   }
 </script>
 

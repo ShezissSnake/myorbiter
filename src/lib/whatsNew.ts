@@ -36,7 +36,7 @@ export const NEWS: NewsEntry[] = [
     id: 21,
     date: "2026-11-08",
     items: [
-      { title: "Minimum prices by kind", icon: { page: "spares" }, text: "Sell spares has your minimum price at its foot, the same one as Never under on Orders, and a box per kind (mods, relics, prime parts…) that replaces it for that kind: nothing is listed, by the plan or the listing form, or repriced under it.", open: "spares#minimums" },
+      { title: "Minimum prices by kind", icon: { page: "spares" }, text: "Sell spares has your minimum price at its foot, the same one as Never under on Orders, and a box per kind (mods, relics, prime parts…) that replaces it for that kind: nothing is listed, priced (the listing form, a price typed on Orders) or repriced under it.", open: "spares#minimums" },
     ],
   },
   {

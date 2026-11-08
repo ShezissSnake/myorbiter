@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildModel } from "../src/lib/core/model";
-import { bulkPlan, sellTargets, defaultBulkRules, LIMIT_WHY, LIMIT_WHY_TRADES, type BulkContext, type BulkRules } from "../src/lib/core/bulk";
+import { bulkPlan, minimumForItem, sellTargets, defaultBulkRules, LIMIT_WHY, LIMIT_WHY_TRADES, type BulkContext, type BulkRules } from "../src/lib/core/bulk";
 import { indexItems, type BookOrder, type MarketItem, type MyOrder } from "../src/lib/core/market";
 import { defaultAdvice } from "../src/lib/backend";
 import type { Bundle, InventoryRow } from "../src/lib/core/types";
@@ -348,7 +348,7 @@ test("minimums by category: a category's own replaces the global one, an empty o
   assert.match(cheap[0].type === "skip" ? cheap[0].why : "", /about 12p, under your 30p mod minimum/);
 });
 
-test("minimums by category: a lower one never takes a listing under your own floor or its ducats", () => {
+test("minimums by category: a lower one never takes a listing under your own floor", () => {
   // Your own floor of 10p (the old global minimum) on the Serration listing: a 5p mod minimum
   // and a 6p market don't take it under 10p.
   const m = buildModel(bundle([inv("/M/Serration", "Serration", "mod", 1, { rank: 10 }), inv("/M/Serration", "Serration", "mod", 3)]));
@@ -357,4 +357,19 @@ test("minimums by category: a lower one never takes a listing under your own flo
   const plan = bulkPlan(ctx(m, [order("o1", "ser", 2, 12, 0)], { serration: [seller(6, 0), seller(6, 0)] }, { minPrice: 10, minByCategory: { mods: 5 }, floors: { "ser|0|": 10 } }), rules, targets);
   const update = plan.find((a) => a.type === "update");
   assert.ok(update?.type === "update" && update.platinum === 10, JSON.stringify(plan.map((a) => [a.type, a.type === "update" || a.type === "create" ? a.platinum : null])));
+});
+
+test("minimums by category: the item's own category decides, not the row it turned up in", () => {
+  // A blueprint on the Resources row: warframe.market's tags make it a weapon part, as repricing,
+  // the listing form and the last check judge it, so the plan holds it to that minimum too.
+  const m = buildModel(bundle([]));
+  const bp: MarketItem = { id: "bp", slug: "some_ship_part_blueprint", gameRef: "/Ship/Bp", name: "Some Ship Part Blueprint", maxRank: null, subtypes: null, tags: ["blueprint"] };
+  const target = { kind: "other" as const, cat: "resources" as const, name: bp.name, unique: null, rank: null, quantity: 2, why: "2 held" };
+  const c = (extra: Partial<BulkContext>) => ({ ...ctx(m, [], { some_ship_part_blueprint: [seller(10), seller(10)] }), index: indexItems([...items, bp]), ...extra });
+  const rules = only({ other: true });
+  const plan = bulkPlan(c({ minByCategory: { resources: 5, gear: 30 } }), rules, [target]);
+  assert.match(plan[0].type === "skip" ? plan[0].why : "", /under your 30p weapon part minimum/);
+  assert.equal(minimumForItem({ minPrice: 10, minByCategory: { resources: 5, gear: 30 } }, m, bp), 30);
+  const listed = bulkPlan(c({ minByCategory: { resources: 30, gear: 5 } }), rules, [target]);
+  assert.equal(listed[0].type === "create" && listed[0].platinum, 10);
 });

@@ -984,6 +984,15 @@ class MarketStore {
     const it = this.item(o.itemId);
     const raising = (change.quantity != null && change.quantity > o.quantity) || (change.visible === true && !o.visible);
     let why = "";
+    // A new price, typed on Orders: never under the item's minimum, as the listing form.
+    const cheap = it && this.rules && change.platinum != null && change.platinum !== o.platinum ? minimumRefusal(change.platinum, minimumForItem(this.rules, this.model, it)) : null;
+    if (cheap) {
+      const line = `Didn't change ${listingTag(it!, o.rank, o.subtype)}: ${cheap}`;
+      this.note(line, "warn");
+      logLine("warn", "listing", line);
+      this.error = line;
+      return false;
+    }
     if (raising && it) {
       const req = { item: it, rank: o.rank, subtype: o.subtype, quantity: change.quantity ?? o.quantity, platinum: change.platinum ?? o.platinum, listedElsewhere: this.listedOf(it, o.rank, o.subtype, o.id), manual: true };
       if (!this.allowed(this.model, req, (l) => (why = l))) {

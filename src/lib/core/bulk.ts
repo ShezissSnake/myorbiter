@@ -427,7 +427,8 @@ export function sparesPreview(c: PreviewContext, rules: SparesRules): SparesTall
       if (duc != null && ducatsBeat(each, duc)) continue;
     }
     if (t.crack != null && each <= t.crack) continue;
-    if (each < minimumFor(c, it ? (catOfItem(m, it) ?? cat) : cat)) {
+    // The item's own category decides, as repricing and the listing form judge it (minimumForItem).
+    if (each < (it ? minimumForItem(c, m, it) : minimumFor(c, cat))) {
       out[cat].under++;
       continue;
     }
@@ -532,7 +533,16 @@ export function catOfItem(m: Model, it: MarketItem, kind: BulkKind | null = kind
  * or the global one (also for things outside every category).
  */
 export function minimumForItem(s: { minPrice: number; minByCategory?: MinByCategory | null }, m: Model | null, it: MarketItem): number {
-  return minimumFor(s, m ? catOfItem(m, it) : it.tags?.includes("relic") ? "relics" : null);
+  return minimumFor(s, m ? catOfItem(m, it) : catOfTags(it));
+}
+/** Without a collection read: the categories warframe.market's tags settle alone (anything else, the global minimum). */
+function catOfTags(it: MarketItem): SpareCategory | null {
+  const tags = it.tags ?? [];
+  if (tags.includes("relic")) return "relics";
+  if (tags.includes("imprint")) return "imprints";
+  if (tags.includes("arcane_enhancement")) return "arcanes";
+  if (tags.includes("mod") && !/ \(Veiled\)$/.test(it.name)) return "mods";
+  return null;
 }
 
 /**
@@ -760,9 +770,10 @@ export function bulkPlan(c: BulkContext, rules: PlanRules, targets: SellTarget[]
       else actions.push(skip(hold.why, holdTag));
       continue;
     }
-    const minCat = catOfItem(c.model, it) ?? cat;
-    const min = minimumFor(c, minCat);
-    const minWords = c.minByCategory?.[minCat] != null ? `${min}p ${CATEGORY_WORD[minCat]} minimum` : `${min}p minimum`;
+    // The item's own category decides, as repricing, the listing form and the last check judge it.
+    const minCat = catOfItem(c.model, it);
+    const min = minimumForItem(c, c.model, it);
+    const minWords = minCat && c.minByCategory?.[minCat] != null ? `${min}p ${CATEGORY_WORD[minCat]} minimum` : `${min}p minimum`;
     const cheap = cheapByMedian(c.model, it, t.rank, min, subtype);
     if (cheap != null) {
       const why = `Sells for about ${Math.round(cheap)}p, under your ${minWords}`;

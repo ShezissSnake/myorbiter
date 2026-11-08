@@ -300,14 +300,16 @@ async function asMod() {
 
 test("on a timer: at most six changes a day per listing, with a category minimum set", async () => {
   await asMod();
-  const s = { ...settings(), minByCategory: { mods: 50, relics: 3 } };
+  // The Mods minimum (95p) binds: the market at 90p is held at 95p, at 100p it's followed.
+  const s = { ...settings(), minByCategory: { mods: 95, relics: 3 } };
   for (let h = 0; h < 12; h++) {
     now = T0 + h * HOUR;
-    book = [seller(h % 2 ? 100 : 90), seller(h % 2 ? 100 : 90)];
+    book = [seller(h % 2 ? 110 : 90), seller(h % 2 ? 110 : 90)];
     await timedPass(s);
   }
   assert.equal(sent.length, DRIFT.perDay);
-  assert.ok(sent.every(([, p]) => p >= 50));
+  assert.ok(sent.every(([, p]) => p >= 95), JSON.stringify(sent));
+  assert.ok(sent.some(([, p]) => p === 95), "held at the minimum, not at 90p");
 });
 
 test("a listing under its category minimum is raised to it, once the cooldown allows", async () => {
@@ -358,6 +360,26 @@ test("a listing at its ducat floor still produces no write with a lower prime mi
   now = T0 + HOUR;
   await timedPass(high, model);
   assert.deepEqual(sent, [[mine[0].id, floor + 10]], "the prime minimum over the ducat floor wins");
+});
+
+test("a price typed on Orders under the item's minimum isn't sent", async () => {
+  await asMod();
+  mkt.rules = { ...settings(), minByCategory: { mods: 40 } };
+  try {
+    market.update = (async (id: string, c: { platinum?: number }) => {
+      sent.push([id, c.platinum!]);
+      return {} as never;
+    }) as never;
+    assert.equal(await mkt.update(order(100), { platinum: 30 }), false);
+    assert.deepEqual(sent, []);
+    assert.match(mkt.log[0]?.text ?? "", /^Didn't change It: 30p is under your 40p minimum/);
+    assert.equal(await mkt.update(order(100), { platinum: 40 }), true);
+    assert.deepEqual(sent, [["a", 40]]);
+    // Only a new price is judged: a listing already under it can still change its quantity.
+    assert.equal(await mkt.update(order(30), { quantity: 1 }), true);
+  } finally {
+    mkt.rules = null;
+  }
 });
 
 // ------------------------------------------------------------------ off unless you turn it on

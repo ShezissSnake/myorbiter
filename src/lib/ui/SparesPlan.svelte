@@ -237,7 +237,7 @@
 
   <div class="minimums" id="minimums">
     <Minimums bind:minPrice bind:minByCategory />
-    <p class="note">Nothing is listed under its minimum (a spare that sells for less is left out), and repricing raises a listing under it to it. Your own floors on Orders, a prime's ducats and a relic's crack value still hold above it.</p>
+    <p class="note">Nothing is listed or priced under its minimum (a spare that sells for less is left out), and repricing raises a listing under it to it. Your own floors on Orders, a prime's ducats and a relic's crack value still hold above it.</p>
   </div>
 
   <footer class="foot">
