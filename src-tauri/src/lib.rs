@@ -1086,16 +1086,21 @@ fn log_folders(dir: Option<String>) -> LogFolders {
 }
 
 /// Opens a log folder in the file manager (`folder::open`): `which` is "myorbiter" or "tennoscope".
-#[tauri::command(async)]
-fn open_log_folder(app: tauri::AppHandle, which: String, dir: Option<String>) -> Result<(), String> {
+/// It waits for the opener's answer, so on a blocking thread, not one of the async runtime's few.
+#[tauri::command]
+async fn open_log_folder(app: tauri::AppHandle, which: String, dir: Option<String>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || open_log_folder_now(&app, &which, dir)).await.map_err(|e| e.to_string())?
+}
+
+fn open_log_folder_now(app: &tauri::AppHandle, which: &str, dir: Option<String>) -> Result<(), String> {
     let folders = log_folders(dir);
-    let path = match which.as_str() {
+    let path = match which {
         "myorbiter" => folders.myorbiter,
         "tennoscope" => folders.tennoscope,
         _ => None,
     }
     .ok_or("That log folder doesn't exist yet")?;
-    folder::open(&app, Path::new(&path))
+    folder::open(app, Path::new(&path))
 }
 
 // ---------------------------------------------------------------- bug reports

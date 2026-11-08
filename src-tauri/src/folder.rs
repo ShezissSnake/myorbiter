@@ -6,43 +6,69 @@
 //! the desktop's opener (`kde-open`), which exits 0 as soon as it has started the file manager. The
 //! file manager then loaded the AppImage's older libraries in place of its own and failed to start
 //! (Dolphin: liblzma's `XZ_5.4` not found; `gio`: an undefined symbol), so the button did nothing
-//! and said nothing. On Linux the folder now opens through `xdg-open` without the AppImage's
-//! entries (`companion::plain_command`), and its exit status is the answer.
+//! and said nothing. On Linux the folder now opens through `xdg-open` (then `gio open`, then
+//! `kde-open`) without the AppImage's entries (`companion::plain_command`), and its exit status is
+//! the answer; the opener plugin is used only on the other systems.
 
 use std::path::Path;
 use std::time::{Duration, Instant};
 
 /// How long to wait for the opener to say how it went. One that is still running then (an
 /// `xdg-open` that waits for the program it started) counts as opened, and is left to finish.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 const ANSWER_WITHIN: Duration = Duration::from_secs(4);
 
-/// Opens `path`, a folder, in the file manager; why not, in a sentence.
+/// The openers tried in turn, as the opener plugin's own `open` crate tries them: the next one when
+/// one isn't installed or fails. (The AppImage carries an `xdg-open` of its own; without its paths
+/// the system's is found.)
+#[cfg(target_os = "linux")]
+const OPENERS: &[(&str, &[&str])] = &[("xdg-open", &[]), ("gio", &["open"]), ("kde-open6", &[]), ("kde-open5", &[]), ("kde-open", &[])];
+
+/// Opens `path`, a folder, in the file manager; why not, in a sentence. It waits for the opener's
+/// answer (`ANSWER_WITHIN`), so it runs on a blocking thread.
 pub fn open(app: &tauri::AppHandle, path: &Path) -> Result<(), String> {
     if !path.is_absolute() || !path.is_dir() {
         return Err(format!("{} isn't a folder MyOrbiter can open", path.display()));
     }
     #[cfg(target_os = "linux")]
     {
-        let mut cmd = crate::companion::plain_command("xdg-open");
-        cmd.arg(path);
-        match answer(cmd, ANSWER_WITHIN) {
-            Ok(()) => return Ok(()),
-            // No xdg-open on this system: the opener plugin's other ways (gio, kde-open) below.
-            Err(Failed::NotFound) => {}
-            Err(Failed::Exited(code)) => {
-                log::warn!(target: "myorbiter::app", "xdg-open couldn't open {} (exit {code:?})", path.display());
-                return Err(format!("The file manager couldn't open {}{}", path.display(), code.map(|c| format!(" (xdg-open exit {c})")).unwrap_or_default()));
-            }
-            Err(Failed::Other(e)) => {
-                log::warn!(target: "myorbiter::app", "couldn't run xdg-open for {}: {e}", path.display());
-                return Err(format!("Couldn't start the file manager: {e}"));
-            }
-        }
+        // Never through the opener plugin here: its launchers keep the AppImage's environment.
+        let _ = app;
+        open_with(OPENERS, path, ANSWER_WITHIN)
     }
-    use tauri_plugin_opener::OpenerExt;
-    app.opener().open_path(path.display().to_string(), None::<&str>).map_err(|e| {
-        log::warn!(target: "myorbiter::app", "couldn't open {}: {e}", path.display());
-        format!("Couldn't open {}: {e}", path.display())
+    #[cfg(not(target_os = "linux"))]
+    {
+        use tauri_plugin_opener::OpenerExt;
+        app.opener().open_path(path.display().to_string(), None::<&str>).map_err(|e| {
+            log::warn!(target: "myorbiter::app", "couldn't open {}: {e}", path.display());
+            format!("Couldn't open {}: {e}", path.display())
+        })
+    }
+}
+
+/// Tries `openers` in turn, each started without the AppImage's environment
+/// (`companion::plain_command`) and in a process group of its own, so the file manager it starts
+/// isn't tied to MyOrbiter's.
+#[cfg(target_os = "linux")]
+fn open_with(openers: &[(&str, &[&str])], path: &Path, within: Duration) -> Result<(), String> {
+    use std::os::unix::process::CommandExt;
+    let mut failed: Option<String> = None;
+    for (bin, args) in openers {
+        let mut cmd = crate::companion::plain_command(bin);
+        cmd.args(*args).arg(path).process_group(0);
+        let why = match answer(cmd, within) {
+            Ok(()) => return Ok(()),
+            Err(Failed::NotFound) => continue,
+            Err(Failed::Exited(Some(code))) => format!("{bin} exit {code}"),
+            Err(Failed::Exited(None)) => format!("{bin} was stopped"),
+            Err(Failed::Other(e)) => format!("{bin}: {e}"),
+        };
+        log::warn!(target: "myorbiter::app", "couldn't open {} with {bin}: {why}", path.display());
+        failed.get_or_insert(why);
+    }
+    Err(match failed {
+        Some(why) => format!("The file manager couldn't open {} ({why})", path.display()),
+        None => format!("Couldn't open {}: no xdg-open, gio or kde-open on this system", path.display()),
     })
 }
 
@@ -83,6 +109,20 @@ fn answer(mut cmd: std::process::Command, within: Duration) -> Result<(), Failed
 mod tests {
     use super::*;
     use std::process::Command;
+
+    /// The next opener when one isn't installed or fails; the first failure is the one shown.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn openers_are_tried_in_turn() {
+        let dir = std::env::temp_dir();
+        let w = Duration::from_secs(4);
+        assert_eq!(open_with(&[("myorbiter-no-such-opener", &[]), ("false", &[]), ("true", &[])], &dir, w), Ok(()));
+        let failed = open_with(&[("myorbiter-no-such-opener", &[]), ("false", &[])], &dir, w).unwrap_err();
+        assert!(failed.starts_with("The file manager couldn't open ") && failed.ends_with("(false exit 1)"), "{failed}");
+        let none = open_with(&[("myorbiter-no-such-opener", &[])], &dir, w).unwrap_err();
+        assert!(none.ends_with("no xdg-open, gio or kde-open on this system"), "{none}");
+        assert_eq!(OPENERS[0].0, "xdg-open");
+    }
 
     #[test]
     fn the_opener_s_answer_is_the_result() {

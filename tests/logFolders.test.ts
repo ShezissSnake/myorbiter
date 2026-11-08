@@ -23,8 +23,11 @@ test("both log folder buttons run a job that opens the folder, and say how it we
 test("the app opens a log folder through folder.rs, not straight through the opener plugin", () => {
   const lib = src("src-tauri/src/lib.rs");
   const command = lib.slice(lib.indexOf("fn open_log_folder"), lib.indexOf("// ---------------------------------------------------------------- bug reports"));
-  assert.match(command, /folder::open\(&app, Path::new\(&path\)\)/);
+  assert.match(command, /spawn_blocking\(move \|\| open_log_folder_now/, "waits for the opener off the async runtime");
+  assert.match(command, /folder::open\(app, Path::new\(&path\)\)/);
   assert.doesNotMatch(command, /open_path/);
   const folder = src("src-tauri/src/folder.rs");
-  assert.match(folder, /crate::companion::plain_command\("xdg-open"\)/, "xdg-open without the AppImage's environment");
+  assert.match(folder, /crate::companion::plain_command\(bin\)/, "each opener without the AppImage's environment");
+  assert.match(folder, /\("xdg-open", &\[\]\), \("gio", &\["open"\]\)/);
+  assert.match(folder, /#\[cfg\(not\(target_os = "linux"\)\)\]\s*\{\s*use tauri_plugin_opener::OpenerExt;/, "the opener plugin only off Linux");
 });
