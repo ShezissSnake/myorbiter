@@ -82,19 +82,31 @@
   /** What to do on GitLab, once the report is on the clipboard: "pasted" (the steps) or "refused"
    *  (the clipboard refused it, so GitLab wasn't opened). */
   let handed = $state<"pasted" | "refused" | null>(null);
+  /** The text to paste on GitLab, and the one last put on the clipboard (the note says so only
+   *  while they match: an edit after copying asks for another press). */
+  const paste = $derived(issueText(report));
+  let copiedText = $state<string | null>(null);
+  let manual = $state<HTMLTextAreaElement | null>(null);
+  let busy = false;
   let openedTimer: ReturnType<typeof setTimeout> | null = null;
-  // The report goes on the clipboard first, and the page opens blank: gitlab.com gets nothing of it
-  // until the player pastes it and presses Create issue there.
+  // The report goes on the clipboard first, and the page opens blank: MyOrbiter sends gitlab.com
+  // nothing, and the address carries none of the report.
   async function openOnGitLab() {
-    if (empty || reading) return;
+    if (empty || reading || busy) return;
+    busy = true;
+    const text = paste;
     try {
-      await navigator.clipboard.writeText(issueText(report));
+      await navigator.clipboard.writeText(text);
     } catch {
       handed = "refused";
       opened = false;
+      void tick().then(() => manual?.select());
       return;
+    } finally {
+      busy = false;
     }
     handed = "pasted";
+    copiedText = text;
     void openUrl(NEW_ISSUE_PAGE);
     opened = true;
     if (openButton) pulse(openButton);
@@ -158,17 +170,22 @@
       <p class="hint">{#if !d.include}Only what you wrote goes in.{:else if failed}MyOrbiter's log couldn't be read; the rest is included.{:else}Sign-ins, e-mail and IP addresses, account ids, your user name in folder paths and every player's name are hidden, here and in what you wrote.{/if}</p>
     </section>
 
-    {#if handed === "pasted"}
+    {#if handed === "pasted" && copiedText === paste}
       <p class="note small" role="status">The report is on your clipboard. On GitLab, paste it into the description (<kbd>Ctrl</kbd>+<kbd>V</kbd>), give the issue a title (for example “{report.title}”) and press Create issue.</p>
+    {:else if handed === "pasted"}
+      <p class="note small" role="status">You changed the report after copying it: press Open on GitLab again to copy this one.</p>
     {:else if handed === "refused"}
-      <p class="note small" role="status">The clipboard refused the report, so GitLab wasn't opened. Use Copy report to copy it by hand, then open a new issue on GitLab and paste it in.</p>
+      <div class="note small" role="status">
+        <p>The clipboard refused the report, so GitLab wasn't opened. Here it is, selected: copy it (<kbd>Ctrl</kbd>+<kbd>C</kbd>), then <button type="button" class="link" onclick={() => openUrl(NEW_ISSUE_PAGE)}>open a blank new issue</button> and paste it in.</p>
+        <textarea bind:this={manual} class="manual" readonly rows="6" value={paste} aria-label="The report, to copy by hand"></textarea>
+      </div>
     {/if}
 
     <footer class="row">
-      <p class="privacy small"><Icon name="lock" size={11} /> MyOrbiter sends nothing, and the page it opens carries none of the report: you paste it in and press Create issue on GitLab.</p>
+      <p class="privacy small"><Icon name="lock" size={11} /> MyOrbiter sends gitlab.com nothing, and the page it opens carries none of the report: you paste it in and press Create issue there.</p>
       <div class="acts">
         <CopyButton text={() => reportMarkdown(report)} label="Copy report" copied="Copied" sizer={["Couldn't copy"]} title="Put the report on the clipboard as Markdown, to paste into an issue yourself, or send it another way if you don't have a GitLab account" />
-        <button bind:this={openButton} type="button" class="stamp gold go" class:done={opened} disabled={empty || reading} title={empty ? "Say what happened first" : reading ? "Reading MyOrbiter's log…" : "Put the report on the clipboard and open a blank new issue on GitLab in your browser, to paste it into. gitlab.com gets nothing of it until you press Create issue there."} onclick={openOnGitLab}>
+        <button bind:this={openButton} type="button" class="stamp gold go" class:done={opened} disabled={empty || reading} title={empty ? "Say what happened first" : reading ? "Reading MyOrbiter's log…" : "Put the report on the clipboard and open a blank new issue on GitLab in your browser, to paste it into. MyOrbiter sends gitlab.com nothing itself."} onclick={openOnGitLab}>
           <span class="lbls">
             <span class:on={!opened}>Open on GitLab<Icon name="external" size={11} /></span>
             <span class:on={opened}>Opened in your browser<Icon name="check" size={11} /></span>
@@ -211,6 +228,8 @@
   .techtext { margin: .2rem 0 0; max-height: 15rem; overflow: auto; padding: .6rem .7rem; font-family: var(--face-register); font-size: .7rem; line-height: 1.5; color: var(--platinum-dim); background: var(--slab); border: 1px solid var(--rule); white-space: pre-wrap; overflow-wrap: anywhere; }
   .techtext:focus-visible { outline: 1px solid var(--gold); outline-offset: 1px; }
   .hint { margin: 0; font-size: .74rem; color: var(--platinum-deep); }
+  .note p { margin: 0; }
+  .manual { display: block; width: 100%; margin-top: .45rem; font: inherit; font-family: var(--face-register); resize: vertical; }
   .note { margin: 0; color: var(--platinum-dim); padding: .45rem .7rem; border-left: 2px solid var(--alert); background: var(--well); }
 
   .row { display: flex; align-items: center; justify-content: space-between; gap: .8rem 1rem; flex-wrap: wrap; padding-top: .3rem; border-top: 1px solid var(--rule); }

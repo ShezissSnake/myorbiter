@@ -49,21 +49,20 @@ mode, without asking again. With Full mode on:
   memory around each squad member's account id (taken from the log) to find which reward each one
   picked. Only the reward's name is kept; the player names and session keys that sit beside it in
   memory are discarded. The reward names are priced on warframe.market (below).
-- **Nothing is written into the game's memory or folder.** No keys, no clicks, no input of any
-  kind. On Linux, memory is opened for reading only: `/proc/<pid>/mem` opened read-only, with
+- **Nothing is written into the game's memory or folder.** No keys, no clicks, no input of any kind.
+  On Linux, memory is opened for reading only: `/proc/<pid>/mem` opened read-only, with
   `/proc/<pid>/pagemap` read to find the pages that changed. On Windows it reads through
   `ReadProcessMemory` and `VirtualQueryEx`, with handles that two libraries open. What the code
   shows: MyOrbiter's code doesn't set their access rights itself, and its comments call them read
   access (`PROCESS_VM_READ`). What wasn't audited: the access those libraries actually ask Windows
-  for. Nothing in the code writes to the game's memory on either system. The one thing TennoScope writes about the game's
-  process: on Linux, once
-  when the log shows a reward screen opening, it writes `4` to `/proc/<pid>/clear_refs`. That resets
-  the kernel's record of which of the game's memory pages have changed, so the next read only looks
-  at those. It doesn't change the game's memory, though the game's next write to each page costs it
-  a small kernel fault.
+  for. Nothing in the code writes to the game's memory on either system. The one thing TennoScope
+  writes about the game's process: on Linux, once when the log shows a reward screen opening, it
+  writes `4` to `/proc/<pid>/clear_refs`. That resets the kernel's record of which of the game's
+  memory pages have changed, so the next read only looks at those. It doesn't change the game's
+  memory, though the game's next write to each page costs it a small kernel fault.
 - **The risk.** Digital Extremes publishes no list of allowed or forbidden third-party programs;
-  [its forum post](https://forums.warframe.com/topic/1383123/) leaves using them at your own risk. Full
-  mode could put your account at risk: that's your call. MyOrbiter never calls it safe.
+  [its forum post](https://forums.warframe.com/topic/1383123/) leaves using them at your own risk.
+  Full mode could put your account at risk: that's your call. MyOrbiter never calls it safe.
 
 ## Overlay mode: the game's window
 
@@ -78,10 +77,10 @@ to your temporary folder for Tesseract and deleted once read (if Tesseract fails
 cut-out is left there; a debug build made from source keeps more there).
 
 To find the game and its log on Linux, TennoScope reads every process's name in `/proc` ten times a
-second, and the game's `stat`, `maps`, `exe` link and `environ` (for its Wine prefix). While the game
-isn't running, it also reads the `maps` of any process whose name starts with `Cr` (Chromium-based
-apps) to tell whether Warframe's launcher is open. On Windows it reads the process list (names and
-start times) and the log in `%LOCALAPPDATA%\Warframe`.
+second, and the game's `stat`, `maps`, `exe` link and `environ` (for its Wine prefix). While the
+game isn't running, it also reads the `maps` of any process whose name starts with `Cr`
+(Chromium-based apps) to tell whether Warframe's launcher is open. On Windows it reads the process
+list (names and start times) and the log in `%LOCALAPPDATA%\Warframe`.
 
 ## The game's log
 
@@ -193,8 +192,8 @@ web requests; its status connection sends no User-Agent.
   read once its copy is a day old; after a failed download, again an hour later while TennoScope
   keeps running (at once after a restart, and at every inventory read while there is no copy at
   all). This request names no program (no User-Agent).
-- **WFCD's relic list** (a fixed version on `raw.githubusercontent.com`, no User-Agent), downloaded by TennoScope only if
-  MyOrbiter hasn't given it its relic tables and it has no copy of its own.
+- **WFCD's relic list** (a fixed version on `raw.githubusercontent.com`, no User-Agent), downloaded
+  by TennoScope only if MyOrbiter hasn't given it its relic tables and it has no copy of its own.
 - **Prices**: TennoScope downloads the daily price history from `relics.run` when it starts and when
   you choose its mode, unless it already has today's or yesterday's (today's file, then up to 5
   days back: at most 6 requests). The files usually run two days behind, so most starts download
@@ -209,14 +208,14 @@ web requests; its status connection sends no User-Agent.
 - **Drop tables**: `drops.warframestat.us` is asked whether they changed at start and every 3 hours,
   once the last successful check is 12 hours old (a failed check is tried again 3 hours later); the
   tables and WFCD's relic list (`raw.githubusercontent.com`) are downloaded only when they changed.
-- **Foundry recipes**: warframe-public-export-plus on `raw.githubusercontent.com`, three files, once a week (a failed
-  download is tried again at the next start or 3 hours later).
+- **Foundry recipes**: warframe-public-export-plus on `raw.githubusercontent.com`, three files, once
+  a week (a failed download is tried again at the next start or 3 hours later).
 - **Last week's riven trades** for your platform: `www-static.warframe.com`, when you open Rivens,
   when Orders shows your riven auctions, and when a riven reroll is shown; at most once every 6
   hours while MyOrbiter runs (a failed read is tried again on the next visit). This one is read by
   MyOrbiter's window, so it carries the window's own User-Agent, not MyOrbiter's.
-- **Item pictures**: WFCD's (`raw.githubusercontent.com`, then `cdn.warframestat.us`); for items WFCD
-  has no picture of, warframe.market's. MyOrbiter downloads each size once and keeps it.
+- **Item pictures**: WFCD's (`raw.githubusercontent.com`, then `cdn.warframestat.us`); for items
+  WFCD has no picture of, warframe.market's. MyOrbiter downloads each size once and keeps it.
   TennoScope's own window, when you open it, loads WFCD's pictures from `raw.githubusercontent.com`
   itself, with the window's User-Agent, and keeps only what the window caches.
 
@@ -261,21 +260,22 @@ audited).
 
 ## Reporting a bug
 
-MyOrbiter itself sends nothing, and gitlab.com gets nothing of a report until you press Create
-issue. Report a bug shows you the report first; *Open on GitLab* then puts it on the clipboard and
-opens a blank new-issue page on gitlab.com in your browser, with nothing of the report in its
-address, for you to paste it into, give it a title and submit. *Copy report* only puts it on the
-clipboard. Technical details are included unless you
-untick them, and you can read them in full first: the version, commit and build date, channel,
-system and architecture, the page open, TennoScope's state, whether Full mode is on, and the last 50
-lines of MyOrbiter's log, with sign-ins, e-mail and IP addresses, account ids, your user name in
-paths and players' names hidden.
+MyOrbiter itself sends nothing. Report a bug shows you the report first; *Open on GitLab* then puts
+it on the clipboard and opens a blank new-issue page on gitlab.com in your browser, with nothing of
+the report in its address, for you to paste it into, give it a title and submit. *Copy report* only
+puts it on the clipboard. Either way the report stays on the clipboard, and in its history if your
+system keeps one. What gitlab.com's page does with what you type or paste there before you press
+Create issue (title suggestions, Preview) is gitlab.com's and wasn't audited. Technical details are
+included unless you untick them, and you can read them in full first: the version, commit and build
+date, channel, system and architecture, the page open, TennoScope's state, whether Full mode is on,
+and the last 50 lines of MyOrbiter's log, with sign-ins, e-mail and IP addresses, account ids, your
+user name in paths and players' names hidden.
 
 ## Links
 
 Links open in your browser, which then visits that site. MyOrbiter opens only https links to
-warframe.market, wiki.warframe.com, warframe.fandom.com, overframe.gg, noxsframe.com, this project
-on gitlab.com. TennoScope opens its upstream project on github.com
+warframe.market, wiki.warframe.com, warframe.fandom.com, overframe.gg, noxsframe.com and this
+project on gitlab.com. TennoScope opens its upstream project on github.com
 (its own bug report and release pages).
 
 ## Nothing else
@@ -285,14 +285,13 @@ Those are all the hosts MyOrbiter and its TennoScope contact themselves: `api.wa
 `cdn.warframestat.us`, `raw.githubusercontent.com`, `api.warframe.com`, `content.warframe.com`,
 `www-static.warframe.com`, `mobile.warframe.com`, `relics.run`, `noxsframe.com`, `gitlab.com`, and
 the Discord webhook address you give it. Two more can be reached on the way: gitlab.com may hand an
-update download to its file storage, and the Windows installer fetches Microsoft's WebView2 installer
-when WebView2 is missing; those hosts are gitlab.com's and Microsoft's to choose and weren't
-audited. If you set a proxy (`HTTPS_PROXY` and the like), requests go through it. This page covers
-what MyOrbiter's and TennoScope's code does; what the system's web view (WebView2, WebKitGTK) does
-on its own wasn't audited.
-No telemetry, analytics or crash reporting is built in, and your records (sales, trades, value over
-time, settings) stay on this computer, in `settings.json` (below); single events reach
-warframe.market or Discord only as described above.
+update download to its file storage, and the Windows installer fetches Microsoft's WebView2
+installer when WebView2 is missing; those hosts are gitlab.com's and Microsoft's to choose and
+weren't audited. If you set a proxy (`HTTPS_PROXY` and the like), requests go through it. This page
+covers what MyOrbiter's and TennoScope's code does; what the system's web view (WebView2, WebKitGTK)
+does on its own wasn't audited. No telemetry, analytics or crash reporting is built in, and your
+records (sales, trades, value over time, settings) stay on this computer, in `settings.json`
+(below); single events reach warframe.market or Discord only as described above.
 
 ## Files on this computer
 
@@ -312,13 +311,13 @@ Your Warframe inventory and account figures come from TennoScope
 
 MyOrbiter reloads whenever TennoScope's database, prices or item data change.
 
-TennoScope and MyOrbiter also share a runtime folder: `$XDG_RUNTIME_DIR` (usually `/run/user/<uid>`),
-or else `tennoscope-orbiter-<uid>` in the temporary folder, readable only by you (refused
-otherwise); on Windows `%TEMP%\tennoscope-orbiter`. From there MyOrbiter reads TennoScope's status
-report (`tennoscope-status.json`, written every 3 seconds: Foundry and its finish times, mastery
-rank, platinum, credits, Endo, rivens, imprints, each copy of your gear, the warframes fed to the
-Helminth, whether the game runs, and whether TennoScope is signed in to warframe.market and where it
-keeps that sign-in, not the sign-in itself) and the reward-screen file
+TennoScope and MyOrbiter also share a runtime folder: `$XDG_RUNTIME_DIR` (usually
+`/run/user/<uid>`), or else `tennoscope-orbiter-<uid>` in the temporary folder, readable only by you
+(refused otherwise); on Windows `%TEMP%\tennoscope-orbiter`. From there MyOrbiter reads TennoScope's
+status report (`tennoscope-status.json`, written every 3 seconds: Foundry and its finish times,
+mastery rank, platinum, credits, Endo, rivens, imprints, each copy of your gear, the warframes fed
+to the Helminth, whether the game runs, and whether TennoScope is signed in to warframe.market and
+where it keeps that sign-in, not the sign-in itself) and the reward-screen file
 (`tennoscope-reward-screen.json`: the cards, the time and their prices). MyOrbiter writes a few
 small files there for TennoScope (`orbiter-*.json`: the reward pick, the overlay, the riven cycle,
 the relics, the status it holds) and notes the TennoScope it started (`orbiter-tennoscope.pid`). To
@@ -339,8 +338,8 @@ keyring).
     `worldstate-tables.json` (the world state's place names);
   - `tennoscope-program` (a TennoScope you chose in Settings), and on Linux `rendering` and
     `rendering-trial`;
-  - `discord-webhook`: the address you confirmed in the dialog, which posts go to; and, when the keyring can't store it, the
-    warframe.market token (`market-token`).
+  - `discord-webhook`: the address you confirmed in the dialog, which posts go to; and, when the
+    keyring can't store it, the warframe.market token (`market-token`).
 - `~/.cache/dev.myorbiter.app/` (`%LOCALAPPDATA%\dev.myorbiter.app` on Windows): the last world
   state, riven prices and trades, warframe.market's item and riven lists, Nox's Frame pages (a
   week), and item pictures in `img/`, each kept in two sizes, so after the first look they work

@@ -33,10 +33,13 @@ test("Open on GitLab opens a blank new issue: nothing of the report is in the ad
   assert.deepEqual([...new URL(NEW_ISSUE_PAGE).searchParams], [["issue[issue_type]", "issue"]]);
   // The dialog copies the text first, opens only that page, and never builds a link from the report.
   const ui = readFileSync("src/lib/ui/BugReport.svelte", "utf8");
-  assert.deepEqual([...ui.matchAll(/openUrl\(([^)]*)\)/g)].map((m) => m[1]), ["NEW_ISSUE_PAGE"]);
+  const opens = [...ui.matchAll(/openUrl\(([^)]*)\)/g)].map((m) => m[1]);
+  assert.ok(opens.length >= 1 && opens.every((u) => u === "NEW_ISSUE_PAGE"), opens.join());
+  assert.match(ui, /const paste = \$derived\(issueText\(report\)\)/);
   const open = ui.slice(ui.indexOf("async function openOnGitLab"));
-  assert.ok(open.indexOf("await navigator.clipboard.writeText(issueText(report))") < open.indexOf("openUrl(NEW_ISSUE_PAGE)"), "copied before the page opens");
-  assert.match(open.slice(0, open.indexOf("openUrl(NEW_ISSUE_PAGE)")), /catch \{\s*handed = "refused";\s*opened = false;\s*return;/, "a refused copy opens nothing");
+  const before = open.slice(0, open.indexOf("openUrl(NEW_ISSUE_PAGE)"));
+  assert.match(before, /await navigator\.clipboard\.writeText\(text\)/, "copied before the page opens");
+  assert.match(before, /catch \{\s*handed = "refused";[^}]*return;/, "a refused copy opens nothing");
   assert.ok(!/issue\[description\]|issue\[title\]/.test(readFileSync("src/lib/core/bugReport.ts", "utf8")), "no prefilled fields");
 });
 

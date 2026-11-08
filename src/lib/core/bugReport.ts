@@ -1,8 +1,8 @@
 // A bug report, made in the app and sent by the player. MyOrbiter never posts it itself: there's no
 // token and no network write. Open on GitLab puts the issue's text on the clipboard (the sections of
 // the issue template, .gitlab/issue_templates/Bug report.md, and its labels line) and opens a blank
-// new issue: nothing of the report is in the page's address, so gitlab.com receives it only once
-// the player pastes it, adds a title and presses Create issue. Copy report puts it on the clipboard
+// new issue: nothing of the report is in the page's address, and MyOrbiter sends gitlab.com
+// nothing; the player pastes it there, adds a title and presses Create issue. Copy report puts it on the clipboard
 // as Markdown, to send another way.
 //
 // What goes in is the player's own words (what happened, how to make it happen, what they
@@ -146,8 +146,8 @@ function sections(what: string, steps: string, expected: string, details: string
   return out;
 }
 
-/** The page Open on GitLab opens: a blank new issue. Nothing of the report is in its address, so
- *  gitlab.com receives none of it until the player pastes it in and presses Create issue. */
+/** The page Open on GitLab opens: a blank new issue. Nothing of the report is in its address;
+ *  the player pastes it in there. */
 export const NEW_ISSUE_PAGE = `${NEW_ISSUE}?${encodeURIComponent("issue[issue_type]")}=issue`;
 
 /** What Open on GitLab puts on the clipboard, to paste into the new issue's description: the
