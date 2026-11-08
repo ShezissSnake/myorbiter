@@ -567,7 +567,17 @@ impl RewardMemoryScanner {
                     for found in player_matcher.find_overlapping_iter(&buffer[..available]) {
                         let hit_address = base + u64::try_from(found.start()).unwrap_or(0);
                         let identity = responders[found.pattern().as_usize()];
-                        let containing = memory.readable_region_containing(process, hit_address)?;
+                        let containing =
+                            match memory.readable_region_containing(process, hit_address) {
+                                Ok(containing) => containing,
+                                Err(error) => {
+                                    buffer.zeroize();
+                                    for cursor in &mut cursors {
+                                        cursor.tail.zeroize();
+                                    }
+                                    return Err(error);
+                                }
+                            };
                         // Look behind the identity as well as ahead: the record a client
                         // serialises for itself carries the reward path after the id, while the
                         // records a host keeps for each squad member carry it before.
@@ -586,7 +596,17 @@ impl RewardMemoryScanner {
                                 .min(record.len())
                         });
                         let record_read =
-                            memory.read_at(process, record_start, &mut record[..request])?;
+                            match memory.read_at(process, record_start, &mut record[..request]) {
+                                Ok(read) => read,
+                                Err(error) => {
+                                    record.zeroize();
+                                    buffer.zeroize();
+                                    for cursor in &mut cursors {
+                                        cursor.tail.zeroize();
+                                    }
+                                    return Err(error);
+                                }
+                            };
                         // A genuine response record opens with the identity's length prefix. Every
                         // other identity hit is EE.log text or a UI string table, and capturing
                         // those exhausts the reject budget before a real record is ever seen.

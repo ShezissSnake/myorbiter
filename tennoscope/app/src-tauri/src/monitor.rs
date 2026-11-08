@@ -1366,10 +1366,15 @@ pub(crate) fn run(
             kiosk_session.close(kiosk_view_cell.inner(), &kiosk_hide, &kiosk_retire);
         }
         let (input, log_bytes) = match discovered {
-            Ok(None) => (
-                MonitorInput::absent(now, procfs.launcher_present()),
-                Vec::new(),
-            ),
+            Ok(None) => {
+                // The resolved log belongs to the process that just went: a later game on the
+                // same pid (another Wine prefix, after a pid wrap) resolves its own.
+                tracked_resolution = None;
+                (
+                    MonitorInput::absent(now, procfs.launcher_present()),
+                    Vec::new(),
+                )
+            }
             Err(error) => (MonitorInput::error(now, error), Vec::new()),
             Ok(Some(process)) => {
                 let path = known_log_path(tracked_resolution.as_ref(), process.pid())
