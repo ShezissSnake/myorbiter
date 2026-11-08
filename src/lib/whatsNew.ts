@@ -33,6 +33,13 @@ export interface NewsEntry {
 
 export const NEWS: NewsEntry[] = [
   {
+    id: 22,
+    date: "2026-11-08",
+    items: [
+      { title: "A new look", icon: { sections: true }, text: "Each section now tints its own pages (Fissures ice blue, Progress green, Collection violet, Trade gold), labels are easier to read, rows are tighter, and a line under every page's title says how the game, your inventory and warframe.market stand.", open: "mission#status" },
+    ],
+  },
+  {
     id: 21,
     date: "2026-11-08",
     items: [

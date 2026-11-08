@@ -7,7 +7,7 @@
 </script>
 
 {#if s}
-  <div class="strip" role="group" aria-label="Status">
+  <div class="strip" role="group" aria-label="Status" data-card="status">
     {#each s.items as it (it.label)}
       <span class="it" title={it.title}><span class="register">{it.label}</span><b>{it.value}</b></span>
     {/each}
