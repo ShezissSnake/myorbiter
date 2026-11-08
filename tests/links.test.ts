@@ -13,7 +13,6 @@ test("links to the sites MyOrbiter uses open", () => {
     "https://noxsframe.com/",
     "https://gitlab.com/sheziss-group/myorbiter/-/releases",
     "https://gitlab.com/sheziss-group/myorbiter/-/work_items/new?issuable_template=Bug%20report",
-    "https://github.com/ShezissSnake/orbiter/releases",
   ])
     assert.equal(openable(url), url, url);
 });
@@ -34,6 +33,9 @@ test("anything else is refused", () => {
     "https://gitlab.com/sheziss-group/myorbiter",
     "https://gitlab.com/sheziss-group/myorbiter/uploads/0123456789abcdef/picture.png",
     "https://github.com/ShezissSnake/other-repo",
+    // The old address on GitHub is gone: anyone could take the name.
+    "https://github.com/ShezissSnake/orbiter/releases",
+    "https://github.com/ShezissSnake/orbiter/issues/new",
     "https://gitlab.com/someone-else/orbiter/-/issues",
     "smb://warframe.market/share",
     "not a url",
@@ -70,4 +72,16 @@ test("tricks that read like an allowed site are refused", () => {
     assert.equal(openable(url), null, url);
   // The address is opened as normalised, so what was checked is what opens.
   assert.equal(openable("https://WARFRAME.MARKET/items/x"), "https://warframe.market/items/x");
+});
+
+test("the web view connects only to MyOrbiter itself and Digital Extremes' riven figures", () => {
+  // Nox's Frame is read from Rust (noxsframe.rs), never by the page, so the CSP doesn't list it.
+  const conf = JSON.parse(readFileSync(new URL("../src-tauri/tauri.conf.json", import.meta.url), "utf8"));
+  const sources = (csp: Record<string, string>) => csp["connect-src"].split(/\s+/);
+  const app = ["'self'", "ipc:", "http://ipc.localhost", "https://www-static.warframe.com"];
+  assert.deepEqual(sources(conf.app.security.csp), app);
+  assert.deepEqual(sources(conf.app.security.devCsp), [...app, "ws://localhost:1421"]);
+  const cap = readFileSync(new URL("../src-tauri/capabilities/default.json", import.meta.url), "utf8");
+  for (const text of [JSON.stringify(conf), cap, readFileSync(new URL("../src/lib/core/links.ts", import.meta.url), "utf8")])
+    assert.ok(!/github\.com\/ShezissSnake/i.test(text), "the old GitHub address is allowed nowhere");
 });
