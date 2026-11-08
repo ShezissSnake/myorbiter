@@ -2052,9 +2052,9 @@
             try {
               seen = await waitForNewRead(() => dataStamp(settings.dataDir), seen, { limit: Math.max(1_000, deadline - Date.now()), abort: () => ts.error, onTick: () => (j.fraction = syncFill(Date.now() - asked)) });
             } catch (e) {
-              // Data did change but no read newer than the ask came: say so, not "Synced". Two words
-              // that fit the button; when the read there is from, the card above it says.
-              if (reloaded && !ts.error) return "No new read";
+              // Data did change but no read newer than the ask came: say so, not "Synced", in words
+              // no wider than the button's others; when the read there is from, the card above says.
+              if (reloaded && !ts.error) return bundle?.observed_at ? "Old read" : "No read";
               throw e;
             }
             j.phase = "Reading…";
@@ -2628,7 +2628,7 @@
         <span class="lbl"><strong>{inFissure(mission, tick) ? "In a fissure" : model ? `Synced ${ago(model.observedAt, tick)}` : mission ? "Reading the log" : "Idle"}</strong><small>{inFissure(mission, tick) ? (mission?.mission ?? "") : mission ? "Warframe's log: found" : "No game log found"}</small></span>
       </div>{/if}
       <div class="syncrow">
-      <ProgressButton bind:this={syncButton} class="sync" job={syncJob} busy={loading && !bundle} icon="refresh" spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} sizer={["Waiting…", "Up to date", "Not synced", "No new read"]}
+      <ProgressButton bind:this={syncButton} class="sync" job={syncJob} busy={loading && !bundle} icon="refresh" spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} sizer={["Waiting…", "Up to date", "Not synced"]}
         title={`${syncStep ? `${syncStep}…\n\n` : ""}${onConsole ? "Reload your warframe.market listings, the fissures and Baro" : syncMode ? "Sync: ask TennoScope to read your inventory from the game now, and wait for the new read" : "Sync: reload TennoScope's last saved read and the live fissures. With Warframe running and TennoScope on Full access, it asks TennoScope for a fresh read from the game instead"} (Ctrl+R)`}
         onclick={refreshAll} />
         {#if model && !onConsole}<button class="tool" aria-label="Find anything" aria-expanded={showLookup} title="Find anything by name: an item, a prime part, a relic, a mod or arcane you hold (Ctrl+K)" onclick={() => (showLookup = true)}><Icon name="search" size={14} /></button>{/if}
@@ -2658,7 +2658,7 @@
     {#if loading && !bundle}<div class="progress" role="progressbar" aria-label="Reading TennoScope's data"></div>{/if}
     {#if !model && error && nothingYet(error)}
       <!-- First start: nothing read yet. What TennoScope needs, step by step. -->
-      <div class="page-inner"><div class="notice">
+      <div class="page"><div class="page-inner"><div class="notice">
         <h2 class="mark">Getting set up</h2>
         {#if noTennoScope}
           <p class="prose">MyOrbiter learns what you own from TennoScope, which reads it from the game. {onConsole ? `TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}` : "TennoScope doesn't run on macOS"}, so MyOrbiter can't see your inventory here. Your warframe.market listings and sales, fissures, Baro and Varzia, the world's clocks and the riven finder all work without it.</p>
@@ -2699,9 +2699,9 @@
             <button onclick={() => (showSettings = true)}>Settings</button>
           </div>
         {/if}
-      </div></div>
+      </div></div></div>
     {:else if !model && built.error}
-      <div class="page-inner"><div class="notice" role="alert">
+      <div class="page"><div class="page-inner"><div class="notice" role="alert">
         <h2 class="mark">Can't make sense of TennoScope's data</h2>
         <p class="prose">TennoScope's last read has something MyOrbiter can't use. It may have been writing it just then: try again, or sync once Warframe is running. The log has the details.</p>
         <details class="why"><summary>Details</summary><code>{built.error}</code></details>
@@ -2709,9 +2709,9 @@
           <button class="stamp" onclick={() => (showTennoscope = true)}>TennoScope panel</button>
           <button onclick={retry} disabled={loading} title="Read TennoScope's data again">{loading ? "Trying…" : "Try again"}</button>
         </div>
-      </div></div>
+      </div></div></div>
     {:else if !model && error}
-      <div class="page-inner"><div class="notice">
+      <div class="page"><div class="page-inner"><div class="notice">
         <h2 class="mark">Can't read TennoScope's data</h2>
         <p class="prose">{loadProblem(error)}</p>
         <p class="prose">TennoScope needs to have read your inventory at least once. MyOrbiter starts it in the background; start Warframe and it reads your account when the game is up, and MyOrbiter picks the data up by itself as soon as TennoScope writes it. If it doesn't, the TennoScope panel says why. If its data lives somewhere else, set the folder in Settings.</p>
@@ -2721,9 +2721,9 @@
           <button onclick={() => (showSettings = true)}>Settings</button>
           <button onclick={retry} disabled={loading}>{loading ? "Trying…" : "Try again"}</button>
         </div>
-      </div></div>
+      </div></div></div>
     {:else if !model}
-      <div class="page-inner"><div class="notice"><span class="register">Reading your collection…</span></div></div>
+      <div class="page"><div class="page-inner"><div class="notice"><span class="register">Reading your collection…</span></div></div></div>
     {:else}
       {#if noInventory && !onConsole}
         <div class="stale" role="status">
@@ -2937,8 +2937,9 @@
   .syncrow { display: flex; gap: .4rem; }
   /* Sync and TennoScope take what the row leaves (basis and width 0: their labels don't size the row).
      A label longer than the button starts at its left edge and is clipped on the right, not centred
-     out past both edges. */
-  .syncrow :global(.sync) { display: flex; justify-content: safe center; align-items: center; gap: .5rem; flex: 1 1 0; width: 0; min-width: 0; padding-left: .75rem; padding-right: .75rem; }
+     out past both edges. Tight padding and tracking: the same label is up to a tenth wider in one
+     engine than another, and "Up to date" has to fit in all of them. */
+  .syncrow :global(.sync) { display: flex; justify-content: safe center; align-items: center; gap: .4rem; flex: 1 1 0; width: 0; min-width: 0; padding-left: .45rem; padding-right: .45rem; letter-spacing: .1em; }
   /* Every button down here is one height, folded or not. */
   .syncrow :global(.sync), .tool { height: 36px; padding-top: 0; padding-bottom: 0; }
   /* Why the last sync failed, under the button (it goes with the button's failed look). */
