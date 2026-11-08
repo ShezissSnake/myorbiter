@@ -7,8 +7,8 @@
   import type { MarketSettings } from "../backend";
   import type { DucatOptions } from "../core/advice";
   import { relicCrackFor } from "../core/spares";
-  import { aboveDucats, ducatWorth } from "../core/bulk";
-  import { minFor, mkt } from "../marketStore.svelte";
+  import { aboveDucats, catOfItem, ducatWorth, minimumForItem } from "../core/bulk";
+  import { mkt } from "../marketStore.svelte";
   import { MAX_PLAT, MAX_QTY, amountProblem, shown, wholeIn } from "../core/amounts";
   import Named from "./Named.svelte";
   import P from "./P.svelte";
@@ -16,7 +16,7 @@
   import ProgressButton from "./ProgressButton.svelte";
   import { trap } from "./trap";
   import { opens, pulse, shade } from "../motion";
-  import { neverSells } from "../core/sparesRules";
+  import { CATEGORY_WORD, neverSells } from "../core/sparesRules";
 
   // market: your Orders settings, so the form can say when a price is under the floor the
   // repricer holds listings at.
@@ -28,13 +28,21 @@
   const item = $derived(d ? mkt.item(d.itemId) : undefined);
   const median = $derived(d && item ? referencePrice(model, item, d.rank, d.subtype) : null);
   const low = $derived(d?.platinum != null && median != null && d.platinum < median * 0.5);
+  /** The item's minimum price (its Sell spares category's, or the global one): nothing is listed under it. */
+  const minimum = $derived(market && item ? minimumForItem(market, model, item) : (market?.minPrice ?? null));
+  /** "relic minimum" when its category has its own, "minimum" for the global one. */
+  const minimumWords = $derived.by(() => {
+    const cat = item ? catOfItem(model, item) : null;
+    return cat && market?.minByCategory?.[cat] != null ? `${CATEGORY_WORD[cat]} minimum` : "minimum";
+  });
+  const underMinimum = $derived(d?.platinum != null && minimum != null && d.platinum < minimum);
   /** The lowest price Orders' repricer keeps this listing at: your minimum, the share of the median, a floor you set. */
   const floor = $derived.by(() => {
     if (!market || !d) return null;
     const own = existing ? market.floors[listingKey(existing)] : null;
     // A prime part or set is never repriced to (or under) what its ducats are worth to you.
     const ducats = item && advice ? aboveDucats(ducatWorth(model, item, advice.platPerDucat)) : null;
-    return Math.max(1, item ? minFor(market, item) : market.minPrice, median != null ? Math.ceil(median * market.minShare) : 0, own ?? 0, ducats ?? 0);
+    return Math.max(1, minimum ?? 1, median != null ? Math.ceil(median * market.minShare) : 0, own ?? 0, ducats ?? 0);
   });
   const underFloor = $derived(d?.platinum != null && floor != null && d.platinum < floor);
   /** A relic: what one crack at this refinement is worth, when the price is no more than that. */
@@ -108,7 +116,7 @@
     mkt.draftError = null;
   }
   const ready = $derived(
-    !!d && wholeIn(d.platinum, 1, MAX_PLAT) && wholeIn(d.quantity, merging ? 0 : 1, MAX_QTY) && !oversell && !(repriceOnly && existing?.platinum === d.platinum) && !mkt.busy,
+    !!d && wholeIn(d.platinum, 1, MAX_PLAT) && wholeIn(d.quantity, merging ? 0 : 1, MAX_QTY) && !oversell && !underMinimum && !(repriceOnly && existing?.platinum === d.platinum) && !mkt.busy,
   );
   /** Enter in the quantity or price box lists it, as Save does on Orders. */
   function enter(e: KeyboardEvent) {
@@ -202,7 +210,8 @@
           {:else if oversell}<p class="err small">You hold {heldHere} at this {d.maxRank != null ? "rank" : "variant"}{merging && existing ? `, ${existing.quantity} listed already` : ""}: you can't list more than that.</p>
           {:else if tooMany}<p class="warn small">{merging && existing ? `You can spare ${d.available} and ${existing.quantity} are listed already, so ${room} more at most.` : `That's more than the ${d.available} you can spare; the rest are copies MyOrbiter keeps back for you.`}</p>{/if}
           {#if repriceOnly && existing}<p class="small dim">All you can spare is listed already ({existing.quantity} at {existing.platinum}p). This only changes the price.</p>{/if}
-          {#if underFloor && market}<p class="warn small">Under your {floor}p floor{market.auto ? `: Apply automatically lifts it to at least ${floor}p while anyone in game sells it` : " (Floor and Never under, on Orders)"}.</p>
+          {#if underMinimum}<p class="err small">Under your {minimum}p {minimumWords} (Sell spares): MyOrbiter never lists under it. <button type="button" class="link" title="Ask {minimum}p, the minimum" onclick={() => { if (d && minimum != null) d.platinum = minimum; }}>Ask {minimum}p</button></p>
+          {:else if underFloor && market}<p class="warn small">Under your {floor}p floor{market.auto ? `: Apply automatically lifts it to at least ${floor}p while anyone in game sells it` : " (Floor on Orders, minimums on Sell spares)"}.</p>
           {:else if low}<p class="warn small">Under half the daily median. Check the price before listing.</p>{/if}
           {#if crackBeats != null}<p class="warn small">{anRefinement} crack of it is worth about {crackBeats}p{(advice?.squad ?? 1) > 1 ? " in a radshare" : ""}: cracking beats selling at {d.platinum}p.</p>{/if}
           {#if ducats}<p class="warn small">Worth more as ducats: {ducats.n} ducats are about {ducats.worth}p to you (your rate, on Prime parts). Sell spares keeps it off the market.</p>{/if}

@@ -21,12 +21,12 @@ import { dealFromOrder, findDeals, type Deal, type FeedOrder, type Watch } from 
 import { recentPrice, type PricePoint } from "./core/priceTrend";
 import type { RelicMarket } from "./core/model";
 import { aboveCrack, relicCrackFor } from "./core/spares";
-import { KIND_LABEL, LISTING_LIMIT, aboveDucats, bulkPlan, cheapByMedian, ducatWorth, planSignature, resolve, sellTargets, toApply, type BulkAction } from "./core/bulk";
+import { KIND_LABEL, LISTING_LIMIT, aboveDucats, bulkPlan, cheapByMedian, ducatWorth, minimumForItem, planSignature, resolve, sellTargets, toApply, type BulkAction } from "./core/bulk";
 import type { DucatOptions } from "./core/advice";
 import { backoff } from "./core/upkeep";
 import { drops } from "./drops.svelte";
 import { MAX_PLAT, MAX_QTY, wholeIn } from "./core/amounts";
-import { ducatRefusal, guardListing, inventoryTrust, listingTag, type GuardRequest } from "./core/listGuard";
+import { ducatRefusal, guardListing, inventoryTrust, listingTag, minimumRefusal, type GuardRequest } from "./core/listGuard";
 import { autoFloor, unattendedMove } from "./core/approved";
 import { DRIFT, cooldown, drifted, every, noteChange } from "./core/drift";
 
@@ -90,11 +90,6 @@ const APPLY_TTL = 2 * 60_000;
 const WRITE_FAILS = 3;
 /** A bulk plan older than this has its prices read again before it's applied. */
 const PLAN_FRESH_MS = 10 * 60_000;
-
-/** The lowest price MyOrbiter lists or reprices an item at: your relic minimum for relics, your minimum for the rest. */
-export function minFor(s: Pick<MarketSettings, "minPrice" | "minRelicPrice">, it: { tags?: string[] | null }): number {
-  return it.tags?.includes("relic") ? (s.minRelicPrice ?? s.minPrice) : s.minPrice;
-}
 
 /** Two plain values (rows read from warframe.market) alike field for field. */
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -524,7 +519,7 @@ class MarketStore {
       // The daily price is for an empty sculpture: one with stars in has none.
       reference: hasStars(o) ? null : referencePrice(m, it, o.rank, o.subtype ?? it.subtypes?.[0] ?? null),
       defaultSubtype: it.subtypes?.[0] ?? null,
-      min: minFor(s, it),
+      min: minimumForItem(s, m, it),
       capByAsks: !!it.tags?.includes("relic"),
       // Repricing follows a target that ignores bait, past a dead band (core/drift.ts).
       drift: true,
@@ -861,7 +856,7 @@ class MarketStore {
             minShare: s?.minShare ?? 0,
             reference: s && it && this.draftModel ? referencePrice(this.draftModel, it, d.rank, d.subtype ?? d.subtypes?.[0] ?? null) : null,
             defaultSubtype: d.subtypes?.[0] ?? null,
-            min: s && it ? minFor(s, it) : s?.minPrice,
+            min: s && it ? minimumForItem(s, this.draftModel, it) : s?.minPrice,
             capByAsks: !!it?.tags?.includes("relic"),
           };
         })(),
@@ -883,9 +878,19 @@ class MarketStore {
     if (!d || !wholeIn(d.platinum, 1, MAX_PLAT) || !wholeIn(d.quantity, existing ? 0 : 1, MAX_QTY)) return;
     const it = this.item(d.itemId);
     let why = "";
+    // Never under the item's minimum, a price typed in included (the form says so before you send).
+    const minimum = it && this.rules ? minimumForItem(this.rules, this.model ?? this.draftModel, it) : undefined;
+    const cheap = it ? minimumRefusal(d.platinum, minimum) : null;
+    if (cheap) {
+      const line = `Didn't list ${listingTag(it!, d.rank, d.subtype)}: ${cheap}`;
+      this.note(line, "warn");
+      logLine("warn", "listing", line);
+      this.draftError = line;
+      return;
+    }
     // The keep rules, checked again: what the form offers can be more than you can spare. Against
     // the newest inventory read, not the one the form opened with: copies traded away since are gone.
-    if (it && d.quantity > 0 && !this.allowed(this.model ?? this.draftModel, { item: it, rank: d.rank, subtype: d.subtype, quantity: d.quantity, platinum: d.platinum, listedElsewhere: this.listedOf(it, d.rank, d.subtype), manual: true }, (l) => (why = l))) {
+    if (it && d.quantity > 0 && !this.allowed(this.model ?? this.draftModel, { item: it, rank: d.rank, subtype: d.subtype, quantity: d.quantity, platinum: d.platinum, listedElsewhere: this.listedOf(it, d.rank, d.subtype), manual: true, minimum }, (l) => (why = l))) {
       this.draftError = this.log[0]?.text ?? "Not listed";
       return;
     }
@@ -1310,7 +1315,7 @@ class MarketStore {
             .filter((t) => !t.hold)
             .map((t) => {
               const it = resolve(this.index, t);
-              return it && cheapByMedian(m, it, t.rank, minFor(s, it), t.subtype ?? it.subtypes?.[0] ?? null) == null ? it.slug : null;
+              return it && cheapByMedian(m, it, t.rank, minimumForItem(s, m, it), t.subtype ?? it.subtypes?.[0] ?? null) == null ? it.slug : null;
             })
             .filter((x): x is string => !!x),
         ),
@@ -1333,7 +1338,7 @@ class MarketStore {
       }
       const books = Object.fromEntries(slugs.map((sl) => [sl, got.has(sl) ? this.books[sl]?.orders : undefined]));
       this.bulk = {
-        actions: bulkPlan({ model: m, index: this.index, orders: this.orders, me, books, minPrice: s.minPrice, minRelicPrice: s.minRelicPrice, minShare: s.minShare, floors: s.floors, paused: s.paused, otherOrders: this.otherOrders, sell: s.sellable, advice, drops: drops.recent }, s.spares, targets),
+        actions: bulkPlan({ model: m, index: this.index, orders: this.orders, me, books, minPrice: s.minPrice, minByCategory: s.minByCategory, minShare: s.minShare, floors: s.floors, paused: s.paused, otherOrders: this.otherOrders, sell: s.sellable, advice, drops: drops.recent }, s.spares, targets),
         at: Date.now(),
         books,
         skipped,
@@ -1378,7 +1383,7 @@ class MarketStore {
         throw new Error(`Nothing changed: your listings couldn't be read first (${clean(e)}). Try again in a minute.`);
       });
       // Priced from the books the plan was priced from: one that failed then isn't priced from an older copy now.
-      const fresh = bulkPlan({ model: m, index: this.index, orders: this.orders, me: this.me!, books: shown.books, minPrice: s.minPrice, minRelicPrice: s.minRelicPrice, minShare: s.minShare, floors: s.floors, paused: s.paused, otherOrders: this.otherOrders, sell: s.sellable, advice, drops: drops.recent }, s.spares, sellTargets(m, s.spares, advice, this.index, s.sellable, drops.recent));
+      const fresh = bulkPlan({ model: m, index: this.index, orders: this.orders, me: this.me!, books: shown.books, minPrice: s.minPrice, minByCategory: s.minByCategory, minShare: s.minShare, floors: s.floors, paused: s.paused, otherOrders: this.otherOrders, sell: s.sellable, advice, drops: drops.recent }, s.spares, sellTargets(m, s.spares, advice, this.index, s.sellable, drops.recent));
       if (planSignature(toApply(fresh, shown.skipped, never)) !== planSignature(toApply(shown.actions, shown.skipped, never))) {
         this.bulk = { actions: fresh, at: shown.at, books: shown.books, skipped: shown.skipped };
         this.note("Your inventory or listings changed since the plan: here is the updated plan. Look it over and apply again.", "warn");
@@ -1403,7 +1408,7 @@ class MarketStore {
           const subtype = a.type === "create" ? a.subtype : a.order.subtype;
           const k = keyOf(a.item, rank, subtype);
           const elsewhere = this.listedOf(a.item, rank, subtype, a.type === "update" ? a.order.id : null) + (listedNow.get(k) ?? 0);
-          if (!this.allowed(m, { item: a.item, rank, subtype, quantity: a.quantity, platinum: a.platinum, listedElsewhere: elsewhere }, (l) => (why = l))) {
+          if (!this.allowed(m, { item: a.item, rank, subtype, quantity: a.quantity, platinum: a.platinum, listedElsewhere: elsewhere, minimum: minimumForItem(s, m, a.item) }, (l) => (why = l))) {
             refused.add(a);
             blocked++;
             this.progress = { done: sent.size + failed + blocked, total: todo.length };
@@ -1411,7 +1416,7 @@ class MarketStore {
           }
           listedNow.set(k, (listedNow.get(k) ?? 0) + a.quantity);
         } else if (a.type === "update" && a.platinum !== a.order.platinum) {
-          const under = ducatRefusal({ model: m, index: this.index, sell: s.sellable, advice, drops: drops.recent, rules: s.spares }, a.item, a.platinum);
+          const under = ducatRefusal({ model: m, index: this.index, sell: s.sellable, advice, drops: drops.recent, rules: s.spares }, a.item, a.platinum) ?? minimumRefusal(a.platinum, minimumForItem(s, m, a.item));
           if (under) {
             const line = `Didn't reprice ${tag(a.item.name, a.order.rank)}: ${under.charAt(0).toUpperCase()}${under.slice(1)}`;
             this.note(line, "warn");

@@ -10,8 +10,8 @@
   import { heldFor, overListed, type MyOrder } from "../core/market";
   import { mkt } from "../marketStore.svelte";
   import { masteryRows, relicRows, type RelicRow } from "../core/views";
-  import { sellTargets, KIND_LABEL, BULK_KINDS, type BulkKind } from "../core/bulk";
-  import { SPARE_CATEGORIES } from "../core/sparesRules";
+  import { catOfTarget, sellTargets, KIND_LABEL, BULK_KINDS, type BulkKind } from "../core/bulk";
+  import { minimumFor, minimumsText, SPARE_CATEGORIES, type SpareCategory } from "../core/sparesRules";
   import { sellableCopies, UNKNOWN_TRADES_PER_DAY } from "../core/spares";
   import { worthSelling, type WorthKind } from "../core/worthSelling";
   import { expectedBest, worthATrade } from "../core/advice";
@@ -108,21 +108,21 @@
   const candidates = $derived([
     // Arcanes: Sell spares lists extra maxed copies, and unranked ones only with Every spare copy
     // (counted on Arcanes' Worth selling either way).
-    ...worth.filter((x) => listsKind(x.kind as WorthKind) && !(x.kind === "arcane" && x.rank === 0 && spares.arcanes.which !== "any")).map((x) => ({ kind: x.kind as BulkKind, name: x.name, quantity: x.copies, each: x.each as number | null, plat: x.plat })),
+    ...worth.filter((x) => listsKind(x.kind as WorthKind) && !(x.kind === "arcane" && x.rank === 0 && spares.arcanes.which !== "any")).map((x) => ({ kind: x.kind as BulkKind, cat: WORTH_CAT[x.kind as WorthKind], name: x.name, quantity: x.copies, each: x.each as number | null, plat: x.plat })),
     ...targets
       .map((t) => ({ ...t, each: t.each !== undefined ? t.each : valueOf(t.kind, t.name) }))
       .filter((t) => t.each != null && worthATrade(t.each, t.quantity, settings.advice.minPlat))
-      .map((t) => ({ kind: t.kind, name: t.name, quantity: t.quantity, each: t.each, plat: (t.each ?? 0) * sellableCopies(t.quantity, paceOf(t.name)) })),
+      .map((t) => ({ kind: t.kind, cat: catOfTarget(t), name: t.name, quantity: t.quantity, each: t.each, plat: (t.each ?? 0) * sellableCopies(t.quantity, paceOf(t.name)) })),
   ]);
   // At least your minimum price each, as Sell spares lists them.
-  const worthy = $derived(candidates.filter((t) => t.each != null && t.each >= minFor(t.name)));
+  const worthy = $derived(candidates.filter((t) => t.each != null && t.each >= minimumFor(settings.market, t.cat)));
   /** What your minimum leaves out, so the lines here add up to the selling pages' Worth selling. */
-  const under = $derived(candidates.filter((t) => t.each != null && t.each < minFor(t.name)));
+  const under = $derived(candidates.filter((t) => t.each != null && t.each < minimumFor(settings.market, t.cat)));
   const underMin = $derived(Math.round(under.reduce((n, t) => n + t.plat, 0)));
   /** "Mods 9,476p · Prime parts 893p": what the minimum leaves out of each kind. */
   const underSplit = $derived(BULK_KINDS.map((k) => [k, Math.round(under.filter((t) => t.kind === k).reduce((n, t) => n + t.plat, 0))] as const).filter(([, v]) => v >= 1).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${KIND_LABEL[k]}s ${v.toLocaleString("en")}p`).join(" · "));
-  // Relics have their own minimum, as Sell spares uses (they go in stacks).
-  const minFor = (name: string) => (/ Relic$/.test(name) ? settings.market.minRelicPrice : settings.market.minPrice);
+  /** Worth selling's kinds by their row on Sell spares, whose minimums they're held to. */
+  const WORTH_CAT: Record<WorthKind, SpareCategory> = { part: "prime", mod: "mods", arcane: "arcanes" };
   const byKind = $derived(
     BULK_KINDS
       .map((k) => {
@@ -606,9 +606,9 @@
       {#if !ticked}
         <p class="dim">Nothing ticked on <b>Sell spares</b>.</p>
       {:else if !byKind.length}
-        <p class="dim">Nothing spare worth {settings.market.minPrice}p or more in what you ticked.</p>
+        <p class="dim" title="Your minimum prices (Sell spares): {minimumsText(settings.market)}">Nothing spare worth your minimum or more in what you ticked.</p>
       {:else}
-        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Ready to list: the kinds ticked on Sell spares (arcanes: extra maxed copies, and unranked ones with Every spare copy, as it lists them), at or over your minimum price ({settings.market.minPrice}p{spares.relics.on ? `; relics ${settings.market.minRelicPrice}p` : ""}), at the daily median and no more of each than the market sells in a month. Prime parts, mods and arcanes are their pages' Worth selling (not worth a trade under {settings.advice.minPlat}p, ducat and Vosfor picks left out) less what's under your minimum. Everything you could spare, of every kind, is Spare value on Inventory">if you list your spares{unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
+        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Ready to list: the kinds ticked on Sell spares (arcanes: extra maxed copies, and unranked ones with Every spare copy, as it lists them), at or over your minimum price ({minimumsText(settings.market)}), at the daily median and no more of each than the market sells in a month. Prime parts, mods and arcanes are their pages' Worth selling (not worth a trade under {settings.advice.minPlat}p, ducat and Vosfor picks left out) less what's under your minimum. Everything you could spare, of every kind, is Spare value on Inventory">if you list your spares{unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
         <ul class="kinds">
           {#each byKind as k (k.kind)}
             <li>
@@ -617,7 +617,7 @@
             </li>
           {/each}
         </ul>
-        {#if underMin >= 1}<p class="dim small note" title="Spares in the kinds you ticked that are worth a trade but priced under your minimum (Sell spares): counted in Worth selling on their pages, but not listed. {underSplit}">+<P v={underMin} /> under your {settings.market.minPrice}p minimum</p>{/if}
+        {#if underMin >= 1}<p class="dim small note" title="Spares in the kinds you ticked that are worth a trade but priced under your minimum (Sell spares): counted in Worth selling on their pages, but not listed. {underSplit}">+<P v={underMin} /> under your {Object.keys(settings.market.minByCategory ?? {}).length ? "minimums" : `${settings.market.minPrice}p minimum`}</p>{/if}
         {#if !console && !listsKind("part")}<p class="dim small note">Loose prime parts aren't sold on Sell spares: <button class="link" onclick={() => go("parts?best=Sell")}>Prime parts</button> has them.</p>{/if}
       {/if}
     </section>

@@ -7,7 +7,8 @@ import { settle } from "./support/runes";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { market, defaultAdvice, defaultMarketSettings } from "../src/lib/backend";
+import { market, defaultAdvice, defaultMarketSettings, type MarketSettings } from "../src/lib/backend";
+import { minimumForItem } from "../src/lib/core/bulk";
 import { buildModel } from "../src/lib/core/model";
 import type { BookOrder, MyOrder } from "../src/lib/core/market";
 import { DRIFT } from "../src/lib/core/drift";
@@ -33,8 +34,11 @@ const STATUSES = ["ingame", "online", "offline"];
 export const PASS_MINUTES = 5;
 export const PASSES = (24 * 60) / PASS_MINUTES;
 
-/** One simulated day: the number of price changes sent, and the most any one listing got. */
-export async function simulateDay(seed: number) {
+/**
+ * One simulated day: the number of price changes sent, the most any one listing got, and any
+ * price sent under its minimum. `extra`: settings over the usual ones (minimums by category).
+ */
+export async function simulateDay(seed: number, extra: Partial<MarketSettings> = {}) {
   const rnd = seeded(seed);
   const bundle = read("dev-bundle.json");
   const model = buildModel(bundle, undefined, null, null, [], read("dev-recipe-data.json"));
@@ -54,6 +58,9 @@ export async function simulateDay(seed: number) {
   let writes = 0;
   // Each price sent under the cheapest real seller (no bait) who was online or in game then.
   const under: string[] = [];
+  // Each price sent under the listing's minimum (its category's, or the global one).
+  const underMin: string[] = [];
+  const s = { ...defaultMarketSettings(), auto: true, autoCheck: true, ...extra };
   const slugOf = (itemId: string) => items.find((i: { id: string }) => i.id === itemId)?.slug as string | undefined;
   try {
     market.items = async () => items;
@@ -68,6 +75,8 @@ export async function simulateDay(seed: number) {
         const real = (books[slug] ?? []).filter((b) => b.type === "sell" && !bait.has(b.id) && b.user.status !== "offline" && (b.rank ?? null) === (o.rank ?? null) && (b.subtype ?? null) === (o.subtype ?? null) && b.user.id !== account.account?.profile?.id);
         const cheapest = Math.min(...real.map((b) => b.platinum));
         if (real.length && c.platinum < cheapest) under.push(`${slug} ${o.platinum}p → ${c.platinum}p (cheapest real seller ${cheapest}p)`);
+        const min = minimumForItem(s, model, items.find((i: { id: string }) => i.id === o.itemId));
+        if (c.platinum < min) underMin.push(`${slug} → ${c.platinum}p (minimum ${min}p)`);
       }
       mine = mine.map((o) => (o.id === id && c.platinum != null ? { ...o, platinum: c.platinum } : o));
       return {} as never;
@@ -81,7 +90,6 @@ export async function simulateDay(seed: number) {
     mkt.op = null;
     mkt.pass = null;
     mkt.advice = { ...defaultAdvice() };
-    const s = { ...defaultMarketSettings(), auto: true, autoCheck: true };
     for (let pass = 0; pass < PASSES; pass++) {
       // The market moves between passes.
       for (const slug of Object.keys(books)) {
@@ -107,7 +115,7 @@ export async function simulateDay(seed: number) {
     Date.now = realNow;
     mkt.advice = null;
   }
-  return { writes, listings: mine.length, most: Math.max(0, ...perListing.values()), under };
+  return { writes, listings: mine.length, most: Math.max(0, ...perListing.values()), under, underMin };
 }
 
 // Measured on these three days (seeds 1–3): before the drift rules, 214, 237 and 197 changes,
@@ -125,5 +133,16 @@ test("a day of Apply automatically on the demo sell list: never more than six ch
     // The measured days were 31 and 32 (214, 237 and 197 before the drift rules); room for a
     // little change in the demo's books, not for the rules to stop holding.
     assert.ok(d.writes <= 40, `${d.writes} changes in a day`);
+  }
+});
+
+test("the same day with minimums by category: still never more than six changes a listing, and nothing sent under its minimum", async () => {
+  const minByCategory = { mods: 15, prime: 25, arcanes: 20, relics: 3 };
+  for (const seed of [1, 2, 3]) {
+    const d = await simulateDay(seed, { minPrice: 12, minByCategory });
+    assert.equal(d.listings, 12);
+    assert.ok(d.most <= DRIFT.perDay, `${d.most} changes to one listing`);
+    assert.ok(d.writes <= d.listings * DRIFT.perDay);
+    assert.deepEqual(d.underMin, []);
   }
 });

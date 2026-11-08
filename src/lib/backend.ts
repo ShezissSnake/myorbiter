@@ -9,7 +9,7 @@ import type { LoggedScreen, RelicRun } from "./core/relicRuns";
 import { emptyDropLog, type DropLog } from "./core/drops";
 import { defaultSellChoices, type SellChoices } from "./core/spares";
 import { defaultBulkRules, type BulkRules } from "./core/bulk";
-import { defaultSparesRules, sparesSettingsOf, toStored, type SparesRules } from "./core/sparesRules";
+import { defaultMinByCategory, defaultSparesRules, minByCategoryOf, minimumFor, sparesSettingsOf, toStored, type MinByCategory, type SparesRules } from "./core/sparesRules";
 import type { BuyAlert } from "./core/deals";
 import { normalizeRule, type FissureRule } from "./core/timers";
 import type { RivenAuction, RivenMeta, RivenRaw, RivenSnap } from "./core/rivens";
@@ -71,13 +71,19 @@ export interface MarketSettings {
   presenceBack?: { p: Presence; until: number } | null;
   /** How Orders' table is sorted (by name until you click a column). */
   ordersSort?: { key: OrderSortKey; desc: boolean };
-  /** Nothing is listed or repriced below this many platinum. */
+  /** Nothing is listed or repriced below this many platinum, unless its category has its own minimum. */
   minPrice: number;
   /**
-   * The same for relics, which sell for a few platinum each and go in stacks: a stack of twenty
-   * at 5p is worth a trade where one mod at 5p isn't.
+   * Minimums by Sell spares category, each replacing `minPrice` for things in it (relics, which
+   * sell for a few platinum each and go in stacks, have a lower one by default). A category left
+   * out uses `minPrice`. See core/sparesRules.ts, minimumFor.
    */
-  minRelicPrice: number;
+  minByCategory: MinByCategory;
+  /**
+   * The Relics minimum, written on every save (lightSettings) for an older build reading the same
+   * file, which had only this; never read by this build once `minByCategory` is saved.
+   */
+  minRelicPrice?: number;
   /** Relic prices by refinement from warframe.market's sales, refreshed daily (see RelicMarket). */
   relicPrices: RelicMarket;
   /** What Sell spares lists and keeps, row by row (core/sparesRules.ts). */
@@ -133,7 +139,7 @@ function presenceBackOf(v: unknown): { p: Presence; until: number } | null {
   return o && typeof o === "object" && (o.p === "invisible" || o.p === "online" || o.p === "ingame") && typeof o.until === "number" && Number.isFinite(o.until) ? { p: o.p, until: o.until } : null;
 }
 
-export const defaultMarketSettings = (): MarketSettings => ({ platform: "pc", auto: false, autoCheck: false, every: 5, minShare: 0.5, floors: {}, paused: {}, approved: {}, changes: {}, presence: null, minPrice: 10, minRelicPrice: 3, relicPrices: {}, spares: defaultSparesRules(), bulk: defaultBulkRules(), sellable: defaultSellChoices(), sales: [], autoTrades: true, tradesSeen: [], tradesTold: [], trades: [], buyAlerts: [], rep: {}, repText: ":)", autoRep: true, lastCopy: { optIn: false, minutes: DEFAULT_HIDE_MINUTES, hidden: [] } });
+export const defaultMarketSettings = (): MarketSettings => ({ platform: "pc", auto: false, autoCheck: false, every: 5, minShare: 0.5, floors: {}, paused: {}, approved: {}, changes: {}, presence: null, minPrice: 10, minByCategory: defaultMinByCategory(), minRelicPrice: 3, relicPrices: {}, spares: defaultSparesRules(), bulk: defaultBulkRules(), sellable: defaultSellChoices(), sales: [], autoTrades: true, tradesSeen: [], tradesTold: [], trades: [], buyAlerts: [], rep: {}, repText: ":)", autoRep: true, lastCopy: { optIn: false, minutes: DEFAULT_HIDE_MINUTES, hidden: [] } });
 
 export interface AdviceSettings {
   platPerDucat: number;
@@ -782,13 +788,15 @@ const numIn = (v: unknown, lo: number, hi: number, fallback: number) => (typeof 
  * file strictly: anything but `true` leaves automatic repricing, checking and hiding off, and a
  * value that isn't a number in range is the usual one, never a missing floor.
  */
-function marketSafetyOf(raw: unknown, base: MarketSettings): Pick<MarketSettings, "auto" | "minPrice" | "minRelicPrice" | "minShare" | "every" | "floors" | "paused" | "changes" | "autoTrades" | "autoRep" | "presence"> {
+function marketSafetyOf(raw: unknown, base: MarketSettings): Pick<MarketSettings, "auto" | "minPrice" | "minByCategory" | "minRelicPrice" | "minShare" | "every" | "floors" | "paused" | "changes" | "autoTrades" | "autoRep" | "presence"> {
   const r = (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
   const record = (v: unknown) => (v && typeof v === "object" && !Array.isArray(v) ? Object.entries(v as Record<string, unknown>) : []);
   return {
     auto: r.auto === true,
     minPrice: Math.round(numIn(r.minPrice, 1, 100_000, base.minPrice)),
-    minRelicPrice: Math.round(numIn(r.minRelicPrice, 1, 100_000, base.minRelicPrice)),
+    // Per category: only known ones, each a minimum in range; an old file's relic minimum moves in.
+    minByCategory: minByCategoryOf(r),
+    minRelicPrice: undefined,
     minShare: numIn(r.minShare, 0, 1, base.minShare),
     every: numIn(r.every, 1, 24 * 60, base.every),
     floors: Object.fromEntries(record(r.floors).filter(([, v]) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 100_000)) as Record<string, number>,
@@ -952,8 +960,8 @@ export function withPage(order: string[], page: string, after: string): string[]
 export function lightSettings(s: Settings) {
   return {
     ...s,
-    // The old switches beside Sell spares' choices, for an older build (sparesRules.ts, toStored).
-    market: { ...s.market, ...(s.market.spares ? toStored(s.market.spares) : {}), sales: undefined, trades: undefined, relicPrices: undefined },
+    // The old switches beside Sell spares' choices, and the old relic minimum, for an older build (sparesRules.ts).
+    market: { ...s.market, ...(s.market.spares ? toStored(s.market.spares) : {}), minRelicPrice: minimumFor(s.market, "relics"), sales: undefined, trades: undefined, relicPrices: undefined },
     game: { ...s.game, valueHistory: undefined, rivenHistory: undefined, relicRuns: undefined, drops: undefined, notices: undefined },
   };
 }

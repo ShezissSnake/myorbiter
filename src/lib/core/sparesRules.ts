@@ -373,3 +373,51 @@ export function withoutNeverSell(r: SparesRules, ids: Iterable<string>): SparesR
 }
 /** The never-sell items a category's row lists ("Never sold: 4 mods"). */
 export const neverSoldIn = (r: SparesRules, cat: SpareCategory) => r.neverSell.filter((n) => n.cat === cat);
+
+// ------------------------------------------------------------ minimum prices
+
+/**
+ * Minimum prices by category (Sell spares): a category's own value replaces the global minimum
+ * for things in it; a category left out uses the global one. Whole platinum, 1 to MAX_MINIMUM.
+ */
+export type MinByCategory = Partial<Record<SpareCategory, number>>;
+export const MAX_MINIMUM = 100_000;
+/** Relics kept their own lower minimum before categories had one: a stack of 20 at 5p is a trade, one mod at 5p isn't. */
+export const defaultMinByCategory = (): MinByCategory => ({ relics: 3 });
+/** Each category in a word or two: the minimum fields' labels, and "your 3p relic minimum". */
+export const CATEGORY_SHORT: Record<SpareCategory, string> = { prime: "Prime", mods: "Mods", arcanes: "Arcanes", relics: "Relics", gear: "Weapon parts", resources: "Resources", imprints: "Imprints" };
+export const CATEGORY_WORD: Record<SpareCategory, string> = { prime: "prime", mods: "mod", arcanes: "arcane", relics: "relic", gear: "weapon part", resources: "resource", imprints: "imprint" };
+
+/** A minimum as saved: a whole number of platinum in range, or null (a damaged or emptied value). */
+export const minimumOf = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 1 && v <= MAX_MINIMUM ? Math.round(v) : null);
+
+/**
+ * Per-category minimums from a saved file: known categories with a minimum in range, nothing
+ * else. A file from before categories had minimums (no `minByCategory`) keeps its relic minimum
+ * (`minRelicPrice`) as the Relics one; with neither, the usual ones.
+ */
+export function minByCategoryOf(raw: { minByCategory?: unknown; minRelicPrice?: unknown } | null | undefined): MinByCategory {
+  const v = raw?.minByCategory;
+  if (v === undefined || v === null || typeof v !== "object" || Array.isArray(v)) {
+    const relic = minimumOf(raw?.minRelicPrice);
+    return relic != null ? { relics: relic } : defaultMinByCategory();
+  }
+  const out: MinByCategory = {};
+  for (const c of SPARE_CATEGORIES) {
+    const n = minimumOf((v as Record<string, unknown>)[c]);
+    if (n != null) out[c] = n;
+  }
+  return out;
+}
+
+/** The lowest price anything in `cat` is listed or repriced at: its category's minimum, or the global one. */
+export function minimumFor(s: { minPrice: number; minByCategory?: MinByCategory | null }, cat: SpareCategory | null | undefined): number {
+  const own = cat ? s.minByCategory?.[cat] : undefined;
+  return own ?? s.minPrice;
+}
+
+/** "10p" or "10p; relics 3p, mods 5p": the global minimum, then each category's own, in the panel's order. */
+export function minimumsText(s: { minPrice: number; minByCategory?: MinByCategory | null }): string {
+  const own = SPARE_CATEGORIES.filter((c) => s.minByCategory?.[c] != null).map((c) => `${CATEGORY_SHORT[c].toLowerCase()} ${s.minByCategory![c]}p`);
+  return own.length ? `${s.minPrice}p; ${own.join(", ")}` : `${s.minPrice}p`;
+}

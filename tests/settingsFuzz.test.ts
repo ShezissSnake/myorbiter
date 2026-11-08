@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { defaultSettings, loadSettings } from "../src/lib/backend";
-import { defaultSparesRules, sparesRulesOf } from "../src/lib/core/sparesRules";
+import { defaultSparesRules, minimumFor, SPARE_CATEGORIES, sparesRulesOf } from "../src/lib/core/sparesRules";
 import { sanitizeUpdates } from "../src/lib/core/updates";
 import { sanitizeBuild, sanitizeBuilds, sanitizeMaxAgeDays } from "../src/lib/core/builds/types";
 import { normalizeRule } from "../src/lib/core/timers";
@@ -118,7 +118,10 @@ test("settings files: loading anything never throws, never turns on automatic re
     assert.equal(m.lastCopy.optIn, (rawMarket?.lastCopy as { optIn?: unknown } | undefined)?.optIn === true, `lastCopy: ${ctx}`);
     // Floors: whole, positive, finite; the share of the market price between 0 and 1.
     assert.ok(Number.isInteger(m.minPrice) && m.minPrice >= 1, `minPrice ${m.minPrice}: ${ctx}`);
-    assert.ok(Number.isInteger(m.minRelicPrice) && m.minRelicPrice >= 1, `minRelicPrice ${m.minRelicPrice}: ${ctx}`);
+    // Minimums by category: known categories only, each whole and in range; never a missing or junk one.
+    assert.ok(m.minByCategory && typeof m.minByCategory === "object" && !Array.isArray(m.minByCategory), `minByCategory: ${ctx}`);
+    for (const [c, v] of Object.entries(m.minByCategory)) assert.ok((SPARE_CATEGORIES as readonly string[]).includes(c) && Number.isInteger(v) && v! >= 1 && v! <= 100_000, `minByCategory ${c}=${v}: ${ctx}`);
+    for (const c of SPARE_CATEGORIES) assert.ok(Number.isInteger(minimumFor(m, c)) && minimumFor(m, c) >= 1, `minimum for ${c}: ${ctx}`);
     assert.ok(Number.isFinite(m.minShare) && m.minShare >= 0 && m.minShare <= 1, `minShare ${m.minShare}: ${ctx}`);
     assert.ok(Number.isFinite(m.every) && m.every >= 1, `every ${m.every}: ${ctx}`);
     assert.ok(m.floors && typeof m.floors === "object" && Object.values(m.floors).every((v) => Number.isInteger(v) && v >= 1), `floors ${JSON.stringify(m.floors)}: ${ctx}`);

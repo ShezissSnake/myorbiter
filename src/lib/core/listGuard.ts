@@ -71,6 +71,11 @@ export interface GuardRequest {
   /** Copies of the same item, rank and variant already up in your other listings. */
   listedElsewhere?: number;
   /**
+   * The item's minimum price (its Sell spares category's, or the global one): a price under it is
+   * refused, asked for by hand or not. Left out where a price isn't being chosen (shown again as listed).
+   */
+  minimum?: number;
+  /**
    * You asked for this one listing yourself (the listing form, a switch on Orders): the keep rules
    * still hold when there's an inventory to check against, but an old read doesn't stop it, and
    * with no inventory at all (a console) what you typed goes. Everything else is automatic: no
@@ -98,9 +103,16 @@ export function ducatRefusal(c: SpareContext, it: MarketItem, platinum: number |
   return `at ${platinum}p it's ${platinum <= worth ? "worth less than" : "too close to"} its ducats (~${round1(worth)}p to you at ${c.advice.platPerDucat}p a ducat; it needs ${Math.ceil(platToBeat(worth) - 1e-9)}p or more)`;
 }
 
+/** A price under the minimum: why, after "Didn't list Khra R0: ", or null. */
+export function minimumRefusal(platinum: number | null, minimum: number | null | undefined): string | null {
+  if (platinum == null || minimum == null || platinum >= minimum) return null;
+  return `${platinum}p is under your ${minimum}p minimum (Sell spares): it needs ${minimum}p or more`;
+}
+
 /**
  * Whether `r` may go up: never more copies than the keep rules prove spare, less the ones already
- * listed, and (automatic listings) never a prime part or set at a price its ducats beat. The audit
+ * listed, never under its minimum when one is given, and (automatic listings) never a prime part
+ * or set at a price its ducats beat. The audit
  * line says why it was spare, for the log; a refusal says why not, as "Didn't list …: …".
  */
 export function guardListing(c: GuardContext, r: GuardRequest): GuardResult {
@@ -115,6 +127,9 @@ export function guardListing(c: GuardContext, r: GuardRequest): GuardResult {
   const elsewhere = Math.max(0, r.listedElsewhere ?? 0);
   // Never sold, whoever asks (the plan, the listing form, Orders): Sell again takes it off the list.
   if (c.rules && neverSells(c.rules, r.item.id)) return refuse(NEVER_SOLD_REFUSAL);
+  // Never under the minimum, typed in by hand or not, inventory or none.
+  const cheap = minimumRefusal(r.platinum, r.minimum);
+  if (cheap) return refuse(cheap);
   const m = c.model;
   const noInventory = !m.observedAt && m.inventoryByBase.size === 0;
   if (r.manual && noInventory) return { ok: true, audit: `${tag}: ${r.quantity} at ${r.platinum ?? "?"}p, as asked (no inventory read to check against)` };

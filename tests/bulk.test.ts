@@ -304,7 +304,7 @@ test("relics have their own minimum: a 5p relic goes up under a 10p minimum for 
   const rules = only({ other: true });
   const without = bulkPlan(c({}), rules, [target]);
   assert.match(without[0].type === "skip" ? without[0].why : "", /under your 10p minimum/);
-  const withRelicMin = bulkPlan(c({ minRelicPrice: 3 }), rules, [target]);
+  const withRelicMin = bulkPlan(c({ minByCategory: { relics: 3 } }), rules, [target]);
   assert.equal(withRelicMin[0].type === "create" && `${withRelicMin[0].quantity}@${withRelicMin[0].platinum}`, "20@5");
 });
 
@@ -325,4 +325,36 @@ test("imprints: every one you hold is listed by breed, apart from your companion
   const unread = buildModel(b);
   assert.deepEqual(sellTargets(unread, rules, defaultAdvice()), []);
   assert.deepEqual(bulkPlan({ ...ctx(unread, [order("o", "rak", 1, 20)], {}), index: indexItems([...items, raksa]) }, rules, []), []);
+});
+
+test("minimums by category: a category's own replaces the global one, an empty one uses it", () => {
+  const m = buildModel(bundle([inv("/M/Serration", "Serration", "mod", 1, { rank: 10 }), inv("/M/Serration", "Serration", "mod", 3)]));
+  const rules = only({ mods: true });
+  const targets = sellTargets(m, rules, defaultAdvice());
+  const books = { serration: [seller(14, 0), seller(14, 0)] };
+  const created = (a: ReturnType<typeof bulkPlan>) => a.filter((x) => x.type === "create").map((x) => x.type === "create" && `${x.item.name}@${x.platinum}`);
+  // The global 10p: 14p goes up.
+  assert.deepEqual(created(bulkPlan(ctx(m, [], books), rules, targets)), ["Serration@14"]);
+  // Mods' own 20p: never listed under it, and the plan says whose minimum it was.
+  const mods20 = bulkPlan(ctx(m, [], books, { minByCategory: { mods: 20 } }), rules, targets);
+  assert.deepEqual(created(mods20), []);
+  assert.match(mods20[0].type === "skip" ? mods20[0].why : "", /Sells for 14p, under your 20p mod minimum/);
+  // Another category's minimum leaves mods on the global one.
+  assert.deepEqual(created(bulkPlan(ctx(m, [], books, { minByCategory: { relics: 50, prime: 50 } }), rules, targets)), ["Serration@14"]);
+  // Mods' own minimum under the global one replaces it: 14p goes up under a 20p global minimum.
+  assert.deepEqual(created(bulkPlan(ctx(m, [], books, { minPrice: 20, minByCategory: { mods: 5 } }), rules, targets)), ["Serration@14"]);
+  // Clearly under it by the daily median (12p): settled without its order book.
+  const cheap = bulkPlan(ctx(m, [], {}, { minByCategory: { mods: 30 } }), rules, targets);
+  assert.match(cheap[0].type === "skip" ? cheap[0].why : "", /about 12p, under your 30p mod minimum/);
+});
+
+test("minimums by category: a lower one never takes a listing under your own floor or its ducats", () => {
+  // Your own floor of 10p (the old global minimum) on the Serration listing: a 5p mod minimum
+  // and a 6p market don't take it under 10p.
+  const m = buildModel(bundle([inv("/M/Serration", "Serration", "mod", 1, { rank: 10 }), inv("/M/Serration", "Serration", "mod", 3)]));
+  const rules = only({ mods: true });
+  const targets = sellTargets(m, rules, defaultAdvice());
+  const plan = bulkPlan(ctx(m, [order("o1", "ser", 2, 12, 0)], { serration: [seller(6, 0), seller(6, 0)] }, { minPrice: 10, minByCategory: { mods: 5 }, floors: { "ser|0|": 10 } }), rules, targets);
+  const update = plan.find((a) => a.type === "update");
+  assert.ok(update?.type === "update" && update.platinum === 10, JSON.stringify(plan.map((a) => [a.type, a.type === "update" || a.type === "create" ? a.platinum : null])));
 });

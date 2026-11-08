@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildModel } from "../src/lib/core/model";
 import { bulkPlan, sellTargets, type BulkContext, type BulkRules } from "../src/lib/core/bulk";
-import { guardListing, inventoryTrust, MAX_INVENTORY_AGE_MS } from "../src/lib/core/listGuard";
+import { guardListing, inventoryTrust, MAX_INVENTORY_AGE_MS, minimumRefusal } from "../src/lib/core/listGuard";
 import { indexItems, type BookOrder, type MarketItem, type MyOrder } from "../src/lib/core/market";
 import { modRows, setRows } from "../src/lib/core/views";
 import { defaultAdvice } from "../src/lib/backend";
@@ -105,7 +105,7 @@ const books = { khra: [seller(7, 0)], jahu: [seller(5, 0)], bleeding_willow: [se
 const RULES: BulkRules = { sets: true, arcanes: true, mods: true, parts: true, partsKeep: 10, other: true, imprints: true, priority: "trades" };
 const advice = defaultAdvice();
 const ctx = (m: ReturnType<typeof buildModel>, orders: MyOrder[] = []): BulkContext => ({
-  model: m, index, orders, me, books, minPrice: 5, minRelicPrice: 3, minShare: 0.5, floors: {}, paused: {}, sell: defaultSellChoices(), advice,
+  model: m, index, orders, me, books, minPrice: 5, minByCategory: { relics: 3 }, minShare: 0.5, floors: {}, paused: {}, sell: defaultSellChoices(), advice,
 });
 const plan = (m: ReturnType<typeof buildModel>, orders: MyOrder[] = []) => bulkPlan(ctx(m, orders), RULES, sellTargets(m, RULES, advice, index, defaultSellChoices()));
 const created = (actions: ReturnType<typeof plan>) => actions.filter((a) => a.type === "create").map((a) => a.type === "create" && `${a.item.name}|${a.rank}|${a.quantity}@${a.platinum}`);
@@ -327,4 +327,18 @@ test("ducats: the floor a listing is held at always passes the ducat check, what
     assert.equal(ducatsBeat(floor - 1, worth), true, `${ducats} ducats at ${rate}p: ${floor - 1}p is too close`);
     assert.ok(floor >= platToBeat(worth) - 1e-6);
   }
+});
+
+test("minimum: never listed under it, the listing form, a console and the plan included; at it, it goes", () => {
+  const m = buildModel(account(khra(6, 1)));
+  const consoleModel = buildModel({ observed_at: null, inventory: [], catalog: catalog(), relics: [], prices: null });
+  for (const [model, manual] of [[m, false], [m, true], [consoleModel, true]] as const) {
+    const g = guard(model, "khra", 1, 7, 0, { manual, minimum: 8 });
+    assert.equal(g.ok, false, `manual ${manual}`);
+    assert.match(!g.ok ? g.why : "", /^Didn't list Khra R0: 7p is under your 8p minimum \(Sell spares\): it needs 8p or more$/);
+  }
+  assert.equal(guard(m, "khra", 1, 8, 0, { manual: true, minimum: 8 }).ok, true, "at the minimum it goes");
+  assert.equal(guard(m, "khra", 1, 7, 0, { manual: true }).ok, true, "no minimum given (shown again as listed): not judged by one");
+  assert.equal(minimumRefusal(null, 8), null);
+  assert.equal(minimumRefusal(9, null), null);
 });

@@ -3,7 +3,7 @@
 import { settle } from "./support/runes";
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { market, presence, defaultMarketSettings } from "../src/lib/backend";
+import { market, presence, defaultMarketSettings, type MarketSettings } from "../src/lib/backend";
 import type { MyOrder } from "../src/lib/core/market";
 import type { Model } from "../src/lib/core/model";
 
@@ -414,7 +414,7 @@ test("+rep: a second request for the same player waits for the first and sends n
 // ------------------------------------------------------------------ the 70% floor
 
 const it = { id: "it", slug: "it", gameRef: "/it", name: "It", maxRank: null, subtypes: null, tags: [] };
-const noPrices = { price: () => null, priceMax: () => null, relicPrice: () => null } as unknown as Model;
+const noPrices = { price: () => null, priceMax: () => null, relicPrice: () => null, partByName: new Map() } as unknown as Model;
 /** Two sellers in game at `platinum` (one seller alone is never followed: core/drift.ts). */
 const undercut = (platinum: number) =>
   ["x", "y"].map((u) => ({ id: `r${platinum}${u}`, type: "sell", platinum, quantity: 1, rank: null, subtype: null, visible: true, user: { id: u, ingameName: `Undercutter_${u}`, status: "ingame", platform: "pc", crossplay: true } }));
@@ -489,10 +489,10 @@ test("A price typed on Orders is the price you approved", async () => {
 const serrationBook = async () => [{ id: "b", type: "sell", platinum: 20, quantity: 1, rank: 0, subtype: null, visible: true, user: { id: "u", ingameName: "U", status: "ingame", platform: "pc", crossplay: true } }] as never;
 
 /** The listing form open on unranked Serration, with what was sent to warframe.market. */
-async function serrationForm(quantity: number, held = 5) {
+async function serrationForm(quantity: number, held = 5, rules: Partial<MarketSettings> = {}) {
   mkt.items = spareItems;
   mkt.model = await spareModel(held);
-  mkt.rules = { ...defaultMarketSettings(), approved: {} };
+  mkt.rules = { ...defaultMarketSettings(), approved: {}, ...rules };
   market.book = serrationBook;
   const sent: { create: unknown[]; update: unknown[] } = { create: [], update: [] };
   market.create = (async (o: unknown) => {
@@ -559,6 +559,33 @@ test("adding to a listing counts the copies already listed, hidden ones too, and
   assert.deepEqual(sent.update, [["old", { platinum: 20, quantity: 3, visible: true }]]);
   assert.deepEqual(sent.create, []);
   assert.match(mkt.draftDone ?? "", /^Added 1× Serration R0 to your listing: now 3 at 20p/);
+  formDone();
+  mkt.orders = [];
+});
+
+test("the listing form: priced at least at the Mods minimum, and never sent under it, typed or not", async () => {
+  const sent = await serrationForm(3, 5, { minByCategory: { mods: 25 } });
+  assert.equal(mkt.draft?.platinum, 25, "20p in game, raised to the 25p Mods minimum");
+  mkt.draft!.platinum = 20;
+  await mkt.submitDraft();
+  assert.deepEqual(sent.create, []);
+  assert.match(mkt.draftError ?? "", /^Didn't list Serration R0: 20p is under your 25p minimum \(Sell spares\)/);
+  mkt.draft!.platinum = 25;
+  await mkt.submitDraft();
+  assert.deepEqual(sent.create, [{ itemId: "it", platinum: 25, quantity: 3, rank: 0, subtype: null, visible: true }]);
+  formDone();
+});
+
+test("the listing form: with no Mods minimum the global one holds, and a price only changed is held to it too", async () => {
+  mkt.orders = [{ ...order("old", 3, 30), rank: 0 }];
+  const sent = await serrationForm(0, 5, { minPrice: 22, minByCategory: { relics: 3 } });
+  assert.equal(mkt.draft?.platinum, 22, "20p in game, raised to the 22p global minimum");
+  mkt.draft!.addToExisting = true;
+  mkt.draft!.quantity = 0;
+  mkt.draft!.platinum = 21;
+  await mkt.submitDraft();
+  assert.deepEqual(sent.update, [], "the listing's price isn't set under the minimum");
+  assert.match(mkt.draftError ?? "", /21p is under your 22p minimum/);
   formDone();
   mkt.orders = [];
 });

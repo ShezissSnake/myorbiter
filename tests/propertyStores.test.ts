@@ -116,7 +116,7 @@ test("Apply automatically: random markets never take a listing under 70% of its 
   const seeds: number[] = [];
   forAll("reprice seeds", (_r, seed) => void seeds.push(seed), Math.ceil(RUNS / 4));
   const it = { id: "it", slug: "it", gameRef: "/it", name: "It", maxRank: null, subtypes: null, tags: [] };
-  const model = { price: () => null, priceMax: () => null, relicPrice: () => null } as unknown as Model;
+  const model = { price: () => null, priceMax: () => null, relicPrice: () => null, partByName: new Map() } as unknown as Model;
   for (const seed of seeds) {
     const r = rng(seed);
     const minPrice = r.pick([1, 5, 10, 15]);

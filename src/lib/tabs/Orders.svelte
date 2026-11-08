@@ -8,7 +8,8 @@
   import type { Model } from "../core/model";
   import type { AdviceSettings, MarketSettings, OrderSortKey } from "../backend";
   import { heldFor, holdings, listingKey, overAsked, overListed, wtsLines, type MyOrder, type Plan } from "../core/market";
-  import { LISTING_LIMIT } from "../core/bulk";
+  import { LISTING_LIMIT, minimumForItem } from "../core/bulk";
+  import { minimumOf, minimumsText } from "../core/sparesRules";
   import { DRIFT_RULES, GREY_AREA } from "../core/drift";
   import { AUTO_FLOOR_SHARE } from "../core/approved";
   import { arcaneRows, saveForSets, spareOf } from "../core/views";
@@ -123,7 +124,7 @@
   const planOf = (o: MyOrder) => plans.get(o.id) ?? keptPlans.get(o.id);
   const hiddenOrders = $derived(orders.filter((o) => !o.visible));
   /** The folded repricer settings, in one line: "Auto: check every 5 min · floor 50% · min 10p". */
-  const autoLine = $derived(`Auto: ${settings.auto ? `apply every ${settings.every} min` : settings.autoCheck ? `check every ${settings.every} min` : "off"} · floor ${settings.minShare ? `${settings.minShare * 100}%` : "none"} · min ${settings.minPrice}p`);
+  const autoLine = $derived(`Auto: ${settings.auto ? `apply every ${settings.every} min` : settings.autoCheck ? `check every ${settings.every} min` : "off"} · floor ${settings.minShare ? `${settings.minShare * 100}%` : "none"} · min ${minimumsText(settings)}`);
   const pending = $derived(orders.filter((o) => o.visible && !settings.paused[listingKey(o)] && plans.get(o.id)?.change).length);
   // The timer waits longer while warframe.market isn't answering (passDelay): the next check is then, not at your interval.
   const passWait = $derived(mkt.passDelay(settings.every * 60_000));
@@ -416,6 +417,13 @@
   }
 
   /** A relic held up by what a crack of it is worth: what that crack is worth. */
+  /** The listing's minimum price (Sell spares), when it's what holds the price up: no other floor is as high. */
+  function minimumHeld(o: MyOrder, p: Plan): number | null {
+    if (p.reason !== "floor") return null;
+    const it = mkt.item(o.itemId);
+    const min = it ? minimumForItem(settings, model, it) : settings.minPrice;
+    return p.floor === min && p.hard === min ? min : null;
+  }
   function crackHeld(o: MyOrder, p: Plan): number | null {
     if (p.reason !== "floor") return null;
     const it = mkt.item(o.itemId);
@@ -633,10 +641,10 @@
   ]);
   /** The listing whose price history is open under its row. */
   let charted = $state<string | null>(null);
-  // A minimum typed in: a whole number of 1 or more; an emptied or odd box keeps the one you had.
+  // A minimum typed in: a whole number from 1 to 100,000 (as Sell spares takes it); an emptied or odd box keeps the one you had.
   function minFrom(box: HTMLInputElement, was: number): number {
-    const v = Math.round(Number(box.value));
-    if (box.value.trim() === "" || !Number.isFinite(v) || v < 1) {
+    const v = box.value.trim() === "" ? null : minimumOf(Number(box.value));
+    if (v == null) {
       box.value = String(was);
       return was;
     }
@@ -809,12 +817,10 @@
           <select bind:value={settings.minShare} aria-label="Floor" title="Never lower a listing under this share of the item's daily market price (a per-listing floor in the table wins)">
             {#each [0, 0.3, 0.5, 0.7, 0.85] as f (f)}<option value={f}>{f ? `${f * 100}% of market` : "none"}</option>{/each}
           </select>
-          <span class="register" title="Nothing is listed or repriced below this, anywhere in MyOrbiter (relics have their own minimum)">never under</span>
+          <span class="register" title="Nothing is listed or repriced below this, anywhere in MyOrbiter, unless its kind has its own minimum on Sell spares. The same setting as Never under on Sell spares">never under</span>
           <input class="minp" type="number" min="1" inputmode="numeric" value={settings.minPrice} aria-label="Minimum price" onchange={(e) => (settings.minPrice = minFrom(e.currentTarget, settings.minPrice))} onwheel={(e) => e.currentTarget.blur()} />
           <Metal kind="plat" size={14} />
-          <span class="register" title="Relics sell for a few platinum each and go in stacks: the lowest a relic is listed or repriced at">relics</span>
-          <input class="minp" type="number" min="1" inputmode="numeric" value={settings.minRelicPrice} aria-label="Minimum relic price" onchange={(e) => (settings.minRelicPrice = minFrom(e.currentTarget, settings.minRelicPrice))} onwheel={(e) => e.currentTarget.blur()} />
-          <Metal kind="plat" size={14} />
+          <button type="button" class="link small" title="Minimums by kind (relics, mods, prime parts…), each replacing this one for its kind: set on Sell spares{Object.keys(settings.minByCategory ?? {}).length ? `. Now: ${minimumsText(settings)}` : ""}" onclick={() => go("spares")}>by kind on Sell spares</button>
         </div>
       </Fold>
       {#if nextPass}<span class="register next" title={mkt.passFailures ? `warframe.market didn't answer the last ${mkt.passFailures === 1 ? "pass" : `${mkt.passFailures} passes`}, so the timer waits longer (${Math.round(passWait / 60_000)} min) before the next` : `The timer checks every ${settings.every} min`}>{mkt.pass && !mkt.passManual ? "Checking now" : `Next check ${fmt(+nextPass)}`}</span>{/if}
@@ -882,7 +888,7 @@
               {:else}<span class="dim small">Not checked yet</span>{/if}
             </td>
             <td class="right fade willset">
-              {#if p?.change && !paused && shown}<span class="target" class:down={p.target < o.platinum} class:up={p.target > o.platinum}><span class="dim">{o.platinum} →</span> <P v={p.target} /> <span class="delta">{p.target > o.platinum ? "+" : "−"}{Math.abs(p.target - o.platinum)}</span>{#if p.reason === "floor" && crackHeld(o, p) != null}<span class="tag ok" title="Worth more cracked: a crack of it is worth about {crackHeld(o, p)}p, so it isn't listed under {p.floor}p. Take it down to crack it instead.">crack</span>{:else if p.reason === "floor" && p.competitor.price != null && p.target > p.competitor.price}<span class="tag alert" title="Your floor ({p.floor}p) is over the market price ({p.competitor.price}p): at this price it's unlikely to sell. Lower this listing's floor, or take it down.">over market</span>{:else if p.reason === "floor"}<span class="tag ok" title="Held up by the floor">floor</span>{:else if p.reason === "median"}<span class="tag" title="Every seller online or in game asks more than twice what it really goes for ({p.competitor.lowest?.platinum ?? p.competitor.price}p and up): priced at that instead">sells for</span>{/if}</span>
+              {#if p?.change && !paused && shown}<span class="target" class:down={p.target < o.platinum} class:up={p.target > o.platinum}><span class="dim">{o.platinum} →</span> <P v={p.target} /> <span class="delta">{p.target > o.platinum ? "+" : "−"}{Math.abs(p.target - o.platinum)}</span>{#if p.reason === "floor" && crackHeld(o, p) != null}<span class="tag ok" title="Worth more cracked: a crack of it is worth about {crackHeld(o, p)}p, so it isn't listed under {p.floor}p. Take it down to crack it instead.">crack</span>{:else if p.reason === "floor" && p.competitor.price != null && p.target > p.competitor.price}<span class="tag alert" title={minimumHeld(o, p) != null ? `Your ${p.floor}p minimum (Sell spares) is over the market price (${p.competitor.price}p): at this price it's unlikely to sell. Lower the minimum on Sell spares, or take it down.` : `Your floor (${p.floor}p) is over the market price (${p.competitor.price}p): at this price it's unlikely to sell. Lower this listing's floor, or take it down.`}>over market</span>{:else if p.reason === "floor"}<span class="tag ok" title={minimumHeld(o, p) != null ? `Held up by your ${p.floor}p minimum (Sell spares)` : "Held up by the floor"}>{minimumHeld(o, p) != null ? "minimum" : "floor"}</span>{:else if p.reason === "median"}<span class="tag" title="Every seller online or in game asks more than twice what it really goes for ({p.competitor.lowest?.platinum ?? p.competitor.price}p and up): priced at that instead">sells for</span>{/if}</span>
               {:else if !shown}<span class="register" title="Hidden listings aren't repriced">hidden</span>
               {:else if paused}<span class="register" title="Auto-price is off: MyOrbiter leaves this price as you set it">left alone</span>
               {:else if p && goesFor(p) != null}<span class="register ok" title="At what it really goes for: sellers online or in game ask {p.competitor.lowest?.platinum ?? p.competitor.price}p and up">at its value</span>

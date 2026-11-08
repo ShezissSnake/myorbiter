@@ -30,7 +30,7 @@ test("ten times the demo, 100 listings: the plan stays under the cap and lists n
   const targets = timed("what can be sold", () => sellTargets(m, s.spares, advice, index, s.sellable));
   for (const other of [0, 7]) {
     const plan = timed(`the plan (${other} buy orders)`, () =>
-      bulkPlan({ model: m, index, orders, me: { id: "me", ingameName: "ExamplePlayer", platform: "pc", crossplay: true }, books: files["dev-books.json"], minPrice: s.minPrice, minRelicPrice: s.minRelicPrice, minShare: s.minShare, floors: {}, paused: {}, otherOrders: other, sell: s.sellable, advice }, s.spares, targets),
+      bulkPlan({ model: m, index, orders, me: { id: "me", ingameName: "ExamplePlayer", platform: "pc", crossplay: true }, books: files["dev-books.json"], minPrice: s.minPrice, minByCategory: s.minByCategory, minShare: s.minShare, floors: {}, paused: {}, otherOrders: other, sell: s.sellable, advice }, s.spares, targets),
     );
     const go = toApply(plan, new Set(), new Set());
     const creates = go.filter((a) => a.type === "create");
