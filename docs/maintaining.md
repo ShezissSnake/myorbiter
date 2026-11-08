@@ -64,10 +64,10 @@ tick it here when it's done. The commands work in fish and in bash, from a clone
       they run too; they must pass there as well. Elsewhere skip both: `dev-bundle` needs that
       folder.
 - [ ] **The builder image exists:** *Build* → *Pipelines* → **New pipeline** → branch `main`,
-      *task* `image` → **New pipeline**. It runs on gitlab.com's hosted runners whatever *runner*
-      says (a new account may have to verify its identity before they take jobs). Its log ends
-      with the digest of `builder:<BUILDER_TAG>.job<job id>`, a tag no other push writes: put it
-      in `.gitlab-ci.yml` as `BUILDER_DIGEST` through a merge request that links that job's log,
+      *task* `image` → **New pipeline**. It runs on the pc runner (kaniko, unprivileged), or on
+      gitlab.com's hosted runners with *runner* `cloud`. Its log ends with the digest of
+      `builder:<BUILDER_TAG>.job<job id>`, a tag no other push writes: put it in
+      `.gitlab-ci.yml` as `BUILDER_DIGEST` through a merge request that links that job's log,
       so the digest can be checked against it. Never delete a `….job<id>` tag (the cleanup policy
       under *Packages* keeps them).
       Until then, pipelines on `main` run in the image's tag and `sign` refuses, so nothing is
@@ -202,22 +202,21 @@ a pipeline on `main` or a protected tag signs as soon as `sign` runs.
 The `pc` jobs run on the project's own runner (*Settings* → *CI/CD* → *Runners* → **New project
 runner**, tag `pc`, *Run untagged jobs* off):
 
+Every job runs here unless *runner* says `cloud`: `sign` (with the signing key) and the `image`
+task too. Nothing needs gitlab.com's hosted runners.
+
 - [ ] **The Docker executor**, never the shell executor: each job then runs in its own container.
-      The jobs still share the executor's build volume, so `sign`, the one job with the signing
-      key, never runs here: it always runs on gitlab.com's hosted runners, a fresh machine each
-      time.
+      The jobs share the executor's build volume, so `sign` starts from a fresh clone and checks
+      everything it takes from the build (no links, the signer against `SIGNER_SHA256`, a build
+      made in the builder image by digest) before the key is near it.
 - [ ] **Never privileged, no Docker socket:** `privileged = false` and no `/var/run/docker.sock` in
       its `volumes`. Either would let a build job out of its container, onto this computer and
-      into the other jobs and caches. The `image` task runs on gitlab.com's hosted runners for
-      that reason (Buildah's user namespace is refused by Docker's default seccomp profile).
-- [ ] **Hosted runners stay enabled:** *Settings* → *CI/CD* → *Runners* → *Instance runners*:
-      **Enable instance runners for this project** on. `sign` and the image task run on them in
-      every release, and spend the namespace's compute minutes; with none left, nothing is
-      signed or published.
+      into the other jobs and caches. The `image` task builds with kaniko, which needs neither.
 - [ ] **Protected:** the runner's *Protected* box ticked, so only pipelines on `main` and protected
-      tags run on it. A pipeline on any other branch runs on gitlab.com's hosted runners,
-      whatever *runner* says, in that branch's own builder image: run the *task* `image` on the
-      branch first.
+      tags run on it, and the signing key (a protected variable) reaches only them. A pipeline
+      on any other branch can't use it: it runs on gitlab.com's hosted runners, whatever
+      *runner* says, in that branch's own builder image (run the *task* `image` on the branch
+      first). Such pipelines are optional.
 
 ## Packages
 

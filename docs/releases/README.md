@@ -15,13 +15,13 @@ run it once before the first build and again after every change to the Dockerfil
 and release tags run in the image by that digest, and until it's set `sign` refuses, so nothing
 is published).
 
-The jobs run on the project's own runner (tag `pc`, with the Docker executor, so each job runs in
-a container of its own; never privileged, and protected, so only `main` and protected tags use
-it), or, with the *runner* field set to `cloud`, on gitlab.com's hosted Linux runners, which spend
-the namespace's compute minutes. The `image` task, the `sign` job and any pipeline on a branch
-other than `main` always run on the hosted runners (`sign` because on the pc runner jobs share the
-executor's build volume). A branch's pipeline runs in that branch's own builder image: run the
-`image` task on the branch first.
+Every job, `sign` and the `image` task (kaniko, unprivileged) included, runs on the project's own
+runner (tag `pc`, with the Docker executor, so each job runs in a container of its own; never
+privileged, and protected, so only `main` and protected tags use it and only they get the signing
+key), or, with the *runner* field set to `cloud`, on gitlab.com's hosted Linux runners, which
+spend the namespace's compute minutes; nothing needs them. A pipeline on a branch other than
+`main` can only run on the hosted runners, in that branch's own builder image (run the `image`
+task on the branch first); such pipelines are optional.
 
 A release pipeline is build *n*, version `0.2.n`, where *n* is the pipeline's number in the project
 plus 100 (builds made on GitHub before the move were numbered below 100; pipelines that promote or

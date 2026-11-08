@@ -32,7 +32,10 @@ test("the sign job checks the signer and the builder image's digest before signi
   assert.ok(links < copy && copy < check && check < run && pin < run, "the sign job runs the signer before checking it");
   assert.doesNotMatch(sign, /node scripts\//, "the sign job runs a script from the checkout");
   assert.match(sign, /GIT_STRATEGY: clone/);
-  assert.match(sign, /^ {2}tags: \[saas-linux-medium-amd64\]$/m);
+  // On the runner the input names, like every job, and only on main and release tags (so on pc,
+  // only the protected runner takes it).
+  assert.doesNotMatch(sign, /^ {2}tags:/m);
+  assert.match(sign, /^ {2}extends: \.publishing$/m);
 });
 
 test("a boolean input is never a variable's whole value", () => {
@@ -61,7 +64,9 @@ test("main and release tags run in the builder image by digest; the image task p
     assert.doesNotMatch(r, /BUILDER_SUFFIX/);
   }
   const image = ci.slice(ci.indexOf("\nbuilder-image:\n"));
-  assert.match(image, /--tag "\$BUILDER_PUSH"/);
-  assert.match(image, /buildah push --digestfile builder\.digest "\$BUILDER_PUSH"/);
+  assert.match(image, /--destination "\$BUILDER_PUSH" --digest-file builder\.digest/);
+  assert.doesNotMatch(image, /^ {2}tags:/m);
+  // kaniko itself by digest.
+  assert.match(ci, /^ {2}KANIKO_IMAGE: gcr\.io\/kaniko-project\/executor:v[0-9.]+-debug@sha256:[0-9a-f]{64}$/m);
   assert.match(ci, /^ {2}BUILDER_DIGEST: "(sha256:[0-9a-f]{64})?"$/m);
 });
