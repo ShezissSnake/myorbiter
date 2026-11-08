@@ -1,32 +1,29 @@
 // The screenshots in docs/screenshots/ (1440×900) and site/shots/ (1280×800), both at twice those
 // pixels, taken from the invented account (`npm run dev:demo`, demo/), never from public/dev-*.json.
 //
-//   PLAYWRIGHT=<folder of a playwright package> node scripts/screenshots.mjs [--port 1431]
+//   npm run screenshots [-- --port 1431]
 //
-// It starts the demo dev server on its own port, checks that the server answering is that one,
-// opens each page in Chromium, saves WebP files over the ones in the repository, and stops the
-// server. Needs Playwright with its Chromium (`npx playwright install chromium`), which isn't one
-// of the project's dependencies: install it in a folder of its own and point PLAYWRIGHT at its
-// node_modules/playwright. Needs ImageMagick (`magick`) for the WebP files. The demo's order books
-// and price histories are files in demo/; the worldstate is read live (demo/README.md), so Home and
-// Current fissure change from run to run. Nothing but GET requests would reach warframe.market.
+// It installs Playwright's Chromium if it isn't there yet (`playwright install chromium`, into
+// Playwright's own cache folder: `npm install` never downloads a browser), starts the demo dev
+// server on its own port, checks that the server answering is that one, opens each page in
+// Chromium, saves WebP files over the ones in the repository, and stops the server. Needs
+// ImageMagick (`magick`) for the WebP files. The demo's order books and price histories are files
+// in demo/; the worldstate is read live (demo/README.md), so Home and Current fissure change from
+// run to run. Nothing but GET requests would reach warframe.market.
 
 import { spawn, execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const portArg = process.argv.indexOf("--port");
 const port = portArg > 0 ? process.argv[portArg + 1] : "1431";
 if (!/^[0-9]{2,5}$/.test(port ?? "")) throw new Error(`not a port: ${port}`);
-if (!process.env.PLAYWRIGHT) {
-  console.error("Set PLAYWRIGHT to a playwright package folder (see the top of this file).");
-  process.exit(2);
-}
-const { chromium } = createRequire(import.meta.url)(resolve(process.env.PLAYWRIGHT));
+const playwright = dirname(createRequire(import.meta.url).resolve("playwright"));
+const { chromium } = await import("playwright");
 const url = `http://localhost:${port}/`;
 
 // Pages, in the order the app's sidebar has them, and what each needs before its picture.
@@ -96,6 +93,8 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 }
 
 try {
+  // The one step that downloads a browser; quick when it's there already.
+  execFileSync(process.execPath, [join(playwright, "cli.js"), "install", "chromium"], { stdio: "inherit" });
   if (await answers()) throw new Error(`something already answers at ${url}: stop it or pick another --port`);
   server = spawn(process.execPath, [join(root, "node_modules/vite/bin/vite.js"), "--port", port, "--strictPort"], {
     cwd: root,
