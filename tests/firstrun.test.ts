@@ -131,3 +131,10 @@ test("while the question is open nothing starts or is asked; then the answer is 
     ts.status = null;
   }
 });
+
+test("every control that picks a mode goes through the store, so a newer choice replaces the waiting answer", () => {
+  const sources = ["App.svelte", "lib/FullMode.svelte", "lib/TennoscopeSheet.svelte", "lib/SettingsSheet.svelte", "lib/FirstRun.svelte"].map((f) => [f, src(f)] as const);
+  for (const [f, text] of sources) assert.ok(!/\btennoscope\.ask\(/.test(text), `${f} asks TennoScope directly`);
+  assert.match(src("lib/FullMode.svelte"), /ts\.ask\(full \? "--access=full" : "--access=overlay"\)/);
+  assert.match(src("App.svelte"), /ts\.ask\("--access=overlay"\); withoutInventory\(\);[^<]*>Not now: overlay only/);
+});

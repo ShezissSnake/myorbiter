@@ -31,7 +31,7 @@
       it also reads your items, mastery and Foundry from the running game.
     </p>
     <p class="warn" id="first-run-warning">{FULL_MODE_WARNING}</p>
-    <p class="dim small">TennoScope doesn't start until you choose. You can change it any time in Settings, TennoScope.</p>
+    <p class="dim small">MyOrbiter doesn't start TennoScope or ask it anything until you choose. You can change it any time in Settings, TennoScope.</p>
     <footer>
       <button class="stamp" disabled={!ready} onclick={() => onanswer("--access=overlay")}>Not now: overlay only</button>
       <button class="stamp" disabled={!ready} onclick={() => onanswer("--access=full")}>Read my inventory (Full mode)</button>
