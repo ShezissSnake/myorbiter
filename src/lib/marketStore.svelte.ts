@@ -28,7 +28,7 @@ import { drops } from "./drops.svelte";
 import { MAX_PLAT, MAX_QTY, wholeIn } from "./core/amounts";
 import { ducatRefusal, guardListing, inventoryTrust, listingTag, type GuardRequest } from "./core/listGuard";
 import { autoFloor, unattendedMove } from "./core/approved";
-import { cooldown, drifted, noteChange } from "./core/drift";
+import { DRIFT, cooldown, drifted, every, noteChange } from "./core/drift";
 
 export interface Draft {
   itemId: string;
@@ -660,8 +660,17 @@ class MarketStore {
               continue;
             }
             // The 70% floor can bring the move within the dead band: then it's no change either
-            // (a raise up to a floor the listing is under still goes).
-            if (target !== o.platinum && o.platinum >= p.hard && !drifted(o.platinum, target)) continue;
+            // (a raise up to a floor the listing is under still goes), and held there, it says so.
+            if (target !== o.platinum && o.platinum >= p.hard && !drifted(o.platinum, target)) {
+              if (atFloor) {
+                held++;
+                if (!this.floorTold.has(`${key}|${approved}`)) {
+                  this.floorTold.add(`${key}|${approved}`);
+                  this.note(`${tag}: stays at ${o.platinum}p, near 70% of the ${approved}p you last set; the market says ${p.target}p. Press Reprice to go lower, or set a new price`, "warn");
+                }
+              }
+              continue;
+            }
             // At most one change an hour and six a day per listing, by itself (core/drift.ts).
             if (!cooldown(s.changes?.[key], Date.now()).ok) {
               cooling++;
@@ -703,7 +712,7 @@ class MarketStore {
       if (skipped) this.note(`${skipped} listing${skipped === 1 ? "" : "s"} skipped: item not in warframe.market's list`, "warn");
       if (unseen) this.note(`${unseen} listing${unseen === 1 ? "" : "s"} left as ${unseen === 1 ? "it was" : "they were"}: ${unseen === 1 ? "it" : "they"} needed no change when you checked, and do now; check again`, "info");
       if (moved) this.note(`${moved} listing${moved === 1 ? "" : "s"} left as ${moved === 1 ? "it was" : "they were"}: the price went lower since you checked; check again`, "info");
-      if (cooling) this.note(`${cooling} listing${cooling === 1 ? "" : "s"} left as ${cooling === 1 ? "it was" : "they were"} for now: changed within the hour, or six times today`, "info", true);
+      if (cooling) this.note(`${cooling} listing${cooling === 1 ? "" : "s"} left as ${cooling === 1 ? "it was" : "they were"} for now: changed ${every(DRIFT.cooldownMs) === "an hour" ? "within the hour" : `less than ${every(DRIFT.cooldownMs).replace(/^every /, "")} ago`}, or ${DRIFT.perDay} times today`, "info", true);
       if (deferred) this.note(`${deferred} listing${deferred === 1 ? "" : "s"} left for the next pass: you were editing`, "info");
       if (stopped) this.note("warframe.market stopped answering, so this pass stopped early; the rest are checked next pass", read ? "warn" : tone());
       else if (failed) this.note(`${failed} listing${failed === 1 ? "" : "s"} couldn't be checked; trying again next pass`, read ? "warn" : tone());

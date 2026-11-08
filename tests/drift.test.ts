@@ -220,6 +220,7 @@ test("on a timer: a move the 70% floor brings within the band isn't sent", async
   book = [seller(40), seller(40)];
   await timedPass(s);
   assert.deepEqual(sent, [], "72p → 70p (70% of 100p) is within the 2p band");
+  assert.ok(mkt.log.some((l) => /stays at 72p, near 70% of the 100p/.test(l.text)), "held at the 70% floor, and it says so");
 });
 
 test("Reprice by hand isn't held by the cooldown, and counts for it", async () => {

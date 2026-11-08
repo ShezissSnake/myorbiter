@@ -122,5 +122,8 @@ test("a day of Apply automatically on the demo sell list: never more than six ch
     assert.ok(d.writes <= d.listings * DRIFT.perDay);
     // A bait listing never sets the price: nothing goes under the cheapest real seller online or in game.
     assert.deepEqual(d.under, []);
+    // The measured days were 31 and 32 (214, 237 and 197 before the drift rules); room for a
+    // little change in the demo's books, not for the rules to stop holding.
+    assert.ok(d.writes <= 40, `${d.writes} changes in a day`);
   }
 });

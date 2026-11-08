@@ -406,9 +406,13 @@
     });
   }
   /** A quantity over what you hold can't be delivered: refused, as the List form refuses it. */
-  /** What it really goes for, when every in-game seller asks more than twice that (the listing follows it instead). */
+  /**
+   * What it really goes for, when every seller online or in game asks more than twice that (the
+   * listing follows it instead): judged by the cheapest of them, as plan() judges it.
+   */
   function goesFor(p: Plan): number | null {
-    return p.competitor.price != null && p.value != null && overAsked(p.competitor.price, p.value) != null ? Math.round(p.value * 10) / 10 : null;
+    const cheapest = p.competitor.lowest?.platinum ?? p.competitor.price;
+    return cheapest != null && p.value != null && overAsked(cheapest, p.value) != null ? Math.round(p.value * 10) / 10 : null;
   }
 
   /** A relic held up by what a crack of it is worth: what that crack is worth. */
