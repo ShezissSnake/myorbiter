@@ -346,8 +346,13 @@ fn credential_files() -> [&'static str; 2] {
 /// never read again, and a stale copy of a credential is no use to anyone. Removes the credential
 /// files and what `write_atomic` left of them (`.<name>.<pid>.<n>.tmp`, `settings.json`'s too), and
 /// empties the Discord address in `settings.json` (`notifyOptions.discord.url`). Only once the
-/// setting aside is final (a folder put back stays whole), and best effort.
+/// setting aside is final (a folder put back stays whole), and best effort. Only in a real folder:
+/// a new folder that was a link (to the old folder, say) is set aside as that link, and nothing is
+/// changed where it points.
 fn strip_credentials(aside: &Path) {
+    if !fs::symlink_metadata(aside).is_ok_and(|m| m.is_dir()) {
+        return;
+    }
     for name in credential_files() {
         let _ = fs::remove_file(aside.join(name));
     }
@@ -361,6 +366,9 @@ fn strip_credentials(aside: &Path) {
         }
     }
     let settings = aside.join("settings.json");
+    if !fs::symlink_metadata(&settings).is_ok_and(|m| m.is_file()) {
+        return;
+    }
     let Ok(bytes) = fs::read(&settings) else { return };
     let Ok(mut value) = serde_json::from_slice::<serde_json::Value>(&bytes) else { return };
     let Some(url) = value.pointer_mut("/notifyOptions/discord/url") else { return };
@@ -369,8 +377,8 @@ fn strip_credentials(aside: &Path) {
     }
     *url = serde_json::Value::String(String::new());
     if let Ok(text) = serde_json::to_vec_pretty(&value) {
-        // Over the file in place, so it keeps its permissions.
-        let _ = fs::write(&settings, text);
+        // A new file renamed over it, as the app saves it, so a file linked elsewhere stays as it was.
+        let _ = crate::write_atomic(&settings, &text, true);
     }
 }
 
@@ -610,6 +618,45 @@ mod tests {
         assert_eq!(fs::read_to_string(new.join("settings.json")).unwrap(), r#"{"a":1}"#);
         assert!(fs::symlink_metadata(&old).unwrap().file_type().is_symlink());
         assert!(!real.join(MARKER).exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_new_folder_that_is_a_link_is_set_aside_and_where_it_points_is_left_alone() {
+        let t = Temp::new("newlink");
+        let old = fill_old(&t.0);
+        let real = t.0.join("elsewhere");
+        fs::create_dir_all(&real).unwrap();
+        let settings = r#"{"notifyOptions":{"discord":{"url":"https://discord.com/api/webhooks/1/x"}}}"#;
+        fs::write(real.join("settings.json"), settings).unwrap();
+        fs::write(real.join(crate::market::TOKEN_FILE), "token").unwrap();
+        fs::write(real.join(crate::DISCORD_FILE), "https://discord.com/api/webhooks/1/x").unwrap();
+        let new = t.0.join(ID);
+        std::os::unix::fs::symlink(&real, &new).unwrap();
+        let aside = t.0.join(format!("{ID}.before-copy-1"));
+        assert_eq!(copy_if_needed(&old, &new, true).unwrap(), Moved::CopiedSettingAside(aside.clone()));
+        assert!(fs::symlink_metadata(&aside).unwrap().file_type().is_symlink());
+        assert!(fs::symlink_metadata(&new).unwrap().is_dir(), "a real folder now");
+        assert_eq!(fs::read_to_string(real.join("settings.json")).unwrap(), settings);
+        assert!(real.join(crate::market::TOKEN_FILE).is_file());
+        assert!(real.join(crate::DISCORD_FILE).is_file());
+        clear_partials(&new);
+        assert_eq!(fs::read_to_string(real.join("settings.json")).unwrap(), settings);
+        assert!(real.join(crate::market::TOKEN_FILE).is_file());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_settings_file_that_is_a_link_is_left_alone() {
+        let t = Temp::new("settingslink");
+        let elsewhere = t.0.join("elsewhere.json");
+        let settings = r#"{"notifyOptions":{"discord":{"url":"https://discord.com/api/webhooks/1/x"}}}"#;
+        fs::write(&elsewhere, settings).unwrap();
+        let aside = t.0.join(format!("{ID}.before-copy-1"));
+        fs::create_dir_all(&aside).unwrap();
+        std::os::unix::fs::symlink(&elsewhere, aside.join("settings.json")).unwrap();
+        strip_credentials(&aside);
+        assert_eq!(fs::read_to_string(&elsewhere).unwrap(), settings);
     }
 
     #[cfg(unix)]
