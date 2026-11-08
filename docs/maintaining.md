@@ -274,14 +274,15 @@ env PLAYWRIGHT=<folder>/node_modules/playwright node scripts/screenshots.mjs
 ```
 
 It starts the demo dev server (`npm run dev:demo`'s, on port 1431 so a running one on 1421 isn't
-in the way; `--port` picks another), opens each page in Chromium, and writes the WebP files over
-the ones in the repository. Playwright isn't one of the project's dependencies: install it in a
-folder outside the repository (`npm install playwright`, then `npx playwright install chromium`
-there) and point `PLAYWRIGHT` at it. It needs ImageMagick (`magick`) too. Orders and Sell spares
-read live prices from warframe.market, so those two change from one run to the next; nothing but
-GET requests reach the site. In a clone whose `node_modules` is a link to another folder, Vite
-refuses to serve the fonts and the pictures come out in fallback fonts: run it where
-`node_modules` is a real folder.
+in the way; `--port` picks another), stops if anything else answers on that port or the server
+isn't the demo one, opens each page in Chromium, and writes the WebP files over the ones in the
+repository. Playwright isn't one of the project's dependencies: install it in a folder outside the
+repository (`npm install playwright`, then `npx playwright install chromium` there) and point
+`PLAYWRIGHT` at it. It needs ImageMagick (`magick`) too. The demo's order books and price
+histories are files in `demo/`, so the pages come out the same on every run but for the clocks;
+only item pictures come from warframe.market, and nothing but GET requests reach it. In a clone
+whose `node_modules` is a link to another folder, Vite refuses to serve the fonts and the
+pictures come out in fallback fonts: run it where `node_modules` is a real folder.
 
 ## AI and automation
 
