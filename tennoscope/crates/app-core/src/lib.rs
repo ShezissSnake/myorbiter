@@ -651,6 +651,10 @@ impl AppCore {
                         "Current WFCD catalog loaded",
                         Some(fetched.to_string()),
                     )?,
+                    Some((CatalogLoadSource::RecentCache, fetched)) => BackendHealth::ready(
+                        "Recent WFCD catalog loaded",
+                        Some(fetched.to_string()),
+                    )?,
                     Some((CatalogLoadSource::StaleCache, fetched)) => BackendHealth::new(
                         HealthState::Degraded,
                         "Using cached WFCD catalog",

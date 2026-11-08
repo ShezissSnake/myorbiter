@@ -447,3 +447,41 @@ fn recently_written_regions_coalesce_only_present_soft_dirty_pages() {
         ]
     );
 }
+
+/// Discovery runs every monitor tick. Once a process's `maps` has shown the game executable,
+/// later ticks recognise it by pid and start time alone and leave its `maps` unread; a new
+/// process on the same pid (a new start time) is checked from scratch.
+#[test]
+fn a_confirmed_game_process_is_not_re_read_every_tick() {
+    let temp = tempfile::tempdir().unwrap();
+    let executable = "/games/Warframe/Downloaded/Public/Warframe.x64.exe";
+    candidate_started_at(temp.path(), 100, "Warframe.x64.exe", executable, 777);
+    let procfs = LinuxProc::at(temp.path());
+    assert_eq!(procfs.discover().unwrap().map(GameProcess::pid), Some(100));
+
+    // Unreadable now: a tick that read it would fail the discovery.
+    let maps = temp.path().join("100/maps");
+    fs::remove_file(&maps).unwrap();
+    fs::create_dir(&maps).unwrap();
+    for _ in 0..3 {
+        assert_eq!(
+            procfs.discover().unwrap().map(GameProcess::pid),
+            Some(100),
+            "the confirmed process is kept without its maps"
+        );
+    }
+
+    // The pid is reused by a process that is not the game.
+    write_stat(temp.path(), 100, "Warframe.x64.exe", 900);
+    fs::remove_dir(&maps).unwrap();
+    write_file(
+        temp.path(),
+        "100/maps",
+        "140000000-140001000 r--p 00000000 08:01 1 /usr/bin/something-else\n",
+    );
+    assert_eq!(
+        procfs.discover().unwrap(),
+        None,
+        "a new start time is checked against its own maps"
+    );
+}

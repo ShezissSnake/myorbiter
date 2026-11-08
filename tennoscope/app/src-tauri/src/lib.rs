@@ -19,7 +19,8 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use warframe_acquisition::{
     CatalogCache, CollectionPriceCache, InventoryAcquirer, InventoryHttpTransport,
-    MarketPriceCache, RelicsRunHttp, WarmOutcome, WfcdCatalogHttp, dump_is_current, latest_dump,
+    MarketPriceCache, RecentCatalog, RelicsRunHttp, WarmOutcome, WfcdCatalogHttp,
+    dump_is_current, latest_dump,
 };
 
 /// The platform's process-memory backend. Both sides implement `MemoryReader` and
@@ -536,6 +537,8 @@ struct Runtime {
     live_prices: MarketPriceCache,
     market: market_account::MarketSession,
     presence: PresenceHold,
+    /// The catalogue inventory refreshes work from, reused while it is current.
+    recent_catalog: Arc<RecentCatalog>,
 }
 
 fn capability_authorized(
@@ -1831,9 +1834,13 @@ fn refresh_blocking(shared: &SharedRuntime) -> Result<AppView, String> {
                 .current_view()
                 .map_err(|_| "application view is unavailable".to_owned());
         }
-        runtime.app_data.clone()
+        (runtime.app_data.clone(), Arc::clone(&runtime.recent_catalog))
     };
-    let port = ProductionAcquisition { app_data };
+    let (app_data, recent_catalog) = app_data;
+    let port = ProductionAcquisition {
+        app_data,
+        recent_catalog,
+    };
     let outcome = port.refresh();
     let result = apply_outcome(shared, outcome);
     if let Ok(mut runtime) = shared.lock() {
@@ -1844,7 +1851,14 @@ fn refresh_blocking(shared: &SharedRuntime) -> Result<AppView, String> {
 
 struct ProductionAcquisition {
     app_data: PathBuf,
+    recent_catalog: Arc<RecentCatalog>,
 }
+
+/// How long a fetched catalogue counts as current. The WFCD catalogue changes with game updates;
+/// a day keeps new items no more than a day behind without a 70 MB download per inventory sync.
+const CATALOG_MAX_AGE_SECS: u64 = 24 * 60 * 60;
+/// How soon an outdated catalogue (the download failed) is tried again.
+const CATALOG_RETRY_SECS: u64 = 60 * 60;
 
 fn snapshot_clock(time: SystemTime) -> Result<(u64, SnapshotInstant), StoreError> {
     let observed_at = SnapshotInstant::from_system_time(time)?;
@@ -1860,11 +1874,11 @@ impl AcquisitionPort for ProductionAcquisition {
             Ok(clock) => clock,
             Err(_) => return InventoryRefreshOutcome::catalog_failed(),
         };
-        let catalog =
-            match CatalogCache::new(self.app_data.join("catalog")).load(&catalog_http, now) {
-                Ok(catalog) => catalog,
-                Err(_) => return InventoryRefreshOutcome::catalog_failed(),
-            };
+        let cache = CatalogCache::new(self.app_data.join("catalog"));
+        let catalog = match self.recent_catalog.get(&cache, &catalog_http, now) {
+            Ok(catalog) => catalog,
+            Err(_) => return InventoryRefreshOutcome::catalog_failed(),
+        };
         let procfs = GameMemory::new();
         let transport = match InventoryHttpTransport::new() {
             Ok(transport) => transport,
@@ -1967,6 +1981,10 @@ fn initialize_runtime(app: &AppHandle) -> Result<SharedRuntime, Box<dyn std::err
             paths.database.clone(),
         )),
         presence: PresenceHold::default(),
+        recent_catalog: Arc::new(RecentCatalog::new(
+            CATALOG_MAX_AGE_SECS,
+            CATALOG_RETRY_SECS,
+        )),
     })))
 }
 
@@ -2681,6 +2699,10 @@ mod tests {
             live_prices: MarketPriceCache::new(),
             market: market_account::MarketSession::new(Box::new(MemoryStore::default())),
             presence: PresenceHold::default(),
+            recent_catalog: Arc::new(RecentCatalog::new(
+                CATALOG_MAX_AGE_SECS,
+                CATALOG_RETRY_SECS,
+            )),
         }))
     }
 
