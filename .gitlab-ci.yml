@@ -111,7 +111,7 @@ variables:
   # runs in that branch's own tag. Changing the Dockerfile: a new BUILDER_TAG, ci/build-image.sh
   # once merged, then the new digest, in a merge request.
   BUILDER_TAG: "2026-11-07"
-  BUILDER_DIGEST: ""
+  BUILDER_DIGEST: "sha256:8e952523e6b8452fb780fbdccf1958d9a91bec0cc2176eedda2af3fd65031798"
   BUILDER_SUFFIX: ""
   BUILDER_IMAGE: $CI_REGISTRY_IMAGE/builder:$BUILDER_TAG$BUILDER_SUFFIX
   # The sign job's image: upstream Node, pinned by digest (node:26.13.0-bookworm, the one with git,
