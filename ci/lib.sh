@@ -1,5 +1,6 @@
 # shellcheck shell=bash
-# Shared by the ci/*.sh scripts the release, promote, prune and pages jobs run (.gitlab-ci.yml).
+# Shared by the ci/*.sh scripts the publish, experimental, promote and prune jobs run
+# (.gitlab-ci.yml).
 # Sourced, not run. Needs curl and jq (both in the builder image) and GitLab's job variables.
 #
 # Where a build's files live: the project's generic package registry, at fixed paths.

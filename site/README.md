@@ -21,13 +21,13 @@ with its AppImage, `.deb` and `.exe` where the build has them and a link to its 
 manifest that doesn't check out, or any answer but the file or a 404, stops the build rather than
 link a wrong file. `--offline` reads nothing: the buttons point at the Releases page (for a local
 build). The pages are a snapshot of the registry when they were built: once a build they link
-leaves every channel and the newest ten, `ci/prune.sh` deletes its files, so the site is rebuilt
-after each release and promotion.
+leaves every channel and the newest ten, `ci/prune.sh` deletes its files, so every release and
+promotion ends by rebuilding the site (after pruning), as the `pages` task does.
 
 `--check` also checks every link and image, that links leave only for gitlab.com, that no page
-carries a script, and that no `dev-*.json` (real account data) is in it. The `pages` pipeline
-(`ci/pages.sh`, run by hand with *task* `pages` on `main`) builds and checks the site and
-publishes it from `public/` on GitLab Pages.
+carries a script, and that no `dev-*.json` (real account data) is in it. The `pages` job
+(`ci/pages.sh`: *task* `pages` on `main`, and the end of every release and promotion) builds and
+checks the site and publishes it from `public/` on GitLab Pages.
 
 ## Screenshots
 
