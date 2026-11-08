@@ -1048,17 +1048,18 @@ export function onSaveTrouble(f: (error: string | null) => void) {
 /** Whether the saved settings couldn't be read at start (then nothing is saved, so nothing is asked). */
 export const settingsUnreadable = () => loadFailed != null;
 
-/** Opens a link in your browser: only https links to the sites in core/links.ts, anything else is refused. */
+/**
+ * Opens a link in your browser: only https links to the sites in core/links.ts, anything else is
+ * refused. The app opens it (link.rs, which checks it again): on Linux without the AppImage's
+ * libraries, which a browser started through the opener plugin inherited.
+ */
 export async function openUrl(url: string) {
   const safe = openable(url);
   if (!safe) {
     logLine("warn", "app", `refused to open a link outside MyOrbiter's sites: ${url.slice(0, 200)}`);
     return;
   }
-  if (inTauri) {
-    const { openUrl } = await import("@tauri-apps/plugin-opener");
-    return openUrl(safe);
-  }
+  if (inTauri) return invoke<void>("open_link", { url: safe });
   window.open(safe, "_blank", "noopener");
 }
 

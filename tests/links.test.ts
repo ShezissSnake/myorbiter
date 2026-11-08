@@ -54,6 +54,19 @@ test("the opener permission allows exactly the same sites", () => {
   assert.deepEqual(urls, LINK_SITES.map((s) => `https://${s.host}${s.path}*`).sort());
 });
 
+test("the page opens a checked link through the app (link.rs), not straight through the opener plugin", () => {
+  // Through the plugin, a browser started from the Linux AppImage inherited the AppImage's libraries.
+  const backend = readFileSync(new URL("../src/lib/backend.ts", import.meta.url), "utf8");
+  const open = backend.slice(backend.indexOf("export async function openUrl("), backend.indexOf("/** warframe.market URL slug"));
+  assert.match(open, /const safe = openable\(url\);[\s\S]*if \(inTauri\) return invoke<void>\("open_link", \{ url: safe \}\);/, "only a checked link goes to the app");
+  const src = readdirSync("src", { recursive: true, encoding: "utf8" }).filter((f) => /\.(ts|svelte)$/.test(f));
+  assert.deepEqual(src.filter((f) => /plugin-opener/.test(readFileSync(join("src", f), "utf8"))), [], "no page imports the opener plugin");
+  const link = readFileSync(new URL("../src-tauri/src/link.rs", import.meta.url), "utf8");
+  assert.match(link, /let Some\(url\) = openable\(url\) else \{/, "the app checks the link again");
+  assert.match(link, /crate::folder::first_opener\(crate::folder::OPENERS, /, "on Linux, the openers without the AppImage's environment");
+  assert.match(link, /#\[cfg\(not\(target_os = "linux"\)\)\]\s*\{\s*use tauri_plugin_opener::OpenerExt;/, "the opener plugin only off Linux");
+});
+
 test("tricks that read like an allowed site are refused", () => {
   for (const url of [
     "https://warframe.market@evil.example/",
