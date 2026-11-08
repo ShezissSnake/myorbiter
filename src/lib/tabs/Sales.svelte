@@ -20,6 +20,8 @@
   import { salesCsv } from "../core/exportCsv";
   import { importClosed } from "../core/closedOrders";
   import { mkt } from "../marketStore.svelte";
+  import { imprintNaming } from "../core/trades";
+  import { imprintSaleName } from "../core/imprints";
   import ProgressButton from "../ui/ProgressButton.svelte";
   import { Job } from "../job.svelte";
   import Count from "../ui/Count.svelte";
@@ -175,10 +177,19 @@
   };
   const image = (name: string) => model.imageOf(name.replace(/ Set$/, ""));
 
+  // An imprint sale logged by its pet's name ("Imprint of Biscuit", before MyOrbiter named imprints by
+  // breed): the market item it is, when the inventory or the name says its breed. Else none, and no price.
+  const naming = $derived(imprintNaming(mkt.index, settings.game.imprints));
+  const itemOf = (s: Sale) => imprintSaleName(s.item, naming) ?? s.item;
+  const unnamedImprint = (s: Sale) => /^\s*imprint of\s/i.test(s.item) && itemOf(s) === s.item;
+
   // Against the market: what each sale made next to the daily median for that item (the max-rank
   // price for a ranked arcane or mod).
   // The median when it sold, where MyOrbiter recorded one; older sales go by today's.
-  const market = (s: Sale) => s.median ?? (s.rank != null && s.rank > 0 ? (model.priceMax(s.item) ?? model.price(s.item)) : model.price(s.item));
+  const market = (s: Sale) => {
+    const item = itemOf(s);
+    return s.median ?? (s.rank != null && s.rank > 0 ? (model.priceMax(item) ?? model.price(item)) : model.price(item));
+  };
   const UNDER = 0.8;
   const ratio = (s: Sale) => {
     const m = market(s);
@@ -286,10 +297,10 @@
         {#each log as { s, key } (key)}
           <tr class:added={added === keyOf(s)} in:arrive out:leave animate:flip>
             <td class="dim when">{when(s.at)}</td>
-            <td><Named file={image(s.item)} name={s.item}>{#if s.rank != null}<span class="tag">R{s.rank}</span>{/if}</Named></td>
+            <td><Named file={image(itemOf(s))} name={itemOf(s)}>{#if s.rank != null}<span class="tag">R{s.rank}</span>{/if}</Named></td>
             <td class="right">{s.quantity}</td>
             <td class="right"><P v={s.platinum} dim /></td>
-            <td class="right">{#if ratio(s) != null}{@const r = ratio(s) ?? 0}<span class="vs" class:under={r < UNDER} class:over={r >= 1.1} title="Median {Math.round(market(s) ?? 0)}p">{Math.round(r * 100)}%</span>{:else}<span class="dim">–</span>{/if}</td>
+            <td class="right">{#if ratio(s) != null}{@const r = ratio(s) ?? 0}<span class="vs" class:under={r < UNDER} class:over={r >= 1.1} title="Median {Math.round(market(s) ?? 0)}p">{Math.round(r * 100)}%</span>{:else}<span class="dim" title={unnamedImprint(s) ? `${s.item}: an imprint, logged by its pet's name. Its breed isn't in the last inventory read or the name, so there's no market price to compare with.` : undefined}>–</span>{/if}</td>
             <td class="right"><P v={s.quantity * s.platinum} /></td>
             <td class="right">
               {#if removing === keyOf(s)}<span class="acts"><span class="ask register">Delete?</span><IconButton icon="trash" tone="danger" label="Delete it" onclick={() => drop(keyOf(s))} /><IconButton icon="close" tone="quiet" label="Keep" onclick={() => (removing = null)} /></span>

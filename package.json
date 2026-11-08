@@ -15,7 +15,8 @@
     "dev-bundle": "cargo run --release -q --manifest-path crates/myorbiter-data/Cargo.toml --bin myorbiter-dump > public/dev-bundle.tmp.json && mv public/dev-bundle.tmp.json public/dev-bundle.json || { rm -f public/dev-bundle.tmp.json; exit 1; }",
     "dev-data": "node scripts/dev-data.mjs",
     "icons": "node scripts/icons.mjs",
-    "screenshots": "node scripts/screenshots.mjs"
+    "screenshots": "node scripts/screenshots.mjs",
+    "sweep": "node scripts/ui-sweep.mjs"
   },
   "dependencies": {
     "@fontsource/archivo-narrow": "^5.3.0",

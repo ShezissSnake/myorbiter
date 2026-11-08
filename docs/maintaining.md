@@ -127,6 +127,8 @@ Stable build yet its download buttons point at *Releases*; step 5 runs it again.
 - [ ] **It updates itself:** run step 4 once more. The copies installed from the first build offer
       the new one and install it with *Update and restart*, on Linux and on Windows. From here on,
       *n* is that newer build: it's the one that has been seen updating.
+- [ ] `npm run sweep` on that build's commit: no clipped element at any of its window sizes
+      (`scripts/ui-sweep.mjs`).
 - [ ] New pipeline → branch `main`, *task* `promote`, *build* *n*, *channel* **beta**; when it's
       green, the same with **stable**. (Stable alone also moves Beta up.)
 - [ ] `channel/stable/latest.json` and `channel/beta/latest.json` name 0.2.*n*.

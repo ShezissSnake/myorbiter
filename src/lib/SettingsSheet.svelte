@@ -369,20 +369,22 @@
 </Sheet>
 
 <style>
-  section { display: grid; gap: 1rem; padding-bottom: 1.4rem; border-bottom: 1px solid var(--rule); }
+  section { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; padding-bottom: 1.4rem; border-bottom: 1px solid var(--rule); }
   section:last-child { border-bottom: 0; }
-  .sec { display: grid; gap: 1rem; }
+  .sec { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
   h3 { margin: 0; color: var(--gold); }
   .sub { margin: .4rem 0 0; font-size: .88rem; font-weight: 600; color: var(--platinum); }
   .minutes input { width: 5rem; }
   .shows { display: flex; flex-wrap: wrap; gap: .4rem; margin: -.3rem 0 .2rem; }
-  .field { display: grid; gap: .4rem; }
+  .field { display: grid; grid-template-columns: minmax(0, 1fr); gap: .4rem; }
   .path { font-family: var(--face-register); font-size: .74rem; }
   /* What's used when the field is empty: dimmer and slanted, so it doesn't read as typed in. */
   .path::placeholder { text-transform: none; letter-spacing: 0; font-size: .74rem; font-style: italic; color: var(--platinum-deep); opacity: .7; }
   .hint { font-size: .76rem; color: var(--platinum-deep); }
   .path-note { word-break: break-all; margin: .3rem 0 0; }
-  .program { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--platinum-dim); }
+  /* The program's path (under an AppImage, a long /tmp/.mount_… one): sized by the row, never by
+     its own length, so it ends in an ellipsis (the full path is its title) instead of widening the panel. */
+  .program { flex: 1 1 0; width: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--platinum-dim); }
   .hint.err { color: var(--oxblood); }
   .row { display: flex; align-items: center; gap: .6rem; }
   .pagelist { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }

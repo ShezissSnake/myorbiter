@@ -35,7 +35,7 @@
   .scrim { position: fixed; inset: 0; z-index: 40; background: rgb(6 7 9 / 55%); }
   .sheet {
     position: fixed; z-index: 41; top: 0; right: 0; bottom: 0; width: min(36rem, 100vw);
-    display: grid; grid-template-rows: auto 1fr; background: var(--plate);
+    display: grid; grid-template-rows: auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); background: var(--plate);
     border-left: 1px solid var(--rule-bright); box-shadow: -1.5rem 0 4rem rgb(0 0 0 / 45%), inset 2px 0 0 var(--gold-dim);
     outline: none;
   }
@@ -44,5 +44,7 @@
   header .register { color: var(--gold); margin-bottom: .45rem; }
   h2 { font-size: 2.1rem; }
   .close { padding: .5rem; line-height: 0; }
-  .body { overflow: auto; padding: 1.2rem 1.6rem 2rem; display: grid; gap: 1.6rem; align-content: start; }
+  /* One column no wider than the sheet: a long unbreakable line (a path) can't widen every section
+     past the sheet's edge; it wraps, ellipsises or scrolls inside its own box instead. */
+  .body { overflow: auto; padding: 1.2rem 1.6rem 2rem; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.6rem; align-content: start; }
 </style>

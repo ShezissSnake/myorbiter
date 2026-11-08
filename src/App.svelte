@@ -1311,7 +1311,7 @@
     try {
       for (const t of trades) {
         const key = tradeKey(session, t);
-        const sales = salesFromTrade(t, mkt.orders, mkt.index, model);
+        const sales = salesFromTrade(t, mkt.orders, mkt.index, model, settings.game.imprints);
         if (!sales) {
           saleOutcome(key, null);
           continue;
@@ -2052,8 +2052,9 @@
             try {
               seen = await waitForNewRead(() => dataStamp(settings.dataDir), seen, { limit: Math.max(1_000, deadline - Date.now()), abort: () => ts.error, onTick: () => (j.fraction = syncFill(Date.now() - asked)) });
             } catch (e) {
-              // Data did change but no read newer than the ask came: say what's there, not "Synced".
-              if (reloaded && !ts.error) return bundle?.observed_at ? `Read ${fmtTime(new Date(bundle.observed_at * 1000))}` : "No new read";
+              // Data did change but no read newer than the ask came: say so, not "Synced", in words
+              // no wider than the button's others; when the read there is from, the card above says.
+              if (reloaded && !ts.error) return bundle?.observed_at ? "Old read" : "No read";
               throw e;
             }
             j.phase = "Reading…";
@@ -2596,7 +2597,8 @@
   <aside class="rail" aria-label="MyOrbiter">
     <div class="brand">
       <img class="brand-mark" src={appMark} width="26" height="26" alt="" />
-      <span class="brand-name">MyOrbiter</span>
+      <!-- The running build under the name: the version the updater compares, small and muted. -->
+      <span class="brand-text"><span class="brand-name">MyOrbiter</span>{#if updates.info}<small class="brand-ver" title="This build of MyOrbiter">{updates.info.version}</small>{/if}</span>
       <button class="fold" aria-label={compact ? "Show labels" : "Icons only"} title={compact ? "Show the page names" : "Icons only"} onclick={() => (settings.folded = !compact)}>
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d={compact ? "M6 3l5 5-5 5" : "M10 3 5 8l5 5"} fill="none" stroke="currentColor" stroke-width="1.5" /></svg>
       </button>
@@ -2656,7 +2658,7 @@
     {#if loading && !bundle}<div class="progress" role="progressbar" aria-label="Reading TennoScope's data"></div>{/if}
     {#if !model && error && nothingYet(error)}
       <!-- First start: nothing read yet. What TennoScope needs, step by step. -->
-      <div class="page-inner"><div class="notice">
+      <div class="page"><div class="page-inner"><div class="notice">
         <h2 class="mark">Getting set up</h2>
         {#if noTennoScope}
           <p class="prose">MyOrbiter learns what you own from TennoScope, which reads it from the game. {onConsole ? `TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}` : "TennoScope doesn't run on macOS"}, so MyOrbiter can't see your inventory here. Your warframe.market listings and sales, fissures, Baro and Varzia, the world's clocks and the riven finder all work without it.</p>
@@ -2697,9 +2699,9 @@
             <button onclick={() => (showSettings = true)}>Settings</button>
           </div>
         {/if}
-      </div></div>
+      </div></div></div>
     {:else if !model && built.error}
-      <div class="page-inner"><div class="notice" role="alert">
+      <div class="page"><div class="page-inner"><div class="notice" role="alert">
         <h2 class="mark">Can't make sense of TennoScope's data</h2>
         <p class="prose">TennoScope's last read has something MyOrbiter can't use. It may have been writing it just then: try again, or sync once Warframe is running. The log has the details.</p>
         <details class="why"><summary>Details</summary><code>{built.error}</code></details>
@@ -2707,9 +2709,9 @@
           <button class="stamp" onclick={() => (showTennoscope = true)}>TennoScope panel</button>
           <button onclick={retry} disabled={loading} title="Read TennoScope's data again">{loading ? "Trying…" : "Try again"}</button>
         </div>
-      </div></div>
+      </div></div></div>
     {:else if !model && error}
-      <div class="page-inner"><div class="notice">
+      <div class="page"><div class="page-inner"><div class="notice">
         <h2 class="mark">Can't read TennoScope's data</h2>
         <p class="prose">{loadProblem(error)}</p>
         <p class="prose">TennoScope needs to have read your inventory at least once. MyOrbiter starts it in the background; start Warframe and it reads your account when the game is up, and MyOrbiter picks the data up by itself as soon as TennoScope writes it. If it doesn't, the TennoScope panel says why. If its data lives somewhere else, set the folder in Settings.</p>
@@ -2719,9 +2721,9 @@
           <button onclick={() => (showSettings = true)}>Settings</button>
           <button onclick={retry} disabled={loading}>{loading ? "Trying…" : "Try again"}</button>
         </div>
-      </div></div>
+      </div></div></div>
     {:else if !model}
-      <div class="page-inner"><div class="notice"><span class="register">Reading your collection…</span></div></div>
+      <div class="page"><div class="page-inner"><div class="notice"><span class="register">Reading your collection…</span></div></div></div>
     {:else}
       {#if noInventory && !onConsole}
         <div class="stale" role="status">
@@ -2892,7 +2894,10 @@
   }
   .brand { display: flex; align-items: center; gap: .6rem; padding: .95rem 1rem .8rem 1.1rem; border-bottom: 1px solid var(--rule); }
   .brand-mark { display: block; flex: none; }
-  .brand-name { font-family: var(--face-mark); font-weight: 700; font-size: 1.3rem; letter-spacing: .03em; text-transform: uppercase; }
+  .brand-text { display: grid; min-width: 0; }
+  .brand-name { font-family: var(--face-mark); font-weight: 700; font-size: 1.3rem; letter-spacing: .03em; text-transform: uppercase; line-height: 1.1; }
+  /* One line, never wider than the space the name leaves: a long version ends in an ellipsis. */
+  .brand-ver { font-family: var(--face-register); font-size: .6rem; letter-spacing: .08em; line-height: 1.3; color: var(--platinum-deep); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .fold { margin-left: auto; padding: .35rem; line-height: 0; border-color: transparent; background: transparent; color: var(--platinum-deep); }
   .fold:hover { color: var(--platinum); }
   /* The page list scrolls on a short window; Sync, TennoScope and Settings stay pinned below it. */
@@ -2918,7 +2923,9 @@
   .nav .live { margin-left: auto; width: .5rem; height: .5rem; background: var(--gold); transform: rotate(45deg); flex: none; box-shadow: 0 0 6px rgb(214 174 74 / 60%); }
   .nav .live.dim { background: var(--gold-dim); box-shadow: none; }
 
-  .foot { flex: none; display: grid; gap: .5rem; padding: .75rem .8rem .8rem; border-top: 1px solid var(--rule); }
+  /* One column, never wider than the rail: a wide label (a sync's note) can't push the rows past the
+     rail's edge, where the search, the bell, the Guide and Settings would be cut off. */
+  .foot { flex: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: .5rem; padding: .75rem .8rem .8rem; border-top: 1px solid var(--rule); }
   .game { display: flex; align-items: center; gap: .65rem; min-width: 0; padding: 0 .2rem; }
   .game .lbl { display: grid; min-width: 0; }
   .game strong { font-family: var(--face-register); font-size: .6rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
@@ -2928,7 +2935,11 @@
   .pill.live + .lbl strong { color: var(--gold); }
   .pill.idle i { clip-path: none; background: var(--platinum-deep); }
   .syncrow { display: flex; gap: .4rem; }
-  .syncrow :global(.sync) { display: flex; justify-content: center; align-items: center; gap: .5rem; flex: 1; min-width: 0; }
+  /* Sync and TennoScope take what the row leaves (basis and width 0: their labels don't size the row).
+     A label longer than the button starts at its left edge and is clipped on the right, not centred
+     out past both edges. Tight padding and tracking: the same label is up to a tenth wider in one
+     engine than another, and "Up to date" has to fit in all of them. */
+  .syncrow :global(.sync) { display: flex; justify-content: center; justify-content: safe center; align-items: center; gap: .4rem; flex: 1 1 0; width: 0; min-width: 0; padding-left: .45rem; padding-right: .45rem; letter-spacing: .1em; }
   /* Every button down here is one height, folded or not. */
   .syncrow :global(.sync), .tool { height: 36px; padding-top: 0; padding-bottom: 0; }
   /* Why the last sync failed, under the button (it goes with the button's failed look). */
@@ -2938,7 +2949,7 @@
   .tool { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; padding-left: .6rem; padding-right: .6rem; }
   /* The page that's open (Guide): marked the way the sidebar marks its page, a gold edge, not a white block. */
   .tool.on { color: var(--platinum); background: rgb(214 174 74 / 12%); box-shadow: inset 2px 0 0 var(--gold); }
-  .tsbtn { flex: 1; min-width: 0; justify-content: flex-start; }
+  .tsbtn { flex: 1 1 0; width: 0; min-width: 0; justify-content: flex-start; }
   .bell { position: relative; }
   .bell .count { position: absolute; top: -.45rem; right: -.45rem; min-width: 1.1rem; padding: .05rem .25rem; font-family: var(--face-register); font-size: .55rem; font-weight: 700; line-height: 1.3; text-align: center; color: var(--slab); background: var(--gold); clip-path: var(--cut); animation: pop .25s ease-out; }
   .bell.paused :global(svg) { opacity: .45; }
@@ -2957,7 +2968,7 @@
   /* ---- icons only: folded by hand, or a narrow window */
   .compact .brand { justify-content: center; padding-left: .5rem; padding-right: .5rem; flex-direction: column; gap: .4rem; }
   .compact .fold { margin-left: 0; }
-  .compact .brand-name, .compact .lbl { display: none; }
+  .compact .brand-text, .compact .lbl { display: none; }
   /* Folded, a section keeps a short rule in its colour between the groups (its name on hover). */
   .compact .sec { justify-content: center; padding: .6rem 0 .35rem; font-size: 0; letter-spacing: 0; gap: 0; }
   .compact .sec::after { flex: none; width: 1.5rem; height: 2px; background: var(--sec); }
@@ -2967,11 +2978,11 @@
   .compact .badge { min-width: 1.05rem; font-size: .52rem; padding: 0 .2rem; }
   .compact .game { justify-content: center; }
   /* Folded: under the game light, Sync across, then the bell, TennoScope, Guide and Settings two by two. */
-  .compact .foot { grid-template-columns: 1fr 1fr; gap: .35rem; padding: .6rem .5rem .7rem; }
+  .compact .foot { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem; padding: .6rem .5rem .7rem; }
   .compact .game, .compact :global(.sync) { grid-column: 1 / -1; }
   .compact :global(.sync .lbls) { display: none; }
   .compact .tools, .compact .syncrow { display: contents; }
-  .compact :global(.sync), .compact .tool { padding-left: 0; padding-right: 0; min-width: 0; }
+  .compact :global(.sync), .compact .tool { padding-left: 0; padding-right: 0; width: auto; min-width: 0; }
   .compact .tsbtn { justify-content: center; }
   /* A short window: tighter rows, so every page and the tools fit (all 16 folded at 700 px high). */
   @media (max-height: 900px) {

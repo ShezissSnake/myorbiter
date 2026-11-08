@@ -110,3 +110,42 @@ test("only a sure listing is marked sold: unranked arcanes, refinements, unknown
   const mixed = salesFromTrade(trade({ offered: [{ name: "Gauss Prime Neuroptics Blueprint", rank: null, count: 1 }, { name: "Forma Blueprint", rank: null, count: 3 }], platinum_received: 60 }), [order("g", "gp", 1, 45)], idx)!;
   assert.equal(mixed[0].order?.id, "g");
 });
+
+// Imprints: the trade log names one after the pet it was taken from; warframe.market lists it by breed.
+const HURAS = "/Lotus/Types/Game/KubrowPet/MediumKubrowPetPowerSuit";
+const SUNIKA_BREED = "/Lotus/Types/Game/KubrowPet/HunterKubrowPetPowerSuit";
+const imprintItems: MarketItem[] = [
+  ...items,
+  { id: "hi", slug: "huras_kubrow_imprint", gameRef: HURAS, name: "Huras Kubrow Imprint", maxRank: null, subtypes: null, tags: ["imprint"] },
+  { id: "si", slug: "sunika_kubrow_imprint", gameRef: SUNIKA_BREED, name: "Sunika Kubrow Imprint", maxRank: null, subtypes: null, tags: ["imprint"] },
+];
+const row = (name: string, breed: string) => ({ ItemType: "/Lotus/Types/Game/KubrowPet/ImprintedTraitPrint", Name: name, DominantTraits: { Personality: breed } });
+
+test("an imprint sold under its pet's name is the market's imprint of that pet's breed", async () => {
+  const { imprintSaleName } = await import("../src/lib/core/imprints");
+  const { imprintNaming } = await import("../src/lib/core/trades");
+  const idx = indexItems(imprintItems);
+  const n = imprintNaming(idx, [row("Biscuit", HURAS), row("Pepper", SUNIKA_BREED)]);
+  assert.equal(imprintSaleName("Imprint of Biscuit", n), "Huras Kubrow Imprint", "pet name, then its breed");
+  assert.equal(imprintSaleName("IMPRINT OF pepper", n), "Sunika Kubrow Imprint", "in any case");
+  assert.equal(imprintSaleName("Imprint of Huras Kubrow", imprintNaming(idx, [])), "Huras Kubrow Imprint", "no row: the breed in the text");
+  assert.equal(imprintSaleName("Imprint of Rex", n), null, "neither: no guess");
+  assert.equal(imprintSaleName("Imprint of Huras Kubrow and Sunika Kubrow", n), null, "two breeds named: no guess");
+  assert.equal(imprintSaleName("Imprint of Biscuit", imprintNaming(idx, [row("Biscuit", HURAS), row("Biscuit", SUNIKA_BREED)])), null, "two pets of that name, of different breeds: no guess");
+  assert.equal(imprintSaleName("Condition Overload", n), null, "only imprints");
+
+  const orders = [order("h", "hi", 1, 40)];
+  const [s] = salesFromTrade(trade({ offered: [{ name: "Imprint of Biscuit", rank: null, count: 1 }], platinum_received: 40 }), orders, idx, null, [row("Biscuit", HURAS)])!;
+  assert.equal(s.name, "Huras Kubrow Imprint");
+  assert.equal(s.order?.id, "h", "matched to the imprint listing");
+  const [u] = salesFromTrade(trade({ offered: [{ name: "Imprint of Rex", rank: null, count: 1 }], platinum_received: 40 }), orders, idx, null, [row("Biscuit", HURAS)])!;
+  assert.equal(u.name, "Imprint of Rex", "unresolved: kept as logged");
+  assert.equal(u.order, null);
+});
+
+test("an imprint told only by a breed in its pet's name is named, not matched to a listing", () => {
+  const idx = indexItems(imprintItems);
+  const [s] = salesFromTrade(trade({ offered: [{ name: "Imprint of Huras Kubrow", rank: null, count: 1 }], platinum_received: 40 }), [order("h", "hi", 1, 40)], idx, null, [])!;
+  assert.equal(s.name, "Huras Kubrow Imprint", "named and priced by the breed");
+  assert.equal(s.order, null, "but no listing closed on a name the player chose");
+});

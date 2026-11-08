@@ -41,3 +41,56 @@ export function imprintCounts(raws: ImprintRaw[], isBreed: (path: string) => boo
   }
   return out;
 }
+
+/**
+ * What it takes to name a traded imprint the way warframe.market lists it: the imprints of the
+ * last inventory read (each row names the pet it was taken from) and the market's imprint items.
+ */
+export interface ImprintNaming {
+  /** The inventory's imprint rows (`KubrowPetPrints`), null before TennoScope has passed any. */
+  rows: ImprintRaw[] | null;
+  /** The market's imprint item for a companion path ("Huras Kubrow Imprint"), or null. */
+  itemFor: (breed: string) => string | null;
+  /** The name of every imprint the market lists. */
+  names: string[];
+}
+
+/** How the game's trade log names an imprint: after the pet it was taken from ("Imprint of Biscuit"). */
+const IMPRINT_OF = /^\s*imprint of\s+(.+?)\s*$/i;
+
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * The market item a traded imprint is ("Huras Kubrow Imprint"), from the log's "Imprint of <pet>",
+ * and how it was told: "inventory" when the pet's name is an imprint in the last read, which says
+ * its breed; "name" when (the imprint gone from the read, or two of that name of different breeds)
+ * a breed is named in the text itself. A pet's name is the player's choice, so "name" is good for
+ * naming the sale and comparing its price, not for closing a listing. Null when neither settles it
+ * on exactly one item: no guess, so no price.
+ */
+export function imprintSale(text: string, n: ImprintNaming): { item: string; by: "inventory" | "name" } | null {
+  const hit = IMPRINT_OF.exec(text);
+  if (!hit) return null;
+  const pet = hit[1];
+  const items = new Set<string>();
+  for (const raw of n.rows ?? []) {
+    if (!raw || typeof raw !== "object" || typeof raw.Name !== "string") continue;
+    if (raw.Name.trim().toLowerCase() !== pet.toLowerCase()) continue;
+    const breed = imprintBreed(raw, (p) => n.itemFor(p) != null);
+    const item = breed ? n.itemFor(breed) : null;
+    if (item) items.add(item);
+  }
+  if (items.size === 1) return { item: [...items][0], by: "inventory" };
+  // A breed in the text ("Imprint of Huras Kubrow"): the longest one named, when the others named
+  // are part of it ("Kubrow" in "Huras Kubrow"); two different breeds settle nothing.
+  const named = n.names
+    .map((name) => ({ name, breed: name.replace(/\s+Imprint$/i, "") }))
+    .filter(({ breed }) => breed && new RegExp(`(^|\\W)${escape(breed)}(\\W|$)`, "i").test(pet))
+    .sort((a, b) => b.breed.length - a.breed.length);
+  if (!named.length) return null;
+  const longest = named[0];
+  return named.every((x) => longest.breed.toLowerCase().includes(x.breed.toLowerCase())) ? { item: longest.name, by: "name" } : null;
+}
+
+/** `imprintSale`'s item alone: the name to show and price a sale by. */
+export const imprintSaleName = (text: string, n: ImprintNaming): string | null => imprintSale(text, n)?.item ?? null;
