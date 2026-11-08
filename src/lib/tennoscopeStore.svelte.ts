@@ -2,7 +2,7 @@
 // the few things MyOrbiter can ask of it (sync the inventory, set your warframe.market status,
 // allow screen capture, open its window).
 
-import { tennoscope, type TennoscopeAsk, type TennoscopeStatus } from "./backend";
+import { tennoscope, type TennoscopeAccess, type TennoscopeAsk, type TennoscopeStatus } from "./backend";
 import { failureWords } from "./core/upkeep";
 
 class TennoscopeStore {
@@ -12,6 +12,19 @@ class TennoscopeStore {
   pending = $state<TennoscopeAsk | null>(null);
   /** Start it whenever it isn't running. */
   launch = true;
+  /**
+   * The first start's question is open (FirstRun.svelte): TennoScope isn't started and isn't asked
+   * anything until it's answered.
+   */
+  asking = $state(false);
+  /**
+   * The first start's answer, until TennoScope reports that mode: once it runs and reports another
+   * mode, it's asked to switch (`--access=…`, as the Full mode switch asks). So a start that failed,
+   * or a TennoScope found only later, still gets it. Not on TennoScope's command line: there it would
+   * race TennoScope's own start in the mode its folder holds.
+   */
+  wanted: TennoscopeAccess | null = null;
+  private follows = 0;
   /** TennoScope's data folder (Settings), where its log says why it wouldn't start; empty finds it. */
   dataDir = "";
   private busy = false;
@@ -56,7 +69,7 @@ class TennoscopeStore {
       const wasRunning = !!this.status?.running;
       // Not where TennoScope can't run (macOS); and a start that fails waits longer each time,
       // like one that crashes, rather than trying (and notifying) every 15 seconds.
-      const relaunch = start && (force || this.launch) && this.status?.supported !== false && !wasRunning && now >= this.nextLaunch;
+      const relaunch = start && !this.asking && (force || this.launch) && this.status?.supported !== false && !wasRunning && now >= this.nextLaunch;
       if (relaunch) {
         this.relaunches++;
         this.nextLaunch = now + Math.min(15_000 * 2 ** (this.relaunches - 1), 600_000);
@@ -64,6 +77,9 @@ class TennoscopeStore {
       // Only a relaunch starts it: a check while it seemed to run only looks, so one that stops as
       // soon as it starts waits out the longer gaps above instead of being started every 15 s.
       this.status = relaunch ? await tennoscope.start() : await tennoscope.status();
+      this.follow();
+      // Just started with an answer to pass on: look again soon, rather than at the next poll.
+      if (relaunch && this.wanted) for (const ms of [1500, 4000, 8000]) setTimeout(() => this.check(), ms);
       if (this.status?.running) {
         this.upSince ||= now;
         if (now - this.upSince > 120_000) this.relaunches = 0;
@@ -82,7 +98,42 @@ class TennoscopeStore {
     }
   }
 
+  /** The first start's answer: kept until TennoScope reports that mode (see `wanted`). */
+  answer(access: TennoscopeAccess) {
+    this.wanted = access;
+    this.asking = false;
+  }
+  /**
+   * Done once TennoScope reports the mode asked for; a running one in another mode is asked to
+   * switch, three times at most (then Settings, TennoScope is where to choose it).
+   */
+  private follow() {
+    const want = this.wanted;
+    const mode = this.report?.setup.access_mode;
+    if (!want || !this.report) return;
+    if (mode === want.slice("--access=".length)) {
+      this.wanted = null;
+      this.follows = 0;
+    } else if (this.pending !== want) {
+      if (++this.follows > 3) {
+        this.wanted = null;
+        this.follows = 0;
+        this.error = `TennoScope didn't switch to ${want === "--access=full" ? "Full" : "Overlay"} mode: choose it in Settings, TennoScope`;
+        return;
+      }
+      void this.ask(want);
+    }
+  }
+
   async ask(ask: TennoscopeAsk) {
+    // Nothing goes to TennoScope while the first start's question is open (a sync from the riven key).
+    if (this.asking) return;
+    // A mode chosen since (the setup step's "Not now", the Full mode switch) replaces the first
+    // start's answer: it's never asked for again over the newer choice.
+    if (this.wanted && ask.startsWith("--access=") && ask !== this.wanted) {
+      this.wanted = null;
+      this.follows = 0;
+    }
     try {
       this.pending = ask;
       await tennoscope.ask(ask);

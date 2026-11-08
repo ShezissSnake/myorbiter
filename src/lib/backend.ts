@@ -181,6 +181,13 @@ export interface Settings {
   eeLog: string;
   /** Carry on without an inventory until TennoScope has read one (always so on macOS). */
   withoutInventory: boolean;
+  /**
+   * The first start's question was answered: whether TennoScope may read the game's memory (Full
+   * mode) or only the reward screen. Asked once, before TennoScope first starts (FirstRun.svelte);
+   * the answer is changed in Settings, TennoScope. An install from before the question counts as
+   * asked: it chose on the setup steps.
+   */
+  fullModeAsked: boolean;
   /** Home's cards you turned off (Home → Customise): "market", "baro"… */
   homeHidden: string[];
   /** Which fissures Home lists: normal, Steel Path or Void Storms. */
@@ -440,6 +447,7 @@ export const defaultSettings = (): Settings => ({
   dataDir: "",
   eeLog: "",
   withoutInventory: false,
+  fullModeAsked: false,
   homeHidden: [],
   homeFissures: "normal",
   homeFissuresOnly: false,
@@ -854,6 +862,8 @@ export async function loadSettings(): Promise<Settings> {
     ...(raw ?? {}),
     folded: typeof raw?.folded === "boolean" ? raw.folded : null,
     withoutInventory: raw?.withoutInventory === true,
+    // A first start (no settings yet) asks; settings from before the question don't.
+    fullModeAsked: raw ? raw.fullModeAsked !== false : false,
     homeDismissed: Array.isArray(raw?.homeDismissed) ? raw.homeDismissed.filter((k: unknown): k is string => typeof k === "string") : [],
     side: { on: raw?.side?.on !== false, cards: Array.isArray(raw?.side?.cards) ? raw.side.cards.filter((k: unknown): k is string => typeof k === "string") : base.side.cards },
     homeFissures: raw?.homeFissures === "steel" || raw?.homeFissures === "storm" ? raw.homeFissures : "normal",
@@ -1027,6 +1037,8 @@ let saveListener: ((error: string | null) => void) | null = null;
 export function onSaveTrouble(f: (error: string | null) => void) {
   saveListener = f;
 }
+/** Whether the saved settings couldn't be read at start (then nothing is saved, so nothing is asked). */
+export const settingsUnreadable = () => loadFailed != null;
 
 /** Opens a link in your browser: only https links to the sites in core/links.ts, anything else is refused. */
 export async function openUrl(url: string) {
@@ -1107,7 +1119,9 @@ export interface TennoscopeReport {
 }
 
 /** `--access=…`: the Full mode switch (FullMode.svelte), Full or back to Overlay. */
-export type TennoscopeAsk = "--sync" | "--authorize-capture" | "--access=full" | "--access=overlay";
+export type TennoscopeAsk = "--sync" | "--authorize-capture" | TennoscopeAccess;
+/** Full mode, or back to Overlay (never Companion): the switch, and the first start's answer. */
+export type TennoscopeAccess = "--access=full" | "--access=overlay";
 
 /** Your warframe.market status as MyOrbiter holds it on its own connection (see presence.rs). */
 export interface PresenceState {
