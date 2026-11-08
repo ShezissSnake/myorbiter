@@ -140,4 +140,4 @@ both would act on the same warframe.market account.
   unticked, then install MyOrbiter.
 
 orbiter's settings and data (the `dev.orbiter.app` folders) are kept: on its first start MyOrbiter
-copies them to its own folders ([what-it-reads.md](what-it-reads.md)).
+copies them to its own folders ([privacy.md](privacy.md)).

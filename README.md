@@ -20,7 +20,8 @@ The screenshot shows an invented account (`demo/`), not a real one.
 With Full mode on (it's off unless you turn it on), TennoScope reads the game's memory to fetch
 your inventory. That may violate Warframe's EULA, which forbids unauthorised third-party programs:
 you choose whether to turn it on, at your own risk. It only reads, and only sends your login session
-to Digital Extremes.
+to Digital Extremes. [What MyOrbiter reads and sends](docs/privacy.md) lists everything it reads,
+every host it talks to, and every file it keeps; there's no telemetry.
 
 **It acts on your warframe.market account.** Once you sign in, what you press and the automatic
 features you turn on (repricing, marking sales sold, +rep, hiding your last copies, holding your
@@ -77,5 +78,5 @@ nothing by itself. Security problems go through [SECURITY.md](SECURITY.md).
 
 - [The Guide](https://sheziss-group.gitlab.io/myorbiter/guide/) (also in the app: F1) and
   [What's New](https://sheziss-group.gitlab.io/myorbiter/whats-new.html)
-- [docs/](docs/): what MyOrbiter does, what it reads and sends, running it from source, releases
+- [docs/](docs/): what MyOrbiter does, [what it reads and sends](docs/privacy.md), running it from source, releases
 - [The website](https://sheziss-group.gitlab.io/myorbiter/)
