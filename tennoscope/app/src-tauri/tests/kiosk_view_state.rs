@@ -205,3 +205,33 @@ fn a_withheld_visit_refuses_publications_until_released() {
         "a new visit starts unwithheld"
     );
 }
+
+/// A visit resumed after a sale-confirm rebuild has a new poller; the stopped one may still be
+/// between its last stop check and its publish. Its publications and scroll events are refused
+/// even though the visit is current and no longer withheld.
+#[test]
+fn a_stopped_poller_cannot_publish_into_its_resumed_visit() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let state = KioskState::new();
+    let visit = state.begin_session();
+    let old_poller = AtomicBool::new(false);
+    let new_poller = AtomicBool::new(false);
+    let view = |epoch| KioskView {
+        epoch,
+        ..KioskView::default()
+    };
+    assert!(state.set_if_running(visit, &old_poller, view(1), || ()));
+
+    // Close line: the old poller is stopped, the chips withheld; the reopen releases the visit.
+    old_poller.store(true, Ordering::Release);
+    assert!(state.withhold(visit));
+    state.release(visit);
+
+    assert!(!state.set_if_running(visit, &old_poller, view(2), || ()));
+    assert!(!state.run_if_running(visit, &old_poller, || ()));
+    assert!(state.get().is_none(), "nothing of the old grid came back");
+    assert!(state.set_if_running(visit, &new_poller, view(3), || ()));
+    assert!(state.run_if_running(visit, &new_poller, || ()));
+    assert_eq!(state.get().map(|view| view.epoch), Some(3));
+}

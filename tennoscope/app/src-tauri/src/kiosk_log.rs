@@ -97,13 +97,31 @@ impl KioskLogMachine {
             .collect()
     }
 
-    /// The state a stretch of log ends in, folded without reporting the transitions. Used once
-    /// at attach: the app can start with the kiosk already on screen, and the open marker for
-    /// that session scrolled past before anything was watching.
-    pub fn state_after(bytes: &[u8]) -> bool {
+    /// The machine a stretch of log ends in, folded without reporting the transitions. Used once
+    /// at attach: the app can start with the kiosk already on screen (the open marker for that
+    /// session scrolled past before anything was watching), or on another inventory mode.
+    pub fn folded(bytes: &[u8]) -> Self {
         let mut machine = Self::default();
         machine.observe_bytes(bytes);
-        machine.open
+        machine
+    }
+
+    pub const fn is_open(&self) -> bool {
+        self.open
+    }
+
+    /// Take over the inventory mode another machine (a folded tail) ended in.
+    pub fn adopt_mode(&mut self, from: &Self) {
+        self.other_mode = from.other_mode;
+    }
+
+    /// A fresh machine for after a teardown, still knowing which inventory mode is up: a session
+    /// that timed out under another mode must not be reopened by that mode's own SWF line.
+    pub fn after_close(&self) -> Self {
+        Self {
+            other_mode: self.other_mode,
+            ..Self::default()
+        }
     }
 
     /// Adopt a session discovered some other way than its own open marker, so the exit line
@@ -354,6 +372,29 @@ mod tests {
             m.observe_line(POPULATE_LINE).is_empty(),
             "the other mode's grid is not the kiosk's"
         );
+    }
+
+    #[test]
+    fn a_folded_tail_knows_the_mode_it_ends_in() {
+        let tail = [MODE_LINE, "\n", OTHER_MODE_LINE, "\n"].concat();
+        let folded = KioskLogMachine::folded(tail.as_bytes());
+        assert!(!folded.is_open());
+        let mut m = KioskLogMachine::default();
+        m.adopt_mode(&folded);
+        assert!(m.observe_line(SWF_LINE).is_empty());
+    }
+
+    #[test]
+    fn a_teardown_under_another_mode_is_not_reopened_by_its_swf_line() {
+        let mut m = KioskLogMachine::default();
+        m.observe_line(MODE_LINE);
+        m.observe_line(OTHER_MODE_LINE);
+        let mut m = m.after_close();
+        assert!(
+            m.observe_line(SWF_LINE).is_empty(),
+            "still the other mode after the grace ran out"
+        );
+        assert_eq!(m.observe_line(MODE_LINE), vec![KioskLogEvent::KioskOpened]);
     }
 
     #[test]

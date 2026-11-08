@@ -5,6 +5,8 @@
 //! the app already holds: reading the game's own ducat or platinum numerals is a spec non-goal,
 //! so they never enter this pipeline. The owned count a player sees is the game's.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use serde::Serialize;
 use warframe_domain::KioskMastery;
 
@@ -165,6 +167,45 @@ impl KioskState {
         view.session = session;
         slot.view = Some(view);
         announce();
+        true
+    }
+
+    /// [`Self::set_if_current`] for one poller: refused as well once that poller's stop flag is
+    /// up. A visit can outlive its poller (a sale-confirm rebuild resumes the visit with a fresh
+    /// one), and a poller stopped between its own stop check and its publish must not paint the
+    /// old grid's chips into the resumed visit. The flag is read under the lifecycle lock; the
+    /// monitor raises it before it withholds or resumes, so a publish that sees it down finishes
+    /// before the withhold clears it.
+    pub fn set_if_running(
+        &self,
+        session: u64,
+        stopped: &AtomicBool,
+        mut view: KioskView,
+        announce: impl FnOnce(),
+    ) -> bool {
+        let Ok(mut slot) = self.0.lock() else {
+            return false;
+        };
+        if slot.active_session != Some(session) || slot.withheld || stopped.load(Ordering::Acquire)
+        {
+            return false;
+        }
+        view.session = session;
+        slot.view = Some(view);
+        announce();
+        true
+    }
+
+    /// [`Self::run_if_current`] for one poller, refused once its stop flag is up.
+    pub fn run_if_running(&self, session: u64, stopped: &AtomicBool, action: impl FnOnce()) -> bool {
+        let Ok(slot) = self.0.lock() else {
+            return false;
+        };
+        if slot.active_session != Some(session) || slot.withheld || stopped.load(Ordering::Acquire)
+        {
+            return false;
+        }
+        action();
         true
     }
 

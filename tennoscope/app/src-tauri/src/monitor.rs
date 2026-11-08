@@ -641,7 +641,14 @@ impl KioskSession {
         show: &dyn Fn(),
         spawn_poller: &SpawnKioskPoller<'_>,
     ) {
-        if self.poller_active || !kiosk_log::KioskLogMachine::state_after(bytes) {
+        if self.poller_active {
+            return;
+        }
+        // Attaching while the inventory shows another mode: that mode's SWF line must not open
+        // the kiosk later, so the mode the tail ends in is kept even when nothing is adopted.
+        let folded = kiosk_log::KioskLogMachine::folded(bytes);
+        self.machine.adopt_mode(&folded);
+        if !folded.is_open() {
             return;
         }
         // The machine has to know it is open, or the exit line for a session joined late
@@ -711,6 +718,8 @@ impl KioskSession {
     pub fn close(&mut self, kiosk_view: &KioskState, hide: &dyn Fn(), retire_frontend: &dyn Fn()) {
         let had_session = self.active_session.is_some();
         self.close_overlay(kiosk_view, hide);
+        // A new process writes a new log: nothing of the old one's inventory mode carries over.
+        self.machine = kiosk_log::KioskLogMachine::default();
         if had_session {
             retire_frontend();
         }
@@ -729,7 +738,7 @@ impl KioskSession {
         self.close_pending = false;
         self.close_deadline = None;
         self.stop_poller();
-        self.machine = kiosk_log::KioskLogMachine::default();
+        self.machine = self.machine.after_close();
         self.active_session = None;
         kiosk_view.clear();
         if std::mem::take(&mut self.overlay_up) {
@@ -1290,13 +1299,14 @@ pub(crate) fn run(
             let app = app.clone();
             let first_publish = Arc::new(std::sync::atomic::AtomicBool::new(true));
             let chips = Arc::clone(&chips);
+            let stopped = Arc::clone(gone);
             move |view: KioskView| {
                 let Some(kiosk) = app.try_state::<KioskState>() else {
                     return;
                 };
                 // The next capture must not see what this view paints: hand the source the
                 // published view so it masks the chips (only on the session that owns them).
-                if kiosk.set_if_current(session, view.clone(), || {
+                if kiosk.set_if_running(session, &stopped, view.clone(), || {
                     if first_publish.swap(false, Ordering::AcqRel) {
                         // On native Wayland the open log marker arrives before capture has located
                         // the game monitor. The first show is deliberately deferred; retry now that
@@ -1312,13 +1322,14 @@ pub(crate) fn run(
         let emit_scroll = {
             let app = app.clone();
             let chips = Arc::clone(&chips);
+            let stopped = Arc::clone(gone);
             move |verdict: Option<i32>| {
                 track_scroll_delta(&chips, verdict);
                 // Gate every side effect at the same session mutex as publication, then carry the
                 // identity across IPC so an event already queued for the webview cannot cross a
                 // close/reopen boundary.
                 if let Some(kiosk) = app.try_state::<KioskState>() {
-                    let _ = kiosk.run_if_current(session, || {
+                    let _ = kiosk.run_if_running(session, &stopped, || {
                         let _ = app.emit_to(
                             "kiosk-overlay",
                             "kiosk-scroll",
@@ -1744,6 +1755,7 @@ impl ScreenKioskSource {
     /// Capture, keep the frame for this settle's reads, and hand back its strip profile.
     fn capture_frame(&mut self) -> Result<Vec<f32>, &'static str> {
         self.recent = None;
+        self.reader.new_capture();
         let mut candidates = self.capture.capture_candidates()?;
         for candidate in &mut candidates {
             self.mask_chips(&mut candidate.image);

@@ -99,7 +99,7 @@ impl CropKey {
         }
     }
 
-    fn matches(&self, other: &Self) -> bool {
+    fn matches(&self, other: &Self, allowed: u32) -> bool {
         if self.width != other.width || self.height != other.height {
             return false;
         }
@@ -107,7 +107,7 @@ impl CropKey {
         for (left, right) in self.grey.iter().zip(&other.grey) {
             if left.abs_diff(*right) > PIXEL_CHANGE {
                 changed += 1;
-                if changed > CHANGED_PIXELS_ALLOWED {
+                if changed > allowed {
                     return false;
                 }
             }
@@ -119,12 +119,15 @@ impl CropKey {
 /// What earlier crops read as, newest last, bounded by [`MEMORY_CAPACITY`].
 struct CropMemory<T> {
     entries: VecDeque<(CropKey, T)>,
+    /// Pixels allowed to differ (past [`PIXEL_CHANGE`]) for two crops to count as the same.
+    allowed: u32,
 }
 
 impl<T: Clone> CropMemory<T> {
-    fn new() -> Self {
+    fn new(allowed: u32) -> Self {
         Self {
             entries: VecDeque::new(),
+            allowed,
         }
     }
 
@@ -133,7 +136,7 @@ impl<T: Clone> CropMemory<T> {
         self.entries
             .iter()
             .rev()
-            .find(|(known, _)| known.matches(key))
+            .find(|(known, _)| known.matches(key, self.allowed))
             .map(|(_, value)| value.clone())
     }
 
@@ -147,15 +150,48 @@ impl<T: Clone> CropMemory<T> {
 
 /// A crop the reader has not seen yet: its slot or row, its rectangle, and the key it will be
 /// remembered under.
-type FreshCrop = (usize, (u32, u32, u32, u32), CropKey);
+type FreshCrop<At = usize> = (At, (u32, u32, u32, u32), CropKey);
 
 /// The kiosk's reader for one visit: it remembers what each crop read as, so the poller's
 /// repeated looks at a screen that has not changed cost a few crops' worth of arithmetic instead
 /// of a Tesseract process per label. A visit gets a fresh reader, and the memory goes with it.
 pub struct KioskReader {
-    labels: CropMemory<Option<SlotRead>>,
-    quantities: CropMemory<Option<u32>>,
+    /// What each label crop read as, how many fresh reads have agreed it reads as nothing, and
+    /// the capture the last of them was made on.
+    labels: CropMemory<(Option<SlotRead>, u8, u64)>,
+    /// For each quantity crop, how many fresh reads in a row found no count; see
+    /// [`quantity_misses`]. Only "no count" is ever answered from it, after [`QUANTITY_ATTEMPTS`].
+    quantities: CropMemory<u8>,
+    /// Every quantity read of the current capture, counts above x1 included: the probes of one
+    /// settle read the same frame, and one fresh read per capture is all a count needs.
+    frame_quantities: CropMemory<Option<u32>>,
+    /// Which capture the reader is looking at; see [`Self::new_capture`].
+    capture: u64,
     ocr_runs: u64,
+}
+
+/// Fresh reads a label crop gets before "reads as nothing" is remembered. A borderline crop (a
+/// score just under the floor, a hover card's edge on the first capture) gets a second chance on
+/// the next look instead of staying blank for as long as the page is still; empty basket rows,
+/// whose art passes the blank-band check, settle after the second read.
+const LABEL_ATTEMPTS: u8 = 2;
+
+/// Quantity crops must match almost exactly: a count appearing on a row changes only a few
+/// pixels on a small window.
+const QUANTITY_PIXELS_ALLOWED: u32 = 2;
+
+/// Fresh reads, on different captures, a quantity crop gets before "no count" (x1) is
+/// remembered for the visit. One misread or failed read of a real stack must not pin it at x1.
+const QUANTITY_ATTEMPTS: u8 = 2;
+
+/// How many fresh reads in a row have found no count on a quantity crop. A count resets it: a
+/// count above x1 is never answered from the visit's memory, so the poller's rule that such a
+/// count is trusted only after two identical reads keeps meeting two fresh reads.
+fn quantity_misses(previous: u8, read: Option<u32>) -> u8 {
+    match read {
+        None => previous.saturating_add(1),
+        Some(_) => 0,
+    }
 }
 
 impl Default for KioskReader {
@@ -167,10 +203,19 @@ impl Default for KioskReader {
 impl KioskReader {
     pub fn new() -> Self {
         Self {
-            labels: CropMemory::new(),
-            quantities: CropMemory::new(),
+            labels: CropMemory::new(CHANGED_PIXELS_ALLOWED),
+            quantities: CropMemory::new(QUANTITY_PIXELS_ALLOWED),
+            frame_quantities: CropMemory::new(QUANTITY_PIXELS_ALLOWED),
+            capture: 0,
             ocr_runs: 0,
         }
+    }
+
+    /// A new frame was captured. Reads of the same frame (a settle's recovery probes) share one
+    /// fresh read of each count and one attempt per unreadable label; a new capture gets its own.
+    pub fn new_capture(&mut self) {
+        self.capture = self.capture.wrapping_add(1);
+        self.frame_quantities = CropMemory::new(QUANTITY_PIXELS_ALLOWED);
     }
 
     /// Tesseract processes this reader has started. A second read of an unchanged frame adds none.
@@ -275,8 +320,9 @@ impl KioskReader {
     }
 
     /// Read each rect's label, preserving order: remembered crops answer from memory, the rest go
-    /// to Tesseract a few at a time and are remembered, unreadable ones included (Tesseract reads
-    /// the same pixels the same way, so a garbled crop stays garbled).
+    /// to Tesseract a few at a time and are remembered. A crop that read as nothing is read again
+    /// on a later capture (not the same one: Tesseract reads the same pixels the same way), up to
+    /// [`LABEL_ATTEMPTS`] reads in all, and then stays unread while the page is still.
     fn read_labels(
         &mut self,
         luma: &GrayImage,
@@ -286,7 +332,7 @@ impl KioskReader {
     ) -> Vec<Option<SlotRead>> {
         let (width, height) = image.dimensions();
         let mut reads: Vec<Option<SlotRead>> = vec![None; rects.len()];
-        let mut fresh: Vec<FreshCrop> = Vec::new();
+        let mut fresh: Vec<FreshCrop<(usize, u8)>> = Vec::new();
         for (index, rect) in rects.iter().enumerate() {
             let Some((x, y, w, h)) = *rect else {
                 continue;
@@ -301,26 +347,30 @@ impl KioskReader {
             }
             let key = CropKey::of(image, x, y, w, h);
             match self.labels.recall(&key) {
-                Some(known) => reads[index] = known,
-                None => fresh.push((index, (x, y, w, h), key)),
+                Some((Some(known), _, _)) => reads[index] = Some(known),
+                Some((None, misses, capture))
+                    if misses >= LABEL_ATTEMPTS || capture == self.capture => {}
+                Some((None, misses, _)) => fresh.push(((index, misses), (x, y, w, h), key)),
+                None => fresh.push(((index, 0), (x, y, w, h), key)),
             }
         }
         self.ocr_runs += fresh.len() as u64;
         let results = in_parallel(&fresh, |(_, (x, y, w, h), _)| {
             read_label(image, *x, *y, *w, *h, candidates)
         });
-        for ((index, _, key), read) in fresh.into_iter().zip(results) {
-            self.labels.remember(key, read.clone());
+        for (((index, misses), _, key), read) in fresh.into_iter().zip(results) {
+            let misses = if read.is_some() { 0 } else { misses.saturating_add(1) };
+            self.labels.remember(key, (read.clone(), misses, self.capture));
             reads[index] = read;
         }
         reads
     }
 
-    /// Quantity OCR is independent per row, remembered like the labels, and bounded by the same
-    /// worker cap.
+    /// Quantity OCR is independent per row and bounded by the same worker cap. Within one capture
+    /// each crop is read once; across captures only a settled "no count" is remembered.
     fn read_quantities(&mut self, image: &DynamicImage, rows: &[(usize, SlotRead)]) -> Vec<u32> {
         let mut quantities = vec![1_u32; rows.len()];
-        let mut fresh: Vec<FreshCrop> = Vec::new();
+        let mut fresh: Vec<FreshCrop<(usize, u8)>> = Vec::new();
         for (position, (index, _)) in rows.iter().enumerate() {
             let Some((x, y, w, h)) = basket_quantity_rect(image.width(), image.height(), *index)
             else {
@@ -330,17 +380,24 @@ impl KioskReader {
                 continue;
             }
             let key = CropKey::of(image, x, y, w, h);
+            if let Some(known) = self.frame_quantities.recall(&key) {
+                quantities[position] = known.unwrap_or(1);
+                continue;
+            }
             match self.quantities.recall(&key) {
-                Some(known) => quantities[position] = known.unwrap_or(1),
-                None => fresh.push((position, (x, y, w, h), key)),
+                Some(misses) if misses >= QUANTITY_ATTEMPTS => {}
+                Some(misses) => fresh.push(((position, misses), (x, y, w, h), key)),
+                None => fresh.push(((position, 0), (x, y, w, h), key)),
             }
         }
         self.ocr_runs += fresh.len() as u64;
         let results = in_parallel(&fresh, |(_, (x, y, w, h), _)| {
             read_quantity_crop(image, *x, *y, *w, *h)
         });
-        for ((position, _, key), quantity) in fresh.into_iter().zip(results) {
-            self.quantities.remember(key, quantity);
+        for (((position, misses), _, key), quantity) in fresh.into_iter().zip(results) {
+            self.quantities
+                .remember(key.clone(), quantity_misses(misses, quantity));
+            self.frame_quantities.remember(key, quantity);
             quantities[position] = quantity.unwrap_or(1);
         }
         quantities
@@ -656,6 +713,37 @@ mod tests {
         assert_eq!(stacked.quantity, 2);
     }
 
+    /// A real stack through the reader: one fresh read of its count per capture (the settle's
+    /// probes share it), never answered from memory, so every capture re-reads it.
+    #[test]
+    fn a_stacked_count_is_read_fresh_on_every_capture() {
+        let image = image::open(QUANTITY_LIVE_FIXTURE).unwrap();
+        let candidates = candidates();
+        let stacked = |rows: &[BasketRow]| {
+            rows.iter()
+                .find(|row| row.name == "Kompressa Prime Barrel")
+                .map(|row| row.quantity)
+        };
+        let mut reader = KioskReader::new();
+        let (_, basket) = reader.read(&image, &candidates, 0);
+        assert_eq!(stacked(&basket), Some(2));
+        let counted = basket.iter().filter(|row| row.quantity > 1).count() as u64;
+
+        let runs = reader.ocr_runs();
+        let (_, basket) = reader.read(&image, &candidates, 0);
+        assert_eq!(reader.ocr_runs(), runs, "probes of one capture share its reads");
+        assert_eq!(stacked(&basket), Some(2));
+
+        // The second capture also retries what read as nothing; the third settles on the counts.
+        reader.new_capture();
+        reader.read(&image, &candidates, 0);
+        reader.new_capture();
+        let runs = reader.ocr_runs();
+        let (_, basket) = reader.read(&image, &candidates, 0);
+        assert_eq!(reader.ocr_runs() - runs, counted, "each count is read again");
+        assert_eq!(stacked(&basket), Some(2));
+    }
+
     #[test]
     fn reads_basket_rows_from_the_fixture() {
         let img = image::open(FIXTURE).unwrap();
@@ -928,8 +1016,10 @@ mod tests {
 
     /// The per-frame budget of the kiosk's busiest screen, pinned in Tesseract runs rather than
     /// milliseconds (runs are the cost, and they do not depend on the machine): one run per label
-    /// and basket row on the first look at a page, and none at all for every later look at the same
-    /// page, even when the capture is not bit-identical. Timings print with `--nocapture`.
+    /// and basket row on the first look at a page, a second chance for the crops that read as
+    /// nothing, and after that only the basket counts above x1 (re-read so that one misread count
+    /// can never confirm itself), even when the capture is not bit-identical. Timings print with
+    /// `--nocapture`.
     #[test]
     fn a_still_sell_grid_costs_one_read_per_label_then_none() {
         let frame = image::open(SELL_GRID_FIXTURE).unwrap();
@@ -964,33 +1054,86 @@ mod tests {
             "first look at the page: {first_runs} Tesseract runs"
         );
 
-        let started = std::time::Instant::now();
+        let counted = basket.iter().filter(|row| row.quantity > 1).count() as u64;
+
+        // A settle's recovery probes read the same capture again: that costs nothing at all.
+        reader.read(&frame, &candidates, 0);
+        assert_eq!(reader.ocr_runs(), first_runs, "probes of one capture share its reads");
+
+        reader.new_capture();
         let (again, basket_again) = reader.read(&frame, &candidates, 0);
-        let repeat = started.elapsed();
-        assert_eq!(reader.ocr_runs(), first_runs, "an unchanged frame is never read again");
+        let second_runs = reader.ocr_runs() - first_runs;
+        // Every label read on the first look was either named (a grid cell or a basket row) or
+        // read as nothing, and every named basket row had one count read: the second capture
+        // re-reads exactly the nothings and the counts.
+        assert_eq!(
+            second_runs,
+            first_runs - cells.len() as u64 - basket.len() as u64,
+            "the second look re-reads only the labels that read as nothing and the counts"
+        );
         assert_eq!(named(&again), named(&cells));
         assert_eq!(basket_again.len(), basket.len());
 
-        let noisy = with_capture_noise(&frame);
+        let settled = reader.ocr_runs();
+        reader.new_capture();
         let started = std::time::Instant::now();
-        let (recaptured, _) = reader.read(&noisy, &candidates, 0);
-        let noisy_repeat = started.elapsed();
+        let (still, _) = reader.read(&frame, &candidates, 0);
+        let repeat = started.elapsed();
         assert_eq!(
-            reader.ocr_runs(),
-            first_runs,
-            "a second capture of the same still screen is not read again either"
+            reader.ocr_runs() - settled,
+            counted,
+            "after that, an unchanged frame costs only its counts above x1"
+        );
+        assert_eq!(named(&still), named(&cells));
+
+        let noisy = with_capture_noise(&frame);
+        let settled = reader.ocr_runs();
+        reader.new_capture();
+        let started_noisy = std::time::Instant::now();
+        let (recaptured, _) = reader.read(&noisy, &candidates, 0);
+        let noisy_repeat = started_noisy.elapsed();
+        assert_eq!(
+            reader.ocr_runs() - settled,
+            counted,
+            "and so does a second capture of the same still screen"
         );
         assert_eq!(named(&recaptured), named(&cells));
 
         eprintln!(
             "kiosk pass on {SELL_GRID_FIXTURE}: first {first:?} ({first_runs} Tesseract runs), \
-             repeat {repeat:?}, recaptured {noisy_repeat:?} (0 runs)"
+             second look {second_runs} runs, then {repeat:?} and recaptured {noisy_repeat:?} \
+             ({counted} runs each)"
         );
-        // Loose on purpose: the runs above are the budget; this only catches a repeat look
-        // that went back to doing real work.
-        assert!(
-            repeat * 4 < first && noisy_repeat * 4 < first,
-            "repeat looks must cost a fraction of the first: {first:?} vs {repeat:?}/{noisy_repeat:?}"
+    }
+
+    /// The memory's two policies: only a "no count" seen on two captures in a row is kept (a
+    /// count resets it), and quantity crops must match almost exactly.
+    #[test]
+    fn counts_above_one_are_never_recalled() {
+        assert_eq!(quantity_misses(0, None), 1);
+        assert_eq!(quantity_misses(1, None), 2);
+        assert_eq!(quantity_misses(1, Some(3)), 0, "a count starts the tally again");
+        assert_eq!(quantity_misses(5, Some(8040)), 0);
+
+        let blank = DynamicImage::new_rgb8(40, 20);
+        let mut marked = blank.to_rgb8();
+        for x in 10..13 {
+            marked.put_pixel(x, 10, image::Rgb([255, 255, 255]));
+        }
+        let marked = DynamicImage::ImageRgb8(marked);
+        let mut quantities = CropMemory::new(QUANTITY_PIXELS_ALLOWED);
+        quantities.remember(CropKey::of(&blank, 0, 0, 40, 20), None::<u32>);
+        assert_eq!(
+            quantities.recall(&CropKey::of(&marked, 0, 0, 40, 20)),
+            None,
+            "three changed pixels are a different count"
+        );
+        let mut labels = CropMemory::new(CHANGED_PIXELS_ALLOWED);
+        labels.remember(CropKey::of(&blank, 0, 0, 40, 20), 7_u8);
+        assert_eq!(
+            labels.recall(&CropKey::of(&marked, 0, 0, 40, 20)),
+            Some(7),
+            "a label tolerates a few stray pixels"
         );
     }
 

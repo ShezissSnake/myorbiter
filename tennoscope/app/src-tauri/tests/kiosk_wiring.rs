@@ -13,6 +13,10 @@ const SWF_LINE: &str = "Created /Lotus/Interface/InventoryTest.swf\n";
 const POPULATE_LINE: &str = "InventoryTest.lua: PopulateGrid()\n";
 /// The game's own exit line, exactly as EE.log writes it (census: once per session).
 const CLOSE_LINE: &str = "75584.766 Script [Info]: InventoryTest.lua: DBG: HudVis 0\n";
+/// A mode line naming anything but selling prime parts. The census holds no such line, so this
+/// one is made up in the game's own shape.
+const OTHER_MODE_LINE: &str =
+    "75590.120 Script [Info]: InventoryTest.lua: InventoryTest - CurrMode: Example Other Mode\n";
 /// A foreign subscription exactly as EE.log writes it when the sale-confirm popup takes input.
 const POPUP_LINE: &str = "173.558 Input [Info]: Subscribing for /Lotus/Interface/ItemInfoPopup.swf with input filter /Lotus/Types/Input/ItemInfoPopupInputFilter\n";
 
@@ -853,4 +857,61 @@ fn silence_past_the_grace_window_tears_the_session_down() {
         !session.take_close(&kiosk, &hide, after_grace(t0)),
         "consumed once; nothing left to tear down"
     );
+}
+
+/// The inventory switching to another mode closes the visit; once the grace runs out and the
+/// overlay is down, that mode's own SWF line must not bring it back. Naming the selling mode does.
+#[test]
+fn a_visit_closed_by_another_mode_stays_closed_on_its_swf_line() {
+    let session = &mut KioskSession::new();
+    let spawns = SpawnLog::default();
+    let kiosk = KioskState::new();
+    let (shows, show) = tally();
+    let (_, hide) = tally();
+    let t0 = Instant::now();
+
+    session.observe(MODE_LINE.as_bytes(), &kiosk, &show, &spawns.hook(), t0);
+    session.observe(OTHER_MODE_LINE.as_bytes(), &kiosk, &show, &spawns.hook(), t0);
+    assert!(session.take_close(&kiosk, &hide, after_grace(t0)));
+    session.observe(SWF_LINE.as_bytes(), &kiosk, &show, &spawns.hook(), after_grace(t0));
+    assert_eq!(spawns.spawns(), 1, "the other mode's SWF line opened nothing");
+    assert_eq!(tally_of(&shows), 1);
+
+    session.observe(MODE_LINE.as_bytes(), &kiosk, &show, &spawns.hook(), after_grace(t0));
+    assert_eq!(spawns.spawns(), 2, "the selling mode opens a new visit");
+}
+
+/// A game process that ends under another inventory mode leaves nothing behind: the next
+/// process's log is read from scratch, and its SWF line opens the kiosk as it always has.
+#[test]
+fn a_new_game_process_does_not_inherit_the_inventory_mode() {
+    let session = &mut KioskSession::new();
+    let spawns = SpawnLog::default();
+    let kiosk = KioskState::new();
+    let (_, show) = tally();
+    let (_, hide) = tally();
+    let t0 = Instant::now();
+
+    session.observe(MODE_LINE.as_bytes(), &kiosk, &show, &spawns.hook(), t0);
+    session.observe(OTHER_MODE_LINE.as_bytes(), &kiosk, &show, &spawns.hook(), t0);
+    session.close(&kiosk, &hide, &|| ());
+    session.observe(SWF_LINE.as_bytes(), &kiosk, &show, &spawns.hook(), t0);
+    assert_eq!(spawns.spawns(), 2, "the new process's SWF line opens the kiosk");
+}
+
+/// Attaching while the inventory shows another mode adopts no visit, and that mode's SWF line
+/// opens none afterwards.
+#[test]
+fn attaching_under_another_mode_keeps_the_kiosk_closed() {
+    let session = &mut KioskSession::new();
+    let spawns = SpawnLog::default();
+    let kiosk = KioskState::new();
+    let (_, show) = tally();
+    let t0 = Instant::now();
+
+    let tail = [MODE_LINE, OTHER_MODE_LINE].concat();
+    session.adopt_log_tail(tail.as_bytes(), &kiosk, &show, &spawns.hook());
+    assert_eq!(spawns.spawns(), 0, "nothing open to adopt");
+    session.observe(SWF_LINE.as_bytes(), &kiosk, &show, &spawns.hook(), t0);
+    assert_eq!(spawns.spawns(), 0, "the other mode's SWF line opens nothing");
 }
