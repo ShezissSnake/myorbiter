@@ -3,11 +3,14 @@
 // The rule: a sell order follows the cheapest visible sell order from a player who is in game
 // right now, for the same rank and subtype, on a platform that can trade with you, not counting
 // your own. It never drops below a floor: the one you set for that order, or a share of the
-// item's daily market price, whichever is higher.
+// item's daily market price, whichever is higher. Repricing your listings (`drift` in the rule)
+// follows a target that ignores bait instead, and moves only when the price has drifted
+// (core/drift.ts).
 
 import type { Model } from "./model";
 import { baseId, gearSetParts, heldCount } from "./model";
 import type { Sale, TradeLogEntry } from "../backend";
+import { baitProof, drifted } from "./drift";
 
 export interface MarketItem {
   id: string;
@@ -106,9 +109,12 @@ export function canTrade(me: Me, user: BookUser): boolean {
 }
 
 /** `defaultSubtype`: on items with variants (Serration: regular/atragraph, relics: intact…radiant)
- * an order without a subtype counts as the first variant. */
-export function competitor(order: Pick<MyOrder, "rank" | "subtype"> & Stars, book: BookOrder[], me: Me, defaultSubtype: string | null = null): Competitor {
+ * an order without a subtype counts as the first variant. `baitProofTarget`: the price to follow
+ * is the second-lowest among sellers online or in game, one order each (core/drift.ts), never the
+ * single lowest; with fewer than two of them there is none. */
+export function competitor(order: Pick<MyOrder, "rank" | "subtype"> & Stars, book: BookOrder[], me: Me, defaultSubtype: string | null = null, baitProofTarget = false): Competitor {
   const mine = order.subtype ?? defaultSubtype;
+  if (baitProofTarget) return baitProofCompetitor(order, book, me, defaultSubtype);
   const rivals = book
     .filter(
       (o) =>
@@ -139,6 +145,33 @@ export function competitor(order: Pick<MyOrder, "rank" | "subtype"> & Stars, boo
   };
 }
 
+/** Sellers online or in game count for the bait-proof target. */
+const reachable = (status: string | null) => status === "ingame" || status === "online";
+
+function baitProofCompetitor(order: Pick<MyOrder, "rank" | "subtype"> & Stars, book: BookOrder[], me: Me, defaultSubtype: string | null): Competitor {
+  const mine = order.subtype ?? defaultSubtype;
+  const same = book.filter((o) => o.type === "sell" && o.visible && o.user.id !== me.id && sameRank(o.rank, order.rank) && sameStars(o, order) && (o.subtype ?? defaultSubtype) === mine && canTrade(me, o.user));
+  // One order per seller (their cheapest): a seller can't make the target by listing twice.
+  const each = new Map<string, BookOrder>();
+  for (const o of same) {
+    if (!reachable(o.user.status)) continue;
+    const had = each.get(o.user.id);
+    if (!had || o.platinum < had.platinum) each.set(o.user.id, o);
+  }
+  const rivals = [...each.values()].sort((a, b) => a.platinum - b.platinum);
+  const price = baitProof(rivals.map((o) => o.platinum));
+  const best = price == null ? null : rivals[1];
+  const asks = same.map((o) => o.platinum).sort((a, b) => a - b);
+  return {
+    price,
+    sellers: rivals.length,
+    cheapest: best ? { name: best.user.ingameName, platinum: best.platinum } : null,
+    lowest: rivals[0] ? { name: rivals[0].user.ingameName, platinum: rivals[0].platinum } : null,
+    ladder: rivals.slice(1, 6).map((o) => o.platinum),
+    askLevel: asks.length ? asks[asks.length < 3 ? asks.length - 1 : asks.length >> 1] : null,
+  };
+}
+
 /**
  * What something is realistically worth now: what it sold for lately, but no more than what
  * sellers on the site ask (a few big sales can lift the recent price far above where the
@@ -153,8 +186,11 @@ export function marketValue(reference: number | null | undefined, comp: Pick<Com
 export interface Plan {
   target: number;
   change: boolean;
-  /** "median": everyone in game asks far more than it sells for, so it's priced at what it sells for. */
-  reason: "match" | "floor" | "no-sellers" | "already" | "median";
+  /**
+   * "median": everyone in game asks far more than it sells for, so it's priced at what it sells for.
+   * "steady": repricing (`drift`) found a target too close to the price to be worth a change.
+   */
+  reason: "match" | "floor" | "no-sellers" | "already" | "median" | "steady";
   competitor: Competitor;
   floor: number;
   /** What it's realistically worth, as the floor and the far-above check went by. */
@@ -177,10 +213,16 @@ export interface FloorRule {
    * about what one sells for now).
    */
   capByAsks?: boolean;
+  /**
+   * Repricing a listing (core/drift.ts): the target ignores bait (the second-lowest seller online
+   * or in game), and a change smaller than the dead band isn't one. Off for new listings, which
+   * start at the cheapest in game.
+   */
+  drift?: boolean;
 }
 
 export function plan(order: MyOrder, book: BookOrder[], me: Me, rule: FloorRule): Plan {
-  const comp = competitor(order, book, me, rule.defaultSubtype ?? null);
+  const comp = competitor(order, book, me, rule.defaultSubtype ?? null, !!rule.drift);
   const value = rule.capByAsks ? marketValue(rule.reference, comp) : (rule.reference ?? null);
   const floor = Math.max(1, rule.floor ?? 0, rule.min ?? 0, value != null ? Math.ceil(value * rule.minShare) : 0);
   // Nobody in game: the price stays, unless it's under the floor (you raised it since).
@@ -189,8 +231,14 @@ export function plan(order: MyOrder, book: BookOrder[], me: Me, rule: FloorRule)
     return { target: order.platinum, change: false, reason: "no-sellers", competitor: comp, floor, value };
   }
   let target = comp.price;
-  // Skipping an odd cheap seller is there to keep you from following it down, never to raise you.
-  if (comp.lowest && comp.lowest.platinum !== comp.price && order.platinum > 0 && target > order.platinum) target = order.platinum;
+  if (rule.drift) {
+    // Ignoring the lowest seller keeps you from following bait down, never lifts you over them:
+    // a raise goes no higher than the cheapest seller (and not at all while they're under you).
+    if (comp.lowest && order.platinum > 0 && target > order.platinum && comp.lowest.platinum < target) target = Math.max(order.platinum, comp.lowest.platinum);
+  } else if (comp.lowest && comp.lowest.platinum !== comp.price && order.platinum > 0 && target > order.platinum) {
+    // Skipping an odd cheap seller is there to keep you from following it down, never to raise you.
+    target = order.platinum;
+  }
   let reason: Plan["reason"] = "match";
   const sells = overAsked(comp.price, value);
   if (sells != null) {
@@ -202,6 +250,12 @@ export function plan(order: MyOrder, book: BookOrder[], me: Me, rule: FloorRule)
     reason = "floor";
   }
   if (target === order.platinum) reason = reason === "floor" ? "floor" : "already";
+  // Checked after the floors: a listing on its floor never moves; one under it is raised to it
+  // whatever the gap (a floor is never left broken to save a change); anything else moves only
+  // past the dead band.
+  if (rule.drift && target !== order.platinum && order.platinum >= floor && !drifted(order.platinum, target)) {
+    return { target: order.platinum, change: false, reason: "steady", competitor: comp, floor, value };
+  }
   return { target, change: target !== order.platinum, reason, competitor: comp, floor, value };
 }
 

@@ -2,6 +2,7 @@
 // public/dev-bundle.json and localStorage so the UI can be worked on without a build.
 
 import { approvedOf } from "./core/approved";
+import { changesOf, type ChangeLog } from "./core/drift";
 import type { RelicMarket } from "./core/model";
 import type { BaroRate } from "./core/traders";
 import type { LoggedScreen, RelicRun } from "./core/relicRuns";
@@ -56,6 +57,11 @@ export interface MarketSettings {
    * repricing never takes a listing under 70% of it.
    */
   approved: Record<string, number>;
+  /**
+   * Per listing (see listingKey): when repricing changed its price in the last day (core/drift.ts).
+   * Kept, so a restart doesn't reset the cooldown: at most one change an hour and six a day.
+   */
+  changes: ChangeLog;
   /** The warframe.market status you last chose; MyOrbiter holds it again when it starts. Null: none. */
   presence: Presence | null;
   /**
@@ -127,7 +133,7 @@ function presenceBackOf(v: unknown): { p: Presence; until: number } | null {
   return o && typeof o === "object" && (o.p === "invisible" || o.p === "online" || o.p === "ingame") && typeof o.until === "number" && Number.isFinite(o.until) ? { p: o.p, until: o.until } : null;
 }
 
-export const defaultMarketSettings = (): MarketSettings => ({ platform: "pc", auto: false, autoCheck: false, every: 5, minShare: 0.5, floors: {}, paused: {}, approved: {}, presence: null, minPrice: 10, minRelicPrice: 3, relicPrices: {}, spares: defaultSparesRules(), bulk: defaultBulkRules(), sellable: defaultSellChoices(), sales: [], autoTrades: true, tradesSeen: [], tradesTold: [], trades: [], buyAlerts: [], rep: {}, repText: ":)", autoRep: true, lastCopy: { optIn: false, minutes: DEFAULT_HIDE_MINUTES, hidden: [] } });
+export const defaultMarketSettings = (): MarketSettings => ({ platform: "pc", auto: false, autoCheck: false, every: 5, minShare: 0.5, floors: {}, paused: {}, approved: {}, changes: {}, presence: null, minPrice: 10, minRelicPrice: 3, relicPrices: {}, spares: defaultSparesRules(), bulk: defaultBulkRules(), sellable: defaultSellChoices(), sales: [], autoTrades: true, tradesSeen: [], tradesTold: [], trades: [], buyAlerts: [], rep: {}, repText: ":)", autoRep: true, lastCopy: { optIn: false, minutes: DEFAULT_HIDE_MINUTES, hidden: [] } });
 
 export interface AdviceSettings {
   platPerDucat: number;
@@ -768,7 +774,7 @@ const numIn = (v: unknown, lo: number, hi: number, fallback: number) => (typeof 
  * file strictly: anything but `true` leaves automatic repricing, checking and hiding off, and a
  * value that isn't a number in range is the usual one, never a missing floor.
  */
-function marketSafetyOf(raw: unknown, base: MarketSettings): Pick<MarketSettings, "auto" | "minPrice" | "minRelicPrice" | "minShare" | "every" | "floors" | "paused" | "autoTrades" | "autoRep" | "presence"> {
+function marketSafetyOf(raw: unknown, base: MarketSettings): Pick<MarketSettings, "auto" | "minPrice" | "minRelicPrice" | "minShare" | "every" | "floors" | "paused" | "changes" | "autoTrades" | "autoRep" | "presence"> {
   const r = (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
   const record = (v: unknown) => (v && typeof v === "object" && !Array.isArray(v) ? Object.entries(v as Record<string, unknown>) : []);
   return {
@@ -779,6 +785,8 @@ function marketSafetyOf(raw: unknown, base: MarketSettings): Pick<MarketSettings
     every: numIn(r.every, 1, 24 * 60, base.every),
     floors: Object.fromEntries(record(r.floors).filter(([, v]) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 100_000)) as Record<string, number>,
     paused: Object.fromEntries(record(r.paused).filter(([, v]) => v === true)) as Record<string, boolean>,
+    // Repricing's recent changes: only real times of the last day count (never a reason to change sooner).
+    changes: changesOf(r.changes, Date.now()),
     autoTrades: typeof r.autoTrades === "boolean" ? r.autoTrades : base.autoTrades,
     autoRep: typeof r.autoRep === "boolean" ? r.autoRep : base.autoRep,
     presence: r.presence === "invisible" || r.presence === "online" || r.presence === "ingame" ? r.presence : null,

@@ -9,6 +9,7 @@
   import type { AdviceSettings, MarketSettings, OrderSortKey } from "../backend";
   import { heldFor, holdings, listingKey, overAsked, overListed, wtsLines, type MyOrder, type Plan } from "../core/market";
   import { LISTING_LIMIT } from "../core/bulk";
+  import { DRIFT_RULES, GREY_AREA } from "../core/drift";
   import { arcaneRows, saveForSets, spareOf } from "../core/views";
   import { drops } from "../drops.svelte";
   import { aboveCrack, relicCrackFor } from "../core/spares";
@@ -792,11 +793,12 @@
           <!-- Time left to the next timed pass: a hairline that runs out (longer while warframe.market isn't answering). -->
           {#if nextPass && !mkt.pass}{#key `${mkt.lastPass}|${passWait}`}<i class="countdown" aria-hidden="true" style:animation-duration="{passWait}ms" style:animation-delay="-{Math.min(passWait, Math.max(0, Date.now() - (mkt.lastPass ?? 0)))}ms"></i>{/key}{/if}
           <Chip bind:on={settings.autoCheck} label="Check automatically" title="Read the order books on a timer while MyOrbiter is open, and show what each listing would change to" onchange={(on) => { if (!on) settings.auto = false; }} />
-          <Chip bind:on={settings.auto} label="Apply automatically" title="Also send the new prices to warframe.market on that timer, as Reprice would" onchange={(on) => { if (on) settings.autoCheck = true; }} />
+          <Chip bind:on={settings.auto} label="Apply automatically" title={`Automatic repricing: also send new prices to warframe.market on that timer, without asking. ${DRIFT_RULES}. ${GREY_AREA}.`} onchange={(on) => { if (on) settings.autoCheck = true; }} />
           <select bind:value={settings.every} aria-label="How often" title="How often the automatic check runs" disabled={!settings.autoCheck && !settings.auto}>
             {#each [1, 2, 5, 10, 15, 30, 60] as m (m)}<option value={m}>every {m} min</option>{/each}
           </select>
         </div>
+        <p class="dim small limits">Apply automatically changes your prices without asking. {DRIFT_RULES}; never under 70% of the price you last set, nor under your floors. {GREY_AREA}.</p>
         <div class="grp">
           <span class="register">Floor</span>
           <select bind:value={settings.minShare} aria-label="Floor" title="Never price a listing under this share of the item's daily market price (a per-listing floor in the table wins)">
@@ -1096,6 +1098,8 @@
   .next { margin-left: auto; }
   /* Check / Apply automatically: a hairline under them runs out until the next timed pass. */
   .autos { position: relative; }
+  /* What Apply automatically may do, in a sentence, under its switch. */
+  .limits { flex-basis: 100%; max-width: 70ch; margin: 0; line-height: 1.5; }
   .countdown { position: absolute; left: 0; right: 0; bottom: -5px; height: 1px; background: var(--gold-dim); transform-origin: left center; animation: runout linear forwards; pointer-events: none; }
   @keyframes runout { from { transform: scaleX(1); } to { transform: scaleX(0); } }
   @media (prefers-reduced-motion: reduce) { .countdown { display: none; } }

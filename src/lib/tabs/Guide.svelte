@@ -8,6 +8,7 @@
   import PartChip from "../ui/PartChip.svelte";
   import GameIcon from "../ui/GameIcon.svelte";
   import { NEWS, batches, tourStops } from "../whatsNew";
+  import { DRIFT_RULES, GREY_AREA } from "../core/drift";
   import { startTour } from "../tour.svelte";
   import NewsItems from "../ui/NewsItems.svelte";
   import Rich from "../ui/Rich.svelte";
@@ -25,7 +26,7 @@
 
   const CONSOLE_STEPS: Step[] = [
     ["home", "Home", "alerts with rare rewards (catalysts, reactors, Forma…), your market at a glance, the open worlds' cycles, Duviri's mood and the resets (and when the world was last read), every fissure open now (normal, Steel Path or Void Storms, with alerts for the ones you want), the bounties in each open world and hub (hover one for everything it can pay), events running in game and what they pay, what's worth doing today (Darvo's deal, the Sortie's missions, modifiers and reward chances among it), and when Baro comes and what he brings."],
-    ["market", "Orders", "your listings. New listing finds anything warframe.market trades: pick it, set how many you have and the price (it starts at the cheapest seller in game). Check prices compares each listing with the cheapest seller in game; Reprice moves it there; both can run on their own, on a timer you choose (unattended, a price never goes under 70% of the one you last set or approved, and is never more than halved: that waits for you to press Reprice). Copy trade-chat line puts your listings on the clipboard for trade chat. When you sell one in game, press Sold on it: that marks it sold on warframe.market and logs the sale."],
+    ["market", "Orders", `your listings. New listing finds anything warframe.market trades: pick it, set how many you have and the price (it starts at the cheapest seller in game). Check prices compares each listing with the cheapest seller in game; Reprice moves it there; both can run on their own, on a timer you choose (unattended, a price never goes under 70% of the one you last set or approved, and is never more than halved: that waits for you to press Reprice; and it changes a price only when it has drifted: ${DRIFT_RULES}). Copy trade-chat line puts your listings on the clipboard for trade chat. When you sell one in game, press Sold on it: that marks it sold on warframe.market and logs the sale.`],
     ["sales", "Sales", "what you've sold and what it made: today, 7 and 30 days, platinum per day, and each sale against the market. Import pulls in sales you marked sold on the website or app."],
     ["rivens", "Rivens", "find rivens for sale with each roll graded, see what the weapon's rivens traded for in game last week, and get alerts when one you want is listed at your price."],
   ];
@@ -102,7 +103,7 @@
           "Your listings, kept at the cheapest in-game price. New listing finds what you hold; Copy trade-chat line puts your listings on the clipboard as one trade chat line. Click a column heading to sort by it (again for the other way); the order is kept.",
           "Whispered you: who whispered you this game session (from the game's log; the message isn't logged), with Invite (copies /invite name) and their warframe.market profile.",
           "Out of trades while buyers can see you, your status offers Go invisible until then: invisible until 00:00 UTC, then back to what you had.",
-          "Check prices reads the order books and shows what each listing would change to (Will set, with why); Reprice sends those changes. A prime part or set is never listed or repriced at or under what its ducats are worth to you (your ducat rate, on Prime parts): it waits for Baro instead. Check and Apply automatically do it on a timer: unattended, a price never goes under 70% of the one you last set or approved (listing it, typing it, pressing Reprice or applying a Sell spares plan) and stops there with a notice, is never more than halved, and one seller far under everyone else isn't followed.",
+          `Check prices reads the order books and shows what each listing would change to (Will set, with why); Reprice sends those changes. A prime part or set is never listed or repriced at or under what its ducats are worth to you (your ducat rate, on Prime parts): it waits for Baro instead. Check and Apply automatically do it on a timer: unattended, a price never goes under 70% of the one you last set or approved (listing it, typing it, pressing Reprice or applying a Sell spares plan) and stops there with a notice, is never more than halved, and it changes a price only when it has drifted: ${DRIFT_RULES}, so one bait listing far under everyone else is never followed. ${GREY_AREA}: Apply automatically is off unless you turn it on (Orders, or Settings, Trades).`,
           "Floor and never-under keep prices from dropping too far, overall or per listing; Auto-price off leaves a price as you set it; Shown off hides a listing from buyers. Hide last copies (Settings, Trades): a whisper hides each listing down to its last copy for a while.",
           "Sold marks one sold (Sold several for more), with a few seconds to undo. A listing for more than you hold asks Sold?: Yes logs the sale and lowers the listing, No just lowers it.",
           "The tape under the title (Orders, Browse market, Sales, Stats): the page's live figures in a line (two on a narrow window); a gold ▲ or ▼ marks one that moved since you last looked at the page. On Orders: trades left today (as many as your Mastery Rank, refreshed at 00:00 UTC, counted from the game's log), listed value, listings to reprice and the last check.",
@@ -154,7 +155,7 @@
     <h3 class="register lead">What MyOrbiter can and can't do on {platform}</h3>
     <ul>
       <li>MyOrbiter can't read a game running on a console, so it doesn't know what you own or when a trade goes through. It doesn't list things for you or mark them sold by itself: you pick what to list, and press <b>Sold</b> when you've sold one.</li>
-      <li>What it does by itself: keeps your listings at the cheapest price in game (Orders, Apply automatically), holds the warframe.market status you choose on Orders while it's open, and tells you when a fissure or riven you're watching for turns up.</li>
+      <li>What it does by itself: if you turn it on, keeps your listings near the cheapest price in game, changing a price only when it has drifted (Orders, Apply automatically), holds the warframe.market status you choose on Orders while it's open, and tells you when a fissure or riven you're watching for turns up.</li>
       <li>Everything else in MyOrbiter (your collection, relics, mastery, spares to sell) needs your inventory, which it can only read from Warframe on a PC. Switch Settings → Platform to PC if you play there too: with cross-save, it's the same account.</li>
       <li>Everything MyOrbiter records (sales, settings) stays on this computer. Your warframe.market sign-in is kept in the system keyring (a private file if there isn't one).</li>
     </ul>

@@ -28,6 +28,7 @@ import { drops } from "./drops.svelte";
 import { MAX_PLAT, MAX_QTY, wholeIn } from "./core/amounts";
 import { ducatRefusal, guardListing, inventoryTrust, listingTag, type GuardRequest } from "./core/listGuard";
 import { autoFloor, unattendedMove } from "./core/approved";
+import { cooldown, drifted, noteChange } from "./core/drift";
 
 export interface Draft {
   itemId: string;
@@ -521,6 +522,8 @@ class MarketStore {
       defaultSubtype: it.subtypes?.[0] ?? null,
       min: minFor(s, it),
       capByAsks: !!it.tags?.includes("relic"),
+      // Repricing follows a target that ignores bait, past a dead band (core/drift.ts).
+      drift: true,
     });
   }
 
@@ -551,6 +554,7 @@ class MarketStore {
     let held = 0;
     let moved = 0;
     let unseen = 0;
+    let cooling = 0;
     let failed = 0;
     let read = 0;
     // Three reads failing in a row is warframe.market not answering (or turning MyOrbiter away):
@@ -651,16 +655,26 @@ class MarketStore {
               this.note(`${tag}: would go from ${o.platinum}p to ${target}p; left for you to check (Reprice)`, "warn");
               continue;
             }
+            // The 70% floor can bring the move within the dead band: then it's no change either
+            // (a raise up to a floor the listing is under still goes).
+            if (target !== o.platinum && o.platinum >= p.floor && !drifted(o.platinum, target)) continue;
+            // At most one change an hour and six a day per listing, by itself (core/drift.ts).
+            if (!cooldown(s.changes?.[key], Date.now()).ok) {
+              cooling++;
+              continue;
+            }
           }
           try {
             await market.update(o.id, { platinum: target });
             writeFailing = 0;
             changed++;
+            // Counted for the cooldown, by hand or not: a pass on the timer waits an hour after either.
+            s.changes = noteChange(s.changes, this.approvalKey(o), Date.now());
             // Pressed Reprice: the price you approved.
             if (!timed) this.approve(o, target, s);
             const why = atFloor
               ? `70% of the ${s.approved?.[this.approvalKey(o)] ?? "?"}p you last set; it goes no lower by itself (the cheapest in game is ${p.target}p)`
-              : p.reason === "floor" ? `held at your floor (${p.floor}p)` : `cheapest in game: ${p.competitor.cheapest?.name ?? "?"}`;
+              : p.reason === "floor" ? `held at your floor (${p.floor}p)` : `the market: ${p.competitor.sellers} seller${p.competitor.sellers === 1 ? "" : "s"} online or in game, the second-cheapest ${p.competitor.cheapest?.name ?? "?"}`;
             if (atFloor) this.floorTold.add(`${this.approvalKey(o)}|${s.approved?.[this.approvalKey(o)]}`);
             this.note(`${it.name}${o.rank != null ? ` R${o.rank}` : ""}: ${o.platinum}p → ${target}p, ${why}`, atFloor ? "warn" : "ok");
           } catch (e) {
@@ -680,10 +694,11 @@ class MarketStore {
       if (skipped) this.note(`${skipped} listing${skipped === 1 ? "" : "s"} skipped: item not in warframe.market's list`, "warn");
       if (unseen) this.note(`${unseen} listing${unseen === 1 ? "" : "s"} left as ${unseen === 1 ? "it was" : "they were"}: ${unseen === 1 ? "it" : "they"} needed no change when you checked, and do now; check again`, "info");
       if (moved) this.note(`${moved} listing${moved === 1 ? "" : "s"} left as ${moved === 1 ? "it was" : "they were"}: the price went lower since you checked; check again`, "info");
+      if (cooling) this.note(`${cooling} listing${cooling === 1 ? "" : "s"} left as ${cooling === 1 ? "it was" : "they were"} for now: changed within the hour, or six times today`, "info", true);
       if (deferred) this.note(`${deferred} listing${deferred === 1 ? "" : "s"} left for the next pass: you were editing`, "info");
       if (stopped) this.note("warframe.market stopped answering, so this pass stopped early; the rest are checked next pass", read ? "warn" : tone());
       else if (failed) this.note(`${failed} listing${failed === 1 ? "" : "s"} couldn't be checked; trying again next pass`, read ? "warn" : tone());
-      if (apply && !changed && !failed && !skipped && !deferred && !held && !moved && !unseen) this.note("Prices checked: everything already matches", "info");
+      if (apply && !changed && !failed && !skipped && !deferred && !held && !moved && !unseen && !cooling) this.note("Prices checked: everything already matches", "info");
       summary.changed = changed;
       summary.failed = failed;
       summary.stopped = stopped;

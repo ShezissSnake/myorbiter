@@ -12,6 +12,7 @@
   import { flip, pulse, reveal } from "./motion";
   import WeightSliders from "./ui/WeightSliders.svelte";
   import { NOX_SETTING } from "./core/builds/noxsframe";
+  import { DRIFT, GREY_AREA } from "./core/drift";
   import FullMode from "./FullMode.svelte";
   import Seg from "./ui/Seg.svelte";
   import ProgressButton from "./ui/ProgressButton.svelte";
@@ -250,8 +251,15 @@
 
   {/if}
 
-  <section>
+  <section id="settings-trades">
     <h3 class="register">Trades</h3>
+    <!-- Automatic repricing, named as what it is; the same switch as Apply automatically on Orders. -->
+    <Switch bind:on={() => settings.market.auto, (on) => { settings.market.auto = on; if (on) settings.market.autoCheck = true; }} label="Change my prices on warframe.market by itself (automatic repricing)">
+      Off unless you turn it on. While MyOrbiter is open, it checks your listings every {settings.market.every} min (Orders) and sends a new price without asking, only when a listing's price has drifted:
+      more than {DRIFT.bandPlat}p or {Math.round(DRIFT.bandShare * 100)}% (whichever is more) from the second-cheapest seller online or in game, so one bait listing is never followed;
+      at most once an hour per listing; and at most {DRIFT.perDay} times a day per listing.
+      It never goes under 70% of the price you last set, nor under your floors. {GREY_AREA}.
+    </Switch>
     <label class="field">
       <span class="register">+rep message</span>
       <input bind:value={settings.market.repText} maxlength="300" placeholder=":)" />
