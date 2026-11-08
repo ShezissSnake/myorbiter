@@ -6,9 +6,12 @@
 #   ci/build-image.sh <branch>   for a branch's pipelines: builder:<BUILDER_TAG>-<branch slug>
 #
 # BUILDER_TAG is read from .gitlab-ci.yml. The push uses a deploy token of the project (Settings →
-# Repository → Deploy tokens, scope write_registry and nothing else): its user name in
+# Repository → Deploy tokens, scopes read_registry and write_registry only): its user name in
 # DEPLOY_TOKEN_USER, the token typed at the prompt or given on standard input. Docker keeps the
 # sign-in in a folder made for this run and removed after, never in ~/.docker.
+#
+# Only a committed ci/, on the branch the image is for (main without an argument), so the digest
+# printed is that commit's Dockerfile.
 #
 # The <BUILDER_TAG>.<UTC time> tag is new on every run, and a branch's tag never has a dot, so no
 # other push writes it: it keeps the digest BUILDER_DIGEST names tagged (docs/maintaining.md, the
@@ -34,6 +37,12 @@ else
   tags=("$repo:$tag.$(date -u +%Y%m%d%H%M%S)" "$repo:$tag")
 fi
 
+want=${1:-main}
+branch=$(git -C "$here" rev-parse --abbrev-ref HEAD)
+[ "$branch" = "$want" ] || { echo "this checkout is on $branch, not $want: check out $want first" >&2; exit 1; }
+[ -z "$(git -C "$here" status --porcelain -- .)" ] || { echo "ci/ has changes not committed: commit them first" >&2; exit 1; }
+commit=$(git -C "$here" rev-parse HEAD)
+
 : "${DEPLOY_TOKEN_USER:?set DEPLOY_TOKEN_USER to the user name of the deploy token}"
 DOCKER_CONFIG=$(mktemp -d)
 export DOCKER_CONFIG
@@ -58,9 +67,9 @@ done
 digest=$(docker inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "${tags[0]}" | sed -n "s|^$repo@\(sha256:[0-9a-f]\{64\}\)\$|\1|p" | head -n1)
 [ -n "$digest" ] || { echo "pushed, but Docker didn't report the image's digest" >&2; exit 1; }
 
-echo "Pushed ${tags[*]} as $digest."
+echo "Pushed ${tags[*]} as $digest, built from ci/ at $commit."
 if [ $# -eq 0 ]; then
-  echo "Put it in .gitlab-ci.yml through a merge request: BUILDER_DIGEST: \"$digest\""
+  echo "Put it in .gitlab-ci.yml through a merge request that names that commit: BUILDER_DIGEST: \"$digest\""
 else
   echo "Pipelines on $1 run in ${tags[0]}."
 fi

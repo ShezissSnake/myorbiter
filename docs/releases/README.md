@@ -58,9 +58,12 @@ at the address installed copies check
   the final AppImage (after `scripts/repack-appimage.sh`) and the Windows installer with
   `scripts/updater-sign.mjs` (plain Node, no dependencies, signatures of the form
   `tauri signer sign --app-version` writes), and checks each signature against the public key in
-  `src-tauri/tauri.conf.json`. It refuses a checkout holding any link, copies the signer out of
-  the checkout and runs the copy only if it matches `SIGNER_SHA256` in `.gitlab-ci.yml`
-  (`tests/ciSigner.test.ts` says when a change to the signer needs a new one). `publish` writes
+  `src-tauri/tauri.conf.json`. It has no checkout on the runner's shared build volume: it clones
+  the commit into its own container (no hooks, no git config from elsewhere), takes the signer and
+  the public key from that clone and runs the signer only if it matches `SIGNER_SHA256` in
+  `.gitlab-ci.yml` (`tests/ciSigner.test.ts` says when a change to the signer needs a new one).
+  From the volume it takes only `release-files/`, refusing any link there, and signs only the
+  files this build makes. `publish` writes
   `latest.json` (`scripts/updater-manifest.mjs`):
   the version, release notes made from the commit subjects since the previous Experimental build,
   and each download's address in the registry and signature. When the build has both the Linux and

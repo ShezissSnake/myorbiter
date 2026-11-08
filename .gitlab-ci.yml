@@ -42,7 +42,7 @@
 # clone, running the signer only if it matches SIGNER_SHA256 below (this file is read by GitLab, not
 # from the job's folder; tests/ciSigner.test.ts keeps the checksums current). From the build volume
 # it takes only the build's files, release-files/, which build code that turned hostile could have
-# made: it refuses links there and any file it doesn't expect. It also signs only builds
+# made: it refuses links there and signs only the files this build makes. It also signs only builds
 # made in the builder image by digest (BUILDER_DIGEST), since a tag in the container registry can be
 # pushed over by any job's token. Either check failing stops the pipeline: nothing is published. The
 # jobs that run npm, pnpm and Cargo build code never see the key. Without the key the build is still
@@ -311,8 +311,8 @@ sign:
       [ "$(cd "$signer" && sha256sum updater-sign.mjs updater-manifest.mjs | cut -d' ' -f1 | tr '\n' ' ' | sed 's/ $//')" = "$SIGNER_SHA256" ] ||
         { echo "Nothing is signed or published: scripts/updater-sign.mjs or scripts/updater-manifest.mjs isn't the signer SIGNER_SHA256 names" >&2; exit 1; }
     # From the build volume, only release-files/, as the build's artifacts left it: a folder, not a
-    # link, with no link in it (one could send a .sig somewhere else), and exactly the files this
-    # build makes, so nothing an earlier job left there is signed. Old signatures go first.
+    # link, with no link in it (one could send a .sig somewhere else). Only the files this build
+    # makes are signed (below), so nothing an earlier job left there is. Old signatures go first.
     - |
       [ -d release-files ] && [ ! -L release-files ] || { echo "Nothing is signed or published: no release-files folder" >&2; exit 1; }
       links=$(find release-files -type l -print)

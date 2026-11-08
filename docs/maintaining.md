@@ -64,8 +64,8 @@ tick it here when it's done. The commands work in fish and in bash, from a clone
       they run too; they must pass there as well. Elsewhere skip both: `dev-bundle` needs that
       folder.
 - [ ] **A deploy token for the builder image:** *Settings* → *Repository* → *Deploy tokens* →
-      **Add token**, scope `write_registry` only, with an expiry date. The token is kept outside
-      the project: nothing in it holds the token.
+      **Add token**, scopes `read_registry` and `write_registry` only (a push reads the registry
+      too), with an expiry date. The token is kept outside the project: nothing in it holds it.
 - [ ] **The builder image exists:** on `main`, on this computer, with Docker:
 
       ```fish
@@ -220,9 +220,9 @@ off: a pipeline on any other branch, or with *runner* `cloud`, then waits for a 
       The jobs share the executor's build volume, so `sign` has no checkout there: it clones the
       commit into its own container (no hooks, no git config from anywhere else), takes the signer
       from that clone (checked against `SIGNER_SHA256`), and from the volume only the build's
-      files, checked (no links, only the files that build makes, made in the builder image by
-      digest) before the key is near them. Keep `/tmp` out of the runner's `volumes`: that's
-      where `sign` clones.
+      files, checked (no links, made in the builder image by digest; only the files that build
+      makes are signed) before the key is near them. Keep `/tmp` out of the runner's `volumes`:
+      that's where `sign` clones.
 - [ ] **Never privileged, no Docker socket:** `privileged = false` and no `/var/run/docker.sock` in
       its `volumes`. Either would let a build job out of its container, onto this computer and
       into the other jobs and caches. No job builds an image: `ci/build-image.sh` does, here.
