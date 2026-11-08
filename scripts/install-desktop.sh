@@ -28,9 +28,22 @@ refresh() {
   return 0
 }
 
+# Before the rename to MyOrbiter this script installed "orbiter": its program, launcher entry and
+# icons go too (after an install and on --uninstall), so the two can't run side by side. Only when the
+# launcher entry is the one this script wrote, so another program called orbiter is left alone.
+# Its settings (~/.config/dev.orbiter.app) stay: MyOrbiter copies them on its first start.
+remove_old() {
+  local old_bin="$HOME/.local/bin/orbiter" old_entry="$data/applications/orbiter.desktop"
+  [[ -f "$old_entry" ]] && grep -qxF "Exec=$old_bin" "$old_entry" || return 0
+  rm -f "$old_bin" "$old_entry" "$icons/scalable/apps/orbiter.svg"
+  for size in 32 64 128 256 512; do rm -f "$icons/${size}x${size}/apps/orbiter.png"; done
+  echo "Removed orbiter, MyOrbiter's name before the rename. Its settings stay in ~/.config/dev.orbiter.app."
+}
+
 if [[ "${1:-}" == "--uninstall" ]]; then
   rm -f "$bin" "$entry" "$icons/scalable/apps/myorbiter.svg"
   for size in 32 64 128 256 512; do rm -f "$icons/${size}x${size}/apps/myorbiter.png"; done
+  remove_old
   refresh
   echo "MyOrbiter removed from your app menu. Its settings stay in ~/.config/io.gitlab.sheziss-group.myorbiter."
   exit 0
@@ -66,6 +79,8 @@ StartupWMClass=myorbiter
 StartupNotify=true
 DESKTOP
 
+# Only once MyOrbiter is in place, so a failed install doesn't leave neither.
+remove_old
 refresh
 echo "Installed: $bin"
 echo "MyOrbiter is in your app menu now. Start it from there (or run: $bin)."

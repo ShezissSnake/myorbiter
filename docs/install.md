@@ -123,3 +123,22 @@ build on the channel you want from *Releases*, then pick the channel in Settings
 then on it updates itself. A build made on your own computer is version 0.1.0 and never updates
 itself. A copy of a build made before the project moved to GitLab (builds below 100) looks for
 updates at the old address and never finds one: install a current build by hand once.
+
+### From orbiter to MyOrbiter
+
+Before the rename the app was called orbiter. Installing MyOrbiter, by an update or by hand,
+removes the orbiter it finds, so the two can't run side by side and act on the same
+warframe.market account:
+
+- **Windows:** once MyOrbiter is installed, the setup.exe runs orbiter's uninstaller silently,
+  which takes its program folder, Start menu entry and Add/Remove Programs entry. If orbiter is
+  open it asks to close it (an update closes it without asking).
+- **`.deb` and `.rpm`:** the `myorbiter` package replaces the `orbiter` package (with `apt`,
+  `dpkg -i`, `dnf` or `rpm -U`; a plain `rpm -i` leaves both).
+- **`scripts/install-desktop.sh`:** it removes the orbiter it installed (program, menu entry,
+  icons) under the same data folder.
+- **AppImage:** an update replaces the file itself. An older orbiter AppImage you keep elsewhere
+  stays: delete it by hand.
+
+orbiter's settings and data (the `dev.orbiter.app` folders) are never removed: on its first start
+MyOrbiter copies them to its own folders ([what-it-reads.md](what-it-reads.md)).

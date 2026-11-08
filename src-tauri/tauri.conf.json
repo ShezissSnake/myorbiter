@@ -86,11 +86,14 @@
       },
       "deb": {
         "depends": [],
+        "conflicts": ["orbiter"],
+        "replaces": ["orbiter"],
         "desktopTemplate": "linux/desktop.hbs"
       },
       "rpm": {
         "release": "1",
         "depends": [],
+        "obsoletes": ["orbiter"],
         "desktopTemplate": "linux/desktop.hbs"
       }
     },
