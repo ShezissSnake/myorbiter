@@ -168,12 +168,8 @@ function downloads() {
 }
 
 /** Where this project's files are on gitlab.com: its package registry (as the release links to
- *  them, the project named by its path) or its own pages. Releases made before the project was
- *  renamed to myorbiter link to its old path, which gitlab.com redirects. */
-const PROJECT_PATHS = [
-  "/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/", "/sheziss-group/myorbiter/",
-  "/api/v4/projects/sheziss-group%2Forbiter/packages/generic/", "/sheziss-group/orbiter/",
-];
+ *  them, the project named by its path) or its own pages. */
+const PROJECT_PATHS = ["/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/", "/sheziss-group/myorbiter/"];
 
 /** A download's address, escaped for an attribute, if it's https to this project on gitlab.com;
  *  else null. */

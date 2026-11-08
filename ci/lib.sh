@@ -3,7 +3,7 @@
 # Sourced, not run. Needs curl and jq (both in the builder image) and GitLab's job variables.
 #
 # Where a build's files live: the project's generic package registry, at fixed paths.
-#   orbiter/<version>/<file>        every file of one build (version 0.2.<n>), and its latest.json
+#   myorbiter/<version>/<file>      every file of one build (version 0.2.<n>), and its latest.json
 #   channel/<channel>/latest.json   the manifest installed copies on that channel read
 #                                   (stable, beta, experimental): the app's updater endpoints
 #   stable-builds/<version>/latest.json

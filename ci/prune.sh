@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The `prune` job (.gitlab-ci.yml): keeps the newest KEEP (10) Experimental builds, not counting the
-# ones a channel keeps. An older build's files (its orbiter/<version> package) and its build-<n>
+# ones a channel keeps. An older build's files (its myorbiter/<version> package) and its build-<n>
 # release go, unless a channel names it: the build in channel/stable, channel/beta or
 # channel/experimental's latest.json stays, as does every build ever promoted to Stable
 # (stable-builds/). Its build-<n> tag stays, so the commit it was built from is still named. If a
@@ -37,9 +37,9 @@ on_channels() {
   {
     for channel in stable beta experimental; do
       if fetch "$packages_api/channel/$channel/latest.json" "$work/$channel.json"; then
-        # By version (0.2.<n>) and by where its downloads are (…/orbiter/0.2.<n>/…).
+        # By version (0.2.<n>) and by where its downloads are (…/myorbiter/0.2.<n>/…).
         jq -r '(.version // "" | capture("^0\\.2\\.(?<n>[0-9]+)$").n),
-               (.platforms[]?.url // "" | capture("/packages/generic/orbiter/0\\.2\\.(?<n>[0-9]+)/").n)' "$work/$channel.json"
+               (.platforms[]?.url // "" | capture("/packages/generic/myorbiter/0\\.2\\.(?<n>[0-9]+)/").n)' "$work/$channel.json"
       fi
     done
     packages stable-builds | awk '{ print $2 }' | sed -n 's/^0\.2\.\([0-9][0-9]*\)$/\1/p'
@@ -51,7 +51,7 @@ echo "On a channel or once Stable: $(tr '\n' ' ' <<<"$protected")"
 
 # Every build a channel doesn't keep, newest first: "<n> <package id>". The ones a channel keeps
 # don't count among the newest KEEP, so KEEP Experimental builds stay besides them.
-builds=$(packages orbiter | sed -n 's/^\([0-9][0-9]*\) 0\.2\.\([0-9][0-9]*\)$/\2 \1/p' | sort -rn |
+builds=$(packages myorbiter | sed -n 's/^\([0-9][0-9]*\) 0\.2\.\([0-9][0-9]*\)$/\2 \1/p' | sort -rn |
   awk 'NR == FNR { if ($1 != "") keep[$1] = 1; next } !($1 in keep)' <(printf '%s\n' "$protected") -)
 deleted=()
 while read -r n id; do

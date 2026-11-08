@@ -9,7 +9,7 @@ import { buildManifest, checkBase, checkManifest, findAssets, formatNotes, LINE_
 const b64 = (b: Buffer | string) => Buffer.from(b).toString("base64");
 
 /** Where the builds' files are downloaded from: one generic package version per build. */
-const PACKAGES = "https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/orbiter";
+const PACKAGES = "https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/myorbiter";
 
 /** A signing key in tauri's format (base64 of minisign's text), signing as `tauri signer sign` does. */
 function signer() {
@@ -146,10 +146,10 @@ test("promotion checks every download is the build's own file in its own folder"
   // A trailing slash on the folder is the same folder.
   assert.deepEqual(checkManifest(at(base + APPIMAGE), { ...where, base }), ["linux-x86_64"]);
   // Another project, another build, a channel's folder, another host, another system's file.
-  assert.throws(() => checkManifest(at(`https://gitlab.com/api/v4/projects/someone%2Forbiter/packages/generic/orbiter/0.1.52/${APPIMAGE}`), where), /isn't in https:\/\/gitlab.com\/api\/v4\/projects\/sheziss-group%2Fmyorbiter\/packages\/generic\/orbiter\/0.1.52/);
+  assert.throws(() => checkManifest(at(`https://gitlab.com/api/v4/projects/someone%2Forbiter/packages/generic/myorbiter/0.1.52/${APPIMAGE}`), where), /isn't in https:\/\/gitlab.com\/api\/v4\/projects\/sheziss-group%2Fmyorbiter\/packages\/generic\/myorbiter\/0.1.52/);
   assert.throws(() => checkManifest(at(`${PACKAGES}/0.1.51/${APPIMAGE}`), where), /isn't in/);
   assert.throws(() => checkManifest(at(`https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel/stable/${APPIMAGE}`), where), /isn't in/);
-  assert.throws(() => checkManifest(at(`https://example.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/orbiter/0.1.52/${APPIMAGE}`), where), /isn't in/);
+  assert.throws(() => checkManifest(at(`https://example.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/myorbiter/0.1.52/${APPIMAGE}`), where), /isn't in/);
   assert.throws(() => checkManifest(at(base + SETUP), where), /isn't linux-x86_64's download/);
   // Paths out of the folder, encoded or not, and a query on the end.
   assert.throws(() => checkManifest(at(`${base}..%2F..%2F0.1.1%2F${APPIMAGE}`), where), /isn't linux-x86_64's download/);

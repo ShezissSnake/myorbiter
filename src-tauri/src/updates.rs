@@ -1,7 +1,7 @@
 //! In-app updates, from the package registry of MyOrbiter's repository on gitlab.com.
 //!
 //! Every build CI makes is published (.gitlab-ci.yml) with its files in the registry's
-//! `orbiter/0.2.<n>/` folder, an updater manifest (`latest.json`) among them, and a release
+//! `myorbiter/0.2.<n>/` folder, an updater manifest (`latest.json`) among them, and a release
 //! `build-<n>` that links to them. Each channel is one fixed file, `channel/<channel>/latest.json`
 //! (experimental, beta, stable), replaced when a build reaches that channel (each build lands on
 //! Experimental; Beta and Stable get a build promoted by hand, the same files, never rebuilt). The

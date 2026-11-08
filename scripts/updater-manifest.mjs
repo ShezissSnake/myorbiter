@@ -10,7 +10,7 @@
 //        [--base URL]
 //
 // URL (--base) is the folder the build's files are downloaded from, ending in its version: the
-// build's generic package, https://gitlab.com/api/v4/projects/<project>/packages/generic/orbiter/0.2.152.
+// build's generic package, https://gitlab.com/api/v4/projects/<project>/packages/generic/myorbiter/0.2.152.
 //
 // The manifest is what tauri-plugin-updater reads: a version, notes, a date and, for each system,
 // the download's address and its signature. Signatures are minisign signatures made by

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The `publish` job (.gitlab-ci.yml): everything the build's release carries, checked, and put in
-# the package registry as orbiter/<version>/ (ci/lib.sh). It runs after `sign`, on main or a
+# the package registry as myorbiter/<version>/ (ci/lib.sh). It runs after `sign`, on main or a
 # release tag only, and builds nothing.
 #
 #   ci/publish.sh <build number>          with the downloads (and their .sig files) in release-files/
@@ -23,7 +23,7 @@ n=${1:?usage: ci/publish.sh <build number>}
 version="0.2.$n"
 tag="build-$n"
 files=release-files
-base="$public_packages/orbiter/$version"
+base="$public_packages/myorbiter/$version"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
@@ -79,7 +79,7 @@ fi
 
 for f in "$files"/*; do
   echo "uploading $(basename "$f")"
-  put_file orbiter "$version" "$f"
+  put_file myorbiter "$version" "$f"
 done
 
 # The release's links, one per file, at their public addresses (the release job makes build-<n>).

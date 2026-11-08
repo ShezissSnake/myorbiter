@@ -22,7 +22,7 @@
 # pages and image pipelines use a number too, so build numbers have gaps.
 #
 # Where things live (ci/lib.sh): every file of build <n> in the project's generic package
-# registry as orbiter/0.2.<n>/<file>, beside a release build-<n> that links to them; each
+# registry as myorbiter/0.2.<n>/<file>, beside a release build-<n> that links to them; each
 # channel's latest.json as channel/<stable|beta|experimental>/latest.json, the address installed
 # copies check (src-tauri/src/updates.rs). Promote moves the same signed files, never a rebuild.
 # Pruning keeps the newest 10 Experimental builds (not counting the builds a channel keeps) and
@@ -125,7 +125,7 @@ variables:
   # The SHA-256 of the signer's two files (`sha256sum scripts/updater-sign.mjs
   # scripts/updater-manifest.mjs`); `sign` runs them only if they match. A change to either file
   # changes these (tests/ciSigner.test.ts fails until they do).
-  SIGNER_SHA256: "221a0b8c17f6df5474bf1fd54d03308639c6af454f8c02e2e0f0efc68a9ef84b 6a8e934e0604761bc4b3de2d098ae74330e329e0e214ee4d60d52d988a41320e"
+  SIGNER_SHA256: "221a0b8c17f6df5474bf1fd54d03308639c6af454f8c02e2e0f0efc68a9ef84b 7a3c00804bc0733d60dc4fffb87d98c4dc2d0d445bc18bb21c22f3194675f3a4"
 
 workflow:
   name: "$TASK: $CI_COMMIT_REF_NAME"

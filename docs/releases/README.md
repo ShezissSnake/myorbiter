@@ -41,7 +41,7 @@ GitHub, they can write the package registry and the releases: GitLab gives every
 the same reach. What keeps installed copies safe is the signature each one checks. `publish`
 (`ci/publish.sh`) adds `myorbiter-source.tar.gz`, the complete source of the commit it built, as the
 GPL-3.0 asks, and `SHA256SUMS`, and puts every file in the project's generic package registry as
-`orbiter/0.2.n/<file>`; `release` makes the release `build-<n>` at that commit, linking to them.
+`myorbiter/0.2.n/<file>`; `release` makes the release `build-<n>` at that commit, linking to them.
 TennoScope's licence and a notice travel beside it.
 
 ## Channels
