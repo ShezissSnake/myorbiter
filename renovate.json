@@ -56,7 +56,7 @@
       "pinDigests": true
     },
     {
-      "description": "The project's own builder image is pinned by hand to the digest the image task prints, never by a merge request from Renovate: anything with a job token can push to its tags.",
+      "description": "The project's own builder image is pinned by hand to the digest ci/build-image.sh prints, never by a merge request from Renovate: anything with a job token can push to its tags.",
       "matchDepNames": ["registry.gitlab.com/sheziss-group/**"],
       "enabled": false
     },

@@ -9,19 +9,20 @@ This page is for whoever runs the releases. Players need only `docs/install.md`.
 on a commit of `main` (`release-*` is a protected tag: only a maintainer can make one, and only a
 protected tag's pipeline is given the signing key). A push to a branch and a merge request start
 nothing. The *task* field of New pipeline picks what it does: `release` (the default),
-`promote`, `pages` or `image` (the builder image, `ci/Dockerfile`, which every other job runs in;
-run it once before the first build and again after every change to the Dockerfile, with a new
-`BUILDER_TAG`; on `main`, then put the digest it prints in `BUILDER_DIGEST`: pipelines on `main`
-and release tags run in the image by that digest, and until it's set `sign` refuses, so nothing
-is published).
+`promote` or `pages`. The builder image (`ci/Dockerfile`, which the jobs run in) isn't built by a
+pipeline: `ci/build-image.sh` builds it with Docker on the maintainer's computer, pushes it with a
+deploy token and prints its digest, once before the first build and again after every change to
+the Dockerfile, with a new `BUILDER_TAG` (`docs/maintaining.md`). The digest goes in
+`BUILDER_DIGEST`: pipelines on `main` and release tags run in the image by that digest, and until
+it's set `sign` refuses, so nothing is published.
 
-Every job, `sign` and the `image` task (kaniko, unprivileged) included, runs on the project's own
-runner (tag `pc`, with the Docker executor, so each job runs in a container of its own; never
-privileged, and protected, so only `main` and protected tags use it and only they get the signing
-key), or, with the *runner* field set to `cloud`, on gitlab.com's hosted Linux runners, which
-spend the namespace's compute minutes; nothing on `main` or a release tag needs them. A pipeline
-on a branch other than `main` can only run on the hosted runners, in that branch's own builder image (run the `image`
-task on the branch first); such pipelines are optional.
+Every job, `sign` included, runs on the project's own runner (tag `pc`, with the Docker executor,
+so each job runs in a container of its own; never privileged, and protected, so only `main` and
+protected tags use it and only they get the signing key), or, with the *runner* field set to
+`cloud`, on gitlab.com's hosted Linux runners, which spend the namespace's compute minutes; nothing
+on `main` or a release tag needs them, and the project's instance runners stay off. A pipeline on a
+branch other than `main` can only run on the hosted runners, in that branch's own builder image
+(`ci/build-image.sh <branch>` first); such pipelines are optional.
 
 A release pipeline is build *n*, version `0.2.n`, where *n* is the pipeline's number in the project
 plus 100 (builds made on GitHub before the move were numbered below 100; pipelines that promote or

@@ -3,8 +3,8 @@
 # with cargo-xwin. 22.04 on purpose: what's built here needs nothing newer than its C library (glibc
 # 2.35), so the AppImage runs on SteamOS, Debian 12 and any Linux from the last few years. A newer
 # base raises that floor for every player, so ci/build.sh refuses a Linux build that asks for more
-# than GLIBC_2.35. The `image` job (.gitlab-ci.yml) builds it and pushes it to the project's
-# container registry as builder:<BUILDER_TAG>; change BUILDER_TAG there whenever this file changes.
+# than GLIBC_2.35. ci/build-image.sh builds it and pushes it to the project's container registry
+# as builder:<BUILDER_TAG>; change BUILDER_TAG in .gitlab-ci.yml whenever this file changes.
 #
 # Nothing here is piped from the web into a shell: Node and rustup-init are downloaded as files and
 # checked against the SHA-256 pinned below before they run. Bumping a version means a new checksum,

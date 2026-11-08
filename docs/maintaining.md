@@ -63,15 +63,24 @@ tick it here when it's done. The commands work in fish and in bash, from a clone
       with a TennoScope folder, run `npm run dev-bundle` and `npm run dev-data` before `npm test` so
       they run too; they must pass there as well. Elsewhere skip both: `dev-bundle` needs that
       folder.
-- [ ] **The builder image exists:** *Build* → *Pipelines* → **New pipeline** → branch `main`,
-      *task* `image` → **New pipeline**. It runs on the pc runner (kaniko, unprivileged), or on
-      gitlab.com's hosted runners with *runner* `cloud`. Its log ends with the digest of
-      `builder:<BUILDER_TAG>.job<job id>`, a tag no other push writes: put it in
-      `.gitlab-ci.yml` as `BUILDER_DIGEST` through a merge request that links that job's log,
-      so the digest can be checked against it. Never delete a `….job<id>` tag (the cleanup policy
-      under *Packages* keeps them).
-      Until then, pipelines on `main` run in the image's tag and `sign` refuses, so nothing is
-      published.
+- [ ] **A deploy token for the builder image:** *Settings* → *Repository* → *Deploy tokens* →
+      **Add token**, scope `write_registry` only, with an expiry date. The token is kept outside
+      the project: nothing in it holds the token.
+- [ ] **The builder image exists:** on `main`, on this computer, with Docker:
+
+      ```fish
+      env DEPLOY_TOKEN_USER=<the deploy token's user name> ci/build-image.sh
+      ```
+
+      It asks for the token, builds `ci/Dockerfile`, pushes `builder:<BUILDER_TAG>` and
+      `builder:<BUILDER_TAG>.<UTC time>` (a tag no other push writes) and prints the digest: put
+      it in `.gitlab-ci.yml` as `BUILDER_DIGEST` through a merge request. Docker keeps the sign-in
+      in a folder made for the run and removed after. Never delete a `<BUILDER_TAG>.<UTC time>`
+      tag (the cleanup policy under *Packages* keeps them). Until then, pipelines on `main` run in
+      the image's tag and `sign` refuses, so nothing is published. After a change to
+      `ci/Dockerfile`: a new `BUILDER_TAG`, merged, then the script once more and the new digest.
+      `ci/build-image.sh <branch>` pushes `builder:<BUILDER_TAG>-<branch>` for a branch's own
+      pipelines instead.
 - [ ] **A first build on `main`:** New pipeline → branch `main`, *task* `release`, *windows*
       ticked. While the project is private the build signs and publishes as usual; installed
       copies just can't reach it yet.
@@ -202,24 +211,26 @@ a pipeline on `main` or a protected tag signs as soon as `sign` runs.
 The `pc` jobs run on the project's own runner (*Settings* → *CI/CD* → *Runners* → **New project
 runner**, tag `pc`, *Run untagged jobs* off):
 
-Every job runs here unless *runner* says `cloud`: `sign` (with the signing key) and the `image`
-task too. Nothing on `main` or a release tag needs gitlab.com's hosted runners; a pipeline on any
-other branch, and *runner* `cloud`, run only there (*Settings* → *CI/CD* → *Runners* → *Instance
-runners* on for those).
+Every job runs here unless *runner* says `cloud`, `sign` (with the signing key) too. Nothing on
+`main` or a release tag needs gitlab.com's hosted runners, and the project's instance runners stay
+off: a pipeline on any other branch, or with *runner* `cloud`, then waits for a runner, and needs
+*Settings* → *CI/CD* → *Runners* → *Instance runners* turned on to run.
 
 - [ ] **The Docker executor**, never the shell executor: each job then runs in its own container.
-      The jobs share the executor's build volume, so `sign` and the `image` task start from a
-      fresh clone, and `sign` checks everything it takes from the build (no links, the signer
-      against `SIGNER_SHA256`, a build made in the builder image by digest) before the key is
-      near it.
+      The jobs share the executor's build volume, so `sign` has no checkout there: it clones the
+      commit into its own container (no hooks, no git config from anywhere else), takes the signer
+      from that clone (checked against `SIGNER_SHA256`), and from the volume only the build's
+      files, checked (no links, only the files that build makes, made in the builder image by
+      digest) before the key is near them. Keep `/tmp` out of the runner's `volumes`: that's
+      where `sign` clones.
 - [ ] **Never privileged, no Docker socket:** `privileged = false` and no `/var/run/docker.sock` in
       its `volumes`. Either would let a build job out of its container, onto this computer and
-      into the other jobs and caches. The `image` task builds with kaniko, which needs neither.
+      into the other jobs and caches. No job builds an image: `ci/build-image.sh` does, here.
 - [ ] **Protected:** the runner's *Protected* box ticked, so only pipelines on `main` and protected
       tags run on it, and the signing key (a protected variable) reaches only them. A pipeline
       on any other branch can't use it: it runs on gitlab.com's hosted runners, whatever
-      *runner* says, in that branch's own builder image (run the *task* `image` on the branch
-      first). Such pipelines are optional.
+      *runner* says, in that branch's own builder image (`ci/build-image.sh <branch>` first).
+      Such pipelines are optional.
 
 ## Packages
 
@@ -232,8 +243,8 @@ runners* on for those).
 - [ ] Never delete the `channel` and `stable-builds` packages: every installed copy reads them.
 - [ ] **Container registry cleanup policy** (*Settings* → *Packages and registries* → *Cleanup
       policies*): off, or set so it removes only branch images and keeps the builder images main
-      runs in. *Keep tags matching* `^\d{4}-\d{2}-\d{2}(\.job\d+)?$`; *Remove tags matching*
-      `^\d{4}-\d{2}-\d{2}-.+$`, older than 14 days. If it removed the `.job<id>` tag that
+      runs in. *Keep tags matching* `^\d{4}-\d{2}-\d{2}(\.\d{14})?$`; *Remove tags matching*
+      `^\d{4}-\d{2}-\d{2}-.+$`, older than 14 days. If it removed the `.<UTC time>` tag that
       `BUILDER_DIGEST` names, the registry would delete that image and every pipeline on `main`
       would stop until a new image is built and its digest merged.
 
