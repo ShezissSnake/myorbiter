@@ -45,7 +45,8 @@ keeps in the same database.
   start MyOrbiter copies each one to its new place and puts a `.copied-from-dev.orbiter.app` file
   in the copy. Until that file is there, every start checks again (a copy that failed is tried
   again, and what that start wrote in between is kept beside it as `dev.myorbiter.app.before-copy-1`,
-  without the warframe.market sign-in or the Discord webhook address). The old folders are only read, never changed or
+  without the warframe.market sign-in or the Discord webhook address; a new folder that was a link
+  is set aside as that link, and nothing changes where it points). The old folders are only read, never changed or
   removed. Two empty lock files beside the config folder keep starts apart:
   `dev.myorbiter.app.copy.lock` while a start copies, and `dev.myorbiter.app.lock` for as long as
   MyOrbiter runs, so a second start leaves the folders alone. A sign-in kept in the system keyring
