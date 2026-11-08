@@ -2,7 +2,7 @@
 // is matched to your warframe.market listing for it, so MyOrbiter can mark that listing sold.
 import { findItem, type MarketIndex, type MarketItem, type MyOrder } from "./market";
 import { gearSetParts, type Model } from "./model";
-import { imprintSaleName, type ImprintNaming, type ImprintRaw } from "./imprints";
+import { imprintSale, type ImprintNaming, type ImprintRaw } from "./imprints";
 import type { Trade, TradeItem } from "./types";
 import type { Sale, TradeLogEntry } from "../backend";
 
@@ -40,10 +40,12 @@ export function salesFromTrade(t: Trade, orders: MyOrder[], index: MarketIndex, 
   const sales: TradeSale[] = foldSets(t.offered, m, listed, index).map((x) => {
     const split = splitRefinement(x.name);
     // An imprint is logged by its pet's name ("Imprint of Biscuit"): by its breed, it's a market item.
-    const name = /^\s*imprint of\s/i.test(split.name) ? (imprintSaleName(split.name, imprintNaming(index, imprints)) ?? split.name) : split.name;
+    // Its listing is closed only when the inventory said the breed, not a breed read from the name.
+    const imprint = /^\s*imprint of\s/i.test(split.name) ? imprintSale(split.name, imprintNaming(index, imprints)) : null;
+    const name = imprint?.item ?? split.name;
     const { subtype } = split;
     const it = findItem(index, name, null);
-    const order = it ? listingFor(it, x.rank, subtype, orders) : null;
+    const order = it && (!imprint || imprint.by === "inventory") ? listingFor(it, x.rank, subtype, orders) : null;
     return { name: it?.name ?? x.name, rank: x.rank, count: x.count, platinumEach: 0, order };
   });
   const weights = sales.every((s) => s.order) ? sales.map((s) => s.order!.platinum * s.count) : sales.map((s) => s.count);

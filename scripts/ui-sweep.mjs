@@ -11,7 +11,7 @@
 // Linux and WebView2 on Windows; text widths differ a little between engines, which is why the
 // layouts this checks are meant to hold with room to spare. With --out, one contact sheet per
 // window size (every view, flagged elements outlined in red) is saved there as PNG; needs
-// ImageMagick (`magick`). Nothing but GET requests would reach warframe.market.
+// ImageMagick (`magick`). Every request to warframe.market is stopped: the sweep sends none.
 
 import { spawn, execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
@@ -154,7 +154,7 @@ const cleanUp = () => {
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
     cleanUp();
-    process.exit(130);
+    void (browser?.close() ?? Promise.resolve()).finally(() => process.exit(130));
   });
 }
 
@@ -163,7 +163,7 @@ const pause = (p, ms) => p.waitForTimeout(ms);
 /** A page at one window size, the demo loaded, What's New and the Full mode question answered unless asked to show them. */
 async function open(size, { firstRun = false, noInventory = false } = {}) {
   const p = await browser.newPage({ viewport: { width: size.w, height: size.h } });
-  await p.route(/warframe\.market/, (r) => (r.request().method() === "GET" ? r.continue() : r.abort()));
+  await p.route(/warframe\.market/, (r) => r.abort());
   // No inventory read yet: TennoScope's setup steps.
   if (noInventory) await p.route(/\/dev-bundle\.json/, (r) => r.fulfill({ status: 404, body: "" }));
   p.on("pageerror", (e) => console.error(`  page error: ${e.message}`));

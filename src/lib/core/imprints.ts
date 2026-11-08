@@ -61,12 +61,14 @@ const IMPRINT_OF = /^\s*imprint of\s+(.+?)\s*$/i;
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
- * The market item a traded imprint is ("Huras Kubrow Imprint"), from the log's "Imprint of <pet>":
- * the pet's name looked up in the inventory's imprints, which say its breed; failing that (the
- * imprint is gone from the last read, or two of that name are of different breeds), a breed named
- * in the text itself. Null when neither settles it on exactly one item: no guess, so no price.
+ * The market item a traded imprint is ("Huras Kubrow Imprint"), from the log's "Imprint of <pet>",
+ * and how it was told: "inventory" when the pet's name is an imprint in the last read, which says
+ * its breed; "name" when (the imprint gone from the read, or two of that name of different breeds)
+ * a breed is named in the text itself. A pet's name is the player's choice, so "name" is good for
+ * naming the sale and comparing its price, not for closing a listing. Null when neither settles it
+ * on exactly one item: no guess, so no price.
  */
-export function imprintSaleName(text: string, n: ImprintNaming): string | null {
+export function imprintSale(text: string, n: ImprintNaming): { item: string; by: "inventory" | "name" } | null {
   const hit = IMPRINT_OF.exec(text);
   if (!hit) return null;
   const pet = hit[1];
@@ -78,7 +80,7 @@ export function imprintSaleName(text: string, n: ImprintNaming): string | null {
     const item = breed ? n.itemFor(breed) : null;
     if (item) items.add(item);
   }
-  if (items.size === 1) return [...items][0];
+  if (items.size === 1) return { item: [...items][0], by: "inventory" };
   // A breed in the text ("Imprint of Huras Kubrow"): the longest one named, when the others named
   // are part of it ("Kubrow" in "Huras Kubrow"); two different breeds settle nothing.
   const named = n.names
@@ -87,5 +89,8 @@ export function imprintSaleName(text: string, n: ImprintNaming): string | null {
     .sort((a, b) => b.breed.length - a.breed.length);
   if (!named.length) return null;
   const longest = named[0];
-  return named.every((x) => longest.breed.toLowerCase().includes(x.breed.toLowerCase())) ? longest.name : null;
+  return named.every((x) => longest.breed.toLowerCase().includes(x.breed.toLowerCase())) ? { item: longest.name, by: "name" } : null;
 }
+
+/** `imprintSale`'s item alone: the name to show and price a sale by. */
+export const imprintSaleName = (text: string, n: ImprintNaming): string | null => imprintSale(text, n)?.item ?? null;

@@ -2939,7 +2939,7 @@
      A label longer than the button starts at its left edge and is clipped on the right, not centred
      out past both edges. Tight padding and tracking: the same label is up to a tenth wider in one
      engine than another, and "Up to date" has to fit in all of them. */
-  .syncrow :global(.sync) { display: flex; justify-content: safe center; align-items: center; gap: .4rem; flex: 1 1 0; width: 0; min-width: 0; padding-left: .45rem; padding-right: .45rem; letter-spacing: .1em; }
+  .syncrow :global(.sync) { display: flex; justify-content: center; justify-content: safe center; align-items: center; gap: .4rem; flex: 1 1 0; width: 0; min-width: 0; padding-left: .45rem; padding-right: .45rem; letter-spacing: .1em; }
   /* Every button down here is one height, folded or not. */
   .syncrow :global(.sync), .tool { height: 36px; padding-top: 0; padding-bottom: 0; }
   /* Why the last sync failed, under the button (it goes with the button's failed look). */

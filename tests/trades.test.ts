@@ -142,3 +142,10 @@ test("an imprint sold under its pet's name is the market's imprint of that pet's
   assert.equal(u.name, "Imprint of Rex", "unresolved: kept as logged");
   assert.equal(u.order, null);
 });
+
+test("an imprint told only by a breed in its pet's name is named, not matched to a listing", () => {
+  const idx = indexItems(imprintItems);
+  const [s] = salesFromTrade(trade({ offered: [{ name: "Imprint of Huras Kubrow", rank: null, count: 1 }], platinum_received: 40 }), [order("h", "hi", 1, 40)], idx, null, [])!;
+  assert.equal(s.name, "Huras Kubrow Imprint", "named and priced by the breed");
+  assert.equal(s.order, null, "but no listing closed on a name the player chose");
+});
