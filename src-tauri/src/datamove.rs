@@ -180,8 +180,9 @@ fn settle(r: io::Result<Moved>, aside: Option<PathBuf>) -> io::Result<Moved> {
 
 /// Removes the temporary copies (`<new>.partial-<pid>`) a start that was stopped mid-copy left
 /// beside `new`, and takes the credentials out of every `<new>.before-copy-<n>`: a start stopped
-/// between setting `new` aside and putting the copy in its place left one holding them. Only called
-/// with both locks held, when no other start can be copying.
+/// between setting `new` aside and putting the copy in its place left one holding them (never
+/// through a link: see `strip_credentials`). Only called with both locks held, when no other start
+/// can be copying.
 pub fn clear_partials(new: &Path) {
     let (Some(parent), Some(name)) = (new.parent(), new.file_name()) else { return };
     let name = name.to_string_lossy();
@@ -643,6 +644,22 @@ mod tests {
         clear_partials(&new);
         assert_eq!(fs::read_to_string(real.join("settings.json")).unwrap(), settings);
         assert!(real.join(crate::market::TOKEN_FILE).is_file());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_settings_file_hard_linked_elsewhere_is_replaced_not_written_through() {
+        let t = Temp::new("settingshard");
+        let elsewhere = t.0.join("elsewhere.json");
+        let settings = r#"{"notifyOptions":{"discord":{"url":"https://discord.com/api/webhooks/1/x"}}}"#;
+        fs::write(&elsewhere, settings).unwrap();
+        let aside = t.0.join(format!("{ID}.before-copy-1"));
+        fs::create_dir_all(&aside).unwrap();
+        fs::hard_link(&elsewhere, aside.join("settings.json")).unwrap();
+        strip_credentials(&aside);
+        assert_eq!(fs::read_to_string(&elsewhere).unwrap(), settings);
+        let stripped: serde_json::Value = serde_json::from_str(&fs::read_to_string(aside.join("settings.json")).unwrap()).unwrap();
+        assert_eq!(stripped["notifyOptions"]["discord"]["url"], "");
     }
 
     #[cfg(unix)]
