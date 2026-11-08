@@ -5,6 +5,8 @@
 //! the app already holds: reading the game's own ducat or platinum numerals is a spec non-goal,
 //! so they never enter this pipeline. The owned count a player sees is the game's.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use serde::Serialize;
 use warframe_domain::KioskMastery;
 
@@ -12,7 +14,7 @@ use crate::kiosk_ocr::{BasketRow, GridCell};
 
 /// One grid tile's corner chip, kept when its price, its mastery or both resolve. A mastery chip
 /// is drawn as a strip that carries the price as well, or a dash when the tile has none.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct CellChip {
     pub col: u32,
     pub row: u32,
@@ -36,7 +38,7 @@ pub enum MasteryStatus {
 /// what it does not show. A row the price table cannot price stays listed (the game still
 /// drew it, and the frontend decides what a missing price looks like) but contributes nothing
 /// to the total.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct BasketChip {
     pub index: u32,
     pub name: String,
@@ -44,7 +46,7 @@ pub struct BasketChip {
 }
 
 /// One poller epoch's whole overlay payload.
-#[derive(Clone, Debug, Default, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct KioskView {
     /// Monotonic kiosk-visit identity. Frontend event handlers reject queued scroll verdicts from
     /// an earlier visit after a close/reopen.
@@ -72,6 +74,9 @@ struct KioskSlot {
     next_session: u64,
     active_session: Option<u64>,
     view: Option<KioskView>,
+    /// The game said the screen went away, but the visit is not over yet (a sale-confirm rebuild
+    /// comes back inside the close grace). Nothing is drawn, published or scrolled meanwhile.
+    withheld: bool,
 }
 
 #[derive(Default)]
@@ -90,7 +95,34 @@ impl KioskState {
         slot.next_session = slot.next_session.wrapping_add(1).max(1);
         slot.active_session = Some(slot.next_session);
         slot.view = None;
+        slot.withheld = false;
         slot.next_session
+    }
+
+    /// Take the visit's view down without ending the visit: the screen left, and only the close
+    /// grace can tell a real exit from a sale-confirm rebuild. Until [`Self::release`] (the screen
+    /// came back) or the visit ends, publications and scroll events are refused, so a worker still
+    /// mid-read cannot paint chips over whatever screen replaced the kiosk. True when this visit
+    /// was the current one.
+    pub fn withhold(&self, session: u64) -> bool {
+        let Ok(mut slot) = self.0.lock() else {
+            return false;
+        };
+        if slot.active_session != Some(session) {
+            return false;
+        }
+        slot.view = None;
+        slot.withheld = true;
+        true
+    }
+
+    /// The kiosk screen is back inside the grace: publications for this visit are accepted again.
+    pub fn release(&self, session: u64) {
+        if let Ok(mut slot) = self.0.lock()
+            && slot.active_session == Some(session)
+        {
+            slot.withheld = false;
+        }
     }
 
     /// End this visit if it is still current. A delayed close from an older visit is harmless.
@@ -100,6 +132,7 @@ impl KioskState {
         {
             slot.active_session = None;
             slot.view = None;
+            slot.withheld = false;
         }
     }
 
@@ -128,7 +161,7 @@ impl KioskState {
         let Ok(mut slot) = self.0.lock() else {
             return false;
         };
-        if slot.active_session != Some(session) {
+        if slot.active_session != Some(session) || slot.withheld {
             return false;
         }
         view.session = session;
@@ -137,12 +170,51 @@ impl KioskState {
         true
     }
 
+    /// [`Self::set_if_current`] for one poller: refused as well once that poller's stop flag is
+    /// up. A visit can outlive its poller (a sale-confirm rebuild resumes the visit with a fresh
+    /// one), and a poller stopped between its own stop check and its publish must not paint the
+    /// old grid's chips into the resumed visit. The flag is read under the lifecycle lock; the
+    /// monitor raises it before it withholds or resumes, so a publish that sees it down finishes
+    /// before the withhold clears it.
+    pub fn set_if_running(
+        &self,
+        session: u64,
+        stopped: &AtomicBool,
+        mut view: KioskView,
+        announce: impl FnOnce(),
+    ) -> bool {
+        let Ok(mut slot) = self.0.lock() else {
+            return false;
+        };
+        if slot.active_session != Some(session) || slot.withheld || stopped.load(Ordering::Acquire)
+        {
+            return false;
+        }
+        view.session = session;
+        slot.view = Some(view);
+        announce();
+        true
+    }
+
+    /// [`Self::run_if_current`] for one poller, refused once its stop flag is up.
+    pub fn run_if_running(&self, session: u64, stopped: &AtomicBool, action: impl FnOnce()) -> bool {
+        let Ok(slot) = self.0.lock() else {
+            return false;
+        };
+        if slot.active_session != Some(session) || slot.withheld || stopped.load(Ordering::Acquire)
+        {
+            return false;
+        }
+        action();
+        true
+    }
+
     /// Run a non-view side effect only while its worker still owns the active visit.
     pub fn run_if_current(&self, session: u64, action: impl FnOnce()) -> bool {
         let Ok(slot) = self.0.lock() else {
             return false;
         };
-        if slot.active_session != Some(session) {
+        if slot.active_session != Some(session) || slot.withheld {
             return false;
         }
         action();
@@ -159,6 +231,7 @@ impl KioskState {
         if let Ok(mut slot) = self.0.lock() {
             slot.active_session = None;
             slot.view = None;
+            slot.withheld = false;
         }
     }
 }

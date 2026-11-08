@@ -167,3 +167,71 @@ fn the_kiosk_overlay_covers_the_whole_game_window() {
         (-1280, 0, 1280, 800)
     );
 }
+
+/// When the kiosk screen leaves, the visit's chips come down at once but the visit itself waits
+/// out the close grace. While withheld, nothing a worker still mid-read publishes or streams may
+/// reach the screen; once the screen is back, the same visit publishes again.
+#[test]
+fn a_withheld_visit_refuses_publications_until_released() {
+    let state = KioskState::new();
+    let visit = state.begin_session();
+    let view = |epoch| KioskView {
+        epoch,
+        ..KioskView::default()
+    };
+    assert!(state.set_if_current(visit, view(1), || ()));
+
+    assert!(state.withhold(visit), "the current visit is withheld");
+    assert!(state.get().is_none(), "its chips are gone at once");
+    assert_eq!(state.active_session(), Some(visit), "but the visit lives on");
+    assert!(!state.set_if_current(visit, view(2), || ()), "no late publish");
+    assert!(!state.run_if_current(visit, || ()), "no late scroll either");
+    assert!(state.get().is_none());
+
+    state.release(visit);
+    assert!(state.set_if_current(visit, view(3), || ()));
+    assert_eq!(state.get().map(|view| view.epoch), Some(3));
+
+    let older = visit;
+    state.end_session(visit);
+    let next = state.begin_session();
+    assert!(!state.withhold(older), "an ended visit withholds nothing");
+    assert!(state.set_if_current(next, view(4), || ()));
+    assert!(state.withhold(next));
+    state.end_session(next);
+    let fresh = state.begin_session();
+    assert!(
+        state.set_if_current(fresh, view(5), || ()),
+        "a new visit starts unwithheld"
+    );
+}
+
+/// A visit resumed after a sale-confirm rebuild has a new poller; the stopped one may still be
+/// between its last stop check and its publish. Its publications and scroll events are refused
+/// even though the visit is current and no longer withheld.
+#[test]
+fn a_stopped_poller_cannot_publish_into_its_resumed_visit() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let state = KioskState::new();
+    let visit = state.begin_session();
+    let old_poller = AtomicBool::new(false);
+    let new_poller = AtomicBool::new(false);
+    let view = |epoch| KioskView {
+        epoch,
+        ..KioskView::default()
+    };
+    assert!(state.set_if_running(visit, &old_poller, view(1), || ()));
+
+    // Close line: the old poller is stopped, the chips withheld; the reopen releases the visit.
+    old_poller.store(true, Ordering::Release);
+    assert!(state.withhold(visit));
+    state.release(visit);
+
+    assert!(!state.set_if_running(visit, &old_poller, view(2), || ()));
+    assert!(!state.run_if_running(visit, &old_poller, || ()));
+    assert!(state.get().is_none(), "nothing of the old grid came back");
+    assert!(state.set_if_running(visit, &new_poller, view(3), || ()));
+    assert!(state.run_if_running(visit, &new_poller, || ()));
+    assert_eq!(state.get().map(|view| view.epoch), Some(3));
+}

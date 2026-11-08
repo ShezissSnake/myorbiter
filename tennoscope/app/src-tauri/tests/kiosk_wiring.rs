@@ -13,6 +13,10 @@ const SWF_LINE: &str = "Created /Lotus/Interface/InventoryTest.swf\n";
 const POPULATE_LINE: &str = "InventoryTest.lua: PopulateGrid()\n";
 /// The game's own exit line, exactly as EE.log writes it (census: once per session).
 const CLOSE_LINE: &str = "75584.766 Script [Info]: InventoryTest.lua: DBG: HudVis 0\n";
+/// A mode line naming anything but selling prime parts. The census holds no such line, so this
+/// one is made up in the game's own shape.
+const OTHER_MODE_LINE: &str =
+    "75590.120 Script [Info]: InventoryTest.lua: InventoryTest - CurrMode: Example Other Mode\n";
 /// A foreign subscription exactly as EE.log writes it when the sale-confirm popup takes input.
 const POPUP_LINE: &str = "173.558 Input [Info]: Subscribing for /Lotus/Interface/ItemInfoPopup.swf with input filter /Lotus/Types/Input/ItemInfoPopupInputFilter\n";
 
@@ -452,8 +456,10 @@ fn adopting_twice_does_not_double_arm() {
 /// the open markers again -- can land in a single `observe` call. Within one batch a rebuild
 /// is indistinguishable from an instant close-and-reopen, and continuity is the safe side of
 /// that ambiguity: nothing retires, the poller keeps reading, the published view stays up,
-/// and the overlay never blinks. (The old code retired on the close and re-armed on the open,
-/// wiping the view and churning the poller on every sale.)
+/// and the window never blinks. The chips do come down with the close (the grid they priced is
+/// gone for that moment), and the visit carries on with a fresh poller that re-reads the rebuilt
+/// grid. (The old code retired on the close and re-armed on the open, churning the session and
+/// the window on every sale.)
 #[test]
 fn a_close_and_reopen_in_one_batch_keeps_the_same_visit() {
     let session = &mut KioskSession::new();
@@ -471,22 +477,29 @@ fn a_close_and_reopen_in_one_batch_keeps_the_same_visit() {
     });
     let visit = kiosk.active_session();
 
-    session.observe(
+    let withdrawn = session.observe(
         [CLOSE_LINE, MODE_LINE, POPULATE_LINE].concat().as_bytes(),
         &kiosk,
         &show,
         &spawns.hook(),
         t0,
     );
-    assert_eq!(spawns.spawns(), 1, "no second poller for the same visit");
+    assert!(withdrawn, "the frontend hears the chips went");
     assert!(
-        !poller.load(Ordering::Acquire),
-        "the running poller was never stopped"
+        poller.load(Ordering::Acquire),
+        "the poller reading the old grid was stopped"
+    );
+    assert_eq!(spawns.spawns(), 2, "a fresh poller for the rebuilt grid");
+    let resumed = spawns.reanchor.lock().unwrap()[1].clone();
+    assert!(
+        resumed.load(Ordering::Acquire),
+        "and its first read is a full anchor"
     );
     assert_eq!(kiosk.active_session(), visit, "still the same visit");
+    assert!(kiosk.get().is_none(), "the old grid's chips are gone");
     assert!(
-        kiosk.get().is_some(),
-        "the published view stayed up through the rebuild"
+        kiosk.set_if_current(visit.unwrap(), KioskView::default(), || ()),
+        "the resumed visit publishes again"
     );
 
     assert!(
@@ -522,7 +535,16 @@ fn a_batch_that_ends_closed_still_tears_down() {
         &spawns.hook(),
         t0,
     );
-    assert_eq!(spawns.spawns(), 1, "the visit never re-armed");
+    assert_eq!(
+        spawns.spawns(),
+        2,
+        "the reopen in the middle resumed the visit with a poller of its own"
+    );
+    assert!(
+        spawns.gone.lock().unwrap().iter().all(|gone| gone.load(Ordering::Acquire)),
+        "and the last close stopped it again"
+    );
+    assert!(kiosk.get().is_none(), "no chips while the close is pending");
     assert!(
         !session.take_close(&kiosk, &hide, t0),
         "inside the window the overlay stays up"
@@ -644,8 +666,14 @@ fn a_sale_confirm_rebuild_split_across_batches_keeps_the_overlay_up() {
         "the overlay must ride out the rebuild window"
     );
     assert_eq!(tally_of(&hides), 0, "the window never blinked");
-    assert!(kiosk.get().is_some(), "the published view stays up");
-    assert_eq!(spawns.spawns(), 1, "no second poller for the same visit");
+    assert!(
+        kiosk.get().is_none(),
+        "but the chips came down with the grid: the popup covers it"
+    );
+    assert!(
+        !kiosk.set_if_current(visit.unwrap(), KioskView::default(), || ()),
+        "and nothing paints them back while the grid is away"
+    );
     assert_eq!(kiosk.active_session(), visit, "the visit is continuous");
 
     // ...then the rebuild markers arrive a second later and the visit continues.
@@ -661,8 +689,12 @@ fn a_sale_confirm_rebuild_split_across_batches_keeps_the_overlay_up() {
         "the rebuild cancels the pending teardown"
     );
     assert_eq!(tally_of(&hides), 0, "still no blink");
-    assert_eq!(spawns.spawns(), 1, "the running poller was never stopped");
+    assert_eq!(spawns.spawns(), 2, "the rebuilt grid gets a poller of its own");
     assert_eq!(kiosk.active_session(), visit, "still the same visit");
+    assert!(
+        kiosk.set_if_current(visit.unwrap(), KioskView::default(), || ()),
+        "and its chips publish again"
+    );
     assert_eq!(tally_of(&shows), 1, "never re-shown: it never came down");
 }
 
@@ -699,7 +731,7 @@ fn a_slow_sale_confirm_rebuild_keeps_the_overlay_up() {
         "the overlay must ride out a 1.7s rebuild"
     );
     assert_eq!(tally_of(&hides), 0, "the window never blinked");
-    assert!(kiosk.get().is_some(), "the published view stays up");
+    assert!(kiosk.get().is_none(), "the chips came down with the grid");
 
     session.observe(
         [MODE_LINE, SWF_LINE, POPULATE_LINE].concat().as_bytes(),
@@ -713,8 +745,12 @@ fn a_slow_sale_confirm_rebuild_keeps_the_overlay_up() {
         "the rebuild cancels the pending teardown"
     );
     assert_eq!(tally_of(&hides), 0, "still no blink");
-    assert_eq!(spawns.spawns(), 1, "the running poller was never stopped");
+    assert_eq!(spawns.spawns(), 2, "the rebuilt grid gets a poller of its own");
     assert_eq!(kiosk.active_session(), visit, "still the same visit");
+    assert!(
+        kiosk.set_if_current(visit.unwrap(), KioskView::default(), || ()),
+        "and its chips publish again"
+    );
     assert_eq!(tally_of(&shows), 1, "never re-shown: it never came down");
 }
 
@@ -796,10 +832,17 @@ fn silence_past_the_grace_window_tears_the_session_down() {
 
     assert!(
         !session.take_close(&kiosk, &hide, t0),
-        "inside the window the overlay lingers"
+        "inside the window the visit lingers"
     );
-    assert_eq!(tally_of(&hides), 0);
-    assert!(kiosk.get().is_some(), "and so does the published view");
+    assert_eq!(tally_of(&hides), 0, "and so does the window");
+    assert!(
+        kiosk.get().is_none(),
+        "but not the chips: the screen they priced is gone"
+    );
+    assert!(
+        poller.load(Ordering::Acquire),
+        "nor the poller: it would be reading whatever replaced the grid"
+    );
     assert!(
         session.take_close(&kiosk, &hide, after_grace(t0)),
         "silence past the window is the verdict"
@@ -814,4 +857,61 @@ fn silence_past_the_grace_window_tears_the_session_down() {
         !session.take_close(&kiosk, &hide, after_grace(t0)),
         "consumed once; nothing left to tear down"
     );
+}
+
+/// The inventory switching to another mode closes the visit; once the grace runs out and the
+/// overlay is down, that mode's own SWF line must not bring it back. Naming the selling mode does.
+#[test]
+fn a_visit_closed_by_another_mode_stays_closed_on_its_swf_line() {
+    let session = &mut KioskSession::new();
+    let spawns = SpawnLog::default();
+    let kiosk = KioskState::new();
+    let (shows, show) = tally();
+    let (_, hide) = tally();
+    let t0 = Instant::now();
+
+    session.observe(MODE_LINE.as_bytes(), &kiosk, &show, &spawns.hook(), t0);
+    session.observe(OTHER_MODE_LINE.as_bytes(), &kiosk, &show, &spawns.hook(), t0);
+    assert!(session.take_close(&kiosk, &hide, after_grace(t0)));
+    session.observe(SWF_LINE.as_bytes(), &kiosk, &show, &spawns.hook(), after_grace(t0));
+    assert_eq!(spawns.spawns(), 1, "the other mode's SWF line opened nothing");
+    assert_eq!(tally_of(&shows), 1);
+
+    session.observe(MODE_LINE.as_bytes(), &kiosk, &show, &spawns.hook(), after_grace(t0));
+    assert_eq!(spawns.spawns(), 2, "the selling mode opens a new visit");
+}
+
+/// A game process that ends under another inventory mode leaves nothing behind: the next
+/// process's log is read from scratch, and its SWF line opens the kiosk as it always has.
+#[test]
+fn a_new_game_process_does_not_inherit_the_inventory_mode() {
+    let session = &mut KioskSession::new();
+    let spawns = SpawnLog::default();
+    let kiosk = KioskState::new();
+    let (_, show) = tally();
+    let (_, hide) = tally();
+    let t0 = Instant::now();
+
+    session.observe(MODE_LINE.as_bytes(), &kiosk, &show, &spawns.hook(), t0);
+    session.observe(OTHER_MODE_LINE.as_bytes(), &kiosk, &show, &spawns.hook(), t0);
+    session.close(&kiosk, &hide, &|| ());
+    session.observe(SWF_LINE.as_bytes(), &kiosk, &show, &spawns.hook(), t0);
+    assert_eq!(spawns.spawns(), 2, "the new process's SWF line opens the kiosk");
+}
+
+/// Attaching while the inventory shows another mode adopts no visit, and that mode's SWF line
+/// opens none afterwards.
+#[test]
+fn attaching_under_another_mode_keeps_the_kiosk_closed() {
+    let session = &mut KioskSession::new();
+    let spawns = SpawnLog::default();
+    let kiosk = KioskState::new();
+    let (_, show) = tally();
+    let t0 = Instant::now();
+
+    let tail = [MODE_LINE, OTHER_MODE_LINE].concat();
+    session.adopt_log_tail(tail.as_bytes(), &kiosk, &show, &spawns.hook());
+    assert_eq!(spawns.spawns(), 0, "nothing open to adopt");
+    session.observe(SWF_LINE.as_bytes(), &kiosk, &show, &spawns.hook(), t0);
+    assert_eq!(spawns.spawns(), 0, "the other mode's SWF line opens nothing");
 }
