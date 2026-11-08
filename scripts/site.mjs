@@ -81,11 +81,18 @@ const take = (cls, n = 0) => {
   return clean(hits[n][1]);
 };
 
+/** The trust section's link to the privacy page: a button in the app (bold text once cleaned), a link here. */
+function linkPrivacy(html) {
+  const page = "<b class=\"pg\">What MyOrbiter reads and sends</b>";
+  if (!html.includes(page)) throw new Error("The Guide's link to docs/privacy.md wasn't found: has its wording changed?");
+  return html.replace(page, () => `<a href="${REPO}/-/blob/main/docs/privacy.md">What MyOrbiter reads and sends</a>`);
+}
+
 // ---- Pages.
 const GUIDE = [
   { file: "guide/index.html", title: "Walkthroughs", blurb: "What to open, in order, for the things players come to MyOrbiter for.", body: () => `<section class="walks">${take("walks")}</section>` },
   { file: "guide/pages.html", title: "Every page", blurb: "Each page, by when you'd use it.", body: () => `<section class="routines">${take("routines")}</section>` },
-  { file: "guide/your-game.html", title: "Your game and your data", blurb: "What MyOrbiter reads, what it sends, and what Full mode means for your account.", body: () => `<section class="trust">${take("trust")}<p>Everything it reads, every host it talks to and every file it keeps: <a href="${REPO}/-/blob/main/docs/privacy.md">What MyOrbiter reads and sends</a>.</p></section>` },
+  { file: "guide/your-game.html", title: "Your game and your data", blurb: "What MyOrbiter reads, what it sends, and what Full mode means for your account.", body: () => `<section class="trust">${linkPrivacy(take("trust"))}</section>` },
   { file: "guide/getting-around.html", title: "Getting around", blurb: "The sidebar, the marks on cards and rows, and where every number comes from.", body: () => `<section class="cols">${take("cols")}</section>` },
 ];
 

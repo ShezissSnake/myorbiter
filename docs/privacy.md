@@ -1,9 +1,8 @@
 # What MyOrbiter reads and sends
 
-MyOrbiter runs on your PC and has no server or account of its own. It sends nothing about how you
-use it to its makers or to anyone else: no telemetry, no analytics, no crash reports. What it does
-read, what it sends about you and to whom, and what it keeps on your disk is all listed below, as
-the code does it.
+MyOrbiter runs on your PC and has no server or account of its own. No telemetry, analytics or crash
+reports are built in. What it does read, what it sends and to whom, and what it keeps on your disk
+is all listed below, as the code does it.
 
 The page covers MyOrbiter and the TennoScope that comes with it (`tennoscope/ORBITER.md`), which
 MyOrbiter starts in the background on Linux and Windows. Paths are given for Linux, with the Windows
@@ -13,11 +12,12 @@ path beside each.
 
 | What | Where it goes | When |
 | --- | --- | --- |
-| The game's memory, read only | your login session goes to Digital Extremes, for your inventory; the rest stays on your PC | only in Full mode, which is off until you choose it |
-| The game's window, captured and read on your PC | the pictures stay on your PC; the item names on them are priced on warframe.market | in TennoScope's Overlay and Full modes, during void fissure missions and at Baro's kiosk |
-| The game's log (`EE.log`) | stays on your PC, except the names of players you trade with or who whisper you (looked up on warframe.market, and in your Discord notifications if you set them up) | while MyOrbiter runs, on PC |
+| The game's memory, read only | your login session goes to Digital Extremes, for your inventory; the names of the squad's rewards are priced on warframe.market; the rest stays on your PC | only in Full mode, which is off until you choose it |
+| The game's window, captured and read on your PC | the pictures stay on your PC; the item names on them are priced on warframe.market | in TennoScope's Overlay mode (what the first start's "Not now" picks) and Full mode, during void fissure missions and at Baro's kiosk |
+| Running programs' names; on Linux, the memory maps of Chromium-based apps while the game is closed | stays on your PC | while TennoScope watches for the game, to find it and its launcher |
+| The game's log (`EE.log`) | a trade that sold one of your listings marks it sold and gives the player +rep on warframe.market (both on unless you turn them off); the names of players you trade with or who whisper you are looked up there, and appear in your Discord notifications if you set them up; the rest stays on your PC | while MyOrbiter runs, on PC |
 | Order books, prices, the live feed of new orders; signed in: your profile, orders, auctions, chats, status and your changes | warframe.market | while MyOrbiter runs (below) |
-| Item data, drop tables, world state, pictures | WFCD (`api.warframestat.us`, `drops.warframestat.us`, `cdn.warframestat.us`, GitHub), Digital Extremes, relics.run, warframe.market | at start, on timers, and as pages need them (below) |
+| Item data, drop tables, world state, pictures | WFCD (`api.warframestat.us`, `drops.warframestat.us`, `cdn.warframestat.us`, `raw.githubusercontent.com`), Digital Extremes, relics.run, warframe.market | at start, on timers, and as pages need them (below) |
 | Builds | Nox's Frame | when you open an item or a build on Builds (on unless you turn it off) |
 | The notifications you pick | your Discord webhook | only if you set one |
 | An update check | gitlab.com | at start and every 6 hours, on the AppImage and the Windows installer |
@@ -49,12 +49,14 @@ mode, without asking again. With Full mode on:
   memory around each squad member's account id (taken from the log) to find which reward each one
   picked. Only the reward's name is kept; the player names and session keys that sit beside it in
   memory are discarded. The reward names are priced on warframe.market (below).
-- **Nothing is written to the game.** No keys, no clicks, no input of any kind, and nothing written
-  into its memory or its folder. Memory is opened for reading only: on Linux, `/proc/<pid>/mem`
-  opened read-only, with `/proc/<pid>/pagemap` read to find the pages that changed. On Windows it
-  reads through `ReadProcessMemory` and `VirtualQueryEx`, with handles that two libraries open; the
-  code's comments describe them as read access (`PROCESS_VM_READ`), which this page can't confirm
-  from the code itself. The one thing TennoScope writes about the game's process: on Linux, once
+- **Nothing is written into the game's memory or folder.** No keys, no clicks, no input of any
+  kind. On Linux, memory is opened for reading only: `/proc/<pid>/mem` opened read-only, with
+  `/proc/<pid>/pagemap` read to find the pages that changed. On Windows it reads through
+  `ReadProcessMemory` and `VirtualQueryEx`, with handles that two libraries open; MyOrbiter's code
+  doesn't set their access rights itself, and its comments call them read access
+  (`PROCESS_VM_READ`), which hasn't been checked against those libraries. Nothing in the code
+  writes to the game's memory on either system. The one thing TennoScope writes about the game's
+  process: on Linux, once
   when the log shows a reward screen opening, it writes `4` to `/proc/<pid>/clear_refs`. That resets
   the kernel's record of which of the game's memory pages have changed, so the next read only looks
   at those. It doesn't change the game's memory, though the game's next write to each page costs it
@@ -88,7 +90,7 @@ the start of the game session; each one after takes only what the game added. On
 log through Steam's library list (`steamapps/libraryfolders.vdf` in Steam's folders, Flatpak
 included) under each library's Proton prefix for Warframe, and looks again every minute; on Windows
 in `%LOCALAPPDATA%\Warframe`; or at a path you set in Settings (a local file named `EE.log`, nothing
-else). Its location goes into MyOrbiter's own log.
+else).
 
 From the log MyOrbiter takes:
 
@@ -101,7 +103,8 @@ From the log MyOrbiter takes:
   and count) and the platinum each way.
 
 The log's first 4 KB (which hold the game's command line, your user name and computer name) stay in
-memory to notice a new game session; they're never saved or sent.
+memory to notice a new game session; they're never saved or sent. The log's location, which on both
+systems includes your user name, goes into MyOrbiter's own log (hidden in a bug report).
 
 What is kept: every trade (partner, items, platinum) in your trade history, up to 2000; the names of
 players who whispered you, up to 300; and the sale and whisper notifications, with names, in the
@@ -188,7 +191,7 @@ web requests; its status connection sends no User-Agent.
   read once its copy is a day old; after a failed download, again an hour later while TennoScope
   keeps running (at once after a restart, and at every inventory read while there is no copy at
   all). This request names no program (no User-Agent).
-- **WFCD's relic list** (a fixed version on GitHub, no User-Agent), downloaded by TennoScope only if
+- **WFCD's relic list** (a fixed version on `raw.githubusercontent.com`, no User-Agent), downloaded by TennoScope only if
   MyOrbiter hasn't given it its relic tables and it has no copy of its own.
 - **Prices**: TennoScope downloads the daily price history from `relics.run` when it starts and when
   you choose its mode, unless it already has today's or yesterday's (today's file, then up to 5
@@ -199,12 +202,12 @@ web requests; its status connection sends no User-Agent.
   Archon Hunt, Archimedeas, Steel Path, the Duviri Circuit, the 1999 calendar, Descendia,
   bounties). When it doesn't answer, or leaves out fissures, Baro, Varzia, a cycle, the Sortie,
   Archon Hunt or bounties, MyOrbiter reads the game's own world state (`api.warframe.com`, then
-  `content.warframe.com`) and WFCD's tables that name its places (four files on GitHub, kept a
-  week).
+  `content.warframe.com`) and WFCD's tables that name its places (four files on
+  `raw.githubusercontent.com`, kept a week).
 - **Drop tables**: `drops.warframestat.us` is asked whether they changed at start and every 3 hours,
   once the last successful check is 12 hours old (a failed check is tried again 3 hours later); the
-  tables and WFCD's relic list (GitHub) are downloaded only when they changed.
-- **Foundry recipes**: warframe-public-export-plus on GitHub, three files, once a week (a failed
+  tables and WFCD's relic list (`raw.githubusercontent.com`) are downloaded only when they changed.
+- **Foundry recipes**: warframe-public-export-plus on `raw.githubusercontent.com`, three files, once a week (a failed
   download is tried again at the next start or 3 hours later).
 - **Last week's riven trades** for your platform: `www-static.warframe.com`, when you open Rivens,
   when Orders shows your riven auctions, and when a riven reroll is shown; at most once every 6
@@ -275,7 +278,9 @@ Those are all the hosts MyOrbiter and its TennoScope contact themselves: `api.wa
 `ws.warframe.market`, `warframe.market` (pictures), `api.warframestat.us`, `drops.warframestat.us`,
 `cdn.warframestat.us`, `raw.githubusercontent.com`, `api.warframe.com`, `content.warframe.com`,
 `www-static.warframe.com`, `mobile.warframe.com`, `relics.run`, `noxsframe.com`, `gitlab.com`, and
-the Discord webhook address you give it. If you set a proxy (`HTTPS_PROXY` and the like), requests
+the Discord webhook address you give it. Two more can be reached on the way: gitlab.com may hand an
+update download to its file storage, and the Windows installer fetches Microsoft's WebView2 installer
+when WebView2 is missing (the exact hosts are theirs to choose). If you set a proxy (`HTTPS_PROXY` and the like), requests
 go through it. This doesn't cover what the system's web view (WebView2, WebKitGTK) does on its own.
 No telemetry, analytics or crash reporting is built in, and your records (sales, trades, value over
 time, settings) stay on this computer, in `settings.json` (below); single events reach
@@ -318,14 +323,15 @@ keyring).
 ### MyOrbiter's own files
 
 - `~/.config/dev.myorbiter.app/` (`%APPDATA%\dev.myorbiter.app` on Windows):
-  - `settings.json`: your settings and your records: the sales log, the trade log (other players'
-    names, items, platinum), value history, riven history, relic runs and drops, notifications,
-    who you gave +rep, the whispers and chats already seen, and the Discord address;
+  - `settings.json`: your settings (the Discord address you entered among them) and your records:
+    the sales log, the trade log (other players' names, items, platinum), value history, riven
+    history, relic runs and drops, notifications, who you gave +rep, the whispers and chats already
+    seen;
   - `relic-data.json` (drop tables), `recipe-data.json` (Foundry recipes),
     `worldstate-tables.json` (the world state's place names);
   - `tennoscope-program` (a TennoScope you chose in Settings), and on Linux `rendering` and
     `rendering-trial`;
-  - the confirmed Discord address (`discord-webhook`) and, when the keyring can't store it, the
+  - `discord-webhook`: the address you confirmed in the dialog, which posts go to; and, when the keyring can't store it, the
     warframe.market token (`market-token`).
 - `~/.cache/dev.myorbiter.app/` (`%LOCALAPPDATA%\dev.myorbiter.app` on Windows): the last world
   state, riven prices and trades, warframe.market's item and riven lists, Nox's Frame pages (a
@@ -335,7 +341,8 @@ keyring).
   `myorbiter.log` (and `myorbiter.1.log`, 2 MB each; Settings, Logs opens the folder): what it did
   on warframe.market, your notifications (with other players' names), the game log's location and
   errors. Readable only by you on Linux. Anything shaped like a token, password or webhook address
-  is cut out before it's written. It leaves your PC only in a bug report you send.
+  is cut out before it's written. Its last lines leave your PC only in a bug report you open on
+  GitLab (or copy).
 - CSV exports go to your Downloads folder as `myorbiter-<what>-<date>.csv`, never over an existing
   file.
 - The window's own storage (kept by the system web view) remembers the cards or rows layout of each
