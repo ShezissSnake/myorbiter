@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { links, openUrl } from "../links.svelte";
+  import Opening from "../ui/Opening.svelte";
   import Owned from "../ui/Owned.svelte";
   import PageHead from "../ui/PageHead.svelte";
   import Avail from "../ui/Avail.svelte";
@@ -16,7 +18,6 @@
   import { updates as updateState } from "../updates.svelte";
   import { arrive } from "../motion";
   import { bugReport } from "../bugReport.svelte";
-  import { openUrl } from "../backend";
   import { REPO_URL } from "../core/updates";
 
   // console: the short guide, for the pages a console or phone player has. platform: where they play.
@@ -223,7 +224,7 @@
       <li data-card="fullmode"><b>Full mode</b> (off until you turn it on: <i>Read my inventory</i> in the first-run steps, the TennoScope panel or Settings): TennoScope reads the game's memory to find your session, read only, then downloads your inventory from Digital Extremes with it. It doesn't write to the game's memory either (on Linux it resets the kernel's record of which pages changed, once per reward screen, to read only those). Digital Extremes publishes no list of allowed or forbidden third-party programs and leaves using them at your own risk, so Full mode could put your account at risk: that's your call. Without it, TennoScope only reads the log and the reward screen (Overlay mode), and MyOrbiter shows everything that doesn't need your inventory.</li>
       <li>Mods: MyOrbiter can't see which copy is fitted to a build, so it always keeps your best copy and one more. What it calls spare is past those two.</li>
       <li>Everything MyOrbiter records (sales, trades, value over time, settings) stays on this computer. Your warframe.market sign-in is kept in the system keyring (a private file if there isn't one).</li>
-      <li><b>No telemetry.</b> <button type="button" class="link" title="Open the page in your browser" onclick={() => openUrl(PRIVACY)}>What MyOrbiter reads and sends</button> lists every host it talks to, what it sends each one and how often, and every file it keeps.</li>
+      <li><b>No telemetry.</b> <button type="button" class="link" title="Open the page in your browser" aria-busy={links.isOpening(PRIVACY)} onclick={() => openUrl(PRIVACY)}><Opening url={PRIVACY}>What MyOrbiter reads and sends</Opening></button> lists every host it talks to, what it sends each one and how often, and every file it keeps.</li>
     </ul>
   </section>
 

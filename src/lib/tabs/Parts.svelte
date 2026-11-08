@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { links, openUrl } from "../links.svelte";
+  import Opening from "../ui/Opening.svelte";
   import PTick from "../ui/PTick.svelte";
   import Fold from "../ui/Fold.svelte";
   import { partsWorthSelling, worthTotal } from "../core/worthSelling";
@@ -25,7 +27,7 @@
   import Stat from "../ui/Stat.svelte";
   import PageHead from "../ui/PageHead.svelte";
   import { matches, type Column } from "../ui/table";
-  import { marketUrl, openUrl } from "../backend";
+  import { marketUrl } from "../backend";
   import { info } from "../hover.svelte";
   import PriceHistory from "../ui/PriceHistory.svelte";
   import { takeIntent } from "../intent.svelte";
@@ -227,7 +229,7 @@
     {@render listCell(r, true)}
     {#if r.inSets > 0 && r.spare > r.inSets}<button class="stamp" onclick={(e) => { e.stopPropagation(); mkt.startListing(model, r.name, { quantity: r.spare - r.inSets }); }}>Or list {r.spare - r.inSets} loose</button>{/if}
     <button class="link" onclick={() => details.open(r.parentUnique)}>{r.parentName} ›</button>
-    <button class="link" onclick={() => openUrl(marketUrl(r.name))}>warframe.market ↗</button>
+    <button class="link" aria-busy={links.isOpening(marketUrl(r.name))} onclick={() => openUrl(marketUrl(r.name))}><Opening url={marketUrl(r.name)}>warframe.market ↗</Opening></button>
   </div>
 {/snippet}
 

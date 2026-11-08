@@ -1,6 +1,6 @@
 <script lang="ts">
-  // A newer build is out on your channel: a calm card in the bottom right corner, there until you
-  // answer it. Update and restart downloads it (the button fills as it comes in), installs it once
+  // A newer build is out on your channel: a calm card in the bottom right corner (App's), there
+  // until you answer it. Update and restart downloads it (the button fills as it comes in), installs it once
   // its signature checks out and restarts MyOrbiter; Later puts this version away until a newer one
   // is out. Nothing installs without the click.
   import { arrive, leave } from "./motion";
@@ -35,9 +35,8 @@
 {/if}
 
 <style>
-  .update { position: fixed; right: 1rem; bottom: 1rem; z-index: 60; width: min(24rem, calc(100vw - 2rem)); display: grid; gap: .65rem; padding: .8rem .9rem .9rem; border: 1px solid var(--rule-bright); background: var(--plate); box-shadow: 0 10px 30px rgb(0 0 0 / 55%), inset 3px 0 0 var(--gold); clip-path: var(--cut); }
-  /* A side panel open: behind its shade, as the notifications go. */
-  :global(html[data-scrim]) .update { z-index: 39; }
+  /* In the corner App keeps for it (fixed there, behind a side panel's shade), under a link's trouble. */
+  .update { display: grid; gap: .65rem; padding: .8rem .9rem .9rem; border: 1px solid var(--rule-bright); background: var(--plate); box-shadow: 0 10px 30px rgb(0 0 0 / 55%), inset 3px 0 0 var(--gold); clip-path: var(--cut); }
   .head { display: grid; grid-template-columns: 1.4rem 1fr auto; gap: .6rem; align-items: start; }
   .ic { display: grid; place-items: center; height: 1.3rem; color: var(--gold); }
   .txt { display: grid; gap: .15rem; font-size: .82rem; }

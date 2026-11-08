@@ -6,6 +6,7 @@ mod companion;
 mod desktop;
 mod feed;
 mod folder;
+mod link;
 mod presence;
 mod images;
 mod market;
@@ -1140,6 +1141,13 @@ fn settings_data_dir(bytes: Option<&[u8]>) -> Result<Option<String>, String> {
     Ok(settings.get("dataDir").and_then(Value::as_str).map(str::to_owned))
 }
 
+/// Opens a link in the browser (`link::open`): https links to MyOrbiter's sites only, checked here
+/// again. On Linux it waits for the opener's answer, so on a blocking thread.
+#[tauri::command]
+async fn open_link(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || link::open(&app, &url)).await.map_err(|e| e.to_string())?
+}
+
 // ---------------------------------------------------------------- bug reports
 
 /// The last lines of MyOrbiter's log for a bug report, redacted (applog::tail). Read only when the
@@ -1482,6 +1490,7 @@ pub fn run() {
             log_line,
             log_folders,
             open_log_folder,
+            open_link,
             log_tail,
             report_env,
             tennoscope_failure,

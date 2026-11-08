@@ -2,10 +2,12 @@
   // A mod's or arcane's details, opened from its card or row on Mods or Arcanes: what it does at
   // max rank, the copies you hold by rank, what it sells for, where it drops and its price over
   // time. The page adds its own actions (List…) in `children`.
+  import { links, openUrl } from "../links.svelte";
+  import Opening from "./Opening.svelte";
   import type { Snippet } from "svelte";
   import type { Model } from "../core/model";
   import { describe, effectLines, placeName } from "../core/describe";
-  import { marketUrl, openUrl, wikiUrl } from "../backend";
+  import { marketUrl, wikiUrl } from "../backend";
   import P from "./P.svelte";
   import ModCard from "./ModCard.svelte";
   import PriceHistory from "./PriceHistory.svelte";
@@ -69,8 +71,8 @@
   {/if}
   {#if tradable}<div class="hist"><PriceHistory {name} {unique} rank={0} height={130} known={price != null} /></div>{/if}
   <div class="links">
-    <button class="link" onclick={() => openUrl(wikiUrl(name))}>Wiki ↗</button>
-    {#if tradable}<button class="link" onclick={() => openUrl(marketUrl(name))}>warframe.market ↗</button>{/if}
+    <button class="link" aria-busy={links.isOpening(wikiUrl(name))} onclick={() => openUrl(wikiUrl(name))}><Opening url={wikiUrl(name)}>Wiki ↗</Opening></button>
+    {#if tradable}<button class="link" aria-busy={links.isOpening(marketUrl(name))} onclick={() => openUrl(marketUrl(name))}><Opening url={marketUrl(name)}>warframe.market ↗</Opening></button>{/if}
   </div>
 </div>
 

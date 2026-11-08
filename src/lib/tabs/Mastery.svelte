@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { links, openUrl } from "../links.svelte";
+  import Opening from "../ui/Opening.svelte";
   import Count from "../ui/Count.svelte";
   import Fold from "../ui/Fold.svelte";
   import Tabs from "../ui/Tabs.svelte";
@@ -25,7 +27,7 @@
   import Stat from "../ui/Stat.svelte";
   import PageHead from "../ui/PageHead.svelte";
   import { matches, type Column } from "../ui/table";
-  import { marketUrl, openUrl, wikiUrl } from "../backend";
+  import { marketUrl, wikiUrl } from "../backend";
   import { itemReadyTimes, levelStage } from "../core/foundry";
   import { until } from "../core/traders";
   import PlatMastery from "../ui/PlatMastery.svelte";
@@ -230,8 +232,8 @@
     </div>
   {/if}
   <div class="links">
-    <button class="link" onclick={() => openUrl(r.wiki ?? wikiUrl(r.name))}>Wiki ↗</button>
-    {#if r.isPrime}<button class="link" onclick={() => openUrl(marketUrl(`${r.name} Set`))}>warframe.market ↗</button>{/if}
+    <button class="link" aria-busy={links.isOpening(r.wiki ?? wikiUrl(r.name))} onclick={() => openUrl(r.wiki ?? wikiUrl(r.name))}><Opening url={r.wiki ?? wikiUrl(r.name)}>Wiki ↗</Opening></button>
+    {#if r.isPrime}<button class="link" aria-busy={links.isOpening(marketUrl(`${r.name} Set`))} onclick={() => openUrl(marketUrl(`${r.name} Set`))}><Opening url={marketUrl(`${r.name} Set`)}>warframe.market ↗</Opening></button>{/if}
   </div>
 {/snippet}
 

@@ -3,13 +3,15 @@
   // in full first. MyOrbiter sends nothing itself: Open on GitLab puts the issue's text on the
   // clipboard and opens a blank new issue in the browser, with nothing of the report in its address,
   // for the player to paste, title and submit; Copy report puts it on the clipboard as Markdown. What it builds, cleans and redacts: core/bugReport.ts and core/redact.ts.
+  import { links, openUrl } from "../links.svelte";
+  import Opening from "./Opening.svelte";
   import { tick, untrack } from "svelte";
   import { scrim } from "./scrim";
   import { trap } from "./trap";
   import { opens, reveal, shade, pulse } from "../motion";
   import Icon from "./Icon.svelte";
   import CopyButton from "./CopyButton.svelte";
-  import { logTail, openUrl, reportEnv } from "../backend";
+  import { logTail, reportEnv } from "../backend";
   import { BUILD } from "../build";
   import { bugReport, reportChannel } from "../bugReport.svelte";
   import { buildReport, detailsText, issueText, reportMarkdown, LOG_LINES, MAX, NEW_ISSUE_PAGE, type ReportDetails } from "../core/bugReport";
@@ -176,7 +178,7 @@
       <p class="note small" role="status">You changed the report after copying it: press Open on GitLab again to copy this one.</p>
     {:else if handed === "refused"}
       <div class="note small" role="status">
-        <p>The clipboard refused the report, so GitLab wasn't opened. Here it is, selected: copy it (<kbd>Ctrl</kbd>+<kbd>C</kbd>), then <button type="button" class="link" onclick={() => openUrl(NEW_ISSUE_PAGE)}>open a blank new issue</button> and paste it in.</p>
+        <p>The clipboard refused the report, so GitLab wasn't opened. Here it is, selected: copy it (<kbd>Ctrl</kbd>+<kbd>C</kbd>), then <button type="button" class="link" aria-busy={links.isOpening(NEW_ISSUE_PAGE)} onclick={() => openUrl(NEW_ISSUE_PAGE)}><Opening url={NEW_ISSUE_PAGE}>open a blank new issue</Opening></button> and paste it in.</p>
         <textarea bind:this={manual} class="manual" readonly rows="6" value={paste} aria-label="The report, to copy by hand"></textarea>
       </div>
     {/if}

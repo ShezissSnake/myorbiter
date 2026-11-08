@@ -55,7 +55,6 @@
     discordConfirm,
     discordPost,
     notify,
-    openUrl,
     quit,
     quitOnWindowClose,
     type ScreenCards,
@@ -109,6 +108,8 @@
   import Inventory from "./lib/tabs/Inventory.svelte";
   import WhatsNew from "./lib/WhatsNew.svelte";
   import UpdateNotice from "./lib/UpdateNotice.svelte";
+  import LinkTrouble from "./lib/LinkTrouble.svelte";
+  import { links, openUrl } from "./lib/links.svelte";
   import { updates } from "./lib/updates.svelte";
   import { cameFrom, CHANNEL_LABEL } from "./lib/core/updates";
   import TourBar from "./lib/ui/TourBar.svelte";
@@ -2782,7 +2783,7 @@
       {#if chatsDue.length}
         <div class="bannerfold reveal" out:unfold={{ always: true }}><div><div class="stale repdue" role="status">
           <span>{chatsDue.length === 1 ? `${chatsDue[0].with} messaged you on warframe.market` : `${chatsDue.length} unread chats on warframe.market`}{#if chatsDue.length === 1 && chatsDue[0].lastMessage}: <i class="msg">“{chatsDue[0].lastMessage.slice(0, 120)}”</i>{/if}</span>
-          <IconButton icon="external" tone="quiet" label="Open warframe.market" onclick={() => openUrl("https://warframe.market/")} />
+          <ProgressButton variant="icon" icon="external" tone="quiet" label="Open warframe.market" working="Opening…" busy={links.isOpening("https://warframe.market/")} onclick={() => openUrl("https://warframe.market/")} />
           <IconButton icon="close" tone="quiet" label="Dismiss" onclick={chatsRead} />
         </div></div></div>
       {/if}
@@ -2870,7 +2871,8 @@
 <NoticesSheet bind:open={showNotices} bind:view={noticesView} bind:settings console={onConsole} open_={openNotice} test={testNotice} acts={noticeActs} />
 <Toasts open={openNotice} all={() => openNotices("recent")} left={compact ? "5.2rem" : "15.3rem"} acts={noticeActs} />
 <WhatsNew bind:open={showNews} seen={settings.newsSeen} ondone={() => (settings.newsSeen = NEWEST)} go={(t: string) => goTo(t)} />
-<UpdateNotice onsettings={() => goTo("settings#updates")} />
+<!-- The bottom right corner: a link that couldn't open, above a newer build on offer. -->
+<div class="corner"><LinkTrouble onlogs={() => goTo("settings#logs")} /><UpdateNotice onsettings={() => goTo("settings#updates")} /></div>
 <SettingsSheet bind:open={showSettings} bind:focus={settingsFocus} bind:settings {rivenKeyError} ongo={(t) => goTo(t)} onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />
 {#if firstRun}<FirstRun onanswer={firstRun} />{/if}
 {#if bugReport.open}<BugReport page={pageById[settings.tab as PageId]?.label ?? settings.tab} tennoscope={reportTennoscope} fullMode={reportFullMode} names={reportNames} />{/if}
@@ -3062,4 +3064,8 @@
   .repdue { background: rgb(111 183 163 / 7%); border-bottom-color: color-mix(in srgb, var(--verdigris) 45%, transparent); box-shadow: inset 3px 0 0 var(--verdigris); }
   .repdue b { color: var(--platinum); font-weight: 600; }
   .repdue .msg { color: var(--platinum); font-style: normal; }
+  .corner { position: fixed; right: 1rem; bottom: 1rem; z-index: 60; display: grid; gap: .5rem; width: min(24rem, calc(100vw - 2rem)); pointer-events: none; }
+  .corner > :global(*) { pointer-events: auto; }
+  /* A side panel open: behind its shade, as the notifications go. */
+  :global(html[data-scrim]) .corner { z-index: 39; }
 </style>

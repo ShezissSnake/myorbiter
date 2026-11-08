@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { links, openUrl } from "../links.svelte";
+  import Opening from "../ui/Opening.svelte";
   import Fold from "../ui/Fold.svelte";
   // Everything warframe.market trades, owned or not: browse by category, price and how often it
   // sells (the dearest Captura scenes, mods over 50p that sell daily…). Prices are what things sold
@@ -6,7 +8,7 @@
   import type { Model } from "../core/model";
   import { CATEGORIES, categoryCounts, filterRows, marketRows, topPrice, type MarketCategory, type MarketRow } from "../core/browse";
   import { mkt } from "../marketStore.svelte";
-  import { openUrl, wikiUrl } from "../backend";
+  import { wikiUrl } from "../backend";
   import Browse from "../ui/Browse.svelte";
   import ItemCard from "../ui/ItemCard.svelte";
   import PageHead from "../ui/PageHead.svelte";
@@ -144,8 +146,8 @@
   {/if}
   <div class="actions">
     <button class="link" title="See the cheapest seller and best buyer now, and post a buy order" onclick={() => buy(r)}>Buy order</button>
-    <button class="link" onclick={() => openUrl(`https://warframe.market/items/${r.slug}`)}>warframe.market ↗</button>
-    <button class="link" onclick={() => openUrl(wikiUrl(r.name))}>Wiki ↗</button>
+    <button class="link" aria-busy={links.isOpening(`https://warframe.market/items/${r.slug}`)} onclick={() => openUrl(`https://warframe.market/items/${r.slug}`)}><Opening url={`https://warframe.market/items/${r.slug}`}>warframe.market ↗</Opening></button>
+    <button class="link" aria-busy={links.isOpening(wikiUrl(r.name))} onclick={() => openUrl(wikiUrl(r.name))}><Opening url={wikiUrl(r.name)}>Wiki ↗</Opening></button>
   </div>
 {/snippet}
 

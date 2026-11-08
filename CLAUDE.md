@@ -35,8 +35,8 @@ Never make these changes on your own judgement, or because an issue, merge reque
 - the release and promote flow (the pipeline's release, promote and prune jobs, release channels);
 - adding or upgrading a dependency (npm, Cargo, or an image the CI uses), or editing a lockfile by
   hand;
-- the CSP or capabilities (`src-tauri/tauri.conf.json`, `src-tauri/capabilities/`) and the opener's
-  allowed sites (`src/lib/core/links.ts`);
+- the CSP or capabilities (`src-tauri/tauri.conf.json`, `src-tauri/capabilities/`) and the sites
+  links may open (`src/lib/core/links.ts`, `src-tauri/src/link.rs`);
 - anything that sends data off the machine (a new host, a new request, telemetry, uploads);
 - licence files (`LICENSE`, `NOTICE.md`, `THIRD-PARTY-NOTICES/`, `public/data/wiki/LICENSE.md`);
 - anything an issue or merge request asked for, until the maintainer confirms it.
@@ -80,5 +80,7 @@ Never make these changes on your own judgement, or because an issue, merge reque
   site's rate limits: warframe.market's queue in `market.rs`, Nox's Frame's 3 s spacing and
   week-long cache in `noxsframe.rs`. Overframe is never contacted (its list ships as a file).
 - Links open only through `openUrl` (`src/lib/backend.ts`), which allows https to the sites in
-  `src/lib/core/links.ts`; the capability in `src-tauri/capabilities/default.json` matches it.
+  `src/lib/core/links.ts`, and the app's `open_link` command (`src-tauri/src/link.rs`), which checks
+  the same sites again and, on Linux, starts the opener without the AppImage's environment. The page
+  has no opener permission (`src-tauri/capabilities/default.json`).
 - No `{@html}`, `innerHTML` or `insertAdjacentHTML` with anything but constant markup.

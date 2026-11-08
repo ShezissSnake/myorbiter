@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { links, openUrl } from "../links.svelte";
+  import Opening from "../ui/Opening.svelte";
   import Count from "../ui/Count.svelte";
   import PTick from "../ui/PTick.svelte";
   import Tabs from "../ui/Tabs.svelte";
@@ -27,7 +29,7 @@
   import PageHead from "../ui/PageHead.svelte";
   import { matches, type Column } from "../ui/table";
   import ListButton from "../ui/ListButton.svelte";
-  import { marketUrl, openUrl } from "../backend";
+  import { marketUrl } from "../backend";
   import { info } from "../hover.svelte";
   import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
   import { pickShowcase } from "../core/showcase";
@@ -251,7 +253,7 @@
     {/each}
   </div>
   <div class="actions">
-    <button class="link" onclick={() => openUrl(marketUrl(`${r.name} Set`))}>warframe.market ↗</button>
+    <button class="link" aria-busy={links.isOpening(marketUrl(`${r.name} Set`))} onclick={() => openUrl(marketUrl(`${r.name} Set`))}><Opening url={marketUrl(`${r.name} Set`)}>warframe.market ↗</Opening></button>
   </div>
 {/snippet}
 

@@ -4,10 +4,11 @@
   // Overframe's own list shows (title, author, votes, Forma, update, age) and opens the build on
   // overframe.gg in the browser, so its author gets the visit. No contents, no slot grid, no
   // missing check: Overframe allows showing its lists, not its builds. MyOrbiter never contacts it.
+  import { links, openUrl } from "../../links.svelte";
+  import Opening from "../Opening.svelte";
   import type { CatalogItem } from "../../core/types";
   import { loadOverframe, overframeBuildUrl, overframeFor, updatedAt, OVERFRAME_ORIGIN, OVERFRAME_SITE, type OverframeFile } from "../../core/builds";
   import { ago, dayOf, overframeUrl } from "../../core/buildsPage";
-  import { openUrl } from "../../backend";
   import { arrive } from "../../motion";
   import Icon from "../Icon.svelte";
 
@@ -35,21 +36,21 @@
     {#if Number.isFinite(collected)}<span class="when" title="MyOrbiter's copy of {OVERFRAME_SITE}'s build lists, read on {dayOf(collected)}. MyOrbiter never contacts {OVERFRAME_SITE}: a newer copy comes with an update">Collected {dayOf(collected)}</span>{/if}
   </header>
   <p class="credit">
-    Builds by their authors on <button type="button" class="link out" title="Open overframe.gg in your browser" onclick={() => openUrl(OVERFRAME_ORIGIN)}>{OVERFRAME_SITE}<Icon name="external" size={10} /></button>. Each opens there, in your browser.
+    Builds by their authors on <button type="button" class="link out" title="Open overframe.gg in your browser" aria-busy={links.isOpening(OVERFRAME_ORIGIN)} onclick={() => openUrl(OVERFRAME_ORIGIN)}><Opening url={OVERFRAME_ORIGIN}>{OVERFRAME_SITE}<Icon name="external" size={10} /></Opening></button>. Each opens there, in your browser.
   </p>
 
   {#if file === undefined}
     <p class="state" role="status">Looking up {item.name} in MyOrbiter's copy of {OVERFRAME_SITE}'s lists…</p>
   {:else if file === null}
-    <p class="state">MyOrbiter's copy of {OVERFRAME_SITE}'s lists is missing from this install. <button type="button" class="link out" title="Search {OVERFRAME_SITE} for {item.name}'s builds, in your browser" onclick={() => openUrl(overframeUrl(item.name))}>Search {OVERFRAME_SITE}<Icon name="external" size={10} /></button></p>
+    <p class="state">MyOrbiter's copy of {OVERFRAME_SITE}'s lists is missing from this install. <button type="button" class="link out" title="Search {OVERFRAME_SITE} for {item.name}'s builds, in your browser" aria-busy={links.isOpening(overframeUrl(item.name))} onclick={() => openUrl(overframeUrl(item.name))}><Opening url={overframeUrl(item.name)}>Search {OVERFRAME_SITE}<Icon name="external" size={10} /></Opening></button></p>
   {:else if !found.builds.length}
-    <p class="state">No popular {OVERFRAME_SITE} builds for this item in MyOrbiter's list. <button type="button" class="link out" title="Search {OVERFRAME_SITE} for {item.name}'s builds, in your browser" onclick={() => openUrl(overframeUrl(item.name))}>Search {OVERFRAME_SITE}<Icon name="external" size={10} /></button></p>
+    <p class="state">No popular {OVERFRAME_SITE} builds for this item in MyOrbiter's list. <button type="button" class="link out" title="Search {OVERFRAME_SITE} for {item.name}'s builds, in your browser" aria-busy={links.isOpening(overframeUrl(item.name))} onclick={() => openUrl(overframeUrl(item.name))}><Opening url={overframeUrl(item.name)}>Search {OVERFRAME_SITE}<Icon name="external" size={10} /></Opening></button></p>
   {:else}
     <ol class="rows" in:arrive={{ y: 0 }}>
       {#each found.builds as b (b.id)}
         {@const at = updatedAt(b)}
         <li>
-          <button type="button" class="row" title="Open “{b.title}” by {b.author || 'its author'} on {OVERFRAME_SITE}, in your browser" onclick={() => openUrl(overframeBuildUrl(b.path))}>
+          <button type="button" class="row" title="Open “{b.title}” by {b.author || 'its author'} on {OVERFRAME_SITE}, in your browser" aria-busy={links.isOpening(overframeBuildUrl(b.path))} onclick={() => openUrl(overframeBuildUrl(b.path))}>
             <span class="votes"><b>{b.score.toLocaleString("en")}</b><span class="vw">vote{b.score === 1 ? "" : "s"}</span></span>
             <span class="main">
               <span class="tt">{b.title}</span>
@@ -58,6 +59,7 @@
                 <span>{b.formas} Forma</span>
                 {#if b.patch}<span class="chip">{b.patch}</span>{/if}
                 {#if Number.isFinite(at)}<span>updated {ago(at, now)}</span>{/if}
+                {#if links.isOpening(overframeBuildUrl(b.path))}<span>Opening…</span>{/if}
               </span>
             </span>
             <span class="go" aria-hidden="true"><Icon name="external" size={12} /></span>

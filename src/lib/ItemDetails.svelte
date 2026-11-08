@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { links, openUrl } from "./links.svelte";
+  import Opening from "./ui/Opening.svelte";
   import { untrack } from "svelte";
   import { info } from "./hover.svelte";
   import { placeName } from "./core/describe";
@@ -6,7 +8,7 @@
   // each piece comes from (the relics you hold first), how to get it, and what it's worth now.
   import type { Model } from "./core/model";
   import type { Settings } from "./backend";
-  import { imageUrl, marketUrl, openUrl, wikiUrl } from "./backend";
+  import { imageUrl, marketUrl, wikiUrl } from "./backend";
   import { collectionItem, type PartState } from "./core/collection";
   import { masteryRow, partAvailability } from "./core/views";
   import { vendorBlueprint } from "./core/acquire";
@@ -182,8 +184,8 @@
           {:else if tradeName && setsHeld > 0 && bookState !== "missing"}<ListButton {model} labelled name={tradeName} req={{ quantity: setsHeld }} />{/if}
           <button class="star" class:on={fav} title={fav ? "On your wishlist: click to take it off" : "Add it to your wishlist (Wishlist, and ★ on Foundry)"} onclick={toggleFav}><span class="glyph" aria-hidden="true" use:pop={{ on: fav, of: item.uniqueName }}>{fav ? "★" : "☆"}</span> {fav ? "On your wishlist" : "Add to wishlist"}</button>
           {#if buildable}<button title="Builds for {item.name}: yours, MyOrbiter's suggestion, and what you're missing for each" onclick={openBuilds}>Builds</button>{/if}
-          <button title="Its page on the official wiki" onclick={() => openUrl(item.wikiaUrl ?? wikiUrl(item.name))}>Wiki</button>
-          {#if tradeName && bookState !== "missing"}<button title="Its page on warframe.market: orders and price history" onclick={() => openUrl(marketUrl(tradeName ?? item.name))}>warframe.market</button>{/if}
+          <button title="Its page on the official wiki" aria-busy={links.isOpening(item.wikiaUrl ?? wikiUrl(item.name))} onclick={() => openUrl(item.wikiaUrl ?? wikiUrl(item.name))}><Opening url={item.wikiaUrl ?? wikiUrl(item.name)}>Wiki</Opening></button>
+          {#if tradeName && bookState !== "missing"}<button title="Its page on warframe.market: orders and price history" aria-busy={links.isOpening(marketUrl(tradeName ?? item.name))} onclick={() => openUrl(marketUrl(tradeName ?? item.name))}><Opening url={marketUrl(tradeName ?? item.name)}>warframe.market</Opening></button>{/if}
         </div>
       </div>
     </section>

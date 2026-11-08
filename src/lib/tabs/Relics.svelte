@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { links, openUrl } from "../links.svelte";
+  import Opening from "../ui/Opening.svelte";
   import { info } from "../hover.svelte";
   import { takeIntent } from "../intent.svelte";
   import { dropSpots, wishlistRelics } from "../core/wishlist";
@@ -6,7 +8,7 @@
   import { ERAS, type Model } from "../core/model";
   import { relicRows, unknownRelics, type RelicRow } from "../core/views";
   import type { Fissure } from "../core/types";
-  import { marketUrl, openUrl } from "../backend";
+  import { marketUrl } from "../backend";
   import Browse from "../ui/Browse.svelte";
   import ItemCard from "../ui/ItemCard.svelte";
   import { imageUrl } from "../backend";
@@ -221,7 +223,7 @@
       intact <P v={r.evIntact == null ? null : r1(expectedBest(r.outIntact, 4))} />, radiant <P v={r.evRadiant == null ? null : r1(expectedBest(r.outRadiant, 4))} />.
       Kuva, Riven Slivers and Forma count as nothing.
     </p>
-    <button class="link" onclick={() => openUrl(marketUrl(`${r.base} Relic`))}>warframe.market ↗</button>
+    <button class="link" aria-busy={links.isOpening(marketUrl(`${r.base} Relic`))} onclick={() => openUrl(marketUrl(`${r.base} Relic`))}><Opening url={marketUrl(`${r.base} Relic`)}>warframe.market ↗</Opening></button>
   </div>
 {/snippet}
 

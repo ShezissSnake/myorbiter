@@ -11,9 +11,10 @@
   // never reads Overframe: its popular builds come from a list bundled with the app (collected with
   // its permission, lists only), each a link to the build on overframe.gg, and its buttons open the
   // site in your browser.
+  import { links, openUrl } from "../links.svelte";
+  import Opening from "../ui/Opening.svelte";
   import type { Model } from "../core/model";
   import type { Settings } from "../backend";
-  import { openUrl } from "../backend";
   import type { CatalogItem, InventoryRow } from "../core/types";
   import {
     bestCopy,
@@ -346,8 +347,8 @@
             {:else}<span class="dim">You don't have it yet.</span>{/if}
           </p>
           <div class="out">
-            <button type="button" class="link" title="Find {item.name}'s builds on Overframe, in your browser (MyOrbiter never reads Overframe)" onclick={() => openUrl(overframeUrl(item!.name))}>Overframe <Icon name="external" size={11} /></button>
-            <button type="button" class="link" title="Open {item.name}'s builds on Nox's Frame in your browser" onclick={() => openUrl(noxUrl(item!.name, kind!, !!recipeItem(item!.uniqueName)))}>Nox's Frame <Icon name="external" size={11} /></button>
+            <button type="button" class="link" title="Find {item.name}'s builds on Overframe, in your browser (MyOrbiter never reads Overframe)" aria-busy={links.isOpening(overframeUrl(item!.name))} onclick={() => openUrl(overframeUrl(item!.name))}><Opening url={overframeUrl(item!.name)}>Overframe <Icon name="external" size={11} /></Opening></button>
+            <button type="button" class="link" title="Open {item.name}'s builds on Nox's Frame in your browser" aria-busy={links.isOpening(noxUrl(item!.name, kind!, !!recipeItem(item!.uniqueName)))} onclick={() => openUrl(noxUrl(item!.name, kind!, !!recipeItem(item!.uniqueName)))}><Opening url={noxUrl(item!.name, kind!, !!recipeItem(item!.uniqueName))}>Nox's Frame <Icon name="external" size={11} /></Opening></button>
           </div>
         </div>
         <div class="tiers" role="tablist" aria-label="Investment">
@@ -461,7 +462,7 @@
               {#if undo.has(o.build.id)}<UndoSlot label="Deleted" what={o.build.title ?? "the link"} onundo={() => undo.undo(o.build.id)} />
               {:else}
                 <span class="ot"><b>{o.build.title ?? "Overframe build"}</b>{#if o.build.author}<span class="dim small"> by {o.build.author}</span>{/if}<span class="dim small"> · {ageLine(o.build, now)}</span></span>
-                <button type="button" class="link out" title="Open it on Overframe, in your browser" onclick={() => openUrl(src.url)}>Open on Overframe <Icon name="external" size={11} /></button>
+                <button type="button" class="link out" title="Open it on Overframe, in your browser" aria-busy={links.isOpening(src.url)} onclick={() => openUrl(src.url)}><Opening url={src.url}>Open on Overframe <Icon name="external" size={11} /></Opening></button>
                 {#if o.saved}<button type="button" class="ib quiet" title="Delete the link (you get a few seconds to undo)" aria-label="Delete the link" onclick={() => undo.hold(o.build.id, () => (settings.builds = removeBuild(settings.builds, o.build.id)))}><Icon name="trash" size={12} /></button>
                 {:else}<button type="button" class="link" title="Keep the link with your builds" onclick={() => keep({ ...o.build, importedAt: Date.now() })}>Save link</button>{/if}
               {/if}

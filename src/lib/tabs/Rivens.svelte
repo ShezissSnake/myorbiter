@@ -1,11 +1,12 @@
 <script lang="ts">
+  import { links, openUrl } from "../links.svelte";
   import { untrack } from "svelte";
   // Your rivens, read from the game: each stat as the game shows it, how good each roll is, and
   // what comparable rivens sell for. Below, a finder for rivens on warframe.market, and alerts for
   // the ones you want at your price.
   import type { Model } from "../core/model";
   import type { RivenWatch, Settings } from "../backend";
-  import { marketUrl, openUrl } from "../backend";
+  import { marketUrl } from "../backend";
   import { tradesFor, type RivenTrade } from "../core/rivens";
   import { attributeSlug, auctionItemFor, auctionOf, checkedWhen, curseWord, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, rollChoice, cycleKey, searchFor, searchKey, statMarket, unpackListed, unpackPrices, type MyAuction, type Riven, type RivenAuction, type RivenChange, type RollChoice } from "../core/rivens";
   import { mkt } from "../marketStore.svelte";
@@ -637,7 +638,7 @@
       <ProgressButton variant="icon" icon={pc || c?.error || c?.loading ? "refresh" : "search"} spin tone="quiet" state={c?.loading ? "working" : "idle"} label={pc ? "Check again" : c?.error ? "Try again" : "Check prices"} working="Checking…" title={pc ? "Check again: find similar rivens for sale now" : "Check prices: find similar rivens for sale"} disabled={!meta} onclick={() => check(r)} />
       {#if meta && auctionOf(meta, r, rivens.mine)}<span class="slot"></span>
       {:else}<button type="button" class="ib rsell" class:on={!!sell[r.id]} aria-label="Sell: {r.weapon} {r.name}" title={!mkt.linked ? "Sign in to warframe.market on Orders first" : "Sell: put it up as an auction on warframe.market"} disabled={!meta || !mkt.linked || !!sell[r.id]} onclick={() => openSell(r, estimates[r.id]?.mid ?? pc?.typical ?? pc?.lowest ?? null)}><Icon name="list" /><span>Sell</span></button>{/if}
-      <IconButton icon="external" tone="quiet" label="Similar rivens on warframe.market" onclick={() => openUrl(searchUrl(r))} />
+      <ProgressButton variant="icon" icon="external" tone="quiet" label="Similar rivens on warframe.market" working="Opening…" busy={links.isOpening(searchUrl(r))} onclick={() => openUrl(searchUrl(r))} />
     </footer>
   </article>
 {/snippet}
