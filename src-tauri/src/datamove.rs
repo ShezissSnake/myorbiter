@@ -27,7 +27,7 @@ use std::time::Duration;
 /// The bundle identifier before the rename.
 pub const OLD_ID: &str = "dev.orbiter.app";
 /// The bundle identifier now: the same as `identifier` in tauri.conf.json (a test checks it).
-pub const ID: &str = "io.gitlab.sheziss-group.myorbiter";
+pub const ID: &str = "dev.myorbiter.app";
 /// The file in a new folder that says its copy is settled.
 pub const MARKER: &str = ".copied-from-dev.orbiter.app";
 const MARKER_TEXT: &str = "MyOrbiter copied this folder from dev.orbiter.app, its folder before the rename, or found nothing to copy.\nWhile this file is here it doesn't copy again. The old folder was left as it was.\n";
@@ -319,11 +319,31 @@ fn copy_once(old: &Path, new: &Path, may_set_aside: bool, aside_out: &mut Option
         if let Some(aside) = &aside {
             if fs::rename(aside, new).is_ok() {
                 *aside_out = None;
+            } else {
+                strip_credentials(aside);
             }
         }
         return fail(e);
     }
+    if let Some(aside) = &aside {
+        strip_credentials(aside);
+    }
     Ok(Moved::Copied)
+}
+
+/// Takes the warframe.market sign-in out of a folder set aside for good: it is kept for what else it
+/// holds, never read again, and a stale copy of a credential is no use to anyone. Only once the
+/// setting aside is final (a folder put back stays whole), and best effort.
+fn strip_credentials(aside: &Path) {
+    let _ = fs::remove_file(aside.join(crate::market::TOKEN_FILE));
+    let Ok(entries) = fs::read_dir(aside) else { return };
+    let tmp = format!(".{}.", crate::market::TOKEN_FILE);
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.starts_with(&tmp) && name.ends_with(".tmp") {
+            let _ = fs::remove_file(entry.path());
+        }
+    }
 }
 
 /// `<new>.<suffix>`, beside `new`.
@@ -401,6 +421,12 @@ mod tests {
         }
     }
 
+    fn sorted(names: &[&str]) -> Vec<String> {
+        let mut n: Vec<String> = names.iter().map(|s| s.to_string()).collect();
+        n.sort();
+        n
+    }
+
     fn fill_old(base: &Path) -> PathBuf {
         let old = base.join(OLD_ID);
         fs::create_dir_all(old.join("logs")).unwrap();
@@ -438,7 +464,7 @@ mod tests {
         assert!(new.join(MARKER).is_file());
         assert_old_unchanged(&old);
         // No temporary folder left beside it.
-        assert_eq!(t.names(), vec![OLD_ID.to_string(), ID.to_string()]);
+        assert_eq!(t.names(), sorted(&[OLD_ID, ID]));
     }
 
     #[test]
@@ -489,6 +515,28 @@ mod tests {
         fs::create_dir_all(t2.0.join(format!("{ID}.before-copy-1"))).unwrap();
         assert_eq!(copy_if_needed(&old2, &new2, true).unwrap(), Moved::CopiedSettingAside(t2.0.join(format!("{ID}.before-copy-2"))));
         assert!(t2.0.join(format!("{ID}.before-copy-2/x")).is_file());
+    }
+
+    #[test]
+    fn a_folder_set_aside_keeps_everything_but_the_sign_in() {
+        let t = Temp::new("strip");
+        let old = fill_old(&t.0);
+        fs::write(old.join(crate::market::TOKEN_FILE), "old token").unwrap();
+        let new = t.0.join(ID);
+        fs::create_dir_all(new.join("sub")).unwrap();
+        fs::write(new.join("settings.json"), r#"{"b":2}"#).unwrap();
+        fs::write(new.join(crate::market::TOKEN_FILE), "token").unwrap();
+        fs::write(new.join(".market-token.123.4.tmp"), "token").unwrap();
+        fs::write(new.join("sub").join(crate::market::TOKEN_FILE), "not the sign-in").unwrap();
+        let aside = t.0.join(format!("{ID}.before-copy-1"));
+        assert_eq!(copy_if_needed(&old, &new, true).unwrap(), Moved::CopiedSettingAside(aside.clone()));
+        assert!(!aside.join(crate::market::TOKEN_FILE).exists());
+        assert!(!aside.join(".market-token.123.4.tmp").exists());
+        assert_eq!(fs::read_to_string(aside.join("settings.json")).unwrap(), r#"{"b":2}"#);
+        assert!(aside.join("sub").join(crate::market::TOKEN_FILE).is_file(), "only the config folder's own");
+        // The copy in place keeps the old folder's sign-in file, and the old folder its own.
+        assert_eq!(fs::read_to_string(new.join(crate::market::TOKEN_FILE)).unwrap(), "old token");
+        assert_eq!(fs::read_to_string(old.join(crate::market::TOKEN_FILE)).unwrap(), "old token");
     }
 
     #[test]
@@ -660,7 +708,7 @@ mod tests {
         fs::create_dir_all(t.0.join(OLD_ID)).unwrap();
         fs::create_dir_all(&new).unwrap();
         clear_partials(&new);
-        assert_eq!(t.names(), vec![OLD_ID.to_string(), ID.to_string(), format!("{ID}.before-copy-1")]);
+        assert_eq!(t.names(), sorted(&[OLD_ID, ID, &format!("{ID}.before-copy-1")]));
     }
 
     #[cfg(unix)]

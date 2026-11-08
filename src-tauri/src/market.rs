@@ -16,10 +16,13 @@ use std::time::{Duration, Instant};
 const V1: &str = "https://api.warframe.market/v1";
 const V2: &str = "https://api.warframe.market/v2";
 pub(crate) const MIN_GAP: Duration = Duration::from_millis(400);
-// The bundle identifier before the rename (datamove.rs), kept here: a new name would lose the sign-in
-// the keyring already holds under this one.
-const KEYRING_SERVICE: &str = crate::datamove::OLD_ID;
+// The keyring entry goes by the bundle identifier. One kept under the identifier before the rename
+// (dev.orbiter.app) isn't read: that sign-in is made once more.
+const KEYRING_SERVICE: &str = crate::datamove::ID;
 const KEYRING_USER: &str = "warframe.market";
+/// The sign-in's file in the config folder, where there is no keyring (written by `write_atomic`,
+/// by way of `.market-token.<pid>.<n>.tmp`).
+pub const TOKEN_FILE: &str = "market-token";
 /// How MyOrbiter introduces itself to warframe.market, on the API and on the status socket alike.
 pub const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"), " (personal order helper; +https://gitlab.com/sheziss-group/orbiter)");
 
@@ -195,7 +198,7 @@ pub struct TokenStore {
 
 impl TokenStore {
     pub fn new(config_dir: &Path) -> Self {
-        Self { fallback: config_dir.join("market-token"), backing: Mutex::new("file"), keyring: true }
+        Self { fallback: config_dir.join(TOKEN_FILE), backing: Mutex::new("file"), keyring: true }
     }
 
     fn entry(&self) -> Option<keyring::Entry> {

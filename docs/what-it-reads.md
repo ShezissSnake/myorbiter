@@ -33,23 +33,23 @@ keeps in the same database.
 
 ## MyOrbiter's own files
 
-- `~/.config/io.gitlab.sheziss-group.myorbiter/` (`%APPDATA%\io.gitlab.sheziss-group.myorbiter` on Windows): `settings.json` (your
+- `~/.config/dev.myorbiter.app/` (`%APPDATA%\dev.myorbiter.app` on Windows): `settings.json` (your
   settings and the last open page), the drop tables, Foundry recipes, the worldstate's place names,
   the confirmed Discord address (`discord-webhook`) and, without a keyring, the warframe.market
   token (`market-token`).
-- `~/.cache/io.gitlab.sheziss-group.myorbiter/` (`%LOCALAPPDATA%\io.gitlab.sheziss-group.myorbiter` on Windows): the last worldstate,
+- `~/.cache/dev.myorbiter.app/` (`%LOCALAPPDATA%\dev.myorbiter.app` on Windows): the last worldstate,
   riven prices and trades, warframe.market's item and riven lists, Nox's Frame pages (a week), and
   item artwork in `img/`. Each picture is downloaded once and shrunk to a thumbnail, so after the
   first look it works offline.
 - The same folders under `dev.orbiter.app`, their name before the rename to MyOrbiter: on its first
   start MyOrbiter copies each one to its new place and puts a `.copied-from-dev.orbiter.app` file
   in the copy. Until that file is there, every start checks again (a copy that failed is tried
-  again, and what that start wrote in between is kept beside it as
-  `io.gitlab.sheziss-group.myorbiter.before-copy-1`). The old folders are only read, never changed
-  or removed. Two empty lock files beside the config folder keep starts apart:
-  `io.gitlab.sheziss-group.myorbiter.copy.lock` while a start copies, and
-  `io.gitlab.sheziss-group.myorbiter.lock` for as long as MyOrbiter runs, so a second start leaves
-  the folders alone.
+  again, and what that start wrote in between is kept beside it as `dev.myorbiter.app.before-copy-1`,
+  without the warframe.market sign-in file). The old folders are only read, never changed or
+  removed. Two empty lock files beside the config folder keep starts apart:
+  `dev.myorbiter.app.copy.lock` while a start copies, and `dev.myorbiter.app.lock` for as long as
+  MyOrbiter runs, so a second start leaves the folders alone. A sign-in kept in the system keyring
+  under the old name isn't read: sign in once more.
 
 ## Signing in to warframe.market
 
