@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The `experimental` job (.gitlab-ci.yml): the build becomes Experimental's. Its latest.json, as
-# `publish` uploaded it to orbiter/<version>/, is copied to channel/experimental/latest.json, which
+# `publish` uploaded it to myorbiter/<version>/, is copied to channel/experimental/latest.json, which
 # installed copies on Experimental read. Never backwards: a pipeline that finishes after a newer
 # one leaves the channel on the newer build. Runs only for a complete build (signed, Linux and
 # Windows), after its release exists.
@@ -16,10 +16,10 @@ version=${1:?usage: ci/experimental.sh <version>}
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-fetch "$packages_api/orbiter/$version/latest.json" "$work/latest.json" ||
-  { echo "orbiter/$version has no latest.json" >&2; exit 1; }
+fetch "$packages_api/myorbiter/$version/latest.json" "$work/latest.json" ||
+  { echo "myorbiter/$version has no latest.json" >&2; exit 1; }
 node scripts/updater-manifest.mjs check --manifest "$work/latest.json" --version "$version" \
-  --require linux-x86_64,windows-x86_64 --base "$public_packages/orbiter/$version"
+  --require linux-x86_64,windows-x86_64 --base "$public_packages/myorbiter/$version"
 
 current=""
 if fetch "$packages_api/channel/experimental/latest.json" "$work/current.json"; then

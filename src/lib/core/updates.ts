@@ -23,7 +23,7 @@ export const isChannel = (x: unknown): x is Channel => x === "stable" || x === "
 /** How often MyOrbiter looks for an update while it runs. */
 export const CHECK_EVERY = 6 * 60 * 60 * 1000;
 
-export const REPO_URL = "https://gitlab.com/sheziss-group/orbiter";
+export const REPO_URL = "https://gitlab.com/sheziss-group/myorbiter";
 
 /** Builds below this were made on GitHub, before the move (the pipeline's BUILD_OFFSET): no
  *  release of theirs is on GitLab. */

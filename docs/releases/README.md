@@ -9,19 +9,20 @@ This page is for whoever runs the releases. Players need only `docs/install.md`.
 on a commit of `main` (`release-*` is a protected tag: only a maintainer can make one, and only a
 protected tag's pipeline is given the signing key). A push to a branch and a merge request start
 nothing. The *task* field of New pipeline picks what it does: `release` (the default),
-`promote`, `pages` or `image` (the builder image, `ci/Dockerfile`, which every other job runs in;
-run it once before the first build and again after every change to the Dockerfile, with a new
-`BUILDER_TAG`; on `main`, then put the digest it prints in `BUILDER_DIGEST`: pipelines on `main`
-and release tags run in the image by that digest, and until it's set `sign` refuses, so nothing
-is published).
+`promote` or `pages`. The builder image (`ci/Dockerfile`, which the jobs run in) isn't built by a
+pipeline: `ci/build-image.sh` builds it with Docker on the maintainer's computer, pushes it with a
+deploy token and prints its digest, once before the first build and again after every change to
+the Dockerfile, with a new `BUILDER_TAG` (`docs/maintaining.md`). The digest goes in
+`BUILDER_DIGEST`: pipelines on `main` and release tags run in the image by that digest, and until
+it's set `sign` refuses, so nothing is published.
 
-The jobs run on the project's own runner (tag `pc`, with the Docker executor, so each job runs in
-a container of its own; never privileged, and protected, so only `main` and protected tags use
-it), or, with the *runner* field set to `cloud`, on gitlab.com's hosted Linux runners, which spend
-the namespace's compute minutes. The `image` task, the `sign` job and any pipeline on a branch
-other than `main` always run on the hosted runners (`sign` because on the pc runner jobs share the
-executor's build volume). A branch's pipeline runs in that branch's own builder image: run the
-`image` task on the branch first.
+Every job, `sign` included, runs on the project's own runner (tag `pc`, with the Docker executor,
+so each job runs in a container of its own; never privileged, and protected, so only `main` and
+protected tags use it and only they get the signing key), or, with the *runner* field set to
+`cloud`, on gitlab.com's hosted Linux runners, which spend the namespace's compute minutes; nothing
+on `main` or a release tag needs them, and the project's instance runners stay off. A pipeline on a
+branch other than `main` can only run on the hosted runners, in that branch's own builder image
+(`ci/build-image.sh <branch>` first, on that branch); such pipelines are optional.
 
 A release pipeline is build *n*, version `0.2.n`, where *n* is the pipeline's number in the project
 plus 100 (builds made on GitHub before the move were numbered below 100; pipelines that promote or
@@ -39,9 +40,9 @@ artifacts, kept 3 days.
 The jobs that build (and so run npm, pnpm and Cargo code) never see the signing key. Unlike on
 GitHub, they can write the package registry and the releases: GitLab gives every job a token with
 the same reach. What keeps installed copies safe is the signature each one checks. `publish`
-(`ci/publish.sh`) adds `orbiter-source.tar.gz`, the complete source of the commit it built, as the
+(`ci/publish.sh`) adds `myorbiter-source.tar.gz`, the complete source of the commit it built, as the
 GPL-3.0 asks, and `SHA256SUMS`, and puts every file in the project's generic package registry as
-`orbiter/0.2.n/<file>`; `release` makes the release `build-<n>` at that commit, linking to them.
+`myorbiter/0.2.n/<file>`; `release` makes the release `build-<n>` at that commit, linking to them.
 TennoScope's licence and a notice travel beside it.
 
 ## Channels
@@ -50,16 +51,19 @@ Each installed copy follows one channel: Stable, Beta or Experimental (`docs/ins
 keeps its version on every channel: moving it up a channel moves the same files, never a rebuild.
 Each channel is one file in the package registry, `channel/<stable|beta|experimental>/latest.json`,
 at the address installed copies check
-(`https://gitlab.com/api/v4/projects/sheziss-group%2Forbiter/packages/generic/channel/<channel>/latest.json`,
+(`https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel/<channel>/latest.json`,
 `src-tauri/src/updates.rs`).
 
 - **A build on `main` becomes Experimental.** With the signing key available, the `sign` job signs
   the final AppImage (after `scripts/repack-appimage.sh`) and the Windows installer with
   `scripts/updater-sign.mjs` (plain Node, no dependencies, signatures of the form
   `tauri signer sign --app-version` writes), and checks each signature against the public key in
-  `src-tauri/tauri.conf.json`. It refuses a checkout holding any link, copies the signer out of
-  the checkout and runs the copy only if it matches `SIGNER_SHA256` in `.gitlab-ci.yml`
-  (`tests/ciSigner.test.ts` says when a change to the signer needs a new one). `publish` writes
+  `src-tauri/tauri.conf.json`. It has no checkout on the runner's shared build volume: it clones
+  the commit into its own container (no hooks, no git config from elsewhere), takes the signer and
+  the public key from that clone and runs the signer only if it matches `SIGNER_SHA256` in
+  `.gitlab-ci.yml` (`tests/ciSigner.test.ts` says when a change to the signer needs a new one).
+  From the volume it takes only `release-files/`, refusing any link there, and signs only the
+  files this build makes. `publish` writes
   `latest.json` (`scripts/updater-manifest.mjs`):
   the version, release notes made from the commit subjects since the previous Experimental build,
   and each download's address in the registry and signature. When the build has both the Linux and

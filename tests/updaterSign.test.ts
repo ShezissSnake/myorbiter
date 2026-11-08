@@ -76,9 +76,9 @@ test("a signature binds the version and the bytes", () => {
 });
 
 test("the command signs with the key from the environment, checked against the config's public key", () => {
-  const work = mkdtempSync(join(tmpdir(), "orbiter-sign-"));
+  const work = mkdtempSync(join(tmpdir(), "myorbiter-sign-"));
   try {
-    const file = join(work, "orbiter_0.1.52_amd64.AppImage");
+    const file = join(work, "myorbiter_0.1.52_amd64.AppImage");
     writeFileSync(file, DATA);
     // A config carrying the test key's public key, as tauri.conf.json carries the release key's.
     const config = join(work, "tauri.conf.json");
@@ -91,7 +91,7 @@ test("the command signs with the key from the environment, checked against the c
     const ok = run({ TAURI_SIGNING_PRIVATE_KEY: SECRET.trim(), TAURI_SIGNING_PRIVATE_KEY_PASSWORD: PASSWORD });
     assert.equal(ok.status, 0, ok.stderr);
     assert.equal(verifySignature(DATA, readFileSync(`${file}.sig`, "utf8"), PUB, "0.1.52"), "0.1.52");
-    assert.match(text(readFileSync(`${file}.sig`, "utf8")), /\tfile:orbiter_0\.1\.52_amd64\.AppImage\tversion:0\.1\.52\n/);
+    assert.match(text(readFileSync(`${file}.sig`, "utf8")), /\tfile:myorbiter_0\.1\.52_amd64\.AppImage\tversion:0\.1\.52\n/);
     // Nothing of the key or its password is printed, whatever happens.
     for (const r of [ok, run({ TAURI_SIGNING_PRIVATE_KEY: SECRET.trim(), TAURI_SIGNING_PRIVATE_KEY_PASSWORD: "wrong" })]) {
       assert.ok(!(r.stdout + r.stderr).includes(PASSWORD));

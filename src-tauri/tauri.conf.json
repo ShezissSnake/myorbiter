@@ -54,7 +54,7 @@
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU4QzFCQzZCRTJENUNGQjkKUldTNXo5WGlhN3pCNlB4WEl4MUpJdTVBM1pNZkYyYTRhYXdPYXFBV0hzS25LWlJJMDIxSUF2RUwK",
-      "endpoints": ["https://gitlab.com/api/v4/projects/sheziss-group%2Forbiter/packages/generic/channel/stable/latest.json"],
+      "endpoints": ["https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel/stable/latest.json"],
       "requireSignedVersion": true,
       "windows": {
         "installMode": "passive"
@@ -86,11 +86,14 @@
       },
       "deb": {
         "depends": [],
+        "conflicts": ["orbiter"],
+        "replaces": ["orbiter"],
         "desktopTemplate": "linux/desktop.hbs"
       },
       "rpm": {
         "release": "1",
         "depends": [],
+        "obsoletes": ["orbiter"],
         "desktopTemplate": "linux/desktop.hbs"
       }
     },

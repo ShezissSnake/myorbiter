@@ -1,46 +1,46 @@
 # Notice
 
-**orbiter** © 2026 Sheziss. Licensed under the GNU General Public License v3.0 only
+**MyOrbiter** © 2026 Sheziss. Licensed under the GNU General Public License v3.0 only
 (GPL-3.0-only); the full text is in `LICENSE`.
 
-orbiter is free software: you can redistribute it and/or modify it under the terms of the GNU
+MyOrbiter is free software: you can redistribute it and/or modify it under the terms of the GNU
 General Public License as published by the Free Software Foundation, version 3. It is distributed in
 the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
 details.
 
-Every orbiter release carries its complete source as `orbiter-source.tar.gz`.
+Every MyOrbiter release carries its complete source as `myorbiter-source.tar.gz`.
 
 ## TennoScope
 
 `tennoscope/` is [TennoScope](https://github.com/Deftera186/tennoscope) © Deftera186 and the
-TennoScope contributors, GPL-3.0-only (`tennoscope/LICENSE`), with orbiter's changes
+TennoScope contributors, GPL-3.0-only (`tennoscope/LICENSE`), with MyOrbiter's changes
 (`tennoscope/ORBITER.md`). Its history, with every upstream author, is kept in this repository.
 TennoScope's own notices are in `tennoscope/THIRD_PARTY_NOTICES.md`. The Linux and Windows downloads
 carry a TennoScope built from that folder, with Tesseract (Apache-2.0).
 
 ## Files under other licences
 
-These are bundled with orbiter but are not covered by its licence:
+These are bundled with MyOrbiter but are not covered by its licence:
 
 - `public/data/wiki/` (`modular-parts.json`, `modular-parts-extra.json`, `vosfor.json`): data from
   the Warframe Wiki, under Creative Commons Attribution-NonCommercial-ShareAlike 3.0 (CC BY-NC-SA
   3.0); source, attribution and changes in `public/data/wiki/LICENSE.md`. These are separate data
-  files shipped beside orbiter (in every download, as `data/wiki/` among its web files), not
-  compiled into its program: orbiter reads them when it starts. Their licence is theirs alone (mere
-  aggregation): it doesn't extend to orbiter, and orbiter's doesn't extend to them.
+  files shipped beside MyOrbiter (in every download, as `data/wiki/` among its web files), not
+  compiled into its program: MyOrbiter reads them when it starts. Their licence is theirs alone (mere
+  aggregation): it doesn't extend to MyOrbiter, and MyOrbiter's doesn't extend to them.
 - `src/lib/data/modular-parts-paths.json`: from WFCD's warframe-items data (MIT).
 - `demo/`: an invented account for screenshots and UI work, whose game data (item names, paths,
   ducats, components, relic rewards, drop chances) comes from WFCD's
   [@wfcd/items](https://www.npmjs.com/package/@wfcd/items) package (MIT, © 2017 Kaptard; the
-  licence text is in `demo/README.md`). It is in the repository and in `orbiter-source.tar.gz`, not
+  licence text is in `demo/README.md`). It is in the repository and in `myorbiter-source.tar.gz`, not
   in the downloads.
 - `public/game/`: Warframe's own icons, taken from the official wiki and WFCD
   (`public/game/SOURCES.json` records where each came from), and TennoScope's part, pistol and
   currency icons (`tennoscope/app/src/assets/`, see `tennoscope/THIRD_PARTY_NOTICES.md`): © Digital
-  Extremes Ltd., excluded from orbiter's and TennoScope's GPL. They are used to identify what they
+  Extremes Ltd., excluded from MyOrbiter's and TennoScope's GPL. They are used to identify what they
   depict; Digital Extremes retains all rights in them. Warframe and its names are © and ™ Digital
-  Extremes Ltd. orbiter is an unofficial project, not affiliated with or endorsed by Digital
+  Extremes Ltd. MyOrbiter is an unofficial project, not affiliated with or endorsed by Digital
   Extremes.
 - The fonts Archivo Narrow, IBM Plex Sans and IBM Plex Mono: SIL Open Font License 1.1 (the texts
   are in `THIRD-PARTY-NOTICES/fonts/`).
@@ -60,5 +60,5 @@ Mannheim's Tesseract installer (`tennoscope/packaging/windows-tesseract/SOURCES.
 
 For three years from the date of each release, the complete corresponding source code of the GPL-
 and LGPL-licensed libraries bundled in it is available on request: open an issue at
-https://gitlab.com/sheziss-group/orbiter or contact the maintainer. The source of orbiter and TennoScope
-is attached to every release as `orbiter-source.tar.gz`.
+https://gitlab.com/sheziss-group/myorbiter or contact the maintainer. The source of MyOrbiter and TennoScope
+is attached to every release as `myorbiter-source.tar.gz`.

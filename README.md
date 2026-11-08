@@ -29,8 +29,8 @@ online status) list, change and close orders and post reviews as you.
 ## Install
 
 Download the latest Stable build from
-[the website](https://sheziss-group.gitlab.io/orbiter/#download) (every build, Beta and
-Experimental too, is on [Releases](https://gitlab.com/sheziss-group/orbiter/-/releases)).
+[the website](https://sheziss-group.gitlab.io/myorbiter/#download) (every build, Beta and
+Experimental too, is on [Releases](https://gitlab.com/sheziss-group/myorbiter/-/releases)).
 TennoScope is inside it; there is nothing else to install.
 
 - **Linux and Steam Deck:** `myorbiter_<version>_amd64.AppImage`. Make it executable
@@ -75,7 +75,7 @@ nothing by itself. Security problems go through [SECURITY.md](SECURITY.md).
 
 ## More
 
-- [The Guide](https://sheziss-group.gitlab.io/orbiter/guide/) (also in the app: F1) and
-  [What's New](https://sheziss-group.gitlab.io/orbiter/whats-new.html)
+- [The Guide](https://sheziss-group.gitlab.io/myorbiter/guide/) (also in the app: F1) and
+  [What's New](https://sheziss-group.gitlab.io/myorbiter/whats-new.html)
 - [docs/](docs/): what MyOrbiter does, what it reads and sends, running it from source, releases
-- [The website](https://sheziss-group.gitlab.io/orbiter/)
+- [The website](https://sheziss-group.gitlab.io/myorbiter/)

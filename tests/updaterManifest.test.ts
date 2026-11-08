@@ -9,7 +9,7 @@ import { buildManifest, checkBase, checkManifest, findAssets, formatNotes, LINE_
 const b64 = (b: Buffer | string) => Buffer.from(b).toString("base64");
 
 /** Where the builds' files are downloaded from: one generic package version per build. */
-const PACKAGES = "https://gitlab.com/api/v4/projects/sheziss-group%2Forbiter/packages/generic/orbiter";
+const PACKAGES = "https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/myorbiter";
 
 /** A signing key in tauri's format (base64 of minisign's text), signing as `tauri signer sign` does. */
 function signer() {
@@ -28,7 +28,7 @@ function signer() {
 
 /** A release's files in a temporary folder: each download with its .sig, plus the files that aren't for the updater. */
 function release(files: Record<string, Buffer>, sign: (d: Buffer, v: string | null, f: string) => string, version: string | null) {
-  const dir = mkdtempSync(join(tmpdir(), "orbiter-manifest-"));
+  const dir = mkdtempSync(join(tmpdir(), "myorbiter-manifest-"));
   for (const [name, data] of Object.entries(files)) {
     writeFileSync(join(dir, name), data);
     if (!/SHA256SUMS|source/.test(name)) writeFileSync(join(dir, `${name}.sig`), sign(data, version, name));
@@ -36,8 +36,8 @@ function release(files: Record<string, Buffer>, sign: (d: Buffer, v: string | nu
   return dir;
 }
 
-const APPIMAGE = "orbiter_0.1.52_amd64.AppImage";
-const SETUP = "orbiter_0.1.52_x64-setup.exe";
+const APPIMAGE = "myorbiter_0.1.52_amd64.AppImage";
+const SETUP = "myorbiter_0.1.52_x64-setup.exe";
 
 test("a signature made by tauri's signer checks out, and a changed byte doesn't", () => {
   const dir = "tests/fixtures/updater";
@@ -65,7 +65,7 @@ test("signatures: another key, an unsigned version and a forged trusted comment 
 
 test("the manifest lists each system's download with its signature, in the build's own folder", () => {
   const k = signer();
-  const dir = release({ [APPIMAGE]: Buffer.from("\x7fELF linux"), [SETUP]: Buffer.from("MZ windows"), SHA256SUMS: Buffer.from("sums"), "orbiter-source.tar.gz": Buffer.from("src") }, k.sign, "0.1.52");
+  const dir = release({ [APPIMAGE]: Buffer.from("\x7fELF linux"), [SETUP]: Buffer.from("MZ windows"), SHA256SUMS: Buffer.from("sums"), "myorbiter-source.tar.gz": Buffer.from("src") }, k.sign, "0.1.52");
   try {
     const m = buildManifest({ dir, version: "0.1.52", base: `${PACKAGES}/0.1.52`, commit: "abc1234", notes: "Faster sync", pubkey: k.pub, date: new Date("2026-11-04T10:20:30.456Z") });
     assert.equal(m.version, "0.1.52");
@@ -117,10 +117,10 @@ test("no manifest from a tampered download, a signature for another version, or 
 });
 
 test("downloads are found by name, each with its signature", () => {
-  assert.deepEqual(findAssets([APPIMAGE, `${APPIMAGE}.sig`, "SHA256SUMS", "orbiter_0.1.52_aarch64.dmg"]), { "linux-x86_64": { file: APPIMAGE, sig: `${APPIMAGE}.sig` } });
+  assert.deepEqual(findAssets([APPIMAGE, `${APPIMAGE}.sig`, "SHA256SUMS", "myorbiter_0.1.52_aarch64.dmg"]), { "linux-x86_64": { file: APPIMAGE, sig: `${APPIMAGE}.sig` } });
   assert.throws(() => findAssets([APPIMAGE]), /has no signature/);
-  assert.throws(() => findAssets([APPIMAGE, `${APPIMAGE}.sig`, "orbiter_0.1.53_amd64.AppImage", "orbiter_0.1.53_amd64.AppImage.sig"]), /more than one/);
-  assert.deepEqual(findAssets(["orbiter-source.tar.gz"]), {});
+  assert.throws(() => findAssets([APPIMAGE, `${APPIMAGE}.sig`, "myorbiter_0.1.53_amd64.AppImage", "myorbiter_0.1.53_amd64.AppImage.sig"]), /more than one/);
+  assert.deepEqual(findAssets(["myorbiter-source.tar.gz"]), {});
 });
 
 test("checking a manifest: its version, https downloads and signatures for that version", () => {
@@ -146,10 +146,10 @@ test("promotion checks every download is the build's own file in its own folder"
   // A trailing slash on the folder is the same folder.
   assert.deepEqual(checkManifest(at(base + APPIMAGE), { ...where, base }), ["linux-x86_64"]);
   // Another project, another build, a channel's folder, another host, another system's file.
-  assert.throws(() => checkManifest(at(`https://gitlab.com/api/v4/projects/someone%2Forbiter/packages/generic/orbiter/0.1.52/${APPIMAGE}`), where), /isn't in https:\/\/gitlab.com\/api\/v4\/projects\/sheziss-group%2Forbiter\/packages\/generic\/orbiter\/0.1.52/);
+  assert.throws(() => checkManifest(at(`https://gitlab.com/api/v4/projects/someone%2Forbiter/packages/generic/myorbiter/0.1.52/${APPIMAGE}`), where), /isn't in https:\/\/gitlab.com\/api\/v4\/projects\/sheziss-group%2Fmyorbiter\/packages\/generic\/myorbiter\/0.1.52/);
   assert.throws(() => checkManifest(at(`${PACKAGES}/0.1.51/${APPIMAGE}`), where), /isn't in/);
-  assert.throws(() => checkManifest(at(`https://gitlab.com/api/v4/projects/sheziss-group%2Forbiter/packages/generic/channel/stable/${APPIMAGE}`), where), /isn't in/);
-  assert.throws(() => checkManifest(at(`https://example.com/api/v4/projects/sheziss-group%2Forbiter/packages/generic/orbiter/0.1.52/${APPIMAGE}`), where), /isn't in/);
+  assert.throws(() => checkManifest(at(`https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel/stable/${APPIMAGE}`), where), /isn't in/);
+  assert.throws(() => checkManifest(at(`https://example.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/myorbiter/0.1.52/${APPIMAGE}`), where), /isn't in/);
   assert.throws(() => checkManifest(at(base + SETUP), where), /isn't linux-x86_64's download/);
   // Paths out of the folder, encoded or not, and a query on the end.
   assert.throws(() => checkManifest(at(`${base}..%2F..%2F0.1.1%2F${APPIMAGE}`), where), /isn't linux-x86_64's download/);

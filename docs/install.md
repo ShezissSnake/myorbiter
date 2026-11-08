@@ -5,7 +5,7 @@ blank, console players, the first start and updates.
 
 ## Downloads
 
-Each build is on *Releases* (gitlab.com/sheziss-group/orbiter/-/releases): the Linux AppImage, a
+Each build is on *Releases* (gitlab.com/sheziss-group/myorbiter/-/releases): the Linux AppImage, a
 `.deb` for Debian and Ubuntu, and the Windows installer. They carry TennoScope inside them, built
 from `tennoscope/` in this repository (TennoScope with MyOrbiter's changes, see
 `tennoscope/ORBITER.md`), with the OCR engine its reward overlay uses. Nothing else needs
@@ -127,3 +127,17 @@ build on the channel you want from *Releases*, then pick the channel in Settings
 then on it updates itself. A build made on your own computer is version 0.1.0 and never updates
 itself. A copy of a build made before the project moved to GitLab (builds below 100) looks for
 updates at the old address and never finds one: install a current build by hand once.
+
+### From orbiter to MyOrbiter
+
+Before the rename the app was called orbiter. orbiter and MyOrbiter shouldn't run side by side:
+both would act on the same warframe.market account.
+
+- **Linux:** the `myorbiter` `.deb` or `.rpm` replaces the `orbiter` package (with `apt`,
+  `dpkg -i`, `dnf` or `rpm -U`), and `scripts/install-desktop.sh` removes the orbiter it installed.
+  Delete an old orbiter AppImage by hand.
+- **Windows:** uninstall orbiter first (Settings → Apps), leaving *Delete the application data*
+  unticked, then install MyOrbiter.
+
+orbiter's settings and data (the `dev.orbiter.app` folders) are kept: on its first start MyOrbiter
+copies them to its own folders ([what-it-reads.md](what-it-reads.md)).

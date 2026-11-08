@@ -44,11 +44,11 @@ test("versions compare by number, and a CI build's number is its release", () =>
   assert.equal(buildNumber("0.1.48"), null, "builds from before the move have no release here");
   assert.equal(buildNumber("0.1.0"), null);
   assert.equal(buildNumber("0.3.5"), null);
-  assert.equal(releasePage("0.2.152"), "https://gitlab.com/sheziss-group/orbiter/-/releases/build-152");
-  assert.equal(releasePage("0.2.100"), "https://gitlab.com/sheziss-group/orbiter/-/releases/build-100");
+  assert.equal(releasePage("0.2.152"), "https://gitlab.com/sheziss-group/myorbiter/-/releases/build-152");
+  assert.equal(releasePage("0.2.100"), "https://gitlab.com/sheziss-group/myorbiter/-/releases/build-100");
   // Made on GitHub before the move: no release of its own on GitLab, so the list.
-  assert.equal(releasePage("0.2.52"), "https://gitlab.com/sheziss-group/orbiter/-/releases");
-  assert.equal(releasePage("0.1.0"), "https://gitlab.com/sheziss-group/orbiter/-/releases");
+  assert.equal(releasePage("0.2.52"), "https://gitlab.com/sheziss-group/myorbiter/-/releases");
+  assert.equal(releasePage("0.1.0"), "https://gitlab.com/sheziss-group/myorbiter/-/releases");
   // Release notes open through the opener's allowed links.
   assert.ok(openable(releasePage("0.2.152")));
   assert.ok(openable(releasePage("0.1.0")));

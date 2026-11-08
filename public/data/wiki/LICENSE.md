@@ -1,8 +1,8 @@
 # Data from the Warframe Wiki: source and licence
 
 The files in this folder come from the Warframe Wiki and are under its licence (below), not
-orbiter's GPL-3.0-only. They are separate data files shipped beside orbiter, not part of its
-program: orbiter reads them from its own files when it starts (`src/lib/core/wikiData.ts`), and
+MyOrbiter's GPL-3.0-only. They are separate data files shipped beside MyOrbiter, not part of its
+program: MyOrbiter reads them from its own files when it starts (`src/lib/core/wikiData.ts`), and
 never fetches the wiki.
 
 This licence note covers three data files in this folder:
@@ -23,7 +23,7 @@ This licence note covers three data files in this folder:
   `source` field).
 
 Each page was read once, by hand, when the snapshot was made (the module's rendered page, because
-the wiki's robots.txt disallows `?action=raw`). orbiter never fetches the wiki: the app only reads
+the wiki's robots.txt disallows `?action=raw`). MyOrbiter never fetches the wiki: the app only reads
 these files. To update them, read the pages again by hand and replace the files.
 
 ## Licence
@@ -36,18 +36,18 @@ Attribution: the Warframe Wiki contributors (https://wiki.warframe.com), hosted 
 page histories list the individual authors.
 
 Changes made: the Lua table converted to JSON with a `_source` block added; the page tables
-reduced to the values orbiter uses, with `_gaps` notes where a page has no numbers.
+reduced to the values MyOrbiter uses, with `_gaps` notes where a page has no numbers.
 
-These files are under that licence, **separate from orbiter's own code and its licence**. They may
+These files are under that licence, **separate from MyOrbiter's own code and its licence**. They may
 not be used commercially, and anything derived from them must be shared under the same licence.
 
 ## Not covered here
 
 `src/lib/data/modular-parts-paths.json` (each part's game path and blueprint path) comes from
 WFCD's warframe-items data (MIT licence, https://github.com/WFCD/warframe-items), not from the
-wiki, and stays in orbiter's code.
+wiki, and stays in MyOrbiter's code.
 
-The rankings orbiter shows from these numbers ("orbiter's ranking from part stats") are orbiter's
+The rankings MyOrbiter shows from these numbers ("MyOrbiter's ranking from part stats") are MyOrbiter's
 own formulas in `src/lib/core/recipes.ts`, not the wiki's.
 
 Warframe and its content are trademarks of Digital Extremes Ltd.

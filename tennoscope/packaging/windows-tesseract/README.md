@@ -7,7 +7,7 @@ copies this folder into `licenses/` beside them (`SOURCES.md` included), with Te
 
 UB Mannheim builds Tesseract with MSYS2's MinGW-w64 toolchain, and the DLLs are the libraries it
 links, as MSYS2 packages them. The installer carries no notices for them, so the table below names
-each one's project and licence, as identified for orbiter (not by UB Mannheim). Their source is
+each one's project and licence, as identified for MyOrbiter (not by UB Mannheim). Their source is
 upstream's, and as built, in MSYS2's package recipes (https://github.com/msys2/MINGW-packages) and
 UB Mannheim's build (https://github.com/UB-Mannheim/tesseract).
 
@@ -59,5 +59,5 @@ UB Mannheim's build (https://github.com/UB-Mannheim/tesseract).
 The GPL and LGPL libraries among them (JBIG-KIT, the GCC runtime, GLib, Pango, cairo and the rest)
 come with a duty to make their corresponding source available to whoever receives the binaries.
 `SOURCES.md`, beside this file in a build, lists them with the version each DLL was built from and
-where its source is, and carries orbiter's written offer of that source for three years from the
+where its source is, and carries MyOrbiter's written offer of that source for three years from the
 release.

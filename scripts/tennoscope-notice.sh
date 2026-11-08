@@ -42,6 +42,6 @@ THIRD-PARTY-NOTICES/tesseract/SOURCES.md gives each library's version and where 
 a written offer of the source of the GPL- and LGPL-licensed ones.
 
 The complete source of this build, MyOrbiter and TennoScope both, comes with every MyOrbiter release as
-orbiter-source.tar.gz.
+myorbiter-source.tar.gz.
 NOTE
 echo "notice written in $dir"

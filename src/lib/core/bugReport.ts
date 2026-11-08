@@ -17,7 +17,7 @@ import { redact, type RedactOptions } from "./redact";
 import { cleanBlock, cleanLine, stripHidden, stripHtmlComments } from "./untrusted";
 
 /** The project's new-issue page. Its host and path are in the opener's allowed sites (core/links.ts). */
-export const NEW_ISSUE = "https://gitlab.com/sheziss-group/orbiter/-/work_items/new";
+export const NEW_ISSUE = "https://gitlab.com/sheziss-group/myorbiter/-/work_items/new";
 /** The issue template (its file name without .md), and its section headings: the template and this
  *  list must agree (tests/bugReport.test.ts). */
 export const TEMPLATE = "Bug report";

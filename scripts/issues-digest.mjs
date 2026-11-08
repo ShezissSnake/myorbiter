@@ -336,9 +336,9 @@ export function digest(data, opts = {}) {
 }
 
 /** The project --fetch reads, and where. */
-export const PROJECT = "sheziss-group/orbiter";
+export const PROJECT = "sheziss-group/myorbiter";
 const GRAPHQL = "https://gitlab.com/api/graphql";
-const USER_AGENT = "orbiter-issues-digest (+https://gitlab.com/sheziss-group/orbiter)";
+const USER_AGENT = "myorbiter-issues-digest (+https://gitlab.com/sheziss-group/myorbiter)";
 const QUERY = `query($path: ID!, $state: IssuableState, $iids: [String!], $after: String, $members: Boolean!) {
   project(fullPath: $path) {
     issues(state: $state, iids: $iids, first: 20, after: $after, sort: CREATED_ASC) {

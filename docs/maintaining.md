@@ -1,7 +1,7 @@
 # Maintaining the public repository
 
 GitLab settings that can't live in the repository: set them by hand once, before
-`sheziss-group/orbiter` goes public, and check them again after any change to the project's or
+`sheziss-group/myorbiter` goes public, and check them again after any change to the project's or
 the group's settings. Each line says where it is. Everything here works on GitLab Free.
 
 ## Going public, step by step
@@ -11,7 +11,7 @@ needs the Maintainer role, and the group's settings (its visibility, its package
 group's Owner role; the ones marked **(maintainer)** are the maintainer's own clicks (the visibility
 switch, the signing key, the runner, the promotions). Each step links to its details further down;
 tick it here when it's done. The commands work in fish and in bash, from a clone whose `origin` is
-`gitlab.com/sheziss-group/orbiter`.
+`gitlab.com/sheziss-group/myorbiter`.
 
 **1. Before the switch** (the project is still private)
 
@@ -63,15 +63,26 @@ tick it here when it's done. The commands work in fish and in bash, from a clone
       with a TennoScope folder, run `npm run dev-bundle` and `npm run dev-data` before `npm test` so
       they run too; they must pass there as well. Elsewhere skip both: `dev-bundle` needs that
       folder.
-- [ ] **The builder image exists:** *Build* → *Pipelines* → **New pipeline** → branch `main`,
-      *task* `image` → **New pipeline**. It runs on gitlab.com's hosted runners whatever *runner*
-      says (a new account may have to verify its identity before they take jobs). Its log ends
-      with the digest of `builder:<BUILDER_TAG>.job<job id>`, a tag no other push writes: put it
-      in `.gitlab-ci.yml` as `BUILDER_DIGEST` through a merge request that links that job's log,
-      so the digest can be checked against it. Never delete a `….job<id>` tag (the cleanup policy
-      under *Packages* keeps them).
-      Until then, pipelines on `main` run in the image's tag and `sign` refuses, so nothing is
-      published.
+- [ ] **A deploy token for the builder image:** *Settings* → *Repository* → *Deploy tokens* →
+      **Add token**, scopes `read_registry` and `write_registry` only (a push reads the registry
+      too), with an expiry date. The token is kept outside the project: nothing in it holds it.
+- [ ] **The builder image exists:** on this computer, with Docker, in a checkout of `main` that
+      matches GitLab's (the script refuses one that doesn't, or with `ci/` or `.gitlab-ci.yml`
+      not committed):
+
+      ```fish
+      env DEPLOY_TOKEN_USER=<the deploy token's user name> ci/build-image.sh
+      ```
+
+      It asks for the token, builds `ci/Dockerfile`, pushes `builder:<BUILDER_TAG>` and
+      `builder:<BUILDER_TAG>.<UTC time>` (a tag no other push writes) and prints the digest: put
+      it in `.gitlab-ci.yml` as `BUILDER_DIGEST` through a merge request. Docker keeps the sign-in
+      in a folder made for the run and removed after. Never delete a `<BUILDER_TAG>.<UTC time>`
+      tag (the cleanup policy under *Packages* keeps them). Until then, pipelines on `main` run in
+      the image's tag and `sign` refuses, so nothing is published. After a change to
+      `ci/Dockerfile`: a new `BUILDER_TAG`, merged, then the script once more and the new digest.
+      `ci/build-image.sh <branch>`, in a checkout of that branch, pushes
+      `builder:<BUILDER_TAG>-<branch slug>` for its own pipelines instead.
 - [ ] **A first build on `main`:** New pipeline → branch `main`, *task* `release`, *windows*
       ticked. While the project is private the build signs and publishes as usual; installed
       copies just can't reach it yet.
@@ -87,13 +98,13 @@ tick it here when it's done. The commands work in fish and in bash, from a clone
 - [ ] Anonymous reads work: each prints the channel's manifest, not an error.
 
       ```fish
-      curl -fsS 'https://gitlab.com/api/v4/projects/sheziss-group%2Forbiter/packages/generic/channel/experimental/latest.json'
+      curl -fsS 'https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel/experimental/latest.json'
       node scripts/issues-digest.mjs --fetch
       ```
 
 **3. The website (maintainer):** New pipeline → branch `main`, *task* `pages`. Then *Deploy* →
 *Pages* (the setting may only appear after that first deployment): untick **Use unique domain**
-(so the site is `https://sheziss-group.gitlab.io/orbiter/`, as the README links), Save. With no
+(so the site is `https://sheziss-group.gitlab.io/myorbiter/`, as the README links), Save. With no
 Stable build yet its download buttons point at *Releases*; step 5 runs it again.
 
 **4. A first public build**
@@ -102,11 +113,11 @@ Stable build yet its download buttons point at *Releases*; step 5 runs it again.
       the build number: the `build` job's log says "Build *n*, version 0.2.*n*".
 - [ ] Every job is green; the `sign` log has no "No updater files" line.
 - [ ] Release `build-<n>` (*Deploy* → *Releases*) links to the AppImage, the .deb, the setup.exe,
-      both `.sig` files, `latest.json`, `SHA256SUMS` and `orbiter-source.tar.gz`, and
+      both `.sig` files, `latest.json`, `SHA256SUMS` and `myorbiter-source.tar.gz`, and
       `channel/experimental/latest.json` names 0.2.*n*:
 
       ```fish
-      curl -fsS 'https://gitlab.com/api/v4/projects/sheziss-group%2Forbiter/packages/generic/channel/experimental/latest.json'
+      curl -fsS 'https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel/experimental/latest.json'
       ```
 
 **5. Promote it to Stable (maintainer)**
@@ -202,22 +213,26 @@ a pipeline on `main` or a protected tag signs as soon as `sign` runs.
 The `pc` jobs run on the project's own runner (*Settings* → *CI/CD* → *Runners* → **New project
 runner**, tag `pc`, *Run untagged jobs* off):
 
+Every job runs here unless *runner* says `cloud`, `sign` (with the signing key) too. Nothing on
+`main` or a release tag needs gitlab.com's hosted runners, and the project's instance runners stay
+off: a pipeline on any other branch, or with *runner* `cloud`, then waits for a runner, and needs
+*Settings* → *CI/CD* → *Runners* → *Instance runners* turned on to run.
+
 - [ ] **The Docker executor**, never the shell executor: each job then runs in its own container.
-      The jobs still share the executor's build volume, so `sign`, the one job with the signing
-      key, never runs here: it always runs on gitlab.com's hosted runners, a fresh machine each
-      time.
+      The jobs share the executor's build volume, so `sign` has no checkout there: it clones the
+      commit into its own container (no hooks, no git config from anywhere else), takes the signer
+      from that clone (checked against `SIGNER_SHA256`), and from the volume only the build's
+      files, checked (no links, made in the builder image by digest; only the files that build
+      makes are signed) before the key is near them. Keep `/tmp` out of the runner's `volumes`:
+      that's where `sign` clones.
 - [ ] **Never privileged, no Docker socket:** `privileged = false` and no `/var/run/docker.sock` in
       its `volumes`. Either would let a build job out of its container, onto this computer and
-      into the other jobs and caches. The `image` task runs on gitlab.com's hosted runners for
-      that reason (Buildah's user namespace is refused by Docker's default seccomp profile).
-- [ ] **Hosted runners stay enabled:** *Settings* → *CI/CD* → *Runners* → *Instance runners*:
-      **Enable instance runners for this project** on. `sign` and the image task run on them in
-      every release, and spend the namespace's compute minutes; with none left, nothing is
-      signed or published.
+      into the other jobs and caches. No job builds an image: `ci/build-image.sh` does, here.
 - [ ] **Protected:** the runner's *Protected* box ticked, so only pipelines on `main` and protected
-      tags run on it. A pipeline on any other branch runs on gitlab.com's hosted runners,
-      whatever *runner* says, in that branch's own builder image: run the *task* `image` on the
-      branch first.
+      tags run on it, and the signing key (a protected variable) reaches only them. A pipeline
+      on any other branch can't use it: it runs on gitlab.com's hosted runners, whatever
+      *runner* says, in that branch's own builder image (`ci/build-image.sh <branch>` first, on
+      that branch). Such pipelines are optional.
 
 ## Packages
 
@@ -230,8 +245,8 @@ runner**, tag `pc`, *Run untagged jobs* off):
 - [ ] Never delete the `channel` and `stable-builds` packages: every installed copy reads them.
 - [ ] **Container registry cleanup policy** (*Settings* → *Packages and registries* → *Cleanup
       policies*): off, or set so it removes only branch images and keeps the builder images main
-      runs in. *Keep tags matching* `^\d{4}-\d{2}-\d{2}(\.job\d+)?$`; *Remove tags matching*
-      `^\d{4}-\d{2}-\d{2}-.+$`, older than 14 days. If it removed the `.job<id>` tag that
+      runs in. *Keep tags matching* `^\d{4}-\d{2}-\d{2}(\.\d{14})?$`; *Remove tags matching*
+      `^\d{4}-\d{2}-\d{2}-.+$`, older than 14 days. If it removed the `.<UTC time>` tag that
       `BUILDER_DIGEST` names, the registry would delete that image and every pipeline on `main`
       would stop until a new image is built and its digest merged.
 

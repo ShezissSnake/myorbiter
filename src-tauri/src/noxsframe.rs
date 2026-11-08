@@ -24,7 +24,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const SITE: &str = "https://noxsframe.com";
 /// How MyOrbiter introduces itself to Nox's Frame.
-pub const USER_AGENT: &str = concat!("orbiter/", env!("CARGO_PKG_VERSION"), " (Warframe companion; build lookup; contact via noxsframe Discord)");
+pub const USER_AGENT: &str = concat!("MyOrbiter/", env!("CARGO_PKG_VERSION"), " (Warframe companion; build lookup; contact via noxsframe Discord)");
 /// At most one request this often, across MyOrbiter.
 pub const GAP: Duration = Duration::from_secs(3);
 /// How long an answer is kept before it's asked for again.

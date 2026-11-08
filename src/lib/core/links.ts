@@ -1,4 +1,4 @@
-// The sites orbiter opens in your browser. Every link goes through `openable` first, and the
+// The sites MyOrbiter opens in your browser. Every link goes through `openable` first, and the
 // desktop app's opener permission (src-tauri/capabilities/default.json) allows the same sites and
 // nothing else, so a link built from data (an item's wiki page, a seller's profile) can never send
 // the browser, or the system, somewhere unexpected. Add a site in both places.
@@ -11,14 +11,14 @@ export const LINK_SITES: readonly { host: string; path: string }[] = [
   { host: "warframe.fandom.com", path: "/" },
   { host: "overframe.gg", path: "/" },
   { host: "noxsframe.com", path: "/" },
-  // orbiter's own project on gitlab.com: its pages under /-/ (releases, issues, a new issue), not
+  // MyOrbiter's own project on gitlab.com: its pages under /-/ (releases, issues, a new issue), not
   // what others can put under the project's address (uploads to issues). Its old repository on
   // GitHub stays allowed for links in older notes and reports.
-  { host: "gitlab.com", path: "/sheziss-group/orbiter/-/" },
+  { host: "gitlab.com", path: "/sheziss-group/myorbiter/-/" },
   { host: "github.com", path: "/ShezissSnake/orbiter/" },
 ];
 
-/** The URL, normalised, if orbiter may open it: https, an allowed site, no user name or password. */
+/** The URL, normalised, if MyOrbiter may open it: https, an allowed site, no user name or password. */
 export function openable(url: string): string | null {
   let u: URL;
   try {

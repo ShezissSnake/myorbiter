@@ -3,7 +3,7 @@
 # Sourced, not run. Needs curl and jq (both in the builder image) and GitLab's job variables.
 #
 # Where a build's files live: the project's generic package registry, at fixed paths.
-#   orbiter/<version>/<file>        every file of one build (version 0.2.<n>), and its latest.json
+#   myorbiter/<version>/<file>      every file of one build (version 0.2.<n>), and its latest.json
 #   channel/<channel>/latest.json   the manifest installed copies on that channel read
 #                                   (stable, beta, experimental): the app's updater endpoints
 #   stable-builds/<version>/latest.json
@@ -25,7 +25,7 @@ shopt -s inherit_errexit
 project_api="$CI_API_V4_URL/projects/$CI_PROJECT_ID"
 packages_api="$project_api/packages/generic"
 # The same files' public addresses, as the app and the manifests name them: the project by its path
-# (sheziss-group%2Forbiter), which reads anonymously once the project is public.
+# (sheziss-group%2Fmyorbiter), which reads anonymously once the project is public.
 # shellcheck disable=SC2034 # used by the scripts that source this file
 public_packages="$CI_API_V4_URL/projects/${CI_PROJECT_PATH//\//%2F}/packages/generic"
 

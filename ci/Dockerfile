@@ -1,10 +1,10 @@
-# The image every job in .gitlab-ci.yml runs in: orbiter's and TennoScope's build tools on Ubuntu
+# The image every job in .gitlab-ci.yml runs in: MyOrbiter's and TennoScope's build tools on Ubuntu
 # 22.04, for the Linux AppImage and .deb built natively and the Windows installer cross-compiled
 # with cargo-xwin. 22.04 on purpose: what's built here needs nothing newer than its C library (glibc
 # 2.35), so the AppImage runs on SteamOS, Debian 12 and any Linux from the last few years. A newer
 # base raises that floor for every player, so ci/build.sh refuses a Linux build that asks for more
-# than GLIBC_2.35. The `image` job (.gitlab-ci.yml) builds it and pushes it to the project's
-# container registry as builder:<BUILDER_TAG>; change BUILDER_TAG there whenever this file changes.
+# than GLIBC_2.35. ci/build-image.sh builds it and pushes it to the project's container registry
+# as builder:<BUILDER_TAG>; change BUILDER_TAG in .gitlab-ci.yml whenever this file changes.
 #
 # Nothing here is piped from the web into a shell: Node and rustup-init are downloaded as files and
 # checked against the SHA-256 pinned below before they run. Bumping a version means a new checksum,
@@ -26,7 +26,7 @@ FROM ubuntu:22.04@sha256:076e7bf82319619f28dd0aa9c02ab34b055ad37100395b4f49a2ffb
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-# Rust: 1.95 is orbiter's MSRV (src-tauri/Cargo.toml, crates/orbiter-data/Cargo.toml), so the test
+# Rust: 1.95 is MyOrbiter's MSRV (src-tauri/Cargo.toml, crates/myorbiter-data/Cargo.toml), so the test
 # job checks it and the release builds use it. tennoscope/rust-toolchain.toml pins its own, which
 # rustup picks up inside tennoscope/; it's installed here so a build never downloads a toolchain.
 ARG RUST_VERSION=1.95.0
