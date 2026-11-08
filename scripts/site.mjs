@@ -1,29 +1,31 @@
-// Builds MyOrbiter's website (site/ → site/_site/): the landing page, the in-app Guide as pages and
-// What's New, as plain HTML and CSS for GitLab Pages. The Guide and What's New come from the app's
-// own source (src/lib/tabs/Guide.svelte, src/lib/whatsNew.ts), drawn once with Svelte's server
-// renderer through Vite, so the site says what the app says. Nothing here runs in the browser.
+// Builds MyOrbiter's website (site/ → site/_site/): the landing page, the in-app Guide as pages,
+// What's New and the list of downloads, as plain HTML and CSS for GitLab Pages. The Guide and
+// What's New come from the app's own source (src/lib/tabs/Guide.svelte, src/lib/whatsNew.ts), drawn
+// once with Svelte's server renderer through Vite, so the site says what the app says. Nothing here
+// runs in the browser: the download links are read from the package registry once, at build time
+// (scripts/site-downloads.mjs), and written into the pages.
 //
-//   node scripts/site.mjs                       site/_site/, downloads pointing at Releases
-//   node scripts/site.mjs --release release.json   the same, with the Stable build's files:
-//                                               { tagName, assets: [{ name, url }] } (ci/pages.sh
-//                                               makes it from the build-<n> release)
-//   node scripts/site.mjs --check               build, then check every link and that no
-//                                               dev-*.json (real account data) is in it
+//   node scripts/site.mjs             site/_site/, the buttons offering the best channel's build:
+//                                     Stable, else Beta, else Experimental (channel/<c>/latest.json),
+//                                     and downloads.html the last builds (the releases)
+//   node scripts/site.mjs --offline   the same without reading the registry: the buttons point at
+//                                     Releases (a local build)
+//   node scripts/site.mjs --check     build, then check every link, that no page carries a script,
+//                                     and that no dev-*.json (real account data) is in it
 //
+// Reading the registry fails the build on anything but a file that's there or a 404 (no build on
+// that channel yet), and on a manifest that doesn't check out: the site never links a wrong file.
 // Screenshots are of the demo account only (npm run dev:demo; site/README.md, Screenshots).
 import { createServer } from "vite";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { API, buildRows, CHANNELS, FILES, frontButtons, HOST, PACKAGES, REPO, safeUrl as projectUrl, stableVersions } from "./site-downloads.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(ROOT, "site");
 const OUT = join(SRC, "_site");
-const REPO = "https://gitlab.com/sheziss-group/myorbiter";
-/** The only host the site links out to (the repository, its releases and the downloads). */
-const HOST = "gitlab.com";
 const args = process.argv.slice(2);
-const flag = (name) => { const i = args.indexOf(name); return i < 0 ? null : (args[i + 1] ?? ""); };
 
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -158,57 +160,112 @@ function whatsNew() {
   }).join("\n");
 }
 
-// Downloads: the Stable build's release (the one channel/stable/latest.json names), when the build
-// was given it. GitLab's "latest release" is the newest build of any channel, so without it the
-// buttons point at the list of releases.
-const PLATFORMS = [
-  { key: "windows", label: "Windows 10 and 11", glyph: "window", re: /_x64-setup\.exe$/, note: "Installs for your user; SmartScreen asks the first time: More info, Run anyway." },
-  { key: "linux", label: "Linux", glyph: "penguin", re: /_amd64\.AppImage$/, note: "AppImage: make it executable and open it." },
-  { key: "deck", label: "Steam Deck", glyph: "handheld", re: /_amd64\.AppImage$/, note: "The Linux AppImage, in Desktop mode." },
-  { key: "macos", label: "macOS (Apple silicon)", glyph: null, re: /_aarch64\.dmg$/, note: "No TennoScope on a Mac, so no inventory: the market, fissures and the world's clocks work." },
-];
-function downloads() {
-  const file = flag("--release");
-  let rel = null;
-  if (file) rel = JSON.parse(readFileSync(file, "utf8"));
-  if (rel && (typeof rel.tagName !== "string" || !/^build-[1-9][0-9]*$/.test(rel.tagName) || !Array.isArray(rel.assets)))
-    throw new Error(`${file}: not a release ({ tagName: "build-<n>", assets: [{ name, url }] })`);
-  // Each file's address as the release links it, which must be one of this project's on gitlab.com:
-  // a download or the checksums with any other address stops the build rather than showing as
-  // "not built".
-  const assets = (rel?.assets ?? []).filter((x) => typeof x?.name === "string");
-  for (const x of assets)
-    if ((x.name === "SHA256SUMS" || PLATFORMS.some((p) => p.re.test(x.name))) && !safeUrl(x.url))
-      throw new Error(`${file}: ${x.name} links to ${String(x.url)}, not to this project on ${HOST}`);
-  // macOS builds are optional, so its button shows only when the release carries a .dmg; Linux and
-  // Windows always show (pointing at Releases when the file isn't there).
-  const found = PLATFORMS.map((p) => [p, assets.find((x) => p.re.test(x.name))]);
-  const rows = found.filter(([p, a]) => a || p.key !== "macos").map(([p, a]) => {
-    const href = a ? safeUrl(a.url) : `${REPO}/-/releases`;
-    const what = a ? esc(a.name) : rel ? "not built for this release: see Releases" : "on the latest Stable release";
-    return `<li class="dl"><a class="plate" href="${href}">${p.glyph ? GLYPHS[p.glyph] : "<span></span>"}<span class="name">${esc(p.label)}</span><span class="file register${a ? " figures" : ""}">${what}</span><span class="note">${esc(p.note)}</span></a></li>`;
-  }).join("");
-  const sumsFile = assets.find((x) => x.name === "SHA256SUMS");
-  const sums = sumsFile ? `<a href="${safeUrl(sumsFile.url)}">SHA256SUMS</a>` : "SHA256SUMS";
-  const version = rel ? `<p class="register">Stable · ${esc(rel.tagName)}</p>` : `<p class="register">Stable</p>`;
-  return `${version}<ul class="dls">${rows}</ul><p class="small">Check a download against ${sums} on the same release (<a href="${REPO}/-/blob/main/README.md#checking-a-download">how</a>). Every release also carries <span class="register">myorbiter-source.tar.gz</span>, its complete source. Other builds (Beta, Experimental) are on <a href="${REPO}/-/releases">Releases</a>.</p>`;
+// ---- Downloads: read from the package registry once, here, and written into the pages
+// (scripts/site-downloads.mjs). With --offline nothing is read and the buttons point at Releases.
+const OFFLINE = args.includes("--offline");
+if (args.includes("--release")) console.log("site: --release is no longer read; the downloads come from the channels' manifests in the registry.");
+/** How the build names itself to gitlab.com. */
+const USER_AGENT = `MyOrbiter-site (+${REPO})`;
+
+/** A JSON answer from gitlab.com: its value, or null when there's no such file (404). Any other
+ *  answer, a failed read or text that isn't JSON stops the build. */
+async function get(url) {
+  let res;
+  try {
+    res = await fetch(url, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" }, signal: AbortSignal.timeout(30_000) });
+  } catch (e) {
+    throw new Error(`reading ${url}: ${e.message}`);
+  }
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`reading ${url} answered ${res.status}`);
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`reading ${url}: not JSON`);
+  }
 }
 
-/** Where this project's files are on gitlab.com: its package registry (as the release links to
- *  them, the project named by its path) or its own pages. */
-const PROJECT_PATHS = ["/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/", "/sheziss-group/myorbiter/"];
+/** The best channel's build for the buttons, and the last builds for downloads.html. */
+async function readRegistry() {
+  const heads = {};
+  for (const [key] of CHANNELS) heads[key] = await get(`${PACKAGES}/channel/${key}/latest.json`);
+  const front = frontButtons(heads);
+  const releases = await get(`${API}/releases?per_page=20`);
+  const stable = await get(`${API}/packages?package_type=generic&package_name=stable-builds&order_by=created_at&sort=desc&per_page=100`);
+  if (releases == null || stable == null) throw new Error("gitlab.com has no releases or packages list for the project: is it public?");
+  const rows = buildRows(releases, { heads, stableBuilds: stableVersions(stable) });
+  if (!rows.length) throw new Error("Releases lists no build");
+  console.log(`site: ${front.label}; downloads.html lists ${rows.length} builds.`);
+  return { front, rows };
+}
+const DL = OFFLINE ? null : await readRegistry();
 
-/** A download's address, escaped for an attribute, if it's https to this project on gitlab.com;
- *  else null. */
-function safeUrl(url) {
-  let u;
-  try {
-    u = new URL(String(url));
-  } catch {
-    return null;
-  }
-  const ours = u.protocol === "https:" && u.hostname === HOST && !u.username && !u.password && !u.port;
-  return ours && PROJECT_PATHS.some((p) => u.pathname.startsWith(p)) && !u.pathname.includes("/../") ? esc(u.href) : null;
+/** What each channel is, as docs/install.md puts it, when no better channel has a build. */
+const CHANNEL_NOTE = {
+  stable: "",
+  beta: "No Stable build yet. Beta is the next Stable, a few days early.",
+  experimental: "No Stable or Beta build yet. Experimental is every change, as soon as it's built: it may break.",
+};
+/** An address of this project's on gitlab.com, escaped for an attribute; anything else stops the build. */
+function href(url) {
+  const ok = projectUrl(url);
+  if (!ok) throw new Error(`not this project's address on ${HOST}: ${url}`);
+  return esc(ok);
+}
+const fileName = (url) => decodeURIComponent(new URL(url).pathname.split("/").pop());
+
+// The front page: one button per platform, the best channel's files. Windows the setup .exe, Linux
+// and the Steam Deck the AppImage; the .deb is on downloads.html.
+const PLATFORMS = [
+  { key: "windows", label: "Windows 10 and 11", glyph: "window", note: "Installs for your user; SmartScreen asks the first time: More info, Run anyway." },
+  { key: "linux", label: "Linux", glyph: "penguin", note: "AppImage: make it executable and open it." },
+  { key: "deck", label: "Steam Deck", glyph: "handheld", note: "Desktop mode." },
+];
+function downloads(base) {
+  const f = DL?.front;
+  const rows = PLATFORMS.map((p) => {
+    const url = f ? href(f.buttons[p.key]) : `${REPO}/-/releases`;
+    const what = f ? `<span class="file register figures">${esc(fileName(f.buttons[p.key]))}</span>` : `<span class="file register">on Releases</span>`;
+    return `<li class="dl"><a class="plate" href="${url}">${GLYPHS[p.glyph]}<span class="name">${esc(p.label)}</span>${what}<span class="note">${esc(p.note)}</span></a></li>`;
+  }).join("");
+  const head = f
+    ? `<p class="register channel">${esc(f.label)}</p>${CHANNEL_NOTE[f.channel] ? `<p class="small dim">${esc(CHANNEL_NOTE[f.channel])}</p>` : ""}`
+    : `<p class="register channel">The latest builds are on Releases</p>`;
+  const check = f ? `Check a download against <span class="register">SHA256SUMS</span> on <a href="${href(`${REPO}/-/releases/${f.tag}`)}">its release</a>` : `Check a download against <span class="register">SHA256SUMS</span> on its release`;
+  return `${head}<ul class="dls">${rows}</ul><p class="small">${check} (<a href="${base}downloads.html#check">how</a>). <a href="${base}downloads.html">Other versions</a>: the last builds, the .deb for Debian and Ubuntu, and each build's release notes.</p>`;
+}
+
+/** The README's own words for a section (### heading), as HTML: paragraphs and flat "- " lists,
+ *  with `code` and **bold**. A link, a quote, a numbered or nested list, a code block, emphasis or
+ *  HTML stops the build rather than show as text. */
+function readmeSection(heading) {
+  const md = readFileSync(join(ROOT, "README.md"), "utf8").replace(/\r\n/g, "\n");
+  const m = md.match(new RegExp(`^### ${heading}\\n([\\s\\S]*?)(?=^#{2,3} )`, "m"));
+  if (!m) throw new Error(`README.md has no "### ${heading}" section: has it changed?`);
+  const inline = (t) => t.split("`").map((part, i) => i % 2 ? `<code>${esc(part)}</code>` : esc(part).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")).join("");
+  return m[1].trim().split(/\n\s*\n/).map((block) => {
+    if (/\[[^\]]*\]\(|<|\*|_|^\s*(?:#|>|\d+[.)]|```|~~~)|^\s+[-+*]/m.test(block.replace(/`[^`]*`/g, "").replace(/\*\*[^*]+\*\*/g, ""))) throw new Error(`README.md, ${heading}: markup the site can't draw: ${block.slice(0, 60)}`);
+    if (block.startsWith("- ")) return `<ul>${block.split(/\n(?=- )/).map((li) => `<li>${inline(li.slice(2).replace(/\s*\n\s*/g, " "))}</li>`).join("")}</ul>`;
+    return `<p>${inline(block.replace(/\s*\n\s*/g, " "))}</p>`;
+  }).join("");
+}
+
+// downloads.html: the last builds, newest first, each with the files it carries.
+const FILE_GLYPH = { appimage: "penguin", deb: "penguin", exe: "window" };
+function builds() {
+  const rows = DL ? DL.rows.map((r) => {
+    const files = FILES.filter((f) => r.files[f.key]).map((f) => `<a class="stamp" href="${href(r.files[f.key].url)}" title="${esc(r.files[f.key].name)}">${GLYPHS[FILE_GLYPH[f.key]]}${esc(f.label)}</a>`).join("");
+    const channel = r.channel ? `<span class="tag${r.channel === "Stable" ? " gold" : ""}">${esc(r.channel)}</span>` : "";
+    const sums = r.sums ? ` · <a href="${href(r.sums)}">SHA256SUMS</a>` : "";
+    return `<li class="build plate"><div class="what"><span class="ver figures">${esc(r.version)}</span>${channel}<time class="register" datetime="${esc(r.date)}">${esc(longDay(r.date))}</time></div><div class="files">${files || `<span class="small dim">No downloads in this build</span>`}</div><p class="small"><a href="${href(r.notes)}">Release notes</a>${sums}</p></li>`;
+  }).join("") : "";
+  const list = DL
+    ? `<p class="small dim">A channel shows where one names the build now; a build that has been Stable stays marked.</p><ol class="builds">${rows}</ol>`
+    : `<p>This copy of the site was built without reading the package registry: every build is on <a href="${REPO}/-/releases">Releases</a>.</p>`;
+  return `<section class="list" aria-label="Builds">${list}</section>
+<section class="check plate" id="check"><h2 class="register">Checking a download</h2>${readmeSection("Checking a download")}</section>
+<section class="more"><p class="small">Every build, with its source (<span class="register">myorbiter-source.tar.gz</span>) and checksums: <a href="${REPO}/-/releases">Releases on GitLab</a>. The code: <a href="${REPO}">the repository</a>.</p></section>`;
 }
 
 /** The app's four sections, each in its colour: the question it answers and its pages, from the
@@ -230,7 +287,7 @@ function features() {
 function landing() {
   const tpl = readFileSync(join(SRC, "landing.html"), "utf8");
   // Functions, not strings: a "$" in a release's name or the warning stays as it is.
-  return tpl.replace("{{downloads}}", () => downloads()).replace("{{features}}", () => features()).replace("{{fullModeWarning}}", () => esc(warning));
+  return tpl.replace("{{downloads}}", () => downloads("{{base}}")).replace("{{features}}", () => features()).replace("{{fullModeWarning}}", () => esc(warning));
 }
 
 // ---- Write it out.
@@ -241,11 +298,12 @@ write("index.html", page({
   file: "index.html", title: "MyOrbiter", logo: true,
   kicker: "Free software · GPL-3.0-only · Linux, the Steam Deck and Windows",
   blurb: "A Warframe companion for your desktop: your relics, sets, mastery and spares, and your warframe.market listings, kept in one place.",
-  acts: (base) => `<a class="stamp gold" href="${base}index.html#download">Download</a><a class="register" href="${base}whats-new.html">What's new</a>`,
+  acts: (base) => `<a class="stamp gold" href="${base}index.html#download">${esc(DL?.front.label ?? "Download")}</a><a class="register" href="${base}whats-new.html">What's new</a>`,
   body: landing,
 }));
 for (const g of GUIDE) write(g.file, page({ ...g, section: "guide/", kicker: "Guide" }));
 write("whats-new.html", page({ file: "whats-new.html", title: "What's new", kicker: "Updates", blurb: "Every update, newest first, as the app's Guide lists them.", body: whatsNew }));
+write("downloads.html", page({ file: "downloads.html", title: "Other versions", kicker: "Downloads", blurb: "The newest builds, up to ten, with the files each one carries and its release notes.", body: builds }));
 
 cpSync(join(SRC, "site.css"), join(OUT, "site.css"));
 cpSync(join(SRC, "shots"), join(OUT, "shots"), { recursive: true, filter: (f) => !f.endsWith(".md") });
@@ -277,6 +335,8 @@ if (args.includes("--check")) {
     if (!f.endsWith(".html") && !f.endsWith(".css")) continue;
     const text = readFileSync(f, "utf8");
     if (/dev-[\w-]+\.json/.test(text)) bad.push(`${rel}: names a dev-*.json file`);
+    // The pages stay static: nothing in them runs, so nothing reads gitlab.com (or anything) on load.
+    if (f.endsWith(".html") && /<(?:script|iframe|object|embed)\b|<meta[^>]+http-equiv|<[a-z][^>]*\son[a-z]+\s*=/i.test(text)) bad.push(`${rel}: carries a script`);
     for (const m of text.matchAll(/(?:href|src)="([^"]+)"|url\(["']?([^"')]+)/g)) {
       const url = m[1] ?? m[2];
       if (!url || url.startsWith("data:")) continue;

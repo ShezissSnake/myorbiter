@@ -144,7 +144,24 @@ figcaption b { color: var(--platinum); font-weight: 500; }
 .dl .name { font-size: 1.05rem; font-weight: 500; color: var(--platinum); }
 .dl .file { grid-column: 2; overflow-wrap: anywhere; }
 .dl .note { grid-column: 2; border: 0; background: none; box-shadow: none; clip-path: none; padding: 0; color: var(--platinum-dim); font-size: .84rem; line-height: 1.45; }
+.download .channel { color: var(--gold); margin: 0 0 .3rem; }
 .licence p { color: var(--platinum-dim); }
+
+/* ---- Other versions (downloads.html): one lit plate per build, its files as stamps */
+.builds { list-style: none; margin: .8rem 0 2rem; padding: 0; max-width: none; display: grid; gap: .7rem; }
+main li.build { display: grid; grid-template-columns: minmax(15rem, 1fr) auto minmax(9rem, auto); align-items: center; gap: .7rem 1.4rem; margin: 0; padding: .9rem 1.2rem; color: var(--platinum-dim); }
+.build .what { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem .9rem; }
+.build .ver { font-size: 1.1rem; color: var(--platinum); }
+.build .files { display: flex; flex-wrap: wrap; gap: .5rem; }
+.build .stamp { padding: .55rem .8rem; gap: .5rem; }
+.build .stamp:hover { border-color: var(--gold-dim); }
+.build p { margin: 0; }
+.build .tag { font-family: var(--face-register); font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; padding: .1rem .5rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
+.build .tag.gold { color: var(--gold); border-color: var(--gold-dim); }
+.check { padding: 1rem 1.2rem; margin: 0 0 1.5rem; }
+.check h2 { margin: 0 0 .6rem; }
+.check p, .check li { color: var(--platinum-dim); }
+@media (max-width: 760px) { main li.build { grid-template-columns: minmax(0, 1fr); } }
 
 /* ---- Guide pages: the app's Guide, as it draws it, without its controls */
 .guide-nav { display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; margin: -1rem 0 2rem; padding-bottom: .9rem; border-bottom: 1px solid var(--rule); }
