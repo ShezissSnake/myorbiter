@@ -87,9 +87,11 @@ WebKit's own variables (`WEBKIT_DISABLE_COMPOSITING_MODE`, `WEBKIT_FORCE_COMPOSI
 On the first start MyOrbiter walks you through what TennoScope needs, once, and asks whether
 TennoScope should read your inventory: **Full mode**, off unless you turn it on (*Read my inventory
 (Full mode)* there, in the TennoScope panel or in Settings). Full mode reads Warframe's memory to
-fetch your inventory. Warframe's EULA forbids unauthorised third-party programs, so using it could
-put your account at risk. MyOrbiter only reads, and only sends your login session to Digital
-Extremes.
+fetch your inventory. Digital Extremes publishes no list of allowed or forbidden third-party
+programs and leaves using them at your own risk: Full mode could put your account at risk. MyOrbiter
+only reads, and only sends your login session to Digital Extremes and the names of reward items
+read from memory to warframe.market, for their prices. ([Digital Extremes' forum
+post](https://forums.warframe.com/topic/1383123/).)
 
 Without Full mode, TennoScope reads only the game's log and the reward screen (Overlay mode), and
 MyOrbiter shows everything that doesn't need your inventory. With it, TennoScope reads your account
@@ -140,4 +142,4 @@ both would act on the same warframe.market account.
   unticked, then install MyOrbiter.
 
 orbiter's settings and data (the `dev.orbiter.app` folders) are kept: on its first start MyOrbiter
-copies them to its own folders ([what-it-reads.md](what-it-reads.md)).
+copies them to its own folders ([privacy.md](privacy.md)).

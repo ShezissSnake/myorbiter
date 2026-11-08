@@ -4,7 +4,7 @@
 | --- | --- |
 | [install.md](install.md) | Installing on each platform, a blank window, the first start, Full mode, updates. |
 | [features.md](features.md) | Every page and what it does, getting around, known limits. |
-| [what-it-reads.md](what-it-reads.md) | Every file MyOrbiter reads or keeps, and every host it talks to. |
+| [privacy.md](privacy.md) | What MyOrbiter reads and sends: the game's memory and log, every host it talks to, and every file it keeps. |
 | [development.md](development.md) | Running from source, the tests, local builds. |
 | [maintaining.md](maintaining.md) | Going public step by step, and the GitLab settings that live outside the repository. |
 | [releases/README.md](releases/README.md) | How builds are made, the update channels, and the signing key. |

@@ -1,8 +1,8 @@
 <script lang="ts">
   // Report a bug: the player's words, and (unless they untick it) technical details they can read
-  // in full first. MyOrbiter sends nothing itself: Open on GitLab opens a new issue with the fields
-  // filled in, to check and submit in the browser; Copy report puts it on the clipboard as
-  // Markdown. What it builds, cleans and redacts: core/bugReport.ts and core/redact.ts.
+  // in full first. MyOrbiter sends nothing itself: Open on GitLab puts the issue's text on the
+  // clipboard and opens a blank new issue in the browser, with nothing of the report in its address,
+  // for the player to paste, title and submit; Copy report puts it on the clipboard as Markdown. What it builds, cleans and redacts: core/bugReport.ts and core/redact.ts.
   import { tick, untrack } from "svelte";
   import { scrim } from "./scrim";
   import { trap } from "./trap";
@@ -12,7 +12,7 @@
   import { logTail, openUrl, reportEnv } from "../backend";
   import { BUILD } from "../build";
   import { bugReport, reportChannel } from "../bugReport.svelte";
-  import { buildReport, detailsText, issueLink, reportMarkdown, LOG_LINES, MAX, type ReportDetails } from "../core/bugReport";
+  import { buildReport, detailsText, issueText, reportMarkdown, LOG_LINES, MAX, NEW_ISSUE_PAGE, type ReportDetails } from "../core/bugReport";
   import type { RedactOptions } from "../core/redact";
 
   let {
@@ -72,7 +72,6 @@
     };
   });
   const report = $derived(buildReport({ what: d.what, steps: d.steps, expected: d.expected }, details, known));
-  const link = $derived(issueLink(report));
   const reading = $derived(d.include && log == null);
   const empty = $derived(!report.what);
   const preview = $derived(report.details ? detailsText(report.details) : "");
@@ -80,10 +79,35 @@
   let showTech = $state(false);
   /** Open on GitLab was pressed: its label says so for a moment. */
   let opened = $state(false);
+  /** What to do on GitLab, once the report is on the clipboard: "pasted" (the steps) or "refused"
+   *  (the clipboard refused it, so GitLab wasn't opened). */
+  let handed = $state<"pasted" | "refused" | null>(null);
+  /** The text to paste on GitLab, and the one last put on the clipboard (the note says so only
+   *  while they match: an edit after copying asks for another press). */
+  const paste = $derived(issueText(report));
+  let copiedText = $state<string | null>(null);
+  let manual = $state<HTMLTextAreaElement | null>(null);
+  let busy = false;
   let openedTimer: ReturnType<typeof setTimeout> | null = null;
-  function openOnGitLab() {
-    if (empty || reading) return;
-    void openUrl(link.url);
+  // The report goes on the clipboard first, and the page opens blank: MyOrbiter sends gitlab.com
+  // nothing, and the address carries none of the report.
+  async function openOnGitLab() {
+    if (empty || reading || busy) return;
+    busy = true;
+    const text = paste;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      handed = "refused";
+      opened = false;
+      void tick().then(() => manual?.select());
+      return;
+    } finally {
+      busy = false;
+    }
+    handed = "pasted";
+    copiedText = text;
+    void openUrl(NEW_ISSUE_PAGE);
     opened = true;
     if (openButton) pulse(openButton);
     if (openedTimer) clearTimeout(openedTimer);
@@ -146,15 +170,22 @@
       <p class="hint">{#if !d.include}Only what you wrote goes in.{:else if failed}MyOrbiter's log couldn't be read; the rest is included.{:else}Sign-ins, e-mail and IP addresses, account ids, your user name in folder paths and every player's name are hidden, here and in what you wrote.{/if}</p>
     </section>
 
-    {#if link.dropped || link.cut}
-      <p class="note small" role="status">{#if link.cut}What you wrote is longer than a link can carry: Open on GitLab cuts the end. Copy report has it all, to paste in instead.{:else}To keep the link short enough, Open on GitLab leaves out the {link.dropped} oldest log line{link.dropped === 1 ? "" : "s"}; Copy report has them all.{/if}</p>
+    {#if handed === "pasted" && copiedText === paste}
+      <p class="note small" role="status">The report is on your clipboard. On GitLab, paste it into the description (<kbd>Ctrl</kbd>+<kbd>V</kbd>), give the issue a title (for example “{report.title}”) and press Create issue.</p>
+    {:else if handed === "pasted"}
+      <p class="note small" role="status">You changed the report after copying it: press Open on GitLab again to copy this one.</p>
+    {:else if handed === "refused"}
+      <div class="note small" role="status">
+        <p>The clipboard refused the report, so GitLab wasn't opened. Here it is, selected: copy it (<kbd>Ctrl</kbd>+<kbd>C</kbd>), then <button type="button" class="link" onclick={() => openUrl(NEW_ISSUE_PAGE)}>open a blank new issue</button> and paste it in.</p>
+        <textarea bind:this={manual} class="manual" readonly rows="6" value={paste} aria-label="The report, to copy by hand"></textarea>
+      </div>
     {/if}
 
     <footer class="row">
-      <p class="privacy small"><Icon name="lock" size={11} /> MyOrbiter sends nothing: you check it and press Create issue on GitLab.</p>
+      <p class="privacy small"><Icon name="lock" size={11} /> MyOrbiter sends gitlab.com nothing, and the page it opens carries none of the report: you paste it in and press Create issue there.</p>
       <div class="acts">
         <CopyButton text={() => reportMarkdown(report)} label="Copy report" copied="Copied" sizer={["Couldn't copy"]} title="Put the report on the clipboard as Markdown, to paste into an issue yourself, or send it another way if you don't have a GitLab account" />
-        <button bind:this={openButton} type="button" class="stamp gold go" class:done={opened} disabled={empty || reading} title={empty ? "Say what happened first" : reading ? "Reading MyOrbiter's log…" : "Open a new issue on GitLab in your browser with all of this filled in. Nothing is posted until you press Create issue there."} onclick={openOnGitLab}>
+        <button bind:this={openButton} type="button" class="stamp gold go" class:done={opened} disabled={empty || reading} title={empty ? "Say what happened first" : reading ? "Reading MyOrbiter's log…" : "Put the report on the clipboard and open a blank new issue on GitLab in your browser, to paste it into. MyOrbiter sends gitlab.com nothing itself."} onclick={openOnGitLab}>
           <span class="lbls">
             <span class:on={!opened}>Open on GitLab<Icon name="external" size={11} /></span>
             <span class:on={opened}>Opened in your browser<Icon name="check" size={11} /></span>
@@ -197,6 +228,8 @@
   .techtext { margin: .2rem 0 0; max-height: 15rem; overflow: auto; padding: .6rem .7rem; font-family: var(--face-register); font-size: .7rem; line-height: 1.5; color: var(--platinum-dim); background: var(--slab); border: 1px solid var(--rule); white-space: pre-wrap; overflow-wrap: anywhere; }
   .techtext:focus-visible { outline: 1px solid var(--gold); outline-offset: 1px; }
   .hint { margin: 0; font-size: .74rem; color: var(--platinum-deep); }
+  .note p { margin: 0; }
+  .manual { display: block; width: 100%; margin-top: .45rem; font: inherit; font-family: var(--face-register); resize: vertical; }
   .note { margin: 0; color: var(--platinum-dim); padding: .45rem .7rem; border-left: 2px solid var(--alert); background: var(--well); }
 
   .row { display: flex; align-items: center; justify-content: space-between; gap: .8rem 1rem; flex-wrap: wrap; padding-top: .3rem; border-top: 1px solid var(--rule); }
