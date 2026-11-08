@@ -806,7 +806,7 @@
         <p class="dim small limits">Apply automatically changes your prices without asking. {DRIFT_RULES}; never under {Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you last set, nor under your floors. {GREY_AREA}.</p>
         <div class="grp">
           <span class="register">Floor</span>
-          <select bind:value={settings.minShare} aria-label="Floor" title="Never price a listing under this share of the item's daily market price (a per-listing floor in the table wins)">
+          <select bind:value={settings.minShare} aria-label="Floor" title="Never lower a listing under this share of the item's daily market price (a per-listing floor in the table wins)">
             {#each [0, 0.3, 0.5, 0.7, 0.85] as f (f)}<option value={f}>{f ? `${f * 100}% of market` : "none"}</option>{/each}
           </select>
           <span class="register" title="Nothing is listed or repriced below this, anywhere in MyOrbiter (relics have their own minimum)">never under</span>

@@ -298,3 +298,8 @@ test("automatic repricing is off for a new install, and an install that had it o
   (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({ market: { auto: true } }), setItem: () => {} };
   assert.equal((await loadSettings()).market.auto, true);
 });
+
+test("the Guide's clause reads on from \"it changes a price only when it has drifted\"", async () => {
+  const { DRIFT_CLAUSE } = await import("../src/lib/core/drift");
+  assert.match(DRIFT_CLAUSE, /^more than 2p or 5%/);
+});

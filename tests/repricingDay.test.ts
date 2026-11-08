@@ -67,7 +67,7 @@ export async function simulateDay(seed: number) {
       if (o && slug && c.platinum != null) {
         const real = (books[slug] ?? []).filter((b) => b.type === "sell" && !bait.has(b.id) && b.user.status !== "offline" && (b.rank ?? null) === (o.rank ?? null) && (b.subtype ?? null) === (o.subtype ?? null) && b.user.id !== account.account?.profile?.id);
         const cheapest = Math.min(...real.map((b) => b.platinum));
-        if (c.platinum < cheapest) under.push(`${slug} ${o.platinum}p → ${c.platinum}p (cheapest real seller ${cheapest}p)`);
+        if (real.length && c.platinum < cheapest) under.push(`${slug} ${o.platinum}p → ${c.platinum}p (cheapest real seller ${cheapest}p)`);
       }
       mine = mine.map((o) => (o.id === id && c.platinum != null ? { ...o, platinum: c.platinum } : o));
       return {} as never;

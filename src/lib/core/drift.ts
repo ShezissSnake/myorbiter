@@ -41,6 +41,8 @@ export const BAND_WORDS = `${DRIFT.bandPlat}p or ${Math.round(DRIFT.bandShare * 
 export const DRIFT_RULES =
   `A price changes only when it has drifted more than ${BAND_WORDS} from the second-cheapest seller online or in game, ` +
   `at most once ${every(DRIFT.cooldownMs)} and ${DRIFT.perDay} times a day per listing`;
+/** The same rule as a clause, to follow "it changes a price only when it has drifted". */
+export const DRIFT_CLAUSE = DRIFT_RULES.replace(/^A price changes only when it has drifted /, "");
 
 /** Said beside the switch, in Settings and on Orders. */
 export const GREY_AREA = "warframe.market calls automation like this a grey area and may limit apps that do it";
