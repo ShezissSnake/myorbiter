@@ -229,7 +229,8 @@ fn a_good_frame_publishes_once_per_read() {
 }
 
 /// One bad read keeps the last published view: an emptying view is worse than a slightly old
-/// one, and one miss has never meant anything at all -- the session just tries again.
+/// one, and one miss has never meant anything at all -- the session just tries again. The good
+/// read after it says what the overlay already shows, so it publishes nothing new.
 #[test]
 fn one_bad_frame_keeps_the_last_view() {
     let outcome = run_with_strips(
@@ -240,12 +241,46 @@ fn one_bad_frame_keeps_the_last_view() {
         ],
         vec![label_strip(); 8],
     );
-    assert_eq!(
-        outcome.totals,
-        vec![21, 21],
-        "only the good reads published"
-    );
+    assert_eq!(outcome.totals, vec![21], "the view stood through the miss");
     assert!(!outcome.gone);
+}
+
+/// A still screen settles over and over; once its page is published, the same read publishes
+/// nothing (no join, no IPC, no re-render) until something changes.
+#[test]
+fn a_still_screen_publishes_its_page_once() {
+    let outcome = run_with_strips(
+        vec![(false, read(18, 3)); 6],
+        vec![label_strip(); 16],
+    );
+    assert_eq!(outcome.totals, vec![21], "one publish for one unchanged page");
+}
+
+/// A page that changed publishes again, and so does the same page after the chips were moved
+/// by a streamed scroll: the frontend's accumulated offset needs the settled read's anchor.
+#[test]
+fn a_changed_or_scrolled_page_publishes_again() {
+    let changed = run_with_strips(
+        vec![(false, read(18, 3)), (false, read(18, 4))],
+        vec![label_strip(); 8],
+    );
+    assert_eq!(changed.totals, vec![21, 22], "the basket gained a row");
+
+    // still, still (publish), moved, still, still (same read: publish to re-anchor)
+    let strips = vec![
+        label_strip(),
+        label_strip(),
+        label_strip_at(40),
+        label_strip_at(40),
+        label_strip_at(40),
+    ];
+    let scrolled = run_with_strips(vec![(false, read(18, 3)); 2], strips);
+    assert!(
+        scrolled.scrolls.iter().any(|dy| dy.is_some_and(|dy| dy != 0)),
+        "the move streamed: {:?}",
+        scrolled.scrolls
+    );
+    assert_eq!(scrolled.totals.len(), 2, "re-anchored after the move");
 }
 
 /// Presence is EE.log's answer, not the reader's. A pane with no labels in it -- an

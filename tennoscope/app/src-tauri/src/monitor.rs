@@ -536,9 +536,13 @@ impl KioskSession {
 
     /// Feed incremental EE.log bytes into the kiosk lifecycle, stamped with the monitor tick
     /// that delivered them. `spawn_poller` receives the session identity and shared flags:
-    /// `reanchor` requests a read and `gone` permanently stops the worker. A close only arms
-    /// a teardown deadline. A later open inside the window cancels it before anything retires,
-    /// so a sale-confirm rebuild rides out as the same visit.
+    /// `reanchor` requests a read and `gone` permanently stops the worker.
+    ///
+    /// A close takes the chips down at once (the screen they describe is gone) but only arms a
+    /// teardown deadline for the visit: a later open inside the window resumes the same visit with
+    /// a fresh poller, so a sale-confirm rebuild never churns the session or the window. Returns
+    /// true when this call withdrew the visit's chips, which the frontend must hear about now
+    /// rather than at the teardown.
     pub fn observe(
         &mut self,
         bytes: &[u8],
@@ -546,19 +550,24 @@ impl KioskSession {
         show: &dyn Fn(),
         spawn_poller: &SpawnKioskPoller<'_>,
         now: Instant,
-    ) {
+    ) -> bool {
+        let mut withdrawn = false;
         for event in self.machine.observe_bytes(bytes) {
             log::debug!("[DEBUG-kiosk] ee event {event:?}");
             match event {
                 kiosk_log::KioskLogEvent::KioskOpened => {
+                    if self.close_pending
+                        && let Some(session) = self.active_session
+                    {
+                        // The open markers of the sale-confirm rebuild, inside the window: cancel
+                        // the teardown and carry on as the same visit, with a poller of its own
+                        // (the one reading before the close was stopped with the chips).
+                        self.resume(session, kiosk_view, spawn_poller);
+                        continue;
+                    }
                     if self.poller_active {
                         // The machine already de-duplicates, but both open markers can land in
                         // one batch and a second poller would race the first for the same flags.
-                        // A teardown pending here means the open markers are the sale-confirm
-                        // rebuild arriving inside the window: cancel it and carry on as the
-                        // same visit instead of churning the session.
-                        self.close_pending = false;
-                        self.close_deadline = None;
                         continue;
                     }
                     self.arm(kiosk_view, show, spawn_poller);
@@ -569,21 +578,55 @@ impl KioskSession {
                     }
                 }
                 kiosk_log::KioskLogEvent::KioskClosed => {
-                    // A close is a maybe, not a verdict. The sale-confirm popup rebuilds the
-                    // kiosk screen mid-visit (EE.log shows `Saving profile`, then `HudVis 0`
-                    // plus a foreign subscription, then the full open markers one to two seconds
-                    // later), and retiring here took the overlay down on every sale. So this
-                    // only arms a deadline: the poller keeps reading, the session and the
-                    // published view stay put, and the monitor's next ticks call `take_close`,
-                    // which tears down only once the markers stay silent past the window.
-                    // (One event, two readers still holds: the poller's stop comes from
-                    // `close_overlay` at teardown, never from a flag shared with the monitor,
-                    // so the 45-minute-leak lesson stands.)
+                    // A close is a maybe for the visit, not a verdict. The sale-confirm popup
+                    // rebuilds the kiosk screen mid-visit (EE.log shows `Saving profile`, then
+                    // `HudVis 0` plus a foreign subscription, then the full open markers one to
+                    // two seconds later), and ending the visit here took the overlay down on
+                    // every sale. So the visit only arms a deadline, and the monitor's next
+                    // ticks call `take_close`, which tears down once the markers stay silent
+                    // past the window.
+                    //
+                    // The chips are a different matter: the screen they were read from is gone
+                    // either way. Leaving them up for the window drew the Sell grid's prices over
+                    // whatever came next (the Mods screen, the popup), and the poller spent the
+                    // window reading that screen and streaming its motion as scroll. So the view
+                    // is withheld and the poller stopped now; a reopen resumes with a new one.
+                    // (The poller's stop is still this visit's own `gone`, set here or by
+                    // `close_overlay`, never a flag shared with the monitor.)
+                    if self.close_pending {
+                        continue;
+                    }
                     self.close_pending = true;
                     self.close_deadline = Some(now + KIOSK_CLOSE_GRACE);
+                    self.stop_poller();
+                    if let Some(session) = self.active_session {
+                        withdrawn |= kiosk_view.withhold(session);
+                    }
                 }
             }
         }
+        withdrawn
+    }
+
+    /// Stop the visit's poller and set it aside to be joined once it has exited.
+    fn stop_poller(&mut self) {
+        self.poller_active = false;
+        self.gone.store(true, Ordering::Release);
+        if let Some(poller) = self.poller.take() {
+            self.retired_pollers.push(poller);
+        }
+    }
+
+    /// The kiosk came back inside the close grace: the same visit, the same window, a new poller.
+    fn resume(&mut self, session: u64, kiosk_view: &KioskState, spawn_poller: &SpawnKioskPoller<'_>) {
+        self.close_pending = false;
+        self.close_deadline = None;
+        self.reap_finished_pollers();
+        self.poller_active = true;
+        self.reanchor = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        self.gone = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        kiosk_view.release(session);
+        self.poller = Some(spawn_poller(session, &self.reanchor, &self.gone));
     }
 
     /// Adopt whatever state a stretch of log *ends* in, called once when the monitor attaches
@@ -685,11 +728,7 @@ impl KioskSession {
     fn close_overlay(&mut self, kiosk_view: &KioskState, hide: &dyn Fn()) {
         self.close_pending = false;
         self.close_deadline = None;
-        self.poller_active = false;
-        self.gone.store(true, Ordering::Release);
-        if let Some(poller) = self.poller.take() {
-            self.retired_pollers.push(poller);
-        }
+        self.stop_poller();
         self.machine = kiosk_log::KioskLogMachine::default();
         self.active_session = None;
         kiosk_view.clear();
@@ -1465,13 +1504,17 @@ pub(crate) fn run(
             // A monotonic stamp for the close grace window: the tick's wall clock has only
             // one-second resolution, too coarse for the window.
             let tick = Instant::now();
-            kiosk_session.observe(
+            if kiosk_session.observe(
                 &log_bytes,
                 kiosk_view_cell.inner(),
                 &kiosk_show,
                 &kiosk_spawn,
                 tick,
-            );
+            ) {
+                // The chips come down with the screen, not at the end of the grace: a null
+                // nudge clears them in the frontend without waiting for its IPC read.
+                emit_kiosk_update(&app, None);
+            }
             // The log's close line and the game process dying are the only closes there are;
             // both land here. A close tears down only once it has stayed silent past the grace
             // window, so a sale-confirm rebuild never blinks; the emit retires the visit in the
@@ -1613,12 +1656,14 @@ pub trait KioskFrameSource {
 
 /// The live kiosk screen. It owns the same long-lived capture backend as the reward reader, so
 /// native Wayland sessions reuse their direct/KWin/portal session instead of renegotiating it on
-/// every poll. A settle tick would otherwise pay for two captures back to back (the strip look
-/// and the full read), so the last frame is kept briefly and reused when it is younger than one
-/// poll interval; anything staler than that is simply captured again.
+/// every poll. The frame the last strip look captured is the one the settle reads, recovery
+/// probes included: they all judge the same moment, and none pays for a capture of its own. The
+/// next look replaces it.
 pub struct ScreenKioskSource {
     capture: reward_capture::GameCapture,
-    recent: Option<(Instant, image::DynamicImage)>,
+    recent: Option<image::DynamicImage>,
+    /// This visit's reader: what each label crop read as, so an unchanged screen is not read again.
+    reader: kiosk_ocr::KioskReader,
     /// The last view the overlay is drawing right now, shared with the publish arm: its
     /// chips are painted out of every new capture, because monitor-scoped capture rungs
     /// (portal, KWin) frame our own window along with the game.
@@ -1679,6 +1724,7 @@ impl ScreenKioskSource {
         Self {
             capture: reward_capture::GameCapture::new(),
             recent: None,
+            reader: kiosk_ocr::KioskReader::new(),
             chips: Arc::new(std::sync::Mutex::new(None)),
         }
     }
@@ -1695,15 +1741,16 @@ impl ScreenKioskSource {
         }
     }
 
-    fn capture_frame(&mut self) -> Result<(image::DynamicImage, Vec<f32>), &'static str> {
+    /// Capture, keep the frame for this settle's reads, and hand back its strip profile.
+    fn capture_frame(&mut self) -> Result<Vec<f32>, &'static str> {
+        self.recent = None;
         let mut candidates = self.capture.capture_candidates()?;
         for candidate in &mut candidates {
             self.mask_chips(&mut candidate.image);
         }
         let (selected, profile) = select_kiosk_strip(candidates)?;
-        let frame = selected.image;
-        self.recent = Some((Instant::now(), frame.clone()));
-        Ok((frame, profile))
+        self.recent = Some(selected.image);
+        Ok(profile)
     }
 }
 
@@ -1735,20 +1782,16 @@ impl KioskFrameSource for ScreenKioskSource {
         candidates: &[RewardCatalogEntry],
         dy: i32,
     ) -> Result<KioskRead, &'static str> {
-        let frame = match &self.recent {
-            Some((at, frame)) if at.elapsed() < KIOSK_POLL_INTERVAL => frame.clone(),
-            _ => self.capture_frame()?.0,
-        };
-        self.recent = None;
-        Ok(KioskRead {
-            cells: kiosk_ocr::read_grid(&frame, candidates, dy),
-            basket: kiosk_ocr::read_basket(&frame, candidates),
-        })
+        if self.recent.is_none() {
+            self.capture_frame()?;
+        }
+        let frame = self.recent.as_ref().ok_or("the kiosk is not visible")?;
+        let (cells, basket) = self.reader.read(frame, candidates, dy);
+        Ok(KioskRead { cells, basket })
     }
 
     fn strip_profile(&mut self) -> Result<Vec<f32>, &'static str> {
-        let (_, profile) = self.capture_frame()?;
-        Ok(profile)
+        self.capture_frame()
     }
 }
 
@@ -1779,6 +1822,42 @@ fn confident_frame_cells(frame: &KioskRead) -> usize {
         .iter()
         .filter(|cell| cell.score >= KIOSK_CONFIDENT_SCORE)
         .count()
+}
+
+/// How long an unchanged screen may go without a fresh join. The join (price table, mastery
+/// snapshot) is the costly half of a publish once the reader remembers the labels, and a still
+/// screen's reads repeat themselves every settle; this bounds how stale a price or a mastery
+/// strip can get while the player stares at the same page.
+const KIOSK_REJOIN_AFTER: Duration = Duration::from_secs(10);
+
+/// What a settled read said, as far as the overlay is concerned: where each name sits, and what
+/// the basket holds. Scores are left out on purpose: they wobble with the pixels while the
+/// names stay put.
+#[derive(PartialEq)]
+struct SettledRead {
+    epoch: u64,
+    dy: i32,
+    cells: Vec<(usize, usize, String)>,
+    basket: Vec<(usize, String, u32)>,
+}
+
+impl SettledRead {
+    fn of(epoch: u64, dy: i32, frame: &KioskRead) -> Self {
+        Self {
+            epoch,
+            dy,
+            cells: frame
+                .cells
+                .iter()
+                .map(|cell| (cell.col, cell.row, cell.name.clone()))
+                .collect(),
+            basket: frame
+                .basket
+                .iter()
+                .map(|row| (row.index, row.name.clone(), row.quantity))
+                .collect(),
+        }
+    }
 }
 
 /// How many consecutive still looks before the screen counts as settled and the read runs. One
@@ -1855,6 +1934,15 @@ where
         // Set when an unmeasured run falls through to a locator-anchored read, cleared at the
         // read so the normal two-look settle gate resumes afterwards.
         let mut unmeasured_fell_through = false;
+        // The last settled read that was joined and published, when, and the view it made. A
+        // still screen settles every half second or so; while nothing moved and the read says
+        // the same, there is nothing new to join or to tell the frontend.
+        let mut last_read: Option<SettledRead> = None;
+        let mut last_join: Option<Instant> = None;
+        let mut last_view: Option<KioskView> = None;
+        // Any streamed verdict since the last publish: the frontend has moved (or faded) the
+        // chips on its own, so the next settle must re-anchor them even when it reads the same.
+        let mut streamed_since_publish = false;
 
         let deadline = Instant::now() + timing.lifetime;
         // The top anchor is the LOCATOR's on purpose: deriving it from the OCR crop's rect
@@ -1917,6 +2005,7 @@ where
                     looks_unmeasured += 1;
                     if unmeasured_looks < KIOSK_UNMEASURED_READ_LOOKS {
                         emit_scroll(None);
+                        streamed_since_publish = true;
                         std::thread::sleep(timing.motion_interval);
                         continue;
                     }
@@ -1925,6 +2014,7 @@ where
                     // the frontend from treating this publish as a measured stillness.
                     // The look was already counted on entry above.
                     emit_scroll(None);
+                    streamed_since_publish = true;
                     unmeasured_fell_through = true;
                     0
                 }
@@ -1944,6 +2034,7 @@ where
                         );
                     }
                     emit_scroll(None);
+                    streamed_since_publish = true;
                     std::thread::sleep(timing.motion_interval);
                     continue;
                 }
@@ -1959,6 +2050,7 @@ where
                     frame_delta,
                     reading.map_or(0, |strip| strip.len()),
                 )));
+                streamed_since_publish = true;
                 static_looks = 0;
                 std::thread::sleep(timing.motion_interval);
                 continue;
@@ -2153,11 +2245,28 @@ where
                             );
                         }
                     }
+                    // The same page, read the same way, with nothing streamed in between: the
+                    // overlay already shows exactly this. Skip the join while it is fresh.
+                    let settled = SettledRead::of(epoch, dy, &frame);
+                    if !streamed_since_publish
+                        && last_read.as_ref() == Some(&settled)
+                        && last_join.is_some_and(|at| at.elapsed() < KIOSK_REJOIN_AFTER)
+                    {
+                        std::thread::sleep(timing.interval);
+                        continue;
+                    }
                     let mut view = joiner(epoch, &frame);
                     // The frontend styles this offset against 100vh/1080, so it must cross
                     // IPC in design pixels via `to_design_px`; `dy` was measured in strip
                     // (capture) pixels, and the raw value overshoots on taller captures.
                     view.scroll_dy = kiosk_scroll::to_design_px(dy, strip_rows);
+                    last_read = Some(settled);
+                    last_join = Some(Instant::now());
+                    if !streamed_since_publish && last_view.as_ref() == Some(&view) {
+                        // Re-joined on the clock and nothing changed: nothing to tell.
+                        std::thread::sleep(timing.interval);
+                        continue;
+                    }
                     let cell_detail: Vec<String> = frame
                         .cells
                         .iter()
@@ -2185,6 +2294,8 @@ where
                     looks_still = 0;
                     looks_reads = 0;
                     last_publish = Some(Instant::now());
+                    streamed_since_publish = false;
+                    last_view = Some(view.clone());
                     publish(view);
                 }
                 Err(reason) => log::warn!("[DEBUG-kiosk] read failed: {reason}"),
@@ -3427,7 +3538,8 @@ mod tests {
         .with_profiles(vec![Some(label_strip()); 4]);
         let (_, _, published) = run_poller(source);
         let published = published.lock().expect("published");
-        assert_eq!(published.len(), 2, "two settles publish: {published:?}");
+        // Both settles show the same x1 view, so the second publishes nothing new.
+        assert_eq!(published.len(), 1, "one view for two settles: {published:?}");
         assert!(
             published.iter().all(|view| view.total_plat <= 1),
             "no phantom multiplier may reach the total: {published:?}"
@@ -3492,7 +3604,7 @@ mod tests {
             .recorder_reads(&asked);
         let (_, _, published) = run_poller(source);
         let published = published.lock().expect("published");
-        assert_eq!(published.len(), 2, "two settles, two publishes");
+        assert_eq!(published.len(), 1, "the second settle read the same page: no new publish");
         let asked = asked.lock().expect("read log");
         assert_eq!(
             asked.len(),
@@ -3535,7 +3647,7 @@ mod tests {
             .recorder_reads(&asked);
         let (_, _, published) = run_poller(source);
         let published = published.lock().expect("published");
-        assert_eq!(published.len(), 2, "two settles, two publishes");
+        assert_eq!(published.len(), 1, "the second settle read the same page: no new publish");
         assert_eq!(published[0].cells.len(), 2);
         let asked = asked.lock().expect("read log");
         assert_eq!(

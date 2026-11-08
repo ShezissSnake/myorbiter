@@ -452,8 +452,10 @@ fn adopting_twice_does_not_double_arm() {
 /// the open markers again -- can land in a single `observe` call. Within one batch a rebuild
 /// is indistinguishable from an instant close-and-reopen, and continuity is the safe side of
 /// that ambiguity: nothing retires, the poller keeps reading, the published view stays up,
-/// and the overlay never blinks. (The old code retired on the close and re-armed on the open,
-/// wiping the view and churning the poller on every sale.)
+/// and the window never blinks. The chips do come down with the close (the grid they priced is
+/// gone for that moment), and the visit carries on with a fresh poller that re-reads the rebuilt
+/// grid. (The old code retired on the close and re-armed on the open, churning the session and
+/// the window on every sale.)
 #[test]
 fn a_close_and_reopen_in_one_batch_keeps_the_same_visit() {
     let session = &mut KioskSession::new();
@@ -471,22 +473,29 @@ fn a_close_and_reopen_in_one_batch_keeps_the_same_visit() {
     });
     let visit = kiosk.active_session();
 
-    session.observe(
+    let withdrawn = session.observe(
         [CLOSE_LINE, MODE_LINE, POPULATE_LINE].concat().as_bytes(),
         &kiosk,
         &show,
         &spawns.hook(),
         t0,
     );
-    assert_eq!(spawns.spawns(), 1, "no second poller for the same visit");
+    assert!(withdrawn, "the frontend hears the chips went");
     assert!(
-        !poller.load(Ordering::Acquire),
-        "the running poller was never stopped"
+        poller.load(Ordering::Acquire),
+        "the poller reading the old grid was stopped"
+    );
+    assert_eq!(spawns.spawns(), 2, "a fresh poller for the rebuilt grid");
+    let resumed = spawns.reanchor.lock().unwrap()[1].clone();
+    assert!(
+        resumed.load(Ordering::Acquire),
+        "and its first read is a full anchor"
     );
     assert_eq!(kiosk.active_session(), visit, "still the same visit");
+    assert!(kiosk.get().is_none(), "the old grid's chips are gone");
     assert!(
-        kiosk.get().is_some(),
-        "the published view stayed up through the rebuild"
+        kiosk.set_if_current(visit.unwrap(), KioskView::default(), || ()),
+        "the resumed visit publishes again"
     );
 
     assert!(
@@ -522,7 +531,16 @@ fn a_batch_that_ends_closed_still_tears_down() {
         &spawns.hook(),
         t0,
     );
-    assert_eq!(spawns.spawns(), 1, "the visit never re-armed");
+    assert_eq!(
+        spawns.spawns(),
+        2,
+        "the reopen in the middle resumed the visit with a poller of its own"
+    );
+    assert!(
+        spawns.gone.lock().unwrap().iter().all(|gone| gone.load(Ordering::Acquire)),
+        "and the last close stopped it again"
+    );
+    assert!(kiosk.get().is_none(), "no chips while the close is pending");
     assert!(
         !session.take_close(&kiosk, &hide, t0),
         "inside the window the overlay stays up"
@@ -644,8 +662,14 @@ fn a_sale_confirm_rebuild_split_across_batches_keeps_the_overlay_up() {
         "the overlay must ride out the rebuild window"
     );
     assert_eq!(tally_of(&hides), 0, "the window never blinked");
-    assert!(kiosk.get().is_some(), "the published view stays up");
-    assert_eq!(spawns.spawns(), 1, "no second poller for the same visit");
+    assert!(
+        kiosk.get().is_none(),
+        "but the chips came down with the grid: the popup covers it"
+    );
+    assert!(
+        !kiosk.set_if_current(visit.unwrap(), KioskView::default(), || ()),
+        "and nothing paints them back while the grid is away"
+    );
     assert_eq!(kiosk.active_session(), visit, "the visit is continuous");
 
     // ...then the rebuild markers arrive a second later and the visit continues.
@@ -661,8 +685,12 @@ fn a_sale_confirm_rebuild_split_across_batches_keeps_the_overlay_up() {
         "the rebuild cancels the pending teardown"
     );
     assert_eq!(tally_of(&hides), 0, "still no blink");
-    assert_eq!(spawns.spawns(), 1, "the running poller was never stopped");
+    assert_eq!(spawns.spawns(), 2, "the rebuilt grid gets a poller of its own");
     assert_eq!(kiosk.active_session(), visit, "still the same visit");
+    assert!(
+        kiosk.set_if_current(visit.unwrap(), KioskView::default(), || ()),
+        "and its chips publish again"
+    );
     assert_eq!(tally_of(&shows), 1, "never re-shown: it never came down");
 }
 
@@ -699,7 +727,7 @@ fn a_slow_sale_confirm_rebuild_keeps_the_overlay_up() {
         "the overlay must ride out a 1.7s rebuild"
     );
     assert_eq!(tally_of(&hides), 0, "the window never blinked");
-    assert!(kiosk.get().is_some(), "the published view stays up");
+    assert!(kiosk.get().is_none(), "the chips came down with the grid");
 
     session.observe(
         [MODE_LINE, SWF_LINE, POPULATE_LINE].concat().as_bytes(),
@@ -713,8 +741,12 @@ fn a_slow_sale_confirm_rebuild_keeps_the_overlay_up() {
         "the rebuild cancels the pending teardown"
     );
     assert_eq!(tally_of(&hides), 0, "still no blink");
-    assert_eq!(spawns.spawns(), 1, "the running poller was never stopped");
+    assert_eq!(spawns.spawns(), 2, "the rebuilt grid gets a poller of its own");
     assert_eq!(kiosk.active_session(), visit, "still the same visit");
+    assert!(
+        kiosk.set_if_current(visit.unwrap(), KioskView::default(), || ()),
+        "and its chips publish again"
+    );
     assert_eq!(tally_of(&shows), 1, "never re-shown: it never came down");
 }
 
@@ -796,10 +828,17 @@ fn silence_past_the_grace_window_tears_the_session_down() {
 
     assert!(
         !session.take_close(&kiosk, &hide, t0),
-        "inside the window the overlay lingers"
+        "inside the window the visit lingers"
     );
-    assert_eq!(tally_of(&hides), 0);
-    assert!(kiosk.get().is_some(), "and so does the published view");
+    assert_eq!(tally_of(&hides), 0, "and so does the window");
+    assert!(
+        kiosk.get().is_none(),
+        "but not the chips: the screen they priced is gone"
+    );
+    assert!(
+        poller.load(Ordering::Acquire),
+        "nor the poller: it would be reading whatever replaced the grid"
+    );
     assert!(
         session.take_close(&kiosk, &hide, after_grace(t0)),
         "silence past the window is the verdict"

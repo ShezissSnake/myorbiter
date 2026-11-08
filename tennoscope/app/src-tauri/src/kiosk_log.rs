@@ -48,6 +48,11 @@ pub enum KioskLogEvent {
 }
 
 const MODE_MARKER: &str = "InventoryTest - CurrMode: Selling Prime Parts";
+/// Every mode line the inventory screen writes starts with this. A mode other than selling prime
+/// parts is another screen in the same SWF, which the overlay has nothing to say about: only the
+/// selling mode is in the census, so any other one is treated as the kiosk going away, and the
+/// SWF's own lines cannot reopen it until the selling mode is named again.
+const MODE_PREFIX: &str = "InventoryTest - CurrMode: ";
 const SWF_MARKER: &str = "/Lotus/Interface/InventoryTest.swf";
 const POPULATE_MARKER: &str = "PopulateGrid()";
 /// The kiosk's teardown line, written as the screen goes away, including mid-visit rebuilds
@@ -62,6 +67,8 @@ const SUBSCRIBE_MARKER: &str = "Subscribing for /Lotus/Interface/";
 pub struct KioskLogMachine {
     open: bool,
     carry: Vec<u8>,
+    /// The inventory screen last named a mode other than selling prime parts.
+    other_mode: bool,
 }
 
 impl KioskLogMachine {
@@ -106,6 +113,16 @@ impl KioskLogMachine {
     }
 
     pub fn observe_line(&mut self, line: &str) -> Vec<KioskLogEvent> {
+        if line.contains(MODE_PREFIX) {
+            self.other_mode = !line.contains(MODE_MARKER);
+            if self.other_mode {
+                if self.open {
+                    self.open = false;
+                    return vec![KioskLogEvent::KioskClosed];
+                }
+                return Vec::new();
+            }
+        }
         if self.open {
             // Close before anything else: the exit line and the open lines both name the
             // screen, and a session that is ending has nothing else worth reporting.
@@ -118,7 +135,7 @@ impl KioskLogMachine {
             }
             return Vec::new();
         }
-        if line.contains(MODE_MARKER) || line.contains(SWF_MARKER) {
+        if line.contains(MODE_MARKER) || (line.contains(SWF_MARKER) && !self.other_mode) {
             self.open = true;
             return vec![KioskLogEvent::KioskOpened];
         }
@@ -318,5 +335,39 @@ mod tests {
     fn unrelated_lines_produce_nothing() {
         let mut m = KioskLogMachine::default();
         assert!(m.observe_line("Hello squad sync stuff").is_empty());
+    }
+
+    /// A mode line naming anything but selling prime parts. The census holds no such line, so
+    /// this one is made up in the game's own shape.
+    const OTHER_MODE_LINE: &str =
+        "75590.120 Script [Info]: InventoryTest.lua: InventoryTest - CurrMode: Example Other Mode";
+
+    #[test]
+    fn another_inventory_mode_closes_the_session() {
+        let mut m = KioskLogMachine::default();
+        m.observe_line(MODE_LINE);
+        assert_eq!(
+            m.observe_line(OTHER_MODE_LINE),
+            vec![KioskLogEvent::KioskClosed]
+        );
+        assert!(
+            m.observe_line(POPULATE_LINE).is_empty(),
+            "the other mode's grid is not the kiosk's"
+        );
+    }
+
+    #[test]
+    fn the_swf_line_does_not_open_the_kiosk_under_another_mode() {
+        let mut m = KioskLogMachine::default();
+        assert!(m.observe_line(OTHER_MODE_LINE).is_empty());
+        assert!(
+            m.observe_line(SWF_LINE).is_empty(),
+            "the inventory screen opened on another mode"
+        );
+        assert_eq!(
+            m.observe_line(MODE_LINE),
+            vec![KioskLogEvent::KioskOpened],
+            "naming the selling mode again opens it"
+        );
     }
 }
