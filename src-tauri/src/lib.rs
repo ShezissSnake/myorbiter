@@ -168,12 +168,13 @@ fn data_stamp(dir: Option<String>) -> Result<u64, String> {
 }
 
 /// One HTTP client for the whole app: connections (and TLS sessions) are kept and reused, and
-/// the system's certificates are loaded once instead of on every request. Honours HTTPS_PROXY /
-/// NO_PROXY as they were at startup. Only `request` uses it, so no request leaves without the
+/// the system's certificates are loaded once instead of on every request. Honours ALL_PROXY,
+/// HTTPS_PROXY and HTTP_PROXY as they were at startup (ureq doesn't read NO_PROXY); tests, which
+/// only talk to this machine, use none. Only `request` uses it, so no request leaves without the
 /// User-Agent.
 fn http_agent() -> ureq::Agent {
     static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
-    AGENT.get_or_init(|| ureq::AgentBuilder::new().try_proxy_from_env(true).build()).clone()
+    AGENT.get_or_init(|| ureq::AgentBuilder::new().try_proxy_from_env(!cfg!(test)).build()).clone()
 }
 
 /// Every HTTP request MyOrbiter makes starts here, already carrying `user_agent()`.
@@ -1364,11 +1365,12 @@ pub fn run() {
             c
         })
         .setup(|app| {
+            // First, so nothing can go out naming another version.
+            set_version(app.package_info().version.to_string());
             if let Ok(dir) = app.path().app_log_dir() {
                 applog::init(&dir);
             }
             datamove::log_outcome();
-            set_version(app.package_info().version.to_string());
             log::info!(target: "myorbiter::app", "MyOrbiter {} started on {} {}", app.package_info().version, std::env::consts::OS, std::env::consts::ARCH);
             rendering::started();
             // Ctrl+C in a terminal, logout, `kill`: close the TennoScope MyOrbiter started, then exit
@@ -1554,12 +1556,18 @@ pub(crate) mod test_http {
         (addr, handle)
     }
 
-    /// A header's value in a request head, its name in any case.
+    /// A header's value in a request head, its name in any case. Sent twice is a failure.
     pub fn header(head: &str, name: &str) -> Option<String> {
-        head.lines().skip(1).find_map(|l| {
-            let (n, v) = l.split_once(':')?;
-            n.trim().eq_ignore_ascii_case(name).then(|| v.trim().to_string())
-        })
+        let found: Vec<String> = head
+            .lines()
+            .skip(1)
+            .filter_map(|l| {
+                let (n, v) = l.split_once(':')?;
+                n.trim().eq_ignore_ascii_case(name).then(|| v.trim().to_string())
+            })
+            .collect();
+        assert!(found.len() <= 1, "{name} sent {} times: {head}", found.len());
+        found.into_iter().next()
     }
 }
 
@@ -1616,8 +1624,10 @@ mod tests {
         let count = |text: &str, what: &str| text.matches(what).count();
         for path in files {
             let all = fs::read_to_string(&path).unwrap();
-            // The code, without its tests (each file keeps them at the end).
-            let code = all.split("#[cfg(test)]").next().unwrap_or("");
+            // The code, without its test modules (everything else is scanned, test-only
+            // functions too). Names in any case: "user-agent" is the same header.
+            let code = without_test_modules(&all).to_ascii_lowercase();
+            let code = code.as_str();
             let name = path.strip_prefix(&dir).unwrap().to_string_lossy().replace('\\', "/");
             let at = |what: &str, allowed: usize| {
                 assert_eq!(count(code, what), allowed, "{name}: `{what}` outside the request helpers");
@@ -1626,34 +1636,94 @@ mod tests {
                 // `fn http_agent()` and its one use, in `request`; the one agent built.
                 "lib.rs" => {
                     at("http_agent()", 2);
-                    at("AgentBuilder", 1);
-                    at("\"User-Agent\"", 1);
+                    at("agentbuilder", 1);
+                    at("\"user-agent\"", 1);
                 }
                 "market.rs" => {
                     at("http_agent()", 0);
                     at("into_client_request", 1);
-                    at("\"User-Agent\"", 1);
+                    at("\"user-agent\"", 1);
                 }
                 // Nox's Frame names MyOrbiter its own way (never warframe.market's address).
                 "noxsframe.rs" => {
                     at("http_agent()", 0);
                     at("into_client_request", 0);
-                    at("\"User-Agent\"", 1);
+                    at("\"user-agent\"", 1);
                     at("warframe.market", 0);
                 }
                 _ => {
                     at("http_agent()", 0);
                     at("into_client_request", 0);
-                    at("\"User-Agent\"", 0);
+                    at("\"user-agent\"", 0);
                 }
             }
-            for what in ["ureq::get", "ureq::post", "ureq::put", "ureq::delete", "ureq::request", "ureq::agent", "tungstenite::connect(", "reqwest"] {
+            // `presence::connect` opens a socket from a request it's given (market::socket_request).
+            at("client_tls", usize::from(name == "presence.rs"));
+            if name != "lib.rs" {
+                at("agentbuilder", 0);
+            }
+            for what in [
+                "ureq::get(",
+                "ureq::post(",
+                "ureq::put(",
+                "ureq::patch(",
+                "ureq::delete(",
+                "ureq::head(",
+                "ureq::request(",
+                "ureq::request_url(",
+                "ureq::agent(",
+                "ureq::builder(",
+                "agent::new(",
+                "use ureq::{",
+                "request::builder(",
+                "tungstenite::connect(",
+                "tungstenite::client::connect",
+                "tungstenite::client::client(",
+                "reqwest::",
+                "hyper::",
+                "isahc",
+                "curl::",
+            ] {
                 at(what, 0);
             }
-            if name != "lib.rs" {
-                at("AgentBuilder", 0);
-            }
         }
+    }
+
+    /// `src` without its `#[cfg(test)] mod` blocks (the braces in the tests' strings pair up; the
+    /// ones here are written as escapes, so this module's own braces do too).
+    fn without_test_modules(src: &str) -> String {
+        let mut out = String::with_capacity(src.len());
+        let mut rest = src;
+        while let Some(at) = rest.find("#[cfg(test)]") {
+            let after = &rest[at + "#[cfg(test)]".len()..];
+            let item = after.trim_start();
+            let is_mod = item.starts_with("mod ") || item.starts_with("pub mod ") || item.starts_with("pub(crate) mod ");
+            out.push_str(&rest[..at]);
+            if !is_mod {
+                out.push_str("#[cfg(test)]");
+                rest = after;
+                continue;
+            }
+            let open = after.find('\x7b').expect("a module body");
+            let mut depth = 0usize;
+            let mut end = after.len();
+            for (i, c) in after[open..].char_indices() {
+                match c {
+                    '\x7b' => depth += 1,
+                    '\x7d' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            end = open + i + 1;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            rest = &after[end..];
+        }
+        out.push_str(rest);
+        out
     }
 
     #[test]
