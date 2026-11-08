@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { loadSettings, nothingYet, NO_INVENTORY_YET, tennoscope, type TennoscopeAccess } from "../src/lib/backend";
-import { settle } from "./support/runes";
+import "./support/runes";
+import { loadSettings, nothingYet, NO_INVENTORY_YET, tennoscope } from "../src/lib/backend";
 
 test("a fresh TennoScope reads as not set up yet, on Linux and Windows alike", () => {
   // What the desktop app says now, on every system.
@@ -19,8 +19,6 @@ test("a fresh TennoScope reads as not set up yet, on Linux and Windows alike", (
 
 // ------------------------------------------------------------------ the first start's question
 
-
-void settle;
 const src = (f: string) => readFileSync(new URL(`../src/${f}`, import.meta.url), "utf8");
 
 async function loaded(saved: unknown) {
@@ -37,7 +35,7 @@ test("the Full mode question is asked on a first start only", async () => {
   assert.equal(await loaded({ fullModeAsked: "junk" }), true);
 });
 
-test("nothing of TennoScope starts before the answer, and the answer is what it starts in", () => {
+test("nothing of TennoScope starts before the answer", () => {
   const app = src("App.svelte");
   const hold = app.indexOf("ts.asking = true;");
   const ask = app.indexOf("(answer) => (firstRun = answer)");
@@ -68,8 +66,8 @@ function stubTennoscope(report: { mode: string | null } | null, running = false)
   const calls: string[] = [];
   const status = () => ({ running, supported: true, binary: "/home/user/tennoscope", custom: null, bundled: true, started_by_myorbiter: false, report: report && { setup: { setup_complete: !!report.mode, access_mode: report.mode, desktop_capture_action_available: false } } }) as never;
   const real = { start: tennoscope.start, status: tennoscope.status, ask: tennoscope.ask };
-  tennoscope.start = async (access?: TennoscopeAccess) => {
-    calls.push(`start ${access ?? "-"}`);
+  tennoscope.start = async () => {
+    calls.push("start");
     running = true;
     return status();
   };
@@ -78,7 +76,7 @@ function stubTennoscope(report: { mode: string | null } | null, running = false)
   return { calls, restore: () => Object.assign(tennoscope, real), set: (r: { mode: string | null } | null) => (report = r) };
 }
 
-test("while the question is open nothing starts or is asked; the answer goes to the start", async (t) => {
+test("while the question is open nothing starts or is asked; then the answer is asked for", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const { ts } = await import("../src/lib/tennoscopeStore.svelte");
   const tsx = stubTennoscope(null);
@@ -89,16 +87,22 @@ test("while the question is open nothing starts or is asked; the answer goes to 
     await ts.ask("--sync");
     assert.deepEqual(tsx.calls, [], "held: no start, no sync");
     ts.answer("--access=overlay");
-    await ts.check(true, true);
-    assert.deepEqual(tsx.calls, ["start --access=overlay"]);
-    // Until TennoScope reports that mode, the answer stays: a running one in another mode is asked.
+    // Started plainly (its own folder's mode), then asked once it reports another mode.
     tsx.set({ mode: "full" });
-    ts.pending = null;
-    await ts.check();
-    assert.deepEqual(tsx.calls, ["start --access=overlay", "ask --access=overlay"], "Overlay is asked for, never Full");
+    await ts.check(true, true);
+    assert.deepEqual(tsx.calls, ["start", "ask --access=overlay"], "Overlay is asked for, never Full");
     tsx.set({ mode: "overlay" });
     await ts.check();
     assert.equal(ts.wanted, null, "applied: nothing more to pass on");
+    // A TennoScope that never switches is asked three times, then left to Settings.
+    ts.answer("--access=full");
+    for (let i = 0; i < 5; i++) {
+      ts.pending = null;
+      await ts.check();
+    }
+    assert.equal(tsx.calls.filter((c) => c === "ask --access=full").length, 3);
+    assert.equal(ts.wanted, null);
+    assert.match(ts.error ?? "", /didn't switch to Full mode/);
   } finally {
     tsx.restore();
     ts.asking = false;

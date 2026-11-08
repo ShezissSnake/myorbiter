@@ -1187,8 +1187,7 @@ export const tennoscope = {
   chooseProgram: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_choose_program") : Promise.resolve(null)),
   /** MyOrbiter finds TennoScope again, forgetting the program chosen in the dialog. */
   forgetProgram: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_forget_program") : devTennoscope()),
-  /** Starts it in the background unless it runs; with `access` (the first start's answer), in that mode. */
-  start: (access?: TennoscopeAccess): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_start", { access: access ?? null }) : devTennoscope()),
+  start: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_start") : devTennoscope()),
   show: (): Promise<void> => (inTauri ? invoke("tennoscope_show") : Promise.resolve()),
   ask: (ask: TennoscopeAsk): Promise<void> => (inTauri ? invoke("tennoscope_ask", { ask }) : Promise.resolve()),
   /** The last time TennoScope's log says it failed to start, and why (Unix ms, UTC). */

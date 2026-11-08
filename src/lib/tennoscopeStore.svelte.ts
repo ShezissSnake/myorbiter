@@ -18,11 +18,13 @@ class TennoscopeStore {
    */
   asking = $state(false);
   /**
-   * The first start's answer, until TennoScope reports that mode: every start passes it on the
-   * command line, and a TennoScope running in another mode is asked to switch. So a start that
-   * failed, or a TennoScope found only later, still gets it.
+   * The first start's answer, until TennoScope reports that mode: once it runs and reports another
+   * mode, it's asked to switch (`--access=…`, as the Full mode switch asks). So a start that failed,
+   * or a TennoScope found only later, still gets it. Not on TennoScope's command line: there it would
+   * race TennoScope's own start in the mode its folder holds.
    */
   wanted: TennoscopeAccess | null = null;
+  private follows = 0;
   /** TennoScope's data folder (Settings), where its log says why it wouldn't start; empty finds it. */
   dataDir = "";
   private busy = false;
@@ -74,8 +76,10 @@ class TennoscopeStore {
       }
       // Only a relaunch starts it: a check while it seemed to run only looks, so one that stops as
       // soon as it starts waits out the longer gaps above instead of being started every 15 s.
-      this.status = relaunch ? await tennoscope.start(this.wanted ?? undefined) : await tennoscope.status();
+      this.status = relaunch ? await tennoscope.start() : await tennoscope.status();
       this.follow();
+      // Just started with an answer to pass on: look again soon, rather than at the next poll.
+      if (relaunch && this.wanted) for (const ms of [1500, 4000, 8000]) setTimeout(() => this.check(), ms);
       if (this.status?.running) {
         this.upSince ||= now;
         if (now - this.upSince > 120_000) this.relaunches = 0;
@@ -99,13 +103,26 @@ class TennoscopeStore {
     this.wanted = access;
     this.asking = false;
   }
-  /** Done once TennoScope reports the mode asked for; a running one in another mode is asked to switch. */
+  /**
+   * Done once TennoScope reports the mode asked for; a running one in another mode is asked to
+   * switch, three times at most (then Settings, TennoScope is where to choose it).
+   */
   private follow() {
     const want = this.wanted;
     const mode = this.report?.setup.access_mode;
     if (!want || !this.report) return;
-    if (mode === want.slice("--access=".length)) this.wanted = null;
-    else if (this.pending !== want) void this.ask(want);
+    if (mode === want.slice("--access=".length)) {
+      this.wanted = null;
+      this.follows = 0;
+    } else if (this.pending !== want) {
+      if (++this.follows > 3) {
+        this.wanted = null;
+        this.follows = 0;
+        this.error = `TennoScope didn't switch to ${want === "--access=full" ? "Full" : "Overlay"} mode: choose it in Settings, TennoScope`;
+        return;
+      }
+      void this.ask(want);
+    }
   }
 
   async ask(ask: TennoscopeAsk) {
