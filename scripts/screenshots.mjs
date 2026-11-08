@@ -8,8 +8,8 @@
 // server. Needs Playwright with its Chromium (`npx playwright install chromium`), which isn't one
 // of the project's dependencies: install it in a folder of its own and point PLAYWRIGHT at its
 // node_modules/playwright. Needs ImageMagick (`magick`) for the WebP files. The demo's order books
-// and price histories are files in demo/; only item pictures come from warframe.market, and
-// nothing but GET requests reach it.
+// and price histories are files in demo/; the worldstate is read live (demo/README.md), so Home and
+// Current fissure change from run to run. Nothing but GET requests would reach warframe.market.
 
 import { spawn, execFileSync } from "node:child_process";
 import { createRequire } from "node:module";

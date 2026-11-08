@@ -279,10 +279,11 @@ isn't the demo one, opens each page in Chromium, and writes the WebP files over 
 repository. Playwright isn't one of the project's dependencies: install it in a folder outside the
 repository (`npm install playwright`, then `npx playwright install chromium` there) and point
 `PLAYWRIGHT` at it. It needs ImageMagick (`magick`) too. The demo's order books and price
-histories are files in `demo/`, so the pages come out the same on every run but for the clocks;
-only item pictures come from warframe.market, and nothing but GET requests reach it. In a clone
-whose `node_modules` is a link to another folder, Vite refuses to serve the fonts and the
-pictures come out in fallback fonts: run it where `node_modules` is a real folder.
+histories are files in `demo/`; the worldstate (fissures, Baro, the clocks) is read live, so Home
+and Current fissure change from one run to the next (`demo/README.md`). Nothing but GET requests
+would reach warframe.market. In a clone whose `node_modules` is a link to another folder, Vite
+refuses to serve the fonts and the pictures come out in fallback fonts: run it where
+`node_modules` is a real folder.
 
 ## AI and automation
 
