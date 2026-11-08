@@ -45,7 +45,7 @@ if [[ "${1:-}" == "--uninstall" ]]; then
   for size in 32 64 128 256 512; do rm -f "$icons/${size}x${size}/apps/myorbiter.png"; done
   remove_old
   refresh
-  echo "MyOrbiter removed from your app menu. Its settings stay in ~/.config/io.gitlab.sheziss-group.myorbiter."
+  echo "MyOrbiter removed from your app menu. Its settings stay in ~/.config/dev.myorbiter.app."
   exit 0
 fi
 

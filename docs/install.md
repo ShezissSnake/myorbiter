@@ -29,6 +29,10 @@ the Steam button.
 `myorbiter_<version>_x64-setup.exe`. It installs for your user only, so no administrator is needed.
 It isn't signed, so SmartScreen warns the first time: *More info → Run anyway*.
 
+Known cosmetic: the installer, the Start menu and Settings → Apps show the name in lower case,
+`myorbiter`. Windows takes it from the package name, which stays lower case for the Linux packages;
+the window itself says MyOrbiter.
+
 ### macOS
 
 There is no macOS download: the release pipeline builds for Linux and Windows only. MyOrbiter can be
