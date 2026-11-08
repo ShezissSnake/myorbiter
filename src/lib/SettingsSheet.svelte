@@ -17,6 +17,7 @@
   import FullMode from "./FullMode.svelte";
   import Seg from "./ui/Seg.svelte";
   import ProgressButton from "./ui/ProgressButton.svelte";
+  import { Jobs } from "./job.svelte";
   import { openUrl } from "./backend";
   import { updates } from "./updates.svelte";
   import { CHANNELS, CHANNEL_LABEL, installChecks, installInstalls, installNote, noteLines, releasePage, versionLine } from "./core/updates";
@@ -62,7 +63,13 @@
     return () => clearInterval(t);
   });
 
-  let logError = $state<string | null>(null);
+  /** Open a log folder: "Opened", or why not, on the button itself. */
+  const logJobs = new Jobs();
+  const openLogs = (which: "myorbiter" | "tennoscope") =>
+    logJobs.get(which).run(async () => {
+      await openLogFolder(which, settings.dataDir);
+      return "Opened";
+    });
   // Paths are edited as drafts and applied together, because changing them reloads everything.
   let dataDir = $state("");
   let eeLog = $state("");
@@ -342,12 +349,11 @@
     <p class="hint">What MyOrbiter did and what went wrong, one line each, for when something misbehaves: TennoScope starting or failing, every change it made to your listings and every request warframe.market turned down, and errors in this window. Never your warframe.market sign-in. TennoScope keeps its own. Send both when you report a problem.</p>
     {#await logFolders(settings.dataDir) then f}
       <div class="row">
-        <button class="stamp" disabled={!f.myorbiter} title={f.myorbiter ?? "Only in the desktop app"} onclick={() => openLogFolder("myorbiter", settings.dataDir).catch((e) => (logError = String(e)))}>Open MyOrbiter's log folder</button>
-        <button class="stamp" disabled={!f.tennoscope} title={f.tennoscope ?? "TennoScope hasn't written a log here yet"} onclick={() => openLogFolder("tennoscope", settings.dataDir).catch((e) => (logError = String(e)))}>Open TennoScope's log folder</button>
+        <ProgressButton job={logJobs.get("myorbiter")} label="Open MyOrbiter's log folder" failLabel="Couldn't open" sizer={["Opened", "Couldn't open"]} disabled={!f.myorbiter} title={f.myorbiter ?? "Only in the desktop app"} onclick={() => openLogs("myorbiter")} status />
+        <ProgressButton job={logJobs.get("tennoscope")} label="Open TennoScope's log folder" failLabel="Couldn't open" sizer={["Opened", "Couldn't open"]} disabled={!f.tennoscope} title={f.tennoscope ?? "TennoScope hasn't written a log here yet"} onclick={() => openLogs("tennoscope")} status />
       </div>
       {#if f.myorbiter}<p class="hint path-note">{f.myorbiter}</p>{/if}
     {/await}
-    {#if logError}<p class="hint err">{logError}</p>{/if}
   </section>
 
   <section id="settings-report">

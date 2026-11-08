@@ -294,8 +294,8 @@ fn terminate(pid: u32) {
 }
 
 /// Variables MyOrbiter's own AppImage sets for itself (its folder, and paths inside it), taken off
-/// a TennoScope it starts: TennoScope is an AppImage of its own and must find its own libraries,
-/// not MyOrbiter's.
+/// a program it starts: TennoScope is an AppImage of its own and must find its own libraries, not
+/// MyOrbiter's, and the system's programs (the file manager) must find the system's.
 #[cfg(target_os = "linux")]
 fn scrub_appimage_env(cmd: &mut Command) {
     let Some(appdir) = std::env::var_os("APPDIR").filter(|d| !d.is_empty()) else { return };
@@ -319,10 +319,10 @@ fn scrub_appimage_env(cmd: &mut Command) {
     }
 }
 
-/// A TennoScope process, without MyOrbiter's own environment: the WebKit tuning MyOrbiter set for its
-/// window, and on Linux its AppImage's paths. The one inside MyOrbiter is told so
-/// (`ORBITER_BUNDLED`): its own updater then stands down, as MyOrbiter brings its updates.
-fn launch(bin: &Path, bundled: bool) -> Command {
+/// A program started without MyOrbiter's own environment: the WebKit tuning MyOrbiter set for its
+/// window, and on Linux its AppImage's paths (`scrub_appimage_env`). Its input and output go
+/// nowhere.
+pub(crate) fn plain_command(bin: impl AsRef<std::ffi::OsStr>) -> Command {
     let mut cmd = Command::new(bin);
     cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
     for key in crate::env_set_by_myorbiter() {
@@ -330,6 +330,13 @@ fn launch(bin: &Path, bundled: bool) -> Command {
     }
     #[cfg(target_os = "linux")]
     scrub_appimage_env(&mut cmd);
+    cmd
+}
+
+/// A TennoScope process (`plain_command`). The one inside MyOrbiter is told so (`ORBITER_BUNDLED`):
+/// its own updater then stands down, as MyOrbiter brings its updates.
+fn launch(bin: &Path, bundled: bool) -> Command {
+    let mut cmd = plain_command(bin);
     if bundled {
         cmd.env("ORBITER_BUNDLED", "1");
     }
@@ -634,6 +641,7 @@ mod tests {
     fn appimage_paths_stay_with_myorbiter() {
         // The variables are read from this process, so set them here (tests in this module don't
         // read them otherwise).
+        let _env = crate::TEST_ENV.lock().unwrap_or_else(|e| e.into_inner());
         std::env::set_var("APPDIR", "/tmp/.mount_myorbiterX");
         std::env::set_var("APPIMAGE", "/home/me/myorbiter.AppImage");
         std::env::set_var("MYORBITER_TEST_DIRS", "/tmp/.mount_myorbiterX/usr/share:/usr/share:/usr/local/share");

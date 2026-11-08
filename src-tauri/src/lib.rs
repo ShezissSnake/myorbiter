@@ -5,6 +5,7 @@ mod bridge;
 mod companion;
 mod desktop;
 mod feed;
+mod folder;
 mod presence;
 mod images;
 mod market;
@@ -1084,10 +1085,9 @@ fn log_folders(dir: Option<String>) -> LogFolders {
     LogFolders { myorbiter: applog::dir().map(|p| p.display().to_string()), tennoscope: tennoscope.map(|p| p.display().to_string()) }
 }
 
-/// Opens a log folder in the file manager: `which` is "myorbiter" or "tennoscope".
+/// Opens a log folder in the file manager (`folder::open`): `which` is "myorbiter" or "tennoscope".
 #[tauri::command(async)]
 fn open_log_folder(app: tauri::AppHandle, which: String, dir: Option<String>) -> Result<(), String> {
-    use tauri_plugin_opener::OpenerExt;
     let folders = log_folders(dir);
     let path = match which.as_str() {
         "myorbiter" => folders.myorbiter,
@@ -1095,7 +1095,7 @@ fn open_log_folder(app: tauri::AppHandle, which: String, dir: Option<String>) ->
         _ => None,
     }
     .ok_or("That log folder doesn't exist yet")?;
-    app.opener().open_path(path, None::<&str>).map_err(|e| e.to_string())
+    folder::open(&app, Path::new(&path))
 }
 
 // ---------------------------------------------------------------- bug reports
@@ -1287,6 +1287,10 @@ async fn save_settings(app: tauri::AppHandle, settings: Value, page: u64, rev: u
 /// The variables MyOrbiter set for its own window at start (see `rendering::apply`),
 /// which a TennoScope it starts must not inherit.
 static ENV_SET_BY_MYORBITER: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+
+/// Held by a test that sets this process's environment (`APPDIR`), so two such tests don't run at once.
+#[cfg(test)]
+pub(crate) static TEST_ENV: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 pub(crate) fn env_set_by_myorbiter() -> &'static [&'static str] {
     ENV_SET_BY_MYORBITER.get().map(Vec::as_slice).unwrap_or(&[])
