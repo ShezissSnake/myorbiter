@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildNumber, cameFrom, CHANNELS, checkedAgo, compareVersions, defaultUpdates, installChecks, installInstalls, installNote, noteLines, noticeShows, releasePage, sanitizeUpdates, versionLine, type Install } from "../src/lib/core/updates";
+import { buildNumber, cameFrom, CHANNELS, CHECK_EVERY, checkDue, checkedAgo, checkLine, clockTime, compareVersions, defaultUpdates, installChecks, installInstalls, installNote, noteLines, noticeShows, releasePage, sanitizeUpdates, versionLine, type Install } from "../src/lib/core/updates";
 import { openable } from "../src/lib/core/links";
 import { defaultSettings } from "../src/lib/backend";
 import { NEWS, showMeTarget } from "../src/lib/whatsNew";
@@ -93,6 +93,27 @@ test("release notes as lines, and when the last check was", () => {
   assert.equal(checkedAgo(now - 12 * 60_000, now), "12 min ago");
   assert.equal(checkedAgo(now - 3 * 3_600_000, now), "3 h ago");
   assert.equal(checkedAgo(now - 2 * 86_400_000, now), "2 d ago");
+});
+
+test("when the periodic check is due: 6 hours after the last, however it ended", () => {
+  const now = 10_000_000_000;
+  assert.equal(checkDue(null, now), true, "never checked");
+  assert.equal(checkDue(now - CHECK_EVERY + 1, now), false);
+  assert.equal(checkDue(now - CHECK_EVERY, now), true);
+  assert.equal(checkDue(now - 30 * 60_000, now), false);
+  assert.equal(checkDue(now + 60_000, now), true, "a clock that went back");
+});
+
+test("the line under Check now: one state per check, with when", () => {
+  const now = 10_000_000_000;
+  assert.equal(checkLine(null, null, false, now), "Last checked not yet.");
+  assert.equal(checkLine(null, now - 2 * 3_600_000, false, now), "Last checked 2 h ago.");
+  assert.equal(checkLine(null, now, true, now), "Checking for updates…");
+  assert.equal(checkLine({ kind: "newer", channel: "experimental", version: "0.2.106", at: now }, now, false, now), "0.2.106 is available on Experimental (checked just now).");
+  assert.equal(checkLine({ kind: "current", channel: "beta", version: "0.2.104", at: now - 5 * 60_000 }, now, false, now), "Up to date (checked 5 min ago).");
+  assert.equal(checkLine({ kind: "older", channel: "stable", version: "0.2.103", at: now }, now, false, now), "Stable has 0.2.103, older than this build (checked just now).");
+  assert.equal(checkLine({ kind: "failed", channel: "experimental", reason: "Couldn't reach gitlab.com", at: now }, now, false, now), `Couldn't reach gitlab.com (at ${clockTime(now)}, just now).`);
+  assert.match(clockTime(now), /^\d\d:\d\d$/);
 });
 
 test("What's New announces updates, and its Show me opens Settings at Updates", () => {

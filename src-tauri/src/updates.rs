@@ -26,8 +26,9 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 /// GitLab API names it (`group%2Fproject`).
 pub const PROJECT: &str = "sheziss-group%2Fmyorbiter";
 
-/// How long a check may take before it counts as failed.
-const CHECK_TIMEOUT: Duration = Duration::from_secs(30);
+/// How long a check may take before it counts as failed: the manifest is a couple of kilobytes, so
+/// a check that takes longer is stuck, and the page should say so while the player still looks.
+const CHECK_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// A release channel, as the page names it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,6 +45,15 @@ impl Channel {
             Channel::Stable => "stable",
             Channel::Beta => "beta",
             Channel::Experimental => "experimental",
+        }
+    }
+
+    /// As Settings names it.
+    pub fn label(self) -> &'static str {
+        match self {
+            Channel::Stable => "Stable",
+            Channel::Beta => "Beta",
+            Channel::Experimental => "Experimental",
         }
     }
 }
@@ -214,7 +224,27 @@ pub struct Progress {
     total: Option<u64>,
 }
 
-/// A failed check or install in a short sentence; the plugin's own wording goes to the log.
+/// Why a check failed, in plain words for the line under Check now; the plugin's own wording goes
+/// to the log. A manifest that isn't JSON fails in the request's own decoding (`Reqwest`), one that
+/// is JSON but not a manifest in the plugin's (`Serialization`); an answer that isn't a success
+/// (a 404, a 503) leaves the plugin with no release (`ReleaseNotFound`).
+fn check_failure(channel: Channel, e: &tauri_plugin_updater::Error) -> String {
+    use tauri_plugin_updater::Error as E;
+    let ch = channel.label();
+    match e {
+        E::Reqwest(r) if r.is_decode() => format!("The {ch} channel's manifest is malformed"),
+        E::Reqwest(r) if r.is_timeout() => format!("gitlab.com didn't answer within {} s", CHECK_TIMEOUT.as_secs()),
+        E::Reqwest(_) | E::Network(_) => "Couldn't reach gitlab.com".into(),
+        E::Serialization(_) | E::Semver(_) | E::FormatDate => format!("The {ch} channel's manifest is malformed"),
+        E::ReleaseNotFound => format!("gitlab.com didn't serve the {ch} channel's manifest"),
+        E::TargetNotFound(_) | E::TargetsNotFound(_) => format!("The {ch} channel has no build for this system yet"),
+        E::UrlParse(_) | E::InsecureTransportProtocol | E::EmptyEndpoints => "The update address is invalid".into(),
+        E::UnsupportedOs | E::UnsupportedArch => "Updates aren't offered for this system".into(),
+        _ => "Couldn't check for updates".into(),
+    }
+}
+
+/// A failed install in a short sentence; the plugin's own wording goes to the log.
 fn calm(what: &str, e: &tauri_plugin_updater::Error) -> String {
     use tauri_plugin_updater::Error as E;
     match e {
@@ -257,7 +287,7 @@ async fn check(app: &AppHandle, pending: &Pending, channel: Channel) -> Result<C
         .iter()
         .map(|u| u.parse())
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| "the update address is invalid".to_string())?;
+        .map_err(|_| "The update address is invalid".to_string())?;
     let started = Instant::now();
     // On Windows the installer replaces files TennoScope runs from, and exits MyOrbiter itself:
     // TennoScope and the warframe.market status are closed first.
@@ -270,16 +300,17 @@ async fn check(app: &AppHandle, pending: &Pending, channel: Channel) -> Result<C
             handle.cleanup_before_exit();
         })
         .endpoints(urls)
-        .map_err(|e| calm("check for updates", &e))?
+        .map_err(|e| check_failure(channel, &e))?
         .timeout(CHECK_TIMEOUT)
         .version_comparator(|current, release| release.version != current)
         .build()
-        .map_err(|e| calm("check for updates", &e))?;
+        .map_err(|e| check_failure(channel, &e))?;
     let current = app.package_info().version.clone();
     match updater.check().await {
         Ok(Some(update)) => {
             let Ok(remote) = semver::Version::parse(update.version.trim_start_matches('v')) else {
-                return Err(format!("the channel announced an unreadable version ({})", update.version));
+                log::warn!(target: "myorbiter::updates", "{}: unreadable version {:?} in the manifest", channel.name(), update.version);
+                return Err(format!("The {} channel's manifest is malformed", channel.label()));
             };
             let date = update.raw_json.get("pub_date").and_then(|d| d.as_str()).map(str::to_owned);
             let notes = update.body.clone();
@@ -294,13 +325,15 @@ async fn check(app: &AppHandle, pending: &Pending, channel: Channel) -> Result<C
             Ok(check)
         }
         Ok(None) => {
+            log::info!(target: "myorbiter::updates", "{}: up to date ({current})", channel.name());
             *pending.0.lock().unwrap_or_else(|e| e.into_inner()) = None;
             Ok(Check::Current { version: current.to_string() })
         }
         Err(e) => {
-            // One calm line: while the repository is private, or offline, every check ends here.
-            log::info!(target: "myorbiter::updates", "{} check failed after {} ms: {e}", channel.name(), started.elapsed().as_millis());
-            Err(calm("check for updates", &e))
+            // Offline, gitlab.com down, or a manifest the plugin can't read: the page says why in
+            // plain words; the log keeps the plugin's own.
+            log::warn!(target: "myorbiter::updates", "{} check failed after {} ms: {e}", channel.name(), started.elapsed().as_millis());
+            Err(check_failure(channel, &e))
         }
     }
 }
@@ -506,20 +539,57 @@ mod tests {
         semver::Version::parse(s).unwrap()
     }
 
+    /// The three addresses, written out in full: the channel switch builds them all with
+    /// `endpoints`, and Stable's is the one tauri.conf.json carries.
     #[test]
     fn each_channel_has_its_own_manifest() {
-        let registry = "https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel";
-        assert_eq!(endpoints(Channel::Stable), [format!("{registry}/stable/latest.json")]);
-        assert_eq!(endpoints(Channel::Beta), [format!("{registry}/beta/latest.json")]);
-        assert_eq!(endpoints(Channel::Experimental), [format!("{registry}/experimental/latest.json")]);
+        assert_eq!(endpoints(Channel::Stable), ["https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel/stable/latest.json"]);
+        assert_eq!(endpoints(Channel::Beta), ["https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel/beta/latest.json"]);
+        assert_eq!(endpoints(Channel::Experimental), ["https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel/experimental/latest.json"]);
+        let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        assert_eq!(config["plugins"]["updater"]["endpoints"], serde_json::json!(endpoints(Channel::Stable)));
         for c in [Channel::Stable, Channel::Beta, Channel::Experimental] {
             for u in endpoints(c) {
                 let url = u.parse::<tauri::Url>().unwrap();
                 assert_eq!(url.scheme(), "https");
                 // The encoded slash stays encoded: the API names the project by its full path.
                 assert!(url.path().starts_with("/api/v4/projects/sheziss-group%2Fmyorbiter/"), "{url}");
+                // As the plugin is given it: parsed once more, the address doesn't change.
+                assert_eq!(url.to_string(), u);
             }
         }
+    }
+
+    /// A channel manifest as CI publishes it (Experimental's, build 0.2.106) reads as the plugin
+    /// reads it: the version, the date, and this system's download with its signature.
+    #[test]
+    fn a_published_manifest_reads_as_the_plugin_reads_it() {
+        let raw = include_str!("../../tests/fixtures/updater/experimental-0.2.106.json");
+        let release: tauri_plugin_updater::RemoteRelease = serde_json::from_str(raw).unwrap();
+        assert_eq!(release.version, v("0.2.106"));
+        assert!(release.pub_date.is_some());
+        assert!(release.notes.as_deref().is_some_and(|n| !n.is_empty()));
+        for (target, file) in [("linux-x86_64", "myorbiter_0.2.106_amd64.AppImage"), ("windows-x86_64", "myorbiter_0.2.106_x64-setup.exe")] {
+            let url = release.download_url(target).unwrap().to_string();
+            assert_eq!(url, format!("https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/myorbiter/0.2.106/{file}"));
+            assert!(!release.signature(target).unwrap().is_empty());
+        }
+        assert!(release.download_url("darwin-aarch64").is_err());
+    }
+
+    /// Each way a check can fail has its own plain sentence, naming the channel where it matters.
+    #[test]
+    fn a_failed_check_says_why_in_plain_words() {
+        use tauri_plugin_updater::Error as E;
+        let malformed = serde_json::from_str::<tauri_plugin_updater::RemoteRelease>(r#"{"version":"0.2.106","platforms":{"linux-x86_64":{"url":"not a url","signature":"x"}}}"#).unwrap_err();
+        assert_eq!(check_failure(Channel::Experimental, &E::Serialization(malformed)), "The Experimental channel's manifest is malformed");
+        let no_version = serde_json::from_str::<tauri_plugin_updater::RemoteRelease>(r#"{"notes":"x"}"#).unwrap_err();
+        assert_eq!(check_failure(Channel::Beta, &E::Serialization(no_version)), "The Beta channel's manifest is malformed");
+        assert_eq!(check_failure(Channel::Stable, &E::ReleaseNotFound), "gitlab.com didn't serve the Stable channel's manifest");
+        assert_eq!(check_failure(Channel::Experimental, &E::Network("dns".into())), "Couldn't reach gitlab.com");
+        assert_eq!(check_failure(Channel::Beta, &E::TargetNotFound("linux-x86_64".into())), "The Beta channel has no build for this system yet");
+        assert_eq!(check_failure(Channel::Stable, &E::InsecureTransportProtocol), "The update address is invalid");
+        assert_eq!(check_failure(Channel::Stable, &E::UnsupportedOs), "Updates aren't offered for this system");
     }
 
     #[test]

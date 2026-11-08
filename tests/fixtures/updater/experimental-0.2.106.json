@@ -1,0 +1,16 @@
+{
+  "version": "0.2.106",
+  "notes": "Promotion checklist: run the UI sweep before promoting a build\nReview fixes: imprint listings, a centring fallback, no market requests from the sweep\nUI clipping sweep, and what it found\nSale log: an imprint sold under its pet's name is logged by breed\nSidebar: the running build's version under the name\nSidebar and Settings: a long line no longer pushes controls out of view",
+  "pub_date": "2026-11-08T18:51:46Z",
+  "platforms": {
+    "linux-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTNXo5WGlhN3pCNlBCRktKRFQ3OUZ3UXBleVE2b1c1ZFZqSVA2OWFWZDRrZTVvcDhvN1dtb09wSUx4OGJ0Y2FZNWZ6S044SVR0ajJzK2NaMmNIUlhWc0FCanVmbi9nTkE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MTYzODY0CWZpbGU6bXlvcmJpdGVyXzAuMi4xMDZfYW1kNjQuQXBwSW1hZ2UJdmVyc2lvbjowLjIuMTA2CkxROFUyV0dhTVIvUzBxNEZmSGZnQm5DT1JKQmNwVTlUQ0VXQkZNQzhVM294YlJxbzBTUXRWQXVRdFpOdFVCcENEVXR2QUlYTnNhMm43ajJWWHFrRkNRPT0K",
+      "url": "https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/myorbiter/0.2.106/myorbiter_0.2.106_amd64.AppImage"
+    },
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTNXo5WGlhN3pCNks4TS9QTUtNcHp4T0JMeUpMcVRWOVRrcDczWFdrSzhhMGdNSDVUbzRVNndRQVdoUjZWMVRmU3VIRUJmMFYwdHJ1S2NuOWxjUjVScHllWG9uVFI4eHc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MTYzODY1CWZpbGU6bXlvcmJpdGVyXzAuMi4xMDZfeDY0LXNldHVwLmV4ZQl2ZXJzaW9uOjAuMi4xMDYKSHNtLyttRysvTnUwWGpjWFBUaVoycnFBQng4aGlpRU5OMzhUdk1SMndwRmFsUURNWVgyWnVPOE9WTkFsMzNCa1hXMkJqS2phN3lPYWJoZHUxeWVMQXc9PQo=",
+      "url": "https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/myorbiter/0.2.106/myorbiter_0.2.106_x64-setup.exe"
+    }
+  },
+  "commit": "68a6d8d5309f24d40031ab63e9bbf3b9d9c24e90"
+}

@@ -19,7 +19,7 @@
   import ProgressButton from "./ui/ProgressButton.svelte";
   import { openUrl } from "./backend";
   import { updates } from "./updates.svelte";
-  import { CHANNELS, CHANNEL_LABEL, checkedAgo, installChecks, installInstalls, installNote, noteLines, releasePage, versionLine } from "./core/updates";
+  import { CHANNELS, CHANNEL_LABEL, installChecks, installInstalls, installNote, noteLines, releasePage, versionLine } from "./core/updates";
   import RenderingSetting from "./ui/RenderingSetting.svelte";
 
   let {
@@ -314,10 +314,10 @@
     <Seg label="Channel" value={settings.updates.channel} options={CHANNELS.map((c) => ({ ...c }))} onchange={(c) => updates.setChannel(c)} />
     <p class="hint">{CHANNELS.find((c) => c.v === settings.updates.channel)?.title}. Switching to a more stable channel never steps back by itself: if its build is older than this one, MyOrbiter offers it here and installs it only when you click.</p>
     <div class="row">
-      <ProgressButton job={updates.checkJob} label="Check now" disabled={!checks} sizer={["Up to date · 0.1.9999", "Experimental has 0.1.9999", "Couldn't check"]} title={checks ? `Look for a newer build on ${CHANNEL_LABEL[settings.updates.channel]} now. MyOrbiter also looks when it starts and every 6 hours; nothing installs without your click.` : (info ? (installNote(info.install) ?? "") : "")} status />
+      <ProgressButton job={updates.checkJob} busy={updates.checking} label="Check now" disabled={!checks} sizer={["Up to date · 0.1.9999", "Experimental has 0.1.9999", "Couldn't check"]} title={checks ? `Look for a newer build on ${CHANNEL_LABEL[settings.updates.channel]} now. MyOrbiter also looks when it starts and every 6 hours; nothing installs without your click.` : (info ? (installNote(info.install) ?? "") : "")} onclick={() => updates.checkNow()} />
       <button type="button" class="link out" title="Open this build's release page on GitLab, in your browser: what changed, and its downloads" onclick={() => openUrl(releasePage(info?.version ?? "0.1.0"))}>Release notes<Icon name="external" size={11} /></button>
     </div>
-    {#if checks}<p class="hint">Last checked {checkedAgo(settings.updates.lastCheck, now)}{#if updates.error}{" "}· <span title={updates.error}>couldn't check for updates</span>{/if}.</p>{/if}
+    {#if checks}<p class="hint" class:err={updates.outcome?.kind === "failed" && !updates.checking} role="status" aria-live="polite">{updates.status(now)}</p>{/if}
     {#if offer}
       <div class="offer" transition:reveal>
         <div class="offer-in">

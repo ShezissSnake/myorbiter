@@ -22,6 +22,58 @@ export const isChannel = (x: unknown): x is Channel => x === "stable" || x === "
 
 /** How often MyOrbiter looks for an update while it runs. */
 export const CHECK_EVERY = 6 * 60 * 60 * 1000;
+/**
+ * How often the schedule looks whether a check is due. Due-ness is measured on the wall clock from
+ * the last check (`checkDue`), so a long sleep or a suspended window can't push a check hours late,
+ * as one 6-hour timer would.
+ */
+export const SCHEDULE_TICK = 5 * 60 * 1000;
+/** The check at start waits for a quiet moment, but never longer than this. */
+export const START_WAIT = 30 * 1000;
+
+/**
+ * Whether the periodic check is due at `now`: never checked, the last check (whatever it found, or
+ * a failure) `CHECK_EVERY` ago, or a clock that went back since.
+ */
+export function checkDue(last: number | null, now: number): boolean {
+  return last == null || now < last || now - last >= CHECK_EVERY;
+}
+
+/** How a check ended, for the line under Check now. `at`: when it ended (ms). */
+export type CheckOutcome =
+  | { kind: "newer"; channel: Channel; version: string; at: number }
+  | { kind: "older"; channel: Channel; version: string; at: number }
+  | { kind: "current"; channel: Channel; version: string; at: number }
+  | { kind: "failed"; channel: Channel; reason: string; at: number }
+  | { kind: "off"; at: number };
+
+/** "19:52", in the computer's own time zone. */
+export function clockTime(at: number): string {
+  const d = new Date(at);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/**
+ * The line under Check now: what the last check found, and when. Before any check this session,
+ * when the last one (maybe from an earlier start) answered; "Checking…" while one runs.
+ */
+export function checkLine(outcome: CheckOutcome | null, lastCheck: number | null, checking: boolean, now: number): string {
+  if (checking) return "Checking for updates…";
+  if (!outcome) return `Last checked ${checkedAgo(lastCheck, now)}.`;
+  const ago = checkedAgo(outcome.at, now);
+  switch (outcome.kind) {
+    case "newer":
+      return `${outcome.version} is available on ${CHANNEL_LABEL[outcome.channel]} (checked ${ago}).`;
+    case "older":
+      return `${CHANNEL_LABEL[outcome.channel]} has ${outcome.version}, older than this build (checked ${ago}).`;
+    case "current":
+      return `Up to date (checked ${ago}).`;
+    case "failed":
+      return `${outcome.reason} (at ${clockTime(outcome.at)}, ${ago}).`;
+    case "off":
+      return "This copy of MyOrbiter doesn't check for updates.";
+  }
+}
 
 export const REPO_URL = "https://gitlab.com/sheziss-group/myorbiter";
 
@@ -35,7 +87,7 @@ export interface UpdateSettings {
   channel: Channel;
   /** A version put off with Later: its notice stays away until a newer one comes. "" for none. */
   later: string;
-  /** When the last check answered (ms), whether or not it found anything. */
+  /** When the last check ended (ms): found something, found nothing, or failed. */
   lastCheck: number | null;
   /** The build last installed through the updater, and the channel it came from. */
   from: { version: string; channel: Channel } | null;
