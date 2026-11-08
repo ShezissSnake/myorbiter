@@ -85,7 +85,8 @@ tick it here when it's done. The commands work in fish and in bash, from a clone
       `builder:<BUILDER_TAG>-<branch slug>` for its own pipelines instead.
 - [ ] **A first build on `main`:** New pipeline → branch `main`, *task* `release`, *windows*
       ticked. While the project is private the build signs and publishes as usual; installed
-      copies just can't reach it yet.
+      copies just can't reach it yet, and its last job, `pages`, fails (the site reads the
+      registry anonymously): step 3 runs it again.
 - [ ] **Releases holds only GitLab builds:** *Deploy* → *Releases* lists `build-<n>` releases from
       100 up and nothing brought over from GitHub (whose files are gone).
 
@@ -105,7 +106,9 @@ tick it here when it's done. The commands work in fish and in bash, from a clone
 **3. The website (maintainer):** New pipeline → branch `main`, *task* `pages`. Then *Deploy* →
 *Pages* (the setting may only appear after that first deployment): untick **Use unique domain**
 (so the site is `https://sheziss-group.gitlab.io/myorbiter/`, as the README links), Save. With no
-Stable build yet its download buttons point at *Releases*; step 5 runs it again.
+Stable build yet its download buttons offer the best channel that has a build (Experimental at
+first; with no build on any channel the job fails); from then on every release and promotion
+rebuilds the site, and *task* `pages` does it again whenever one of those stopped short of it.
 
 **4. A first public build**
 
@@ -137,7 +140,8 @@ Stable build yet its download buttons point at *Releases*; step 5 runs it again.
       **Edit this release** → replace its description with that file's text → **Save changes**.
       (The update screen's notes come from `latest.json`, not from this description, so they
       don't change.)
-- [ ] New pipeline → branch `main`, *task* `pages`, so the download buttons point at this build.
+- [ ] The promotion's `pages` job is green and the website's download buttons say "Stable build"
+      with 0.2.*n* (every release and promotion rebuilds the site; *task* `pages` does it alone).
 
 **6. The first manual install**, as a new player would do it
 
@@ -181,8 +185,8 @@ Stable build yet its download buttons point at *Releases*; step 5 runs it again.
 - [ ] **No pipeline schedules** (*Build* → *Pipeline schedules* stays empty, but for Renovate's,
       below): pipelines run only when started or for a release tag. The nightly build, the weekly
       audit and the daily website refresh of the GitHub days are gone: each release's `test` job
-      audits both lockfiles and checks the MSRV, and the `pages` task refreshes the website when
-      it's started.
+      audits both lockfiles and checks the MSRV, and every release and promotion ends by rebuilding
+      the website (the `pages` task does it alone).
 
 What GitLab can't narrow: every job's `CI_JOB_TOKEN` can write this project's packages and
 releases with the role of whoever started the pipeline, the jobs that run build code included.

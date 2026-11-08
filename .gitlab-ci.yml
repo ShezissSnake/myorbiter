@@ -4,13 +4,14 @@
 #
 # What a pipeline does is its `task` input, chosen in the New pipeline form:
 #
-#   release (default)  test ─ build ─ sign ─ publish ─ release ─ experimental ─ prune
+#   release (default)  test ─ build ─ sign ─ publish ─ release ─ experimental ─ prune ─ pages
 #                      Builds the Linux AppImage and .deb and the Windows installer (cross-compiled
 #                      with cargo-xwin) as build <n>, version 0.2.<n>. On main or a release tag it
-#                      also signs, publishes and moves Experimental to the build; on any other branch
-#                      it stops after `build` and leaves the downloads as that job's artifacts, for 3
-#                      days.
-#   promote            promote-check ─ promote: moves build <n> to Beta or Stable (main only).
+#                      also signs, publishes, moves Experimental to the build and rebuilds the
+#                      website; on any other branch it stops after `build` and leaves the downloads
+#                      as that job's artifacts, for 3 days.
+#   promote            promote-check ─ promote ─ pages: moves build <n> to Beta or Stable, then
+#                      rebuilds the website (main only).
 #   pages              The website (scripts/site.mjs), on GitLab Pages (main only).
 #
 # The builder image (ci/Dockerfile), which every job but `sign` and `release` runs in, isn't built
@@ -458,11 +459,20 @@ promote:
 
 # ------------------------------------------------------------------ website
 
-# The site, built and checked (ci/pages.sh), published from public/ on GitLab Pages.
+# The site, built and checked (ci/pages.sh), published from public/ on GitLab Pages. Besides its own
+# task, it ends every release and promotion that gets this far: the last stage, so only once the
+# jobs before it, prune included, have succeeded. Its download links are read from the registry as
+# the job runs, so the site follows the channels; in the channels' resource group, so it never
+# reads them while another pipeline is promoting or pruning. If a release or promotion stops
+# before it, or it fails (or GitLab refuses a deployment from a pipeline older than the last
+# one), the site lags until the next one: start *task* pages.
 pages:
   stage: pages
+  resource_group: channels
   rules:
     - if: $TASK == "pages" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $TASK == "promote" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $TASK == "release" && ($CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG =~ /^release-/)
   variables:
     GIT_DEPTH: "1"
   script:

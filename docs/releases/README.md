@@ -9,7 +9,8 @@ This page is for whoever runs the releases. Players need only `docs/install.md`.
 on a commit of `main` (`release-*` is a protected tag: only a maintainer can make one, and only a
 protected tag's pipeline is given the signing key). A push to a branch and a merge request start
 nothing. The *task* field of New pipeline picks what it does: `release` (the default),
-`promote` or `pages`. The builder image (`ci/Dockerfile`, which the jobs run in) isn't built by a
+`promote` or `pages`; a release or a promotion that gets that far ends by rebuilding the
+website. The builder image (`ci/Dockerfile`, which the jobs run in) isn't built by a
 pipeline: `ci/build-image.sh` builds it with Docker on the maintainer's computer, pushes it with a
 deploy token and prints its digest, once before the first build and again after every change to
 the Dockerfile, with a new `BUILDER_TAG` (`docs/maintaining.md`). The digest goes in
