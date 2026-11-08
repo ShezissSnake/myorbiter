@@ -1311,7 +1311,7 @@
     try {
       for (const t of trades) {
         const key = tradeKey(session, t);
-        const sales = salesFromTrade(t, mkt.orders, mkt.index, model);
+        const sales = salesFromTrade(t, mkt.orders, mkt.index, model, settings.game.imprints);
         if (!sales) {
           saleOutcome(key, null);
           continue;

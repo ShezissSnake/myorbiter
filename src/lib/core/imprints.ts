@@ -41,3 +41,51 @@ export function imprintCounts(raws: ImprintRaw[], isBreed: (path: string) => boo
   }
   return out;
 }
+
+/**
+ * What it takes to name a traded imprint the way warframe.market lists it: the imprints of the
+ * last inventory read (each row names the pet it was taken from) and the market's imprint items.
+ */
+export interface ImprintNaming {
+  /** The inventory's imprint rows (`KubrowPetPrints`), null before TennoScope has passed any. */
+  rows: ImprintRaw[] | null;
+  /** The market's imprint item for a companion path ("Huras Kubrow Imprint"), or null. */
+  itemFor: (breed: string) => string | null;
+  /** The name of every imprint the market lists. */
+  names: string[];
+}
+
+/** How the game's trade log names an imprint: after the pet it was taken from ("Imprint of Biscuit"). */
+const IMPRINT_OF = /^\s*imprint of\s+(.+?)\s*$/i;
+
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * The market item a traded imprint is ("Huras Kubrow Imprint"), from the log's "Imprint of <pet>":
+ * the pet's name looked up in the inventory's imprints, which say its breed; failing that (the
+ * imprint is gone from the last read, or two of that name are of different breeds), a breed named
+ * in the text itself. Null when neither settles it on exactly one item: no guess, so no price.
+ */
+export function imprintSaleName(text: string, n: ImprintNaming): string | null {
+  const hit = IMPRINT_OF.exec(text);
+  if (!hit) return null;
+  const pet = hit[1];
+  const items = new Set<string>();
+  for (const raw of n.rows ?? []) {
+    if (!raw || typeof raw !== "object" || typeof raw.Name !== "string") continue;
+    if (raw.Name.trim().toLowerCase() !== pet.toLowerCase()) continue;
+    const breed = imprintBreed(raw, (p) => n.itemFor(p) != null);
+    const item = breed ? n.itemFor(breed) : null;
+    if (item) items.add(item);
+  }
+  if (items.size === 1) return [...items][0];
+  // A breed in the text ("Imprint of Huras Kubrow"): the longest one named, when the others named
+  // are part of it ("Kubrow" in "Huras Kubrow"); two different breeds settle nothing.
+  const named = n.names
+    .map((name) => ({ name, breed: name.replace(/\s+Imprint$/i, "") }))
+    .filter(({ breed }) => breed && new RegExp(`(^|\\W)${escape(breed)}(\\W|$)`, "i").test(pet))
+    .sort((a, b) => b.breed.length - a.breed.length);
+  if (!named.length) return null;
+  const longest = named[0];
+  return named.every((x) => longest.breed.toLowerCase().includes(x.breed.toLowerCase())) ? longest.name : null;
+}

@@ -2,6 +2,7 @@
 // is matched to your warframe.market listing for it, so MyOrbiter can mark that listing sold.
 import { findItem, type MarketIndex, type MarketItem, type MyOrder } from "./market";
 import { gearSetParts, type Model } from "./model";
+import { imprintSaleName, type ImprintNaming, type ImprintRaw } from "./imprints";
 import type { Trade, TradeItem } from "./types";
 import type { Sale, TradeLogEntry } from "../backend";
 
@@ -19,18 +20,28 @@ export interface TradeSale {
   order: MyOrder | null;
 }
 
+/** The market's imprints and the inventory's imprint rows, for `imprintSaleName`. */
+export function imprintNaming(index: MarketIndex, rows: ImprintRaw[] | null): ImprintNaming {
+  const imprints = [...index.byId.values()].filter((it) => it.tags?.includes("imprint"));
+  const byBreed = new Map(imprints.filter((it) => it.gameRef).map((it) => [it.gameRef!, it.name]));
+  return { rows, itemFor: (breed) => byBreed.get(breed) ?? null, names: imprints.map((it) => it.name) };
+}
+
 /**
  * The sales in a trade, or null when it wasn't one (you paid platinum, swapped items, or got
  * nothing). Platinum is shared out by your listing prices when every item was listed, else evenly.
  */
-export function salesFromTrade(t: Trade, orders: MyOrder[], index: MarketIndex, m: Model | null = null): TradeSale[] | null {
+export function salesFromTrade(t: Trade, orders: MyOrder[], index: MarketIndex, m: Model | null = null, imprints: ImprintRaw[] | null = null): TradeSale[] | null {
   if (t.platinum_received <= 0 || t.received.length > 0 || !t.offered.length || t.platinum_offered > 0) return null;
   const listed = (name: string) => {
     const it = findItem(index, name, null);
     return !!it && orders.some((o) => o.itemId === it.id && o.type === "sell");
   };
   const sales: TradeSale[] = foldSets(t.offered, m, listed, index).map((x) => {
-    const { name, subtype } = splitRefinement(x.name);
+    const split = splitRefinement(x.name);
+    // An imprint is logged by its pet's name ("Imprint of Biscuit"): by its breed, it's a market item.
+    const name = /^\s*imprint of\s/i.test(split.name) ? (imprintSaleName(split.name, imprintNaming(index, imprints)) ?? split.name) : split.name;
+    const { subtype } = split;
     const it = findItem(index, name, null);
     const order = it ? listingFor(it, x.rank, subtype, orders) : null;
     return { name: it?.name ?? x.name, rank: x.rank, count: x.count, platinumEach: 0, order };
