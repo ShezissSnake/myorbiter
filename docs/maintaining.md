@@ -278,6 +278,28 @@ the maintainer's choice. Renovate's `renovate/*` branches start no pipeline (`.g
 only when started or for a release tag), so nothing a new dependency version contains runs on the
 `pc` runner until a merge request is read and its branch tested by hand.
 
+## Screenshots
+
+The pictures in `docs/screenshots/` (the README and the docs, 1440×900) and `site/shots/` (the
+site, 1280×800), both at twice those pixels, show the invented account in `demo/`, never
+`public/dev-*.json`. `scripts/screenshots.mjs` takes them all again:
+
+```fish
+npm run screenshots
+```
+
+Playwright is one of the project's development dependencies, but `npm install` downloads no
+browser: the script's first step does (`playwright install chromium`, into Playwright's own cache
+folder, once). Then it starts the demo dev server (`npm run dev:demo`'s, on port 1431 so a running
+one on 1421 isn't in the way; `npm run screenshots -- --port <n>` picks another), stops if anything
+else answers on that port or the server isn't the demo one, opens each page in Chromium, and
+writes the WebP files over the ones in the repository. It needs ImageMagick (`magick`) too. The
+demo's order books and price histories are files in `demo/`; the worldstate (fissures, Baro, the
+clocks) is read live, so Home and Current fissure change from one run to the next
+(`demo/README.md`). Nothing but GET requests would reach warframe.market. In a clone whose
+`node_modules` is a link to another folder, Vite refuses to serve the fonts and the pictures come
+out in fallback fonts: run it where `node_modules` is a real folder.
+
 ## AI and automation
 
 - [ ] **Never install an AI bot or integration that acts on public comments** (answers, labels,
