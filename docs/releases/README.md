@@ -19,8 +19,8 @@ Every job, `sign` and the `image` task (kaniko, unprivileged) included, runs on 
 runner (tag `pc`, with the Docker executor, so each job runs in a container of its own; never
 privileged, and protected, so only `main` and protected tags use it and only they get the signing
 key), or, with the *runner* field set to `cloud`, on gitlab.com's hosted Linux runners, which
-spend the namespace's compute minutes; nothing needs them. A pipeline on a branch other than
-`main` can only run on the hosted runners, in that branch's own builder image (run the `image`
+spend the namespace's compute minutes; nothing on `main` or a release tag needs them. A pipeline
+on a branch other than `main` can only run on the hosted runners, in that branch's own builder image (run the `image`
 task on the branch first); such pipelines are optional.
 
 A release pipeline is build *n*, version `0.2.n`, where *n* is the pipeline's number in the project

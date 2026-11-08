@@ -66,6 +66,7 @@ test("main and release tags run in the builder image by digest; the image task p
   const image = ci.slice(ci.indexOf("\nbuilder-image:\n"));
   assert.match(image, /--destination "\$BUILDER_PUSH" --digest-file builder\.digest/);
   assert.doesNotMatch(image, /^ {2}tags:/m);
+  assert.match(image, /^ {4}GIT_STRATEGY: clone$/m);
   // kaniko itself by digest.
   assert.match(ci, /^ {2}KANIKO_IMAGE: gcr\.io\/kaniko-project\/executor:v[0-9.]+-debug@sha256:[0-9a-f]{64}$/m);
   assert.match(ci, /^ {2}BUILDER_DIGEST: "(sha256:[0-9a-f]{64})?"$/m);

@@ -469,6 +469,9 @@ builder-image:
     # main's tag.
     - if: $TASK == "image" && $CI_COMMIT_BRANCH
   variables:
+    # A fresh clone, never a folder an earlier job on the runner left behind: what this job builds
+    # is the image every later job, sign's check included, trusts by digest.
+    GIT_STRATEGY: clone
     GIT_DEPTH: "1"
   script:
     - mkdir -p /kaniko/.docker

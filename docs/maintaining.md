@@ -203,12 +203,15 @@ The `pc` jobs run on the project's own runner (*Settings* → *CI/CD* → *Runne
 runner**, tag `pc`, *Run untagged jobs* off):
 
 Every job runs here unless *runner* says `cloud`: `sign` (with the signing key) and the `image`
-task too. Nothing needs gitlab.com's hosted runners.
+task too. Nothing on `main` or a release tag needs gitlab.com's hosted runners; a pipeline on any
+other branch, and *runner* `cloud`, run only there (*Settings* → *CI/CD* → *Runners* → *Instance
+runners* on for those).
 
 - [ ] **The Docker executor**, never the shell executor: each job then runs in its own container.
-      The jobs share the executor's build volume, so `sign` starts from a fresh clone and checks
-      everything it takes from the build (no links, the signer against `SIGNER_SHA256`, a build
-      made in the builder image by digest) before the key is near it.
+      The jobs share the executor's build volume, so `sign` and the `image` task start from a
+      fresh clone, and `sign` checks everything it takes from the build (no links, the signer
+      against `SIGNER_SHA256`, a build made in the builder image by digest) before the key is
+      near it.
 - [ ] **Never privileged, no Docker socket:** `privileged = false` and no `/var/run/docker.sock` in
       its `volumes`. Either would let a build job out of its container, onto this computer and
       into the other jobs and caches. The `image` task builds with kaniko, which needs neither.
