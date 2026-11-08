@@ -28,7 +28,7 @@ pub use catalog::{
 };
 pub use catalog_cache::{
     CatalogCache, CatalogCacheError, CatalogFetch, CatalogLoad, CatalogLoadSource, CatalogSource,
-    RelicCatalogCache, RelicCatalogLoad, RelicCatalogSource, WFCD_ALL_JSON_URL,
+    RecentCatalog, RelicCatalogCache, RelicCatalogLoad, RelicCatalogSource, WFCD_ALL_JSON_URL,
     WFCD_RELICS_JSON_URL, WfcdCatalogHttp, WfcdRelicCatalogHttp,
 };
 pub use collection_prices::{

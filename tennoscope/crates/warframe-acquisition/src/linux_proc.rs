@@ -35,6 +35,11 @@ const PAGEMAP_SOFT_DIRTY: u64 = 1 << 55;
 pub struct LinuxProc {
     root: PathBuf,
     memory_files: Mutex<HashMap<GameProcess, Arc<File>>>,
+    /// The process (pid and start time) whose `maps` last showed the game executable. The
+    /// monitor discovers every tick; once a process is confirmed, later ticks check its `comm`
+    /// and start time only, instead of reading the game's whole `maps` again (thousands of lines
+    /// under Proton, built by the kernel under the game's memory lock).
+    confirmed: Mutex<Option<(u32, u64)>>,
 }
 
 impl LinuxProc {
@@ -46,6 +51,7 @@ impl LinuxProc {
         Self {
             root: root.into(),
             memory_files: Mutex::new(HashMap::new()),
+            confirmed: Mutex::new(None),
         }
     }
 
@@ -108,6 +114,10 @@ impl ProcessDiscovery for LinuxProc {
     fn discover(&self) -> Result<Option<GameProcess>, AcquisitionError> {
         let entries =
             fs::read_dir(&self.root).map_err(|_| AcquisitionError::ProcessDiscoveryFailed)?;
+        let confirmed = *self
+            .confirmed
+            .lock()
+            .map_err(|_| AcquisitionError::ProcessDiscoveryFailed)?;
         let mut candidates = Vec::new();
 
         for entry in entries.flatten() {
@@ -135,6 +145,12 @@ impl ProcessDiscovery for LinuxProc {
                 }
                 Err(_) => return Err(AcquisitionError::ProcessDiscoveryFailed),
             };
+            // A pid is reused only by a new process, with a new start time, so the pair names
+            // one process for its whole life.
+            if confirmed == Some((pid, start_time)) {
+                candidates.push((priority, pid, start_time));
+                continue;
+            }
             let maps = match fs::read_to_string(self.process_file(pid, "maps")) {
                 Ok(maps) => maps,
                 Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
@@ -162,6 +178,12 @@ impl ProcessDiscovery for LinuxProc {
         let selected = candidates
             .first()
             .map(|&(_, pid, start_time)| GameProcess::identified(pid, start_time));
+        *self
+            .confirmed
+            .lock()
+            .map_err(|_| AcquisitionError::ProcessDiscoveryFailed)? = candidates
+            .first()
+            .map(|&(_, pid, start_time)| (pid, start_time));
         self.memory_files
             .lock()
             .map_err(|_| AcquisitionError::ProcessDiscoveryFailed)?

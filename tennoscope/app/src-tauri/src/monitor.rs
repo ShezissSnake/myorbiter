@@ -1416,13 +1416,19 @@ pub(crate) fn run(
             kiosk_session.close(kiosk_view_cell.inner(), &kiosk_hide, &kiosk_retire);
         }
         let (input, log_bytes) = match discovered {
-            Ok(None) => (
-                MonitorInput::absent(now, procfs.launcher_present()),
-                Vec::new(),
-            ),
+            Ok(None) => {
+                // The resolved log belongs to the process that just went: a later game on the
+                // same pid (another Wine prefix, after a pid wrap) resolves its own.
+                tracked_resolution = None;
+                (
+                    MonitorInput::absent(now, procfs.launcher_present()),
+                    Vec::new(),
+                )
+            }
             Err(error) => (MonitorInput::error(now, error), Vec::new()),
             Ok(Some(process)) => {
-                let path = inventory_log_path(process.pid());
+                let path = known_log_path(tracked_resolution.as_ref(), process.pid())
+                    .or_else(|| inventory_log_path(process.pid()));
                 if monitor_path_changed(tracked_resolution.as_ref(), process.pid(), path.as_deref())
                 {
                     log::debug!(
@@ -2662,6 +2668,18 @@ pub fn log_identity(path: &Path, metadata: &fs::Metadata) -> String {
 /// surprises are the usual cause for confusion), so it must print when that state changes
 /// (pid found, pid lost, another pid, another path) and stay silent while the same path is
 /// being polled at up to ten times a second.
+/// The EE.log path already resolved for this process, while the file is still there. Resolving
+/// it reads the game's `environ`, `exe` and whole `maps`, and a running game's log does not move,
+/// so the search runs once per process (and again only if the file disappears).
+fn known_log_path(tracked: Option<&(u32, Option<PathBuf>)>, pid: u32) -> Option<PathBuf> {
+    match tracked {
+        Some((tracked_pid, Some(path))) if *tracked_pid == pid && path.is_file() => {
+            Some(path.clone())
+        }
+        _ => None,
+    }
+}
+
 fn monitor_path_changed(
     tracked: Option<&(u32, Option<PathBuf>)>,
     pid: u32,
@@ -4559,6 +4577,19 @@ mod tests {
         assert!(!process_was_replaced(None, Some(43)));
         assert!(!process_was_replaced(Some(42), None));
         assert!(!process_was_replaced(Some(42), Some(42)));
+    }
+
+    #[test]
+    fn a_resolved_log_path_is_reused_for_the_same_process_while_it_exists() {
+        let directory = tempfile::tempdir().expect("temporary prefix");
+        let log = directory.path().join("EE.log");
+        std::fs::write(&log, b"").expect("log");
+        let tracked = Some((42_u32, Some(log.clone())));
+        assert_eq!(known_log_path(tracked.as_ref(), 42), Some(log.clone()));
+        assert_eq!(known_log_path(tracked.as_ref(), 43), None, "another process searches");
+        assert_eq!(known_log_path(Some(&(42, None)), 42), None, "nothing found yet");
+        std::fs::remove_file(&log).expect("remove");
+        assert_eq!(known_log_path(tracked.as_ref(), 42), None, "a vanished log searches");
     }
 
     #[test]

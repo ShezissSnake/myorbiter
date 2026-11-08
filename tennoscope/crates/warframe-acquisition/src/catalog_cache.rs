@@ -2,12 +2,13 @@ use std::{
     fs,
     io::{Read, Write},
     path::PathBuf,
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
 use atomicwrites::{AtomicFile, OverwriteBehavior};
 use reqwest::blocking::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
@@ -84,6 +85,8 @@ impl RelicCatalogSource for WfcdRelicCatalogHttp {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CatalogLoadSource {
     Network,
+    /// The stored generation, fetched recently enough that it is the current catalogue.
+    RecentCache,
     StaleCache,
 }
 pub struct CatalogLoad {
@@ -111,7 +114,7 @@ pub enum CatalogCacheError {
     CacheWrite,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 struct Generation {
     fetched_unix: u64,
     catalog: serde_json::Value,
@@ -153,11 +156,13 @@ impl CatalogCache {
         now_unix: u64,
     ) -> Result<CatalogLoad, CatalogCacheError> {
         if let Ok(bytes) = source.fetch() {
-            if let (Ok(index), Ok(catalog)) = (
-                CatalogIndex::from_wfcd_json(&bytes),
-                serde_json::from_slice(&bytes),
-            ) {
-                self.store(catalog, now_unix)?;
+            if let Ok(index) = CatalogIndex::from_wfcd_json(&bytes) {
+                store_generation(
+                    &self.directory.join("catalog-generation.json"),
+                    &self.directory,
+                    &bytes,
+                    now_unix,
+                )?;
                 return Ok(CatalogLoad {
                     index,
                     source: CatalogLoadSource::Network,
@@ -168,45 +173,82 @@ impl CatalogCache {
         self.load_cached()
     }
 
-    fn store(
+    /// The stored generation when it was fetched less than `max_age_secs` ago, and otherwise
+    /// [`Self::load`]: the catalogue changes with game updates, not by the minute, so an inventory
+    /// refresh does not need a fresh 70 MB download every time.
+    pub fn load_recent(
         &self,
-        catalog: serde_json::Value,
-        fetched_unix: u64,
-    ) -> Result<(), CatalogCacheError> {
-        fs::create_dir_all(&self.directory).map_err(|_| CatalogCacheError::CacheWrite)?;
-        let content_hash = generation_hash(fetched_unix, &catalog)?;
-        let bytes = serde_json::to_vec(&Generation {
-            fetched_unix,
-            catalog,
-            content_hash,
-        })
-        .map_err(|_| CatalogCacheError::CacheWrite)?;
-        let final_path = self.directory.join("catalog-generation.json");
-        AtomicFile::new(final_path, OverwriteBehavior::AllowOverwrite)
-            .write(|file| file.write_all(&bytes).and_then(|_| file.sync_all()))
-            .map_err(|_| CatalogCacheError::CacheWrite)
+        source: &dyn CatalogSource,
+        now_unix: u64,
+        max_age_secs: u64,
+    ) -> Result<CatalogLoad, CatalogCacheError> {
+        if let Ok(mut cached) = self.load_cached()
+            && now_unix.saturating_sub(cached.fetched_unix) < max_age_secs
+            && cached.fetched_unix <= now_unix
+        {
+            cached.source = CatalogLoadSource::RecentCache;
+            return Ok(cached);
+        }
+        self.load(source, now_unix)
     }
 
     pub fn load_cached(&self) -> Result<CatalogLoad, CatalogCacheError> {
-        let bytes = fs::read(self.directory.join("catalog-generation.json"))
-            .map_err(|_| CatalogCacheError::Unavailable)?;
-        let generation: Generation =
-            serde_json::from_slice(&bytes).map_err(|_| CatalogCacheError::Unavailable)?;
-        if generation.content_hash
-            != generation_hash(generation.fetched_unix, &generation.catalog)
-                .map_err(|_| CatalogCacheError::Unavailable)?
-        {
-            return Err(CatalogCacheError::Unavailable);
-        }
-        let catalog_bytes =
-            serde_json::to_vec(&generation.catalog).map_err(|_| CatalogCacheError::Unavailable)?;
+        let (fetched_unix, catalog_bytes) =
+            load_generation(&self.directory.join("catalog-generation.json"))?;
         let index = CatalogIndex::from_wfcd_json(&catalog_bytes)
             .map_err(|_| CatalogCacheError::Unavailable)?;
         Ok(CatalogLoad {
             index,
             source: CatalogLoadSource::StaleCache,
-            fetched_unix: generation.fetched_unix,
+            fetched_unix,
         })
+    }
+}
+
+/// The catalogue an inventory refresh works from, kept between refreshes.
+///
+/// Each refresh used to load the catalogue from scratch: a 70 MB download, a JSON document of
+/// several hundred megabytes while it was parsed, and the stored copy rewritten, every time the
+/// game finished an inventory sync. This keeps the last load and reuses it while it is current
+/// (fetched less than `max_age_secs` ago). An old one (the network was down and only an
+/// outdated stored copy loaded) is retried at most every `retry_secs`.
+pub struct RecentCatalog {
+    max_age_secs: u64,
+    retry_secs: u64,
+    held: Mutex<Option<(Arc<CatalogLoad>, u64)>>,
+}
+
+impl RecentCatalog {
+    pub const fn new(max_age_secs: u64, retry_secs: u64) -> Self {
+        Self {
+            max_age_secs,
+            retry_secs,
+            held: Mutex::new(None),
+        }
+    }
+
+    pub fn get(
+        &self,
+        cache: &CatalogCache,
+        source: &dyn CatalogSource,
+        now_unix: u64,
+    ) -> Result<Arc<CatalogLoad>, CatalogCacheError> {
+        let mut held = self.held.lock().map_err(|_| CatalogCacheError::Unavailable)?;
+        if let Some((load, checked_unix)) = held.as_ref() {
+            let fetched = load.fetched_unix();
+            let current = fetched <= now_unix && now_unix - fetched < self.max_age_secs;
+            let checked_lately =
+                *checked_unix <= now_unix && now_unix - *checked_unix < self.retry_secs;
+            if current || checked_lately {
+                return Ok(Arc::clone(load));
+            }
+        }
+        // Let go of the old index before the new one is built, so the two never sit in memory
+        // together.
+        *held = None;
+        let load = Arc::new(cache.load_recent(source, now_unix, self.max_age_secs)?);
+        *held = Some((Arc::clone(&load), now_unix));
+        Ok(load)
     }
 }
 
@@ -227,11 +269,8 @@ impl RelicCatalogCache {
         now_unix: u64,
     ) -> Result<RelicCatalogLoad, CatalogCacheError> {
         if let Ok(bytes) = source.fetch() {
-            if let (Ok(index), Ok(catalog)) = (
-                RelicRewardIndex::from_wfcd_json(&bytes),
-                serde_json::from_slice(&bytes),
-            ) {
-                self.store(catalog, now_unix)?;
+            if let Ok(index) = RelicRewardIndex::from_wfcd_json(&bytes) {
+                self.store(&bytes, now_unix)?;
                 return Ok(RelicCatalogLoad {
                     index,
                     source: CatalogLoadSource::Network,
@@ -242,46 +281,24 @@ impl RelicCatalogCache {
         self.load_cached()
     }
 
-    fn store(
-        &self,
-        catalog: serde_json::Value,
-        fetched_unix: u64,
-    ) -> Result<(), CatalogCacheError> {
-        fs::create_dir_all(&self.directory).map_err(|_| CatalogCacheError::CacheWrite)?;
-        let content_hash = generation_hash(fetched_unix, &catalog)?;
-        let bytes = serde_json::to_vec(&Generation {
+    fn store(&self, catalog_json: &[u8], fetched_unix: u64) -> Result<(), CatalogCacheError> {
+        store_generation(
+            &self.directory.join("relic-generation.json"),
+            &self.directory,
+            catalog_json,
             fetched_unix,
-            catalog,
-            content_hash,
-        })
-        .map_err(|_| CatalogCacheError::CacheWrite)?;
-        AtomicFile::new(
-            self.directory.join("relic-generation.json"),
-            OverwriteBehavior::AllowOverwrite,
         )
-        .write(|file| file.write_all(&bytes).and_then(|_| file.sync_all()))
-        .map_err(|_| CatalogCacheError::CacheWrite)
     }
 
     pub fn load_cached(&self) -> Result<RelicCatalogLoad, CatalogCacheError> {
-        let bytes = fs::read(self.directory.join("relic-generation.json"))
-            .map_err(|_| CatalogCacheError::Unavailable)?;
-        let generation: Generation =
-            serde_json::from_slice(&bytes).map_err(|_| CatalogCacheError::Unavailable)?;
-        if generation.content_hash
-            != generation_hash(generation.fetched_unix, &generation.catalog)
-                .map_err(|_| CatalogCacheError::Unavailable)?
-        {
-            return Err(CatalogCacheError::Unavailable);
-        }
-        let catalog_bytes =
-            serde_json::to_vec(&generation.catalog).map_err(|_| CatalogCacheError::Unavailable)?;
+        let (fetched_unix, catalog_bytes) =
+            load_generation(&self.directory.join("relic-generation.json"))?;
         let index = RelicRewardIndex::from_wfcd_json(&catalog_bytes)
             .map_err(|_| CatalogCacheError::Unavailable)?;
         Ok(RelicCatalogLoad {
             index,
             source: CatalogLoadSource::StaleCache,
-            fetched_unix: generation.fetched_unix,
+            fetched_unix,
         })
     }
 }
@@ -313,18 +330,102 @@ fn read_bounded(body: impl Read) -> Result<Vec<u8>, CatalogFetch> {
     Ok(bytes)
 }
 
-fn generation_hash(
-    fetched_unix: u64,
-    catalog: &serde_json::Value,
-) -> Result<String, CatalogCacheError> {
+/// The hash a generation is stored under: the fetch time, then the catalogue's JSON bytes.
+fn generation_hash(fetched_unix: u64, catalog_json: &[u8]) -> String {
     let mut digest = Sha256::new();
     digest.update(fetched_unix.to_le_bytes());
-    digest.update(serde_json::to_vec(catalog).map_err(|_| CatalogCacheError::CacheWrite)?);
-    Ok(digest
+    digest.update(catalog_json);
+    digest
         .finalize()
         .iter()
         .map(|byte| format!("{byte:02x}"))
-        .collect())
+        .collect()
+}
+
+/// How a generation file written by [`store_generation`] begins. Everything after the header is
+/// the catalogue exactly as downloaded, then a closing brace, so the file stays one JSON object
+/// (`catalog` is still a top-level field) and is read back without parsing the catalogue twice.
+const RAW_GENERATION_PREFIX: &[u8] = b"{\"format\":2,\"fetched_unix\":";
+
+/// Write a generation file around the downloaded bytes. The first format stored a re-serialised
+/// `serde_json::Value` of the whole catalogue, which meant a document of several hundred
+/// megabytes in memory on every store and every load.
+fn store_generation(
+    path: &std::path::Path,
+    directory: &std::path::Path,
+    catalog_json: &[u8],
+    fetched_unix: u64,
+) -> Result<(), CatalogCacheError> {
+    fs::create_dir_all(directory).map_err(|_| CatalogCacheError::CacheWrite)?;
+    let content_hash = generation_hash(fetched_unix, catalog_json);
+    AtomicFile::new(path, OverwriteBehavior::AllowOverwrite)
+        .write(|file| {
+            file.write_all(RAW_GENERATION_PREFIX)?;
+            write!(file, "{fetched_unix},\"content_hash\":\"{content_hash}\",\"catalog\":")?;
+            file.write_all(catalog_json)?;
+            file.write_all(b"}")?;
+            file.sync_all()
+        })
+        .map_err(|_| CatalogCacheError::CacheWrite)
+}
+
+/// Read a generation file back: its fetch time and the catalogue's JSON, once its hash checks.
+/// A file in the first format (written by an earlier version) is still read, the old way.
+fn load_generation(path: &std::path::Path) -> Result<(u64, Vec<u8>), CatalogCacheError> {
+    let mut bytes = fs::read(path).map_err(|_| CatalogCacheError::Unavailable)?;
+    if bytes.starts_with(RAW_GENERATION_PREFIX) {
+        let (fetched_unix, content_hash, start) =
+            raw_generation_header(&bytes).ok_or(CatalogCacheError::Unavailable)?;
+        let end = bytes.len() - 1;
+        if bytes[end] != b'}'
+            || start > end
+            || generation_hash(fetched_unix, &bytes[start..end]) != content_hash
+        {
+            return Err(CatalogCacheError::Unavailable);
+        }
+        bytes.truncate(end);
+        bytes.drain(..start);
+        return Ok((fetched_unix, bytes));
+    }
+    load_first_format(&bytes)
+}
+
+/// The fetch time, the hash, and where the catalogue starts, from a second-format header.
+fn raw_generation_header(bytes: &[u8]) -> Option<(u64, String, usize)> {
+    let rest = bytes.strip_prefix(RAW_GENERATION_PREFIX)?;
+    let digits = rest.iter().take_while(|byte| byte.is_ascii_digit()).count();
+    if digits == 0 || digits > 20 {
+        return None;
+    }
+    let fetched_unix = std::str::from_utf8(&rest[..digits]).ok()?.parse().ok()?;
+    let rest = rest[digits..].strip_prefix(b",\"content_hash\":\"")?;
+    let hash = rest.get(..64)?;
+    if !hash
+        .iter()
+        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+    {
+        return None;
+    }
+    let content_hash = String::from_utf8(hash.to_vec()).ok()?;
+    let rest = rest[64..].strip_prefix(b"\",\"catalog\":")?;
+    Some((fetched_unix, content_hash, bytes.len() - rest.len()))
+}
+
+/// The first format: `Generation` as serde_json wrote it, hashed over the catalogue as serde_json
+/// writes it back out.
+fn load_first_format(bytes: &[u8]) -> Result<(u64, Vec<u8>), CatalogCacheError> {
+    let Generation {
+        fetched_unix,
+        catalog,
+        content_hash,
+    } = serde_json::from_slice(bytes).map_err(|_| CatalogCacheError::Unavailable)?;
+    let catalog_json =
+        serde_json::to_vec(&catalog).map_err(|_| CatalogCacheError::Unavailable)?;
+    drop(catalog);
+    if content_hash != generation_hash(fetched_unix, &catalog_json) {
+        return Err(CatalogCacheError::Unavailable);
+    }
+    Ok((fetched_unix, catalog_json))
 }
 
 #[cfg(test)]

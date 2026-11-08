@@ -490,24 +490,27 @@ impl RewardMemoryScanner {
             .max()
             .unwrap_or(1)
             .saturating_sub(1);
+        // Each region keeps only its read position and the last `player_overlap` bytes it read
+        // (so an identity split across two chunks is still found); the chunk itself is read into
+        // one buffer shared by every region. A buffer per region, allocated up front, cost one
+        // chunk per dirty run: hundreds of megabytes on a heap with a thousand runs.
         struct RegionCursor {
             offset: usize,
-            retained: usize,
-            buffer: Vec<u8>,
+            tail: Vec<u8>,
         }
         let mut cursors = regions
             .iter()
-            .map(|region| RegionCursor {
+            .map(|_| RegionCursor {
                 offset: 0,
-                retained: 0,
-                buffer: vec![
-                    0_u8;
-                    self.chunk_size
-                        .min(region.len())
-                        .saturating_add(player_overlap)
-                ],
+                tail: Vec::new(),
             })
             .collect::<Vec<_>>();
+        let largest_chunk = regions
+            .iter()
+            .map(|region| self.chunk_size.min(region.len()))
+            .max()
+            .unwrap_or(0);
+        let mut buffer = vec![0_u8; largest_chunk.saturating_add(player_overlap)];
         let mut player_hits = Vec::<(&str, u64, u64)>::new();
         let mut structured_rewards = BTreeMap::<&str, BTreeSet<String>>::new();
         let mut bytes_read = 0_u64;
@@ -537,23 +540,44 @@ impl RewardMemoryScanner {
                         break 'rounds;
                     }
                     let address = region.start() + u64::try_from(cursor.offset).unwrap_or(u64::MAX);
-                    let read = memory.read_at(
+                    let retained = cursor.tail.len();
+                    buffer[..retained].copy_from_slice(&cursor.tail);
+                    let read = match memory.read_at(
                         process,
                         address,
-                        &mut cursor.buffer[cursor.retained..cursor.retained + request],
-                    )?;
+                        &mut buffer[retained..retained + request],
+                    ) {
+                        Ok(read) => read,
+                        Err(error) => {
+                            buffer.zeroize();
+                            for cursor in &mut cursors {
+                                cursor.tail.zeroize();
+                            }
+                            return Err(error);
+                        }
+                    };
                     if read == 0 {
                         cursor.offset = region.len();
                         continue;
                     }
                     made_progress = true;
                     bytes_read += u64::try_from(read).unwrap_or(0);
-                    let available = cursor.retained + read;
-                    let base = address.saturating_sub(u64::try_from(cursor.retained).unwrap_or(0));
-                    for found in player_matcher.find_overlapping_iter(&cursor.buffer[..available]) {
+                    let available = retained + read;
+                    let base = address.saturating_sub(u64::try_from(retained).unwrap_or(0));
+                    for found in player_matcher.find_overlapping_iter(&buffer[..available]) {
                         let hit_address = base + u64::try_from(found.start()).unwrap_or(0);
                         let identity = responders[found.pattern().as_usize()];
-                        let containing = memory.readable_region_containing(process, hit_address)?;
+                        let containing =
+                            match memory.readable_region_containing(process, hit_address) {
+                                Ok(containing) => containing,
+                                Err(error) => {
+                                    buffer.zeroize();
+                                    for cursor in &mut cursors {
+                                        cursor.tail.zeroize();
+                                    }
+                                    return Err(error);
+                                }
+                            };
                         // Look behind the identity as well as ahead: the record a client
                         // serialises for itself carries the reward path after the id, while the
                         // records a host keeps for each squad member carry it before.
@@ -572,7 +596,17 @@ impl RewardMemoryScanner {
                                 .min(record.len())
                         });
                         let record_read =
-                            memory.read_at(process, record_start, &mut record[..request])?;
+                            match memory.read_at(process, record_start, &mut record[..request]) {
+                                Ok(read) => read,
+                                Err(error) => {
+                                    record.zeroize();
+                                    buffer.zeroize();
+                                    for cursor in &mut cursors {
+                                        cursor.tail.zeroize();
+                                    }
+                                    return Err(error);
+                                }
+                            };
                         // A genuine response record opens with the identity's length prefix. Every
                         // other identity hit is EE.log text or a UI string table, and capturing
                         // those exhausts the reject budget before a real record is ever seen.
@@ -601,8 +635,9 @@ impl RewardMemoryScanner {
                                 &structured_rewards,
                             ) {
                                 record.zeroize();
+                                buffer.zeroize();
                                 for cursor in &mut cursors {
-                                    cursor.buffer.zeroize();
+                                    cursor.tail.zeroize();
                                 }
                                 return Ok(RewardResolution::Confirmed {
                                     choices,
@@ -625,10 +660,12 @@ impl RewardMemoryScanner {
                         record.zeroize();
                         player_hits.push((identity, hit_address, region.start()));
                     }
-                    cursor.retained = player_overlap.min(available);
+                    let keep = player_overlap.min(available);
+                    cursor.tail.zeroize();
+                    cursor.tail.clear();
                     cursor
-                        .buffer
-                        .copy_within(available - cursor.retained..available, 0);
+                        .tail
+                        .extend_from_slice(&buffer[available - keep..available]);
                     cursor.offset += read;
                 }
             }
@@ -636,8 +673,9 @@ impl RewardMemoryScanner {
                 break;
             }
         }
+        buffer.zeroize();
         for cursor in &mut cursors {
-            cursor.buffer.zeroize();
+            cursor.tail.zeroize();
         }
 
         let reward_matcher = AhoCorasick::new(
