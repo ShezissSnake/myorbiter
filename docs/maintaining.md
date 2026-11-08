@@ -66,7 +66,9 @@ tick it here when it's done. The commands work in fish and in bash, from a clone
 - [ ] **A deploy token for the builder image:** *Settings* → *Repository* → *Deploy tokens* →
       **Add token**, scopes `read_registry` and `write_registry` only (a push reads the registry
       too), with an expiry date. The token is kept outside the project: nothing in it holds it.
-- [ ] **The builder image exists:** on `main`, on this computer, with Docker:
+- [ ] **The builder image exists:** on this computer, with Docker, in a checkout of `main` that
+      matches GitLab's (the script refuses one that doesn't, or with `ci/` or `.gitlab-ci.yml`
+      not committed):
 
       ```fish
       env DEPLOY_TOKEN_USER=<the deploy token's user name> ci/build-image.sh
@@ -79,8 +81,8 @@ tick it here when it's done. The commands work in fish and in bash, from a clone
       tag (the cleanup policy under *Packages* keeps them). Until then, pipelines on `main` run in
       the image's tag and `sign` refuses, so nothing is published. After a change to
       `ci/Dockerfile`: a new `BUILDER_TAG`, merged, then the script once more and the new digest.
-      `ci/build-image.sh <branch>` pushes `builder:<BUILDER_TAG>-<branch>` for a branch's own
-      pipelines instead.
+      `ci/build-image.sh <branch>`, in a checkout of that branch, pushes
+      `builder:<BUILDER_TAG>-<branch slug>` for its own pipelines instead.
 - [ ] **A first build on `main`:** New pipeline → branch `main`, *task* `release`, *windows*
       ticked. While the project is private the build signs and publishes as usual; installed
       copies just can't reach it yet.
@@ -229,8 +231,8 @@ off: a pipeline on any other branch, or with *runner* `cloud`, then waits for a 
 - [ ] **Protected:** the runner's *Protected* box ticked, so only pipelines on `main` and protected
       tags run on it, and the signing key (a protected variable) reaches only them. A pipeline
       on any other branch can't use it: it runs on gitlab.com's hosted runners, whatever
-      *runner* says, in that branch's own builder image (`ci/build-image.sh <branch>` first).
-      Such pipelines are optional.
+      *runner* says, in that branch's own builder image (`ci/build-image.sh <branch>` first, on
+      that branch). Such pipelines are optional.
 
 ## Packages
 

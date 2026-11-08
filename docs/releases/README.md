@@ -22,7 +22,7 @@ protected tags use it and only they get the signing key), or, with the *runner* 
 `cloud`, on gitlab.com's hosted Linux runners, which spend the namespace's compute minutes; nothing
 on `main` or a release tag needs them, and the project's instance runners stay off. A pipeline on a
 branch other than `main` can only run on the hosted runners, in that branch's own builder image
-(`ci/build-image.sh <branch>` first); such pipelines are optional.
+(`ci/build-image.sh <branch>` first, on that branch); such pipelines are optional.
 
 A release pipeline is build *n*, version `0.2.n`, where *n* is the pipeline's number in the project
 plus 100 (builds made on GitHub before the move were numbered below 100; pipelines that promote or

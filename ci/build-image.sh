@@ -10,8 +10,9 @@
 # DEPLOY_TOKEN_USER, the token typed at the prompt or given on standard input. Docker keeps the
 # sign-in in a folder made for this run and removed after, never in ~/.docker.
 #
-# Only a committed ci/, on the branch the image is for (main without an argument), so the digest
-# printed is that commit's Dockerfile.
+# Only from a checkout of the branch the image is for (main without an argument) that is GitLab's
+# copy of it, with ci/ and .gitlab-ci.yml committed, so the digest printed is that commit's
+# Dockerfile and BUILDER_TAG.
 #
 # The <BUILDER_TAG>.<UTC time> tag is new on every run, and a branch's tag never has a dot, so no
 # other push writes it: it keeps the digest BUILDER_DIGEST names tagged (docs/maintaining.md, the
@@ -40,8 +41,10 @@ fi
 want=${1:-main}
 branch=$(git -C "$here" rev-parse --abbrev-ref HEAD)
 [ "$branch" = "$want" ] || { echo "this checkout is on $branch, not $want: check out $want first" >&2; exit 1; }
-[ -z "$(git -C "$here" status --porcelain -- .)" ] || { echo "ci/ has changes not committed: commit them first" >&2; exit 1; }
+[ -z "$(git -C "$here" status --porcelain -- . ../.gitlab-ci.yml)" ] || { echo "ci/ or .gitlab-ci.yml has changes not committed: commit them first" >&2; exit 1; }
+git -C "$here" fetch -q origin "$want"
 commit=$(git -C "$here" rev-parse HEAD)
+[ "$commit" = "$(git -C "$here" rev-parse FETCH_HEAD)" ] || { echo "this checkout of $want isn't GitLab's: pull or push first" >&2; exit 1; }
 
 : "${DEPLOY_TOKEN_USER:?set DEPLOY_TOKEN_USER to the user name of the deploy token}"
 DOCKER_CONFIG=$(mktemp -d)
