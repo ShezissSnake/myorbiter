@@ -212,7 +212,7 @@
     position: relative; min-width: 0; height: 3.6rem;
     display: grid; grid-template-columns: 2.3rem minmax(0, 1fr); align-items: center; gap: .45rem;
     padding: .25rem .35rem .25rem .3rem;
-    background: linear-gradient(180deg, #191c22, #111317);
+    background: linear-gradient(180deg, #1a1e23, #14171b);
     border: 1px solid color-mix(in srgb, var(--edge) 55%, transparent);
     border-top: 2px solid var(--edge);
     clip-path: polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%);
@@ -221,7 +221,7 @@
   .t-rare { --edge: var(--rarity-rare); }
   .t-legendary { --edge: var(--rarity-legendary); }
   .slot.empty { display: grid; grid-template-columns: 1fr; place-items: center; background: transparent; border: 1px dashed var(--rule-bright); border-top-width: 1px; }
-  .hole { font-family: var(--face-register); font-size: .56rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); }
+  .hole { font-family: var(--face-register); font-size: .67rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); }
   .art { width: 2.3rem; height: 2.3rem; overflow: hidden; background: radial-gradient(circle at 50% 35%, #262a32, #0e1013 80%); border: 1px solid color-mix(in srgb, var(--edge) 35%, transparent); }
   .art img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .body { display: grid; grid-template-rows: auto auto 1fr; gap: .12rem; min-width: 0; align-self: stretch; }
@@ -231,12 +231,12 @@
   .pips i { width: 4px; height: 4px; flex: none; transform: rotate(45deg); background: color-mix(in srgb, var(--edge) 22%, transparent); }
   .pips i.on { background: var(--edge); }
   /* The drain in the corner: green on its own polarity, red on another, as in game. */
-  .drain { justify-self: end; display: inline-flex; align-items: center; gap: 2px; min-height: .7rem; font-family: var(--face-register); font-size: .7rem; font-weight: 600; line-height: 1; color: var(--platinum-dim); font-variant-numeric: tabular-nums; }
+  .drain { justify-self: end; display: inline-flex; align-items: center; gap: 2px; min-height: .7rem; font-family: var(--face-figures); font-size: .7rem; font-weight: 600; line-height: 1; color: var(--platinum-dim); font-variant-numeric: tabular-nums; }
   .drain img { width: .7rem; height: .7rem; filter: brightness(1.5); opacity: .85; }
   .drain.match { color: var(--verdigris); }
   .drain.clash { color: var(--oxblood); }
   /* The slot's own polarity, bottom right; a gold ring where a Forma puts it. */
-  .spol { position: absolute; right: .3rem; bottom: .25rem; width: .95rem; height: .95rem; display: grid; place-items: center; font-family: var(--face-register); font-size: .55rem; color: var(--gold); }
+  .spol { position: absolute; right: .3rem; bottom: .25rem; width: .95rem; height: .95rem; display: grid; place-items: center; font-family: var(--face-register); font-size: .66rem; color: var(--gold); }
   .spol img { width: .72rem; height: .72rem; opacity: .55; }
   .spol.forma { border: 1px solid var(--gold); border-radius: 50%; }
   .spol.forma img { opacity: 1; filter: sepia(1) saturate(3) hue-rotate(5deg) brightness(1.1); }
@@ -259,7 +259,7 @@
   .arc.none .hex { background: var(--rule-bright); }
   .an { display: grid; line-height: 1.1; }
   .an b { font-family: var(--face-mark); font-size: .8rem; text-transform: uppercase; color: var(--platinum); }
-  .an small { font-family: var(--face-register); font-size: .6rem; color: var(--platinum-deep); letter-spacing: .08em; }
+  .an small { font-family: var(--face-register); font-size: .72rem; color: var(--platinum-deep); letter-spacing: .08em; }
   .arc .have { left: auto; right: -.4rem; top: -.2rem; bottom: auto; }
   .arc.missing .hex { opacity: .5; }
   .shards { display: flex; gap: .45rem; padding-top: .1rem; }

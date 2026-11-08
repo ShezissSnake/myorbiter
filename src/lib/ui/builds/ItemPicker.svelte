@@ -97,6 +97,6 @@
   li[role="option"] { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: .6rem; padding: .3rem .7rem; cursor: pointer; }
   li.at { background: var(--raised); box-shadow: inset 2px 0 0 var(--sec); }
   .nm { color: var(--platinum); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .kd { font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); white-space: nowrap; }
-  .own { font-family: var(--face-register); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--sec); }
+  .kd { font-family: var(--face-register); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); white-space: nowrap; }
+  .own { font-family: var(--face-register); font-size: .67rem; letter-spacing: .1em; text-transform: uppercase; color: var(--sec); }
 </style>

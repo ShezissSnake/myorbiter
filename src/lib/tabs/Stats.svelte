@@ -265,8 +265,8 @@
   :global(html[data-room~="lt950"]) .split { grid-template-columns: 1fr; }
   h2 { margin: 0 0 .8rem; }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: .45rem .5rem; border-bottom: 1px solid var(--rule); }
-  td { padding: .5rem; border-bottom: 1px solid var(--rule); }
+  th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: .45rem .5rem; border-bottom: 1px solid var(--rule); }
+  td { padding: var(--row-pad) .5rem; border-bottom: 1px solid var(--rule); }
   .right { text-align: right; }
   .ty { display: inline-flex; align-items: center; gap: .5rem; }
   .pos { color: var(--verdigris); font-weight: 600; }
@@ -275,16 +275,16 @@
   .hh { display: flex; justify-content: space-between; align-items: center; gap: 1rem; min-height: 2rem; margin-bottom: .8rem; }
   .hh h2 { margin: 0; }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
-  li { display: grid; grid-template-columns: minmax(9rem, 12rem) 1fr auto auto; gap: .8rem; align-items: center; padding: .6rem .8rem; border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); clip-path: var(--cut); }
+  li { display: grid; grid-template-columns: minmax(9rem, 12rem) 1fr auto auto; gap: .8rem; align-items: center; padding: .6rem .8rem; border: 1px solid var(--rule); background: rgb(20 23 27 / 70%); clip-path: var(--cut); }
   .who { display: grid; gap: .15rem; min-width: 0; }
   .who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: none; }
   .swap { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; min-width: 0; }
   .arrow { color: var(--platinum-deep); }
   .its { display: inline-flex; align-items: center; gap: .3rem; flex-wrap: wrap; }
   .it { position: relative; display: inline-flex; align-items: center; gap: .25rem; }
-  .it b { position: absolute; right: -4px; bottom: -4px; font-size: .6rem; font-family: var(--face-register); background: var(--slab); border: 1px solid var(--rule-bright); padding: 0 3px; line-height: 1.3; }
+  .it b { position: absolute; right: -4px; bottom: -4px; font-size: .72rem; font-family: var(--face-register); background: var(--slab); border: 1px solid var(--rule-bright); padding: 0 3px; line-height: 1.3; }
   .it.plat b { position: static; font-family: var(--face-mark); font-size: 1rem; background: none; border: 0; padding: 0; }
-  .kind { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; padding: .2rem .45rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
+  .kind { font-family: var(--face-register); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; padding: .2rem .45rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
   .k-sale { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 45%, transparent); }
   .k-purchase { color: var(--gold); border-color: var(--gold-dim); }
   .more { display: block; margin: .4rem 0 1.4rem; }

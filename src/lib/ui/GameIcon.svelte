@@ -100,6 +100,6 @@
   .gi { display: inline-block; flex: none; object-fit: contain; vertical-align: middle; }
   /* Faction sigils, coloured or white, all on the same faint light disc, so a dark one (Grineer's
      deep red) reads on a dark plate as well as Scaldra's white does, and the set looks like one. */
-  .sigil { border-radius: 50%; padding: 1px; background: radial-gradient(circle, rgb(230 233 238 / 17%) 0 52%, rgb(230 233 238 / 0) 71%); }
+  .sigil { border-radius: 50%; padding: 1px; background: radial-gradient(circle, rgb(241 243 246 / 17%) 0 52%, rgb(241 243 246 / 0) 71%); }
   .faction-grineer { filter: brightness(1.9) saturate(1.15); }
 </style>

@@ -241,7 +241,7 @@
 
 <style>
   .top { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .8rem; }
-  .pausedtag { font-family: var(--face-register); font-size: .62rem; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-dim); padding: .15rem .45rem; }
+  .pausedtag { font-family: var(--face-register); font-size: .74rem; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-dim); padding: .15rem .45rem; }
   .empty { line-height: 1.6; }
   .acts { display: flex; justify-content: flex-end; align-items: center; gap: .6rem; margin-left: auto; order: 2; }
   .days { display: grid; gap: 1.2rem; margin-top: -.6rem; }
@@ -249,7 +249,7 @@
   .day { margin: 0; font-size: .62rem; color: var(--gold-dim); letter-spacing: .18em; }
   .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
   .notice { display: grid; grid-template-columns: 1.8rem 1fr; gap: .7rem; width: 100%; text-align: left; padding: .6rem .7rem; border: 1px solid transparent; background: transparent; color: var(--platinum-dim); font-family: var(--face-text); font-size: .85rem; font-weight: 400; letter-spacing: 0; text-transform: none; transition: background .12s, border-color .12s; }
-  .notice:hover { background: rgb(230 233 238 / 4%); border-color: var(--rule); }
+  .notice:hover { background: rgb(241 243 246 / 4%); border-color: var(--rule); }
   .notice.unread { background: rgb(214 174 74 / 7%); box-shadow: inset 2px 0 0 var(--gold); color: var(--platinum); }
   .ic { padding-top: .1rem; }
   /* A notification's own controls (a sale's +rep), under its text and in line with it. */

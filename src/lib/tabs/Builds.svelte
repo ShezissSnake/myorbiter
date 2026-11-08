@@ -517,11 +517,11 @@
   .plate.lit { background: var(--raised); border-color: color-mix(in srgb, var(--sec) 60%, transparent); box-shadow: inset 0 -2px 0 var(--sec); }
   .tn { font-size: 1.35rem; line-height: .95; color: var(--platinum-dim); }
   .plate.lit .tn { color: var(--platinum); }
-  .tm { font-family: var(--face-register); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
+  .tm { font-family: var(--face-register); font-size: .67rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
   .plate.lit .tm { color: var(--sec); }
   .tc { font-size: .78rem; color: var(--platinum-dim); margin-top: .3rem; font-variant-numeric: tabular-nums; }
   .rd { color: var(--verdigris); }
-  .mine { position: absolute; top: .45rem; right: .6rem; font-family: var(--face-register); font-size: .5rem; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); }
+  .mine { position: absolute; top: .45rem; right: .6rem; font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); }
   /* The tier as rising bars: one, two, three lit. */
   .tmark { display: inline-flex; align-items: flex-end; gap: 2px; height: .85rem; margin-bottom: .25rem; }
   .tmark i { width: 4px; background: var(--rule-bright); }

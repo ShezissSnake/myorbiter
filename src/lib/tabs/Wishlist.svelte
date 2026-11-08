@@ -327,7 +327,7 @@
   .era ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .25rem; font-size: .82rem; }
   .era li { display: flex; gap: .35rem; align-items: baseline; flex-wrap: wrap; }
   .list { display: grid; gap: .9rem; }
-  .wish { border: 1px solid var(--rule); background: linear-gradient(180deg, #14161a, var(--plate) 40%); clip-path: var(--cut); padding: .9rem 1rem; display: grid; grid-template-columns: minmax(18rem, 24rem) 1fr; gap: 1.2rem; align-items: start; }
+  .wish { border: 1px solid var(--rule); background: var(--plate-sheen), var(--plate); box-shadow: var(--plate-light); clip-path: var(--cut); padding: .9rem 1rem; display: grid; grid-template-columns: minmax(18rem, 24rem) 1fr; gap: 1.2rem; align-items: start; }
   .wslot { min-width: 0; }
   /* Just added: a gold edge that fades over a second. A colour, so it shows with reduced motion too. */
   /* The edge is drawn once on a layer of its own that fades by opacity, which the compositor runs
@@ -356,8 +356,8 @@
   .unstar:hover { color: var(--oxblood); }
   .unstar:hover :global(svg path) { fill: none; }
   table { width: 100%; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: 0 .5rem .45rem; border-bottom: 1px solid var(--rule); }
-  td { padding: .5rem; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+  th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: 0 .5rem .45rem; border-bottom: 1px solid var(--rule); }
+  td { padding: var(--row-pad) .5rem; border-bottom: 1px solid var(--rule); vertical-align: middle; }
   tr:last-child td { border-bottom: 0; }
   .r { text-align: right; }
   .part { display: inline-flex; align-items: center; gap: .55rem; max-width: 100%; min-width: 0; }

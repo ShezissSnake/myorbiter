@@ -226,8 +226,8 @@
   .chips { list-style: none; margin: .35rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: .3rem; }
   .chip { display: inline-flex; align-items: center; gap: .35rem; padding: .18rem .45rem; border: 1px solid var(--rule-bright); background: var(--raised); font-size: .8rem; }
   .chip.picked { border-color: color-mix(in srgb, var(--sec) 50%, transparent); }
-  .role { font-family: var(--face-register); font-size: .54rem; letter-spacing: .12em; text-transform: uppercase; color: var(--sec); }
-  .rk { font-family: var(--face-register); font-size: .62rem; color: var(--platinum-deep); }
+  .role { font-family: var(--face-register); font-size: .65rem; letter-spacing: .12em; text-transform: uppercase; color: var(--sec); }
+  .rk { font-family: var(--face-register); font-size: .74rem; color: var(--platinum-deep); }
   .alias { color: var(--platinum-deep); }
   .x { all: unset; cursor: pointer; color: var(--platinum-deep); padding: 0 .1rem; }
   .x:hover { color: var(--platinum); }

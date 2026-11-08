@@ -121,7 +121,7 @@
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
   th {
     position: sticky; top: 0; z-index: 1; background: var(--slab); text-align: left;
-    font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .15em; text-transform: uppercase;
+    font-family: var(--face-register); font-weight: 500; font-size: .72rem; letter-spacing: .15em; text-transform: uppercase;
     color: var(--platinum-deep); padding: .7rem .75rem; border-bottom: 1px solid var(--rule); white-space: nowrap;
     user-select: none;
   }
@@ -132,7 +132,7 @@
   /* The sort's arrow turns over when the order flips (QUICK); a header sinks as it's pressed (app.css). */
   .arrow { display: inline-block; margin-left: .3rem; color: var(--gold); transition: transform var(--quick) var(--out); }
   .arrow.up { transform: rotate(180deg); }
-  td { padding: .5rem .75rem; border-bottom: 1px solid var(--rule); vertical-align: middle; font-size: .84rem; }
+  td { padding: var(--row-pad) .75rem; border-bottom: 1px solid var(--rule); vertical-align: middle; font-size: .84rem; }
   td:first-child, th:first-child { padding-left: 0; }
   .right { text-align: right; }
   .center { text-align: center; }
@@ -142,7 +142,7 @@
   tr.clickable:hover td:first-child, tr.open td:first-child { box-shadow: inset 2px 0 0 var(--gold-dim); }
   tr.clickable td:first-child { padding-left: .6rem; }
   th:first-child { padding-left: .6rem; }
-  tbody tr:hover td { background: rgb(230 233 238 / 2.5%); }
+  tbody tr:hover td { background: rgb(241 243 246 / 2.5%); }
   tr.open td { background: var(--plate); border-bottom-color: transparent; }
   tr.detail td { background: var(--plate); padding: .4rem 1rem 1.2rem .6rem; cursor: default; border-bottom: 1px solid var(--rule-bright); box-shadow: inset 2px 0 0 var(--gold-dim); }
   tr.detail:hover td { background: var(--plate); }

@@ -15,7 +15,7 @@
 <style>
   .cart {
     display: inline-block; padding: .2rem .55rem .42rem; clip-path: var(--cartouche);
-    font-family: var(--face-register); font-size: .6rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+    font-family: var(--face-register); font-size: .72rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
     white-space: nowrap; background: var(--raised); color: var(--platinum-dim);
   }
   /* Most relics are vaulted, so vaulted is the quiet one (a dark plate, gold letters) and the

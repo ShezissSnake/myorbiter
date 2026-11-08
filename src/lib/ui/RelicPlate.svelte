@@ -64,7 +64,7 @@
   /* One band: the eras' relics on a cut plate, the meter on the right, the section's violet at the edge. */
   .plate {
     display: flex; flex-wrap: wrap; align-items: stretch; gap: 0;
-    background: var(--plate); clip-path: var(--cut); box-shadow: inset 3px 0 0 var(--sec);
+    background: var(--plate-sheen), var(--plate); clip-path: var(--cut); box-shadow: inset 3px 0 0 var(--sec), var(--plate-light);
   }
   .eras { display: flex; flex: 1 1 34rem; min-width: 0; }
   .era {
@@ -78,7 +78,7 @@
   .era.on { background: var(--raised); box-shadow: inset 0 -2px 0 var(--sec); }
   .era.none :global(.gi) { opacity: .35; filter: saturate(.3); }
   .txt { display: grid; line-height: 1.1; min-width: 0; }
-  .en { font-family: var(--face-register); font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: color-mix(in srgb, var(--tint, var(--platinum)) 75%, var(--platinum)); }
+  .en { font-family: var(--face-register); font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: color-mix(in srgb, var(--tint, var(--platinum)) 75%, var(--platinum)); }
   .txt b { font-family: var(--face-mark); font-size: 1.45rem; font-weight: 700; color: var(--platinum); font-variant-numeric: tabular-nums; }
   .era.none b { color: var(--platinum-deep); }
   .rad { font-size: .7rem; color: var(--platinum-dim); white-space: nowrap; }

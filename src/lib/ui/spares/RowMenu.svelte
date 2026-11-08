@@ -90,6 +90,6 @@
   .menu button { all: unset; box-sizing: border-box; cursor: pointer; display: grid; gap: .1rem; padding: .45rem .6rem; }
   .menu button:hover, .menu button:focus-visible { background: var(--raised); box-shadow: inset 2px 0 0 var(--platinum); }
   .menu button:active { transform: translateY(1px); }
-  .l { font-family: var(--face-register); font-size: .66rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum); }
+  .l { font-family: var(--face-register); font-size: .79rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum); }
   .nt { font-size: .76rem; color: var(--platinum-deep); line-height: 1.4; }
 </style>

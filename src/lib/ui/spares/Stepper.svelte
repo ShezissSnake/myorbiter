@@ -23,10 +23,10 @@
 
 <style>
   .stepper { display: inline-flex; align-items: stretch; height: 26px; border: 1px solid var(--rule-control); background: var(--well); }
-  .st { width: 24px; padding: 0; border: 0; background: transparent; font-family: var(--face-register); font-size: .8rem; letter-spacing: 0; color: var(--platinum-dim); }
+  .st { width: 24px; padding: 0; border: 0; background: transparent; font-family: var(--face-figures); font-size: .8rem; letter-spacing: 0; color: var(--platinum-dim); }
   .st:hover:not(:disabled) { color: var(--platinum); background: var(--raised); }
   .st:disabled { color: var(--rule-bright); }
-  .n { min-width: 1.9rem; display: inline-grid; place-items: center; grid-auto-flow: column; gap: .15rem; padding: 0 .2rem; border-left: 1px solid var(--rule); border-right: 1px solid var(--rule); font-family: var(--face-register); font-size: .78rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--platinum); cursor: ns-resize; }
+  .n { min-width: 1.9rem; display: inline-grid; place-items: center; grid-auto-flow: column; gap: .15rem; padding: 0 .2rem; border-left: 1px solid var(--rule); border-right: 1px solid var(--rule); font-family: var(--face-figures); font-size: .78rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--platinum); cursor: ns-resize; }
   .n small { font-size: .6rem; color: var(--platinum-deep); font-weight: 500; }
   .n:focus-visible { outline: 1px solid var(--select); outline-offset: 1px; }
   .off .n { color: var(--platinum-deep); cursor: default; }

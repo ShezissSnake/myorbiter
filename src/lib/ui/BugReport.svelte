@@ -225,7 +225,7 @@
   .fold { display: inline-flex; align-items: center; gap: .35rem; font-size: .62rem; }
   .chev { display: inline-block; transition: transform var(--quick) var(--out); }
   .chev.up { transform: rotate(180deg); }
-  .techtext { margin: .2rem 0 0; max-height: 15rem; overflow: auto; padding: .6rem .7rem; font-family: var(--face-register); font-size: .7rem; line-height: 1.5; color: var(--platinum-dim); background: var(--slab); border: 1px solid var(--rule); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .techtext { margin: .2rem 0 0; max-height: 15rem; overflow: auto; padding: .6rem .7rem; font-family: var(--face-register); font-size: .84rem; line-height: 1.5; color: var(--platinum-dim); background: var(--slab); border: 1px solid var(--rule); white-space: pre-wrap; overflow-wrap: anywhere; }
   .techtext:focus-visible { outline: 1px solid var(--gold); outline-offset: 1px; }
   .hint { margin: 0; font-size: .74rem; color: var(--platinum-deep); }
   .note p { margin: 0; }

@@ -125,7 +125,7 @@
   }
   .lead .nm { font-size: 1.2rem; color: var(--platinum); }
   .hit:hover .nm { color: var(--platinum); }
-  .sub { max-width: 100%; font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sub { max-width: 100%; font-family: var(--face-register); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .val { display: inline-flex; align-items: center; gap: .45rem; }
   .lead .val :global(b) { font-size: 1.15rem; }
   .grade { font-family: var(--face-mark); font-weight: 700; font-size: 1rem; color: var(--platinum-dim); }

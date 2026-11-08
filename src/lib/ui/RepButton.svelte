@@ -57,7 +57,7 @@
   .rep { display: inline-flex; align-items: center; gap: .5rem; white-space: nowrap; }
   .rep :global(.ib) { --ib: 24px; }
   .who { text-transform: none; letter-spacing: .02em; }
-  .note { font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); white-space: nowrap; }
+  .note { font-family: var(--face-register); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); white-space: nowrap; }
   .done { color: var(--verdigris); }
   /* Why +rep didn't go through: in oxblood beside the button. */
   .why { font-size: .74rem; color: var(--oxblood); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 22rem; }

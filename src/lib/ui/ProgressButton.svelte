@@ -178,15 +178,15 @@
   .lbls > span.on { visibility: visible; }
   .mark { position: relative; z-index: 1; display: inline-grid; place-items: center; line-height: 0; }
   .mark > span { display: inline-grid; place-items: center; }
-  .bang { display: inline-grid; place-items: center; width: 1.05em; height: 1.05em; border: 1px solid currentColor; font-family: var(--face-register); font-size: .62rem; font-weight: 700; line-height: 1; }
+  .bang { display: inline-grid; place-items: center; width: 1.05em; height: 1.05em; border: 1px solid currentColor; font-family: var(--face-register); font-size: .74rem; font-weight: 700; line-height: 1; }
 
   /* The fill: grows from the left behind the label, clipped by the button's own cut shape. */
-  .fill { position: absolute; inset: 0; transform-origin: left center; transform: scaleX(0); background: rgb(230 233 238 / 13%); opacity: 0; pointer-events: none; transition: transform var(--settle) var(--out), opacity var(--settle); }
+  .fill { position: absolute; inset: 0; transform-origin: left center; transform: scaleX(0); background: rgb(241 243 246 / 13%); opacity: 0; pointer-events: none; transition: transform var(--settle) var(--out), opacity var(--settle); }
   .fill.on { opacity: 1; }
   .gold > .fill, .ib.gold > .fill { background: rgb(214 174 74 / 22%); }
   /* No total yet: a band sweeps across instead. */
   .fill.sweep, .hair.sweep { transform: none; background: none; overflow: hidden; }
-  .fill.sweep::before, .hair.sweep::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; background: linear-gradient(90deg, transparent, rgb(230 233 238 / 16%), transparent); animation: sweep-band 1.2s ease-in-out infinite; }
+  .fill.sweep::before, .hair.sweep::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; background: linear-gradient(90deg, transparent, rgb(241 243 246 / 16%), transparent); animation: sweep-band 1.2s ease-in-out infinite; }
   .gold > .fill.sweep::before { background: linear-gradient(90deg, transparent, rgb(214 174 74 / 28%), transparent); }
   /* An icon button fills along its foot instead, so the icon stays clear. */
   .ib > .fill { inset: auto 0 0 0; height: 2px; background: var(--gold); }
@@ -234,7 +234,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     /* No sweep or turning: a still half-tone fill says "working" instead. */
-    .fill.sweep, .hair.sweep { background: rgb(230 233 238 / 9%); }
+    .fill.sweep, .hair.sweep { background: rgb(241 243 246 / 9%); }
     .fill.sweep::before, .hair.sweep::before { display: none; }
     .gold > .fill.sweep { background: rgb(214 174 74 / 14%); }
     .ib > .fill.sweep { background: var(--gold-dim); }

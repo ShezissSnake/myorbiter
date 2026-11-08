@@ -407,7 +407,7 @@
   /* The wordmark at its smallest with the craft as the O (about 20 px cap height; smaller, the plain-O variant). */
   .wordmark { display: block; height: 28px; width: auto; }
   .ver b { color: var(--platinum); font-weight: 600; }
-  .mono { font-family: var(--face-register); font-variant-numeric: tabular-nums; }
+  .mono { font-family: var(--face-figures); font-variant-numeric: tabular-nums; }
   .link.out { display: inline-flex; align-items: center; gap: .35rem; }
   .offer-in { display: grid; gap: .7rem; padding: .9rem 1rem; background: var(--raised); border: 1px solid var(--gold-dim); box-shadow: inset 3px 0 0 var(--gold); }
   .offer-in p { margin: 0; }

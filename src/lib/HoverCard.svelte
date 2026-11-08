@@ -193,14 +193,14 @@
   .refs { display: flex; gap: .8rem; color: var(--platinum-dim); font-size: .74rem; }
   .refs b { color: var(--platinum); }
   table.rw { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  .rw th { font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); text-align: left; padding: 0 .3rem .25rem; }
+  .rw th { font-family: var(--face-register); font-weight: 500; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); text-align: left; padding: 0 .3rem .25rem; }
   .rw td { padding: .2rem .3rem; border-top: 1px solid var(--rule); }
   .rw .r { text-align: right; white-space: nowrap; }
   .rw .nm { display: flex; align-items: center; gap: .35rem; min-width: 0; }
   .rw .nm span:first-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 10.5rem; }
   .rw tr.need .nm { color: var(--gold); }
   .rw tr.done .nm span { color: var(--platinum-deep); }
-  .rw em, .srcs em { font-style: normal; font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
+  .rw em, .srcs em { font-style: normal; font-family: var(--face-register); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
   /* A reward's rarity as a small square card, as on the relic cards (the diamond is for ornaments). */
   .rar { display: inline-block; width: 8px; height: 8px; border-radius: 2px; }
   .rar-c { background: var(--rarity-common); }
@@ -221,15 +221,15 @@
   .srcs li.vaulted { opacity: .65; }
   /* Held count or "vaulted": one width, so the chances above it line up. */
   .tail { flex: none; width: 3.4rem; text-align: right; }
-  .vt { font-family: var(--face-register); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
+  .vt { font-family: var(--face-register); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
   .grow { flex: 1; }
   .chips { display: flex; flex-wrap: wrap; gap: .4rem; }
   .pts { color: var(--platinum-dim); }
-  .hint { margin-left: auto; font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
+  .hint { margin-left: auto; font-family: var(--face-register); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
   .effect { display: grid; gap: .25rem; padding: .5rem .6rem; background: var(--well); border: 1px solid var(--rule); }
   .effect p { margin: 0; white-space: pre-line; color: var(--platinum); line-height: 1.4; }
   .ranks { display: flex; gap: .3rem; flex-wrap: wrap; }
-  .ranks span { font-family: var(--face-register); font-size: .6rem; padding: .08rem .32rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
+  .ranks span { font-family: var(--face-register); font-size: .72rem; padding: .08rem .32rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
   .pol { width: 18px; height: 18px; opacity: .85; }
   .more { margin: 0; font-size: .74rem; }
 </style>

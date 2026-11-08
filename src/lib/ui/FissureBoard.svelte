@@ -158,8 +158,8 @@
   /* "for Kompressa Prime" gives way long before the relic to crack does (flex-shrink 1000 to 1). */
   .saving { flex: 0 1000 auto; font-size: .7rem; color: var(--verdigris); border: 1px solid color-mix(in srgb, var(--verdigris) 45%, transparent); padding: 0 .3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: default; }
   /* Set like the other small chips (SP, Storm): capitals in a hairline box, in verdigris. */
-  .quick { flex: none; font-family: var(--face-register); font-size: .52rem; letter-spacing: .06em; text-transform: uppercase; color: var(--verdigris); border: 1px solid color-mix(in srgb, var(--verdigris) 45%, transparent); padding: 0 .2rem; line-height: 1.4; }
-  .kind { display: inline-flex; align-items: center; gap: .18rem; font-family: var(--face-register); font-size: .58rem; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold-dim); padding: 0 .25rem; }
+  .quick { flex: none; font-family: var(--face-register); font-size: .62rem; letter-spacing: .06em; text-transform: uppercase; color: var(--verdigris); border: 1px solid color-mix(in srgb, var(--verdigris) 45%, transparent); padding: 0 .2rem; line-height: 1.4; }
+  .kind { display: inline-flex; align-items: center; gap: .18rem; font-family: var(--face-register); font-size: .7rem; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold-dim); padding: 0 .25rem; }
   .kinds { align-items: center; }
   :global(html[data-room~="lt640"]) li { grid-template-columns: minmax(6rem, 1fr) minmax(0, 1.3fr) 4.4rem; }
   :global(html[data-room~="lt640"]) .foe { display: none; }

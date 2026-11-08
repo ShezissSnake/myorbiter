@@ -342,7 +342,7 @@
   .fz-node { color: var(--platinum-dim); white-space: nowrap; }
   .fz-kind { display: inline-flex; gap: .3rem; }
   .fz-kind .tag { margin: 0; }
-  .fz-t { text-align: right; font-family: var(--face-register); font-size: .66rem; color: var(--platinum-deep); white-space: nowrap; }
+  .fz-t { text-align: right; font-family: var(--face-figures); font-size: .66rem; color: var(--platinum-deep); white-space: nowrap; }
   .rewards { border-collapse: collapse; margin-bottom: 0.6rem; min-width: 34rem; font-variant-numeric: tabular-nums; }
   .rewards td { padding: 0.25rem 1rem 0.25rem 0; border: 0; border-top: 1px solid var(--rule); }
   .rewards tbody tr:first-child td { border-top: 0; }
@@ -364,7 +364,7 @@
   .detail-foot { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem 1.4rem; }
   .detail-foot p { margin: 0; flex: 1 1 30rem; }
   .unk { color: var(--platinum); }
-  .rewards th { font-family: var(--face-register); font-weight: 500; font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: 0 .8rem .3rem 0; text-align: left; }
+  .rewards th { font-family: var(--face-register); font-weight: 500; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: 0 .8rem .3rem 0; text-align: left; }
   .rewards th.right { text-align: right; }
   .r-chance { color: var(--platinum); }
   .gain { display: inline-flex; align-items: center; white-space: nowrap; color: var(--platinum-dim); }

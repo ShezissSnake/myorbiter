@@ -133,7 +133,7 @@
 </figure>
 
 <style>
-  .tc { margin: 0; border: 1px solid var(--rule); background: rgb(17 19 23 / 70%); padding: .8rem 1rem .5rem; min-width: 0; }
+  .tc { margin: 0; border: 1px solid var(--rule); background: rgb(20 23 27 / 70%); padding: .8rem 1rem .5rem; min-width: 0; }
   figcaption { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: .3rem; }
   .tt { display: inline-flex; align-items: center; gap: .45rem; }
   .legend { display: flex; gap: 1rem; font-size: .78rem; color: var(--platinum-dim); flex-wrap: wrap; }
