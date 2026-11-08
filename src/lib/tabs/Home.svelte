@@ -988,16 +988,17 @@
 <style>
   /* The same header as every other page (PageHead), so the title doesn't move switching pages. */
   .hello { display: flex; justify-content: space-between; align-items: flex-end; padding: clamp(28px, 5vh, 56px) 0 var(--step); gap: 1rem; }
-  .hello h1 { font-size: clamp(2.6rem, 5.4vw, 4.6rem); }
+  .hello h1 { font-size: clamp(2.2rem, 3.4vw, var(--title-size)); }
   @media (max-height: 860px) {
     .hello { padding: 18px 0 .6rem; }
-    .hello h1 { font-size: clamp(2.2rem, 4vw, 3.2rem); }
-    .hello .orn { margin-bottom: .5rem; }
+    .hello h1 { font-size: clamp(2.1rem, 3.2vw, 40px); }
+    .hello .orn { margin-bottom: 8px; }
   }
   .hello p { margin: 0 0 .6rem; }
-  .orn { display: flex; align-items: center; width: 4.5rem; margin-bottom: .9rem; }
-  .orn i { width: .5rem; height: .5rem; flex: none; background: var(--gold); transform: rotate(45deg); }
-  .orn::after { content: ""; flex: 1; height: 1px; margin-left: .35rem; background: linear-gradient(90deg, var(--gold-dim), transparent); }
+  /* PageHead's engraved rule, neutral: Home belongs to no section. */
+  .orn { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .orn i { width: 9px; height: 9px; flex: none; background: var(--sec); transform: rotate(45deg); }
+  .orn::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--sec) 0 72px, var(--rule) 72px); }
 
   /* Needs you: a card each, as many to a row as fit. */
   .alerts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(24rem, 100%), 1fr)); gap: .5rem; margin-bottom: var(--step); }

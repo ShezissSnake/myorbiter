@@ -2886,11 +2886,10 @@
   /* A page that threw: the same quiet line, with Try again. */
   .pagefail { margin: 0; padding: 3rem 1rem; text-align: center; }
 
-  /* ---- sidebar: a dark struck plate, gold hairline on its edge */
+  /* ---- sidebar: a neutral plate (the section colours are only on its headers and the open page) */
   .rail {
     display: flex; flex-direction: column; min-height: 0; overflow: hidden;
-    background: linear-gradient(180deg, #0d0f12, #090a0c); border-right: 1px solid var(--rule);
-    box-shadow: inset -1px 0 0 rgb(214 174 74 / 12%);
+    background: var(--plate); border-right: 1px solid var(--rule);
   }
   .brand { display: flex; align-items: center; gap: .6rem; padding: .95rem 1rem .8rem 1.1rem; border-bottom: 1px solid var(--rule); }
   .brand-mark { display: block; flex: none; }
@@ -2906,8 +2905,10 @@
   nav.more { mask-image: linear-gradient(180deg, #000 calc(100% - 3rem), transparent); }
   nav.above { mask-image: linear-gradient(0deg, #000 calc(100% - 2.5rem), transparent); }
   nav.more.above { mask-image: linear-gradient(180deg, transparent, #000 2.5rem, #000 calc(100% - 3rem), transparent); }
-  .sec { padding: .85rem .65rem .35rem; font-size: .6rem; color: var(--sec); letter-spacing: .2em; display: flex; align-items: center; gap: .5rem; }
-  .sec::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--sec-dim), transparent); }
+  /* A section's header: its sigil and name in its colour, then a plain hairline. */
+  .sec { padding: .85rem .65rem .35rem; font-size: .68rem; line-height: 1.1; color: var(--sec); letter-spacing: .2em; display: flex; align-items: center; gap: .5rem; }
+  .sec::before { content: ""; width: 7px; height: 7px; flex: none; background: var(--sec); transform: rotate(45deg); }
+  .sec::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
   .nav {
     position: relative; display: flex; align-items: center; gap: .75rem; width: 100%; text-align: left;
     border: 0; background: transparent; padding: .44rem .65rem; color: var(--platinum-dim);
@@ -2916,7 +2917,8 @@
   .nav .ic { width: 1.5rem; height: 1.5rem; display: grid; place-items: center; flex: none; opacity: .78; transition: opacity .12s; }
   .nav:hover:not(:disabled) { color: var(--platinum); background: rgb(241 243 246 / 4%); }
   .nav:hover .ic, .nav.on .ic { opacity: 1; }
-  .nav.on { color: var(--platinum); background: linear-gradient(90deg, color-mix(in srgb, var(--sec) 14%, transparent), color-mix(in srgb, var(--sec) 2%, transparent) 70%); box-shadow: inset 2px 0 0 var(--sec); }
+  /* The open page: a raised row with a 2 px rule in its section's colour. */
+  .nav.on { color: var(--platinum); background: var(--raised); box-shadow: inset 2px 0 0 var(--sec); }
   .nav.on .ic :global(svg) { color: var(--sec); }
   .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .badge { margin-left: auto; min-width: 1.35rem; padding: .05rem .35rem; text-align: center; font-family: var(--face-register); font-size: .74rem; font-weight: 700; color: var(--slab); background: var(--gold); clip-path: var(--cut); }
@@ -2969,9 +2971,9 @@
   .compact .brand { justify-content: center; padding-left: .5rem; padding-right: .5rem; flex-direction: column; gap: .4rem; }
   .compact .fold { margin-left: 0; }
   .compact .brand-text, .compact .lbl { display: none; }
-  /* Folded, a section keeps a short rule in its colour between the groups (its name on hover). */
+  /* Folded, a section keeps its sigil between the groups (its name on hover). */
   .compact .sec { justify-content: center; padding: .6rem 0 .35rem; font-size: 0; letter-spacing: 0; gap: 0; }
-  .compact .sec::after { flex: none; width: 1.5rem; height: 2px; background: var(--sec); }
+  .compact .sec::after { display: none; }
   .compact .nav { justify-content: center; padding: .48rem 0; }
   .compact .foot { padding: .7rem .6rem .8rem; gap: .45rem; }
   .compact .nav .badge, .compact .nav .live { position: absolute; top: .2rem; right: .35rem; margin: 0; }

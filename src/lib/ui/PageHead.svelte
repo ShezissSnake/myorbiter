@@ -12,8 +12,11 @@
 </script>
 
 <header class="head">
+  <!-- The section's sigil and an engraved rule, struck in the section's colour for its first 72 px,
+       across the head; then the section's icon and name (from app.css, by the pane's data-section). -->
+  <span class="orn" aria-hidden="true"><i></i></span>
   <div>
-    <span class="orn" aria-hidden="true"><i></i></span>
+    <span class="kicker register" aria-hidden="true"><i></i></span>
     <!-- tabindex -1: a page switch by keyboard puts the focus here (App.svelte, focusPage). -->
     <h1 class="mark" tabindex="-1">{title}</h1>
   </div>
@@ -29,7 +32,7 @@
 
 <style>
   .head {
-    display: grid; grid-template-columns: minmax(0, 1fr) minmax(14rem, 26rem); align-items: end; gap: var(--course);
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(14rem, 26rem); align-items: end; gap: 0 var(--course);
     padding: clamp(18px, 3vh, 34px) 0 calc(var(--step) * .8);
   }
   /* Struck large, but not so large the page starts halfway down a laptop screen. */
@@ -46,12 +49,17 @@
   .details .box { width: .55rem; height: .55rem; border: 1px solid var(--rule-control); }
   .details.on { color: var(--platinum); }
   .details.on .box { background: var(--gold); border-color: var(--gold); }
-  /* The Orokin rule above every title, struck from the section's sigil in its colour (a void tear,
-     the mastery mark, the Arsenal, the market); a gold diamond outside a section. */
-  .orn { display: flex; align-items: center; width: 4.5rem; margin-bottom: .6rem; }
-  .orn i { width: .5rem; height: .5rem; flex: none; background: var(--sec); transform: rotate(45deg); }
-  :global([data-section]) .orn i { width: 1.1rem; height: 1.1rem; transform: none; -webkit-mask: var(--sec-sigil) center / contain no-repeat; mask: var(--sec-sigil) center / contain no-repeat; }
-  .orn::after { content: ""; flex: 1; height: 1px; margin-left: .35rem; background: linear-gradient(90deg, var(--sec-dim), transparent); }
+  /* The engraved rule above every title: a 9 px diamond in the section's colour, then a hairline
+     struck in that colour for 72 px and plain after. Outside a section, neutral. */
+  .orn { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .orn i { width: 9px; height: 9px; flex: none; background: var(--sec); transform: rotate(45deg); }
+  .orn::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--sec) 0 72px, var(--rule) 72px); }
+  /* The kicker: the section's icon (a void tear, the mastery mark, the Arsenal, the market) and
+     name, in its colour. Only in a section. */
+  .kicker { display: none; align-items: center; gap: 8px; margin-bottom: 6px; color: var(--sec); line-height: 1.2; }
+  :global([data-section]) .kicker { display: flex; }
+  .kicker i { width: 14px; height: 14px; flex: none; background: var(--sec); -webkit-mask: var(--sec-sigil) center / contain no-repeat; mask: var(--sec-sigil) center / contain no-repeat; }
+  .kicker::after { content: var(--sec-name, ""); }
   .hero { margin: 0 0 var(--step); }
   .band {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
@@ -61,13 +69,13 @@
     margin-bottom: var(--step);
   }
   /* Page area under 760 px (App sets the flag, by the room pages actually have). */
-  :global(html[data-room~="lt760"]) .head { grid-template-columns: 1fr; }
+  :global(html[data-room~="lt760"]) .head { grid-template-columns: 1fr; row-gap: .8rem; }
   /* Two a row, so four figures make two full rows rather than three and one left alone. */
   :global(html[data-room~="lt760"]) .band:has(> :global(:nth-child(4):last-child)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* A short window (a Steam Deck's 800 px): a smaller title, so the page itself starts higher. */
   @media (max-height: 860px) {
     .head { padding: 18px 0 .6rem; }
     h1 { font-size: clamp(2.1rem, 3.2vw, 40px); }
-    .orn { margin-bottom: .5rem; }
+    .orn { margin-bottom: 8px; }
   }
 </style>
