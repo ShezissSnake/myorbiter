@@ -339,14 +339,14 @@
   /* Two columns, always: "Sells for" never wraps onto a line of its own. */
   .vals { display: grid; grid-template-columns: repeat(2, minmax(0, max-content)); gap: .4rem 1.1rem; }
   .vals > span { display: grid; gap: .15rem; }
-  .vals .register { font-size: .6rem; white-space: nowrap; }
+  .vals .register { font-size: 11px; white-space: nowrap; }
   .grow { flex: 1; }
   .odds { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .45rem; margin: 0 0 .7rem; font-size: .8rem; }
-  .odds .register { flex-basis: 100%; font-size: .6rem; }
+  .odds .register { flex-basis: 100%; font-size: 11px; }
   .src { padding: .12rem .45rem; border: 1px solid var(--rule-bright); }
   .src.vaulted { opacity: .7; border-style: dashed; }
   .min { display: inline-flex; align-items: center; gap: .45rem; }
-  .min .register { font-size: .6rem; white-space: nowrap; }
+  .min .register { font-size: 11px; white-space: nowrap; }
   .min input { width: 4.6rem; }
   .letgo.on { border-color: var(--gold-dim); color: var(--platinum); }
 </style>

@@ -29,7 +29,7 @@
 <style>
   .chip {
     position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none;
-    border-radius: 50%; background: radial-gradient(circle at 50% 35%, #1d2026, var(--well));
+    border-radius: 50%; background: radial-gradient(circle at 50% 35%, var(--raised), var(--well));
     box-shadow: inset 0 0 0 1px var(--rule-bright);
   }
   img { width: 74%; height: 74%; object-fit: contain; border-radius: 50%; opacity: .5; filter: grayscale(.7); }

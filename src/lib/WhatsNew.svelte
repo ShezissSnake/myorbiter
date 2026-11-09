@@ -137,7 +137,7 @@
     transform: rotate(-3deg); animation: land .32s cubic-bezier(.2, 1.4, .4, 1) both .1s;
   }
   .stamp-date.still { animation: none; }
-  .stamp-date .register { color: var(--gold-dim); font-size: .56rem; letter-spacing: .26em; }
+  .stamp-date .register { color: var(--gold-dim); font-size: 11px; letter-spacing: .26em; }
   .stamp-date .mark { color: var(--gold); font-size: 1.7rem; line-height: .9; }
   @keyframes land { from { transform: rotate(-3deg) scale(1.6); opacity: 0; } to { transform: rotate(-3deg) scale(1); opacity: 1; } }
 

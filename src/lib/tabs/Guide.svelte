@@ -165,7 +165,7 @@
       <h3 class="register lead">Getting around</h3>
       <ul>
         <li><b>Hover</b> over any button or number for what it does.</li>
-        <li data-card="sections"><b>Each section its own colour:</b> the sidebar's four groups, and every page in them, carry one colour and sigil (the page's slab is tinted with it; over the title, by the section's name, along the open page's edge): Fissures ice blue, Progress green, Collection violet, Trade gold; folded to icons, each group's sigil parts the groups. Under each title sits that section's own strip: the reward screen or relic plate, the Codex rings, the showcase of your best spares, the market ticker.</li>
+        <li data-card="sections"><b>Each section its own colour:</b> the sidebar's four groups, and every page in them, carry one colour and sigil (over the title, by the section's name, along the open page's edge): Fissures ice blue, Progress green, Collection violet, Trade gold; folded to icons, each group's sigil parts the groups. Under each title sits that section's own strip: the reward screen or relic plate, the Codex rings, the showcase of your best spares, the market ticker.</li>
         <li data-card="showme"><b>Show me</b>, on a change in What's New, opens its page and lights up what changed. <b>Take the tour</b> steps through every change since you last opened MyOrbiter, page by page (at the end of this Guide, each day's update has a tour of its own), with a bar at the bottom of the window: <kbd>→</kbd> or <kbd>Enter</kbd> for the next, <kbd>←</kbd> back, <kbd>Esc</kbd> to stop.</li>
         <li><b>Sync</b>, at the bottom of the sidebar, reloads your listings, the fissures and Baro; it fills as it goes and ticks when done.</li>
         <li><b>Keyboard:</b> <kbd>Ctrl</kbd>+<kbd>1</kbd>…<kbd>4</kbd> pages in sidebar order, <kbd>Ctrl</kbd>+<kbd>R</kbd> or <kbd>F5</kbd> sync, <kbd>Ctrl</kbd>+<kbd>,</kbd> settings, <kbd>F1</kbd> this guide, <kbd>Esc</kbd> closes a panel, <kbd>Ctrl</kbd>+<kbd>Q</kbd> quits.</li>
@@ -231,7 +231,7 @@
       <ul>
         <li><span class="ic"><Icon name="list" /></span> at the end of a row puts it on warframe.market without leaving the page: only the copies you can spare, priced at the cheapest seller in game. A padlock <span class="ic"><Icon name="lock" /></span> (or nothing) means you need what you have; the green <span class="ic good"><Icon name="listed" /></span> means it's on the market already (click to add more or change the price). Every icon says what it does when you hover it.</li>
         <li><b>Cards or rows:</b> collection pages show cards by default; <span class="ic"><Icon name="rows" /></span> above the cards switches that page to a sortable table, <span class="ic"><Icon name="cards" /></span> back, and it's remembered. A gold notch in a card's top corner marks one to look at: spares you can sell, gear you own but haven't mastered, a relic with a part you need, an arcane you've maxed (hover the notch for that card's reason). On round part icons, a gold ring is enough in hand, dashed is building; a relic's rewards are square, like the game's reward screen.</li>
-        <li data-card="sections"><b>Each section its own colour:</b> the sidebar's four groups, and every page in them, carry one colour and sigil (the page's slab is tinted with it; over the title, by the section's name, along the open page's edge): Fissures ice blue, Progress green, Collection violet, Trade gold; folded to icons, each group's sigil parts the groups. Under each title sits that section's own strip: the reward screen or relic plate, the Codex rings, the showcase of your best spares, the market ticker.</li>
+        <li data-card="sections"><b>Each section its own colour:</b> the sidebar's four groups, and every page in them, carry one colour and sigil (over the title, by the section's name, along the open page's edge): Fissures ice blue, Progress green, Collection violet, Trade gold; folded to icons, each group's sigil parts the groups. Under each title sits that section's own strip: the reward screen or relic plate, the Codex rings, the showcase of your best spares, the market ticker.</li>
         <li data-card="showme"><b>Show me</b>, on a change in What's New, opens its page and lights up what changed. <b>Take the tour</b> steps through every change since you last opened MyOrbiter, page by page (at the end of this Guide, each day's update has a tour of its own), with a bar at the bottom of the window: <kbd>→</kbd> or <kbd>Enter</kbd> for the next, <kbd>←</kbd> back, <kbd>Esc</kbd> to stop.</li>
         <li><b>Hover</b> over anything with a name (a relic, a part, a mod, an arcane, a warframe or weapon) for what it is: a relic's rewards with their odds and prices, where a part drops and what it sells for, a mod's effect at max rank. Move off it, scroll or press <kbd>Esc</kbd> to close it.</li>
         <li><b>Click a card or row</b> to open it: a warframe, weapon or companion opens its full details (stats, parts, drops, prices); other things show relic odds, how many you keep, and warframe.market links.</li>
@@ -340,7 +340,7 @@
   .walks ol { margin: 0; padding-left: 1.1rem; display: grid; gap: .35rem; font-size: .86rem; }
   .walks .hidden-pages { grid-column: 1 / -1; margin: 0; }
   .news { margin-top: var(--course); display: grid; gap: .5rem; max-width: 72rem; }
-  .news h4 { margin: 0; font-size: .6rem; color: var(--platinum-deep); }
+  .news h4 { margin: 0; font-size: 11px; color: var(--platinum-deep); }
   .news h4 .n { letter-spacing: .1em; }
   .newshead { display: flex; align-items: baseline; gap: 1rem; }
   /* A day's heading, its tour at the right. */
@@ -350,13 +350,13 @@
   .ic { display: inline-grid; place-items: center; width: 1.3rem; height: 1.3rem; vertical-align: -.3rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
   .ic.good { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 50%, transparent); }
   .routines { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); border-top: 1px solid var(--rule); border-left: 1px solid var(--rule); }
-  .routines article { padding: 1.2rem 1.3rem 1.4rem; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); background: rgb(20 23 27 / 60%); }
+  .routines article { padding: 1.2rem 1.3rem 1.4rem; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); background: var(--plate); }
   h2 { font-size: 1.6rem; margin-bottom: .9rem; }
   ol { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: .75rem; }
   ol li { counter-increment: s; display: grid; grid-template-columns: 1.6rem 1fr; column-gap: .2rem; font-size: .86rem; color: var(--platinum-dim); line-height: 1.5; }
   ol li::before { content: counter(s); grid-row: span 2; font-family: var(--face-mark); font-weight: 700; font-size: 1.2rem; color: var(--gold); line-height: 1.1; }
-  ol .link { justify-self: start; font-size: .64rem; }
-  .trust { margin-top: var(--course); padding: 1.1rem 1.3rem; border: 1px solid var(--gold-dim); background: linear-gradient(180deg, #1a1810, rgb(20 23 27 / 60%) 60%); }
+  ol .link { justify-self: start; font-size: 11px; }
+  .trust { margin-top: var(--course); padding: 1.1rem 1.3rem; border: 1px solid var(--gold-dim); background: linear-gradient(180deg, color-mix(in srgb, var(--gold) 6%, var(--plate)), var(--plate) 60%); }
   .trust ul { grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); column-gap: 2rem; }
   .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: var(--course); margin-top: var(--course); }
   h3 { margin: 0 0 .7rem; color: var(--platinum); }
@@ -372,7 +372,7 @@
   .sub li { display: list-item; list-style: square; counter-increment: none; grid-template-columns: none; }
   .sub li::before { content: none; }
   /* The marks drawn as they are on the pages. */
-  .rwd { position: relative; display: inline-block; width: 18px; height: 18px; border-radius: 3px; background: linear-gradient(180deg, #1d2026, var(--well)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent), inset 0 -3px 0 var(--c); margin-right: .15rem; }
+  .rwd { position: relative; display: inline-block; width: 18px; height: 18px; border-radius: 3px; background: linear-gradient(180deg, var(--raised), var(--well)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent), inset 0 -3px 0 var(--c); margin-right: .15rem; }
   .rwd.r { --c: var(--rarity-rare); }
   .rwd.u { --c: var(--rarity-uncommon); }
   .rwd.c { --c: var(--rarity-common); }
@@ -384,11 +384,11 @@
   .sell-demo { display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .45rem; border: 1px solid var(--rule-bright); font-family: var(--face-register); font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-dim); }
   .notch-demo { display: inline-block; width: 22px; height: 16px; border: 1px solid color-mix(in srgb, var(--gold) 30%, var(--rule)); background: linear-gradient(225deg, var(--gold) 0 7px, var(--plate) 7px); }
   .gold-word { font-family: var(--face-mark); font-weight: 700; text-transform: uppercase; color: var(--gold); }
-  .lastmark { font-family: var(--face-register); font-size: .67rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
+  .lastmark { font-family: var(--face-register); font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
   .tug-demo { display: inline-flex; width: 4.5rem; height: 4px; gap: 1px; }
   .tug-demo i { display: block; height: 100%; }
   .tug-demo i:first-child { width: 60%; background: var(--faction-grineer); }
   .tug-demo i:last-child { flex: 1; background: var(--faction-corpus); }
-  .more { border: 0; background: none; padding: 0 .2rem; font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; color: var(--gold-dim); cursor: pointer; }
+  .more { border: 0; background: none; padding: 0 .2rem; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--gold-dim); cursor: pointer; }
   .more:hover { color: var(--gold); }
 </style>

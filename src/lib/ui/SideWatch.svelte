@@ -171,7 +171,7 @@
   .ib:hover { color: var(--gold); border-color: var(--rule); }
   .choose { display: flex; flex-wrap: wrap; gap: .3rem; }
   section { display: grid; gap: .35rem; }
-  h3 { display: flex; align-items: center; gap: .35rem; margin: 0; font-size: .58rem; color: var(--platinum-dim); }
+  h3 { display: flex; align-items: center; gap: .35rem; margin: 0; font-size: 11px; color: var(--platinum-dim); }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
   li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .5rem; align-items: center; font-size: .82rem; }
   /* One thing per card: an Orokin plate, the wash of its era or kind (app.css, .era-wash). */
@@ -181,7 +181,7 @@
   .card.soon { opacity: .72; }
   .card.soon .t { color: var(--oxblood); }
   .top { display: flex; align-items: center; gap: .35rem; }
-  .kind { display: inline-flex; align-items: center; gap: .18rem; font-family: var(--face-register); font-size: .66rem; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold-dim); padding: 0 .22rem; line-height: 1.35; }
+  .kind { display: inline-flex; align-items: center; gap: .18rem; font-family: var(--face-register); font-size: 11px; letter-spacing: .1em; color: var(--gold); border: 1px solid var(--gold-dim); padding: 0 .22rem; line-height: 1.35; }
   /* Where, then the faction's sigil and name: one line, the name giving way first. */
   .tx .where { display: flex; align-items: center; gap: .4rem; min-width: 0; }
   /* A long place ("Taveuni · Kuva Fortress") ends in … and the faction's sigil always shows. */
@@ -191,7 +191,7 @@
   .fz .glyph { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex: none; color: color-mix(in srgb, var(--tint) 70%, var(--platinum)); border: 1px solid color-mix(in srgb, var(--tint) 45%, var(--rule)); background: color-mix(in srgb, var(--tint) 10%, var(--well)); }
   .fz .end { display: grid; justify-items: end; align-content: space-between; gap: .2rem; align-self: stretch; }
   .t.sd { display: grid; justify-items: end; gap: .1rem; }
-  .t.sd .register { font-size: .5rem; }
+  .t.sd .register { font-size: 11px; }
   .bell { color: var(--gold); display: inline-flex; }
   /* An era's heading: its icon and name in its own colour, and how many are open. */
   .eh { display: flex; align-items: center; gap: .4rem; margin-top: .35rem; font-size: .8rem; }

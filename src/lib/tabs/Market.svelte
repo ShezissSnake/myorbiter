@@ -204,13 +204,13 @@
   .mcard :global(.card .body) { align-self: end; }
   .kinds { min-width: 13rem; }
   .min { display: inline-flex; align-items: center; gap: .45rem; }
-  .min .register { font-size: .6rem; white-space: nowrap; }
+  .min .register { font-size: 11px; white-space: nowrap; }
   .min input { width: 4.6rem; }
   .prices { display: inline-flex; align-items: center; gap: .6rem; }
   .max { display: inline-flex; align-items: center; gap: .25rem; }
   .vals { display: flex; gap: 1rem; flex-wrap: wrap; }
   .vals > span { display: grid; gap: .15rem; }
-  .vals .register { font-size: .6rem; }
+  .vals .register { font-size: 11px; }
   .grow { flex: 1; }
   .hist { max-width: 46rem; margin: 0 0 .8rem; }
   .more { text-align: center; }

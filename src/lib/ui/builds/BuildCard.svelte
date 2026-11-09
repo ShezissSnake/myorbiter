@@ -263,7 +263,7 @@
   .meta { display: flex; flex-wrap: wrap; align-items: center; gap: .2rem .9rem; font-size: .78rem; color: var(--platinum-deep); }
   .out { display: inline-flex; align-items: center; gap: .25rem; font-size: .78rem; }
   .acts { display: flex; align-items: center; gap: .35rem; flex: none; }
-  .acts button { padding: .32rem .6rem; font-size: .6rem; display: inline-flex; align-items: center; gap: .3rem; }
+  .acts button { padding: .32rem .6rem; font-size: 11px; display: inline-flex; align-items: center; gap: .3rem; }
   .star { min-width: 2rem; justify-content: center; font-size: .95rem !important; color: var(--platinum-dim); }
   .star.on { color: var(--gold); border-color: var(--gold-dim); }
   .glyph { display: inline-block; line-height: 1; }
@@ -285,7 +285,7 @@
   .tmark i:nth-child(2) { height: 70%; }
   .tmark i:nth-child(3) { height: 100%; }
   .t-low i:nth-child(1), .t-medium i:nth-child(-n + 2), .t-high i { background: var(--sec); }
-  .capword { display: block; margin-top: .55rem; font-size: .56rem; }
+  .capword { display: block; margin-top: .55rem; font-size: 11px; }
   .cap { display: flex; align-items: center; gap: .7rem; margin: .3rem 0 .35rem; }
   .tags { display: inline-flex; flex-wrap: wrap; gap: .25rem; }
   .tagc { padding: .02rem .4rem; border: 1px solid color-mix(in srgb, var(--sec) 40%, var(--rule)); color: var(--platinum-dim); font-size: .72rem; }
@@ -326,7 +326,7 @@
   .chev.open { transform: rotate(90deg); }
   /* Variants: small plates under the title, the one shown lit in the section's colour. */
   .vars { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin-top: .2rem; }
-  .vars .register { font-size: .54rem; margin-right: .2rem; }
+  .vars .register { font-size: 11px; margin-right: .2rem; }
   .var { padding: .16rem .55rem; font-family: var(--face-text); font-size: .76rem; letter-spacing: 0; text-transform: none; color: var(--platinum-dim); }
   .var.on { color: var(--slab); background: var(--sec); border-color: var(--sec); }
   .var:focus-visible { outline: 2px solid var(--sec); outline-offset: 2px; }
@@ -355,7 +355,7 @@
   .rvsrc { display: flex; flex-wrap: wrap; gap: .1rem .9rem; font-size: .72rem; color: var(--platinum-deep); }
   .mkey i { display: inline-block; width: .8rem; height: 2px; margin: 0 .25rem .2rem 0; vertical-align: middle; background: var(--gold-dim); }
   .yours { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin-top: .1rem; }
-  .yours .register { font-size: .54rem; margin-right: .1rem; }
+  .yours .register { font-size: 11px; margin-right: .1rem; }
   .yr { padding: .06rem .45rem; border: 1px solid var(--rule); background: var(--well); font-size: .76rem; }
   .yr .yn { color: var(--platinum); }
   .yr .yf { color: var(--platinum-deep); font-variant-numeric: tabular-nums; }

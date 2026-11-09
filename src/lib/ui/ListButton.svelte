@@ -56,7 +56,7 @@
 <style>
   /* Quiet on every row, so values stay the brightest thing; gold once you reach for it. */
   .list { color: var(--platinum-dim); border-color: var(--rule-bright); background: transparent; }
-  .list.wide { width: auto; display: inline-flex; gap: .35rem; padding: 0 .55rem 0 .45rem; font-size: .6rem; }
+  .list.wide { width: auto; display: inline-flex; gap: .35rem; padding: 0 .55rem 0 .45rem; font-size: 11px; }
   :global(tr:hover) .list:not(:disabled):not(.listed), :global(.card:hover) .list:not(:disabled):not(.listed) { color: var(--gold); border-color: var(--gold-dim); }
   .list:hover:not(:disabled) { background: var(--gold); border-color: var(--gold); color: var(--slab); }
   .list.listed { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 50%, transparent); }

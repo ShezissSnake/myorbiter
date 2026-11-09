@@ -256,7 +256,7 @@
   .gn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .88rem; }
   .gq { font-family: var(--face-mark); color: var(--gold); }
   .nm { color: var(--platinum-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 14rem; }
-  .bar { padding-top: .2rem; }
+  .bar { margin-top: .2rem; }
   .chartset { margin: .8rem 0 var(--course); }
   .charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr)); gap: .8rem; }
   .charts.rest { padding-top: .8rem; }
@@ -275,7 +275,7 @@
   .hh { display: flex; justify-content: space-between; align-items: center; gap: 1rem; min-height: 2rem; margin-bottom: .8rem; }
   .hh h2 { margin: 0; }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
-  li { display: grid; grid-template-columns: minmax(9rem, 12rem) 1fr auto auto; gap: .8rem; align-items: center; padding: .6rem .8rem; border: 1px solid var(--rule); background: rgb(20 23 27 / 70%); clip-path: var(--cut); }
+  li { display: grid; grid-template-columns: minmax(9rem, 12rem) 1fr auto auto; gap: .8rem; align-items: center; padding: .6rem .8rem; border: 1px solid var(--rule); background: var(--plate); clip-path: var(--cut); }
   .who { display: grid; gap: .15rem; min-width: 0; }
   .who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: none; }
   .swap { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; min-width: 0; }

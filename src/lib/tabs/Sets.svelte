@@ -313,14 +313,14 @@
   .n { font-size: 1.1rem; color: var(--platinum-dim); }
   .grow { flex: 1; }
   .kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .3rem .7rem; align-items: baseline; margin: 0; }
-  .kv dt { font-size: .6rem; white-space: nowrap; }
+  .kv dt { font-size: 11px; white-space: nowrap; }
   .kv dd { margin: 0; font-size: .84rem; min-width: 0; line-height: 1.35; }
   .gain { font-family: var(--face-mark); font-size: 1rem; }
   .miss { color: var(--platinum-dim); }
   .mp { cursor: default; border-bottom: 1px dotted var(--rule-control); }
   .mp:hover { color: var(--platinum); border-bottom-color: var(--platinum-dim); }
   .sep { color: var(--platinum-deep); margin-right: .35em; }
-  .from { font-size: .62rem; letter-spacing: .06em; text-transform: uppercase; color: var(--platinum-deep); }
+  .from { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--platinum-deep); }
   .from-relic { color: var(--verdigris); }
   .easy { color: var(--verdigris); }
 </style>

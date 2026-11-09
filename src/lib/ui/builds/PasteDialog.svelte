@@ -226,7 +226,7 @@
   .chips { list-style: none; margin: .35rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: .3rem; }
   .chip { display: inline-flex; align-items: center; gap: .35rem; padding: .18rem .45rem; border: 1px solid var(--rule-bright); background: var(--raised); font-size: .8rem; }
   .chip.picked { border-color: color-mix(in srgb, var(--sec) 50%, transparent); }
-  .role { font-family: var(--face-register); font-size: .65rem; letter-spacing: .12em; text-transform: uppercase; color: var(--sec); }
+  .role { font-family: var(--face-register); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--sec); }
   .rk { font-family: var(--face-register); font-size: .74rem; color: var(--platinum-deep); }
   .alias { color: var(--platinum-deep); }
   .x { all: unset; cursor: pointer; color: var(--platinum-deep); padding: 0 .1rem; }
@@ -237,7 +237,7 @@
   .warn { color: var(--alert); }
   .txt { color: var(--platinum); }
   .sugs { display: inline-flex; flex-wrap: wrap; gap: .3rem; }
-  .sug { padding: .15rem .45rem; font-size: .58rem; }
+  .sug { padding: .15rem .45rem; font-size: 11px; }
   .notes { margin: 0; padding-left: 1rem; }
   .err { color: var(--oxblood); margin: 0; }
   .note { margin: 0; color: var(--platinum-dim); padding: .5rem .7rem; border-left: 2px solid var(--sec-dim); background: var(--well); }

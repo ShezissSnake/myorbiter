@@ -235,7 +235,7 @@
   .qw { color: var(--platinum-deep); font-size: .76rem; }
   .ready .qb { border-color: color-mix(in srgb, var(--verdigris) 55%, transparent); }
   .ready .qw { color: var(--verdigris); font-weight: 600; }
-  .bar { padding-top: .9rem; }
+  .bar { margin-top: .9rem; }
   .chips { display: flex; flex-wrap: wrap; gap: .45rem; }
   .chips { align-items: center; row-gap: .7rem; }
   .chips .res { display: inline-flex; margin-left: .15rem; padding-bottom: 4px; }

@@ -228,19 +228,19 @@
   .field { display: grid; gap: .25rem; }
   .field.t { margin-bottom: .3rem; }
   .slotrow { display: grid; grid-template-columns: 4.6rem minmax(0, 1fr) 4.2rem; gap: .2rem .5rem; align-items: center; }
-  .lab { font-size: .56rem; }
+  .lab { font-size: 11px; }
   .slotrow input { text-transform: none; letter-spacing: 0; font-family: var(--face-text); font-size: .84rem; padding: .3rem .5rem; }
-  .slotrow .rk { text-align: right; }
+  .slotrow .rk { text-align: right; width: 100%; min-width: 0; }
   .slotrow.bad .nm { border-color: var(--oxblood); }
   .prob { grid-column: 2 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; color: var(--oxblood); }
-  .sug { padding: .12rem .4rem; font-size: .56rem; }
+  .sug { padding: .12rem .4rem; font-size: 11px; }
   .sub { margin-top: .5rem; }
   .shardrow { display: flex; gap: .5rem; align-items: center; }
   .shardrow input:not([type="checkbox"]) { flex: 1; min-width: 0; text-transform: none; letter-spacing: 0; font-family: var(--face-text); font-size: .84rem; }
   .tau { display: inline-flex; align-items: center; gap: .3rem; font-size: .78rem; color: var(--platinum-dim); white-space: nowrap; }
   .tagpick { display: grid; gap: .3rem; }
   .tf { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; }
-  .tf .register { font-size: .52rem; width: 6.5rem; }
+  .tf .register { font-size: 11px; width: 6.5rem; }
   .tagchip { padding: .12rem .45rem; font-family: var(--face-text); font-size: .74rem; letter-spacing: 0; text-transform: none; color: var(--platinum-dim); }
   .tagchip.on { color: var(--slab); background: var(--sec); border-color: var(--sec); }
   .tagin { text-transform: none; letter-spacing: 0; font-family: var(--face-text); font-size: .82rem; padding: .3rem .5rem; }

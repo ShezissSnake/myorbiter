@@ -349,11 +349,11 @@
   .have b { font-family: var(--face-mark); font-size: 1rem; }
   .coll { display: grid; gap: .3rem; }
   .ch { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
-  .ch .register { font-size: .6rem; }
+  .ch .register { font-size: 11px; }
   .ch .note { color: var(--platinum-dim); }
   .prices, .choice { display: flex; gap: 1rem; flex-wrap: wrap; }
   .prices > span, .choice > span { display: grid; gap: .15rem; }
-  .prices .register, .choice .register { font-size: .6rem; }
+  .prices .register, .choice .register { font-size: 11px; }
   .choice > span { padding: .3rem .5rem; border: 1px solid var(--rule); }
   .choice > span.win { border-color: var(--gold-dim); }
   .grow { flex: 1; }
@@ -366,7 +366,7 @@
   .v-sell { color: var(--platinum); background: rgb(241 243 246 / 8%); }
   .v-dissolve { color: var(--verdigris); background: rgb(111 183 163 / 12%); }
   .why { font-size: .74rem; color: var(--platinum-deep); }
-  .vosfor { border: 1px solid var(--rule); background: rgb(20 23 27 / 70%); padding: 1rem 1.2rem; margin-bottom: var(--step); display: grid; gap: .7rem; }
+  .vosfor { border: 1px solid var(--rule); background: var(--plate); padding: 1rem 1.2rem; margin-bottom: var(--step); display: grid; gap: .7rem; }
   .vosfor header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
   .vosfor header .register { display: inline-flex; align-items: center; gap: .5rem; color: var(--platinum); }
   .vosfor p { margin: 0; }

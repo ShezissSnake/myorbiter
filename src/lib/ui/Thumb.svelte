@@ -38,7 +38,7 @@
 <style>
   .thumb {
     display: inline-flex; align-items: center; justify-content: center; flex: none; vertical-align: middle;
-    background: radial-gradient(circle at 50% 40%, #1b1d22, var(--well)); border: 1px solid var(--rule); overflow: hidden;
+    background: radial-gradient(circle at 50% 40%, var(--raised), var(--well)); border: 1px solid var(--rule); overflow: hidden;
     box-shadow: var(--struck);
   }
   .kind { display: inline-flex; opacity: .6; }

@@ -1039,7 +1039,7 @@
   .hr { display: flex; align-items: center; gap: .8rem; }
   .custom { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem 1rem; padding: .8rem 1rem; margin-bottom: var(--step); border: 1px solid var(--rule); background: var(--plate); }
   .custom .cards { display: flex; flex-wrap: wrap; gap: .4rem; flex: 1; }
-  .panel { border: 1px solid var(--rule); background: rgb(20 23 27 / 72%); padding: 1rem 1.2rem 1.1rem; min-width: 0; display: flex; flex-direction: column; gap: .8rem; }
+  .panel { border: 1px solid var(--rule); background: var(--plate); padding: 1rem 1.2rem 1.1rem; min-width: 0; display: flex; flex-direction: column; gap: .8rem; }
   .market { grid-column: span 7; }
   .ready { grid-column: span 5; }
   .fissures { grid-column: span 12; }
@@ -1077,7 +1077,7 @@
   .clock { display: flex; gap: .6rem; align-items: center; padding: .8rem 1rem; border-left: 1px solid var(--rule); min-width: 0; }
   .clock:first-child { border-left: 0; }
   .clock > div { display: grid; gap: .2rem; min-width: 0; }
-  .clock .register { font-size: .6rem; }
+  .clock .register { font-size: 11px; }
   .clock b { font-size: 1.15rem; }
   .st-day, .st-warm, .st-fass { color: var(--cycle-warm); }
   .st-night, .st-cold, .st-vome { color: var(--cycle-cold); }
@@ -1198,7 +1198,7 @@
 
   .ph { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding-bottom: .6rem; border-bottom: 1px solid var(--rule); }
   .pt { display: inline-flex; align-items: center; gap: .55rem; }
-  .pt .register { color: var(--platinum); font-size: .66rem; }
+  .pt .register { color: var(--platinum); font-size: 11px; }
   .ph .link { font-size: .78rem; }
 
   .presence { padding-bottom: .2rem; }
@@ -1223,7 +1223,7 @@
   .figs > div :global(.amt b) { font-size: 1.5rem; }
   .figs b.mark { font-size: 1.5rem; line-height: 1; }
   .figs b.amber { color: var(--alert); }
-  .figs .register { font-size: .6rem; color: var(--platinum-deep); }
+  .figs .register { font-size: 11px; color: var(--platinum-deep); }
   .mini { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
   .mini li { display: flex; align-items: center; gap: .6rem; }
   .amber { color: var(--alert); }

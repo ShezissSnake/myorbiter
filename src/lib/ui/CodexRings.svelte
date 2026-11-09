@@ -100,7 +100,7 @@
   .rings { display: flex; flex-wrap: wrap; gap: .25rem; }
   .ring {
     all: unset; box-sizing: border-box; position: relative; display: grid; justify-items: center; align-content: start; gap: .2rem;
-    width: 5.7rem; padding: .45rem .2rem .4rem; border: 1px solid transparent; cursor: pointer;
+    width: 5.7rem; padding: .45rem .2rem .4rem; border: 1px solid var(--rule); background: var(--plate); cursor: pointer;
     transition: background-color .12s, border-color .12s;
   }
   .ring:hover { background: var(--raised); border-color: var(--rule-bright); }
@@ -111,7 +111,7 @@
   .dial svg { position: absolute; inset: 0; transform: rotate(-90deg); }
   circle { fill: none; stroke-width: 4; }
   /* The track darker than the slab's rules, the arc bright: 87% and 69% read apart. */
-  .track { stroke: #1c1f24; }
+  .track { stroke: var(--raised); }
   .arc { stroke: var(--sec); stroke-linecap: butt; opacity: .82; transition: stroke-dasharray .9s cubic-bezier(.2, .7, .2, 1); }
   .ring:hover .arc, .ring.lit .arc, .full .arc { opacity: 1; }
   .full .arc { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--sec) 60%, transparent)); }
@@ -127,7 +127,7 @@
   .name { max-width: 100%; font-family: var(--face-register); font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ring.lit .name { color: var(--sec); }
   /* Wishlist: how many you starred in the category, in gold at the tile's corner. */
-  .mark-star { position: absolute; top: .25rem; right: .3rem; font-size: .66rem; font-weight: 600; color: var(--gold); font-variant-numeric: tabular-nums; }
+  .mark-star { position: absolute; top: .25rem; right: .3rem; font-size: 11px; font-weight: 600; color: var(--gold); font-variant-numeric: tabular-nums; }
   /* Under the tiles, as their caption. */
   .next { margin: 0; flex-basis: 100%; font-size: .82rem; color: var(--platinum-dim); }
   /* Less room: narrower tiles, so eight stay on one row. */

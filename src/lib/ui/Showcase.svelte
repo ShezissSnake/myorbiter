@@ -74,11 +74,11 @@
 </section>
 
 <style>
-  /* The stage: darker than the slab, cut at two corners, the pieces standing on one floor. */
+  /* The stage: a plate, cut at two corners, the pieces standing on one floor. */
   .showcase {
     position: relative; margin-top: .2rem;
-    background: #060708; clip-path: var(--cut);
-    border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+    background: var(--plate); clip-path: var(--cut);
+    border: 1px solid var(--rule);
     padding: .7rem clamp(.8rem, 2vw, 1.6rem) 0;
   }
   .cap { display: flex; align-items: baseline; gap: .9rem; flex-wrap: wrap; }

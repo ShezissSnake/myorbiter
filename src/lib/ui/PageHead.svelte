@@ -47,7 +47,7 @@
   :global(html:not([data-details])) .head .prose { -webkit-line-clamp: 1; line-clamp: 1; }
   .side { display: grid; gap: .5rem; justify-items: end; min-width: 0; }
   .side .prose { justify-self: stretch; }
-  .details { display: inline-flex; align-items: center; gap: .45rem; padding: .25rem .55rem; font-size: .62rem; color: var(--platinum-deep); }
+  .details { display: inline-flex; align-items: center; gap: .45rem; padding: .25rem .55rem; font-size: 11px; color: var(--platinum-deep); }
   .details .box { width: .55rem; height: .55rem; border: 1px solid var(--rule-control); }
   .details.on { color: var(--platinum); }
   .details.on .box { background: var(--gold); border-color: var(--gold); }
@@ -65,11 +65,14 @@
   .hero { margin: 0 0 var(--step); }
   .band {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-    border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+    /* A plate, so nothing behind the page shows through the figures. */
+    background: var(--plate); border: 1px solid var(--rule);
     /* Engraved: the rule under the figures is cut twice. */
-    box-shadow: 0 2px 0 var(--slab), 0 3px 0 var(--sec-dim);
+    box-shadow: 0 2px 0 var(--slab), 0 3px 0 var(--rule);
     margin-bottom: var(--step);
   }
+  /* The first figure keeps off the plate's edge, as the others keep off their dividers (Stat). */
+  .band > :global(:first-child) { padding-left: 1.2rem; }
   /* Page area under 760 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt760"]) .head { grid-template-columns: 1fr; row-gap: .8rem; }
   /* Two a row, so four figures make two full rows rather than three and one left alone. */

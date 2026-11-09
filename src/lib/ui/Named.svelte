@@ -18,7 +18,7 @@
 <style>
   .named { display: inline-flex; align-items: center; gap: .75rem; min-width: 0; vertical-align: middle; }
   .txt { display: grid; min-width: 0; }
-  .kind { font-size: .6rem; }
+  .kind { font-size: 11px; }
   /* Plain text flow, so when the name wraps its tags follow the last word rather than taking a line of their own. */
   .line { display: block; line-height: 1.35; }
   .name-mark { white-space: nowrap; }

@@ -2687,7 +2687,7 @@
     </div>
   </aside>
 
-  <main id="main" tabindex="-1" aria-busy={loading && !bundle} use:room class:touring={!!tourStop()}>
+  <main id="main" tabindex="-1" aria-busy={loading && !bundle} use:room class:touring={!!tourStop()} data-section={model ? pageById[settings.tab as PageId]?.group || undefined : undefined}>
     <!-- The first read of TennoScope's data, before there's anything to show. Everything after
          that (a sync, a warframe.market change, the background re-read when TennoScope writes)
          shows its progress in the button that started it, not up here. -->
@@ -2923,7 +2923,7 @@
   /* A page that threw: the same quiet line, with Try again. */
   .pagefail { margin: 0; padding: 3rem 1rem; text-align: center; }
 
-  /* ---- sidebar: a neutral plate (the section colours are only on its headers and the open page) */
+  /* ---- sidebar: a neutral plate (the section colours are only on its sigils and the open page) */
   .rail {
     display: flex; flex-direction: column; min-height: 0; overflow: hidden;
     background: var(--plate); border-right: 1px solid var(--rule);
@@ -2940,8 +2940,8 @@
   nav.more { mask-image: linear-gradient(180deg, #000 calc(100% - 3rem), transparent); }
   nav.above { mask-image: linear-gradient(0deg, #000 calc(100% - 2.5rem), transparent); }
   nav.more.above { mask-image: linear-gradient(180deg, transparent, #000 2.5rem, #000 calc(100% - 3rem), transparent); }
-  /* A section's header: its sigil and name in its colour, then a plain hairline. */
-  .sec { padding: .85rem .65rem .35rem; font-size: .68rem; line-height: 1.1; color: var(--sec); letter-spacing: .2em; display: flex; align-items: center; gap: .5rem; }
+  /* A section's header: its sigil in its colour, its name in plain text, then a plain hairline. */
+  .sec { padding: .85rem .65rem .35rem; font-size: .68rem; line-height: 1.1; color: var(--platinum-dim); letter-spacing: .2em; display: flex; align-items: center; gap: .5rem; }
   .sec::before { content: ""; width: 7px; height: 7px; flex: none; background: var(--sec); transform: rotate(45deg); }
   .sec::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
   .nav {
@@ -2954,7 +2954,6 @@
   .nav:hover .ic, .nav.on .ic { opacity: 1; }
   /* The open page: a raised row with a 2 px rule in its section's colour. */
   .nav.on { color: var(--platinum); background: var(--raised); box-shadow: inset 2px 0 0 var(--sec); }
-  .nav.on .ic :global(svg) { color: var(--sec); }
   .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .badge { margin-left: auto; min-width: 1.35rem; padding: .05rem .35rem; text-align: center; font-family: var(--face-register); font-size: .74rem; font-weight: 700; color: var(--slab); background: var(--gold); clip-path: var(--cut); }
   .nav .live { margin-left: auto; width: .5rem; height: .5rem; background: var(--gold); transform: rotate(45deg); flex: none; box-shadow: 0 0 6px rgb(214 174 74 / 60%); }
@@ -3064,7 +3063,7 @@
   .bannerfold { flex: none; }
   .stale { flex: none; display: flex; align-items: center; gap: .9rem; padding: .45rem 1.4rem; font-size: .8rem; color: var(--platinum-dim); background: color-mix(in srgb, var(--alert) 7%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--alert) 55%, transparent); box-shadow: inset 3px 0 0 var(--alert); }
   .stale::before { content: "!"; font-weight: 700; color: var(--alert); margin-right: -.4rem; }
-  .stale .link { font-size: .64rem; }
+  .stale .link { font-size: 11px; }
   .stale.slim { padding-top: .3rem; padding-bottom: .3rem; font-size: .76rem; }
   .stale.slim b { font-weight: 600; color: var(--platinum); }
   .repdue { background: rgb(111 183 163 / 7%); border-bottom-color: color-mix(in srgb, var(--verdigris) 45%, transparent); box-shadow: inset 3px 0 0 var(--verdigris); }

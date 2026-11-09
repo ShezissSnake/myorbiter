@@ -488,7 +488,7 @@
   .rc:hover:not(:disabled) { color: var(--platinum); }
   .lead { margin: 0; max-width: 72ch; font-size: .88rem; line-height: 1.6; }
   .starters { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; }
-  .starters .register { flex-basis: 100%; font-size: .56rem; }
+  .starters .register { flex-basis: 100%; font-size: 11px; }
   .st { display: inline-flex; align-items: center; gap: .55rem; padding: .25rem .8rem .25rem .25rem; font-family: var(--face-text); letter-spacing: 0; text-transform: none; text-align: left; }
   .st span { display: grid; line-height: 1.15; }
   .st b { font-weight: 500; font-size: .86rem; color: var(--platinum); }
@@ -518,11 +518,11 @@
   .plate.lit { background: var(--raised); border-color: color-mix(in srgb, var(--sec) 60%, transparent); box-shadow: inset 0 -2px 0 var(--sec); }
   .tn { font-size: 1.35rem; line-height: .95; color: var(--platinum-dim); }
   .plate.lit .tn { color: var(--platinum); }
-  .tm { font-family: var(--face-register); font-size: .67rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
+  .tm { font-family: var(--face-register); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
   .plate.lit .tm { color: var(--sec); }
   .tc { font-size: .78rem; color: var(--platinum-dim); margin-top: .3rem; font-variant-numeric: tabular-nums; }
   .rd { color: var(--verdigris); }
-  .mine { position: absolute; top: .45rem; right: .6rem; font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); }
+  .mine { position: absolute; top: .45rem; right: .6rem; font-family: var(--face-register); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); }
   /* The tier as rising bars: one, two, three lit. */
   .tmark { display: inline-flex; align-items: flex-end; gap: 2px; height: .85rem; margin-bottom: .25rem; }
   .tmark i { width: 4px; background: var(--rule-bright); }
@@ -536,14 +536,14 @@
   :global(html[data-room~="lt760"]) .art { width: 96px; height: 96px; }
 
   .bar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; margin: var(--step) 0 .8rem; }
-  .th { margin: 0; font-size: .66rem; }
+  .th { margin: 0; font-size: 11px; }
   .tn2 { color: var(--sec); }
   .bar > button { display: inline-flex; align-items: center; gap: .35rem; }
   .age { display: inline-flex; align-items: center; gap: .4rem; }
   .age input { width: 4.6rem; text-align: right; padding: .3rem .45rem; }
   .tagbar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.2rem; margin: 0 0 .9rem; }
   .tg { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .3rem; }
-  .tg .register { font-size: .54rem; margin-right: .2rem; }
+  .tg .register { font-size: 11px; margin-right: .2rem; }
   .tagchip { padding: .18rem .55rem; font-family: var(--face-text); font-size: .78rem; letter-spacing: 0; text-transform: none; color: var(--platinum-dim); }
   .tagchip.on { color: var(--slab); background: var(--sec); border-color: var(--sec); }
   .tagchip:focus-visible { outline: 2px solid var(--sec); outline-offset: 2px; }

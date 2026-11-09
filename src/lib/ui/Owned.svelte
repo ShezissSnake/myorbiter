@@ -27,7 +27,7 @@
   img { flex: none; margin-right: .18rem; object-fit: contain; }
   .compact b { margin-right: .1rem; }
   /* Compact: the words smaller, and a refinement a line when there's no room for them all. */
-  .compact { white-space: normal; flex-wrap: wrap; row-gap: 0; font-size: .58rem; letter-spacing: .05em; }
+  .compact { white-space: normal; flex-wrap: wrap; row-gap: 0; font-size: 11px; letter-spacing: .05em; }
   .o { display: inline-flex; align-items: center; white-space: nowrap; }
   .o-Radiant, .o-Radiant b { color: var(--platinum); font-weight: 600; }
   .sep { color: var(--rule-control); }

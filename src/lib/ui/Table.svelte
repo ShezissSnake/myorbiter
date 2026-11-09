@@ -120,7 +120,7 @@
   .wrap.wide { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
   th {
-    position: sticky; top: 0; z-index: 1; background: var(--slab); text-align: left;
+    position: sticky; top: 0; z-index: 1; background: var(--plate); text-align: left;
     font-family: var(--face-register); font-weight: 500; font-size: .72rem; letter-spacing: .15em; text-transform: uppercase;
     color: var(--platinum-deep); padding: .7rem .75rem; border-bottom: 1px solid var(--rule); white-space: nowrap;
     user-select: none;
@@ -133,19 +133,19 @@
   .arrow { display: inline-block; margin-left: .3rem; color: var(--gold); transition: transform var(--quick) var(--out); }
   .arrow.up { transform: rotate(180deg); }
   td { padding: var(--row-pad) .75rem; border-bottom: 1px solid var(--rule); vertical-align: middle; font-size: .84rem; }
-  td:first-child, th:first-child { padding-left: 0; }
+  /* The table is a plate (app.css): its first column keeps off the plate's edge. */
+  td:first-child, th:first-child { padding-left: .6rem; }
   .right { text-align: right; }
   .center { text-align: center; }
   .muted { color: var(--platinum-dim); font-size: .8rem; }
   tr.clickable { cursor: pointer; }
   /* A row that opens shows a gold edge on hover; the open one and its detail keep it. */
   tr.clickable:hover td:first-child, tr.open td:first-child { box-shadow: inset 2px 0 0 var(--gold-dim); }
-  tr.clickable td:first-child { padding-left: .6rem; }
-  th:first-child { padding-left: .6rem; }
   tbody tr:hover td { background: rgb(241 243 246 / 2.5%); }
-  tr.open td { background: var(--plate); border-bottom-color: transparent; }
-  tr.detail td { background: var(--plate); padding: .4rem 1rem 1.2rem .6rem; cursor: default; border-bottom: 1px solid var(--rule-bright); box-shadow: inset 2px 0 0 var(--gold-dim); }
-  tr.detail:hover td { background: var(--plate); }
+  /* The open row and its detail sink into the plate, so the buttons in them stand out. */
+  tr.open td { background: var(--well); border-bottom-color: transparent; }
+  tr.detail td { background: var(--well); padding: .4rem 1rem 1.2rem .6rem; cursor: default; border-bottom: 1px solid var(--rule-bright); box-shadow: inset 2px 0 0 var(--gold-dim); }
+  tr.detail:hover td { background: var(--well); }
   .more { margin: 1.2rem auto; display: block; text-align: center; min-height: 2rem; }
   /* Nothing here: quiet, but still readable (about 5:1). */
   .nil { color: var(--platinum-deep); }

@@ -93,10 +93,10 @@
   input { width: 100%; padding-left: 2rem; }
   .list { position: absolute; z-index: 20; top: calc(100% + 3px); left: 0; right: 0; max-height: 22rem; overflow: auto; margin: 0; padding: .25rem 0; list-style: none; background: var(--plate); border: 1px solid var(--rule-bright); box-shadow: 0 1rem 2.4rem rgb(0 0 0 / 55%); }
   .list.none { padding: .6rem .8rem; }
-  .head { padding: .4rem .7rem .2rem; font-size: .56rem; }
+  .head { padding: .4rem .7rem .2rem; font-size: 11px; }
   li[role="option"] { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: .6rem; padding: .3rem .7rem; cursor: pointer; }
   li.at { background: var(--raised); box-shadow: inset 2px 0 0 var(--sec); }
   .nm { color: var(--platinum); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .kd { font-family: var(--face-register); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); white-space: nowrap; }
-  .own { font-family: var(--face-register); font-size: .67rem; letter-spacing: .1em; text-transform: uppercase; color: var(--sec); }
+  .own { font-family: var(--face-register); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--sec); }
 </style>

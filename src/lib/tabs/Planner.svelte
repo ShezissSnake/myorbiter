@@ -264,12 +264,12 @@
     .view.off { display: block; content-visibility: hidden; }
   }
   h2 { margin: var(--course, 2rem) 0 .6rem; }
-  .closed { margin-left: .5rem; font-family: var(--face-register); font-size: .67rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); white-space: nowrap; }
+  .closed { margin-left: .5rem; font-family: var(--face-register); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); white-space: nowrap; }
   .buyp { white-space: nowrap; margin-left: auto; }
   .buyp + .setp { margin-left: 0; }
   .setp { white-space: nowrap; margin-left: auto; }
   .src { white-space: nowrap; }
-  .setp .register { font-size: .6rem; color: var(--platinum-deep); }
+  .setp .register { font-size: 11px; color: var(--platinum-deep); }
   .more { margin-top: .5rem; font-size: .78rem; }
   .pct { font-family: var(--face-mark); font-weight: 700; font-size: .98rem; font-variant-numeric: tabular-nums; }
   .gain { color: var(--gold); display: inline-flex; align-items: center; gap: .1rem; font-family: var(--face-mark); font-weight: 700; }
@@ -283,7 +283,7 @@
   .hn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lastmark { flex: none; }
   .hit.last { color: var(--gold); }
-  .lastmark { font-style: normal; font-family: var(--face-register); font-size: .67rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); margin-left: .2rem; }
+  .lastmark { font-style: normal; font-family: var(--face-register); font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); margin-left: .2rem; }
   .fin { font-family: var(--face-mark); font-size: 1rem; color: var(--gold); }
   .gaps { display: grid; grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr)); gap: 0 2.4rem; border-top: 1px solid var(--rule); margin-bottom: var(--step); }
   .gap { display: flex; align-items: center; gap: .6rem; padding: .5rem 0; border-bottom: 1px solid var(--rule); }

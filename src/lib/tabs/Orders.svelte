@@ -664,20 +664,19 @@
       {#if !console}<Stat label="Listed more than you hold" tone={shortShown ? "gold" : "dim"} note={shortShown ? "Sold in game, or used: fix them below" : shortHidden ? "Only in hidden listings, which nobody can buy" : "You hold everything you list"} title={`Listed more than you hold: ${shortShown} visible listing${shortShown === 1 ? "" : "s"} for more copies than you hold now, as Home counts them${shortHidden ? `, and ${shortHidden} hidden, which nobody can buy. Each is flagged in the list: Sold?` : ""}`}>{shortShown}{#if shortHidden}<span class="of">+{shortHidden} hidden</span>{/if}</Stat>{/if}
   {/snippet}
 
-  <section class="status">
-    {#if mkt.linked}
+  <!-- Only when signed in: it holds nothing else, and an empty plate would show. -->
+  {#if mkt.linked}
+    <section class="status">
       <span class="register">Your status</span>
       <div class="presence"><Presence {settings} tradesLeft={trades.left} resets={trades.resets} /></div>
-    {/if}
-    <div class="grow"></div>
-    {#if mkt.linked}
+      <div class="grow"></div>
       <span class="account">
         <span class="who register" title={`MyOrbiter's own sign-in to warframe.market; the token is kept in ${mkt.account?.backing === "keyring" ? "the system keyring" : "a private file"}`}>Signed in as <strong>{mkt.me?.ingameName ?? "?"}</strong></span>
         <ProgressButton variant="icon" icon="refresh" spin tone="quiet" job={reloadJob} label="Reload" working="Reloading…" doneLabel="Reloaded" failLabel="Couldn't reload" title="Fetch your listings from warframe.market again" disabled={!!mkt.op} onclick={reloadListings} />
         {@render signOut()}
       </span>
-    {/if}
-  </section>
+    </section>
+  {/if}
 
   {#snippet signOut()}
     <span class="out">
@@ -1047,7 +1046,7 @@
 </div></div>
 
 <style>
-  .status { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .6rem 1rem; padding: var(--step) 0 0; }
+  .status { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .6rem 1rem; margin-top: var(--step); padding: .6rem; background: var(--plate); border: 1px solid var(--rule); }
   .status > .register { padding-top: .55rem; }
   .account { display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; padding-top: .2rem; }
   .account .who { margin-right: .4rem; }
@@ -1084,14 +1083,14 @@
   .acts .slot { width: 30px; }
   .orders .acts input[type="number"] { width: 3.4rem; height: 30px; padding: .3rem .4rem; }
   .orders .acts input.bad { border-color: var(--oxblood); color: var(--oxblood); }
-  .ask { color: var(--oxblood); font-size: .6rem; }
+  .ask { color: var(--oxblood); font-size: 11px; }
   .pendrow { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: .7rem; }
-  .pending { position: relative; color: var(--gold); font-size: .62rem; padding-bottom: 3px; }
+  .pending { position: relative; color: var(--gold); font-size: 11px; padding-bottom: 3px; }
   /* Time left before it's sent: a line that runs out. */
   .pending i { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--gold); transform-origin: left; animation: wait 4s linear forwards; }
   @keyframes wait { from { transform: scaleX(1); } to { transform: scaleX(0); } }
   @media (prefers-reduced-motion: reduce) { .pending i { animation: none; } }
-  .undo { font-size: .64rem; }
+  .undo { font-size: 11px; }
   .fix { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .9rem; padding-left: calc(34px + .75rem); }
   /* The sold question sits in a row of its own under its listing, joined to it (no rule between). */
   .orders tr.fixrow > td { padding-top: 0; }
@@ -1107,7 +1106,7 @@
   :global(html[data-room~="lt1100"]) .fix { padding-left: 0; }
 
   .alert { border: 1px solid var(--oxblood); color: var(--oxblood); padding: .7rem 1rem; margin: var(--step) 0; font-size: .84rem; }
-  .panel { border: 1px solid var(--rule); background: rgb(20 23 27 / 70%); padding: 1.2rem 1.4rem; margin: var(--step) 0; display: grid; gap: .8rem; }
+  .panel { border: 1px solid var(--rule); background: var(--plate); padding: 1.2rem 1.4rem; margin: var(--step) 0; display: grid; gap: .8rem; }
   .signin h2 { font-size: 1.9rem; }
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
   .wide { min-width: 28rem; }
@@ -1131,7 +1130,7 @@
   :global(html[data-room~="lt1100"]) .rowst { padding-left: 0; }
   .rowst.done { color: var(--verdigris); }
   .rowst.failed { color: var(--oxblood); text-transform: none; letter-spacing: 0; font-family: var(--face-text); font-size: .78rem; }
-  .rowst .link { font-size: .62rem; }
+  .rowst .link { font-size: 11px; }
   .busyword { position: relative; padding-bottom: 3px; }
   /* The band runs by transform (app.css, sweep-band), clipped to the word's width. */
   .busyword i { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; overflow: hidden; }
@@ -1150,7 +1149,7 @@
   /* The Shown switch's own box, for the shake when warframe.market refuses. */
   .shake { display: inline-block; }
 
-  .log { margin-top: var(--step); max-height: 9.5rem; overflow: auto; display: grid; gap: .3rem; padding: .7rem 1rem; border: 1px solid var(--rule); background: rgb(20 23 27 / 70%); }
+  .log { margin-top: var(--step); max-height: 9.5rem; overflow: auto; display: grid; gap: .3rem; padding: .7rem 1rem; border: 1px solid var(--rule); background: var(--plate); }
   .line { font-size: .82rem; color: var(--platinum-dim); }
   .line.ok { color: var(--platinum); }
   .line.warn { color: var(--oxblood); }
@@ -1160,7 +1159,7 @@
   table.orders { width: 100%; border-collapse: collapse; margin-top: var(--step); border-top: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
   .orders th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .72rem; letter-spacing: .15em; text-transform: uppercase; color: var(--platinum-deep); padding: .7rem .6rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
   .orders th.right { text-align: right; }
-  .whispers { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1.2rem; margin: var(--step) 0 0; padding: .55rem .8rem; border: 1px solid var(--rule); border-left: 2px solid var(--gold-dim); }
+  .whispers { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1.2rem; margin: var(--step) 0 0; padding: .55rem .8rem; border: 1px solid var(--rule); border-left: 2px solid var(--gold-dim); background: var(--plate); }
   .wh { display: inline-flex; align-items: center; gap: .45rem; }
   /* Sell spares in one line: the whole line opens the page. */
   .sparesline { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: .7rem; margin: var(--step) 0 .4rem; padding: .7rem .9rem; border: 1px solid var(--rule); background: var(--plate); cursor: pointer; transition: border-color var(--quick) var(--out); }
@@ -1181,8 +1180,9 @@
   .orders th.center { text-align: center; }
   .orders td { padding: var(--row-pad) .6rem; border-bottom: 1px solid var(--rule); vertical-align: middle; }
   .orders tbody tr:hover td { background: rgb(255 255 255 / 1.5%); }
-  .orders th:first-child, .orders td:first-child { padding-left: 0; }
-  .orders th:last-child, .orders td:last-child { padding-right: 0; }
+  /* The table is a plate (app.css): its first and last columns keep off the plate's edges. */
+  .orders th:first-child, .orders td:first-child { padding-left: .6rem; }
+  .orders th:last-child, .orders td:last-child { padding-right: .6rem; }
   .orders input[type="number"] { width: 4.6rem; padding: .35rem .45rem; text-align: right; }
   /* Less room: the "Will set" column goes first, its note under the price instead. Page area under
      950 px (App sets the flag, by the room pages actually have): a 1000 px window with the sidebar
@@ -1204,10 +1204,10 @@
   /* A narrow window: each listing a card. The item across the top, the rest in a row under it, each with its name. */
   :global(html[data-room~="lt760"]) table.orders thead { display: none; }
   :global(html[data-room~="lt760"]) table.orders, :global(html[data-room~="lt760"]) table.orders tbody { display: block; }
-  :global(html[data-room~="lt760"]) .orders tr.order { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto auto; grid-template-areas: "item item item item item item" "qty price comp auto shown acts"; column-gap: .6rem; row-gap: .45rem; align-items: end; padding: .7rem 0; border-bottom: 1px solid var(--rule); }
+  :global(html[data-room~="lt760"]) .orders tr.order { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto auto; grid-template-areas: "item item item item item item" "qty price comp auto shown acts"; column-gap: .6rem; row-gap: .45rem; align-items: end; padding: .7rem .6rem; border-bottom: 1px solid var(--rule); }
   :global(html[data-room~="lt760"]) .orders tr.order > td { display: block; border: 0; padding: 0 !important; }
   :global(html[data-room~="lt760"]) .orders tr.order > td:is(.willset, .floorcol) { display: none; }
-  :global(html[data-room~="lt760"]) .orders tr.order > td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .25rem; font-family: var(--face-register); font-size: .66rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); text-align: left; white-space: nowrap; }
+  :global(html[data-room~="lt760"]) .orders tr.order > td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .25rem; font-family: var(--face-register); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); text-align: left; white-space: nowrap; }
   :global(html[data-room~="lt760"]) .orders .c-item { grid-area: item; }
   :global(html[data-room~="lt760"]) .orders .c-qty { grid-area: qty; }
   :global(html[data-room~="lt760"]) .orders .c-price { grid-area: price; }
@@ -1223,8 +1223,8 @@
   :global(html[data-room~="lt1100"]) .orders input[type="number"] { width: 3.8rem; }
   /* The floor's "auto 10" has to fit whole, or it reads as a 1p floor. */
   :global(html[data-room~="lt1100"]) .orders :is(td, th) { padding-left: .4rem; padding-right: .4rem; }
-  :global(html[data-room~="lt1100"]) .orders :is(td, th):first-child { padding-left: 0; }
-  :global(html[data-room~="lt1100"]) .orders :is(td, th):last-child { padding-right: 0; }
+  :global(html[data-room~="lt1100"]) .orders :is(td, th):first-child { padding-left: .5rem; }
+  :global(html[data-room~="lt1100"]) .orders :is(td, th):last-child { padding-right: .5rem; }
   :global(html[data-room~="lt1100"]) .ladder { display: none; }
   :global(html[data-room~="lt1100"]) .acts { gap: .6rem; }
   /* A hidden listing reads faded; its switches and actions stay at full strength. Faded by colour
@@ -1236,8 +1236,8 @@
   .comp { display: inline-flex; align-items: center; gap: .45rem; }
   /* "3 in game" stays on one line when the seller's name wraps. */
   .nowrap { white-space: nowrap; }
-  .ladder { margin-top: .15rem; font-size: .6rem; }
-  .goes { margin-top: .15rem; font-size: .6rem; color: var(--gold); }
+  .ladder { margin-top: .15rem; font-size: 11px; }
+  .goes { margin-top: .15rem; font-size: 11px; color: var(--gold); }
   .none { color: var(--platinum-deep); }
   .target { display: inline-flex; align-items: center; justify-content: flex-end; white-space: nowrap; }
   .target.down .delta { color: var(--oxblood); }
@@ -1249,6 +1249,6 @@
   .charted:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
   .charted.on { color: var(--gold); border-color: var(--gold-dim); }
   /* The chart sits in from the table's edges, which its first and last cells otherwise touch. */
-  .orders tr.chartrow > td, :global(html[data-room~="lt1100"]) .orders tr.chartrow > td { padding: .6rem 1rem 1.1rem; background: rgb(20 23 27 / 55%); }
+  .orders tr.chartrow > td, :global(html[data-room~="lt1100"]) .orders tr.chartrow > td { padding: .6rem 1rem 1.1rem; background: var(--well); }
   .apart { display: inline-flex; margin-left: .55rem; padding-left: .55rem; border-left: 1px solid var(--rule); }
 </style>

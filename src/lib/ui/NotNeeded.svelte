@@ -78,7 +78,7 @@
 </section>
 
 <style>
-  .nn { display: grid; gap: .7rem; margin: 0 0 1rem; padding: .9rem 1.1rem; border: 1px solid var(--rule); background: rgb(20 23 27 / 72%); justify-items: start; }
+  .nn { display: grid; gap: .7rem; margin: 0 0 1rem; padding: .9rem 1.1rem; border: 1px solid var(--rule); background: var(--plate); justify-items: start; }
   .lead { margin: 0; max-width: 90ch; }
   /* Down each column, then the next: a Keep closes the gap upward, rather than every row after it
      changing column. */

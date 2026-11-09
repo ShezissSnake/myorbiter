@@ -204,7 +204,7 @@
   .grid { display: grid; gap: .7rem; padding: .8rem; background: var(--well); border: 1px solid var(--rule); box-shadow: var(--struck); }
   .top { display: flex; justify-content: space-between; gap: .6rem; }
   .top .cell { display: grid; gap: .25rem; width: calc((100% - 1.8rem) / 4); min-width: 9rem; }
-  .cap { font-size: .56rem; letter-spacing: .16em; }
+  .cap { font-size: 11px; letter-spacing: .16em; }
   .mods { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: .45rem; }
 
   .slot {
@@ -212,7 +212,7 @@
     position: relative; min-width: 0; height: 3.6rem;
     display: grid; grid-template-columns: 2.3rem minmax(0, 1fr); align-items: center; gap: .45rem;
     padding: .25rem .35rem .25rem .3rem;
-    background: linear-gradient(180deg, #1a1e23, #14171b);
+    background: linear-gradient(180deg, var(--raised), var(--plate));
     border: 1px solid color-mix(in srgb, var(--edge) 55%, transparent);
     border-top: 2px solid var(--edge);
     clip-path: polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%);
@@ -221,8 +221,8 @@
   .t-rare { --edge: var(--rarity-rare); }
   .t-legendary { --edge: var(--rarity-legendary); }
   .slot.empty { display: grid; grid-template-columns: 1fr; place-items: center; background: transparent; border: 1px dashed var(--rule-bright); border-top-width: 1px; }
-  .hole { font-family: var(--face-register); font-size: .67rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); }
-  .art { width: 2.3rem; height: 2.3rem; overflow: hidden; background: radial-gradient(circle at 50% 35%, #262a32, #0e1013 80%); border: 1px solid color-mix(in srgb, var(--edge) 35%, transparent); }
+  .hole { font-family: var(--face-register); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); }
+  .art { width: 2.3rem; height: 2.3rem; overflow: hidden; background: radial-gradient(circle at 50% 35%, var(--rule), var(--well) 80%); border: 1px solid color-mix(in srgb, var(--edge) 35%, transparent); }
   .art img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .body { display: grid; grid-template-rows: auto auto 1fr; gap: .12rem; min-width: 0; align-self: stretch; }
   .nm { font-family: var(--face-mark); font-weight: 700; font-size: .76rem; line-height: 1; letter-spacing: .01em; text-transform: uppercase; color: var(--edge); display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -255,7 +255,7 @@
   .arcs { display: flex; flex-wrap: wrap; gap: .5rem; }
   .arc { --edge: var(--rarity-legendary); position: relative; display: inline-flex; align-items: center; gap: .45rem; min-width: 0; }
   .hex { width: 2.2rem; height: 2.2rem; flex: none; clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%); background: color-mix(in srgb, var(--edge) 70%, transparent); display: grid; place-items: center; }
-  .hex img { width: 86%; height: 86%; object-fit: contain; clip-path: inherit; background: #101216; }
+  .hex img { width: 86%; height: 86%; object-fit: contain; clip-path: inherit; background: var(--plate); }
   .arc.none .hex { background: var(--rule-bright); }
   .an { display: grid; line-height: 1.1; }
   .an b { font-family: var(--face-mark); font-size: .8rem; text-transform: uppercase; color: var(--platinum); }
