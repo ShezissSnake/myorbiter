@@ -129,8 +129,8 @@ build on the channel you want from *Releases*, then pick the channel in Settings
 then on it updates itself. A build made on your own computer is version 0.1.0 and never updates
 itself. A copy of a build made before the project's time on GitLab (builds below 100) looks for
 updates at an older address that isn't offered current builds: install a current build by hand
-once. Builds 0.2.100 to 0.2.119, made on GitLab, ask GitLab, which keeps offering 0.2.119 or later
-from there: once on it, a copy asks GitHub first.
+once. Builds made on GitLab (from 0.2.100) ask GitLab, whose channels keep offering the last build
+made there; that build asks GitHub first, so a copy on it follows GitHub's builds from then on.
 
 ### From orbiter to MyOrbiter
 

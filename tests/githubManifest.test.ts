@@ -96,6 +96,9 @@ test("a channel's manifest is refused unless every download is that build's own 
     assert.throws(() => checkGithubManifest(swap("linux-x86_64", `${FOLDER}/${SETUP}`), opts), /isn't linux-x86_64's download/);
     assert.throws(() => checkGithubManifest(swap("linux-x86_64", `${FOLDER}/x/${APPIMAGE}`), opts), /isn't linux-x86_64's download/);
     assert.throws(() => checkGithubManifest(swap("linux-x86_64", `${FOLDER}/${APPIMAGE}?x=1`), opts), /isn't linux-x86_64's download/);
+    // Another version's file, even on this build's release.
+    assert.throws(() => checkGithubManifest(swap("linux-x86_64", `${FOLDER}/myorbiter_0.2.119_amd64.AppImage`), opts), /isn't linux-x86_64's download of 0\.2\.120/);
+    assert.throws(() => checkGithubManifest(swap("linux-x86_64", `${FOLDER}/other_0.2.120_amd64.AppImage`), opts), /isn't linux-x86_64's download/);
     assert.throws(() => checkGithubManifest(swap("linux-x86_64", `http://github.com/ShezissSnake/myorbiter/releases/download/build-120/${APPIMAGE}`), opts), /no https download/);
     // The wrong version, a missing system, a system the updater doesn't serve.
     assert.throws(() => checkGithubManifest(good, { ...opts, version: "0.2.121" }), /for 0.2.120, not 0.2.121/);

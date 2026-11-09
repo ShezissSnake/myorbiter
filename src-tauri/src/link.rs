@@ -16,16 +16,21 @@
 //! (src-tauri/capabilities/default.json), so this is the one way a link opens.
 
 /// The sites MyOrbiter opens: each one's host, and the path its links must start with ("/" for
-/// any). The same as `LINK_SITES` in src/lib/core/links.ts; a test ties the two. MyOrbiter's own
-/// project is there on github.com (its home: releases, issues, the source), on its GitHub Pages
-/// site, and on gitlab.com (the mirror, which keeps the releases made there).
+/// any); a host may be listed more than once. The same as `LINK_SITES` in src/lib/core/links.ts; a
+/// test ties the two. MyOrbiter's own project is there on github.com (its home: releases, issues,
+/// the source on main, security reports, never what others can upload under the repository's
+/// address), on its GitHub Pages site, and on gitlab.com (the mirror, which keeps the releases made
+/// there).
 pub(crate) const SITES: &[(&str, &str)] = &[
     ("warframe.market", "/"),
     ("wiki.warframe.com", "/"),
     ("warframe.fandom.com", "/"),
     ("overframe.gg", "/"),
     ("noxsframe.com", "/"),
-    ("github.com", "/ShezissSnake/myorbiter/"),
+    ("github.com", "/ShezissSnake/myorbiter/releases"),
+    ("github.com", "/ShezissSnake/myorbiter/issues"),
+    ("github.com", "/ShezissSnake/myorbiter/blob/main/"),
+    ("github.com", "/ShezissSnake/myorbiter/security/"),
     ("shezisssnake.github.io", "/myorbiter/"),
     ("gitlab.com", "/sheziss-group/myorbiter/-/"),
 ];
@@ -39,8 +44,7 @@ fn openable(url: &str) -> Option<tauri::Url> {
         return None;
     }
     let host = u.host_str()?;
-    let (_, path) = SITES.iter().find(|(h, _)| *h == host)?;
-    u.path().starts_with(path).then_some(u)
+    SITES.iter().any(|(h, path)| *h == host && u.path().starts_with(path)).then_some(u)
 }
 
 /// Opens `url` in the browser, if it's a link to one of MyOrbiter's sites; why not, in a sentence.
@@ -122,6 +126,10 @@ mod tests {
             "https://github.com/ShezissSnake/myorbiter-other/releases",
             "https://github.com/ShezissSnake/myorbiter/../other/releases",
             "https://github.com/user-attachments/assets/0123",
+            "https://github.com/ShezissSnake/myorbiter/files/123/picture.zip",
+            "https://github.com/ShezissSnake/myorbiter/assets/123/0123abcd",
+            "https://github.com/ShezissSnake/myorbiter/raw/main/README.md",
+            "https://github.com/ShezissSnake/myorbiter/blob/other-branch/README.md",
             "https://shezisssnake.github.io/",
             "https://shezisssnake.github.io/other/",
             "https://someone.github.io/myorbiter/",

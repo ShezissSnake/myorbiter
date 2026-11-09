@@ -62,8 +62,7 @@ Once, in order. Tick each step here when it's done.
       there.
 - [ ] **A copy of the bridge build on Experimental updates to 0.2.120** with *Update and restart*,
       on Linux and on Windows: its first address is GitHub's `experimental` release.
-- [ ] **(maintainer) Push mirroring GitHub → GitLab** (*GitLab, the mirror*, below), so GitLab's
-      code follows GitHub's.
+- [ ] **(maintainer) The two copies kept in step** (*GitLab, the mirror*, below).
 
 ## Running a release, a promotion or the website
 
@@ -192,8 +191,13 @@ maintainer's own:
 
 ## GitLab, the mirror
 
-- [ ] **Push mirroring GitHub → GitLab (maintainer):** GitLab's copy of the code follows GitHub's,
+- [ ] **The two copies kept in step (maintainer):** after each merge, `main` goes to both
+      GitHub and GitLab with a plain push (never a force push), from a clone with both remotes.
+      GitLab can do it alone with a push mirror to GitHub (Settings → Repository → Mirroring
+      repositories, with a GitHub token limited to this repository's contents): a push mirror runs
+      from GitLab outwards, and pulling into GitLab from GitHub needs a paid tier. Either way it is
       set up outside the repository: no workflow here holds a GitLab token or pushes anywhere.
+      Merge requests are still opened on GitLab (CLAUDE.md) until that changes.
 - [ ] **Its channel manifests stay on the bridge build:** `channel/<channel>/latest.json` in
       GitLab's package registry, every installed copy's second address. Never delete the
       `channel` or `stable-builds` packages, the builds 0.2.100 and up, or the releases that link

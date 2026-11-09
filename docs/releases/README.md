@@ -87,5 +87,6 @@ in the release notes that this one build has to be installed by hand.
 
 ## Release notes
 
-`first-public.md` is the description for the first public Stable release (`docs/maintaining.md`,
-step 5, says when to paste it).
+`first-public.md` is the description for the first public Stable release: once a build is promoted
+to Stable, it goes in that build's `build-<n>` release on GitHub (*Edit release*), above the notes
+the workflow wrote.

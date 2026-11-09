@@ -69,12 +69,13 @@ export function buildGithubManifest({ dir, version, repo, commit = null, notes =
 /**
  * Checks a manifest before it goes on a channel: everything updater-manifest.mjs's checkManifest
  * checks (its version, the systems `require`d, each signature well formed and naming the version),
- * and every download that system's file on the build's own release, in the exact form
+ * and every download that system's file of that version on the build's own release, in the exact form
  * buildGithubManifest writes. Returns its platforms.
  */
 export function checkGithubManifest(manifest, { version = null, require = [], repo } = {}) {
   const platforms = checkManifest(manifest, { version, require });
-  const prefix = `${releaseFolder(repo, version ?? manifest.version)}/`;
+  const v = version ?? manifest.version;
+  const prefix = `${releaseFolder(repo, v)}/`;
   for (const p of platforms) {
     const { url } = manifest.platforms[p];
     if (!Object.hasOwn(PLATFORMS, p)) throw new Error(`${p}: not a system the updater serves`);
@@ -85,7 +86,7 @@ export function checkGithubManifest(manifest, { version = null, require = [], re
     } catch {
       throw new Error(`${p}: ${url} isn't a file name`);
     }
-    if (!PLATFORMS[p].test(name) || name.includes("/") || url !== prefix + encodeURIComponent(name)) throw new Error(`${p}: ${url} isn't ${p}'s download`);
+    if (!PLATFORMS[p].test(name) || !name.startsWith(`myorbiter_${v}_`) || name.includes("/") || url !== prefix + encodeURIComponent(name)) throw new Error(`${p}: ${url} isn't ${p}'s download of ${v}`);
   }
   return platforms;
 }

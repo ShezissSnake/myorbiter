@@ -85,6 +85,8 @@ env:
   CARGO_TERM_COLOR: always
   # Build <n> is github.run_number + BUILD_OFFSET (docs/maintaining.md, Build numbers).
   BUILD_OFFSET: "26"
+  # The first build made on GitHub (scripts/site-downloads.mjs's FIRST_BUILD): no build goes below it.
+  FIRST_BUILD: "120"
 
 jobs:
   # ------------------------------------------------------------------ release
@@ -107,6 +109,12 @@ jobs:
         run: |
           set -euo pipefail
           n=$((GITHUB_RUN_NUMBER + BUILD_OFFSET))
+          # Never below the first GitHub build: a lower number would repeat or undercut a build made
+          # on GitLab, and installed copies take only newer versions.
+          if [ "$n" -lt "$FIRST_BUILD" ]; then
+            echo "::error::build $n is below $FIRST_BUILD: BUILD_OFFSET needs raising (docs/maintaining.md, Build numbers)"
+            exit 1
+          fi
           echo "build=$n" >>"$GITHUB_OUTPUT"
           echo "version=0.2.$n" >>"$GITHUB_OUTPUT"
           echo "Build $n, version 0.2.$n, from ${GITHUB_SHA::7}" >>"$GITHUB_STEP_SUMMARY"
@@ -647,9 +655,24 @@ jobs:
           set -euo pipefail
           files=(*)
           tag="build-$BUILD"
-          # A re-run finds the release made by the first attempt and replaces its files.
+          # A re-run keeps the run number, so it rebuilds the same build: never over a file already
+          # published (a channel's latest.json names its signatures). A file the first attempt left
+          # out is added; one already there must be byte for byte the same, or the run stops.
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+            gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" --jq '.assets[] | [.name, (.digest // "")] | @tsv' >"$RUNNER_TEMP/assets.tsv"
+            missing=()
+            for f in "${files[@]}"; do
+              have=$(awk -F '\t' -v n="$f" '$1 == n { print $2 }' "$RUNNER_TEMP/assets.tsv")
+              if [ -z "$have" ] && ! grep -q -F -x -e "$f" <(cut -f1 "$RUNNER_TEMP/assets.tsv"); then
+                missing+=("$f")
+              elif [ "$have" != "sha256:$(sha256sum "$f" | cut -c1-64)" ]; then
+                echo "::error::$tag already has a different $f: start a new run for a new build"
+                exit 1
+              fi
+            done
+            if [ "${#missing[@]}" -gt 0 ]; then
+              gh release upload "$tag" "${missing[@]}" --repo "$GITHUB_REPOSITORY"
+            fi
           else
             gh release create "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
               --prerelease --title "MyOrbiter $VERSION ($tag)" \
@@ -670,8 +693,12 @@ jobs:
           set -euo pipefail
           current=""
           if gh release view experimental --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            if gh release download experimental --repo "$GITHUB_REPOSITORY" --pattern latest.json --output "$RUNNER_TEMP/current.json"; then
-              current=$(jq -r '.version // empty' "$RUNNER_TEMP/current.json")
+            # A latest.json that is there but can't be read stops the run: the channel never moves
+            # without knowing what it holds.
+            if gh release view experimental --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -q -x -F latest.json; then
+              gh release download experimental --repo "$GITHUB_REPOSITORY" --pattern latest.json --output "$RUNNER_TEMP/current.json"
+              current=$(jq -r '.version' "$RUNNER_TEMP/current.json")
+              [[ "$current" =~ ^0\.2\.[1-9][0-9]{0,8}$ ]] || { echo "::error::Experimental's latest.json names no build: '$current'"; exit 1; }
             fi
           else
             gh release create experimental --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
@@ -685,7 +712,7 @@ jobs:
           gh release upload experimental release-files/latest.json --repo "$GITHUB_REPOSITORY" --clobber
           echo "**$VERSION is now Experimental's build.** Promote it with Run workflow: task promote, build $BUILD." >>"$GITHUB_STEP_SUMMARY"
 
-  # Everything is on the release now: this run's artifacts are deleted rather than left to expire.
+  # Everything is on the release now: the build's artifacts are deleted rather than left to expire.
   cleanup:
     name: Delete the artifacts
     needs: [publish]
@@ -699,12 +726,31 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --jq '.artifacts[].id' |
+          # The build's own artifacts only: the website's (github-pages) may still be on its way to
+          # the deploy job.
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" \
+            --jq '.artifacts[] | select(.name == "build-linux" or .name == "build-windows" or .name == "signatures" or .name == "release-meta") | .id' |
             while read -r id; do
               gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id"
             done
 
   # ------------------------------------------------------------------ promote
+
+  # Promote and pages run only on main: started from another branch, the run fails here rather than
+  # end green having done nothing.
+  main-only:
+    name: Refuse a promote or pages run off main
+    if: inputs.task != 'release' && github.ref != 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Refuse
+        env:
+          TASK: ${{ inputs.task }}
+          REF: ${{ github.ref_name }}
+        run: |
+          echo "::error::task $TASK runs only on main, not on $REF"
+          exit 1
 
   # Checks build <n>: its release exists, its latest.json is for 0.2.<n> with both the Linux and
   # Windows downloads, every download in it is that system's file on this repository's build-<n>
@@ -790,6 +836,31 @@ jobs:
           # The manifest the check passed, and no other.
           gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern latest.json --dir build
           echo "$MANIFEST_SHA256  build/latest.json" | sha256sum --check --strict
+          # What a channel holds now (empty if nothing yet); a latest.json there that can't be read
+          # stops the run.
+          channel_version() {
+            gh release view "$1" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' 2>/dev/null | grep -q -x -F latest.json || return 0
+            gh release download "$1" --repo "$GITHUB_REPOSITORY" --pattern latest.json --output "$RUNNER_TEMP/$1.json" --clobber
+            local v
+            v=$(jq -r '.version' "$RUNNER_TEMP/$1.json")
+            [[ "$v" =~ ^0\.2\.[1-9][0-9]{0,8}$ ]] || { echo "::error::$1's latest.json names no build: '$v'" >&2; return 1; }
+            echo "$v"
+          }
+          older() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ]; }
+          version="0.2.$BUILD"
+          # Beta is never behind Stable.
+          if [ "$CHANNEL" = beta ]; then
+            stable=$(channel_version stable)
+            if [ -n "$stable" ] && older "$version" "$stable"; then
+              echo "::error::$version is older than Stable's $stable: Beta is never behind Stable"
+              exit 1
+            fi
+          fi
+          # A step back is allowed (taking a bad build off the channel), and said.
+          current=$(channel_version "$CHANNEL")
+          if [ -n "$current" ] && older "$version" "$current"; then
+            echo "**$label moves back** from $current to $version: copies already on $current stay there until a newer build." >>"$GITHUB_STEP_SUMMARY"
+          fi
           # The channel's release, made the first time: a pre-release, so it's never GitHub's Latest.
           if ! gh release view "$CHANNEL" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$CHANNEL" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \

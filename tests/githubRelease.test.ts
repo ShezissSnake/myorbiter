@@ -67,6 +67,13 @@ test("the jobs that write releases check out nothing, and channel moves share on
     assert.match(j, /concurrency:\n {6}group: channels\n {6}cancel-in-progress: false/, name);
   }
   assert.match(job("site"), /concurrency:\n {6}group: channels\n/);
+  // A build's files are never replaced: only a channel's latest.json is uploaded over.
+  for (const line of wf.split("\n").filter((l) => l.includes("--clobber") && l.includes("gh release upload")))
+    assert.match(line, /gh release upload (experimental|"\$CHANNEL"|beta) [^\n]*latest\.json/, line);
+  // Cleanup deletes the build's artifacts by name, never the website's on its way to deploy.
+  assert.match(job("cleanup"), /select\(\.name == "build-linux" or \.name == "build-windows" or \.name == "signatures" or \.name == "release-meta"\)/);
+  // Promote and pages started off main fail rather than end green.
+  assert.match(job("main-only"), /if: inputs\.task != 'release' && github\.ref != 'refs\/heads\/main'[\s\S]*exit 1/);
   // Nothing deletes a release or a tag.
   assert.doesNotMatch(wf, /gh release delete|--cleanup-tag|git push[^\n]*--delete|git\/refs\/tags/);
 });
@@ -75,6 +82,7 @@ test("the first build made on GitHub is the same number everywhere", () => {
   const offset = Number(/^ {2}BUILD_OFFSET: "(\d+)"$/m.exec(wf)?.[1]);
   assert.equal(offset, 26);
   assert.equal(FIRST_BUILD, 120);
+  assert.equal(Number(/^ {2}FIRST_BUILD: "(\d+)"$/m.exec(wf)?.[1]), FIRST_BUILD);
   assert.equal(releasePage(`0.2.${FIRST_BUILD}`), `https://github.com/ShezissSnake/myorbiter/releases/tag/build-${FIRST_BUILD}`);
   assert.equal(releasePage(`0.2.${FIRST_BUILD - 1}`), `https://gitlab.com/sheziss-group/myorbiter/-/releases/build-${FIRST_BUILD - 1}`);
   assert.match(readFileSync("docs/maintaining.md", "utf8"), /BUILD_OFFSET[^\n]*26|26[^\n]*BUILD_OFFSET/);
