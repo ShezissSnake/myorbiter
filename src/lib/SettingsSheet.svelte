@@ -13,6 +13,7 @@
   import WeightSliders from "./ui/WeightSliders.svelte";
   import { NOX_SETTING } from "./core/builds/noxsframe";
   import { BAND_WORDS, DRIFT, GREY_AREA, every } from "./core/drift";
+  import { AUTO_REP_LINE, AUTO_TRADES_LINE } from "./core/automation";
   import { AUTO_FLOOR_SHARE } from "./core/approved";
   import FullMode from "./FullMode.svelte";
   import Seg from "./ui/Seg.svelte";
@@ -277,12 +278,8 @@
       <input bind:value={settings.market.repText} maxlength="300" placeholder=":)" />
       <span class="hint">What goes with +rep on a trade partner's warframe.market profile (reputation there is a positive review, one per player).</span>
     </label>
-    {#if !onConsole}<Switch bind:on={settings.market.autoRep} label="Give +rep by itself after a trade">
-      Each player you trade with in game gets +rep on warframe.market with the message above, once per player, without you leaving the game. If MyOrbiter was closed during the trade, it catches up when it opens, while the game is still running. Needs you signed in to warframe.market on Orders. Off: a +rep button shows after each trade instead.
-    </Switch>{/if}
-    {#if !onConsole}<Switch bind:on={settings.market.autoTrades} label="Mark sales sold from the game">
-      When a trade goes through where you gave items and got platinum, MyOrbiter reads it from Warframe's log, marks your listing sold on warframe.market (recorded on your profile) and logs the sale with the platinum you actually got. Usually within half a minute: the game writes its log in bursts.
-    </Switch>{/if}
+    {#if !onConsole}<Switch bind:on={settings.market.autoRep} label="Give +rep by itself after a trade">{AUTO_REP_LINE}</Switch>{/if}
+    {#if !onConsole}<Switch bind:on={settings.market.autoTrades} label="Mark sales sold from the game">{AUTO_TRADES_LINE}</Switch>{/if}
     {#if !onConsole}<Switch bind:on={settings.market.lastCopy.optIn} label="Hide last copies while someone whispers you">
       When anyone whispers you in game (a buyer, a friend, or you whispering a seller), MyOrbiter hides every listing you have one copy of, so a second buyer doesn't message you for one that's already promised. The game's log says who whispered, not what about, so that's usually most of your listings. Each comes back after the time below unless it sold; a later whisper doesn't make the wait longer.
     </Switch>

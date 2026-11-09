@@ -33,6 +33,14 @@ export interface NewsEntry {
 
 export const NEWS: NewsEntry[] = [
   {
+    id: 23,
+    date: "2026-11-09",
+    items: [
+      { title: "Automatic actions start off", icon: { line: "list" }, text: "On a new install, marking sales sold from the game and giving +rep by themselves are off, like automatic repricing: each has its switch, and a line saying what it does on warframe.market, in Settings, Trades and on Orders. If you had turned them on, they stay on.", open: "settings#trades" },
+      { title: "The same switches on Orders", icon: { page: "market" }, text: "Under the repricer's settings on Orders: Mark sales sold from the game and Give +rep by itself, with the same lines as Settings.", open: "market" },
+    ],
+  },
+  {
     id: 22,
     date: "2026-11-08",
     items: [

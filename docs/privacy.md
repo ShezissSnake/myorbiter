@@ -15,7 +15,7 @@ path beside each.
 | The game's memory, read only | your login session goes to Digital Extremes, for your inventory; the names of the squad's rewards are priced on warframe.market; the rest stays on your PC | only in Full mode, which is off until you choose it |
 | The game's window, captured and read on your PC | the pictures stay on your PC; the item names on them are priced on warframe.market | in TennoScope's Overlay mode (what the first start's "Not now" picks) and Full mode, during void fissure missions and at Baro's kiosk |
 | Running programs' names; on Linux, the memory maps of Chromium-based apps while the game is closed | stays on your PC | while TennoScope watches for the game, to find it and its launcher |
-| The game's log (`EE.log`) | a trade that sold one of your listings marks it sold and gives the player +rep on warframe.market (both on unless you turn them off); the names of players you trade with or who whisper you are looked up there, and appear in your Discord notifications if you set them up; the rest stays on your PC | while MyOrbiter runs, on PC |
+| The game's log (`EE.log`) | a trade that sold one of your listings marks it sold and gives the player +rep on warframe.market (each off unless you turn it on); the names of players you trade with or who whisper you are looked up there, and appear in your Discord notifications if you set them up; the rest stays on your PC | while MyOrbiter runs, on PC |
 | Order books, prices, the live feed of new orders; signed in: your profile, orders, auctions, chats, status and your changes | warframe.market | while MyOrbiter runs (below) |
 | Item data, drop tables, world state, pictures | WFCD (`api.warframestat.us`, `drops.warframestat.us`, `cdn.warframestat.us`, `raw.githubusercontent.com`), Digital Extremes, relics.run, warframe.market | at start, on timers, and as pages need them (below) |
 | Builds | Nox's Frame | when you open an item or a build on Builds (on unless you turn it off) |
@@ -109,9 +109,9 @@ systems includes your user name, goes into MyOrbiter's own log (hidden in a bug 
 What is kept: every trade (partner, items, platinum) in your trade history, up to 2000; the names of
 players who whispered you, up to 300; and the sale and whisper notifications, with names, in the
 notification history and in MyOrbiter's own log. When you're signed in to warframe.market and
-marking sales automatically is on (it is unless you turn it off), a trade from the last 30 minutes
-that sold one of your listings goes into your sales log, the listing is marked sold on
-warframe.market, +rep goes to the player (unless you turn that off), and TennoScope is asked to
+marking sales automatically is on (it is off unless you turn it on), a trade from the last 30
+minutes that sold one of your listings goes into your sales log, the listing is marked sold on
+warframe.market, +rep goes to the player (if you turn that on too), and TennoScope is asked to
 read your inventory again. The names of players you trade with, and of a player who whispers you
 (with whisper notifications on), are looked up on warframe.market to show their reputation.
 
@@ -161,8 +161,8 @@ Every request MyOrbiter makes to warframe.market says who it is, with the User-A
 - **Changes** go out when you ask (list, change a price or quantity, hide or show, mark sold,
   remove one listing or all, reprice, post a buy order, apply a Sell spares plan, give +rep, put up,
   reprice or close a riven auction); when a trade in the game's log in the last half hour shows you
-  sold a listing (on unless you turn it off in Settings, Trades); to give each player you trade with
-  +rep with your message (on unless you turn it off); to hide your last copies while someone
+  sold a listing (off unless you turn it on in Settings, Trades or on Orders); to give each player
+  you trade with +rep with your message (off unless you turn it on); to hide your last copies while someone
   whispers you and show them again after the minutes you set (if you turn it on); and with automatic
   repricing (off unless you turn it on; its limits are in Settings, Trades).
 - **How often, at most.** API calls go out one at a time, at least 0.4 seconds apart (1.5 seconds

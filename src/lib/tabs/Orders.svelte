@@ -13,6 +13,7 @@
   import { LISTING_LIMIT, minimumForItem } from "../core/bulk";
   import { minimumOf, minimumsText } from "../core/sparesRules";
   import { DRIFT_RULES, GREY_AREA } from "../core/drift";
+  import { AUTO_REP_LINE, AUTO_TRADES_LINE } from "../core/automation";
   import { AUTO_FLOOR_SHARE } from "../core/approved";
   import { arcaneRows, saveForSets, spareOf } from "../core/views";
   import { drops } from "../drops.svelte";
@@ -813,6 +814,14 @@
           </select>
         </div>
         <p class="dim small limits">Apply automatically changes your prices without asking. {DRIFT_RULES}; never under {Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you last set, nor under your floors. {GREY_AREA}.</p>
+        <!-- The other automatic actions, the same switches and lines as Settings, Trades. -->
+        {#if !console}
+          <div class="grp autos">
+            <Chip bind:on={settings.autoTrades} label="Mark sales sold from the game" title={AUTO_TRADES_LINE} />
+            <Chip bind:on={settings.autoRep} label="Give +rep by itself" title={AUTO_REP_LINE} />
+          </div>
+          <p class="dim small limits"><b>Mark sales sold from the game</b>: {AUTO_TRADES_LINE} <b>Give +rep by itself</b>: {AUTO_REP_LINE}</p>
+        {/if}
         <div class="grp">
           <span class="register">Floor</span>
           <select bind:value={settings.minShare} aria-label="Floor" title="Never lower a listing under this share of the item's daily market price (a per-listing floor in the table wins)">

@@ -100,7 +100,7 @@ export interface MarketSettings {
   sellable: SellChoices;
   /** Things you sold, newest first (the last 2,000). */
   sales: Sale[];
-  /** Trades read from the game log mark their listing sold and log the sale on their own. */
+  /** Trades read from the game log mark their listing sold and log the sale on their own (off unless turned on). */
   autoTrades: boolean;
   /** Trades already handled (session|uptime), newest first. */
   tradesSeen: string[];
@@ -114,7 +114,7 @@ export interface MarketSettings {
   rep: Record<string, "given" | "skipped">;
   /** The message that goes with +rep (warframe.market's reputation is a positive review). */
   repText: string;
-  /** Give each trade partner +rep on warframe.market by yourself, with repText, once per player. */
+  /** Give each trade partner +rep on warframe.market by itself, with repText, once per player (off unless turned on). */
   autoRep: boolean;
   /**
    * While someone whispers you, hide listings down to their last copy so a second buyer doesn't
@@ -138,7 +138,7 @@ function presenceBackOf(v: unknown): { p: Presence; until: number } | null {
   return o && typeof o === "object" && (o.p === "invisible" || o.p === "online" || o.p === "ingame") && typeof o.until === "number" && Number.isFinite(o.until) ? { p: o.p, until: o.until } : null;
 }
 
-export const defaultMarketSettings = (): MarketSettings => ({ platform: "pc", auto: false, autoCheck: false, every: 5, minShare: 0.5, floors: {}, paused: {}, approved: {}, changes: {}, presence: null, minPrice: 10, minByCategory: defaultMinByCategory(), minRelicPrice: 3, relicPrices: {}, spares: defaultSparesRules(), bulk: defaultBulkRules(), sellable: defaultSellChoices(), sales: [], autoTrades: true, tradesSeen: [], tradesTold: [], trades: [], buyAlerts: [], rep: {}, repText: ":)", autoRep: true, lastCopy: { optIn: false, minutes: DEFAULT_HIDE_MINUTES, hidden: [] } });
+export const defaultMarketSettings = (): MarketSettings => ({ platform: "pc", auto: false, autoCheck: false, every: 5, minShare: 0.5, floors: {}, paused: {}, approved: {}, changes: {}, presence: null, minPrice: 10, minByCategory: defaultMinByCategory(), minRelicPrice: 3, relicPrices: {}, spares: defaultSparesRules(), bulk: defaultBulkRules(), sellable: defaultSellChoices(), sales: [], autoTrades: false, tradesSeen: [], tradesTold: [], trades: [], buyAlerts: [], rep: {}, repText: ":)", autoRep: false, lastCopy: { optIn: false, minutes: DEFAULT_HIDE_MINUTES, hidden: [] } });
 
 export interface AdviceSettings {
   platPerDucat: number;
@@ -802,8 +802,10 @@ function marketSafetyOf(raw: unknown, base: MarketSettings): Pick<MarketSettings
     paused: Object.fromEntries(record(r.paused).filter(([, v]) => v === true)) as Record<string, boolean>,
     // Repricing's recent changes: only real times of the last day count (never a reason to change sooner).
     changes: changesOf(r.changes, Date.now()),
-    autoTrades: typeof r.autoTrades === "boolean" ? r.autoTrades : base.autoTrades,
-    autoRep: typeof r.autoRep === "boolean" ? r.autoRep : base.autoRep,
+    // Automatic actions on warframe.market: on only when a file says true. A missing key is off,
+    // whatever the defaults were when the file was written (they were on until 2026-11).
+    autoTrades: r.autoTrades === true,
+    autoRep: r.autoRep === true,
     presence: r.presence === "invisible" || r.presence === "online" || r.presence === "ingame" ? r.presence : null,
   };
 }
