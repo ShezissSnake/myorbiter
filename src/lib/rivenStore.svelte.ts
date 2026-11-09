@@ -5,6 +5,12 @@ import type { RivenModel } from "./core/rivenModel";
 import { packListed, packPrices, startingFor, parseMyAuctions, parseWeeklyRivens, readSavedPrices, tradeUrl, withSaved, type AuctionItem, type MyAuction, type RivenAuction, type RivenMeta, type RivenTrade, type SavedRivenPrices } from "./core/rivens";
 
 const TTL = 10 * 60_000;
+/** How often the pages read your riven auctions at most (`refreshMine`). */
+export const MINE_EVERY_MS = 5 * 60_000;
+/** After a failed read, how long until the pages try again. */
+const MINE_RETRY_MS = 60_000;
+/** How old a read of your auctions putting one up may go by (as the pages read them before). */
+const SELL_FRESH_MS = 30_000;
 
 class Rivens {
   meta = $state.raw<RivenMeta | null>(null);
@@ -155,13 +161,31 @@ class Rivens {
   mine = $state.raw<MyAuction[]>([]);
   mineAt = $state<number | null>(null);
   mineError = $state<string | null>(null);
-  async loadMine() {
+  /** When the pages last asked for your auctions (`refreshMine`), and for whose. */
+  private mineAsked: { at: number; who: string } | null = null;
+  /**
+   * The pages' read of your auctions (Orders, Rivens, while one of them is on screen): at most once
+   * every 5 minutes for the same account and platform (`who`); another one reads at once, and a
+   * read that failed is tried again after a minute. Putting one up, repricing or closing one reads
+   * them again at once (`loadMine`).
+   */
+  async refreshMine(who: string, now = Date.now()) {
+    const last = this.mineAsked;
+    if (last && last.who === who && now - last.at < MINE_EVERY_MS) return;
+    const asked = (this.mineAsked = { at: now, who });
+    const ok = await this.loadMine();
+    if (!ok && this.mineAsked === asked) this.mineAsked = { at: now - MINE_EVERY_MS + MINE_RETRY_MS, who };
+  }
+  /** Reads your auctions; whether the read worked. */
+  async loadMine(): Promise<boolean> {
     try {
       this.mine = parseMyAuctions(await market.myAuctions());
       this.mineAt = Date.now();
       this.mineError = null;
+      return true;
     } catch (e) {
       this.mineError = String(e).replace(/^Error:\s*/, "");
+      return false;
     }
   }
   /**
@@ -169,9 +193,11 @@ class Rivens {
    * (the same as the buyout: no bidding, it just sells at that price).
    */
   async sell(item: AuctionItem, buyout: number, starting: number, note = "", minRep = 0) {
-    // What you have up already, read first if it hasn't been: without it, one that timed out but
-    // was made can't be told from one that wasn't, and sending again would put the riven up twice.
-    if (this.mineAt == null) await this.loadMine();
+    // What you have up already, read first if it hasn't been, or not in the last half minute (the
+    // pages read it only every few minutes): without it, one that timed out but was made can't be
+    // told from one that wasn't, and sending again would put the riven up twice; with an old list,
+    // one put up meanwhile on the site could be taken for this one.
+    if (this.mineAt == null || Date.now() - this.mineAt > SELL_FRESH_MS) await this.loadMine();
     const before = this.mineAt != null ? new Set(this.mine.map((a) => a.id)) : null;
     try {
       await market.createAuction({ starting_price: starting, buyout_price: buyout, minimal_reputation: minRep, private: false, note, item });

@@ -153,11 +153,13 @@ Every request MyOrbiter makes to warframe.market says who it is, with the User-A
   token): your profile (at start and after signing in, and every minute or more while
   warframe.market isn't answering); your orders (every 30 seconds, every 2 minutes while the window
   is hidden, backing off to 10 minutes while warframe.market isn't answering, and after each
-  change); your riven auctions (every 30 seconds while Orders is open, and after each change); your
-  chats (every minute); before giving +rep, that player's reviews, to see whether you already gave
-  one; and, if you choose a status, a second connection held while MyOrbiter is open, which sends
-  it again every 2 minutes, puts it back if something else changes it, and switches "online in
-  game" to online while the game isn't running.
+  change); your riven auctions (while Orders or Rivens is on screen, at most every 5 minutes, at
+  once for another account or platform, a minute after a failed read; before putting one up, if
+  the last read is over 30 seconds old; and after each change); your chats (every minute);
+  before giving +rep, that player's reviews, to see whether you already gave one; and, if you
+  choose a status, a second connection held while MyOrbiter is open, which sends it again every 2
+  minutes, puts it back if something else changes it, and switches "online in game" to online
+  while the game isn't running.
 - **Changes** go out when you ask (list, change a price or quantity, hide or show, mark sold,
   remove one listing or all, reprice, post a buy order, apply a Sell spares plan, give +rep, put up,
   reprice or close a riven auction); when a trade in the game's log in the last half hour shows you

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { whileShown } from "../pane.svelte";
+  import { shownPage, whileShown } from "../pane.svelte";
   import { links, openUrl } from "../links.svelte";
   import Opening from "../ui/Opening.svelte";
   import Fold from "../ui/Fold.svelte";
@@ -457,12 +457,14 @@
   $effect(() => () => {
     for (const id of Object.keys(edits)) mkt.editing.delete(id);
   });
-  // Your riven auctions: warframe.market keeps them apart from listings (Rivens has the same, per riven).
+  // Your riven auctions: warframe.market keeps them apart from listings (Rivens has the same, per
+  // riven). Read while this page is on screen, at most every 5 minutes (rivenStore, refreshMine);
+  // repricing or closing one here reads them again at once.
   $effect(() => {
     void mkt.ordersAt;
     if (!mkt.linked) return;
     void rivens.loadMeta();
-    void rivens.loadMine();
+    if (shownPage("market")) void rivens.refreshMine(`${mkt.me?.id ?? ""}|${mkt.platform}`);
   });
   const auctions = $derived(rivens.mine.filter((a) => !a.closed));
   // Each auction against MyOrbiter's estimate for a riven like it: the weapon's cheapest listed

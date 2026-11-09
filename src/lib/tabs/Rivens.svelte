@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { whileShown } from "../pane.svelte";
+  import { shownPage, whileShown } from "../pane.svelte";
   import { links, openUrl } from "../links.svelte";
   import { untrack } from "svelte";
   // Your rivens, read from the game: each stat as the game shows it, how good each roll is, and
@@ -288,8 +288,11 @@
     checkingAll = null;
   }
   // Selling: your riven auctions on warframe.market, and the form to put one up.
+  // Read while this page is on screen, and again with each read of your listings (every 30 s) at
+  // most every 5 minutes (rivenStore, refreshMine).
   $effect(() => {
-    if (mkt.linked && meta) void rivens.loadMine();
+    void mkt.ordersAt;
+    if (mkt.linked && meta && shownPage("rivens")) void rivens.refreshMine(`${mkt.me?.id ?? ""}|${mkt.platform}`);
   });
   let sell = $state<Record<string, { buyout: number | null; bids: boolean; starting: number | null; busy: boolean; error: string | null }>>({});
   function openSell(r: Riven, suggest: number | null) {
