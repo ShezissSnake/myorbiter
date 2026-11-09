@@ -167,8 +167,11 @@ Every request MyOrbiter makes to warframe.market says who it is, with the User-A
   repricing (off unless you turn it on; its limits are in Settings, Trades).
 - **How often, at most.** API calls go out one at a time, at least 0.4 seconds apart (1.5 seconds
   for a minute and a half after warframe.market says to slow down), which keeps them under 3 a
-  second, the limit the code's comments give for warframe.market (warframe.market's own published
-  limits weren't audited); warframe.market's pictures keep their own 0.4-second spacing.
+  second, warframe.market's published limit for listings; warframe.market's pictures keep their
+  own 0.4-second spacing. Riven auction requests (searches for a price check, a comparison, a
+  riven alert or Search on Rivens; your own auctions; putting one up, changing or closing it)
+  also share a budget of 10 a minute, warframe.market's limit for contracts: more wait their turn,
+  in order, and Rivens says "Waiting for warframe.market's search limit…" meanwhile.
   At most 120 changes (listings, auctions, +rep) go out in any minute; more wait their turn. A
   status sent on the status connection isn't counted among them.
 

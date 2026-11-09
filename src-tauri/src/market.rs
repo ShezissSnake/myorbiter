@@ -5,7 +5,8 @@
 //! the `Authorization` header warframe.market sends back on use.
 //!
 //! Every request goes through one gate that keeps at least `MIN_GAP` between calls, so a long
-//! repricing pass stays inside warframe.market's limit of about three requests a second.
+//! repricing pass stays inside warframe.market's limit of about three requests a second. Contract
+//! requests (riven auctions) also share a budget of `CONTRACTS_PER_MINUTE`.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -95,12 +96,76 @@ static WRITES: Mutex<std::collections::VecDeque<Instant>> = Mutex::new(std::coll
 /// How long a change at `now` waits, the recent changes having gone out at `sent` (oldest first;
 /// it may still hold some older than a minute, which don't count).
 fn write_wait(sent: &std::collections::VecDeque<Instant>, now: Instant) -> Duration {
-    if sent.len() < WRITES_PER_MINUTE {
+    window_wait(sent, WRITES_PER_MINUTE, WRITE_WINDOW, now)
+}
+
+/// How long a request at `now` waits so that no `window` holds more than `cap` of them, the others
+/// going (or due to go) at `sent`, oldest first.
+fn window_wait(sent: &std::collections::VecDeque<Instant>, cap: usize, window: Duration, now: Instant) -> Duration {
+    if sent.len() < cap {
         return Duration::ZERO;
     }
     // The one that has to leave the window first: `len - (cap - 1)` from the front.
-    let oldest = sent[sent.len() - WRITES_PER_MINUTE];
-    (oldest + WRITE_WINDOW).saturating_duration_since(now)
+    let oldest = sent[sent.len() - cap];
+    (oldest + window).saturating_duration_since(now)
+}
+
+/// warframe.market's limit for contracts (riven auctions), from its terms of service
+/// (warframe.market/tos, API): "Requests may not be made at a rate faster than 3 per second for
+/// listings or 10 per minute for contracts." Its developer docs (docs.warframe.market, Rules)
+/// expect contract search endpoints "to be limited to roughly 10 to 20 requests per minute"; the
+/// lower figure is the one kept. Every request whose path has `/auctions` counts: searches (a
+/// riven's price check, comparing, a riven alert, Search on Rivens), your own auctions, and
+/// putting one up, changing or closing it.
+const CONTRACTS_PER_MINUTE: usize = 10;
+/// A contract request's slot is counted from when it's due to go; the general gap (`SLOW_GAP` at
+/// most) can hold it a little longer, so the window is that much longer than a minute.
+const CONTRACT_WINDOW: Duration = Duration::from_millis(61_500);
+
+/// Whether a request is a contract request, by its path.
+fn is_contract(url: &str) -> bool {
+    log_path(url).contains("/auctions")
+}
+
+/// The contract requests of the last minute, by when each went or is due to go, oldest first. A
+/// request takes its slot when it asks, so the ones after it queue behind it, in order.
+static CONTRACTS: Mutex<std::collections::VecDeque<Instant>> = Mutex::new(std::collections::VecDeque::new());
+
+/// Takes the next contract slot at `now`: how long to wait for it. Slots a minute past drop out.
+fn contract_slot(sent: &mut std::collections::VecDeque<Instant>, now: Instant) -> Duration {
+    while sent.front().is_some_and(|t| now.saturating_duration_since(*t) >= CONTRACT_WINDOW) {
+        sent.pop_front();
+    }
+    let wait = window_wait(sent, CONTRACTS_PER_MINUTE, CONTRACT_WINDOW, now);
+    sent.push_back(now + wait);
+    wait
+}
+
+/// Told when a contract request has to wait for the budget, with when it will go (unix ms), so
+/// the page can say so on the control that asked. Set once at startup (lib.rs).
+static CONTRACT_WAIT: Mutex<Option<Box<dyn Fn(u64) + Send>>> = Mutex::new(None);
+
+pub fn on_contract_wait(f: impl Fn(u64) + Send + 'static) {
+    *CONTRACT_WAIT.lock().unwrap_or_else(|e| e.into_inner()) = Some(Box::new(f));
+}
+
+/// A time to come as unix milliseconds, for the page.
+fn unix_ms(at: Instant) -> u64 {
+    let wall = std::time::SystemTime::now() + at.saturating_duration_since(Instant::now());
+    wall.duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
+}
+
+/// A contract request waits for its slot in the budget; nothing is dropped.
+fn contract_turn() {
+    let wait = contract_slot(&mut CONTRACTS.lock().unwrap_or_else(|e| e.into_inner()), Instant::now());
+    if wait.is_zero() {
+        return;
+    }
+    log::info!(target: "myorbiter::market", "{CONTRACTS_PER_MINUTE} contract requests this minute: waiting {} s", wait.as_secs());
+    if let Some(tell) = CONTRACT_WAIT.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
+        tell(unix_ms(Instant::now() + wait));
+    }
+    std::thread::sleep(wait);
 }
 
 /// Waits for a change's turn under the cap, then counts it.
@@ -389,10 +454,19 @@ impl Client {
     /// warframe.market turns away for going too fast is tried again (with_retries); a change
     /// isn't: it may have gone through.
     fn send(&self, method: &str, url: &str, body: Option<&Value>, token: Option<&str>) -> Result<(Value, Option<String>), MarketError> {
+        let contract = is_contract(url);
         let result = if method == "GET" {
-            with_retries(|| self.send_once(method, url, body, token))
+            with_retries(|| {
+                if contract {
+                    contract_turn();
+                }
+                self.send_once(method, url, body, token)
+            })
         } else {
             write_turn();
+            if contract {
+                contract_turn();
+            }
             self.send_once(method, url, body, token)
         };
         // The log: every change, and every request that failed (method and path, never the sign-in).
@@ -1249,6 +1323,55 @@ mod tests {
         assert_eq!(write_wait(&sent, next), Duration::from_millis(100));
     }
 
+
+    #[test]
+    fn contract_requests_share_ten_a_minute_queued_in_order() {
+        use std::collections::VecDeque;
+        assert_eq!(CONTRACTS_PER_MINUTE, 10);
+        let start = Instant::now();
+        let mut slots = VecDeque::new();
+        // Ten at once go at once (a page of price checks starts without waiting).
+        for _ in 0..10 {
+            assert_eq!(contract_slot(&mut slots, start), Duration::ZERO);
+        }
+        // The eleventh and twelfth queue for the first and second slots to leave the window, in
+        // the order they asked; none is dropped.
+        let w11 = contract_slot(&mut slots, start + Duration::from_secs(1));
+        let w12 = contract_slot(&mut slots, start + Duration::from_secs(1));
+        assert_eq!(w11, CONTRACT_WINDOW - Duration::from_secs(1));
+        assert_eq!(w12, CONTRACT_WINDOW - Duration::from_secs(1));
+        assert_eq!(slots.len(), 12);
+        // Ten more at once a little later: queued behind those, ten of them a window after the
+        // last ten's slots, never more than ten in any window.
+        let mut at = Vec::new();
+        for _ in 0..10 {
+            let now = start + Duration::from_secs(2);
+            at.push(now + contract_slot(&mut slots, now));
+        }
+        assert!(at.windows(2).all(|w| w[0] <= w[1]), "in the order they asked");
+        let all: Vec<Instant> = slots.iter().copied().collect();
+        for (i, a) in all.iter().enumerate() {
+            let inside = all[i..].iter().filter(|b| b.saturating_duration_since(*a) < CONTRACT_WINDOW).count();
+            assert!(inside <= CONTRACTS_PER_MINUTE, "{inside} in the window from slot {i}");
+        }
+        // Once a window has passed with nothing asked, slots are free again and the old ones go.
+        let later = *all.last().unwrap() + CONTRACT_WINDOW;
+        assert_eq!(contract_slot(&mut slots, later), Duration::ZERO);
+        assert_eq!(slots.len(), 1);
+        // The general gate is apart from it: 400 ms between any two requests.
+        assert_eq!(MIN_GAP, Duration::from_millis(400));
+    }
+
+    #[test]
+    fn contract_requests_are_told_by_their_path() {
+        assert!(is_contract(&format!("{V1}/auctions/search?type=riven&weapon_url_name=rubico")));
+        assert!(is_contract(&format!("{V1}/profile/auctions")));
+        assert!(is_contract(&format!("{V1}/auctions/create")));
+        assert!(is_contract(&format!("{V1}/auctions/entry/abc/close")));
+        assert!(!is_contract(&format!("{V2}/orders/item/serration")));
+        assert!(!is_contract(&format!("{V2}/riven/weapons")));
+        assert!(!is_contract(&format!("{V2}/me")));
+    }
 
     #[test]
     fn platform_is_one_warframe_market_knows() {

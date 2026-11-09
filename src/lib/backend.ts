@@ -1300,6 +1300,16 @@ export async function quitOnWindowClose(): Promise<() => void> {
 }
 
 /**
+ * Calls `onwait` with when the next riven search goes (unix ms) each time one has to wait for
+ * warframe.market's contract budget (10 a minute, market.rs). Resolves to a way to stop.
+ */
+export async function onSearchWait(onwait: (until: number) => void): Promise<() => void> {
+  if (!inTauri) return () => {};
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<number>("market-search-wait", (e) => onwait(e.payload));
+}
+
+/**
  * Sets the riven key (see `set_riven_key`), or none with "". Resolves to why it couldn't be set,
  * or null. Each press calls `onpress`.
  */

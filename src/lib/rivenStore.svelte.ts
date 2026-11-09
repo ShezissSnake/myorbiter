@@ -1,6 +1,6 @@
 // warframe.market's riven data: weapon and stat names (cached for a day on the Rust side) and
 // riven auctions, cached a few minutes per search so opening a card twice doesn't refetch.
-import { market, saved as disk } from "./backend";
+import { market, onSearchWait, saved as disk } from "./backend";
 import type { RivenModel } from "./core/rivenModel";
 import { packListed, packPrices, startingFor, parseMyAuctions, parseWeeklyRivens, readSavedPrices, tradeUrl, withSaved, type AuctionItem, type MyAuction, type RivenAuction, type RivenMeta, type RivenTrade, type SavedRivenPrices } from "./core/rivens";
 
@@ -11,6 +11,21 @@ class Rivens {
   metaError = $state<string | null>(null);
   results = $state.raw<Record<string, { at: number; auctions: RivenAuction[] } | { at: number; error: string }>>({});
   private loading: Promise<RivenMeta | null> | null = null;
+
+  /**
+   * While a search waits for warframe.market's contract budget (10 a minute, kept in market.rs):
+   * when the queued one goes (unix ms). Searches wait their turn; none is dropped. Null otherwise.
+   */
+  searchWait = $state<number | null>(null);
+  private waitDone: ReturnType<typeof setTimeout> | undefined;
+  private waitListener: Promise<() => void> | null = null;
+  /** A search queued until `until`: shown until then, or a later one's time. */
+  waiting(until: number) {
+    if (this.searchWait != null && this.searchWait > until) return;
+    this.searchWait = until;
+    clearTimeout(this.waitDone);
+    this.waitDone = setTimeout(() => (this.searchWait = null), Math.max(0, until - Date.now()) + 500);
+  }
 
   async loadMeta(): Promise<RivenMeta | null> {
     if (this.meta) return this.meta;
@@ -38,6 +53,7 @@ class Rivens {
     const hit = this.results[key];
     // Results are reused for a while; a failure isn't, so "Try again" really tries again.
     if (hit && !("error" in hit) && Date.now() - hit.at < maxAge) return hit.auctions;
+    this.waitListener ??= onSearchWait((until) => this.waiting(until)).catch(() => () => {});
     try {
       const auctions = await market.rivenAuctions(weapon, positive, negative);
       this.keep(key, { at: Date.now(), auctions });

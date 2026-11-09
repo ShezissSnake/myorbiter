@@ -1175,6 +1175,8 @@ fn report_env(app: tauri::AppHandle) -> ReportEnv {
 /// Sent to the page when the window's X is clicked: it saves what is waiting to be saved (the last
 /// 300 ms of changes) and calls `quit`, as Ctrl+Q does.
 const QUIT_REQUESTED: &str = "quit-requested";
+/// Sent when a contract request waits for warframe.market's 10-a-minute budget: when it goes (unix ms).
+const MARKET_SEARCH_WAIT: &str = "market-search-wait";
 /// A page that doesn't call `quit` within this (hung, or still loading) is not waited for.
 const QUIT_GRACE: Duration = Duration::from_secs(2);
 
@@ -1453,6 +1455,12 @@ pub fn run() {
                 }
             }
             app.manage(market::Client::new(market::TokenStore::new(&config)));
+            // A riven search waiting for warframe.market's contract budget: the page says so on the
+            // control that asked, until the time given (unix ms).
+            let handle = app.handle().clone();
+            market::on_contract_wait(move |until| {
+                let _ = handle.emit(MARKET_SEARCH_WAIT, until);
+            });
             // The TennoScope this build carries, if it carries one (release builds do).
             let bundled = app.path().resource_dir().ok().map(|d| d.join(companion::BUNDLED));
             app.state::<companion::Companion>().set_bundled(bundled);
