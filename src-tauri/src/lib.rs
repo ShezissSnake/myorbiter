@@ -808,9 +808,12 @@ fn market_feed(app: tauri::AppHandle, on: bool) -> feed::FeedState {
     f.state()
 }
 
+/// How the live feed is doing. Async, on a blocking thread: the page asks every 30 s, and a
+/// synchronous command runs on the main thread, where a wait for the feed's lock would hold up
+/// the window.
 #[tauri::command]
-fn market_feed_state(app: tauri::AppHandle) -> feed::FeedState {
-    app.state::<feed::Feed>().state()
+async fn market_feed_state(app: tauri::AppHandle) -> Result<feed::FeedState, String> {
+    tauri::async_runtime::spawn_blocking(move || app.state::<feed::Feed>().state()).await.map_err(|e| e.to_string())
 }
 
 /// A player's closed orders on warframe.market (yours, for importing sales).
@@ -1021,10 +1024,11 @@ fn tennoscope_show(companion: tauri::State<'_, companion::Companion>) -> Result<
     companion.show()
 }
 
-/// Your warframe.market status as MyOrbiter holds it.
+/// Your warframe.market status as MyOrbiter holds it. Async, on a blocking thread, as
+/// `market_feed_state`: the page asks every 3 s.
 #[tauri::command]
-fn presence_state(status: tauri::State<'_, presence::Presence>) -> presence::State {
-    status.state()
+async fn presence_state(app: tauri::AppHandle) -> Result<presence::State, String> {
+    tauri::async_runtime::spawn_blocking(move || app.state::<presence::Presence>().state()).await.map_err(|e| e.to_string())
 }
 
 /// Hold a status (online, ingame, invisible), or "offline" to close the connection. The token

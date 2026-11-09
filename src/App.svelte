@@ -13,6 +13,7 @@
   import { allSetRows, allSetSaves, damagedPartNeeds, gearSetRows, inventoryValue, needsByUnique, relicsYouNeed, spareRows } from "./lib/core/spares";
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
   import { buildModel, ERAS, type Model } from "./lib/core/model";
+  import { readKey, sameRead } from "./lib/core/sameRead";
   import { mergeRelics, type RelicData } from "./lib/core/relicData";
   import { BUILD } from "./lib/build";
   import type { RecipeData } from "./lib/core/buildPlan";
@@ -251,6 +252,8 @@
   /** Now, to the half minute: clocks, "synced 3 min ago", pauses running out. */
   let tick = $state(Date.now());
   let bundle = $state.raw<Bundle | null>(null);
+  /** The content key of `bundle` (core/sameRead.ts): a read with the same key keeps it. */
+  let bundleKey: string | null = null;
   let live = $state.raw<Live>({ fissures: null, resurgence: null, resurgenceExpiry: null });
   /**
    * The worldstate's state, for Home. `liveAt`: when the worldstate shown was read (null: none read
@@ -2251,7 +2254,13 @@
       // In the same task as the read, so the model is built once with both.
       const world = take ? await take() : null;
       if (world) landLive(world);
-      bundle = read;
+      // The same read as the one held (a sync that found nothing new): the model built from it
+      // stands, and no page redoes its rows (core/sameRead.ts).
+      const key = readKey(read);
+      if (!sameRead(bundle, bundleKey, read, key)) {
+        bundle = read;
+        bundleKey = key;
+      }
       noInventory = empty;
       loadedAt = Date.now();
       error = null;
@@ -2260,6 +2269,7 @@
       // collection until it can. The stamp poll reloads once TennoScope writes its data.
       if (nothingYet(String(e)) && (settings.withoutInventory || noTennoScope) && (!bundle || noInventory)) {
         bundle = emptyBundle();
+        bundleKey = null;
         noInventory = true;
         error = null;
       } else error = String(e);

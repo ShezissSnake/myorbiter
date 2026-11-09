@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { whileShown } from "../pane.svelte";
   import { exportFile } from "../backend";
   import { numberFormat } from "../ui/table";
   import { tradesCsv } from "../core/exportCsv";
@@ -45,7 +46,7 @@
   // A month, like Sales: the span most questions are about.
   let span = $state<"30" | "90" | "all">("30");
   const since = $derived(span === "all" ? 0 : Date.now() - Number(span) * DAY);
-  const hist = $derived(settings.game.valueHistory.filter((p) => p.at >= since));
+  const hist = $derived.by(whileShown("stats", () => settings.game.valueHistory.filter((p) => p.at >= since)));
   const at = $derived(hist.map((p) => p.at));
   /** The read the figures beside the value chart's title are from. */
   const lastRead = $derived(settings.game.valueHistory.at(-1)?.at ?? null);
@@ -82,16 +83,14 @@
   // ---------------------------------------------------------------- parts you got
   // Every prime part (and other gear part) that turned up between inventory reads in this span,
   // trades left out (core/drops.ts), most first.
-  const got = $derived(
-    [...dropTotals(settings.game.drops, settings.market.trades, since)]
+  const got = $derived.by(whileShown("stats", () => [...dropTotals(settings.game.drops, settings.market.trades, since)]
       .map(([name, n]) => ({ name, n, each: model.price(name) }))
-      .sort((a, b) => b.n - a.n || (b.each ?? 0) * b.n - (a.each ?? 0) * a.n || a.name.localeCompare(b.name)),
-  );
+      .sort((a, b) => b.n - a.n || (b.each ?? 0) * b.n - (a.each ?? 0) * a.n || a.name.localeCompare(b.name))));
   const gotWorth = $derived(got.reduce((s, g) => s + (g.each ?? 0) * g.n, 0));
   const gotCount = $derived(got.reduce((s, g) => s + g.n, 0));
 
   // ---------------------------------------------------------------- trades
-  const trades = $derived(settings.market.trades.filter((t) => t.at >= since));
+  const trades = $derived.by(whileShown("stats", () => settings.market.trades.filter((t) => t.at >= since)));
   type Kind = "sale" | "purchase" | "trade";
   const kindOf = (t: TradeLogEntry): Kind => (t.platIn > 0 && !t.received.length ? "sale" : t.platOut > 0 && !t.offered.length ? "purchase" : "trade");
   let show = $state<"all" | Kind>("all");
@@ -111,7 +110,7 @@
     if (c === "Mods" || c === "mod") return "Mods";
     return "Other";
   }
-  const byType = $derived.by(() => {
+  const byType = $derived.by(whileShown("stats", () => {
     const out = new Map<Group, { revenue: number; spent: number }>();
     const add = (g: Group, k: "revenue" | "spent", v: number) => {
       const e = out.get(g) ?? { revenue: 0, spent: 0 };
@@ -132,12 +131,12 @@
     const covered = salesCoveredByTrades(settings.market.sales, settings.market.trades.filter((t) => kindOf(t) === "sale"));
     for (const s of settings.market.sales) if (s.at >= since && !covered.has(s)) add(groupOf(s.item), "revenue", s.quantity * s.platinum);
     return [...out.entries()].map(([g, v]) => ({ group: g, revenue: Math.round(v.revenue), spent: Math.round(v.spent), profit: Math.round(v.revenue - v.spent) })).sort((a, b) => b.profit - a.profit);
-  });
+  }));
   const revenue = $derived(byType.reduce((n, r) => n + r.revenue, 0));
   const spent = $derived(byType.reduce((n, r) => n + r.spent, 0));
   const partners = $derived(new Set(trades.map((t) => t.partner)).size);
   /** Players with your +rep (warframe.market takes one per player, so any trade with them counts). */
-  const repGiven = $derived(new Set(settings.market.trades.filter((t) => settings.market.rep[t.key] === "given").map((t) => t.partner.toLowerCase())));
+  const repGiven = $derived.by(whileShown("stats", () => new Set(settings.market.trades.filter((t) => settings.market.rep[t.key] === "given").map((t) => t.partner.toLowerCase()))));
 
   const when = (t: number) => new Date(t).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   const img = (name: string) => model.imageOf(name.replace(/ Set$/, "").replace(/ Relic$/, ""));

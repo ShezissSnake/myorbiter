@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { whileShown } from "../pane.svelte";
   import { localDayStart, salesByDay } from "../core/salesDays";
   // What you've sold and what it made, and how each sale compares with the market. Sales log
   // themselves from trades in the game log, or when you press Sold on a listing in Orders, or are
@@ -89,11 +90,11 @@
   const trades = (xs: Sale[]) => xs.reduce((n, s) => n + s.quantity, 0);
 
   const today = $derived(since(dayStart));
-  const week = $derived(since(now - 7 * DAY));
-  const month = $derived(since(now - 30 * DAY));
+  const week = $derived.by(whileShown("sales", () => since(now - 7 * DAY)));
+  const month = $derived.by(whileShown("sales", () => since(now - 30 * DAY)));
 
   // The ticker tape under the title: today, the week and your best sale (the band keeps the month and after).
-  const best = $derived(sales.reduce<Sale | null>((b, s) => (!b || s.quantity * s.platinum > b.quantity * b.platinum ? s : b), null));
+  const best = $derived.by(whileShown("sales", () => sales.reduce<Sale | null>((b, s) => (!b || s.quantity * s.platinum > b.quantity * b.platinum ? s : b), null)));
   const tape = $derived<Tick[]>([
     { key: "today", label: "Today", value: plat(today), plat: true, subN: trades(today), sub: "sold", title: `Today: ${trades(today)} sold since your local midnight (Trades left, on Home and Orders, counts from 00:00 UTC)` },
     { key: "week", label: "7 days", value: plat(week), plat: true, subN: trades(week), sub: "sold", title: `Last 7 days: ${trades(week)} sold` },
@@ -104,14 +105,14 @@
   let span = $state<"7" | "30" | "all">("30");
   /** Span picks so far: the chart's bars grow from nothing when a pick redraws them (not on load). */
   let picks = $state(0);
-  const inSpan = $derived(span === "all" ? sales : since(now - Number(span) * DAY));
+  const inSpan = $derived.by(whileShown("sales", () => span === "all" ? sales : since(now - Number(span) * DAY)));
   const top = $derived(
     [...inSpan.reduce((m, s) => m.set(s.item, { item: s.item, qty: (m.get(s.item)?.qty ?? 0) + s.quantity, plat: (m.get(s.item)?.plat ?? 0) + s.quantity * s.platinum }), new Map<string, { item: string; qty: number; plat: number }>()).values()]
       .sort((a, b) => b.plat - a.plat)
       .slice(0, 8),
   );
   // Platinum per day, for the bar chart. Days are calendar days (a clock change makes one 23 or 25 hours).
-  const days = $derived(salesByDay(sales, dayStart, span === "7" ? 7 : 30));
+  const days = $derived.by(whileShown("sales", () => salesByDay(sales, dayStart, span === "7" ? 7 : 30)));
   const peak = $derived(Math.max(1, ...days.map((d) => d.plat)));
 
   // Adding one by hand.
@@ -156,7 +157,7 @@
   let added = $state<string | null>(null);
   // The log, each row keyed by its sale (a sale logged meanwhile doesn't shift a row's state onto
   // another); two identical sales get a count after the second's key.
-  const log = $derived.by(() => {
+  const log = $derived.by(whileShown("sales", () => {
     const seen = new Map<string, number>();
     return sales.slice(0, 200).map((s) => {
       const k = keyOf(s);
@@ -164,7 +165,7 @@
       seen.set(k, n + 1);
       return { s, key: n ? `${k}#${n}` : k };
     });
-  });
+  }));
   function drop(key: string) {
     const i = sales.findIndex((x) => keyOf(x) === key);
     if (i >= 0) settings.market.sales = sales.filter((_, j) => j !== i);
@@ -209,7 +210,7 @@
   const underCount = $derived(month.filter((s) => (ratio(s) ?? 1) < UNDER).length);
   // What sold three or more times in 30 days: worth keeping listed, and listing more copies of.
   /** Listings for more than you hold now: Orders asks "Sold?" under each, and a Yes logs the sale here. */
-  const over = $derived(overListed(mkt.orders, (o) => { const it = mkt.item(o.itemId); return it ? heldFor(model, it, o) : null; }));
+  const over = $derived.by(whileShown("sales", () => overListed(mkt.orders, (o) => { const it = mkt.item(o.itemId); return it ? heldFor(model, it, o) : null; })));
   const maybeSold = $derived(over.shown.length + over.hidden.length);
   const OFTEN = 3;
   const fast = $derived(new Set([...month.reduce((m, s) => m.set(s.item, (m.get(s.item) ?? 0) + s.quantity), new Map<string, number>())].filter(([, n]) => n >= OFTEN).map(([k]) => k)));

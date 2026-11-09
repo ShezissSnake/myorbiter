@@ -97,7 +97,7 @@ export function primeToBuild(m: Model, unique: string): { copies: number; for: s
 /** Every prime set you hold a part of. Worked out once a model (several pages and the reward-pick
  * score ask for it, the last once a relic), so callers must not change the list. */
 const setRowsMemo = new WeakMap<Model, SetRow[]>();
-export const setRows = perModel(setRowsFresh, () => "");
+export const setRows = perModel(setRowsFresh, () => "", (r: SetRow) => r.unique);
 function setRowsFresh(m: Model): SetRow[] {
   let rows = setRowsMemo.get(m);
   if (!rows) setRowsMemo.set(m, (rows = computeSetRows(m)));
@@ -298,7 +298,7 @@ export function setSaves(m: Model, opts: SaveForSets): Map<string, SetSave> {
 }
 
 /** Every prime part you hold. With `save` (Settings → Selling), loose copies wait for a set worth more whole (setSaves). */
-export const partRows = perModel(partRowsFresh, (save = null) => (save ? `${save.platPerDucat}|${idOf(save.drops)}` : "-"));
+export const partRows = perModel(partRowsFresh, (save = null) => (save ? `${save.platPerDucat}|${idOf(save.drops)}` : "-"), (r: PartRow) => r.name);
 function partRowsFresh(m: Model, save: SaveForSets | null = null): PartRow[] {
   const rows: PartRow[] = [];
   const saves = save ? setSaves(m, save) : null;
@@ -430,7 +430,7 @@ const BUILT_MODULAR = /\/LotusModular\w*$|\/OperatorAmplifiers\/OperatorAmpWeapo
 const INVENTORY_KIND: Record<string, string> = { frame: "Warframe", weapon: "Weapon", companion: "Companion" };
 
 /** Everything left to master, a row each: worked out once per model (Home, Mastery and Varzia's notice all ask). */
-export const masteryRows = perModel(masteryRowsFresh, () => "");
+export const masteryRows = perModel(masteryRowsFresh, () => "", (r: MasteryRow) => r.unique);
 function masteryRowsFresh(m: Model): MasteryRow[] {
   const rows: MasteryRow[] = [];
   const seen = new Set<string>();
@@ -670,7 +670,7 @@ export interface ArcaneRow {
   tradable: boolean;
 }
 
-export const arcaneRows = perModel(arcaneRowsFresh, () => "");
+export const arcaneRows = perModel(arcaneRowsFresh, () => "", (r: ArcaneRow) => r.unique);
 function arcaneRowsFresh(m: Model): ArcaneRow[] {
   const rows: ArcaneRow[] = [];
   const seen = new Set<string>();
@@ -842,7 +842,7 @@ export function lichWeaponsLeft(m: Model): { requiem: string[]; antivirus: strin
 }
 const some = (names: string[]) => (names.length <= 3 ? names.join(", ") : `${names.slice(0, 3).join(", ")} and ${names.length - 3} more`);
 
-export const modRows = perModel(modRowsFresh, () => "");
+export const modRows = perModel(modRowsFresh, () => "", (r: ModRow) => r.unique);
 function modRowsFresh(m: Model): ModRow[] {
   const rows: ModRow[] = [];
   const left = lichWeaponsLeft(m);
@@ -972,7 +972,7 @@ export function rewardPlat(m: Model, name: string, platPerDucat = 0): number {
   return Math.max(m.price(name) ?? 0, ducats * platPerDucat);
 }
 
-export const relicRows = perModel(relicRowsFresh, (opts = {}) => `${opts.includeUnowned ? 1 : 0}|${opts.platPerDucat ?? 0}`);
+export const relicRows = perModel(relicRowsFresh, (opts = {}) => `${opts.includeUnowned ? 1 : 0}|${opts.platPerDucat ?? 0}`, (r: RelicRow) => r.base);
 function relicRowsFresh(m: Model, opts: { includeUnowned?: boolean; platPerDucat?: number } = {}): RelicRow[] {
   const rate = opts.platPerDucat ?? 0;
   const ownedByBase = new Map<string, Record<string, number>>();
@@ -1086,7 +1086,7 @@ const TYPE_NAME: Record<string, string> = { frame: "Warframe", weapon: "Weapon",
 
 const STICKER = /\/Upgrades\/Stickers\//;
 
-export const inventoryRows = perModel(inventoryRowsFresh, () => "");
+export const inventoryRows = perModel(inventoryRowsFresh, () => "", (r: InventoryItem) => r.key);
 function inventoryRowsFresh(m: Model): InventoryItem[] {
   const rows = new Map<string, InventoryItem>();
   for (const [unique, inv] of m.inventoryByBase) {

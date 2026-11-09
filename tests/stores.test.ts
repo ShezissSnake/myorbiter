@@ -681,13 +681,84 @@ test("a riven put up that timed out but was made isn't reported as failed, even 
   };
   await rivens.sell({ type: "riven", weapon_url_name: "braton", name: "visi-critatox" } as never, 50, 50);
   assert.deepEqual(rivens.mine.map((a) => a.id), ["new"]);
-  // One that wasn't made is an error, to send again.
+  // One that wasn't made is an error, to send again (another riven for the same weapon).
   made = false;
   market.myAuctions = async () => [auction("new")] as never;
   market.createAuction = async () => {
     throw new Error("Couldn't reach warframe.market (timed out)");
   };
-  await assert.rejects(rivens.sell({ type: "riven", weapon_url_name: "braton", name: "visi-critatox" } as never, 50, 50), /timed out/);
+  await assert.rejects(rivens.sell({ type: "riven", weapon_url_name: "braton", name: "acri-tron" } as never, 50, 50), /timed out/);
+  rivens.mine = [];
+  rivens.mineAt = null;
+});
+
+test("a riven already up (put up on the site meanwhile) isn't put up a second time", async () => {
+  const auction = (id: string, name: string, closed = false) => ({ id, closed, item: { type: "riven", weapon_url_name: "braton", name }, buyout_price: 50, starting_price: 50 });
+  let sent = 0;
+  market.createAuction = async () => void sent++;
+  // The page's list is old and doesn't have it; the read before putting it up does.
+  rivens.mine = [];
+  rivens.mineAt = Date.now() - 4 * 60_000;
+  market.myAuctions = async () => [auction("site", "visi-critatox")] as never;
+  await assert.rejects(rivens.sell({ type: "riven", weapon_url_name: "braton", name: "visi-critatox" } as never, 50, 50), /already up/);
+  assert.equal(sent, 0, "nothing sent");
+  // A closed one, or another riven for the same weapon, doesn't stop it.
+  market.myAuctions = async () => [auction("old", "visi-critatox", true), auction("other", "acri-tron")] as never;
+  rivens.mineAt = null;
+  await rivens.sell({ type: "riven", weapon_url_name: "braton", name: "visi-critatox" } as never, 50, 50);
+  assert.equal(sent, 1);
+  rivens.mine = [];
+  rivens.mineAt = null;
+});
+
+test("the pages read your riven auctions at most every 5 minutes; a change reads them at once", async () => {
+  const { MINE_EVERY_MS } = await import("../src/lib/rivenStore.svelte");
+  let reads = 0;
+  let fail = false;
+  market.myAuctions = async () => {
+    reads++;
+    if (fail) throw new Error("warframe.market didn't answer");
+    return [] as never;
+  };
+  market.closeAuction = async () => {};
+  const t0 = 1_800_000_000_000;
+  await rivens.refreshMine("me|pc", t0);
+  await rivens.refreshMine("me|pc", t0 + 30_000);
+  await rivens.refreshMine("me|pc", t0 + MINE_EVERY_MS - 1);
+  assert.equal(reads, 1, "one read in 5 minutes, however often a page asks");
+  await rivens.refreshMine("me|pc", t0 + MINE_EVERY_MS);
+  assert.equal(reads, 2, "and the next once they're up");
+  await rivens.close({ id: "x" } as never);
+  assert.equal(reads, 3, "closing one reads them again at once");
+  await rivens.refreshMine("other|pc", t0 + MINE_EVERY_MS + 1);
+  assert.equal(reads, 4, "another account: at once");
+  await rivens.refreshMine("other|xbox", t0 + MINE_EVERY_MS + 2);
+  assert.equal(reads, 5, "another platform: at once");
+  fail = true;
+  const t1 = t0 + 3 * MINE_EVERY_MS;
+  await rivens.refreshMine("other|xbox", t1);
+  assert.equal(reads, 6);
+  await rivens.refreshMine("other|xbox", t1 + 30_000);
+  assert.equal(reads, 6, "a failed read isn't tried again at once");
+  await rivens.refreshMine("other|xbox", t1 + 60_000);
+  assert.equal(reads, 7, "but after a minute");
+  rivens.mine = [];
+  rivens.mineAt = null;
+  rivens.mineError = null;
+  (rivens as unknown as { mineAsked: unknown }).mineAsked = null;
+});
+
+test("putting a riven up reads your auctions first when the last read is over half a minute old", async () => {
+  let reads = 0;
+  market.myAuctions = async () => (reads++, []) as never;
+  market.createAuction = async () => {};
+  rivens.mine = [];
+  rivens.mineAt = Date.now();
+  await rivens.sell({ type: "riven", weapon_url_name: "braton", name: "visi-critatox" } as never, 50, 50);
+  assert.equal(reads, 1, "fresh: only the read after it's up");
+  rivens.mineAt = Date.now() - 31_000;
+  await rivens.sell({ type: "riven", weapon_url_name: "braton", name: "visi-critatox" } as never, 50, 50);
+  assert.equal(reads, 3, "old: read before, and after");
   rivens.mine = [];
   rivens.mineAt = null;
 });
