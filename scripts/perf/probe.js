@@ -141,7 +141,7 @@
     imgRes = [];
     Object.assign(mut, { records: 0, added: 0, removed: 0, attrs: 0, text: 0, imgsAdded: 0, last: 0, first: 0, pane: 0, paneFirst: 0, paneLast: 0 });
     const fetchesBefore = P.fetches.length;
-    const c0 = snapCounts();
+    let c0 = snapCounts();
     framing = beating = true;
     lastBeat = now();
     requestAnimationFrame(frame);
@@ -159,6 +159,9 @@
       if (!rec) error = `no request matching ${waitFetch} within ${waitMs} ms`;
       else {
         t0 = rec.t0;
+        // Counted from the request, not from the wait before it. (A Timeline recording, if any,
+        // still covers the wait: its JS samples aren't the tick's alone.)
+        c0 = snapCounts();
         while (rec.t1 == null) await sleep(1);
         waited = { url: rec.url, requestMs: Math.round(rec.t1 - rec.t0) };
       }
