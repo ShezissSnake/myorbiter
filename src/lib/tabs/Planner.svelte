@@ -146,7 +146,7 @@
   ]));
 </script>
 
-{#snippet relicCell(r: { base: string })}<span class="rel"><Named file={model.imageOf(r.base)} name={r.base} tint={eraTint(r.base)} />{#if forWish.has(r.base)}<span class="tag ok" title={wishTitle(r.base)}>wishlist</span>{/if}{#if fissures && !isOpen(r.base)}<span class="closed" title="No {r.base.split(' ')[0]} fissure is open right now: an Omnia one takes it, or wait for the next">no fissure now</span>{/if}</span>{/snippet}
+{#snippet relicCell(r: { base: string })}<Named file={model.imageOf(r.base)} name={r.base} tint={eraTint(r.base)}>{#if forWish.has(r.base)}<span class="tag ok" title={wishTitle(r.base)}>wishlist</span>{/if}{#if fissures && !isOpen(r.base)}<span class="closed" title="No {r.base.split(' ')[0]} fissure is open right now: an Omnia one takes it, or wait for the next">no fissure now</span>{/if}</Named>{/snippet}
 {#snippet ownedCell(r: CrackRow)}<Owned owned={r.owned} base={r.base} />{/snippet}
 {#snippet vaultCell(r: { vaulted: boolean })}<Avail v={r.vaulted ? "vaulted" : "farmable"} />{/snippet}
 {#snippet chanceCell(r: CrackRow)}<span class="pct" title={refinementLine(r)}>{(r.chance * 100).toFixed(1)}%</span>{/snippet}
@@ -295,5 +295,4 @@
   .set .name-mark { white-space: nowrap; }
   .rr { display: inline-flex; align-items: center; gap: .6rem; white-space: nowrap; }
   .rr-name { display: inline-flex; align-items: center; gap: .45rem; }
-  .rel :global(.name-mark) { white-space: nowrap; }
 </style>

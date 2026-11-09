@@ -209,7 +209,7 @@ export function sellTargets(m: Model, rules: PlanRules, advice: DucatOptions, in
         const taken = inSets ? p.inSets : 0;
         const n = Math.min(p.spare - taken, p.quantity - taken - keepN);
         if (n <= 0) {
-          // Every copy you don't need to build waits for a set (Settings → Selling): a listing of yours
+          // Every copy you don't need to build waits for a set (Sell spares): a listing of yours
           // for it comes down. With copies kept to build or inside complete sets too, it's left as listed.
           if (p.saving && p.spare <= 0) out.push({ kind: "part", cat: "prime", name: p.name, unique: null, rank: null, quantity: p.forSet, why: `${p.quantity} held`, hold: { why: savedLine(p.forSet, p.saving), takeDown: p.keep === p.forSet }, rule: "prime.saving", ruleText: "Saving for a set" });
           continue;

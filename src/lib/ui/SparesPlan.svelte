@@ -41,6 +41,7 @@
   let {
     rules = $bindable(),
     veiledRivens = $bindable(false),
+    saveForSets = $bindable(true),
     minPrice = $bindable(),
     minByCategory = $bindable(),
     preview,
@@ -51,8 +52,10 @@
     actions,
   }: {
     rules: SparesRules;
-    /** Settings, Selling: veiled rivens count as spare (and so can be listed). Shown under Resources. */
+    /** Sell veiled rivens: they count as spare (and so can be listed). Switched at the foot, and shown under Resources. */
     veiledRivens?: boolean;
+    /** Save prime parts for sets: a loose part waits for its set when the set sells for clearly more. */
+    saveForSets?: boolean;
     /** The minimum price for everything (also Orders' Never under), and each category's own. */
     minPrice: number;
     minByCategory: MinByCategory;
@@ -111,7 +114,7 @@
   <div class="cats">
     <!-- Prime -->
     <CategoryRow id="cat-prime" bind:on={rules.prime.on} open={open === "prime"} ontoggle={() => toggle("prime")} label={CATEGORY_LABEL.prime} icon={ICON.prime} summary={summaryOf("prime", rules, facts.lichLeft)} preview={preview.prime}
-      always="Always kept: the parts and sets you need to build and master anything unbuilt; anything its ducats beat at your rate ({rate}p a ducat, set on Prime parts); loose parts waiting for a set worth more whole (Settings, Selling).">
+      always="Always kept: the parts and sets you need to build and master anything unbuilt; anything its ducats beat at your rate ({rate}p a ducat, set on Prime parts); loose parts waiting for a set worth more whole (Save prime parts for sets, at the foot of this page).">
       <fieldset class="opts" disabled={off("prime")}>
         <div class="opt wide">
           <Seg label="Sell" bind:value={rules.prime.sellAs} options={SELL_AS_OPTIONS("prime")} />
@@ -216,7 +219,7 @@
         <FamilyLine disabled={off("resources")} bind:on={rules.resources.families.captura} label={RESOURCE_FAMILY_LABEL.captura} note="One of each kept to use" tally={fam("resources", "captura")} estimate={preview.resources?.estimate} />
         <FamilyLine disabled={off("resources")} bind:on={rules.resources.families.lenses} label={RESOURCE_FAMILY_LABEL.lenses} note="And their blueprints" tally={fam("resources", "lenses")} estimate={preview.resources?.estimate} />
         <FamilyLine disabled={off("resources")} bind:on={rules.resources.families.other} label={RESOURCE_FAMILY_LABEL.other} note="Keys you don't need, Proof Fragments, ship part blueprints" tally={fam("resources", "other")} estimate={preview.resources?.estimate} />
-        <FamilyLine disabled={off("resources")} bind:on={veiledRivens} label="Veiled rivens" title="Settings, Selling's Sell veiled rivens: one setting, shown in both places" note="Settings, Selling: also counts them as spare on Inventory" tally={fam("resources", "veiled")} estimate={preview.resources?.estimate} />
+        <FamilyLine disabled={off("resources")} bind:on={veiledRivens} label="Veiled rivens" title="The Sell veiled rivens switch at the foot of this page: one setting, shown in both places" note="Sell veiled rivens, at the foot: also counts them as spare on Inventory" tally={fam("resources", "veiled")} estimate={preview.resources?.estimate} />
       </fieldset>
       {#if under("resources", "things")}<p class="note">{under("resources", "things")}.</p>{/if}
       <NeverSoldLine entries={neverSoldIn(rules, "resources")} one="thing" many="things" {onsellagain} />
@@ -236,6 +239,14 @@
   </div>
 
   <div class="minimums" id="minimums">
+    <div class="switches">
+      <Switch bind:on={saveForSets} label="Save prime parts for sets">
+        A loose prime part waits for its set instead of being sold on its own when the set sells for clearly more than its parts one by one (at least 10% and 5p more, each part at its price or its ducats at your rate, whichever is more), and you can still get every part it's missing: from a relic you own, a relic that still drops, Varzia, or a part you've been getting lately (Stats, Parts you got). When you put your spares on sale, your listing for a part comes down if every copy you hold is waiting (one you also keep copies of to build stays as you listed it). Sets → Saving up shows what's waiting and what's left to get.
+      </Switch>
+      <Switch bind:on={veiledRivens} label="Sell veiled rivens">
+        Off keeps every veiled riven to unveil yourself: never counted as spare on Inventory, and never put up by Sell spares (where it's the Veiled rivens line under Resources and more).
+      </Switch>
+    </div>
     <Minimums bind:minPrice bind:minByCategory />
     <p class="note">Nothing is listed or priced under its minimum (a spare that sells for less is left out), and repricing raises a listing under it to it. Your own floors on Orders, a prime's ducats and a relic's crack value still hold above it.</p>
   </div>
@@ -274,6 +285,7 @@
   .foot { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1.2rem; padding-top: .3rem; }
   /* The plan button keeps to the right, wrapped onto its own line or not. */
   .foot :global(.planbtn) { margin-left: auto; }
+  .switches { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: .7rem 2rem; padding-bottom: .5rem; margin-bottom: .2rem; border-bottom: 1px solid var(--rule); }
   .minimums { display: grid; gap: .35rem; padding: .55rem .7rem; border: 1px solid var(--rule); background: var(--well); }
   .grow { flex: 1; }
 </style>

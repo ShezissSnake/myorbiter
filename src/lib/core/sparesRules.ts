@@ -216,7 +216,7 @@ const sellAsOf = (sets: boolean, loose: boolean): SellAs | null => (sets && loos
  * The six switches before version 2, as the same choices: what was listed before is listed after.
  * - "Sets I don't need" covered prime sets and the other sets warframe.market trades whole;
  *   "Spare prime parts" the loose prime parts; "Everything else" weapon parts, relics, gems, fish,
- *   Captura, Ayatan, lenses and veiled rivens (those last under Settings, Selling, as they still are).
+ *   Captura, Ayatan, lenses and veiled rivens (those last switched at the foot of Sell spares).
  * - Mods kept two (Requiem and Antivirus five while lich weapons are left), only daily sellers;
  *   arcanes one maxed copy, maxed copies only; imprints none.
  */

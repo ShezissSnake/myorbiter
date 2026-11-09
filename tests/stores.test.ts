@@ -762,3 +762,42 @@ test("putting a riven up reads your auctions first when the last read is over ha
   rivens.mine = [];
   rivens.mineAt = null;
 });
+
+test("a pass flips its working flag once for the run, not once per listing; its count only climbs", async () => {
+  const it = { id: "it", slug: "it", gameRef: "/it", name: "It", maxRank: null, subtypes: null, tags: [] };
+  const orders = ["a", "b", "c", "d", "e"].map((id) => order(id));
+  market.items = async () => [it];
+  market.myOrders = async () => orders;
+  market.book = async () => [];
+  // What the button above the table watches: written to, each write recorded.
+  const proto = Object.getPrototypeOf(mkt);
+  const writes: { flag: "pass" | "progress"; value: unknown }[] = [];
+  for (const [name, flag] of [["pass", "pass"], ["passProgress", "progress"]] as const) {
+    const was = Object.getOwnPropertyDescriptor(proto, name)!;
+    Object.defineProperty(mkt, name, {
+      configurable: true,
+      get: () => was.get!.call(mkt),
+      set: (v) => {
+        writes.push({ flag, value: v && typeof v === "object" ? { ...v } : v });
+        was.set!.call(mkt, v);
+      },
+    });
+  }
+  try {
+    mkt.orders = [];
+    const priced = { price: () => null, priceMax: () => null, relicPrice: () => null, partByName: new Map() } as unknown as Model;
+    await mkt.reprice(priced, defaultMarketSettings(), false);
+  } finally {
+    delete (mkt as unknown as Record<string, unknown>).pass;
+    delete (mkt as unknown as Record<string, unknown>).passProgress;
+  }
+  const flips = writes.filter((w) => w.flag === "pass").map((w) => w.value);
+  assert.deepEqual(flips, ["Checking prices", null], "on once when the run starts, off once when it ends");
+  const counts = writes.filter((w) => w.flag === "progress").map((w) => w.value as { done: number; total: number } | null);
+  // Cleared at the start, then 0 of 5 up to 5 of 5, and cleared once, at the end.
+  assert.equal(counts[0], null);
+  assert.equal(counts.at(-1), null);
+  const mid = counts.slice(1, -1) as { done: number; total: number }[];
+  assert.deepEqual(mid.map((c) => c.done), [0, 1, 2, 3, 4, 5]);
+  assert.ok(mid.every((c) => c.total === 5));
+});

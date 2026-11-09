@@ -49,7 +49,7 @@ export interface SpareRow {
   crack: number | null;
   /** Spare copies that make up whole sets you can sell (a Mandonel Barrel in a spare Mandonel Set): better sold as the set. */
   inSets: number;
-  /** Copies waiting for a set worth more whole (Settings → Selling), counted in `keep`. */
+  /** Copies waiting for a set worth more whole (Sell spares), counted in `keep`. */
   forSet: number;
 }
 
@@ -323,7 +323,7 @@ function spareRowsFresh(m: Model, index: MarketIndex | null = null, sell: SellCh
     if (s.sellable <= 0) continue;
     for (const p of gearSetParts(m, s.unique) ?? []) inSets.set(p.unique, (inSets.get(p.unique) ?? 0) + s.sellable * p.required);
   }
-  // Loose parts of other gear sets waiting for the set (Settings → Selling), by path.
+  // Loose parts of other gear sets waiting for the set (Sell spares), by path.
   const gearSaved = new Map<string, { count: number; save: SetSave }>();
   if (save) {
     for (const g of gearSetSaves(m, index, save, needs).values()) {
@@ -389,7 +389,7 @@ function spareRowsFresh(m: Model, index: MarketIndex | null = null, sell: SellCh
       if (p.saving) why = `${why}${why ? ". " : ""}${savedLine(p.forSet, p.saving)}`;
     } else if (r.kind === "mod" && VEILED.test(r.unique)) {
       keep = sell.veiledRivens ? 0 : r.quantity;
-      why = sell.veiledRivens ? "Veiled rivens all count as spare: unveil any you'd rather roll yourself first" : "You keep veiled rivens (Settings, Selling)";
+      why = sell.veiledRivens ? "Veiled rivens all count as spare: unveil any you'd rather roll yourself first" : "You keep veiled rivens (Sell spares, Sell veiled rivens)";
     } else if (r.kind === "mod") {
       const spare = mods.get(r.name)?.get(r.rank ?? 0) ?? 0;
       keep = r.quantity - spare;
@@ -425,7 +425,7 @@ function spareRowsFresh(m: Model, index: MarketIndex | null = null, sell: SellCh
         why = `Drops ${listNeeds(need)}, which you still need`;
       } else if (!sell.relicsWorthSelling) {
         keep = r.quantity;
-        why = "You keep relics (Settings, Selling)";
+        why = "You keep relics (Sell spares, Relics)";
       } else if (crack == null || price == null) {
         // Only sold when it's sure to beat cracking: without both numbers, it's kept.
         keep = r.quantity;

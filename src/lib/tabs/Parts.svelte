@@ -37,7 +37,7 @@
   import { typed } from "../typed.svelte";
 
   // The ducat rate and smallest sale worth a trade are yours to set here; the bulk sale uses them too.
-  // Settings → Selling: whether loose parts wait for a set worth more whole.
+  // Sell spares: whether loose parts wait for a set worth more whole.
   let { model, advice = $bindable(), sell }: { model: Model; advice: AdviceSettings; sell: SellChoices } = $props();
 
   let query = $state("");
@@ -248,7 +248,7 @@
   <!-- The filter box, what each part is best as, spares: what most visits need. The rest folds. -->
   <div class="bar">
     <input type="search" aria-label="Filter prime parts by name" title="Shows only what matches what you type" placeholder="Filter parts…" bind:value={query} />
-    <Seg label="Best as" bind:value={best} options={[{ v: "all", label: "All", title: "Whatever is best for each part" }, { v: "Sell", label: "Sell", title: "Worth more sold on its own" }, { v: "Set", label: "Set", title: "Worth more sold in a complete set" }, { v: "Ducats", label: "Ducats", title: "Worth more traded to Baro, at your ducat rate" }, { v: "Save", label: "Save", title: "Waiting for its set, which sells for more than its parts and whose missing parts you can still get (Settings → Selling)" }, { v: "Keep", label: "Keep", title: "You need it to build something you haven't mastered" }]} />
+    <Seg label="Best as" bind:value={best} options={[{ v: "all", label: "All", title: "Whatever is best for each part" }, { v: "Sell", label: "Sell", title: "Worth more sold on its own" }, { v: "Set", label: "Set", title: "Worth more sold in a complete set" }, { v: "Ducats", label: "Ducats", title: "Worth more traded to Baro, at your ducat rate" }, { v: "Save", label: "Save", title: "Waiting for its set, which sells for more than its parts and whose missing parts you can still get (Sell spares)" }, { v: "Keep", label: "Keep", title: "You need it to build something you haven't mastered" }]} />
     {#if spareMatters}<Chip bind:on={spareOnly} label="Spare only" title="Leave out the copies you need to build something you haven't mastered" />{/if}
     <Fold on={[parent === "mastered" ? "mastered items" : parent === "unmastered" ? "not mastered" : "", avail !== "all" ? avail : ""].filter(Boolean).join(", ")} active={(parent !== "mastered" ? 1 : 0) + (avail !== "all" ? 1 : 0)} reset={() => { parent = "mastered"; avail = "all"; }}>
       <Seg

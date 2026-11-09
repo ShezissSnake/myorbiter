@@ -247,7 +247,7 @@
     <p class="signin small"><GameIcon name="market" size={14} /> Plans are made against your listings on warframe.market: <button type="button" class="link" title="Orders: sign in to warframe.market" onclick={() => go("market")}>sign in on Orders</button>. The choices below are kept either way.</p>
   {/if}
 
-  <SparesPlan bind:rules={settings.spares} bind:veiledRivens={settings.sellable.veiledRivens} bind:minPrice={settings.minPrice} bind:minByCategory={settings.minByCategory} {preview} {facts} bind:open page onsellagain={sellAgain} actions={planButton} />
+  <SparesPlan bind:rules={settings.spares} bind:veiledRivens={settings.sellable.veiledRivens} bind:saveForSets={settings.sellable.saveForSets} bind:minPrice={settings.minPrice} bind:minByCategory={settings.minByCategory} {preview} {facts} bind:open page onsellagain={sellAgain} actions={planButton} />
   <!-- Why the last plan or apply failed, here by its buttons rather than at the top of the page. -->
   {#each [planJob, applyJob].filter((j) => j.state === "failed" && j.error) as j (j)}<p class="small err" role="status">{j.error}</p>{/each}
 

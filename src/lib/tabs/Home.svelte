@@ -165,7 +165,7 @@
     return out.sort((a, b) => b.v - a.v).slice(0, 3);
   };
   // Your best relic for each era, worked out once per era rather than per fissure.
-  // Sets your loose parts wait for (Settings → Selling), by the era of the relics of yours that drop a missing part.
+  // Sets your loose parts wait for (Sell spares), by the era of the relics of yours that drop a missing part.
   const savingByEra = $derived.by(whileShown("home", () => {
     const out = new Map<string, { sets: string[]; relics: string[] }>();
     const opts = saveForSets(settings.market.sellable, settings.advice.platPerDucat, drops.recent);
