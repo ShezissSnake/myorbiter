@@ -5,7 +5,8 @@
 //! the `Authorization` header warframe.market sends back on use.
 //!
 //! Every request goes through one gate that keeps at least `MIN_GAP` between calls, so a long
-//! repricing pass stays inside warframe.market's limit of about three requests a second.
+//! repricing pass stays inside warframe.market's limit of about three requests a second. Contract
+//! requests (riven auctions) also share a budget of `CONTRACTS_PER_MINUTE`.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -71,7 +72,11 @@ static SLOW_UNTIL: Mutex<Option<Instant>> = Mutex::new(None);
 const SLOW_GAP: Duration = Duration::from_millis(1500);
 const SLOW_FOR: Duration = Duration::from_secs(90);
 
-fn wait_turn() {
+/// The last step before a request goes: the general gap, then (with the turn held, so nothing
+/// else goes meanwhile) warframe.market's deadline once more, since a request that waited
+/// (for the gap, the change cap or a contract slot) may have done so past another's 429, and a
+/// contract request's place in the budget by when it really goes.
+fn wait_turn(contract: bool) -> Result<(), MarketError> {
     let slow = SLOW_UNTIL.lock().unwrap_or_else(|e| e.into_inner()).is_some_and(|t| Instant::now() < t);
     let gap = if slow { SLOW_GAP } else { MIN_GAP };
     let mut last = LAST_CALL.lock().unwrap_or_else(|e| e.into_inner());
@@ -81,7 +86,28 @@ fn wait_turn() {
             std::thread::sleep(gap - since);
         }
     }
+    let deadline = *NOT_BEFORE.lock().unwrap_or_else(|e| e.into_inner());
+    match deadline_wait(deadline, Instant::now()) {
+        Err(t) => return Err(MarketError::Deferred(unix_ms(t))),
+        Ok(w) if !w.is_zero() => std::thread::sleep(w),
+        Ok(_) => {}
+    }
+    if contract {
+        // The slot taken in contract_turn keeps the queue's order; this keeps the count exact:
+        // no more than CONTRACTS_PER_MINUTE sent in any minute, by when each went.
+        let mut sent = CONTRACTS_SENT.lock().unwrap_or_else(|e| e.into_inner());
+        let now = Instant::now();
+        while sent.front().is_some_and(|t| now.saturating_duration_since(*t) >= CONTRACT_SENT_WINDOW) {
+            sent.pop_front();
+        }
+        let wait = window_wait(&sent, CONTRACTS_PER_MINUTE, CONTRACT_SENT_WINDOW, now);
+        if !wait.is_zero() {
+            std::thread::sleep(wait);
+        }
+        sent.push_back(Instant::now());
+    }
     *last = Some(Instant::now());
+    Ok(())
 }
 
 /// At most this many changes (orders, auctions, +rep) in any minute: a page gone wrong can't
@@ -95,12 +121,80 @@ static WRITES: Mutex<std::collections::VecDeque<Instant>> = Mutex::new(std::coll
 /// How long a change at `now` waits, the recent changes having gone out at `sent` (oldest first;
 /// it may still hold some older than a minute, which don't count).
 fn write_wait(sent: &std::collections::VecDeque<Instant>, now: Instant) -> Duration {
-    if sent.len() < WRITES_PER_MINUTE {
+    window_wait(sent, WRITES_PER_MINUTE, WRITE_WINDOW, now)
+}
+
+/// How long a request at `now` waits so that no `window` holds more than `cap` of them, the others
+/// going (or due to go) at `sent`, oldest first.
+fn window_wait(sent: &std::collections::VecDeque<Instant>, cap: usize, window: Duration, now: Instant) -> Duration {
+    if sent.len() < cap {
         return Duration::ZERO;
     }
     // The one that has to leave the window first: `len - (cap - 1)` from the front.
-    let oldest = sent[sent.len() - WRITES_PER_MINUTE];
-    (oldest + WRITE_WINDOW).saturating_duration_since(now)
+    let oldest = sent[sent.len() - cap];
+    (oldest + window).saturating_duration_since(now)
+}
+
+/// warframe.market's limit for contracts (riven auctions), from its terms of service
+/// (warframe.market/tos, API): "Requests may not be made at a rate faster than 3 per second for
+/// listings or 10 per minute for contracts." Its developer docs (docs.warframe.market, Rules)
+/// expect contract search endpoints "to be limited to roughly 10 to 20 requests per minute"; the
+/// lower figure is the one kept. Every request whose path has `/auctions` counts: searches (a
+/// riven's price check, comparing, a riven alert, Search on Rivens), your own auctions, and
+/// putting one up, changing or closing it.
+const CONTRACTS_PER_MINUTE: usize = 10;
+/// A contract request's slot is counted from when it's due to go; the general gap (`SLOW_GAP` at
+/// most) can hold it a little longer, so the window is that much longer than a minute.
+const CONTRACT_WINDOW: Duration = Duration::from_millis(61_500);
+
+/// The contract requests sent, by when each went: the count wait_turn holds to, a minute exactly.
+static CONTRACTS_SENT: Mutex<std::collections::VecDeque<Instant>> = Mutex::new(std::collections::VecDeque::new());
+const CONTRACT_SENT_WINDOW: Duration = Duration::from_secs(60);
+
+/// Whether a request is a contract request, by its path.
+fn is_contract(url: &str) -> bool {
+    log_path(url).contains("/auctions")
+}
+
+/// The contract requests of the last minute, by when each went or is due to go, oldest first. A
+/// request takes its slot when it asks, so the ones after it queue behind it, in order.
+static CONTRACTS: Mutex<std::collections::VecDeque<Instant>> = Mutex::new(std::collections::VecDeque::new());
+
+/// Takes the next contract slot at `now`: how long to wait for it. Slots a minute past drop out.
+fn contract_slot(sent: &mut std::collections::VecDeque<Instant>, now: Instant) -> Duration {
+    while sent.front().is_some_and(|t| now.saturating_duration_since(*t) >= CONTRACT_WINDOW) {
+        sent.pop_front();
+    }
+    let wait = window_wait(sent, CONTRACTS_PER_MINUTE, CONTRACT_WINDOW, now);
+    sent.push_back(now + wait);
+    wait
+}
+
+/// Told when a contract request has to wait for the budget, with when it will go (unix ms), so
+/// the page can say so on the control that asked. Set once at startup (lib.rs).
+static CONTRACT_WAIT: Mutex<Option<Box<dyn Fn(u64) + Send>>> = Mutex::new(None);
+
+pub fn on_contract_wait(f: impl Fn(u64) + Send + 'static) {
+    *CONTRACT_WAIT.lock().unwrap_or_else(|e| e.into_inner()) = Some(Box::new(f));
+}
+
+/// A time to come as unix milliseconds, for the page.
+fn unix_ms(at: Instant) -> u64 {
+    let wall = std::time::SystemTime::now() + at.saturating_duration_since(Instant::now());
+    wall.duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
+}
+
+/// A contract request waits for its slot in the budget; nothing is dropped.
+fn contract_turn() {
+    let wait = contract_slot(&mut CONTRACTS.lock().unwrap_or_else(|e| e.into_inner()), Instant::now());
+    if wait.is_zero() {
+        return;
+    }
+    log::info!(target: "myorbiter::market", "{CONTRACTS_PER_MINUTE} contract requests this minute: waiting {} s", wait.as_secs());
+    if let Some(tell) = CONTRACT_WAIT.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
+        tell(unix_ms(Instant::now() + wait));
+    }
+    std::thread::sleep(wait);
 }
 
 /// Waits for a change's turn under the cap, then counts it.
@@ -123,8 +217,55 @@ fn slow_down() {
     *SLOW_UNTIL.lock().unwrap_or_else(|e| e.into_inner()) = Some(Instant::now() + SLOW_FOR);
 }
 
-/// How long the last "too many requests" said to wait (Retry-After), if it said.
-static RETRY_AFTER: Mutex<Option<Duration>> = Mutex::new(None);
+/// The time before which no request goes to warframe.market, after it answered "too many
+/// requests" (429): now plus its Retry-After, in full. One deadline for every request (reads,
+/// changes, contracts); it only ever moves later. Monotonic, so a clock change doesn't move it.
+static NOT_BEFORE: Mutex<Option<Instant>> = Mutex::new(None);
+/// A 429 that doesn't say how long (no Retry-After, or one that isn't a number of seconds).
+const DEFAULT_RETRY_AFTER: Duration = Duration::from_secs(60);
+/// The longest Retry-After taken as given.
+const MAX_RETRY_AFTER: Duration = Duration::from_secs(86_400);
+/// How long a request waits for that deadline. A read or change that would wait longer isn't
+/// sent: it comes back deferred, with the time, for the page to show ("warframe.market asked us
+/// to wait until 14:05"); the page's own timers ask again later.
+const MAX_WAIT: Duration = Duration::from_secs(10);
+
+/// The deadline after a 429 at `now` that asked for `retry_after` (None: it didn't say). A later
+/// deadline already set stays.
+fn hold_off(current: Option<Instant>, now: Instant, retry_after: Option<Duration>) -> Instant {
+    // A day at most: an absurd Retry-After can't overflow the clock (or stop MyOrbiter for good).
+    let wait = retry_after.unwrap_or(DEFAULT_RETRY_AFTER).min(MAX_RETRY_AFTER);
+    let until = now.checked_add(wait).unwrap_or(now);
+    current.map_or(until, |t| t.max(until))
+}
+
+/// What a request at `now` does under the deadline: go after waiting this long, or not go at
+/// all before the deadline (Err) when that's further off than `MAX_WAIT`.
+fn deadline_wait(not_before: Option<Instant>, now: Instant) -> Result<Duration, Instant> {
+    match not_before {
+        Some(t) if t.saturating_duration_since(now) > MAX_WAIT => Err(t),
+        Some(t) => Ok(t.saturating_duration_since(now)),
+        None => Ok(Duration::ZERO),
+    }
+}
+
+/// Retry-After as a number of seconds; warframe.market's (Cloudflare's) is one. Anything else
+/// (an HTTP date) counts as not said.
+fn retry_after_secs(v: Option<&str>) -> Option<Duration> {
+    v.and_then(|v| v.trim().parse::<u64>().ok()).map(Duration::from_secs)
+}
+
+/// Waits for the deadline, if there is one and it's near; deferred if it's far.
+fn deadline_turn() -> Result<(), MarketError> {
+    loop {
+        let wait = deadline_wait(*NOT_BEFORE.lock().unwrap_or_else(|e| e.into_inner()), Instant::now()).map_err(|t| MarketError::Deferred(unix_ms(t)))?;
+        if wait.is_zero() {
+            return Ok(());
+        }
+        // Looked at again after the wait: another request's 429 may have moved it meanwhile.
+        std::thread::sleep(wait);
+    }
+}
 
 /// A 403 is a sign-out when it says nothing, or when warframe.market's error codes name the
 /// sign-in (`app.auth…`, a token, unauthorized). One naming anything else (an order that isn't
@@ -147,24 +288,32 @@ fn forbidden_means_signed_out(body: &str) -> bool {
     found.iter().any(|c| c.starts_with("app.auth") || c.contains("token") || c.contains("unauthorized") || c.contains("jwt"))
 }
 
-/// Notes a "too many requests" reply: everything slows down, and its Retry-After is kept.
+/// Notes a "too many requests" reply: no request goes before its Retry-After is over, and calls
+/// go out further apart for a while after. The request itself is deferred to that time.
 fn rate_limited(resp: &ureq::Response) -> MarketError {
-    let hint = resp.header("Retry-After").and_then(|v| v.trim().parse::<u64>().ok()).map(Duration::from_secs);
-    *RETRY_AFTER.lock().unwrap_or_else(|e| e.into_inner()) = hint;
+    let hint = retry_after_secs(resp.header("Retry-After"));
+    let until = {
+        let mut nb = NOT_BEFORE.lock().unwrap_or_else(|e| e.into_inner());
+        let until = hold_off(*nb, Instant::now(), hint);
+        *nb = Some(until);
+        until
+    };
     slow_down();
-    MarketError::RateLimited
+    log::warn!(target: "myorbiter::market", "warframe.market asked to wait {} s", until.saturating_duration_since(Instant::now()).as_secs());
+    MarketError::Deferred(unix_ms(until))
 }
 
-/// A read turned away for going too fast, tried again at most twice: after the wait the reply
-/// asked for (up to 10 s), or 3 s and then 6 s. More would only hold up what's waiting behind it.
+/// A read: sent once the deadline allows (deferred when it's far off), and when warframe.market
+/// turns it away for going too fast, tried again only after the full wait it asked for, and only
+/// while that wait is short (`MAX_WAIT`), at most twice. Never sooner: a read that can't wait is
+/// deferred. A change never goes through here: it's sent once (it may have gone through).
 fn with_retries<T>(mut once: impl FnMut() -> Result<T, MarketError>) -> Result<T, MarketError> {
     let mut tries = 0u64;
     loop {
+        deadline_turn()?;
         match once() {
-            Err(MarketError::RateLimited) if tries < 2 => {
+            Err(MarketError::Deferred(_)) if tries < 2 && deadline_wait(*NOT_BEFORE.lock().unwrap_or_else(|e| e.into_inner()), Instant::now()).is_ok() => {
                 tries += 1;
-                let hint = RETRY_AFTER.lock().unwrap_or_else(|e| e.into_inner()).take();
-                std::thread::sleep(hint.map_or(Duration::from_secs(3 * tries), |h| h.min(Duration::from_secs(10))));
             }
             other => return other,
         }
@@ -197,7 +346,7 @@ fn get_json(url: &str, timeout: u64) -> Result<Value, MarketError> {
 
 fn get_json_once(url: &str, timeout: u64) -> Result<Value, MarketError> {
     with_retries(|| {
-        wait_turn();
+        wait_turn(is_contract(url))?;
         match request("GET", url).set("Language", "en").timeout(Duration::from_secs(timeout)).call() {
             Ok(r) => json_body(r.into_reader()),
             Err(ureq::Error::Status(429, resp)) => Err(rate_limited(&resp)),
@@ -289,7 +438,6 @@ impl TokenStore {
 pub enum MarketError {
     NotLinked,
     Unauthorized,
-    RateLimited,
     Rejected(String),
     Unreachable(String),
     /// warframe.market answered, but not in a shape MyOrbiter can read (a changed API, a block page
@@ -298,6 +446,9 @@ pub enum MarketError {
     Unexpected(String),
     /// Signed in, but the token couldn't be kept (no keyring and the config folder not writable).
     Storage(String),
+    /// Not sent: warframe.market asked to wait (a 429's Retry-After) until this time, unix ms. The
+    /// page shows it as the clock does (core/marketWait.ts reads these words).
+    Deferred(u64),
 }
 
 impl std::fmt::Display for MarketError {
@@ -305,11 +456,11 @@ impl std::fmt::Display for MarketError {
         match self {
             MarketError::NotLinked => write!(f, "Not signed in to warframe.market"),
             MarketError::Unauthorized => write!(f, "warframe.market refused the sign-in; sign in again"),
-            MarketError::RateLimited => write!(f, "warframe.market asked to slow down; try again in a minute"),
             MarketError::Rejected(d) => write!(f, "warframe.market rejected the request: {d}"),
             MarketError::Unreachable(d) => write!(f, "warframe.market is unreachable: {d}"),
             MarketError::Unexpected(d) => write!(f, "warframe.market answered with something MyOrbiter couldn't read: {d}"),
             MarketError::Storage(d) => write!(f, "couldn't keep the warframe.market sign-in: {d}"),
+            MarketError::Deferred(at) => write!(f, "warframe.market asked us to wait until {at}"),
         }
     }
 }
@@ -386,14 +537,25 @@ impl Client {
     }
 
     /// One request; `token` signs it. Returns the reply and any renewed token it carried. A read
-    /// warframe.market turns away for going too fast is tried again (with_retries); a change
-    /// isn't: it may have gone through.
+    /// warframe.market turns away for going too fast is tried again after the wait it asked for
+    /// (with_retries); a change isn't: it may have gone through.
     fn send(&self, method: &str, url: &str, body: Option<&Value>, token: Option<&str>) -> Result<(Value, Option<String>), MarketError> {
+        let contract = is_contract(url);
         let result = if method == "GET" {
-            with_retries(|| self.send_once(method, url, body, token))
+            with_retries(|| {
+                if contract {
+                    contract_turn();
+                }
+                self.send_once(method, url, body, token)
+            })
         } else {
+            // A change waits for warframe.market's deadline like a read (or isn't sent, deferred),
+            // but is sent once: turned away, it isn't tried again on its own.
             write_turn();
-            self.send_once(method, url, body, token)
+            if contract {
+                contract_turn();
+            }
+            deadline_turn().and_then(|()| self.send_once(method, url, body, token))
         };
         // The log: every change, and every request that failed (method and path, never the sign-in).
         match &result {
@@ -405,7 +567,7 @@ impl Client {
     }
 
     fn send_once(&self, method: &str, url: &str, body: Option<&Value>, token: Option<&str>) -> Result<(Value, Option<String>), MarketError> {
-        wait_turn();
+        wait_turn(is_contract(url))?;
         let mut req = request(method, url)
             .set("Accept", "application/json")
             .set("Language", "en")
@@ -457,7 +619,8 @@ impl Client {
 
     /// v1 is the route that still hands tokens to third-party apps; the token works on v2.
     pub fn sign_in(&self, email: &str, password: &str) -> Result<Profile, MarketError> {
-        wait_turn();
+        deadline_turn()?;
+        wait_turn(false)?;
         let resp = request("POST", &format!("{V1}/auth/signin"))
             .set("Authorization", "JWT")
             .set("Content-Type", "application/json")
@@ -952,6 +1115,9 @@ pub struct BookOrder {
     pub amber_stars: Option<u32>,
     #[serde(default)]
     pub cyan_stars: Option<u32>,
+    /// The least a seller of a bulk item trades at once; the site's whisper names it ("x10").
+    #[serde(default)]
+    pub per_trade: Option<u32>,
     pub user: BookUser,
 }
 
@@ -1249,6 +1415,89 @@ mod tests {
         assert_eq!(write_wait(&sent, next), Duration::from_millis(100));
     }
 
+
+    #[test]
+    fn contract_requests_share_ten_a_minute_queued_in_order() {
+        use std::collections::VecDeque;
+        assert_eq!(CONTRACTS_PER_MINUTE, 10);
+        let start = Instant::now();
+        let mut slots = VecDeque::new();
+        // Ten at once go at once (a page of price checks starts without waiting).
+        for _ in 0..10 {
+            assert_eq!(contract_slot(&mut slots, start), Duration::ZERO);
+        }
+        // The eleventh and twelfth queue for the first and second slots to leave the window, in
+        // the order they asked; none is dropped.
+        let w11 = contract_slot(&mut slots, start + Duration::from_secs(1));
+        let w12 = contract_slot(&mut slots, start + Duration::from_secs(1));
+        assert_eq!(w11, CONTRACT_WINDOW - Duration::from_secs(1));
+        assert_eq!(w12, CONTRACT_WINDOW - Duration::from_secs(1));
+        assert_eq!(slots.len(), 12);
+        // Ten more at once a little later: queued behind those, ten of them a window after the
+        // last ten's slots, never more than ten in any window.
+        let mut at = Vec::new();
+        for _ in 0..10 {
+            let now = start + Duration::from_secs(2);
+            at.push(now + contract_slot(&mut slots, now));
+        }
+        assert!(at.windows(2).all(|w| w[0] <= w[1]), "in the order they asked");
+        let all: Vec<Instant> = slots.iter().copied().collect();
+        for (i, a) in all.iter().enumerate() {
+            let inside = all[i..].iter().filter(|b| b.saturating_duration_since(*a) < CONTRACT_WINDOW).count();
+            assert!(inside <= CONTRACTS_PER_MINUTE, "{inside} in the window from slot {i}");
+        }
+        // Once a window has passed with nothing asked, slots are free again and the old ones go.
+        let later = *all.last().unwrap() + CONTRACT_WINDOW;
+        assert_eq!(contract_slot(&mut slots, later), Duration::ZERO);
+        assert_eq!(slots.len(), 1);
+        // The general gate is apart from it: 400 ms between any two requests.
+        assert_eq!(MIN_GAP, Duration::from_millis(400));
+    }
+
+    #[test]
+    fn retry_after_is_honoured_in_full_by_every_request() {
+        let now = Instant::now();
+        // A 429 asking for 120 s: nothing goes for 120 s, however long that is (no 10 s cap).
+        let until = hold_off(None, now, retry_after_secs(Some(" 120 ")));
+        assert_eq!(until, now + Duration::from_secs(120));
+        // One deadline, only ever later: a shorter Retry-After after it doesn't bring it forward.
+        assert_eq!(hold_off(Some(until), now + Duration::from_secs(1), Some(Duration::from_secs(5))), until);
+        assert_eq!(hold_off(Some(until), now, Some(Duration::from_secs(300))), now + Duration::from_secs(300));
+        // A Retry-After that isn't a number of seconds counts as not said: the default minute.
+        assert_eq!(retry_after_secs(Some("Wed, 21 Oct 2026 07:28:00 GMT")), None);
+        assert_eq!(hold_off(None, now, None), now + DEFAULT_RETRY_AFTER);
+        // A request far from the deadline isn't sent: deferred to it, not retried early.
+        assert_eq!(deadline_wait(Some(until), now), Err(until));
+        assert_eq!(deadline_wait(Some(until), now + Duration::from_secs(100)), Err(until));
+        // Near it, it waits the rest, and at or after it goes at once.
+        assert_eq!(deadline_wait(Some(until), now + Duration::from_secs(112)), Ok(Duration::from_secs(8)));
+        assert_eq!(deadline_wait(Some(until), until), Ok(Duration::ZERO));
+        assert_eq!(deadline_wait(Some(until), until + Duration::from_secs(5)), Ok(Duration::ZERO));
+        assert_eq!(deadline_wait(None, now), Ok(Duration::ZERO));
+        assert_eq!(MAX_WAIT, Duration::from_secs(10));
+        // An absurd Retry-After doesn't overflow: a day at most.
+        assert_eq!(hold_off(None, now, retry_after_secs(Some("18446744073709551615"))), now + MAX_RETRY_AFTER);
+    }
+
+    #[test]
+    fn a_deferred_request_says_until_when_in_words_the_page_reads() {
+        // core/marketWait.ts finds the time in these words and shows it as the clock does.
+        let text = MarketError::Deferred(1_794_220_000_000).to_string();
+        assert_eq!(text, "warframe.market asked us to wait until 1794220000000");
+        let json = serde_json::to_value(MarketError::Deferred(5)).unwrap();
+        assert_eq!(json, serde_json::json!({ "kind": "deferred", "detail": 5 }));
+    }
+
+    #[test]
+    fn contract_requests_are_told_by_their_path() {
+        assert!(is_contract(&format!("{V1}/auctions/search?type=riven&weapon_url_name=rubico")));
+        assert!(is_contract(&format!("{V1}/profile/auctions")));
+        assert!(is_contract(&format!("{V1}/auctions/create")));
+        assert!(is_contract(&format!("{V1}/auctions/entry/abc/close")));
+        assert!(!is_contract(&format!("{V2}/orders/item/serration")));
+        assert!(!is_contract(&format!("{V2}/riven/weapons")));
+        assert!(!is_contract(&format!("{V2}/me")));
+    }
 
     #[test]
     fn platform_is_one_warframe_market_knows() {

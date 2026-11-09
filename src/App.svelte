@@ -4,7 +4,7 @@
   import { discordSent } from "./lib/discordStatus.svelte";
   import { onMount, untrack } from "svelte";
   import { invasionNeeds, invasionRares } from "./lib/core/invasions";
-  import { foldSetSales, repCandidates, salesFromTrade, tradeKey } from "./lib/core/trades";
+  import { foldSetSales, loggedForTrade, repCandidates, salesFromTrade, takeLogged, tradeKey, tradesToMark } from "./lib/core/trades";
   import { repOffered, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
@@ -1208,8 +1208,8 @@
           repRetry = null;
           void runAutoRep();
         }, REP_RETRY + 1_000);
-        // Asked to slow down: the rest wait for a later run too, rather than be refused in turn.
-        if (/slow down/.test(why)) break;
+        // Asked to slow down or to wait: the rest wait for a later run too, rather than be refused in turn.
+        if (/slow down|asked us to wait/.test(why)) break;
       }
       // warframe.market asks for some room between requests.
       await new Promise((r) => setTimeout(r, 1500));
@@ -1287,20 +1287,18 @@
           if (i >= 0) settings.market.sales[i] = { ...settings.market.sales[i], rank: x.rank };
         }
       }
-      const seen = new Set(settings.market.tradesSeen);
-      const fresh = trades.filter((t) => !seen.has(tradeKey(session, t)));
-      if (!fresh.length) return;
-      // This session's keys stay however many there are: the log shows its trades on every read.
-      settings.market.tradesSeen = keepSeen(fresh.map((t) => tradeKey(session, t)), settings.market.tradesSeen, 300, session == null ? "?" : String(session));
-      if (!settings.market.autoTrades) return;
       // Only trades from the last half hour are acted on. Older ones turn up when MyOrbiter first
       // reads a log (just installed, or settings reset) or was closed at the time: by now that
       // listing may have been put back up, and closing it again would be wrong.
       // A trade with no time (the log's session start wasn't seen) is acted on only once it turns
       // up new after this run's first read of that session: the first read can be hours late.
       const firstRead = !tradeSessionsRead.has(session ?? "?");
+      const { fresh, recent } = tradesToMark(trades, session, settings.market.tradesSeen, Date.now(), firstRead);
+      if (!fresh.length) return;
       tradeSessionsRead.add(session ?? "?");
-      const recent = fresh.filter((t) => (t.at ? Date.now() - t.at * 1000 < 30 * 60_000 : !firstRead));
+      // This session's keys stay however many there are: the log shows its trades on every read.
+      settings.market.tradesSeen = keepSeen(fresh, settings.market.tradesSeen, 300, session == null ? "?" : String(session));
+      if (!settings.market.autoTrades) return;
       if (recent.length) void handleTrades(recent, session);
     });
   });
@@ -1319,6 +1317,8 @@
           continue;
         }
         const at = t.at ? t.at * 1000 : Date.now();
+        // What this trade logged before, if it's handled again: read before any line is logged.
+        const logged = loggedForTrade(settings.market.sales, key);
         const lines: SoldLine[] = [];
         for (const s of sales) {
           // Logged by hand within ten minutes of the trade: already counted. Only by hand: a sale
@@ -1326,6 +1326,12 @@
           const hand = handLoggedSale(settings.market.sales, s.name, at);
           if (hand >= 0) {
             settings.market.sales[hand] = { ...settings.market.sales[hand], trade: key };
+            lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: "hand" });
+            continue;
+          }
+          // This trade's sale of it is logged already (the trade handled once before): not again,
+          // and its listing isn't closed a second time.
+          if (takeLogged(logged, s)) {
             lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: "hand" });
             continue;
           }

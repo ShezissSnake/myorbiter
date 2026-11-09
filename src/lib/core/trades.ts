@@ -5,6 +5,7 @@ import { gearSetParts, type Model } from "./model";
 import { imprintSale, type ImprintNaming, type ImprintRaw } from "./imprints";
 import type { Trade, TradeItem } from "./types";
 import type { Sale, TradeLogEntry } from "../backend";
+import { recentTrade } from "./saleNotice";
 
 /** What makes a trade unique: the game session's start and the trade's time in it. */
 export const tradeKey = (sessionStart: number | null | undefined, t: Trade) => `${sessionStart ?? "?"}|${t.uptime}`;
@@ -37,7 +38,8 @@ export function salesFromTrade(t: Trade, orders: MyOrder[], index: MarketIndex, 
     const it = findItem(index, name, null);
     return !!it && orders.some((o) => o.itemId === it.id && o.type === "sell");
   };
-  const sales: TradeSale[] = foldSets(t.offered, m, listed, index).map((x) => {
+  const folded = foldSets(t.offered, m, listed, index);
+  const sales: TradeSale[] = folded.map((x) => {
     const split = splitRefinement(x.name);
     // An imprint is logged by its pet's name ("Imprint of Biscuit"): by its breed, it's a market item.
     // Its listing is closed only when the inventory said the breed, not a breed read from the name.
@@ -45,7 +47,10 @@ export function salesFromTrade(t: Trade, orders: MyOrder[], index: MarketIndex, 
     const name = imprint?.item ?? split.name;
     const { subtype } = split;
     const it = findItem(index, name, null);
-    const order = it && (!imprint || imprint.by === "inventory") ? listingFor(it, x.rank, subtype, orders) : null;
+    // What one copy went for is known only when the trade was this item alone: it picks between
+    // several listings of it at different prices (listingFor).
+    const paidEach = folded.length === 1 ? t.platinum_received / x.count : null;
+    const order = it && (!imprint || imprint.by === "inventory") ? listingFor(it, x.rank, subtype, orders, paidEach) : null;
     return { name: it?.name ?? x.name, rank: x.rank, count: x.count, platinumEach: 0, order };
   });
   const weights = sales.every((s) => s.order) ? sales.map((s) => s.order!.platinum * s.count) : sales.map((s) => s.count);
@@ -76,8 +81,13 @@ export function splitRefinement(name: string): { name: string; subtype: string |
 /**
  * Your listing a traded item sold from. Only a sure match: closing the wrong listing (a maxed
  * arcane for an unranked one, a radiant relic for an intact one) costs more than missing one.
+ *
+ * Several listings of the same item, rank and variant (warframe.market allows three at different
+ * prices): the one whose price is exactly what a copy went for (`paidEach`, known only when the
+ * trade was this item alone). Paid a price none of them asks, or not known: none, and the
+ * listings stay as they are. Several at one price are the same offer: the first is closed.
  */
-export function listingFor(it: MarketItem, rank: number | null, subtype: string | null, orders: MyOrder[]): MyOrder | null {
+export function listingFor(it: MarketItem, rank: number | null, subtype: string | null, orders: MyOrder[], paidEach: number | null = null): MyOrder | null {
   let mine = orders.filter((o) => o.itemId === it.id && o.type === "sell");
   if (it.maxRank != null) {
     // The log shows an arcane's rank as pips: an unranked one has none, so no rank means rank 0.
@@ -95,7 +105,36 @@ export function listingFor(it: MarketItem, rank: number | null, subtype: string 
     const def = it.subtypes[0];
     mine = mine.filter((o) => (o.subtype ?? def) === def);
   }
+  if (new Set(mine.map((o) => o.platinum)).size > 1) mine = paidEach == null ? [] : mine.filter((o) => o.platinum === paidEach);
   return mine[0] ?? null;
+}
+
+/**
+ * Which trades of a read of the game log to act on (mark sold, log the sale): `fresh`, the keys of
+ * the ones not seen before, to remember whether or not they're acted on; `recent`, those of them
+ * from the last half hour (recentTrade). A trade already seen (the same game session and time,
+ * read again after a restart) is never acted on twice.
+ */
+export function tradesToMark(trades: Trade[], session: number | null, seen: Iterable<string>, now: number, firstRead: boolean): { fresh: string[]; recent: Trade[] } {
+  const had = new Set(seen);
+  const fresh = trades.filter((t) => !had.has(tradeKey(session, t)));
+  return { fresh: fresh.map((t) => tradeKey(session, t)), recent: fresh.filter((t) => recentTrade(t, now, firstRead)) };
+}
+
+/**
+ * The sales this trade logged before (by the trade's identity, not its partner or time), to take
+ * from as the trade's lines are handled again: a trade handled twice is logged once. Read once,
+ * before any line is logged, so two lines of one trade (two refinements of a relic, a mod at two
+ * ranks) are two sales; two trades of the same item with the same partner are two keys.
+ */
+export const loggedForTrade = (sales: Sale[], key: string): Sale[] => sales.filter((s) => s.trade === key);
+
+/** Takes this line's sale from `logged` (loggedForTrade) if it's there: true when it was logged already. */
+export function takeLogged(logged: Sale[], line: { name: string; rank: number | null; count: number }): boolean {
+  const i = logged.findIndex((s) => s.item === line.name && (s.rank ?? null) === (line.rank ?? null) && s.quantity === line.count);
+  if (i < 0) return false;
+  logged.splice(i, 1);
+  return true;
 }
 
 /**

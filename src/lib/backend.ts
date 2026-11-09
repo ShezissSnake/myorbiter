@@ -1,6 +1,7 @@
 // Talks to the Rust side inside Tauri; in a plain browser (`npm run dev`) it falls back to
 // public/dev-bundle.json and localStorage so the UI can be worked on without a build.
 
+import { deferredUntil, waitWords } from "./core/marketWait";
 import { approvedOf } from "./core/approved";
 import { changesOf, type ChangeLog } from "./core/drift";
 import type { RelicMarket } from "./core/model";
@@ -100,7 +101,7 @@ export interface MarketSettings {
   sellable: SellChoices;
   /** Things you sold, newest first (the last 2,000). */
   sales: Sale[];
-  /** Trades read from the game log mark their listing sold and log the sale on their own. */
+  /** Trades read from the game log mark their listing sold and log the sale on their own (off unless turned on). */
   autoTrades: boolean;
   /** Trades already handled (session|uptime), newest first. */
   tradesSeen: string[];
@@ -114,7 +115,7 @@ export interface MarketSettings {
   rep: Record<string, "given" | "skipped">;
   /** The message that goes with +rep (warframe.market's reputation is a positive review). */
   repText: string;
-  /** Give each trade partner +rep on warframe.market by yourself, with repText, once per player. */
+  /** Give each trade partner +rep on warframe.market by itself, with repText, once per player (off unless turned on). */
   autoRep: boolean;
   /**
    * While someone whispers you, hide listings down to their last copy so a second buyer doesn't
@@ -138,7 +139,7 @@ function presenceBackOf(v: unknown): { p: Presence; until: number } | null {
   return o && typeof o === "object" && (o.p === "invisible" || o.p === "online" || o.p === "ingame") && typeof o.until === "number" && Number.isFinite(o.until) ? { p: o.p, until: o.until } : null;
 }
 
-export const defaultMarketSettings = (): MarketSettings => ({ platform: "pc", auto: false, autoCheck: false, every: 5, minShare: 0.5, floors: {}, paused: {}, approved: {}, changes: {}, presence: null, minPrice: 10, minByCategory: defaultMinByCategory(), minRelicPrice: 3, relicPrices: {}, spares: defaultSparesRules(), bulk: defaultBulkRules(), sellable: defaultSellChoices(), sales: [], autoTrades: true, tradesSeen: [], tradesTold: [], trades: [], buyAlerts: [], rep: {}, repText: ":)", autoRep: true, lastCopy: { optIn: false, minutes: DEFAULT_HIDE_MINUTES, hidden: [] } });
+export const defaultMarketSettings = (): MarketSettings => ({ platform: "pc", auto: false, autoCheck: false, every: 5, minShare: 0.5, floors: {}, paused: {}, approved: {}, changes: {}, presence: null, minPrice: 10, minByCategory: defaultMinByCategory(), minRelicPrice: 3, relicPrices: {}, spares: defaultSparesRules(), bulk: defaultBulkRules(), sellable: defaultSellChoices(), sales: [], autoTrades: false, tradesSeen: [], tradesTold: [], trades: [], buyAlerts: [], rep: {}, repText: ":)", autoRep: false, lastCopy: { optIn: false, minutes: DEFAULT_HIDE_MINUTES, hidden: [] } });
 
 export interface AdviceSettings {
   platPerDucat: number;
@@ -487,8 +488,24 @@ const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<T>(cmd, args);
+  try {
+    return await invoke<T>(cmd, args);
+  } catch (e) {
+    // A warframe.market request held back until a time warframe.market gave: that time as the
+    // clock shows it (core/marketWait.ts). Any other error goes on as it came.
+    const until = typeof e === "string" ? deferredUntil(e) : null;
+    if (until != null) {
+      marketWaitUntil = Math.max(marketWaitUntil, until);
+      throw waitWords(e as string);
+    }
+    throw e;
+  }
 }
+
+/** The latest time warframe.market asked MyOrbiter to wait until (unix ms; 0: never asked). */
+let marketWaitUntil = 0;
+/** How long until warframe.market's last "wait until" is over, in ms (0 when it is). */
+export const marketWaitLeft = (now = Date.now()) => Math.max(0, marketWaitUntil - now);
 
 /** The Bundle `buildModel` reads, from the fresh part and the catalogs held. */
 export function assembleBundle(fresh: CollectionPart, catalogs: CatalogPart): Bundle {
@@ -802,8 +819,10 @@ function marketSafetyOf(raw: unknown, base: MarketSettings): Pick<MarketSettings
     paused: Object.fromEntries(record(r.paused).filter(([, v]) => v === true)) as Record<string, boolean>,
     // Repricing's recent changes: only real times of the last day count (never a reason to change sooner).
     changes: changesOf(r.changes, Date.now()),
-    autoTrades: typeof r.autoTrades === "boolean" ? r.autoTrades : base.autoTrades,
-    autoRep: typeof r.autoRep === "boolean" ? r.autoRep : base.autoRep,
+    // Automatic actions on warframe.market: on only when a file says true. A missing key is off,
+    // whatever the defaults were when the file was written (they were on until 2026-11).
+    autoTrades: r.autoTrades === true,
+    autoRep: r.autoRep === true,
     presence: r.presence === "invisible" || r.presence === "online" || r.presence === "ingame" ? r.presence : null,
   };
 }
@@ -1298,6 +1317,16 @@ export async function quitOnWindowClose(): Promise<() => void> {
 }
 
 /**
+ * Calls `onwait` with when the next riven search goes (unix ms) each time one has to wait for
+ * warframe.market's contract budget (10 a minute, market.rs). Resolves to a way to stop.
+ */
+export async function onSearchWait(onwait: (until: number) => void): Promise<() => void> {
+  if (!inTauri) return () => {};
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<number>("market-search-wait", (e) => onwait(e.payload));
+}
+
+/**
  * Sets the riven key (see `set_riven_key`), or none with "". Resolves to why it couldn't be set,
  * or null. Each press calls `onpress`.
  */
@@ -1497,7 +1526,7 @@ export const market = {
   /** +rep: a positive review with your message, from your account. */
   giveRep: (name: string, text: string): Promise<void> => (inTauri ? invoke("market_give_rep", { name, text }) : Promise.resolve()),
   account: async (): Promise<MarketAccount> =>
-    inTauri ? invoke("market_account") : ((await devMarket())?.account ?? { linked: false, backing: "file", profile: null, error: null }),
+    inTauri ? invoke<MarketAccount>("market_account").then((a) => (a.error ? { ...a, error: waitWords(a.error) } : a)) : ((await devMarket())?.account ?? { linked: false, backing: "file", profile: null, error: null }),
   signIn: (email: string, password: string): Promise<Me> => (inTauri ? invoke("market_sign_in", { email, password }) : needApp()),
   useToken: (token: string): Promise<Me> => (inTauri ? invoke("market_use_token", { token }) : needApp()),
   signOut: (): Promise<void> => (inTauri ? invoke("market_sign_out") : Promise.resolve()),

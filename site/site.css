@@ -127,12 +127,13 @@ section > h2.mark { font-size: 2rem; margin-bottom: 1.1rem; }
 .feature .register::before { content: ""; width: 7px; height: 7px; flex: none; background: var(--c); transform: rotate(45deg); }
 .feature p { margin: 0 0 .4rem; }
 .feature .pages { color: var(--platinum-dim); font-size: .86rem; }
-.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1rem; }
+/* min(100%, …): on a phone narrower than one column, the column is the page's width, not wider. */
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: 1rem; }
 .note { padding: 1rem 1.2rem; }
 .note h2 { margin: 0 0 .5rem; }
 .note.warn { box-shadow: var(--plate-light), inset 2px 0 0 var(--gold-dim); }
 .note p { color: var(--platinum-dim); margin-bottom: .5rem; }
-.shots .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: 1.2rem; }
+.shots .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 1.2rem; }
 figure { margin: 0; border: 1px solid var(--rule); background: var(--plate); }
 figcaption { padding: .55rem .8rem; font-size: .86rem; color: var(--platinum-dim); border-top: 1px solid var(--rule); }
 figcaption b { color: var(--platinum); font-weight: 500; }

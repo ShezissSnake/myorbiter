@@ -6,7 +6,7 @@
   // the ones you want at your price.
   import type { Model } from "../core/model";
   import type { RivenWatch, Settings } from "../backend";
-  import { marketUrl } from "../backend";
+  import { marketUrl, marketWaitLeft } from "../backend";
   import { tradesFor, type RivenTrade } from "../core/rivens";
   import { attributeSlug, auctionItemFor, auctionOf, checkedWhen, curseWord, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, rollChoice, cycleKey, searchFor, searchKey, statMarket, unpackListed, unpackPrices, type MyAuction, type Riven, type RivenAuction, type RivenChange, type RollChoice } from "../core/rivens";
   import { mkt } from "../marketStore.svelte";
@@ -130,7 +130,8 @@
   // A check kept from an earlier run shows until it's checked again: `saved` marks it, `at` is when
   // it was made. While a riven is checked again, or if that fails, what it had stays shown.
   let checks = $state<Record<string, { loading: boolean; error?: string; auctions?: RivenAuction[]; any?: RivenAuction[]; at?: number; saved?: boolean }>>({});
-  const SLOW = /slow down/;
+  // Turned away for going too fast: warframe.market asked to wait (until a time, market.rs).
+  const SLOW = /slow down|asked us to wait/;
   // The price model's guess for each riven, once it's been price checked (the weapon's cheapest
   // 60 listed are one of the things it reads). See core/rivenModel.ts.
   $effect(() => {
@@ -155,6 +156,8 @@
   const anyPrice = (r: Riven) => (checks[r.id]?.any ? priceCheck(checks[r.id]!.any!).lowest : null);
   const similarPrice = (r: Riven) => (checks[r.id]?.auctions ? priceCheck(checks[r.id]!.auctions!).typical : null);
   const DAY = 86_400_000;
+  /** When a queued riven search goes, as the clock shows it ("14:05:30"). */
+  const waitTime = (at: number | null) => (at == null ? "" : new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
   async function check(r: Riven, fresh = false) {
     if (!meta) return;
     const q = searchFor(meta, r);
@@ -209,8 +212,10 @@
   let checkingAll = $state<{ done: number; total: number; paused?: boolean; retry?: boolean } | null>(null);
   let checkedAll = $state<{ ok: number; failed: Riven[]; reason: string } | null>(null);
   let stopAll = $state(false);
-  // The half-minute pause after warframe.market asks to slow down: the button's fill drains over it.
+  // The pause after warframe.market asks to wait: half a minute, or until the time it gave if
+  // that's later (never sooner: market.rs wouldn't send it anyway). The button's fill drains over it.
   const PAUSE_MS = 30_000;
+  let pauseMs = $state(PAUSE_MS);
   let pausedAt = $state<number | null>(null);
   let pauseNow = $state(0);
   const allJob = new Job();
@@ -226,10 +231,10 @@
     });
   }
   const allFill = $derived(
-    !checkingAll ? null : checkingAll.paused && pausedAt != null ? Math.max(0, 1 - (pauseNow - pausedAt) / PAUSE_MS) : checkingAll.total ? checkingAll.done / checkingAll.total : null,
+    !checkingAll ? null : checkingAll.paused && pausedAt != null ? Math.max(0, 1 - (pauseNow - pausedAt) / pauseMs) : checkingAll.total ? checkingAll.done / checkingAll.total : null,
   );
   const allWord = $derived(
-    !checkingAll ? "" : stopAll ? "Stopping…" : checkingAll.paused ? `Waiting ${Math.max(0, Math.ceil((PAUSE_MS - (pauseNow - (pausedAt ?? pauseNow))) / 1000))}s` : `${checkingAll.retry ? "Retrying" : "Checking"} ${checkingAll.done}/${checkingAll.total}`,
+    !checkingAll ? "" : stopAll ? "Stopping…" : checkingAll.paused ? `Waiting ${Math.max(0, Math.ceil((pauseMs - (pauseNow - (pausedAt ?? pauseNow))) / 1000))}s` : `${checkingAll.retry ? "Retrying" : "Checking"} ${checkingAll.done}/${checkingAll.total}`,
   );
   const failedCheck = (r: Riven) => !!checks[r.id]?.error;
   /** Not checked this run: never, or only kept from an earlier one. */
@@ -249,8 +254,9 @@
     const wait = async () => {
       checkingAll = { ...checkingAll!, paused: true };
       pausedAt = pauseNow = Date.now();
+      pauseMs = Math.max(PAUSE_MS, marketWaitLeft() + 1_000);
       const t = setInterval(() => (pauseNow = Date.now()), 250);
-      await new Promise((res) => setTimeout(res, PAUSE_MS));
+      await new Promise((res) => setTimeout(res, pauseMs));
       clearInterval(t);
       pausedAt = null;
       checkingAll = { ...checkingAll!, paused: false };
@@ -631,6 +637,7 @@
           {#if c?.saved && (c.loading || Date.now() - c.at! >= DAY)}<span class="dim small when" title={c.loading ? "Checking it again now" : c.error ? `Kept from MyOrbiter's last check; checking again failed: ${c.error}` : "Kept from MyOrbiter's last check; checked again when you update prices"}>{c.loading ? "updating…" : `checked ${checkedWhen(c.at!, Date.now())}`}</span>{/if}
         </span>
       {:else if c?.error}<span class="dim small">{c.error}</span>
+      {:else if c?.loading && rivens.searchWait}<span class="dim small" role="status" title="warframe.market takes 10 riven searches a minute: this one goes at {waitTime(rivens.searchWait)}">Waiting for warframe.market's search limit…</span>
       {:else if c?.loading}<span class="dim small">Checking prices…</span>
       {:else}<span class="dim small">Not checked yet</span>{/if}
       <span class="grow"></span>
@@ -714,13 +721,14 @@
     <Browse id="rivens" bind:opened rows={shown} {columns} key={(r) => r.id} bind:sort {card} detail={rivenDetail} title={(r) => `${r.weapon} ${r.name}`} min="23rem" cardLimit={36} clear={filtered ? clear : null} empty="No unveiled rivens in your inventory.">
       {#snippet tools()}
         {#if checkingAll?.paused}
-          <span class="dim small">{checkingAll.retry ? "Some checks failed" : "warframe.market asked to slow down"}: waiting half a minute, then {checkingAll.retry ? "trying those again" : `${checkingAll.done + 1} of ${checkingAll.total}`}</span>
+          <span class="dim small">{checkingAll.retry ? "Some checks failed" : "warframe.market asked us to wait"}: waiting {pauseMs > PAUSE_MS ? `until ${new Date(pausedAt! + pauseMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "half a minute"}, then {checkingAll.retry ? "trying those again" : `${checkingAll.done + 1} of ${checkingAll.total}`}</span>
         {:else if !checkingAll}
           {#if stillFailed.length}
             <span class="checking"><span class="dim small" title={checkedAll!.reason}>Checked {checkedAll!.ok}; {stillFailed.length} couldn't be ({checkedAll!.reason.replace(/(; |\. ).*$/, "")})</span><button class="link" title="Check the ones that failed again" onclick={() => checkAllPressed(stillFailed)}>Try those again</button></span>
           {/if}
           {#if keptCount && Date.now() - keptAt >= DAY}<span class="dim small kept" title="Some prices shown are from MyOrbiter's last check, a day or more ago: riven prices move little from one day to the next. They're checked again by themselves while this page is open">Some prices from {checkedWhen(keptAt, Date.now())}</span>{/if}
         {/if}
+        {#if checkingAll && rivens.searchWait}<span class="dim small" role="status" title="warframe.market takes 10 riven searches a minute: this one goes at {waitTime(rivens.searchWait)}">Waiting for warframe.market's search limit…</span>{/if}
         <ProgressButton job={allJob} busy={!!checkingAll} progress={checkingAll ? allFill : undefined} working={allWord} onstop={() => (stopAll = true)} sizer={["Checking 000/000", "Stopping…", "000 checked"]}
           label={!unchecked ? "Check prices again" : keptCount === unchecked ? "Update prices" : unchecked === shown.length ? (shown.length === mine.length ? "Check prices" : `Check these ${unchecked}`) : `Check the other ${unchecked}`}
           title={!meta ? "Waiting for warframe.market's riven list" : !unchecked ? "Check every riven's price again" : keptCount === unchecked ? "Check again the prices kept from earlier, one after another" : "Find similar rivens for sale for each of yours, one after another. Click again while it runs to stop"} disabled={!meta} onclick={() => checkAllPressed()} />
@@ -772,7 +780,8 @@
       {/if}
 
       {#if found}
-        {#if found.loading}<p class="dim small">Searching…</p>
+        {#if found.loading && rivens.searchWait}<p class="dim small" role="status" title="warframe.market takes 10 riven searches a minute: this one goes at {waitTime(rivens.searchWait)}">Waiting for warframe.market's search limit…</p>
+        {:else if found.loading}<p class="dim small">Searching…</p>
         {:else if found.error}<p class="dim small">{found.error}</p>
         {:else if !shownAuctions.length}<p class="dim small">Nothing listed{maxPrice ? ` at ${maxPrice}p or less` : ""} right now.</p>
         {:else}

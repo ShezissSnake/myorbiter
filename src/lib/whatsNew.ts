@@ -33,6 +33,15 @@ export interface NewsEntry {
 
 export const NEWS: NewsEntry[] = [
   {
+    id: 23,
+    date: "2026-11-09",
+    items: [
+      { title: "Automatic actions start off", icon: { line: "list" }, text: "On a new install, marking sales sold from the game and giving +rep by themselves are off, like automatic repricing: each has its switch, and a line saying what it does on warframe.market, in Settings, Trades and on Orders. If they were on before this update, they stay on.", open: "settings#trades" },
+      { title: "The same switches on Orders", icon: { page: "market" }, text: "Under the repricer's settings on Orders: Mark sales sold from the game and Give +rep by itself, with the same lines as Settings.", open: "market" },
+      { title: "Whispers as warframe.market writes them", icon: { page: "home" }, text: "The whisper copied for a cheap buy or a build's missing mod is warframe.market's own message, word for word (a relic's refinement now goes before its name, as the site puts it), with (MyOrbiter) after it, as warframe.market's terms ask of apps.", open: "home#deals" },
+    ],
+  },
+  {
     id: 22,
     date: "2026-11-08",
     items: [

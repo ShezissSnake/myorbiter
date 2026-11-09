@@ -311,6 +311,53 @@ test("a hidden listing of copies the keep rules hold back isn't shown again, and
   assert.deepEqual(sent, []);
 });
 
+test("a listing hidden at 2p isn't shown again under a 5p category minimum, and the refusal says 2p is under 5p", async () => {
+  mkt.items = spareItems;
+  mkt.model = await spareModel();
+  mkt.rules = { ...defaultMarketSettings(), approved: {}, minPrice: 1, minByCategory: { mods: 5 } };
+  mkt.orders = [{ ...order("h", 2, 2), rank: 0, visible: false }];
+  const sent: [string, unknown][] = [];
+  market.update = async (id: string, change: unknown) => {
+    sent.push([id, change]);
+  };
+  market.myOrders = async () => mkt.orders;
+  assert.deepEqual(await mkt.setShown(mkt.orders, true), []);
+  assert.ok(!sent.some(([, c]) => (c as { visible?: boolean }).visible === true), "no {visible: true} sent");
+  assert.match(mkt.log.find((l) => l.tone === "warn")?.text ?? "", /^Didn't list Serration R0: 2p is under your 5p minimum/);
+  // Show all hidden and the switch on Orders go the same way.
+  assert.equal(await mkt.showHidden(mkt.orders), 0);
+  assert.equal(await mkt.update(mkt.orders[0], { visible: true }), false);
+  assert.match(mkt.error ?? "", /2p is under your 5p minimum/);
+  assert.deepEqual(sent, [], "nothing sent to warframe.market");
+  // Hiding is never held back, and at the minimum it's shown again.
+  mkt.orders = [{ ...order("h", 2, 5), rank: 0, visible: false }];
+  assert.equal((await mkt.setShown(mkt.orders, true)).length, 1);
+  assert.deepEqual(sent, [["h", { visible: true }]]);
+  mkt.model = null;
+  mkt.rules = null;
+});
+
+test("more copies of a listing at an unchanged price under the minimum are refused", async () => {
+  mkt.items = spareItems;
+  mkt.model = await spareModel();
+  mkt.rules = { ...defaultMarketSettings(), approved: {}, minPrice: 1, minByCategory: { mods: 5 } };
+  mkt.orders = [{ ...order("s", 1, 2), rank: 0 }];
+  const sent: unknown[] = [];
+  market.update = async (_id: string, change: unknown) => {
+    sent.push(change);
+  };
+  market.myOrders = async () => mkt.orders;
+  assert.equal(await mkt.update(mkt.orders[0], { quantity: 2 }), false);
+  assert.match(mkt.error ?? "", /2p is under your 5p minimum/);
+  // Fewer copies, or hiding, never raise the offer: not held to the minimum.
+  mkt.orders = [{ ...order("s", 2, 2), rank: 0 }];
+  assert.equal(await mkt.update(mkt.orders[0], { quantity: 1 }), true);
+  assert.equal(await mkt.update(mkt.orders[0], { visible: false }), true);
+  assert.deepEqual(sent, [{ quantity: 1 }, { visible: false }]);
+  mkt.model = null;
+  mkt.rules = null;
+});
+
 test("raising a listing past what's spare is refused before it's sent", async () => {
   mkt.items = spareItems;
   mkt.model = await spareModel();

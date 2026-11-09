@@ -27,7 +27,8 @@ lists everything it reads, every host it talks to, and every file it keeps; ther
 
 **It acts on your warframe.market account.** Once you sign in, what you press and the automatic
 features you turn on (repricing, marking sales sold, +rep, hiding your last copies, holding your
-online status) list, change and close orders and post reviews as you.
+online status; each is off until you turn it on) list, change and close orders and post reviews as
+you.
 
 ## Install
 
@@ -73,9 +74,10 @@ offer for the GPL and LGPL libraries in the downloads, and every other licence, 
 
 ## Reporting a bug
 
-In MyOrbiter, Shift+F1 opens *Report a bug*: it puts the report on your clipboard and opens a blank
-new issue for you to paste it into and send, and posts nothing by itself. Security problems go
-through [SECURITY.md](SECURITY.md).
+In MyOrbiter, Shift+F1 opens *Report a bug*, which shows you the report first. *Open on GitLab*
+puts it on the clipboard and opens a blank new issue on gitlab.com in your browser, for you to paste
+it into, give it a title and submit; *Copy report* only puts it on the clipboard. MyOrbiter posts
+nothing by itself. Security problems go through [SECURITY.md](SECURITY.md).
 
 ## More
 

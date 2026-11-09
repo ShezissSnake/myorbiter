@@ -57,6 +57,8 @@ export interface BookOrder {
   visible: boolean;
   amberStars?: number | null;
   cyanStars?: number | null;
+  /** The least a seller of a bulk item trades at once (warframe.market's whisper names it). */
+  perTrade?: number | null;
   user: BookUser;
 }
 
@@ -79,7 +81,7 @@ export interface Competitor {
    * 5p or more under it) and the next two agree (within half again), one forgotten or mistyped
    * listing, `price` and `cheapest` skip it, so your listings don't follow it down.
    */
-  lowest: { name: string | null; platinum: number } | null;
+  lowest: ({ name: string | null; platinum: number } & Pick<BookOrder, "perTrade" | "cyanStars" | "amberStars">) | null;
   /** The next few in-game prices, cheapest first, to show what the order is matching. */
   ladder: number[];
   /**
@@ -139,7 +141,7 @@ export function competitor(order: Pick<MyOrder, "rank" | "subtype"> & Stars, boo
     price: best?.platinum ?? null,
     sellers: rivals.length,
     cheapest: best ? { name: best.user.ingameName, platinum: best.platinum } : null,
-    lowest: rivals[0] ? { name: rivals[0].user.ingameName, platinum: rivals[0].platinum } : null,
+    lowest: rivals[0] ? { name: rivals[0].user.ingameName, platinum: rivals[0].platinum, perTrade: rivals[0].perTrade, cyanStars: rivals[0].cyanStars, amberStars: rivals[0].amberStars } : null,
     ladder: rivals.slice(odd ? 1 : 0, (odd ? 1 : 0) + 5).map((o) => o.platinum),
     askLevel: asks.length ? asks[asks.length < 3 ? asks.length - 1 : asks.length >> 1] : null,
   };
@@ -166,7 +168,7 @@ function baitProofCompetitor(order: Pick<MyOrder, "rank" | "subtype"> & Stars, b
     price,
     sellers: rivals.length,
     cheapest: best ? { name: best.user.ingameName, platinum: best.platinum } : null,
-    lowest: rivals[0] ? { name: rivals[0].user.ingameName, platinum: rivals[0].platinum } : null,
+    lowest: rivals[0] ? { name: rivals[0].user.ingameName, platinum: rivals[0].platinum, perTrade: rivals[0].perTrade, cyanStars: rivals[0].cyanStars, amberStars: rivals[0].amberStars } : null,
     ladder: rivals.slice(1, 6).map((o) => o.platinum),
     askLevel: asks.length ? asks[asks.length < 3 ? asks.length - 1 : asks.length >> 1] : null,
   };
