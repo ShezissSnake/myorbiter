@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { redact } from "../src/lib/core/redact";
 import { cleanBlock, cleanLine, HIDDEN_CHARS, stripHidden } from "../src/lib/core/untrusted";
-import { buildReport, issueText, reportMarkdown, type ReportDetails } from "../src/lib/core/bugReport";
+import { buildReport, issueLink, reportMarkdown, type ReportDetails } from "../src/lib/core/bugReport";
 import { LINK_SITES, openable } from "../src/lib/core/links";
 import { forAll, type Rng } from "./support/prop";
 
@@ -67,7 +67,7 @@ function plant(r: Rng, parts: string[]): string {
 
 const leaks = (out: string, must: string[]) => must.filter((m) => m && out.toLowerCase().includes(m.toLowerCase()));
 
-test("bug reports: nothing private survives the report or the text to paste, and nothing hidden gets through", () => {
+test("bug reports: nothing private survives the report or the link built from it, and nothing hidden gets through", () => {
   forAll("report", (r, seed) => {
     const self = randomName(r);
     const other = randomName(r);
@@ -82,7 +82,7 @@ test("bug reports: nothing private survives the report or the text to paste, and
     };
     const report = buildReport({ what: text, steps: plant(r, [other]), expected: "ok" }, details, { self: [self], others: [other] });
     const md = reportMarkdown(report);
-    const paste = issueText(report);
+    const paste = [...new URL(issueLink(report).url).searchParams.values()].join("\n");
     const all = [report.title, report.what, report.steps, report.expected, md, paste].join("\n");
     const must = pick.flatMap((p) => p.must).concat([self, other]);
     // A name split by a hidden character is the name once it's cleaned: the report cleans first.

@@ -74,10 +74,10 @@ offer for the GPL and LGPL libraries in the downloads, and every other licence, 
 
 ## Reporting a bug
 
-In MyOrbiter, Shift+F1 opens *Report a bug*, which shows you the report first. *Open on GitLab*
-puts it on the clipboard and opens a blank new issue on gitlab.com in your browser, for you to paste
-it into, give it a title and submit; *Copy report* only puts it on the clipboard. MyOrbiter posts
-nothing by itself. Security problems go through [SECURITY.md](SECURITY.md).
+In MyOrbiter, Shift+F1 opens *Report a bug*, which shows you the report first. *Open on GitHub*
+opens the issue form on github.com in your browser with the report filled in, for you to read and
+submit (the report is in the link, so github.com has it as the page opens); *Copy report* only puts
+it on the clipboard. MyOrbiter posts nothing by itself. Security problems go through [SECURITY.md](SECURITY.md).
 
 ## More
 
@@ -85,5 +85,6 @@ nothing by itself. Security problems go through [SECURITY.md](SECURITY.md).
   [What's New](https://shezisssnake.github.io/myorbiter/whats-new.html)
 - [docs/](docs/): what MyOrbiter does, [what it reads and sends](docs/privacy.md), running it from source, releases
 - [The website](https://shezisssnake.github.io/myorbiter/)
-- The source lives on [GitHub](https://github.com/ShezissSnake/myorbiter) and is mirrored on
-  [GitLab](https://gitlab.com/sheziss-group/myorbiter); builds 0.2.100 to 0.2.119 were made there.
+- Development, issues, releases and the website are on [GitHub](https://github.com/ShezissSnake/myorbiter).
+  [GitLab](https://gitlab.com/sheziss-group/myorbiter) keeps builds 0.2.100 to 0.2.119 and the
+  fallback update feed.

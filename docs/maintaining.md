@@ -197,16 +197,15 @@ maintainer's own:
       repositories, with a GitHub token limited to this repository's contents): a push mirror runs
       from GitLab outwards, and pulling into GitLab from GitHub needs a paid tier. Either way it is
       set up outside the repository: no workflow here holds a GitLab token or pushes anywhere.
-      Merge requests are still opened on GitLab (CLAUDE.md) until that changes.
+      Pull requests are opened on GitHub (CLAUDE.md).
 - [ ] **Its channel manifests stay on the bridge build:** `channel/<channel>/latest.json` in
       GitLab's package registry, every installed copy's second address. Never delete the
       `channel` or `stable-builds` packages, the builds 0.2.100 and up, or the releases that link
       them; never run a release or promote pipeline there again (after the second merge request,
       `.gitlab-ci.yml` has none).
 - [ ] **Its Pages** publish only a page that redirects to `https://shezisssnake.github.io/myorbiter/`.
-- [ ] **Its issues:** MyOrbiter's Report a bug still opens a new issue on GitLab until the app moves
-      it to GitHub; read both with `scripts/issues-digest.mjs` (`--fetch`, and `--fetch
-      --from=gitlab`).
+- [ ] **Its issues:** MyOrbiter's Report a bug opens GitHub's issue form; the issues made on GitLab
+      before stay readable there, with `scripts/issues-digest.mjs` (`--fetch --from=gitlab`).
 - [ ] **Its runner:** stopped once the bridge build is out; nothing on GitLab needs it.
 
 The GitHub releases from before the move (`build-18`, `build-30`, `channel-experimental`) stay as

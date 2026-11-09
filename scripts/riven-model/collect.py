@@ -2,7 +2,7 @@
 # GET only, one request at a time, >= 0.45 s apart, honest User-Agent. Output: auctions.jsonl
 import json, time, urllib.request, urllib.parse, sys, os, re
 SP = os.path.dirname(os.path.abspath(__file__))
-UA = "MyOrbiter/dev (+https://gitlab.com/sheziss-group/myorbiter)"
+UA = "MyOrbiter/dev (+https://github.com/ShezissSnake/myorbiter)"
 last = [0.0]
 def get(url):
     wait = 0.45 - (time.time() - last[0])

@@ -46,6 +46,16 @@ The tests that need the dev data (the Sell spares plan, riven stats, the real ca
 skipped until `npm run dev-bundle` and `npm run dev-data` have run. Property tests replay with
 `PROPERTY_SEED=<n>` and run longer with `PROPERTY_RUNS=<n>`.
 
+## Sending a change
+
+Work on a branch named `work/<short-slug>` from the latest `main`, run the three checks above
+before each commit (and `node scripts/site.mjs --check --offline` when the site or a download link
+changed), and push the branch to `origin`, which is the GitHub repository
+(`git@github.com:ShezissSnake/myorbiter.git`). The change comes in as a pull request on GitHub,
+opened as a draft until it has been looked over; nothing is pushed to `main` directly. GitLab
+builds nothing any more (it keeps builds 0.2.100 to 0.2.119 and the fallback update feed), so
+nothing is sent there.
+
 ## App icon
 
 `src-tauri/icons/icon.svg` is the master: a detailed drawing for 48 px and up and a bolder one for

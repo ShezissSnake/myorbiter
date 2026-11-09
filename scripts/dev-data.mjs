@@ -19,7 +19,7 @@ const V2 = "https://api.warframe.market/v2";
 const EXPORT = "https://raw.githubusercontent.com/calamity-inc/warframe-public-export-plus/senpai";
 const version = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 // As user_agent() in src-tauri/src/lib.rs: the requests name MyOrbiter honestly.
-const USER_AGENT = `MyOrbiter/${version} (+https://gitlab.com/sheziss-group/myorbiter)`;
+const USER_AGENT = `MyOrbiter/${version} (+https://github.com/ShezissSnake/myorbiter)`;
 
 const MIN_GAP = 400;
 const SLOW_GAP = 1500;
