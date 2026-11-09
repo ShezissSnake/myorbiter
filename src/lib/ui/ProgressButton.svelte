@@ -78,7 +78,18 @@
   } & Omit<HTMLButtonAttributes, "title" | "onclick" | "disabled" | "class"> = $props();
 
   const st = $derived<JobState>(forced ?? (job?.working || busy ? "working" : (job?.state ?? "idle")));
-  const p = $derived(progress !== undefined ? progress : (job?.progress ?? null));
+  // How far along, while it works. Once the work has said how far it is, it keeps that figure until
+  // it ends: a run whose own count is cleared a moment before it reports done (Orders' price pass)
+  // would otherwise start the sweep again for that moment. The fill moves by steps (`.step`), so a
+  // run of many small ones doesn't restart a transition on every one.
+  const said = $derived(progress !== undefined ? progress : (job?.progress ?? null));
+  let held = $state<number | null>(null);
+  // An effect, not part of `p`: it runs whether or not the button is looking at `p`, so each run begins empty.
+  $effect.pre(() => {
+    if (st !== "working") held = null;
+    else if (said != null) held = said;
+  });
+  const p = $derived(said ?? (st === "working" ? held : null));
   const workWord = $derived(working ?? job?.phase ?? `${label}…`);
   const doneWord = $derived(doneLabel ?? job?.note ?? "Done");
   const failWord = $derived(failLabel ?? job?.short ?? "Failed");
@@ -133,7 +144,7 @@
     onclick={click}
     {...rest}
   >
-    {#if variant !== "link"}<span class="fill" class:sweep={st === "working" && p == null} class:on={st === "working"} style:transform={st === "working" && p != null ? `scaleX(${p})` : st === "working" ? null : "scaleX(1)"} aria-hidden="true"></span>{/if}
+    {#if variant !== "link"}<span class="fill" class:sweep={st === "working" && p == null} class:step={st === "working" && p != null} class:on={st === "working"} style:transform={st === "working" && p != null ? `scaleX(${p})` : st === "working" ? null : "scaleX(1)"} aria-hidden="true"></span>{/if}
     {#if variant === "icon"}
       <span class="mark">
         {#if st === "done"}<Icon name="check" {size} />
@@ -155,7 +166,7 @@
         <span class:on={st === "failed"}>{#if !icon}<b class="bang">!</b>{/if}{failWord}</span>
         {#each sizer as s, i (i)}<span>{s}</span>{/each}
       </span>
-      {#if variant === "link"}<i class="hair" class:sweep={st === "working" && p == null} class:on={st === "working"} style:transform={st === "working" && p != null ? `scaleX(${p})` : null} aria-hidden="true"></i>{/if}
+      {#if variant === "link"}<i class="hair" class:sweep={st === "working" && p == null} class:step={st === "working" && p != null} class:on={st === "working"} style:transform={st === "working" && p != null ? `scaleX(${p})` : null} aria-hidden="true"></i>{/if}
     {/if}
   </button>
 {/snippet}
@@ -183,6 +194,8 @@
   /* The fill: grows from the left behind the label, clipped by the button's own cut shape. */
   .fill { position: absolute; inset: 0; transform-origin: left center; transform: scaleX(0); background: rgb(241 243 246 / 13%); opacity: 0; pointer-events: none; transition: transform var(--settle) var(--out), opacity var(--settle); }
   .fill.on { opacity: 1; }
+  /* Working, with a figure: each step is set, not slid to, so the next one doesn't restart a transition. */
+  .fill.step { transition: opacity var(--settle); }
   .gold > .fill, .ib.gold > .fill { background: rgb(214 174 74 / 22%); }
   /* No total yet: a band sweeps across instead. */
   .fill.sweep, .hair.sweep { transform: none; background: none; overflow: hidden; }
@@ -195,6 +208,7 @@
   /* A link: a hairline under the words. */
   .hair { position: absolute; left: 0; right: 0; bottom: 2px; height: 1px; background: currentColor; transform-origin: left center; transform: scaleX(0); opacity: 0; transition: transform var(--settle) var(--out), opacity var(--settle); }
   .hair.on { opacity: .8; }
+  .hair.step { transition: opacity var(--settle); }
   .hair.sweep::before { background: linear-gradient(90deg, transparent, currentColor, transparent); }
   .link.pb { overflow: visible; }
 
@@ -239,6 +253,6 @@
     .gold > .fill.sweep { background: rgb(214 174 74 / 14%); }
     .ib > .fill.sweep { background: var(--gold-dim); }
     .turn { animation: none; }
-    .fill { transition: none; }
+    .fill, .fill.step { transition: none; }
   }
 </style>
