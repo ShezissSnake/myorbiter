@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { LINK_SITES, openable } from "../src/lib/core/links";
+import { LINK_SITES, PRIVACY_PAGE, openable } from "../src/lib/core/links";
 
 test("links to the sites MyOrbiter uses open", () => {
   for (const url of [
@@ -14,6 +14,7 @@ test("links to the sites MyOrbiter uses open", () => {
     "https://noxsframe.com/",
     "https://gitlab.com/sheziss-group/myorbiter/-/releases",
     "https://gitlab.com/sheziss-group/myorbiter/-/work_items/new?issuable_template=Bug%20report",
+    PRIVACY_PAGE.url,
   ])
     assert.equal(openable(url), url, url);
 });
