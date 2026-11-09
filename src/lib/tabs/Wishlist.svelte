@@ -317,7 +317,7 @@
 <style>
   /* A part's price over its Buy order button, right-aligned in its cell: the button may wrap, never cut. */
   .buycell { display: inline-grid; justify-items: end; gap: .15rem; max-width: 100%; }
-  .buyo { font-size: .58rem; white-space: nowrap; padding: 0; }
+  .buyo { font-size: 11px; white-space: nowrap; padding: 0; }
   .bar input[list] { min-width: 22rem; }
   .now { align-items: start; display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: .8rem; margin: 0 0 var(--step); }
   /* Each era a plate washed in its relic's colour (app.css, .era-wash), as on Home's fissure board. */

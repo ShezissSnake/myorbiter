@@ -384,7 +384,7 @@
   .missing { color: var(--platinum-deep); }
   .inhand { color: var(--gold); }
   /* What building takes now: each part still to build or get, then every resource, short ones first. */
-  .tier { margin-left: .5rem; padding: .1rem .45rem; border: 1px solid var(--rule-bright); font-size: .58rem; color: var(--platinum); }
+  .tier { margin-left: .5rem; padding: .1rem .45rem; border: 1px solid var(--rule-bright); font-size: 11px; color: var(--platinum); }
   .tier.t-now { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 50%, transparent); }
   .tier.t-farm { color: var(--gold); border-color: var(--gold-dim); }
   .tier.t-hard, .tier.t-parts { color: var(--oxblood); border-color: color-mix(in srgb, var(--oxblood) 70%, transparent); }

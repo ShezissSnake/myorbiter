@@ -147,7 +147,7 @@
   .wrap { position: relative; }
   svg { display: block; touch-action: none; }
   .grid { stroke: var(--rule); stroke-width: 1; }
-  .ax { fill: var(--platinum-deep); font-family: var(--face-register); font-size: 10px; }
+  .ax { fill: var(--platinum-deep); font-family: var(--face-register); font-size: 11px; }
   .end { fill: var(--platinum); font-size: 11px; font-variant-numeric: tabular-nums; }
   .el { fill: var(--platinum-deep); }
   .cross { stroke: var(--rule-bright); stroke-width: 1; }

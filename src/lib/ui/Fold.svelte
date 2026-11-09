@@ -45,7 +45,7 @@
   /* What the folded filters narrow to right now, so a short list never looks unexplained. */
   .on-now { font-family: var(--face-text); font-size: .74rem; letter-spacing: 0; text-transform: none; color: var(--platinum-deep); }
   .chev { font-size: .7rem; color: var(--platinum-deep); }
-  .clear { font-size: .62rem; }
+  .clear { font-size: 11px; }
   /* The folded controls take a row of their own under the bar, wrapping like it; they unfold on
      the grid row (motion.ts, reveal) as the chevron turns over (app.css). */
   .fold-body { flex-basis: 100%; }

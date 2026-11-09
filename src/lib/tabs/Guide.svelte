@@ -355,7 +355,7 @@
   ol { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: .75rem; }
   ol li { counter-increment: s; display: grid; grid-template-columns: 1.6rem 1fr; column-gap: .2rem; font-size: .86rem; color: var(--platinum-dim); line-height: 1.5; }
   ol li::before { content: counter(s); grid-row: span 2; font-family: var(--face-mark); font-weight: 700; font-size: 1.2rem; color: var(--gold); line-height: 1.1; }
-  ol .link { justify-self: start; font-size: .64rem; }
+  ol .link { justify-self: start; font-size: 11px; }
   .trust { margin-top: var(--course); padding: 1.1rem 1.3rem; border: 1px solid var(--gold-dim); background: linear-gradient(180deg, color-mix(in srgb, var(--gold) 6%, var(--plate)), var(--plate) 60%); }
   .trust ul { grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); column-gap: 2rem; }
   .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: var(--course); margin-top: var(--course); }
@@ -384,11 +384,11 @@
   .sell-demo { display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .45rem; border: 1px solid var(--rule-bright); font-family: var(--face-register); font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-dim); }
   .notch-demo { display: inline-block; width: 22px; height: 16px; border: 1px solid color-mix(in srgb, var(--gold) 30%, var(--rule)); background: linear-gradient(225deg, var(--gold) 0 7px, var(--plate) 7px); }
   .gold-word { font-family: var(--face-mark); font-weight: 700; text-transform: uppercase; color: var(--gold); }
-  .lastmark { font-family: var(--face-register); font-size: .67rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
+  .lastmark { font-family: var(--face-register); font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
   .tug-demo { display: inline-flex; width: 4.5rem; height: 4px; gap: 1px; }
   .tug-demo i { display: block; height: 100%; }
   .tug-demo i:first-child { width: 60%; background: var(--faction-grineer); }
   .tug-demo i:last-child { flex: 1; background: var(--faction-corpus); }
-  .more { border: 0; background: none; padding: 0 .2rem; font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; color: var(--gold-dim); cursor: pointer; }
+  .more { border: 0; background: none; padding: 0 .2rem; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--gold-dim); cursor: pointer; }
   .more:hover { color: var(--gold); }
 </style>

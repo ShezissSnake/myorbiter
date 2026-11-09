@@ -821,7 +821,7 @@
   .rsort { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: .4rem 0; }
   .deal { margin-left: .4rem; }
   .est { display: grid; gap: .2rem; padding: .55rem .7rem; border: 1px solid var(--rule); background: rgb(214 174 74 / 4%); }
-  .est .register { font-size: .58rem; }
+  .est .register { font-size: 11px; }
   .est .v { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; }
   .est .fx .up { color: var(--jade, #7fc79a); }
   .est .fx .down { color: #e07a6a; }

@@ -204,7 +204,7 @@
   .grid { display: grid; gap: .7rem; padding: .8rem; background: var(--well); border: 1px solid var(--rule); box-shadow: var(--struck); }
   .top { display: flex; justify-content: space-between; gap: .6rem; }
   .top .cell { display: grid; gap: .25rem; width: calc((100% - 1.8rem) / 4); min-width: 9rem; }
-  .cap { font-size: .56rem; letter-spacing: .16em; }
+  .cap { font-size: 11px; letter-spacing: .16em; }
   .mods { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: .45rem; }
 
   .slot {
@@ -221,7 +221,7 @@
   .t-rare { --edge: var(--rarity-rare); }
   .t-legendary { --edge: var(--rarity-legendary); }
   .slot.empty { display: grid; grid-template-columns: 1fr; place-items: center; background: transparent; border: 1px dashed var(--rule-bright); border-top-width: 1px; }
-  .hole { font-family: var(--face-register); font-size: .67rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); }
+  .hole { font-family: var(--face-register); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); }
   .art { width: 2.3rem; height: 2.3rem; overflow: hidden; background: radial-gradient(circle at 50% 35%, var(--rule), var(--well) 80%); border: 1px solid color-mix(in srgb, var(--edge) 35%, transparent); }
   .art img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .body { display: grid; grid-template-rows: auto auto 1fr; gap: .12rem; min-width: 0; align-self: stretch; }

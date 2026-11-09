@@ -403,7 +403,7 @@
   .rc.rar-Uncommon { --rar: var(--rarity-uncommon); }
   .rc.rar-Rare { --rar: var(--rarity-rare); }
   .rc-top { min-height: 1.3rem; display: flex; align-items: center; justify-content: center; }
-  .lot { font-size: .58rem; color: var(--platinum-deep); }
+  .lot { font-size: 11px; color: var(--platinum-deep); }
   .lot.mine { color: var(--sec); }
   .rc-art { display: flex; align-items: center; justify-content: center; width: 100%; height: 8.8rem; }
   .rc-art :global(.art) { max-width: 100%; }
@@ -439,7 +439,7 @@
   .slot { min-height: 0; padding-bottom: .9rem; grid-template-rows: auto 1fr auto auto; border-bottom: 1px solid var(--rule); box-shadow: none; }
   .relic-slot { box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--tint, var(--sec)) 70%, transparent); }
   .relic-slot .rc-name { min-height: 0; color: color-mix(in srgb, var(--tint, var(--platinum)) 75%, var(--platinum)); }
-  .ref-word { font-size: .58rem; color: var(--platinum-deep); }
+  .ref-word { font-size: 11px; color: var(--platinum-deep); }
   .empty-slot { border-style: dashed; border-color: var(--rule-bright); background: none; }
   .slot .rc-art { height: 6.5rem; }
   .empty-slot .rc-art :global(.gi) { opacity: .3; filter: saturate(.4); }
@@ -463,12 +463,12 @@
   .share.off { color: var(--alert); }
   .pool-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem 1rem; margin: var(--course) 0 .6rem; }
   .pool-head h2 { margin: 0; }
-  .pool .rank { width: 2rem; color: var(--platinum-deep); font-family: var(--face-figures); font-size: .66rem; }
+  .pool .rank { width: 2rem; color: var(--platinum-deep); font-family: var(--face-figures); font-size: 11px; }
   .pool:not(.history) .rank { padding-left: .5rem; box-shadow: inset 3px 0 0 var(--rar, transparent); }
   .pool .sc { width: 2.6rem; text-align: right; font-family: var(--face-mark); font-size: 1.15rem; }
   .pool .bc { width: 5.6rem; }
   .pool tr.yours td { background: var(--raised); }
-  .history .time { width: 6rem; white-space: nowrap; font-family: var(--face-figures); font-size: .66rem; letter-spacing: .08em; color: var(--platinum-deep); }
+  .history .time { width: 6rem; white-space: nowrap; font-family: var(--face-figures); font-size: 11px; letter-spacing: .08em; color: var(--platinum-deep); }
   .history tr.current td { background: var(--raised); }
   .got { display: inline-flex; align-items: center; gap: .4rem; margin-right: 1.1rem; }
   .rw { display: flex; align-items: center; }

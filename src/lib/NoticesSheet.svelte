@@ -246,7 +246,7 @@
   .acts { display: flex; justify-content: flex-end; align-items: center; gap: .6rem; margin-left: auto; order: 2; }
   .days { display: grid; gap: 1.2rem; margin-top: -.6rem; }
   .dayblock { display: grid; gap: .45rem; }
-  .day { margin: 0; font-size: .62rem; color: var(--gold-dim); letter-spacing: .18em; }
+  .day { margin: 0; font-size: 11px; color: var(--gold-dim); letter-spacing: .18em; }
   .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
   .notice { display: grid; grid-template-columns: 1.8rem 1fr; gap: .7rem; width: 100%; text-align: left; padding: .6rem .7rem; border: 1px solid transparent; background: transparent; color: var(--platinum-dim); font-family: var(--face-text); font-size: .85rem; font-weight: 400; letter-spacing: 0; text-transform: none; transition: background .12s, border-color .12s; }
   .notice:hover { background: rgb(241 243 246 / 4%); border-color: var(--rule); }
@@ -266,10 +266,10 @@
   .how { display: grid; gap: 1rem; padding-bottom: 1.2rem; border-bottom: 1px solid var(--rule); }
   .pause { display: grid; gap: .45rem; }
   .pausebtns { display: flex; flex-wrap: wrap; gap: 0; }
-  .pausebtns button { margin-left: -1px; padding: .35rem .7rem; font-size: .66rem; transition: border-color var(--quick); }
+  .pausebtns button { margin-left: -1px; padding: .35rem .7rem; font-size: 11px; transition: border-color var(--quick); }
   .pausebtns button.on { color: var(--slab); background: var(--platinum); border-color: var(--platinum); }
   .kind { display: grid; gap: .4rem; }
-  .kind :global(.chip) { justify-self: start; font-size: .62rem; padding: .2rem .5rem; }
+  .kind :global(.chip) { justify-self: start; font-size: 11px; padding: .2rem .5rem; }
   .row { display: flex; }
   .grp { display: grid; gap: .9rem; padding: 1.1rem 0; border-bottom: 1px solid var(--rule); }
   .grp header { display: flex; align-items: baseline; gap: .7rem; flex-wrap: wrap; }

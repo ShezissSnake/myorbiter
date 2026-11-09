@@ -320,7 +320,7 @@
   .mp { cursor: default; border-bottom: 1px dotted var(--rule-control); }
   .mp:hover { color: var(--platinum); border-bottom-color: var(--platinum-dim); }
   .sep { color: var(--platinum-deep); margin-right: .35em; }
-  .from { font-size: .62rem; letter-spacing: .06em; text-transform: uppercase; color: var(--platinum-deep); }
+  .from { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--platinum-deep); }
   .from-relic { color: var(--verdigris); }
   .easy { color: var(--verdigris); }
 </style>

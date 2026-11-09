@@ -49,7 +49,7 @@
   .slot { position: relative; display: inline-flex; align-items: center; gap: .7rem; min-width: 0; max-width: 100%; padding: .2rem .6rem .3rem; border: 1px dashed var(--rule-bright); font-family: var(--face-register); font-size: .74rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
   .word { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .what { text-transform: none; letter-spacing: 0; font-family: var(--face-text); font-size: .78rem; }
-  .link { flex: none; font-size: .62rem; }
+  .link { flex: none; font-size: 11px; }
   /* Time left before it's gone: a line that runs out. */
   i { position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: var(--gold-dim); transform-origin: left center; animation: slot-run linear forwards; }
   @keyframes slot-run { from { transform: scaleX(1); } to { transform: scaleX(0); } }

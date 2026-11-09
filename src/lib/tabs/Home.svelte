@@ -1198,7 +1198,7 @@
 
   .ph { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding-bottom: .6rem; border-bottom: 1px solid var(--rule); }
   .pt { display: inline-flex; align-items: center; gap: .55rem; }
-  .pt .register { color: var(--platinum); font-size: .66rem; }
+  .pt .register { color: var(--platinum); font-size: 11px; }
   .ph .link { font-size: .78rem; }
 
   .presence { padding-bottom: .2rem; }

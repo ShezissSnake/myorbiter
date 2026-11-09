@@ -1085,12 +1085,12 @@
   .orders .acts input.bad { border-color: var(--oxblood); color: var(--oxblood); }
   .ask { color: var(--oxblood); font-size: 11px; }
   .pendrow { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: .7rem; }
-  .pending { position: relative; color: var(--gold); font-size: .62rem; padding-bottom: 3px; }
+  .pending { position: relative; color: var(--gold); font-size: 11px; padding-bottom: 3px; }
   /* Time left before it's sent: a line that runs out. */
   .pending i { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--gold); transform-origin: left; animation: wait 4s linear forwards; }
   @keyframes wait { from { transform: scaleX(1); } to { transform: scaleX(0); } }
   @media (prefers-reduced-motion: reduce) { .pending i { animation: none; } }
-  .undo { font-size: .64rem; }
+  .undo { font-size: 11px; }
   .fix { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .9rem; padding-left: calc(34px + .75rem); }
   /* The sold question sits in a row of its own under its listing, joined to it (no rule between). */
   .orders tr.fixrow > td { padding-top: 0; }
@@ -1130,7 +1130,7 @@
   :global(html[data-room~="lt1100"]) .rowst { padding-left: 0; }
   .rowst.done { color: var(--verdigris); }
   .rowst.failed { color: var(--oxblood); text-transform: none; letter-spacing: 0; font-family: var(--face-text); font-size: .78rem; }
-  .rowst .link { font-size: .62rem; }
+  .rowst .link { font-size: 11px; }
   .busyword { position: relative; padding-bottom: 3px; }
   /* The band runs by transform (app.css, sweep-band), clipped to the word's width. */
   .busyword i { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; overflow: hidden; }
@@ -1207,7 +1207,7 @@
   :global(html[data-room~="lt760"]) .orders tr.order { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto auto; grid-template-areas: "item item item item item item" "qty price comp auto shown acts"; column-gap: .6rem; row-gap: .45rem; align-items: end; padding: .7rem .6rem; border-bottom: 1px solid var(--rule); }
   :global(html[data-room~="lt760"]) .orders tr.order > td { display: block; border: 0; padding: 0 !important; }
   :global(html[data-room~="lt760"]) .orders tr.order > td:is(.willset, .floorcol) { display: none; }
-  :global(html[data-room~="lt760"]) .orders tr.order > td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .25rem; font-family: var(--face-register); font-size: .66rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); text-align: left; white-space: nowrap; }
+  :global(html[data-room~="lt760"]) .orders tr.order > td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .25rem; font-family: var(--face-register); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); text-align: left; white-space: nowrap; }
   :global(html[data-room~="lt760"]) .orders .c-item { grid-area: item; }
   :global(html[data-room~="lt760"]) .orders .c-qty { grid-area: qty; }
   :global(html[data-room~="lt760"]) .orders .c-price { grid-area: price; }

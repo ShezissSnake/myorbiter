@@ -47,7 +47,7 @@
   :global(html:not([data-details])) .head .prose { -webkit-line-clamp: 1; line-clamp: 1; }
   .side { display: grid; gap: .5rem; justify-items: end; min-width: 0; }
   .side .prose { justify-self: stretch; }
-  .details { display: inline-flex; align-items: center; gap: .45rem; padding: .25rem .55rem; font-size: .62rem; color: var(--platinum-deep); }
+  .details { display: inline-flex; align-items: center; gap: .45rem; padding: .25rem .55rem; font-size: 11px; color: var(--platinum-deep); }
   .details .box { width: .55rem; height: .55rem; border: 1px solid var(--rule-control); }
   .details.on { color: var(--platinum); }
   .details.on .box { background: var(--gold); border-color: var(--gold); }

@@ -3063,7 +3063,7 @@
   .bannerfold { flex: none; }
   .stale { flex: none; display: flex; align-items: center; gap: .9rem; padding: .45rem 1.4rem; font-size: .8rem; color: var(--platinum-dim); background: color-mix(in srgb, var(--alert) 7%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--alert) 55%, transparent); box-shadow: inset 3px 0 0 var(--alert); }
   .stale::before { content: "!"; font-weight: 700; color: var(--alert); margin-right: -.4rem; }
-  .stale .link { font-size: .64rem; }
+  .stale .link { font-size: 11px; }
   .stale.slim { padding-top: .3rem; padding-bottom: .3rem; font-size: .76rem; }
   .stale.slim b { font-weight: 600; color: var(--platinum); }
   .repdue { background: rgb(111 183 163 / 7%); border-bottom-color: color-mix(in srgb, var(--verdigris) 45%, transparent); box-shadow: inset 3px 0 0 var(--verdigris); }

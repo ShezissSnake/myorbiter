@@ -224,7 +224,7 @@
   .check input:checked + .box { background: color-mix(in srgb, var(--gold) 22%, var(--plate)); border-color: var(--gold); color: var(--gold); }
   .check input:focus-visible + .box { outline: 1px solid var(--gold); outline-offset: 2px; }
   .check:active .box { transform: translateY(1px); }
-  .fold { display: inline-flex; align-items: center; gap: .35rem; font-size: .62rem; }
+  .fold { display: inline-flex; align-items: center; gap: .35rem; font-size: 11px; }
   .chev { display: inline-block; transition: transform var(--quick) var(--out); }
   .chev.up { transform: rotate(180deg); }
   .techtext { margin: .2rem 0 0; max-height: 15rem; overflow: auto; padding: .6rem .7rem; font-family: var(--face-register); font-size: .84rem; line-height: 1.5; color: var(--platinum-dim); background: var(--slab); border: 1px solid var(--rule); white-space: pre-wrap; overflow-wrap: anywhere; }

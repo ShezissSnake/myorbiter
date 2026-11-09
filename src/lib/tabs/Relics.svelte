@@ -344,7 +344,7 @@
   .fz-node { color: var(--platinum-dim); white-space: nowrap; }
   .fz-kind { display: inline-flex; gap: .3rem; }
   .fz-kind .tag { margin: 0; }
-  .fz-t { text-align: right; font-family: var(--face-figures); font-size: .66rem; color: var(--platinum-deep); white-space: nowrap; }
+  .fz-t { text-align: right; font-family: var(--face-figures); font-size: 11px; color: var(--platinum-deep); white-space: nowrap; }
   .rewards { border-collapse: collapse; margin-bottom: 0.6rem; min-width: 34rem; font-variant-numeric: tabular-nums; }
   .rewards td { padding: 0.25rem 1rem 0.25rem 0; border: 0; border-top: 1px solid var(--rule); }
   .rewards tbody tr:first-child td { border-top: 0; }

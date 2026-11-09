@@ -74,12 +74,12 @@
 <style>
   .bar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1.2rem; margin-bottom: 1rem; }
   .pm { list-style: none; margin: 0; padding: 0; display: grid; gap: .15rem; }
-  .pmh { display: grid; grid-template-columns: minmax(12rem, 1.1fr) minmax(0, 2fr) 6.5rem 8.5rem 28px; gap: .9rem; padding: 0 .5rem .35rem; font-size: .56rem; color: var(--platinum-deep); }
+  .pmh { display: grid; grid-template-columns: minmax(12rem, 1.1fr) minmax(0, 2fr) 6.5rem 9.5rem 28px; gap: .9rem; padding: 0 .5rem .35rem; font-size: 11px; color: var(--platinum-deep); }
   .pmh .r { text-align: right; }
   :global(html[data-room~="lt900"]) .pmh { grid-template-columns: minmax(10rem, 1fr) minmax(0, 1.4fr) 6rem 28px; }
   :global(html[data-room~="lt900"]) .pmh span:nth-child(4) { display: none; }
   :global(html[data-room~="lt640"]) .pmh { display: none; }
-  .pm li { display: grid; grid-template-columns: minmax(12rem, 1.1fr) minmax(0, 2fr) 6.5rem 8.5rem 28px; gap: .9rem; align-items: center; padding: .4rem .5rem; border-top: 1px solid var(--rule); }
+  .pm li { display: grid; grid-template-columns: minmax(12rem, 1.1fr) minmax(0, 2fr) 6.5rem 9.5rem 28px; gap: .9rem; align-items: center; padding: .4rem .5rem; border-top: 1px solid var(--rule); }
   .pm li:hover { background: var(--raised); }
   .it { all: unset; cursor: pointer; display: flex; align-items: center; gap: .6rem; min-width: 0; }
   .it:hover .mark { color: var(--gold); }
