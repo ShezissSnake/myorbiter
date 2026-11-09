@@ -9,7 +9,7 @@
   import type { RivenWatch, Settings } from "../backend";
   import { marketUrl, marketWaitLeft } from "../backend";
   import { tradesFor, type RivenTrade } from "../core/rivens";
-  import { attributeSlug, auctionItemFor, auctionOf, checkedWhen, curseWord, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, rollChoice, cycleKey, searchFor, searchKey, statMarket, unpackListed, unpackPrices, type MyAuction, type Riven, type RivenAuction, type RivenChange, type RollChoice } from "../core/rivens";
+  import { attributeSlug, auctionItemFor, auctionOf, checkedWhen, curseWord, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, rollChoice, cycleKey, searchFor, searchKey, statMarket, unpackListed, unpackPrices, weaponChoices, type MyAuction, type Riven, type RivenAuction, type RivenChange, type RollChoice } from "../core/rivens";
   import { mkt } from "../marketStore.svelte";
   import { rivens } from "../rivenStore.svelte";
   import { dealOf, estimateListed, estimateRiven, type Estimate } from "../core/rivenModel";
@@ -747,7 +747,7 @@
     {:else}
       <div class="form">
         <input list="riven-weapons" placeholder="Weapon" bind:value={weaponName} onfocus={() => (weaponsWanted = true)} aria-label="Weapon" />
-        {#if weaponsWanted}<datalist id="riven-weapons">{#each meta.weapons as w (w.slug)}<option value={w.name}></option>{/each}</datalist>{/if}
+        {#if weaponsWanted}<datalist id="riven-weapons">{#each weaponChoices(meta) as w (w.slug)}<option value={w.name}></option>{/each}</datalist>{/if}
         {#each [0, 1, 2] as i (i)}
           {@const taken = takenBut(pos[i])}
           <select bind:value={pos[i]} aria-label="Wanted stat {i + 1}"><option value="">{i === 0 ? "Stat you want" : i === 1 ? "2nd stat (any)" : "3rd stat (any)"}</option>{#each attrsFor.filter((a) => !a.negativeOnly && !taken.has(a.slug)) as a (a.slug)}<option value={a.slug}>{a.name}</option>{/each}</select>

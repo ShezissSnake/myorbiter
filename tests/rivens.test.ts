@@ -242,3 +242,22 @@ test("a curse is called harmless or hurts, not given a letter", async () => {
   assert.equal(curseWord("WeaponFireDamageMod"), "hurts");
   assert.equal(curseWord("WeaponFireRateMod"), "hurts");
 });
+
+test("two Grimoire rivens: warframe.market names the slug twice, the weapon list offers it once", async () => {
+  const { weaponChoices, weaponSlug } = await import("../src/lib/core/rivens");
+  const meta: RivenMeta = {
+    weapons: [
+      { slug: "gammacor", gameRef: "/Lotus/Weapons/Gammacor", name: "Gammacor", group: "secondary", rivenType: "pistol" },
+      { slug: "grimoire", gameRef: "/Lotus/Weapons/Tenno/Grimoire/TnDoppelgangerGrimoire", name: "Grimoire", group: "secondary", rivenType: "pistol" },
+      { slug: "grimoire", gameRef: "/Lotus/Weapons/Tenno/Grimoire/TnGrimoire", name: "Grimoire", group: "secondary", rivenType: "pistol" },
+    ],
+    attributes: [],
+  };
+  // The list the page draws is keyed on the slug (Svelte's each_key_duplicate otherwise): unique.
+  const slugs = weaponChoices(meta).map((w) => w.slug);
+  assert.deepEqual(slugs, ["gammacor", "grimoire"]);
+  assert.equal(new Set(slugs).size, slugs.length);
+  // Both Grimoires' rivens still find the one slug.
+  assert.equal(weaponSlug(meta, "/Lotus/Weapons/Tenno/Grimoire/TnGrimoire", "Grimoire"), "grimoire");
+  assert.equal(weaponSlug(meta, "/Lotus/Weapons/Tenno/Grimoire/TnDoppelgangerGrimoire", "Grimoire"), "grimoire");
+});

@@ -372,6 +372,14 @@ const MARKET_ALIAS: Record<string, string> = {
 };
 
 export const attributeSlug = (meta: RivenMeta, tag: string) => MARKET_ALIAS[tag] ?? meta.attributes.find((a) => a.gameRef === tag)?.slug ?? null;
+/**
+ * The weapons to offer by name: one per warframe.market slug. The list can name a slug twice
+ * (Grimoire, once for each of the game's two), and one slug is one weapon on the market.
+ */
+export function weaponChoices(meta: RivenMeta): RivenMeta["weapons"] {
+  const seen = new Set<string>();
+  return meta.weapons.filter((w) => !seen.has(w.slug) && !!seen.add(w.slug));
+}
 /** A riven fits a weapon family: Rubico Prime takes a Rubico riven. */
 export function weaponSlug(meta: RivenMeta, unique: string | null, name: string): string | null {
   const exact = meta.weapons.find((w) => w.gameRef === unique) ?? meta.weapons.find((w) => w.name.toLowerCase() === name.toLowerCase());
