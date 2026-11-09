@@ -1,10 +1,13 @@
-//! In-app updates, from the package registry of MyOrbiter's repository on gitlab.com.
+//! In-app updates, from MyOrbiter's releases on GitHub, with its mirror on GitLab after them.
 //!
-//! Every build CI makes is published (.gitlab-ci.yml) with its files in the registry's
-//! `myorbiter/0.2.<n>/` folder, an updater manifest (`latest.json`) among them, and a release
-//! `build-<n>` that links to them. Each channel is one fixed file, `channel/<channel>/latest.json`
-//! (experimental, beta, stable), replaced when a build reaches that channel (each build lands on
-//! Experimental; Beta and Stable get a build promoted by hand, the same files, never rebuilt). The
+//! Every build the Release workflow makes (.github/workflows/release.yml) is published with its
+//! files on the release `build-<n>` of the repository on github.com, an updater manifest
+//! (`latest.json`) among them. Each channel (experimental, beta, stable) is a release of its own,
+//! tagged with the channel's name, holding that channel's `latest.json`, replaced when a build
+//! reaches the channel (each build lands on Experimental; Beta and Stable get a build promoted by
+//! hand, the same files, never rebuilt). GitLab's package registry keeps the channel manifests it
+//! served before the move back (`channel/<channel>/latest.json`, never written again), so an
+//! address that GitHub doesn't answer still finds a build. The
 //! channel is a setting in the page; this module turns it into the manifest's addresses, asks
 //! tauri-plugin-updater whether that manifest offers another version, and installs it only when
 //! the page asks, after the plugin has checked its signature against the public key in
@@ -22,8 +25,11 @@ use tauri::utils::config::BundleType;
 use tauri::{AppHandle, Manager, Runtime, State};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
-/// The project whose package registry carries the builds and the channel manifests, as the
-/// GitLab API names it (`group%2Fproject`).
+/// The repository on github.com whose releases carry the builds and the channel manifests.
+pub const GITHUB_REPO: &str = "ShezissSnake/myorbiter";
+
+/// The mirror on gitlab.com, whose package registry carries the builds GitLab made and the channel
+/// manifests it last served, as the GitLab API names the project (`group%2Fproject`).
 pub const PROJECT: &str = "sheziss-group%2Fmyorbiter";
 
 /// How long a check may take before it counts as failed: the manifest is a couple of kilobytes, so
@@ -59,11 +65,15 @@ impl Channel {
 }
 
 /// The addresses a channel's builds are announced at, in the order they're tried: the plugin asks
-/// the next one when an address can't be reached or answers with an error (not when it answers
-/// with something that isn't a manifest). Today one, the channel's `latest.json` in the package
-/// registry; a mirror would go after it.
+/// the next one when an address can't be reached, answers with an error status (a 404 included)
+/// or with JSON that isn't a manifest, and stops at the first manifest it reads (an answer that
+/// isn't JSON at all ends the check). First the channel's release on GitHub, then the channel's
+/// file in GitLab's package registry. Each is given CHECK_TIMEOUT.
 pub fn endpoints(channel: Channel) -> Vec<String> {
-    vec![format!("https://gitlab.com/api/v4/projects/{PROJECT}/packages/generic/channel/{}/latest.json", channel.name())]
+    vec![
+        format!("https://github.com/{GITHUB_REPO}/releases/download/{}/latest.json", channel.name()),
+        format!("https://gitlab.com/api/v4/projects/{PROJECT}/packages/generic/channel/{}/latest.json", channel.name()),
+    ]
 }
 
 /// Where the check goes. A normal build only ever asks `endpoints(channel)`; a build made with the
@@ -226,17 +236,18 @@ pub struct Progress {
 
 /// Why a check failed, in plain words for the line under Check now; the plugin's own wording goes
 /// to the log. A manifest that isn't JSON fails in the request's own decoding (`Reqwest`), one that
-/// is JSON but not a manifest in the plugin's (`Serialization`); an answer that isn't a success
-/// (a 404, a 503) leaves the plugin with no release (`ReleaseNotFound`).
+/// is JSON but not a manifest in the plugin's (`Serialization`); answers that aren't a success
+/// (a 404, a 503) from every address leave the plugin with no release (`ReleaseNotFound`). A check
+/// fails only once every address has been asked, so the words name both sites.
 fn check_failure(channel: Channel, e: &tauri_plugin_updater::Error) -> String {
     use tauri_plugin_updater::Error as E;
     let ch = channel.label();
     match e {
         E::Reqwest(r) if r.is_decode() => format!("The {ch} channel's manifest is malformed"),
-        E::Reqwest(r) if r.is_timeout() => format!("gitlab.com didn't answer within {} s", CHECK_TIMEOUT.as_secs()),
-        E::Reqwest(_) | E::Network(_) => "Couldn't reach gitlab.com".into(),
+        E::Reqwest(r) if r.is_timeout() => format!("GitHub or GitLab didn't answer within {} s", CHECK_TIMEOUT.as_secs()),
+        E::Reqwest(_) | E::Network(_) => "Couldn't reach GitHub or GitLab".into(),
         E::Serialization(_) | E::Semver(_) | E::FormatDate => format!("The {ch} channel's manifest is malformed"),
-        E::ReleaseNotFound => format!("gitlab.com didn't serve the {ch} channel's manifest"),
+        E::ReleaseNotFound => format!("Neither GitHub nor GitLab served the {ch} channel's manifest"),
         E::TargetNotFound(_) | E::TargetsNotFound(_) => format!("The {ch} channel has no build for this system yet"),
         E::UrlParse(_) | E::InsecureTransportProtocol | E::EmptyEndpoints => "The update address is invalid".into(),
         E::UnsupportedOs | E::UnsupportedArch => "Updates aren't offered for this system".into(),
@@ -252,8 +263,8 @@ fn calm(what: &str, e: &tauri_plugin_updater::Error) -> String {
             "the download didn't match its signature, so it wasn't installed".into()
         }
         E::TargetNotFound(_) | E::TargetsNotFound(_) => "this channel has no build for this system yet".into(),
-        E::ReleaseNotFound => "GitLab had no update file for this channel".into(),
-        E::Reqwest(_) | E::Network(_) => format!("couldn't reach GitLab to {what}"),
+        E::ReleaseNotFound => "neither GitHub nor GitLab had an update file for this channel".into(),
+        E::Reqwest(_) | E::Network(_) => format!("couldn't reach the download's site to {what}"),
         E::Io(io) if io.kind() == std::io::ErrorKind::PermissionDenied => "MyOrbiter's file can't be replaced: its folder isn't writable".into(),
         E::TempDirNotOnSameMountPoint => "MyOrbiter couldn't make room to swap its file (no writable folder on the same drive)".into(),
         _ => format!("couldn't {what}"),
@@ -548,24 +559,42 @@ mod tests {
         semver::Version::parse(s).unwrap()
     }
 
-    /// The three addresses, written out in full: the channel switch builds them all with
-    /// `endpoints`, and Stable's is the one tauri.conf.json carries.
+    /// The addresses, written out in full: the channel switch builds them all with `endpoints`, and
+    /// Stable's are the ones tauri.conf.json carries.
     #[test]
     fn each_channel_has_its_own_manifest() {
-        assert_eq!(endpoints(Channel::Stable), ["https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel/stable/latest.json"]);
-        assert_eq!(endpoints(Channel::Beta), ["https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel/beta/latest.json"]);
-        assert_eq!(endpoints(Channel::Experimental), ["https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel/experimental/latest.json"]);
+        for (c, name) in [(Channel::Stable, "stable"), (Channel::Beta, "beta"), (Channel::Experimental, "experimental")] {
+            assert_eq!(
+                endpoints(c),
+                [
+                    format!("https://github.com/ShezissSnake/myorbiter/releases/download/{name}/latest.json"),
+                    format!("https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel/{name}/latest.json"),
+                ]
+            );
+        }
         let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
         assert_eq!(config["plugins"]["updater"]["endpoints"], serde_json::json!(endpoints(Channel::Stable)));
+    }
+
+    /// Every channel asks GitHub first and GitLab second, over https, each address on MyOrbiter's
+    /// own project on a host the app opens links to (link.rs) and nowhere else on it.
+    #[test]
+    fn every_channel_asks_github_then_gitlab() {
+        let hosts: Vec<&str> = crate::link::SITES.iter().map(|(h, _)| *h).collect();
         for c in [Channel::Stable, Channel::Beta, Channel::Experimental] {
-            for u in endpoints(c) {
-                let url = u.parse::<tauri::Url>().unwrap();
-                assert_eq!(url.scheme(), "https");
-                // The encoded slash stays encoded: the API names the project by its full path.
-                assert!(url.path().starts_with("/api/v4/projects/sheziss-group%2Fmyorbiter/"), "{url}");
+            let urls: Vec<tauri::Url> = endpoints(c).iter().map(|u| u.parse().unwrap()).collect();
+            assert_eq!(urls.iter().map(|u| u.host_str().unwrap()).collect::<Vec<_>>(), ["github.com", "gitlab.com"], "{c:?}");
+            for (u, raw) in urls.iter().zip(endpoints(c)) {
+                assert_eq!(u.scheme(), "https");
+                assert!(u.username().is_empty() && u.password().is_none() && u.port().is_none() && u.query().is_none(), "{u}");
+                assert!(hosts.contains(&u.host_str().unwrap()), "{u} isn't on a host in link.rs");
                 // As the plugin is given it: parsed once more, the address doesn't change.
-                assert_eq!(url.to_string(), u);
+                assert_eq!(u.to_string(), raw);
+                assert!(u.path().ends_with(&format!("/{}/latest.json", c.name())), "{u}");
             }
+            assert!(urls[0].path().starts_with("/ShezissSnake/myorbiter/releases/download/"), "{}", urls[0]);
+            // The encoded slash stays encoded: the API names the project by its full path.
+            assert!(urls[1].path().starts_with("/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel/"), "{}", urls[1]);
         }
     }
 
@@ -594,8 +623,8 @@ mod tests {
         assert_eq!(check_failure(Channel::Experimental, &E::Serialization(malformed)), "The Experimental channel's manifest is malformed");
         let no_version = serde_json::from_str::<tauri_plugin_updater::RemoteRelease>(r#"{"notes":"x"}"#).unwrap_err();
         assert_eq!(check_failure(Channel::Beta, &E::Serialization(no_version)), "The Beta channel's manifest is malformed");
-        assert_eq!(check_failure(Channel::Stable, &E::ReleaseNotFound), "gitlab.com didn't serve the Stable channel's manifest");
-        assert_eq!(check_failure(Channel::Experimental, &E::Network("dns".into())), "Couldn't reach gitlab.com");
+        assert_eq!(check_failure(Channel::Stable, &E::ReleaseNotFound), "Neither GitHub nor GitLab served the Stable channel's manifest");
+        assert_eq!(check_failure(Channel::Experimental, &E::Network("dns".into())), "Couldn't reach GitHub or GitLab");
         assert_eq!(check_failure(Channel::Beta, &E::TargetNotFound("linux-x86_64".into())), "The Beta channel has no build for this system yet");
         assert_eq!(check_failure(Channel::Stable, &E::InsecureTransportProtocol), "The update address is invalid");
         assert_eq!(check_failure(Channel::Stable, &E::UnsupportedOs), "Updates aren't offered for this system");

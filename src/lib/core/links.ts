@@ -7,7 +7,7 @@ import { REPO_URL } from "./updates";
 /** The page listing everything MyOrbiter reads and sends (docs/privacy.md), and the words that link
  *  it: the Guide's trust section opens it, and the website (scripts/site.mjs) turns that control
  *  into a link and points its footer at it. */
-export const PRIVACY_PAGE = { url: `${REPO_URL}/-/blob/main/docs/privacy.md`, label: "What MyOrbiter reads and sends" } as const;
+export const PRIVACY_PAGE = { url: `${REPO_URL}/blob/main/docs/privacy.md`, label: "What MyOrbiter reads and sends" } as const;
 
 /** Each allowed site: its host, and the path its links must start with ("/" for any). */
 export const LINK_SITES: readonly { host: string; path: string }[] = [
@@ -17,9 +17,13 @@ export const LINK_SITES: readonly { host: string; path: string }[] = [
   { host: "warframe.fandom.com", path: "/" },
   { host: "overframe.gg", path: "/" },
   { host: "noxsframe.com", path: "/" },
-  // MyOrbiter's own project on gitlab.com: its pages under /-/ (releases, issues, a new issue), not
-  // what others can put under the project's address (uploads to issues). Its old address on GitHub
-  // is gone, and anyone could take the name, so it isn't allowed.
+  // MyOrbiter's own project on github.com, its home (releases, issues, the source): only under the
+  // repository's own path, never the old orbiter one or what others host on github.com. Then its
+  // website on GitHub Pages.
+  { host: "github.com", path: "/ShezissSnake/myorbiter/" },
+  { host: "shezisssnake.github.io", path: "/myorbiter/" },
+  // The mirror on gitlab.com, which keeps the releases made there: its pages under /-/ (releases,
+  // issues, a new issue), not what others can put under the project's address (uploads to issues).
   { host: "gitlab.com", path: "/sheziss-group/myorbiter/-/" },
 ];
 

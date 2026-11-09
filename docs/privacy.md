@@ -20,7 +20,7 @@ path beside each.
 | Item data, drop tables, world state, pictures | WFCD (`api.warframestat.us`, `drops.warframestat.us`, `cdn.warframestat.us`, `raw.githubusercontent.com`), Digital Extremes, relics.run, warframe.market | at start, on timers, and as pages need them (below) |
 | Builds | Nox's Frame | when you open an item or a build on Builds (on unless you turn it off) |
 | The notifications you pick | your Discord webhook | only if you set one |
-| An update check | gitlab.com | at start and every 6 hours, on the AppImage and the Windows installer |
+| An update check | github.com, then gitlab.com if GitHub has no answer | at start and every 6 hours, on the AppImage and the Windows installer |
 
 ## Full mode: the game's memory
 
@@ -253,11 +253,14 @@ At most 20 posts a minute. Test sends a sample post. Without a webhook, nothing 
 The AppImage and the Windows installer check for a new build at start, every 6 hours (counted from
 the last check, so a check missed while the computer slept runs when it wakes), when you press Check
 now and when you change the channel. They read the channel's `latest.json` from this
-project's package registry on gitlab.com, with the updater's own User-Agent
+project's releases on github.com and, only if github.com can't be reached or has no such file, from
+its package registry on gitlab.com, with the updater's own User-Agent
 (`tauri-plugin-updater/<version>`); the address names only the channel you picked (stable, beta or
-experimental), with no version, system or id. An update downloads from gitlab.com's package
-registry only when you click; gitlab.com may hand the download to its file storage, a host of its
-choosing that wasn't audited. Other installs
+experimental), with no version, system or id. An update downloads only when you click, from where
+that `latest.json` points: the build's release on github.com, which hands the download to GitHub's
+file storage (`release-assets.githubusercontent.com` or `objects.githubusercontent.com`), or
+gitlab.com's package registry, which may hand it to a file storage of its choosing that wasn't
+audited. Other installs
 (.deb and .rpm, a build run straight from its folder, a development build) don't check.
 TennoScope's own updater is switched off in this build: it never asks GitHub for a new version, and
 MyOrbiter's update brings the next TennoScope.
@@ -282,8 +285,9 @@ user name in paths and players' names hidden.
 ## Links
 
 Links open in your browser, which then visits that site. MyOrbiter opens only https links to
-warframe.market, wiki.warframe.com, warframe.fandom.com, overframe.gg, noxsframe.com and this
-project on gitlab.com. TennoScope opens its upstream project on github.com
+warframe.market, wiki.warframe.com, warframe.fandom.com, overframe.gg, noxsframe.com, this
+project on github.com and its website (shezisssnake.github.io), and this project on gitlab.com
+(older builds' release pages, Report a bug). TennoScope opens its upstream project on github.com
 (its own bug report and release pages).
 
 ## Nothing else
@@ -291,11 +295,12 @@ project on gitlab.com. TennoScope opens its upstream project on github.com
 Those are all the hosts MyOrbiter and its TennoScope contact themselves: `api.warframe.market`,
 `ws.warframe.market`, `warframe.market` (pictures), `api.warframestat.us`, `drops.warframestat.us`,
 `cdn.warframestat.us`, `raw.githubusercontent.com`, `api.warframe.com`, `content.warframe.com`,
-`www-static.warframe.com`, `mobile.warframe.com`, `relics.run`, `noxsframe.com`, `gitlab.com`, and
-the Discord webhook address you give it. Two more can be reached on the way: gitlab.com may hand an
-update download to its file storage, and the Windows installer fetches Microsoft's WebView2
-installer when WebView2 is missing; those hosts are gitlab.com's and Microsoft's to choose and
-weren't audited. If you set a proxy (`HTTPS_PROXY` and the like), requests go through it. This page
+`www-static.warframe.com`, `mobile.warframe.com`, `relics.run`, `noxsframe.com`, `github.com`,
+`gitlab.com`, and the Discord webhook address you give it. More can be reached on the way: github.com
+hands an update download to `release-assets.githubusercontent.com` or
+`objects.githubusercontent.com`, gitlab.com may hand one to its file storage, and the Windows
+installer fetches Microsoft's WebView2 installer when WebView2 is missing; gitlab.com's and
+Microsoft's hosts are theirs to choose and weren't audited. If you set a proxy (`HTTPS_PROXY` and the like), requests go through it. This page
 covers what MyOrbiter's and TennoScope's code does; what the system's web view (WebView2, WebKitGTK)
 does on its own wasn't audited. No telemetry, analytics or crash reporting is built in, and your
 records (sales, trades, value over time, settings) stay on this computer, in `settings.json`

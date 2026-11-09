@@ -16,13 +16,17 @@
 //! (src-tauri/capabilities/default.json), so this is the one way a link opens.
 
 /// The sites MyOrbiter opens: each one's host, and the path its links must start with ("/" for
-/// any). The same as `LINK_SITES` in src/lib/core/links.ts; a test ties the two.
-const SITES: &[(&str, &str)] = &[
+/// any). The same as `LINK_SITES` in src/lib/core/links.ts; a test ties the two. MyOrbiter's own
+/// project is there on github.com (its home: releases, issues, the source), on its GitHub Pages
+/// site, and on gitlab.com (the mirror, which keeps the releases made there).
+pub(crate) const SITES: &[(&str, &str)] = &[
     ("warframe.market", "/"),
     ("wiki.warframe.com", "/"),
     ("warframe.fandom.com", "/"),
     ("overframe.gg", "/"),
     ("noxsframe.com", "/"),
+    ("github.com", "/ShezissSnake/myorbiter/"),
+    ("shezisssnake.github.io", "/myorbiter/"),
     ("gitlab.com", "/sheziss-group/myorbiter/-/"),
 ];
 
@@ -85,6 +89,10 @@ mod tests {
             "https://noxsframe.com/",
             "https://gitlab.com/sheziss-group/myorbiter/-/releases",
             "https://gitlab.com/sheziss-group/myorbiter/-/work_items/new?issuable_template=Bug%20report",
+            "https://github.com/ShezissSnake/myorbiter/releases/tag/build-120",
+            "https://github.com/ShezissSnake/myorbiter/blob/main/docs/privacy.md",
+            "https://github.com/ShezissSnake/myorbiter/issues/new?template=bug_report.yml",
+            "https://shezisssnake.github.io/myorbiter/",
         ] {
             assert_eq!(openable(url).as_ref().map(tauri::Url::as_str), Some(url), "{url}");
         }
@@ -110,6 +118,14 @@ mod tests {
             "https://gitlab.com/sheziss-group/myorbiter",
             "https://gitlab.com/sheziss-group/myorbiter/uploads/0123456789abcdef/picture.png",
             "https://github.com/ShezissSnake/orbiter/releases",
+            "https://github.com/ShezissSnake/myorbiter",
+            "https://github.com/ShezissSnake/myorbiter-other/releases",
+            "https://github.com/ShezissSnake/myorbiter/../other/releases",
+            "https://github.com/user-attachments/assets/0123",
+            "https://shezisssnake.github.io/",
+            "https://shezisssnake.github.io/other/",
+            "https://someone.github.io/myorbiter/",
+            "https://raw.githubusercontent.com/ShezissSnake/myorbiter/main/README.md",
             "https://gitlab.com/someone-else/orbiter/-/issues",
             "smb://warframe.market/share",
             "not a url",

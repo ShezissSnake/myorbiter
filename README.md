@@ -33,8 +33,8 @@ you.
 ## Install
 
 Download the latest Stable build from
-[the website](https://sheziss-group.gitlab.io/myorbiter/#download) (every build, Beta and
-Experimental too, is on [Releases](https://gitlab.com/sheziss-group/myorbiter/-/releases)).
+[the website](https://shezisssnake.github.io/myorbiter/#download) (every build, Beta and
+Experimental too, is on [Releases](https://github.com/ShezissSnake/myorbiter/releases)).
 TennoScope is inside it; there is nothing else to install.
 
 - **Linux and Steam Deck:** `myorbiter_<version>_amd64.AppImage`. Make it executable
@@ -81,7 +81,9 @@ nothing by itself. Security problems go through [SECURITY.md](SECURITY.md).
 
 ## More
 
-- [The Guide](https://sheziss-group.gitlab.io/myorbiter/guide/) (also in the app: F1) and
-  [What's New](https://sheziss-group.gitlab.io/myorbiter/whats-new.html)
+- [The Guide](https://shezisssnake.github.io/myorbiter/guide/) (also in the app: F1) and
+  [What's New](https://shezisssnake.github.io/myorbiter/whats-new.html)
 - [docs/](docs/): what MyOrbiter does, [what it reads and sends](docs/privacy.md), running it from source, releases
-- [The website](https://sheziss-group.gitlab.io/myorbiter/)
+- [The website](https://shezisssnake.github.io/myorbiter/)
+- The source lives on [GitHub](https://github.com/ShezissSnake/myorbiter) and is mirrored on
+  [GitLab](https://gitlab.com/sheziss-group/myorbiter); builds 0.2.100 to 0.2.119 were made there.

@@ -14,6 +14,9 @@ test("links to the sites MyOrbiter uses open", () => {
     "https://noxsframe.com/",
     "https://gitlab.com/sheziss-group/myorbiter/-/releases",
     "https://gitlab.com/sheziss-group/myorbiter/-/work_items/new?issuable_template=Bug%20report",
+    "https://github.com/ShezissSnake/myorbiter/releases/tag/build-120",
+    "https://github.com/ShezissSnake/myorbiter/issues/new?template=bug_report.yml",
+    "https://shezisssnake.github.io/myorbiter/",
     PRIVACY_PAGE.url,
   ])
     assert.equal(openable(url), url, url);
@@ -35,7 +38,14 @@ test("anything else is refused", () => {
     "https://gitlab.com/sheziss-group/myorbiter",
     "https://gitlab.com/sheziss-group/myorbiter/uploads/0123456789abcdef/picture.png",
     "https://github.com/ShezissSnake/other-repo",
-    // The old address on GitHub is gone: anyone could take the name.
+    "https://github.com/ShezissSnake/myorbiter",
+    "https://github.com/ShezissSnake/myorbiter-other/releases",
+    "https://github.com/user-attachments/assets/0123",
+    "https://raw.githubusercontent.com/ShezissSnake/myorbiter/main/README.md",
+    "https://shezisssnake.github.io/",
+    "https://shezisssnake.github.io/other/",
+    "https://someone.github.io/myorbiter/",
+    // The repository's name before the rename: GitHub redirects it today, but anyone could take it.
     "https://github.com/ShezissSnake/orbiter/releases",
     "https://github.com/ShezissSnake/orbiter/issues/new",
     "https://gitlab.com/someone-else/orbiter/-/issues",
@@ -110,6 +120,7 @@ test("tricks that read like an allowed site are refused", () => {
     "https://evil.example\\@warframe.market/",
     "https://github.com/ShezissSnake/../someone-else/repo",
     "https://github.com/ShezissSnake/%2e%2e/someone-else/repo",
+    "https://github.com/ShezissSnake/myorbiter/../someone-else/repo",
     "https://github.com/shezisssnake/orbiter",
     "https://w\u0430rframe.market/", // a Cyrillic a
     "https://warframe.market./items/x",
@@ -133,12 +144,12 @@ test("the web view connects only to MyOrbiter itself and Digital Extremes' riven
   assert.deepEqual(sources(conf.app.security.devCsp), [...app, "ws://localhost:1421"]);
   const cap = readFileSync(new URL("../src-tauri/capabilities/default.json", import.meta.url), "utf8");
   for (const text of [JSON.stringify(conf), cap, readFileSync(new URL("../src/lib/core/links.ts", import.meta.url), "utf8")])
-    assert.ok(!/github\.com\/ShezissSnake/i.test(text), "the old GitHub address is allowed nowhere");
+    assert.ok(!/github\.com\/ShezissSnake\/orbiter\b/i.test(text), "the old GitHub address is allowed nowhere");
 });
 
-test("no page links to the old GitHub address, which no longer opens", () => {
+test("no page links to the repository's old name on GitHub, which no longer opens", () => {
   const files = readdirSync("src", { recursive: true, encoding: "utf8" }).filter((f) => /\.(ts|svelte|json)$/.test(f));
   assert.ok(files.length > 50, "the sources were found");
-  const found = files.filter((f) => /github\.com\/ShezissSnake/i.test(readFileSync(join("src", f), "utf8")));
+  const found = files.filter((f) => /github\.com\/ShezissSnake\/orbiter\b/i.test(readFileSync(join("src", f), "utf8")));
   assert.deepEqual(found, []);
 });

@@ -15,7 +15,10 @@ export declare function cleanBody(raw: unknown, max?: number): { text: string; n
 export declare function cleanLogin(author: unknown): string;
 export declare function issuesOf(data: unknown): Record<string, unknown>[];
 export declare function digest(data: unknown, opts?: { maxBody?: number; maxComment?: number }): string;
+export declare const REPO: string;
 export declare const PROJECT: string;
+export declare function fromGitHub(issue: Record<string, unknown>, comments?: Record<string, unknown>[]): Record<string, unknown>;
 export declare function rolesOf(members: unknown): Map<string, string>;
 export declare function fromGitLab(issue: Record<string, unknown>, roles?: Map<string, string>): Record<string, unknown>;
-export declare function fetchIssues(opts?: { state?: "opened" | "closed" | "all"; iid?: number | string | null; path?: string; pages?: number; fetchImpl?: typeof fetch }): Promise<{ project: { issues: { nodes: unknown[] }; projectMembers: { nodes: unknown[] } } }>;
+export declare function fetchIssues(opts?: { state?: "opened" | "closed" | "all"; number?: number | string | null; repo?: string; pages?: number; fetchImpl?: typeof fetch }): Promise<{ issues: Record<string, unknown>[] }>;
+export declare function fetchGitLabIssues(opts?: { state?: "opened" | "closed" | "all"; iid?: number | string | null; path?: string; pages?: number; fetchImpl?: typeof fetch }): Promise<{ project: { issues: { nodes: unknown[] }; projectMembers: { nodes: unknown[] } } }>;
