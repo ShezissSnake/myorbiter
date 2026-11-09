@@ -173,7 +173,11 @@ Every request MyOrbiter makes to warframe.market says who it is, with the User-A
   also share a budget of 10 a minute, warframe.market's limit for contracts: more wait their turn,
   in order, and Rivens says "Waiting for warframe.market's search limit…" meanwhile.
   At most 120 changes (listings, auctions, +rep) go out in any minute; more wait their turn. A
-  status sent on the status connection isn't counted among them.
+  status sent on the status connection isn't counted among them. When warframe.market answers
+  "too many requests", nothing more goes to it before the time its reply gives (Retry-After, in
+  full; a minute when it gives none): a read or change that would wait more than 10 seconds isn't
+  sent, and MyOrbiter says "warframe.market asked us to wait until" that time. A read turned away
+  is tried again only after that wait, at most twice; a change is never sent again on its own.
 
 TennoScope talks to warframe.market too, on its own clock (at least a third of a second between
 requests), naming itself `TennoScope/<version> (+https://github.com/Deftera186/tennoscope)` on its

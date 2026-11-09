@@ -1208,8 +1208,8 @@
           repRetry = null;
           void runAutoRep();
         }, REP_RETRY + 1_000);
-        // Asked to slow down: the rest wait for a later run too, rather than be refused in turn.
-        if (/slow down/.test(why)) break;
+        // Asked to slow down or to wait: the rest wait for a later run too, rather than be refused in turn.
+        if (/slow down|asked us to wait/.test(why)) break;
       }
       // warframe.market asks for some room between requests.
       await new Promise((r) => setTimeout(r, 1500));

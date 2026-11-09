@@ -1,6 +1,7 @@
 // Talks to the Rust side inside Tauri; in a plain browser (`npm run dev`) it falls back to
 // public/dev-bundle.json and localStorage so the UI can be worked on without a build.
 
+import { deferredUntil, waitWords } from "./core/marketWait";
 import { approvedOf } from "./core/approved";
 import { changesOf, type ChangeLog } from "./core/drift";
 import type { RelicMarket } from "./core/model";
@@ -487,8 +488,24 @@ const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<T>(cmd, args);
+  try {
+    return await invoke<T>(cmd, args);
+  } catch (e) {
+    // A warframe.market request held back until a time warframe.market gave: that time as the
+    // clock shows it (core/marketWait.ts). Any other error goes on as it came.
+    const until = typeof e === "string" ? deferredUntil(e) : null;
+    if (until != null) {
+      marketWaitUntil = Math.max(marketWaitUntil, until);
+      throw waitWords(e as string);
+    }
+    throw e;
+  }
 }
+
+/** The latest time warframe.market asked MyOrbiter to wait until (unix ms; 0: never asked). */
+let marketWaitUntil = 0;
+/** How long until warframe.market's last "wait until" is over, in ms (0 when it is). */
+export const marketWaitLeft = (now = Date.now()) => Math.max(0, marketWaitUntil - now);
 
 /** The Bundle `buildModel` reads, from the fresh part and the catalogs held. */
 export function assembleBundle(fresh: CollectionPart, catalogs: CatalogPart): Bundle {
