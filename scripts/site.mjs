@@ -113,12 +113,19 @@ const wordmarkSvg = readFileSync(join(ROOT, "src-tauri/icons/wordmark.svg"), "ut
 const craft = [...wordmarkSvg.matchAll(/<path d="([^"]+)" fill="(#[0-9a-f]{6})"/g)];
 if (craft.length !== 2) throw new Error("src-tauri/icons/wordmark.svg: the craft's two paths weren't found");
 const LOGO = `<svg viewBox="15.6 8.5 68.8 81.5" width="101" height="120" role="img" aria-label="MyOrbiter's icon, the craft"><path d="${craft[0][1]}" fill="#f1f3f6"/><path d="${craft[1][1]}" fill="#d6ae4a"/></svg>`;
-/** The platform glyphs: drawn for MyOrbiter in the wordmark's line style, no third-party logos. */
-const glyph = (body, join = "miter", cap = "square") => `<svg class="glyph" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="${join}" stroke-linecap="${cap}">${body}</svg>`;
+/** The platform and section glyphs: drawn for MyOrbiter in the wordmark's line style, no
+ *  third-party logos. A miter limit of 2 cuts a sharp tip (the star's) instead of drawing a spike. */
+const glyph = (body, join = "miter", cap = "square", miter = "") => `<svg class="glyph" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="${join}"${miter ? ` stroke-miterlimit="${miter}"` : ""} stroke-linecap="${cap}">${body}</svg>`;
 const GLYPHS = {
   window: glyph('<path d="M6 3.5h14.5v14.5l-2.5 2.5H3.5V6z"/><path d="M3.5 12h17M12 3.5v17"/>'),
   penguin: glyph('<path d="M12 2.8c-2.9 0-4.4 2.3-4.4 5v2.4L5.4 15c-.7 1.6-.4 3.5 1 4.6h11.2c1.4-1.1 1.7-3 1-4.6l-2.2-4.8V7.8c0-2.7-1.5-5-4.4-5z"/><path d="M9.6 12.2c-.8 1.6-1 3.6-.4 5.2M14.4 12.2c.8 1.6 1 3.6.4 5.2"/><path d="M10.6 8.6l1.4 1.2 1.4-1.2"/><path d="M7.2 19.6l-1.4 1.6h4.4M16.8 19.6l1.4 1.6h-4.4"/>', "round", "round"),
   handheld: glyph('<path d="M3.5 6.5h17l2 2v7l-2 2h-17l-2-2v-7z"/><path d="M8 9.5h8v5H8z"/><path d="M4.3 12h1.4M5 11.3v1.4M18.6 11v.1M18.6 13v.1"/>'),
+  // The four sections, by their names on the landing page: a crack, a mastery star, a box with a
+  // slot, a platinum coin.
+  fissures: glyph('<path d="M12.5 2.5l-2 4.5 3.5 3-4 4.5 2.5 3-2.5 4"/><path d="M14 10l4-1.5M10 14.5l-3.5 1"/>'),
+  progress: glyph('<path d="M12 3.5l2.3 6.2 6.6.3-5.2 4.1 1.8 6.4-5.5-3.7-5.5 3.7 1.8-6.4-5.2-4.1 6.6-.3z"/>', "miter", "square", "2"),
+  collection: glyph('<path d="M6 5h14.5v11.5L18 19H3.5V7.5z"/><path d="M8.5 10h7"/>'),
+  trade: glyph('<path d="M12 2.4l8.3 4.8v9.6L12 21.6l-8.3-4.8V7.2z"/><path d="M10 16.5v-9h3.6l1.9 1.9v1.9l-1.9 1.9H10"/>'),
 };
 
 function page({ file, title, blurb, body, section, kicker, acts, logo }) {
@@ -274,8 +281,8 @@ function builds() {
 <section class="more"><p class="small">Every build, with its source (<span class="register">myorbiter-source.tar.gz</span>) and checksums: <a href="${REPO}/-/releases">Releases on GitLab</a>. The code: <a href="${REPO}">the repository</a>.</p></section>`;
 }
 
-/** The app's four sections, each in its colour: the question it answers and its pages, from the
- *  app's own page list (src/lib/pages.ts). */
+/** The app's four sections, each in its colour, sigil and glyph: the question it answers and its
+ *  pages, from the app's own page list (src/lib/pages.ts). */
 const SECTIONS = [
   ["Fissures", "fissures", "What to crack, and which reward to take."],
   ["Progress", "progress", "What's left to master and build, and how to get it."],
@@ -286,7 +293,7 @@ function features() {
   return SECTIONS.map(([name, key, line]) => {
     const pages = PAGES.filter((p) => p.group === name).map((p) => esc(p.label));
     if (!pages.length) throw new Error(`src/lib/pages.ts has no pages in ${name}: has it changed?`);
-    return `<div class="feature" style="--c: var(--${key})"><h2 class="register">${name}</h2><p>${esc(line)}</p><p class="pages">${pages.join(" · ")}</p></div>`;
+    return `<div class="feature" style="--c: var(--${key})"><h2 class="register">${GLYPHS[key]}${name}</h2><p>${esc(line)}</p><p class="pages">${pages.join(" · ")}</p></div>`;
   }).join("");
 }
 
