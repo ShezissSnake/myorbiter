@@ -71,15 +71,31 @@ pub fn open(app: &tauri::AppHandle, url: &str) -> Result<(), String> {
     {
         use tauri_plugin_opener::OpenerExt;
         app.opener().open_url(url.as_str(), None::<&str>).map_err(|e| {
-            log::warn!(target: "myorbiter::app", "couldn't open {url}: {e}");
+            log::warn!(target: "myorbiter::app", "couldn't open {}: {e}", without_query(&url));
             format!("Couldn't open the link: {e}")
         })
     }
 }
 
+/// The link as the log shows it when opening fails: without its query or fragment, which a bug
+/// report's link fills with the whole report.
+#[cfg_attr(target_os = "linux", allow(dead_code))]
+fn without_query(url: &tauri::Url) -> String {
+    let mut shown = url.clone();
+    shown.set_query(None);
+    shown.set_fragment(None);
+    shown.to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_link_is_logged_without_its_query_or_fragment() {
+        let url: tauri::Url = "https://github.com/ShezissSnake/myorbiter/issues/new?template=bug_report.yml&what=It%20broke#top".parse().unwrap();
+        assert_eq!(without_query(&url), "https://github.com/ShezissSnake/myorbiter/issues/new");
+    }
 
     // The same links tests/links.test.ts gives `openable` in links.ts, with the same answers.
     #[test]
