@@ -337,14 +337,22 @@ async function walk(size, look, { settingsOnce = false } = {}) {
   // The listing form, from Inventory's first list button.
   await p.locator("button.nav", { hasText: "Inventory" }).first().click();
   await pause(p, 2500);
-  const list = p.locator("main button.list").first();
-  if (await list.count()) {
+  // The first list button whose form has fields: an item warframe.market doesn't trade opens a
+  // dialog with only Close in it, which says nothing about the form's controls.
+  const lists = p.locator("main button.list");
+  let formShown = false;
+  for (let i = 0, n = Math.min(await lists.count(), 12); i < n && !formShown; i++) {
     // Shown on hover: pressed as a keyboard user would.
-    await list.evaluate((b) => b.click());
+    await lists.nth(i).evaluate((b) => b.click());
     await pause(p, 1500);
-    await look(p, size, "Listing form");
+    if (await p.locator("[role=dialog] input").count()) {
+      formShown = true;
+      await look(p, size, "Listing form");
+    }
     await p.keyboard.press("Escape");
-  } else console.error("  no list button on Inventory: listing form not checked");
+    await pause(p, 400);
+  }
+  if (!formShown) console.error("  no list button on Inventory opened a listing form: not checked");
   await p.close();
   // The first-run question, and TennoScope's setup steps before anything is read.
   const first = await open(size, { firstRun: true });
