@@ -5,7 +5,7 @@ blank, console players, the first start and updates.
 
 ## Downloads
 
-Each build is on *Releases* (gitlab.com/sheziss-group/myorbiter/-/releases): the Linux AppImage, a
+Each build is on *Releases* (github.com/ShezissSnake/myorbiter/releases): the Linux AppImage, a
 `.deb` for Debian and Ubuntu, and the Windows installer. They carry TennoScope inside them, built
 from `tennoscope/` in this repository (TennoScope with MyOrbiter's changes, see
 `tennoscope/ORBITER.md`), with the OCR engine its reward overlay uses. Nothing else needs
@@ -101,8 +101,8 @@ restart.
 
 ## Updates
 
-MyOrbiter updates itself from this project's releases on GitLab (Settings → *Updates*). Each installed
-copy follows one channel:
+MyOrbiter updates itself from this project's releases on GitHub, with its mirror on GitLab as a
+fallback (Settings → *Updates*). Each installed copy follows one channel:
 
 - **Stable** (the default): tested builds.
 - **Beta**: the next Stable, a few days early.
@@ -127,8 +127,10 @@ matches the key it was built with.
 The first install is by hand, like any first install: download the AppImage or the setup.exe of a
 build on the channel you want from *Releases*, then pick the channel in Settings → *Updates*. From
 then on it updates itself. A build made on your own computer is version 0.1.0 and never updates
-itself. A copy of a build made before the project moved to GitLab (builds below 100) looks for
-updates at the old address and never finds one: install a current build by hand once.
+itself. A copy of a build made before the project's time on GitLab (builds below 100) looks for
+updates at an older address that isn't offered current builds: install a current build by hand
+once. Builds made on GitLab (from 0.2.100) ask GitLab, whose channels keep offering the last build
+made there; that build asks GitHub first, so a copy on it follows GitHub's builds from then on.
 
 ### From orbiter to MyOrbiter
 

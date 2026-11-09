@@ -7,9 +7,10 @@ import { REPO_URL } from "./updates";
 /** The page listing everything MyOrbiter reads and sends (docs/privacy.md), and the words that link
  *  it: the Guide's trust section opens it, and the website (scripts/site.mjs) turns that control
  *  into a link and points its footer at it. */
-export const PRIVACY_PAGE = { url: `${REPO_URL}/-/blob/main/docs/privacy.md`, label: "What MyOrbiter reads and sends" } as const;
+export const PRIVACY_PAGE = { url: `${REPO_URL}/blob/main/docs/privacy.md`, label: "What MyOrbiter reads and sends" } as const;
 
-/** Each allowed site: its host, and the path its links must start with ("/" for any). */
+/** Each allowed site: its host, and the path its links must start with ("/" for any); a host may be
+ *  listed more than once. */
 export const LINK_SITES: readonly { host: string; path: string }[] = [
   { host: "warframe.market", path: "/" },
   { host: "wiki.warframe.com", path: "/" },
@@ -17,9 +18,17 @@ export const LINK_SITES: readonly { host: string; path: string }[] = [
   { host: "warframe.fandom.com", path: "/" },
   { host: "overframe.gg", path: "/" },
   { host: "noxsframe.com", path: "/" },
-  // MyOrbiter's own project on gitlab.com: its pages under /-/ (releases, issues, a new issue), not
-  // what others can put under the project's address (uploads to issues). Its old address on GitHub
-  // is gone, and anyone could take the name, so it isn't allowed.
+  // MyOrbiter's own project on github.com, its home: its releases, issues, the source on main and
+  // security reports, never the old orbiter name, what others host on github.com or what they can
+  // upload under the repository's address (files and assets attached to issues). Then its website
+  // on GitHub Pages.
+  { host: "github.com", path: "/ShezissSnake/myorbiter/releases" },
+  { host: "github.com", path: "/ShezissSnake/myorbiter/issues" },
+  { host: "github.com", path: "/ShezissSnake/myorbiter/blob/main/" },
+  { host: "github.com", path: "/ShezissSnake/myorbiter/security/" },
+  { host: "shezisssnake.github.io", path: "/myorbiter/" },
+  // The mirror on gitlab.com, which keeps the releases made there: its pages under /-/ (releases,
+  // issues, a new issue), not what others can put under the project's address (uploads to issues).
   { host: "gitlab.com", path: "/sheziss-group/myorbiter/-/" },
 ];
 
@@ -33,7 +42,6 @@ export function openable(url: string): string | null {
   }
   if (u.protocol !== "https:" || u.username || u.password || u.port) return null;
   const host = u.hostname.toLowerCase();
-  const site = LINK_SITES.find((s) => s.host === host);
-  if (!site || !u.pathname.startsWith(site.path)) return null;
+  if (!LINK_SITES.some((s) => s.host === host && u.pathname.startsWith(s.path))) return null;
   return u.href;
 }

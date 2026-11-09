@@ -1,27 +1,30 @@
 // Builds MyOrbiter's website (site/ → site/_site/): the landing page, the in-app Guide as pages,
-// What's New and the list of downloads, as plain HTML and CSS for GitLab Pages. The Guide and
+// What's New and the list of downloads, as plain HTML and CSS for GitHub Pages. The Guide and
 // What's New come from the app's own source (src/lib/tabs/Guide.svelte, src/lib/whatsNew.ts), drawn
 // once with Svelte's server renderer through Vite, so the site says what the app says. Nothing here
-// runs in the browser: the download links are read from the package registry once, at build time
-// (scripts/site-downloads.mjs), and written into the pages.
+// runs in the browser: the download links are read from the repository's releases on GitHub once,
+// at build time (scripts/site-downloads.mjs), and written into the pages.
 //
 //   node scripts/site.mjs             site/_site/, the buttons offering the best channel's build:
-//                                     Stable, else Beta, else Experimental (channel/<c>/latest.json),
-//                                     and downloads.html the last builds (the releases)
-//   node scripts/site.mjs --offline   the same without reading the registry: the buttons point at
+//                                     Stable, else Beta, else Experimental (latest.json on the
+//                                     release named after the channel), and downloads.html the
+//                                     last builds (the releases)
+//   node scripts/site.mjs --offline   the same without reading GitHub: the buttons point at
 //                                     Releases (a local build)
 //   node scripts/site.mjs --check     build, then check every link, that no page carries a script,
 //                                     that no dev-*.json (real account data) is in it, and that
 //                                     the landing and Guide pages' grids fit 320, 360 and 390 px wide
 //
-// Reading the registry fails the build on anything but a file that's there or a 404 (no build on
-// that channel yet), and on a manifest that doesn't check out: the site never links a wrong file.
+// Reading GitHub fails the build on anything but a file that's there or a 404 (no build on that
+// channel yet), and on a manifest that doesn't check out: the site never links a wrong file. With
+// GITHUB_TOKEN set (the Release workflow's read-only token), the API is read with it, for its rate
+// limit; nothing else is sent with it.
 // Screenshots are of the demo account only (npm run dev:demo; site/README.md, Screenshots).
 import { createServer } from "vite";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { API, buildRows, CHANNELS, FILES, frontButtons, HOST, PACKAGES, REPO, safeUrl as projectUrl, stableVersions } from "./site-downloads.mjs";
+import { API, buildRows, CHANNELS, channelManifest, FILES, frontButtons, HOST, REPO, safeUrl as projectUrl } from "./site-downloads.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(ROOT, "site");
@@ -105,7 +108,7 @@ const GUIDE = [
   { file: "guide/getting-around.html", title: "Getting around", blurb: "The sidebar, the marks on cards and rows, and where every number comes from.", body: () => `<section class="cols">${take("cols")}</section>` },
 ];
 
-const NAV = [["index.html", "MyOrbiter"], ["guide/index.html", "Guide"], ["whats-new.html", "What's new"], ["index.html#download", "Download", "dl-link"], [REPO, "Source on GitLab", "out"]];
+const NAV = [["index.html", "MyOrbiter"], ["guide/index.html", "Guide"], ["whats-new.html", "What's new"], ["index.html#download", "Download", "dl-link"], [REPO, "Source on GitHub", "out"]];
 
 // ---- Drawings, inline so they take the text's colour.
 /** The app icon's craft (the wordmark's O), from the wordmark the app ships. */
@@ -156,7 +159,7 @@ ${body().replaceAll("{{base}}", () => base)}
 </main>
 <footer class="foot">
 <p>MyOrbiter is a fan-made tool, not affiliated with or endorsed by Digital Extremes. Warframe and its artwork are © and ™ Digital Extremes Ltd.; the game's icons shown here are theirs, used to identify what they depict, and are not covered by MyOrbiter's licence.</p>
-<p>MyOrbiter is free software under the <a href="${REPO}/-/blob/main/LICENSE">GNU General Public License, version 3 only</a>, with no warranty. <a href="${REPO}">Source on GitLab</a> · <a href="${REPO}/-/blob/main/NOTICE.md">Notices</a> · <a href="${href(PRIVACY_PAGE.url)}">What it reads and sends</a></p>
+<p>MyOrbiter is free software under the <a href="${REPO}/blob/main/LICENSE">GNU General Public License, version 3 only</a>, with no warranty. <a href="${REPO}">Source on GitHub</a> · <a href="${REPO}/blob/main/NOTICE.md">Notices</a> · <a href="${href(PRIVACY_PAGE.url)}">What it reads and sends</a></p>
 </footer>
 </body>
 </html>
@@ -173,19 +176,24 @@ function whatsNew() {
   }).join("\n");
 }
 
-// ---- Downloads: read from the package registry once, here, and written into the pages
+// ---- Downloads: read from the releases on GitHub once, here, and written into the pages
 // (scripts/site-downloads.mjs). With --offline nothing is read and the buttons point at Releases.
 const OFFLINE = args.includes("--offline");
-if (args.includes("--release")) console.log("site: --release is no longer read; the downloads come from the channels' manifests in the registry.");
-/** How the build names itself to gitlab.com. */
+if (args.includes("--release")) console.log("site: --release is no longer read; the downloads come from the channels' manifests on GitHub.");
+/** How the build names itself to GitHub. */
 const USER_AGENT = `MyOrbiter-site (+${REPO})`;
+/** The workflow's token, sent to the API only (api.github.com), never with a download. */
+const TOKEN = process.env.GITHUB_TOKEN ?? "";
 
-/** A JSON answer from gitlab.com: its value, or null when there's no such file (404). Any other
- *  answer, a failed read or text that isn't JSON stops the build. */
+/** A JSON answer from GitHub: its value, or null when there's no such file (404). Any other
+ *  answer, a failed read or text that isn't JSON stops the build. A download from a release is
+ *  redirected to GitHub's file host, and followed. */
 async function get(url) {
   let res;
+  const headers = { "User-Agent": USER_AGENT, Accept: "application/json" };
+  if (TOKEN && url.startsWith(`${API}/`)) headers.Authorization = `Bearer ${TOKEN}`;
   try {
-    res = await fetch(url, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" }, signal: AbortSignal.timeout(30_000) });
+    res = await fetch(url, { headers, signal: AbortSignal.timeout(30_000) });
   } catch (e) {
     throw new Error(`reading ${url}: ${e.message}`);
   }
@@ -200,19 +208,19 @@ async function get(url) {
 }
 
 /** The best channel's build for the buttons, and the last builds for downloads.html. */
-async function readRegistry() {
+async function readReleases() {
   const heads = {};
-  for (const [key] of CHANNELS) heads[key] = await get(`${PACKAGES}/channel/${key}/latest.json`);
+  for (const [key] of CHANNELS) heads[key] = await get(channelManifest(key));
   const front = frontButtons(heads);
-  const releases = await get(`${API}/releases?per_page=20`);
-  const stable = await get(`${API}/packages?package_type=generic&package_name=stable-builds&order_by=created_at&sort=desc&per_page=100`);
-  if (releases == null || stable == null) throw new Error("gitlab.com has no releases or packages list for the project: is it public?");
-  const rows = buildRows(releases, { heads, stableBuilds: stableVersions(stable) });
-  if (!rows.length) throw new Error("Releases lists no build");
+  // Newest first; the channels' own releases are among them, and skipped.
+  const releases = await get(`${API}/releases?per_page=40`);
+  if (releases == null) throw new Error("github.com has no releases list for the repository: is it public?");
+  const rows = buildRows(releases, { heads });
+  if (!rows.length) throw new Error("Releases lists no build made on GitHub");
   console.log(`site: ${front.label}; downloads.html lists ${rows.length} builds.`);
   return { front, rows };
 }
-const DL = OFFLINE ? null : await readRegistry();
+const DL = OFFLINE ? null : await readReleases();
 
 /** What each channel is, as docs/install.md puts it, when no better channel has a build. */
 const CHANNEL_NOTE = {
@@ -220,7 +228,7 @@ const CHANNEL_NOTE = {
   beta: "No Stable build yet. Beta is the next Stable, a few days early.",
   experimental: "No Stable or Beta build yet. Experimental is every change, as soon as it's built: it may break.",
 };
-/** An address of this project's on gitlab.com, escaped for an attribute; anything else stops the build. */
+/** An address of this repository's on github.com, escaped for an attribute; anything else stops the build. */
 function href(url) {
   const ok = projectUrl(url);
   if (!ok) throw new Error(`not this project's address on ${HOST}: ${url}`);
@@ -238,14 +246,14 @@ const PLATFORMS = [
 function downloads(base) {
   const f = DL?.front;
   const rows = PLATFORMS.map((p) => {
-    const url = f ? href(f.buttons[p.key]) : `${REPO}/-/releases`;
+    const url = f ? href(f.buttons[p.key]) : `${REPO}/releases`;
     const what = f ? `<span class="file register figures">${esc(fileName(f.buttons[p.key]))}</span>` : `<span class="file register">on Releases</span>`;
     return `<li class="dl"><a class="plate" href="${url}">${GLYPHS[p.glyph]}<span class="name">${esc(p.label)}</span>${what}<span class="note">${esc(p.note)}</span></a></li>`;
   }).join("");
   const head = f
     ? `<p class="register channel">${esc(f.label)}</p>${CHANNEL_NOTE[f.channel] ? `<p class="small dim">${esc(CHANNEL_NOTE[f.channel])}</p>` : ""}`
     : `<p class="register channel">The latest builds are on Releases</p>`;
-  const check = f ? `Check a download against <span class="register">SHA256SUMS</span> on <a href="${href(`${REPO}/-/releases/${f.tag}`)}">its release</a>` : `Check a download against <span class="register">SHA256SUMS</span> on its release`;
+  const check = f ? `Check a download against <span class="register">SHA256SUMS</span> on <a href="${href(`${REPO}/releases/tag/${f.tag}`)}">its release</a>` : `Check a download against <span class="register">SHA256SUMS</span> on its release`;
   return `${head}<ul class="dls">${rows}</ul><p class="small">${check} (<a href="${base}downloads.html#check">how</a>). <a href="${base}downloads.html">Other versions</a>: the last builds, the .deb for Debian and Ubuntu, and each build's release notes.</p>`;
 }
 
@@ -275,10 +283,10 @@ function builds() {
   }).join("") : "";
   const list = DL
     ? `<p class="small dim">A channel shows where one names the build now; a build that has been Stable stays marked.</p><ol class="builds">${rows}</ol>`
-    : `<p>This copy of the site was built without reading the package registry: every build is on <a href="${REPO}/-/releases">Releases</a>.</p>`;
+    : `<p>This copy of the site was built without reading GitHub: every build is on <a href="${REPO}/releases">Releases</a>.</p>`;
   return `<section class="list" aria-label="Builds">${list}</section>
 <section class="check plate" id="check"><h2 class="register">Checking a download</h2>${readmeSection("Checking a download")}</section>
-<section class="more"><p class="small">Every build, with its source (<span class="register">myorbiter-source.tar.gz</span>) and checksums: <a href="${REPO}/-/releases">Releases on GitLab</a>. The code: <a href="${REPO}">the repository</a>.</p></section>`;
+<section class="more"><p class="small">Every build, with its source (<span class="register">myorbiter-source.tar.gz</span>) and checksums: <a href="${REPO}/releases">Releases on GitHub</a>. The code: <a href="${REPO}">the repository</a>. The builds made before 0.2.120 are on the mirror's releases on GitLab.</p></section>`;
 }
 
 /** The app's four sections, each in its colour, sigil and glyph: the question it answers and its
@@ -364,7 +372,7 @@ function narrowOverflow(css, html, file) {
 }
 
 // ---- Checks: every local link, image and stylesheet url() resolves (same-page anchors included),
-// external links go only to gitlab.com, no dev-*.json file (a real account's data) is in the
+// external links go only to github.com, no dev-*.json file (a real account's data) is in the
 // output or named in it, and the landing and Guide pages' grids fit a phone 320, 360 and 390 px wide.
 if (args.includes("--check")) {
   const ALLOWED = new Set([HOST]);
@@ -377,7 +385,7 @@ if (args.includes("--check")) {
     if (!f.endsWith(".html") && !f.endsWith(".css")) continue;
     const text = readFileSync(f, "utf8");
     if (/dev-[\w-]+\.json/.test(text)) bad.push(`${rel}: names a dev-*.json file`);
-    // The pages stay static: nothing in them runs, so nothing reads gitlab.com (or anything) on load.
+    // The pages stay static: nothing in them runs, so nothing reads github.com (or anything) on load.
     if (f.endsWith(".html") && /<(?:script|iframe|object|embed)\b|<meta[^>]+http-equiv|<[a-z][^>]*\son[a-z]+\s*=/i.test(text)) bad.push(`${rel}: carries a script`);
     for (const m of text.matchAll(/(?:href|src)="([^"]+)"|url\(["']?([^"')]+)/g)) {
       const url = m[1] ?? m[2];

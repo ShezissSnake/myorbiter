@@ -44,14 +44,17 @@ test("versions compare by number, and a CI build's number is its release", () =>
   assert.equal(buildNumber("0.1.48"), null, "builds from before the move have no release here");
   assert.equal(buildNumber("0.1.0"), null);
   assert.equal(buildNumber("0.3.5"), null);
-  assert.equal(releasePage("0.2.152"), "https://gitlab.com/sheziss-group/myorbiter/-/releases/build-152");
+  // Made on GitHub since the move back (120 on): its release there.
+  assert.equal(releasePage("0.2.152"), "https://github.com/ShezissSnake/myorbiter/releases/tag/build-152");
+  assert.equal(releasePage("0.2.120"), "https://github.com/ShezissSnake/myorbiter/releases/tag/build-120");
+  // Made on GitLab (100 to 119): its release on the mirror.
+  assert.equal(releasePage("0.2.119"), "https://gitlab.com/sheziss-group/myorbiter/-/releases/build-119");
   assert.equal(releasePage("0.2.100"), "https://gitlab.com/sheziss-group/myorbiter/-/releases/build-100");
-  // Made on GitHub before the move: no release of its own on GitLab, so the list.
-  assert.equal(releasePage("0.2.52"), "https://gitlab.com/sheziss-group/myorbiter/-/releases");
-  assert.equal(releasePage("0.1.0"), "https://gitlab.com/sheziss-group/myorbiter/-/releases");
+  // Made before the move to GitLab, or a local build: the list.
+  assert.equal(releasePage("0.2.52"), "https://github.com/ShezissSnake/myorbiter/releases");
+  assert.equal(releasePage("0.1.0"), "https://github.com/ShezissSnake/myorbiter/releases");
   // Release notes open through the opener's allowed links.
-  assert.ok(openable(releasePage("0.2.152")));
-  assert.ok(openable(releasePage("0.1.0")));
+  for (const v of ["0.2.152", "0.2.119", "0.1.0"]) assert.ok(openable(releasePage(v)), v);
 });
 
 test("Later hides that version's notice until a newer one", () => {
@@ -112,13 +115,13 @@ test("the line under Check now: one state per check, with when", () => {
   assert.equal(checkLine({ kind: "newer", channel: "experimental", version: "0.2.106", at: now }, now, false, now), "0.2.106 is available on Experimental (checked just now).");
   assert.equal(checkLine({ kind: "current", channel: "beta", version: "0.2.104", at: now - 5 * 60_000 }, now, false, now), "Up to date (checked 5 min ago).");
   assert.equal(checkLine({ kind: "older", channel: "stable", version: "0.2.103", at: now }, now, false, now), "Stable has 0.2.103, older than this build (checked just now).");
-  assert.equal(checkLine({ kind: "failed", channel: "experimental", reason: "Couldn't reach gitlab.com", at: now }, now, false, now), `Couldn't reach gitlab.com (at ${clockTime(now)}, just now).`);
+  assert.equal(checkLine({ kind: "failed", channel: "experimental", reason: "Couldn't reach GitHub or GitLab", at: now }, now, false, now), `Couldn't reach GitHub or GitLab (at ${clockTime(now)}, just now).`);
   assert.match(clockTime(now), /^\d\d:\d\d$/);
   assert.equal(checkHeadline(null, false), "");
   assert.equal(checkHeadline(null, true), "Checking for updates…");
   assert.equal(checkHeadline({ kind: "newer", channel: "experimental", version: "0.2.106", at: now }, false), "0.2.106 is available on Experimental");
   assert.equal(checkHeadline({ kind: "current", channel: "beta", version: "0.2.104", at: now - 5 * 60_000 }, false), "Up to date", "no age in what's announced");
-  assert.equal(checkHeadline({ kind: "failed", channel: "stable", reason: "Couldn't reach gitlab.com", at: now }, false), "Couldn't reach gitlab.com");
+  assert.equal(checkHeadline({ kind: "failed", channel: "stable", reason: "Couldn't reach GitHub or GitLab", at: now }, false), "Couldn't reach GitHub or GitLab");
 });
 
 test("What's New announces updates, and its Show me opens Settings at Updates", () => {

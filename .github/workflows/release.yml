@@ -1,0 +1,960 @@
+name: Release
+
+# MyOrbiter's one workflow on GitHub Actions' hosted runners. It runs only when started by hand
+# (Actions → Release → Run workflow): never on a push, a pull request or a schedule. Tests run on
+# the developer's machine before merging; this runs them again before anything is built.
+#
+# What a run does is its `task` input, as on GitLab's New pipeline form before the move back:
+#
+#   release (default)  test ─ linux ─┬─ sign ─ assemble ─ attest ─ publish ─┬─ cleanup
+#                             windows┘                                      └─ site ─ deploy
+#                      Builds the Linux AppImage and .deb (ci/build.sh, on Ubuntu 22.04 for its
+#                      glibc) and the Windows installer (natively, on Windows) as build <n>, version
+#                      0.2.<n>. On main it also signs, publishes the build-<n> release, moves
+#                      Experimental to the build and rebuilds the website; on any other branch it
+#                      stops after the builds and leaves the downloads as the run's artifacts, for
+#                      3 days.
+#   promote            promote-check ─ promote ─ site ─ deploy: moves build <n> to Beta or Stable,
+#                      then rebuilds the website (main only).
+#   pages              site ─ deploy: the website (scripts/site.mjs) on GitHub Pages (main only).
+#
+# Build numbers: <n> is this workflow's run number (github.run_number, which only grows, and keeps
+# growing for this file name) plus BUILD_OFFSET below. The offset puts the first build made here at
+# 0.2.120, above every build GitLab made (0.2.100 to the bridge build, below 120), so no version is
+# made twice and versions only grow. Promote and pages runs use a number too, so build numbers have
+# gaps. docs/maintaining.md has the rule.
+#
+# Where things live: every file of build <n> on the release build-<n> (a pre-release until it is
+# promoted to Stable). Each channel is a release of its own whose tag is the channel's name
+# (`stable`, `beta`, `experimental`), holding only that channel's latest.json; installed copies
+# read https://github.com/<repository>/releases/download/<channel>/latest.json first and GitLab's
+# copy second (src-tauri/src/updates.rs). latest.json names the downloads on build-<n>, so a
+# promotion copies one small file and never rebuilds. Nothing here deletes a release or a tag.
+#
+# The jobs, and what each one may do:
+#
+#   test, linux, windows   read-only token, no secrets: they run npm, pnpm and Cargo build code,
+#                          third-party actions and caches, so they hold nothing worth taking.
+#   sign                   the release-signing environment's two secrets (TAURI_SIGNING_PRIVATE_KEY,
+#                          TAURI_SIGNING_PRIVATE_KEY_PASSWORD), read-only token; installs and builds
+#                          nothing, runs only the repository's dependency-free signer with an
+#                          emptied environment, keeps only the .sig files.
+#   assemble               read-only: source tarball, release notes, latest.json, SHA256SUMS.
+#   attest                 GitHub's build provenance for SHA256SUMS.
+#   publish, promote       the only jobs that write releases: they check out nothing and run only
+#                          gh, jq and coreutils on what the jobs before them made.
+#   site, deploy           the website: built read-only, published by GitHub's deploy action.
+#
+# The jobs that move a channel or read the channels for the site share the concurrency group
+# `channels`, so a site build never reads a channel while another run moves it. GitHub keeps one
+# job running and one waiting per group: a third that arrives replaces the one waiting, which ends
+# as cancelled (re-run it). Start one task at a time and this never happens.
+#
+# Anything that changes this file or the release-signing environment: ask the maintainer first
+# (CLAUDE.md).
+
+run-name: "${{ inputs.task }}: ${{ github.ref_name }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "What this run does: release (build, and on main sign, publish and put on Experimental), promote (a build to Beta or Stable), pages (the website)."
+        type: choice
+        options: [release, promote, pages]
+        default: release
+      build:
+        description: "promote: the build's number, the n of build-<n> (version 0.2.<n>)."
+        type: string
+        default: "0"
+      channel:
+        description: "promote: the channel the build moves to."
+        type: choice
+        options: [beta, stable]
+        default: beta
+      windows:
+        description: "release: build the Windows installer too. A build without it is published but can't go on a channel."
+        type: boolean
+        default: true
+
+# No token permissions unless a job asks. Every action is pinned to a commit, every checkout leaves
+# no credentials behind in .git, and every Cargo build uses its Cargo.lock as committed (--locked).
+permissions: {}
+
+env:
+  CARGO_TERM_COLOR: always
+  # Build <n> is github.run_number + BUILD_OFFSET (docs/maintaining.md, Build numbers).
+  BUILD_OFFSET: "26"
+  # The first build made on GitHub (scripts/site-downloads.mjs's FIRST_BUILD): no build goes below it.
+  FIRST_BUILD: "120"
+
+jobs:
+  # ------------------------------------------------------------------ release
+
+  # The tests the developer runs before merging, the MSRV, and a known vulnerability in either
+  # Cargo.lock (RustSec, cargo-audit): any failure stops the run before anything is built. Also
+  # works out the build number, which every later job takes from here.
+  test:
+    name: Test
+    if: inputs.task == 'release'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      build: ${{ steps.number.outputs.build }}
+      version: ${{ steps.number.outputs.version }}
+    steps:
+      - name: Build number
+        id: number
+        run: |
+          set -euo pipefail
+          n=$((GITHUB_RUN_NUMBER + BUILD_OFFSET))
+          # Never below the first GitHub build: a lower number would repeat or undercut a build made
+          # on GitLab, and installed copies take only newer versions.
+          if [ "$n" -lt "$FIRST_BUILD" ]; then
+            echo "::error::build $n is below $FIRST_BUILD: BUILD_OFFSET needs raising (docs/maintaining.md, Build numbers)"
+            exit 1
+          fi
+          echo "build=$n" >>"$GITHUB_OUTPUT"
+          echo "version=0.2.$n" >>"$GITHUB_OUTPUT"
+          echo "Build $n, version 0.2.$n, from ${GITHUB_SHA::7}" >>"$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev \
+            libxdo-dev libssl-dev
+
+      # Both rust-version fields agree, and the whole workspace with its tests builds on that exact
+      # toolchain from the lockfile.
+      - name: The toolchain rust-version names
+        run: |
+          set -euo pipefail
+          v=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' src-tauri/Cargo.toml)
+          d=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' crates/myorbiter-data/Cargo.toml)
+          [[ "$v" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || { echo "::error::no rust-version in src-tauri/Cargo.toml"; exit 1; }
+          [ "$d" = "$v" ] || { echo "::error::crates/myorbiter-data says rust-version $d, src-tauri says $v"; exit 1; }
+          rustup toolchain install "$v" --profile minimal
+          rustup default "$v"
+          rustc --version
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: tennoscope/app/.node-version
+          cache: npm
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run check -- --threshold error
+      - run: cargo check --workspace --tests --locked
+      - run: cargo test --locked
+        working-directory: src-tauri
+
+      # A prebuilt cargo-audit, checksum-verified by the action; no fallback to building it.
+      - uses: taiki-e/install-action@b80e2bb2635f28eb98b9fce1e2f0887e1535c6b2 # v2.90.0
+        with:
+          tool: cargo-audit
+          fallback: none
+
+      # Run as cargo-audit, not `cargo audit`, so rustup doesn't install TennoScope's toolchain only
+      # to read a lockfile.
+      - name: cargo audit (Cargo.lock)
+        if: ${{ !cancelled() }}
+        run: cargo-audit audit --file Cargo.lock
+
+      - name: cargo audit (tennoscope/Cargo.lock)
+        if: ${{ !cancelled() }}
+        run: cargo-audit audit --file tennoscope/Cargo.lock
+
+  # Linux and the Steam Deck: ci/build.sh, as GitLab's build job ran it, without the Windows half.
+  # Ubuntu 22.04, as the builder image: what's built here needs nothing newer than its glibc (2.35),
+  # so it runs on SteamOS, Debian 12 and any Linux from the last few years; ci/build.sh refuses a
+  # build that asks for more.
+  linux:
+    name: Linux AppImage and .deb
+    needs: test
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.test.outputs.version }}
+      # As in the builder image (ci/Dockerfile): AppImages run without FUSE, and linuxdeploy's own
+      # strip, which predates newer ELF sections, is skipped.
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+      NO_STRIP: "true"
+    steps:
+      # Two Rust builds in one job: make room by dropping toolchains this job never uses.
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The builder image's list (ci/Dockerfile) without the Windows cross-compile's tools.
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            file xz-utils unzip zstd jq build-essential pkg-config \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev \
+            libssl-dev libclang-dev libgbm-dev libegl-dev libwayland-dev libxcb1-dev libdbus-1-dev \
+            libarchive-tools meson ninja-build gettext xdg-utils \
+            tesseract-ocr tesseract-ocr-eng patchelf
+
+      # 22.04's PipeWire (0.3.48) predates the bindings TennoScope's screen capture compiles against:
+      # the same pinned release the builder image builds.
+      - name: Build the PipeWire client libraries
+        env:
+          PIPEWIRE_VERSION: "1.0.0"
+          PIPEWIRE_SHA256: f91ef1d1161b37aae6e21b9671917d97097e2664c83d919ba3a0793d6fbc543d
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/pipewire.tar.gz"
+          prefix="$RUNNER_TEMP/pipewire"
+          curl --fail --location --retry 3 --output "$archive" \
+            "https://gitlab.freedesktop.org/pipewire/pipewire/-/archive/${PIPEWIRE_VERSION}/pipewire-${PIPEWIRE_VERSION}.tar.gz"
+          echo "${PIPEWIRE_SHA256}  $archive" | sha256sum --check --strict
+          tar --extract --gzip --file "$archive" --directory "$RUNNER_TEMP"
+          cd "$RUNNER_TEMP/pipewire-${PIPEWIRE_VERSION}"
+          meson setup build --prefix="$prefix" --libdir=lib --wrap-mode=nodownload \
+            -Dauto_features=disabled -Ddbus=disabled \
+            -Dflatpak=disabled -Dpipewire-alsa=disabled -Dpipewire-jack=disabled \
+            -Dpipewire-v4l2=disabled -Dexamples=disabled -Dtests=disabled -Dman=disabled \
+            -Ddocs=disabled '-Dsession-managers=[]'
+          meson compile -C build
+          meson install -C build
+          echo "PKG_CONFIG_PATH=$prefix/lib/pkgconfig" >>"$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$prefix/lib" >>"$GITHUB_ENV"
+
+      # The MSRV builds MyOrbiter, as in the builder image; tennoscope/rust-toolchain.toml names
+      # TennoScope's own, installed here so the build never stops to fetch one.
+      - name: Rust toolchains
+        run: |
+          set -euo pipefail
+          v=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' src-tauri/Cargo.toml)
+          rustup toolchain install "$v" --profile minimal
+          rustup default "$v"
+          (cd tennoscope && rustup toolchain install)
+
+      # The build caches stay in the build jobs, which hold no secret and no write token. A run on
+      # main restores only caches saved by runs on main (GitHub scopes caches by branch, and nothing
+      # here runs for pull requests). None of the jobs after the builds use a cache.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: |
+            tennoscope -> target
+            . -> target
+          shared-key: linux
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          package_json_file: tennoscope/app/package.json
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: tennoscope/app/.node-version
+          cache: pnpm
+          cache-dependency-path: tennoscope/app/pnpm-lock.yaml
+
+      # Tesseract and TennoScope's AppImage, then MyOrbiter's AppImage and .deb, the glibc floor
+      # and the check that the updater can't be redirected (e2e-updater): all in ci/build.sh.
+      - name: Build
+        run: ci/build.sh "$VERSION" --no-windows
+
+      # Kept for 3 days: long enough to re-run a failed sign or publish (cleanup deletes them once
+      # they're on the release).
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-linux
+          path: |
+            release-files/myorbiter_${{ env.VERSION }}_amd64.AppImage
+            release-files/myorbiter_${{ env.VERSION }}_amd64.deb
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
+
+      - name: Say where the files are
+        if: github.ref != 'refs/heads/main'
+        env:
+          REF: ${{ github.ref_name }}
+        run: echo "**Not published:** built from \`$REF\`, not main. The downloads are this run's artifacts, for 3 days." >>"$GITHUB_STEP_SUMMARY"
+
+  # Windows, natively on Windows (as before the move; GitLab cross-compiled only because its builds
+  # ran on Linux): TennoScope's program with its Tesseract, then MyOrbiter's installer carrying it.
+  windows:
+    name: Windows installer
+    needs: test
+    if: inputs.windows
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.test.outputs.version }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # Check files out as committed, with Unix line endings: the bash scripts this job runs
+      # (scripts/tennoscope-notice.sh) stop at a carriage return.
+      - run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # TennoScope's own script: downloads its pinned Tesseract, checks its SHA-256 and proves it runs.
+      - name: Vendor Tesseract
+        run: ./scripts/vendor-windows-tesseract.ps1
+        shell: pwsh
+        working-directory: tennoscope
+
+      - name: Rust toolchains
+        run: |
+          set -euo pipefail
+          v=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' src-tauri/Cargo.toml)
+          rustup toolchain install "$v" --profile minimal
+          rustup default "$v"
+          (cd tennoscope && rustup toolchain install)
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: |
+            tennoscope -> target
+            . -> target
+          shared-key: windows
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          package_json_file: tennoscope/app/package.json
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: tennoscope/app/.node-version
+          cache: pnpm
+          cache-dependency-path: tennoscope/app/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+        working-directory: tennoscope/app
+
+      # The program alone: MyOrbiter's installer carries it, beside its Tesseract.
+      - name: Build TennoScope
+        run: pnpm tauri build --no-bundle -- --locked
+        working-directory: tennoscope/app
+
+      - name: Put TennoScope beside MyOrbiter's sources
+        run: |
+          set -euo pipefail
+          rm -rf vendor/tennoscope
+          mkdir -p vendor/tennoscope/tesseract
+          cp tennoscope/target/release/tennoscope.exe vendor/tennoscope/
+          cp -r tennoscope/app/src-tauri/vendor/tesseract/. vendor/tennoscope/tesseract/
+          # Its licence, its notices and its Tesseract's, and NOTICE.md (where its source is).
+          scripts/tennoscope-notice.sh vendor/tennoscope
+
+      # No updater files and no key here: the sign job signs the installer. tauri.windows.conf.json
+      # (NSIS only, per-user, the WebView2 bootstrapper) is merged by Tauri on Windows.
+      - name: Build MyOrbiter
+        run: |
+          set -euo pipefail
+          npm ci
+          npx tauri build --config src-tauri/tauri.bundle.json --config "{\"version\":\"$VERSION\"}" -- --locked
+
+      # The update check's address is fixed in the code; a build made for the end-to-end test of
+      # updating (the e2e-updater feature) can be pointed elsewhere, and must never ship.
+      - name: Check the updater can't be redirected
+        run: |
+          if grep -q MYORBITER_UPDATER_E2E target/release/myorbiter.exe; then
+            echo "::error::this binary was built with the e2e-updater feature"; exit 1
+          fi
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-windows
+          path: target/release/bundle/nsis/myorbiter_${{ env.VERSION }}_x64-setup.exe
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
+
+  # Signs the AppImage and the setup.exe for the updater. Only on main, once every build that was
+  # asked for has succeeded. The key comes from the release-signing environment, whose protection
+  # rules (main only, and reviewers if set) can hold this job until approved (docs/maintaining.md).
+  # It runs two GitHub actions (checkout, download-artifact) and the repository's dependency-free
+  # signer with the runner's preinstalled Node: no package manager, no build, no cache. The key is
+  # in the environment of the signing step alone, and scripts/updater-sign.mjs never prints it.
+  sign:
+    name: Sign the updater downloads
+    needs: [test, linux, windows]
+    if: >-
+      ${{ !cancelled() && github.ref == 'refs/heads/main'
+      && needs.linux.result == 'success'
+      && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
+    runs-on: ubuntu-24.04
+    environment: release-signing
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.test.outputs.version }}
+      WINDOWS: ${{ needs.windows.result == 'success' }}
+      # Whether the key is there, as true or false: the key itself goes only to the signing step.
+      HAS_SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+    outputs:
+      signed: ${{ steps.key.outputs.signed }}
+    steps:
+      # The signer, the manifest script (its signature check) and the public key, at this commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/updater-sign.mjs
+            scripts/updater-manifest.mjs
+            src-tauri/tauri.conf.json
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: build-*
+          path: signed
+          merge-multiple: true
+
+      - name: Check for the signing key
+        id: key
+        run: |
+          if [ "$HAS_SIGNING_KEY" = true ]; then
+            echo "signed=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >>"$GITHUB_OUTPUT"
+            echo "**No updater files:** the TAURI_SIGNING_PRIVATE_KEY secret isn't set for the release-signing environment, so build $VERSION is published unsigned and no channel will offer it." >>"$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Exactly this build's downloads, by name: the AppImage, and the setup.exe when this run built
+      # Windows. No links (one could send a .sig somewhere else). Each signature is bound to this
+      # version and checked against tauri.conf.json's public key before it's written. The signer runs
+      # with every other exported variable removed (no NODE_OPTIONS, LD_PRELOAD or PATH from
+      # anywhere) and the key passed by name, never on a command line.
+      - name: Sign them
+        if: steps.key.outputs.signed == 'true'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          links=$(find signed -type l -print)
+          [ -z "$links" ] || { echo "::error::the downloads hold links: $links"; exit 1; }
+          find signed -maxdepth 1 -type f -name '*.sig' -delete
+          version="$VERSION"
+          node=$(command -v node)
+          files=("signed/myorbiter_${version}_amd64.AppImage")
+          if [ "$WINDOWS" = true ]; then files+=("signed/myorbiter_${version}_x64-setup.exe"); fi
+          for f in "${files[@]}"; do
+            [ -f "$f" ] || { echo "::error::$f is missing"; exit 1; }
+          done
+          (
+            for v in $(compgen -e); do
+              case "$v" in TAURI_SIGNING_PRIVATE_KEY|TAURI_SIGNING_PRIVATE_KEY_PASSWORD) ;; *) unset "$v" 2>/dev/null || true ;; esac
+            done
+            export PATH=/usr/local/bin:/usr/bin:/bin
+            exec "$node" scripts/updater-sign.mjs --config src-tauri/tauri.conf.json --version "$version" "${files[@]}"
+          )
+
+      # Once more, in a step without the key, with the manifest script's check (the app's).
+      - name: Check the signatures
+        if: steps.key.outputs.signed == 'true'
+        run: |
+          set -euo pipefail
+          for sig in signed/*.sig; do
+            node scripts/updater-manifest.mjs verify --config src-tauri/tauri.conf.json --file "${sig%.sig}" --sig "$sig" --version "$VERSION"
+          done
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.key.outputs.signed == 'true'
+        with:
+          name: signatures
+          path: signed/*.sig
+          if-no-files-found: error
+          retention-days: 3
+
+  # Everything else the release carries, read-only: myorbiter-source.tar.gz (the complete source of
+  # the commit, as the GPL-3.0 asks), latest.json (scripts/github-manifest.mjs: this build's
+  # version, notes from the commit subjects since the build on Experimental, each signed download on
+  # build-<n>, every signature checked again) and SHA256SUMS of every file. A build is complete,
+  # and may go on a channel, when it is signed and has both the Linux and the Windows download.
+  assemble:
+    name: Release files
+    needs: [test, sign]
+    if: ${{ !cancelled() && needs.sign.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      BUILD: ${{ needs.test.outputs.build }}
+      VERSION: ${{ needs.test.outputs.version }}
+    outputs:
+      complete: ${{ steps.manifest.outputs.complete }}
+    steps:
+      # The whole history, for the commit subjects since the build on Experimental.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: build-*
+          path: release-files
+          merge-multiple: true
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.sign.outputs.signed == 'true'
+        with:
+          name: signatures
+          path: release-files
+
+      # MyOrbiter and tennoscope/ both, with the workflow and scripts that build them.
+      - name: Source
+        run: git archive --format=tar.gz --prefix="myorbiter-build-$BUILD/" --output release-files/myorbiter-source.tar.gz "$GITHUB_SHA"
+
+      # The commit subjects since the build on Experimental, when that one is an ancestor of this
+      # one; otherwise the last 15.
+      - name: Release notes
+        if: needs.sign.outputs.signed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          prev=""
+          if gh release download experimental --repo "$GITHUB_REPOSITORY" --pattern latest.json --output "$RUNNER_TEMP/previous.json" 2>/dev/null; then
+            prev=$(jq -r '.commit // empty' "$RUNNER_TEMP/previous.json")
+          fi
+          if [[ "$prev" =~ ^[0-9a-f]{40}$ ]] && git merge-base --is-ancestor "$prev" "$GITHUB_SHA" 2>/dev/null; then
+            git log --format=%s "$prev..$GITHUB_SHA" | node scripts/updater-manifest.mjs notes >"$RUNNER_TEMP/notes.txt"
+          else
+            git log -n 15 --format=%s "$GITHUB_SHA" | node scripts/updater-manifest.mjs notes >"$RUNNER_TEMP/notes.txt"
+          fi
+          cat "$RUNNER_TEMP/notes.txt"
+
+      - name: Make latest.json
+        id: manifest
+        if: needs.sign.outputs.signed == 'true'
+        run: |
+          set -euo pipefail
+          node scripts/github-manifest.mjs manifest --dir release-files --version "$VERSION" --repo "$GITHUB_REPOSITORY" \
+            --commit "$GITHUB_SHA" --notes-file "$RUNNER_TEMP/notes.txt" --out release-files/latest.json
+          if node scripts/github-manifest.mjs check --manifest release-files/latest.json --version "$VERSION" \
+              --require linux-x86_64,windows-x86_64 --repo "$GITHUB_REPOSITORY"; then
+            echo "complete=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "complete=false" >>"$GITHUB_OUTPUT"
+            echo "**Not for a channel:** $VERSION has no Windows installer, so it stays off Experimental (and can't be promoted)." >>"$GITHUB_STEP_SUMMARY"
+          fi
+          {
+            echo "### Updater manifest for $VERSION"
+            echo '```json'
+            cat release-files/latest.json
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      # SHA256SUMS for every file the release carries, beside them; publish attaches exactly the
+      # files it lists.
+      - name: Checksums
+        working-directory: release-files
+        run: |
+          set -euo pipefail
+          sha256sum -- * >"$RUNNER_TEMP/SHA256SUMS"
+          mv "$RUNNER_TEMP/SHA256SUMS" SHA256SUMS
+          cat SHA256SUMS
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-meta
+          path: |
+            release-files/SHA256SUMS
+            release-files/latest.json
+            release-files/myorbiter-source.tar.gz
+          if-no-files-found: error
+          retention-days: 3
+
+  # GitHub also records where the files were built (build provenance: `gh attestation verify`).
+  attest:
+    name: Record where they were built
+    needs: [assemble]
+    if: ${{ !cancelled() && needs.assemble.result == 'success' && !github.event.repository.private }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write # the OIDC token Sigstore signs the attestation with
+      attestations: write # to store the attestation
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-meta
+          path: release-files
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: release-files/SHA256SUMS
+
+  # The build-<n> pre-release with every file, then Experimental. It checks out nothing and runs only
+  # gh, jq and coreutils on the artifacts the jobs above made, and attaches a file only if SHA256SUMS
+  # lists it with that checksum. Last, so a build only reaches a channel once everything before it
+  # worked.
+  publish:
+    name: Publish
+    needs: [test, sign, assemble, attest]
+    if: >-
+      ${{ !cancelled() && github.ref == 'refs/heads/main'
+      && needs.assemble.result == 'success'
+      && (needs.attest.result == 'success' || needs.attest.result == 'skipped') }}
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: channels
+      cancel-in-progress: false
+    permissions:
+      contents: write # to make the build-<n> release and update the experimental channel's release
+    env:
+      BUILD: ${{ needs.test.outputs.build }}
+      VERSION: ${{ needs.test.outputs.version }}
+      SIGNED: ${{ needs.sign.outputs.signed }}
+      COMPLETE: ${{ needs.assemble.outputs.complete }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: build-*
+          path: release-files
+          merge-multiple: true
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.sign.outputs.signed == 'true'
+        with:
+          name: signatures
+          path: release-files
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-meta
+          path: release-files
+
+      # The files here are exactly the ones SHA256SUMS lists, each with its checksum.
+      - name: Check the files
+        working-directory: release-files
+        run: |
+          set -euo pipefail
+          sha256sum --check --strict SHA256SUMS
+          diff <(find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\n' | sort) <(cut -c67- SHA256SUMS | sort)
+
+      - name: Make the pre-release
+        working-directory: release-files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          files=(*)
+          tag="build-$BUILD"
+          # A re-run keeps the run number, so it rebuilds the same build: never over a file already
+          # published (a channel's latest.json names its signatures). A file the first attempt left
+          # out is added; one already there must be byte for byte the same, or the run stops.
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" --jq '.assets[] | [.name, (.digest // "")] | @tsv' >"$RUNNER_TEMP/assets.tsv"
+            missing=()
+            for f in "${files[@]}"; do
+              have=$(awk -F '\t' -v n="$f" '$1 == n { print $2 }' "$RUNNER_TEMP/assets.tsv")
+              if [ -z "$have" ] && ! grep -q -F -x -e "$f" <(cut -f1 "$RUNNER_TEMP/assets.tsv"); then
+                missing+=("$f")
+              elif [ "$have" != "sha256:$(sha256sum "$f" | cut -c1-64)" ]; then
+                echo "::error::$tag already has a different $f: start a new run for a new build"
+                exit 1
+              fi
+            done
+            if [ "${#missing[@]}" -gt 0 ]; then
+              gh release upload "$tag" "${missing[@]}" --repo "$GITHUB_REPOSITORY"
+            fi
+          else
+            gh release create "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --prerelease --title "MyOrbiter $VERSION ($tag)" \
+              --notes "MyOrbiter $VERSION, built from ${GITHUB_SHA::7}. The AppImage is for Linux and the Steam Deck, the .deb for Debian and Ubuntu, the setup.exe for Windows, whichever this run built. MyOrbiter and the TennoScope inside it are GPL-3.0-only: myorbiter-source.tar.gz is the complete source of this build. SHA256SUMS lists every file's checksum."
+          fi
+          if [ "$SIGNED" != true ]; then
+            echo "**Published without updater files:** no signing key, so no channel offers $VERSION." >>"$GITHUB_STEP_SUMMARY"
+          fi
+
+      # The build becomes Experimental's: its latest.json goes on the `experimental` release (made the
+      # first time), which installed copies on Experimental read first. Never backwards: a run that
+      # finishes after a newer one leaves the channel on the newer build.
+      - name: Publish to Experimental
+        if: env.COMPLETE == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current=""
+          if gh release view experimental --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            # A latest.json that is there but can't be read stops the run: the channel never moves
+            # without knowing what it holds.
+            if gh release view experimental --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -q -x -F latest.json; then
+              gh release download experimental --repo "$GITHUB_REPOSITORY" --pattern latest.json --output "$RUNNER_TEMP/current.json"
+              current=$(jq -r '.version' "$RUNNER_TEMP/current.json")
+              [[ "$current" =~ ^0\.2\.[1-9][0-9]{0,8}$ ]] || { echo "::error::Experimental's latest.json names no build: '$current'"; exit 1; }
+            fi
+          else
+            gh release create experimental --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --prerelease --title "Experimental channel" \
+              --notes "An update channel, not a build: MyOrbiter copies on Experimental read latest.json here to find their next update. It names the newest build on the channel; the downloads are on that build's own release (build-<n>)."
+          fi
+          if [ -n "$current" ] && [ "$(printf '%s\n%s\n' "$current" "$VERSION" | sort -V | tail -n1)" != "$VERSION" ]; then
+            echo "Experimental stays on $current, newer than $VERSION." >>"$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          gh release upload experimental release-files/latest.json --repo "$GITHUB_REPOSITORY" --clobber
+          echo "**$VERSION is now Experimental's build.** Promote it with Run workflow: task promote, build $BUILD." >>"$GITHUB_STEP_SUMMARY"
+
+  # Everything is on the release now: the build's artifacts are deleted rather than left to expire.
+  cleanup:
+    name: Delete the artifacts
+    needs: [publish]
+    if: ${{ !cancelled() && needs.publish.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write # to delete this run's artifacts
+    steps:
+      - name: Delete them
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # The build's own artifacts only: the website's (github-pages) may still be on its way to
+          # the deploy job.
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" \
+            --jq '.artifacts[] | select(.name == "build-linux" or .name == "build-windows" or .name == "signatures" or .name == "release-meta") | .id' |
+            while read -r id; do
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id"
+            done
+
+  # ------------------------------------------------------------------ promote
+
+  # Promote and pages run only on main: started from another branch, the run fails here rather than
+  # end green having done nothing.
+  main-only:
+    name: Refuse a promote or pages run off main
+    if: inputs.task != 'release' && github.ref != 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Refuse
+        env:
+          TASK: ${{ inputs.task }}
+          REF: ${{ github.ref_name }}
+        run: |
+          echo "::error::task $TASK runs only on main, not on $REF"
+          exit 1
+
+  # Checks build <n>: its release exists, its latest.json is for 0.2.<n> with both the Linux and
+  # Windows downloads, every download in it is that system's file on this repository's build-<n>
+  # and nowhere else, and each one's signature checks out against the public key installed copies
+  # carry (tauri.conf.json). `promote` then copies exactly the latest.json checked here. The build
+  # number reaches the script only through the environment, digits only.
+  promote-check:
+    name: Check the build
+    if: inputs.task == 'promote' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      BUILD: ${{ inputs.build }}
+    outputs:
+      manifest-sha256: ${{ steps.check.outputs.manifest-sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/github-manifest.mjs
+            scripts/updater-manifest.mjs
+            src-tauri/tauri.conf.json
+          sparse-checkout-cone-mode: false
+
+      - name: Check it
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$BUILD" =~ ^[1-9][0-9]{0,8}$ ]] || { echo "::error::not a build number: '$BUILD' (digits only, the n of build-<n>)"; exit 1; }
+          tag="build-$BUILD"
+          version="0.2.$BUILD"
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null || { echo "::error::there is no release $tag"; exit 1; }
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern latest.json --dir build \
+            || { echo "::error::$tag has no latest.json: it was built without the signing key, or before the move back to GitHub"; exit 1; }
+          node scripts/github-manifest.mjs check --manifest build/latest.json --version "$version" \
+            --require linux-x86_64,windows-x86_64 --repo "$GITHUB_REPOSITORY"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir build \
+            --pattern '*.AppImage' --pattern '*-setup.exe'
+          for platform in linux-x86_64 windows-x86_64; do
+            url=$(jq -r --arg p "$platform" '.platforms[$p].url' build/latest.json)
+            file="build/$(basename "$url")"
+            [ -f "$file" ] || { echo "::error::$platform: $url isn't on $tag"; exit 1; }
+            jq -r --arg p "$platform" '.platforms[$p].signature' build/latest.json >"$file.manifest.sig"
+            node scripts/updater-manifest.mjs verify --config src-tauri/tauri.conf.json --file "$file" --sig "$file.manifest.sig" --version "$version"
+          done
+          echo "manifest-sha256=$(sha256sum build/latest.json | cut -d' ' -f1)" >>"$GITHUB_OUTPUT"
+          echo "Build $BUILD ($version) checks out." >>"$GITHUB_STEP_SUMMARY"
+
+  # Puts the checked latest.json on the channel's release (`beta` or `stable`, made the first time).
+  # Promoting to Stable also makes build-<n> a full release and the repository's Latest, and moves
+  # Beta up to it when Beta's build is older (Beta is never behind Stable). Checks out nothing and
+  # runs no repository code.
+  promote:
+    name: Promote build ${{ inputs.build }} to ${{ inputs.channel }}
+    needs: promote-check
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: channels
+      cancel-in-progress: false
+    permissions:
+      contents: write # to upload latest.json to the channel's release and edit build-<n>
+    env:
+      BUILD: ${{ inputs.build }}
+      CHANNEL: ${{ inputs.channel }}
+      MANIFEST_SHA256: ${{ needs.promote-check.outputs.manifest-sha256 }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Put it on the channel
+        run: |
+          set -euo pipefail
+          [[ "$BUILD" =~ ^[1-9][0-9]{0,8}$ ]] || { echo "::error::not a build number: digits only"; exit 1; }
+          case "$CHANNEL" in
+            beta) label=Beta ;;
+            stable) label=Stable ;;
+            *) echo "::error::not a channel: '$CHANNEL' (beta or stable)"; exit 1 ;;
+          esac
+          [[ "$MANIFEST_SHA256" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::the check passed no manifest"; exit 1; }
+          tag="build-$BUILD"
+          # The manifest the check passed, and no other.
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern latest.json --dir build
+          echo "$MANIFEST_SHA256  build/latest.json" | sha256sum --check --strict
+          # What a channel holds now (empty if nothing yet); a latest.json there that can't be read
+          # stops the run.
+          channel_version() {
+            gh release view "$1" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' 2>/dev/null | grep -q -x -F latest.json || return 0
+            gh release download "$1" --repo "$GITHUB_REPOSITORY" --pattern latest.json --output "$RUNNER_TEMP/$1.json" --clobber
+            local v
+            v=$(jq -r '.version' "$RUNNER_TEMP/$1.json")
+            [[ "$v" =~ ^0\.2\.[1-9][0-9]{0,8}$ ]] || { echo "::error::$1's latest.json names no build: '$v'" >&2; return 1; }
+            echo "$v"
+          }
+          older() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ]; }
+          version="0.2.$BUILD"
+          # Beta is never behind Stable.
+          if [ "$CHANNEL" = beta ]; then
+            stable=$(channel_version stable)
+            if [ -n "$stable" ] && older "$version" "$stable"; then
+              echo "::error::$version is older than Stable's $stable: Beta is never behind Stable"
+              exit 1
+            fi
+          fi
+          # A step back is allowed (taking a bad build off the channel), and said.
+          current=$(channel_version "$CHANNEL")
+          if [ -n "$current" ] && older "$version" "$current"; then
+            echo "**$label moves back** from $current to $version: copies already on $current stay there until a newer build." >>"$GITHUB_STEP_SUMMARY"
+          fi
+          # The channel's release, made the first time: a pre-release, so it's never GitHub's Latest.
+          if ! gh release view "$CHANNEL" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$CHANNEL" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --prerelease --title "$label channel" \
+              --notes "An update channel, not a build: MyOrbiter copies on $label read latest.json here to find their next update. It names the newest build on the channel; the downloads are on that build's own release (build-<n>)."
+          fi
+          gh release upload "$CHANNEL" build/latest.json --repo "$GITHUB_REPOSITORY" --clobber
+          echo "**0.2.$BUILD ($tag) is now $label's build.**" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Make it the latest release, and catch Beta up
+        if: env.CHANNEL == 'stable'
+        run: |
+          set -euo pipefail
+          version="0.2.$BUILD"
+          gh release edit "build-$BUILD" --repo "$GITHUB_REPOSITORY" --prerelease=false --latest
+          beta=""
+          if gh release view beta --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            if gh release download beta --repo "$GITHUB_REPOSITORY" --pattern latest.json --output beta.json; then
+              beta=$(jq -r '.version // empty' beta.json)
+            fi
+          else
+            gh release create beta --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --prerelease --title "Beta channel" \
+              --notes "An update channel, not a build: MyOrbiter copies on Beta read latest.json here to find their next update. It names the newest build on the channel; the downloads are on that build's own release (build-<n>)."
+          fi
+          if [ -z "$beta" ] || { [ "$beta" != "$version" ] && [ "$(printf '%s\n%s\n' "$beta" "$version" | sort -V | tail -n1)" = "$version" ]; }; then
+            gh release upload beta build/latest.json --repo "$GITHUB_REPOSITORY" --clobber
+            echo "Beta was ${beta:-empty}: it's now $version too." >>"$GITHUB_STEP_SUMMARY"
+          else
+            echo "Beta stays on $beta (not older than $version)." >>"$GITHUB_STEP_SUMMARY"
+          fi
+          echo "build-$BUILD is a full release and the repository's Latest." >>"$GITHUB_STEP_SUMMARY"
+
+  # ------------------------------------------------------------------ website
+
+  # The site (scripts/site.mjs: site/, the Guide and What's New from the app's own source, demo
+  # screenshots only), built and checked. Besides its own task, it ends every release that published
+  # and every promotion. Its download links are read from the channels' latest.json and the releases
+  # as it builds, so the site follows the channels; in the `channels` group, so it never reads them
+  # while another run moves one. If a release or promotion stops before it, or it fails, the site
+  # lags until the next one: run task pages.
+  site:
+    name: Build and check the site
+    needs: [publish, promote]
+    if: >-
+      ${{ !cancelled() && github.ref == 'refs/heads/main'
+      && (inputs.task == 'pages' || needs.publish.result == 'success' || needs.promote.result == 'success') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    concurrency:
+      group: channels
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: tennoscope/app/.node-version
+          cache: npm
+
+      - run: npm ci
+
+      # --check: every link resolves, external links only to the project's own sites, no
+      # dev-*.json anywhere. The token (read-only) only lifts the API's rate limit for this runner.
+      - name: Build the site
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/site.mjs --check
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site/_site
+
+  # Runs no code of the repository, only GitHub's deploy action, with the two permissions Pages needs.
+  deploy:
+    name: Publish on Pages
+    needs: site
+    if: ${{ !cancelled() && needs.site.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      pages: write # to publish the site
+      id-token: write # Pages checks where the upload came from
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

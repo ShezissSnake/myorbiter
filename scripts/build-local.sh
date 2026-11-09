@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Builds MyOrbiter's Linux AppImage on this PC, the way the release pipeline's build job does
-# (ci/build.sh, run by .gitlab-ci.yml): Tesseract put inside TennoScope, TennoScope's own AppImage
+# Builds MyOrbiter's Linux AppImage on this PC, the way the Release workflow's linux job does
+# (ci/build.sh, run by .github/workflows/release.yml): Tesseract put inside TennoScope, TennoScope's own AppImage
 # build, MyOrbiter's AppImage with TennoScope inside it, and the same repack step
 # (scripts/repack-appimage.sh). For trying a build out locally without a pipeline. To build
 # exactly as the pipeline does, run ci/build.sh in the builder image instead (ci/Dockerfile).

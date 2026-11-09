@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { cleanBody, cleanLogin, collapseBlobs, defangLinks, digest, fetchIssues, flagsOf, issuesOf, stripHiddenChars, stripHiddenMarkup, MAX_BODY } from "../scripts/issues-digest.mjs";
+import { cleanBody, cleanLogin, collapseBlobs, defangLinks, digest, fetchGitLabIssues, fetchIssues, flagsOf, fromGitHub, issuesOf, stripHiddenChars, stripHiddenMarkup, MAX_BODY } from "../scripts/issues-digest.mjs";
 
 const fixture = (name: string): unknown => JSON.parse(readFileSync(`tests/fixtures/issues/${name}.json`, "utf8"));
 
@@ -155,7 +155,7 @@ test("GitLab issues: comments without GitLab's own notes, each author's role, qu
   assert.ok(!out.includes("added ~bug label"), "system notes are left out");
   assert.match(out, /^\| !! FLAG\(quick action\) !! \/close$/m);
   assert.match(out, /^\| !! FLAG\(quick action\) !! \/label ~security$/m);
-  assert.match(out, /\(#12 has more comments than the digest read: see it on GitLab\.\)/);
+  assert.match(out, /\(#12 has more comments than the digest read: see it on its own page\.\)/);
   // GitLab's REST list (no comments) reads too.
   const rest = issuesOf([{ iid: 3, title: "t", description: "d", state: "closed", author: { username: "ExamplePlayer" }, labels: ["bug"], web_url: "https://gitlab.com/x", created_at: "2026-11-07T10:00:00.000Z" }]);
   assert.equal(rest[0].number, 3);
@@ -163,7 +163,7 @@ test("GitLab issues: comments without GitLab's own notes, each author's role, qu
   assert.equal(rest[0].authorAssociation, "UNKNOWN", "the REST list doesn't say who's a member");
 });
 
-test("--fetch: anonymous GraphQL requests, page by page, and a private project is an error", async () => {
+test("--fetch --from=gitlab: anonymous GraphQL requests, page by page, and a private project is an error", async () => {
   const calls: { url: string; init: RequestInit }[] = [];
   const page = (n: number, next: boolean) => ({ data: { project: { issues: { pageInfo: { hasNextPage: next, endCursor: `c${n}` }, nodes: [{ iid: String(n), title: `t${n}`, state: "opened", author: { username: "ExamplePlayer" } }] }, projectMembers: n === 1 ? { nodes: [] } : null } } });
   const answers = [page(1, true), page(2, false)];
@@ -171,7 +171,7 @@ test("--fetch: anonymous GraphQL requests, page by page, and a private project i
     calls.push({ url, init });
     return new Response(JSON.stringify(answers.shift()), { status: 200 });
   };
-  const data = await fetchIssues({ fetchImpl: fake as typeof fetch });
+  const data = await fetchGitLabIssues({ fetchImpl: fake as typeof fetch });
   assert.deepEqual(issuesOf(data).map((i) => i.number), [1, 2]);
   assert.equal(calls.length, 2);
   for (const c of calls) {
@@ -183,7 +183,56 @@ test("--fetch: anonymous GraphQL requests, page by page, and a private project i
   const vars = calls.map((c) => JSON.parse(String(c.init.body)).variables);
   assert.deepEqual(vars.map((v) => [v.path, v.state, v.after, v.members]), [["sheziss-group/myorbiter", "opened", null, true], ["sheziss-group/myorbiter", "opened", "c1", false]]);
   const none = async () => new Response(JSON.stringify({ data: { project: null } }), { status: 200 });
-  await assert.rejects(fetchIssues({ fetchImpl: none as unknown as typeof fetch }), /isn't readable without signing in/);
+  await assert.rejects(fetchGitLabIssues({ fetchImpl: none as unknown as typeof fetch }), /isn't readable without signing in/);
   const down = async () => new Response("", { status: 503 });
-  await assert.rejects(fetchIssues({ fetchImpl: down as unknown as typeof fetch }), /GitLab answered 503/);
+  await assert.rejects(fetchGitLabIssues({ fetchImpl: down as unknown as typeof fetch }), /GitLab answered 503/);
+});
+
+test("--fetch: anonymous REST requests to GitHub, pull requests left out, comments per issue", async () => {
+  const urls: string[] = [];
+  const inits: RequestInit[] = [];
+  const issue = (n: number, comments: number, pr = false) => ({
+    number: n, title: `t${n}`, body: `b${n}`, state: "open", user: { login: "ExamplePlayer" }, author_association: "NONE",
+    labels: [{ name: "bug" }], html_url: `https://github.com/ShezissSnake/myorbiter/issues/${n}`, created_at: "2026-11-09T10:00:00Z", comments,
+    comments_url: "https://evil.example/comments", ...(pr ? { pull_request: { url: "x" } } : {}),
+  });
+  const answers: Record<string, unknown> = {
+    "https://api.github.com/repos/ShezissSnake/myorbiter/issues?state=open&sort=created&direction=asc&per_page=100&page=1": [issue(1, 2), issue(2, 0), issue(3, 1, true)],
+    "https://api.github.com/repos/ShezissSnake/myorbiter/issues/1/comments?per_page=100": [
+      { body: "first", user: { login: "ShezissSnake" }, author_association: "OWNER", created_at: "2026-11-09T11:00:00Z" },
+      { body: "second", user: { login: "ExamplePlayer" }, author_association: "NONE", created_at: "2026-11-09T12:00:00Z" },
+    ],
+  };
+  const fake = async (url: string, init: RequestInit) => {
+    urls.push(url);
+    inits.push(init);
+    return url in answers ? new Response(JSON.stringify(answers[url]), { status: 200 }) : new Response("", { status: 404 });
+  };
+  const data = await fetchIssues({ fetchImpl: fake as typeof fetch });
+  // The comments' address is built here, never taken from the answer.
+  assert.deepEqual(urls, Object.keys(answers));
+  for (const init of inits) {
+    const headers = init.headers as Record<string, string>;
+    assert.ok(!Object.keys(headers).some((h) => /authorization|cookie/i.test(h)), "no credentials");
+    assert.match(headers["user-agent"], /^myorbiter-issues-digest/);
+  }
+  const issues = issuesOf(data);
+  assert.deepEqual(issues.map((i) => i.number), [1, 2], "the pull request is left out");
+  assert.equal(issues[0].authorAssociation, "NONE");
+  assert.deepEqual((issues[0].comments as { authorAssociation: string }[]).map((c) => c.authorAssociation), ["OWNER", "NONE"]);
+  const out = digest(data);
+  assert.match(out, /## Issue #1 \(open; labels: bug\)/);
+  assert.match(out, /Comment 2 of 2 on #1 by ExamplePlayer \(author_association: NONE\)/);
+  assert.doesNotMatch(out, /#3/);
+
+  // One issue, by number; a rate limit or a missing repository is an error.
+  const one = async (url: string) => (url.endsWith("/issues/2") ? new Response(JSON.stringify(issue(2, 0)), { status: 200 }) : new Response("", { status: 404 }));
+  assert.deepEqual(issuesOf(await fetchIssues({ number: 2, fetchImpl: one as unknown as typeof fetch })).map((i) => i.number), [2]);
+  const limited = async () => new Response("", { status: 403 });
+  await assert.rejects(fetchIssues({ fetchImpl: limited as unknown as typeof fetch }), /GitHub answered 403 \(the anonymous rate limit/);
+  const missing = async () => new Response("", { status: 404 });
+  await assert.rejects(fetchIssues({ fetchImpl: missing as unknown as typeof fetch }), /readable without signing in/);
+  // More comments than were read: the digest says so.
+  assert.equal(fromGitHub(issue(4, 150), []).commentsCut, true);
+  assert.match(digest({ issues: [fromGitHub(issue(4, 150), [])] }), /has more comments than the digest read/);
 });

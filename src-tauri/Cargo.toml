@@ -53,7 +53,7 @@ flate2 = "1"
 base64 = "0.23"
 # MyOrbiter's own log file (applog.rs): the standard logging front end, already in the build through Tauri.
 log = "0.4"
-# In-app updates from MyOrbiter's releases on GitLab (updates.rs): checks a channel's manifest, verifies
+# In-app updates from MyOrbiter's releases on GitHub, GitLab second (updates.rs): checks a channel's manifest, verifies
 # the download's signature, replaces the AppImage or runs the Windows installer. 2.14.1 at least:
 # it extracts with zip 9 (earlier 2.x pull in zip 4, which has open advisories).
 tauri-plugin-updater = "2.14.1"

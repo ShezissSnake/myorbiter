@@ -1,7 +1,7 @@
 // The update check as the page runs it, with the app's side stubbed: every check ends in one state
 // shown under Check now (a build on offer, up to date, or why it failed), "Last checked" moves on
 // every ending, the schedule checks at start and then when the last check is old enough, and
-// Check now is wired to its button. Nothing here reaches gitlab.com.
+// Check now is wired to its button. Nothing here reaches GitHub or GitLab.
 import "./support/runes";
 import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
@@ -84,24 +84,24 @@ test("up to date: the line says so, with when", async (t) => {
 });
 
 test("a failed check: the reason in plain words with its time, and Last checked moves on", async (t) => {
-  const { u, settings, begin } = await setup(t, [new Error("Couldn't reach gitlab.com")]);
+  const { u, settings, begin } = await setup(t, [new Error("Couldn't reach GitHub or GitLab")]);
   settings.lastCheck = T0 - 2 * 3600_000;
   await begin();
   assert.equal(await u.checkNow(), false);
   assert.equal(settings.lastCheck, T0, "written on a failure too");
-  assert.equal(u.error, "Couldn't reach gitlab.com");
-  assert.equal(u.status(Date.now()), `Couldn't reach gitlab.com (at ${clockTime(T0)}, just now).`);
+  assert.equal(u.error, "Couldn't reach GitHub or GitLab");
+  assert.equal(u.status(Date.now()), `Couldn't reach GitHub or GitLab (at ${clockTime(T0)}, just now).`);
   assert.equal(u.checkJob.state, "failed");
-  assert.equal(u.checkJob.error, "Couldn't reach gitlab.com");
+  assert.equal(u.checkJob.error, "Couldn't reach GitHub or GitLab");
 });
 
 test("a failure after an offer keeps the offer, and the next answer clears the failure", async (t) => {
-  const { u, begin } = await setup(t, [NEWER, new Error("Couldn't reach gitlab.com"), CURRENT]);
+  const { u, begin } = await setup(t, [NEWER, new Error("Couldn't reach GitHub or GitLab"), CURRENT]);
   await begin();
   await u.checkNow();
   await u.checkNow();
   assert.equal(u.offer?.version, "0.2.106", "what was found is still on offer");
-  assert.match(u.status(Date.now()), /^Couldn't reach gitlab\.com/);
+  assert.match(u.status(Date.now()), /^Couldn't reach GitHub or GitLab/);
   await u.checkNow();
   assert.equal(u.error, null);
   assert.equal(u.status(Date.now()), "Up to date (checked just now).");
@@ -144,11 +144,11 @@ test("the schedule: a check at start, then when the last is 6 hours old", async 
 });
 
 test("the schedule after a failure: the same 6 hours (the requests stay as docs/privacy.md says)", async (t) => {
-  const { u, calls, begin } = await setup(t, [new Error("Couldn't reach gitlab.com"), CURRENT]);
+  const { u, calls, begin } = await setup(t, [new Error("Couldn't reach GitHub or GitLab"), CURRENT]);
   await begin();
   await startCheck(t);
   assert.equal(calls.length, 1);
-  assert.match(u.status(Date.now()), /^Couldn't reach gitlab\.com \(at \d\d:\d\d, just now\)\.$/, "the scheduled check's failure shows");
+  assert.match(u.status(Date.now()), /^Couldn't reach GitHub or GitLab \(at \d\d:\d\d, just now\)\.$/, "the scheduled check's failure shows");
   for (let at = SCHEDULE_TICK; at < CHECK_EVERY; at += SCHEDULE_TICK) {
     t.mock.timers.tick(SCHEDULE_TICK);
     await micro();

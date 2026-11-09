@@ -1,0 +1,6 @@
+# Issues come through the bug report form only; security problems go privately (SECURITY.md).
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem
+    url: https://github.com/ShezissSnake/myorbiter/security/advisories/new
+    about: Privately, through GitHub's private vulnerability reporting. Please don't open a public issue for it.

@@ -96,11 +96,16 @@ export function checkLine(outcome: CheckOutcome | null, lastCheck: number | null
   }
 }
 
-export const REPO_URL = "https://gitlab.com/sheziss-group/myorbiter";
+/** MyOrbiter's home: the repository on GitHub, with its releases and issues. */
+export const REPO_URL = "https://github.com/ShezissSnake/myorbiter";
+/** The mirror on GitLab, which keeps the releases GitLab made (builds 100 to 119). */
+export const GITLAB_URL = "https://gitlab.com/sheziss-group/myorbiter";
 
-/** Builds below this were made on GitHub, before the move (the pipeline's BUILD_OFFSET): no
- *  release of theirs is on GitLab. */
+/** Builds from 100 were made on GitLab (its pipeline's BUILD_OFFSET), builds from 120 on GitHub
+ *  again (the Release workflow's BUILD_OFFSET); the builds below 100, from before the move to
+ *  GitLab, have no release page of their own any more. */
 const FIRST_GITLAB_BUILD = 100;
+const FIRST_GITHUB_BUILD = 120;
 
 /** What the settings keep about updates. */
 export interface UpdateSettings {
@@ -148,11 +153,13 @@ export function buildNumber(version: string): number | null {
   return n > 0 ? n : null;
 }
 
-/** The release page of a build, or the list of releases for a local build or one made before the
- *  move to GitLab. */
+/** The release page of a build: on GitHub, or on GitLab for a build GitLab made; the list of
+ *  releases for a local build or one made before the move to GitLab. */
 export function releasePage(version: string): string {
   const n = buildNumber(version);
-  return n && n >= FIRST_GITLAB_BUILD ? `${REPO_URL}/-/releases/build-${n}` : `${REPO_URL}/-/releases`;
+  if (n && n >= FIRST_GITHUB_BUILD) return `${REPO_URL}/releases/tag/build-${n}`;
+  if (n && n >= FIRST_GITLAB_BUILD) return `${GITLAB_URL}/-/releases/build-${n}`;
+  return `${REPO_URL}/releases`;
 }
 
 /** Whether the notice for `version` shows: not when it (or something newer) was put off with Later. */
