@@ -142,12 +142,12 @@
   td { padding: var(--row-pad) .5rem; border-bottom: 1px solid var(--rule); }
   .right { text-align: right; }
   .session { cursor: pointer; }
-  .session:hover td, .session.open td { background: rgb(26 30 35 / 70%); }
+  .session:hover td, .session.open td { background: var(--raised); }
   .session:focus-visible { outline: 1px solid var(--gold); outline-offset: -1px; }
   .when { display: inline-flex; align-items: center; gap: .55rem; }
   .chev { color: var(--gold-dim); width: .8rem; }
   .ph { font-family: var(--face-mark); font-size: .98rem; color: var(--gold); }
-  .detail td { padding: .2rem .5rem .8rem 1.9rem; background: rgb(12 14 17 / 60%); }
+  .detail td { padding: .2rem .5rem .8rem 1.9rem; background: var(--well); }
   ol { list-style: none; margin: 0; padding: 0; display: grid; gap: .25rem; }
   li { display: grid; grid-template-columns: 3.4rem 5.2rem 1fr auto; gap: .7rem; align-items: center; padding: .3rem 0; border-bottom: 1px solid rgb(36 39 45 / 50%); }
   li:last-child { border-bottom: 0; }

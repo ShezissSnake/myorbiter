@@ -1107,7 +1107,7 @@
   :global(html[data-room~="lt1100"]) .fix { padding-left: 0; }
 
   .alert { border: 1px solid var(--oxblood); color: var(--oxblood); padding: .7rem 1rem; margin: var(--step) 0; font-size: .84rem; }
-  .panel { border: 1px solid var(--rule); background: rgb(20 23 27 / 70%); padding: 1.2rem 1.4rem; margin: var(--step) 0; display: grid; gap: .8rem; }
+  .panel { border: 1px solid var(--rule); background: var(--plate); padding: 1.2rem 1.4rem; margin: var(--step) 0; display: grid; gap: .8rem; }
   .signin h2 { font-size: 1.9rem; }
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
   .wide { min-width: 28rem; }
@@ -1150,7 +1150,7 @@
   /* The Shown switch's own box, for the shake when warframe.market refuses. */
   .shake { display: inline-block; }
 
-  .log { margin-top: var(--step); max-height: 9.5rem; overflow: auto; display: grid; gap: .3rem; padding: .7rem 1rem; border: 1px solid var(--rule); background: rgb(20 23 27 / 70%); }
+  .log { margin-top: var(--step); max-height: 9.5rem; overflow: auto; display: grid; gap: .3rem; padding: .7rem 1rem; border: 1px solid var(--rule); background: var(--plate); }
   .line { font-size: .82rem; color: var(--platinum-dim); }
   .line.ok { color: var(--platinum); }
   .line.warn { color: var(--oxblood); }
@@ -1181,8 +1181,9 @@
   .orders th.center { text-align: center; }
   .orders td { padding: var(--row-pad) .6rem; border-bottom: 1px solid var(--rule); vertical-align: middle; }
   .orders tbody tr:hover td { background: rgb(255 255 255 / 1.5%); }
-  .orders th:first-child, .orders td:first-child { padding-left: 0; }
-  .orders th:last-child, .orders td:last-child { padding-right: 0; }
+  /* The table is a plate (app.css): its first and last columns keep off the plate's edges. */
+  .orders th:first-child, .orders td:first-child { padding-left: .6rem; }
+  .orders th:last-child, .orders td:last-child { padding-right: .6rem; }
   .orders input[type="number"] { width: 4.6rem; padding: .35rem .45rem; text-align: right; }
   /* Less room: the "Will set" column goes first, its note under the price instead. Page area under
      950 px (App sets the flag, by the room pages actually have): a 1000 px window with the sidebar
@@ -1204,7 +1205,7 @@
   /* A narrow window: each listing a card. The item across the top, the rest in a row under it, each with its name. */
   :global(html[data-room~="lt760"]) table.orders thead { display: none; }
   :global(html[data-room~="lt760"]) table.orders, :global(html[data-room~="lt760"]) table.orders tbody { display: block; }
-  :global(html[data-room~="lt760"]) .orders tr.order { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto auto; grid-template-areas: "item item item item item item" "qty price comp auto shown acts"; column-gap: .6rem; row-gap: .45rem; align-items: end; padding: .7rem 0; border-bottom: 1px solid var(--rule); }
+  :global(html[data-room~="lt760"]) .orders tr.order { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto auto; grid-template-areas: "item item item item item item" "qty price comp auto shown acts"; column-gap: .6rem; row-gap: .45rem; align-items: end; padding: .7rem .6rem; border-bottom: 1px solid var(--rule); }
   :global(html[data-room~="lt760"]) .orders tr.order > td { display: block; border: 0; padding: 0 !important; }
   :global(html[data-room~="lt760"]) .orders tr.order > td:is(.willset, .floorcol) { display: none; }
   :global(html[data-room~="lt760"]) .orders tr.order > td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .25rem; font-family: var(--face-register); font-size: .66rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); text-align: left; white-space: nowrap; }
@@ -1223,8 +1224,8 @@
   :global(html[data-room~="lt1100"]) .orders input[type="number"] { width: 3.8rem; }
   /* The floor's "auto 10" has to fit whole, or it reads as a 1p floor. */
   :global(html[data-room~="lt1100"]) .orders :is(td, th) { padding-left: .4rem; padding-right: .4rem; }
-  :global(html[data-room~="lt1100"]) .orders :is(td, th):first-child { padding-left: 0; }
-  :global(html[data-room~="lt1100"]) .orders :is(td, th):last-child { padding-right: 0; }
+  :global(html[data-room~="lt1100"]) .orders :is(td, th):first-child { padding-left: .5rem; }
+  :global(html[data-room~="lt1100"]) .orders :is(td, th):last-child { padding-right: .5rem; }
   :global(html[data-room~="lt1100"]) .ladder { display: none; }
   :global(html[data-room~="lt1100"]) .acts { gap: .6rem; }
   /* A hidden listing reads faded; its switches and actions stay at full strength. Faded by colour
@@ -1249,6 +1250,6 @@
   .charted:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
   .charted.on { color: var(--gold); border-color: var(--gold-dim); }
   /* The chart sits in from the table's edges, which its first and last cells otherwise touch. */
-  .orders tr.chartrow > td, :global(html[data-room~="lt1100"]) .orders tr.chartrow > td { padding: .6rem 1rem 1.1rem; background: rgb(20 23 27 / 55%); }
+  .orders tr.chartrow > td, :global(html[data-room~="lt1100"]) .orders tr.chartrow > td { padding: .6rem 1rem 1.1rem; background: var(--raised); }
   .apart { display: inline-flex; margin-left: .55rem; padding-left: .55rem; border-left: 1px solid var(--rule); }
 </style>

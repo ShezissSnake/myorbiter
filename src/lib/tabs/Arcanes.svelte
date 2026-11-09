@@ -366,7 +366,7 @@
   .v-sell { color: var(--platinum); background: rgb(241 243 246 / 8%); }
   .v-dissolve { color: var(--verdigris); background: rgb(111 183 163 / 12%); }
   .why { font-size: .74rem; color: var(--platinum-deep); }
-  .vosfor { border: 1px solid var(--rule); background: rgb(20 23 27 / 70%); padding: 1rem 1.2rem; margin-bottom: var(--step); display: grid; gap: .7rem; }
+  .vosfor { border: 1px solid var(--rule); background: var(--plate); padding: 1rem 1.2rem; margin-bottom: var(--step); display: grid; gap: .7rem; }
   .vosfor header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
   .vosfor header .register { display: inline-flex; align-items: center; gap: .5rem; color: var(--platinum); }
   .vosfor p { margin: 0; }

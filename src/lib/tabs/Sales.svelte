@@ -322,7 +322,7 @@
   .grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(18rem, 1fr); gap: 1.6rem; margin: var(--step) 0 var(--course); }
   /* Page area under 950 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt950"]) .grid { grid-template-columns: 1fr; }
-  .chart, .top { border: 1px solid var(--rule); background: rgb(20 23 27 / 70%); padding: 1rem 1.2rem; }
+  .chart, .top { border: 1px solid var(--rule); background: var(--plate); padding: 1rem 1.2rem; }
   .head { display: flex; align-items: center; margin-bottom: .8rem; gap: 1rem; }
   .head .small { display: inline-flex; align-items: center; gap: .4rem; }
   .bars { display: flex; align-items: flex-end; gap: 3px; height: 9rem; }

@@ -339,7 +339,7 @@
   /* A squad is at most four: 2×2 or one row of four, never three and a stray. */
   .why { margin: 0 0 var(--step); }
   .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--rule); border-left: 1px solid var(--rule); margin-top: var(--step); }
-  .relic { border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 1rem 1.1rem 1.1rem; background: rgb(20 23 27 / 70%); }
+  .relic { border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 1rem 1.1rem 1.1rem; background: var(--plate); }
   .relic.era-wash { background: var(--era-bg); }
   /* Page area under 640 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt640"]) .cards { grid-template-columns: minmax(0, 1fr); }
@@ -373,11 +373,11 @@
   .nm.done { color: var(--platinum-deep); }
   .legend { margin-left: .8rem; font-family: var(--face-text); letter-spacing: normal; text-transform: none; font-size: .74rem; color: var(--platinum-deep); }
   .pool { font-variant-numeric: tabular-nums; }
-  .pool th { position: sticky; top: 0; z-index: 1; background: var(--slab); text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .72rem; letter-spacing: .15em; text-transform: uppercase; color: var(--platinum-deep); padding: .55rem .6rem; border-bottom: 1px solid var(--rule); }
+  .pool th { position: sticky; top: 0; z-index: 1; background: var(--plate); text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .72rem; letter-spacing: .15em; text-transform: uppercase; color: var(--platinum-deep); padding: .55rem .6rem; border-bottom: 1px solid var(--rule); }
   .pool th:first-child { padding-left: .5rem; }
   .pool th.right { text-align: right; }
   .pool td { padding: var(--row-pad) .6rem; border-bottom: 1px solid var(--rule); font-size: .84rem; }
-  .pool td:first-child { padding-left: 0; }
+  .pool td:first-child { padding-left: .5rem; }
   .pool tr.need .rw-name { color: var(--gold); font-weight: 600; }
   .right { text-align: right; }
   .why { color: var(--platinum-dim); }
@@ -469,8 +469,8 @@
   .pool .bc { width: 5.6rem; }
   .pool tr.yours td { background: var(--plate); }
   .history .time { width: 6rem; white-space: nowrap; font-family: var(--face-figures); font-size: .66rem; letter-spacing: .08em; color: var(--platinum-deep); }
-  .history tr.current td { background: var(--plate); }
-  .history th:first-child { padding-left: 0; }
+  .history tr.current td { background: var(--raised); }
+  .history th:first-child { padding-left: .5rem; }
   .got { display: inline-flex; align-items: center; gap: .4rem; margin-right: 1.1rem; }
   .rw { display: flex; align-items: center; }
   .rw-name { display: inline-flex; align-items: center; gap: .5rem; }
@@ -479,7 +479,7 @@
   .from span { white-space: nowrap; }
   /* Each relic in its era's colour, as on the fissure board. */
   .from .rl { display: inline-flex; align-items: center; gap: .25rem; color: color-mix(in srgb, var(--tint, var(--platinum-dim)) 80%, var(--platinum)); }
-  .empty { margin-top: var(--step); max-width: 46rem; padding: 1.4rem 1.6rem; border: 1px solid var(--rule); background: rgb(20 23 27 / 70%); }
+  .empty { margin-top: var(--step); max-width: 46rem; padding: 1.4rem 1.6rem; border: 1px solid var(--rule); background: var(--plate); }
   .empty.compact p:last-child { display: none; }
   /* Details off: the score's make-up and the weights go to hover (the Score keeps it in its title). */
   :global(html:not([data-details])) .pool .bc, :global(html:not([data-details])) .weights { display: none; }
