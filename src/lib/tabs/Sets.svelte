@@ -54,7 +54,7 @@
   /** Worth more to you traded to Baro than sold: why, or null. */
   const forDucats = (r: SetRow) => (r.prime ? ducatsWin(r.setPrice, r.ducats, advice) : null);
   const sellableOf = (r: SetRow) => (keepOne ? r.sellable : r.completeSets);
-  // Sets your loose parts wait for (Settings → Selling): worth more whole, every missing part still to be had.
+  // Sets your loose parts wait for (Sell spares): worth more whole, every missing part still to be had.
   const saveOn = $derived(saveForSets(sell, advice.platPerDucat, drops.recent));
   const saves = $derived.by(whileShown("sets", () => saveOn ? allSetSaves(model, mkt.index.byId.size ? mkt.index : null, saveOn) : new Map<string, SetSave>()));
   // A row can outlive its save for a moment while the view changes: an empty one stands in.
@@ -264,7 +264,7 @@
     {/snippet}
     {#snippet band()}
       {#if mode === "save"}
-      <Stat label="Sets saved for" note={saveOn ? "Their loose parts wait instead of being sold" : "Off in Settings → Selling"}><Count value={rows.length} /></Stat>
+      <Stat label="Sets saved for" note={saveOn ? "Their loose parts wait instead of being sold" : "Off on Sell spares"}><Count value={rows.length} /></Stat>
       <Stat label="More as sets" tone={savedPremium ? "gold" : "dim"} note="Over selling those parts one by one"><PTick v={savedPremium} /></Stat>
     {:else if mode === "sell"}
       <Stat label="Sets to sell" note={!keepOne ? "Every complete set, none kept back" : keptBack ? `${keptBack} more kept back to build and master` : "Nothing kept back to build"}><Count value={totalSets} /></Stat>
@@ -298,7 +298,7 @@
     min="21rem"
     count={countWords}
     clear={query.trim() ? () => (query = "") : null}
-    empty={mode === "sell" ? "No complete sets to sell right now." : mode === "save" ? (saveOn ? "No loose parts are waiting for a set." : "Saving parts for sets is off (Settings → Selling).") : "No sets one or two parts away."}
+    empty={mode === "sell" ? "No complete sets to sell right now." : mode === "save" ? (saveOn ? "No loose parts are waiting for a set." : "Saving parts for sets is off (Sell spares, Save prime parts for sets).") : "No sets one or two parts away."}
   />
 </div></div>
 

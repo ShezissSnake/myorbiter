@@ -201,7 +201,7 @@ export interface SetSave {
 }
 
 /**
- * Turned on by Settings → Selling ("Save prime parts for sets"). Your ducat rate, so a set Baro
+ * Turned on by Sell spares ("Save prime parts for sets"). Your ducat rate, so a set Baro
  * pays more for isn't waited on, and what you got of each part lately (core/drops.ts): a part you
  * keep getting can be waited for even when no relic drops it.
  */
@@ -297,7 +297,7 @@ export function setSaves(m: Model, opts: SaveForSets): Map<string, SetSave> {
   return out;
 }
 
-/** Every prime part you hold. With `save` (Settings → Selling), loose copies wait for a set worth more whole (setSaves). */
+/** Every prime part you hold. With `save` (Sell spares), loose copies wait for a set worth more whole (setSaves). */
 export const partRows = perModel(partRowsFresh, (save = null) => (save ? `${save.platPerDucat}|${idOf(save.drops)}` : "-"), (r: PartRow) => r.name);
 function partRowsFresh(m: Model, save: SaveForSets | null = null): PartRow[] {
   const rows: PartRow[] = [];

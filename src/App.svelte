@@ -1872,7 +1872,7 @@
     });
   });
   // Parts that turned up between inventory reads, from anything but a trade (core/drops.ts): what
-  // you keep getting counts as a way to finish a set (Settings → Selling, Save prime parts for sets).
+  // you keep getting counts as a way to finish a set (Sell spares, Save prime parts for sets).
   let dropsReadAt = 0;
   $effect(() => {
     const m = bgModel;

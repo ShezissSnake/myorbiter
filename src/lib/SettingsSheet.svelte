@@ -289,18 +289,12 @@
     </label>{/if}{/if}
   </section>
 
+  {#if !onConsole}
   <section>
     <h3 class="register">Selling</h3>
-    <Switch bind:on={settings.market.sellable.saveForSets} label="Save prime parts for sets">
-      A loose prime part waits for its set instead of being sold on its own when the set sells for clearly more than its parts one by one (at least 10% and 5p more, each part at its price or its ducats at your rate, whichever is more), and you can still get every part it's missing: from a relic you own, a relic that still drops, Varzia, or a part you've been getting lately (Stats, Parts you got). When you put your spares on sale, your listing for a part comes down if every copy you hold is waiting (one you also keep copies of to build stays as you listed it). Sets → Saving up shows what's waiting and what's left to get.
-    </Switch>
-    {#if !onConsole}
-    <Switch bind:on={settings.market.sellable.veiledRivens} label="Sell veiled rivens">
-      Off keeps every veiled riven to unveil yourself: never counted as spare on Inventory, and never put up by Sell spares (where it's the Veiled rivens line under Resources and more).
-    </Switch>
-    <p class="hint">Relics: which ones to sell, and how many of each to keep, is the Relics row on <button type="button" class="link" title="Sell spares, the Relics row" onclick={() => { open = false; ongo("spares?open=relics#cat-relics"); }}>Sell spares</button>. A relic counts as spare only when it sells for more than a crack is worth, and one that drops a part you still need is always kept.</p>
-    {/if}
+    <p class="hint">Selling rules are on <button type="button" class="link" title="Sell spares, at the foot: save prime parts for sets, sell veiled rivens, the minimum prices" onclick={() => { open = false; ongo("spares#minimums"); }}>Sell spares</button>.</p>
   </section>
+  {/if}
 
   <section>
     <h3 class="register">Builds</h3>

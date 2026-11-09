@@ -64,7 +64,7 @@ take from the Foundry recipes.
   so the set can be cracked again (not "sets that aren't vaulted").
 - **Ayatan: empty sculptures only.** Filled ones would need each sculpture's star slots, which the
   catalog doesn't have.
-- **Relics are their own row**, and that row is Settings → Selling's old relic switch.
+- **Relics are their own row**, and that row is the old relic switch of Settings → Selling.
 - **An unticked row's options are greyed out**, and its line says "Not sold".
 - **Stored beside the old switches.** Version 2 lives under `settings.market.spares`, and the old
   six switches under `settings.market.bulk` are rewritten from it on every save. Version 2 can't go
