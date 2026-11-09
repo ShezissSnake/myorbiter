@@ -5,9 +5,19 @@
 const open: HTMLElement[] = [];
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
+/**
+ * Whether Tab can land on `el`: it has a box, isn't `visibility: hidden` (a page kept in the DOM
+ * after it was left has boxes but no focus), and isn't inside something hidden or inert. The
+ * computed visibility is inherited, so a hidden ancestor hides its children too, unless one of
+ * them has put `visibility: visible` back, and that one can be focused.
+ */
+export function reachable(el: HTMLElement): boolean {
+  return el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden" && !el.closest("[hidden], [inert]");
+}
+
 /** What Tab can reach inside `root`, in order: the visible, enabled controls. */
 export function focusables(root: HTMLElement): HTMLElement[] {
-  return [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.getClientRects().length > 0);
+  return [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(reachable);
 }
 
 export interface TrapOptions {
