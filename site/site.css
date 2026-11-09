@@ -13,10 +13,10 @@
 
 :root {
   color-scheme: dark;
-  --slab: #0f1114;
-  --plate: #14171b;
-  --raised: #1a1e23;
-  --rule: #272c33;
+  --slab: #0b0d10;
+  --plate: #121418;
+  --raised: #181b20;
+  --rule: #242930;
   --rule-bright: #363c45;
   --rule-control: #5d6671;
   --platinum: #f1f3f6;
@@ -178,12 +178,14 @@ main li b, b.pg { color: var(--platinum); font-weight: 500; }
 b.pg { margin-right: .35rem; }
 /* A step written out in several parts (the Guide's own nested list). */
 main ul.sub { margin-top: .3rem; }
-.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr)); gap: 0 2rem; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); gap: 0 2rem; }
 .gi, .rw img, .pi img { display: inline-block; vertical-align: -2px; }
 .rw { white-space: nowrap; }
 .pi { display: inline-block; margin-right: .2rem; color: var(--platinum-deep); vertical-align: -1px; }
 svg { vertical-align: -2px; }
 kbd, code { font-family: var(--face-figures); font-size: .8em; }
+/* A long path (the logs folder) breaks where it must on a phone rather than run past the page. */
+code { overflow-wrap: anywhere; }
 kbd { border: 1px solid var(--rule-bright); padding: 0 .3rem; }
 
 /* ---- What's new */
