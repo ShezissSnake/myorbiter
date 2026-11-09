@@ -356,7 +356,7 @@
   ol li { counter-increment: s; display: grid; grid-template-columns: 1.6rem 1fr; column-gap: .2rem; font-size: .86rem; color: var(--platinum-dim); line-height: 1.5; }
   ol li::before { content: counter(s); grid-row: span 2; font-family: var(--face-mark); font-weight: 700; font-size: 1.2rem; color: var(--gold); line-height: 1.1; }
   ol .link { justify-self: start; font-size: .64rem; }
-  .trust { margin-top: var(--course); padding: 1.1rem 1.3rem; border: 1px solid var(--gold-dim); background: linear-gradient(180deg, #1a1810, var(--plate) 60%); }
+  .trust { margin-top: var(--course); padding: 1.1rem 1.3rem; border: 1px solid var(--gold-dim); background: linear-gradient(180deg, color-mix(in srgb, var(--gold) 6%, var(--plate)), var(--plate) 60%); }
   .trust ul { grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); column-gap: 2rem; }
   .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: var(--course); margin-top: var(--course); }
   h3 { margin: 0 0 .7rem; color: var(--platinum); }
@@ -372,7 +372,7 @@
   .sub li { display: list-item; list-style: square; counter-increment: none; grid-template-columns: none; }
   .sub li::before { content: none; }
   /* The marks drawn as they are on the pages. */
-  .rwd { position: relative; display: inline-block; width: 18px; height: 18px; border-radius: 3px; background: linear-gradient(180deg, #1d2026, var(--well)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent), inset 0 -3px 0 var(--c); margin-right: .15rem; }
+  .rwd { position: relative; display: inline-block; width: 18px; height: 18px; border-radius: 3px; background: linear-gradient(180deg, var(--raised), var(--well)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent), inset 0 -3px 0 var(--c); margin-right: .15rem; }
   .rwd.r { --c: var(--rarity-rare); }
   .rwd.u { --c: var(--rarity-uncommon); }
   .rwd.c { --c: var(--rarity-common); }

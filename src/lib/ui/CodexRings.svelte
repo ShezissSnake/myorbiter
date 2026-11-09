@@ -111,7 +111,7 @@
   .dial svg { position: absolute; inset: 0; transform: rotate(-90deg); }
   circle { fill: none; stroke-width: 4; }
   /* The track darker than the slab's rules, the arc bright: 87% and 69% read apart. */
-  .track { stroke: #1c1f24; }
+  .track { stroke: var(--raised); }
   .arc { stroke: var(--sec); stroke-linecap: butt; opacity: .82; transition: stroke-dasharray .9s cubic-bezier(.2, .7, .2, 1); }
   .ring:hover .arc, .ring.lit .arc, .full .arc { opacity: 1; }
   .full .arc { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--sec) 60%, transparent)); }

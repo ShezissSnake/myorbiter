@@ -125,13 +125,13 @@
   .notch { position: absolute; top: 0; right: 0; width: 22px; height: 22px; cursor: help; }
   .notch::before { content: ""; position: absolute; top: 0; right: 0; width: 13px; height: 13px; background: var(--gold); clip-path: polygon(0 0, 100% 0, 100% 100%); }
   /* A relic's era: its colour washes in from the top (the notch still marks one to look at). */
-  .card.tinted { background: linear-gradient(180deg, color-mix(in srgb, var(--tint) 11%, #14161a), var(--plate) 60%); border-color: color-mix(in srgb, var(--tint) 22%, var(--rule)); }
+  .card.tinted { background: linear-gradient(180deg, color-mix(in srgb, var(--tint) 11%, var(--plate)), var(--plate) 60%); border-color: color-mix(in srgb, var(--tint) 22%, var(--rule)); }
   .card.done { opacity: .78; }
   .card.done:hover { opacity: 1; }
   header { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; min-width: 0; }
   .t { min-width: 0; display: grid; gap: .25rem; }
   h3 { font-size: 1.12rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1; padding-top: .1rem; }
-  .t .register { font-size: .6rem; }
+  .t .register { font-size: 11px; }
   /* 28 px to click, though the star itself stays small. */
   .star { display: grid; place-items: center; width: 28px; height: 28px; margin: -6px -6px 0 0; padding: 0; border: 0; background: none; line-height: 0; color: var(--platinum-deep); }
   .star:active:not(:disabled) { background: none; }

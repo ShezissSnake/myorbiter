@@ -177,7 +177,7 @@
 <style>
   .hc {
     position: fixed; z-index: 60; width: 23rem; max-width: calc(100vw - 16px); pointer-events: none;
-    background: linear-gradient(180deg, #1c1e24, #14161a); border: 1px solid var(--rule-bright);
+    background: linear-gradient(180deg, var(--raised), var(--plate)); border: 1px solid var(--rule-bright);
     box-shadow: 0 1.2rem 3rem rgb(0 0 0 / 60%), inset 0 2px 0 var(--gold-dim);
     padding: .75rem .85rem .7rem; display: grid; gap: .55rem; font-size: .8rem;
     animation: pop .12s ease-out;

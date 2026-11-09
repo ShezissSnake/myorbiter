@@ -387,7 +387,7 @@
   .tier { margin-left: .5rem; padding: .1rem .45rem; border: 1px solid var(--rule-bright); font-size: .58rem; color: var(--platinum); }
   .tier.t-now { color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 50%, transparent); }
   .tier.t-farm { color: var(--gold); border-color: var(--gold-dim); }
-  .tier.t-hard, .tier.t-parts { color: #e0a49a; border-color: color-mix(in srgb, var(--oxblood) 70%, transparent); }
+  .tier.t-hard, .tier.t-parts { color: var(--oxblood); border-color: color-mix(in srgb, var(--oxblood) 70%, transparent); }
   .steps { list-style: none; margin: 0 0 .8rem; padding: 0; display: grid; gap: .45rem; }
   .steps li { display: flex; align-items: center; gap: .7rem; }
   .steps b { color: var(--platinum); }

@@ -134,7 +134,7 @@
      1100 px of room "Crack" and the refinement go), and a share of a pixel would end its name in
      an ellipsis. The "for …" chip gives way instead. */
   .best { flex: none; display: inline-flex; align-items: baseline; gap: .3rem; white-space: nowrap; }
-  .moreb { all: unset; box-sizing: border-box; flex: none; min-width: 1.6rem; padding: .05rem .3rem; text-align: center; font-size: .7rem; color: #8a919b; border: 1px solid var(--rule-control); cursor: pointer; }
+  .moreb { all: unset; box-sizing: border-box; flex: none; min-width: 1.6rem; padding: .05rem .3rem; text-align: center; font-size: .7rem; color: var(--platinum-deep); border: 1px solid var(--rule-control); cursor: pointer; }
   .moreb:hover, .moreb[aria-expanded="true"] { color: var(--platinum); border-color: var(--gold-dim); }
   .moreb:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   .also { list-style: none; margin: 0 0 .5rem; padding: .4rem .5rem; display: grid; gap: .25rem; background: rgb(0 0 0 / 18%); }
@@ -151,7 +151,7 @@
   .node, .foe { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .left { text-align: right; font-variant-numeric: tabular-nums; color: var(--platinum-dim); white-space: nowrap; }
   /* Closing soon: fainter, but still 4.5:1 on the lightest era's wash (--platinum-deep isn't, on Neo's). */
-  .left.soon { color: #8a919b; }
+  .left.soon { color: var(--platinum-deep); }
   li.hit .mt { color: var(--gold); }
   .mtn { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .mg { display: inline-flex; color: color-mix(in srgb, var(--tint) 65%, var(--platinum-dim)); }

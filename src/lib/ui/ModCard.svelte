@@ -72,7 +72,7 @@
     width: var(--w); flex: none; display: grid; grid-template-rows: auto 1fr; position: relative;
     /* The rarity's glow inside the frame is a gradient, not a blurred shadow: a blurred inset and
        outer shadow on every card were redrawn with each scrolled frame of a long grid. */
-    background: radial-gradient(ellipse 75% 70% at 50% 50%, transparent 70%, var(--glow)), linear-gradient(180deg, #1b1e24, var(--slab));
+    background: radial-gradient(ellipse 75% 70% at 50% 50%, transparent 70%, var(--glow)), linear-gradient(180deg, var(--raised), var(--slab));
     border: 1px solid var(--edge); border-radius: 3px 3px 10px 10px;
     box-shadow: 0 0 0 1px rgb(0 0 0 / 60%);
     overflow: hidden; font-family: var(--face-text);
@@ -83,12 +83,12 @@
   .t-rare { --edge: var(--rarity-rare); --glow: color-mix(in srgb, var(--edge) 24%, transparent); }
   .t-legendary { --edge: var(--rarity-legendary); --glow: rgb(185 170 255 / 30%); }
   .t-riven { --edge: var(--rarity-riven); --glow: color-mix(in srgb, var(--edge) 30%, transparent); }
-  .art { position: relative; height: calc(var(--w) * .72); display: grid; place-items: center; overflow: hidden; background: radial-gradient(circle at 50% 35%, #262a32, #0e1013 80%); }
+  .art { position: relative; height: calc(var(--w) * .72); display: grid; place-items: center; overflow: hidden; background: radial-gradient(circle at 50% 35%, var(--rule), var(--well) 80%); }
   .in { position: absolute; inset: 0; display: grid; place-items: center; }
   .in > img { width: 100%; height: 100%; object-fit: cover; }
-  .art::after { content: ""; position: absolute; inset: auto 0 0 0; height: 40%; background: linear-gradient(transparent, #121418); }
+  .art::after { content: ""; position: absolute; inset: auto 0 0 0; height: 40%; background: linear-gradient(transparent, var(--plate)); }
   .none { width: 22%; height: 22%; border: 1px solid var(--edge); transform: rotate(45deg); opacity: .5; }
-  .drain { position: absolute; top: 3px; right: 3px; z-index: 1; display: inline-flex; align-items: center; gap: 2px; padding: 1px 4px; background: rgb(8 9 11 / 75%); border: 1px solid color-mix(in srgb, var(--edge) 55%, transparent); border-radius: 2px; font-size: calc(var(--w) * .095); font-weight: 700; color: var(--edge); line-height: 1.1; }
+  .drain { position: absolute; top: 3px; right: 3px; z-index: 1; display: inline-flex; align-items: center; gap: 2px; padding: 1px 4px; background: rgb(11 13 16 / 75%); border: 1px solid color-mix(in srgb, var(--edge) 55%, transparent); border-radius: 2px; font-size: calc(var(--w) * .095); font-weight: 700; color: var(--edge); line-height: 1.1; }
   .drain img { width: calc(var(--w) * .1); height: calc(var(--w) * .1); filter: brightness(1.6); }
   .plate { display: grid; justify-items: center; align-content: start; gap: calc(var(--w) * .03); padding: calc(var(--w) * .04) calc(var(--w) * .05) calc(var(--w) * .06); text-align: center; border-top: 1px solid color-mix(in srgb, var(--edge) 70%, transparent); }
   .nm { color: var(--edge); font-family: var(--face-mark); font-weight: 700; font-size: calc(var(--w) * .1); line-height: 1.05; text-transform: uppercase; letter-spacing: .02em; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -104,7 +104,7 @@
   .arcane { border-radius: 0; border: 0; box-shadow: none; background: none; overflow: visible; }
   .arcane .art { height: calc(var(--w) * .82); width: calc(var(--w) * .82); justify-self: center; clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%); background: var(--edge); }
   .arcane .art::after { display: none; }
-  .arcane .in { inset: 2px; clip-path: inherit; background: radial-gradient(circle, color-mix(in srgb, var(--edge) 22%, #15171b), #0d0f12 75%); }
+  .arcane .in { inset: 2px; clip-path: inherit; background: radial-gradient(circle, color-mix(in srgb, var(--edge) 22%, var(--plate)), var(--well) 75%); }
   .arcane .in > img { width: 78%; height: 78%; object-fit: contain; }
   .arcane .plate { border-top: 0; }
 </style>

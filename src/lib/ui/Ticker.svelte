@@ -100,7 +100,7 @@
      page is narrow, rather than run off its edge. */
   .tape {
     display: flex; align-items: stretch;
-    background: #0b0e12; border-top: 1px solid var(--rule-bright); border-bottom: 1px solid var(--rule-bright);
+    background: var(--plate); border-top: 1px solid var(--rule-bright); border-bottom: 1px solid var(--rule-bright);
     font-variant-numeric: tabular-nums;
   }
   /* Each figure carries its rule on the left and above, pulled out by a pixel: the ones at the start

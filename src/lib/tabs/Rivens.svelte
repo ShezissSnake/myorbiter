@@ -838,7 +838,7 @@
   .selling .hint { flex-basis: 100%; }
   .err { color: var(--oxblood); flex-basis: 100%; }
   .note { margin: var(--step) 0; }
-  .riven { display: flex; flex-direction: column; border: 1px solid var(--rule); background: linear-gradient(180deg, #17141d, var(--plate) 45%); clip-path: var(--cut); padding: .8rem .9rem .6rem; gap: .6rem; }
+  .riven { display: flex; flex-direction: column; border: 1px solid var(--rule); background: linear-gradient(180deg, color-mix(in srgb, var(--rarity-riven) 6%, var(--plate)), var(--plate) 45%); clip-path: var(--cut); padding: .8rem .9rem .6rem; gap: .6rem; }
   .explain { max-width: 75ch; }
   .indetail { max-width: 36rem; padding: .4rem 0; }
   /* The grading key is for Details; the grades themselves carry it in their tooltips. */

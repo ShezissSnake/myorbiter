@@ -331,7 +331,7 @@
   .fz {
     position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: max-content; min-width: 100%; max-width: 34rem; pointer-events: none;
     display: none; gap: .3rem; padding: .7rem .8rem .6rem; font-size: .8rem;
-    background: linear-gradient(180deg, #1c1e24, #14161a); border: 1px solid var(--rule-bright);
+    background: linear-gradient(180deg, var(--raised), var(--plate)); border: 1px solid var(--rule-bright);
     box-shadow: 0 1.2rem 3rem rgb(0 0 0 / 60%), inset 0 2px 0 var(--tint, var(--gold-dim));
   }
   /* Keyboard focus shows it too, but not the focus a click leaves behind. */
@@ -380,7 +380,7 @@
      the rest of the card, on every scrolled frame. */
   .rwc-pic {
     width: 100%; height: 100%; display: inline-flex; align-items: center; justify-content: center; overflow: hidden;
-    background: linear-gradient(180deg, #1d2026, var(--well));
+    background: linear-gradient(180deg, var(--raised), var(--well));
     border: 1px solid color-mix(in srgb, var(--rar) 45%, transparent); border-bottom: 3px solid var(--rar);
   }
   .rwc img { width: 84%; height: 84%; object-fit: contain; }
