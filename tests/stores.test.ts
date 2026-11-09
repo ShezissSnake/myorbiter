@@ -681,13 +681,32 @@ test("a riven put up that timed out but was made isn't reported as failed, even 
   };
   await rivens.sell({ type: "riven", weapon_url_name: "braton", name: "visi-critatox" } as never, 50, 50);
   assert.deepEqual(rivens.mine.map((a) => a.id), ["new"]);
-  // One that wasn't made is an error, to send again.
+  // One that wasn't made is an error, to send again (another riven for the same weapon).
   made = false;
   market.myAuctions = async () => [auction("new")] as never;
   market.createAuction = async () => {
     throw new Error("Couldn't reach warframe.market (timed out)");
   };
-  await assert.rejects(rivens.sell({ type: "riven", weapon_url_name: "braton", name: "visi-critatox" } as never, 50, 50), /timed out/);
+  await assert.rejects(rivens.sell({ type: "riven", weapon_url_name: "braton", name: "acri-tron" } as never, 50, 50), /timed out/);
+  rivens.mine = [];
+  rivens.mineAt = null;
+});
+
+test("a riven already up (put up on the site meanwhile) isn't put up a second time", async () => {
+  const auction = (id: string, name: string, closed = false) => ({ id, closed, item: { type: "riven", weapon_url_name: "braton", name }, buyout_price: 50, starting_price: 50 });
+  let sent = 0;
+  market.createAuction = async () => void sent++;
+  // The page's list is old and doesn't have it; the read before putting it up does.
+  rivens.mine = [];
+  rivens.mineAt = Date.now() - 4 * 60_000;
+  market.myAuctions = async () => [auction("site", "visi-critatox")] as never;
+  await assert.rejects(rivens.sell({ type: "riven", weapon_url_name: "braton", name: "visi-critatox" } as never, 50, 50), /already up/);
+  assert.equal(sent, 0, "nothing sent");
+  // A closed one, or another riven for the same weapon, doesn't stop it.
+  market.myAuctions = async () => [auction("old", "visi-critatox", true), auction("other", "acri-tron")] as never;
+  rivens.mineAt = null;
+  await rivens.sell({ type: "riven", weapon_url_name: "braton", name: "visi-critatox" } as never, 50, 50);
+  assert.equal(sent, 1);
   rivens.mine = [];
   rivens.mineAt = null;
 });

@@ -198,6 +198,9 @@ class Rivens {
     // told from one that wasn't, and sending again would put the riven up twice; with an old list,
     // one put up meanwhile on the site could be taken for this one.
     if (this.mineAt == null || Date.now() - this.mineAt > SELL_FRESH_MS) await this.loadMine();
+    // Already up (put up on the site since the page last read your auctions): not a second time.
+    // The same match as the page's "up for sale" mark (core/rivens.ts, auctionOf).
+    if (this.mine.some((a) => !a.closed && a.weapon === item.weapon_url_name && a.name === item.name)) throw new Error("This riven is already up on warframe.market: reprice or close that auction instead");
     const before = this.mineAt != null ? new Set(this.mine.map((a) => a.id)) : null;
     try {
       await market.createAuction({ starting_price: starting, buyout_price: buyout, minimal_reputation: minRep, private: false, note, item });
