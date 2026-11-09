@@ -17,7 +17,7 @@
   import { drops } from "../drops.svelte";
   import { sparesSummary } from "../sparesSummary.svelte";
   import { takeIntent } from "../intent.svelte";
-  import { whenIdle } from "../pane.svelte";
+  import { whenIdle, whileShown } from "../pane.svelte";
   import { UndoSlots } from "../undo.svelte";
   import { Job, JobError } from "../job.svelte";
   import PageHead from "../ui/PageHead.svelte";
@@ -153,7 +153,7 @@
   const kinds = (t: BulkAction["type"]) => changes.filter((a) => a.type === t).length;
   const gain = $derived(changes.reduce((n, a) => n + (a.type === "create" ? a.quantity * a.platinum : a.type === "update" ? a.quantity * a.platinum - a.order.quantity * a.order.platinum : a.type === "remove" ? -a.order.quantity * a.order.platinum : 0), 0));
   /** The seller's trading tax for selling every copy in the plan's new and resized listings: 500 credits a platinum. */
-  const tax = $derived(planTax(model, sendable));
+  const tax = $derived.by(whileShown("spares", () => planTax(model, sendable)));
 
   // ------------------------------------------------------------ the review list
 
@@ -212,13 +212,13 @@
       state: ap ? (ap.sent.has(a) ? "sent" : ap.failed.has(a) ? "refused" : ap.now === a ? "now" : undefined) : undefined,
     };
   }
-  const rows = $derived.by(() => {
+  const rows = $derived.by(whileShown("spares", () => {
     const b = mkt.bulk;
     if (!b) return [];
     const going = b.actions.filter((a) => a.type !== "skip" && !gone.has(a)).sort((x, y) => APPLY_ORDER[x.type] - APPLY_ORDER[y.type]);
     const left = b.actions.filter((a) => a.type === "skip").sort((x, y) => LEFT_ORDER(x.rule) - LEFT_ORDER(y.rule));
     return [...going, ...left].map((a) => rowOf(a, b.skipped));
-  });
+  }));
   function pick(r: ReviewRow, choice: "skip" | "never" | "back" | "sellAgain") {
     if (choice === "skip") mkt.skipLine(r.key, true);
     else if (choice === "back") mkt.skipLine(r.key, false);

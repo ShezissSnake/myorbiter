@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { whileShown } from "../pane.svelte";
   import { links, openUrl } from "../links.svelte";
   import Opening from "../ui/Opening.svelte";
   import Fold from "../ui/Fold.svelte";
@@ -89,7 +90,7 @@
   let how = $state<"password" | "token">("password");
   let search = $state("");
 
-  const orders = $derived([...mkt.orders].sort((a, b) => (mkt.item(a.itemId)?.name ?? "").localeCompare(mkt.item(b.itemId)?.name ?? "")));
+  const orders = $derived.by(whileShown("market", () => [...mkt.orders].sort((a, b) => (mkt.item(a.itemId)?.name ?? "").localeCompare(mkt.item(b.itemId)?.name ?? ""))));
   // The table's order: by name until you click a column (kept). Ties stay in name order.
   const sortBy = $derived(settings.ordersSort ?? { key: "name" as OrderSortKey, desc: false });
   function sortOn(key: OrderSortKey) {
@@ -109,7 +110,10 @@
   const sortedOrders = $derived.by(() => {
     const dir = sortBy.desc ? -1 : 1;
     // A ghost (sold out or removed, still saying so) keeps its place among the rest until it leaves.
-    return (ghosts.length ? [...orders, ...ghosts] : orders)
+    // While the page is hidden `orders` is the list it was last drawn with, which can still hold a
+    // listing that has since become a ghost: it's there once.
+    const gone = ghosts.filter((g) => !orders.some((o) => o.id === g.id));
+    return (gone.length ? [...orders, ...gone] : orders)
       .map((o, i) => ({ o, i, v: sortValue(o) }))
       .sort((a, b) => {
         // Nothing to sort by (not checked yet) goes last either way.
@@ -120,7 +124,7 @@
       .map((x) => x.o);
   });
   const listed = $derived(orders.filter((o) => o.visible).reduce((n, o) => n + o.platinum * o.quantity, 0));
-  const plans = $derived(new Map(orders.map((o) => [o.id, mkt.planFor(model, settings, o)])));
+  const plans = $derived.by(whileShown("market", () => new Map(orders.map((o) => [o.id, mkt.planFor(model, settings, o)]))));
   /** A gone listing's last plan, so a ghost row sorts where the listing was. */
   const keptPlans = new Map<string, Plan | null | undefined>();
   const planOf = (o: MyOrder) => plans.get(o.id) ?? keptPlans.get(o.id);
@@ -132,20 +136,20 @@
   const passWait = $derived(mkt.passDelay(settings.every * 60_000));
   const nextPass = $derived((settings.auto || settings.autoCheck) && mkt.lastPass ? new Date(mkt.lastPass + passWait) : null);
   /** Oldest order book behind what's on screen, so you know how fresh "Market price" is. */
-  const checkedAt = $derived.by(() => {
+  const checkedAt = $derived.by(whileShown("market", () => {
     const times = orders.map((o) => mkt.books[mkt.item(o.itemId)?.slug ?? ""]?.at).filter((t): t is number => t != null);
     return times.length ? Math.min(...times) : null;
-  });
+  }));
 
   // New listing: anything tradable you hold, searchable. On a console: anything tradable.
-  const sellable = $derived.by(() => {
+  const sellable = $derived.by(whileShown("market", () => {
     if (!mkt.items.length) return [];
     if (console) return mkt.items.map((it) => ({ it, held: 0 }));
     return mkt.items
       .map((it) => ({ it, held: (holdings(model, it) ?? []).reduce((n, h) => n + h.count, 0) }))
       .filter((x) => x.held > 0)
       .sort((a, b) => a.it.name.localeCompare(b.it.name));
-  });
+  }));
   // Names that start with what you typed first, then the ones you hold most of; with what you can spare.
   const matches = $derived.by(() => {
     const q = search.trim().toLowerCase();
@@ -204,7 +208,7 @@
   }
   // Counted like Home and the notices: the visible ones first (a buyer can be let down), the hidden
   // ones beside them (nobody can buy those, but their rows still ask "Sold?").
-  const over = $derived(overListed(orders, stock));
+  const over = $derived.by(whileShown("market", () => overListed(orders, stock)));
   const shortShown = $derived(over.shown.length);
   const shortHidden = $derived(over.hidden.length);
 
@@ -257,7 +261,7 @@
     else mkt.editing.delete(o.id);
   }
   // Your shown listings as trade chat lines (core/market.ts, wtsLines); each press copies the next.
-  const wts = $derived(wtsLines(mkt.orders.filter((o) => o.visible).map((o) => ({ name: mkt.item(o.itemId)?.name ?? o.itemId, rank: o.rank, platinum: o.platinum }))));
+  const wts = $derived.by(whileShown("market", () => wtsLines(mkt.orders.filter((o) => o.visible).map((o) => ({ name: mkt.item(o.itemId)?.name ?? o.itemId, rank: o.rank, platinum: o.platinum })))));
   let wtsNext = $state(0);
   const wtsAt = $derived(wts.length ? wtsNext % wts.length : 0);
   function revert(o: MyOrder) {

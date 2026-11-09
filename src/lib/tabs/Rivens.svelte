@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { whileShown } from "../pane.svelte";
   import { links, openUrl } from "../links.svelte";
   import { untrack } from "svelte";
   // Your rivens, read from the game: each stat as the game shows it, how good each roll is, and
@@ -63,14 +64,14 @@
       })();
     }
   });
-  const cycles = $derived.by(() => {
+  const cycles = $derived.by(whileShown("rivens", () => {
     const out: Record<string, RivenChange> = {};
     for (const raw of settings.game.rivens ?? []) {
       const c = lastCycle(model, tables, raw, settings.game.rivenHistory ?? {});
       if (c) out[raw.id] = c;
     }
     return out;
-  });
+  }));
   let sort = $state({ key: "grade", desc: true });
   // Filters: the riven's kind (Rifle, Melee…), spliced ones only, and a weapon or name.
   let kind = $state("all");
@@ -138,14 +139,14 @@
     void rivens.loadModel();
   });
   const estimateFor = (r: Riven, any: RivenAuction[] | undefined) => estimateRiven(rivens.model, meta, rivens.trades, r, any);
-  const estimates = $derived.by(() => {
+  const estimates = $derived.by(whileShown("rivens", () => {
     const out: Record<string, Estimate> = {};
     for (const r of mine) {
       const e = estimateFor(r, checks[r.id]?.any);
       if (e) out[r.id] = e;
     }
     return out;
-  });
+  }));
   const estimateOf = (r: Riven) => estimates[r.id]?.mid ?? null;
   const factorLabel = (r: Riven, f: Estimate["factors"][number]) => {
     const s = r.stats.find((x) => meta && attributeSlug(meta, x.tag) === f.slug);

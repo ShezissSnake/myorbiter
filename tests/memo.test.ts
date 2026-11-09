@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildModel, type Model } from "../src/lib/core/model";
-import { idOf, perModel } from "../src/lib/core/memo";
+import { idOf, keepRows, perModel, sameData } from "../src/lib/core/memo";
 import { arcaneRows, inventoryRows, masteryRows, modRows, partRows, relicRows, saveForSets, setRows } from "../src/lib/core/views";
 import { damagedPartNeeds, defaultSellChoices, gearSetRows, needsByUnique, partsStillNeededFrom, relicsYouNeed, spareRows } from "../src/lib/core/spares";
 import { describe } from "../src/lib/core/describe";
@@ -66,30 +66,82 @@ const views: [string, (m: Model) => unknown][] = [
   ["partsStillNeededFrom", (m) => partsStillNeededFrom(m, "Jordas Golem")],
 ];
 
+/** The lists whose rows are kept from one model to the next while they hold the same (perModel's rowKey). */
+const kept = new Set(["setRows", "partRows", "partRows saving", "arcaneRows", "modRows", "relicRows", "relicRows all at a rate", "inventoryRows", "spareRows", "masteryRows"]);
+
 test("the rows are the same as worked out fresh, and the same rows for the same model and arguments", () => {
   const m = buildModel(bundle());
   for (const [name, f] of views) {
     const first = f(m);
     assert.equal(f(m), first, `${name}: asked again, the same rows`);
     const fresh = f(buildModel(bundle()));
-    assert.notEqual(fresh, first, `${name}: another model has its own`);
+    // A model of the same data: a list of kept rows is the list handed out last, any other its own.
+    if (kept.has(name)) assert.equal(fresh, first, `${name}: the same data, the same list`);
+    else assert.notEqual(fresh, first, `${name}: another model has its own`);
     assert.deepEqual(fresh, first, `${name}: and they're the same rows`);
   }
 });
 
+test("a new read keeps the rows that didn't change and only those", () => {
+  const before = inventoryRows(buildModel(bundle()));
+  const b = bundle();
+  b.inventory = b.inventory.map((r) => (r.name === "Serration" ? { ...r, quantity: 5 } : r));
+  const after = inventoryRows(buildModel(b));
+  assert.notEqual(after, before, "a row changed: a new list");
+  for (const r of after) {
+    const old = before.find((x) => x.key === r.key)!;
+    if (r.name === "Serration") {
+      assert.notEqual(r, old, "the changed row is new");
+      assert.equal(r.quantity, 5);
+    } else assert.equal(r, old, `${r.name}: kept`);
+  }
+  assert.equal(after.length, before.length);
+});
+
+test("keepRows and sameData", () => {
+  const a = [{ k: "x", n: 1, sub: [{ v: 1 }] }, { k: "y", n: 2, sub: [] }];
+  const same = [{ k: "x", n: 1, sub: [{ v: 1 }] }, { k: "y", n: 2, sub: [] }];
+  assert.equal(keepRows(a, same, (r) => r.k), a, "every row the same, in order: the old list");
+  const moved = [same[1], same[0]];
+  const out = keepRows(a, moved, (r) => r.k);
+  assert.notEqual(out, a, "reordered: a new list");
+  assert.equal(out[0], a[1]);
+  assert.equal(out[1], a[0]);
+  const changed = keepRows(a, [{ k: "x", n: 1, sub: [{ v: 2 }] }, same[1]], (r) => r.k);
+  assert.notEqual(changed[0], a[0], "a nested change counts");
+  assert.equal(changed[1], a[1]);
+  assert.equal(sameData({ a: 1, b: undefined }, { a: 1 }), false, "a key the other hasn't got");
+  assert.equal(sameData(new Map([[1, 1]]), new Map([[1, 1]])), false, "a Map only as itself");
+  assert.equal(sameData([NaN], [NaN]), true);
+});
+
 test("different arguments get their own rows", () => {
   const m = buildModel(bundle());
-  assert.notEqual(relicRows(m, { platPerDucat: 0.05 }), relicRows(m, { platPerDucat: 0.2 }));
-  assert.notEqual(relicRows(m), relicRows(m, { includeUnowned: true }));
+  // Lists whose rows are kept (perModel's rowKey) may hand out the same list for other arguments
+  // when it holds the same: worked out for each all the same, they match a fresh model's.
+  const fresh = () => buildModel(bundle());
+  for (const rate of [0.05, 0.2]) assert.deepEqual(relicRows(m, { platPerDucat: rate }), relicRows(fresh(), { platPerDucat: rate }));
+  assert.deepEqual(relicRows(m, { includeUnowned: true }), relicRows(fresh(), { includeUnowned: true }));
   assert.equal(relicRows(m), relicRows(m, {}), "no options and empty options are the same");
-  assert.notEqual(spareRows(m, null, defaultSellChoices(), 0.1, 1), spareRows(m, null, defaultSellChoices(), 0.1, 4));
+  for (const squad of [1, 4]) assert.deepEqual(spareRows(m, null, defaultSellChoices(), 0.1, squad), spareRows(fresh(), null, defaultSellChoices(), 0.1, squad));
   assert.notEqual(partsStillNeededFrom(m, "Jordas Golem"), partsStillNeededFrom(m, "Lephantis"), "each mission its own");
   assert.equal(partsStillNeededFrom(m, "Lephantis"), partsStillNeededFrom(m, "Lephantis"));
-  assert.notEqual(spareRows(m, null, { ...defaultSellChoices(), relicsWorthSelling: false }), spareRows(m, null, defaultSellChoices()));
-  assert.notEqual(spareRows(m, null, defaultSellChoices(), 0, 1, new Map([["x", 1]])), spareRows(m, null, defaultSellChoices(), 0, 1, new Map([["x", 1]])), "other drops: worked out again");
-  assert.notEqual(partRows(m, saveForSets(defaultSellChoices(), 0.05)), partRows(m, saveForSets(defaultSellChoices(), 0.2)));
-  // Worked out at each, they match what a model nobody has asked yet gives.
-  for (const rate of [0.05, 0.2]) assert.deepEqual(relicRows(m, { platPerDucat: rate }), relicRows(buildModel(bundle()), { platPerDucat: rate }));
+  assert.notDeepEqual(spareRows(m, null, { ...defaultSellChoices(), relicsWorthSelling: false }), spareRows(m, null, defaultSellChoices()));
+  for (const rate of [0.05, 0.2]) assert.deepEqual(partRows(m, saveForSets(defaultSellChoices(), rate)), partRows(fresh(), saveForSets(defaultSellChoices(), rate)));
+});
+
+test("perModel with rowKey works a list out for each model and key, and keeps rows that hold the same", () => {
+  let runs = 0;
+  const f = perModel((m: Model, n: number) => (runs++, [{ k: "a", n }, { k: "b", n: 0 }]), (n) => `${n}`, (r: { k: string }) => r.k);
+  const a = {} as Model;
+  const b = {} as Model;
+  const one = f(a, 1);
+  const two = f(a, 2);
+  assert.equal(runs, 2, "each key worked out");
+  assert.notEqual(two, one);
+  assert.equal(two[1], one[1], "the row that holds the same is kept");
+  assert.equal(f(b, 2), two, "another model, the same data: the same list");
+  assert.equal(runs, 3);
 });
 
 test("perModel works a value out once per model and key", () => {

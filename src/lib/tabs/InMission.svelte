@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { whileShown } from "../pane.svelte";
   import { eraTint } from "../ui/table";
   import type { Model } from "../core/model";
   import type { MissionState } from "../core/types";
@@ -43,7 +44,7 @@
   });
   const live = $derived(inFissure(ms, liveNow));
   const paths = $derived(ms ? (ms.relics.length ? ms.relics : ms.last_relics) : []);
-  const relics = $derived(squadRelics(model, paths));
+  const relics = $derived.by(whileShown("mission", () => squadRelics(model, paths)));
   const pool = $derived(squadPool(relics));
   /** The reward the log says you got from these relics (the screen's, or the last round's): it names your relic. */
   const gotReward = $derived.by(() => {
@@ -74,11 +75,11 @@
 
   // Which reward to take. With TennoScope's reading of the screen: exactly those cards, in screen
   // order. Without it: everything the squad's relics can drop, best first, to find yours in.
-  const onScreen = $derived(cards ? scoreCards(model, cards.cards, weights, cards.prices) : null);
+  const onScreen = $derived.by(whileShown("mission", () => cards ? scoreCards(model, cards.cards, weights, cards.prices) : null));
   const pick = $derived(onScreen ? bestCard(onScreen) : null);
-  const ranked = $derived(scoreCards(model, pool.map((x) => x.name), weights).map((c, i) => ({ ...c, from: pool[i].from, owned: pool[i].owned, rarity: pool[i].rarity })).sort((a, b) => b.score - a.score || (b.price ?? 0) - (a.price ?? 0)));
+  const ranked = $derived.by(whileShown("mission", () => scoreCards(model, pool.map((x) => x.name), weights).map((c, i) => ({ ...c, from: pool[i].from, owned: pool[i].owned, rarity: pool[i].rarity })).sort((a, b) => b.score - a.score || (b.price ?? 0) - (a.price ?? 0))));
   /** Your own relic's reward, which the log names as soon as the screen opens. */
-  const yours = $derived(new Set((ms?.reward_screen_open ? ms.rewards_given : []).map((p) => resolveName(model, model.nameOf(p)))));
+  const yours = $derived.by(whileShown("mission", () => new Set((ms?.reward_screen_open ? ms.rewards_given : []).map((p) => resolveName(model, model.nameOf(p))))));
   const WEIGHTS: { k: WeightKey; label: string; title: string; bar: string }[] = [
     { k: "plat", bar: "b-plat", label: "Plat", title: "Market price, as a share of the best card on the screen" },
     { k: "needed", bar: "b-need", label: "Unmastered", title: "A part for something you haven't mastered or built, that you don't have yet" },
@@ -100,15 +101,13 @@
   const readAt = (at: number) => new Date(at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
   // This session's missions, newest first, with the relic rewards you got.
-  const history = $derived(
-    [...(ms?.history ?? [])].reverse().map((h) => {
+  const history = $derived.by(whileShown("mission", () => [...(ms?.history ?? [])].reverse().map((h) => {
       const rewards = h.rewards.map((p) => {
         const name = model.nameOf(p);
         return { name, price: model.price(name) };
       });
       return { ...h, rewardsNamed: rewards, value: rewards.reduce((n, x) => n + (x.price ?? 0), 0) };
-    }),
-  );
+    })));
   const fissureCount = $derived(history.filter((h) => h.relics.length).length);
   const sessionValue = $derived(history.reduce((n, h) => n + h.value, 0));
   const sessionRewards = $derived(history.reduce((n, h) => n + h.rewards.length, 0));

@@ -303,7 +303,7 @@ export function relicCrackFor(m: Model, name: string, subtype: string | null, pl
 /** The lowest whole price that beats a crack worth `crack`. */
 export const aboveCrack = (crack: number | null) => (crack == null ? null : Math.floor(crack) + 1);
 
-export const spareRows = perModel(spareRowsFresh, (index = null, sell = undefined, platPerDucat = 0, squad = 1, drops = undefined) => `${idOf(index)}|${sell ? JSON.stringify(sell) : "-"}|${platPerDucat}|${squad}|${idOf(drops)}`);
+export const spareRows = perModel(spareRowsFresh, (index = null, sell = undefined, platPerDucat = 0, squad = 1, drops = undefined) => `${idOf(index)}|${sell ? JSON.stringify(sell) : "-"}|${platPerDucat}|${squad}|${idOf(drops)}`, (r: SpareRow) => r.key);
 function spareRowsFresh(m: Model, index: MarketIndex | null = null, sell: SellChoices = defaultSellChoices(), platPerDucat = 0, squad = 1, drops: ReadonlyMap<string, number> = new Map()): SpareRow[] {
   const families = unmasteredByFamily(m);
   const needs = needsByUnique(m);
