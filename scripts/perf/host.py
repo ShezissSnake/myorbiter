@@ -1,7 +1,8 @@
 #!/usr/bin/python3 -I
 # The page host for scripts/perf/run.mjs: one WebKitGTK view (webkit2gtk-4.1, the engine the app
-# uses on Linux) in an offscreen GTK window, so nothing shows on the desktop. Throwaway website
-# data in <datadir>; every request that isn't to localhost is blocked. run.mjs drives the page
+# uses on Linux) in a GTK window: with PERF_WINDOW=1 a real window with GPU compositing (measure.sh
+# opens it in a nested, headless KWin), otherwise an offscreen one. Throwaway website data in
+# <datadir>; every request that isn't to localhost is blocked. run.mjs drives the page
 # through the remote inspector (WEBKIT_INSPECTOR_HTTP_SERVER, set by run.mjs).
 #   host.py <url> <WxH> <datadir> <start-script.js> <probe.js>
 # Prints "ready" once the content filter is in place and the page is loading; exits when stdin
