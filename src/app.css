@@ -20,11 +20,11 @@
   /* Cool neutrals, no warm cast: the window, the slab a page's plates sit on, a raised plate,
      the well a field is sunk into, and three hairlines (decorative, brighter, and a control's
      edge, which is 3:1 against the slab and the well). */
-  --slab: #0f1114;
-  --plate: #14171b;
-  --raised: #1a1e23;
+  --slab: #0b0d10;
+  --plate: #121418;
+  --raised: #181b20;
   --well: #0c0e11;
-  --rule: #272c33;
+  --rule: #242930;
   --rule-bright: #363c45;
   --rule-control: #5d6671;
 
@@ -99,6 +99,9 @@
      (a background layer, over the plate's own colour). */
   --plate-light: inset 0 1px 0 rgb(255 255 255 / 5%);
   --plate-sheen: linear-gradient(180deg, rgb(255 255 255 / 2.5%), transparent 40%);
+  /* The page's criss-cross behind the plates (.pane, below): the 45° lines and the 240 px grid. */
+  --hatch: rgb(255 255 255 / 2.8%);
+  --grid: rgb(255 255 255 / 3%);
 
   --face-mark: "Archivo Narrow", "Roboto Condensed", "DejaVu Sans Condensed", sans-serif;
   --face-text: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
@@ -130,8 +133,6 @@
 html, body { margin: 0; height: 100%; }
 body {
   background-color: var(--slab);
-  /* Faint engraved orbits behind everything: overlapping rings, tiled. */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' fill='none' stroke='%23f1f3f6' stroke-opacity='.028'%3E%3Ccircle cx='120' cy='120' r='96'/%3E%3Ccircle cx='120' cy='120' r='70'/%3E%3Ccircle cx='0' cy='0' r='96'/%3E%3Ccircle cx='240' cy='0' r='96'/%3E%3Ccircle cx='0' cy='240' r='96'/%3E%3Ccircle cx='240' cy='240' r='96'/%3E%3Cpath d='M120 14v18M120 208v18M14 120h18M208 120h18'/%3E%3C/svg%3E");
   color: var(--platinum);
   font-family: var(--face-text);
   font-size: 14px;
@@ -443,7 +444,18 @@ tr.era-wash > td:first-child { box-shadow: inset 2px 0 0 color-mix(in srgb, var(
 
 /* ---------------------------------------------------------------- plates on the slab
    Whatever holds content sits on an opaque plate of its own: cards and panels, the band of figures
-   under a page's title (PageHead), and tables. The slab shows only in the gutters between them. */
+   under a page's title (PageHead), and tables. Behind them, the page (App's .pane) carries a faint
+   neutral criss-cross, white, never the section's hue: two sets of 45° lines every 28 px and a
+   square grid every 240 px. It shows only in the gutters and margins, and stays put while the page
+   scrolls. In a section, a 3 px strip in its colour runs down the page's left edge, by the sidebar. */
+.pane {
+  background:
+    repeating-linear-gradient(45deg, var(--hatch) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(-45deg, var(--hatch) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(0deg, var(--grid) 0 1px, transparent 1px 240px),
+    repeating-linear-gradient(90deg, var(--grid) 0 1px, transparent 1px 240px);
+}
+.pane[data-section] { box-shadow: inset 3px 0 0 var(--sec); }
 .pane table { background: var(--plate); }
 
 /* The sections (pages.ts groups; App puts data-section on each page and sidebar entry). */

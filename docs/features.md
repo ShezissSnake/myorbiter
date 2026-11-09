@@ -64,7 +64,7 @@ On the desktop:
 
 ## Look
 
-The interface follows TennoScope's lead, a Warframe-style ledger: a dark slab with faint engraved rings, square corners, condensed capitals for names and titles, small tracked monospace labels, and two metals for values, platinum and gold. Pages, currencies, relic eras, syndicates and traders use Warframe's own icons (platinum, ducats, credits, endo, vosfor, relics by era, syndicate sigils, Baro, Varzia), bundled in `public/game` and taken from the official wiki and WFCD; `public/game/SOURCES.json` records where each came from. Everything else is MyOrbiter's own CSS and line icons; the fonts are Archivo Narrow, IBM Plex Sans and IBM Plex Mono (all OFL), bundled with the app.
+The interface follows TennoScope's lead, a Warframe-style ledger: a dark slab with a faint criss-cross between opaque plates, square corners, condensed capitals for names and titles, small tracked monospace labels, and two metals for values, platinum and gold. Pages, currencies, relic eras, syndicates and traders use Warframe's own icons (platinum, ducats, credits, endo, vosfor, relics by era, syndicate sigils, Baro, Varzia), bundled in `public/game` and taken from the official wiki and WFCD; `public/game/SOURCES.json` records where each came from. Everything else is MyOrbiter's own CSS and line icons; the fonts are Archivo Narrow, IBM Plex Sans and IBM Plex Mono (all OFL), bundled with the app.
 
 ## Screenshots
 

@@ -72,7 +72,7 @@
     width: var(--w); flex: none; display: grid; grid-template-rows: auto 1fr; position: relative;
     /* The rarity's glow inside the frame is a gradient, not a blurred shadow: a blurred inset and
        outer shadow on every card were redrawn with each scrolled frame of a long grid. */
-    background: radial-gradient(ellipse 75% 70% at 50% 50%, transparent 70%, var(--glow)), linear-gradient(180deg, #1b1e24, #0f1114);
+    background: radial-gradient(ellipse 75% 70% at 50% 50%, transparent 70%, var(--glow)), linear-gradient(180deg, #1b1e24, var(--slab));
     border: 1px solid var(--edge); border-radius: 3px 3px 10px 10px;
     box-shadow: 0 0 0 1px rgb(0 0 0 / 60%);
     overflow: hidden; font-family: var(--face-text);

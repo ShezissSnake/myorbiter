@@ -68,7 +68,7 @@
     /* A plate, so nothing behind the page shows through the figures. */
     background: var(--plate); border: 1px solid var(--rule);
     /* Engraved: the rule under the figures is cut twice. */
-    box-shadow: 0 2px 0 var(--slab), 0 3px 0 var(--sec-dim);
+    box-shadow: 0 2px 0 var(--slab), 0 3px 0 var(--rule);
     margin-bottom: var(--step);
   }
   /* The first figure keeps off the plate's edge, as the others keep off their dividers (Stat). */

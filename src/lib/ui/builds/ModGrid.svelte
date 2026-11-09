@@ -212,7 +212,7 @@
     position: relative; min-width: 0; height: 3.6rem;
     display: grid; grid-template-columns: 2.3rem minmax(0, 1fr); align-items: center; gap: .45rem;
     padding: .25rem .35rem .25rem .3rem;
-    background: linear-gradient(180deg, #1a1e23, #14171b);
+    background: linear-gradient(180deg, var(--raised), var(--plate));
     border: 1px solid color-mix(in srgb, var(--edge) 55%, transparent);
     border-top: 2px solid var(--edge);
     clip-path: polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%);
