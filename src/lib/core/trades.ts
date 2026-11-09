@@ -122,11 +122,20 @@ export function tradesToMark(trades: Trade[], session: number | null, seen: Iter
 }
 
 /**
- * Whether the sales log already has this trade's sale of `item` (by the trade's identity, not
- * its partner or time): a trade handled again is logged once. Two trades of the same item with
- * the same partner are two keys, and two sales.
+ * The sales this trade logged before (by the trade's identity, not its partner or time), to take
+ * from as the trade's lines are handled again: a trade handled twice is logged once. Read once,
+ * before any line is logged, so two lines of one trade (two refinements of a relic, a mod at two
+ * ranks) are two sales; two trades of the same item with the same partner are two keys.
  */
-export const tradeSaleLogged = (sales: Sale[], key: string, item: string) => sales.some((s) => s.trade === key && s.item === item);
+export const loggedForTrade = (sales: Sale[], key: string): Sale[] => sales.filter((s) => s.trade === key);
+
+/** Takes this line's sale from `logged` (loggedForTrade) if it's there: true when it was logged already. */
+export function takeLogged(logged: Sale[], line: { name: string; rank: number | null; count: number }): boolean {
+  const i = logged.findIndex((s) => s.item === line.name && (s.rank ?? null) === (line.rank ?? null) && s.quantity === line.count);
+  if (i < 0) return false;
+  logged.splice(i, 1);
+  return true;
+}
 
 /**
  * Every part of a prime set handed over in one trade is a set sale ("Styanax Prime Set"), when you

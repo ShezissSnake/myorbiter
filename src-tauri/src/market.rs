@@ -72,7 +72,11 @@ static SLOW_UNTIL: Mutex<Option<Instant>> = Mutex::new(None);
 const SLOW_GAP: Duration = Duration::from_millis(1500);
 const SLOW_FOR: Duration = Duration::from_secs(90);
 
-fn wait_turn() {
+/// The last step before a request goes: the general gap, then (with the turn held, so nothing
+/// else goes meanwhile) warframe.market's deadline once more, since a request that waited
+/// (for the gap, the change cap or a contract slot) may have done so past another's 429, and a
+/// contract request's place in the budget by when it really goes.
+fn wait_turn(contract: bool) -> Result<(), MarketError> {
     let slow = SLOW_UNTIL.lock().unwrap_or_else(|e| e.into_inner()).is_some_and(|t| Instant::now() < t);
     let gap = if slow { SLOW_GAP } else { MIN_GAP };
     let mut last = LAST_CALL.lock().unwrap_or_else(|e| e.into_inner());
@@ -82,7 +86,28 @@ fn wait_turn() {
             std::thread::sleep(gap - since);
         }
     }
+    let deadline = *NOT_BEFORE.lock().unwrap_or_else(|e| e.into_inner());
+    match deadline_wait(deadline, Instant::now()) {
+        Err(t) => return Err(MarketError::Deferred(unix_ms(t))),
+        Ok(w) if !w.is_zero() => std::thread::sleep(w),
+        Ok(_) => {}
+    }
+    if contract {
+        // The slot taken in contract_turn keeps the queue's order; this keeps the count exact:
+        // no more than CONTRACTS_PER_MINUTE sent in any minute, by when each went.
+        let mut sent = CONTRACTS_SENT.lock().unwrap_or_else(|e| e.into_inner());
+        let now = Instant::now();
+        while sent.front().is_some_and(|t| now.saturating_duration_since(*t) >= CONTRACT_SENT_WINDOW) {
+            sent.pop_front();
+        }
+        let wait = window_wait(&sent, CONTRACTS_PER_MINUTE, CONTRACT_SENT_WINDOW, now);
+        if !wait.is_zero() {
+            std::thread::sleep(wait);
+        }
+        sent.push_back(Instant::now());
+    }
     *last = Some(Instant::now());
+    Ok(())
 }
 
 /// At most this many changes (orders, auctions, +rep) in any minute: a page gone wrong can't
@@ -121,6 +146,10 @@ const CONTRACTS_PER_MINUTE: usize = 10;
 /// A contract request's slot is counted from when it's due to go; the general gap (`SLOW_GAP` at
 /// most) can hold it a little longer, so the window is that much longer than a minute.
 const CONTRACT_WINDOW: Duration = Duration::from_millis(61_500);
+
+/// The contract requests sent, by when each went: the count wait_turn holds to, a minute exactly.
+static CONTRACTS_SENT: Mutex<std::collections::VecDeque<Instant>> = Mutex::new(std::collections::VecDeque::new());
+const CONTRACT_SENT_WINDOW: Duration = Duration::from_secs(60);
 
 /// Whether a request is a contract request, by its path.
 fn is_contract(url: &str) -> bool {
@@ -194,6 +223,8 @@ fn slow_down() {
 static NOT_BEFORE: Mutex<Option<Instant>> = Mutex::new(None);
 /// A 429 that doesn't say how long (no Retry-After, or one that isn't a number of seconds).
 const DEFAULT_RETRY_AFTER: Duration = Duration::from_secs(60);
+/// The longest Retry-After taken as given.
+const MAX_RETRY_AFTER: Duration = Duration::from_secs(86_400);
 /// How long a request waits for that deadline. A read or change that would wait longer isn't
 /// sent: it comes back deferred, with the time, for the page to show ("warframe.market asked us
 /// to wait until 14:05"); the page's own timers ask again later.
@@ -202,7 +233,9 @@ const MAX_WAIT: Duration = Duration::from_secs(10);
 /// The deadline after a 429 at `now` that asked for `retry_after` (None: it didn't say). A later
 /// deadline already set stays.
 fn hold_off(current: Option<Instant>, now: Instant, retry_after: Option<Duration>) -> Instant {
-    let until = now + retry_after.unwrap_or(DEFAULT_RETRY_AFTER);
+    // A day at most: an absurd Retry-After can't overflow the clock (or stop MyOrbiter for good).
+    let wait = retry_after.unwrap_or(DEFAULT_RETRY_AFTER).min(MAX_RETRY_AFTER);
+    let until = now.checked_add(wait).unwrap_or(now);
     current.map_or(until, |t| t.max(until))
 }
 
@@ -313,7 +346,7 @@ fn get_json(url: &str, timeout: u64) -> Result<Value, MarketError> {
 
 fn get_json_once(url: &str, timeout: u64) -> Result<Value, MarketError> {
     with_retries(|| {
-        wait_turn();
+        wait_turn(is_contract(url))?;
         match request("GET", url).set("Language", "en").timeout(Duration::from_secs(timeout)).call() {
             Ok(r) => json_body(r.into_reader()),
             Err(ureq::Error::Status(429, resp)) => Err(rate_limited(&resp)),
@@ -534,7 +567,7 @@ impl Client {
     }
 
     fn send_once(&self, method: &str, url: &str, body: Option<&Value>, token: Option<&str>) -> Result<(Value, Option<String>), MarketError> {
-        wait_turn();
+        wait_turn(is_contract(url))?;
         let mut req = request(method, url)
             .set("Accept", "application/json")
             .set("Language", "en")
@@ -587,7 +620,7 @@ impl Client {
     /// v1 is the route that still hands tokens to third-party apps; the token works on v2.
     pub fn sign_in(&self, email: &str, password: &str) -> Result<Profile, MarketError> {
         deadline_turn()?;
-        wait_turn();
+        wait_turn(false)?;
         let resp = request("POST", &format!("{V1}/auth/signin"))
             .set("Authorization", "JWT")
             .set("Content-Type", "application/json")
@@ -1442,6 +1475,8 @@ mod tests {
         assert_eq!(deadline_wait(Some(until), until + Duration::from_secs(5)), Ok(Duration::ZERO));
         assert_eq!(deadline_wait(None, now), Ok(Duration::ZERO));
         assert_eq!(MAX_WAIT, Duration::from_secs(10));
+        // An absurd Retry-After doesn't overflow: a day at most.
+        assert_eq!(hold_off(None, now, retry_after_secs(Some("18446744073709551615"))), now + MAX_RETRY_AFTER);
     }
 
     #[test]

@@ -5,6 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import { APP_NAME, tradeWhisper } from "../src/lib/core/whisper";
 import { buildModel } from "../src/lib/core/model";
 import { dealFromOrder, findDeals, type Watch } from "../src/lib/core/deals";
@@ -87,7 +88,7 @@ test("a build's missing mod or arcane (cheapestSeller on Builds): the site's mes
 // ---- No message built anywhere else.
 
 test("no whisper to a warframe.market player is built outside core/whisper.ts", () => {
-  const root = join(import.meta.dirname, "..", "src");
+  const root = fileURLToPath(new URL("../src", import.meta.url));
   const files = (d: string): string[] => readdirSync(d).flatMap((f) => (statSync(join(d, f)).isDirectory() ? files(join(d, f)) : /\.(ts|svelte)$/.test(f) ? [join(d, f)] : []));
   // The shape of the site's message: a whisper command in a string or template, its greeting, its tag.
   const shapes = [/["'`]\/w\s/, /Hi! I want to/, /\(warframe\.market\)["'`]/, /I want to (?:buy|sell): /];

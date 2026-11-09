@@ -4,7 +4,7 @@
   import { discordSent } from "./lib/discordStatus.svelte";
   import { onMount, untrack } from "svelte";
   import { invasionNeeds, invasionRares } from "./lib/core/invasions";
-  import { foldSetSales, repCandidates, salesFromTrade, tradeKey, tradeSaleLogged, tradesToMark } from "./lib/core/trades";
+  import { foldSetSales, loggedForTrade, repCandidates, salesFromTrade, takeLogged, tradeKey, tradesToMark } from "./lib/core/trades";
   import { repOffered, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
@@ -1317,6 +1317,8 @@
           continue;
         }
         const at = t.at ? t.at * 1000 : Date.now();
+        // What this trade logged before, if it's handled again: read before any line is logged.
+        const logged = loggedForTrade(settings.market.sales, key);
         const lines: SoldLine[] = [];
         for (const s of sales) {
           // Logged by hand within ten minutes of the trade: already counted. Only by hand: a sale
@@ -1329,7 +1331,7 @@
           }
           // This trade's sale of it is logged already (the trade handled once before): not again,
           // and its listing isn't closed a second time.
-          if (tradeSaleLogged(settings.market.sales, key, s.name)) {
+          if (takeLogged(logged, s)) {
             lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: "hand" });
             continue;
           }

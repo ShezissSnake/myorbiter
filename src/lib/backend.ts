@@ -1526,7 +1526,7 @@ export const market = {
   /** +rep: a positive review with your message, from your account. */
   giveRep: (name: string, text: string): Promise<void> => (inTauri ? invoke("market_give_rep", { name, text }) : Promise.resolve()),
   account: async (): Promise<MarketAccount> =>
-    inTauri ? invoke("market_account") : ((await devMarket())?.account ?? { linked: false, backing: "file", profile: null, error: null }),
+    inTauri ? invoke<MarketAccount>("market_account").then((a) => (a.error ? { ...a, error: waitWords(a.error) } : a)) : ((await devMarket())?.account ?? { linked: false, backing: "file", profile: null, error: null }),
   signIn: (email: string, password: string): Promise<Me> => (inTauri ? invoke("market_sign_in", { email, password }) : needApp()),
   useToken: (token: string): Promise<Me> => (inTauri ? invoke("market_use_token", { token }) : needApp()),
   signOut: (): Promise<void> => (inTauri ? invoke("market_sign_out") : Promise.resolve()),

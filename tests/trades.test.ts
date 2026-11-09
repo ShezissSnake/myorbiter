@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { foldSetSales, listingFor, repCandidates, salesFromTrade, tradeKey, tradeSaleLogged, tradesToMark } from "../src/lib/core/trades";
+import { foldSetSales, listingFor, loggedForTrade, repCandidates, salesFromTrade, takeLogged, tradeKey, tradesToMark } from "../src/lib/core/trades";
 import type { Sale, TradeLogEntry } from "../src/lib/backend";
 import { indexItems, type MarketItem, type MyOrder } from "../src/lib/core/market";
 import type { Trade } from "../src/lib/core/types";
@@ -202,7 +202,7 @@ test("a trade read again after a restart is acted on once", () => {
   assert.deepEqual(again, { fresh: [], recent: [] });
   // And the sales log, by the trade's identity, says it's logged.
   const sales: Sale[] = [{ at: now, item: "Condition Overload", rank: 0, quantity: 1, platinum: 20, trade: first.fresh[0] }];
-  assert.ok(tradeSaleLogged(sales, first.fresh[0], "Condition Overload"));
+  assert.ok(takeLogged(loggedForTrade(sales, first.fresh[0]), { name: "Condition Overload", rank: 0, count: 1 }));
 });
 
 test("two trades of the same item with the same partner are two sales, each logged once", () => {
@@ -212,9 +212,26 @@ test("two trades of the same item with the same partner are two sales, each logg
   const { fresh } = tradesToMark([a, b], session, [], (session + 200) * 1000, false);
   assert.equal(new Set(fresh).size, 2, "two keys");
   const sales: Sale[] = [{ at: 0, item: "Condition Overload", rank: 0, quantity: 1, platinum: 20, trade: fresh[0] }];
-  assert.ok(tradeSaleLogged(sales, fresh[0], "Condition Overload"));
-  assert.ok(!tradeSaleLogged(sales, fresh[1], "Condition Overload"), "the second trade's sale isn't the first's");
-  assert.ok(!tradeSaleLogged(sales, fresh[0], "Gauss Prime Neuroptics Blueprint"), "another item of the same trade isn't either");
+  const line = { name: "Condition Overload", rank: 0, count: 1 };
+  assert.ok(takeLogged(loggedForTrade(sales, fresh[0]), line));
+  assert.ok(!takeLogged(loggedForTrade(sales, fresh[1]), line), "the second trade's sale isn't the first's");
+  assert.ok(!takeLogged(loggedForTrade(sales, fresh[0]), { name: "Gauss Prime Neuroptics Blueprint", rank: null, count: 1 }), "another item of the same trade isn't either");
+});
+
+test("one trade of the same item twice (two ranks, two refinements) logs two sales, and again logs none", () => {
+  const key = "s|1";
+  const a = { name: "Condition Overload", rank: 0, count: 1 };
+  const b = { name: "Condition Overload", rank: 5, count: 1 };
+  const relic = { name: "Axi A1 Relic", rank: null, count: 1 };
+  // First time: nothing logged before, so every line is logged, even as the log fills meanwhile.
+  const before = loggedForTrade([], key);
+  assert.ok(![a, b, relic, relic].some((l) => takeLogged(before, l)));
+  // Handled again: each line finds its own sale, once.
+  const sales: Sale[] = [a, b, relic, relic].map((l) => ({ at: 0, item: l.name, rank: l.rank, quantity: l.count, platinum: 10, trade: key }));
+  const again = loggedForTrade(sales, key);
+  assert.ok([a, b, relic, relic].every((l) => takeLogged(again, l)));
+  assert.equal(again.length, 0);
+  assert.ok(!takeLogged(again, relic), "a third relic line would be new");
 });
 
 test("+rep that failed and is tried again goes once: one per player, never again once given", () => {
