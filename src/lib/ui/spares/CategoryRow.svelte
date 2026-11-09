@@ -55,7 +55,7 @@
   {#if open}
     <div class="reveal" transition:reveal id="{id}-opts"><div>
       <div class="body">
-        {#if !on}<p class="offnote small">Off: none of these is sold, and the choices below wait as they are. Tick the box to sell them.</p>{/if}
+        <p class="offnote small" class:ghost={on}>Off: none of these is sold, and the choices below wait as they are. Tick the box to sell them.</p>
         {#if preview?.note}<p class="small warn">{preview.note}</p>{/if}
         {@render children()}
         {#if always}<p class="always"><Icon name="lock" size={12} /><span>{always}</span></p>{/if}
@@ -65,7 +65,8 @@
 </section>
 
 <style>
-  .cat { border-bottom: 1px solid var(--rule); }
+  /* The figures column has one width, whatever it says ("…", "nothing to list", "1,234 listings ~12,345p"), so ticking a box or a plan arriving changes no row's layout. */
+  .cat { --fig-w: 13.5rem; border-bottom: 1px solid var(--rule); }
   .cat.open { background: rgb(255 255 255 / 1.6%); box-shadow: inset 2px 0 0 var(--gold-dim); }
   .head { display: grid; grid-template-columns: 2.1rem minmax(0, 1fr); align-items: stretch; }
   .box { align-self: center; justify-self: center; width: .85rem; height: .85rem; padding: 0; border: 1px solid var(--rule-control); background: transparent; display: grid; }
@@ -76,7 +77,7 @@
   /* The rest of the line opens the options: one wide, quiet button. */
   .rowbtn {
     all: unset; box-sizing: border-box; cursor: pointer; min-width: 0;
-    display: grid; grid-template-columns: minmax(12rem, 15.5rem) minmax(0, 1fr) auto 1rem; align-items: center; gap: 1rem;
+    display: grid; grid-template-columns: minmax(12rem, 15.5rem) minmax(0, 1fr) var(--fig-w) 1rem; align-items: center; gap: 1rem;
     padding: .62rem .9rem .62rem 0;
   }
   .rowbtn:focus-visible { outline: 1px solid var(--select); outline-offset: -1px; }
@@ -85,7 +86,7 @@
   .on .nm, .rowbtn:hover .nm { color: var(--platinum); }
   .sum { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .8rem; color: var(--platinum-dim); }
   .cat:not(.on) .sum { color: var(--platinum-deep); }
-  .fig { display: inline-flex; align-items: center; gap: .7rem; justify-content: flex-end; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .fig { display: flex; align-items: center; gap: .7rem; justify-content: flex-end; min-width: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .fig .n { font-size: .78rem; color: var(--platinum-deep); }
   .fig .n b { font-family: var(--face-mark); font-size: 1rem; color: var(--platinum); margin-right: .1rem; }
   .fig.dim .n b { color: var(--platinum-deep); }
@@ -96,10 +97,12 @@
   /* Out of date: greyed by colour, not opacity, so it stays above 4.5:1. */
   .fig.stale, .fig.stale .n, .fig.stale .pl, .fig.stale :global(b), .fig.stale :global(.amt) { color: var(--platinum-deep); }
   /* A narrow page: the choices in words go on a line of their own under the name and figures. */
-  :global(html[data-room~="lt900"]) .rowbtn { grid-template-columns: minmax(0, 1fr) auto 1rem; row-gap: .15rem; }
+  :global(html[data-room~="lt900"]) .rowbtn { grid-template-columns: minmax(0, 1fr) var(--fig-w) 1rem; row-gap: .15rem; }
   :global(html[data-room~="lt900"]) .sum { grid-column: 1 / -1; grid-row: 2; }
   .body { display: grid; gap: .8rem; padding: .2rem .9rem 1rem 2.1rem; }
+  /* Always there, drawn only while the row is off: ticking the box changes no height. */
   .offnote { margin: 0; color: var(--platinum-deep); }
+  .offnote.ghost { visibility: hidden; }
   .warn { margin: 0; color: var(--alert); }
   .warn::before { content: "! "; font-weight: 700; }
   .always { margin: 0; display: flex; gap: .45rem; align-items: baseline; font-size: .76rem; color: var(--platinum-deep); line-height: 1.5; }
