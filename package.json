@@ -11,7 +11,7 @@
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json --config ./svelte.config.js",
     "tauri": "tauri",
-    "test": "tsx --test tests/*.test.ts",
+    "test": "tsx --test tests/*.test.ts && node scripts/site.mjs --check --offline",
     "dev-bundle": "cargo run --release -q --manifest-path crates/myorbiter-data/Cargo.toml --bin myorbiter-dump > public/dev-bundle.tmp.json && mv public/dev-bundle.tmp.json public/dev-bundle.json || { rm -f public/dev-bundle.tmp.json; exit 1; }",
     "dev-data": "node scripts/dev-data.mjs",
     "icons": "node scripts/icons.mjs",

@@ -18,7 +18,7 @@
   import { updates as updateState } from "../updates.svelte";
   import { arrive } from "../motion";
   import { bugReport } from "../bugReport.svelte";
-  import { REPO_URL } from "../core/updates";
+  import { PRIVACY_PAGE } from "../core/links";
 
   // console: the short guide, for the pages a console or phone player has. platform: where they play.
   // hidden: the pages Settings → Pages keeps out of the sidebar. expanded: every step written out
@@ -33,9 +33,6 @@
   ];
 
   type Step = [tab: string, label: string, text: string | string[], planner?: "sets" | "radiant"];
-  // The page listing everything MyOrbiter reads and sends, opened in the browser (the website's
-  // copy of this section links it itself, scripts/site.mjs).
-  const PRIVACY = `${REPO_URL}/-/blob/main/docs/privacy.md`;
   // What's new, one update a day, each with a tour of that day's changes.
   const updates = batches(NEWS).map((u) => ({ ...u, stops: tourStops(u.items) }));
   const longDay = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
@@ -224,7 +221,7 @@
       <li data-card="fullmode"><b>Full mode</b> (off until you turn it on: <i>Read my inventory</i> in the first-run steps, the TennoScope panel or Settings): TennoScope reads the game's memory to find your session, read only, then downloads your inventory from Digital Extremes with it. It doesn't write to the game's memory either (on Linux it resets the kernel's record of which pages changed, once per reward screen, to read only those). Digital Extremes publishes no list of allowed or forbidden third-party programs and leaves using them at your own risk, so Full mode could put your account at risk: that's your call. Without it, TennoScope only reads the log and the reward screen (Overlay mode), and MyOrbiter shows everything that doesn't need your inventory.</li>
       <li>Mods: MyOrbiter can't see which copy is fitted to a build, so it always keeps your best copy and one more. What it calls spare is past those two.</li>
       <li>Everything MyOrbiter records (sales, trades, value over time, settings) stays on this computer. Your warframe.market sign-in is kept in the system keyring (a private file if there isn't one).</li>
-      <li><b>No telemetry.</b> <button type="button" class="link" title="Open the page in your browser" aria-busy={links.isOpening(PRIVACY)} onclick={() => openUrl(PRIVACY)}><Opening url={PRIVACY}>What MyOrbiter reads and sends</Opening></button> lists every host it talks to, what it sends each one and how often, and every file it keeps.</li>
+      <li><b>No telemetry.</b> <button type="button" class="link" title="Open the page in your browser" aria-busy={links.isOpening(PRIVACY_PAGE.url)} onclick={() => openUrl(PRIVACY_PAGE.url)}><Opening url={PRIVACY_PAGE.url}>{PRIVACY_PAGE.label}</Opening></button> lists every host it talks to, what it sends each one and how often, and every file it keeps.</li>
     </ul>
   </section>
 

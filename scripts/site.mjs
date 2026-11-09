@@ -31,13 +31,14 @@ const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 
 // ---- The app's own words, drawn on the server.
 const vite = await createServer({ root: ROOT, server: { middlewareMode: true, hmr: false }, appType: "custom", logLevel: "error" });
-let guideHtml, news, warning, PAGES;
+let guideHtml, news, warning, PAGES, PRIVACY_PAGE;
 try {
   const { render } = await vite.ssrLoadModule("svelte/server");
   const Guide = (await vite.ssrLoadModule("/src/lib/tabs/Guide.svelte")).default;
   ({ NEWS: news } = await vite.ssrLoadModule("/src/lib/whatsNew.ts"));
   ({ FULL_MODE_WARNING: warning } = await vite.ssrLoadModule("/src/lib/FullMode.svelte"));
   ({ PAGES } = await vite.ssrLoadModule("/src/lib/pages.ts"));
+  ({ PRIVACY_PAGE } = await vite.ssrLoadModule("/src/lib/core/links.ts"));
   // go: null draws page names in the text as plain words (no links into an app that isn't there).
   guideHtml = render(Guide, { props: { go: null, plannerMode: "sets", console: false, platform: "PC", hidden: [], expanded: true } }).body;
 } finally {
@@ -50,6 +51,9 @@ const icons = new Set();
 function clean(html) {
   return html
     .replace(/<!--[\s\S]*?-->/g, "")
+    // A link control's label and the "Opening…" drawn over it while the browser starts
+    // (ui/Opening.svelte): just the label here.
+    .replace(/<span class="opening\b[^"]*"><span[^>]*>([\s\S]*?)<\/span><span[^>]*>Opening…<\/span><\/span>/g, "$1")
     // A page's name that opens it in the app: just the name here.
     .replace(/<button[^>]*class="link[^"]*"[^>]*>([\s\S]*?)<\/button>/g, '<b class="pg">$1</b>')
     // Every other control (Show me, the tour, more/less, Details) does nothing on a web page.
@@ -84,11 +88,12 @@ const take = (cls, n = 0) => {
   return clean(hits[n][1]);
 };
 
-/** The trust section's link to the privacy page: a button in the app (bold text once cleaned), a link here. */
+/** The trust section's link to the privacy page (PRIVACY_PAGE, src/lib/core/links.ts): a button in the
+ *  app (bold text once cleaned), a link here. */
 function linkPrivacy(html) {
-  const page = "<b class=\"pg\">What MyOrbiter reads and sends</b>";
-  if (!html.includes(page)) throw new Error("The Guide's link to docs/privacy.md wasn't found: has its wording changed?");
-  return html.replace(page, () => `<a href="${REPO}/-/blob/main/docs/privacy.md">What MyOrbiter reads and sends</a>`);
+  const page = `<b class="pg">${esc(PRIVACY_PAGE.label)}</b>`;
+  if (!html.includes(page)) throw new Error("The Guide's trust section has no link to the privacy page (PRIVACY_PAGE, src/lib/core/links.ts)");
+  return html.replace(page, () => `<a href="${href(PRIVACY_PAGE.url)}">${esc(PRIVACY_PAGE.label)}</a>`);
 }
 
 // ---- Pages.
@@ -143,7 +148,7 @@ ${body().replaceAll("{{base}}", () => base)}
 </main>
 <footer class="foot">
 <p>MyOrbiter is a fan-made tool, not affiliated with or endorsed by Digital Extremes. Warframe and its artwork are © and ™ Digital Extremes Ltd.; the game's icons shown here are theirs, used to identify what they depict, and are not covered by MyOrbiter's licence.</p>
-<p>MyOrbiter is free software under the <a href="${REPO}/-/blob/main/LICENSE">GNU General Public License, version 3 only</a>, with no warranty. <a href="${REPO}">Source on GitLab</a> · <a href="${REPO}/-/blob/main/NOTICE.md">Notices</a> · <a href="${REPO}/-/blob/main/docs/privacy.md">What it reads and sends</a></p>
+<p>MyOrbiter is free software under the <a href="${REPO}/-/blob/main/LICENSE">GNU General Public License, version 3 only</a>, with no warranty. <a href="${REPO}">Source on GitLab</a> · <a href="${REPO}/-/blob/main/NOTICE.md">Notices</a> · <a href="${href(PRIVACY_PAGE.url)}">What it reads and sends</a></p>
 </footer>
 </body>
 </html>
