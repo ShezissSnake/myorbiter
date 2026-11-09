@@ -1,7 +1,11 @@
 // The clipping sweep: opens every view of the demo (`npm run dev:demo`, demo/: the invented
 // account, never public/dev-*.json) at the window sizes MyOrbiter is used at, and flags every
 // element cut off by a box that doesn't scroll, or pushed past the window, and every text that
-// runs out of its own box without an ellipsis. Exits 1 when it finds one.
+// runs out of its own box without an ellipsis. Then, at 1280×800, it walks every one of those
+// views with the keyboard: Tab until focus comes back round (at most 400 presses), and flags each
+// element focus lands on that is hidden (its own visibility, or inside something hidden) or that
+// has no accessible name (an icon-only button or link with no label, title or text). Exits 1 when
+// it finds either.
 //
 //   npm run sweep [-- --port 1432] [-- --out <folder>] [-- --only 1280x800]
 //
@@ -190,7 +194,48 @@ async function open(size, { firstRun = false, noInventory = false } = {}) {
   return p;
 }
 
+/**
+ * Runs in the page after each Tab: the element focus is on now, whether it was already visited
+ * this walk (the walk ends there), and why it can't be seen once focused: its own visibility, or
+ * an ancestor that is hidden (the hidden attribute, aria-hidden, opacity 0, or a box a pixel or
+ * less across that clips what's in it, as a closed fold does). Its own opacity isn't counted: a
+ * checkbox or radio drawn by the page keeps the real one at opacity 0, under its own drawing.
+ */
+function focusNow() {
+  const el = document.activeElement;
+  if (!el || el === document.body || el === document.documentElement) return { none: true };
+  const seen = (window.__sweepFocus ??= []);
+  const again = seen.includes(el);
+  if (!again) seen.push(el);
+  const named = (e) => {
+    const cls = typeof e.className === "string" ? e.className.trim().split(/\s+/).filter((c) => c && !c.startsWith("svelte-")).slice(0, 3).join(".") : "";
+    return `${e.tagName.toLowerCase()}${e.id ? `#${e.id}` : ""}${cls ? `.${cls}` : ""}`;
+  };
+  // Where it is: the nearest two ancestors that have a class or an id.
+  const where = [];
+  for (let a = el.parentElement; a && a !== document.body && where.length < 2; a = a.parentElement) if (a.id || (typeof a.className === "string" && a.className.trim())) where.push(named(a));
+  const place = where.length ? ` in ${where.reverse().join(" > ")}` : "";
+  const hidden = [];
+  const cs = getComputedStyle(el);
+  if (cs.visibility !== "visible") hidden.push(`visibility: ${cs.visibility}`);
+  for (let a = el.parentElement; a && a !== document.documentElement; a = a.parentElement) {
+    const as = getComputedStyle(a);
+    if (a.hidden) hidden.push(`inside hidden ${named(a)}`);
+    else if (a.getAttribute("aria-hidden") === "true") hidden.push(`inside aria-hidden ${named(a)}`);
+    else if (Number(as.opacity) === 0) hidden.push(`inside opacity 0 ${named(a)}`);
+    else if (as.overflowX !== "visible" || as.overflowY !== "visible") {
+      const b = a.getBoundingClientRect();
+      if (b.width <= 1 || b.height <= 1) hidden.push(`inside closed ${named(a)}`);
+    }
+  }
+  return { again, tag: named(el), place, hidden };
+}
+
 const findings = [];
+const keyFindings = [];
+const keyNotes = [];
+/** How many elements focus landed on in each view, so a walk that reached nothing shows. */
+const keyStops = [];
 const shots = [];
 async function check(p, size, view) {
   await p.mouse.move(size.w - 5, size.h - 5);
@@ -205,31 +250,88 @@ async function check(p, size, view) {
   await p.evaluate(() => document.querySelectorAll("[data-sweep]").forEach((e) => e.removeAttribute("data-sweep")));
 }
 
-async function sweep(size) {
+/** The keyboard walk's window size, and the most Tab presses one view gets. */
+const KEYS_SIZE = { w: 1280, h: 800 };
+const KEYS_CAP = 400;
+
+/**
+ * Tab through one view until focus comes back to an element already visited (or KEYS_CAP presses),
+ * and note each element that is hidden or has no accessible name. The name is Chromium's own
+ * (its accessibility tree, through the DevTools protocol), as a screen reader would get it.
+ */
+async function tabThrough(p, size, view) {
+  await p.mouse.move(size.w - 5, size.h - 5);
+  await p.evaluate(() => (window.__sweepFocus = []));
+  const cdp = await p.context().newCDPSession(p);
+  const nameNow = async () => {
+    const { result } = await cdp.send("Runtime.evaluate", { expression: "document.activeElement", objectGroup: "sweep-keys" });
+    if (!result.objectId) return "";
+    const { nodes } = await cdp.send("Accessibility.getPartialAXTree", { objectId: result.objectId, fetchRelatives: false });
+    await cdp.send("Runtime.releaseObjectGroup", { objectGroup: "sweep-keys" });
+    return (nodes[0]?.name?.value ?? "").trim();
+  };
+  let visited = 0;
+  let cycled = false;
+  for (let presses = 0; presses < KEYS_CAP; presses++) {
+    await p.keyboard.press("Tab");
+    let at = await p.evaluate(focusNow);
+    if (at.none) continue;
+    if (at.again) {
+      cycled = true;
+      break;
+    }
+    visited++;
+    // A control shown on focus may still be fading in: look again before calling it hidden.
+    if (at.hidden.length) {
+      await pause(p, 400);
+      at = await p.evaluate(focusNow);
+    }
+    const name = await nameNow();
+    const why = [...at.hidden];
+    if (!name) why.push("no accessible name");
+    const element = `${at.tag}${name ? ` "${name.replace(/\s+/g, " ").slice(0, 50)}"` : ""}${at.place}`;
+    for (const reason of why) keyFindings.push({ size: `${size.w}×${size.h}`, view, element, reason });
+  }
+  keyStops.push(`${view} ${visited}${cycled ? "" : "+"}`);
+  if (!cycled) keyNotes.push(`${view}: focus didn't come back round in ${KEYS_CAP} presses (${visited} elements)`);
+  await p.evaluate(() => {
+    document.activeElement?.blur?.();
+    delete window.__sweepFocus;
+  });
+  await cdp.detach();
+}
+
+/** Every view of the demo at one size, `look` called on each. Settings is one view per section
+ *  (scrolled into view), or one view when `settingsOnce` (the keyboard walk: its Tab order is the
+ *  same whichever section is in view). */
+async function walk(size, look, { settingsOnce = false } = {}) {
   const p = await open(size);
   const labels = await p.locator("button.nav").evaluateAll((els) => els.map((e) => e.querySelector(".lbl")?.textContent?.trim() ?? ""));
   for (const label of labels.filter(Boolean)) {
     await p.locator("button.nav", { hasText: label }).first().click();
     await pause(p, 2500);
-    await check(p, size, label);
+    await look(p, size, label);
   }
   // Settings, each section scrolled into view.
   await p.locator("button[aria-label='Settings']").click();
   await pause(p, 1200);
-  const sections = await p.locator(".sheet .body > *").count();
-  for (let i = 0; i < sections; i++) {
-    const s = p.locator(".sheet .body > *").nth(i);
-    await s.evaluate((e) => e.scrollIntoView({ block: "start" }));
-    await pause(p, 300);
-    const name = (await s.locator("h3").first().textContent({ timeout: 1000 }).catch(() => null))?.trim() || (await s.getAttribute("id"))?.replace(/^settings-/, "") || `part ${i + 1}`;
-    await check(p, size, `Settings: ${name}`);
+  if (settingsOnce) await look(p, size, "Settings");
+  else {
+    const sections = await p.locator(".sheet .body > *").count();
+    for (let i = 0; i < sections; i++) {
+      const s = p.locator(".sheet .body > *").nth(i);
+      await s.evaluate((e) => e.scrollIntoView({ block: "start" }));
+      await pause(p, 300);
+      const name = (await s.locator("h3").first().textContent({ timeout: 1000 }).catch(() => null))?.trim() || (await s.getAttribute("id"))?.replace(/^settings-/, "") || `part ${i + 1}`;
+      await look(p, size, `Settings: ${name}`);
+    }
   }
   await p.keyboard.press("Escape");
   await pause(p, 600);
   // Notifications.
   await p.locator("button[data-card='notices']").click();
   await pause(p, 1200);
-  await check(p, size, "Notifications");
+  await look(p, size, "Notifications");
   await p.keyboard.press("Escape");
   await pause(p, 600);
   // The listing form, from Inventory's first list button.
@@ -240,16 +342,16 @@ async function sweep(size) {
     // Shown on hover: pressed as a keyboard user would.
     await list.evaluate((b) => b.click());
     await pause(p, 1500);
-    await check(p, size, "Listing form");
+    await look(p, size, "Listing form");
     await p.keyboard.press("Escape");
   } else console.error("  no list button on Inventory: listing form not checked");
   await p.close();
   // The first-run question, and TennoScope's setup steps before anything is read.
   const first = await open(size, { firstRun: true });
-  await check(first, size, "First run");
+  await look(first, size, "First run");
   await first.close();
   const setup = await open(size, { noInventory: true });
-  await check(setup, size, "TennoScope setup");
+  await look(setup, size, "TennoScope setup");
   await setup.close();
 }
 
@@ -277,7 +379,13 @@ try {
   if (out) work = mkdtempSync(join(tmpdir(), "myorbiter-sweep-"));
   for (const size of SIZES) {
     console.log(`${size.w}×${size.h}`);
-    await sweep(size);
+    await walk(size, check);
+  }
+  // The keyboard, on its own walk so the clipping checks above see the views as before.
+  const keys = SIZES.some((s) => s.w === KEYS_SIZE.w && s.h === KEYS_SIZE.h);
+  if (keys) {
+    console.log(`keyboard, ${KEYS_SIZE.w}×${KEYS_SIZE.h}`);
+    await walk(KEYS_SIZE, tabThrough, { settingsOnce: true });
   }
   if (out) {
     mkdirSync(out, { recursive: true });
@@ -294,7 +402,14 @@ try {
   for (const f of bugs) console.log(`CLIPPED ${f.size} ${f.view}: ${f.kind}: ${f.element}${f.by ? ` by ${f.by}` : ""} (${f.detail})`);
   for (const f of meant) console.log(`deliberate ${f.size} ${f.view}: ${f.element} (${f.deliberate})`);
   console.log(`${bugs.length} clipped, ${meant.length} deliberate, ${shots.length || "no"} views saved`);
-  if (bugs.length) process.exitCode = 1;
+  if (keys) {
+    for (const f of keyFindings) console.log(`KEYBOARD ${f.size} ${f.view}: ${f.element}: ${f.reason}`);
+    for (const n of keyNotes) console.log(`keyboard note: ${n}`);
+    console.log(`keyboard stops: ${keyStops.join(", ")}`);
+    const unique = new Set(keyFindings.map((f) => `${f.element}|${f.reason}`)).size;
+    console.log(`${keyFindings.length} keyboard findings (${unique} distinct element and reason)`);
+  }
+  if (bugs.length || keyFindings.length) process.exitCode = 1;
 } catch (e) {
   console.error(e instanceof Error ? e.message : e);
   process.exitCode = 2;
