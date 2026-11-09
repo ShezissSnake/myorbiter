@@ -461,6 +461,11 @@ class MarketStore {
    * Activity log, a notification, myorbiter.log) and nothing is sent. `audit` gets the line saying
    * why they were spare, for the log once warframe.market has taken them.
    */
+  /** The item's minimum price (its Sell spares category's, or the global one), when the rules are known. */
+  private minimumOf(it: MarketItem): number | undefined {
+    return this.rules ? minimumForItem(this.rules, this.model ?? this.draftModel, it) : undefined;
+  }
+
   private allowed(m: Model | null, req: GuardRequest, audit: (line: string) => void): boolean {
     if (!m) {
       const why = `Didn't list ${listingTag(req.item, req.rank, req.subtype)}: Your collection isn't loaded yet`;
@@ -939,11 +944,14 @@ class MarketStore {
   async setShown(orders: MyOrder[], visible: boolean, reread = true): Promise<MyOrder[]> {
     const done: MyOrder[] = [];
     for (const o of orders) {
-      // Shown again (after a whisper, Show all hidden): only while it's still all spare.
+      // Shown again (after a whisper, Show all hidden): only while it's still all spare, and at a
+      // price the guard still takes. A listing hidden at 2p stays hidden once the minimum is 5p:
+      // becoming visible is a new offer, held to every floor a new listing is.
       const it = this.item(o.itemId);
       let why = "";
       if (visible && !o.visible) {
-        if (!it || !this.allowed(this.model, { item: it, rank: o.rank, subtype: o.subtype, quantity: o.quantity, platinum: o.platinum, listedElsewhere: this.listedOf(it, o.rank, o.subtype, o.id) }, (l) => (why = l))) continue;
+        const minimum = it ? this.minimumOf(it) : undefined;
+        if (!it || !this.allowed(this.model, { item: it, rank: o.rank, subtype: o.subtype, quantity: o.quantity, platinum: o.platinum, listedElsewhere: this.listedOf(it, o.rank, o.subtype, o.id), minimum }, (l) => (why = l))) continue;
       }
       try {
         await market.update(o.id, { visible });
@@ -993,8 +1001,10 @@ class MarketStore {
       this.error = line;
       return false;
     }
+    // More copies, or shown again, at an unchanged price: still never under the minimum (the
+    // listing may have been made before the minimum was raised).
     if (raising && it) {
-      const req = { item: it, rank: o.rank, subtype: o.subtype, quantity: change.quantity ?? o.quantity, platinum: change.platinum ?? o.platinum, listedElsewhere: this.listedOf(it, o.rank, o.subtype, o.id), manual: true };
+      const req = { item: it, rank: o.rank, subtype: o.subtype, quantity: change.quantity ?? o.quantity, platinum: change.platinum ?? o.platinum, listedElsewhere: this.listedOf(it, o.rank, o.subtype, o.id), manual: true, minimum: this.minimumOf(it) };
       if (!this.allowed(this.model, req, (l) => (why = l))) {
         this.error = this.log[0]?.text ?? "Not listed";
         return false;

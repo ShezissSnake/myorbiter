@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { foldSetSales, salesFromTrade, tradeKey } from "../src/lib/core/trades";
+import { foldSetSales, listingFor, repCandidates, salesFromTrade, tradeKey, tradeSaleLogged, tradesToMark } from "../src/lib/core/trades";
+import type { Sale, TradeLogEntry } from "../src/lib/backend";
 import { indexItems, type MarketItem, type MyOrder } from "../src/lib/core/market";
 import type { Trade } from "../src/lib/core/types";
 
@@ -148,4 +149,82 @@ test("an imprint told only by a breed in its pet's name is named, not matched to
   const [s] = salesFromTrade(trade({ offered: [{ name: "Imprint of Huras Kubrow", rank: null, count: 1 }], platinum_received: 40 }), [order("h", "hi", 1, 40)], idx, null, [])!;
   assert.equal(s.name, "Huras Kubrow Imprint", "named and priced by the breed");
   assert.equal(s.order, null, "but no listing closed on a name the player chose");
+});
+
+// ---- Matching a trade to the right listing, once.
+
+test("the same mod at another rank doesn't close the wrong listing", () => {
+  const orders = [order("r0", "co", 1, 20, 0), order("r5", "co", 1, 60, 5)];
+  const [r5] = salesFromTrade(trade({ offered: [{ name: "Condition Overload", rank: 5, count: 1 }], platinum_received: 60 }), orders, indexItems(items))!;
+  assert.equal(r5.order?.id, "r5");
+  const [r0] = salesFromTrade(trade({ offered: [{ name: "Condition Overload", rank: 0, count: 1 }], platinum_received: 20 }), orders, indexItems(items))!;
+  assert.equal(r0.order?.id, "r0");
+  // A rank the log didn't give, with two ranks listed: neither.
+  const [unknown] = salesFromTrade(trade({ offered: [{ name: "Condition Overload", rank: null, count: 1 }], platinum_received: 20 }), orders, indexItems(items))!;
+  assert.equal(unknown.order, null);
+  // A rank nothing is listed at: nothing closed.
+  const [r3] = salesFromTrade(trade({ offered: [{ name: "Condition Overload", rank: 3, count: 1 }], platinum_received: 40 }), orders, indexItems(items))!;
+  assert.equal(r3.order, null);
+});
+
+test("an item-for-item trade isn't a sale of anything, listed or not", () => {
+  const orders = [order("o", "gp", 1, 45), order("c", "co", 1, 20, 0)];
+  const swap = trade({ offered: [{ name: "Gauss Prime Neuroptics Blueprint", rank: null, count: 1 }], received: [{ name: "Condition Overload", rank: 0, count: 1 }] });
+  assert.equal(salesFromTrade(swap, orders, indexItems(items)), null);
+  // Items and platinum for items: still a swap, not a sale.
+  assert.equal(salesFromTrade({ ...swap, platinum_received: 30 }, orders, indexItems(items)), null);
+});
+
+test("several listings of one item at different prices: the one at the price paid, or none", () => {
+  const it = items[1];
+  const orders = [order("a", "gp", 2, 40), order("b", "gp", 1, 45), order("c", "gp", 1, 50)];
+  // warframe.market allows three visible listings of one item at different prices.
+  assert.equal(listingFor(it, null, null, orders, 45)?.id, "b", "exactly one asks what a copy went for");
+  assert.equal(listingFor(it, null, null, orders, 42), null, "paid a price none asks");
+  assert.equal(listingFor(it, null, null, orders, null), null, "what a copy went for isn't known");
+  assert.equal(listingFor(it, null, null, [order("a", "gp", 2, 40), order("a2", "gp", 1, 40)], null)?.id, "a", "one price: the same offer");
+  // Through a trade: one item alone, 2 copies for 80p is 40p each.
+  const [s] = salesFromTrade(trade({ offered: [{ name: "Gauss Prime Neuroptics Blueprint", rank: null, count: 2 }], platinum_received: 80 }), orders, indexItems(items))!;
+  assert.equal(s.order?.id, "a");
+  // With another item in the trade, what each copy went for can't be told: left listed.
+  const two = salesFromTrade(trade({ offered: [{ name: "Gauss Prime Neuroptics Blueprint", rank: null, count: 1 }, { name: "Condition Overload", rank: 0, count: 1 }], platinum_received: 65 }), [...orders, order("co", "co", 1, 20, 0)], indexItems(items))!;
+  assert.equal(two.find((x) => x.name === "Gauss Prime Neuroptics Blueprint")?.order, null);
+});
+
+test("a trade read again after a restart is acted on once", () => {
+  const now = (1_791_918_527 + 3127) * 1000 + 60_000;
+  const t = trade({ offered: [{ name: "Condition Overload", rank: 0, count: 1 }], platinum_received: 20 });
+  const first = tradesToMark([t], 1_791_918_527, [], now, false);
+  assert.deepEqual(first.fresh, [tradeKey(1_791_918_527, t)]);
+  assert.equal(first.recent.length, 1);
+  // The same game session's log, read again by the next run: the key was kept.
+  const again = tradesToMark([t], 1_791_918_527, first.fresh, now + 5_000, true);
+  assert.deepEqual(again, { fresh: [], recent: [] });
+  // And the sales log, by the trade's identity, says it's logged.
+  const sales: Sale[] = [{ at: now, item: "Condition Overload", rank: 0, quantity: 1, platinum: 20, trade: first.fresh[0] }];
+  assert.ok(tradeSaleLogged(sales, first.fresh[0], "Condition Overload"));
+});
+
+test("two trades of the same item with the same partner are two sales, each logged once", () => {
+  const session = 1_791_918_527;
+  const a = trade({ uptime: 100.5, offered: [{ name: "Condition Overload", rank: 0, count: 1 }], platinum_received: 20 });
+  const b = trade({ uptime: 160.25, offered: [{ name: "Condition Overload", rank: 0, count: 1 }], platinum_received: 20 });
+  const { fresh } = tradesToMark([a, b], session, [], (session + 200) * 1000, false);
+  assert.equal(new Set(fresh).size, 2, "two keys");
+  const sales: Sale[] = [{ at: 0, item: "Condition Overload", rank: 0, quantity: 1, platinum: 20, trade: fresh[0] }];
+  assert.ok(tradeSaleLogged(sales, fresh[0], "Condition Overload"));
+  assert.ok(!tradeSaleLogged(sales, fresh[1], "Condition Overload"), "the second trade's sale isn't the first's");
+  assert.ok(!tradeSaleLogged(sales, fresh[0], "Gauss Prime Neuroptics Blueprint"), "another item of the same trade isn't either");
+});
+
+test("+rep that failed and is tried again goes once: one per player, never again once given", () => {
+  const now = 1_800_000_000_000;
+  const entry = (key: string, partner: string, at: number): TradeLogEntry => ({ key, at, partner, offered: [], received: [], platOut: 0, platIn: 20 }) as TradeLogEntry;
+  const trades = [entry("s|1", "Buyer1", now - 60_000), entry("s|2", "Buyer1", now - 30_000)];
+  // Failed: nothing recorded, so the retry picks it again, and only one trade per player.
+  assert.deepEqual(repCandidates(trades, {}, now).map((t) => t.key), ["s|1"]);
+  assert.deepEqual(repCandidates(trades, {}, now + 120_000).map((t) => t.key), ["s|1"]);
+  // Given on the retry: no second +rep, for that trade or the partner's other one, nor after a restart.
+  assert.deepEqual(repCandidates(trades, { "s|1": "given" }, now + 180_000), []);
+  assert.deepEqual(repCandidates([...trades, entry("s|3", "buyer1", now)], { "s|1": "given" }, now + 180_000), [], "names in any case");
 });
