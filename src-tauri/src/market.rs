@@ -1082,6 +1082,9 @@ pub struct BookOrder {
     pub amber_stars: Option<u32>,
     #[serde(default)]
     pub cyan_stars: Option<u32>,
+    /// The least a seller of a bulk item trades at once; the site's whisper names it ("x10").
+    #[serde(default)]
+    pub per_trade: Option<u32>,
     pub user: BookUser,
 }
 

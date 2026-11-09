@@ -11,6 +11,7 @@ import type { Element, Loadout, LoadoutPick, SlotKind } from "./builds/suggest";
 import type { IdealStat } from "./builds/riven";
 import { recipeItem, type RecipeFamily } from "./recipes";
 import { familyOf } from "./modular";
+import { tradeWhisper } from "./whisper";
 import { competitor, type BookOrder, type Me } from "./market";
 
 export const TIERS: Tier[] = ["low", "medium", "high"];
@@ -304,10 +305,6 @@ export interface Seller {
   whisper: string;
 }
 
-/** The game-chat whisper warframe.market's Buy copies, word for word (as Home's cheap buys). */
-export function whisperLine(seller: string, item: string, platinum: number, rank: number | null): string {
-  return `/w ${seller} Hi! I want to buy: "${item}${rank != null ? ` (rank ${rank})` : ""}" for ${platinum} platinum. (warframe.market)`;
-}
 
 /**
  * The cheapest seller in game now for one copy at `rank` (null for things without ranks), from an
@@ -317,7 +314,8 @@ export function whisperLine(seller: string, item: string, platinum: number, rank
 export function cheapestSeller(book: readonly BookOrder[], item: string, rank: number | null, me: Me | null, defaultSubtype: string | null = null): Seller | null {
   const c = competitor({ rank, subtype: null }, [...book], me ?? { id: "" }, defaultSubtype);
   if (!c.lowest?.name) return null;
-  return { name: c.lowest.name, platinum: c.lowest.platinum, sellers: c.sellers, whisper: whisperLine(c.lowest.name, item, c.lowest.platinum, rank) };
+  const low = c.lowest;
+  return { name: low.name!, platinum: low.platinum, sellers: c.sellers, whisper: tradeWhisper({ player: low.name!, action: "buy", item, platinum: low.platinum, rank, subtype: defaultSubtype, perTrade: low.perTrade, cyanStars: low.cyanStars, amberStars: low.amberStars }) };
 }
 
 // ---------------------------------------------------------------- the paste's fixes

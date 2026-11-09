@@ -27,7 +27,7 @@ test("a deal is an in-game seller at 60% of the usual price or less, with the wh
   assert.equal(deals.length, 1, "the Lex barrel's usual price is too low to bother");
   const [d] = deals;
   assert.deepEqual([d.price, d.usual, d.why], [22, 40, "the last part of Mesa Prime"], "offline sellers don't count");
-  assert.equal(d.whisper, `/w ${d.seller} Hi! I want to buy: "Mesa Prime Neuroptics" for 22 platinum. (warframe.market)`);
+  assert.equal(d.whisper, `/w ${d.seller} Hi! I want to buy: "Mesa Prime Neuroptics" for 22 platinum. (warframe.market) (MyOrbiter)`);
 });
 
 test("no deal when the cheapest in-game seller is near the usual price", () => {

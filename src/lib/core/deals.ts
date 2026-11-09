@@ -3,6 +3,7 @@
 // request to warframe.market.
 import { setGaps } from "./advice";
 import { canTrade, competitor, findItem, referencePrice, type BookOrder, type BookUser, type MarketIndex, type MarketItem, type Me } from "./market";
+import { tradeWhisper } from "./whisper";
 import type { Model } from "./model";
 import { arcaneRows } from "./views";
 
@@ -100,7 +101,7 @@ export function findDeals(m: Model, index: MarketIndex, books: Record<string, Bo
       usual: Math.round(usual ?? w.maxPrice ?? low.platinum),
       seller: low.name ?? "?",
       why: w.why,
-      whisper: `/w ${low.name} Hi! I want to buy: "${it.name}${rank != null ? ` (rank ${rank})` : ""}${w.subtype ? ` (${w.subtype})` : ""}" for ${low.platinum} platinum. (warframe.market)`,
+      whisper: tradeWhisper({ player: low.name ?? "?", action: "buy", item: it.name, platinum: low.platinum, rank, subtype: it.subtypes?.length ? sub : null, perTrade: low.perTrade, cyanStars: low.cyanStars, amberStars: low.amberStars }),
     });
   }
   return out.sort((a, b) => b.usual - b.price - (a.usual - a.price));
@@ -114,6 +115,9 @@ export interface FeedOrder {
   quantity?: number;
   rank?: number | null;
   subtype?: string | null;
+  perTrade?: number | null;
+  cyanStars?: number | null;
+  amberStars?: number | null;
   itemId: string;
   user: Partial<BookUser> & { ingameName?: string; id?: string };
 }
@@ -149,6 +153,6 @@ export function dealFromOrder(m: Model, index: MarketIndex, o: FeedOrder, watch:
     usual: Math.round(usual ?? w.maxPrice ?? o.platinum),
     seller,
     why: w.why,
-    whisper: `/w ${seller} Hi! I want to buy: "${it.name}${rank != null ? ` (rank ${rank})` : ""}${w.subtype ? ` (${w.subtype})` : ""}" for ${o.platinum} platinum. (warframe.market)`,
+    whisper: tradeWhisper({ player: seller, action: "buy", item: it.name, platinum: o.platinum, rank, subtype: it.subtypes?.length ? (o.subtype ?? sub) : null, perTrade: o.perTrade, cyanStars: o.cyanStars, amberStars: o.amberStars }),
   };
 }

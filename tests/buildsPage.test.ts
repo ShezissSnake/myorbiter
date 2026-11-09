@@ -5,7 +5,7 @@ import { test } from "node:test";
 import "./wikiFiles";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { ago, ageLine, arrange, buildableItems, buildKindOf, cheapestSeller, helminthShow, kindLabelOf, noxUrl, overframeUrl, placeIn, recentItems, rivenShort, searchItems, shardSlots, startingItems, slugOf, sourceName, whisperLine, withItLines, type BuildableItem } from "../src/lib/core/buildsPage";
+import { ago, ageLine, arrange, buildableItems, buildKindOf, cheapestSeller, helminthShow, kindLabelOf, noxUrl, overframeUrl, placeIn, recentItems, rivenShort, searchItems, shardSlots, startingItems, slugOf, sourceName, withItLines, type BuildableItem } from "../src/lib/core/buildsPage";
 import { tierOf, type Build, type Tier, type TierResult } from "../src/lib/core/builds";
 import { recipeItems } from "../src/lib/core/recipes";
 import type { BookOrder } from "../src/lib/core/market";
@@ -129,9 +129,11 @@ test("the whisper: the cheapest seller in game at the rank, in warframe.market's
   const order = (name: string, platinum: number, x: Partial<BookOrder> = {}): BookOrder => ({ id: name, type: "sell", platinum, quantity: 1, rank: 0, subtype: null, visible: true, user: { id: name, ingameName: name, status: "ingame", platform: null, crossplay: null }, ...x });
   const book = [order("Away", 5, { user: { id: "Away", ingameName: "Away", status: "offline", platform: null, crossplay: null } }), order("Maxed", 6, { rank: 10 }), order("Second", 12), order("First", 9), order("Buyer", 30, { type: "buy" })];
   const s = cheapestSeller(book, "Serration", 0, null);
-  assert.deepEqual(s, { name: "First", platinum: 9, sellers: 2, whisper: '/w First Hi! I want to buy: "Serration (rank 0)" for 9 platinum. (warframe.market)' });
+  assert.deepEqual(s, { name: "First", platinum: 9, sellers: 2, whisper: '/w First Hi! I want to buy: "Serration (rank 0)" for 9 platinum. (warframe.market) (MyOrbiter)' });
   assert.equal(cheapestSeller([order("Away", 5, { user: { id: "Away", ingameName: "Away", status: "online", platform: null, crossplay: null } })], "Serration", 0, null), null);
-  assert.equal(whisperLine("Seller", "Arcane Energize", 40, null), '/w Seller Hi! I want to buy: "Arcane Energize" for 40 platinum. (warframe.market)');
+  // A relic: its refinement before the name, as the site writes it.
+  const relic = cheapestSeller([order("R", 4, { rank: null, subtype: "radiant" })], "Axi A1 Relic", null, null, "radiant");
+  assert.equal(relic?.whisper, '/w R Hi! I want to buy: "radiant Axi A1 Relic" for 4 platinum. (warframe.market) (MyOrbiter)');
 });
 
 test("a name picked for an unmatched one goes in the first free slot of its kind, never twice, never past the slots", () => {
