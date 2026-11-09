@@ -96,7 +96,7 @@
 </div>
 
 <style>
-  /* Deeper than the slab, a hairline above and below. The figures wrap onto a second line when the
+  /* A plate, a hairline above and below. The figures wrap onto a second line when the
      page is narrow, rather than run off its edge. */
   .tape {
     display: flex; align-items: stretch;

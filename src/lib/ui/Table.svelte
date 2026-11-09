@@ -142,9 +142,10 @@
   /* A row that opens shows a gold edge on hover; the open one and its detail keep it. */
   tr.clickable:hover td:first-child, tr.open td:first-child { box-shadow: inset 2px 0 0 var(--gold-dim); }
   tbody tr:hover td { background: rgb(241 243 246 / 2.5%); }
-  tr.open td { background: var(--raised); border-bottom-color: transparent; }
-  tr.detail td { background: var(--raised); padding: .4rem 1rem 1.2rem .6rem; cursor: default; border-bottom: 1px solid var(--rule-bright); box-shadow: inset 2px 0 0 var(--gold-dim); }
-  tr.detail:hover td { background: var(--raised); }
+  /* The open row and its detail sink into the plate, so the buttons in them stand out. */
+  tr.open td { background: var(--well); border-bottom-color: transparent; }
+  tr.detail td { background: var(--well); padding: .4rem 1rem 1.2rem .6rem; cursor: default; border-bottom: 1px solid var(--rule-bright); box-shadow: inset 2px 0 0 var(--gold-dim); }
+  tr.detail:hover td { background: var(--well); }
   .more { margin: 1.2rem auto; display: block; text-align: center; min-height: 2rem; }
   /* Nothing here: quiet, but still readable (about 5:1). */
   .nil { color: var(--platinum-deep); }

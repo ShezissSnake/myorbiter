@@ -30,7 +30,7 @@
 
   --platinum: #f1f3f6;
   --platinum-dim: #98a1ab;
-  /* Secondary text: 4.5:1 or better on every surface, a section pane's top light included. */
+  /* Secondary text: 4.5:1 or better on every surface, the page's criss-cross included. */
   --platinum-deep: #88919c;
   /* Gold is the Orokin metal: ducats, the Rare tier and Axi relics, and the Trade section. */
   --gold: #d6ae4a;
@@ -86,10 +86,12 @@
   --era-requiem: #d46a8e;
   --era-omnia: #a2a8f0;
 
-  /* Each section's own colour (the [data-section] rules at the end of this file): it marks the
-     title's sigil and rule, the rule under the figures, and the sidebar's headers. Pages outside a
-     section (Home, the Guide) are neutral. --sec-dim is the same hue
-     about half way to the slab, solid, for hairlines. */
+  /* Each section's own colour (the [data-section] rules at the end of this file): a hint, in
+     three places: the strip down the page's left edge (.pane), the title's sigil and the start of
+     its rule, and the sidebar's sigils and open page. A section's own signature (the reward to
+     take, the Codex rings, the showcase, the ticker) uses it too. Pages outside a section (Home,
+     the Guide) are neutral. --sec-dim is the same hue about half way to the slab, solid, for
+     hairlines. */
   --sec: var(--platinum-dim);
   --sec-dim: #4f565f;
   --sec-sigil: none;
@@ -457,6 +459,8 @@ tr.era-wash > td:first-child { box-shadow: inset 2px 0 0 color-mix(in srgb, var(
 }
 .pane[data-section] { box-shadow: inset 3px 0 0 var(--sec); }
 .pane table { background: var(--plate); }
+/* A table inside a table's open row takes that row's colour. */
+.pane td table { background: none; }
 
 /* The sections (pages.ts groups; App puts data-section on each page and sidebar entry). */
 /* Four hues far apart, each at least 6:1 on the slab: Fissures ice blue, Progress green, Collection

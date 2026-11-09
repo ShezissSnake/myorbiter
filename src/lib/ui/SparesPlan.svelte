@@ -259,7 +259,7 @@
   .totals { display: inline-flex; align-items: baseline; gap: .9rem; font-size: .82rem; color: var(--platinum-dim); font-variant-numeric: tabular-nums; margin-left: auto; }
   .totals b { font-family: var(--face-mark); font-size: 1.15rem; color: var(--platinum); margin-right: .15rem; }
   .totals .pl { display: inline-flex; align-items: center; }
-  .cats { border-top: 1px solid var(--rule-bright); }
+  .cats { border-top: 1px solid var(--rule-bright); background: var(--plate); }
   fieldset { margin: 0; min-width: 0; }
   .opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: .9rem 1.6rem; align-items: start; border: 0; padding: 0; }
   /* Greyed out by colour, not opacity, so the text stays above 4.5:1. */

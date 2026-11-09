@@ -353,8 +353,9 @@
   .log th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); padding: .6rem .6rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
   .log th.right { text-align: right; }
   .log td { padding: var(--row-pad) .6rem; border-bottom: 1px solid var(--rule); }
-  .log th:first-child, .log td:first-child { padding-left: 0; }
-  .log th:last-child, .log td:last-child { padding-right: 0; }
+  /* The table is a plate (app.css): its first and last columns keep off the plate's edges. */
+  .log th:first-child, .log td:first-child { padding-left: .6rem; }
+  .log th:last-child, .log td:last-child { padding-right: .6rem; }
   .log tbody tr:hover td { background: rgb(255 255 255 / 1.5%); }
   /* Just added by hand: a gold wash that fades over a second (a colour, so it shows under reduced motion too). */
   .log tr.added td { animation: sale-added 1s ease-out; }

@@ -78,7 +78,7 @@
   .showcase {
     position: relative; margin-top: .2rem;
     background: var(--plate); clip-path: var(--cut);
-    border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+    border: 1px solid var(--rule);
     padding: .7rem clamp(.8rem, 2vw, 1.6rem) 0;
   }
   .cap { display: flex; align-items: baseline; gap: .9rem; flex-wrap: wrap; }

@@ -79,7 +79,7 @@
     position: absolute; z-index: 30; left: 0; right: 0; bottom: 0;
     display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1rem;
     padding: .6rem clamp(var(--step), 3vw, var(--field)) .65rem;
-    background: rgb(11 13 16 / 96%); border-top: 1px solid var(--gold-dim);
+    background: color-mix(in srgb, var(--slab) 96%, transparent); border-top: 1px solid var(--gold-dim);
     box-shadow: 0 -1rem 2rem rgb(0 0 0 / 45%);
   }
   /* How far along: one tick a change, the one shown lit. */

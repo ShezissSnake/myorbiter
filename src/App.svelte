@@ -2923,7 +2923,7 @@
   /* A page that threw: the same quiet line, with Try again. */
   .pagefail { margin: 0; padding: 3rem 1rem; text-align: center; }
 
-  /* ---- sidebar: a neutral plate (the section colours are only on its headers and the open page) */
+  /* ---- sidebar: a neutral plate (the section colours are only on its sigils and the open page) */
   .rail {
     display: flex; flex-direction: column; min-height: 0; overflow: hidden;
     background: var(--plate); border-right: 1px solid var(--rule);

@@ -837,7 +837,7 @@
   .selling .plat { display: inline-flex; align-items: center; gap: .3rem; }
   .selling .hint { flex-basis: 100%; }
   .err { color: var(--oxblood); flex-basis: 100%; }
-  .note { margin: var(--step) 0; }
+  .note { margin: var(--step) 0; padding: 1.2rem 1.4rem; border: 1px solid var(--rule); background: var(--plate); clip-path: var(--cut); }
   .riven { display: flex; flex-direction: column; border: 1px solid var(--rule); background: linear-gradient(180deg, color-mix(in srgb, var(--rarity-riven) 6%, var(--plate)), var(--plate) 45%); clip-path: var(--cut); padding: .8rem .9rem .6rem; gap: .6rem; }
   .explain { max-width: 75ch; }
   .indetail { max-width: 36rem; padding: .4rem 0; }

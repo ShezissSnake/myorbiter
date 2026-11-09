@@ -467,10 +467,9 @@
   .pool:not(.history) .rank { padding-left: .5rem; box-shadow: inset 3px 0 0 var(--rar, transparent); }
   .pool .sc { width: 2.6rem; text-align: right; font-family: var(--face-mark); font-size: 1.15rem; }
   .pool .bc { width: 5.6rem; }
-  .pool tr.yours td { background: var(--plate); }
+  .pool tr.yours td { background: var(--raised); }
   .history .time { width: 6rem; white-space: nowrap; font-family: var(--face-figures); font-size: .66rem; letter-spacing: .08em; color: var(--platinum-deep); }
   .history tr.current td { background: var(--raised); }
-  .history th:first-child { padding-left: .5rem; }
   .got { display: inline-flex; align-items: center; gap: .4rem; margin-right: 1.1rem; }
   .rw { display: flex; align-items: center; }
   .rw-name { display: inline-flex; align-items: center; gap: .5rem; }

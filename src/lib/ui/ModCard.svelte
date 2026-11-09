@@ -88,7 +88,7 @@
   .in > img { width: 100%; height: 100%; object-fit: cover; }
   .art::after { content: ""; position: absolute; inset: auto 0 0 0; height: 40%; background: linear-gradient(transparent, var(--plate)); }
   .none { width: 22%; height: 22%; border: 1px solid var(--edge); transform: rotate(45deg); opacity: .5; }
-  .drain { position: absolute; top: 3px; right: 3px; z-index: 1; display: inline-flex; align-items: center; gap: 2px; padding: 1px 4px; background: rgb(11 13 16 / 75%); border: 1px solid color-mix(in srgb, var(--edge) 55%, transparent); border-radius: 2px; font-size: calc(var(--w) * .095); font-weight: 700; color: var(--edge); line-height: 1.1; }
+  .drain { position: absolute; top: 3px; right: 3px; z-index: 1; display: inline-flex; align-items: center; gap: 2px; padding: 1px 4px; background: color-mix(in srgb, var(--slab) 75%, transparent); border: 1px solid color-mix(in srgb, var(--edge) 55%, transparent); border-radius: 2px; font-size: calc(var(--w) * .095); font-weight: 700; color: var(--edge); line-height: 1.1; }
   .drain img { width: calc(var(--w) * .1); height: calc(var(--w) * .1); filter: brightness(1.6); }
   .plate { display: grid; justify-items: center; align-content: start; gap: calc(var(--w) * .03); padding: calc(var(--w) * .04) calc(var(--w) * .05) calc(var(--w) * .06); text-align: center; border-top: 1px solid color-mix(in srgb, var(--edge) 70%, transparent); }
   .nm { color: var(--edge); font-family: var(--face-mark); font-weight: 700; font-size: calc(var(--w) * .1); line-height: 1.05; text-transform: uppercase; letter-spacing: .02em; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

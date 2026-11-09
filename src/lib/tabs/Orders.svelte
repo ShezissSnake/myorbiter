@@ -1160,7 +1160,7 @@
   table.orders { width: 100%; border-collapse: collapse; margin-top: var(--step); border-top: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
   .orders th { text-align: left; font-family: var(--face-register); font-weight: 500; font-size: .72rem; letter-spacing: .15em; text-transform: uppercase; color: var(--platinum-deep); padding: .7rem .6rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
   .orders th.right { text-align: right; }
-  .whispers { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1.2rem; margin: var(--step) 0 0; padding: .55rem .8rem; border: 1px solid var(--rule); border-left: 2px solid var(--gold-dim); }
+  .whispers { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1.2rem; margin: var(--step) 0 0; padding: .55rem .8rem; border: 1px solid var(--rule); border-left: 2px solid var(--gold-dim); background: var(--plate); }
   .wh { display: inline-flex; align-items: center; gap: .45rem; }
   /* Sell spares in one line: the whole line opens the page. */
   .sparesline { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: .7rem; margin: var(--step) 0 .4rem; padding: .7rem .9rem; border: 1px solid var(--rule); background: var(--plate); cursor: pointer; transition: border-color var(--quick) var(--out); }
@@ -1250,6 +1250,6 @@
   .charted:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
   .charted.on { color: var(--gold); border-color: var(--gold-dim); }
   /* The chart sits in from the table's edges, which its first and last cells otherwise touch. */
-  .orders tr.chartrow > td, :global(html[data-room~="lt1100"]) .orders tr.chartrow > td { padding: .6rem 1rem 1.1rem; background: var(--raised); }
+  .orders tr.chartrow > td, :global(html[data-room~="lt1100"]) .orders tr.chartrow > td { padding: .6rem 1rem 1.1rem; background: var(--well); }
   .apart { display: inline-flex; margin-left: .55rem; padding-left: .55rem; border-left: 1px solid var(--rule); }
 </style>
