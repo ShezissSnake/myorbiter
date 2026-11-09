@@ -12,7 +12,7 @@
 //                                     Releases (a local build)
 //   node scripts/site.mjs --check     build, then check every link, that no page carries a script,
 //                                     that no dev-*.json (real account data) is in it, and that
-//                                     the landing page's grids fit 320 and 360 px wide
+//                                     the landing and Guide pages' grids fit 320, 360 and 390 px wide
 //
 // Reading the registry fails the build on anything but a file that's there or a 404 (no build on
 // that channel yet), and on a manifest that doesn't check out: the site never links a wrong file.
@@ -334,18 +334,20 @@ for (const [pkg, files] of [["archivo-narrow", ["latin-500-normal", "latin-600-n
   cpSync(join(ROOT, "node_modules/@fontsource", pkg, "LICENSE"), join(OUT, "fonts", `${pkg}-LICENSE.txt`));
 }
 
-/** Phone widths the landing page must fit without scrolling sideways (CSS px). */
-const NARROW = [320, 360];
+/** Phone widths the landing and Guide pages must fit without scrolling sideways (CSS px). */
+const NARROW = [320, 360, 390];
+/** The pages checked at those widths. */
+const NARROW_PAGES = ["index.html", ...GUIDE.map((g) => g.file)];
 /** The page's side padding (`main`, 1.5rem on each side) in px. */
 const GUTTERS = 2 * 1.5 * 16;
 
 /**
- * Grids on the landing page whose narrowest column is wider than the page at a phone's width:
+ * Grids on a page whose narrowest column is wider than the page at a phone's width:
  * `repeat(auto-fit, minmax(20rem, 1fr))` still draws one 20rem column at 320 px, past the edge.
  * A column written `minmax(min(100%, 20rem), 1fr)` shrinks to the page instead. Only rules whose
- * classes all appear on the landing page are checked; rem is taken as 16 px.
+ * classes all appear on the page are checked; rem is taken as 16 px.
  */
-function narrowOverflow(css, html) {
+function narrowOverflow(css, html, file) {
   const used = new Set([...html.matchAll(/class="([^"]+)"/g)].flatMap((m) => m[1].split(/\s+/)));
   const out = [];
   for (const [, selector, body] of css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
@@ -356,14 +358,14 @@ function narrowOverflow(css, html) {
     const len = /^([\d.]+)(rem|px)$/.exec(cols[1]);
     if (!len) continue;
     const px = Number(len[1]) * (len[2] === "rem" ? 16 : 1);
-    for (const w of NARROW) if (px > w - GUTTERS) out.push(`site.css: ${selector.trim()} needs ${px} px a column; the landing page has ${w - GUTTERS} at ${w} px (use minmax(min(100%, ${cols[1]}), 1fr))`);
+    for (const w of NARROW) if (px > w - GUTTERS) out.push(`site.css: ${selector.trim()} needs ${px} px a column; ${file} has ${w - GUTTERS} at ${w} px (use minmax(min(100%, ${cols[1]}), 1fr))`);
   }
   return out;
 }
 
 // ---- Checks: every local link, image and stylesheet url() resolves (same-page anchors included),
 // external links go only to gitlab.com, no dev-*.json file (a real account's data) is in the
-// output or named in it, and the landing page's grids fit a phone 320 and 360 px wide.
+// output or named in it, and the landing and Guide pages' grids fit a phone 320, 360 and 390 px wide.
 if (args.includes("--check")) {
   const ALLOWED = new Set([HOST]);
   const all = (d) => readdirSync(d).flatMap((f) => (statSync(join(d, f)).isDirectory() ? all(join(d, f)) : [join(d, f)]));
@@ -392,9 +394,10 @@ if (args.includes("--check")) {
       if (hash && target.endsWith(".html") && !readFileSync(target, "utf8").includes(`id="${hash}"`)) bad.push(`${rel}: ${url} has no #${hash}`);
     }
   }
-  bad.push(...narrowOverflow(readFileSync(join(OUT, "site.css"), "utf8"), readFileSync(join(OUT, "index.html"), "utf8")));
+  const css = readFileSync(join(OUT, "site.css"), "utf8");
+  for (const file of NARROW_PAGES) bad.push(...narrowOverflow(css, readFileSync(join(OUT, file), "utf8"), file));
   if (bad.length) { console.error(bad.join("\n")); process.exit(1); }
-  console.log(`site/_site: ${files.length} files, every link checked, the landing page fits ${NARROW.join(" and ")} px.`);
+  console.log(`site/_site: ${files.length} files, every link checked, the landing and Guide pages fit ${NARROW.join(", ")} px.`);
 } else {
   console.log("site/_site written.");
 }
