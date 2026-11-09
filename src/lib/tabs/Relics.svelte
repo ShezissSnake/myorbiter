@@ -307,7 +307,7 @@
   .refs { display: inline-flex; gap: .8rem; font-size: .82rem; color: var(--platinum-dim); }
   .refs b { color: var(--platinum); font-family: var(--face-mark); font-size: 1rem; }
   .farm { margin: 0 0 .7rem; display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .4rem; }
-  .farm .register { font-size: .6rem; color: var(--gold-dim); margin-right: .3rem; }
+  .farm .register { font-size: 11px; color: var(--gold-dim); margin-right: .3rem; }
   .era-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem 1rem; margin-top: var(--step); }
   .era-head h2 { margin: 0; }
   .eras { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: .5rem; padding: .7rem 0 0; }
@@ -338,7 +338,7 @@
   .era-cell:hover .fz, .era-cell:has(.era:focus-visible) .fz { display: grid; animation: pop .12s ease-out; }
   .era-cell:nth-last-child(-n + 2) .fz { left: auto; right: 0; }
   @keyframes pop { from { opacity: 0; transform: translateY(3px); } }
-  .fz .register { font-size: .6rem; margin-bottom: .15rem; }
+  .fz .register { font-size: 11px; margin-bottom: .15rem; }
   .fz-row { display: grid; grid-template-columns: 7.5rem 1fr auto 3.4rem; align-items: center; gap: .7rem; padding-top: .3rem; border-top: 1px solid var(--rule); }
   .fz-type { color: var(--platinum); display: inline-flex; align-items: center; gap: .3rem; }
   .fz-node { color: var(--platinum-dim); white-space: nowrap; }
@@ -353,7 +353,7 @@
   .rewards tr.need .rn-name { color: var(--gold); font-weight: 600; }
   .rewards tr.done .rn-name span { color: var(--platinum-deep); }
   .rn .tag { margin-left: .5rem; vertical-align: 0; }
-  .mastered { margin-left: .6rem; font-size: .6rem; color: var(--platinum-deep); }
+  .mastered { margin-left: .6rem; font-size: 11px; color: var(--platinum-deep); }
   .rar { font-size: 0.75rem; }
   .rar-Rare { color: var(--rarity-rare); }
   .rar-Uncommon { color: var(--rarity-uncommon); }
@@ -396,7 +396,7 @@
   .rwc i { position: absolute; right: -3px; bottom: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 2px var(--plate); }
   .ev { display: flex; gap: 1.1rem; }
   .ev > span { display: grid; gap: .15rem; }
-  .ev .register { font-size: .6rem; }
+  .ev .register { font-size: 11px; }
   .grow { flex: 1; }
   /* Details off: each era a compact tile, its name and what's open (counts and missions on hover). */
   :global(html:not([data-details])) .era { padding: .45rem .75rem .5rem; }

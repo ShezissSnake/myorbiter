@@ -23,7 +23,7 @@
   --slab: #0b0d10;
   --plate: #121418;
   --raised: #181b20;
-  --well: #0c0e11;
+  --well: #08090c;
   --rule: #242930;
   --rule-bright: #363c45;
   --rule-control: #5d6671;
@@ -87,7 +87,7 @@
   --era-omnia: #a2a8f0;
 
   /* Each section's own colour (the [data-section] rules at the end of this file): a hint, in
-     three places: the strip down the page's left edge (.pane), the title's sigil and the start of
+     three places: the strip down the content's left edge (App's main), the title's sigil and the start of
      its rule, and the sidebar's sigils and open page. A section's own signature (the reward to
      take, the Codex rings, the showcase, the ticker) uses it too. Pages outside a section (Home,
      the Guide) are neutral. --sec-dim is the same hue about half way to the slab, solid, for
@@ -101,7 +101,7 @@
      (a background layer, over the plate's own colour). */
   --plate-light: inset 0 1px 0 rgb(255 255 255 / 5%);
   --plate-sheen: linear-gradient(180deg, rgb(255 255 255 / 2.5%), transparent 40%);
-  /* The page's criss-cross behind the plates (.pane, below): the 45° lines and the 240 px grid. */
+  /* The content's criss-cross behind the plates (App's main, below): the 45° lines and the 240 px grid. */
   --hatch: rgb(255 255 255 / 2.8%);
   --grid: rgb(255 255 255 / 3%);
 
@@ -339,7 +339,11 @@ a.link { text-decoration: none; text-transform: uppercase; display: inline-flex;
    the grid into new columns. */
 .page { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; }
 .page-inner { max-width: 1840px; margin: 0 auto; padding: 0 clamp(var(--step), 3vw, var(--field)) var(--field); }
-.bar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .8rem; padding: var(--step) 0; }
+/* A filter row: a plate of its own, its controls inset from its edge. */
+.bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .8rem;
+  margin: var(--step) 0 .5rem; padding: .6rem; background: var(--plate); border: 1px solid var(--rule);
+}
 /* The filter box leads the row and takes the room that's left, so it never wraps onto a line alone. */
 .bar > input[type="search"] { order: -1; flex: 1 1 14rem; min-width: 14rem; max-width: 26rem; }
 /* One height for every control in a toolbar row. */
@@ -446,23 +450,26 @@ tr.era-wash > td:first-child { box-shadow: inset 2px 0 0 color-mix(in srgb, var(
 
 /* ---------------------------------------------------------------- plates on the slab
    Whatever holds content sits on an opaque plate of its own: cards and panels, the band of figures
-   under a page's title (PageHead), and tables. Behind them, the page (App's .pane) carries a faint
-   neutral criss-cross, white, never the section's hue: two sets of 45° lines every 28 px and a
-   square grid every 240 px. It shows only in the gutters and margins, and stays put while the page
-   scrolls. In a section, a 3 px strip in its colour runs down the page's left edge, by the sidebar. */
-.pane {
+   under a page's title (PageHead), the filter rows, and tables. Behind them, the content (App's
+   main, the banners and the page) carries a faint neutral criss-cross, white, never the section's
+   hue: two sets of 45° lines every 28 px and a square grid every 240 px. It shows only in the
+   gutters and margins, and stays put while the page scrolls. In a section, a 3 px strip in its
+   colour runs down the content's left edge, by the sidebar, the window's full height (behind the
+   banners, whose own edge covers it there). */
+#main {
   background:
     repeating-linear-gradient(45deg, var(--hatch) 0 1px, transparent 1px 28px),
     repeating-linear-gradient(-45deg, var(--hatch) 0 1px, transparent 1px 28px),
     repeating-linear-gradient(0deg, var(--grid) 0 1px, transparent 1px 240px),
     repeating-linear-gradient(90deg, var(--grid) 0 1px, transparent 1px 240px);
 }
-.pane[data-section] { box-shadow: inset 3px 0 0 var(--sec); }
+#main[data-section] { box-shadow: inset 3px 0 0 var(--sec); }
 .pane table { background: var(--plate); }
 /* A table inside a table's open row takes that row's colour. */
 .pane td table { background: none; }
 
-/* The sections (pages.ts groups; App puts data-section on each page and sidebar entry). */
+/* The sections (pages.ts groups; App puts data-section on each page and sidebar entry, and on
+   main for the open page). */
 /* Four hues far apart, each at least 6:1 on the slab: Fissures ice blue, Progress green, Collection
    violet, Trade platinum gold. */
 [data-section="Fissures"] { --sec: #7fd1e0; --sec-dim: #4b7a83; --sec-sigil: url("/game/void-tear.png"); --sec-name: "Fissures"; }

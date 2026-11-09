@@ -206,7 +206,7 @@
   .rk { font-family: var(--face-register); font-size: .72rem; letter-spacing: .06em; padding: .1rem .35rem; border: 1px solid var(--rule-bright); color: var(--platinum-dim); }
   .prices { display: flex; gap: 1rem; }
   .prices > span { display: grid; gap: .15rem; }
-  .prices .register { font-size: .6rem; }
+  .prices .register { font-size: 11px; }
   .rar { font-family: var(--face-register); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-dim); }
   .rar-Common { color: var(--rarity-common); }
   .rar-Uncommon { color: var(--rarity-uncommon); }

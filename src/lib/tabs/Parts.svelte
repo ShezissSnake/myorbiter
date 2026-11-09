@@ -331,11 +331,11 @@
   .v-Ducats { color: var(--gold); }
   .figs { display: flex; flex-wrap: wrap; gap: 1.4rem; align-items: end; margin-bottom: .6rem; }
   .figs > span { display: grid; gap: .2rem; }
-  .figs .register { font-size: .6rem; }
+  .figs .register { font-size: 11px; }
   .figs b.mark { font-size: 1.2rem; line-height: 1; }
   .hist { max-width: 46rem; margin: .4rem 0 .8rem; }
   .odds { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .45rem; margin: 0 0 .7rem; font-size: .8rem; }
-  .odds .register { flex-basis: 100%; font-size: .6rem; }
+  .odds .register { flex-basis: 100%; font-size: 11px; }
   .src { padding: .12rem .45rem; border: 1px solid var(--rule-bright); }
   .src.vaulted { opacity: .7; border-style: dashed; }
   .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1.2rem; }

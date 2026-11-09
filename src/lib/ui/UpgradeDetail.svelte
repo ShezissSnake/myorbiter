@@ -81,7 +81,7 @@
   .show { display: flex; justify-content: center; padding: .3rem 0; }
   .effect { display: grid; gap: .25rem; padding: .55rem .7rem; background: var(--well); border: 1px solid var(--rule); }
   .effect p { margin: 0; white-space: pre-line; color: var(--platinum); line-height: 1.4; font-size: .86rem; }
-  .register { font-size: .6rem; }
+  .register { font-size: 11px; }
   .figs { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: baseline; }
   .figs > span { display: grid; gap: .15rem; }
   .ranks { display: flex; flex-wrap: wrap; gap: .4rem; font-size: .76rem; }

@@ -825,7 +825,7 @@
   .est .v { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; }
   .est .fx .up { color: var(--jade, #7fc79a); }
   .est .fx .down { color: #e07a6a; }
-  .sortsel .register { font-size: .6rem; }
+  .sortsel .register { font-size: 11px; }
   .selling { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; padding: .6rem .7rem; margin-top: .6rem; border: 1px solid var(--rule-bright); background: var(--well); }
   .selling.on { border-color: color-mix(in srgb, var(--verdigris) 45%, transparent); box-shadow: inset 2px 0 0 var(--verdigris); }
   .selling label { display: inline-flex; align-items: center; gap: .45rem; }
@@ -845,7 +845,7 @@
   :global(html:not([data-details])) .explain { display: none; }
   .riven header { display: grid; grid-template-columns: auto 1fr auto; gap: .7rem; align-items: start; }
   .t { display: grid; gap: .25rem; min-width: 0; }
-  .t .register { font-size: .6rem; color: var(--rarity-riven); }
+  .t .register { font-size: 11px; color: var(--rarity-riven); }
   .t h3 { font-size: 1.15rem; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .meta { display: inline-flex; align-items: center; gap: .35rem; }
   .pol { width: 14px; height: 14px; opacity: .85; }
@@ -857,7 +857,7 @@
   .rbar { height: 4px; background: var(--rule); border-radius: 2px; overflow: hidden; }
   .rbar i { display: block; height: 100%; background: var(--platinum-dim); }
   .cycle { margin: 0; padding: .5rem .6rem; border: 1px dashed var(--rule-bright); display: grid; gap: .3rem; }
-  .cycle .register { font-size: .6rem; }
+  .cycle .register { font-size: 11px; }
   .was { display: flex; align-items: center; gap: .45rem; font-size: .84rem; }
   .arrow { margin-left: auto; font-family: var(--face-register); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
   .arrow.up { color: var(--verdigris); }
@@ -869,7 +869,7 @@
   .riven footer { margin-top: auto; display: flex; align-items: center; gap: .35rem; padding-top: .5rem; border-top: 1px solid var(--rule); min-height: 1.6rem; }
   .riven footer .slot { width: 30px; }
   /* Sell with its word, as on every other card (ListButton's look). */
-  .rsell { width: auto; display: inline-flex; gap: .35rem; padding: 0 .55rem 0 .45rem; font-size: .6rem; color: var(--platinum-dim); border-color: var(--rule-bright); background: transparent; }
+  .rsell { width: auto; display: inline-flex; gap: .35rem; padding: 0 .55rem 0 .45rem; font-size: 11px; color: var(--platinum-dim); border-color: var(--rule-bright); background: transparent; }
   .riven:hover .rsell:not(:disabled) { color: var(--gold); border-color: var(--gold-dim); }
   .rsell:hover:not(:disabled), .rsell.on { background: var(--gold); border-color: var(--gold); color: var(--slab); }
   .rsell:disabled { color: var(--platinum-deep); border-color: var(--rule); opacity: .6; }

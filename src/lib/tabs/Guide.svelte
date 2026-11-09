@@ -340,7 +340,7 @@
   .walks ol { margin: 0; padding-left: 1.1rem; display: grid; gap: .35rem; font-size: .86rem; }
   .walks .hidden-pages { grid-column: 1 / -1; margin: 0; }
   .news { margin-top: var(--course); display: grid; gap: .5rem; max-width: 72rem; }
-  .news h4 { margin: 0; font-size: .6rem; color: var(--platinum-deep); }
+  .news h4 { margin: 0; font-size: 11px; color: var(--platinum-deep); }
   .news h4 .n { letter-spacing: .1em; }
   .newshead { display: flex; align-items: baseline; gap: 1rem; }
   /* A day's heading, its tour at the right. */

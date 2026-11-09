@@ -85,7 +85,7 @@
   .rad.zero { color: var(--platinum-deep); }
   .meter { flex: 1 1 15rem; display: grid; align-content: center; gap: .4rem; padding: .6rem 1.1rem .65rem; min-width: 0; }
   .m-head { display: flex; align-items: center; gap: .45rem; }
-  .m-head .register { font-size: .6rem; color: var(--platinum-dim); }
+  .m-head .register { font-size: 11px; color: var(--platinum-dim); }
   .m-fig { margin-left: auto; display: inline-flex; align-items: baseline; gap: .1rem; }
   .m-fig b { font-family: var(--face-mark); font-size: 1.35rem; font-weight: 700; color: var(--platinum); font-variant-numeric: tabular-nums; }
   .m-fig .of { color: var(--platinum-deep); font-size: .8rem; font-variant-numeric: tabular-nums; }

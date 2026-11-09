@@ -207,7 +207,7 @@
   .row.old .tt { color: var(--platinum-dim); }
   .votes { display: grid; justify-items: center; line-height: 1.05; padding: .25rem 0; background: var(--well); border: 1px solid var(--rule); }
   .votes b { font-family: var(--face-figures); font-size: .95rem; font-weight: 600; color: var(--platinum); font-variant-numeric: tabular-nums; }
-  .vw { font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
+  .vw { font-family: var(--face-register); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); }
   .main { display: grid; gap: .22rem; min-width: 0; }
   .tt { font-size: .92rem; font-weight: 500; color: var(--platinum); overflow-wrap: anywhere; }
   .meta { display: flex; flex-wrap: wrap; gap: .1rem .8rem; font-size: .76rem; color: var(--platinum-deep); }
@@ -217,7 +217,7 @@
   .rowmsg { font-size: .76rem; }
   .rowmsg.bad, .rowmsg.warn { color: var(--alert); }
   .acts { display: inline-flex; align-items: center; gap: .35rem; }
-  .acts :global(button.pb), .opened { padding: .32rem .7rem; font-size: .6rem; }
+  .acts :global(button.pb), .opened { padding: .32rem .7rem; font-size: 11px; }
   .opened { display: inline-flex; align-items: center; gap: .35rem; color: var(--verdigris); border-color: color-mix(in srgb, var(--verdigris) 45%, var(--rule-control)); }
   .older { margin: .5rem 0 0; font-size: .8rem; }
   :global(html[data-room~="lt760"]) .row { grid-template-columns: 3.6rem minmax(0, 1fr); }

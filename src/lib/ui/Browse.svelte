@@ -226,7 +226,8 @@
   @supports (content-visibility: hidden) {
     .off { display: block; content-visibility: hidden; }
   }
-  .tools { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .8rem; margin: 0 0 .8rem; }
+  /* The sort row: a plate, as the filter row above it is. */
+  .tools { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .8rem; margin: 0 0 .8rem; padding: .6rem; background: var(--plate); border: 1px solid var(--rule); }
   .sort { display: inline-flex; align-items: center; gap: .5rem; }
   /* Highest or lowest first: one icon that turns over (QUICK) rather than swapping for another. */
   .sort :global(.sortdir svg) { transition: transform var(--quick) var(--out); }

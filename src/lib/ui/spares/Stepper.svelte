@@ -27,7 +27,7 @@
   .st:hover:not(:disabled) { color: var(--platinum); background: var(--raised); }
   .st:disabled { color: var(--rule-bright); }
   .n { min-width: 1.9rem; display: inline-grid; place-items: center; grid-auto-flow: column; gap: .15rem; padding: 0 .2rem; border-left: 1px solid var(--rule); border-right: 1px solid var(--rule); font-family: var(--face-figures); font-size: .78rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--platinum); cursor: ns-resize; }
-  .n small { font-size: .6rem; color: var(--platinum-deep); font-weight: 500; }
+  .n small { font-size: 11px; color: var(--platinum-deep); font-weight: 500; }
   .n:focus-visible { outline: 1px solid var(--select); outline-offset: 1px; }
   .off .n { color: var(--platinum-deep); cursor: default; }
 </style>

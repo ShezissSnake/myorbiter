@@ -370,7 +370,7 @@
   .vs.over { color: var(--verdigris); }
   .fast { color: var(--verdigris); border-color: var(--verdigris); }
   .acts { display: inline-flex; align-items: center; gap: .35rem; }
-  .ask { color: var(--oxblood); font-size: .6rem; margin-right: .2rem; }
+  .ask { color: var(--oxblood); font-size: 11px; margin-right: .2rem; }
   /* Delete waits on its row: shown when you point at the row or tab to it. */
   tr .del { display: inline-flex; opacity: 0; transition: opacity .12s; }
   tr:hover .del, .del:focus-within { opacity: 1; }

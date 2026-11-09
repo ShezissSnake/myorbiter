@@ -256,7 +256,7 @@
   .gn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .88rem; }
   .gq { font-family: var(--face-mark); color: var(--gold); }
   .nm { color: var(--platinum-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 14rem; }
-  .bar { padding-top: .2rem; }
+  .bar { margin-top: .2rem; }
   .chartset { margin: .8rem 0 var(--course); }
   .charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr)); gap: .8rem; }
   .charts.rest { padding-top: .8rem; }

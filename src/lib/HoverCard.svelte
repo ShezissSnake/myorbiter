@@ -210,7 +210,7 @@
   footer > span { display: inline-flex; align-items: center; gap: .3rem; }
   .figs { display: flex; gap: 1rem; flex-wrap: wrap; }
   .figs > span { display: grid; gap: .1rem; }
-  .figs .register, .lbl, .effect .register { font-size: .6rem; }
+  .figs .register, .lbl, .effect .register { font-size: 11px; }
   .figs b { font-family: var(--face-mark); font-size: 1rem; font-variant-numeric: tabular-nums; }
   .figs small { font-family: var(--face-text); font-weight: 400; color: var(--platinum-dim); margin-left: 1px; }
   .lbl { margin-bottom: -.25rem; }

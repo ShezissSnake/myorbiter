@@ -522,7 +522,7 @@
   .plate.lit .tm { color: var(--sec); }
   .tc { font-size: .78rem; color: var(--platinum-dim); margin-top: .3rem; font-variant-numeric: tabular-nums; }
   .rd { color: var(--verdigris); }
-  .mine { position: absolute; top: .45rem; right: .6rem; font-family: var(--face-register); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); }
+  .mine { position: absolute; top: .45rem; right: .6rem; font-family: var(--face-register); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); }
   /* The tier as rising bars: one, two, three lit. */
   .tmark { display: inline-flex; align-items: flex-end; gap: 2px; height: .85rem; margin-bottom: .25rem; }
   .tmark i { width: 4px; background: var(--rule-bright); }

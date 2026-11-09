@@ -263,7 +263,7 @@
   .meta { display: flex; flex-wrap: wrap; align-items: center; gap: .2rem .9rem; font-size: .78rem; color: var(--platinum-deep); }
   .out { display: inline-flex; align-items: center; gap: .25rem; font-size: .78rem; }
   .acts { display: flex; align-items: center; gap: .35rem; flex: none; }
-  .acts button { padding: .32rem .6rem; font-size: .6rem; display: inline-flex; align-items: center; gap: .3rem; }
+  .acts button { padding: .32rem .6rem; font-size: 11px; display: inline-flex; align-items: center; gap: .3rem; }
   .star { min-width: 2rem; justify-content: center; font-size: .95rem !important; color: var(--platinum-dim); }
   .star.on { color: var(--gold); border-color: var(--gold-dim); }
   .glyph { display: inline-block; line-height: 1; }

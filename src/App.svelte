@@ -2687,7 +2687,7 @@
     </div>
   </aside>
 
-  <main id="main" tabindex="-1" aria-busy={loading && !bundle} use:room class:touring={!!tourStop()}>
+  <main id="main" tabindex="-1" aria-busy={loading && !bundle} use:room class:touring={!!tourStop()} data-section={model ? pageById[settings.tab as PageId]?.group || undefined : undefined}>
     <!-- The first read of TennoScope's data, before there's anything to show. Everything after
          that (a sync, a warframe.market change, the background re-read when TennoScope writes)
          shows its progress in the button that started it, not up here. -->

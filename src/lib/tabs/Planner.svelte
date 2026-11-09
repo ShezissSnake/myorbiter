@@ -269,7 +269,7 @@
   .buyp + .setp { margin-left: 0; }
   .setp { white-space: nowrap; margin-left: auto; }
   .src { white-space: nowrap; }
-  .setp .register { font-size: .6rem; color: var(--platinum-deep); }
+  .setp .register { font-size: 11px; color: var(--platinum-deep); }
   .more { margin-top: .5rem; font-size: .78rem; }
   .pct { font-family: var(--face-mark); font-weight: 700; font-size: .98rem; font-variant-numeric: tabular-nums; }
   .gain { color: var(--gold); display: inline-flex; align-items: center; gap: .1rem; font-family: var(--face-mark); font-weight: 700; }

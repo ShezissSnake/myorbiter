@@ -1077,7 +1077,7 @@
   .clock { display: flex; gap: .6rem; align-items: center; padding: .8rem 1rem; border-left: 1px solid var(--rule); min-width: 0; }
   .clock:first-child { border-left: 0; }
   .clock > div { display: grid; gap: .2rem; min-width: 0; }
-  .clock .register { font-size: .6rem; }
+  .clock .register { font-size: 11px; }
   .clock b { font-size: 1.15rem; }
   .st-day, .st-warm, .st-fass { color: var(--cycle-warm); }
   .st-night, .st-cold, .st-vome { color: var(--cycle-cold); }
@@ -1223,7 +1223,7 @@
   .figs > div :global(.amt b) { font-size: 1.5rem; }
   .figs b.mark { font-size: 1.5rem; line-height: 1; }
   .figs b.amber { color: var(--alert); }
-  .figs .register { font-size: .6rem; color: var(--platinum-deep); }
+  .figs .register { font-size: 11px; color: var(--platinum-deep); }
   .mini { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
   .mini li { display: flex; align-items: center; gap: .6rem; }
   .amber { color: var(--alert); }

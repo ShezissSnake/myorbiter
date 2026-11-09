@@ -664,20 +664,19 @@
       {#if !console}<Stat label="Listed more than you hold" tone={shortShown ? "gold" : "dim"} note={shortShown ? "Sold in game, or used: fix them below" : shortHidden ? "Only in hidden listings, which nobody can buy" : "You hold everything you list"} title={`Listed more than you hold: ${shortShown} visible listing${shortShown === 1 ? "" : "s"} for more copies than you hold now, as Home counts them${shortHidden ? `, and ${shortHidden} hidden, which nobody can buy. Each is flagged in the list: Sold?` : ""}`}>{shortShown}{#if shortHidden}<span class="of">+{shortHidden} hidden</span>{/if}</Stat>{/if}
   {/snippet}
 
-  <section class="status">
-    {#if mkt.linked}
+  <!-- Only when signed in: it holds nothing else, and an empty plate would show. -->
+  {#if mkt.linked}
+    <section class="status">
       <span class="register">Your status</span>
       <div class="presence"><Presence {settings} tradesLeft={trades.left} resets={trades.resets} /></div>
-    {/if}
-    <div class="grow"></div>
-    {#if mkt.linked}
+      <div class="grow"></div>
       <span class="account">
         <span class="who register" title={`MyOrbiter's own sign-in to warframe.market; the token is kept in ${mkt.account?.backing === "keyring" ? "the system keyring" : "a private file"}`}>Signed in as <strong>{mkt.me?.ingameName ?? "?"}</strong></span>
         <ProgressButton variant="icon" icon="refresh" spin tone="quiet" job={reloadJob} label="Reload" working="Reloading…" doneLabel="Reloaded" failLabel="Couldn't reload" title="Fetch your listings from warframe.market again" disabled={!!mkt.op} onclick={reloadListings} />
         {@render signOut()}
       </span>
-    {/if}
-  </section>
+    </section>
+  {/if}
 
   {#snippet signOut()}
     <span class="out">
@@ -1047,7 +1046,7 @@
 </div></div>
 
 <style>
-  .status { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .6rem 1rem; padding: var(--step) 0 0; }
+  .status { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .6rem 1rem; margin-top: var(--step); padding: .6rem; background: var(--plate); border: 1px solid var(--rule); }
   .status > .register { padding-top: .55rem; }
   .account { display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; padding-top: .2rem; }
   .account .who { margin-right: .4rem; }
@@ -1084,7 +1083,7 @@
   .acts .slot { width: 30px; }
   .orders .acts input[type="number"] { width: 3.4rem; height: 30px; padding: .3rem .4rem; }
   .orders .acts input.bad { border-color: var(--oxblood); color: var(--oxblood); }
-  .ask { color: var(--oxblood); font-size: .6rem; }
+  .ask { color: var(--oxblood); font-size: 11px; }
   .pendrow { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: .7rem; }
   .pending { position: relative; color: var(--gold); font-size: .62rem; padding-bottom: 3px; }
   /* Time left before it's sent: a line that runs out. */
@@ -1237,8 +1236,8 @@
   .comp { display: inline-flex; align-items: center; gap: .45rem; }
   /* "3 in game" stays on one line when the seller's name wraps. */
   .nowrap { white-space: nowrap; }
-  .ladder { margin-top: .15rem; font-size: .6rem; }
-  .goes { margin-top: .15rem; font-size: .6rem; color: var(--gold); }
+  .ladder { margin-top: .15rem; font-size: 11px; }
+  .goes { margin-top: .15rem; font-size: 11px; color: var(--gold); }
   .none { color: var(--platinum-deep); }
   .target { display: inline-flex; align-items: center; justify-content: flex-end; white-space: nowrap; }
   .target.down .delta { color: var(--oxblood); }

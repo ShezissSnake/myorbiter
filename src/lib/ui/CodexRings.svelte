@@ -100,7 +100,7 @@
   .rings { display: flex; flex-wrap: wrap; gap: .25rem; }
   .ring {
     all: unset; box-sizing: border-box; position: relative; display: grid; justify-items: center; align-content: start; gap: .2rem;
-    width: 5.7rem; padding: .45rem .2rem .4rem; border: 1px solid transparent; cursor: pointer;
+    width: 5.7rem; padding: .45rem .2rem .4rem; border: 1px solid var(--rule); background: var(--plate); cursor: pointer;
     transition: background-color .12s, border-color .12s;
   }
   .ring:hover { background: var(--raised); border-color: var(--rule-bright); }
