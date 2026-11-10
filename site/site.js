@@ -89,7 +89,8 @@ function tour() {
 }
 
 /** The viewer: a screenshot large, with its caption, previous and next (and the arrow keys), Esc
- *  and Close. The large file is asked for only here, when it is opened. */
+ *  and Close (a plain button: no form, which the content security policy's form-action 'none'
+ *  would judge). The large file is asked for only here, when it is opened. */
 function viewer() {
   const dlg = document.getElementById("viewer");
   if (!dlg || typeof dlg.showModal !== "function") return;
@@ -122,6 +123,7 @@ function viewer() {
     show(list().findIndex((s) => s.file === a.dataset.shot));
     dlg.showModal();
   });
+  dlg.querySelector(".close").addEventListener("click", () => dlg.close());
   dlg.querySelector(".prev").addEventListener("click", () => { show(at - 1); fadeIn(img); });
   dlg.querySelector(".next").addEventListener("click", () => { show(at + 1); fadeIn(img); });
   dlg.addEventListener("keydown", (e) => {
