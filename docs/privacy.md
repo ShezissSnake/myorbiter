@@ -278,7 +278,8 @@ MyOrbiter itself sends nothing. Report a bug shows you the report first; *Open o
 it on the clipboard and opens the repository's issue form on github.com in your browser. The page's
 address carries only `template=bug_report.yml` and the app's version and your system (`MyOrbiter
 <version>`, `System: <system> <architecture>`), nothing of what you wrote or of the log, for you to
-paste the report into, give it a title and submit. *Copy report* only puts it on the clipboard.
+paste the report into, give it a title and submit; your browser may keep that address in its
+history. *Copy report* only puts it on the clipboard.
 Either way the report stays on the clipboard, and in its history if your system keeps one. What
 github.com's page does with what you type or paste there before you press Submit new issue (drafts
 it may keep, for one) is github.com's and wasn't audited. Technical details are
