@@ -1294,11 +1294,21 @@ export async function setCompatRendering(on: boolean): Promise<void> {
  * A desktop notification (App's `tell` decides when). `id`: its entry in the history, so clicking
  * it opens what it's about (see onNoticeOpen). `actions`: buttons beside Open, as [action, label]
  * (a sale's "Give +rep"); pressing one tells the page (onNoticeAction) without bringing MyOrbiter up.
- * Linux and Windows. In the browser dev mode it's logged.
+ * Linux and Windows. Resolves once the desktop's notification service took it, and rejects with why
+ * it didn't (what became of it is written on its history entry). In the browser dev mode it's
+ * logged and rejects: there's no desktop to send to.
  */
-export function notify(summary: string, body: string, id?: string, actions: [string, string][] = []) {
-  if (inTauri) invoke("notify", { summary, body, id: id ?? null, actions }).catch(() => {});
-  else console.info(`[notification] ${summary}: ${body}${actions.length ? ` [${actions.map((a) => a[1]).join("] [")}]` : ""}`);
+export async function notify(summary: string, body: string, id?: string, actions: [string, string][] = []): Promise<void> {
+  if (inTauri) {
+    // Resolves once the desktop's notification service took it; rejects with why not.
+    await invoke("notify", { summary, body, id: id ?? null, actions }).catch((e) => {
+      throw new Error(String(e).replace(/^Error:\s*/, ""));
+    });
+  } else {
+    // A browser has no desktop to send to (the demo, the tests): the console stands in, and the caller is told.
+    console.info(`[notification] ${summary}: ${body}${actions.length ? ` [${actions.map((a) => a[1]).join("] [")}]` : ""}`);
+    throw new Error("only the desktop app can send them");
+  }
 }
 
 /** Quit MyOrbiter (Ctrl+Q, or the window's X), closing the TennoScope it started. */

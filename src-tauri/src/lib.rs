@@ -1055,9 +1055,12 @@ async fn presence_set(app: tauri::AppHandle, status: String) -> Result<presence:
 /// A desktop notification (the page only sends one while MyOrbiter's window isn't focused). `id`:
 /// its entry in the page's history, so a click on it opens what it's about. `actions`: buttons of
 /// its own, as [action, label] (a sale's "Give +rep"), told to the page as `notice-action`.
+/// Answers once the desktop's notification service took it, or with why it didn't (the page notes
+/// that with the notification); the notification itself outlives the answer.
 #[tauri::command]
-fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<String>, actions: Option<Vec<(String, String)>>) {
-    desktop::notify(app, summary, body, id, actions.unwrap_or_default());
+async fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<String>, actions: Option<Vec<(String, String)>>) -> Result<(), String> {
+    let answer = desktop::notify(app, summary, body, id, actions.unwrap_or_default());
+    tauri::async_runtime::spawn_blocking(move || desktop::sent(&answer, desktop::SEND_WAIT)).await.map_err(|e| e.to_string())?
 }
 
 /// Ctrl+Q, and the window's X once the page has saved: quit, stopping the TennoScope MyOrbiter

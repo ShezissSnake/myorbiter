@@ -137,7 +137,7 @@
   import GameIcon from "./lib/ui/GameIcon.svelte";
   import Wordmark from "./lib/ui/Wordmark.svelte";
   import { drawnOrder, orderPages, pageById, pagesFor, migrateTab, sectionsOf, type Page, type PageId } from "./lib/pages";
-  import { growNotice, logNotice, noticeKind, splitTarget, type Notice, type NoticeKind } from "./lib/notices";
+  import { growNotice, logNotice, noticeKind, outcomeText, routeOf, splitTarget, TEST_WAIT_MS, type Notice, type NoticeKind, type NoticeOutcome, type PopupFacts } from "./lib/notices";
   import { toasts } from "./lib/toasts.svelte";
   import { alertNeeds, describeHelp } from "./lib/core/worldNeeds";
   import Toasts from "./lib/ui/Toasts.svelte";
@@ -666,8 +666,9 @@
   // ---------------------------------------------------------------- notifications
   /**
    * Every notification goes through here: dropped when its kind is off (or needs a PC and you play
-   * on a console), kept in the history (the bell), and shown unless notifications are paused, as
-   * a pop-up inside MyOrbiter while you're looking at it, else on the desktop.
+   * on a console), kept in the history (the bell), and popped up unless something holds it back
+   * (`routeOf`): inside MyOrbiter while you're looking at it, else on the desktop. What became of
+   * the pop-up is written on its history entry and in the log (`popUp`).
    */
   function tell(kind: NoticeKind, title: string, body: string, to?: string, rep?: Notice["rep"]): string | null {
     if (!settings.notify[kind] || (onConsole && noticeKind[kind].pcOnly)) return null;
@@ -675,12 +676,54 @@
     settings.game.notices = logNotice(settings.game.notices, { at: Date.now(), kind, title, body, ...(to ? { to } : {}), ...(rep ? { rep } : {}) });
     toDiscord(kind, title, body);
     const n = settings.game.notices[0];
-    if (quietNow(kind)) return n.id;
-    if (typeof document !== "undefined" && document.hasFocus()) {
-      if (settings.notifyOptions.toasts) toasts.push(n);
-      // A sale's +rep: a button of the desktop notification's own, beside Open.
-    } else if (settings.notifyOptions.desktop) notify(title, body, n.id, rep ? [["rep", "Give +rep"]] : []);
+    void popUp(n, kind, { rep });
     return n.id;
+  }
+  /** What decides where a notification of this kind pops up right now. */
+  function popupFacts(gate: NoticeKind | "test"): PopupFacts {
+    const o = settings.notifyOptions;
+    return {
+      paused: o.paused || (o.pausedUntil != null && Date.now() < o.pausedUntil),
+      quietKind: o.quiet.includes(gate),
+      // In a fissure: only the reward to take, which is what you'd want then.
+      quietFissure: o.quietInFissure && inFissure(mission) && gate !== "reward",
+      focused: typeof document !== "undefined" && document.hasFocus(),
+      toasts: o.toasts,
+      desktop: o.desktop,
+    };
+  }
+  /**
+   * Pops notification `n` up where `routeOf` says and notes what became of it: on its entry in the
+   * history (the bell's small line), and in the log. `gate`: the kind whose quiet list applies ("test"
+   * for the Settings test, which has no entry). `toast`, `desktop`: false when this call isn't to
+   * show it in that place (a repricing pass keeps its pop-up up to date as it grows but only sends
+   * the total once it ends); a send that isn't made notes nothing. `note`: false to leave what became
+   * of it unwritten for now. Resolves to what it noted, or null.
+   */
+  async function popUp(n: Notice, gate: NoticeKind | "test", o: { rep?: Notice["rep"]; toast?: boolean; desktop?: boolean; note?: boolean } = {}): Promise<NoticeOutcome | null> {
+    const route = routeOf(popupFacts(gate));
+    let outcome: NoticeOutcome | null = route;
+    if (route.how === "app") {
+      if (o.toast !== false) toasts.push(n);
+    } else if (route.how === "desktop") {
+      if (o.desktop === false) outcome = null;
+      else {
+        // A sale's +rep: a button of the desktop notification's own, beside Open.
+        await notify(n.title, n.body, n.id, o.rep ? [["rep", "Give +rep"]] : []).catch((e: unknown) => {
+          outcome = { how: "failed", why: String((e as Error)?.message ?? e).slice(0, 300) };
+        });
+      }
+    } else if (route.how === "off" && route.where === "desktop" && o.desktop === false) {
+      outcome = null;
+    }
+    if (outcome && o.note !== false) noteOutcome(n, gate, outcome);
+    return outcome;
+  }
+  /** Writes what became of a notification's pop-up on its history entry, and in the log. */
+  function noteOutcome(n: Notice, gate: NoticeKind | "test", outcome: NoticeOutcome) {
+    logLine(outcome.how === "failed" ? "warn" : "info", "notice", `${gate}: ${n.title.slice(0, 80)} → ${outcomeText(outcome)}`);
+    const i = settings.game.notices.findIndex((x) => x.id === n.id);
+    if (i >= 0) settings.game.notices[i] = { ...settings.game.notices[i], outcome };
   }
   /**
    * Repricing: one notification per pass, which grows as listings move (newest first, so the
@@ -701,10 +744,8 @@
     if (!running) settleRepriced();
     // A pass you started by hand shows its progress on its own button: no "so far" pop-up.
     if (running && mkt.passManual) return;
-    if (quietNow("repriced")) return;
-    if (typeof document !== "undefined" && document.hasFocus()) {
-      if (settings.notifyOptions.toasts) toasts.push(n);
-    } else if (first && !running && settings.notifyOptions.desktop) notify(title, n.body, n.id);
+    // While it runs the pop-up inside MyOrbiter follows it; the desktop only gets the total, once it's over.
+    void popUp(n, "repriced", { desktop: first && !running, note: !running });
   }
   /** The pass ended: the notification gets its final title, and the next pass starts a new one. */
   function settleRepriced() {
@@ -717,10 +758,8 @@
       settings.game.notices = growNotice(settings.game.notices, r.id, { at: Date.now(), kind: "repriced", title, body: r.lines.join("\n") });
       const n = settings.game.notices[0];
       toDiscord("repriced", title, n.body);
-      if (quietNow("repriced")) return;
-      if (typeof document !== "undefined" && document.hasFocus()) {
-        if (settings.notifyOptions.toasts && toasts.list.some((t) => t.id === n.id)) toasts.push(n);
-      } else if (settings.notifyOptions.desktop) notify(title, n.body, n.id);
+      // Its pop-up inside MyOrbiter is updated if it's still up; a desktop one is sent now.
+      void popUp(n, "repriced", { toast: toasts.list.some((t) => t.id === n.id) });
     }, 1500);
   }
   $effect(() => {
@@ -733,19 +772,17 @@
     if (!d?.url || !d.kinds.includes(kind) || o.paused || (o.pausedUntil != null && Date.now() < o.pausedUntil)) return;
     discordPost(d.url, `**${title}**${body ? `\n${body}` : ""}`).then(() => discordSent(null), discordSent);
   }
-  /** Why nothing pops up right now for this kind, if anything: kept in the history only. */
-  function quietNow(kind: NoticeKind): boolean {
-    const o = settings.notifyOptions;
-    if (o.paused || (o.pausedUntil != null && Date.now() < o.pausedUntil)) return true;
-    if (o.quiet.includes(kind)) return true;
-    // In a fissure: only the reward to take, which is what you'd want then.
-    return o.quietInFissure && inFissure(mission) && kind !== "reward";
-  }
-  /** Settings' test: shows how a notification looks, whatever is switched off, and keeps nothing. */
-  function testNotice() {
-    const o = settings.notifyOptions;
-    const until = o.paused ? "until you set Pause back to Off" : o.pausedUntil ? `until ${new Date(o.pausedUntil).toLocaleString(undefined, { weekday: new Date(o.pausedUntil).toDateString() === new Date().toDateString() ? undefined : "short", hour: "2-digit", minute: "2-digit" })}` : "";
-    toasts.push({ id: `test-${Date.now()}`, at: Date.now(), kind: "repriced", title: "This is how notifications look", body: until ? `Paused ${until}: the real ones go to Recent without popping up. Click this to see Recent.` : "Click one to open what it's about; this one opens Recent. Your desktop gets them while MyOrbiter is behind other windows.", read: true });
+  /**
+   * Settings' test: a notification through the same route as the real ones (`popUp`: held, in the
+   * app, or on the desktop, by whether MyOrbiter has focus when it goes), after a few seconds so
+   * there's time to switch to another window. It has no entry in the history; the outcome is
+   * returned for the panel to say.
+   */
+  async function testNotice(): Promise<NoticeOutcome> {
+    await new Promise((r) => setTimeout(r, TEST_WAIT_MS));
+    const n: Notice = { id: `test-${Date.now()}`, at: Date.now(), kind: "repriced", title: "Test notification", body: "If you can read this, notifications reach you. Click it to open Recent.", read: true };
+    // Nothing to send in a browser: the demo and the tests say so rather than claim it.
+    return (await popUp(n, "test")) ?? { how: "failed", why: "nothing was decided" };
   }
   // A pause for a while ends by itself.
   $effect(() => {
@@ -1490,7 +1527,7 @@
     try {
       const how = await mkt.giveRep(r.partner, settings.market.repText);
       markRep(r.key, how === "reported" ? "skipped" : "given");
-      if (settings.notifyOptions.desktop) notify(how === "reported" ? `${r.partner}: you reported them on warframe.market` : `+rep given to ${r.partner}`, how === "reported" ? "Your review of them is a report: left as it is." : "");
+      if (settings.notifyOptions.desktop) notify(how === "reported" ? `${r.partner}: you reported them on warframe.market` : `+rep given to ${r.partner}`, how === "reported" ? "Your review of them is a report: left as it is." : "").catch((e: unknown) => logLine("warn", "notice", `+rep confirmation not sent: ${(e as Error)?.message ?? e}`));
     } catch (e) {
       tell("sold", `Couldn't give ${r.partner} +rep`, `${String(e).replace(/^Error:\s*/, "")}. The sale's notification under the bell still has its +rep button.`);
     }

@@ -79,7 +79,85 @@ export interface Notice {
   to?: string;
   /** A sale's buyer, for its +rep button (shown while +rep is still due: App's repShown). */
   rep?: { key: string; partner: string };
+  /** What became of its pop-up, once that was settled (see `routeOf`); absent on older entries and while a send is under way. */
+  outcome?: NoticeOutcome;
   read: boolean;
+}
+
+/** Why a notification's pop-up was held back: all three leave it in Recent only. */
+export type HeldWhy = "paused" | "quiet" | "fissure";
+/** Which place's switch was off when it would have popped up. */
+export type OffWhere = "app" | "desktop";
+
+/**
+ * What became of one notification's pop-up. "desktop" means the desktop's notification service took
+ * it: what that service then does with it is its own (KDE holds pop-ups back while a fullscreen
+ * window is in front, for one), which MyOrbiter can't see.
+ */
+export type NoticeOutcome =
+  | { how: "desktop" }
+  | { how: "app" }
+  | { how: "held"; why: HeldWhy }
+  | { how: "off"; where: OffWhere }
+  | { how: "failed"; why: string };
+
+/** How long the Settings test waits before it sends: time to click away from MyOrbiter and try the desktop. */
+export const TEST_WAIT_MS = 5000;
+
+/** What a notification's pop-up is decided by. */
+export interface PopupFacts {
+  /** Notifications are paused (for good or for a while). */
+  paused: boolean;
+  /** Its kind is on the quiet list ("Recent only"). */
+  quietKind: boolean;
+  /** "Quiet while I'm in a fissure" is on, a fissure is running, and the kind isn't the reward to take. */
+  quietFissure: boolean;
+  /** MyOrbiter's window has focus: the player is looking at it. */
+  focused: boolean;
+  /** "Pop-ups inside MyOrbiter" is on. */
+  toasts: boolean;
+  /** "Desktop notifications" is on. */
+  desktop: boolean;
+}
+
+/**
+ * Where a notification goes, before anything is sent: held back (paused, then the quiet list, then a
+ * fissure), a pop-up inside MyOrbiter while its window has focus, else the desktop's; or nowhere
+ * because the switch for that place is off. "desktop" here is the intent: the send may still fail.
+ */
+export function routeOf(f: PopupFacts): Exclude<NoticeOutcome, { how: "failed" }> {
+  if (f.paused) return { how: "held", why: "paused" };
+  if (f.quietKind) return { how: "held", why: "quiet" };
+  if (f.quietFissure) return { how: "held", why: "fissure" };
+  if (f.focused) return f.toasts ? { how: "app" } : { how: "off", where: "app" };
+  return f.desktop ? { how: "desktop" } : { how: "off", where: "desktop" };
+}
+
+/** The outcome in words, for the entry's small line and the log. */
+export function outcomeText(o: NoticeOutcome): string {
+  switch (o.how) {
+    case "desktop":
+      return "Sent to the desktop";
+    case "app":
+      return "Shown in the app";
+    case "held":
+      return o.why === "paused" ? "Held: paused" : o.why === "quiet" ? "Held: on the quiet list" : "Held: quiet in a fissure";
+    case "off":
+      return o.where === "app" ? "Not shown: pop-ups inside MyOrbiter are off" : "Not sent: desktop notifications are off";
+    case "failed":
+      return `Could not be sent: ${o.why}`;
+  }
+}
+
+/** An outcome read back from the saved history: anything of another shape is left out. */
+export function outcomeOf(x: unknown): NoticeOutcome | undefined {
+  if (!x || typeof x !== "object") return undefined;
+  const o = x as Record<string, unknown>;
+  if (o.how === "desktop" || o.how === "app") return { how: o.how };
+  if (o.how === "held" && (o.why === "paused" || o.why === "quiet" || o.why === "fissure")) return { how: "held", why: o.why };
+  if (o.how === "off" && (o.where === "app" || o.where === "desktop")) return { how: "off", where: o.where };
+  if (o.how === "failed" && typeof o.why === "string") return { how: "failed", why: o.why.slice(0, 300) };
+  return undefined;
 }
 
 /** How long the history is. */
@@ -93,7 +171,9 @@ export const NOTICE_LOG = 100;
 export function growNotice(log: Notice[], id: string | null, n: Omit<Notice, "id" | "read">): Notice[] {
   const old = id ? log.find((x) => x.id === id) : undefined;
   if (!old) return logNotice(log, n);
-  return [{ ...old, ...n, read: false }, ...log.filter((x) => x.id !== id)];
+  // Its pop-up was another one's: what became of that doesn't carry over to the text it has now.
+  const { outcome: _was, ...rest } = old;
+  return [{ ...rest, ...n, read: false }, ...log.filter((x) => x.id !== id)];
 }
 
 export function logNotice(log: Notice[], n: Omit<Notice, "id" | "read">): Notice[] {

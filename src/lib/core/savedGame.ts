@@ -2,7 +2,7 @@
 // settings file turned into something else is left out, so the page that draws it (Stats, Rivens,
 // Inventory, the notification bell) still opens. A good entry comes back as it was saved.
 import type { RivenWatch, ValuePoint } from "../backend";
-import type { Notice } from "../notices";
+import { outcomeOf, type Notice } from "../notices";
 import type { RelicRun } from "./relicRuns";
 import type { GearCopy } from "./notNeeded";
 import type { RivenRaw } from "./rivens";
@@ -19,7 +19,13 @@ export const valueHistoryOf = (raw: unknown) => keep<ValuePoint>(raw, (x) => fin
 export const relicRunsOf = (raw: unknown) => keep<RelicRun>(raw, (x) => fine(x.at) && strings(x.cards) && strings(x.relics) && (x.before === undefined || obj(x.before)));
 
 /** The notification history. */
-export const noticesOf = (raw: unknown) => keep<Notice>(raw, (x) => typeof x.id === "string" && fine(x.at) && typeof x.kind === "string" && typeof x.title === "string" && typeof x.body === "string" && typeof x.read === "boolean");
+export const noticesOf = (raw: unknown) =>
+  keep<Notice>(raw, (x) => typeof x.id === "string" && fine(x.at) && typeof x.kind === "string" && typeof x.title === "string" && typeof x.body === "string" && typeof x.read === "boolean").map((n) => {
+    // What became of its pop-up: kept when it reads as one, else left off (the entry itself stays).
+    const { outcome, ...rest } = n;
+    const o = outcomeOf(outcome);
+    return o ? { ...rest, outcome: o } : rest;
+  });
 
 /** Gear copies from the last read; null when there's no list (as before one was read). */
 export const gearOf = (raw: unknown): GearCopy[] | null => (Array.isArray(raw) ? keep<GearCopy>(raw, (x) => typeof x.type === "string" && fine(x.f) && fine(x.p)) : null);

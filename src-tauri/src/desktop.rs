@@ -25,14 +25,21 @@ impl Drop for Waiting {
     }
 }
 
-/// Shows a notification. Best effort: with no notification service running nothing happens.
+/// How long the page's send waits for the notification service to take a notification.
+pub const SEND_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Shows a notification. Best effort for the player (with no notification service running nothing
+/// is shown), but the answer comes back: the receiver gets `Ok` once the service took the
+/// notification, or why it didn't, so the page can say what happened. What the service then does
+/// with it (hold it back in Do Not Disturb) is its own and isn't known here.
 /// `id`: the notification in MyOrbiter's history. Clicking the notification then brings MyOrbiter's
 /// window up and tells the page (event `notice-open`), which opens what it's about. `actions`:
 /// buttons of its own beside that, as (action, label): pressing one tells the page (event
 /// `notice-action`, with the id and the action) and leaves MyOrbiter where it is, so a sale's
 /// "Give +rep" doesn't take you out of the game. Linux and Windows (a button on the toast); macOS
 /// shows it without the click or the buttons.
-pub fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<String>, actions: Vec<(String, String)>) {
+pub fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<String>, actions: Vec<(String, String)>) -> std::sync::mpsc::Receiver<Result<(), String>> {
+    let (done, answer) = std::sync::mpsc::channel();
     // Each notification that can be clicked keeps a thread waiting for it, and a desktop that keeps
     // old notifications in a tray (GNOME) may never say it closed. Past a few, new ones are shown
     // without the click, so threads don't pile up over a long session.
@@ -70,6 +77,7 @@ pub fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<S
         match n.show() {
             #[cfg(any(target_os = "linux", target_os = "windows"))]
             Ok(handle) => {
+                let _ = done.send(Ok(()));
                 if let Some(id) = id {
                     handle.wait_for_action(|action| {
                         if actions.iter().any(|(a, _)| a == action) {
@@ -83,10 +91,66 @@ pub fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<S
             #[cfg(not(any(target_os = "linux", target_os = "windows")))]
             Ok(_) => {
                 let _ = (&app, &id, &actions);
+                let _ = done.send(Ok(()));
             }
-            Err(e) => log::warn!(target: "myorbiter::notify", "notification not shown: {e}"),
+            Err(e) => {
+                log::warn!(target: "myorbiter::notify", "notification not shown: {e}");
+                let _ = done.send(Err(reason(&e.to_string())));
+            }
         }
     });
+    answer
+}
+
+/// An error from the notification service as one short line for the page.
+fn reason(e: &str) -> String {
+    let line: String = e.split_whitespace().collect::<Vec<_>>().join(" ");
+    if line.chars().count() > 200 { format!("{}…", line.chars().take(200).collect::<String>()) } else { line }
+}
+
+/// What the send said, or that it said nothing within `wait` (the service is stuck) or the sending
+/// thread ended without an answer.
+pub fn sent(answer: &std::sync::mpsc::Receiver<Result<(), String>>, wait: std::time::Duration) -> Result<(), String> {
+    match answer.recv_timeout(wait) {
+        Ok(r) => r,
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Err(format!("the desktop's notification service didn't answer within {} seconds", wait.as_secs())),
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Err("sending ended without an answer".into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::mpsc::channel;
+    use std::time::Duration;
+
+    #[test]
+    fn the_answer_is_what_the_send_said() {
+        let (tx, rx) = channel();
+        tx.send(Ok(())).unwrap();
+        assert_eq!(sent(&rx, Duration::from_secs(1)), Ok(()));
+        let (tx, rx) = channel();
+        tx.send(Err("no service".into())).unwrap();
+        assert_eq!(sent(&rx, Duration::from_secs(1)), Err("no service".into()));
+    }
+
+    #[test]
+    fn silence_and_a_dead_sender_are_errors_that_say_so() {
+        let (tx, rx) = channel::<Result<(), String>>();
+        let e = sent(&rx, Duration::from_millis(20)).unwrap_err();
+        assert!(e.contains("didn't answer"), "{e}");
+        drop(tx);
+        let e = sent(&rx, Duration::from_secs(1)).unwrap_err();
+        assert!(e.contains("without an answer"), "{e}");
+    }
+
+    #[test]
+    fn a_long_multi_line_error_is_one_short_line() {
+        let long = format!("zbus error:\n  {}", "x".repeat(500));
+        let r = reason(&long);
+        assert!(!r.contains('\n') && r.starts_with("zbus error: xxx") && r.chars().count() <= 201, "{r}");
+        assert_eq!(reason("a  b\nc"), "a b c");
+    }
 }
 
 /// The main window, in front, opening what notification `id` is about.
