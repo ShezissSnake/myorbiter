@@ -42,14 +42,17 @@
   let env = $state<{ version: string; os: string; arch: string } | null>(null);
   let log = $state<string[] | null>(null);
   let failed = $state(false);
+  let envFailed = $state(false);
   // The names to hide, read once as the dialog opens (they don't change while it's up).
   const known = untrack(() => names());
   $effect(() => {
-    void Promise.all([reportEnv(), logTail(LOG_LINES)]).then(
-      ([e, l]) => {
-        env = e;
-        log = l;
-      },
+    // Each read settles on its own: a log that can't be read doesn't take the version with it.
+    void reportEnv().then(
+      (e) => (env = e),
+      () => (envFailed = true),
+    );
+    void logTail(LOG_LINES).then(
+      (l) => (log = l),
       () => {
         failed = true;
         log = [];
@@ -76,7 +79,7 @@
   const report = $derived(buildReport({ what: d.what, steps: d.steps, expected: d.expected }, details, known));
   /** The blank form's address: the version and platform only. */
   const issuePage = $derived(newIssuePage({ version: env?.version ?? "unknown", os: env?.os ?? "unknown", arch: env?.arch ?? "" }, known));
-  const reading = $derived((env == null && !failed) || (d.include && log == null));
+  const reading = $derived((env == null && !envFailed) || (d.include && log == null));
   const empty = $derived(!report.what);
   const preview = $derived(report.details ? detailsText(report.details) : "");
 
@@ -152,7 +155,7 @@
 
     <section class="tech" class:off={!d.include}>
       <div class="techrow">
-        <label class="check" title="Adds MyOrbiter's version, your system, this page, TennoScope's state, Full mode and the log's last {LOG_LINES} lines, with sign-ins, addresses, ids and players' names hidden. Untick to send only what you wrote.">
+        <label class="check" title="Adds MyOrbiter's version, your system, this page, TennoScope's state, Full mode and the log's last {LOG_LINES} lines, with sign-ins, addresses, ids and players' names hidden. Untick to leave them out of the report (the form still opens with the version and your system).">
           <input type="checkbox" bind:checked={d.include} />
           <span class="box" aria-hidden="true"><Icon name="check" size={10} /></span>
           Include technical details
@@ -171,7 +174,7 @@
           </div>
         </div>
       {/if}
-      <p class="hint">{#if !d.include}Only what you wrote goes in.{:else if failed}MyOrbiter's log couldn't be read; the rest is included.{:else}Sign-ins, e-mail and IP addresses, account ids, your user name in folder paths and every player's name are hidden, here and in what you wrote.{/if}</p>
+      <p class="hint">{#if !d.include}Only what you wrote goes in the report.{:else if failed}MyOrbiter's log couldn't be read; the rest is included.{:else}Sign-ins, e-mail and IP addresses, account ids, your user name in folder paths and every player's name are hidden, here and in what you wrote.{/if}</p>
     </section>
 
     {#if handed === "pasted" && copiedText === paste}

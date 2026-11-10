@@ -12,7 +12,7 @@ import { openable } from "../src/lib/core/links";
 const LOG = readFileSync(new URL("./fixtures/report/myorbiter.log", import.meta.url), "utf8").trim().split("\n");
 const NAMES = { self: ["MeExample"], others: ["BuyerExample"] };
 const details = (log: string[] = LOG): ReportDetails => ({ version: "0.1.0", commit: "a1b2c3d", buildDate: "2026-11-03", channel: null, os: "linux", arch: "x86_64", page: "Orders", tennoscope: "connected", fullMode: "off", log });
-/** One section of a description: the text under its heading, up to the next heading or the end. */
+/** One section of a report: the text under its heading, up to the next heading or the end. */
 const section = (md: string, heading: string) => new RegExp(`### ${heading}\n\n([\\s\\S]*?)(?=\n\n### |\n\n_Made with|$)`).exec(md)?.[1] ?? null;
 
 test("the issue form's field ids and labels are the ones the app uses, the details rendered as text", () => {
@@ -51,7 +51,13 @@ test("Open on GitHub opens the issue form with only the version and platform: no
   const before = open.slice(0, open.indexOf("openUrl(issuePage)"));
   assert.match(before, /await navigator\.clipboard\.writeText\(text\)/, "copied before the page opens");
   assert.match(before, /catch \{\s*handed = "refused";[^}]*return;/, "a refused copy opens nothing");
-  assert.ok(!/issueLink|encodeURIComponent\(.*report/.test(readFileSync("src/lib/core/bugReport.ts", "utf8")), "no link built from the report");
+  // The only address built is newIssuePage's, from the environment alone.
+  const src = readFileSync("src/lib/core/bugReport.ts", "utf8");
+  const fn = src.slice(src.indexOf("export function newIssuePage"), src.indexOf("/** What Open on GitHub puts on the clipboard"));
+  assert.match(fn, /^export function newIssuePage\(env: \{ version: string; os: string; arch: string \}, names: RedactOptions = \{\}\)/);
+  assert.ok(fn.includes("encodeURIComponent") && !src.replace(fn, "").includes("encodeURIComponent"), "no other address is built");
+  assert.match(ui, /newIssuePage\(\{[^}]*\}, known\)/, "the names are hidden in it too");
+  assert.match(ui, /const reading = \$derived\(\(env == null && !envFailed\)/, "not opened before the version is read");
 });
 
 test("the text to paste: the form's sections and the details as text", () => {

@@ -2,8 +2,8 @@
 // token and no network write. Open on GitHub puts the report's text on the clipboard (the sections
 // of the issue form, .github/ISSUE_TEMPLATE/bug_report.yml) and opens the form with only the app's
 // version and the platform filled in: nothing of the report is in the page's address, so github.com
-// gets it only when the player pastes it there, adds a title and presses Submit
-// new issue. Copy report puts it on the clipboard as Markdown, to send another way.
+// gets it only when the player pastes it there, adds a title and presses Submit new issue.
+// Copy report puts it on the clipboard as Markdown, to send another way.
 //
 // What goes in is the player's own words (what happened, how to make it happen, what they
 // expected) and, if they leave "Include technical details" on, a plain-text block they can read in
