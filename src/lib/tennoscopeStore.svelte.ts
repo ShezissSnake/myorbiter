@@ -3,7 +3,7 @@
 // allow screen capture, open its window).
 
 import { tennoscope, type TennoscopeAccess, type TennoscopeAsk, type TennoscopeStatus } from "./backend";
-import { failureWords } from "./core/upkeep";
+import { failureWords, gaveUpWords } from "./core/upkeep";
 
 class TennoscopeStore {
   status = $state.raw<TennoscopeStatus | null>(null);
@@ -48,14 +48,18 @@ class TennoscopeStore {
     return this.running && !this.report;
   }
 
-  /** Reads the state; with `start`, also starts TennoScope in the background if it isn't running. */
-  // A TennoScope that keeps crashing on start isn't relaunched every 15 s forever: each relaunch
-  // waits twice as long as the last (up to 10 minutes), and a run of 2 minutes resets that.
-  private relaunches = 0;
-  private nextLaunch = 0;
+  /**
+   * Reads the state; with `start`, also starts TennoScope in the background if it isn't running.
+   * How often it is started again is MyOrbiter's Rust side's to decide, from how each TennoScope
+   * ended (companion.rs, `Relaunch`): a routine check (not `force`) is held back while it waits out
+   * a restart, and once TennoScope has ended four times in a row within two minutes of starting,
+   * until it's pressed Start (`force`). Here that shows as the status's `restart`.
+   */
   private upSince = 0;
+  /** The note that MyOrbiter gave up is up, until TennoScope runs again or is asked for again. */
+  private gaveUpShown = false;
 
-  /** `force`: you asked for it (Start TennoScope), so it starts now whatever the wait. */
+  /** `force`: you asked for it (Start TennoScope), so it starts now whatever came before. */
   async check(start = false, force = false) {
     // A press of Start isn't dropped because a routine check is under way: it runs right after,
     // once however many times it was pressed.
@@ -72,30 +76,31 @@ class TennoscopeStore {
     this.busy = true;
     try {
       const now = Date.now();
-      if (force) this.nextLaunch = 0;
+      if (force) this.gaveUpShown = false;
       const wasRunning = !!this.status?.running;
-      // Not where TennoScope can't run (macOS); and a start that fails waits longer each time,
-      // like one that crashes, rather than trying (and notifying) every 15 seconds.
-      const relaunch = start && !this.asking && (force || this.launch) && this.status?.supported !== false && !wasRunning && now >= this.nextLaunch;
-      if (relaunch) {
-        this.relaunches++;
-        this.nextLaunch = now + Math.min(15_000 * 2 ** (this.relaunches - 1), 600_000);
-      }
-      // Only a relaunch starts it: a check while it seemed to run only looks, so one that stops as
-      // soon as it starts waits out the longer gaps above instead of being started every 15 s.
-      this.put(relaunch ? await tennoscope.start() : await tennoscope.status());
+      // Not where TennoScope can't run (macOS), and not once MyOrbiter has given up on it: only
+      // Start (`force`) starts it then.
+      const gaveUp = !!this.status?.restart?.gave_up && !force;
+      const relaunch = start && !this.asking && (force || this.launch) && this.status?.supported !== false && !wasRunning && !gaveUp;
+      this.put(relaunch ? await tennoscope.start(force) : await tennoscope.status());
       this.follow();
       // Just started with an answer to pass on: look again soon, rather than at the next poll.
       if (relaunch && this.wanted) for (const ms of [1500, 4000, 8000]) setTimeout(() => this.check(), ms);
       if (this.status?.running) {
         this.upSince ||= now;
-        if (now - this.upSince > 120_000) this.relaunches = 0;
+        this.gaveUpShown = false;
       } else this.upSince = 0;
       if (this.error && this.status?.running && now - this.upSince > 30_000) this.error = null;
-      // Stopped again right after a few starts: say why, from its own log.
-      if (!this.status?.running && this.relaunches >= 3) {
+      // Stopped again right after a few starts: say why, from its own log; and once MyOrbiter has
+      // stopped starting it, say that (a notice under the bell, App.svelte), once.
+      const r = this.status?.restart;
+      if (!this.status?.running && r && (r.gave_up || r.tries >= 3) && !this.gaveUpShown) {
         const f = await tennoscope.failure(this.dataDir).catch(() => null);
-        if (f && now - f.at < 15 * 60_000) this.error = failureWords(f.message, this.nextLaunch - now);
+        const why = f && now - f.at < 15 * 60_000 ? f.message : null;
+        if (r.gave_up) {
+          this.error = gaveUpWords(r.tries, why);
+          this.gaveUpShown = true;
+        } else if (why) this.error = failureWords(why, r.retry_in_ms ?? 0);
       }
     } catch (e) {
       this.error = clean(e);

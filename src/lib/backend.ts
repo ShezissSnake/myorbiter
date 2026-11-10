@@ -1112,6 +1112,8 @@ export interface TennoscopeStatus {
   started_by_myorbiter: boolean;
   /** What a patched TennoScope last reported, while fresh. */
   report: TennoscopeReport | null;
+  /** How MyOrbiter handles a TennoScope that ended by itself: starts in a row that each ended soon, whether it has stopped trying, the wait before the next start. */
+  restart?: { tries: number; gave_up: boolean; retry_in_ms: number | null };
 }
 
 export type HealthState = "ready" | "idle" | "degraded" | "failed";
@@ -1232,7 +1234,8 @@ export const tennoscope = {
   chooseProgram: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_choose_program") : Promise.resolve(null)),
   /** MyOrbiter finds TennoScope again, forgetting the program chosen in the dialog. */
   forgetProgram: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_forget_program") : devTennoscope()),
-  start: (): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_start") : devTennoscope()),
+  /** `force`: Start was pressed, so it starts even while MyOrbiter waits out a restart or has stopped trying. */
+  start: (force = false): Promise<TennoscopeStatus | null> => (inTauri ? invoke("tennoscope_start", { force }) : devTennoscope()),
   show: (): Promise<void> => (inTauri ? invoke("tennoscope_show") : Promise.resolve()),
   ask: (ask: TennoscopeAsk): Promise<void> => (inTauri ? invoke("tennoscope_ask", { ask }) : Promise.resolve()),
   /** The last time TennoScope's log says it failed to start, and why (Unix ms, UTC). */

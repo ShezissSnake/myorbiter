@@ -2285,11 +2285,14 @@ pub fn run() {
         })
         .setup(|app| {
             // `--background` (how orbiter starts it): no main window, just the log watcher and the
-            // reward overlay. Starting TennoScope again normally shows the window.
-            if orbiter_bridge::wants_background(&std::env::args().collect::<Vec<_>>())
+            // reward overlay. Starting TennoScope again normally shows the window. The window is
+            // created hidden (`"visible": false` in tauri.conf.json) and shown here, so a background
+            // start never maps it: created visible and hidden afterwards, it flashed over the game
+            // and took its focus each time orbiter started TennoScope.
+            if !orbiter_bridge::wants_background(&std::env::args().collect::<Vec<_>>())
                 && let Some(window) = app.get_webview_window("main")
             {
-                let _ = window.hide();
+                let _ = window.show();
             }
             // The file target keeps debug traces in dev builds and trims to Info in stable
             // releases: per-OCR-attempt debug lines land every 200 ms, and with only 5 MiB

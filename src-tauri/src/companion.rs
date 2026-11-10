@@ -16,7 +16,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// The process name TennoScope runs under (`/proc/<pid>/comm` on Linux).
 #[cfg(windows)]
@@ -33,6 +33,7 @@ pub const BUNDLED: &str = "tennoscope/TennoScope.AppImage";
 #[cfg(not(target_os = "linux"))]
 pub const BUNDLED: &str = "tennoscope/tennoscope.exe";
 /// Remembers the TennoScope MyOrbiter started, across a MyOrbiter restart.
+#[cfg_attr(test, allow(dead_code))]
 const PID_FILE: &str = "orbiter-tennoscope.pid";
 
 /// A process, told apart from a later one that reuses its pid by when it started.
@@ -58,6 +59,165 @@ pub struct Companion {
     started: Arc<Mutex<Option<Proc>>>,
     /// Held while starting one: two checks at once (the page polls) must not start two.
     starting: Mutex<()>,
+    /// How often the TennoScope MyOrbiter started has ended by itself lately, and so whether
+    /// MyOrbiter starts it again (see `Relaunch`). Shared with the thread that waits for it.
+    relaunch: Arc<Mutex<Relaunch>>,
+}
+
+/// A run that lasts this long is a TennoScope that worked: one that ends after it is one more
+/// crash to start over from, not one more in a row.
+const STEADY: Duration = Duration::from_secs(120);
+/// The wait before the first restart; each one after it waits twice as long.
+const RETRY_FIRST: Duration = Duration::from_secs(15);
+/// After this many starts in a row that each ended within `STEADY`, MyOrbiter stops starting it by
+/// itself until the player starts it (Settings, TennoScope).
+const MAX_TRIES: u32 = 4;
+
+/// What MyOrbiter does about a TennoScope that ends by itself (a crash, a kill by the system, a
+/// start that fails), so that nothing restarts in a loop: a growing wait between starts, and no more
+/// after `MAX_TRIES` in a row. MyOrbiter stopping it (`stop`) is not an end.
+#[derive(Debug)]
+struct Relaunch {
+    /// The wait before the first restart (`RETRY_FIRST`; shorter in tests).
+    first: Duration,
+    /// The run MyOrbiter is keeping track of: its pid and when it began.
+    current: Option<(u32, Instant)>,
+    /// Starts in a row that each ended within `STEADY`.
+    tries: u32,
+    wait_until: Option<Instant>,
+    gave_up: bool,
+}
+
+impl Default for Relaunch {
+    fn default() -> Self {
+        Self { first: RETRY_FIRST, current: None, tries: 0, wait_until: None, gave_up: false }
+    }
+}
+
+/// What follows a run that ended.
+#[derive(Debug, PartialEq)]
+enum Next {
+    /// Another start, once this long has passed.
+    After(Duration),
+    GiveUp,
+}
+
+/// Why a routine start is held back.
+#[derive(Debug, PartialEq)]
+enum Held {
+    Waiting(Duration),
+    GaveUp,
+}
+
+impl Relaunch {
+    /// A TennoScope MyOrbiter is responsible for began (started, adopted, or a hand-off that turned
+    /// into TennoScope).
+    fn running(&mut self, pid: u32, now: Instant) {
+        self.current = Some((pid, now));
+    }
+
+    /// MyOrbiter stopped it on purpose: its end is not one to count.
+    fn stopped(&mut self) {
+        self.current = None;
+    }
+
+    /// Whether a start by the page's routine check may go ahead now.
+    fn may_start(&self, now: Instant) -> Result<(), Held> {
+        if self.gave_up {
+            return Err(Held::GaveUp);
+        }
+        match self.wait_until {
+            Some(t) if now < t => Err(Held::Waiting(t - now)),
+            _ => Ok(()),
+        }
+    }
+
+    /// The player asked for it (Start TennoScope): the count starts over.
+    fn reset(&mut self) {
+        *self = Self { first: self.first, current: self.current, ..Self::default() };
+    }
+
+    /// Run `pid` ended. None when it isn't the run being tracked (MyOrbiter stopped it, or another
+    /// path already noted its end): the first path to see an end counts it, once.
+    fn exited(&mut self, pid: u32, now: Instant) -> Option<(Duration, u32, Next)> {
+        let (current, began) = self.current?;
+        if current != pid {
+            return None;
+        }
+        self.current = None;
+        let ran = now.saturating_duration_since(began);
+        let (tries, next) = self.ended(ran, now);
+        Some((ran, tries, next))
+    }
+
+    /// A start that didn't get as far as running (the program couldn't be started).
+    fn failed(&mut self, now: Instant) -> (u32, Next) {
+        self.ended(Duration::ZERO, now)
+    }
+
+    fn ended(&mut self, ran: Duration, now: Instant) -> (u32, Next) {
+        // Given up stays given up until the player starts it (a hand-off that became TennoScope can end after).
+        if self.gave_up {
+            return (self.tries, Next::GiveUp);
+        }
+        self.tries = if ran >= STEADY { 1 } else { self.tries + 1 };
+        if self.tries >= MAX_TRIES {
+            self.gave_up = true;
+            self.wait_until = None;
+            return (self.tries, Next::GiveUp);
+        }
+        let wait = self.first * 2u32.pow(self.tries - 1);
+        self.wait_until = Some(now + wait);
+        (self.tries, Next::After(wait))
+    }
+
+    fn view(&self, now: Instant) -> Restart {
+        Restart {
+            tries: self.tries,
+            gave_up: self.gave_up,
+            retry_in_ms: self.wait_until.filter(|_| !self.gave_up).map(|t| t.saturating_duration_since(now).as_millis() as u64).filter(|ms| *ms > 0),
+        }
+    }
+}
+
+/// Says in the log what happened to a run that ended and what MyOrbiter does next.
+fn log_end(what: &str, tries: u32, next: &Next) {
+    match next {
+        Next::After(wait) => log::warn!(target: "myorbiter::tennoscope", "{what}; starting it again in {} s (try {tries} of {MAX_TRIES})", wait.as_secs()),
+        Next::GiveUp => log::error!(target: "myorbiter::tennoscope", "{what}; it has now ended {MAX_TRIES} times in a row within {} s of starting, so MyOrbiter stops starting it by itself (Settings, TennoScope, Start, tries again)", STEADY.as_secs()),
+    }
+}
+
+/// How a process ended, in words for the log. Which signal matters: 9 is the system ending it (out
+/// of memory, or a kill), 11 a crash in the program itself.
+fn describe_exit(code: Option<i32>, signal: Option<i32>) -> String {
+    match (code, signal) {
+        (_, Some(sig)) => {
+            let name = match sig {
+                1 => "SIGHUP",
+                4 => "SIGILL",
+                6 => "SIGABRT",
+                7 => "SIGBUS",
+                9 => "SIGKILL",
+                11 => "SIGSEGV",
+                15 => "SIGTERM",
+                _ => "a signal",
+            };
+            format!("was ended by signal {sig} ({name})")
+        }
+        (Some(code), None) => format!("exited with code {code}"),
+        (None, None) => "ended".to_owned(),
+    }
+}
+
+#[cfg(unix)]
+fn signal_of(status: &std::process::ExitStatus) -> Option<i32> {
+    use std::os::unix::process::ExitStatusExt;
+    status.signal()
+}
+#[cfg(not(unix))]
+fn signal_of(_: &std::process::ExitStatus) -> Option<i32> {
+    None
 }
 
 /// How long `stop` waits for TennoScope to be gone after asking it to stop.
@@ -81,6 +241,19 @@ pub struct Status {
     pub started_by_myorbiter: bool,
     /// What a patched TennoScope last reported (health, account, access setup), while fresh.
     pub report: Option<serde_json::Value>,
+    /// Whether MyOrbiter is holding off starting it again, or has stopped trying.
+    pub restart: Restart,
+}
+
+/// See `Relaunch`.
+#[derive(Debug, Serialize, Default)]
+pub struct Restart {
+    /// Starts in a row that each ended within two minutes.
+    pub tries: u32,
+    /// Too many of those: MyOrbiter starts it again only when the player does.
+    pub gave_up: bool,
+    /// The wait before the next start, when there is one.
+    pub retry_in_ms: Option<u64>,
 }
 
 /// A patched TennoScope writes its state here every few seconds.
@@ -206,9 +379,15 @@ fn start_time_in(proc_root: &Path, pid: u32) -> Option<u64> {
     stat_fields(&proc_root.join(pid.to_string()))?.get(19)?.parse().ok()
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(test)))]
 fn running() -> Vec<u32> {
     running_in(Path::new("/proc"))
+}
+/// The tests' view of the system: no TennoScope running (the one on the computer the tests run on
+/// is never looked at), so they can start a stand-in.
+#[cfg(test)]
+fn running() -> Vec<u32> {
+    Vec::new()
 }
 
 /// A running process's identity; None once it has exited (a zombie included).
@@ -231,7 +410,7 @@ fn processes() -> Option<sysinfo::System> {
     Some(sys)
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(all(not(target_os = "linux"), not(test)))]
 fn running() -> Vec<u32> {
     let Some(sys) = processes() else { return Vec::new() };
     sys.processes()
@@ -259,8 +438,14 @@ fn alive(p: Proc) -> bool {
     proc_of(p.pid) == Some(p)
 }
 
+#[cfg(not(test))]
 fn pid_file() -> Option<PathBuf> {
     Some(crate::bridge::runtime_dir()?.join(PID_FILE))
+}
+/// Tests never touch the pid file of a MyOrbiter that is running on the same computer.
+#[cfg(test)]
+fn pid_file() -> Option<PathBuf> {
+    None
 }
 
 fn remember(p: Option<Proc>) {
@@ -545,6 +730,8 @@ impl Companion {
             crate::write_atomic(file, value.as_deref().unwrap_or("").as_bytes(), true).map_err(|e| format!("couldn't keep the path: {e}"))?;
         }
         log::info!(target: "myorbiter::tennoscope", "program set to {}", value.as_deref().unwrap_or("(found by MyOrbiter)"));
+        // A different program starts over: what the last one did says nothing about it.
+        lock(&self.relaunch).reset();
         *lock(&self.custom) = value;
         Ok(())
     }
@@ -565,7 +752,11 @@ impl Companion {
             return;
         };
         if alive(noted) {
+            log::info!(target: "myorbiter::tennoscope", "adopted the TennoScope an earlier MyOrbiter started (pid {})", noted.pid);
             *lock(&self.started) = Some(noted);
+            // Its real start time isn't known; it ran before this MyOrbiter did, so it counts as steady.
+            let now = Instant::now();
+            lock(&self.relaunch).running(noted.pid, now.checked_sub(STEADY).unwrap_or(now));
         } else {
             remember(None);
         }
@@ -574,9 +765,15 @@ impl Companion {
     pub fn status(&self) -> Status {
         let live = running();
         let mut started = lock(&self.started);
-        if started.is_some_and(|p| !alive(p)) {
+        if let Some(p) = started.filter(|p| !alive(*p)) {
             *started = None;
             remember(None);
+            // One MyOrbiter didn't start itself (adopted, or a hand-off that became TennoScope) has
+            // no thread waiting for it: its end is noticed here.
+            let ended = lock(&self.relaunch).exited(p.pid, Instant::now());
+            if let Some((ran, tries, next)) = ended {
+                log_end(&format!("TennoScope (pid {}) ended on its own after {} s", p.pid, ran.as_secs()), tries, &next);
+            }
         }
         let found = self.binary();
         Status {
@@ -588,30 +785,70 @@ impl Companion {
             running: !live.is_empty() || started.is_some(),
             started_by_myorbiter: started.is_some(),
             report: read_report(&live),
+            restart: lock(&self.relaunch).view(Instant::now()),
         }
     }
 
-    /// Starts TennoScope in the background unless one is already running.
-    pub fn start(&self) -> Result<Status, String> {
+    /// Starts TennoScope in the background unless one is already running. Without `force` (the page's
+    /// routine check every 15 s) it doesn't start one while MyOrbiter waits out a restart, or once
+    /// the TennoScope has ended `MAX_TRIES` times in a row (see `Relaunch`); `force` (the player
+    /// pressed Start) starts it whatever came before, and starts the count over.
+    pub fn start(&self, force: bool) -> Result<Status, String> {
         let _one_at_a_time = lock(&self.starting);
         if !SUPPORTED {
             return Err("TennoScope doesn't run on macOS.".into());
         }
         let ours = lock(&self.started).is_some_and(alive);
         if running().is_empty() && !ours {
+            {
+                let mut relaunch = lock(&self.relaunch);
+                if force {
+                    relaunch.reset();
+                } else if relaunch.may_start(Instant::now()).is_err() {
+                    drop(relaunch);
+                    return Ok(self.status());
+                }
+            }
             let (bin, bundled) = self.binary().ok_or("TennoScope wasn't found. Choose it in Settings, TennoScope, Program.")?;
-            let mut child = launch(&bin, bundled).arg("--background").spawn().map_err(|e| {
-                log::error!(target: "myorbiter::tennoscope", "couldn't start {}: {e}", bin.display());
-                format!("Couldn't start {}: {e}", bin.display())
-            })?;
-            log::info!(target: "myorbiter::tennoscope", "started {}{} (pid {})", bin.display(), if bundled { ", the one inside MyOrbiter" } else { "" }, child.id());
+            let mut child = match launch(&bin, bundled).arg("--background").spawn() {
+                Ok(child) => child,
+                Err(e) => {
+                    log::error!(target: "myorbiter::tennoscope", "couldn't start {}: {e}", bin.display());
+                    let (tries, next) = lock(&self.relaunch).failed(Instant::now());
+                    log_end("TennoScope didn't start", tries, &next);
+                    return Err(format!("Couldn't start {}: {e}", bin.display()));
+                }
+            };
+            let pid = child.id();
+            log::info!(target: "myorbiter::tennoscope", "started {}{} (pid {pid})", bin.display(), if bundled { ", the one inside MyOrbiter" } else { "" });
             #[cfg(windows)]
             win::end_with_myorbiter(&mut child);
-            let started = proc_of(child.id());
-            // Collected in the background whenever it exits, so it never lingers as a zombie.
-            std::thread::spawn(move || child.wait());
+            lock(&self.relaunch).running(pid, Instant::now());
+            let started = proc_of(pid);
             *lock(&self.started) = started;
             remember(started);
+            // Waited for in the background, so it never lingers as a zombie, and so how it ended
+            // (a code, or the signal that ended it) is in the log.
+            let slot = Arc::clone(&self.started);
+            let relaunch = Arc::clone(&self.relaunch);
+            std::thread::spawn(move || {
+                let how = match child.wait() {
+                    Ok(status) => describe_exit(status.code(), signal_of(&status)),
+                    Err(e) => format!("couldn't be waited for ({e})"),
+                };
+                let ended = lock(&relaunch).exited(pid, Instant::now());
+                {
+                    let mut slot = lock(&slot);
+                    if slot.is_some_and(|p| p.pid == pid) {
+                        *slot = None;
+                        remember(None);
+                    }
+                }
+                match ended {
+                    Some((ran, tries, next)) => log_end(&format!("TennoScope (pid {pid}) {how} after {} s, and MyOrbiter hadn't stopped it", ran.as_secs()), tries, &next),
+                    None => log::info!(target: "myorbiter::tennoscope", "TennoScope (pid {pid}) {how}"),
+                }
+            });
         }
         Ok(self.status())
     }
@@ -619,6 +856,7 @@ impl Companion {
     /// Opens TennoScope's own window: a running TennoScope raises it, otherwise it starts normally.
     pub fn show(&self) -> Result<(), String> {
         let (bin, bundled) = self.binary().ok_or("TennoScope wasn't found. Choose it in Settings, TennoScope, Program.")?;
+        log::info!(target: "myorbiter::tennoscope", "asked to open TennoScope's window");
         let mut child = launch(&bin, bundled)
             .spawn()
             .map_err(|e| format!("Couldn't start {}: {e}", bin.display()))?;
@@ -650,6 +888,7 @@ impl Companion {
         // request): then it's one MyOrbiter started, and MyOrbiter closes it like the first.
         log::info!(target: "myorbiter::tennoscope", "asked {arg}");
         let started = Arc::clone(&self.started);
+        let relaunch = Arc::clone(&self.relaunch);
         std::thread::spawn(move || {
             let deadline = std::time::Instant::now() + HAND_OFF;
             while std::time::Instant::now() < deadline {
@@ -663,6 +902,8 @@ impl Companion {
                 if !slot.is_some_and(alive) {
                     *slot = Some(p);
                     remember(Some(p));
+                    lock(&relaunch).running(p.pid, Instant::now());
+                    log::info!(target: "myorbiter::tennoscope", "the TennoScope started to pass on a request stayed up: it is the one MyOrbiter keeps (pid {})", p.pid);
                 }
             }
             let _ = child.wait();
@@ -673,6 +914,8 @@ impl Companion {
     /// Stops the TennoScope MyOrbiter started (and only that one): SIGTERM on Unix, so it can quit
     /// cleanly; on Windows `TerminateProcess`, a hard stop as `taskkill /F` was before.
     pub fn stop(&self) {
+        // Before anything else: its end from here on is MyOrbiter's doing, not one to count.
+        lock(&self.relaunch).stopped();
         let Some(p) = lock(&self.started).take() else { return };
         log::info!(target: "myorbiter::tennoscope", "stopping the TennoScope MyOrbiter started");
         if alive(p) {
@@ -695,6 +938,134 @@ impl Companion {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn secs(n: u64) -> Duration {
+        Duration::from_secs(n)
+    }
+
+    #[test]
+    fn a_helper_that_keeps_ending_is_started_again_after_longer_waits_and_then_left() {
+        let t0 = Instant::now();
+        let mut r = Relaunch::default();
+        assert_eq!(r.may_start(t0), Ok(()), "the first start is never held");
+        // Four starts in a row, each ended within two minutes of starting.
+        r.running(100, t0);
+        let (_, tries, next) = r.exited(100, t0 + secs(2)).unwrap();
+        assert_eq!((tries, next), (1, Next::After(secs(15))));
+        assert_eq!(r.may_start(t0 + secs(5)), Err(Held::Waiting(secs(12))), "the routine check waits");
+        assert_eq!(r.may_start(t0 + secs(17)), Ok(()));
+        r.running(101, t0 + secs(17));
+        let (_, tries, next) = r.exited(101, t0 + secs(18)).unwrap();
+        assert_eq!((tries, next), (2, Next::After(secs(30))));
+        r.running(102, t0 + secs(50));
+        let (_, tries, next) = r.exited(102, t0 + secs(51)).unwrap();
+        assert_eq!((tries, next), (3, Next::After(secs(60))));
+        r.running(103, t0 + secs(112));
+        let (_, tries, next) = r.exited(103, t0 + secs(113)).unwrap();
+        assert_eq!((tries, next), (4, Next::GiveUp));
+        assert_eq!(r.may_start(t0 + secs(100_000)), Err(Held::GaveUp), "however long it waits");
+        let view = r.view(t0 + secs(200));
+        assert!(view.gave_up && view.retry_in_ms.is_none());
+        // The player pressing Start begins again.
+        r.reset();
+        assert_eq!(r.may_start(t0 + secs(200)), Ok(()));
+        assert_eq!(r.view(t0 + secs(200)).tries, 0);
+    }
+
+    #[test]
+    fn a_run_that_lasted_is_one_crash_to_start_over_from() {
+        let t0 = Instant::now();
+        let mut r = Relaunch::default();
+        for round in 0..10u32 {
+            let at = t0 + secs(u64::from(round) * 4000);
+            r.running(round, at);
+            // An hour of running, then it ends by itself: restarted after the first wait, always.
+            let (_, tries, next) = r.exited(round, at + secs(3600)).unwrap();
+            assert_eq!((tries, next), (1, Next::After(secs(15))), "round {round}");
+        }
+        assert!(!r.view(t0 + secs(100_000)).gave_up);
+    }
+
+    #[test]
+    fn stopping_it_and_the_same_end_seen_twice_count_for_nothing() {
+        let t0 = Instant::now();
+        let mut r = Relaunch::default();
+        r.running(7, t0);
+        r.stopped();
+        assert!(r.exited(7, t0 + secs(1)).is_none(), "MyOrbiter ended it itself");
+        assert_eq!(r.may_start(t0 + secs(1)), Ok(()));
+        r.running(8, t0);
+        assert!(r.exited(8, t0 + secs(1)).is_some());
+        assert!(r.exited(8, t0 + secs(1)).is_none(), "the thread and the status check both see an end: once");
+        assert!(r.exited(9, t0 + secs(1)).is_none(), "another process's end isn't this one's");
+        // A start that fails counts like a run that ended at once.
+        let (tries, next) = r.failed(t0 + secs(2));
+        assert_eq!((tries, next), (2, Next::After(secs(30))));
+    }
+
+    #[test]
+    fn the_log_says_how_it_ended() {
+        assert_eq!(describe_exit(Some(1), None), "exited with code 1");
+        assert_eq!(describe_exit(None, Some(9)), "was ended by signal 9 (SIGKILL)");
+        assert_eq!(describe_exit(None, Some(11)), "was ended by signal 11 (SIGSEGV)");
+        assert_eq!(describe_exit(None, None), "ended");
+    }
+
+    /// A stand-in TennoScope that exits at once, as one that crashes on start does: MyOrbiter's page
+    /// checks every 15 s and starts it when it isn't running. Here the waits are milliseconds.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_helper_that_exits_on_start_is_started_a_few_times_then_left() {
+        use std::os::unix::fs::PermissionsExt;
+        let _env = crate::TEST_ENV.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!("myorbiter-standin-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let marker = dir.join("starts");
+        let program = dir.join(PROCESS);
+        fs::write(&program, format!("#!/bin/sh\necho \"$@\" >> '{}'\nexit 3\n", marker.display())).unwrap();
+        fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).unwrap();
+        let starts = || fs::read_to_string(&marker).map(|t| t.lines().count()).unwrap_or(0);
+
+        let c = Companion::default();
+        lock(&c.relaunch).first = Duration::from_millis(30);
+        c.set_custom(Some(&program.display().to_string())).unwrap();
+        // Until its end has been noted (the thread that waits for it), another check would only see
+        // a TennoScope that isn't there; that's all the page does, every 15 s.
+        let settled = |c: &Companion| {
+            let until = Instant::now() + Duration::from_secs(10);
+            while lock(&c.relaunch).current.is_some() && Instant::now() < until {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        };
+        let mut checks = 0;
+        while !c.status().restart.gave_up && checks < 1000 {
+            c.start(false).unwrap();
+            settled(&c);
+            std::thread::sleep(Duration::from_millis(15));
+            checks += 1;
+        }
+        let status = c.status();
+        assert!(status.restart.gave_up, "it gives up");
+        assert_eq!(starts(), MAX_TRIES as usize, "after exactly this many starts, however many checks it took");
+        assert_eq!(fs::read_to_string(&marker).unwrap().lines().next(), Some("--background"), "started in the background");
+        assert!(!status.running);
+        // Left alone: more checks start nothing.
+        for _ in 0..20 {
+            c.start(false).unwrap();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(starts(), MAX_TRIES as usize);
+        // Start pressed: it starts again, and the count starts over.
+        let status = c.start(true).unwrap();
+        settled(&c);
+        assert_eq!(starts(), MAX_TRIES as usize + 1);
+        assert!(!status.restart.gave_up);
+        assert_eq!(c.status().restart.tries, 1);
+        // MyOrbiter stopping a TennoScope is not an end to count (nothing of ours runs now).
+        c.stop();
+        fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[cfg(target_os = "linux")]
     #[test]

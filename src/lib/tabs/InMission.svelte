@@ -72,7 +72,11 @@
 
   // Which reward to take. With TennoScope's reading of the screen: exactly those cards, in screen
   // order. Without it: everything the squad's relics can drop, best first, to find yours in.
-  const onScreen = $derived.by(whileShown("mission", () => cards ? scoreCards(model, cards.cards, weights, cards.prices) : null));
+  // The scored cards and when they were read, held together: the page keeps what it last worked out
+  // while another page is shown, and `cards` itself goes null once TennoScope's reading expires, so
+  // anything about the reading (its time) has to come from this same object, never from `cards`.
+  const reading = $derived.by(whileShown("mission", () => (cards ? { rows: scoreCards(model, cards.cards, weights, cards.prices), at: cards.at } : null)));
+  const onScreen = $derived(reading?.rows ?? null);
   const pick = $derived(onScreen ? bestCard(onScreen) : null);
   const ranked = $derived.by(whileShown("mission", () => scoreCards(model, pool.map((x) => x.name), weights).map((c, i) => ({ ...c, from: pool[i].from, owned: pool[i].owned, rarity: pool[i].rarity })).sort((a, b) => b.score - a.score || (b.price ?? 0) - (a.price ?? 0))));
   /** Your own relic's reward, which the log names as soon as the screen opens. */
@@ -205,7 +209,7 @@
     {#if onScreen}
       <div class="row" class:few={onScreen.length < 4} style:--n={onScreen.length}>{#each onScreen as c, i (i + c.name)}{@render rewardCard(c, i)}{/each}</div>
       <div class="screen-foot">
-        <span class="dim small">Read by TennoScope at {readAt(cards!.at)} · the same pick is marked on its overlay</span>
+        <span class="dim small">Read by TennoScope at {readAt(reading?.at ?? 0)} · the same pick is marked on its overlay</span>
         <CopyButton text={chatLine} label="Copy for squad chat" title="Copy the four cards with their prices, to paste in squad chat: {chatLine}" />
       </div>
       {@render weightControls()}

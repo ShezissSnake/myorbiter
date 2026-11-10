@@ -58,3 +58,9 @@ export function failureWords(message: string, retryIn: number): string {
     return `TennoScope stops as it starts: it's older than the TennoScope that last opened your data ("${message}"). Update the TennoScope MyOrbiter starts (Settings → TennoScope; with your own build, rebuild it as tennoscope/ORBITER.md says).${wait}`;
   return `TennoScope stops as it starts. Its log says: "${message}".${wait}`;
 }
+
+/** TennoScope ended `tries` times in a row soon after starting: MyOrbiter stopped starting it. */
+export function gaveUpWords(tries: number, message: string | null): string {
+  const why = message ? ` Its log says: "${message}".` : "";
+  return `TennoScope stopped ${tries} times in a row soon after it started, so MyOrbiter has stopped starting it.${why} Press Start in Settings, TennoScope to try again.`;
+}

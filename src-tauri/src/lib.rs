@@ -999,10 +999,12 @@ fn tennoscope_forget_program(companion: tauri::State<'_, companion::Companion>) 
     Ok(companion.status())
 }
 
-/// Starts TennoScope in the background, unless one is running already.
+/// Starts TennoScope in the background, unless one is running already. `force`: the player pressed
+/// Start, so it starts even while MyOrbiter waits out a restart or has stopped trying (the page's
+/// routine check, without it, is held back; see `companion::Relaunch`).
 #[tauri::command(async)]
-fn tennoscope_start(companion: tauri::State<'_, companion::Companion>) -> Result<companion::Status, String> {
-    companion.start()
+fn tennoscope_start(companion: tauri::State<'_, companion::Companion>, force: Option<bool>) -> Result<companion::Status, String> {
+    companion.start(force.unwrap_or(false))
 }
 
 /// Passes a request (sync, screen-capture permission) to the running TennoScope.
