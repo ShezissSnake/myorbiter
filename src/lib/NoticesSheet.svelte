@@ -3,7 +3,7 @@
   // what it tells you about, kind by kind, with a pause for all of them.
   import { discordConfirm, discordPost, isDiscordWebhook, type Settings } from "./backend";
   import { discordStatus, discordSent } from "./discordStatus.svelte";
-  import { GROUP_NOTE, kindsFor, NOTICE_KINDS, noticeKind, splitTarget, type Notice, type NoticeKind, type NoticeKindInfo } from "./notices";
+  import { GROUP_NOTE, kindsFor, NOTICE_KINDS, noticeKind, outcomeText, splitTarget, TEST_WAIT_MS, type Notice, type NoticeKind, type NoticeKindInfo, type NoticeOutcome } from "./notices";
   import { pageById, type PageId } from "./pages";
   import Chip from "./ui/Chip.svelte";
   import Sheet from "./ui/Sheet.svelte";
@@ -23,7 +23,7 @@
     open_,
     test,
     acts,
-  }: { open: boolean; view?: "recent" | "choose"; settings: Settings; console?: boolean; open_: (id: string) => void; test: () => void; acts?: Snippet<[Notice]> } = $props();
+  }: { open: boolean; view?: "recent" | "choose"; settings: Settings; console?: boolean; open_: (id: string) => void; test: () => Promise<NoticeOutcome>; acts?: Snippet<[Notice]> } = $props();
 
   let now = $state(Date.now());
   // Seen once you've had Recent open and close the panel: the count on the bell starts again from zero.
@@ -116,6 +116,26 @@
     return new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   }
   let clearing = $state(false);
+  // The test notification: sent after a few seconds, by the same route as the real ones, and then
+  // the panel says what became of it.
+  let testing = $state(false);
+  /** The five seconds before it goes; after that it is the send itself that is awaited. */
+  let counting = $state(false);
+  let tested = $state<NoticeOutcome | null>(null);
+  async function sendTest() {
+    if (testing) return;
+    testing = true;
+    counting = true;
+    setTimeout(() => (counting = false), TEST_WAIT_MS);
+    tested = null;
+    try {
+      tested = await test();
+    } catch (e) {
+      tested = { how: "failed", why: String((e as Error)?.message ?? e) };
+    } finally {
+      testing = false;
+    }
+  }
   // The test: working while it posts (a second click does nothing), then "Sent" or why not.
   const discordJob = new Job(4000);
   function testDiscord() {
@@ -170,7 +190,7 @@
                 <span class="txt">
                   <span class="t"><b>{n.title}</b><span class="dim small nowrap">{when(n.at)}</span></span>
                   {#if n.body}<span class="b">{n.body}</span>{/if}
-                  <span class="k dim small">{k?.label ?? n.kind}</span>
+                  <span class="k dim small">{k?.label ?? n.kind}{#if n.outcome}{" · "}<span class:bad={n.outcome.how === "failed"}>{outcomeText(n.outcome)}</span>{/if}</span>
                 </span>
               </button>
               {#if acts}<div class="nacts">{@render acts(n)}</div>{/if}
@@ -197,14 +217,19 @@
         While you're looking at MyOrbiter: a notification shows by the sidebar for a few seconds. Click it to open what it's about.
       </Switch>
       <Switch bind:on={settings.notifyOptions.desktop} label="Desktop notifications">
-        While MyOrbiter is behind other windows (or you're in the game): your desktop's notifications{console ? "" : ", where a click brings MyOrbiter up on what it's about (Linux and Windows)"}. Off: only Recent.
+        While MyOrbiter is behind other windows (or you're in the game): your desktop's notifications{console ? "" : ", where a click brings MyOrbiter up on what it's about (Linux and Windows)"}. Off: only Recent. Your desktop can still hold them back: Do Not Disturb does, and recent KDE Plasma turns it on by itself while a fullscreen window such as the game is in front (System Settings → Notifications).
       </Switch>
       {#if !console}
         <Switch bind:on={settings.notifyOptions.quietInFissure} label="Quiet while I'm in a fissure">
           Nothing pops up while you're in a fissure mission, except which reward to take. The rest waits in Recent.
         </Switch>
       {/if}
-      <div class="row"><button class="stamp" onclick={test} title="Shows a notification now, the way they look. Nothing is saved.">Show a test notification</button></div>
+      <div class="testrow">
+        <button class="stamp" disabled={testing} onclick={sendTest} title={`Sends a notification in ${TEST_WAIT_MS / 1000} seconds by the route the real ones take, and says what became of it. Nothing is saved.`}>{testing ? (counting ? `Sending in ${TEST_WAIT_MS / 1000} seconds…` : "Sending…") : "Send a test notification"}</button>
+        <span class="small" class:warn-text={tested?.how === "failed"} role="status">
+          {#if testing && counting}Click away to another window to try your desktop's notification; stay here and it shows in MyOrbiter.{:else if tested && !testing}{outcomeText(tested)}{tested.how === "app" ? ". MyOrbiter was in front: to try the desktop, click away from it during the countdown." : tested.how === "desktop" ? ". If nothing appeared, your desktop held it back: see Do Not Disturb under Desktop notifications." : ""}{/if}
+        </span>
+      </div>
       <div class="discord">
         <span class="register">Discord</span>
         <p class="dim small">Also send some notifications to a Discord channel of yours, to see them on your phone while you're away: in Discord, a channel's Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL, and paste it here. MyOrbiter asks once, in a window of its own, whether to send to a new address; until you say yes, nothing goes there.</p>
@@ -263,6 +288,7 @@
   .t b { font-weight: 600; color: var(--platinum); }
   .b { white-space: pre-line; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
   .k { font-size: .7rem; }
+  .k .bad { color: var(--alert); }
   .how { display: grid; gap: 1rem; padding-bottom: 1.2rem; border-bottom: 1px solid var(--rule); }
   .pause { display: grid; gap: .45rem; }
   .pausebtns { display: flex; flex-wrap: wrap; gap: 0; }
@@ -271,6 +297,8 @@
   .kind { display: grid; gap: .4rem; }
   .kind :global(.chip) { justify-self: start; font-size: 11px; padding: .2rem .5rem; }
   .row { display: flex; }
+  .testrow { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .8rem; }
+  .testrow span { flex: 1 1 14rem; min-width: 0; line-height: 1.45; }
   .grp { display: grid; gap: .9rem; padding: 1.1rem 0; border-bottom: 1px solid var(--rule); }
   .grp header { display: flex; align-items: baseline; gap: .7rem; flex-wrap: wrap; }
   .grp header .link { margin-left: auto; }
