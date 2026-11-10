@@ -145,7 +145,7 @@
   const againstLowest = (o: MyOrder, p: Plan | null | undefined): number | null =>
     p?.competitor.lowest && o.platinum > 0 ? o.platinum - p.competitor.lowest.platinum : null;
   /** The shown listings with a cheapest seller to stand against, and how many of them are undercut. */
-  const against = $derived(orders.filter((o) => o.visible).map((o) => againstLowest(o, plans.get(o.id))).filter((d): d is number => d != null));
+  const against = $derived(orders.filter((o) => isShown(o)).map((o) => againstLowest(o, plans.get(o.id))).filter((d): d is number => d != null));
   const undercut = $derived(against.filter((d) => d > 0).length);
 
   // New listing: anything tradable you hold, searchable. On a console: anything tradable.
@@ -689,7 +689,7 @@
           <p class="note">of the {against.length} checked · {fmt(checkedAt)}</p>
         {:else}
           <div class="fv"><span class="mark fig none">–</span></div>
-          <p class="note">{checkedAt ? "nobody else online sells them" : "not checked yet"}</p>
+          <p class="note">{!checkedAt ? "not checked yet" : `${orders.some((o) => isShown(o)) ? "nobody else online sells them" : "none shown to buyers"} · ${fmt(checkedAt)}`}</p>
         {/if}
       </div>
       {#if !console && trades.limit != null}
