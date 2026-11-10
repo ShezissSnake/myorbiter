@@ -1145,7 +1145,7 @@
   .bang { display: inline-grid; place-items: center; width: 1.05em; height: 1.05em; border: 1px solid currentColor; font-family: var(--face-register); font-size: .72rem; font-weight: 700; line-height: 1; }
   /* Sold out, on its way off: dimmed by colour, not opacity, so its words stay readable (about 5:1). */
   tr.ghost td { color: var(--platinum-deep); --platinum: var(--platinum-deep); --platinum-dim: var(--platinum-deep); }
-  tr.ghost td :global(img) { opacity: .6; }
+  tr.ghost td :global(img), tr.ghost td :global(.mk) { opacity: .6; }
   /* Its name and how it went on one line, so the row keeps about a listing's height. */
   .ghostline { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem 1.2rem; min-height: 36px; }
   .ghostline .rowst { margin-top: 0; padding-left: 0; }
@@ -1236,7 +1236,7 @@
   /* A hidden listing reads faded; its switches and actions stay at full strength. Faded by colour
      (the tokens its parts use, turned down), not opacity, so its words stay readable (about 5:1). */
   tr.hidden td.fade { color: var(--platinum-deep); --platinum: var(--platinum-deep); --platinum-dim: var(--platinum-deep); --gold: var(--gold-dim); }
-  tr.hidden td.fade :global(img) { opacity: .45; }
+  tr.hidden td.fade :global(img), tr.hidden td.fade :global(.mk) { opacity: .45; }
   .right { text-align: right; }
   .center { text-align: center; }
   .comp { display: inline-flex; align-items: center; gap: .45rem; }

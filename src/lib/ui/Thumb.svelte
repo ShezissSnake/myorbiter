@@ -15,19 +15,18 @@
   const src = $derived([file, marketThumb(name ?? of ?? alt)].find((f): f is string => !!f && !failed.includes(f)) ?? null);
   const what = $derived(name ?? of ?? alt);
   const relic = $derived(/^(Lith|Meso|Neo|Axi|Requiem) [A-Z]\d+\b/.exec(what ?? ""));
-  // Until the picture has loaded, the well shows its fallback icon faintly, not a dark square.
-  let loaded = $state(false);
-  $effect(() => {
-    src;
-    loaded = false;
-  });
+  // Until the picture has loaded, the well shows its fallback icon faintly, not a dark square: the
+  // icon is the well's own background (CSS), under the picture, and the load takes it away. `loaded`
+  // is the picture that has: a new `src` (the next one tried) is not loaded until its own onload.
+  let loadedSrc = $state<string | null>(null);
+  const loaded = $derived(loadedSrc !== null && loadedSrc === src);
   const icon = $derived<GameIconName | null>(fallback ?? (/\bBlueprint$/.test(what ?? "") ? "foundry" : relic ? eraIcon(relic[1]) : kindIcon(null, what ?? "")));
 </script>
 
-<span class="thumb" use:info={name} style:width="{size}px" style:height="{size}px" style:border-color={tint ?? null}>
+<span class="thumb" class:ready={loaded} use:info={name} style:width="{size}px" style:height="{size}px" style:border-color={tint ?? null} style:--wait={src && icon ? `url(/game/${icon}.png)` : null}>
   {#if src}
-    {#if !loaded}<span class="wait" aria-hidden="true">{#if icon}<span class="kind"><GameIcon name={icon} size={Math.round(size * 0.7)} /></span>{:else}<i class="none"></i>{/if}</span>{/if}
-    <img src={imageUrl(src)} {alt} loading="lazy" decoding="async" width={size} height={size} onload={() => (loaded = true)} onerror={() => src && (failed = [...failed, src])} />
+    {#if !icon && !loaded}<span class="wait" aria-hidden="true"><i class="none"></i></span>{/if}
+    <img src={imageUrl(src)} {alt} loading="lazy" decoding="async" width={size} height={size} onload={() => (loadedSrc = src)} onerror={() => src && (failed = [...failed, src])} />
   {:else if icon}
     <span class="kind"><GameIcon name={icon} size={Math.round(size * 0.7)} /></span>
   {:else}
@@ -42,7 +41,10 @@
     box-shadow: var(--struck);
   }
   .kind { display: inline-flex; opacity: .6; }
-  .thumb { position: relative; }
+  .thumb { position: relative; isolation: isolate; }
+  /* The fallback icon, faint behind the picture until it has loaded (--wait: set only while there's a picture to wait for). */
+  .thumb::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--wait, none) center / 70% no-repeat; opacity: .5; pointer-events: none; }
+  .thumb.ready::before { display: none; }
   .wait { position: absolute; inset: 0; display: grid; place-items: center; opacity: .5; pointer-events: none; }
   img { width: 100%; height: 100%; object-fit: contain; }
   /* No picture: a small Orokin diamond rather than an empty well. */

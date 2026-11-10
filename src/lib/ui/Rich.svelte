@@ -17,7 +17,7 @@
 <style>
   /* An icon word: the icon sits on the text's line, no wider gap than a space. */
   .rw { display: inline-flex; align-items: baseline; gap: .2rem; white-space: nowrap; }
-  .rw :global(.gi), .rp :global(.gi) { align-self: center; }
+  .rw :global(.gi), .rp :global(.gi), .rw :global(.mk), .rp :global(.mk) { align-self: center; }
   /* A page link: the page's icon and its name, underlined like a link, in platinum. */
   .rp { all: unset; display: inline-flex; align-items: baseline; gap: .22rem; white-space: nowrap; cursor: pointer; color: var(--platinum); text-decoration: underline; text-decoration-color: var(--gold-dim); text-underline-offset: .18em; }
   .rp:hover { text-decoration-color: var(--gold); }
