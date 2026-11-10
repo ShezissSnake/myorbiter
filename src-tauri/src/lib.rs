@@ -1573,6 +1573,8 @@ pub fn run() {
         .expect("error while starting MyOrbiter")
         .run(|app, event| {
             // Closing MyOrbiter closes the TennoScope it started (never one you started yourself).
+            // On Windows this also runs inside WM_ENDSESSION while the session ends (tao exits the
+            // loop there): nothing here may start a program, which would fail with 0xc0000142.
             if let tauri::RunEvent::Exit = event {
                 rendering::stood_up();
                 // Quitting closes the status connection: warframe.market then shows you offline.

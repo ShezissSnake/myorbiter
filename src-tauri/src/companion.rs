@@ -4,6 +4,8 @@
 //! so both have to run. MyOrbiter starts it with `--background` (a patched TennoScope then shows no
 //! window, only its overlay over the game), and stops it when MyOrbiter closes. A TennoScope you
 //! started yourself is left alone: MyOrbiter only ever stops the one it started.
+//! On Windows it also ends when MyOrbiter's process ends however that happens (a job object, see
+//! `win`), and stopping it never starts another program.
 //!
 //! The release builds carry a patched TennoScope inside them (the AppImage another AppImage, the
 //! Windows installer an `.exe` with its Tesseract), so nobody installs it separately. TennoScope
@@ -285,11 +287,154 @@ fn terminate(pid: u32) {
         libc::kill(pid as libc::pid_t, libc::SIGTERM);
     }
 }
-#[cfg(not(unix))]
+/// On Windows through a handle to the process, never by starting another program: `sysinfo`'s
+/// `kill` runs `taskkill.exe`, and `stop` also runs from `RunEvent::Exit`, which Windows reaches
+/// inside WM_ENDSESSION while it ends the session. A program started then can't initialise and
+/// Windows shows "taskkill.exe - Application Error (0xc0000142)" at every shutdown.
+#[cfg(windows)]
 fn terminate(pid: u32) {
-    let Some(sys) = processes() else { return };
-    if let Some(p) = sys.process(sysinfo::Pid::from_u32(pid)) {
-        p.kill();
+    win::terminate(pid);
+}
+#[cfg(not(any(unix, windows)))]
+fn terminate(_pid: u32) {}
+
+/// Stopping TennoScope on Windows without starting a program: a handle to the process for `stop`,
+/// and a job object that ends the TennoScope MyOrbiter started when MyOrbiter's process ends, how
+/// ever it ends (a crash, Task Manager, the session ending before `stop` runs). Six kernel32
+/// functions, declared here; every Windows program links kernel32.
+#[cfg(windows)]
+mod win {
+    use std::ffi::c_void;
+    use std::os::windows::io::AsRawHandle;
+    use std::sync::OnceLock;
+
+    type Handle = *mut c_void;
+
+    const PROCESS_TERMINATE: u32 = 0x0001;
+    /// `JobObjectExtendedLimitInformation`, the class `ExtendedLimits` is set with.
+    const EXTENDED_LIMIT_INFORMATION: i32 = 9;
+    /// Programs TennoScope starts (its WebView2, Tesseract, a browser opened from its window) stay
+    /// out of the job: only TennoScope itself ends with MyOrbiter, as on Linux, where only it is
+    /// sent SIGTERM.
+    const JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK: u32 = 0x1000;
+    /// When the last handle to the job closes, every process in it is ended.
+    const JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE: u32 = 0x2000;
+
+    /// `JOBOBJECT_BASIC_LIMIT_INFORMATION`.
+    #[repr(C)]
+    #[derive(Default)]
+    struct BasicLimits {
+        per_process_user_time_limit: i64,
+        per_job_user_time_limit: i64,
+        limit_flags: u32,
+        minimum_working_set_size: usize,
+        maximum_working_set_size: usize,
+        active_process_limit: u32,
+        affinity: usize,
+        priority_class: u32,
+        scheduling_class: u32,
+    }
+
+    /// `IO_COUNTERS`.
+    #[repr(C)]
+    #[derive(Default)]
+    struct IoCounters {
+        read_operation_count: u64,
+        write_operation_count: u64,
+        other_operation_count: u64,
+        read_transfer_count: u64,
+        write_transfer_count: u64,
+        other_transfer_count: u64,
+    }
+
+    /// `JOBOBJECT_EXTENDED_LIMIT_INFORMATION`.
+    #[repr(C)]
+    #[derive(Default)]
+    struct ExtendedLimits {
+        basic: BasicLimits,
+        io: IoCounters,
+        process_memory_limit: usize,
+        job_memory_limit: usize,
+        peak_process_memory_used: usize,
+        peak_job_memory_used: usize,
+    }
+
+    // The sizes Windows expects (`sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION)`), checked when
+    // MyOrbiter is built for Windows.
+    #[cfg(target_pointer_width = "64")]
+    const _: () = assert!(std::mem::size_of::<ExtendedLimits>() == 144);
+    #[cfg(target_pointer_width = "32")]
+    const _: () = assert!(std::mem::size_of::<ExtendedLimits>() == 112);
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn OpenProcess(desired_access: u32, inherit_handle: i32, process_id: u32) -> Handle;
+        fn TerminateProcess(process: Handle, exit_code: u32) -> i32;
+        fn CloseHandle(object: Handle) -> i32;
+        fn CreateJobObjectW(job_attributes: *const c_void, name: *const u16) -> Handle;
+        fn SetInformationJobObject(job: Handle, class: i32, information: *const c_void, length: u32) -> i32;
+        fn AssignProcessToJobObject(job: Handle, process: Handle) -> i32;
+    }
+
+    /// Ends the process `pid` (already checked to be the TennoScope MyOrbiter started).
+    pub fn terminate(pid: u32) {
+        // SAFETY: no pointers are passed; the handle is checked before use and closed once.
+        unsafe {
+            let process = OpenProcess(PROCESS_TERMINATE, 0, pid);
+            if process.is_null() {
+                log::warn!(target: "myorbiter::tennoscope", "couldn't open TennoScope (pid {pid}) to stop it: {}", std::io::Error::last_os_error());
+                return;
+            }
+            if TerminateProcess(process, 1) == 0 {
+                log::warn!(target: "myorbiter::tennoscope", "couldn't stop TennoScope (pid {pid}): {}", std::io::Error::last_os_error());
+            }
+            CloseHandle(process);
+        }
+    }
+
+    /// The job, made the first time it's needed and never closed by MyOrbiter: Windows closes the
+    /// handle as MyOrbiter's process ends, and that ends what is in the job. The handle isn't
+    /// inheritable, so no program MyOrbiter starts holds it open. None if Windows wouldn't make one.
+    fn job() -> Option<Handle> {
+        static JOB: OnceLock<Option<usize>> = OnceLock::new();
+        let made = JOB.get_or_init(|| {
+            // SAFETY: null attributes and name are allowed; `limits` outlives the call and its
+            // size is the one passed; the handle is closed if it can't be set up.
+            unsafe {
+                let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+                if job.is_null() {
+                    log::warn!(target: "myorbiter::tennoscope", "couldn't make a job object: {}", std::io::Error::last_os_error());
+                    return None;
+                }
+                let mut limits = ExtendedLimits::default();
+                limits.basic.limit_flags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK;
+                let set = SetInformationJobObject(
+                    job,
+                    EXTENDED_LIMIT_INFORMATION,
+                    &limits as *const ExtendedLimits as *const c_void,
+                    std::mem::size_of::<ExtendedLimits>() as u32,
+                );
+                if set == 0 {
+                    log::warn!(target: "myorbiter::tennoscope", "couldn't set up the job object: {}", std::io::Error::last_os_error());
+                    CloseHandle(job);
+                    return None;
+                }
+                Some(job as usize)
+            }
+        });
+        made.map(|h| h as Handle)
+    }
+
+    /// Puts a TennoScope MyOrbiter just started in the job, so it ends when MyOrbiter does. If that
+    /// fails (MyOrbiter itself runs in a job that allows no other), `stop` still ends it on a
+    /// normal quit.
+    pub fn end_with_myorbiter(child: &std::process::Child) {
+        let Some(job) = job() else { return };
+        // SAFETY: both handles are valid: the job's for the life of the process, the child's
+        // while `child` is borrowed.
+        if unsafe { AssignProcessToJobObject(job, child.as_raw_handle() as Handle) } == 0 {
+            log::warn!(target: "myorbiter::tennoscope", "TennoScope (pid {}) won't end with MyOrbiter if MyOrbiter is killed: {}", child.id(), std::io::Error::last_os_error());
+        }
     }
 }
 
@@ -458,6 +603,8 @@ impl Companion {
                 format!("Couldn't start {}: {e}", bin.display())
             })?;
             log::info!(target: "myorbiter::tennoscope", "started {}{} (pid {})", bin.display(), if bundled { ", the one inside MyOrbiter" } else { "" }, child.id());
+            #[cfg(windows)]
+            win::end_with_myorbiter(&child);
             let started = proc_of(child.id());
             // Collected in the background whenever it exits, so it never lingers as a zombie.
             std::thread::spawn(move || child.wait());
@@ -493,6 +640,9 @@ impl Companion {
             .arg(arg)
             .spawn()
             .map_err(|e| format!("Couldn't reach TennoScope: {e}"))?;
+        // In the job too: if it becomes TennoScope (below), it is one MyOrbiter started.
+        #[cfg(windows)]
+        win::end_with_myorbiter(&child);
         // Normally it hands the request over and exits at once. If the TennoScope it was meant
         // for closed in the meantime, it becomes TennoScope itself (hidden, carrying out the
         // request): then it's one MyOrbiter started, and MyOrbiter closes it like the first.

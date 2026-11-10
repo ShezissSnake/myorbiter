@@ -71,5 +71,6 @@ signal-hook = "0.4"
 libc = "0.2"
 
 [target.'cfg(not(target_os = "linux"))'.dependencies]
-# Finding, and stopping, the TennoScope MyOrbiter started (Linux reads /proc itself).
+# Finding the TennoScope MyOrbiter started (Linux reads /proc itself). Not for stopping it: its
+# Windows `kill` runs taskkill.exe (companion.rs, `terminate`).
 sysinfo = { version = "0.40", default-features = false, features = ["system"] }
