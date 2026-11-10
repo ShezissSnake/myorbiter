@@ -490,7 +490,7 @@ if (args.includes("--check")) {
     // script, no inline code or handler, no frame, nothing that reads github.com (or anything) on load.
     const own = new RegExp(`<script src="(?:\\.\\./)*${SCRIPT.replace(".", "\\.")}"></script>`, "g");
     if (f.endsWith(".html") && /<(?:script|iframe|object|embed)\b|<meta[^>]+http-equiv|<[a-z][^>]*\son[a-z]+\s*=/i.test(text.replace(own, ""))) bad.push(`${rel}: carries a script other than ${SCRIPT}`);
-    for (const m of text.matchAll(/(?:href|src)="([^"]+)"|url\(["']?([^"')]+)/g)) {
+    for (const m of text.matchAll(/(?:href|src|data-small)="([^"]+)"|url\(["']?([^"')]+)/g)) {
       const url = m[1] ?? m[2];
       if (!url || url.startsWith("data:")) continue;
       if (/^https?:/.test(url)) { const h = new URL(url).hostname; if (!ALLOWED.has(h)) bad.push(`${rel}: link to ${h}`); continue; }
@@ -505,10 +505,12 @@ if (args.includes("--check")) {
       if (hash && target.endsWith(".html") && !readFileSync(target, "utf8").includes(`id="${hash}"`)) bad.push(`${rel}: ${url} has no #${hash}`);
     }
   }
-  // site.js works on the page it is in and nothing else: no address, no request, no storage, no
-  // markup built from text, nothing run from a string.
-  const js = readFileSync(join(OUT, SCRIPT), "utf8").replace(/\/\/.*$|\/\*[\s\S]*?\*\//gm, "");
-  const reach = /\b(?:https?:|fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|localStorage|sessionStorage|indexedDB|cookie|caches|serviceWorker|importScripts|import|eval|Function|innerHTML|outerHTML|insertAdjacentHTML|write|postMessage|setAttributeNS|createContextualFragment)\b|\bwindow\.open\b|\blocation\s*(?:\.href)?\s*=[^=]|\bsrc(?:doc)?\s*=\s*["'`]|\bon[a-z]+\s*=/g;
+  // site.js works on the page it is in and nothing else: no address (a "//host" one included), no
+  // request, no storage, no element made but a button, a span or a link, no navigation, no markup
+  // built from text, nothing run from a string. A tripwire for mistakes, read with the script: only
+  // whole-line comments are left out, so nothing after code on a line escapes it.
+  const js = readFileSync(join(OUT, SCRIPT), "utf8").replace(/^\s*\/\/.*$|\/\*[\s\S]*?\*\//gm, "");
+  const reach = /["'`]\/\/|\bcreateElement\(\s*["'`](?!(?:button|span|a)["'`])|\blocation\.(?:assign|replace|reload)\b|\.click\(\)|\bObject\.assign\b|\b(?:https?:|fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|localStorage|sessionStorage|indexedDB|cookie|caches|serviceWorker|importScripts|import|eval|Function|innerHTML|outerHTML|insertAdjacentHTML|write|postMessage|setAttributeNS|createContextualFragment)\b|\bwindow\.open\b|\blocation\s*(?:\.href)?\s*=[^=]|\bsrc(?:doc)?\s*=\s*["'`]|\bon[a-z]+\s*=/g;
   for (const m of js.matchAll(reach)) bad.push(`${SCRIPT}: "${m[0]}" (it may only work on its own page)`);
   const css = readFileSync(join(OUT, "site.css"), "utf8");
   for (const file of NARROW_PAGES) bad.push(...narrowOverflow(css, readFileSync(join(OUT, file), "utf8"), file));

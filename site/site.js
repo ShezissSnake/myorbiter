@@ -82,8 +82,10 @@ function tour() {
     select(to, true, false);
   });
   list.hidden = false;
-  const linked = panels.findIndex((p) => `#${p.id}` === location.hash);
-  select(linked >= 0 ? linked : 0, false, true);
+  // A link to a section (#sec-trade) opens its tab, on arrival and when followed later.
+  const linked = () => panels.findIndex((p) => `#${p.id}` === location.hash);
+  select(Math.max(linked(), 0), false, true);
+  addEventListener("hashchange", () => { if (linked() >= 0) select(linked(), false, false); });
 }
 
 /** The viewer: a screenshot large, with its caption, previous and next (and the arrow keys), Esc
@@ -109,7 +111,7 @@ function viewer() {
     // The small picture (already here) while the large one loads, then the large one.
     img.setAttribute("src", s.small);
     const big = new Image();
-    big.addEventListener("load", () => { if (list()[at] === s) img.setAttribute("src", s.large); });
+    big.addEventListener("load", () => { if (dlg.open && list()[at] === s) img.setAttribute("src", s.large); });
     big.setAttribute("src", s.large);
   }
   document.addEventListener("click", (e) => {
@@ -128,8 +130,12 @@ function viewer() {
     show(at + (e.key === "ArrowRight" ? 1 : -1));
     fadeIn(img);
   });
-  // A click outside the picture's plate closes it, as Esc does.
-  dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
+  // A click outside the viewer's plate (on the dimmed page) closes it, as Esc does.
+  dlg.addEventListener("click", (e) => {
+    if (e.target !== dlg) return;
+    const r = dlg.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dlg.close();
+  });
   dlg.addEventListener("close", () => {
     img.removeAttribute("src");
     opener?.focus();
@@ -137,13 +143,14 @@ function viewer() {
 }
 
 /** The visitor's platform, from the browser's own user agent, read here and sent nowhere. Phones,
- *  tablets, Chromebooks and Macs get no guess: the list stays as it is. */
+ *  tablets, Chromebooks, Macs, ARM and BSD get no guess: the list stays as it is. A Steam Deck's
+ *  desktop browser says only Linux, and gets the same AppImage under Linux's name. */
 function platform() {
   const ua = navigator.userAgent;
-  if (/Android|iPhone|iPad|CrOS|Macintosh/i.test(ua)) return null;
+  if (/Android|iPhone|iPad|CrOS|Macintosh|aarch64|\barmv?\d|BSD/i.test(ua)) return null;
   if (/Windows/i.test(ua)) return "windows";
-  if (/Steam ?Deck|SteamOS|Valve Steam/i.test(ua)) return "deck";
-  if (/Linux|X11/i.test(ua)) return "linux";
+  if (/Steam ?Deck|SteamOS/i.test(ua)) return "deck";
+  if (/Linux/i.test(ua)) return "linux";
   return null;
 }
 function downloads() {
