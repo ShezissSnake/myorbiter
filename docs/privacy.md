@@ -21,7 +21,7 @@ path beside each.
 | Builds | Nox's Frame | when you open an item or a build on Builds (on unless you turn it off) |
 | The notifications you pick | your Discord webhook | only if you set one |
 | An update check | github.com, then gitlab.com if GitHub has no answer | at start and every 6 hours, on the AppImage and the Windows installer |
-| A bug report | github.com: the report is in the address of the issue form your browser opens | only when you press Open on GitHub in Report a bug |
+| A bug report | github.com: the issue form opens with the app's version and your system in its address; the report itself only if you paste it in and submit | when you press Open on GitHub in Report a bug |
 
 ## Full mode: the game's memory
 
@@ -274,14 +274,14 @@ audited).
 
 ## Reporting a bug
 
-MyOrbiter itself sends nothing. Report a bug shows you the report first; *Open on GitHub* then
-opens the repository's new-issue form on github.com in your browser, with the fields filled in from
-the report: the report is in the page's address, so github.com receives it when the page opens,
-before you press Submit new issue, and your browser may keep that address in its history. *Copy
-report* only puts it on the clipboard, and it stays there, and in its history if your system keeps
-one. What github.com's page does with the address and with what you type there before you press
-Submit new issue is github.com's and wasn't audited. A report too long for an address is cut to fit
-(the oldest log lines first); Copy report has it all. Technical details are
+MyOrbiter itself sends nothing. Report a bug shows you the report first; *Open on GitHub* then puts
+it on the clipboard and opens the repository's issue form on github.com in your browser. The page's
+address carries only `template=bug_report.yml` and the app's version and your system (`MyOrbiter
+<version>`, `System: <system> <architecture>`), nothing of what you wrote or of the log, for you to
+paste the report into, give it a title and submit. *Copy report* only puts it on the clipboard.
+Either way the report stays on the clipboard, and in its history if your system keeps one. What
+github.com's page does with what you type or paste there before you press Submit new issue (drafts
+it may keep, for one) is github.com's and wasn't audited. Technical details are
 included unless you untick them, and you can read them in full first: the version, commit and build
 date, channel, system and architecture, the page open, TennoScope's state, whether Full mode is on,
 and the last 50 lines of MyOrbiter's log, with sign-ins, e-mail and IP addresses, account ids, your
@@ -366,7 +366,7 @@ keyring).
   `myorbiter.log` (and `myorbiter.1.log`, 2 MB each; Settings, Logs opens the folder): what it did
   on warframe.market, your notifications (with other players' names), the game log's location and
   errors. Readable only by you on Linux. Anything shaped like a token, password or webhook address
-  is cut out before it's written. Its last lines leave your PC only in a bug report you open on
+  is cut out before it's written. Its last lines leave your PC only in a bug report you paste into
   GitHub (or copy and send another way).
 - CSV exports go to your Downloads folder as `myorbiter-<what>-<date>.csv`, never over an existing
   file.

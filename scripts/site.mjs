@@ -286,7 +286,7 @@ function builds() {
     : `<p>This copy of the site was built without reading GitHub: every build is on <a href="${REPO}/releases">Releases</a>.</p>`;
   return `<section class="list" aria-label="Builds">${list}</section>
 <section class="check plate" id="check"><h2 class="register">Checking a download</h2>${readmeSection("Checking a download")}</section>
-<section class="more"><p class="small">Every build, with its source (<span class="register">myorbiter-source.tar.gz</span>) and checksums: <a href="${REPO}/releases">Releases on GitHub</a>. The code: <a href="${REPO}">the repository</a>. The builds made before 0.2.120 are on the mirror's releases on GitLab.</p></section>`;
+<section class="more"><p class="small">Every build, with its source (<span class="register">myorbiter-source.tar.gz</span>) and checksums: <a href="${REPO}/releases">Releases on GitHub</a>. The code: <a href="${REPO}">the repository</a>. The builds made before 0.2.120 are on GitLab's releases.</p></section>`;
 }
 
 /** The app's four sections, each in its colour, sigil and glyph: the question it answers and its

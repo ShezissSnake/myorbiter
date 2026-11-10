@@ -31,8 +31,7 @@ class Links {
       this.trouble = null;
     } catch (e) {
       const why = e instanceof Error ? e.message : String(e);
-      // Only the address up to its query: a bug report link carries the whole report there.
-      logLine("warn", "app", `couldn't open ${safe.split("?")[0]}: ${why}`);
+      logLine("warn", "app", `couldn't open ${safe}: ${why}`);
       this.trouble = why || "the browser didn't start";
     } finally {
       this.opening = this.opening.filter((u) => u !== safe);

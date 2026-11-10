@@ -75,9 +75,9 @@ offer for the GPL and LGPL libraries in the downloads, and every other licence, 
 ## Reporting a bug
 
 In MyOrbiter, Shift+F1 opens *Report a bug*, which shows you the report first. *Open on GitHub*
-opens the issue form on github.com in your browser with the report filled in, for you to read and
-submit (the report is in the link, so github.com has it as the page opens); *Copy report* only puts
-it on the clipboard. MyOrbiter posts nothing by itself. Security problems go through [SECURITY.md](SECURITY.md).
+puts it on the clipboard and opens the issue form on github.com in your browser (with only the app's
+version and your system in its address), for you to paste it into and submit; *Copy report* only
+puts it on the clipboard. MyOrbiter posts nothing by itself. Security problems go through [SECURITY.md](SECURITY.md).
 
 ## More
 

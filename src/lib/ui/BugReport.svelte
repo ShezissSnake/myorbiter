@@ -1,10 +1,10 @@
 <script lang="ts">
   // Report a bug: the player's words, and (unless they untick it) technical details they can read
-  // in full first. MyOrbiter sends nothing itself: Open on GitHub opens the issue form in the browser
-  // with the fields filled in, to read and submit there (the report is in the link, so github.com has
-  // it from the moment the page opens); Copy report puts it on the clipboard as Markdown. What it
-  // builds, cleans and redacts: core/bugReport.ts and core/redact.ts.
-  import { openUrl } from "../links.svelte";
+  // in full first. MyOrbiter sends nothing itself: Open on GitHub puts the issue's text on the
+  // clipboard and opens the issue form in the browser with only the version and platform in its
+  // address, for the player to paste, title and submit; Copy report puts it on the clipboard as Markdown. What it builds, cleans and redacts: core/bugReport.ts and core/redact.ts.
+  import { links, openUrl } from "../links.svelte";
+  import Opening from "./Opening.svelte";
   import { tick, untrack } from "svelte";
   import { scrim } from "./scrim";
   import { trap } from "./trap";
@@ -14,7 +14,7 @@
   import { logTail, reportEnv } from "../backend";
   import { BUILD } from "../build";
   import { bugReport, reportChannel } from "../bugReport.svelte";
-  import { buildReport, detailsText, issueLink, reportMarkdown, LOG_LINES, MAX, type ReportDetails } from "../core/bugReport";
+  import { buildReport, detailsText, issueText, newIssuePage, reportMarkdown, LOG_LINES, MAX, type ReportDetails } from "../core/bugReport";
   import type { RedactOptions } from "../core/redact";
 
   let {
@@ -74,18 +74,44 @@
     };
   });
   const report = $derived(buildReport({ what: d.what, steps: d.steps, expected: d.expected }, details, known));
-  const link = $derived(issueLink(report));
-  const reading = $derived(d.include && log == null);
+  /** The blank form's address: the version and platform only. */
+  const issuePage = $derived(newIssuePage({ version: env?.version ?? "unknown", os: env?.os ?? "unknown", arch: env?.arch ?? "" }, known));
+  const reading = $derived((env == null && !failed) || (d.include && log == null));
   const empty = $derived(!report.what);
   const preview = $derived(report.details ? detailsText(report.details) : "");
 
   let showTech = $state(false);
   /** Open on GitHub was pressed: its label says so for a moment. */
   let opened = $state(false);
+  /** What to do on GitHub, once the report is on the clipboard: "pasted" (the steps) or "refused"
+   *  (the clipboard refused it, so GitHub wasn't opened). */
+  let handed = $state<"pasted" | "refused" | null>(null);
+  /** The text to paste on GitHub, and the one last put on the clipboard (the note says so only
+   *  while they match: an edit after copying asks for another press). */
+  const paste = $derived(issueText(report));
+  let copiedText = $state<string | null>(null);
+  let manual = $state<HTMLTextAreaElement | null>(null);
+  let busy = false;
   let openedTimer: ReturnType<typeof setTimeout> | null = null;
-  function openOnGitHub() {
-    if (empty || reading) return;
-    void openUrl(link.url);
+  // The report goes on the clipboard first, and the page opens with only the version and platform: github.com
+  // gets none of the report until the player pastes it in and presses Submit new issue.
+  async function openOnGitHub() {
+    if (empty || reading || busy) return;
+    busy = true;
+    const text = paste;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      handed = "refused";
+      opened = false;
+      void tick().then(() => manual?.select());
+      return;
+    } finally {
+      busy = false;
+    }
+    handed = "pasted";
+    copiedText = text;
+    void openUrl(issuePage);
     opened = true;
     if (openButton) pulse(openButton);
     if (openedTimer) clearTimeout(openedTimer);
@@ -148,15 +174,22 @@
       <p class="hint">{#if !d.include}Only what you wrote goes in.{:else if failed}MyOrbiter's log couldn't be read; the rest is included.{:else}Sign-ins, e-mail and IP addresses, account ids, your user name in folder paths and every player's name are hidden, here and in what you wrote.{/if}</p>
     </section>
 
-    {#if link.dropped || link.cut}
-      <p class="note small" role="status">{#if link.cut}What you wrote is longer than a link can carry: Open on GitHub leaves out the log and cuts the end of what you wrote. Copy report has it all, to paste in instead.{:else}To keep the link short enough, Open on GitHub leaves out the {link.dropped} oldest log line{link.dropped === 1 ? "" : "s"}; Copy report has them all.{/if}</p>
+    {#if handed === "pasted" && copiedText === paste}
+      <p class="note small" role="status">The report is on your clipboard. On GitHub, paste it into the first box, What happened (<kbd>Ctrl</kbd>+<kbd>V</kbd>), give the issue a title (for example “{report.title}”) and press Submit new issue.</p>
+    {:else if handed === "pasted"}
+      <p class="note small" role="status">You changed the report after copying it: press Open on GitHub again to copy this one.</p>
+    {:else if handed === "refused"}
+      <div class="note small" role="status">
+        <p>The clipboard refused the report, so GitHub wasn't opened. Here it is, selected: copy it (<kbd>Ctrl</kbd>+<kbd>C</kbd>), then <button type="button" class="link" aria-busy={links.isOpening(issuePage)} onclick={() => openUrl(issuePage)}><Opening url={issuePage}>open the issue form</Opening></button> and paste it in.</p>
+        <textarea bind:this={manual} class="manual" readonly rows="6" value={paste} aria-label="The report, to copy by hand"></textarea>
+      </div>
     {/if}
 
     <footer class="row">
-      <p class="privacy small"><Icon name="lock" size={11} /> MyOrbiter sends nothing itself: the link carries the report, and nothing is posted until you press Submit new issue on GitHub.</p>
+      <p class="privacy small"><Icon name="lock" size={11} /> Opening the form tells github.com only the version and platform: the report goes there when you paste it in and press Submit new issue.</p>
       <div class="acts">
         <CopyButton text={() => reportMarkdown(report)} label="Copy report" copied="Copied" sizer={["Couldn't copy"]} title="Put the report on the clipboard as Markdown, to paste into an issue yourself, or send it another way if you don't have a GitHub account" />
-        <button bind:this={openButton} type="button" class="stamp gold go" class:done={opened} disabled={empty || reading} title={empty ? "Say what happened first" : reading ? "Reading MyOrbiter's log…" : "Open a new issue on GitHub in your browser with all of this filled in, so github.com gets it as the page opens. Nothing is posted until you press Submit new issue there."} onclick={openOnGitHub}>
+        <button bind:this={openButton} type="button" class="stamp gold go" class:done={opened} disabled={empty || reading} title={empty ? "Say what happened first" : reading ? "Reading MyOrbiter's log…" : "Put the report on the clipboard and open the new-issue form on GitHub in your browser, to paste it into. The form's address holds only the version and platform."} onclick={openOnGitHub}>
           <span class="lbls">
             <span class:on={!opened}>Open on GitHub<Icon name="external" size={11} /></span>
             <span class:on={opened}>Opened in your browser<Icon name="check" size={11} /></span>
@@ -200,6 +233,7 @@
   .techtext:focus-visible { outline: 1px solid var(--gold); outline-offset: 1px; }
   .hint { margin: 0; font-size: .74rem; color: var(--platinum-deep); }
   .note p { margin: 0; }
+  .manual { display: block; width: 100%; margin-top: .45rem; font: inherit; font-family: var(--face-register); resize: vertical; }
   .note { margin: 0; color: var(--platinum-dim); padding: .45rem .7rem; border-left: 2px solid var(--alert); background: var(--well); }
 
   .row { display: flex; align-items: center; justify-content: space-between; gap: .8rem 1rem; flex-wrap: wrap; padding-top: .3rem; border-top: 1px solid var(--rule); }

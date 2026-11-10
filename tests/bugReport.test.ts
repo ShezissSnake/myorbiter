@@ -1,20 +1,21 @@
-// Report a bug (core/bugReport.ts, core/redact.ts): the report the app prefills on GitHub's issue
-// form or puts on the clipboard. Its fields match the issue form's ids and labels, the link goes to
-// this repository's new-issue page and stays under the limit, nothing private survives the
-// redaction, and nothing hidden survives the cleaning.
+// Report a bug (core/bugReport.ts, core/redact.ts): the report the app puts on the clipboard, to
+// paste into GitHub's issue form or send another way. Its sections match the form's, the page opened
+// carries only the version and platform, nothing private survives the redaction, and nothing hidden
+// survives the cleaning.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { buildReport, cleanUserText, detailsText, FIELDS, issueLink, LOG_LINES, NEW_ISSUE, reportMarkdown, SECTIONS, TEMPLATE, URL_MAX, type ReportDetails } from "../src/lib/core/bugReport";
+import { buildReport, cleanUserText, detailsText, FIELDS, issueText, NEW_ISSUE, newIssuePage, reportMarkdown, SECTIONS, TEMPLATE, LOG_LINES, type ReportDetails } from "../src/lib/core/bugReport";
 import { redact } from "../src/lib/core/redact";
 import { openable } from "../src/lib/core/links";
 
 const LOG = readFileSync(new URL("./fixtures/report/myorbiter.log", import.meta.url), "utf8").trim().split("\n");
 const NAMES = { self: ["MeExample"], others: ["BuyerExample"] };
 const details = (log: string[] = LOG): ReportDetails => ({ version: "0.1.0", commit: "a1b2c3d", buildDate: "2026-11-03", channel: null, os: "linux", arch: "x86_64", page: "Orders", tennoscope: "connected", fullMode: "off", log });
-const params = (url: string) => new URL(url).searchParams;
+/** One section of a description: the text under its heading, up to the next heading or the end. */
+const section = (md: string, heading: string) => new RegExp(`### ${heading}\n\n([\\s\\S]*?)(?=\n\n### |\n\n_Made with|$)`).exec(md)?.[1] ?? null;
 
-test("the issue form's field ids and labels are the ones the app fills, the details rendered as text", () => {
+test("the issue form's field ids and labels are the ones the app uses, the details rendered as text", () => {
   const form = readFileSync(".github/ISSUE_TEMPLATE/bug_report.yml", "utf8");
   const ids = [...form.matchAll(/^\s+id: (\S+)$/gm)].map((m) => m[1]);
   assert.deepEqual(ids, Object.values(FIELDS));
@@ -29,50 +30,46 @@ test("the issue form's field ids and labels are the ones the app fills, the deta
   assert.match(config, /security\/advisories\/new/);
 });
 
-test("the link goes to this repository's new-issue page, fills each field by its id, and the opener allows it", () => {
-  const r = buildReport({ what: "Orders froze.\nAfter Reprice.", steps: "1. Open Orders\n2. Reprice", expected: "Prices change" }, details());
-  const { url, dropped, cut } = issueLink(r);
+test("Open on GitHub opens the issue form with only the version and platform: nothing of the report is in the address", () => {
+  const url = newIssuePage({ version: "0.2.121", os: "linux", arch: "x86_64" });
   const u = new URL(url);
-  assert.equal(u.protocol + "//" + u.host + u.pathname, "https://github.com/ShezissSnake/myorbiter/issues/new");
+  assert.equal(`${u.protocol}//${u.host}${u.pathname}`, "https://github.com/ShezissSnake/myorbiter/issues/new");
   assert.equal(NEW_ISSUE, "https://github.com/ShezissSnake/myorbiter/issues/new");
-  assert.ok(url.startsWith(`${NEW_ISSUE}?template=bug_report.yml&`));
   assert.equal(openable(url), u.href, "an allowed link");
-  const p = params(url);
-  assert.equal(p.get("template"), "bug_report.yml");
-  assert.equal(p.get("title"), "Orders froze");
-  assert.equal(p.get(FIELDS.what), "Orders froze.\nAfter Reprice.");
-  assert.equal(p.get(FIELDS.steps), "1. Open Orders\n2. Reprice");
-  assert.equal(p.get(FIELDS.expected), "Prices change");
-  assert.match(p.get(FIELDS.details)!, /^MyOrbiter 0\.1\.0 \(a1b2c3d, 2026-11-03\)\nChannel: not known in this build\nSystem: linux x86_64\nPage: Orders\nTennoScope: connected\nFull mode: off\n/);
-  assert.equal(dropped, 0);
-  assert.equal(cut, false);
-  // Spaces, ampersands and the like are encoded, so nothing leaks into another parameter.
-  const tricky = issueLink(buildReport({ what: "a&labels=security&assignees=x #1 100%", steps: "", expected: "" }, null));
-  assert.equal(params(tricky.url).get(FIELDS.what), "a&labels=security&assignees=x #1 100%");
-  assert.equal(params(tricky.url).get("labels"), null);
-  assert.equal(params(tricky.url).get(FIELDS.details), null, "no details when they're left out");
-  // The dialog opens only the link built from the report, on a press of the button.
+  assert.deepEqual([...u.searchParams], [["template", "bug_report.yml"], ["details", "MyOrbiter 0.2.121\nSystem: linux x86_64"]]);
+  // Whatever the environment says is cleaned like the rest, and can't add a parameter.
+  const odd = new URL(newIssuePage({ version: "1&labels=x", os: "C:\\Users\\Jane\\x", arch: "a#b" }, NAMES));
+  assert.deepEqual([...odd.searchParams.keys()], ["template", "details"]);
+  assert.ok(!odd.searchParams.get("details")!.includes("Jane"));
+  // The dialog copies the text first, opens only that page, and never builds a link from the report.
   const ui = readFileSync("src/lib/ui/BugReport.svelte", "utf8");
-  assert.deepEqual([...ui.matchAll(/openUrl\(([^)]*)\)/g)].map((m) => m[1]), ["link.url"]);
+  const opens = [...ui.matchAll(/openUrl\(([^)]*)\)/g)].map((m) => m[1]);
+  assert.ok(opens.length >= 1 && opens.every((x) => x === "issuePage"), opens.join());
+  assert.match(ui, /const paste = \$derived\(issueText\(report\)\)/);
+  assert.match(ui, /const issuePage = \$derived\(newIssuePage\(\{ version: env\?\.version/);
+  const open = ui.slice(ui.indexOf("async function openOnGitHub"));
+  const before = open.slice(0, open.indexOf("openUrl(issuePage)"));
+  assert.match(before, /await navigator\.clipboard\.writeText\(text\)/, "copied before the page opens");
+  assert.match(before, /catch \{\s*handed = "refused";[^}]*return;/, "a refused copy opens nothing");
+  assert.ok(!/issueLink|encodeURIComponent\(.*report/.test(readFileSync("src/lib/core/bugReport.ts", "utf8")), "no link built from the report");
 });
 
-test("a long report: the oldest log lines go first, then the player's own text, always under the limit", () => {
+test("the text to paste: the form's sections and the details as text", () => {
+  const r = buildReport({ what: "Orders froze.\nAfter Reprice.", steps: "1. Open Orders\n2. Reprice", expected: "Prices change" }, details());
+  assert.equal(r.title, "Orders froze");
+  const md = issueText(r);
+  assert.ok(md.startsWith("### What happened\n\n"), "no title line: the title is typed on GitHub");
+  assert.equal(section(md, SECTIONS.what), "Orders froze.\nAfter Reprice.");
+  assert.equal(section(md, SECTIONS.steps), "1. Open Orders\n2. Reprice");
+  assert.equal(section(md, SECTIONS.expected), "Prices change");
+  assert.match(section(md, SECTIONS.details)!, /^```text\nMyOrbiter 0\.1\.0 \(a1b2c3d, 2026-11-03\)\nChannel: not known in this build\nSystem: linux x86_64\nPage: Orders\nTennoScope: connected\nFull mode: off\n[\s\S]*\n```$/);
+  assert.ok(md.endsWith("\n\n_Made with MyOrbiter's Report a bug._\n"));
+  // The whole log goes in: there's no link to keep short.
   const long = Array.from({ length: LOG_LINES }, (_, i) => `[2026-11-04][10:00:${String(i % 60).padStart(2, "0")}][ui][ERROR] line ${i} ${"é".repeat(60)}`);
-  const r = buildReport({ what: "It broke", steps: "", expected: "" }, details(long));
-  const a = issueLink(r);
-  assert.ok(a.url.length <= URL_MAX, `${a.url.length}`);
-  assert.ok(a.dropped > 0 && a.dropped < LOG_LINES);
-  assert.equal(a.cut, false);
-  const text = params(a.url).get(FIELDS.details)!;
-  assert.match(text, new RegExp(`\\(${a.dropped} earlier lines left out to keep the link short; Copy report has them all\\)`));
-  assert.ok(text.includes(`line ${LOG_LINES - 1} `), "the newest line stays");
-  assert.ok(!text.includes("line 0 "), "the oldest goes");
-  const huge = buildReport({ what: "ü".repeat(4000), steps: "ß".repeat(4000), expected: "x".repeat(2000) }, details(long));
-  const b = issueLink(huge);
-  assert.ok(b.url.length <= URL_MAX, `${b.url.length}`);
-  assert.equal(b.cut, true);
-  assert.equal(b.dropped, LOG_LINES);
-  assert.match(params(b.url).get(FIELDS.what) ?? params(b.url).get(FIELDS.steps)!, /\[cut to fit the link: Copy report has it all\]|too long for a link/);
+  const all = section(issueText(buildReport({ what: "It broke", steps: "", expected: "" }, details(long))), SECTIONS.details)!;
+  assert.ok(all.includes("line 0 ") && all.includes(`line ${LOG_LINES - 1} `), "every line, oldest to newest");
+  assert.match(all, new RegExp(`Log, last ${LOG_LINES} lines`));
+  assert.equal(section(issueText(buildReport({ what: "x", steps: "", expected: "" }, null)), SECTIONS.details), null, "no details when they're left out");
 });
 
 test("realistic log lines: no names, home folders, ids, addresses or sign-ins", () => {

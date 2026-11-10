@@ -101,7 +101,7 @@ restart.
 
 ## Updates
 
-MyOrbiter updates itself from this project's releases on GitHub, with its mirror on GitLab as a
+MyOrbiter updates itself from this project's releases on GitHub, with GitLab's frozen copy as a
 fallback (Settings → *Updates*). Each installed copy follows one channel:
 
 - **Stable** (the default): tested builds.
