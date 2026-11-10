@@ -1,6 +1,5 @@
 <script lang="ts">
-  // Says which page a pane holds, to what's drawn inside it (the status strip under the page head
-  // is drawn only on the page on screen).
+  // Says which page a pane holds, to what's drawn inside it (the page head reads its section).
   import { setContext, type Snippet } from "svelte";
   import { PANE } from "../statusStrip.svelte";
   let { id, children }: { id: string; children: Snippet } = $props();

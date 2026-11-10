@@ -267,7 +267,7 @@
         {/if}
         <span class="grow"></span>
         {#if changes.length}
-          <ProgressButton tone="gold" job={applyJob} label="Apply the plan ({changes.length})" working={count("Updating your listings", "Applying")} progress={fill("Updating your listings")} sizer={["Applying 000/000"]}
+          <ProgressButton tone="primary" job={applyJob} label="Apply the plan ({changes.length})" working={count("Updating your listings", "Applying")} progress={fill("Updating your listings")} sizer={["Applying 000/000"]}
             title={stale ? "You changed what to sell since this plan: plan again first" : "Send these changes to warframe.market, one at a time"} disabled={!!mkt.busy || stale} onclick={apply} />
         {/if}
         <button type="button" disabled={!!mkt.busy} title="Put this plan away: nothing is sent" onclick={() => (mkt.bulk = null)}>Cancel</button>

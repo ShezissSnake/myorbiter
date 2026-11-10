@@ -798,7 +798,7 @@
       <div class="grp">
         <ProgressButton job={checkJob} busy={mkt.pass === "Checking prices"} progress={mkt.pass === "Checking prices" ? passFill : undefined} label="Check prices" working={passCount ? `Checking ${passCount}` : "Checking…"} sizer={["Checking 00/00", "00 to reprice"]}
           title={mkt.pass === "Checking prices" && !mkt.passManual ? "The timer's own check is running" : "Read the order books and show, per listing below, what it would be repriced to"} disabled={!!mkt.busy} onclick={checkPrices} />
-        <ProgressButton tone="gold" job={repriceJob} busy={mkt.pass === "Repricing"} progress={mkt.pass === "Repricing" ? passFill : undefined} label={pending ? `Reprice ${pending}` : "Reprice"} working={passCount ? `Repricing ${passCount}` : "Repricing…"} sizer={["Repricing 00/00", "00 repriced"]}
+        <ProgressButton tone="primary" job={repriceJob} busy={mkt.pass === "Repricing"} progress={mkt.pass === "Repricing" ? passFill : undefined} label={pending ? `Reprice ${pending}` : "Reprice"} working={passCount ? `Repricing ${passCount}` : "Repricing…"} sizer={["Repricing 00/00", "00 repriced"]}
           title={mkt.pass === "Repricing" && !mkt.passManual ? "Apply automatically is sending new prices now" : pending ? `Send the new prices to warframe.market: the ${pending} listing${pending === 1 ? "" : "s"} with a Will set` : "Nothing to change: Check prices first, or every listing matches already"} disabled={!!mkt.busy || !pending} onclick={repriceNow} />
       </div>
       {#if lastFail && !mkt.pass}<p class="err small lastfail" role="status">{lastFail.why} <button type="button" class="link" onclick={lastFail.again}>Try again</button> <button type="button" class="link quiet" onclick={() => (lastFail = null)}>Dismiss</button></p>{/if}
@@ -942,7 +942,7 @@
                 <!-- A question with two answers: both buttons change the listing on warframe.market. -->
                 <div class="fix">
                   <span class="small q"><b class="held" title="As of TennoScope's last read of your inventory">! You {held === 0 ? "have none" : `hold ${held}`}</b> <span class="dim">· {o.quantity - held} gone since you listed. Sold?</span></span>
-                  <button class="stamp gold" disabled={rowBusy.busy(o.id)} onclick={() => recordSale(o, o.quantity - held)} title="Log the sale on Sales and {held === 0 ? 'close the listing' : `lower the listing to ${held}`} on warframe.market">Yes: log {o.quantity - held} sold</button>
+                  <button class="stamp" disabled={rowBusy.busy(o.id)} onclick={() => recordSale(o, o.quantity - held)} title="Log the sale on Sales and {held === 0 ? 'close the listing' : `lower the listing to ${held}`} on warframe.market">Yes: log {o.quantity - held} sold</button>
                   {#if held === 0}<button class="stamp" onclick={() => (removing = o.id)} title="You didn't sell it (used it in game, say): just take the listing down on warframe.market">No: remove listing</button>
                   {:else}<button class="stamp" disabled={!rowFree(o.id)} onclick={() => lowerTo(o, held)} title="You didn't sell them (used in game, say): just lower the listing to {held} on warframe.market">No: list {held} instead</button>{/if}
                 </div>

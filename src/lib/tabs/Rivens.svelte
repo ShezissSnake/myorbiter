@@ -608,7 +608,7 @@
           <label><span class="register">Buyout</span><span class="plat"><input type="number" min="1" bind:value={f.buyout} aria-label="Buyout price" /><GameIcon name="platinum" size={14} /></span></label>
           <Chip bind:on={f.bids} label="Take bids from" title="Let buyers bid below the buyout, from a starting price" />
           {#if f.bids}<span class="plat"><input type="number" min="1" bind:value={f.starting} aria-label="Starting bid" /><GameIcon name="platinum" size={14} /></span>{/if}
-          <button class="stamp gold" title="Put it up as an auction on warframe.market at this buyout" disabled={f.busy || !f.buyout}>{f.busy ? "Listing…" : "Sell it"}</button>
+          <button class="stamp" title="Put it up as an auction on warframe.market at this buyout" disabled={f.busy || !f.buyout}>{f.busy ? "Listing…" : "Sell it"}</button>
           <IconButton icon="close" tone="quiet" label="Cancel" onclick={() => delete sell[r.id]} />
           {#if estimates[r.id] || pc?.lowest != null}<span class="dim small hint">{#if estimates[r.id]}Estimate {estimates[r.id].mid}p (the middle half of listings like it ask {estimates[r.id].lo}–{estimates[r.id].hi}p){pc?.lowest != null ? "; " : ""}{/if}{#if pc?.lowest != null}cheapest similar {pc.lowest}p{pc.typical != null ? `, most around ${pc.typical}p` : ""}{/if}. To sell sooner, ask toward the lower end.</span>{/if}
           {#if f.error}<span class="err small">{f.error}</span>{/if}
@@ -756,7 +756,7 @@
         <span class="plat"><input type="number" min="1" placeholder="Max price" bind:value={maxPrice} aria-label="Most you'd pay" /><GameIcon name="platinum" size={14} /></span>
         <span class="go">
           <ProgressButton icon="search" job={findJob} label="Search" working="Searching…" sizer={["000 found"]} title={weapon ? "Find rivens for sale with these stats" : "Pick a weapon first"} disabled={!weapon} onclick={search} />
-          <button class="stamp gold" disabled={!weapon || !maxPrice} title={!weapon || !maxPrice ? "Pick a weapon and the most you'd pay first" : watching ? "You're watching for this one: a notification comes when one is listed at or under your price (checked every 5 minutes)" : "Get a notification when one is listed at or under your price (checked every 5 minutes)"} onclick={watch} use:confirm={watchedAt}><Icon name="bell" /><span class="swap"><span class:off={watching}>Alert me</span><span class:off={!watching} aria-hidden={!watching}>Watching ✓</span></span></button>
+          <button class="stamp" disabled={!weapon || !maxPrice} title={!weapon || !maxPrice ? "Pick a weapon and the most you'd pay first" : watching ? "You're watching for this one: a notification comes when one is listed at or under your price (checked every 5 minutes)" : "Get a notification when one is listed at or under your price (checked every 5 minutes)"} onclick={watch} use:confirm={watchedAt}><Icon name="bell" /><span class="swap"><span class:off={watching}>Alert me</span><span class:off={!watching} aria-hidden={!watching}>Watching ✓</span></span></button>
         </span>
       </div>
       {#if weaponName && !weapon}<p class="dim small">Pick a weapon from the list.</p>{/if}

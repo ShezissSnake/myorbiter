@@ -115,6 +115,23 @@
   };
   export type IconName = keyof typeof PATHS;
 
+  // The four sections' glyphs and the fold chevrons, drawn on a 24 px grid (same pen, square ends):
+  // the sidebar's section bars, a page head's crest and kicker.
+  const PATHS24: Record<string, string> = {
+    // Fissures: the rift, torn down the middle, with its sparks.
+    "sec-fissures": "M12.5 2.5l-2 4.5 3.5 3-4 4.5 2.5 3-2.5 4M14 10l4-1.5M10 14.5l-3.5 1",
+    // Progress: the mastery star.
+    "sec-progress": "M12 3.5l2.3 6.2 6.6.3-5.2 4.1 1.8 6.4-5.5-3.7-5.5 3.7 1.8-6.4-5.2-4.1 6.6-.3z",
+    // Collection: a cut-cornered case with its label.
+    "sec-collection": "M6 5h14.5v11.5L18 19H3.5V7.5zM8.5 10h7",
+    // Trade: the platinum hexagon with its P.
+    "sec-trade": "M12 2.4l8.3 4.8v9.6L12 21.6l-8.3-4.8V7.2zM10 16.5v-9h3.6l1.9 1.9v1.9l-1.9 1.9H10",
+    "chev-down": "M6 9l6 6 6-6",
+    "chev-right": "M9 6l6 6-6 6",
+  };
+  /** A section's glyph (pages.ts groups). */
+  export const sectionIcon = (group: string) => `sec-${group.toLowerCase()}`;
+
   /** The glyph for a mission type ("Extermination", "Mobile Defense", "Void Cascade"…); the fissure's for anything else. */
   export function missionIcon(type: string | null | undefined): string {
     const t = (type ?? "").toLowerCase();
@@ -142,9 +159,9 @@
   let { name, size = 14, title, stroke = 1.3 }: { name: string; size?: number; title?: string; stroke?: number } = $props();
 </script>
 
-<svg viewBox="0 0 16 16" width={size} height={size} aria-hidden={title ? undefined : "true"} role={title ? "img" : undefined}>
+<svg viewBox={Object.hasOwn(PATHS24, name) ? "0 0 24 24" : "0 0 16 16"} width={size} height={size} aria-hidden={title ? undefined : "true"} role={title ? "img" : undefined}>
   {#if title}<title>{title}</title>{/if}
-  <path d={PATHS[name] ?? PATHS.guide} fill="none" stroke="currentColor" stroke-width={stroke} stroke-linejoin="miter" stroke-linecap="square" />
+  <path d={(Object.hasOwn(PATHS24, name) ? PATHS24[name] : Object.hasOwn(PATHS, name) ? PATHS[name] : null) ?? PATHS.guide} fill="none" stroke="currentColor" stroke-width={stroke} stroke-linejoin="miter" stroke-linecap="square" />
 </svg>
 
 <style>

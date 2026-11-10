@@ -26,7 +26,7 @@
   import { isDone, setDone } from "../core/chores";
   import { nextMondayUtc } from "../core/today";
   import IconButton from "../ui/IconButton.svelte";
-  import StatusStrip from "../ui/StatusStrip.svelte";
+  import PageHead from "../ui/PageHead.svelte";
   import Chip from "../ui/Chip.svelte";
   import Effort from "../ui/Effort.svelte";
   import Thumb from "../ui/Thumb.svelte";
@@ -396,7 +396,7 @@
     { label: "Set your rates", why: "what a ducat is worth to you, and the smallest sale worth a trade", hint: "Prime parts → Your rates", done: settings.advice.platPerDucat !== defaultAdvice().platPerDucat || settings.advice.minPlat !== defaultAdvice().minPlat, go: () => go("parts") },
     { label: "Star what you're after", why: "Wishlist shows the relics for each missing part", hint: "The ☆ on any card in Foundry or Mastery", done: settings.favourites.length > 0, go: () => go("foundry") },
     { label: "Add a fissure alert", why: "a notification when a fissure you want opens", hint: "Fissures now → Add alert", done: settings.fissureRules.length > 0, go: () => go("home#addalert") },
-    { label: "Choose Home's cards", why: "hide what you don't use", hint: "The ⚙ by the date", done: settings.homeHidden.length > 0, go: () => (customising = true) },
+    { label: "Choose Home's cards", why: "hide what you don't use", hint: "The ⚙ at the head's right", done: settings.homeHidden.length > 0, go: () => (customising = true) },
   ]);
 
   // ---------------------------------------------------------------- what Home shows (Customise)
@@ -481,18 +481,12 @@
 {/snippet}
 
 <div class="page"><div class="page-inner home">
-  <header class="hello">
-    <div>
-      <span class="orn" aria-hidden="true"><i></i></span>
-      <h1 class="mark">Home</h1>
-    </div>
-    <div class="hr">
-      <div class="dt"><p class="dim">{new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</p>
-      {#if liveAt != null}<p class="dim small upd" class:old={!!liveError || !liveRead} title={`Fissures, the clocks, bounties, Baro, Varzia, the Sortie, events and the rest come from ${live.fromGame ? "the game's own worldstate (api.warframestat.us isn't answering)" : "api.warframestat.us"}, read every 5 minutes.${!liveRead && !liveError ? " This is the read kept from last time, until the first read since start comes in; each thing in it goes when it ends." : ""}${liveError ? " The last read failed, so this is what was read before; each thing in it goes when it ends." : ""}`}>{liveError || !liveRead ? `Updated ${checkedWhen(liveAt, now)}` : `Updated ${new Date(liveAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`}</p>{/if}</div>
-      <IconButton icon="settings" tone="quiet" label="Customise Home" title="Choose what Home shows" aria-expanded={customising} onclick={() => (customising = !customising)} />
-    </div>
-  </header>
-  <StatusStrip />
+  <!-- The shared head: no section, so no crest. The one line is today's date and how fresh the
+       world's state is; Customise is the head's action. -->
+  <PageHead title="Home">
+    {#snippet lede()}{new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}{#if liveAt != null}<span class="upd" class:old={!!liveError || !liveRead} title={`Fissures, the clocks, bounties, Baro, Varzia, the Sortie, events and the rest come from ${live.fromGame ? "the game's own worldstate (api.warframestat.us isn't answering)" : "api.warframestat.us"}, read every 5 minutes.${!liveRead && !liveError ? " This is the read kept from last time, until the first read since start comes in; each thing in it goes when it ends." : ""}${liveError ? " The last read failed, so this is what was read before; each thing in it goes when it ends." : ""}`}>{` · Updated ${liveError || !liveRead ? checkedWhen(liveAt, now) : new Date(liveAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`}</span>{/if}{/snippet}
+    {#snippet action()}<IconButton icon="settings" tone="quiet" label="Customise Home" title="Choose what Home shows" aria-expanded={customising} onclick={() => (customising = !customising)} />{/snippet}
+  </PageHead>
 
   {#if startSteps.some((x) => !x.done) && !settings.startDone && !console}
     <!-- First days with MyOrbiter: the few things that make the rest of it work, each a click away. -->
@@ -985,20 +979,6 @@
 </div></div>
 
 <style>
-  /* The same header as every other page (PageHead), so the title doesn't move switching pages. */
-  .hello { display: flex; justify-content: space-between; align-items: flex-end; padding: clamp(28px, 5vh, 56px) 0 var(--step); gap: 1rem; }
-  .hello h1 { font-size: clamp(2.2rem, 3.4vw, var(--title-size)); }
-  @media (max-height: 860px) {
-    .hello { padding: 18px 0 .6rem; }
-    .hello h1 { font-size: clamp(2.1rem, 3.2vw, 40px); }
-    .hello .orn { margin-bottom: 8px; }
-  }
-  .hello p { margin: 0 0 .6rem; }
-  /* PageHead's engraved rule, neutral: Home belongs to no section. */
-  .orn { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-  .orn i { width: 9px; height: 9px; flex: none; background: var(--sec); transform: rotate(45deg); }
-  .orn::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--sec) 0 72px, var(--rule) 72px); }
-
   /* Needs you: a card each, as many to a row as fit. */
   .alerts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(24rem, 100%), 1fr)); gap: .5rem; margin-bottom: var(--step); }
   .alert { display: flex; align-items: center; gap: .75rem; padding: .55rem .6rem .55rem .85rem; border: 1px solid var(--rule); background: var(--plate); box-shadow: inset 3px 0 0 var(--platinum-deep); min-width: 0; clip-path: var(--cut); }
@@ -1033,7 +1013,6 @@
   .fissures .waiting { min-height: 15rem; margin: 0; }
   /* The only small card left beside a tall one: as tall as what's in it, not stretched to the row. */
   .panel.lone { align-self: start; }
-  .hr { display: flex; align-items: center; gap: .8rem; }
   .custom { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem 1rem; padding: .8rem 1rem; margin-bottom: var(--step); border: 1px solid var(--rule); background: var(--plate); }
   .custom .cards { display: flex; flex-wrap: wrap; gap: .4rem; flex: 1; }
   .panel { border: 1px solid var(--rule); background: var(--plate); padding: 1rem 1.2rem 1.1rem; min-width: 0; display: flex; flex-direction: column; gap: .8rem; }
@@ -1057,10 +1036,8 @@
   .stages .mod { font-size: .75rem; color: var(--platinum-dim); }
   .srl { list-style: none; margin: 0 0 .2rem; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: .15rem 1rem; font-size: .8rem; }
   .srl li { display: flex; justify-content: space-between; gap: .5rem; }
-  .dt { display: grid; justify-items: end; gap: .1rem; }
-  .dt p { margin: 0; }
-  .upd { font-size: .72rem; }
-  .upd.old { color: var(--gold); }
+  /* Fresh from the last read, or older (the last read failed): the line says which, on hover why. */
+  .upd.old { color: var(--alert); }
   .st-joy { color: var(--cycle-warm); }
   .st-anger { color: var(--mood-anger); }
   .st-envy { color: var(--mood-envy); }

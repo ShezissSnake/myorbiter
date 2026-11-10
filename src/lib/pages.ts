@@ -147,3 +147,6 @@ export function moveSection(gs: { group: string; pages: Page[] }[], group: strin
   if (i >= 0 && j >= 0 && j < next.length) [next[i], next[j]] = [next[j], next[i]];
   return flat(next);
 }
+
+/** The sidebar's sections, by name (as the pages name them): what a saved closed section may be. */
+export const SECTION_NAMES: string[] = sectionsOf(PAGES);

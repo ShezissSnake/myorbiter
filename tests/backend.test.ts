@@ -147,6 +147,16 @@ test("platform, automatic checks and Home's cards are kept; old tiers and unknow
   assert.equal(odd.market.autoCheck, false);
 });
 
+test("the sidebar's closed sections are kept; anything but a section name goes", async () => {
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({ sectionsClosed: ["Trade", "Trade", "Nowhere", 4, "Fissures"] }) };
+  const s = await loadSettings();
+  assert.deepEqual(s.sectionsClosed, ["Trade", "Fissures"]);
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({ sectionsClosed: "Trade" }) };
+  assert.deepEqual((await loadSettings()).sectionsClosed, [], "not a list: every section open");
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({}) };
+  assert.deepEqual((await loadSettings()).sectionsClosed, [], "settings from before the bars: every section open");
+});
+
 test("a worldstate read keeps what it couldn't get from the last one", async () => {
   const { mergeLive } = await import("../src/lib/backend");
   const old = { fissures: [], resurgence: null, resurgenceExpiry: "x", baro: { activation: "a", expiry: "b", location: "Relay" }, cycles: [{ key: "earth", state: "day", expiry: "e" }] } as never;

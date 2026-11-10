@@ -83,9 +83,9 @@
   .seg button.icon { display: inline-grid; place-items: center; width: 34px; padding: 0; }
   .seg button.on { background: var(--platinum); border-color: var(--platinum); color: var(--slab); position: relative; }
   .seg button:focus-visible { position: relative; z-index: 1; }
-  /* Chosen, not confirmed yet: a gold line runs along its foot until it is. */
+  /* Chosen, not confirmed yet: a white line runs along its foot until it is. */
   .seg button.pending { position: relative; overflow: hidden; }
   /* The band runs by transform (app.css, sweep-band); the button clips it. */
-  .seg button.pending::after { content: ""; position: absolute; left: 0; bottom: 0; width: 50%; height: 2px; background: linear-gradient(90deg, transparent, var(--gold), transparent); animation: sweep-band 1.1s ease-in-out infinite; }
-  @media (prefers-reduced-motion: reduce) { .seg button.pending::after { animation: none; width: 100%; transform: none; background: var(--gold-dim); } }
+  .seg button.pending::after { content: ""; position: absolute; left: 0; bottom: 0; width: 50%; height: 2px; background: linear-gradient(90deg, transparent, var(--platinum), transparent); animation: sweep-band 1.1s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .seg button.pending::after { animation: none; width: 100%; transform: none; background: var(--platinum-dim); } }
 </style>

@@ -1,7 +1,7 @@
 <script lang="ts" generics="V extends string">
   import GameIcon, { type GameIconName } from "./GameIcon.svelte";
   import { afterPaint } from "./soon";
-  // A row of categories with the game's icons, the chosen one lit gold beneath. The gold line
+  // A row of categories with the game's icons, the chosen one lit beneath in the section's colour. The line
   // slides to the tab you pick (QUICK, transform only); it's placed without moving on first draw.
   let {
     value = $bindable(),
@@ -94,11 +94,12 @@
   button:hover :global(.gi) { opacity: .9; }
   button.on { color: var(--platinum); }
   button.on :global(.gi) { opacity: 1; }
-  /* The chosen tab's gold line: one bar 1 px wide, scaled to the tab and moved under it. */
-  .line { position: absolute; left: 0; top: 0; width: 1px; height: 2px; background: var(--gold); transform-origin: 0 0; opacity: 0; pointer-events: none; }
+  /* The chosen tab's line, in the section's colour: one bar 1 px wide, scaled to the tab and moved under it. */
+  .line { position: absolute; left: 0; top: 0; width: 1px; height: 2px; background: var(--sec); transform-origin: 0 0; opacity: 0; pointer-events: none; }
   .line:global(.moving) { transition: transform var(--quick) var(--out); }
   em { font-style: normal; color: var(--platinum-deep); font-weight: 500; letter-spacing: .04em; }
-  .on em { color: var(--gold); }
+  /* A count is a neutral fact, chosen tab or not. */
+  .on em { color: var(--platinum-dim); }
   /* Less room (half a wide screen, a Steam Deck): tighter, so a row of tabs stays one row. */
   :global(html[data-room~="lt1100"]) button { padding-left: .5rem; padding-right: .5rem; gap: .35rem; }
   /* Less still: the icons and counts stay (they're what you look for) and the words go, but for the

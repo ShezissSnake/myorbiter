@@ -3,6 +3,7 @@
 
 import { deferredUntil, waitWords } from "./core/marketWait";
 import { approvedOf } from "./core/approved";
+import { SECTION_NAMES } from "./pages";
 import { changesOf, type ChangeLog } from "./core/drift";
 import type { RelicMarket } from "./core/model";
 import type { BaroRate } from "./core/traders";
@@ -232,6 +233,8 @@ export interface Settings {
   tab: string;
   /** The sidebar: true icons only, false with page names, null folds by itself in a narrow window. */
   folded: boolean | null;
+  /** The sidebar's sections you closed (their bars fold them): section names. Absent: open. */
+  sectionsClosed: string[];
   /** The Planner's view: relics to crack for sets, or relics worth making radiant. */
   plannerMode: "sets" | "radiant";
   /** Settings layout version, for one-off moves when a default changes. */
@@ -471,6 +474,7 @@ export const defaultSettings = (): Settings => ({
   startPage: "last",
   tab: "home",
   folded: null,
+  sectionsClosed: [],
   plannerMode: "sets",
   schema: 2,
   notifiedInvasions: [],
@@ -887,6 +891,8 @@ export async function loadSettings(): Promise<Settings> {
     ...base,
     ...(raw ?? {}),
     folded: typeof raw?.folded === "boolean" ? raw.folded : null,
+    // Only the four sections' names, once each: anything else is dropped.
+    sectionsClosed: Array.isArray(raw?.sectionsClosed) ? [...new Set(raw.sectionsClosed.filter((k: unknown): k is string => typeof k === "string" && SECTION_NAMES.includes(k)))] : [],
     withoutInventory: raw?.withoutInventory === true,
     // A first start (no settings yet) asks; settings from before the question don't.
     fullModeAsked: raw ? raw.fullModeAsked !== false : false,
