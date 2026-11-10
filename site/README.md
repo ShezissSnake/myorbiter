@@ -1,8 +1,8 @@
 # The website
 
 MyOrbiter's site for GitHub Pages (https://shezisssnake.github.io/myorbiter/): a landing page (`landing.html`), the app's Guide as pages,
-What's New and Other versions (`downloads.html`), in the app's own design (`site.css`, the tokens
-and type of `src/app.css`). `scripts/site.mjs` builds it into `site/_site/` (not committed): it
+What's New and Other versions (`downloads.html`), in the app's own design (`site.css`: the tokens,
+type, surfaces and drawn icons of `src/app.css` and `src/lib/ui/Icon.svelte`, design pass 2). `scripts/site.mjs` builds it into `site/_site/` (not committed): it
 draws the Guide and What's New from `src/lib/tabs/Guide.svelte` and `src/lib/whatsNew.ts` with
 Svelte's server renderer, so the site says what the app says, and copies the fonts, the game icons
 the Guide uses and the screenshots beside them.
@@ -13,7 +13,7 @@ node scripts/site.mjs --check --offline
 ```
 
 The download links are read from the repository's releases on GitHub once, at build time
-(`scripts/site-downloads.mjs`), and written into the pages; nothing in them runs in the browser.
+(`scripts/site-downloads.mjs`), and written into the pages; nothing on the pages reads GitHub.
 The landing page's buttons offer the best channel that has a build (Stable, else Beta, else
 Experimental, from the `latest.json` on the release named after the channel) and say which:
 Windows the setup `.exe`, Linux and the Steam Deck the AppImage. `downloads.html` lists the newest
@@ -24,13 +24,31 @@ nothing: the buttons point at the Releases page (for a local build). The pages a
 the channels when they were built, so every release and promotion ends by rebuilding the site, as
 the `pages` task does.
 
-`--check` also checks every link and image, that links leave only for github.com, that no page
-carries a script, and that no `dev-*.json` (real account data) is in it. The Release workflow
+`--check` also checks every link and image, that links leave only for github.com, that the only
+script a page loads is the site's own `site.js` (no inline code, no handlers, no frames) and that it
+names no address and uses nothing that requests, stores or builds markup from text, and that no
+`dev-*.json` (real account data) is in it. The Release workflow
 (`.github/workflows/release.yml`: *task* `pages` on `main`, and the end of every release and
 promotion) builds and checks the site and publishes it on GitHub Pages. The old address on GitLab
 Pages only redirects here.
 
+## The landing page's script
+
+`site.js`, loaded by the landing page only, is plain script with no library. It turns the tour of
+the app's four sections into tabs (arrow keys, Home and End move between them; each section's pages
+are chips, and picking one shows that page's screenshot), opens a screenshot large in a `<dialog>`
+(previous and next, the arrow keys, Esc and Close; the large file is loaded only then), puts the
+visitor's platform first among the downloads (from the browser's user agent, read on the page and
+sent nowhere) and opens "Licence and sources" when a link to it is followed. It requests nothing
+from anywhere else, stores nothing and counts nothing. Motion is short, opacity and transform only,
+on an action only, and none under reduced motion.
+
+Without it the page reads top to bottom: every section with its pages and screenshot, every
+screenshot a link to its large file, every download listed.
+
 ## Screenshots
 
-`shots/` holds the demo account only (`npm run dev:demo`, the invented account in `demo/`), at
-1280 × 800 and twice the pixels, as WebP. Never a screenshot of a real account.
+`shots/` holds the demo account only (`npm run dev:demo`, the invented account in `demo/`), as WebP:
+the picture on the page at 1280 × 800, and in `shots/large/` the one the viewer opens, at twice
+those pixels. `npm run screenshots -- --only site` takes them again. Never a screenshot of a real
+account.

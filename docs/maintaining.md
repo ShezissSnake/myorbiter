@@ -211,12 +211,14 @@ they are: builds from before 0.2.100 read `channel-<channel>` there.
 
 ## Screenshots
 
-The pictures in `docs/screenshots/` (the README and the docs, 1440×900) and `site/shots/` (the
-site, 1280×800), both at twice those pixels, show the invented account in `demo/`, never
-`public/dev-*.json`. `scripts/screenshots.mjs` takes them all again:
+The pictures in `docs/screenshots/` (the README and the docs, 1440×900 at twice those pixels) and
+`site/shots/` (the site's tour: 1280×800 on the page, and twice those pixels in `site/shots/large/`
+for its viewer) show the invented account in `demo/`, never `public/dev-*.json`.
+`scripts/screenshots.mjs` takes them all again, or one set with `--only docs` or `--only site`:
 
 ```fish
 npm run screenshots
+npm run screenshots -- --only site
 ```
 
 Playwright is one of the project's development dependencies, but `npm install` downloads no
