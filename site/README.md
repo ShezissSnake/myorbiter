@@ -5,7 +5,8 @@ What's New and Other versions (`downloads.html`), in the app's own design (`site
 type, surfaces and drawn icons of `src/app.css` and `src/lib/ui/Icon.svelte`, design pass 2). `scripts/site.mjs` builds it into `site/_site/` (not committed): it
 draws the Guide and What's New from `src/lib/tabs/Guide.svelte` and `src/lib/whatsNew.ts` with
 Svelte's server renderer, so the site says what the app says, and copies the fonts, the game icons
-the Guide uses and the screenshots beside them.
+the Guide and the tour use (each page with the icon the app's sidebar shows for it) and the
+screenshots beside them.
 
 ```fish
 node scripts/site.mjs --check

@@ -3,7 +3,8 @@
 // script of the site's own (site/site.js: the landing's tour, the screenshot viewer, the visitor's
 // platform first). The Guide and What's New come from the app's own source
 // (src/lib/tabs/Guide.svelte, src/lib/whatsNew.ts), drawn once with Svelte's server renderer through
-// Vite, so the site says what the app says; its icons are the app's own (src/lib/ui/Icon.svelte).
+// Vite, so the site says what the app says; its icons are the app's own (src/lib/ui/Icon.svelte,
+// and public/game where the app's sidebar shows the game's picture for a page).
 // The download links are read from the repository's releases on GitHub once, at build time
 // (scripts/site-downloads.mjs), and written into the pages: the script reads nothing and sends
 // nothing.
@@ -124,26 +125,23 @@ function iconTable(name) {
 }
 const P16 = iconTable("PATHS");
 const P24 = iconTable("PATHS24");
-/** Pages the app shows with the game's own picture and has no drawn icon for: drawn here in the
- *  same pen (16 px, square ends, nothing filled), since game art stays inside the screenshots. */
-const SITE16 = {
-  // The Foundry: an anvil on its foot.
-  foundry: "M1.5 3.5h10l3 2.5h-4.5L8.5 8.5v2h-3v-2L3.5 6H1.5zM4 13.5h7.5M5.5 10.5 4 13.5M8.5 10.5l1.5 3",
-  // A riven: the mod's diamond, twisted through.
-  rivens: "M8 1.2 13.2 8 8 14.8 2.8 8zM8 4.2 10 8l-4 .2L8 11.8",
-  // Spare copies going up for sale: two cards, an arrow rising from the front one.
-  spares: "M2.5 5h7.5v9.5H2.5zM5 2.5h8.5V12M6.25 12.2V7.8M4.4 9.6l1.85-1.85L8.1 9.6",
-};
 /** One icon: the app's pen (miter joins, square ends, nothing filled), in the text's colour. */
 function icon(name, { size = 16, stroke = 1.3, cls = "ic" } = {}) {
-  const d = Object.hasOwn(P24, name) ? P24[name] : Object.hasOwn(P16, name) ? P16[name] : Object.hasOwn(SITE16, name) ? SITE16[name] : null;
-  if (!d) throw new Error(`no drawn icon "${name}" (src/lib/ui/Icon.svelte, or SITE16 here)`);
+  const d = Object.hasOwn(P24, name) ? P24[name] : Object.hasOwn(P16, name) ? P16[name] : null;
+  if (!d) throw new Error(`no drawn icon "${name}" in src/lib/ui/Icon.svelte`);
   const box = Object.hasOwn(P24, name) ? 24 : 16;
   return `<svg class="${cls}" viewBox="0 0 ${box} ${box}" width="${size}" height="${size}" aria-hidden="true"><path d="${d}" fill="none" stroke="currentColor" stroke-width="${stroke}" stroke-linejoin="miter" stroke-linecap="square"/></svg>`;
 }
-/** A page's icon: the drawn one pages.ts names, else the app's drawn icon of the same name as the
- *  page, else the site's own (SITE16). */
-const pageIcon = (p) => icon("line" in p.icon ? p.icon.line : p.id);
+/** A page's icon, the one the app's sidebar shows for it (src/lib/pages.ts, App.svelte): the game's
+ *  own picture where the app uses one (public/game, copied beside the Guide's), else the app's drawn
+ *  icon, each at the sidebar's size. */
+const pageIcon = (p) => {
+  if ("line" in p.icon) return icon(p.icon.line, { size: 16, stroke: 1.5 });
+  const f = `${p.icon.game}.png`;
+  if (!existsSync(join(ROOT, "public/game", f))) throw new Error(`public/game/${f} (${p.label}'s icon) isn't there`);
+  icons.add(f);
+  return `<img class="gi" src="{{base}}game/${f}" width="18" height="18" alt="">`;
+};
 
 /** The platform glyphs: drawn for MyOrbiter in the wordmark's line style (design/icon/platform),
  *  no third-party logos. */
@@ -378,7 +376,7 @@ function tour() {
     return `<section class="panel" id="sec-${key}" aria-labelledby="h-${key}" style="--sec: var(--${key})">
 <div class="ptx"><div class="phead"><span class="crest" aria-hidden="true"><i class="outer"></i><i class="inner"></i>${icon(`sec-${key}`, { size: 30, stroke: 1.5 })}</span><div><p class="register kicker">Section</p><h3 class="mark" id="h-${key}">${name}</h3></div></div>
 <p class="line">${esc(line)}</p>
-<ul class="chips" aria-label="${name}'s pages">${chips}</ul>${kindRow}</div>
+<ul class="chips" aria-label="Pages in ${name}">${chips}</ul>${kindRow}</div>
 <figure class="frame">${shotLink(first.id, "shot well")}<figcaption><b>${esc(first.label)}</b> <span>${esc(SHOTS[first.id].caption)}</span></figcaption></figure>
 </section>`;
   }).join("\n");
