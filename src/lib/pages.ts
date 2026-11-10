@@ -64,9 +64,6 @@ export const PAGES: Page[] = [
   { id: "guide", label: "Guide", group: "", icon: { line: "guide" }, hint: "What each page is for and how to use it" },
 ];
 
-/** The sidebar's four sections, by name. */
-export const SECTION_NAMES: string[] = ["Fissures", "Progress", "Collection", "Trade"];
-
 export const pageById = Object.fromEntries(PAGES.map((p) => [p.id, p])) as Record<PageId, Page>;
 
 /**
@@ -150,3 +147,6 @@ export function moveSection(gs: { group: string; pages: Page[] }[], group: strin
   if (i >= 0 && j >= 0 && j < next.length) [next[i], next[j]] = [next[j], next[i]];
   return flat(next);
 }
+
+/** The sidebar's sections, by name (as the pages name them): what a saved closed section may be. */
+export const SECTION_NAMES: string[] = sectionsOf(PAGES);

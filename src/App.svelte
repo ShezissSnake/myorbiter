@@ -246,6 +246,21 @@
 
   let settings = $state<Settings>(defaultSettings());
   let settingsReady = false;
+  /** Saved settings are in and drawn: until then a section's saved state is set, not folded to, so
+   *  closed sections don't fold shut on every launch. */
+  let railSettled = false;
+  /** A section's pages: `fold` (motion.ts), but set without motion until the saved settings are in. */
+  function sectionFold(node: HTMLElement, open: boolean) {
+    let f = fold(node, open);
+    return {
+      update(o: boolean) {
+        if (railSettled) return f.update(o);
+        f.destroy();
+        f = fold(node, o);
+      },
+      destroy: () => f.destroy(),
+    };
+  }
   /** The first start's question while it waits for an answer (FirstRun.svelte): what answers it. */
   let firstRun = $state<((access: TennoscopeAccess) => void) | null>(null);
   /** Now, to the half minute: clocks, "synced 3 min ago", pauses running out. */
@@ -2404,6 +2419,8 @@
       // licence: read before anything uses it. Without it there's simply nothing to dissolve into.
       const wiki = loadWikiData().catch((e) => logLine("warn", "app", `couldn't read the wiki data files: ${e}`));
       settings = await loadSettings();
+      // The sidebar's sections take their saved state as it is, without folding; from the next frame on, a change folds.
+      requestAnimationFrame(() => (railSettled = true));
       await wiki;
       if (stopped) return;
       settings.tab = migrateTab(settings.startPage !== "last" ? settings.startPage : settings.tab);
@@ -2579,7 +2596,7 @@
     items.push({
       label: "Market",
       value: !mkt.linked ? "Not signed in" : `${mkt.ordersAt == null ? "Signed in" : `${n} order${n === 1 ? "" : "s"}`}${auto ? ` · repricing${mkt.pass ? " now" : ""}` : ""}`,
-      title: !mkt.linked ? "Not signed in to warframe.market (Settings)" : `Your warframe.market orders, as last loaded. ${repricing.title}`,
+      title: !mkt.linked ? "Not signed in to warframe.market (Settings)" : `Your warframe.market orders, ${mkt.ordersAt == null ? "not loaded yet" : `loaded ${ago(new Date(mkt.ordersAt), tick)}`}. ${repricing.title}`,
       ok: mkt.linked,
     });
     const p = settings.game.platinum;
@@ -2608,30 +2625,39 @@
   // The page you're on stays in view, clear of the fades at either end.
   $effect(() => {
     const tab = settings.tab;
-    const n = navEl;
-    if (!n) return;
     // By hand: scrollIntoView would also move where the next Tab starts, past Skip to page. In the
     // frame, before it's drawn, once the page switched to is laid out (not in between: a layout of
     // its own, of the whole new page, before the switch is done).
-    requestAnimationFrame(() => {
-      // In a closed section the page's row is hidden: its section's bar stands for it.
-      const row = n.querySelector<HTMLElement>(".nav.on");
-      const on = (row?.getClientRects().length ? row : n.querySelector<HTMLElement>(".secbar.here"))?.getBoundingClientRect();
-      const box = n.getBoundingClientRect();
-      const css = getComputedStyle(n);
-      const top = box.top + (parseFloat(css.scrollPaddingTop) || 0);
-      const bottom = box.bottom - (parseFloat(css.scrollPaddingBottom) || 0);
-      if (on && on.top < top) n.scrollTop -= top - on.top;
-      else if (on && on.bottom > bottom) n.scrollTop += on.bottom - bottom;
-    });
+    requestAnimationFrame(keepOpenInView);
     void tab;
   });
-  /** A section's bar: closes or opens its pages (remembered in settings). The fade at the list's
-   *  ends is checked again once the fold has run. */
+  // A section opened or closed (by hand, or as saved settings arrive): once the fold has run, the
+  // open page is brought into view again and the fades at the list's ends are checked.
+  $effect(() => {
+    void settings.sectionsClosed;
+    const t = setTimeout(() => {
+      keepOpenInView();
+      checkNav();
+    }, QUICK + 40);
+    return () => clearTimeout(t);
+  });
+  function keepOpenInView() {
+    const n = navEl;
+    if (!n) return;
+    // In a closed section the page's row is hidden: its section's bar stands for it.
+    const row = n.querySelector<HTMLElement>(".nav.on");
+    const on = (row?.getClientRects().length ? row : n.querySelector<HTMLElement>(".secbar.here"))?.getBoundingClientRect();
+    const box = n.getBoundingClientRect();
+    const css = getComputedStyle(n);
+    const top = box.top + (parseFloat(css.scrollPaddingTop) || 0);
+    const bottom = box.bottom - (parseFloat(css.scrollPaddingBottom) || 0);
+    if (on && on.top < top) n.scrollTop -= top - on.top;
+    else if (on && on.bottom > bottom) n.scrollTop += on.bottom - bottom;
+  }
+  /** A section's bar: closes or opens its pages (remembered in settings). */
   function toggleSection(sec: string) {
     const closed = settings.sectionsClosed;
     settings.sectionsClosed = closed.includes(sec) ? closed.filter((x) => x !== sec) : [...closed, sec];
-    setTimeout(checkNav, QUICK + 40);
   }
   const checkNav = () => {
     const n = navEl;
@@ -2695,7 +2721,7 @@
     <div class="brand">
       <!-- The wordmark, the craft as its O; folded, the craft alone. Under it the running build (the
            version the updater compares), small and muted, and your platinum. -->
-      {#if compact}<Wordmark glyph height={26} />{:else}<span class="brand-text"><Wordmark height={30} /><span class="brand-row">{#if updates.info}<small class="brand-ver" title="This build of MyOrbiter">{updates.info.version}</small>{/if}{#if statusNow.plat && settings.game.platinum != null}<span class="brand-plat" title={statusNow.plat.title}><b>{statusNow.plat.value}</b><Icon name="sec-trade" size={15} stroke={1.8} /></span>{/if}</span></span>{/if}
+      {#if compact}<Wordmark glyph height={26} />{#if statusNow.plat && settings.game.platinum != null}<span class="brand-plat" title={`${statusNow.plat.value} platinum, as of the last inventory read`}><b>{statusNow.plat.value}</b></span>{/if}{:else}<span class="brand-text"><Wordmark height={30} /><span class="brand-row">{#if updates.info}<small class="brand-ver" title="This build of MyOrbiter">{updates.info.version}</small>{/if}{#if statusNow.plat && settings.game.platinum != null}<span class="brand-plat" title={statusNow.plat.title}><b>{statusNow.plat.value}</b><Icon name="sec-trade" size={15} stroke={1.8} /></span>{/if}</span></span>{/if}
       <button class="fold" aria-label={compact ? "Show labels" : "Icons only"} title={compact ? "Show the page names" : "Icons only"} onclick={() => (settings.folded = !compact)}>
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d={compact ? "M6 3l5 5-5 5" : "M10 3 5 8l5 5"} fill="none" stroke="currentColor" stroke-width="1.5" /></svg>
       </button>
@@ -2720,13 +2746,14 @@
       {#each sections as sec (sec)}
         {@const ps = pages.filter((p) => p.group === sec)}
         {@const open = !settings.sectionsClosed.includes(sec)}
-        <button type="button" class="secbar" class:here={!open && ps.some((p) => p.id === (navTo ?? settings.tab))} data-section={sec} aria-label={sec} aria-expanded={open} aria-controls="sec-{sec}" title={open ? `${sec}: click to close` : `${sec}, ${ps.length} page${ps.length === 1 ? "" : "s"}: click to open`} onclick={() => toggleSection(sec)}>
+        {@const here = !open && ps.some((p) => p.id === (navTo ?? settings.tab))}
+        <button type="button" class="secbar" class:here data-section={sec} aria-label={here ? `${sec}, holding the open page` : sec} aria-expanded={open} aria-controls="sec-{sec}" title={open ? `${sec}: click to close` : `${sec}, ${ps.length} page${ps.length === 1 ? "" : "s"}: click to open`} onclick={() => toggleSection(sec)}>
           <Icon name={sectionIcon(sec)} size={14} stroke={1.8} />
           <span class="lbl">{sec}</span>
           {#if !open}<span class="n" aria-hidden="true">{ps.length}</span>{/if}
           <span class="chv"><Icon name="chev-down" size={14} stroke={1.6} /></span>
         </button>
-        <div id="sec-{sec}" class="secpages" data-section={sec} use:fold={open}><div>
+        <div id="sec-{sec}" class="secpages" data-section={sec} use:sectionFold={open}><div>
           {#each ps as p (p.id)}{@render navItem(p)}{/each}
         </div></div>
       {/each}
@@ -3122,6 +3149,8 @@
   /* ---- icons only: folded by hand, or a narrow window */
   .compact .brand { justify-content: center; padding-left: .5rem; padding-right: .5rem; flex-direction: column; align-items: center; gap: .4rem; }
   .compact .fold { margin-left: 0; }
+  .compact .brand-plat { margin: 0; }
+  .compact .brand-plat b { font-size: 13px; }
   .compact .brand-text, .compact .lbl { display: none; }
   /* Folded, a section's bar keeps its glyph and chevron (its name on hover); the pages under it
      centre their icons, no track. */
@@ -3138,7 +3167,8 @@
   .compact .foot { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem; padding: .6rem .5rem .7rem; }
   .compact .state { grid-column: 1 / -1; display: flex; justify-content: center; gap: 10px; padding: 2px 0 4px; }
   .compact .st { gap: 0; }
-  .compact .st .register, .compact .st .v { display: none; }
+  /* The words stay for screen readers, out of sight. */
+  .compact .st .register, .compact .st .v { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .compact :global(.sync) { grid-column: 1 / -1; }
   .compact :global(.sync .lbls) { display: none; }
   .compact .tools, .compact .syncrow { display: contents; }

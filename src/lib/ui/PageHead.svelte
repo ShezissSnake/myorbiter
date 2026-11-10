@@ -22,7 +22,8 @@
   // Open by hand, or (until opened or closed by hand) with Show details on.
   let opened = $state<boolean | null>(null);
   const open = $derived(opened ?? view.details);
-  const id = `more-${pane ?? "page"}-${Math.random().toString(36).slice(2, 7)}`;
+  const uid = $props.id();
+  const id = `more-${uid}`;
 </script>
 
 <header class="head">
@@ -45,7 +46,11 @@
 {#if more}
   <div {id} use:fold={open}><div><div class="detail">
     <p class="prose">{blurb}</p>
-    <button type="button" class="details" class:on={view.details} aria-pressed={view.details} title={view.details ? "Details are showing on every page: the sentence under each figure, every column. Click to keep just the essentials (the rest stays on hover)" : "Show details on every page: the sentence under each figure and every column. Off, they're on hover"} onclick={() => view.set(!view.details)}><span class="box"></span>Details on every page</button>
+    <button type="button" class="details" class:on={view.details} aria-pressed={view.details} title={view.details ? "Details are showing on every page: the sentence under each figure, every column. Click to keep just the essentials (the rest stays on hover)" : "Show details on every page: the sentence under each figure and every column. Off, they're on hover"} onclick={() => {
+      // Keep this page's text where it is (and the focus on this switch) whichever way it goes.
+      opened = open;
+      view.set(!view.details);
+    }}><span class="box"></span>Details on every page</button>
   </div></div></div>
 {/if}
 <!-- data-card "hero": What's New's Show me lights a section's signature (page#hero). -->

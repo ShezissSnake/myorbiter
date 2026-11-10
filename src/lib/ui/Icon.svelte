@@ -159,9 +159,9 @@
   let { name, size = 14, title, stroke = 1.3 }: { name: string; size?: number; title?: string; stroke?: number } = $props();
 </script>
 
-<svg viewBox={name in PATHS24 ? "0 0 24 24" : "0 0 16 16"} width={size} height={size} aria-hidden={title ? undefined : "true"} role={title ? "img" : undefined}>
+<svg viewBox={Object.hasOwn(PATHS24, name) ? "0 0 24 24" : "0 0 16 16"} width={size} height={size} aria-hidden={title ? undefined : "true"} role={title ? "img" : undefined}>
   {#if title}<title>{title}</title>{/if}
-  <path d={PATHS24[name] ?? PATHS[name] ?? PATHS.guide} fill="none" stroke="currentColor" stroke-width={stroke} stroke-linejoin="miter" stroke-linecap="square" />
+  <path d={(Object.hasOwn(PATHS24, name) ? PATHS24[name] : Object.hasOwn(PATHS, name) ? PATHS[name] : null) ?? PATHS.guide} fill="none" stroke="currentColor" stroke-width={stroke} stroke-linejoin="miter" stroke-linecap="square" />
 </svg>
 
 <style>
