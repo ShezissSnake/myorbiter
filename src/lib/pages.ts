@@ -64,6 +64,9 @@ export const PAGES: Page[] = [
   { id: "guide", label: "Guide", group: "", icon: { line: "guide" }, hint: "What each page is for and how to use it" },
 ];
 
+/** The sidebar's four sections, by name. */
+export const SECTION_NAMES: string[] = ["Fissures", "Progress", "Collection", "Trade"];
+
 export const pageById = Object.fromEntries(PAGES.map((p) => [p.id, p])) as Record<PageId, Page>;
 
 /**

@@ -58,7 +58,7 @@
     sizer?: string[];
     variant?: "text" | "icon" | "link";
     stamp?: boolean;
-    /** Text: "gold" for a gold stamp, "danger". Icon: IconButton's tones. */
+    /** Text: "primary" for the page's one main action (filled in the section's colour; "gold" is its old name), "danger". Icon: IconButton's tones. */
     tone?: string;
     /** Text: an icon before the label. Icon: the icon. */
     icon?: string | null;
@@ -197,15 +197,17 @@
   .fill.on { opacity: 1; will-change: transform; }
   /* Working, with a figure: each step is set, not slid to, so the next one doesn't restart a transition. */
   .fill.step { transition: opacity var(--settle); }
-  .gold > .fill, .ib.gold > .fill { background: rgb(214 174 74 / 22%); }
+  /* On a primary's flat fill the progress darkens it instead. */
+  .stamp.gold > .fill, .primary > .fill { background: rgb(11 13 16 / 24%); }
+  .ib.gold > .fill { background: rgb(241 243 246 / 16%); }
   /* No total yet: a band sweeps across instead. */
   .fill.sweep, .hair.sweep { transform: none; background: none; overflow: hidden; }
   .fill.sweep::before, .hair.sweep::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; background: linear-gradient(90deg, transparent, rgb(241 243 246 / 16%), transparent); animation: sweep-band 1.2s ease-in-out infinite; }
-  .gold > .fill.sweep::before { background: linear-gradient(90deg, transparent, rgb(214 174 74 / 28%), transparent); }
+  .stamp.gold > .fill.sweep::before, .primary > .fill.sweep::before { background: linear-gradient(90deg, transparent, rgb(11 13 16 / 30%), transparent); }
   /* An icon button fills along its foot instead, so the icon stays clear. */
-  .ib > .fill { inset: auto 0 0 0; height: 2px; background: var(--gold); }
+  .ib > .fill { inset: auto 0 0 0; height: 2px; background: var(--platinum); }
   .ib > .fill.sweep { background: none; }
-  .ib > .fill.sweep::before { width: 50%; background: linear-gradient(90deg, transparent, var(--gold), transparent); }
+  .ib > .fill.sweep::before { width: 50%; background: linear-gradient(90deg, transparent, var(--platinum), transparent); }
   /* A link: a hairline under the words. */
   .hair { position: absolute; left: 0; right: 0; bottom: 2px; height: 1px; background: currentColor; transform-origin: left center; transform: scaleX(0); opacity: 0; transition: transform var(--settle) var(--out), opacity var(--settle); }
   .hair.on { opacity: .8; }
@@ -217,8 +219,8 @@
   @keyframes pb-turn { to { transform: rotate(360deg); } }
 
   /* Working: the button keeps its colour, and hovering doesn't invert it (there's nothing to press). */
-  .pb.stamp[aria-busy="true"]:hover, .pb.stamp[aria-busy="true"]:active { background: var(--raised); --edge: var(--rule-control); border-color: var(--rule-control); color: var(--platinum); transform: none; }
-  .pb.stamp.gold[aria-busy="true"]:hover, .pb.stamp.gold[aria-busy="true"]:active { --edge: var(--gold-dim); border-color: var(--gold-dim); color: var(--gold); }
+  .pb.stamp[aria-busy="true"]:hover, .pb.stamp[aria-busy="true"]:active { background: transparent; --edge: var(--rule-control); border-color: var(--rule-control); color: var(--platinum); transform: none; }
+  .pb.stamp:is(.gold, .primary)[aria-busy="true"], .pb.stamp:is(.gold, .primary)[aria-busy="true"]:hover, .pb.stamp:is(.gold, .primary)[aria-busy="true"]:active { --edge: var(--sec); border-color: var(--sec); background: var(--sec); color: var(--slab); }
   .pb.text:not(.stamp)[aria-busy="true"]:hover { color: var(--platinum-dim); border-color: var(--rule-bright); }
   .pb[aria-busy="true"] { cursor: progress; }
   .pb[aria-busy="true"]:active { transform: none; }
@@ -230,7 +232,9 @@
   .pb.done, .pb.done.stamp, .pb.stamp.gold.done { --edge: var(--verdigris); border-color: var(--verdigris); color: var(--verdigris); }
   .pb.failed, .pb.failed.stamp, .pb.stamp.gold.failed { --edge: var(--oxblood); border-color: var(--oxblood); color: var(--oxblood); }
   /* Done and failed are a message: hovering brightens the edge but doesn't invert the button. */
-  .pb.stamp.done:hover:not(:disabled), .pb.stamp.failed:hover:not(:disabled) { background: var(--raised); }
+  /* A primary that's done or failed loses its fill: the message is the edge and the word. */
+  .pb.stamp:is(.gold, .primary):is(.done, .failed) { background: transparent; box-shadow: none; }
+  .pb.stamp.done:hover:not(:disabled), .pb.stamp.failed:hover:not(:disabled) { background: transparent; }
   .pb.stamp.done:hover:not(:disabled) { color: var(--verdigris); --edge: var(--verdigris); border-color: var(--verdigris); }
   .pb.stamp.failed:hover:not(:disabled) { color: var(--oxblood); --edge: var(--oxblood); border-color: var(--oxblood); }
   .pb.ib.done:hover:not(:disabled) { background: transparent; color: var(--verdigris); }
@@ -240,7 +244,7 @@
   .pb.ib.quiet.done, .pb.ib.quiet.failed { border-color: transparent; }
 
   .flash { animation: pb-flash calc(var(--settle) * 3) ease-out; }
-  @keyframes pb-flash { 0%, 40% { box-shadow: inset 0 0 0 1px var(--gold), var(--struck); } 100% { box-shadow: var(--struck); } }
+  @keyframes pb-flash { 0%, 40% { box-shadow: inset 0 0 0 1px var(--platinum); } 100% { box-shadow: inset 0 0 0 1px transparent; } }
 
   .pbw { display: inline-grid; gap: .25rem; justify-items: start; min-width: 0; }
   .pbs { min-height: 0; color: var(--platinum-deep); font-size: .74rem; line-height: 1.35; max-width: 32ch; }
@@ -251,8 +255,8 @@
     /* No sweep or turning: a still half-tone fill says "working" instead. */
     .fill.sweep, .hair.sweep { background: rgb(241 243 246 / 9%); }
     .fill.sweep::before, .hair.sweep::before { display: none; }
-    .gold > .fill.sweep { background: rgb(214 174 74 / 14%); }
-    .ib > .fill.sweep { background: var(--gold-dim); }
+    .stamp.gold > .fill.sweep, .primary > .fill.sweep { background: rgb(11 13 16 / 18%); }
+    .ib > .fill.sweep { background: var(--platinum-deep); }
     .turn { animation: none; }
     .fill, .fill.step { transition: none; }
   }

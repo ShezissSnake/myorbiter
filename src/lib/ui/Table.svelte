@@ -126,11 +126,11 @@
     user-select: none;
   }
   th.sortable { cursor: pointer; }
-  th.sortable:focus-visible { outline: none; box-shadow: inset 0 -2px 0 var(--gold); color: var(--platinum); }
+  th.sortable:focus-visible { outline: none; box-shadow: inset 0 -2px 0 var(--select); color: var(--platinum); }
   th.sortable:hover { color: var(--platinum); }
   th[aria-sort] { color: var(--platinum); }
   /* The sort's arrow turns over when the order flips (QUICK); a header sinks as it's pressed (app.css). */
-  .arrow { display: inline-block; margin-left: .3rem; color: var(--gold); transition: transform var(--quick) var(--out); }
+  .arrow { display: inline-block; margin-left: .3rem; color: var(--platinum); transition: transform var(--quick) var(--out); }
   .arrow.up { transform: rotate(180deg); }
   td { padding: var(--row-pad) .75rem; border-bottom: 1px solid var(--rule); vertical-align: middle; font-size: .84rem; }
   /* The table is a plate (app.css): its first column keeps off the plate's edge. */
@@ -139,12 +139,12 @@
   .center { text-align: center; }
   .muted { color: var(--platinum-dim); font-size: .8rem; }
   tr.clickable { cursor: pointer; }
-  /* A row that opens shows a gold edge on hover; the open one and its detail keep it. */
-  tr.clickable:hover td:first-child, tr.open td:first-child { box-shadow: inset 2px 0 0 var(--gold-dim); }
+  /* A row that opens shows an edge in the section's colour on hover; the open one and its detail keep it. */
+  tr.clickable:hover td:first-child, tr.open td:first-child { box-shadow: inset 2px 0 0 var(--sec-dim); }
   tbody tr:hover td { background: rgb(241 243 246 / 2.5%); }
   /* The open row and its detail sink into the plate, so the buttons in them stand out. */
   tr.open td { background: var(--well); border-bottom-color: transparent; }
-  tr.detail td { background: var(--well); padding: .4rem 1rem 1.2rem .6rem; cursor: default; border-bottom: 1px solid var(--rule-bright); box-shadow: inset 2px 0 0 var(--gold-dim); }
+  tr.detail td { background: var(--well); padding: .4rem 1rem 1.2rem .6rem; cursor: default; border-bottom: 1px solid var(--rule-bright); box-shadow: inset 2px 0 0 var(--sec-dim), var(--sunk); }
   tr.detail:hover td { background: var(--well); }
   .more { margin: 1.2rem auto; display: block; text-align: center; min-height: 2rem; }
   /* Nothing here: quiet, but still readable (about 5:1). */
@@ -158,7 +158,7 @@
   :global(html[data-room~="lt760"]) th { white-space: normal; line-height: 1.35; }
   .chev { width: 1.6rem; padding-right: 0; text-align: center; color: var(--platinum-deep); }
   .chev span { display: inline-block; font-size: 1.1rem; transition: transform var(--quick) var(--out); }
-  tr.open .chev span { transform: rotate(90deg); color: var(--gold); }
+  tr.open .chev span { transform: rotate(90deg); color: var(--sec); }
   tr.clickable:hover .chev span { color: var(--platinum); }
-  tr.clickable:focus-visible { outline: 1px solid var(--gold); outline-offset: -1px; }
+  tr.clickable:focus-visible { outline: 1px solid var(--select); outline-offset: -1px; }
 </style>

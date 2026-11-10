@@ -84,7 +84,7 @@
           <div class="words">
             <h3 class="mark">{head.title}</h3>
             <p class="line"><Rich text={head.text} go={go ? visit : null} /></p>
-            {#if head.open && pg && go}<button class="stamp gold showme" title="Open {pg.label} at what changed" onclick={() => visit(head.open!)}>Show me →</button>{/if}
+            {#if head.open && pg && go}<button class="stamp showme" title="Open {pg.label} at what changed" onclick={() => visit(head.open!)}>Show me →</button>{/if}
           </div>
         </article>
       {/if}

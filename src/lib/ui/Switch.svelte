@@ -25,9 +25,10 @@
   input { position: absolute; opacity: 0; width: 1px; height: 1px; }
   .track { width: 2.3rem; height: 1.15rem; border: 1px solid var(--rule-control); background: var(--well); position: relative; transition: background .12s, border-color .12s; }
   .knob { position: absolute; top: 2px; left: 2px; width: calc(1.15rem - 6px); height: calc(1.15rem - 6px); background: var(--platinum-deep); transition: transform .14s, background .12s; }
-  input:checked + .track { background: color-mix(in srgb, var(--gold) 18%, var(--well)); border-color: var(--gold-dim); }
-  input:checked + .track .knob { transform: translateX(1.15rem); background: var(--gold); }
-  input:focus-visible + .track { outline: 1px solid var(--gold); outline-offset: 2px; }
+  /* On: white, as everything that's chosen is (gold is kept for platinum). */
+  input:checked + .track { background: color-mix(in srgb, var(--platinum) 14%, var(--well)); border-color: var(--platinum-dim); }
+  input:checked + .track .knob { transform: translateX(1.15rem); background: var(--platinum); }
+  input:focus-visible + .track { outline: 1px solid var(--select); outline-offset: 2px; }
   /* Greyed out by colour, not opacity, so the text stays above 4.5:1; only the switch fades. */
   .disabled { cursor: default; }
   .disabled .label { color: var(--platinum-deep); }

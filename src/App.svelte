@@ -75,7 +75,7 @@
   import { details } from "./lib/details.svelte";
   import { hover } from "./lib/hover.svelte";
   import { catchUp, holdBackground, setShownPage, whenIdle } from "./lib/pane.svelte";
-  import { setStatus, type Status, type StatusItem } from "./lib/statusStrip.svelte";
+  import type { Status, StatusItem } from "./lib/statusStrip.svelte";
   import PaneId from "./lib/ui/PaneId.svelte";
   import { inBackground } from "./lib/progress.svelte";
   import { afterPaint } from "./lib/ui/soon";
@@ -128,7 +128,7 @@
   import TennoscopeSheet from "./lib/TennoscopeSheet.svelte";
   import FullMode from "./lib/FullMode.svelte";
   import { loadWikiData } from "./lib/core/wikiData";
-  import Icon from "./lib/ui/Icon.svelte";
+  import Icon, { sectionIcon } from "./lib/ui/Icon.svelte";
   import IconButton from "./lib/ui/IconButton.svelte";
   import ProgressButton from "./lib/ui/ProgressButton.svelte";
   import { Job, JobError } from "./lib/job.svelte";
@@ -153,7 +153,7 @@
   import FirstRun from "./lib/FirstRun.svelte";
   import { bugReport, setReportChannel } from "./lib/bugReport.svelte";
   import type { RedactOptions } from "./lib/core/redact";
-  import { calm as reducedMotion, reveal as unfold } from "./lib/motion";
+  import { calm as reducedMotion, fold, reveal as unfold, QUICK } from "./lib/motion";
 
   /** Your choice from the fold button (kept in settings); until you make one, it folds by itself in a narrow window. */
   let width = $state(typeof window === "undefined" ? 1600 : window.innerWidth);
@@ -2556,9 +2556,8 @@
     const m = Math.floor((now - d.getTime()) / 60000);
     return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : m < 30 * 1440 ? `${Math.round(m / 1440)} d ago` : fmtTime(d);
   };
-  /** The status strip under every page head (ui/StatusStrip.svelte), from what's held here: no
-   *  request of its own. Ages with `tick`, like the sidebar's "Synced n min ago". Worked out once
-   *  for every strip, and the same object while what it says is the same. */
+  /** How the app is doing (the sidebar's foot, and platinum at its top), from what's held here: no
+   *  request of its own. Ages with `tick`. The same object while what it says is the same. */
   let statusKept: Status | null = null;
   const statusNow = $derived.by((): Status => {
     const items: StatusItem[] = [];
@@ -2567,28 +2566,28 @@
       const full = r?.setup.access_mode === "full";
       items.push(
         r
-          ? { label: "Game", value: r.game_running ? `Running${full ? " · Full mode" : ""}` : "Not running", title: r.game_running ? `Warframe is running${full ? ", and TennoScope may read your inventory from it (Full mode)" : ""}` : "TennoScope doesn't see Warframe running" }
-          : { label: "Game", value: mission ? "Log found" : "No game log", title: mission ? "Watching Warframe's log" : "No game log found" },
+          ? { label: "Game", value: r.game_running ? `Running${full ? " · Full mode" : ""}` : "Not running", title: r.game_running ? `Warframe is running${full ? ", and TennoScope may read your inventory from it (Full mode)" : ""}` : "TennoScope doesn't see Warframe running", ok: r.game_running }
+          : { label: "Game", value: mission ? "Log found" : "No game log", title: mission ? "Watching Warframe's log" : "No game log found", ok: !!mission },
       );
-      if (inFissure(mission, tick)) items.push({ label: "Fissure", value: mission?.mission ?? "In progress", title: "A fissure mission is under way" });
-      else items.push({ label: "Inventory", value: model?.observedAt ? `Read ${ago(model.observedAt, tick)}` : "Not read yet", title: model ? `Inventory read ${model.observedAt ? fmtTime(model.observedAt) : "never"}` : "Nothing read from TennoScope yet" });
+      if (inFissure(mission, tick)) items.push({ label: "Fissure", value: mission?.mission ?? "In progress", title: "A fissure mission is under way", ok: true });
+      else items.push({ label: "Inventory", value: model?.observedAt ? `Read ${ago(model.observedAt, tick)}` : "Not read yet", title: model ? `Inventory read ${model.observedAt ? fmtTime(model.observedAt) : "never"}` : "Nothing read from TennoScope yet", ok: !!model?.observedAt });
     }
     const n = mkt.orders.length;
+    const auto = settings.market.auto && mkt.linked;
+    const repricing = { label: "Repricing", value: !auto ? "Off" : mkt.pass ? "Running" : "On", title: auto ? "Apply automatically is on: your listings follow the market price" : "Apply automatically is off (Orders)", ok: auto };
+    // Repricing rides on the Market line (it was the strip's own item on Trade's pages).
     items.push({
       label: "Market",
-      value: !mkt.linked ? "Not signed in" : mkt.ordersAt == null ? "Signed in" : `${n} order${n === 1 ? "" : "s"}`,
-      title: !mkt.linked ? "Not signed in to warframe.market (Settings)" : "Your warframe.market orders, as last loaded",
+      value: !mkt.linked ? "Not signed in" : `${mkt.ordersAt == null ? "Signed in" : `${n} order${n === 1 ? "" : "s"}`}${auto ? ` · repricing${mkt.pass ? " now" : ""}` : ""}`,
+      title: !mkt.linked ? "Not signed in to warframe.market (Settings)" : `Your warframe.market orders, as last loaded. ${repricing.title}`,
+      ok: mkt.linked,
     });
     const p = settings.game.platinum;
-    const plat = onConsole ? null : { label: "Plat", value: p == null ? "–" : p.toLocaleString(), title: p == null ? "Platinum: not read yet" : "Platinum, as of the last inventory read" };
-    const auto = settings.market.auto && mkt.linked;
-    const repricing = { label: "Repricing", value: !auto ? "Off" : mkt.pass ? "Running" : "On", title: auto ? "Apply automatically is on: your listings follow the market price" : "Apply automatically is off (Orders)" };
-    const times = [model?.observedAt ? +model.observedAt : null, mkt.ordersAt].filter((t): t is number => t != null);
-    const next: Status = { items, plat, repricing, updated: times.length ? ago(new Date(Math.max(...times)), tick) : null };
+    const plat = onConsole ? null : { label: "Plat", value: p == null ? "–" : p.toLocaleString(), title: p == null ? "Platinum: not read yet" : "Platinum, as of the last inventory read", ok: p != null };
+    const next: Status = { items, plat, repricing };
     if (statusKept && JSON.stringify(statusKept) === JSON.stringify(next)) return statusKept;
     return (statusKept = next);
   });
-  setStatus(() => statusNow);
   /** One word for the TennoScope button: fine, something to look at, or not running. */
   const tsTone = $derived.by(() => {
     if (!ts.status) return "off";
@@ -2615,7 +2614,9 @@
     // frame, before it's drawn, once the page switched to is laid out (not in between: a layout of
     // its own, of the whole new page, before the switch is done).
     requestAnimationFrame(() => {
-      const on = n.querySelector<HTMLElement>(".nav.on")?.getBoundingClientRect();
+      // In a closed section the page's row is hidden: its section's bar stands for it.
+      const row = n.querySelector<HTMLElement>(".nav.on");
+      const on = (row?.getClientRects().length ? row : n.querySelector<HTMLElement>(".secbar.here"))?.getBoundingClientRect();
       const box = n.getBoundingClientRect();
       const css = getComputedStyle(n);
       const top = box.top + (parseFloat(css.scrollPaddingTop) || 0);
@@ -2625,6 +2626,13 @@
     });
     void tab;
   });
+  /** A section's bar: closes or opens its pages (remembered in settings). The fade at the list's
+   *  ends is checked again once the fold has run. */
+  function toggleSection(sec: string) {
+    const closed = settings.sectionsClosed;
+    settings.sectionsClosed = closed.includes(sec) ? closed.filter((x) => x !== sec) : [...closed, sec];
+    setTimeout(checkNav, QUICK + 40);
+  }
   const checkNav = () => {
     const n = navEl;
     navMore = !!n && n.scrollTop + n.clientHeight < n.scrollHeight - 4;
@@ -2685,37 +2693,53 @@
 <div class="shell" class:compact class:withside={sideShown} class:withtab={sideTab}>
   <aside class="rail" aria-label="MyOrbiter">
     <div class="brand">
-      <!-- The wordmark, the craft as its O; folded, the craft alone. The running build under it: the
-           version the updater compares, small and muted. -->
-      {#if compact}<Wordmark glyph height={26} />{:else}<span class="brand-text"><Wordmark height={30} />{#if updates.info}<small class="brand-ver" title="This build of MyOrbiter">{updates.info.version}</small>{/if}</span>{/if}
+      <!-- The wordmark, the craft as its O; folded, the craft alone. Under it the running build (the
+           version the updater compares), small and muted, and your platinum. -->
+      {#if compact}<Wordmark glyph height={26} />{:else}<span class="brand-text"><Wordmark height={30} /><span class="brand-row">{#if updates.info}<small class="brand-ver" title="This build of MyOrbiter">{updates.info.version}</small>{/if}{#if statusNow.plat && settings.game.platinum != null}<span class="brand-plat" title={statusNow.plat.title}><b>{statusNow.plat.value}</b><Icon name="sec-trade" size={15} stroke={1.8} /></span>{/if}</span></span>{/if}
       <button class="fold" aria-label={compact ? "Show labels" : "Icons only"} title={compact ? "Show the page names" : "Icons only"} onclick={() => (settings.folded = !compact)}>
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d={compact ? "M6 3l5 5-5 5" : "M10 3 5 8l5 5"} fill="none" stroke="currentColor" stroke-width="1.5" /></svg>
       </button>
     </div>
 
     {#snippet navItem(p: Page)}
-      <button class="nav" class:on={(navTo ?? settings.tab) === p.id} data-section={p.group || undefined} title={shortcutOf(p.id) ? `${p.label}: ${p.hint} (${shortcutOf(p.id)})` : `${p.label}: ${p.hint}`} aria-current={settings.tab === p.id ? "page" : undefined} onclick={() => navigate(p.id)}>
-        <span class="ic">{#if "game" in p.icon}<GameIcon name={p.icon.game} size={20} />{:else}<Icon name={p.icon.line} size={18} stroke={1.5} />{/if}</span>
+      <button class="nav" class:home={p.id === "home"} class:on={(navTo ?? settings.tab) === p.id} data-section={p.group || undefined} title={shortcutOf(p.id) ? `${p.label}: ${p.hint} (${shortcutOf(p.id)})` : `${p.label}: ${p.hint}`} aria-current={settings.tab === p.id ? "page" : undefined} onclick={() => navigate(p.id)}>
+        <span class="ic">{#if "game" in p.icon}<GameIcon name={p.icon.game} size={p.id === "home" ? 18 : 20} />{:else}<Icon name={p.icon.line} size={p.id === "home" ? 16 : 18} stroke={p.id === "home" ? 1.8 : 1.5} />{/if}</span>
         <span class="lbl">{p.label}</span>
+        <!-- State is a diamond: filled, a fissure under way; hollow, automatic repricing on. A count is a neutral tag. -->
         {#if p.id === "mission" && inFissure(mission, tick)}<span class="live" title="Fissure in progress"></span>{/if}
-        {#if p.id === "market" && shortListings.length}<span class="badge" title="Listings for more than you hold: sold, or used in game">{shortListings.length}</span>{/if}
+        {#if p.id === "market" && shortListings.length}<span class="badge count-tag" title="Listings for more than you hold: sold, or used in game">{shortListings.length}</span>{/if}
         {#if p.id === "market" && settings.market.auto && mkt.linked && !shortListings.length}<span class="live dim" title="Apply automatically is on: your listings follow the market price (the second-cheapest seller online or in game)"></span>{/if}
       </button>
     {/snippet}
 
+    <!-- Home is the root, level with the section bars. Each section's bar opens or closes its pages
+         (kept in settings); closed, it shows how many pages it holds, and the section of the page
+         you're on keeps its colour mark. -->
     <nav aria-label="Pages" data-card="sections" bind:this={navEl} onscroll={checkNav} class:more={navMore} class:above={navAbove}>
       {@render navItem(pages[0])}
       {#each sections as sec (sec)}
-        <div class="sec register" data-section={sec} title={compact ? sec : undefined}>{sec}</div>
-        {#each pages.filter((p) => p.group === sec) as p (p.id)}{@render navItem(p)}{/each}
+        {@const ps = pages.filter((p) => p.group === sec)}
+        {@const open = !settings.sectionsClosed.includes(sec)}
+        <button type="button" class="secbar" class:here={!open && ps.some((p) => p.id === (navTo ?? settings.tab))} data-section={sec} aria-expanded={open} aria-controls="sec-{sec}" title={open ? `${sec}: click to close` : `${sec}, ${ps.length} page${ps.length === 1 ? "" : "s"}: click to open`} onclick={() => toggleSection(sec)}>
+          <Icon name={sectionIcon(sec)} size={14} stroke={1.8} />
+          <span class="lbl">{sec}</span>
+          {#if !open}<span class="n" aria-hidden="true">{ps.length}</span>{/if}
+          <span class="chv"><Icon name="chev-down" size={14} stroke={1.6} /></span>
+        </button>
+        <div id="sec-{sec}" class="secpages" data-section={sec} use:fold={open}><div>
+          {#each ps as p (p.id)}{@render navItem(p)}{/each}
+        </div></div>
       {/each}
     </nav>
 
+    <!-- The one place that says how the app is doing: the game, the inventory read (or the fissure
+         under way) and warframe.market, each with a diamond (filled: fine; hollow: not yet or off). -->
     <div class="foot">
-      {#if !onConsole}<div class="game" title={[mission?.mission ?? (mission ? "Watching Warframe's log" : "No game log found"), model ? `Inventory read ${model.observedAt ? fmtTime(model.observedAt) : "never"}` : null].filter(Boolean).join(" · ")}>
-        <span class="pill" class:live={inFissure(mission, tick)} class:idle={!mission}><i></i></span>
-        <span class="lbl"><strong>{inFissure(mission, tick) ? "In a fissure" : model ? `Synced ${ago(model.observedAt, tick)}` : mission ? "Reading the log" : "Idle"}</strong><small>{inFissure(mission, tick) ? (mission?.mission ?? "") : mission ? "Warframe's log: found" : "No game log found"}</small></span>
-      </div>{/if}
+      <div class="state" role="group" aria-label="Status" data-card="status">
+        {#each statusNow.items as it (it.label)}
+          <div class="st" title={it.title}><i class="dia" class:hollow={!it.ok}></i><span class="register">{it.label}</span><span class="v">{it.value}</span></div>
+        {/each}
+      </div>
       <div class="syncrow">
       <ProgressButton bind:this={syncButton} class="sync" job={syncJob} busy={loading && !bundle} icon="refresh" spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} sizer={["Waiting…", "Up to date", "Not synced"]}
         title={`${syncStep ? `${syncStep}…\n\n` : ""}${onConsole ? "Reload your warframe.market listings, the fissures and Baro" : syncMode ? "Sync: ask TennoScope to read your inventory from the game now, and wait for the new read" : "Sync: reload TennoScope's last saved read and the live fissures. With Warframe running and TennoScope on Full access, it asks TennoScope for a fresh read from the game instead"} (Ctrl+R)`}
@@ -2984,123 +3008,151 @@
   /* A page that threw: the same quiet line, with Try again. */
   .pagefail { margin: 0; padding: 3rem 1rem; text-align: center; }
 
-  /* ---- sidebar: a neutral plate (the section colours are only on its sigils and the open page) */
+  /* ---- sidebar: a neutral plate. Top: wordmark, version, platinum. Then Home, the root; each
+     section's bar across the full width (it folds its pages); the pages hanging from one hairline
+     track under the section's glyph. Foot: how the app is doing, then the tools. Only the page list
+     scrolls. */
   .rail {
     display: flex; flex-direction: column; min-height: 0; overflow: hidden;
-    background: var(--plate); border-right: 1px solid var(--rule);
+    background: #0e1013; border-right: 1px solid var(--rule);
   }
-  .brand { display: flex; align-items: center; gap: .6rem; padding: .95rem 1rem .8rem 1.1rem; border-bottom: 1px solid var(--rule); }
-  .brand-text { display: grid; gap: 4px; min-width: 0; color: var(--platinum); }
+  .brand { display: flex; align-items: flex-start; gap: .6rem; padding: 18px 12px 8px 16px; }
+  .brand-text { flex: 1; display: grid; gap: 6px; min-width: 0; color: var(--platinum); }
+  .brand-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
   /* One line, never wider than the space the name leaves: a long version ends in an ellipsis. */
-  .brand-ver { font-family: var(--face-register); font-size: .68rem; letter-spacing: .14em; line-height: 1.3; color: var(--platinum-deep); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .brand-ver { min-width: 0; font-family: var(--face-register); font-size: 11px; letter-spacing: .14em; line-height: 1.3; color: var(--platinum-deep); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Platinum: the one gold in the frame. */
+  .brand-plat { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; flex: none; color: var(--gold); }
+  .brand-plat b { font-family: var(--face-mark); font-weight: 700; font-size: 15px; line-height: 1; font-variant-numeric: tabular-nums; }
   .fold { margin-left: auto; padding: .35rem; line-height: 0; border-color: transparent; background: transparent; color: var(--platinum-deep); }
   .fold:hover { color: var(--platinum); }
-  /* The page list scrolls on a short window; Sync, TennoScope and Settings stay pinned below it. */
-  nav { display: grid; align-content: start; gap: 1px; padding: .6rem .55rem; flex: 1 1 auto; min-height: 0; overflow: hidden auto; scrollbar-width: thin; }
+  /* The page list scrolls on a short window; the top and the foot stay. */
+  nav { display: flex; flex-direction: column; padding: 0 0 8px; flex: 1 1 auto; min-height: 0; overflow: hidden auto; scrollbar-width: thin; }
   nav { scroll-padding-block: 2.5rem 3rem; }
   nav.more { mask-image: linear-gradient(180deg, #000 calc(100% - 3rem), transparent); }
   nav.above { mask-image: linear-gradient(0deg, #000 calc(100% - 2.5rem), transparent); }
   nav.more.above { mask-image: linear-gradient(180deg, transparent, #000 2.5rem, #000 calc(100% - 3rem), transparent); }
-  /* A section's header: its sigil in its colour, its name in plain text, then a plain hairline. */
-  .sec { padding: .85rem .65rem .35rem; font-size: .68rem; line-height: 1.1; color: var(--platinum-dim); letter-spacing: .2em; display: flex; align-items: center; gap: .5rem; }
-  .sec::before { content: ""; width: 7px; height: 7px; flex: none; background: var(--sec); transform: rotate(45deg); }
-  .sec::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
   .nav {
-    position: relative; display: flex; align-items: center; gap: .75rem; width: 100%; text-align: left;
-    border: 0; background: transparent; padding: .44rem .65rem; color: var(--platinum-dim);
-    font-family: var(--face-text); font-size: .9rem; font-weight: 500; letter-spacing: 0; text-transform: none;
+    position: relative; flex: none; display: flex; align-items: center; gap: 12px; width: 100%; height: 32px; text-align: left;
+    border: 0; background: transparent; padding: 0 12px 0 39px; color: var(--platinum-dim);
+    font-family: var(--face-text); font-size: 14px; font-weight: 400; letter-spacing: 0; text-transform: none;
   }
-  .nav .ic { width: 1.5rem; height: 1.5rem; display: grid; place-items: center; flex: none; opacity: .78; transition: opacity .12s; }
-  .nav:hover:not(:disabled) { color: var(--platinum); background: rgb(241 243 246 / 4%); }
+  /* The track: one hairline under the section's glyph, the page icons lined up under its name. */
+  .nav::before { content: ""; position: absolute; left: 22px; top: 0; bottom: 0; width: 1px; background: var(--rule); }
+  .nav .ic { width: 18px; height: 18px; display: grid; place-items: center; flex: none; opacity: .78; }
+  .nav:hover:not(:disabled) { color: var(--platinum); background: linear-gradient(rgb(241 243 246 / 4%), rgb(241 243 246 / 4%)) no-repeat 22px 0 / calc(100% - 22px) 100%; }
   .nav:hover .ic, .nav.on .ic { opacity: 1; }
-  /* The open page: a raised row with a 2 px rule in its section's colour. */
-  .nav.on { color: var(--platinum); background: var(--raised); box-shadow: inset 2px 0 0 var(--sec); }
+  /* The open page: its piece of the track lit in the section's colour, and a flat tint from the
+     track to the sidebar's right edge. */
+  .nav.on { color: var(--platinum); font-weight: 600; background: linear-gradient(color-mix(in srgb, var(--sec) 14%, transparent), color-mix(in srgb, var(--sec) 14%, transparent)) no-repeat 22px 0 / calc(100% - 22px) 100%; }
+  .nav.on::before { width: 2px; background: var(--sec); }
+  /* Home: the root, level with the section names, white, in the title's type; no track. Open, a
+     neutral tint across the full width and a white bar at the sidebar's edge. */
+  .nav.home { height: 36px; padding-left: 16px; gap: 9px; color: var(--platinum); }
+  .nav.home::before { display: none; }
+  .nav.home .ic { width: 16px; height: 16px; opacity: 1; }
+  .nav.home .lbl { font-family: var(--face-mark); font-weight: 700; font-size: 16px; letter-spacing: .06em; text-transform: uppercase; }
+  .nav.home:hover:not(:disabled) { background: rgb(255 255 255 / 4%); }
+  .nav.home.on { background: rgb(255 255 255 / 7%); box-shadow: inset 2px 0 0 var(--platinum); }
+  /* A section's bar: raised, across the whole sidebar, hairlines above and below; its glyph and name
+     in its colour, the chevron at the right. Closed, the chevron points right and the bar says how
+     many pages it holds; holding the open page, it keeps the section's 2 px mark. */
+  .secbar {
+    flex: none; display: flex; align-items: center; gap: 9px; width: 100%; height: 28px; margin-top: 6px; padding: 0 12px 0 16px;
+    background: var(--raised); border: 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+    color: var(--sec); text-align: left;
+  }
+  .secbar:hover:not(:disabled) { color: var(--sec); border-color: var(--rule); background: #1d2127; }
+  .secbar:active:not(:disabled) { transform: none; background: var(--raised); }
+  .secbar:focus-visible { outline-offset: -2px; }
+  .secbar .lbl { flex: 1; min-width: 0; font-family: var(--face-register); font-size: 12px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; }
+  .secbar .n { font-family: var(--face-register); font-size: 12px; letter-spacing: .08em; color: var(--platinum-deep); font-variant-numeric: tabular-nums; }
+  .secbar .chv { display: grid; place-items: center; color: var(--platinum-dim); transition: transform var(--quick) var(--out); }
+  .secbar[aria-expanded="false"] .chv { transform: rotate(-90deg); }
+  .secbar.here { box-shadow: inset 2px 0 0 var(--sec); }
+  .secpages > div { display: flex; flex-direction: column; }
   .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .badge { margin-left: auto; min-width: 1.35rem; padding: .05rem .35rem; text-align: center; font-family: var(--face-register); font-size: .74rem; font-weight: 700; color: var(--slab); background: var(--gold); clip-path: var(--cut); }
-  .nav .live { margin-left: auto; width: .5rem; height: .5rem; background: var(--gold); transform: rotate(45deg); flex: none; box-shadow: 0 0 6px rgb(214 174 74 / 60%); }
-  .nav .live.dim { background: var(--gold-dim); box-shadow: none; }
+  .badge { margin-left: auto; }
+  /* State: a diamond. Filled, under way (a fissure); hollow, on (automatic repricing). */
+  .nav .live { margin-left: auto; width: 7px; height: 7px; background: var(--platinum); transform: rotate(45deg); flex: none; }
+  .nav .live.dim { background: none; box-shadow: inset 0 0 0 1px var(--platinum-dim); }
 
   /* One column, never wider than the rail: a wide label (a sync's note) can't push the rows past the
      rail's edge, where the search, the bell, the Guide and Settings would be cut off. */
-  .foot { flex: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: .5rem; padding: .75rem .8rem .8rem; border-top: 1px solid var(--rule); }
-  .game { display: flex; align-items: center; gap: .65rem; min-width: 0; padding: 0 .2rem; }
-  .game .lbl { display: grid; min-width: 0; }
-  .game strong { font-family: var(--face-register); font-size: .72rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
-  .game small { font-size: .7rem; color: var(--platinum-deep); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .pill i { width: .62rem; height: .74rem; background: var(--platinum); clip-path: var(--cartouche); display: block; }
-  .pill.live i { background: var(--gold); }
-  .pill.live + .lbl strong { color: var(--gold); }
-  .pill.idle i { clip-path: none; background: var(--platinum-deep); }
+  .foot { flex: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 12px 12px 14px; border-top: 1px solid var(--rule); }
+  .state { display: grid; gap: 5px; min-width: 0; }
+  .st { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; line-height: 18px; }
+  .st .register { flex: none; width: 68px; font-size: 11px; }
+  .st .v { min-width: 0; color: var(--platinum); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dia { width: 7px; height: 7px; flex: none; background: var(--platinum); transform: rotate(45deg); }
+  .dia.hollow { background: none; box-shadow: inset 0 0 0 1px var(--platinum-dim); }
   .syncrow { display: flex; gap: .4rem; }
   /* Sync and TennoScope take what the row leaves (basis and width 0: their labels don't size the row).
      A label longer than the button starts at its left edge and is clipped on the right, not centred
      out past both edges. Tight padding and tracking: the same label is up to a tenth wider in one
      engine than another, and "Up to date" has to fit in all of them. */
   .syncrow :global(.sync) { display: flex; justify-content: center; justify-content: safe center; align-items: center; gap: .4rem; flex: 1 1 0; width: 0; min-width: 0; padding-left: .45rem; padding-right: .45rem; letter-spacing: .1em; }
-  /* Every button down here is one height, folded or not. */
-  .syncrow :global(.sync), .tool { height: 36px; padding-top: 0; padding-bottom: 0; }
+  /* Every button down here is one height, folded or not: a control, 32 px. */
+  .syncrow :global(.sync), .tool { height: 32px; padding-top: 0; padding-bottom: 0; }
+  .tool { background: transparent; }
   /* Why the last sync failed, under the button (it goes with the button's failed look). */
-  .syncerr { margin: 0; font-size: .7rem; line-height: 1.35; color: var(--oxblood); }
+  .syncerr { margin: 0; font-size: 11px; line-height: 1.35; color: var(--oxblood); }
   .compact .syncerr { display: none; }
   .tools { display: flex; gap: .4rem; }
   .tool { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; padding-left: .6rem; padding-right: .6rem; }
-  /* The page that's open (Guide): marked the way the sidebar marks its page, a gold edge, not a white block. */
-  .tool.on { color: var(--platinum); background: rgb(214 174 74 / 12%); box-shadow: inset 2px 0 0 var(--gold); }
+  /* The page that's open (Guide): marked as Home is, a white edge and a neutral tint. */
+  .tool.on { color: var(--platinum); background: rgb(255 255 255 / 7%); box-shadow: inset 2px 0 0 var(--platinum); }
   .tsbtn { flex: 1 1 0; width: 0; min-width: 0; justify-content: flex-start; }
   .bell { position: relative; }
-  .bell .count { position: absolute; top: -.45rem; right: -.45rem; min-width: 1.1rem; padding: .05rem .25rem; font-family: var(--face-register); font-size: .66rem; font-weight: 700; line-height: 1.3; text-align: center; color: var(--slab); background: var(--gold); clip-path: var(--cut); animation: pop .25s ease-out; }
+  /* How many new: a neutral tag on the bell's corner. */
+  .bell .count { position: absolute; top: -.45rem; right: -.45rem; min-width: 1.1rem; padding: .05rem .25rem; font-family: var(--face-register); font-size: 11px; font-weight: 500; line-height: 1.2; text-align: center; color: var(--platinum); background: var(--raised); border: 1px solid var(--rule-control); animation: pop .25s ease-out; }
   .bell.paused :global(svg) { opacity: .45; }
   /* Paused: a slash through the bell, not just a dimmer one. */
   .bell.paused::after { content: ""; position: absolute; left: 50%; top: 50%; width: 1.1rem; height: 1px; background: var(--platinum-dim); transform: translate(-50%, -50%) rotate(-45deg); }
-  /* Folded, Sync sits right above: the count stays inside the button. */
-  /* Folded: no room for a number, a gold dot says there's something new (the tooltip has how many). */
-  .compact .bell .count { top: 3px; right: 3px; min-width: 0; width: .45rem; height: .45rem; padding: 0; font-size: 0; clip-path: none; border-radius: 50%; }
+  /* Folded: no room for a number, a white diamond says there's something new (the tooltip has how many). */
+  .compact .bell .count { top: 3px; right: 3px; min-width: 0; width: 6px; height: 6px; padding: 0; font-size: 0; border: 0; background: var(--platinum); transform: rotate(45deg); animation: none; }
   @keyframes pop { from { transform: scale(.4); } to { transform: scale(1); } }
   @media (prefers-reduced-motion: reduce) { .bell .count { animation: none; } }
-  .tsbtn i { width: .5rem; height: .5rem; background: var(--platinum-deep); transform: rotate(45deg); flex: none; }
-  .tsbtn.tone-ok i { background: var(--verdigris); }
-  .tsbtn.tone-warn i { background: var(--gold); }
-  .tsbtn.tone-bad i { background: var(--oxblood); }
+  /* TennoScope's state: a diamond, filled when fine, red when it needs you. */
+  .tsbtn i { width: 7px; height: 7px; background: none; box-shadow: inset 0 0 0 1px var(--platinum-dim); transform: rotate(45deg); flex: none; }
+  .tsbtn.tone-ok i { background: var(--platinum); box-shadow: none; }
+  .tsbtn.tone-warn i { background: none; box-shadow: inset 0 0 0 1px var(--oxblood); }
+  .tsbtn.tone-bad i { background: var(--oxblood); box-shadow: none; }
 
   /* ---- icons only: folded by hand, or a narrow window */
-  .compact .brand { justify-content: center; padding-left: .5rem; padding-right: .5rem; flex-direction: column; gap: .4rem; }
+  .compact .brand { justify-content: center; padding-left: .5rem; padding-right: .5rem; flex-direction: column; align-items: center; gap: .4rem; }
   .compact .fold { margin-left: 0; }
   .compact .brand-text, .compact .lbl { display: none; }
-  /* Folded, a section keeps its sigil between the groups (its name on hover). */
-  .compact .sec { justify-content: center; padding: .6rem 0 .35rem; font-size: 0; letter-spacing: 0; gap: 0; }
-  .compact .sec::after { display: none; }
-  .compact .sec::before { width: 6px; height: 6px; }
-  .compact .nav { justify-content: center; padding: .48rem 0; }
-  .compact .foot { padding: .7rem .6rem .8rem; gap: .45rem; }
-  .compact .nav .badge, .compact .nav .live { position: absolute; top: .2rem; right: .35rem; margin: 0; }
-  .compact .badge { min-width: 1.05rem; font-size: .52rem; padding: 0 .2rem; }
-  .compact .game { justify-content: center; }
-  /* Folded: under the game light, Sync across, then the bell, TennoScope, Guide and Settings two by two. */
+  /* Folded, a section's bar keeps its glyph and chevron (its name on hover); the pages under it
+     centre their icons, no track. */
+  .compact .secbar { justify-content: center; gap: 4px; padding: 0; }
+  .compact .secbar .n { display: none; }
+  .compact .nav { justify-content: center; padding: 0; }
+  .compact .nav::before { display: none; }
+  .compact .nav.on { background: color-mix(in srgb, var(--sec) 14%, transparent); box-shadow: inset 2px 0 0 var(--sec); }
+  .compact .nav.home.on { background: rgb(255 255 255 / 7%); box-shadow: inset 2px 0 0 var(--platinum); }
+  .compact .nav .badge, .compact .nav .live { position: absolute; top: 3px; right: 6px; margin: 0; }
+  .compact .badge { min-width: 16px; height: 16px; padding: 0 3px; font-size: 10px; }
+  /* Folded: the three state diamonds in a row (each line on hover), then Sync across, then the bell,
+     TennoScope, Guide and Settings two by two. */
   .compact .foot { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem; padding: .6rem .5rem .7rem; }
-  .compact .game, .compact :global(.sync) { grid-column: 1 / -1; }
+  .compact .state { grid-column: 1 / -1; display: flex; justify-content: center; gap: 10px; padding: 2px 0 4px; }
+  .compact .st { gap: 0; }
+  .compact .st .register, .compact .st .v { display: none; }
+  .compact :global(.sync) { grid-column: 1 / -1; }
   .compact :global(.sync .lbls) { display: none; }
   .compact .tools, .compact .syncrow { display: contents; }
   .compact :global(.sync), .compact .tool { padding-left: 0; padding-right: 0; width: auto; min-width: 0; }
   .compact .tsbtn { justify-content: center; }
-  /* A short window: tighter rows, so every page and the tools fit (all 16 folded at 700 px high). */
-  @media (max-height: 900px) {
-    .compact .brand { padding-top: .6rem; padding-bottom: .5rem; gap: .2rem; }
-    .compact nav { padding-top: .35rem; padding-bottom: .35rem; }
-    .compact .sec { padding: .25rem 0 .1rem; }
-    .compact .nav { padding: .2rem 0; }
-    .compact .nav .ic { width: 1.35rem; height: 1.35rem; }
-    .shell:not(.compact) .nav { padding-top: .32rem; padding-bottom: .32rem; }
-    .shell:not(.compact) .sec { padding-top: .6rem; padding-bottom: .25rem; }
-  }
-  /* Steam Deck height (800 px): every page still fits unfolded. */
+  /* A short window: the top and the foot tighter, so more of the list shows before it scrolls. */
   @media (max-height: 820px) {
-    .shell:not(.compact) .brand { padding-top: .6rem; padding-bottom: .45rem; }
-    .shell:not(.compact) .brand-text { gap: 2px; }
+    .brand { padding-top: 12px; padding-bottom: 4px; }
     .shell:not(.compact) .brand :global(.wm) { height: 27px; width: auto; }
-    .shell:not(.compact) nav { padding-top: .3rem; padding-bottom: .3rem; }
-    .shell:not(.compact) .nav { padding-top: .2rem; padding-bottom: .2rem; }
-    .shell:not(.compact) .sec { padding-top: .3rem; padding-bottom: .1rem; }
-    .shell:not(.compact) .foot { gap: .4rem; padding-top: .55rem; padding-bottom: .6rem; }
+    .secbar { margin-top: 4px; }
+    .nav { height: 30px; }
+    .nav.home { height: 32px; }
+    .foot { gap: 8px; padding-top: 10px; padding-bottom: 10px; }
+    .state { gap: 3px; }
   }
 
   .notice { clip-path: var(--cut); margin-top: var(--field); padding: 1.6rem 1.8rem; border: 1px solid var(--rule); background: var(--plate); max-width: 52rem; display: grid; gap: .8rem; }

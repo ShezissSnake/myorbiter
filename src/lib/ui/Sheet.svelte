@@ -72,16 +72,16 @@
   .sheet {
     position: fixed; z-index: 41; top: 0; right: 0; bottom: 0; width: min(36rem, 100vw);
     display: grid; grid-template-rows: auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); background: var(--plate);
-    border-left: 1px solid var(--rule-bright); box-shadow: -1.5rem 0 4rem rgb(0 0 0 / 45%), inset 2px 0 0 var(--gold-dim);
+    border-left: 1px solid var(--rule-bright); box-shadow: -1.5rem 0 4rem rgb(0 0 0 / 45%), inset 2px 0 0 var(--rule-control);
     outline: none;
   }
   .sheet.wide { width: min(58rem, 100vw); }
   /* Kept: shut, it's invisible and takes no clicks (visibility turns off once the slide-out ends). */
-  .sheet.keep { transform: translateX(40px); opacity: 0; visibility: hidden; box-shadow: inset 2px 0 0 var(--gold-dim); transition: transform 100ms var(--out), opacity 100ms var(--out), visibility 0s linear 100ms; }
+  .sheet.keep { transform: translateX(40px); opacity: 0; visibility: hidden; box-shadow: inset 2px 0 0 var(--rule-control); transition: transform 100ms var(--out), opacity 100ms var(--out), visibility 0s linear 100ms; }
   .sheet.keep.on { transform: none; opacity: 1; visibility: visible; transition: transform var(--settle) var(--out), opacity var(--settle) var(--out), visibility 0s; }
-  .sheet.keep.settled { box-shadow: -1.5rem 0 4rem rgb(0 0 0 / 45%), inset 2px 0 0 var(--gold-dim); }
+  .sheet.keep.settled { box-shadow: -1.5rem 0 4rem rgb(0 0 0 / 45%), inset 2px 0 0 var(--rule-control); }
   header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; padding: 1.4rem 1.6rem 1.1rem; border-bottom: 1px solid var(--rule); }
-  header .register { color: var(--gold); margin-bottom: .45rem; }
+  header .register { color: var(--platinum-dim); margin-bottom: .45rem; }
   h2 { font-size: 2.1rem; }
   .close { padding: .5rem; line-height: 0; }
   /* One column no wider than the sheet: a long unbreakable line (a path) can't widen every section

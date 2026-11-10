@@ -40,8 +40,9 @@
 <style>
   .fold-wrap { display: inline-flex; align-items: center; gap: .4rem; }
   .fold { display: inline-flex; align-items: center; gap: .45rem; }
-  .fold.on { border-color: var(--gold-dim); color: var(--platinum); }
-  .n { font-family: var(--face-mark); font-size: .8rem; color: var(--gold); }
+  .fold.on { border-color: var(--platinum-dim); color: var(--platinum); }
+  /* A count: neutral, never gold. */
+  .n { font-family: var(--face-mark); font-size: .8rem; color: var(--platinum-dim); }
   /* What the folded filters narrow to right now, so a short list never looks unexplained. */
   .on-now { font-family: var(--face-text); font-size: .74rem; letter-spacing: 0; text-transform: none; color: var(--platinum-deep); }
   .chev { font-size: .7rem; color: var(--platinum-deep); }
