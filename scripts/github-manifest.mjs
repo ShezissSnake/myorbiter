@@ -9,8 +9,8 @@
 // package registry, myorbiter/0.2.<n>/). Everything else is that script's own, imported from it:
 // the signature checks (each download checked against tauri.conf.json's public key, for this
 // version, before the manifest is written), the systems and their file names, the date format and
-// the manifest's shape. That script is left as it is: GitLab's sign job runs it only while its
-// checksum is the one .gitlab-ci.yml names.
+// the manifest's shape. That script kept its own folder rule for the builds GitLab made, whose
+// manifests its checks still describe.
 //
 //   node scripts/github-manifest.mjs manifest --dir DIR --version 0.2.120 --repo OWNER/REPO
 //        [--commit SHA] [--notes-file notes.txt] [--config src-tauri/tauri.conf.json] [--out latest.json]
