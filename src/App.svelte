@@ -704,7 +704,9 @@
     const route = routeOf(popupFacts(gate));
     let outcome: NoticeOutcome | null = route;
     if (route.how === "app") {
-      if (o.toast !== false) toasts.push(n);
+      // Not shown by this call (a repricing pass that settled after its pop-up went): nothing to note.
+      if (o.toast === false) outcome = null;
+      else toasts.push(n);
     } else if (route.how === "desktop") {
       if (o.desktop === false) outcome = null;
       else {
