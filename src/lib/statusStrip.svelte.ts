@@ -22,6 +22,9 @@ export interface Status {
   updated: string | null;
 }
 
+/** The context key under which each pane says which page it holds (ui/PaneId.svelte). */
+export const PANE = Symbol("pane");
+
 let read: () => Status | null = () => null;
 /** App: where the strip reads its state from (a reactive read). */
 export function setStatus(f: () => Status | null) {

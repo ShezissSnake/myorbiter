@@ -8,6 +8,13 @@ import { failureWords } from "./core/upkeep";
 class TennoscopeStore {
   status = $state.raw<TennoscopeStatus | null>(null);
   error = $state<string | null>(null);
+  /**
+   * Takes in a status check: read every 15 s and mostly the same, so the status stays the object it
+   * was unless something in it changed (the strips under every page head and the buttons read it).
+   */
+  private put(next: TennoscopeStatus | null) {
+    if (JSON.stringify(next) !== JSON.stringify(this.status)) this.status = next;
+  }
   /** A request just sent, until the next report shows its effect. */
   pending = $state<TennoscopeAsk | null>(null);
   /** Start it whenever it isn't running. */
@@ -76,7 +83,7 @@ class TennoscopeStore {
       }
       // Only a relaunch starts it: a check while it seemed to run only looks, so one that stops as
       // soon as it starts waits out the longer gaps above instead of being started every 15 s.
-      this.status = relaunch ? await tennoscope.start() : await tennoscope.status();
+      this.put(relaunch ? await tennoscope.start() : await tennoscope.status());
       this.follow();
       // Just started with an answer to pass on: look again soon, rather than at the next poll.
       if (relaunch && this.wanted) for (const ms of [1500, 4000, 8000]) setTimeout(() => this.check(), ms);
@@ -92,7 +99,7 @@ class TennoscopeStore {
       }
     } catch (e) {
       this.error = clean(e);
-      this.status = await tennoscope.status().catch(() => null);
+      this.put(await tennoscope.status().catch(() => null));
     } finally {
       this.busy = false;
     }

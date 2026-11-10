@@ -7,7 +7,8 @@ import { REFINEMENTS, UNOBTAINABLE, baseId, relicRewardRarity, splitRelicName, t
 export { relicRewardRarity };
 import type { CatalogItem, InventoryRow } from "./types";
 import { acquisition, masteryPoints, vendorBlueprint, type Acquisition } from "./acquire";
-import { idOf, perModel } from "./memo";
+import { perModel } from "./memo";
+import { dropsVersion } from "./drops";
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 
@@ -298,7 +299,7 @@ export function setSaves(m: Model, opts: SaveForSets): Map<string, SetSave> {
 }
 
 /** Every prime part you hold. With `save` (Sell spares), loose copies wait for a set worth more whole (setSaves). */
-export const partRows = perModel(partRowsFresh, (save = null) => (save ? `${save.platPerDucat}|${idOf(save.drops)}` : "-"), (r: PartRow) => r.name);
+export const partRows = perModel(partRowsFresh, (save = null) => (save ? `${save.platPerDucat}|${dropsVersion(save.drops)}` : "-"), (r: PartRow) => r.name);
 function partRowsFresh(m: Model, save: SaveForSets | null = null): PartRow[] {
   const rows: PartRow[] = [];
   const saves = save ? setSaves(m, save) : null;

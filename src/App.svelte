@@ -21,7 +21,7 @@
   import { bestCard, resolveName, scoreCards, vaultWord } from "./lib/core/pick";
   import { DEFAULT_HIDE_MINUTES, dueToShow, hideNow, lastCopies } from "./lib/core/lastCopy";
   import { mergeLogged, recordScreen, resolvePicks } from "./lib/core/relicRuns";
-  import { dropBuilding, dropCounts, laterClaims, recentDrops, recordRead } from "./lib/core/drops";
+  import { dropBuilding, dropCounts, laterClaims, recentDrops, recordRead, sameDrops } from "./lib/core/drops";
   import { drops } from "./lib/drops.svelte";
   import { heldFor, overListed } from "./lib/core/market";
   import type { Bundle, Live, MissionState } from "./lib/core/types";
@@ -73,7 +73,8 @@
   } from "./lib/backend";
   import { persistSettings } from "./lib/persist.svelte";
   import { catchUp, holdBackground, setShownPage, whenIdle } from "./lib/pane.svelte";
-  import { setStatus, type StatusItem } from "./lib/statusStrip.svelte";
+  import { setStatus, type Status, type StatusItem } from "./lib/statusStrip.svelte";
+  import PaneId from "./lib/ui/PaneId.svelte";
   import { inBackground } from "./lib/progress.svelte";
   import { afterPaint } from "./lib/ui/soon";
   import { backoff, handLoggedSale, keepSeen, thinHistory } from "./lib/core/upkeep";
@@ -1899,7 +1900,9 @@
   $effect(() => {
     const log = settings.game.drops;
     const trades = settings.market.trades;
-    drops.recent = recentDrops(log, trades);
+    // Rebuilt only when it differs: the pages and the bulk sale read it, and most reads change nothing.
+    const next = recentDrops(log, trades);
+    if (!sameDrops(drops.recent, next)) drops.recent = next;
   });
   // A set your loose parts were saved for, complete now (one more whole set than when it was being
   // saved for, and one you can sell): say so. Checked once per inventory read.
@@ -2556,8 +2559,10 @@
     return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : m < 30 * 1440 ? `${Math.round(m / 1440)} d ago` : fmtTime(d);
   };
   /** The status strip under every page head (ui/StatusStrip.svelte), from what's held here: no
-   *  request of its own. Ages with `tick`, like the sidebar's "Synced n min ago". */
-  setStatus(() => {
+   *  request of its own. Ages with `tick`, like the sidebar's "Synced n min ago". Worked out once
+   *  for every strip, and the same object while what it says is the same. */
+  let statusKept: Status | null = null;
+  const statusNow = $derived.by((): Status => {
     const items: StatusItem[] = [];
     const r = ts.report;
     if (!onConsole) {
@@ -2581,8 +2586,11 @@
     const auto = settings.market.auto && mkt.linked;
     const repricing = { label: "Repricing", value: !auto ? "Off" : mkt.pass ? "Running" : "On", title: auto ? "Apply automatically is on: your listings follow the market price" : "Apply automatically is off (Orders)" };
     const times = [model?.observedAt ? +model.observedAt : null, mkt.ordersAt].filter((t): t is number => t != null);
-    return { items, plat, repricing, updated: times.length ? ago(new Date(Math.max(...times)), tick) : null };
+    const next: Status = { items, plat, repricing, updated: times.length ? ago(new Date(Math.max(...times)), tick) : null };
+    if (statusKept && JSON.stringify(statusKept) === JSON.stringify(next)) return statusKept;
+    return (statusKept = next);
   });
+  setStatus(() => statusNow);
   /** One word for the TennoScope button: fine, something to look at, or not running. */
   const tsTone = $derived.by(() => {
     if (!ts.status) return "off";
@@ -2816,7 +2824,7 @@
            {#await} doesn't catch what throws once it has resolved. -->
       {#snippet pageFailed(_e: unknown, reset: () => void)}<div class="page-inner"><p class="pagefail dim" role="alert">This page hit an error · <button class="link" title="Draw the page again (the log has what went wrong)" onclick={reset}>Try again</button></p></div>{/snippet}
       {#snippet pane(id: string, body: import("svelte").Snippet)}
-        {#if visited[id] && available.some((p) => p.id === id)}<div class="pane" class:shown={settings.tab === id} data-section={pageById[id as PageId]?.group || undefined}><svelte:boundary failed={pageFailed} onerror={(e) => pageError(id, e)}>{@render body()}</svelte:boundary></div>{/if}
+        {#if visited[id] && available.some((p) => p.id === id)}<div class="pane" class:shown={settings.tab === id} data-section={pageById[id as PageId]?.group || undefined}><svelte:boundary failed={pageFailed} onerror={(e) => pageError(id, e)}><PaneId {id}>{@render body()}</PaneId></svelte:boundary></div>{/if}
       {/snippet}
       {#snippet pMission()}<InMission model={modelFor("mission")} masteryRank={settings.game.masteryRank} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} {windowMode} tennoscopeRunning={!!ts.status?.running} onsettings={() => (showSettings = true)} />{/snippet}
       {#snippet pSets()}{#await loadSets(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("sets", e)}><Page model={modelFor("sets")} advice={settings.advice} sell={settings.market.sellable} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}

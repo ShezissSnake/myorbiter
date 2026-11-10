@@ -2,8 +2,14 @@
   // Under every page head: the game, the inventory read (or the fissure under way), warframe.market
   // and platinum, with repricing in platinum's place on Trade's pages (by the pane's data-section),
   // and how fresh it all is on the right. Read from lib/statusStrip.svelte.ts.
-  import { status } from "../statusStrip.svelte";
-  const s = $derived(status());
+  import { getContext } from "svelte";
+  import { PANE, status } from "../statusStrip.svelte";
+  import { keepWhile, shownPage } from "../pane.svelte";
+  // Worked out only while the page is on screen, and kept as it was while it's hidden (a hidden
+  // page's strip would wake on every tick for nothing); a page opened again shows the current one.
+  // The strip stays drawn, so a page switch doesn't build it again.
+  const pane = getContext<string | undefined>(PANE);
+  const s = $derived.by(keepWhile(() => pane == null || shownPage(pane), status));
 </script>
 
 {#if s}
