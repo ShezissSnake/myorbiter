@@ -33,6 +33,15 @@
   --collection: #a48be0;
   --trade: #d6ae4a;
   --sec: var(--platinum-dim);
+  /* Relic eras and rarities, for the Guide's legend (src/app.css). */
+  --era-lith: #c0804c;
+  --era-meso: #9aa37a;
+  --era-neo: #c3cad4;
+  --era-axi: #d6ae4a;
+  --era-requiem: #d46a8e;
+  --rarity-common: #b98a62;
+  --rarity-uncommon: #c3cad4;
+  --rarity-rare: var(--gold);
   --cut: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
   /* Light: a plate's top line and its sheen over 64 px; a well's shadow along its top inside; the
      one glow, inside the primary's and the crest's own box. */
@@ -53,14 +62,22 @@
   --gutter: clamp(16px, 4vw, 48px);
 }
 @media (prefers-reduced-motion: reduce) { :root { --snap: 0ms; --quick: 0ms; --settle: 0ms; } }
+/* A section's colour where that section is shown (the tour's tabs and panels): classes rather than
+   style attributes, which the content security policy doesn't allow. */
+.s-fissures { --sec: var(--fissures); }
+.s-progress { --sec: var(--progress); }
+.s-collection { --sec: var(--collection); }
+.s-trade { --sec: var(--trade); }
 
 * { box-sizing: border-box; }
 html { background: var(--slab); scroll-padding-top: 16px; }
-/* The app's criss-cross behind the plates: 45° lines from a 40 px tile, and a 240 px grid. */
+/* The app's criss-cross behind the plates: 45° lines from a 40 px tile (art/hatch.svg, the app's
+   own tile as a file: the content security policy allows pictures only from the site's files),
+   and a 240 px grid. */
 body {
   margin: 0; color: var(--platinum); font-family: var(--face-text); font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased;
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Cpath d='M-1 -1L41 41M41 -1L-1 41' stroke='white' stroke-opacity='.028' stroke-width='1' fill='none'/%3E%3C/svg%3E") 0 0 / 40px 40px,
+    url("art/hatch.svg") 0 0 / 40px 40px,
     linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 240px 240px,
     linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 240px 240px,
     var(--slab);
@@ -154,7 +171,7 @@ figcaption b { font-family: var(--face-mark); font-size: 12px; font-weight: 600;
 .sh::after {
   content: ""; flex: 1 1 0; min-width: 0; height: 11px;
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 11'%3E%3Cpath d='M5.5 1 10 5.5 5.5 10 1 5.5z' fill='none' stroke='%235d6671'/%3E%3C/svg%3E") right center / 11px 11px no-repeat,
+    url("art/diamond.svg") right center / 11px 11px no-repeat,
     linear-gradient(var(--rule), var(--rule)) left center / calc(100% - 17px) 1px no-repeat;
 }
 main > section, main > details { margin: 0 0 64px; }
@@ -236,7 +253,7 @@ main > section, main > details { margin: 0 0 64px; }
 .licence summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 12px; }
 .licence summary::-webkit-details-marker { display: none; }
 .licence summary .sh { flex: 1; margin: 0; }
-.licence summary::after { content: ""; flex: none; width: 14px; height: 14px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 6l6 6-6 6' fill='none' stroke='%2398a1ab' stroke-width='2'/%3E%3C/svg%3E") center / 14px no-repeat; transition: transform var(--quick) var(--out); }
+.licence summary::after { content: ""; flex: none; width: 14px; height: 14px; background: url("art/chevron.svg") center / 14px no-repeat; transition: transform var(--quick) var(--out); }
 .licence[open] summary::after { transform: rotate(90deg); }
 .licence summary:hover .sh { color: var(--platinum); }
 .licence[open] summary { margin-bottom: 16px; }
@@ -249,7 +266,7 @@ main > section, main > details { margin: 0 0 64px; }
 .viewer img { width: auto; max-width: 100%; max-height: calc(96vh - 150px); margin: 0 auto; }
 .viewer figcaption .count { margin-left: auto; }
 .vbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.vbar form { margin: 0 0 0 auto; }
+.vbar .close { margin-left: auto; }
 .flip { transform: scaleX(-1); }
 
 /* ---- Other versions (downloads.html): one plate per build, its files as controls */
@@ -286,6 +303,25 @@ main ul.sub { margin-top: .3rem; }
 .rw { white-space: nowrap; }
 .pi { display: inline-block; margin-right: .2rem; color: var(--platinum-deep); vertical-align: -1px; }
 .pi svg, li svg { display: inline-block; vertical-align: -2px; }
+/* The Guide's legend (Getting around): the mark, then what it means. Its colours and the part
+   ring's size are classes here (scripts/site.mjs turns the app's style attributes into them). */
+ul.legend { list-style: none; padding: 0; }
+ul.legend li { display: grid; grid-template-columns: 8rem minmax(0, 1fr); align-items: center; gap: 12px; }
+ul.legend .k { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; color: var(--platinum); }
+.sw { display: inline-block; width: 10px; height: 10px; background: var(--c); }
+.c-era-lith { --c: var(--era-lith); }
+.c-era-meso { --c: var(--era-meso); }
+.c-era-neo { --c: var(--era-neo); }
+.c-era-axi { --c: var(--era-axi); }
+.c-era-requiem { --c: var(--era-requiem); }
+.c-rarity-common { --c: var(--rarity-common); }
+.c-rarity-uncommon { --c: var(--rarity-uncommon); }
+.c-rarity-rare { --c: var(--rarity-rare); }
+/* The part ring: gold when you hold enough, the count inside. */
+.ring { position: relative; display: inline-grid; place-items: center; width: 26px; height: 26px; border: 2px solid var(--rule-control); border-radius: 50%; }
+.ring.enough { border-color: var(--gold); }
+.ring i { display: none; }
+.ring .n { font-family: var(--face-mark); font-size: 12px; font-weight: 700; }
 kbd, code { font-family: var(--face-code); font-size: .82em; }
 code { overflow-wrap: anywhere; }
 kbd { border: 1px solid var(--rule-bright); background: var(--raised); padding: 0 .3rem; }

@@ -70,6 +70,12 @@ function clean(html) {
     .replace(/<button[\s\S]*?<\/button>/g, "")
     .replace(/\s(?:tabindex|aria-pressed|aria-expanded|data-card)="[^"]*"/g, "")
     .replace(/\sclass="([^"]*)"/g, (_, c) => { const k = c.split(/\s+/).filter((x) => x && !/^svelte-/.test(x)).join(" "); return k ? ` class="${k}"` : ""; })
+    // Inline styles, which the content security policy doesn't allow, as the site's classes: a
+    // legend swatch's colour (class c-<token>), the part ring's size (the site's .ring); the part
+    // ring's class is the app's "chip", which on the site is a control.
+    .replace(/\sclass="([^"]*)"\sstyle="--c:\s*var\(--([\w-]+)\);?"/g, ' class="$1 c-$2"')
+    .replace(/\sstyle="width:\s*\d+px;\s*height:\s*\d+px;?"/g, "")
+    .replace(/class="chip(?=[\s"])/g, 'class="ring')
     .replace(/src="\/game\/([\w.-]+)"/g, (_, f) => (icons.add(f), `src="{{base}}game/${f}"`))
     .replace(/\s{2,}/g, " ");
 }
@@ -162,6 +168,13 @@ const NAV = [
 /** The Guide's own pages, each with its icon. */
 const GUIDE_ICONS = { "guide/index.html": "arrow-right", "guide/pages.html": "cards", "guide/your-game.html": "lock", "guide/getting-around.html": "planner" };
 
+/** The content security policy every page carries, first in its head (GitHub Pages can't send it
+ *  as a header): the site's own files only. No inline script or style anywhere (no 'unsafe-inline'),
+ *  pictures only from the site's files (no data:), no <base>, no form may submit. --check fails on
+ *  any page without exactly this tag first, and on any other http-equiv. */
+const CSP = "default-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'";
+const CSP_TAG = `<meta http-equiv="Content-Security-Policy" content="${CSP}">`;
+
 /** The one script: the landing's tour, the screenshot viewer and the visitor's platform first. In
  *  the head, so the page draws once with the tour folded into tabs rather than unfolding after. */
 const SCRIPT = "site.js";
@@ -179,6 +192,7 @@ function page({ file, title, blurb, body, section, kicker, head, script }) {
   return `<!doctype html>
 <html lang="en">
 <head>
+${CSP_TAG}
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title === "MyOrbiter" ? "MyOrbiter, the Warframe companion" : `${title} · MyOrbiter`)}</title>
@@ -360,7 +374,7 @@ function shotLink(id, cls, { lazy = true } = {}) {
 }
 function tour() {
   // The tabs, hidden until the script makes them tabs; without it, every section reads in turn.
-  const tabs = SECTIONS.map(([name, key], i) => `<button type="button" role="tab" class="tab" id="tab-${key}" aria-controls="sec-${key}" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}" style="--sec: var(--${key})">${icon(`sec-${key}`, { size: 18, stroke: 1.8 })}<span>${name}</span></button>`).join("");
+  const tabs = SECTIONS.map(([name, key], i) => `<button type="button" role="tab" id="tab-${key}" aria-controls="sec-${key}" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}" class="tab s-${key}">${icon(`sec-${key}`, { size: 18, stroke: 1.8 })}<span>${name}</span></button>`).join("");
   const panels = SECTIONS.map(([name, key, line, kinds]) => {
     const pages = PAGES.filter((p) => p.group === name);
     if (!pages.length) throw new Error(`src/lib/pages.ts has no pages in ${name}: has it changed?`);
@@ -373,7 +387,7 @@ function tour() {
     const kindRow = kinds ? `<ul class="kinds" aria-label="Every kind, counted">${KINDS.map(([k, label]) => `<li class="kind">${icon(`kind-${k}`, { size: 16, stroke: 1.4 })}<span>${label}</span></li>`).join("")}</ul>` : "";
     // Every page with a screenshot is in the panel's well's list: the chips swap which one shows.
     const first = shown[0];
-    return `<section class="panel" id="sec-${key}" aria-labelledby="h-${key}" style="--sec: var(--${key})">
+    return `<section class="panel s-${key}" id="sec-${key}" aria-labelledby="h-${key}">
 <div class="ptx"><div class="phead"><span class="crest" aria-hidden="true"><i class="outer"></i><i class="inner"></i>${icon(`sec-${key}`, { size: 30, stroke: 1.5 })}</span><div><p class="register kicker">Section</p><h3 class="mark" id="h-${key}">${name}</h3></div></div>
 <p class="line">${esc(line)}</p>
 <ul class="chips" aria-label="Pages in ${name}">${chips}</ul>${kindRow}</div>
@@ -386,7 +400,7 @@ function tour() {
 const VIEWER = `<dialog class="viewer" id="viewer" aria-labelledby="viewer-name">
 <figure><div class="well big"><img alt="" width="2560" height="1600"></div>
 <figcaption><b id="viewer-name"></b> <span class="cap"></span><span class="count register"></span></figcaption></figure>
-<div class="vbar"><button type="button" class="stamp prev">${icon("chev-right", { size: 16, stroke: 1.8, cls: "ic flip" })}<span>Previous</span></button><button type="button" class="stamp next"><span>Next</span>${icon("chev-right", { size: 16, stroke: 1.8 })}</button><form method="dialog"><button class="stamp close" autofocus>${icon("close", { size: 14 })}<span>Close</span></button></form></div>
+<div class="vbar"><button type="button" class="stamp prev">${icon("chev-right", { size: 16, stroke: 1.8, cls: "ic flip" })}<span>Previous</span></button><button type="button" class="stamp next"><span>Next</span>${icon("chev-right", { size: 16, stroke: 1.8 })}</button><button type="button" class="stamp close" autofocus>${icon("close", { size: 14 })}<span>Close</span></button></div>
 </dialog>`;
 
 /** The landing's head: the name, one sentence, the download (the visitor's platform once site.js
@@ -424,6 +438,8 @@ write("downloads.html", page({ file: "downloads.html", title: "Other versions", 
 
 cpSync(join(SRC, "site.css"), join(OUT, "site.css"));
 cpSync(join(SRC, SCRIPT), join(OUT, SCRIPT));
+// The stylesheet's drawn tiles and marks, as files (the policy allows no data: pictures).
+cpSync(join(SRC, "art"), join(OUT, "art"), { recursive: true });
 cpSync(join(SRC, "shots"), join(OUT, "shots"), { recursive: true, filter: (f) => !f.endsWith(".md") });
 // The app icon's small drawing (npm run icons), as the favicon and the mark in the header.
 cpSync(join(ROOT, "src-tauri/icons/icon-small.svg"), join(OUT, "icon.svg"));
@@ -487,10 +503,19 @@ if (args.includes("--check")) {
     // The only script a page may load is the site's own file (site.js, checked below): no other
     // script, no inline code or handler, no frame, nothing that reads github.com (or anything) on load.
     const own = new RegExp(`<script src="(?:\\.\\./)*${SCRIPT.replace(".", "\\.")}"></script>`, "g");
-    if (f.endsWith(".html") && /<(?:script|iframe|object|embed)\b|<meta[^>]+http-equiv|<[a-z][^>]*\son[a-z]+\s*=/i.test(text.replace(own, ""))) bad.push(`${rel}: carries a script other than ${SCRIPT}`);
+    if (f.endsWith(".html") && /<(?:script|iframe|object|embed)\b|<[a-z][^>]*\son[a-z]+\s*=/i.test(text.replace(own, ""))) bad.push(`${rel}: carries a script other than ${SCRIPT}`);
+    // The content security policy: exactly the build's tag, first in the head, once; no other
+    // http-equiv; nothing it would refuse (an inline style, a style element, a data: picture, a
+    // form, a <base>).
+    if (f.endsWith(".html")) {
+      if (!text.includes(`<head>\n${CSP_TAG}\n`)) bad.push(`${rel}: the content security policy isn't first in its head`);
+      if (/<meta[^>]+http-equiv/i.test(text.replace(CSP_TAG, ""))) bad.push(`${rel}: an http-equiv other than the build's content security policy`);
+      if (/\sstyle\s*=|<style\b|<form\b|<base\b/i.test(text)) bad.push(`${rel}: an inline style, a form or a <base>, which the content security policy refuses`);
+    }
+    // A data: address isn't skipped: it fails as a file that isn't there (the policy refuses it too).
     for (const m of text.matchAll(/(?:href|src|data-small)="([^"]+)"|url\(["']?([^"')]+)/g)) {
       const url = m[1] ?? m[2];
-      if (!url || url.startsWith("data:")) continue;
+      if (!url) continue;
       if (/^https?:/.test(url)) { const h = new URL(url).hostname; if (!ALLOWED.has(h)) bad.push(`${rel}: link to ${h}`); continue; }
       if (url.startsWith("mailto:")) continue;
       if (url.startsWith("#")) { if (url.length > 1 && !text.includes(`id="${url.slice(1)}"`)) bad.push(`${rel}: ${url} has no target`); continue; }

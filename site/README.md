@@ -33,6 +33,19 @@ names no address and uses nothing that requests, stores or builds markup from te
 promotion) builds and checks the site and publishes it on GitHub Pages. The old address on GitLab
 Pages only redirects here.
 
+## The content security policy
+
+Every page starts its head with the same `<meta http-equiv="Content-Security-Policy">` (GitHub
+Pages can't send headers): `default-src 'self'; img-src 'self'; base-uri 'none'; form-action
+'none'`. Scripts, styles, fonts and pictures come only from the site's own files. Nothing inline is
+allowed (no `'unsafe-inline'`), so the pages carry no inline script, style element or style
+attribute: a section's colour is a class (`.s-trade`), the Guide's legend swatches and part ring
+are classes too (`scripts/site.mjs` turns the app's style attributes into them), and the
+stylesheet's tiles and marks are files in `art/` rather than `data:` pictures. The viewer's Close is
+a plain button, not a `<form method="dialog">`. `--check` fails on a page without exactly the
+build's tag first in its head, on any other `http-equiv`, on an inline style, a style element, a
+form or a `<base>`, and on a `data:` address.
+
 ## The landing page's script
 
 `site.js`, loaded by the landing page only, is plain script with no library. It turns the tour of
