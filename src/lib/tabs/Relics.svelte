@@ -29,7 +29,7 @@
   import Mission from "../ui/Mission.svelte";
   import Count from "../ui/Count.svelte";
   import RelicPlate from "../ui/RelicPlate.svelte";
-  import { whileShown } from "../pane.svelte";
+  import { whileShown, whileShownEvery } from "../pane.svelte";
 
   import type { AdviceSettings } from "../backend";
   import { typed } from "../typed.svelte";
@@ -86,10 +86,7 @@
   // Active fissures, grouped by era, from api.warframestat.us. The feed can lag and still list
   // fissures that have closed, so only the ones still open count, against a clock that ticks.
   let now = $state(Date.now());
-  $effect(() => {
-    const t = setInterval(() => (now = Date.now()), 30_000);
-    return () => clearInterval(t);
-  });
+  $effect(() => whileShownEvery("relics", 30_000, () => (now = Date.now()), () => now));
   const feed = $derived(model.live.fissures);
   const fissures = $derived((feed ?? []).filter((f) => new Date(f.expiry).getTime() > now));
   /** Omnia fissures take a Lith, Meso, Neo or Axi relic, so they're listed under each of those. */

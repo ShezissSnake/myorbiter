@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { whileShown } from "../pane.svelte";
+  import { whileShown, whileShownEvery } from "../pane.svelte";
   import { localDayStart, salesByDay } from "../core/salesDays";
   // What you've sold and what it made, and how each sale compares with the market. Sales log
   // themselves from trades in the game log, or when you press Sold on a listing in Orders, or are
@@ -79,10 +79,7 @@
   const DAY = 86_400_000;
   // The page stays open for hours: "today" and the chart move on at midnight without a new sale.
   let now = $state(Date.now());
-  $effect(() => {
-    const t = setInterval(() => (now = Date.now()), 60_000);
-    return () => clearInterval(t);
-  });
+  $effect(() => whileShownEvery("sales", 60_000, () => (now = Date.now()), () => now));
   /** Local midnight: changes once a day, so what depends on it isn't redone every minute. */
   const dayStart = $derived(localDayStart(now));
   const since = (t: number) => sales.filter((s) => s.at >= t);

@@ -18,6 +18,21 @@ export function setShownPage(read: () => string) {
 /** The page `id` is the one on screen (reactive). */
 export const shownPage = (id: string) => current() === id;
 
+/**
+ * A page's clock: calls `tick` every `every` ms while page `id` is on screen, and not at all while
+ * it's hidden (a hidden page is kept mounted, and its clocks would wake it for nobody). Coming back
+ * to it, `tick` runs at once if a period or more passed since `last()` (when it last ticked).
+ *   $effect(() => whileShownEvery("home", 30_000, () => (now = Date.now()), () => now));
+ */
+export function whileShownEvery(id: string, every: number, tick: () => void, last: () => number): (() => void) | undefined {
+  if (!shownPage(id)) return;
+  untrack(() => {
+    if (Date.now() - last() >= every) tick();
+  });
+  const t = setInterval(tick, every);
+  return () => clearInterval(t);
+}
+
 /** Per page, a count bumped when a hidden page should catch up (`catchUp`). */
 const ticks = $state<Record<string, number>>({});
 /** Lets the hidden page `id` work out what changed since it was last drawn. */

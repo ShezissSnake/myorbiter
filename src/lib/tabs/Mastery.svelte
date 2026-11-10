@@ -34,17 +34,14 @@
   import CodexRings from "../ui/CodexRings.svelte";
   import { codexRings, rowGroups, someNames } from "../core/codex";
   import type { Group } from "../core/collection";
-  import { keepWhile, shownPage, whenIdle, whileShown } from "../pane.svelte";
+  import { keepWhile, shownPage, whenIdle, whileShown, whileShownEvery } from "../pane.svelte";
   import { arrive, fresh } from "../motion";
   import { inBackground } from "../progress.svelte";
 
   let { model, masteryRank = null, wishlist = $bindable([]), foundryReady = [] }: { model: Model; masteryRank?: number | null; wishlist?: string[]; foundryReady?: [string, number][] } = $props();
   // Things you only have to level: in your arsenal, built and waiting in the Foundry, or building.
   let now = $state(Date.now());
-  $effect(() => {
-    const t = setInterval(() => (now = Date.now()), 60_000);
-    return () => clearInterval(t);
-  });
+  $effect(() => whileShownEvery("mastery", 60_000, () => (now = Date.now()), () => now));
   const readyAt = $derived.by(whileShown("mastery", () => itemReadyTimes(model, foundryReady)));
   const stageOf = (r: MasteryRow) => levelStage(model, r.unique, readyAt, now);
   const stageTag = (r: MasteryRow) => {

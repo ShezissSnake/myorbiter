@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { whileShown } from "../pane.svelte";
+  import { whileShown, whileShownEvery } from "../pane.svelte";
   import { eraTint } from "../ui/table";
   import type { Model } from "../core/model";
   import type { MissionState } from "../core/types";
@@ -38,10 +38,7 @@
 
   // Relics loaded, and the log heard from lately: a squad from hours ago is the last fissure, not this one.
   let liveNow = $state(Date.now());
-  $effect(() => {
-    const t = setInterval(() => (liveNow = Date.now()), 60_000);
-    return () => clearInterval(t);
-  });
+  $effect(() => whileShownEvery("mission", 60_000, () => (liveNow = Date.now()), () => liveNow));
   const live = $derived(inFissure(ms, liveNow));
   const paths = $derived(ms ? (ms.relics.length ? ms.relics : ms.last_relics) : []);
   const relics = $derived.by(whileShown("mission", () => squadRelics(model, paths)));

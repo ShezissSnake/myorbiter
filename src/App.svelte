@@ -2960,6 +2960,12 @@
   @supports (content-visibility: hidden) {
     .pane:not(.shown) { display: flex; content-visibility: hidden; position: absolute; inset: 0; visibility: hidden; pointer-events: none; }
   }
+  /* Nothing moves in a page nobody sees: an endless animation (InMission's breathing ring, a
+     sweep or spinner left on a page) would keep the compositor drawing a frame for it. Paused, not
+     removed, so the page is where it was when it's shown again. Named, not `*`: a universal rule
+     under `.pane:not(.shown)` restyles every element of a page whenever it's shown or hidden. */
+  .pane:not(.shown) :global(.rc.best::after), .pane:not(.shown) :global(.sweep::before), .pane:not(.shown) :global(.turn), .pane:not(.shown) :global(.run::before),
+  .pane:not(.shown) :global(.busyword i::before), .pane:not(.shown) :global(.pending::after), .pane:not(.shown) :global(.reading::after) { animation-play-state: paused; }
   /* The tour's bar on the page's bottom edge: room under the page to scroll past it. */
   main.touring :global(.page-inner) { padding-bottom: 7rem; }
   main { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; outline: none; }
