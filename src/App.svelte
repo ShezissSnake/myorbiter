@@ -2797,7 +2797,10 @@
     </div>
   </aside>
 
-  <main id="main" tabindex="-1" aria-busy={loading && !bundle} use:room class:touring={!!tourStop()} data-section={model ? pageById[settings.tab as PageId]?.group || undefined : undefined}>
+  <!-- No section on main itself: the section's colours are inherited properties, so changing them
+       here restyled every page, shown or hidden, on each switch between sections. The strip down
+       the content's left edge is drawn by the page on screen, which carries its own (app.css). -->
+  <main id="main" tabindex="-1" aria-busy={loading && !bundle} use:room class:touring={!!tourStop()}>
     <!-- The first read of TennoScope's data, before there's anything to show. Everything after
          that (a sync, a warframe.market change, the background re-read when TennoScope writes)
          shows its progress in the button that started it, not up here. -->

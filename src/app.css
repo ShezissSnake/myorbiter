@@ -89,8 +89,8 @@
   --era-omnia: #a2a8f0;
 
   /* Each section's own colour (the [data-section] rules at the end of this file): a hint, in
-     three places: the strip down the content's left edge (App's main), the title's sigil and the start of
-     its rule, and the sidebar's sigils and open page. A section's own signature (the reward to
+     three places: the strip down the content's left edge (drawn by the page on screen), the
+     title's sigil and the start of its rule, and the sidebar's sigils and open page. A section's own signature (the reward to
      take, the Codex rings, the showcase, the ticker) uses it too. Pages outside a section (Home,
      the Guide) are neutral. --sec-dim is the same hue about half way to the slab, solid, for
      hairlines. */
@@ -518,13 +518,15 @@ tr.era-wash > td:first-child { box-shadow: inset 2px 0 0 color-mix(in srgb, var(
     linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 240px 240px,
     linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 240px 240px;
 }
-#main[data-section] { box-shadow: inset 3px 0 0 var(--sec); }
+/* The section's strip down the content's left edge, drawn by the page on screen (App's panes carry
+   their section; main doesn't, see App.svelte). */
+.pane.shown[data-section] { box-shadow: inset 3px 0 0 var(--sec); }
 .pane table { background: var(--plate); }
 /* A table inside a table's open row takes that row's colour. */
 .pane td table { background: none; }
 
-/* The sections (pages.ts groups; App puts data-section on each page and sidebar entry, and on
-   main for the open page). */
+/* The sections (pages.ts groups; App puts data-section on each page and sidebar entry; not on
+   main, see App.svelte). */
 /* Four hues far apart, each at least 6:1 on the slab: Fissures ice blue, Progress green, Collection
    violet, Trade platinum gold. */
 [data-section="Fissures"] { --sec: #7fd1e0; --sec-dim: #4b7a83; --sec-sigil: url("/game/void-tear.png"); --sec-name: "Fissures"; }

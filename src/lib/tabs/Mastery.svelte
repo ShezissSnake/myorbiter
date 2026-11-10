@@ -279,12 +279,12 @@
 </div></div>
 
 <style>
-  /* The view not chosen: kept laid out but not drawn, so showing it again is quick (where
-     content-visibility isn't known, simply not there). */
+  /* The view not chosen: drawn (its rows kept) but not displayed. Not `content-visibility: hidden`:
+     WebKitGTK drops the layout of such a subtree anyway, and still restyles every element in it
+     whenever the page is shown or hidden (the pane's visibility is inherited), about 20 ms for the
+     platinum view's 60 rows on each switch to or from Mastery. Showing it again costs the same
+     either way. */
   .view.off { display: none; }
-  @supports (content-visibility: hidden) {
-    .view.off { display: block; content-visibility: hidden; }
-  }
   .views { margin-bottom: .8rem; }
   .missing { display: grid; gap: .9rem; }
   .mp-head { display: flex; gap: .6rem; align-items: center; margin-bottom: .4rem; }
