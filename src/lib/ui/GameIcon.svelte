@@ -94,7 +94,7 @@
   let { name, size = 16, title }: { name: GameIconName; size?: number; title?: string } = $props();
 </script>
 
-<img class="gi {name}" class:sigil={name.startsWith("faction-")} src="/game/{name}.png" width={size} height={size} alt={title ?? ""} {title} draggable="false" />
+<img class="gi {name}" class:sigil={name.startsWith("faction-")} src="/game/{name}.png" width={size} height={size} alt={title ?? ""} {title} decoding="async" draggable="false" />
 
 <style>
   .gi { display: inline-block; flex: none; object-fit: contain; vertical-align: middle; }
