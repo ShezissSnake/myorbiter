@@ -1,7 +1,9 @@
-// The screenshots in docs/screenshots/ (1440×900) and site/shots/ (1280×800), both at twice those
-// pixels, taken from the invented account (`npm run dev:demo`, demo/), never from public/dev-*.json.
+// The screenshots in docs/screenshots/ (1440×900, at twice those pixels) and site/shots/ (1280×800:
+// the picture on the page at those pixels, and the large one the site opens on a click at twice
+// them, in site/shots/large/), taken from the invented account (`npm run dev:demo`, demo/), never
+// from public/dev-*.json.
 //
-//   npm run screenshots [-- --port 1431]
+//   npm run screenshots [-- --port 1431] [-- --only site|docs]
 //
 // It installs Playwright's Chromium if it isn't there yet (`playwright install chromium`, into
 // Playwright's own cache folder: `npm install` never downloads a browser), starts the demo dev
@@ -13,7 +15,7 @@
 
 import { spawn, execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
-import { mkdtempSync, rmSync, statSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,11 +28,16 @@ const playwright = dirname(createRequire(import.meta.url).resolve("playwright"))
 const { chromium } = await import("playwright");
 const url = `http://localhost:${port}/`;
 
+const onlyArg = process.argv.indexOf("--only");
+const only = onlyArg > 0 ? process.argv[onlyArg + 1] : null;
+if (only !== null && only !== "site" && only !== "docs") throw new Error(`--only takes site or docs, not ${only}`);
+
 // Pages, in the order the app's sidebar has them, and what each needs before its picture.
-const SIZES = { docs: { w: 1440, h: 900, out: "docs/screenshots" }, site: { w: 1280, h: 800, out: "site/shots" } };
 const SHOTS = [
   { name: "home", nav: "Home" },
   { name: "current-fissure", nav: "Current fissure" },
+  { name: "relics", nav: "Relics" },
+  { name: "mastery", nav: "Mastery" },
   { name: "foundry", nav: "Foundry" },
   {
     name: "builds",
@@ -44,6 +51,7 @@ const SHOTS = [
       await p.waitForTimeout(3000);
     },
   },
+  { name: "inventory", nav: "Inventory" },
   {
     name: "orders",
     nav: "Orders",
@@ -61,6 +69,12 @@ const SHOTS = [
     },
   },
 ];
+// Which pages each set takes: the README's six, and the site's tour (src/lib/pages.ts' sections)
+// with Home. `large`: a second file at twice the pixels, under large/.
+const SIZES = {
+  docs: { w: 1440, h: 900, out: "docs/screenshots", pages: ["home", "current-fissure", "foundry", "builds", "orders", "sell-spares"] },
+  site: { w: 1280, h: 800, out: "site/shots", large: true, pages: ["home", "current-fissure", "relics", "mastery", "builds", "inventory", "orders", "sell-spares"] },
+};
 
 const answers = async () => {
   try {
@@ -116,7 +130,9 @@ try {
 
   work = mkdtempSync(join(tmpdir(), "myorbiter-shots-"));
   browser = await chromium.launch();
-  for (const [kind, { w, h, out }] of Object.entries(SIZES)) {
+  for (const [kind, { w, h, out, pages, large }] of Object.entries(SIZES)) {
+    if (only && kind !== only) continue;
+    if (large) mkdirSync(join(root, out, "large"), { recursive: true });
     const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 2 });
     await p.route(/warframe\.market/, (r) => (r.request().method() === "GET" ? r.continue() : r.abort()));
     p.on("pageerror", (e) => console.error(`${kind}: ${e.message}`));
@@ -143,7 +159,7 @@ try {
       await notNow.click();
       await p.waitForTimeout(800);
     }
-    for (const shot of SHOTS) {
+    for (const shot of SHOTS.filter((s) => pages.includes(s.name))) {
       await nav(shot.nav);
       if (shot.prepare) await shot.prepare(p);
       // The pointer in a corner, so no hover card shows.
@@ -151,8 +167,17 @@ try {
       await p.waitForTimeout(400);
       const png = join(work, `${kind}-${shot.name}.png`);
       await p.screenshot({ path: png });
-      execFileSync("magick", [png, "-strip", "-quality", "80", "-define", "webp:method=6", join(root, out, `${shot.name}.webp`)]);
-      console.log(`${out}/${shot.name}.webp`);
+      const webp = (file, ...resize) => {
+        execFileSync("magick", [png, ...resize, "-strip", "-quality", "80", "-define", "webp:method=6", join(root, out, file)]);
+        console.log(`${out}/${file}`);
+      };
+      if (large) {
+        // The page's picture at the window's own pixels, the large one at twice them.
+        webp(`${shot.name}.webp`, "-resize", `${w}x${h}`);
+        webp(`large/${shot.name}.webp`);
+      } else {
+        webp(`${shot.name}.webp`);
+      }
     }
     await p.close();
   }

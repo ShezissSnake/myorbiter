@@ -1,9 +1,13 @@
 // Builds MyOrbiter's website (site/ → site/_site/): the landing page, the in-app Guide as pages,
-// What's New and the list of downloads, as plain HTML and CSS for GitHub Pages. The Guide and
-// What's New come from the app's own source (src/lib/tabs/Guide.svelte, src/lib/whatsNew.ts), drawn
-// once with Svelte's server renderer through Vite, so the site says what the app says. Nothing here
-// runs in the browser: the download links are read from the repository's releases on GitHub once,
-// at build time (scripts/site-downloads.mjs), and written into the pages.
+// What's New and the list of downloads, as plain HTML and CSS for GitHub Pages, with one small
+// script of the site's own (site/site.js: the landing's tour, the screenshot viewer, the visitor's
+// platform first). The Guide and What's New come from the app's own source
+// (src/lib/tabs/Guide.svelte, src/lib/whatsNew.ts), drawn once with Svelte's server renderer through
+// Vite, so the site says what the app says; its icons are the app's own (src/lib/ui/Icon.svelte,
+// and public/game where the app's sidebar shows the game's picture for a page).
+// The download links are read from the repository's releases on GitHub once, at build time
+// (scripts/site-downloads.mjs), and written into the pages: the script reads nothing and sends
+// nothing.
 //
 //   node scripts/site.mjs             site/_site/, the buttons offering the best channel's build:
 //                                     Stable, else Beta, else Experimental (latest.json on the
@@ -11,9 +15,11 @@
 //                                     last builds (the releases)
 //   node scripts/site.mjs --offline   the same without reading GitHub: the buttons point at
 //                                     Releases (a local build)
-//   node scripts/site.mjs --check     build, then check every link, that no page carries a script,
-//                                     that no dev-*.json (real account data) is in it, and that
-//                                     the landing and Guide pages' grids fit 320, 360 and 390 px wide
+//   node scripts/site.mjs --check     build, then check every link, that the only script a page
+//                                     loads is site.js and that it reaches for nothing outside the
+//                                     page, that no dev-*.json (real account data) is in it, and
+//                                     that the landing and Guide pages' grids fit 320, 360 and
+//                                     390 px wide
 //
 // Reading GitHub fails the build on anything but a file that's there or a 404 (no build on that
 // channel yet), and on a manifest that doesn't check out: the site never links a wrong file. With
@@ -35,13 +41,13 @@ const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 
 // ---- The app's own words, drawn on the server.
 const vite = await createServer({ root: ROOT, server: { middlewareMode: true, hmr: false }, appType: "custom", logLevel: "error" });
-let guideHtml, news, warning, PAGES, PRIVACY_PAGE;
+let guideHtml, news, warning, PAGES, pageById, PRIVACY_PAGE;
 try {
   const { render } = await vite.ssrLoadModule("svelte/server");
   const Guide = (await vite.ssrLoadModule("/src/lib/tabs/Guide.svelte")).default;
   ({ NEWS: news } = await vite.ssrLoadModule("/src/lib/whatsNew.ts"));
   ({ FULL_MODE_WARNING: warning } = await vite.ssrLoadModule("/src/lib/FullMode.svelte"));
-  ({ PAGES } = await vite.ssrLoadModule("/src/lib/pages.ts"));
+  ({ PAGES, pageById } = await vite.ssrLoadModule("/src/lib/pages.ts"));
   ({ PRIVACY_PAGE } = await vite.ssrLoadModule("/src/lib/core/links.ts"));
   // go: null draws page names in the text as plain words (no links into an app that isn't there).
   guideHtml = render(Guide, { props: { go: null, plannerMode: "sets", console: false, platform: "PC", hidden: [], expanded: true } }).body;
@@ -108,37 +114,68 @@ const GUIDE = [
   { file: "guide/getting-around.html", title: "Getting around", blurb: "The sidebar, the marks on cards and rows, and where every number comes from.", body: () => `<section class="cols">${take("cols")}</section>` },
 ];
 
-const NAV = [["index.html", "MyOrbiter"], ["guide/index.html", "Guide"], ["whats-new.html", "What's new"], ["index.html#download", "Download", "dl-link"], [REPO, "Source on GitHub", "out"]];
-
 // ---- Drawings, inline so they take the text's colour.
-/** The app icon's craft (the wordmark's O), from the wordmark the app ships. */
-const wordmarkSvg = readFileSync(join(ROOT, "src-tauri/icons/wordmark.svg"), "utf8");
-const craft = [...wordmarkSvg.matchAll(/<path d="([^"]+)" fill="(#[0-9a-f]{6})"/g)];
-if (craft.length !== 2) throw new Error("src-tauri/icons/wordmark.svg: the craft's two paths weren't found");
-const LOGO = `<svg viewBox="15.6 8.5 68.8 81.5" width="101" height="120" role="img" aria-label="MyOrbiter's icon, the craft"><path d="${craft[0][1]}" fill="#f1f3f6"/><path d="${craft[1][1]}" fill="#d6ae4a"/></svg>`;
-/** The platform and section glyphs: drawn for MyOrbiter in the wordmark's line style, no
- *  third-party logos. A miter limit of 2 cuts a sharp tip (the star's) instead of drawing a spike. */
-const glyph = (body, join = "miter", cap = "square", miter = "") => `<svg class="glyph" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="${join}"${miter ? ` stroke-miterlimit="${miter}"` : ""} stroke-linecap="${cap}">${body}</svg>`;
+/** The app's own drawn icons (src/lib/ui/Icon.svelte), read from its source so the site draws the
+ *  same family: PATHS on a 16 px grid, PATHS24 (the sections' glyphs, the kinds, the chevrons) on 24. */
+const iconSource = readFileSync(join(ROOT, "src/lib/ui/Icon.svelte"), "utf8");
+function iconTable(name) {
+  const m = iconSource.match(new RegExp(`const ${name}: Record<string, string> = \\{([\\s\\S]*?)\\n\\s*\\};`));
+  if (!m) throw new Error(`src/lib/ui/Icon.svelte: ${name} wasn't found`);
+  return Object.fromEntries([...m[1].matchAll(/^\s*"?([\w-]+)"?:\s*"([^"]+)",?\s*$/gm)].map((x) => [x[1], x[2]]));
+}
+const P16 = iconTable("PATHS");
+const P24 = iconTable("PATHS24");
+/** One icon: the app's pen (miter joins, square ends, nothing filled), in the text's colour. */
+function icon(name, { size = 16, stroke = 1.3, cls = "ic" } = {}) {
+  const d = Object.hasOwn(P24, name) ? P24[name] : Object.hasOwn(P16, name) ? P16[name] : null;
+  if (!d) throw new Error(`no drawn icon "${name}" in src/lib/ui/Icon.svelte`);
+  const box = Object.hasOwn(P24, name) ? 24 : 16;
+  return `<svg class="${cls}" viewBox="0 0 ${box} ${box}" width="${size}" height="${size}" aria-hidden="true"><path d="${d}" fill="none" stroke="currentColor" stroke-width="${stroke}" stroke-linejoin="miter" stroke-linecap="square"/></svg>`;
+}
+/** A page's icon, the one the app's sidebar shows for it (src/lib/pages.ts, App.svelte): the game's
+ *  own picture where the app uses one (public/game, copied beside the Guide's), else the app's drawn
+ *  icon, each at the sidebar's size. */
+const pageIcon = (p) => {
+  if ("line" in p.icon) return icon(p.icon.line, { size: 16, stroke: 1.5 });
+  const f = `${p.icon.game}.png`;
+  if (!existsSync(join(ROOT, "public/game", f))) throw new Error(`public/game/${f} (${p.label}'s icon) isn't there`);
+  icons.add(f);
+  return `<img class="gi" src="{{base}}game/${f}" width="18" height="18" alt="">`;
+};
+
+/** The platform glyphs: drawn for MyOrbiter in the wordmark's line style (design/icon/platform),
+ *  no third-party logos. */
+const glyph = (body, join = "miter", cap = "square") => `<svg class="glyph" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="${join}" stroke-linecap="${cap}">${body}</svg>`;
 const GLYPHS = {
   window: glyph('<path d="M6 3.5h14.5v14.5l-2.5 2.5H3.5V6z"/><path d="M3.5 12h17M12 3.5v17"/>'),
   penguin: glyph('<path d="M12 2.8c-2.9 0-4.4 2.3-4.4 5v2.4L5.4 15c-.7 1.6-.4 3.5 1 4.6h11.2c1.4-1.1 1.7-3 1-4.6l-2.2-4.8V7.8c0-2.7-1.5-5-4.4-5z"/><path d="M9.6 12.2c-.8 1.6-1 3.6-.4 5.2M14.4 12.2c.8 1.6 1 3.6.4 5.2"/><path d="M10.6 8.6l1.4 1.2 1.4-1.2"/><path d="M7.2 19.6l-1.4 1.6h4.4M16.8 19.6l1.4 1.6h-4.4"/>', "round", "round"),
   handheld: glyph('<path d="M3.5 6.5h17l2 2v7l-2 2h-17l-2-2v-7z"/><path d="M8 9.5h8v5H8z"/><path d="M4.3 12h1.4M5 11.3v1.4M18.6 11v.1M18.6 13v.1"/>'),
-  // The four sections, by their names on the landing page: a crack, a mastery star, a box with a
-  // slot, a platinum coin.
-  fissures: glyph('<path d="M12.5 2.5l-2 4.5 3.5 3-4 4.5 2.5 3-2.5 4"/><path d="M14 10l4-1.5M10 14.5l-3.5 1"/>'),
-  progress: glyph('<path d="M12 3.5l2.3 6.2 6.6.3-5.2 4.1 1.8 6.4-5.5-3.7-5.5 3.7 1.8-6.4-5.2-4.1 6.6-.3z"/>', "miter", "square", "2"),
-  collection: glyph('<path d="M6 5h14.5v11.5L18 19H3.5V7.5z"/><path d="M8.5 10h7"/>'),
-  trade: glyph('<path d="M12 2.4l8.3 4.8v9.6L12 21.6l-8.3-4.8V7.2z"/><path d="M10 16.5v-9h3.6l1.9 1.9v1.9l-1.9 1.9H10"/>'),
 };
 
-function page({ file, title, blurb, body, section, kicker, acts, logo }) {
+/** The header's links, each with its icon; the wordmark first. */
+const NAV = [
+  ["guide/index.html", "Guide", "guide"],
+  ["whats-new.html", "What's new", "event"],
+  ["index.html#download", "Download", "import"],
+  [REPO, "Source on GitHub", "external"],
+];
+/** The Guide's own pages, each with its icon. */
+const GUIDE_ICONS = { "guide/index.html": "arrow-right", "guide/pages.html": "cards", "guide/your-game.html": "lock", "guide/getting-around.html": "planner" };
+
+/** The one script: the landing's tour, the screenshot viewer and the visitor's platform first. In
+ *  the head, so the page draws once with the tour folded into tabs rather than unfolding after. */
+const SCRIPT = "site.js";
+
+function page({ file, title, blurb, body, section, kicker, head, script }) {
   const base = "../".repeat(file.split("/").length - 1);
-  const nav = NAV.map(([href, label, cls], i) => {
+  const nav = NAV.map(([href, label, ic]) => {
     const out = href.startsWith("https:");
     const current = !out && (href === file || (section && href.startsWith(section)));
-    return `<a href="${out ? href : base + href}"${cls ? ` class="${cls}"` : ""}${current ? ' aria-current="page"' : ""}>${i === 0 ? `<img class="wordmark" src="${base}wordmark-gold.svg" width="145" height="34" alt="${esc(label)}">` : esc(label)}</a>`;
+    return `<a href="${out ? href : base + href}"${out ? ' class="out"' : ""}${current ? ' aria-current="page"' : ""}>${icon(ic, { size: 14 })}<span>${esc(label)}</span></a>`;
   }).join("");
-  const sub = section === "guide/" ? `<nav class="guide-nav" aria-label="Guide">${GUIDE.map((g) => `<a href="${base}${g.file}"${g.file === file ? ' aria-current="page"' : ""}>${esc(g.title)}</a>`).join("")}</nav>` : "";
+  const sub = section === "guide/" ? `<nav class="guide-nav" aria-label="Guide">${GUIDE.map((g) => `<a class="chip" href="${base}${g.file}"${g.file === file ? ' aria-current="page"' : ""}>${icon(GUIDE_ICONS[g.file])}<span>${esc(g.title)}</span></a>`).join("")}</nav>` : "";
+  // Every page but the landing: the app's page head, kicker, title and one line, then the engraved rule.
+  const top = head ? head(base) : `<div class="head"><div class="tx">${kicker ? `<p class="register kicker">${esc(kicker)}</p>` : ""}<h1 class="mark">${esc(title)}</h1><p class="lede">${esc(blurb)}</p></div></div><div class="engr" aria-hidden="true"></div>`;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -149,17 +186,18 @@ function page({ file, title, blurb, body, section, kicker, acts, logo }) {
 <link rel="icon" href="${base}icon.svg" type="image/svg+xml">
 <link rel="icon" href="${base}icon.png" sizes="32x32">
 <link rel="stylesheet" href="${base}site.css">
-</head>
+${script ? `<script src="${base}${SCRIPT}"></script>\n` : ""}</head>
 <body>
-<header class="top"><nav class="main" aria-label="Site">${nav}</nav></header>
-<div class="pane"><div class="head"><div class="text">${kicker ? `<p class="register kicker">${esc(kicker)}</p>` : ""}<h1 class="mark">${esc(title)}</h1><p class="blurb">${esc(blurb)}</p>${acts ? `<div class="acts">${acts(base)}</div>` : ""}</div>${logo ? `<div class="logo">${LOGO}</div>` : ""}</div></div>
-<main>
+<a class="skip" href="#content">Skip to the page</a>
+<header class="top"><nav class="main" aria-label="Site"><a class="home" href="${base}index.html"${file === "index.html" ? ' aria-current="page"' : ""}><img class="wordmark" src="${base}wordmark-gold.svg" width="145" height="34" alt="MyOrbiter"></a>${nav}</nav></header>
+<main id="content">
+${top}
 ${sub}
 ${body().replaceAll("{{base}}", () => base)}
 </main>
 <footer class="foot">
 <p>MyOrbiter is a fan-made tool, not affiliated with or endorsed by Digital Extremes. Warframe and its artwork are © and ™ Digital Extremes Ltd.; the game's icons shown here are theirs, used to identify what they depict, and are not covered by MyOrbiter's licence.</p>
-<p>MyOrbiter is free software under the <a href="${REPO}/blob/main/LICENSE">GNU General Public License, version 3 only</a>, with no warranty. <a href="${REPO}">Source on GitHub</a> · <a href="${REPO}/blob/main/NOTICE.md">Notices</a> · <a href="${href(PRIVACY_PAGE.url)}">What it reads and sends</a></p>
+<p>MyOrbiter is free software under the <a href="${REPO}/blob/main/LICENSE">GNU General Public License, version 3 only</a>, with no warranty. <a href="${base}index.html#licence">Licence and sources</a> · <a href="${REPO}">Source on GitHub</a> · <a href="${REPO}/blob/main/NOTICE.md">Notices</a> · <a href="${href(PRIVACY_PAGE.url)}">What it reads and sends</a></p>
 </footer>
 </body>
 </html>
@@ -237,24 +275,25 @@ function href(url) {
 const fileName = (url) => decodeURIComponent(new URL(url).pathname.split("/").pop());
 
 // The front page: one button per platform, the best channel's files. Windows the setup .exe, Linux
-// and the Steam Deck the AppImage; the .deb is on downloads.html.
+// and the Steam Deck the AppImage; the .deb is on downloads.html. site.js puts the visitor's
+// platform first (from the browser's user agent, read on the page, sent nowhere).
 const PLATFORMS = [
-  { key: "windows", label: "Windows 10 and 11", glyph: "window", note: "Installs for your user; SmartScreen asks the first time: More info, Run anyway." },
-  { key: "linux", label: "Linux", glyph: "penguin", note: "AppImage: make it executable and open it." },
-  { key: "deck", label: "Steam Deck", glyph: "handheld", note: "Desktop mode." },
+  { key: "windows", label: "Windows 10 and 11", short: "Windows", glyph: "window", note: "Installs for your user; SmartScreen asks the first time: More info, Run anyway." },
+  { key: "linux", label: "Linux", short: "Linux", glyph: "penguin", note: "AppImage: make it executable and open it." },
+  { key: "deck", label: "Steam Deck", short: "the Steam Deck", glyph: "handheld", note: "Desktop mode." },
 ];
 function downloads(base) {
   const f = DL?.front;
   const rows = PLATFORMS.map((p) => {
     const url = f ? href(f.buttons[p.key]) : `${REPO}/releases`;
     const what = f ? `<span class="file register figures">${esc(fileName(f.buttons[p.key]))}</span>` : `<span class="file register">on Releases</span>`;
-    return `<li class="dl"><a class="plate" href="${url}">${GLYPHS[p.glyph]}<span class="name">${esc(p.label)}</span>${what}<span class="note">${esc(p.note)}</span></a></li>`;
+    return `<li class="dl" data-platform="${p.key}" data-name="${esc(p.short)}"><a class="plate" href="${url}">${GLYPHS[p.glyph]}<span class="name">${esc(p.label)}</span>${what}<span class="note">${esc(p.note)}</span></a></li>`;
   }).join("");
   const head = f
     ? `<p class="register channel">${esc(f.label)}</p>${CHANNEL_NOTE[f.channel] ? `<p class="small dim">${esc(CHANNEL_NOTE[f.channel])}</p>` : ""}`
     : `<p class="register channel">The latest builds are on Releases</p>`;
   const check = f ? `Check a download against <span class="register">SHA256SUMS</span> on <a href="${href(`${REPO}/releases/tag/${f.tag}`)}">its release</a>` : `Check a download against <span class="register">SHA256SUMS</span> on its release`;
-  return `${head}<ul class="dls">${rows}</ul><p class="small">${check} (<a href="${base}downloads.html#check">how</a>). <a href="${base}downloads.html">Other versions</a>: the last builds, the .deb for Debian and Ubuntu, and each build's release notes.</p>`;
+  return `${head}<ul class="dls">${rows}</ul><p class="small">${check} (<a href="${base}downloads.html#check">how</a>). <a href="${base}downloads.html">Other versions</a>: older builds, the .deb, release notes.</p>`;
 }
 
 /** The README's own words for a section (### heading), as HTML: paragraphs and flat "- " lists,
@@ -277,7 +316,7 @@ const FILE_GLYPH = { appimage: "penguin", deb: "penguin", exe: "window" };
 function builds() {
   const rows = DL ? DL.rows.map((r) => {
     const files = FILES.filter((f) => r.files[f.key]).map((f) => `<a class="stamp" href="${href(r.files[f.key].url)}" title="${esc(r.files[f.key].name)}">${GLYPHS[FILE_GLYPH[f.key]]}${esc(f.label)}</a>`).join("");
-    const channel = r.channel ? `<span class="tag${r.channel === "Stable" ? " gold" : ""}">${esc(r.channel)}</span>` : "";
+    const channel = r.channel ? `<span class="tag${r.channel === "Stable" ? " on" : ""}">${esc(r.channel)}</span>` : "";
     const sums = r.sums ? ` · <a href="${href(r.sums)}">SHA256SUMS</a>` : "";
     return `<li class="build plate"><div class="what"><span class="ver figures">${esc(r.version)}</span>${channel}<time class="register" datetime="${esc(r.date)}">${esc(longDay(r.date))}</time></div><div class="files">${files || `<span class="small dim">No downloads in this build</span>`}</div><p class="small"><a href="${href(r.notes)}">Release notes</a>${sums}</p></li>`;
   }).join("") : "";
@@ -289,26 +328,85 @@ function builds() {
 <section class="more"><p class="small">Every build, with its source (<span class="register">myorbiter-source.tar.gz</span>) and checksums: <a href="${REPO}/releases">Releases on GitHub</a>. The code: <a href="${REPO}">the repository</a>. The builds made before 0.2.120 are on GitLab's releases.</p></section>`;
 }
 
-/** The app's four sections, each in its colour, sigil and glyph: the question it answers and its
- *  pages, from the app's own page list (src/lib/pages.ts). */
+/** The app's four sections, each in its colour, crest and glyph: the question it answers, its pages
+ *  from the app's own page list (src/lib/pages.ts) with their icons, and a screenshot. `kinds`: the
+ *  section names the Arsenal's slots, each with its icon. */
 const SECTIONS = [
   ["Fissures", "fissures", "What to crack, and which reward to take."],
-  ["Progress", "progress", "What's left to master and build, and how to get it."],
+  ["Progress", "progress", "What's left to master and build, and how to get it.", true],
   ["Collection", "collection", "What you hold, what to keep and what to sell."],
-  ["Trade", "trade", "Your warframe.market listings, the spares plan, prices and sales."],
+  ["Trade", "trade", "Your warframe.market listings at the market price, never under your floors, and your sales."],
 ];
-function features() {
-  return SECTIONS.map(([name, key, line]) => {
-    const pages = PAGES.filter((p) => p.group === name).map((p) => esc(p.label));
+/** The Arsenal's slots (src/lib/core/kinds.ts), with the app's icon for each. */
+const KINDS = [["warframe", "Warframe"], ["primary", "Primary"], ["secondary", "Secondary"], ["melee", "Melee"], ["companion", "Companion"], ["archwing", "Archwing"], ["necramech", "Necramech"], ["amp", "Amp"]];
+/** The screenshots (site/shots/, large/ at twice the pixels; npm run screenshots -- --only site), by
+ *  the page they show: a short caption, and what's in the picture for someone who can't see it. */
+const SHOTS = {
+  home: { file: "home", caption: "today at a glance", alt: "Home: the world's clocks, your orders and status, what's ready to list, and the open fissures with your best relic for each era" },
+  mission: { file: "current-fissure", caption: "the reward screen, scored", alt: "Current fissure: the four reward cards scored, with Take this on the best one, and everything the squad's relics can drop" },
+  relics: { file: "relics", caption: "what a crack is worth", alt: "Relics: your relics counted by era with your Void Traces, then every relic you hold as a card with its rewards and what a crack is worth" },
+  mastery: { file: "mastery", caption: "what's left, easiest first", alt: "Mastery: what you have mastered of each kind, your rank and what is left, then every item not yet mastered, easiest first" },
+  builds: { file: "builds", caption: "by tier, with what's missing", alt: "Builds: Saryn Prime's builds by tier, with a suggested build and its mods" },
+  inventory: { file: "inventory", caption: "everything you own, with its worth", alt: "Inventory: your most valuable spares, what your spares are worth, then everything you own as cards" },
+  market: { file: "orders", caption: "your listings, kept at the market price", alt: "Orders: your listings, their listed value, how many are undercut and the trades left today, each with its meter, then your status and your listings" },
+  spares: { file: "sell-spares", caption: "a plan you look over first", alt: "Sell spares: what to sell in each category and its rule, your minimum prices, and the plan of new and changed listings ready to apply" },
+};
+/** A screenshot as a link to its large file: the viewer (site.js) opens it in place; without the
+ *  script, the link opens the large file. */
+function shotLink(id, cls, { lazy = true } = {}) {
+  const s = SHOTS[id];
+  const label = pageById[id].label;
+  return `<a class="${cls}" href="{{base}}shots/large/${s.file}.webp" data-shot="${s.file}" data-name="${esc(label)}" data-caption="${esc(s.caption)}"><img src="{{base}}shots/${s.file}.webp" width="1280" height="800"${lazy ? ' loading="lazy"' : ""} alt="${esc(s.alt)}"></a>`;
+}
+function tour() {
+  // The tabs, hidden until the script makes them tabs; without it, every section reads in turn.
+  const tabs = SECTIONS.map(([name, key], i) => `<button type="button" role="tab" class="tab" id="tab-${key}" aria-controls="sec-${key}" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}" style="--sec: var(--${key})">${icon(`sec-${key}`, { size: 18, stroke: 1.8 })}<span>${name}</span></button>`).join("");
+  const panels = SECTIONS.map(([name, key, line, kinds]) => {
+    const pages = PAGES.filter((p) => p.group === name);
     if (!pages.length) throw new Error(`src/lib/pages.ts has no pages in ${name}: has it changed?`);
-    return `<div class="feature" style="--c: var(--${key})"><h2 class="register">${GLYPHS[key]}${name}</h2><p>${esc(line)}</p><p class="pages">${pages.join(" · ")}</p></div>`;
-  }).join("");
+    const shown = pages.filter((p) => SHOTS[p.id]);
+    if (!shown.length) throw new Error(`site: no screenshot of a page in ${name}`);
+    // A page with a screenshot is a control that shows it; the others are tags, a fact.
+    const chips = pages.map((p) => SHOTS[p.id]
+      ? `<li><a class="chip" href="{{base}}shots/large/${SHOTS[p.id].file}.webp" data-pick="${SHOTS[p.id].file}" data-small="{{base}}shots/${SHOTS[p.id].file}.webp" data-name="${esc(p.label)}" data-caption="${esc(SHOTS[p.id].caption)}" data-alt="${esc(SHOTS[p.id].alt)}"${p === shown[0] ? ' aria-current="true"' : ""}>${pageIcon(p)}<span>${esc(p.label)}</span></a></li>`
+      : `<li><span class="chip tag" title="No screenshot of this page here">${pageIcon(p)}<span>${esc(p.label)}</span></span></li>`).join("");
+    const kindRow = kinds ? `<ul class="kinds" aria-label="Every kind, counted">${KINDS.map(([k, label]) => `<li class="kind">${icon(`kind-${k}`, { size: 16, stroke: 1.4 })}<span>${label}</span></li>`).join("")}</ul>` : "";
+    // Every page with a screenshot is in the panel's well's list: the chips swap which one shows.
+    const first = shown[0];
+    return `<section class="panel" id="sec-${key}" aria-labelledby="h-${key}" style="--sec: var(--${key})">
+<div class="ptx"><div class="phead"><span class="crest" aria-hidden="true"><i class="outer"></i><i class="inner"></i>${icon(`sec-${key}`, { size: 30, stroke: 1.5 })}</span><div><p class="register kicker">Section</p><h3 class="mark" id="h-${key}">${name}</h3></div></div>
+<p class="line">${esc(line)}</p>
+<ul class="chips" aria-label="Pages in ${name}">${chips}</ul>${kindRow}</div>
+<figure class="frame">${shotLink(first.id, "shot well")}<figcaption><b>${esc(first.label)}</b> <span>${esc(SHOTS[first.id].caption)}</span></figcaption></figure>
+</section>`;
+  }).join("\n");
+  return `<div class="tabs" role="tablist" aria-label="MyOrbiter's sections" hidden>${tabs}</div>\n${panels}`;
+}
+/** The viewer the screenshots open in (site.js): constant markup, filled in by the script. */
+const VIEWER = `<dialog class="viewer" id="viewer" aria-labelledby="viewer-name">
+<figure><div class="well big"><img alt="" width="2560" height="1600"></div>
+<figcaption><b id="viewer-name"></b> <span class="cap"></span><span class="count register"></span></figcaption></figure>
+<div class="vbar"><button type="button" class="stamp prev">${icon("chev-right", { size: 16, stroke: 1.8, cls: "ic flip" })}<span>Previous</span></button><button type="button" class="stamp next"><span>Next</span>${icon("chev-right", { size: 16, stroke: 1.8 })}</button><form method="dialog"><button class="stamp close" autofocus>${icon("close", { size: 14 })}<span>Close</span></button></form></div>
+</dialog>`;
+
+/** The landing's head: the name, one sentence, the download (the visitor's platform once site.js
+ *  knows it; the list below without it) and What's new; Home's screenshot beside it. */
+function hero(base) {
+  return `<div class="hero"><div class="tx">
+<p class="register kicker">Free software · GPL-3.0-only · Linux, the Steam Deck and Windows</p>
+<h1 class="mark">MyOrbiter</h1>
+<p class="lede">A Warframe companion for your desktop: your relics, sets, mastery and spares, and your warframe.market listings, kept in one place.</p>
+<div class="acts"><a class="primary get" href="${base}index.html#download">${icon("import", { size: 16, stroke: 1.5 })}<span>${esc(DL?.front.label ?? "Download")}</span></a><a class="link" href="${base}whats-new.html">${icon("event", { size: 14 })}<span>What's new</span></a></div>
+<p class="for small dim" hidden></p>
+</div>
+<figure class="frame lit">${shotLink("home", "shot well", { lazy: false }).replaceAll("{{base}}", base)}<figcaption><b>Home</b> <span>${esc(SHOTS.home.caption)}</span></figcaption></figure>
+</div><div class="engr" aria-hidden="true"></div>`;
 }
 
 function landing() {
   const tpl = readFileSync(join(SRC, "landing.html"), "utf8");
   // Functions, not strings: a "$" in a release's name or the warning stays as it is.
-  return tpl.replace("{{downloads}}", () => downloads("{{base}}")).replace("{{features}}", () => features()).replace("{{fullModeWarning}}", () => esc(warning));
+  return tpl.replace("{{downloads}}", () => downloads("{{base}}")).replace("{{tour}}", () => tour()).replace("{{viewer}}", () => VIEWER).replace("{{fullModeWarning}}", () => esc(warning));
 }
 
 // ---- Write it out.
@@ -316,10 +414,8 @@ rmSync(OUT, { recursive: true, force: true });
 mkdirSync(join(OUT, "guide"), { recursive: true });
 const write = (file, html) => writeFileSync(join(OUT, file), html);
 write("index.html", page({
-  file: "index.html", title: "MyOrbiter", logo: true,
-  kicker: "Free software · GPL-3.0-only · Linux, the Steam Deck and Windows",
+  file: "index.html", title: "MyOrbiter", script: true, head: hero,
   blurb: "A Warframe companion for your desktop: your relics, sets, mastery and spares, and your warframe.market listings, kept in one place.",
-  acts: (base) => `<a class="stamp gold" href="${base}index.html#download">${esc(DL?.front.label ?? "Download")}</a><a class="register" href="${base}whats-new.html">What's new</a>`,
   body: landing,
 }));
 for (const g of GUIDE) write(g.file, page({ ...g, section: "guide/", kicker: "Guide" }));
@@ -327,6 +423,7 @@ write("whats-new.html", page({ file: "whats-new.html", title: "What's new", kick
 write("downloads.html", page({ file: "downloads.html", title: "Other versions", kicker: "Downloads", blurb: "The newest builds, up to ten, with the files each one carries and its release notes.", body: builds }));
 
 cpSync(join(SRC, "site.css"), join(OUT, "site.css"));
+cpSync(join(SRC, SCRIPT), join(OUT, SCRIPT));
 cpSync(join(SRC, "shots"), join(OUT, "shots"), { recursive: true, filter: (f) => !f.endsWith(".md") });
 // The app icon's small drawing (npm run icons), as the favicon and the mark in the header.
 cpSync(join(ROOT, "src-tauri/icons/icon-small.svg"), join(OUT, "icon.svg"));
@@ -335,9 +432,10 @@ cpSync(join(ROOT, "src-tauri/icons/32x32.png"), join(OUT, "icon.png"));
 cpSync(join(SRC, "wordmark-gold.svg"), join(OUT, "wordmark-gold.svg"));
 mkdirSync(join(OUT, "game"));
 for (const f of icons) cpSync(join(ROOT, "public/game", f), join(OUT, "game", f));
-// The fonts the app uses (SIL Open Font License, its text beside them).
+// The app's two typefaces (SIL Open Font License, its text beside them): Archivo Narrow for titles,
+// labels and figures, IBM Plex Sans for the text.
 mkdirSync(join(OUT, "fonts"));
-for (const [pkg, files] of [["archivo-narrow", ["latin-500-normal", "latin-600-normal", "latin-700-normal"]], ["ibm-plex-sans", ["latin-400-normal", "latin-500-normal"]], ["ibm-plex-mono", ["latin-400-normal", "latin-500-normal"]]]) {
+for (const [pkg, files] of [["archivo-narrow", ["latin-500-normal", "latin-600-normal", "latin-700-normal"]], ["ibm-plex-sans", ["latin-400-normal", "latin-500-normal"]]]) {
   for (const f of files) cpSync(join(ROOT, "node_modules/@fontsource", pkg, "files", `${pkg}-${f}.woff2`), join(OUT, "fonts", `${pkg}-${f}.woff2`));
   cpSync(join(ROOT, "node_modules/@fontsource", pkg, "LICENSE"), join(OUT, "fonts", `${pkg}-LICENSE.txt`));
 }
@@ -372,8 +470,9 @@ function narrowOverflow(css, html, file) {
 }
 
 // ---- Checks: every local link, image and stylesheet url() resolves (same-page anchors included),
-// external links go only to github.com, no dev-*.json file (a real account's data) is in the
-// output or named in it, and the landing and Guide pages' grids fit a phone 320, 360 and 390 px wide.
+// external links go only to github.com, the only script is site.js and it reaches for nothing
+// outside its page, no dev-*.json file (a real account's data) is in the output or named in it, and
+// the landing and Guide pages' grids fit a phone 320, 360 and 390 px wide.
 if (args.includes("--check")) {
   const ALLOWED = new Set([HOST]);
   const all = (d) => readdirSync(d).flatMap((f) => (statSync(join(d, f)).isDirectory() ? all(join(d, f)) : [join(d, f)]));
@@ -385,9 +484,11 @@ if (args.includes("--check")) {
     if (!f.endsWith(".html") && !f.endsWith(".css")) continue;
     const text = readFileSync(f, "utf8");
     if (/dev-[\w-]+\.json/.test(text)) bad.push(`${rel}: names a dev-*.json file`);
-    // The pages stay static: nothing in them runs, so nothing reads github.com (or anything) on load.
-    if (f.endsWith(".html") && /<(?:script|iframe|object|embed)\b|<meta[^>]+http-equiv|<[a-z][^>]*\son[a-z]+\s*=/i.test(text)) bad.push(`${rel}: carries a script`);
-    for (const m of text.matchAll(/(?:href|src)="([^"]+)"|url\(["']?([^"')]+)/g)) {
+    // The only script a page may load is the site's own file (site.js, checked below): no other
+    // script, no inline code or handler, no frame, nothing that reads github.com (or anything) on load.
+    const own = new RegExp(`<script src="(?:\\.\\./)*${SCRIPT.replace(".", "\\.")}"></script>`, "g");
+    if (f.endsWith(".html") && /<(?:script|iframe|object|embed)\b|<meta[^>]+http-equiv|<[a-z][^>]*\son[a-z]+\s*=/i.test(text.replace(own, ""))) bad.push(`${rel}: carries a script other than ${SCRIPT}`);
+    for (const m of text.matchAll(/(?:href|src|data-small)="([^"]+)"|url\(["']?([^"')]+)/g)) {
       const url = m[1] ?? m[2];
       if (!url || url.startsWith("data:")) continue;
       if (/^https?:/.test(url)) { const h = new URL(url).hostname; if (!ALLOWED.has(h)) bad.push(`${rel}: link to ${h}`); continue; }
@@ -402,6 +503,13 @@ if (args.includes("--check")) {
       if (hash && target.endsWith(".html") && !readFileSync(target, "utf8").includes(`id="${hash}"`)) bad.push(`${rel}: ${url} has no #${hash}`);
     }
   }
+  // site.js works on the page it is in and nothing else: no address (a "//host" one included), no
+  // request, no storage, no element made but a button, a span or a link, no navigation, no markup
+  // built from text, nothing run from a string. A tripwire for mistakes, read with the script: only
+  // whole-line comments are left out, so nothing after code on a line escapes it.
+  const js = readFileSync(join(OUT, SCRIPT), "utf8").replace(/^\s*\/\/.*$|\/\*[\s\S]*?\*\//gm, "");
+  const reach = /["'`]\/\/|\bcreateElement\(\s*["'`](?!(?:button|span|a)["'`])|\blocation\.(?:assign|replace|reload)\b|\.click\(\)|\bObject\.assign\b|\b(?:https?:|fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|localStorage|sessionStorage|indexedDB|cookie|caches|serviceWorker|importScripts|import|eval|Function|innerHTML|outerHTML|insertAdjacentHTML|write|postMessage|setAttributeNS|createContextualFragment)\b|\bwindow\.open\b|\blocation\s*(?:\.href)?\s*=[^=]|\bsrc(?:doc)?\s*=\s*["'`]|\bon[a-z]+\s*=/g;
+  for (const m of js.matchAll(reach)) bad.push(`${SCRIPT}: "${m[0]}" (it may only work on its own page)`);
   const css = readFileSync(join(OUT, "site.css"), "utf8");
   for (const file of NARROW_PAGES) bad.push(...narrowOverflow(css, readFileSync(join(OUT, file), "utf8"), file));
   if (bad.length) { console.error(bad.join("\n")); process.exit(1); }

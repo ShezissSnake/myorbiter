@@ -1,44 +1,35 @@
-<section class="intro">
-  <p class="lead">MyOrbiter is a desktop companion for Warframe, for Linux, the Steam Deck and Windows. It reads what TennoScope stores on your PC (the game's log, the fissure reward screen, and your inventory with Full mode on) and answers what the game doesn't: which reward to take, what you can sell and for how much, what's left to master and how hard it is to get, which relics finish your sets.</p>
-  <p>It can also keep your warframe.market listings near the market price (the second-cheapest seller online or in game) if you turn it on, never under the floors you set nor under what a prime part's ducats are worth to you, marks sales sold and gives +rep after a trade. It runs on your computer.</p>
+<section class="tour" id="tour" aria-labelledby="tour-h">
+  <h2 class="register sh" id="tour-h">Four sections</h2>
+  {{tour}}
+  <p class="small dim shots-note">Screenshots of an invented account, not a real one.</p>
 </section>
 
-<section class="features" aria-label="What's in it">{{features}}</section>
-
-<section class="notes" aria-label="Before you start">
+<section class="notes" aria-labelledby="notes-h">
+  <h2 class="register sh" id="notes-h">Before you start</h2>
+  <div class="pair">
   <div class="note plate warn">
-    <h2 class="register">Full mode is your call</h2>
+    <h3 class="register">Full mode is your call</h3>
     <p>{{fullModeWarning}}</p>
     <p>It's off unless you turn it on. Without it, TennoScope reads only the game's log and the reward screen, and MyOrbiter shows everything that doesn't need your inventory.</p>
   </div>
   <div class="note plate">
-    <h2 class="register">It acts on your warframe.market account</h2>
+    <h3 class="register">It acts on your warframe.market account</h3>
     <p>Once you sign in, what you press and the automatic features you turn on (repricing, marking sales sold, +rep, hiding your last copies, holding your online status) list, change and close orders and post reviews as you.</p>
   </div>
-</section>
-
-<section class="shots" aria-label="Screenshots">
-  <h2 class="mark">A look</h2>
-  <div class="grid">
-    <figure><img src="{{base}}shots/home.webp" width="1280" height="800" loading="lazy" alt="Home: the world's clocks, your orders and status, what's ready to list, and the open fissures with your best relic for each era"><figcaption><b>Home</b> · today at a glance</figcaption></figure>
-    <figure><img src="{{base}}shots/current-fissure.webp" width="1280" height="800" loading="lazy" alt="Current fissure: the four reward cards scored, with Take this on the best one, and everything the squad's relics can drop"><figcaption><b>Current fissure</b> · the reward screen, scored</figcaption></figure>
-    <figure><img src="{{base}}shots/foundry.webp" width="1280" height="800" loading="lazy" alt="Foundry: mastery progress by category and every item as a card with its parts"><figcaption><b>Foundry</b> · mastery by category</figcaption></figure>
-    <figure><img src="{{base}}shots/builds.webp" width="1280" height="800" loading="lazy" alt="Builds: a mod build by tier, with what's missing for it"><figcaption><b>Builds</b> · by tier, with what's missing</figcaption></figure>
-    <figure><img src="{{base}}shots/sell-spares.webp" width="1280" height="800" loading="lazy" alt="Sell spares: choices per category and the plan of new and changed listings, each with its rule"><figcaption><b>Sell spares</b> · a plan you look over first</figcaption></figure>
-    <figure><img src="{{base}}shots/orders.webp" width="1280" height="800" loading="lazy" alt="Orders: your warframe.market listings against the market price, with what each would be repriced to"><figcaption><b>Orders</b> · your listings, kept at the market price</figcaption></figure>
   </div>
-  <p class="small dim">The screenshots show an invented account, not a real one.</p>
 </section>
 
-<section class="download" id="download">
-  <h2 class="mark">Download</h2>
+<section class="download" id="download" aria-labelledby="download-h">
+  <h2 class="register sh" id="download-h">Download</h2>
   {{downloads}}
-  <p class="small">One download, nothing else to install: the Linux and Windows ones carry TennoScope inside them. On Xbox, PlayStation, Switch or mobile, use the same download on a PC and pick your platform in Settings: the market, fissures, the world's clocks and the riven finder work; the collection pages need the game on the PC.</p>
+  <p class="small">TennoScope is inside: nothing else to install. On Xbox, PlayStation, Switch or mobile, run it on a PC and pick your platform in Settings; the collection pages need the game on the PC.</p>
 </section>
 
-<section class="licence" id="licence">
-  <h2 class="mark">Licence and sources</h2>
+<details class="licence" id="licence">
+  <summary><h2 class="register sh">Licence and sources</h2></summary>
   <p>MyOrbiter is free software: you can redistribute it and/or modify it under the terms of the <a href="https://github.com/ShezissSnake/myorbiter/blob/main/LICENSE">GNU General Public License, version 3 only</a>. It comes with no warranty. It includes TennoScope, also GPL-3.0-only, with MyOrbiter's changes (<a href="https://github.com/ShezissSnake/myorbiter/blob/main/tennoscope/ORBITER.md">how it came in</a>). Every release carries its complete source as <span class="register">myorbiter-source.tar.gz</span>.</p>
   <p>The downloads also carry third-party libraries and fonts under their own licences (<a href="https://github.com/ShezissSnake/myorbiter/blob/main/NOTICE.md">NOTICE.md</a>). Some of them are under the GPL or the LGPL. For three years from the date of each release, the complete corresponding source code of the GPL- and LGPL-licensed libraries bundled in it is available on request: open an issue at <a href="https://github.com/ShezissSnake/myorbiter/issues">github.com/ShezissSnake/myorbiter</a>. Each download's <span class="register">THIRD-PARTY-NOTICES/SOURCES.md</span> lists every bundled library with its exact version and where its source is.</p>
   <p>Not everything is covered by the GPL. Warframe's artwork belongs to Digital Extremes and is excluded from it: the game's icons are © Digital Extremes Ltd., used to identify what they depict. The data from the Warframe Wiki is CC BY-NC-SA 3.0 and ships as separate files beside the program.</p>
-</section>
+</details>
+
+{{viewer}}
