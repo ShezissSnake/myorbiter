@@ -3,8 +3,9 @@
 MyOrbiter's home is GitHub: `github.com/ShezissSnake/myorbiter` holds the code, the issues, the
 releases and, on GitHub Pages, the website (`https://shezisssnake.github.io/myorbiter/`). Builds run
 on GitHub Actions' hosted runners (`.github/workflows/release.yml`). `gitlab.com/sheziss-group/myorbiter`
-is its mirror: it keeps the releases GitLab made (builds 0.2.100 to the bridge build) and the
-channel manifests installed copies read before the move back, and builds nothing any more.
+is frozen after the bridge build, not mirrored: it keeps the releases GitLab made (builds 0.2.100 to
+the bridge build) and the channel manifests installed copies read before the move back, builds
+nothing any more, and gets no more pushes.
 
 This page is what can't live in the repository: settings made by hand once, and checked again
 after any change to the repository's settings, and how to run a release, a promotion or the
@@ -62,7 +63,7 @@ Once, in order. Tick each step here when it's done.
       there.
 - [ ] **A copy of the bridge build on Experimental updates to 0.2.120** with *Update and restart*,
       on Linux and on Windows: its first address is GitHub's `experimental` release.
-- [ ] **(maintainer) The two copies kept in step** (*GitLab, the mirror*, below).
+- [ ] **(maintainer) GitLab is left as it is** (*GitLab, frozen*, below): no mirror, no more pushes.
 
 ## Running a release, a promotion or the website
 
@@ -189,24 +190,20 @@ maintainer's own:
 - [ ] **Issues** on, with the labels `bug` and `needs-triage` (Issues → Labels). Issues come through
       the bug report form (`.github/ISSUE_TEMPLATE/`); blank issues are off.
 
-## GitLab, the mirror
+## GitLab, frozen
 
-- [ ] **The two copies kept in step (maintainer):** after each merge, `main` goes to both
-      GitHub and GitLab with a plain push (never a force push), from a clone with both remotes.
-      GitLab can do it alone with a push mirror to GitHub (Settings → Repository → Mirroring
-      repositories, with a GitHub token limited to this repository's contents): a push mirror runs
-      from GitLab outwards, and pulling into GitLab from GitHub needs a paid tier. Either way it is
-      set up outside the repository: no workflow here holds a GitLab token or pushes anywhere.
-      Merge requests are still opened on GitLab (CLAUDE.md) until that changes.
+- [ ] **Nothing is kept in step (maintainer):** once the bridge build is out and `main` is on
+      GitHub, GitLab gets nothing more: no push mirror in either direction, and no clone pushes to
+      both. Its `main` stays at the bridge build's commit. Branches, pull requests, issues and
+      releases are on GitHub (CLAUDE.md); no workflow here holds a GitLab token or pushes anywhere.
 - [ ] **Its channel manifests stay on the bridge build:** `channel/<channel>/latest.json` in
       GitLab's package registry, every installed copy's second address. Never delete the
       `channel` or `stable-builds` packages, the builds 0.2.100 and up, or the releases that link
       them; never run a release or promote pipeline there again (after the second merge request,
       `.gitlab-ci.yml` has none).
 - [ ] **Its Pages** publish only a page that redirects to `https://shezisssnake.github.io/myorbiter/`.
-- [ ] **Its issues:** MyOrbiter's Report a bug still opens a new issue on GitLab until the app moves
-      it to GitHub; read both with `scripts/issues-digest.mjs` (`--fetch`, and `--fetch
-      --from=gitlab`).
+- [ ] **Its issues:** MyOrbiter's Report a bug opens GitHub's issue form; the issues made on GitLab
+      before stay readable there, with `scripts/issues-digest.mjs` (`--fetch --from=gitlab`).
 - [ ] **Its runner:** stopped once the bridge build is out; nothing on GitLab needs it.
 
 The GitHub releases from before the move (`build-18`, `build-30`, `channel-experimental`) stay as

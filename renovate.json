@@ -1,14 +1,14 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "description": [
-    "Renovate proposes dependency updates as merge requests, once a week; nothing is merged by itself.",
-    "The ecosystems Dependabot covered: Cargo (MyOrbiter's workspace at the root, TennoScope's in tennoscope/), npm (MyOrbiter's window at the root, TennoScope's app in tennoscope/app, pnpm), and the CI (the images .gitlab-ci.yml and ci/Dockerfile use, in place of GitHub Actions).",
-    "With osvVulnerabilityAlerts, a dependency with a known vulnerability (OSV) gets its own merge request, in place of Dependabot's security updates.",
-    "Minor and patch updates come grouped, one merge request per ecosystem and folder; a major version comes on its own, since it may need code changes.",
+    "Renovate proposes dependency updates as pull requests, once a week; nothing is merged by itself.",
+    "The ecosystems Dependabot covered: Cargo (MyOrbiter's workspace at the root, TennoScope's in tennoscope/), npm (MyOrbiter's window at the root, TennoScope's app in tennoscope/app, pnpm), and GitHub Actions (the workflow's actions, pinned by commit, with the version in a comment; Renovate keeps both). The builder image GitLab's pipeline used (ci/Dockerfile) isn't part of the GitHub workflow, which runs ci/build.sh on ubuntu-22.04.",
+    "With osvVulnerabilityAlerts, a dependency with a known vulnerability (OSV) gets its own pull request, in place of Dependabot's security updates.",
+    "Minor and patch updates come grouped, one pull request per ecosystem and folder; a major version comes on its own, since it may need code changes.",
     "TypeScript 7 waits for MyOrbiter (the root) until svelte-check supports it; TennoScope is on it already."
   ],
   "extends": ["config:recommended"],
-  "enabledManagers": ["cargo", "npm", "gitlabci", "dockerfile", "custom.regex"],
+  "enabledManagers": ["cargo", "npm", "github-actions"],
   "schedule": ["before 6am on monday"],
   "timezone": "Etc/UTC",
   "automerge": false,
@@ -16,15 +16,6 @@
   "osvVulnerabilityAlerts": true,
   "prConcurrentLimit": 10,
   "rangeStrategy": "update-lockfile",
-  "customManagers": [
-    {
-      "customType": "regex",
-      "description": "The images .gitlab-ci.yml names in variables (NAME_IMAGE: registry/repo:tag@sha256:digest).",
-      "managerFilePatterns": ["/^\\.gitlab-ci\\.yml$/"],
-      "matchStrings": ["\\n  [A-Z_]+_IMAGE: (?<depName>[a-z0-9.\\-/]+):(?<currentValue>[A-Za-z0-9._\\-]+)@(?<currentDigest>sha256:[a-f0-9]{64})"],
-      "datasourceTemplate": "docker"
-    }
-  ],
   "packageRules": [
     {
       "matchManagers": ["cargo"],
@@ -51,14 +42,10 @@
       "groupName": "tennoscope npm minor and patch"
     },
     {
-      "matchManagers": ["gitlabci", "dockerfile", "custom.regex"],
-      "groupName": "CI images",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "GitHub Actions",
       "pinDigests": true
-    },
-    {
-      "description": "The project's own builder image is pinned by hand to the digest ci/build-image.sh prints, never by a merge request from Renovate: anything with a job token can push to its tags.",
-      "matchDepNames": ["registry.gitlab.com/sheziss-group/**"],
-      "enabled": false
     },
     {
       "description": "TypeScript 7 waits for MyOrbiter (the root) until svelte-check supports it.",

@@ -1,30 +1,29 @@
 // A bug report, made in the app and sent by the player. MyOrbiter never posts it itself: there's no
-// token and no network write. Open on GitLab puts the issue's text on the clipboard (the sections of
-// the issue template, .gitlab/issue_templates/Bug report.md, and its labels line) and opens a blank
-// new issue: nothing of the report is in the page's address, and MyOrbiter sends gitlab.com
-// nothing; the player pastes it there, adds a title and presses Create issue. Copy report puts it on the clipboard
-// as Markdown, to send another way.
+// token and no network write. Open on GitHub puts the report's text on the clipboard (the sections
+// of the issue form, .github/ISSUE_TEMPLATE/bug_report.yml) and opens the form with only the app's
+// version and the platform filled in: nothing of the report is in the page's address, so github.com
+// gets it only when the player pastes it there, adds a title and presses Submit
+// new issue. Copy report puts it on the clipboard as Markdown, to send another way.
 //
 // What goes in is the player's own words (what happened, how to make it happen, what they
 // expected) and, if they leave "Include technical details" on, a plain-text block they can read in
 // full first: the version, the system, the page, TennoScope's state and the log's last lines.
 // Everything is cleaned on the way in (core/untrusted.ts: no hidden characters, no HTML comments)
 // and redacted (core/redact.ts: no sign-ins, addresses, ids or players' names). The technical block
-// goes in a `text` code block no line of it can close, so GitLab shows it as text, never as
-// Markdown or HTML; a line of the player's own that GitLab would run as a quick action (`/close`,
-// `/label …`) is escaped and shows as typed.
+// goes in a `text` code block no line of it can close, so GitHub shows it as text, never as
+// Markdown or HTML.
 
 import { redact, type RedactOptions } from "./redact";
 import { cleanBlock, cleanLine, stripHidden, stripHtmlComments } from "./untrusted";
 
-/** The project's new-issue page. Its host and path are in the opener's allowed sites (core/links.ts). */
-export const NEW_ISSUE = "https://gitlab.com/sheziss-group/myorbiter/-/work_items/new";
-/** The issue template (its file name without .md), and its section headings: the template and this
- *  list must agree (tests/bugReport.test.ts). */
-export const TEMPLATE = "Bug report";
+/** The repository's new-issue page. Its host and path are in the opener's allowed sites (core/links.ts). */
+export const NEW_ISSUE = "https://github.com/ShezissSnake/myorbiter/issues/new";
+/** The issue form (its file name), and the field its page opens with the version and platform in. */
+export const TEMPLATE = "bug_report.yml";
+export const FIELDS = { what: "what", steps: "steps", expected: "expected", details: "details" } as const;
+/** The form's field labels, which the text put on the clipboard uses as its headings: the form and
+ *  this list must agree (tests/bugReport.test.ts). */
 export const SECTIONS = { what: "What happened", steps: "Steps to reproduce", expected: "What you expected", details: "Technical details" } as const;
-/** The labels a report gets, as the template's last line sets them (where the reporter may). */
-export const LABELS = "/label ~bug ~needs-triage";
 /** How many of the log's last lines a report offers. */
 export const LOG_LINES = 50;
 /** The most each field keeps. */
@@ -125,19 +124,15 @@ export function detailsText(d: ReportDetails): string {
   return lines.join("\n");
 }
 
-/** The player's text, with any line GitLab would run as a quick action escaped ("\/close" shows as
- *  "/close" and does nothing). */
-export const noQuickActions = (s: string) => s.replace(/^([ \t]*)\//gm, "$1\\/");
-
 /** The longest run of backticks in some text. */
 const longestTicks = (s: string) => Math.max(0, ...[...s.matchAll(/`+/g)].map((m) => m[0].length));
 
-/** The report's sections in Markdown, as the template has them: the player's words, then the
- *  details (`details`: their text, "" when left out) in a text code block. */
+/** The report's sections in Markdown, as the form has them: the player's words, then the details
+ *  (`details`: their text, "" when left out) in a text code block. */
 function sections(what: string, steps: string, expected: string, details: string): string[] {
-  const out = [`### ${SECTIONS.what}`, "", noQuickActions(what) || "_(not filled in)_"];
-  if (steps) out.push("", `### ${SECTIONS.steps}`, "", noQuickActions(steps));
-  if (expected) out.push("", `### ${SECTIONS.expected}`, "", noQuickActions(expected));
+  const out = [`### ${SECTIONS.what}`, "", what || "_(not filled in)_"];
+  if (steps) out.push("", `### ${SECTIONS.steps}`, "", steps);
+  if (expected) out.push("", `### ${SECTIONS.expected}`, "", expected);
   if (details) {
     const fence = "`".repeat(Math.max(3, longestTicks(details) + 1));
     out.push("", `### ${SECTIONS.details}`, "", `${fence}text`, details, fence);
@@ -146,18 +141,22 @@ function sections(what: string, steps: string, expected: string, details: string
   return out;
 }
 
-/** The page Open on GitLab opens: a blank new issue. Nothing of the report is in its address;
- *  the player pastes it in there. */
-export const NEW_ISSUE_PAGE = `${NEW_ISSUE}?${encodeURIComponent("issue[issue_type]")}=issue`;
-
-/** What Open on GitLab puts on the clipboard, to paste into the new issue's description: the
- *  template's sections, then its labels line. The title is typed on GitLab (`Report.title`
- *  suggests one). */
-export function issueText(r: Report): string {
-  return [...sections(r.what, r.steps, r.expected, r.details ? detailsText(r.details) : ""), "", LABELS].join("\n") + "\n";
+/** The page Open on GitHub opens: the issue form with only the app's version and the platform in
+ *  its details field (what the app itself is, not what the player wrote). Nothing of the report is
+ *  in its address; the player pastes it in there. */
+export function newIssuePage(env: { version: string; os: string; arch: string }, names: RedactOptions = {}): string {
+  const line = (v: string, max: number) => inert(redact(cleanLine(v, max) ?? "", names));
+  const text = [`MyOrbiter ${line(env.version, 40) || "unknown"}`, `System: ${[line(env.os, 30) || "unknown", line(env.arch, 30)].filter(Boolean).join(" ")}`].join("\n");
+  return `${NEW_ISSUE}?template=${encodeURIComponent(TEMPLATE)}&${FIELDS.details}=${encodeURIComponent(text)}`;
 }
 
-/** The report as Markdown, for Copy report: the title, then the issue's sections, the details in a
+/** What Open on GitHub puts on the clipboard, to paste into the new issue: the form's sections.
+ *  The title is typed on GitHub (`Report.title` suggests one). */
+export function issueText(r: Report): string {
+  return sections(r.what, r.steps, r.expected, r.details ? detailsText(r.details) : "").join("\n") + "\n";
+}
+
+/** The report as Markdown, for Copy report: the title, then the form's sections, the details in a
  *  text code block. */
 export function reportMarkdown(r: Report): string {
   return [`## ${r.title}`, "", ...sections(r.what, r.steps, r.expected, r.details ? detailsText(r.details) : "")].join("\n") + "\n";

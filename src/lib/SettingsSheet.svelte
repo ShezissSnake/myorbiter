@@ -317,7 +317,7 @@
     <p class="hint">{CHANNELS.find((c) => c.v === settings.updates.channel)?.title}. Switching to a more stable channel never steps back by itself: if its build is older than this one, MyOrbiter offers it here and installs it only when you click.</p>
     <div class="row">
       <ProgressButton job={updates.checkJob} busy={updates.checking} label="Check now" disabled={!checks} sizer={["Up to date · 0.1.9999", "Experimental has 0.1.9999", "Couldn't check"]} title={checks ? `Look for a newer build on ${CHANNEL_LABEL[settings.updates.channel]} now. MyOrbiter also looks when it starts and every 6 hours; nothing installs without your click.` : (info ? (installNote(info.install) ?? "") : "")} onclick={() => updates.checkNow()} />
-      <button type="button" class="link out" title="Open this build's release page on GitLab, in your browser: what changed, and its downloads" aria-busy={links.isOpening(releasePage(info?.version ?? "0.1.0"))} onclick={() => openUrl(releasePage(info?.version ?? "0.1.0"))}><Opening url={releasePage(info?.version ?? "0.1.0")}>Release notes<Icon name="external" size={11} /></Opening></button>
+      <button type="button" class="link out" title="Open this build's release page in your browser: what changed, and its downloads" aria-busy={links.isOpening(releasePage(info?.version ?? "0.1.0"))} onclick={() => openUrl(releasePage(info?.version ?? "0.1.0"))}><Opening url={releasePage(info?.version ?? "0.1.0")}>Release notes<Icon name="external" size={11} /></Opening></button>
     </div>
     {#if checks}<p class="hint" class:err={updates.outcome?.kind === "failed" && !updates.checking}>{updates.status(now)}<span class="sr" role="status">{updates.headline}</span></p>{/if}
     {#if offer}
@@ -353,8 +353,8 @@
 
   <section id="settings-report">
     <h3 class="register">Report a bug</h3>
-    <p class="hint">Something not working? Say what happened, and MyOrbiter fills in an issue on GitLab for you to check and submit, or copies the report if you'd rather send it another way. The technical details it can add (version, system, the log's last lines, with sign-ins and players' names hidden) are yours to read first. MyOrbiter never sends anything itself.</p>
-    <div class="row"><button class="stamp" title="Open Report a bug (Shift+F1): nothing is posted until you press Create issue on GitLab" onclick={() => { open = false; bugReport.show(); }}>Report a bug</button></div>
+    <p class="hint">Something not working? Say what happened, and MyOrbiter fills in an issue on GitHub for you to check and submit, or copies the report if you'd rather send it another way. The technical details it can add (version, system, the log's last lines, with sign-ins and players' names hidden) are yours to read first. MyOrbiter never sends anything itself.</p>
+    <div class="row"><button class="stamp" title="Open Report a bug (Shift+F1): nothing is posted until you press Submit new issue on GitHub" onclick={() => { open = false; bugReport.show(); }}>Report a bug</button></div>
   </section>
 
 

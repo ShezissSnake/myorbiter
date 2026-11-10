@@ -27,7 +27,7 @@ use tauri::{Emitter, Manager};
 
 const WORLDSTATE: &str = "https://api.warframestat.us/pc";
 /// MyOrbiter's home: named in every User-Agent, so the sites it reads know where to find out more.
-pub(crate) const REPO_URL: &str = "https://gitlab.com/sheziss-group/myorbiter";
+pub(crate) const REPO_URL: &str = "https://github.com/ShezissSnake/myorbiter";
 
 /// The version this build carries, set once at start from Tauri's package info. A release build
 /// gets its version (0.2.<n>) through Tauri's config at build time, which `CARGO_PKG_VERSION`
@@ -1687,10 +1687,10 @@ mod tests {
 
     #[test]
     fn the_user_agent_names_myorbiter_its_version_and_its_home() {
-        assert_eq!(user_agent_for("0.2.101"), "MyOrbiter/0.2.101 (+https://gitlab.com/sheziss-group/myorbiter)");
-        assert_eq!(user_agent(), format!("MyOrbiter/{} (+https://gitlab.com/sheziss-group/myorbiter)", version()));
-        // The updater's project is this same repository.
-        assert_eq!(REPO_URL, format!("https://gitlab.com/{}", crate::updates::PROJECT.replace("%2F", "/")));
+        assert_eq!(user_agent_for("0.2.101"), "MyOrbiter/0.2.101 (+https://github.com/ShezissSnake/myorbiter)");
+        assert_eq!(user_agent(), format!("MyOrbiter/{} (+https://github.com/ShezissSnake/myorbiter)", version()));
+        // The updater's first address is this same repository's releases.
+        assert_eq!(REPO_URL, format!("https://github.com/{}", crate::updates::GITHUB_REPO));
     }
 
     #[test]

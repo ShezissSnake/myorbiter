@@ -21,6 +21,7 @@ path beside each.
 | Builds | Nox's Frame | when you open an item or a build on Builds (on unless you turn it off) |
 | The notifications you pick | your Discord webhook | only if you set one |
 | An update check | github.com, then gitlab.com if GitHub has no answer | at start and every 6 hours, on the AppImage and the Windows installer |
+| A bug report | github.com: the issue form opens with the app's version and your system in its address; the report itself only if you paste it in and submit | when you press Open on GitHub in Report a bug |
 
 ## Full mode: the game's memory
 
@@ -129,7 +130,7 @@ e-mail addresses removed, on this computer, only if you ask for it.
 ## warframe.market
 
 Every request MyOrbiter makes to warframe.market says who it is, with the User-Agent
-`MyOrbiter/<version> (+https://gitlab.com/sheziss-group/myorbiter)`.
+`MyOrbiter/<version> (+https://github.com/ShezissSnake/myorbiter)`.
 
 - **Read without signing in:**
   - the item list and the riven lists (weapons and stats), when MyOrbiter starts or a page needs
@@ -273,12 +274,14 @@ audited).
 
 ## Reporting a bug
 
-MyOrbiter itself sends nothing. Report a bug shows you the report first; *Open on GitLab* then puts
-it on the clipboard and opens a blank new-issue page on gitlab.com in your browser, with nothing of
-the report in its address, for you to paste it into, give it a title and submit. *Copy report* only
-puts it on the clipboard. Either way the report stays on the clipboard, and in its history if your
-system keeps one. What gitlab.com's page does with what you type or paste there before you press
-Create issue (title suggestions, Preview) is gitlab.com's and wasn't audited. Technical details are
+MyOrbiter itself sends nothing. Report a bug shows you the report first; *Open on GitHub* then puts
+it on the clipboard and opens the repository's issue form on github.com in your browser. The page's
+address carries only `template=bug_report.yml` and the app's version and your system (`MyOrbiter
+<version>`, `System: <system> <architecture>`), nothing of what you wrote or of the log, for you to
+paste the report into, give it a title and submit. *Copy report* only puts it on the clipboard.
+Either way the report stays on the clipboard, and in its history if your system keeps one. What
+github.com's page does with what you type or paste there before you press Submit new issue (drafts
+it may keep, for one) is github.com's and wasn't audited. Technical details are
 included unless you untick them, and you can read them in full first: the version, commit and build
 date, channel, system and architecture, the page open, TennoScope's state, whether Full mode is on,
 and the last 50 lines of MyOrbiter's log, with sign-ins, e-mail and IP addresses, account ids, your
@@ -288,8 +291,8 @@ user name in paths and players' names hidden.
 
 Links open in your browser, which then visits that site. MyOrbiter opens only https links to
 warframe.market, wiki.warframe.com, warframe.fandom.com, overframe.gg, noxsframe.com, this
-project on github.com and its website (shezisssnake.github.io), and this project on gitlab.com
-(older builds' release pages, Report a bug). TennoScope opens its upstream project on github.com
+project on github.com (releases, issues, Report a bug) and its website (shezisssnake.github.io), and
+this project on gitlab.com (older builds' release pages). TennoScope opens its upstream project on github.com
 (its own bug report and release pages).
 
 ## Nothing else
@@ -363,8 +366,8 @@ keyring).
   `myorbiter.log` (and `myorbiter.1.log`, 2 MB each; Settings, Logs opens the folder): what it did
   on warframe.market, your notifications (with other players' names), the game log's location and
   errors. Readable only by you on Linux. Anything shaped like a token, password or webhook address
-  is cut out before it's written. Its last lines leave your PC only in a bug report you paste on
-  GitLab (or copy and send another way).
+  is cut out before it's written. Its last lines leave your PC only in a bug report you paste into
+  GitHub (or copy and send another way).
 - CSV exports go to your Downloads folder as `myorbiter-<what>-<date>.csv`, never over an existing
   file.
 - The window's own storage (kept by the system web view) remembers the cards or rows layout of each

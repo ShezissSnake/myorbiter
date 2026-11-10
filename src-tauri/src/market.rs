@@ -1582,7 +1582,7 @@ mod tests {
     #[test]
     fn every_warframe_market_request_names_myorbiter() {
         let ua = Some(crate::user_agent());
-        assert!(crate::user_agent().starts_with("MyOrbiter/") && crate::user_agent().ends_with(" (+https://gitlab.com/sheziss-group/myorbiter)"));
+        assert!(crate::user_agent().starts_with("MyOrbiter/") && crate::user_agent().ends_with(" (+https://github.com/ShezissSnake/myorbiter)"));
 
         let (addr, served) = crate::test_http::serve_once("{}");
         get_json(&format!("{addr}/v2/items"), 10).expect("read");
