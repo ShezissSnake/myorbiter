@@ -101,7 +101,9 @@
      (a background layer, over the plate's own colour). */
   --plate-light: inset 0 1px 0 rgb(255 255 255 / 5%);
   --plate-sheen: linear-gradient(180deg, rgb(255 255 255 / 2.5%), transparent 40%);
-  /* The content's criss-cross behind the plates (App's main, below): the 45° lines and the 240 px grid. */
+  /* The content's criss-cross behind the plates (App's main, below): the 45° lines and the 240 px grid.
+     --hatch is the documented value of the lines; an SVG tile can't read it, so the tile in `#main`
+     carries the same number (stroke-opacity .028): change both together. */
   --hatch: rgb(255 255 255 / 2.8%);
   --grid: rgb(255 255 255 / 3%);
 
@@ -455,13 +457,16 @@ tr.era-wash > td:first-child { box-shadow: inset 2px 0 0 color-mix(in srgb, var(
    hue: two sets of 45° lines every 28 px and a square grid every 240 px. It shows only in the
    gutters and margins, and stays put while the page scrolls. In a section, a 3 px strip in its
    colour runs down the content's left edge, by the sidebar, the window's full height (behind the
-   banners, whose own edge covers it there). */
+   banners, whose own edge covers it there).
+   Drawn from small tiles, never from page-sized repeating gradients: WebKitGTK draws a 1 px stop
+   in 28 over a whole page unevenly (lines of 1 and 2 px at uneven gaps, and moiré bands on some
+   builds). The lines are one 40 px SVG tile with both diagonals corner to corner, 1 px wide (so
+   28.3 px apart, 40 px along a row); the grid is two plain gradients on a 240 px tile. */
 #main {
   background:
-    repeating-linear-gradient(45deg, var(--hatch) 0 1px, transparent 1px 28px),
-    repeating-linear-gradient(-45deg, var(--hatch) 0 1px, transparent 1px 28px),
-    repeating-linear-gradient(0deg, var(--grid) 0 1px, transparent 1px 240px),
-    repeating-linear-gradient(90deg, var(--grid) 0 1px, transparent 1px 240px);
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Cpath d='M-1 -1L41 41M41 -1L-1 41' stroke='white' stroke-opacity='.028' stroke-width='1' fill='none'/%3E%3C/svg%3E") 0 0 / 40px 40px,
+    linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 240px 240px,
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 240px 240px;
 }
 #main[data-section] { box-shadow: inset 3px 0 0 var(--sec); }
 .pane table { background: var(--plate); }
