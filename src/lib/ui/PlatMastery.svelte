@@ -12,6 +12,7 @@
   import P from "./P.svelte";
   import GameIcon from "./GameIcon.svelte";
   import NoMatch from "./NoMatch.svelte";
+  import { inView, progressive } from "../progress.svelte";
 
   let { model, rows, wished, onwish, clear = null }: { model: Model; rows: MasteryRow[]; wished: Set<string>; onwish: (unique: string) => void; clear?: (() => void) | null } = $props();
 
@@ -21,12 +22,19 @@
     const xs = platMastery(model, rows);
     return order === "perK" ? [...xs].sort((a, b) => a.perK - b.perK || a.plat - b.plat) : xs;
   });
-  // Spending down the list, cheapest first: how much mastery a budget buys.
+  // Spending down the list, cheapest first: how much mastery a budget buys, at each item.
   const running = $derived.by(() => {
     let plat = 0;
     let pts = 0;
-    return list.map((x) => ((plat += x.plat), (pts += x.row.points), { plat, pts }));
+    return new Map(list.map((x) => ((plat += x.plat), (pts += x.row.points), [x.row.unique, { plat, pts }])));
   });
+  // The rows in sight at once, the rest a few at a time (lib/progress.svelte.ts), as Browse draws
+  // its cards. Drawn ahead while the view is out of sight (Mastery draws it when idle), that's a
+  // few rows a slice rather than sixty in one task.
+  let box = $state<HTMLElement | null>(null);
+  const rowView = inView(() => box, { min: 8, guess: 52 });
+  // After "N more", the rows already there count as the first screenful, so the new ones follow at once.
+  const drawn = $derived.by(progressive(() => list.slice(0, limit), (x) => x.row.unique, { first: () => Math.max(rowView.count(), limit - 60), step: 6, measure: rowView.measure, hidden: rowView.hidden, onShow: rowView.onShow }));
   const buy = (x: PlatMastery, b: PlatMastery["buys"][number]) => mkt.startBuy(b.name, { quantity: b.need, known: b.price });
 </script>
 
@@ -39,8 +47,9 @@
   {#if clear}<p class="nothing"><NoMatch {clear} /></p>{:else}<p class="dim">Nothing you haven't mastered has a platinum price MyOrbiter knows.</p>{/if}
 {:else}
   <div class="pmh register" aria-hidden="true"><span>Item</span><span>What to buy</span><span class="r">Cost · per 1,000 mastery</span><span class="r">Buying down to here</span><span></span></div>
-  <ol class="pm">
-    {#each list.slice(0, limit) as x, i (x.row.unique)}
+  <ol class="pm" bind:this={box} use:rowView.watch>
+    {#each drawn as x (x.row.unique)}
+      {@const sum = running.get(x.row.unique)}
       <li>
         <button class="it" data-opens aria-label="{x.row.name}: details" onclick={() => details.open(x.row.unique)}>
           <Thumb file={model.imageOf(x.row.name)} name={x.row.name} size={34} />
@@ -61,7 +70,7 @@
           {/if}
         </span>
         <span class="cost"><P v={x.plat} /><span class="dim small" title="Platinum per 1,000 mastery points">{x.perK}p per 1k</span></span>
-        <span class="tot dim small" title="Buying everything down the list to here">{running[i].plat.toLocaleString("en")}p → {running[i].pts.toLocaleString("en")} mastery</span>
+        <span class="tot dim small" title="Buying everything down the list to here">{(sum?.plat ?? 0).toLocaleString("en")}p → {(sum?.pts ?? 0).toLocaleString("en")} mastery</span>
         <button class="star" class:on={wished.has(x.row.unique)} aria-pressed={wished.has(x.row.unique)} aria-label={wished.has(x.row.unique) ? `Remove ${x.row.name} from your wishlist` : `Add ${x.row.name} to your wishlist`} title={wished.has(x.row.unique) ? "On your wishlist (click to remove)" : "Add to your wishlist: Home and the cheap-buy alerts watch for it"} onclick={() => onwish(x.row.unique)}>
           <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 1.6l1.9 4.1 4.5.5-3.4 3 1 4.4L8 11.4l-4 2.2 1-4.4-3.4-3 4.5-.5z" /></svg>
         </button>
