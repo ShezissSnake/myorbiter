@@ -299,8 +299,8 @@ fn terminate(pid: u32) {
 fn terminate(_pid: u32) {}
 
 /// Stopping TennoScope on Windows without starting a program: a handle to the process for `stop`,
-/// and a job object that ends the TennoScope MyOrbiter started when MyOrbiter's process ends, how
-/// ever it ends (a crash, Task Manager, the session ending before `stop` runs). Six kernel32
+/// and a job object that ends the TennoScope MyOrbiter started when MyOrbiter's process ends,
+/// however it ends (a crash, Task Manager, the session ending before `stop` runs). Six kernel32
 /// functions, declared here; every Windows program links kernel32.
 #[cfg(windows)]
 mod win {
@@ -428,11 +428,13 @@ mod win {
     /// Puts a TennoScope MyOrbiter just started in the job, so it ends when MyOrbiter does. If that
     /// fails (MyOrbiter itself runs in a job that allows no other), `stop` still ends it on a
     /// normal quit.
-    pub fn end_with_myorbiter(child: &std::process::Child) {
+    pub fn end_with_myorbiter(child: &mut std::process::Child) {
         let Some(job) = job() else { return };
         // SAFETY: both handles are valid: the job's for the life of the process, the child's
         // while `child` is borrowed.
-        if unsafe { AssignProcessToJobObject(job, child.as_raw_handle() as Handle) } == 0 {
+        let added = unsafe { AssignProcessToJobObject(job, child.as_raw_handle() as Handle) } != 0;
+        // A hand-off process (`ask`) may already have passed its request over and exited.
+        if !added && matches!(child.try_wait(), Ok(None)) {
             log::warn!(target: "myorbiter::tennoscope", "TennoScope (pid {}) won't end with MyOrbiter if MyOrbiter is killed: {}", child.id(), std::io::Error::last_os_error());
         }
     }
@@ -604,7 +606,7 @@ impl Companion {
             })?;
             log::info!(target: "myorbiter::tennoscope", "started {}{} (pid {})", bin.display(), if bundled { ", the one inside MyOrbiter" } else { "" }, child.id());
             #[cfg(windows)]
-            win::end_with_myorbiter(&child);
+            win::end_with_myorbiter(&mut child);
             let started = proc_of(child.id());
             // Collected in the background whenever it exits, so it never lingers as a zombie.
             std::thread::spawn(move || child.wait());
@@ -642,7 +644,7 @@ impl Companion {
             .map_err(|e| format!("Couldn't reach TennoScope: {e}"))?;
         // In the job too: if it becomes TennoScope (below), it is one MyOrbiter started.
         #[cfg(windows)]
-        win::end_with_myorbiter(&child);
+        win::end_with_myorbiter(&mut child);
         // Normally it hands the request over and exits at once. If the TennoScope it was meant
         // for closed in the meantime, it becomes TennoScope itself (hidden, carrying out the
         // request): then it's one MyOrbiter started, and MyOrbiter closes it like the first.
@@ -668,7 +670,8 @@ impl Companion {
         Ok(())
     }
 
-    /// Stops the TennoScope MyOrbiter started (and only that one), asking it to quit first.
+    /// Stops the TennoScope MyOrbiter started (and only that one): SIGTERM on Unix, so it can quit
+    /// cleanly; on Windows `TerminateProcess`, a hard stop as `taskkill /F` was before.
     pub fn stop(&self) {
         let Some(p) = lock(&self.started).take() else { return };
         log::info!(target: "myorbiter::tennoscope", "stopping the TennoScope MyOrbiter started");
