@@ -21,8 +21,7 @@
   import { aboveCrack, relicCrackFor } from "../core/spares";
   import { mkt } from "../marketStore.svelte";
   import PageHead from "../ui/PageHead.svelte";
-  import Ticker, { type Tick } from "../ui/Ticker.svelte";
-  import Stat from "../ui/Stat.svelte";
+  import Vessel from "../ui/Vessel.svelte";
   import Named from "../ui/Named.svelte";
   import P from "../ui/P.svelte";
   import Chip from "../ui/Chip.svelte";
@@ -137,6 +136,17 @@
     const times = orders.map((o) => mkt.books[mkt.item(o.itemId)?.slug ?? ""]?.at).filter((t): t is number => t != null);
     return times.length ? Math.min(...times) : null;
   }));
+  /**
+   * A listing's price against the cheapest other seller online or in game at the last check: its price as it
+   * is on warframe.market (never a price being typed), minus that seller's. Above zero, undercut.
+   * Null when there's no check or nobody else sells it. Shown only; nothing is priced from it (the
+   * repricer follows the second-cheapest, core/drift.ts).
+   */
+  const againstLowest = (o: MyOrder, p: Plan | null | undefined): number | null =>
+    p?.competitor.lowest && o.platinum > 0 ? o.platinum - p.competitor.lowest.platinum : null;
+  /** The shown listings with a cheapest seller to stand against, and how many of them are undercut. */
+  const against = $derived(orders.filter((o) => o.visible).map((o) => againstLowest(o, plans.get(o.id))).filter((d): d is number => d != null));
+  const undercut = $derived(against.filter((d) => d > 0).length);
 
   // New listing: anything tradable you hold, searchable. On a console: anything tradable.
   const sellable = $derived.by(whileShown("market", () => {
@@ -633,15 +643,6 @@
     for (const id of soldTimers.keys()) void commitSale(id);
   });
   const fmt = (t: number) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-  // The ticker tape under the title: the figures you trade by, live (the band keeps your listings).
-  const tape = $derived<Tick[]>([
-    ...(!console && trades.limit != null
-      ? [{ key: "left", label: "Trades left", value: trades.left, of: `/${trades.limit}`, sub: `resets in ${until(new Date(trades.resets).toISOString(), minute)}`, tone: trades.left != null && trades.left <= 3 ? ("gold" as const) : undefined, title: `Trades left today: ${trades.used} made since 00:00 UTC, refreshes in ${until(new Date(trades.resets).toISOString(), minute)}. Trades a day are your Mastery Rank (${trades.limit}; Founders get 2 more), each counting once whatever it carried (up to 6 items each way). Counted from the game's log while MyOrbiter was reading it` }]
-      : []),
-    { key: "listed", label: "Listed value", value: listed, plat: true, title: "Listed value: your visible listings, price × quantity" },
-    { key: "reprice", label: "To reprice", value: checkedAt ? pending : null, tone: checkedAt && pending ? "gold" : checkedAt ? "dim" : undefined, title: checkedAt ? (pending ? `To reprice: ${pending} listing${pending === 1 ? "" : "s"} off the market price` : "To reprice: none, all match the market price") : "To reprice: press Check prices to compare" },
-    { key: "check", label: "Last check", value: checkedAt, text: checkedAt ? fmt(checkedAt) : "not yet", still: true, tone: checkedAt ? undefined : "dim", title: checkedAt ? `Last check: the oldest order book behind what's on screen, read at ${fmt(checkedAt)}${nextPass ? `; next at ${fmt(+nextPass)}` : ""}` : "Last check: none yet. Press Check prices" },
-  ]);
   /** The listing whose price history is open under its row. */
   let charted = $state<string | null>(null);
   // A minimum typed in: a whole number from 1 to 100,000 (as Sell spares takes it); an emptied or odd box keeps the one you had.
@@ -658,15 +659,59 @@
 <svelte:window onpointerdown={outside} />
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Orders" brief="Your listings, kept at the market price." blurb="Your warframe.market listings, kept at the market price: the second-cheapest seller online or in game." band={mkt.linked ? band : undefined} hero={mkt.linked ? ticker : undefined} />
-  {#snippet ticker()}<Ticker id="orders" label="Your trading, live" items={tape} />{/snippet}
-  {#snippet band()}
-      <Stat label="Listings" tone={mkt.room <= 0 ? "gold" : "platinum"} note={`${mkt.room <= 0 ? "At warframe.market's limit" : `${mkt.room} more allowed`} · ${orders.filter((o) => !o.visible).length} hidden`}>{orders.length}<span class="of">/{LISTING_LIMIT - mkt.otherOrders}</span></Stat>
-      {#if !console}<Stat label="Listed more than you hold" tone={shortShown ? "gold" : "dim"} note={shortShown ? "Sold in game, or used: fix them below" : shortHidden ? "Only in hidden listings, which nobody can buy" : "You hold everything you list"} title={`Listed more than you hold: ${shortShown} visible listing${shortShown === 1 ? "" : "s"} for more copies than you hold now, as Home counts them${shortHidden ? `, and ${shortHidden} hidden, which nobody can buy. Each is flagged in the list: Sold?` : ""}`}>{shortShown}{#if shortHidden}<span class="of">+{shortHidden} hidden</span>{/if}</Stat>{/if}
-  {/snippet}
+  <PageHead title="Orders" brief="Your listings, kept at the market price." blurb="Your warframe.market listings, kept at the market price: the second-cheapest seller online or in game." />
 
-  <!-- Only when signed in: it holds nothing else, and an empty plate would show. -->
+  <!-- The figures you trade by, one tile each: the headline figures, so vessels (pass 2, §8). -->
   {#if mkt.linked}
+    {@const hiddenN = orders.filter((o) => !o.visible).length}
+    {@const allowed = LISTING_LIMIT - mkt.otherOrders}
+    <section class="tiles" aria-label="Your trading">
+      <div class="tile" title={`Listings: ${orders.length} of the ${allowed} warframe.market allows you here (${LISTING_LIMIT} in all, less your other orders), ${hiddenN} hidden`}>
+        <span class="register">Listings</span>
+        <div class="fv"><span class="mark fig" class:gold={mkt.room <= 0}>{orders.length}</span>
+          <Vessel key="orders.listings" max={allowed} parts={[{ value: orders.length - hiddenN, label: "shown", tone: "var(--platinum)" }, { value: hiddenN, label: "hidden", tone: "var(--platinum-deep)" }]} label="Listings of those allowed" /></div>
+        <p class="note">{mkt.room <= 0 ? "At warframe.market's limit" : `${mkt.room} more allowed`} · {hiddenN} hidden</p>
+        {#if !console && (shortShown || shortHidden)}
+          <!-- Something to fix, so it shows whatever Details is set to. -->
+          <p class="note" class:over={shortShown} title={`Listed more than you hold: ${shortShown} visible listing${shortShown === 1 ? "" : "s"} for more copies than you hold now, as Home counts them${shortHidden ? `, and ${shortHidden} hidden, which nobody can buy` : ""}. Each is flagged in the list: Sold?`}>{shortShown ? `! ${shortShown} listed more than you hold: fix ${shortShown === 1 ? "it" : "them"} below` : `${shortHidden} hidden listed more than you hold`}</p>
+        {/if}
+      </div>
+      <div class="tile" title="Listed value: your visible listings, price × quantity">
+        <span class="register">Listed value</span>
+        <div class="fv"><span class="mark fig plat"><P v={listed} big /></span></div>
+        <p class="note">platinum, at your prices</p>
+      </div>
+      <div class="tile" title={checkedAt ? `Undercut: ${undercut} of your ${against.length} shown listing${against.length === 1 ? "" : "s"} with another seller online or in game ask more than the cheapest of those sellers, at the check of ${fmt(checkedAt)}${nextPass ? `; next at ${fmt(+nextPass)}` : ""}. Reprice follows the second-cheapest, so it may leave some of these as they are` : "Undercut: press Check prices to compare"}>
+        <span class="register">Undercut</span>
+        {#if checkedAt && against.length}
+          <div class="fv"><span class="mark fig" class:bad={undercut}>{undercut}</span>
+            <Vessel key="orders.undercut" value={undercut} max={against.length} tone="var(--oxblood)" label="Listings undercut, of those checked" /></div>
+          <p class="note">of the {against.length} checked · {fmt(checkedAt)}</p>
+        {:else}
+          <div class="fv"><span class="mark fig none">–</span></div>
+          <p class="note">{checkedAt ? "nobody else online sells them" : "not checked yet"}</p>
+        {/if}
+      </div>
+      {#if !console && trades.limit != null}
+        {@const resets = until(new Date(trades.resets).toISOString(), minute)}
+        <div class="tile" title={`Trades left today: ${trades.used} made since 00:00 UTC, refreshes in ${resets}. Trades a day are your Mastery Rank (${trades.limit}; Founders get 2 more), each counting once whatever it carried (up to 6 items each way). Counted from the game's log while MyOrbiter was reading it`}>
+          <span class="register">Trades left</span>
+          {#if trades.left != null}
+            <div class="fv"><span class="mark fig" class:gold={trades.left <= 3}>{trades.left}</span>
+              <Vessel key="orders.trades" value={trades.left} max={trades.limit} label="Trades left today" /></div>
+          {:else}
+            <div class="fv"><span class="mark fig none">–</span></div>
+          {/if}
+          <p class="note">of {trades.limit} today · resets in {resets}</p>
+        </div>
+      {/if}
+    </section>
+  {/if}
+
+  <!-- Only when signed in: it holds nothing else, and an empty plate would show. Beside the
+       listings when the page is wide, above them otherwise; above the reason when warframe.market
+       can't be reached. -->
+  {#snippet statusPlate()}
     <section class="status">
       <span class="register">Your status</span>
       <div class="presence"><Presence {settings} tradesLeft={trades.left} resets={trades.resets} /></div>
@@ -677,7 +722,8 @@
         {@render signOut()}
       </span>
     </section>
-  {/if}
+  {/snippet}
+  {#if mkt.linked && mkt.accountError}{@render statusPlate()}{/if}
 
   {#snippet signOut()}
     <span class="out">
@@ -742,6 +788,9 @@
       {/if}
     </section>
   {:else}
+  <div class="desk">
+  <div class="side">
+    {@render statusPlate()}
 
     {#if whisperers.length}
       <!-- Who whispered you this session: one place to find a buyer again once the toast is gone. -->
@@ -770,6 +819,8 @@
       </button>
     {/if}
 
+  </div>
+  <div class="work">
     <!-- Your listings: the heading and the trade-chat line on one row, where to add one under it. -->
     <div class="listhead">
       <div class="lhtop">
@@ -840,7 +891,7 @@
     <table class="orders" class:ownfloors={rows.some((o) => settings.floors[listingKey(o)] != null)}>
       <thead data-card="sort">
         <tr>
-          {@render sh("name", "Item", "", "Sort by name")}{@render sh("qty", "Qty", "right", "Sort by how many you list")}{@render sh("price", "Your price", "right", "Sort by your price (click again for the other way)")}{@render sh("cheapest", "Market price", "", "The second-cheapest seller online or in game right now, one order each (the cheapest alone isn't followed: it may be bait), and how many sellers there are, from the last check. Sort by it")}
+          {@render sh("name", "Item", "", "Sort by name")}{@render sh("qty", "Qty", "right", "Sort by how many you list")}{@render sh("price", "Your price", "right", "Sort by your price (click again for the other way)")}{@render sh("cheapest", "Market price", "", "The second-cheapest seller online or in game right now, one order each (the cheapest alone isn't followed: it may be bait), and how many sellers there are, from the last check. Sort by it")}<th class="vslow" title="Your price against the cheapest seller online or in game at the last check: +n when someone is under you (undercut), Even when you match them, −n when you're the cheapest. Reprice follows the second-cheapest, not this">Against lowest</th>
           {@render sh("change", "Will set", "right willset", "What the repricer would change the price to, and why. Sort by the change (the biggest rises first, falls last)")}<th class="right floorcol" title="Never go below this">Floor</th><th class="center" title="Auto-price on: when you check prices, this listing is moved to the market price, the second-cheapest seller online or in game (never under its floor). Off: MyOrbiter leaves its price as you set it">Auto-price</th><th class="center" title="Whether buyers see the listing on warframe.market (hidden ones keep their place)">Shown</th><th></th>
         </tr>
       </thead>
@@ -851,7 +902,7 @@
           {#if ghostIds.has(o.id)}
             <!-- Sold out or removed: the listing is gone, this row stays to say how it went, then leaves. -->
             <tr class="order ghost" class:done={rowBusy.get(o.id).state === "done"}>
-              <td class="fade c-item" colspan="9"><div class="ghostline"><Named file={model.imageOf(it?.name ?? "")} name={it?.name ?? o.itemId} />{@render rowStatus(o.id)}</div></td>
+              <td class="fade c-item" colspan="10"><div class="ghostline"><Named file={model.imageOf(it?.name ?? "")} name={it?.name ?? o.itemId} />{@render rowStatus(o.id)}</div></td>
             </tr>
           {:else}
           {@const p = plans.get(o.id)}
@@ -897,6 +948,12 @@
               {:else if !shown || paused}<span class="none" title="The order book isn't read for a listing that's {shown ? 'left alone' : 'hidden'}">–</span>
               {:else}<span class="dim small">Not checked yet</span>{/if}
             </td>
+            <td class="vslow">
+              {#if shown}
+                {@const d = againstLowest(o, p)}
+                {#if d != null}<span class="tag vs" class:under={d > 0} title={d > 0 ? `${p?.competitor.lowest?.name ?? "A seller"} asks ${p?.competitor.lowest?.platinum}p, ${d}p under your ${o.platinum}p` : d === 0 ? "You match the cheapest seller online or in game" : `You're the cheapest, ${-d}p under the next seller online or in game`}>{d > 0 ? `+${d}` : d === 0 ? "Even" : `−${-d}`}</span>{/if}
+              {/if}
+            </td>
             <td class="right fade willset">
               {#if p?.change && !paused && shown}<span class="target" class:down={p.target < o.platinum} class:up={p.target > o.platinum}><span class="dim">{o.platinum} →</span> <P v={p.target} /> <span class="delta">{p.target > o.platinum ? "+" : "−"}{Math.abs(p.target - o.platinum)}</span>{#if p.reason === "floor" && crackHeld(o, p) != null}<span class="tag ok" title="Worth more cracked: a crack of it is worth about {crackHeld(o, p)}p, so it isn't listed under {p.floor}p. Take it down to crack it instead.">crack</span>{:else if p.reason === "floor" && p.competitor.price != null && p.target > p.competitor.price}<span class="tag alert" title={minimumHeld(o, p) != null ? `Your ${p.floor}p minimum (Sell spares) is over the market price (${p.competitor.price}p): at this price it's unlikely to sell. Lower the minimum on Sell spares, or take it down.` : `Your floor (${p.floor}p) is over the market price (${p.competitor.price}p): at this price it's unlikely to sell. Lower this listing's floor, or take it down.`}>over market</span>{:else if p.reason === "floor"}<span class="tag ok" title={minimumHeld(o, p) != null ? `Held up by your ${p.floor}p minimum (Sell spares)` : "Held up by the floor"}>{minimumHeld(o, p) != null ? "minimum" : "floor"}</span>{:else if p.reason === "median"}<span class="tag" title="Every seller online or in game asks more than twice what it really goes for ({p.competitor.lowest?.platinum ?? p.competitor.price}p and up): priced at that instead">sells for</span>{/if}</span>
               {:else if !shown}<span class="register" title="Hidden listings aren't repriced">hidden</span>
@@ -937,7 +994,7 @@
           </tr>
           {#if held != null && held < o.quantity}
             <!-- Its own row under the listing, so the listing keeps to one line. -->
-            <tr class="fixrow"><td colspan="9">
+            <tr class="fixrow"><td colspan="10">
                 <!-- Holding fewer than you list usually means some sold: say so, and MyOrbiter closes them. -->
                 <!-- A question with two answers: both buttons change the listing on warframe.market. -->
                 <div class="fix">
@@ -950,7 +1007,7 @@
           {/if}
           {#if charted === o.id && it}
             <tr class="chartrow">
-              <td colspan="9">
+              <td colspan="10">
                 <PriceHistory name={it.name} rank={it.maxRank != null ? (o.rank ?? 0) : null} subtype={o.subtype ?? it.subtypes?.[0] ?? null} height={160}
                   lines={[{ label: "Your price", value: o.platinum, color: "var(--chart-mine)" }, ...(p?.competitor.price != null ? [{ label: "Market price", value: p.competitor.price, color: "var(--chart-theirs)" }] : [])]} />
               </td>
@@ -959,7 +1016,7 @@
           {/if}
         </tbody>
       {:else}
-        <tbody><tr><td colspan="9" class="nothing">No sell listings yet</td></tr></tbody>
+        <tbody><tr><td colspan="10" class="nothing">No sell listings yet</td></tr></tbody>
       {/each}
     </table>
     {#if mkt.orders.length}
@@ -1041,12 +1098,36 @@
         {/each}
       </section>
     {/if}
-
-
+  </div>
+  </div>
   {/if}
 </div></div>
 
 <style>
+  /* The figure tiles: four across, two by two in a compact pane; three fill the row on a console. */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 16px; margin-bottom: var(--step); }
+  :global(html[data-room~="lt1100"]) .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tile {
+    min-width: 0; padding: 14px 18px 12px; clip-path: var(--cut);
+    background: var(--plate-sheen), var(--plate); border: 1px solid var(--rule); box-shadow: var(--plate-light);
+  }
+  .tile .register { color: var(--platinum-dim); }
+  .fv { display: flex; align-items: center; gap: 14px; margin-top: 10px; min-width: 0; }
+  .fv :global(.meter) { flex: 1; min-width: 0; }
+  .fig { font-size: clamp(1.9rem, 2.6vw, 2.5rem); font-variant-numeric: tabular-nums; line-height: 1; }
+  .fig.gold { color: var(--gold); }
+  .fig.bad { color: var(--oxblood); }
+  .fig.none { color: var(--platinum-deep); }
+  .tile .note { margin: 8px 0 0; font-size: .74rem; color: var(--platinum-deep); }
+  .tile .note.over { color: var(--oxblood); }
+  /* A wide pane: your status, who whispered and Sell spares beside the listings rather than above them. */
+  :global(html[data-room~="ge1700"]) .desk { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; column-gap: 24px; align-items: start; }
+  :global(html[data-room~="ge1700"]) .side { grid-column: 2; grid-row: 1; display: grid; gap: var(--step); margin-top: var(--step); }
+  :global(html[data-room~="ge1700"]) .side > :global(*) { margin: 0; }
+  :global(html[data-room~="ge1700"]) .work { grid-column: 1; grid-row: 1; min-width: 0; }
+  :global(html[data-room~="ge1700"]) .side .sparesline { flex-wrap: wrap; }
+  :global(html[data-room~="ge1700"]) .side .sparesline .sub { order: 3; flex-basis: 100%; white-space: normal; }
+  :global(html[data-room~="ge1700"]) .side .sparesline .go { margin-left: auto; }
   .status { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .6rem 1rem; margin-top: var(--step); padding: .6rem; background: var(--plate); border: 1px solid var(--rule); }
   .status > .register { padding-top: .55rem; }
   .account { display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; padding-top: .2rem; }
@@ -1189,6 +1270,11 @@
      950 px (App sets the flag, by the room pages actually have): a 1000 px window with the sidebar
      folded, where the row's actions otherwise ran past the right edge. */
   :global(html[data-room~="lt950"]) .willset { display: none; }
+  /* Against lowest: a tag, red when someone is under you. Narrow windows keep the market price's own "cheapest" note instead. */
+  .tag.vs { margin-left: 0; }
+  .orders :is(th, td).vslow { width: 1%; white-space: nowrap; }
+  .tag.vs.under { color: var(--oxblood); border-color: color-mix(in srgb, var(--oxblood) 55%, transparent); background: color-mix(in srgb, var(--oxblood) 14%, transparent); }
+  :global(html[data-room~="lt1100"]) .vslow { display: none; }
   .willnote { display: none; margin-top: .2rem; font-family: var(--face-register); font-size: .74rem; letter-spacing: .06em; color: var(--oxblood); white-space: nowrap; }
   .willnote.up { color: var(--verdigris); }
   :global(html[data-room~="lt950"]) .willnote { display: block; }
@@ -1207,7 +1293,7 @@
   :global(html[data-room~="lt760"]) table.orders, :global(html[data-room~="lt760"]) table.orders tbody { display: block; }
   :global(html[data-room~="lt760"]) .orders tr.order { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto auto; grid-template-areas: "item item item item item item" "qty price comp auto shown acts"; column-gap: .6rem; row-gap: .45rem; align-items: end; padding: .7rem .6rem; border-bottom: 1px solid var(--rule); }
   :global(html[data-room~="lt760"]) .orders tr.order > td { display: block; border: 0; padding: 0 !important; }
-  :global(html[data-room~="lt760"]) .orders tr.order > td:is(.willset, .floorcol) { display: none; }
+  :global(html[data-room~="lt760"]) .orders tr.order > td:is(.willset, .floorcol, .vslow) { display: none; }
   :global(html[data-room~="lt760"]) .orders tr.order > td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .25rem; font-family: var(--face-register); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); text-align: left; white-space: nowrap; }
   :global(html[data-room~="lt760"]) .orders .c-item { grid-area: item; }
   :global(html[data-room~="lt760"]) .orders .c-qty { grid-area: qty; }
