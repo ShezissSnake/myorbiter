@@ -54,7 +54,7 @@
   import { tick as nextTick } from "svelte";
   import { arrive, calm, flip, fresh, leave, opens, OUT_CSS, QUICK, reveal as unfold } from "../motion";
   import Tick from "../ui/Tick.svelte";
-  import { whileShown } from "../pane.svelte";
+  import { whileShown, whileShownEvery } from "../pane.svelte";
 
   // console: you play on a console or phone, so there's no inventory: Home is the market, the
   // world's clocks, fissures, what's worth doing and Baro, without anything measured against a collection.
@@ -66,10 +66,7 @@
 
   // Countdowns tick once a minute.
   let now = $state(Date.now());
-  $effect(() => {
-    const t = setInterval(() => (now = Date.now()), 30_000);
-    return () => clearInterval(t);
-  });
+  $effect(() => whileShownEvery("home", 30_000, () => (now = Date.now()), () => now));
 
   // ------------------------------------------------------------ market
   // The heavy figures below are worked out while Home is on screen, and kept while it's hidden (lib/pane.svelte.ts).

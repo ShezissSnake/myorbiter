@@ -6,6 +6,7 @@ import { baseId, gearSetParts, heldCount, UNOBTAINABLE, type Model, type Refinem
 import { craftVariantOf, findItem, type MarketIndex } from "./market";
 import { copyValue } from "./vosfor";
 import { idOf, perModel } from "./memo";
+import { dropsVersion } from "./drops";
 import { arcaneRows, inventoryRows, MASTERY_CATEGORIES, modRows, modSpares, partRows, relicRows, saveForSets, savedLine, saveSource, setRows, setSaves, worthSaving, type SaveForSets, type SetSave, type InventoryItem, type InventoryKind, type RelicRow, type SetRow } from "./views";
 import { expectedBest } from "./advice";
 import { isResource } from "./collection";
@@ -303,7 +304,7 @@ export function relicCrackFor(m: Model, name: string, subtype: string | null, pl
 /** The lowest whole price that beats a crack worth `crack`. */
 export const aboveCrack = (crack: number | null) => (crack == null ? null : Math.floor(crack) + 1);
 
-export const spareRows = perModel(spareRowsFresh, (index = null, sell = undefined, platPerDucat = 0, squad = 1, drops = undefined) => `${idOf(index)}|${sell ? JSON.stringify(sell) : "-"}|${platPerDucat}|${squad}|${idOf(drops)}`, (r: SpareRow) => r.key);
+export const spareRows = perModel(spareRowsFresh, (index = null, sell = undefined, platPerDucat = 0, squad = 1, drops = undefined) => `${idOf(index)}|${sell ? JSON.stringify(sell) : "-"}|${platPerDucat}|${squad}|${dropsVersion(drops)}`, (r: SpareRow) => r.key);
 function spareRowsFresh(m: Model, index: MarketIndex | null = null, sell: SellChoices = defaultSellChoices(), platPerDucat = 0, squad = 1, drops: ReadonlyMap<string, number> = new Map()): SpareRow[] {
   const families = unmasteredByFamily(m);
   const needs = needsByUnique(m);

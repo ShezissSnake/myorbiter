@@ -25,17 +25,14 @@
   import type { Group } from "../core/collection";
   import { arrive, calm, flip, leave, pulse, reveal } from "../motion";
   import Count from "../ui/Count.svelte";
-  import { whileShown } from "../pane.svelte";
+  import { whileShown, whileShownEvery } from "../pane.svelte";
   import { inView, progressive } from "../progress.svelte";
   import { untrack } from "svelte";
 
   let { model, settings = $bindable(), go = null }: { model: Model; settings: Settings; go?: ((to: string) => void) | null } = $props();
 
   let now = $state(Date.now());
-  $effect(() => {
-    const t = setInterval(() => (now = Date.now()), 30_000);
-    return () => clearInterval(t);
-  });
+  $effect(() => whileShownEvery("wishlist", 30_000, () => (now = Date.now()), () => now));
 
   const items = $derived.by(whileShown("wishlist", () => settings.favourites.map((u) => wishItem(model, u)).filter((w): w is WishItem => !!w)));
   // Taking something off the wishlist waits a few seconds, with Undo, before it's done.

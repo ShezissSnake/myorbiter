@@ -195,3 +195,30 @@ export function dropTotals(log: DropLog, trades: ReceivedTrade[], since: number)
 
 /** The last `days` days' totals. */
 export const recentDrops = (log: DropLog, trades: ReceivedTrade[], now = Date.now(), days = RECENT_DAYS) => dropTotals(log, trades, now - days * DAY);
+
+/** Whether two drop maps hold the same parts and counts. */
+export function sameDrops(a: ReadonlyMap<string, number>, b: ReadonlyMap<string, number>): boolean {
+  if (a === b) return true;
+  if (a.size !== b.size) return false;
+  for (const [k, v] of a) if (b.get(k) !== v) return false;
+  return true;
+}
+
+const versions = new WeakMap<object, number>();
+let latest: ReadonlyMap<string, number> | null = null;
+let latestVersion = 0;
+/**
+ * A number for what a drop map holds, for a cache key (core/memo.ts keys objects by identity, and
+ * the map is rebuilt on every inventory read): a map with the contents of the last one seen has
+ * its version, and different contents get the next number.
+ */
+export function dropsVersion(m: ReadonlyMap<string, number> | null | undefined): string {
+  if (m == null) return "-";
+  let v = versions.get(m);
+  if (v == null) {
+    if (!latest || !sameDrops(latest, m)) latestVersion++;
+    latest = m;
+    versions.set(m, (v = latestVersion));
+  }
+  return `d${v}`;
+}

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { shownPage, whileShown } from "../pane.svelte";
+  import { shownPage, whileShown, whileShownEvery } from "../pane.svelte";
   import { links, openUrl } from "../links.svelte";
   import Opening from "../ui/Opening.svelte";
   import Fold from "../ui/Fold.svelte";
@@ -76,10 +76,7 @@
   const agoWord = (at: number | null) => (at == null ? "" : (() => { const m = Math.max(0, Math.round((minute / 1000 - at) / 60)); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)} h ago`; })());
   // The daily trade limit (core/tradeLimit.ts), refreshed each minute.
   let minute = $state(Date.now());
-  $effect(() => {
-    const t = setInterval(() => (minute = Date.now()), 60_000);
-    return () => clearInterval(t);
-  });
+  $effect(() => whileShownEvery("market", 60_000, () => (minute = Date.now()), () => minute));
   const trades = $derived(tradeAllowance(settings.trades, masteryRank, minute));
   // Arcanes you're still collecting copies of to max: an unranked listing of one works against that.
   const collecting = $derived(console ? new Map<string, { copies: number; needed: number }>() : new Map(arcaneRows(model).filter((a) => !a.complete && a.copies > 0).map((a) => [a.name, { copies: a.copies, needed: a.needed }])));
@@ -474,10 +471,8 @@
   let anyBy = $state<Record<string, { at: number; auctions: RivenAuction[] }>>({});
   const anyAsking = new Set<string>();
   let anyTick = $state(0);
-  $effect(() => {
-    const t = setInterval(() => anyTick++, 5 * 60_000);
-    return () => clearInterval(t);
-  });
+  let anyLast = Date.now();
+  $effect(() => whileShownEvery("market", 5 * 60_000, () => ((anyLast = Date.now()), anyTick++), () => anyLast));
   const anyKey = (w: string) => `${mkt.platform}|${w}`;
   $effect(() => {
     void anyTick;
@@ -1145,7 +1140,7 @@
   .bang { display: inline-grid; place-items: center; width: 1.05em; height: 1.05em; border: 1px solid currentColor; font-family: var(--face-register); font-size: .72rem; font-weight: 700; line-height: 1; }
   /* Sold out, on its way off: dimmed by colour, not opacity, so its words stay readable (about 5:1). */
   tr.ghost td { color: var(--platinum-deep); --platinum: var(--platinum-deep); --platinum-dim: var(--platinum-deep); }
-  tr.ghost td :global(img) { opacity: .6; }
+  tr.ghost td :global(img), tr.ghost td :global(.mk) { opacity: .6; }
   /* Its name and how it went on one line, so the row keeps about a listing's height. */
   .ghostline { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem 1.2rem; min-height: 36px; }
   .ghostline .rowst { margin-top: 0; padding-left: 0; }
@@ -1236,7 +1231,7 @@
   /* A hidden listing reads faded; its switches and actions stay at full strength. Faded by colour
      (the tokens its parts use, turned down), not opacity, so its words stay readable (about 5:1). */
   tr.hidden td.fade { color: var(--platinum-deep); --platinum: var(--platinum-deep); --platinum-dim: var(--platinum-deep); --gold: var(--gold-dim); }
-  tr.hidden td.fade :global(img) { opacity: .45; }
+  tr.hidden td.fade :global(img), tr.hidden td.fade :global(.mk) { opacity: .45; }
   .right { text-align: right; }
   .center { text-align: center; }
   .comp { display: inline-flex; align-items: center; gap: .45rem; }

@@ -18,14 +18,17 @@
   const rolled = (n: number) => fmt(v != null && Number.isInteger(v) ? Math.round(n) : n);
 </script>
 
-<!-- The metal's icon drawn here rather than with <Metal>: a table shows hundreds of these, and two
-     components fewer each is most of what drawing one costs. The same picture, size and title. -->
-{#if v == null}<span class="none" title="No price">–</span>{:else}<span class="amt" class:d class:dim class:big><b>{#if tick}<Count value={v} format={rolled} />{:else}{fmt(v)}{/if}</b><img class="gi {d ? 'ducats' : 'platinum'}" src="/game/{d ? 'ducats' : 'platinum'}.png" width={big ? 25 : 14} height={big ? 25 : 14} alt={d ? "ducats" : "platinum"} title={d ? "ducats" : "platinum"} draggable="false" /></span>{/if}
+<!-- The metal's mark drawn here rather than with <Metal> or <GameIcon>: a table shows hundreds of
+     these, and an <img> and two components fewer each is most of what drawing one costs. The same
+     picture, size and title, as the span's CSS background (public/game/platinum.png, ducats.png). -->
+{#if v == null}<span class="none" title="No price">–</span>{:else}<span class="amt" class:d class:dim class:big><b>{#if tick}<Count value={v} format={rolled} />{:else}{fmt(v)}{/if}</b><span class="mk" role="img" aria-label={d ? "ducats" : "platinum"} title={d ? "ducats" : "platinum"}></span></span>{/if}
 
 <style>
   .amt { display: inline-flex; align-items: center; gap: .28rem; white-space: nowrap; }
-  /* As GameIcon draws it. */
-  .gi { display: inline-block; flex: none; object-fit: contain; vertical-align: middle; }
+  /* As GameIcon draws it: contained in its square, the metal's own picture. */
+  .mk { display: inline-block; flex: none; width: 14px; height: 14px; vertical-align: middle; background: url(/game/platinum.png) center / contain no-repeat; }
+  .d .mk { background-image: url(/game/ducats.png); }
+  .big .mk { width: 25px; height: 25px; }
   b { font-family: var(--face-mark); font-weight: 700; font-size: .98rem; font-variant-numeric: tabular-nums; color: var(--platinum); }
   .d b { color: var(--gold); }
   .dim b { color: var(--platinum-dim); font-weight: 600; }

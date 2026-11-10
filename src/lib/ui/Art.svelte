@@ -8,12 +8,16 @@
   let { file, size = 120, dim = false, alt = "", fallback = null, name = null }: { file: string | null | undefined; size?: number; dim?: boolean; alt?: string; fallback?: GameIconName | null; name?: string | null } = $props();
   let failed = $state<string[]>([]);
   const src = $derived([file, marketThumb(name)].find((f): f is string => !!f && !failed.includes(f)) ?? null);
+  // The 128 px copy where the slot needs no more than that in device pixels (a 64 px slot on a 2x
+  // screen, a 128 px slot on a 1x one), the 400 px copy above: 10x the pixels to decode for every
+  // card in a grid, and no sharper at that size.
+  const large = $derived(size * (typeof devicePixelRatio === "number" ? devicePixelRatio : 1) > 128);
 </script>
 
 <span class="art" class:dim style:width="{size}px">
   {#if src}
     <!-- A market thumbnail has no large copy. -->
-    <img src={imageUrl(src, !src.startsWith("wfm."))} {alt} loading="lazy" decoding="async" onerror={() => src && (failed = [...failed, src])} />
+    <img src={imageUrl(src, large && !src.startsWith("wfm."))} {alt} width={size} height={size} loading="lazy" decoding="async" onerror={() => src && (failed = [...failed, src])} />
   {:else if fallback}
     <span class="kind"><GameIcon name={fallback} size={Math.round(size * 0.55)} /></span>
   {:else}

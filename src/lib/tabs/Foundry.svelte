@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { whileShown } from "../pane.svelte";
+  import { whileShown, whileShownEvery } from "../pane.svelte";
   import Count from "../ui/Count.svelte";
   // Every warframe, weapon, companion and archwing as a card: its artwork, each part as a chip
   // (gold when you have it), and whether you own it, have mastered it, or can build it now.
@@ -98,10 +98,7 @@
   }
   // What's in your foundry now (as Home shows it), so this page and Home tell the same story.
   let now = $state(Date.now());
-  $effect(() => {
-    const t = setInterval(() => (now = Date.now()), 60_000);
-    return () => clearInterval(t);
-  });
+  $effect(() => whileShownEvery("foundry", 60_000, () => (now = Date.now()), () => now));
   const builds = $derived.by(whileShown("foundry", () => foundryBuilds(model, settings.game.foundryReady, now)));
   const readyToClaim = $derived(builds.filter((b) => b.ready).length);
   /**

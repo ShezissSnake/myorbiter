@@ -68,6 +68,15 @@
     return () => clearInterval(t);
   });
 
+  /** The log folders, looked up again each time the panel opens (TennoScope may have written its first log since): updated in place, so the buttons aren't built again. */
+  let folders = $state<{ myorbiter: string | null; tennoscope: string | null } | null>(null);
+  $effect(() => {
+    if (!open) return;
+    const dir = settings.dataDir;
+    let live = true;
+    logFolders(dir).then((f) => live && (folders = f), () => {});
+    return () => (live = false);
+  });
   /** Open a log folder: "Opened", or why not, on the button itself. */
   const logJobs = new Jobs();
   const openLogs = (which: "myorbiter" | "tennoscope") =>
@@ -139,7 +148,7 @@
   }
 </script>
 
-<Sheet bind:open title="Settings" kicker="MyOrbiter">
+<Sheet bind:open keep title="Settings" kicker="MyOrbiter">
   <section>
     <h3 class="register">Platform</h3>
     <label class="field">
@@ -342,13 +351,13 @@
   <section id="settings-logs">
     <h3 class="register">Logs</h3>
     <p class="hint">What MyOrbiter did and what went wrong, one line each, for when something misbehaves: TennoScope starting or failing, every change it made to your listings and every request warframe.market turned down, and errors in this window. Never your warframe.market sign-in. TennoScope keeps its own. Send both when you report a problem.</p>
-    {#await logFolders(settings.dataDir) then f}
+    {#if folders}{@const f = folders}
       <div class="row">
         <ProgressButton job={logJobs.get("myorbiter")} label="Open MyOrbiter's log folder" failLabel="Couldn't open" sizer={["Opened", "Couldn't open"]} disabled={!f.myorbiter} title={f.myorbiter ?? "Only in the desktop app"} onclick={() => openLogs("myorbiter")} status />
         <ProgressButton job={logJobs.get("tennoscope")} label="Open TennoScope's log folder" failLabel="Couldn't open" sizer={["Opened", "Couldn't open"]} disabled={!f.tennoscope} title={f.tennoscope ?? "TennoScope hasn't written a log here yet"} onclick={() => openLogs("tennoscope")} status />
       </div>
       {#if f.myorbiter}<p class="hint path-note">{f.myorbiter}</p>{/if}
-    {/await}
+    {/if}
   </section>
 
   <section id="settings-report">

@@ -48,7 +48,7 @@
 
 <div class="mc t-{tone}" class:arcane style:--w="{width}px" title="{name}{rarity ? ` · ${rarity}` : ''}{text ? `\n${text}` : ''}">
   <div class="art">
-    <span class="in">{#if src}<img src={imageUrl(src, width > 120 && !src.startsWith("wfm."))} alt="" loading="lazy" decoding="async" onerror={() => src && (failed = [...failed, src])} />{:else}<i class="none" aria-hidden="true"></i>{/if}</span>
+    <span class="in">{#if src}<img src={imageUrl(src, width > 120 && !src.startsWith("wfm."))} alt="" width={arcane ? Math.round(width * 0.64) : width} height={arcane ? Math.round(width * 0.64) : Math.round(width * 0.72)} loading="lazy" decoding="async" onerror={() => src && (failed = [...failed, src])} />{:else}<i class="none" aria-hidden="true"></i>{/if}</span>
     {#if !arcane && (drain != null || polarity)}
       <span class="drain">{#if drain != null}{drain}{/if}{#if polarity && polarity !== "aura"}<img src="/game/pol/{polarity === "universal" ? "any" : polarity}.png" alt={polarity} />{/if}</span>
     {/if}

@@ -184,7 +184,7 @@
   .pb { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: .5rem; overflow: hidden; font-variant-numeric: tabular-nums; }
   .pb.ib { display: inline-grid; place-items: center; }
   /* The labels, stacked: only the current one is seen, the widest sets the width. */
-  .lbls { position: relative; z-index: 1; display: inline-grid; }
+  .lbls { position: relative; z-index: 1; display: inline-grid; contain: paint; }
   .lbls > span { grid-area: 1 / 1; visibility: hidden; display: inline-flex; align-items: center; justify-content: center; gap: .4rem; white-space: nowrap; }
   .lbls > span.on { visibility: visible; }
   .mark { position: relative; z-index: 1; display: inline-grid; place-items: center; line-height: 0; }
@@ -193,7 +193,8 @@
 
   /* The fill: grows from the left behind the label, clipped by the button's own cut shape. */
   .fill { position: absolute; inset: 0; transform-origin: left center; transform: scaleX(0); background: rgb(241 243 246 / 13%); opacity: 0; pointer-events: none; transition: transform var(--settle) var(--out), opacity var(--settle); }
-  .fill.on { opacity: 1; }
+  /* One layer for the whole working state: the step set on each listing doesn't make WebKit give the fill a layer and take it away again, redrawing the stamp and its border each time. */
+  .fill.on { opacity: 1; will-change: transform; }
   /* Working, with a figure: each step is set, not slid to, so the next one doesn't restart a transition. */
   .fill.step { transition: opacity var(--settle); }
   .gold > .fill, .ib.gold > .fill { background: rgb(214 174 74 / 22%); }
