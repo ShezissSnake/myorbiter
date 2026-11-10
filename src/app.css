@@ -90,8 +90,8 @@
 
   /* Each section's own colour (the [data-section] rules at the end of this file): a hint, in
      three places: the strip down the content's left edge (drawn by the page on screen), the
-     title's sigil and the start of its rule, and the sidebar's sigils and open page. A section's own signature (the reward to
-     take, the Codex rings, the showcase, the ticker) uses it too. Pages outside a section (Home,
+     title's sigil and the start of its rule, and the sidebar's sigils and open page. A section's
+     own signature (the reward to take, the Codex rings, the showcase, the ticker) uses it too. Pages outside a section (Home,
      the Guide) are neutral. --sec-dim is the same hue about half way to the slab, solid, for
      hairlines. */
   --sec: var(--platinum-dim);
@@ -506,8 +506,8 @@ tr.era-wash > td:first-child { box-shadow: inset 2px 0 0 color-mix(in srgb, var(
    main, the banners and the page) carries a faint neutral criss-cross, white, never the section's
    hue: two sets of 45° lines every 28 px and a square grid every 240 px. It shows only in the
    gutters and margins, and stays put while the page scrolls. In a section, a 3 px strip in its
-   colour runs down the content's left edge, by the sidebar, the window's full height (behind the
-   banners, whose own edge covers it there).
+   colour runs down the page's left edge, by the sidebar (drawn by the page on screen; the banners
+   above it have an edge of their own).
    Drawn from small tiles, never from page-sized repeating gradients: WebKitGTK draws a 1 px stop
    in 28 over a whole page unevenly (lines of 1 and 2 px at uneven gaps, and moiré bands on some
    builds). The lines are one 40 px SVG tile with both diagonals corner to corner, 1 px wide (so

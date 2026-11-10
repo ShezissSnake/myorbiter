@@ -33,7 +33,8 @@
   // few rows a slice rather than sixty in one task.
   let box = $state<HTMLElement | null>(null);
   const rowView = inView(() => box, { min: 8, guess: 52 });
-  const drawn = $derived.by(progressive(() => list.slice(0, limit), (x) => x.row.unique, { first: rowView.count, step: 6, measure: rowView.measure, hidden: rowView.hidden, onShow: rowView.onShow }));
+  // After "N more", the rows already there count as the first screenful, so the new ones follow at once.
+  const drawn = $derived.by(progressive(() => list.slice(0, limit), (x) => x.row.unique, { first: () => Math.max(rowView.count(), limit - 60), step: 6, measure: rowView.measure, hidden: rowView.hidden, onShow: rowView.onShow }));
   const buy = (x: PlatMastery, b: PlatMastery["buys"][number]) => mkt.startBuy(b.name, { quantity: b.need, known: b.price });
 </script>
 

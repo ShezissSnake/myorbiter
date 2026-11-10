@@ -2799,7 +2799,8 @@
 
   <!-- No section on main itself: the section's colours are inherited properties, so changing them
        here restyled every page, shown or hidden, on each switch between sections. The strip down
-       the content's left edge is drawn by the page on screen, which carries its own (app.css). -->
+       the content's left edge is drawn by the page on screen, which carries its own (app.css);
+       the dialogs and the tour bar below take it from a wrapper of their own (.secscope). -->
   <main id="main" tabindex="-1" aria-busy={loading && !bundle} use:room class:touring={!!tourStop()}>
     <!-- The first read of TennoScope's data, before there's anything to show. Everything after
          that (a sync, a warframe.market change, the background re-read when TennoScope writes)
@@ -2962,13 +2963,17 @@
       {@render pane("rivens", pRivens)}
       {@render pane("wishlist", pWishlist)}
       {@render pane("browse", pBrowse)}
-      {#if wanted.list}{#await loadListDialog(lazyTry)}<p class="sheetload register" role="status">Loading…</p>{:then { default: ListDialog }}<ListDialog {model} market={settings.market} advice={onConsole ? null : settings.advice} go={(t: string) => (settings.tab = t)} onsellagain={sellAgain} />{:catch}<p class="sheetload register" role="status">This didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/if}
-      <BuyDialog {model} go={(t: string) => (settings.tab = t)} onalert={(a) => { settings.market.buyAlerts = [a, ...settings.market.buyAlerts.filter((x) => x.name !== a.name || x.rank !== a.rank || (x.subtype ?? null) !== (a.subtype ?? null))].slice(0, 40); lastDeals = 0; }} />
-      {#if wanted.details}{#await loadItemDetails(lazyTry)}<p class="sheetload register" role="status">Loading…</p>{:then { default: ItemDetails }}<ItemDetails {model} bind:settings={settings} />{:catch}<p class="sheetload register" role="status">This didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/if}
-      {#if !onConsole}<Lookup bind:open={showLookup} {model} go={(t: string) => (settings.tab = t)} spares={settings.market.spares} onsellagain={sellAgain} />{/if}
-      {#if wanted.hover}{#await loadHoverCard(lazyTry) then { default: HoverCard }}<HoverCard {model} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad > 1 ? 4 : 1} />{/await}{/if}
+      <!-- The dialogs, Lookup and the hover card take the open page's section colour; carried here
+           rather than on main, so a switch restyles only them (see main). -->
+      <div class="secscope" data-section={pageById[settings.tab as PageId]?.group || undefined}>
+        {#if wanted.list}{#await loadListDialog(lazyTry)}<p class="sheetload register" role="status">Loading…</p>{:then { default: ListDialog }}<ListDialog {model} market={settings.market} advice={onConsole ? null : settings.advice} go={(t: string) => (settings.tab = t)} onsellagain={sellAgain} />{:catch}<p class="sheetload register" role="status">This didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/if}
+        <BuyDialog {model} go={(t: string) => (settings.tab = t)} onalert={(a) => { settings.market.buyAlerts = [a, ...settings.market.buyAlerts.filter((x) => x.name !== a.name || x.rank !== a.rank || (x.subtype ?? null) !== (a.subtype ?? null))].slice(0, 40); lastDeals = 0; }} />
+        {#if wanted.details}{#await loadItemDetails(lazyTry)}<p class="sheetload register" role="status">Loading…</p>{:then { default: ItemDetails }}<ItemDetails {model} bind:settings={settings} />{:catch}<p class="sheetload register" role="status">This didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/if}
+        {#if !onConsole}<Lookup bind:open={showLookup} {model} go={(t: string) => (settings.tab = t)} spares={settings.market.spares} onsellagain={sellAgain} />{/if}
+        {#if wanted.hover}{#await loadHoverCard(lazyTry) then { default: HoverCard }}<HoverCard {model} platPerDucat={settings.advice.platPerDucat} squad={settings.advice.squad > 1 ? 4 : 1} />{/await}{/if}
+      </div>
     {/if}
-    <TourBar go={(t: string) => goTo(t)} />
+    <div class="secscope" data-section={model ? pageById[settings.tab as PageId]?.group || undefined : undefined}><TourBar go={(t: string) => goTo(t)} /></div>
   </main>
   {#if sideShown && model}
     {#await loadSideWatch(lazyTry) then { default: SideWatch }}<SideWatch {model} {live} bind:settings console={onConsole} bountyTables={relicTables?.bounties ?? null} go={(t: string) => goTo(t)} {shortListings} {liveError} />{/await}
@@ -3028,6 +3033,8 @@
   .pane:not(.shown) :global(.busyword i::before), .pane:not(.shown) :global(.pending::after), .pane:not(.shown) :global(.reading::after) { animation-play-state: paused; }
   /* The tour's bar on the page's bottom edge: room under the page to scroll past it. */
   main.touring :global(.page-inner) { padding-bottom: 7rem; }
+  /* Carries the open page's section for what sits in main outside the pages; no box of its own. */
+  .secscope { display: contents; }
   main { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; outline: none; }
   /* Out of sight until the keyboard lands on it. */
   .skip { position: fixed; z-index: 80; top: .5rem; left: .5rem; padding: .55rem .9rem; background: var(--plate); color: var(--platinum); border: 1px solid var(--gold); font-size: .85rem; transform: translateY(calc(-100% - 1rem)); }
