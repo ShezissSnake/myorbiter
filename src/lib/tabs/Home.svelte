@@ -1,4 +1,6 @@
 <script lang="ts">
+  /** A faction's colour (app.css), for an invasion's two sides. */
+  const faction = (f: string) => { const k = f.toLowerCase(); return k.startsWith("grineer") ? "var(--faction-grineer)" : k.startsWith("corpus") ? "var(--faction-corpus)" : k.startsWith("infest") ? "var(--faction-infested)" : "var(--platinum-deep)"; };
   import { info } from "../hover.svelte";
   // Today at a glance: anything that needs you, your market, live fissures and your best relic for
   // each, what's ready to sell, what's worth doing today, your Foundry, cheap buys, the easiest
@@ -55,6 +57,7 @@
   import { arrive, calm, flip, fresh, leave, opens, OUT_CSS, QUICK, reveal as unfold } from "../motion";
   import Tick from "../ui/Tick.svelte";
   import { whileShown, whileShownEvery } from "../pane.svelte";
+  import Segments from "../ui/Segments.svelte";
 
   // console: you play on a console or phone, so there's no inventory: Home is the market, the
   // world's clocks, fissures, what's worth doing and Baro, without anything measured against a collection.
@@ -526,9 +529,9 @@
             {#if a.progress != null && a.sides}
               {@const at = Math.max(0, Math.min(100, a.progress))}
               <span class="tug" title="{a.sides[0]} {Math.round(at)}% · {a.sides[1]} {Math.round(100 - at)}%: whoever fills the bar wins">
-                <Foe enemy={a.sides[0]} size={12} name={false} /><span class="tb"><i class="f-{a.sides[0].toLowerCase()}" style:width="{at}%"></i><i class="f-{a.sides[1].toLowerCase()}" style:width="{100 - at}%"></i></span><Foe enemy={a.sides[1]} size={12} name={false} />
+                <Foe enemy={a.sides[0]} size={12} name={false} /><span class="tb"><Segments key="invasion:{a.key ?? a.title}" max={100} cells={20} fill parts={[{ value: at, tone: faction(a.sides[0]), label: a.sides[0] }, { value: 100 - at, tone: faction(a.sides[1]), label: a.sides[1] }]} label="Invasion" /></span><Foe enemy={a.sides[1]} size={12} name={false} />
               </span>
-            {:else if a.progress != null}<span class="prog" title="{Math.round(a.progress)}% through"><i style:width="{Math.max(0, Math.min(100, a.progress))}%"></i></span>{/if}
+            {:else if a.progress != null}<span class="prog" title="{Math.round(a.progress)}% through"><Segments key="alert:{a.key ?? a.title}" value={Math.max(0, Math.min(100, a.progress))} max={100} cells={20} fill label="{Math.round(a.progress)}% through" /></span>{/if}
           </span>
           <span class="end">
             {#if a.expiry}<span class="small nowrap">{until(a.expiry, now)} left</span>{/if}
@@ -690,7 +693,7 @@
             <li>
               <div class="eh"><b class="mark">{e.name}</b><span class="dim small">{e.where ? `${e.where} · ` : ""}ends in {until(e.ends, now)}</span></div>
               {#if e.note}<p class="dim small">{e.note}</p>{/if}
-              {#if e.progress}<div class="eprog" title="{e.progress.at.toLocaleString('en')} of {e.progress.of.toLocaleString('en')} toward its goal"><i style:width="{(e.progress.at / e.progress.of) * 100}%"></i></div>{/if}
+              {#if e.progress}<div class="eprog" title="{e.progress.at.toLocaleString('en')} of {e.progress.of.toLocaleString('en')} toward its goal"><Segments key="event:{e.id}" value={e.progress.at} max={e.progress.of} cells={20} fill label="{e.progress.at.toLocaleString('en')} of {e.progress.of.toLocaleString('en')} toward its goal" /></div>{/if}
               {#if e.rewards.length}<p class="small erw"><span class="dim">Pays</span>{" "}{#each e.rewards as r, i (r)}{i ? " · " : ""}<span use:info={r.replace(/^[\d,]+ × /, "")}>{r}</span>{/each}</p>{/if}
             </li>
           {/each}
@@ -991,15 +994,10 @@
   .alert .tx b { font-weight: 600; color: var(--platinum); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .alert .where { display: flex; flex-wrap: wrap; align-items: center; gap: 0 .1rem; }
   .alert .side { display: inline-flex; align-items: center; gap: .3rem; color: var(--gold); }
-  .alert .prog { display: block; height: 3px; background: var(--well); margin-top: .2rem; }
-  .alert .prog i { display: block; height: 100%; background: var(--gold-dim); }
+  .alert .prog { display: flex; margin-top: .3rem; max-width: 20rem; }
   /* An invasion as a tug of war: the attackers' colour from the left, the defenders' from the right. */
   .alert .tug { display: flex; align-items: center; gap: .35rem; margin-top: .25rem; max-width: 20rem; }
-  .alert .tb { flex: 1; display: flex; height: 4px; background: var(--well); gap: 1px; }
-  .alert .tb i { display: block; height: 100%; background: var(--platinum-deep); }
-  .alert .tb .f-grineer { background: var(--faction-grineer); }
-  .alert .tb .f-corpus { background: var(--faction-corpus); }
-  .alert .tb .f-infested, .alert .tb .f-infestation { background: var(--faction-infested); }
+  .alert .tb { flex: 1; display: flex; min-width: 0; }
   .alert .end { display: grid; justify-items: end; gap: .15rem; flex: none; }
   .t-gold { box-shadow: inset 3px 0 0 var(--gold); }
   .t-red { box-shadow: inset 3px 0 0 var(--oxblood); }
@@ -1026,8 +1024,7 @@
   .eh { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .6rem; }
   .ev p { margin: 0; }
   .erw { color: var(--platinum); }
-  .eprog { height: 4px; background: var(--rule); }
-  .eprog i { display: block; height: 100%; background: var(--gold); }
+  .eprog { display: flex; max-width: 24rem; }
   .stages { list-style: none; margin: .1rem 0 .2rem; padding: 0; display: grid; gap: .3rem; font-size: .85rem; }
   .stages li { display: flex; gap: .55rem; align-items: baseline; }
   .stages .sn { color: var(--gold); font-size: .75rem; }

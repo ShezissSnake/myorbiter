@@ -32,6 +32,8 @@
   import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
   import { pickShowcase } from "../core/showcase";
   import { arrive, calm, confirm, flip, leave, reveal } from "../motion";
+  import Kind from "../ui/Kind.svelte";
+  import Segments from "../ui/Segments.svelte";
 
   // console: you play on a console or phone, where MyOrbiter can't read your rivens: the finder and
   // alerts only.
@@ -532,7 +534,7 @@
     <header>
       <Art file={r.image} size={74} fallback="riven" />
       <div class="t">
-        <span class="register">{r.kind} riven · {r.weapon}{r.companion ? " · companion" : ""}</span>
+        <span class="register"><Kind kind={r.kind} label="{r.kind} riven · {r.weapon}{r.companion ? ' · companion' : ''}" size={12} /></span>
         <h3 class="mark" title="{r.weapon} {r.name}">{r.weapon} {r.name}</h3>
         <span class="meta dim small">
           {#if r.polarity}<img src="/game/pol/{r.polarity}.png" alt={r.polarity} title={r.polarity} class="pol" />{/if}
@@ -550,7 +552,7 @@
       {#each r.stats as s, i (i)}
         <li class:curse={!s.buff}>
           <b class="val">{s.display}</b><span class="lbl">{s.label}{#if s.spliced}<span class="tag ok" title="From Riven Splicing: it stays locked through cycles">spliced</span>{/if}</span>
-          <span class="rbar" title="Roll {s.quality == null ? '?' : Math.round(s.quality * 100)}% of its range"><i style:width="{(s.quality ?? 0) * 100}%"></i></span>
+          <span class="rbar" title="Roll {s.quality == null ? '?' : Math.round(s.quality * 100)}% of its range"><Segments key="riven:{r.id}:{i}" value={s.quality ?? 0} max={1} cells={10} fill tone="var(--platinum-dim)" label="Roll {s.quality == null ? 'unknown' : `${Math.round(s.quality * 100)}%`} of its range" /></span>
           {#if s.buff}{@render grade(s.grade)}{:else}{@render curse(s)}{/if}
         </li>
       {/each}
@@ -858,8 +860,7 @@
   .val { font-family: var(--face-mark); font-size: 1rem; color: var(--verdigris); font-variant-numeric: tabular-nums; }
   .curse .val { color: var(--oxblood); }
   .lbl { color: var(--platinum-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .rbar { height: 4px; background: var(--rule); border-radius: 2px; overflow: hidden; }
-  .rbar i { display: block; height: 100%; background: var(--platinum-dim); }
+  .rbar { display: flex; min-width: 0; }
   .cycle { margin: 0; padding: .5rem .6rem; border: 1px dashed var(--rule-bright); display: grid; gap: .3rem; }
   .cycle .register { font-size: 11px; }
   .was { display: flex; align-items: center; gap: .45rem; font-size: .84rem; }

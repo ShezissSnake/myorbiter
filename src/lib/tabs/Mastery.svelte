@@ -32,11 +32,13 @@
   import { until } from "../core/traders";
   import PlatMastery from "../ui/PlatMastery.svelte";
   import CodexRings from "../ui/CodexRings.svelte";
-  import { codexRings, rowGroups, someNames } from "../core/codex";
+  import { codexRings, ringTotal, rowGroups, someNames } from "../core/codex";
   import type { Group } from "../core/collection";
   import { keepWhile, shownPage, whenIdle, whileShown, whileShownEvery } from "../pane.svelte";
   import { arrive, fresh } from "../motion";
   import { inBackground } from "../progress.svelte";
+  import Kind from "../ui/Kind.svelte";
+  import Vessel from "../ui/Vessel.svelte";
 
   let { model, masteryRank = null, wishlist = $bindable([]), foundryReady = [] }: { model: Model; masteryRank?: number | null; wishlist?: string[]; foundryReady?: [string, number][] } = $props();
   // Things you only have to level: in your arsenal, built and waiting in the Foundry, or building.
@@ -136,11 +138,13 @@
     { key: "how", label: "How to get it", value: (r) => r.acq.how, cell: howCell, sortable: false },
     { key: "buy", spare: true, label: "Buy parts", value: (r) => r.buyFor, align: "right", cell: buyCell, title: "Primes: what the parts you're missing cost on warframe.market (daily median)" },
     { key: "parts", minor: true, label: "Parts", value: (r) => (r.status === "level" || !r.partsTotal ? null : `${r.partsOwned}/${r.partsTotal}`), sortValue: (r) => (r.partsTotal ? r.partsOwned / r.partsTotal : null), align: "right" },
-    { key: "category", minor: true, label: "Type", value: (r) => r.category, muted: true, defaultDesc: false },
+    { key: "category", minor: true, label: "Type", value: (r) => r.category, muted: true, defaultDesc: false, cell: kindCell },
     { key: "star", label: "", value: () => null, cell: starCell, sortable: false, align: "right" },
   ];
   const things = (n: number, one = "thing", many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
   const rings = $derived.by(whileShown("mastery", () => codexRings(model)));
+  /** Mastered of everything, each thing once (the All ring's figures). */
+  const codex = $derived(ringTotal(rings));
   /** A kind picked in the list lights its ring, when it falls in one. */
   // (Kitguns are in two rings, so they light none.)
   const KIND_RING: Record<string, Group> = { Warframe: "warframes", Primary: "primary", Secondary: "secondary", Melee: "melee", Zaw: "melee", Companion: "companions", "Companion weapon": "companions", "Railjack Plexus": "companions", Archwing: "archwing", "Arch-Gun": "archwing", "Arch-Melee": "archwing", Amp: "amps", "K-Drive": "kdrives" };
@@ -161,6 +165,7 @@
   });
 </script>
 
+{#snippet kindCell(r: MasteryRow)}<Kind kind={r.category} />{/snippet}
 {#snippet nameCell(r: MasteryRow)}<Named file={model.imageOf(r.name)} name={r.name} />{/snippet}
 {#snippet starCell(r: MasteryRow)}
   {#if model.catalogByUnique.has(r.unique)}
@@ -240,6 +245,8 @@
       {#if masteryRank != null}
         <Stat label="Your rank" tone="gold" note={`${rankLabel(masteryRank)} from ${rankThreshold(masteryRank).toLocaleString("en")} · ${rankLabel(masteryRank + 1)} at ${rankThreshold(masteryRank + 1).toLocaleString("en")} total mastery`} title={`${rankLabel(masteryRank + 1)} takes ${(rankThreshold(masteryRank + 1) - rankThreshold(masteryRank)).toLocaleString("en")} mastery more than ${rankLabel(masteryRank)}. The game doesn't say how far into the rank you are, so the figures below are what's left to earn, not what's left to the next rank.`}>{rankLabel(masteryRank)}</Stat>
       {/if}
+      <!-- The Codex as a whole: what you've mastered of everything that gives mastery, as the All ring counts it. -->
+      <Stat label="Mastered" note={`of ${codex.total.toLocaleString("en")} things that give mastery`}><span class="codex"><Vessel key="mastery.codex" value={codex.mastered} max={codex.total} label="Mastered of everything that gives mastery">{#snippet figure(n)}<span class="cfig">{Math.round(n).toLocaleString("en")}</span>{/snippet}</Vessel></span></Stat>
       <Stat label="Rank up what you own" note={`${things(levelRows.length)} in your arsenal, not yet at max rank`}><GameIcon name="mastery" size={30} /><Count value={pts(levelRows)} /></Stat>
       <Stat label="Easy to get" note={`${things(easyRows.length)}: buy and build, or an easy boss`}><GameIcon name="mastery" size={30} /><Count value={pts(easyRows)} /></Stat>
       <Stat label="Left to master" tone="dim" note={`${things(open.length)} you can still get`}><GameIcon name="mastery" size={30} /><Count value={pts(open)} /></Stat>
@@ -310,4 +317,6 @@
   .star:hover, .star.on { color: var(--gold); }
   .star.on svg { fill: var(--gold); }
   .players { display: block; margin-top: .35rem; font-size: .82rem; color: var(--platinum-deep); }
+  .codex { display: flex; flex: 1; min-width: 9rem; }
+  .codex :global(.meter) { flex: 1; }
 </style>

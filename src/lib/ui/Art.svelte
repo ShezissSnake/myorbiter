@@ -2,10 +2,10 @@
   import { imageUrl } from "../backend";
   import GameIcon, { type GameIconName } from "./GameIcon.svelte";
   import { marketThumb } from "../marketStore.svelte";
-  // An item's artwork, large, standing in a faint pool of light. Without it (none, or it didn't
+  // An item's artwork, large, in a lit picture well. Without it (none, or it didn't
   // load), warframe.market's thumbnail for `name` (a new arcane), then the game's icon for its kind
   // when the caller knows one, else a faint Orokin diamond.
-  let { file, size = 120, dim = false, alt = "", fallback = null, name = null }: { file: string | null | undefined; size?: number; dim?: boolean; alt?: string; fallback?: GameIconName | null; name?: string | null } = $props();
+  let { file, size = 120, dim = false, alt = "", fallback = null, name = null, plain = false }: { file: string | null | undefined; size?: number; dim?: boolean; alt?: string; fallback?: GameIconName | null; name?: string | null; /** No well of its own: it sits in one already. */ plain?: boolean } = $props();
   let failed = $state<string[]>([]);
   const src = $derived([file, marketThumb(name)].find((f): f is string => !!f && !failed.includes(f)) ?? null);
   // The 128 px copy where the slot needs no more than that in device pixels (a 64 px slot on a 2x
@@ -14,7 +14,7 @@
   const large = $derived(size * (typeof devicePixelRatio === "number" ? devicePixelRatio : 1) > 128);
 </script>
 
-<span class="art" class:dim style:width="{size}px">
+<span class="art picwell" class:plain class:dim class:small={size < 56} style:width="{size}px">
   {#if src}
     <!-- A market thumbnail has no large copy. -->
     <img src={imageUrl(src, large && !src.startsWith("wfm."))} {alt} width={size} height={size} loading="lazy" decoding="async" onerror={() => src && (failed = [...failed, src])} />
@@ -26,17 +26,15 @@
 </span>
 
 <style>
-  /* The item stands on a dark contact shadow in a faint gold pool. Gradients behind it rather than
-     a drop-shadow filter on the picture: a blurred filter is redrawn with every card on every
-     scrolled frame, and on a long grid that was most of the cost of scrolling. */
+  /* The well itself is app.css's .picwell (lit, sunk, corner brackets). */
   .art {
-    /* Square at any width: a box narrowed by its container keeps its shape (and its pool of light)
+    /* Square at any width: a box narrowed by its container keeps its shape (and its light)
        instead of being squeezed into a tall strip. */
     position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none; aspect-ratio: 1; max-width: 100%;
-    background: radial-gradient(ellipse 40% 9% at 50% 89%, rgb(0 0 0 / 55%), transparent 75%),
-      radial-gradient(ellipse 60% 22% at 50% 92%, rgb(214 174 74 / 13%), transparent 70%),
-      radial-gradient(circle at 50% 45%, rgb(241 243 246 / 5%), transparent 62%);
   }
+  /* Inside a well of its own (a card's picture area): just the picture. */
+  .art.plain { background: none; box-shadow: none; }
+  .art.plain::before { display: none; }
   img { max-width: 100%; max-height: 100%; object-fit: contain; }
   /* Mastered or out of reach: greyed and darker (a colour filter, no blur). */
   .dim img { filter: grayscale(.55) brightness(.75); }

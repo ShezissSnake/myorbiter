@@ -12,6 +12,8 @@
   import { setIntent } from "../intent.svelte";
   import Thumb from "./Thumb.svelte";
   import GameIcon, { eraIcon, kindIcon } from "./GameIcon.svelte";
+  import Icon from "./Icon.svelte";
+  import { kindSlot } from "../core/kinds";
   import { MASTERY_CATEGORIES, masteryCategory } from "../core/views";
   import { trap } from "./trap";
   import { opens, shade } from "../motion";
@@ -143,7 +145,7 @@
               <button class="hit" class:on={i === at} onmouseenter={() => (at = i)} onfocus={() => (at = i)} onclick={() => pick(h)}>
                 {#if h.era}<GameIcon name={eraIcon(h.era)} size={24} />{:else}<Thumb file={h.image} size={24} />{/if}
                 <span class="n">{h.name}</span>
-                <span class="k">{#if kindIcon(h.kind, h.name)}<GameIcon name={kindIcon(h.kind, h.name)!} size={12} />{/if}{h.kind}</span>
+                <span class="k">{#if kindSlot(h.kind)}<span class="ki"><Icon name="kind-{kindSlot(h.kind)}" size={12} stroke={1.4} /></span>{:else if kindIcon(h.kind, h.name)}<GameIcon name={kindIcon(h.kind, h.name)!} size={12} />{/if}{h.kind}</span>
               </button>
               {#if ns && spares}<span class="ns"><NeverSoldTag name={ns.name} onsellagain={() => onsellagain([ns.id])} /></span>{/if}
             </li>
@@ -171,5 +173,6 @@
   .hit:focus-visible { outline: 1px solid var(--select); outline-offset: -1px; }
   .n { flex: 1; min-width: 0; color: var(--platinum); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .k { display: inline-flex; align-items: center; gap: .3rem; font-size: .74rem; color: var(--platinum-deep); white-space: nowrap; }
+  .k .ki { display: inline-flex; color: var(--sec); }
   p { margin: .2rem .3rem; }
 </style>

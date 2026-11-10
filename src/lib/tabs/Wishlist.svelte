@@ -28,6 +28,7 @@
   import { whileShown, whileShownEvery } from "../pane.svelte";
   import { inView, progressive } from "../progress.svelte";
   import { untrack } from "svelte";
+  import Kind from "../ui/Kind.svelte";
 
   let { model, settings = $bindable(), go = null }: { model: Model; settings: Settings; go?: ((to: string) => void) | null } = $props();
 
@@ -240,7 +241,7 @@
             <button class="art" onclick={() => details.open(w.c.unique)} aria-label="{w.c.name}: details" use:info={w.c.name}><Art file={w.c.image} size={96} fallback="foundry" /></button>
             <div class="wt">
               <button class="nm" onclick={() => details.open(w.c.unique)}><b class="mark">{w.c.name}</b></button>
-              <span class="register">{w.c.type}</span>
+              <span class="register"><Kind kind={w.c.type} size={12} /></span>
               <!-- A chamber or model already built: its blueprint is spent, so no chip says it's missing. -->
               {#if !w.c.partBuilt}<div class="chips">{#each w.c.parts.filter((p) => !p.resource) as p (p.name)}<PartChip part={p} size={30} />{/each}</div>{/if}
               <div class="sum">

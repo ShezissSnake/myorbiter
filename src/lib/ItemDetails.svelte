@@ -161,7 +161,7 @@
 </script>
 
 {#if item && c}
-  <Sheet bind:open={open.v} title={item.name} kicker={`${c.type}${c.masteryReq ? ` · Mastery rank ${c.masteryReq}` : ""}`} wide>
+  <Sheet bind:open={open.v} title={item.name} kind={c.type} kicker={`${c.type}${c.masteryReq ? ` · Mastery rank ${c.masteryReq}` : ""}`} wide>
     <span class="anchor" bind:this={anchor} hidden></span>
     <section class="hero">
       <Art file={c.image} size={230} alt={item.name} fallback={kindIcon(c.type, item.name) ?? "foundry"} />

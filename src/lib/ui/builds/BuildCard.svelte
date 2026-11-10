@@ -21,6 +21,7 @@
   import Icon from "../Icon.svelte";
   import GameIcon, { type GameIconName } from "../GameIcon.svelte";
   import Thumb from "../Thumb.svelte";
+  import Segments from "../Segments.svelte";
 
   /** What MyOrbiter's suggestion adds to a build: why each slot, better mods to get, a loadout, the ideal riven, its variants. */
   export interface Extras {
@@ -88,7 +89,6 @@
   const title = $derived(b.source === "orbiter" && !shown.saved ? (variantLabel ?? "Suggested build") : b.source === "orbiter" ? (b.title?.replace(/^(?:MyO|o)rbiter's suggestion \((.*)\)$/, "$1") ?? "MyOrbiter's suggestion") : (b.title ?? (b.source === "mine" ? "Your build" : site ? `${site.site} build` : "Pasted build")));
   const fav = $derived(!!b.favourite);
   // Capacity: how full, and how far over when it doesn't fit.
-  const fill = $derived(t.capacity > 0 ? Math.min(1, Math.max(0, t.drain) / t.capacity) : 0);
   const over = $derived(Math.max(0, t.drain - t.capacity));
   const doubled = $derived(t.catalyst ? t.rank / Math.max(1, t.capacity) : null);
 
@@ -166,7 +166,7 @@
         </div>
         <span class="register capword">Capacity</span>
         <div class="cap" title="Capacity: the mods drain {t.drain} of {t.capacity}{t.catalyst ? ` (rank ${t.rank}, doubled by the ${b.kind === 'warframe' || b.kind === 'companion' || b.kind === 'archwing' || b.kind === 'necramech' ? 'Reactor' : 'Catalyst'}, plus the aura or stance)` : ` (rank ${t.rank}, plus the aura or stance)`}">
-          <span class="meter"><span class="fillbar" class:over={over > 0} style:transform="scaleX({fill})"></span>{#if doubled}<span class="half" style:left="{doubled * 100}%"></span>{/if}</span>
+          <span class="meter"><Segments key="build:{b.id}" value={Math.max(0, t.drain)} max={Math.max(1, t.capacity)} tone={over > 0 ? "var(--oxblood)" : undefined} fill label="Capacity: {t.drain} of {t.capacity}" />{#if doubled}<span class="half" style:left="{doubled * 100}%"></span>{/if}</span>
           <span class="nums"><b>{t.drain}</b><span class="dim">/{t.capacity}</span>{#if over}<span class="bad small"> {over} over</span>{/if}</span>
         </div>
         <ul class="reasons">
@@ -289,11 +289,9 @@
   .cap { display: flex; align-items: center; gap: .7rem; margin: .3rem 0 .35rem; }
   .tags { display: inline-flex; flex-wrap: wrap; gap: .25rem; }
   .tagc { padding: .02rem .4rem; border: 1px solid color-mix(in srgb, var(--sec) 40%, var(--rule)); color: var(--platinum-dim); font-size: .72rem; }
-  .meter { position: relative; flex: 1; height: 6px; background: var(--well); border: 1px solid var(--rule-bright); overflow: hidden; }
-  .fillbar { position: absolute; inset: 0; background: var(--sec); transform-origin: left center; transition: transform var(--quick) var(--out); }
-  .fillbar.over { background: var(--oxblood); }
+  .meter { position: relative; flex: 1; display: flex; min-width: 0; }
   /* Where the rank alone ends: the Catalyst or Reactor doubles past it. */
-  .half { position: absolute; top: -1px; bottom: -1px; width: 1px; background: var(--platinum-dim); }
+  .half { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--platinum-dim); }
   .nums { font-family: var(--face-figures); font-size: .78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .nums b { color: var(--platinum); }
   .bad { color: var(--oxblood); }

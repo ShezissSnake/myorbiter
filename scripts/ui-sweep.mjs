@@ -33,12 +33,13 @@ if (!/^[0-9]{2,5}$/.test(port)) throw new Error(`not a port: ${port}`);
 const out = arg("--out") ? resolve(arg("--out")) : null;
 const url = `http://localhost:${port}/`;
 
-/** The app's minimum window (src-tauri/tauri.conf.json), the Steam Deck, a common laptop, 1080p. */
+/** The app's minimum window (src-tauri/tauri.conf.json), the Steam Deck, a common laptop, 1080p, 1440p. */
 const SIZES = [
   { w: 900, h: 560 },
   { w: 1280, h: 800 },
   { w: 1366, h: 768 },
   { w: 1920, h: 1080 },
+  { w: 2560, h: 1440 },
 ].filter((s) => !arg("--only") || arg("--only") === `${s.w}x${s.h}`);
 
 /**

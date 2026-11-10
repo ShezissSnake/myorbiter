@@ -8,6 +8,7 @@
   import { nearTraceCap, traceCap, voidTraces, TO_RADIANT } from "../core/traces";
   import GameIcon, { relicIcon } from "./GameIcon.svelte";
   import { eraTint } from "./table";
+  import Vessel from "./Vessel.svelte";
 
   let { model, masteryRank = null, era = null, onera = null }: { model: Model; masteryRank?: number | null; era?: string | null; onera?: ((era: string) => void) | null } = $props();
 
@@ -17,7 +18,6 @@
   const near = $derived(nearTraceCap(traces, cap));
   /** The meter's scale: the cap, or (rank unknown) the next thousand above what you hold. */
   const scale = $derived(cap ?? Math.max(1000, Math.ceil((traces + 1) / 1000) * 1000));
-  const fill = $derived(Math.min(1, traces / scale));
   const refines = $derived(Math.floor(traces / TO_RADIANT));
   const n = (x: number) => x.toLocaleString("en");
   const eraTitle = (e: { era: string; total: number; radiant: number }) =>
@@ -43,10 +43,8 @@
       <span class="register">Void Traces</span>
       <span class="m-fig"><b>{n(traces)}</b>{#if cap != null}<span class="of">/{n(cap)}</span>{/if}</span>
     </div>
-    <div class="gauge" role="meter" aria-label="Void Traces against the cap" aria-valuemin={0} aria-valuemax={scale} aria-valuenow={Math.min(traces, scale)} style:--fill={fill} style:--tick="{(TO_RADIANT / scale) * 100}%">
-      <i class="f"></i>
-      {#if cap != null}<i class="zone" style:--zone="{(TO_RADIANT / scale) * 100}%"></i>{/if}
-    </div>
+    <!-- Traces against the cap, a mark etched every 100 (one relic to Radiant). -->
+    <div class="gauge"><Vessel key="traces" value={Math.min(traces, scale)} max={scale} units={scale / TO_RADIANT <= 40 ? scale / TO_RADIANT : 0} tone={near ? "var(--alert)" : undefined} label="Void Traces against the cap" /></div>
     <span class="m-note">{refines ? `Enough for ${n(refines)} Radiant` : "Not enough to refine one"}{#if cap != null}{" · "}{near ? (traces >= cap ? "at the cap: refine some" : "near the cap: refine some") : `${n(cap - traces)} until the cap`}{:else}{" · cap once your rank is read"}{/if}</span>
   </div>
 </section>
@@ -90,13 +88,6 @@
   .m-fig b { font-family: var(--face-mark); font-size: 1.35rem; font-weight: 700; color: var(--platinum); font-variant-numeric: tabular-nums; }
   .m-fig .of { color: var(--platinum-deep); font-size: .8rem; font-variant-numeric: tabular-nums; }
   /* Traces against the cap, a notch every 100 (one relic to Radiant); the last 100 before the cap marked. */
-  .gauge {
-    position: relative; height: 8px; background: var(--well); box-shadow: inset 0 0 0 1px var(--rule);
-  }
-  .gauge::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(var(--tick) - 1px), var(--slab) calc(var(--tick) - 1px) var(--tick)); }
-  .gauge .f { position: absolute; inset: 0 auto 0 0; width: calc(var(--fill) * 100%); background: var(--sec); }
-  .gauge .zone { position: absolute; inset: -3px 0 -3px auto; width: var(--zone); border-left: 1px solid var(--rule-control); }
-  .near .gauge .f { background: var(--alert); }
   .near .m-fig b { color: var(--alert); }
   .m-note { font-size: .72rem; color: var(--platinum-deep); }
   /* Page area under 950 px: the eras take the whole row, each with room for its "143 radiant", and

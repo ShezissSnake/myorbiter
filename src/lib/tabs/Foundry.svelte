@@ -26,6 +26,7 @@
   import CodexRings from "../ui/CodexRings.svelte";
   import { codexRings, someNames } from "../core/codex";
   import { takeIntent } from "../intent.svelte";
+  import Kind from "../ui/Kind.svelte";
 
   let { model, settings = $bindable() }: { model: Model; settings: Settings } = $props();
 
@@ -74,7 +75,7 @@
   const pieces = (c: CollectionItem) => c.parts.filter((p) => !p.resource).length;
   const columns: Column<CollectionItem>[] = [
     { key: "name", label: "Name", value: (c) => c.name, cell: nameCell, defaultDesc: false, width: "22rem" },
-    { key: "type", label: "Type", value: (c) => c.type, muted: true, defaultDesc: false, minor: true },
+    { key: "type", label: "Type", value: (c) => c.type, muted: true, defaultDesc: false, minor: true, cell: kindCell },
     // Not mastered first, then what you own, then the most parts in hand.
     { key: "close", label: "Closest to done", value: (c) => (pieces(c) ? `${pieces(c) - missing(c)}/${pieces(c)} parts` : null), sortValue: (c) => (c.mastered ? -1 : (c.owned ? 2 : 0) + have(c)), align: "right", muted: true, title: "Parts in hand or building. Sorted: not mastered first, then what you own, then the most parts in hand" },
     { key: "points", label: "Mastery", value: (c) => c.points, sortValue: (c) => (c.mastered ? -1 : c.points), align: "right", cell: pointsCell, title: "The mastery points it gives. Sorted: not mastered first" },
@@ -134,6 +135,7 @@
   const missing = (c: CollectionItem) => c.parts.filter((p) => !p.resource && p.have < p.required && !p.building).length;
 </script>
 
+{#snippet kindCell(c: CollectionItem)}<Kind kind={c.type} />{/snippet}
 {#snippet nameCell(c: CollectionItem)}<Named file={c.image} name={c.name}>{#if favs.has(c.unique)}<span class="star" title="On your wishlist">★</span>{/if}</Named>{/snippet}
 {#snippet pointsCell(c: CollectionItem)}<span class="pts" class:dim={c.mastered}><GameIcon name="mastery" size={12} />{c.points.toLocaleString("en")}</span>{/snippet}
 {#snippet priceCell(c: CollectionItem)}{#if c.setPrice != null}<P v={Math.round(c.setPrice)} />{/if}{/snippet}

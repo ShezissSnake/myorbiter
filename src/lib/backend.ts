@@ -33,6 +33,7 @@ import type { Notice } from "./notices";
 import { DEFAULT_BUILDS_MAX_AGE_DAYS, sanitizeBuilds, sanitizeMaxAgeDays, type Build } from "./core/builds/types";
 import { defaultUpdates, sanitizeUpdates, type Channel, type Install, type UpdateSettings } from "./core/updates";
 import type { NoxAnswer, NoxFetcher, NoxListing, NoxPage } from "./core/builds/noxsframe";
+import { meterMemoryOf } from "./core/meterMemory";
 
 
 /** warframe.market's platforms: whose market MyOrbiter reads and lists on. */
@@ -235,6 +236,8 @@ export interface Settings {
   folded: boolean | null;
   /** The sidebar's sections you closed (their bars fold them): section names. Absent: open. */
   sectionsClosed: string[];
+  /** What each meter last showed, oldest first (core/meterMemory.ts): a changed value moves from it. */
+  meters: [string, number][];
   /** The Planner's view: relics to crack for sets, or relics worth making radiant. */
   plannerMode: "sets" | "radiant";
   /** Settings layout version, for one-off moves when a default changes. */
@@ -475,6 +478,7 @@ export const defaultSettings = (): Settings => ({
   tab: "home",
   folded: null,
   sectionsClosed: [],
+  meters: [],
   plannerMode: "sets",
   schema: 2,
   notifiedInvasions: [],
@@ -893,6 +897,8 @@ export async function loadSettings(): Promise<Settings> {
     folded: typeof raw?.folded === "boolean" ? raw.folded : null,
     // Only the four sections' names, once each: anything else is dropped.
     sectionsClosed: Array.isArray(raw?.sectionsClosed) ? [...new Set(raw.sectionsClosed.filter((k: unknown): k is string => typeof k === "string" && SECTION_NAMES.includes(k)))] : [],
+    // Pairs of a short key and a number only, each key once, at most METER_CAP.
+    meters: meterMemoryOf(raw?.meters),
     withoutInventory: raw?.withoutInventory === true,
     // A first start (no settings yet) asks; settings from before the question don't.
     fullModeAsked: raw ? raw.fullModeAsked !== false : false,
