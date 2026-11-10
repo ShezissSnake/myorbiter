@@ -392,7 +392,7 @@
        pushing the card wider than its quarter. */
     position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto auto 1fr auto; justify-items: center; text-align: center; gap: .45rem;
     min-height: 19rem; padding: .7rem .8rem 0; border: 1px solid var(--rule); border-bottom: 0;
-    background: linear-gradient(180deg, rgb(11 12 15 / 40%), var(--well));
+    background: linear-gradient(180deg, rgb(11 12 15 / 40%), var(--well)), var(--well);
     box-shadow: inset 0 -4px 0 var(--rar);
   }
   .rc.rar-Common { --rar: var(--rarity-common); }
@@ -419,7 +419,7 @@
   .rc-score b { font-family: var(--face-mark); font-size: 1.2rem; line-height: 1; color: var(--platinum-dim); font-variant-numeric: tabular-nums; }
   .rc-score .bars { height: 1rem; grid-template-columns: repeat(4, .55rem); gap: 2px; }
   /* The pick: lit by the Void, the frame in the section's violet, a glow that breathes. */
-  .rc.best { border-color: var(--sec); background: radial-gradient(ellipse 70% 45% at 50% 42%, color-mix(in srgb, var(--sec) 22%, transparent), transparent 70%), linear-gradient(180deg, rgb(11 12 15 / 40%), var(--well)); }
+  .rc.best { border-color: var(--sec); background: radial-gradient(ellipse 70% 45% at 50% 42%, color-mix(in srgb, var(--sec) 22%, transparent), transparent 70%), linear-gradient(180deg, rgb(11 12 15 / 40%), var(--well)), var(--well); }
   /* The frame and a tight glow stay; the wide glow over it breathes by its opacity alone, which the
      compositor runs without redrawing the card (a breathing box-shadow repainted it every frame
      for as long as the page was open). */
@@ -436,7 +436,7 @@
   .relic-slot { box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--tint, var(--sec)) 70%, transparent); }
   .relic-slot .rc-name { min-height: 0; color: color-mix(in srgb, var(--tint, var(--platinum)) 75%, var(--platinum)); }
   .ref-word { font-size: 11px; color: var(--platinum-deep); }
-  .empty-slot { border-style: dashed; border-color: var(--rule-bright); background: none; }
+  .empty-slot { border-style: dashed; border-color: var(--rule-bright); background: var(--well); }
   .slot .rc-art { height: 6.5rem; }
   .empty-slot .rc-art :global(.gi) { opacity: .3; filter: saturate(.4); }
   .slot-word { font-size: .76rem; color: var(--platinum-deep); }
