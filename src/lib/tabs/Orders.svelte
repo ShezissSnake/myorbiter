@@ -940,7 +940,7 @@
             </td>
             <td class="fade c-comp" data-label="Market price">
               {#if p && p.competitor.price != null}
-                <span class="comp"><P v={p.competitor.price} /> <span class="dim small">{p.competitor.cheapest?.name} · <span class="nowrap" title="Sellers online or in game, one order each">{p.competitor.sellers} online</span>{#if p.competitor.lowest && p.competitor.lowest.platinum !== p.competitor.price}<span title="{p.competitor.lowest.name ?? 'One seller'} asks {p.competitor.lowest.platinum}p, the cheapest. The cheapest alone isn't followed, the second-cheapest is, so one listing (bait or a mistake) can't pull your price down. Buy it if it's a deal."> · cheapest {p.competitor.lowest.platinum}p</span>{/if}</span></span>
+                <span class="comp"><P v={p.competitor.price} /> <span class="dim small"><span class="who" title={p.competitor.cheapest?.name ?? undefined}>{p.competitor.cheapest?.name}</span>&nbsp;· <span class="nowrap" title="Sellers online or in game, one order each">{p.competitor.sellers} online</span>{#if p.competitor.lowest && p.competitor.lowest.platinum !== p.competitor.price}<span class="nowrap" title="{p.competitor.lowest.name ?? 'One seller'} asks {p.competitor.lowest.platinum}p, the cheapest. The cheapest alone isn't followed, the second-cheapest is, so one listing (bait or a mistake) can't pull your price down. Buy it if it's a deal."> · cheapest {p.competitor.lowest.platinum}p</span>{/if}</span></span>
                 {@const goes = goesFor(p)}
                 {#if goes != null}<div class="register goes" title="Every seller online or in game asks more than twice what it really goes for: what it sold for lately, or what sellers on the site ask if that's lower ({p.competitor.askLevel ?? '–'}p, in game or not). Priced at that, so it sells.">goes for ~{goes}p</div>
                 {:else if p.competitor.ladder.length > 1}<div class="register ladder" title="The market price and the next ones up, sellers online or in game">{p.competitor.ladder.join(" · ")}</div>{/if}
@@ -1187,7 +1187,8 @@
   .fix button { white-space: nowrap; }
   :global(html[data-room~="lt1100"]) .fix { padding-left: 0; }
 
-  .alert { border: 1px solid var(--oxblood); color: var(--oxblood); padding: .7rem 1rem; margin: var(--step) 0; font-size: .84rem; }
+  /* The page's error box; not the tags of the same name ("over market"), which keep the tag's own look. */
+  div.alert { border: 1px solid var(--oxblood); color: var(--oxblood); padding: .7rem 1rem; margin: var(--step) 0; font-size: .84rem; }
   .panel { border: 1px solid var(--rule); background: var(--plate); padding: 1.2rem 1.4rem; margin: var(--step) 0; display: grid; gap: .8rem; }
   .signin h2 { font-size: 1.9rem; }
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
@@ -1273,6 +1274,8 @@
   /* Against lowest: a tag, red when someone is under you. Narrow windows keep the market price's own "cheapest" note instead. */
   .tag.vs { margin-left: 0; }
   .orders :is(th, td).vslow { width: 1%; white-space: nowrap; }
+  /* Its heading on two lines: the tags under it are short, the room goes to the market price. */
+  .orders th.vslow { white-space: normal; line-height: 1.35; }
   .tag.vs.under { color: var(--oxblood); border-color: color-mix(in srgb, var(--oxblood) 55%, transparent); background: color-mix(in srgb, var(--oxblood) 14%, transparent); }
   :global(html[data-room~="lt1100"]) .vslow { display: none; }
   .willnote { display: none; margin-top: .2rem; font-family: var(--face-register); font-size: .74rem; letter-spacing: .06em; color: var(--oxblood); white-space: nowrap; }
@@ -1292,7 +1295,7 @@
   :global(html[data-room~="lt760"]) table.orders thead { display: none; }
   :global(html[data-room~="lt760"]) table.orders, :global(html[data-room~="lt760"]) table.orders tbody { display: block; }
   :global(html[data-room~="lt760"]) .orders tr.order { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto auto; grid-template-areas: "item item item item item item" "qty price comp auto shown acts"; column-gap: .6rem; row-gap: .45rem; align-items: end; padding: .7rem .6rem; border-bottom: 1px solid var(--rule); }
-  :global(html[data-room~="lt760"]) .orders tr.order > td { display: block; border: 0; padding: 0 !important; }
+  :global(html[data-room~="lt760"]) .orders tr.order > td { display: block; height: auto; border: 0; padding: 0 !important; }
   :global(html[data-room~="lt760"]) .orders tr.order > td:is(.willset, .floorcol, .vslow) { display: none; }
   :global(html[data-room~="lt760"]) .orders tr.order > td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .25rem; font-family: var(--face-register); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-deep); text-align: left; white-space: nowrap; }
   :global(html[data-room~="lt760"]) .orders .c-item { grid-area: item; }
@@ -1320,7 +1323,13 @@
   tr.hidden td.fade :global(img), tr.hidden td.fade :global(.mk) { opacity: .45; }
   .right { text-align: right; }
   .center { text-align: center; }
+  /* One height for every listing (a cell's height is its least): one with a ladder or a tag under it no taller than the rest. */
+  .orders tr.order:not(.ghost) > td { height: 3.65rem; }
   .comp { display: inline-flex; align-items: center; gap: .45rem; }
+  /* The seller's name cut short (whole on hover), so who sets it, how many sell and the cheapest
+     take two lines at most and the row keeps its height. */
+  .comp .who { display: inline-block; max-width: 6.5rem; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+  :global(html[data-room~="lt1100"]) .comp .who { max-width: 4.5rem; }
   /* "3 in game" stays on one line when the seller's name wraps. */
   .nowrap { white-space: nowrap; }
   .ladder { margin-top: .15rem; font-size: 11px; }
