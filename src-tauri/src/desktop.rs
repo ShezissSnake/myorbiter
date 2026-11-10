@@ -109,7 +109,8 @@ fn reason(e: &str) -> String {
 }
 
 /// What the send said, or that it said nothing within `wait` (the service is stuck) or the sending
-/// thread ended without an answer.
+/// thread ended without an answer. A service that answers after `wait` may still show the
+/// notification: the page was told it couldn't be sent, which is what it knew at the time.
 pub fn sent(answer: &std::sync::mpsc::Receiver<Result<(), String>>, wait: std::time::Duration) -> Result<(), String> {
     match answer.recv_timeout(wait) {
         Ok(r) => r,

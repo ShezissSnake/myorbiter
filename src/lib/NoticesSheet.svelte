@@ -119,10 +119,14 @@
   // The test notification: sent after a few seconds, by the same route as the real ones, and then
   // the panel says what became of it.
   let testing = $state(false);
+  /** The five seconds before it goes; after that it is the send itself that is awaited. */
+  let counting = $state(false);
   let tested = $state<NoticeOutcome | null>(null);
   async function sendTest() {
     if (testing) return;
     testing = true;
+    counting = true;
+    setTimeout(() => (counting = false), TEST_WAIT_MS);
     tested = null;
     try {
       tested = await test();
@@ -213,7 +217,7 @@
         While you're looking at MyOrbiter: a notification shows by the sidebar for a few seconds. Click it to open what it's about.
       </Switch>
       <Switch bind:on={settings.notifyOptions.desktop} label="Desktop notifications">
-        While MyOrbiter is behind other windows (or you're in the game): your desktop's notifications{console ? "" : ", where a click brings MyOrbiter up on what it's about (Linux and Windows)"}. Off: only Recent. Your desktop can still hold them back: Do Not Disturb does, and KDE turns it on by itself while a fullscreen window such as the game is in front (System Settings → Notifications).
+        While MyOrbiter is behind other windows (or you're in the game): your desktop's notifications{console ? "" : ", where a click brings MyOrbiter up on what it's about (Linux and Windows)"}. Off: only Recent. Your desktop can still hold them back: Do Not Disturb does, and recent KDE Plasma turns it on by itself while a fullscreen window such as the game is in front (System Settings → Notifications).
       </Switch>
       {#if !console}
         <Switch bind:on={settings.notifyOptions.quietInFissure} label="Quiet while I'm in a fissure">
@@ -221,9 +225,9 @@
         </Switch>
       {/if}
       <div class="testrow">
-        <button class="stamp" disabled={testing} onclick={sendTest} title={`Sends a notification in ${TEST_WAIT_MS / 1000} seconds by the route the real ones take, and says what became of it. Nothing is saved.`}>{testing ? `Sending in ${TEST_WAIT_MS / 1000} seconds…` : "Send a test notification"}</button>
+        <button class="stamp" disabled={testing} onclick={sendTest} title={`Sends a notification in ${TEST_WAIT_MS / 1000} seconds by the route the real ones take, and says what became of it. Nothing is saved.`}>{testing ? (counting ? `Sending in ${TEST_WAIT_MS / 1000} seconds…` : "Sending…") : "Send a test notification"}</button>
         <span class="small" class:warn-text={tested?.how === "failed"} role="status">
-          {#if testing}Click away to another window to try your desktop's notification; stay here and it shows in MyOrbiter.{:else if tested}{outcomeText(tested)}{tested.how === "app" ? ". MyOrbiter was in front: to try the desktop, click away from it during the countdown." : tested.how === "desktop" ? ". If nothing appeared, your desktop held it back: see Do Not Disturb under Desktop notifications." : ""}{/if}
+          {#if testing && counting}Click away to another window to try your desktop's notification; stay here and it shows in MyOrbiter.{:else if tested && !testing}{outcomeText(tested)}{tested.how === "app" ? ". MyOrbiter was in front: to try the desktop, click away from it during the countdown." : tested.how === "desktop" ? ". If nothing appeared, your desktop held it back: see Do Not Disturb under Desktop notifications." : ""}{/if}
         </span>
       </div>
       <div class="discord">

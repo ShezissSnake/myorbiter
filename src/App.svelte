@@ -724,7 +724,8 @@
   /** Writes what became of a notification's pop-up on its history entry, and in the log. */
   function noteOutcome(n: Notice, gate: NoticeKind | "test", outcome: NoticeOutcome) {
     logLine(outcome.how === "failed" ? "warn" : "info", "notice", `${gate}: ${n.title.slice(0, 80)} → ${outcomeText(outcome)}`);
-    const i = settings.game.notices.findIndex((x) => x.id === n.id);
+    // Only while the entry still says what the pop-up said: a repricing notice that grew since has a text of its own.
+    const i = settings.game.notices.findIndex((x) => x.id === n.id && x.title === n.title);
     if (i >= 0) settings.game.notices[i] = { ...settings.game.notices[i], outcome };
   }
   /**
